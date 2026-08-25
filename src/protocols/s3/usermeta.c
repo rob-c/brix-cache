@@ -19,6 +19,7 @@
 #include "s3.h"
 #include "usermeta.h"
 #include "core/compat/uri.h"
+#include "core/http/http_headers.h"   /* brix_http_request_is_tls */
 #include "fs/vfs/vfs.h"
 
 #include <errno.h>
@@ -40,11 +41,7 @@ s3_user_meta_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
 {
     ngx_http_s3_req_ctx_t *s3ctx =
         ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
-    int is_tls = 0;
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    int is_tls = brix_http_request_is_tls(r);
 
     brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
         cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,

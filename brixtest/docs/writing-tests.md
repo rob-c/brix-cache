@@ -13,6 +13,14 @@ spelling for `execution()`. Declarations create their own typed references
 an owner object. Explicit `*_ref()` factories remain for migrations and
 generic tooling.
 
+References describe intent, not a pre-rendered string. For example,
+`origin.url("http")` resolves to an in-cluster Service address when consumed by
+a Kubernetes server or tool and to the supervised forwarded address when
+consumed by the helper. Likewise, `payload.ref()` and `program.ref()` resolve
+to projected pod/image paths remotely and retained run paths locally. If a
+backend cannot provide a safe representation, planning reports the consuming
+resource instead of allowing a host path to escape into it.
+
 ```python
 from brixtest import (
     case, execution, http_endpoint, http_probe, noise, server,
@@ -73,6 +81,12 @@ def test_download(run):
 Clients return BriXTest's immutable `CommandResult`, capture text output, use
 no shell, and raise on non-zero status by default. Pass `check=False`,
 `timeout=...`, `input=...`, or extra environment values to `run()` as needed.
+Set `mode="pty"` on `client()`, `tool()`, `execution()`, or `run.command()` when
+the program requires a real terminal. BriXTest attaches stdin/stdout/stderr to
+one resized PTY, streams terminal output while retaining a bounded transcript,
+and applies the same deadline and process-tree termination locally, through
+Docker/Podman, and in Kubernetes. Declared `input=` remains deterministic and
+portable; use `mode="capture"` for binary-safe, non-terminal stdin.
 
 `run.command()` provides the same result and shell-free behavior for one-off
 commands. `CommandResult` has decoded string `stdout`/`stderr`, `returncode`,
@@ -105,7 +119,8 @@ checksummed empty config so the provenance schema remains uniform.
 Servers may depend on other declared servers with `depends_on=[auth]`. BriXTest
 starts dependency levels in order and tears them down in reverse order.
 Servers are case-scoped by default. `function`, `class`, `module`, `package`,
-and `session` lifetimes follow pytest's familiar vocabulary. Collection derives
+and `session` lifetimes follow pytest's familiar vocabulary. `worker` is an
+explicit xdist-local lifetime. Collection derives
 immutable shared pools for class/module/package/session resources;
 `run.server()` is unchanged, and every attempt records the exact instance ID
 it consumed. See [Dynamic topology](dynamic-topology.md).
@@ -127,7 +142,11 @@ BriXTest parses managed modules before pytest imports them and rejects unsafe
 module-scope native imports, process/network calls, sleeps, loops, and dynamic
 execution. The function body runs on a dedicated worker thread inside the
 per-attempt helper process. If native code blocks the worker or its interpreter,
-the controller remains a separate process and enforces the whole-case timeout.
+an independent helper heartbeat expires and the controller terminates the
+whole helper process tree. `BRIXTEST_HEARTBEAT_TIMEOUT` may shorten or lengthen
+that liveness bound for unusually long native calls; the absolute `case`
+timeout remains authoritative and is enforced by the separate controller
+process.
 
 ## Inputs and binaries
 
@@ -167,10 +186,12 @@ Inspect the fully collected declarations without creating inputs or processes:
 brixtest design tests/test_<feature>.py
 ```
 
-`pytest-xdist` may distribute managed controller items with `-n auto`; each
-worker owns its normal pytest-scoped resource pools and still supervises a
-separate helper for every attempt. This mirrors pytest's worker-local session
-fixture semantics and is recorded explicitly in topology provenance.
+`pytest-xdist` may distribute managed controller items with `-n auto`. Every
+worker publishes its immutable plans before execution; an authenticated,
+controller-owned topology broker merges them and owns class/module/package/
+session pools once for the whole pytest session. Each attempt still runs in a
+separate supervised helper. Choose `scope="worker"` when duplication per xdist
+worker is intentional; that decision is recorded in topology provenance.
 
 Each managed item is deliberately a separate pytest helper session. Ordinary
 fixtures retain normal setup/yield-teardown behavior inside that item; do not

@@ -19,32 +19,7 @@
 
 #include "acc.h"
 #include "core/compat/alloc_guard.h"
-
-/* ---- Trim leading/trailing ASCII blanks from a [s, s+len) slice ----
- *
- * WHAT: advances *s and shrinks *len so the slice excludes surrounding spaces
- *   and tabs; a slice that is all blanks collapses to length 0.
- *
- * WHY: CSV fields may carry decorative whitespace ("cms, atlas"); the access
- *   engine compares attribute strings byte-for-byte, so blanks must be stripped
- *   before a token is stored or a field is judged empty.  Kept separate so the
- *   trim rule lives in one place and the emit helper stays flat.
- *
- * HOW: (1) skip leading blanks by advancing *s / decrementing *len; (2) drop
- *   trailing blanks by decrementing *len while the last byte is blank.
- */
-static void
-acc_csv_trim(const char **s, size_t *len)
-{
-    const char *b = *s;
-    size_t      n = *len;
-
-    while (n > 0 && (*b == ' ' || *b == '\t')) { b++; n--; }
-    while (n > 0 && (b[n - 1] == ' ' || b[n - 1] == '\t')) { n--; }
-
-    *s   = b;
-    *len = n;
-}
+#include "core/types/identity.h"   /* brix_identity_trim_ws — the CSV trim rule */
 
 /* ---- Trim then push one CSV field onto the token array ----
  *
@@ -68,7 +43,7 @@ acc_csv_push_field(ngx_pool_t *pool, ngx_array_t *out,
     char      **slot;
     char       *tok;
 
-    acc_csv_trim(&s, &len);
+    brix_identity_trim_ws(&s, &len);
 
     slot = ngx_array_push(out);
     if (slot == NULL) {

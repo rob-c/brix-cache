@@ -32,6 +32,23 @@ ngx_int_t brix_validate_path(ngx_conf_t *cf, const char *label,
     const ngx_str_t *path, brix_path_kind_t kind, int access_mode);
 
 /*
+ * brix_conf_parse_addr — resolve a host:port directive argument into a
+ * pool-allocated ngx_addr_t (first resolved address; an explicit port is
+ * required).  `directive` names the caller in the emerg message.  Returns
+ * NULL on resolve or allocation failure (resolve failure is logged).
+ */
+ngx_addr_t *brix_conf_parse_addr(ngx_conf_t *cf, ngx_str_t *spec,
+    const char *directive);
+
+/*
+ * brix_conf_upstream_directive — whole-directive worker for the one-argument
+ * `<directive> host:port` upstream setters: duplicate check on *slot, record
+ * the raw spec in *name, resolve into *slot, log the configured target.
+ */
+char *brix_conf_upstream_directive(ngx_conf_t *cf, ngx_command_t *cmd,
+    ngx_str_t *name, ngx_addr_t **slot);
+
+/*
  * brix_copy_conf_string — duplicate a C string from an ngx_str_t source
  * into a NUL-terminated ngx_str_t using ngx_pnalloc from cf->pool.
  *

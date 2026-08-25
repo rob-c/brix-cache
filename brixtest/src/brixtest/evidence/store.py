@@ -66,6 +66,32 @@ CREATE TABLE IF NOT EXISTS evidence_test_server_links (
 );
 CREATE INDEX IF NOT EXISTS evidence_tests_by_server
   ON evidence_test_server_links(session_id, instance_id, nodeid);
+CREATE TABLE IF NOT EXISTS evidence_resource_nodes (
+  session_id TEXT NOT NULL, case_id TEXT NOT NULL, attempt_id TEXT NOT NULL,
+  nodeid TEXT NOT NULL, resource_id TEXT NOT NULL, kind TEXT NOT NULL,
+  name TEXT NOT NULL, backend TEXT NOT NULL, environment TEXT NOT NULL,
+  execution_group TEXT NOT NULL, fingerprint TEXT NOT NULL,
+  requirements TEXT NOT NULL, payload TEXT NOT NULL,
+  PRIMARY KEY(session_id, attempt_id, resource_id)
+);
+CREATE INDEX IF NOT EXISTS evidence_resources_by_kind
+  ON evidence_resource_nodes(session_id, kind, backend, name);
+CREATE TABLE IF NOT EXISTS evidence_resource_links (
+  session_id TEXT NOT NULL, case_id TEXT NOT NULL, attempt_id TEXT NOT NULL,
+  nodeid TEXT NOT NULL, ordinal INTEGER NOT NULL, source TEXT NOT NULL,
+  target TEXT NOT NULL, relation TEXT NOT NULL, graph_fingerprint TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  PRIMARY KEY(session_id, attempt_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS evidence_resource_relationships
+  ON evidence_resource_links(session_id, relation, source, target);
+CREATE TABLE IF NOT EXISTS evidence_test_resource_links (
+  session_id TEXT NOT NULL, case_id TEXT NOT NULL, attempt_id TEXT NOT NULL,
+  nodeid TEXT NOT NULL, resource_id TEXT NOT NULL,
+  PRIMARY KEY(session_id, attempt_id, resource_id)
+);
+CREATE INDEX IF NOT EXISTS evidence_tests_by_resource
+  ON evidence_test_resource_links(session_id, resource_id, nodeid);
 CREATE VIEW IF NOT EXISTS evidence_latest_metrics AS
   SELECT * FROM evidence_metrics WHERE session_id = (
     SELECT session_id FROM sessions ORDER BY generated_at DESC LIMIT 1
@@ -108,6 +134,9 @@ def write_entities(connection: sqlite3.Connection, payload: Mapping[str, object]
     connection.execute("DELETE FROM evidence_server_pools WHERE session_id = ?", (session_id,))
     connection.execute("DELETE FROM evidence_server_instances WHERE session_id = ?", (session_id,))
     connection.execute("DELETE FROM evidence_test_server_links WHERE session_id = ?", (session_id,))
+    connection.execute("DELETE FROM evidence_resource_nodes WHERE session_id = ?", (session_id,))
+    connection.execute("DELETE FROM evidence_resource_links WHERE session_id = ?", (session_id,))
+    connection.execute("DELETE FROM evidence_test_resource_links WHERE session_id = ?", (session_id,))
     for row in iter_entities(session):
         _write_entity(connection, session_id, row)
 
@@ -142,6 +171,8 @@ def _write_entity(
         "metric": _write_metric,
         "server-pool": _write_server_pool,
         "server-instance": _write_server_instance,
+        "resource-node": _write_resource_node,
+        "resource-link": _write_resource_link,
     }
     handler = handlers.get(str(fields["entity"]))
     if handler is not None:
@@ -205,6 +236,34 @@ def _write_server_instance(connection, session_id, row, fields) -> None:
             "INSERT OR REPLACE INTO evidence_test_server_links VALUES(?, ?, ?, ?, ?)",
             (session_id, fields["case_id"], fields["attempt_id"], fields["nodeid"], instance_id),
         )
+
+
+def _write_resource_node(connection, session_id, row, fields) -> None:
+    resource_id = str(row.get("resource_id", row.get("id", "")))
+    if not resource_id:
+        return
+    connection.execute(
+        "INSERT OR REPLACE INTO evidence_resource_nodes VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (session_id, fields["case_id"], fields["attempt_id"], fields["nodeid"],
+         resource_id, str(row.get("kind", "")), str(row.get("name", "")),
+         str(row.get("backend", "")), str(row.get("environment", "")),
+         str(row.get("group", "")), str(row.get("fingerprint", "")),
+         _text(row.get("requires", ())), _text(row)),
+    )
+    connection.execute(
+        "INSERT OR REPLACE INTO evidence_test_resource_links VALUES(?, ?, ?, ?, ?)",
+        (session_id, fields["case_id"], fields["attempt_id"], fields["nodeid"], resource_id),
+    )
+
+
+def _write_resource_link(connection, session_id, row, fields) -> None:
+    connection.execute(
+        "INSERT OR REPLACE INTO evidence_resource_links VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (session_id, fields["case_id"], fields["attempt_id"], fields["nodeid"],
+         fields["ordinal"], str(row.get("source", "")), str(row.get("target", "")),
+         str(row.get("relation", "")), str(row.get("graph_fingerprint", "")),
+         _text(row)),
+    )
 
 
 def query(path: Path, sql: str, parameters: Sequence[object] = ()) -> dict:

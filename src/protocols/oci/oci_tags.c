@@ -31,6 +31,7 @@
 
 #include "core/aio/aio.h"
 #include "core/http/http_headers.h"
+#include "core/http/http_file_response.h"   /* brix_http_finalize_memory_body */
 #include "fs/cache/origin/s3_transport.h"
 #include "observability/metrics/metrics.h"
 #include "observability/metrics/metrics_macros.h"
@@ -166,8 +167,6 @@ oci_tags_done(ngx_event_t *ev)
     ngx_http_request_t       *r = t->r;
     ngx_connection_t         *c = r->connection;
     ngx_http_brix_oci_ctx_t  *ctx;
-    ngx_buf_t                *b;
-    ngx_chain_t               out;
     ngx_int_t                 rc;
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_brix_oci_module);
@@ -222,21 +221,7 @@ oci_tags_done(ngx_event_t *ev)
         return;
     }
 
-    b = ngx_pcalloc(r->pool, sizeof(*b));
-    if (b == NULL) {
-        ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
-        ngx_http_run_posted_requests(c);
-        return;
-    }
-    b->pos = b->start = t->body;
-    b->last = b->end = t->body + t->body_len;
-    b->memory   = 1;
-    b->last_buf = 1;
-    out.buf  = b;
-    out.next = NULL;
-
-    ngx_http_finalize_request(r, ngx_http_output_filter(r, &out));
-    ngx_http_run_posted_requests(c);
+    brix_http_finalize_memory_body(r, t->body, t->body_len);
 }
 
 /* Build "<base>/v2/[<ns>/]<name>/tags/list[?<args>]". The namespace expansion
@@ -292,9 +277,11 @@ oci_tags_path(ngx_http_request_t *r, ngx_http_brix_oci_loc_conf_t *lcf,
 /* The location's thread pool, resolved lazily on first use. Mirrors the CVMFS
  * passthrough: postconfiguration resolves it per server, but a location that
  * inherited its config from a server without an explicit pool name still needs
- * the "default" fallback, and that lookup is only valid post-fork. */
-static ngx_thread_pool_t *
-oci_thread_pool(ngx_http_brix_oci_loc_conf_t *lcf)
+ * the "default" fallback, and that lookup is only valid post-fork. Exported
+ * (internal header): the D16 proof gate posts its mint task to the same pool
+ * this listing relay uses — one pool, one back-pressure story. */
+ngx_thread_pool_t *
+brix_oci_thread_pool(ngx_http_brix_oci_loc_conf_t *lcf)
 {
     static ngx_str_t   default_name = ngx_string("default");
     ngx_str_t         *pname;
@@ -328,7 +315,9 @@ brix_oci_listing_passthrough(ngx_http_request_t *r,
                               "listing requires brix_oci_mirror");
     }
 
-    pool = oci_thread_pool(lcf);
+    brix_oci_up_log_ensure(lcf);
+
+    pool = brix_oci_thread_pool(lcf);
     if (pool == NULL) {
         /* No pool means no blocking relay is possible; failing loudly beats a
          * synchronous curl on the event loop. */

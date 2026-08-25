@@ -154,6 +154,26 @@ http_davs_extras(const http_probe_ctx *pc, doctor_ep *e)
  * posture. For davs, also OPTIONS (WebDAV class) and PROPFIND (listing). Every probe
  * is bounded by the per-probe timeout. PII-free: only statuses/header-names/sizes.
  */
+/* Fill the HTTP probe context from the URL and zero-init the endpoint record
+ * with its proto/host/port — the shared prologue of the http/s3 deep-dives. */
+static void
+doctor_probe_init(const diag_args *a, const dx_url_t *u, int proto,
+                  http_probe_ctx *pc, doctor_ep *e)
+{
+    pc->tls = u->tls;
+    pc->host = u->host;
+    pc->port = u->port;
+    pc->path = u->path;
+    pc->tmo = a->probe_timeout_ms > 0 ? a->probe_timeout_ms : 8000;
+    pc->verify = a->verify_tls;
+
+    memset(e, 0, sizeof(*e));
+    e->proto = proto;
+    e->status = DOC_GREEN;
+    snprintf(e->host, sizeof(e->host), "%s", u->host);
+    e->port = u->port;
+}
+
 void
 doctor_http(const diag_args *a, const dx_url_t *u, doctor_ep *e)
 {
@@ -161,18 +181,7 @@ doctor_http(const diag_args *a, const dx_url_t *u, doctor_ep *e)
     brix_status    st;
     http_probe_ctx pc;
 
-    pc.tls = u->tls;
-    pc.host = u->host;
-    pc.port = u->port;
-    pc.path = u->path;
-    pc.tmo = a->probe_timeout_ms > 0 ? a->probe_timeout_ms : 8000;
-    pc.verify = a->verify_tls;
-
-    memset(e, 0, sizeof(*e));
-    e->proto = u->proto;
-    e->status = DOC_GREEN;
-    snprintf(e->host, sizeof(e->host), "%s", u->host);
-    e->port = u->port;
+    doctor_probe_init(a, u, u->proto, &pc, e);
 
     /* Stage 1: reachability + (TLS handshake/cert). Try HEAD; fall back to a 1-byte
      * ranged GET if HEAD is refused, so we still measure connect/TLS. */
@@ -325,18 +334,7 @@ doctor_s3(const diag_args *a, const dx_url_t *u, doctor_ep *e)
     const char    *ak = getenv("AWS_ACCESS_KEY_ID");
     const char    *sk = getenv("AWS_SECRET_ACCESS_KEY");
 
-    pc.tls = u->tls;
-    pc.host = u->host;
-    pc.port = u->port;
-    pc.path = u->path;
-    pc.tmo = a->probe_timeout_ms > 0 ? a->probe_timeout_ms : 8000;
-    pc.verify = a->verify_tls;
-
-    memset(e, 0, sizeof(*e));
-    e->proto = DXP_S3;
-    e->status = DOC_GREEN;
-    snprintf(e->host, sizeof(e->host), "%s", u->host);
-    e->port = u->port;
+    doctor_probe_init(a, u, DXP_S3, &pc, e);
 
     /* Stage 1: reachability + TLS via an unauthenticated GET. */
     brix_status_clear(&st);

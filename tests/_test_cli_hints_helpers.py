@@ -70,6 +70,10 @@ def _compile_probe(tmp_dir: pathlib.Path) -> pathlib.Path:
             str(client_lib),
             str(proto_lib),
             "-lssl", "-lcrypto", "-lz",
+            # libbrix.a may come from a --coverage build; linking with
+            # --coverage satisfies its __gcov_* references and is inert
+            # for uninstrumented objects.
+            "--coverage",
             "-o", str(probe_out),
         ], capture_output=True, text=True, timeout=30)
     if result.returncode != 0:
@@ -140,6 +144,9 @@ def _compile_suggest_probe(tmp_dir: pathlib.Path) -> pathlib.Path:
         str(SUGGEST_PROBE_SRC),
         str(client_lib),
         str(proto_lib),
+        # libbrix.a may come from a --coverage build; --coverage satisfies its
+        # __gcov_* references and is inert for uninstrumented objects.
+        "--coverage",
     ] + extra_libs + ["-o", str(probe_out)]
 
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)

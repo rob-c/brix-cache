@@ -254,22 +254,6 @@ brix_vfs_handle_sd_obj(const brix_vfs_file_t *fh, brix_sd_obj_t *obj)
     }
 }
 
-/* Map the backend's protocol-neutral stat into the VFS stat the callers see. */
-static ngx_inline void
-brix_vfs_sd_stat_to_vfs(const brix_sd_stat_t *in, brix_vfs_stat_t *out)
-{
-    ngx_memzero(out, sizeof(*out));
-    out->size = in->size;
-    out->mtime = in->mtime;
-    out->ctime = in->ctime;
-    out->mode = (ngx_uint_t) in->mode;
-    out->ino = in->ino;
-    out->uid = in->uid;
-    out->gid = in->gid;
-    out->is_directory = in->is_dir ? 1 : 0;
-    out->is_regular = in->is_reg ? 1 : 0;
-}
-
 /* Ask the handle's backend for a sendfile-able fd over [off, off+len), passing
  * the VFS's storage-neutral zero-copy verdict; returns the fd, or
  * NGX_INVALID_FILE when the backend declines (or has no read_sendfile_fd slot).

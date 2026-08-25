@@ -33,7 +33,13 @@ from utils.make_token import TokenIssuer  # noqa: E402
 from settings import NGINX_BIN, HOST, BIND_HOST, TOKENS_DIR  # noqa: E402
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+# One worker for the module: the dig fixtures register FIXED spec names
+# (lc-dig / lc-dig-off, fixed catalogue ports) per test, so free-scheduled
+# across xdist workers two instantiations race on the same registry prefix —
+# observed as `nginx: [emerg] no "events" section` from a half-rendered
+# conf/nginx.conf another worker was rewriting.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-dig")]
 
 
 def _issuer():

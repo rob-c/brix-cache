@@ -13,10 +13,8 @@ def _tree_size(path: Path) -> int:
 
 
 def record_materialized_sizes(manager) -> None:
-    artifact_bytes = sum(item.size for item in manager.artifact_store._items.values())
-    binary_bytes = sum(
-        _tree_size(item.path.parent) for item in manager.binary_store._captured.values()
-    )
+    artifact_bytes = _artifact_bytes(manager)
+    binary_bytes = _binary_bytes(manager)
     manager.metrics.gauge("resources.artifact_bytes", artifact_bytes, unit="bytes")
     manager.metrics.gauge("resources.binary_bytes", binary_bytes, unit="bytes")
     manager.metrics.gauge(
@@ -25,15 +23,29 @@ def record_materialized_sizes(manager) -> None:
     manager.metrics.gauge(
         "resources.binaries", len(manager.binary_store._captured), unit="count"
     )
-    owned_volumes = (
+    manager.metrics.gauge(
+        "resources.volume_bytes", _volume_bytes(manager), unit="bytes",
+    )
+    manager.metrics.gauge(
+        "resources.task_outputs", _task_outputs(manager), unit="count",
+    )
+
+
+def _artifact_bytes(manager) -> int:
+    return sum(item.size for item in manager.artifact_store._items.values())
+
+
+def _binary_bytes(manager) -> int:
+    return sum(_tree_size(item.path.parent) for item in manager.binary_store._captured.values())
+
+
+def _volume_bytes(manager) -> int:
+    owned = (
         item for item in manager._managed.volumes._items.values()
         if item.kind not in ("host", "device")
     )
-    manager.metrics.gauge(
-        "resources.volume_bytes",
-        sum(_tree_size(item.path) for item in owned_volumes), unit="bytes",
-    )
-    manager.metrics.gauge(
-        "resources.task_outputs",
-        sum(len(item.outputs) for item in manager._managed.tasks.values()), unit="count",
-    )
+    return sum(_tree_size(item.path) for item in owned)
+
+
+def _task_outputs(manager) -> int:
+    return sum(len(item.outputs) for item in manager._managed.tasks.values())

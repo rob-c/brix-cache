@@ -142,8 +142,11 @@ cvmfs_var_class(ngx_http_request_t *r, ngx_http_variable_value_t *v,
 {
     ngx_http_brix_cvmfs_ctx_t *ctx =
         ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
+    /* Must cover every cvmfs_url_class_e value: REJECT is last (=5), so a
+     * missing entry here sends names[cls] past the array — strlen(NULL) in
+     * the log phase took the whole worker down (2026-08-24 crash trace). */
     static const char *names[] = { "cas", "manifest", "geo", "bundle",
-                                   "reject" };
+                                   "dict", "reject" };
 
     (void) data;
     if (ctx == NULL || ctx->url.cls > CVMFS_URL_REJECT) {

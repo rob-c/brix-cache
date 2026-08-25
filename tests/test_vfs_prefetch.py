@@ -42,6 +42,7 @@ from settings import HOST, BIND_HOST, NGINX_BIN
 def _phase_test_webdav_range_get_warms_successor_blocks_1(front):
     with pytest.raises(urllib.error.HTTPError) as ei:
         _get_range(front, "/f.bin", 7 * BLK, 8 * BLK - 1)
+    return ei
 
 
 def _check_test_webdav_range_get_warms_successor_blocks_1(metrics):
@@ -351,7 +352,7 @@ def test_webdav_range_get_warms_successor_blocks(lifecycle, tmp_path):
     # ERROR leg: an absent block with the origin gone fails cleanly (5xx, not
     # a hang or crash) and the front keeps answering /metrics.
     lifecycle.stop(HTTP_ORIGIN_NAME)
-    _phase_test_webdav_range_get_warms_successor_blocks_1(front)
+    ei = _phase_test_webdav_range_get_warms_successor_blocks_1(front)
     def _assert_test_webdav_range_get_warms_successor_blocks_4():
         assert ei.value.code >= 500
         assert _metric(metrics, "brix_cache_prefetch_jobs_total") is not None

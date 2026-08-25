@@ -115,8 +115,8 @@ brix_tpc_credential_type_name(brix_tpc_credential_type_t type)
  * WHY:  Callers pass free-form credential bytes that may carry surrounding
  *       spaces, tabs, or line endings from a header or file; sniffing must run
  *       on the bare value so the markers and length checks are exact.
- * HOW:  Advances the start past leading ' '/'\t' and shrinks the length past
- *       trailing ' '/'\t'/'\n'/'\r'. Pure pointer/length arithmetic, no copy.
+ * HOW:  Shrinks the length past trailing ' '/'\t'/'\n'/'\r', then advances the
+ *       start past leading ' '/'\t'. Pure pointer/length arithmetic, no copy.
  */
 static void
 brix_tpc_trim_credential(const u_char **data, size_t *len)
@@ -124,12 +124,12 @@ brix_tpc_trim_credential(const u_char **data, size_t *len)
     const u_char *p = *data;
     size_t        n = *len;
 
-    while (n > 0 && (*p == ' ' || *p == '\t')) {
-        p++;
-        n--;
-    }
     while (n > 0 && (p[n - 1] == ' ' || p[n - 1] == '\t'
                      || p[n - 1] == '\n' || p[n - 1] == '\r')) {
+        n--;
+    }
+    while (n > 0 && (*p == ' ' || *p == '\t')) {
+        p++;
         n--;
     }
 

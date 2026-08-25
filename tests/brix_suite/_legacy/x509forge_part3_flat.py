@@ -15,29 +15,29 @@ def _expression_1_next(rows):
     )
 
 
-def _expression_1(dn, suffix, self):
+def _expression_2(dn, suffix, self):
     return (
         dn or self.dn(suffix)
     )
 
-def _expression_2(policy_globs, ca_dn):
+def _expression_3(policy_globs, ca_dn):
     return (
         signing_policy_text(ca_dn, policy_globs)
                           if policy_globs is not None else None
     )
 
-def _expression_3(extra_crls):
+def _expression_4(extra_crls):
     return (
         dict(extra_crls or {})
     )
 
-def _expression_4(ca, self, name, policy, links, crls):
+def _expression_5(ca, self, name, policy, links, crls):
     return (
         _place_ca_in_dir(self.shared_ca, ca, name=name, policy_text=policy,
                                  crls=crls or None, links=links)
     )
 
-def _expression_5(rows, c, cred):
+def _expression_1(rows, c, cred):
     return (
         rows.append(dict(id=c.id, clause=c.clause, title=c.title, cred=cred or "",
                                  expected=c.expected, surface=c.surface, group=c.group,
@@ -255,7 +255,7 @@ class ForgeCtx:
         policy_globs → writes a <hash>.signing_policy granting those globs.
         revoke/empty_crl → writes a <hash>.r0 CRL. place=False mints without
         placing (unknown-CA tests). to_bundle appends to the bundle file."""
-        ca_dn = _expression_1(dn, suffix, self)
+        ca_dn = _expression_2(dn, suffix, self)
         ca = make_ca(ca_dn, **ca_kw)
         name = self._uid(suffix)
         if not place:
@@ -266,10 +266,10 @@ class ForgeCtx:
             with open(bundle, "ab") as fh:
                 fh.write(ca.pem)
             return ca
-        policy = (_expression_2(policy_globs, ca_dn))
-        crls = _expression_3(extra_crls)
+        policy = (_expression_3(policy_globs, ca_dn))
+        crls = _expression_4(extra_crls)
         _guard_ca_1(empty_crl, revoke, crls, ca)
-        _expression_4(ca, self, name, policy, links, crls)
+        _expression_5(ca, self, name, policy, links, crls)
         return ca
 
     def cred(self, chain: list[Cert], key_of: Cert | None = None) -> str:
@@ -302,7 +302,7 @@ def build_all(root: Path, clauses: list) -> Path:
         except Exception as exc:                      # noqa: BLE001
             errors.append((c.id, f"{type(exc).__name__}: {exc}"))
             continue
-        _expression_5(rows, c, cred)
+        _expression_1(rows, c, cred)
 
     (root / "manifest.json").write_text(json.dumps(rows, indent=2),
                                         encoding="utf-8")

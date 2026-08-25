@@ -29,6 +29,11 @@ def _expression_1(specs):
     )
 
 def _expression_2(port):
+    # Imported here, not read from module globals: the caller's function-local
+    # `from lib_py.util import pids_on_port` never reaches this scope, so the
+    # extracted expression NameError'd on every start-dedicated revive path.
+    from lib_py.util import pids_on_port  # noqa: PLC0415
+
     return (
         port and pids_on_port(int(port))
     )
@@ -122,7 +127,6 @@ def start_dedicated(name: str) -> int:
 
     _close(name)
     launcher = _launcher()
-    from lib_py.util import pids_on_port  # noqa: PLC0415
     from server_registry import endpoint_for  # noqa: PLC0415
 
     # ``specs`` is already dependency-ordered, so iterating it starts requires first.

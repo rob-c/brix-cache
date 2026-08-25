@@ -30,7 +30,7 @@ import pytest
 import settings
 
 
-def _phase_port_owners_1():
+def _phase_port_owners_1(hybrid_mesh_lib, claim):
     for key, port in hybrid_mesh_lib.PORTS.items():
         claim(port, f"hybrid-mesh:{key}")
 
@@ -99,7 +99,7 @@ def _port_owners() -> dict[int, list[str]]:
             claim(port, f"fleet:{spec.name}")
     for key, port in cms_mesh_lib.PORTS.items():
         claim(port, f"cms-mesh:{key}")
-    _phase_port_owners_1()
+    _phase_port_owners_1(hybrid_mesh_lib, claim)
 
     return _expression_1(owners)
 

@@ -69,11 +69,7 @@ webdav_move_probe(ngx_http_request_t *r, const char *path, struct stat *sb)
         ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     brix_vfs_ctx_t   vctx;
     brix_vfs_stat_t  vst;
-    int                is_tls = 0;
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    int                is_tls = brix_http_request_is_tls(r);
 
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
         conf->common.root_canon, conf->cache_root_canon, conf->common.allow_write,

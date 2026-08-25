@@ -4,6 +4,7 @@
  */
 #include "http_serve_offload.h"
 #include "core/aio/aio.h"                          /* brix_task_bind */
+#include "core/http/http_headers.h"     /* brix_http_request_is_tls */
 #include "fs/vfs/vfs.h"                           /* brix_vfs_adopt_fd / _ctx_t */
 #include "fs/vfs/vfs_internal.h"       /* brix_vfs_backend_cred (per-user cred gate) */
 #include "fs/core/vfs_core.h"                 /* xvfs_drain (shared copy verb) */
@@ -458,10 +459,7 @@ serve_offload_fill_ctx(serve_offload_ctx *t, ngx_http_request_t *r,
 
     serve_offload_copy_cred(t, rc);
 
-    t->is_tls     = 0;
-#if (NGX_HTTP_SSL)
-    t->is_tls     = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    t->is_tls     = brix_http_request_is_tls(r);
     ngx_cpystrn((u_char *) t->key, (u_char *) a->key, sizeof(t->key));
     ngx_cpystrn((u_char *) t->fs_path, (u_char *) a->fs_path,
                 sizeof(t->fs_path));

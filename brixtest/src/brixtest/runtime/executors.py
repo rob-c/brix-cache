@@ -10,13 +10,16 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Callable, Mapping, Optional, Sequence
+from typing import Callable, Mapping, Optional, Sequence, Union
 
 from brixtest.errors import SpecError
 from brixtest.extensions import get_extension, register_extension
+from brixtest.planning.capabilities import backend_capabilities
 from brixtest.resources import Placement
 from brixtest.runtime.commands import CommandResult, CommandRunner
 from brixtest.runtime.container_policy import validate_network, validate_runtime_args
+from brixtest.runtime.executor_identity import execution_identity, identity_catalog
+from brixtest.runtime.launcher_identity import container_identity_argv, process_identity_argv
 from brixtest.util.immutable import freeze_mapping
 
 __all__ = [
@@ -81,8 +84,8 @@ def _validate_timeout(value: object) -> None:
 
 
 def _validate_input(value: object) -> None:
-    if value is not None and not isinstance(value, str):
-        raise SpecError("tool execution input", value, "must be text or None")
+    if value is not None and not isinstance(value, (str, bytes)):
+        raise SpecError("tool execution input", value, "must be text, bytes, or None")
 
 
 def _validate_exits(values: Sequence[int]) -> tuple[int, ...]:
@@ -149,7 +152,7 @@ class ToolExecutionRequest:
     env: Mapping[str, str]
     cwd: Optional[Path]
     timeout: float
-    input: Optional[str]
+    input: Optional[Union[str, bytes]]
     expected_exit_codes: Sequence[int]
     output_limit: int
     mode: str
@@ -184,6 +187,7 @@ class ToolExecutionContext:
     local_execute: Optional[Callable[[ToolExecutionRequest], CommandResult]] = dataclasses.field(
         default=None, repr=False, compare=False,
     )
+    identities: Mapping[str, object] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not _non_empty_text(self.nodeid):
@@ -206,6 +210,7 @@ class ToolExecutionContext:
         object.__setattr__(self, "root", Path(self.root).resolve())
         object.__setattr__(self, "workspace", Path(self.workspace).resolve())
         object.__setattr__(self, "metadata", freeze_mapping(self.metadata))
+        object.__setattr__(self, "identities", identity_catalog(self.identities))
 
     def execute_local(self, request: ToolExecutionRequest) -> CommandResult:
         """Use BriXTest's bounded, archived local command implementation."""
@@ -216,7 +221,7 @@ class ToolExecutionContext:
 
 class _LocalToolExecutor:
     brixtest_api_version = 1
-    brixtest_capabilities = ("capture", "input", "pty", "retries", "stream")
+    brixtest_capabilities = tuple(sorted(backend_capabilities("local", "executor")))
 
     def validate(self, declaration: object) -> None:
         placement = getattr(declaration, "placement", Placement())
@@ -228,7 +233,12 @@ class _LocalToolExecutor:
     def execute(
         self, context: ToolExecutionContext, request: ToolExecutionRequest,
     ) -> CommandResult:
-        return context.execute_local(request)
+        identity = execution_identity(context, request)
+        translated = dataclasses.replace(
+            request, argv=process_identity_argv(identity, request.argv),
+        )
+        result = context.execute_local(translated)
+        return dataclasses.replace(result, argv=tuple(request.argv))
 
 
 def _validate_local_limits(name: str, placement: Placement) -> None:
@@ -242,15 +252,22 @@ def _validate_local_limits(name: str, placement: Placement) -> None:
 
 
 def _validate_local_scheduling(name: str, placement: Placement) -> None:
-    if placement.namespace or placement.node_selector or placement.security_context:
+    if (
+        placement.namespace or placement.node_selector or placement.security_context
+        or placement.environment or placement.group
+        or placement.network_policy != "declared"
+    ):
         raise SpecError(
             "client %s placement" % name, placement,
-            "namespace, node_selector, and security_context require a remote executor",
+            "environment, group, network policy, and remote scheduling require a translated executor",
         )
 
 
 def _validate_local_container_fields(name: str, placement: Placement) -> None:
-    if placement.image or placement.options or placement.allow_mutable_image:
+    if (
+        placement.image or placement.labels or placement.options
+        or placement.allow_mutable_image
+    ):
         raise SpecError(
             "client %s placement" % name, placement,
             "local execution does not consume image or container options",
@@ -272,12 +289,25 @@ def _container_argv(
     argv.extend(_container_input_args(request))
     argv.extend(_container_workdir_args(request))
     argv.extend(_container_limit_args(limits))
+    identity = execution_identity(context, request)
+    identity_root = env_file.parent / env_file.stem
+    argv.extend(container_identity_argv(runtime, identity, identity_root))
+    argv.extend(_container_label_args(request.placement.labels))
     argv.extend(str(value) for value in request.placement.options.get("runtime_args", ()))
     argv.extend((request.image, *request.argv))
     return argv
 
 
+def _container_label_args(labels: Mapping[str, object]) -> list[str]:
+    return [
+        value for item in sorted(labels.items())
+        for value in ("--label", "%s=%s" % item)
+    ]
+
+
 def _container_input_args(request: ToolExecutionRequest) -> list[str]:
+    if request.mode == "pty":
+        return ["--interactive", "--tty"]
     return ["--interactive"] if request.input is not None else []
 
 
@@ -312,7 +342,7 @@ def _container_attempts(
                 *argv, input=request.input, encoding=request.encoding,
                 timeout=request.timeout, check=False,
                 expected_exit_codes=request.expected_exit_codes,
-                output_limit=request.output_limit,
+                output_limit=request.output_limit, mode=request.mode,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             invocation = CommandResult(
@@ -340,28 +370,25 @@ def _validate_container_image(
 def _validate_container_scheduling(
     runtime: str, name: str, placement: Placement,
 ) -> None:
-    if placement.namespace or placement.node_selector or placement.security_context:
+    if (
+        placement.namespace or placement.node_selector or placement.security_context
+        or placement.environment or placement.group
+        or placement.network_policy != "declared"
+    ):
         raise SpecError(
             "client %s placement" % name, placement,
-            "%s execution does not translate Kubernetes scheduling fields" % runtime,
+            "%s execution does not translate grouping, environment, network policy, or Kubernetes scheduling" % runtime,
         )
-
-
-def _validate_container_mode(runtime: str, name: str, declaration: object) -> None:
-    if getattr(declaration, "mode", "capture") == "pty":
-        raise SpecError(
-            "client %s mode" % name, "pty",
-            "%s tools support capture or stream mode" % runtime,
-        )
-
 
 
 class _ContainerToolExecutor:
     brixtest_api_version = 1
-    brixtest_capabilities = ("capture", "input", "resources", "retries", "stream")
 
     def __init__(self, runtime: str) -> None:
         self.runtime = runtime
+        self.brixtest_capabilities = tuple(sorted(
+            backend_capabilities(runtime, "executor"),
+        ))
 
     def validate(self, declaration: object) -> None:
         placement = getattr(declaration, "placement", Placement())
@@ -381,7 +408,6 @@ class _ContainerToolExecutor:
         )
         network = placement.options.get("network", "host")
         validate_network(network, "client %s placement.options.network" % name)
-        _validate_container_mode(self.runtime, name, declaration)
 
     def execute(
         self, context: ToolExecutionContext, request: ToolExecutionRequest,
@@ -448,7 +474,12 @@ _BUILTINS = {
 def tool_executor(name: str):
     """Resolve a built-in or installed executor through the shared contract."""
     if name in _BUILTINS:
-        return _BUILTINS[name]
+        target = _BUILTINS[name]
+        register_extension(
+            "executor", name, target, replace=True, origin="brixtest",
+            capabilities=tuple(sorted(backend_capabilities(name, "executor"))),
+        )
+        return target
     return get_extension("executor", name)
 
 
@@ -456,5 +487,5 @@ for _executor_name, _executor in _BUILTINS.items():
     with contextlib.suppress(SpecError):
         register_extension(
             "executor", _executor_name, _executor, origin="brixtest",
-            capabilities=_executor.brixtest_capabilities,
+            capabilities=tuple(sorted(backend_capabilities(_executor_name, "executor"))),
         )

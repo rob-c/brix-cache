@@ -261,6 +261,19 @@ def test_stale_revalidate_digest_equal_transfers_no_body(ttl_mirror: Mirror,
 
 # ---- error: what a broken upstream costs --------------------------------- #
 
+def _get_until_stale_marked(base):
+    """GET the tag until the mirror marks it stale (Warning: 110) or a deadline
+    passes; return the final (status, headers).  A mirror that never marks
+    stale still fails the caller's assert at the deadline."""
+    deadline = time.monotonic() + 10
+    while True:
+        status, headers, _ = get("%s/v2/lab/app/manifests/v1" % base)
+        if headers.get("Warning", "").startswith("110 ") \
+                or time.monotonic() > deadline:
+            return status, headers
+        time.sleep(0.5)
+
+
 def test_upstream_down_fresh_serves__stale_marks__cold_retry_later(
         ttl_mirror: Mirror, upstream):
     """Three legs of one policy: an unreachable registry is not an outage."""
@@ -274,9 +287,13 @@ def test_upstream_down_fresh_serves__stale_marks__cold_retry_later(
 
     # Leg 2 — past it, the copy is served anyway and SAYS it is stale, so a CI
     # pipeline can tell "the mirror is degraded" from "the tag still points
-    # here" (RFC 9111 §5.5.1).
+    # here" (RFC 9111 §5.5.1).  The mirror judges freshness on the WALL clock
+    # while sleep() measures monotonic time, so on a host whose clock steps
+    # backwards a fixed +1 margin can land still-fresh — poll until the entry
+    # actually goes stale; a mirror that never marks stale still fails at the
+    # deadline.
     time.sleep(TTL_S + 1)
-    status, headers, _ = get("%s/v2/lab/app/manifests/v1" % ttl_mirror.base)
+    status, headers = _get_until_stale_marked(ttl_mirror.base)
     assert status == 200
     assert headers.get("Warning", "").startswith("110 ")
 

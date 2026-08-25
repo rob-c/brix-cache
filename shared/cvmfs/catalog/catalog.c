@@ -87,17 +87,26 @@ static void row_to_dirent(sqlite3_stmt *st, cvmfs_dirent_t *e) {
 static const char SELECT_COLS[] =
     "name, flags, mode, size, mtime, hardlinks, symlink, uid, gid, hash FROM catalog ";
 
-int cvmfs_catalog_lookup(cvmfs_catalog_t *c, const char *path, cvmfs_dirent_t *out) {
+/* Shared lookup/readdir prologue: hash `path`, format the dirent SELECT with
+ * the given WHERE clause and bind the two md5 halves. NULL on prepare failure. */
+static sqlite3_stmt *catalog_md5_query(cvmfs_catalog_t *c, const char *path,
+                                       const char *where) {
     int64_t m1, m2;
     cvmfs_catalog_md5path(path, &m1, &m2);
 
     char sql[256];
-    snprintf(sql, sizeof(sql), "SELECT %s WHERE md5path_1=? AND md5path_2=?", SELECT_COLS);
+    snprintf(sql, sizeof(sql), "SELECT %s WHERE %s", SELECT_COLS, where);
 
     sqlite3_stmt *st = NULL;
-    if (sqlite3_prepare_v2(c->db, sql, -1, &st, NULL) != SQLITE_OK) return -1;
+    if (sqlite3_prepare_v2(c->db, sql, -1, &st, NULL) != SQLITE_OK) return NULL;
     sqlite3_bind_int64(st, 1, m1);
     sqlite3_bind_int64(st, 2, m2);
+    return st;
+}
+
+int cvmfs_catalog_lookup(cvmfs_catalog_t *c, const char *path, cvmfs_dirent_t *out) {
+    sqlite3_stmt *st = catalog_md5_query(c, path, "md5path_1=? AND md5path_2=?");
+    if (st == NULL) return -1;
 
     int rc = sqlite3_step(st);
     int found = 0;
@@ -107,16 +116,8 @@ int cvmfs_catalog_lookup(cvmfs_catalog_t *c, const char *path, cvmfs_dirent_t *o
 }
 
 int cvmfs_catalog_readdir(cvmfs_catalog_t *c, const char *path, cvmfs_readdir_cb cb, void *ud) {
-    int64_t m1, m2;
-    cvmfs_catalog_md5path(path, &m1, &m2);
-
-    char sql[256];
-    snprintf(sql, sizeof(sql), "SELECT %s WHERE parent_1=? AND parent_2=?", SELECT_COLS);
-
-    sqlite3_stmt *st = NULL;
-    if (sqlite3_prepare_v2(c->db, sql, -1, &st, NULL) != SQLITE_OK) return -1;
-    sqlite3_bind_int64(st, 1, m1);
-    sqlite3_bind_int64(st, 2, m2);
+    sqlite3_stmt *st = catalog_md5_query(c, path, "parent_1=? AND parent_2=?");
+    if (st == NULL) return -1;
 
     int count = 0;
     for (;;) {

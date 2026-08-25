@@ -233,17 +233,17 @@ block_truncate(brix_vfs_file *f, int64_t size, brix_status *st)
 }
 
 /*
- * block_sync — flush dirty pages to durable storage.
+ * block_flush_fsync — drain any ring write-behind queue, then fsync bf->fd.
  *
- * WHAT: drains any ring write-behind queue, then calls fsync(2) on bf->fd.
- * WHY:  ensures callers can rely on data being durable after sync() returns.
- * HOW:  brix_disk_ring_flush (no-op on NULL ring); fsync; set st on failure.
+ * WHAT: the durability primitive behind both block_sync and block_commit; `ectx`
+ *       tags the fsync error ("vfs block fsync" / "vfs block commit fsync").
+ * WHY:  block devices have no temp-then-rename path, so sync and commit are the
+ *       same operation; sharing it keeps them from drifting.
+ * HOW:  brix_disk_ring_flush (no-op on NULL ring); xvfs_fsync; set st on failure.
  */
 static int
-block_sync(brix_vfs_file *f, brix_status *st)
+block_flush_fsync(vfs_block_file *bf, const char *ectx, brix_status *st)
 {
-    vfs_block_file *bf = (vfs_block_file *) f;
-
     if (bf->ring != NULL) {
         if (brix_disk_ring_flush(bf->ring, st) != 0) {
             return -1;
@@ -254,12 +254,23 @@ block_sync(brix_vfs_file *f, brix_status *st)
         brix_sd_obj_t obj;
         brix_sd_posix_wrap(&obj, bf->fd);
         if (xvfs_fsync(&obj) != 0) {
-            brix_status_set(st, XRDC_EIO, errno,
-                            "vfs block fsync: %s", strerror(errno));
+            brix_status_set(st, XRDC_EIO, errno, "%s: %s", ectx, strerror(errno));
             return -1;
         }
     }
     return 0;
+}
+
+/*
+ * block_sync — flush dirty pages to durable storage.
+ *
+ * WHAT: drains any ring write-behind queue, then calls fsync(2) on bf->fd.
+ * WHY:  ensures callers can rely on data being durable after sync() returns.
+ */
+static int
+block_sync(brix_vfs_file *f, brix_status *st)
+{
+    return block_flush_fsync((vfs_block_file *) f, "vfs block fsync", st);
 }
 
 /*
@@ -269,29 +280,11 @@ block_sync(brix_vfs_file *f, brix_status *st)
  *       to make data durable.  Identical to block_sync; kept separate so commit
  *       semantics remain explicit in the vtable.
  * WHY:  block devices have no temp-then-rename path; fsync is the commit.
- * HOW:  ring flush → fsync; return -1 with st on failure.
  */
 static int
 block_commit(brix_vfs_file *f, brix_status *st)
 {
-    vfs_block_file *bf = (vfs_block_file *) f;
-
-    if (bf->ring != NULL) {
-        if (brix_disk_ring_flush(bf->ring, st) != 0) {
-            return -1;
-        }
-    }
-
-    {
-        brix_sd_obj_t obj;
-        brix_sd_posix_wrap(&obj, bf->fd);
-        if (xvfs_fsync(&obj) != 0) {
-            brix_status_set(st, XRDC_EIO, errno,
-                            "vfs block commit fsync: %s", strerror(errno));
-            return -1;
-        }
-    }
-    return 0;
+    return block_flush_fsync((vfs_block_file *) f, "vfs block commit fsync", st);
 }
 
 /*

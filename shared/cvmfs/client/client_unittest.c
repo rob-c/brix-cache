@@ -33,25 +33,8 @@
 #include <string.h>
 #include <unistd.h>
 
-static int g_checks, g_failed;
-#define CHECK(cond, name) do {                                    \
-    g_checks++;                                                   \
-    if (cond) { printf("  ok   %s\n", name); }                    \
-    else      { printf("  FAIL %s (line %d)\n", name, __LINE__); g_failed++; } \
-} while (0)
-
-static void rm_rf(const char *p) {
-    char cmd[600]; snprintf(cmd, sizeof(cmd), "rm -rf '%s'", p);
-    if (system(cmd) != 0) {}
-}
-
-static unsigned char *zlib_of(const unsigned char *src, size_t n, size_t *outn) {
-    uLongf cap = compressBound(n);
-    unsigned char *buf = malloc(cap);
-    compress(buf, &cap, src, n);
-    *outn = cap;
-    return buf;
-}
+#define BRIX_UNIT_WANT_ZLIB 1
+#include "testkit/unit_check.h"
 
 /* CVMFS-style signature: RAW RSA-PKCS#1-v1.5 over msg (the printed hash text),
  * no SHA-1 DigestInfo — matches real CVMFS. */

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence, Union
 
 from brixtest.errors import SpecError
+from brixtest.planning.capabilities import backend_capabilities
 from brixtest.util.immutable import freeze_mapping
 
 
@@ -54,6 +55,11 @@ def _xattr_name(value: object) -> str:
 
 class NativeFilesystem:
     """Perform native operations within explicit service-owned roots."""
+
+    brixtest_api_version = 1
+    brixtest_capabilities = tuple(sorted(
+        backend_capabilities("native-filesystem", "transport"),
+    ))
 
     def __init__(
         self, roots: Sequence[Path], *,
@@ -229,7 +235,9 @@ class ServiceFilesystem:
             raise SpecError("filesystem text", type(value).__name__, "must be text")
         self.write_bytes(path, value.encode(encoding))
 
-    def stat(self, path: Union[str, Path], *, follow_symlinks: bool = True):
+    def stat(
+        self, path: Union[str, Path], *, follow_symlinks: bool = True,
+    ) -> Mapping[str, object]:
         """Return immutable portable metadata for a confined path."""
         return self._transport.stat(path, follow_symlinks=follow_symlinks)
 

@@ -19,7 +19,9 @@
  * drags catalog.c + hash.c):
  *   gcc -Wall -Wextra -Werror -I shared -o /tmp/tar_ut \
  *       shared/oci/tar_unittest.c shared/oci/tar.c shared/oci/tar_pax.c \
- *       shared/cvmfs/catalog/catalog_write.c shared/cvmfs/catalog/catalog.c \
+ *       shared/oci/tar_digest.c shared/oci/digest.c \
+ *       shared/cvmfs/catalog/catalog_write.c \
+ *       shared/cvmfs/catalog/xattr_pack.c shared/cvmfs/catalog/catalog.c \
  *       shared/cvmfs/grammar/hash.c -lsqlite3 -lcrypto -lz && /tmp/tar_ut
  */
 #ifndef _GNU_SOURCE
@@ -113,6 +115,37 @@ static int ar_fd(const unsigned char *buf, size_t len) {
     return fd;
 }
 
+/* Open a raw archive buffer as a reader; pairs with ar_done(). */
+static brix_tar_t *ar_open_buf(const unsigned char *buf, size_t len, int *fd) {
+    char err[256];
+
+    *fd = ar_fd(buf, len);
+    return brix_tar_open_fd(*fd, err, sizeof(err));
+}
+
+static brix_tar_t *ar_open(const ar_t *a, int *fd) {
+    return ar_open_buf(a->b, a->len, fd);
+}
+
+static void ar_done(brix_tar_t *t, int fd) {
+    brix_tar_close(t);
+    close(fd);
+}
+
+/* Open the crafted archive and require the first advance to be refused with
+ * an error mentioning `needle`. */
+static void ar_expect_refusal(const ar_t *a, const char *needle,
+                              const char *name) {
+    brix_tar_entry_t e;
+    brix_tar_t      *t;
+    int              fd;
+
+    t = ar_open(a, &fd);
+    CHECK(t != NULL && brix_tar_next(t, &e) == -1 &&
+          strstr(brix_tar_error(t), needle) != NULL, name);
+    ar_done(t, fd);
+}
+
 /* ---- self-test lanes ----------------------------------------------------- */
 
 static void t_basic(void) {
@@ -120,7 +153,7 @@ static void t_basic(void) {
     brix_tar_entry_t e;
     brix_tar_t      *t;
     unsigned char   *h;
-    char             err[256], body[64];
+    char             body[64];
     int              fd;
 
     ar_hdr(&a, "d", '5', 0, 0755);
@@ -131,8 +164,7 @@ static void t_basic(void) {
     ar_cksum(h);
     ar_end(&a);
 
-    fd = ar_fd(a.b, a.len);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
+    t = ar_open(&a, &fd);
     CHECK(t != NULL, "basic: open");
     CHECK(brix_tar_next(t, &e) == 1 && e.type == BRIX_TAR_DIR &&
           strcmp(e.path, "d") == 0 && e.mode == 0755, "basic: dir entry");
@@ -145,15 +177,13 @@ static void t_basic(void) {
     CHECK(brix_tar_next(t, &e) == 1 && e.type == BRIX_TAR_SYMLINK &&
           strcmp(e.linkname, "hello.txt") == 0, "basic: symlink entry");
     CHECK(brix_tar_next(t, &e) == 0, "basic: clean EOF");
-    brix_tar_close(t);
-    close(fd);
+    ar_done(t, fd);
 }
 
 static void t_api_misuse(void) {
     ar_t             a = { .len = 0 };
     brix_tar_entry_t e;
     brix_tar_t      *t;
-    char             err[256];
     int              fd;
 
     ar_hdr(&a, "f", '0', 5, 0644);
@@ -161,22 +191,18 @@ static void t_api_misuse(void) {
     ar_hdr(&a, "g", '0', 0, 0644);
     ar_end(&a);
 
-    fd = ar_fd(a.b, a.len);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
+    t = ar_open(&a, &fd);
     CHECK(t != NULL && brix_tar_next(t, &e) == 1, "misuse: first entry");
     CHECK(brix_tar_next(t, &e) == -1 &&
           strstr(brix_tar_error(t), "not fully consumed") != NULL,
           "misuse: advance with unread body refused");
-    brix_tar_close(t);
-    close(fd);
+    ar_done(t, fd);
 
-    fd = ar_fd(a.b, a.len);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
+    t = ar_open(&a, &fd);
     CHECK(t != NULL && brix_tar_next(t, &e) == 1 && brix_tar_skip(t) == 0 &&
           brix_tar_next(t, &e) == 1 && strcmp(e.path, "g") == 0,
           "misuse: skip() then advance is fine");
-    brix_tar_close(t);
-    close(fd);
+    ar_done(t, fd);
 }
 
 static void t_numeric_and_cksum(void) {
@@ -184,7 +210,7 @@ static void t_numeric_and_cksum(void) {
     brix_tar_entry_t e;
     brix_tar_t      *t;
     unsigned char   *h;
-    char             err[256], body[8];
+    char             body[8];
     int              fd;
     size_t           i;
 
@@ -207,13 +233,11 @@ static void t_numeric_and_cksum(void) {
     ar_body(&a, "abc", 3);
     ar_end(&a);
 
-    fd = ar_fd(a.b, a.len);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
+    t = ar_open(&a, &fd);
     CHECK(t != NULL && brix_tar_next(t, &e) == 1 && e.size == 3 &&
           brix_tar_read(t, body, sizeof(body)) == 3,
           "num: base-256 size + signed checksum accepted");
-    brix_tar_close(t);
-    close(fd);
+    ar_done(t, fd);
 
     /* size overflowing int64 (base-256, 9 high bytes) → refused */
     a.len = 0;
@@ -222,13 +246,7 @@ static void t_numeric_and_cksum(void) {
     h[124] = 0x81;
     ar_cksum(h);
     ar_end(&a);
-    fd = ar_fd(a.b, a.len);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
-    CHECK(t != NULL && brix_tar_next(t, &e) == -1 &&
-          strstr(brix_tar_error(t), "size") != NULL,
-          "num: int64-overflow size refused");
-    brix_tar_close(t);
-    close(fd);
+    ar_expect_refusal(&a, "size", "num: int64-overflow size refused");
 
     /* negative base-256 size → refused */
     a.len = 0;
@@ -236,33 +254,20 @@ static void t_numeric_and_cksum(void) {
     memset(h + 124, 0xFF, 12);                    /* 0xFF… = -1 */
     ar_cksum(h);
     ar_end(&a);
-    fd = ar_fd(a.b, a.len);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
-    CHECK(t != NULL && brix_tar_next(t, &e) == -1 &&
-          strstr(brix_tar_error(t), "negative size") != NULL,
-          "num: negative size refused");
-    brix_tar_close(t);
-    close(fd);
+    ar_expect_refusal(&a, "negative size", "num: negative size refused");
 
     /* corrupted checksum → refused */
     a.len = 0;
     h = ar_hdr(&a, "ok", '0', 0, 0644);
     h[0] ^= 0x01;                                 /* flip after checksum */
     ar_end(&a);
-    fd = ar_fd(a.b, a.len);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
-    CHECK(t != NULL && brix_tar_next(t, &e) == -1 &&
-          strstr(brix_tar_error(t), "checksum") != NULL,
-          "num: bad checksum refused");
-    brix_tar_close(t);
-    close(fd);
+    ar_expect_refusal(&a, "checksum", "num: bad checksum refused");
 }
 
 static void t_pax(void) {
     ar_t             a = { .len = 0 };
     brix_tar_entry_t e;
     brix_tar_t      *t;
-    char             err[256];
     int              fd;
     static const char rec[] =
         "31 path=override/long-name.bin\n"
@@ -276,8 +281,7 @@ static void t_pax(void) {
     ar_hdr(&a, "plain", '0', 0, 0644);
     ar_end(&a);
 
-    fd = ar_fd(a.b, a.len);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
+    t = ar_open(&a, &fd);
     CHECK(t != NULL && brix_tar_next(t, &e) == 1 &&
           strcmp(e.path, "override/long-name.bin") == 0 &&
           e.mtime == 1700000000 && e.size == 2,
@@ -300,8 +304,7 @@ static void t_pax(void) {
     CHECK(brix_tar_skip(t) == 0 && brix_tar_next(t, &e) == 1 &&
           strcmp(e.path, "plain") == 0 && e.xattr == NULL,
           "pax: overrides reset after the entry");
-    brix_tar_close(t);
-    close(fd);
+    ar_done(t, fd);
 
     /* malformed record length → refused */
     a.len = 0;
@@ -309,20 +312,14 @@ static void t_pax(void) {
     ar_body(&a, "99 a=b\nxx", 9);
     ar_hdr(&a, "f", '0', 0, 0644);
     ar_end(&a);
-    fd = ar_fd(a.b, a.len);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
-    CHECK(t != NULL && brix_tar_next(t, &e) == -1 &&
-          strstr(brix_tar_error(t), "pax record length") != NULL,
-          "pax: lying record length refused");
-    brix_tar_close(t);
-    close(fd);
+    ar_expect_refusal(&a, "pax record length", "pax: lying record length refused");
 }
 
 static void t_gnu_long_and_unknown(void) {
     ar_t             a = { .len = 0 };
     brix_tar_entry_t e;
     brix_tar_t      *t;
-    char             err[256], want[130];
+    char             want[130];
     int              fd;
     size_t           i;
 
@@ -338,34 +335,29 @@ static void t_gnu_long_and_unknown(void) {
     ar_hdr(&a, "after", '0', 0, 0644);
     ar_end(&a);
 
-    fd = ar_fd(a.b, a.len);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
+    t = ar_open(&a, &fd);
     CHECK(t != NULL && brix_tar_next(t, &e) == 1 &&
           strcmp(e.path, want) == 0, "gnu: 'L' long name applied");
     CHECK(brix_tar_next(t, &e) == 1 && strcmp(e.path, "after") == 0,
           "gnu: unknown typeflag skipped, stream continues");
     CHECK(brix_tar_next(t, &e) == 0, "gnu: clean EOF");
-    brix_tar_close(t);
-    close(fd);
+    ar_done(t, fd);
 }
 
 static void t_ends_and_truncation(void) {
     ar_t             a = { .len = 0 };
     brix_tar_entry_t e;
     brix_tar_t      *t;
-    char             err[256];
     int              fd;
 
     /* single zero block + EOF (sloppy writer) → clean end */
     ar_hdr(&a, "f", '0', 0, 0644);
     memset(a.b + a.len, 0, 512);
     a.len += 512;
-    fd = ar_fd(a.b, a.len);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
+    t = ar_open(&a, &fd);
     CHECK(t != NULL && brix_tar_next(t, &e) == 1 &&
           brix_tar_next(t, &e) == 0, "end: single-zero-block+EOF accepted");
-    brix_tar_close(t);
-    close(fd);
+    ar_done(t, fd);
 
     /* data after the end marker → refused */
     a.len = 0;
@@ -373,38 +365,32 @@ static void t_ends_and_truncation(void) {
     memset(a.b + a.len, 0, 512);
     a.len += 512;
     ar_hdr(&a, "smuggled", '0', 0, 0644);
-    fd = ar_fd(a.b, a.len);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
+    t = ar_open(&a, &fd);
     CHECK(t != NULL && brix_tar_next(t, &e) == 1 &&
           brix_tar_next(t, &e) == -1 &&
           strstr(brix_tar_error(t), "end-of-archive") != NULL,
           "end: data after end marker refused");
-    brix_tar_close(t);
-    close(fd);
+    ar_done(t, fd);
 
     /* truncated body → refused */
     a.len = 0;
     ar_hdr(&a, "f", '0', 100, 0644);
     memcpy(a.b + a.len, "short", 5);
     a.len += 5;
-    fd = ar_fd(a.b, a.len);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
+    t = ar_open(&a, &fd);
     CHECK(t != NULL && brix_tar_next(t, &e) == 1 && brix_tar_skip(t) == -1 &&
           strstr(brix_tar_error(t), "truncated") != NULL,
           "end: truncated body refused");
-    brix_tar_close(t);
-    close(fd);
+    ar_done(t, fd);
 
     /* truncated header (200 of 512 bytes) → refused */
     a.len = 0;
     ar_hdr(&a, "f", '0', 0, 0644);
-    fd = ar_fd(a.b, 200);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
+    t = ar_open_buf(a.b, 200, &fd);
     CHECK(t != NULL && brix_tar_next(t, &e) == -1 &&
           strstr(brix_tar_error(t), "truncated") != NULL,
           "end: truncated header refused");
-    brix_tar_close(t);
-    close(fd);
+    ar_done(t, fd);
 }
 
 /* gzip an archive buffer in memory (gzip wrapper via 15+16). */
@@ -434,7 +420,7 @@ static void t_gzip(void) {
     size_t                gzlen;
     brix_tar_entry_t      e;
     brix_tar_t           *t;
-    char                  err[256], body[16];
+    char                  body[16];
     int                   fd;
 
     ar_hdr(&a, "z/file", '0', 6, 0644);
@@ -443,25 +429,21 @@ static void t_gzip(void) {
     gzlen = gz_pack(a.b, a.len, gz, sizeof(gz));
     CHECK(gzlen > 0, "gzip: packer sanity");
 
-    fd = ar_fd(gz, gzlen);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
+    t = ar_open_buf(gz, gzlen, &fd);
     CHECK(t != NULL && brix_tar_next(t, &e) == 1 &&
           strcmp(e.path, "z/file") == 0 &&
           brix_tar_read(t, body, sizeof(body)) == 6 &&
           memcmp(body, "gzbody", 6) == 0 && brix_tar_next(t, &e) == 0,
           "gzip: sniffed + inflated round-trip");
-    brix_tar_close(t);
-    close(fd);
+    ar_done(t, fd);
 
     /* truncated gzip stream → refused */
-    fd = ar_fd(gz, gzlen / 2);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
+    t = ar_open_buf(gz, gzlen / 2, &fd);
     CHECK(t != NULL &&
           (brix_tar_next(t, &e) == -1 ||
            (brix_tar_skip(t) == -1 || brix_tar_next(t, &e) == -1)),
           "gzip: truncated stream refused");
-    brix_tar_close(t);
-    close(fd);
+    ar_done(t, fd);
 }
 
 static void t_zstd(void) {
@@ -484,15 +466,13 @@ static void t_zstd(void) {
     zlen = ZSTD_compress(zb, sizeof(zb), a.b, a.len, 3);
     CHECK(!ZSTD_isError(zlen), "zstd: packer sanity");
 
-    fd = ar_fd(zb, zlen);
-    t  = brix_tar_open_fd(fd, err, sizeof(err));
+    t = ar_open_buf(zb, zlen, &fd);
     CHECK(t != NULL && brix_tar_next(t, &e) == 1 &&
           strcmp(e.path, "zs/file") == 0 &&
           brix_tar_read(t, body, sizeof(body)) == 6 &&
           memcmp(body, "zstdok", 6) == 0 && brix_tar_next(t, &e) == 0,
           "zstd: sniffed + decompressed round-trip");
-    brix_tar_close(t);
-    close(fd);
+    ar_done(t, fd);
 #else
     int fd = ar_fd(magic, sizeof(magic));
 
@@ -575,8 +555,7 @@ static int dump_archive(const char *file) {
         close(fd);
         return 3;
     }
-    brix_tar_close(t);
-    close(fd);
+    ar_done(t, fd);
     printf("EOF\n");
     return 0;
 }

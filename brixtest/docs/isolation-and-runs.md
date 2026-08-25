@@ -28,13 +28,19 @@ Isolation belongs to the case, while a suite-wide CLI override makes validation
 against a different runtime mechanical:
 
 ```python
-from brixtest import case, docker, process
+from brixtest import case, docker, kubernetes, process
 
 @case(isolation=process())
 def test_local_helper(run): ...
 
 @case(isolation=docker("registry.example/test@sha256:<64-hex-digest>"))
 def test_container_helper(run): ...
+
+@case(isolation=kubernetes(
+    "registry.example/python-runtime@sha256:<64-hex-digest>",
+    context="brixtest", namespace="default", service_account="test-runner",
+))
+def test_remote_helper(run): ...
 ```
 
 ```console
@@ -43,6 +49,11 @@ pytest --brixtest-isolation nsenter --brixtest-nsenter-target 1234
 pytest --brixtest-isolation docker --brixtest-isolation-image IMAGE@sha256:DIGEST
 pytest --brixtest-isolation podman --brixtest-isolation-image IMAGE@sha256:DIGEST
 pytest --brixtest-isolation runc --brixtest-runc-bundle ./oci-bundle
+pytest --brixtest-isolation kubernetes \
+  --brixtest-isolation-image IMAGE@sha256:DIGEST \
+  --brixtest-kubernetes-context brixtest \
+  --brixtest-kubernetes-namespace default \
+  --brixtest-kubernetes-service-account test-runner
 ```
 
 `nsenter()` names the namespaces to join and requires a positive target PID.
@@ -55,6 +66,40 @@ bundle unchanged. All commands are argv vectors and never pass through a shell.
 Mutable image tags require the conspicuous `allow_mutable=True` opt-out. Extra
 runtime arguments cannot replace BriXTest's mounts, environment file, network,
 work directory, or container identity.
+
+Kubernetes isolation builds a deterministic content-addressed bundle containing
+the selected test subtree, portable project Python/config assets, ancestor
+`conftest.py` files, project pytest config, the BriXTest package, trusted helper
+plugins, and pytest's environment-marker-aware dependency closure. Dependency
+files come from installed distribution metadata rather than a brittle module
+allowlist. Individual inputs are limited to 64 MiB and the complete
+uncompressed bundle to 256 MiB. Symlinks are excluded. The declared image is a
+digest-pinned Python runtime; it does not need a BriXTest installation. The
+bundle itself is retained once in the session object store with both its input
+fingerprint and archive SHA-256.
+
+The controller creates a non-retrying Job and a private environment Secret in
+the selected existing namespace. The Job uses the declared ServiceAccount,
+drops Linux capabilities, disables privilege escalation, and keeps its root
+filesystem read-only. The bundle is streamed into writable `emptyDir` volumes,
+then the normal pytest helper executes inside the pod. Remote test collection,
+fixtures, the dedicated test worker, resources, and teardown therefore retain
+the same semantics as process/container helpers.
+
+Heartbeat, report, traceback, and result messages use versioned framed JSON;
+ordinary stdout/stderr remains a bounded byte stream. Run and session evidence
+is copied back with link-rejecting, path-confined archive extraction. The
+absolute case deadline covers provisioning, execution, and recovery. Timeout
+cleanup force-deletes the helper pod before deleting its Job and Secret, so a
+hung remote interpreter cannot block the pytest controller.
+
+For a remote cluster, Kubernetes pulls the declared digest normally. If
+`context` names a running Minikube profile and the exact digest is already in
+the local Docker store, BriXTest verifies the image ID, loads a checksum-tagged
+alias into Minikube, and sets `imagePullPolicy: Never`. This makes the standard
+Docker-backed `brixtest` profile an offline-capable reference target without
+weakening image identity. Native function-local dependencies must either be in
+the runtime image or be modeled as normal BriXTest binaries/artifacts.
 
 Each helper owns a unique path containing:
 

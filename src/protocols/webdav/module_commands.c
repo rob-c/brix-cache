@@ -8,25 +8,13 @@
 #include "webdav_module_internal.h"
 #include "core/config/credential_block.h"   /* §14 brix_credential block directive */
 #include "auth/crypto/store_policy.h"        /* BRIX_SP_MODE_*, BRIX_CRL_MODE_* */
+#include "protocols/root/stream/module_enums.h"  /* shared brix_signing_policy_modes
+                                                    + brix_crl_modes tables */
 
 ngx_conf_enum_t  webdav_auth_values[] = {
     { ngx_string("none"),     WEBDAV_AUTH_NONE     },
     { ngx_string("optional"), WEBDAV_AUTH_OPTIONAL },
     { ngx_string("required"), WEBDAV_AUTH_REQUIRED },
-    { ngx_null_string, 0 }
-};
-
-ngx_conf_enum_t  brix_webdav_signing_policy_modes[] = {
-    { ngx_string("off"),     BRIX_SP_MODE_OFF     },
-    { ngx_string("on"),      BRIX_SP_MODE_ON      },
-    { ngx_string("require"), BRIX_SP_MODE_REQUIRE },
-    { ngx_null_string, 0 }
-};
-
-ngx_conf_enum_t  brix_webdav_crl_modes[] = {
-    { ngx_string("off"),     BRIX_CRL_MODE_OFF     },
-    { ngx_string("try"),     BRIX_CRL_MODE_TRY     },
-    { ngx_string("require"), BRIX_CRL_MODE_REQUIRE },
     { ngx_null_string, 0 }
 };
 
@@ -94,15 +82,15 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
 
     { ngx_string("brix_authdb_refresh"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_refresh, 0, 0, NULL },
+      brix_acc_http_set_num, 0, offsetof(brix_acc_http_t, refresh), NULL },
 
     { ngx_string("brix_acc_gidlifetime"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_gidlifetime, 0, 0, NULL },
+      brix_acc_http_set_num, 0, offsetof(brix_acc_http_t, gidlifetime), NULL },
 
     { ngx_string("brix_acc_pgo"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_pgo, 0, 0, NULL },
+      brix_acc_http_set_onoff, 0, offsetof(brix_acc_http_t, pgo), NULL },
 
     { ngx_string("brix_acc_nisdomain"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
@@ -110,7 +98,8 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
 
     { ngx_string("brix_acc_resolve_hosts"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_resolve_hosts, 0, 0, NULL },
+      brix_acc_http_set_onoff, 0, offsetof(brix_acc_http_t, resolve_hosts),
+      NULL },
 
     { ngx_string("brix_acc_spacechar"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
@@ -118,7 +107,7 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
 
     { ngx_string("brix_acc_encoding"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_encoding, 0, 0, NULL },
+      brix_acc_http_set_onoff, 0, offsetof(brix_acc_http_t, encoding), NULL },
 
     { ngx_string("brix_acc_gidretran"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
@@ -202,14 +191,14 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       ngx_conf_set_enum_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_webdav_loc_conf_t, signing_policy_mode),
-      brix_webdav_signing_policy_modes },
+      brix_signing_policy_modes },
 
     { ngx_string("brix_webdav_crl_mode"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_enum_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_webdav_loc_conf_t, crl_mode),
-      brix_webdav_crl_modes },
+      brix_crl_modes },
 
     { ngx_string("brix_webdav_verify_depth"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,

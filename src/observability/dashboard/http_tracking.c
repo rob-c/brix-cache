@@ -240,43 +240,33 @@ brix_dashboard_http_start(ngx_http_request_t *r, const char *path,
                                                 expected_bytes);
 }
 
+/* Body of the thin public update wrappers: fetch `r`'s live track (no-op when
+ * the request has no reserved slot) and apply one timestamped slot update —
+ * op(table, slot, arg, now_ms). */
+#define DASHBOARD_HTTP_SLOT_OP(r, op, arg) \
+    do { \
+        brix_dashboard_http_track_t *track = dashboard_http_track(r); \
+        if (track != NULL && track->slot >= 0 && track->table != NULL) { \
+            op(track->table, track->slot, arg, (int64_t) ngx_current_msec); \
+        } \
+    } while (0)
+
 void
 brix_dashboard_http_add(ngx_http_request_t *r, ngx_atomic_int_t bytes)
 {
-    brix_dashboard_http_track_t *track = dashboard_http_track(r);
-
-    if (track == NULL || track->slot < 0 || track->table == NULL) {
-        return;
-    }
-
-    brix_transfer_slot_update_bytes(track->table, track->slot, bytes,
-                                      (int64_t) ngx_current_msec);
+    DASHBOARD_HTTP_SLOT_OP(r, brix_transfer_slot_update_bytes, bytes);
 }
 
 void
 brix_dashboard_http_state(ngx_http_request_t *r, uint8_t state)
 {
-    brix_dashboard_http_track_t *track = dashboard_http_track(r);
-
-    if (track == NULL || track->slot < 0 || track->table == NULL) {
-        return;
-    }
-
-    brix_transfer_slot_set_state(track->table, track->slot, state,
-                                   (int64_t) ngx_current_msec);
+    DASHBOARD_HTTP_SLOT_OP(r, brix_transfer_slot_set_state, state);
 }
 
 void
 brix_dashboard_http_error(ngx_http_request_t *r, const char *reason)
 {
-    brix_dashboard_http_track_t *track = dashboard_http_track(r);
-
-    if (track == NULL || track->slot < 0 || track->table == NULL) {
-        return;
-    }
-
-    brix_transfer_slot_set_error(track->table, track->slot, reason,
-                                   (int64_t) ngx_current_msec);
+    DASHBOARD_HTTP_SLOT_OP(r, brix_transfer_slot_set_error, reason);
 }
 
 /*
@@ -472,15 +462,6 @@ brix_dashboard_http_tpc_remote(ngx_http_request_t *r,
 void
 brix_dashboard_http_finish(ngx_http_request_t *r)
 {
-    brix_dashboard_http_track_t *track = dashboard_http_track(r);
-
-    if (track == NULL || track->slot < 0 || track->table == NULL) {
-        return;
-    }
-
-    brix_transfer_slot_set_state(track->table, track->slot,
-                                   BRIX_XFER_STATE_CLOSING,
-                                   (int64_t) ngx_current_msec);
-    brix_transfer_slot_free(track->table, track->slot);
-    track->slot = -1;
+    brix_dashboard_http_state(r, BRIX_XFER_STATE_CLOSING);
+    dashboard_http_cleanup(dashboard_http_track(r));
 }

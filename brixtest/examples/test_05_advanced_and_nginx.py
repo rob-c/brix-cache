@@ -76,7 +76,10 @@ def test_19_explicit_local_process_isolation(run):
 
 
 NGINX_PATH = shutil.which("nginx")
-NGINX = binary("nginx", NGINX_PATH or "/usr/sbin/nginx")
+NGINX = binary(
+    "nginx", NGINX_PATH or "/usr/sbin/nginx",
+    runtime_files={"/etc/passwd": "/etc/passwd", "/etc/group": "/etc/group"},
+)
 NGINX_PAGE = text_artifact(
     "nginx_page",
     "<!doctype html><title>BriXTest nginx</title><h1>served by nginx</h1>\n",

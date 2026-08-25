@@ -80,4 +80,20 @@ ngx_int_t vfs_parse_s3_origin(ngx_conf_t *cf, const char *root_canon,
 ngx_int_t vfs_parse_xroot_or_driver_origin(ngx_conf_t *cf,
     const char *root_canon, const ngx_str_t *sb, size_t block_size, int family);
 
+/* The shared head of every per-driver entry builder: get-or-create the export's
+ * registry entry and stamp its backend name. NULL ⇒ registry full (the builder
+ * gives up, matching get_or_create's contract). Defined in vfs_backend_config.c. */
+brix_vfs_backend_entry_t *brix_vfs_backend_entry_claim(const char *root_canon,
+    const char *backend);
+
+/* Stamp one NUL-terminated string field of an entry (capacity-clamped). */
+#define VFS_BE_STR(e, field, src) \
+    ngx_cpystrn((u_char *) (e)->field, (u_char *) (src), sizeof((e)->field))
+
+/* Stamp the libcurl-origin endpoint fields shared by the http and s3 builders
+ * (host/port/tls, origin_path = base path or bucket, the #12 PUT-checksum flag)
+ * and invalidate the built instance. Defined in vfs_backend_config.c. */
+void brix_vfs_backend_set_origin(brix_vfs_backend_entry_t *e, const char *host,
+    int port, int tls, const char *path, int put_checksum);
+
 #endif /* BRIX_VFS_BACKEND_CONFIG_INTERNAL_H */

@@ -45,7 +45,16 @@ from resilience.servers import (  # noqa: E402
 XROOTD = shutil.which("xrootd")
 NGINX = os.environ.get("RESIL_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 
-pytestmark = pytest.mark.timeout(300)
+# serial + one xdist group, like every other resilience.servers importer
+# (test_cache_verify_require / test_cache_truncation_poison /
+# test_official_vs_brix_cache_faults): XrootdAnon/NginxAnon register FIXED
+# spec names, so two xdist workers instantiating the module-scoped link
+# fixtures share one registry entry — the second seed_file rewrites /big.bin
+# under the first worker's cached ref md5 and the "clean" baseline reads the
+# wrong bytes back byte-exactly.
+pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-fault-corruption"),
+              pytest.mark.timeout(300)]
 
 FILE_MB = 4
 # Bit-flip rate for the detection legs.  Over a 4 MiB file this is ~80k corrupted

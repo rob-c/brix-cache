@@ -211,6 +211,32 @@ admin_proxy_list(ngx_http_request_t *r)
 
 
 /*
+ * POST-only drain/undrain mutation shared by the two /admin/proxy actions:
+ * flip the backend's drain flag, audit the outcome, and answer 404 when the
+ * id names no live pool slot.
+ */
+static ngx_int_t
+admin_proxy_toggle_drain(ngx_http_request_t *r, const char *target,
+    int drain, uint32_t id)
+{
+    const char *op   = drain ? "proxy/drain" : "proxy/undrain";
+    const char *done = drain ? "drained" : "undrained";
+    int         hit;
+
+    if (r->method != NGX_HTTP_POST) {
+        return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
+    }
+    hit = drain ? brix_proxy_pool_drain(id) : brix_proxy_pool_undrain(id);
+    if (!hit) {
+        admin_audit(r, op, target, "not_found");
+        return admin_send_error(r, NGX_HTTP_NOT_FOUND, "not_found");
+    }
+    admin_audit(r, op, target, done);
+    return admin_send_ok(r, done);
+}
+
+
+/*
  * Route a single-backend request "/admin/proxy/backends/{id}[/action]" to the
  * right pool mutation, enforcing the method per (action x verb) matrix:
  *   /drain, /undrain -> POST only
@@ -220,30 +246,13 @@ admin_proxy_list(ngx_http_request_t *r)
 ngx_int_t
 admin_proxy_one(ngx_http_request_t *r, const char *action, uint32_t id)
 {
+    int  drain_op;
     char target[32];
     (void) ngx_snprintf((u_char *) target, sizeof(target) - 1, "id=%uD%Z", id);
 
-    if (ngx_strcmp(action, "drain") == 0) {
-        if (r->method != NGX_HTTP_POST) {
-            return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
-        }
-        if (!brix_proxy_pool_drain(id)) {
-            admin_audit(r, "proxy/drain", target, "not_found");
-            return admin_send_error(r, NGX_HTTP_NOT_FOUND, "not_found");
-        }
-        admin_audit(r, "proxy/drain", target, "drained");
-        return admin_send_ok(r, "drained");
-    }
-    if (ngx_strcmp(action, "undrain") == 0) {
-        if (r->method != NGX_HTTP_POST) {
-            return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
-        }
-        if (!brix_proxy_pool_undrain(id)) {
-            admin_audit(r, "proxy/undrain", target, "not_found");
-            return admin_send_error(r, NGX_HTTP_NOT_FOUND, "not_found");
-        }
-        admin_audit(r, "proxy/undrain", target, "undrained");
-        return admin_send_ok(r, "undrained");
+    drain_op = ngx_strcmp(action, "drain") == 0;
+    if (drain_op || ngx_strcmp(action, "undrain") == 0) {
+        return admin_proxy_toggle_drain(r, target, drain_op, id);
     }
     if (action[0] == '\0') {
         if (r->method == NGX_HTTP_DELETE) {

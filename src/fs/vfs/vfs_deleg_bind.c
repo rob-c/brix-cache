@@ -123,6 +123,35 @@ brix_vfs_deleg_set_ca_store(brix_vfs_ctx_t *vctx, void *ca_store,
     live->ca_verify_depth = verify_depth;
 }
 
+/* Absent-argument test shared by the injection/exchange setters below: a
+ * missing, empty, or dataless ngx_str disables the leg. */
+static int
+deleg_str_absent(const ngx_str_t *s)
+{
+    return s == NULL || s->len == 0 || s->data == NULL;
+}
+
+/* Get the ctx's live-cred bag, allocating (and binding) one with `mode` set
+ * when none is bound yet. Returns NULL on OOM — the caller returns silently
+ * and the ctx stays on SELECT, the same degrade brix_vfs_deleg_bind's
+ * no-bytes path produces (the cred gate, not the capture, owns deny
+ * decisions). */
+static brix_deleg_live_t *
+deleg_live_get_or_bind(brix_vfs_ctx_t *vctx, enum brix_cred_mode mode)
+{
+    brix_deleg_live_t *live = vctx->deleg_live;
+
+    if (live == NULL) {
+        live = ngx_pcalloc(vctx->pool, sizeof(*live));
+        if (live == NULL) {
+            return NULL;
+        }
+        live->mode = mode;
+        brix_vfs_ctx_bind_backend_deleg(vctx, live);
+    }
+    return live;
+}
+
 /* ---- brix_vfs_deleg_set_sss ------------------------------------------------
  *
  * WHAT: Arm SSS identity injection (phase-70 §5.6 / P90-70.3): stamp the
@@ -148,23 +177,14 @@ brix_vfs_deleg_set_sss(brix_vfs_ctx_t *vctx, enum brix_cred_mode mode,
 {
     brix_deleg_live_t *live;
 
-    if (vctx == NULL || mode == BRIX_CRED_SELECT
-        || keytab == NULL || keytab->len == 0 || keytab->data == NULL)
-    {
+    if (vctx == NULL || mode == BRIX_CRED_SELECT || deleg_str_absent(keytab)) {
         return;
     }
 
-    live = vctx->deleg_live;
-    if (live == NULL) {
-        live = ngx_pcalloc(vctx->pool, sizeof(*live));
-        if (live == NULL) {
-            return;              /* degrade to SELECT, as bind's no-bytes path */
-        }
-        live->mode = mode;
-        brix_vfs_ctx_bind_backend_deleg(vctx, live);
+    live = deleg_live_get_or_bind(vctx, mode);
+    if (live != NULL) {
+        live->sss_keytab = *keytab;
     }
-
-    live->sss_keytab = *keytab;
 }
 
 /* ---- brix_vfs_deleg_set_sts ------------------------------------------------
@@ -196,17 +216,10 @@ brix_vfs_deleg_set_sts(brix_vfs_ctx_t *vctx, enum brix_cred_mode mode,
         return;
     }
 
-    live = vctx->deleg_live;
-    if (live == NULL) {
-        live = ngx_pcalloc(vctx->pool, sizeof(*live));
-        if (live == NULL) {
-            return;              /* degrade to SELECT, as bind's no-bytes path */
-        }
-        live->mode = mode;
-        brix_vfs_ctx_bind_backend_deleg(vctx, live);
+    live = deleg_live_get_or_bind(vctx, mode);
+    if (live != NULL) {
+        live->sts = cf;
     }
-
-    live->sts = cf;
 }
 
 /* ---- brix_vfs_deleg_set_krb5 -----------------------------------------------
@@ -235,23 +248,15 @@ brix_vfs_deleg_set_krb5(brix_vfs_ctx_t *vctx, enum brix_cred_mode mode,
     brix_deleg_live_t *live;
 
     if (vctx == NULL || mode == BRIX_CRED_SELECT
-        || ccache == NULL || ccache->len == 0 || ccache->data == NULL
-        || origin_princ == NULL || origin_princ->len == 0
-        || origin_princ->data == NULL)
+        || deleg_str_absent(ccache) || deleg_str_absent(origin_princ))
     {
         return;
     }
 
-    live = vctx->deleg_live;
+    live = deleg_live_get_or_bind(vctx, mode);
     if (live == NULL) {
-        live = ngx_pcalloc(vctx->pool, sizeof(*live));
-        if (live == NULL) {
-            return;              /* degrade to SELECT, as bind's no-bytes path */
-        }
-        live->mode = mode;
-        brix_vfs_ctx_bind_backend_deleg(vctx, live);
+        return;
     }
-
     live->krb5_ccache       = *ccache;
     live->krb5_origin_princ = *origin_princ;
 }

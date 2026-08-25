@@ -117,15 +117,22 @@ class CaseManagerClientsMixin:
         path.mkdir(parents=True, exist_ok=True)
         return path
 
-    def _client_execution_context(self, kubernetes) -> ToolExecutionContext:
+    def _client_execution_context(
+        self, kubernetes, metadata: Mapping[str, object],
+    ) -> ToolExecutionContext:
         return ToolExecutionContext(
             nodeid=self.nodeid, root=self.root, workspace=self.workspace,
             backend=self.backend_name,
-            namespace=str(getattr(kubernetes, "namespace", "")),
+            namespace=str(metadata.get(
+                "namespace", getattr(kubernetes, "namespace", ""),
+            )),
             metadata={
                 "kubectl": str(getattr(kubernetes, "kubectl", "kubectl")),
-                "kubectl_context": str(getattr(kubernetes, "context", "")),
+                "kubectl_context": str(metadata.get(
+                    "context", getattr(kubernetes, "context", ""),
+                )),
             },
+            identities={item.name: item for item in self.definition.identities},
         )
 
     @staticmethod
@@ -175,7 +182,7 @@ class CaseManagerClientsMixin:
             spec, client_values, observer=self._observe_client,
             archive_dir=self._client_archive_dir(declaration),
             executor=executor,
-            execution_context=self._client_execution_context(kubernetes),
+            execution_context=self._client_execution_context(kubernetes, metadata),
             executor_metadata=metadata,
             result_observer=self._observe_tool_result,
         )

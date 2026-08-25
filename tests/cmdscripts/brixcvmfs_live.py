@@ -197,7 +197,13 @@ def _umbrella_link_deps() -> tuple[list[str], list[str], list[str], list[str]]:
          "client/apps/fs/brixautofs.c",               # brixautofs core
          "client/apps/fs/brixautofs_ext.c",           # brixautofs_main ref
          "client/apps/oci/brixoci.c",                 # brixoci_main personality
-         "client/apps/oci/brixoci_copy.c"],           # brixoci transfer core
+         "client/apps/oci/brixoci_copy.c",            # brixoci transfer core
+         "client/apps/oci/brixoci_convert.c",         # brixoci convert --estargz
+         "client/apps/oci/brixoci_gc.c",              # brixoci layout GC
+         "client/apps/rpm/brixrpm.c",                 # brixrpm personality
+         "client/apps/rpm/brixrpm_createrepo.c",      # brixrpm createrepo core
+         "shared/cvmfs/catalog/catalog_write.c",
+         "shared/cvmfs/catalog/xattr_pack.c"],        # cvmfs_xattr_* pack/unpack
         list(_UMBRELLA_ARCHIVES),
     )
 

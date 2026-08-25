@@ -82,6 +82,27 @@ def _token_claims(value: object) -> Mapping[str, object]:
     return freeze_mapping(value)
 
 
+def _token_key_policy(
+    algorithm: object, key_bits: object, key_id: object, secret: object,
+) -> None:
+    if algorithm not in ("HS256", "ES256", "RS256"):
+        raise SpecError("token.algorithm", algorithm, "must be HS256, ES256, or RS256")
+    _token_key_bits(algorithm, key_bits)
+    if algorithm != "HS256" and secret:
+        raise SpecError(
+            "token.secret", "[redacted]",
+            "is only valid for HS256; asymmetric private keys are managed by BriXTest",
+        )
+    _token_identity(key_id, "token.key_id")
+
+
+def _token_key_bits(algorithm: object, key_bits: object) -> None:
+    if algorithm == "RS256" and key_bits not in (2048, 3072, 4096):
+        raise SpecError("token.key_bits", key_bits, "must be 2048, 3072, or 4096")
+    if algorithm != "RS256" and key_bits != 2048:
+        raise SpecError("token.key_bits", key_bits, "is configurable for RS256 only")
+
+
 def _kerberos_principal(user: object, service: object) -> None:
     if not _simple_principal_component(user):
         raise SpecError("kerberos.user", user, "must be a simple principal component")
@@ -114,6 +135,19 @@ def _kerberos_runtime(port: object, start_kdc: object) -> None:
         raise SpecError("kerberos.start_kdc", start_kdc, "must be boolean")
 
 
+def _token_authority_policy(managed: object, rotate_on_restart: object) -> None:
+    if not isinstance(managed, bool) or not isinstance(rotate_on_restart, bool):
+        raise SpecError(
+            "token authority policy", (managed, rotate_on_restart),
+            "managed and rotate_on_restart must be boolean",
+        )
+    if rotate_on_restart and not managed:
+        raise SpecError(
+            "token.rotate_on_restart", rotate_on_restart,
+            "requires managed=True",
+        )
+
+
 @dataclasses.dataclass(frozen=True)
 class AuthRecipe:
     """Common identity for a managed authentication recipe."""
@@ -134,6 +168,11 @@ class TokenAuth(AuthRecipe):
     claims: Mapping[str, object] = dataclasses.field(default_factory=dict)
     secret: str = ""
     lifetime: int = 3600
+    algorithm: str = "HS256"
+    key_bits: int = 2048
+    key_id: str = "brixtest-signing-key"
+    managed: bool = False
+    rotate_on_restart: bool = False
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -145,6 +184,8 @@ class TokenAuth(AuthRecipe):
         if not isinstance(self.secret, str):
             raise SpecError("token.secret", self.secret, "must be text")
         _positive_int(self.lifetime, "token.lifetime")
+        _token_key_policy(self.algorithm, self.key_bits, self.key_id, self.secret)
+        _token_authority_policy(self.managed, self.rotate_on_restart)
         object.__setattr__(self, "scopes", _token_scopes(self.scopes))
         object.__setattr__(self, "claims", _token_claims(self.claims))
 
@@ -228,11 +269,15 @@ def token_auth(
     name: str = "token", *, issuer: str = "https://issuer.test", audience: str = "brixtest",
     subject: str = "test-user", scopes: Tuple[str, ...] = ("storage.read:/",),
     claims: Optional[Mapping[str, object]] = None, secret: str = "", lifetime: int = 3600,
+    algorithm: str = "HS256", key_bits: int = 2048,
+    key_id: str = "brixtest-signing-key", managed: bool = False,
+    rotate_on_restart: bool = False,
 ) -> TokenAuth:
-    """Declare a managed HS256 bearer-token issuer and test credential."""
+    """Declare a managed HS256, ES256, or RS256 token authority."""
     return TokenAuth(
         name, "token", issuer, audience, subject, scopes,
         claims if claims is not None else {}, secret, lifetime,
+        algorithm, key_bits, key_id, managed, rotate_on_restart,
     )
 
 

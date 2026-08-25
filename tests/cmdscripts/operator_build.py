@@ -189,7 +189,13 @@ def _coverage_steps(nginx_src, flags):
         (["make", f"-j{nproc()}"], nginx_src, "coverage nginx build failed"),
         (["make", "clean"], REPO_ROOT / "client", "coverage client clean failed"),
         (
-            ["make", f"-j{nproc()}", f"CFLAGS={flags}", f"LDFLAGS={flags}"],
+            # A command-line LDFLAGS REPLACES the Makefile's hardened default
+            # (relro/now/noexecstack), and the coverage-built binaries stay in
+            # client/bin for the next PR-tier run — where the hardening test
+            # reds on the missing BIND_NOW.  Append, exactly like the
+            # sanitizer build above does.
+            ["make", f"-j{nproc()}", f"CFLAGS={flags}",
+             f"LDFLAGS=-Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack {flags}"],
             REPO_ROOT / "client",
             "coverage client build failed",
         ),

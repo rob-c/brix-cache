@@ -37,6 +37,15 @@ static void mb_record(mb_worker *w, uint64_t t0)
     }
 }
 
+/* account one timed op started at t0: record its latency, count it, and count a
+ * failure iff `failed`. Caller sets t0 = brix_mono_ns() before issuing the op. */
+static void mb_op(mb_worker *w, uint64_t t0, int failed)
+{
+    if (failed) { w->failures++; }
+    w->ops++;
+    mb_record(w, t0);
+}
+
 /* CREATE: mkdir+chmod the tree, then create+chmod+stat each file. The stat
  * asserts the chmod persisted (mode read-back), so a silent mode loss fails. */
 static void mb_create(mb_worker *w, brix_conn *c)
@@ -48,22 +57,18 @@ static void mb_create(mb_worker *w, brix_conn *c)
 
     snprintf(path, sizeof(path), "/w%d", w->id);
     t0 = brix_mono_ns();
-    if (brix_mkdir(c, path, 0755, 0, &st) != 0) { w->failures++; }
-    w->ops++; mb_record(w, t0);
+    mb_op(w, t0, brix_mkdir(c, path, 0755, 0, &st) != 0);
 
     t0 = brix_mono_ns();
-    if (brix_chmod(c, path, 0755, &st) != 0) { w->failures++; }
-    w->ops++; mb_record(w, t0);
+    mb_op(w, t0, brix_chmod(c, path, 0755, &st) != 0);
 
     for (int d = 0; d < p->dirs_per_worker; d++) {
         snprintf(path, sizeof(path), "/w%d/d%d", w->id, d);
         t0 = brix_mono_ns();
-        if (brix_mkdir(c, path, 0700, 0, &st) != 0) { w->failures++; }
-        w->ops++; mb_record(w, t0);
+        mb_op(w, t0, brix_mkdir(c, path, 0700, 0, &st) != 0);
 
         t0 = brix_mono_ns();
-        if (brix_chmod(c, path, 0700, &st) != 0) { w->failures++; }
-        w->ops++; mb_record(w, t0);
+        mb_op(w, t0, brix_chmod(c, path, 0700, &st) != 0);
 
         for (int f = 0; f < p->files_per_dir; f++) {
             snprintf(path, sizeof(path), "/w%d/d%d/f%d", w->id, d, f);
@@ -72,26 +77,22 @@ static void mb_create(mb_worker *w, brix_conn *c)
              * metadata-only path `xrdfs touch` uses (truncate(2) needs an
              * existing target, so it is NOT a create). */
             brix_file fh;
+            int       failed;
             t0 = brix_mono_ns();
-            if (brix_file_open_write(c, path, 0 /* new */, 0 /* posc */, &fh, &st) != 0) {
-                w->failures++;
-            } else if (brix_file_close(c, &fh, &st) != 0) {
-                w->failures++;
-            }
-            w->ops++; mb_record(w, t0);
+            failed = brix_file_open_write(c, path, 0 /* new */, 0 /* posc */, &fh, &st) != 0;
+            if (!failed) { failed = brix_file_close(c, &fh, &st) != 0; }
+            mb_op(w, t0, failed);
 
             t0 = brix_mono_ns();
-            if (brix_chmod(c, path, 0640, &st) != 0) { w->failures++; }
-            w->ops++; mb_record(w, t0);
+            mb_op(w, t0, brix_chmod(c, path, 0640, &st) != 0);
 
             brix_statinfo si;
             t0 = brix_mono_ns();
-            if (brix_stat(c, path, &si, &st) != 0) {
-                w->failures++;
-            } else if (si.have_ext && (si.mode & 0777) != 0640) {
-                w->failures++;   /* chmod did not persist */
+            failed = brix_stat(c, path, &si, &st) != 0;
+            if (!failed && si.have_ext && (si.mode & 0777) != 0640) {
+                failed = 1;   /* chmod did not persist */
             }
-            w->ops++; mb_record(w, t0);
+            mb_op(w, t0, failed);
         }
     }
 }
@@ -108,19 +109,16 @@ static void mb_remove(mb_worker *w, brix_conn *c)
         for (int f = 0; f < p->files_per_dir; f++) {
             snprintf(path, sizeof(path), "/w%d/d%d/f%d", w->id, d, f);
             t0 = brix_mono_ns();
-            if (brix_rm(c, path, &st) != 0) { w->failures++; }
-            w->ops++; mb_record(w, t0);
+            mb_op(w, t0, brix_rm(c, path, &st) != 0);
         }
         snprintf(path, sizeof(path), "/w%d/d%d", w->id, d);
         t0 = brix_mono_ns();
-        if (brix_rmdir(c, path, &st) != 0) { w->failures++; }
-        w->ops++; mb_record(w, t0);
+        mb_op(w, t0, brix_rmdir(c, path, &st) != 0);
     }
 
     snprintf(path, sizeof(path), "/w%d", w->id);
     t0 = brix_mono_ns();
-    if (brix_rmdir(c, path, &st) != 0) { w->failures++; }
-    w->ops++; mb_record(w, t0);
+    mb_op(w, t0, brix_rmdir(c, path, &st) != 0);
 }
 
 /* thread entry: one GSI session, then the phase program. A connect failure marks

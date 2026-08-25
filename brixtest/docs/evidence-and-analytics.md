@@ -4,6 +4,11 @@ BriXTest treats every managed test as a reproducible experiment. A session
 contains cases; a case contains one or more isolated attempts; each attempt
 owns its metrics, resource samples, spans, attachments, logs, findings, and
 provenance. It also records the stable identity of every server instance used.
+Every normalized resource-graph node and typed edge is emitted as its own
+`resource-node` or `resource-link` entity, while retaining the complete graph
+in attempt provenance. This makes placements, identities, endpoints, images,
+volumes, tasks, authorities, replicas, dependencies, and consumer links
+queryable without parsing an opaque case document.
 Session-scoped server pools contribute their lifetime resource metrics,
 provenance, findings, timestamps, and one checksum-addressed physical log. The
 versioned JSON schema is also used by SQLite, Parquet,
@@ -39,7 +44,11 @@ def test_transfer(run):
 ```
 
 Each warmup and trial is a new helper process with a new run directory and
-fresh managed resources. Warmup observations remain in the evidence but are
+fresh managed resources. Kubernetes attempts additionally retain correlated per-Pod/per-container
+current and previous logs, image/container identities, readiness, restart and
+exit status, events, and available container resource metrics. The sanitized
+status deliberately excludes Pod specifications and environment values.
+Warmup observations remain in the evidence but are
 excluded from aggregate metrics and regression decisions. BriXTest stops the
 sequence at its first failed or timed-out attempt.
 
@@ -75,6 +84,16 @@ Every attempt records source commit/dirty state, platform/kernel/Python,
 hardware totals, backend/isolation, tool discovery, captured binary and
 rendered-config hashes, and environment-variable presence plus a value hash.
 Environment values are not written to provenance.
+
+`summary.json.network` is the normalized network realization. It records
+declared environments and address families, forward/reverse DNS mappings,
+dependency routes, network-policy modes, replica addresses, each endpoint's
+protocol/family/exposure, internal and external allocation, and whether access
+is direct, crosses a supervised Kubernetes TCP port-forward, or crosses the
+supervised binary UDP exec gateway. Gateway logs are archived and checksummed
+beside server/container streams. A SHA-256 over the whole network payload makes
+allocation or routing drift directly comparable between attempts without
+exposing environment or credential values.
 
 Evidence is appended as one fsynced JSON event per line under
 `run/evidence/journal.jsonl`. If a helper is killed or times out, the controller
@@ -135,6 +154,31 @@ config artifact. See
 [Dynamic topology](dynamic-topology.md) for the lifecycle and deduplication
 contract.
 
+The companion `evidence_resource_nodes`, `evidence_resource_links`, and
+`evidence_test_resource_links` tables expose the exact effective plan used by
+each attempt. The same entities are present in Parquet, OpenSearch,
+Elasticsearch, OTLP JSON, and bulk exports. For example:
+
+```sql
+select n.kind, n.name, n.backend, l.relation, l.target
+from evidence_resource_nodes n
+left join evidence_resource_links l
+  on l.session_id = n.session_id and l.attempt_id = n.attempt_id
+ and l.source = n.resource_id
+where n.session_id = ?;
+```
+
+Runtime realization is promoted beside the declared graph rather than hidden
+inside a summary blob. `network-environment`, `dns-record`, `network-route`,
+`network-policy`, `network-endpoint`, and `service-replica` entity rows retain
+the exact internal/external address, gateway, protocol/family, namespace, and
+Pod UID chosen by the backend. `provider-object` and `storage-identity` rows
+retain provider ownership UIDs, operator/StorageClass identities, and named
+outputs. Identity, RBAC, volume, task, authority, image, and binary inputs are
+available as their typed `resource-node` declarations. All of these entity
+kinds flow unchanged into the generic SQLite `evidence_entities` table,
+Parquet, OpenSearch/Elasticsearch, OTLP JSON, and bulk export.
+
 S3 support requires `brixtest[s3]`; Parquet/DuckDB requires
 `brixtest[analytics]`. OTLP/HTTP JSON and OpenSearch use the standard library.
 
@@ -163,8 +207,16 @@ brixtest run tests -- \
   --brixtest-sanitizer asan
 ```
 
-The binary and its discovered dynamic libraries are copied before the first
+The binary, its discovered dynamic libraries, and explicitly declared runtime
+files are copied before the first
 server starts. `--brixtest-sanitizer` applies fail-fast settings to helper,
 server, and client environments. ASan, LeakSanitizer, and UBSan signatures in
 managed logs become error findings, so a passing assertion cannot hide a
 sanitizer report. The case record includes an exact `brixtest rerun` command.
+Captured executables, libraries, and exact-destination runtime files are copied
+into the session's content-addressed object store even when the run directory
+uses `keep="never"`.
+The rerun recaptures only those archived bytes, verifies their SHA-256 values,
+and compares the compiled resource-graph fingerprint before resource creation.
+A rebuilt binary or edited declaration therefore fails explicitly instead of
+silently changing the experiment being replayed.

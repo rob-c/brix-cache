@@ -58,35 +58,11 @@ ev_eb_send_idle(ngx_event_t *ev)
 static void
 ev_retr_mode_e_write(ngx_event_t *wev)
 {
-    ngx_connection_t *c  = wev->data;
-    ftp_ev_dc_t      *dc = c->data;
-    ftp_ev_t         *fc = dc->fc;
-
-    if (wev->timedout) {
-        brix_ftp_ev_data_finish(dc, NGX_ERROR);
-        return;
-    }
-    if (wev->timer_set) {
-        ngx_del_timer(wev);
-    }
+    ftp_ev_dc_t *dc = ((ngx_connection_t *) wev->data)->data;
+    ftp_ev_t    *fc = dc->fc;
 
     for ( ;; ) {
-        if (dc->buf_pos < dc->buf_len) {
-            ssize_t n = c->send(c, dc->buf + dc->buf_pos,
-                                dc->buf_len - dc->buf_pos);
-            if (n > 0) {
-                dc->buf_pos += (size_t) n;
-                continue;
-            }
-            if (n == NGX_AGAIN) {
-                if (ngx_handle_write_event(wev, 0) != NGX_OK) {
-                    brix_ftp_ev_data_finish(dc, NGX_ERROR);
-                    return;
-                }
-                ngx_add_timer(wev, BRIX_FTP_EV_IO_TIMEO);
-                return;
-            }
-            brix_ftp_ev_data_finish(dc, NGX_ERROR);   /* NGX_ERROR or peer EOF */
+        if (brix_ftp_ev_send_drain(wev) != NGX_OK) {
             return;
         }
 

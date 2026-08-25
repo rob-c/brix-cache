@@ -298,17 +298,20 @@ tape_stage_list(ngx_http_request_t *r)
 }
 
 
-/* DELETE /api/v1/stage/{id}*/
+/* DELETE /api/v1/stage/{id}  and  POST /api/v1/stage/{id}/cancel — the two
+ * end-of-life verbs share the ownership gate and 204 answer and differ only
+ * in the registry op applied (`cancel` != 0 → cancel, else delete). */
 ngx_int_t
-tape_stage_delete(ngx_http_request_t *r,
-                  ngx_http_brix_webdav_req_ctx_t *ctx, const char *id)
+tape_stage_terminate(ngx_http_request_t *r,
+                     ngx_http_brix_webdav_req_ctx_t *ctx, const char *id,
+                     int cancel)
 {
     brix_stage_registry_t *q = tape_queue();
 
     if (q == NULL) {
         return tape_error(r, NGX_HTTP_SERVICE_UNAVAILABLE, "not configured");
     }
-    /* only the owning principal may delete the request (fail-open for anonymous
+    /* only the owning principal may end the request (fail-open for anonymous
      * callers / owner-less records — see brix_stage_request_owner_check). */
     if (brix_stage_request_owner_check(q, id,
                                 brix_identity_dn_cstr(ctx->identity),
@@ -316,32 +319,12 @@ tape_stage_delete(ngx_http_request_t *r,
     {
         return tape_error(r, NGX_HTTP_FORBIDDEN, "not the owner of this request");
     }
-    (void) brix_stage_request_delete(q, id, r->connection->log); /* idempotent */
-    r->headers_out.status = NGX_HTTP_NO_CONTENT;
-    r->header_only = 1;
-    r->headers_out.content_length_n = 0;
-    return ngx_http_send_header(r);
-}
-
-
-/* POST /api/v1/stage/{id}/cancel*/
-ngx_int_t
-tape_stage_cancel(ngx_http_request_t *r,
-                  ngx_http_brix_webdav_req_ctx_t *ctx, const char *id)
-{
-    brix_stage_registry_t *q = tape_queue();
-
-    if (q == NULL) {
-        return tape_error(r, NGX_HTTP_SERVICE_UNAVAILABLE, "not configured");
+    if (cancel) {
+        (void) brix_stage_request_cancel(q, id, r->connection->log);
+    } else {
+        (void) brix_stage_request_delete(q, id, r->connection->log);
     }
-    /* only the owning principal may cancel the request. */
-    if (brix_stage_request_owner_check(q, id,
-                                brix_identity_dn_cstr(ctx->identity),
-                                r->connection->log) != NGX_OK)
-    {
-        return tape_error(r, NGX_HTTP_FORBIDDEN, "not the owner of this request");
-    }
-    (void) brix_stage_request_cancel(q, id, r->connection->log); /* idempotent */
+    /* both ops are idempotent — a re-sent verb still answers 204 */
     r->headers_out.status = NGX_HTTP_NO_CONTENT;
     r->header_only = 1;
     r->headers_out.content_length_n = 0;

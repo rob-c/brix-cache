@@ -13,13 +13,13 @@
 #       backlog may shrink freely and may never grow.
 #
 #       Deliberately NOT covered: the analyzer baselines (fanalyzer_baseline.txt,
-#       codechecker_baseline.txt) and duplication_backlog.txt. The analyzer
-#       baselines legitimately gain entries when new code produces a new false
-#       positive, and they carry their own review discipline (`--regen` with a
-#       reviewed diff); the duplication backlog arms a guard that is advisory by
-#       decision (tests/test_ci_guards.py::_NOT_IN_CI), and freezing its backlog
-#       would enforce that guard through the back door. A ratchet that fires on
+#       codechecker_baseline.txt). They legitimately gain entries when new code
+#       produces a new false positive, and they carry their own review
+#       discipline (`--regen` with a reviewed diff). A ratchet that fires on
 #       honest work gets regenerated blindly, which is worse than not having it.
+#       check_duplication.py needs no entry here: its backlog was burned down
+#       and deleted 2026-08-24 — the guard is zero-tolerance with no file to
+#       grow.
 #
 # HOW:  Read each backlog at the base revision and in the working tree, parse
 #       both into {entry -> allowance}, and report

@@ -77,6 +77,34 @@ ngx_int_t brix_http_send_file_range(ngx_http_request_t *r, ngx_fd_t fd,
     const char *path, off_t start, off_t len, ngx_flag_t close_fd);
 
 /*
+ * brix_http_send_single_buf - send headers then one prepared buffer as the body.
+ *
+ * WHAT: ngx_http_send_header() with the canonical bail guard (NGX_ERROR, special
+ *       response code, or HEAD), then a single-link chain around b.
+ *
+ * WHY: The memory-backed one-shot response dispatch tail, shared by handlers
+ *      that build their whole body in one buffer. Caller sets headers_out and
+ *      b->last_buf; the buffer must be memory-backed or fully prepared.
+ *
+ * HOW: rc = send_header; bail on rc/header_only; out = {b, NULL}; output_filter.
+ */
+ngx_int_t brix_http_send_single_buf(ngx_http_request_t *r, ngx_buf_t *b);
+
+/*
+ * brix_http_finalize_memory_body - async-completion body send + finalize.
+ *
+ * WHAT: Wraps [body, body+body_len) in a memory-backed last_buf chain,
+ *       finalizes the request with the output-filter status (500 on buffer
+ *       OOM), and runs posted requests.
+ *
+ * WHY: Thread-task done-handlers must finalize explicitly and kick the posted
+ *      queue; headers were already sent by the caller. body must outlive the
+ *      request (task-ctx memory allocated from r->pool).
+ */
+void brix_http_finalize_memory_body(ngx_http_request_t *r, u_char *body,
+    size_t body_len);
+
+/*
  * brix_http_chain_append_file_range - append a file-backed chain link for [start, end].
  *
  * WHAT: Allocates ngx_buf_t + ngx_file_t from r->pool for the byte range [start, end]

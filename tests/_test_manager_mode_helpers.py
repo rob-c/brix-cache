@@ -306,8 +306,10 @@ def cluster():
     """Use the pre-launched cluster-redir + cluster-ds instances.
 
     TestClusterUnregister.test_no_redirect_after_dataserver_stops calls
-    cluster["ds"]["stop"]() to permanently kill the DS; that's intentional
-    and it must run last (it appears last in this file).
+    cluster["ds"]["stop"]() to permanently kill the DS; that's intentional.
+    The classes after it (MultiPath, MultiServer, PerWorkerCMS) do not
+    redirect to cluster-ds, so they tolerate the dead-DS window; the module
+    finalizer below restores the DS for whoever runs next.
     """
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
@@ -336,6 +338,16 @@ def cluster():
         capture_output=True,
         timeout=30,
     )
+    # start-dedicated returns once the process is up, not once its CMS
+    # connection has re-joined the redirector — the join can take 25-50s, so
+    # wait generously here so the next consumer never sees the no-DS window.
+    # _wait_for_redirect times out via pytest.fail, whose Failed derives from
+    # BaseException and sails past `except Exception` — name it explicitly.
+    try:
+        _wait_for_redirect(CLUSTER_REDIR_PORT, "/test.txt", CLUSTER_DS_PORT,
+                           timeout=90.0)
+    except (Exception, pytest.fail.Exception):
+        pass  # teardown must not fail the module; the next fixture re-waits
 
 
 

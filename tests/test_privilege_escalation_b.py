@@ -1,6 +1,10 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_privilege_escalation_helpers")
 
+# Same group as test_privilege_escalation.py — the split halves share the
+# readonly export's fixture files and symlinks; see the comment there.
+pytestmark = pytest.mark.xdist_group("priv-esc")
+
 class TestReadSideSymlinkEscape:
     """Read-only operations must not follow symlinks outside brix_export."""
 

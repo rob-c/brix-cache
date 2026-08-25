@@ -20,22 +20,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* A sidecar / slice file the scrub drives off its data file, never as data of
- * its own (mirrors cache_reap.c::reap_is_sidecar). The .cinfo/.meta records are
- * the checksum carriers themselves. */
-static int
-scrub_is_sidecar(const char *name)
-{
-    const char *dot = strrchr(name, '.');
-
-    if (dot != NULL && (strcmp(dot, ".cinfo") == 0 || strcmp(dot, ".meta") == 0
-                        || strcmp(dot, ".part") == 0 || strcmp(dot, ".lock") == 0))
-    {
-        return 1;
-    }
-    return strstr(name, ".__xrds") != NULL;   /* slice files + slice meta */
-}
-
 /* Read exactly len bytes at off (EINTR-retried). 1 = full, 0 = short/error. */
 static int
 scrub_pread_full(int fd, unsigned char *buf, size_t len, off_t off)
@@ -180,7 +164,7 @@ scrub_dir(const char *dir, const scrub_ctx_t *sc, brix_csi_scrub_stats_t *st,
         struct stat st_c;
 
         if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0
-            || scrub_is_sidecar(de->d_name))
+            || brix_xmeta_is_sidecar_name(de->d_name))
         {
             continue;
         }

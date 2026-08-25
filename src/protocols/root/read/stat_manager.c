@@ -8,6 +8,7 @@
 #include "core/negcache/negcache.h"    /* E-4: stat-harvest backoff */
 #include "net/manager/registry.h"
 #include "net/manager/pending.h"
+#include "locate.h"                 /* brix_cms_locate_park */
 #include "net/cms/cms_internal.h"
 #include <string.h>
 #include <stdio.h>
@@ -110,29 +111,9 @@ stat_manager_route(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /* Registry miss — ask a CMS parent if configured. */
-    if (conf->cms.nctxs > 0) {
-        ngx_brix_cms_ctx_t *cms = ngx_brix_cms_pick_ctx(conf);
-        uint32_t            streamid;
-
-        streamid = ngx_brix_cms_next_streamid(cms);
-        if (brix_pending_insert(streamid, ngx_pid, c->fd,
-                                  c->number,
-                                  ctx->recv.cur_streamid,
-                                  conf->cms.locate_timeout) == NGX_OK)
-        {
-            ctx->cms_wait_streamid = streamid;
-            ctx->state = XRD_ST_WAITING_CMS;
-            ngx_add_timer(c->read, conf->cms.locate_timeout);
-            if (ngx_brix_cms_send_locate(cms, streamid,
-                                           reqpath) == NGX_OK)
-            {
-                *rc = NGX_AGAIN;
-                return 0;
-            }
-            ngx_del_timer(c->read);
-            ctx->state = XRD_ST_REQ_HEADER;
-            brix_pending_remove(streamid, ngx_pid);
-        }
+    if (brix_cms_locate_park(ctx, c, conf, reqpath) == NGX_OK) {
+        *rc = NGX_AGAIN;
+        return 0;
     }
 
     return 1;

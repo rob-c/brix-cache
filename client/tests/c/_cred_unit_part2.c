@@ -94,21 +94,11 @@ test_s3keys_env_success(void)
     setenv("AWS_ACCESS_KEY_ID",     acc, 1);
     setenv("AWS_SECRET_ACCESS_KEY", sec, 1);
 
-    brix_cred_config cfg  = {0};
-    brix_cred_store *s    = brix_cred_store_new(&cfg);
-    assert(s != NULL);
+    brix_cred_config cfg = {0};
 
-    assert(brix_cred_available(s, XRDC_CRED_S3KEYS) == 1);
+    /* static keys have no per-use expiry → not_after stays 0 */
+    assert(cred_expect_s3keys(brix_cred_store_new(&cfg), acc, sec) == 0);
 
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_S3KEYS, 0, &v, &st);
-    assert(rc == 0);
-    assert(v.s3_access != NULL && strcmp(v.s3_access, acc) == 0);
-    assert(v.s3_secret != NULL && strcmp(v.s3_secret, sec) == 0);
-    assert(v.not_after == 0);   /* static keys have no per-use expiry */
-
-    brix_cred_store_free(s);
     unsetenv("AWS_ACCESS_KEY_ID");
     unsetenv("AWS_SECRET_ACCESS_KEY");
     printf("test_s3keys_env_success: PASS\n");
@@ -138,16 +128,8 @@ test_s3keys_missing(void)
 
     brix_cred_config cfg = {0};
     brix_cred_store *s   = brix_cred_store_new(&cfg);
-    assert(s != NULL);
 
-    assert(brix_cred_available(s, XRDC_CRED_S3KEYS) == 0);
-
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_S3KEYS, 0, &v, &st);
-    assert(rc == -1);
-    assert(st.kxr == XRDC_EAUTH);
-    assert(st.msg[0] != '\0');
+    cred_expect_refusal(s, XRDC_CRED_S3KEYS, XRDC_EAUTH, NULL);
 
     brix_cred_store_free(s);
 
@@ -186,19 +168,8 @@ test_s3keys_cfg_precedence(void)
     cfg.s3_access = cfg_acc;   /* explicit override beats env */
     cfg.s3_secret = cfg_sec;
 
-    brix_cred_store *s = brix_cred_store_new(&cfg);
-    assert(s != NULL);
+    (void) cred_expect_s3keys(brix_cred_store_new(&cfg), cfg_acc, cfg_sec);
 
-    assert(brix_cred_available(s, XRDC_CRED_S3KEYS) == 1);
-
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_S3KEYS, 0, &v, &st);
-    assert(rc == 0);
-    assert(v.s3_access != NULL && strcmp(v.s3_access, cfg_acc) == 0);
-    assert(v.s3_secret != NULL && strcmp(v.s3_secret, cfg_sec) == 0);
-
-    brix_cred_store_free(s);
     unsetenv("AWS_ACCESS_KEY_ID");
     unsetenv("AWS_SECRET_ACCESS_KEY");
     printf("test_s3keys_cfg_precedence: PASS\n");
@@ -256,24 +227,11 @@ test_s3keys_file_success(void)
     setenv("HOME", tmphome, 1);
 
     brix_cred_config cfg = {0};   /* s3_access/s3_secret NULL: falls to Level 3 */
-    brix_cred_store *s   = brix_cred_store_new(&cfg);
-    assert(s != NULL);
 
-    assert(brix_cred_available(s, XRDC_CRED_S3KEYS) == 1);
-
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_S3KEYS, 0, &v, &st);
-    assert(rc == 0);
-    /* [default] keys must be returned. */
-    assert(v.s3_access != NULL && strcmp(v.s3_access, "AKIA_FROM_FILE") == 0);
-    assert(v.s3_secret != NULL && strcmp(v.s3_secret, "filesecret123")  == 0);
-    assert(v.not_after == 0);
-    /* [defaultx] keys must NOT have been picked up (Fix 1: exact header match). */
-    assert(strcmp(v.s3_access, "AKIA_WRONG_BEFORE") != 0);
-    assert(strcmp(v.s3_access, "AKIA_WRONG_AFTER")  != 0);
-
-    brix_cred_store_free(s);
+    /* Exactly the [default] keys must come back — the exact-match assert also
+     * proves neither [defaultx] pair was picked up (Fix 1: strcmp header). */
+    assert(cred_expect_s3keys(brix_cred_store_new(&cfg),
+                              "AKIA_FROM_FILE", "filesecret123") == 0);
 
     /* Restore env */
     if (orig_home != NULL) {

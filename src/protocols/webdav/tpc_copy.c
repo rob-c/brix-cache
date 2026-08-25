@@ -40,15 +40,16 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* OAuth2/OIDC credential delegation for an HTTP-TPC pull: parse the Credential /
- * Credentials request header and, unless it is absent or "none", obtain a
- * delegated token for source_url and inject it as an "Authorization: Bearer"
- * entry into transfer_headers (consumed by the curl subprocess).  Returns NGX_OK
- * to continue (whether or not delegation happened), or an NGX_HTTP_* status the
- * caller must return on a parse/obtain/alloc failure. */
+/* OAuth2/OIDC credential delegation for an HTTP-TPC leg (pull source or push
+ * destination): parse the Credential / Credentials request header and, unless
+ * it is absent or "none", obtain a delegated token for remote_url and inject it
+ * as an "Authorization: Bearer" entry into transfer_headers (consumed by the
+ * curl subprocess).  Returns NGX_OK to continue (whether or not delegation
+ * happened), or an NGX_HTTP_* status the caller must return on a
+ * parse/obtain/alloc failure. */
 ngx_int_t
 webdav_tpc_apply_credential_delegation(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf, const char *source_url,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *remote_url,
     ngx_array_t *transfer_headers)
 {
     ngx_table_elt_t       *credential_hdr;
@@ -90,7 +91,7 @@ webdav_tpc_apply_credential_delegation(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    rc = webdav_tpc_cred_obtain_token(r, mode, source_url,
+    rc = webdav_tpc_cred_obtain_token(r, mode, remote_url,
                                       subject_token,
                                       conf->tpc_cred.token_scope.len > 0
                                           ? (const char *) conf->tpc_cred.token_scope.data
@@ -100,27 +101,9 @@ webdav_tpc_apply_credential_delegation(ngx_http_request_t *r,
         return NGX_HTTP_BAD_GATEWAY;
     }
 
-    /* Inject delegated token as Authorization header. */
-    {
-        size_t total_len = sizeof("Authorization: Bearer ") - 1
-                           + delegated_token.len;
-        ngx_str_t *dst = ngx_array_push(transfer_headers);
-        if (dst == NULL) {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        dst->data = ngx_pnalloc(r->pool, total_len + 1);
-        if (dst->data == NULL) {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        ngx_memcpy(dst->data, "Authorization: Bearer ",
-                   sizeof("Authorization: Bearer ") - 1);
-        ngx_memcpy(dst->data + sizeof("Authorization: Bearer ") - 1,
-                   delegated_token.data, delegated_token.len);
-        dst->len = total_len;
-        dst->data[dst->len] = '\0';
-    }
-
-    return NGX_OK;
+    /* Inject the delegated token as an Authorization header. */
+    return webdav_tpc_add_bearer_header(r, transfer_headers,
+                                        &delegated_token);
 }
 
 ngx_int_t

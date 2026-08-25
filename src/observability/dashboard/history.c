@@ -37,15 +37,8 @@ static ngx_shmtx_t brix_dashboard_history_mutex;
 static brix_dashboard_history_t *
 dashboard_history_table(void)
 {
-    if (ngx_brix_dashboard_history_shm_zone == NULL
-        || ngx_brix_dashboard_history_shm_zone->data == NULL
-        || ngx_brix_dashboard_history_shm_zone->data == (void *) 1)
-    {
-        return NULL;
-    }
-
     return (brix_dashboard_history_t *)
-           ngx_brix_dashboard_history_shm_zone->data;
+           brix_shm_zone_table(ngx_brix_dashboard_history_shm_zone);
 }
 
 static ngx_uint_t

@@ -124,45 +124,46 @@ brix_clone_fold_csi(brix_ctx_t *ctx, ngx_connection_t *c, int dst_idx,
  * WHY: Give each source handle/range an independent fail-fast boundary.
  * HOW: Validate read access, decode bounded offsets, copy through the shared
  *      range helper, update CSI and accounting, then return bytes copied.
+ *      Validator-shaped: a refused span answers the client itself, stores the
+ *      send status in *rc and returns 0 so the caller must NOT respond again.
  */
-static ngx_int_t
+static ngx_flag_t
 brix_clone_one(brix_ctx_t *ctx, ngx_connection_t *c, int dst_idx,
-    const clone_item *item, uint64_t *copied)
+    const clone_item *item, uint64_t *copied, ngx_int_t *rc)
 {
     brix_clone_span_t span;
-    ngx_int_t         rc;
 
     span.src_idx = (int) (unsigned char) item->src_fhandle[0];
     if (!brix_validate_read_handle(ctx, c, span.src_idx, "CLONE",
-                                   BRIX_OP_CLONE, &rc))
+                                   BRIX_OP_CLONE, rc))
     {
-        return rc;
+        return 0;
     }
     if (brix_clone_decode(item, &span) != NGX_OK) {
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
-                        ctx->files[span.src_idx].path,
-                        ctx->files[dst_idx].path, kXR_ArgInvalid,
-                        "clone offset/length out of range");
+        BRIX_BAIL_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
+                      ctx->files[span.src_idx].path,
+                      ctx->files[dst_idx].path, kXR_ArgInvalid,
+                      "clone offset/length out of range", rc);
     }
     if (span.len == 0) {
         *copied = 0;
-        return NGX_OK;
+        return 1;
     }
     if (brix_copy_range(c->log, ctx->files[span.src_idx].fd, span.src_off,
                         ctx->files[dst_idx].fd, span.dst_off, span.len,
                         ctx->files[span.src_idx].path,
                         ctx->files[dst_idx].path) != NGX_OK)
     {
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
-                        ctx->files[span.src_idx].path,
-                        ctx->files[dst_idx].path, kXR_IOError,
-                        "clone copy failed");
+        BRIX_BAIL_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
+                      ctx->files[span.src_idx].path,
+                      ctx->files[dst_idx].path, kXR_IOError,
+                      "clone copy failed", rc);
     }
     brix_clone_fold_csi(ctx, c, dst_idx, span.dst_off, span.len);
     ctx->files[dst_idx].bytes_written += span.len;
     ctx->totals.bytes += span.len;
     *copied = span.len;
-    return NGX_OK;
+    return 1;
 }
 
 
@@ -211,8 +212,7 @@ brix_handle_clone(brix_ctx_t *ctx, ngx_connection_t *c)
         const clone_item *item = (const clone_item *) p;
         uint64_t          copied = 0;
 
-        rc = brix_clone_one(ctx, c, dst_idx, item, &copied);
-        if (rc != NGX_OK) {
+        if (!brix_clone_one(ctx, c, dst_idx, item, &copied, &rc)) {
             return rc;
         }
         total_bytes += copied;

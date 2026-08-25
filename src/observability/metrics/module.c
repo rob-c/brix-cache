@@ -1,4 +1,5 @@
 #include "metrics_internal.h"
+#include "core/config/conf_handler.h"
 
 /*
  * WHAT: Define the HTTP metrics module — a standalone nginx HTTP sub-module that exports
@@ -21,12 +22,13 @@
 static void *
 ngx_http_brix_metrics_create_loc_conf(ngx_conf_t *cf)
 {
-    ngx_http_brix_metrics_loc_conf_t *conf;
+    ngx_http_brix_metrics_loc_conf_t *conf =
+        ngx_pcalloc(cf->pool, sizeof(*conf));
 
-    conf = ngx_pcalloc(cf->pool, sizeof(*conf));
-    if (conf == NULL) { return NULL; }
-    conf->enable = NGX_CONF_UNSET;
-    conf->health = NGX_CONF_UNSET;
+    if (conf != NULL) {
+        conf->enable = NGX_CONF_UNSET;
+        conf->health = NGX_CONF_UNSET;
+    }
     return conf;
 }
 
@@ -61,15 +63,8 @@ ngx_http_brix_metrics_merge_loc_conf(ngx_conf_t *cf,
 static char *
 ngx_http_brix_metrics_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_core_loc_conf_t *clcf;
-    char *rv;
-
-    rv = ngx_conf_set_flag_slot(cf, cmd, conf);
-    if (rv != NGX_CONF_OK) { return rv; }
-
-    clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
-    clcf->handler = ngx_http_brix_metrics_handler;
-    return NGX_CONF_OK;
+    return brix_conf_flag_install_handler(cf, cmd, conf,
+                                          ngx_http_brix_metrics_handler);
 }
 
 /*
@@ -85,15 +80,8 @@ ngx_http_brix_metrics_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 static char *
 ngx_http_brix_health_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_core_loc_conf_t *clcf;
-    char *rv;
-
-    rv = ngx_conf_set_flag_slot(cf, cmd, conf);
-    if (rv != NGX_CONF_OK) { return rv; }
-
-    clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
-    clcf->handler = ngx_http_brix_health_handler;
-    return NGX_CONF_OK;
+    return brix_conf_flag_install_handler(cf, cmd, conf,
+                                          ngx_http_brix_health_handler);
 }
 
 /*

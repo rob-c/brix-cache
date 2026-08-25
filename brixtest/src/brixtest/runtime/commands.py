@@ -144,11 +144,16 @@ class CommandResult:
             ) from exc
 
 
-def _write_process_input(process: subprocess.Popen, value: Optional[str], encoding: str) -> None:
+def _write_process_input(
+    process: subprocess.Popen, value: Optional[Union[str, bytes]], encoding: str,
+) -> None:
     if process.stdin is None:
         return
     try:
-        process.stdin.write((value or "").encode(encoding, errors="replace"))
+        payload = value if isinstance(value, bytes) else (value or "").encode(
+            encoding, errors="replace",
+        )
+        process.stdin.write(payload)
     except BrokenPipeError:
         pass
     finally:
@@ -259,7 +264,7 @@ class CommandRunner:
     @classmethod
     def _run_bounded(
         cls, argv: Sequence[str], *, cwd: Path, environment: Mapping[str, str],
-        input: Optional[str], encoding: str, timeout: Optional[float],
+        input: Optional[Union[str, bytes]], encoding: str, timeout: Optional[float],
         output_limit: int, stream: bool,
     ) -> tuple[int, str, str, bool, bool]:
         """Spawn once, drain both pipes concurrently, and enforce a deadline."""
@@ -306,7 +311,8 @@ class CommandRunner:
 
     def run(
         self, *command: object, check: bool = True, timeout: Optional[float] = None,
-        input: Optional[str] = None, env: Optional[Mapping[str, str]] = None,
+        input: Optional[Union[str, bytes]] = None,
+        env: Optional[Mapping[str, str]] = None,
         cwd: Optional[Union[str, Path]] = None,
         encoding: str = "utf-8", expected_exit_codes: Sequence[int] = (0,),
         output_limit: int = 1 << 20, mode: str = "capture", retries: int = 0,
@@ -382,9 +388,13 @@ class CommandRunner:
     ) -> tuple[str, str, bool, bool]:
         if mode != "pty":
             return stdout, stderr, stdout_truncated, stderr_truncated
-        stdout, stdout_truncated = self._bounded(stdout, limit)
-        stderr, stderr_truncated = self._bounded(stderr, limit)
-        return stdout, stderr, stdout_truncated, stderr_truncated
+        stdout, bounded_stdout = self._bounded(stdout, limit)
+        stderr, bounded_stderr = self._bounded(stderr, limit)
+        return (
+            stdout, stderr,
+            stdout_truncated or bounded_stdout or "[BriXTest output truncated]" in stdout,
+            stderr_truncated or bounded_stderr or "[BriXTest output truncated]" in stderr,
+        )
 
     def _execute_once(
         self, argv, *, environment, cwd, timeout, input, encoding, output_limit, mode,
@@ -395,14 +405,18 @@ class CommandRunner:
                 environment=environment, input=input, encoding=encoding,
                 timeout=timeout, output_limit=output_limit, stream=mode == "stream",
             )
-        if input is not None:
-            raise SpecError("run.command input", input, "is not supported in pty mode")
         from brixtest.clients.pty import run_pty
 
         returncode, stdout, stderr = run_pty(
-            argv, env=environment, timeout=timeout or 30.0,
+            argv, env=environment, timeout=timeout or 30.0, input=input,
+            output_limit=output_limit, stream=True,
+            cwd=Path(cwd) if cwd is not None else self.cwd,
         )
-        return returncode, _text(stdout), _text(stderr), False, False
+        selected = _text(stdout)
+        return (
+            returncode, selected, _text(stderr),
+            "[BriXTest output truncated]" in selected, False,
+        )
 
     @staticmethod
     def _bounded(value: str, limit: int) -> tuple[str, bool]:

@@ -60,6 +60,33 @@ brix_vfs_backend_config(const char *root_canon, const ngx_str_t *name,
     e->block_size = (int64_t) block_size;
 }
 
+/* brix_vfs_backend_entry_claim — see vfs_backend_config_internal.h. */
+brix_vfs_backend_entry_t *
+brix_vfs_backend_entry_claim(const char *root_canon, const char *backend)
+{
+    brix_vfs_backend_entry_t *e;
+
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
+    if (e == NULL) {
+        return NULL;
+    }
+    VFS_BE_STR(e, backend, backend);
+    return e;
+}
+
+/* brix_vfs_backend_set_origin — see vfs_backend_config_internal.h. */
+void
+brix_vfs_backend_set_origin(brix_vfs_backend_entry_t *e, const char *host,
+    int port, int tls, const char *path, int put_checksum)
+{
+    VFS_BE_STR(e, origin_host, host);
+    e->origin_port = port;
+    e->origin_tls  = tls;
+    VFS_BE_STR(e, origin_path, path);
+    e->origin_put_checksum = put_checksum ? 1 : 0;   /* #12 */
+    e->inst = NULL;                                  /* rebuilt on next resolve */
+}
+
 /* Register a fixed-extent block backend (sd_block server plane). `device` is the
  * block device (or a regular file used as one); the export presents it as a flat
  * namespace of equal-size extents "/0".."/N-1". The per-extent size is the
@@ -76,14 +103,12 @@ brix_vfs_backend_config_block(const char *root_canon, const char *device,
     {
         return;
     }
-    e = brix_vfs_backend_entry_get_or_create(root_canon);
+    e = brix_vfs_backend_entry_claim(root_canon, "block");
     if (e == NULL) {
         return;
     }
-    ngx_memcpy(e->backend, "block", sizeof("block"));
-    ngx_cpystrn((u_char *) e->origin_path, (u_char *) device,
-                sizeof(e->origin_path));      /* the block device / file path */
     e->block_size = (int64_t) block_size;      /* per-extent size (0 ⇒ whole dev) */
+    VFS_BE_STR(e, origin_path, device);        /* the block device / file path */
     e->inst = NULL;
 }
 

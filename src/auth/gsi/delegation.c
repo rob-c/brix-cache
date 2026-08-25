@@ -264,9 +264,9 @@ brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
     if (b.inner.err) {
         return bdg_fail(&b);
     }
-    b.enc = brix_gsi_cipher_encrypt(&cipher, ctx->gsi.sess_key, b.inner.p,
-                                      b.inner.len, ctx->gsi.sess_use_iv,
-                                      &b.enc_len);
+    b.enc = brix_gsi_cipher_apply(&cipher, ctx->gsi.sess_key, b.inner.p,
+                                    b.inner.len, ctx->gsi.sess_use_iv,
+                                    /* enc */ 1, &b.enc_len);
     if (b.enc == NULL) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI delegation: encrypt pxyreq main failed");
@@ -336,8 +336,9 @@ brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
                       "brix: GSI kXGC_sigpxy: kXRS_main missing");
         return NGX_ERROR;
     }
-    plain = brix_gsi_cipher_decrypt(&cipher, ctx->gsi.sess_key, enc, enc_len,
-                                      ctx->gsi.sess_use_iv, &plain_len);
+    plain = brix_gsi_cipher_apply(&cipher, ctx->gsi.sess_key, enc, enc_len,
+                                    ctx->gsi.sess_use_iv, /* enc */ 0,
+                                    &plain_len);
     if (plain == NULL) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI kXGC_sigpxy: main decrypt failed");

@@ -27,6 +27,7 @@ SHARED = os.path.join(REPO, "shared")
 SRC = [os.path.join(SHARED, "oci", f)
        for f in ("tar_unittest.c", "tar.c", "tar_pax.c", "tar_digest.c", "digest.c")] + \
       [os.path.join(SHARED, "cvmfs", "catalog", "catalog_write.c"),
+       os.path.join(SHARED, "cvmfs", "catalog", "xattr_pack.c"),
        os.path.join(SHARED, "cvmfs", "catalog", "catalog.c"),
        os.path.join(SHARED, "cvmfs", "grammar", "hash.c")]
 

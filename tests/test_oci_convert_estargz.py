@@ -358,7 +358,8 @@ def test_a_registry_destination_names_itself(tmp_path):
     _image(tmp_path / "src")
     r = subprocess.run(
         [BRIXOCI, "convert", "--estargz", "oci:%s" % (tmp_path / "src"),
-         "localhost:1/repo:v2", "--tag", "v1"],
+         "localhost:1/repo:v2",  # net-literal-allow: flag conflict is refused before anything dials (port 1)
+         "--tag", "v1"],
         capture_output=True, text=True, timeout=60)
     assert r.returncode == 2, r.stdout + r.stderr
     assert "--tag" in r.stdout + r.stderr

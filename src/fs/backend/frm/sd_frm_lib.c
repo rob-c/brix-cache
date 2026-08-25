@@ -28,7 +28,7 @@
 #include <unistd.h>
 
 typedef struct {
-    char                     base[PATH_MAX];   /* local online-buffer root */
+    frm_mss_head_t           head;             /* base + invoke — shared-op seam */
     void                    *dl;               /* dlopen handle            */
     brix_frm_hsm_exists_fn   fn_exists;
     brix_frm_hsm_recall_fn   fn_recall;
@@ -37,120 +37,27 @@ typedef struct {
     ngx_log_t               *log;
 } lib_ctx_t;
 
+/* The lib adapter's frm_mss_invoke_fn: each MSS verb is a direct dlsym'd call.
+ * `purge` is optional in the ABI — absent means the MSS-side drop is a no-op
+ * (the shared op already unlinked the online buffer). */
 static int
-lib_online_path(const lib_ctx_t *c, const char *key, char *out, size_t cap)
-{
-    int n = snprintf(out, cap, "%s/.online/%s", c->base,
-                     (key[0] == '/') ? key + 1 : key);
-
-    return (n > 0 && (size_t) n < cap) ? 0 : -1;
-}
-
-static int
-lib_residency(void *mss, const char *key, off_t *size_out, time_t *mtime_out)
-{
-    lib_ctx_t  *c = mss;
-    char        online[PATH_MAX];
-    struct stat sb;
-
-    if (lib_online_path(c, key, online, sizeof(online)) == 0
-        && stat(online, &sb) == 0)
-    {
-        if (size_out)  { *size_out = sb.st_size; }
-        if (mtime_out) { *mtime_out = sb.st_mtime; }
-        return BRIX_RESIDENCY_ONLINE;
-    }
-    /* Ask the library: 0 = on tape (offline), non-zero = absent. Size is unknown
-     * until recalled; the cache fill restats the online buffer. */
-    if (c->fn_exists(key) == 0) {
-        if (size_out)  { *size_out = 0; }
-        if (mtime_out) { *mtime_out = time(NULL); }
-        return BRIX_RESIDENCY_OFFLINE;
-    }
-    return BRIX_RESIDENCY_ABSENT;
-}
-
-static int
-lib_recall_begin(void *mss, const char *key)
+lib_invoke(void *mss, const char *verb, const char *key, const char *online)
 {
     lib_ctx_t *c = mss;
-    char       online[PATH_MAX];
 
-    if (lib_online_path(c, key, online, sizeof(online)) != 0) {
-        return -1;
+    if (strcmp(verb, "exists") == 0) {
+        return c->fn_exists(key);
     }
-    if (access(online, F_OK) == 0) {
-        return 0;                            /* already online */
+    if (strcmp(verb, "recall") == 0) {
+        return c->fn_recall(key, online);
     }
-    frm_mkparents(online);                   /* the library writes the online buffer */
-    return (c->fn_recall(key, online) == 0) ? 0 : -1;
-}
-
-static int
-lib_recall_poll(void *mss, const char *key)
-{
-    lib_ctx_t *c = mss;
-    char       online[PATH_MAX];
-
-    if (lib_online_path(c, key, online, sizeof(online)) != 0) {
-        return -1;
+    if (strcmp(verb, "migrate") == 0) {
+        return c->fn_migrate(key, online);
     }
-    return (access(online, F_OK) == 0) ? 1 : 0;
-}
-
-static int
-lib_migrate(void *mss, const char *key)
-{
-    lib_ctx_t *c = mss;
-    char       online[PATH_MAX];
-
-    if (lib_online_path(c, key, online, sizeof(online)) != 0) {
-        return -1;
+    if (strcmp(verb, "purge") == 0) {
+        return (c->fn_purge != NULL) ? c->fn_purge(key) : 0;
     }
-    return (c->fn_migrate(key, online) == 0) ? 0 : -1;
-}
-
-static int
-lib_purge(void *mss, const char *key)
-{
-    lib_ctx_t *c = mss;
-    char       online[PATH_MAX];
-
-    if (lib_online_path(c, key, online, sizeof(online)) == 0) {
-        (void) unlink(online);
-    }
-    if (c->fn_purge != NULL) {
-        (void) c->fn_purge(key);             /* best-effort MSS-side drop */
-    }
-    return 0;
-}
-
-static int
-lib_open_online(void *mss, const char *key)
-{
-    lib_ctx_t *c = mss;
-    char       online[PATH_MAX];
-
-    if (lib_online_path(c, key, online, sizeof(online)) != 0) {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    return open(online, O_RDONLY | O_CLOEXEC);
-}
-
-static int
-lib_create_online(void *mss, const char *key, mode_t mode)
-{
-    lib_ctx_t *c = mss;
-    char       online[PATH_MAX];
-
-    if (lib_online_path(c, key, online, sizeof(online)) != 0) {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    frm_mkparents(online);
-    return open(online, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC,
-                mode ? mode : 0644);
+    return -1;
 }
 
 static void
@@ -169,13 +76,13 @@ lib_destroy(void *mss)
 
 const brix_mss_adapter_t brix_mss_lib_adapter = {
     .name          = "lib",
-    .residency     = lib_residency,
-    .recall_begin  = lib_recall_begin,
-    .recall_poll   = lib_recall_poll,
-    .migrate       = lib_migrate,
-    .purge         = lib_purge,
-    .open_online   = lib_open_online,
-    .create_online = lib_create_online,
+    .residency     = frm_mss_residency,
+    .recall_begin  = frm_mss_recall_begin,
+    .recall_poll   = frm_mss_recall_poll,
+    .migrate       = frm_mss_migrate,
+    .purge         = frm_mss_purge,
+    .open_online   = frm_mss_open_online,
+    .create_online = frm_mss_create_online,
     .destroy       = lib_destroy,
 };
 
@@ -198,7 +105,9 @@ brix_mss_lib_create(const char *location, const char *libpath, ngx_log_t *log)
     if (c == NULL) {
         return NULL;
     }
-    ngx_cpystrn((u_char *) c->base, (u_char *) location, sizeof(c->base));
+    ngx_cpystrn((u_char *) c->head.base, (u_char *) location,
+                sizeof(c->head.base));
+    c->head.invoke = lib_invoke;
     c->log = log;
 
     c->dl = dlopen(libpath, RTLD_NOW | RTLD_LOCAL);

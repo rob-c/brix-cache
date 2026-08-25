@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import stat
 from pathlib import Path
@@ -28,6 +29,7 @@ from brixtest.extensions import (
     CaseBackend,
     Collector,
     Exporter,
+    ManagedResourceProvider,
     ProbeDriver,
     ResourceProvider,
     ServerLauncher,
@@ -96,16 +98,37 @@ class _ContractLauncher:
         pass
 
 
+class _ContractManagedProvider:
+    def validate(self, declaration):
+        pass
+
+    def plan(self, declaration, context):
+        pass
+
+    def create(self, plan, context):
+        pass
+
+    def ready(self, instance, context, timeout):
+        pass
+
+    def collect(self, instance, context):
+        return {}
+
+    def destroy(self, instance, context):
+        pass
+
+
 def test_extension_protocols_and_entry_point_groups_are_complete():
     assert isinstance(_ContractBackend(), CaseBackend)
     assert isinstance(_RecordingExecutor(), ToolExecutor)
     assert isinstance(_TextProvider(), ResourceProvider)
     assert isinstance(_ContractProbe(), ProbeDriver)
     assert isinstance(_ContractLauncher(), ServerLauncher)
+    assert isinstance(_ContractManagedProvider(), ManagedResourceProvider)
     assert isinstance(lambda *args: None, (Collector, Analyzer, Exporter))
     assert set(ENTRY_POINT_GROUPS) == {
         "backend", "executor", "probe", "provider", "collector", "analyzer", "exporter",
-        "launcher",
+        "launcher", "resource", "volume", "identity", "transport", "image",
     }
 
 
@@ -289,6 +312,28 @@ def test_docker_executor_uses_mode_0600_env_file_and_never_secret_argv(tmp_path,
     assert "sensitive" not in observed["argv"]
     env_file = Path(observed["argv"][observed["argv"].index("--env-file") + 1])
     assert not env_file.exists()
+
+
+def test_container_executor_translates_pty_without_changing_user_argv(tmp_path, monkeypatch):
+    (tmp_path / "workspace").mkdir()
+    observed = {}
+
+    def completed(self, *argv, **options):
+        observed.update({"argv": tuple(argv), "options": options})
+        return CommandResult(tuple(argv), 0, "tty\n", "", 0.01)
+
+    monkeypatch.setattr("brixtest.runtime.executors.CommandRunner.run", completed)
+    context = ToolExecutionContext(
+        "unit::docker-pty", tmp_path, tmp_path / "workspace", "local",
+    )
+    request = dataclasses.replace(_request(tmp_path), mode="pty", input="hello\n")
+    result = tool_executor("docker").execute(context, request)
+
+    assert observed["argv"][-2:] == request.argv
+    assert "--interactive" in observed["argv"] and "--tty" in observed["argv"]
+    assert observed["options"]["mode"] == "pty"
+    assert observed["options"]["input"] == "hello\n"
+    assert result.argv == request.argv
 
 
 def test_container_executor_rejects_unrepresentable_environment_before_spawn(

@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>      /* field-table engine: memcpy/memset */
 #include <sys/types.h>   /* ssize_t */
 
 /* Result codes (consumers map onto kXR_* / XRDC_* at the edge). */
@@ -84,6 +85,122 @@ static inline void xrdw_put_u64(uint8_t *p, uint64_t v)
 static inline uint64_t xrdw_get_u64(const uint8_t *p)
 {
     return ((uint64_t) xrdw_get_u32(p) << 32) | xrdw_get_u32(p + 4);
+}
+
+/* ---- field-table pack/unpack engine ----------------------------------- */
+
+/*
+ * One row = one fixed field of a 16-byte body. The SAME table drives pack and
+ * unpack, so a wire offset cannot drift between the two directions (the bug
+ * class this codec exists to kill). Multi-byte integers are big-endian on the
+ * wire; signed struct fields round-trip through the matching-width unsigned
+ * type via memcpy.
+ */
+typedef enum {
+    XRDW_F_U8,
+    XRDW_F_U16,
+    XRDW_F_U32,
+    XRDW_F_U64,
+    XRDW_F_BYTES,                          /* len raw bytes, no byte order */
+} xrdw_ftype_t;
+
+typedef struct {
+    uint8_t wire_off;                      /* offset into the 16-byte body */
+    uint8_t type;                          /* xrdw_ftype_t */
+    uint8_t len;                           /* XRDW_F_BYTES only */
+    uint8_t struct_off;                    /* offsetof() in the decoded struct */
+} xrdw_field_t;
+
+#define XRDW_NFIELDS(tab) (sizeof(tab) / sizeof((tab)[0]))
+
+static inline void xrdw_field_put(uint8_t *body, const uint8_t *base,
+                                  const xrdw_field_t *f)
+{
+    uint16_t v16;
+    uint32_t v32;
+    uint64_t v64;
+
+    switch ((xrdw_ftype_t) f->type) {
+    case XRDW_F_U8:
+        body[f->wire_off] = base[f->struct_off];
+        break;
+    case XRDW_F_U16:
+        memcpy(&v16, base + f->struct_off, sizeof(v16));
+        xrdw_put_u16(body + f->wire_off, v16);
+        break;
+    case XRDW_F_U32:
+        memcpy(&v32, base + f->struct_off, sizeof(v32));
+        xrdw_put_u32(body + f->wire_off, v32);
+        break;
+    case XRDW_F_U64:
+        memcpy(&v64, base + f->struct_off, sizeof(v64));
+        xrdw_put_u64(body + f->wire_off, v64);
+        break;
+    case XRDW_F_BYTES:
+        memcpy(body + f->wire_off, base + f->struct_off, f->len);
+        break;
+    }
+}
+
+static inline void xrdw_field_get(const uint8_t *body, uint8_t *base,
+                                  const xrdw_field_t *f)
+{
+    uint16_t v16;
+    uint32_t v32;
+    uint64_t v64;
+
+    switch ((xrdw_ftype_t) f->type) {
+    case XRDW_F_U8:
+        base[f->struct_off] = body[f->wire_off];
+        break;
+    case XRDW_F_U16:
+        v16 = xrdw_get_u16(body + f->wire_off);
+        memcpy(base + f->struct_off, &v16, sizeof(v16));
+        break;
+    case XRDW_F_U32:
+        v32 = xrdw_get_u32(body + f->wire_off);
+        memcpy(base + f->struct_off, &v32, sizeof(v32));
+        break;
+    case XRDW_F_U64:
+        v64 = xrdw_get_u64(body + f->wire_off);
+        memcpy(base + f->struct_off, &v64, sizeof(v64));
+        break;
+    case XRDW_F_BYTES:
+        memcpy(base + f->struct_off, body + f->wire_off, f->len);
+        break;
+    }
+}
+
+/* Validate, zero the body, then lay each field down at its table offset. */
+static inline int xrdw_pack_fields(const void *r, uint8_t body[XRDW_BODY_LEN],
+                                   const xrdw_field_t *fields, size_t nfields)
+{
+    size_t i;
+
+    if (r == NULL || body == NULL) {
+        return XRDW_EINVAL;
+    }
+    memset(body, 0, XRDW_BODY_LEN);
+    for (i = 0; i < nfields; i++) {
+        xrdw_field_put(body, (const uint8_t *) r, &fields[i]);
+    }
+    return XRDW_BODY_LEN;
+}
+
+/* Validate, then lift each table field out of the body into the struct. */
+static inline int xrdw_unpack_fields(const uint8_t body[XRDW_BODY_LEN],
+                                     void *r, const xrdw_field_t *fields,
+                                     size_t nfields)
+{
+    size_t i;
+
+    if (body == NULL || r == NULL) {
+        return XRDW_EINVAL;
+    }
+    for (i = 0; i < nfields; i++) {
+        xrdw_field_get(body, (uint8_t *) r, &fields[i]);
+    }
+    return XRDW_OK;
 }
 
 /* ====================================================================== *

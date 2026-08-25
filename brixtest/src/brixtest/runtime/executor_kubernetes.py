@@ -9,7 +9,9 @@ import sys
 import time
 from typing import Mapping, Optional, Sequence
 
+from brixtest.clients.pty import run_pty
 from brixtest.errors import SpecError
+from brixtest.planning.capabilities import backend_capabilities
 from brixtest.resources import Placement
 from brixtest.runtime.commands import CommandResult
 from brixtest.runtime.executor_support import (
@@ -28,13 +30,12 @@ _declared_image = declared_image
 _kubectl = kubectl
 _pod_name = pod_name
 _tool_pod = tool_pod
+_run_pty = run_pty
 
 
 class _KubernetesToolExecutor:
     brixtest_api_version = 1
-    brixtest_capabilities = (
-        "capture", "credentials", "mounts", "resources", "retries", "service-dns",
-    )
+    brixtest_capabilities = tuple(sorted(backend_capabilities("kubernetes", "executor")))
 
     def validate(self, declaration: object) -> None:
         placement = getattr(declaration, "placement", Placement())
@@ -43,11 +44,6 @@ class _KubernetesToolExecutor:
             raise SpecError(
                 "client %s placement.image" % getattr(declaration, "name", "?"),
                 image, "Kubernetes tool images must be digest pinned",
-            )
-        if getattr(declaration, "mode", "capture") == "pty":
-            raise SpecError(
-                "client %s mode" % getattr(declaration, "name", "?"), "pty",
-                "Kubernetes tools support capture or stream mode",
             )
         if placement.namespace and not isinstance(placement.namespace, str):
             raise SpecError("client placement.namespace", placement.namespace, "must be text")
@@ -107,8 +103,16 @@ class _KubernetesToolExecutor:
         return self._collect_pod_result(kubectl, context, request, pod_name, started)
 
     def _collect_pod_result(self, kubectl, context, request, pod_name, started):
+        deadline = time.monotonic() + request.timeout
         try:
-            returncode, stderr = self._wait_pod(kubectl, context, request, pod_name)
+            input_error = self._attach_if_needed(
+                kubectl, context, request, pod_name, deadline,
+            )
+            returncode, stderr = self._wait_pod(
+                kubectl, context, request, pod_name, deadline,
+            )
+            if input_error:
+                returncode, stderr = 1, input_error
             logs = _kubectl(
                 kubectl, "-n", context.namespace, "logs", "pod/%s" % pod_name,
                 timeout=min(30.0, request.timeout),
@@ -127,6 +131,11 @@ class _KubernetesToolExecutor:
             stderr_truncated=stderr_truncated,
         )
 
+    def _attach_if_needed(self, kubectl, context, request, pod_name, deadline):
+        if request.input is None and request.mode != "pty":
+            return ""
+        return self._send_input(kubectl, context, request, pod_name, deadline)
+
     @staticmethod
     def _delete_pod(kubectl: Sequence[str], namespace: str, pod_name: str) -> None:
         _kubectl(
@@ -134,21 +143,75 @@ class _KubernetesToolExecutor:
             "--wait=false", "--ignore-not-found=true", timeout=15.0,
         )
 
-    def _wait_pod(self, kubectl, context, request, pod_name) -> tuple[int, str]:
-        deadline = time.monotonic() + request.timeout
+    def _wait_pod(
+        self, kubectl, context, request, pod_name, deadline: float,
+    ) -> tuple[int, str]:
         while time.monotonic() < deadline:
-            state = _kubectl(
-                kubectl, "-n", context.namespace, "get", "pod", pod_name,
-                "-o", "json", timeout=min(10.0, request.timeout),
+            status, error = self._read_pod_status(
+                kubectl, context, request, pod_name,
             )
-            if state.returncode:
-                return 1, state.stderr
-            status = self._pod_status(state.stdout)
+            if error:
+                return 1, error
             phase = status.get("phase", "")
             if phase in ("Succeeded", "Failed"):
                 return self._pod_exit_code(status, phase), ""
             time.sleep(0.1)
         return 124, "Kubernetes tool exceeded %.3fs" % request.timeout
+
+    def _send_input(
+        self, kubectl, context, request, pod_name, deadline: float,
+    ) -> str:
+        while time.monotonic() < deadline:
+            status, error = self._read_pod_status(
+                kubectl, context, request, pod_name,
+            )
+            if error:
+                return error
+            phase = status.get("phase", "")
+            if phase == "Running":
+                return self._attach_running(
+                    kubectl, context, request, pod_name, deadline,
+                )
+            if phase in ("Succeeded", "Failed"):
+                return "Kubernetes tool terminated before stdin could be attached"
+            time.sleep(0.1)
+        return "Kubernetes tool exceeded %.3fs before stdin attach" % request.timeout
+
+    @staticmethod
+    def _attach_running(kubectl, context, request, pod_name, deadline) -> str:
+        timeout = max(0.1, deadline - time.monotonic())
+        if request.mode != "pty":
+            attached = _kubectl(
+                kubectl, "-n", context.namespace, "attach", "-i",
+                "pod/%s" % pod_name, "-c", "tool",
+                input_text=request.input or b"", timeout=timeout,
+                output_limit=request.output_limit,
+            )
+            return attached.stderr if attached.returncode else ""
+        argv = [
+            *kubectl, "-n", context.namespace, "attach", "-i", "-t",
+            "pod/%s" % pod_name, "-c", "tool",
+        ]
+        try:
+            _run_pty(
+                argv, timeout=timeout, input=request.input,
+                output_limit=request.output_limit, stream=True,
+                cwd=context.workspace,
+            )
+        except subprocess.TimeoutExpired:
+            return "Kubernetes PTY tool exceeded %.3fs" % request.timeout
+        except OSError as exc:
+            return "Kubernetes PTY attach failed: %s" % exc
+        return ""
+
+    def _read_pod_status(self, kubectl, context, request, pod_name):
+        state = _kubectl(
+            kubectl, "-n", context.namespace, "get", "pod", pod_name,
+            "-o", "json", timeout=min(10.0, request.timeout),
+        )
+        if state.returncode:
+            return {}, state.stderr
+        return self._pod_status(state.stdout), ""
 
     @staticmethod
     def _pod_status(value: str) -> Mapping[str, object]:
@@ -180,11 +243,6 @@ def _validate_execution_request(
         raise SpecError(
             "Kubernetes tool executor", request.name,
             "requires a Kubernetes case backend namespace",
-        )
-    if request.input is not None:
-        raise SpecError(
-            "Kubernetes tool input", request.name,
-            "stdin transport is not supported; mount a declared artifact instead",
         )
 
 

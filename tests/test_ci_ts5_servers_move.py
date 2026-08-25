@@ -209,7 +209,7 @@ def test_every_flat_spelling_is_the_package_object(name, _proc):
 
 
 def test_every_definition_moved_verbatim():
-    """36 top-level definitions — 57 counting methods — by body hash.
+    """45 top-level definitions — 69 counting methods — by body hash.
 
     The two counts are both pinned because they answer different
     questions: the first is "did a function go missing", the second is
@@ -218,7 +218,7 @@ def test_every_definition_moved_verbatim():
     what the hashes are for.
     """
     before, after = _server_move_maps()
-    problem = move_problem(before, after, expected_shape=(57, 36))
+    problem = move_problem(before, after, expected_shape=(69, 45))
     assert problem is None, problem
 
 
@@ -358,7 +358,7 @@ def test_no_moved_stub_binds_a_wildcard_address():
     the state several of these suites assert on.
     """
     bindings = server_bindings(sorted(SERVERS.glob("*.py")))
-    allowed = {"127.0.0.1", "BIND_HOST", "bind", "args"}  # net-literal-allow
+    allowed = {"127.0.0.1", "BIND_HOST", "bind", "args"}  # net-literal-allow: the allowed-bindings model this test asserts, not a dial target
     problem = binding_problem(bindings, allowed)
     assert problem is None, problem
 

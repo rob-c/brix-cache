@@ -92,15 +92,22 @@ def _normalize_server_dependencies(declaration: "Server") -> None:
     values = declaration.depends_on
     if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
         raise SpecError("server.depends_on", values, "must be a server sequence")
-    if not all(isinstance(item, (str, Server)) for item in values):
+    if not all(_valid_server_dependency(item) for item in values):
         raise SpecError(
-            "server.depends_on", values, "must contain server names or Server declarations"
+            "server.depends_on", values,
+            "must contain names or Server, Task, or Resource declarations",
         )
     object.__setattr__(
         declaration,
         "depends_on",
-        tuple(item.name if isinstance(item, Server) else item for item in values),
+        tuple(item if isinstance(item, str) else item.name for item in values),
     )
+
+
+def _valid_server_dependency(value: object) -> bool:
+    return isinstance(value, (str, Server)) or getattr(
+        value, "resource_kind", "",
+    ) in {"server", "task", "resource"}
 
 
 def _normalize_server_endpoints(
@@ -152,11 +159,13 @@ def _normalize_server_process(declaration: "Server") -> None:
         raise SpecError("server.binaries", declaration.binaries, "must contain Binary declarations")
     if declaration.image is not None and not isinstance(declaration.image, str):
         raise SpecError("server.image", declaration.image, "must be text")
-    if declaration.scope not in ("case", "function", "class", "module", "package", "session"):
+    if declaration.scope not in (
+        "case", "function", "class", "module", "package", "session", "worker",
+    ):
         raise SpecError(
             "server.scope",
             declaration.scope,
-            "must be case, function, class, module, package, or session",
+            "must be case, function, class, module, package, session, or worker",
         )
     object.__setattr__(declaration, "command", _argv(declaration.command, "server.command"))
     object.__setattr__(declaration, "env", _string_mapping(declaration.env, "server.env"))

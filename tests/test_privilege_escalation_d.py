@@ -1,6 +1,11 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_privilege_escalation_helpers")
 
+# One worker for the class: every test's autouse fixture creates and unlinks
+# the SAME data-root file, so split across xdist workers one test's teardown
+# unlinks the file mid-another's open (open -> 4003 on a file the setup just
+# wrote).
+@pytest.mark.xdist_group("shared-file-priv-use-after-close")
 class TestUseAfterClose:
     """Operations on a closed handle must fail cleanly."""
 

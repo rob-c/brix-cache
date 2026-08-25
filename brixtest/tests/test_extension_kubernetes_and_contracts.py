@@ -16,6 +16,7 @@ from brixtest import (
     ToolExecutionContext,
     ToolExecutionRequest,
     artifact,
+    identity,
     register_extension,
     server,
     tool,
@@ -115,6 +116,24 @@ def test_kubernetes_tool_manifest_translates_resources_mounts_dns_and_security(t
     assert observed == expected
 
 
+def test_kubernetes_tool_manifest_applies_declared_identity(tmp_path):
+    runner = identity(
+        "runner", uid=1001, gid=1002, groups=(1003,),
+        capabilities=("net-bind-service",), permissions={"pods": ("get",)},
+    )
+    request = dataclasses.replace(
+        _request(tmp_path, backend="kubernetes"), metadata={"identity": runner},
+    )
+    manifest = _tool_pod("brixtest-reader", "brixtest-unit", request)
+    pod = manifest["spec"]
+    assert pod["serviceAccountName"] == "brixtest-runner"
+    assert pod["securityContext"] == {
+        "runAsUser": 1001, "runAsGroup": 1002, "supplementalGroups": [1003],
+    }
+    capabilities = pod["containers"][0]["securityContext"]["capabilities"]
+    assert capabilities == {"add": ["NET_BIND_SERVICE"]}
+
+
 def test_kubernetes_content_credentials_use_secret_keys_not_plain_env(tmp_path):
     token = tmp_path / "access.token"
     token.write_text("secret-token")
@@ -148,7 +167,7 @@ def test_kubernetes_secret_projection_rejects_symlink_sources(tmp_path):
         secure_secret_resource("brixtest-unit", {"credential": link})
 
 
-def test_kubernetes_executor_rejects_mutable_images_pty_and_unsupported_pid_limit(tmp_path):
+def test_kubernetes_executor_accepts_pty_but_rejects_unportable_policy(tmp_path):
     executor = tool_executor("kubernetes")
     digest = "registry.test/tools@sha256:" + "a" * 64
     base = SimpleNamespace(
@@ -158,8 +177,7 @@ def test_kubernetes_executor_rejects_mutable_images_pty_and_unsupported_pid_limi
     executor.validate(base)
     with pytest.raises(SpecError, match="digest pinned"):
         executor.validate(SimpleNamespace(**{**vars(base), "placement": Placement(backend="kubernetes", image="latest")}))
-    with pytest.raises(SpecError, match="capture or stream"):
-        executor.validate(SimpleNamespace(**{**vars(base), "mode": "pty"}))
+    executor.validate(SimpleNamespace(**{**vars(base), "mode": "pty"}))
     with pytest.raises(SpecError, match="PID limit"):
         executor.validate(SimpleNamespace(**{
             **vars(base),

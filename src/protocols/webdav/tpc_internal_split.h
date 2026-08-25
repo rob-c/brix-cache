@@ -131,7 +131,7 @@ ngx_int_t webdav_tpc_parse_overwrite(ngx_http_request_t *r,
  * an Authorization: Bearer transfer header. NGX_OK to continue, or an NGX_HTTP_*
  * status on parse/obtain/alloc failure. */
 ngx_int_t webdav_tpc_apply_credential_delegation(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf, const char *source_url,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *remote_url,
     ngx_array_t *transfer_headers);
 
 /* Opportunistic default: when credential forwarding is on and no Authorization

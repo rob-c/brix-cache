@@ -1,5 +1,5 @@
 from split_continuation import reexport as _reexport
-def _expression_1():
+def _expression_1(make_request):
     return (
         [threading.Thread(target=make_request) for _ in range(8)]
     )
@@ -226,7 +226,7 @@ class TestConcurrentAccess:
             except Exception as e:
                 errors.append(str(e))
 
-        threads = _expression_1()
+        threads = _expression_1(make_request)
         for t in threads:
             t.start()
         for t in threads:

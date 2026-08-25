@@ -107,7 +107,7 @@ def test_socketbuf_ab_over_synthesized_bdp(tmp_path):
     print(f"\n  [netem BDP {res['size'] // (1024 * 1024)} MiB  "
           f"RTT={res['rtt_ms']:.0f}ms  BDP={res['bdp_bytes'] // 1024} KiB] "
           f"baseline(med)={base:.0f} MiB/s  tuned(med)={tuned:.0f} MiB/s  "
-          f"ratio={res['ratio']:.1f}x")
+          f"ratio={res['ratio']:.1f}x  tcp_wmem={res['wmem_effective']!r}")
 
     out = os.environ.get("BRIX_PERF_AB_JSON")
     if out:

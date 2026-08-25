@@ -168,7 +168,7 @@ def test_client_inherits_every_reusable_command_policy():
     ("argv", "shell command"),
     ("env", {"NAME": 3}),
     ("cwd", "../escape"),
-    ("input", b"bytes"),
+    ("input", bytearray(b"mutable")),
     ("encoding", ""),
     ("timeout", 0),
     ("expected_exit_codes", ()),

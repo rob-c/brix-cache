@@ -168,6 +168,66 @@ brix_recv_handoff_state(brix_ctx_t *ctx, ngx_event_t *rev)
 }
 
 /*
+ * Deferred-teardown gate.  brix_defer_teardown_if_writing() parks a close behind
+ * an in-flight pwrite/pread by setting ctx->out.finalize_pending (and destroyed);
+ * once the last brix_write_aio_done / brix_read_aio_done lands,
+ * brix_run_deferred_teardown() frees the pool (and ctx with it).  While that
+ * finalize is pending the recv loop MUST NOT read or dispatch another PDU: a
+ * pipelined kXR_writev would flatten ctx->files[hidx].fd out of memory the
+ * completion is about to free (the writev_try_aio use-after-free).  This is the
+ * "recv loop stops" that brix_defer_teardown_if_writing documents but never
+ * enforced.  The completion owns the finalize, so this gate only yields — it must
+ * NOT finalize here (that would destroy the pool twice).
+ *
+ * Keyed on finalize_pending, NOT ctx->destroyed: brix_on_disconnect() sets
+ * destroyed as its AIO-late-callback guard, and kXR_endsess (session/lifecycle.c)
+ * runs that full teardown while deliberately leaving the TCP connection OPEN so
+ * the dispatcher can reject further requests on the de-authenticated session.
+ * Such a connection has no finalize pending and must flow through normally.
+ * Reading the flag is UAF-safe: nginx's own fd==-1 / instance guards never
+ * deliver an event to a connection whose pool is already freed.
+ *
+ * Returns 1 when the gate handled the connection (caller must return), else 0.
+ */
+static int
+brix_recv_teardown_pending_gate(brix_ctx_t *ctx)
+{
+    return ctx->out.finalize_pending ? 1 : 0;
+}
+
+/*
+ * One iteration's pre-read gate, run at the top of the recv loop.  Two ordered
+ * bails before another PDU is touched: (1) a deferred teardown is parked behind
+ * an in-flight AIO completion (finalize_pending) that will free the pool — stop
+ * now (see brix_recv_teardown_pending_gate); (2) the Phase-29 drain barrier — a
+ * fully-read non-pipelinable request runs once the response/ack queue and
+ * in-flight pwrites have drained (recv_deferred).  Returns a brix_recv_step_t the
+ * caller acts on; BRIX_RECV_STEP_NEXT means no gate fired — read the next PDU.
+ */
+static brix_recv_step_t
+brix_recv_loop_gate(ngx_stream_session_t *s, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, brix_ctx_t *ctx, ngx_event_t *rev,
+    size_t *rx_pending)
+{
+    brix_recv_step_t step;
+
+    if (ctx->out.finalize_pending) {
+        return BRIX_RECV_STEP_RETURN;
+    }
+
+    if (!ctx->out.recv_deferred) {
+        return BRIX_RECV_STEP_NEXT;
+    }
+
+    /* Ran one deferred request: loop again unless it asked to stop the loop. */
+    step = brix_recv_run_deferred(s, c, conf, ctx, rev, rx_pending);
+    if (step == BRIX_RECV_STEP_RETURN || step == BRIX_RECV_STEP_BREAK) {
+        return step;
+    }
+    return BRIX_RECV_STEP_CONTINUE;
+}
+
+/*
  * WHAT: the core async recv loop that drives the XRootD protocol lifecycle on
  * each TCP connection.  Called by nginx whenever data is available or a timeout
  * fires.
@@ -193,6 +253,13 @@ ngx_stream_brix_recv(ngx_event_t *rev)
     ctx = ngx_stream_get_module_ctx(s, ngx_stream_brix_module);
     conf = ngx_stream_get_module_srv_conf(s, ngx_stream_brix_module);
 
+    /* Stop before touching a connection whose teardown is parked behind an
+     * in-flight AIO completion — the completion frees the pool, so never
+     * read/dispatch another PDU on it here. */
+    if (brix_recv_teardown_pending_gate(ctx)) {
+        return;
+    }
+
     /* A non-header state represents an active protocol obligation (handshake,
      * response drain, AIO, or an upstream/cache handoff).  Keep a retiring
      * worker alive for it even when no file handle has been installed yet. */
@@ -215,16 +282,20 @@ ngx_stream_brix_recv(ngx_event_t *rev)
     for (;;) {
         brix_recv_step_t step;
 
-        /* Phase 29 drain barrier: run a fully-read non-pipelinable request once
-         * the response/ack queue and in-flight pwrites have drained. */
-        if (ctx->out.recv_deferred) {
-            step = brix_recv_run_deferred(s, c, conf, ctx, rev, &rx_pending);
-            if (step == BRIX_RECV_STEP_RETURN) {
-                return;
-            }
-            if (step == BRIX_RECV_STEP_BREAK) {
-                break;
-            }
+        /* Top-of-loop gate: bail on a parked teardown (finalize_pending — the AIO
+         * completion frees the pool, so a pipelined kXR_writev must never flatten
+         * ctx->files[hidx].fd out from under it) and run any Phase-29 deferred
+         * request.  Keyed on finalize_pending, not ctx->destroyed, so an endsess
+         * that de-authenticated but left the socket open still reads (and rejects)
+         * the client's next request. */
+        step = brix_recv_loop_gate(s, c, conf, ctx, rev, &rx_pending);
+        if (step == BRIX_RECV_STEP_RETURN) {
+            return;
+        }
+        if (step == BRIX_RECV_STEP_BREAK) {
+            break;
+        }
+        if (step == BRIX_RECV_STEP_CONTINUE) {
             continue;
         }
 

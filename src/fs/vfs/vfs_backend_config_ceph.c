@@ -109,21 +109,16 @@ brix_vfs_backend_config_cephfs_ro(const char *root_canon,
     {
         return;
     }
-    e = brix_vfs_backend_entry_get_or_create(root_canon);
+    e = brix_vfs_backend_entry_claim(root_canon, "cephfsro");
     if (e == NULL) {
         return;
     }
-    ngx_memcpy(e->backend, "cephfsro", sizeof("cephfsro"));
-    ngx_cpystrn((u_char *) e->ceph_pool, (u_char *) cfg->meta_pool,
-                sizeof(e->ceph_pool));
-    ngx_cpystrn((u_char *) e->ceph_data_pool, (u_char *) cfg->data_pool,
-                sizeof(e->ceph_data_pool));
-    ngx_cpystrn((u_char *) e->ceph_conf,
-                (u_char *) ((cfg->conf && cfg->conf[0]) ? cfg->conf
-                                                        : "/etc/ceph/ceph.conf"),
-                sizeof(e->ceph_conf));
     e->cephfs_quiesced = cfg->quiesced;
     e->cephfs_live = cfg->live;
+    VFS_BE_STR(e, ceph_pool, cfg->meta_pool);
+    VFS_BE_STR(e, ceph_data_pool, cfg->data_pool);
+    VFS_BE_STR(e, ceph_conf, (cfg->conf && cfg->conf[0]) ? cfg->conf
+                                                         : "/etc/ceph/ceph.conf");
     e->inst = NULL;                            /* rebuilt on next resolve */
 }
 
@@ -141,16 +136,13 @@ brix_vfs_backend_config_tape(const char *root_canon, const char *adapter,
     {
         return;
     }
-    e = brix_vfs_backend_entry_get_or_create(root_canon);
+    e = brix_vfs_backend_entry_claim(root_canon, "tape");
     if (e == NULL) {
         return;
     }
-    ngx_memcpy(e->backend, "tape", sizeof("tape"));
-    ngx_cpystrn((u_char *) e->origin_host, (u_char *) (adapter ? adapter : ""),
-                sizeof(e->origin_host));      /* the MSS adapter name */
-    ngx_cpystrn((u_char *) e->origin_path, (u_char *) base,
-                sizeof(e->origin_path));       /* the MSS base path */
     e->inst = NULL;
+    VFS_BE_STR(e, origin_host, adapter ? adapter : "");   /* the MSS adapter name */
+    VFS_BE_STR(e, origin_path, base);                     /* the MSS base path */
 }
 
 /* Split "cephfsro:<meta>+<data>[@conf][?query]" into its four component buffers

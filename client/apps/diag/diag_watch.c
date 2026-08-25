@@ -208,48 +208,75 @@ watch_emit_json(const watch_sample *s, FILE *out)
 }
 
 
+/* Emit one Prometheus metric family: the HELP/TYPE header, then one `line`
+ * per sample the (optional) `want` predicate accepts, with the endpoint/proto
+ * labels sanitized once. `line` prints the value in its own native format. */
+static void
+watch_emit_family(const watch_sample *samples, int n, FILE *out,
+                  const char *header,
+                  int (*want)(const watch_sample *),
+                  void (*line)(FILE *, const watch_sample *,
+                               const char *ep, const char *pr))
+{
+    char ep[576], pr[64];
+    int  i;
+
+    fputs(header, out);
+    for (i = 0; i < n; i++) {
+        if (want != NULL && !want(&samples[i])) { continue; }
+        watch_prom_label(samples[i].endpoint, ep, sizeof(ep));
+        watch_prom_label(samples[i].proto, pr, sizeof(pr));
+        line(out, &samples[i], ep, pr);
+    }
+}
+
+static int watch_want_read(const watch_sample *s) { return s->up && s->read_ms >= 0; }
+static int watch_want_holders(const watch_sample *s) { return s->up && s->holders >= 0; }
+
+static void
+watch_line_up(FILE *out, const watch_sample *s, const char *ep, const char *pr)
+{
+    fprintf(out, "brix_probe_up{endpoint=\"%s\",proto=\"%s\"} %d\n", ep, pr, s->up);
+}
+
+static void
+watch_line_connect(FILE *out, const watch_sample *s, const char *ep, const char *pr)
+{
+    fprintf(out, "brix_probe_connect_seconds{endpoint=\"%s\",proto=\"%s\"} %.6f\n",
+            ep, pr, s->connect_ms / 1000.0);
+}
+
+static void
+watch_line_read(FILE *out, const watch_sample *s, const char *ep, const char *pr)
+{
+    fprintf(out, "brix_probe_read_seconds{endpoint=\"%s\",proto=\"%s\"} %.6f\n",
+            ep, pr, s->read_ms / 1000.0);
+}
+
+static void
+watch_line_holders(FILE *out, const watch_sample *s, const char *ep, const char *pr)
+{
+    fprintf(out, "brix_probe_locate_holders{endpoint=\"%s\",proto=\"%s\"} %d\n",
+            ep, pr, s->holders);
+}
+
 /* One metric line for every sample, with HELP/TYPE printed once per metric. */
 void
 watch_emit_prom(const watch_sample *samples, int n, FILE *out)
 {
-    int  i;
-    char ep[576], pr[64];
-
-    fputs("# HELP brix_probe_up Endpoint reachable (1) or down (0).\n"
-          "# TYPE brix_probe_up gauge\n", out);
-    for (i = 0; i < n; i++) {
-        watch_prom_label(samples[i].endpoint, ep, sizeof(ep));
-        watch_prom_label(samples[i].proto, pr, sizeof(pr));
-        fprintf(out, "brix_probe_up{endpoint=\"%s\",proto=\"%s\"} %d\n",
-                ep, pr, samples[i].up);
-    }
-    fputs("# HELP brix_probe_connect_seconds Full connect (TCP+TLS+auth).\n"
-          "# TYPE brix_probe_connect_seconds gauge\n", out);
-    for (i = 0; i < n; i++) {
-        watch_prom_label(samples[i].endpoint, ep, sizeof(ep));
-        watch_prom_label(samples[i].proto, pr, sizeof(pr));
-        fprintf(out, "brix_probe_connect_seconds{endpoint=\"%s\",proto=\"%s\"} %.6f\n",
-                ep, pr, samples[i].connect_ms / 1000.0);
-    }
+    watch_emit_family(samples, n, out,
+        "# HELP brix_probe_up Endpoint reachable (1) or down (0).\n"
+        "# TYPE brix_probe_up gauge\n", NULL, watch_line_up);
+    watch_emit_family(samples, n, out,
+        "# HELP brix_probe_connect_seconds Full connect (TCP+TLS+auth).\n"
+        "# TYPE brix_probe_connect_seconds gauge\n", NULL, watch_line_connect);
     /* phase split + read/locate only for endpoints that came up */
-    fputs("# HELP brix_probe_read_seconds Tiny-read time-to-first-byte.\n"
-          "# TYPE brix_probe_read_seconds gauge\n", out);
-    for (i = 0; i < n; i++) {
-        if (!samples[i].up || samples[i].read_ms < 0) { continue; }
-        watch_prom_label(samples[i].endpoint, ep, sizeof(ep));
-        watch_prom_label(samples[i].proto, pr, sizeof(pr));
-        fprintf(out, "brix_probe_read_seconds{endpoint=\"%s\",proto=\"%s\"} %.6f\n",
-                ep, pr, samples[i].read_ms / 1000.0);
-    }
-    fputs("# HELP brix_probe_locate_holders Located replica count.\n"
-          "# TYPE brix_probe_locate_holders gauge\n", out);
-    for (i = 0; i < n; i++) {
-        if (!samples[i].up || samples[i].holders < 0) { continue; }
-        watch_prom_label(samples[i].endpoint, ep, sizeof(ep));
-        watch_prom_label(samples[i].proto, pr, sizeof(pr));
-        fprintf(out, "brix_probe_locate_holders{endpoint=\"%s\",proto=\"%s\"} %d\n",
-                ep, pr, samples[i].holders);
-    }
+    watch_emit_family(samples, n, out,
+        "# HELP brix_probe_read_seconds Tiny-read time-to-first-byte.\n"
+        "# TYPE brix_probe_read_seconds gauge\n", watch_want_read, watch_line_read);
+    watch_emit_family(samples, n, out,
+        "# HELP brix_probe_locate_holders Located replica count.\n"
+        "# TYPE brix_probe_locate_holders gauge\n", watch_want_holders, watch_line_holders);
 }
 
 

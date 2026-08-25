@@ -33,9 +33,11 @@
  *       each comma-separated entry; the xrdacc views must store the bare token.
  * HOW:  Advance the start pointer past leading blanks, then pull the length in
  *       past trailing blanks — both guarded by a nonzero remaining length so an
- *       all-blank or empty field collapses to length 0.
+ *       all-blank or empty field collapses to length 0.  Exported (identity.h):
+ *       the xrdacc entity builder trims its attribute CSV fields with the same
+ *       rule so both sides judge "empty field" identically.
  */
-static void
+void
 brix_identity_trim_ws(const char **tok, size_t *tl)
 {
     const char *t = *tok;

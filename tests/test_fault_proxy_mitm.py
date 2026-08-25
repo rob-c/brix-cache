@@ -72,8 +72,12 @@ def _wait_port(port, deadline=5.0):
 
 
 class _CapEcho:
-    """Streaming echo upstream that records the FIRST blob each connection sends
-    (so tests can inspect a spliced prefix or a forged PROXY header)."""
+    """Streaming echo upstream that records each connection's full inbound byte
+    stream (so tests can inspect a spliced prefix or a forged PROXY header).
+    TCP preserves order, not segmentation: the proxy may write its injected
+    prefix and the forwarded client payload separately, and a single recv can
+    return the prefix alone — so bytes are accumulated per connection rather
+    than captured one recv deep."""
 
     def __init__(self):
         self.port = _free_port()
@@ -96,15 +100,16 @@ class _CapEcho:
 
     def _serve(self, conn):
         conn.settimeout(2.0)
-        got_first = False
+        buf = None
         try:
             while not self._stop:
                 d = conn.recv(65536)
                 if not d:
                     break
-                if not got_first:
-                    self.first.append(d)
-                    got_first = True
+                if buf is None:
+                    buf = bytearray()
+                    self.first.append(buf)
+                buf += d
                 conn.sendall(d)
         except OSError:
             pass

@@ -24,6 +24,7 @@
 #include "cvmfs/object/object_write.h"
 #include "cvmfs/object/object.h"
 #include "cvmfs/reflog/reflog.h"
+#include "brixcvmfs_errline.h"
 
 #include <openssl/pem.h>
 #include <openssl/x509.h>
@@ -40,9 +41,7 @@
 #define WHITELIST_DAYS   30
 
 static int rp_err(const char *what, const char *detail) {
-    fprintf(stderr, "brixcvmfs repo: %s%s%s\n", what,
-            detail != NULL ? ": " : "", detail != NULL ? detail : "");
-    return 1;
+    return brixcvmfs_emit_err("repo", what, detail, 1);
 }
 
 static unsigned char *rp_read_file(const char *path, size_t *len) {

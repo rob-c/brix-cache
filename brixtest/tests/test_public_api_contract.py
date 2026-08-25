@@ -336,6 +336,7 @@ def test_pytest_option_fixture_and_marker_manifests_cover_the_plugin_surface():
     assert {
         "brixtest_backend", "brixtest_isolation", "brixtest_runs",
         "brixtest_helper_plugins", "brixtest_safe_imports", "brixtest_profile",
+        "brixtest_base_image", "brixtest_registry",
     } == PUBLIC_PYTEST_INI
     assert {
         "pytest_brixtest_plan", "pytest_brixtest_helper_plugins",

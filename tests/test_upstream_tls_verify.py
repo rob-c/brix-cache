@@ -70,11 +70,18 @@ class TestUpstreamTlsVerify:
 
     # -- coverage: verification is enabled for BOTH outbound legs, not one --- #
     def test_both_legs_enable_verification(self, runtime):
-        setup = _fn_body(runtime, "brix_server_setup_tls")
-        # proxy CTX and redirector CTX each route their CA-guarded branch through
-        # the shared enable-verify helper.
-        assert "brix_tls_ctx_enable_verify(cf, xcf->proxy.tls_ctx->ctx" in setup
-        assert "brix_tls_ctx_enable_verify(cf, xcf->upstream_tls_ctx->ctx" in setup
+        # Each leg's setup (split into per-leg helpers, with the monolithic
+        # brix_server_setup_tls as the pre-split fallback) routes its CA-guarded
+        # branch through the shared enable-verify helper.
+        proxy = _fn_body(runtime, "brix_server_setup_proxy_tls") \
+            if _has_fn(runtime, "brix_server_setup_proxy_tls") \
+            else _fn_body(runtime, "brix_server_setup_tls")
+        redirect = _fn_body(runtime, "brix_server_setup_redirect_tls") \
+            if _has_fn(runtime, "brix_server_setup_redirect_tls") \
+            else _fn_body(runtime, "brix_server_setup_tls")
+        assert "brix_tls_ctx_enable_verify(cf, xcf->proxy.tls_ctx->ctx" in proxy
+        assert "brix_tls_ctx_enable_verify(cf, xcf->upstream_tls_ctx->ctx" \
+            in redirect
 
     # -- error: each done-callback fails closed on a bad verify result ------- #
     def test_callbacks_check_verify_result(self, up_tls, proxy_up):

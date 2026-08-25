@@ -38,10 +38,8 @@ int cvmfs_dict_compress(const unsigned char *dict, size_t dictlen,
 int cvmfs_dict_decompress(const unsigned char *dict, size_t dictlen,
                           const unsigned char *src, size_t srclen,
                           unsigned char *out, size_t outcap, size_t *outlen) {
-    (void) dict; (void) dictlen; (void) src; (void) srclen;
-    (void) out; (void) outcap;
-    *outlen = 0;
-    return -1;
+    /* the same clean failure as compress — one stub body serves both */
+    return cvmfs_dict_compress(dict, dictlen, src, srclen, out, outcap, outlen);
 }
 #else /* !BRIX_DICT_NO_ZSTD */
 
@@ -73,41 +71,45 @@ int cvmfs_dict_id(const unsigned char *dict, size_t dictlen,
     return 0;
 }
 
-int cvmfs_dict_compress(const unsigned char *dict, size_t dictlen,
-                        const unsigned char *src, size_t srclen,
-                        unsigned char *out, size_t outcap, size_t *outlen) {
-    ZSTD_CCtx *c;
-    size_t     r;
+/* One-shot dict (de)compression — `compressing` picks the codec direction;
+ * contexts are created per call (see the file header for why). */
+static int dict_xcode(int compressing, const unsigned char *dict,
+                      size_t dictlen, const unsigned char *src, size_t srclen,
+                      unsigned char *out, size_t outcap, size_t *outlen) {
+    size_t r;
 
     *outlen = 0;
-    c = ZSTD_createCCtx();
-    if (c == NULL)
-        return -1;
-    r = ZSTD_compress_usingDict(c, out, outcap, src, srclen,
-                                dict, dictlen, CVMFS_DICT_CLEVEL);
-    ZSTD_freeCCtx(c);
+    if (compressing) {
+        ZSTD_CCtx *c = ZSTD_createCCtx();
+        if (c == NULL)
+            return -1;
+        r = ZSTD_compress_usingDict(c, out, outcap, src, srclen,
+                                    dict, dictlen, CVMFS_DICT_CLEVEL);
+        ZSTD_freeCCtx(c);
+    } else {
+        ZSTD_DCtx *d = ZSTD_createDCtx();
+        if (d == NULL)
+            return -1;
+        r = ZSTD_decompress_usingDict(d, out, outcap, src, srclen,
+                                      dict, dictlen);
+        ZSTD_freeDCtx(d);
+    }
     if (ZSTD_isError(r))
         return -1;
     *outlen = r;
     return 0;
 }
 
+int cvmfs_dict_compress(const unsigned char *dict, size_t dictlen,
+                        const unsigned char *src, size_t srclen,
+                        unsigned char *out, size_t outcap, size_t *outlen) {
+    return dict_xcode(1, dict, dictlen, src, srclen, out, outcap, outlen);
+}
+
 int cvmfs_dict_decompress(const unsigned char *dict, size_t dictlen,
                           const unsigned char *src, size_t srclen,
                           unsigned char *out, size_t outcap, size_t *outlen) {
-    ZSTD_DCtx *d;
-    size_t     r;
-
-    *outlen = 0;
-    d = ZSTD_createDCtx();
-    if (d == NULL)
-        return -1;
-    r = ZSTD_decompress_usingDict(d, out, outcap, src, srclen, dict, dictlen);
-    ZSTD_freeDCtx(d);
-    if (ZSTD_isError(r))
-        return -1;
-    *outlen = r;
-    return 0;
+    return dict_xcode(0, dict, dictlen, src, srclen, out, outcap, outlen);
 }
 
 #endif /* BRIX_DICT_NO_ZSTD */

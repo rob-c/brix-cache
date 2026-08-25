@@ -56,7 +56,7 @@ from port_ladder import PORT_LAST  # noqa: E402
 # same fixed listen.  One xdist_group here (propagated to both files via __all__)
 # serialises them; each module tears its fixtures down before the next starts, so
 # the shared ledger ports are reused rather than contended.
-def _expression_1(cpub, kpub):
+def _expression_pubkey_differs(cpub, kpub):
     return (
         not cpub or cpub != kpub
     )
@@ -447,7 +447,7 @@ def _pki_keys_match(paths):
     for cert, key in pairs:
         cpub = _run(["openssl", "x509", "-in", cert, "-noout", "-pubkey"]).stdout
         kpub = _run(["openssl", "pkey", "-in", key, "-pubout"]).stdout
-        if _expression_1(cpub, kpub):
+        if _expression_pubkey_differs(cpub, kpub):
             return False
     return True
 

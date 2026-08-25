@@ -24,9 +24,15 @@ PORT_V6 = 14145             # the same mock, bound to the IPv6 loopback
 CDN_HOST = "127.0.0.2"      # at_origin compares host strings — must differ
 V6_HOST = "::1"             # net-literal-allow: IPv6 loopback, the point of the lane
 
-pytestmark = pytest.mark.skipif(
-    not os.path.exists(BRIXOCI),
-    reason="client/bin/brixoci not built (make -C client brixoci)")
+pytestmark = [
+    pytest.mark.skipif(
+        not os.path.exists(BRIXOCI),
+        reason="client/bin/brixoci not built (make -C client brixoci)"),
+    # The tests share fixed mock-registry ports and one blob store; a sibling
+    # worker's corrupt-blob setup poisons a concurrent push/pull roundtrip
+    # (digest mismatch / exit-5 not seen) — keep the module on one worker.
+    pytest.mark.xdist_group("brixoci-copy"),
+]
 
 
 def _spawn(port, *extra):
@@ -255,9 +261,9 @@ def test_tags_over_ipv6_literal_host(mocks, home):
     "[::1zz]:5000/lab/app",              # not a v6 literal at all
     "[::1:5000/lab/app",                 # unterminated bracket
     "[]:5000/lab/app",                   # empty literal
-    "[::1]:0/lab/app",                   # port zero
-    "[::1]:70000/lab/app",               # port out of range
-    "[::1]:5000",                        # a host and no repository
+    "[::1]:0/lab/app",                   # net-literal-allow: parser-negative reference (port zero)
+    "[::1]:70000/lab/app",               # net-literal-allow: parser-negative reference (port out of range)
+    "[::1]:5000",                        # net-literal-allow: parser-negative reference (host and no repository)
 ])
 def test_malformed_ipv6_reference_refused(ref, home):
     """A literal that does not parse never becomes a connection."""
@@ -266,10 +272,10 @@ def test_malformed_ipv6_reference_refused(ref, home):
     assert "registry host" in r.stderr
 
 @pytest.mark.parametrize("ref", [
-    "user@[::1]:5000/lab/app",           # userinfo: reads as one host, dials another
-    "[::1]evil.example:5000/lab/app",    # junk trailing the literal
-    "[::1]:5000@evil.example/lab/app",   # userinfo after the port
-    "[::1/lab]:5000/app",                # a '/' smuggled inside the brackets
+    "user@[::1]:5000/lab/app",           # net-literal-allow: authority-confusion payload (userinfo reads as one host, dials another)
+    "[::1]evil.example:5000/lab/app",    # net-literal-allow: authority-confusion payload (junk trailing the literal)
+    "[::1]:5000@evil.example/lab/app",   # net-literal-allow: authority-confusion payload (userinfo after the port)
+    "[::1/lab]:5000/app",                # net-literal-allow: authority-confusion payload (a '/' smuggled inside the brackets)
 ])
 def test_authority_confusion_refused(ref, home):
     """The host a human reads must be the host the tool dials.

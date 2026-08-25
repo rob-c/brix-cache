@@ -6,13 +6,15 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE = ROOT / "src" / "brixtest"
+PYTHON_TREES = ("src", "tests", "examples", "compat_tests", "tools")
 # Every non-stdlib import must belong to BriXTest itself or to one of its
 # bounded base/optional dependencies in pyproject.toml.  Repository-local
 # packages deliberately never appear here.
 ALLOWED_EXTERNAL = {
-    "botocore", "cryptography", "duckdb", "pluggy", "pyarrow", "pytest", "xdist",
+    "botocore", "cryptography", "duckdb", "packaging", "pluggy", "pyarrow", "pytest",
+    "quality_paths", "xdist",
 }
+FORBIDDEN_ADAPTER = "brix_" + "suite"
 
 
 def _imports(node: ast.AST) -> list[str]:
@@ -33,8 +35,12 @@ def _path_findings(path: Path) -> list[str]:
                     or name in ALLOWED_EXTERNAL:
                 continue
             findings.append("%s:%d imports %s" % (path.relative_to(ROOT), node.lineno, name))
-    if "brix_suite" in text:
-        findings.append("%s references repository adapter brix_suite" % path.relative_to(ROOT))
+    if FORBIDDEN_ADAPTER in text:
+        findings.append(
+            "%s references repository adapter %s" % (
+                path.relative_to(ROOT), FORBIDDEN_ADAPTER,
+            )
+        )
     return findings
 
 
@@ -45,11 +51,25 @@ def main() -> int:
 
 
 def _all_findings() -> list[str]:
-    return [
+    imports = [
         finding
-        for path in sorted(PACKAGE.rglob("*.py"))
+        for tree in PYTHON_TREES
+        for path in sorted((ROOT / tree).rglob("*.py"))
         for finding in _path_findings(path)
     ]
+    return [*imports, *_external_links()]
+
+
+def _external_links() -> list[str]:
+    findings = []
+    for path in ROOT.rglob("*"):
+        if not path.is_symlink():
+            continue
+        try:
+            path.resolve().relative_to(ROOT)
+        except ValueError:
+            findings.append("%s links outside BriXTest" % path.relative_to(ROOT))
+    return findings
 
 
 def _report(findings: list[str]) -> None:

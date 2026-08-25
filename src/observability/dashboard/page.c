@@ -1,5 +1,6 @@
 #include "dashboard_http.h"
 #include "core/compat/alloc_guard.h"
+#include "core/http/http_file_response.h"   /* brix_http_send_single_buf */
 #include "core/ident.h"
 
 /*
@@ -165,7 +166,6 @@ ngx_http_brix_dashboard_page_handler(ngx_http_request_t *r)
 {
     ngx_http_brix_dashboard_loc_conf_t *conf;
     ngx_buf_t                            *b;
-    ngx_chain_t                           out;
     size_t                                html_len;
     ngx_int_t                             rc;
 
@@ -239,18 +239,5 @@ ngx_http_brix_dashboard_page_handler(ngx_http_request_t *r)
         (ngx_str_t) ngx_string("text/html; charset=utf-8");
     r->headers_out.content_type_len = r->headers_out.content_type.len;
 
-    rc = ngx_http_send_header(r);
-    /*
-     * Bail before emitting a body when: send_header failed (NGX_ERROR),
-     * returned a special/error code (rc > NGX_OK), or this is a HEAD request
-     * (r->header_only) where the body must be suppressed. Otherwise fall
-     * through and write the single-buffer chain.
-     */
-    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
-        return rc;
-    }
-
-    out.buf = b;
-    out.next = NULL;
-    return ngx_http_output_filter(r, &out);
+    return brix_http_send_single_buf(r, b);
 }

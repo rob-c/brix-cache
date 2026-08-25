@@ -39,6 +39,17 @@ static const char V3_DOC[] =
     "</metalink>\n";
 
 
+/* Several security-neg cases end identically: the parse succeeds having dropped
+ * exactly one hostile mirror and kept the one legit ok.example root:// URL. */
+static void assert_one_ok_mirror(const brix_metalink *ml, int rc)
+{
+    assert(rc == 0);
+    assert(ml->n_urls == 1);
+    assert(ml->n_skipped == 1);
+    assert(strcmp(ml->urls[0].rank_url, "root://ok.example:1094//f") == 0);
+}
+
+
 static void test_v4_parse_success(void)          /* success */
 {
     brix_metalink ml;
@@ -146,10 +157,8 @@ static void test_local_and_unknown_schemes_skipped(void) /* security-neg */
     assert(ml.n_skipped == 4);
 
     /* Mixed: the hostile mirror is dropped, the legit one survives. */
-    assert(brix_metalink_parse(mixed, sizeof(mixed) - 1, &ml, &st) == 0);
-    assert(ml.n_urls == 1);
-    assert(ml.n_skipped == 1);
-    assert(strcmp(ml.urls[0].rank_url, "root://ok.example:1094//f") == 0);
+    assert_one_ok_mirror(&ml,
+                         brix_metalink_parse(mixed, sizeof(mixed) - 1, &ml, &st));
 }
 
 
@@ -216,10 +225,7 @@ static void test_oversized_url_skipped(void)     /* security-neg */
                              "</file></metalink>", long_url);
 
     brix_status_clear(&st);
-    assert(brix_metalink_parse(doc, off, &ml, &st) == 0);
-    assert(ml.n_urls == 1);
-    assert(ml.n_skipped == 1);
-    assert(strcmp(ml.urls[0].rank_url, "root://ok.example:1094//f") == 0);
+    assert_one_ok_mirror(&ml, brix_metalink_parse(doc, off, &ml, &st));
 }
 
 
@@ -325,10 +331,8 @@ static void test_entity_non_ascii_and_nul_refused(void)  /* security-neg */
             "</file></metalink>";
 
         brix_status_clear(&st);
-        assert(brix_metalink_parse(doc, sizeof(doc) - 1, &ml, &st) == 0);
-        assert(ml.n_urls == 1);
-        assert(ml.n_skipped == 1);
-        assert(strcmp(ml.urls[0].rank_url, "root://ok.example:1094//f") == 0);
+        assert_one_ok_mirror(&ml,
+                             brix_metalink_parse(doc, sizeof(doc) - 1, &ml, &st));
     }
 }
 

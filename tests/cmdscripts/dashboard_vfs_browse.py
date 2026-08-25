@@ -155,7 +155,8 @@ def _seed_pblock(base, port, results):
         "-s", "-o", "/dev/null", "-w", "%{http_code}", "-T", str(source),
         f"http://{HOST}:{port}/stored.bin",
     ]).stdout.strip()
-    results.append((status in {"201", "204"}, f"pblock seeded ({status})"))
+    results.append((status in {"201", "204"},
+                    f"pblock seeded via WebDAV PUT ({status})"))
     return source
 
 
@@ -209,7 +210,7 @@ def _check_pblock_listing(api, cookie, export_index, results):
     entries = _decode_json(text).get("entries", [])
     logical = any(item.get("name") == "stored.bin" for item in entries)
     results.append((logical and "catalog.db" not in text,
-                    "pblock export shows logical namespace"))
+                    "pblock export shows the LOGICAL namespace"))
 
 
 def _decode_json(text):
@@ -235,7 +236,8 @@ def _check_access_guards(api, cookie, export_index, off_port, results):
     files = f"{api}/vfs/files?export={export_index}&path=/"
     results.append((curl_code(files) == "401", "unauthenticated -> 401"))
     traversal = f"{api}/vfs/files?export={export_index}&path=/../../../etc"
-    results.append((curl_code(traversal, cookie) == "400", "traversal rejected"))
+    results.append((curl_code(traversal, cookie) == "400",
+                    "traversal path rejected (400)"))
     disabled = f"http://{HOST}:{off_port}/brix/api/v1/vfs"
     results.append((curl_code(disabled, cookie) == "404", "feature off -> 404"))
 

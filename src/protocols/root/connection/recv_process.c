@@ -254,6 +254,55 @@ brix_recv_write_hdr_hook(ngx_connection_t *c, brix_ctx_t *ctx,
     return 1;
 }
 
+/* Re-arm the receive loop for the next 24-byte request header. */
+static void
+brix_recv_rearm_header(brix_ctx_t *ctx)
+{
+    ctx->state = XRD_ST_REQ_HEADER;
+    ctx->recv.hdr_pos = 0;
+}
+
+/*
+ * AIO tail shared by the dlen==0 and payload dispatch paths: a cold kXR_read
+ * whose pread just posted pipelines (back to REQ_HEADER, keep receiving);
+ * every other AIO op suspends on the read event.  CONTINUE / RETURN / BREAK.
+ */
+static brix_recv_step_t
+brix_recv_aio_tail(brix_ctx_t *ctx, ngx_event_t *rev)
+{
+    if (ctx->recv.cur_reqid == kXR_read && ctx->rd.aio_inflight > 0
+        && !ctx->rd.win_active)
+    {
+        brix_recv_rearm_header(ctx);
+        return BRIX_RECV_STEP_CONTINUE;
+    }
+    if (ngx_handle_read_event(rev, 0) != NGX_OK) {
+        return BRIX_RECV_STEP_BREAK;
+    }
+    return BRIX_RECV_STEP_RETURN;
+}
+
+/*
+ * Phase 29 drain barrier (extended for write pipelining): an opcode that must
+ * run with the connection quiescent is parked — record the deferred streamid,
+ * flip to SENDING, account the received bytes — until both the response/ack
+ * queue and the in-flight pwrites drain; the recv loop re-dispatches it then.
+ * Returns 1 = deferred (caller RETURNs), 0 = dispatch now.
+ */
+static int
+brix_recv_defer_if_busy(brix_ctx_t *ctx, size_t *rx_pending)
+{
+    if (!brix_recv_should_defer(ctx)) {
+        return 0;
+    }
+    ctx->out.recv_deferred = 1;
+    ctx->out.deferred_streamid[0] = ctx->recv.cur_streamid[0];
+    ctx->out.deferred_streamid[1] = ctx->recv.cur_streamid[1];
+    ctx->state = XRD_ST_SENDING;
+    BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, *rx_pending);
+    return 1;
+}
+
 /*
  * The post-dispatch tail of the dlen==0 header path: a freshly posted read-AIO
  * either pipelines a cold read (keep receiving) or suspends; a cleartext sendfile
@@ -265,29 +314,17 @@ brix_recv_after_dispatch_hdr(ngx_connection_t *c, brix_ctx_t *ctx,
     ngx_stream_brix_srv_conf_t *conf, ngx_event_t *rev)
 {
     if (ctx->state == XRD_ST_AIO) {
-        if (ctx->recv.cur_reqid == kXR_read && ctx->rd.aio_inflight > 0
-            && !ctx->rd.win_active)
-        {
-            ctx->state = XRD_ST_REQ_HEADER;
-            ctx->recv.hdr_pos = 0;
-            return BRIX_RECV_STEP_CONTINUE;
-        }
-        if (ngx_handle_read_event(rev, 0) != NGX_OK) {
-            return BRIX_RECV_STEP_BREAK;
-        }
-        return BRIX_RECV_STEP_RETURN;
+        return brix_recv_aio_tail(ctx, rev);
     }
     if (brix_recv_try_pipeline_read(ctx)) {
-        ctx->state = XRD_ST_REQ_HEADER;
-        ctx->recv.hdr_pos = 0;
+        brix_recv_rearm_header(ctx);
     }
     if (ctx->state != XRD_ST_SENDING) {
         if (ctx->tls_pending) {
             brix_start_tls(ctx, c, conf);
             return BRIX_RECV_STEP_RETURN;
         }
-        ctx->state = XRD_ST_REQ_HEADER;
-        ctx->recv.hdr_pos = 0;
+        brix_recv_rearm_header(ctx);
     }
     return BRIX_RECV_STEP_CONTINUE;
 }
@@ -389,18 +426,7 @@ brix_recv_after_header(ngx_stream_session_t *s, ngx_connection_t *c,
 
     ctx->recv.payload = NULL;
 
-    /*
-     * Phase 29 drain barrier (extended for write pipelining): a non-read/write
-     * opcode arriving while reads or writes are still in flight must run with the
-     * connection quiescent.  Defer it until both out.count and wr_inflight drain;
-     * the recv loop re-dispatches it then.
-     */
-    if (brix_recv_should_defer(ctx)) {
-        ctx->out.recv_deferred = 1;
-        ctx->out.deferred_streamid[0] = ctx->recv.cur_streamid[0];
-        ctx->out.deferred_streamid[1] = ctx->recv.cur_streamid[1];
-        ctx->state = XRD_ST_SENDING;
-        BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, *rx_pending);
+    if (brix_recv_defer_if_busy(ctx, rx_pending)) {
         return BRIX_RECV_STEP_RETURN;
     }
 
@@ -485,23 +511,12 @@ brix_recv_after_payload(ngx_stream_session_t *s, ngx_connection_t *c,
         return ext;   /* CONTINUE (receiving the streamed body) or BREAK */
     }
 
-    /*
-     * Phase 29 drain barrier (extended for write pipelining): every opcode other
-     * than kXR_read / kXR_write must run with the connection quiescent, so defer
-     * it until both the response/ack queue and the in-flight pwrites have drained
-     * — e.g. a kXR_close must not retire a handle a pwrite is still writing.
-     */
-    if (brix_recv_should_defer(ctx)) {
-        ctx->out.recv_deferred = 1;
-        ctx->out.deferred_streamid[0] = ctx->recv.cur_streamid[0];
-        ctx->out.deferred_streamid[1] = ctx->recv.cur_streamid[1];
-        ctx->state = XRD_ST_SENDING;
-        BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, *rx_pending);
+    /* e.g. a kXR_close must not retire a handle a pwrite is still writing. */
+    if (brix_recv_defer_if_busy(ctx, rx_pending)) {
         return BRIX_RECV_STEP_RETURN;
     }
 
-    ctx->state = XRD_ST_REQ_HEADER;
-    ctx->recv.hdr_pos = 0;
+    brix_recv_rearm_header(ctx);
 
     /* Only the single-chunk sendfile read builder re-sets this. */
     ctx->out.resp_pipelinable = 0;
@@ -523,8 +538,7 @@ brix_recv_after_payload(ngx_stream_session_t *s, ngx_connection_t *c,
          * the ack asynchronously.  Every other AIO op still suspends.
          */
         if (ctx->recv.cur_reqid == kXR_write && ctx->out.wr_inflight > 0) {
-            ctx->state = XRD_ST_REQ_HEADER;
-            ctx->recv.hdr_pos = 0;
+            brix_recv_rearm_header(ctx);
             return BRIX_RECV_STEP_CONTINUE;
         }
         /*
@@ -532,17 +546,7 @@ brix_recv_after_payload(ngx_stream_session_t *s, ngx_connection_t *c,
          * pread just posted — pipeline it exactly like the dlen==0 read path in
          * brix_recv_after_header rather than suspending on its AIO.
          */
-        if (ctx->recv.cur_reqid == kXR_read && ctx->rd.aio_inflight > 0
-            && !ctx->rd.win_active)
-        {
-            ctx->state = XRD_ST_REQ_HEADER;
-            ctx->recv.hdr_pos = 0;
-            return BRIX_RECV_STEP_CONTINUE;
-        }
-        if (ngx_handle_read_event(rev, 0) != NGX_OK) {
-            return BRIX_RECV_STEP_BREAK;
-        }
-        return BRIX_RECV_STEP_RETURN;
+        return brix_recv_aio_tail(ctx, rev);
     }
 
     /*
@@ -551,8 +555,7 @@ brix_recv_after_payload(ngx_stream_session_t *s, ngx_connection_t *c,
      * sendfile span queues behind this one.
      */
     if (brix_recv_try_pipeline_read(ctx)) {
-        ctx->state = XRD_ST_REQ_HEADER;
-        ctx->recv.hdr_pos = 0;
+        brix_recv_rearm_header(ctx);
         return BRIX_RECV_STEP_CONTINUE;
     }
 

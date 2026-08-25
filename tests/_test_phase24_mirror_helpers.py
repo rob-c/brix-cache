@@ -421,6 +421,11 @@ def _xrd_resp(s):
     return status, (_recv_exact(s, dlen) if dlen else b"")
 
 
+_kXR_open, _kXR_write, _kXR_close = 3010, 3019, 3003
+# open for create+truncate+write:  kXR_new | kXR_delete | kXR_open_updt
+_OPEN_CREATE_WR = 0x0008 | 0x0002 | 0x0020
+
+
 def _xrd_open_wr(s, path):
     p = path.encode() + b"\x00"
     s.sendall(struct.pack(">2sHHH12sI", b"\x00\x05", _kXR_open, 0o644,

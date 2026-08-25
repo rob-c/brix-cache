@@ -92,6 +92,36 @@ the captured path. This is the supported path for ASan, debug, dynamic, or
 candidate nginx builds. The declaration remains the source of library-capture
 policy, image identity, and stable logical name.
 
+Programs that load data or plugins outside the normal ELF dependency graph can
+declare exact image destinations without adding orchestration to the test:
+
+```python
+kdc = binary(
+    "krb5kdc", "/usr/sbin/krb5kdc",
+    runtime_files={
+        "/usr/lib64/krb5/plugins/kdb/db2.so":
+            "/usr/lib64/krb5/plugins/kdb/db2.so",
+    },
+)
+```
+
+The same mechanism captures libc/NSS inputs required by a host-built daemon
+when its generated image intentionally starts from `scratch`:
+
+```python
+nginx = binary(
+    "nginx", "/usr/sbin/nginx",
+    runtime_files={"/etc/passwd": "/etc/passwd", "/etc/group": "/etc/group"},
+)
+```
+
+`runtime_files` maps normalized absolute image paths to local source paths.
+BriXTest snapshots each source with the executable, verifies its checksum for
+the lifetime of the run, preserves its non-special permission bits in generated
+images, includes it in image fingerprints and SBOM evidence, and archives it
+for an exact rerun. Missing files, relative/traversing destinations, image-only
+binaries, and collisions with another staged input fail before image creation.
+
 For sanitizer suites, `--brixtest-sanitizer asan`, `ubsan`, or `asan-ubsan`
 applies fail-fast runtime settings consistently to the helper, servers, and
 clients. Combine it with `--brixtest-binary nginx=/candidate/nginx`; no test
@@ -109,12 +139,49 @@ profile values:
   "sanitizer": "asan",
   "test_env": {"TEST_MODE": "candidate"},
   "server_env": {"NGINX_DEBUG": "1"},
-  "client_env": {}
+  "client_env": {},
+  "images": {
+    "base_image": "registry.example/runtime@sha256:<digest>",
+    "registry": "registry.example/brixtest"
+  }
 }
 ```
 
 Run it with `pytest --brixtest-profile profiles/asan.json`. The retained rerun
 command records the resolved profile path along with the selected isolation.
+
+For `backend="minikube"`, a `Binary` that has a local `path` but no image is
+automatically packaged from its immutable executable/library capture. The
+generated scratch image contains the captured ELF interpreter and libraries,
+uses a tag derived from their checksums, is loaded into the selected
+Docker-backed Minikube profile, and runs with `imagePullPolicy: Never`.
+`--brixtest-binary nginx=/build/asan/objs/nginx` also selects this path even
+when the declaration normally names a prebuilt image, making an ASan or dynamic
+nginx substitution use the same suite source from beginning to end. With a
+configured `images.registry`, the capture is pushed with `docker push` and
+remote Kubernetes uses the resulting content-addressed tag. Registry
+authentication remains owned by the selected Docker and cluster contexts;
+BriXTest never embeds registry credentials in declarations or evidence.
+
+Remote Kubernetes requires either that configured registry for local captures
+or an explicitly supplied digest-pinned image. Explicit `image@sha256:...`
+declarations pass through unchanged. The same defaults can live in project
+pytest configuration:
+
+Kubernetes server Pods use the maintained digest-pinned Python runtime for the
+restricted `service.fs` sidecar. Operators may replace it with
+`BRIXTEST_KUBERNETES_FILESYSTEM_IMAGE=image@sha256:<digest>`; the replacement
+must provide `python3`, and mutable tags are rejected before resource creation.
+
+```ini
+[pytest]
+brixtest_base_image = registry.example/runtime@sha256:<digest>
+brixtest_registry = registry.example/brixtest
+```
+
+Profile `images` values take precedence over project defaults. Base images
+must be digest pinned; registries are a host plus an optional repository prefix
+without a URL scheme or tag.
 
 ## Template values
 
@@ -172,6 +239,12 @@ brixtest_helper_plugins = project_pytest_adapter
 brixtest_safe_imports = hypothesis
 brixtest_profile = profiles/local.json
 ```
+
+Kubernetes helper isolation additionally accepts
+`--brixtest-kubernetes-context`, `--brixtest-kubernetes-namespace`, and
+`--brixtest-kubernetes-service-account`. These options are rejected unless
+`--brixtest-isolation=kubernetes` is selected. The normal
+`--brixtest-isolation-image` value supplies its digest-pinned Python runtime.
 
 Use `brixtest doctor` for execution-tool diagnostics and `brixtest plugins`
 to inspect extension discovery without running a test.

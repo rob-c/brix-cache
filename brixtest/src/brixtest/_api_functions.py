@@ -9,7 +9,10 @@ PUBLIC_CALL_SHAPES = {
     "api_contract": (),
     "artifact": ("name", "kind", "*", "filename?", "**options"),
     "artifact_ref": ("value", "*", "directory?"),
-    "binary": ("name", "path?", "*", "libraries?", "discover_libraries?", "image?", "image_path?"),
+    "binary": (
+        "name", "path?", "*", "libraries?", "discover_libraries?", "image?",
+        "image_path?", "runtime_files?",
+    ),
     "binary_ref": ("value", "*", "directory?"),
     "case": (
         "*declared_resources",
@@ -114,7 +117,7 @@ PUBLIC_CALL_SHAPES = {
     "file_artifact": ("name", "path", "*", "filename?"),
     "get_case": ("value",),
     "get_extension": ("kind", "name"),
-    "host_mapping": ("name", "hostname", "*", "address?", "aliases?", "reverse?"),
+    "host_mapping": ("name", "hostname", "*", "address?", "aliases?", "reverse?", "libc?", "targets?"),
     "http_endpoint": ("name?", "*", "port?", "tls?", "metadata?", "family?", "exposure?"),
     "http_probe": ("endpoint?", "*", "path?", "tls?", "statuses?", "timeout?", "interval?"),
     "immediate": (),
@@ -122,7 +125,7 @@ PUBLIC_CALL_SHAPES = {
     "is_case": ("value",),
     "issue_token": (
         "*",
-        "secret",
+        "secret?",
         "issuer",
         "audience",
         "subject",
@@ -130,6 +133,9 @@ PUBLIC_CALL_SHAPES = {
         "claims?",
         "lifetime?",
         "now?",
+        "algorithm?",
+        "private_key?",
+        "key_id?",
     ),
     "installed_extensions": ("kind?",),
     "kerberos_auth": (
@@ -144,6 +150,9 @@ PUBLIC_CALL_SHAPES = {
         "master_password?",
         "port?",
         "start_kdc?",
+    ),
+    "kubernetes": (
+        "image", "*", "context?", "namespace?", "service_account?", "python?",
     ),
     "kubernetes_events": ("*", "interval?", "name?"),
     "load_template": ("path",),
@@ -237,6 +246,11 @@ PUBLIC_CALL_SHAPES = {
         "claims?",
         "secret?",
         "lifetime?",
+        "algorithm?",
+        "key_bits?",
+        "key_id?",
+        "managed?",
+        "rotate_on_restart?",
     ),
     "tool": (
         "name",
@@ -261,7 +275,10 @@ PUBLIC_CALL_SHAPES = {
         "metadata?",
     ),
     "volume": ("name", "*", "kind?", "size?", "source?", "access?", "persistent?", "provider?", "options?"),
-    "verify_token": ("token", "*", "secret", "issuer?", "audience?", "now?"),
+    "verify_token": (
+        "token", "*", "secret?", "issuer?", "audience?", "now?",
+        "public_key?", "algorithms?",
+    ),
     "voms_auth": (
         "name?",
         "*",

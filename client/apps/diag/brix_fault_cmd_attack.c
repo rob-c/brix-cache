@@ -395,11 +395,10 @@ http_lever_append(fp_http_cfg *H[2], const char *rbuf)
     return rc;
 }
 
-/* `header-hold <thresh> <ms> [partial|whole]` — DPI header-size stall. Stalls a
- * request once its header block reaches <thresh> bytes; `partial` releases the
- * first <thresh> bytes first, otherwise the whole segment is held. */
+/* Parse the hold levers' shared `<thresh> <ms> [partial|whole]` argument list
+ * (thresh must be positive, ms non-negative). HTTP_OK or HTTP_BADARG. */
 static int
-http_lever_hold(fp_http_cfg *H[2], char *rbuf)
+http_hold_args(char *rbuf, int *thr, int *ms, int *partial)
 {
     char *tt = strtok(rbuf, " ");
     char *mt = strtok(NULL, " ");
@@ -407,11 +406,25 @@ http_lever_hold(fp_http_cfg *H[2], char *rbuf)
     if (!tt || !mt) {
         return HTTP_BADARG;
     }
-    int thr     = atoi(tt);
-    int ms      = atoi(mt);
-    int partial = pt && strcmp(pt, "partial") == 0;
-    if (thr <= 0 || ms < 0) {
+    *thr     = atoi(tt);
+    *ms      = atoi(mt);
+    *partial = pt && strcmp(pt, "partial") == 0;
+    if (*thr <= 0 || *ms < 0) {
         return HTTP_BADARG;
+    }
+    return HTTP_OK;
+}
+
+/* `header-hold <thresh> <ms> [partial|whole]` — DPI header-size stall. Stalls a
+ * request once its header block reaches <thresh> bytes; `partial` releases the
+ * first <thresh> bytes first, otherwise the whole segment is held. */
+static int
+http_lever_hold(fp_http_cfg *H[2], char *rbuf)
+{
+    int thr, ms, partial;
+    int rc = http_hold_args(rbuf, &thr, &ms, &partial);
+    if (rc != HTTP_OK) {
+        return rc;
     }
     for (int j = 0; j < 2; j++) {
         if (!H[j]) {
@@ -429,16 +442,8 @@ http_lever_hold(fp_http_cfg *H[2], char *rbuf)
 static int
 http_lever_body_hold(fp_http_cfg *H[2], char *rbuf)
 {
-    char *tt = strtok(rbuf, " ");
-    char *mt = strtok(NULL, " ");
-    char *pt = strtok(NULL, " ");
-    if (!tt || !mt) {
-        return HTTP_BADARG;
-    }
-    int thr     = atoi(tt);
-    int ms      = atoi(mt);
-    int partial = pt && strcmp(pt, "partial") == 0;
-    if (thr <= 0 || ms < 0) {
+    int thr, ms, partial;
+    if (http_hold_args(rbuf, &thr, &ms, &partial) != HTTP_OK) {
         return HTTP_BADARG;
     }
     for (int j = 0; j < 2; j++) {

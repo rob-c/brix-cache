@@ -73,6 +73,10 @@ surfaces — the classifier finds the `/v2/` segment wherever it sits.
 | `brix_oci_upstream_namespace <ns>` | location | prefix for single-component names |
 | `brix_oci_upstream_auth_realm <host>` | http/server/location | one extra host a token realm may live on; repeatable — see §5.1 |
 | `brix_oci_mirror_insecure on` | location | permits a cleartext `http://` upstream base — test fixtures |
+| `brix_oci_mirror_delegate on` | location | pulls carry the **client's** credential; authorize-on-hit — see §5.2 |
+| `brix_oci_delegate_realm <name>` | http/server/location | the Basic realm challenged downstream; default `brix-oci` |
+| `brix_oci_delegate_proof_ttl <time>` | http/server/location | how long a per-(credential, repo) grant is remembered; default 300s |
+| `brix_oci_delegate_insecure on` | location | waives the delegate-mode TLS mandate — test fixtures |
 
 ---
 
@@ -168,6 +172,55 @@ read as pinning a port that nothing checks.
 Each dance that uses the widened boundary logs one INFO line naming the host,
 so "which realm did we actually trust" is answerable from the log rather than
 from the config.
+
+### 5.2 Delegated pull: the client's own credential (D16)
+
+`brix_oci_mirror_auth` gives the mirror **one** service identity. When the
+upstream holds private repositories with per-user visibility, that is the
+wrong shape: either the service account can see everything (and the mirror
+becomes a leak) or it can see nothing. Delegate mode makes the mirror carry
+the *client's* credential instead:
+
+```nginx
+brix_oci_mirror_delegate on;
+# brix_oci_delegate_realm  brix-oci;   # the Basic realm shown downstream
+# brix_oci_delegate_proof_ttl 300s;    # how long a grant is remembered
+```
+
+`docker login mirror.example.org` stores the user's own upstream credential;
+the client presents it as `Basic` on every pull. The mirror replays it to
+**the allowlisted token endpoint only** — never to the data plane, never to a
+CDN redirect — mints a bearer, and then *verifies* the grant with a HEAD of
+the requested object (a token endpoint of DockerHub's shape answers a denied
+scope with a 200 and an empty grant, so "the mint worked" proves nothing).
+The result is a per-(credential, repository) **proof**, cached in the token
+zone for `brix_oci_delegate_proof_ttl` (default 300 s).
+
+The properties that follow:
+
+- **Authorize-on-hit.** The proof is demanded on every request against the
+  gated routes — cache hit or miss, manifests, blobs, tags and referrers
+  alike. A warm cache is not a bypass: a user whose upstream access was
+  revoked loses the mirror within one proof TTL.
+- **No stored secrets.** The credential exists in request memory for the
+  duration of the token leg; what persists in SHM is a sha256 digest used
+  purely as a cache key, and the minted bearer under that key.
+- **One uniform refusal.** Wrong password, unknown account, valid account
+  without access, repository that does not exist upstream: all are the same
+  `401 DENIED` with the same `WWW-Authenticate: Basic` challenge. The mirror
+  is not an oracle for account or repository existence.
+- **Anonymous stays open.** A request without a credential mints an
+  anonymous proof, exactly as docker itself would — public repositories keep
+  serving without a login wall.
+
+**TLS is mandatory.** A delegated credential on cleartext is already
+compromised, so `brix_oci_mirror_delegate on` in a server block with no TLS
+certificate is refused at `nginx -t`. `brix_oci_delegate_insecure on` states
+a test fixture and nothing else.
+
+`brix_oci_delegate_total{outcome=cached|granted|denied|error}` is the
+observability: `denied` climbing tracks probing or revocation; `cached`
+dwarfing `granted` means the proof TTL is doing its job.
 
 Bearer tokens are cached in the SHM zone named by `brix_oci_token_zone`
 (default `oci_tokens 1m`, roughly 125 live tokens — i.e. ~125 concurrently

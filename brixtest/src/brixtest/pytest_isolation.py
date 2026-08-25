@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Mapping, Optional
 
 from brixtest.errors import SpecError
-from brixtest.isolation import Isolation, docker, nsenter, podman, process, runc
+from brixtest.isolation import Isolation, docker, kubernetes, nsenter, podman, process, runc
 
 
 def _profile_bundle(values: dict, profile: Mapping[str, object]) -> None:
@@ -40,6 +40,9 @@ def _require_isolation_kind(config, definition) -> Isolation:
         config.getoption("--brixtest-isolation-arg"),
         config.getoption("--brixtest-allow-mutable-image"),
         config.getoption("--brixtest-container-python") != "python3",
+        config.getoption("--brixtest-kubernetes-context"),
+        config.getoption("--brixtest-kubernetes-namespace"),
+        config.getoption("--brixtest-kubernetes-service-account"),
     )
     if any(related):
         raise SpecError(
@@ -50,10 +53,11 @@ def _require_isolation_kind(config, definition) -> Isolation:
 
 
 def _validate_isolation_image(kind: str, values: Mapping[str, object]) -> None:
-    container = kind in ("docker", "podman")
+    container = kind in ("docker", "podman", "kubernetes")
     if values["image"] and not container:
         raise SpecError(
-            "isolation.image", values["image"], "is valid only for docker or podman",
+            "isolation.image", values["image"],
+            "is valid only for docker, podman, or kubernetes",
         )
     if values["mutable"] and not container:
         raise SpecError(
@@ -81,6 +85,15 @@ def _validate_extra_options(kind: str, values: Mapping[str, object]) -> None:
         )
 
 
+def _validate_kubernetes_options(kind: str, values: Mapping[str, object]) -> None:
+    selected = (values["context"], values["namespace"], values["service_account"])
+    if any(selected) and kind != "kubernetes":
+        raise SpecError(
+            "Kubernetes isolation options", selected,
+            "require --brixtest-isolation=kubernetes",
+        )
+
+
 def _isolation_values(config, kind: str) -> dict:
     values = {
         "extra": tuple(config.getoption("--brixtest-isolation-arg")),
@@ -90,11 +103,15 @@ def _isolation_values(config, kind: str) -> dict:
         "namespaces": config.getoption("--brixtest-nsenter-namespace"),
         "bundle": config.getoption("--brixtest-runc-bundle"),
         "mutable": config.getoption("--brixtest-allow-mutable-image"),
+        "context": config.getoption("--brixtest-kubernetes-context") or "",
+        "namespace": config.getoption("--brixtest-kubernetes-namespace") or "",
+        "service_account": config.getoption("--brixtest-kubernetes-service-account") or "",
     }
     _validate_isolation_image(kind, values)
     _validate_nsenter_options(kind, values)
     _validate_runc_options(kind, values)
     _validate_extra_options(kind, values)
+    _validate_kubernetes_options(kind, values)
     return values
 
 
@@ -131,6 +148,12 @@ def _selected_runtime(kind: str, values: Mapping[str, object], definition) -> Is
         return nsenter(values["target"] or 0, namespaces=tuple(namespaces))
     if kind in ("docker", "podman"):
         return _container_runtime(kind, values)
+    if kind == "kubernetes":
+        return kubernetes(
+            values["image"] or "", python=values["python"],
+            context=values["context"], namespace=values["namespace"] or "default",
+            service_account=values["service_account"] or "default",
+        )
     return _runc_runtime(values, definition)
 
 

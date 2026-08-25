@@ -113,6 +113,24 @@ cvmfs_repo_slot_is_dup(const ngx_brix_cvmfs_repo_metrics_t *repos,
     return 0;
 }
 
+/* Advance *i to the next READY, non-duplicate repo slot and return it (NULL
+ * when the table is exhausted); *i is left one past the returned slot. */
+static ngx_brix_cvmfs_repo_metrics_t *
+cvmfs_next_ready_repo(ngx_brix_cvmfs_repo_metrics_t *repos, ngx_uint_t *i)
+{
+    for (; *i < BRIX_CVMFS_REPO_SLOTS; (*i)++) {
+        ngx_brix_cvmfs_repo_metrics_t *rm = &repos[*i];
+
+        if (rm->state == BRIX_CVMFS_REPO_READY
+            && !cvmfs_repo_slot_is_dup(repos, *i))
+        {
+            (*i)++;
+            return rm;
+        }
+    }
+    return NULL;
+}
+
 /* ---- per-upstream slot table (bounded "host:port" label — see metrics.h) --
  * Same lock-free EMPTY->CLAIMED->READY lowest-index scheme as the repo table;
  * the reserved last slot is the "_other" overflow bucket. */
@@ -375,19 +393,14 @@ brix_export_cvmfs_metrics(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
               "bytes pulled from the Stratum-1 origins per repository (WAN in)",
               offsetof(ngx_brix_cvmfs_repo_metrics_t, origin_bytes_total) },
         };
+        ngx_brix_cvmfs_repo_metrics_t *rm;
         ngx_uint_t f, i, cls;
 
         mw_printf(mw,
             "# HELP brix_cvmfs_repo_requests_total requests per repository by traffic class\n"
             "# TYPE brix_cvmfs_repo_requests_total counter\n");
-        for (i = 0; i < BRIX_CVMFS_REPO_SLOTS; i++) {
-            ngx_brix_cvmfs_repo_metrics_t *rm = &c->repos[i];
-
-            if (rm->state != BRIX_CVMFS_REPO_READY
-                || cvmfs_repo_slot_is_dup(c->repos, i))
-            {
-                continue;
-            }
+        i = 0;
+        while ((rm = cvmfs_next_ready_repo(c->repos, &i)) != NULL) {
             for (cls = 0; cls < BRIX_CVMFS_CLASS_COUNT; cls++) {
                 mw_printf(mw,
                     "brix_cvmfs_repo_requests_total{repo=\"%s\",class=\"%s\"} %lu\n",
@@ -399,14 +412,8 @@ brix_export_cvmfs_metrics(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
         for (f = 0; f < sizeof(fam) / sizeof(fam[0]); f++) {
             mw_printf(mw, "# HELP %s %s\n# TYPE %s counter\n",
                       fam[f].name, fam[f].help, fam[f].name);
-            for (i = 0; i < BRIX_CVMFS_REPO_SLOTS; i++) {
-                ngx_brix_cvmfs_repo_metrics_t *rm = &c->repos[i];
-
-                if (rm->state != BRIX_CVMFS_REPO_READY
-                    || cvmfs_repo_slot_is_dup(c->repos, i))
-                {
-                    continue;
-                }
+            i = 0;
+            while ((rm = cvmfs_next_ready_repo(c->repos, &i)) != NULL) {
                 mw_printf(mw, "%s{repo=\"%s\"} %lu\n", fam[f].name, rm->name,
                     (unsigned long) *(ngx_atomic_t *)
                         ((u_char *) rm + fam[f].off));
@@ -416,14 +423,8 @@ brix_export_cvmfs_metrics(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
         mw_printf(mw,
             "# HELP brix_cvmfs_repo_bytes_served_total bytes served per repository by cache disposition\n"
             "# TYPE brix_cvmfs_repo_bytes_served_total counter\n");
-        for (i = 0; i < BRIX_CVMFS_REPO_SLOTS; i++) {
-            ngx_brix_cvmfs_repo_metrics_t *rm = &c->repos[i];
-
-            if (rm->state != BRIX_CVMFS_REPO_READY
-                || cvmfs_repo_slot_is_dup(c->repos, i))
-            {
-                continue;
-            }
+        i = 0;
+        while ((rm = cvmfs_next_ready_repo(c->repos, &i)) != NULL) {
             mw_printf(mw,
                 "brix_cvmfs_repo_bytes_served_total{repo=\"%s\",source=\"hit\"} %lu\n"
                 "brix_cvmfs_repo_bytes_served_total{repo=\"%s\",source=\"fill\"} %lu\n",

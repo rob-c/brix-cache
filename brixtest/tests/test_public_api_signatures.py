@@ -397,6 +397,7 @@ def test_server_and_client_share_binary_plus_args_or_command_contract():
     (lambda: brixtest.collector("custom", interval="soon"), "collector interval"),
     (lambda: brixtest.CollectorSpec([], "name"), "collector kind"),
     (lambda: brixtest.docker(3), "isolation.image"),
+    (lambda: brixtest.kubernetes(3), "isolation.image"),
     (lambda: brixtest.nsenter("pid"), "target_pid"),
     (lambda: brixtest.runc(3), "isolation.bundle"),
 ])

@@ -56,8 +56,10 @@ def test_094_deployment_mounts_secure_secret_read_only():
         secure_items=[{"key": "file-0000", "path": "auth/key", "mode": 0o400}],
     )
     pod = deployment["spec"]["template"]["spec"]
-    assert pod["volumes"][1]["secret"]["secretName"] == "brixtest-secure"
-    assert pod["containers"][0]["volumeMounts"][1]["readOnly"] is True
+    secure = next(item for item in pod["volumes"] if item["name"] == "secure")
+    assert secure["secret"]["secretName"] == "brixtest-secure"
+    mounts = pod["containers"][0]["volumeMounts"]
+    assert next(item for item in mounts if item["name"] == "secure")["readOnly"] is True
 
 
 def test_095_deployment_environment_is_sorted_for_stability():
@@ -67,7 +69,10 @@ def test_095_deployment_environment_is_sorted_for_stability():
 
 
 def test_096_kubernetes_host_aliases_include_canonical_and_alias():
-    mapping = host_mapping("auth", "auth.test", address="127.0.0.9", aliases=("alias.test",))
+    mapping = host_mapping(
+        "auth", "auth.test", address="127.0.0.9",
+        aliases=("alias.test",), libc=True,
+    )
     _, deployment, _ = _resources(host_aliases=[mapping])
     aliases = deployment["spec"]["template"]["spec"]["hostAliases"]
     assert aliases == [{"ip": "127.0.0.9", "hostnames": ["auth.test", "alias.test"]}]

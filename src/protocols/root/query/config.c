@@ -134,33 +134,6 @@ brix_qconfig_codec_list(char *list, size_t list_sz)
     }
 }
 
-/* WHAT: Emits the checksum-algorithm list for the "chksum" query key.
- * WHY: adler32 first — xrdcp default; list ALL algorithms the Qcksum path answers. crc32 = zlib CRC-32
- *      (stock XRootD's standard name; must be advertised so peers intersecting preference lists can
- *      negotiate it), zcrc32 = its alias; crc64 = CRC-64/XZ, crc64nvme = CRC-64/NVME (this gateway's
- *      de-facto convention; stock XRootD ships no crc64 calculator). Value only (no "chksum=" prefix) —
- *      the reference do_Qconf returns the bare cslist, and xrdcp/XrdCl parse the value line directly.
- * HOW: Single append of the fixed algorithm list line. */
-static ngx_flag_t
-brix_qconfig_emit_chksum(ngx_stream_brix_srv_conf_t *conf,
-    char *resp, size_t resp_sz, size_t *pos)
-{
-    (void) conf;
-    return brix_qconfig_append(resp, resp_sz, pos,
-        "adler32,crc32,crc32c,crc64,crc64nvme,zcrc32,md5,sha1,sha256\n");
-}
-
-/* WHAT: Emits "readv=1" for the "readv" query key.
- * WHY: Advertises vector-read support so XrdCl uses kXR_readv instead of serial reads.
- * HOW: Single fixed-string append. */
-static ngx_flag_t
-brix_qconfig_emit_readv(ngx_stream_brix_srv_conf_t *conf,
-    char *resp, size_t resp_sz, size_t *pos)
-{
-    (void) conf;
-    return brix_qconfig_append(resp, resp_sz, pos, "readv=1\n");
-}
-
 /* WHAT: Emits the max bytes per readv element for "readv_ior_max".
  * WHY: The official "maxReadv_ior". Reported as a bare integer (no key= prefix), matching reference
  *      XRootD, so XrdCl sizes each VectorRead element to our configured brix_readv_segment_size and
@@ -174,153 +147,42 @@ brix_qconfig_emit_readv_ior_max(ngx_stream_brix_srv_conf_t *conf,
                                (unsigned long) conf->readv_segment_size);
 }
 
-/* WHAT: Emits the max number of elements per readv request for "readv_iov_max".
- * WHY: The official "maxRvecsz" — bare integer, reference format.
- * HOW: Appends the compile-time BRIX_READV_MAXSEGS cap + newline. */
+/* WHAT: Emits the inline compression codec list for "cmpread"/"cmpwrite" —
+ *       `key=<built-in codec CSV>` when the direction is enabled, else `key=0`.
+ * WHY: phase-42 W4/W5: advertise the codecs this build can compress kXR_read
+ *      responses with / decompress kXR_write payloads with, so a willing client
+ *      knows whether to send "?xrootd.compress=". Read and write share one
+ *      emitter so the two directions cannot drift; invisible to stock clients,
+ *      which never query these keys.
+ * HOW: enabled → brix_qconfig_codec_list CSV, else the literal "0". */
 static ngx_flag_t
-brix_qconfig_emit_readv_iov_max(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_cmp(ngx_flag_t enabled, const char *key,
     char *resp, size_t resp_sz, size_t *pos)
 {
-    (void) conf;
-    return brix_qconfig_append(resp, resp_sz, pos, "%d\n", BRIX_READV_MAXSEGS);
+    char list[160];
+
+    if (!enabled) {
+        return brix_qconfig_append(resp, resp_sz, pos, "%s=0\n", key);
+    }
+
+    brix_qconfig_codec_list(list, sizeof(list));
+    return brix_qconfig_append(resp, resp_sz, pos, "%s=%s\n", key, list);
 }
 
-/* WHAT: Emits the TPC capability value for the "tpc" query key.
- * WHY: Advertise TPC support (the client's XrdCl::Utils::CheckTPCLite queries BOTH endpoints before a
- *      transfer). Any xrootd data server can act as a TPC *source* — it only serves reads to the pulling
- *      destination — so a read-only source must still answer tpc>=1 or the client aborts with "Source does
- *      not support third-party-copy". The *destination* pull additionally needs allow_write + a thread
- *      pool; that capability is enforced where the pull is actually launched (src/tpc), not gated here.
- *      Return just the numeric value (1 or 0) to match the reference XRootD server when XRDTPC is set —
- *      XrdCl parses the first response line with isdigit() + atoi(), so a leading "tpc=" prefix would
- *      cause it to reject TPC support.
- * HOW: Appends the constant capability value 1 as %d + newline. */
-static ngx_flag_t
-brix_qconfig_emit_tpc(ngx_stream_brix_srv_conf_t *conf,
-    char *resp, size_t resp_sz, size_t *pos)
-{
-    int tpc_capable = 1;
-
-    (void) conf;
-    return brix_qconfig_append(resp, resp_sz, pos, "%d\n", tpc_capable);
-}
-
-/* WHAT: Emits the HTTP-TPC delegation status for the "tpcdlg" query key.
- * WHY: The literal "tpcdlg" echo signals HTTP-TPC delegation is unavailable, matching reference behavior.
- * HOW: Single fixed-string append. */
-static ngx_flag_t
-brix_qconfig_emit_tpcdlg(ngx_stream_brix_srv_conf_t *conf,
-    char *resp, size_t resp_sz, size_t *pos)
-{
-    (void) conf;
-    return brix_qconfig_append(resp, resp_sz, pos, "tpcdlg\n");
-}
-
-/* WHAT: Emits the inline read-compression codec list for the "cmpread" query key.
- * WHY: phase-42 W4: inline read compression. Advertise the codecs this server can compress kXR_read
- *      responses with (only those actually built in) when brix_read_compress is on, else "cmpread=0" so a
- *      willing client knows not to send "?xrootd.compress=". Invisible to stock clients, which never
- *      query this key.
- * HOW: When read_compress is on, builds the built-in codec CSV via brix_qconfig_codec_list and appends
- *      "cmpread=<list>"; otherwise appends "cmpread=0". */
 static ngx_flag_t
 brix_qconfig_emit_cmpread(ngx_stream_brix_srv_conf_t *conf,
     char *resp, size_t resp_sz, size_t *pos)
 {
-    char list[160];
-
-    if (!conf->read_compress) {
-        return brix_qconfig_append(resp, resp_sz, pos, "cmpread=0\n");
-    }
-
-    brix_qconfig_codec_list(list, sizeof(list));
-    return brix_qconfig_append(resp, resp_sz, pos, "cmpread=%s\n", list);
+    return brix_qconfig_emit_cmp(conf->read_compress, "cmpread",
+                                 resp, resp_sz, pos);
 }
 
-/* WHAT: Emits the inline write-decompression codec list for the "cmpwrite" query key.
- * WHY: phase-42 W5: inline write decompression — symmetric to cmpread. Advertise the codecs the server
- *      will decompress kXR_write payloads with when brix_write_compress is on, else "cmpwrite=0".
- * HOW: When write_compress is on, builds the built-in codec CSV via brix_qconfig_codec_list and appends
- *      "cmpwrite=<list>"; otherwise appends "cmpwrite=0". */
 static ngx_flag_t
 brix_qconfig_emit_cmpwrite(ngx_stream_brix_srv_conf_t *conf,
     char *resp, size_t resp_sz, size_t *pos)
 {
-    char list[160];
-
-    if (!conf->write_compress) {
-        return brix_qconfig_append(resp, resp_sz, pos, "cmpwrite=0\n");
-    }
-
-    brix_qconfig_codec_list(list, sizeof(list));
-    return brix_qconfig_append(resp, resp_sz, pos, "cmpwrite=%s\n", list);
-}
-
-/* WHAT: Emits the vendor POSIX-completeness extension list for the "xrdfs.ext" query key.
- * WHY: nginx-xrootd vendor POSIX-completeness extensions this server implements (src/write/ext_ops.c).
- *      The native FUSE client queries this to decide whether to emit kXR_setattr/symlink/readlink/link
- *      rather than falling back to no-op utimens / ENOTSUP.
- * HOW: Single fixed-string append. */
-static ngx_flag_t
-brix_qconfig_emit_xrdfs_ext(ngx_stream_brix_srv_conf_t *conf,
-    char *resp, size_t resp_sz, size_t *pos)
-{
-    (void) conf;
-    return brix_qconfig_append(resp, resp_sz, pos,
-                               "xrdfs.ext=setattr,symlink,readlink,link\n");
-}
-
-/* WHAT: Emits the server software version for the "version" query key.
- * WHY: The reference do_Qconf returns the bare version string (e.g. "v5.9.5"); clients parse it for
- *      feature/quirk detection, so it must contain digits and carry NO "version=" prefix. Report the
- *      product version from core/ident.h — the same string every other identity surface advertises.
- * HOW: Appends BRIX_SERVER_VERSION + newline. */
-static ngx_flag_t
-brix_qconfig_emit_version(ngx_stream_brix_srv_conf_t *conf,
-    char *resp, size_t resp_sz, size_t *pos)
-{
-    (void) conf;
-    return brix_qconfig_append(resp, resp_sz, pos, "%s\n",
-                               BRIX_SERVER_VERSION);
-}
-
-/* WHAT: Emits the max parallel data streams a client may bind for the "bind_max" query key.
- * WHY: Reference format: a bare integer + newline; stock default is maxStreams-1 = 15.
- * HOW: Appends the constant 15 as %d + newline. */
-static ngx_flag_t
-brix_qconfig_emit_bind_max(ngx_stream_brix_srv_conf_t *conf,
-    char *resp, size_t resp_sz, size_t *pos)
-{
-    (void) conf;
-    return brix_qconfig_append(resp, resp_sz, pos, "%d\n", 15);
-}
-
-/* WHAT: Emits the bound-substream request capability for the "brix.substreams" query key.
- * WHY: This server dispatches full kXR_read/kXR_write request frames arriving ON a bound
- *      secondary connection (each write self-addresses via offset + SHM-published fhandle);
- *      stock servers instead treat bound paths as pathid-directed data channels and never
- *      answer a request frame sent there. The native client probes this key after kXR_bind
- *      and tears its secondaries down without the "=rw" marker, so it never deadlocks on a
- *      request a stock peer will not answer (an unknown key merely echoes "brix.substreams").
- * HOW: Single fixed-string append. */
-static ngx_flag_t
-brix_qconfig_emit_substreams(ngx_stream_brix_srv_conf_t *conf,
-    char *resp, size_t resp_sz, size_t *pos)
-{
-    (void) conf;
-    return brix_qconfig_append(resp, resp_sz, pos, "brix.substreams=rw\n");
-}
-
-/* WHAT: Emits the max parallel-I/O streams per request for the "pio_max" query key.
- * WHY: The reference do_Qconf returns a bare integer (maxPio+1; stock default 5); XrdCl parses it with
- *      atoi(), so a "pio_max=" prefix would break it.
- * HOW: Appends the constant 5 as %d + newline. */
-static ngx_flag_t
-brix_qconfig_emit_pio_max(ngx_stream_brix_srv_conf_t *conf,
-    char *resp, size_t resp_sz, size_t *pos)
-{
-    (void) conf;
-    return brix_qconfig_append(resp, resp_sz, pos, "%d\n", 5);
+    return brix_qconfig_emit_cmp(conf->write_compress, "cmpwrite",
+                                 resp, resp_sz, pos);
 }
 
 /* WHAT: Emits the server role for the "role" query key.
@@ -335,31 +197,24 @@ brix_qconfig_emit_role(ngx_stream_brix_srv_conf_t *conf,
                                conf->manager_mode ? "manager" : "server");
 }
 
-/* WHAT: Emits the extended-attribute limits for the "fattr" query key.
- * WHY: Reference do_Qconf returns usxParms — the OSS extended-attribute limits
- *      "<maxNameLen> <maxValueLen>". On Linux user.* xattrs the name cap is 248 (255 − len("user.")) and
- *      the value cap 65536 (64 KiB), which is what stock reports on ext4/xfs; we support fattr
- *      (src/fattr/), so advertise the same.
- * HOW: Single fixed-string append. */
-static ngx_flag_t
-brix_qconfig_emit_fattr(ngx_stream_brix_srv_conf_t *conf,
-    char *resp, size_t resp_sz, size_t *pos)
-{
-    (void) conf;
-    return brix_qconfig_append(resp, resp_sz, pos, "248 65536\n");
-}
-
-/* WHAT: Static descriptor table mapping each supported kXR_Qconfig key to its emitter.
+/* WHAT: Static descriptor table mapping each supported kXR_Qconfig key to its
+ *       response — either a fixed line (`fixed`) or a conf-dependent emitter.
  * WHY: Keys are whitespace-separated (see libXrdCl FileSystem::Query config, e.g. "tpc tpcdlg"). Lines in
  *      the response must match reference XRootD: tpc → a line whose first character is '0' or '1' (atoi
  *      for XrdCl); tpcdlg → literal "tpcdlg" when HTTP-TPC delegation is unavailable. Table-driven
- *      dispatch keeps the handler flat and makes adding a key a one-row change.
- * HOW: NULL-key sentinel terminates the linear scan in brix_qconfig_emit_key. */
+ *      dispatch keeps the handler flat and makes adding a key a one-row change; keys whose answer is a
+ *      constant of the build state their line in the table and need no emitter.
+ * HOW: NULL-key sentinel terminates the linear scan in brix_qconfig_emit_key; exactly one of
+ *      `fixed` / `emit` is set per row. */
 typedef struct {
     const char           *key;
-    brix_qconfig_emit_fn  emit;
+    const char           *fixed;   /* the literal response line, or NULL */
+    brix_qconfig_emit_fn  emit;    /* conf-dependent emitter when fixed == NULL */
     ngx_flag_t            public_safe;
 } brix_qconfig_entry_t;
+
+#define BRIX_QCONF_STR_(x)  #x
+#define BRIX_QCONF_STR(x)   BRIX_QCONF_STR_(x)
 
 /* WHAT: `public_safe` — may this key still be answered under
  *       `brix_read_only_public`?
@@ -378,24 +233,45 @@ typedef struct {
  *       thinking about disclosure therefore fails closed: it is invisible to a
  *       public client until someone deliberately marks it 1. */
 static const brix_qconfig_entry_t  brix_qconfig_table[] = {
-    /*   key                emitter                          public_safe */
-    { "chksum",        brix_qconfig_emit_chksum,        1 },
-    { "readv",         brix_qconfig_emit_readv,         1 },
-    { "readv_ior_max", brix_qconfig_emit_readv_ior_max, 1 },
-    { "readv_iov_max", brix_qconfig_emit_readv_iov_max, 1 },
-    { "tpc",           brix_qconfig_emit_tpc,           1 },
-    { "tpcdlg",        brix_qconfig_emit_tpcdlg,        1 },
-    { "cmpread",       brix_qconfig_emit_cmpread,       1 },
-    { "cmpwrite",      brix_qconfig_emit_cmpwrite,      1 },
-    { "xrdfs.ext",     brix_qconfig_emit_xrdfs_ext,     1 },
-    { "brix.substreams", brix_qconfig_emit_substreams,  1 },
-    { "bind_max",      brix_qconfig_emit_bind_max,      1 },
-    { "pio_max",       brix_qconfig_emit_pio_max,       1 },
-    { "fattr",         brix_qconfig_emit_fattr,         1 },
+    /* key / fixed response line / emitter / public_safe.  Fixed-line notes:
+     * chksum — the bare cslist (no "chksum=" prefix), adler32 first (xrdcp's
+     *   default); crc32 = zlib CRC-32 (stock XRootD's standard name), zcrc32
+     *   its alias; crc64 = CRC-64/XZ ≠ crc64nvme = CRC-64/NVME (INVARIANT 9).
+     * readv_iov_max / bind_max / pio_max — bare integers, reference format
+     *   (maxRvecsz; maxStreams-1 = 15; maxPio+1 = 5): XrdCl atoi()s the line.
+     * tpc — bare "1": ANY data server can act as a TPC *source* (it only
+     *   serves reads to the pulling destination), so even a read-only source
+     *   answers 1 or the client aborts with "Source does not support
+     *   third-party-copy"; destination-side requirements (allow_write + pool)
+     *   are enforced where the pull launches (src/tpc). XrdCl parses the line
+     *   with isdigit()+atoi(), so a "tpc=" prefix would reject TPC support.
+     * tpcdlg — the literal key echo signals HTTP-TPC delegation unavailable.
+     * xrdfs.ext — vendor POSIX-completeness ops (src/write/ext_ops.c); the
+     *   native FUSE client probes this before emitting setattr/symlink/....
+     * brix.substreams — "=rw" marks bound-secondary REQUEST dispatch; the
+     *   native client tears its secondaries down without it (a stock server
+     *   merely echoes the unknown key, which lacks the marker).
+     * fattr — usxParms "<maxNameLen> <maxValueLen>": Linux user.* caps,
+     *   248 = 255 - len("user."), 65536 = 64 KiB value cap (ext4/xfs stock).
+     * version — the bare product string (core/ident.h), digits + no prefix. */
+    { "chksum",        "adler32,crc32,crc32c,crc64,crc64nvme,zcrc32,"
+                       "md5,sha1,sha256\n",                        NULL, 1 },
+    { "readv",         "readv=1\n",                                NULL, 1 },
+    { "readv_ior_max", NULL,       brix_qconfig_emit_readv_ior_max,      1 },
+    { "readv_iov_max", BRIX_QCONF_STR(BRIX_READV_MAXSEGS) "\n",    NULL, 1 },
+    { "tpc",           "1\n",                                      NULL, 1 },
+    { "tpcdlg",        "tpcdlg\n",                                 NULL, 1 },
+    { "cmpread",       NULL,       brix_qconfig_emit_cmpread,            1 },
+    { "cmpwrite",      NULL,       brix_qconfig_emit_cmpwrite,           1 },
+    { "xrdfs.ext",     "xrdfs.ext=setattr,symlink,readlink,link\n", NULL, 1 },
+    { "brix.substreams", "brix.substreams=rw\n",                   NULL, 1 },
+    { "bind_max",      "15\n",                                     NULL, 1 },
+    { "pio_max",       "5\n",                                      NULL, 1 },
+    { "fattr",         "248 65536\n",                              NULL, 1 },
     /* Deployment identity — withheld from a public read-only gateway. */
-    { "version",       brix_qconfig_emit_version,       0 },
-    { "role",          brix_qconfig_emit_role,          0 },
-    { NULL,            NULL,                            0 },
+    { "version",       BRIX_SERVER_VERSION "\n",                   NULL, 0 },
+    { "role",          NULL,       brix_qconfig_emit_role,               0 },
+    { NULL,            NULL,       NULL,                                 0 },
 };
 
 /* WHAT: Dispatches one query key: scans brix_qconfig_table for a matching emitter and invokes it, or —
@@ -421,6 +297,9 @@ brix_qconfig_emit_key(const char *key, ngx_stream_brix_srv_conf_t *conf,
          * no disclosure, and the client takes a code path it already has. */
         if (conf->common.read_only_public && !e->public_safe) {
             break;
+        }
+        if (e->fixed != NULL) {
+            return brix_qconfig_append(resp, resp_sz, pos, "%s", e->fixed);
         }
         return e->emit(conf, resp, resp_sz, pos);
     }

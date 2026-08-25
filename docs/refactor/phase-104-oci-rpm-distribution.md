@@ -2603,6 +2603,116 @@ DRIFT 42.
 
 ---
 
+## D16 — Delegated pull: the client's credential, authorize-on-hit (DELIVERED 2026-08-23)
+
+**The ask.** A mirror in front of quay/DockerHub private repositories with
+per-user visibility. `brix_oci_mirror_auth` (one service identity) is the
+wrong shape twice over: a service account broad enough to fill the cache
+makes the *cache* the leak — once warm, any anonymous client can read what
+only some principals may see — and one narrow enough not to leak can't fill.
+
+**Three decisions, made up front (operator choices, recorded verbatim):**
+
+1. **Client auth = Basic passthrough.** `docker login <mirror>` stores the
+   user's own upstream credential; unmodified clients present it as `Basic`
+   over TLS. The mirror replays it **only** to the allowlisted token
+   endpoint (§D15.11 boundary) — never the data plane, never a CDN. True
+   delegation, zero server-held user secrets.
+2. **Cache privacy = authorize-on-hit.** One shared content-addressed store,
+   full dedup. Every request on the gated routes — hit *or* miss — must
+   first carry a per-(credential, repository) **proof**: an upstream mint +
+   verify, SHM-cached for `brix_oci_delegate_proof_ttl` (default 300 s).
+   The upstream stays the authorization oracle; revocation propagates
+   within one proof TTL; a warm cache is not a bypass.
+3. **Uniform refusal.** Bad password, unknown account, valid account without
+   access, absent repository: one `401 DENIED` + one
+   `WWW-Authenticate: Basic realm="brix-oci"`. The mirror is an oracle for
+   nothing — not even existence.
+
+**The shape.** New TU `src/protocols/oci/oci_delegate.c` (two planes):
+
+- *Event loop*: `brix_oci_delegate_ident()` — refuses cleartext before even
+  decoding (400, unless `brix_oci_delegate_insecure` states a fixture),
+  refuses non-Basic schemes with the uniform 401, decodes into the request
+  pool, hashes the pair once (`brix_oci_sha256_key`) into the 32-byte cred
+  key. `brix_oci_delegate_gate()` — probe-path derivation (object routes:
+  the canonical key, HEAD; listing routes: `/v2/<name>/tags/list?n=1`, GET),
+  `pull_scope` once, SHM proof probe, thread-task post.
+- *Thread pool* (rides `brix_oci_thread_pool`, exported from `oci_tags.c`):
+  challenge memo (`GET /v2/`, SHM-cached 1 h, an "open" marker for a
+  challenge-free upstream) → credential-scoped mint
+  (`brix_oci_token_get_cred`) → **verify leg** → verdict. On GRANTED: proof
+  record written, and the bearer **shared** into the credential-blind token
+  entry the fill provider probes (`brix_oci_token_share`, bounded by
+  min(proof TTL, token life)) — so a granted pull costs one dance total,
+  zero `sd_http` source diff.
+
+The verify leg is not optional politeness: a DockerHub-shape token endpoint
+answers a denied scope with **200 and an empty grant**, so "the mint worked"
+proves nothing about the principal. 401/403 on the probe ⇒ DENIED; 404 ⇒
+authorized-but-absent (the fill surfaces it); anything else ⇒ GRANTED.
+
+**Key discipline.** Proof records are keyed
+`sha256("proof" ‖ 0 ‖ base_url ‖ 0 ‖ scope ‖ 0 ‖ cred)` and the challenge
+memo `sha256("chal" ‖ 0 ‖ base_url)` — ASCII prefixes so neither can ever
+alias a token entry in the shared zone. What SHM holds for a user: a hash
+key and a bearer. No password ever touches disk or SHM.
+
+**Config surface.** `brix_oci_mirror_delegate` (FLAG) ·
+`brix_oci_delegate_realm` (default `brix-oci`) ·
+`brix_oci_delegate_proof_ttl` (default 300 s) ·
+`brix_oci_delegate_insecure` (FLAG, fixtures). **TLS is mandatory**:
+delegate-on in a server block with no TLS certificate is an `nginx -t`
+EMERG — a delegated credential on cleartext is already compromised.
+
+**Metrics.** `brix_oci_delegate_total{outcome=cached|granted|denied|error}`
+(fixed enum, INVARIANT #8). Denials emit the tree-wide `authfail` guard
+signal — the shipped `xrootd-guard-authfail` fail2ban filter covers this
+surface with no new filter.
+
+**Splits forced by the size/complexity contract.** `oci_upstream_auth.c`
+crossed 600 LOC and split along its real seam: `oci_token_cache.c` now owns
+key derivation + `pull_scope` + the share (the security property lives in
+the key), the auth TU keeps the HTTP legs. `brix_oci_delegate_gate` at
+CCN 20 decomposed into `oci_deleg_probe` + `oci_deleg_task_fill`.
+
+**TRAPs (found by the lane, in the order they bit):**
+
+- **`up->log` is bound lazily by the first *fill*** (`bind_bearer`). The
+  proof can be the first thread onto a cold worker, and every thread-side
+  `ngx_log_error` dereferences the NULL — SIGSEGV at `oci_token_fetch`'s
+  "endpoint answered %d" line, reproduced as a worker crash on the
+  wrong-password leg. The gate now binds `ngx_cycle->log` before posting,
+  same lifetime argument as `bind_bearer`. **Second instance (08-24):** the
+  tags/listing gate (`oci_tags.c`) posts a thread that runs the same token
+  dance and had the identical hole — a listing on a cold worker crashed the
+  same way (the fleet-drilldown session symbolized 3× crash-loops to the
+  same ip). The bind is now `brix_oci_up_log_ensure()` in
+  `oci_upstream_auth.c`, called by BOTH gates before posting; any future
+  task-posting gate must call it too.
+- **The classifier's `name` span dies with the gate frame.** Listing-route
+  gating had to go *inside* `oci_gate.c`'s switch (before
+  `listing_passthrough`), not after the gate returns — `ctx->req.name`
+  points into a stack buffer.
+- **`pull_scope` only knew the object terminals.** The listing routes
+  (`/tags/`, `/referrers/`) are exactly where private *metadata* would leak;
+  the terminal list grew and both the D1 cache and the D16 gate derive from
+  the one function — two derivations would be two chances to disagree.
+
+**Lane.** `tests/test_oci_mirror_delegate.py` (mock 14105 / front 14113,
+claimed in `test-fleet-ports.md`), over `mock_registry.py` grown multi-user
+(`--user U:P` repeatable, `--private repo=user[,user]`, token→identity map,
+DockerHub-shape challenge-free 403). Ten tests in four groups: the grant
+(credential reaches the token plane only; public stays anonymous; one mint
+covers proof+fill+next via the share), the uniform refusal (wrong-password
+≡ wrong-user byte-for-byte; anonymous gets the challenge; Bearer downstream
+refused not forwarded), authorize-on-hit (a warm hit still demands the
+proof; revocation propagates at proof expiry; the listing surface is gated
+too), and the TLS mandate (`nginx -t` refusal). 10/10 green + the 21-test
+D1 lane and the D0/D2/D15.1/D4 lanes as regression (144 total).
+
+---
+
 # Cross-cutting
 
 **Build wiring.** `src/protocols/oci/*.c` → new `ngx_module_srcs` block in
@@ -5127,6 +5237,7 @@ the **DRIFT** table is the reconciliation and the code is the winner.
 | D15.12 `--paranoid` (createrepo memo) | delivered | rows inside `tests/test_rpm_createrepo.py` | 3 |
 | D15.13 documented-flag guard (`check_client_flags_doc.py`) | delivered | rows inside `tests/test_ci_guards_b.py`, `tests/test_xrdcp_transport_opts.py` | 11 |
 | D15 remainder (the containerd snapshotter plugin) | deferred, per §D15 | — | — |
+| D16 delegated pull (`brix_oci_mirror_delegate`, authorize-on-hit) | delivered | `tests/test_oci_mirror_delegate.py` | 11 |
 
 Full phase-104 lane set on 2026-08-19 — the twenty-two
 `tests/test_{oci,rpm,cvmfs_ingest}_*.py` files, **348 collected, 347 passed,

@@ -100,14 +100,9 @@ do_bench(const diag_args *a)
     char          target[XRDC_PATH_MAX];
     char          root_url[XRDC_PATH_MAX + 512];   /* scheme + host + ':' + port + path */
 
-    brix_status_clear(&st);
-    if (brix_endpoint_parse(a->url, &u, &st) != 0) {
-        fprintf(stderr, "xrddiag: %s\n", st.msg);
-        return 50;
-    }
-    if (brix_connect(&c, &u, &a->conn, &st) != 0) {
-        fprintf(stderr, "xrddiag: connect %s:%d: %s\n", u.host, u.port, st.msg);
-        return brix_shellcode(&st);
+    int dial = diag_dial(a, &u, &c, &st);
+    if (dial != 0) {
+        return dial;
     }
     if (resolve_target(&c, &u, target, sizeof(target), &sti, &st) != 0) {
         fprintf(stderr, "xrddiag: %s\n", st.msg);

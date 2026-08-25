@@ -127,9 +127,22 @@ def _spawn(bfp, target_port, enable_exec=False):
             "--control", str(ctl), "--quiet"]
     if enable_exec:
         argv.append("--enable-exec")
-    proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    assert _wait_port(ctl) and _wait_port(listen), "proxy never came up"
+    proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.PIPE)
+    _require_proxy_serving(proc, _wait_port(ctl) and _wait_port(listen))
     return proc, listen, ctl
+
+
+def _require_proxy_serving(proc, up):
+    """Fail loud when the proxy is not the thing answering its ports: a dead
+    proxy whose ports still accept means another process holds them (the
+    _free_port close->bind window lost to a peer worker) — surface which case
+    this is instead of a later silent empty roundtrip."""
+    if up and proc.poll() is None:
+        return
+    err = proc.stderr.read()[-300:] if proc.poll() is not None else b""
+    raise AssertionError(
+        f"proxy not serving (up={up} rc={proc.poll()}): stderr={err!r}")
 
 
 def _ctl(port, cmd):

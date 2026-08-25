@@ -8,7 +8,10 @@ PUBLIC_CLASS_CALL_SHAPES: Mapping[str, tuple[str, ...]] = {
     "Artifact": ("name", "kind", "size?", "seed?", "source?", "text?", "filename?", "options?"),
     "ArtifactProviderContext": ("root", "source_root"),
     "AuthRecipe": ("name", "kind"),
-    "Binary": ("name", "path?", "libraries?", "discover_libraries?", "image?", "image_path?"),
+    "Binary": (
+        "name", "path?", "libraries?", "discover_libraries?", "image?", "image_path?",
+        "runtime_files?",
+    ),
     "BackendContext": ("manager",),
     "BriXTestError": ("message?",),
     "CapturedBinary": (
@@ -21,6 +24,7 @@ PUBLIC_CLASS_CALL_SHAPES: Mapping[str, tuple[str, ...]] = {
         "image_path?",
         "source?",
         "overridden?",
+        "runtime_files?",
     ),
     "CaseDefinition": (
         "servers",
@@ -144,7 +148,7 @@ PUBLIC_CLASS_CALL_SHAPES: Mapping[str, tuple[str, ...]] = {
     "ExtensionInfo": ("kind", "name", "api_version?", "capabilities?", "origin?", "loaded?"),
     "ExtensionRegistry": (),
     "HelperProcessError": ("nodeid", "*", "timeout?", "returncode?", "output?", "run_path?"),
-    "HostMapping": ("name", "hostname", "address?", "aliases?", "reverse?"),
+    "HostMapping": ("name", "hostname", "address?", "aliases?", "reverse?", "libc?", "targets?"),
     "Identity": ("name", "uid?", "gid?", "groups?", "user_namespace?", "uid_map?", "gid_map?", "capabilities?", "permissions?", "service_account?"),
     "Isolation": (
         "kind?",
@@ -155,6 +159,9 @@ PUBLIC_CLASS_CALL_SHAPES: Mapping[str, tuple[str, ...]] = {
         "python?",
         "extra_args?",
         "allow_mutable_image?",
+        "context?",
+        "namespace?",
+        "service_account?",
     ),
     "KerberosAuth": (
         "name",
@@ -227,8 +234,15 @@ PUBLIC_CLASS_CALL_SHAPES: Mapping[str, tuple[str, ...]] = {
         "statuses?",
         "pattern?",
     ),
+    "ProviderContext": ("nodeid", "root", "backend", "evidence", "metrics"),
+    "ProviderInstance": ("name", "provider", "ownership", "outputs?", "metadata?"),
+    "ProviderPlan": ("name", "provider", "fragment", "fingerprint?"),
     "Reference": ("kind", "name?", "attribute?", "role?"),
     "Readiness": ("kind?", "port?", "timeout?"),
+    "Replica": (
+        "name", "host", "ports", "uid?", "phase?", "ready?", "restarts?",
+        "started_at?", "metadata?",
+    ),
     "Resource": ("name", "kind", "options?", "depends_on?"),
     "Run": ("manager",),
     "ResourceLimits": ("cpu?", "memory_bytes?", "pids?"),
@@ -256,7 +270,9 @@ PUBLIC_CLASS_CALL_SHAPES: Mapping[str, tuple[str, ...]] = {
     ),
     "ServerLaunchContext": ("nodeid", "root", "workspace"),
     "ServerLaunchPlan": ("argv", "env", "cwd", "launcher", "cleanup_argv?", "metadata?"),
-    "ServerLaunchRequest": ("declaration", "argv", "env", "cwd"),
+    "ServerLaunchRequest": (
+        "declaration", "argv", "env", "cwd", "mounts?", "identity?", "host_aliases?",
+    ),
     "Service": (
         "name",
         "host",
@@ -278,6 +294,7 @@ PUBLIC_CLASS_CALL_SHAPES: Mapping[str, tuple[str, ...]] = {
         "protocols?",
         "hosts?",
         "metadata?",
+        "replicas?",
     ),
     "ServiceFilesystem": ("transport",),
     "SpecError": ("field", "value", "rule"),
@@ -309,6 +326,7 @@ PUBLIC_CLASS_CALL_SHAPES: Mapping[str, tuple[str, ...]] = {
         "namespace?",
         "metadata?",
         "local_execute?",
+        "identities?",
     ),
     "ToolExecutionRequest": (
         "name",
@@ -338,6 +356,11 @@ PUBLIC_CLASS_CALL_SHAPES: Mapping[str, tuple[str, ...]] = {
         "claims?",
         "secret?",
         "lifetime?",
+        "algorithm?",
+        "key_bits?",
+        "key_id?",
+        "managed?",
+        "rotate_on_restart?",
     ),
     "VOMSAuth": (
         "name",

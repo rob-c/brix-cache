@@ -255,8 +255,15 @@ brix_crypto_once(void)
     pthread_once(&once, brix_crypto_init_void);
 }
 
-int
-brix_connect(brix_conn *c, const brix_url *u, const brix_opts *o, brix_status *st)
+/*
+ * brix_connect_setup — the setup both connect entry points share: init crypto,
+ * zero the conn, apply opts, validate the scheme, and seed the endpoint fields.
+ * Returns 0, or -1 with *st set (unsupported scheme). want_tls and the bring-up
+ * path are left to the caller (they differ between login and no-login connect).
+ */
+static int
+brix_connect_setup(brix_conn *c, const brix_url *u, const brix_opts *o,
+                   brix_status *st)
 {
     brix_crypto_once();
     memset(c, 0, sizeof(*c));
@@ -286,6 +293,15 @@ brix_connect(brix_conn *c, const brix_url *u, const brix_opts *o, brix_status *s
      * the double-slash hint without re-parsing the original URL. */
     c->single_slash_path = u->single_slash_path;
     c->tls_strict = (u->scheme == XRDC_SCHEME_ROOTS);
+    return 0;
+}
+
+int
+brix_connect(brix_conn *c, const brix_url *u, const brix_opts *o, brix_status *st)
+{
+    if (brix_connect_setup(c, u, o, st) != 0) {
+        return -1;
+    }
     c->want_tls = c->tls_strict || c->opts.want_tls;
 
     /* §15.1: open the capture sink ONCE (here, not in bringup — so a redirect's
@@ -321,22 +337,9 @@ int
 brix_connect_no_login(brix_conn *c, const brix_url *u, const brix_opts *o,
                       brix_status *st)
 {
-    brix_crypto_once();
-    memset(c, 0, sizeof(*c));
-    c->io.timeout_ms = brix_tmo_io_ms();   /* steady-state; bring-up uses the short cap */
-    if (o != NULL) { c->opts = *o; } else { c->opts.verify_host = 1; }
-
-    if (u->scheme != XRDC_SCHEME_ROOT && u->scheme != XRDC_SCHEME_ROOTS) {
-        brix_status_set(st, XRDC_EUSAGE, 0,
-                        "native client speaks root:// / roots:// only");
+    if (brix_connect_setup(c, u, o, st) != 0) {
         return -1;
     }
-    snprintf(c->host, sizeof(c->host), "%s", u->host);
-    c->port = u->port;
-    snprintf(c->home_host, sizeof(c->home_host), "%s", u->host);
-    c->home_port = u->port;
-    c->single_slash_path = u->single_slash_path;   /* WS-3: propagate for hint */
-    c->tls_strict = (u->scheme == XRDC_SCHEME_ROOTS);
     /* TLS per the scheme: roots:// negotiates TLS (cert presented); a plain root://
      * server that does not mandate TLS stays cleartext (then there is simply no cert,
      * rather than a rejected wantTLS handshake). No kXR_login: cert inspection needs

@@ -11,12 +11,19 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+from brixtest.binary_runtime import (
+    capture_runtime_files,
+    captured_runtime_files,
+    replay_runtime_files,
+    runtime_file_digests,
+)
 from brixtest.design import Binary
 from brixtest.errors import SpecError
 
 __all__ = ["BinaryStore", "CapturedBinary"]
 
 _CHUNK = 1 << 20
+REPLAY_BINARIES_ENV = "BRIXTEST_REPLAY_BINARIES_JSON"
 
 
 def _sha256(path: Path) -> str:
@@ -35,6 +42,14 @@ def _resolve(path: object, base: Path, *, executable: bool) -> Path:
     resolved = candidate.resolve()
     _validate_binary_path(resolved, raw, executable)
     return resolved
+
+
+def _resolve_library(path: object, base: Path) -> Path:
+    raw = str(path)
+    candidate = _binary_candidate(raw, base, False)
+    selected = Path(os.path.abspath(candidate))
+    _validate_binary_path(selected.resolve(), raw, False)
+    return selected
 
 
 def _binary_candidate(raw: str, base: Path, executable: bool) -> Path:
@@ -71,7 +86,7 @@ def _ldd_libraries(executable: Path) -> Tuple[Path, ...]:
         elif line.startswith("/"):
             candidate = line.split(" ", 1)[0]
         if candidate and candidate != "not" and Path(candidate).is_file():
-            paths.append(Path(candidate).resolve())
+            paths.append(Path(candidate))
     return tuple(sorted(set(paths)))
 
 
@@ -120,6 +135,46 @@ def _binary_overrides() -> Mapping[str, object]:
     return value if isinstance(value, dict) else {}
 
 
+def _replay_binaries() -> Mapping[str, object]:
+    try:
+        value = json.loads(os.environ.get(REPLAY_BINARIES_ENV, "{}"))
+    except (TypeError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _replay_binary(name: str) -> Optional[Mapping[str, object]]:
+    value = _replay_binaries().get(name)
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise SpecError("replay binary", name, "must contain an identity object")
+    path, digest = value.get("path"), value.get("sha256")
+    if not isinstance(path, str) or not path or not _valid_digest(digest) or not digest:
+        raise SpecError(
+            "replay binary", name, "must contain a path and SHA-256 digest",
+        )
+    libraries = value.get("libraries", [])
+    if not isinstance(libraries, list):
+        raise SpecError("replay binary libraries", name, "must be an identity list")
+    if not isinstance(value.get("runtime_files", []), list):
+        raise SpecError("replay binary runtime_files", name, "must be an identity list")
+    return value
+
+
+def _replay_library_sources(value: Mapping[str, object]) -> List[Path]:
+    sources = []
+    for row in value.get("libraries", []):
+        if not isinstance(row, Mapping):
+            raise SpecError("replay binary library", row, "must be an identity object")
+        path, digest = row.get("path"), row.get("sha256")
+        source = _resolve(path, Path.cwd(), executable=False)
+        if not _valid_digest(digest) or not digest or _sha256(source) != digest:
+            raise SpecError("replay binary library", str(path), "does not match its SHA-256")
+        sources.append(source)
+    return sources
+
+
 def _file_identity(stat: os.stat_result) -> tuple[int, int, int, int]:
     return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
 
@@ -129,8 +184,30 @@ def _verify_stable(path: Path, before: os.stat_result, digest: str, field: str) 
         raise SpecError(field, str(path), "changed while being captured or its copy hash differs")
 
 
+def _validate_replay_digest(
+    name: str, replay: Optional[Mapping[str, object]], digest: str,
+) -> None:
+    if replay is not None and digest != replay["sha256"]:
+        raise SpecError(
+            "replay binary", name,
+            "archived executable does not match its SHA-256",
+        )
+
+
+def _validate_capture_copy(
+    source: Path, before: os.stat_result, digest: str, target: Path,
+) -> None:
+    if _file_identity(before) != _file_identity(source.stat()) or _sha256(source) != digest:
+        raise SpecError(
+            "binary path", str(source),
+            "changed while it was being captured; retry after the build is stable",
+        )
+    if _sha256(target) != digest:
+        raise SpecError("binary copy", str(target), "hash differs from its source")
+
+
 def _library_sources(declaration: Binary, source: Path, source_root: Path) -> List[Path]:
-    declared = [_resolve(path, source_root, executable=False) for path in declaration.libraries]
+    declared = [_resolve_library(path, source_root) for path in declaration.libraries]
     sources = list(declared)
     if not declaration.discover_libraries:
         return sources
@@ -206,6 +283,31 @@ def _library_digests(libraries: Sequence[Path]) -> dict[str, str]:
     }
 
 
+def _runtime_rows(item: "CapturedBinary") -> list[dict[str, str]]:
+    digests = dict(getattr(item, "_runtime_file_sha256", {}))
+    return [
+        {"destination": destination, "path": str(path), "sha256": digests[destination]}
+        for destination, path in sorted(item.runtime_files.items())
+    ]
+
+
+def _matches_digest(path: Path, digest: str) -> bool:
+    return bool(digest) and path.is_file() and _sha256(path) == digest
+
+
+def _captured_inputs_match(item: "CapturedBinary") -> bool:
+    libraries = {str(path): path for path in item.libraries}
+    library_hashes = getattr(item, "_library_sha256", {})
+    runtime_hashes = getattr(item, "_runtime_file_sha256", {})
+    return (
+        all(_matches_digest(libraries[path], digest) for path, digest in library_hashes.items())
+        and all(
+            _matches_digest(item.runtime_files[destination], digest)
+            for destination, digest in runtime_hashes.items()
+        )
+    )
+
+
 @dataclasses.dataclass(frozen=True)
 class CapturedBinary:
     """An immutable executable snapshot and its captured shared libraries."""
@@ -218,6 +320,7 @@ class CapturedBinary:
     image_path: Optional[str] = None
     source: Optional[Path] = None
     overridden: bool = False
+    runtime_files: Mapping[str, Path] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
         _validate_captured_name(self.name)
@@ -227,6 +330,8 @@ class CapturedBinary:
         _captured_digest(self.sha256, required=not bool(self.image))
         object.__setattr__(self, "libraries", _captured_libraries(self.libraries))
         object.__setattr__(self, "_library_sha256", _library_digests(self.libraries))
+        object.__setattr__(self, "runtime_files", captured_runtime_files(self.runtime_files))
+        object.__setattr__(self, "_runtime_file_sha256", runtime_file_digests(self.runtime_files))
         _captured_metadata(self)
 
     def __fspath__(self) -> str:
@@ -242,6 +347,7 @@ class CapturedBinary:
             "image": self.image, "image_path": self.image_path,
             "source": str(self.source) if self.source is not None else None,
             "overridden": self.overridden,
+            "runtime_files": _runtime_rows(self),
         }
 
     def verify(self) -> bool:
@@ -249,13 +355,9 @@ class CapturedBinary:
         if not self.sha256:
             return False
         try:
-            expected = dict(getattr(self, "_library_sha256", {}))
             return (
-                self.path.is_file() and _sha256(self.path) == self.sha256
-                and all(
-                    digest and Path(path).is_file() and _sha256(Path(path)) == digest
-                    for path, digest in expected.items()
-                )
+                _matches_digest(self.path, self.sha256)
+                and _captured_inputs_match(self)
             )
         except OSError:
             return False
@@ -277,62 +379,82 @@ class BinaryStore:
         return dict(self._captured)
 
     def capture(self, declaration: Binary) -> CapturedBinary:
-        held = self._captured.get(declaration.name)
+        held = self._held(declaration)
         if held is not None:
-            if declaration != self._declaration_for(held.name):
-                raise SpecError(
-                    "binary", declaration.name,
-                    "same name was declared with different capture settings",
-                )
             return held
         overrides = _binary_overrides()
-        source_value = overrides.get(declaration.name, declaration.path)
-        overridden = declaration.name in overrides
+        replay = _replay_binary(declaration.name)
+        source_value = replay["path"] if replay is not None else overrides.get(
+            declaration.name, declaration.path,
+        )
+        overridden = replay is not None or declaration.name in overrides
         if source_value is None:
-            captured = CapturedBinary(
-                name=declaration.name,
-                path=Path(declaration.image_path or declaration.name),
-                library_dir=Path(), sha256="", libraries=(),
-                image=declaration.image, image_path=declaration.image_path,
+            captured = self._image_only(declaration)
+        else:
+            captured = self._capture_local(
+                declaration, source_value, replay, overridden,
             )
-            self._captured[declaration.name] = captured
-            self._declarations[declaration.name] = declaration
-            return captured
+        self._captured[declaration.name] = captured
+        self._declarations[declaration.name] = declaration
+        return captured
 
-        source = _resolve(source_value, self.source_root, executable=True)
+    def _held(self, declaration: Binary) -> Optional[CapturedBinary]:
+        held = self._captured.get(declaration.name)
+        if held is None:
+            return None
+        if declaration != self._declaration_for(held.name):
+            raise SpecError(
+                "binary", declaration.name,
+                "same name was declared with different capture settings",
+            )
+        return held
+
+    @staticmethod
+    def _image_only(declaration: Binary) -> CapturedBinary:
+        return CapturedBinary(
+            name=declaration.name,
+            path=Path(declaration.image_path or declaration.name),
+            library_dir=Path(), sha256="", libraries=(),
+            image=declaration.image, image_path=declaration.image_path,
+        )
+
+    def _capture_local(
+        self, declaration: Binary, source_value: object,
+        replay: Optional[Mapping[str, object]], overridden: bool,
+    ) -> CapturedBinary:
+        source = _resolve(
+            source_value, self.source_root, executable=replay is None,
+        )
         before = source.stat()
         before_hash = _sha256(source)
-        target_root = self.root / declaration.name
-        bin_dir = target_root / "bin"
-        lib_dir = target_root / "lib"
+        _validate_replay_digest(declaration.name, replay, before_hash)
+        target, lib_dir = self._copy_executable(declaration.name, source)
+        sources = _replay_library_sources(replay) if replay is not None else (
+            _library_sources(declaration, source, self.source_root)
+        )
+        libraries = _capture_libraries(sources, lib_dir)
+        runtime_sources = replay_runtime_files(replay.get("runtime_files", [])) \
+            if replay is not None else declaration.runtime_files
+        runtime_files = capture_runtime_files(
+            runtime_sources, self.source_root, target.parent.parent / "runtime-rootfs",
+        )
+        _validate_capture_copy(source, before, before_hash, target)
+        return CapturedBinary(
+            name=declaration.name, path=target, library_dir=lib_dir,
+            sha256=before_hash, libraries=tuple(libraries),
+            image=declaration.image, image_path=declaration.image_path,
+            source=source, overridden=overridden, runtime_files=runtime_files,
+        )
+
+    def _copy_executable(self, name: str, source: Path) -> tuple[Path, Path]:
+        target_root = self.root / name
+        bin_dir, lib_dir = target_root / "bin", target_root / "lib"
         bin_dir.mkdir(parents=True, exist_ok=False)
         lib_dir.mkdir(parents=True, exist_ok=False)
         target = bin_dir / source.name
         shutil.copy2(source, target)
         target.chmod(target.stat().st_mode | 0o111)
-
-        sources = _library_sources(declaration, source, self.source_root)
-        libraries = _capture_libraries(sources, lib_dir)
-
-        after = source.stat()
-        after_hash = _sha256(source)
-        if _file_identity(before) != _file_identity(after) or before_hash != after_hash:
-            raise SpecError(
-                "binary path", str(source),
-                "changed while it was being captured; retry after the build is stable",
-            )
-        if _sha256(target) != before_hash:
-            raise SpecError("binary copy", str(target), "hash differs from its source")
-
-        captured = CapturedBinary(
-            name=declaration.name, path=target, library_dir=lib_dir,
-            sha256=before_hash, libraries=tuple(libraries),
-            image=declaration.image, image_path=declaration.image_path,
-            source=source, overridden=overridden,
-        )
-        self._captured[declaration.name] = captured
-        self._declarations[declaration.name] = declaration
-        return captured
+        return target, lib_dir
 
     def get(self, name: str) -> CapturedBinary:
         try:
@@ -359,6 +481,7 @@ class BinaryStore:
                 "image_path": item.image_path,
                 "source": str(item.source) if item.source else None,
                 "overridden": item.overridden,
+                "runtime_files": _runtime_rows(item),
             }
             for name, item in sorted(self._captured.items())
         }

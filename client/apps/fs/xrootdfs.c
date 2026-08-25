@@ -3,6 +3,7 @@
  * Phase-38 split of xrootdfs.c; behavior-identical.
  */
 #include "xrootdfs_internal.h"
+#include "xrootdfs_argsplit.h"
 #include "core/version.h"
 #include "net/cpool.h"
 #include "protocols/http/web_ka.h"
@@ -357,12 +358,8 @@ aio_parse_args(int argc, char **argv, char **fuse_argv, int *fuse_argc,
             }
             if (strcmp(a, "--help") == 0) { usage_fp(stdout); return 0; }  /* WS-2 */
             if (strcmp(a, "-h") == 0)     { usage();          return 0; }  /* C1 */
-            if (*fuse_argc < 61) { fuse_argv[(*fuse_argc)++] = argv[i]; }  /* fuse opt */
-        } else if (*endpoint == NULL) {
-            *endpoint = a;
-        } else if (*fuse_argc < 61) {
-            fuse_argv[(*fuse_argc)++] = argv[i];
         }
+        xfs_arg_passthrough(a, a[0] == '-', fuse_argv, fuse_argc, endpoint);
     }
     return -1;
 }

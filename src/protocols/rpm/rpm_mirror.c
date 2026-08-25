@@ -22,6 +22,7 @@
 #include "rpm.h"
 
 #include "core/http/etag.h"                    /* BRIX_ETAG_WEAK */
+#include "core/http/http_headers.h"            /* brix_http_request_is_tls */
 #include "fs/vfs/vfs.h"
 #include "fs/vfs/vfs_backend_registry.h"
 #include "observability/dashboard/dashboard.h"
@@ -189,9 +190,7 @@ rpm_tier_get(ngx_http_request_t *r, ngx_http_brix_rpm_loc_conf_t *lcf,
         return rc;
     }
 
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_RPM,
                       root, "", /* allow_write */ 0, is_tls, NULL, path);
 

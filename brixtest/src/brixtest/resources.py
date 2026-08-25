@@ -36,6 +36,24 @@ _REFERENCE_ATTRIBUTES = {
     "resource": ("output",), "task": ("output",),
     "volume": ("claim", "path"),
 }
+_REFERENCE_KEYS = {
+    ("artifact", "path"): "artifact_{name}",
+    ("artifact", "directory"): "artifact_{name}_dir",
+    ("binary", "path"): "binary_{name}",
+    ("binary", "directory"): "binary_{name}_dir",
+    ("config", "path"): "config_{name}",
+    ("credential", "path"): "credential_{name}",
+    ("credential", "directory"): "credential_{name}_dir",
+    ("mount", "path"): "mount_{name}",
+    ("parameter", "value"): "param_{name}",
+    ("environment", "context"): "environment_{name}_context",
+    ("environment", "name"): "environment_{name}_name",
+    ("environment", "namespace"): "environment_{name}_namespace",
+    ("identity", "name"): "identity_{name}_name",
+    ("identity", "service_account"): "identity_{name}_service_account",
+    ("volume", "claim"): "volume_{name}_claim",
+    ("volume", "path"): "volume_{name}_path",
+}
 
 
 def _name(value: object, field: str) -> str:
@@ -85,6 +103,11 @@ def _validate_reference_name(kind: str, name: object) -> None:
 
 def _validate_reference_role(kind: str, attribute: str, role: object) -> None:
     if not role:
+        if kind in ("resource", "task") and attribute == "output":
+            raise SpecError(
+                "reference.role", role,
+                "must name a task or resource output",
+            )
         return
     _name(role, "reference.role")
     valid = kind == "server" and attribute in ("host", "port", "url")
@@ -124,44 +147,29 @@ class Reference:
     @property
     def key(self) -> str:
         """Return the stable runtime value key used by renderers and manifests."""
-        if self.kind == "run":
-            return "run_root"
-        if self.kind == "workspace":
-            return "workspace"
-        suffix = {
-            ("artifact", "path"): "artifact_%s" % self.name,
-            ("artifact", "directory"): "artifact_%s_dir" % self.name,
-            ("binary", "path"): "binary_%s" % self.name,
-            ("binary", "directory"): "binary_%s_dir" % self.name,
-            ("config", "path"): "config_%s" % self.name,
-            ("credential", "path"): "credential_%s" % self.name,
-            ("credential", "directory"): "credential_%s_dir" % self.name,
-            ("mount", "path"): "mount_%s" % self.name,
-            ("parameter", "value"): "param_%s" % self.name,
-            ("environment", "context"): "environment_%s_context" % self.name,
-            ("environment", "name"): "environment_%s_name" % self.name,
-            ("environment", "namespace"): "environment_%s_namespace" % self.name,
-            ("identity", "name"): "identity_%s_name" % self.name,
-            ("identity", "service_account"): "identity_%s_service_account" % self.name,
-            ("volume", "claim"): "volume_%s_claim" % self.name,
-            ("volume", "path"): "volume_%s_path" % self.name,
-        }.get((self.kind, self.attribute))
-        if suffix is not None:
-            return suffix
+        fixed = {"run": "run_root", "workspace": "workspace"}.get(self.kind)
+        if fixed:
+            return fixed
+        template = _REFERENCE_KEYS.get((self.kind, self.attribute))
+        if template:
+            return template.format(name=self.name)
         if self.kind == "server":
-            if self.attribute == "host" and self.role:
-                return "server_%s_%s_host" % (self.name, self.role)
-            if self.attribute == "port":
-                return "server_%s_%s_port" % (self.name, self.role or "primary")
-            if self.attribute == "url" and self.role:
-                return "server_%s_%s_url" % (self.name, self.role)
-            return "server_%s_%s" % (self.name, self.attribute)
+            return _server_reference_key(self)
         if self.kind in ("resource", "task") and self.attribute == "output":
             return "%s_%s_%s" % (self.kind, self.name, self.role)
         raise SpecError("reference", self, "cannot be converted to a runtime key")
 
     def __str__(self) -> str:
         return "{%s}" % self.key
+
+
+def _server_reference_key(reference: Reference) -> str:
+    role = reference.role
+    if reference.attribute == "port":
+        role = role or "primary"
+    if role and reference.attribute in ("host", "port", "url"):
+        return "server_%s_%s_%s" % (reference.name, role, reference.attribute)
+    return "server_%s_%s" % (reference.name, reference.attribute)
 
 
 def ref(
@@ -223,8 +231,8 @@ def run_root_ref() -> Reference:
 
 
 def _command_text(input_value: object, encoding: object) -> None:
-    if input_value is not None and not isinstance(input_value, str):
-        raise SpecError("command.input", input_value, "must be text or None")
+    if input_value is not None and not isinstance(input_value, (str, bytes)):
+        raise SpecError("command.input", input_value, "must be text, bytes, or None")
     if not isinstance(encoding, str) or not encoding:
         raise SpecError("command.encoding", encoding, "must be non-empty text")
 
@@ -236,7 +244,7 @@ class Command:
     argv: Sequence[object]
     env: Mapping[str, object] = dataclasses.field(default_factory=dict)
     cwd: str = ""
-    input: Optional[str] = None
+    input: Optional[Union[str, bytes]] = None
     encoding: str = "utf-8"
     timeout: float = 30.0
     expected_exit_codes: Sequence[int] = (0,)
@@ -261,7 +269,7 @@ def command(
     *argv: object,
     env: Optional[Mapping[str, object]] = None,
     cwd: str = "",
-    input: Optional[str] = None,
+    input: Optional[Union[str, bytes]] = None,
     encoding: str = "utf-8",
     timeout: float = 30.0,
     expected_exit_codes: Sequence[int] = (0,),
@@ -287,7 +295,7 @@ def execution(
     *argv: object,
     env: Optional[Mapping[str, object]] = None,
     cwd: str = "",
-    input: Optional[str] = None,
+    input: Optional[Union[str, bytes]] = None,
     encoding: str = "utf-8",
     timeout: float = 30.0,
     expected_exit_codes: Sequence[int] = (0,),

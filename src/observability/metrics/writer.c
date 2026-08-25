@@ -168,11 +168,32 @@ mw_emit_scalar(metrics_writer_t *mw, const char *name, const char *help,
  * label (`zone`) drawn from the operator-chosen zone name.  Note mw_printf is
  * vsnprintf-based, so ngx_str_t is rendered with %.*s, not %V.
  */
+/* The per-zone KV families: name, help, Prometheus kind, and where the sample
+ * lives in brix_kv_stats_t (capacity is the one uint32_t field). */
+static const struct {
+    const char *name;
+    const char *help;
+    const char *kind;
+    size_t      off;
+    int         is_u32;
+} kv_families[] = {
+    { "brix_kv_hits_total", "KV cache hits per zone.", "counter",
+      offsetof(brix_kv_stats_t, hits), 0 },
+    { "brix_kv_misses_total", "KV cache misses per zone.", "counter",
+      offsetof(brix_kv_stats_t, misses), 0 },
+    { "brix_kv_evictions_total", "KV cache TTL evictions per zone.", "counter",
+      offsetof(brix_kv_stats_t, evictions), 0 },
+    { "brix_kv_entries", "Live entries per KV zone.", "gauge",
+      offsetof(brix_kv_stats_t, count), 0 },
+    { "brix_kv_capacity", "Bucket capacity per KV zone.", "gauge",
+      offsetof(brix_kv_stats_t, capacity), 1 },
+};
+
 void
 brix_kv_metrics_emit(metrics_writer_t *mw)
 {
     ngx_uint_t         n = brix_kv_zone_count();
-    ngx_uint_t         i;
+    ngx_uint_t         f, i;
     brix_kv_stats_t  s;
     brix_kv_t       *kv;
 
@@ -180,51 +201,22 @@ brix_kv_metrics_emit(metrics_writer_t *mw)
         return;
     }
 
-    mw_printf(mw, "# HELP brix_kv_hits_total KV cache hits per zone.\n"
-                  "# TYPE brix_kv_hits_total counter\n");
-    for (i = 0; i < n; i++) {
-        kv = brix_kv_zone_get(i);
-        brix_kv_stats(kv, &s);
-        mw_printf(mw, "brix_kv_hits_total{zone=\"%.*s\"} %lu\n",
-                  (int) kv->name.len, kv->name.data, (unsigned long) s.hits);
-    }
+    for (f = 0; f < sizeof(kv_families) / sizeof(kv_families[0]); f++) {
+        const u_char *base = (const u_char *) &s;
+        unsigned long v;
 
-    mw_printf(mw, "# HELP brix_kv_misses_total KV cache misses per zone.\n"
-                  "# TYPE brix_kv_misses_total counter\n");
-    for (i = 0; i < n; i++) {
-        kv = brix_kv_zone_get(i);
-        brix_kv_stats(kv, &s);
-        mw_printf(mw, "brix_kv_misses_total{zone=\"%.*s\"} %lu\n",
-                  (int) kv->name.len, kv->name.data, (unsigned long) s.misses);
-    }
-
-    mw_printf(mw, "# HELP brix_kv_evictions_total KV cache TTL evictions per zone.\n"
-                  "# TYPE brix_kv_evictions_total counter\n");
-    for (i = 0; i < n; i++) {
-        kv = brix_kv_zone_get(i);
-        brix_kv_stats(kv, &s);
-        mw_printf(mw, "brix_kv_evictions_total{zone=\"%.*s\"} %lu\n",
-                  (int) kv->name.len, kv->name.data,
-                  (unsigned long) s.evictions);
-    }
-
-    mw_printf(mw, "# HELP brix_kv_entries Live entries per KV zone.\n"
-                  "# TYPE brix_kv_entries gauge\n");
-    for (i = 0; i < n; i++) {
-        kv = brix_kv_zone_get(i);
-        brix_kv_stats(kv, &s);
-        mw_printf(mw, "brix_kv_entries{zone=\"%.*s\"} %lu\n",
-                  (int) kv->name.len, kv->name.data, (unsigned long) s.count);
-    }
-
-    mw_printf(mw, "# HELP brix_kv_capacity Bucket capacity per KV zone.\n"
-                  "# TYPE brix_kv_capacity gauge\n");
-    for (i = 0; i < n; i++) {
-        kv = brix_kv_zone_get(i);
-        brix_kv_stats(kv, &s);
-        mw_printf(mw, "brix_kv_capacity{zone=\"%.*s\"} %lu\n",
-                  (int) kv->name.len, kv->name.data,
-                  (unsigned long) s.capacity);
+        mw_printf(mw, "# HELP %s %s\n# TYPE %s %s\n",
+                  kv_families[f].name, kv_families[f].help,
+                  kv_families[f].name, kv_families[f].kind);
+        for (i = 0; i < n; i++) {
+            kv = brix_kv_zone_get(i);
+            brix_kv_stats(kv, &s);
+            v = kv_families[f].is_u32
+                ? (unsigned long) *(const uint32_t *) (base + kv_families[f].off)
+                : (unsigned long) *(const uint64_t *) (base + kv_families[f].off);
+            mw_printf(mw, "%s{zone=\"%.*s\"} %lu\n", kv_families[f].name,
+                      (int) kv->name.len, kv->name.data, v);
+        }
     }
 }
 

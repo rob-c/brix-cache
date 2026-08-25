@@ -138,21 +138,32 @@ cms_node_exec_driver(brix_sd_instance_t *sd, const char *root_canon,
     }
 }
 
-/* cms_forward_via_driver — driver-backend leg of a forwarded namespace op: run
- * the planned mutation through the non-default backend's namespace slots and
- * reply like stock cmsd (silent on success, kYR_error + strerror on failure,
- * "unsupported operation" for an action the driver cannot express). Split from
- * cms_node_exec_forward so each storage leg owns its own logging/reply tail. */
+static int cms_posix_apply(ngx_brix_cms_ctx_t *ctx,
+    const brix_cms_node_plan_t *plan, int *handled);
+
+/* cms_forward_exec — storage leg + reply tail of a forwarded namespace op:
+ * run the planned mutation through the non-default backend's namespace slots
+ * (sd != NULL) or apply it to the local POSIX export under kernel confinement
+ * (sd == NULL, cms_posix_apply), then reply like stock cmsd — silent on
+ * success (as cmsd Execute() does on a NULL return from a non-forwarding leaf
+ * node), kYR_error (kYR_EINVAL + strerror) on failure, "unsupported
+ * operation" for an action the leg cannot express. A hostile manager cannot
+ * make the node mutate outside its export root — an escape fails EXDEV and
+ * becomes kYR_error. */
 static ngx_int_t
-cms_forward_via_driver(ngx_brix_cms_ctx_t *ctx, brix_sd_instance_t *sd,
+cms_forward_exec(ngx_brix_cms_ctx_t *ctx, brix_sd_instance_t *sd,
     u_char code, uint32_t streamid, const brix_cms_node_plan_t *plan)
 {
-    const char *root_canon = ctx->conf->common.root_canon;
-    int         handled;
-    int         rc;
+    int  handled;
+    int  rc;
 
-    rc = cms_node_exec_driver(sd, root_canon, plan, ctx->cycle->log,
-                              &handled);
+    if (sd != NULL) {
+        rc = cms_node_exec_driver(sd, ctx->conf->common.root_canon, plan,
+                                  ctx->cycle->log, &handled);
+    } else {
+        rc = cms_posix_apply(ctx, plan, &handled);
+    }
+
     if (!handled) {
         return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
                                          "unsupported operation");
@@ -161,12 +172,14 @@ cms_forward_via_driver(ngx_brix_cms_ctx_t *ctx, brix_sd_instance_t *sd,
         ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
             "brix: CMS node: forwarded op code=%ui path=%s failed: %s",
             (ngx_uint_t) code, plan->path, strerror(errno));
+        /* byte-exact: ecode is always kYR_EINVAL; text carries strerror. */
         return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
                                          strerror(errno));
     }
-    ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-        "brix: CMS node: forwarded op code=%ui path=%s OK (driver)",
-        (ngx_uint_t) code, plan->path);
+
+    ngx_log_debug3(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+        "brix: CMS node: forwarded op code=%ui path=%s ok (%s)",
+        (ngx_uint_t) code, plan->path, sd != NULL ? "driver" : "posix");
     return NGX_OK;
 }
 
@@ -226,42 +239,6 @@ cms_posix_apply(ngx_brix_cms_ctx_t *ctx, const brix_cms_node_plan_t *plan,
     }
 }
 
-/* cms_forward_via_posix — POSIX-export reply wrapper for a forwarded namespace
- * op: run cms_posix_apply and reply like stock cmsd — silent on success (as
- * cmsd Execute() does on a NULL return from a non-forwarding leaf node),
- * kYR_error (kYR_EINVAL + strerror) on failure, "unsupported operation" for an
- * inexpressible action. A hostile manager cannot make the node mutate outside
- * its export root — an escape fails EXDEV and becomes kYR_error. */
-static ngx_int_t
-cms_forward_via_posix(ngx_brix_cms_ctx_t *ctx, u_char code, uint32_t streamid,
-    const brix_cms_node_plan_t *plan)
-{
-    int  handled;
-    int  rc;
-
-    rc = cms_posix_apply(ctx, plan, &handled);
-    if (!handled) {
-        return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
-                                         "unsupported operation");
-    }
-
-    if (rc != 0) {
-        ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
-                      "brix: CMS node: forwarded op code=%ui path=%s failed: %s",
-                      (ngx_uint_t) code, plan->path, strerror(errno));
-        /* byte-exact: ecode is always kYR_EINVAL; text carries strerror. */
-        return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
-                                         strerror(errno));
-    }
-
-    /* Success: stay silent — exactly as cmsd Execute() does on a NULL return
-     * from a non-forwarding leaf node. */
-    ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                   "brix: CMS node: forwarded op code=%ui path=%s ok",
-                   (ngx_uint_t) code, plan->path);
-    return NGX_OK;
-}
-
 /* cms_node_exec_forward — execute a manager-forwarded namespace op (Plane B): decode
  * a kYR_chmod/mkdir/mkpath/mv/rm/rmdir/trunc (the shared request-marshal
  * prologue: rrdata_parse → pure node_plan), then route to the storage leg —
@@ -294,9 +271,9 @@ cms_node_exec_forward(ngx_brix_cms_ctx_t *ctx, u_char code, uint32_t streamid,
      * unchanged. */
     sd = brix_vfs_backend_resolve(ctx->conf->common.root_canon,
                                   ctx->cycle->log);
-    if (sd != NULL && sd->driver != brix_sd_default_driver()) {
-        return cms_forward_via_driver(ctx, sd, code, streamid, &plan);
+    if (sd != NULL && sd->driver == brix_sd_default_driver()) {
+        sd = NULL;                    /* default POSIX export: confined leg */
     }
 
-    return cms_forward_via_posix(ctx, code, streamid, &plan);
+    return cms_forward_exec(ctx, sd, code, streamid, &plan);
 }

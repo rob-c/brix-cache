@@ -244,29 +244,19 @@ void
 brix_srv_update_load(const char *host, uint16_t port,
     uint32_t free_mb, uint32_t util_pct)
 {
-    brix_srv_table_t *tbl;
     brix_srv_entry_t *e;
-    ngx_uint_t          i;
 
-    tbl = srv_table();
-    if (tbl == NULL) {
+    if (srv_table() == NULL) {
         return;
     }
 
     ngx_shmtx_lock(&brix_srv_mutex);
-
-    for (i = 0; i < tbl->capacity; i++) {
-        e = &tbl->slots[i];
-        if (e->in_use && e->port == port
-            && ngx_strcmp(e->host, host) == 0)
-        {
-            e->free_mb   = free_mb;
-            e->util_pct  = util_pct;
-            e->last_seen = ngx_current_msec;
-            break;
-        }
+    e = srv_find_locked(host, port);
+    if (e != NULL) {
+        e->free_mb   = free_mb;
+        e->util_pct  = util_pct;
+        e->last_seen = ngx_current_msec;
     }
-
     ngx_shmtx_unlock(&brix_srv_mutex);
 }
 
@@ -287,27 +277,17 @@ brix_srv_update_load(const char *host, uint16_t port,
 void
 brix_srv_unregister(const char *host, uint16_t port)
 {
-    brix_srv_table_t *tbl;
     brix_srv_entry_t *e;
-    ngx_uint_t          i;
 
-    tbl = srv_table();
-    if (tbl == NULL) {
+    if (srv_table() == NULL) {
         return;
     }
 
     ngx_shmtx_lock(&brix_srv_mutex);
-
-    for (i = 0; i < tbl->capacity; i++) {
-        e = &tbl->slots[i];
-        if (e->in_use && e->port == port
-            && ngx_strcmp(e->host, host) == 0)
-        {
-            ngx_memzero(e, sizeof(*e));
-            break;
-        }
+    e = srv_find_locked(host, port);
+    if (e != NULL) {
+        ngx_memzero(e, sizeof(*e));
     }
-
     ngx_shmtx_unlock(&brix_srv_mutex);
 }
 

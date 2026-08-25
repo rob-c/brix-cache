@@ -16,6 +16,15 @@
  * Types (brix_ctx_t, ngx_*, STACK_OF(X509), EVP_*) come from gsi_internal.h.
  */
 
+/* Crypto helpers all three translation units call — defined in
+ * parse_crypto_helpers.c */
+BIGNUM *brix_gsi_parse_client_dh_public_key(ngx_connection_t *c, ngx_log_t *log,
+    const u_char *public_key_blob, size_t public_key_blob_len);
+void brix_gsi_select_cipher_name(const u_char *payload, size_t payload_len,
+    char *cipher_name, size_t cipher_name_size);
+EVP_PKEY *brix_gsi_build_peer_dh_key(ngx_log_t *log, EVP_PKEY *server_dh_key,
+    BIGNUM *client_public_bn);
+
 void gsi_persist_session_cipher(brix_ctx_t *ctx, const char *name,
                                 const u_char *key, int keylen, int use_iv);
 

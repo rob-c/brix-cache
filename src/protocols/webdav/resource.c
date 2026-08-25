@@ -74,9 +74,7 @@ webdav_resolve_stat(ngx_http_request_t *r, char *path, size_t pathsz,
     vctx.resolved.resolved.len = ngx_strlen(path);
     vctx.resolved.is_confined = 1;
 
-#if (NGX_HTTP_SSL)
-    vctx.is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    vctx.is_tls = brix_http_request_is_tls(r);
 
     wctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (wctx != NULL) {

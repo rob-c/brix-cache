@@ -11,12 +11,22 @@ Run:
 """
 import struct
 
+import pytest
+
 from settings import HOST
 from test_ssi_wire import (
     ssi_server,                # reused module-scoped nginx-with-ssi fixture
     _handshake_login, _open_ssi, _read_response, _parse_ssi_reply, _rrinfo,
     kXR_write, kXR_ok, SSI_CMD_RXQ,
 )
+
+# One worker with the other lc-ssi-wire users: this module reuses test_ssi_wire's
+# module-scoped ssi_server fixture (fixed spec name "lc-ssi-wire"), so free-
+# scheduled on another xdist worker its fixture instantiation races that module's
+# teardown of the same registry dir (observed: nginx -t [emerg] on a logs/ dir
+# the other worker's stop had just removed).
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-ssi-wire")]
 
 kXR_attn      = 4001
 kXR_waitresp  = 4006

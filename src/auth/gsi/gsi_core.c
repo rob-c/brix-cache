@@ -258,7 +258,8 @@ brix_gsi_sigver_sign(const brix_gsi_cipher_t *c, const uint8_t *key,
         || !brix_gsi_sigver_hash(seqno, hdr24, payload, plen, nodata, hash)) {
         return NULL;
     }
-    return brix_gsi_cipher_encrypt(c, key, hash, sizeof(hash), use_iv, outlen);
+    return brix_gsi_cipher_apply(c, key, hash, sizeof(hash), use_iv,
+                                   /* enc */ 1, outlen);
 }
 
 
@@ -276,7 +277,8 @@ brix_gsi_sigver_verify(const brix_gsi_cipher_t *c, const uint8_t *key,
     if (c == NULL || key == NULL || sig == NULL || siglen == 0) {
         return 0;
     }
-    plain = brix_gsi_cipher_decrypt(c, key, sig, siglen, use_iv, &plain_len);
+    plain = brix_gsi_cipher_apply(c, key, sig, siglen, use_iv, /* enc */ 0,
+                                    &plain_len);
     if (plain == NULL) {
         return 0;
     }

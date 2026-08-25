@@ -15,6 +15,9 @@ def _check_test_stage_noerrs_missing_file_collected_3(content):
 
 _reexport(globals(), "_test_prepare_staging_helpers")
 
+# Shares PREPARE_CMD_LOG with test_prepare_staging.py — same group, one worker.
+pytestmark = pytest.mark.xdist_group("prepare-staging")
+
 class TestPrepareStageCommand:
     """Verify brix_prepare_command is invoked on kXR_stage requests.
 

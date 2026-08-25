@@ -31,6 +31,7 @@
                          brix_cred_store_free — and pulls in brix.h which has
                          brix_cli_cred_store_build + brix_cred_store_free decls */
 #include "brix.h"
+#include "cred_unit_common.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -66,20 +67,8 @@ test_builder_s3keys_success(void)
     const char *ak = "AKIA_CLI_CRED_TEST_01";
     const char *sk = "cli_cred_test_secret_xyz";
 
-    struct brix_cred_store *s =
-        brix_cli_cred_store_build(NULL, NULL, NULL, ak, sk, NULL, 0);
-    assert(s != NULL);
-
-    assert(brix_cred_available(s, XRDC_CRED_S3KEYS) == 1);
-
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_S3KEYS, 0, &v, &st);
-    assert(rc == 0);
-    assert(v.s3_access != NULL && strcmp(v.s3_access, ak) == 0);
-    assert(v.s3_secret != NULL && strcmp(v.s3_secret, sk) == 0);
-
-    brix_cred_store_free(s);
+    (void) cred_expect_s3keys(
+        brix_cli_cred_store_build(NULL, NULL, NULL, ak, sk, NULL, 0), ak, sk);
 
     if (orig_home != NULL) {
         setenv("HOME", orig_home, 1);
@@ -112,22 +101,11 @@ test_builder_env_fallback(void)
     setenv("AWS_ACCESS_KEY_ID",     acc, 1);
     setenv("AWS_SECRET_ACCESS_KEY", sec, 1);
 
-    /* All args NULL/empty — builder populates no cfg fields. */
-    struct brix_cred_store *s =
-        brix_cli_cred_store_build(NULL, NULL, NULL, NULL, NULL, NULL, 0);
-    assert(s != NULL);
-
-    /* The env fallback must still be discovered. */
-    assert(brix_cred_available(s, XRDC_CRED_S3KEYS) == 1);
-
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_S3KEYS, 0, &v, &st);
-    assert(rc == 0);
-    assert(v.s3_access != NULL && strcmp(v.s3_access, acc) == 0);
-    assert(v.s3_secret != NULL && strcmp(v.s3_secret, sec) == 0);
-
-    brix_cred_store_free(s);
+    /* All args NULL/empty — builder populates no cfg fields; the env
+     * fallback must still be discovered. */
+    (void) cred_expect_s3keys(
+        brix_cli_cred_store_build(NULL, NULL, NULL, NULL, NULL, NULL, 0),
+        acc, sec);
 
     unsetenv("AWS_ACCESS_KEY_ID");
     unsetenv("AWS_SECRET_ACCESS_KEY");
@@ -157,22 +135,11 @@ test_builder_bearer_precedence(void)
     setenv("BEARER_TOKEN", env_tok, 1);
     unsetenv("BEARER_TOKEN_FILE");
 
-    struct brix_cred_store *s =
-        brix_cli_cred_store_build(NULL, cli_tok, NULL, NULL, NULL, NULL, 0);
-    assert(s != NULL);
-
-    assert(brix_cred_available(s, XRDC_CRED_BEARER) == 1);
-
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_BEARER, 0, &v, &st);
-    assert(rc == 0);
-    assert(v.token != NULL);
-    /* The CLI literal must win over $BEARER_TOKEN. */
-    assert(strcmp(v.token, cli_tok) == 0);
-    assert(strcmp(v.token, env_tok) != 0);
-
-    brix_cred_store_free(s);
+    /* The CLI literal must win over $BEARER_TOKEN (exact match proves the
+     * env value was not chosen). */
+    (void) cred_expect_bearer(
+        brix_cli_cred_store_build(NULL, cli_tok, NULL, NULL, NULL, NULL, 0),
+        cli_tok);
 
     unsetenv("BEARER_TOKEN");
     printf("test_builder_bearer_precedence: PASS\n");

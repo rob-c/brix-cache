@@ -267,7 +267,7 @@ def _cookie(password=PASSWORD, stamp=None):
 
 
 def _get(path, cookie=None):
-    headers = {"Host": "localhost"}
+    headers = {"Host": "localhost"}  # net-literal-allow: vhost-selector payload the config must string-match
     if cookie is not None:
         headers["Cookie"] = cookie
     conn = http.client.HTTPConnection(HOST, HTTP_PORT, timeout=10)

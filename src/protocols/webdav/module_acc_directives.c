@@ -163,39 +163,37 @@ brix_acc_http_both(ngx_conf_t *cf, brix_acc_http_t **wc, brix_acc_http_t **sc)
     return NULL;
 }
 
-char *
-brix_acc_http_set_refresh(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+/*
+ * Resolve the tunable at byte offset `off` (an offsetof into brix_acc_http_t,
+ * carried in cmd->offset like nginx's *_slot setters) in BOTH acc blocks.
+ */
+static void
+brix_acc_http_fields(ngx_conf_t *cf, size_t off, void **wp, void **sp)
 {
     brix_acc_http_t *wc, *sc;
-    ngx_str_t         *value = cf->args->elts;
-    ngx_int_t          n;
 
     (void) brix_acc_http_both(cf, &wc, &sc);
-    n = ngx_atoi(value[1].data, value[1].len);
-    if (n == NGX_ERROR) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "invalid number \"%V\"",
-                           &value[1]);
-        return NGX_CONF_ERROR;
-    }
-    wc->refresh = sc->refresh = n;
-    return NGX_CONF_OK;
+    *wp = (char *) wc + off;
+    *sp = (char *) sc + off;
 }
 
+/* Generic ngx_int_t tunable setter (brix_authdb_refresh, brix_acc_gidlifetime):
+ * cmd->offset selects the brix_acc_http_t field. */
 char *
-brix_acc_http_set_gidlifetime(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_acc_http_set_num(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    brix_acc_http_t *wc, *sc;
-    ngx_str_t         *value = cf->args->elts;
-    ngx_int_t          n;
+    void      *wp, *sp;
+    ngx_str_t *value = cf->args->elts;
+    ngx_int_t  n = ngx_atoi(value[1].data, value[1].len);
 
-    (void) brix_acc_http_both(cf, &wc, &sc);
-    n = ngx_atoi(value[1].data, value[1].len);
     if (n == NGX_ERROR) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "invalid number \"%V\"",
                            &value[1]);
         return NGX_CONF_ERROR;
     }
-    wc->gidlifetime = sc->gidlifetime = n;
+    brix_acc_http_fields(cf, cmd->offset, &wp, &sp);
+    *(ngx_int_t *) wp = n;
+    *(ngx_int_t *) sp = n;
     return NGX_CONF_OK;
 }
 
@@ -226,25 +224,16 @@ brix_acc_http_set_flag(ngx_conf_t *cf, ngx_flag_t *wp, ngx_flag_t *sp,
     return NGX_CONF_OK;
 }
 
+/* Generic ngx_flag_t on|off tunable setter (brix_acc_pgo, brix_acc_encoding,
+ * brix_acc_resolve_hosts): cmd->offset selects the brix_acc_http_t field. */
 char *
-brix_acc_http_set_pgo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_acc_http_set_onoff(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    brix_acc_http_t *wc, *sc;
-    ngx_str_t         *value = cf->args->elts;
+    ngx_str_t *value = cf->args->elts;
+    void      *wp, *sp;
 
-    (void) brix_acc_http_both(cf, &wc, &sc);
-    return brix_acc_http_set_flag(cf, &wc->pgo, &sc->pgo, &value[1]);
-}
-
-char *
-brix_acc_http_set_resolve_hosts(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    brix_acc_http_t *wc, *sc;
-    ngx_str_t         *value = cf->args->elts;
-
-    (void) brix_acc_http_both(cf, &wc, &sc);
-    return brix_acc_http_set_flag(cf, &wc->resolve_hosts, &sc->resolve_hosts,
-                                    &value[1]);
+    brix_acc_http_fields(cf, cmd->offset, &wp, &sp);
+    return brix_acc_http_set_flag(cf, wp, sp, &value[1]);
 }
 
 char *
@@ -256,16 +245,6 @@ brix_acc_http_set_spacechar(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     (void) brix_acc_http_both(cf, &wc, &sc);
     wc->spacechar = sc->spacechar = value[1];
     return NGX_CONF_OK;
-}
-
-char *
-brix_acc_http_set_encoding(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    brix_acc_http_t *wc, *sc;
-    ngx_str_t         *value = cf->args->elts;
-
-    (void) brix_acc_http_both(cf, &wc, &sc);
-    return brix_acc_http_set_flag(cf, &wc->encoding, &sc->encoding, &value[1]);
 }
 
 char *

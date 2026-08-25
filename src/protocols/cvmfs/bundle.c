@@ -24,6 +24,7 @@
 #include "cvmfs/bundle/bundle.h"
 #include "fs/backend/cache/sd_cache.h"     /* brix_sd_cache_fill_needs_offload */
 #include "fs/vfs/vfs.h"
+#include "core/http/http_headers.h"   /* brix_http_request_is_tls */
 
 #include <limits.h>
 
@@ -230,9 +231,7 @@ cvmfs_bundle_fill_one(ngx_http_request_t *r, const char *root,
         return;                                              /* stays a miss */
     }
 
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
         BRIX_PROTO_CVMFS, root, "", /* allow_write */ 0, is_tls, NULL,
         path);

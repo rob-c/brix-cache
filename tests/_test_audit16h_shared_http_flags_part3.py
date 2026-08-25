@@ -232,7 +232,7 @@ class TestTheKrb5ForwardableFlag:
         http declaration is parse-only, and nothing says so at either config
         time or run time."""
         readers = _krb5_forwardable_readers()
-        assert readers == ["src/protocols/root/path/op_path.c:548"], readers
+        assert readers == ["src/protocols/root/path/op_path.c:566"], readers
         assert "brix_krb5_deleg_origin_spn" in OP_PATH_C.read_text()
 
 

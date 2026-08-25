@@ -110,107 +110,64 @@ postconf_srv_conf(ngx_stream_core_srv_conf_t **cscfp, ngx_uint_t i)
                                                ngx_stream_brix_module);
 }
 
+/* Enabled-server iterator: returns the next enabled block at or after *i
+ * (advancing *i past it), or NULL when the walk is done.  Every postconf
+ * concern below shares this walk instead of open-coding the filter loop. */
+static ngx_stream_brix_srv_conf_t *
+postconf_next_enabled(ngx_stream_core_main_conf_t *cmcf,
+    ngx_stream_core_srv_conf_t **cscfp, ngx_uint_t *i)
+{
+    while (*i < cmcf->servers.nelts) {
+        ngx_stream_brix_srv_conf_t *xcf = postconf_srv_conf(cscfp, (*i)++);
+
+        if (xcf->common.enable) {
+            return xcf;
+        }
+    }
+
+    return NULL;
+}
+
+/* Run one per-server concern over every enabled block, failing fast. */
+typedef ngx_int_t (*postconf_srv_fn)(ngx_conf_t *cf,
+    ngx_stream_brix_srv_conf_t *xcf);
+
+static ngx_int_t
+postconf_walk_enabled(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
+    ngx_stream_core_srv_conf_t **cscfp, postconf_srv_fn fn)
+{
+    ngx_stream_brix_srv_conf_t  *xcf;
+    ngx_uint_t                   i = 0;
+
+    while ((xcf = postconf_next_enabled(cmcf, cscfp, &i)) != NULL) {
+        if (fn(cf, xcf) != NGX_OK) {
+            return NGX_ERROR;
+        }
+    }
+
+    return NGX_OK;
+}
+
 /*
  * First pass over enabled servers initializes local runtime resources and
- * auth state after inherited values have been merged.
+ * auth state after inherited values have been merged.  (The policy pass —
+ * brix_config_finalize_policy — depends on finalized roots and auth/VOMS
+ * availability, so it runs as a separate walk after this one completes.)
  */
 static ngx_int_t
-postconf_prepare_servers(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
-    ngx_stream_core_srv_conf_t **cscfp)
+postconf_prepare_one(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
-    ngx_stream_brix_srv_conf_t  *xcf;
-    ngx_uint_t                   i;
-
-    for (i = 0; i < cmcf->servers.nelts; i++) {
-        xcf = postconf_srv_conf(cscfp, i);
-
-        if (!xcf->common.enable) {
-            continue;
-        }
-
-        if (brix_config_prepare_server(cf, xcf) != NGX_OK
-            || brix_configure_gsi(cf, xcf) != NGX_OK
-            || brix_configure_tls(cf, xcf) != NGX_OK
-            || brix_configure_token_auth(cf, xcf) != NGX_OK
-            || brix_configure_sss_auth(cf, xcf) != NGX_OK
-            || brix_configure_krb5_auth(cf, xcf) != NGX_OK)
-        {
-            return NGX_ERROR;
-        }
+    if (brix_config_prepare_server(cf, xcf) != NGX_OK
+        || brix_configure_gsi(cf, xcf) != NGX_OK
+        || brix_configure_tls(cf, xcf) != NGX_OK
+        || brix_configure_token_auth(cf, xcf) != NGX_OK
+        || brix_configure_sss_auth(cf, xcf) != NGX_OK
+        || brix_configure_krb5_auth(cf, xcf) != NGX_OK)
+    {
+        return NGX_ERROR;
     }
 
     return NGX_OK;
-}
-
-/*
- * Policy rules depend on finalized roots and on auth/VOMS availability, so
- * keep them after the auth setup pass.
- */
-static ngx_int_t
-postconf_finalize_policies(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
-    ngx_stream_core_srv_conf_t **cscfp)
-{
-    ngx_stream_brix_srv_conf_t  *xcf;
-    ngx_uint_t                   i;
-
-    for (i = 0; i < cmcf->servers.nelts; i++) {
-        xcf = postconf_srv_conf(cscfp, i);
-
-        if (!xcf->common.enable) {
-            continue;
-        }
-
-        if (brix_config_finalize_policy(cf, xcf) != NGX_OK) {
-            return NGX_ERROR;
-        }
-    }
-
-    return NGX_OK;
-}
-
-/* Session registry is a single zone shared by all blocks; size it to
- * the largest brix_session_slots requested by any enabled server. */
-static ngx_int_t
-postconf_session_registry(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
-    ngx_stream_core_srv_conf_t **cscfp)
-{
-    ngx_stream_brix_srv_conf_t  *xcf;
-    ngx_uint_t                   i;
-    ngx_uint_t                   session_slots = 0;
-
-    for (i = 0; i < cmcf->servers.nelts; i++) {
-        xcf = postconf_srv_conf(cscfp, i);
-        if (xcf->common.enable && xcf->session_slots > session_slots) {
-            session_slots = xcf->session_slots;
-        }
-    }
-
-    return brix_configure_session_registry(cf, session_slots);
-}
-
-/*
- * The server registry is a single shared-memory zone.  Walk all enabled
- * server blocks to find the largest configured capacity so operators can
- * set brix_registry_slots once on whichever block they prefer.
- * All enabled blocks have registry_slots >= 128 after merge.
- */
-static ngx_int_t
-postconf_server_registry(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
-    ngx_stream_core_srv_conf_t **cscfp)
-{
-    ngx_stream_brix_srv_conf_t  *xcf;
-    ngx_uint_t                   i;
-    ngx_uint_t                   registry_slots = 0;
-
-    for (i = 0; i < cmcf->servers.nelts; i++) {
-        xcf = postconf_srv_conf(cscfp, i);
-        if (xcf->common.enable && xcf->registry_slots > registry_slots) {
-            registry_slots = xcf->registry_slots;
-        }
-    }
-
-    return brix_srv_configure_registry(cf,
-                                       registry_slots ? registry_slots : 128);
 }
 
 /* Redirect-collapse cache: init if any server has collapse_redir on.
@@ -220,13 +177,11 @@ postconf_redir_cache(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
     ngx_stream_core_srv_conf_t **cscfp)
 {
     ngx_stream_brix_srv_conf_t  *xcf;
-    ngx_uint_t                   i;
-    ngx_uint_t                   has_collapse = 0;
-    ngx_uint_t                   redir_slots  = 0;
+    ngx_uint_t                   i = 0;
+    ngx_uint_t                   has_collapse = 0, redir_slots = 0;
 
-    for (i = 0; i < cmcf->servers.nelts; i++) {
-        xcf = postconf_srv_conf(cscfp, i);
-        if (xcf->common.enable && xcf->caps.collapse_redir) {
+    while ((xcf = postconf_next_enabled(cmcf, cscfp, &i)) != NULL) {
+        if (xcf->caps.collapse_redir) {
             has_collapse = 1;
             if (xcf->redir_cache_slots != NGX_CONF_UNSET_UINT
                 && xcf->redir_cache_slots > redir_slots)
@@ -254,17 +209,19 @@ postconf_stage_waiter(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
     ngx_stream_core_srv_conf_t **cscfp)
 {
     ngx_stream_brix_srv_conf_t  *xcf;
-    ngx_uint_t                   i;
-    ngx_uint_t                   frm_peak  = 0;
-    int                          any_stage = 0;
+    ngx_uint_t                   i = 0;
+    ngx_uint_t                   frm_peak = 0;
+    int                          any_stage = 0, any_negcache = 0;
 
-    for (i = 0; i < cmcf->servers.nelts; i++) {
-        xcf = postconf_srv_conf(cscfp, i);
-        if (xcf->common.enable && xcf->frm.enable) {
+    while ((xcf = postconf_next_enabled(cmcf, cscfp, &i)) != NULL) {
+        if (xcf->frm.enable) {
             any_stage = 1;
             if (xcf->frm.max_inflight > frm_peak) {
                 frm_peak = xcf->frm.max_inflight;
             }
+        }
+        if (xcf->negcache.threshold > 0) {
+            any_negcache = 1;
         }
     }
 
@@ -280,14 +237,8 @@ postconf_stage_waiter(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
 
     /* E-4: register the negative-path backoff SHM zone once if any enabled
      * server opted into brix_negcache_backoff (threshold > 0). */
-    for (i = 0; i < cmcf->servers.nelts; i++) {
-        xcf = postconf_srv_conf(cscfp, i);
-        if (xcf->common.enable && xcf->negcache.threshold > 0) {
-            if (brix_negcache_configure(cf) != NGX_OK) {
-                return NGX_ERROR;
-            }
-            break;
-        }
+    if (any_negcache && brix_negcache_configure(cf) != NGX_OK) {
+        return NGX_ERROR;
     }
 
     /* §6 CNS: register the cross-worker inventory SHM zone once when any block is
@@ -313,14 +264,11 @@ postconf_uring_killswitch(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
     ngx_stream_core_srv_conf_t **cscfp)
 {
     ngx_stream_brix_srv_conf_t  *xcf;
-    ngx_uint_t                   i;
+    ngx_uint_t                   i = 0;
     ngx_uint_t                   want_uring = 0, admin_on = 0;
 
-    for (i = 0; i < cmcf->servers.nelts; i++) {
-        xcf = postconf_srv_conf(cscfp, i);
-        if (!xcf->common.enable
-            || xcf->io_uring == BRIX_IO_URING_OFF)
-        {
+    while ((xcf = postconf_next_enabled(cmcf, cscfp, &i)) != NULL) {
+        if (xcf->io_uring == BRIX_IO_URING_OFF) {
             continue;
         }
         want_uring = 1;
@@ -351,12 +299,11 @@ postconf_impersonation(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
     ngx_stream_core_srv_conf_t **cscfp)
 {
     ngx_stream_brix_srv_conf_t  *xcf;
-    ngx_uint_t                   i;
+    ngx_uint_t                   i = 0;
     const char                  *derived_root = NULL;
 
-    for (i = 0; i < cmcf->servers.nelts; i++) {
-        xcf = postconf_srv_conf(cscfp, i);
-        if (xcf->common.enable && xcf->common.root_canon[0] != '\0') {
+    while ((xcf = postconf_next_enabled(cmcf, cscfp, &i)) != NULL) {
+        if (xcf->common.root_canon[0] != '\0') {
             derived_root = xcf->common.root_canon;
             break;
         }
@@ -371,30 +318,41 @@ postconf_impersonation(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
  * startup) so a first-time admin can confirm what each root:// block
  * actually serves and spot risky-but-valid settings immediately.
  */
-static void
-postconf_log_summaries(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
-    ngx_stream_core_srv_conf_t **cscfp)
+static ngx_int_t
+postconf_log_one(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
-    ngx_stream_brix_srv_conf_t  *xcf;
-    ngx_uint_t                   i;
-
-    for (i = 0; i < cmcf->servers.nelts; i++) {
-        xcf = postconf_srv_conf(cscfp, i);
-        if (xcf->common.enable) {
-            brix_log_startup_summary(cf->log, xcf);
-        }
-    }
+    brix_log_startup_summary(cf->log, xcf);
+    return NGX_OK;
 }
 
 /* All single-shot SHM registry zones (session/server/redirect/pending/TPC).
  * Ordering is load-bearing: zone registration order determines SHM layout
- * across reloads, so this mirrors the historical inline sequence exactly. */
+ * across reloads, so this mirrors the historical inline sequence exactly.
+ *
+ * The session and server registries are single zones shared by all blocks:
+ * size each to the largest per-block request so operators can set
+ * brix_session_slots / brix_registry_slots once on whichever block they
+ * prefer.  All enabled blocks have registry_slots >= 128 after merge. */
 static ngx_int_t
 postconf_shared_registries(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
     ngx_stream_core_srv_conf_t **cscfp)
 {
-    if (postconf_session_registry(cf, cmcf, cscfp) != NGX_OK
-        || postconf_server_registry(cf, cmcf, cscfp) != NGX_OK
+    ngx_stream_brix_srv_conf_t  *xcf;
+    ngx_uint_t                   i = 0;
+    ngx_uint_t                   session_slots = 0, registry_slots = 0;
+
+    while ((xcf = postconf_next_enabled(cmcf, cscfp, &i)) != NULL) {
+        if (xcf->session_slots > session_slots) {
+            session_slots = xcf->session_slots;
+        }
+        if (xcf->registry_slots > registry_slots) {
+            registry_slots = xcf->registry_slots;
+        }
+    }
+
+    if (brix_configure_session_registry(cf, session_slots) != NGX_OK
+        || brix_srv_configure_registry(cf, registry_slots ? registry_slots
+                                                          : 128) != NGX_OK
         || postconf_redir_cache(cf, cmcf, cscfp) != NGX_OK
         || brix_pending_configure(cf) != NGX_OK
         || brix_tpc_key_configure_registry(cf) != NGX_OK
@@ -442,12 +400,16 @@ ngx_stream_brix_postconfiguration(ngx_conf_t *cf)
         return NGX_ERROR;
     }
 
-    if (postconf_prepare_servers(cf, cmcf, cscfp) != NGX_OK) {
+    if (postconf_walk_enabled(cf, cmcf, cscfp, postconf_prepare_one) != NGX_OK) {
         return NGX_ERROR;
     }
     brix_phase_mark(&pt, "prepare");   /* server prep + GSI/TLS/token/sss/krb5 */
 
-    if (postconf_finalize_policies(cf, cmcf, cscfp) != NGX_OK) {
+    /* Policy rules depend on finalized roots and auth/VOMS availability, so
+     * this walk stays after the prepare pass. */
+    if (postconf_walk_enabled(cf, cmcf, cscfp,
+                              brix_config_finalize_policy) != NGX_OK)
+    {
         return NGX_ERROR;
     }
     brix_phase_mark(&pt, "policy");
@@ -496,7 +458,7 @@ ngx_stream_brix_postconfiguration(ngx_conf_t *cf)
         return NGX_ERROR;
     }
 
-    postconf_log_summaries(cf, cmcf, cscfp);
+    (void) postconf_walk_enabled(cf, cmcf, cscfp, postconf_log_one);
 
     brix_phase_mark(&pt, "pools_uring");
     brix_phase_timer_log(&pt, cf->log, "xrootd postconfig");

@@ -310,10 +310,10 @@ gsi_cresp_build_inner(gsi_cresp_state_t *st)
         }
     }
     if (!st->res.inner.err) {
-        st->res.enc = brix_gsi_cipher_encrypt(&st->sesscipher, st->aeskey,
-                                              st->res.inner.p,
-                                              st->res.inner.len, st->use_iv,
-                                              &st->enclen);
+        st->res.enc = brix_gsi_cipher_apply(&st->sesscipher, st->aeskey,
+                                            st->res.inner.p,
+                                            st->res.inner.len, st->use_iv,
+                                            /* enc */ 1, &st->enclen);
     }
 
     if (st->out_key != NULL && st->out_keylen != NULL) {

@@ -136,9 +136,14 @@ pblock_catalog_parent_lookup(pblock_catalog *cat, const char *path,
     return 0;
 }
 
-int
-pblock_catalog_put(pblock_catalog *cat, const char *path,
-    const pblock_meta *meta)
+/* Shared body of put/create: validate, gate on the parent directory, bind the
+ * full column set into the given INSERT flavor and step it. Returns the
+ * sqlite3_step() result, or -1 with errno already set (validation / parent
+ * gate / prepare failure) — sqlite result codes are non-negative, so the two
+ * ranges cannot collide. */
+static int
+cat_insert_step(pblock_catalog *cat, const char *path,
+    const pblock_meta *meta, const char *sql)
 {
     sqlite3_stmt *stmt;
     char          parent[1024];
@@ -152,11 +157,7 @@ pblock_catalog_put(pblock_catalog *cat, const char *path,
     }
     parent_of(path, parent, sizeof(parent));
 
-    stmt = cat_prepare(cat,
-        "INSERT OR REPLACE INTO objects"
-        "  (path, parent, is_dir, blob_id, size, block_size, mtime, ctime,"
-        "   mode, uid, gid, xform)"
-        "  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12);");
+    stmt = cat_prepare(cat, sql);
     if (stmt == NULL) {
         return -1;
     }
@@ -175,6 +176,22 @@ pblock_catalog_put(pblock_catalog *cat, const char *path,
 
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
+    return rc;
+}
+
+int
+pblock_catalog_put(pblock_catalog *cat, const char *path,
+    const pblock_meta *meta)
+{
+    int rc = cat_insert_step(cat, path, meta,
+        "INSERT OR REPLACE INTO objects"
+        "  (path, parent, is_dir, blob_id, size, block_size, mtime, ctime,"
+        "   mode, uid, gid, xform)"
+        "  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12);");
+
+    if (rc < 0) {
+        return -1;
+    }
     if (rc != SQLITE_DONE) {
         return cat_fail(EIO);
     }
@@ -188,41 +205,15 @@ int
 pblock_catalog_create(pblock_catalog *cat, const char *path,
     const pblock_meta *meta)
 {
-    sqlite3_stmt *stmt;
-    char          parent[1024];
-    int           rc;
-
-    if (path == NULL || meta == NULL) {
-        return cat_fail(EINVAL);
-    }
-    if (cat_parent_gate(cat, path) != 0) {
-        return -1;                       /* errno = ENOENT / ENOTDIR */
-    }
-    parent_of(path, parent, sizeof(parent));
-
-    stmt = cat_prepare(cat,
+    int rc = cat_insert_step(cat, path, meta,
         "INSERT INTO objects"
         "  (path, parent, is_dir, blob_id, size, block_size, mtime, ctime,"
         "   mode, uid, gid, xform)"
         "  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12);");
-    if (stmt == NULL) {
+
+    if (rc < 0) {
         return -1;
     }
-    sqlite3_bind_text(stmt, 1, path, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, parent, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 3, meta->is_dir ? 1 : 0);
-    sqlite3_bind_text(stmt, 4, meta->blob_id, -1, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 5, meta->size);
-    sqlite3_bind_int64(stmt, 6, meta->block_size);
-    sqlite3_bind_int64(stmt, 7, meta->mtime);
-    sqlite3_bind_int64(stmt, 8, meta->ctime);
-    sqlite3_bind_int64(stmt, 9, (sqlite3_int64) meta->mode);
-    sqlite3_bind_int64(stmt, 10, (sqlite3_int64) meta->uid);
-    sqlite3_bind_int64(stmt, 11, (sqlite3_int64) meta->gid);
-    sqlite3_bind_text(stmt, 12, meta->xform, -1, SQLITE_STATIC);
-
-    rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
     if (rc == SQLITE_DONE) {
         nscache_put(cat, path, meta);
         return 0;

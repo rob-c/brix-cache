@@ -8,7 +8,8 @@
  *       shared/cvmfs/fetch/fetch_bundle.c shared/cvmfs/bundle/bundle.c \
  *       shared/cvmfs/object/object.c shared/cvmfs/failover/failover.c \
  *       shared/cvmfs/grammar/hash.c shared/cache/cas_store.c \
- *       -lcrypto -lz && /tmp/cvmfs_fetch_ut
+ *       shared/cache/cas_pack.c shared/cvmfs/platform/platform.c \
+ *       -lcrypto -lz -lzstd && /tmp/cvmfs_fetch_ut
  * Exit 0 = all checks pass.
  */
 #include "cvmfs/fetch/fetch.h"
@@ -20,26 +21,8 @@
 #include <string.h>
 #include <zlib.h>
 
-static int g_checks, g_failed;
-#define CHECK(cond, name) do {                                    \
-    g_checks++;                                                   \
-    if (cond) { printf("  ok   %s\n", name); }                    \
-    else      { printf("  FAIL %s (line %d)\n", name, __LINE__); g_failed++; } \
-} while (0)
-
-static void rm_rf(const char *p) {
-    char cmd[600]; snprintf(cmd, sizeof(cmd), "rm -rf '%s'", p);
-    if (system(cmd) != 0) { /* best effort */ }
-}
-
-/* zlib-compress src into a malloc'd buffer; caller frees. */
-static unsigned char *zlib_of(const unsigned char *src, size_t n, size_t *outn) {
-    uLongf cap = compressBound(n);
-    unsigned char *buf = malloc(cap);
-    compress(buf, &cap, src, n);
-    *outn = cap;
-    return buf;
-}
+#define BRIX_UNIT_WANT_ZLIB 1
+#include "testkit/unit_check.h"
 
 /* ---- mock transport ----------------------------------------------------- */
 typedef struct {

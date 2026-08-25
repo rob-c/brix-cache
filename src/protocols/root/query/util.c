@@ -116,12 +116,15 @@ brix_query_adler32_fd(int fd, const char *path, ngx_log_t *log)
     return out;
 }
 
-uint32_t
-brix_query_adler32_file(const ngx_str_t *root, const char *path,
-    ngx_log_t *log)
+/* Shared confined-open + 32-bit-checksum worker behind the adler32/crc32
+ * whole-file variants; `label` names the algorithm in the open-failure log.
+ * Returns the checksum, or the 0xFFFFFFFF sentinel on open/read failure. */
+static uint32_t
+query_u32_cksum_file(const ngx_str_t *root, const char *path,
+    brix_checksum_alg_t alg, const char *label, ngx_log_t *log)
 {
     int      fd;
-    uint32_t cksum;
+    uint32_t out;
     char     safe_path[512];
 
     brix_sanitize_log_string(path, safe_path, sizeof(safe_path));
@@ -129,13 +132,22 @@ brix_query_adler32_file(const ngx_str_t *root, const char *path,
     fd = brix_open_confined(log, root, path, O_RDONLY, 0);
     if (fd < 0) {
         ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "brix: adler32 open(\"%s\") failed", safe_path);
+                      "brix: %s open(\"%s\") failed", label, safe_path);
         return 0xFFFFFFFF;
     }
 
-    cksum = brix_query_adler32_fd(fd, path, log);
+    if (brix_checksum_u32_fd(alg, fd, path, log, &out) != NGX_OK) {
+        out = 0xFFFFFFFF;
+    }
     close(fd);
-    return cksum;
+    return out;
+}
+
+uint32_t
+brix_query_adler32_file(const ngx_str_t *root, const char *path,
+    ngx_log_t *log)
+{
+    return query_u32_cksum_file(root, path, BRIX_CHECKSUM_ADLER32, "adler32", log);
 }
 
 ngx_flag_t
@@ -206,22 +218,7 @@ uint32_t
 brix_query_crc32_file(const ngx_str_t *root, const char *path,
     ngx_log_t *log)
 {
-    int      fd;
-    uint32_t cksum;
-    char     safe_path[512];
-
-    brix_sanitize_log_string(path, safe_path, sizeof(safe_path));
-
-    fd = brix_open_confined(log, root, path, O_RDONLY, 0);
-    if (fd < 0) {
-        ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "brix: crc32 open(\"%s\") failed", safe_path);
-        return 0xFFFFFFFF;
-    }
-
-    cksum = brix_query_crc32_fd(fd, path, log);
-    close(fd);
-    return cksum;
+    return query_u32_cksum_file(root, path, BRIX_CHECKSUM_CRC32, "crc32", log);
 }
 /*
  * brix_query_crc32_fd — ISO-3309 CRC-32 from open file descriptor.

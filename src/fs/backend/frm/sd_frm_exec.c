@@ -31,19 +31,10 @@
  * so no per-poll fork. */
 
 typedef struct {
-    char       base[PATH_MAX];      /* local online-buffer root          */
-    char       stagecmd[PATH_MAX];  /* $BRIX_FRM_STAGECMD              */
-    ngx_log_t *log;
+    frm_mss_head_t  head;            /* base + invoke — the shared-op seam */
+    char            stagecmd[PATH_MAX];  /* $BRIX_FRM_STAGECMD */
+    ngx_log_t      *log;
 } exec_ctx_t;
-
-static int
-exec_online_path(const exec_ctx_t *c, const char *key, char *out, size_t cap)
-{
-    int n = snprintf(out, cap, "%s/.online/%s", c->base,
-                     (key[0] == '/') ? key + 1 : key);
-
-    return (n > 0 && (size_t) n < cap) ? 0 : -1;
-}
 
 /* Run "<stagecmd> <verb> <key> <online>"; returns the child's exit code (0 ok), or
  * -1 on spawn/wait failure. No shell - argv is passed directly (no injection). */
@@ -72,108 +63,16 @@ exec_run(const exec_ctx_t *c, const char *verb, const char *key,
     return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
 
+/* The exec adapter's frm_mss_invoke_fn: every MSS verb is one child run of the
+ * stage command. The stage protocol has no purge verb — the MSS-side purge is
+ * a local no-op (the shared op already unlinked the online buffer). */
 static int
-exec_residency(void *mss, const char *key, off_t *size_out, time_t *mtime_out)
+exec_invoke(void *mss, const char *verb, const char *key, const char *online)
 {
-    exec_ctx_t *c = mss;
-    char        online[PATH_MAX];
-    struct stat sb;
-
-    if (exec_online_path(c, key, online, sizeof(online)) == 0
-        && stat(online, &sb) == 0)
-    {
-        if (size_out)  { *size_out = sb.st_size; }
-        if (mtime_out) { *mtime_out = sb.st_mtime; }
-        return BRIX_RESIDENCY_ONLINE;
+    if (strcmp(verb, "purge") == 0) {
+        return 0;
     }
-    /* Ask the MSS: exit 0 = on tape (offline), non-zero = absent. The size is
-     * unknown until recalled; the cache fill restats the online buffer. */
-    if (exec_run(c, "exists", key, "") == 0) {
-        if (size_out)  { *size_out = 0; }
-        if (mtime_out) { *mtime_out = time(NULL); }
-        return BRIX_RESIDENCY_OFFLINE;
-    }
-    return BRIX_RESIDENCY_ABSENT;
-}
-
-static int
-exec_recall_begin(void *mss, const char *key)
-{
-    exec_ctx_t *c = mss;
-    char        online[PATH_MAX];
-
-    if (exec_online_path(c, key, online, sizeof(online)) != 0) {
-        return -1;
-    }
-    if (access(online, F_OK) == 0) {
-        return 0;                            /* already online */
-    }
-    frm_mkparents(online);                   /* the cmd writes the online buffer */
-    return (exec_run(c, "recall", key, online) == 0) ? 0 : -1;
-}
-
-static int
-exec_recall_poll(void *mss, const char *key)
-{
-    exec_ctx_t *c = mss;
-    char        online[PATH_MAX];
-
-    if (exec_online_path(c, key, online, sizeof(online)) != 0) {
-        return -1;
-    }
-    return (access(online, F_OK) == 0) ? 1 : 0;
-}
-
-static int
-exec_migrate(void *mss, const char *key)
-{
-    exec_ctx_t *c = mss;
-    char        online[PATH_MAX];
-
-    if (exec_online_path(c, key, online, sizeof(online)) != 0) {
-        return -1;
-    }
-    return (exec_run(c, "migrate", key, online) == 0) ? 0 : -1;
-}
-
-static int
-exec_purge(void *mss, const char *key)
-{
-    exec_ctx_t *c = mss;
-    char        online[PATH_MAX];
-
-    if (exec_online_path(c, key, online, sizeof(online)) == 0) {
-        (void) unlink(online);
-    }
-    return 0;
-}
-
-static int
-exec_open_online(void *mss, const char *key)
-{
-    exec_ctx_t *c = mss;
-    char        online[PATH_MAX];
-
-    if (exec_online_path(c, key, online, sizeof(online)) != 0) {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    return open(online, O_RDONLY | O_CLOEXEC);
-}
-
-static int
-exec_create_online(void *mss, const char *key, mode_t mode)
-{
-    exec_ctx_t *c = mss;
-    char        online[PATH_MAX];
-
-    if (exec_online_path(c, key, online, sizeof(online)) != 0) {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    frm_mkparents(online);
-    return open(online, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC,
-                mode ? mode : 0644);
+    return exec_run(mss, verb, key, online);
 }
 
 static void
@@ -184,13 +83,13 @@ exec_destroy(void *mss)
 
 const brix_mss_adapter_t brix_mss_exec_adapter = {
     .name          = "exec",
-    .residency     = exec_residency,
-    .recall_begin  = exec_recall_begin,
-    .recall_poll   = exec_recall_poll,
-    .migrate       = exec_migrate,
-    .purge         = exec_purge,
-    .open_online   = exec_open_online,
-    .create_online = exec_create_online,
+    .residency     = frm_mss_residency,
+    .recall_begin  = frm_mss_recall_begin,
+    .recall_poll   = frm_mss_recall_poll,
+    .migrate       = frm_mss_migrate,
+    .purge         = frm_mss_purge,
+    .open_online   = frm_mss_open_online,
+    .create_online = frm_mss_create_online,
     .destroy       = exec_destroy,
 };
 
@@ -205,7 +104,9 @@ brix_mss_exec_create(const char *location, const char *stagecmd, ngx_log_t *log)
     if (ec == NULL) {
         return NULL;
     }
-    ngx_cpystrn((u_char *) ec->base, (u_char *) location, sizeof(ec->base));
+    ngx_cpystrn((u_char *) ec->head.base, (u_char *) location,
+                sizeof(ec->head.base));
+    ec->head.invoke = exec_invoke;
     ngx_cpystrn((u_char *) ec->stagecmd, (u_char *) stagecmd, sizeof(ec->stagecmd));
     ec->log = log;
     return ec;

@@ -162,14 +162,14 @@
       ngx_conf_set_enum_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, acc.format),
-      brix_authdb_format_modes },
+      brix_acc_format_modes },
 
     { ngx_string("brix_authdb_audit"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_enum_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, acc.audit),
-      brix_authdb_audit_modes },
+      brix_acc_audit_modes },
 
     { ngx_string("brix_authdb_refresh"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,

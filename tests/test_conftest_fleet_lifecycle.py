@@ -130,6 +130,14 @@ def test_leak_reaper_only_kills_exact_test_root(monkeypatch):
         ),
     )
     monkeypatch.setattr(os, "kill", lambda pid, sig: killed.append(pid))
+    # Candidate discovery unions the REAL /proc listing with pgrep; on a host
+    # where a live process happens to hold pid 101, the patched open() hands it
+    # the fake lane-b cmdline and the SIGKILL pass "re-kills" it.  Keep the
+    # discovery inside the fake by emptying the /proc listing.
+    real_listdir = os.listdir
+    monkeypatch.setattr(os, "listdir",
+                        lambda path: [] if path == "/proc"
+                        else real_listdir(path))
 
     conftest._reap_leaked_test_servers()
     assert killed == [101]

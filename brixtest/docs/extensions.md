@@ -13,14 +13,41 @@ an executable runtime path and a reusable black-box conformance helper.
 | analyzer | `brixtest.analyzers` | callable analyzer |
 | exporter | `brixtest.exporters` | callable exporter |
 | launcher | `brixtest.launchers` | `validate`, `prepare`, `cleanup` |
+| resource | `brixtest.resources` | `validate`, `plan`, `create`, `ready`, `collect`, `destroy` |
+| volume | `brixtest.volumes` | managed lifecycle used by provider-backed volumes |
+| identity | `brixtest.identities` | managed lifecycle used by external identities |
+| transport | `brixtest.transports` | binary-safe filesystem operations |
+| image | `brixtest.images` | immutable image build contract |
 
 Import the typed protocols from `brixtest.extensions`. Backends receive a
 public `BackendContext`; executors receive `ToolExecutionContext` and
 `ToolExecutionRequest`; artifact providers receive `ArtifactProviderContext`.
 Per-server launchers receive `ServerLaunchContext` and `ServerLaunchRequest`
 and return a `ServerLaunchPlan` that the normal supervisor owns.
+Managed-resource providers receive `ProviderContext`, return a `ProviderPlan`
+without mutating external state, and return an owned `ProviderInstance` from
+`create`. BriXTest publishes only named outputs, waits for readiness, archives
+collection data, and calls `destroy` in reverse order even when collection
+fails.
+On a Kubernetes backend, `context.kubernetes()` becomes available only after
+side-effect-free planning. Its exclusive-create `apply(owner, documents)`,
+`get(identity)`, `observe(identity)`, `delete(identity)`, `orphans()`, and
+`cleanup_orphans()` operations confine provider implementations to the owned
+case namespace, attach run-specific ownership labels, retain an atomic UID
+journal, reject cluster-scoped objects, and refuse deletion after UID
+replacement. `observe()` correlates UID-scoped events and optional exact-label
+Pod status, logs, and metrics. Raw custom
+resource documents therefore remain private to an extension; the ordinary
+test contains only a typed `resource("store", "rook-ceph", ...)` declaration.
+Kubernetes teardown stops workloads first, then collects and destroys provider
+objects, and deletes the namespace last.
 These values expose stable capabilities without requiring private manager
 attributes.
+`VolumeProvider` and `IdentityProvider` refine that managed lifecycle;
+`FilesystemTransport` and `ImageProvider` define the narrow data-plane and
+image-build seams. Their registry kinds are available now so extensions can be
+versioned without placing backend dictionaries in tests; backend integration
+is enabled only where its declared capabilities are supported.
 
 Server- and tool-specific author conveniences do not require entry points. A
 package such as `brixtest-nginx` should normally expose an ordinary factory
@@ -62,6 +89,15 @@ publish `brixtest_api_version` and `brixtest_capabilities`; incompatible API
 versions are rejected before execution. `brixtest plugins` lists installed
 implementations and `brixtest plugins --load` verifies imports and contracts.
 
+Programmatic registrations derive `brixtest_capabilities` from the extension
+object unless an explicit capability sequence is supplied. Every built-in
+backend, launcher, executor, artifact provider, filesystem transport, and
+image pipeline publishes the same stable, kind-specific vocabulary used by
+`brixtest design`; an executor advertises PTY and stdin only when its own
+transport implements them. Adapter suites can call
+`check_extension_capabilities(kind, target, required)` to verify API version,
+declaration shape, and required semantics before running lifecycle checks.
+
 ## Runtime examples
 
 A provider can return bytes, text, a confined `Path`, or write the supplied
@@ -98,8 +134,8 @@ brixtest metrics export latest --format plugin --plugin lab-archive -o result.bu
 
 Third-party suites should call `assert_extension_contract` plus the relevant
 `check_case_backend_contract`, `check_executor_contract`, or
-`check_provider_contract`, or `check_launcher_contract` helper from
-`brixtest.testing`.
+`check_provider_contract`, `check_managed_resource_provider_contract`, or
+`check_launcher_contract` helper from `brixtest.testing`.
 
 ## Pytest cooperation
 

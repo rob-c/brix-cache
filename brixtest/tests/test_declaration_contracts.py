@@ -1,5 +1,6 @@
 """Error and security-negative contracts for the public declaration surface."""
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -82,6 +83,19 @@ def test_kubernetes_backend_preserves_the_run_api(tmp_path, monkeypatch):
 
     def fake_run(self, *args, **kwargs):
         calls.append(args)
+        if args[:2] == ("get", "namespace"):
+            return subprocess.CompletedProcess(
+                args, 0, stdout='{"metadata":{"uid":"unit-namespace-uid"}}', stderr="",
+            )
+        if "get" in args and "pods" in args:
+            return subprocess.CompletedProcess(args, 0, stdout=json.dumps({"items": [{
+                "metadata": {"name": "origin-unit", "uid": "unit-pod-uid"},
+                "spec": {"nodeName": "minikube"},
+                "status": {
+                    "podIP": "10.244.0.10", "phase": "Running",
+                    "containerStatuses": [{"name": "origin", "ready": True}],
+                },
+            }]}), stderr="")
         return subprocess.CompletedProcess(args, 0, stdout="pod log\n", stderr="")
 
     monkeypatch.setattr("brixtest.runtime.kubernetes.shutil.which", lambda value: value)
@@ -97,6 +111,7 @@ def test_kubernetes_backend_preserves_the_run_api(tmp_path, monkeypatch):
     run = manager.start()
     assert run.backend == "kubernetes"
     assert run.server(origin).url(role="http") == "http://127.0.0.1:45123/"
+    assert run.server(origin).replicas[0].host == "10.244.0.10"
     manager.set_outcome("passed")
     manager.close()
     assert any("apply" in call for call in calls)

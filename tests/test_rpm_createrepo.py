@@ -27,7 +27,7 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
-def _expression_1(tag):
+def _expression_1(qp, tag):
     return (
         [ln for ln in qp("[%%{%s}\n]" % tag).splitlines() if ln]
     )
@@ -165,7 +165,7 @@ def test_inspect_agrees_with_rpm_qp(fixtures):
 
     _assert_test_inspect_agrees_with_rpm_qp_2()
     for field, tag in (("provides", "PROVIDES"), ("requires", "REQUIRES")):
-        theirs = _expression_1(tag)
+        theirs = _expression_1(qp, tag)
         mine = _expression_2(got, field)
         _check_test_inspect_agrees_with_rpm_qp_1(mine, theirs, field)
     # pkgid is the sha256 of the whole file, not of any header region

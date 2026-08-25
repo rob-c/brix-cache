@@ -1,3 +1,4 @@
 # Runtime dependency for the pytest plugin and supervised case helpers.
+packaging>=22,<26
 pluggy>=1.5,<2
 pytest>=8,<10

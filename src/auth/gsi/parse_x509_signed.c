@@ -5,14 +5,6 @@
 #include "parse_x509_internal.h"
 #include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
-/* Crypto helper declarations — defined in parse_crypto_helpers.c */
-extern BIGNUM *brix_gsi_parse_client_dh_public_key(ngx_connection_t *c, ngx_log_t *log,
-    const u_char *public_key_blob, size_t public_key_blob_len);
-extern void brix_gsi_select_cipher_name(const u_char *payload, size_t payload_len,
-    char *cipher_name, size_t cipher_name_size);
-extern EVP_PKEY *brix_gsi_build_peer_dh_key(ngx_log_t *log, EVP_PKEY *server_dh_key,
-    BIGNUM *client_public_bn);
-
 /*
  * gsi_recover_peer_signed — recover the client's DH public (peer key) from the
  * signed-DH round 2.  The client sends kXRS_cipher = its Public() blob signed
@@ -210,8 +202,8 @@ brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c)
      * NOT signalled by a name suffix — the cipher name on the wire is bare, and
      * select_cipher_name() resolves it.  Default aes-128-cbc; the client's cipher
      * choice is honoured. */
-    plain = brix_gsi_cipher_decrypt(&sc.cipher, sc.aeskey, main_data, main_len,
-                                      1, &plain_len);
+    plain = brix_gsi_cipher_apply(&sc.cipher, sc.aeskey, main_data, main_len,
+                                    1, /* enc */ 0, &plain_len);
     OPENSSL_cleanse(sc.aeskey, sizeof(sc.aeskey));
     if (plain == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,

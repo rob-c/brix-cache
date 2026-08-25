@@ -39,8 +39,8 @@
 
 #include <rados/librados.h>
 
-void *ngx_pcalloc(ngx_pool_t *pool, size_t size) { (void) pool; return calloc(1, size); }
-void *ngx_pnalloc(ngx_pool_t *pool, size_t size) { (void) pool; return malloc(size); }
+#define BRIX_NGX_SHIM_IMPL 1   /* this TU provides the ngx pool shims */
+#include "ngx_shim.h"
 
 /* mkdir -p for every parent directory of `path` (path itself is a file). */
 static int

@@ -150,37 +150,55 @@ vfs_find_backend(const char *scheme)
 
 /* Façade: URL-level operations */
 /*
- * brix_vfs_open — open a storage URL and return a VFS file handle.
+ * vfs_route — resolve URL to its backend and backend-relative path.
  *
- * WHAT: routes URL to the right backend; calls be->open; stores result in *out.
- * WHY:  single entry point for copy.c/tools; hides backend selection.
- * HOW:  lazy-init backends; classify URL; look up backend; delegate to be->open.
- *       Returns 0 on success, -1 with *st filled on error.
+ * WHAT: lazy-init backends, classify the URL scheme, look the backend up.
+ * WHY:  the URL-level façade entry points (open/stat_url) share this routing;
+ *       one helper keeps their error wording and lookup order identical.
+ * HOW:  pthread_once + vfs_url_to_scheme + vfs_find_backend. Returns the backend
+ *       with *path set, or NULL with *st filled (no scheme / no backend).
  */
-int
-brix_vfs_open(const char *url, int flags, const brix_vfs_open_opts *opts,
-              brix_vfs_file **out, brix_status *st)
+static const brix_vfs_backend *
+vfs_route(const char *url, const char **path, brix_status *st)
 {
     const char             *scheme;
-    const char             *path;
     const brix_vfs_backend *be;
 
     pthread_once(&g_init_once, vfs_init_backends);
-    vfs_url_to_scheme(url, &scheme, &path);
+    vfs_url_to_scheme(url, &scheme, path);
 
     if (scheme == NULL) {
         brix_status_set(st, XRDC_EUSAGE, 0,
                         "vfs: no backend for non-s3 web URL '%s'", url);
-        return -1;
+        return NULL;
     }
 
     be = vfs_find_backend(scheme);
     if (be == NULL) {
         brix_status_set(st, XRDC_EUSAGE, 0,
                         "vfs: no registered backend for scheme '%s'", scheme);
+    }
+    return be;
+}
+
+/*
+ * brix_vfs_open — open a storage URL and return a VFS file handle.
+ *
+ * WHAT: routes URL to the right backend; calls be->open; stores result in *out.
+ * WHY:  single entry point for copy.c/tools; hides backend selection.
+ * HOW:  vfs_route; delegate to be->open.
+ *       Returns 0 on success, -1 with *st filled on error.
+ */
+int
+brix_vfs_open(const char *url, int flags, const brix_vfs_open_opts *opts,
+              brix_vfs_file **out, brix_status *st)
+{
+    const char             *path;
+    const brix_vfs_backend *be = vfs_route(url, &path, st);
+
+    if (be == NULL) {
         return -1;
     }
-
     return be->open(be, path, flags, opts, out, st);
 }
 
@@ -196,28 +214,15 @@ int
 brix_vfs_stat_url(const char *url, const brix_vfs_open_opts *opts,
                   brix_vfs_stat *out, brix_status *st)
 {
-    const char             *scheme;
     const char             *path;
     const brix_vfs_backend *be;
 
     (void)opts;   /* passed to be->stat in future; backend vtable does not yet consume it */
 
-    pthread_once(&g_init_once, vfs_init_backends);
-    vfs_url_to_scheme(url, &scheme, &path);
-
-    if (scheme == NULL) {
-        brix_status_set(st, XRDC_EUSAGE, 0,
-                        "vfs: no backend for non-s3 web URL '%s'", url);
-        return -1;
-    }
-
-    be = vfs_find_backend(scheme);
+    be = vfs_route(url, &path, st);
     if (be == NULL) {
-        brix_status_set(st, XRDC_EUSAGE, 0,
-                        "vfs: no registered backend for scheme '%s'", scheme);
         return -1;
     }
-
     return be->stat(be, path, out, st);
 }
 

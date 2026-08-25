@@ -25,11 +25,14 @@ from brixtest import (
     endpoint,
     execution,
     get_case,
+    identity,
+    mount,
     param,
     probe,
     run_root_ref,
     server,
     text_artifact,
+    volume,
     workspace_ref,
 )
 from brixtest.runtime.backends import LocalCaseBackend
@@ -106,6 +109,39 @@ def test_process_launcher_refuses_a_working_directory_outside_the_run(tmp_path):
         server_launcher("process").prepare(context, request)
 
 
+def test_process_launcher_translates_posix_identity_and_capabilities(tmp_path, monkeypatch):
+    runner = identity(
+        "runner", uid=1200, gid=1300, groups=(1400,), capabilities=("chown",),
+    )
+    declaration = server(
+        "origin", execution=execution("daemon"), placement=Placement(identity=runner),
+    )
+    context = ServerLaunchContext("unit::identity", tmp_path, tmp_path / "workspace")
+    request = ServerLaunchRequest(
+        declaration, ("daemon",), {}, tmp_path, identity=runner,
+    )
+    monkeypatch.setattr(
+        "brixtest.runtime.launcher_identity.shutil.which", lambda name: "/usr/bin/setpriv",
+    )
+
+    argv = server_launcher("process").prepare(context, request).argv
+    assert argv[:2] == ("setpriv", "--no-new-privs")
+    assert argv[argv.index("--reuid") + 1] == "1200"
+    assert argv[argv.index("--regid") + 1] == "1300"
+    assert argv[argv.index("--groups") + 1] == "1400"
+    assert argv[argv.index("--bounding-set") + 1] == "-all,+chown"
+    assert argv[-1] == "daemon"
+
+
+def test_server_launch_request_rejects_unresolved_identity(tmp_path):
+    runner = identity("runner", uid=1200)
+    declaration = server(
+        "origin", execution=execution("daemon"), placement=Placement(identity=runner),
+    )
+    with pytest.raises(SpecError, match="must resolve placement.identity"):
+        ServerLaunchRequest(declaration, ("daemon",), {}, tmp_path)
+
+
 @pytest.mark.parametrize(
     "placement, message",
     [
@@ -153,10 +189,11 @@ def test_docker_launcher_uses_pinned_image_mode_0600_env_and_resource_limits(
         plan.argv[plan.argv.index("--cpus"):][:2], "--memory" in plan.argv,
         "--pids-limit" in plan.argv, stat.S_IMODE(env_file.stat().st_mode),
         env_file.read_text(),
+        plan.argv[plan.argv.index("--volume") + 1],
     )
     assert observed == (
         ("docker", "run"), True, False, ("--cpus", "1.5"), True, True,
-        0o600, "TOKEN=not-in-argv\n",
+        0o600, "TOKEN=not-in-argv\n", "%s:%s:rw" % (tmp_path, tmp_path),
     )
     launcher.cleanup(context, plan)
     assert cleanup == [plan.cleanup_argv]
@@ -187,6 +224,104 @@ def test_container_launcher_rejects_multiline_secret_before_runtime_spawn(
     )
     monkeypatch.setattr("brixtest.runtime.launchers.shutil.which", lambda name: "/usr/bin/docker")
     with pytest.raises(SpecError, match="cannot contain newlines"):
+        server_launcher("docker").prepare(context, request)
+
+
+def test_container_launcher_translates_declared_device_and_mount_propagation(
+    tmp_path, monkeypatch,
+):
+    fuse = volume("fuse", kind="device", source="/dev/null")
+    shared = volume("shared", kind="host", source=tmp_path)
+    declarations = (
+        mount(fuse, "fuse", read_only=False),
+        mount(shared, "shared", read_only=False, propagation="bidirectional"),
+    )
+    declaration = server(
+        "origin", execution=execution("daemon"), mounts=declarations,
+        placement=Placement(
+            backend="docker",
+            image="example/server@sha256:" + "d" * 64,
+        ),
+    )
+    context = ServerLaunchContext("unit::mounts", tmp_path, tmp_path / "workspace")
+    request = ServerLaunchRequest(
+        declaration, ("daemon",), {}, tmp_path,
+        (Path("/dev/null"), tmp_path),
+    )
+    monkeypatch.setattr("brixtest.runtime.launchers.shutil.which", lambda name: "/usr/bin/docker")
+
+    argv = server_launcher("docker").prepare(context, request).argv
+    assert argv[argv.index("--device") + 1] == "/dev/null:/dev/null:rwm"
+    propagated = argv[argv.index("--mount") + 1]
+    assert propagated == (
+        "type=bind,src=%s,dst=%s,bind-propagation=rshared" % (tmp_path, tmp_path)
+    )
+
+
+def test_container_launcher_rejects_regular_file_as_device(tmp_path, monkeypatch):
+    regular = tmp_path / "ordinary"
+    regular.write_text("not a device")
+    device = volume("device", kind="device", source=regular)
+    declaration = server(
+        "origin", execution=execution("daemon"),
+        mounts=(mount(device, "device"),),
+        placement=Placement(
+            backend="podman",
+            image="example/server@sha256:" + "f" * 64,
+        ),
+    )
+    request = ServerLaunchRequest(declaration, ("daemon",), {}, tmp_path, (regular,))
+    context = ServerLaunchContext("unit::device", tmp_path, tmp_path / "workspace")
+    monkeypatch.setattr("brixtest.runtime.launchers.shutil.which", lambda name: "/usr/bin/podman")
+    with pytest.raises(SpecError, match="character or block device"):
+        server_launcher("podman").prepare(context, request)
+
+
+def test_podman_launcher_translates_identity_and_user_namespace(tmp_path, monkeypatch):
+    runner = identity(
+        "runner", uid=1000, gid=1001, groups=(1002,), user_namespace=True,
+        uid_map=((0, 100000, 65536),), gid_map=((0, 200000, 65536),),
+        capabilities=("net-bind-service",),
+    )
+    declaration = server(
+        "origin", execution=execution("daemon"), placement=Placement(
+            backend="podman", identity=runner,
+            image="example/server@sha256:" + "a" * 64,
+        ),
+    )
+    context = ServerLaunchContext("unit::userns", tmp_path, tmp_path / "workspace")
+    request = ServerLaunchRequest(
+        declaration, ("daemon",), {}, tmp_path, identity=runner,
+    )
+    monkeypatch.setattr("brixtest.runtime.launchers.shutil.which", lambda name: "/usr/bin/podman")
+
+    argv = server_launcher("podman").prepare(context, request).argv
+    assert argv[argv.index("--user") + 1] == "1000:1001"
+    assert argv[argv.index("--group-add") + 1] == "1002"
+    assert argv[argv.index("--cap-add") + 1] == "NET_BIND_SERVICE"
+    assert argv[argv.index("--userns") + 1] == "private"
+    assert argv[argv.index("--uidmap") + 1] == "0:100000:65536"
+    assert argv[argv.index("--gidmap") + 1] == "0:200000:65536"
+    passwd_mount = next(value for value in argv if value.endswith(":/etc/passwd:ro"))
+    passwd = Path(passwd_mount.split(":", 1)[0])
+    assert passwd.read_text().splitlines()[1].startswith("brixtest_runner:x:1000:1001:")
+    assert stat.S_IMODE(passwd.stat().st_mode) == 0o644
+
+
+def test_docker_launcher_rejects_user_namespace_mapping(tmp_path, monkeypatch):
+    runner = identity("runner", user_namespace=True)
+    declaration = server(
+        "origin", execution=execution("daemon"), placement=Placement(
+            backend="docker", identity=runner,
+            image="example/server@sha256:" + "b" * 64,
+        ),
+    )
+    request = ServerLaunchRequest(
+        declaration, ("daemon",), {}, tmp_path, identity=runner,
+    )
+    context = ServerLaunchContext("unit::docker-userns", tmp_path, tmp_path / "workspace")
+    monkeypatch.setattr("brixtest.runtime.launchers.shutil.which", lambda name: "/usr/bin/docker")
+    with pytest.raises(SpecError, match="process and Podman launchers only"):
         server_launcher("docker").prepare(context, request)
 
 

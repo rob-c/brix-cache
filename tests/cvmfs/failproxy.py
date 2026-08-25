@@ -167,7 +167,7 @@ class _FaultProxy:
     def run(self):
         listener = socket.socket()
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listener.bind(("127.0.0.1", self.arguments.port))  # net-literal-allow
+        listener.bind(("127.0.0.1", self.arguments.port))  # net-literal-allow: standalone fault proxy binds loopback by design
         listener.listen(128)
         self.logline(
             "failproxy mode=%s rate=%.2f port=%d"

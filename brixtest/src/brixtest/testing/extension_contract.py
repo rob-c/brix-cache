@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Mapping
+from typing import Mapping, Sequence
 
-from brixtest.extensions import EXTENSION_API_VERSION, ExtensionRegistry
+from brixtest.errors import SpecError
+from brixtest.extensions import EXTENSION_API_VERSION, ExtensionInfo, ExtensionRegistry
 
 
 def assert_extension_contract(kind: str, name: str, target: object) -> Mapping[str, object]:
@@ -20,3 +21,24 @@ def assert_extension_contract(kind: str, name: str, target: object) -> Mapping[s
         "kind": info.kind, "name": info.name,
         "api_version": info.api_version, "capabilities": info.capabilities,
     }
+
+
+def check_extension_capabilities(
+    kind: str, target: object, required: Sequence[str] = (),
+) -> list[str]:
+    """Validate an extension's versioned capability declaration."""
+    if getattr(target, "brixtest_api_version", None) != EXTENSION_API_VERSION:
+        return ["api_version: must equal %d" % EXTENSION_API_VERSION]
+    if not hasattr(target, "brixtest_capabilities"):
+        return ["capabilities: must be declared"]
+    try:
+        info = ExtensionInfo(
+            kind, "contract", capabilities=target.brixtest_capabilities,
+        )
+    except SpecError as exc:
+        return ["capabilities: %s" % exc]
+    missing = sorted(set(required) - set(info.capabilities))
+    return ["capabilities: missing %s" % ", ".join(missing)] if missing else []
+
+
+__all__ = ["assert_extension_contract", "check_extension_capabilities"]

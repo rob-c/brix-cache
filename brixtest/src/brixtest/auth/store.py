@@ -13,9 +13,16 @@ from pathlib import Path
 from typing import Dict, Iterable, Mapping, Optional, Tuple
 
 from brixtest.auth.kerberos import KerberosRealm, create_realm
+from brixtest.auth.control import issue as issue_auth
+from brixtest.auth.control import record_availability
+from brixtest.auth.control import revoke as revoke_auth
+from brixtest.auth.control import rotate as rotate_auth
+from brixtest.auth.control import write_token_state
 from brixtest.auth.models import AuthRecipe, KerberosAuth, TLSAuth, TokenAuth, VOMSAuth
+from brixtest.auth.oidc_service import serve as serve_oidc
 from brixtest.auth.pki import OpenSSL, create_pki
 from brixtest.auth.token import issue_token
+from brixtest.auth.token_keys import write_keyset
 from brixtest.errors import SpecError
 from brixtest.util.immutable import freeze_mapping
 
@@ -38,9 +45,9 @@ def _is_within(path: Path, root: Path) -> bool:
         return False
 
 
-def _close_realm(name: str, realm: KerberosRealm) -> str:
+def _close_controller(name: str, controller: object) -> str:
     try:
-        realm.close()
+        controller.close()
     except Exception as exc:
         return "%s: %s" % (name, exc)
     return ""
@@ -94,6 +101,32 @@ class MaterializedAuth:
             "metadata": dict(self.metadata),
         }
 
+    def issue(self, *, subject: str = "", scopes: tuple[str, ...] = ()) -> str:
+        """Issue a token with the authority's current signing version."""
+        return issue_auth(self, subject=subject, scopes=scopes)
+
+    def rotate(self, *, key_id: str = "") -> Mapping[str, object]:
+        """Rotate token signing material and republish verification data."""
+        return rotate_auth(self, key_id=key_id)
+
+    def revoke(self, certificate: str = "client_cert") -> Path:
+        """Revoke one TLS/GSI identity and republish the CRL."""
+        return revoke_auth(self, certificate)
+
+    def available(self) -> bool:
+        """Return whether this stack's managed authority service is reachable."""
+        return _authority_controller(self).available()
+
+    def stop(self) -> None:
+        """Stop a managed authority service for a bounded failure-injection test."""
+        _authority_controller(self).stop()
+        record_availability(self, "stopped")
+
+    def start(self) -> None:
+        """Restart a stopped managed authority service from retained state."""
+        _authority_controller(self).start()
+        record_availability(self, "started")
+
 
 def _replace_root(value: str, old: Path, new: Path) -> str:
     path = Path(value)
@@ -102,40 +135,92 @@ def _replace_root(value: str, old: Path, new: Path) -> str:
     return value
 
 
+def _authority_controller(item: MaterializedAuth):
+    controller = getattr(item, "_authority_controller", None)
+    if controller is None:
+        raise SpecError(
+            "auth availability", item.kind,
+            "is available for managed service authorities only",
+        )
+    return controller
+
+
 def _token(root: Path, recipe: TokenAuth) -> MaterializedAuth:
     root.mkdir(parents=True, exist_ok=False)
-    secret = recipe.secret or secrets.token_urlsafe(32)
+    files, signing = _token_signing_material(root, recipe)
     token = issue_token(
-        secret=secret, issuer=recipe.issuer, audience=recipe.audience,
+        **signing, issuer=recipe.issuer, audience=recipe.audience,
         subject=recipe.subject, scopes=recipe.scopes, claims=recipe.claims,
-        lifetime=recipe.lifetime,
+        lifetime=recipe.lifetime, algorithm=recipe.algorithm, key_id=recipe.key_id,
     )
-    secret_path, token_path = root / "verification.key", root / "access.token"
-    secret_path.write_text(secret)
+    token_path = root / "access.token"
     token_path.write_text(token)
-    secret_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
     token_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
-    discovery = root / "issuer.json"
-    discovery.write_text(json.dumps({
-        "issuer": recipe.issuer, "audience": recipe.audience,
-        "token_endpoint": "brixtest://managed/%s" % recipe.name,
-        "algorithms": ["HS256"],
-    }, indent=2, sort_keys=True) + "\n")
-    files = {"secret": secret_path, "token": token_path, "issuer": discovery}
-    server = {
-        "BRIXTEST_TOKEN_SECRET_FILE": str(secret_path),
-        "BRIXTEST_TOKEN_ISSUER": recipe.issuer,
-        "BRIXTEST_TOKEN_AUDIENCE": recipe.audience,
-    }
+    files.update({
+        "token": token_path, "state": write_token_state(root, recipe),
+        **_token_discovery(root, recipe),
+    })
+    server = _token_server_environment(files, recipe)
     consumer = {
         "BEARER_TOKEN": token, "BEARER_TOKEN_FILE": str(token_path),
         "BRIXTEST_TOKEN_ISSUER": recipe.issuer,
         "BRIXTEST_TOKEN_AUDIENCE": recipe.audience,
+        "BRIXTEST_TOKEN_ALGORITHM": recipe.algorithm,
     }
     return MaterializedAuth(
         recipe.name, recipe.kind, root, files, consumer, server, consumer,
-        {"issuer": recipe.issuer, "audience": recipe.audience, "subject": recipe.subject},
+        {
+            "issuer": recipe.issuer, "audience": recipe.audience,
+            "subject": recipe.subject, "algorithm": recipe.algorithm,
+            "key_id": recipe.key_id,
+        },
     )
+
+
+def _token_signing_material(
+    root: Path, recipe: TokenAuth,
+) -> tuple[dict[str, Path], dict[str, object]]:
+    if recipe.algorithm != "HS256":
+        files = write_keyset(root, recipe.algorithm, recipe.key_bits, recipe.key_id)
+        return files, {"private_key": files["private_key"].read_bytes()}
+    secret = recipe.secret or secrets.token_urlsafe(32)
+    path = root / "verification.key"
+    path.write_text(secret)
+    path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    return {"secret": path}, {"secret": secret}
+
+
+def _token_discovery(root: Path, recipe: TokenAuth) -> dict[str, Path]:
+    payload = {
+        "issuer": recipe.issuer,
+        "token_endpoint": "brixtest://managed/%s" % recipe.name,
+        "id_token_signing_alg_values_supported": [recipe.algorithm],
+    }
+    if recipe.algorithm != "HS256":
+        payload["jwks_uri"] = recipe.issuer.rstrip("/") + "/jwks.json"
+    issuer = root / "issuer.json"
+    issuer.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    well_known = root / ".well-known"
+    well_known.mkdir()
+    discovery = well_known / "openid-configuration"
+    discovery.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    return {"issuer": issuer, "discovery": discovery}
+
+
+def _token_server_environment(
+    files: Mapping[str, Path], recipe: TokenAuth,
+) -> dict[str, str]:
+    environment = {
+        "BRIXTEST_TOKEN_ISSUER": recipe.issuer,
+        "BRIXTEST_TOKEN_AUDIENCE": recipe.audience,
+        "BRIXTEST_TOKEN_ALGORITHM": recipe.algorithm,
+    }
+    if recipe.algorithm == "HS256":
+        environment["BRIXTEST_TOKEN_SECRET_FILE"] = str(files["secret"])
+    else:
+        environment["BRIXTEST_TOKEN_PUBLIC_KEY_FILE"] = str(files["public_key"])
+        environment["BRIXTEST_TOKEN_JWKS_FILE"] = str(files["jwks"])
+    return environment
 
 
 def _tls(root: Path, recipe: TLSAuth) -> MaterializedAuth:
@@ -240,7 +325,6 @@ def _kerberos(root: Path, recipe: KerberosAuth) -> Tuple[MaterializedAuth, Kerbe
     files = dict(realm.files)
     server = {
         "KRB5_CONFIG": str(files["config"]),
-        "KRB5_KDC_PROFILE": str(files["kdc_config"]),
         "KRB5_KTNAME": str(files["keytab"]),
     }
     consumer = {
@@ -251,6 +335,7 @@ def _kerberos(root: Path, recipe: KerberosAuth) -> Tuple[MaterializedAuth, Kerbe
         recipe.name, recipe.kind, root, files, consumer, server, consumer,
         realm.metadata,
     )
+    object.__setattr__(materialized, "_authority_controller", realm)
     return materialized, realm
 
 
@@ -260,7 +345,7 @@ class AuthStore:
     def __init__(self, root: Path) -> None:
         self.root = Path(root)
         self._items: Dict[str, MaterializedAuth] = {}
-        self._realms: Dict[str, KerberosRealm] = {}
+        self._controllers: Dict[str, object] = {}
 
     def materialize_all(self, recipes: Iterable[AuthRecipe]) -> Mapping[str, MaterializedAuth]:
         self.root.mkdir(parents=True, exist_ok=True)
@@ -275,13 +360,15 @@ class AuthStore:
         root = self.root / recipe.name
         if isinstance(recipe, TokenAuth):
             item = _token(root, recipe)
+            if recipe.managed:
+                self._controllers[recipe.name] = serve_oidc(item, recipe)
         elif isinstance(recipe, TLSAuth):
             item = _tls(root, recipe)
         elif isinstance(recipe, VOMSAuth):
             item = _voms(root, recipe)
         elif isinstance(recipe, KerberosAuth):
             item, realm = _kerberos(root, recipe)
-            self._realms[recipe.name] = realm
+            self._controllers[recipe.name] = realm
         else:
             raise SpecError("auth", recipe, "has an unsupported recipe type")
         self._items[item.name] = item
@@ -317,10 +404,10 @@ class AuthStore:
     def close(self) -> None:
         errors = [
             error
-            for name, realm in reversed(tuple(self._realms.items()))
-            if (error := _close_realm(name, realm))
+            for name, controller in reversed(tuple(self._controllers.items()))
+            if (error := _close_controller(name, controller))
         ]
-        self._realms.clear()
+        self._controllers.clear()
         if errors:
             raise SpecError("auth teardown", "kerberos", "; ".join(errors))
 
@@ -359,9 +446,11 @@ def _freeze_auth_mappings(item: MaterializedAuth) -> None:
 
 
 def _environment_values(item, target: str, root: Path, base: Optional[Path]) -> dict:
-    values = getattr(item, target + "_env")
+    values = dict(getattr(item, target + "_env"))
     if base is None:
-        return dict(values)
+        return values
+    if item.kind == "kerberos" and target in ("server", "client"):
+        values["KRB5_CONFIG"] = str(item.files["kubernetes_config"])
     destination = Path(base)
     return {
         key: _replace_root(value, root, destination)
@@ -396,6 +485,8 @@ def _auth_files(item: MaterializedAuth, target: str) -> dict[str, Path]:
         path = Path(value.removeprefix("FILE:"))
         if path.is_absolute() and _is_within(path, item.root):
             selected.update(_contained_files(item, path))
+    if item.kind == "kerberos" and target in ("server", "client"):
+        selected.update(_contained_files(item, item.files["kubernetes_config"]))
     return selected
 
 

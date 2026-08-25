@@ -22,6 +22,21 @@
 #include <string.h>
 #include <unistd.h>
 
+/* Reserve a fresh (immediately unlinked) mkstemp path in dst[] and open it
+ * WRITE|FORCE with the given expected size, returning the handle.  Aborts via
+ * assert on any setup failure. */
+static brix_vfs_file *open_write_force(char *dst, long long expected_size,
+                                       brix_status *st)
+{
+    int fd = mkstemp(dst); assert(fd >= 0); close(fd); unlink(dst);
+
+    brix_vfs_open_opts o = { .io_uring = 0, .expected_size = expected_size,
+                             .cred = NULL };
+    brix_vfs_file *w = NULL;
+    assert(brix_vfs_open(dst, XRDC_VFS_WRITE | XRDC_VFS_FORCE, &o, &w, st) == 0);
+    return w;
+}
+
 int main(void) {
     /* Test 1: façade routing + caps */
     {
@@ -44,18 +59,15 @@ int main(void) {
     {
         brix_status s2 = {0};
         char dst[] = "/tmp/vfs_commit_XXXXXX";
-        int dfd = mkstemp(dst); assert(dfd >= 0); close(dfd); unlink(dst);
-
-        brix_vfs_open_opts wo = { .io_uring = 0, .expected_size = 5, .cred = NULL };
-        brix_vfs_file *w = NULL;
-        assert(brix_vfs_open(dst, XRDC_VFS_WRITE | XRDC_VFS_FORCE, &wo, &w, &s2) == 0);
+        brix_vfs_file *w = open_write_force(dst, 5, &s2);
         assert(brix_vfs_pwrite(w, 0, "hello", 5, &s2) == 0);
         assert(brix_vfs_commit(w, &s2) == 0);
         brix_vfs_close(w);
 
         char buf[8] = {0};
+        brix_vfs_open_opts ro = { .io_uring = 0, .expected_size = -1, .cred = NULL };
         brix_vfs_file *r = NULL;
-        assert(brix_vfs_open(dst, XRDC_VFS_READ, &wo, &r, &s2) == 0);
+        assert(brix_vfs_open(dst, XRDC_VFS_READ, &ro, &r, &s2) == 0);
         assert(brix_vfs_pread(r, 0, buf, 5, &s2) == 5);
         assert(memcmp(buf, "hello", 5) == 0);
         brix_vfs_close(r);
@@ -96,11 +108,7 @@ int main(void) {
     {
         brix_status s5 = {0};
         char dst[] = "/tmp/vfs_abort_XXXXXX";
-        int afd = mkstemp(dst); assert(afd >= 0); close(afd); unlink(dst);
-
-        brix_vfs_open_opts wo = { .io_uring = 0, .expected_size = 4, .cred = NULL };
-        brix_vfs_file *w = NULL;
-        assert(brix_vfs_open(dst, XRDC_VFS_WRITE | XRDC_VFS_FORCE, &wo, &w, &s5) == 0);
+        brix_vfs_file *w = open_write_force(dst, 4, &s5);
         assert(brix_vfs_pwrite(w, 0, "abcd", 4, &s5) == 0);
         brix_vfs_abort(w);
         brix_vfs_close(w);

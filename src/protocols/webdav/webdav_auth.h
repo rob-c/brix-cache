@@ -61,4 +61,19 @@ ngx_int_t webdav_check_pki_consistency(ngx_log_t *log,
 void webdav_vfs_bind_deleg(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf, brix_vfs_ctx_t *vctx);
 
+/* Canonical confined VFS ctx for a WebDAV op on `path`: identity from the req
+ * ctx, TLS from the connection. Bare init — no credential binding. */
+void webdav_vfs_ctx_build(ngx_http_request_t *r, const char *path,
+    brix_vfs_ctx_t *vctx);
+/* webdav_vfs_ctx_build + the export's per-user backend credential policy
+ * (cred dir/fallback + captured delegation). _data additionally binds the
+ * opt-in mint CA (data-plane GET/PUT/COPY); _ns is for namespace-only ops.
+ * Callers wanting the export's storage driver assign vctx->sd afterwards. */
+void webdav_vfs_ctx_build_ns(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
+    brix_vfs_ctx_t *vctx);
+void webdav_vfs_ctx_build_data(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
+    brix_vfs_ctx_t *vctx);
+
 #endif /* NGX_HTTP_BRIX_WEBDAV_AUTH_H */

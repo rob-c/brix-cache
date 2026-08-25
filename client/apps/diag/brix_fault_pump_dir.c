@@ -171,6 +171,36 @@ pump_eat_100_dir(int is_up, pump_chain *ch)
     return 0;
 }
 
+/* One store-and-forward hold lever (header-size or body-size): if armed and
+ * triggered, forward the withheld prefix, sleep `hold_ms`, then trim `ch` to
+ * the remainder. Returns 2 if a forward error severed the pair (already closed
+ * + CDEC), 1 if the hold fired, 0 if it did not apply. */
+static int
+pump_apply_hold(fp_http_cfg *HC, int (*active)(const fp_http_cfg *),
+                int (*decide)(const fp_http_cfg *, const unsigned char *, size_t, size_t *),
+                int hold_ms, pump_chain *ch, int to, int cfd, int ufd,
+                unsigned epoch, volatile lever_t *L, unsigned *seed,
+                unsigned long *conn_ctr, unsigned long *glob_ctr)
+{
+    size_t rel = 0;
+    if (!active(HC) ||
+        !decide(HC, (const unsigned char *) ch->cur, (size_t) ch->n, &rel)) {
+        return 0;
+    }
+    if (rel > 0 &&
+        forward_faulted(to, (char *) ch->cur, (ssize_t) rel, epoch, L,
+                        seed, conn_ctr, glob_ctr) != 0) {
+        sever(cfd, ufd, g_abortive);
+        CDEC(active);
+        return 2;
+    }
+    usleep((useconds_t) hold_ms * 1000);
+    CBUMP(held, 1);
+    ch->cur += rel;
+    ch->n   -= (ssize_t) rel;          /* forward the withheld remainder below */
+    return 1;
+}
+
 /* DPI stall levers applied just before forwarding: HTTP header-size hold, body
  * hold (store-and-forward), and volume classify-throttle.  Each hold forwards
  * any withheld prefix itself and trims `ch` to the remainder.  Returns 2 if a
@@ -181,37 +211,15 @@ pump_dpi_stalls(int is_up, pump_chain *ch, int to, int cfd, int ufd,
                 unsigned long *conn_ctr, unsigned long *glob_ctr)
 {
     fp_http_cfg *HC  = is_up ? &g_http_up : &g_http_down;
-    size_t       rel = 0;
-    if (fp_http_hold_active(HC) &&
-        fp_http_hold_decide(HC, (const unsigned char *) ch->cur,
-                            (size_t) ch->n, &rel)) {
-        if (rel > 0 &&
-            forward_faulted(to, (char *) ch->cur, (ssize_t) rel, epoch, L,
-                            seed, conn_ctr, glob_ctr) != 0) {
-            sever(cfd, ufd, g_abortive);
-            CDEC(active);
-            return 2;
-        }
-        usleep((useconds_t) HC->hold_ms * 1000);
-        CBUMP(held, 1);
-        ch->cur += rel;
-        ch->n   -= (ssize_t) rel;      /* forward the withheld remainder below */
+    if (pump_apply_hold(HC, fp_http_hold_active, fp_http_hold_decide,
+                        HC->hold_ms, ch, to, cfd, ufd, epoch, L, seed,
+                        conn_ctr, glob_ctr) == 2) {
+        return 2;
     }
-    rel = 0;
-    if (fp_http_body_hold_active(HC) &&
-        fp_http_body_hold_decide(HC, (const unsigned char *) ch->cur,
-                                 (size_t) ch->n, &rel)) {
-        if (rel > 0 &&
-            forward_faulted(to, (char *) ch->cur, (ssize_t) rel, epoch, L,
-                            seed, conn_ctr, glob_ctr) != 0) {
-            sever(cfd, ufd, g_abortive);
-            CDEC(active);
-            return 2;
-        }
-        usleep((useconds_t) HC->body_hold_ms * 1000);
-        CBUMP(held, 1);
-        ch->cur += rel;
-        ch->n   -= (ssize_t) rel;
+    if (pump_apply_hold(HC, fp_http_body_hold_active, fp_http_body_hold_decide,
+                        HC->body_hold_ms, ch, to, cfd, ufd, epoch, L, seed,
+                        conn_ctr, glob_ctr) == 2) {
+        return 2;
     }
     /* classify-throttle: once a direction crosses the volume heuristic the flow
      * is shunted to a <kbps> slow lane (misclassified bulk = "exfiltration"). */

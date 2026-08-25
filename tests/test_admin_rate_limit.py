@@ -34,7 +34,8 @@ from settings import NGINX_BIN, HOST, BIND_HOST, url_host
 # ever has two concurrent drivers.
 def _phase_test_write_flood_throttled_and_reads_survive_1(line):
     if line.lower().startswith("retry-after:"):
-        retry_after = line.split(":", 1)[1].strip()
+        return line.split(":", 1)[1].strip()
+    return None
 
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
@@ -112,10 +113,7 @@ def test_reads_pass_under_extensive_querying(lifecycle, tmp_path):
 # 2. Error: a write flood is throttled; the read bucket stays independent      #
 # --------------------------------------------------------------------------- #
 
-def test_write_flood_throttled_and_reads_survive(lifecycle, tmp_path):
-    srv = _start(lifecycle, tmp_path, "lc-admin-rl-tight",
-                 "brix_admin_rate_limit 5 600;")
-
+def _flood_writes_until_throttled(srv):
     statuses, retry_after = [], None
     for _ in range(30):
         status, headers, _ = srv.request("POST", "/cluster/servers",
@@ -123,8 +121,18 @@ def test_write_flood_throttled_and_reads_survive(lifecycle, tmp_path):
         statuses.append(status)
         if status == 429:
             for line in headers.splitlines():
-                _phase_test_write_flood_throttled_and_reads_survive_1(line)
+                value = _phase_test_write_flood_throttled_and_reads_survive_1(line)
+                if value is not None:
+                    retry_after = value
             break
+    return statuses, retry_after
+
+
+def test_write_flood_throttled_and_reads_survive(lifecycle, tmp_path):
+    srv = _start(lifecycle, tmp_path, "lc-admin-rl-tight",
+                 "brix_admin_rate_limit 5 600;")
+
+    statuses, retry_after = _flood_writes_until_throttled(srv)
 
     # The burst floor (10 requests) passes first, then the bucket overflows.
     def _assert_test_write_flood_throttled_and_reads_survive_1():

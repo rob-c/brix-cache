@@ -412,14 +412,9 @@ do_check(const diag_args *a)
     chk_acc       acc = { 0 };
     snprintf(acc.auth_proto, sizeof(acc.auth_proto), "%s", "anon");
 
-    brix_status_clear(&st);
-    if (brix_endpoint_parse(a->url, &u, &st) != 0) {
-        fprintf(stderr, "xrddiag: %s\n", st.msg);
-        return 50;
-    }
-    if (brix_connect(&c, &u, &a->conn, &st) != 0) {
-        fprintf(stderr, "xrddiag: connect %s:%d: %s\n", u.host, u.port, st.msg);
-        return brix_shellcode(&st);
+    int dial = diag_dial(a, &u, &c, &st);
+    if (dial != 0) {
+        return dial;
     }
 
     if (!a->json) {

@@ -37,6 +37,7 @@ REPO_CLI_SOURCES = [
     "shared/cvmfs/signature/whitelist.c",
     "shared/cvmfs/signature/verify.c",
     "shared/cvmfs/catalog/catalog_write.c",
+    "shared/cvmfs/catalog/xattr_pack.c",
     "shared/cvmfs/catalog/catalog.c",
     "shared/cvmfs/object/object_write.c",
     "shared/cvmfs/object/object.c",

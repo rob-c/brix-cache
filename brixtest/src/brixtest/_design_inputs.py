@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Mapping, Optional, Sequence, Tuple, Union
 
 from brixtest.errors import SpecError
+from brixtest.binary_runtime import runtime_file_declarations
 from brixtest.resources import Reference, artifact_ref, binary_ref
 from brixtest.util.immutable import freeze_mapping
 
@@ -84,15 +85,16 @@ def _artifact_options_valid(values: object) -> bool:
 
 
 def _artifact_filename(declaration: "Artifact") -> str:
-    if declaration.filename:
-        filename = declaration.filename
-    elif declaration.kind == "file":
-        filename = Path(str(declaration.source)).name
-    else:
-        filename = declaration.name + ".bin"
+    filename = declaration.filename or _default_artifact_filename(declaration)
     if not isinstance(filename, str) or not filename or Path(filename).name != filename:
         raise SpecError("artifact.filename", filename, "must be a non-empty basename")
     return filename
+
+
+def _default_artifact_filename(declaration: "Artifact") -> str:
+    if declaration.kind != "file" or isinstance(declaration.source, Reference):
+        return declaration.name + ".bin"
+    return Path(str(declaration.source)).name
 
 
 def _validate_config_source(declaration: "ConfigFile") -> None:
@@ -260,8 +262,12 @@ def _validate_binary_source(declaration: "Binary") -> None:
 
 
 def _optional_path(value: object, field: str) -> None:
-    if value is not None and not isinstance(value, (str, Path)):
+    if value is not None and not isinstance(value, (str, Path, Reference)):
         raise SpecError(field, value, "must be a string or path")
+    if isinstance(value, Reference) and (
+        value.kind != "task" or value.attribute != "output"
+    ):
+        raise SpecError(field, value, "typed paths must reference a task output")
 
 
 def _optional_text(value: object, field: str) -> None:
@@ -279,6 +285,11 @@ def _validate_binary_policy(declaration: "Binary") -> None:
             "binary.image", declaration.image,
             "image and image_path must be supplied together",
         )
+    if declaration.runtime_files and declaration.path is None:
+        raise SpecError(
+            "binary.runtime_files", declaration.runtime_files,
+            "require a local binary path so BriXTest can construct the image",
+        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -286,11 +297,12 @@ class Binary:
     """A local executable snapshot and its immutable Kubernetes equivalent."""
 
     name: str
-    path: Optional[Union[str, Path]] = None
+    path: Optional[Union[str, Path, Reference]] = None
     libraries: Sequence[Union[str, Path]] = ()
     discover_libraries: bool = True
     image: Optional[str] = None
     image_path: Optional[str] = None
+    runtime_files: Mapping[str, Union[str, Path]] = dataclasses.field(default_factory=dict)
 
     def ref(self, *, directory: bool = False) -> Reference:
         """Reference this binary's immutable captured path at runtime."""
@@ -303,22 +315,25 @@ class Binary:
         if not _library_paths_valid(self.libraries):
             raise SpecError("binary.libraries", self.libraries, "must contain strings or paths")
         object.__setattr__(self, "libraries", tuple(self.libraries))
+        object.__setattr__(self, "runtime_files", runtime_file_declarations(self.runtime_files))
 
 
 def binary(
     name: str,
-    path: Optional[Union[str, Path]] = None,
+    path: Optional[Union[str, Path, Reference]] = None,
     *,
     libraries: Sequence[Union[str, Path]] = (),
     discover_libraries: bool = True,
     image: Optional[str] = None,
     image_path: Optional[str] = None,
+    runtime_files: Optional[Mapping[str, Union[str, Path]]] = None,
 ) -> Binary:
     """Declare an executable snapshot and optional Kubernetes image identity."""
     return Binary(
         name=name, path=path, libraries=libraries,
         discover_libraries=discover_libraries,
         image=image, image_path=image_path,
+        runtime_files={} if runtime_files is None else runtime_files,
     )
 
 
@@ -344,6 +359,12 @@ def _validate_file_artifact(declaration: "Artifact") -> None:
         raise SpecError(
             "artifact.source", declaration.source, "is required for file artifacts",
         )
+    if declaration.kind == "file" and isinstance(declaration.source, Reference):
+        if declaration.source.kind != "task" or declaration.source.attribute != "output":
+            raise SpecError(
+                "artifact.source", declaration.source,
+                "typed sources must reference a declared task output",
+            )
 
 
 def _validate_text_artifact(declaration: "Artifact") -> None:
@@ -367,7 +388,7 @@ class Artifact:
     kind: str
     size: int = 0
     seed: int = 0
-    source: Optional[Union[str, Path]] = None
+    source: Optional[Union[str, Path, Reference]] = None
     text: str = ""
     filename: str = ""
     options: Mapping[str, object] = dataclasses.field(default_factory=dict)
@@ -411,7 +432,7 @@ def noise(name: str, *, size: int, seed: int = 0, filename: str = "") -> Artifac
 
 
 def file_artifact(
-    name: str, path: Union[str, Path], *, filename: str = ""
+    name: str, path: Union[str, Path, Reference], *, filename: str = ""
 ) -> Artifact:
     """Declare a file that BriXTest copies and hashes before test execution."""
     return Artifact(name=name, kind="file", source=path, filename=filename)

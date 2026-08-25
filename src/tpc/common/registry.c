@@ -419,15 +419,15 @@ brix_tpc_registry_update_progress(uint64_t id, off_t bytes_done,
  * the lock).  The curl progress callback reads transfer.cancelled lock-free via
  * registry_find and aborts promptly.  id == 0 / not found is a no-op.
  */
-ngx_int_t
-brix_tpc_registry_request_cancel(uint64_t id)
+/* Find the in-use slot holding `id` under the registry lock and apply the
+ * terminal op: erase != 0 zeroes the slot for reuse, else it marks the
+ * transfer cancelled.  NGX_DECLINED = registry unavailable or id not found. */
+static ngx_int_t
+registry_apply_by_id(uint64_t id, int erase)
 {
     brix_tpc_registry_table_t *tbl;
     ngx_uint_t                   i;
 
-    if (id == 0) {
-        return NGX_DECLINED;
-    }
     tbl = brix_tpc_registry_table();
     if (tbl == NULL) {
         return NGX_DECLINED;
@@ -436,13 +436,26 @@ brix_tpc_registry_request_cancel(uint64_t id)
     ngx_shmtx_lock(&brix_tpc_registry_mutex);
     for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS; i++) {
         if (tbl->slots[i].in_use && tbl->slots[i].transfer.id == id) {
-            tbl->slots[i].transfer.cancelled = 1;
+            if (erase) {
+                ngx_memzero(&tbl->slots[i], sizeof(tbl->slots[i]));
+            } else {
+                tbl->slots[i].transfer.cancelled = 1;
+            }
             ngx_shmtx_unlock(&brix_tpc_registry_mutex);
             return NGX_OK;
         }
     }
     ngx_shmtx_unlock(&brix_tpc_registry_mutex);
     return NGX_DECLINED;
+}
+
+ngx_int_t
+brix_tpc_registry_request_cancel(uint64_t id)
+{
+    if (id == 0) {
+        return NGX_DECLINED;
+    }
+    return registry_apply_by_id(id, 0);
 }
 
 /*
@@ -453,32 +466,12 @@ brix_tpc_registry_request_cancel(uint64_t id)
 ngx_int_t
 brix_tpc_registry_remove(uint64_t id, ngx_log_t *log)
 {
-    brix_tpc_registry_table_t *tbl;
-    ngx_uint_t                   i;
-
     (void) log;
 
     if (id == 0) {
         return NGX_OK;
     }
-
-    tbl = brix_tpc_registry_table();
-    if (tbl == NULL) {
-        return NGX_DECLINED;
-    }
-
-    ngx_shmtx_lock(&brix_tpc_registry_mutex);
-
-    for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS; i++) {
-        if (tbl->slots[i].in_use && tbl->slots[i].transfer.id == id) {
-            ngx_memzero(&tbl->slots[i], sizeof(tbl->slots[i]));
-            ngx_shmtx_unlock(&brix_tpc_registry_mutex);
-            return NGX_OK;
-        }
-    }
-
-    ngx_shmtx_unlock(&brix_tpc_registry_mutex);
-    return NGX_DECLINED;
+    return registry_apply_by_id(id, 1);
 }
 
 /*

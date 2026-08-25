@@ -23,7 +23,7 @@ import urllib3
 import sys
 def _expression_1(port):
     return (
-        port if port is not None else NGINX_WEBDAV_PORT
+        port if port is not None else NGINX_S3_PORT
     )
 
 def _expression_2(code):
@@ -33,7 +33,7 @@ def _expression_2(code):
 
 def _expression_3(port):
     return (
-        port if port is not None else NGINX_S3_PORT
+        port if port is not None else NGINX_WEBDAV_PORT
     )
 
 def _expression_4(code):
@@ -337,7 +337,7 @@ def webdav_bearer(token, path="/test.txt", write=False, port=None):
         "accept", "reject", or "notfound".
     """
     ensure_conformance_data()
-    target = _expression_1(port)
+    target = _expression_3(port)
     url = f"https://{SERVER_HOST}:{target}{path}"
     headers = {"Authorization": f"Bearer {token}"}
     try:
@@ -355,7 +355,7 @@ def webdav_bearer(token, path="/test.txt", write=False, port=None):
         if code == 404:
             return "notfound"
         # Treat any other 2xx as accept, any other 4xx/5xx as reject.
-        return _expression_2(code)
+        return _expression_4(code)
     except requests.RequestException:
         return "reject"
 
@@ -430,7 +430,7 @@ def s3_bearer(token, key="test.txt", write=False, port=None):
         "accept", "reject", or "notfound".
     """
     ensure_conformance_data()
-    target = _expression_3(port)
+    target = _expression_1(port)
     url = f"http://{SERVER_HOST}:{target}/{key}"
     headers = {"Authorization": f"Bearer {token}"}
     try:
@@ -447,7 +447,7 @@ def s3_bearer(token, key="test.txt", write=False, port=None):
             return "reject"
         if code == 404:
             return "notfound"
-        return _expression_4(code)
+        return _expression_2(code)
     except requests.RequestException:
         return "reject"
 

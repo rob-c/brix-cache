@@ -80,7 +80,7 @@
   "noarg:xrdcp": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "34b89c5684d1b10b0bb5473790e751972aa5e23d4c885955d9651bef7488508b"
+    "stderr_sha": "77f7f2bed80eb25e003cfd4cc54a5a95fc3d152026671075a20803c1694b364c"
   },
   "noarg:xrdcrc32c": {
     "exit": 50,

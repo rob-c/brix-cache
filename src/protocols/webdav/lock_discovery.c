@@ -8,8 +8,9 @@
  * PROPFIND reports.  Lock state is stored as a single xattr on each resource
  * (see prop_xattr.c).
  *
- * The confined-ctx helper (webdav_lock_vfs_ctx) and the lock-null reaper
- * (webdav_lock_reap_null) are defined in lock.c and shared via lock_internal.h.
+ * The lock-null reaper (webdav_lock_reap_null) is defined in lock.c and
+ * shared via lock_internal.h; confined lock-DB ctxs come from the canonical
+ * webdav_vfs_ctx_build.
  */
 #include "webdav.h"
 #include "fs/path/path.h"

@@ -15,9 +15,42 @@
 
 #include "sd_frm.h"            /* brix_mss_adapter_t */
 
+#include <limits.h>            /* PATH_MAX (frm_mss_head_t.base) */
+
 extern const brix_mss_adapter_t brix_mss_stub_adapter;
 extern const brix_mss_adapter_t brix_mss_exec_adapter;
 extern const brix_mss_adapter_t brix_mss_lib_adapter;
+
+/* Run one MSS verb ("exists" / "recall" / "migrate" / "purge") for `key`;
+ * `online` is the online-buffer path the recall/migrate verbs write (unused by
+ * exists/purge). Returns the MSS's exit/return code (0 = ok). */
+typedef int (*frm_mss_invoke_fn)(void *mss, const char *verb, const char *key,
+    const char *online);
+
+/* Common HEAD every real-HSM adapter context starts with. The exec and lib
+ * adapters share one online-buffer discipline (resolve <base>/.online/<key>,
+ * stat/access/open/unlink it locally, call the MSS only through `invoke`), so
+ * the whole vtable except destroy is implemented ONCE against this head
+ * (frm_mss_* below, defined in sd_frm_stub.c) and the adapters differ only in
+ * their invoker: posix_spawn of $BRIX_FRM_STAGECMD vs a dlsym'd call. */
+typedef struct {
+    char               base[PATH_MAX];   /* local online-buffer root */
+    frm_mss_invoke_fn  invoke;
+} frm_mss_head_t;
+
+/* The shared online-buffer vtable ops (brix_mss_adapter_t signatures; `mss`
+ * must begin with frm_mss_head_t). */
+int frm_mss_residency(void *mss, const char *key, off_t *size_out,
+        time_t *mtime_out);
+int frm_mss_recall_begin(void *mss, const char *key);
+int frm_mss_recall_poll(void *mss, const char *key);
+int frm_mss_migrate(void *mss, const char *key);
+int frm_mss_purge(void *mss, const char *key);
+int frm_mss_open_online(void *mss, const char *key);
+int frm_mss_create_online(void *mss, const char *key, mode_t mode);
+
+/* Resolve <base>/.online/<key> (key's leading '/' stripped) into out[cap]. */
+int frm_online_path(const char *base, const char *key, char *out, size_t cap);
 
 /* Build an adapter context (the sd_frm_state mss_ctx).  Returns the opaque
  * context, or NULL with errno = ENOMEM.  `location` is the online-buffer / stub

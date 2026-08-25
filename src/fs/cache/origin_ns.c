@@ -128,75 +128,73 @@ brix_cache_origin_rename(brix_cache_fill_t *t,
     return 0;
 }
 
-/* brix_cache_origin_rm — kXR_rm <path> on the origin (delete a file). The rm
- * request carries no params (the 16-byte body is reserved/zero); the path is the
- * payload. Returns 0, or -1 with errno set (ENOENT when the origin reports the
- * path already gone, so a best-effort reclaim/evict is idempotent). */
+/* origin_path_ok — send `requestid` with a prepared 16-byte body and the path
+ * as payload; the shared shape of every single-path namespace op. Returns 0
+ * with the reply body handed to the caller (*rbody, free it), or -1 with errno
+ * set (EINVAL bad path, EIO transport, else the mapped origin error). */
+static int
+origin_path_ok(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
+    uint16_t requestid, const uint8_t body[XRDW_BODY_LEN], const char *path,
+    u_char **rbody, uint32_t *dlen)
+{
+    size_t    pl = (path != NULL) ? strlen(path) : 0;
+    uint16_t  status;
+
+    *rbody = NULL;
+    if (pl == 0 || pl > 0x7fff) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (origin_request(t, oc, requestid, body, path, pl, &status, rbody,
+                       dlen, 512) != 0)
+    {
+        errno = EIO;
+        return -1;
+    }
+    if (status != kXR_ok) {
+        errno = brix_cache_origin_status_errno(status, *rbody, *dlen);
+        free(*rbody);
+        *rbody = NULL;
+        return -1;
+    }
+    return 0;
+}
+
+/* Shared kXR_rm / kXR_rmdir shape: the 16-byte body is reserved/zero and the
+ * path is the payload. Returns 0, or -1 with errno set (ENOENT when the origin
+ * reports the path already gone, so a best-effort reclaim/evict is idempotent;
+ * ENOTEMPTY for a populated directory — kXR_ItExists in the kXR_error body). */
+static int
+origin_unlink_like(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
+    uint16_t requestid, const char *path)
+{
+    uint8_t   body[XRDW_BODY_LEN];
+    uint32_t  dlen;
+    u_char   *rbody;
+    int       rc;
+
+    ngx_memzero(body, sizeof(body));      /* rm/rmdir params are reserved */
+    rc = origin_path_ok(t, oc, requestid, body, path, &rbody, &dlen);
+    if (rc == 0) {
+        free(rbody);
+    }
+    return rc;
+}
+
+/* brix_cache_origin_rm — kXR_rm <path> on the origin (delete a file). */
 int
 brix_cache_origin_rm(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     const char *path)
 {
-    uint8_t   body[XRDW_BODY_LEN];
-    size_t    pl = (path != NULL) ? strlen(path) : 0;
-    uint16_t  status;
-    uint32_t  dlen;
-    u_char   *rbody = NULL;
-    int       rc;
-
-    if (pl == 0 || pl > 0x7fff) {
-        errno = EINVAL;
-        return -1;
-    }
-    ngx_memzero(body, sizeof(body));            /* kXR_rm params are reserved */
-    rc = origin_request(t, oc, kXR_rm, body, path, pl, &status, &rbody,
-                        &dlen, 256);
-    if (rc != 0) {
-        errno = EIO;
-        return -1;
-    }
-    if (status != kXR_ok) {
-        errno = brix_cache_origin_status_errno(status, rbody, dlen);
-        free(rbody);
-        return -1;
-    }
-    free(rbody);
-    return 0;
+    return origin_unlink_like(t, oc, kXR_rm, path);
 }
 
-/* brix_cache_origin_rmdir — kXR_rmdir <path> on the origin (remove an empty
- * directory). The rmdir request has the same wire shape as kXR_rm: the 16-byte
- * body is reserved/zero; the path is the payload. Returns 0, or -1 with errno
- * set. Non-empty directory is surfaced as ENOTEMPTY (origin sends kXR_ItExists
- * in the kXR_error body for this case); ENOENT when the path is already gone. */
+/* brix_cache_origin_rmdir — kXR_rmdir <path> (remove an empty directory). */
 int
 brix_cache_origin_rmdir(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     const char *path)
 {
-    uint8_t   body[XRDW_BODY_LEN];
-    size_t    pl = (path != NULL) ? strlen(path) : 0;
-    uint16_t  status;
-    uint32_t  dlen;
-    u_char   *rbody = NULL;
-    int       rc;
-
-    if (pl == 0 || pl > 0x7fff) {
-        errno = EINVAL;
-        return -1;
-    }
-    ngx_memzero(body, sizeof(body));         /* kXR_rmdir params are reserved */
-    rc = origin_request(t, oc, kXR_rmdir, body, path, pl, &status, &rbody,
-                        &dlen, 256);
-    if (rc != 0) {
-        errno = EIO;
-        return -1;
-    }
-    if (status != kXR_ok) {
-        errno = brix_cache_origin_status_errno(status, rbody, dlen);
-        free(rbody);
-        return -1;
-    }
-    free(rbody);
-    return 0;
+    return origin_unlink_like(t, oc, kXR_rmdir, path);
 }
 
 /* brix_cache_origin_mkdir — kXR_mkdir <path> on the origin (create a directory).
@@ -210,51 +208,28 @@ brix_cache_origin_mkdir(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     const char *path, mode_t mode)
 {
     uint8_t   body[XRDW_BODY_LEN];
-    size_t    pl = (path != NULL) ? strlen(path) : 0;
-    uint16_t  status;
     uint32_t  dlen;
-    u_char   *rbody = NULL;
-    int       rc;
+    u_char   *rbody;
 
-    if (pl == 0 || pl > 0x7fff) {
-        errno = EINVAL;
-        return -1;
-    }
     ngx_memzero(body, sizeof(body));
     body[0] = kXR_mkdirpath;                     /* options: create parents too */
     body[XRDW_BODY_LEN - 2] = (uint8_t) ((mode >> 8) & 0xff);   /* mode BE hi */
     body[XRDW_BODY_LEN - 1] = (uint8_t) (mode & 0xff);          /* mode BE lo */
-    rc = origin_request(t, oc, kXR_mkdir, body, path, pl, &status, &rbody,
-                        &dlen, 256);
-    if (rc != 0) {
-        errno = EIO;
-        return -1;
-    }
-    if (status != kXR_ok) {
+    if (origin_path_ok(t, oc, kXR_mkdir, body, path, &rbody, &dlen) != 0) {
         /* For a mkdir the origin's kXR_ItExists means the target directory is
          * already present — an EEXIST condition, NOT the ENOTEMPTY that the
          * shared status→errno mapping assigns for the rmdir/mv "non-empty
-         * directory" case.  The prefix-by-prefix mkpath walk
+         * directory" case (kXR_ItExists is the ONLY source of ENOTEMPTY there,
+         * so remapping the errno is exact).  The prefix-by-prefix mkpath walk
          * (brix_vfs_backend_mkpath) and the -p flag both treat EEXIST as
          * idempotent success but abort on ENOTEMPTY, so without this the
          * gateway fails an otherwise-conformant `mkdir -p` on an existing dir
          * where the stock origin idempotently succeeds.  Stock xrootd reports
          * this as "...; file exists"; matching the errno lets clients that
-         * classify the error (go-hep MkdirAll) recognise already-present.
-         *
-         * The kXR error CODE rides in the reply body (the header status is the
-         * generic kXR_error); decode it the same way brix_cache_origin_status_
-         * errno does before the mkdir-specific reinterpretation. */
-        int errcode = (int) status;
-        if (status == kXR_error) {
-            const char *m = NULL;
-            size_t      ml = 0;
-            (void) xrd_error_body_decode(rbody, dlen, &errcode, &m, &ml);
+         * classify the error (go-hep MkdirAll) recognise already-present. */
+        if (errno == ENOTEMPTY) {
+            errno = EEXIST;
         }
-        errno = (errcode == kXR_ItExists)
-                ? EEXIST
-                : brix_cache_origin_status_errno(status, rbody, dlen);
-        free(rbody);
         return -1;
     }
     free(rbody);
@@ -272,29 +247,18 @@ brix_cache_origin_stat(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     const char *path, brix_cache_stat_out_t *out)
 {
     uint8_t            body[XRDW_BODY_LEN];
-    size_t             pl = (path != NULL) ? strlen(path) : 0;
-    uint16_t           status;
     uint32_t           dlen;
-    u_char            *rbody = NULL;
-    int                rc;
+    u_char            *rbody;
     long long          id = 0, size = 0, mtime = 0;
     int                flags = 0;
 
-    if (out == NULL || pl == 0 || pl > 0x7fff) {
+    if (out == NULL) {
         errno = EINVAL;
         return -1;
     }
     ngx_memzero(out, sizeof(*out));
     ngx_memzero(body, sizeof(body));            /* options=0, wants=0, fhandle=0 */
-    rc = origin_request(t, oc, kXR_stat, body, path, pl, &status, &rbody,
-                        &dlen, 512);
-    if (rc != 0) {
-        errno = EIO;
-        return -1;
-    }
-    if (status != kXR_ok) {
-        errno = brix_cache_origin_status_errno(status, rbody, dlen);
-        free(rbody);
+    if (origin_path_ok(t, oc, kXR_stat, body, path, &rbody, &dlen) != 0) {
         return -1;
     }
     /* rbody is NUL-terminated by brix_cache_read_response (alloc dlen+1). */

@@ -70,41 +70,64 @@ r2r_stream_body(brix_conn *sc, brix_conn *dc, brix_file *sf, brix_file *df,
 }
 
 
-int
-copy_remote_to_remote(const brix_url *su, const brix_url *du,
-                      const brix_copy_opts *o, const brix_opts *co, brix_status *st)
+/*
+ * WHAT: Acquire both sessions + handles in order and stream the body, reporting
+ *       via *stage how far acquisition got (1 = src session up, 2 = +dst session,
+ *       3 = +src handle, 4 = +dst handle) so the caller frees exactly that much.
+ * WHY:  A single early-return ladder owns the acquisition order; the caller then
+ *       makes ONE r2r_teardown call keyed on *stage, rather than repeating the
+ *       teardown at every failure site.
+ * HOW:  Bump *stage after each successful acquisition; any failure returns -1
+ *       with *stage frozen at the last success.  On full acquisition, return the
+ *       stream rc so the caller closes the destination cleanly only on success.
+ */
+static int
+r2r_run(const brix_url *su, const brix_url *du, const brix_copy_opts *o,
+        const brix_opts *co, brix_conn *sc, brix_conn *dc, brix_file *sf,
+        brix_file *df, int *stage, brix_status *st)
 {
-    brix_conn     sc, dc;
-    brix_file     sf, df;
     brix_statinfo si;
-    int           rc;
 
-    if (brix_connect(&sc, su, co, st) != 0) {
+    *stage = 0;
+    if (brix_connect(sc, su, co, st) != 0) {
         return -1;
     }
-    if (brix_stat(&sc, su->path, &si, st) != 0) {
-        return r2r_teardown(&sc, &dc, &sf, &df, 1, 0, 0, 0, -1, st);
+    *stage = 1;
+    if (brix_stat(sc, su->path, &si, st) != 0) {
+        return -1;
     }
     if (si.flags & kXR_isDir) {
         brix_status_set(st, XRDC_EUSAGE, 0,
                         "source is a directory (recursive copy unsupported)");
-        return r2r_teardown(&sc, &dc, &sf, &df, 1, 0, 0, 0, -1, st);
+        return -1;
     }
-
-    if (brix_connect(&dc, du, co, st) != 0) {
-        return r2r_teardown(&sc, &dc, &sf, &df, 1, 0, 0, 0, -1, st);
+    if (brix_connect(dc, du, co, st) != 0) {
+        return -1;
     }
-
-    if (brix_file_open_read(&sc, su->path, &sf, st) != 0) {
-        return r2r_teardown(&sc, &dc, &sf, &df, 1, 1, 0, 0, -1, st);
+    *stage = 2;
+    if (brix_file_open_read(sc, su->path, sf, st) != 0) {
+        return -1;
     }
-    if (brix_file_open_write(&dc, du->path, o->force, o->posc, &df, st) != 0) {
-        return r2r_teardown(&sc, &dc, &sf, &df, 1, 1, 1, 0, -1, st);
+    *stage = 3;
+    if (brix_file_open_write(dc, du->path, o->force, o->posc, df, st) != 0) {
+        return -1;
     }
+    *stage = 4;
+    return r2r_stream_body(sc, dc, sf, df, &si, o, st);
+}
 
-    rc = r2r_stream_body(&sc, &dc, &sf, &df, &si, o, st);
 
-    return r2r_teardown(&sc, &dc, &sf, &df, 1, 1, 1, 1, rc, st);
+int
+copy_remote_to_remote(const brix_url *su, const brix_url *du,
+                      const brix_copy_opts *o, const brix_opts *co, brix_status *st)
+{
+    brix_conn sc, dc;
+    brix_file sf, df;
+    int       stage = 0;
+    int       rc = r2r_run(su, du, o, co, &sc, &dc, &sf, &df, &stage, st);
+
+    return r2r_teardown(&sc, &dc, &sf, &df,
+                        stage >= 1, stage >= 2, stage >= 3, stage >= 4, rc, st);
 }
 
 

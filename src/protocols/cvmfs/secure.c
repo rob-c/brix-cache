@@ -68,20 +68,23 @@ scvmfs_bearer_token(ngx_http_request_t *r, const char **token, size_t *len)
     return NGX_OK;
 }
 
+/* scvmfs_registry_check — shared bearer gate behind both the scvmfs bearer
+ * mode and the F3 repo-authz plane: fetch the Bearer credential, canonicalise
+ * r->uri, and validate against `reg` with READ scope (a read-only protocol).
+ * Returns NGX_DECLINED on success with *claims filled, otherwise the HTTP
+ * status to answer with. reg == NULL fails CLOSED — merge-time validation
+ * makes that unreachable, but never open up. */
 static ngx_int_t
-scvmfs_check_bearer(ngx_http_request_t *r,
-    ngx_http_brix_cvmfs_loc_conf_t *lcf)
+scvmfs_registry_check(ngx_http_request_t *r, const void *reg,
+    brix_token_claims_t *claims)
 {
-    const char            *token;
-    size_t                 token_len;
-    char                   uri_path[PATH_MAX];
-    brix_token_claims_t  claims;
-    int                    bucket = 0;
-    ngx_int_t              rc;
+    const char  *token;
+    size_t       token_len;
+    char         uri_path[PATH_MAX];
+    int          bucket = 0;
+    ngx_int_t    rc;
 
-    if (lcf->scvmfs_registry == NULL) {
-        /* bearer mode without a loaded issuer registry fails CLOSED —
-         * merge-time validation makes this unreachable, but never open up */
+    if (reg == NULL) {
         return NGX_HTTP_UNAUTHORIZED;
     }
 
@@ -97,24 +100,37 @@ scvmfs_check_bearer(ngx_http_request_t *r,
         return NGX_HTTP_REQUEST_URI_TOO_LARGE;
     }
 
-    /* read scope suffices for a read-only protocol */
     {
         brix_token_registry_args_t  ra;
 
         ra.log             = r->connection->log;
         ra.token           = token;
         ra.token_len       = token_len;
-        ra.reg             = (const brix_token_registry_t *) lcf->scvmfs_registry;
+        ra.reg             = (const brix_token_registry_t *) reg;
         ra.macaroon_secret = NULL;
         ra.secret_len      = 0;
         ra.clock_skew      = BRIX_TOKEN_CLOCK_SKEW_SECS;
-        ra.claims          = &claims;
+        ra.claims          = claims;
 
         if (brix_token_validate_registry(&ra, uri_path, BRIX_TOKEN_OP_READ,
                                          &bucket) != 0)
         {
             return NGX_HTTP_UNAUTHORIZED;  /* invalid/expired/out-of-scope */
         }
+    }
+    return NGX_DECLINED;
+}
+
+static ngx_int_t
+scvmfs_check_bearer(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf)
+{
+    brix_token_claims_t  claims;
+    ngx_int_t            rc;
+
+    rc = scvmfs_registry_check(r, lcf->scvmfs_registry, &claims);
+    if (rc != NGX_DECLINED) {
+        return rc;
     }
 
     /* the VALIDATED subject is the F9 QoS classification key */
@@ -212,11 +228,7 @@ brix_cvmfs_repo_authz_eval(ngx_http_request_t *r,
     ngx_http_brix_cvmfs_ctx_t *ctx =
         ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
     brix_cvmfs_repo_authz_t     *gate;
-    const char                  *token;
-    size_t                       token_len;
-    char                         uri_path[PATH_MAX];
     brix_token_claims_t          claims;
-    int                          bucket = 0;
     ngx_int_t                    rc;
 
     if (lcf->repo_authz == NULL || ctx->url.repo == NULL) {
@@ -238,40 +250,9 @@ brix_cvmfs_repo_authz_eval(ngx_http_request_t *r,
         return NGX_HTTP_BAD_REQUEST;
     }
 
-    if (gate->registry == NULL) {
-        /* merge-time build makes this unreachable — never fail open */
-        return NGX_HTTP_UNAUTHORIZED;
-    }
-
-    rc = scvmfs_bearer_token(r, &token, &token_len);
-    if (rc == NGX_DECLINED) {
-        return NGX_HTTP_UNAUTHORIZED;              /* no Bearer credential */
-    }
-    if (rc != NGX_OK) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (brix_str_cbuf(uri_path, sizeof(uri_path), &r->uri) == NULL) {
-        return NGX_HTTP_REQUEST_URI_TOO_LARGE;
-    }
-
-    {
-        brix_token_registry_args_t  ra;
-
-        ra.log             = r->connection->log;
-        ra.token           = token;
-        ra.token_len       = token_len;
-        ra.reg             = (const brix_token_registry_t *) gate->registry;
-        ra.macaroon_secret = NULL;
-        ra.secret_len      = 0;
-        ra.clock_skew      = BRIX_TOKEN_CLOCK_SKEW_SECS;
-        ra.claims          = &claims;
-
-        if (brix_token_validate_registry(&ra, uri_path, BRIX_TOKEN_OP_READ,
-                                         &bucket) != 0)
-        {
-            return NGX_HTTP_UNAUTHORIZED;  /* invalid/expired/out-of-scope */
-        }
+    rc = scvmfs_registry_check(r, gate->registry, &claims);
+    if (rc != NGX_DECLINED) {
+        return rc;
     }
 
     /* the VALIDATED subject is the F9 QoS classification key */

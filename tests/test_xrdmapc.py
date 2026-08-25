@@ -125,6 +125,10 @@ def test_map_verify_only_advertised(anon):
 # the closure brings the redirector up with a live holder — a lone redirector
 # locates `/` to nobody (kXR NotFound → rc 54), which is not what this exercises.
 @pytest.mark.registry_server("cluster-redir", "cluster-ds")
+# closest-marker wins over the module's "lc-xrdmapc" group: manager-mode
+# kills/restarts cluster-ds mid-run — serialize with that family or the
+# locate hits the dead-DS re-join window (see test_xrddiag.py counterpart).
+@pytest.mark.xdist_group("manager-mode-cluster")
 def test_map_cluster_redirector(anon):
     if not _port_up(SERVER_HOST, CLUSTER_REDIR_PORT):
         pytest.skip("cluster redirector not running")

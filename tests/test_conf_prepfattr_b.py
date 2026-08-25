@@ -1,10 +1,10 @@
 from split_continuation import reexport as _reexport
-def _expression_1(count):
+def _multi_attr_names(count):
     return (
         [f"user.multi{i}" for i in range(count)]
     )
 
-def _expression_2(count):
+def _multi_attr_values(count):
     return (
         [f"v{i}" for i in range(count)]
     )
@@ -438,8 +438,8 @@ def test_raw_fattr_set_get_determinism(srv):
 def test_raw_fattr_multi_attr_set_then_list(srv, count):
     """RAW kXR_fattrSet of several attrs in one request -> a subsequent
     kXR_fattrList shows all of them, with the SAME name-set as stock."""
-    names = _expression_1(count)
-    values = _expression_2(count)
+    names = _multi_attr_names(count)
+    values = _multi_attr_values(count)
     fpath = f"/many/f{4 + count:02d}.txt"
     so, sf = _both()
     try:

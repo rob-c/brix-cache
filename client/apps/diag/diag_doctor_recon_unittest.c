@@ -14,16 +14,10 @@
  * (doctor_recon_probe) is covered online by test_xrddiag_remote_doctor.py.
  */
 #define _GNU_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "diag_doctor_ut_common.h"
 
-#include "diag_internal.h"
-
-/* ---- extern stubs (never reached by the pure parsers under test) ---- */
-void brix_status_clear(brix_status *st) { (void) st; }
-int  brix_query(brix_conn *c, int it, const char *a, char *o, size_t n, brix_status *s)
-{ (void) c; (void) it; (void) a; (void) o; (void) n; (void) s; return -1; }
+/* ---- extern stubs (never reached by the pure parsers under test); the common
+ *      brix_status_clear / brix_query stubs come from the shared header. ---- */
 int  brix_dirlist(brix_conn *c, const char *p, int ws, brix_dirent **e,
                   size_t *n, brix_status *s)
 { (void) c; (void) p; (void) ws; (void) e; (void) n; (void) s; return -1; }

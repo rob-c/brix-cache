@@ -2,7 +2,7 @@ def wait_port(port, timeout=10.0):
     end = time.time() + timeout
     while time.time() < end:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            with socket.create_connection(("127.0.0.1", port), timeout=0.5):  # net-literal-allow: loopback inside the userns sandbox's own net namespace
                 return True
         except OSError:
             time.sleep(0.1)
@@ -148,7 +148,7 @@ def _dead_xattr_has_value(fp, needle):
     return False
 
 def _raw_get_request(path, token, extra):
-    lines = [f"GET {path} HTTP/1.1", "Host: 127.0.0.1", "Connection: close"]
+    lines = [f"GET {path} HTTP/1.1", "Host: 127.0.0.1", "Connection: close"]  # net-literal-allow: loopback inside the userns sandbox's own net namespace
     if token:
         lines.append(f"Authorization: Bearer {token}")
     lines.extend(f"{key}: {value}" for key, value in (extra or {}).items())
@@ -295,7 +295,7 @@ def _kxr_connect(timeout=4.0):
     """Fresh TCP connection to the impersonation root:// port."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(timeout)
-    s.connect(("127.0.0.1", _stream_port))
+    s.connect(("127.0.0.1", _stream_port))  # net-literal-allow: loopback inside the userns sandbox's own net namespace
     return s
 
 
@@ -419,7 +419,7 @@ def _raw_get_header(method, path, port, hdrs):
     returns only status+body) and return (status_int, {lower_header: value}, body).
     Used to read the Digest:/x-amz-checksum-* response headers that carry a content
     fingerprint.  status -1 / empty dict on a connection failure."""
-    lines = ["%s %s HTTP/1.1" % (method, path), "Host: 127.0.0.1:%d" % port,
+    lines = ["%s %s HTTP/1.1" % (method, path), "Host: 127.0.0.1:%d" % port,  # net-literal-allow: loopback inside the userns sandbox's own net namespace
              "Connection: close"]
     for k, v in (hdrs or {}).items():
         lines.append("%s: %s" % (k, v))

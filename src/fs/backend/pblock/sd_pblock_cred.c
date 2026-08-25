@@ -340,37 +340,49 @@ sd_pblock_setattr_cred(brix_sd_instance_t *inst, const char *path,
 
 /* ---- xattr ------------------------------------------------------------------ */
 
+/* cred_access_gate — resolve the identity and enforce `mode` on the object
+ * (service identities bypass, as everywhere in this file). The gate for every
+ * slot whose rule is simply "R/W on the object" and that never needs the ids
+ * afterwards: xattr CRUD and opendir. */
+static ngx_int_t
+cred_access_gate(brix_sd_instance_t *inst, const brix_sd_cred_t *cred,
+    const char *path, int mode)
+{
+    pblock_ids_t ids;
+
+    if (resolve_or_fail(inst, cred, &ids) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (ids.service) {
+        return NGX_OK;
+    }
+    return pblock_ident_check(inst->state, path, &ids, mode, NULL);
+}
+
+/* PBLOCK_CRED_GATED — the whole body of an object-mode-gated slot: run
+ * cred_access_gate (using the slot's `inst`/`cred`/`path` parameters), return
+ * `errval` when it refuses, else RETURN the delegated call. */
+#define PBLOCK_CRED_GATED(mode, errval, call) \
+    do { \
+        if (cred_access_gate(inst, cred, path, mode) != NGX_OK) { \
+            return errval; \
+        } \
+        return call; \
+    } while (0)
+
 /* getxattr_cred / listxattr_cred — R on the object. */
 ssize_t
 sd_pblock_getxattr_cred(brix_sd_instance_t *inst, const char *path,
     const char *name, void *buf, size_t cap, const brix_sd_cred_t *cred)
 {
-    pblock_ids_t ids;
-
-    if (resolve_or_fail(inst, cred, &ids) != NGX_OK
-        || (!ids.service
-            && pblock_ident_check(inst->state, path, &ids, R_OK,
-                                  NULL) != NGX_OK))
-    {
-        return -1;
-    }
-    return sd_pblock_getxattr(inst, path, name, buf, cap);
+    PBLOCK_CRED_GATED(R_OK, -1, sd_pblock_getxattr(inst, path, name, buf, cap));
 }
 
 ssize_t
 sd_pblock_listxattr_cred(brix_sd_instance_t *inst, const char *path,
     void *buf, size_t cap, const brix_sd_cred_t *cred)
 {
-    pblock_ids_t ids;
-
-    if (resolve_or_fail(inst, cred, &ids) != NGX_OK
-        || (!ids.service
-            && pblock_ident_check(inst->state, path, &ids, R_OK,
-                                  NULL) != NGX_OK))
-    {
-        return -1;
-    }
-    return sd_pblock_listxattr(inst, path, buf, cap);
+    PBLOCK_CRED_GATED(R_OK, -1, sd_pblock_listxattr(inst, path, buf, cap));
 }
 
 /* setxattr_cred / removexattr_cred — W on the object. */
@@ -379,32 +391,15 @@ sd_pblock_setxattr_cred(brix_sd_instance_t *inst, const char *path,
     const char *name, const void *val, size_t len, int flags,
     const brix_sd_cred_t *cred)
 {
-    pblock_ids_t ids;
-
-    if (resolve_or_fail(inst, cred, &ids) != NGX_OK
-        || (!ids.service
-            && pblock_ident_check(inst->state, path, &ids, W_OK,
-                                  NULL) != NGX_OK))
-    {
-        return NGX_ERROR;
-    }
-    return sd_pblock_setxattr(inst, path, name, val, len, flags);
+    PBLOCK_CRED_GATED(W_OK, NGX_ERROR,
+                      sd_pblock_setxattr(inst, path, name, val, len, flags));
 }
 
 ngx_int_t
 sd_pblock_removexattr_cred(brix_sd_instance_t *inst, const char *path,
     const char *name, const brix_sd_cred_t *cred)
 {
-    pblock_ids_t ids;
-
-    if (resolve_or_fail(inst, cred, &ids) != NGX_OK
-        || (!ids.service
-            && pblock_ident_check(inst->state, path, &ids, W_OK,
-                                  NULL) != NGX_OK))
-    {
-        return NGX_ERROR;
-    }
-    return sd_pblock_removexattr(inst, path, name);
+    PBLOCK_CRED_GATED(W_OK, NGX_ERROR, sd_pblock_removexattr(inst, path, name));
 }
 
 /* ---- copy + directory listing ------------------------------------------------ */
@@ -435,13 +430,7 @@ brix_sd_dir_t *
 sd_pblock_opendir_cred(brix_sd_instance_t *inst, const char *path,
     int *err_out, const brix_sd_cred_t *cred)
 {
-    pblock_ids_t ids;
-
-    if (resolve_or_fail(inst, cred, &ids) != NGX_OK
-        || (!ids.service
-            && pblock_ident_check(inst->state, path, &ids, R_OK,
-                                  NULL) != NGX_OK))
-    {
+    if (cred_access_gate(inst, cred, path, R_OK) != NGX_OK) {
         if (err_out != NULL) { *err_out = errno; }
         return NULL;
     }

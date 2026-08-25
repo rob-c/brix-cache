@@ -19,6 +19,7 @@ from brixtest.errors import SpecError
 
 if TYPE_CHECKING:
     from brixtest.design import Artifact, CaseDefinition, Client, Server
+    from brixtest._design_managed import Resource
     from brixtest.evidence.collectors import CollectorSpec
     from brixtest.runtime.api import Run
     from brixtest.runtime.artifacts import ArtifactProviderContext
@@ -29,6 +30,7 @@ if TYPE_CHECKING:
         ServerLaunchPlan,
         ServerLaunchRequest,
     )
+    from brixtest.runtime.providers import ProviderContext, ProviderInstance, ProviderPlan
 
 EXTENSION_API_VERSION = 1
 _EXTENSION_NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
@@ -42,6 +44,11 @@ __all__ = [
     "ExtensionInfo",
     "ExtensionRegistry",
     "ProbeDriver",
+    "ManagedResourceProvider",
+    "VolumeProvider",
+    "IdentityProvider",
+    "FilesystemTransport",
+    "ImageProvider",
     "ResourceProvider",
     "ServerLauncher",
     "ToolExecutor",
@@ -59,6 +66,11 @@ ENTRY_POINT_GROUPS: Mapping[str, str] = {
     "analyzer": "brixtest.analyzers",
     "exporter": "brixtest.exporters",
     "launcher": "brixtest.launchers",
+    "resource": "brixtest.resources",
+    "volume": "brixtest.volumes",
+    "identity": "brixtest.identities",
+    "transport": "brixtest.transports",
+    "image": "brixtest.images",
 }
 
 _REQUIRED: Mapping[str, tuple[str, ...]] = {
@@ -70,6 +82,13 @@ _REQUIRED: Mapping[str, tuple[str, ...]] = {
     "analyzer": (),
     "exporter": (),
     "launcher": ("validate", "prepare", "cleanup"),
+    "resource": ("validate", "plan", "create", "ready", "collect", "destroy"),
+    "volume": ("validate", "plan", "create", "ready", "collect", "destroy"),
+    "identity": ("validate", "plan", "create", "ready", "collect", "destroy"),
+    "transport": (
+        "read_bytes", "write_bytes", "stat", "list", "mkdir", "remove",
+    ),
+    "image": ("build",),
 }
 
 
@@ -124,6 +143,60 @@ class ResourceProvider(Protocol):
     def materialize(
         self, declaration: "Artifact", destination: object,
         context: "ArtifactProviderContext",
+    ) -> object: ...
+
+
+@runtime_checkable
+class ManagedResourceProvider(Protocol):
+    """Lifecycle for typed infrastructure requested by :func:`resource`."""
+
+    def validate(self, declaration: "Resource") -> None: ...
+    def plan(
+        self, declaration: "Resource", context: "ProviderContext",
+    ) -> "ProviderPlan": ...
+    def create(
+        self, plan: "ProviderPlan", context: "ProviderContext",
+    ) -> "ProviderInstance": ...
+    def ready(
+        self, instance: "ProviderInstance", context: "ProviderContext",
+        timeout: float,
+    ) -> None: ...
+    def collect(
+        self, instance: "ProviderInstance", context: "ProviderContext",
+    ) -> Mapping[str, object]: ...
+    def destroy(
+        self, instance: "ProviderInstance", context: "ProviderContext",
+    ) -> None: ...
+
+
+@runtime_checkable
+class VolumeProvider(ManagedResourceProvider, Protocol):
+    """Versioned managed lifecycle for an installed volume kind."""
+
+
+@runtime_checkable
+class IdentityProvider(ManagedResourceProvider, Protocol):
+    """Versioned managed lifecycle for an installed identity kind."""
+
+
+@runtime_checkable
+class FilesystemTransport(Protocol):
+    """Binary-safe operations used by :class:`ServiceFilesystem`."""
+
+    def read_bytes(self, path: object) -> bytes: ...
+    def write_bytes(self, path: object, value: bytes) -> None: ...
+    def stat(self, path: object, *, follow_symlinks: bool = True) -> Mapping[str, object]: ...
+    def list(self, path: object = ".") -> Sequence[str]: ...
+    def mkdir(self, path: object, *, parents: bool = False, exist_ok: bool = False) -> None: ...
+    def remove(self, path: object, *, recursive: bool = False) -> None: ...
+
+
+@runtime_checkable
+class ImageProvider(Protocol):
+    """Build one immutable image from captured binary inputs."""
+
+    def build(
+        self, name: str, binaries: Sequence[object], *, base_image: str = "",
     ) -> object: ...
 
 
@@ -234,7 +307,8 @@ class ExtensionRegistry:
         _validate_kind(kind)
         _validate_target(kind, target)
         key = kind, name
-        info = ExtensionInfo(kind, name, api_version, capabilities, origin, True)
+        declared = capabilities or getattr(target, "brixtest_capabilities", ())
+        info = ExtensionInfo(kind, name, api_version, declared, origin, True)
         with self._lock:
             if key in self._info and not replace:
                 raise SpecError("extension", "%s:%s" % key, "is already registered")

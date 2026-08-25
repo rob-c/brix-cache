@@ -27,29 +27,18 @@
 void
 brix_srv_blacklist(const char *host, uint16_t port, ngx_msec_t duration_ms)
 {
-    brix_srv_table_t *tbl;
     brix_srv_entry_t *e;
-    ngx_uint_t          i;
 
-    tbl = srv_table();
-    if (tbl == NULL) {
+    if (srv_table() == NULL) {
         return;
     }
 
     ngx_shmtx_lock(&brix_srv_mutex);
-
-    for (i = 0; i < tbl->capacity; i++) {
-        e = &tbl->slots[i];
-        if (!e->in_use || e->port != port
-            || ngx_strcmp(e->host, host) != 0)
-        {
-            continue;
-        }
+    e = srv_find_locked(host, port);
+    if (e != NULL) {
         e->error_count++;
         e->blacklisted_until = ngx_current_msec + duration_ms;
-        break;
     }
-
     ngx_shmtx_unlock(&brix_srv_mutex);
 }
 
@@ -63,32 +52,21 @@ brix_srv_blacklist(const char *host, uint16_t port, ngx_msec_t duration_ms)
 int
 brix_srv_undrain(const char *host, uint16_t port)
 {
-    brix_srv_table_t *tbl;
     brix_srv_entry_t *e;
-    ngx_uint_t          i;
     int                 found = 0;
 
-    tbl = srv_table();
-    if (tbl == NULL) {
+    if (srv_table() == NULL) {
         return 0;
     }
 
     ngx_shmtx_lock(&brix_srv_mutex);
-
-    for (i = 0; i < tbl->capacity; i++) {
-        e = &tbl->slots[i];
-        if (!e->in_use || e->port != port
-            || ngx_strcmp(e->host, host) != 0)
-        {
-            continue;
-        }
+    e = srv_find_locked(host, port);
+    if (e != NULL) {
         e->blacklisted_until = 0;
         e->error_count       = 0;
         e->hc_fail_count     = 0;
         found = 1;
-        break;
     }
-
     ngx_shmtx_unlock(&brix_srv_mutex);
     return found;
 }
@@ -109,30 +87,19 @@ brix_srv_paths_cover(const char *paths, const char *path)
 int
 brix_srv_is_blacklisted(const char *host, uint16_t port)
 {
-    brix_srv_table_t *tbl;
     brix_srv_entry_t *e;
-    ngx_uint_t          i;
     int                 drained = 0;
 
-    tbl = srv_table();
-    if (tbl == NULL || host == NULL) {
+    if (srv_table() == NULL || host == NULL) {
         return 0;
     }
 
     ngx_shmtx_lock(&brix_srv_mutex);
-
-    for (i = 0; i < tbl->capacity; i++) {
-        e = &tbl->slots[i];
-        if (!e->in_use || e->port != port
-            || ngx_strcmp(e->host, host) != 0)
-        {
-            continue;
-        }
+    e = srv_find_locked(host, port);
+    if (e != NULL) {
         drained = (e->blacklisted_until != 0
                    && ngx_current_msec < e->blacklisted_until);
-        break;
     }
-
     ngx_shmtx_unlock(&brix_srv_mutex);
     return drained;
 }

@@ -28,6 +28,29 @@
 char *ngx_http_brix_oci_merge_loc_conf(ngx_conf_t *cf, void *parent,
     void *child);
 
+/* ---- oci_token_cache.c --------------------------------------------------- */
+
+/* The SHM token cache the dance and the D16 proof gate share. `cred` is a raw
+ * 32-byte credential hash joining the key, or NULL for the credential-blind
+ * entry the fill-side provider probes. get: 0 = hit (tok NUL-terminated);
+ * put: expiry is expires_in seconds less the renewal skew, floored. */
+int brix_oci_token_cache_get(brix_oci_upstream_t *up, const char *scope,
+    const u_char *cred, char *tok, size_t toklen);
+void brix_oci_token_cache_put(brix_oci_upstream_t *up, const char *scope,
+    const u_char *cred, const char *tok, long expires_in);
+
+/* sha256 of [data, data+len) as 32 RAW bytes — the one primitive every SHM
+ * key in this plane (token, proof, challenge memo, credential digest) is
+ * derived with. 0 = key written / -1 = EVP failure. */
+int brix_oci_sha256_key(const void *data, size_t len, u_char key[32]);
+
+/* ---- oci_tags.c ---------------------------------------------------------- */
+
+/* The location's thread pool, resolved lazily on first use (post-fork only).
+ * Shared by the listing relay and the D16 proof gate so both blocking relays
+ * ride one pool and one back-pressure story. NULL = no pool configured. */
+ngx_thread_pool_t *brix_oci_thread_pool(ngx_http_brix_oci_loc_conf_t *lcf);
+
 /* ---- oci_errors.c -------------------------------------------------------- */
 
 /* One unified guard-core audit line (the fail2ban contract, proto="oci").

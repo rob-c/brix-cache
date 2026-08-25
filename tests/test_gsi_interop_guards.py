@@ -268,7 +268,8 @@ def _assert_server_wire_contract(server_parse):
     assert "'#'" in helpers, (
         "server cipher parser no longer strips the '#ivlen' suffix")
     assert not re.search(
-        r"brix_gsi_cipher_decrypt\([^;]*,\s*0\s*,\s*&plain_len",
+        r"brix_gsi_cipher_apply\([^;]*,\s*0\s*,\s*(?:/\*[^*]*\*/\s*)?0\s*,"
+        r"\s*&plain_len",
         server_parse), (
         "server signed-DH path decrypts an IV-bearing message with use_iv=0")
 
@@ -284,7 +285,7 @@ def test_wire_contract_tripwires():
     core = _read_gsi_core()
     conn = _read("client/lib/net/conn.c")  # phase-69 client reorg: lib/ -> lib/net/
     # phase-79 file-size split: parse_x509.c was split into parse_x509.c (shared
-    # helpers) + parse_x509_signed.c (signed-DH path, where the cipher_decrypt call
+    # helpers) + parse_x509_signed.c (signed-DH path, where the cipher_apply call
     # the use_iv guard below inspects now lives) + parse_x509_unsigned.c. Read the
     # whole cluster so the negative use_iv=0 guard keeps biting.
     server_parse = "\n".join(_read(os.path.join("src/auth/gsi", f)) for f in (
@@ -318,10 +319,16 @@ def test_xcache_origin_uses_native_client():
     assert "brix_sd_xroot_create_origin" in fetch and "x509_proxy" in fetch, (
         "cache/fetch.c no longer builds a GSI-capable (X.509) sd_xroot origin — "
         "GSI origins (EOS/dCache) would fall back to anon login and be rejected")
-    origin = _read("src/fs/cache/origin_protocol.c")
+    # file-size split: the bootstrap handshake (kXR_protocol → login → credential
+    # dispatch) that fires the GSI auth moved from origin_protocol.c into
+    # origin_protocol_bootstrap.c, with the X.509 exchange itself in
+    # origin_auth_gsi.c. Read the whole cluster so the guard follows the split.
+    origin = "\n".join(_read(os.path.join("src/fs/cache", f)) for f in (
+        "origin_protocol.c", "origin_protocol_bootstrap.c", "origin_auth_gsi.c"))
     assert "brix_cache_origin_auth_gsi" in origin, (
-        "cache/origin_protocol.c no longer performs the in-process GSI (X.509) "
-        "origin handshake — GSI origins would fall back to anon and be rejected")
+        "cache origin-protocol cluster no longer performs the in-process GSI "
+        "(X.509) origin handshake — GSI origins would fall back to anon and be "
+        "rejected")
 
 
 def test_tpc_outbound_uses_shared_core():
@@ -340,9 +347,9 @@ def test_tpc_outbound_uses_shared_core():
         "TPC outbound GSI no longer delegates round-2 to the shared gsi_core kernel "
         "(brix_gsi_build_cert_response) — its DH/cipher math can drift from the "
         "EOS-proven client")
-    assert ("brix_gsi_cipher_encrypt" in core
+    assert ("brix_gsi_cipher_apply" in core
             and "brix_gsi_cipher_public" in core), (
-        "shared gsi_core kernel no longer uses its own cipher_encrypt/_public — "
+        "shared gsi_core kernel no longer uses its own cipher_apply/_public — "
         "the unified GSI DH/cipher math regressed")
     assert "brix_gbuf_end" in core, (
         "shared GSI kernel no longer emits the kXRS_none terminator")

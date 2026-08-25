@@ -558,16 +558,7 @@ class Migrator:
 
 
 def main(argv=None):
-    args = parse_args(argv if argv is not None else sys.argv[1:])
-    state = common.StateManifest(args.state_file)
-    rep = common.Reporter(json_mode=args.json_mode,
-                          progress=args.progress or sys.stderr.isatty())
-    mig = Migrator(args, rep, state)
-    try:
-        return _run(args, mig, rep, state)
-    finally:
-        state.close()
-        mig.close()
+    return common.tool_main(argv, parse_args, Migrator, _run)
 
 
 def _run(args, migrator, reporter, state):

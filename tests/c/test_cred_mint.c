@@ -165,14 +165,13 @@ main(void)
     assert(stat(pem_path, &st2) == 0);
     assert(st1.st_mtime == st2.st_mtime);
 
-    /* (c) an expired cached file -> re-mint (new notAfter, file changes). */
+    /* (c) an expired cached file -> re-mint.  Proven by the fresh notAfter
+     *     (~3600s out where the cached cert was already expired), NOT by an
+     *     mtime change: st_mtime is second-granular and the host clock can
+     *     step backwards, so mtime inequality is not a reliable witness. */
     force_notafter(ca_cert, ca_key, pem_path, -60 /* already expired */);
-    assert(stat(pem_path, &st1) == 0);
-    sleep(1);
     assert(brix_cred_mint(dir, ca_cert, ca_key, "alice", "alice",
                           3600, NULL) == NGX_OK);
-    assert(stat(pem_path, &st2) == 0);
-    assert(st1.st_mtime != st2.st_mtime);
     cert = load_x509(pem_path);
     {
         long left = seconds_until(X509_get0_notAfter(cert));
@@ -181,14 +180,17 @@ main(void)
     X509_free(cert);
 
     /* (c2) a cached file inside the refresh window (< 300s left) also
-     *      re-mints rather than being reused. */
+     *      re-mints rather than being reused — again proven by the notAfter
+     *      jumping from ~100s to ~3600s out. */
     force_notafter(ca_cert, ca_key, pem_path, 100 /* inside refresh window */);
-    assert(stat(pem_path, &st1) == 0);
-    sleep(1);
     assert(brix_cred_mint(dir, ca_cert, ca_key, "alice", "alice",
                           3600, NULL) == NGX_OK);
-    assert(stat(pem_path, &st2) == 0);
-    assert(st1.st_mtime != st2.st_mtime);
+    cert = load_x509(pem_path);
+    {
+        long left = seconds_until(X509_get0_notAfter(cert));
+        assert(left > 3590 && left < 3610);
+    }
+    X509_free(cert);
 
     /* (d) mint with a bad CA path -> NGX_ERROR, no file written for a
      *     never-before-seen key. */

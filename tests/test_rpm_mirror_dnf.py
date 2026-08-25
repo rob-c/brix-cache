@@ -44,7 +44,11 @@ PORT_MIRROR_FAST = 14162     # same recipe, repomd TTL 1s (see _render)
 
 REPO_SUBDIR = "el9"          # the recipe keys on ^/.*/repodata/ — needs a prefix
 
-pytestmark = pytest.mark.timeout(600)
+# One xdist group for the whole module: the mirrors bind FIXED ports
+# (14160-14162), so two workers each instantiating the module-scoped fixtures
+# collide on bind(). Grouped, the module runs on one worker sequentially.
+pytestmark = [pytest.mark.timeout(600),
+              pytest.mark.xdist_group("rpm-mirror-dnf")]
 
 
 def _missing():

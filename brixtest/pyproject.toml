@@ -25,6 +25,7 @@ classifiers = [
     "Topic :: Software Development :: Testing",
 ]
 dependencies = [
+    "packaging>=22,<26",
     "pluggy>=1.5,<2",
     "pytest>=8,<10",
 ]

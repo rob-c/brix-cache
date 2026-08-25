@@ -2,6 +2,7 @@
 #include "api_admin.h"   /* Phase 23: brix_admin_dispatch + admin directives */
 #include "core/http/http_headers.h"   /* brix_http_source_offer (AGPL sec.13) */
 #include "core/compat/cstr.h"         /* brix_str_cbuf */
+#include "core/config/conf_handler.h" /* brix_conf_flag_install_handler */
 #include "core/config/http_common.h"  /* E-1: brix_strict_security via common conf */
 
 #include "module_internal.h"          /* ngx_http_brix_dashboard_set_users */
@@ -233,15 +234,8 @@ ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
 static char *
 ngx_http_brix_dashboard_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_core_loc_conf_t *clcf;
-    char                     *rv;
-
-    rv = ngx_conf_set_flag_slot(cf, cmd, conf);
-    if (rv != NGX_CONF_OK) { return rv; }
-
-    clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
-    clcf->handler = ngx_http_brix_dashboard_main_handler;
-    return NGX_CONF_OK;
+    return brix_conf_flag_install_handler(cf, cmd, conf,
+                                          ngx_http_brix_dashboard_main_handler);
 }
 
 /*

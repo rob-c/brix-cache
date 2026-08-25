@@ -1,6 +1,11 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_ipv6_cms_redirect_helpers")
 
+# Every test registers/drains/undrains servers in the ONE ipv6-mgr registry;
+# interleaved across workers, a drain from one test empties the cluster under
+# another's locate (kXR_error 3011 instead of the redirect).
+pytestmark = pytest.mark.xdist_group("ipv6-mgr")
+
 class TestAdminBracketStrip:
     """dashboard/api_admin.c:admin_parse_server_uri must strip the "[...]" from
     an IPv6 host segment sent in the REST URI so it matches the registry's bare

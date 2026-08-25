@@ -182,6 +182,10 @@ CONF_STRUCTS_H = ROOT / "src/core/types/conf_structs.h"
 CONFIGS = Path(__file__).resolve().parent / "configs"
 TEMPLATE = CONFIGS / "nginx_audit16u_ocsp_nonce.conf"
 RESPONDER = Path(__file__).resolve().parent / "lib" / "ocsp_responder.py"
+# The launch spelling above is the §10.2 shim; the body the rig-honesty pins
+# read moved to the brix_suite package (TS-5).
+RESPONDER_SRC = (Path(__file__).resolve().parent / "brix_suite" / "servers"
+                 / "ocsp_responder.py")
 
 DIRECTIVE = "brix_ocsp_require_nonce"
 
@@ -941,10 +945,10 @@ class TestTheRigIsHonest:
         collide with the one it must differ from, and this negative must not
         have a passing day — so the responder flips a bit instead, and this is
         the pin that keeps it deterministic."""
-        text = _source(RESPONDER)
+        text = _source(RESPONDER_SRC)
         assert "self.wrong_nonce" in text, text
-        arm = text[text.index("if nonce is not None and self.wrong_nonce:"):]
-        arm = arm[:arm.index("if nonce is not None:")]
+        arm = text[text.index("def _wrong_nonce(nonce):"):]
+        arm = arm[:arm.index("class _Handler")]
         assert "^ 0xFF" in arm, (
             f"the mismatched nonce is no longer a deterministic bit flip:\n{arm}")
         assert "nonce.nonce[1:]" in arm, (

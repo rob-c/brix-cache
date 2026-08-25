@@ -199,8 +199,9 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
                           kXR_NotAuthorized, "malformed pwd credential");
     }
 
-    plain = brix_gsi_cipher_decrypt(&cipher, ctx->pwd.session_key,
-                                      main_blob, main_len, 0, &plain_len);
+    plain = brix_gsi_cipher_apply(&cipher, ctx->pwd.session_key,
+                                    main_blob, main_len, 0, /* enc */ 0,
+                                    &plain_len);
     OPENSSL_cleanse(ctx->pwd.session_key, sizeof(ctx->pwd.session_key));
     if (plain == NULL
         || brix_gsi_find_bucket(plain, plain_len, (uint32_t) kXRS_creds,

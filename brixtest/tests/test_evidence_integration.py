@@ -57,6 +57,12 @@ def test_warmups_trials_spans_attachments_and_resources_share_one_record(tmp_pat
     try:
         assert database.execute("select count(*) from evidence_attempts").fetchone()[0] == 4
         assert database.execute("select count(*) from evidence_metrics where name='operation.seconds'").fetchone()[0] == 4
+        assert database.execute(
+            "select count(*) from evidence_resource_nodes where resource_id='environment:default'"
+        ).fetchone()[0] == 4
+        assert database.execute(
+            "select count(*) from evidence_test_resource_links where resource_id='environment:default'"
+        ).fetchone()[0] == 4
     finally:
         database.close()
 
@@ -76,7 +82,7 @@ def _attempt_observation(record, attempts):
         len(attempts), _attempt_values(attempts, "warmup"),
         _attempt_values(attempts, "index"), _operation_sample_count(record),
         _nested_attempt_values(attempts, "spans", "name"),
-        _nested_attempt_values(attempts, "artifacts", "name"),
+        _required_artifact_names(attempts, "result.json"),
     )
 
 
@@ -86,6 +92,13 @@ def _attempt_values(attempts, name):
 
 def _nested_attempt_values(attempts, collection, name):
     return [row[collection][0][name] for row in attempts]
+
+
+def _required_artifact_names(attempts, name):
+    return [
+        name if any(item["name"] == name for item in row["artifacts"]) else ""
+        for row in attempts
+    ]
 
 
 def _operation_sample_count(record):

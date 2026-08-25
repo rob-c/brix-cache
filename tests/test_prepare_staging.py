@@ -1,6 +1,11 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_prepare_staging_helpers")
 
+# Every stage test truncates and then reads the ONE server-side journal
+# (PREPARE_CMD_LOG) on the shared prepare-command instance, so the whole
+# family — this module and its _b split — must stay on one xdist worker.
+pytestmark = pytest.mark.xdist_group("prepare-staging")
+
 class TestPrepareValid:
     """Verify that a prepare request with valid existing files returns ok."""
 

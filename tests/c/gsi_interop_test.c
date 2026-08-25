@@ -57,10 +57,10 @@ test_iv_is_load_bearing(void)
         return;
     }
 
-    ct_iv   = brix_gsi_cipher_encrypt(&c, key, (const uint8_t *) msg,
-                                        strlen(msg), 1, &ctl_iv);
-    ct_noiv = brix_gsi_cipher_encrypt(&c, key, (const uint8_t *) msg,
-                                        strlen(msg), 0, &ctl_noiv);
+    ct_iv   = brix_gsi_cipher_apply(&c, key, (const uint8_t *) msg,
+                                      strlen(msg), 1, /* enc */ 1, &ctl_iv);
+    ct_noiv = brix_gsi_cipher_apply(&c, key, (const uint8_t *) msg,
+                                      strlen(msg), 0, /* enc */ 1, &ctl_noiv);
     CHECK(ct_iv != NULL && ct_noiv != NULL, "encrypt returned NULL");
 
     if (ct_iv != NULL && ct_noiv != NULL) {
@@ -69,23 +69,27 @@ test_iv_is_load_bearing(void)
               "use_iv=1 must prepend exactly iv_len bytes (the #ivlen contract)");
 
         /* Matching directions round-trip. */
-        pt = brix_gsi_cipher_decrypt(&c, key, ct_iv, ctl_iv, 1, &ptl);
+        pt = brix_gsi_cipher_apply(&c, key, ct_iv, ctl_iv, 1, /* enc */ 0,
+                                     &ptl);
         CHECK(pt != NULL && ptl == strlen(msg)
               && memcmp(pt, msg, ptl) == 0, "use_iv=1 round-trip failed");
         free(pt); pt = NULL;
 
-        pt = brix_gsi_cipher_decrypt(&c, key, ct_noiv, ctl_noiv, 0, &ptl);
+        pt = brix_gsi_cipher_apply(&c, key, ct_noiv, ctl_noiv, 0, /* enc */ 0,
+                                     &ptl);
         CHECK(pt != NULL && ptl == strlen(msg)
               && memcmp(pt, msg, ptl) == 0, "use_iv=0 round-trip failed");
         free(pt); pt = NULL;
 
         /* Mismatched directions MUST NOT yield the plaintext (the whole point). */
-        pt = brix_gsi_cipher_decrypt(&c, key, ct_iv, ctl_iv, 0, &ptl);
+        pt = brix_gsi_cipher_apply(&c, key, ct_iv, ctl_iv, 0, /* enc */ 0,
+                                     &ptl);
         CHECK(pt == NULL || ptl != strlen(msg) || memcmp(pt, msg, ptl) != 0,
               "decrypt(use_iv=0) of a use_iv=1 ciphertext must NOT succeed");
         free(pt); pt = NULL;
 
-        pt = brix_gsi_cipher_decrypt(&c, key, ct_noiv, ctl_noiv, 1, &ptl);
+        pt = brix_gsi_cipher_apply(&c, key, ct_noiv, ctl_noiv, 1, /* enc */ 0,
+                                     &ptl);
         CHECK(pt == NULL || ptl != strlen(msg) || memcmp(pt, msg, ptl) != 0,
               "decrypt(use_iv=1) of a use_iv=0 ciphertext must NOT succeed");
         free(pt); pt = NULL;

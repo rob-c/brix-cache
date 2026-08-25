@@ -1,7 +1,9 @@
 """Minimal examples of BriXTest-managed credentials and authentication stacks."""
 
+import json
 import os
 import subprocess
+import urllib.request
 
 from brixtest import (
     case,
@@ -45,17 +47,39 @@ def test_managed_token_stack(run):
     assert claims["sub"] == TOKENS.subject
 
 
+OIDC = token_auth(algorithm="ES256", managed=True, rotate_on_restart=True)
+
+
+@case(auth=[OIDC], keep="never")
+def test_live_oidc_jwks_rotation(run):
+    authority = run.auth(OIDC)
+    with urllib.request.urlopen(authority.metadata["jwks_url"]) as response:
+        first_key = json.load(response)["keys"][0]["kid"]
+    authority.stop()
+    authority.start()
+    with urllib.request.urlopen(authority.metadata["jwks_url"]) as response:
+        second_key = json.load(response)["keys"][0]["kid"]
+    assert first_key != second_key
+
+
 TLS = tls_auth(hostname="origin.auth.test", aliases=("alias.auth.test",))
 
 
 @case(auth=[TLS], keep="never")
-def test_disposable_tls_ca_crl_and_host_certificate(run):
+def test_disposable_tls_ca_crl_reload_and_host_certificate(run):
     stack = run.auth(TLS)
-    result = subprocess.run([
+    verify = [
         "openssl", "verify", "-CAfile", str(stack.path("ca_cert")),
         "-verify_hostname", TLS.hostname, str(stack.path("host_cert")),
-    ], capture_output=True, text=True, check=True)
+    ]
+    result = subprocess.run(verify, capture_output=True, text=True, check=True)
     assert result.stdout.strip().endswith(": OK")
+    stack.revoke("host_cert")
+    revoked = subprocess.run(
+        [*verify[:4], "-CRLfile", str(stack.path("crl")), "-crl_check", *verify[4:]],
+        capture_output=True, text=True, check=False,
+    )
+    assert revoked.returncode != 0 and "revoked" in revoked.stderr.lower()
 
 
 VOMS = voms_auth(vo="brixtest", hostname="voms.auth.test")

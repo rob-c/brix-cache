@@ -236,10 +236,13 @@ class TestAnonCounters:
             v_before = 0
         assert v_after - v_before >= 2
 
+    @pytest.mark.serial
     def test_connections_active_does_not_leak(self):
         # connections_active must not be higher after our xrdcp than before it,
         # proving that the gauge is correctly decremented on disconnect.
         # (Other tests may leave connections open, so we cannot assert == 0.)
+        # serial: the gauge is instance-global — any concurrent test holding a
+        # connection to the anon port at the "after" sample false-reds this.
         before_text = fetch_metrics()
         before = parse_metric(before_text, "brix_connections_active",
                               {"port": ANON_PORT, "auth": "anon"})

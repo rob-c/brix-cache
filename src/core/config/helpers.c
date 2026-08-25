@@ -82,6 +82,68 @@ brix_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src, ngx_str_t *dst)
     return NGX_CONF_OK;
 }
 
+/* Resolve a host:port directive argument into a pool-allocated ngx_addr_t
+ * (first resolved address; the port must be explicit — no default).  Shared
+ * by the handoff/relay upstream directives.  Returns NULL on failure; a
+ * resolve failure is logged with the directive's name. */
+ngx_addr_t *
+brix_conf_parse_addr(ngx_conf_t *cf, ngx_str_t *spec, const char *directive)
+{
+    ngx_url_t    url;
+    ngx_addr_t  *addr;
+
+    ngx_memzero(&url, sizeof(url));
+    url.url = *spec;
+    url.default_port = 0;
+
+    if (ngx_parse_url(cf->pool, &url) != NGX_OK || url.no_port
+        || url.naddrs == 0 || url.addrs == NULL)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "%s: could not resolve host:port in \"%V\"", directive, spec);
+        return NULL;
+    }
+
+    addr = ngx_pcalloc(cf->pool, sizeof(ngx_addr_t));
+    if (addr == NULL) {
+        return NULL;
+    }
+    addr->sockaddr = ngx_pnalloc(cf->pool, url.addrs[0].socklen);
+    if (addr->sockaddr == NULL) {
+        return NULL;
+    }
+    ngx_memcpy(addr->sockaddr, url.addrs[0].sockaddr, url.addrs[0].socklen);
+    addr->socklen = url.addrs[0].socklen;
+    addr->name = url.addrs[0].name;
+    return addr;
+}
+
+/* Whole-directive worker behind the single-argument upstream directives
+ * (`brix_http_handoff host:port`, `brix_transparent_proxy host:port`):
+ * duplicate check on *slot, record the raw spec in *name, resolve it via
+ * brix_conf_parse_addr, and log the configured target.  The directive's own
+ * name (cmd->name) labels both messages. */
+char *
+brix_conf_upstream_directive(ngx_conf_t *cf, ngx_command_t *cmd,
+    ngx_str_t *name, ngx_addr_t **slot)
+{
+    ngx_str_t *value = cf->args->elts;
+
+    if (*slot != NULL) {
+        return "is duplicate";
+    }
+
+    *name = value[1];
+    *slot = brix_conf_parse_addr(cf, &value[1], (const char *) cmd->name.data);
+    if (*slot == NULL) {
+        return NGX_CONF_ERROR;
+    }
+
+    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        "brix: %V upstream configured: %V", &cmd->name, &value[1]);
+    return NGX_CONF_OK;
+}
+
 /* brix_conf_set_backend_sss_keytab — `brix_backend_sss_keytab <path>` setter.
  *
  * WHAT: Store the identity-injection keytab path (plain str slot) and

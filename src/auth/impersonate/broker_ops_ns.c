@@ -188,18 +188,11 @@ imp_op_rename_link(const imp_op_ctx_t *c)
  * they own succeeds; a chown to a different owner correctly fails (the broker
  * holds no CAP_CHOWN).
  */
-int
-imp_op_setattr(const imp_op_ctx_t *c)
+static int
+imp_step_setattr(int pfd, const char *base, const imp_op_ctx_t *c)
 {
-    char        scratch[IMP_PATH_MAX];
-    const char *base;
-    int         pfd, rc;
+    int rc = 0;
 
-    pfd = imp_open_parent(c->rootfd, c->rel, scratch, &base);
-    if (pfd < 0) {
-        return pfd;
-    }
-    rc = 0;
     if (c->req->attr_flags & IMP_ATTR_TIMES) {
         struct timespec ts[2];
         ts[0].tv_sec  = (time_t) c->req->atime_sec;
@@ -219,8 +212,13 @@ imp_op_setattr(const imp_op_ctx_t *c)
             rc = -errno;
         }
     }
-    close(pfd);
     return rc;
+}
+
+int
+imp_op_setattr(const imp_op_ctx_t *c)
+{
+    return imp_with_parent(c, imp_step_setattr);
 }
 
 
@@ -230,20 +228,16 @@ imp_op_setattr(const imp_op_ctx_t *c)
  * pointing outside the root just cannot be followed later (the confined open
  * re-applies RESOLVE_BENEATH).
  */
+static int
+imp_step_symlink(int pfd, const char *base, const imp_op_ctx_t *c)
+{
+    return symlinkat(c->req->path2, pfd, base) == 0 ? 0 : -errno;
+}
+
 int
 imp_op_symlink(const imp_op_ctx_t *c)
 {
-    char        scratch[IMP_PATH_MAX];
-    const char *base;
-    int         pfd, rc;
-
-    pfd = imp_open_parent(c->rootfd, c->rel, scratch, &base);
-    if (pfd < 0) {
-        return pfd;
-    }
-    rc = symlinkat(c->req->path2, pfd, base) == 0 ? 0 : -errno;
-    close(pfd);
-    return rc;
+    return imp_with_parent(c, imp_step_symlink);
 }
 
 

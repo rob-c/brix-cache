@@ -243,7 +243,8 @@ def _exercise_tpc(context, curl, tls, x509):
     )
     push = _http_code(
         curl, "-k", *x509, "-X", "COPY", "-H",
-        "Destination: https://127.0.0.1:1/dead.txt", f"{tls}/vgtest.txt",
+        "Destination: https://127.0.0.1:1/dead.txt",  # net-literal-allow: deliberately unreachable push destination (port 1)
+        f"{tls}/vgtest.txt",
     )
     _vg_note(context, f"tpc pull={pull} push_unreach={push}")
 

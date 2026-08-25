@@ -7,6 +7,9 @@ import os
 import time
 from datetime import datetime, timezone
 
+from brixtest.runtime.replay import archive_replay_inputs
+from brixtest.runtime.network_evidence import network_snapshot
+
 
 def write_case_summary(manager, *, error: str = "") -> None:
     manager.root.mkdir(parents=True, exist_ok=True)
@@ -52,6 +55,11 @@ def write_case_summary(manager, *, error: str = "") -> None:
             name: item.as_dict()
             for name, item in sorted(manager._managed.tasks.items())
         },
+        "resources": {
+            name: item.as_dict()
+            for name, item in sorted(manager._providers.instances.items())
+        },
+        "network": network_snapshot(manager),
         **manager.security.summary(),
         "error": error,
         "metrics": manager.metrics.snapshot(),
@@ -92,6 +100,11 @@ def _finalize_extra(manager) -> dict:
         "auth_stacks": [item.name for item in manager.definition.auth],
         "volumes": sorted(manager._managed.volumes._items),
         "tasks": sorted(manager._managed.tasks),
+        "provider_resources": {
+            name: item.as_dict()
+            for name, item in sorted(manager._providers.instances.items())
+        },
+        "network": network_snapshot(manager),
         "resource_graph": manager._resource_graph.as_dict(),
     }
 
@@ -105,6 +118,7 @@ def _evidence_error(errors: list[dict]) -> str:
 
 def finalize_evidence(manager) -> str:
     configs = {name: item.rendered for name, item in manager.config_store._items.items()}
+    archive_replay_inputs(manager)
     manager.evidence.finalize(
         outcome=manager._outcome,
         binaries=manager.binary_store._captured,

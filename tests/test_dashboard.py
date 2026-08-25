@@ -157,7 +157,7 @@ class TestDashboardApiFoundation:
             assert key in data
 
         assert set(data["protocols"]) == {
-            "root", "webdav", "s3", "cvmfs", "tpc", "gridftp",
+            "root", "webdav", "s3", "cvmfs", "tpc", "gridftp", "oci", "rpm",
         }
         for summary in data["protocols"].values():
             assert "active" in summary
@@ -300,6 +300,13 @@ class TestDashboardThrottledState:
             assert isinstance(row["instant_bps"], int) and row["instant_bps"] >= 0
             assert isinstance(row["avg_bps"], int) and row["avg_bps"] >= 0
 
+    # The two state-transition tests below run in the serial phase: they watch
+    # ONE row of main's 512-slot SHM transfer table, which the whole xdist lane
+    # shares.  Under the lane burst the table can fill (alloc returns -1 and the
+    # transfer proceeds UNTRACKED — event-ring only, nothing in error.log), so
+    # the row this test is waiting on may simply never exist.
+
+    @pytest.mark.serial
     @pytest.mark.skipif(not _HAVE_XROOTD, reason="pyxrootd not available")
     @pytest.mark.timeout(90)   # _wait_for_state alone may poll up to 45s
     def test_paced_transfer_shows_throttled_not_stalled(self):
@@ -318,6 +325,7 @@ class TestDashboardThrottledState:
         finally:
             f.close()
 
+    @pytest.mark.serial
     @pytest.mark.skipif(not _HAVE_XROOTD, reason="pyxrootd not available")
     @pytest.mark.timeout(90)   # _wait_for_state alone may poll up to 45s
     def test_idle_no_progress_transfer_still_shows_stalled(self):

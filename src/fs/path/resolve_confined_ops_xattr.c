@@ -39,10 +39,20 @@
  * Return values mirror the POSIX *xattr contract (get/list: byte count, or the
  * size when bufsz==0; -1/ERANGE when the caller buffer is too small).
  */
-int
-brix_setxattr_confined_canon(ngx_log_t *log, const char *root_canon,
-    const char *resolved, const char *name, const void *value, size_t len,
-    int flags)
+typedef enum {
+    XATTR_OP_SET,
+    XATTR_OP_GET,
+    XATTR_OP_REMOVE,
+    XATTR_OP_LIST,
+} xattr_confined_op_t;
+
+/* Shared worker: one imp-gate + root-relative resolution, then dispatch.
+ * setval is the SET payload, buf the GET/LIST output buffer; len carries the
+ * payload/buffer size and flags is SET-only. */
+static ssize_t
+xattr_confined_op(xattr_confined_op_t op, ngx_log_t *log,
+    const char *root_canon, const char *resolved, const char *name,
+    const void *setval, void *buf, size_t len, int flags)
 {
     if (brix_imp_client_active()) {
         char rel[PATH_MAX];
@@ -51,55 +61,51 @@ brix_setxattr_confined_canon(ngx_log_t *log, const char *root_canon,
         {
             return -1;
         }
-        return brix_imp_setxattr(rel, name, value, len, flags);
+        switch (op) {
+        case XATTR_OP_SET:    return brix_imp_setxattr(rel, name, setval,
+                                                       len, flags);
+        case XATTR_OP_GET:    return brix_imp_getxattr(rel, name, buf, len);
+        case XATTR_OP_REMOVE: return brix_imp_removexattr(rel, name);
+        default:              return brix_imp_listxattr(rel, buf, len);
+        }
     }
-    return setxattr(resolved, name, value, len, flags);
+    switch (op) {
+    case XATTR_OP_SET:    return setxattr(resolved, name, setval, len, flags);
+    case XATTR_OP_GET:    return getxattr(resolved, name, buf, len);
+    case XATTR_OP_REMOVE: return removexattr(resolved, name);
+    default:              return listxattr(resolved, buf, len);
+    }
+}
+
+int
+brix_setxattr_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, const char *name, const void *value, size_t len,
+    int flags)
+{
+    return (int) xattr_confined_op(XATTR_OP_SET, log, root_canon, resolved,
+                                   name, value, NULL, len, flags);
 }
 
 ssize_t
 brix_getxattr_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, const char *name, void *buf, size_t bufsz)
 {
-    if (brix_imp_client_active()) {
-        char rel[PATH_MAX];
-        if (!brix_resolved_relative_to_root(log, root_canon, resolved,
-                                              rel, sizeof(rel)))
-        {
-            return -1;
-        }
-        return brix_imp_getxattr(rel, name, buf, bufsz);
-    }
-    return getxattr(resolved, name, buf, bufsz);
+    return xattr_confined_op(XATTR_OP_GET, log, root_canon, resolved, name,
+                             NULL, buf, bufsz, 0);
 }
 
 int
 brix_removexattr_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, const char *name)
 {
-    if (brix_imp_client_active()) {
-        char rel[PATH_MAX];
-        if (!brix_resolved_relative_to_root(log, root_canon, resolved,
-                                              rel, sizeof(rel)))
-        {
-            return -1;
-        }
-        return brix_imp_removexattr(rel, name);
-    }
-    return removexattr(resolved, name);
+    return (int) xattr_confined_op(XATTR_OP_REMOVE, log, root_canon, resolved,
+                                   name, NULL, NULL, 0, 0);
 }
 
 ssize_t
 brix_listxattr_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, void *buf, size_t bufsz)
 {
-    if (brix_imp_client_active()) {
-        char rel[PATH_MAX];
-        if (!brix_resolved_relative_to_root(log, root_canon, resolved,
-                                              rel, sizeof(rel)))
-        {
-            return -1;
-        }
-        return brix_imp_listxattr(rel, buf, bufsz);
-    }
-    return listxattr(resolved, buf, bufsz);
+    return xattr_confined_op(XATTR_OP_LIST, log, root_canon, resolved, NULL,
+                             NULL, buf, bufsz, 0);
 }

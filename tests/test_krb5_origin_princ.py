@@ -55,6 +55,9 @@ def harness(tmp_path_factory) -> Path:
         "tests/c/krb5_origin_princ_test.c",
         str(_FORWARD),
         *_gss_libs(),
+        # forward.o may come from a --coverage nginx build; linking with
+        # --coverage satisfies its __gcov_* references and is inert otherwise.
+        "--coverage",
         "-o", str(binary),
     ]
     built = run(cmd, cwd=REPO_ROOT, env={"TMPDIR": "/tmp"})

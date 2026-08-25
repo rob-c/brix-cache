@@ -224,6 +224,7 @@ _HTTP_ALLOWLIST = {
     "src/protocols/webdav/tpc_headers.c",
     "src/protocols/s3/usermeta.c",
     "src/net/mirror/http_mirror.c",
+    "src/protocols/oci/oci_mirror.c",
 }
 _HTTP_CHECKS = (
     ("raw header scan", re.compile(r"&r->headers_in\.headers\.part")),

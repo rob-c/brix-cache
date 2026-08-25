@@ -57,10 +57,7 @@
 static ngx_int_t
 brix_open_attach_csi(brix_open_args_t *a)
 {
-	brix_ctx_t                 *ctx      = a->ctx;
-	ngx_connection_t           *c        = a->c;
-	ngx_stream_brix_srv_conf_t *conf     = a->conf;
-	const char                 *resolved = a->resolved;
+	BRIX_OPEN_ARGS_COMMON(a);
 	int                         idx      = a->idx;
 	int                         fd       = a->fd;
 	const struct stat          *st       = a->st;
@@ -244,10 +241,7 @@ brix_open_apply_throttle(brix_open_args_t *a)
 static void
 brix_open_decide_writethrough(brix_open_args_t *a)
 {
-	brix_ctx_t                 *ctx          = a->ctx;
-	ngx_connection_t           *c            = a->c;
-	ngx_stream_brix_srv_conf_t *conf         = a->conf;
-	const char                 *resolved     = a->resolved;
+	BRIX_OPEN_ARGS_COMMON(a);
 	uint16_t                    options      = a->options;
 	int                         idx          = a->idx;
 	mode_t                      create_mode  = a->create_mode;

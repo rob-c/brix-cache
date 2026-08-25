@@ -32,36 +32,40 @@ perfectly good staged handle with kXR_FileNotOpen — while a plain kXR_write on
 that same handle, in the same session, succeeds and commits.  Vector writes are
 silently unavailable on every descriptor-less tier.
 
-DEFECT CANDIDATE #30 — the refusal is not terminal: one kXR_writev is answered
-TWICE.  writev_validate_handles() reports its failure with
+DEFECT CANDIDATE #30 [RESOLVED — the pins below now assert the single answer] —
+the refusal was not terminal: one kXR_writev was answered TWICE.
+writev_validate_handles() reported its failure with
 `return brix_send_error(...)`, and brix_send_error() returns
 brix_queue_response()'s NGX_OK once the error frame is queued
-(src/protocols/root/response/basic.c:65-96).  Its caller at writev.c:401 tests
+(src/protocols/root/response/basic.c:65-96).  Its caller at writev.c tested
 `rc != NGX_OK` to decide whether the vector was admitted, so a *successfully
-sent* rejection reads as "admitted" and the write proceeds anyway — into
+sent* rejection read as "admitted" and the write proceeded anyway — into
 `ctx->files[idx].fd`, which is exactly the descriptor the guard just rejected.
-A second frame with the same streamid follows the first — a staged handle
-(fd < 0) and a read-only handle both produce kXR_IOError "writev I/O error at
-seg 0: Bad file descriptor" — and from then on every reply the client reads
-belongs to the previous request.
+A second frame with the same streamid followed the first — a staged handle
+(fd < 0) and a read-only handle both produced kXR_IOError "writev I/O error at
+seg 0: Bad file descriptor" — and from then on every reply the client read
+belonged to the previous request.  The fix makes writev_validate_handles()
+return NGX_DONE on a refusal (writev.c) so the caller stops after the one error
+frame; the pins below assert exactly that single answer.
 
 The framing guard three lines earlier is the control that makes this a defect
 rather than a house style: a descriptor block that is not a whole number of
 16-byte descriptors is answered once, and the link is dropped.
 
-DEFECT CANDIDATE #31 — because #30's rejection is discarded, an out-of-range
-file handle is used to index ctx->files[] anyway.  BRIX_MAX_FILES is 16
-(src/core/types/tunables.h:197) but fhandle[0] is a byte, so a client may name
-slot 255.  writev_validate_handles() catches `idx >= BRIX_MAX_FILES` — and its
-rejection is thrown away exactly like the others, after which
-writev_write_segment() reads `ctx->files[255].fd` and `.sd_obj`, up to 239
-entries past the end of a 16-entry array, and hands that descriptor to the VFS
-write.  The phase79 false-positive suppression right above it (writev.c:205-207)
-states the assumption the fall-through breaks: "idx (0..255 from fhandle[0]) was
-already bounds-checked against BRIX_MAX_FILES by writev_validate_handles before
-the sync path runs".  It was — and the answer was ignored.  One byte from any
-client that can send a writev reaches it; what comes back varies run to run,
-which is what an out-of-bounds read looks like from the wire.
+DEFECT CANDIDATE #31 [RESOLVED with #30] — because #30's rejection was
+discarded, an out-of-range file handle was used to index ctx->files[] anyway.
+BRIX_MAX_FILES is 16 (src/core/types/tunables.h:197) but fhandle[0] is a byte,
+so a client may name slot 255.  writev_validate_handles() catches
+`idx >= BRIX_MAX_FILES` — but its rejection was thrown away exactly like the
+others, after which writev_write_segment() read `ctx->files[255].fd` and
+`.sd_obj`, up to 239 entries past the end of a 16-entry array, and handed that
+descriptor to the VFS write.  The phase79 false-positive suppression right above
+it (writev.c) states the assumption the fall-through broke: "idx (0..255 from
+fhandle[0]) was already bounds-checked against BRIX_MAX_FILES by
+writev_validate_handles before the sync path runs".  It was — and the answer was
+ignored.  The NGX_DONE fix (#30) restores that assumption: the refusal is now
+terminal, so the OOB read is unreachable and the wire behaviour after the
+refusal is fully defined — no second frame at all.
 
 Cases:
   * success       — a plain kXR_write through the staged writer commits the
@@ -69,15 +73,17 @@ Cases:
     about writev and not about staging;
   * defect pin    — kXR_writev on that same staged handle is refused
     kXR_FileNotOpen (#29);
-  * defect pin    — that refusal is followed by a second frame carrying the
-    writev's own streamid (#30, staged front);
-  * defect pin    — a bare posix export, a handle that was never opened, and
-    the same second frame: neither the ring nor staging is involved (#30);
-  * defect pin    — an out-of-range handle is refused and the worker keeps
-    serving, while the write path indexes past ctx->files[] (#31);
-  * security-neg  — a read-only handle's vector reaches the write syscall: the
-    guard's "before any byte is written" promise is kept only by the kernel's
-    EBADF, and the file's bytes are unchanged;
+  * regression    — that refusal is answered exactly once and no second frame
+    follows, and the same connection keeps serving (#30, staged front);
+  * regression    — a bare posix export, a handle that was never opened, and the
+    same single refusal: neither the ring nor staging is involved (#30);
+  * regression    — an out-of-range handle is refused kXR_FileNotOpen, answered
+    once, and the worker keeps serving — the write path never indexes past
+    ctx->files[] (#31);
+  * security-neg  — a read-only handle's vector is refused kXR_NotAuthorized
+    before any byte: the guard now keeps its own "before any byte is written"
+    promise rather than leaning on the kernel's EBADF, and the bytes are
+    unchanged;
   * security-neg  — the framing guard IS terminal: a malformed descriptor
     block is answered exactly once and the link is dropped.
 
@@ -120,13 +126,14 @@ DEFECT29 = ("DEFECT CANDIDATE #29 has been FIXED: kXR_writev now works on a "
             "descriptor-less staged handle.  Flip this expectation to a "
             "kXR_ok + a committed object and strike #29 from the audit.")
 
-DEFECT30 = ("DEFECT CANDIDATE #30 has been FIXED: a refused kXR_writev is now "
-            "answered exactly once.  Flip this expectation (assert the socket "
-            "yields no second frame) and strike #30 from the audit.")
+DEFECT30 = ("REGRESSION #30: a refused kXR_writev must be answered exactly once "
+            "and send no second frame — writev_validate_handles() returns "
+            "NGX_DONE and the caller stops instead of reading brix_send_error()'s "
+            "NGX_OK as 'handles admitted' and writing the refused descriptor.")
 
-DEFECT31 = ("DEFECT CANDIDATE #31: an out-of-range file handle must be refused "
-            "and go no further.  If this now fails, read the docstring — the "
-            "wire behaviour after the refusal is undefined by construction.")
+DEFECT31 = ("REGRESSION #31: an out-of-range handle (slot 255 vs BRIX_MAX_FILES "
+            "16) is refused kXR_FileNotOpen and goes no further — no OOB read of "
+            "ctx->files[], no second frame, and the worker keeps serving.")
 
 OOR_HANDLE = b"\xff\x00\x00\x00"   # slot 255; BRIX_MAX_FILES is 16
 UNOPENED_HANDLE = b"\x07\x00\x00\x00"   # slot 7: in range, never opened
@@ -260,11 +267,13 @@ def test_writev_is_refused_on_the_handle_a_plain_write_accepts(planes):
         sock.close()
 
 
-def test_the_refused_staged_vector_is_answered_a_second_time(planes):
-    """DEFECT CANDIDATE #30 on the staged front: after the kXR_FileNotOpen the
-    server sends a SECOND frame carrying the vector's own streamid — the
-    rejection returned brix_send_error()'s NGX_OK, the caller read that as
-    "handles admitted", and the write ran against the refused descriptor."""
+def test_the_refused_staged_vector_is_answered_exactly_once(planes):
+    """DEFECT CANDIDATE #30 on the staged front, now fixed: after the
+    kXR_FileNotOpen the server sends nothing more.  writev_validate_handles()
+    returns NGX_DONE, so the caller stops instead of reading brix_send_error()'s
+    NGX_OK as "handles admitted" and running the write against the refused
+    descriptor.  Unlike the framing guard, the handle guard keeps the link — a
+    second refused vector on the same socket is answered the same single way."""
     ep, _origin, _posix, _spool = planes
 
     sock = _session(HOST, ep.port)
@@ -272,25 +281,25 @@ def test_the_refused_staged_vector_is_answered_a_second_time(planes):
         fh = _open_staged(sock, "/twice.bin")
         sid, status, body = _writev(sock, fh, [(0, os.urandom(1024))])
         assert status == kXR_error and _errcode(body) == kXR_FileNotOpen, body
+        assert sid == WRITEV_SID, (sid, status, body)
+        assert _next_frame(sock) is None, DEFECT30
 
-        second = _next_frame(sock)
-        assert second is not None, DEFECT30
-        sid2, status2, body2 = second
-        assert sid2 == WRITEV_SID, (DEFECT30, sid2, status2, body2)
-        assert status2 == kXR_error and _errcode(body2) == kXR_IOError, \
-            (DEFECT30, status2, body2)
-        assert b"Bad file descriptor" in body2, (DEFECT30, body2)
+        # the handle guard keeps the connection (the framing guard drops it): a
+        # second refused vector on the same socket is answered the same one way.
+        sid, status, body = _writev(sock, fh, [(0, os.urandom(512))])
+        assert status == kXR_error and _errcode(body) == kXR_FileNotOpen, body
+        assert _next_frame(sock) is None, DEFECT30
     finally:
         sock.close()
 
 
 # ── the same fall-through on a bare posix export ──────────────────────────
 
-def test_a_handle_never_opened_is_also_answered_twice(planes):
+def test_a_handle_never_opened_is_also_answered_once(planes):
     """DEFECT CANDIDATE #30, universality: a bare posix export (no backend, no
     staging, no ring) and an in-range handle that was simply never opened.
-    Same refusal, same second frame — so #30 is a property of the guard, not of
-    the tier under it, and every root:// front in the product carries it."""
+    Same single refusal, no second frame — so the fix is a property of the
+    guard, not of the tier under it, and every root:// front carries it."""
     ep, _origin, posix, _spool = planes
     (posix / "hello.txt").write_bytes(b"hello\n")
 
@@ -298,14 +307,8 @@ def test_a_handle_never_opened_is_also_answered_twice(planes):
     try:
         sid, status, body = _writev(sock, UNOPENED_HANDLE, [(0, b"X" * 64)])
         assert status == kXR_error and _errcode(body) == kXR_FileNotOpen, body
-
-        second = _next_frame(sock)
-        assert second is not None, DEFECT30
-        sid2, status2, body2 = second
-        assert sid2 == WRITEV_SID, (DEFECT30, sid2, status2, body2)
-        assert status2 == kXR_error and _errcode(body2) == kXR_IOError, \
-            (DEFECT30, status2, body2)
-        assert b"Bad file descriptor" in body2, (DEFECT30, body2)
+        assert sid == WRITEV_SID, (sid, status, body)
+        assert _next_frame(sock) is None, DEFECT30
     finally:
         sock.close()
 
@@ -314,17 +317,13 @@ def test_a_handle_never_opened_is_also_answered_twice(planes):
 
 
 def test_an_out_of_range_handle_is_refused_and_the_worker_survives(planes):
-    """DEFECT CANDIDATE #31: fhandle[0] is a byte and BRIX_MAX_FILES is 16, so
-    slot 255 is nameable.  writev_validate_handles() refuses it — and #30 then
-    throws that refusal away, so writev_write_segment() goes on to read
-    ctx->files[255] far past the end of a 16-entry array and hand its .fd to
-    the VFS write.
-
-    Only the refusal and the survival are asserted.  What the connection does
-    AFTER the refusal is deliberately not pinned: across repeated runs the same
-    request sometimes draws a second frame and sometimes nothing at all, which
-    is the out-of-bounds read showing through the wire.  A test that demanded
-    either answer would be asserting the value of unowned memory."""
+    """DEFECT CANDIDATE #31, now closed: fhandle[0] is a byte and BRIX_MAX_FILES
+    is 16, so slot 255 is nameable.  writev_validate_handles() refuses it
+    kXR_FileNotOpen and — with #30 fixed — that refusal is terminal: no
+    fall-through to writev_write_segment(), so ctx->files[255] is never read past
+    the end of a 16-entry array.  What used to be an out-of-bounds read whose
+    wire trace varied run to run is now fully defined: one refusal, no second
+    frame, and the front stays up for every other client."""
     ep, _origin, posix, _spool = planes
     (posix / "victim.txt").write_bytes(b"victim\n")
 
@@ -334,6 +333,7 @@ def test_an_out_of_range_handle_is_refused_and_the_worker_survives(planes):
         assert sid == WRITEV_SID, (DEFECT31, sid, status, body)
         assert status == kXR_error, (DEFECT31, status, body)
         assert _errcode(body) == kXR_FileNotOpen, (DEFECT31, body)
+        assert _next_frame(sock) is None, DEFECT31
     finally:
         sock.close()
 
@@ -352,12 +352,12 @@ def test_an_out_of_range_handle_is_refused_and_the_worker_survives(planes):
     assert (posix / "victim.txt").read_bytes() == b"victim\n"
 
 
-def test_a_read_only_handle_still_reaches_the_write_syscall(planes):
+def test_a_read_only_handle_is_refused_before_any_byte(planes):
     """security-negative: writev on a handle opened for READ is refused
-    kXR_NotAuthorized — and then written anyway.  Only write(2)'s EBADF on an
-    O_RDONLY descriptor stops the bytes, so the guard's documented "before any
-    byte is written" invariant is being kept by the kernel rather than by the
-    guard.  The file's bytes are the proof that nothing landed this time."""
+    kXR_NotAuthorized and goes no further.  With #30 fixed the guard keeps its
+    own documented "before any byte is written" invariant itself — it no longer
+    falls through to the write syscall and leans on the kernel's EBADF.  One
+    error frame, no second frame, and the file's bytes are untouched."""
     ep, _origin, posix, _spool = planes
     (posix / "ro.txt").write_bytes(b"readonly\n")
 
@@ -370,14 +370,8 @@ def test_a_read_only_handle_still_reaches_the_write_syscall(planes):
 
         sid, status, body = _writev(sock, fh, [(0, b"Z" * 32)])
         assert status == kXR_error and _errcode(body) == kXR_NotAuthorized, body
-
-        second = _next_frame(sock)
-        assert second is not None, DEFECT30
-        sid2, status2, body2 = second
-        assert sid2 == WRITEV_SID, (DEFECT30, sid2, status2, body2)
-        assert status2 == kXR_error and _errcode(body2) == kXR_IOError, \
-            (DEFECT30, status2, body2)
-        assert b"Bad file descriptor" in body2, (DEFECT30, body2)
+        assert sid == WRITEV_SID, (sid, status, body)
+        assert _next_frame(sock) is None, DEFECT30
     finally:
         sock.close()
 

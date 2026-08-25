@@ -27,46 +27,43 @@
 #include <openssl/evp.h>
 #include <openssl/err.h>
 
-/* Extract the "gsi" protocol's parameter substring from a login advert that may
- * carry several "&P=<proto>,<parms>" entries (e.g. "&P=ztn,0:4096:&P=gsi,v:10600,
- * c:ssl,ca:HASH"). Returns a pointer INTO `parms` just past "gsi," (the v:/c:/ca:
- * list brix_gsi_parse_parms wants), or NULL when gsi is not advertised. */
+/* Locate a protocol's parameter substring in a login advert that may carry
+ * several "&P=<proto>,<parms>" entries (e.g. "&P=ztn,0:4096:&P=gsi,v:10600,
+ * c:ssl,ca:HASH"). `needle` is "<proto>," including the comma; returns a
+ * pointer INTO `parms` just past it, or NULL when the protocol is not
+ * advertised with parameters. */
 static const char *
-cache_origin_gsi_parms(const char *parms, size_t plen)
+cache_origin_proto_parms(const char *parms, size_t plen, const char *needle,
+    size_t nlen)
 {
-    static const char needle[] = "gsi,";
-    size_t            i;
+    size_t i;
 
-    if (parms == NULL || plen < sizeof(needle) - 1) {
+    if (parms == NULL || plen < nlen) {
         return NULL;
     }
-    for (i = 0; i + (sizeof(needle) - 1) <= plen; i++) {
-        if (ngx_strncmp(parms + i, needle, sizeof(needle) - 1) == 0) {
-            return parms + i + (sizeof(needle) - 1);
+    for (i = 0; i + nlen <= plen; i++) {
+        if (ngx_strncmp(parms + i, needle, nlen) == 0) {
+            return parms + i + nlen;
         }
     }
     return NULL;
 }
 
-/* Extract the origin's advertised krb5 service principal from "&P=krb5,<princ>"
- * (phase-70 §5.7). Returns a pointer INTO `parms` just past "krb5," — the SPN the
- * raw AP-REQ must target, exactly as the native client honours it — or NULL when
- * krb5 is advertised bare ("&P=krb5" with no principal). */
+/* The gsi v:/c:/ca: list brix_gsi_parse_parms wants, or NULL. */
+static const char *
+cache_origin_gsi_parms(const char *parms, size_t plen)
+{
+    return cache_origin_proto_parms(parms, plen, "gsi,", 4);
+}
+
+/* The origin's advertised krb5 service principal from "&P=krb5,<princ>"
+ * (phase-70 §5.7) — the SPN the raw AP-REQ must target, exactly as the native
+ * client honours it — or NULL when krb5 is advertised bare ("&P=krb5" with no
+ * principal). */
 static const char *
 cache_origin_krb5_princ(const char *parms, size_t plen)
 {
-    static const char needle[] = "krb5,";
-    size_t            i;
-
-    if (parms == NULL || plen < sizeof(needle) - 1) {
-        return NULL;
-    }
-    for (i = 0; i + (sizeof(needle) - 1) <= plen; i++) {
-        if (ngx_strncmp(parms + i, needle, sizeof(needle) - 1) == 0) {
-            return parms + i + (sizeof(needle) - 1);
-        }
-    }
-    return NULL;
+    return cache_origin_proto_parms(parms, plen, "krb5,", 5);
 }
 
 /* origin_frame_t — one decoded origin reply (status + owned body). WHY: the

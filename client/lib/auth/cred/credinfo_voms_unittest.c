@@ -96,7 +96,7 @@ main(void)
     }
 
     /* ---- the real AC: exactly the two FQANs, no URI/junk ---- */
-    s = scan(VOMS_AC_FIXTURE, (int) sizeof(VOMS_AC_FIXTURE));
+    s = scan(VOMS_AC_FIXTURE, (int) VOMS_AC_FIXTURE_LEN);
     CHECK(has(s, "/lhcb/Role=user/Capability=NULL"));
     CHECK(has(s, "/lhcb/Role=NULL/Capability=NULL"));
     CHECK(count(s, "      VOMS:  ") == 2);                 /* exactly two lines */

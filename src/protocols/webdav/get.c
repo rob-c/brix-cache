@@ -172,47 +172,6 @@ get_zip_member_serve(ngx_http_request_t *r,
 }
 
 /*
- * get_init_vfs_ctx — build the VFS context for the GET.
- *
- * WHAT: initialise `vctx` for a WebDAV read of `path`, bind the per-user
- *   backend credential / opt-in mint / delegation, and select the export's
- *   storage backend instance.
- * WHY: every downstream open/offload/fill step reaches storage through this
- *   context; assembling it in one place keeps the credential-binding order
- *   (cred → mint → deleg) explicit and identical to the historical flow.
- * HOW: detect TLS, init the context, then apply the three credential binders
- *   and the backend instance in sequence.  Pure setup, no I/O.
- */
-static void
-get_init_vfs_ctx(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf,
-    ngx_http_brix_webdav_req_ctx_t *wctx, const char *path,
-    brix_vfs_ctx_t *vctx)
-{
-    int is_tls = 0;
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
-    brix_vfs_ctx_init(vctx, r->pool, r->connection->log,
-        BRIX_PROTO_WEBDAV, conf->common.root_canon,
-        conf->cache_root_canon, conf->common.allow_write, is_tls,
-        (wctx != NULL) ? wctx->identity : NULL, path);
-    brix_vfs_ctx_bind_backend_cred(vctx,
-        &conf->common.storage_credential_dir,
-        conf->common.storage_credential_fallback);
-    /* Phase-2 T9: opt-in minting for GSI/token identities that have no
-     * pre-provisioned proxy. No-op unless a mint CA is configured. */
-    brix_vfs_ctx_bind_backend_mint(vctx,
-        &conf->common.storage_credential_mint_ca_cert,
-        &conf->common.storage_credential_mint_ca_key,
-        conf->common.storage_credential_mint_ttl);
-    webdav_vfs_bind_deleg(r, conf, vctx);
-
-    /* Route through the export's selected storage backend (NULL ⇒ default POSIX). */
-    vctx->sd = brix_webdav_backend_instance(conf, r->connection->log);
-}
-
-/*
  * get_offload_or_fill — run the off-loop serve/fill fast paths.
  *
  * WHAT: give the socket-wire serve offload (SP3) and the remote cache-fill
@@ -546,7 +505,9 @@ webdav_handle_get(ngx_http_request_t *r)
     }
 
     wctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
-    get_init_vfs_ctx(r, conf, wctx, path, &vctx);
+    webdav_vfs_ctx_build_data(r, conf, path, &vctx);
+    /* Route through the export's selected storage backend (NULL ⇒ default POSIX). */
+    vctx.sd = brix_webdav_backend_instance(conf, r->connection->log);
 
     /* phase-64 SP3/SP2: socket-wire serve offload and remote cache-fill offload
      * (both off the event loop).  NGX_DONE ⇒ async took over; a terminal HTTP

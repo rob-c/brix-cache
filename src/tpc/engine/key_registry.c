@@ -224,8 +224,11 @@ brix_tpc_key_register(const char *key, ngx_msec_t ttl_ms)
  * WHY: The destination server in a TPC transfer must validate that its rendezvous key is still valid
  *       before attempting to connect to fetch the file. This prevents connections to stale transfers
  *       or transfers whose source worker has already finished and cleaned up. */
-int
-brix_tpc_key_validate(const char *key)
+/* The locked scan shared by validate/consume: reaps expired slots on the way
+ * through, returns 1 when `key` is live.  consume != 0 also zeroes the matched
+ * entry — the single-use rendezvous semantics. */
+static int
+tpc_key_lookup(const char *key, int consume)
 {
     brix_tpc_key_table_t *tbl;
     brix_tpc_key_entry_t *e;
@@ -252,6 +255,9 @@ brix_tpc_key_validate(const char *key)
             continue;
         }
         if (tpc_key_eq(e->key, key)) {
+            if (consume) {
+                ngx_memzero(e, sizeof(*e));
+            }
             found = 1;
             break;
         }
@@ -259,6 +265,12 @@ brix_tpc_key_validate(const char *key)
 
     ngx_shmtx_unlock(&brix_tpc_key_mutex);
     return found;
+}
+
+int
+brix_tpc_key_validate(const char *key)
+{
+    return tpc_key_lookup(key, 0);
 }
 
 /*
@@ -274,39 +286,7 @@ brix_tpc_key_validate(const char *key)
 int
 brix_tpc_key_consume(const char *key)
 {
-    brix_tpc_key_table_t *tbl;
-    brix_tpc_key_entry_t *e;
-    ngx_uint_t               i;
-    ngx_msec_t               now;
-    int                      found = 0;
-
-    tbl = key_table();
-    if (tbl == NULL || key == NULL || key[0] == '\0') {
-        return 0;
-    }
-
-    now = ngx_current_msec;
-
-    ngx_shmtx_lock(&brix_tpc_key_mutex);
-
-    for (i = 0; i < BRIX_TPC_KEY_SLOTS; i++) {
-        e = &tbl->slots[i];
-        if (!e->in_use) {
-            continue;
-        }
-        if (brix_shm_slot_expired(now, e->expiry)) {
-            ngx_memzero(e, sizeof(*e));
-            continue;
-        }
-        if (tpc_key_eq(e->key, key)) {
-            ngx_memzero(e, sizeof(*e));
-            found = 1;
-            break;
-        }
-    }
-
-    ngx_shmtx_unlock(&brix_tpc_key_mutex);
-    return found;
+    return tpc_key_lookup(key, 1);
 }
 
 /*

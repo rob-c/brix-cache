@@ -28,6 +28,7 @@
 #include "net/cms/cns.h"               /* §6 CNS mode enum */
 #include "core/config/credential_block.h" /* §14 brix_credential block directive */
 #include "module_enums.h"   /* directive enum value tables */
+#include "auth/authz/acc/acc.h"   /* shared brix_acc_{format,audit}_modes tables */
 #include "core/seccomp/seccomp.h"   /* brix_conf_set_seccomp (brix_seccomp directive) */
 #include "fs/backend/sd.h"  /* BRIX_CRED_* (phase-70 §4) */
 #include "auth/s3/sts.h"    /* BRIX_STS_FLAVOR_* (phase-70 §5.5) */

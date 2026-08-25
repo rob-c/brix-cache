@@ -310,12 +310,6 @@ def test_writes_off_not_mirrored(lifecycle, tmp_path):
 # default).                                                                    #
 # --------------------------------------------------------------------------- #
 
-_kXR_open, _kXR_write, _kXR_close = 3010, 3019, 3003
-# open for create+truncate+write:  kXR_new | kXR_delete | kXR_open_updt
-_OPEN_CREATE_WR = 0x0008 | 0x0002 | 0x0020
-
-
-
 def test_stream_data_write_mirrored_byte_exact(lifecycle, tmp_path):
     """A sequential open->write->close is replayed to the shadow byte-exact."""
     primary, metrics, sdata = _start_wmirror_pair(

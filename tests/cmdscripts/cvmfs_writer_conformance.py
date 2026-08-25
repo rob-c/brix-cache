@@ -37,6 +37,7 @@ CONFORMANCE_SOURCES = [
     "tests/cvmfs/writer_conformance.c",
     "shared/cvmfs/signature/sign.c",
     "shared/cvmfs/catalog/catalog_write.c",
+    "shared/cvmfs/catalog/xattr_pack.c",
     "shared/cvmfs/catalog/catalog.c",
     "shared/cvmfs/object/object_write.c",
     "shared/cvmfs/object/object.c",

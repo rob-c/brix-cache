@@ -395,8 +395,9 @@ gsi_sigpxy(brix_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
         brix_status_set(st, XRDC_EAUTH, 0, "gsi: pxyreq main missing");
         return -1;
     }
-    plain = brix_gsi_cipher_decrypt(&cipher, c->gsi_deleg_key, enc, enclen,
-                                      c->gsi_deleg_use_iv, &plainlen);
+    plain = brix_gsi_cipher_apply(&cipher, c->gsi_deleg_key, enc, enclen,
+                                    c->gsi_deleg_use_iv, /* enc */ 0,
+                                    &plainlen);
     if (plain == NULL) {
         brix_status_set(st, XRDC_EAUTH, 0, "gsi: pxyreq decrypt failed");
         return -1;
@@ -449,8 +450,9 @@ gsi_sigpxy(brix_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
     brix_gbuf_end(&inner);
     free(signed_pem);
     if (!inner.err) {
-        enc2 = brix_gsi_cipher_encrypt(&cipher, c->gsi_deleg_key, inner.p,
-                                         inner.len, c->gsi_deleg_use_iv, &enc2len);
+        enc2 = brix_gsi_cipher_apply(&cipher, c->gsi_deleg_key, inner.p,
+                                       inner.len, c->gsi_deleg_use_iv,
+                                       /* enc */ 1, &enc2len);
     }
     brix_gbuf_free(&inner);
     if (enc2 == NULL) {

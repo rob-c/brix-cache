@@ -112,6 +112,13 @@ ngx_int_t brix_identity_set_vos_csv(brix_identity_t *id,
     ngx_pool_t *pool, const char *vo_csv);
 
 /*
+ * Strip leading/trailing ASCII spaces/tabs from the [*tok, *tok+*tl) slice in
+ * place; an all-blank slice collapses to length 0.  The single trim rule for
+ * attribute-CSV fields, shared with the xrdacc entity builder.
+ */
+void brix_identity_trim_ws(const char **tok, size_t *tl);
+
+/*
  * Populate the identity from verified token `claims` (borrowed, not retained):
  * sets subject/issuer/scope_raw/vo_list, mirrors sub into dn, splits scope_raw
  * into id->scopes, caches up to BRIX_MAX_TOKEN_SCOPES parsed scopes (excess

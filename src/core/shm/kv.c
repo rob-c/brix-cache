@@ -161,40 +161,61 @@ brix_kv_copy_value(brix_kv_entry_t *e, brix_kv_t *kv, void *out,
 }
 
 
+/*
+ * kv_probe_t / kv_probe_begin — the open-addressing probe seed shared by
+ * get/set/delete: hash the key, precompute the inline-slot stride and the
+ * time base, take the table mutex, then derive the wrap mask, the probe
+ * budget (capacity/2) and the starting slot.  The caller walks idx via
+ * (idx + 1) & mask and OWNS THE UNLOCK on every path out.
+ */
+typedef struct {
+    uint64_t   hash;
+    size_t     stride;
+    uint32_t   mask;
+    uint32_t   maxprobe;
+    uint32_t   idx;
+    ngx_msec_t now;
+} kv_probe_t;
+
+static void
+kv_probe_begin(brix_kv_t *kv, brix_kv_header_t *h, const void *key,
+    size_t key_len, kv_probe_t *pr)
+{
+    pr->hash   = brix_kv_hash(key, key_len);
+    pr->stride = sizeof(brix_kv_entry_t) + kv->key_max + kv->val_max;
+    pr->now    = ngx_current_msec;
+
+    ngx_shmtx_lock(&kv->mutex);
+
+    pr->mask     = h->capacity - 1; /* phase79-fp: h NULL-checked at entry; analyzer drops the guard across ngx_shmtx_lock */
+    pr->maxprobe = h->capacity / 2;
+    pr->idx      = (uint32_t) (pr->hash & pr->mask);
+}
+
 int
 brix_kv_get(brix_kv_t *kv, const void *key, size_t key_len,
     void *out, size_t *out_len)
 {
     brix_kv_header_t *h = brix_kv_hdr(kv);
-    uint64_t            hash;
-    size_t              stride;
-    uint32_t            mask, maxprobe, idx, p;
-    ngx_msec_t          now;
+    kv_probe_t          pr;
+    uint32_t            p;
     int                 result = 0;
 
     if (h == NULL || key_len == 0 || key_len > kv->key_max) {
         return 0;
     }
 
-    hash     = brix_kv_hash(key, key_len);
-    stride   = sizeof(brix_kv_entry_t) + kv->key_max + kv->val_max;
-    now      = ngx_current_msec;
+    kv_probe_begin(kv, h, key, key_len, &pr);
 
-    ngx_shmtx_lock(&kv->mutex);
-
-    mask     = h->capacity - 1; /* phase79-fp: h NULL-checked at entry; analyzer drops the guard across ngx_shmtx_lock */
-    maxprobe = h->capacity / 2;
-    idx      = (uint32_t) (hash & mask);
-
-    for (p = 0; p < maxprobe; p++) {
-        brix_kv_entry_t *e = brix_kv_slot(h, stride, idx);
+    for (p = 0; p < pr.maxprobe; p++) {
+        brix_kv_entry_t *e = brix_kv_slot(h, pr.stride, pr.idx);
 
         if (e->key_len == 0) {
             break;                       /* probe chain ends — not found */
         }
-        if (brix_kv_entry_matches(e, hash, key, key_len)) {
-            if (e->expires != 0 && e->expires <= now) {
-                brix_kv_remove_at(h, stride, mask, idx);
+        if (brix_kv_entry_matches(e, pr.hash, key, key_len)) {
+            if (e->expires != 0 && e->expires <= pr.now) {
+                brix_kv_remove_at(h, pr.stride, pr.mask, pr.idx);
                 if (h->count > 0) { h->count--; }
                 h->evictions++;
                 break;                   /* expired — treat as miss */
@@ -203,7 +224,7 @@ brix_kv_get(brix_kv_t *kv, const void *key, size_t key_len,
             result = 1;
             break;
         }
-        idx = (idx + 1) & mask;
+        pr.idx = (pr.idx + 1) & pr.mask;
     }
 
     if (result) { h->hits++; } else { h->misses++; }
@@ -217,10 +238,8 @@ brix_kv_set(brix_kv_t *kv, const void *key, size_t key_len,
     const void *val, size_t val_len, ngx_msec_t ttl_ms)
 {
     brix_kv_header_t *h = brix_kv_hdr(kv);
-    uint64_t            hash;
-    size_t              stride;
-    uint32_t            mask, maxprobe, idx, p;
-    ngx_msec_t          now;
+    kv_probe_t          pr;
+    uint32_t            p;
     ngx_int_t           rc = NGX_ERROR;
 
     if (h == NULL
@@ -230,28 +249,20 @@ brix_kv_set(brix_kv_t *kv, const void *key, size_t key_len,
         return NGX_ERROR;
     }
 
-    hash   = brix_kv_hash(key, key_len);
-    stride = sizeof(brix_kv_entry_t) + kv->key_max + kv->val_max;
-    now    = ngx_current_msec;
+    kv_probe_begin(kv, h, key, key_len, &pr);
 
-    ngx_shmtx_lock(&kv->mutex);
-
-    mask     = h->capacity - 1; /* phase79-fp: h NULL-checked at entry; analyzer drops the guard across ngx_shmtx_lock */
-    maxprobe = h->capacity / 2;
-    idx      = (uint32_t) (hash & mask);
-
-    for (p = 0; p < maxprobe; p++) {
-        brix_kv_entry_t *e = brix_kv_slot(h, stride, idx);
+    for (p = 0; p < pr.maxprobe; p++) {
+        brix_kv_entry_t *e = brix_kv_slot(h, pr.stride, pr.idx);
 
         if (e->key_len == 0) {
             /* New insert — enforce the 0.5 load-factor cap. */
             if (h->count >= h->capacity / 2) {
                 break;
             }
-            e->hash    = hash;
+            e->hash    = pr.hash;
             e->key_len = (uint32_t) key_len;
             e->val_len = (uint32_t) val_len;
-            e->expires = ttl_ms ? (now + ttl_ms) : 0;
+            e->expires = ttl_ms ? (pr.now + ttl_ms) : 0;
             ngx_memcpy((u_char *) e + sizeof(*e), key, key_len);
             if (val_len) {
                 ngx_memcpy((u_char *) e + sizeof(*e) + kv->key_max,
@@ -261,10 +272,10 @@ brix_kv_set(brix_kv_t *kv, const void *key, size_t key_len,
             rc = NGX_OK;
             break;
         }
-        if (brix_kv_entry_matches(e, hash, key, key_len)) {
+        if (brix_kv_entry_matches(e, pr.hash, key, key_len)) {
             /* Overwrite existing key. */
             e->val_len = (uint32_t) val_len;
-            e->expires = ttl_ms ? (now + ttl_ms) : 0;
+            e->expires = ttl_ms ? (pr.now + ttl_ms) : 0;
             if (val_len) {
                 ngx_memcpy((u_char *) e + sizeof(*e) + kv->key_max,
                            val, val_len);
@@ -272,7 +283,7 @@ brix_kv_set(brix_kv_t *kv, const void *key, size_t key_len,
             rc = NGX_OK;
             break;
         }
-        idx = (idx + 1) & mask;
+        pr.idx = (pr.idx + 1) & pr.mask;
     }
 
     ngx_shmtx_unlock(&kv->mutex);
@@ -283,35 +294,28 @@ void
 brix_kv_delete(brix_kv_t *kv, const void *key, size_t key_len)
 {
     brix_kv_header_t *h = brix_kv_hdr(kv);
-    uint64_t            hash;
-    size_t              stride;
-    uint32_t            mask, maxprobe, idx, p;
+    kv_probe_t          pr;
+    uint32_t            budget;
 
     if (h == NULL || key_len == 0 || key_len > kv->key_max) {
         return;
     }
 
-    hash   = brix_kv_hash(key, key_len);
-    stride = sizeof(brix_kv_entry_t) + kv->key_max + kv->val_max;
+    kv_probe_begin(kv, h, key, key_len, &pr);
 
-    ngx_shmtx_lock(&kv->mutex);
-
-    mask     = h->capacity - 1; /* phase79-fp: h NULL-checked at entry; analyzer drops the guard across ngx_shmtx_lock */
-    maxprobe = h->capacity / 2;
-    idx      = (uint32_t) (hash & mask);
-
-    for (p = 0; p < maxprobe; p++) {
-        brix_kv_entry_t *e = brix_kv_slot(h, stride, idx);
+    budget = pr.maxprobe;
+    while (budget-- > 0) {
+        brix_kv_entry_t *e = brix_kv_slot(h, pr.stride, pr.idx);
 
         if (e->key_len == 0) {
             break;
         }
-        if (brix_kv_entry_matches(e, hash, key, key_len)) {
-            brix_kv_remove_at(h, stride, mask, idx);
+        if (brix_kv_entry_matches(e, pr.hash, key, key_len)) {
+            brix_kv_remove_at(h, pr.stride, pr.mask, pr.idx);
             if (h->count > 0) { h->count--; }
             break;
         }
-        idx = (idx + 1) & mask;
+        pr.idx = (pr.idx + 1) & pr.mask;
     }
 
     ngx_shmtx_unlock(&kv->mutex);

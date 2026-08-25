@@ -64,6 +64,45 @@
       0,
       NULL },
 
+    /* Delegated pull (D16): every request must carry (or have proven) the
+     * CLIENT'S own upstream credential; the mirror holds no user secret and
+     * the upstream stays the authorization oracle on hits and misses alike. */
+    { ngx_string("brix_oci_mirror_delegate"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_oci_loc_conf_t, delegate),
+      NULL },
+
+    /* The realm named in the downstream Basic challenge. Cosmetic to docker
+     * (it retries with credentials either way) but what a human sees in a
+     * curl -v, so it defaults to "brix-oci" rather than the empty string. */
+    { ngx_string("brix_oci_delegate_realm"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_oci_loc_conf_t, delegate_realm),
+      NULL },
+
+    /* How long one (credential, repository) proof is honoured before the
+     * upstream is asked again — the revocation propagation bound (300s). */
+    { ngx_string("brix_oci_delegate_proof_ttl"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_oci_loc_conf_t, deleg_proof_ttl),
+      NULL },
+
+    /* Test fixtures only: accept a downstream Basic credential without TLS.
+     * Without it, delegate mode on a TLS-less server is a config-load EMERG
+     * — a credential on cleartext is already burned. */
+    { ngx_string("brix_oci_delegate_insecure"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_oci_loc_conf_t, deleg_insecure),
+      NULL },
+
     /* Test fixtures only: permits a cleartext http:// upstream base. */
     { ngx_string("brix_oci_mirror_insecure"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,

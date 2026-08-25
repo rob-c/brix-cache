@@ -12,6 +12,10 @@ def _modules():
     return sorted(EXAMPLES.glob("test_*.py"))
 
 
+def _capability_modules():
+    return sorted((EXAMPLES / "capabilities").glob("test_*.py"))
+
+
 def _stdlib_names():
     names = getattr(sys, "stdlib_module_names", None)
     if names is not None:
@@ -32,8 +36,34 @@ def test_example_catalogue_contains_exactly_twenty_compilable_tests():
 
 def test_examples_import_only_stdlib_pytest_and_brixtest():
     allowed = {"brixtest", "pytest"} | _stdlib_names()
-    for path in _modules():
+    for path in (*_modules(), *_capability_modules()):
         _assert_safe_example(path, allowed)
+
+
+def test_advanced_capability_examples_cover_the_migration_surface():
+    names = {
+        name for path in _capability_modules() for name in _test_names(path)
+    }
+    expected = {
+        "test_ipv6_uses_a_real_socket",
+        "test_udp_has_the_same_service_surface",
+        "test_server_to_server_reverse_callback",
+        "test_resources_and_tools_share_one_pythonic_run_surface",
+        "test_rbac_identity_and_provider_volume_are_ordinary_resources",
+        "test_user_namespace_applies_uid_gid_and_supplementary_groups",
+        "test_fuse_mount_is_supervised_and_always_unmounted",
+        "test_init_and_sidecar_members_need_only_a_shared_group_name",
+        "test_environment_names_are_the_only_cluster_topology_boilerplate",
+    }
+    assert expected <= names
+
+
+def test_advanced_examples_do_not_import_runtime_or_cluster_orchestration():
+    forbidden = {"docker", "kubernetes", "subprocess"}
+    for path in _capability_modules():
+        tree = ast.parse(path.read_text(), filename=str(path))
+        imported = {name for node in ast.walk(tree) for name in _import_roots(node)}
+        assert not (imported & forbidden), path
 
 
 def _test_names(path):

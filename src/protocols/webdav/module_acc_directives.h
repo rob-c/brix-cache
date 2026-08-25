@@ -18,17 +18,15 @@ char *brix_http_set_cache_store_endpoint(ngx_conf_t *cf, ngx_command_t *cmd,
 char *brix_acc_http_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 char *brix_acc_http_set_format(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 char *brix_acc_http_set_audit(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-char *brix_acc_http_set_refresh(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-char *brix_acc_http_set_gidlifetime(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf);
+/* Generic scalar setters: cmd->offset carries the offsetof into
+ * brix_acc_http_t (nginx *_slot pattern). _num sets an ngx_int_t
+ * (brix_authdb_refresh, brix_acc_gidlifetime); _onoff an ngx_flag_t
+ * (brix_acc_pgo, brix_acc_resolve_hosts, brix_acc_encoding). */
+char *brix_acc_http_set_num(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+char *brix_acc_http_set_onoff(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 char *brix_acc_http_set_nisdomain(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
-char *brix_acc_http_set_pgo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-char *brix_acc_http_set_resolve_hosts(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf);
 char *brix_acc_http_set_spacechar(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf);
-char *brix_acc_http_set_encoding(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 char *brix_acc_http_set_gidretran(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);

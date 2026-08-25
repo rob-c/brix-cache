@@ -14,7 +14,9 @@ class TestDoctorReferralPty:
         WHY:  spec WS-7: auth errors are opaque; the user needs a concrete
               next step (xrddiag check walks the full auth handshake).
         """
-        rc, _stdout, stderr = run_pty(
+        # run_pty returns (rc, combined_pty_output, b"") — the PTY child has one
+        # terminal fd for stdout+stderr, so hint text is in the SECOND element.
+        rc, stderr, _ = run_pty(
             [str(suggest_probe_binary), "doctor_auth"],
             env=_base_env(),
             timeout=10,
@@ -33,7 +35,7 @@ class TestDoctorReferralPty:
         WHY:  the doctor hint targets auth-class failures only; not-found
               errors are diagnosed by other means (path typos, namespace).
         """
-        rc, _stdout, stderr = run_pty(
+        rc, stderr, _ = run_pty(
             [str(suggest_probe_binary), "doctor_noauth"],
             env=_base_env(),
             timeout=10,

@@ -112,10 +112,7 @@ static ngx_int_t
 brix_open_send_response(brix_open_args_t *a, u_char *buf, size_t total,
     size_t bodylen)
 {
-	brix_ctx_t                 *ctx      = a->ctx;
-	ngx_connection_t           *c        = a->c;
-	ngx_stream_brix_srv_conf_t *conf     = a->conf;
-	const char                 *resolved = a->resolved;
+	BRIX_OPEN_ARGS_COMMON(a);
 	int                         idx      = a->idx;
 	ngx_flag_t                  is_write = a->is_write;
 
@@ -173,8 +170,7 @@ brix_open_build_response(brix_open_args_t *a, u_char **out_buf,
 	ngx_flag_t full_body  = want_stat || have_codec;
 	size_t     hbytes     = full_body ? sizeof(ServerOpenBody)
 	                                   : sizeof(body.fhandle);  /* 4 */
-	size_t     bodylen, total;
-	u_char    *buf;
+	size_t     bodylen;
 
 	ngx_memzero(&body, sizeof(body));
 	body.fhandle[0] = (u_char) idx;
@@ -189,27 +185,12 @@ brix_open_build_response(brix_open_args_t *a, u_char **out_buf,
 		bodylen += strlen(statbuf) + 1;
 	}
 
-	total = XRD_RESPONSE_HDR_LEN + bodylen;
-	buf   = ngx_palloc(c->pool, total);
-	if (buf == NULL) {
-		brix_free_fhandle(ctx, idx);
+	*out_buf = brix_open_ok_frame(ctx, c, idx, &body, hbytes, statbuf,
+	                                want_stat, out_total);
+	if (*out_buf == NULL) {
 		return NGX_ERROR;
 	}
 
-	brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok,
-						  (uint32_t) bodylen,
-						  (ServerResponseHdr *) buf);
-
-	ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &body, hbytes);
-
-	if (want_stat) {
-		size_t slen = strlen(statbuf) + 1;
-		ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + sizeof(ServerOpenBody),
-				   statbuf, slen);
-	}
-
-	*out_buf     = buf;
-	*out_total   = total;
 	*out_bodylen = bodylen;
 	return NGX_OK;
 }

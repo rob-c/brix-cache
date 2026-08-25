@@ -27,17 +27,24 @@
 static ngx_uint_t
 secgate_cap_bit(ngx_str_t *tok)
 {
-    if (tok->len == 5 && ngx_strncmp(tok->data, "login", 5) == 0) {
-        return BRIX_TLSREQ_LOGIN;
-    }
-    if (tok->len == 7 && ngx_strncmp(tok->data, "session", 7) == 0) {
-        return BRIX_TLSREQ_SESSION;
-    }
-    if (tok->len == 4 && ngx_strncmp(tok->data, "data", 4) == 0) {
-        return BRIX_TLSREQ_DATA;
-    }
-    if (tok->len == 3 && ngx_strncmp(tok->data, "tpc", 3) == 0) {
-        return BRIX_TLSREQ_TPC;
+    static const struct {
+        const char *name;
+        size_t      len;
+        ngx_uint_t  bit;
+    } caps[] = {
+        { "login",   5, BRIX_TLSREQ_LOGIN   },
+        { "session", 7, BRIX_TLSREQ_SESSION },
+        { "data",    4, BRIX_TLSREQ_DATA    },
+        { "tpc",     3, BRIX_TLSREQ_TPC     },
+    };
+    ngx_uint_t i;
+
+    for (i = 0; i < sizeof(caps) / sizeof(caps[0]); i++) {
+        if (tok->len == caps[i].len
+            && ngx_strncmp(tok->data, caps[i].name, caps[i].len) == 0)
+        {
+            return caps[i].bit;
+        }
     }
     return 0;
 }

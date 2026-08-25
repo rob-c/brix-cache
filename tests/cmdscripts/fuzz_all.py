@@ -183,6 +183,7 @@ BUILD_ARGS = {
         # the reader hands layer xattrs on in the changeset wire format, so
         # the catalog packer comes with it
         "../../shared/cvmfs/catalog/catalog_write.c",
+        "../../shared/cvmfs/catalog/xattr_pack.c",
         "../../shared/cvmfs/catalog/catalog.c",
         "../../shared/cvmfs/grammar/hash.c",
         "-lz",

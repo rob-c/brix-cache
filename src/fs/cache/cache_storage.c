@@ -199,26 +199,11 @@ brix_cache_state_by_root(const char *cache_root_canon)
  * (cache_store) is the registry's composed sd_cache — its own store + cstore hold
  * the objects the read path fills, so the reaper must evict through THOSE (not the
  * legacy cache_storage_inst, which a pure-tier cache never builds). */
-brix_sd_instance_t *
-brix_cache_storage(const ngx_stream_brix_srv_conf_t *conf)
-{
-    if (conf->common.cache_store.len > 0) {
-        brix_sd_instance_t *c =
-            brix_vfs_backend_resolve(conf->common.root_canon, ngx_cycle->log);
-        if (c != NULL && brix_sd_cache_instance_is(c)) {
-            return brix_sd_cache_store_instance(c);
-        }
-    }
-    return conf->cache_storage_inst;
-}
-
-/* Phase-85 F7: the composed sd_cache DECORATOR itself (not its unwrapped
- * store), or NULL for a legacy cache_root cache / no tier cache. The eviction
- * engine demotes victims into the decorator's cold store tier through this —
- * brix_cache_storage() deliberately unwraps to the store, so demote needs the
- * decorator handle. */
-brix_sd_instance_t *
-brix_cache_storage_decorator(const ngx_stream_brix_srv_conf_t *conf)
+/* The composed sd_cache DECORATOR of a tier cache: `cache_store` is set and
+ * the export's backend resolves to an sd_cache instance. NULL for a legacy
+ * cache_root cache (or an unresolvable backend). */
+static brix_sd_instance_t *
+cs_tier_decorator(const ngx_stream_brix_srv_conf_t *conf)
 {
     if (conf->common.cache_store.len > 0) {
         brix_sd_instance_t *c =
@@ -230,17 +215,32 @@ brix_cache_storage_decorator(const ngx_stream_brix_srv_conf_t *conf)
     return NULL;
 }
 
+brix_sd_instance_t *
+brix_cache_storage(const ngx_stream_brix_srv_conf_t *conf)
+{
+    brix_sd_instance_t *c = cs_tier_decorator(conf);
+
+    return c ? brix_sd_cache_store_instance(c) : conf->cache_storage_inst;
+}
+
+/* Phase-85 F7: the composed sd_cache DECORATOR itself (not its unwrapped
+ * store), or NULL for a legacy cache_root cache / no tier cache. The eviction
+ * engine demotes victims into the decorator's cold store tier through this —
+ * brix_cache_storage() deliberately unwraps to the store, so demote needs the
+ * decorator handle. */
+brix_sd_instance_t *
+brix_cache_storage_decorator(const ngx_stream_brix_srv_conf_t *conf)
+{
+    return cs_tier_decorator(conf);
+}
+
 brix_cstore_t *
 brix_cache_storage_cstore(const ngx_stream_brix_srv_conf_t *conf)
 {
-    if (conf->common.cache_store.len > 0) {
-        brix_sd_instance_t *c =
-            brix_vfs_backend_resolve(conf->common.root_canon, ngx_cycle->log);
-        if (c != NULL && brix_sd_cache_instance_is(c)) {
-            return (brix_cstore_t *) brix_sd_cache_cstore(c);
-        }
-    }
-    return (brix_cstore_t *) conf->cache_storage_cstore;
+    brix_sd_instance_t *c = cs_tier_decorator(conf);
+
+    return c ? (brix_cstore_t *) brix_sd_cache_cstore(c)
+             : (brix_cstore_t *) conf->cache_storage_cstore;
 }
 
 brix_sd_instance_t *

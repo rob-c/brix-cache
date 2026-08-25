@@ -1,6 +1,9 @@
 #ifndef BRIX_PATH_BENEATH_H
 #define BRIX_PATH_BENEATH_H
 
+#include <ngx_config.h>
+#include <ngx_core.h>
+
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -65,6 +68,13 @@ int brix_rename_beneath_excl(int rootfd, const char *src, const char *dst);
 
 /* Hard-link src to dst within the same root. */
 int brix_link_beneath(int rootfd, const char *src, const char *dst);
+
+/* renameat2(RENAME_NOREPLACE) on already-resolved parent fds + final
+ * components, with the once-logged plain-renameat fallback for
+ * kernels/filesystems lacking the flag.  Backs both the beneath and the
+ * confined-parent create-if-absent renames. */
+int brix_renameat_noreplace_fallback(ngx_log_t *log, int sfd,
+    const char *sbase, int dfd, const char *dbase);
 
 /* Strip all leading '/' from a client path, returning a relative path.
  * Returns "" for root paths like "/", "//", "///"; callers that pass

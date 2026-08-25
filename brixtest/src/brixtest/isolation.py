@@ -14,16 +14,19 @@ if TYPE_CHECKING:
     from brixtest.network import HostMapping
 
 __all__ = [
-    "Isolation", "LaunchSpec", "build_launch", "docker", "nsenter",
+    "Isolation", "LaunchSpec", "build_launch", "docker", "kubernetes", "nsenter",
     "podman", "process", "runc",
 ]
 
-_KINDS = ("process", "nsenter", "docker", "podman", "runc")
+_KINDS = ("process", "nsenter", "docker", "podman", "runc", "kubernetes")
 _NAMESPACES = {
     "mount": "--mount", "uts": "--uts", "ipc": "--ipc", "net": "--net",
     "pid": "--pid", "user": "--user", "cgroup": "--cgroup", "time": "--time",
 }
 _DIGEST_IMAGE = re.compile(r"^[^@\s]+@sha256:[0-9a-fA-F]{64}$")
+_KUBERNETES_NAME = re.compile(
+    r"^[a-z0-9](?:[-a-z0-9.]*[a-z0-9])?$"
+)
 _CONTAINER_OWNED_FLAGS = (
     "--env", "-e", "--env-file", "--volume", "-v", "--mount", "--name",
     "--workdir", "-w", "--network", "--privileged", "--pid", "--userns",
@@ -38,6 +41,8 @@ _INNER_KEYS = {
     "BRIXTEST_BINARY_OVERRIDES_JSON", "BRIXTEST_TEST_ENV_KEYS_JSON",
     "BRIXTEST_ATTEMPT_ID", "BRIXTEST_TRIAL", "BRIXTEST_WARMUP",
     "BRIXTEST_SHARED_SERVERS_JSON",
+    "BRIXTEST_HELPER_HEARTBEAT", "BRIXTEST_HELPER_CANCEL",
+    "BRIXTEST_ISOLATION_KIND",
 }
 
 
@@ -48,7 +53,7 @@ def _validate_container_declaration(value: "Isolation") -> None:
         raise SpecError(
             "isolation.allow_mutable_image", value.allow_mutable_image, "must be boolean",
         )
-    if value.kind in ("docker", "podman"):
+    if value.kind in ("docker", "podman", "kubernetes"):
         if not value.image:
             raise SpecError("isolation.image", value.image, "is required for container isolation")
         if not value.allow_mutable_image and _DIGEST_IMAGE.fullmatch(value.image) is None:
@@ -57,7 +62,50 @@ def _validate_container_declaration(value: "Isolation") -> None:
                 "must be digest pinned (image@sha256:...) or explicitly allow_mutable=True",
             )
     elif value.image:
-        raise SpecError("isolation.image", value.image, "is valid only for docker or podman")
+        raise SpecError(
+            "isolation.image", value.image,
+            "is valid only for docker, podman, or kubernetes",
+        )
+
+
+def _validate_kubernetes_declaration(value: "Isolation") -> None:
+    fields = (value.context, value.namespace, value.service_account)
+    if value.kind != "kubernetes":
+        _reject_kubernetes_fields(fields)
+        return
+    if value.allow_mutable_image:
+        raise SpecError(
+            "isolation.allow_mutable_image", True,
+            "Kubernetes helper images must be digest pinned",
+        )
+    _validate_kubernetes_name("namespace", value.namespace)
+    _validate_kubernetes_name("service_account", value.service_account)
+    _validate_kubernetes_context(value.context)
+
+
+def _reject_kubernetes_fields(fields: tuple[object, ...]) -> None:
+    if any(fields):
+        raise SpecError(
+            "isolation Kubernetes options", fields,
+            "are valid only for kubernetes helper isolation",
+        )
+
+
+def _validate_kubernetes_name(field: str, selected: object) -> None:
+    if isinstance(selected, str) and _KUBERNETES_NAME.fullmatch(selected) is not None:
+        return
+    raise SpecError(
+        "isolation.%s" % field, selected,
+        "must be a non-empty Kubernetes DNS name",
+    )
+
+
+def _validate_kubernetes_context(context: object) -> None:
+    valid = isinstance(context, str) and not any(
+        char in context for char in ("\x00", "\n", "\r")
+    )
+    if not valid:
+        raise SpecError("isolation.context", context, "must be plain text")
 
 
 def _validate_nsenter_declaration(value: "Isolation") -> None:
@@ -134,6 +182,11 @@ def _validate_extra_args(value: "Isolation") -> None:
     args = value.extra_args
     if not _valid_extra_args(args):
         raise SpecError("isolation.extra_args", args, "must contain non-empty strings")
+    if args and value.kind not in ("docker", "podman", "runc"):
+        raise SpecError(
+            "isolation.extra_args", args,
+            "are valid only for docker, podman, or runc",
+        )
     if value.kind not in ("docker", "podman"):
         return
     try:
@@ -192,10 +245,14 @@ class Isolation:
     python: str = "python3"
     extra_args: Tuple[str, ...] = ()
     allow_mutable_image: bool = False
+    context: str = ""
+    namespace: str = ""
+    service_account: str = ""
 
     def __post_init__(self) -> None:
         _validate_kind(self.kind)
         _validate_container_declaration(self)
+        _validate_kubernetes_declaration(self)
         _validate_nsenter_declaration(self)
         _validate_bundle_declaration(self)
         _validate_python(self.python)
@@ -230,6 +287,11 @@ class Isolation:
         for value in self.extra_args:
             args.extend(("--brixtest-isolation-arg", value))
         _append_cli_flag(args, "--brixtest-allow-mutable-image", self.allow_mutable_image)
+        _append_cli_value(args, "--brixtest-kubernetes-context", self.context)
+        _append_cli_value(args, "--brixtest-kubernetes-namespace", self.namespace)
+        _append_cli_value(
+            args, "--brixtest-kubernetes-service-account", self.service_account,
+        )
         return args
 
 
@@ -290,6 +352,17 @@ def podman(
     )
 
 
+def kubernetes(
+    image: str, *, context: str = "", namespace: str = "default",
+    service_account: str = "default", python: str = "python3",
+) -> Isolation:
+    """Run the helper in a digest-pinned Kubernetes Job."""
+    return Isolation(
+        kind="kubernetes", image=image, python=python, context=context,
+        namespace=namespace, service_account=service_account,
+    )
+
+
 def runc(bundle: Path, *, python: str = "python3", extra_args: Sequence[str] = ()) -> Isolation:
     """Run the helper in a private derivative of an OCI runc bundle."""
     return Isolation(kind="runc", bundle=bundle, python=python, extra_args=extra_args)
@@ -301,6 +374,7 @@ class LaunchSpec:
     cwd: Path
     env: Mapping[str, str]
     cleanup: Tuple[Tuple[str, ...], ...] = ()
+    metadata: Mapping[str, object] = dataclasses.field(default_factory=dict)
 
 
 def build_launch(

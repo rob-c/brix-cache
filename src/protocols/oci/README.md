@@ -53,7 +53,9 @@ with (`oci_meta.c`, `oci_present.c`).
 |---|---|
 | `oci_gate.c` | method policing, classification, and the routes answered locally |
 | `oci_mirror.c` | the content handler: coalesced fills, ranged serving, digest verify at the edge |
-| `oci_upstream_auth.c` | the Bearer token dance and its SHM token cache; the realm allowlist (`brix_oci_upstream_auth_realm`) applies to every redirect hop |
+| `oci_upstream_auth.c` | the Bearer token dance HTTP legs; the realm allowlist (`brix_oci_upstream_auth_realm`) applies to every redirect hop |
+| `oci_token_cache.c` | the SHM (upstream, scope[, credential]) → bearer cache and its key discipline; `pull_scope`; the proof-to-fill token share |
+| `oci_delegate.c` | delegated pull (D16): downstream Basic identity, the per-credential authorize-on-hit proof gate, and the uniform 401 |
 | `oci_tags.c` | uncached passthrough of the two listing routes — a cached page would pair a fresh cursor with a stale body |
 
 ### The registry surface (`brix_oci_registry`)

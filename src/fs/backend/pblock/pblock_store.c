@@ -178,6 +178,26 @@ pblock_fill_sd_stat(const pblock_meta *m, const char *path,
 
 /* ---- block-striped byte I/O ----------------------------------------------- */
 
+/* One striped segment of a logical [off, off+len) transfer: which block the
+ * cursor `off+done` lands in, the offset within that block, and how many of
+ * the remaining bytes fit before its end. Shared by all four stripe loops. */
+typedef struct {
+    int64_t idx;                        /* block index */
+    int64_t boff;                       /* offset within the block */
+    size_t  chunk;                      /* bytes of this segment */
+} pblock_seg_t;
+
+static void
+pblock_seg_at(int64_t bs, off_t off, size_t done, size_t len, pblock_seg_t *sg)
+{
+    size_t room;
+
+    sg->idx  = (off + (off_t) done) / bs;
+    sg->boff = (off + (off_t) done) % bs;
+    room     = (size_t) (bs - sg->boff);
+    sg->chunk = len - done < room ? len - done : room;
+}
+
 /* pblock_write_blocks — write `len` bytes of buf at file offset `off`, striped
  * across the object's block files. blk0_fd (>=0) is reused for block 0; higher
  * blocks (and block 0 when blk0_fd<0) are opened O_RDWR|O_CREAT transiently.
@@ -199,28 +219,28 @@ pblock_xform_write(const pblock_state_t *st, const char *blob_id, int64_t bs,
         return -1;
     }
     while (done < len) {
-        int64_t  idx  = (off + (off_t) done) / bs;
-        int64_t  boff = (off + (off_t) done) % bs;
-        size_t   room = (size_t) (bs - boff);
-        size_t   chunk = len - done < room ? len - done : room;
-        char     bp[PATH_MAX];
-        uint32_t llen, nl;
+        pblock_seg_t sg;
+        char         bp[PATH_MAX];
+        uint32_t     llen, nl;
 
-        if (pblock_block_path(st, blob_id, idx, bp, sizeof(bp)) != 0
-            || pblock_xform_block_load(&st->xform, idx, bp, scratch, bs, &llen)
-               != 0)
+        pblock_seg_at(bs, off, done, len, &sg);
+        if (pblock_block_path(st, blob_id, sg.idx, bp, sizeof(bp)) != 0
+            || pblock_xform_block_load(&st->xform, sg.idx, bp, scratch, bs,
+                                       &llen) != 0)
         {
             break;
         }
-        memcpy(scratch + boff, p + done, chunk);
-        nl = (uint32_t) (boff + (int64_t) chunk);
+        memcpy(scratch + sg.boff, p + done, sg.chunk);
+        nl = (uint32_t) (sg.boff + (int64_t) sg.chunk);
         if (llen > nl) {
             nl = llen;
         }
-        if (pblock_xform_block_store(&st->xform, idx, bp, scratch, nl, bs) != 0) {
+        if (pblock_xform_block_store(&st->xform, sg.idx, bp, scratch, nl, bs)
+            != 0)
+        {
             break;
         }
-        done += chunk;
+        done += sg.chunk;
     }
     free(scratch);
     return done ? (ssize_t) done : -1;
@@ -282,23 +302,22 @@ pblock_write_blocks(const pblock_state_t *st, const char *blob_id, int64_t bs,
     if (pblock_xform_active(&st->xform))
         return pblock_xform_write(st, blob_id, bs, buf, len, off);
     while (done < len) {
-        int64_t index = (off + (off_t) done) / bs;
-        int64_t block_offset = (off + (off_t) done) % bs;
-        size_t  room = (size_t) (bs - block_offset);
-        size_t  chunk = len - done < room ? len - done : room;
-        int     transient;
-        int     fd = pblock_write_fd(st, blob_id, index, blk0_fd, &transient);
-        ssize_t written;
+        pblock_seg_t sg;
+        int          transient;
+        int          fd;
+        ssize_t      written;
 
+        pblock_seg_at(bs, off, done, len, &sg);
+        fd = pblock_write_fd(st, blob_id, sg.idx, blk0_fd, &transient);
         if (fd < 0)
             return done ? (ssize_t) done : -1;
-        written = pblock_write_chunk(fd, bytes + done, chunk, block_offset);
+        written = pblock_write_chunk(fd, bytes + done, sg.chunk, sg.boff);
         if (transient)
             close(fd);
         if (written < 0)
             return done ? (ssize_t) done : -1;
         done += (size_t) written;
-        if ((size_t) written != chunk)
+        if ((size_t) written != sg.chunk)
             return (ssize_t) done;
     }
     return (ssize_t) done;
@@ -317,31 +336,33 @@ pblock_xform_read(const pblock_state_t *st, const char *blob_id, int64_t bs,
 {
     char          *p = buf;
     size_t         done = 0;
-    unsigned char *scratch = malloc((size_t) bs);
+    unsigned char *scratch;
 
+    if (len == 0) {
+        return 0;
+    }
+    scratch = malloc((size_t) bs);
     if (scratch == NULL) {
         errno = ENOMEM;
         return -1;
     }
     while (done < len) {
-        int64_t  idx  = (off + (off_t) done) / bs;
-        int64_t  boff = (off + (off_t) done) % bs;
-        size_t   room = (size_t) (bs - boff);
-        size_t   chunk = len - done < room ? len - done : room;
-        char     bp[PATH_MAX];
-        uint32_t llen;
+        pblock_seg_t sg;
+        char         bp[PATH_MAX];
+        uint32_t     llen;
 
-        if (pblock_block_path(st, blob_id, idx, bp, sizeof(bp)) != 0
-            || pblock_xform_block_load(&st->xform, idx, bp, scratch, bs, &llen)
-               != 0)
+        pblock_seg_at(bs, off, done, len, &sg);
+        if (pblock_block_path(st, blob_id, sg.idx, bp, sizeof(bp)) != 0
+            || pblock_xform_block_load(&st->xform, sg.idx, bp, scratch, bs,
+                                       &llen) != 0)
         {
             break;
         }
-        memcpy(p + done, scratch + boff, chunk);
-        done += chunk;
+        memcpy(p + done, scratch + sg.boff, sg.chunk);
+        done += sg.chunk;
     }
     free(scratch);
-    return done ? (ssize_t) done : (len == 0 ? 0 : -1);
+    return done ? (ssize_t) done : -1;
 }
 
 ssize_t
@@ -356,26 +377,24 @@ pblock_read_blocks(const pblock_state_t *st, const char *blob_id, int64_t bs,
     }
 
     while (done < len) {
-        int64_t idx  = (off + (off_t) done) / bs;
-        int64_t boff = (off + (off_t) done) % bs;
-        size_t  room = (size_t) (bs - boff);
-        size_t  chunk = len - done < room ? len - done : room;
-        int     fd, transient = 0;
-        ssize_t r;
+        pblock_seg_t sg;
+        int          fd, transient = 0;
+        ssize_t      r;
 
-        if (idx == 0 && blk0_fd >= 0) {
+        pblock_seg_at(bs, off, done, len, &sg);
+        if (sg.idx == 0 && blk0_fd >= 0) {
             fd = blk0_fd;
         } else {
             char bp[PATH_MAX];
 
-            if (pblock_block_path(st, blob_id, idx, bp, sizeof(bp)) != 0) {
+            if (pblock_block_path(st, blob_id, sg.idx, bp, sizeof(bp)) != 0) {
                 return done ? (ssize_t) done : -1;
             }
             fd = open(bp, O_RDONLY);
             if (fd < 0) {
                 if (errno == ENOENT) {
-                    memset(p + done, 0, chunk);   /* whole-block hole */
-                    done += chunk;
+                    memset(p + done, 0, sg.chunk);   /* whole-block hole */
+                    done += sg.chunk;
                     continue;
                 }
                 return done ? (ssize_t) done : -1;
@@ -383,17 +402,17 @@ pblock_read_blocks(const pblock_state_t *st, const char *blob_id, int64_t bs,
             transient = 1;
         }
 
-        r = pread(fd, p + done, chunk, boff);
+        r = pread(fd, p + done, sg.chunk, sg.boff);
         if (transient) {
             close(fd);
         }
         if (r < 0) {
             return done ? (ssize_t) done : -1;
         }
-        if ((size_t) r < chunk) {
-            memset(p + done + (size_t) r, 0, chunk - (size_t) r);   /* tail hole */
+        if ((size_t) r < sg.chunk) {
+            memset(p + done + (size_t) r, 0, sg.chunk - (size_t) r);  /* tail hole */
         }
-        done += chunk;
+        done += sg.chunk;
     }
     return (ssize_t) done;
 }

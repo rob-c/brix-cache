@@ -375,6 +375,22 @@ httpx_resumable_may_retry(const httpx_upload_ctx_t *c, int max_stall_ms,
            && brix_mono_ns() < deadline;
 }
 
+/* Bundle the connect-and-transfer upload parameters into an httpx_upload_ctx_t
+ * (the full field set, including TLS/verify/ca/cert — the resumable and
+ * single-shot entry points build the identical ctx from their arguments).
+ * A compound-literal macro, not a function, so the constructor does not add a
+ * third copy of the two entry points' shared 14-parameter list. */
+#define HTTPX_UPLOAD_CTX(host, port, tls, path, extra_headers, src, src_ctx,   \
+                         clen, verify, ca_dir, client_cert, timeout_ms,        \
+                         http_status, st)                                      \
+    ((httpx_upload_ctx_t){                                                     \
+        .host = (host), .port = (port), .tls = (tls), .path = (path),          \
+        .extra_headers = (extra_headers), .verify = (verify),                  \
+        .ca_dir = (ca_dir), .client_cert = (client_cert), .src = (src),        \
+        .src_ctx = (src_ctx), .clen = (clen), .timeout_ms = (timeout_ms),      \
+        .http_status = (http_status), .st = (st),                              \
+    })
+
 
 /*
  * Resumable upload: stream the source as a sequence of Content-Range PUT chunks,
@@ -393,13 +409,9 @@ brix_http_upload_resumable(const char *host, int port, int tls, const char *path
                            int timeout_ms, int max_stall_ms,
                            int *http_status, brix_status *st)
 {
-    httpx_upload_ctx_t c = {
-        .host = host, .port = port, .tls = tls, .path = path,
-        .extra_headers = extra_headers, .verify = verify, .ca_dir = ca_dir,
-        .client_cert = client_cert,
-        .src = src, .src_ctx = src_ctx, .clen = clen, .timeout_ms = timeout_ms,
-        .http_status = http_status, .st = st,
-    };
+    httpx_upload_ctx_t c = HTTPX_UPLOAD_CTX(host, port, tls, path,
+                               extra_headers, src, src_ctx, clen, verify, ca_dir,
+                               client_cert, timeout_ms, http_status, st);
     long long off = 0;
     unsigned  attempt = 0;
     uint64_t  deadline = brix_mono_ns() + (uint64_t) max_stall_ms * 1000000ULL;
@@ -455,13 +467,9 @@ brix_http_upload(const char *host, int port, int tls, const char *path,
                  const char *client_cert,
                  int timeout_ms, int *http_status, brix_status *st)
 {
-    httpx_upload_ctx_t c = {
-        .host = host, .port = port, .tls = tls, .path = path,
-        .extra_headers = extra_headers, .verify = verify, .ca_dir = ca_dir,
-        .client_cert = client_cert,
-        .src = src, .src_ctx = src_ctx, .clen = clen, .timeout_ms = timeout_ms,
-        .http_status = http_status, .st = st,
-    };
+    httpx_upload_ctx_t c = HTTPX_UPLOAD_CTX(host, port, tls, path,
+                               extra_headers, src, src_ctx, clen, verify, ca_dir,
+                               client_cert, timeout_ms, http_status, st);
     brix_io  io;
     void    *tls_ctx = NULL;
     int      rc;
@@ -478,3 +486,5 @@ brix_http_upload(const char *host, int port, int tls, const char *path,
     if (io.fd >= 0) { close(io.fd); }
     return rc;
 }
+
+#undef HTTPX_UPLOAD_CTX

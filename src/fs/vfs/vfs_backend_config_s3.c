@@ -41,19 +41,12 @@ brix_vfs_backend_config_s3(const char *root_canon, const char *host,
     {
         return;
     }
-    e = brix_vfs_backend_entry_get_or_create(root_canon);
+    e = brix_vfs_backend_entry_claim(root_canon, "s3");
     if (e == NULL) {
         return;
     }
-    ngx_memcpy(e->backend, "s3", sizeof("s3"));
-    ngx_cpystrn((u_char *) e->origin_host, (u_char *) host,
-                sizeof(e->origin_host));
-    e->origin_port = port;
-    e->origin_tls  = tls;
-    ngx_cpystrn((u_char *) e->origin_path, (u_char *) bucket,
-                sizeof(e->origin_path));   /* origin_path carries the bucket */
-    e->origin_put_checksum = put_checksum ? 1 : 0;   /* #12 */
-    e->inst = NULL;                            /* rebuilt on next resolve */
+    /* origin_path carries the bucket */
+    brix_vfs_backend_set_origin(e, host, port, tls, bucket, put_checksum);
 }
 
 static void

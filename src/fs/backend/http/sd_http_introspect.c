@@ -75,10 +75,12 @@ sd_http_penalize_last_origin(brix_sd_instance_t *inst)
     is->eps[is->cur_ep].fail_score += SD_HTTP_VERIFY_PENALTY;
 }
 
-/* Endpoint inventory for the RTT prober (copies, no ngx types). */
-int
-sd_http_endpoint_list(brix_sd_instance_t *inst, char hosts[][256],
-    int *ports, int max)
+/* Copy up to `max` endpoints out as (host, port[, fail_score]) columns —
+ * scores may be NULL when the caller only wants the inventory. Returns the
+ * count (0 for a non-http instance). */
+static int
+sd_http_copy_endpoints(brix_sd_instance_t *inst, char hosts[][256],
+    int *ports, int *scores, int max)
 {
     sd_http_inst_state *is;
     int                 i, n;
@@ -91,8 +93,19 @@ sd_http_endpoint_list(brix_sd_instance_t *inst, char hosts[][256],
     for (i = 0; i < n; i++) {
         memcpy(hosts[i], is->eps[i].host, sizeof(is->eps[i].host));
         ports[i] = is->eps[i].port;
+        if (scores != NULL) {
+            scores[i] = is->eps[i].fail_score;
+        }
     }
     return n;
+}
+
+/* Endpoint inventory for the RTT prober (copies, no ngx types). */
+int
+sd_http_endpoint_list(brix_sd_instance_t *inst, char hosts[][256],
+    int *ports, int max)
+{
+    return sd_http_copy_endpoints(inst, hosts, ports, NULL, max);
 }
 
 /* Endpoint count (0 for a non-http instance). */
@@ -136,18 +149,5 @@ int
 sd_http_health_snapshot(brix_sd_instance_t *inst, char hosts[][256],
     int *ports, int *scores, int max)
 {
-    sd_http_inst_state *is;
-    int                 i, n;
-
-    if (!sd_http_instance_is(inst)) {
-        return 0;
-    }
-    is = inst->state;
-    n = (is->n_eps < max) ? is->n_eps : max;
-    for (i = 0; i < n; i++) {
-        memcpy(hosts[i], is->eps[i].host, sizeof(is->eps[i].host));
-        ports[i]  = is->eps[i].port;
-        scores[i] = is->eps[i].fail_score;
-    }
-    return n;
+    return sd_http_copy_endpoints(inst, hosts, ports, scores, max);
 }

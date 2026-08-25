@@ -9,6 +9,7 @@
  */
 
 #include "rrdata.h"
+#include <stddef.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -90,79 +91,85 @@ read_int(const unsigned char **p, const unsigned char *end, uint32_t *v)
 }
 
 /*
- * Per-arg-group decoders. Each mirrors one XrdCmsParser Pup arg vector
- * (fwdArgA/B/C, padArgs, pdlArgs, locArgs); field order is wire-frozen.
- * All take the shared cursor (*p advanced in place, bounded by end) and fill
- * the matching fields of *out. Return 0 on success, -1 on a short buffer.
+ * Spec-driven group decoding. Each XrdCmsParser Pup arg vector (fwdArgA/B/C,
+ * padArgs, pdlArgs, locArgs) is one spec string walked left to right; field
+ * order is wire-frozen. Letters name a string slot in brix_cms_rrdata_t (see
+ * rr_slots), '#' is the tagged locate/select opts int, and '|' marks the
+ * fence: every later field is optional-trailing (absent-at-end is success).
  */
 
-/* fwdArgA: ident, mode, path, [opaque] — kYR_chmod/mkdir/mkpath/trunc. */
-static int
-parse_fwd_a(const unsigned char **p, const unsigned char *end,
-            brix_cms_rrdata_t *out)
+typedef struct {
+    char     key;        /* spec letter */
+    uint16_t ptr_off;    /* offsetof the span pointer in brix_cms_rrdata_t */
+    uint16_t len_off;    /* offsetof the matching length */
+} rr_slot_t;
+
+#define RR_SLOT(k, f)  { k, offsetof(brix_cms_rrdata_t, f), \
+                            offsetof(brix_cms_rrdata_t, f##_len) }
+
+static const rr_slot_t rr_slots[] = {
+    RR_SLOT('i', ident),
+    RR_SLOT('p', path),
+    RR_SLOT('2', path2),
+    RR_SLOT('o', opaque),
+    RR_SLOT('t', opaque2),
+    RR_SLOT('a', avoid),
+    RR_SLOT('r', reqid),
+    RR_SLOT('n', notify),
+    RR_SLOT('y', prty),
+    RR_SLOT('m', mode),
+};
+
+static const rr_slot_t *
+rr_slot(char key)
 {
-    if (read_str(p, end, &out->ident, &out->ident_len) != 0) return -1;
-    if (read_str(p, end, &out->mode,  &out->mode_len)  != 0) return -1;
-    if (read_str(p, end, &out->path,  &out->path_len)  != 0) return -1;
-    return read_opt_str(p, end, &out->opaque, &out->opaque_len);
+    size_t i;
+
+    for (i = 0; i < sizeof(rr_slots) / sizeof(rr_slots[0]); i++) {
+        if (rr_slots[i].key == key) {
+            return &rr_slots[i];
+        }
+    }
+    return NULL;
 }
 
-/* fwdArgB: ident, path, path2, [opaque, opaque2] — kYR_mv. */
+/* Walk one group spec over [*p,end), filling *out. Returns 0 / -1. */
 static int
-parse_fwd_b(const unsigned char **p, const unsigned char *end,
-            brix_cms_rrdata_t *out)
+rr_parse_spec(const char *spec, const unsigned char **p,
+              const unsigned char *end, brix_cms_rrdata_t *out)
 {
-    if (read_str(p, end, &out->ident, &out->ident_len) != 0) return -1;
-    if (read_str(p, end, &out->path,  &out->path_len)  != 0) return -1;
-    if (read_str(p, end, &out->path2, &out->path2_len) != 0) return -1;
-    if (read_opt_str(p, end, &out->opaque, &out->opaque_len) != 0) return -1;
-    return read_opt_str(p, end, &out->opaque2, &out->opaque2_len);
-}
+    int optional = 0;
 
-/* fwdArgC: ident, path, [opaque] — kYR_rm/rmdir/statfs. */
-static int
-parse_fwd_c(const unsigned char **p, const unsigned char *end,
-            brix_cms_rrdata_t *out)
-{
-    if (read_str(p, end, &out->ident, &out->ident_len) != 0) return -1;
-    if (read_str(p, end, &out->path,  &out->path_len)  != 0) return -1;
-    return read_opt_str(p, end, &out->opaque, &out->opaque_len);
-}
+    for (; *spec != '\0'; spec++) {
+        const rr_slot_t      *slot;
+        const unsigned char **span;
+        size_t               *span_len;
 
-/* padArgs: ident, reqid, notify, prty, mode, path, [opaque] — kYR_prepadd. */
-static int
-parse_pad(const unsigned char **p, const unsigned char *end,
-          brix_cms_rrdata_t *out)
-{
-    if (read_str(p, end, &out->ident,  &out->ident_len)  != 0) return -1;
-    if (read_str(p, end, &out->reqid,  &out->reqid_len)  != 0) return -1;
-    if (read_str(p, end, &out->notify, &out->notify_len) != 0) return -1;
-    if (read_str(p, end, &out->prty,   &out->prty_len)   != 0) return -1;
-    if (read_str(p, end, &out->mode,   &out->mode_len)   != 0) return -1;
-    if (read_str(p, end, &out->path,   &out->path_len)   != 0) return -1;
-    return read_opt_str(p, end, &out->opaque, &out->opaque_len);
-}
+        if (*spec == '|') {
+            optional = 1;
+            continue;
+        }
+        if (*spec == '#') {
+            if (read_int(p, end, &out->opts) != 0) {
+                return -1;
+            }
+            out->has_opts = 1;
+            continue;
+        }
 
-/* pdlArgs: ident, reqid — kYR_prepdel. */
-static int
-parse_pdl(const unsigned char **p, const unsigned char *end,
-          brix_cms_rrdata_t *out)
-{
-    if (read_str(p, end, &out->ident, &out->ident_len) != 0) return -1;
-    return read_str(p, end, &out->reqid, &out->reqid_len);
-}
+        slot     = rr_slot(*spec);
+        span     = (const unsigned char **) ((char *) out + slot->ptr_off);
+        span_len = (size_t *) ((char *) out + slot->len_off);
 
-/* locArgs: ident, opts(int), path, [opaque, avoid] — kYR_locate/select. */
-static int
-parse_loc(const unsigned char **p, const unsigned char *end,
-          brix_cms_rrdata_t *out)
-{
-    if (read_str(p, end, &out->ident, &out->ident_len) != 0) return -1;
-    if (read_int(p, end, &out->opts) != 0) return -1;
-    out->has_opts = 1;
-    if (read_str(p, end, &out->path, &out->path_len) != 0) return -1;
-    if (read_opt_str(p, end, &out->opaque, &out->opaque_len) != 0) return -1;
-    return read_opt_str(p, end, &out->avoid, &out->avoid_len);
+        if (optional) {
+            if (read_opt_str(p, end, span, span_len) != 0) {
+                return -1;
+            }
+        } else if (read_str(p, end, span, span_len) != 0) {
+            return -1;
+        }
+    }
+    return 0;
 }
 
 int
@@ -181,25 +188,31 @@ brix_cms_rrdata_parse(unsigned char code,
     case K_MKDIR:
     case K_MKPATH:
     case K_TRUNC:
-        return parse_fwd_a(&p, end, out);
+        /* fwdArgA: ident, mode, path, [opaque] */
+        return rr_parse_spec("imp|o", &p, end, out);
 
     case K_MV:
-        return parse_fwd_b(&p, end, out);
+        /* fwdArgB: ident, path, path2, [opaque, opaque2] */
+        return rr_parse_spec("ip2|ot", &p, end, out);
 
     case K_RM:
     case K_RMDIR:
     case K_STATFS:
-        return parse_fwd_c(&p, end, out);
+        /* fwdArgC: ident, path, [opaque] */
+        return rr_parse_spec("ip|o", &p, end, out);
 
     case K_PREPADD:
-        return parse_pad(&p, end, out);
+        /* padArgs: ident, reqid, notify, prty, mode, path, [opaque] */
+        return rr_parse_spec("irnymp|o", &p, end, out);
 
     case K_PREPDEL:
-        return parse_pdl(&p, end, out);
+        /* pdlArgs: ident, reqid */
+        return rr_parse_spec("ir", &p, end, out);
 
     case K_LOCATE:
     case K_SELECT:
-        return parse_loc(&p, end, out);
+        /* locArgs: ident, opts(int), path, [opaque, avoid] */
+        return rr_parse_spec("i#p|oa", &p, end, out);
 
     default:
         return -1;

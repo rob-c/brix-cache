@@ -16,59 +16,33 @@
  */
 
 /*
- * gsi_certreq_version — best-effort read of the client's advertised XrdSecgsi
- * version from the certreq's kXRS_version bucket (a 4-byte int).  Encoders
- * differ on byte order (our client emits big-endian; stock XrdSut writes the
- * host-order int), so accept whichever interpretation lands in the plausible
- * XrdSecgsi range; 0 when absent/implausible (caller then treats as legacy).
+ * gsi_certreq_u32 — best-effort read of a 4-byte integer bucket from the
+ * certreq payload.  Encoders differ on byte order (our client emits big-endian;
+ * stock XrdSut writes the host-order int), so accept whichever interpretation
+ * lands in the caller's plausible [lo, hi] range, preferring big-endian; 0 when
+ * the bucket is absent, short, or neither reading is plausible.  Used for the
+ * kXRS_version (XrdSecgsi version, 5-digit range) and kXRS_clnt_opts (kOpts*
+ * flag word, small bitmask) buckets.
  */
 static uint32_t
-gsi_certreq_version(const u_char *payload, size_t plen)
+gsi_certreq_u32(const u_char *payload, size_t plen, uint32_t bucket,
+    uint32_t lo, uint32_t hi)
 {
     const u_char *vb = NULL;
     size_t        vlen = 0;
     uint32_t      raw, be;
 
-    if (gsi_find_bucket(payload, plen, (uint32_t) kXRS_version, &vb, &vlen) != 0
+    if (gsi_find_bucket(payload, plen, bucket, &vb, &vlen) != 0
         || vlen < 4)
     {
         return 0;
     }
     ngx_memcpy(&raw, vb, 4);            /* host-order as written by stock XrdSut */
     be = ntohl(raw);                   /* big-endian as written by our client   */
-    if (be >= 10000 && be <= 99999) {
+    if (be >= lo && be <= hi) {
         return be;
     }
-    if (raw >= 10000 && raw <= 99999) {
-        return raw;
-    }
-    return 0;
-}
-
-/*
- * gsi_certreq_clnt_opts — read the client's kXRS_clnt_opts (int32 kOpts* flags)
- * from the certreq payload. XrdSut marshals it host-order; our client emits it
- * big-endian (gsi_core.c). The flags are a small bitmask (< 256), so pick the
- * interpretation whose value is a plausible flag word. Returns 0 if absent.
- */
-static uint32_t
-gsi_certreq_clnt_opts(const u_char *payload, size_t plen)
-{
-    const u_char *ob = NULL;
-    size_t        olen = 0;
-    uint32_t      raw, be;
-
-    if (gsi_find_bucket(payload, plen, (uint32_t) kXRS_clnt_opts, &ob, &olen) != 0
-        || olen < 4)
-    {
-        return 0;
-    }
-    ngx_memcpy(&raw, ob, 4);
-    be = ntohl(raw);
-    if (be != 0 && be < 4096) {
-        return be;
-    }
-    if (raw != 0 && raw < 4096) {
+    if (raw >= lo && raw <= hi) {
         return raw;
     }
     return 0;
@@ -175,8 +149,10 @@ gsi_record_handshake_opts(brix_ctx_t *ctx, ngx_connection_t *c,
     const ngx_stream_brix_srv_conf_t *conf)
 {
     int signed_dh = gsi_use_signed_dh(conf->gsi_signed_dh,
-                                      gsi_certreq_version(ctx->recv.payload,
-                                                          ctx->recv.cur_dlen));
+                                      gsi_certreq_u32(ctx->recv.payload,
+                                                      ctx->recv.cur_dlen,
+                                                      (uint32_t) kXRS_version,
+                                                      10000, 99999));
 
     if (signed_dh && conf->gsi_key == NULL) {
         signed_dh = 0;
@@ -186,8 +162,8 @@ gsi_record_handshake_opts(brix_ctx_t *ctx, ngx_connection_t *c,
     /* §F6: capture the client's advertised delegation mode (kXRS_clnt_opts) so a
      * later delegation round picks the flow the client actually supports —
      * kOptsFwdPxy (forward) vs kOptsDlgPxy / kOptsSigReq (sign-request). */
-    ctx->gsi.clnt_opts = gsi_certreq_clnt_opts(ctx->recv.payload,
-                                               ctx->recv.cur_dlen);
+    ctx->gsi.clnt_opts = gsi_certreq_u32(ctx->recv.payload, ctx->recv.cur_dlen,
+                                         (uint32_t) kXRS_clnt_opts, 1, 4095);
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
                   "brix: GSI client delegation opts=0x%02xd (fwd=%d sign=%d dlg=%d)",
                   (unsigned) ctx->gsi.clnt_opts,

@@ -70,6 +70,10 @@ def _binary_identity(value: Binary, source_root: Path) -> dict:
     ]
     return {
         "name": value.name, "local": local, "libraries": libraries,
+        "runtime_files": {
+            destination: _file_digest(source, source_root)
+            for destination, source in sorted(value.runtime_files.items())
+        },
         "discover_libraries": value.discover_libraries,
         "image": value.image, "image_path": value.image_path,
     }
@@ -217,6 +221,7 @@ def _pool_resources(definition: CaseDefinition, servers: Sequence[Server]) -> di
         definition, selected_credentials, artifact_names, placeholders,
     )
     parameters = _pool_parameters(definition.parameters, placeholders)
+    managed = _pool_managed_resources(definition, servers)
     return {
         "binaries": _named_items(definition.binaries, binary_names),
         "artifacts": _named_items(definition.artifacts, artifact_names),
@@ -225,7 +230,33 @@ def _pool_resources(definition: CaseDefinition, servers: Sequence[Server]) -> di
         "hosts": tuple(definition.hosts),
         "parameters": parameters,
         "source_root": source_root,
+        **managed,
     }
+
+
+def _pool_managed_resources(definition, servers) -> dict[str, tuple[object, ...]]:
+    return {
+        "volumes": _named_items(definition.volumes, _pool_volume_names(servers)),
+        "identities": _named_items(definition.identities, _pool_identity_names(servers)),
+        "environments": _named_items(
+            definition.environments, _pool_environment_names(servers),
+        ),
+    }
+
+
+def _pool_volume_names(servers) -> set[str]:
+    return {
+        mount.source.name for server in servers for mount in server.mounts
+        if getattr(mount.source, "resource_kind", "") == "volume"
+    }
+
+
+def _pool_identity_names(servers) -> set[str]:
+    return {server.placement.identity for server in servers}
+
+
+def _pool_environment_names(servers) -> set[str]:
+    return {server.placement.environment for server in servers}
 
 
 def _server_references(servers: Sequence[Server]) -> tuple[Reference, ...]:
@@ -273,7 +304,7 @@ def _server_identity(server: Server, source: Path) -> dict:
     }
 
 
-_SHARED_SCOPES = ("class", "module", "package", "session")
+_SHARED_SCOPES = ("class", "module", "package", "session", "worker")
 
 
 def shared_servers(
@@ -305,6 +336,9 @@ def pool_key(
         "credentials": [_secret_identity(item) for item in selected["credentials"]],
         "auth": [_secret_identity(item) for item in selected["auth"]],
         "hosts": _jsonable(selected["hosts"]),
+        "volumes": _jsonable(selected["volumes"]),
+        "identities": _jsonable(selected["identities"]),
+        "environments": _jsonable(selected["environments"]),
         "parameters": _jsonable(selected["parameters"]),
     }
     return hashlib.sha256(canonical_json(payload).encode()).hexdigest()[:24]
@@ -329,6 +363,8 @@ def pool_definition(
         artifacts=selected["artifacts"], binaries=selected["binaries"],
         credentials=selected["credentials"], auth=selected["auth"],
         hosts=selected["hosts"], parameters=selected["parameters"],
+        volumes=selected["volumes"], identities=selected["identities"],
+        environments=selected["environments"],
         warmup=0, trials=1, keep="always",
     )
 
@@ -351,6 +387,8 @@ def _scope_domain(nodeid: str, scope: str) -> str:
     module = parts[0]
     if scope == "session":
         return "session"
+    if scope == "worker":
+        return "worker"
     if scope == "package":
         return str(Path(module).parent)
     if scope == "module":
@@ -362,24 +400,33 @@ def _scope_domain(nodeid: str, scope: str) -> str:
 
 def derive(
     rows: Sequence[tuple[str, CaseDefinition]], namespace: str = "",
+    scopes: Sequence[str] = _SHARED_SCOPES,
 ) -> tuple[PoolPlan, ...]:
-    grouped = _grouped_pools(rows, namespace)
+    grouped = _grouped_pools(rows, namespace, scopes)
     return tuple(_pool_plan(key, scope, domain, uses)
                  for (key, scope, domain), uses in sorted(grouped.items()))
 
 
 def _grouped_pools(
     rows: Sequence[tuple[str, CaseDefinition]], namespace: str,
+    scopes: Sequence[str],
 ) -> dict[tuple[str, str, str], list[tuple[str, CaseDefinition]]]:
     grouped: dict[tuple[str, str, str], list[tuple[str, CaseDefinition]]] = {}
     for nodeid, definition in rows:
-        for key, scope, domain in _row_pool_keys(nodeid, definition, namespace):
+        for key, scope, domain in _row_pool_keys(
+            nodeid, definition, namespace, scopes,
+        ):
             grouped.setdefault((key, scope, domain), []).append((nodeid, definition))
     return grouped
 
 
-def _row_pool_keys(nodeid: str, definition: CaseDefinition, namespace: str):
-    for scope in _SHARED_SCOPES:
+def _row_pool_keys(
+    nodeid: str, definition: CaseDefinition, namespace: str,
+    scopes: Sequence[str],
+):
+    for scope in scopes:
+        if scope not in _SHARED_SCOPES:
+            raise SpecError("topology scope", scope, "is not a shared server scope")
         domain = _scope_domain(nodeid, scope)
         if namespace:
             domain = "%s\0worker:%s" % (domain, namespace)

@@ -257,78 +257,49 @@ brix_gsi_cipher_session_key(EVP_PKEY *mine, EVP_PKEY *peer, int padded,
 
 
 uint8_t *
-brix_gsi_cipher_encrypt(const brix_gsi_cipher_t *c, const uint8_t *key,
-                          const uint8_t *in, size_t inlen, int use_iv,
-                          size_t *outlen)
-{
-    XRD_AUTO(EVP_CIPHER_CTX) *ctx = EVP_CIPHER_CTX_new();
-    uint8_t         iv[BRIX_GSI_MAX_IV];
-    size_t          ivl = (size_t) c->iv_len;
-    size_t          off = use_iv ? ivl : 0;    /* IV prepended only when use_iv */
-    uint8_t        *out;
-    int             l1 = 0, l2 = 0;
-
-    /* ctx is scope-owned (XRD_AUTO): freed automatically on every return below.
-     * use_iv: a fresh random IV is prepended (XrdSecgsi >=DHsigned).  Otherwise
-     * a zero IV is used and nothing is prepended (pre-DHsigned peers). */
-    if (ctx == NULL) {
-        return NULL;
-    }
-    if (use_iv) {
-        if (RAND_bytes(iv, c->iv_len) != 1) {
-            return NULL;
-        }
-    } else {
-        memset(iv, 0, ivl);
-    }
-    out = (uint8_t *) malloc(off + inlen + (size_t) EVP_CIPHER_block_size(c->evp));
-    if (out == NULL) {
-        return NULL;
-    }
-    if (use_iv) {
-        memcpy(out, iv, ivl);
-    }
-    if (EVP_EncryptInit_ex(ctx, c->evp, NULL, key, iv) == 1
-        && EVP_EncryptUpdate(ctx, out + off, &l1, in, (int) inlen) == 1
-        && EVP_EncryptFinal_ex(ctx, out + off + l1, &l2) == 1) {
-        *outlen = off + (size_t) (l1 + l2);
-    } else {
-        free(out);              /* out is caller-owned on success — freed only here */
-        out = NULL;
-    }
-    return out;
-}
-
-
-uint8_t *
-brix_gsi_cipher_decrypt(const brix_gsi_cipher_t *c, const uint8_t *key,
-                          const uint8_t *in, size_t inlen, int use_iv,
-                          size_t *outlen)
+brix_gsi_cipher_apply(const brix_gsi_cipher_t *c, const uint8_t *key,
+                        const uint8_t *in, size_t inlen, int use_iv, int enc,
+                        size_t *outlen)
 {
     XRD_AUTO(EVP_CIPHER_CTX) *ctx = EVP_CIPHER_CTX_new();
     uint8_t         iv[BRIX_GSI_MAX_IV];
     size_t          ivl = (size_t) c->iv_len;
     size_t          off = use_iv ? ivl : 0;
+    size_t          in_off = enc ? 0 : off;    /* dec: payload follows the IV  */
+    size_t          out_off = enc ? off : 0;   /* enc: IV is prepended to out  */
     uint8_t        *out;
     int             l1 = 0, l2 = 0;
 
-    /* ctx is scope-owned (XRD_AUTO): freed automatically on every return below. */
-    if (ctx == NULL || inlen < off) {
+    /* ctx is scope-owned (XRD_AUTO): freed automatically on every return below.
+     * use_iv (XrdSecgsi >=DHsigned): encrypt prepends a fresh random IV
+     * (c->iv_len bytes) to the output; decrypt reads it back from the input's
+     * first iv_len bytes.  Otherwise a zero IV is used and nothing is
+     * prepended/consumed (pre-DHsigned peers). */
+    if (ctx == NULL || inlen < in_off) {
         return NULL;
     }
-    if (use_iv) {
-        memcpy(iv, in, ivl);                      /* IV is the first iv_len bytes */
-    } else {
+    if (!use_iv) {
         memset(iv, 0, ivl);
+    } else if (enc) {
+        if (RAND_bytes(iv, c->iv_len) != 1) {
+            return NULL;
+        }
+    } else {
+        memcpy(iv, in, ivl);                      /* IV is the first iv_len bytes */
     }
-    out = (uint8_t *) malloc(inlen - off + (size_t) EVP_CIPHER_block_size(c->evp));
+    out = (uint8_t *) malloc(inlen - in_off + out_off
+                             + (size_t) EVP_CIPHER_block_size(c->evp));
     if (out == NULL) {
         return NULL;
     }
-    if (EVP_DecryptInit_ex(ctx, c->evp, NULL, key, iv) == 1
-        && EVP_DecryptUpdate(ctx, out, &l1, in + off, (int) (inlen - off)) == 1
-        && EVP_DecryptFinal_ex(ctx, out + l1, &l2) == 1) {
-        *outlen = (size_t) l1 + (size_t) l2;    /* widen BEFORE adding */
+    if (out_off > 0) {
+        memcpy(out, iv, ivl);                     /* advertise the IV we chose */
+    }
+    if (EVP_CipherInit_ex(ctx, c->evp, NULL, key, iv, enc) == 1
+        && EVP_CipherUpdate(ctx, out + out_off, &l1,
+                            in + in_off, (int) (inlen - in_off)) == 1
+        && EVP_CipherFinal_ex(ctx, out + out_off + l1, &l2) == 1) {
+        *outlen = out_off + (size_t) l1 + (size_t) l2;  /* widen BEFORE adding */
     } else {
         free(out);              /* out is caller-owned on success — freed only here */
         out = NULL;

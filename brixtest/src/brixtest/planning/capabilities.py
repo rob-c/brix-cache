@@ -11,43 +11,137 @@ _COMMON = frozenset({
     "execution.capture", "network.ipv4", "network.tcp", "storage.tmp",
     "workload.service",
 })
-_BUILTIN: Mapping[str, frozenset[str]] = {
+_BACKENDS: Mapping[str, frozenset[str]] = {
     "local": _COMMON | {
         "execution.pty", "execution.stdin", "filesystem.native", "network.dual",
         "network.ipv6", "network.udp",
         "storage.client-volume", "storage.host", "storage.persistent",
         "storage.shared", "storage.volume",
-        "workload.init", "workload.task",
+        "identity.capabilities", "identity.materialization", "identity.posix",
+        "identity.userns",
+        "resource.provider",
+        "workload.group", "workload.init", "workload.task",
     },
     "process": _COMMON | {
         "execution.pty", "execution.stdin", "filesystem.native", "network.dual",
         "network.ipv6", "network.udp",
         "storage.client-volume", "storage.host", "storage.persistent",
         "storage.shared", "storage.volume",
-        "workload.init", "workload.task",
+        "identity.capabilities", "identity.materialization", "identity.posix",
+        "identity.userns",
+        "resource.provider",
+        "workload.group", "workload.init", "workload.task",
     },
     "docker": _COMMON | {
-        "execution.stdin", "filesystem.oci", "network.udp", "storage.client-volume",
-        "storage.host",
+        "execution.pty", "execution.stdin", "filesystem.oci", "network.dual",
+        "network.ipv6", "network.udp", "storage.client-volume",
+        "storage.device", "storage.host", "storage.mount-propagation",
+        "storage.volume", "identity.capabilities", "identity.materialization",
+        "identity.posix", "workload.task",
     },
     "podman": _COMMON | {
-        "execution.stdin", "filesystem.oci", "network.udp", "storage.client-volume",
-        "storage.host",
+        "execution.pty", "execution.stdin", "filesystem.oci", "network.dual",
+        "network.ipv6", "network.udp", "storage.client-volume",
+        "storage.device", "storage.host", "storage.mount-propagation",
+        "storage.volume", "identity.capabilities", "identity.materialization",
+        "identity.posix", "identity.userns", "workload.task",
     },
     "runc": _COMMON | {"filesystem.oci", "network.udp", "storage.host"},
     "kubernetes": _COMMON | {
-        "filesystem.kubernetes", "storage.host", "storage.mount-propagation",
-        "storage.persistent", "storage.quota", "storage.shared", "storage.volume",
+        "environment.isolated", "environment.named",
+        "execution.pty", "execution.stdin",
+        "filesystem.kubernetes", "network.dual", "network.ipv6", "network.udp",
+        "storage.host", "storage.mount-propagation",
+        "storage.device", "storage.persistent", "storage.quota", "storage.shared", "storage.volume",
+        "storage.provider", "resource.provider",
         "identity.capabilities", "identity.materialization", "identity.posix",
         "identity.rbac", "network.policy",
-        "workload.replicas",
+        "workload.group", "workload.init", "workload.replicas", "workload.task",
     },
     "minikube": _COMMON | {
-        "filesystem.kubernetes", "storage.host", "storage.mount-propagation",
-        "storage.persistent", "storage.quota", "storage.shared", "storage.volume",
+        "environment.isolated", "environment.named",
+        "execution.pty", "execution.stdin",
+        "filesystem.kubernetes", "network.dual", "network.ipv6", "network.udp",
+        "storage.host", "storage.mount-propagation",
+        "storage.device", "storage.persistent", "storage.quota", "storage.shared", "storage.volume",
+        "storage.provider", "resource.provider",
         "identity.capabilities", "identity.materialization", "identity.posix",
         "identity.rbac", "network.policy",
-        "workload.replicas",
+        "workload.group", "workload.init", "workload.replicas", "workload.task",
+    },
+}
+
+_PROCESS_LAUNCHER = _COMMON | {
+    "filesystem.native", "network.dual", "network.ipv6", "network.udp",
+    "storage.host", "storage.persistent", "storage.shared", "storage.volume",
+    "identity.capabilities", "identity.materialization", "identity.posix",
+    "identity.userns",
+    "workload.group",
+}
+_KUBERNETES_WORKLOAD = _COMMON | {
+    "filesystem.kubernetes", "network.dual", "network.ipv6", "network.udp",
+    "storage.host", "storage.mount-propagation",
+    "storage.device", "storage.persistent", "storage.quota", "storage.shared", "storage.volume",
+    "storage.provider",
+    "identity.capabilities", "identity.materialization", "identity.posix",
+    "identity.rbac", "network.policy", "workload.group", "workload.init", "workload.replicas",
+    "workload.task",
+}
+_BUILTIN_BY_KIND: Mapping[str, Mapping[str, frozenset[str]]] = {
+    "backend": _BACKENDS,
+    "launcher": {
+        "local": _PROCESS_LAUNCHER, "process": _PROCESS_LAUNCHER,
+        "docker": _COMMON | {
+            "identity.capabilities", "identity.materialization", "identity.posix",
+            "network.dual", "network.ipv6", "network.udp",
+            "storage.device", "storage.host",
+            "storage.mount-propagation", "storage.volume", "workload.group",
+        },
+        "podman": _COMMON | {
+            "identity.capabilities", "identity.materialization", "identity.posix",
+            "identity.userns",
+            "network.dual", "network.ipv6", "network.udp",
+            "storage.device", "storage.host",
+            "storage.mount-propagation", "storage.volume", "workload.group",
+        },
+        "kubernetes": _KUBERNETES_WORKLOAD,
+        "minikube": _KUBERNETES_WORKLOAD,
+    },
+    "executor": {
+        "local": frozenset({
+            "execution.capture", "execution.pty", "execution.stdin",
+            "identity.capabilities", "identity.materialization", "identity.posix",
+            "identity.userns", "network.ipv4", "network.tcp", "storage.client-volume",
+        }),
+        "docker": frozenset({
+            "execution.capture", "execution.pty", "execution.stdin", "network.ipv4",
+            "identity.capabilities", "identity.materialization", "identity.posix",
+            "network.tcp", "network.udp", "storage.client-volume",
+        }),
+        "podman": frozenset({
+            "execution.capture", "execution.pty", "execution.stdin", "network.ipv4",
+            "identity.capabilities", "identity.materialization", "identity.posix",
+            "identity.userns", "network.tcp", "network.udp", "storage.client-volume",
+        }),
+        "kubernetes": frozenset({
+            "execution.capture", "execution.pty", "execution.stdin",
+            "network.ipv4", "network.tcp",
+        }),
+    },
+    "provider": {
+        name: frozenset({"checksum", "confined", "provenance"})
+        for name in ("noise", "text", "file")
+    },
+    "transport": {
+        "native-filesystem": frozenset({
+            "filesystem.binary", "filesystem.confined", "filesystem.native",
+            "filesystem.xattr",
+        }),
+    },
+    "image": {
+        "oci": frozenset({
+            "image.content-addressed", "image.minikube-load", "image.sbom",
+        }),
     },
 }
 
@@ -55,15 +149,20 @@ _BUILTIN: Mapping[str, frozenset[str]] = {
 def backend_capabilities(name: str, kind: str = "backend") -> frozenset[str]:
     """Return stable capabilities for a built-in or installed extension."""
     selected = "local" if name in ("", "auto", "inherit") else name
-    if selected in _BUILTIN:
-        return _BUILTIN[selected]
+    builtins = _BUILTIN_BY_KIND.get(kind, {})
+    if selected in builtins:
+        return builtins[selected]
     extension, selected_kind = _load_extension(kind, selected)
-    described = next(
-        (item.capabilities for item in installed_extensions(selected_kind) if item.name == selected),
-        (),
-    )
+    described = _described_capabilities(selected_kind, selected)
     values = getattr(extension, "brixtest_capabilities", described)
     return frozenset(str(value) for value in values) or _COMMON
+
+
+def _described_capabilities(kind: str, name: str) -> Sequence[str]:
+    return next(
+        (item.capabilities for item in installed_extensions(kind) if item.name == name),
+        (),
+    )
 
 
 def _load_extension(kind: str, name: str) -> tuple[object, str]:
@@ -92,16 +191,24 @@ def validate_capabilities(nodes: Sequence[object]) -> None:
 
 
 def _alternatives(required: set[str], selected: str, resource_kind: str) -> tuple[str, ...]:
-    candidates = {
-        name for name, capabilities in _BUILTIN.items()
+    candidates = _builtin_alternatives(required, selected)
+    candidates.update(_extension_alternatives(required, selected, resource_kind))
+    return tuple(sorted(candidates))
+
+
+def _builtin_alternatives(required: set[str], selected: str) -> set[str]:
+    return {
+        name for name, capabilities in _BACKENDS.items()
         if name != selected and required <= capabilities
     }
+
+
+def _extension_alternatives(required, selected, resource_kind) -> set[str]:
     extension_kind = _extension_kind(resource_kind)
-    candidates.update(
+    return {
         item.name for item in installed_extensions(extension_kind)
         if item.name != selected and required <= set(item.capabilities)
-    )
-    return tuple(sorted(candidates))
+    }
 
 
 def _extension_kind(resource_kind: str) -> str:

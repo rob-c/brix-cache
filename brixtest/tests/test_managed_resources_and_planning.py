@@ -14,9 +14,11 @@ from brixtest import (
     Resource,
     Task,
     Volume,
+    binary,
     case,
     endpoint,
     environment,
+    file_artifact,
     identity,
     mount,
     probe,
@@ -28,10 +30,11 @@ from brixtest import (
 )
 from brixtest.errors import SpecError
 from brixtest.planning import compile_case, validate_capabilities
+from brixtest.planning.model import GraphEdge
 from brixtest.pytest_design import _describe_plan
 from brixtest.resources import Placement
+from brixtest.resources import Reference
 from brixtest.runtime.manager import CaseManager
-from brixtest.runtime.kubernetes_manifests import server_resources
 
 
 def _definition(*resources, **options):
@@ -94,6 +97,22 @@ def test_device_volume_requires_an_explicit_source():
         volume("fuse", kind="device")
 
 
+def test_device_capability_is_negotiated_before_resource_creation():
+    fuse = volume("fuse", kind="device", source="/dev/fuse")
+    local_graph = compile_case(_definition(fuse), "local")
+    with pytest.raises(SpecError, match=r"storage.device.*backend local"):
+        validate_capabilities(local_graph.nodes)
+    validate_capabilities(compile_case(_definition(fuse), "docker").nodes)
+
+
+def test_user_namespace_capability_selects_process_and_podman():
+    runner = identity("runner", user_namespace=True)
+    validate_capabilities(compile_case(_definition(runner), "local").nodes)
+    validate_capabilities(compile_case(_definition(runner), "podman").nodes)
+    with pytest.raises(SpecError, match=r"identity.userns.*backend docker"):
+        validate_capabilities(compile_case(_definition(runner), "docker").nodes)
+
+
 def test_identity_rejects_invalid_id_map_rows():
     with pytest.raises(SpecError, match="identity.uid_map"):
         identity("runner", user_namespace=True, uid_map=((0, 1000, 0),))
@@ -143,6 +162,21 @@ def test_graph_contains_typed_placement_dependency_and_mount_edges():
     assert ("environment:lab", "server:origin", "places") in rows
     assert ("identity:runner", "server:origin", "identifies") in rows
     assert ("volume:data", "server:origin", "mounts") in rows
+    assert ("server:origin", "task:prepare", "tears-down-before") in rows
+
+
+def test_graph_dependency_has_connectivity_and_reverse_teardown_edges():
+    database = server("database", command=("true",))
+    origin = server("origin", command=("true",), depends_on=(database,))
+    rows = {
+        (edge.source, edge.target, edge.relation)
+        for edge in compile_case(_definition(database, origin)).edges
+    }
+    assert ("server:database", "server:origin", "ready-before") in rows
+    assert ("server:origin", "server:database", "connects-to") in rows
+    assert ("server:origin", "server:database", "tears-down-before") in rows
+    with pytest.raises(SpecError, match="graph edge relation"):
+        GraphEdge("server:origin", "server:database", "maybe")
 
 
 def test_graph_fingerprint_is_stable_and_changes_with_effective_declaration():
@@ -160,15 +194,12 @@ def test_dependency_cycle_is_rejected_by_planning():
         compile_case(_definition(first, second))
 
 
-def test_capability_failure_names_resource_requirement_and_backend():
+def test_kubernetes_ipv6_capability_is_negotiated():
     origin = server(
         "origin", command=("true",), endpoints=(endpoint(family="ipv6"),),
     )
     graph = compile_case(_definition(origin), "kubernetes")
-    with pytest.raises(
-        SpecError, match=r"server:origin.*network.ipv6.*backend kubernetes.*alternatives: local",
-    ):
-        validate_capabilities(graph.nodes)
+    validate_capabilities(graph.nodes)
 
 
 def test_plan_redacts_authentication_secrets():
@@ -412,61 +443,54 @@ def test_design_explains_effective_plan_and_missing_capabilities():
     text = "\n".join(terminal.lines)
     assert "plan schema=1 fingerprint=" in text
     assert "node server:origin" in text
-    assert "missing=network.ipv6" in text
+    assert "missing=" not in text
 
 
-def _kubernetes_server(*, mounts=(), replicas=1):
-    return server(
-        "origin", command=("/server",), mounts=mounts, replicas=replicas,
-        image="registry.test/server@sha256:" + "a" * 64,
-        endpoints=(endpoint("primary"),),
+
+
+def test_task_outputs_become_immutable_binary_and_artifact_inputs(tmp_path):
+    code = (
+        "import os,pathlib;"
+        "pathlib.Path('server').write_text('#!/usr/bin/env python3\\nimport time\\ntime.sleep(30)\\n');"
+        "os.chmod('server',0o755);pathlib.Path('payload').write_text('built')"
     )
-
-
-def test_kubernetes_renders_replicas_and_managed_persistent_volume():
-    data = volume(
-        "data", kind="persistent", size=8 << 20,
-        access="read-write-many", options={"storage_class": "standard"},
+    build = task(
+        "build", command=(sys.executable, "-c", code),
+        outputs={"server": "server", "payload": "payload"},
     )
-    mounted = mount(data, "data", read_only=False)
-    origin = _kubernetes_server(mounts=(mounted,), replicas=3)
-    documents = server_resources(
-        origin, namespace="case", command=("/server",), env={},
-        ports={"primary": 18000}, config_text="",
-        managed_volumes=((mounted, data),),
+    executable = binary(
+        "built_server", path=build.output("server"), discover_libraries=False,
     )
-    by_kind = {document["kind"]: document for document in documents}
-    assert by_kind["Deployment"]["spec"]["replicas"] == 3
-    claim = by_kind["PersistentVolumeClaim"]
-    assert claim["spec"]["accessModes"] == ["ReadWriteMany"]
-    assert claim["spec"]["resources"]["requests"]["storage"] == str(8 << 20)
-    assert claim["spec"]["storageClassName"] == "standard"
-    container = by_kind["Deployment"]["spec"]["template"]["spec"]["containers"][0]
-    assert {row["mountPath"] for row in container["volumeMounts"]} >= {
-        "/brixtest/mounts/data",
-    }
-
-
-def test_kubernetes_tmp_volume_quota_uses_empty_dir_size_limit():
-    scratch = volume("scratch", size=4096)
-    mounted = mount(scratch, "scratch", read_only=False)
-    documents = server_resources(
-        _kubernetes_server(mounts=(mounted,)), namespace="case",
-        command=("/server",), env={}, ports={"primary": 18000}, config_text="",
-        managed_volumes=((mounted, scratch),),
+    payload = file_artifact("built_payload", build.output("payload"))
+    origin = server(
+        "origin", command=(executable,), depends_on=(build,), probe=probe("none"),
     )
-    deployment = next(row for row in documents if row["kind"] == "Deployment")
-    volumes = deployment["spec"]["template"]["spec"]["volumes"]
-    selected = next(row for row in volumes if row["name"] == "managed-scratch")
-    assert selected["emptyDir"]["sizeLimit"] == "4096"
+    definition = _definition(build, executable, payload, origin, keep="always")
+    graph = compile_case(definition)
+    edges = {(row.source, row.target, row.relation) for row in graph.edges}
+    assert ("task:build", "binary:built_server", "produces") in edges
+    assert ("task:build", "artifact:built_payload", "produces") in edges
+    manager = CaseManager(definition, "managed::deferred-inputs", root=tmp_path / "run")
+    run = manager.start()
+    assert run.binary(executable).verify()
+    assert run.artifact(payload).read_text() == "built"
+    source = run.task_output(build, "server")
+    source.write_text("changed after capture")
+    assert run.binary(executable).verify()
+    manager.set_outcome("passed")
+    manager.close()
 
 
-def test_kubernetes_rejects_relative_host_volume_path():
-    host = volume("host", kind="host", source="relative")
-    mounted = mount(host, "host", read_only=False)
-    with pytest.raises(SpecError, match="absolute node path"):
-        server_resources(
-            _kubernetes_server(mounts=(mounted,)), namespace="case",
-            command=("/server",), env={}, ports={"primary": 18000},
-            config_text="", managed_volumes=((mounted, host),),
-        )
+def test_deferred_input_must_name_a_real_non_finalizer_output():
+    prepare = task("prepare", command=("true",), outputs={"value": "value"})
+    missing = binary(
+        "missing", path=Reference("task", "prepare", "output", "other"),
+    )
+    with pytest.raises(SpecError, match="declared task output"):
+        _definition(prepare, missing)
+    finalize = task(
+        "cleanup", command=("true",), phase="finalize", outputs={"value": "value"},
+    )
+    late = file_artifact("late", finalize.output("value"))
+    with pytest.raises(SpecError, match="finalization"):
+        _definition(finalize, late)

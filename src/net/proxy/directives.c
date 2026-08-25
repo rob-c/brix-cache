@@ -241,29 +241,34 @@ brix_conf_set_proxy_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 char *
 brix_conf_set_proxy_auth(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 {
+    static const struct {
+        const char *name;
+        ngx_uint_t  mode;
+    } modes[] = {
+        { "anonymous", BRIX_PROXY_AUTH_ANONYMOUS },
+        { "forward",   BRIX_PROXY_AUTH_FORWARD },
+        { "sss",       BRIX_PROXY_AUTH_SSS },
+        { "gsi",       BRIX_PROXY_AUTH_GSI },
+    };
     ngx_stream_brix_srv_conf_t *conf = conf_ptr;
     ngx_str_t                    *value;
+    ngx_uint_t                    i;
 
     (void) cmd;
 
     value = cf->args->elts;
 
-    if (ngx_strcmp(value[1].data, "anonymous") == 0) {
-        conf->proxy.auth = BRIX_PROXY_AUTH_ANONYMOUS;
-    } else if (ngx_strcmp(value[1].data, "forward") == 0) {
-        conf->proxy.auth = BRIX_PROXY_AUTH_FORWARD;
-    } else if (ngx_strcmp(value[1].data, "sss") == 0) {
-        conf->proxy.auth = BRIX_PROXY_AUTH_SSS;
-    } else if (ngx_strcmp(value[1].data, "gsi") == 0) {
-        conf->proxy.auth = BRIX_PROXY_AUTH_GSI;
-    } else {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_proxy_auth: invalid value \"%V\"; "
-            "use anonymous, forward, sss, or gsi", &value[1]);
-        return NGX_CONF_ERROR;
+    for (i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
+        if (ngx_strcmp(value[1].data, modes[i].name) == 0) {
+            conf->proxy.auth = modes[i].mode;
+            return NGX_CONF_OK;
+        }
     }
 
-    return NGX_CONF_OK;
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        "brix_proxy_auth: invalid value \"%V\"; "
+        "use anonymous, forward, sss, or gsi", &value[1]);
+    return NGX_CONF_ERROR;
 }
 
 /*

@@ -120,4 +120,20 @@ void brix_http_source_offer(ngx_http_request_t *r);
 ngx_int_t brix_http_request_header_add(ngx_http_request_t *r,
     const char *key, const char *value, ngx_table_elt_t **out);
 
+/*
+ * 1 when the request arrived over TLS, 0 otherwise (always 0 on a build
+ * without NGX_HTTP_SSL). Replaces the hand-rolled `int is_tls; #if SSL ...`
+ * idiom at VFS-ctx construction sites.
+ */
+static ngx_inline int
+brix_http_request_is_tls(const ngx_http_request_t *r)
+{
+#if (NGX_HTTP_SSL)
+    return (r->connection->ssl != NULL) ? 1 : 0;
+#else
+    (void) r;
+    return 0;
+#endif
+}
+
 #endif /* BRIX_COMPAT_HTTP_HEADERS_H */

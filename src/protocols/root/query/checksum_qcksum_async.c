@@ -68,10 +68,9 @@ brix_cksum_aio_thread(void *data, ngx_log_t *log)
 void
 brix_cksum_aio_done(ngx_event_t *ev)
 {
-    ngx_thread_task_t  *task = ev->data;
-    brix_cksum_aio_t *t    = task->ctx;
-    brix_ctx_t       *ctx  = t->ctx;
-    ngx_connection_t   *c    = t->c;
+    brix_cksum_aio_t *t   = ((ngx_thread_task_t *) ev->data)->ctx;
+    brix_ctx_t       *ctx = t->ctx;
+    ngx_connection_t   *c   = t->c;
 
     if (t->close_fd) {
         /* Path-based request: release the VFS handle we opened (it owns the fd).
