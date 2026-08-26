@@ -12,7 +12,7 @@ the audit's list and none of them in `docs/03-configuration/directives.md`:
 
     brix_backend_token_audience_ok              brix_idmap_cache_ttl
     brix_backend_token_exchange_client_id       brix_idmap_forbidden_users
-    brix_backend_token_exchange_client_secret   brix_impersonation_broker_user
+    brix_backend_token_exchange_client_secret   brix_idmap_broker_user
     brix_backend_passthrough_persist
 
 §Method step 4 is the half that matters here — "the directive/config field has
@@ -119,7 +119,7 @@ HTTP_PLANE = {
 STREAM_PLANE = {
     "brix_idmap_cache_ttl": "300",
     "brix_idmap_forbidden_users": "root,daemon",
-    "brix_impersonation_broker_user": "brixbroker",
+    "brix_idmap_broker_user": "brixbroker",
 }
 ALL_SEVEN = {**HTTP_PLANE, **STREAM_PLANE}
 
@@ -272,14 +272,29 @@ def test_the_impersonation_knobs_are_process_global_not_per_server(
 # --------------------------------------------------------------------------- #
 
 _COMMON_C = ROOT / "src/core/config/http_common.c"
+# phase-101 W2: brix_http_common_commands[] no longer lists its entries inline —
+# it #includes three directives_*.h fragment headers, where the actual
+# { ngx_string(...), ... offsetof(common.<field>) } rows now live.  Parse those.
+_COMMON_DIR = ROOT / "src/core/config"
+
+
+def _common_table_text():
+    """The full brix_http_common_commands[] body: http_common.c's table shell
+    plus every directives_*.h fragment it #includes into that table."""
+    blob = _COMMON_C.read_text(encoding="utf-8")
+    table = blob.split("brix_http_common_commands[] = {", 1)[1]
+    table = table.split("ngx_null_command", 1)[0]
+    fragments = re.findall(r'#include\s+"(http_directives_[a-z0-9_]+\.h)"', table)
+    parts = [table]
+    for frag in fragments:
+        parts.append((_COMMON_DIR / frag).read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
 def _parsed_unified_fields():
     """{field: directive} for every common-module command that writes a
     `common.*` field — the values an http-plane location can set."""
-    blob = _COMMON_C.read_text(encoding="utf-8")
-    table = blob.split("brix_http_common_commands[] = {", 1)[1]
-    table = table.split("ngx_null_command", 1)[0]
+    table = _common_table_text()
     return {m.group(3): m.group(1) for m in re.finditer(
         r'\{\s*ngx_string\("(brix_[a-z0-9_]+)"\)(.*?)offsetof\('
         r'ngx_http_brix_common_conf_t,\s*common\.([a-z0-9_]+)\)', table, re.S)}
@@ -309,11 +324,18 @@ def test_no_unified_field_is_parsed_without_being_adopted():
     is config the operator can write and no protocol can read."""
     parsed, adopted = _parsed_unified_fields(), _adopted_fields()
     orphans = {f: d for f, d in parsed.items() if f not in adopted}
-    # The five that are orphaned today. Four are also declared on the stream
-    # plane, so their gap costs the http plane only; backend_token_aud has no
-    # second declaration and is unreachable everywhere.
+    # The parse/adopt heuristic sees these as parsed-but-not-adopted. Five are
+    # the real DEFECT #34 inert class — four also declared on the stream plane
+    # (their gap costs the http plane only), and backend_token_aud has no second
+    # declaration and is unreachable everywhere. rate_limit is NOT inert: it is a
+    # location-scoped SHM zone engine (phase-105 W1) whose brix_rate_limit_directive
+    # setter writes common.rate_limit, inherited per-location through the shared
+    # merge (shared_conf_merge.h: conf->rate_limit = prev->rate_limit) and read
+    # DIRECTLY from the common conf by the rate-limit handler at request time — it
+    # never needs adopting into a protocol struct, which is why the heuristic
+    # cannot see its reachability (its live arm is covered by test_rate_limit_s3).
     known = {"backend_token_aud", "backend_sss_keytab", "backend_sts_flavor",
-             "seccomp", "verify_write"}
+             "seccomp", "verify_write", "rate_limit"}
     assert set(orphans) - known == set(), (
         "a NEW common-module directive is parsed but never adopted, so it is "
         f"inert on every http export: {sorted(set(orphans) - known)}")
@@ -324,17 +346,29 @@ def test_no_unified_field_is_parsed_without_being_adopted():
 
 def test_the_audience_gate_has_no_second_declaration_to_fall_back_on():
     """What separates #34 from the other four orphans: nothing else declares
-    it, so there is no plane on which an operator can make it take effect."""
+    it, so there is no plane on which an operator can make it take effect.
+
+    The invariant is a SINGLE declaration, and it must live on the shared
+    HTTP-common config surface (src/core/config/) — not in any protocol
+    module's own table, which is what would make the gate reachable.  It is
+    pinned by that property rather than an exact file:line so an intra-surface
+    move (phase-101 registered the config surface through #included
+    directives_*.h fragment headers) does not falsely redden a real invariant —
+    the same path-keyed-audit-breaks-on-moves class as its consumer sibling."""
     hits = []
     for path in ROOT.joinpath("src").rglob("*.[ch]"):
         for i, line in enumerate(
                 path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
             if 'ngx_string("brix_backend_token_audience_ok")' in line:
                 hits.append(f"{path.relative_to(ROOT)}:{i}")
-    assert hits == ["src/core/config/http_common.c:157"], (
-        f"{DEFECT34} The directive is now declared at {hits}; if one of those "
-        "is a protocol module's own table the gate may be reachable — retest "
-        "the live arm before trusting this pin.")
+    assert len(hits) == 1, (
+        f"{DEFECT34} Expected exactly one declaration; found {hits}. A second "
+        "declaration — especially in a protocol module's own table — could make "
+        "the gate reachable; retest the live arm before trusting this pin.")
+    assert hits[0].startswith("src/core/config/"), (
+        f"{DEFECT34} The directive is now declared at {hits[0]}, outside the "
+        "shared HTTP-common config surface — if that is a protocol module's own "
+        "table the gate may be reachable; retest the live arm.")
 
 
 def test_the_audience_gate_still_has_a_real_consumer_waiting_for_it():
