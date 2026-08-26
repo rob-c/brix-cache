@@ -73,13 +73,13 @@ test_encrypt_roundtrip(void)
         }
         for (i = 0; i < (size_t) c.key_len; i++) { key[i] = (uint8_t) (i * 7 + 1); }
 
-        ct = brix_gsi_cipher_encrypt(&c, key, (const uint8_t *) msg,
-                                       strlen(msg), 1, &ctl);
+        ct = brix_gsi_cipher_apply(&c, key, (const uint8_t *) msg,
+                                     strlen(msg), 1, /* enc */ 1, &ctl);
         CHECK(ct != NULL, names[n]);
         CHECK(ct == NULL || ctl >= (size_t) c.iv_len + strlen(msg),
               "ciphertext carries IV + padded block");
 
-        pt = brix_gsi_cipher_decrypt(&c, key, ct, ctl, 1, &ptl);
+        pt = brix_gsi_cipher_apply(&c, key, ct, ctl, 1, /* enc */ 0, &ptl);
         CHECK(pt != NULL, "decrypt");
         CHECK(ptl == strlen(msg) && pt && memcmp(pt, msg, ptl) == 0,
               "encrypt/decrypt round-trip");

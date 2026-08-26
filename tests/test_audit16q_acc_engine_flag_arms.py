@@ -982,15 +982,28 @@ class TestTheDeclarationsAndTheCorpus:
     @pytest.mark.parametrize("directive", sorted(SUBJECTS))
     def test_the_http_twin_is_a_take1_with_its_own_setter(self, directive):
         """The same name on the other plane, declared NGX_HTTP_LOC_CONF |
-        NGX_CONF_TAKE1 behind a hand-written setter — which is why §F measures
-        the two planes separately and why their diagnostics differ."""
+        NGX_CONF_TAKE1 behind the shared on|off setter.
+
+        The three on|off directives' hand-written per-directive setters were
+        consolidated (9ab5c3f5) into one generic brix_acc_http_set_onoff, which
+        selects the brix_acc_http_t field to arm through cmd->offset (an
+        offsetof, exactly like nginx's own *_slot setters) instead of hard-coding
+        it — so the setter column is now `brix_acc_http_set_onoff, 0,
+        offsetof(brix_acc_http_t, <field>), NULL`, with <field> the directive's
+        own tail.  The field each directive arms is still its own (that is what
+        §F measures per-plane), only the setter is now shared."""
         text = WEBDAV_COMMANDS_C.read_text()
         marker = f'{{ ngx_string("{directive}"),'
         assert marker in text, directive
-        lines = [ln.strip() for ln in text.split(marker, 1)[1].splitlines()[1:3]]
-        assert lines[0] == "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,", lines
-        setter = directive.replace("brix_acc_", "brix_acc_http_set_")
-        assert lines[1] == f"{setter}, 0, 0, NULL }},", lines
+        # The entry can wrap across source lines — offsetof() pushes
+        # brix_acc_resolve_hosts's trailing `NULL },` onto the next line — so
+        # normalise whitespace across the whole entry (up to its closing `},`)
+        # rather than pinning fixed line offsets.
+        entry = " ".join(text.split(marker, 1)[1].split("},", 1)[0].split())
+        assert "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1," in entry, entry
+        field = directive.replace("brix_acc_", "")
+        assert (f"brix_acc_http_set_onoff, 0, "
+                f"offsetof(brix_acc_http_t, {field}), NULL") in entry, entry
 
     def test_the_http_setter_writes_both_loc_confs_and_validates_by_hand(self):
         """One call site writes the WebDAV and S3 loc-confs together, and the

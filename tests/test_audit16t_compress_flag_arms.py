@@ -843,11 +843,19 @@ class TestTheMechanismIsWhereTheFileSaysItIs:
         assert "return" in window, window
 
     def test_the_disabled_capability_form_is_a_literal_zero(self):
-        """`cmpread=0` / `cmpwrite=0` are spelled in the C, so §B is asserting
-        the emitter's own string and not a client-side rendering."""
+        """The disabled compression form is the C emitter's own `=0` string, not
+        a client-side rendering.
+
+        cmpread and cmpwrite were consolidated onto one shared emitter
+        (brix_qconfig_emit_cmp, 9ab5c3f5): when the direction is disabled it
+        appends the literal `"%s=0\\n"` with the key name, so the on-wire bytes
+        are still `cmpread=0\\n` / `cmpwrite=0\\n` — the source now carries the
+        `=0` format once and the two keys as the arguments that fill the `%s`."""
         text = _source(QCONFIG_C)
-        assert '"cmpread=0\\n"' in text, "cmpread disabled form not found"
-        assert '"cmpwrite=0\\n"' in text, "cmpwrite disabled form not found"
+        assert '"%s=0\\n"' in text, "disabled compression form (=0) not found"
+        assert '"cmpread"' in text, "cmpread key not passed to the shared emitter"
+        assert '"cmpwrite"' in text, \
+            "cmpwrite key not passed to the shared emitter"
 
     def test_each_emitter_reads_its_own_flag(self):
         """The pin behind the mixed plane: two emitters, two fields."""

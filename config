@@ -1603,6 +1603,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                  $ngx_addon_dir/src/protocols/dig/dig.c \
                  $ngx_addon_dir/src/protocols/webdav/access.c \
                  $ngx_addon_dir/src/protocols/webdav/access_auth.c \
+                 $ngx_addon_dir/src/protocols/webdav/access_vfs_ctx.c \
                  $ngx_addon_dir/src/protocols/webdav/dispatch.c \
                  $ngx_addon_dir/src/protocols/webdav/path.c \
                  $ngx_addon_dir/src/protocols/webdav/util/uri.c \

@@ -1425,13 +1425,23 @@ QUERY_CONFIG_C = REPO / "src/protocols/root/query/config.c"
 
 
 def qconfig_keys() -> dict[str, bool]:
-    """{key: public_safe} straight from brix_qconfig_table[]."""
+    """{key: public_safe} straight from brix_qconfig_table[].
+
+    Each row is now 4-column — ``{ "key", <fixed-response-line|NULL>,
+    <emitter|NULL>, <public_safe> }`` — after the qconfig table was reshaped
+    (9ab5c3f5) so a key that emits a constant line carries the string as data
+    with a NULL emitter, instead of every key needing its own emitter function.
+    The key is the first quoted token and public_safe is the trailing 0/1; the
+    two middle columns (a possibly multi-line string literal, NULL, or an
+    ``brix_qconfig_emit_*`` name) are skipped non-greedily so both fixed-line and
+    emitter rows are read.  The old regex pinned an emitter immediately after the
+    key and so matched zero rows against the reshaped table."""
     text = QUERY_CONFIG_C.read_text(encoding="utf-8")
     body = text.split("brix_qconfig_table[] = {", 1)[1].split("\n};", 1)[0]
     return {
         key: value == "1"
         for key, value in re.findall(
-            r'\{\s*"([^"]+)"\s*,\s*brix_qconfig_emit_\w+\s*,\s*(\d)\s*\}', body
+            r'\{\s*"([^"]+)"\s*,.*?,\s*([01])\s*\}', body, re.DOTALL
         )
     }
 

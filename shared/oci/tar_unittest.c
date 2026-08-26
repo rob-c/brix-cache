@@ -448,7 +448,6 @@ static void t_gzip(void) {
 
 static void t_zstd(void) {
     static const unsigned char magic[] = { 0x28, 0xb5, 0x2f, 0xfd, 0, 0 };
-    char                       err[256];
 
 #ifdef BRIX_HAVE_ZSTD
     ar_t                  a = { .len = 0 };
@@ -474,7 +473,8 @@ static void t_zstd(void) {
           "zstd: sniffed + decompressed round-trip");
     ar_done(t, fd);
 #else
-    int fd = ar_fd(magic, sizeof(magic));
+    char err[256];
+    int  fd = ar_fd(magic, sizeof(magic));
 
     CHECK(brix_tar_open_fd(fd, err, sizeof(err)) == NULL &&
           strstr(err, "zstd") != NULL,

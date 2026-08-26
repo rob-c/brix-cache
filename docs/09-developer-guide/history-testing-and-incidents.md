@@ -2003,3 +2003,85 @@ still exist. **Rule: a harness that tears down its servers must capture
 their logs into the failure artifact at the moment of failure — a red whose
 evidence is destroyed by its own cleanup can never graduate past
 "transient".**
+
+## 22. A broken-main event: what a "duplication burned to zero" commit reddened (2026-08-26)
+
+`9ab5c3f5` ("the duplication backlog burned to zero") consolidated many
+duplicated code blocks into shared helpers and reshaped one C descriptor
+table. Every consolidation was behavior-preserving, but each left a *test*
+that had pinned the OLD source shape. A full `--pr` run against that HEAD came
+back 14 red in the parallel phase (the serial/source/guard phase stayed clean
+at 590/0). The 14 decomposed into four named classes — only one was a real
+code defect, and it was the guard, not a test.
+
+**(a) The nested-helper / extracted-caller scope bug — a recurring class.**
+Three separate reds (`test_phase24_mirror` earlier, `official_interop_lib_part2`'s
+`_mirror`, `test_conf_fattr`'s `bare`) share one shape: a mechanical
+"extract-expression-to-module-function" refactor lifted a *caller* to module
+level while its little helper stayed **nested inside** the original function.
+At runtime the extracted caller resolves the helper name in MODULE globals and
+raises `NameError`. `test_conf_fattr` is the clearest: `_expression_2/_3`
+(module-level, lines 7-15) call `bare()`, which was defined nested in
+`test_bindings_multi_set_list_value_parity` — five parametrizations all
+`NameError: bare`. **Fix pattern: lift the pure helper to module scope; it has
+no closure state, so the move is free. Rule: when an extraction pulls a caller
+out of a function, every name that caller uses must also live at module scope
+— a nested def left behind is a latent `NameError` the def-time parse never
+catches.**
+
+**(b) Stale source-structure audits against a committed consolidation.** Four
+reds (`audit16q` ×3, `audit16t` ×1) were `_source`/`_read` scans asserting the
+pre-dedup C literally. `audit16q` pinned a hand-written per-directive setter
+`brix_acc_http_set_<name>, 0, 0, NULL`; the dedup replaced all three acc on|off
+directives with the shared `brix_acc_http_set_onoff, 0,
+offsetof(brix_acc_http_t, <field>), NULL` (the offset carries what the name
+used to). `audit16t` pinned the literal `"cmpread=0\n"`/`"cmpwrite=0\n"`; the
+dedup merged the two emitters into `brix_qconfig_emit_cmp` spelling the
+disabled form as `"%s=0\n"` + key. **Both wire behaviors are byte-identical**
+(offsets verified against `module_commands.c`; the format string emits the same
+bytes). The audits were updated to assert the NEW mechanism while preserving
+each audit's verification *purpose* (each directive still arms its own field;
+the disabled form is still `=0`). **Rule: an audit that pins source STRUCTURE,
+not behavior, must be re-pointed the moment a deliberate refactor changes the
+structure — verify the behavior is preserved, then track the new shape; do not
+weaken the audit to a tautology.**
+
+**(c) A ground-truth parser stranded by a table reshape.** The
+`root_readonly_gateway_deep.py::qconfig_keys` parser regex
+(`{ "key", brix_qconfig_emit_\w+, <digit> }`) matched ZERO rows after the
+qconfig table went 3-column → 4-column — a fixed-response-line column was
+inserted between key and emitter, and constant-line keys now carry `NULL` where
+an emitter used to be. The test failed with "the C table names 0 kXR_Qconfig
+keys, withheld: []". Fix: a non-greedy DOTALL regex
+(`{ "key", .*?, <0|1> }`) that skips the two middle columns and reads key +
+trailing `public_safe`; now extracts all 15 keys with `version`/`role`
+withheld. **Rule: a test that derives its expectation by PARSING a C table is
+correct only while the table's column shape holds — reshape the table, re-teach
+the parser, in the same change.**
+
+**(d) A non-hermetic geo test (`audit15y` ×2).** `test_*_answer_mode` /
+`test_the_order_does_not_change` drove the cvmfs `rtt` geo policy with the real
+Stratum-1 hostnames `cvmfs-stratum-one.cern.ch,cvmfs-s1bnl.opensciencegrid.org`
+and asserted the order-preserving body `1,2`. `rtt` measures **real
+TCP-connect RTT** to each listed server (`geo_answer.c`) and ranks
+nearest-first, preserving input order only for servers it cannot reach. On a
+network-isolated box both are unreachable → `1,2`; on an internet-connected box
+the probe succeeds and BNL's S1 answers faster than CERN's → honest `2,1`,
+reddening a test that only ever asserts `1,2`. Fix: RFC-6761 `.invalid`
+hostnames (`s1-alpha.cvmfs.invalid,...`) — unresolvable everywhere, so every
+server lands in the order-preserving "unreachable" bucket and the local answer
+is a stable `1,2` on every host, while still exercising the full
+parse→probe→rank path. **Rule: a test that drives a code path which measures
+the real network must feed it unreachable inputs, or it asserts the test host's
+topology, not the code.**
+
+**(e) The one real defect was the guard, not a test.** `check_file_size` red:
+`src/protocols/webdav/access.c` at 603 lines (cap 600) from the commit's own
+OCI-auth addition — a genuine over-cap needing a file split (extract the
+`webdav_vfs_ctx_build*` group at the file's tail). The remaining parallel reds
+(`conf_pgio`, `conf_sequences_b`, `readv_security`) passed alone in isolation —
+class (b)/(f) port contention from §21, no code change. **Meta-rule: a
+"burned-to-zero duplication" commit's real risk is not the C — it is the tests
+that encoded the duplication as their contract. Re-run every source-structure
+audit and every C-table parser after a consolidation lands, and classify each
+red as stale-contract vs real before touching code.**

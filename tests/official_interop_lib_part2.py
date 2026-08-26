@@ -32,6 +32,25 @@ def _phase_chown_stock_1(path, uid, gid):
     else:
         _chown_one(path, uid, gid)
 
+def _mirror(p):
+    """Mirror a path's owner permission triad into its group+other triads (see
+    harmonize_perms). Pure per-path helper; module-level so both harmonize_perms
+    and its extracted walk (_phase_harmonize_perms_2) can reach it."""
+    try:
+        if os.path.islink(p):
+            return
+        m = os.stat(p).st_mode
+        owner = (m >> 6) & 0o7
+        mirrored = (owner << 6) | (owner << 3) | owner
+        # Skip when already mirrored: chmod bumps ctime even when the mode
+        # is unchanged, and re-runs from other xdist workers' start_pair()
+        # would flap M/CTime under concurrent stat-parity tests.
+        if (m & 0o777) != mirrored:
+            os.chmod(p, mirrored)
+    except OSError:
+        pass
+
+
 def _phase_harmonize_perms_2(root):
     if os.path.isdir(root):
         for dirpath, dirnames, filenames in os.walk(root):
@@ -215,22 +234,8 @@ def harmonize_perms(*roots):
     report the same flags AND `nobody` gains the read/write/traverse it needs to
     serve and mutate the tree. Applied byte-for-byte identically to both roots, so
     every differential stays exact. Symlinks are skipped (their own mode is
-    irrelevant; the target is harmonized in its own right)."""
-    def _mirror(p):
-        try:
-            if os.path.islink(p):
-                return
-            m = os.stat(p).st_mode
-            owner = (m >> 6) & 0o7
-            mirrored = (owner << 6) | (owner << 3) | owner
-            # Skip when already mirrored: chmod bumps ctime even when the mode
-            # is unchanged, and re-runs from other xdist workers' start_pair()
-            # would flap M/CTime under concurrent stat-parity tests.
-            if (m & 0o777) != mirrored:
-                os.chmod(p, mirrored)
-        except OSError:
-            pass
-
+    irrelevant; the target is harmonized in its own right).  The per-path mirror
+    is _mirror() at module scope (shared with the extracted walk helper)."""
     for root in roots:
         if _expression_3(root):
             continue

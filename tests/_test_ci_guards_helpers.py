@@ -87,6 +87,10 @@ _FAST = [
     # ~23s serially and starve under a loaded 12-worker box).
     "check_shard_name_collisions",
     "check_python_quality",
+    # Duplication burn-down (9ab5c3f5): check_duplication.py landed as an
+    # absolute-zero gate and auto-joined the pre-push glob; this hand-maintained
+    # list follows it here (same slow-member/timeout-headroom rule as above).
+    "check_duplication",
 ]
 
 def _load_check_file_size():
