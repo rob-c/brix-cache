@@ -348,8 +348,13 @@ def test_the_audience_gate_still_has_a_real_consumer_waiting_for_it():
                for p in ROOT.joinpath("src").rglob("*.c")
                if "brix_proto_deleg_gate_bearer(" in
                p.read_text(encoding="utf-8", errors="replace")}
-    assert {"src/protocols/webdav/access.c", "src/protocols/s3/util.c",
-            "src/protocols/root/path/op_path.c"} <= callers, sorted(callers)
+    # The invariant is a live consumer in each of the three protocol planes, not
+    # a specific filename: the webdav caller has already migrated once (access.c
+    # -> access_vfs_ctx.c when access.c was split under the 600-line cap), so pin
+    # the protocol directory, which survives intra-plane file moves.
+    caller_planes = {"/".join(c.split("/")[:3]) for c in callers}
+    assert {"src/protocols/webdav", "src/protocols/s3",
+            "src/protocols/root"} <= caller_planes, sorted(callers)
 
 
 # --------------------------------------------------------------------------- #
