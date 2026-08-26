@@ -110,6 +110,7 @@ SPECS: dict[str, CUnitSpec] = {
             "-Wextra",
             "-Werror",
             "-DBRIX_PATH_OP_PATH_H",
+            "-DBRIX_PATH_BENEATH_NO_NGX",
             "-I",
             "src",
             "-include",

@@ -24,7 +24,6 @@
 #include "fs/path/path.h"   /* brix_check_authdb_identity, brix_check_vo_acl_identity */
 #include "webdav_tpc.h"     /* webdav_tpc_find_header — COPY PULL/PUSH direction */
 #include "protocols/shared/deleg_capture.h"  /* phase-70 §5.1 proxy header capture */
-#include "protocols/shared/deleg_wire.h"    /* §5.2 aud gate + §5.4 exchange */
 #include "fs/backend/sd.h"  /* enum brix_cred_mode / BRIX_CRED_SELECT */
 #include "access_internal.h"  /* access_authenticate — access_auth.c */
 
@@ -483,4 +482,3 @@ ngx_http_brix_webdav_access_handler(ngx_http_request_t *r)
 
     return NGX_OK;
 }
-

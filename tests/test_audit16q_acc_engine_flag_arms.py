@@ -368,13 +368,17 @@ def _parse(tmp_path, **slots):
     return result.returncode, (result.stdout or "") + (result.stderr or "")
 
 
-# The two scopes these three names are declared at — one per plane, and NOT the
-# same scope: the stream declaration is a server, the http one a location.
-RIGHT_SCOPES = {"STREAM_KNOBS": "        ", "LOC_KNOBS": "            "}
-# Every placement neither declaration names.  SRV_KNOBS is here because the http
-# twin's mask is NGX_HTTP_LOC_CONF alone, and STREAM_MAIN because the stream
-# declaration's is NGX_STREAM_SRV_CONF alone.
-WRONG_SCOPES = ("SRV_KNOBS", "HTTP_KNOBS", "OUTER", "STREAM_MAIN")
+# The scopes these three names are declared at.  The stream declaration is a
+# server (NGX_STREAM_SRV_CONF); the http declaration, unified onto the shared
+# HTTP-common table (phase-101 W2), carries BRIX_HTTP_ALL_CONF =
+# MAIN|SRV|LOC — so it is legal at http{}, server{} AND location{}, not just a
+# location as the pre-unification hand-written twin was.
+RIGHT_SCOPES = {"STREAM_KNOBS": "        ", "LOC_KNOBS": "            ",
+                "SRV_KNOBS": "        ", "HTTP_KNOBS": "    "}
+# Every placement neither declaration names: OUTER is the top-level main config
+# (outside both http{} and stream{}), STREAM_MAIN the stream main scope (the
+# stream declaration's mask is NGX_STREAM_SRV_CONF alone).
+WRONG_SCOPES = ("OUTER", "STREAM_MAIN")
 
 
 @_needs_nginx
@@ -399,9 +403,9 @@ class TestTheParseTier:
     @pytest.mark.parametrize("arm", ("on", "off"))
     def test_both_arms_are_accepted_in_an_http_location(self, tmp_path, arm,
                                                         directive):
-        """The other plane's declaration of the same three names, which is a
-        TAKE1 with a hand-written setter rather than a flag slot — so its arms
-        are a separate measurement, not a corollary of the ones above."""
+        """The other plane's declaration of the same three names, unified onto
+        the shared HTTP-common flag slot (phase-101 W2) — still measured
+        separately from the stream plane, not a corollary of the ones above."""
         rc, out = _parse(tmp_path,
                          LOC_KNOBS=f"            {directive} {arm};\n")
         assert rc == 0, out
@@ -435,30 +439,31 @@ class TestTheParseTier:
     @pytest.mark.parametrize("directive", sorted(SUBJECTS))
     def test_an_unknown_value_is_refused_on_the_http_plane(self, tmp_path,
                                                            directive):
-        """The hand-written setter validates too — with its own message."""
+        """The shared flag slot validates too — with nginx's own on|off message
+        (phase-101 W2 retired the hand-written setter and its bespoke message)."""
         rc, out = _parse(tmp_path,
                          LOC_KNOBS=f"            {directive} maybe;\n")
         assert rc != 0, out
-        assert 'invalid value "maybe" (expected on|off)' in out, out
+        assert 'it must be "on" or "off"' in out, out
 
-    def test_the_http_refusal_does_not_name_the_directive(self, tmp_path):
-        """A divergence worth having a test for rather than a habit: the stream
-        plane's message names the directive and the http plane's does not, so a
-        location carrying several acc knobs reports a typo without saying which
-        line it is on.  A fix belongs in brix_acc_http_set_flag; this is the
-        test that would notice it."""
+    def test_the_http_refusal_now_names_the_directive(self, tmp_path):
+        """Convergence, not divergence: phase-101 W2 unified the http-plane arms
+        onto nginx's ngx_conf_set_flag_slot, whose message names the directive
+        (`in "brix_acc_pgo" directive`) exactly as the stream plane does — so a
+        location carrying several acc knobs now reports which line the typo is
+        on.  Before the unification the hand-written http setter did not."""
         rc, out = _parse(tmp_path,
                          LOC_KNOBS="            brix_acc_pgo maybe;\n")
         assert rc != 0, out
-        assert "brix_acc_pgo" not in out.split("invalid value", 1)[1], out
+        assert "brix_acc_pgo" in out.split("invalid value", 1)[1], out
 
     @pytest.mark.parametrize("scope,indent", sorted(RIGHT_SCOPES.items()))
     @pytest.mark.parametrize("token", ("ON", "OFF"))
     def test_case_is_not_significant_on_either_plane(self, tmp_path, token,
                                                      scope, indent):
-        """Both planes compare case-insensitively — nginx's flag slot with
-        ngx_strcasecmp, and the http setter with the same call by hand.  Worth
-        pinning: it is the one respect in which the two validators agree."""
+        """Both planes compare case-insensitively — they are both nginx flag
+        slots now (phase-101 W2 unified the http arms onto ngx_conf_set_flag_slot),
+        so ON/OFF are accepted exactly as on/off on either plane."""
         rc, out = _parse(tmp_path,
                          **{scope: f"{indent}brix_acc_pgo {token};\n"})
         assert rc == 0, out
@@ -488,17 +493,18 @@ class TestTheParseTier:
         assert rc != 0, out
         assert "is duplicate" in out, out
 
-    def test_a_repeated_write_is_accepted_on_the_http_plane(self, tmp_path):
-        """And the http setter does not: it writes the loc-confs and returns, so
-        two contradictory lines in one location parse clean and the last one
-        wins in silence.  The divergence is measured here rather than described,
-        because the two declarations of one directive name are what an operator
-        reads as a single feature."""
+    def test_a_repeated_write_is_refused_on_the_http_plane(self, tmp_path):
+        """Convergence again: phase-101 W2 put the http arms on nginx's
+        ngx_conf_set_flag_slot, which carries a duplicate check (the slot field
+        is NGX_CONF_UNSET until first written) — so two contradictory lines in
+        one location are refused with `"brix_acc_pgo" directive is duplicate`,
+        exactly like the stream plane, instead of the old hand-written setter's
+        silent last-one-wins.  An operator can no longer half-arm the engine."""
         rc, out = _parse(tmp_path,
                          LOC_KNOBS="            brix_acc_pgo on;\n"
                                    "            brix_acc_pgo off;\n")
-        assert rc == 0, out
-        assert _diagnostics(out) == [], out
+        assert rc != 0, out
+        assert '"brix_acc_pgo" directive is duplicate' in out, out
 
 
 # --------------------------------------------------------------------------- #
@@ -518,10 +524,21 @@ CORPUS_ROOTS = (ROOT / "tests", ROOT / "docs", ROOT / "k8s-tests")
 CORPUS_SUFFIXES = (".py", ".conf", ".md")
 
 
-def _corpus_root_writes(root, token, here):
+# This test's own source: the arm literals it closes over live here — the main
+# file AND its split-off helper (split for the 600-line cap, testsuite §10.2),
+# which is logically part of the same file and so is excluded from the census
+# alongside it.
+_OWN_FILES = frozenset({
+    Path(__file__).resolve(),
+    (Path(__file__).resolve().parent
+     / "_test_audit16q_acc_engine_flag_arms_helpers.py"),
+})
+
+
+def _corpus_root_writes(root, token, own):
     hits = []
     for path in root.rglob("*"):
-        if _expression_1(path) or path.resolve() == here:
+        if _expression_1(path) or path.resolve() in own:
             continue
         try:
             _guard_corpus_writes_1(token, path, hits)
@@ -531,11 +548,10 @@ def _corpus_root_writes(root, token, here):
 
 
 def _corpus_writes(token):
-    """Every file OUTSIDE this one that spells `token` literally."""
-    here = Path(__file__).resolve()
+    """Every file OUTSIDE this test's own source that spells `token` literally."""
     hits = []
     for root in CORPUS_ROOTS:
-        hits.extend(_corpus_root_writes(root, token, here))
+        hits.extend(_corpus_root_writes(root, token, _OWN_FILES))
     return sorted(hits)
 
 
@@ -570,36 +586,28 @@ class TestTheDeclarationsAndTheCorpus:
                 in _squashed(MERGE_C))
 
     @pytest.mark.parametrize("directive", sorted(SUBJECTS))
-    def test_the_http_twin_is_a_take1_with_its_own_setter(self, directive):
-        """The same name on the other plane, declared NGX_HTTP_LOC_CONF |
-        NGX_CONF_TAKE1 behind a hand-written setter — which is why §F measures
-        the two planes separately and why their diagnostics differ."""
-        text = WEBDAV_COMMANDS_C.read_text()
+    def test_the_http_twin_is_a_shared_flag_slot_on_common(self, directive):
+        """The same name on the HTTP plane, unified (phase-101 W2) onto ONE bare
+        registration on the shared HTTP-common table.
+
+        The hand-written per-directive setters (and their whole
+        module_acc_directives.c home) are gone: one name is now declared
+        BRIX_HTTP_ALL_CONF | NGX_CONF_FLAG behind nginx's own ngx_conf_set_flag_slot,
+        landing its value in common.acc.<field> via offsetof — so it works on
+        every HTTP protocol (webdav, s3, cvmfs) from a single row.  The field
+        each directive arms is still its own (that is what §F measures per-plane),
+        only the registration is shared and generic now."""
+        text = HTTP_AUTH_H.read_text()
         marker = f'{{ ngx_string("{directive}"),'
         assert marker in text, directive
-        lines = [ln.strip() for ln in text.split(marker, 1)[1].splitlines()[1:3]]
-        assert lines[0] == "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,", lines
-        setter = directive.replace("brix_acc_", "brix_acc_http_set_")
-        assert lines[1] == f"{setter}, 0, 0, NULL }},", lines
-
-    def test_the_http_setter_writes_both_loc_confs_and_validates_by_hand(self):
-        """One call site writes the WebDAV and S3 loc-confs together, and the
-        validation is a pair of ngx_strcasecmp calls with no duplicate check —
-        the source behind §F's last two cases."""
-        squashed = _squashed(WEBDAV_ACC_C)
-        assert ('if (ngx_strcasecmp(val->data, (u_char *) "on") == 0) '
-                "{ *wp = *sp = 1; }") in squashed
-        assert ('else if (ngx_strcasecmp(val->data, (u_char *) "off") == 0) '
-                "{ *wp = *sp = 0; }") in squashed
-        assert ('"invalid value \\"%V\\" (expected on|off)", val);') in squashed
-        # No acc slot is compared against its unset marker, so nothing in the
-        # acc plumbing could refuse a second write.  The head of the same file
-        # also carries brix_http_set_cache_store_endpoint (phase-104), whose
-        # duplicate refusal is deliberate and not the acc engine's — the
-        # negatives apply from the first acc setter onward.
-        acc_region = squashed.split("brix_acc_http_set_authdb", 1)[1]
-        assert "is duplicate" not in acc_region
-        assert "NGX_CONF_UNSET" not in acc_region
+        # Normalise whitespace across the whole entry (up to its closing `},`)
+        # rather than pinning fixed line offsets.
+        entry = " ".join(text.split(marker, 1)[1].split("},", 1)[0].split())
+        assert "BRIX_HTTP_ALL_CONF | NGX_CONF_FLAG," in entry, entry
+        assert "ngx_conf_set_flag_slot," in entry, entry
+        field = SUBJECTS[directive]                       # e.g. "acc.pgo"
+        assert (f"offsetof(ngx_http_brix_common_conf_t, common.{field})"
+                in entry), entry
 
     @pytest.mark.parametrize("directive", sorted(SUBJECTS))
     def test_the_corpus_writes_the_on_arm_and_never_the_off_arm(self,
@@ -617,8 +625,11 @@ class TestTheDeclarationsAndTheCorpus:
     def test_this_file_writes_every_off_arm_literally(self, arm):
         """The closure itself.  The audit greps the tree for
         ``<directive> <value>;``, so an arm assembled at runtime from a name and
-        a token would leave the gap open while the tests passed."""
-        assert arm in Path(__file__).read_text()
+        a token would leave the gap open while the tests passed.  The literals
+        live in this test's own source — the main file or its split-off helper
+        (both are excluded from the corpus census as one logical file)."""
+        own = "".join(p.read_text() for p in _OWN_FILES)
+        assert arm in own
 
     def test_the_template_carries_four_engine_slots_and_writes_no_arm(self):
         """The template offers a whole acc block per listener and takes no

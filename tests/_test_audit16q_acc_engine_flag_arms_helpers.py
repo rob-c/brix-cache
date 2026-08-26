@@ -163,7 +163,10 @@ ACC_GROUPS_C = ROOT / "src/auth/authz/acc/groups.c"
 PROCESS_C = ROOT / "src/core/config/process.c"
 SERVER_INIT_C = ROOT / "src/core/config/process_server_init.c"
 WEBDAV_COMMANDS_C = ROOT / "src/protocols/webdav/module_commands.c"
-WEBDAV_ACC_C = ROOT / "src/protocols/webdav/module_acc_directives.c"
+# phase-101 W2: the HTTP-plane acc on|off arms are no longer hand-written
+# per-directive setters in module_acc_directives.c (deleted); one bare name is
+# registered once on the shared HTTP-common table via nginx's ngx_conf_set_flag_slot.
+HTTP_AUTH_H = ROOT / "src/core/config/http_directives_auth.h"
 CONFIGS_DIR = Path(__file__).resolve().parent / "configs"
 
 # The three subjects, and the conf field each one's value lands in.

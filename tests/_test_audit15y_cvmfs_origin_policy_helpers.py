@@ -160,8 +160,22 @@ REPO_A, REPO_B = "alpha.cern.ch", "beta.cern.ch"
 MANIFEST = ".cvmfspublished"
 # The mock's geo endpoint takes a comma-separated server list and answers with
 # their 1-based order; two names keep the expected body short and stable.
+#
+# The names are RFC-6761 `.invalid` hostnames (unresolvable on every host) on
+# PURPOSE: the `rtt` policy answers locally by measuring TCP-connect RTT to each
+# listed server (geo_answer.c) and ranking nearest-first, falling back to the
+# client's original order for servers it cannot reach.  Real Stratum-1 hostnames
+# made this test non-hermetic — on a network-isolated box both are unreachable
+# so the order is preserved (`1,2`), but on an internet-connected box the probe
+# succeeds and returns the honest real-network permutation (e.g. `2,1` when the
+# BNL S1 answers faster than CERN's), reddening a test that only ever asserts the
+# order-preserving `1,2`.  Unresolvable names keep every server in the
+# order-preserving "unreachable" bucket, so the local answer is a stable `1,2`
+# everywhere while still exercising the full parse→probe→rank path.  The `off`
+# policy relays to the mock, which echoes the 1-based order regardless of names,
+# so it stays `1,2` too.
 GEO_PATH = ("api/v1.0/geo/x/"
-            "cvmfs-stratum-one.cern.ch,cvmfs-s1bnl.opensciencegrid.org")
+            "s1-alpha.cvmfs.invalid,s1-beta.cvmfs.invalid")
 GEO_BODY = b"1,2\n"
 
 # The three enum tables, verbatim from protocols/cvmfs/module.c:338-356.

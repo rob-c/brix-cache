@@ -1,20 +1,27 @@
 /*
- * access_vfs.c — WebDAV's confined-VFS-ctx constructors and the delegation
- * binder they compose.
+ * access_vfs_ctx.c - confined-VFS-ctx construction + delegated-credential
+ *                    binding for WebDAV storage ops.
  *
- * WHAT: webdav_vfs_bind_deleg (bearer/proxy forwarding onto a cred-bound ctx)
- *       and the webdav_vfs_ctx_build family (bare / _ns / _data), the single
- *       construction path every WebDAV method file uses to reach storage.
- * WHY:  Split out of access.c to hold that translation unit under the 600-line
- *       file-size cap; the access phase and the ctx constructors are separate
- *       concerns that only shared a file for historical reasons.
- * HOW:  Verbatim move — see each function's own contract comment.
+ * WHAT: The webdav_vfs_ctx_build constructor family (bare / _ns / _data) and
+ * webdav_vfs_bind_deleg, the binder that hands the request's captured
+ * forwardable credential (bearer JWT and/or user-supplied x509 proxy PEM) to
+ * the VFS under the export's resolved delegation mode.
+ *
+ * WHY: Every WebDAV method file used to hand-roll the same init +
+ * credential-binding sequence; one constructor family keeps the binding order
+ * (cred -> mint -> deleg) in a single place next to the deleg binder it
+ * composes. Split out of access.c (which keeps the access-phase gate itself)
+ * along that seam when access.c crossed the 600-line contract.
+ *
+ * HOW: Declarations live in webdav_auth.h beside the auth gate that captures
+ * the bytes these binders forward. See the per-function comments.
  */
 
 #include "webdav.h"
+#include "webdav_auth.h"    /* own declarations */
+#include "fs/vfs/vfs.h"     /* brix_vfs_ctx_init / bind_backend_* / deleg_bind */
 #include "protocols/shared/deleg_wire.h"    /* §5.2 aud gate + §5.4 exchange */
 #include "fs/backend/sd.h"  /* enum brix_cred_mode / BRIX_CRED_SELECT */
-#include "core/http/http_headers.h"         /* brix_http_request_is_tls */
 
 /* ---- webdav_vfs_bind_deleg -------------------------------------------------
  *

@@ -1,4 +1,16 @@
 from split_continuation import reexport as _reexport
+
+
+def bare(name):
+    """Strip any leading "U." internal prefix and keep the user.<tail> form.
+
+    Pure per-name string helper.  Module-level (not nested in
+    test_bindings_multi_set_list_value_parity) so the extracted comprehensions
+    _expression_2/_expression_3 — which run in module scope — can resolve it;
+    left nested, those calls raised NameError: bare."""
+    return name[2:] if name.startswith("U.") else name
+
+
 def _expression_1(count):
     return (
         [(f"user.mv{i}", f"VAL-{i}") for i in range(count)]
@@ -241,10 +253,6 @@ def test_bindings_multi_set_list_value_parity(srv, count):
         _set(url, rel, pairs)
     _, o_map = _list(srv["our"], rel)
     _, f_map = _list(srv["off"], rel)
-
-    def bare(name):
-        # strip any leading "U." internal prefix and keep the user.<tail> form
-        return name[2:] if name.startswith("U.") else name
 
     o_by_bare = _expression_2(o_map)
     f_by_bare = _expression_3(f_map)

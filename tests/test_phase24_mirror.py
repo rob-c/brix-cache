@@ -177,13 +177,18 @@ def test_mirror_writes_off_by_default_and_gated_in_source():
     # into stream_mirror_launch.c.
     sm = _read("src/net/mirror/stream_mirror_launch.c")
     assert "OP_WRITE_ALL" in sm and "mirror_writes" in sm
-    # Default merge is 0 (off) on both surfaces.  phase-79 split: the stream
-    # cluster/mirror merge lives in server_conf_merge_cluster.c; phase-105 W2:
-    # the HTTP settings merge moved into the shared preamble merge
-    # (shared_conf.h), one audit point for every HTTP protocol.
-    assert "conf->mirror.mirror_writes,\n                         prev->mirror.mirror_writes, 0" \
+    # Default merge is 0 (off) on both surfaces.  The two per-file inline merges
+    # were consolidated into one shared helper (brix_mirror_conf_merge_common in
+    # mirror.h), where the mirror_writes default of 0 now lives.  phase-105 W2:
+    # the HTTP settings merge lives in the shared preamble merge
+    # (shared_conf_merge.h), one audit point for every HTTP protocol; the stream
+    # cluster/mirror merge lives in server_conf_merge_cluster.c.  Both call the
+    # shared helper.
+    assert "ngx_conf_merge_value(conf->mirror_writes, prev->mirror_writes, 0)" \
+        in _read("src/net/mirror/mirror.h")
+    assert "brix_mirror_conf_merge_common(&conf->mirror, &prev->mirror)" \
         in _read("src/core/config/server_conf_merge_cluster.c")
-    assert "prev->mirror.mirror_writes, 0" \
+    assert "brix_mirror_conf_merge_common(&conf->mirror, &prev->mirror)" \
         in _read("src/core/config/shared_conf_merge.h")
 
 

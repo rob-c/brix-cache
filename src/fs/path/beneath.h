@@ -1,8 +1,18 @@
 #ifndef BRIX_PATH_BENEATH_H
 #define BRIX_PATH_BENEATH_H
 
+/* The only nginx dependency in this header is ngx_log_t (a pointer parameter of
+ * brix_renameat_noreplace_fallback below); everything else is libc. Real builds
+ * pull the full nginx umbrella. ngx-free standalone unit compiles (the pathres
+ * C-unit) predefine BRIX_PATH_BENEATH_NO_NGX to keep the pure inline helpers
+ * (brix_beneath_rel / brix_beneath_full_path) reachable without dragging in all
+ * of nginx; the opaque forward decl is enough for the pointer prototype. */
+#ifdef BRIX_PATH_BENEATH_NO_NGX
+typedef struct ngx_log_s ngx_log_t;
+#else
 #include <ngx_config.h>
 #include <ngx_core.h>
+#endif
 
 #include <fcntl.h>
 #include <sys/stat.h>
