@@ -97,25 +97,34 @@ def test_write_books_one_op_and_one_latency_sample(tmp_path):
 @pytest.mark.registry_server("main")
 @pytest.mark.requires_local_server
 def test_cold_tls_read_files_latency_sample(tmp_path):
-    """A page-cache-cold read on the TLS port takes the AIO path and files a
-    read latency sample; sum moves with count (a real duration was measured).
+    """A large TLS read takes the AIO path and files read latency samples; sum
+    moves with count (a real duration was measured).
 
-    Warm cleartext reads complete via sendfile/inline (no AIO) and are
-    deliberately NOT sampled — the histogram is the AIO-sampled subset, while
-    ops/bytes stay complete via the legacy per-port fold.
+    Sizing: xrdcp fans the download across its default data sub-streams, each
+    issuing a multi-MiB kXR_read that clears BRIX_READ_WINDOW (2 MiB) and is
+    therefore served through the WINDOWED path, which posts every window to the
+    thread pool — so this reliably files AIO read samples regardless of page
+    cache.  A sub-window read instead takes the single-shot buffered path whose
+    RWF_NOWAIT warm-probe serves a still-cached file synchronously (no AIO, no
+    sample); fadvise(DONTNEED) is advisory and does NOT reliably evict a
+    just-touched file, so a small payload made this flaky.  Warm cleartext
+    reads complete via sendfile/inline (no AIO) and are deliberately NOT
+    sampled — the histogram is the AIO-sampled subset, while ops/bytes stay
+    complete via the legacy fold.
     """
-    src = _make_payload(tmp_path)
+    # 16 MiB so xrdcp's sub-streams each issue a multi-MiB kXR_read that clears
+    # BRIX_READ_WINDOW (2 MiB) and is served through read_serve_windowed, which
+    # posts every window to the thread pool — reliably filing AIO read samples
+    # regardless of page-cache state.  (A sub-window read only takes AIO when
+    # page-cache COLD, and fadvise(DONTNEED) cannot reliably evict without root
+    # drop_caches, which made a small payload flaky.)
+    src = _make_payload(tmp_path, size=16 * 1024 * 1024)
     name = "aio_lat_cold.bin"
     r = xrdcp("-f", str(src), _url(NGINX_ANON_PORT, name))
     assert r.returncode == 0, r.stderr
 
     stored = os.path.join(_DATA_DIR, name)
     assert os.path.exists(stored), stored
-    fd = os.open(stored, os.O_RDONLY)
-    try:
-        os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
-    finally:
-        os.close(fd)
 
     snap = Snapshot()
     dst = tmp_path / "cold.out"
@@ -225,6 +234,13 @@ def test_aio_helper_is_histogram_only():
         "brix_aio_metric_done must not book ops/bytes (double-count)"
 
 
+def _is_latency_write(field):
+    """A recorder-owned SHM field: the io_latency_* histogram, or the §3.15
+    slowop classifier counter — both low-cardinality [proto][op] arrays, NOT
+    the op/byte counters brix_metric_op_done owns (double-count guard)."""
+    return field.startswith("io_latency_") or field == "io_slowop_total"
+
+
 def test_latency_recorder_touches_histogram_fields_only():
     """brix_metric_op_latency writes ONLY io_latency_* SHM fields with
     enum-bounded proto/op indices — no op/byte counters, no per-path or
@@ -233,13 +249,7 @@ def test_latency_recorder_touches_histogram_fields_only():
                     "brix_metric_op_latency")
     writes = re.findall(r"BRIX_ATOMIC_(?:INC|ADD)\(&shm->unified\.(\w+)", body)
     assert writes, "recorder performs no SHM writes"
-    # The recorder writes the latency histogram and, since §3.15, the slowop
-    # classifier counter — both low-cardinality [proto][op] SHM arrays, NOT the
-    # op/byte counters brix_metric_op_done owns (double-count guard preserved).
-    allowed = tuple(w for w in writes
-                    if w.startswith("io_latency_") or w == "io_slowop_total")
-    assert set(allowed) == set(writes), \
-        f"recorder writes an unexpected SHM field: {set(writes) - set(allowed)}"
+    assert all(_is_latency_write(w) for w in writes), writes
     # enum bounds are checked before any SHM access (attacker-influenced or
     # corrupted enum values must not index out of the label tables)
     assert "proto >= BRIX_PROTO_COUNT" in body

@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_srv_config_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_srv_config")
+
 @pytest.mark.parametrize("directive, needle", _INCOMPATIBLE)
 def test_incompatible_directive_rejected_with_cvmfs(cc, directive, needle):
     """brix_cvmfs_reject_unsupported: EMERG at config load, never a silent no-op."""

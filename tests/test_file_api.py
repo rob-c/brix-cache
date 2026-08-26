@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_file_api_helpers")
 
+import subprocess
+
 class TestFileCreate:
 
     def test_create_new_file(self):
@@ -143,11 +145,19 @@ class TestFileWrite:
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp.write(data)
             local = tmp.name
-        rc = os.system(
-            f"xrdcp {local} {ANON_URL}//{PREFIX}large.bin 2>/dev/null"
-        )
-        os.unlink(local)
-        assert rc == 0, "xrdcp upload failed"
+        try:
+            result = subprocess.run(
+                ["xrdcp", local, f"{ANON_URL}//{PREFIX}large.bin"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            pytest.fail("xrdcp upload exceeded the 10-second test budget")
+        finally:
+            os.unlink(local)
+        assert result.returncode == 0, "xrdcp upload failed"
         assert md5file(disk(f"{PREFIX}large.bin")) == expected
 
     def test_partial_read(self):

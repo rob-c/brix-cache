@@ -1,0 +1,9 @@
+{
+  "cold_ttfb_p50_ms": 1.4687549992231652,
+  "cold_ttfb_p99_ms": 5.668240500381215,
+  "warm_ttfb_p50_ms": 0.5596010014414787,
+  "error_rate": 0.0,
+  "conn_failures": 0,
+  "corrupt_served": 0,
+  "stampede_origin_fetches": 0
+}

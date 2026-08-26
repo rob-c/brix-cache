@@ -34,6 +34,9 @@ from cryptography.x509 import (
     CertificateRevocationListBuilder,
     RevokedCertificateBuilder,
 )
+
+pytestmark = [pytest.mark.serial,
+              pytest.mark.registry_servers("crl", "crl-dir", "crl-reload")]
 from settings import (
     CA_CERT,
     CA_KEY,

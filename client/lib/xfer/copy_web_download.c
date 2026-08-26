@@ -161,7 +161,7 @@ web_dl_fetch(const brix_weburl *su, const brix_opts *co, const char *hdrs,
     return brix_http_download(su->host, su->port, su->tls, su->path,
                               hdrs[0] ? hdrs : NULL, co ? co->verify_host : 1,
                               co ? co->ca_dir : NULL, pcert, io->outfd,
-                              XRDC_WEB_TIMEOUT_MS, &io->status, &io->blen, st);
+                              brix_tmo_io_ms(), &io->status, &io->blen, st);
 }
 
 

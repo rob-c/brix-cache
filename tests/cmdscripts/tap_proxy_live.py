@@ -338,7 +338,7 @@ def tap_proxy_gsi_hybrid(nginx: Path | None = None) -> int:
 all.export /data
 oss.localroot {run.root}
 xrootd.seclib libXrdSec.so
-sec.protocol /usr/lib64 gsi -certdir:{CA_DIR} -cert:{SERVER_CERT} -key:{hostkey} -gridmap:{run.root}/gridmap -d:1 -crl:0 -gmapopt:2
+sec.protocol gsi -certdir:{CA_DIR} -cert:{SERVER_CERT} -key:{hostkey} -gridmap:{run.root}/gridmap -d:1 -crl:0 -gmapopt:2
 sec.protbind * only gsi
 """,
         )

@@ -27,8 +27,8 @@ import subprocess
 
 import pytest
 
-from cmdscripts.delegation_twostep import curl, ensure_pki, mint_certs
-from settings import CA_CERT, HOST, SERVER_CERT, SERVER_KEY
+from cmdscripts.delegation_twostep import curl
+from settings import CA_CERT, HOST, SERVER_CERT, SERVER_KEY, USER_CERT, USER_KEY
 from server_launcher import RegistryCommandFailure
 from server_registry import NginxInstanceSpec
 
@@ -37,16 +37,12 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
 
 
 @pytest.fixture(scope="module")
-def pki(tmp_path_factory):
-    base = tmp_path_factory.mktemp("certfolderpki")
-    ok, message = ensure_pki(base)
-    if not ok:
-        pytest.skip(message)
-    ok, message, _dns = mint_certs(base)
-    if not ok:
-        pytest.skip(message)
-    certs = base / "certs"
-    return {"a_cert": certs / "a_eec_cert.pem", "a_key": certs / "a_eec_key.pem"}
+def pki():
+    cert = pathlib.Path(USER_CERT)
+    key = pathlib.Path(USER_KEY)
+    if not cert.is_file() or not key.is_file():
+        pytest.skip("suite user certificate/key are unavailable")
+    return {"a_cert": cert, "a_key": key}
 
 
 @pytest.fixture(scope="module")

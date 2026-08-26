@@ -190,23 +190,18 @@ httpx_download_body(brix_io *io, char *hdr, size_t total, size_t body_off,
 }
 
 
-/* Send the GET, read the response headers, and stream a 2xx body — over an
- * already-connected io. Owns its scratch header buffer (allocated, used, freed on
- * every path) so the orchestrator's transport teardown stays linear. 0 / -1. */
-int
-httpx_download_exchange(brix_io *io, const char *host, int port,
-                        const char *path, const char *extra_headers,
-                        long long start_off, int out_fd,
-                        int timeout_ms, int *http_status, long long *body_len,
-                        brix_status *st)
+/* Format and send the GET request line + headers (with an open-ended resume
+ * Range when start_off > 0). 0 / -1 with st set. */
+static int
+httpx_send_get(brix_io *io, const char *host, int port, const char *path,
+               const char *extra_headers, long long start_off,
+               brix_status *st)
 {
-    char    *hdr;
-    char     req[2048];
-    char     rangeh[64];
-    size_t   total = 0, body_off = 0;
-    int      status = 0, rlen, rc;
+    char  req[2048];
+    char  rangeh[64];
+    char  hp[300];
+    int   rlen;
 
-    char hp[300];
     brix_format_host_port(host, (uint16_t) port, hp, sizeof(hp));
     /* Resume from start_off via an open-ended byte range (the server replies 206
      * with the remaining bytes); empty for a fresh download. */
@@ -223,7 +218,46 @@ httpx_download_exchange(brix_io *io, const char *host, int port,
         brix_status_set(st, XRDC_EUSAGE, 0, "http: request too long");
         return -1;
     }
-    if (brix_write_full(io, req, (size_t) rlen, st) != 0) { return -1; }
+    return brix_write_full(io, req, (size_t) rlen, st);
+}
+
+
+/* Map a non-2xx response onto the caller-facing status.  Application-level
+ * HTTP errors are final outcomes, not transport desynchronisation: marking a
+ * 404 as EPROTO made the resilient wrapper reconnect until its 30-second
+ * window expired. */
+static void
+httpx_map_error_status(int status, brix_status *st)
+{
+    if (status == 404 || status == 410) {
+        brix_status_set(st, kXR_NotFound, 0, "not found");
+    } else if (status == 401 || status == 403) {
+        brix_status_set(st, kXR_NotAuthorized, 0, "HTTP %d", status);
+    } else {
+        brix_status_set(st, XRDC_EPROTO, 0,
+                        "http: server returned status %d", status);
+    }
+}
+
+
+/* Send the GET, read the response headers, and stream a 2xx body — over an
+ * already-connected io. Owns its scratch header buffer (allocated, used, freed on
+ * every path) so the orchestrator's transport teardown stays linear. 0 / -1. */
+int
+httpx_download_exchange(brix_io *io, const char *host, int port,
+                        const char *path, const char *extra_headers,
+                        long long start_off, int out_fd,
+                        int timeout_ms, int *http_status, long long *body_len,
+                        brix_status *st)
+{
+    char    *hdr;
+    size_t   total = 0, body_off = 0;
+    int      status = 0, rc;
+
+    if (httpx_send_get(io, host, port, path, extra_headers, start_off,
+                       st) != 0) {
+        return -1;
+    }
 
     hdr = (char *) malloc(XRDC_HDR_CAP);
     if (hdr == NULL) {
@@ -252,7 +286,7 @@ httpx_download_exchange(brix_io *io, const char *host, int port,
                                      body_len, st);
         }
     } else {
-        brix_status_set(st, XRDC_EPROTO, 0, "http: server returned status %d", status);
+        httpx_map_error_status(status, st);
         rc = -1;
     }
     free(hdr);

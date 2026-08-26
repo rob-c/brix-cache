@@ -53,6 +53,8 @@ import sys
 
 import pytest
 
+pytestmark = pytest.mark.xdist_group("cvmfs_srv_shared")
+
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 

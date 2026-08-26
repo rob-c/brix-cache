@@ -25,6 +25,7 @@ def _check_test_delegation_twostep_flow_2(expected, messages):
 pytestmark = pytest.mark.xdist_group("cmd-delegation_twostep")
 
 
+@pytest.mark.suite_job
 def test_delegation_twostep_flow(tmp_path):
     _guard_test_delegation_twostep_flow_1()
 

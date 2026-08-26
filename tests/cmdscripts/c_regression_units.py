@@ -355,6 +355,7 @@ def pblock(base: Path) -> tuple[bool, str]:
             str(backend / "pblock/pblock_locks.c"),
             str(backend / "pblock/pblock_refs.c"),
             str(backend / "pblock/pblock_pack.c"),
+            str(backend / "pblock/pblock_pack_seg.c"),
             str(backend / "pblock/pblock_snap.c"),
             str(backend / "pblock/pblock_hist.c"),
             str(REPO_ROOT / "src/core/compat/crc32c.c"),
@@ -386,10 +387,15 @@ def staged_commit_contract(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple
     so the pre-fix double-free would abort. See test_staged_commit_contract.c."""
     ns = _need_obj(ngx_src, "objs/addon/posix/sd_posix_ns.o")
     staged = _need_obj(ngx_src, "objs/addon/compat/staged_file.o")
+    # impersonation hardening: staged_commit_internal now consults
+    # brix_imp_client_active (auth/impersonate/client.c)
+    imp = _need_obj(ngx_src, "objs/addon/impersonate/client.o")
     if isinstance(ns, str):
         return result(True, ns)
     if isinstance(staged, str):
         return result(True, staged)
+    if isinstance(imp, str):
+        return result(True, imp)
     return _compile_and_run(
         base / "test_staged_commit_contract",
         [
@@ -403,6 +409,7 @@ def staged_commit_contract(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple
             str(TEST_C / "test_staged_commit_contract.c"),
             str(ns),
             str(staged),
+            str(imp),
         ],
     )
 

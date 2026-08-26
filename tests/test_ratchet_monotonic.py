@@ -1,7 +1,7 @@
 """Guards the guard that guards the ratchets — tools/ci/check_ratchet_monotonic.py.
 
-Every quality ratchet in this repo (file size, complexity, todo/fixme, VFS seam,
-LoC) compares the tree against a frozen backlog file, which makes all of them
+Several quality ratchets in this repo (todo/fixme, VFS seam, LoC) compare the
+tree against a frozen backlog file, which makes them
 defeatable the same way: append the offending entry to the backlog, or bump the
 number next to it, and the guard goes green while the code gets worse. The
 monotonicity guard closes that door, so its own failure modes matter — a version
@@ -25,7 +25,7 @@ GUARD = ROOT / "tools" / "ci" / "check_ratchet_monotonic.py"
 
 # The one real ratchet used as the vehicle for the end-to-end cases; any entry
 # in RATCHETS would do, and the last test asserts this one is still in the set.
-SUBJECT = "tools/ci/file_size_backlog.txt"
+SUBJECT = "tools/ci/todo_fixme_backlog.txt"
 
 
 def _load():
@@ -142,12 +142,10 @@ def test_an_empty_base_and_head_is_not_a_pass_by_accident(tmp_path: Path) -> Non
 def test_the_governed_set_covers_the_ratchets_that_gate_main() -> None:
     """The guard is only worth its runtime if it names the blocking ratchets.
 
-    A future edit that quietly drops file size or complexity from RATCHETS
-    reopens exactly the hole this guard exists to close, and every other test
-    here would still pass."""
+    A future edit that quietly drops a backlog-backed guard reopens exactly the
+    hole this guard exists to close, and every other test here would still pass."""
     assert SUBJECT in GUARD_MOD.RATCHETS
     for required in (
-        "tools/ci/file_size_backlog.txt",
         "tools/ci/todo_fixme_backlog.txt",
         "tests/loc_baseline.txt",
     ):

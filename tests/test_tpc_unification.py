@@ -73,7 +73,7 @@ def test_bare_tpc_knobs_parse_at_webdav_location():
         "      brix_tpc_allow_local on; brix_tpc_allow_private on;\n"
         "      brix_tpc_source_guard on;\n"
         "      brix_tpc_source_allow a.cern.ch .example.org b.cern.ch;\n"
-        "      brix_tpc_require_source_size on; } }\n")
+        "      brix_tpc_require_source_size on; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc == 0, f"bare brix_tpc_* must parse at a webdav location:\n{out}"
     assert "successful" in out, out
 
@@ -84,7 +84,7 @@ def test_http_main_tpc_knob_adopts_into_webdav_and_coexists_with_s3():
         "  server { listen 127.0.0.1:28962;\n"
         "    location / { brix_webdav on; brix_webdav_auth none; } }\n"
         "  server { listen 127.0.0.1:28963;\n"
-        "    location / { brix_s3 on; brix_s3_bucket b; } }\n")
+        "    location / { brix_s3 on; brix_s3_bucket b; } }\n")  # net-literal-allow: loopback literal is the subject under test
     assert rc == 0, f"http-main brix_tpc_* must adopt into webdav + s3:\n{out}"
     assert "successful" in out, out
 
@@ -95,7 +95,7 @@ def test_old_webdav_tpc_twin_unknown(twin):
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28964;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        f"      brix_webdav_{twin} {val}; }} }}\n")
+        f"      brix_webdav_{twin} {val}; }} }}\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, out
     assert "unknown directive" in out and f"brix_webdav_{twin}" in out, out
 
@@ -107,6 +107,6 @@ def test_old_webdav_verify_checksum_name_unknown():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28965;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        "      brix_webdav_tpc_verify_checksum sha256; } }\n")
+        "      brix_webdav_tpc_verify_checksum sha256; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, out
     assert "unknown directive" in out and "brix_webdav_tpc_verify_checksum" in out, out

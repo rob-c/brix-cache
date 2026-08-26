@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_errors_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_errors_b")
+
 def test_query_checksum_missing_in_dir_parity(srv):
     """query checksum of a file inside a missing dir: OUR rejects; pin to STOCK
     only when STOCK supports checksums."""

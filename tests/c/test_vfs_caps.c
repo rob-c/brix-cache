@@ -24,6 +24,7 @@
 const brix_sd_driver_t brix_sd_posix_driver;
 const brix_sd_driver_t brix_sd_block_driver;
 const brix_sd_driver_t brix_sd_pblock_driver;
+const brix_sd_driver_t brix_sd_mirage_driver;
 /* When sd_registry.o is built with BRIX_HAVE_CEPH (ceph-devel present on the
  * build host), its registration table also references the two ceph drivers.
  * Stub them unconditionally: harmless where sd_registry.o has no ceph refs,

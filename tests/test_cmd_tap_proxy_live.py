@@ -19,6 +19,7 @@ def test_tap_proxy_live_are_importable():
 
 @pytest.mark.optin
 @pytest.mark.timeout(600)
+@pytest.mark.suite_job
 @pytest.mark.parametrize("scenario", sorted(tap_proxy_live.SCENARIOS))
 def test_tap_proxy_live_scenario(scenario: str):
     if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":

@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_sequences_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_sequences")
+
 @pytest.mark.parametrize("n", _SEQ_SIZES)
 def test_create_write_fstat_read_close_stat_reopen(srv, n):
     payload = det_bytes(n, seed=(n & 0xff) ^ 0x5a)

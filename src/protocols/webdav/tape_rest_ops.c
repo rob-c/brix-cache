@@ -192,8 +192,12 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_brix_webdav_loc_conf_t *conf,
         return tape_error(r, NGX_HTTP_BAD_REQUEST, "too many files");
     }
 
-    abs     = brix_palloc_array(r->pool, n, sizeof(*abs));
-    logical = brix_palloc_array(r->pool, n, sizeof(*logical));
+    /* Zero-initialise: an unfilled slot is then NULL, which
+     * srq_add_validate_args rejects cleanly (per-file "could not enqueue")
+     * rather than strlen()-ing an uninitialised pointer and crashing the
+     * worker — defence in depth against any resolve/enqueue index mismatch. */
+    abs     = brix_pcalloc_array(r->pool, n, sizeof(*abs));
+    logical = brix_pcalloc_array(r->pool, n, sizeof(*logical));
     if (abs == NULL || logical == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }

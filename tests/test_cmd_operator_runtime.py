@@ -1,4 +1,7 @@
 from pathlib import Path
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -29,6 +32,36 @@ def test_operator_runtime_ports_are_importable(tmp_path: Path):
     results = run_checks(tmp_path)
     failed = [message for ok, message in results if not ok]
     assert not failed, "\n".join(failed)
+
+
+def test_operator_runtime_module_defines_dispatch_before_direct_execution():
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(Path(__file__).parent)
+    proc = subprocess.run(
+        [sys.executable, "-m", "cmdscripts.operator_runtime", "not-a-runner"],
+        cwd=Path(__file__).parents[1], env=env, capture_output=True, text=True,
+        timeout=30,
+    )
+    assert proc.returncode == 1
+    assert "unknown operator runtime port: not-a-runner" in proc.stdout
+    assert "NameError" not in proc.stderr
+
+
+def test_sanitizer_binary_detection_accepts_plain_binary(tmp_path):
+    binary = tmp_path / "nginx"
+    binary.write_bytes(b"ELF plain nginx")
+    assert operator_runtime._is_sanitized_binary(str(binary)) is False
+
+
+def test_sanitizer_binary_detection_rejects_asan_binary(tmp_path):
+    binary = tmp_path / "nginx-asan"
+    binary.write_bytes(b"ELF\x00libasan.so.8\x00")
+    assert operator_runtime._is_sanitized_binary(str(binary)) is True
+
+
+def test_sanitizer_binary_detection_missing_path_is_safe(tmp_path):
+    assert operator_runtime._is_sanitized_binary(
+        str(tmp_path / "missing-nginx")) is False
 
 
 def test_pytest_lane_passes_through_a_green_run(monkeypatch):
@@ -237,6 +270,24 @@ def test_explicit_project_modules_prepend_discovered_distro_stream_module(tmp_pa
     assert operator_runtime.os.environ["TEST_NGINX_LOAD_MODULES"].split(
         operator_runtime.os.pathsep
     ) == [str(stream), *[str(module) for module in project]]
+
+
+def test_dynamic_nginx_rejects_foreign_explicit_stream_module(tmp_path: Path):
+    own_stream = tmp_path / "ngx_stream_module.so"
+    foreign_stream = tmp_path / "foreign" / "ngx_stream_module.so"
+    foreign_stream.parent.mkdir()
+    own_stream.write_bytes(b"own")
+    foreign_stream.write_bytes(b"foreign")
+    nginx = tmp_path / "nginx"
+    nginx.write_text(
+        "#!/bin/sh\necho 'configure arguments: --with-stream=dynamic' >&2\n",
+        encoding="utf-8",
+    )
+    nginx.chmod(0o755)
+
+    assert operator_runtime._configure_nginx_modules(
+        str(nginx), [str(foreign_stream)]
+    ) is False
 
 
 def test_missing_explicit_nginx_dynamic_module_is_rejected(tmp_path: Path):

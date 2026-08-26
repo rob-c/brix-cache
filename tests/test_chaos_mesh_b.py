@@ -148,10 +148,10 @@ class TestChaosMeshStep4SynchronousConflict:
 
         # Wait for TPC to start (cache .part file appears at Tier2).
         cache_path = Path(CHAOS_TIER2_CACHE_ROOT) / fname
-        state = _wait_for_cache_activity(cache_path, timeout=15.0)
+        state = _wait_for_cache_activity(cache_path, timeout=3.0)
         if state == "not-started":
             t.join(timeout=5)
-            pytest.skip("TPC did not start within 15 s — conflict test skipped")
+            pytest.skip("TPC did not start within 3 s — conflict test skipped")
 
         # While TPC is in-flight, attempt a conflicting exclusive-write open.
         # A read-only cache server (no brix_allow_write) must reject this.
@@ -194,7 +194,14 @@ class TestChaosMeshStep5SIGHUPDuringTPC:
 
         fname = f"chaos_sighup_{uuid.uuid4().hex[:8]}.bin"
         tier3_path = Path(CHAOS_TIER3_DATA_ROOT) / fname
-        expected_size, expected_md5 = _seed_large_fixture_prefix(tier3_path)
+        # A larger upstream object makes the cache's .part/.lock interval
+        # observable without artificially throttling the client past 10s.
+        expected_size, expected_md5 = _seed_large_fixture_prefix(
+            tier3_path, 64 * 1024 * 1024
+        )
+
+        if not os.access(CHAOS_XRDCP, os.X_OK):
+            pytest.skip(f"project xrdcp not executable: {CHAOS_XRDCP}")
 
         sighup_sent = []
         result_holder = []

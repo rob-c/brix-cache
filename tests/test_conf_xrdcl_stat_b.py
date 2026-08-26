@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_xrdcl_stat_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_xrdcl_stat_b")
+
 VFS_PATHS = ["/", "/sub", "/deep", "/empty_dir", "/many", "/deep/a/b/c"]
 
 @bindings_required

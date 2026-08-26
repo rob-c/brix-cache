@@ -199,6 +199,14 @@ writev_write_segment(brix_ctx_t *ctx, ngx_connection_t *c,
 	uint32_t wlen   = (uint32_t) ntohl((uint32_t) seg->wlen);     /* BE32 */
 	ssize_t  nw;
 
+	/* Defense in depth (see writev_try_aio): never index the BRIX_MAX_FILES-slot
+	 * ctx->files table with an out-of-range handle — an OOB read that segfaults
+	 * the worker on a fuzzed kXR_writev whose fhandle[0] slipped past
+	 * writev_validate_handles. */
+	if (idx < 0 || idx >= BRIX_MAX_FILES) {
+		return NGX_ERROR;
+	}
+
 	/* Empty segment carries no data block; nothing to advance over. */
 	if (wlen == 0) {
 		return NGX_OK;

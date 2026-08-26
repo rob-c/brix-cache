@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_xrdcl_fs_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_xrdcl_fs_b")
+
 @pytest.mark.parametrize("trial", [0, 1])
 def test_rm_directory_errno_parity(pair, trial):
     """rm of a non-empty dir returns an error on both.

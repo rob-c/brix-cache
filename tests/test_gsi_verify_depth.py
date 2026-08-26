@@ -43,7 +43,7 @@ def _nginx_t(tmp_path, depth_line):
                 brix_root on;
                 brix_storage_backend posix:/tmp;
                 brix_auth none;
-                {depth_line}
+                {depth_line}  # net-literal-allow: loopback literal is the subject under test
             }}
         }}
     """))

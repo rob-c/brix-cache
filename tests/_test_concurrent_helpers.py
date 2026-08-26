@@ -20,6 +20,7 @@ import pytest
 from XRootD import client
 from XRootD.client.flags import OpenFlags
 from settings import (
+
     CA_DIR,
     NGINX_ANON_PORT,
     NGINX_GSI_PORT,
@@ -27,6 +28,9 @@ from settings import (
     PROXY_STD,
     SERVER_HOST,
 )
+
+# here, not (only) in the test shard: import-style reexport copies by value
+_PIPE_FILE = "pipelined-tls.bin"
 
 # serial: these assert aggregate-throughput scaling ratios, which are only valid
 # when the box isn't saturated — they must not run inside the parallel pool.

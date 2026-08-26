@@ -287,24 +287,7 @@ s3_merge_export(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *conf)
         return NGX_CONF_ERROR;
     }
 
-    if (conf->common.cache_root.len > 0) {
-        brix_export_root_opts_t cache_opts;
-        cache_opts.directive_name = "brix_cache_root";
-        cache_opts.allow_write    = 0;
-        cache_opts.required       = 0;
-        cache_opts.canon_size     = sizeof(conf->common.cache_root_canon);
-        if (brix_prepare_export_root(cf, &conf->common.cache_root, &cache_opts,
-                                       conf->common.cache_root_canon) != NGX_CONF_OK)
-        {
-            return NGX_CONF_ERROR;
-        }
-    }
-
-    /* HARD config guard: the read-through cache root must live OUTSIDE the
-     * export, or cache sidecars would be exposed in the client namespace. */
-    if (brix_assert_dir_outside_export(cf, "brix_cache_root",
-            conf->common.root_canon, conf->common.cache_root_canon) != NGX_OK)
-    {
+    if (brix_prepare_cache_root(cf, &conf->common) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
 

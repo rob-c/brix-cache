@@ -40,7 +40,7 @@ from settings import BIND_HOST, HOST
 
 REPO_XRDCP = os.path.join(servers.CLIENT_BIN, "xrdcp")
 CURL = shutil.which("curl") or "/usr/bin/curl"
-XRDHTTP_LIB = "/usr/lib64/libXrdHttp-5.so"
+XRDHTTP_LIB = servers.find_xrd_lib("libXrdHttp-5.so", "libXrdHttp.so")
 FILE_NAME = "h.bin"
 
 
@@ -182,8 +182,8 @@ def _validate_prerequisites():
         sys.exit(f"repo xrdcp not built: {REPO_XRDCP}")
     if not servers.BRIX_BIN:
         sys.exit("official xrootd not on PATH")
-    if not os.path.isfile(XRDHTTP_LIB):
-        sys.exit(f"XrdHttp server lib missing: {XRDHTTP_LIB}")
+    if not XRDHTTP_LIB:
+        sys.exit("XrdHttp server lib missing")
 
 
 def _prepare_data(args, levels):

@@ -8,6 +8,8 @@ def _check_test_persistent_reset_expires_hold_504_2(status, got, body):
 
 _reexport(globals(), "_test_cvmfs_conformance_srv_resilience_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_srv_resilience")
+
 @pytest.mark.timeout(60)
 @pytest.mark.parametrize("mode", FAULTS)
 def test_one_shot_fault_absorbed(srv1, alloc, mode):

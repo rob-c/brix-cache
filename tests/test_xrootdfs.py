@@ -426,10 +426,24 @@ def test_fuse_xattr_off_by_default(built, remote_file):
 # LD_PRELOAD POSIX shim
 # ==========================================================================
 
+from sanitizer_preload import sanitizer_runtimes
+
+_ASAN_RT = sanitizer_runtimes(PRELOAD)
+
+
+def _preload_chain():
+    """LD_PRELOAD value: the sanitizer runtimes (empty on a plain build)
+    prepended so the ASan/UBSan shim loads into the uninstrumented host process
+    instead of aborting on an undefined __asan_*/__ubsan_* symbol."""
+    return " ".join(x for x in (_ASAN_RT, PRELOAD) if x)
+
+
 def _preload_env(extra=None):
     env = {k: v for k, v in os.environ.items()}
     env.pop("X509_USER_PROXY", None)
-    env["LD_PRELOAD"] = PRELOAD
+    env["LD_PRELOAD"] = _preload_chain()
+    if _ASAN_RT:
+        env.setdefault("ASAN_OPTIONS", "detect_leaks=0:verify_asan_link_order=0")
     env["BRIX_VMP"] = f"/xrd=root://{SERVER_HOST}:{NGINX_ANON_PORT}/"
     if extra:
         env.update(extra)

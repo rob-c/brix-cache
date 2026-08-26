@@ -12,6 +12,8 @@ def _check_test_pgread_crc_self_consistent_both_3(crc, page, po):
 
 _reexport(globals(), "_test_conf_pgio_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_pgio")
+
 def test_crc32c_known_vector():
     """The headline integrity primitive must match the published test vector;
     every per-page CRC assertion in this file depends on it being correct."""

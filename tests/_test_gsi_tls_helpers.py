@@ -54,6 +54,7 @@ TEST_FILES = {
     "test.txt":   {"size": 24,      "content": b"hello from nginx-xrootd\n"},
     "random.bin": {"size": 5242880, "content": None},
 }
+WRITE_PREFIX = worker_prefix("_test_gsi_tls_")
 
 
 @pytest.fixture(scope="module")

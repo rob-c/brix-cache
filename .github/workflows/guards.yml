@@ -2,8 +2,8 @@
 #
 # These guards encode the project's hardest-won invariants (VFS seam,
 # config coverage, shared-helper discipline, SD driver conformance,
-# file-size ratchet). They were manual-only until 2026-07-07 — and the
-# file-size ratchet accumulated 18 violations in that time. Never remove
+# file-size cap). They were manual-only until 2026-07-07 — and the
+# file-size check accumulated 18 violations in that time. Never remove
 # a step here without removing the invariant it enforces.
 #
 # `if: '!cancelled()'` on each step so ALL guards report, not just the
@@ -64,9 +64,17 @@ jobs:
       - name: shm mutex — no bare ngx_shmtx_create (INVARIANT 10)
         if: '!cancelled()'
         run: tools/ci/check_shm_mutex.py
-      - name: file-size ratchet (600-line cap)
+      - name: file-size hard cap (600 lines)
         if: '!cancelled()'
         run: tools/ci/check_file_size.py
+      - name: python file-size cap (600 logical lines, tests/utils/tools)
+        if: '!cancelled()'
+        run: tools/ci/check_py_file_size.py
+      - name: python complexity cap (CCN 15, tests/utils/tools)
+        if: '!cancelled()'
+        run: |
+          pip install --quiet 'lizard>=1.17,<2'
+          tools/ci/check_py_complexity.py
       # Two halves of one contract: CCN 15 for the native trees, and five
       # metrics for every Python tree. Neither has a backlog, so neither can be
       # made green by appending to a file. The Python half runs through its own

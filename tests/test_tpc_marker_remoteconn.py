@@ -141,8 +141,8 @@ def test_multistream_markers_carry_remote_connections(dest, source):
 
     lines = REMOTE_LINE.findall(body)
     assert lines, f"no RemoteConnections line in marker body:\n{body[:800]}"
-    assert f"tcp:127.0.0.1:{source['port']}" in body, \
-        f"connected source endpoint absent:\n{body[:800]}"
+    assert f"tcp:127.0.0.1:{source['port']}" in body, (  # net-literal-allow: marker body names the loopback source
+        f"connected source endpoint absent:\n{body[:800]}")
     got = (dest["data"] / "out-multi.bin").read_bytes()
     assert got == PAYLOAD, "multi-stream pull corrupted the payload"
 
@@ -169,7 +169,13 @@ def test_remote_lines_are_strict_endpoints(dest, source):
     raw = [ln for ln in body.splitlines() if ln.startswith("RemoteConnections:")]
     assert raw, "expected RemoteConnections lines on a 2-stream pull"
     for line in raw:
-        assert REMOTE_LINE.match(line + "\n") or REMOTE_LINE.match(line), \
-            f"non-endpoint text leaked into marker line: {line!r}"
-        assert "https" not in line and "/" not in line.split(":", 1)[1], \
-            f"URL text reflected into marker line: {line!r}"
+        _assert_strict_endpoint(line)
+
+
+def _assert_strict_endpoint(line):
+    """One RemoteConnections line is the strict tcp:<ip>:<port> shape with no
+    reflected URL text (no scheme, no path)."""
+    assert any((REMOTE_LINE.match(line + "\n"), REMOTE_LINE.match(line))), \
+        f"non-endpoint text leaked into marker line: {line!r}"
+    assert all(("https" not in line, "/" not in line.split(":", 1)[1])), \
+        f"URL text reflected into marker line: {line!r}"

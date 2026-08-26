@@ -29,7 +29,7 @@ from fleet_lifecycle_ports import (
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
-HOST = "127.0.0.1"
+HOST = "127.0.0.1"  # net-literal-allow: loopback literal is the subject under test
 
 _RL_PORT, _RL_EXTRA = lifecycle_ports_for("lc-p105-rl-s3")
 WEBDAV_PORT = _RL_PORT

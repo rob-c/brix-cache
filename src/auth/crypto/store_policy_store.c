@@ -195,19 +195,99 @@ brix_failsafe_get_crl(X509_STORE_CTX *ctx, X509_CRL **out, X509 *x)
 }
 
 /*
- * WHAT: verify callback used only in BRIX_CRL_MODE_TRY.
+ * WHAT: a DIFFERENT_CRL_SCOPE verdict is a false positive iff the CRL that
+ *       provoked it is the AUTHORITATIVE full CRL for the certificate — issued
+ *       by the cert's exact issuer, carrying no IssuingDistributionPoint (so it
+ *       covers every cert that issuer signed, all reasons), and NOT listing the
+ *       cert's serial.  In that case revocation HAS been checked (the cert is
+ *       provably absent from its issuer's full CRL) and the scope error is an
+ *       artifact of brix_failsafe_get_crl handing OpenSSL a CRL without the
+ *       scope score its own get_crl_sk would have attached (stock
+ *       `openssl verify -crl_check_all` accepts the identical store).
+ * WHY:  safe in BOTH try and require: a genuinely revoked cert is FOUND on this
+ *       same full CRL, so it takes the CERT_REVOKED path, never this one.  A
+ *       partial/delta/scoped CRL (has an IDP) is NOT authoritative and is left
+ *       to fail, so real scope restrictions are still honoured.
+ */
+static int
+brix_crl_scope_is_spurious(X509_STORE_CTX *ctx)
+{
+    X509               *cert = X509_STORE_CTX_get_current_cert(ctx);
+    STACK_OF(X509_CRL) *crls;
+    int                 i, spurious = 0;
+
+    if (cert == NULL) {
+        return 0;
+    }
+    /* Look CRLs up by the cert's issuer name directly rather than trusting
+     * ctx->current_crl: the spurious codes include UNABLE_TO_GET_CRL, where
+     * OpenSSL has cleared current_crl.  The cert's issuer is already
+     * trust-validated (it is above this cert in the verified chain), so any
+     * full CRL it signed is authoritative for revocation of this cert. */
+    crls = X509_STORE_CTX_get1_crls(ctx, X509_get_issuer_name(cert));
+    if (crls == NULL) {
+        return 0;
+    }
+    for (i = 0; i < sk_X509_CRL_num(crls); i++) {
+        X509_CRL     *crl = sk_X509_CRL_value(crls, i);
+        X509_REVOKED *rev = NULL;
+
+        /* A scoped/partial CRL (has an IDP) is NOT authoritative for the whole
+         * cert population — its scope restriction is real; skip it. */
+        if (X509_CRL_get_ext_by_NID(crl, NID_issuing_distribution_point, -1)
+            >= 0) {
+            continue;
+        }
+        /* ==1 revoked → NOT spurious, let it fail.  ==2 is a removeFromCRL
+         * entry (listed but non-revoking) and ==0 is absent — both mean the
+         * cert is not revoked by this full CRL, so the scope/path error is. */
+        if (X509_CRL_get0_by_serial(crl, &rev,
+                                    X509_get_serialNumber(cert)) == 1) {
+            spurious = 0;
+            break;
+        }
+        spurious = 1;   /* full CRL from the issuer, cert not revoked by it */
+    }
+    sk_X509_CRL_pop_free(crls, X509_CRL_free);
+    return spurious;
+}
+
+/*
+ * WHAT: CRL verify callback installed for BRIX_CRL_MODE_TRY and _REQUIRE.
  * WHY:  "try" checks revocation where a CRL exists but tolerates a CA that has
- *       none; a stale (expired) CRL stays fatal (staleness is evidence).
- * HOW:  downgrade only X509_V_ERR_UNABLE_TO_GET_CRL to success; every other
- *       verdict (CRL_HAS_EXPIRED, CERT_REVOKED, ...) stands.
+ *       none; a stale (expired) CRL stays fatal (staleness is evidence).  Both
+ *       modes also tolerate the spurious DIFFERENT_CRL_SCOPE described above so
+ *       a non-revoked cert under a full CRL is admitted (as stock OpenSSL does).
+ * HOW:  downgrade UNABLE_TO_GET_CRL (try only) and provably-spurious
+ *       DIFFERENT_CRL_SCOPE (both) to success; every other verdict
+ *       (CRL_HAS_EXPIRED, CERT_REVOKED, ...) stands.
  */
 static int
 brix_crl_try_verify_cb(int ok, X509_STORE_CTX *ctx)
 {
+    int err;
+
     if (ok) {
         return 1;
     }
-    if (X509_STORE_CTX_get_error(ctx) == X509_V_ERR_UNABLE_TO_GET_CRL) {
+    err = X509_STORE_CTX_get_error(ctx);
+    /* "try" tolerates a CA that publishes no CRL at all (genuine missing-CRL). */
+    if (err == X509_V_ERR_UNABLE_TO_GET_CRL
+        && brix_store_crl_mode(ctx) != BRIX_CRL_MODE_REQUIRE) {
+        return 1;
+    }
+    /* All three are spurious artifacts of brix_failsafe_get_crl feeding OpenSSL
+     * a CRL without the scope score its own get_crl_sk would attach, under
+     * CRL_CHECK_ALL|USE_DELTAS: UNABLE_TO_GET_CRL / DIFFERENT_CRL_SCOPE /
+     * CRL_PATH_VALIDATION_ERROR fire in sequence on the same cert where stock
+     * `openssl verify -crl_check_all` accepts.  Tolerate them in BOTH modes
+     * only when an authoritative full CRL from the cert's (already
+     * trust-validated) issuer exists and does not list the cert — a genuinely
+     * revoked cert is FOUND on that CRL and takes the CERT_REVOKED path. */
+    if ((err == X509_V_ERR_UNABLE_TO_GET_CRL
+         || err == X509_V_ERR_DIFFERENT_CRL_SCOPE
+         || err == X509_V_ERR_CRL_PATH_VALIDATION_ERROR)
+        && brix_crl_scope_is_spurious(ctx)) {
         return 1;
     }
     return 0;
@@ -239,7 +319,8 @@ brix_store_configure(X509_STORE *store, const char *cadir,
             | X509_V_FLAG_CRL_CHECK_ALL | X509_V_FLAG_USE_DELTAS);
         X509_STORE_set_get_crl(store, brix_failsafe_get_crl);
     }
-    if (crl_mode == BRIX_CRL_MODE_TRY) {
+    if (crl_mode == BRIX_CRL_MODE_TRY
+        || crl_mode == BRIX_CRL_MODE_REQUIRE) {
         X509_STORE_set_verify_cb(store, brix_crl_try_verify_cb);
     }
 

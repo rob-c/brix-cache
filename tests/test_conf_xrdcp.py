@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_xrdcp_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_xrdcp")
+
 @pytest.mark.parametrize("name", ["data.bin", "sz_4096.bin", "hello.txt"])
 def test_force_overwrite_download(srv, tmp_path, name):
     dst = str(tmp_path / f"force_{name}")

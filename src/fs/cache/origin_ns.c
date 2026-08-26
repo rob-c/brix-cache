@@ -399,6 +399,34 @@ origin_fattr_payload(const char *path, const char *name, const void *val,
     return buf;
 }
 
+/* origin_fattr_send — send a prepared kXR_fattr request (body + payload) to the
+ * origin and check the reply status; frees payload either way. On success
+ * returns 0 with rbody/dlen set (caller frees rbody); on failure returns -1
+ * with errno set and rbody already freed. `respcap` bounds the reply body. */
+static int
+origin_fattr_send(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
+    const uint8_t *body, u_char *payload, size_t plen, uint32_t respcap,
+    u_char **rbody, uint32_t *dlen)
+{
+    uint16_t status;
+
+    *rbody = NULL;
+    if (origin_request(t, oc, kXR_fattr, body, payload, plen, &status, rbody,
+                       dlen, respcap) != 0)
+    {
+        free(payload);
+        errno = EIO;
+        return -1;
+    }
+    free(payload);
+    if (status != kXR_ok) {
+        errno = brix_cache_origin_status_errno(status, *rbody, *dlen);
+        free(*rbody);
+        return -1;
+    }
+    return 0;
+}
+
 /* brix_cache_origin_getfattr — kXR_fattr Get of ONE attribute on `path`. Copies
  * the value into buf[cap] and returns its length, 0 if absent, or -1 (errno). */
 ssize_t
@@ -409,7 +437,7 @@ brix_cache_origin_getfattr(brix_cache_fill_t *t,
     uint8_t   body[XRDW_BODY_LEN];
     u_char   *payload, *rbody = NULL, *after;
     size_t    plen, next;
-    uint16_t  status, rc = 0;
+    uint16_t  rc = 0;
     uint32_t  dlen, vlen;
 
     payload = origin_fattr_payload(path, name, NULL, 0, 0, &plen);
@@ -418,17 +446,7 @@ brix_cache_origin_getfattr(brix_cache_fill_t *t,
         xrdw_fattr_req_t b = { .subcode = kXR_fattrGet, .numattr = 1 };
         xrdw_fattr_req_pack(&b, body);
     }
-    if (origin_request(t, oc, kXR_fattr, body, payload, plen, &status, &rbody,
-                       &dlen, 65536) != 0)
-    {
-        free(payload);
-        errno = EIO;
-        return -1;
-    }
-    free(payload);
-    if (status != kXR_ok) {
-        errno = brix_cache_origin_status_errno(status, rbody, dlen);
-        free(rbody);
+    if (origin_fattr_send(t, oc, body, payload, plen, 65536, &rbody, &dlen) != 0) {
         return -1;
     }
     if (rbody == NULL || dlen < 2
@@ -463,7 +481,6 @@ brix_cache_origin_listfattr(brix_cache_fill_t *t,
     uint8_t   body[XRDW_BODY_LEN];
     size_t    pn = strlen(path);
     u_char   *payload, *rbody = NULL;
-    uint16_t  status;
     uint32_t  dlen;
 
     payload = malloc(pn + 1);
@@ -473,17 +490,7 @@ brix_cache_origin_listfattr(brix_cache_fill_t *t,
         xrdw_fattr_req_t b = { .subcode = kXR_fattrList, .numattr = 0 };
         xrdw_fattr_req_pack(&b, body);
     }
-    if (origin_request(t, oc, kXR_fattr, body, payload, pn + 1, &status, &rbody,
-                       &dlen, 65536) != 0)
-    {
-        free(payload);
-        errno = EIO;
-        return -1;
-    }
-    free(payload);
-    if (status != kXR_ok) {
-        errno = brix_cache_origin_status_errno(status, rbody, dlen);
-        free(rbody);
+    if (origin_fattr_send(t, oc, body, payload, pn + 1, 65536, &rbody, &dlen) != 0) {
         return -1;
     }
     if (buf != NULL && cap > 0 && dlen > 0) {
@@ -502,7 +509,7 @@ origin_fattr_set_or_del(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     uint8_t   body[XRDW_BODY_LEN];
     u_char   *payload, *rbody = NULL;
     size_t    plen, next;
-    uint16_t  status, rc = 0;
+    uint16_t  rc = 0;
     uint32_t  dlen;
 
     payload = origin_fattr_payload(path, name, val, vlen, with_value, &plen);
@@ -511,17 +518,7 @@ origin_fattr_set_or_del(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
         xrdw_fattr_req_t b = { .subcode = subcode, .numattr = 1 };
         xrdw_fattr_req_pack(&b, body);
     }
-    if (origin_request(t, oc, kXR_fattr, body, payload, plen, &status, &rbody,
-                       &dlen, 4096) != 0)
-    {
-        free(payload);
-        errno = EIO;
-        return -1;
-    }
-    free(payload);
-    if (status != kXR_ok) {
-        errno = brix_cache_origin_status_errno(status, rbody, dlen);
-        free(rbody);
+    if (origin_fattr_send(t, oc, body, payload, plen, 4096, &rbody, &dlen) != 0) {
         return -1;
     }
     if (rbody == NULL || dlen < 2

@@ -72,8 +72,10 @@ class TestHTTPMethodsCommon:
         tmpfile.unlink(missing_ok=True)
         assert result.returncode == 0, "curl PUT should succeed"
         status_code = int(result.stdout.strip())
-        # Accept 201 (created) or 204 (no content/updated silently)
-        assert status_code in (201, 204), f"PUT should return 201/204, got {status_code}"
+        # RFC 7231 §4.3.4: PUT success is 200 (with body/representation), 201
+        # (created), or 204 (no content).  Stock XrdHttp v5.6.9 returns 200.
+        assert status_code in (200, 201, 204), \
+            f"PUT should return 200/201/204, got {status_code}"
 
     def test_put_overwrite_file(self, xrdhttp_backend):
         """PUT overwrites an existing file with new content."""
@@ -265,8 +267,10 @@ class TestLargeFileTransfer:
 
         if result.returncode == 0:
             status = int(result.stdout.strip())
-            assert status in (201, 204), \
-                f"PUT should return 201 or 204, got {status}"
+            # RFC 7231 §4.3.4: 200/201/204 all denote a successful PUT; stock
+            # XrdHttp returns 200.
+            assert status in (200, 201, 204), \
+                f"PUT should return 200/201/204, got {status}"
 
             # Verify retrieval
             get_result = _curl("-s", url)

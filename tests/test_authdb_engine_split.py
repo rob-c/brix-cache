@@ -74,7 +74,7 @@ def _nginx_t_http(body):
                 + f"  proxy_temp_path {d}/tmp/p; fastcgi_temp_path {d}/tmp/f;\n"
                 + f"  uwsgi_temp_path {d}/tmp/u; scgi_temp_path {d}/tmp/s;\n"
                 + "  brix_storage_backend posix:/tmp;\n"
-                + "  server { listen 127.0.0.1:28571;\n"
+                + "  server { listen 127.0.0.1:28571;\n"  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
                 + body(d)
                 + "  }\n"
                 + "}\n")
@@ -94,7 +94,7 @@ def _nginx_t_stream(body):
                 + f"error_log {d}/logs/e.log info;\npid {d}/logs/n.pid;\n"
                 + "events {}\n"
                 + "stream {\n"
-                + "  server { listen 127.0.0.1:28572;\n"
+                + "  server { listen 127.0.0.1:28572;\n"  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
                 + "    brix_root on;\n"
                 + body(d)
                 + "  }\n"

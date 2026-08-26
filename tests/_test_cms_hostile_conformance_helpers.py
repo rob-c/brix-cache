@@ -174,7 +174,7 @@ def hostile_server(lifecycle):
     """A brix CMS *server* (accept leg) we hammer with a hostile site node."""
     return lifecycle.start(NginxInstanceSpec(
         name="lc-cms-hostile-server",
-        template="nginx_cms_wire_server.conf",
+        template="nginx_cms_hostile_server.conf",
         protocol="root",
         readiness="tcp",
         reason="CMS hostile-network conformance: server-leg frame parser.",

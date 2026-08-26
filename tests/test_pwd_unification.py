@@ -22,27 +22,42 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _nginx_t(body, extra_files=None):
+def _load_module_lines():
+    """`load_module <m>;` lines for every module in TEST_NGINX_LOAD_MODULES."""
     modules = [m for m in os.environ.get("TEST_NGINX_LOAD_MODULES", "").split(os.pathsep) if m]
-    load = "".join(f"load_module {m};\n" for m in modules)
+    return "".join(f"load_module {m};\n" for m in modules)
+
+
+def _seed_conf_dir(d, extra_files):
+    """Create the logs/tmp subdirs and write any extra fixture files under `d`."""
+    for sub in ("logs", "tmp"):
+        os.makedirs(os.path.join(d, sub), exist_ok=True)
+    for name, content in (extra_files or {}).items():
+        with open(os.path.join(d, name), "w") as fh:
+            fh.write(content)
+
+
+def _conf_text(d, load, body):
+    """The full nginx.conf text for a parse-only (nginx -t) run under prefix `d`."""
+    return (
+        load
+        + f"error_log {d}/logs/e.log info;\npid {d}/logs/n.pid;\nevents {{}}\n"
+        + "http {\n"
+        + f"  access_log {d}/logs/a.log; client_body_temp_path {d}/tmp/c;\n"
+        + f"  proxy_temp_path {d}/tmp/p; fastcgi_temp_path {d}/tmp/f;\n"
+        + f"  uwsgi_temp_path {d}/tmp/u; scgi_temp_path {d}/tmp/s;\n"
+        + "  brix_storage_backend posix:/tmp;\n"
+        + body.replace("{DIR}", d)
+        + "}\n")
+
+
+def _nginx_t(body, extra_files=None):
+    load = _load_module_lines()
     with tempfile.TemporaryDirectory() as d:
-        for sub in ("logs", "tmp"):
-            os.makedirs(os.path.join(d, sub), exist_ok=True)
-        for name, content in (extra_files or {}).items():
-            with open(os.path.join(d, name), "w") as fh:
-                fh.write(content)
+        _seed_conf_dir(d, extra_files)
         conf = os.path.join(d, "nginx.conf")
         with open(conf, "w") as fh:
-            fh.write(
-                load
-                + f"error_log {d}/logs/e.log info;\npid {d}/logs/n.pid;\nevents {{}}\n"
-                + "http {\n"
-                + f"  access_log {d}/logs/a.log; client_body_temp_path {d}/tmp/c;\n"
-                + f"  proxy_temp_path {d}/tmp/p; fastcgi_temp_path {d}/tmp/f;\n"
-                + f"  uwsgi_temp_path {d}/tmp/u; scgi_temp_path {d}/tmp/s;\n"
-                + "  brix_storage_backend posix:/tmp;\n"
-                + body.replace("{DIR}", d)
-                + "}\n")
+            fh.write(_conf_text(d, load, body))
         r = subprocess.run([NGINX_BIN, "-t", "-c", conf, "-p", d],
                            capture_output=True, text=True, timeout=30)
     return r.returncode, r.stdout + r.stderr
@@ -56,7 +71,7 @@ def test_bare_pwd_file_parses_webdav_and_http_scope():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28581;\n"
         "    location / { brix_webdav on; brix_webdav_auth optional;\n"
-        "      brix_pwd_file {DIR}/htpasswd; } }\n",
+        "      brix_pwd_file {DIR}/htpasswd; } }\n",  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
         extra_files={"htpasswd": _PWD})
     assert rc == 0, f"bare brix_pwd_file must parse on webdav:\n{out}"
     assert "successful" in out, out
@@ -66,7 +81,7 @@ def test_old_webdav_pwd_file_is_unknown():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28582;\n"
         "    location / { brix_webdav on; brix_webdav_auth optional;\n"
-        "      brix_webdav_pwd_file {DIR}/htpasswd; } }\n",
+        "      brix_webdav_pwd_file {DIR}/htpasswd; } }\n",  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
         extra_files={"htpasswd": _PWD})
     assert rc != 0, f"brix_webdav_pwd_file must be unknown now:\n{out}"
     assert "unknown directive" in out and "brix_webdav_pwd_file" in out, out

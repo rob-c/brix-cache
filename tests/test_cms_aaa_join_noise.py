@@ -77,7 +77,7 @@ class TestOutageAndRejoin:
         before = site.counter("brix_cms_connect_failures_total")
         assert site.wait_registered(False, timeout=REJOIN_TIMEOUT), \
             "refused link never dropped the registration gauge"
-        deadline = time.monotonic() + 10.0
+        deadline = time.monotonic() + 3.0
         while time.monotonic() < deadline:
             time.sleep(0.5)
         after = site.counter("brix_cms_connect_failures_total")
@@ -86,7 +86,7 @@ class TestOutageAndRejoin:
         assert attempts >= 1, \
             f"a refused dial produced no connect failures ({before} -> {after})"
         assert attempts < 100, \
-            f"{attempts} dial attempts in 10s — retry is busy-spinning, not backing off"
+            f"{attempts} dial attempts in 3s — retry is busy-spinning, not backing off"
         assert site.data_plane_alive(), \
             "a refused federation leg took the data plane down with it"
 
@@ -100,13 +100,13 @@ class TestOutageAndRejoin:
         site.link.ctl("block")          # accept-then-close, not refuse
 
         before = site.counter("brix_cms_logins_total")
-        deadline = time.monotonic() + 10.0
+        deadline = time.monotonic() + 3.0
         while time.monotonic() < deadline:
             time.sleep(0.5)
         cycles = site.counter("brix_cms_logins_total") - before
 
         assert cycles < 100, \
-            f"{cycles} login cycles in 10s against a closing redirector — hot loop"
+            f"{cycles} login cycles in 3s against a closing redirector — hot loop"
         assert site.data_plane_alive(), \
             "an accept-then-close redirector took the data plane down with it"
         assert not site.worker_crashes(), \

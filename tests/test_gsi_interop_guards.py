@@ -115,6 +115,10 @@ def _split_endpoint(ep):
 
 def _gsi_env(proxy, ca_dir):
     env = dict(os.environ)
+    # ASan-built tools: OpenSSL's one-time lib-ctx allocations trip LSan at
+    # exit and turn a SUCCESSFUL handshake into rc!=0 — leak detection is not
+    # what these interop guards test.
+    env["ASAN_OPTIONS"] = "detect_leaks=0"
     env["X509_USER_PROXY"] = proxy
     # Intentionally set X509_CERT_DIR for the harness CA; the live tier leaves it
     # unset to also exercise the /etc/grid-security/certificates fallback.

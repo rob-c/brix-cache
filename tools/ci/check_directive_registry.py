@@ -52,6 +52,19 @@ ALLOWLIST = os.environ.get("BRIX_REGISTRY_ALLOWLIST") or \
 
 PROTO_PREFIXES = ("webdav", "s3", "gridftp", "cvmfs")
 
+_STREAM_PATH_SEGS = ("/stream/", "/net/cms/", "/gridftp/", "/root/")
+_HTTP_PATH_SEGS = ("/webdav/", "/s3/", "/cvmfs/", "http_common")
+
+
+def _walk_src(*suffixes):
+    """Yield (path, text) for every file under SRC whose name ends in one of
+    `suffixes` — the read-every-source-file spine the extractors share."""
+    for dp, _, fs in os.walk(SRC):
+        for f in fs:
+            if f.endswith(suffixes):
+                path = os.path.join(dp, f)
+                yield path, open(path, errors="replace").read()
+
 # One ngx_command_t entry: { ngx_string("name"), <ctx ...CONF...>, <setter>, ...
 _ENTRY = re.compile(
     r'\{\s*ngx_string\("([a-z0-9_]+)"\)\s*,\s*'
@@ -70,64 +83,92 @@ _MACRO_USE = re.compile(
     r'(BRIX_[A-Z0-9_]+_DIRECTIVES)\s*\(\s*"([a-z0-9_]*)"\s*,[^,]*,\s*([A-Za-z0-9_|]+)')
 
 
-def _plane(ctx, path):
-    """http | stream | None (malformed). Context flags win; path is the tiebreak
-    for macro sites whose CTX token is an alias like BRIX_HTTP_ALL_CONF."""
+def _plane_from_ctx(ctx):
+    """http | stream | None from the CONF context flags alone."""
     if "NGX_STREAM" in ctx or "BRIX_STREAM" in ctx:
         return "stream"
     if "NGX_HTTP" in ctx or "HTTP_ALL_CONF" in ctx or "BRIX_HTTP" in ctx:
         return "http"
+    return None
+
+
+def _plane_from_path(path):
+    """http | stream | None from the owning file's path — the tiebreak for macro
+    sites whose CTX token is an alias like BRIX_HTTP_ALL_CONF."""
     rel = path.replace(ROOT, "")
-    if any(seg in rel for seg in ("/stream/", "/net/cms/", "/gridftp/", "/root/")):
+    if any(seg in rel for seg in _STREAM_PATH_SEGS):
         return "stream"
-    if any(seg in rel for seg in ("/webdav/", "/s3/", "/cvmfs/", "http_common")):
+    if any(seg in rel for seg in _HTTP_PATH_SEGS):
         return "http"
     return None
+
+
+def _plane(ctx, path):
+    """http | stream | None (malformed). Context flags win; path is the tiebreak."""
+    return _plane_from_ctx(ctx) or _plane_from_path(path)
+
+
+def _macro_body_entries(text, dm):
+    """[(token, ctx)] for one BRIX_*_DIRECTIVES definition matched at `dm` — its
+    body runs to the next #define or the end of the file."""
+    nxt = text.find("#define ", dm.end())
+    body = text[dm.start(): nxt if nxt > 0 else len(text)]
+    return [(m.group(1), m.group(2).strip())
+            for m in _MACRO_ENTRY.finditer(body)]
 
 
 def _macro_bodies():
     """{macro_name: [(token, ctx), ...]} for every BRIX_*_DIRECTIVES definition."""
     bodies = {}
-    for dp, _, fs in os.walk(SRC):
-        for f in fs:
-            if not f.endswith(".h"):
-                continue
-            text = open(os.path.join(dp, f), errors="replace").read()
-            for dm in _MACRO_DEF.finditer(text):
-                name = dm.group(1)
-                # the macro body runs to the end of the file or the next #define
-                start = dm.start()
-                nxt = text.find("#define ", dm.end())
-                body = text[start: nxt if nxt > 0 else len(text)]
-                bodies[name] = [(m.group(1), m.group(2).strip())
-                                for m in _MACRO_ENTRY.finditer(body)]
+    for _path, text in _walk_src(".h"):
+        for dm in _MACRO_DEF.finditer(text):
+            bodies[dm.group(1)] = _macro_body_entries(text, dm)
     return bodies
+
+
+def _literal_regs(text, path):
+    """[(name, plane, "literal", path)] for the { ngx_string("...") , ... }
+    entries in one file; struct-initialiser false positives (offsetof) skipped."""
+    return [(m.group(1), _plane(m.group(2), path), "literal", path)
+            for m in _ENTRY.finditer(text)
+            if "offsetof" not in m.group(3)]
+
+
+def _macro_regs(text, path, macro_bodies):
+    """[(pfx+token, plane, "macro", path)] for every X-macro instantiation in one
+    file, expanded against the collected macro bodies."""
+    out = []
+    for u in _MACRO_USE.finditer(text):
+        macro, pfx, ctx = u.group(1), u.group(2), u.group(3)
+        for token, mctx in macro_bodies.get(macro, []):
+            out.append((pfx + token, _plane(ctx, path) or _plane(mctx, path),
+                        "macro", path))
+    return out
 
 
 def collect():
     """Return [(name, plane, kind, path)] for every registration in the tree."""
     macro_bodies = _macro_bodies()
     regs = []
-    for dp, _, fs in os.walk(SRC):
-        for f in fs:
-            if not f.endswith((".c", ".h")):
-                continue
-            path = os.path.join(dp, f)
-            text = open(path, errors="replace").read()
-
-            # literal { ngx_string("...") , ... } entries
-            for m in _ENTRY.finditer(text):
-                if "offsetof" in m.group(3):
-                    continue                       # struct-initialiser false positive
-                regs.append((m.group(1), _plane(m.group(2), path), "literal", path))
-
-            # X-macro instantiations: expand pfx + each macro-body token
-            for u in _MACRO_USE.finditer(text):
-                macro, pfx, ctx = u.group(1), u.group(2), u.group(3)
-                for token, mctx in macro_bodies.get(macro, []):
-                    plane = _plane(ctx, path) or _plane(mctx, path)
-                    regs.append((pfx + token, plane, "macro", path))
+    for path, text in _walk_src(".c", ".h"):
+        regs.extend(_literal_regs(text, path))
+        regs.extend(_macro_regs(text, path, macro_bodies))
     return regs
+
+
+def _allowlist_line(line, allow, bad):
+    """Classify one allowlist line into `allow` / `bad`; blank + `##` comment
+    lines and bare-name (no reason) lines are handled here."""
+    if not line.strip() or line.lstrip().startswith("##"):
+        return
+    name, sep, reason = line.partition("#")
+    name = name.strip()
+    if not name:
+        return
+    if not sep or not reason.strip():
+        bad.append(name)
+    else:
+        allow[name] = reason.strip()
 
 
 def _load_allowlist():
@@ -135,17 +176,7 @@ def _load_allowlist():
     allow, bad = {}, []
     if os.path.exists(ALLOWLIST):
         for raw in open(ALLOWLIST):
-            line = raw.rstrip("\n")
-            if not line.strip() or line.lstrip().startswith("##"):
-                continue
-            name, sep, reason = line.partition("#")
-            name = name.strip()
-            if not name:
-                continue
-            if not sep or not reason.strip():
-                bad.append(name)
-            else:
-                allow[name] = reason.strip()
+            _allowlist_line(raw.rstrip("\n"), allow, bad)
     return allow, bad
 
 
@@ -169,7 +200,8 @@ def _index_regs(regs):
 def _rule_r1(by_name_plane, allow):
     """R1 — same-plane duplicate name (two registrations, one plane)."""
     out = []
-    for (name, plane), paths in sorted(by_name_plane.items()):
+    for (name, plane), paths in sorted(by_name_plane.items(),
+                                       key=lambda kv: (kv[0][0], kv[0][1] or "")):
         if plane is None:
             out.append(("R1?", name, f"unclassifiable plane at {paths[0]}"))
         elif len(paths) > 1 and name not in allow:
@@ -179,17 +211,25 @@ def _rule_r1(by_name_plane, allow):
     return out
 
 
+def _r2_twin(name, bare):
+    """The bare twin (brix_X) of a protocol-prefixed name (brix_webdav_X) when
+    that twin is itself a registered bare name; else None."""
+    for p in PROTO_PREFIXES:
+        pre = f"brix_{p}_"
+        if name.startswith(pre):
+            twin = "brix_" + name[len(pre):]
+            return twin if twin in bare else None
+    return None
+
+
 def _rule_r2(names, allow):
     """R2 — prefixed twin of an existing bare name (brix_webdav_X vs brix_X)."""
     out = []
     bare = {n for n in names if n.startswith("brix_")}
     for name in sorted(names):
-        for p in PROTO_PREFIXES:
-            pre = f"brix_{p}_"
-            if name.startswith(pre):
-                twin = "brix_" + name[len(pre):]
-                if twin in bare and name not in allow:
-                    out.append(("R2", name, f"prefixed twin of {twin}"))
+        twin = _r2_twin(name, bare)
+        if twin is not None and name not in allow:
+            out.append(("R2", name, f"prefixed twin of {twin}"))
     return out
 
 
@@ -202,21 +242,27 @@ def _rule_r3(names, documented, allow):
     return out
 
 
+_R4_POKE = re.compile(
+    r'(ngx_http_conf_get_module_loc_conf|ngx_stream_conf_get_module_srv_conf)'
+    r'\s*\(\s*cf\s*,')
+
+
+def _r4_file_findings(path, text, allow):
+    """R4 findings for one .c file's cross-module conf-poke sites."""
+    rel = os.path.relpath(path, ROOT)
+    out = []
+    for m in _R4_POKE.finditer(text):
+        key = f"{rel}:{m.group(1)}"
+        if key not in allow and rel not in allow:
+            out.append(("R4", key, "cross-module conf-poke in a setter"))
+    return out
+
+
 def _rule_r4(allow):
     """R4 — cross-module conf-poke inside a setter."""
     out = []
-    poke = re.compile(r'(ngx_http_conf_get_module_loc_conf|ngx_stream_conf_get_module_srv_conf)'
-                      r'\s*\(\s*cf\s*,')
-    for dp, _, fs in os.walk(SRC):
-        for f in fs:
-            if not f.endswith(".c"):
-                continue
-            path = os.path.join(dp, f)
-            rel = os.path.relpath(path, ROOT)
-            for m in poke.finditer(open(path, errors="replace").read()):
-                key = f"{rel}:{m.group(1)}"
-                if key not in allow and rel not in allow:
-                    out.append(("R4", key, "cross-module conf-poke in a setter"))
+    for path, text in _walk_src(".c"):
+        out.extend(_r4_file_findings(path, text, allow))
     return out
 
 
@@ -257,29 +303,46 @@ FEATURE_TOGGLES = {
 }
 
 
+def _r5_legitimate_owner(name, rel):
+    """True when a bare HTTP name `rel` legitimately registers: the common owner,
+    a self-owned feature family, or a self-owned enable toggle."""
+    if any(rel.endswith(o) for o in HTTP_COMMON_OWNERS):
+        return True
+    feat = name[len("brix_"):].split("_", 1)[0]
+    if FEATURE_OWNERS.get(feat) and FEATURE_OWNERS[feat] in rel:
+        return True
+    return bool(FEATURE_TOGGLES.get(name) and FEATURE_TOGGLES[name] in rel)
+
+
+def _r5_in_scope(name, plane, seen):
+    """True when this registration is a fresh, bare (non-protocol-prefixed) HTTP
+    name R5 should judge."""
+    if plane != "http" or not name.startswith("brix_") or name in seen:
+        return False
+    return not any(name.startswith(f"brix_{p}_") for p in PROTO_PREFIXES)
+
+
+def _r5_offender(name, plane, path, allow, seen):
+    """The R5 finding for one registration, or None when out of scope or clean."""
+    if not _r5_in_scope(name, plane, seen):
+        return None
+    rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+    if _r5_legitimate_owner(name, rel) or name in allow:
+        return None
+    return ("R5", name,
+            f"bare HTTP name owned by {rel}, not the common module "
+            f"(first-module-wins makes sibling-protocol use silently "
+            f"inert or accidental)")
+
+
 def _rule_r5(regs, allow):
     """R5 — bare HTTP-plane name registered outside the common owner."""
     out, seen = [], set()
-    for name, plane, kind, path in regs:
-        if plane != "http" or not name.startswith("brix_") or name in seen:
-            continue
-        if any(name.startswith(f"brix_{p}_") for p in PROTO_PREFIXES):
-            continue                                # protocol-prefixed: R2's job
-        rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
-        if any(rel.endswith(o) for o in HTTP_COMMON_OWNERS):
-            continue                                # the common owner
-        feat = name[len("brix_"):].split("_", 1)[0]
-        if FEATURE_OWNERS.get(feat) and FEATURE_OWNERS[feat] in rel:
-            continue                                # feature family, self-owned
-        if FEATURE_TOGGLES.get(name) and FEATURE_TOGGLES[name] in rel:
-            continue                                # enable toggle, self-owned
-        if name in allow:
-            continue
-        seen.add(name)
-        out.append(("R5", name,
-                    f"bare HTTP name owned by {rel}, not the common module "
-                    f"(first-module-wins makes sibling-protocol use silently "
-                    f"inert or accidental)"))
+    for name, plane, _kind, path in regs:
+        finding = _r5_offender(name, plane, path, allow, seen)
+        if finding is not None:
+            seen.add(name)
+            out.append(finding)
     return out
 
 
@@ -290,16 +353,18 @@ def _rule_r5(regs, allow):
 R6_PLANE_TOKENS = ("gsi_", "stream_")
 
 
+def _strip_first_prefix(s, prefixes):
+    """Drop the first of `prefixes` that `s` starts with (once); else `s`."""
+    for p in prefixes:
+        if s.startswith(p):
+            return s[len(p):]
+    return s
+
+
 def _r6_stem(name):
     s = name[len("brix_"):] if name.startswith("brix_") else name
-    for p in PROTO_PREFIXES:
-        if s.startswith(p + "_"):
-            s = s[len(p) + 1:]
-            break
-    for t in R6_PLANE_TOKENS:
-        if s.startswith(t):
-            s = s[len(t):]
-            break
+    s = _strip_first_prefix(s, tuple(p + "_" for p in PROTO_PREFIXES))
+    s = _strip_first_prefix(s, R6_PLANE_TOKENS)
     return s.replace("_", "")
 
 
@@ -320,8 +385,8 @@ def _rule_r6(names, allow):
     return out
 
 
-def _report(findings, fail_mode):
-    """Group findings by rule, print them, and return the process exit code."""
+def _print_findings_by_rule(findings):
+    """Group findings by rule and print each group."""
     by_rule = {}
     for rule, name, why in findings:
         by_rule.setdefault(rule, []).append((name, why))
@@ -329,6 +394,11 @@ def _report(findings, fail_mode):
         print(f"\n[{rule}] {len(by_rule[rule])} finding(s):")
         for name, why in by_rule[rule]:
             print(f"  {name}: {why}")
+
+
+def _report(findings, fail_mode):
+    """Group findings by rule, print them, and return the process exit code."""
+    _print_findings_by_rule(findings)
 
     # phase-105 W5.4: R1/R2/R4/R5/R6 gate under --fail; R3 stays WARN-scoped
     # until W6 (docs-from-source) closes the 300+ backlog structurally.

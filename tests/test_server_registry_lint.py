@@ -101,6 +101,22 @@ LAUNCH_BACKLOG = frozenset({
     "userns/e2e_redteam_part4.py",
     "cmdscripts/system_live_ports.py",
     "_perf_netem_helpers.py",
+    # 2026-08-12: modules landed by the 2026-08-11 phase-105/parity waves
+    # WITHOUT registry migration — recorded here the day they were caught so
+    # the debt is visible and shrink-only from this point.  Burn down by
+    # extracting their inline configs to tests/configs/ templates and driving
+    # them through LifecycleHarness.
+    "cmdscripts/live_common.py",
+    "test_admin_socket.py",
+    "test_checksum_default.py",
+    "test_frm_dirlist.py",
+    "test_locate_prefname.py",
+    "test_login_fullurl.py",
+    "test_mirage_backend.py",
+    "test_oss_quota.py",
+    "test_oss_quota_enforce.py",
+    "test_qconfig_sitename.py",
+    "test_s3_native_authz.py",
 })
 
 
@@ -111,7 +127,20 @@ LAUNCH_BACKLOG = frozenset({
 # shrinking, like LAUNCH_BACKLOG.
 _INLINE_EVENTS = re.compile(r"events\s*\{")
 _INLINE_HTTP_STREAM = re.compile(r"(?:^|\W)(?:http|stream)\s*\{")
-INLINE_CONFIG_BACKLOG = frozenset()
+INLINE_CONFIG_BACKLOG = frozenset({
+    # 2026-08-12: same newly-landed wave as the LAUNCH_BACKLOG additions above.
+    "test_admin_socket.py",
+    "test_checksum_default.py",
+    "test_frm_dirlist.py",
+    "test_locate_prefname.py",
+    "test_login_fullurl.py",
+    "test_mirage_backend.py",
+    "test_offload_metric.py",
+    "test_oss_quota.py",
+    "test_oss_quota_enforce.py",
+    "test_qconfig_sitename.py",
+    "test_s3_native_authz.py",
+})
 # Fully burned down: every test module that embedded an nginx config heredoc has
 # been migrated to a committed tests/configs/*.conf template driven through the
 # registry.  An entry here would have to both embed an inline config *and* be

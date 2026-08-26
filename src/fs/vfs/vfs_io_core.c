@@ -36,13 +36,40 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <execinfo.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include <openssl/evp.h>
+
+/* brix_vfs_report_dangling_obj — a data op reached the storage seam with an
+ * object whose driver pointer is not a real vtable (use-after-free of the
+ * job/handle). Instead of GP-faulting through it (which kills the worker and
+ * cascades across the fleet), log the object + mangled driver value and a
+ * backtrace of the write's protocol origin, so the freeing site can be found.
+ * Backtrace detail is capped so a storm can't fill the disk; the count keeps
+ * accruing. Worker-thread callable: writes only to the shared stderr fd. */
+void
+brix_vfs_report_dangling_obj(const void *obj, const void *driver, ngx_fd_t fd)
+{
+    static ngx_atomic_t  hits = 0;
+    ngx_atomic_uint_t    n = ngx_atomic_fetch_add(&hits, 1) + 1;
+
+    ngx_log_stderr(0, "BRIX-VFS-UAF #%ui: dangling storage object obj=%p "
+                      "driver=%p (not a vtable) fd=%d — refusing dispatch, "
+                      "falling back to bare fd",
+                   (ngx_uint_t) n, obj, driver, (int) fd);
+
+    if (n <= 200) {
+        void  *frames[24];
+        int    depth = backtrace(frames, 24);
+        backtrace_symbols_fd(frames, depth, STDERR_FILENO);
+    }
+}
 
 /* brix_vfs_io_set_error_message — copy `message` into job->err_msg when the
  * caller supplied a bounded error buffer (READV/WRITEV/DIRLIST diagnostics), so

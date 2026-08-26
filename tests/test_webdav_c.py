@@ -1,5 +1,5 @@
-from split_continuation import reexport as _reexport
-_reexport(globals(), "_test_webdav_helpers")
+from split_continuation import load as _load
+_load(globals(), __file__, "_test_webdav_helpers.py")
 
 pytestmark = pytest.mark.registry_server("main")
 

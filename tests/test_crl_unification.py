@@ -48,7 +48,7 @@ def test_bare_crl_family_parses():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28911;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        "      brix_crl_mode try; brix_signing_policy on; } }\n")
+        "      brix_crl_mode try; brix_signing_policy on; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc == 0, f"bare crl family must parse:\n{out}"
     assert "successful" in out, out
 
@@ -59,7 +59,7 @@ def test_old_webdav_crl_names_unknown(old):
     val = "/etc/grid-security/certificates" if old == "brix_webdav_crl" else "try"
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28912;\n"
-        f"    location / {{ brix_webdav on; brix_webdav_auth none; {old} {val}; }} }}\n")
+        f"    location / {{ brix_webdav on; brix_webdav_auth none; {old} {val}; }} }}\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, out
     assert "unknown directive" in out and old in out, out
 
@@ -67,6 +67,6 @@ def test_old_webdav_crl_names_unknown(old):
 def test_crl_mode_bad_enum_stock_error():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28913;\n"
-        "    location / { brix_webdav on; brix_webdav_auth none; brix_crl_mode bogus; } }\n")
+        "    location / { brix_webdav on; brix_webdav_auth none; brix_crl_mode bogus; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, out
     assert "invalid value" in out and "bogus" in out, out

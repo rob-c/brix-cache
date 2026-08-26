@@ -10,7 +10,15 @@ from cmdscripts.compile_run import REPO_ROOT, run
 
 HARD = 800
 BASELINE = REPO_ROOT / "tests" / "loc_baseline.txt"
-COMMENT_RE = re.compile(r"^\s*$|^\s*//|^\s*/?\*")
+# Blank, C `//`/`/*` comments, AND Python `#` comments (phase-103 G9): a file
+# must never be splittable just by deleting its comments, so a comment line is
+# never logical LoC in either language.
+COMMENT_RE = re.compile(r"^\s*$|^\s*//|^\s*/?\*|^\s*#")
+
+# The tracked shadow mirror of tests/ (carries tests/XRootD/_SHADOW_MARKER); its
+# k8s-tests/*.sh pathspec would otherwise double-count every synced copy
+# (phase-103 G8). Excluded from every measurement.
+_SHADOW_PREFIX = "k8s-tests/remote-suite/"
 
 
 def _patterns():
@@ -48,8 +56,10 @@ def _listed_paths(patterns):
 
 
 def _accepted_path(line):
+    if line.startswith("shared/xrdproto/") or line.startswith(_SHADOW_PREFIX):
+        return None
     path = REPO_ROOT / line
-    return None if line.startswith("shared/xrdproto/") or not path.is_file() else path
+    return path if path.is_file() else None
 
 
 def in_scope() -> list[Path]:

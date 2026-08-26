@@ -59,9 +59,10 @@ def func_score(ccn: int, length: int, param: int, dens: float) -> float:
     )
 
 
-def run_lizard(lizard: str, paths: list[str]) -> Iterator[dict[str, Any]]:
+def run_lizard(lizard: str, paths: list[str],
+               lang: str = "c") -> Iterator[dict[str, Any]]:
     out = subprocess.run(
-        [lizard, "--csv", "-l", "c", *paths],
+        [lizard, "--csv", "-l", lang, *paths],
         capture_output=True, text=True,
     ).stdout
     # CSV: nloc, ccn, token, param, length, location, file, name, longname, start, end

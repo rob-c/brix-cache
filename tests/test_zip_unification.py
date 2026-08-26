@@ -64,7 +64,7 @@ def test_bare_zip_access_covers_all_http_protocols():
         "  server { listen 127.0.0.1:28482;\n"
         "    location /s3/ { brix_s3 on; brix_s3_bucket b; brix_webdav_auth none; } }\n"
         "  server { listen 127.0.0.1:28483;\n"
-        "    location /cvmfs/ { brix_cvmfs on; } }\n")
+        "    location /cvmfs/ { brix_cvmfs on; } }\n")  # net-literal-allow: loopback literal is the subject under test
     assert rc == 0, f"bare brix_zip_access must parse on all HTTP planes:\n{out}"
     assert "successful" in out, out
 
@@ -78,7 +78,7 @@ def test_old_prefixed_names_are_unknown(old):
     val = "16m" if old.endswith("bytes") else "on"
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28484;\n"
-        f"    location / {{ brix_webdav on; brix_webdav_auth none; {old} {val}; }} }}\n")
+        f"    location / {{ brix_webdav on; brix_webdav_auth none; {old} {val}; }} }}\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, f"{old} should be an unknown directive now:\n{out}"
     assert "unknown directive" in out and old in out, out
 
@@ -86,6 +86,6 @@ def test_old_prefixed_names_are_unknown(old):
 def test_zip_access_bad_flag_stock_error():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28485;\n"
-        "    location / { brix_webdav on; brix_webdav_auth none; brix_zip_access maybe; } }\n")
+        "    location / { brix_webdav on; brix_webdav_auth none; brix_zip_access maybe; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, out
     assert 'it must be "on" or "off"' in out, out

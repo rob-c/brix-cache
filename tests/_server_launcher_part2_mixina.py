@@ -17,6 +17,7 @@ from typing import Sequence
 
 import pytest
 
+from brix_suite.nginx_tools import sanitized_env as _sanitized_env
 from config_templates import render_config_to_path
 from fleet_lifecycle_ports import lifecycle_ports_for
 from fleet_values import session_template_values
@@ -222,7 +223,7 @@ class _RegistryLauncherMixinA:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
-            env={**os.environ, **spec.env},
+            env=_sanitized_env(spec.env),
         )
         self._xrootd_procs[spec.name] = proc
         try:
@@ -243,7 +244,7 @@ class _RegistryLauncherMixinA:
         argv = list(spec.template_values.get("argv", ()))
         if not argv:
             raise ValueError(f"{spec.name}: proc/external spec needs template_values['argv']")
-        merged_env = {**os.environ, **spec.env}
+        merged_env = _sanitized_env(spec.env)
         proc = subprocess.Popen(
             argv,
             stdout=subprocess.DEVNULL,

@@ -120,7 +120,7 @@ def fresh_freeze(monkeypatch, tmp_path):
     it), and copying a fake binary onto a path being exec'd fails ETXTBSY —
     and would clobber the session's live binary if it succeeded.
     """
-    monkeypatch.setattr(live_common, "_FROZEN_NGINX", None)
+    monkeypatch.setattr(live_common, "_FROZEN_NGINX", {})
     monkeypatch.setattr(live_common, "_FREEZE_ROOT", tmp_path / "freeze-root")
     monkeypatch.setattr(live_common.time, "sleep", lambda s: None)
 
@@ -140,7 +140,7 @@ def test_freeze_nginx_is_session_shared_not_per_process(fresh_freeze, tmp_path):
     src = Path(fake_nginx.install(tmp_path))
     first = live_common.freeze_nginx(src)
     assert f"-{os.getpid()}" not in first.name, "frozen path must not be per-process"
-    live_common._FROZEN_NGINX = None  # simulate a fresh xdist worker process
+    live_common._FROZEN_NGINX = {}  # simulate a fresh xdist worker process
     second = live_common.freeze_nginx(src)
     assert second == first, "a second process must reuse the shared frozen copy"
 
@@ -148,7 +148,7 @@ def test_freeze_nginx_is_session_shared_not_per_process(fresh_freeze, tmp_path):
 def test_freeze_nginx_missing_source_falls_back_to_live_path(fresh_freeze, tmp_path):
     src = tmp_path / "no-such-nginx"
     assert live_common.freeze_nginx(src) == src
-    assert live_common._FROZEN_NGINX is None
+    assert not live_common._FROZEN_NGINX, "nothing may be cached"
 
 
 def test_freeze_nginx_never_caches_a_broken_binary(fresh_freeze, tmp_path):
@@ -157,7 +157,7 @@ def test_freeze_nginx_never_caches_a_broken_binary(fresh_freeze, tmp_path):
     # half-written binary for the rest of the session.
     src = Path(fake_nginx_broken.install(tmp_path))
     assert live_common.freeze_nginx(src) == src
-    assert live_common._FROZEN_NGINX is None
+    assert not live_common._FROZEN_NGINX, "nothing may be cached"
 
 
 def test_launcher_nginx_bin_routes_through_freeze(monkeypatch):

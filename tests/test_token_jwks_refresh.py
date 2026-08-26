@@ -34,6 +34,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utils.make_token import TokenIssuer
 from settings import NGINX_JWKS_REFRESH_PORT, TEST_ROOT, HOST
 
+pytestmark = [pytest.mark.serial, pytest.mark.registry_server("jwks-refresh")]
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------

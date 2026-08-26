@@ -128,6 +128,8 @@ class _BodyCorruptProxy:
         self._flip_budget = 0
         self._srv = None
         self._stop = threading.Event()
+        self._connections = set()
+        self._connections_lock = threading.Lock()
 
     # arm/disarm are per-test: one armed flip is consumed by the single commit PUT.
     def arm(self):
@@ -196,19 +198,30 @@ class _BodyCorruptProxy:
                 pass
 
     def _handle(self, client):
+        if self._stop.is_set():
+            client.close()
+            return
         try:
             upstream = socket.create_connection(
                 (self.target_host, self.target_port), timeout=5)
         except OSError:
             client.close()
             return
-        tu = threading.Thread(target=self._pump_up, args=(client, upstream),
-                              daemon=True)
-        td = threading.Thread(target=self._pump_down, args=(upstream, client),
-                              daemon=True)
-        tu.start(); td.start()
-        tu.join(); td.join()
-        client.close(); upstream.close()
+        pair = (client, upstream)
+        with self._connections_lock:
+            self._connections.add(pair)
+        try:
+            tu = threading.Thread(target=self._pump_up, args=(client, upstream),
+                                  daemon=True)
+            td = threading.Thread(target=self._pump_down, args=(upstream, client),
+                                  daemon=True)
+            tu.start(); td.start()
+            tu.join(); td.join()
+        finally:
+            with self._connections_lock:
+                self._connections.discard(pair)
+            client.close()
+            upstream.close()
 
     def _serve(self):
         while not self._stop.is_set():
@@ -228,6 +241,15 @@ class _BodyCorruptProxy:
 
     def stop(self):
         self._stop.set()
+        with self._connections_lock:
+            connections = tuple(self._connections)
+        for client, upstream in connections:
+            for peer in (client, upstream):
+                try:
+                    peer.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+                peer.close()
         try:
             self._srv.close()
         except OSError:

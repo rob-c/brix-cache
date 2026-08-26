@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_fuse_refresh_failover_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_fuse_refresh_failover")
+
 @pytest.mark.timeout(60)
 class TestTtlRefresh:
     TTL = 5

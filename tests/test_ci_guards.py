@@ -5,6 +5,7 @@ _reexport(globals(), "_test_ci_guards_helpers")
 # ones (check_python_quality ~23s serially, check_python_deps close behind)
 # starve past 30s when 12 xdist workers saturate the box.
 @pytest.mark.timeout(300)
+@pytest.mark.suite_job
 @pytest.mark.parametrize("guard", _FAST)
 def test_ci_guard_green(guard: str) -> None:
     rc, out = _run(guard)
@@ -234,11 +235,12 @@ def test_template_ref_guard_reddens_on_a_stale_backlog_entry() -> None:
     assert frozen in out and "stale backlog entry" in out, out
 
 
-# --- lizard-backed ratchets ---------------------------------------------------
+# --- lizard-backed hard caps --------------------------------------------------
 # check_duplication runs lizard over three trees: ~18s on an 8-core CI runner
 # but ~130s on a 4-core box, so the cap has to clear the slowest hardware we run
 # on. (guards.yml invokes the guard directly, without this pytest timeout.)
 @pytest.mark.skipif(not _have("lizard"), reason="lizard not installed (pip install --user lizard)")
+@pytest.mark.suite_job
 @pytest.mark.timeout(300)
 @pytest.mark.parametrize("guard", ["check_complexity", "check_duplication", "check_py_complexity"])
 def test_ci_lizard_guard_green(guard: str) -> None:
@@ -246,23 +248,14 @@ def test_ci_lizard_guard_green(guard: str) -> None:
     assert rc == 0, f"tools/ci/{guard}.py failed (exit {rc}):\n{out}"
 
 
-# --- phase-103 exit criterion: the C/C++/header ratchets are at ZERO ----------
-# "guard green" only proves nothing GREW past the frozen backlog; it stays green
-# with a non-empty backlog. Phase-103 drove the whole shipped C tree (src/ +
-# client/ + shared/) to ≤ CCN 15 and ≤ 600 LoC with EMPTY backlogs, so a future
-# change that re-freezes an offender (bumping the backlog) instead of decomposing
-# it must redden here — otherwise the property silently rots. Comments / blank
-# lines don't count as entries.
-@pytest.mark.parametrize("backlog", ["complexity_backlog.txt", "file_size_backlog.txt"])
-def test_c_ratchet_backlogs_are_empty(backlog: str) -> None:
-    path = CI / backlog
-    entries = [
-        ln for ln in path.read_text().splitlines()
-        if ln.strip() and not ln.lstrip().startswith("#")
-    ]
-    assert entries == [], (
-        f"tools/ci/{backlog} must stay empty (phase-103): decompose the offender "
-        f"instead of freezing it. Frozen entries:\n" + "\n".join(entries))
+# --- phase-103 exit criterion: exception machinery stays deleted --------------
+@pytest.mark.parametrize("backlog", [
+    "complexity_backlog.txt", "file_size_backlog.txt",
+    "py_complexity_backlog.txt", "py_file_size_backlog.txt",
+])
+def test_size_complexity_backlogs_do_not_exist(backlog: str) -> None:
+    assert not (CI / backlog).exists(), (
+        f"tools/ci/{backlog} reintroduces an exception path; fix the offender")
 
 
 # --- static-analysis / coverage runners (nightly) -----------------------------
@@ -273,6 +266,7 @@ _NGX_BUILD = Path("/tmp/nginx-1.28.3/objs/Makefile")
 
 
 @pytest.mark.slow
+@pytest.mark.suite_job
 @pytest.mark.timeout(1800)
 @pytest.mark.parametrize(
     "runner,tool",
@@ -288,6 +282,7 @@ def test_ci_analyzer_runner_green(runner: str, tool: str) -> None:
 
 
 @pytest.mark.slow
+@pytest.mark.suite_job
 @pytest.mark.timeout(1800)
 def test_ci_coverage_runner_green() -> None:
     # coverage.py self-skips (exit 0) when lcov/gcov or the build are absent, and

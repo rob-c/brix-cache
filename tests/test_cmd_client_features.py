@@ -25,6 +25,7 @@ def test_client_features_scenarios_are_importable():
 
 @pytest.mark.optin
 @pytest.mark.timeout(600)
+@pytest.mark.suite_job
 @pytest.mark.parametrize("scenario", sorted(client_features.SECTIONS))
 def test_client_features_scenario(scenario: str):
     if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":

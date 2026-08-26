@@ -16,6 +16,8 @@ def _check_test_truncate_sparse_huge_4(st, data):
 
 _reexport(globals(), "_test_conf_truncate_sync_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_truncate_sync")
+
 @pytest.mark.parametrize("n,s,label", _TRUNC_NS)
 def test_truncate_path_size_and_zerofill(srv, n, s, label):
     """xrdfs truncate /f S (path-based): on-disk size becomes S exactly; any

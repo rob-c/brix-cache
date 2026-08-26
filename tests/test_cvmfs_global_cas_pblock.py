@@ -129,23 +129,15 @@ def striped_files(s):
 #    blob, resting as ONE packed-arena record
 # ============================================================================
 
-def test_cross_repo_dedup_one_blob_packed(srv):
-    body = body_for("dedup")
-    hx = hashlib.sha1(body).hexdigest()
-    path_a = put_obj(srv, REPO_A, body)
-    path_b = put_obj(srv, REPO_B, body)
+def _assert_repo_fill(srv, path, body, label):
+    """GET `path` and assert it fills to exactly `body` (HTTP 200)."""
+    st, _, got = GET(srv, path)
+    assert all((st == 200, got == body)), label
 
-    srv.reset_log()
-    st, _, got = GET(srv, path_a)
-    assert st == 200 and got == body, "repo-A fill failed"
-    st, _, got = GET(srv, path_b)
-    assert st == 200 and got == body, "repo-B fill failed"
 
-    # Honesty: repo B filled through its OWN origin prefix, never repo A's.
-    assert srv.count_log(f"/cvmfs/{REPO_B}/data/") >= 1, \
-        "repo-B was served without its own origin proving the object"
-
-    # Both per-repo cache keys exist and share ONE physical blob (refcount 2).
+def _assert_one_shared_blob(srv, hx, body):
+    """Both per-repo cache keys exist and share ONE packed physical blob at
+    refcount 2, with no striped files left behind."""
     rows = blob_of(srv, hx[2:])
     assert len(rows) == 2, f"expected two per-repo keys, got {rows}"
     blobs = {b for _, b in rows}
@@ -153,20 +145,33 @@ def test_cross_repo_dedup_one_blob_packed(srv):
     blob = blobs.pop()
     assert refcount(srv, blob) == 2, \
         f"expected refcount 2 on the shared blob, got {refcount(srv, blob)}"
-
-    # W2: the shared blob rests in the packed arena, not as a striped file.
     rec = packed(srv, blob)
-    assert rec is not None and rec[1] == len(body), \
-        f"shared blob not in the packed arena: {rec}"
+    assert rec is not None, f"shared blob not in the packed arena: {rec}"
+    assert rec[1] == len(body), f"shared blob wrong packed length: {rec}"
     assert (Path(srv.cache) / "pack" / f"seg-{rec[0]}.dat").exists()
     assert striped_files(srv) == [], \
         f"small CAS objects left striped files: {striped_files(srv)}"
 
+
+def test_cross_repo_dedup_one_blob_packed(srv):
+    body = body_for("dedup")
+    hx = hashlib.sha1(body).hexdigest()
+    path_a = put_obj(srv, REPO_A, body)
+    path_b = put_obj(srv, REPO_B, body)
+
+    srv.reset_log()
+    _assert_repo_fill(srv, path_a, body, "repo-A fill failed")
+    _assert_repo_fill(srv, path_b, body, "repo-B fill failed")
+
+    # Honesty: repo B filled through its OWN origin prefix, never repo A's.
+    assert srv.count_log(f"/cvmfs/{REPO_B}/data/") >= 1, \
+        "repo-B was served without its own origin proving the object"
+
+    _assert_one_shared_blob(srv, hx, body)
+
     # Serving after dedup still returns genuine bytes for both repos.
-    st, _, got = GET(srv, path_a)
-    assert st == 200 and got == body, "repo-A re-read failed after dedup"
-    st, _, got = GET(srv, path_b)
-    assert st == 200 and got == body, "repo-B re-read failed after dedup"
+    _assert_repo_fill(srv, path_a, body, "repo-A re-read failed after dedup")
+    _assert_repo_fill(srv, path_b, body, "repo-B re-read failed after dedup")
 
 
 # ============================================================================

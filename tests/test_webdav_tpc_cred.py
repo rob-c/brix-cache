@@ -29,6 +29,7 @@ from settings import (
     PKI_DIR as PKI_DIR_STR,
     TEST_ROOT,
     WEBDAV_TPC_SOURCE_OPEN_PORT,
+    NGINX_METRICS_PORT,
     url_host,
 )
 
@@ -306,6 +307,7 @@ class TestPushCredDelegation:
 class TestCredMetrics:
     """Verify TPC cred metrics are exported by the Prometheus endpoint."""
 
+    @pytest.mark.registry_server("main")
     def test_tpc_cred_metrics_in_export(self):
         """brix_webdav_tpc_cred_total counter is exported."""
         # Use the rebased metrics port selected by the test harness.

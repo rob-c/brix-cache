@@ -67,6 +67,25 @@ def _run(*args):
                           timeout=30)
 
 
+def _nonblank(text):
+    """The non-blank lines of `text`."""
+    return [ln for ln in text.splitlines() if ln.strip()]
+
+
+def _f1_checksum_lines(stdout, want):
+    """ls -C lines for f1.txt that carry the expected adler32 column."""
+    out = []
+    for ln in stdout.splitlines():
+        if "f1.txt" in ln and ln.endswith(f"adler32:{want}"):
+            out.append(ln)
+    return out
+
+
+def _sub_dir_lines(stdout):
+    """ls -C lines that name the /sub directory entry."""
+    return [ln for ln in stdout.splitlines() if ln.rstrip("/").endswith("/sub")]
+
+
 # --------------------------------------------------------------------------- #
 # locate flags
 # --------------------------------------------------------------------------- #
@@ -161,11 +180,11 @@ def test_ls_u_prints_urls(tree):
     no duplicates to re-show)."""
     p = _run("ls", "-u", "-D", f"/{tree}")
     assert p.returncode == 0, p.stderr
-    lines = [ln for ln in p.stdout.splitlines() if ln.strip()]
+    lines = _nonblank(p.stdout)
     assert lines, "empty ls -u listing"
-    for line in lines:
-        assert line.startswith(f"root://{SERVER_HOST}:{NGINX_ANON_PORT}/"), \
-            f"entry not URL-formed: {line!r}"
+    prefix = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}/"
+    not_url = [ln for ln in lines if not ln.startswith(prefix)]
+    assert not not_url, f"entries not URL-formed: {not_url!r}"
     assert any(line.endswith("/f1.txt") for line in lines), p.stdout
 
 
@@ -177,12 +196,11 @@ def test_ls_C_appends_matching_checksum(tree):
     want = "%08x" % (zlib.adler32(payload) & 0xFFFFFFFF)
     p = _run("ls", "-C", f"/{tree}")
     assert p.returncode == 0, p.stderr
-    f1 = [ln for ln in p.stdout.splitlines() if ln.endswith(f"adler32:{want}")
-          and "f1.txt" in ln]
+    f1 = _f1_checksum_lines(p.stdout, want)
     assert f1, f"f1.txt checksum column missing/wrong:\n{p.stdout}"
-    subs = [ln for ln in p.stdout.splitlines()
-            if ln.rstrip("/").endswith("/sub")]
-    assert subs and "adler32" not in subs[0], \
+    subs = _sub_dir_lines(p.stdout)
+    assert subs, f"no directory entry found: {p.stdout}"
+    assert "adler32" not in subs[0], \
         f"directory entry grew a checksum column: {subs}"
 
 

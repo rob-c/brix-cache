@@ -97,10 +97,15 @@ def test_stat_json_two_paths_is_ndjson(srv):
     """(success) stat -j a b emits one parseable JSON object per operand."""
     p = _run(srv, "stat", "-j", "/a.txt", "/b.txt")
     assert p.returncode == 0, p.stderr
-    lines = [ln for ln in p.stdout.decode().splitlines() if ln.strip()]
+    lines = _nonblank_lines(p.stdout.decode())
     assert len(lines) == 2, p.stdout
     paths = {json.loads(ln)["path"] for ln in lines}
     assert paths == {"/a.txt", "/b.txt"}, paths
+
+
+def _nonblank_lines(text):
+    """The non-blank lines of `text`."""
+    return [ln for ln in text.splitlines() if ln.strip()]
 
 
 def test_cat_concatenates_in_operand_order(srv):

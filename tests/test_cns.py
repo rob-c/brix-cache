@@ -166,6 +166,20 @@ def _poll_manager_size(mgr_port, path, want_size, tries=40):
     return size
 
 
+def _await_cms_link(mgr_port, ds_port):
+    """Active readiness probe replacing a fixed 6 s sleep: keep writing a
+    sentinel on the data server until its CNS emit shows up at the manager
+    (an emit sent before the CMS login completes is lost, so one write is not
+    enough — re-emit until the link is proven), then remove it."""
+    probe = "/.cns-link-probe"
+    for _ in range(24):
+        _write_file(ds_port, probe, b"probe")
+        if _poll_manager(mgr_port, probe, want_ok=True, tries=8) == kXR_ok:
+            _ns_remove(ds_port, kXR_rm, probe)
+            return
+    raise RuntimeError("CNS data server never linked to the manager")
+
+
 @pytest.fixture
 def cluster(lifecycle, tmp_path_factory):
     base = tmp_path_factory.mktemp("cns")
@@ -189,7 +203,7 @@ def cluster(lifecycle, tmp_path_factory):
     ))
 
     # Let the data server's CMS link to the manager come up + log in.
-    time.sleep(6)
+    _await_cms_link(mgr.port, ds.port)
     yield mgr.port, ds.port
 
 
@@ -219,7 +233,7 @@ def cluster_async(lifecycle, tmp_path_factory):
         template_values={"CMS_PORT": mgr.extra_ports["CMS_PORT"]},
         reason="CNS data server with brix_backend_async on.",
     ))
-    time.sleep(6)
+    _await_cms_link(mgr.port, ds.port)
     yield mgr.port, ds.port
 
 

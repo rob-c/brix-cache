@@ -61,6 +61,8 @@ test_root_frame(void)
     /* cap table is single-source with recv_process.c */
     CHECK(brix_max_payload_for_request(kXR_write) == BRIX_MAX_WRITE_STREAM,
           "write cap");
+    CHECK(brix_max_payload_for_request(kXR_pgwrite) == BRIX_MAX_WRITE_PAYLOAD,
+          "pgwrite cap");
     CHECK(brix_max_payload_for_request(kXR_ping) == BRIX_MAX_PATH + 64,
           "default cap");
 

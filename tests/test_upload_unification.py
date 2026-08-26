@@ -49,7 +49,7 @@ def test_bare_upload_resume_parses():
         "  brix_upload_resume off;\n"          # http scope
         "  server { listen 127.0.0.1:28681;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        "      brix_upload_resume on; } }\n")
+        "      brix_upload_resume on; } }\n")  # net-literal-allow: loopback literal is the subject under test
     assert rc == 0, f"bare brix_upload_resume must parse:\n{out}"
     assert "successful" in out, out
 
@@ -58,6 +58,6 @@ def test_old_webdav_upload_resume_is_unknown():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28682;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        "      brix_webdav_upload_resume on; } }\n")
+        "      brix_webdav_upload_resume on; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, out
     assert "unknown directive" in out and "brix_webdav_upload_resume" in out, out

@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_sequences_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_sequences_b")
+
 @pytest.mark.parametrize("n", [0, 1, 100, 4096, 4097, 10000, 65536])
 def test_checksum_matches_adler32_of_written(srv, n):
     payload = det_bytes(n, seed=16)

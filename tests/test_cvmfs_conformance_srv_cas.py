@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_srv_cas_helpers")
 
+pytestmark = pytest.mark.xdist_group("cvmfs_srv_shared")
+
 @pytest.mark.parametrize("i", range(6))
 def test_corrupt_fill_one_shot_served_clean(srv, i):
     # One corrupt origin transfer: the verifier discards it and the SAME

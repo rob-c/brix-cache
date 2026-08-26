@@ -19,9 +19,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _read(relpath):
+    """Read a guardrail file PLUS its mechanical split siblings (_b, _c, ...):
+    a marker moved to a shard by a file-size split is still present."""
     path = ROOT / relpath
     assert path.exists(), f"Phase 0 guardrail file is missing: {relpath}"
-    return path.read_text(encoding="utf-8").lower()
+    text = path.read_text(encoding="utf-8")
+    stem = path.name[:-3]
+    for sib in sorted(path.parent.glob(stem + "_[a-z].py")):
+        text += sib.read_text(encoding="utf-8")
+    return text.lower()
 
 
 def _assert_markers(relpath, markers):

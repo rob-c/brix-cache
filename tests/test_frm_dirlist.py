@@ -40,17 +40,8 @@ def _free_port():
     return port
 
 
-def _launch(tmp_path, backend, extra_env=None):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    ns = tmp_path / "ns"
-    ns.mkdir(exist_ok=True)
-    cache = tmp_path / "cache"
-    cache.mkdir(exist_ok=True)
-    logs = tmp_path / "logs"
-    logs.mkdir(exist_ok=True)
-    port = _free_port()
-    conf = tmp_path / "nginx.conf"
+def _write_frm_conf(conf, ns, cache, logs, port, backend, extra_env):
+    """Write the single-server stream config for the FRM dirlist fixture."""
     stagecmd_line = ""
     if extra_env and "BRIX_FRM_STAGECMD" in extra_env:
         # nginx scrubs the worker environment: pin the exec adapter's stagecmd
@@ -75,6 +66,30 @@ def _launch(tmp_path, backend, extra_env=None):
         "    brix_cache_export /;\n"
         "  }\n"
         "}\n")
+
+
+def _await_listen(port):
+    """Poll until `port` accepts a connection on BIND_HOST (or the tries run out)."""
+    for _ in range(50):
+        try:
+            socket.create_connection((BIND_HOST, port), timeout=0.5).close()
+            return
+        except OSError:
+            time.sleep(0.1)
+
+
+def _launch(tmp_path, backend, extra_env=None):
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+    ns = tmp_path / "ns"
+    ns.mkdir(exist_ok=True)
+    cache = tmp_path / "cache"
+    cache.mkdir(exist_ok=True)
+    logs = tmp_path / "logs"
+    logs.mkdir(exist_ok=True)
+    port = _free_port()
+    conf = tmp_path / "nginx.conf"
+    _write_frm_conf(conf, ns, cache, logs, port, backend, extra_env)
     env = dict(os.environ)
     if extra_env:
         env.update(extra_env)
@@ -84,12 +99,7 @@ def _launch(tmp_path, backend, extra_env=None):
     r = subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30, env=env)
     assert r.returncode == 0, f"nginx failed to start: {r.stderr}"
-    for _ in range(50):
-        try:
-            socket.create_connection((BIND_HOST, port), timeout=0.5).close()
-            break
-        except OSError:
-            time.sleep(0.1)
+    _await_listen(port)
     return port, conf
 
 
@@ -115,6 +125,22 @@ def _mkdir(sock, stream, path, mkpath=True, mode=0o755):
                        payload=path.encode() + b"\x00")
 
 
+def _assert_tape_root_listing(body):
+    """The tape root listing shows a.bin/b.bin/sub and leaks no dotfile root."""
+    names = body.rstrip(b"\x00").decode().split("\n")
+    missing = [w for w in ("a.bin", "b.bin", "sub") if w not in names]
+    assert not missing, f"{missing} missing from tape listing: {names}"
+    assert not any(n.startswith(".") for n in names), \
+        f"bookkeeping root leaked into the listing: {names}"
+
+
+def _online_empty(tape):
+    """True when the tape's .online buffer is absent or holds nothing (no recall
+    fired during enumeration)."""
+    online = tape / ".online"
+    return not online.exists() or not any(online.rglob("*"))
+
+
 def test_stub_tape_dirlist(tmp_path):
     """(success) the offline tape namespace lists over kXR_dirlist without any
     recall and without leaking the .online/.recalling bookkeeping roots."""
@@ -132,11 +158,7 @@ def test_stub_tape_dirlist(tmp_path):
 
         status, body = _dirlist(primary, stream, "/")
         assert status in (H.kXR_ok, H.kXR_oksofar), f"dirlist status={status}"
-        names = body.rstrip(b"\x00").decode().split("\n")
-        for want in ("a.bin", "b.bin", "sub"):
-            assert want in names, f"{want} missing from tape listing: {names}"
-        assert not any(n.startswith(".") for n in names), \
-            f"bookkeeping root leaked into the listing: {names}"
+        _assert_tape_root_listing(body)
 
         # A subdirectory lists too.
         status, body = _dirlist(primary, stream, "/sub")
@@ -144,8 +166,7 @@ def test_stub_tape_dirlist(tmp_path):
         assert "c.bin" in body.decode(), body
 
         # Enumeration is pure: nothing was recalled into the online buffer.
-        assert not (tape / ".online").exists() \
-            or not any((tape / ".online").rglob("*")), \
+        assert _online_empty(tape), \
             "dirlist triggered a recall (online buffer populated)"
     finally:
         if primary is not None:

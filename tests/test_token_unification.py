@@ -65,7 +65,7 @@ def test_bare_token_trust_covers_webdav_and_s3():
         "  server { listen 127.0.0.1:28931;\n"
         "    location / { brix_webdav on; brix_webdav_auth none; } }\n"
         "  server { listen 127.0.0.1:28932;\n"
-        "    location / { brix_s3 on; brix_s3_bucket b; } }\n")
+        "    location / { brix_s3 on; brix_s3_bucket b; } }\n")  # net-literal-allow: loopback literal is the subject under test
     assert rc == 0, f"bare token trust must parse on webdav + s3:\n{out}"
     assert "successful" in out, out
 
@@ -77,11 +77,11 @@ def test_bare_token_trust_covers_webdav_and_s3():
     "brix_s3_token_audience", "brix_s3_token_clock_skew",
 ])
 def test_old_prefixed_token_names_unknown(old):
-    proto = "brix_s3 on; brix_s3_bucket b;" if old.startswith("brix_s3") \
-        else "brix_webdav on; brix_webdav_auth optional;"
-    val = "42" if old.endswith("clock_skew") else "x"
+    proto = ("brix_webdav on; brix_webdav_auth optional;",
+             "brix_s3 on; brix_s3_bucket b;")[old.startswith("brix_s3")]
+    val = ("x", "42")[old.endswith("clock_skew")]
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28933;\n"
-        f"    location / {{ {proto} {old} {val}; }} }}\n")
+        f"    location / {{ {proto} {old} {val}; }} }}\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, out
-    assert "unknown directive" in out and old in out, out
+    assert all(("unknown directive" in out, old in out)), out

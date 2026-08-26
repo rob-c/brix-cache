@@ -12,6 +12,8 @@ def _expression_2(cf, kf):
 
 _reexport(globals(), "_test_gsi_handshake_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_gsi_handshake")
+
 def _rejected(http_code):
     """A WebDAV auth rejection is any non-2xx outcome — the request was refused
     by the TLS/cert layer (400), the access phase (401/403), or curl failed the
@@ -235,7 +237,10 @@ class TestVersionAdvertisement:
 
     def test_advertised_version_matches_policy(self, pki, nginx_root):
         env = dict(pki["env"], XrdSecDEBUG="3")
-        r = _run([STOCK_XRDFS, nginx_root["url"], "ls", "/"], env=env)
+        # XrdSecDEBUG=3 dumps raw handshake bytes; decode tolerantly or the
+        # subprocess text-mode reader throws UnicodeDecodeError.
+        r = _run([STOCK_XRDFS, nginx_root["url"], "ls", "/"], env=env,
+                 errors="replace")
         m = re.search(r"token='([^']*P=gsi[^']*)'", r.stdout + r.stderr)
         assert m, ("could not capture the advertised &P=gsi token from the "
                    f"stock client debug output:\n{(r.stdout + r.stderr)[:400]}")

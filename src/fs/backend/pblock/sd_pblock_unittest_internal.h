@@ -40,6 +40,18 @@ int       open_block_export(brix_sd_instance_t *inst, char *root,
     int64_t block_size);
 void      lab_write_sidecar(const char *root, const char *line);
 
+/* ---- shared catalog (catalog.db) introspection primitives ----------------- *
+ * The dedup / slot / defaults test groups all read the pblock catalog directly
+ * (a second SQLite connection, as a pytest would). These wrap the identical
+ * open/prepare/bind/step/finalize scaffolding so each group's queries are a
+ * one-liner. `bind1` (and `bind2`) are bound as text to ?1 (and ?2) when
+ * non-NULL. Defined in sd_pblock_unittest_core.c. */
+void pbut_query_text(const char *root, const char *sql, const char *bind1,
+    char *out, size_t cap);
+int  pbut_query_int(const char *root, const char *sql, const char *bind1);
+void pbut_exec(const char *root, const char *sql, const char *bind1,
+    const char *bind2);
+
 /* ---- core POSIX + concurrency group ---- */
 void test_write_read_fstat(brix_sd_instance_t *inst);
 void test_truncate_and_stat(brix_sd_instance_t *inst);

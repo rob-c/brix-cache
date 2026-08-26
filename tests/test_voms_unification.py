@@ -46,7 +46,7 @@ def test_bare_voms_dirs_parse():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28921;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        "      brix_vomsdir {DIR}/voms; brix_voms_cert_dir {DIR}/certs; } }\n")
+        "      brix_vomsdir {DIR}/voms; brix_voms_cert_dir {DIR}/certs; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc == 0, f"bare voms dirs must parse:\n{out}"
     assert "successful" in out, out
 
@@ -55,6 +55,6 @@ def test_bare_voms_dirs_parse():
 def test_old_webdav_voms_names_unknown(old):
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28922;\n"
-        f"    location / {{ brix_webdav on; brix_webdav_auth none; {old} {{DIR}}/voms; }} }}\n")
+        f"    location / {{ brix_webdav on; brix_webdav_auth none; {old} {{DIR}}/voms; }} }}\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, out
     assert "unknown directive" in out and old in out, out

@@ -17,6 +17,8 @@ def _check_test_distinct_missing_uris_each_absorbed_independently_3(srv, p):
 
 _reexport(globals(), "_test_cvmfs_conformance_srv_cas_helpers")
 
+pytestmark = pytest.mark.xdist_group("cvmfs_srv_shared")
+
 def test_negative_ttl_expiry_reconsults_origin(srv):
     p = missing_path("ttl-expiry")
     srv.reset_log()

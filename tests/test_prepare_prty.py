@@ -76,15 +76,9 @@ def test_prepare_prty_surfaced_in_access_log(lifecycle, tmp_path):
     port, alog = _start(lifecycle, data, "lc-prep-prty")
 
     # prty=7 on one connection, prty=0 on another (same server, distinct lines).
-    for streamid, prty in ((b"\x00\x07", 7), (b"\x00\x08", 0)):
-        s = _xrd_login(HOST, port)
-        try:
-            _send_prepare(s, streamid, 0x00, 0x00, prty, b"/prepped.dat\n")
-        finally:
-            s.close()
+    _send_two_prepares(port)
 
-    text = _read_log(
-        alog, lambda t: t.count("PREPARE") >= 2 and "prty=7" in t and "prty=0" in t)
+    text = _read_log(alog, _both_prepares_logged)
 
     assert "prty=7" in text, \
         f"prepare prty=7 not surfaced in the access log:\n{text}"
@@ -92,8 +86,24 @@ def test_prepare_prty_surfaced_in_access_log(lifecycle, tmp_path):
         f"prepare prty=0 (default) not surfaced in the access log:\n{text}"
     # The prty token rides the same detail as the path count, not a stray field.
     line = _prepare_line(text)
-    assert line is not None and re.search(r"paths=\d+.*prty=\d+", line), \
+    assert line is not None, f"no PREPARE line found:\n{text}"
+    assert re.search(r"paths=\d+.*prty=\d+", line), \
         f"prty is not part of the PREPARE detail triple:\n{line}"
+
+
+def _send_two_prepares(port):
+    """Issue PREPARE with prty=7 and prty=0 on two distinct connections."""
+    for streamid, prty in ((b"\x00\x07", 7), (b"\x00\x08", 0)):
+        s = _xrd_login(HOST, port)
+        try:
+            _send_prepare(s, streamid, 0x00, 0x00, prty, b"/prepped.dat\n")
+        finally:
+            s.close()
+
+
+def _both_prepares_logged(t):
+    """True once both PREPARE lines (prty=7 and prty=0) have reached the log."""
+    return all((t.count("PREPARE") >= 2, "prty=7" in t, "prty=0" in t))
 
 
 def test_handler_detail_is_built_from_req_prty():

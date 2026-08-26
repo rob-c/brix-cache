@@ -166,6 +166,33 @@ XRootD's analogue is `-crl:<level>` with `crlIgnore/crlTry/crlUse/crlRequire =
 - **Verdict:** Conformant. Pinned `CRL-031` (mismatch under `try` → accept) and
   `CRL-032` (under `require` → reject).
 
+### Spurious in-scope CRL rejections under the custom `get_crl` (implementation note)
+
+- **Problem:** `brix_failsafe_get_crl` (`store_policy_store.c`) is installed via
+  `X509_STORE_set_get_crl` to make multi-CRL revocation fail-safe and to honour
+  a delta CRL's `removeFromCRL`. Because it hands OpenSSL a CRL directly, that
+  CRL does **not** carry the scope score OpenSSL's own `get_crl_sk` would have
+  attached. Under `CRL_CHECK_ALL | USE_DELTAS`, `check_crl()` then raises, on a
+  cert whose serial is **not** on its issuer's full CRL, a chain of spurious
+  verdicts — `UNABLE_TO_GET_CRL` (44 depth-0), `DIFFERENT_CRL_SCOPE`, then
+  `CRL_PATH_VALIDATION_ERROR` — even though stock
+  `openssl verify -CApath <dir> -crl_check_all` accepts the identical store.
+  This rejected non-revoked / empty-CRL / not-listed certs (e.g. `CRL-001`,
+  `CRL-007`, `CRL-016`) under both `try` and `require`.
+- **Ours:** the shared CRL verify callback (`brix_crl_try_verify_cb`, installed
+  for `try` **and** `require`) downgrades those three error codes to success
+  **only** when `brix_crl_scope_is_spurious()` proves it safe: it looks CRLs up
+  itself by the cert's (already trust-validated) issuer name and requires an
+  authoritative **full** CRL (no `IssuingDistributionPoint`) from that issuer on
+  which the cert's serial is **not revoked** (`X509_CRL_get0_by_serial() != 1`,
+  so a `removeFromCRL` `==2` entry stays acceptable). A genuinely revoked cert is
+  found on that same full CRL and takes the `CERT_REVOKED` path, so revocation is
+  still enforced; a scoped/partial CRL (has an IDP) is left to fail, preserving
+  real scope restrictions.
+- **Verdict:** Conformant. The full `CRL-*` clause matrix passes at both the C
+  oracle (`x509_oracle`, 559 clauses) and the live-nginx davs layers, with the
+  revoked clauses (`CRL-004/005`, …) still rejecting.
+
 ### Reason codes, including removeFromCRL in a full CRL (RFC 5280 §5.3.1)
 
 - **Requirement:** every `reasonCode` on a normal CRL entry (unspecified,

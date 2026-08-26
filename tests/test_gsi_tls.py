@@ -315,5 +315,3 @@ sys.exit(0 if not status.ok else 1)
 # ===========================================================================
 # Write tests
 # ===========================================================================
-
-WRITE_PREFIX = worker_prefix("_test_gsi_tls_")  # per-xdist-worker; see official_interop_lib

@@ -79,7 +79,16 @@ writev_try_aio(const writev_run_t *run, int do_sync, ngx_flag_t *posted)
 		int      hidx = (int)(unsigned char) wl[i].fhandle[0];
 		int64_t  off  = (int64_t) be64toh((uint64_t) wl[i].offset);
 
-		seg_descs[i].fd         = ctx->files[hidx].fd;  /* NOLINT(clang-analyzer-security.ArrayBound) */
+		/* Defense in depth: writev_validate_handles admits the whole vector up
+		 * front, but a handle that reaches here out of range is an out-of-bounds
+		 * read of the BRIX_MAX_FILES-slot ctx->files table — observed
+		 * segfaulting the worker at writev_try_aio on a fuzzed kXR_writev
+		 * (fhandle[0] is 0..255; the table is 16 slots). Never index the table
+		 * with an unbounded handle; refuse the whole vector cleanly instead. */
+		if (hidx < 0 || hidx >= BRIX_MAX_FILES) {
+			return NGX_ERROR;
+		}
+		seg_descs[i].fd         = ctx->files[hidx].fd;
 		seg_descs[i].obj        = ctx->files[hidx].sd_obj; /* Layer 3 */
 		seg_descs[i].handle_idx = hidx;
 		seg_descs[i].offset     = (off_t) off;

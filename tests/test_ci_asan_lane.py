@@ -241,12 +241,19 @@ def test_no_skip_path_bypasses_the_helper():
 
 
 def test_no_unconditional_return_zero_guards_a_prerequisite():
-    """``return 0`` may only appear as the lane's success verdict."""
-    body = (CI / "asan.py").read_text().split("def main(")[1]
+    """``return 0`` may only appear as the lane's single success verdict.
+
+    main() delegates its terminal verdict to _scan_verdict(); scan from that
+    helper to end-of-file (both _scan_verdict and main), where exactly one
+    unconditional ``return 0`` — the success verdict — is allowed. Every other
+    early exit must route through skip_or_fail() (checked separately)."""
+    text = (CI / "asan.py").read_text()
+    anchor = "def _scan_verdict(" if "def _scan_verdict(" in text else "def main("
+    body = text.split(anchor)[1]
     returns = [line.strip() for line in body.splitlines() if line.strip() == "return 0"]
     assert len(returns) == 1, (
-        "main() has more than one 'return 0' — a prerequisite is short-circuiting "
-        "to success again; route it through skip_or_fail()"
+        "the success path has more than one 'return 0' — a prerequisite is "
+        "short-circuiting to success again; route it through skip_or_fail()"
     )
 
 
@@ -255,6 +262,7 @@ def test_no_unconditional_return_zero_guards_a_prerequisite():
 # bootable fleet are absent, and otherwise does a full sanitized build + fleet
 # boot + I/O drive + report scan — minutes, memory-hungry, nightly territory.
 @pytest.mark.slow
+@pytest.mark.suite_job
 @pytest.mark.timeout(2400)
 def test_ci_asan_runner_green():
     # Explicitly tolerant: this test asserts the orchestrator's own health, not

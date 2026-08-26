@@ -335,26 +335,30 @@ cms_srv_parse_login(brix_cms_srv_ctx_t *ctx,
 /* LOAD/AVAIL payload parsers */
 
 /*
- * LOAD payload (from cms/send.c):
- *   PT_SHORT  count=6      (3 bytes)
- *   <6 raw bytes>          (cpu load values, ignored)
+ * LOAD payload (from cms/send.c, XRootD Pup lodArgs layout):
+ *   bare uint16 blob length (2 bytes, NO type tag — a Pup char-blob)
+ *   <blob-length raw bytes> (6 theLoad bytes: cpu,net,xeq,mem,pag,dsk)
  *   PT_INT    free_mb      (5 bytes)  ← extracted
+ * The blob length is untagged (same layout cms_srv_parse_load_bytes reads);
+ * only dskFree carries a scalar tag.
  */
 uint32_t
 cms_srv_parse_load_free_mb(const u_char *payload, size_t payload_len)
 {
     const u_char  *p   = payload;
     const u_char  *end = payload + payload_len;
+    uint32_t       blob_len;
 
-    /* count field */
-    (void) tlv_read_next(&p, end);
-
-    /* skip 6 raw CPU bytes */
-    if (end - p >= 6) {
-        p += 6;
-    } else {
+    if (end - p < 2) {
         return 0;
     }
+    blob_len = ngx_brix_cms_get16(p);
+    p += 2;
+
+    if ((size_t) (end - p) < blob_len) {
+        return 0;
+    }
+    p += blob_len;
 
     return tlv_read_next(&p, end);
 }

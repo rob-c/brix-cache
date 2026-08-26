@@ -63,6 +63,8 @@ def fleet_decision_env(monkeypatch):
 
 
 def test_attaches_when_fleet_already_running(fleet_decision_env):
+    """Attach is the DEFAULT so a nested pytest never wipes the shared fleet its
+    parent owns; take ownership only with an explicit TEST_OWN_FLEET=1."""
     fleet_decision_env(fleet_running=True)
     assert conftest._external_fleet_attached() is True
 
@@ -94,28 +96,23 @@ def test_owned_orphan_listener_is_reaped_instead_of_attached(
 
 
 def test_leak_reaper_only_kills_exact_test_root(monkeypatch):
-    """Legacy shared /tmp markers must not make one lane kill another lane."""
+    """Legacy shared /tmp markers must not make one lane kill another lane.
+
+    The reap logic lives in fleet_orphans.kill_orphans (conftest delegates), so
+    the seams are mocked THERE: pgrep (subprocess), per-pid argv (_cmdline),
+    parent argv (_ppid), and os.kill.  A killed pid disappears from the next
+    scan so the SIGTERM→SIGKILL passes don't re-target it."""
+    import fleet_orphans
+
     killed = []
     cmdlines = {
-        "101": b"nginx\0-p\0/tmp/brix-tests/lane-b/registry/main\0",
-        "202": b"nginx\0-p\0/tmp/brix-tests/lane-a/registry/main\0",
-        "303": b"xrootd\0-c\0/tmp/xrd/reference.cfg\0",
+        101: "nginx -p /tmp/brix-tests/lane-b/registry/main",   # ours
+        202: "nginx -p /tmp/brix-tests/lane-a/registry/main",   # other lane
+        303: "xrootd -c /tmp/xrd/reference.cfg",                # shared marker
     }
 
-    class _ProcFile:
-        def __init__(self, payload):
-            self.payload = payload
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def read(self):
-            return self.payload
-
     monkeypatch.setattr(conftest, "TEST_ROOT", "/tmp/brix-tests/lane-b")
+
     def fake_pgrep(argv, **kwargs):
         by_exe = {"nginx": ["101", "202"], "xrootd": ["303"]}
         live = [pid for pid in by_exe.get(argv[-1], []) if int(pid) not in killed]
@@ -140,7 +137,9 @@ def test_leak_reaper_only_kills_exact_test_root(monkeypatch):
                         else real_listdir(path))
 
     conftest._reap_leaked_test_servers()
-    assert killed == [101]
+    # Only our lane's orphan is targeted — never the sibling lane (202) or the
+    # shared-marker reference server (303).
+    assert set(killed) == {101}
 
 
 def test_xdist_controller_rebuilds_registry_before_teardown(monkeypatch):
@@ -181,6 +180,9 @@ def test_interrupted_fleet_start_rolls_back_partial_servers(monkeypatch):
         def stop_registered(self, specs):
             events.append("stop")
 
+    # Force past the idempotency guard (a live fleet would otherwise let
+    # _start_all_resilient return early before ever calling start_registered).
+    monkeypatch.setattr(conftest, "fleet_ready_for_test_root", lambda: False)
     monkeypatch.setattr(conftest, "_register_fleet", lambda: None)
     monkeypatch.setattr(conftest, "RegistryLauncher", _Launcher)
     monkeypatch.setattr(conftest, "_reap_leaked_test_servers",

@@ -5,7 +5,7 @@ import pytest
 
 from cmdscripts import cvmfs_live_ext
 
-pytestmark = pytest.mark.xdist_group("cmd-cvmfs_live_ext")
+pytestmark = [pytest.mark.xdist_group("cmd-cvmfs_live_ext"), pytest.mark.slow]
 
 
 def test_cvmfs_live_ext_is_importable():

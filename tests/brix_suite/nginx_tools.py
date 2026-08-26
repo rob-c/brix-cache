@@ -21,13 +21,40 @@ which ``test_live_common.py`` relies on.
 
 from __future__ import annotations
 
+import os
+
 from brix_suite.settings import NGINX_BIN
 
 __all__ = [
     "_inject_nginx_load_modules",
     "_inject_nginx_runtime_paths",
     "_nginx_bin",
+    "env_entry_ok",
+    "sanitized_env",
 ]
+
+
+def env_entry_ok(key, value):
+    """True when subprocess would accept this environment entry — a real var
+    name is a non-empty str carrying no '=' or NUL, its value a NUL-free str."""
+    if not isinstance(key, str) or not key:
+        return False
+    if "=" in key or "\x00" in key:
+        return False
+    return isinstance(value, str) and "\x00" not in value
+
+
+def sanitized_env(extra=None):
+    """os.environ overlaid with ``extra``, minus any entry subprocess would
+    reject with ValueError("illegal environment variable name") — a loaded C
+    extension's concurrent os.putenv() (the XRootD/GSI python bindings do this)
+    can briefly leave os.environ carrying a malformed name, and one such entry
+    fails the WHOLE launch. The returned dict is also immune to further
+    os.environ mutation."""
+    merged = dict(os.environ)
+    if extra:
+        merged.update(extra)
+    return {k: v for k, v in merged.items() if env_entry_ok(k, v)}
 
 
 def _nginx_bin() -> str:

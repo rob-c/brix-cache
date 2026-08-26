@@ -71,6 +71,15 @@ def _open_frames(capture_path):
     return opts
 
 
+def _close_all(*socks):
+    """Best-effort close of every socket; already-closed ones are fine."""
+    for s in socks:
+        try:
+            s.close()
+        except OSError:
+            pass
+
+
 class _SeverShim(threading.Thread):
     """MITM that severs connection #1 after `sever_at` downstream bytes, then
     REFUSES new connections for `hold` seconds (so the in-attempt resilient
@@ -88,7 +97,7 @@ class _SeverShim(threading.Thread):
         self._stop = threading.Event()
         self._lsock = socket.socket()
         self._lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._lsock.bind(("127.0.0.1", 0))
+        self._lsock.bind(("127.0.0.1", 0))  # net-literal-allow: mock shim binds loopback ephemeral by design
         self._lsock.listen(8)
         self._lsock.settimeout(0.2)
         self.port = self._lsock.getsockname()[1]
@@ -120,29 +129,42 @@ class _SeverShim(threading.Thread):
         threading.Thread(target=self._up, args=(conn, back), daemon=True).start()
         sever = (idx == 0)
         try:
-            while True:
-                data = back.recv(65536)
-                if not data:
-                    break
-                room = None
-                if sever:
-                    room = self._sever_at - self.downstream[idx]
-                    if room <= 0:
-                        break
-                    data = data[:room]
-                conn.sendall(data)
-                self.downstream[idx] += len(data)
-                if sever and self.downstream[idx] >= self._sever_at:
-                    break
+            self._pump_sever(conn, back, idx) if sever else self._relay(conn, back)
         except OSError:
             pass
         if sever:
             self._sever_time = time.monotonic()
-        for s in (conn, back):
-            try:
-                s.close()
-            except OSError:
-                pass
+        _close_all(conn, back)
+
+    @staticmethod
+    def _relay(conn, back):
+        """Faithfully relay backend->client until EOF (the non-severing leg)."""
+        while True:
+            data = back.recv(65536)
+            if not data:
+                break
+            conn.sendall(data)
+
+    def _sever_slice(self, data, idx):
+        """The prefix of `data` that still fits under the sever budget, or None
+        once the budget is exhausted (the caller then stops relaying)."""
+        room = self._sever_at - self.downstream[idx]
+        return None if room <= 0 else data[:room]
+
+    def _pump_sever(self, conn, back, idx):
+        """Relay backend->client but truncate the stream once the configured
+        byte budget is reached, then stop (the severing leg)."""
+        while True:
+            data = back.recv(65536)
+            if not data:
+                break
+            data = self._sever_slice(data, idx)
+            if data is None:
+                break
+            conn.sendall(data)
+            self.downstream[idx] += len(data)
+            if self.downstream[idx] >= self._sever_at:
+                break
 
     @staticmethod
     def _up(conn, back):
@@ -186,7 +208,7 @@ def _severed_copy(policy, tmp_path):
         args = [XRDCP, "--retry", "3", "--max-stall", "700"]
         if policy:
             args += ["--retry-policy", policy]
-        args += [f"root://127.0.0.1:{shim.port}//{NAME}", str(dst)]
+        args += [f"root://127.0.0.1:{shim.port}//{NAME}", str(dst)]  # net-literal-allow: URL targets the loopback mock shim
         res = subprocess.run(args, capture_output=True, text=True,
                              timeout=150)
         data = dst.read_bytes() if dst.exists() else b""

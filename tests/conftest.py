@@ -342,8 +342,10 @@ def _external_fleet_attached() -> bool:
 
     Never engages in REMOTE mode (the server is managed elsewhere) and is
     overridden by ``TEST_OWN_FLEET=1`` for the operator who genuinely wants a
-    clean wipe+restart on top of a running fleet.  Probed once and memoized so we
-    neither re-probe nor re-print the notice on the teardown call."""
+    clean wipe+restart on top of a running fleet.  Attach is the default so a
+    NESTED pytest (spawned by a test) never wipes the shared fleet its parent
+    owns.  Probed once and memoized so we neither re-probe nor re-print the
+    notice on the teardown call."""
     global _external_fleet, _foreign_fleet_collision
     if _external_fleet is not None:
         return _external_fleet

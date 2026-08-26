@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_truncate_sync_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_truncate_sync_b")
+
 @pytest.mark.parametrize("keep", [0, 1, 4096, 100000])
 def test_truncate_big_down_prefix(srv, keep):
     src = det_bytes(1 << 20, seed=7)        # mirrors make_rich_tree big1m.bin seed

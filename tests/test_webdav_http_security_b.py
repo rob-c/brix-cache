@@ -38,7 +38,7 @@ class TestPutContentRange:
         data = b"Z" * (1024 * 128)  # 128 KiB
         r = s.put(_url(path), data=data)
         assert r.status_code in (200, 201, 204)
-        assert os.path.getsize(os.path.join(DATA_ROOT, f"{_PFX}cr_large.bin")) == len(data)
+        assert os.path.getsize(os.path.join(_data_root(), f"{_PFX}cr_large.bin")) == len(data)
 
     def test_put_then_get_roundtrip(self):
         path = f"/{_PFX}cr_rt.txt"
@@ -58,19 +58,19 @@ class TestHTTPWebDavPlain:
     """Smoke tests on the plain HTTP WebDAV port (8080)."""
 
     def _hget(self, path, **kwargs):
-        return requests.get(HTTP_WEBDAV_BASE + path, **kwargs)
+        return requests.get(_http_url(path), **kwargs)
 
     def _hput(self, path, data=b""):
-        return requests.put(HTTP_WEBDAV_BASE + path, data=data)
+        return requests.put(_http_url(path), data=data)
 
     def _hdelete(self, path):
-        return requests.delete(HTTP_WEBDAV_BASE + path)
+        return requests.delete(_http_url(path))
 
     def _hmkcol(self, path):
-        return requests.request("MKCOL", HTTP_WEBDAV_BASE + path)
+        return requests.request("MKCOL", _http_url(path))
 
     def _hpropfind(self, path, depth="0"):
-        return requests.request("PROPFIND", HTTP_WEBDAV_BASE + path,
+        return requests.request("PROPFIND", _http_url(path),
                                 headers={"Depth": depth})
 
     def test_http_put_get_roundtrip(self):
@@ -101,14 +101,14 @@ class TestHTTPWebDavPlain:
         _make_file(path, b"delete via http")
         r = self._hdelete(path)
         assert r.status_code in (200, 204)
-        assert not os.path.exists(os.path.join(DATA_ROOT, path.lstrip("/")))
+        assert not os.path.exists(os.path.join(_data_root(), path.lstrip("/")))
 
     def test_http_mkcol_creates_directory(self):
         path = f"/{_PFX}http_mkcol"
         _remove(path)
         r = self._hmkcol(path)
         assert r.status_code == 201
-        assert os.path.isdir(os.path.join(DATA_ROOT, path.lstrip("/")))
+        assert os.path.isdir(os.path.join(_data_root(), path.lstrip("/")))
 
     # --- MOVE/COPY DESTINATION confinement ---------------------------------
     # The source path of MOVE/COPY is confined like any request URI, but the
@@ -117,7 +117,7 @@ class TestHTTPWebDavPlain:
     # must be rejected and must not create/overwrite anything outside the root.
 
     def _outside_zone(self):
-        return os.path.dirname(DATA_ROOT.rstrip("/"))   # one level above the root
+        return os.path.dirname(_data_root().rstrip("/"))   # one level above the root
 
     def _assert_no_escape(self, name):
         p = os.path.join(self._outside_zone(), name)
@@ -135,12 +135,12 @@ class TestHTTPWebDavPlain:
         pwned = f"{_PFX}pwned_mv"
         for dest in (f"/../{pwned}", f"/%2e%2e/{pwned}"):
             r = requests.request(
-                "MOVE", HTTP_WEBDAV_BASE + src,
-                headers={"Destination": HTTP_WEBDAV_BASE + dest,
+                "MOVE", _http_url(src),
+                headers={"Destination": _http_url(dest),
                          "Overwrite": "T"})
             assert r.status_code not in (200, 201, 204), \
                 f"MOVE to escaping Destination {dest} succeeded ({r.status_code})"
-        assert os.path.exists(os.path.join(DATA_ROOT, src.lstrip("/"))), \
+        assert os.path.exists(os.path.join(_data_root(), src.lstrip("/"))), \
             "source file vanished after a rejected MOVE"
         self._assert_no_escape(pwned)
         _remove(src)
@@ -151,8 +151,8 @@ class TestHTTPWebDavPlain:
         pwned = f"{_PFX}pwned_cp"
         for dest in (f"/../{pwned}", f"/%2e%2e/{pwned}"):
             r = requests.request(
-                "COPY", HTTP_WEBDAV_BASE + src,
-                headers={"Destination": HTTP_WEBDAV_BASE + dest,
+                "COPY", _http_url(src),
+                headers={"Destination": _http_url(dest),
                          "Overwrite": "T"})
             assert r.status_code not in (200, 201, 204), \
                 f"COPY to escaping Destination {dest} succeeded ({r.status_code})"

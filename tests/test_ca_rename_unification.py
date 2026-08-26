@@ -52,7 +52,7 @@ def _nginx_t(loc_body):
                 + f"  proxy_temp_path {d}/tmp/p; fastcgi_temp_path {d}/tmp/f;\n"
                 + f"  uwsgi_temp_path {d}/tmp/u; scgi_temp_path {d}/tmp/s;\n"
                 + "  brix_storage_backend posix:/tmp;\n"
-                + "  server { listen 127.0.0.1:29051;\n"
+                + "  server { listen 127.0.0.1:29051;\n"  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
                 + f"    location / {{ brix_webdav on; brix_webdav_auth none; {body} }} }}\n}}\n")
         env = dict(os.environ, ASAN_OPTIONS="detect_leaks=0")
         r = subprocess.run([NGINX_BIN, "-t", "-c", conf, "-p", d],

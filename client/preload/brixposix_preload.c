@@ -200,11 +200,14 @@ fill_stat(const brix_statinfo *si, struct stat *stbuf)
 
 /* open / openat                                                       */
 
+/* remote_slot_begin — the shared prologue of remote_open / remote_open_write:
+ * take g_lock, ensure the shared connection, and allocate a shim slot. On
+ * success returns the slot index with g_lock STILL HELD and *s pointing at it;
+ * on failure returns -1 with errno set (EIO / EMFILE) and g_lock RELEASED. */
 static int
-remote_open(const char *remote)
+remote_slot_begin(xfs_slot **s)
 {
-    int       slot;
-    xfs_slot *s;
+    int slot;
 
     pthread_mutex_lock(&g_lock);
     if (ensure_conn() != 0) {
@@ -218,7 +221,20 @@ remote_open(const char *remote)
         errno = EMFILE;
         return -1;
     }
-    s = &g_slots[slot];
+    *s = &g_slots[slot];
+    return slot;
+}
+
+static int
+remote_open(const char *remote)
+{
+    int       slot;
+    xfs_slot *s;
+
+    slot = remote_slot_begin(&s);
+    if (slot < 0) {
+        return -1;
+    }
     {
         brix_status   st;
         brix_statinfo si;
@@ -263,19 +279,10 @@ remote_open_write(const char *remote, int force)
     int       slot;
     xfs_slot *s;
 
-    pthread_mutex_lock(&g_lock);
-    if (ensure_conn() != 0) {
-        pthread_mutex_unlock(&g_lock);
-        errno = EIO;
-        return -1;
-    }
-    slot = slot_alloc();
+    slot = remote_slot_begin(&s);
     if (slot < 0) {
-        pthread_mutex_unlock(&g_lock);
-        errno = EMFILE;
         return -1;
     }
-    s = &g_slots[slot];
     s->write_mode = 1;
     {
         brix_status st;

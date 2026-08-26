@@ -63,7 +63,7 @@ class _BitFlipShim(threading.Thread):
         self._stop = threading.Event()
         self._lsock = socket.socket()
         self._lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._lsock.bind(("127.0.0.1", 0))
+        self._lsock.bind(("127.0.0.1", 0))  # net-literal-allow: mock shim binds loopback ephemeral by design
         self._lsock.listen(8)
         self._lsock.settimeout(0.2)
         self.port = self._lsock.getsockname()[1]
@@ -95,32 +95,39 @@ class _BitFlipShim(threading.Thread):
             except OSError:
                 pass
 
+    def _may_flip(self):
+        """True while this shim is still allowed to corrupt bytes (an unlimited
+        budget is a negative _flips)."""
+        return self._flips < 0 or self.flipped < self._flips
+
+    def _flip_downstream(self, data, state):
+        """Corrupt sentinel runs in `data` in place, carrying (run, skip) across
+        chunks via the `state` dict; returns the possibly-flipped bytes."""
+        buf = bytearray(data)
+        for i, b in enumerate(buf):
+            if state["skip"] > 0:
+                state["skip"] -= 1
+                continue
+            if b != SENTINEL:
+                state["run"] = 0
+                continue
+            state["run"] += 1
+            if state["run"] >= RUN_TRIGGER and self._may_flip():
+                buf[i] = b ^ 0x01
+                self.flipped += 1
+                state["run"] = 0
+                state["skip"] = FLIP_SKIP
+        return bytes(buf)
+
     def _pump(self, src, dst, downstream):
-        run = 0          # consecutive sentinel bytes seen
-        skip = 0         # bytes left in the ignore window after a flip
+        state = {"run": 0, "skip": 0}   # sentinel run + post-flip ignore window
         try:
             while True:
                 data = src.recv(65536)
                 if not data:
                     break
                 if downstream:
-                    buf = bytearray(data)
-                    for i, b in enumerate(buf):
-                        if skip > 0:
-                            skip -= 1
-                            continue
-                        if b == SENTINEL:
-                            run += 1
-                            if run >= RUN_TRIGGER and (
-                                    self._flips < 0
-                                    or self.flipped < self._flips):
-                                buf[i] = b ^ 0x01
-                                self.flipped += 1
-                                run = 0
-                                skip = FLIP_SKIP
-                        else:
-                            run = 0
-                    data = bytes(buf)
+                    data = self._flip_downstream(data, state)
                 dst.sendall(data)
         except OSError:
             pass
@@ -150,7 +157,7 @@ def _unstage(name):
 def _pgcp(shim_port, name, dst):
     return subprocess.run(
         [XRDCP, "--pgrw", "--retry", "0",
-         f"root://127.0.0.1:{shim_port}//{name}", str(dst)],
+         f"root://127.0.0.1:{shim_port}//{name}", str(dst)],  # net-literal-allow: URL targets the loopback mock shim
         capture_output=True, text=True, timeout=90)
 
 

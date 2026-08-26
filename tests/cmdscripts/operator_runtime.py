@@ -49,9 +49,31 @@ def _popen(
     )
 
 
-def _run_stream(argv: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None) -> int:
-    proc = _popen(argv, cwd=cwd, env=env)
-    return int(proc.wait())
+def _run_stream(argv: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None,
+                timeout: float | None = None) -> int:
+    # With a wall-clock `timeout`, run the child in its OWN session so a wedged
+    # pytest (an xdist controller hung after a native server/worker crash — the
+    # failure `--max-worker-restart` can't catch because it isn't crash-storming)
+    # can be killed by process GROUP without touching this runner. Returns 124
+    # (the `timeout(1)` convention) on expiry so the caller treats it as failed.
+    proc = _popen(argv, cwd=cwd, env=env, start_new_session=(timeout is not None))
+    if timeout is None:
+        return int(proc.wait())
+    try:
+        return int(proc.wait(timeout=timeout))
+    except subprocess.TimeoutExpired:
+        sys.stderr.write(
+            "[operator_runtime] session exceeded %.0fs wall-clock — killing it "
+            "(wedged: xdist hung after a native crash). Moving on.\n" % timeout)
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except OSError:
+            proc.kill()
+        try:
+            proc.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            pass
+        return 124
 
 
 def _wait_tcp(host: str, port: int, timeout: float = 15.0) -> bool:
@@ -359,10 +381,12 @@ CLIENTCONF = [
 ]
 
 
-def _pytest_lane(selection: list[str], main: list[str], common: list[str]) -> bool:
+def _pytest_lane(selection: list[str], main: list[str], common: list[str],
+                 timeout: float | None = None) -> bool:
     # Single pass, no retry ladder: a first-run failure is the signal to fix,
     # not something to launder through --lf reruns.
-    return _run_stream([sys.executable, "-m", "pytest", *selection, *main, *common]) == 0
+    return _run_stream([sys.executable, "-m", "pytest", *selection, *main, *common],
+                       timeout=timeout) == 0
 
 
 def _serial_lane(selection: list[str], common: list[str]) -> bool:
@@ -405,14 +429,16 @@ def _suite_lane(
     selection: list[str],
     main: list[str],
     common: list[str],
+    timeout: float | None = None,
 ) -> bool:
     """Run one lane and guarantee teardown even on Ctrl-C or pytest failure.
 
     After teardown, re-raise as ``FleetSentinelAbort`` if the lane's sentinel
     tripped, so the suite stops before wasting the remaining lanes on a fleet a
-    test already damaged."""
+    test already damaged.  ``timeout`` (used by the sharded --fast runner) bounds
+    the lane's wall-clock so a wedged session is killed instead of hanging."""
     try:
-        return _pytest_lane(selection, main, common)
+        return _pytest_lane(selection, main, common, timeout=timeout)
     finally:
         teardown_test_fleet(test_root)
         _raise_if_sentinel_tripped(test_root)

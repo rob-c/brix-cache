@@ -393,7 +393,6 @@ class TestCmsStateEvil:
 kXR_mv = 3009
 kXR_rmdir = 3015
 kXR_truncate = 3028
-ORIGINAL = b"ORIGINAL-DO-NOT-TOUCH"
 class TestWebDavHttpEvilWrites:
     def test_write_escapes_blocked(self, write_zone):
         _webdav_write_attacks(NGINX_HTTP_WEBDAV_PORT, False, write_zone)

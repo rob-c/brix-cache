@@ -3,6 +3,10 @@ import json
 
 import pytest
 
+# The forge build_all setup is an RSA-keygen storm (~4 min serial): slow lane,
+# with a generous ceiling so a CPU-saturated parallel box cannot time it out.
+pytestmark = [pytest.mark.slow, pytest.mark.timeout(900)]
+
 import x509forge
 from clauses import ALL_CLAUSES
 

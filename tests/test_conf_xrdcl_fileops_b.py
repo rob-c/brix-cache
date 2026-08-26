@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_xrdcl_fileops_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_xrdcl_fileops_b")
+
 def test_sync_then_reopen_read_parity(srv):
     """write -> sync -> close -> reopen READ -> read-back: identical on both."""
     rel = _scratch(None, "sync_reopen.bin")

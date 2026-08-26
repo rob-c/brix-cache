@@ -175,6 +175,18 @@ def _kxr_send_recv(s, req):
     return _kxr_read_response(s)
 
 
+def _kxr_peer_closed(s):
+    """True when the peer has dropped the connection: a 0-length recv or a reset.
+    A live-but-idle peer (recv times out) is not closed."""
+    try:
+        s.settimeout(0.3)
+        return s.recv(1) == b""
+    except socket.timeout:
+        return False
+    except OSError:
+        return True
+
+
 def _kxr_oneshot(req, handshake=None, timeout=4.0):
     """One-shot raw exchange: connect, send the handshake (the valid 20-byte hello
     by default, or a caller-supplied blob for malformed-hello tests), read its
@@ -193,14 +205,7 @@ def _kxr_oneshot(req, handshake=None, timeout=4.0):
             s, handshake if handshake is not None else _kxr_handshake_bytes())
         if req:
             resp_status, resp_body = _kxr_send_recv(s, req)
-        # Probe whether the peer has closed: a 0-length recv (or reset) => closed.
-        try:
-            s.settimeout(0.3)
-            closed = (s.recv(1) == b"")
-        except socket.timeout:
-            closed = False
-        except OSError:
-            closed = True
+        closed = _kxr_peer_closed(s)
     except (OSError, socket.timeout):
         closed = True
     finally:

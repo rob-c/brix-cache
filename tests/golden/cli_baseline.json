@@ -1,14 +1,47 @@
 {
   "_meta": {
     "binaries": [
+      "aio_smoke",
       "aio_waitresp",
+      "brix-fault-proxy",
+      "brix-mpxstats",
+      "brix-wait41",
+      "brix-xrd",
+      "brix-xrdadler32",
+      "brix-xrdceph_cephfs_to_striper",
+      "brix-xrdceph_migrate",
+      "brix-xrdceph_striper_migrate",
+      "brix-xrdcephfs_rescue",
+      "brix-xrdcinfo",
+      "brix-xrdcksum",
+      "brix-xrdckverify",
+      "brix-xrdcp",
+      "brix-xrdcrc32c",
+      "brix-xrdcrc64",
+      "brix-xrddiag",
+      "brix-xrdfs",
+      "brix-xrdgsiproxy",
+      "brix-xrdgsitest",
+      "brix-xrdmapc",
+      "brix-xrdprep",
+      "brix-xrdqstats",
+      "brix-xrdrados_rescue",
+      "brix-xrdsssadmin",
+      "brix-xrdstorascan",
       "brixMount",
-      "fault_proxy",
+      "brixcvmfs",
+      "gai_shim.so",
       "mpxstats-brix",
+      "sd_s3_meta_smoke",
       "wait41-brix",
       "xrd",
       "xrdadler32",
+      "xrdceph_cephfs_to_striper",
+      "xrdceph_migrate",
+      "xrdceph_striper_migrate",
+      "xrdcephfs_rescue",
       "xrdcinfo",
+      "xrdcks",
       "xrdcksum",
       "xrdckverify",
       "xrdcp",
@@ -21,31 +54,172 @@
       "xrdmapc",
       "xrdprep",
       "xrdqstats",
+      "xrdrados_rescue",
       "xrdsssadmin-brix",
       "xrdstorascan",
       "xrootdfs"
     ],
     "fleet_captured": true
   },
+  "noarg:aio_smoke": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "32049ac195bb1fa9efe6be4a27fe48fbfb8d719bf87b9a8330d4b996f8e613d3"
+  },
   "noarg:aio_waitresp": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "stderr_sha": "3dfbce56965e58da0132f9a42b4debd6c11454973e4ce5f824efcda8113fb0a9"
+  },
+  "noarg:brix-fault-proxy": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "2825f3b3fc8208144f417ea6b1cf959d4c96bb80350a3b0911203734ca577ae3"
+  },
+  "noarg:brix-mpxstats": {
+    "exit": 0,
+    "stdout_sha": "aec7a7709d0bf545d2d939aaacde85e9e44506f1b40271164dc2fff662016f64",
+    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "noarg:brix-wait41": {
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "8eb1a17876b04ae28d1606ce197305d70cad409b22d2fec0739bb7cf6fcacafc"
+  },
+  "noarg:brix-xrd": {
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "519665323954bcd61f4fb4001fa2a53fe0a45f4fc672dbe352c440697d3a5f56"
+  },
+  "noarg:brix-xrdadler32": {
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "d5550d010ab99bccc92e670fce87b25d446e5b402f2ab16c2f139aabe168e9c3"
+  },
+  "noarg:brix-xrdceph_cephfs_to_striper": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "50d0ef46e5afaa3af4f17078e4f7613e8a33a84fad9661d8e728be8b3ffdcb22"
+  },
+  "noarg:brix-xrdceph_migrate": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "9816eea2e19d46ec52a9e835fb7313dca3604ed5ea17bc7b86fe7f1d64f3f83a"
+  },
+  "noarg:brix-xrdceph_striper_migrate": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "3ba7a2339302b85a1efa14b3c6c58ee57637d50f5c627eea231b3debb8971b38"
+  },
+  "noarg:brix-xrdcephfs_rescue": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "c730eb811be2be340708b120e3a1d97a6cd77701e6991f7b06eda31fe2dfd3c4"
+  },
+  "noarg:brix-xrdcinfo": {
+    "exit": 4,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "46b54b4ec712ffefc590f98df6da65c25dd986f00fc4374230e9dcf78f2500bf"
+  },
+  "noarg:brix-xrdcksum": {
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "17b05c8cea8cd15316ba741fb9c4f1e0d5a9750fd2b88372c9202f5fd4d0750e"
+  },
+  "noarg:brix-xrdckverify": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "0b59353207eff47a263b7ac3b5a1b142a01ceb0c46ef452413fca9a02dd6f0f8"
+  },
+  "noarg:brix-xrdcp": {
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "6d5ea56b526f2d22965e9a7eddec119fb51daa30995406092aa314ffe2e3db7a"
+  },
+  "noarg:brix-xrdcrc32c": {
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "8a95e51af36994998681ca28ad64b9b1c32a643085c1dc2b56e7a2d827a8ea16"
+  },
+  "noarg:brix-xrdcrc64": {
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "e15f64816f1a936220364f00a0ddddc11f8c36e9bc5d3bd9edb552a83bb6a7dd"
+  },
+  "noarg:brix-xrddiag": {
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "bd2057469fbebabcf01e4d93f0ae33f6be5e1b5241d45e8dcdb152a850ec43e7"
+  },
+  "noarg:brix-xrdfs": {
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "300972b215e96a468932ef9374ff343b095cfc6dd88b9da3740d4fc9be2bba12"
+  },
+  "noarg:brix-xrdgsiproxy": {
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "b6ff84a5d2c176561cfeb5e2333a83167c90bf62212b6cf3874de54d0b6157e8"
+  },
+  "noarg:brix-xrdgsitest": {
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "8475145c4612603c8da1cb227737a798d28857db1716f5615129c3ca96066c63"
+  },
+  "noarg:brix-xrdmapc": {
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "19f52618e930e8933cb199f3f2a774abd03f78a8f0580cd473c45bf45996e9c4"
+  },
+  "noarg:brix-xrdprep": {
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "c6dfc67eb1369662816e8f09d4557243e33692b28f1efc69266bc8b352aa6462"
+  },
+  "noarg:brix-xrdqstats": {
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "ad85377e9b11159e89e18a8ea0f32348a64628a0cd3a351c41095817cc7f0914"
+  },
+  "noarg:brix-xrdrados_rescue": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "dc1b1ef2d44d2f335ef126de668191a9ed535ffc1efbdf7b201d20d002939bea"
+  },
+  "noarg:brix-xrdsssadmin": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "cbede124fe9f1e5d6da591ad666ff35b8a9e218aeee1549b15808ef02af3d233"
+  },
+  "noarg:brix-xrdstorascan": {
+    "exit": 64,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "3b85959c80bd02ad002177151460e496b4221250896ae4525814bff98dd661a7"
   },
   "noarg:brixMount": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "stderr_sha": "57d716c171ef646344dfd6b525d09330e6431c8e697239641a5e59a80a2ba869"
   },
-  "noarg:fault_proxy": {
+  "noarg:brixcvmfs": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "c94b7a1198e487b9ec81e384dbfda54afe54960c585c649bd61f9ac8ae224ad6"
+    "stderr_sha": "d1b8b10ed1b4531302c6a3a529e5228fb189d483e1db13fc74a9d89f6d58071a"
+  },
+  "noarg:gai_shim.so": {
+    "exit": -11,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "noarg:mpxstats-brix": {
     "exit": 0,
     "stdout_sha": "aec7a7709d0bf545d2d939aaacde85e9e44506f1b40271164dc2fff662016f64",
     "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "noarg:sd_s3_meta_smoke": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "36e88e365ed1211e1938d32d1dd34a88c9f54aecd7b495c1359751ab8357a0b4"
   },
   "noarg:wait41-brix": {
     "exit": 50,
@@ -62,10 +236,35 @@
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "stderr_sha": "16a3d0b547b15d1b074d383b7ab724468e6660029b7c29f4c3e5020c72ae5cbe"
   },
+  "noarg:xrdceph_cephfs_to_striper": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "50d0ef46e5afaa3af4f17078e4f7613e8a33a84fad9661d8e728be8b3ffdcb22"
+  },
+  "noarg:xrdceph_migrate": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "2ee1637f65947a64b0d6ffa55dd9b407842650f8929d34876666cf4b7f024d51"
+  },
+  "noarg:xrdceph_striper_migrate": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "3ba7a2339302b85a1efa14b3c6c58ee57637d50f5c627eea231b3debb8971b38"
+  },
+  "noarg:xrdcephfs_rescue": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "a3499984b5798ec791d5b84261fbcd1c9c4e419e2f8093ccf84e6aa168dd4261"
+  },
   "noarg:xrdcinfo": {
     "exit": 4,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "stderr_sha": "5b262a272fba2f40a15bfc72be5f1168e3dded2ab920e0a7d5217e599d96110e"
+  },
+  "noarg:xrdcks": {
+    "exit": 4,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "49f379a3b2650e53f4fb5e22e1d889e4121d73de8844c428d8af86ea35bb4f73"
   },
   "noarg:xrdcksum": {
     "exit": 50,
@@ -80,7 +279,7 @@
   "noarg:xrdcp": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "77f7f2bed80eb25e003cfd4cc54a5a95fc3d152026671075a20803c1694b364c"
+    "stderr_sha": "7af67d987b2245a4e429262c730d87a83025827dfa09fceb80c3743d6c99f30a"
   },
   "noarg:xrdcrc32c": {
     "exit": 50,
@@ -127,6 +326,11 @@
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "stderr_sha": "b0011c1a173c202bfcabc431b61c3479cee2f4c57073b5e7c845af93ce5b05f4"
   },
+  "noarg:xrdrados_rescue": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "d096ed731e29382aae6a09b109c9dbca3d383230c8b4a2278fe3cbb11c858756"
+  },
   "noarg:xrdsssadmin-brix": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -140,7 +344,7 @@
   "noarg:xrootdfs": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "d3005191324a712dafc3ead26dec5ee5bfb94848cf790c2127b9b65e7f9964e1"
+    "stderr_sha": "46ef7defc6e37eea83668e3aa5288f2fe768e7e6519070935ffc3e3df28a8890"
   },
   "fleet:xrdcp_missing": {
     "exit": 54,

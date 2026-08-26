@@ -12,6 +12,8 @@ REMOTE mode (TEST_SERVER_HOST=<host>):
 """
 
 import os
+import csv
+import json
 import shutil
 import subprocess
 import sys

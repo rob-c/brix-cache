@@ -18,6 +18,8 @@ def _check_test_quota_fill_past_watermark_reaps_to_75pct_5(du):
 
 _reexport(globals(), "_test_cvmfs_conformance_fuse_cache_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_fuse_cache")
+
 @pytest.mark.timeout(240)
 def test_corrupt_cached_catalog_entry_remount_recovers(tmp_path, make_origin):
     # RETIRED DIVERGENCE: a damaged cached 'C' (catalog) entry now fails the

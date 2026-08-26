@@ -29,6 +29,7 @@ from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from lib_py.util import wait_tcp
 from settings import BIND_HOST, CA_CERT, CA_DIR, CA_KEY, HOST, SERVER_CERT, SERVER_KEY
 from ephemeral_port import free_ports
+from cmdscripts.fwd_matrix_live import _call, _curl_code  # noqa: E402 (split-drop fix)
 
 BRIX_XRDCP = REPO_ROOT / "client/bin/xrdcp"
 BRIX_XRDFS = REPO_ROOT / "client/bin/xrdfs"

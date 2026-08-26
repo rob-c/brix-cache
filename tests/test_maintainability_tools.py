@@ -211,19 +211,25 @@ def _load_from_dir(directory: Path, name: str):
 # split_large_c.py — .c split keeps sentinel/include + guarded fragment       #
 # --------------------------------------------------------------------------- #
 
-def test_split_c_file_structure(tmp_path):
-    slc = _load("tools/split_large_c.py", "slc")
+def _big_c_source():
+    """A C source with 40 small functions — big enough for split_large_c."""
     lines = ['#include <stdio.h>\n', '\n', 'static int g;\n', '\n']
     for i in range(40):
-        lines += [f'static int fn_{i}(int x)\n', '{\n'] + [f'    x += {j};\n'
-                  for j in range(13)] + ['    return x;\n', '}\n', '\n']
+        body = [f'    x += {j};\n' for j in range(13)]
+        lines += [f'static int fn_{i}(int x)\n', '{\n'] + body \
+            + ['    return x;\n', '}\n', '\n']
+    return "".join(lines)
+
+
+def test_split_c_file_structure(tmp_path):
+    slc = _load("tools/split_large_c.py", "slc")
     f = tmp_path / "big.c"
-    f.write_text("".join(lines))
+    f.write_text(_big_c_source())
     slc.split_c_file(str(f))
     frags = sorted(tmp_path.glob("_big_part*.c.inc"))
     assert frags, "expected at least one extracted fragment"
     part1 = f.read_text()
-    assert '#define __BIG_C_COMPILED__' in part1 and '.c.inc"' in part1
+    assert all(('#define __BIG_C_COMPILED__' in part1, '.c.inc"' in part1))
     for frag in frags:
         assert '#ifndef _BIG_PART' in frag.read_text()      # standalone guard
         assert sum(1 for _ in frag.open()) <= 500
@@ -235,7 +241,7 @@ def test_split_c_file_structure(tmp_path):
 
 def _free_port() -> int:
     with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
+        s.bind(("127.0.0.1", 0))  # net-literal-allow: mock shim binds loopback ephemeral by design
         return s.getsockname()[1]
 
 
@@ -285,7 +291,7 @@ def test_xrd_ref_server_protocol_roundtrip(tmp_path):
 def _await_server(port: int):
     for _ in range(50):
         try:
-            return socket.create_connection(("127.0.0.1", port), timeout=1)
+            return socket.create_connection(("127.0.0.1", port), timeout=1)  # net-literal-allow: probes the loopback mock shim
         except OSError:
             time.sleep(0.1)
     raise AssertionError("reference server never accepted a connection")
@@ -376,30 +382,26 @@ def test_py_file_size_guard_detects_and_gates(tmp_path, monkeypatch):
     (tmp_path / "tests" / "big.py").write_text("".join(f"x{i} = {i}\n" for i in range(700)))
     (tmp_path / "tests" / "small.py").write_text("y = 1\n")
     listed = {p for p, _ in cpfs.list_oversized(root=tmp_path)}
-    assert "tests/big.py" in listed and "tests/small.py" not in listed
-    # verdict: a new oversized file fails; frozen at its size passes; growth fails
+    assert all(("tests/big.py" in listed, "tests/small.py" not in listed))
+    _assert_size_guard_verdict(cpfs, monkeypatch)
+
+
+def _assert_size_guard_verdict(cpfs, monkeypatch):
+    """The guard is a HARD CAP (phase-103 burned the backlog to zero): any file
+    over the cap fails; an empty over-cap set passes."""
     monkeypatch.setattr(cpfs, "list_oversized", lambda: [("tests/big.py", 700)])
-    bl = tmp_path / "bl.txt"
-    monkeypatch.setattr(cpfs, "BACKLOG", bl)
-    bl.write_text("")
-    assert cpfs.check() == 1                          # new offender -> FAIL
-    bl.write_text("tests/big.py\t700\n")
-    assert cpfs.check() == 0                          # frozen at its size -> OK
-    bl.write_text("tests/big.py\t650\n")
-    assert cpfs.check() == 1                          # grew past ceiling -> FAIL
+    assert cpfs.check() == 1                          # an offender over CAP -> FAIL
+    monkeypatch.setattr(cpfs, "list_oversized", lambda: [])
+    assert cpfs.check() == 0                          # nothing over CAP -> OK
 
 
 def test_py_complexity_guard_gates(tmp_path, monkeypatch):
     cpc = _load("tools/ci/check_py_complexity.py", "cpc")
+    # Hard cap on cyclomatic complexity: any gated function fails, none passes.
     monkeypatch.setattr(cpc, "gate_rows", lambda: [("f.py", "hot", 20)])
-    bl = tmp_path / "bl.txt"
-    monkeypatch.setattr(cpc, "BACKLOG", bl)
-    bl.write_text("")
-    assert cpc.check() == 1                           # new over-complex fn -> FAIL
-    bl.write_text("f.py::hot\t20\n")
-    assert cpc.check() == 0                           # frozen at its ccn -> OK
-    bl.write_text("f.py::hot\t18\n")
-    assert cpc.check() == 1                           # grew past ceiling -> FAIL
+    assert cpc.check() == 1                           # an over-complex fn -> FAIL
+    monkeypatch.setattr(cpc, "gate_rows", lambda: [])
+    assert cpc.check() == 0                           # none over cap -> OK
 
 
 # --------------------------------------------------------------------------- #
@@ -410,18 +412,30 @@ def test_readability_gate_csv_is_stable(tmp_path):
     if not _have_lizard():
         pytest.skip("lizard not installed")
     over = tmp_path / "hot.py"
-    body = ["def hot(x):\n"] + [f"    if x == {i}: x += {i}\n" for i in range(20)] + ["    return x\n"]
-    over.write_text("".join(body))
+    over.write_text(_hot_py_source())
     out = subprocess.run(
         [sys.executable, str(ROOT / "tools/readability.py"), "--gate-csv", str(over)],
         capture_output=True, text=True)
     assert out.returncode == 0
     # one row: file,func,ccn — func "hot" over the CCN cap
-    rows = [r for r in out.stdout.splitlines() if r.strip()]
+    rows = _nonblank_rows(out.stdout)
     assert len(rows) == 1, rows
     path_field, func_field, ccn_field = rows[0].split(",")
-    assert func_field == "hot" and int(ccn_field) > 15
+    assert all((func_field == "hot", int(ccn_field) > 15))
     assert path_field.endswith("hot.py")
+
+
+def _nonblank_rows(text):
+    """The non-blank lines of `text`."""
+    return [r for r in text.splitlines() if r.strip()]
+
+
+def _hot_py_source():
+    """A Python function whose 20 branches push it over the CCN cap."""
+    body = ["def hot(x):\n"] \
+        + [f"    if x == {i}: x += {i}\n" for i in range(20)] \
+        + ["    return x\n"]
+    return "".join(body)
 
 
 def _have_lizard() -> bool:

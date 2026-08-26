@@ -37,7 +37,7 @@ def _nginx_t(zone_size, bw_rule=""):
                 + f"error_log {d}/logs/e.log;\npid {d}/logs/n.pid;\nevents {{}}\n"
                 + "stream {\n"
                 + f"  brix_rate_limit_zone zone=z:{zone_size};\n"
-                + "  server { listen 127.0.0.1:29061; brix_root on;\n"
+                + "  server { listen 127.0.0.1:29061; brix_root on;\n"  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
                 + f"    brix_export /tmp; {bw_rule} }}\n}}\n")
         env = dict(os.environ, ASAN_OPTIONS="detect_leaks=0")
         r = subprocess.run([NGINX_BIN, "-t", "-c", conf, "-p", d],

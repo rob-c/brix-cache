@@ -19,6 +19,8 @@ def _check_test_raw_prepare_empty_path_list_parity_5(st_f, raw, st_o, b_o, b_f):
 
 _reexport(globals(), "_test_conf_prepfattr_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_prepfattr")
+
 @pytest.mark.parametrize("path", PREP_EXISTING)
 def test_prepare_nostage_rc_parity(srv, path):
     """`xrdfs prepare <path>` (no -s) on an existing file -> rc/category parity.

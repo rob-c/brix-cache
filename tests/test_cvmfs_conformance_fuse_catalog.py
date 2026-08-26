@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_fuse_catalog_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_fuse_catalog")
+
 def test_getattr_regular_file_type(main_mnt):
     assert st_mod.S_ISREG(os.lstat(main_mnt / "sizes" / "s1").st_mode)
 

@@ -45,7 +45,7 @@ def _nginx_t_gridftp(body):
                 + f"error_log {d}/logs/e.log info;\npid {d}/logs/n.pid;\n"
                 + "events {}\n"
                 + "stream {\n"
-                + "  server { listen 127.0.0.1:28590;\n"
+                + "  server { listen 127.0.0.1:28590;\n"  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
                 + "    brix_gridftp on;\n"
                 + f"    brix_export {d}/export;\n"
                 + body

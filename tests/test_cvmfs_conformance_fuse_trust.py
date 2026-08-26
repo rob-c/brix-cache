@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_fuse_trust_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_fuse_trust")
+
 @pytest.mark.parametrize("cid", _ids(HEALTHY))
 def test_clean_repo_check_healthy(matrix, cid):
     rc, stderr, stdout = matrix[cid]

@@ -3,7 +3,7 @@
 `nginx -t` only (no server start): every case renders a minimal config and
 asserts accept (rc==0) or reject (rc!=0 + the exact [emerg] diagnostic the
 shared setter emits).  Both frontends are covered because both `brix_protbind`
-(stream) and `brix_webdav_protbind` (http) delegate to ONE parser
+(stream) and `brix_protbind` (http) delegate to ONE parser
 (src/auth/protbind/config.c) — the point of these tests is that the two
 directives cannot drift apart.
 
@@ -13,6 +13,7 @@ the real objects in tests/c/protbind_test.c.  Harness mirrors
 tests/test_cache_directive_parse.py.
 """
 
+import os
 import subprocess
 
 import pytest
@@ -46,15 +47,19 @@ http {{ server {{ listen {BIND_HOST}:{HTTP_PORT};
         brix_webdav on;
         root {root}/data;
         brix_webdav_auth optional;
-        brix_webdav_pwd_file {root}/htpasswd;
+        brix_pwd_file {root}/htpasswd;
         {http_directives}
     }}
 }} }}
 """)
     inject_nginx_load_modules(conf)
     inject_nginx_runtime_paths(conf, root)
+    # ASan build: stock nginx never frees main()'s init pool, so LSan would
+    # fail every -t with a 1024-byte "leak" (same suppression as the other
+    # parse-only *_unification tests).
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
-                       capture_output=True, text=True, timeout=30)
+                       capture_output=True, text=True, timeout=30,
+                       env=dict(os.environ, ASAN_OPTIONS="detect_leaks=0"))
     return p.returncode, p.stderr + p.stdout
 
 
@@ -117,8 +122,8 @@ def test_webdav_protbind_accepts(tmp_path, tail):
     # request time rather than rejected at parse time (one policy, all
     # frontends).
     rc, out = _nginx_t(tmp_path,
-                       http_directives=f"brix_webdav_protbind {tail};")
-    assert rc == 0, f"brix_webdav_protbind {tail} rejected:\n{out}"
+                       http_directives=f"brix_protbind {tail};")
+    assert rc == 0, f"brix_protbind {tail} rejected:\n{out}"
 
 
 @pytest.mark.parametrize("tail,needle", REJECT)
@@ -135,10 +140,10 @@ def test_webdav_protbind_rejects(tmp_path, tail, needle):
     # error/security-negative: the HTTP directive must reject exactly what the
     # stream one does, with its own name on the diagnostic.
     rc, out = _nginx_t(tmp_path,
-                       http_directives=f"brix_webdav_protbind {tail};")
-    assert rc != 0, f"brix_webdav_protbind {tail} accepted:\n{out}"
+                       http_directives=f"brix_protbind {tail};")
+    assert rc != 0, f"brix_protbind {tail} accepted:\n{out}"
     assert needle in out, f"expected {needle!r} in:\n{out}"
-    assert "brix_webdav_protbind:" in out, \
+    assert "brix_protbind:" in out, \
         f"diagnostic must name the directive:\n{out}"
 
 

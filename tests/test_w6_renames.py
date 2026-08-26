@@ -50,7 +50,7 @@ def _stream_conf(d, body):
     return (_load()
             + f"error_log {d}/logs/e.log;\npid {d}/logs/n.pid;\nevents {{}}\n"
             + "stream {\n"
-            + "  server { listen 127.0.0.1:29011; brix_root on;\n"
+            + "  server { listen 127.0.0.1:29011; brix_root on;\n"  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
             + f"    brix_export /tmp; {body} }}\n}}\n")
 
 
@@ -61,7 +61,7 @@ def _http_dash_conf(d, body):
             + f"  access_log {d}/logs/a.log; client_body_temp_path {d}/tmp/c;\n"
             + f"  proxy_temp_path {d}/tmp/p; fastcgi_temp_path {d}/tmp/f;\n"
             + f"  uwsgi_temp_path {d}/tmp/u; scgi_temp_path {d}/tmp/s;\n"
-            + "  server { listen 127.0.0.1:29012;\n"
+            + "  server { listen 127.0.0.1:29012;\n"  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
             + f"    location /dash {{ brix_dashboard on; {body.replace('{DATA}', d + '/data')} }} }}\n}}\n")
 
 

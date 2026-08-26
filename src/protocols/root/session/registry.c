@@ -338,9 +338,11 @@ brix_session_find_locked(brix_session_table_t *tbl,
  * HOW: Lock the registry mutex, find the slot by sessid, set/clear/test bit
  *      pathid in the 32-byte map, unlock. Callers never hold the mutex.
  */
-void
-brix_session_pathid_bind(const u_char sessid[BRIX_SESSION_ID_LEN],
-    unsigned pathid)
+/* Set (`set` != 0) or clear the pathid bit in a session's map under the
+ * registry mutex; both bind and unbind are this one guarded slot-mutation. */
+static void
+brix_session_pathid_set(const u_char sessid[BRIX_SESSION_ID_LEN],
+    unsigned pathid, int set)
 {
     brix_session_table_t *tbl = session_table();
     brix_session_entry_t *e;
@@ -351,27 +353,29 @@ brix_session_pathid_bind(const u_char sessid[BRIX_SESSION_ID_LEN],
     ngx_shmtx_lock(&brix_session_mutex);
     e = brix_session_find_locked(tbl, sessid);
     if (e != NULL) {
-        e->pathid_map[pathid / 8] |= (u_char) (1u << (pathid % 8));
+        u_char bit = (u_char) (1u << (pathid % 8));
+
+        if (set) {
+            e->pathid_map[pathid / 8] |= bit;
+        } else {
+            e->pathid_map[pathid / 8] &= (u_char) ~bit;
+        }
     }
     ngx_shmtx_unlock(&brix_session_mutex);
+}
+
+void
+brix_session_pathid_bind(const u_char sessid[BRIX_SESSION_ID_LEN],
+    unsigned pathid)
+{
+    brix_session_pathid_set(sessid, pathid, 1);
 }
 
 void
 brix_session_pathid_unbind(const u_char sessid[BRIX_SESSION_ID_LEN],
     unsigned pathid)
 {
-    brix_session_table_t *tbl = session_table();
-    brix_session_entry_t *e;
-
-    if (tbl == NULL || pathid < 1 || pathid > 253) {
-        return;
-    }
-    ngx_shmtx_lock(&brix_session_mutex);
-    e = brix_session_find_locked(tbl, sessid);
-    if (e != NULL) {
-        e->pathid_map[pathid / 8] &= (u_char) ~(1u << (pathid % 8));
-    }
-    ngx_shmtx_unlock(&brix_session_mutex);
+    brix_session_pathid_set(sessid, pathid, 0);
 }
 
 int

@@ -124,6 +124,25 @@ brix_readv_validate_and_size(brix_ctx_t *ctx, ngx_connection_t *c,
  *      header/payload pointers into the descriptor.
  *   3. Advance the cursor past the header and clamped payload region.
  */
+/* brix_readv_run_job — set up and run the READV VFS job for `req` into *job,
+ * routing any driver error text into err_msg[cap]. Returns job->io_errno (0 =
+ * success); the caller reads job->nio / job->out_size on success. Both the
+ * inline and the offloaded readv paths run their job through here. */
+static int
+brix_readv_run_job(brix_readv_req_t *req, brix_vfs_job_t *job,
+    char *err_msg, size_t cap)
+{
+    err_msg[0] = '\0';
+    ngx_memzero(job, sizeof(*job));
+    job->op = BRIX_VFS_IO_READV;
+    job->segs = req->segment_descs;
+    job->nsegs = req->segment_count;
+    job->err_msg = err_msg;
+    job->err_msg_cap = cap;
+    brix_vfs_io_execute(job);
+    return job->io_errno;
+}
+
 static void
 brix_readv_build_descriptors(brix_ctx_t *ctx, brix_readv_req_t *req)
 {
@@ -273,17 +292,7 @@ brix_readv_execute_sync(brix_ctx_t *ctx, ngx_connection_t *c,
     char           error_message[128];
     brix_vfs_job_t job;
 
-    error_message[0] = '\0';
-    ngx_memzero(&job, sizeof(job));
-    job.op = BRIX_VFS_IO_READV;
-    job.segs = req->segment_descs;
-    job.nsegs = req->segment_count;
-    job.err_msg = error_message;
-    job.err_msg_cap = sizeof(error_message);
-
-    brix_vfs_io_execute(&job);
-
-    if (job.io_errno != 0) {
+    if (brix_readv_run_job(req, &job, error_message, sizeof(error_message)) != 0) {
         ngx_free(req->segment_descs);
         brix_release_read_buffer(ctx, c, req->response_buffer);
         BRIX_OP_ERR(ctx, BRIX_OP_READV);
@@ -381,16 +390,7 @@ brix_readv_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
     req->response_buffer = buf + XRD_RESPONSE_HDR_LEN;
     brix_readv_build_descriptors(ctx, req);
 
-    error_message[0] = '\0';
-    ngx_memzero(&job, sizeof(job));
-    job.op = BRIX_VFS_IO_READV;
-    job.segs = req->segment_descs;
-    job.nsegs = req->segment_count;
-    job.err_msg = error_message;
-    job.err_msg_cap = sizeof(error_message);
-    brix_vfs_io_execute(&job);
-
-    if (job.io_errno != 0) {
+    if (brix_readv_run_job(req, &job, error_message, sizeof(error_message)) != 0) {
         /* I/O failure: nothing has touched the secondary wire yet, so the error
          * rides the PRIMARY control stream exactly like the normal path. */
         ngx_free(req->segment_descs);

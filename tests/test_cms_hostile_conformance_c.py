@@ -112,12 +112,12 @@ class TestWireLevelHardening:
     @pytest.mark.slow
     def test_slowloris_login_eventually_closed(self, hostile_server):
         """The stalled partial-login connection is reaped by the absolute
-        LOGIN handshake deadline (default 10s) rather than lingering forever."""
+        configured 2s LOGIN handshake deadline rather than lingering forever."""
         slow = socket.create_connection((H, hostile_server.port), timeout=20)
         slow.settimeout(20)
         try:
             slow.sendall(b"\x00\x00\x00\x00")   # partial header, never completes
-            time.sleep(11.0)                    # exceed the 10s login deadline
+            time.sleep(3.0)                     # exceed the configured 2s deadline
             assert _recv_exact(slow, 1) is None, \
                 "the login deadline did not reap a stalled slowloris connection"
         finally:

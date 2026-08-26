@@ -64,7 +64,7 @@ def test_bare_token_config_adopts_into_webdav_and_s3():
         "  server { listen 127.0.0.1:28971;\n"
         "    location / { brix_webdav on; brix_webdav_auth none; } }\n"
         "  server { listen 127.0.0.1:28972;\n"
-        "    location / { brix_s3 on; brix_s3_bucket b; } }\n")
+        "    location / { brix_s3 on; brix_s3_bucket b; } }\n")  # net-literal-allow: loopback literal is the subject under test
     assert rc == 0, f"bare token_config must adopt into webdav + s3:\n{out}"
     assert "successful" in out, out
 
@@ -73,7 +73,7 @@ def test_bare_token_config_builds_registry_at_webdav_location():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28973;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        "      brix_token_config {CFG}; } }\n")
+        "      brix_token_config {CFG}; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc == 0, f"bare token_config must build the registry at a webdav loc:\n{out}"
     assert "successful" in out, out
 
@@ -82,6 +82,6 @@ def test_old_webdav_token_config_name_unknown():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28974;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        "      brix_webdav_token_config {CFG}; } }\n")
+        "      brix_webdav_token_config {CFG}; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, out
     assert "unknown directive" in out and "brix_webdav_token_config" in out, out

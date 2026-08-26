@@ -22,6 +22,7 @@ def _guard_test_credential_xroot_gsi_writeback_flow_1(tool):
 pytestmark = pytest.mark.xdist_group("cmd-credential_xroot_gsi_writeback")
 
 
+@pytest.mark.suite_job
 def test_credential_xroot_gsi_writeback_flow(tmp_path):
     for tool in (NGINX_BIN, str(XRDCP)):
         _guard_test_credential_xroot_gsi_writeback_flow_1(tool)

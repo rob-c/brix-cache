@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_fuse_read_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_fuse_read")
+
 @pytest.mark.parametrize("name", list(PLAIN))
 def test_whole_file_byte_exact(plain, name):
     assert (plain.mnt / name).read_bytes() == PLAIN[name]

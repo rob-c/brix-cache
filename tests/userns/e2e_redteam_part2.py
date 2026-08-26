@@ -237,133 +237,22 @@ def _drain_kxr_page_data(sock, status, body):
         _kxr_recv_exact(sock, inner_length)
 
 
-def _kxr_read_response(sock):
-    """Read one ServerResponseHeader (streamid[2] status[2] dlen[4]) + body.
-    Returns (status:int|None, body:bytes); status None means the peer closed.
-
-    kXR_status (4007, used by pgread/pgwrite) is a TWO-STAGE frame: the outer
-    hdr.dlen (==24) covers only ServerResponseBody_Status+pgr, and for pgread an
-    ADDITIONAL bdy.dlen bytes of page data (CRC32c+content) follow that the outer
-    dlen does NOT count (XProtocol.hh: 'kXR_char data[dlen]' after the status
-    body; matches XrdXrootdResponse srsComplete).  We MUST drain those trailing
-    bytes here or the socket desyncs and every subsequent response is misread —
-    e.g. an authed pgread of one's own file leaves ~38 undrained bytes, shifting
-    the stream so a later kXR_open's status field lands on a stray 0x0000 and
-    looks like a spurious kXR_ok.  The drained page data is THIS caller's OWN
-    content, so this is purely stream re-synchronization, not a security signal."""
-    response = _kxr_response_header(sock)
-    if response is None:
-        return None, b""
-    status, data_length = response
-    body = _kxr_body(sock, data_length)
-    _drain_kxr_page_data(sock, status, body)
-    return status, body
 
 
-def _kxr_handshake_bytes(fourth=_KXR_HS_FOURTH, fifth=_KXR_HS_FIFTH):
-    """The 20-byte ClientInitHandShake: five 32-bit big-endian words."""
-    return struct.pack("!IIIII", 0, 0, 0, fourth, fifth)
 
 
-def _kxr_protocol_bytes(streamid=b"\x00\x01"):
-    """ClientProtocolRequest: streamid[2] requestid[2] clientpv[4] flags[1]
-    expect[1] reserved[10] dlen[4]."""
-    return struct.pack("!2sHIBB10sI", streamid, _KXR_PROTOCOL,
-                       _KXR_PROTOVER, 0, 0, b"\x00" * 10, 0)
 
 
-def _kxr_login_bytes(streamid=b"\x00\x02", username=b"alice"):
-    """ClientLoginRequest: streamid[2] requestid[2] pid[4] username[8]
-    ability2[1] ability[1] capver[1] reserved2[1] dlen[4]."""
-    uname = (username + b"\x00" * 8)[:8]
-    return struct.pack("!2sHI8sBBBBI", streamid, _KXR_LOGIN,
-                       0x1234, uname, 0, 0, 5, 0, 0)
 
 
-def _kxr_stat_bytes(path, streamid=b"\x00\x10", dlen=None):
-    """ClientStatRequest header (24 bytes): streamid[2] requestid[2] options[1]
-    reserved[7] wants[4] fhandle[4] dlen[4], followed by the path body.  dlen
-    defaults to len(path); pass an explicit dlen to forge a length mismatch."""
-    if dlen is None:
-        dlen = len(path)
-    hdr = struct.pack("!2sHB7sI4sI", streamid, _KXR_STAT, 0, b"\x00" * 7,
-                      0, b"\x00" * 4, dlen & 0xFFFFFFFF)
-    return hdr + path
 
 
-def _kxr_connect(timeout=4.0):
-    """Fresh TCP connection to the impersonation root:// port."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(timeout)
-    s.connect(("127.0.0.1", _stream_port))  # net-literal-allow: loopback inside the userns sandbox's own net namespace
-    return s
 
 
-def _kxr_send_recv(sock, raw):
-    """Send raw request bytes on an established socket; return (status, body) or
-    (None, b'') if the connection was closed/reset.  A clean error or clean close
-    is a PASS for an adversarial framing."""
-    try:
-        sock.sendall(raw)
-    except (OSError, socket.timeout):
-        return None, b""
-    return _kxr_read_response(sock)
 
 
-def _kxr_session(handshake=None, do_protocol=True, do_login=True):
-    """Bring a raw connection up to (anonymous, UNAUTHENTICATED) login: handshake
-    -> kXR_protocol -> kXR_login, but NO kXR_auth.  Returns (sock|None, hs_status,
-    login_status).  The session is logged-in but unauthenticated, so file ops MUST
-    be rejected with kXR_NotAuthorized — exactly the gate we want to probe."""
-    hs_status = None
-    try:
-        s = _kxr_connect()
-    except (OSError, socket.timeout):
-        return None, None, None
-    try:
-        s.sendall(handshake if handshake is not None else _kxr_handshake_bytes())
-        hs_status, _ = _kxr_read_response(s)
-        if hs_status is None:
-            s.close()
-            return None, hs_status, None
-        if do_protocol:
-            s.sendall(_kxr_protocol_bytes())
-            _kxr_read_response(s)
-        login_status = None
-        if do_login:
-            s.sendall(_kxr_login_bytes())
-            login_status, _ = _kxr_read_response(s)
-        return s, hs_status, login_status
-    except (OSError, socket.timeout):
-        try:
-            s.close()
-        except OSError:
-            pass
-        return None, hs_status, None
 
 
-def _kxr_oneshot(raw_after_handshake, handshake=None):
-    """Connect, send a (possibly malformed) handshake, then immediately send raw
-    bytes WITHOUT logging in (pre-login / pre-auth attack).  Returns
-    (hs_status, status, body, closed_bool)."""
-    try:
-        s = _kxr_connect()
-    except (OSError, socket.timeout):
-        return None, None, b"", True
-    try:
-        s.sendall(handshake if handshake is not None else _kxr_handshake_bytes())
-        hs_status, _ = _kxr_read_response(s)
-        status, body = (None, b"")
-        if raw_after_handshake:
-            status, body = _kxr_send_recv(s, raw_after_handshake)
-        return hs_status, status, body, (status is None)
-    except (OSError, socket.timeout):
-        return None, None, b"", True
-    finally:
-        try:
-            s.close()
-        except OSError:
-            pass
 
 
 

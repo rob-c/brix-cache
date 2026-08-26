@@ -99,6 +99,12 @@ def _http_url(path):
     return HTTP_WEBDAV_BASE + path
 
 
+def _data_root():
+    """Live DATA_ROOT (module-global mutated by the env fixture; split test
+    shards must read it through this accessor, not a reexport-time copy)."""
+    return DATA_ROOT
+
+
 def _session():
     """requests.Session with the current HTTPS WebDAV auth mode."""
     s = requests.Session()

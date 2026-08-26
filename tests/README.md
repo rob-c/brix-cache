@@ -78,11 +78,38 @@ It is a fast *signal*, **not** a substitute for the full run: it skips ~1,750
 slow tests and doesn't run the dedicated serial/destructive lanes. Run the full
 suite before merging.
 
+### `--shards N` — bounded, crash-immune sessions
+
+`suite --fast --shards N` splits the bulk lane into **N independent pytest
+sessions** (files bin-packed into balanced shards), each on its own clean fleet:
+
+```bash
+PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --fast --shards 6
+```
+
+Why: running all ~7,000 fast tests as **one** xdist session exposes a fragile
+tail — a single native server/worker crash near 99% makes xdist reschedule the
+dead worker's groups and the run can wedge or drag for hours. Sharding bounds the
+blast radius: a crash kills **one** shard (which fails fast and is re-runnable),
+no session ever reaches the 99% tail of the whole suite, and a shard that trips
+the fleet sentinel is isolated — the remaining shards still run. Use it whenever
+a monolithic `--fast` run keeps hanging at 99%. (`-n` is capped at 12 and
+`--max-worker-restart=8` applies per shard, so a crash-storm aborts that shard
+fast instead of spinning.)
+
 Equivalent bare invocation (if you don't want the runner's fleet handling):
 
 ```bash
-PYTHONPATH=tests pytest tests/ -m "not slow and not serial" -n auto --dist load
+PYTHONPATH=tests pytest tests/ -m "not slow and not serial" -n auto --dist loadgroup
 ```
+
+**Use `--dist loadgroup`, NOT `--dist load`.** Many suites pin their tests to one
+xdist worker via `xdist_group` (e.g. `lc-cachemx`, the `conf_*` interop pairs)
+because they share a LifecycleHarness server on a fixed port. `--dist load`
+round-robins tests across workers and IGNORES those groups, so several workers
+start the same fixed-port server at once and thousands of runs fail with
+`bind() … Address already in use`. `pytest.ini` already defaults `addopts` to
+`--dist=loadgroup`; do not override it to `load`.
 
 ## Pre-push hook (optional)
 
@@ -101,6 +128,22 @@ Bypass a single push with `git push --no-verify` (or `SKIP_FAST_TESTS=1 git push
   and grouped onto one xdist worker via `xdist_group("serial")`.
 - `requires_local_server` — writes to the server filesystem; skipped in REMOTE mode.
 
+## Per-test timing ledger
+
+Every pytest session writes a machine-readable timing ledger at session end
+(hook in `conftest_part5.py`): `$TEST_ROOT/timings/tests-<UTC>-<pid>.jsonl`
+and `.csv`, one row per test with `setup`/`call`/`teardown`/`total` seconds,
+outcome, and xdist worker, sorted slowest-first. Under xdist the controller
+aggregates all workers into one ledger. To find drill-down targets (budget:
+no test over 10 s total):
+
+```bash
+awk -F, 'NR>1 && $1+0 >= 10' /tmp/xrd-test/timings/tests-<latest>.csv
+```
+
+An interrupted session (Ctrl-C mid-run, killed worker) writes no ledger —
+only complete sessions produce one.
+
 ## Triaging a fast-lane failure
 
 Every lane is single-pass: the runner never automatically reruns a failed test.
@@ -110,6 +153,14 @@ the defect directly. A focused manual invocation remains available when needed:
 ```bash
 PYTHONPATH=tests pytest <failed::tests> -p no:xdist -q
 ```
+
+## Fleet ownership (`TEST_OWN_FLEET`)
+
+Default: **attach** to a healthy fleet already up (no wipe / start-all /
+stop-all / rmtree), so a nested pytest — one spawned by a test — never wipes the
+shared fleet its parent owns. `TEST_OWN_FLEET=1` forces a clean wipe+restart of
+this lane. (`TEST_SKIP_SERVER_SETUP=1` is separate: it skips fleet setup
+entirely for a single already-launched instance.)
 
 ## Gotchas
 

@@ -92,7 +92,7 @@ class Endpoint:
         return env
 
     # -- health -------------------------------------------------------------
-    def healthy(self, stock_xrdfs, probe="/", timeout=15):
+    def healthy(self, stock_xrdfs, probe="/", timeout=3):
         """True when the stock client can reach the endpoint with its creds.
 
         Used by fixtures to SKIP cleanly when a server/credential is transiently

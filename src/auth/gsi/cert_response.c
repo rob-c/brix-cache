@@ -401,6 +401,19 @@ gsi_build_main_container(ngx_connection_t *c,
  * byte layout is frozen and identical to the pre-split assembly.  Returns the
  * brix_queue_response() result (NGX_OK on queued).
  */
+/* Store a big-endian uint32 at a possibly-unaligned wire position. The bucket
+ * payloads (pub/calg/malg/cert) are variable length, so `p` is not generally
+ * 4-aligned when the next type/len word is written — a plain `*(uint32_t*)p =`
+ * is a misaligned store (UB; UBSan-flagged; faults on strict-alignment arches).
+ * memcpy is the portable, alignment-safe equivalent and compiles to the same
+ * store on x86. */
+static inline void
+gsi_wire_put_u32(u_char *p, uint32_t v)
+{
+    uint32_t be = htonl(v);
+    ngx_memcpy(p, &be, sizeof(be));
+}
+
 static ngx_int_t
 gsi_frame_cert_response(brix_ctx_t *ctx, ngx_connection_t *c,
     const gsi_cert_chunks_t *ch)
@@ -428,45 +441,45 @@ gsi_frame_cert_response(brix_ctx_t *ctx, ngx_connection_t *c,
     p[2] = 'i';
     p[3] = '\0';
     p += 4;
-    *(uint32_t *) p = htonl(kXGS_cert);
+    gsi_wire_put_u32(p, kXGS_cert);
     p += 4;
 
-    *(uint32_t *) p = htonl(ch->pub_type);
+    gsi_wire_put_u32(p, ch->pub_type);
     p += 4;
-    *(uint32_t *) p = htonl((uint32_t) ch->pub_len);
+    gsi_wire_put_u32(p, (uint32_t) ch->pub_len);
     p += 4;
     ngx_memcpy(p, ch->pub_data, ch->pub_len);
     p += ch->pub_len;
 
-    *(uint32_t *) p = htonl(kXRS_cipher_alg);
+    gsi_wire_put_u32(p, kXRS_cipher_alg);
     p += 4;
-    *(uint32_t *) p = htonl((uint32_t) ch->calg_len);
+    gsi_wire_put_u32(p, (uint32_t) ch->calg_len);
     p += 4;
     ngx_memcpy(p, ch->cipher_alg, ch->calg_len);
     p += ch->calg_len;
 
-    *(uint32_t *) p = htonl(kXRS_md_alg);
+    gsi_wire_put_u32(p, kXRS_md_alg);
     p += 4;
-    *(uint32_t *) p = htonl((uint32_t) ch->malg_len);
+    gsi_wire_put_u32(p, (uint32_t) ch->malg_len);
     p += 4;
     ngx_memcpy(p, ch->md_alg, ch->malg_len);
     p += ch->malg_len;
 
-    *(uint32_t *) p = htonl(kXRS_x509);
+    gsi_wire_put_u32(p, kXRS_x509);
     p += 4;
-    *(uint32_t *) p = htonl((uint32_t) ch->cert_len);
+    gsi_wire_put_u32(p, (uint32_t) ch->cert_len);
     p += 4;
     ngx_memcpy(p, ch->cert_pem, ch->cert_len);
     p += ch->cert_len;
 
-    *(uint32_t *) p = htonl(kXRS_main);
+    gsi_wire_put_u32(p, kXRS_main);
     p += 4;
-    *(uint32_t *) p = htonl((uint32_t) ch->main_len);
+    gsi_wire_put_u32(p, (uint32_t) ch->main_len);
     p += 4;
     ngx_memcpy(p, ch->main_buf, ch->main_len);
     p += ch->main_len;
 
-    *(uint32_t *) p = htonl(kXRS_none);
+    gsi_wire_put_u32(p, kXRS_none);
 
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXGS_cert sent cert_len=%uz puk_len=%uz main_len=%uz",

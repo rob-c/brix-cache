@@ -184,9 +184,14 @@ def test_s3_pmark_server_scope_emits_firefly(lifecycle, tmp_path):
 # --------------------------------------------------------------------------- #
 # 3) ERROR — the custom setter moved verbatim: a bad domain fails nginx -t.
 # --------------------------------------------------------------------------- #
-def test_s3_pmark_domain_bogus_rejected():
+def _pmark_load_lines():
+    """`load_module <m>;` lines for every module in TEST_NGINX_LOAD_MODULES."""
     modules = [m for m in os.environ.get("TEST_NGINX_LOAD_MODULES", "").split(os.pathsep) if m]
-    load = "".join(f"load_module {m};\n" for m in modules)
+    return "".join(f"load_module {m};\n" for m in modules)
+
+
+def test_s3_pmark_domain_bogus_rejected():
+    load = _pmark_load_lines()
     with tempfile.TemporaryDirectory() as d:
         conf = os.path.join(d, "bad.conf")
         with open(conf, "w") as fh:
@@ -194,7 +199,7 @@ def test_s3_pmark_domain_bogus_rejected():
                 load
                 + "events {}\n"
                 "http { server { listen 127.0.0.1:%d;\n"
-                "  location / { brix_s3 on; brix_pmark_domain bogus; } } }\n"
+                "  location / { brix_s3 on; brix_pmark_domain bogus; } } }\n"  # net-literal-allow: loopback literal is the subject under test
                 % free_port())
         proc = subprocess.run([NGINX_BIN, "-t", "-c", conf, "-p", d],
                               capture_output=True, text=True, timeout=30)

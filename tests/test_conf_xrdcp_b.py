@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_xrdcp_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_xrdcp_b")
+
 def test_download_to_stdout_binary_exact(srv):
     """A binary file delivered to stdout must be byte-exact (capture raw)."""
     r = subprocess.run([L.OFF_XRDCP, "-f", f"{srv['our']}//sz_4096.bin", "-"],

@@ -25,6 +25,8 @@ def _check_test_readv_reassembly_equals_xrdcp_2(rc, name, out, err):
 
 _reexport(globals(), "_test_conf_readv_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_readv_b")
+
 def test_readv_empty_file(srv):
     name = "empty.txt"
     our, off_h = _open_both(srv, name)

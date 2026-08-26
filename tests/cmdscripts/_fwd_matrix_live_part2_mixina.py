@@ -26,6 +26,9 @@ import time
 from typing import Iterator, NamedTuple
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, inject_nginx_load_modules
+# _call is defined in the fwd_matrix_live parent (loaded before this mixin);
+# import it so the mixin methods can spawn subprocesses (split-drop fix).
+from cmdscripts.fwd_matrix_live import _call, _curl_code  # noqa: E402
 from lib_py.util import wait_tcp
 from settings import BIND_HOST, CA_CERT, CA_DIR, CA_KEY, HOST, SERVER_CERT, SERVER_KEY
 from ephemeral_port import free_ports

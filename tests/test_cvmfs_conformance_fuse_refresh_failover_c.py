@@ -14,6 +14,8 @@ def _check_scn_4(mnt):
 
 _reexport(globals(), "_test_cvmfs_conformance_fuse_refresh_failover_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_fuse_refresh_failover")
+
 @pytest.mark.timeout(150)
 class TestRangeResume:
     @pytest.fixture(scope="class")

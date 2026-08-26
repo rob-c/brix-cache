@@ -60,15 +60,39 @@ mk_node(int family, int port)
     return ai;
 }
 
+/* Resolve the real downstream getaddrinfo, ONCE, rejecting any candidate that
+ * resolves back into THIS shim's own load object.
+ *
+ * dlsym(RTLD_NEXT, "getaddrinfo") has been observed to return this library's
+ * LOAD BASE (the ELF header address) rather than libc's symbol in some loader
+ * states — not NULL, and not equal to our own getaddrinfo entry, so a plain
+ * `== NULL || == getaddrinfo` guard passes it through; calling it then jumps to
+ * our header and segfaults the whole preloaded process (the recurring
+ * "gai_shim.so[…]: segfault … ip==base"). dladdr lets us compare load-object
+ * bases and refuse ANY self-referential pointer (the base, our own function, or
+ * any other in-shim address). Returns NULL when no valid downstream exists. */
+static gai_fn
+resolve_real_gai(void)
+{
+    void   *cand = dlsym(RTLD_NEXT, "getaddrinfo");
+    Dl_info self, next;
+
+    if (cand == NULL) {
+        return NULL;
+    }
+    if (dladdr((void *) &getaddrinfo, &self) && dladdr(cand, &next)
+        && self.dli_fbase == next.dli_fbase) {
+        return NULL;                       /* candidate lives inside this shim */
+    }
+    return (gai_fn) cand;
+}
+
 int
 getaddrinfo(const char *node, const char *service,
             const struct addrinfo *hints, struct addrinfo **res)
 {
-    static gai_fn real;
-    if (real == NULL) {
-        real = (gai_fn) dlsym(RTLD_NEXT, "getaddrinfo");
-    }
-
+    /* Synthesised sentinels never need the real resolver — handle them first so
+     * a broken RTLD_NEXT can never affect the paths the test actually drives. */
     if (node != NULL && strcmp(node, SENTINEL) == 0) {
         int port = (service != NULL) ? atoi(service) : 0;
         int fam  = (hints != NULL) ? hints->ai_family : AF_UNSPEC;
@@ -104,5 +128,19 @@ getaddrinfo(const char *node, const char *service,
         return (*res != NULL) ? 0 : EAI_MEMORY;
     }
 
-    return real(node, service, hints, res);
+    /* Every other host delegates to the real resolver. Resolve it once and
+     * cache it; if no valid downstream exists, fail cleanly rather than crash. */
+    {
+        static gai_fn real;
+        static int    tried;
+
+        if (!tried) {
+            real = resolve_real_gai();
+            tried = 1;
+        }
+        if (real == NULL) {
+            return EAI_SYSTEM;
+        }
+        return real(node, service, hints, res);
+    }
 }

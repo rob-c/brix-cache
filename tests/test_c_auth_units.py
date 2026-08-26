@@ -27,6 +27,7 @@ def private_tmp():
 
 
 @pytest.mark.parametrize("name", sorted(RUNNERS))
+@pytest.mark.suite_job
 @pytest.mark.timeout(600)   # x509_oracle forges the full 559-clause fixture set (~5 min)
 def test_c_auth_unit(name, private_tmp):
     results = run_checks(private_tmp, names=[name])

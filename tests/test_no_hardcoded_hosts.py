@@ -136,12 +136,12 @@ _ALLOW_MARKER = re.compile(r"net-literal-allow:\s*\S")
 #   * bare IPv6 loopback only when it is not part of a larger token
 #     (``foo::bar``, ``fe80::1``, C++ ``ns::x`` do NOT match).
 _HOST_PATTERNS = [
-    ("localhost", re.compile(r"\blocalhost\b", re.IGNORECASE)),
-    ("127.0.0.1", re.compile(r"\b127\.0\.0\.1\b")),
-    ("0.0.0.0", re.compile(r"\b0\.0\.0\.0\b")),
-    ("[::1]", re.compile(r"\[::1\]")),
-    ("[::]", re.compile(r"\[::\]")),
-    ("::1", re.compile(r"(?<![\w:.])::1(?![\w:.])")),
+    ("localhost", re.compile(r"\blocalhost\b", re.IGNORECASE)),  # net-literal-allow: loopback literal is the subject under test
+    ("127.0.0.1", re.compile(r"\b127\.0\.0\.1\b")),  # net-literal-allow: loopback literal is the subject under test
+    ("0.0.0.0", re.compile(r"\b0\.0\.0\.0\b")),  # net-literal-allow: loopback literal is the subject under test
+    ("[::1]", re.compile(r"\[::1\]")),  # net-literal-allow: loopback literal is the subject under test
+    ("[::]", re.compile(r"\[::\]")),  # net-literal-allow: loopback literal is the subject under test
+    ("::1", re.compile(r"(?<![\w:.])::1(?![\w:.])")),  # net-literal-allow: loopback literal is the subject under test
 ]
 
 
@@ -278,13 +278,13 @@ def _tokens(source: str):
 
 
 def test_scanner_flags_ipv4_and_ipv6_literals():
-    assert _tokens('x = "127.0.0.1"') == {"127.0.0.1"}
-    assert _tokens('x = "0.0.0.0"') == {"0.0.0.0"}
-    assert _tokens('x = "localhost"') == {"localhost"}
-    assert _tokens('x = "LOCALHOST"') == {"localhost"}          # case-insensitive
-    assert _tokens('x = "::1"') == {"::1"}
-    assert _tokens('u = f"http://[::1]:{p}/m"') == {"[::1]"}     # inside an f-string
-    assert _tokens('b = b"127.0.0.1"') == {"127.0.0.1"}         # bytes literal (PROXY, wire)
+    assert _tokens('x = "127.0.0.1"') == {"127.0.0.1"}  # net-literal-allow: loopback literal is the subject under test
+    assert _tokens('x = "0.0.0.0"') == {"0.0.0.0"}  # net-literal-allow: loopback literal is the subject under test
+    assert _tokens('x = "localhost"') == {"localhost"}  # net-literal-allow: loopback literal is the subject under test
+    assert _tokens('x = "LOCALHOST"') == {"localhost"}          # case-insensitive  # net-literal-allow: loopback literal is the subject under test
+    assert _tokens('x = "::1"') == {"::1"}  # net-literal-allow: loopback literal is the subject under test
+    assert _tokens('u = f"http://[::1]:{p}/m"') == {"[::1]"}     # inside an f-string  # net-literal-allow: loopback literal is the subject under test
+    assert _tokens('b = b"127.0.0.1"') == {"127.0.0.1"}         # bytes literal (PROXY, wire)  # net-literal-allow: loopback literal is the subject under test
 
 
 def test_scanner_ignores_indirected_host():
@@ -295,9 +295,9 @@ def test_scanner_ignores_indirected_host():
 
 
 def test_scanner_ignores_comments_and_docstrings():
-    assert _tokens("x = 1  # server binds on 127.0.0.1 and [::1]") == set()
-    assert _tokens('"""Connects to 127.0.0.1 for the smoke test."""\nx = 1') == set()
-    src = "def f():\n    '''dials localhost:8000'''\n    return 1\n"
+    assert _tokens("x = 1  # server binds on 127.0.0.1 and [::1]") == set()  # net-literal-allow: loopback literal is the subject under test
+    assert _tokens('"""Connects to 127.0.0.1 for the smoke test."""\nx = 1') == set()  # net-literal-allow: loopback literal is the subject under test
+    src = "def f():\n    '''dials localhost:8000'''\n    return 1\n"  # net-literal-allow: loopback literal is the subject under test
     assert _tokens(src) == set()
 
 
@@ -314,13 +314,13 @@ def test_scanner_honors_allow_marker():
     assert _tokens(ok) == set()
     # A marker with no reason must NOT wave the literal through.
     bare = 'san = "127.0.0.1"  # net-literal-allow:'
-    assert _tokens(bare) == {"127.0.0.1"}
+    assert _tokens(bare) == {"127.0.0.1"}  # net-literal-allow: loopback literal is the subject under test
 
 
 def test_scanner_counts_once_per_node():
     # ``[::1]`` matches two patterns; a node with two host forms is still one hit.
-    assert len(scan_source('u = "http://[::1]:8000"')) == 1
-    assert len(scan_source('pair = "127.0.0.1 and ::1"')) == 1
+    assert len(scan_source('u = "http://[::1]:8000"')) == 1  # net-literal-allow: loopback literal is the subject under test
+    assert len(scan_source('pair = "127.0.0.1 and ::1"')) == 1  # net-literal-allow: loopback literal is the subject under test
 
 
 if __name__ == "__main__":

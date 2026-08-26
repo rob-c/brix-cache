@@ -20,6 +20,7 @@ HOW:  reuse the repo's PKI helpers (own PKI dir under a dedicated prefix), the
 Nothing here touches the main suite's ports, data, or PKI.
 """
 import getpass
+import glob
 import os
 import shutil
 import socket
@@ -69,12 +70,24 @@ _SEC_LIB_CANDIDATES = (
 
 # --- Small helpers ------------------------------------------------------------
 
-def find_sec_lib():
-    """Path to the official XRootD security plugin loader, or None."""
-    for cand in _SEC_LIB_CANDIDATES:
+def find_xrd_lib(*names):
+    """Find an XRootD plugin on Alma/RHEL or Debian/Ubuntu layouts."""
+    candidates = []
+    for name in names:
+        candidates.extend((f"/usr/lib64/{name}", f"/usr/lib/{name}",
+                           f"/lib64/{name}", f"/lib/{name}"))
+        candidates.extend(glob.glob(f"/usr/lib/*-linux-gnu/{name}"))
+        candidates.extend(glob.glob(f"/lib/*-linux-gnu/{name}"))
+    for cand in candidates:
         if os.path.isfile(cand):
             return cand
     return None
+
+
+def find_sec_lib():
+    """Path to the official XRootD security plugin loader, or None."""
+    direct = next((p for p in _SEC_LIB_CANDIDATES if os.path.isfile(p)), None)
+    return direct or find_xrd_lib("libXrdSec-5.so", "libXrdSec.so")
 
 
 def _chmod(argv):

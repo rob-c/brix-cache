@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_stattypes_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_stattypes_b")
+
 # =========================================================================== #
 # BROKEN SYMLINK -> error (or type) parity vs stock. A dangling link's stat()
 # fails on both (the target ENOENT propagates). Pin status + error category.

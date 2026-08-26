@@ -290,10 +290,6 @@ def test_deep_recon_pii_free(anon):
 # Self-hosting: SSS server (xrdsssadmin keytab) for the anon-enforcement case; a
 # token server (utils.make_token RSA issuer + JWKS) for the forged/expired/scope cases.
 
-_SSSADMIN = os.path.join(CLIENT_DIR, "bin", "xrdsssadmin-brix")
-
-
-
 def test_authsuite_off_by_default(anon):
     """No authz-* findings unless --auth-suite is passed."""
     port = anon["port"]

@@ -25,7 +25,7 @@ plus a `main()`; the ratchets keep a `--regen` mode.
 The guards also run inside the normal pytest gate, so a violation reddens the
 local test loop, not just CI:
 - `tests/test_ci_guards.py` executes the real `tools/ci/*.py` scripts
-  end-to-end — the fast static guards every run, the lizard-backed ratchets
+  end-to-end — the fast static guards every run, the lizard-backed guards
   (`check_complexity`, `check_duplication`) when `lizard` is installed, and the
   analyzer/coverage/sanitizer runners (`run_fanalyzer`, `run_codechecker`,
   `coverage`, `asan`) in the `slow`/nightly lane when a configured build + tool
@@ -56,13 +56,13 @@ would move a frozen baseline under us.
 | `check_vfs_identity_branch.py` | the VFS branches on capabilities (`brix_sd_caps`/`_supports`/`_cred_accept`), never on a concrete backend or protocol identity (phase-71) | `vfs_identity_backlog.txt` (target 0) | `--regen` |
 | `check_metric_cardinality.py` | no Prometheus label whose VALUE is string-interpolated under a name outside the curated low-cardinality vocabulary (INVARIANT #8, CWE-770) | inline vocabulary + per-line `metric-cardinality-allow:` | edit vocabulary |
 | `check_metric_names.py` | every `brix_*` metric the docs, the site and `contrib/` cite exists in the exposition, with the labels it really carries — a fabricated family matches nothing in Prometheus, so the alert built on it never fires | `metric_names_backlog.txt` (empty — keep it that way) + per-line `metric-names-allow:` | `--regen` |
-| `check_client_flags_doc.py` | every `--flag` the docs, the man pages and the plans write against a shipped client tool is one that tool's argv walk actually matches — the row that mattered offered `--require-digest` as a registry-MITM mitigation before it existed, and a mitigation nobody can type reads as closed | none (the tree is at zero) + per-line `client-flags-allow:` | `--dump` |
 | `check_brix_namespace.py` | no pre-rebrand `xrootd_`/`XROOTD_`/`ngx_xrootd*`/`xrdc_`/`libxrdc` token reintroduced under `src/`, `config`, or `client/` | inline EXCLUDE | — |
 | `check_gridftp_interop_image.py` | the GridFTP interop lab's client-image / runner / matrix contract stays in agreement — no reference client stack, listener, or env-var name silently dropped | — | — |
 | `check_shm_mutex.py` | SHM tables are created via `brix_shm_table_*` — no bare `ngx_shmtx_create()` call outside `src/core/compat/shm_slots.c` (INVARIANT #10) | — | — |
-| `check_file_size.py` | no `src/`/`client/` file crosses the 600-line cap; the backlog is EMPTY — split, never grandfather | `file_size_backlog.txt` | `--regen` |
-| `check_complexity.py` | every native function under `src/`+`client/`+`shared/` must have CCN ≤15 (lizard/McCabe) | — (no exemptions) | fix the function |
-| `check_python_quality.py` | every Python function under the pytest suite, `client/`, `shared/`, `src/`, and the remaining Python project trees must meet CCN (15), cognitive complexity (10), NPath (15), Halstead difficulty (5), and maximum nesting (10) | — (no exemptions) | fix the function |
+| `check_file_size.py` | no C/C++ source or header in `src/`+`client/`+`shared/` crosses the 600-line cap; every offender fails directly | — | — |
+| `check_py_file_size.py` | no Python file in `tests/`+`utils/`+`tools/` crosses 600 logical lines; every offender fails directly | — | — |
+| `check_complexity.py` | no C/C++ function over `src/`+`client/`+`shared/` crosses CCN 15 (lizard/McCabe); every offender fails directly | — | — |
+| `check_py_complexity.py` | no Python function over `tests/`+`utils/`+`tools/` crosses CCN 15; every offender fails directly | — | — |
 | `check_todo_fixme.py` | no NEW `TODO`/`FIXME`/`XXX`/`HACK` marker in `src/`+`client/`+`shared/`; frozen per-file counts may only shrink | `todo_fixme_backlog.txt` | `--regen` |
 | `check_duplication.py` | no copy-pasted code block (lizard `-Eduplicate`) across `src/`+`client/`+`shared/`; count is zero and stays zero | none (backlog burned down + deleted 2026-08-24) | — (fix the code) |
 | `check_doc_paths.py` | CLAUDE.md / README.md / docs/index.md reference only paths that exist AND are git-tracked | `<!-- doc-paths:off/on -->` markers for deliberate dead refs | — |
@@ -85,7 +85,7 @@ would move a frozen baseline under us.
 
 ## The ratchet pattern
 
-Several guards freeze pre-existing violations in a backlog file and fail
+Some guards freeze pre-existing violations in a backlog file and fail
 only on NEW ones. Rules:
 
 - Backlog entries may only **shrink** — fixing a violation and regenerating
@@ -94,8 +94,9 @@ only on NEW ones. Rules:
   oversized file, or fixed a batch of links). Review the diff before
   committing it.
 - Never hand-edit a backlog to silence a failure. The failure is the point.
-- A red-and-ignored gate is worse than no gate: both size ratchets drifted
-  (18 and 12 violations respectively) during the period nothing ran them.
+- Size and complexity are deliberately not ratchets: their backlogs and
+  regeneration paths were removed after reaching zero, so every violation is
+  now an unconditional failure.
 
 Those first two rules are no longer honour-system: `check_ratchet_monotonic.py`
 diffs every backlog against the PR's base revision and fails on any growth, so
@@ -110,13 +111,11 @@ these guards green while making the code worse — is itself a red build.
   Scope includes `src/`, `client/`, plus `tests/`/`utils/`/`k8s-tests/`
   shell and Python. Per-file exemption marker: `loc-lint: exempt` in the
   first 40 lines.
-- **`tools/ci/check_file_size.py`** is the **soft target**: ~500 lines
-  (coding-standards §1, one concept per file), `src/` only, backlog-
-  ratcheted, enforced by `guards.yml`.
+- **`tools/ci/check_file_size.py`** enforces the **600-line hard cap** over
+  `src/`, `client/`, and `shared/`; coding-standards §1 still prefers ~500.
+  It has no exemption or backlog mechanism and is enforced by `guards.yml`.
 
-A file under the 800 wall can still fail the 500 ratchet. The soft cap is
-where files should live; the hard wall is where growth stops being a
-review-taste question and becomes a CI failure.
+A file under the 800 wall can still fail the 600-line source-tree cap.
 
 ## Code duplication gate
 

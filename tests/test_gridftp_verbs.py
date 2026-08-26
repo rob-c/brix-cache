@@ -29,11 +29,13 @@ import zlib
 
 import pytest
 
+
 from settings import BIND_HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.serial, pytest.mark.timeout(180),
+pytestmark = [pytest.mark.xdist_group("test_gridftp_verbs"),
+              pytest.mark.serial, pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness]
 
 

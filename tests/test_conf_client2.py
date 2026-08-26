@@ -24,6 +24,8 @@ def _check_test_ls_recursive_leaf_set_matches_stock_5(our, off):
 
 _reexport(globals(), "_test_conf_client2_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_client2")
+
 # =========================================================================== #
 # OUR xrdfs ls — name-set parity with the stock client on the stock server     #
 # =========================================================================== #

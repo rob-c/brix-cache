@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_gfal_ops_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_gfal_ops")
+
 @pytest.mark.parametrize("path", FILES)
 def test_stat_file_size_type(ctx, path):
     """gfal-stat on a file: rc, Size and type must match stock exactly."""

@@ -34,26 +34,8 @@
 static void
 def_blob_id(const char *root, const char *path, char *out, size_t cap)
 {
-    char          db[PATH_MAX];
-    sqlite3      *h = NULL;
-    sqlite3_stmt *q = NULL;
-
-    out[0] = '\0';
-    snprintf(db, sizeof(db), "%s/catalog.db", root);
-    CHECK(sqlite3_open(db, &h) == SQLITE_OK, "def db open");
-    if (sqlite3_prepare_v2(h,
-            "SELECT blob_id FROM objects WHERE path = ?1;", -1, &q, NULL)
-        == SQLITE_OK)
-    {
-        sqlite3_bind_text(q, 1, path, -1, SQLITE_STATIC);
-        if (sqlite3_step(q) == SQLITE_ROW) {
-            const unsigned char *b = sqlite3_column_text(q, 0);
-
-            snprintf(out, cap, "%s", b ? (const char *) b : "");
-        }
-    }
-    sqlite3_finalize(q);
-    sqlite3_close(h);
+    pbut_query_text(root, "SELECT blob_id FROM objects WHERE path = ?1;",
+                    path, out, cap);
 }
 
 /* def_raw_set_size — mutate a row BEHIND the catalog API so shared-cache

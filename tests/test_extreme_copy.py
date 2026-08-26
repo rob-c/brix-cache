@@ -122,7 +122,7 @@ class _MirrorShim(threading.Thread):
         self._stop = threading.Event()
         self._lsock = socket.socket()
         self._lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._lsock.bind(("127.0.0.1", 0))
+        self._lsock.bind(("127.0.0.1", 0))  # net-literal-allow: mock shim binds loopback ephemeral by design
         self._lsock.listen(8)
         self._lsock.settimeout(0.2)
         self.port = self._lsock.getsockname()[1]

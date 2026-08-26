@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_fuse_manifest_parse_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_fuse_manifest_parse")
+
 def test_baseline_check_ok(forge, mock_url, brixcvmfs):
     assert check(forge, mock_url, brixcvmfs, want=ACCEPT) == ACCEPT
 

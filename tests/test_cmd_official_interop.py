@@ -28,6 +28,7 @@ def _fleet_anon_listening() -> bool:
 
 @pytest.mark.optin
 @pytest.mark.timeout(600)
+@pytest.mark.suite_job
 @pytest.mark.parametrize("scenario", ["noauth", "host", "stress"])
 def test_official_interop_scenario(scenario: str):
     _require_official_interop()
@@ -46,6 +47,7 @@ def _require_official_interop():
 
 @pytest.mark.optin
 @pytest.mark.timeout(1800)
+@pytest.mark.suite_job
 def test_cross_compatible_lanes():
     if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":
         pytest.skip("set PHASE81_RUN_LIVE_PORTS=0 to skip the cross-compatible pytest lanes")

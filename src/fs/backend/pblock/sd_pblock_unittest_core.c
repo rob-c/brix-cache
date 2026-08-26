@@ -24,6 +24,89 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+/* ---- shared catalog introspection primitives (see internal.h) ------------- */
+
+/* Open the catalog and prepare `sql`, binding `bind1`/`bind2` as text to ?1/?2
+ * when non-NULL. On success the caller steps *q and MUST finalize it + close *h;
+ * on failure *q is NULL and *h is closed here. Returns 1 when *q is ready. */
+static int
+pbut_open_prepare(const char *root, const char *sql, const char *bind1,
+    const char *bind2, sqlite3 **h, sqlite3_stmt **q)
+{
+    char db[PATH_MAX];
+
+    *h = NULL;
+    *q = NULL;
+    snprintf(db, sizeof(db), "%s/catalog.db", root);
+    CHECK(sqlite3_open(db, h) == SQLITE_OK, "catalog db open");
+    if (sqlite3_prepare_v2(*h, sql, -1, q, NULL) != SQLITE_OK) {
+        sqlite3_close(*h);
+        *h = NULL;
+        *q = NULL;
+        return 0;
+    }
+    if (bind1 != NULL) {
+        sqlite3_bind_text(*q, 1, bind1, -1, SQLITE_STATIC);
+    }
+    if (bind2 != NULL) {
+        sqlite3_bind_text(*q, 2, bind2, -1, SQLITE_STATIC);
+    }
+    return 1;
+}
+
+void
+pbut_query_text(const char *root, const char *sql, const char *bind1,
+    char *out, size_t cap)
+{
+    sqlite3      *h;
+    sqlite3_stmt *q;
+
+    out[0] = '\0';
+    if (!pbut_open_prepare(root, sql, bind1, NULL, &h, &q)) {
+        return;
+    }
+    if (sqlite3_step(q) == SQLITE_ROW) {
+        const unsigned char *b = sqlite3_column_text(q, 0);
+
+        snprintf(out, cap, "%s", b ? (const char *) b : "");
+    }
+    sqlite3_finalize(q);
+    sqlite3_close(h);
+}
+
+int
+pbut_query_int(const char *root, const char *sql, const char *bind1)
+{
+    sqlite3      *h;
+    sqlite3_stmt *q;
+    int           n = -1;
+
+    if (!pbut_open_prepare(root, sql, bind1, NULL, &h, &q)) {
+        return -1;
+    }
+    if (sqlite3_step(q) == SQLITE_ROW) {
+        n = sqlite3_column_int(q, 0);
+    }
+    sqlite3_finalize(q);
+    sqlite3_close(h);
+    return n;
+}
+
+void
+pbut_exec(const char *root, const char *sql, const char *bind1,
+    const char *bind2)
+{
+    sqlite3      *h;
+    sqlite3_stmt *q;
+
+    if (!pbut_open_prepare(root, sql, bind1, bind2, &h, &q)) {
+        return;
+    }
+    CHECK(sqlite3_step(q) == SQLITE_DONE, "catalog exec");
+    sqlite3_finalize(q);
+    sqlite3_close(h);
+}
+
 /* ---- tests ---------------------------------------------------------------- */
 
 void
@@ -266,7 +349,7 @@ void
 test_fsync_durability(const char *root)
 {
     brix_sd_instance_t    inst = {0};
-    brix_sd_pblock_conf_t conf = { root, 2000, 0 };
+    brix_sd_pblock_conf_t conf = { root, 2000, 0, NULL, 0 };
     int                     err = 0;
     brix_sd_obj_t        *o;
     brix_sd_stat_t        st;
@@ -376,7 +459,7 @@ test_processes(const char *root, brix_sd_instance_t *inst)
 
         if (pid == 0) {
             brix_sd_instance_t    cinst = {0};
-            brix_sd_pblock_conf_t conf = { root, 5000, 0 };
+            brix_sd_pblock_conf_t conf = { root, 5000, 0, NULL, 0 };
             int                     j, bad = 0;
 
             cinst.driver = D;

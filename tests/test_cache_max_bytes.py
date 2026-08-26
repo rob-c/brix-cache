@@ -54,6 +54,32 @@ def _dir_bytes(root):
     return total
 
 
+def _fill_cache(data, endpoint):
+    """Read-through _NFILES distinct objects to fill the cache well over the cap."""
+    for i in range(_NFILES):
+        (data / f"f{i}.bin").write_bytes(bytes((i * 7 + 3) % 251
+                                                for _ in range(_FILE_SZ)))
+        out = data.parent / f"pull-{i}.bin"
+        r = subprocess.run(
+            [_XRDCP, "-f", "-s",
+             f"root://{HOST}:{endpoint.port}//f{i}.bin", str(out)],
+            capture_output=True, text=True, timeout=60)
+        assert r.returncode == 0, f"fill read {i} failed: {r.stderr}"
+
+
+def _poll_until_capped(store, cap_with_slack, deadline_s=40):
+    """Poll the owned cache bytes until they fall to the cap; return the last
+    measurement (whether or not it converged in time)."""
+    deadline = time.time() + deadline_s
+    cached = _dir_bytes(store)
+    while time.time() < deadline:
+        cached = _dir_bytes(store)
+        if cached <= cap_with_slack:
+            break
+        time.sleep(1)
+    return cached
+
+
 class TestMaxBytes:
 
     @pytest.fixture(scope="class")
@@ -93,15 +119,7 @@ class TestMaxBytes:
         store = cache / "mb"
 
         # Fill the cache with 512 KiB across 8 distinct read-through objects.
-        for i in range(_NFILES):
-            (data / f"f{i}.bin").write_bytes(bytes((i * 7 + 3) % 251
-                                                    for _ in range(_FILE_SZ)))
-            out = data.parent / f"pull-{i}.bin"
-            r = subprocess.run(
-                [_XRDCP, "-f", "-s",
-                 f"root://{HOST}:{endpoint.port}//f{i}.bin", str(out)],
-                capture_output=True, text=True, timeout=60)
-            assert r.returncode == 0, f"fill read {i} failed: {r.stderr}"
+        _fill_cache(data, endpoint)
 
         # The cache now holds ~512 KiB, well over the 256 KiB cap.
         assert _dir_bytes(store) > _MAXBYTES, (
@@ -110,13 +128,7 @@ class TestMaxBytes:
         # The reaper's first tick is ~5 s out, then every 1 s. Poll until the
         # owned bytes fall to the cap (allowing one object of slack + sidecars).
         cap_with_slack = _MAXBYTES + _FILE_SZ
-        deadline = time.time() + 40
-        cached = _dir_bytes(store)
-        while time.time() < deadline:
-            cached = _dir_bytes(store)
-            if cached <= cap_with_slack:
-                break
-            time.sleep(1)
+        cached = _poll_until_capped(store, cap_with_slack)
 
         assert cached <= cap_with_slack, (
             f"reaper did not cap owned bytes: {cached} B still cached "

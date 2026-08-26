@@ -50,7 +50,7 @@ def _nginx_t(stream_body="", http_loc_body=""):
                 load
                 + f"error_log {d}/logs/e.log info;\npid {d}/logs/n.pid;\nevents {{}}\n"
                 + "stream {\n"
-                + "  server { listen 127.0.0.1:29001; brix_root on;\n"
+                + "  server { listen 127.0.0.1:29001; brix_root on;\n"  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
                 + f"    brix_export /tmp; {stream_body} }}\n"
                 + "}\n"
                 + "http {\n"
@@ -58,7 +58,7 @@ def _nginx_t(stream_body="", http_loc_body=""):
                 + f"  proxy_temp_path {d}/tmp/p; fastcgi_temp_path {d}/tmp/f;\n"
                 + f"  uwsgi_temp_path {d}/tmp/u; scgi_temp_path {d}/tmp/s;\n"
                 + "  brix_storage_backend posix:/tmp;\n"
-                + "  server { listen 127.0.0.1:29002;\n"
+                + "  server { listen 127.0.0.1:29002;\n"  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
                 + f"    location / {{ brix_webdav on; brix_webdav_auth none; {http_loc_body} }} }}\n"
                 + "}\n")
         env = dict(os.environ, ASAN_OPTIONS="detect_leaks=0")

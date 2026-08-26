@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_srv_proxy_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_srv_proxy")
+
 def test_valid_absolute_form_serves_cas_bytes(psrv):
     obj = psrv.objects()[1]
     origin = urllib.request.urlopen(psrv.mock_url + obj).read()

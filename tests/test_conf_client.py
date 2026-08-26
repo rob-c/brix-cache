@@ -29,7 +29,8 @@ import pytest
 
 import official_interop_lib as L
 
-pytestmark = [pytest.mark.timeout(180),
+pytestmark = [pytest.mark.xdist_group("conf_client"),
+              pytest.mark.timeout(180),
               pytest.mark.skipif(not L.have_official(),
                                  reason="stock xrootd/xrdfs/xrdcp not installed")]
 

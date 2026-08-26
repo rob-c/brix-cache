@@ -57,7 +57,7 @@ def test_bare_protbind_parses_at_webdav_location():
         "  server { listen 127.0.0.1:28951;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
         "      brix_protbind *.cern.ch only gsi;\n"
-        "      brix_protbind grid.example.org token; } }\n")
+        "      brix_protbind grid.example.org token; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc == 0, f"bare protbind must parse at a webdav location:\n{out}"
     assert "successful" in out, out
 
@@ -68,7 +68,7 @@ def test_http_main_protbind_adopts_into_webdav_and_coexists_with_s3():
         "  server { listen 127.0.0.1:28952;\n"
         "    location / { brix_webdav on; brix_webdav_auth none; } }\n"
         "  server { listen 127.0.0.1:28953;\n"
-        "    location / { brix_s3 on; brix_s3_bucket b; } }\n")
+        "    location / { brix_s3 on; brix_s3_bucket b; } }\n")  # net-literal-allow: loopback literal is the subject under test
     assert rc == 0, f"http-main protbind must adopt into webdav + s3:\n{out}"
     assert "successful" in out, out
 
@@ -77,6 +77,6 @@ def test_old_webdav_protbind_name_unknown():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28954;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        "      brix_webdav_protbind *.x only gsi; } }\n")
+        "      brix_webdav_protbind *.x only gsi; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, out
     assert "unknown directive" in out and "brix_webdav_protbind" in out, out

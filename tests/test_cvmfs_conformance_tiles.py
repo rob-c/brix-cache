@@ -13,6 +13,8 @@ import os
 
 import pytest
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_tiles")
+
 from cvmfs import conformance_common as cc
 from port_ladder import CVMFS_CONFORMANCE_OFFSET
 from settings import TEST_PORT_START

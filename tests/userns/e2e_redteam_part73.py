@@ -53,6 +53,17 @@ def _rt73_probe_whether_the_export_fs_stores(absp, s3port):
     return xattr_fs_ok, acl_docs
 
 
+def _rt73_acl_outcome_ok(st, body, SECRET):
+    """One GET ?acl outcome is acceptable iff it is a canned 200 ACL doc OR a
+    gated 403/404 — and NEITHER leaks the target's bytes/path/secret."""
+    for needle in (SECRET, b'bob-only', b'bobsecret', b'private.txt'):
+        if needle in body:
+            return False
+    if st in (403, 404):
+        return True
+    return st == 200 and b'<AccessControlPolicy' in body
+
+
 def _rt73_the_canned_owner_is_a_fixed(s3port, acl_docs, SECRET):
     acl_targets = [
         ("alice/acl_own.txt", "own object"),
@@ -72,14 +83,14 @@ def _rt73_the_canned_owner_is_a_fixed(s3port, acl_docs, SECRET):
         st, b = s3("GET", relkey, s3port, params={"acl": ""})
         b = b or b""
         acl_docs[relkey] = b
-        no_leak = (SECRET not in b and b'bob-only' not in b
-                   and b'bobsecret' not in b and b'private.txt' not in b)
-        canned = (st == 200 and b'<AccessControlPolicy' in b)
-        gated = st in (403, 404)
-        ok((canned or gated) and no_leak,
+        ok(_rt73_acl_outcome_ok(st, b, SECRET),
            f"S3 GET ?acl on {label} -> canned ACL or gated NoSuchKey, no target "
            f"bytes/path/secret leaked (HTTP {st})")
 
+    _rt73_check_canned_doc(acl_docs)
+
+
+def _rt73_check_canned_doc(acl_docs):
     # The canned doc that IS produced (for the keys that resolve) is a FIXED gateway
     # document -- byte-identical, so no per-object ACL discloses ownership.
     base_doc = acl_docs.get("alice/acl_own.txt", b"")

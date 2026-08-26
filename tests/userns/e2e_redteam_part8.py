@@ -170,26 +170,6 @@ def _auth_forged_root(key):
         ok(rc != 0, f"root:// {label} token rejected on stat (rc={rc})")
 
 
-def run_root_deep(key, data, port):
-    """Per-subcommand root:// (stream) matrix under impersonation: every metadata
-    + data op as the mapped user, each in a self-success and a cross-tenant-deny
-    variant.  The native client drives the real wire protocol, so this exercises
-    the stream dispatch path the HTTP planes never touch."""
-    if not xrd_avail():
-        ok(True, "root:// deep matrix skipped (native client absent)")
-        return
-    bobpriv = os.path.join(data, "bob", "private.txt")  # 0600 bob
-    bobread = os.path.join(data, "bob", "readable.txt")  # 0644 bob
-    local, self_file = _root_seed_file(data)
-    _root_read_self(self_file)
-    _root_read_denied(bobpriv)
-    _root_stat_self()
-    _root_directory_ops(data, local)
-    _root_remove_ops(bobread, self_file)
-    _root_move_denied(data, bobread)
-    _root_truncate_denied(bobread)
-    _root_chmod_denied(bobpriv)
-    _root_checksum_denied()
 
 
 def _root_seed_file(data):
@@ -322,7 +302,21 @@ def run_root_deep(key, data, port):
     bobpriv = os.path.join(data, "bob", "private.txt")           # 0600 bob
     bobread = os.path.join(data, "bob", "readable.txt")          # 0644 bob
 
-    # seed an alice-owned file via the data plane (write path).
+    lf, sf = _rootdeep_seed_own(data)
+    _rootdeep_read_self_vs_cross()
+
+    # stat self ok (a 0644 sibling is fine); bob's 0600 stat may succeed (metadata
+    # is not secret) but reading was already proven denied above.
+    rc, _o, _e = xrd_fs(["stat", "/alice/rd_self.bin"], "alice")
+    ok(rc == 0, f"root:// stat own file (rc={rc})")
+
+    # namespace mutations (mkdir/write/rm/mv/truncate/chmod/query) — self vs cross.
+    _rootdeep_ns_ops(data, lf, sf, bobread, bobpriv)
+
+
+def _rootdeep_seed_own(data):
+    """Seed an alice-owned file via the write path; assert it landed alice-owned.
+    Returns (local_seed_path, server_side_path)."""
     lf = os.path.join(WORK, "rd_seed.bin")
     with open(lf, "wb") as fh:
         fh.write(b"ALICE-ROOT-DEEP\n")
@@ -332,28 +326,41 @@ def run_root_deep(key, data, port):
     sf = os.path.join(data, "alice", "rd_self.bin")
     ok(os.path.exists(sf) and os.stat(sf).st_uid == UID_ALICE,
        "root:// written file owned by alice")
+    return lf, sf
 
-    # cat self vs bob's 0600.
+
+def _slurp(path):
+    """The file's bytes, or b'' when it does not exist (a denied download leaves
+    no file) — so callers test content without a nested exists()/open() chain."""
+    try:
+        with open(path, "rb") as fh:
+            return fh.read()
+    except OSError:
+        return b""
+
+
+def _rm_quiet_path(path):
+    """Best-effort unlink of an absolute path; a missing file is fine."""
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+
+
+def _rootdeep_read_self_vs_cross():
+    """Read own file byte-exact; prove bob's 0600 is denied to alice via both cat
+    and xrdcp (no secret bytes, no stolen copy on disk)."""
     dl = os.path.join(WORK, "rd_self_dl.bin")
     rc, _o, _e = xrd_cp_down("/alice/rd_self.bin", dl, "alice")
-    ok(rc == 0 and os.path.exists(dl) and open(dl, "rb").read() == b"ALICE-ROOT-DEEP\n",
+    ok(rc == 0 and _slurp(dl) == b"ALICE-ROOT-DEEP\n",
        f"root:// xrdcp read own file byte-exact (rc={rc})")
     rc, out, _e = xrd_fs(["cat", "/bob/private.txt"], "alice")
     ok(rc != 0 and "BOB-PRIVATE-SECRET" not in (out or ""),
        f"root:// cat bob's 0600 DENIED (rc={rc})")
     dlx = os.path.join(WORK, "rd_steal.bin")
     rc, _o, _e = xrd_cp_down("/bob/private.txt", dlx, "alice")
-    ok(rc != 0 and not (os.path.exists(dlx)
-                        and b"BOB-PRIVATE-SECRET" in open(dlx, "rb").read()),
+    ok(rc != 0 and b"BOB-PRIVATE-SECRET" not in _slurp(dlx),
        f"root:// xrdcp read bob's 0600 DENIED (rc={rc})")
-
-    # stat self ok (a 0644 sibling is fine); bob's 0600 stat may succeed (metadata
-    # is not secret) but reading was already proven denied above.
-    rc, _o, _e = xrd_fs(["stat", "/alice/rd_self.bin"], "alice")
-    ok(rc == 0, f"root:// stat own file (rc={rc})")
-
-    # namespace mutations (mkdir/write/rm/mv/truncate/chmod/query) — self vs cross.
-    _rootdeep_ns_ops(data, lf, sf, bobread, bobpriv)
 
 
 def _delete_xml(keys):

@@ -115,6 +115,7 @@ def test_fuzz_workflow_writeback_job_gated():
 # --- slow end-to-end: real minimization is a no-op on committed corpora ----- #
 
 @pytest.mark.slow
+@pytest.mark.suite_job
 def test_dry_run_minimizes_without_touching_tree():
     import shutil
     if shutil.which("clang") is None:

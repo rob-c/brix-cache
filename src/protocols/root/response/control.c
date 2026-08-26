@@ -21,22 +21,13 @@ brix_send_redirect(brix_ctx_t *ctx, ngx_connection_t *c,
      * string is host-only. IPv4/hostname/already-bracketed pass through. */
     hostlen = brix_format_host(host, hostbuf, sizeof(hostbuf));
 
-    /* §1.3 kXR_fullurl: a client that advertised the fullurl login ability
-     * accepts (and prefers) a SELF-CONTAINED root:// URL in the host field —
-     * the unambiguous form when a redirect crosses ports. The numeric port
-     * field keeps its value (harmless duplication; the URL is authoritative
-     * for such clients). Clients that did not advertise it get the classic
-     * host-only form, byte-identical to before. */
-    if ((ctx->login.ability & 0x01 /* kXR_fullurl */) && hostlen > 0) {
-        char fullbuf[288];
-        int  n = snprintf(fullbuf, sizeof(fullbuf), "root://%s:%u",
-                          hostbuf, (unsigned) port);
-
-        if (n > 0 && (size_t) n < sizeof(fullbuf)) {
-            ngx_memcpy(hostbuf, fullbuf, (size_t) n + 1);
-            hostlen = (size_t) n;
-        }
-    }
+    /* §1.3 kXR_fullurl: a full root:// URL in the host field is only legal
+     * with a NEGATIVE (flags) port — with a positive port the reference
+     * client appends ":port" to whatever is in the host field, so a full URL
+     * here becomes "root://h:p:p/" and every open through a manager fails
+     * with errInvalidRedirectURL (XrdClXRootDMsgHandler kXR_redirect).  The
+     * classic host-only + numeric-port form is valid for ALL clients,
+     * fullurl-capable or not, so it is always used for root:// targets. */
     bodylen = (uint32_t) (sizeof(uint32_t) + hostlen);
     total = XRD_RESPONSE_HDR_LEN + bodylen;
 

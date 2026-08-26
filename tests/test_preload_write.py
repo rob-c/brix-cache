@@ -38,9 +38,22 @@ pytestmark = [
 CONTENT = bytes((i * 53 + 7) % 251 for i in range(400 * 1024))
 
 
+from sanitizer_preload import sanitizer_runtimes
+
+_ASAN_RT = sanitizer_runtimes(PRELOAD)
+
+
+def _preload_chain():
+    """LD_PRELOAD value: sanitizer runtimes (empty on a plain build) prepended so
+    the ASan/UBSan shim loads into the uninstrumented host process."""
+    return " ".join(x for x in (_ASAN_RT, PRELOAD) if x)
+
+
 def _env(extra=None):
     env = {k: v for k, v in os.environ.items()}
-    env["LD_PRELOAD"] = PRELOAD
+    env["LD_PRELOAD"] = _preload_chain()
+    if _ASAN_RT:
+        env.setdefault("ASAN_OPTIONS", "detect_leaks=0:verify_asan_link_order=0")
     env["BRIX_VMP"] = f"/xrd=root://{SERVER_HOST}:{NGINX_ANON_PORT}/"
     if extra:
         env.update(extra)

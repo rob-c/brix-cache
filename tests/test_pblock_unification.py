@@ -46,7 +46,7 @@ def test_bare_pblock_block_size_parses():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28901;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        "      brix_pblock_block_size 32m; } }\n")
+        "      brix_pblock_block_size 32m; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc == 0, f"bare brix_pblock_block_size must parse:\n{out}"
     assert "successful" in out, out
 
@@ -55,6 +55,6 @@ def test_old_webdav_pblock_is_unknown():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28902;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        "      brix_webdav_pblock_block_size 32m; } }\n")
+        "      brix_webdav_pblock_block_size 32m; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, out
     assert "unknown directive" in out and "brix_webdav_pblock_block_size" in out, out

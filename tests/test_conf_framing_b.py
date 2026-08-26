@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_framing_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_framing_b")
+
 def test_login_zero_length_username_class_parity(srv):
     """A login with an all-NUL (effectively zero-length) username. Pin OUR
     accept/reject class to STOCK; OUR must not hang."""

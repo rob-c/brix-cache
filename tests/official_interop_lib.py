@@ -139,13 +139,14 @@ FLEET_OFF_DATA = os.path.join(TEST_ROOT, "data-interop-off")
 # Register a NEW base by adding it here (and bump port_ladder.INTEROP_WORKER_WIDTH
 # if the count exceeds it).
 _INTEROP_BASES = (
+    13990, 13991,
     14002, 14003, 14004, 14005, 14006, 14007, 14008, 14009, 14010, 14011,
     14012, 14013, 14020, 14021, 14022, 14023, 14026, 14027, 14030, 14031,
     14032, 14033, 14034, 14035, 14036, 14037, 14038, 14039, 14042, 14043,
     14044, 14045, 14048, 14049, 14050, 14051, 14052, 14053, 14054, 14055,
     14056, 14057, 14058, 14059, 14060, 14061, 14062, 14063, 14064, 14065,
     14066, 14067, 14068, 14069, 14070, 14071, 14912, 14913, 14924, 14925,
-    14980,
+    14980, 21130, 21131,
 )
 _INTEROP_SLOT = {b: i for i, b in enumerate(_INTEROP_BASES)}
 # Anchored to TEST_PORT_START (+1 matches port_ladder._port(offset, 0)); a second

@@ -93,7 +93,7 @@ def test_acc_family_parses_on_webdav_s3_cvmfs():
             "  server { listen 127.0.0.1:28382;\n"
             "    location /s3/ { brix_s3 on; brix_s3_bucket b; brix_webdav_auth none; } }\n"
             "  server { listen 127.0.0.1:28383;\n"
-            "    location /cvmfs/ { brix_cvmfs on; } }\n")   # cvmfs — new under W2
+            "    location /cvmfs/ { brix_cvmfs on; } }\n")   # cvmfs — new under W2  # net-literal-allow: loopback literal is the subject under test
     assert rc == 0, f"acc/kTLS family must parse on all three planes:\n{out}"
     assert "successful" in out, out
 
@@ -109,7 +109,7 @@ def test_ktls_and_authdb_reach_cvmfs_location():
             "    location /cvmfs/ {\n"
             "      brix_cvmfs on;\n"
             "      brix_ktls on;\n"
-            f"      brix_acc_authdb {adb};\n"
+            f"      brix_acc_authdb {adb};\n"  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
             "      brix_acc_format xrdacc;\n"
             "    } }\n")
     assert rc == 0, f"kTLS + XrdAcc at a cvmfs location must parse under W2:\n{out}"
@@ -119,7 +119,7 @@ def test_authdb_format_bad_enum_stock_error():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28385;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        "      brix_acc_format bogus; } }\n")
+        "      brix_acc_format bogus; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, f"bad enum should fail nginx -t:\n{out}"
     # stock ngx_conf_set_enum_slot wording, not the old hand-rolled "invalid value".
     assert "invalid value" in out and "bogus" in out, out
@@ -129,6 +129,6 @@ def test_acc_pgo_bad_flag_stock_error():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28386;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        "      brix_acc_pgo maybe; } }\n")
+        "      brix_acc_pgo maybe; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, f"bad flag should fail nginx -t:\n{out}"
     assert 'it must be "on" or "off"' in out, out

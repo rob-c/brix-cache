@@ -23,6 +23,8 @@ def _check_test_xrdcp_recursive_upload_lands_bytes_2(rel, data, candidates):
 
 _reexport(globals(), "_test_conf_client2_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_client2_b")
+
 def test_mv_rename_on_stock(srv):
     a, b = "/c2_mv_a.txt", "/c2_mv_b.txt"
     with open(_ondisk(srv, "off", a), "w") as f:

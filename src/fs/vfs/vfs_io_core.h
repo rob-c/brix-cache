@@ -125,6 +125,34 @@ brix_vfs_job_read_init(brix_vfs_job_t *job, ngx_fd_t fd, off_t offset,
     job->want_pgcrc = want_pgcrc ? 1 : 0;
 }
 
+/* Report (and don't crash on) a data op whose storage object carries a driver
+ * pointer that is not a real vtable — a use-after-free of the job/handle. Defined
+ * in vfs_io_core.c so this header stays free of <stdio.h>/<execinfo.h>. */
+void brix_vfs_report_dangling_obj(const void *obj, const void *driver,
+    ngx_fd_t fd);
+
+/* True iff `d` could be a real static driver vtable: non-NULL, pointer-aligned,
+ * and canonical. A freed object's `driver` field holds glibc safe-linking-mangled
+ * garbage (typically non-canonical, bits >47 set) — reading the VALUE is safe
+ * (freed heap stays mapped) but CALLING through it GP-faults and kills the
+ * worker, so we screen the value before ever dispatching. */
+static ngx_inline int
+brix_sd_driver_plausible(const brix_sd_driver_t *d)
+{
+    uintptr_t v = (uintptr_t) d;
+
+    if (v < 0x1000) {
+        return 0;                         /* NULL / near-NULL */
+    }
+    if (v & (uintptr_t) (sizeof(void *) - 1)) {
+        return 0;                         /* misaligned — never a real vtable */
+    }
+    if (v >> 47) {
+        return 0;                         /* non-canonical (mangled freelist ptr) */
+    }
+    return 1;
+}
+
 /* The effective storage object for a data op: the handle's bound driver object
  * when set (a non-POSIX backend), else a POSIX wrap of the bare fd (the unchanged
  * pre-Layer-3 path). `src` is the slot/job/segment obj (may be NULL/zeroed). */
@@ -133,7 +161,23 @@ brix_vfs_effective_obj(brix_sd_obj_t *src, ngx_fd_t fd,
     brix_sd_obj_t *scratch)
 {
     if (src != NULL && src->driver != NULL) {
-        return src;
+        if (brix_sd_driver_plausible(src->driver)) {
+            return src;
+        }
+        /* src->driver is not a valid vtable: the object (or the job/handle that
+         * holds it) has been freed and this is a use-after-free. Dispatching
+         * through the garbage vtable GP-faults and takes down the whole worker
+         * (the "elusive fleet killer"). Log it — with a backtrace of the write's
+         * protocol origin — then return a scratch wrapped around an INVALID fd.
+         *
+         * We must NOT fall back to `fd`: on the dangling path that descriptor
+         * came from the same freed struct and may now name an unrelated, reused
+         * open file, so writing there would corrupt a different file. An invalid
+         * fd makes every I/O verb fail EBADF cleanly — and the connection this
+         * op belonged to is already being torn down, so the result is discarded. */
+        brix_vfs_report_dangling_obj(src, src->driver, fd);
+        brix_sd_posix_wrap(scratch, NGX_INVALID_FILE);
+        return scratch;
     }
     brix_sd_posix_wrap(scratch, fd);
     return scratch;

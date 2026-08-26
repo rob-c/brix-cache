@@ -631,51 +631,68 @@ def run_multistep_lifecycle_invariants(key, data, port, s3port):
 # ===== Round-8 novel-surface batches (workflow-authored) =====
 
 
+_MLI_S4_P1 = b"MSLI-S4-PART-ONE-".ljust(64, b"1") * 80    # ~5 KiB, distinct
+_MLI_S4_P2 = b"MSLI-S4-PART-TWO-".ljust(64, b"2") * 80    # ~5 KiB, distinct
+
+
+def _mli_s4_upload_parts(s4_key, up, s3port, TAG):
+    """Upload the two distinct parts; return the [(n, etag)] manifest (asserting
+    every part landed 200/201)."""
+    pe = []
+    pok = True
+    for n, pb in ((1, _MLI_S4_P1), (2, _MLI_S4_P2)):
+        ps, pbody = s3("PUT", s4_key, s3port,
+                       params={"uploadId": up, "partNumber": str(n)}, data=pb)
+        et = re.search(rb'ETag>\\?"?([^"<\\]+)', pbody or b"")
+        pe.append((n, et.group(1).decode() if et else "etag"))
+        pok = pok and ps in (200, 201)
+    ok(pok, f"{TAG}/s4: alice uploaded 2 distinct multipart parts")
+    return pe
+
+
+def _mli_s4_complete_xml(pe):
+    """CompleteMultipartUpload body from the [(n, etag)] part manifest."""
+    cx = b"<CompleteMultipartUpload>"
+    for n, et in pe:
+        cx += (f"<Part><PartNumber>{n}</PartNumber>"
+               f"<ETag>{et}</ETag></Part>").encode()
+    return cx + b"</CompleteMultipartUpload>"
+
+
+def _mli_s4_assert_assembled(s4_key, cs, s3port, TAG, st_of, body_of, has):
+    """The ordered-assembly + cross-tenant-denial invariants on the completed
+    object."""
+    fst = st_of(s4_key)
+    disk = body_of(s4_key)
+    ok(cs in (200, 201) and fst is not None
+       and fst.st_uid == UID_ALICE and fst.st_uid not in (UID_SVC, 0)
+       and disk == (_MLI_S4_P1 + _MLI_S4_P2),
+       f"{TAG}/s4 INVARIANT: completed object is alice-owned and bytes "
+       f"== ordered part1||part2 "
+       f"({len(disk)}=={len(_MLI_S4_P1)+len(_MLI_S4_P2)}? complete={cs})")
+    bs, bb = s3("GET", s4_key, s3port, access_key="bob")
+    ok(bs in (401, 403, 404) and not has(bb, b"MSLI-S4-PART"),
+       f"{TAG}/s4 INVARIANT: bob cross-tenant GET of alice's assembled "
+       f"object is denied with no part-marker leak (HTTP {bs})")
+
+
 def _mli_s4_leg(s3port, TAG, st_of, body_of, has):
     """SEQ4 S3-multipart lifecycle leg, from run_multistep_lifecycle_invariants p4."""
     # confirm S3 plane is answering before driving the lifecycle.
     s4live, _ = s3("GET", "", s3port, params={"list-type": "2"})
     if s4live == -1:
         ok(True, f"{TAG}/s4: S3 not answering — assembly invariant skipped")
-    else:
-        S4_KEY = f"alice/{TAG}_s4_mpu.bin"
-        P1 = b"MSLI-S4-PART-ONE-".ljust(64, b"1") * 80    # ~5 KiB, distinct
-        P2 = b"MSLI-S4-PART-TWO-".ljust(64, b"2") * 80    # ~5 KiB, distinct
-        s3("DELETE", S4_KEY, s3port)
-        ini, ib = s3("POST", S4_KEY, s3port, params={"uploads": ""})
-        m = re.search(rb"<UploadId>([^<]+)</UploadId>", ib or b"")
-        if ini in (200, 201) and m:
-            up = m.group(1).decode()
-            pe = []
-            pok = True
-            for n, pb in ((1, P1), (2, P2)):
-                ps, pbody = s3("PUT", S4_KEY, s3port,
-                               params={"uploadId": up, "partNumber": str(n)},
-                               data=pb)
-                et = re.search(rb'ETag>\\?"?([^"<\\]+)', pbody or b"")
-                pe.append((n, et.group(1).decode() if et else "etag"))
-                pok = pok and ps in (200, 201)
-            ok(pok, f"{TAG}/s4: alice uploaded 2 distinct multipart parts")
-            cx = b"<CompleteMultipartUpload>"
-            for n, et in pe:
-                cx += (f"<Part><PartNumber>{n}</PartNumber>"
-                       f"<ETag>{et}</ETag></Part>").encode()
-            cx += b"</CompleteMultipartUpload>"
-            cs, _ = s3("POST", S4_KEY, s3port, params={"uploadId": up}, data=cx)
-            fst = st_of(S4_KEY)
-            disk = body_of(S4_KEY)
-            # ordered-assembly invariant: exact P1||P2, alice-owned.
-            ok(cs in (200, 201) and fst is not None
-               and fst.st_uid == UID_ALICE and fst.st_uid not in (UID_SVC, 0)
-               and disk == (P1 + P2),
-               f"{TAG}/s4 INVARIANT: completed object is alice-owned and bytes "
-               f"== ordered part1||part2 ({len(disk)}=={len(P1)+len(P2)}? "
-               f"complete={cs})")
-            # cross-tenant denial of the assembled object (bob as accessor).
-            bs, bb = s3("GET", S4_KEY, s3port, access_key="bob")
-            ok(bs in (401, 403, 404) and not has(bb, b"MSLI-S4-PART"),
-               f"{TAG}/s4 INVARIANT: bob cross-tenant GET of alice's assembled "
-               f"object is denied with no part-marker leak (HTTP {bs})")
-            s3("DELETE", S4_KEY, s3port)
-        else:
-            ok(False, f"{TAG}/s4: multipart initiate failed (HTTP {ini})")
+        return
+    s4_key = f"alice/{TAG}_s4_mpu.bin"
+    s3("DELETE", s4_key, s3port)
+    ini, ib = s3("POST", s4_key, s3port, params={"uploads": ""})
+    m = re.search(rb"<UploadId>([^<]+)</UploadId>", ib or b"")
+    if not (ini in (200, 201) and m):
+        ok(False, f"{TAG}/s4: multipart initiate failed (HTTP {ini})")
+        return
+    up = m.group(1).decode()
+    pe = _mli_s4_upload_parts(s4_key, up, s3port, TAG)
+    cs, _ = s3("POST", s4_key, s3port, params={"uploadId": up},
+               data=_mli_s4_complete_xml(pe))
+    _mli_s4_assert_assembled(s4_key, cs, s3port, TAG, st_of, body_of, has)
+    s3("DELETE", s4_key, s3port)

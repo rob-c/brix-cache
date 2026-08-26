@@ -11,7 +11,7 @@ class TestPrepareValid:
 
     def test_prepare_single_existing_file(self, anon_port):
         """kXR_prepare with one existing file must return kXR_ok."""
-        sock, streamid = _establish_session(ANON_PORT)
+        sock, streamid = _establish_session(anon_port)
 
         # Prepare with one existing file (the data directory has test files)
         status, body = _send_prepare(sock, streamid, 8, 0, b"/auth_cache_probe.txt")
@@ -22,7 +22,7 @@ class TestPrepareValid:
 
     def test_prepare_multiple_existing_files(self, anon_port):
         """kXR_prepare with multiple existing files must return kXR_ok."""
-        sock, streamid = _establish_session(ANON_PORT)
+        sock, streamid = _establish_session(anon_port)
 
         # Prepare with multiple files (newline-separated)
         payload = b"/auth_cache_probe.txt\n/prepare_large_probe.bin\n"
@@ -41,7 +41,7 @@ class TestQPrepStatus:
     """Verify kXR_QPrep returns per-path disk availability status."""
 
     def test_qprep_no_prior_prepare_returns_empty_ok(self, anon_port):
-        sock, streamid = _establish_session(ANON_PORT)
+        sock, streamid = _establish_session(anon_port)
 
         status, body = _send_query(sock, streamid, kXR_QPrep, b"")
         assert status == kXR_ok
@@ -50,7 +50,7 @@ class TestQPrepStatus:
         sock.close()
 
     def test_qprep_after_stage_reports_available(self, anon_port):
-        sock, streamid = _establish_session(ANON_PORT)
+        sock, streamid = _establish_session(anon_port)
 
         status, body = _send_prepare(sock, streamid, 8, 0,
                                      b"/auth_cache_probe.txt")
@@ -63,7 +63,7 @@ class TestQPrepStatus:
         sock.close()
 
     def test_qprep_after_stage_noerrs_reports_missing(self, anon_port):
-        sock, streamid = _establish_session(ANON_PORT)
+        sock, streamid = _establish_session(anon_port)
 
         status, body = _send_prepare(sock, streamid, 8 | 4, 0,
                                      b"/qprep_missing.bin")
@@ -76,7 +76,7 @@ class TestQPrepStatus:
         sock.close()
 
     def test_qprep_inline_paths_do_not_need_stored_prepare(self, anon_port):
-        sock, streamid = _establish_session(ANON_PORT)
+        sock, streamid = _establish_session(anon_port)
 
         status, body = _send_query(sock, streamid, kXR_QPrep,
                                    b"0\n/auth_cache_probe.txt\n/qprep_missing.bin\n")
@@ -88,7 +88,7 @@ class TestQPrepStatus:
         sock.close()
 
     def test_qprep_traversal_path_is_reported_missing(self, anon_port):
-        sock, streamid = _establish_session(ANON_PORT)
+        sock, streamid = _establish_session(anon_port)
 
         status, body = _send_query(sock, streamid, kXR_QPrep,
                                    b"0\n/../etc/passwd\n")
@@ -107,7 +107,7 @@ class TestPrepareNotFound:
 
     def test_prepare_nonexistent_file(self, anon_port):
         """kXR_prepare with a path that does not exist must return kXR_NotFound."""
-        sock, streamid = _establish_session(ANON_PORT)
+        sock, streamid = _establish_session(anon_port)
 
         status, body = _send_prepare(sock, streamid, 8, 0, b"/does-not-exist-at-all.bin")
         assert status == kXR_error and b"not found" in body.lower(), \
@@ -127,7 +127,7 @@ class TestPrepareNoErrs:
         """kXR_prepare with noerrs flag and mixed existing/nonexistent files
         must return kXR_ok (not error) with missing paths reported.
         """
-        sock, streamid = _establish_session(ANON_PORT)
+        sock, streamid = _establish_session(anon_port)
 
         # noerrs flag (4) in options -- mixed file list
         payload = b"/auth_cache_probe.txt\n/does-not-exist-at-all.bin\n"
@@ -149,7 +149,7 @@ class TestPrepareDirectory:
         """kXR_prepare with a path pointing to a directory must return
         kXR_isDirectory.
         """
-        sock, streamid = _establish_session(ANON_PORT)
+        sock, streamid = _establish_session(anon_port)
 
         # The root "/" is a directory
         status, body = _send_prepare(sock, streamid, 8, 0, b"/")
@@ -168,7 +168,7 @@ class TestPrepareCancel:
 
     def test_prepare_cancel(self, anon_port):
         """kXR_prepare with kXR_cancel option must return kXR_ok."""
-        sock, streamid = _establish_session(ANON_PORT)
+        sock, streamid = _establish_session(anon_port)
 
         # cancel option (1) in options field
         status, body = _send_prepare(sock, streamid, 1, 0, b"")
@@ -187,7 +187,7 @@ class TestPrepareEvict:
 
     def test_prepare_evict(self, anon_port):
         """kXR_prepare with kXR_evict in optionX must return kXR_ok."""
-        sock, streamid = _establish_session(ANON_PORT)
+        sock, streamid = _establish_session(anon_port)
 
         # evict in optionX field (0x01)
         status, body = _send_prepare(sock, streamid, 8, 0x01, b"")
@@ -206,7 +206,7 @@ class TestPrepareEmptyPayload:
 
     def test_prepare_no_payload(self, anon_port):
         """kXR_prepare without any payload (dlen=0) must return kXR_ArgMissing."""
-        sock, streamid = _establish_session(ANON_PORT)
+        sock, streamid = _establish_session(anon_port)
 
         status, body = _send_prepare(sock, streamid, 8, 0, b"")
         assert status == kXR_error and b"missing" in body.lower(), \
@@ -228,7 +228,7 @@ class TestPreparePathSecurity:
         The module checks for '.' and '..' path segments in prepare payloads
         to prevent path traversal attacks.
         """
-        sock, streamid = _establish_session(ANON_PORT)
+        sock, streamid = _establish_session(anon_port)
 
         status, body = _send_prepare(sock, streamid, 8, 0, b"/../etc/passwd")
         assert status == kXR_error and (b"invalid" in body.lower() or b"dotdot" in body.lower()), \

@@ -327,8 +327,19 @@ def _pgread_status_frame(streamid, file_off, page_data, corrupt_page=False):
     return hdr + status_body + pgdata
 
 
+_kXR_pgread_op = 3030
+_kXR_close_op = 3003
+
+
 def _serve_one_pgread(conn, payload, corrupt_page):
-    """stat → open → pgread(one frame) → close, for a single small file."""
+    """stat → open → pgread(s) → close, for a single small file.
+
+    Drives the request loop by opcode rather than a fixed script: a CLEAN page
+    is served once and the client closes; a CORRUPT page makes the client
+    re-request it (kXR_pgRetry, XRDC_PGREAD_RETRIES times) before it gives up
+    with the integrity verdict, so the stub must answer every pgread — the
+    initial one plus each retry — until the client finally sends kXR_close.
+    """
     _bootstrap_login_ok(conn)
     # stat
     sid = _read_request(conn)
@@ -339,16 +350,22 @@ def _serve_one_pgread(conn, payload, corrupt_page):
     sid = _read_request(conn)
     conn.sendall(_hdr(sid, kXR_ok, 4))
     conn.sendall(b"\x00\x00\x00\x00")
-    # pgread → one Final kXR_status frame
-    hdr = _recv_exact(conn, 24)
-    sid = hdr[:2]
-    dlen = _struct.unpack(">I", hdr[20:24])[0]
-    if dlen:
-        _recv_exact(conn, dlen)
-    conn.sendall(_pgread_status_frame(sid, 0, payload, corrupt_page))
-    # close
-    sid = _read_request(conn)
-    conn.sendall(_hdr(sid, kXR_ok, 0))
+    # pgread(s) until the client closes the handle
+    while True:
+        hdr = _recv_exact(conn, 24)
+        sid = hdr[:2]
+        reqid = _struct.unpack(">H", hdr[2:4])[0]
+        dlen = _struct.unpack(">I", hdr[20:24])[0]
+        if dlen:
+            _recv_exact(conn, dlen)
+        if reqid == _kXR_pgread_op:
+            conn.sendall(_pgread_status_frame(sid, 0, payload, corrupt_page))
+            continue
+        if reqid == _kXR_close_op:
+            conn.sendall(_hdr(sid, kXR_ok, 0))
+            return
+        # Any other request: acknowledge and keep the loop going.
+        conn.sendall(_hdr(sid, kXR_ok, 0))
 
 
 # --------------------------------------------------------------------------

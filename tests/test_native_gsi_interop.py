@@ -180,7 +180,7 @@ def gsi_server(tmp_path_factory):
         "all.export /gsidata\n"
         f"oss.localroot {base}\n"
         "xrootd.seclib libXrdSec.so\n"
-        f"sec.protocol /usr/lib64 gsi -certdir:{certs} "
+        f"sec.protocol gsi -certdir:{certs} "
         f"-cert:{srv / 'hostcert.pem'} -key:{srv / 'hostkey.pem'} "
         "-crl:0 -gmapopt:10 -dlgpxy:0\n"
         "sec.protbind * only gsi\n")

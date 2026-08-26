@@ -224,9 +224,9 @@ def _http_location(cell, origin_port, data_root):
                      f"brix_s3_region     {S3_REGION};"]
     elif cell.auth == "token":
         body += ["brix_webdav_auth required;",
-                 f"brix_webdav_token_jwks     {TOKEN_DIR}/jwks.json;",
-                 'brix_webdav_token_issuer   "https://test.example.com";',
-                 'brix_webdav_token_audience "nginx-xrootd";']
+                 f"brix_token_jwks     {TOKEN_DIR}/jwks.json;",
+                 'brix_token_issuer   "https://test.example.com";',
+                 'brix_token_audience "nginx-xrootd";']
     elif cell.auth == "gsi":
         body += ["brix_webdav_auth required;", f"brix_trusted_ca_dir {CA_DIR};"]
     else:

@@ -42,7 +42,7 @@ pytestmark = [
 
 
 def _session():
-    sock = _handshake("localhost", NGINX_ANON_PORT)
+    sock = _handshake("localhost", NGINX_ANON_PORT)  # net-literal-allow: loopback literal is the subject under test
     _login(sock)
     return sock
 
@@ -64,6 +64,11 @@ def _section_ids(doc):
     return [s.get("id") for s in ET.fromstring(doc).findall("stats")]
 
 
+def _missing(wanted, present):
+    """The wanted keys absent from `present` (a container/attrib mapping)."""
+    return [w for w in wanted if w not in present]
+
+
 class TestQStatsXml:
 
     def test_full_doc_stock_shape(self):
@@ -72,15 +77,16 @@ class TestQStatsXml:
         doc = _stats(b"a")
         root = ET.fromstring(doc)
         assert root.tag == "statistics"
-        for attr in ("tod", "ver", "src", "tos", "pgm", "ins", "pid", "site"):
-            assert attr in root.attrib, f"missing root attr {attr}: {doc[:120]}"
+        missing = _missing(("tod", "ver", "src", "tos", "pgm", "ins", "pid", "site"),
+                           root.attrib)
+        assert not missing, f"missing root attrs {missing}: {doc[:120]}"
         assert "id" not in root.attrib, "spurious id= root attribute is back"
         assert int(root.get("tod")) >= int(root.get("tos"))
         assert int(root.get("pid")) > 0
         assert ":" in root.get("src")
         ids = _section_ids(doc)
-        for want in ("info", "link", "xrootd", "sgen"):
-            assert want in ids, f"section {want} missing: {ids}"
+        missing_secs = _missing(("info", "link", "xrootd", "sgen"), ids)
+        assert not missing_secs, f"sections {missing_secs} missing: {ids}"
 
     def test_read_bumps_ops_counter(self):
         """(success, live counters) a served kXR_read increments ops/rd in the

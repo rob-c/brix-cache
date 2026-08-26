@@ -172,7 +172,10 @@ def build_in_container(base: Path) -> tuple[bool, str]:
         work,
         "bash",
         "-lc",
-        "cd /opt/nginx-src && ./configure --with-stream --with-stream_ssl_module --with-http_ssl_module --with-http_dav_module --with-threads --add-module=/work/repo && make -j$(nproc) && ls -l objs/nginx",
+        "cd /opt/nginx-src && make clean >/dev/null 2>&1 || true; "
+        "./configure --with-stream --with-stream_ssl_module --with-http_ssl_module "
+        "--with-http_dav_module --with-threads --add-module=/work/repo && "
+        "make -j$(nproc) && ls -l objs/nginx",
     ])
     return result(built.returncode == 0, f"build_in_container exited {built.returncode}: {_tail(built)}")
 

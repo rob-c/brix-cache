@@ -442,6 +442,19 @@ def _login_sessid(sock):
     return body[:16]
 
 
+def _poll_retired_pathid(sock, fh, pathid, deadline_s=5.0):
+    """Last pgread verdict for a retired pathid, polling briefly until the
+    server has processed the secondary's disconnect (determinism)."""
+    deadline = time.monotonic() + deadline_s
+    verdict = None
+    while time.monotonic() < deadline:
+        verdict = _pgread_payload(sock, fh, 0, 4096, bytes([pathid, 0]))
+        if verdict == ("error", kXR_ArgInvalid_code):
+            break
+        time.sleep(0.1)
+    return verdict
+
+
 def test_pgread_args_bound_pathid_lifecycle(srv):
     """(security-neg) a pathid is valid exactly while its bound secondary
     lives: accepted after kXR_bind, refused again after the secondary
@@ -475,15 +488,8 @@ def test_pgread_args_bound_pathid_lifecycle(srv):
         finally:
             sec.close()
 
-        # The secondary is gone: its pathid must be refused once the server
-        # has processed the disconnect (poll briefly for determinism).
-        deadline = time.monotonic() + 5.0
-        verdict = None
-        while time.monotonic() < deadline:
-            verdict = _pgread_payload(sock, fh, 0, 4096, bytes([pathid, 0]))
-            if verdict == ("error", kXR_ArgInvalid_code):
-                break
-            time.sleep(0.1)
+        # The secondary is gone: its pathid must be refused.
+        verdict = _poll_retired_pathid(sock, fh, pathid)
         assert verdict == ("error", kXR_ArgInvalid_code), (
             f"retired pathid {pathid} still accepted: {verdict}")
     finally:

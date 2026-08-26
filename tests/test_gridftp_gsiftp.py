@@ -47,6 +47,7 @@ import subprocess
 
 import pytest
 
+
 from settings import BIND_HOST, NGINX_BIN, PKI_DIR, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
@@ -55,7 +56,8 @@ from gridftp_client_env import gsi_client_env
 # This suite stands up its own throwaway gsiftp gateway(s) through the phase-81
 # registry (LifecycleHarness) rather than launching nginx directly; the marker
 # keeps it out of the registry-lint direct-launch/inline-config scope.
-pytestmark = [pytest.mark.slow, pytest.mark.serial,
+pytestmark = [pytest.mark.xdist_group("test_gridftp_gsiftp"),
+              pytest.mark.slow, pytest.mark.serial,
               pytest.mark.timeout(300), pytest.mark.uses_lifecycle_harness]
 
 GUC = shutil.which("globus-url-copy")

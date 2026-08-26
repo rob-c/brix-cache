@@ -376,7 +376,20 @@ tape_dispatch_post(ngx_http_request_t *r)
 static void
 tape_post_body_handler(ngx_http_request_t *r)
 {
-    ngx_int_t rc = tape_dispatch_post(r);
+    ngx_int_t rc;
+
+    /* The body-read completion can be entered on a connection the client has
+     * already reset (it closed mid-body). Running the stage dispatch — path
+     * resolution, durable-registry mutation, strlen over per-request buffers —
+     * over a request whose peer is gone is work on teardown-adjacent state; do
+     * not touch it. Release the body-read reference nginx is holding (it bumped
+     * r->main->count for this handler) and let the request finalize. */
+    if (r->connection->error) {
+        ngx_http_finalize_request(r, NGX_HTTP_CLIENT_CLOSED_REQUEST);
+        return;
+    }
+
+    rc = tape_dispatch_post(r);
     webdav_metrics_finalize_request(r, rc);
 }
 

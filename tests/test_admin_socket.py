@@ -85,18 +85,28 @@ def _launch(tmp_path, workers=1):
     assert t.returncode == 0, f"config rejected: {t.stderr}"
     started = _nginx("-p", str(tmp_path), "-c", str(conf))
     assert started.returncode == 0, f"nginx failed to start: {started.stderr}"
-    # Worker n serves "<path>.<n>"; wait for every expected socket + the port.
-    want = [admin_path] + [f"{admin_path}.{n}" for n in range(1, workers)]
-    deadline = time.time() + 5
-    while time.time() < deadline:
-        if all(os.path.exists(p) for p in want):
-            try:
-                socket.create_connection((BIND_HOST, port), timeout=0.5).close()
-                break
-            except OSError:
-                pass
-        time.sleep(0.1)
+    _await_admin_ready(port, admin_path, workers)
     return port, admin_path, data, conf
+
+
+def _port_accepts(port):
+    """True when a TCP connect to `port` on BIND_HOST succeeds right now."""
+    try:
+        socket.create_connection((BIND_HOST, port), timeout=0.5).close()
+        return True
+    except OSError:
+        return False
+
+
+def _await_admin_ready(port, admin_path, workers, deadline_s=5):
+    """Wait until every worker's admin socket ("<path>" and "<path>.<n>") exists
+    and the data port accepts connections."""
+    want = [admin_path] + [f"{admin_path}.{n}" for n in range(1, workers)]
+    deadline = time.time() + deadline_s
+    while time.time() < deadline:
+        if all(os.path.exists(p) for p in want) and _port_accepts(port):
+            return
+        time.sleep(0.1)
 
 
 def _stop(tmp_path, conf):
@@ -130,6 +140,39 @@ def _admin(admin_path, command, timeout=5):
         s.close()
 
 
+def _admin_probe_list(admin_path, hexid):
+    """`list` shows the session's sessid with its peer address."""
+    reply = _admin(admin_path, "list")
+    assert reply.startswith("ok "), reply
+    line = next((l for l in reply.splitlines() if l.startswith(hexid)), None)
+    assert line is not None, f"sessid {hexid} not in list reply:\n{reply}"
+    assert "127.0.0.1" in line, f"peer address missing from list line: {line!r}"  # net-literal-allow: loopback literal is the subject under test
+
+
+def _admin_probe_msg(admin_path, hexid, primary):
+    """`msg` reaches the client as an unsolicited kXR_attn carrying the text."""
+    reply = _admin(admin_path, f"msg {hexid} hello-operator")
+    assert reply.strip() == "ok", reply
+    primary.settimeout(5)
+    hdr = H._recv_exact(primary, 8)
+    assert hdr is not None, "no attn frame arrived"
+    status = struct.unpack(">H", hdr[2:4])[0]
+    dlen = struct.unpack(">I", hdr[4:8])[0]
+    assert status == kXR_attn, f"expected kXR_attn(4001), got {status}"
+    body = H._recv_exact(primary, dlen)
+    assert body is not None and b"hello-operator" in body, \
+        f"attn payload missing message: {body!r}"
+
+
+def _admin_probe_disc(admin_path, hexid, primary):
+    """`disc` closes the session's TCP connection server-side."""
+    reply = _admin(admin_path, f"disc {hexid}")
+    assert reply.strip() == "ok", reply
+    primary.settimeout(5)
+    got = primary.recv(1)
+    assert got == b"", f"connection still alive after disc: {got!r}"
+
+
 def test_list_msg_disc_roundtrip(tmp_path):
     """(success) list shows the session; msg reaches the client as kXR_attn;
     disc closes the session's connection."""
@@ -140,34 +183,9 @@ def test_list_msg_disc_roundtrip(tmp_path):
     try:
         primary, sessid, stream = H._establish_primary(port)
         hexid = sessid.hex()
-
-        # list: the session's sessid appears, with its peer address (the
-        # operator's handle for choosing a session).
-        reply = _admin(admin_path, "list")
-        assert reply.startswith("ok "), reply
-        line = next((l for l in reply.splitlines() if l.startswith(hexid)), None)
-        assert line is not None, f"sessid {hexid} not in list reply:\n{reply}"
-        assert "127.0.0.1" in line, f"peer address missing from list line: {line!r}"
-
-        # msg: the client receives an unsolicited kXR_attn carrying the text.
-        reply = _admin(admin_path, f"msg {hexid} hello-operator")
-        assert reply.strip() == "ok", reply
-        primary.settimeout(5)
-        hdr = H._recv_exact(primary, 8)
-        assert hdr is not None, "no attn frame arrived"
-        status = struct.unpack(">H", hdr[2:4])[0]
-        dlen = struct.unpack(">I", hdr[4:8])[0]
-        assert status == kXR_attn, f"expected kXR_attn(4001), got {status}"
-        body = H._recv_exact(primary, dlen)
-        assert body is not None and b"hello-operator" in body, \
-            f"attn payload missing message: {body!r}"
-
-        # disc: the session's TCP connection is closed by the server.
-        reply = _admin(admin_path, f"disc {hexid}")
-        assert reply.strip() == "ok", reply
-        primary.settimeout(5)
-        got = primary.recv(1)
-        assert got == b"", f"connection still alive after disc: {got!r}"
+        _admin_probe_list(admin_path, hexid)
+        _admin_probe_msg(admin_path, hexid, primary)
+        _admin_probe_disc(admin_path, hexid, primary)
         primary = None
     finally:
         if primary is not None:
@@ -320,24 +338,8 @@ def test_multi_worker_socket_sweep(tmp_path):
 
         primary, sessid, stream = H._establish_primary(port)
         hexid = sessid.hex()
-
-        # Exactly one worker owns the session.
-        owners = [p for p in socks if hexid in _admin(p, "list")]
-        assert len(owners) == 1, \
-            f"session in {len(owners)} workers' lists (want exactly 1)"
-        owner = owners[0]
-        others = [p for p in socks if p != owner]
-
-        # The non-owner must refuse the targeted verb (worker isolation)...
-        reply = _admin(others[0], f"disc {hexid}")
-        assert reply.startswith("err"), \
-            f"non-owner disc did not err: {reply!r}"
-        primary.settimeout(0.5)
-        try:
-            got = primary.recv(1)
-            assert False, f"non-owner disc affected the session: {got!r}"
-        except socket.timeout:
-            pass
+        owner, others = _sole_owner(socks, hexid)
+        _assert_nonowner_disc_isolated(others[0], hexid, primary)
 
         # ...and the owner's disc reaches it.
         assert _admin(owner, f"disc {hexid}").strip() == "ok"
@@ -348,3 +350,26 @@ def test_multi_worker_socket_sweep(tmp_path):
         if primary is not None:
             primary.close()
         _stop(tmp_path, conf)
+
+
+def _sole_owner(socks, hexid):
+    """The one admin socket whose `list` shows the session; returns
+    (owner, [non-owners]) and asserts exactly one owner."""
+    owners = [p for p in socks if hexid in _admin(p, "list")]
+    assert len(owners) == 1, \
+        f"session in {len(owners)} workers' lists (want exactly 1)"
+    owner = owners[0]
+    return owner, [p for p in socks if p != owner]
+
+
+def _assert_nonowner_disc_isolated(nonowner, hexid, primary):
+    """A non-owner worker refuses the targeted disc and cannot affect the
+    session (worker isolation)."""
+    reply = _admin(nonowner, f"disc {hexid}")
+    assert reply.startswith("err"), f"non-owner disc did not err: {reply!r}"
+    primary.settimeout(0.5)
+    try:
+        got = primary.recv(1)
+        assert False, f"non-owner disc affected the session: {got!r}"
+    except socket.timeout:
+        pass

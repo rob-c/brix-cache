@@ -34,26 +34,8 @@
 static void
 q_blob_id(const char *root, const char *path, char *out, size_t cap)
 {
-    char          db[PATH_MAX];
-    sqlite3      *h = NULL;
-    sqlite3_stmt *q = NULL;
-
-    out[0] = '\0';
-    snprintf(db, sizeof(db), "%s/catalog.db", root);
-    CHECK(sqlite3_open(db, &h) == SQLITE_OK, "blobid db open");
-    if (sqlite3_prepare_v2(h,
-            "SELECT blob_id FROM objects WHERE path = ?1;", -1, &q, NULL)
-        == SQLITE_OK)
-    {
-        sqlite3_bind_text(q, 1, path, -1, SQLITE_STATIC);
-        if (sqlite3_step(q) == SQLITE_ROW) {
-            const unsigned char *b = sqlite3_column_text(q, 0);
-
-            snprintf(out, cap, "%s", b ? (const char *) b : "");
-        }
-    }
-    sqlite3_finalize(q);
-    sqlite3_close(h);
+    pbut_query_text(root, "SELECT blob_id FROM objects WHERE path = ?1;",
+                    path, out, cap);
 }
 
 /* q_refcount — a blob's tracked refcount, or -1 if there is no row (which the
@@ -61,25 +43,8 @@ q_blob_id(const char *root, const char *path, char *out, size_t cap)
 static int
 q_refcount(const char *root, const char *blob_id)
 {
-    char          db[PATH_MAX];
-    sqlite3      *h = NULL;
-    sqlite3_stmt *q = NULL;
-    int           n = -1;
-
-    snprintf(db, sizeof(db), "%s/catalog.db", root);
-    CHECK(sqlite3_open(db, &h) == SQLITE_OK, "refcount db open");
-    if (sqlite3_prepare_v2(h,
-            "SELECT refcount FROM blobs WHERE blob_id = ?1;", -1, &q, NULL)
-        == SQLITE_OK)
-    {
-        sqlite3_bind_text(q, 1, blob_id, -1, SQLITE_STATIC);
-        if (sqlite3_step(q) == SQLITE_ROW) {
-            n = sqlite3_column_int(q, 0);
-        }
-    }
-    sqlite3_finalize(q);
-    sqlite3_close(h);
-    return n;
+    return pbut_query_int(root,
+        "SELECT refcount FROM blobs WHERE blob_id = ?1;", blob_id);
 }
 
 /* q_count — evaluate a literal single-value COUNT query against the catalog.
@@ -87,21 +52,7 @@ q_refcount(const char *root, const char *blob_id)
 static int
 q_count(const char *root, const char *sql)
 {
-    char          db[PATH_MAX];
-    sqlite3      *h = NULL;
-    sqlite3_stmt *q = NULL;
-    int           n = -1;
-
-    snprintf(db, sizeof(db), "%s/catalog.db", root);
-    CHECK(sqlite3_open(db, &h) == SQLITE_OK, "count db open");
-    if (sqlite3_prepare_v2(h, sql, -1, &q, NULL) == SQLITE_OK
-        && sqlite3_step(q) == SQLITE_ROW)
-    {
-        n = sqlite3_column_int(q, 0);
-    }
-    sqlite3_finalize(q);
-    sqlite3_close(h);
-    return n;
+    return pbut_query_int(root, sql, NULL);
 }
 
 /* staged_put — publish `data` at `path` through the atomic staged path (the same

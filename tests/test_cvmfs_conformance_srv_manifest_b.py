@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_srv_manifest_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_srv_manifest")
+
 def test_ims_malformed_date_ignored_200(srv_long):
     s, _, body = _get(_meta_url(srv_long, ".cvmfspublished"),
                       {"If-Modified-Since": "not-a-http-date"})

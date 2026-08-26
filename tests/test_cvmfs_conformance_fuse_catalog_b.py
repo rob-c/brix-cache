@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_fuse_catalog_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_fuse_catalog")
+
 def test_craft_control_plain_file_reads(craft_mnt):
     # proves the hand-built root catalog itself is well-formed
     assert (craft_mnt / "plain").read_bytes() == b"plain payload\n"

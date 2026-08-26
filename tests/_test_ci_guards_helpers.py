@@ -49,6 +49,7 @@ def _have(tool: str) -> bool:
 _FAST = [
     "check_config_coverage",
     "check_client_build_coverage",
+    "check_directive_registry",
     "check_make_recipes",
     "check_curl_enum_ifdef",
     "check_http_helper_reimpl",

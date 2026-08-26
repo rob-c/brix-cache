@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_fuse_cache_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_fuse_cache")
+
 def test_cold_read_fetches_object_exactly_once(tmp_path, make_origin):
     with mounted(tmp_path, make_origin) as m:
         key = content_key(b"Hello fuse-cache corpus!\n")

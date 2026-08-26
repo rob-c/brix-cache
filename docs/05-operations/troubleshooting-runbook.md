@@ -125,11 +125,18 @@ Known failure modes of the shared-fleet suite:
 connection-refused right after running tests.
 
 **Root cause (historical, fixed):** conftest teardown used to stop-all and
-`rmtree(/tmp/xrd-test)` on exit, orphaning root fds. Since 2026-06-30
-conftest auto-attaches to a running fleet (no wipe); `TEST_OWN_FLEET=1`
-forces a clean restart. If you see this again, check that the conftest
-auto-attach notice printed — its absence means the fleet was owned (and
-therefore stopped) by the test run.
+`rmtree(/tmp/xrd-test)` on exit, orphaning root fds.
+
+**Default — attach to a running fleet (nested-pytest safe).** Since 2026-06-30
+conftest attaches to a healthy fleet already up (no wipe); `TEST_OWN_FLEET=1`
+forces a clean restart. Attach is the default deliberately: a nested pytest (a
+test that spawns `python3 -m pytest`, e.g. an `operator_runtime` lane that sets
+`TEST_OWN_FLEET=1`) must never wipe the shared fleet its parent owns. A nested
+run that owns must use an ISOLATED `TEST_ROOT`/`TEST_PORT_START` — one that owns
+the shared `/tmp/xrd-test` wipes its PKI mid-run and cascades the whole suite
+into `ConnectionRefused`. If you see a fleet torn down after a run, check the
+attach notice printed — its absence means this run owned (and therefore stopped
+or wiped) the fleet.
 
 ## 7. `./configure` silently built a bare nginx
 

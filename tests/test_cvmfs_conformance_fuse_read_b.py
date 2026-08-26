@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_fuse_read_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_fuse_read")
+
 def test_corrupt_after_warm_read_serves_cached_plaintext(warmrepo):
     ref = blob("warm-then-corrupt", 20000)
     with mounted(warmrepo) as mnt:

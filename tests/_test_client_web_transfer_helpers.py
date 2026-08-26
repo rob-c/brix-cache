@@ -19,6 +19,7 @@ import socket
 import subprocess
 import threading
 import time
+from contextlib import contextmanager
 
 import pytest
 
@@ -138,13 +139,55 @@ def _mock_propfind_once(port, ready, body):
         srv.close()
 
 
+@contextmanager
+def _mock_http_status(status="404 Not Found"):
+    """Serve immediate empty HTTP errors until the client closes its relay."""
+    port = _free_port()
+    ready = threading.Event()
+    stop = threading.Event()
+
+    def serve():
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind((BIND_HOST, port))
+        srv.listen(4)
+        srv.settimeout(0.2)
+        ready.set()
+        try:
+            while not stop.is_set():
+                try:
+                    conn, _ = srv.accept()
+                except socket.timeout:
+                    continue
+                with conn:
+                    try:
+                        conn.recv(65536)
+                        response = (f"HTTP/1.1 {status}\r\nContent-Length: 0\r\n"
+                                    "Connection: close\r\n\r\n")
+                        conn.sendall(response.encode("ascii"))
+                    except OSError:
+                        pass
+        finally:
+            srv.close()
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    if not ready.wait(5):
+        raise RuntimeError("mock HTTP error server did not start")
+    try:
+        yield f"http://{HOST}:{port}"
+    finally:
+        stop.set()
+        thread.join(2)
+
+
 
 def _spool_env(tmp_path):
     """A subprocess env whose TMPDIR is an isolated dir, so we can assert the
     web->web relay leaves no staging temp behind."""
     spool = tmp_path / "spool"
     spool.mkdir(exist_ok=True)
-    return dict(os.environ, TMPDIR=str(spool)), spool
+    return dict(os.environ, TMPDIR=str(spool), XRDC_IO_TIMEOUT_MS="2000"), spool
 
 
 

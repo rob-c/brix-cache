@@ -420,37 +420,15 @@ class TestReadResponseOffload:
         offload and is served (windowed) on the primary, not the secondary."""
         big = b"x" * (2 * 1024 * 1024 + 4096)   # > BRIX_READ_WINDOW (2 MiB)
         _write_data_file("offload-big.bin", big)
-        primary, sessid, stream = _establish_primary(bind_nginx)
-        sec = None
-        try:
-            fh = _open_read(primary, stream, "/offload-big.bin")
-            sec, pathid = _bind_on(bind_nginx, sessid)
-
+        with _offload_rig(bind_nginx, "/offload-big.bin") as (primary, sec,
+                                                              pathid, fh):
             read_stream = b"\x00\x09"
             _send_read_only(primary, read_stream, fh, len(big), pathid)
 
             # Served on the PRIMARY as one or more windowed chunks.
-            primary.settimeout(5)
-            got = b""
-            while len(got) < len(big):
-                r_stream, r_status, data = _recv_response(primary)
-                assert r_stream == read_stream, f"streamid {r_stream!r}"
-                assert r_status in (kXR_ok, kXR_oksofar), f"status={r_status}"
-                got += data
-                if r_status == kXR_ok:
-                    break
+            got = _recv_windowed(primary, read_stream, len(big))
             assert got == big, f"windowed primary read {len(got)} != {len(big)}"
-
-            sec.settimeout(0.3)
-            try:
-                leftover = sec.recv(1)
-                assert leftover == b"", f"unexpected bytes on secondary: {leftover!r}"
-            except (BlockingIOError, socket.timeout):
-                pass
-        finally:
-            if sec is not None:
-                sec.close()
-            primary.close()
+            _assert_socket_quiet(sec, "secondary")
 
 
 class TestReadvResponseOffload:
@@ -481,68 +459,31 @@ class TestReadvResponseOffload:
         secondary, carrying the read's streamid; the stripped payload matches."""
         content = bytes((i * 7) & 0xFF for i in range(300))
         _write_data_file("rv-ok.bin", content)
-        primary, sessid, stream = _establish_primary(bind_nginx)
-        sec = None
-        try:
-            fh = _open_read(primary, stream, "/rv-ok.bin")
-            sec, pathid = _bind_on(bind_nginx, sessid)
-            assert pathid != 0
-
+        with _offload_rig(bind_nginx, "/rv-ok.bin") as (primary, sec,
+                                                        pathid, fh):
             segs = [_readv_seg(fh, 100, 0), _readv_seg(fh, 100, 100),
                     _readv_seg(fh, 100, 200)]
             read_stream = b"\x00\x23"
             _send_readv_only(primary, read_stream, segs, pathid=pathid)
 
-            sec.settimeout(5)
-            r_stream, r_status, body = _recv_response(sec)
-            assert r_stream == read_stream, \
-                f"offloaded readv streamid {r_stream!r} != {read_stream!r}"
-            assert r_status in (kXR_ok, kXR_oksofar), f"status={r_status}"
+            _, body = _assert_streamed_reply(sec, read_stream)
             assert _readv_payload_bytes(body, 3) == content, "readv payload mismatch"
-
-            primary.settimeout(0.3)
-            try:
-                leftover = primary.recv(1)
-                assert leftover == b"", f"unexpected bytes on primary: {leftover!r}"
-            except (BlockingIOError, socket.timeout):
-                pass
-        finally:
-            if sec is not None:
-                sec.close()
-            primary.close()
+            _assert_socket_quiet(primary, "primary")
 
     def test_readv_pathid_zero_stays_on_primary(self, bind_nginx):
         """(control) a pathid-0 readv serves on the primary even with a live
         secondary bound."""
         content = bytes((i * 3) & 0xFF for i in range(200))
         _write_data_file("rv-zero.bin", content)
-        primary, sessid, stream = _establish_primary(bind_nginx)
-        sec = None
-        try:
-            fh = _open_read(primary, stream, "/rv-zero.bin")
-            sec, pathid = _bind_on(bind_nginx, sessid)
-            assert pathid != 0
-
+        with _offload_rig(bind_nginx, "/rv-zero.bin") as (primary, sec,
+                                                          pathid, fh):
             segs = [_readv_seg(fh, 100, 0), _readv_seg(fh, 100, 100)]
             read_stream = b"\x00\x25"
             _send_readv_only(primary, read_stream, segs, pathid=0)
 
-            primary.settimeout(5)
-            r_stream, r_status, body = _recv_response(primary)
-            assert r_stream == read_stream, f"streamid {r_stream!r}"
-            assert r_status in (kXR_ok, kXR_oksofar), f"status={r_status}"
+            _, body = _assert_streamed_reply(primary, read_stream)
             assert _readv_payload_bytes(body, 2) == content
-
-            sec.settimeout(0.3)
-            try:
-                leftover = sec.recv(1)
-                assert leftover == b"", f"unexpected bytes on secondary: {leftover!r}"
-            except (BlockingIOError, socket.timeout):
-                pass
-        finally:
-            if sec is not None:
-                sec.close()
-            primary.close()
+            _assert_socket_quiet(sec, "secondary")
 
 
 class TestPgreadResponseOffload:
@@ -571,13 +512,8 @@ class TestPgreadResponseOffload:
         secondary; the stripped page data matches and the streamid is the read's."""
         content = bytes((i * 5 + 1) & 0xFF for i in range(500))   # < one page
         _write_data_file("pg-ok.bin", content)
-        primary, sessid, stream = _establish_primary(bind_nginx)
-        sec = None
-        try:
-            fh = _open_read(primary, stream, "/pg-ok.bin")
-            sec, pathid = _bind_on(bind_nginx, sessid)
-            assert pathid != 0
-
+        with _offload_rig(bind_nginx, "/pg-ok.bin") as (primary, sec,
+                                                        pathid, fh):
             read_stream = b"\x00\x33"
             _send_pgread_only(primary, read_stream, fh, len(content), pathid=pathid)
 
@@ -587,30 +523,15 @@ class TestPgreadResponseOffload:
                 f"offloaded pgread streamid {r_stream!r} != {read_stream!r}"
             assert r_status == kXR_status, f"status={r_status}"
             assert data == content, "offloaded pgread data mismatch"
-
-            primary.settimeout(0.3)
-            try:
-                leftover = primary.recv(1)
-                assert leftover == b"", f"unexpected bytes on primary: {leftover!r}"
-            except (BlockingIOError, socket.timeout):
-                pass
-        finally:
-            if sec is not None:
-                sec.close()
-            primary.close()
+            _assert_socket_quiet(primary, "primary")
 
     def test_pgread_pathid_zero_stays_on_primary(self, bind_nginx):
         """(control) a pathid-0 pgread serves on the primary even with a live
         secondary bound."""
         content = bytes((i * 9 + 2) & 0xFF for i in range(400))
         _write_data_file("pg-zero.bin", content)
-        primary, sessid, stream = _establish_primary(bind_nginx)
-        sec = None
-        try:
-            fh = _open_read(primary, stream, "/pg-zero.bin")
-            sec, pathid = _bind_on(bind_nginx, sessid)
-            assert pathid != 0
-
+        with _offload_rig(bind_nginx, "/pg-zero.bin") as (primary, sec,
+                                                          pathid, fh):
             read_stream = b"\x00\x35"
             _send_pgread_only(primary, read_stream, fh, len(content), pathid=0)
 
@@ -619,17 +540,7 @@ class TestPgreadResponseOffload:
             assert r_stream == read_stream, f"streamid {r_stream!r}"
             assert r_status == kXR_status, f"status={r_status}"
             assert data == content
-
-            sec.settimeout(0.3)
-            try:
-                leftover = sec.recv(1)
-                assert leftover == b"", f"unexpected bytes on secondary: {leftover!r}"
-            except (BlockingIOError, socket.timeout):
-                pass
-        finally:
-            if sec is not None:
-                sec.close()
-            primary.close()
+            _assert_socket_quiet(sec, "secondary")
 
 
 class TestOffloadPipelining:
@@ -657,45 +568,23 @@ class TestOffloadPipelining:
         _write_data_file("pl-big.bin", big)
         _write_data_file("pl-small.bin", small)
         primary, sessid, stream = _establish_primary(bind_nginx)
-        sec = None
-        try:
+        with contextlib.closing(primary):
             fh_big = _open_read(primary, stream, "/pl-big.bin")
             fh_small = _open_read(primary, stream, "/pl-small.bin")
 
             # Secondary with a tiny receive window so the big reply cannot drain.
-            sec = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sec.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2048)
-            sec.connect((ANON_HOST, bind_nginx))
-            sec.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
-            _recv_exact(sec, 16)
-            status, pathid_body = _send_req(sec, b"\x00\x05", kXR_bind, body=sessid)
-            assert status == kXR_ok, f"bind failed: {status}"
-            pathid = pathid_body[0]
+            sec, pathid = _bind_small_window(bind_nginx, sessid)
+            with contextlib.closing(sec):
+                # read1 (big) parks on the secondary; read2 (small) must queue
+                # behind it.
+                _send_read_only(primary, b"\x00\x41", fh_big, len(big), pathid)
+                _send_read_only(primary, b"\x00\x43", fh_small, len(small), pathid)
 
-            # read1 (big) parks on the secondary; read2 (small) must queue behind it.
-            _send_read_only(primary, b"\x00\x41", fh_big, len(big), pathid)
-            _send_read_only(primary, b"\x00\x43", fh_small, len(small), pathid)
+                # Neither reply may appear on the primary control stream.
+                _assert_socket_quiet(primary, "primary (fallback)", timeout=0.5)
 
-            # Neither reply may appear on the primary control stream.
-            primary.settimeout(0.5)
-            try:
-                leftover = primary.recv(1)
-                assert leftover == b"", f"reply fell back to the primary: {leftover!r}"
-            except (BlockingIOError, socket.timeout):
-                pass
-
-            # Drain the secondary: the big reply (head) then the small one.
-            sec.settimeout(15)
-            s1, st1, d1 = _recv_response(sec)
-            assert s1 == b"\x00\x41", f"first reply streamid {s1!r}"
-            assert st1 in (kXR_ok, kXR_oksofar), f"status={st1}"
-            assert d1 == big, f"big reply {len(d1)} != {len(big)}"
-            s2, st2, d2 = _recv_response(sec)
-            assert s2 == b"\x00\x43", \
-                f"second reply streamid {s2!r} — did it fall back to the primary?"
-            assert st2 in (kXR_ok, kXR_oksofar), f"status={st2}"
-            assert d2 == small, "second (pipelined) reply payload mismatch"
-        finally:
-            if sec is not None:
-                sec.close()
-            primary.close()
+                # Drain the secondary: the big reply (head) then the small one.
+                _, d1 = _assert_streamed_reply(sec, b"\x00\x41", timeout=15)
+                assert d1 == big, f"big reply {len(d1)} != {len(big)}"
+                _, d2 = _assert_streamed_reply(sec, b"\x00\x43", timeout=15)
+                assert d2 == small, "second (pipelined) reply payload mismatch"

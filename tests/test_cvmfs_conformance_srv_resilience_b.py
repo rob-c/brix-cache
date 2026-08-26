@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_srv_resilience_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_srv_resilience")
+
 @pytest.mark.timeout(60)
 @pytest.mark.parametrize("mode", ["stall", "reset", "http500"])
 def test_force_primary_retries_primary_only(srv_fp, alloc, mode):

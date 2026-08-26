@@ -79,15 +79,12 @@ STOCK_XRDCP = "/usr/bin/xrdcp"
 # serial runs never collide on ports or registry prefixes.  The one remaining
 # fixed-port server is the throwaway STOCK xrootd used for native-client interop
 # (`stock_root`): it is launched directly (not through the registry) and needs a
-# stable listen port, so it keeps the per-worker OFFSET scheme — under
-# `pytest -n<N> --dist load` every worker imports this helper and starts its own
-# stock xrootd, so the port is shifted by a per-worker stride (gw0→+20, gw1→+40,
-# …; serial runs get offset 0) to keep the self-started servers collision-free.
-_WK = os.environ.get("PYTEST_XDIST_WORKER", "")   # "gw0".."gwN" under xdist, "" serial
-_WOFF = (int(_WK[2:]) + 1) * 20 if _WK.startswith("gw") else 0
+# stable listen port.  Allocate both from the TEST_PORT_START-anchored interop
+# ladder; the whole split family is already pinned to xdist_group("gsihs").
+from official_interop_lib import worker_port  # noqa: E402
 
-P_STOCK_ROOT = PORT_LAST + 20 + _WOFF
-P_STOCK_ROOT_FCA = PORT_LAST + 21 + _WOFF  # foreign-CA stock server
+P_STOCK_ROOT = worker_port(21130)
+P_STOCK_ROOT_FCA = worker_port(21131)  # foreign-CA stock server
 
 
 # --------------------------------------------------------------------------- #
@@ -180,7 +177,7 @@ def _start_stock_gsi(pki, port, hostcert, hostkey, certdir, cfgname):
             f"all.adminpath {base}\n"
             f"all.pidpath {base}\n"
             "xrootd.seclib libXrdSec.so\n"
-            f"sec.protocol /usr/lib64 gsi -certdir:{certdir} "
+            f"sec.protocol gsi -certdir:{certdir} "
             f"-cert:{hostcert} -key:{hostkey} "
             "-crl:0 -gmapopt:10 -dlgpxy:0\n"
             "sec.protbind * only gsi\n")

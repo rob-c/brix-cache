@@ -12,6 +12,7 @@ def test_ceph_harness_commands_are_importable():
 
 
 @pytest.mark.optin
+@pytest.mark.suite_job
 @pytest.mark.timeout(600)
 def test_ceph_harness_lifecycle():
     """Opt-in Docker lab lifecycle: start -> env -> status -> pool-reset.

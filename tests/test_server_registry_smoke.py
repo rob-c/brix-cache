@@ -223,7 +223,8 @@ def test_orphan_worker_reaper_uses_only_declared_ports(monkeypatch, tmp_path):
             return proc / text.split("/")[2] / "cmdline"
         return real_path(value)
 
-    monkeypatch.setattr("server_launcher.Path", fake_path)
+    # the reaper lives in the mixinb shard — its Path binding is THAT module's
+    monkeypatch.setattr("_server_launcher_part2_mixinb.Path", fake_path)
     RegistryLauncher._reap_orphan_nginx_workers(spec)
     assert killed == [701]
 

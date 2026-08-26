@@ -13,6 +13,7 @@
 
 #include "config.h"
 #include "root_prepare.h"
+#include "export_guard.h"   /* brix_assert_dir_outside_export (hard guard) */
 
 #include <errno.h>
 #include <limits.h>
@@ -69,5 +70,33 @@ brix_prepare_export_root(ngx_conf_t *cf,
         return NGX_CONF_ERROR;
     }
 
+    return NGX_CONF_OK;
+}
+
+char *
+brix_prepare_cache_root(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common)
+{
+    brix_export_root_opts_t cache_opts;
+
+    if (common->cache_root.len == 0) {
+        return NGX_CONF_OK;
+    }
+    cache_opts.directive_name = "brix_cache_root";
+    cache_opts.allow_write    = 0;
+    cache_opts.required       = 0;
+    cache_opts.canon_size     = sizeof(common->cache_root_canon);
+    if (brix_prepare_export_root(cf, &common->cache_root, &cache_opts,
+                                   common->cache_root_canon) != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+
+    /* HARD config guard: the read-through cache root must live OUTSIDE the
+     * export, or cache sidecars would be exposed in the client namespace. */
+    if (brix_assert_dir_outside_export(cf, "brix_cache_root",
+            common->root_canon, common->cache_root_canon) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
     return NGX_CONF_OK;
 }

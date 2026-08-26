@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_srv_manifest_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_srv_manifest")
+
 @pytest.mark.parametrize("name", NAMES)
 def test_cold_get_serves_origin_bytes(web_state, name):
     _, _, cold = web_state

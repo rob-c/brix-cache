@@ -48,7 +48,7 @@ def test_bare_stage_dir_parses():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28881;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        "      brix_stage_dir {DIR}/stage; } }\n")
+        "      brix_stage_dir {DIR}/stage; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc == 0, f"bare brix_stage_dir must parse:\n{out}"
     assert "successful" in out, out
 
@@ -57,6 +57,6 @@ def test_old_webdav_stage_dir_is_unknown():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28882;\n"
         "    location / { brix_webdav on; brix_webdav_auth none;\n"
-        "      brix_webdav_stage_dir {DIR}/stage; } }\n")
+        "      brix_webdav_stage_dir {DIR}/stage; } }\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, out
     assert "unknown directive" in out and "brix_webdav_stage_dir" in out, out

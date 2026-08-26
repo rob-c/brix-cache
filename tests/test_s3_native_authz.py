@@ -31,7 +31,7 @@ pytestmark = pytest.mark.skipif(
 
 def _free_port():
     s = socket.socket()
-    s.bind(("127.0.0.1", 0))
+    s.bind(("127.0.0.1", 0))  # net-literal-allow: mock shim binds loopback ephemeral by design
     p = s.getsockname()[1]
     s.close()
     return p
@@ -56,7 +56,7 @@ def s3_authdb_server(tmp_path):
     authdb = tmp_path / "authdb"
     # u * grants /grant to anyone; a peer rule grants /host to loopback; /private
     # is covered by NO rule -> default-deny.
-    authdb.write_text("u * /grant rl\np 127.0.0.1 /host r\np ::1 /host r\n")
+    authdb.write_text("u * /grant rl\np 127.0.0.1 /host r\np ::1 /host r\n")  # net-literal-allow: loopback literal is the subject under test
 
     port = _free_port()
     (tmp_path / "logs").mkdir()
@@ -67,7 +67,7 @@ def s3_authdb_server(tmp_path):
         "events { worker_connections 64; }\n"
         "http {\n"
         f"  access_log off; client_body_temp_path {tmp_path}/logs/cbt;\n"
-        f"  server {{ listen 127.0.0.1:{port};\n"
+        f"  server {{ listen 127.0.0.1:{port};\n"  # net-literal-allow: loopback literal is the subject under test
         "    location / { brix_s3 on; brix_s3_bucket b;\n"
         f"      brix_storage_backend posix:{data};\n"
         f"      brix_authdb {authdb}; }}\n"
@@ -79,14 +79,14 @@ def s3_authdb_server(tmp_path):
     # wait for the listener
     for _ in range(50):
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+            with socket.create_connection(("127.0.0.1", port), timeout=0.2):  # net-literal-allow: probes the loopback mock shim
                 break
         except OSError:
             time.sleep(0.1)
     else:
         proc.terminate()
         pytest.skip("s3 test server did not come up")
-    yield f"http://127.0.0.1:{port}/b"
+    yield f"http://127.0.0.1:{port}/b"  # net-literal-allow: URL targets the loopback mock shim
     proc.terminate()
     try:
         proc.wait(timeout=5)

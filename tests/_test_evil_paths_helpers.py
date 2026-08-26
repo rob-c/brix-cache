@@ -101,12 +101,16 @@ pytestmark = [pytest.mark.serial,
 kXR_open = 3010
 kXR_new = 0x0001
 kXR_open_updt = 0x0002
+kXR_truncate = 3028
+kXR_rmdir = 3015
+kXR_mv = 3009
 
 OUTSIDE = TEST_ROOT          # one level above the export root
 
 # A secret file outside the root we will repeatedly try (and must always fail)
 # to read.  /etc/passwd is world-readable and its content is unmistakable.
 HOST_SECRET = b"root:x:0:0:"
+ORIGINAL = b"ORIGINAL-DO-NOT-TOUCH"
 
 # Sentinel content for the write-confinement checks.  This lives in the
 # continuation module because the write fixture is defined here, while the
@@ -413,6 +417,17 @@ def _cms_read_frame(sock, timeout=3.0):
         return code, body
     except socket.timeout:
         return None
+
+
+# CMS wire constants live HERE, not (only) in the test shard: these helpers'
+# globals are this module (import-style reexport copies bindings by value, so a
+# constant defined in the shard is invisible to functions defined here).
+CMS_RR_LOGIN = 0
+CMS_RR_STATE = 20
+CMS_RR_HAVE = 15
+CMS_RR_STATUS = 22
+CMS_RR_LOAD = 16
+CMS_HDR = 8
 
 
 def _cms_state(sock, streamid, path):

@@ -116,8 +116,11 @@ def _run_workers(tags, cycles: int) -> list:
 # bytes when the recycled fd pointed at a readable file).
 # ---------------------------------------------------------------------------
 
+@pytest.mark.slow
 def test_windowed_read_correct_under_concurrent_handle_churn():
-    errors = _run_workers(("a", "b", "c"), cycles=10)
+    # Pre-fix the race reproduced within 1-3 cycles per worker; 5 cycles keeps
+    # comfortable margin at half the wall-clock of the original 10.
+    errors = _run_workers(("a", "b", "c"), cycles=5)
     assert not errors, "\n".join(errors)
 
 
@@ -158,8 +161,9 @@ def test_read_on_write_only_handle_fails_clean_and_connection_survives():
 # read may ever return another file's content through a recycled descriptor.
 # ---------------------------------------------------------------------------
 
+@pytest.mark.slow
 def test_windowed_read_never_bleeds_other_connections_file():
-    errors = _run_workers(("s0", "s1"), cycles=8)
+    errors = _run_workers(("s0", "s1"), cycles=5)
     bleeds = [e for e in errors if "WRONG DATA" in e]
     assert not errors, (
         ("CROSS-FILE BLEED: " if bleeds else "") + "\n".join(errors)

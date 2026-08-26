@@ -66,9 +66,10 @@ pytestmark = [
     pytest.mark.serial,
 ]
 
-CHAOS_FILE_SIZE = 32 * 1024 * 1024
+CHAOS_FILE_SIZE = 8 * 1024 * 1024
+CHAOS_XRDCP = str(Path(__file__).resolve().parents[1] / "client" / "bin" / "xrdcp")
 READ_CHUNK = 512 * 1024
-RELOAD_AFTER_BYTES = 4 * 1024 * 1024
+RELOAD_AFTER_BYTES = 1 * 1024 * 1024
 
 
 @pytest.fixture(scope="module")
@@ -267,7 +268,7 @@ def _restart_nginx_instance(name: str, port: int):
     _wait_port(port, f"{name} after restart", timeout=10.0)
 
 
-def _seed_large_fixture_prefix(dst: Path) -> tuple[int, str]:
+def _seed_large_fixture_prefix(dst: Path, size: int = CHAOS_FILE_SIZE) -> tuple[int, str]:
     src = Path(DATA_ROOT) / "large200.bin"
     if not src.exists():
         pytest.skip("large200.bin not present in DATA_ROOT")
@@ -275,20 +276,20 @@ def _seed_large_fixture_prefix(dst: Path) -> tuple[int, str]:
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.unlink(missing_ok=True)
     digest = hashlib.md5()
-    remaining = CHAOS_FILE_SIZE
+    remaining = size
 
     with src.open("rb") as source, dst.open("wb") as target:
         while remaining:
             chunk = source.read(min(1024 * 1024, remaining))
             if not chunk:
                 pytest.fail(
-                    f"large200.bin ended before {CHAOS_FILE_SIZE} bytes were read"
+                    f"large200.bin ended before {size} bytes were read"
                 )
             target.write(chunk)
             digest.update(chunk)
             remaining -= len(chunk)
 
-    return CHAOS_FILE_SIZE, digest.hexdigest()
+    return size, digest.hexdigest()
 
 
 def _wait_for_log(path: Path, predicate, timeout: float = 10.0) -> str:

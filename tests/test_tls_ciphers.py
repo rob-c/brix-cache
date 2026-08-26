@@ -48,7 +48,7 @@ def _nginx_t(tmp_path, ciphers_line):
                 brix_storage_backend posix:/tmp;
                 brix_auth none;
                 brix_tls on;
-                brix_certificate {SERVER_CERT};
+                brix_certificate {SERVER_CERT};  # net-literal-allow: loopback literal is the subject under test
                 brix_certificate_key {SERVER_KEY};
                 {ciphers_line}
             }}

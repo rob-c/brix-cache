@@ -136,40 +136,56 @@ def _trigger_redirect(port, reader_b):
 
         deadline = time.time() + 8
         while time.time() < deadline:
-            _send_read(reader_b, b"\x00\x05", fb, 4 * 1024 * 1024)
-            hdr = H._recv_exact(reader_b, 8)
-            status = struct.unpack(">H", hdr[2:4])[0]
-            dlen = struct.unpack(">I", hdr[4:8])[0]
-            body = H._recv_exact(reader_b, dlen) if dlen else b""
-            if status == kXR_redirect:
-                rport = struct.unpack(">i", body[:4])[0]
-                host = body[4:].split(b"\x00", 1)[0].decode()
-                return rport, host
-            if status in (H.kXR_ok, H.kXR_oksofar):
-                while status == H.kXR_oksofar:   # drain continuations
-                    hdr = H._recv_exact(reader_b, 8)
-                    status = struct.unpack(">H", hdr[2:4])[0]
-                    dlen = struct.unpack(">I", hdr[4:8])[0]
-                    if dlen:
-                        H._recv_exact(reader_b, dlen)
-                time.sleep(0.2)
-                continue
-            raise AssertionError(f"reader B unexpected status {status}")
+            redirect = _poll_reader_b_once(reader_b, fb)
+            if redirect is not None:
+                return redirect
         raise AssertionError("budget never deferred reader B")
     finally:
         a.close()
 
 
+def _drain_oksofar(reader_b, status):
+    """Drain kXR_oksofar continuation frames until a terminal status arrives."""
+    while status == H.kXR_oksofar:
+        hdr = H._recv_exact(reader_b, 8)
+        status = struct.unpack(">H", hdr[2:4])[0]
+        dlen = struct.unpack(">I", hdr[4:8])[0]
+        if dlen:
+            H._recv_exact(reader_b, dlen)
+    return status
+
+
+def _poll_reader_b_once(reader_b, fb):
+    """One reader-B read: return (port, host) on kXR_redirect, None if the read
+    was served (budget not yet exhausted); raise on an unexpected status."""
+    _send_read(reader_b, b"\x00\x05", fb, 4 * 1024 * 1024)
+    hdr = H._recv_exact(reader_b, 8)
+    status = struct.unpack(">H", hdr[2:4])[0]
+    dlen = struct.unpack(">I", hdr[4:8])[0]
+    body = H._recv_exact(reader_b, dlen) if dlen else b""
+    if status == kXR_redirect:
+        rport = struct.unpack(">i", body[:4])[0]
+        host = body[4:].split(b"\x00", 1)[0].decode()
+        return rport, host
+    if status in (H.kXR_ok, H.kXR_oksofar):
+        _drain_oksofar(reader_b, status)
+        time.sleep(0.2)
+        return None
+    raise AssertionError(f"reader B unexpected status {status}")
+
+
 def test_fullurl_client_gets_full_url(tmp_path):
-    """(success) ability kXR_fullurl=1 ⇒ the redirect host is a self-contained
-    root:// URL; the numeric port field still carries the port."""
+    """(success) ability kXR_fullurl=1 ⇒ STILL the classic host-only form for a
+    root:// target: with a positive numeric port the reference client appends
+    ":port" to the host field, so a full URL here would parse as
+    "root://h:p:p/" and fail errInvalidRedirectURL.  A full URL is only legal
+    with a negative (flags) port, which this redirect path never sends."""
     port, conf = _launch(tmp_path)
     sock = None
     try:
         sock = _login_with_ability(port, 0x01 | 0x04)  # fullurl + readrdok
         rport, host = _trigger_redirect(port, sock)
-        assert host == "root://sibling.example:2094", \
-            f"fullurl client got {host!r}"
+        assert host == "sibling.example", f"fullurl client got {host!r}"
         assert rport == 2094
     finally:
         if sock is not None:

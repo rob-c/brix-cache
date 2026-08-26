@@ -35,7 +35,7 @@ def _nginx_t(main_body):
                 + f"error_log {d}/logs/e.log;\npid {d}/logs/n.pid;\nevents {{}}\n"
                 + "stream {\n"
                 + f"  {main_body}\n"
-                + "  server { listen 127.0.0.1:29071; brix_root on; brix_export /tmp; }\n"
+                + "  server { listen 127.0.0.1:29071; brix_root on; brix_export /tmp; }\n"  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
                 + "}\n")
         env = dict(os.environ, ASAN_OPTIONS="detect_leaks=0")
         r = subprocess.run([NGINX_BIN, "-t", "-c", conf, "-p", d],

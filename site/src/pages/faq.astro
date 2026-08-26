@@ -448,7 +448,7 @@ const viability: Faq[] = [
   {
     q: 'How is the C codebase kept maintainable?',
     a: `The architecture is guarded, not aspirational: seven concept buckets, one storage seam, five
-        standing CI guards (VFS seam, config coverage, helper reimplementation, file-size ratchet,
+        standing CI guards (VFS seam, config coverage, helper reimplementation, file-size cap,
         storage-driver conformance), and a tree that compiles <span class="mono">-Werror</span> with
         full RELRO and immediate binding. nginx itself is the least risky dependency in the stack —
         the module tracks stock nginx and loads as standard dynamic modules, no fork.`,

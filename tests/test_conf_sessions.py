@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_sessions_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_sessions")
+
 def _bind_status(port, sessid):
     """Handshake a fresh connection and kXR_bind the given sessid; return status."""
     sec = _connect(port)

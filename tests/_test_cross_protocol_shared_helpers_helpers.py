@@ -33,10 +33,18 @@ def _read(relpath):
     def _inc(m):
         frag = path.parent / m.group(1)
         return frag.read_text(encoding="utf-8") if frag.exists() else m.group(0)
-    return _re.sub(
+    text = _re.sub(
         r'#include "(directives_[a-z0-9_]+\.h|[a-z0-9_]+_structs\.h'
         r'|webdav_[a-z0-9_]+\.h)"',
         _inc, text)
+    # File-size splits also move code into sibling COMPILATION units named
+    # <stem>_<part>.c (get.c -> get_serve.c).  Concatenate them so a marker
+    # check against the umbrella sees the full effective source; absence
+    # checks get stricter, which is the intent.
+    if path.suffix == ".c":
+        for sib in sorted(path.parent.glob(path.stem + "_*.c")):
+            text += sib.read_text(encoding="utf-8")
+    return text
 
 
 def _assert_markers(relpath, markers):

@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_srv_http_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_srv_http")
+
 def test_manifest_unsatisfiable_416(srv, manifest):
     path, ref = manifest
     st, _, body = GET(srv, path, {"Range": f"bytes={len(ref)}-"})

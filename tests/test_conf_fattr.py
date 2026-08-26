@@ -22,6 +22,8 @@ def _check_test_bindings_multi_set_list_value_parity_1(o_by_bare, f_by_bare):
 
 _reexport(globals(), "_test_conf_fattr_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_fattr")
+
 @needs_bindings
 @pytest.mark.parametrize("name,value", RT_VALUES,
                          ids=[c[0] for c in RT_VALUES])

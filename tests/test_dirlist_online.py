@@ -152,6 +152,18 @@ def _reset_residency(catalog: Path) -> None:
 
 
 @pytest.fixture()
+def _seed_lab_tree(hub, src):
+    """Upload on.bin/off.bin and mkdir /sub into the lab export."""
+    for name in ("on.bin", "off.bin"):
+        proc = subprocess.run([str(XRDCP), "-f", str(src), f"{hub}{name}"],
+                              capture_output=True, text=True, timeout=60)
+        assert proc.returncode == 0, f"upload {name}: {proc.stderr}"
+    proc = subprocess.run([str(XRDFS), hub.rstrip("/"), "mkdir", "/sub"],
+                          capture_output=True, text=True, timeout=60)
+    assert any((proc.returncode == 0, "ItExists" in proc.stderr)), \
+        f"mkdir /sub: {proc.stderr}"
+
+
 def lab(lifecycle, tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
@@ -164,14 +176,7 @@ def lab(lifecycle, tmp_path):
 
     src = tmp_path / "src.bin"
     src.write_bytes(os.urandom(4096))
-    for name in ("on.bin", "off.bin"):
-        proc = subprocess.run([str(XRDCP), "-f", str(src), f"{hub}{name}"],
-                              capture_output=True, text=True, timeout=60)
-        assert proc.returncode == 0, f"upload {name}: {proc.stderr}"
-    proc = subprocess.run([str(XRDFS), hub.rstrip("/"), "mkdir", "/sub"],
-                          capture_output=True, text=True, timeout=60)
-    assert proc.returncode == 0 or "ItExists" in proc.stderr, \
-        f"mkdir /sub: {proc.stderr}"
+    _seed_lab_tree(hub, src)
 
     catalog = Path(ep.data_root) / "catalog.db"
     _reset_residency(catalog)

@@ -68,7 +68,7 @@ class _AttnInjector(threading.Thread):
         self._stop = threading.Event()
         self._lsock = socket.socket()
         self._lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._lsock.bind(("127.0.0.1", 0))
+        self._lsock.bind(("127.0.0.1", 0))  # net-literal-allow: mock shim binds loopback ephemeral by design
         self._lsock.listen(4)
         self._lsock.settimeout(0.2)
         self.port = self._lsock.getsockname()[1]
@@ -148,7 +148,7 @@ class _AttnInjector(threading.Thread):
 
 def _stat_through(shim_port):
     return subprocess.run(
-        [XRDFS, f"root://127.0.0.1:{shim_port}", "stat", "/"],
+        [XRDFS, f"root://127.0.0.1:{shim_port}", "stat", "/"],  # net-literal-allow: URL targets the loopback mock shim
         capture_output=True, text=True, timeout=30)
 
 
@@ -182,7 +182,7 @@ class TestAsyncMs:
             line = [ln for ln in res.stderr.splitlines()
                     if "xrootd server message:" in ln]
             assert line, res.stderr
-            assert "\x1b" not in line[0] and "\x07" not in line[0]
-            assert "clean" in line[0] and "RED text" in line[0]
+            assert all(("\x1b" not in line[0], "\x07" not in line[0]))
+            assert all(("clean" in line[0], "RED text" in line[0]))
         finally:
             shim.stop()

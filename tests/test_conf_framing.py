@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_framing_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_framing")
+
 @pytest.mark.parametrize("op", _ALL_OPCODES, ids=[f"op{o}" for o in _ALL_OPCODES])
 def test_opcode_empty_body_robust(srv, op):
     """Send opcode `op` post-login with a header-only (dlen=0) body and assert the

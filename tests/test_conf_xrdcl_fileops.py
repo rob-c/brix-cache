@@ -34,6 +34,8 @@ def _check_test_vector_read_parity_3(bytes_o, bytes_O, rel):
 
 _reexport(globals(), "_test_conf_xrdcl_fileops_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_xrdcl_fileops")
+
 @pytest.mark.parametrize("rel", list(SZ.keys()))
 def test_open_read_status_parity(srv, rel):
     """open(READ) on an existing file -> ok on both, identical status fields."""

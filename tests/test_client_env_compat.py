@@ -56,7 +56,7 @@ class _Tarpit(threading.Thread):
         self._stop = threading.Event()
         self._lsock = socket.socket()
         self._lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._lsock.bind(("127.0.0.1", 0))
+        self._lsock.bind(("127.0.0.1", 0))  # net-literal-allow: mock shim binds loopback ephemeral by design
         self._lsock.listen(8)
         self._lsock.settimeout(0.2)
         self.port = self._lsock.getsockname()[1]
@@ -93,7 +93,7 @@ def _env(overrides):
 
 def _closed_port():
     s = socket.socket()
-    s.bind(("127.0.0.1", 0))
+    s.bind(("127.0.0.1", 0))  # net-literal-allow: mock shim binds loopback ephemeral by design
     port = s.getsockname()[1]
     s.close()
     return port
@@ -110,7 +110,7 @@ class TestStockTimeoutAliases:
             t0 = time.monotonic()
             res = subprocess.run(
                 [XRDCP, "--retry", "0",
-                 f"root://127.0.0.1:{pit.port}//x",
+                 f"root://127.0.0.1:{pit.port}//x",  # net-literal-allow: URL targets the loopback mock shim
                  str(tmp_path / "out.bin")],
                 env=_env({"XRD_CONNECTIONWINDOW": "1"}),
                 capture_output=True, text=True, timeout=60)
@@ -130,7 +130,7 @@ class TestStockTimeoutAliases:
             t0 = time.monotonic()
             res = subprocess.run(
                 [XRDCP, "--retry", "0",
-                 f"root://127.0.0.1:{pit.port}//x",
+                 f"root://127.0.0.1:{pit.port}//x",  # net-literal-allow: URL targets the loopback mock shim
                  str(tmp_path / "out.bin")],
                 env=_env({"XRDC_CONNECT_TIMEOUT_MS": "1500",
                           "XRD_CONNECTIONWINDOW": "60"}),
@@ -152,7 +152,7 @@ class TestStockEnvHostile:
         pit = _Tarpit()
         pit.start()
         proc = subprocess.Popen(
-            [XRDCP, f"root://127.0.0.1:{pit.port}//x",
+            [XRDCP, f"root://127.0.0.1:{pit.port}//x",  # net-literal-allow: URL targets the loopback mock shim
              str(tmp_path / "out.bin")],
             env=_env({"XRD_CONNECTIONWINDOW": "99999999999999"}),
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -169,7 +169,7 @@ class TestStockEnvHostile:
         copy against a closed port still refuses immediately (exit 51), no
         crash, no hang."""
         res = subprocess.run(
-            [XRDCP, f"root://127.0.0.1:{_closed_port()}//x",
+            [XRDCP, f"root://127.0.0.1:{_closed_port()}//x",  # net-literal-allow: URL targets the loopback mock shim
              str(tmp_path / "out.bin")],
             env=_env({"XRD_CONNECTIONWINDOW": "bogus",
                       "XRD_REQUESTTIMEOUT": ""}),
@@ -183,7 +183,7 @@ class TestStockEnvDisclosure:
         """(disclosure) unsupported-but-set XRD_* names are listed once on a
         TTY; honored aliases and values never appear in the note."""
         rc, _out, err = run_pty(
-            [XRDCP, f"root://127.0.0.1:{_closed_port()}//x",
+            [XRDCP, f"root://127.0.0.1:{_closed_port()}//x",  # net-literal-allow: URL targets the loopback mock shim
              str(tmp_path / "out.bin")],
             env=_env({"XRD_LOGLEVEL": "Dump",
                       "XRD_CPRETRY": "3",
@@ -202,7 +202,7 @@ class TestStockEnvDisclosure:
         """(C3 gate) the same environment through a plain pipe emits NO note —
         script-visible output stays byte-identical."""
         res = subprocess.run(
-            [XRDCP, f"root://127.0.0.1:{_closed_port()}//x",
+            [XRDCP, f"root://127.0.0.1:{_closed_port()}//x",  # net-literal-allow: URL targets the loopback mock shim
              str(tmp_path / "out.bin")],
             env=_env({"XRD_LOGLEVEL": "Dump"}),
             capture_output=True, text=True, timeout=30)

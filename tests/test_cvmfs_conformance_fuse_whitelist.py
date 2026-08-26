@@ -46,6 +46,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_fuse_whitelist")
+
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
 def _expression_1(body_lines):
     return (

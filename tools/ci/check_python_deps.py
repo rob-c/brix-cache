@@ -34,6 +34,7 @@ import ast
 import re
 import subprocess
 import sys
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -309,6 +310,15 @@ def _matched_requirement(match, lane):
     return match.group(1), match.group(2).strip(), lane
 
 
+def _parse_source(path: Path):
+    """Parse one source in a worker; AST traversal is CPU-bound."""
+    try:
+        tree = ast.parse(path.read_text(errors="replace"))
+    except SyntaxError as exc:
+        return path, [], str(exc)
+    return path, list(_imports(tree)), None
+
+
 def _declared(root: Path) -> tuple[dict[str, str], list[str]]:
     """(normalized dist name -> lane, R2 findings)."""
     lanes: dict[str, str] = {}
@@ -338,6 +348,47 @@ def _declare_projects(root, lanes, findings):
         for name, spec, lane in _parse_pyproject(path):
             _set_lane(lanes, _norm(name), lane)
             _check_bounds(findings, relative, name, spec)
+
+
+def _parse_all(sources: list[Path]):
+    """Parse every source, in parallel when possible.
+
+    Falls back to serial when the worker pool cannot resolve _parse_source —
+    e.g. when this module was loaded via importlib (the test harness's _load),
+    so a spawned worker cannot import it by name and pickling the callable
+    fails. The result is identical; only the speed differs, so a broken pool
+    must never fail the check itself."""
+    try:
+        with ProcessPoolExecutor(max_workers=min(4, len(sources) or 1)) as pool:
+            return list(pool.map(_parse_source, sources, chunksize=16))
+    except Exception:  # noqa: BLE001 — PicklingError / BrokenProcessPool / etc.
+        return [_parse_source(p) for p in sources]
+
+
+def _lane_finding(mod, lineno, rel, dist, lane, guarded):
+    """Finding string for one third-party import's declared lane (or None)."""
+    if lane is None:
+        return (f"{rel}:{lineno}: imports `{mod}` ({dist}), which no "
+                f"requirements file declares — add it with bounds, or map "
+                f"it in IMPORT_TO_DIST/SYSTEM_MODULES")
+    if lane == "optional" and not guarded:
+        return (f"{rel}:{lineno}: `{mod}` is declared optional but imported "
+                f"at module scope — collection fails without it. Use "
+                f"`{mod} = pytest.importorskip(\"{mod}\")`, or promote it to "
+                f"requirements.txt")
+    if lane == "dev":
+        return (f"{rel}:{lineno}: `{mod}` is dev tooling; the test tree must "
+                f"not import it")
+    return None
+
+
+def _classify_import(mod, lineno, guarded, rel, lanes, local, stdlib, surface):
+    """Finding string for one import (or None). Records module-scope surface."""
+    if mod in stdlib or mod in local or mod in SYSTEM_MODULES:
+        return None
+    surface[mod] = surface.get(mod, False) or not guarded
+    dist = _norm(IMPORT_TO_DIST.get(mod, mod))
+    return _lane_finding(mod, lineno, rel, dist, lanes.get(dist), guarded)
 
 
 def run(root: Path = ROOT) -> tuple[bool, list[str]]:

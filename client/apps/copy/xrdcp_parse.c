@@ -113,10 +113,9 @@ xrdcp_parse_basic_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
 
 /* --xrate / --xrate-threshold: stock RATE[k|m|g] values (serial-pump pacing). */
 static int
-xrdcp_parse_rate_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
+xrdcp_parse_rate_option(const char *a, xrdcp_opts_t *o, int argc,
+    char **argv, size_t *i)
 {
-    const char   *a = argv[*i];
-    xrdcp_opts_t *o = s->o;
 
     if ((strcmp(a, "-X") == 0 || strcmp(a, "--xrate") == 0)
         && *i + 1 < (size_t) argc) {
@@ -142,10 +141,9 @@ xrdcp_parse_rate_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
 
 /* --retry-policy / --retry / --no-retry / -j|--jobs: the retry posture. */
 static int
-xrdcp_parse_retry_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
+xrdcp_parse_retry_option(const char *a, xrdcp_opts_t *o, int argc,
+    char **argv, size_t *i)
 {
-    const char   *a = argv[*i];
-    xrdcp_opts_t *o = s->o;
 
     if (strcmp(a, "--retry-policy") == 0 && *i + 1 < (size_t) argc) {
         const char *policy = argv[++(*i)];
@@ -182,10 +180,9 @@ xrdcp_parse_retry_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
 }
 
 static int
-xrdcp_parse_manifest_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
+xrdcp_parse_manifest_option(const char *a, xrdcp_opts_t *o, int argc,
+    char **argv, size_t *i)
 {
-    const char   *a = argv[*i];
-    xrdcp_opts_t *o = s->o;
     int           rc;
 
     if (strcmp(a, "--from") == 0 && *i + 1 < (size_t) argc) {
@@ -197,9 +194,9 @@ xrdcp_parse_manifest_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i
         return 1;
     }
     if (strcmp(a, "--resume") == 0) { o->resume = 1; return 1; }
-    rc = xrdcp_parse_rate_option(s, argc, argv, i);
+    rc = xrdcp_parse_rate_option(a, o, argc, argv, i);
     if (rc) { return rc; }
-    return xrdcp_parse_retry_option(s, argc, argv, i);
+    return xrdcp_parse_retry_option(a, o, argc, argv, i);
 }
 
 
@@ -265,10 +262,9 @@ xrdcp_parse_sync_filter_option(xrdcp_cli_state *s, int argc, char **argv, size_t
 
 
 static int
-xrdcp_parse_auth_data_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
+xrdcp_parse_auth_data_option(const char *a, xrdcp_opts_t *o, int argc,
+    char **argv, size_t *i)
 {
-    const char   *a = argv[*i];
-    xrdcp_opts_t *o = s->o;
 
     if (strcmp(a, "--progress") == 0) { o->force_progress = 1; return 1; }
     if (strcmp(a, "--verify") == 0) { o->verify = 1; return 1; }
@@ -389,6 +385,8 @@ xrdcp_parse_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
     int oi = (int) *i;
     int pr = brix_opts_parse_arg(s->o->conn, argc, argv, &oi);
     int rc;
+    const char   *a = argv[*i];
+    xrdcp_opts_t *o = s->o;
 
     if (pr == 2) { usage_fp(stdout, argv[0]); return 2; }
     if (pr) { *i = (size_t) oi; return 1; }
@@ -396,11 +394,11 @@ xrdcp_parse_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
     if (rc) { return rc; }
     rc = xrdcp_parse_compat_option(argc, argv, i);
     if (rc) { return rc; }
-    rc = xrdcp_parse_manifest_option(s, argc, argv, i);
+    rc = xrdcp_parse_manifest_option(a, o, argc, argv, i);
     if (rc) { return rc; }
     rc = xrdcp_parse_sync_filter_option(s, argc, argv, i);
     if (rc) { return rc; }
-    rc = xrdcp_parse_auth_data_option(s, argc, argv, i);
+    rc = xrdcp_parse_auth_data_option(a, o, argc, argv, i);
     if (rc) { return rc; }
     rc = xrdcp_parse_transport_option(s->o->copt, argc, argv, i);
     if (rc) { return rc; }

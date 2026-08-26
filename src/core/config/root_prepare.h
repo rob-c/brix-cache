@@ -37,4 +37,14 @@ char *brix_prepare_export_root(ngx_conf_t *cf,
     const ngx_str_t *root, const brix_export_root_opts_t *opts,
     char *root_canon);
 
+/*
+ * brix_prepare_cache_root — canonicalize the shared preamble's read-through
+ * cache root (brix_cache_root) and enforce the HARD guard that it lives
+ * OUTSIDE the export (cache sidecars must never appear in the client
+ * namespace).  No-op when cache_root is unset.  One helper for every HTTP
+ * protocol's merge so the policy cannot drift per surface.
+ */
+char *brix_prepare_cache_root(ngx_conf_t *cf,
+    ngx_http_brix_shared_conf_t *common);
+
 #endif /* BRIX_ROOT_PREPARE_H */

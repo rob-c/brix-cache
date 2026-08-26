@@ -90,10 +90,44 @@ _test_tree_wiped = False
 _pytest_config = None
 
 
+def _force_loadgroup(config):
+    """Turn plain `--dist load` into loadgroup so xdist_group fixed-port pins hold.
+
+    Fixed-port LifecycleHarness suites pin their tests to one xdist worker via
+    xdist_group; plain `load` round-robins and IGNORES those groups, so several
+    workers set up the same module-scoped fixture and bind the same fixed port
+    at once — thousands of bind() "Address already in use" errors (fast_suite7).
+    loadgroup is a strict superset (honours groups AND load-balances the rest).
+
+    TWO options must flip, not just `dist`: the controller picks its scheduler
+    from `config.option.dist`, but each WORKER only appends the group suffix when
+    `config.getvalue("loadgroup")` is true (xdist/remote.py:184). xdist derives
+    that bool from `dist` at worker-init (remote.py:317) — BEFORE any conftest
+    runs — so a worker spawned with `--dist load` has loadgroup=False and drops
+    every group, even though the controller then reports LoadGroupScheduling
+    (verified: this exact mismatch gave a flaky 20-44 pass / 22-46 error on
+    test_tls_sendfile_matrix under `-n`). Setting BOTH here — in pytest_configure,
+    which runs on the controller and on every worker before collection — makes the
+    collection-time group check see loadgroup=True. Backstops pytest.ini's
+    `addopts=--dist=loadgroup`, which a command-line `--dist load` overrides."""
+    opt = getattr(config, "option", None)
+    if opt is None or getattr(opt, "dist", None) != "load":
+        return
+    opt.dist = "loadgroup"
+    opt.loadgroup = True
+    if not hasattr(config, "workerinput"):   # controller only
+        sys.stderr.write(
+            "\n[conftest] forcing --dist loadgroup (was 'load'): plain 'load' "
+            "scheduling defeats the xdist_group fixed-port pins and causes "
+            "mass bind() 'Address already in use' cascades.\n")
+
+
 def pytest_configure(config):
     """Register markers and confine process scratch beneath ``TEST_ROOT``."""
     global _pytest_config
     _pytest_config = config
+    _force_loadgroup(config)   # never let plain --dist load defeat the port pins
+
     os.makedirs(TMP_DIR, exist_ok=True)
     os.environ["TMPDIR"] = TMP_DIR
     tempfile.tempdir = TMP_DIR
@@ -144,6 +178,10 @@ _SLOW_MODULE_HINTS = (
     "krb5_forward",
     "interop", "_load", "_e2e",
     "build_matrix",
+    # live command matrices + destructive crash labs: single tests run 60-130s
+    # (real xrootd/webdav forwarding round-trips; orphan+fsck-gc crash recovery),
+    # far past the fast tier's <15s budget — the full/nightly run still covers them.
+    "matrix_live", "lab_crash",
 )
 
 def _is_slow_module(name):
@@ -481,6 +519,40 @@ def _apply_first_percent(config, items):
     items[:] = items[:keep]
     if deselected:
         config.hook.pytest_deselected(items=deselected)
+
+
+def _pin_cvmfs_conformance_family(item, filename):
+    """Keep each CVMFS module and its split siblings on one worker."""
+    if not filename.startswith("test_cvmfs_"):
+        return
+    if any(m.name == "xdist_group" for m in item.iter_markers()):
+        return
+    family = filename.removesuffix(".py")
+    while len(family) > 2 and family[-2] == "_" and family[-1].isalpha():
+        family = family[:-2]
+    item.add_marker(pytest.mark.xdist_group(family))
+
+
+def _pin_resilience_family(item):
+    """The resilience lab classes share a fixed port ledger across modules."""
+    marker = f"{os.sep}resilience{os.sep}"
+    if marker not in str(item.fspath):
+        return
+    if any(m.name == "xdist_group" for m in item.iter_markers()):
+        return
+    item.add_marker(pytest.mark.xdist_group("resilience-lab"))
+
+
+def _pin_lifecycle_family(item, filename):
+    """Serialize fixed-ledger lifecycle fixtures, including split siblings."""
+    if not item.get_closest_marker("uses_lifecycle_harness"):
+        return
+    if any(m.name == "xdist_group" for m in item.iter_markers()):
+        return
+    family = filename.removesuffix(".py")
+    while len(family) > 2 and family[-2] == "_" and family[-1].isalpha():
+        family = family[:-2]
+    item.add_marker(pytest.mark.xdist_group(f"lifecycle-{family}"))
 
 
 def pytest_collection_modifyitems(config, items):

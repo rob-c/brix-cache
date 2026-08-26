@@ -50,7 +50,7 @@ stream {{ server {{ listen {BIND_HOST}:{PARSE_PORT};
     brix_root on;
     brix_storage_backend root://127.0.0.1:1;
     brix_auth none;
-    {srv_directives}
+    {srv_directives}  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     brix_cache_export /;
 }} }}
 """)
@@ -64,7 +64,7 @@ http {{ server {{ listen {BIND_HOST}:{PARSE_PORT};
     location /cvmfs/ {{
         brix_cvmfs on;
         brix_storage_backend "http://127.0.0.1:1";
-        {loc_directives}
+        {loc_directives}  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     }}
 }} }}
 """)
@@ -124,7 +124,7 @@ class TestGlobalCasStoreGate:
         rc, out = _stream_t(tmp_path, """
     brix_cache_store root://127.0.0.1:1094;
     brix_cache_global_cas on;
-""")
+""")  # net-literal-allow: loopback literal is the subject under test
         assert rc != 0, "expected reject for root:// store + global_cas"
         assert "supports commit-time dedup" in out, \
             f"expected the dedup-slot diagnostic, got:\n{out}"
@@ -160,7 +160,7 @@ class TestCvmfsCasVerifyStoreGate:
         rc, out = _cvmfs_t(tmp_path, """
         brix_cache_store root://127.0.0.1:1094;
         brix_cache_verify cvmfs-cas;
-""")
+""")  # net-literal-allow: loopback literal is the subject under test
         assert rc != 0, "expected reject for root:// store + cvmfs-cas"
         assert "staged fill paths" in out, \
             f"expected the staged-path diagnostic, got:\n{out}"

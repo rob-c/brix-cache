@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_srv_http_helpers")
 
+pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_srv_http")
+
 def test_single_range(srv, big, spec):
     path, ref = big
     hdr, start, end = spec(len(ref))

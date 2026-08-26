@@ -33,26 +33,8 @@
 static void
 slot_blob_id(const char *root, const char *path, char *out, size_t cap)
 {
-    char          db[PATH_MAX];
-    sqlite3      *h = NULL;
-    sqlite3_stmt *q = NULL;
-
-    out[0] = '\0';
-    snprintf(db, sizeof(db), "%s/catalog.db", root);
-    CHECK(sqlite3_open(db, &h) == SQLITE_OK, "slot db open");
-    if (sqlite3_prepare_v2(h,
-            "SELECT blob_id FROM objects WHERE path = ?1;", -1, &q, NULL)
-        == SQLITE_OK)
-    {
-        sqlite3_bind_text(q, 1, path, -1, SQLITE_STATIC);
-        if (sqlite3_step(q) == SQLITE_ROW) {
-            const unsigned char *b = sqlite3_column_text(q, 0);
-
-            snprintf(out, cap, "%s", b ? (const char *) b : "");
-        }
-    }
-    sqlite3_finalize(q);
-    sqlite3_close(h);
+    pbut_query_text(root, "SELECT blob_id FROM objects WHERE path = ?1;",
+                    path, out, cap);
 }
 
 /* slot_refcount — a blob's tracked refcount (-1 = no row: the implicit single
@@ -60,73 +42,24 @@ slot_blob_id(const char *root, const char *path, char *out, size_t cap)
 static int
 slot_refcount(const char *root, const char *blob_id)
 {
-    char          db[PATH_MAX];
-    sqlite3      *h = NULL;
-    sqlite3_stmt *q = NULL;
-    int           n = -1;
-
-    snprintf(db, sizeof(db), "%s/catalog.db", root);
-    CHECK(sqlite3_open(db, &h) == SQLITE_OK, "slot rc db open");
-    if (sqlite3_prepare_v2(h,
-            "SELECT refcount FROM blobs WHERE blob_id = ?1;", -1, &q, NULL)
-        == SQLITE_OK)
-    {
-        sqlite3_bind_text(q, 1, blob_id, -1, SQLITE_STATIC);
-        if (sqlite3_step(q) == SQLITE_ROW) {
-            n = sqlite3_column_int(q, 0);
-        }
-    }
-    sqlite3_finalize(q);
-    sqlite3_close(h);
-    return n;
+    return pbut_query_int(root,
+        "SELECT refcount FROM blobs WHERE blob_id = ?1;", blob_id);
 }
 
 /* slot_set_hash — overwrite a blob's content_hash (the forgery primitive). */
 static void
 slot_set_hash(const char *root, const char *blob_id, const char *hash)
 {
-    char          db[PATH_MAX];
-    sqlite3      *h = NULL;
-    sqlite3_stmt *q = NULL;
-
-    snprintf(db, sizeof(db), "%s/catalog.db", root);
-    CHECK(sqlite3_open(db, &h) == SQLITE_OK, "slot forge db open");
-    if (sqlite3_prepare_v2(h,
-            "UPDATE blobs SET content_hash = ?2 WHERE blob_id = ?1;", -1, &q,
-            NULL) == SQLITE_OK)
-    {
-        sqlite3_bind_text(q, 1, blob_id, -1, SQLITE_STATIC);
-        sqlite3_bind_text(q, 2, hash, -1, SQLITE_STATIC);
-        CHECK(sqlite3_step(q) == SQLITE_DONE, "slot forge update");
-    }
-    sqlite3_finalize(q);
-    sqlite3_close(h);
+    pbut_exec(root, "UPDATE blobs SET content_hash = ?2 WHERE blob_id = ?1;",
+              blob_id, hash);
 }
 
 /* slot_get_hash — read a blob's recorded content_hash ("" when none). */
 static void
 slot_get_hash(const char *root, const char *blob_id, char *out, size_t cap)
 {
-    char          db[PATH_MAX];
-    sqlite3      *h = NULL;
-    sqlite3_stmt *q = NULL;
-
-    out[0] = '\0';
-    snprintf(db, sizeof(db), "%s/catalog.db", root);
-    CHECK(sqlite3_open(db, &h) == SQLITE_OK, "slot hash db open");
-    if (sqlite3_prepare_v2(h,
-            "SELECT content_hash FROM blobs WHERE blob_id = ?1;", -1, &q, NULL)
-        == SQLITE_OK)
-    {
-        sqlite3_bind_text(q, 1, blob_id, -1, SQLITE_STATIC);
-        if (sqlite3_step(q) == SQLITE_ROW) {
-            const unsigned char *b = sqlite3_column_text(q, 0);
-
-            snprintf(out, cap, "%s", b ? (const char *) b : "");
-        }
-    }
-    sqlite3_finalize(q);
-    sqlite3_close(h);
+    pbut_query_text(root,
+        "SELECT content_hash FROM blobs WHERE blob_id = ?1;", blob_id, out, cap);
 }
 
 /* write_file_overlap — create `path` and write `data` with a deliberate

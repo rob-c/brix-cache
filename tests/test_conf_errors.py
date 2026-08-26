@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_errors_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_errors")
+
 def test_qcksum_nonexistent(srv):
     """query checksum of a nonexistent file -> OUR rejects (NotFound); STOCK may
     say 'not supported' (no checksum configured), in which case only require

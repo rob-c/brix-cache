@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_statx_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_statx_b")
+
 @pytest.mark.parametrize("path", ["/hello.txt", "/data.bin", "/sz_4096.bin"])
 def test_stat_mtime_present_and_structurals_match(srv, path):
     o, f = _stat_both(srv, path)

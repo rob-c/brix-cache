@@ -50,7 +50,7 @@ def test_bare_macaroon_secret_parses():
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28781;\n"
         "    location / { brix_webdav on; brix_webdav_auth optional;\n"
-        f"      brix_macaroon_secret {_HEX};\n"
+        f"      brix_macaroon_secret {_HEX};\n"  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
         f"      brix_macaroon_secret_old {_HEX}; }} }}\n")
     assert rc == 0, f"bare brix_macaroon_secret[_old] must parse:\n{out}"
     assert "successful" in out, out
@@ -62,6 +62,6 @@ def test_old_webdav_macaroon_names_unknown(old):
     rc, out = _nginx_t(
         "  server { listen 127.0.0.1:28782;\n"
         "    location / { brix_webdav on; brix_webdav_auth optional;\n"
-        f"      {old} {_HEX}; }} }}\n")
+        f"      {old} {_HEX}; }} }}\n")  # net-literal-allow: parse-only config template listen (nginx -t, never bound)
     assert rc != 0, out
     assert "unknown directive" in out and old in out, out

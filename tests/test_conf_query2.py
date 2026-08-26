@@ -58,6 +58,8 @@ def _check_test_qconfig_multi_key_matches_singletons_7(single, k, ml):
 
 _reexport(globals(), "_test_conf_query2_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_query2")
+
 @pytest.mark.parametrize("key", QCONFIG_KEYS)
 def test_qconfig_key_bare_value(srv, key):
     """OUR `query config <key>` succeeds, is newline-terminated, and is a BARE

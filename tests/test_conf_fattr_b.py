@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_fattr_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_fattr_b")
+
 @needs_bindings
 @pytest.mark.parametrize("attr", NAMESPACE_CASES)
 def test_bindings_namespace_set_parity(srv, attr):

@@ -28,10 +28,27 @@ def _suite_parser():
     parser.add_argument("--fast", action="store_true")
     parser.add_argument("--pr", action="store_true")
     parser.add_argument("--nightly", action="store_true")
+    parser.add_argument(
+        "--include-suite-jobs", action="store_true",
+        help="include compiler/analyzer/Docker job wrappers in pytest timing",
+    )
     parser.add_argument("-n", type=int, default=max(2, min((os.cpu_count() or 8) - 2, 12)))
+    parser.add_argument(
+        "--shards", type=int, default=1, metavar="N",
+        help="Split the --fast bulk lane into N independent pytest sessions "
+             "(each bounded, loadgroup-scheduled, on its own clean fleet). A "
+             "mid-run native server/worker crash then kills only ONE shard "
+             "(fast, re-runnable) instead of wedging the whole 14k-test tail at "
+             "99%%. Default 1 (single session, legacy behaviour).")
     parser.add_argument(
         "--first-percent", type=float, default=None, metavar="PERCENT",
         help="run one deterministic PERCENT sample instead of the full suite",
+    )
+    parser.add_argument(
+        "--slow-test-threshold", type=float,
+        default=float(os.environ.get("TEST_SLOW_THRESHOLD", "5")),
+        metavar="SECONDS",
+        help="flag tests at or above this wall time in TEST_ROOT/timings",
     )
     parser.add_argument(
         "--nginx-bin",
@@ -78,7 +95,12 @@ def _suite_arguments(ns):
     clientconf = _existing(CLIENTCONF)
     ignore = [f"--ignore={REPO_ROOT / 'tests/userns'}"]
     ignore += [f"--ignore={REPO_ROOT / rel}" for rel in [*destructive, *clientconf]]
+    # --max-worker-restart bounds crashed-worker respawns so a crash-storm
+    # ABORTS the lane instead of the controller busy-looping forever with no
+    # live workers (the 99%-for-a-day hang). These lanes clear the ini addopts
+    # via `-o addopts=`, so the pytest.ini net does NOT reach them — set it here.
     common = ["-ra", "-q", "-p", "no:randomly", "-p", "no:rerunfailures",
+              "--max-worker-restart=8",
               "-o", "addopts=", "--color=no", *extra]
     return destructive, clientconf, ignore, common, str(REPO_ROOT / "tests")
 

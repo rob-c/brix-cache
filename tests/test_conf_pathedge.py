@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_pathedge_helpers")
 
+pytestmark = pytest.mark.xdist_group("conf_pathedge")
+
 def test_oracle_stat_off(pair):
     rc, out, _ = fs(pair["off"], "stat", "/hello.txt")
     assert rc == 0 and "Size:" in out

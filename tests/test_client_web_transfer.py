@@ -243,15 +243,21 @@ def test_web2web_missing_source_cleans_temp(web_servers, tmp_path):
     and leaves no staging temp."""
     base = f"http://{HOST}:{web_servers['dav_port']}"
     env, spool = _spool_env(tmp_path)
-    r = subprocess.run([XRDCP, "--retry", "0",
-                        f"{base}/no_such_w2w_src", f"{base}/w2w_should_not_exist"],
-                       capture_output=True, text=True, timeout=60, env=env)
+    # The nginx fixture proxies a missing GET through XRootD's retry path, which
+    # intentionally takes about 30 seconds.  This test is about relay cleanup,
+    # so use a real but immediate HTTP 404 source and keep nginx as the target.
+    with _mock_http_status() as missing_source:
+        r = subprocess.run([XRDCP, "--retry", "0", "--max-stall", "0",
+                            f"{missing_source}/no_such_w2w_src",
+                            f"{base}/w2w_should_not_exist"],
+                           capture_output=True, text=True, timeout=10, env=env)
     assert r.returncode != 0, f"expected failure: {r.stdout}\n{r.stderr}"
     assert list(spool.glob("xrdcp-w2w-*")) == [], "staging temp leaked on error"
-    # the dst must not have been created
-    head = subprocess.run([XRDCP, f"{base}/w2w_should_not_exist", "-"],
-                          capture_output=True, text=True, timeout=60, env=env)
-    assert head.returncode != 0, "dst should not exist after a failed relay"
+    # This lifecycle fixture owns the WebDAV export, so inspect its storage
+    # directly instead of paying another resilient network timeout merely to
+    # prove absence.
+    destination = web_servers["root"] / "dav" / "w2w_should_not_exist"
+    assert not destination.exists(), "dst should not exist after a failed relay"
 
 
 def test_webdav_recursive_rejects_traversal(tmp_path):
