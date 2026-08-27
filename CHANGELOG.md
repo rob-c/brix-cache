@@ -17,7 +17,7 @@ what changed for a user of the server.
 
 ---
 
-## Unreleased
+## v1.5.0 — 2026-08-26
 
 ### Security
 

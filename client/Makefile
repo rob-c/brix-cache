@@ -832,7 +832,7 @@ install-compat: $(BIN_EXES) $(OPT_EXES)
 	# Man pages under brix- names; FUSE pages skipped, .so redirect stubs retargeted.
 	@for m in man/*.1; do \
 		base=$$(basename $$m .1); \
-		case "$$base" in brixMount|xrootdfs|brix-fault-proxy) continue;; esac; \
+		case "$$base" in brixMount|brixcvmfs|brixoci|brixrpm|xrootdfs|brix-fault-proxy) continue;; esac; \
 		cn=$${base%-brix}; case "$$cn" in brix-*) : ;; *) cn=brix-$$cn;; esac; \
 		if head -1 $$m | grep -q '^\.so '; then \
 			sed -e 's#man1/xrdcksum\.1#man1/brix-xrdcksum.1#' \
