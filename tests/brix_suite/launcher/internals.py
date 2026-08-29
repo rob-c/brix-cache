@@ -73,7 +73,7 @@ class _LauncherInternals:
         precedence — per-instance ``PORT``/``DATA_ROOT``/``LOG_DIR``/``TMP_DIR``,
         endpoint cross-refs, and ``spec.template_values`` all win over it.
         """
-        env = os.environ if not spec.env else {**os.environ, **spec.env}
+        env = os.environ if not spec.env else {k: v for k, v in dict(os.environ, **spec.env).items() if isinstance(k, str) and k and "=" not in k and "\x00" not in k and isinstance(v, str) and "\x00" not in v}
         return session_template_values(env=env)
 
     def _endpoint_template_values(self) -> dict[str, str | int | None]:

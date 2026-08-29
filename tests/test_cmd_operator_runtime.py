@@ -95,7 +95,7 @@ def test_pytest_lane_composes_selection_main_common_in_order(monkeypatch):
 def test_serial_lane_disables_ini_xdist_options_without_unloading_plugin(monkeypatch):
     calls = []
     monkeypatch.setattr(operator_runtime, "_pytest_lane",
-                        lambda selection, main, common: calls.append((selection, main, common)) or True)
+                        lambda selection, main, common, **kw: calls.append((selection, main, common)) or True)
 
     assert operator_runtime._serial_lane(["tests/serial.py"], ["-q"]) is True
     assert calls == [(["tests/serial.py"], ["-n", "0", "-o", "addopts="], ["-q"])]
@@ -132,7 +132,7 @@ def test_suite_binary_args_propagate_to_all_helper_names(monkeypatch, tmp_path: 
     xrootd = _executable(tmp_path / "custom-xrootd")
     monkeypatch.setattr(operator_runtime, "teardown_test_fleet", lambda root: None)
     monkeypatch.setattr(operator_runtime, "_existing", lambda paths: [])
-    monkeypatch.setattr(operator_runtime, "_pytest_lane", lambda *args: True)
+    monkeypatch.setattr(operator_runtime, "_pytest_lane", lambda *args, **kw: True)
 
     assert operator_runtime.run_suite([
         "--fast", "--nginx-bin", str(nginx), "--xrootd-bin", str(xrootd),
@@ -151,7 +151,7 @@ def test_explicit_first_percent_is_one_no_retry_sample_lane(monkeypatch, tmp_pat
     monkeypatch.setattr(operator_runtime, "_existing", lambda paths: [])
     monkeypatch.setattr(
         operator_runtime, "_pytest_lane",
-        lambda selection, main, common: calls.append((selection, main, common)) or True,
+        lambda selection, main, common, **kw: calls.append((selection, main, common)) or True,
     )
 
     assert operator_runtime.run_suite([
@@ -163,7 +163,11 @@ def test_explicit_first_percent_is_one_no_retry_sample_lane(monkeypatch, tmp_pat
     assert selection[-1] == "--first-percent=10"
     assert main == ["-n", "8", "--dist", "loadgroup"]
     assert ["-p", "no:rerunfailures"] == common[4:6]
-    assert common[6:8] == ["-o", "addopts="]
+    # positional pinning stops here: the crash-storm bound
+    # (--max-worker-restart=8) sits between the plugin kills and the ini reset.
+    ini_reset = common.index("-o")
+    assert all(("--max-worker-restart=8" in common,
+                common[ini_reset:ini_reset + 2] == ["-o", "addopts="])), common
 
 
 def test_default_suite_runs_full_parallel_and_serial_lanes(monkeypatch, tmp_path: Path):
@@ -173,7 +177,7 @@ def test_default_suite_runs_full_parallel_and_serial_lanes(monkeypatch, tmp_path
     monkeypatch.setattr(operator_runtime, "teardown_test_fleet", lambda root: None)
     monkeypatch.setattr(operator_runtime, "_existing", lambda paths: [])
     monkeypatch.setattr(operator_runtime, "_pytest_lane",
-                        lambda selection, main, common: calls.append((selection, main, common)) or True)
+                        lambda selection, main, common, **kw: calls.append((selection, main, common)) or True)
 
     assert operator_runtime.run_suite([
         "-n", "20", "--nginx-bin", str(nginx), "--xrootd-bin", str(xrootd),
@@ -358,7 +362,7 @@ def test_clean_test_fleet_reaps_known_listener_on_selected_ladder(monkeypatch, t
 
 def test_suite_lane_tears_down_after_success(monkeypatch, tmp_path: Path):
     events = []
-    monkeypatch.setattr(operator_runtime, "_pytest_lane", lambda *a: events.append("run") or True)
+    monkeypatch.setattr(operator_runtime, "_pytest_lane", lambda *a, **kw: events.append("run") or True)
     monkeypatch.setattr(operator_runtime, "teardown_test_fleet",
                         lambda root: events.append(("stop", root)))
 
@@ -368,7 +372,7 @@ def test_suite_lane_tears_down_after_success(monkeypatch, tmp_path: Path):
 
 def test_suite_lane_tears_down_after_failure(monkeypatch, tmp_path: Path):
     events = []
-    monkeypatch.setattr(operator_runtime, "_pytest_lane", lambda *a: False)
+    monkeypatch.setattr(operator_runtime, "_pytest_lane", lambda *a, **kw: False)
     monkeypatch.setattr(operator_runtime, "teardown_test_fleet",
                         lambda root: events.append(root))
 
@@ -379,7 +383,7 @@ def test_suite_lane_tears_down_after_failure(monkeypatch, tmp_path: Path):
 def test_suite_lane_tears_down_after_interrupt(monkeypatch, tmp_path: Path):
     events = []
     monkeypatch.setattr(operator_runtime, "_pytest_lane",
-                        lambda *a: (_ for _ in ()).throw(KeyboardInterrupt()))
+                        lambda *a, **kw: (_ for _ in ()).throw(KeyboardInterrupt()))
     monkeypatch.setattr(operator_runtime, "teardown_test_fleet",
                         lambda root: events.append(root))
 

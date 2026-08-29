@@ -32,6 +32,7 @@ import pytest
 from settings import BIND_HOST, NGINX_BIN
 
 import _test_session_bind_helpers as H
+from ephemeral_port import free_port
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _XRDCP = os.path.join(_REPO, "client", "bin", "xrdcp")
@@ -40,7 +41,7 @@ kXR_rm = 3016
 
 def _free_port():
     s = socket.socket()
-    s.bind((BIND_HOST, 0))
+    s.bind((BIND_HOST, free_port()))  # leased mock-range port (never kernel-assigned)
     port = s.getsockname()[1]
     s.close()
     return port

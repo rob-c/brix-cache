@@ -174,7 +174,12 @@ def test_cold_pull_with_upstream_down_fails_promptly(mirror: Mirror, upstream,
     images.append(ref)
 
     started = time.monotonic()
+    # podman < 5 has no `pull --retry`; the flag only tightens the budget, so
+    # probe once and drop it where unsupported (the 504 verdict is the same).
     proc = pull(ref, "--retry", "0", check=False)
+    if proc.returncode == 125 and "unknown flag: --retry" in proc.stderr:
+        started = time.monotonic()
+        proc = pull(ref, check=False)
     elapsed = time.monotonic() - started
 
     assert proc.returncode != 0

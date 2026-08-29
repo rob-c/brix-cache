@@ -79,7 +79,7 @@ would move a frozen baseline under us.
 | `check_shard_name_collisions.py` | one composed module, one namespace: no top-level name is bound twice across a parent and the shards it execs into its own globals — a shard's `_expression_1` rebinds the parent's, and the parent's call sites (resolved at call time) reach the shard's function | — (no exemptions) | rename them to say what they do |
 | `check_ratchet_monotonic.py` | guards the guards: no ratchet backlog above may GROW vs the PR's base revision — no new grandfathered entry, no raised allowance. Analyzer baselines are deliberately out of scope (see its header); `check_duplication.py` needs no entry now that its backlog is gone | every other backlog in this table | — (fix the code) |
 | `smoke.py` | the built `objs/nginx` + `client/bin/xrdcp` serve one byte-exact `root://` read on an ephemeral port; fails — never skips — when an artefact is missing. Run by `.github/workflows/build.yml`, not by `guards.yml` | — | — |
-| `run_fanalyzer.py` | no NEW gcc `-fanalyzer` finding (UAF/leak/NULL-deref) vs baseline; needs a configured nginx build (`NGX_BUILD`) | `fanalyzer_baseline.txt` | `--regen` |
+| `run_fanalyzer.py` | ZERO gcc `-fanalyzer` findings (UAF/leak/NULL-deref) — no baseline, no waivers; needs a configured nginx build (`NGX_BUILD`) | — | — (fix the code) |
 | `run_codechecker.py` | no NEW Clang Static Analyzer + clang-tidy finding vs baseline; needs a configured nginx build (`NGX_BUILD`) + `CodeChecker` + clang/clang-tidy | `codechecker_baseline.txt` | `--regen` |
 | `asan.py` | ASan+UBSan build (`build_sanitizer`) boots the fleet + drives real root:// I/O; FAILS on any heap error / UB / unsuppressed leak (hyper-hardening B-2); needs a compiler + configured nginx build (`NGINX_SRC`) | `tests/lsan.supp` | — |
 
@@ -210,13 +210,14 @@ residual under the sanitizer.
 
 ## Static analysis
 
-`run_fanalyzer.py` compiles the module under gcc `-fanalyzer` and diffs
-findings against `fanalyzer_baseline.txt`. It needs a configured nginx
-build tree (`NGX_BUILD=/path/to/nginx-1.28.3`, default `/tmp/nginx-1.28.3`).
-It runs weekly + on dispatch in CI (`.github/workflows/fanalyzer.yml`,
-non-blocking until proven stable across GCC versions); local runs against
-the dev build remain the authoritative gate. `--filter <path-prefix>` for
-a fast scoped scan.
+`run_fanalyzer.py` compiles the module under gcc `-fanalyzer` and fails on
+ANY finding — the tree is analyzer-clean (the 2026-08 burn-down emptied and
+deleted the old `fanalyzer_baseline.txt`), so there is no baseline and no
+waiver path: a finding is fixed by restructuring the code until the analyzer
+can prove it safe. It needs a configured nginx build tree
+(`NGX_BUILD=/path/to/nginx-1.28.3`, default `/tmp/nginx-1.28.3`). It runs
+blocking per-PR in CI (`.github/workflows/fanalyzer.yml`, pinned to
+`almalinux:9`). `--filter <path-prefix>` for a fast scoped scan.
 
 `run_codechecker.py` is the orthogonal Clang half: it synthesizes a
 `compile_commands.json` from the same build-tree `$(CFLAGS)`/`$(ALL_INCS)`

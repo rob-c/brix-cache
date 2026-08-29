@@ -143,6 +143,29 @@ typedef struct {
 } brix_mirror_conf_t;
 
 /*
+ * Seed every mirror knob with its UNSET sentinel so the stock ngx_conf_set_*
+ * slot setters accept a first assignment and the merge above can apply its
+ * defaults.  A pcalloc'd (all-zero) block is NOT equivalent: 0 reads as an
+ * explicit value, turning the first directive use into "duplicate" and the
+ * documented defaults (sample 100, strip_auth/log_diverge on, 5 s timeout)
+ * into 0.  Both surfaces (stream server conf, HTTP shared preamble) call this.
+ */
+static ngx_inline void
+brix_mirror_conf_init(brix_mirror_conf_t *conf)
+{
+    conf->enabled     = NGX_CONF_UNSET;
+    conf->targets     = NULL;
+    conf->sample_pct  = NGX_CONF_UNSET_UINT;
+    conf->method_mask = NGX_CONF_UNSET_UINT;
+    conf->opcode_mask = NGX_CONF_UNSET_UINT;
+    conf->opcode_exclude_mask = NGX_CONF_UNSET_UINT;
+    conf->strip_auth  = NGX_CONF_UNSET;
+    conf->log_diverge = NGX_CONF_UNSET;
+    conf->timeout_ms  = NGX_CONF_UNSET_MSEC;
+    conf->mirror_writes = NGX_CONF_UNSET;
+}
+
+/*
  * Merge the surface-independent mirror knobs child <- parent and derive
  * `enabled` from the presence of at least one inherited target.  Each surface
  * merges its own extras (stream: opcode masks; HTTP: token) around this call —

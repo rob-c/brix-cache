@@ -131,10 +131,15 @@ brix_conf_set_tpc_verify_checksum(ngx_conf_t *cf, ngx_command_t *cmd, void *conf
 
     (void) cmd;
 
+    if (sc->tpc_verify_checksum.data != NULL) {
+        return "is duplicate";     /* parity with the stock str-slot grammar */
+    }
     if (value[1].len == 3
         && ngx_strncasecmp(value[1].data, (u_char *) "off", 3) == 0)
     {
-        ngx_str_null(&sc->tpc_verify_checksum);   /* explicit off */
+        /* Explicit off: a non-NULL empty marker, so a later duplicate is
+         * still caught and the merge never re-inherits over the opt-out. */
+        ngx_str_set(&sc->tpc_verify_checksum, "");
         return NGX_CONF_OK;
     }
     if (value[1].len == 2

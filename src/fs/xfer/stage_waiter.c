@@ -54,13 +54,17 @@ static ngx_uint_t       stage_waiter_slots_req;
 static stage_waiter_table_t *
 stage_waiter_table(void)
 {
-    if (stage_waiter_zone == NULL
-        || stage_waiter_zone->data == NULL
-        || stage_waiter_zone->data == (void *) 1)
-    {
+    void *table;
+
+    if (stage_waiter_zone == NULL) {
         return NULL;
     }
-    return (stage_waiter_table_t *) stage_waiter_zone->data;
+    /* Single read of zone->data: the checked value IS the returned value. */
+    table = stage_waiter_zone->data;
+    if (table == NULL || table == (void *) 1) {
+        return NULL;
+    }
+    return (stage_waiter_table_t *) table;
 }
 
 static ngx_int_t
@@ -116,33 +120,42 @@ brix_stage_waiter_add(const char *reqid, uint16_t options,
                         ngx_msec_t timeout_ms)
 {
     stage_waiter_table_t *tbl = stage_waiter_table();
-    ngx_uint_t            i, free_slot;
+    stage_waiter_t       *slots;
+    ngx_uint_t            i, capacity, free_slot;
 
-    if (tbl == NULL || reqid == NULL) {
+    /* Guards kept as separate ifs: gcc 11's -fanalyzer loses the non-NULL
+     * constraint on an accessor-returned pointer inside a compound || guard
+     * and reports an infeasible NULL deref below. */
+    if (tbl == NULL) {
         return NGX_ERROR;
     }
+    if (reqid == NULL) {
+        return NGX_ERROR;
+    }
+    /* Layout fields are immutable after zone init — snapshot them up front. */
+    slots    = tbl->slots;
+    capacity = tbl->capacity;
     ngx_shmtx_lock(&stage_waiter_mtx);
 
-    /* phase79-fp: tbl NULL-checked at entry; analyzer drops the guard across ngx_shmtx_lock */
-    free_slot = tbl->capacity;
-    for (i = 0; i < tbl->capacity; i++) {
-        stage_waiter_t *s = &tbl->slots[i];
+    free_slot = capacity;
+    for (i = 0; i < capacity; i++) {
+        stage_waiter_t *s = &slots[i];
         if (!s->in_use) {
-            brix_shm_remember_free_slot(&free_slot, tbl->capacity, i);
+            brix_shm_remember_free_slot(&free_slot, capacity, i);
             continue;
         }
         if (brix_shm_slot_expired(ngx_current_msec, s->expires)) {
             s->in_use = 0;
-            brix_shm_remember_free_slot(&free_slot, tbl->capacity, i);
+            brix_shm_remember_free_slot(&free_slot, capacity, i);
         }
     }
-    if (free_slot == tbl->capacity) {
+    if (free_slot == capacity) {
         ngx_shmtx_unlock(&stage_waiter_mtx);
         return NGX_AGAIN;                    /* full → caller falls back to wait */
     }
 
     {
-        stage_waiter_t *s = &tbl->slots[free_slot];
+        stage_waiter_t *s = &slots[free_slot];
         ngx_memzero(s, sizeof(*s));
         ngx_cpystrn((u_char *) s->reqid, (u_char *) reqid, sizeof(s->reqid));
         s->options = options;
@@ -261,17 +274,25 @@ void
 brix_stage_waiter_deliver(const char *reqid, int code)
 {
     stage_waiter_table_t *tbl = stage_waiter_table();
-    ngx_uint_t            i;
+    stage_waiter_t       *slots;
+    ngx_uint_t            i, capacity;
 
-    if (tbl == NULL || reqid == NULL) {
+    /* Separate ifs — same gcc 11 compound-guard analyzer limitation as
+     * brix_stage_waiter_add above. */
+    if (tbl == NULL) {
         return;
     }
+    if (reqid == NULL) {
+        return;
+    }
+    /* Layout fields are immutable after zone init — snapshot them up front. */
+    slots    = tbl->slots;
+    capacity = tbl->capacity;
     /* Mark every matching waiter ready; this worker's are then drained below,
      * other workers' rows are drained by their own poll. */
     ngx_shmtx_lock(&stage_waiter_mtx);
-    /* phase79-fp: tbl NULL-checked at entry; analyzer drops the guard across ngx_shmtx_lock */
-    for (i = 0; i < tbl->capacity; i++) {
-        stage_waiter_t *s = &tbl->slots[i];
+    for (i = 0; i < capacity; i++) {
+        stage_waiter_t *s = &slots[i];
         if (s->in_use && ngx_strcmp(s->reqid, reqid) == 0) {
             s->ready = 1;
             s->code = code;

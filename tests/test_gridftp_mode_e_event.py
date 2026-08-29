@@ -30,6 +30,7 @@ Run:
     PYTHONPATH=tests python3 -m pytest tests/test_gridftp_mode_e_event.py -v -p no:xdist
 """
 
+import errno
 import ftplib
 import os
 import socket
@@ -188,6 +189,28 @@ def test_get_mode_e_missing_fails(ev_gateway):
 
 # ---- STOR MODE E (single stream) --------------------------------------------
 
+def _send_mode_e_frames(data, frames, close_eof, eod_total):
+    """Push the frames and half-close, tolerating a server that already hung up.
+
+    The REJECTION cases (an overlapping block, a bad EOD count) are enforced by
+    tearing down the data channel, so the send/shutdown can lose the race with
+    the very refusal the caller is asserting.  ENOTCONN/EPIPE here means the
+    server refused early — not a test failure — so swallow it and let the
+    caller judge the FTP response code, which is where the verdict lives.  A
+    server that wrongly ACCEPTS still completes the writes and still has to
+    answer 226, so the cells keep their full power.
+    """
+    try:
+        for frame in frames:
+            data.sendall(frame)
+        if close_eof:
+            data.sendall(_eb(EB_EOF | EB_EOD, 0, eod_total))
+        data.shutdown(socket.SHUT_WR)
+    except OSError as exc:
+        if exc.errno not in (errno.ENOTCONN, errno.EPIPE, errno.ECONNRESET):
+            raise
+
+
 def _mode_e_stor_single(gw, name, frames, eod_total=1, close_eof=True):
     """STOR `name` over a single MODE E data stream, then a combined EOF|EOD."""
     ftp = ftplib.FTP()
@@ -201,11 +224,7 @@ def _mode_e_stor_single(gw, name, frames, eod_total=1, close_eof=True):
         try:
             ftp.putcmd("STOR " + name)
             assert ftp.getresp().startswith("150"), "expected 150 before data"
-            for frame in frames:
-                data.sendall(frame)
-            if close_eof:
-                data.sendall(_eb(EB_EOF | EB_EOD, 0, eod_total))
-            data.shutdown(socket.SHUT_WR)
+            _send_mode_e_frames(data, frames, close_eof, eod_total)
             return _final_code(ftp)
         finally:
             data.close()

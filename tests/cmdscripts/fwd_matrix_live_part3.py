@@ -65,9 +65,9 @@ def _c_backend_extra(h: ForwardHarness, proto: str, cred: str) -> str:
                 f"        brix_token_audience {TOK_AUD};")
     if cred == "gsi":
         return "brix_webdav_auth required;"
-    return (f"brix_webdav_auth required;\n            brix_webdav_token_jwks     {h.tok_jwks};\n"
-            f"            brix_webdav_token_issuer   {h.tok_issuer};\n"
-            f"            brix_webdav_token_audience {TOK_AUD};")
+    return (f"brix_webdav_auth required;\n            brix_token_jwks     {h.tok_jwks};\n"
+            f"            brix_token_issuer   {h.tok_issuer};\n"
+            f"            brix_token_audience {TOK_AUD};")
 
 
 def _c_root_auth(h, cred):
@@ -81,12 +81,12 @@ def _c_root_auth(h, cred):
 
 
 def _c_davs_auth(h, cred):
-    auth = f"brix_webdav_cafile {CA_CERT}; brix_webdav_auth required;"
+    auth = f"brix_trusted_ca {CA_CERT}; brix_webdav_auth required;"
     if cred == "gsi":
         return auth
-    return auth + (f"\n            brix_webdav_token_jwks     {h.tok_jwks};\n"
-                   f"            brix_webdav_token_issuer   {h.tok_issuer};\n"
-                   f"            brix_webdav_token_audience {TOK_AUD};")
+    return auth + (f"\n            brix_token_jwks     {h.tok_jwks};\n"
+                   f"            brix_token_issuer   {h.tok_issuer};\n"
+                   f"            brix_token_audience {TOK_AUD};")
 
 
 def _c_root_front_config(h, directory, log, port, cred, leg):

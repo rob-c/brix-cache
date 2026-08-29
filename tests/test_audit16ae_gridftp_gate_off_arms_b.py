@@ -143,7 +143,7 @@ class TestArmingGsiDoesNotRequireIt:
 # G. Parse tier                                                                #
 # --------------------------------------------------------------------------- #
 
-FLAGS = ("brix_gridftp_verify_write",
+FLAGS = ("brix_verify_write",
          "brix_gridftp_require_allo_size",
          "brix_gridftp_gsi")
 
@@ -256,12 +256,19 @@ class TestTheFlagsAreStreamServerOnly:
     that inheritance arm is unreachable rather than untested.
     """
 
+    #: bare brix_verify_write is the ONE shared write-integrity flag (W3):
+    #: the http plane registers it too, so those placements are legal there.
+    HTTP_SHARED = {"brix_verify_write"}
+
     @pytest.mark.parametrize("flag", FLAGS)
     @pytest.mark.parametrize("slot", ("STREAM_KNOBS", "HTTP_KNOBS",
                                       "LOC_KNOBS", "OUTER"))
     def test_the_flag_is_refused_outside_a_stream_server(self, tmp_path, flag,
                                                          slot):
         rc, out = _parse(tmp_path, **{slot: f"    {flag} on;\n"})
+        if flag in self.HTTP_SHARED and slot in ("HTTP_KNOBS", "LOC_KNOBS"):
+            assert rc == 0, out
+            return
         assert rc != 0, out
         assert any(f'"{flag}" directive is not allowed here' in ln
                    for ln in _diagnostics(out)), _diagnostics(out)
@@ -293,13 +300,13 @@ class TestTheGsiFlagIsTheOnlyOneWithAPrerequisite:
         data = tmp_path / "ftp-export"
         data.mkdir(exist_ok=True)
         return ("        brix_gridftp        on;\n"
-                f"        brix_gridftp_export {data};\n" + extra)
+                f"        brix_export {data};\n" + extra)
 
     def test_gsi_on_without_a_certificate_is_refused(self, tmp_path):
         rc, out = _parse(tmp_path, KNOBS=self._gateway(
             tmp_path, "        brix_gridftp_gsi on;\n"))
         assert rc != 0, out
-        assert any("brix_gridftp_gsi requires brix_gridftp_certificate" in ln
+        assert any("brix_gridftp_gsi requires brix_certificate" in ln
                    for ln in _diagnostics(out)), _diagnostics(out)
 
     @pytest.mark.parametrize("arm", ("        brix_gridftp_gsi off;\n", ""))
@@ -327,9 +334,9 @@ class TestTheGsiFlagIsTheOnlyOneWithAPrerequisite:
         rc, out = _parse(tmp_path, KNOBS=self._gateway(
             tmp_path,
             "        brix_gridftp_gsi on;\n"
-            f"        brix_gridftp_certificate {SERVER_CERT};\n"))
+            f"        brix_certificate {SERVER_CERT};\n"))
         assert rc != 0, out
-        assert any("brix_gridftp_trusted_ca" in ln
+        assert any("brix_trusted_ca" in ln
                    for ln in _diagnostics(out)), _diagnostics(out)
 
 
@@ -341,7 +348,7 @@ class TestNothingIsLoggedAboutTheDisarmedGates:
     """Eight gateways, five of them writing a disarming token, and the startup
     log names none of the three directives.
 
-    An operator who wrote `brix_gridftp_verify_write off` on a plane that also
+    An operator who wrote `brix_verify_write off` on a plane that also
     accepts REST (§D), or `brix_gridftp_gsi on` on a plane that still takes
     anonymous logins (§F), gets no line saying so.  That silence is what makes
     #111 and #112 findings rather than documented trade-offs.

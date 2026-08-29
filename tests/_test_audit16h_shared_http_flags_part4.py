@@ -133,7 +133,7 @@ class TestTheDeclarationsAndTheMerge:
     @pytest.mark.parametrize("name,field", FLAGS,
                              ids=[name for name, _ in FLAGS])
     def test_the_six_share_one_declaration_shape(self, name, field):
-        entry = _command_entry(HTTP_COMMON_C.read_text(), name)
+        entry = _command_entry(_http_common_commands_text(), name)
         assert "BRIX_HTTP_ALL_CONF|NGX_CONF_FLAG" in entry, entry
         assert "ngx_conf_set_flag_slot" in entry, entry
         assert "NGX_HTTP_LOC_CONF_OFFSET" in entry, entry
@@ -155,12 +155,12 @@ class TestTheDeclarationsAndTheMerge:
         """``session_log`` is the one that defaults ON, which is why its absent
         arm logs and every other absent arm is inert."""
         assert (f"ngx_conf_merge_value(conf->{field}, prev->{field}, "
-                f"{default});") in _squashed(SHARED_H.read_text())
+                f"{default});") in _squashed(_shared_text())
 
     def test_the_access_log_path_is_compared_against_the_word_off(self):
         """Not a flag: the sentinel is a path value that is never opened, which
         is why §E can silence a location without turning the session log off."""
-        squashed = _squashed(SHARED_H.read_text())
+        squashed = _squashed(_shared_text())
         assert 'ngx_conf_merge_str_value(conf->access_log, prev->access_log, "");' \
             in squashed
         assert 'ngx_strcmp(conf->access_log.data, (u_char *) "off") != 0' \
@@ -182,7 +182,7 @@ class TestTheDeclarationsAndTheMerge:
         assert "brix_shared_adopt_unified(&conf->common, &prev->common);" in body
         assert "apply_read_only" not in body
         assert "brix_shared_apply_read_only(conf, cf->log);" \
-            in _squashed(SHARED_H.read_text())
+            in _squashed(_shared_text())
 
     def test_apply_read_only_is_silent_unless_it_takes_a_grant_away(self):
         """Which is why §A's log assertions count exactly one sentence: the
@@ -249,10 +249,15 @@ class TestTheDeclarationsAndTheMerge:
             in _squashed(PUT_SETUP_C.read_text())
 
     def test_exactly_four_of_the_six_are_declared_on_the_stream_plane(self):
-        """The asymmetry §G's stream rows are a reading of."""
+        """The asymmetry §G's stream rows are a reading of.  The stream
+        plane's registrations live in the root stream module AND the stream
+        common module (core/config/stream_common.c — where the W3 unification
+        moved brix_verify_write and its bare-storage siblings)."""
+        stream_sources = (sorted(STREAM_DIR.rglob("*.c"))
+                          + sorted(STREAM_DIR.rglob("*.h"))
+                          + [ROOT / "src/core/config/stream_common.c"])
         declared = set()
-        for path in sorted(STREAM_DIR.rglob("*.c")) + \
-                sorted(STREAM_DIR.rglob("*.h")):
+        for path in stream_sources:
             text = path.read_text(errors="replace")
             for name in FLAG_NAMES:
                 if f'ngx_string("{name}")' in text:

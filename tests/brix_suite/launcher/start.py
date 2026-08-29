@@ -16,6 +16,8 @@ import os
 import shutil
 import subprocess
 
+from brix_suite.nginx_tools import sanitized_env as _sanitized_env
+
 import pytest
 
 from brix_suite.launcher.errors import RegistryCommandFailure
@@ -222,7 +224,7 @@ class _LauncherStart:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
-            env={**os.environ, **spec.env},
+            env=_sanitized_env(spec.env),
         )
         self._xrootd_procs[spec.name] = proc
         try:
@@ -243,7 +245,7 @@ class _LauncherStart:
         argv = list(spec.template_values.get("argv", ()))
         if not argv:
             raise ValueError(f"{spec.name}: proc/external spec needs template_values['argv']")
-        merged_env = {**os.environ, **spec.env}
+        merged_env = _sanitized_env(spec.env)
         proc = subprocess.Popen(
             argv,
             stdout=subprocess.DEVNULL,

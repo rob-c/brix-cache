@@ -26,6 +26,7 @@ import time
 import pytest
 
 from settings import BIND_HOST, NGINX_BIN
+from ephemeral_port import free_port
 
 kXR_login, kXR_query = 3007, 3001
 kXR_Qspace = 5
@@ -34,7 +35,7 @@ kXR_ok = 0
 
 def _free_port():
     s = socket.socket()
-    s.bind((BIND_HOST, 0))
+    s.bind((BIND_HOST, free_port()))  # leased mock-range port (never kernel-assigned)
     port = s.getsockname()[1]
     s.close()
     return port

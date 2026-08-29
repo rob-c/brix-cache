@@ -157,7 +157,10 @@ rr_parse_spec(const char *spec, const unsigned char **p,
             continue;
         }
 
-        slot     = rr_slot(*spec);
+        slot = rr_slot(*spec);
+        if (slot == NULL) {
+            return -1;             /* spec letter missing from rr_slots */
+        }
         span     = (const unsigned char **) ((char *) out + slot->ptr_off);
         span_len = (size_t *) ((char *) out + slot->len_off);
 

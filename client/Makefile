@@ -739,6 +739,7 @@ install: lib
 	cp -P $(LIBBRIX_SONAME) $(LIBBRIX_SO) $(DESTDIR)$(LIBDIR)/
 	# brix.h is an umbrella that includes the split brix_net/auth/ops headers.
 	install -m644 lib/brix_net.h lib/brix_auth.h lib/brix_ops.h \
+	              lib/brix_cksum_ops.h lib/brix_copy_ops.h \
 	              lib/_brix_net_ext.h lib/brix_net_frame.h \
 	              $(DESTDIR)$(INCLUDEDIR)/brix/
 	# brix.h names the protocol headers by their in-tree src path (-I $(SRC));

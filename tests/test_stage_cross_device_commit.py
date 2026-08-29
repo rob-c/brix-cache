@@ -6,7 +6,7 @@ copy → fsync → rename-a-temp-adjacent-to-the-final-path when rename(2) answe
 EXDEV.  That fallback is what makes "stage uploads on a fast device, store them
 on the bulk mount" work, and it was exercised only through root:// close
 (test_shutdown_resume.py::test_upload_resume_stage_dir).  On the HTTP plane the
-same code is reached by a Content-Range PUT under `brix_webdav_upload_resume on`
+same code is reached by a Content-Range PUT under `brix_upload_resume on`
 plus `brix_webdav_stage_dir` — a directive with no behavioural coverage at all.
 
 The cross-device condition is real, not simulated: the stage dir is created on

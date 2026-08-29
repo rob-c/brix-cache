@@ -1,4 +1,4 @@
-"""brix_ocsp_enable / brix_ocsp_soft_fail at VALUE granularity — audit §Method,
+"""brix_ocsp / brix_ocsp_soft_fail at VALUE granularity — audit §Method,
 16th tranche.
 
 WHY THIS FILE EXISTS
@@ -12,7 +12,7 @@ its two tokens, and 106 of the 256 (flag, value) pairs are written nowhere in
 the corpus in any form.
 
 Three of them are the OCSP flags, and they are the sharpest entry in the list:
-``brix_ocsp_enable``, ``brix_ocsp_soft_fail`` and ``brix_ocsp_stapling`` are the
+``brix_ocsp``, ``brix_ocsp_soft_fail`` and ``brix_ocsp_stapling`` are the
 only flags where BOTH arms are unwritten AND the branch is a security decision.
 ``src/auth/gsi/auth_cert.c:291`` — ``if (conf->ocsp.enable)``, the online
 revocation check on every GSI login — had never been entered by any test.
@@ -25,7 +25,7 @@ one up (``tests/lib/ocsp_responder.py``) and drives the flags for real.
 
 WHAT THE VALUE SELECTS
 ----------------------
-``brix_ocsp_enable`` gates the query itself: with it off, no OCSP request is
+``brix_ocsp`` gates the query itself: with it off, no OCSP request is
 ever built, and a certificate the CA has revoked logs in.  ``brix_ocsp_soft_fail``
 decides what a NON-answer means (ocsp.c:88, ``result = soft_fail ? 0 : -1``):
 
@@ -379,7 +379,7 @@ def ocsp(lifecycle, tmp_path, pki, responder):
         data_root=str(data),
         template_values={"CERT": pki["cert"], "KEY": pki["key"],
                          "CA": pki["ca"]},
-        reason="audit-16a brix_ocsp_enable/soft_fail at value granularity"))
+        reason="audit-16a brix_ocsp/soft_fail at value granularity"))
 
 
 # --------------------------------------------------------------------------- #
@@ -424,6 +424,6 @@ def _errlog(endpoint):
 
 
 # --------------------------------------------------------------------------- #
-# §A — brix_ocsp_enable: the flag that decides whether anyone is asked         #
+# §A — brix_ocsp: the flag that decides whether anyone is asked         #
 # --------------------------------------------------------------------------- #
 

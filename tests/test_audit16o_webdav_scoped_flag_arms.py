@@ -560,8 +560,13 @@ class TestTheParseTier:
         """The main context and the stream plane must refuse, and the refusal
         must be about the CONTEXT: nginx searches every module's command table
         before it checks scope, so "unknown directive" here would mean the
-        directive had been dropped from the table rather than misplaced."""
+        directive had been dropped from the table rather than misplaced.
+        Exception: bare ``brix_zip_access`` HAS a stream twin (the stream plane
+        always spelled it bare), so a stream-server placement is legal."""
         rc, out = _parse(tmp_path, **{scope: f"    {flag} {arm};\n"})
+        if flag == "brix_zip_access" and scope == "STREAM_KNOBS":
+            assert rc == 0, out
+            return
         assert rc != 0, out
         assert "is not allowed here" in out, out
         assert "unknown directive" not in out, out
@@ -584,25 +589,41 @@ class TestTheDeclarationsAreWhatTheFileSays:
         scopes, and ``NGX_HTTP_LOC_CONF_OFFSET`` so a server-scope value becomes
         the parent of every location below it."""
         text = MODULE_COMMANDS_C.read_text()
+        if flag == "brix_zip_access":
+            # phase-101 W4: registered once on the COMMON module for every
+            # HTTP protocol (http_directives_auth.h), same three scopes.
+            text = (MODULE_COMMANDS_C.parent.parent.parent
+                    / "core/config/http_directives_auth.h").read_text()
         marker = f'{{ ngx_string("{flag}"),'
         assert marker in text, flag
-        block = text.split(marker, 1)[1]
-        # splitlines()[0] is the tail of the marker's own line, which is empty.
-        lines = [ln.strip() for ln in block.splitlines()[1:5]]
-        assert lines[0] == ("NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | "
-                            "NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,"), lines
-        assert lines[1] == "ngx_conf_set_flag_slot,", lines
-        assert lines[2] == "NGX_HTTP_LOC_CONF_OFFSET,", lines
-        assert f"offsetof(ngx_http_brix_webdav_loc_conf_t, {field})" in lines[3], \
-            lines
+        entry = " ".join(text.split(marker, 1)[1].split("},")[0].split())
+        # The two spellings of the same three-scope declaration: the webdav
+        # module writes the scopes out; the common module (bare brix_zip_access)
+        # uses the BRIX_HTTP_ALL_CONF macro, which expands to the same three.
+        conf_t = ("ngx_http_brix_common_conf_t, common."
+                  if flag == "brix_zip_access"
+                  else "ngx_http_brix_webdav_loc_conf_t, ")
+        assert all((
+            ("NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | "
+             "NGX_HTTP_LOC_CONF | NGX_CONF_FLAG," in entry
+             or "BRIX_HTTP_ALL_CONF | NGX_CONF_FLAG," in entry),
+            "ngx_conf_set_flag_slot," in entry,
+            "NGX_HTTP_LOC_CONF_OFFSET," in entry,
+            f"offsetof({conf_t}{field})" in entry,
+        )), entry
 
     @pytest.mark.parametrize("field", [f for _, f in FLAGS])
     def test_all_three_merge_to_zero(self, field):
         """The bare arms read this 0.  A merge default of 1 would make the
         ``on`` arm the redundant one instead — which is the case for
-        ``brix_webdav_upload_resume`` one file over, so the direction is not a
+        ``brix_upload_resume`` one file over, so the direction is not a
         given."""
         squashed = " ".join(CONFIG_MERGE_C.read_text().split())
+        if field == "zip_access":
+            # merged once for every HTTP protocol in the shared preamble.
+            squashed = " ".join((CONFIG_MERGE_C.parent.parent.parent
+                                 / "core/config/shared_conf_merge.h")
+                                .read_text().split())
         assert (f"ngx_conf_merge_value(conf->{field}, prev->{field}, 0);"
                 in squashed), field
 
@@ -637,5 +658,5 @@ class TestTheDeclarationsAreWhatTheFileSays:
         text = GET_C.read_text()
         body = text.split("get_zip_member_serve(ngx_http_request_t *r,", 1)[1]
         body = body.split("\n}\n", 1)[0]
-        assert body.index("!conf->zip_access") < \
+        assert body.index("!conf->common.zip_access") < \
             body.index("brix_zip_http_member_arg"), body

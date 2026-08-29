@@ -4,7 +4,7 @@
 LIFECYCLE_SHARED_PORTS_PHASE5.update({
     "lc-audit16n-webdav": {"port": 30795},
     # The three MAIN|SRV|LOC WebDAV flags whose `off` arm was never written
-    # anywhere — brix_webdav_zip_access, brix_webdav_require_digest,
+    # anywhere — brix_zip_access, brix_webdav_require_digest,
     # brix_webdav_dig — same tranche
     # (test_audit16o_webdav_scoped_flag_arms.py).  ONE port for eleven locations
     # across SEVEN server_name vhosts.  All three are declared in three scopes
@@ -240,7 +240,7 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
     # a listener of its own.
     "lc-audit16ad-inert": {"port": 30871},
     # 16ae: the three gridftp gates whose DISARMING arm no config has written —
-    # brix_gridftp_verify_write, _require_allo_size and _gsi.  All three are
+    # brix_verify_write, _require_allo_size and _gsi.  All three are
     # NGX_STREAM_SRV_CONF, so a plane is a `listen`: five write planes (both
     # tokens written, neither written, both armed, and the two crosses) and
     # three GSI planes (off, absent, on) that all carry the same certificate,
@@ -280,13 +280,13 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
     # (eight fronts) and the one server block that stands the process-singleton
     # stage registry up (four fronts).  Every front is a `listen` because all
     # three subjects are stream-server-scoped — there is no location to fold on.
-    # 16ai: brix_gridftp_allow_write, the fourth GridFTP gate and the one file
+    # 16ai: brix_allow_write, the fourth GridFTP gate and the one file
     # 31 left.  Thirty-one configs write `on`; the token `off` appears in NO
     # config in the tree — nginx_gridftp_metrics.conf's own header says its
     # {RO_PORT} server writes it and the server block simply omits the line,
     # and nginx_gridftp_plain_ev_ro.conf is an absence by construction.  FOUR
     # gateways: the writable control, the written `off`, the same server with
-    # the line deleted, and `off` beside an armed brix_gridftp_verify_write —
+    # the line deleted, and `off` beside an armed brix_verify_write —
     # plus one HTTP face, because the transfer gate books a `forbidden` op row
     # and the five command-level gates book nothing, which is only visible on a
     # /metrics scrape of the shared process-wide zone.

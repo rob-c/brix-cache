@@ -128,7 +128,7 @@ s3_merge_token(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *prev,
 
     if (conf->token_enable && conf->common.token_jwks.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_s3_token: brix_s3_token_jwks is required when "
+            "brix_s3_token: brix_token_jwks is required when "
             "brix_s3_token is on");
         return NGX_CONF_ERROR;
     }

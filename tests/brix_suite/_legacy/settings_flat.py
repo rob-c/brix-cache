@@ -316,7 +316,7 @@ TPC_SSRF_DENY_PRIVATE_PORT = int(os.environ.get("TEST_TPC_SSRF_DENY_PRIVATE_PORT
 TPC_SRC_GUARD_PORT = int(os.environ.get("TEST_TPC_SRC_GUARD_PORT", "11218"))
 
 # WebDAV-plane TPC source-host egress allowlist guard
-# (brix_webdav_tpc_source_guard) — port 11219
+# (brix_tpc_source_guard) — port 11219
 WEBDAV_TPC_SRC_GUARD_PORT = int(
     os.environ.get("TEST_WEBDAV_TPC_SRC_GUARD_PORT", "11219")
 )

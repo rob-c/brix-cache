@@ -25,7 +25,7 @@ Cases:
   * negative      — the same PT1H on the default face is honoured in full, so
     the clamp is the ceiling and not some unrelated floor;
   * security-note — the stamped location is ADVISORY: the token still
-    validates here, because only brix_webdav_token_issuer pins validation
+    validates here, because only brix_token_issuer pins validation
     (validate.c token_validate_macaroon).  A site that expects
     brix_webdav_macaroon_location to fence its macaroons is mistaken;
   * defect pin    — a macaroon issued with a SUBTREE path: caveat authorises
@@ -96,7 +96,7 @@ def macpol(lifecycle, tmp_path):
 def _auth_header(port):
     """A macaroon that authenticates the issuance request itself.  Its own
     location is the Host face: validation applies no pin here (no
-    brix_webdav_token_issuer), which is exactly what lets the two faces be
+    brix_token_issuer), which is exactly what lets the two faces be
     compared through one credential."""
     caveats = ["activity:DOWNLOAD,LIST,MANAGE", "path:/",
                "before:2099-12-31T23:59:59Z"]
@@ -175,7 +175,7 @@ def test_the_default_face_derives_the_location_from_the_request(macpol):
 def test_the_stamped_location_does_not_pin_validation(macpol):
     """security-note: the stamped location is ADVISORY.  This server does not
     serve ISSUER_URI, yet the macaroon it just minted still authenticates a
-    read here — only brix_webdav_token_issuer makes validation reject a
+    read here — only brix_token_issuer makes validation reject a
     location mismatch (validate.c).  Pinned so that a site cannot mistake this
     directive for a fence."""
     token, _ = _issue(macpol.port, "tight",

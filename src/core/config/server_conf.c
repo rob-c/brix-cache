@@ -195,16 +195,7 @@ brix_create_srv_cluster(ngx_stream_brix_srv_conf_t *conf)
     brix_hc_conf_init(&conf->hc);
 
     /* Phase 24: traffic mirror (targets array NULL until a directive adds one). */
-    conf->mirror.enabled     = NGX_CONF_UNSET;
-    conf->mirror.targets     = NULL;
-    conf->mirror.sample_pct  = NGX_CONF_UNSET_UINT;
-    conf->mirror.method_mask = NGX_CONF_UNSET_UINT;
-    conf->mirror.opcode_mask = NGX_CONF_UNSET_UINT;
-    conf->mirror.opcode_exclude_mask = NGX_CONF_UNSET_UINT;
-    conf->mirror.strip_auth  = NGX_CONF_UNSET;
-    conf->mirror.log_diverge = NGX_CONF_UNSET;
-    conf->mirror.timeout_ms  = NGX_CONF_UNSET_MSEC;
-    conf->mirror.mirror_writes = NGX_CONF_UNSET;
+    brix_mirror_conf_init(&conf->mirror);
     brix_cms_conf_init(&conf->cms);
     conf->http_handoff_addr = NULL;
     conf->relay_addr = NULL;

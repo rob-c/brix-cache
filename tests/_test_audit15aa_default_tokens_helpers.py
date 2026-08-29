@@ -199,7 +199,7 @@ ALERT_TAPE = b"writing to tape"
 # (directive, token, field, merge unit, merge-default spelling, enum table)
 TOKENS = (
     ("brix_backend_s3_sts_flavor", "aws", "backend_sts_flavor",
-     "src/core/config/shared_conf.h", "0",
+     "src/core/config/shared_conf_merge.h", "0",
      ("src/core/config/http_common.c", "brix_sts_flavor_enum")),
     ("brix_health_check_type", "ping", "hc.type",
      "src/core/config/server_conf_merge_cluster.c", "BRIX_HC_TYPE_PING",

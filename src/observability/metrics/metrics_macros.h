@@ -27,14 +27,18 @@
 static ngx_inline ngx_brix_metrics_t *
 brix_metrics_shared(void)
 {
-    if (ngx_brix_shm_zone == NULL
-        || ngx_brix_shm_zone->data == NULL
-        || ngx_brix_shm_zone->data == (void *) 1)
-    {
+    void *table;
+
+    if (ngx_brix_shm_zone == NULL) {
+        return NULL;
+    }
+    /* Single read of zone->data: the checked value IS the returned value. */
+    table = ngx_brix_shm_zone->data;
+    if (table == NULL || table == (void *) 1) {
         return NULL;
     }
 
-    return (ngx_brix_metrics_t *) ngx_brix_shm_zone->data;
+    return (ngx_brix_metrics_t *) table;
 }
 
 #define BRIX_ATOMIC_INC(counter)                                           \

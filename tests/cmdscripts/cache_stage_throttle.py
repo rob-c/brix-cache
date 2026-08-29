@@ -74,7 +74,7 @@ stream {{ server {{
     brix_storage_backend posix:{root};
     brix_allow_write on; brix_upload_resume off;
     brix_write_through on; brix_wt_mode sync; brix_wt_origin {HOST}:1;
-    brix_cache_wt_stage_root {stage};
+    brix_wt_stage_root {stage};
     brix_wt_stage_high_watermark {high}%;
     brix_wt_stage_low_watermark {low}%;
 }} }}

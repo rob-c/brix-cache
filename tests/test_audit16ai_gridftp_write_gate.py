@@ -8,7 +8,7 @@ _reexport(globals(), "_test_audit16ai_gridftp_write_gate_helpers")
 @pytest.mark.parametrize("verb,seed,template,refusal", NS_VERBS,
                          ids=[v[0] for v in NS_VERBS])
 class TestTheWrittenOffEqualsItsOmission:
-    """`brix_gridftp_allow_write off` written out, against the same server with
+    """`brix_allow_write off` written out, against the same server with
     the line deleted, verb by verb.
 
     This is the claim the corpus has rested on without making it: every

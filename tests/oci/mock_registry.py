@@ -269,6 +269,11 @@ def build_images(seed):
         make_image(rng, "lab/chunked", "zstd", [("zstd", chunk, None)],
                    "amd64")
 
+# Standalone-spawned server: only tests/oci/ is on sys.path, but the shard
+# loader lives one level up in tests/ — put it on the path before importing.
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+
 from split_continuation import load as _load_shard_mock_registry_part3
 _load_shard_mock_registry_part3(globals(), __file__, "mock_registry_part3.py")
 

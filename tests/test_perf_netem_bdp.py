@@ -37,6 +37,21 @@ from settings import NGINX_BIN
 import _perf_netem_helpers as netem
 
 def _check_test_socketbuf_ab_over_synthesized_bdp_1(res):
+    # PRECONDITION, checked before the magnitude: the model only holds while
+    # the pinned tcp_wmem ceiling really starves the autotuned baseline — one
+    # window per RTT.  Some hosts sail past that (parallel data substreams,
+    # veth GRO/offload coalescing on a synthetic pipe), and then the A/B
+    # measures the host rather than the knob.  Skip THERE with the numbers,
+    # rather than reading a meaningless ratio as a regression.
+    ceiling_mib_s = (res["wmem_cap"] / (res["rtt_ms"] / 1000.0)) / (1024 * 1024)
+    base = res["baseline_median_mib_s"]
+    if base > ceiling_mib_s * 3:
+        pytest.skip(
+            f"baseline {base:.0f} MiB/s far exceeds the "
+            f"{ceiling_mib_s:.1f} MiB/s a {res['wmem_cap'] // 1024} KiB window "
+            f"allows at {res['rtt_ms']:.0f}ms RTT — the send-buffer ceiling is "
+            "not the bottleneck on this host, so the knob's magnitude is not "
+            "measurable here")
     assert res["ratio"] >= 2.0, (
         f"tuned/baseline={res['ratio']:.2f}x — expected the socket-buffer knob "
         f"to fill the BDP the autotuned baseline cannot; magnitude regression")

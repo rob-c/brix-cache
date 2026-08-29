@@ -114,7 +114,12 @@ def _xdist_fleet_wait_seconds() -> int:
         return 900
 
 
-@pytest.hookimpl(tryfirst=True)
+# optionalhook: this hook only exists while xdist is loaded.  Declaring it
+# unconditionally makes pluggy reject the whole conftest under `-p no:xdist`
+# ("unknown hook ... in plugin tests.conftest"), which killed every nested
+# single-process run the suite spawns (test_conformance_topologies runs the
+# conformance suite that way).
+@pytest.hookimpl(tryfirst=True, optionalhook=True)
 def pytest_xdist_node_collection_finished(node, ids):
     """Boot the shared fleet after every xdist worker has collected.
 

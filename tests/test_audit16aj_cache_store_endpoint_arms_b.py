@@ -485,11 +485,14 @@ class TestTheSourceSaysWhatThisFileSays:
         stream = _source("protocols/root/stream/module.c")
         assert FLAG in http and FLAG in stream
 
-    def test_the_http_declaration_uses_a_custom_setter(self):
-        http = _source("protocols/webdav/module_commands.c")
+    def test_the_http_declaration_is_one_common_module_flag_slot(self):
+        """phase-101 W2 retired the dual-conf custom setter: one registration
+        on the common module's stock flag slot now covers every HTTP protocol
+        (webdav, s3 AND cvmfs), adopted into each protocol's conf."""
+        http = _source("core/config/http_directives_core.h")
         block = http[http.index(FLAG):http.index(FLAG) + 400]
-        assert "brix_http_set_cache_store_endpoint" in block, block
-        assert "NGX_HTTP_MAIN_CONF" in block and "NGX_HTTP_LOC_CONF" in block, block
+        assert "ngx_conf_set_flag_slot" in block, block
+        assert "common.cache_store_endpoint" in block, block
 
     def test_the_stream_declaration_uses_the_stock_one(self):
         stream = _source("protocols/root/stream/module.c")
@@ -497,25 +500,19 @@ class TestTheSourceSaysWhatThisFileSays:
         assert "ngx_conf_set_flag_slot" in block, block
         assert "NGX_STREAM_SRV_CONF" in block, block
 
-    def test_the_custom_setter_writes_both_loc_confs_and_guards_both(self):
-        """#138's dual write and #142's duplicate check, in one function.  The
-        check has to read BOTH slots the setter is about to write: reading one
-        would leave the other reachable by a config that names the directive in
-        a location the first module does not create."""
-        body = _source("protocols/webdav/module_acc_directives.c")
-        setter = body[body.index("brix_http_set_cache_store_endpoint"):]
-        setter = setter[:setter.index("\n}\n") + 3]
-        assert "webdav_loc_conf_t" in setter and "s3_loc_conf_t" in setter, setter
-        assert setter.count("common.cache_store_endpoint") == 4, setter
-        assert setter.count("NGX_CONF_UNSET") == 2, setter
-        assert '"is duplicate"' in setter, setter
-        assert 'it must be \\"on\\" or \\"off\\"' in setter, setter
+    def test_every_http_protocol_adopts_the_one_slot(self):
+        """The W2 replacement for #138's dual write: the value is written once
+        (common module flag slot), then adopted into every protocol conf, so
+        no protocol's location can escape the endpoint gate."""
+        adopt = _source("core/config/http_common.c")
+        assert "BRIX_ADOPT_VAL(cache_store_endpoint, NGX_CONF_UNSET);" in adopt
 
     def test_the_merge_is_a_merge_and_not_a_default(self):
-        body = _source("core/config/shared_conf.h")
-        assert "conf->cache_store_endpoint = NGX_CONF_UNSET;" in body
-        assert re.search(r"ngx_conf_merge_value\(\s*conf->cache_store_endpoint,"
-                         r"\s*prev->cache_store_endpoint,\s*0\s*\)", body), \
+        init = _source("core/config/shared_conf.h")
+        assert "conf->cache_store_endpoint = NGX_CONF_UNSET;" in init
+        merge = _source("core/config/shared_conf_merge.h")
+        assert re.search(r"ngx_conf_merge_value\(conf->cache_store_endpoint,"
+                         r"\s*prev->cache_store_endpoint,\s*0\s*\)", merge), \
             "the merge no longer defaults to 0"
 
     def test_the_resolver_claims_the_404_is_deliberate_and_covers_s3(self):

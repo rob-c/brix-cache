@@ -36,6 +36,7 @@ brix_shared_merge_core(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev,
     ngx_conf_merge_value(conf->require_pgwrite, prev->require_pgwrite, 0);
     ngx_conf_merge_value(conf->data_substreams, prev->data_substreams, 1);
     ngx_conf_merge_value(conf->read_only, prev->read_only, 0);
+    ngx_conf_merge_value(conf->read_only_public, prev->read_only_public, 0);
     ngx_conf_merge_value(conf->compress, prev->compress, 0);
     ngx_conf_merge_value(conf->strict_security, prev->strict_security, 0);
     ngx_conf_merge_uint_value(conf->tls_require, prev->tls_require, 0);
@@ -82,6 +83,8 @@ brix_shared_merge_backend(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev,
     ngx_conf_merge_str_value(conf->storage_credential_dir,
                              prev->storage_credential_dir,
                              BRIX_CREDENTIAL_DIR_DEFAULT);
+    brix_shared_credential_dir_default_scope(cf,
+                                             &conf->storage_credential_dir);
     brix_shared_credential_dir_ensure(cf, &conf->storage_credential_dir);
     ngx_conf_merge_uint_value(conf->storage_credential_fallback,
                               prev->storage_credential_fallback, 0);

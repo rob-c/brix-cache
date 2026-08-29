@@ -349,6 +349,13 @@ brix_read_aio_window_done(brix_read_aio_t *t, brix_ctx_t *ctx,
         brix_aio_resume(c);
         return;
     }
+    /* phase-56 D-2, one sample per REQUEST: the emit clears win_active on the
+     * final window, so this is the windowed read's single histogram sample.
+     * It has to happen HERE — before the pump/resume below, either of which
+     * may finish the request and retire ctx. */
+    if (!ctx->rd.win_active) {
+        brix_aio_metric_done(t->start_ns, BRIX_METRIC_OP_READ);
+    }
     if (ctx->state == XRD_ST_SENDING) {
         return;                /* (a) send.c resumes the pump when it drains */
     }
@@ -443,14 +450,18 @@ brix_read_aio_done(ngx_event_t *ev)
         return;
     }
 
-    /* phase-56 D-2: file this completed read (per window for a windowed read —
-     * each window is one physical I/O op) into the op-latency histogram. */
-    brix_aio_metric_done(t->start_ns, BRIX_METRIC_OP_READ);
-
+    /* phase-56 D-2: file this completed read into the op-latency histogram.
+     * The exporter's io_ops_total books ONE op per kXR_read REQUEST (the
+     * legacy per-port fold), so a windowed read must sample ONCE too — the
+     * windowed path files its own sample on the final window (inside
+     * brix_read_aio_window_done, where ctx is still alive), or the histogram
+     * count would exceed the op count and break aio.h's "AIO-sampled subset
+     * of ops" contract. */
     if (ctx->rd.win_active) {
         brix_read_aio_window_done(t, ctx, c);
         return;
     }
+    brix_aio_metric_done(t->start_ns, BRIX_METRIC_OP_READ);
     if (t->nread < 0) {
         brix_read_aio_failed(t, ctx, c);
         return;

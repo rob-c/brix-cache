@@ -344,7 +344,7 @@ class TestTheSortedListingCache:
 
 
 # --------------------------------------------------------------------------- #
-# §F — brix_s3_zip_access                                                      #
+# §F — brix_zip_access                                                      #
 # --------------------------------------------------------------------------- #
 
 class TestZipMemberAccess:

@@ -1,7 +1,7 @@
 """tests/test_audit16ai_gridftp_write_gate.py — audit tranche 16, file 35.
 
 WHY THIS FILE EXISTS
-    `brix_gridftp_allow_write` is the fourth GridFTP gate and the one file 31
+    `brix_allow_write` is the fourth GridFTP gate and the one file 31
     (test_audit16ae_gridftp_gate_off_arms.py) left behind.  It is written `on` by
     THIRTY-ONE configs in this tree.  The token `off` is written by NONE of them.
 
@@ -12,7 +12,7 @@ WHY THIS FILE EXISTS
                                                 says it deletes the line
         configs/nginx_gridftp_metrics.conf      its header says the RO_PORT
                                                 gateway writes
-                                                `brix_gridftp_allow_write off`
+                                                `brix_allow_write off`
                                                 — the server block below writes
                                                 no such line
 
@@ -42,10 +42,10 @@ THE GATE'S SHAPE
 
 THE FINDINGS
     DEFECT CANDIDATE #133 — the tree's one config that claims to write
-    `brix_gridftp_allow_write off` does not write it.
+    `brix_allow_write off` does not write it.
     configs/nginx_gridftp_metrics.conf:11 documents its RO_PORT gateway as
-    "brix_gridftp_allow_write off, the security-negative path"; the block at
-    :48-52 carries `brix_gridftp` and `brix_gridftp_export` and nothing else.
+    "brix_allow_write off, the security-negative path"; the block at
+    :48-52 carries `brix_gridftp` and `brix_export` and nothing else.
     The gateway is read-only anyway — by merge, not by the line — so the test
     that rests on it passes, which is exactly why the mismatch survived.  §K
     reads both files and states it as a measurement rather than a claim about a
@@ -86,8 +86,8 @@ THE FINDINGS
     succeeded on an export that refuses mutations.  §H measures both halves: the
     reply, and the unchanged mode on disk.
 
-    DEFECT CANDIDATE #137 — `brix_gridftp_verify_write on` beside
-    `brix_gridftp_allow_write off` parses clean and draws no diagnostic.  It is
+    DEFECT CANDIDATE #137 — `brix_verify_write on` beside
+    `brix_allow_write off` parses clean and draws no diagnostic.  It is
     the inert-companion shape #101 and #102 found on other planes: an integrity
     knob armed on a server that can never write, which is a configuration that
     can only be a mistake and which nothing in the merge cross-validates.  §I
@@ -266,7 +266,7 @@ def gw(tmp_path_factory):
             readiness="tcp",
             data_root=str(root),
             template_values={"BIND_HOST": BIND_HOST},
-            reason="audit-16ai brix_gridftp_allow_write — the write gate whose "
+            reason="audit-16ai brix_allow_write — the write gate whose "
                    "disarming token no config in the tree writes, against the "
                    "omission that has always stood in for it."))
         yield _Gateways(instance, root)

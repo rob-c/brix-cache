@@ -68,7 +68,11 @@ def _container_image(job: dict) -> str:
 
 
 def test_baselines_still_present():
-    # The ratchet gates against these frozen baselines; blocking is meaningless
-    # if they vanish.
-    assert (ROOT / "tools/ci/fanalyzer_baseline.txt").exists()
+    # codechecker still gates against its frozen baseline; blocking is
+    # meaningless if it vanishes. (fanalyzer needs no baseline any more — the
+    # tree is analyzer-clean and run_fanalyzer.py gates on zero findings.)
     assert (ROOT / "tools/ci/codechecker_baseline.txt").exists()
+    assert not (ROOT / "tools/ci/fanalyzer_baseline.txt").exists(), (
+        "fanalyzer_baseline.txt is back — the gate is zero-findings; fix "
+        "findings in code instead of reintroducing a waiver baseline"
+    )

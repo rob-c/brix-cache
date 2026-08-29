@@ -56,7 +56,7 @@ def _svc_directives(shape, kind, where, g):
         if kind == "cache_root":
             return f"brix_cache_root {path};"
         # cache_root OUTSIDE (valid) + stage nested (the tree under test)
-        return f"brix_cache_root {g.outside};\nbrix_webdav_stage_dir {g.nested};"
+        return f"brix_cache_root {g.outside};\nbrix_stage_dir {g.nested};"
     return f"brix_cache_root {path};"   # s3
 
 

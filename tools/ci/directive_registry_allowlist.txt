@@ -23,6 +23,9 @@ src/observability/dashboard/module.c:ngx_http_conf_get_module_loc_conf   # read-
 src/net/cms/server_module.c:ngx_stream_conf_get_module_srv_conf   # read-only merge-time lookup
 src/net/cms/server_module.c:ngx_stream_conf_get_module_srv_conf   # read-only merge-time lookup
 src/protocols/s3/module.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup
+src/protocols/oci/oci_module.c:ngx_http_conf_get_module_loc_conf   # read-only core-module handler install (clcf->handler), setter-time
+src/protocols/oci/oci_module.c:ngx_http_conf_get_module_loc_conf   # read-only core-module handler install (clcf->handler), setter-time
+src/protocols/rpm/rpm_module.c:ngx_http_conf_get_module_loc_conf   # read-only core-module handler install (clcf->handler), setter-time
 src/protocols/srr/module.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup
 src/protocols/webdav/module_directives_cert.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup
 src/protocols/cvmfs/module.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup

@@ -259,7 +259,7 @@ def test_webdav_upload_resumes_across_restart(srv, tmp_path):
     """A large http:// (WebDAV) UPLOAD survives reload + hard worker-kill mid-
     transfer and the committed file is byte-exact — the native client streams
     Content-Range PUT chunks and resumes from the server's durable offset
-    (brix_webdav_upload_resume on)."""
+    (brix_upload_resume on)."""
     src = tmp_path / "webup-src.bin"
     payload = os.urandom(1 << 20) * 128          # 128 MiB, incompressible
     src.write_bytes(payload)

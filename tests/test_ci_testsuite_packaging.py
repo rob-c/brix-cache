@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _REPO = Path(__file__).resolve().parents[1]
 _SRC = _REPO / "brixtest" / "src"
 _ADAPTER = _REPO / "tests"
@@ -65,6 +67,15 @@ def test_deps_guard_reads_pyproject_with_lane_precedence():
     # extras reserved by the charter parse with their bounds intact
     assert lanes.get("cryptography") == "required"  # requirements.txt wins
     assert lanes.get("botocore") == "optional"  # optional in both manifests
+
+
+# Same xdist group as tests/test_ci_guards.py's guard cells: the probe below
+# plants a deliberately-undeclared import INSIDE the scanned tree, so while it
+# exists any concurrent run of the real check_python_deps guard fails on it
+# (measured: test_ci_guard_green[check_python_deps] failed with
+# "_deps_probe_tmp.py imports totally_undeclared_dist").  One group = one
+# worker = the two can never overlap.
+pytestmark = pytest.mark.xdist_group("ci-guards")
 
 
 def test_deps_guard_catches_undeclared_import_in_package(tmp_path):

@@ -47,24 +47,27 @@ brix_subprocess_args_ok(char *const argv[], const char *out, size_t outsz)
  *   1. Close the pipe read end (the child only writes).
  *   2. dup2 the pipe write end onto STDOUT_FILENO; _exit(127) if that fails.
  *   3. Close the now-redundant original write-end fd. The dup'd stdout stays
- *      open across execvp — it IS the capture channel; the kernel reclaims it at
- *      _exit. (gcc >= 13 -fanalyzer reports it as an fd leak: it does not model
- *      exec/_exit ending the image — known false positive.)
+ *      open across execvp — it IS the capture channel.
  *   4. Restore the inherited signal mask so the mask is not leaked to the exec'd
  *      program.
- *   5. execvp argv; on failure (command not installed) _exit(127).
+ *   5. execvp argv; on failure (command not installed) close the dup'd stdout
+ *      (EOF for the draining parent) and _exit(127).
  */
 static void
 brix_subprocess_child(int pfd[2], char *const argv[], const sigset_t *old)
 {
+    int capture_fd;
+
     close(pfd[0]);
-    if (dup2(pfd[1], STDOUT_FILENO) < 0) {
+    capture_fd = dup2(pfd[1], STDOUT_FILENO);   /* == STDOUT_FILENO on success */
+    if (capture_fd < 0) {
         _exit(127);
     }
     close(pfd[1]);
     sigprocmask(SIG_SETMASK, old, NULL);   /* don't leak the mask to the child */
     execvp(argv[0], argv);
-    _exit(127);   /* exec failed (command not installed) */
+    close(capture_fd);   /* exec failed — EOF the capture channel */
+    _exit(127);   /* command not installed */
 }
 
 /* ---- Drain the child's stdout into the output buffer ----

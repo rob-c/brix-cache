@@ -371,7 +371,7 @@ brix_server_validate_wt_stage(ngx_conf_t *cf,
     }
     if (xcf->cache_wt_stage_root.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_wt_stage_high_watermark requires brix_cache_wt_stage_root");
+            "brix_wt_stage_high_watermark requires brix_wt_stage_root");
         return NGX_ERROR;
     }
     if (xcf->cache_wt_stage_high_watermark >= 1000000

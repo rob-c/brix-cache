@@ -16,7 +16,7 @@ pass scored as covered.  Four went to the WebDAV response surface
 But two of the four names on that shortlist did not survive contact with the
 corpus.  Re-measuring them one at a time, rather than by grep:
 
-  brix_s3_token_audience   COVERED IN EFFECT.  test_wlcg_token_conformance_s3
+  brix_token_audience   COVERED IN EFFECT.  test_wlcg_token_conformance_s3
                            ::test_s3_04_wrong_audience_reject and
                            test_audit15k_s3_coresidency::test_a_wrong_audience_
                            bearer_is_refused each mint a token whose `aud`
@@ -26,16 +26,16 @@ corpus.  Re-measuring them one at a time, rather than by grep:
                            brix_token_validate() has no expected audience and
                            admits the token.  The verdict already moves with
                            the directive; there is nothing to add.
-  brix_s3_token_jwks       COVERED IN EFFECT for the same reason — those two
+  brix_token_jwks       COVERED IN EFFECT for the same reason — those two
                            suites serve a valid token, which cannot happen
                            unless the named file was loaded and its key used.
                            What they do NOT show is that the PATH selects the
                            trust anchor, which §E below adds.
 
-That leaves the third knob, which really is untested: brix_s3_token_clock_skew
+That leaves the third knob, which really is untested: brix_token_clock_skew
 occurs exactly once in the tree (test_audit15_zero_directive_parse.py, which
 proves the line parses and nothing else), and the two config-time refusals
-brix_s3_token_jwks owns (module_merge.c:134-152), which are asserted nowhere.
+brix_token_jwks owns (module_merge.c:134-152), which are asserted nowhere.
 
 THE MEASUREMENT PROBLEM, AND THE ANSWER
 
@@ -45,7 +45,7 @@ into the token, not read off the wall, so nothing here is timed at all.  The
 four arms are four locations on ONE listener that differ in nothing but the
 knob, and one minted token collects a different verdict from each:
 
-    arm         brix_s3_token_clock_skew      a token that died 30s ago
+    arm         brix_token_clock_skew      a token that died 30s ago
     /skew0/     0                             403 AccessDenied
     /skewdef/   (absent — merge default 60)   200
     /skewwide/  1800                          200
@@ -65,14 +65,14 @@ WHAT THE BLOCK ESTABLISHES
   not-yet-valid token is refused even on the arm carrying half an hour of
   grace.  A skew is a tolerance for a lagging clock, never a licence to accept
   a token before its issuer says it starts.
-- brix_s3_token_jwks names a trust anchor, and the name is load-bearing: both
+- brix_token_jwks names a trust anchor, and the name is load-bearing: both
   JWKS files here carry the same kid (`test-key-1`) over different key
   material, so each arm refusing the other's token refused it on the key, not
   on the label.
 - The gate will not start misconfigured: `brix_s3_token on` without a JWKS, an
   empty JWKS and an absent JWKS are all NGX_LOG_EMERG at `nginx -t`.
 
-DEFECT CANDIDATE #50 (hardening, missing bound) — brix_s3_token_clock_skew is
+DEFECT CANDIDATE #50 (hardening, missing bound) — brix_token_clock_skew is
 the only one of the three token-skew directives with no upper bound.  Its two
 twins refuse anything outside [0, 300] at config time:
 
@@ -81,7 +81,7 @@ twins refuse anything outside [0, 300] at config time:
 
 both emitting "... must be >= 0 and <= 300".  The S3 twin is a bare
 ngx_conf_set_num_slot with no post handler (module.c:410-415) and no check in
-s3_merge_token(), so `brix_s3_token_clock_skew 1800;` loads and grants half an
+s3_merge_token(), so `brix_token_clock_skew 1800;` loads and grants half an
 hour of grace past every `exp` on that export — and §C proves it live: a token
 that expired 25 minutes ago is served with a 200.  Nothing here is a bypass; a
 skew of 1800 is what the operator typed.  The cost is that two of three planes
@@ -119,16 +119,17 @@ SKEW_ARMS = ("skew0", "skewdef", "skewwide")
 ARMS = SKEW_ARMS + ("keyb",)
 
 DEFAULT_SKEW = 60      # module_merge.c:132, frozen
-WIDE_SKEW = 1800       # the config; six times what the other two planes allow
-TWIN_BOUND = 300       # server_conf_merge_security.c:154, config_merge.c:164
+WIDE_SKEW = 300        # the config: the widest LEGAL grace (the unified clamp)
+OVER_BOUND = 1800      # what the pre-unification S3 twin used to accept
+TWIN_BOUND = 300       # the one shared clamp (shared_conf_merge.h; stream twin
+                       # in server_conf_merge_security.c)
 
 SEED = b"audit15p s3 bearer window seed\n"
 
 DEFECT50 = (
-    "DEFECT CANDIDATE #50 has been FIXED: brix_s3_token_clock_skew now carries "
-    "the same [0, 300] bound as brix_token_clock_skew and "
-    "brix_webdav_token_clock_skew. Retire the wide arm (nginx_audit15p_s3token"
-    ".conf must drop it or lower it) and flip this expectation to the refusal.")
+    "DEFECT CANDIDATE #50 regressed: the unified brix_token_clock_skew must "
+    "refuse anything over 300s on EVERY plane (the shared security clamp in "
+    "shared_conf_merge.h and its stream twin).")
 
 
 # --------------------------------------------------------------------------- #
@@ -213,8 +214,13 @@ def _stream_t(tmp_path, knobs):
 
 
 def _token_knobs(jwks, extra=""):
+    # issuer + audience ride along: the unified token surface (W4) validates
+    # jwks ⇒ issuer + audience once for every HTTP plane, so a knob block
+    # without them dies on THAT refusal instead of the one under test.
     return ("            brix_s3_token on;\n"
-            f"            brix_s3_token_jwks {jwks};\n"
+            f"            brix_token_jwks {jwks};\n"
+            f'            brix_token_issuer "{ISSUER}";\n'
+            f'            brix_token_audience "{AUDIENCE}";\n'
             f"{extra}")
 
 
@@ -322,37 +328,40 @@ class TestTheUnboundedSkew:
 
     def test_the_root_plane_refuses_a_skew_over_five_minutes(self, tmp_path):
         rc, out = _stream_t(tmp_path,
-                            f"        brix_token_clock_skew {WIDE_SKEW};\n")
+                            f"        brix_token_clock_skew {OVER_BOUND};\n")
         assert rc != 0, out
-        assert f"brix_token_clock_skew must be >= 0 and <= {TWIN_BOUND}" in out, out
+        assert f"brix_token_clock_skew is capped at {TWIN_BOUND}s" in out, out
 
     def test_the_webdav_plane_refuses_the_same_number(self, tmp_path):
         rc, out = _s3_t(tmp_path,
-                        f"            brix_webdav_token_clock_skew {WIDE_SKEW};\n")
+                        f"            brix_token_clock_skew {OVER_BOUND};\n")
         assert rc != 0, out
-        assert (f"brix_webdav_token_clock_skew must be >= 0 and <= {TWIN_BOUND}"
-                in out), out
+        assert f"brix_token_clock_skew is capped at {TWIN_BOUND}s" in out, out
 
-    def test_the_s3_plane_accepts_what_both_twins_refuse(self, tmp_path, anchor):
-        """The same number, the same file, the same location — and it loads."""
+    def test_the_s3_plane_refuses_it_too(self, tmp_path, anchor):
+        """DEFECT CANDIDATE #50 FIXED: the S3 plane shares the unified clamp —
+        the same number, the same file, the same location, the same refusal."""
         rc, out = _s3_t(tmp_path, _token_knobs(
             anchor.jwks_path,
-            f"            brix_s3_token_clock_skew {WIDE_SKEW};\n"))
-        assert rc == 0, DEFECT50 + "\n" + out
+            f"            brix_token_clock_skew {OVER_BOUND};\n"))
+        assert rc != 0, DEFECT50 + "\n" + out
+        assert f"brix_token_clock_skew is capped at {TWIN_BOUND}s" in out, out
 
-    def test_the_unbounded_skew_is_live_and_not_theoretical(self, s3token):
-        """A token twenty-five minutes dead is served with a 200.
+    def test_the_widest_legal_grace_is_still_a_bound(self, s3token):
+        """A token twenty-five minutes dead is refused even at the widest arm.
 
-        This is what the missing bound buys: 1500 seconds is five times the
-        largest grace either twin will let an operator configure, and the
-        export honours it without a word in the log beyond the ordinary
-        success line.
+        1500 seconds is five times the clamp — no configurable arm may serve
+        it.  A 250-second decay sits inside /skewwide/'s 300 and outside
+        /skewdef/'s 60, so the wide arm is live and still a bound.
         """
         endpoint, forge_a, _ = s3token
-        token = forge_a.temporal(-1500)
-        assert _get(endpoint, "skewdef", token).status_code == 403
-        served = _get(endpoint, "skewwide", token)
-        assert served.status_code == 200, DEFECT50 + "\n" + served.text
+        long_dead = forge_a.temporal(-1500)
+        assert _get(endpoint, "skewdef", long_dead).status_code == 403
+        assert _get(endpoint, "skewwide", long_dead).status_code == 403, DEFECT50
+        just_dead = forge_a.temporal(-250)
+        assert _get(endpoint, "skewdef", just_dead).status_code == 403
+        served = _get(endpoint, "skewwide", just_dead)
+        assert served.status_code == 200, (served.status_code, served.text)
         assert served.content == SEED
 
     def test_a_negative_skew_is_refused_at_parse_time(self, tmp_path, anchor):
@@ -365,9 +374,9 @@ class TestTheUnboundedSkew:
         """
         rc, out = _s3_t(tmp_path, _token_knobs(
             anchor.jwks_path,
-            "            brix_s3_token_clock_skew -1;\n"))
+            "            brix_token_clock_skew -1;\n"))
         assert rc != 0, out
-        assert "invalid number" in out, out
+        assert "invalid value" in out, out
 
 
 # --------------------------------------------------------------------------- #
@@ -406,7 +415,7 @@ class TestTheWindowIsOneSided:
 
 
 # --------------------------------------------------------------------------- #
-# §E  brix_s3_token_jwks names a trust anchor, and the name is load-bearing.   #
+# §E  brix_token_jwks names a trust anchor, and the name is load-bearing.   #
 # --------------------------------------------------------------------------- #
 
 @_needs_nginx
@@ -466,7 +475,7 @@ class TestTheGateRefusesToStartMisconfigured:
         """
         rc, out = _s3_t(tmp_path, "            brix_s3_token on;\n")
         assert rc != 0, out
-        assert ("brix_s3_token: brix_s3_token_jwks is required when "
+        assert ("brix_s3_token: brix_token_jwks is required when "
                 "brix_s3_token is on") in out, out
 
     def test_a_jwks_with_no_usable_keys_is_refused(self, tmp_path):
@@ -475,14 +484,15 @@ class TestTheGateRefusesToStartMisconfigured:
         jwks.write_text('{"keys": []}\n', encoding="utf-8")
         rc, out = _s3_t(tmp_path, _token_knobs(jwks))
         assert rc != 0, out
-        assert f'brix_s3_token_jwks: no usable keys in "{jwks}"' in out, out
+        assert f'brix_token_jwks: no usable keys in "{jwks}"' in out, out
 
     def test_a_jwks_path_that_does_not_exist_is_refused(self, tmp_path):
-        """The same refusal covers the typo, which is the likelier mistake."""
+        """The typo is caught even earlier: the unified surface stats the path
+        at parse time and names the file, before any key parsing runs."""
         missing = tmp_path / "not-there.json"
         rc, out = _s3_t(tmp_path, _token_knobs(missing))
         assert rc != 0, out
-        assert f'brix_s3_token_jwks: no usable keys in "{missing}"' in out, out
+        assert f'brix_token_jwks path "{missing}" is not accessible' in out, out
 
     def test_the_jwks_is_only_required_once_the_gate_is_on(self, tmp_path,
                                                            anchor):
@@ -493,7 +503,9 @@ class TestTheGateRefusesToStartMisconfigured:
         assertion that keeps it from drifting into an unconditional one.
         """
         rc, out = _s3_t(tmp_path,
-                        f"            brix_s3_token_jwks {anchor.jwks_path};\n")
+                        f"            brix_token_jwks {anchor.jwks_path};\n"
+                        f'            brix_token_issuer "{ISSUER}";\n'
+                        f'            brix_token_audience "{AUDIENCE}";\n')
         assert rc == 0, out
 
 
@@ -508,27 +520,19 @@ def _source(rel):
     return (ROOT / rel).read_text(encoding="utf-8")
 
 
-def test_the_two_twins_bound_the_skew_and_the_s3_setter_does_not():
-    """DEFECT CANDIDATE #50, pinned at the source as well as at the wire.
+def test_the_skew_clamp_is_shared_not_copied():
+    """DEFECT CANDIDATE #50, pinned at the source after the unification.
 
-    The live arm proves 1800 is honoured; this proves the honouring is an
-    omission rather than a decision recorded somewhere else, by showing the
-    bound written twice and the S3 slot carrying no post handler.
+    The [0, 300] clamp lives ONCE for the HTTP planes (shared_conf_merge.h,
+    behind the shared preamble every protocol merges through) plus its stream
+    twin, and the S3 module no longer registers a skew slot of its own — so a
+    plane cannot drift back to an unbounded copy.
     """
-    assert "must be >= 0 and <= 300" in _source(
+    assert "is capped at 300s" in _source(
+        "src/core/config/shared_conf_merge.h")
+    assert "is capped at 300s" in _source(
         "src/core/config/server_conf_merge_security.c")
-    assert "must be >= 0 and <= 300" in _source(
-        "src/protocols/webdav/config_merge.c")
-
-    # The S3 twin: a bare num slot whose post handler is NULL, and a merge that
-    # applies the default and then checks nothing.
-    slot = re.search(r'\{ ngx_string\("brix_s3_token_clock_skew"\).*?\},',
-                     _source("src/protocols/s3/module.c"), re.S)
-    assert slot, "the brix_s3_token_clock_skew command entry moved"
-    assert "ngx_conf_set_num_slot" in slot.group(0), slot.group(0)
-    assert slot.group(0).rstrip().endswith("NULL },"), DEFECT50 + "\n" + slot.group(0)
-
-    merge = _source("src/protocols/s3/module_merge.c")
-    body = merge.split("s3_merge_token(")[-1]
-    assert "conf->token_clock_skew, prev->token_clock_skew, 60" in body, body[:600]
-    assert "300" not in body, DEFECT50 + "\n" + body[:600]
+    assert 'ngx_string("brix_s3_token_clock_skew")' not in _source(
+        "src/protocols/s3/module.c")
+    assert "brix_token_clock_skew moved to http_common.c" in _source(
+        "src/protocols/s3/module.c")

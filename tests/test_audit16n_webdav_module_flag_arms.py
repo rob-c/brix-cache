@@ -80,7 +80,7 @@ class TestTheWebdavSwitch:
 
 
 # --------------------------------------------------------------------------- #
-# §B — brix_webdav_upload_resume                                               #
+# §B — brix_upload_resume                                               #
 # --------------------------------------------------------------------------- #
 
 def _resume_put(wd, arm, name, crange, body=CHUNK):
@@ -170,7 +170,7 @@ class TestTheResumableUploadArm:
         range was not rejected and it was not honoured: it was ignored, and the
         PUT it was attached to replaced the whole object.  A client that resumes
         an interrupted upload against a location whose operator wrote
-        ``brix_webdav_upload_resume off`` destroys what it was resuming.
+        ``brix_upload_resume off`` destroys what it was resuming.
         """
         wd.seed("ur-off/victim.bin", WHOLE)
         response = _resume_put(wd, "ur-off", "victim.bin", "bytes 5-9/10")
@@ -518,16 +518,30 @@ class TestTheParseTier:
         assert rc != 0, out
         assert "duplicate" in out, out
 
+    #: (flag, slot) placements the unification made LEGAL: brix_upload_resume
+    #: and brix_delegation_endpoint moved to the common module at
+    #: BRIX_HTTP_ALL_CONF (site/server-wide policy is the point), and
+    #: brix_upload_resume gained a stream twin (directives_caps.h).
+    WIDENED = {
+        ("brix_upload_resume", "SRV_KNOBS"),
+        ("brix_upload_resume", "HTTP_KNOBS"),
+        ("brix_upload_resume", "STREAM_KNOBS"),
+        ("brix_delegation_endpoint", "SRV_KNOBS"),
+        ("brix_delegation_endpoint", "HTTP_KNOBS"),
+    }
+
     @pytest.mark.parametrize("flag", FLAG_NAMES)
     @pytest.mark.parametrize("slot", WRONG_SCOPES)
     def test_every_other_placement_is_refused(self, tmp_path, flag, slot):
-        """All five are declared NGX_HTTP_LOC_CONF and nothing else
-        (module_commands.c:50, :271, :295, :304, :378), so a location is their
-        only legal context — on either plane.  The refusal must name the scope
-        and not the name: ``unknown directive`` would mean the module's table was
-        never searched, which is what a stream-plane misplacement would look like
-        if the two tables were not both consulted."""
+        """The webdav-prefixed three stay NGX_HTTP_LOC_CONF-only, so a location
+        is their only legal context — on either plane; the two bare unified
+        names accept the widened placements instead.  A refusal must name the
+        scope and not the name: ``unknown directive`` would mean the module's
+        table was never searched."""
         rc, out = _parse(tmp_path, **{slot: f"    {flag} on;\n"})
+        if (flag, slot) in self.WIDENED:
+            assert rc == 0, f"{flag} was refused in {slot}: {out}"
+            return
         assert rc != 0, f"{flag} was accepted in {slot}: {out}"
         assert "is not allowed here" in out, out
         assert "unknown directive" not in out, out
@@ -587,8 +601,21 @@ class TestTheDeclarationsAreWhatTheFileSays:
     scope and a specific merge default; if either changes, the section is
     measuring something else and should fail here first rather than mislead."""
 
+    #: The two bare names live on the COMMON module at all three http scopes.
+    COMMON_OWNED = {"brix_upload_resume", "brix_delegation_endpoint"}
+
     @pytest.mark.parametrize("flag", FLAG_NAMES)
     def test_each_flag_is_declared_location_only(self, flag):
+        if flag in self.COMMON_OWNED:
+            blob = "".join(
+                path.read_text()
+                for path in MODULE_COMMANDS_C.parent.parent.parent.joinpath(
+                    "core/config").glob("http_directives_*.h"))
+            needle = f'{{ ngx_string("{flag}"),'
+            assert needle in blob, f"{flag} is not on the common module"
+            entry = blob.split(needle, 1)[1].split("},")[0]
+            assert "BRIX_HTTP_ALL_CONF" in entry, entry
+            return
         text = MODULE_COMMANDS_C.read_text()
         needle = f'{{ ngx_string("{flag}"),'
         assert needle in text, f"{flag} is no longer in the webdav table"
@@ -603,10 +630,15 @@ class TestTheDeclarationsAreWhatTheFileSays:
         two lines and one is not, and the pin is about the third argument rather
         than about where the line happens to break.
         """
+        shared = " ".join((CONFIG_MERGE_C.parent.parent.parent
+                           / "core/config/shared_conf_merge.h")
+                          .read_text().split())
         squashed = " ".join(CONFIG_MERGE_C.read_text().split())
         assert "ngx_conf_merge_value(conf->upload_resume, prev->upload_resume, 1)" \
-            in squashed, "upload_resume no longer defaults on — §B is stale"
-        for field in ("tape_rest", "delegation_endpoint", "cors_credentials"):
+            in shared, "upload_resume no longer defaults on — §B is stale"
+        assert "ngx_conf_merge_value(conf->delegation_endpoint, prev->delegation_endpoint, 0)" \
+            in shared, "delegation_endpoint no longer defaults off"
+        for field in ("tape_rest", "cors_credentials"):
             assert f"ngx_conf_merge_value(conf->{field}, prev->{field}, 0)" \
                 in squashed, f"{field} no longer defaults off"
 

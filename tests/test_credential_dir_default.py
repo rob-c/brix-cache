@@ -1,13 +1,13 @@
 """brix_storage_credential_dir defaults to a tmpfs store and is self-ensuring.
 
 Regression for the shared_conf change: when the directive is absent the store
-defaults to /dev/shm/brix-creds (RAM-backed — delegated private keys never
+defaults to /dev/shm/brix-creds.<worker-uid> (RAM-backed — delegated private keys never
 touch real disk), the directory is created 0700 at config time, and every
 unusable state is shouted at the admin via startup [warn] lines instead of
 silently breaking delegation (or killing nginx).
 
 Covers the mandated triplet:
-  success           — no directive at all: nginx creates /dev/shm/brix-creds
+  success           — no directive at all: nginx creates /dev/shm/brix-creds.<uid>
                       mode 0700 and a real two-step delegation lands there;
   error             — an uncreatable explicit path warns "cannot create
                       credential store" but nginx -t still succeeds;
@@ -83,7 +83,10 @@ def _guard_test_default_store_created_and_receives_delegation_5(preexisting):
         shutil.rmtree(DEFAULT_STORE, ignore_errors=True)
 
 
-DEFAULT_STORE = "/dev/shm/brix-creds"
+# The compiled default is rewritten to its worker-uid-scoped form at merge
+# (shared_conf_creddir.h): two services on one host — the distro's www-data
+# nginx and this unprivileged test lane — must never fight over one 0700 dir.
+DEFAULT_STORE = f"/dev/shm/brix-creds.{os.geteuid()}"
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cred-dir")]
@@ -130,7 +133,7 @@ def _nginx_t(lifecycle, name, cred_dir_directive):
 
 
 def test_default_store_created_and_receives_delegation(lifecycle, pki):
-    """Success: no directive -> /dev/shm/brix-creds exists 0700, T4 lands in it."""
+    """Success: no directive -> the uid-scoped default store exists 0700, T4 lands in it."""
     _guard_test_default_store_created_and_receives_delegation_1()
     _guard_test_default_store_created_and_receives_delegation_2()
     # Root harness: a store left by the unprivileged lane is owned by that

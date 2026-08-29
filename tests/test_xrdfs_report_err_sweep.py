@@ -102,8 +102,12 @@ def test_no_endpointless_hint_stragglers():
 
 def test_two_path_formats_still_emit_hints():
     """mv/ln keep their own fprintf (two-path / no-path formats) but must
-    still follow it with xrdfs_op_hints so hint coverage has no holes."""
-    meta = _read(FS_DIR / "xrdfs_meta.c")
+    still follow it with xrdfs_op_hints so hint coverage has no holes.
+
+    The mv handler lives in the xrdfs_meta_* split family (phase-103 moved it
+    from xrdfs_meta.c to xrdfs_meta_ns.c), so search the whole family rather
+    than pinning one shard name."""
+    meta = "\n".join(_read(p) for p in sorted(FS_DIR.glob("xrdfs_meta*.c")))
     attr = _read(FS_DIR / "xrdfs_attr.c")
     for text, op_line in ((meta, r'"xrdfs: mv: %s\\n"'),
                           (attr, r'"xrdfs: ln -s %s %s: %s\\n"'),

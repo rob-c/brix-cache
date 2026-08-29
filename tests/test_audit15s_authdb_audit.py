@@ -8,7 +8,7 @@ Steps 1 and 2 of the audit's method count directive NAMES.  Tranche 14 sharpened
 step 2 from "does the name appear?" to "does a test's verdict change when the
 value changes?", which closed the last thirteen names.  Both questions share a
 blind spot that no tranche has ever measured: for an ENUM-valued directive they
-are answered by ONE of its tokens.  Write `brix_authdb_audit all` once and the
+are answered by ONE of its tokens.  Write `brix_acc_audit all` once and the
 directive is scored covered forever, however many other values the table holds.
 
 Re-running step 1 per (directive, value) pair over the 36 `ngx_conf_enum_t`
@@ -20,7 +20,7 @@ off/try/require are all driven by wlcg_fleet.WlcgInstance, brix_cache_verify's
 three by test_cache_verify_require, brix_seccomp audit by test_seccomp_enforce —
 leaves a real backlog of about two dozen.
 
-`brix_authdb_audit` is its archetype and the first one taken.  The name occurs
+`brix_acc_audit` is its archetype and the first one taken.  The name occurs
 in eleven templates plus the k8s remote suite; every one of them writes `all`.
 Its other three values have never been written anywhere, and one of them —
 `none` — is also the merge default, so the code path that runs when an operator
@@ -262,7 +262,7 @@ class TestTheTokenSelectsTheSubset:
 
         lines = _audit(auditmodes)
         assert _for(lines, f"/grant/{REFUSED}") == [], (
-            "brix_authdb_audit grant logged a denial:\n"
+            "brix_acc_audit grant logged a denial:\n"
             f"{_errlog(auditmodes)[-3000:]}")
         assert len(_for(lines, f"/deny/{REFUSED}")) == 1, (
             "the deny face must still log its own refusal — otherwise the "
@@ -480,7 +480,7 @@ class TestOptionsIsExempt:
 # --------------------------------------------------------------------------- #
 
 def _knob(value):
-    return f"            brix_authdb_audit {value};\n"
+    return f"            brix_acc_audit {value};\n"
 
 
 class TestTheParseTier:
@@ -490,7 +490,7 @@ class TestTheParseTier:
     def test_each_token_in_the_table_is_accepted(self, tmp_path, token):
         rc, out = _parse_fail(tmp_path, "nginx_rl_http.conf",
                               _http_values(_knob(token)))
-        assert rc == 0, f"brix_authdb_audit {token} was refused:\n{out}"
+        assert rc == 0, f"brix_acc_audit {token} was refused:\n{out}"
 
     @pytest.mark.parametrize("token", ["bogus", "deny,grant", "1", '""'])
     def test_a_value_outside_the_table_is_refused(self, tmp_path, token):
@@ -500,27 +500,25 @@ class TestTheParseTier:
         names — and `1` is the raw value behind `deny`."""
         rc, out = _parse_fail(tmp_path, "nginx_rl_http.conf",
                               _http_values(_knob(token)))
-        assert rc != 0, f"brix_authdb_audit {token} parsed:\n{out}"
+        assert rc != 0, f"brix_acc_audit {token} parsed:\n{out}"
         assert "invalid value" in out, out
 
     def test_the_directive_needs_exactly_one_argument(self, tmp_path):
         rc, out = _parse_fail(tmp_path, "nginx_rl_http.conf",
-                              _http_values("            brix_authdb_audit;\n"))
+                              _http_values("            brix_acc_audit;\n"))
         assert rc != 0 and "invalid number of arguments" in out, out
 
-    def test_the_directive_is_refused_outside_a_location(self, tmp_path):
-        """NGX_HTTP_LOC_CONF only: an operator cannot set a server-wide audit
-        level, which is why the nested pair in §B is the sole inheritance path.
-        A `server {}` placement is a parse error, not a silently ignored line."""
+    def test_the_directive_is_accepted_server_wide(self, tmp_path):
+        """phase-101 W2 widened the audit level to BRIX_HTTP_ALL_CONF: an
+        operator sets it once at server (or http) scope and every location
+        below inherits it — the pre-unification loc-only refusal is gone."""
         rc, out = _parse_fail(
             tmp_path, "nginx_rl_http.conf",
-            _http_values("", extra_locations="        brix_authdb_audit all;\n"))
-        assert rc != 0, f"brix_authdb_audit was accepted in server {{}}:\n{out}"
-        assert "directive is not allowed here" in out, out
+            _http_values("", extra_locations="        brix_acc_audit all;\n"))
+        assert rc == 0, f"brix_acc_audit was refused in server {{}}:\n{out}"
 
-    def test_the_directive_is_refused_at_http_level(self, tmp_path):
+    def test_the_directive_is_accepted_at_http_level(self, tmp_path):
         rc, out = _parse_fail(
             tmp_path, "nginx_rl_http.conf",
-            _http_values("", http_extra="    brix_authdb_audit all;"))
-        assert rc != 0, f"brix_authdb_audit was accepted in http {{}}:\n{out}"
-        assert "directive is not allowed here" in out, out
+            _http_values("", http_extra="    brix_acc_audit all;"))
+        assert rc == 0, f"brix_acc_audit was refused in http {{}}:\n{out}"

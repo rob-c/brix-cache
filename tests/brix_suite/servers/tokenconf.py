@@ -228,15 +228,30 @@ def load_manifest(family=None):
         expected_reason, spec_ref.
     """
     manifest_path = os.path.join(TOKENS_DIR, "token_manifest.json")
-    if not os.path.exists(manifest_path):
-        from tokenforge import build_manifest
-        build_manifest(TOKENS_DIR)
-    with open(manifest_path) as fh:
-        data = json.load(fh)
+    data = _read_manifest_healing(manifest_path)
     rows = data.get("cases", [])
     if family is not None:
         rows = [r for r in rows if r["case_id"].startswith(family)]
     return rows
+
+
+def _read_manifest_healing(manifest_path):
+    """Parse the manifest, (re)building it when absent OR truncated/corrupt —
+    a killed writer must not poison every later conformance run."""
+    if not os.path.exists(manifest_path):
+        _rebuild_manifest()
+    try:
+        with open(manifest_path) as fh:
+            return json.load(fh)
+    except ValueError:
+        _rebuild_manifest()
+        with open(manifest_path) as fh:
+            return json.load(fh)
+
+
+def _rebuild_manifest():
+    from tokenforge import build_manifest
+    build_manifest(TOKENS_DIR)
 
 
 def mint(case_row):
@@ -363,7 +378,7 @@ def webdav_query_token(token, path="/test.txt", param="authz",
     """Probe a WebDAV HTTPS port via query-parameter token transport.
 
     WHAT: Issues GET with the token embedded in the URL query string rather
-          than in the Authorization header.  The server's brix_http_query_token
+          than in the Authorization header.  The server's brix_webdav_query_token
           directive (default ON) extracts the token from ?authz= or
           ?access_token= and validates it identically to the header path.
     WHY:  WLCG token profile allows both transport modes; this helper lets

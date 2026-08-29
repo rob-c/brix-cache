@@ -162,13 +162,13 @@ def test_with_the_weight_off_the_load_is_ignored(lifecycle):
         hot.close()
 
 
-def test_a_load_heartbeat_zeroes_the_registered_free_space(lifecycle):
-    """defect pin (#16): LOGIN records fSpace, then the FIRST LOAD heartbeat
-    resets free_mb to 0.  cms/send.c emits theLoad as a BARE [2-byte len][6
-    bytes] blob, but cms_srv_parse_load_free_mb walks it with tlv_read_next,
-    which sees 0x00 as an unknown tag and stops — so the tagged free-space int
-    behind the blob is never reached and every heartbeat stores 0.  Writes
-    maximise free_mb, so this flattens write selection across the cluster."""
+def test_a_load_heartbeat_preserves_the_registered_free_space(lifecycle):
+    """defect #16 RETIRED: cms_srv_parse_load_free_mb once walked the LOAD
+    payload's bare [2-byte len][6 bytes] blob with tlv_read_next, stopped on
+    the 0x00 pseudo-tag, and stored free_mb=0 on every heartbeat — flattening
+    write selection.  The parser was fixed (Pup blob skipped before the tagged
+    free-space int), so a heartbeat now carries BOTH halves: the load bytes
+    land AND the registered free space survives."""
     ep = _mgr(lifecycle, "audit-15f LOAD free_mb parse pin")
     http = ep.extra_ports["HTTP_PORT"]
     node = FakeNode(ep.extra_ports["CMS_PORT"], HOT_PORT, free_mb=5000)
@@ -179,13 +179,13 @@ def test_a_load_heartbeat_zeroes_the_registered_free_space(lifecycle):
         deadline = time.time() + 6
         while time.time() < deadline:
             servers = _cluster(http)["servers"]
-            if servers and servers[0]["free_mb"] == 0:
+            if servers and servers[0]["load_pct"] == 3:
                 break
             time.sleep(0.1)
-        assert servers[0]["free_mb"] == 0, (
-            "LOAD free_mb reached the registry — the parser was fixed; "
-            f"retire this pin: {servers}")
-        assert servers[0]["load_pct"] == 3, servers     # the load bytes DO land
+        assert servers[0]["load_pct"] == 3, servers     # the load bytes land
+        assert servers[0]["free_mb"] == 5000, (
+            "the LOAD heartbeat zeroed free_mb again — defect #16 regressed: "
+            f"{servers}")
     finally:
         node.close()
 

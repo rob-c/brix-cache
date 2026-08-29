@@ -34,6 +34,7 @@ import threading
 import pytest
 
 from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
+from ephemeral_port import free_port
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -63,7 +64,7 @@ class _BitFlipShim(threading.Thread):
         self._stop = threading.Event()
         self._lsock = socket.socket()
         self._lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._lsock.bind(("127.0.0.1", 0))  # net-literal-allow: mock shim binds loopback ephemeral by design
+        self._lsock.bind(("127.0.0.1", free_port()))  # net-literal-allow: loopback mock shim; leased mock-range port (never kernel-assigned)
         self._lsock.listen(8)
         self._lsock.settimeout(0.2)
         self.port = self._lsock.getsockname()[1]

@@ -156,18 +156,29 @@ def test_writing_the_same_flag_twice_is_refused(tmp_path, name):
 
 @_needs_nginx
 @pytest.mark.parametrize("name", FLAG_NAMES)
-@pytest.mark.parametrize("slot", ["srv", "http", "outer", "stream_main"])
+@pytest.mark.parametrize("slot", ["outer", "stream_main"])
 def test_the_wrong_context_is_refused(tmp_path, name, slot):
-    """NGX_HTTP_LOC_CONF on the http plane and NGX_STREAM_SRV_CONF on the stream
-    plane: a server-level http placement, an http-level placement, the main
-    context and a stream-level placement are all wrong, and each is diagnosed
-    rather than inherited.  The main-context case is the one that reads
-    differently — the directive is not merely misplaced, it is unknown before any
-    module's command table is in scope."""
+    """The main context and a stream-LEVEL placement stay wrong (the stream
+    plane's entries are NGX_STREAM_SRV_CONF).  The main-context case is the one
+    that reads differently — the directive is not merely misplaced, it is
+    unknown before any module's command table is in scope."""
     result = _parse(tmp_path, **{slot: f"{name} on;"})
     assert result.returncode != 0, f"{name} was accepted in the {slot} context"
     assert ("not allowed here" in result.stderr
             or "unknown directive" in result.stderr), result.stderr
+
+
+@_needs_nginx
+@pytest.mark.parametrize("name", FLAG_NAMES)
+@pytest.mark.parametrize("slot", ["srv", "http"])
+def test_the_widened_http_scopes_are_accepted(tmp_path, name, slot):
+    """The http plane's entries moved to the COMMON module at
+    BRIX_HTTP_ALL_CONF (http_directives_ops.h): a site- or server-wide
+    ``brix_pmark on`` is exactly the deployment shape SciTags wants, so the
+    srv/http placements now parse and inherit downward."""
+    result = _parse(tmp_path, **{slot: f"{name} on;"})
+    assert result.returncode == 0, (
+        f"{name} was refused in the {slot} context:\n{result.stderr}")
 
 
 # --------------------------------------------------------------------------- #
@@ -208,12 +219,18 @@ class TestTheMechanismIsWhereThisFileSaysItIs:
         assert f"common.pmark.{field}" in entry, entry
 
     def test_the_six_are_declared_once_and_instantiated_twice(self):
-        """Why §G asks about two planes.  If a third table ever instantiates the
-        macro, this file's parse tier is short by a plane."""
+        """Why §G asks about two planes.  The stream plane instantiates the
+        X-macro (directives_pmark.h); the http plane registers the family as
+        literal entries on the COMMON module (http_directives_ops.h) since the
+        BRIX_HTTP_ALL_CONF widening.  A third instantiation would leave this
+        file's parse tier short by a plane."""
         instantiations = sorted(
             path.name for path in ROOT.joinpath("src").rglob("*.h")
             if "BRIX_PMARK_DIRECTIVES(NGX_" in path.read_text(encoding="utf-8"))
-        assert instantiations == ["directives_pmark.h", "directives_zones.h"], \
+        http_ops = ROOT.joinpath(
+            "src/core/config/http_directives_ops.h").read_text(encoding="utf-8")
+        assert 'ngx_string("brix_pmark")' in http_ops
+        assert instantiations == ["directives_pmark.h"], \
             instantiations
         source = _flat(DIRECTIVES_H)
         assert source.count("#define BRIX_PMARK_DIRECTIVES(") == 1

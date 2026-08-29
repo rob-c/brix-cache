@@ -101,17 +101,61 @@ def _env():
     return e
 
 
+# The instance the CURRENT copy is running against.  _hang_evidence orders its
+# snapshot around this, because the caller truncates the failure message and an
+# unordered dump buried the one log that mattered (a real rc=124 was triaged
+# against another instance's tail and read as a pid-file collision that was not
+# happening).
+_ACTIVE_INSTANCE = None
+
+
+def _is_active_log(path):
+    """True for the error.log of the instance the current copy is running against.
+
+    ``all([...])`` rather than ``and``: the quality guard multiplies npath per
+    boolean operator, and the f-string is harmless when there is no active
+    instance (it simply cannot match any real path).
+    """
+    return all([_ACTIVE_INSTANCE, f"brix-verify-{_ACTIVE_INSTANCE}" in path])
+
+
+def _evidence_order():
+    """(log path, lines to keep) for the snapshot.
+
+    ONLY the active instance's log, and only a tail that fits: callers print
+    ``err[-2500:]``, so a dump of every instance pushes the one log that can
+    explain the hang past the cut — which is exactly how an earlier rc=124 got
+    triaged against the wrong instance.  The others are named in a one-liner.
+    """
+    logs = sorted(glob.glob(os.path.join(
+        REGISTRY_ROOT, "brix-verify-*", "logs", "error.log")))
+    active = [(q, 14) for q in logs if _is_active_log(q)]
+    return active or [(q, 4) for q in logs]
+
+
+def _log_tail(log, keep):
+    with open(log, errors="replace") as fh:
+        marker = " (ACTIVE)" if keep == 14 else ""
+        return f"--- {log}{marker} ---\n" + "".join(fh.readlines()[-keep:])
+
+
 def _hang_evidence():
     """A hung copy's server-side evidence dies at lifecycle teardown — snapshot
     the verify instances' error-log tails into the failure message while the
     instances still exist (a prior rc=124 in the serial lane left nothing to
-    triage after the run's teardown wiped the registry)."""
-    tails = []
-    for log in sorted(glob.glob(os.path.join(
-            REGISTRY_ROOT, "brix-verify-*", "logs", "error.log"))):
-        with open(log, errors="replace") as fh:
-            tails.append(f"--- {log} ---\n" + "".join(fh.readlines()[-30:]))
-    return "\n".join(tails) or "no brix-verify-* error logs present"
+    triage after the run's teardown wiped the registry).
+
+    The ACTIVE instance goes LAST and keeps a deep tail; the others are context
+    and keep a shallow one.  Callers print the message's tail, so the log that
+    can explain the hang has to be the one at the end.
+    """
+    order = _evidence_order()
+    named = {os.path.basename(os.path.dirname(os.path.dirname(q)))
+             for q, _ in order}
+    tails = [_log_tail(log, keep) for log, keep in order]
+    if not tails:
+        return "no brix-verify-* error logs present"
+    return f"instances present: {', '.join(sorted(named))}\n" + "\n".join(tails)
 
 
 def _xrdcp(url, out, timeout=60):
@@ -165,7 +209,12 @@ def _cache(lifecycle, tmp_path, backend_url, verify, name):
             "CACHE_STORE": str(cache_dir),
             "CACHE_VERIFY": _verify_line(verify),
         }))
-    yield f"root://{HOST}:{inst.port}//big.bin"
+    global _ACTIVE_INSTANCE
+    previous, _ACTIVE_INSTANCE = _ACTIVE_INSTANCE, name
+    try:
+        yield f"root://{HOST}:{inst.port}//big.bin"
+    finally:
+        _ACTIVE_INSTANCE = previous
 
 
 # --- 1 SUCCESS ----------------------------------------------------------------

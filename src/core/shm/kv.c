@@ -42,12 +42,17 @@ brix_kv_hdr(brix_kv_t *kv)
      * death). Until init runs, zone->data still holds the (void*)1 pending
      * sentinel or the kv handle, so guard against a non-table pointer.
      */
-    if (kv == NULL || kv->zone == NULL || kv->zone->data == NULL
-        || kv->zone->data == kv || kv->zone->data == (void *) 1)
-    {
+    void *table;
+
+    if (kv == NULL || kv->zone == NULL) {
         return NULL;
     }
-    return (brix_kv_header_t *) kv->zone->data;
+    /* Single read of zone->data: the checked value IS the returned value. */
+    table = kv->zone->data;
+    if (table == NULL || table == (void *) kv || table == (void *) 1) {
+        return NULL;
+    }
+    return (brix_kv_header_t *) table;
 }
 
 static brix_kv_entry_t *
@@ -185,23 +190,29 @@ kv_probe_begin(brix_kv_t *kv, brix_kv_header_t *h, const void *key,
     pr->stride = sizeof(brix_kv_entry_t) + kv->key_max + kv->val_max;
     pr->now    = ngx_current_msec;
 
-    ngx_shmtx_lock(&kv->mutex);
-
-    pr->mask     = h->capacity - 1; /* phase79-fp: h NULL-checked at entry; analyzer drops the guard across ngx_shmtx_lock */
+    /* capacity is immutable after zone init, so derive the probe window before
+     * taking the mutex. */
+    pr->mask     = h->capacity - 1;
     pr->maxprobe = h->capacity / 2;
     pr->idx      = (uint32_t) (pr->hash & pr->mask);
+
+    ngx_shmtx_lock(&kv->mutex);
 }
 
 int
 brix_kv_get(brix_kv_t *kv, const void *key, size_t key_len,
     void *out, size_t *out_len)
 {
-    brix_kv_header_t *h = brix_kv_hdr(kv);
+    brix_kv_header_t *h;
     kv_probe_t          pr;
     uint32_t            p;
     int                 result = 0;
 
-    if (h == NULL || key_len == 0 || key_len > kv->key_max) {
+    if (kv == NULL || key_len == 0 || key_len > kv->key_max) {
+        return 0;
+    }
+    h = brix_kv_hdr(kv);
+    if (h == NULL) {
         return 0;
     }
 
@@ -237,15 +248,19 @@ ngx_int_t
 brix_kv_set(brix_kv_t *kv, const void *key, size_t key_len,
     const void *val, size_t val_len, ngx_msec_t ttl_ms)
 {
-    brix_kv_header_t *h = brix_kv_hdr(kv);
+    brix_kv_header_t *h;
     kv_probe_t          pr;
     uint32_t            p;
     ngx_int_t           rc = NGX_ERROR;
 
-    if (h == NULL
+    if (kv == NULL
         || key_len == 0 || key_len > kv->key_max
         || val_len > kv->val_max)
     {
+        return NGX_ERROR;
+    }
+    h = brix_kv_hdr(kv);
+    if (h == NULL) {
         return NGX_ERROR;
     }
 
@@ -293,11 +308,15 @@ brix_kv_set(brix_kv_t *kv, const void *key, size_t key_len,
 void
 brix_kv_delete(brix_kv_t *kv, const void *key, size_t key_len)
 {
-    brix_kv_header_t *h = brix_kv_hdr(kv);
+    brix_kv_header_t *h;
     kv_probe_t          pr;
     uint32_t            budget;
 
-    if (h == NULL || key_len == 0 || key_len > kv->key_max) {
+    if (kv == NULL || key_len == 0 || key_len > kv->key_max) {
+        return;
+    }
+    h = brix_kv_hdr(kv);
+    if (h == NULL) {
         return;
     }
 

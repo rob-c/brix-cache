@@ -30,6 +30,7 @@ import time
 import pytest
 
 from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
+from ephemeral_port import free_port
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -37,11 +38,17 @@ XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 kXR_open = 3010
 kXR_force = 0x0004
 
+# xdist_group: this module stages its fixture data under the SHARED
+# DATA_ROOT in a module-scoped fixture.  Ungrouped cells spread across
+# workers under --dist loadgroup, so each worker runs its own copy of
+# that fixture and the first teardown deletes the file out from under
+# the workers still using it ("NotFound").  One group == one worker.
 pytestmark = [
     pytest.mark.requires_local_server,
     pytest.mark.timeout(180),
     pytest.mark.skipif(not os.path.exists(XRDCP),
                        reason="brix-xrdcp not built (client/bin/xrdcp)"),
+    pytest.mark.xdist_group("xrdcp-coerce-retry"),
 ]
 
 
@@ -97,7 +104,7 @@ class _SeverShim(threading.Thread):
         self._stop = threading.Event()
         self._lsock = socket.socket()
         self._lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._lsock.bind(("127.0.0.1", 0))  # net-literal-allow: mock shim binds loopback ephemeral by design
+        self._lsock.bind(("127.0.0.1", free_port()))  # net-literal-allow: loopback mock shim; leased mock-range port (never kernel-assigned)
         self._lsock.listen(8)
         self._lsock.settimeout(0.2)
         self.port = self._lsock.getsockname()[1]
@@ -129,21 +136,23 @@ class _SeverShim(threading.Thread):
         threading.Thread(target=self._up, args=(conn, back), daemon=True).start()
         sever = (idx == 0)
         try:
-            self._pump_sever(conn, back, idx) if sever else self._relay(conn, back)
+            self._pump_sever(conn, back, idx) if sever else self._relay(conn, back, idx)
         except OSError:
             pass
         if sever:
             self._sever_time = time.monotonic()
         _close_all(conn, back)
 
-    @staticmethod
-    def _relay(conn, back):
-        """Faithfully relay backend->client until EOF (the non-severing leg)."""
+    def _relay(self, conn, back, idx):
+        """Faithfully relay backend->client until EOF (the non-severing leg),
+        counting forwarded bytes — the resume-vs-restart differential reads
+        per-connection downstream totals, retry legs included."""
         while True:
             data = back.recv(65536)
             if not data:
                 break
             conn.sendall(data)
+            self.downstream[idx] += len(data)
 
     def _sever_slice(self, data, idx):
         """The prefix of `data` that still fits under the sever budget, or None
@@ -238,6 +247,11 @@ class TestCoerce:
         os.remove(os.path.join(DATA_ROOT, "coerce-t.bin"))
 
 
+# serial: the resume-vs-restart differential is read from WIRE BYTES moved by
+# each retry leg through a severing MITM shim — a loaded parallel lane changes
+# the timing the sever and the reconnect race against, which is the measurement
+# itself.  Reliable on its own; flaked in the bulk lane.
+@pytest.mark.serial
 class TestRetryPolicy:
 
     def test_continue_policy_resumes(self, tmp_path):

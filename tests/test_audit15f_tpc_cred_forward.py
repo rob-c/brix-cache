@@ -16,7 +16,7 @@ capturing TLS mock records the Authorization header of everything the puller
 asks it for.
 
 Every location authenticates for real (`brix_webdav_auth required` +
-`brix_webdav_token_config`) because rctx->bearer_token — the only thing the
+`brix_token_config`) because rctx->bearer_token — the only thing the
 forwarder can forward — is set exclusively by webdav_verify_bearer_token
 (auth_token.c:332).  Under `auth none` both settings look identical, which is
 precisely the trap this file avoids.

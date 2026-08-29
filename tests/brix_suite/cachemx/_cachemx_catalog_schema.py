@@ -97,7 +97,10 @@ LABEL_KEYS = {
     'brix_io_bytes_read': ('proto',),
     'brix_io_bytes_written': ('proto',),
     'brix_io_latency_usec': ('op', 'proto'),
+    'brix_io_offload_total': ('proto',),
     'brix_io_ops_total': ('op', 'proto', 'status'),
+    'brix_io_slowop_threshold_usec': (),
+    'brix_io_slowop_total': ('op', 'proto'),
     'brix_mirror_divergence_total': ('surface',),
     'brix_mirror_dropped_total': ('surface',),
     'brix_mirror_errors_total': ('surface',),
@@ -226,6 +229,10 @@ LABEL_KEYS = {
 
 CONDITIONAL = frozenset({
     'brix_cache_bytes',
+    # zero-suppressed families: the exporter skips v==0 rows, and the label
+    # matrix stack drives no offloaded reads or slow ops.
+    'brix_io_offload_total',
+    'brix_io_slowop_total',
     'brix_cache_evicted_bytes_total',
     'brix_cache_eviction_errors_total',
     'brix_cache_eviction_threshold_ratio',

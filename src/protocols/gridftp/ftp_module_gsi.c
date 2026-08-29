@@ -40,8 +40,8 @@ brix_ftp_gsi_paths(ngx_conf_t *cf, ngx_stream_brix_ftp_srv_conf_t *conf,
         || conf->trusted_ca.len == 0)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_gridftp_gsi requires brix_gridftp_certificate, "
-            "brix_gridftp_certificate_key and brix_gridftp_trusted_ca");
+            "brix_gridftp_gsi requires brix_certificate, "
+            "brix_certificate_key and brix_trusted_ca");
         return NGX_ERROR;
     }
     if (conf->certificate.len >= cert_cap

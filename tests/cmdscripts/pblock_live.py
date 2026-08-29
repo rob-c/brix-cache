@@ -193,7 +193,7 @@ http {{
             brix_webdav_auth none;
             brix_allow_write on;
             brix_storage_backend  pblock;
-            brix_webdav_pblock_block_size 1m;
+            brix_pblock_block_size 1m;
         }}
     }}
 }}
@@ -349,7 +349,7 @@ http {{
             brix_webdav_auth none;
             brix_allow_write on;
             brix_storage_backend  pblock://{run.root}/root{tail};
-            brix_webdav_pblock_block_size 1m;
+            brix_pblock_block_size 1m;
         }}
     }}
 }}

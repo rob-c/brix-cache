@@ -172,13 +172,13 @@ def test_mv_dir_ok(pair):
 # --------------------------------------------------------------------------- #
 # 10. truncate
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("newsize", [0, 1, 5, 100, 4096])
 def _assert_truncate_result(results, newsize):
     assert results["our"] == results["off"]
     if results["off"][0]:
         assert results["off"][1] == newsize
 
 
+@pytest.mark.parametrize("newsize", [0, 1, 5, 100, 4096])
 def test_truncate_status_and_size_parity(pair, newsize):
     sub = _mk_scratch(
         pair,

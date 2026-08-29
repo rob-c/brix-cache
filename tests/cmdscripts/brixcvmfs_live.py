@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import glob
 import json
 import os
 import shutil
@@ -161,6 +162,11 @@ def _client_link_libs() -> list[str]:
         _extend_unique(libs, _package_libraries(package))
     if _package_exists("liblz4"):
         libs.append("-l:liblz4.so.1")
+    if "-lbz2" not in libs and glob.glob("/usr/lib/*/libbz2.so*"):
+        # bzip2 ships no .pc file on Debian/Ubuntu, but libxrdproto's
+        # codec_bzip2.o needs it wherever the runtime library exists — the
+        # pkg-config probe alone leaves the umbrella link undefined-reference.
+        libs.append("-lbz2")
     return libs
 
 

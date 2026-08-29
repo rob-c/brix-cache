@@ -232,9 +232,14 @@ def _start_squid(run, port, origin_host, origin, work):
     run.root.chmod(0o755)
     work.chmod(0o777)
     (work / "cache").chmod(0o777)
-    run.call(["squid", "-f", conf, "-z"], check=False)
-    run.call(["squid", "-f", conf])
-    return (["squid", "-f", str(conf), "-k", "shutdown"],
+    # -n gives this instance its own SHM namespace (/dev/shm/squid-<name>-*).
+    # Without it squid shares the DEFAULT namespace with any system squid
+    # service on the host and dies at startup with
+    # "Ipc::Mem::Segment::create failed to shm_open(...): (17) File exists".
+    service = f"brixbl{port}"
+    run.call(["squid", "-f", conf, "-n", service, "-z"], check=False)
+    run.call(["squid", "-f", conf, "-n", service])
+    return (["squid", "-f", str(conf), "-n", service, "-k", "shutdown"],
             f"http://{origin}", {"http_proxy": f"http://{HOST}:{port}"})
 
 

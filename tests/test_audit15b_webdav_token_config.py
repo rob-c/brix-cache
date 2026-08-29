@@ -1,6 +1,6 @@
 """
 test_audit15b_webdav_token_config.py — live coverage for
-`brix_webdav_token_config` (audit §A1, testsuite-combinatorial-coverage-audit
+`brix_token_config` (audit §A1, testsuite-combinatorial-coverage-audit
 2026-08-15: a genuine plane-parity hole — the stream twin `brix_token_config`
 is tested via nginx_token_registry.conf, the separately named, separately
 parsed WebDAV directive never was).

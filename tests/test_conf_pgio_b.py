@@ -377,21 +377,27 @@ kXR_ArgInvalid_code = 3000
 kXR_bind_req = 3024
 
 
-def _pgread_payload(sock, fh, offset, rlen, payload, streamid=b"\x00\x17"):
+def _pgread_payload(sock, fh, offset, rlen, payload, streamid=b"\x00\x17",
+                    read_sock=None):
     """pgread with an explicit raw args payload; returns (status, code_or_data).
 
     kXR_error → ("error", numeric code); kXR_status → ("status", data bytes,
-    drained from this one message only — enough for the small reads here)."""
+    drained from this one message only — enough for the small reads here).
+    ``read_sock`` names the socket the RESPONSE arrives on: a pgread tagged
+    with a live bound pathid is answered on that path's own socket (response
+    offloading) while errors and untagged reads answer on the control stream.
+    """
     req = struct.pack("!2sH4sqiI", streamid, kXR_pgread, fh,
                       offset, rlen, len(payload))
     sock.sendall(req + payload)
-    _sid, status, hdrbody = _read_response(sock)
+    resp_sock = read_sock if read_sock is not None else sock
+    _sid, status, hdrbody = _read_response(resp_sock)
     if status == kXR_error:
         (code,) = struct.unpack("!i", hdrbody[:4])
         return ("error", code)
     assert status == kXR_status, f"expected kXR_status/kXR_error, got {status}"
     (data_dlen,) = struct.unpack("!i", hdrbody[12:16])
-    data = _recv_exact(sock, data_dlen) if data_dlen > 0 else b""
+    data = _recv_exact(resp_sock, data_dlen) if data_dlen > 0 else b""
     return ("status", data)
 
 
@@ -458,11 +464,11 @@ def _poll_retired_pathid(sock, fh, pathid, deadline_s=5.0):
 def test_pgread_args_bound_pathid_lifecycle(srv):
     """(security-neg) a pathid is valid exactly while its bound secondary
     lives: accepted after kXR_bind, refused again after the secondary
-    disconnects — a retired data path cannot be replayed.  OURS-only: stock
-    answers a bound-path pgread on the BOUND socket (response offloading,
-    audit §1.1) while BriX still answers on the control stream, so the
-    response-read topology differs; the VALIDATION contract under test is
-    identical on both."""
+    disconnects — a retired data path cannot be replayed.  Both stock and
+    BriX answer a bound-path pgread on the BOUND socket (pathid response
+    offloading — the brix_io_offload_total counter's subject), so the tagged
+    read is drained from the secondary; the retirement refusal still answers
+    on the control stream."""
     host, port = srv["our_hp"]
     sock = _handshake(host, port)
     try:
@@ -482,7 +488,7 @@ def test_pgread_args_bound_pathid_lifecycle(srv):
             assert 1 <= pathid <= 253
 
             st_tagged = _pgread_payload(sock, fh, 0, 4096,
-                                        bytes([pathid, 0]))
+                                        bytes([pathid, 0]), read_sock=sec)
             assert st_tagged[0] == "status", (
                 f"live bound pathid {pathid} refused: {st_tagged}")
         finally:

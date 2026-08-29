@@ -41,7 +41,7 @@ class TestTheArmsAtConfigTime:
             f"measures the default:\n{block}")
 
     def test_every_plane_enables_ocsp(self):
-        """With `brix_ocsp_enable off` no request is built at all
+        """With `brix_ocsp off` no request is built at all
         (auth_cert.c:293), so there is no response for a nonce to be missing
         from.  All four planes therefore have to enable it, or a plane would be
         measuring the absence of the mechanism rather than an arm of the flag."""
@@ -49,7 +49,7 @@ class TestTheArmsAtConfigTime:
         servers = [chunk for chunk in text.split("server {")[1:]]
         assert len(servers) == len(ALL_PLANES), servers
         for chunk in servers:
-            assert _writes(chunk, "brix_ocsp_enable", "on"), chunk
+            assert _writes(chunk, "brix_ocsp", "on"), chunk
 
 
 # --------------------------------------------------------------------------- #

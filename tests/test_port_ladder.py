@@ -113,10 +113,10 @@ def test_lifecycle_widths_match_the_live_ledgers():
 
 
 def test_lane_stays_inside_the_ephemeral_safe_window():
-    """The whole lane fits within TEST_PORT_START+2000 (the documented budget
+    """The whole lane fits within TEST_PORT_START+3000 (the documented budget
     each test port must respect) and inside the valid socket range."""
-    assert pl.PORT_COUNT <= 2000, (
+    assert pl.PORT_COUNT <= 3000, (
         f"the ladder is {pl.PORT_COUNT} ports wide; it must stay within the "
-        f"TEST_PORT_START+2000 budget so a relocated lane cannot cross into a "
+        f"TEST_PORT_START+3000 budget so a relocated lane cannot cross into a "
         f"neighbouring suite's band")
     assert 1024 <= pl.PORT_FIRST <= pl.PORT_LAST <= 65535

@@ -21,7 +21,7 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
     # cvmfs × gridftp co-residence (test_audit15h_cvmfs_gridftp.py, §B3.17).
     # One nginx, one worker, both planes: an http{} CVMFS Stratum-0 front on
     # the spec port and two stream{} GridFTP faces over the SAME export root —
-    # FTPRW_PORT with brix_gridftp_allow_write on, FTPRO_PORT without it.
+    # FTPRW_PORT with brix_allow_write on, FTPRO_PORT without it.
     "lc-audit15h-cvmfsftp": {"port": 30690,
                              "extra": {"FTPRW_PORT": 30691,
                                        "FTPRO_PORT": 30692}},
@@ -102,7 +102,7 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
                                          "META_PORT": 30716}},
     # The S3 bearer gate's time window (test_audit15p_s3_token.py).  One port
     # is enough: the four arms are four locations on one http listener that
-    # differ ONLY in brix_s3_token_clock_skew and the JWKS they trust, so a
+    # differ ONLY in brix_token_clock_skew and the JWKS they trust, so a
     # single minted token collects four verdicts without a second process.
     "lc-audit15p-s3token": {"port": 30717},
     # The dashboard's transfer-state bands (test_audit15q_dashboard_thresholds
@@ -126,7 +126,7 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
                              "extra": {"MOCK_PORT": 30724}},
     # The authorization audit sink's level (test_audit15s_authdb_audit.py), the
     # first of the value-granularity tranche.  Eight WebDAV locations on ONE
-    # listener differing only in the `brix_authdb_audit` token, read out of the
+    # listener differing only in the `brix_acc_audit` token, read out of the
     # ONE error log a single worker writes — a second listener would make line
     # interleaving a variable and buy nothing.
     "lc-audit15s-auditmodes": {"port": 30725},
@@ -237,7 +237,7 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
     # The OCSP flag pair at value granularity (test_audit16a_ocsp_flags.py) —
     # the 16th tranche, which re-runs the audit's Method over the 128
     # `ngx_conf_set_flag_slot` directives one (directive, VALUE) at a time.
-    # brix_ocsp_enable / brix_ocsp_soft_fail are `server {}` flags whose whole
+    # brix_ocsp / brix_ocsp_soft_fail are `server {}` flags whose whole
     # observable is a GSI login verdict, so four listeners on ONE instance carry
     # the table: `enable off`, `enable on` + `soft_fail on`, `enable on` +
     # `soft_fail off`, and `enable on` with soft_fail ABSENT (the merge
@@ -260,7 +260,7 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
     # the callback is not process-global.
     "lc-audit16b-staple": {"port": 30767,
                            "extra": {"ON_PORT": 30768, "DEF_PORT": 30769}},
-    # brix_http_query_token, same tranche (test_audit16c_query_token.py), the
+    # brix_webdav_query_token, same tranche (test_audit16c_query_token.py), the
     # fourth of the seven directives whose BOTH arms are unwritten.  One http
     # listener is enough and one is required: the three arms (on, off, absent)
     # are three WebDAV locations, and the finding is what reaches the ONE access
@@ -293,7 +293,7 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
                                       "METRICS_PORT": 30777}},
     # The five S3 LOCATION flags whose `off` arm was never written anywhere —
     # brix_s3_verify_chunk_signatures, brix_s3_allow_unsigned_session_token,
-    # brix_s3_token, brix_s3_list_cache, brix_s3_zip_access — same tranche
+    # brix_s3_token, brix_s3_list_cache, brix_zip_access — same tranche
     # (test_audit16f_s3_location_flags.py).  ONE port for sixteen locations:
     # every arm is a location on a single http listener, which is forced rather
     # than chosen — s3_parse_uri() reads the bucket out of the first URI
@@ -373,7 +373,7 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
                                    "CMS_PORT": 30792, "DS_PORT": 30793,
                                    "ROLE_PORT": 30794}},
     # The five location-scoped WebDAV flags whose `off` arm was never written
-    # anywhere — brix_webdav, brix_webdav_upload_resume, brix_delegation_endpoint,
+    # anywhere — brix_webdav, brix_upload_resume, brix_delegation_endpoint,
     # brix_webdav_cors_credentials, brix_webdav_tape_rest — same tranche
     # (test_audit16n_webdav_module_flag_arms.py).  ONE port for twenty locations
     # across FIVE server_name vhosts.  All five are NGX_HTTP_LOC_CONF and nothing

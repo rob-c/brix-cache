@@ -17,7 +17,7 @@ been asserted about issuance applies to them.
 
 WHAT THIS FILE STANDS UP.  One WebDAV server, two faces off one PKI:
 
-  * PORT      — `brix_webdav_authdb` + `brix_webdav_vomsdir`.  The minting user
+  * PORT      — `brix_authdb` + `brix_vomsdir`.  The minting user
                 is authorized here by DN on two trees, by VO on a third, by the
                 `u *` wildcard on a fourth, and by nothing at all on a fifth.
   * FREE_PORT — the same face with no authdb.  It is the attribution control:
@@ -387,7 +387,7 @@ def _caveats(raw):
 def _bearer(caveats, port, subject="bystander"):
     """A macaroon minted OUTSIDE the server, to drive the bearer-caller path.
 
-    Its location is this face; nothing pins it (no brix_webdav_token_issuer),
+    Its location is this face; nothing pins it (no brix_token_issuer),
     which is what lets one credential be compared against another.  The
     `before:` caveat is not decoration — validation treats a macaroon with no
     expiry as unusable, and an authentication failure would answer 401 where

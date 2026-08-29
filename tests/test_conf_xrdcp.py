@@ -350,8 +350,15 @@ def test_recursive_upload_tree(srv, tmp_path):
     os.makedirs(local)
     files = _make_local_tree(local)
     remote_dir = "rec_up"
-    # Recursive upload requires a directory target; a trailing slash tells xrdcp
-    # the destination is a directory (same requirement against the stock server).
+    # Recursive multi-source upload requires an EXISTING directory target —
+    # stock xrdcp stats the destination and refuses "Multiple sources were
+    # given but target is not a directory" on a fresh path even with the
+    # trailing slash (measured against the reference server too), so create
+    # it first exactly as an operator must.
+    rc, out, err = _cp(L.OFF_XRDFS, srv["our"], "mkdir", f"/{remote_dir}",
+                       timeout=60)
+    assert rc == 0 or "exists" in (out + err).lower(), \
+        f"mkdir /{remote_dir} failed: {out}{err}"
     rc, out, err = _cp(L.OFF_XRDCP, "-r", "-f", local,
                        f"{srv['our']}//{remote_dir}/", timeout=120)
     assert rc == 0, f"xrdcp -r upload to OUR server failed: {out}{err}"

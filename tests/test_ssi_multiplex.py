@@ -12,6 +12,8 @@ Run:
 """
 import struct
 
+import pytest
+
 from settings import HOST
 from test_ssi_wire import (
     ssi_server,                # module-scoped nginx-with-ssi fixture (reused)
@@ -19,6 +21,13 @@ from test_ssi_wire import (
     _parse_ssi_reply, _read_response, _rrinfo,
     kXR_write, kXR_ok, SSI_CMD_RXQ,
 )
+
+# Same xdist group as every other user of the reused `ssi_server` fixture: it
+# owns the FIXED-port `lc-ssi-wire` instance, so two workers rendering and
+# launching it at once race on one config file (seen live: the loser reads a
+# half-written conf and nginx refuses it with `no "events" section`).  The
+# group pins them all to one worker, which serialises the shared instance.
+pytestmark = pytest.mark.xdist_group("lc-ssi-wire")
 
 
 def _write_request_status(sock, fh, req_id, data):

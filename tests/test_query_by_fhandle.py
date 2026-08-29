@@ -44,10 +44,15 @@ kXR_FileNotOpen = 3004
 NAME = "qfh-parity.bin"
 PAYLOAD = b"query-by-fhandle parity probe\n"
 
+# xdist_group: this module stages its fixture data under the SHARED
+# DATA_ROOT in a module-scoped fixture.  Ungrouped cells spread across
+# workers under --dist loadgroup, so each worker runs its own copy of
+# that fixture and the first teardown deletes the file out from under
+# the workers still using it ("NotFound").  One group == one worker.
 pytestmark = [
     pytest.mark.requires_local_server,
     pytest.mark.timeout(60),
-]
+              pytest.mark.xdist_group("query-by-fhandle")]
 
 
 @pytest.fixture(scope="module", autouse=True)

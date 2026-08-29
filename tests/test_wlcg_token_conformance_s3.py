@@ -149,7 +149,7 @@ def test_s3_02_alg_none_reject(forge):
 def test_s3_03_wrong_issuer_reject(forge):
     """S3-03: Token from a different issuer → 403 reject.
 
-    The brix_s3_token_issuer directive binds the gateway to a single trusted
+    The brix_token_issuer directive binds the gateway to a single trusted
     issuer; tokens from any other issuer are rejected.
     """
     token = forge.for_issuer("https://attacker.example.com")

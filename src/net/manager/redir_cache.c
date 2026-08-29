@@ -66,13 +66,17 @@ static ngx_uint_t     brix_redir_cache_nslots = BRIX_REDIR_CACHE_SLOTS;
 static brix_redir_cache_t *
 redir_cache(void)
 {
-    if (brix_redir_shm_zone == NULL
-        || brix_redir_shm_zone->data == NULL
-        || brix_redir_shm_zone->data == (void *) 1)
-    {
+    void *table;
+
+    if (brix_redir_shm_zone == NULL) {
         return NULL;
     }
-    return (brix_redir_cache_t *) brix_redir_shm_zone->data;
+    /* Single read of zone->data: the checked value IS the returned value. */
+    table = brix_redir_shm_zone->data;
+    if (table == NULL || table == (void *) 1) {
+        return NULL;
+    }
+    return (brix_redir_cache_t *) table;
 }
 
 /* FNV-1a 32-bit hash of a NUL-terminated path, used to pick the probe window. */
@@ -193,20 +197,29 @@ brix_redir_cache_insert(const char *path,
     const char *host, uint16_t port, ngx_msec_t ttl_ms)
 {
     brix_redir_cache_t       *c;
-    brix_redir_cache_entry_t *e, *free_slot, *lru_slot, *victim;
-    ngx_uint_t                  probe, nprobe, start;
+    brix_redir_cache_entry_t *entries, *e, *free_slot, *lru_slot, *victim;
+    ngx_uint_t                  probe, nprobe, start, capacity;
     ngx_msec_t                  now, lru_exp;
 
     c = redir_cache();
-    if (c == NULL || ttl_ms == 0) {
+    /* Guards kept as separate ifs: gcc 11's -fanalyzer loses the non-NULL
+     * constraint on an accessor-returned pointer inside a compound || guard
+     * and reports an infeasible NULL deref below. */
+    if (c == NULL) {
+        return;
+    }
+    if (ttl_ms == 0) {
         return;
     }
 
+    /* Layout fields are immutable after zone init — snapshot them up front. */
+    entries  = c->entries;
+    capacity = c->capacity;
+
     now    = ngx_current_msec;
-    /* phase79-fp: c NULL-checked above; analyzer loses the guard on c through this path */
-    start  = (ngx_uint_t) redir_hash(path) % c->capacity;
-    nprobe = (c->capacity < BRIX_REDIR_PROBE_MAX)
-             ? c->capacity : BRIX_REDIR_PROBE_MAX;
+    start  = (ngx_uint_t) redir_hash(path) % capacity;
+    nprobe = (capacity < BRIX_REDIR_PROBE_MAX)
+             ? capacity : BRIX_REDIR_PROBE_MAX;
 
     ngx_shmtx_lock(&brix_redir_mutex);
 
@@ -222,8 +235,7 @@ brix_redir_cache_insert(const char *path,
     lru_exp   = 0;
 
     for (probe = 0; probe < nprobe; probe++) {
-        /* phase79-fp: c NULL-checked at entry; analyzer drops the guard across ngx_shmtx_lock */
-        e = &c->entries[(start + probe) % c->capacity];
+        e = &entries[(start + probe) % capacity];
 
         if (e->in_use && e->expires > now) {
             if (ngx_strcmp(e->path, path) == 0) {

@@ -103,16 +103,6 @@ sd_ceph_dir_insert(sd_ceph_dir_state_t *ds, const char *name)
     if (ds->count >= SD_CEPH_DIR_MAX_ENTRIES) {
         return E2BIG;
     }
-    if (ds->count == ds->cap) {
-        ngx_uint_t  ncap = (ds->cap == 0) ? 64 : ds->cap * 2;
-        char      **nn = realloc(ds->names, ncap * sizeof(char *));
-
-        if (nn == NULL) {
-            return ENOMEM;
-        }
-        ds->names = nn;
-        ds->cap   = ncap;
-    }
 
     n = strlen(name) + 1;
     dup = malloc(n);
@@ -120,6 +110,18 @@ sd_ceph_dir_insert(sd_ceph_dir_state_t *ds, const char *name)
         return ENOMEM;
     }
     memcpy(dup, name, n);
+
+    if (ds->count == ds->cap) {
+        ngx_uint_t  ncap = (ds->cap == 0) ? 64 : ds->cap * 2;
+        char      **grown = realloc(ds->names, ncap * sizeof(char *));
+
+        if (grown == NULL) {
+            free(dup);
+            return ENOMEM;
+        }
+        ds->names = grown;
+        ds->cap   = ncap;
+    }
 
     memmove(ds->names + lo + 1, ds->names + lo,
             (ds->count - lo) * sizeof(char *));

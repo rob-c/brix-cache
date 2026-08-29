@@ -35,6 +35,7 @@ import time
 import pytest
 
 from cli_pty import run_pty
+from ephemeral_port import free_port
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -56,7 +57,7 @@ class _Tarpit(threading.Thread):
         self._stop = threading.Event()
         self._lsock = socket.socket()
         self._lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._lsock.bind(("127.0.0.1", 0))  # net-literal-allow: mock shim binds loopback ephemeral by design
+        self._lsock.bind(("127.0.0.1", free_port()))  # net-literal-allow: loopback mock shim; leased mock-range port (never kernel-assigned)
         self._lsock.listen(8)
         self._lsock.settimeout(0.2)
         self.port = self._lsock.getsockname()[1]
@@ -93,7 +94,7 @@ def _env(overrides):
 
 def _closed_port():
     s = socket.socket()
-    s.bind(("127.0.0.1", 0))  # net-literal-allow: mock shim binds loopback ephemeral by design
+    s.bind(("127.0.0.1", free_port()))  # net-literal-allow: loopback mock shim; leased mock-range port (never kernel-assigned)
     port = s.getsockname()[1]
     s.close()
     return port
@@ -182,13 +183,15 @@ class TestStockEnvDisclosure:
     def test_unsupported_vars_note_on_tty(self, tmp_path):
         """(disclosure) unsupported-but-set XRD_* names are listed once on a
         TTY; honored aliases and values never appear in the note."""
-        rc, _out, err = run_pty(
+        # run_pty returns (rc, COMBINED pty output, b"") — stdout and stderr
+        # share the one PTY, so the note is read off the combined stream.
+        rc, out, _err = run_pty(
             [XRDCP, f"root://127.0.0.1:{_closed_port()}//x",  # net-literal-allow: URL targets the loopback mock shim
              str(tmp_path / "out.bin")],
             env=_env({"XRD_LOGLEVEL": "Dump",
                       "XRD_CPRETRY": "3",
                       "XRD_CONNECTIONWINDOW": "20"}))
-        text = err.decode("utf-8", "replace")
+        text = out.decode("utf-8", "replace")
         assert rc != 0
         assert "not supported by brix-client" in text, text
         assert "XRD_LOGLEVEL" in text and "XRD_CPRETRY" in text, text

@@ -458,6 +458,9 @@ def _inside(spec_path):
         "rate_mbit": spec["rate_mbit"],
         "size": size,
         "wmem_effective": wmem_effective,
+        # The pinned autotuning ceiling, as a number: the caller checks the
+        # model's precondition (baseline starved at one window per RTT) from it.
+        "wmem_cap": spec["wmem_cap"],
         "baseline": results["base"],
         "tuned": results["tuned"],
         "baseline_median_mib_s": base_med,

@@ -420,7 +420,7 @@ webdav_validate_token_jwks_path(ngx_conf_t *cf,
     }
     if (conf->common.token_issuer.len == 0 || conf->common.token_audience.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_webdav: brix_webdav_token_jwks requires brix_webdav_token_issuer and brix_webdav_token_audience");
+            "brix_webdav: brix_token_jwks requires brix_token_issuer and brix_token_audience");
         return NGX_CONF_ERROR;
     }
     if (webdav_validate_path(cf, "brix_token_jwks", &conf->common.token_jwks,

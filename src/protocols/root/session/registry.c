@@ -28,13 +28,13 @@ static ngx_uint_t   brix_session_registry_nslots =
 static brix_session_table_t *
 session_table(void)
 {
-    if (brix_session_shm_zone == NULL
-        || brix_session_shm_zone->data == NULL
-        || brix_session_shm_zone->data == (void *) 1)
-    {
+    /* Single read of zone->data: the checked value IS the returned value. */
+    void *table = brix_session_shm_zone ? brix_session_shm_zone->data : NULL;
+
+    if (table == NULL || table == (void *) 1) {
         return NULL;
     }
-    return (brix_session_table_t *) brix_session_shm_zone->data;
+    return (brix_session_table_t *) table;
 }
 
 /* Shared-memory zone init callback: lay the session table out in the zone and
@@ -308,14 +308,15 @@ static brix_session_entry_t *
 brix_session_find_locked(brix_session_table_t *tbl,
     const u_char sessid[BRIX_SESSION_ID_LEN])
 {
-    ngx_uint_t i;
+    brix_session_entry_t *slots = tbl->slots;
+    ngx_uint_t            i, capacity = tbl->capacity;
 
-    for (i = 0; i < tbl->capacity; i++) {
-        if (tbl->slots[i].in_use
-            && ngx_memcmp(tbl->slots[i].sessid, sessid,
+    for (i = 0; i < capacity; i++) {
+        if (slots[i].in_use
+            && ngx_memcmp(slots[i].sessid, sessid,
                           BRIX_SESSION_ID_LEN) == 0)
         {
-            return &tbl->slots[i];
+            return &slots[i];
         }
     }
     return NULL;
@@ -347,7 +348,13 @@ brix_session_pathid_set(const u_char sessid[BRIX_SESSION_ID_LEN],
     brix_session_table_t *tbl = session_table();
     brix_session_entry_t *e;
 
-    if (tbl == NULL || pathid < 1 || pathid > 253) {
+    /* Separate ifs: gcc 11's -fanalyzer loses the non-NULL constraint on an
+     * accessor-returned pointer inside a compound || guard and reports an
+     * infeasible NULL deref in brix_session_find_locked. */
+    if (tbl == NULL) {
+        return;
+    }
+    if (pathid < 1 || pathid > 253) {
         return;
     }
     ngx_shmtx_lock(&brix_session_mutex);
@@ -386,7 +393,11 @@ brix_session_pathid_bound(const u_char sessid[BRIX_SESSION_ID_LEN],
     brix_session_entry_t *e;
     int                     bound = 0;
 
-    if (tbl == NULL || pathid < 1 || pathid > 253) {
+    /* Separate ifs — same gcc 11 compound-guard analyzer limitation. */
+    if (tbl == NULL) {
+        return 0;
+    }
+    if (pathid < 1 || pathid > 253) {
         return 0;
     }
     ngx_shmtx_lock(&brix_session_mutex);

@@ -241,7 +241,6 @@ def probe_file():
 # The matrix: full conformance suite through each topology
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("topo", list(TOPOLOGIES))
 def _front_url(builder, lifecycle):
     front_url = builder(lifecycle)
     if isinstance(front_url, tuple):      # _build_mirror returns (url, log_dir)
@@ -290,12 +289,32 @@ def _assert_conformance_process(proc, passed, bad, topo, front_url, tail):
     assert bad is None, f"conformance through {topo} reported {bad.group(0)}:\n{tail}"
 
 
+def _conformance_case_count():
+    """How many cases tests/test_conformance.py holds right now.
+
+    Measured, not hardcoded: the file has been split before, and a stale
+    magic number turns every later resize into a false failure (it did — the
+    pin said 25 while the file held 21).  Collection is ~50ms and still fails
+    loudly on a TRUNCATED nested run, which is what this guard is for."""
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "tests/test_conformance.py",
+         "--collect-only", "-q", "-p", "no:xdist", "-p", "no:cacheprovider",
+         "-p", "no:randomly", "-o", "addopts="],
+        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        capture_output=True, text=True, timeout=120)
+    m = re.search(r"(\d+) tests? collected", proc.stdout)
+    return int(m.group(1)) if m else 0
+
+
 def _assert_conformance_breadth(passed, topo, tail):
-    assert passed >= 25, (
-        f"only {passed} conformance tests ran through '{topo}' "
-        f"(expected ~30) — suite may have been truncated:\n{tail}")
+    expected = _conformance_case_count()
+    assert expected > 0, "could not collect tests/test_conformance.py"
+    assert passed >= expected, (
+        f"only {passed} of {expected} conformance tests ran through "
+        f"'{topo}' — the suite was truncated:\n{tail}")
 
 
+@pytest.mark.parametrize("topo", list(TOPOLOGIES))
 def test_full_conformance_through_topology(topo, probe_file, lifecycle):
     _require_fleet_backends()
     front_url = _front_url(TOPOLOGIES[topo], lifecycle)

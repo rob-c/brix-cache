@@ -1,7 +1,7 @@
 """
 test_audit15c_webdav_introspection.py — WebDAV bearer-token introspection
 (RFC 7662) live coverage (audit §A2, testsuite-combinatorial-coverage-audit
-2026-08-15: `brix_webdav_token_introspect_loc/_ttl/_fail_open` and
+2026-08-15: `brix_token_introspect_loc/_ttl/_fail_open` and
 `brix_webdav_revoke_cache` had config-parse tests only, zero live requests).
 
 The subject proxies its introspection subrequests (src/protocols/webdav/
@@ -14,7 +14,7 @@ answering `{"active": false}` only for one exact token value.  Cases:
     refusal served from the revoke cache (negative-result caching, log pin)
   * gate — a request with no bearer never consults the introspector
   * policy — a dead introspector refuses (fail-closed) or admits (fail-open)
-    per brix_webdav_token_introspect_fail_open
+    per brix_token_introspect_fail_open
 """
 
 from pathlib import Path

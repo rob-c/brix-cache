@@ -123,7 +123,7 @@ def clean_test_fleet(test_root: Path = Path("/tmp/xrd-test")) -> None:
     # credential tests.  It holds only throwaway test delegations — wipe it
     # (best-effort: unprivileged we may not own it, but then the pre-existing
     # skip guards apply).
-    shutil.rmtree("/dev/shm/brix-creds", ignore_errors=True)
+    shutil.rmtree(f"/dev/shm/brix-creds.{os.geteuid()}", ignore_errors=True)
     _kill_root_processes(test_root)
     _kill_stale_listeners()
 
@@ -233,14 +233,27 @@ def _configure_suite_binaries(nginx: str, xrootd: str) -> bool:
     return True
 
 
-def _nginx_stream_is_dynamic(nginx_bin: str) -> bool:
-    """True when the build is `--with-stream=dynamic` (stream is a loadable module);
-    False for a static build with stream compiled in."""
+def _nginx_stream_probe(nginx_bin: str) -> str:
+    """'dynamic' | 'static' | 'unknown' for the build's stream linkage.
+
+    'unknown' (the binary is missing or -V won't run) is a distinct verdict:
+    an explicit module request against an unprobeable binary is TRUSTED —
+    refusing it as "static" would block deliberate module testing on a binary
+    the probe simply cannot see (and module existence is still validated)."""
     try:
         probe = run([nginx_bin, "-V"])
     except OSError:
-        return False
-    return probe.returncode == 0 and "--with-stream=dynamic" in f"{probe.stdout}\n{probe.stderr}"
+        return "unknown"
+    if probe.returncode != 0:
+        return "unknown"
+    output = f"{probe.stdout}\n{probe.stderr}"
+    return "dynamic" if "--with-stream=dynamic" in output else "static"
+
+
+def _nginx_stream_is_dynamic(nginx_bin: str) -> bool:
+    """True when the build is `--with-stream=dynamic` (stream is a loadable module);
+    False for a static build with stream compiled in."""
+    return _nginx_stream_probe(nginx_bin) == "dynamic"
 
 
 def _nginx_modules_path(nginx_bin: str) -> Path | None:
@@ -272,6 +285,57 @@ def _nginx_modules_path(nginx_bin: str) -> Path | None:
     return Path(next(group for group in match.groups() if group))
 
 
+def _is_sanitized_binary(path: str) -> bool:
+    """True when the binary at ``path`` links a sanitizer runtime.
+
+    Guards the plain fleet lanes against an ASan/UBSan-contaminated nginx
+    slipping in as --nginx-bin (seen live: sanitized objects in the shared
+    build tree produced a fleet whose every worker aborts on the first
+    intercepted call).  Byte-scan for the runtime soname — no tool spawn, and
+    a missing/unreadable path is simply "not sanitized" so the ordinary
+    binary-exists validation still owns that failure.
+    """
+    try:
+        data = Path(path).read_bytes()
+    except OSError:
+        return False
+    return b"libasan.so" in data or b"libtsan.so" in data or b"__asan_init" in data
+
+
+def _refuse_static_modules(nginx_bin, requested):
+    print(
+        f"ERROR: {nginx_bin} is a STATIC nginx build (stream compiled in) but "
+        f"{len(requested)} --nginx-load-module were given. A static binary must "
+        f"load NO modules — injecting a dynamic ngx_stream_module.so double-"
+        f"registers stream and can dlopen-fail. Keep the static and dynamic "
+        f"builds in separate trees: use the dynamic (--with-stream=dynamic) build "
+        f"for module testing, or drop --nginx-load-module here.",
+        file=sys.stderr)
+    return False
+
+
+def _is_foreign_stream_module(value, module_dir):
+    if Path(value).name != "ngx_stream_module.so":
+        return False
+    return module_dir is None \
+        or Path(value).resolve().parent != module_dir.resolve()
+
+
+def _refuse_foreign_stream_modules(nginx_bin, requested):
+    """False when a requested ngx_stream_module.so is not this dynamic
+    build's own — a foreign stream module is built against a different core
+    and dlopen-fails with `undefined symbol: ngx_stat_active`."""
+    module_dir = _nginx_modules_path(nginx_bin)
+    foreign = [v for v in requested if _is_foreign_stream_module(v, module_dir)]
+    for value in foreign:
+        print(
+            f"ERROR: {value} is not this dynamic build's own "
+            f"ngx_stream_module.so ({module_dir}) — load the module that "
+            f"ships beside {nginx_bin} instead.",
+            file=sys.stderr)
+    return not foreign
+
+
 def _configure_nginx_modules(nginx_bin: str, requested: list[str]) -> bool:
     """Validate modules and discover the dynamic stream dependency.
 
@@ -280,18 +344,13 @@ def _configure_nginx_modules(nginx_bin: str, requested: list[str]) -> bool:
     into it double-registers stream and/or fails dlopen. Modules are only for the
     `--with-stream=dynamic` build, resolved from ITS OWN objs/ dir.
     """
-    if requested and not _nginx_stream_is_dynamic(nginx_bin):
-        print(
-            f"ERROR: {nginx_bin} is a STATIC nginx build (stream compiled in) but "
-            f"{len(requested)} --nginx-load-module were given. A static binary must "
-            f"load NO modules — injecting a dynamic ngx_stream_module.so double-"
-            f"registers stream and can dlopen-fail. Keep the static and dynamic "
-            f"builds in separate trees: use the dynamic (--with-stream=dynamic) build "
-            f"for module testing, or drop --nginx-load-module here.",
-            file=sys.stderr)
+    plane = _nginx_stream_probe(nginx_bin) if requested else "unknown"
+    if plane == "static":
+        return _refuse_static_modules(nginx_bin, requested)
+    if plane == "dynamic" and not _refuse_foreign_stream_modules(nginx_bin,
+                                                                 requested):
         return False
-    candidates = _module_candidates(nginx_bin, requested)
-    resolved = _resolve_modules(candidates)
+    resolved = _resolve_modules(_module_candidates(nginx_bin, requested))
     if resolved is None:
         return False
     _publish_modules(resolved)

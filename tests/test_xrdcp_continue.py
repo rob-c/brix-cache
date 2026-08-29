@@ -30,11 +30,17 @@ from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 
+# xdist_group: this module stages its fixture data under the SHARED
+# DATA_ROOT in a module-scoped fixture.  Ungrouped cells spread across
+# workers under --dist loadgroup, so each worker runs its own copy of
+# that fixture and the first teardown deletes the file out from under
+# the workers still using it ("NotFound").  One group == one worker.
 pytestmark = [
     pytest.mark.requires_local_server,
     pytest.mark.timeout(120),
     pytest.mark.skipif(not os.path.exists(XRDCP),
                        reason="brix-xrdcp not built (client/bin/xrdcp)"),
+    pytest.mark.xdist_group("xrdcp-continue"),
 ]
 
 CONTENT = bytes((i * 31 + 7) % 251 for i in range(6 * 1024 * 1024))

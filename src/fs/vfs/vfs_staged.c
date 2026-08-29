@@ -297,7 +297,7 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
     ngx_int_t   rc;
     int         saved_errno;
 
-    if (st == NULL) {
+    if (st == NULL || st->ctx == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }

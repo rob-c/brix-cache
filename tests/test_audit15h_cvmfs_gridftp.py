@@ -32,7 +32,7 @@ gate.c:478-489) rejects any URI that is "not a CVMFS traffic shape" with 403
 BEFORE any path resolution runs, so ``keys/<fqrn>.masterkey`` — the repository's
 private signing key, sitting inside the Stratum-0 root by construction
 (``repo mkfs`` puts it there) — is structurally unreachable over http.
-``brix_gridftp_export`` confines the tree and nothing else: the same file is one
+``brix_export`` confines the tree and nothing else: the same file is one
 anonymous RETR away on either FTP face.  Nothing warns at config-parse time that
 an export root contains a repository's key material, and nothing in the docs
 says the two roots must differ.
@@ -42,7 +42,7 @@ directory over FTP has exported everything in it, and no one calls that a bug
 when the directory is /etc.  What makes this different is that these two modules
 are *designed* to be co-hosted on one tree, and one of them carries an explicit
 "these bytes never leave" rule that the other silently does not honour.  The
-remedy is small — refuse (or warn on) a ``brix_gridftp_export`` whose subtree
+remedy is small — refuse (or warn on) a ``brix_export`` whose subtree
 contains a ``keys/*.masterkey``, or document the split-root requirement — so the
 finding is recorded rather than assumed benign.
 
@@ -341,7 +341,7 @@ def test_the_http_plane_refuses_every_write_method(planes, repo):
 
 
 def test_the_read_only_ftp_face_cannot_write_into_the_repository(planes, repo):
-    """`brix_gridftp_allow_write` off is the mitigation, and it holds.
+    """`brix_allow_write` off is the mitigation, and it holds.
 
     The bytes are unchanged afterwards on the http plane too — the refusal is a
     refusal to open, not a truncate-then-fail.

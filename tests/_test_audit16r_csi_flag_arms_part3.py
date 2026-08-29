@@ -55,7 +55,10 @@ class TestTheMismatchErrorCode:
         The bit is set, documented as the mechanism for a specific mapping, and
         dropped on the floor."""
         writes, reads = _csi_mismatch_accesses()
-        assert writes == ["src/fs/vfs/vfs_io_core.c:155"], writes
+        # File-scoped, not line-pinned: neighbouring edits move the write
+        # without changing the finding.
+        assert [w.rsplit(":", 1)[0] for w in writes] \
+            == ["src/fs/vfs/vfs_io_core.c"], writes
         assert reads == [], \
             ("DEFECT CANDIDATE #94 has been FIXED: something now reads "
              f"csi_mismatch.  Re-read §D and strike #94.  Readers: {reads}")

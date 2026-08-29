@@ -115,7 +115,7 @@ def test_the_authdb_tier_grants_the_prefix_its_rule_names(httpcores):
     assert resp.status_code == 200, f"{resp.status_code}\n{_errlog(endpoint)}"
     assert resp.content == SMALL
     assert 'grant read "/acl/pub/seed.txt"' in _errlog(endpoint), (
-        "brix_authdb_audit all did not record the grant")
+        "brix_acc_audit all did not record the grant")
 
 
 def test_a_path_no_rule_covers_is_denied_on_the_authdb_tier(httpcores):

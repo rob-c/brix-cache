@@ -8,8 +8,8 @@ GSI cert verification path and populates ``ctx->primary_vo`` /
 The dedicated ``webdav-voms`` server (port 18458) is configured with:
 
     brix_webdav_auth         required
-    brix_webdav_vomsdir      /tmp/xrd-test/pki/vomsdir
-    brix_webdav_voms_cert_dir /tmp/xrd-test/pki/ca
+    brix_vomsdir      /tmp/xrd-test/pki/vomsdir
+    brix_voms_cert_dir /tmp/xrd-test/pki/ca
 
 The test PKI produces standard proxy certs **without** VOMS attributes, so
 ``brix_extract_voms_info()`` returns ``NGX_DECLINED`` on every request.
@@ -126,7 +126,7 @@ def test_error_no_client_cert():
 def test_security_neg_untrusted_cert():
     """A self-signed cert must be rejected; vomsdir must not bypass CA check.
 
-    If ``brix_webdav_vomsdir`` were consulted before the CA chain check, an
+    If ``brix_vomsdir`` were consulted before the CA chain check, an
     attacker could use a self-signed cert that happens to have a crafted VOMS
     extension to gain access.  The module checks cert validity FIRST via
     ``webdav_verify_proxy_cert()``; VOMS extraction only happens AFTER the

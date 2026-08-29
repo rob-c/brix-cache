@@ -192,6 +192,59 @@ brix_qconfig_emit_cmpwrite(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c
  * WHY: Reference do_Qconf returns the bare $XRDROLE (XrdOfsConfig exports it from the configured role).
  *      A standalone data server reports "server"; in manager/redirector mode it reports "manager".
  * HOW: Appends "manager" or "server" per conf->manager_mode + newline. */
+/* The built-in checksum list, in registration order.  Emitted for "chksum". */
+#define BRIX_QCONF_CHKSUM_LIST \
+    "adler32,crc32,crc32c,crc64,crc64nvme,zcrc32,md5,sha1,sha256"
+
+/* WHAT: Emits the checksum list for the "chksum" query key, LEADING with the
+ *       operator's brix_checksum_default when one is configured.
+ * WHY: Stock do_Qconf answers chksum with the configured default first — WLCG
+ *      clients pick the FIRST mutually-supported algorithm, so a deployment
+ *      that sets brix_checksum_default crc32c must advertise it at the head
+ *      or clients keep negotiating adler32.
+ * HOW: Unset default (or the default already first) → the static list.  Else
+ *      the default once, then every other algorithm in registration order. */
+static ngx_flag_t
+brix_qconfig_emit_chksum(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
+    char *resp, size_t resp_sz, size_t *pos)
+{
+    static const char *const algs[] = {
+        "adler32", "crc32", "crc32c", "crc64", "crc64nvme", "zcrc32",
+        "md5", "sha1", "sha256", NULL,
+    };
+    const char *dflt = (const char *) conf->checksum_default.data;
+    size_t      dlen = conf->checksum_default.len;
+    int         i, known = 0;
+
+    (void) c;
+    for (i = 0; dlen > 0 && algs[i] != NULL; i++) {
+        if (ngx_strlen(algs[i]) == dlen
+            && ngx_strncmp(algs[i], dflt, dlen) == 0)
+        {
+            known = 1;
+            break;
+        }
+    }
+    if (!known || ngx_strncmp("adler32", dflt, dlen) == 0) {
+        return brix_qconfig_append(resp, resp_sz, pos,
+                                   BRIX_QCONF_CHKSUM_LIST "\n");
+    }
+    if (!brix_qconfig_append(resp, resp_sz, pos, "%.*s", (int) dlen, dflt)) {
+        return 0;
+    }
+    for (i = 0; algs[i] != NULL; i++) {
+        if (ngx_strlen(algs[i]) == dlen
+            && ngx_strncmp(algs[i], dflt, dlen) == 0)
+        {
+            continue;
+        }
+        if (!brix_qconfig_append(resp, resp_sz, pos, ",%s", algs[i])) {
+            return 0;
+        }
+    }
+    return brix_qconfig_append(resp, resp_sz, pos, "\n");
+}
+
 static ngx_flag_t
 brix_qconfig_emit_role(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
@@ -199,6 +252,25 @@ brix_qconfig_emit_role(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     (void) c;
     return brix_qconfig_append(resp, resp_sz, pos, "%s\n",
                                conf->manager_mode ? "manager" : "server");
+}
+
+/* WHAT: Emits the operator-configured site identity for the "sitename" query key.
+ * WHY: Stock `xrdfs query config sitename` answers with all.sitename — the label
+ *      federation/monitoring tooling reads (parity audit §2.18). BriX spells it
+ *      brix_sitename (the advertise.sitename slot the Pelican advertiser reads).
+ * HOW: Configured → the bare name + newline; unset → echo the key, byte-identical
+ *      to the unknown-key default branch so an unlabelled server is unchanged. */
+static ngx_flag_t
+brix_qconfig_emit_sitename(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
+    char *resp, size_t resp_sz, size_t *pos)
+{
+    (void) c;
+    if (conf->advertise.sitename.len == 0) {
+        return brix_qconfig_append(resp, resp_sz, pos, "sitename\n");
+    }
+    return brix_qconfig_append(resp, resp_sz, pos, "%.*s\n",
+                               (int) conf->advertise.sitename.len,
+                               conf->advertise.sitename.data);
 }
 
 /* WHAT: Emits the session's TCP receive-window bytes for the "window" query key.
@@ -284,8 +356,7 @@ static const brix_qconfig_entry_t  brix_qconfig_table[] = {
      * fattr — usxParms "<maxNameLen> <maxValueLen>": Linux user.* caps,
      *   248 = 255 - len("user."), 65536 = 64 KiB value cap (ext4/xfs stock).
      * version — the bare product string (core/ident.h), digits + no prefix. */
-    { "chksum",        "adler32,crc32,crc32c,crc64,crc64nvme,zcrc32,"
-                       "md5,sha1,sha256\n",                        NULL, 1 },
+    { "chksum",        NULL,       brix_qconfig_emit_chksum,             1 },
     { "readv",         "readv=1\n",                                NULL, 1 },
     { "readv_ior_max", NULL,       brix_qconfig_emit_readv_ior_max,      1 },
     { "readv_iov_max", BRIX_QCONF_STR(BRIX_READV_MAXSEGS) "\n",    NULL, 1 },
@@ -302,6 +373,7 @@ static const brix_qconfig_entry_t  brix_qconfig_table[] = {
     /* Deployment identity — withheld from a public read-only gateway. */
     { "version",       BRIX_SERVER_VERSION "\n",                   NULL, 0 },
     { "role",          NULL,       brix_qconfig_emit_role,               0 },
+    { "sitename",      NULL,       brix_qconfig_emit_sitename,           0 },
     { NULL,            NULL,       NULL,                                 0 },
 };
 

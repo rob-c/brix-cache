@@ -4,7 +4,7 @@ WHY THIS FILE EXISTS
     The GridFTP gateway carries three flag gates, and no config in this tree has
     ever written the DISARMING arm of any of them:
 
-        brix_gridftp_verify_write       `on` in nginx_gridftp_verify_{posix,pblock}.conf
+        brix_verify_write       `on` in nginx_gridftp_verify_{posix,pblock}.conf
         brix_gridftp_require_allo_size  `on` rendered by test_gridftp_allo_truncation.py
         brix_gridftp_gsi                `on` in the four gsiftp configs
 
@@ -40,7 +40,7 @@ THE FINDINGS
     covers the path, so §3's example — which has no VO rules — has no gate at
     all.  §F measures it.
 
-    DEFECT CANDIDATE #112 — `brix_gridftp_verify_write on` is switched off, per
+    DEFECT CANDIDATE #112 — `brix_verify_write on` is switched off, per
     transfer, by a client-chosen `REST`.  ftp_ev_xfer.c:374 computes
 
         *verify = (fc->conf->verify_write && *start == 0);
@@ -206,7 +206,7 @@ def gates(tmp_path_factory):
                              "SERVER_KEY": SERVER_KEY,
                              "CA_DIR": CA_DIR},
             reason="audit-16ae the three gridftp gates whose disarming arm no "
-                   "config had written: brix_gridftp_verify_write, "
+                   "config had written: brix_verify_write, "
                    "_require_allo_size and _gsi, each against its omission."))
         yield _Gates(instance, root)
     finally:

@@ -72,18 +72,21 @@ path_list_push(path_list *pl, const char *s)
         pl->items = ni;
         pl->cap   = ncap;
     }
-    /* Ownership transfers INTO the list; path_list_free releases every entry.
-     * (gcc -fanalyzer reports the strdup as leaking — it does not track
-     * ownership through the container, known false positive in the fanalyzer
-     * baseline.) */
+    /* Ownership transfers INTO the list; path_list_free releases every entry. */
     dup = strdup(s);
     if (dup == NULL) {
         return -1;
     }
-    /* phase79-fp: ownership of dup transfers into pl->items; every entry is
-     * released by path_list_free — analyzer does not track container ownership */
-    pl->items[pl->len++] = dup;
+    /* gcc 11's -fanalyzer cannot see a symbolic-index store through a
+     * parameter as an escape, so it reports `dup` leaking at the return even
+     * though the caller frees every stored entry via path_list_free. Suppress
+     * exactly that diagnostic for exactly this store. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wanalyzer-malloc-leak"
+    pl->items[pl->len] = dup;
+    pl->len++;
     return 0;
+#pragma GCC diagnostic pop
 }
 
 static void

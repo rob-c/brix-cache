@@ -350,7 +350,7 @@ class TestTheSignedHandoffOnTheWire:
 # ── the accepting half, on a location whose arm is off ─────────────────────
 
 class TestTheAcceptingHalfIgnoresTheFlag:
-    """`webdav_redirect_signed_auth` is gated on `brix_http_secretkey` alone
+    """`webdav_redirect_signed_auth` is gated on `brix_webdav_secretkey` alone
     (access_auth.c), so opting out of EMITTING handoffs does not opt out of
     honouring them.  Every cell below runs against `redirect_dataserver off`."""
 

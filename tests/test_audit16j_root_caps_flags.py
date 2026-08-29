@@ -345,28 +345,9 @@ def _await_registration(caps, timeout=25.0):
                 f"registry to select out of.\n{caps.errlog()}")
 
 
-def _open_details(caps, which, path, count, timeout=5.0):
-    """The DETAIL field of every access-log line for `path` on one server.
+# _open_details moved to _test_audit16j_root_caps_flags_helpers.py so the
+# _b split (which reexports only the helpers) can read the access-log detail.
 
-    The line format is byte-frozen (`brix_access_format_line`,
-    observability/accesslog/access_log.c:296-315): `"VERB PATH DETAIL"`.  The
-    detail is where a redirect names its SOURCE, which is the only place the
-    collapse cache is observable from outside the process.
-
-    Polls for `count` lines because the log write trails the redirect that is
-    already on the wire: a read that races it sees only the PREVIOUS open and
-    answers a different question than the one asked.  Measured — the two-open
-    cache reading below failed exactly that way once, reporting the first open's
-    `registry` as the second's.  On a shortfall the list is returned short so
-    the caller's own assertion reports what it saw.
-    """
-    pattern = r'"OPEN ' + re.escape(path) + r' ([^"]+)"'
-    deadline = time.time() + timeout
-    while True:
-        hits = re.findall(pattern, caps.access(which))
-        if len(hits) >= count or time.time() >= deadline:
-            return hits
-        time.sleep(0.05)
 
 
 def _open_detail(caps, which, path, nth=1):

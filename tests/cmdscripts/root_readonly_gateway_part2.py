@@ -340,8 +340,13 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
         origin_root, origin_kind = _start_origin(base, origin_port, rig)
         results.append((True, f"origin is {origin_kind} on :{origin_port}"))
 
+        # brix_sitename: gives the plain gateway a served deployment-identity
+        # value, so the public posture's withheld-key differential (sitename
+        # echoes there) measures the DIRECTIVE and not an unset knob.
         ro_prefix, ro_export = _start_gateway(
-            base, "ro", ro_port, "    brix_read_only on;\n",
+            base, "ro", ro_port,
+            "    brix_read_only on;\n"
+            "    brix_sitename BriX-RO-Gateway;\n",
             origin_port, nginx_bin, rig)
         ov_prefix, _ = _start_gateway(
             base, "override", ov_port,

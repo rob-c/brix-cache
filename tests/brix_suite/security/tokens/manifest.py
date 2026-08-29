@@ -124,12 +124,22 @@ class Manifest:
     def write(self, path):
         # Collection runs under pytest-xdist, so several workers can build the
         # first manifest concurrently. Publish only a complete JSON document;
-        # readers must never observe the truncate/write window.
-        tmp = f"{path}.tmp.{os.getpid()}"
-        with open(tmp, "w") as fh:
-            json.dump({"cases": self.rows}, fh, indent=2, sort_keys=True)
-            fh.flush()
-            os.fsync(fh.fileno())
+        # readers must never observe the truncate/write window. The spill is a
+        # dot-file so manifest consumers globbing the directory never see it,
+        # and a failed dump removes it — only the rename publishes.
+        head, tail = os.path.split(path)
+        tmp = os.path.join(head, f".{tail}.{os.getpid()}.tmp")
+        try:
+            with open(tmp, "w") as fh:
+                json.dump({"cases": self.rows}, fh, indent=2, sort_keys=True)
+                fh.flush()
+                os.fsync(fh.fileno())
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
         os.replace(tmp, path)
 
 

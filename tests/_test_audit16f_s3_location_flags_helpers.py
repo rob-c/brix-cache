@@ -13,7 +13,7 @@ for any of them.
     brix_s3_allow_unsigned_session_token   module_merge.c:87   default 0
     brix_s3_token                          module_merge.c:128  default 0
     brix_s3_list_cache                     module_merge.c:91   default 0
-    brix_s3_zip_access                     module_merge.c:96   default 0
+    brix_zip_access                     module_merge.c:96   default 0
 
 A flag whose ``off`` arm is never written is not the same as a flag that is
 covered: every "off" claim the suite makes about these five is really a claim
@@ -219,7 +219,12 @@ FLAGS = (
     ("brix_s3_allow_unsigned_session_token", "allow_unsigned_session_token"),
     ("brix_s3_token", "token_enable"),
     ("brix_s3_list_cache", "list_cache"),
-    ("brix_s3_zip_access", "zip_access"),
+    # brix_s3_zip_access became bare brix_zip_access on the COMMON module
+    # (phase-101 W4): BRIX_HTTP_ALL_CONF scope, shared merge, stream twin —
+    # none of this file's location-only/flag-slot/merges-to-off anchors hold
+    # for it any more.  Its config surface is pinned by test_zip_unification
+    # and test_audit16o_webdav_scoped_flag_arms; §F below still probes the
+    # S3-plane BEHAVIOUR through the bare name.
 )
 FLAG_NAMES = [name for name, _ in FLAGS]
 

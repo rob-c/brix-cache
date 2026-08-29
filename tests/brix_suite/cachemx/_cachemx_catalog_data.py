@@ -183,8 +183,17 @@ HELP = {
         'Total bytes written to storage, by protocol.',
     'brix_io_latency_usec':
         'I/O operation latency in microseconds.',
+    'brix_io_offload_total':
+        'Read-family responses (read/readv/pgread) routed over a bound '
+        'secondary data channel (pathid response offloading).',
     'brix_io_ops_total':
         'I/O operations completed, by protocol, operation, and status.',
+    'brix_io_slowop_threshold_usec':
+        'Armed slow-op latency threshold in microseconds (0 = classifier '
+        'disabled).',
+    'brix_io_slowop_total':
+        'Completed I/O ops whose latency met or exceeded '
+        'brix_io_slowop_threshold_usec.',
     'brix_mirror_divergence_total':
         'Shadow status differed from the primary.',
     'brix_mirror_dropped_total':

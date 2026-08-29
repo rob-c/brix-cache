@@ -209,7 +209,7 @@ def test_every_flat_spelling_is_the_package_object(name, _proc):
 
 
 def test_every_definition_moved_verbatim():
-    """45 top-level definitions — 69 counting methods — by body hash.
+    """47 top-level definitions — 71 counting methods — by body hash.
 
     The two counts are both pinned because they answer different
     questions: the first is "did a function go missing", the second is
@@ -218,7 +218,9 @@ def test_every_definition_moved_verbatim():
     what the hashes are for.
     """
     before, after = _server_move_maps()
-    problem = move_problem(before, after, expected_shape=(69, 45))
+    # 69/45 + the manifest-heal pair (_read_manifest_healing/_rebuild_manifest,
+    # 2026-08-26: load_manifest now rebuilds a truncated token manifest).
+    problem = move_problem(before, after, expected_shape=(71, 47))
     assert problem is None, problem
 
 

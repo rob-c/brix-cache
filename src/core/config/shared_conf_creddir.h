@@ -66,6 +66,38 @@ brix_shared_worker_dir_ids(ngx_conf_t *cf, uid_t *uid_out, gid_t *gid_out)
     }
 }
 
+/* Rewrite the COMPILED default store path to its worker-uid-scoped form
+ * (BRIX_CREDENTIAL_DIR_DEFAULT ".<uid>", the cred_stage.c convention).  Two
+ * services sharing one host — the distro's own www-data nginx and a user's
+ * test fleet both defaulting to the same 0700 tmpfs dir — otherwise fight
+ * over ownership: whichever creates it first locks every other identity out
+ * of credential delegation (seen live: a www-data-owned /dev/shm/brix-creds
+ * broke delegation for the whole unprivileged test lane).  An operator's
+ * EXPLICIT brix_storage_credential_dir is never touched. */
+static inline void
+brix_shared_credential_dir_default_scope(ngx_conf_t *cf, ngx_str_t *dir)
+{
+    uid_t   want_uid;
+    gid_t   want_gid;
+    u_char *p;
+
+    if (dir->len != sizeof(BRIX_CREDENTIAL_DIR_DEFAULT) - 1
+        || ngx_strncmp(dir->data, BRIX_CREDENTIAL_DIR_DEFAULT, dir->len) != 0)
+    {
+        return;                 /* operator-chosen path — leave it alone */
+    }
+    brix_shared_worker_dir_ids(cf, &want_uid, &want_gid);
+    p = ngx_pnalloc(cf->pool,
+                    sizeof(BRIX_CREDENTIAL_DIR_DEFAULT) + NGX_INT64_LEN + 2);
+    if (p == NULL) {
+        return;                 /* keep the shared default; ensure still runs */
+    }
+    dir->len = ngx_sprintf(p, BRIX_CREDENTIAL_DIR_DEFAULT ".%d",
+                           (int) want_uid) - p;
+    dir->data = p;
+    p[dir->len] = '\0';         /* conf strings are read as C strings below */
+}
+
 static inline void
 brix_shared_credential_dir_ensure(ngx_conf_t *cf, const ngx_str_t *dir)
 {

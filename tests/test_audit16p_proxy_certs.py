@@ -384,9 +384,9 @@ class TestTheEndpointSummaryDisagreesWithTheSocket:
         location being merged, so a location-scoped write does reach THIS reader
         — the one that only prints."""
         squashed = " ".join(CONFIG_C.read_text().split())
-        assert ("ngx_uint_t has_x509 = (conf->cadir.len > 0 "
-                "|| conf->cafile.len > 0 || conf->proxy_certs);") in squashed, \
-            "has_x509 no longer reads conf->proxy_certs"
+        assert ("ngx_uint_t has_x509 = (conf->common.trusted_ca_dir.len > 0 "
+                "|| conf->common.trusted_ca.len > 0 || conf->proxy_certs);") \
+            in squashed, "has_x509 no longer reads conf->proxy_certs"
         assert 'has_x509 ? " x509/GSI-proxy" : ""' in squashed
 
 
@@ -541,7 +541,7 @@ class TestTheDeclarationsAndTheCorpus:
 
     def test_it_merges_to_zero(self):
         """The bare arm reads this 0.  A merge default of 1 would make ``on`` the
-        redundant arm instead — the case for ``brix_webdav_upload_resume`` two
+        redundant arm instead — the case for ``brix_upload_resume`` two
         files over, so the direction is not a given."""
         squashed = " ".join(CONFIG_MERGE_C.read_text().split())
         assert ("ngx_conf_merge_value(conf->proxy_certs, prev->proxy_certs, 0);"
@@ -571,22 +571,21 @@ class TestTheDeclarationsAndTheCorpus:
         assert "&cscf->server_name" in block, block
 
     def test_the_sibling_shares_the_declaration_and_the_hook(self):
-        """``brix_ssl_client_capath`` is declared in the same two scopes and read
-        from the same server-level ``wdcf``, four lines below the flag — so #91
-        is a property of the hook and not of this one directive.  Its own comment
-        already describes the intended scope."""
-        text = MODULE_COMMANDS_C.read_text()
-        # The sentence wraps across two comment lines, so it is read as the two
-        # fragments the source actually contains.
-        assert "Server-level, like" in text
-        assert "brix_webdav_proxy_certs above." in text
-        block = text.split('{ ngx_string("brix_ssl_client_capath"),', 1)[1]
-        assert block.splitlines()[1].strip() == (
-            "NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,")
+        """The capath sibling became bare ``brix_client_ca_store`` on the
+        COMMON module (W2-105), still srv/loc-scoped and still consumed by the
+        same server-level SSL_CTX hook — so #91 stays a property of the hook
+        and not of this one directive."""
+        text = (MODULE_COMMANDS_C.parent.parent.parent
+                / "core/config/http_directives_ops.h").read_text()
+        entry = " ".join(
+            text.split('{ ngx_string("brix_client_ca_store"),', 1)[1]
+            .split("},")[0].split())
+        assert "NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1," \
+            in entry, entry
         post = POSTCONFIG_C.read_text()
         head = post.index("webdav_postconf_setup_ssl_ctx(ngx_conf_t *cf,")
         body = post[head:post.index("\n}\n", head)]
-        assert "wdcf->ssl_client_capath" in body, body
+        assert "client_ca_store" in body, body
 
     def test_the_corpus_writes_the_on_arm_widely(self):
         """Step 1 of the audit's own measurement, as the file found it: the arm

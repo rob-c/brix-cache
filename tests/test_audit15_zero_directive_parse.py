@@ -90,12 +90,11 @@ def test_webdav_zero_directive_surface_parses(tmp_path):
     """Success path: every swept WebDAV/http-location directive parses with a
     realistic value, all in one location."""
     knobs = """
-            brix_webdav_verify_depth 3;
-            brix_webdav_token_clock_skew 60;
-            brix_webdav_token_introspect_url https://idp.example.org/introspect;
-            brix_webdav_token_introspect_ttl 30;
+            brix_verify_depth 3;
+            brix_token_introspect_url https://idp.example.org/introspect;
+            brix_token_introspect_ttl 30;
             brix_webdav_lock_timeout 30;
-            brix_webdav_zip_cd_max_bytes 1m;
+            brix_zip_cd_max_bytes 1m;
             brix_webdav_open_file_cache max=64 inactive=10s;
             brix_webdav_open_file_cache_valid 30s;
             brix_webdav_open_file_cache_min_uses 2;
@@ -103,11 +102,10 @@ def test_webdav_zero_directive_surface_parses(tmp_path):
             brix_webdav_open_file_cache_events off;
             brix_webdav_redirect_scheme https;
             brix_mirror_token mirror-bearer-secret;
-            brix_s3_zip_cd_max_bytes 1m;
             brix_s3_mpu_max_age 3600;
-            brix_s3_token_clock_skew 60;
+            brix_token_clock_skew 60;
             brix_srr_id https://site.example.org/srr;
-            brix_scan_max_files 1000;
+            brix_dashboard_scan_max_files 1000;
             brix_acc_gidlifetime 3600;
             brix_acc_nisdomain example.org;
             brix_acc_spacechar _;
@@ -139,9 +137,9 @@ def test_zip_cd_max_bytes_rejects_garbage_size(tmp_path):
 
 def test_webdav_token_clock_skew_bounded(tmp_path):
     rc, out = _http_t(tmp_path,
-                      "            brix_webdav_token_clock_skew 9999;\n")
+                      "            brix_token_clock_skew 9999;\n")
     assert rc != 0, out
-    assert "brix_webdav_token_clock_skew must be >= 0 and <= 300" in out, out
+    assert "brix_token_clock_skew is capped at 300s" in out, out
 
 
 def test_webdav_revoke_cache_requires_declared_kv_zone(tmp_path):

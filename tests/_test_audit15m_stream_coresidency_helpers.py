@@ -28,7 +28,7 @@ manager's two faces.
 WHAT THE BLOCK ESTABLISHES
 
 - The gridftp namespace is disjoint, not overlaid: a door reads
-  `brix_gridftp_export` and ignores the `brix_storage_backend` written beside
+  `brix_export` and ignores the `brix_storage_backend` written beside
   it, so the decoy tree the root plane points at is invisible to FTP.
 - `brix_tls` on a stream listener ARMS the in-protocol upgrade without
   demanding it: the same port serves a TLSv1.3 session and a client that
@@ -88,7 +88,7 @@ namespace is placed on the root member, which is the control proving the manager
 is choosing correctly and the registration is what is wrong.
 
 NOT A DEFECT, PINNED AS A FACT.  `brix_storage_backend` on a door is inert
-rather than dangerous — the door serves `brix_gridftp_export` and the decoy
+rather than dangerous — the door serves `brix_export` and the decoy
 tree stays invisible; and the root export shadowed on that same port answers
 nothing at all, because the FTP command parser owns the socket.
 """

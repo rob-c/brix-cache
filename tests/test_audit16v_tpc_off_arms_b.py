@@ -228,9 +228,14 @@ class TestTheArmsAtConfigTime:
         redundant, or it is a placeholder rendering and the census is being
         satisfied by something ungreppable.
         """
+        # nginx_audit16w_wdegress.conf joined the census when its
+        # brix_webdav_tpc_* spellings were unified onto the bare brix_tpc_*
+        # names — its egress-off arms are the same directives now.
+        allowed = {"nginx_audit16v_tpc_off_arms.conf",
+                   "nginx_audit16w_wdegress.conf"}
         for directive, value in sorted(DISARMING_ARM.items()):
             writers = _corpus_writers(directive, value)
-            assert writers == ["nginx_audit16v_tpc_off_arms.conf"], (
+            assert writers and set(writers) <= allowed, (
                 f"{directive} {value} is written by {writers}")
 
     def test_the_arming_arm_was_already_written(self):

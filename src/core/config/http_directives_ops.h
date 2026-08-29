@@ -248,7 +248,8 @@
      * brix_cache_evict_at, brix_cache_evict_to, brix_cache_index_cache,
      * brix_cache_meta, brix_cache_slice_size, brix_cache_global_cas,
      * brix_cache_passthrough, brix_cache_passthrough_max, brix_cache_prefetch,
-     * brix_cache_prefetch_window, brix_cache_only_if_cached. */
+     * brix_cache_prefetch_window, brix_cache_uvkeep,
+     * brix_cache_only_if_cached. */
     BRIX_TIER_DIRECTIVES("brix_", ngx_http_brix_common_conf_t,
                          BRIX_HTTP_ALL_CONF, NGX_HTTP_LOC_CONF_OFFSET),
 

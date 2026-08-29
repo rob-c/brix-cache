@@ -1,3 +1,10 @@
+# OpenWolf
+
+This project uses OpenWolf for context management. The always-on rules live in `.claude/rules/openwolf.md`; the hooks handle bookkeeping (anatomy index, memory log, read tracking) automatically.
+
+For the full operating protocol (session handoff, memory discipline, bug logging), load the `openwolf` skill, or read `.wolf/OPENWOLF.md`. Regenerate the session handoff with `/handoff`.
+
+
 # nginx-xrootd AGENT GUIDE v3.9 [2026-07-15] — pointer-compact
 
 **FULL REFERENCE — grep docs/09-developer-guide/agent-guide-extended.md by section header BEFORE coding:** ROUTING · OP→FILE tables (use FIRST to find code) · HELPERS · INVARIANTS + HARD BLOCKS full text · errno→kXR→HTTP · BUILD GOVERNANCE · RECIPES · FAQ · DEBUG. Coding standard (MANDATORY before editing `src/` `shared/` `client/`): docs/09-developer-guide/coding-standards.md. Wire spec: `/tmp/brix-src/src/XProtocol/XProtocol.hh`. SRC topology: 7 buckets `core/ protocols/ fs/ auth/ net/ observability/ tpc/` — full block + map in extended guide.

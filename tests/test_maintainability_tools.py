@@ -29,6 +29,7 @@ import time
 from pathlib import Path
 
 import pytest
+from ephemeral_port import free_port
 
 pytestmark = pytest.mark.xdist_group("maintainability-tools")
 
@@ -52,10 +53,10 @@ def test_coverage_parse_line_rate():
     summary = ("Reading tracefile x\n"
                "  lines......: 87.3% (1234 of 1414 lines)\n"
                "  functions..: 90.0% (9 of 10)\n")
-    assert cov._parse_line_rate(summary) == "87.3"
-    assert cov._parse_line_rate("no coverage line here") == ""
+    assert cov._line_rate(summary) == "87.3"
+    assert cov._line_rate("no coverage here") == ""
     # a "lines" line with too few fields breaks out to "" (the historical path)
-    assert cov._parse_line_rate("  lines\n") == ""
+    assert cov._line_rate("  lines\n") == ""
 
 
 def test_coverage_enforce_floor():
@@ -68,7 +69,7 @@ def test_coverage_enforce_floor():
 
 def test_coverage_preflight_skip():
     cov = _load("tools/ci/coverage.py", "cov_pf")
-    assert cov._preflight_skip("/definitely/not/a/real/nginx") is not None
+    assert cov._skip_reason("/definitely/not/a/real/nginx")
 
 
 # --------------------------------------------------------------------------- #
@@ -78,27 +79,30 @@ def test_coverage_preflight_skip():
 def test_asan_scan_verdict(tmp_path):
     asan = _load("tools/ci/asan.py", "asan_sv")
     log_dir = str(tmp_path)
-    assert asan._scan_verdict(log_dir, 0) == 0          # clean + ok driver
-    assert asan._scan_verdict(log_dir, 5) == 5          # clean but driver failed
+    assert asan._verdict(log_dir, 0) == 0          # clean + ok driver
+    assert asan._verdict(log_dir, 5) == 5          # clean but driver failed
     (tmp_path / "asan.1234").write_text(
         "noise\nERROR: AddressSanitizer: heap-use-after-free\n"
         "SUMMARY: AddressSanitizer: heap-use-after-free\n")
-    assert asan._scan_verdict(log_dir, 0) == 1          # a real finding fails
+    assert asan._verdict(log_dir, 0) == 1          # a real finding fails
 
 
 def test_asan_preflight_skip_vs_strict(monkeypatch):
     asan = _load("tools/ci/asan.py", "asan_pf")
+    reason = asan._missing_prerequisite("/no/such/src")
+    assert reason                                       # missing src is named
     monkeypatch.delenv("BRIX_CI_STRICT", raising=False)
-    assert asan._asan_preflight("/no/such/src") == 0    # tolerant: skip
+    assert asan.skip_or_fail(reason) == 0               # tolerant: skip
     monkeypatch.setenv("BRIX_CI_STRICT", "1")
-    assert asan._asan_preflight("/no/such/src") == 1    # required check: fail
+    assert asan.skip_or_fail(reason) == 1               # required check: fail
 
 
 def test_asan_uses_provided_binary(monkeypatch):
     asan = _load("tools/ci/asan.py", "asan_bp")
     # a runnable provided binary short-circuits the build and is returned
     monkeypatch.setenv("TEST_ASAN_NGINX_BIN", "/bin/true")
-    assert asan._build_or_use_provided("/tmp", "/tmp") == "/bin/true"
+    assert asan._prepare_binary({"tests": "/tmp", "nginx_src": "/tmp"}) \
+        == "/bin/true"
 
 
 # --------------------------------------------------------------------------- #
@@ -107,13 +111,12 @@ def test_asan_uses_provided_binary(monkeypatch):
 
 def test_fanalyzer_gate_and_parse_args():
     fa = _load("tools/ci/run_fanalyzer.py", "fa_gate")
-    ok, new = fa.gate(["a", "b"], ["a"])
-    assert ok is False and new == ["b"]
-    ok, new = fa.gate(["a"], ["a", "b"])
-    assert ok is True and new == []
-    assert fa.parse_args(["--regen"]) == (True, "")
-    assert fa.parse_args(["--filter", "src/auth"]) == (False, "src/auth")
-    assert fa.parse_args(["src/auth"]) == (False, "src/auth")   # bare back-compat
+    # zero-findings gate: any finding fails, an empty set passes
+    assert fa._gate_current(["a"]) == 1
+    assert fa._gate_current([]) == 0
+    assert fa.parse_args([]) == ""
+    assert fa.parse_args(["--filter", "src/auth"]) == "src/auth"
+    assert fa.parse_args(["src/auth"]) == "src/auth"   # bare back-compat
 
 
 def test_fanalyzer_normalise_strips_line_col():
@@ -241,7 +244,7 @@ def test_split_c_file_structure(tmp_path):
 
 def _free_port() -> int:
     with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))  # net-literal-allow: mock shim binds loopback ephemeral by design
+        s.bind(("127.0.0.1", free_port()))  # net-literal-allow: loopback mock shim; leased mock-range port (never kernel-assigned)
         return s.getsockname()[1]
 
 
@@ -329,7 +332,7 @@ def test_make_token_every_kind(tmp_path):
     for kind in ("valid", "expired", "bad-signature", "wrong-issuer",
                  "wrong-audience", "no-scope"):
         _Args.kind = kind
-        token = mk._generate_token(issuer, _Args, None)
+        token = mk._issue_variant(issuer, _Args, None)
         assert token.count(".") == 2 and all(token.split(".")), f"{kind} not a JWT"
 
 

@@ -801,6 +801,21 @@ cheapest large risk-reduction available (defends T6).
 > ratchet-runner retained · baselines present). *First-CI-run validation (the
 > plan's Test — a throwaway PR with a deliberate leak/UAF turns the gate red,
 > revert → green) remains the natural acceptance check on the pinned image.*
+>
+> **UPDATE 2026-08-27.** The fanalyzer half graduated from ratchet to
+> **zero-findings gate**: every finding on BOTH toolchains (dev gcc 13.3 and
+> the el9 gcc 11.5 this job pins) was fixed in code — queue drain restructured
+> advance-before-free; exec'd child's dup2'd stdout given a named close;
+> container inserts reordered allocate-before-grow with the post-increment
+> split out of the array-store index; SHM zone accessors reading zone->data
+> exactly once; compound `tbl == NULL || x` guards split into separate ifs
+> (gcc 11 drops the non-NULL constraint on an accessor-returned pointer inside
+> a `||` guard); table layout fields snapshotted into locals before
+> locks/loops; plus two tightly-scoped, comment-justified
+> `-Wanalyzer-malloc-leak` pragma blocks where gcc 11 cannot see a
+> symbolic-index store as an escape. `fanalyzer_baseline.txt` was deleted —
+> `run_fanalyzer.py` now fails on ANY finding, with no `--regen` waiver path.
+> `codechecker_baseline.txt` still ratchets as described above.
 
 **Evidence:** `[R28][R29][R30][R31]`.
 

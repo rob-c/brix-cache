@@ -270,19 +270,28 @@ _needs_nginx = pytest.mark.skipif(not os.access(NGINX_BIN, os.X_OK),
                                   reason=f"nginx not executable: {NGINX_BIN}")
 
 
-def _acc_block(authdb, arms, gidlifetime, audit=True):
+def _acc_block(authdb, arms, gidlifetime, audit=True, plane="stream"):
     """One server's whole acc block, or "" for a server with no engine at all.
 
     ``arms is None`` is not the same as an empty tuple: a server with no
     ``brix_authdb`` never reaches the installer (``brix_acc_init_server``
     returns at acc/config.c:241-242), which is what lets §A measure one arm in
     isolation while three servers are listening.
+
+    The engine selector + rule-file directives are spelled per plane since the
+    W5 rename: stream = brix_authdb_engine / brix_authdb, http = brix_acc_format
+    / brix_acc_authdb (XrdAcc is reached only through brix_acc_* on HTTP).  The
+    tunables (brix_acc_audit / brix_acc_gidlifetime / the arms) are one bare
+    family on both planes.
     """
     if arms is None:
         return ""
-    lines = ["brix_authdb_format xrdacc;", f"brix_authdb {authdb};"]
+    if plane == "http":
+        lines = ["brix_acc_format xrdacc;", f"brix_acc_authdb {authdb};"]
+    else:
+        lines = ["brix_authdb_engine xrdacc;", f"brix_authdb {authdb};"]
     if audit:
-        lines.append("brix_authdb_audit all;")
+        lines.append("brix_acc_audit all;")
     if gidlifetime is not None:
         # The resolved gidlist is cached process-wide per user; a one-second TTL
         # keeps a verdict a reading of the CONFIGURATION rather than of when the
@@ -397,7 +406,8 @@ def engine(lifecycle, tmp_path):
                 "A_ACC": _acc_block(authdb, a, gidlifetime),
                 "B_ACC": _acc_block(authdb, b, gidlifetime),
                 "C_ACC": _acc_block(authdb, c, gidlifetime),
-                "HTTP_ACC": _acc_block(authdb, http, gidlifetime, audit=False)},
+                "HTTP_ACC": _acc_block(authdb, http, gidlifetime, audit=False,
+                                       plane="http")},
             reason=reason))
         for name in RULE_DIRS:
             directory = Path(endpoint.data_root) / name

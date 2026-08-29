@@ -271,7 +271,7 @@ class TestTheDuplicateGuard:
 class TestTheIoUringDefault:
 
     def test_the_merge_default_is_off(self):
-        assert _merge_default("src/core/config/server_conf_merge_security.c",
+        assert _merge_default("src/core/config/server_conf_merge_storage.c",
                               "io_uring") == "BRIX_IO_URING_OFF"
 
     @pytest.mark.parametrize("site,fragment",

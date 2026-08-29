@@ -1,7 +1,7 @@
 """
 test_audit15_webdav_macaroon_rotation.py — WebDAV twin of the root:// macaroon
 key-rotation coverage in test_macaroon_root_wire.py (audit §A1,
-testsuite-combinatorial-coverage-audit 2026-08-15: `brix_webdav_macaroon_secret_old`
+testsuite-combinatorial-coverage-audit 2026-08-15: `brix_macaroon_secret_old`
 had ZERO coverage; only the stream-plane rotation path was ever driven).
 
 The C path under test (src/protocols/webdav/auth_token_verify.c): a macaroon
@@ -78,7 +78,7 @@ def test_current_secret_authenticates(mac_port):
 
 def test_old_secret_accepted_during_grace(mac_port):
     # The rotation path itself: rejected by the current secret, accepted on
-    # the single retry against brix_webdav_macaroon_secret_old.
+    # the single retry against brix_macaroon_secret_old.
     assert _get(mac_port, OLD_SECRET).status_code in (200, 206), \
         "a macaroon signed with the configured OLD secret must authenticate " \
         "during the rotation grace window"

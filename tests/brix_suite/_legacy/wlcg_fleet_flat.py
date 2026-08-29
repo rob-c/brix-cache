@@ -1,8 +1,8 @@
 """WlcgInstance — a self-contained nginx serving davs:// with a custom CA dir.
 
 Used by the WLCG x509 conformance e2e tests.  Each instance renders its own
-nginx.conf, points brix_webdav_cadir at a scenario's hashed CA directory, and
-sets brix_webdav_signing_policy / brix_webdav_crl_mode as the test requires.
+nginx.conf, points brix_trusted_ca_dir at a scenario's hashed CA directory, and
+sets brix_webdav_signing_policy / brix_crl_mode as the test requires.
 
 The davs:// surface is what these tests drive: nginx requests the TLS client
 certificate (ssl_verify_client optional_no_ca) and brix's own auth_cert.c
@@ -67,10 +67,10 @@ class WlcgInstance:
         # Whole-line trust/CRL injections, matching the template's {CA_LINE} /
         # {CRL_LINE} seams (12-space indent + trailing newline baked in).
         if cafile is not None:
-            ca_line = f"            brix_webdav_cafile   {Path(cafile)};\n"
+            ca_line = f"            brix_trusted_ca   {Path(cafile)};\n"
         else:
-            ca_line = f"            brix_webdav_cadir    {Path(ca_dir)};\n"
-        crl_line = f"            brix_webdav_crl {crl};\n" if crl else ""
+            ca_line = f"            brix_trusted_ca_dir    {Path(ca_dir)};\n"
+        crl_line = f"            brix_crl {crl};\n" if crl else ""
 
         # Fixed name → fixed exclusive-band port from the lifecycle ledger
         # (fleet_lifecycle_ports["lc-wlcg"]).  Only one instance is live at a time

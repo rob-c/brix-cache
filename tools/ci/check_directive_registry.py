@@ -71,16 +71,24 @@ _ENTRY = re.compile(
     r'((?:[^,{}]|\n)*?(?:CONF|ALL_CONF)(?:[^,{}]|\n)*?)\s*,\s*([A-Za-z0-9_]+)\s*,',
     re.S)
 
-# A macro-body entry keyed off the pfx argument: { ngx_string(pfx "token"), <ctx>,
+# A macro-body entry: keyed off the pfx argument ({ ngx_string(pfx "token") …)
+# or a bare literal inside a scope-parameterized body ({ ngx_string("token") …,
+# the pmark shape — its plane comes from the conf_scope argument at each
+# instantiation site, not from the body).
 _MACRO_ENTRY = re.compile(
-    r'\{\s*ngx_string\(pfx\s*"([a-z0-9_]+)"\)\s*,\s*'
+    r'\{\s*ngx_string\((?:pfx\s*)?"([a-z0-9_]+)"\)\s*,\s*'
     r'((?:[^,{}]|\n)*?(?:CONF|ALL_CONF)(?:[^,{}]|\n)*?)\s*,', re.S)
 
-# A macro definition header: #define BRIX_FOO_DIRECTIVES(pfx, ...)
-_MACRO_DEF = re.compile(r'#define\s+(BRIX_[A-Z0-9_]+_DIRECTIVES)\s*\(pfx\b')
+# A macro definition header: #define BRIX_FOO_DIRECTIVES(pfx, ...) or the
+# scope-parameterized form #define BRIX_FOO_DIRECTIVES(conf_scope, ...).
+_MACRO_DEF = re.compile(
+    r'#define\s+(BRIX_[A-Z0-9_]+_DIRECTIVES)\s*\((?:pfx|conf_scope)\b')
 # A macro instantiation site: BRIX_FOO_DIRECTIVES("brix_", conf_t, CTX, ...)
 _MACRO_USE = re.compile(
     r'(BRIX_[A-Z0-9_]+_DIRECTIVES)\s*\(\s*"([a-z0-9_]*)"\s*,[^,]*,\s*([A-Za-z0-9_|]+)')
+# The scope-parameterized instantiation: BRIX_FOO_DIRECTIVES(NGX_STREAM_SRV_CONF, ...)
+_MACRO_USE_SCOPED = re.compile(
+    r'(BRIX_[A-Z0-9_]+_DIRECTIVES)\s*\(\s*([A-Za-z0-9_|]*CONF[A-Za-z0-9_|]*)\s*,')
 
 
 def _plane_from_ctx(ctx):
@@ -131,19 +139,28 @@ def _literal_regs(text, path):
     entries in one file; struct-initialiser false positives (offsetof) skipped."""
     return [(m.group(1), _plane(m.group(2), path), "literal", path)
             for m in _ENTRY.finditer(text)
-            if "offsetof" not in m.group(3)]
+            if "offsetof" not in m.group(3)
+            and "\\\n" not in m.group(0)]   # macro-body lines (…\) are not
+                                            # registrations — expanded per site
+
+
+def _macro_sites(text):
+    """(macro, pfx, ctx) per X-macro instantiation — the scope-parameterized
+    form (pmark) carries no pfx argument."""
+    sites = [(u.group(1), u.group(2), u.group(3))
+             for u in _MACRO_USE.finditer(text)]
+    sites += [(u.group(1), "", u.group(2))
+              for u in _MACRO_USE_SCOPED.finditer(text)]
+    return sites
 
 
 def _macro_regs(text, path, macro_bodies):
     """[(pfx+token, plane, "macro", path)] for every X-macro instantiation in one
     file, expanded against the collected macro bodies."""
-    out = []
-    for u in _MACRO_USE.finditer(text):
-        macro, pfx, ctx = u.group(1), u.group(2), u.group(3)
-        for token, mctx in macro_bodies.get(macro, []):
-            out.append((pfx + token, _plane(ctx, path) or _plane(mctx, path),
-                        "macro", path))
-    return out
+    return [(pfx + token, _plane(ctx, path) or _plane(mctx, path),
+             "macro", path)
+            for macro, pfx, ctx in _macro_sites(text)
+            for token, mctx in macro_bodies.get(macro, [])]
 
 
 def collect():
@@ -288,6 +305,10 @@ FEATURE_OWNERS = {
     "metrics":   "observability/metrics/",
     "health":    "observability/metrics/",
     "scvmfs":    "protocols/cvmfs/",
+    # phase-104 software-distribution plane: the brix_oci_* / brix_rpm_*
+    # families are feature-scoped and owned by their own modules by design.
+    "oci":       "protocols/oci/",
+    "rpm":       "protocols/rpm/",
 }
 # per-feature enable toggles registered by the feature module itself
 FEATURE_TOGGLES = {

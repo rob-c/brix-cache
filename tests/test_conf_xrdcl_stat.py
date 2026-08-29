@@ -197,8 +197,6 @@ def test_stat_dir_trailing_slash_flags_agree(fs_our, fs_off, path):
         assert _status_tuple(so) == _status_tuple(sf)
 
 
-@bindings_required
-@pytest.mark.parametrize("path", DIR_TRAILING)
 def _assert_same_successful_stat(trailing, canonical):
     if not (trailing[0].ok and canonical[0].ok):
         return
@@ -206,6 +204,8 @@ def _assert_same_successful_stat(trailing, canonical):
         (canonical[1].flags, canonical[1].size)
 
 
+@bindings_required
+@pytest.mark.parametrize("path", DIR_TRAILING)
 def test_stat_dir_trailing_matches_canonical(fs_our, fs_off, path):
     # Stat of "/x/" must equal stat of "/x" within the SAME server (size+flags).
     canon = path.rstrip("/") or "/"

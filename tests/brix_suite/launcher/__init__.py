@@ -32,6 +32,7 @@ from brix_suite.nginx_tools import (  # noqa: F401 — re-exported for importers
     _inject_nginx_load_modules,
     _inject_nginx_runtime_paths,
     _nginx_bin,
+    env_entry_ok as _env_entry_ok,
 )
 
 #: Slice-letter names from the pre-TS-4 split.  Aliases, not subclasses, so
@@ -80,6 +81,14 @@ def launch_fleet_nginx(
     merged_env = os.environ.copy()
     if env:
         merged_env.update(env)
+    # A concurrent os.putenv() from a loaded C extension (the XRootD/GSI python
+    # bindings do this) can briefly leave os.environ carrying a malformed name;
+    # subprocess then rejects the WHOLE env with ValueError("illegal environment
+    # variable name"), erroring the launch — and for a module-scoped
+    # LifecycleHarness that one failure cascades to every test on the fixture.
+    # Drop any entry subprocess would reject; the filtered dict we pass is
+    # immune to further os.environ mutation.
+    merged_env = {k: v for k, v in merged_env.items() if _env_entry_ok(k, v)}
     cmd = [_nginx_bin()]
     if prefix is not None:
         cmd += ["-p", prefix]

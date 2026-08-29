@@ -10,7 +10,7 @@ and the branch behind them a security decision.
 
 ``brix_ocsp_require_nonce`` is the last of the OCSP family in that state.
 ``test_audit16a_ocsp_flags.py`` (file 1 of this tranche) entered
-``brix_ocsp_enable`` and ``brix_ocsp_soft_fail`` for the first time and stood up
+``brix_ocsp`` and ``brix_ocsp_soft_fail`` for the first time and stood up
 ``tests/lib/ocsp_responder.py`` to do it; this one enters the third.  Before it,
 no config in the corpus spelled either token.  The one place the directive
 reached a config at all was ``test_ocsp_require_nonce.py``, which pushes it

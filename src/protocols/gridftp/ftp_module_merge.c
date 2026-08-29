@@ -43,7 +43,7 @@ brix_ftp_install_backend_credential(ngx_conf_t *cf,
     cred = brix_credential_lookup(name);
     if (cred == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_gridftp_storage_credential \"%s\" names no brix_credential "
+            "brix_storage_credential \"%s\" names no brix_credential "
             "block", name);
         return NGX_CONF_ERROR;
     }
@@ -279,7 +279,7 @@ brix_ftp_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 
     if (conf->enable && conf->root_canon[0] == '\0') {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_gridftp is on but brix_gridftp_export is unset or "
+            "brix_gridftp is on but brix_export is unset or "
             "unresolvable");
         return NGX_CONF_ERROR;
     }

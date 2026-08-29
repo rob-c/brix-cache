@@ -216,6 +216,44 @@ class _Arms:
         return self.forge.generate_bad_signature(sub=sub, scope=scope)
 
 
+# --- §D load-gate parse tier ------------------------------------------------ #
+# The registry location every parse cell mounts.  {OCI_ROOT} is substituted by
+# _parse with a per-call directory so the store path always exists.
+_REGISTRY = ("brix_oci_registry      on;\n"
+             "            brix_oci_registry_root {OCI_ROOT};\n"
+             "            brix_allow_write       on;")
+
+
+def _tls_server(mode):
+    """One TLS listener whose only location is the registry, with the
+    ssl_verify_client mode under measurement.  {LOC_KNOBS} is filled by
+    _parse so the same server shell serves every cell."""
+    return (f"server {{\n"
+            f"        listen {BIND_HOST}:{PARSE_PLACEHOLDER_PORT} ssl;\n"
+            f"        ssl_certificate        {SERVER_CERT};\n"
+            f"        ssl_certificate_key    {SERVER_KEY};\n"
+            f"        ssl_client_certificate {CA_CERT};\n"
+            f"        ssl_verify_client      {mode};\n"
+            f"        location /v2/ {{\n"
+            f"            {{LOC_KNOBS}}\n"
+            f"        }}\n"
+            f"    }}")
+
+
+def _parse(tmp_path, LOC_KNOBS="", HTTP_KNOBS=""):
+    """`nginx -t` one disposable OCI plane; returns (rc, combined output)."""
+    store = tmp_path / "oci-store"
+    store.mkdir(exist_ok=True)
+    tmp = tmp_path / "tmp"
+    tmp.mkdir(exist_ok=True)
+    (tmp_path / "logs").mkdir(exist_ok=True)   # nginx_t's injected pid path
+    body = HTTP_KNOBS.replace("{LOC_KNOBS}", LOC_KNOBS) \
+                     .replace("{OCI_ROOT}", str(store))
+    proc = nginx_t("nginx_audit16af_ociparse.conf", tmp_path,
+                   LOG_DIR=str(tmp_path), TMP_DIR=str(tmp), HTTP_KNOBS=body)
+    return proc.returncode, proc.stderr + proc.stdout
+
+
 @pytest.fixture(scope="module")
 def pki():
     """The three files every TLS plane and every load-gate parse cell needs.

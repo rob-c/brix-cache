@@ -8,7 +8,7 @@ what landed).  The HTTP plane had *neither*: a COPY pull committed whatever
 curl produced, so a chunked source that dies mid-body, a truncating middlebox or
 a corrupting one all committed silently.  That is a product gap, not just a test
 gap, so this file drives the two new directives
-``brix_webdav_tpc_require_source_size`` / ``brix_webdav_tpc_verify_checksum``
+``brix_tpc_require_source_size`` / ``brix_tpc_verify_checksum``
 (src/protocols/webdav/tpc_verify.c) end to end.
 
 The source is an in-test https server holding the test PKI host certificate —
@@ -61,9 +61,9 @@ PAYLOAD = bytes(range(256)) * 256              # 64 KiB, deterministic
 ADLER = "%08x" % (zlib.adler32(PAYLOAD) & 0xFFFFFFFF)
 HALF = len(PAYLOAD) // 2
 
-GATE_BOTH = ("brix_webdav_tpc_require_source_size on;\n"
-             "            brix_webdav_tpc_verify_checksum adler32;")
-GATE_SIZE = "brix_webdav_tpc_require_source_size on;"
+GATE_BOTH = ("brix_tpc_require_source_size on;\n"
+             "            brix_tpc_verify_checksum adler32;")
+GATE_SIZE = "brix_tpc_require_source_size on;"
 GATE_OFF = "# both halves left at their defaults (off)"
 
 
@@ -223,11 +223,11 @@ def _parse(tmp_path, gate):
 
 
 @pytest.mark.parametrize("gate", [
-    "brix_webdav_tpc_require_source_size on;",
-    "brix_webdav_tpc_require_source_size off;",
-    "brix_webdav_tpc_verify_checksum adler32;",
-    "brix_webdav_tpc_verify_checksum MD5;",          # case-folded to canonical
-    "brix_webdav_tpc_verify_checksum crc32c;",
+    "brix_tpc_require_source_size on;",
+    "brix_tpc_require_source_size off;",
+    "brix_tpc_verify_checksum adler32;",
+    "brix_tpc_verify_checksum MD5;",          # case-folded to canonical
+    "brix_tpc_verify_checksum crc32c;",
     GATE_BOTH,
 ])
 def test_gate_directives_parse(tmp_path, gate):
@@ -237,15 +237,15 @@ def test_gate_directives_parse(tmp_path, gate):
 
 def test_unknown_checksum_algorithm_is_refused(tmp_path):
     """Security-negative: a typo'd algorithm must not silently disable the gate."""
-    result = _parse(tmp_path, "brix_webdav_tpc_verify_checksum sha3;")
+    result = _parse(tmp_path, "brix_tpc_verify_checksum sha3;")
     assert result.returncode != 0
-    assert "unknown algorithm" in result.stderr
+    assert "expected on, off, or a checksum algorithm" in result.stderr
     assert "[emerg]" in result.stderr
 
 
 def test_duplicate_checksum_directive_is_refused(tmp_path):
-    result = _parse(tmp_path, "brix_webdav_tpc_verify_checksum adler32;\n"
-                              "            brix_webdav_tpc_verify_checksum md5;")
+    result = _parse(tmp_path, "brix_tpc_verify_checksum adler32;\n"
+                              "            brix_tpc_verify_checksum md5;")
     assert result.returncode != 0
     assert "is duplicate" in result.stderr
 

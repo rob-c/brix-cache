@@ -297,7 +297,13 @@ static ngx_inline brix_vfs_ctx_t *
 brix_vfs_ctx_pool_clone(const brix_vfs_ctx_t *ctx, ngx_pool_t *pool)
 {
     brix_vfs_ctx_t *copy;
-    const char     *rpath = brix_vfs_ctx_path(ctx);
+    const char     *rpath;
+
+    if (ctx == NULL) {
+        errno = EINVAL;
+        return NULL;
+    }
+    rpath = brix_vfs_ctx_path(ctx);
 
     copy = ngx_palloc(pool, sizeof(*copy));
     if (copy == NULL) {

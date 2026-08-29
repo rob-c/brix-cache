@@ -6,7 +6,7 @@ _reexport(globals(), "_test_audit15m_stream_coresidency_helpers")
 
 
 def test_the_door_serves_its_own_export_and_not_the_root_backend(cores):
-    """`brix_gridftp_export` wins; the `brix_storage_backend` written three
+    """`brix_export` wins; the `brix_storage_backend` written three
     lines above it on the same listener is inert on the FTP surface."""
     endpoint, _ = cores
     sock = _ftp_connect(endpoint.extra_ports["GRIDFTP_PORT"])
@@ -17,7 +17,7 @@ def test_the_door_serves_its_own_export_and_not_the_root_backend(cores):
         sock.close()
 
     assert mine.startswith(b"250"), (
-        f"the door cannot see its own brix_gridftp_export: {mine!r}")
+        f"the door cannot see its own brix_export: {mine!r}")
     assert b"/door.txt" in mine, mine
     assert theirs.startswith(b"550"), (
         "the root-plane brix_storage_backend leaked into the door's namespace: "
@@ -47,7 +47,7 @@ def test_the_shadowed_root_export_on_the_door_answers_nothing(cores):
 
 def test_the_door_refuses_a_path_that_climbs_out_of_its_export(cores):
     """Security-negative for the pair: the decoy tree is the door's sibling on
-    disk, so a traversal that escaped `brix_gridftp_export` would reach a file
+    disk, so a traversal that escaped `brix_export` would reach a file
     that demonstrably exists."""
     endpoint, _ = cores
     sock = _ftp_connect(endpoint.extra_ports["GRIDFTP_PORT"])
@@ -104,7 +104,7 @@ def test_two_stream_protocols_on_one_port_pass_nginx_t_without_a_word(tmp_path):
         brix_auth            none;
         brix_storage_backend posix:{tmp_path};
         brix_gridftp         on;
-        brix_gridftp_export  {tmp_path};
+        brix_export  {tmp_path};
 """)
 
     assert rc == 0, DEFECT45 + f"\n{diag}"
@@ -381,7 +381,9 @@ def test_a_client_that_claims_tls_and_then_speaks_cleartext_is_refused(cores):
         assert flags & kXR_gotoTLS, f"the upgrade was not armed: 0x{flags:08x}"
         try:
             status, body = _login(sock)
-        except (ConnectionError, socket.timeout, OSError) as exc:
+        except (ConnectionError, socket.timeout, OSError, RuntimeError) as exc:
+            # _recv_exact raises RuntimeError on a mid-frame close — the
+            # session dying IS the refusal this test wants to observe.
             status, body = None, repr(exc).encode()
     finally:
         sock.close()
@@ -646,7 +648,7 @@ def test_a_door_needs_an_export_of_its_own(tmp_path):
 """)
 
     assert rc != 0, f"a door with no export parsed:\n{diag}"
-    assert "brix_gridftp_export is unset" in diag, diag
+    assert "brix_export is unset" in diag, diag
 
 
 @pytest.mark.skipif(not os.access(NGINX_BIN, os.X_OK),

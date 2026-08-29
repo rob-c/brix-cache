@@ -220,32 +220,29 @@ brix_proxy_pool_shutdown(void)
         return;
     }
 
-    /* Drain head-first: each node is UNLINKED (ngx_queue_remove) before it is
-     * freed, so the next ngx_queue_head is always a different, live node.
-     * (Analyzer FP — both gcc -fanalyzer and clang-sa unix.Malloc report a
-     * use-after-free here by conflating loop iterations: they alias the next
-     * iteration's head to the node freed in the previous one. Proof it cannot
-     * happen: ngx_queue_remove rewires the sentinel/neighbour prev/next links
-     * BEFORE ngx_free(pc), so the freed node is unreachable from &proxy_pool;
-     * the event loop is single-threaded, so no timer/read handler can hand the
-     * freed pc back in between iterations. nginx's standard queue-drain idiom.) */
-    while (!ngx_queue_empty(&proxy_pool)) {
-        ngx_queue_t                *q  = ngx_queue_head(&proxy_pool);
-        brix_proxy_pooled_conn_t *pc =
-            ngx_queue_data(q, brix_proxy_pooled_conn_t, queue);
+    /* Drain with the successor captured BEFORE the current node is unlinked and
+     * freed, so no queue link of a freed node is ever re-read (the event loop is
+     * single-threaded, so no timer/read handler can hand a freed pc back in
+     * between iterations). */
+    {
+        ngx_queue_t *node = ngx_queue_head(&proxy_pool);
 
-        /* phase79-fp: gcc-fanalyzer + clangsa alias this iteration's pc with the
-         * node freed last iteration; unlink-before-free makes that unreachable */
-        if (pc->ping_ev.timer_set) {
-            ngx_del_timer(&pc->ping_ev);
+        while (node != ngx_queue_sentinel(&proxy_pool)) {
+            ngx_queue_t                *next = ngx_queue_next(node);
+            brix_proxy_pooled_conn_t *pc =
+                ngx_queue_data(node, brix_proxy_pooled_conn_t, queue);
+
+            if (pc->ping_ev.timer_set) {
+                ngx_del_timer(&pc->ping_ev);
+            }
+            ngx_queue_remove(&pc->queue);
+            proxy_pool_count--;
+            if (pc->conn != NULL) {
+                ngx_close_connection(pc->conn);
+            }
+            ngx_free(pc);
+            node = next;
         }
-        ngx_queue_remove(&pc->queue);
-        proxy_pool_count--;
-        /* phase79-fp: same conflated-iterations trace as above — pc was unlinked, not freed */
-        if (pc->conn != NULL) {
-            ngx_close_connection(pc->conn);
-        }
-        ngx_free(pc);
     }
 }
 

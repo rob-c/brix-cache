@@ -347,3 +347,27 @@ def _diagnostics(out):
     return [ln for ln in out.splitlines()
             if any(tag in ln for tag in ("[warn]", "[error]", "[crit]",
                                          "[emerg]"))]
+
+
+def _open_details(caps, which, path, count, timeout=5.0):
+    """The DETAIL field of every access-log line for `path` on one server.
+
+    The line format is byte-frozen (`brix_access_format_line`,
+    observability/accesslog/access_log.c:296-315): `"VERB PATH DETAIL"`.  The
+    detail is where a redirect names its SOURCE, which is the only place the
+    collapse cache is observable from outside the process.
+
+    Polls for `count` lines because the log write trails the redirect that is
+    already on the wire: a read that races it sees only the PREVIOUS open and
+    answers a different question than the one asked.  Measured — the two-open
+    cache reading below failed exactly that way once, reporting the first open's
+    `registry` as the second's.  On a shortfall the list is returned short so
+    the caller's own assertion reports what it saw.
+    """
+    pattern = r'"OPEN ' + re.escape(path) + r' ([^"]+)"'
+    deadline = time.time() + timeout
+    while True:
+        hits = re.findall(pattern, caps.access(which))
+        if len(hits) >= count or time.time() >= deadline:
+            return hits
+        time.sleep(0.05)

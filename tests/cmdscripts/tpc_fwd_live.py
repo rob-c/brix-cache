@@ -238,7 +238,7 @@ stream {{
             if static_mode != "nostatic":
                 static_cert = (f"brix_webdav_tpc_cert   {SERVER_CERT};\n"
                                f"            brix_webdav_tpc_key    {SERVER_KEY};")
-            tpc = ("brix_webdav_tpc on;\n            brix_webdav_tpc_allow_local on;\n"
+            tpc = ("brix_webdav_tpc on;\n            brix_tpc_allow_local on;\n"
                    f"            {static_cert}\n"
                    f"            brix_webdav_tpc_cafile {CA_CERT};\n"
                    "            brix_webdav_tpc_timeout 15;")
@@ -248,7 +248,7 @@ stream {{
                     f"            brix_token_jwks     {self.tok_jwks};\n"
                     f"            brix_token_issuer   {self.tok_issuer};\n"
                     f"            brix_token_audience {TOK_AUD};")
-            tpc = ("brix_webdav_tpc on;\n            brix_webdav_tpc_allow_local on;\n"
+            tpc = ("brix_webdav_tpc on;\n            brix_tpc_allow_local on;\n"
                    f"            brix_webdav_tpc_cafile {CA_CERT};\n"
                    "            brix_webdav_tpc_timeout 15;")
         conf = self.run.write(d / "nginx.conf", f"""daemon on;

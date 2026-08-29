@@ -1,38 +1,31 @@
 #!/usr/bin/env python3
 #
-# run_fanalyzer.py — static-analysis regression ratchet over the addon sources.
+# run_fanalyzer.py — zero-findings static-analysis gate over the addon sources.
 #
 # WHAT: compiles every module source under GCC's symbolic-execution static
-#       analyzer (-fanalyzer) and FAILS (exit 1) when a NEW finding appears that
-#       is not in the recorded baseline (tools/ci/fanalyzer_baseline.txt) —
+#       analyzer (-fanalyzer) and FAILS (exit 1) on ANY finding —
 #       use-after-free, double-free, memory/fd leak, NULL dereference, etc.
 #
 # WHY: -fanalyzer reasons about error / early-return branches the test suite may
-#       never hit, where leaks and double-frees hide. But GCC's analyzer is also
-#       interprocedurally limited: it raises FALSE positives where ownership is
-#       transferred into a container that a separate function frees (the cache /
-#       catalog "leaks"), on nginx's ngx_queue iteration idiom (a "use-after-free"
-#       that is not one), and on SHM pointers it cannot model. So a "zero findings"
-#       gate is not workable here. Instead we freeze today's findings as a baseline
-#       and gate only on NEW ones — the same backlog-ratchet model as
-#       check_vfs_seam.sh. A genuinely new leak/UAF in changed code still fails.
+#       never hit, where leaks and double-frees hide. The tree is analyzer-clean
+#       (the 2026-08 burn-down restructured the last idioms the analyzer could
+#       not follow — post-increment array-store indexes, the queue drain loop,
+#       the exec'd child's dup2'd stdout), so the gate is a straight "no
+#       findings" check: any hit is either a real bug or code written in a shape
+#       the analyzer cannot prove safe — both get fixed in code, never waived in
+#       a baseline.
 #
 # HOW: reuse the EXACT $(CFLAGS) and $(ALL_INCS) from a configured nginx build
 #       tree (so the analyzer sees the real defines/includes), minus -Werror* (we
 #       collect findings across all files instead of aborting on the first), and
 #       run `gcc -fanalyzer -c -o /dev/null` on each source in parallel. Each
 #       [-Wanalyzer-...] line is normalised to "path│kind│message" (line/column
-#       stripped so unrelated edits do not churn the baseline) and diffed against
-#       the baseline. --regen rewrites the baseline after a deliberate review.
+#       stripped, sorted, de-duped) for a stable report.
 #
 # USAGE:
-#   tools/ci/run_fanalyzer.py                 # gate: exit 1 on findings not in baseline
-#   tools/ci/run_fanalyzer.py --regen         # rewrite the baseline (review the diff!)
+#   tools/ci/run_fanalyzer.py                 # gate: exit 1 on any finding
 #   NGX_BUILD=/path/to/nginx tools/ci/run_fanalyzer.py
 #   tools/ci/run_fanalyzer.py --filter src/auth/gsi   # restrict to a path prefix (faster, no gate)
-#
-# Faithful port of run_fanalyzer.sh — same flags, commands, baseline format,
-# messages, and exit codes.
 
 from __future__ import annotations
 
@@ -49,7 +42,6 @@ REPO = Path(__file__).resolve().parents[2]
 NGX_BUILD = os.environ.get("NGX_BUILD", "/tmp/nginx-1.28.3")
 MK = f"{NGX_BUILD}/objs/Makefile"
 JOBS = int(os.environ.get("JOBS") or os.cpu_count() or 1)
-BASELINE = REPO / "tools/ci/fanalyzer_baseline.txt"
 
 # Files exempted from the gate (basename match). Keep empty — add only with a
 # written rationale next to the entry.
@@ -161,45 +153,23 @@ def normalise(lines: list[str]) -> list[str]:
     return sorted(out)
 
 
-def read_baseline(path: Path) -> list[str]:
-    """Strip comment lines (first non-space char '#') and blank lines, sort -u."""
-    out = set()
-    for ln in path.read_text().splitlines():
-        if re.match(r"^\s*#", ln):
-            continue
-        if re.match(r"^\s*$", ln):
-            continue
-        out.add(ln)
-    return sorted(out)
-
-
-def gate(current: list[str], baseline: list[str]) -> tuple[bool, list[str]]:
-    """Verdict helper: New = current minus baseline (comm -23 over sorted sets).
-    Returns (ok, new_findings)."""
-    bset = set(baseline)
-    new = [ln for ln in current if ln not in bset]
-    return (len(new) == 0, new)
-
-
-def parse_args(argv: list[str]) -> tuple[bool, str]:
-    regen = False
+def parse_args(argv: list[str]) -> str:
+    """Returns the path-prefix filter ('' = full tree, gated)."""
     filt = ""
     i = 0
     while i < len(argv):
         arg = argv[i]
-        if arg == "--regen":
-            regen = True
-        elif arg == "--filter":
+        if arg == "--filter":
             i += 1
             filt = argv[i] if i < len(argv) else ""
         else:
             filt = arg  # bare path-prefix arg, back-compat
         i += 1
-    return regen, filt
+    return filt
 
 
 def main(argv: list[str]) -> int:
-    regen, filt = parse_args(argv)
+    filt = parse_args(argv)
     _validate_environment()
     cflags, all_incs = _compiler_flags()
     todo = _selected_sources(filt)
@@ -208,13 +178,10 @@ def main(argv: list[str]) -> int:
     print(f"== analyzed {len(todo)} source file(s) under -fanalyzer ==")
     _fail_compile_errors(compile_errors)
     current = normalise(findings)
-    cur = len(current)
-    print(f"== {cur} analyzer finding(s) (baseline + new) ==")
-    if regen:
-        return _regenerate(current, filt)
+    print(f"== {len(current)} analyzer finding(s) ==")
     if filt:
         return _report_filter(current, filt)
-    return _gate_current(current, cur)
+    return _gate_current(current)
 
 
 def _validate_environment():
@@ -275,18 +242,6 @@ def _fail_compile_errors(errors):
          "(bad NGX_BUILD / flag extraction?)")
 
 
-def _regenerate(current, filt):
-    if filt:
-        fail("--regen must run over the FULL tree (drop --filter)")
-    header = [
-        "# fanalyzer baseline — known/false-positive findings, line:col stripped.",
-        "# Regenerate with: tools/ci/run_fanalyzer.py --regen   (review the diff!)",
-    ]
-    BASELINE.write_text("".join(f"{line}\n" for line in [*header, *current]))
-    print(f"run_fanalyzer: baseline rewritten ({len(current)} findings) → {BASELINE}")
-    return 0
-
-
 def _report_filter(current, filt):
     print(f"run_fanalyzer: filter run (no gate). Findings under '{filt}':")
     if current:
@@ -294,20 +249,17 @@ def _report_filter(current, filt):
     return 0
 
 
-def _gate_current(current, count):
-    if not BASELINE.is_file():
-        fail(f"no baseline at {BASELINE} — create it with --regen")
-    baseline = read_baseline(BASELINE)
-    ok, new = gate(current, baseline)
-    if not ok:
-        print(f"---- NEW analyzer findings not in baseline ({len(new)}) ----")
-        print("\n".join(new))
-        print(f"run_fanalyzer: FAIL — {len(new)} new finding(s). Fix them, or if false-positive,",
+def _gate_current(current):
+    if current:
+        print(f"---- analyzer findings ({len(current)}) ----")
+        print("\n".join(current))
+        print(f"run_fanalyzer: FAIL — {len(current)} finding(s). Fix them in code "
+              "(restructure until the analyzer can prove the path safe);",
               file=sys.stderr)
-        print("               review and re-baseline with: tools/ci/run_fanalyzer.py --regen",
+        print("               set FANALYZER_RAW=<file> to capture the full traces.",
               file=sys.stderr)
         return 1
-    print(f"run_fanalyzer: OK — no new findings beyond the {count}-entry baseline")
+    print("run_fanalyzer: OK — zero analyzer findings")
     return 0
 
 

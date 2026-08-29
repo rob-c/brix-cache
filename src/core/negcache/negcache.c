@@ -40,13 +40,18 @@ static ngx_shmtx_t      negcache_mtx;
 static negcache_table_t *
 negcache_table(void)
 {
-    if (negcache_zone == NULL
-        || negcache_zone->data == NULL
-        || negcache_zone->data == (void *) 1)
-    {
+    void *table;
+
+    if (negcache_zone == NULL) {
         return NULL;
     }
-    return (negcache_table_t *) negcache_zone->data;
+    /* Single read of zone->data: the checked value IS the returned value, so
+     * a concurrent republish can never widen the check into a NULL return. */
+    table = negcache_zone->data;
+    if (table == NULL || table == (void *) 1) {
+        return NULL;
+    }
+    return (negcache_table_t *) table;
 }
 
 
@@ -168,13 +173,24 @@ brix_negcache_note_miss(brix_ctx_t *ctx, unsigned threshold,
     unsigned window_ms, unsigned backoff_s)
 {
     negcache_table_t       *tbl = negcache_table();
+    brix_negcache_slot_t   *slots;
+    unsigned                capacity;
     brix_negcache_params_t  p;
     uint32_t                h;
     unsigned                wait;
 
-    if (tbl == NULL || ctx == NULL) {
+    /* Guards kept as separate ifs: gcc 11's -fanalyzer loses the non-NULL
+     * constraint on an accessor-returned pointer inside a compound || guard
+     * and reports an infeasible NULL deref below. */
+    if (tbl == NULL) {
         return 0;                    /* zone unattached → fail open */
     }
+    if (ctx == NULL) {
+        return 0;
+    }
+    /* Layout fields are immutable after zone init — snapshot them up front. */
+    slots    = tbl->slots;
+    capacity = (unsigned) tbl->capacity;
 
     /*
      * Principal, most-specific first: an authenticated token subject, else a
@@ -197,7 +213,7 @@ brix_negcache_note_miss(brix_ctx_t *ctx, unsigned threshold,
     p.backoff_s = backoff_s;
 
     ngx_shmtx_lock(&negcache_mtx);
-    wait = brix_negcache_core_note(tbl->slots, (unsigned) tbl->capacity, h,
+    wait = brix_negcache_core_note(slots, capacity, h,
                                    (uint64_t) ngx_current_msec, &p);
     ngx_shmtx_unlock(&negcache_mtx);
     return wait;

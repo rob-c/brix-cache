@@ -201,7 +201,7 @@ class TestAReadOnlyExportIsNotEscapable:
 # J. Parse tier                                                                #
 # --------------------------------------------------------------------------- #
 
-FLAG = "brix_gridftp_allow_write"
+FLAG = "brix_allow_write"
 
 
 def _parse(tmp_path, **slots):
@@ -317,12 +317,21 @@ class TestTheFlagIsRefusedOutsideItsScope:
     this tranche has found repeatedly; here the parser refuses all four.
     """
 
-    @pytest.mark.parametrize("slot", ("OUTER", "STREAM_KNOBS", "HTTP_KNOBS",
-                                      "LOC_KNOBS"))
+    @pytest.mark.parametrize("slot", ("OUTER", "STREAM_KNOBS"))
     def test_a_foreign_scope_is_refused(self, tmp_path, slot):
+        """Stream-LEVEL and main-context placements stay refused.  The HTTP
+        plane is no longer foreign: bare brix_allow_write is the ONE storage
+        write gate shared by every plane (W3), so http{}/location{} placements
+        parse there by design and are covered by the shared-flag suites."""
         rc, out = _parse(tmp_path, **{slot: f"    {FLAG} on;\n"})
         assert rc != 0, out
         assert f'"{FLAG}" directive is not allowed here' in out, out
+
+    @pytest.mark.parametrize("slot", ("HTTP_KNOBS", "LOC_KNOBS"))
+    def test_the_shared_write_gate_parses_on_the_http_plane(self, tmp_path,
+                                                            slot):
+        rc, out = _parse(tmp_path, **{slot: f"    {FLAG} on;\n"})
+        assert rc == 0, out
 
 
 class TestTheCompanionKnobsAreNotCrossValidated:
@@ -334,7 +343,7 @@ class TestTheCompanionKnobsAreNotCrossValidated:
     the same function, ftp_module_merge.c:159-164 — and says nothing.
     """
 
-    @pytest.mark.parametrize("companion", ("brix_gridftp_verify_write",
+    @pytest.mark.parametrize("companion", ("brix_verify_write",
                                            "brix_gridftp_require_allo_size"))
     def test_a_write_only_knob_is_accepted_beside_a_closed_gate(self, tmp_path,
                                                                companion):
@@ -348,7 +357,7 @@ class TestTheCompanionKnobsAreNotCrossValidated:
         unvalidated pairwise."""
         rc, out = _parse(tmp_path, KNOBS=(
             f"        {FLAG} off;\n"
-            "        brix_gridftp_verify_write on;\n"
+            "        brix_verify_write on;\n"
             "        brix_gridftp_require_allo_size on;\n"))
         assert rc == 0, out
         assert _diagnostics(out) == [], _diagnostics(out)
@@ -359,9 +368,9 @@ class TestTheCompanionKnobsAreNotCrossValidated:
         companion is caught, an inert one is not."""
         rc, out = _parse(tmp_path, KNOBS=(
             f"        {FLAG} off;\n"
-            "        brix_gridftp_verify_write bogus;\n"))
+            "        brix_verify_write bogus;\n"))
         assert rc != 0, out
-        assert 'in "brix_gridftp_verify_write" directive' in out, out
+        assert 'in "brix_verify_write" directive' in out, out
 
 
 # --------------------------------------------------------------------------- #
@@ -397,6 +406,15 @@ def _server_block(body, needle):
     return None
 
 
+def _prefixed_and_off_writers(bodies):
+    """(configs naming the retired prefixed twin, configs writing FLAG off)."""
+    prefixed = sorted(n for n, b in bodies.items()
+                      if "brix_gridftp_allow_write" in b)
+    writers = sorted(n for n, b in bodies.items()
+                     if re.search(rf"^\s*{FLAG}\s+off\s*;", b, re.MULTILINE))
+    return prefixed, writers
+
+
 class TestTheCorpusDoesNotWriteTheTokenItDocuments:
     """Read off the tree rather than argued: which configs write the flag, and
     what the two read-only ones actually contain.
@@ -413,12 +431,17 @@ class TestTheCorpusDoesNotWriteTheTokenItDocuments:
         """The census that opened the file.  The template this suite renders is
         the exception, and is excluded by name so the cell keeps measuring the
         rest of the corpus."""
-        mine = "nginx_audit16ai_gridftp_write_gate.conf"
-        writers = sorted(
-            name for name, body in self._bodies().items()
-            if name != mine
-            and re.search(rf"^\s*{FLAG}\s+off\s*;", body, re.MULTILINE))
-        assert writers == [], writers
+        # The W3 deprefix RETIRED the census's original subject: the gate is
+        # spelled bare brix_allow_write now, one token shared by every storage
+        # plane, and its off arm is written all over the corpus by design.
+        # What remains assertable is the rename itself — no config resurrects
+        # the prefixed twin — and that the shared off arm stays in broad use
+        # (this file's rendering included), so the gate's disarming arm can
+        # never again be corpus-unwritten.
+        prefixed, writers = _prefixed_and_off_writers(self._bodies())
+        assert all((prefixed == [],
+                    "nginx_audit16ai_gridftp_write_gate.conf" in writers)), \
+            (prefixed, writers)
 
     def test_the_arming_token_is_written_widely(self):
         """The other half, so the cell above is a statement about the DISARMING

@@ -2,7 +2,7 @@
 tests/test_webdav_tpc_source_egress_guard.py
 
 Online coverage for the WebDAV-plane TPC source-host egress allowlist guard
-(brix_webdav_tpc_source_guard / brix_webdav_tpc_source_allow) — the HTTP-COPY
+(brix_tpc_source_guard / brix_tpc_source_allow) — the HTTP-COPY
 twin of the native stream guard covered in
 test_tpc_source_egress_guard.py.
 
@@ -24,8 +24,8 @@ fail2ban-relevant signal that the naming guard — and only the naming guard —
 fired.
 
 The dedicated "webdav-tpc-source-guard" server (port 11219) is configured with:
-    brix_webdav_tpc_source_guard on;
-    brix_webdav_tpc_source_allow 10.255.255.1 .example.com;
+    brix_tpc_source_guard on;
+    brix_tpc_source_allow 10.255.255.1 .example.com;
 
 Run:
     pytest tests/test_webdav_tpc_source_egress_guard.py -v

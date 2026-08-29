@@ -40,13 +40,13 @@ WHAT THE BLOCK ESTABLISHES
   routed by `s3_sigv4_bearer_intercept`, `auth_sigv4_verify.c:158`), and it
   coexists with SigV4 keys in the same location exactly as INVARIANT 6 requires:
   bearer OR signature, per request, each verified by its own tier.
-- `brix_authdb_format xrdacc` **is** consulted (`s3_acc_check`,
+- `brix_acc_format xrdacc` **is** consulted (`s3_acc_check`,
   `handler.c:460`) — but only `u *` rules can ever match.
 
 DEFECT CANDIDATE #36 (security, silent no-op) — four WebDAV security directives
 parse inside an S3 location and enforce nothing, with no diagnostic at any
-tier.  `brix_webdav_auth required` (with `brix_webdav_token_jwks` / `_issuer` /
-`_audience`), `brix_webdav_macaroon_secret`, `brix_webdav_checksum_on_write`
+tier.  `brix_webdav_auth required` (with `brix_token_jwks` / `_issuer` /
+`_audience`), `brix_macaroon_secret`, `brix_webdav_checksum_on_write`
 and `brix_webdav_tpc` are all `NGX_HTTP_LOC_CONF`, so nginx accepts them in any
 location; all four write into `ngx_http_brix_webdav_loc_conf_t`
 (`module_commands.c:221/287/354/433`), and no S3 translation unit references
@@ -395,7 +395,7 @@ class TestWebdavDirectivesAreInertInAnS3Location:
         assert resp.status_code == 403, resp.text[:300]
 
     def test_macaroon_minting_is_unreachable_here(self, s3cores):
-        """`brix_webdav_macaroon_secret` is configured; the mint POST never
+        """`brix_macaroon_secret` is configured; the mint POST never
         reaches a macaroon handler because the S3 auth gate answers first."""
         endpoint = s3cores[0]
         resp = requests.post(
@@ -453,7 +453,12 @@ class TestWebdavDirectivesAreInertInAnS3Location:
     @pytest.mark.parametrize("directive,field", [
         ("brix_webdav_auth", "auth"),
         ("brix_webdav_tpc", "tpc"),
-        ("brix_webdav_macaroon_secret", "token_macaroon_secret"),
+        # brix_webdav_macaroon_secret became bare brix_macaroon_secret on the
+        # COMMON module (phase-101 W4), writing common.token_macaroon_secret —
+        # a struct the S3 conf embeds too, so the "writes only the webdav
+        # conf" anchor no longer applies.  Its S3-plane inertness is pinned by
+        # test_macaroon_minting_is_unreachable_here above (the MINT handler is
+        # webdav-only), not by where the secret is stored.
         ("brix_webdav_checksum_on_write", "checksum_on_write"),
     ])
     def test_each_inert_directive_writes_only_the_webdav_conf(self, directive,

@@ -1,8 +1,8 @@
 """
 test_audit15f_cache_admission_and_staging.py — read-cache admission and the
 write-through staging tree (audit 2026-08-15, zero-coverage appendix residuals:
-brix_cache_allow_prefix, brix_cache_index_cache, brix_cache_wt_stage_backend,
-brix_cache_wt_stage_block_size are configured NOWHERE in the suite).
+brix_cache_allow_prefix, brix_cache_index_cache, brix_wt_stage_backend,
+brix_wt_stage_block_size are configured NOWHERE in the suite).
 
 Two halves, because the four directives fail in two different ways.
 
@@ -14,9 +14,9 @@ admission assertion here is therefore a pair — the bytes AND the store — whi
 is also what makes the byte-prefix finding below visible at all.
 
 The staging pair is a config contract.  brix_server_validate_cache_stage_
-backend() is the one place that ties brix_cache_wt_stage_backend to its root
+backend() is the one place that ties brix_wt_stage_backend to its root
 and to a POSIX state root, and it is also where the backend is registered
-(brix_vfs_backend_config with brix_cache_wt_stage_block_size).  It is reached
+(brix_vfs_backend_config with brix_wt_stage_block_size).  It is reached
 only from brix_server_validate_cache(), which begins `if (!xcf->cache) return
 NGX_OK` — so the whole contract is conditional on `brix_cache on`, which the
 last case pins.
@@ -34,7 +34,7 @@ Cases:
   * success      — with the origin stopped, the bounded index still answers from
                    the store, while an object that was never admitted fails:
                    proof the earlier reads were store hits, not origin re-reads
-  * error        — brix_cache_wt_stage_backend without its stage root is refused
+  * error        — brix_wt_stage_backend without its stage root is refused
   * error        — ... and without a POSIX brix_cache_state_root for its sidecars
   * success      — the full quartet parses, and the block size is a size
   * security-neg — DEFECT CANDIDATE #13: both refusals above disappear when
@@ -75,7 +75,7 @@ def _guard_stage_body_1(state_root, lines, root):
 
 def _guard_stage_body_2(stage_root, lines, root):
     if stage_root:
-        lines.append(f"    brix_cache_wt_stage_root {root}/stage;")
+        lines.append(f"    brix_wt_stage_root {root}/stage;")
 
 def _guard_cacheadm_3():
     if not os.path.exists(NGINX_BIN):
@@ -148,8 +148,8 @@ def _stage_body(root, *, cache_on, stage_root=True, state_root=True):
         lines += [f"    brix_export {root}/export;"]
     _guard_stage_body_1(state_root, lines, root)
     _guard_stage_body_2(stage_root, lines, root)
-    lines += [f"    brix_cache_wt_stage_backend posix:{root}/back;",
-              "    brix_cache_wt_stage_block_size 64k;"]
+    lines += [f"    brix_wt_stage_backend posix:{root}/back;",
+              "    brix_wt_stage_block_size 64k;"]
     return "\n".join(lines)
 
 
@@ -320,14 +320,14 @@ def test_the_bounded_index_still_answers_once_the_origin_is_gone(cacheadm,
         read_range(l1_port, "/pair/never.bin", 0, SMALL)
 
 
-# ---- brix_cache_wt_stage_backend / _block_size -----------------------------
+# ---- brix_wt_stage_backend / _block_size -----------------------------
 
 def test_a_staging_backend_without_its_root_is_refused(tmp_path):
     rc, out = _nginx_t(tmp_path,
                        _stage_body(tmp_path, cache_on=True, stage_root=False))
 
     assert rc != 0, f"a staging backend with no stage root parsed clean:\n{out}"
-    assert "brix_cache_wt_stage_backend requires brix_cache_wt_stage_root" in out, out
+    assert "brix_wt_stage_backend requires brix_wt_stage_root" in out, out
 
 
 def test_a_staging_backend_without_a_state_root_is_refused(tmp_path):
@@ -343,8 +343,8 @@ def test_the_staging_quartet_parses_and_its_block_size_is_a_size(tmp_path):
     assert rc == 0, f"the complete staging config was refused:\n{out}"
 
     bad = _stage_body(tmp_path, cache_on=True).replace(
-        "brix_cache_wt_stage_block_size 64k;",
-        "brix_cache_wt_stage_block_size banana;")
+        "brix_wt_stage_block_size 64k;",
+        "brix_wt_stage_block_size banana;")
     rc, out = _nginx_t(tmp_path, bad)
     assert rc != 0 and "invalid value" in out, out
 
@@ -352,7 +352,7 @@ def test_the_staging_quartet_parses_and_its_block_size_is_a_size(tmp_path):
 def test_the_staging_validation_never_runs_when_the_cache_is_off(tmp_path):
     """DEFECT CANDIDATE #13.  brix_server_validate_cache() returns early on
     `if (!xcf->cache)`, and the stage-backend validation — together with the
-    brix_vfs_backend_config() registration that gives brix_cache_wt_stage_
+    brix_vfs_backend_config() registration that gives brix_wt_stage_
     block_size its only effect — lives behind that gate.  So on an export that
     configures staging without `brix_cache on`, BOTH refusals above vanish and
     the operator is told nothing.  Retire this when the validation moves ahead
@@ -368,7 +368,7 @@ def test_the_staging_validation_never_runs_when_the_cache_is_off(tmp_path):
 
 def test_the_staged_backend_instance_still_has_no_consumer():
     """DEFECT CANDIDATE #14.  brix_cache_storage_init() builds the staging
-    instance whenever brix_cache_wt_stage_root is set, and brix_cache_wt_stage() is the
+    instance whenever brix_wt_stage_root is set, and brix_cache_wt_stage() is the
     accessor for it — but nothing calls that accessor, so both directives
     configure an object no write path ever reads.  The two hits below are its
     own definition and declaration; a third means the wiring landed and this

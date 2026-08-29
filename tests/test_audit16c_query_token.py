@@ -1,8 +1,8 @@
-"""brix_http_query_token at VALUE granularity — audit §Method, 16th tranche.
+"""brix_webdav_query_token at VALUE granularity — audit §Method, 16th tranche.
 
 The tranche re-runs the audit's Method (steps 1-2) per (directive, VALUE) over
 the 128 directives whose setter is ``ngx_conf_set_flag_slot``.
-``brix_http_query_token`` is the fourth of the seven whose BOTH arms are
+``brix_webdav_query_token`` is the fourth of the seven whose BOTH arms are
 unwritten anywhere in the corpus, and it is the one where that matters most:
 the feature it gates is *already* exercised — ``test_query_token.py`` and four
 WLCG conformance files drive ``?authz=`` — but every one of them does so on the
@@ -27,7 +27,7 @@ successfully EXTRACTED.  With the flag off, ``webdav_bearer_from_query()``
 declines at :272-274 and ``wt_parse_header()`` returns NGX_DECLINED straight
 through :404-406 — before either redaction call.
 
-So ``brix_http_query_token off`` — which an operator writes precisely to stop
+So ``brix_webdav_query_token off`` — which an operator writes precisely to stop
 accepting credentials in URLs — is the configuration under which a credential in
 a URL is written to the logs verbatim — the access log in all three of the
 fields the redactor exists to scrub (``$request``, ``$request_uri``, ``$args``)
@@ -133,7 +133,7 @@ def qtoken(lifecycle, tmp_path):
             "JWKS": issuer.jwks_path,
             "ISSUER": ISSUER,
             "AUD": AUD},
-        reason="audit-16c brix_http_query_token at value granularity"))
+        reason="audit-16c brix_webdav_query_token at value granularity"))
     return endpoint, issuer
 
 
@@ -513,12 +513,12 @@ class TestTheParseTier:
 
     @pytest.mark.parametrize("token", ["on", "off"])
     def test_each_token_is_accepted(self, tmp_path, token):
-        result = _parse(tmp_path, f"            brix_http_query_token {token};\n")
+        result = _parse(tmp_path, f"            brix_webdav_query_token {token};\n")
         assert result.returncode == 0, result.stderr
 
     @pytest.mark.parametrize("token", ["ON", "Off", "oFF"])
     def test_the_token_is_matched_case_insensitively(self, tmp_path, token):
-        result = _parse(tmp_path, f"            brix_http_query_token {token};\n")
+        result = _parse(tmp_path, f"            brix_webdav_query_token {token};\n")
         assert result.returncode == 0, result.stderr
 
     @pytest.mark.parametrize("token", ["1", "true", "yes", "enabled"])
@@ -526,12 +526,12 @@ class TestTheParseTier:
         """The security-negative of the parse tier: a config that means to
         enable the transport and misspells the token must not silently take the
         merge default, which is also `on` — it must fail to load."""
-        result = _parse(tmp_path, f"            brix_http_query_token {token};\n")
+        result = _parse(tmp_path, f"            brix_webdav_query_token {token};\n")
         assert result.returncode != 0, result.stdout
         assert "invalid value" in (result.stderr + result.stdout)
 
-    @pytest.mark.parametrize("line", ["brix_http_query_token;",
-                                      "brix_http_query_token on off;"])
+    @pytest.mark.parametrize("line", ["brix_webdav_query_token;",
+                                      "brix_webdav_query_token on off;"])
     def test_the_directive_takes_exactly_one_argument(self, tmp_path, line):
         result = _parse(tmp_path, f"            {line}\n")
         assert result.returncode != 0, result.stdout
@@ -541,7 +541,7 @@ class TestTheParseTier:
         """NGX_HTTP_MAIN_CONF is in the mask (module_commands.c:412-417), which
         is what lets a deployment turn the URL transport off once for every
         location instead of per location."""
-        result = _parse(tmp_path, "    brix_http_query_token off;\n",
+        result = _parse(tmp_path, "    brix_webdav_query_token off;\n",
                         location=False)
         assert result.returncode == 0, result.stderr
 

@@ -26,13 +26,17 @@ brix_srv_set_stale_after(ngx_msec_t ms)
 brix_srv_table_t *
 srv_table(void)
 {
-    if (brix_srv_shm_zone == NULL
-        || brix_srv_shm_zone->data == NULL
-        || brix_srv_shm_zone->data == (void *) 1)
-    {
+    void *table;
+
+    if (brix_srv_shm_zone == NULL) {
         return NULL;
     }
-    return (brix_srv_table_t *) brix_srv_shm_zone->data;
+    /* Single read of zone->data: the checked value IS the returned value. */
+    table = brix_srv_shm_zone->data;
+    if (table == NULL || table == (void *) 1) {
+        return NULL;
+    }
+    return (brix_srv_table_t *) table;
 }
 
 
@@ -301,18 +305,28 @@ brix_srv_entry_t *
 srv_find_locked(const char *host, uint16_t port)
 {
     brix_srv_table_t *tbl;
-    ngx_uint_t          i;
+    brix_srv_entry_t *slots;
+    ngx_uint_t          i, capacity;
 
     tbl = srv_table();
-    if (tbl == NULL || host == NULL) {
+    /* Guards kept as separate ifs: gcc 11's -fanalyzer loses the non-NULL
+     * constraint on an accessor-returned pointer inside a compound || guard
+     * and reports an infeasible NULL deref below. */
+    if (tbl == NULL) {
         return NULL;
     }
+    if (host == NULL) {
+        return NULL;
+    }
+    /* Layout fields are immutable after zone init — snapshot them up front. */
+    slots    = tbl->slots;
+    capacity = tbl->capacity;
 
-    for (i = 0; i < tbl->capacity; i++) {
-        if (tbl->slots[i].in_use && tbl->slots[i].port == port
-            && ngx_strcmp(tbl->slots[i].host, host) == 0)
+    for (i = 0; i < capacity; i++) {
+        if (slots[i].in_use && slots[i].port == port
+            && ngx_strcmp(slots[i].host, host) == 0)
         {
-            return &tbl->slots[i];
+            return &slots[i];
         }
     }
 

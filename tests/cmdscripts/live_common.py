@@ -74,8 +74,25 @@ def inject_nginx_load_modules(config: str | Path,
         target.write_text("\n".join(missing) + "\n\n" + body, encoding="utf-8")
 
 
+def _comment_blanked(body: str) -> str:
+    """The config with per-line ``#`` comments blanked, offsets preserved.
+
+    Searching / anchoring in the raw text mismatches on directive names or
+    ``http {`` mentioned inside comments (seen live: nginx_zip.conf's
+    "at http{} scope" comment swallowed the injected runtime block at main
+    scope → emerg). Blanking instead of stripping keeps every match position
+    valid in the original body.
+    """
+    lines = []
+    for line in body.split("\n"):
+        idx = line.find("#")
+        lines.append(line if idx < 0 else line[:idx] + " " * (len(line) - idx))
+    return "\n".join(lines)
+
+
 def _main_runtime_directives(body: str, logs: Path, pid_path: str | Path | None):
     directives = []
+    body = _comment_blanked(body)
     if not re.search(r"\bpid\s+", body):
         selected = Path(pid_path) if pid_path is not None else logs / "nginx.pid"
         directives.append(f"pid {json.dumps(str(selected))};")
@@ -93,18 +110,22 @@ def _http_runtime_directives(body: str, logs: Path, tmp: Path) -> list[str]:
         "uwsgi_temp_path": tmp / "uwsgi",
         "scgi_temp_path": tmp / "scgi",
     }
+    code = _comment_blanked(body)
     return [
         f"    {name} {json.dumps(str(path))};"
         for name, path in paths.items()
-        if not re.search(rf"\b{name}\s+", body)
+        if not re.search(rf"\b{name}\s+", code)
     ]
 
 
 def _inject_http_runtime_directives(body: str, directives: list[str]) -> str:
-    if not directives or not re.search(r"\bhttp\s*\{", body):
+    if not directives:
+        return body
+    match = re.search(r"\bhttp\s*\{", _comment_blanked(body))
+    if match is None:
         return body
     addition = "\n" + "\n".join(directives)
-    return re.sub(r"(\bhttp\s*\{)", rf"\1{addition}", body, count=1)
+    return body[:match.end()] + addition + body[match.end():]
 
 
 def inject_nginx_runtime_paths(

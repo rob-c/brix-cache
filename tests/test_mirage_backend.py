@@ -27,6 +27,7 @@ import pytest
 from settings import BIND_HOST, NGINX_BIN
 
 import _test_session_bind_helpers as H
+from ephemeral_port import free_port
 
 SIZE = 65536
 kXR_open, kXR_read = 3010, 3013
@@ -41,7 +42,7 @@ def _pattern(off, n):
 
 def _free_port():
     s = socket.socket()
-    s.bind((BIND_HOST, 0))
+    s.bind((BIND_HOST, free_port()))  # leased mock-range port (never kernel-assigned)
     port = s.getsockname()[1]
     s.close()
     return port

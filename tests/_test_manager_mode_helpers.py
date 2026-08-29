@@ -284,6 +284,30 @@ def _cluster_handshake_login(host, port):
     return sock
 
 
+def _cluster_locate_redirect(port, path, timeout=25.0, settimeout=20):
+    """Locate ``path`` at ``port``, retrying through the parent-CMS warm-up.
+
+    A node whose persistent link to its parent CMS is not established answers a
+    registry-miss locate on the NotFound path (kXR_error) BY DESIGN — see
+    TestCmsSelectWake — and that link is re-established periodically, so a cell
+    that judges the first response alone fails whenever it lands in a window.
+    Retry until the link is up, then return the response for the caller to
+    judge.  A node that has genuinely stopped honouring the escalation errors on
+    every attempt through the whole window, so this keeps the cells' full power.
+    """
+    deadline = time.monotonic() + timeout
+    status, body = None, b""
+    while True:
+        sock = _cluster_handshake_login(HOST, port)
+        sock.settimeout(settimeout)
+        _cluster_send_locate(sock, path)
+        status, body = _cluster_read_response(sock)
+        sock.close()
+        if status == kXR_redirect or time.monotonic() >= deadline:
+            return status, body
+        time.sleep(0.5)
+
+
 def _cluster_send_locate(sock, path):
     payload = path.encode() + b"\x00"
     sock.sendall(

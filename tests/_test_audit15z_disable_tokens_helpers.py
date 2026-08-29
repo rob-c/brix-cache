@@ -190,11 +190,11 @@ TOKENS = (
     ("brix_gsi_signed_dh", "off", "gsi_signed_dh",
      "src/core/config/server_conf_merge_security.c", "BRIX_GSI_SDH_OFF"),
     ("brix_io_uring", "off", "io_uring",
-     "src/core/config/server_conf_merge_security.c", "BRIX_IO_URING_OFF"),
+     "src/core/config/server_conf_merge_storage.c", "BRIX_IO_URING_OFF"),
     ("brix_min_sec_level", "none", "min_sec_level",
      "src/core/config/server_conf_merge_security.c", "0"),
     ("brix_seccomp", "off", "seccomp",
-     "src/core/config/server_conf_merge_security.c", "BRIX_SECCOMP_OFF"),
+     "src/core/config/server_conf_merge_storage.c", "BRIX_SECCOMP_OFF"),
 )
 TOKEN_IDS = [t[0] for t in TOKENS]
 

@@ -335,7 +335,18 @@ class XrootdAnon:
         # must fail closed.
         self.chksum = chksum
         self.port = port or free_port()
-        self.prefix = os.path.join(PREFIX, "brix_anon_ck" if chksum else "brix_anon")
+        # PER-INSTANCE prefix.  This used to be one FIXED tree per chksum-ness,
+        # so every XrootdAnon in a lane shared one admin/run/data/log set —
+        # including the four this module's cells start back to back.  __exit__
+        # terminates (and after 10s KILLS) the daemon, which can leave its admin
+        # socket and lock files behind; the next daemon then came up on the same
+        # admin path, bound its port and answered the readiness probe, but
+        # intermittently stalled on real I/O.  Downstream that surfaced as a
+        # cache fill that never completed: the client reconnected ~190 times and
+        # the copy failed on its 60s timeout (rc=124), roughly one run in three.
+        # The port is unique per live instance, so keying on it isolates them.
+        flavour = "brix_anon_ck" if chksum else "brix_anon"
+        self.prefix = os.path.join(PREFIX, f"{flavour}_{self.port}")
         self.data = os.path.join(self.prefix, "data")
         self.admin = os.path.join(self.prefix, "admin")
         self.run = os.path.join(self.prefix, "run")
@@ -347,6 +358,11 @@ class XrootdAnon:
     def __enter__(self):
         if not BRIX_BIN:
             raise RuntimeError("official `xrootd` daemon not found on PATH")
+        # free_port() leases from a bounded range, so a later run can land on
+        # this port again — start from a clean tree rather than inheriting a
+        # previous instance's admin sockets or a stale data file (which would
+        # quietly make a "cold" fill warm).
+        shutil.rmtree(self.prefix, ignore_errors=True)
         for d in (self.data, self.admin, self.run, self.logs):
             os.makedirs(d, exist_ok=True)
         with open(self.cfg, "w") as fh:

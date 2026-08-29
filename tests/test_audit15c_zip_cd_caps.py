@@ -1,7 +1,7 @@
 """
 test_audit15c_zip_cd_caps.py — the ZIP central-directory bomb caps
 (audit §A2, testsuite-combinatorial-coverage-audit 2026-08-15:
-`brix_zip_cd_max_bytes` and `brix_webdav_zip_cd_max_bytes` had zero coverage
+`brix_zip_cd_max_bytes` and `brix_zip_cd_max_bytes` had zero coverage
 on either plane).
 
 The cap is enforced in the shared kernel (zip_kernel.c: cd_size > cd_max →

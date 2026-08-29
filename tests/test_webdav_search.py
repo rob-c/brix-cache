@@ -24,6 +24,12 @@ from settings import DATA_ROOT, NGINX_HTTP_WEBDAV_PORT, SERVER_HOST
 BASE_URL = f"http://{SERVER_HOST}:{NGINX_HTTP_WEBDAV_PORT}"
 DAV_NS = "DAV:"
 
+# xdist_group: this module builds its search tree under the SHARED DATA_ROOT in
+# a module-scoped fixture and rmtree's it on teardown.  Ungrouped cells spread
+# across workers under --dist loadgroup, so the first teardown would delete the
+# tree the other workers are still searching.  One group == one worker.
+pytestmark = pytest.mark.xdist_group("webdav-search")
+
 
 def _search_body(depth="1", literal=None):
     """Build a DAV:basicsearch request body for the given scope depth and

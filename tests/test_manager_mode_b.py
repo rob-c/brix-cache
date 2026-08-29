@@ -282,11 +282,8 @@ class TestCmsKyrTry:
         first_port only.
         """
         c = cms_try
-        sock = _cluster_handshake_login(HOST, c["redir_port"])
-        sock.settimeout(20)
-        _cluster_send_locate(sock, "/kyr-try-test/file.dat")
-        status, body = _cluster_read_response(sock)
-        sock.close()
+        status, body = _cluster_locate_redirect(c["redir_port"],
+                                                "/kyr-try-test/file.dat")
 
         assert status == kXR_redirect, (
             f"expected kXR_REDIRECT after kYR_try wake, got {status}"
@@ -302,11 +299,8 @@ class TestCmsKyrTry:
     def test_second_entry_ignored(self, cms_try):
         """The second kYR_try entry must not be used for the redirect."""
         c = cms_try
-        sock = _cluster_handshake_login(HOST, c["redir_port"])
-        sock.settimeout(20)
-        _cluster_send_locate(sock, "/kyr-try-second-entry/file.dat")
-        status, body = _cluster_read_response(sock)
-        sock.close()
+        status, body = _cluster_locate_redirect(c["redir_port"],
+                                                "/kyr-try-second-entry/file.dat")
 
         assert status == kXR_redirect, f"expected kXR_REDIRECT, got {status}"
         got_port = struct.unpack(">I", body[:4])[0]
@@ -326,11 +320,9 @@ class TestCmsEscalation:
     def test_three_tier_escalation_redirects_to_leaf(self, cms_escalation):
         c = cms_escalation
 
-        sock = _cluster_handshake_login(HOST, c["sub_port"])
-        sock.settimeout(15)
-        _cluster_send_locate(sock, "/escalate/file.dat")
-        status, body = _cluster_read_response(sock)
-        sock.close()
+        status, body = _cluster_locate_redirect(c["sub_port"],
+                                                "/escalate/file.dat",
+                                                settimeout=15)
 
         assert status == kXR_redirect, (
             f"expected kXR_redirect after CMS escalation, got {status}"

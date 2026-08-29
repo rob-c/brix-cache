@@ -570,9 +570,12 @@ PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1564, 2
 # concurrent fuse-trust mock origins (see conformance_common.matrix_port).
 CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1566, 588
 # Differential-interop per-file fixed ports (official_interop_lib.worker_port):
-# one slot per distinct conformance base (61 today), anchored here so they stay
-# in the contiguous ladder within TEST_PORT_START+2000 instead of the old
+# one slot per distinct conformance base (65 today), anchored here so they stay
+# in the contiguous ladder within TEST_PORT_START+3000 instead of the old
 # absolute 30000-49925 per-worker band.  The owning module is pinned to one xdist
 # worker (conftest auto-xdist_group), so a fixed port per file suffices.
-INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2154, 61
-PORT_COUNT = 2215
+# 2026-08-26: 61 -> 65 — four conformance bases were registered in
+# _INTEROP_BASES without the matching width bump (caught by
+# test_fleet_ports.py: worker slots 12216-12219 fell past PORT_LAST).
+INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2154, 65
+PORT_COUNT = 2219

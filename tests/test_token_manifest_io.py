@@ -38,7 +38,7 @@ def test_manifest_write_failure_preserves_previous_file(monkeypatch, tmp_path: P
     def fail_dump(*_args, **_kwargs):
         raise RuntimeError("injected serialization failure")
 
-    monkeypatch.setattr("tokenforge.json.dump", fail_dump)
+    monkeypatch.setattr("brix_suite.security.tokens.manifest.json.dump", fail_dump)
     with pytest.raises(RuntimeError, match="injected serialization failure"):
         manifest.write(str(target))
 

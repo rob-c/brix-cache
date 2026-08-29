@@ -22,11 +22,11 @@ read, so they are taken together::
       offsetof(ngx_http_brix_webdav_loc_conf_t, common.enable),
       NULL },
 
-    ... and the same five lines for brix_webdav_upload_resume (:270),
+    ... and the same five lines for brix_upload_resume (:270),
         brix_webdav_tape_rest (:294), brix_delegation_endpoint (:303)
         and brix_webdav_cors_credentials (:377).
 
-The remaining four (``brix_webdav_zip_access``, ``brix_webdav_require_digest``,
+The remaining four (``brix_zip_access``, ``brix_webdav_require_digest``,
 ``brix_webdav_dig``, ``brix_webdav_proxy_certs``) are declared in wider scopes or
 need a TLS client-verify listener, and are not this file's subject.
 
@@ -38,7 +38,7 @@ Four of the five merge to 0 and one merges to 1, and both halves of that matter:
   brix_webdav_tape_rest         webdav/config_merge.c:88   merge default 0
   brix_delegation_endpoint      webdav/config_merge.c:124  merge default 0
   brix_webdav_cors_credentials  webdav/config_merge.c:95   merge default 0
-  brix_webdav_upload_resume     webdav/config_merge.c:91   merge default 1
+  brix_upload_resume     webdav/config_merge.c:91   merge default 1
 
 For ``upload_resume`` the arm the corpus writes is the redundant one: ``on`` is
 what absence already gives, and ``off`` is the only spelling that turns the
@@ -70,7 +70,7 @@ One listener, five ``server_name`` vhosts, twenty locations
 
     and the bytes: a 404 from the fall-through must not carry the object.
 
-§B  brix_webdav_upload_resume, on one Content-Range PUT:
+§B  brix_upload_resume, on one Content-Range PUT:
 
       /ur-on/     bytes 0-4/10  -> 200 + X-Upload-Offset: 5, target NOT created
       /ur-off/    bytes 0-4/10  -> 201, target created, 5 bytes, no X-Upload-Offset
@@ -212,7 +212,7 @@ CORS_C = ROOT / "src/protocols/webdav/cors.c"
 # The five, and the loc_conf field each setter writes.
 FLAGS = (
     ("brix_webdav", "common.enable"),
-    ("brix_webdav_upload_resume", "upload_resume"),
+    ("brix_upload_resume", "upload_resume"),
     ("brix_webdav_tape_rest", "tape_rest"),
     ("brix_delegation_endpoint", "delegation_endpoint"),
     ("brix_webdav_cors_credentials", "cors_credentials"),

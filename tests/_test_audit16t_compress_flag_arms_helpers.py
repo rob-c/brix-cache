@@ -50,7 +50,7 @@ WHY FOUR PLANES
 ---------------
 ``on/on`` reproduces the one configuration the corpus already had.  ``off/off``
 is the arm nobody wrote.  The plane with NEITHER directive written measures the
-merge default instead of reading it off ``server_conf_merge_security.c:310-311``.
+merge default instead of reading it off ``server_conf_merge_storage.c:310-311``.
 The fourth is the point of the file: ``read on, write off`` is the only plane on
 which the two flags are distinguishable at all.  A single shared bit, or the two
 slot offsets transposed in the header, satisfies every both-on and both-off case
@@ -139,7 +139,7 @@ MIXED_PORT = _EXTRA["MIXED_PORT"]
 ROOT = Path(__file__).resolve().parents[1]
 OPAQUE_C = ROOT / "src/protocols/root/read/open_request_opaque.c"
 QCONFIG_C = ROOT / "src/protocols/root/query/config.c"
-MERGE_C = ROOT / "src/core/config/server_conf_merge_security.c"
+MERGE_C = ROOT / "src/core/config/server_conf_merge_storage.c"
 DIRECTIVES_H = ROOT / "src/protocols/root/stream/directives_security.h"
 CONFIGS = Path(__file__).resolve().parent / "configs"
 TEMPLATE = CONFIGS / "nginx_audit16t_compress.conf"

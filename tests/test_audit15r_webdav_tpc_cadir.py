@@ -12,7 +12,7 @@ every audit-15f TPC template — they all hand the mock source's PEM to it — b
 the DIRECTORY form has no occurrence at all, in any template or any assertion.
 Nothing selects a trust anchor with it, nothing provokes its config-time
 validation, and nothing observes the cross-field fallback that fills it in from
-`brix_webdav_cadir` (tpc_config.c:130) — a line whose whole purpose is to change
+`brix_trusted_ca_dir` (tpc_config.c:130) — a line whose whole purpose is to change
 what an operator's TPC leg trusts without them naming the TPC directive.
 
 WHAT MAKES A TRUST ANCHOR OBSERVABLE
@@ -35,7 +35,7 @@ fails to verify.
 
 WHAT THE TABLE ESTABLISHES
 
-  location        brix_webdav_cadir  brix_webdav_tpc_cadir  pull   claim
+  location        brix_trusted_ca_dir  brix_webdav_tpc_cadir  pull   claim
   /nocadir/       -                  -                      502    attribution
   /capath/        -                  good                   201    the directive
   /capathwrong/   -                  wrong                  502    ... decides
@@ -52,7 +52,7 @@ A FACT THE PARSE TIER PINS
 
 `webdav_validate_tpc_paths` checks `brix_webdav_tpc_cadir` for exactly the kind
 and access mode (`WEBDAV_PATH_DIRECTORY`, `R_OK | X_OK`, config_merge.c:504)
-that `webdav_validate_ca_paths` has already applied to `brix_webdav_cadir`
+that `webdav_validate_ca_paths` has already applied to `brix_trusted_ca_dir`
 (config_merge.c:376), and the general check runs first and unconditionally
 (:535 before :538).  So for an INHERITED value the TPC check can never fire —
 anything that would fail it has already been refused under the other label.  The
@@ -423,7 +423,7 @@ class TestTheValidationIsGatedOnTpc:
         fails it — an operator's typo is named where they wrote it, and the TPC
         check is reachable only for an explicitly written directive."""
         rc, out = _parse(tmp_path, "brix_webdav_tpc on;",
-                         f"brix_webdav_cadir {anchors['missing']};")
+                         f"brix_trusted_ca_dir {anchors['missing']};")
         assert rc != 0, out
-        assert "brix_webdav_cadir" in out, out
+        assert "brix_trusted_ca_dir" in out, out
         assert "brix_webdav_tpc_cadir" not in out, out

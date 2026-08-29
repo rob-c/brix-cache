@@ -151,7 +151,6 @@ def _reset_residency(catalog: Path) -> None:
     pblock_worker_own(catalog)
 
 
-@pytest.fixture()
 def _seed_lab_tree(hub, src):
     """Upload on.bin/off.bin and mkdir /sub into the lab export."""
     for name in ("on.bin", "off.bin"):
@@ -164,6 +163,7 @@ def _seed_lab_tree(hub, src):
         f"mkdir /sub: {proc.stderr}"
 
 
+@pytest.fixture()
 def lab(lifecycle, tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx binary not executable: {NGINX_BIN}")

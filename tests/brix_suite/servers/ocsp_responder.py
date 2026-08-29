@@ -4,7 +4,7 @@
 ``test_ocsp_require_nonce.py`` says it in its own docstring: "Live OCSP
 negatives need a controllable responder that this suite does not stand up", so
 every OCSP property in the tree is pinned against the C source and no test has
-ever driven ``brix_ocsp_enable`` at runtime.  This is that responder.
+ever driven ``brix_ocsp`` at runtime.  This is that responder.
 
 It answers whatever the caller told it to answer, per certificate:
 

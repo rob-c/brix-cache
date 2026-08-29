@@ -35,7 +35,13 @@ from XRootD.client.flags import OpenFlags
 from backend_matrix import BACKENDS, anon_url
 from settings import DATA_ROOT, HOST, NGINX_ANON_PORT, REF_BRIX_PORT, SERVER_HOST
 
-pytestmark = pytest.mark.timeout(120)
+# xdist_group: this module stages its fixture data under the SHARED
+# DATA_ROOT in a module-scoped fixture.  Ungrouped cells spread across
+# workers under --dist loadgroup, so each worker runs its own copy of
+# that fixture and the first teardown deletes the file out from under
+# the workers still using it ("NotFound").  One group == one worker.
+pytestmark = [pytest.mark.timeout(120),
+              pytest.mark.xdist_group("cross-backend-parity")]
 
 BODY = b"cross-backend-parity-" * 2048       # ~43 KiB: several reads, one file
 SECRET = b"this file lives outside the export root\n"

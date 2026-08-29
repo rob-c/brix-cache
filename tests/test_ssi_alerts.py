@@ -9,11 +9,20 @@ Run:
     TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest tests/test_ssi_alerts.py -v
 """
 from settings import HOST
+import pytest
+
 from test_ssi_wire import (
     ssi_server,
     _handshake_login, _open_ssi, _read_response, _parse_ssi_reply,
 )
 from test_ssi_async import _submit, _parse_asynresp, kXR_attn, kXR_waitresp, kXR_ok
+
+# Shares the fixed-port `lc-ssi-wire` instance through the reused `ssi_server`
+# fixture, so it must run on the same xdist worker as its siblings: two workers
+# rendering/launching one instance race on a single config file (the loser sees
+# `no "events" section`).
+pytestmark = pytest.mark.xdist_group("lc-ssi-wire")
+
 
 
 def _next_ssi_frame(sock):

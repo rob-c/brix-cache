@@ -12,13 +12,15 @@
 #       move in exactly one direction, so this guards the guards: every listed
 #       backlog may shrink freely and may never grow.
 #
-#       Deliberately NOT covered: the analyzer baselines (fanalyzer_baseline.txt,
-#       codechecker_baseline.txt). They legitimately gain entries when new code
-#       produces a new false positive, and they carry their own review
+#       Deliberately NOT covered: the codechecker baseline
+#       (codechecker_baseline.txt). It legitimately gains entries when new code
+#       produces a new false positive, and it carries its own review
 #       discipline (`--regen` with a reviewed diff). A ratchet that fires on
 #       honest work gets regenerated blindly, which is worse than not having it.
 #       check_duplication.py needs no entry here: its backlog was burned down
 #       and deleted 2026-08-24 — the guard is zero-tolerance with no file to
+#       grow. Likewise run_fanalyzer.py since 2026-08-27: its baseline was
+#       burned to zero and deleted — the gate is zero-findings with no file to
 #       grow.
 #
 # HOW:  Read each backlog at the base revision and in the working tree, parse

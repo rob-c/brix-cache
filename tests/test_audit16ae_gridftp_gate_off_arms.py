@@ -83,7 +83,7 @@ class TestTheArmedAlloGateStillFires:
 
 
 # --------------------------------------------------------------------------- #
-# B. brix_gridftp_verify_write — the written `off` against its omission         #
+# B. brix_verify_write — the written `off` against its omission         #
 # --------------------------------------------------------------------------- #
 
 class TestTheWrittenVerifyOffEqualsItsOmission:

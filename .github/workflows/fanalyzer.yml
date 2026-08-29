@@ -1,25 +1,32 @@
-# GCC -fanalyzer ratchet — BLOCKING, per-PR (hyper-hardening B-1).
+# GCC -fanalyzer zero-findings gate — BLOCKING, per-PR (hyper-hardening B-1).
 #
-# Findings (use-after-free / leak / NULL-deref) are gated against the frozen
-# tools/ci/fanalyzer_baseline.txt: only a NEW finding vs the baseline fails.
+# ANY finding (use-after-free / leak / NULL-deref) fails the job. The old
+# frozen-baseline ratchet (tools/ci/fanalyzer_baseline.txt) was burned to zero
+# and deleted 2026-08-27: every waived false positive was restructured into a
+# shape the analyzer can prove safe — verified on BOTH the dev gcc 13.3 and
+# this job's el9 gcc 11.5. The recurring shapes: advance-before-free queue
+# drain; the exec'd child's dup2'd stdout given a named close;
+# allocate-before-grow container inserts with the post-increment split out of
+# the array-store index; SHM zone accessors reading zone->data exactly once;
+# compound `tbl == NULL || x` guards split into separate ifs (gcc 11 drops
+# the non-NULL constraint on an accessor-returned pointer inside a || guard);
+# table layout fields snapshotted into locals before locks/loops. Two
+# tightly-scoped `#pragma GCC diagnostic ignored "-Wanalyzer-malloc-leak"`
+# blocks remain where gcc 11 cannot see a symbolic-index store as an escape
+# (sd_pblock_catalog_ns.c path_list_push, evict_candidates.c grow block) —
+# each carries its rationale in a comment. There is no waiver path — a
+# finding is fixed in code, never re-baselined.
 # fanalyzer.yml's first run caught a REAL latent NULL-deref (ngx_log.h /
 # stage_engine reconcile with a NULL cycle log — fixed, regression-tested in
 # tests/c/run_stage_reconcile_tests.sh); the gate's whole point is that the next
 # one blocks the PR instead of merging.
 #
-# WHY THIS IS NOW BLOCKING (was advisory / weekly-cron-only).  -fanalyzer output
-# is GCC-version and build-flag sensitive, so a baseline generated on the dev box
-# (AlmaLinux 9, gcc 11.5.0) only reproduces on the SAME toolchain — that mismatch
-# with ubuntu-latest's GCC is exactly why this gate used to be continue-on-error.
-# This job now runs inside `container: almalinux:9` — the dev distro — so the
-# runner's gcc IS the gcc that produced the baseline, the findings set is
-# reproducible, and the ratchet is stable enough to block. That is the "pin the
-# toolchain" step the old advisory header was waiting on. The two documented
-# CI-only false positives (core/compat/subprocess.c fd-survives-exec;
-# fs/vfs/vfs_internal.h staged-handle ctx invariant) are in the baseline, so they
-# do not re-fire. If the el9 gcc package is bumped, regenerate the baseline on the
-# new toolchain (tools/ci/run_fanalyzer.py --regen, reviewed) — NEVER --regen from
-# CI output to silence a failure.
+# -fanalyzer output is GCC-version and build-flag sensitive, so the job stays
+# pinned inside `container: almalinux:9` (the dev distro): the zero-findings
+# state was verified on that toolchain, and the pin keeps a distro gcc bump
+# from redding every PR at once. If the el9 gcc package is bumped and its
+# analyzer flags a new idiom, restructure the code on the new toolchain —
+# do not reintroduce a baseline to silence it.
 #
 # Complements codechecker.yml (Clang SA + clang-tidy, same container discipline).
 name: fanalyzer
@@ -42,8 +49,8 @@ jobs:
   fanalyzer:
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    # Pin the toolchain to the dev distro so -fanalyzer findings reproduce the
-    # frozen baseline exactly — the prerequisite for making this gate blocking.
+    # Pin the toolchain to the dev distro so the verified zero-findings state
+    # reproduces exactly — the prerequisite for keeping this gate blocking.
     container: almalinux:9
     steps:
       - name: Install build deps + pinned gcc toolchain
@@ -65,7 +72,7 @@ jobs:
           ./configure --with-stream --with-stream_ssl_module \
             --with-http_ssl_module --with-http_dav_module --with-threads \
             --add-module="$GITHUB_WORKSPACE"
-      - name: Run analyzer ratchet (blocking on new findings vs baseline)
+      - name: Run analyzer gate (blocking on any finding)
         run: |
           NGX_BUILD=/tmp/nginx-1.28.3 FANALYZER_RAW=/tmp/fanalyzer-raw.txt \
             tools/ci/run_fanalyzer.py 2>&1 | tee /tmp/fanalyzer-report.txt

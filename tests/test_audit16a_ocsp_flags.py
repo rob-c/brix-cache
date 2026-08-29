@@ -14,7 +14,7 @@ class TestTheEnableFlagDecidesWhetherRevocationIsChecked:
         A site that writes `off` to work around a flaky responder is running
         with online revocation switched off, not degraded."""
         ok, result = _accepted(ocsp, OFF, pki, "revoked")
-        assert ok, ("brix_ocsp_enable off refused a revoked credential; either "
+        assert ok, ("brix_ocsp off refused a revoked credential; either "
                     "the flag no longer gates the check (update this test) or "
                     f"the chain is broken for an unrelated reason\n"
                     f"{result.stderr}\n{_errlog(ocsp)[-2000:]}")
@@ -27,14 +27,14 @@ class TestTheEnableFlagDecidesWhetherRevocationIsChecked:
         responder.reset()
         _accepted(ocsp, OFF, pki, "revoked")
         assert responder.queries() == [], \
-            f"brix_ocsp_enable off queried the responder: {responder.queries()}"
+            f"brix_ocsp off queried the responder: {responder.queries()}"
 
     def test_on_rejects_a_revoked_credential(self, ocsp, pki, responder):
         """REVOKED is never overridden (ocsp.c:116), so this holds on the
         soft-fail plane as well as the strict one."""
         responder.reset()
         ok, result = _accepted(ocsp, ON, pki, "revoked")
-        assert not ok, ("brix_ocsp_enable on accepted a credential the "
+        assert not ok, ("brix_ocsp on accepted a credential the "
                         f"responder calls REVOKED\n{result.stdout}")
         assert {"serial": CREDENTIALS["revoked"]["serial"],
                 "verdict": "revoked"} in responder.queries(), (
@@ -108,7 +108,7 @@ class TestTheSoftFailFlagDecidesWhatSilenceMeans:
 
 class TestTheMergeDefault:
     """conf_structs.h:532 merges the unset field to 1.  Soft-fail is therefore
-    the token every deployment that writes only `brix_ocsp_enable on` runs, and
+    the token every deployment that writes only `brix_ocsp on` runs, and
     until this class existed nothing asserted it from outside the C."""
 
     def test_the_absent_flag_tolerates_a_missing_answer(self, ocsp, pki):
@@ -269,7 +269,7 @@ class TestTheWorkerSurvivesTheQuery:
 # §F — the parse tier                                                          #
 # --------------------------------------------------------------------------- #
 
-FLAGS = ("brix_ocsp_enable", "brix_ocsp_soft_fail", "brix_ocsp_stapling",
+FLAGS = ("brix_ocsp", "brix_ocsp_soft_fail", "brix_ocsp_stapling",
          "brix_ocsp_require_nonce")
 
 
@@ -303,22 +303,22 @@ class TestTheParseTier:
         hand-rolled one that defaulted instead of erroring would turn `ON` into
         `off` with no diagnostic."""
         rc, out = _parse(tmp_path, f"        brix_auth none;\n"
-                                   f"        brix_ocsp_enable {token};\n")
-        assert rc == 0, f"brix_ocsp_enable {token} was refused:\n{out}"
+                                   f"        brix_ocsp {token};\n")
+        assert rc == 0, f"brix_ocsp {token} was refused:\n{out}"
 
     @pytest.mark.parametrize("token", ["1", "true", "yes", "soft"])
     def test_a_value_outside_the_pair_is_refused(self, tmp_path, token):
         """`1`, `true` and `yes` are the three words an operator reaches for
         that are not the pair, and none of them may parse into a silent
-        default: `brix_ocsp_enable 1` quietly meaning `off` would be a
+        default: `brix_ocsp 1` quietly meaning `off` would be a
         revocation check that never runs."""
         rc, out = _parse(tmp_path, f"        brix_auth none;\n"
-                                   f"        brix_ocsp_enable {token};\n")
-        assert rc != 0, f"brix_ocsp_enable {token} parsed:\n{out}"
+                                   f"        brix_ocsp {token};\n")
+        assert rc != 0, f"brix_ocsp {token} parsed:\n{out}"
         assert "invalid value" in out, out
 
-    @pytest.mark.parametrize("line", ["brix_ocsp_enable;",
-                                      "brix_ocsp_enable on off;"])
+    @pytest.mark.parametrize("line", ["brix_ocsp;",
+                                      "brix_ocsp on off;"])
     def test_the_directive_takes_exactly_one_argument(self, tmp_path, line):
         rc, out = _parse(tmp_path, f"        brix_auth none;\n        {line}\n")
         assert rc != 0, f"{line} parsed:\n{out}"
@@ -327,9 +327,9 @@ class TestTheParseTier:
     def test_the_directive_is_refused_outside_a_server(self, tmp_path):
         """NGX_STREAM_SRV_CONF only (module.c:509).  A stream-level line is a
         parse error, not a default inherited by every server — which matters
-        because an operator who wrote one stream-wide `brix_ocsp_enable on`
+        because an operator who wrote one stream-wide `brix_ocsp on`
         must not believe every listener is checking revocation."""
         rc, out = _parse(tmp_path, "        brix_auth none;\n",
-                         stream_extra="    brix_ocsp_enable on;\n")
-        assert rc != 0, f"brix_ocsp_enable was accepted in stream {{}}:\n{out}"
+                         stream_extra="    brix_ocsp on;\n")
+        assert rc != 0, f"brix_ocsp was accepted in stream {{}}:\n{out}"
         assert "directive is not allowed here" in out, out

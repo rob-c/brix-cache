@@ -11,7 +11,7 @@ or document in the tree has ever written.  ``brix_webdav_commands``
 five that are declared ``NGX_HTTP_LOC_CONF`` and nothing else.  Three of the
 remaining four share a wider declaration::
 
-    { ngx_string("brix_webdav_zip_access"),                              :405
+    { ngx_string("brix_zip_access"),                              :405
       NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
@@ -40,9 +40,9 @@ legal in THREE scopes, and ``NGX_HTTP_LOC_CONF_OFFSET`` means a value written in
 of every location below it.  So there is a configuration only ``off`` can
 express:
 
-    server { brix_webdav_zip_access on;
+    server { brix_zip_access on;
              location /inherit/ { }                            -> inherits `on`
-             location /opt-out/  { brix_webdav_zip_access off; } -> the reading }
+             location /opt-out/  { brix_zip_access off; } -> the reading }
 
 Absence in ``/opt-out/`` inherits the server's ``on``.  ``off`` is the ONLY
 spelling that turns the feature off for one location of an otherwise-enabled
@@ -50,7 +50,7 @@ server, and until this file nothing in the tree had ever written it — so the
 per-location opt-out had never been executed for any of the three.
 
 The second thing three scopes buy is the SERVER-scope setter itself, in either
-arm: ``srv-off.test`` writes all of ``brix_webdav_zip_access off`` and
+arm: ``srv-off.test`` writes all of ``brix_zip_access off`` and
 ``brix_webdav_require_digest off`` in a ``server{}``, and ``dig-srvoff.test``
 writes ``brix_webdav_dig off`` there.  The corpus had never written any of the
 three in a ``server{}`` at all.
@@ -61,7 +61,7 @@ Every row below is measured, not predicted.  The arms are the same location body
 with one token changed, so a verdict that differs between two of them is the flag
 and nothing else.
 
-§A  brix_webdav_zip_access — get_zip_member_serve (get.c:152-172) is reached only
+§A  brix_zip_access — get_zip_member_serve (get.c:152-172) is reached only
     when the flag is set; without it the query argument is never looked at::
 
       GET a.zip?xrdcl.unzip=m.txt        on -> 200 the MEMBER (16 bytes)
@@ -192,7 +192,7 @@ WHAT THIS FILE DOES NOT CLAIM
   coexist with the bare arms that read the merge default of 0; §D reads main
   scope at parse time and the runtime tier reads the default.
 * Nothing about ZIP central-directory limits, deflate members, ranges or the
-  ``brix_webdav_zip_cd_max_bytes`` cap — those are test_zip_member.py and
+  ``brix_zip_cd_max_bytes`` cap — those are test_zip_member.py and
   test_audit15c_zip_cd_caps.py.  §A uses one stored member because the subject is
   whether the argument is consulted, not how a member is served.
 * Nothing about digest algorithm coverage or hex normalisation beyond the four
@@ -246,7 +246,7 @@ CODEC_CORE_C = ROOT / "src/core/compat/codec_core.c"
 
 # The three, and the loc_conf field each setter writes.
 FLAGS = (
-    ("brix_webdav_zip_access", "zip_access"),
+    ("brix_zip_access", "zip_access"),
     ("brix_webdav_require_digest", "require_digest"),
     ("brix_webdav_dig", "dig_enable"),
 )
@@ -430,7 +430,7 @@ def sc(lifecycle, tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-# §A — brix_webdav_zip_access                                                  #
+# §A — brix_zip_access                                                  #
 # --------------------------------------------------------------------------- #
 
 def _unzip(sc, host, prefix, member):

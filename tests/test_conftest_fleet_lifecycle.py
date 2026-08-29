@@ -95,6 +95,45 @@ def test_owned_orphan_listener_is_reaped_instead_of_attached(
     assert conftest._foreign_fleet_collision is False
 
 
+class _ProcFile:
+    """read()-able, context-manageable stand-in for one faked /proc file."""
+
+    def __init__(self, data):
+        self._data = data if isinstance(data, bytes) else str(data).encode()
+
+    def read(self):
+        return self._data
+
+    def close(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def _fake_proc_open(comms, cmdlines):
+    """builtins.open replacement serving faked /proc files, real files else."""
+    real_open = open
+
+    def fake_open(path, mode="r", *args, **kwargs):
+        p = str(path)
+        if not p.startswith("/proc/"):
+            return real_open(path, mode, *args, **kwargs)
+        pid = int(p.split("/")[2])
+        if p.endswith("/stat"):
+            return _ProcFile(b"%d (%s) S 1 0" % (pid, comms[pid].encode()))
+        if p.endswith("/comm"):
+            return _ProcFile(comms.get(pid, "") + "\n")
+        if p.endswith("/cmdline"):
+            return _ProcFile(cmdlines.get(pid, "").replace(" ", "\x00"))
+        return _ProcFile(b"")
+
+    return fake_open
+
+
 def test_leak_reaper_only_kills_exact_test_root(monkeypatch):
     """Legacy shared /tmp markers must not make one lane kill another lane.
 
@@ -111,6 +150,8 @@ def test_leak_reaper_only_kills_exact_test_root(monkeypatch):
         303: "xrootd -c /tmp/xrd/reference.cfg",                # shared marker
     }
 
+    comms = {101: "nginx", 202: "nginx", 303: "xrootd"}
+
     monkeypatch.setattr(conftest, "TEST_ROOT", "/tmp/brix-tests/lane-b")
 
     def fake_pgrep(argv, **kwargs):
@@ -118,14 +159,13 @@ def test_leak_reaper_only_kills_exact_test_root(monkeypatch):
         live = [pid for pid in by_exe.get(argv[-1], []) if int(pid) not in killed]
         return types.SimpleNamespace(stdout="\n".join(live) + ("\n" if live else ""))
 
-    monkeypatch.setattr(conftest.subprocess, "run", fake_pgrep)
-    monkeypatch.setattr(
-        "builtins.open",
-        lambda path, mode: (
-            _ProcFile(b"(nginx) 1 1") if path.endswith("/stat")
-            else _ProcFile(cmdlines.get(path.split("/")[2], b""))
-        ),
-    )
+    # The seams live in fleet_orphans (conftest only delegates): its pgrep,
+    # its /proc reads, its os.kill.  The foreign-lane claim check has its own
+    # unit tests — stub it so this test measures ownership scoping alone.
+    monkeypatch.setattr(fleet_orphans.subprocess, "run", fake_pgrep)
+    monkeypatch.setattr(fleet_orphans, "lane_harnesses",
+                        lambda test_root, exes: [])
+    monkeypatch.setattr("builtins.open", _fake_proc_open(comms, cmdlines))
     monkeypatch.setattr(os, "kill", lambda pid, sig: killed.append(pid))
     # Candidate discovery unions the REAL /proc listing with pgrep; on a host
     # where a live process happens to hold pid 101, the patched open() hands it

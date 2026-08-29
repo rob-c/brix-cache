@@ -58,18 +58,6 @@ brix_cache_dirlist_add(brix_cache_dirlist_t *dl, const char *name, size_t len)
 {
     char *copy;
 
-    if (dl->count == dl->cap) {
-        size_t   new_cap = (dl->cap == 0) ? 16 : dl->cap * 2;
-        char   **grown = realloc(dl->names, new_cap * sizeof(*grown));
-
-        if (grown == NULL) {
-            errno = ENOMEM;
-            return -1;
-        }
-        dl->names = grown;
-        dl->cap   = new_cap;
-    }
-
     copy = malloc(len + 1);
     if (copy == NULL) {
         errno = ENOMEM;
@@ -78,7 +66,21 @@ brix_cache_dirlist_add(brix_cache_dirlist_t *dl, const char *name, size_t len)
     ngx_memcpy(copy, name, len);
     copy[len] = '\0';
 
-    dl->names[dl->count++] = copy;
+    if (dl->count == dl->cap) {
+        size_t   new_cap = (dl->cap == 0) ? 16 : dl->cap * 2;
+        char   **grown = realloc(dl->names, new_cap * sizeof(*grown));
+
+        if (grown == NULL) {
+            free(copy);
+            errno = ENOMEM;
+            return -1;
+        }
+        dl->names = grown;
+        dl->cap   = new_cap;
+    }
+
+    dl->names[dl->count] = copy;
+    dl->count++;
     return 0;
 }
 

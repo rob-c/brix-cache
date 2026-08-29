@@ -17,11 +17,17 @@ def built_corpus(tmp_path_factory):
 
     build_all(ALL_CLAUSES) generates ~560 conformance scenarios (a distinct
     keypair per credential + openssl forks for the weak-digest cases), which
-    is ~80s of CPU-bound work.  The two consumers below previously each called
-    it, doubling the cost to ~160s and — running unmarked in the parallel bulk
+    is CPU-bound work whose cost is hardware-dependent: ~80s on the perf host,
+    ~320s on a modest dev box (measured).  The two consumers below previously
+    each called it, doubling that and — running unmarked in the parallel bulk
     lane at the 30s default timeout — always timing out and crashing xdist
     workers.  Building once here, behind the slow/serial markers on the
     consumers, keeps the corpus smoke test honest without melting the box.
+
+    The consumers deliberately carry NO per-test timeout override: the build
+    happens inside whichever of them runs first, so a 240s cap failed the pair
+    on any box slower than the perf host.  The module-level 900s budget still
+    catches a genuine hang.
     """
     return x509forge.build_all(tmp_path_factory.mktemp("x509conf") / "conf",
                                ALL_CLAUSES)
@@ -35,7 +41,6 @@ def test_registry_nonempty_unique():
 
 @pytest.mark.slow
 @pytest.mark.serial
-@pytest.mark.timeout(240)
 def test_build_all_materializes(built_corpus):
     root = built_corpus
     manifest = json.loads((root / "manifest.json").read_text())
@@ -51,7 +56,6 @@ def test_build_all_materializes(built_corpus):
 
 @pytest.mark.slow
 @pytest.mark.serial
-@pytest.mark.timeout(240)
 def test_shared_ca_dir_has_hash_links(built_corpus):
     root = built_corpus
     names = [p.name for p in (root / "shared" / "ca").iterdir()]

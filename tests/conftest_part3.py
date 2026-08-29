@@ -1,6 +1,7 @@
 """Collection policy and shared local/remote suite fixtures."""
 
 import os
+import re
 import shutil
 import random
 import socket
@@ -430,11 +431,27 @@ def _enforce_server_declarations(config, items):
     raise pytest.UsageError(report)
 
 
-def _add_xdist_group(item, group, suffix=False):
-    item.add_marker(pytest.mark.xdist_group(group))
+def _add_xdist_group(item, group, suffix=False, prepend=False):
+    # append=False puts the marker FIRST, so get_closest_marker() returns it —
+    # the only way to override a stale group a module hard-coded for itself.
+    item.add_marker(pytest.mark.xdist_group(group), append=not prepend)
     marker = f"@{group}"
     if suffix and not item.nodeid.endswith(marker):
         item._nodeid = f"{item.nodeid}{marker}"
+
+
+def _force_xdist_group(item, group):
+    """Put `item` in `group` for the loadgroup SCHEDULER, not just the marker.
+
+    --dist loadgroup schedules on the ``@group`` suffix xdist appends to the
+    nodeid, and xdist computes that during ITS collection hook.  A marker this
+    conftest adds afterwards is therefore invisible to the scheduler: the group
+    silently does nothing.  Rewrite the suffix ourselves, replacing whatever
+    xdist already appended from a module's own (stale) mark.
+    """
+    item.add_marker(pytest.mark.xdist_group(group), append=False)
+    base = item.nodeid.split("@", 1)[0]
+    item._nodeid = f"{base}@{group}"
 
 
 def _mark_path_groups(item, name):
@@ -480,12 +497,114 @@ def _interop_module(item):
     return None
 
 
+_INTEROP_PORT_CALL = re.compile(r"worker_port\(\s*(\d+)\s*\)")
+_INTEROP_REEXPORT = re.compile(r"(?:reexport|load)\(\s*globals\(\)\s*,[^)]*?"
+                               r"[\"']([A-Za-z0-9_.]+)[\"']")
+
+
+def _interop_bases_in(path, seen=None):
+    """Every worker_port() base a test module binds, following its split helpers.
+
+    A split module reexports its helper by exec'ing it into its own namespace,
+    so the helper's ports are the MODULE's ports; a few modules also allocate
+    another family's base directly.  Both must count.
+    """
+    seen = seen if seen is not None else set()
+    if not _interop_scan_wanted(path, seen):
+        return set()
+    seen.add(path)
+    text = path.read_text(encoding="utf-8", errors="replace")
+    bases = {int(b) for b in _INTEROP_PORT_CALL.findall(text)}
+    for name in _INTEROP_REEXPORT.findall(text):
+        bases |= _interop_bases_in(_interop_helper_path(path, name), seen)
+    return bases
+
+
+def _interop_scan_wanted(path, seen):
+    """True when `path` is a file worth scanning and not already visited."""
+    return path not in seen and path.exists()
+
+
+def _interop_helper_path(path, name):
+    """Sibling module path for a reexport/load target ('x' or 'x.py')."""
+    stem = name[:-3] if name.endswith(".py") else name
+    return path.with_name(stem + ".py")
+
+
+def _interop_port_groups():
+    """module stem -> xdist group name, keyed on the PORTS the module binds.
+
+    ``worker_port()`` hands out ONE fixed ladder port per interop base and its
+    contract is that "the owning module runs on ONE xdist worker".  Grouping by
+    module NAME broke that contract wherever a base is shared: the split-file
+    siblings (X, X_b, X_c) reexport one helper and so bind the SAME ports, and
+    test_deep_tree_special_files allocates two other families' bases outright —
+    48 of the 65 bases have more than one owner.  Two owners scheduled onto
+    different workers both bind the port, the loser dies with
+
+        nginx: [emerg] bind() to 127.0.0.1:PORT failed (98: Address already in use)
+
+    the pair launch raises, and the whole module SKIPS.  That silently cost ~526
+    conf-interop tests per fast run.  Grouping by shared ports instead puts every
+    co-owner of a port on one worker (transitively, since a module can bridge two
+    families) and leaves everything else parallel.
+    """
+    cached = getattr(_interop_port_groups, "_cache", None)
+    if cached is not None:
+        return cached
+    tests_dir = Path(__file__).resolve().parent
+    owners = {}
+    for path in sorted(tests_dir.glob("test_*.py")):
+        for base in _interop_bases_in(path):
+            owners.setdefault(base, []).append(path.stem)
+    groups = _merge_port_owners(owners)
+    _interop_port_groups._cache = groups
+    return groups
+
+
+def _merge_port_owners(owners):
+    """Union the co-owners of every port into one group per connected component.
+
+    Transitive on purpose: if A and B share port 1 and B and C share port 2, all
+    three must land on the same worker.
+    """
+    parent = {}
+
+    def find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)
+
+    for names in owners.values():
+        for name in names[1:]:
+            union(names[0], name)
+    return {name: f"interop-{find(name)}" for name in parent}
+
+
 def _mark_interop_group(item):
-    if _has_xdist_group(item):
-        return
     module = _interop_module(item)
-    if module is not None:
-        _add_xdist_group(item, module.__name__)
+    if module is None:
+        return
+    stem = module.__name__.rsplit(".", 1)[-1]
+    computed = _interop_port_groups().get(stem)
+    if computed is None:
+        # Imports the interop library but binds no FIXED ladder port, so it has
+        # nothing to collide over — respect whatever group it chose for itself.
+        if not _has_xdist_group(item):
+            _add_xdist_group(item, module.__name__, suffix=True)
+        return
+    # It DOES bind fixed ladder ports, so it must own a worker, and every
+    # co-owner of a port must own the SAME one (48 of the 65 bases have more
+    # than one owner).  A per-module group it declared for itself is exactly
+    # what split those co-owners apart, so the computed group overrides it.
+    _force_xdist_group(item, computed)
 
 
 def _mark_collection_item(item, name):

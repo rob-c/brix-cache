@@ -64,6 +64,14 @@ def _make_payload(tmp_path, size=65536):
 # success — live histogram semantics over the shared fleet endpoint
 # ---------------------------------------------------------------------------
 
+# serial: this is the only cell here that asserts an EXACT delta (==1).
+# ops_total is a process-global SHM counter on the SHARED "main"
+# instance, so every concurrent uploader in the parallel lane lands in
+# the same delta (observed: 6) and no amount of retrying recovers it.
+# The serial lane has no other writer, where ==1 — the double-count
+# guard — is exactly as strong as intended.  Its sibling cells use >=
+# and stay in the parallel lane.
+@pytest.mark.serial
 @pytest.mark.registry_server("main")
 def test_write_books_one_op_and_one_latency_sample(tmp_path):
     """One upload = exactly one booked write op and one latency sample.

@@ -323,7 +323,7 @@ def test_low_speed_bound_aborts_a_stalled_pull(tpctune):
 
 
 def test_token_exchange_delegates_to_the_source(tpctune):
-    """brix_webdav_tpc_token_client_id/_secret: a COPY carrying
+    """brix_tpc_outbound_client_id/_secret: a COPY carrying
     `Credential: token-exchange` exchanges the caller's bearer at the IdP and
     presents the DELEGATED token to the source — the user's own subject token
     must not travel onward."""

@@ -157,7 +157,12 @@ class LifecycleHarness:
                 self.launcher.stop(name)
             except Exception:
                 pass
-            unregister(name)
+            finally:
+                # pytest-timeout raises BaseException-derived outcomes that are
+                # intentionally not swallowed above.  Registry ownership must
+                # still be released or every later fixture using this fixed
+                # lifecycle name fails before it can launch.
+                unregister(name)
         self._names.clear()
 
     def _spec(self, name: str) -> NginxInstanceSpec:

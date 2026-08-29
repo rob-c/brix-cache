@@ -32,6 +32,7 @@ from settings import BIND_HOST, NGINX_BIN as H_NGINX
 from metrics_helpers import value
 
 import _test_session_bind_helpers as H
+from ephemeral_port import free_port
 
 OFFLOAD = "brix_io_offload_total"
 STREAM = {"proto": "stream"}
@@ -39,7 +40,7 @@ STREAM = {"proto": "stream"}
 
 def _free_port():
     s = socket.socket()
-    s.bind((BIND_HOST, 0))
+    s.bind((BIND_HOST, free_port()))  # leased mock-range port (never kernel-assigned)
     port = s.getsockname()[1]
     s.close()
     return port

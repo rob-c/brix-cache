@@ -61,7 +61,9 @@ def _guard_test_no_other_construct_pastes_a_directive_name_together_1(match, str
 REPO = Path(__file__).resolve().parent.parent
 SRC = REPO / "src"
 TIER_HEADER = SRC / "core" / "config" / "tier_directives.h"
-CALL_SITE_HTTP = SRC / "core" / "config" / "http_common.c"
+# phase-103 file-size split: the HTTP command table (and the tier macro
+# call) moved from http_common.c into its directive-family header.
+CALL_SITE_HTTP = SRC / "core" / "config" / "http_directives_ops.h"
 CALL_SITE_STREAM = SRC / "protocols" / "root" / "stream" / "directives_tier.h"
 DIRECTIVES_DOC = REPO / "docs" / "03-configuration" / "directives.md"
 
@@ -211,10 +213,10 @@ def test_the_factories_are_invoked_only_with_the_brix_prefix():
 def test_the_generated_inventory_is_the_expected_size():
     tier, async_ = _suffixes("BRIX_TIER_DIRECTIVES"), \
         _suffixes("BRIX_BACKEND_ASYNC_DIRECTIVES")
-    assert len(tier) == 17, tier
+    assert len(tier) == 18, tier   # +cache_uvkeep (2026-08-10, §4.3)
     assert len(async_) == 3, async_
     assert len(set(tier) & set(async_)) == 0, "a suffix belongs to one family"
-    assert len(_generated_names()) == 20, sorted(_generated_names())
+    assert len(_generated_names()) == 21, sorted(_generated_names())
 
 
 # --------------------------------------------------------------------------- #
@@ -223,7 +225,7 @@ def test_the_generated_inventory_is_the_expected_size():
 
 
 def test_the_tier_grammar_is_invisible_to_a_literal_directive_scan():
-    """The §E claim, pinned to the byte: 17 of the 20 generated directives have
+    """The §E claim, pinned to the byte: 18 of the 21 generated directives have
     no `ngx_string("<name>")` anywhere in src/, so the scan the audit's §Method
     used — and every other name-based guard — reports them as nonexistent."""
     blob = _src_blob()
@@ -234,7 +236,7 @@ def test_the_tier_grammar_is_invisible_to_a_literal_directive_scan():
         "the literal/macro-only split moved. A name that gained a literal "
         f"declaration is now double-declared; a name that lost one just went "
         f"invisible to every name-based guard. visible={sorted(visible)}")
-    assert len(invisible) == 17, sorted(invisible)
+    assert len(invisible) == 18, sorted(invisible)
 
 
 def test_the_hand_maintained_call_site_comment_still_lists_every_directive():
@@ -259,7 +261,7 @@ def test_the_documentation_gap_matches_the_macro_hole():
 
 def test_every_generated_directive_is_exercised_by_the_test_corpus():
     """The audit's own closure condition, applied to the names it had to
-    expand by hand: all 20 appear in a template or an inline config."""
+    expand by hand: all 21 appear in a template or an inline config."""
     blob = _tests_blob()
     missing = sorted(n for n in _generated_names() if not _mentions(blob, n))
     assert missing == [], (

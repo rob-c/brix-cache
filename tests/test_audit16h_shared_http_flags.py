@@ -192,6 +192,23 @@ ORIGIN_PORT = LIFECYCLE_SHARED_PORTS[NAME]["extra"]["ORIGIN_PORT"]
 ROOT = Path(__file__).resolve().parents[1]
 HTTP_COMMON_C = ROOT / "src/core/config/http_common.c"
 SHARED_H = ROOT / "src/core/config/shared_conf.h"
+# The merge implementation lives in the phase-103 split file, included by
+# SHARED_H at the point the old inline function sat; the merge-anchored pins
+# read both.
+SHARED_MERGE_H = ROOT / "src/core/config/shared_conf_merge.h"
+
+
+def _shared_text():
+    return SHARED_H.read_text() + SHARED_MERGE_H.read_text()
+
+
+# The six flags' ngx_command_t rows live in the directive-family headers the
+# common module's command table #includes (http_directives_core.h et al).
+def _http_common_commands_text():
+    text = HTTP_COMMON_C.read_text()
+    for header in sorted((ROOT / "src/core/config").glob("http_directives_*.h")):
+        text += header.read_text()
+    return text
 PUT_SETUP_C = ROOT / "src/protocols/webdav/put_setup.c"
 OP_PATH_C = ROOT / "src/protocols/root/path/op_path.c"
 COMPRESS_H = ROOT / "src/core/http/http_compress.h"

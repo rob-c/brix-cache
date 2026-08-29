@@ -153,7 +153,7 @@ def test_wd_05_wrong_aud_reject():
     WHY:  Audience validation prevents tokens issued for other services from
           being replayed against this endpoint.
     HOW:  aud_value("wrong-aud") sets a scalar audience that does not match
-          the configured brix_webdav_token_audience "nginx-xrootd".
+          the configured brix_token_audience "nginx-xrootd".
     """
     tok = _forge().aud_value("wrong-aud")
     assert webdav_bearer(tok, "/test.txt", port=WD) == "reject"

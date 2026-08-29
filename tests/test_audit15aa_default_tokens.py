@@ -183,11 +183,11 @@ class TestTheTwoStsTables:
 
     def test_the_post_merge_fallback_agrees_with_the_merge(self):
         """deleg_wire.c:40 re-tests backend_sts_flavor against
-        NGX_CONF_UNSET_UINT after shared_conf.h:424 has already folded it, and
+        NGX_CONF_UNSET_UINT after the shared merge has already folded it, and
         falls back to BRIX_STS_FLAVOR_AWS.  The branch is unreachable while the
         merge runs, which makes it harmless and invisible — right up to the day
         the merge default changes and the two disagree.  Assert they agree."""
-        default = _constant(_merge_default("src/core/config/shared_conf.h",
+        default = _constant(_merge_default("src/core/config/shared_conf_merge.h",
                                            "backend_sts_flavor"))
         flat = _flat(_source("src/protocols/shared/deleg_wire.c"))
         hit = re.search(r"cf->flavor = \(cc->backend_sts_flavor != "

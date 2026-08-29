@@ -22,6 +22,7 @@ import urllib.error
 import pytest
 
 from settings import NGINX_BIN
+from ephemeral_port import free_port
 
 pytestmark = pytest.mark.skipif(
     not os.path.exists(NGINX_BIN),
@@ -31,7 +32,7 @@ pytestmark = pytest.mark.skipif(
 
 def _free_port():
     s = socket.socket()
-    s.bind(("127.0.0.1", 0))  # net-literal-allow: mock shim binds loopback ephemeral by design
+    s.bind(("127.0.0.1", free_port()))  # net-literal-allow: loopback mock shim; leased mock-range port (never kernel-assigned)
     p = s.getsockname()[1]
     s.close()
     return p

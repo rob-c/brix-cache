@@ -9,13 +9,13 @@ authority and this server dials it.  Four location flags decide what that
 socket is allowed to reach and whose credential rides on it, and the corpus had
 only ever written the arm that OPENS each control —
 
-    brix_webdav_tpc_allow_local        default OFF.  Twenty-odd configs in the
+    brix_tpc_allow_local        default OFF.  Twenty-odd configs in the
                                        tree write `on` (a test source is always
                                        on loopback); the DEFAULT — the arm that
                                        actually ships — was asserted nowhere.
-    brix_webdav_tpc_allow_private      default ON.  The `off` arm appears in no
+    brix_tpc_allow_private      default ON.  The `off` arm appears in no
                                        config, test or template anywhere.
-    brix_webdav_tpc_source_guard       default OFF.  Only `on` was ever written,
+    brix_tpc_source_guard       default OFF.  Only `on` was ever written,
                                        so what an allowlist does on a location
                                        whose guard is off — the shape of a
                                        plausible operator mistake — was untested.
@@ -286,7 +286,7 @@ def _egress_line_for(delta, host):
 # ---------------------------------------------------------------------------
 
 class TestTheLoopbackRangeGateDefault:
-    """`brix_webdav_tpc_allow_local` ships OFF and every config in the tree
+    """`brix_tpc_allow_local` ships OFF and every config in the tree
     turns it on, so the arm that actually protects a deployment had never been
     exercised: a COPY naming a loopback source must be refused."""
 
@@ -456,7 +456,7 @@ class TestTheSameGateOnTheMarkerPath:
 # ---------------------------------------------------------------------------
 
 class TestThePrivateRangeGate:
-    """`brix_webdav_tpc_allow_private` ships ON — a gateway will happily pull
+    """`brix_tpc_allow_private` ships ON — a gateway will happily pull
     from RFC-1918 space unless told otherwise.  The `off` arm is written in no
     config anywhere in the tree, so the control an operator on a private
     network would actually reach for had never been run."""
@@ -525,7 +525,7 @@ class TestThePrivateRangeGate:
 # ---------------------------------------------------------------------------
 
 class TestTheNamingAllowlistWhenTheGuardIsOff:
-    """`brix_webdav_tpc_source_guard` ships OFF, and its allowlist is a
+    """`brix_tpc_source_guard` ships OFF, and its allowlist is a
     separate directive.  Writing the allowlist without arming the guard is the
     shape of a plausible operator mistake, and the corpus had never written the
     `off` arm at all — so what the allowlist does in that state was unmeasured.
