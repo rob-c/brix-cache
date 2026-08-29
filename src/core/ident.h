@@ -30,7 +30,7 @@
  * literal fallback, the CHANGELOG's top entry, and the git tag. Bumping it
  * alone is not a release — follow docs/09-developer-guide/release-process.md;
  * tools/ci/check_version_sync.py fails the build if the derived copies drift. */
-#define BRIX_SERVER_VERSION_BARE  "1.4.0"
+#define BRIX_SERVER_VERSION_BARE  "1.5.0"
 #define BRIX_SERVER_VERSION       "v" BRIX_SERVER_VERSION_BARE
 
 #endif /* BRIX_CORE_IDENT_H */

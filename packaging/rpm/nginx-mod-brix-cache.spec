@@ -4,7 +4,7 @@
 # build-rpm-container.sh and the builder Dockerfiles derive version_override
 # from it automatically; the literal fallback below is only for a bare
 # rpmbuild invocation and must be kept in sync with ident.h.
-%global upstream_version %{?version_override}%{!?version_override:1.4.0}
+%global upstream_version %{?version_override}%{!?version_override:1.5.0}
 
 # --- phase-42 optional compression codecs (gzip/deflate via zlib are always on) ---
 # Each non-zlib codec is compile-gated by ./configure's pkg-config probe and
@@ -220,7 +220,10 @@ brixMount: the native BriX CVMFS FUSE client.  Mounts cvmfs:// repositories
 with CAS verification and an optional writable overlay (cvmfs-rw), and also
 fronts the xrootdfs async driver via `brixMount xrootdfs <endpoint>`.  Split
 out of brix-cache-client so a cache/mount tier can deploy and test it
-standalone.
+standalone.  The same multi-call binary also provides the `brixcvmfs`
+(Stratum-0 repo CLI), `brixoci` (OCI image/registry tool) and `brixrpm` (RPM
+repodata mirror) argv[0] personalities, so those commands ship here alongside
+brixMount as symlinks to it.
 
 # ---------------------------------------------------------------------------
 # Subpackage: /cvmfs automount stack (umbrella daemon service + mount helper)
@@ -652,7 +655,12 @@ fi
 %files -n brix-cvmfs-fuse
 %license LICENSE
 %{_bindir}/brixMount
+# argv[0] personalities of the same multi-call binary (symlinks -> brixMount).
+%{_bindir}/brixcvmfs
+%{_bindir}/brixoci
+%{_bindir}/brixrpm
 %{_mandir}/man1/brixMount.1*
+%{_mandir}/man1/brixcvmfs.1*
 %{_datadir}/bash-completion/completions/brixMount
 
 %files -n brix-cvmfs-automount
@@ -811,6 +819,20 @@ fi
 %endif
 
 %changelog
+* Wed Aug 26 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.5.0-1
+- Version 1.5.0.  Full release notes in CHANGELOG.md; packaging-relevant
+  highlights only below.
+- New security directives ship in the main module, no new subpackages:
+  per-host auth policy (brix_protbind / brix_webdav_protbind, stock
+  sec.protbind parity) and per-capability TLS gating (brix_tls_require, stock
+  xrootd.tls parity).
+- Behaviour change on upgrade: cleartext ztn (bearer-token) auth is now
+  refused by default; lab rigs that drive the raw wire without TLS opt back in
+  with the new "brix_ztn_cleartext on" stream directive.
+- Breaking config change: the dead throttle engines were removed, so
+  brix_throttle_max_active_connections is now an unknown directive and a config
+  that still names it fails nginx -t.  Action: delete the line; the enforced
+  per-user cap brix_throttle_max_open_files is unchanged.
 * Mon Aug 03 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.4.0-1
 - Version 1.4.0.  Full release notes in CHANGELOG.md; packaging-relevant
   highlights only below.
