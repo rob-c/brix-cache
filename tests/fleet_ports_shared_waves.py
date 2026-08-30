@@ -363,6 +363,9 @@ LIFECYCLE_SHARED_PORTS_WAVES: dict[str, dict] = {
     "lc-pblock-quota-ok": {"port": 30237},
     "lc-pblock-quota-full": {"port": 30238},
     "lc-pblock-quota-uid": {"port": 30239},
+    # Out of numeric order: the quota family was contiguous 30237-30239 when
+    # the Qspace/QFSinfo driver-space test arrived; 30240+ were already taken.
+    "lc-pblock-quota-qspace": {"port": 30917},
     "lc-pblock-snap-ok": {"port": 30240},
     "lc-pblock-snap-sec": {"port": 30241},
     "lc-pblock-snap-off": {"port": 30242},

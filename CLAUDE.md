@@ -7,7 +7,7 @@ For the full operating protocol (session handoff, memory discipline, bug logging
 
 # nginx-xrootd AGENT GUIDE v3.9 [2026-07-15] — pointer-compact
 
-**FULL REFERENCE — grep docs/09-developer-guide/agent-guide-extended.md by section header BEFORE coding:** ROUTING · OP→FILE tables (use FIRST to find code) · HELPERS · INVARIANTS + HARD BLOCKS full text · errno→kXR→HTTP · BUILD GOVERNANCE · RECIPES · FAQ · DEBUG. Coding standard (MANDATORY before editing `src/` `shared/` `client/`): docs/09-developer-guide/coding-standards.md. Wire spec: `/tmp/brix-src/src/XProtocol/XProtocol.hh`. SRC topology: 7 buckets `core/ protocols/ fs/ auth/ net/ observability/ tpc/` — full block + map in extended guide.
+**FULL REFERENCE — grep docs/09-developer-guide/agent-guide-extended.md by section header BEFORE coding:** ROUTING · FINDING CODE (symbol→file: rg, then clangd) · OP→FILE tables (use FIRST to find code) · HELPERS · INVARIANTS + HARD BLOCKS full text · errno→kXR→HTTP · BUILD GOVERNANCE · RECIPES · FAQ · DEBUG. Coding standard (MANDATORY before editing `src/` `shared/` `client/`): docs/09-developer-guide/coding-standards.md. Wire spec: `/tmp/brix-src/src/XProtocol/XProtocol.hh`. SRC topology: 7 buckets `core/ protocols/ fs/ auth/ net/ observability/ tpc/` — full block + map in extended guide.
 
 **Core rules:** use existing HELPERS (table in extended guide) — never reimplement path/auth/metrics/framing · 3 tests per change: success + error + security-neg · NO `goto`; functional/modular, early-return.
 

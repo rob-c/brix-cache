@@ -77,3 +77,28 @@ def test_xroot_gateway_regressions(tmp_path):
 
     _assert_test_xroot_gateway_regressions_8()
     _check_test_xroot_gateway_regressions_2(messages)
+    def _assert_test_xroot_gateway_regressions_8():
+        # Checksum offload (driver query_checksum slot): success + fallback +
+        # security-neg, with the origin access log as the read/query witness.
+        assert "gateway Qcksum (default alg) returns the origin digest" in messages
+        assert "offloaded Qcksum queried the origin without reading bytes" in messages
+
+    _assert_test_xroot_gateway_regressions_8()
+    def _assert_test_xroot_gateway_regressions_9():
+        assert "non-origin algorithm falls back to compute correctly" in messages
+        assert "compute fallback read the object bytes from the origin" in messages
+        assert "Qcksum errors on missing and traversal paths" in messages
+
+    _assert_test_xroot_gateway_regressions_9()
+    def _assert_test_xroot_gateway_regressions_10():
+        # Space delegation (driver space slot): success + origin-log witness +
+        # security-neg + origin-down statvfs fallback.
+        assert "gateway Qspace reports origin-derived totals" in messages
+        assert "gateway Qspace delegated to the origin (origin QUERY space logged)" in messages
+
+    _assert_test_xroot_gateway_regressions_10()
+    def _assert_test_xroot_gateway_regressions_11():
+        assert "gateway Qspace rejects an empty (relative) path" in messages
+        assert "gateway Qspace falls back to local statvfs when the origin is down" in messages
+
+    _assert_test_xroot_gateway_regressions_11()

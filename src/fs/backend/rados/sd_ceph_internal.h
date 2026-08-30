@@ -178,7 +178,83 @@ typedef struct {
     mode_t              mode;
 } sd_ceph_open_req_t;
 
+/* sd_ceph_cred_ioctx_t — the connection ONE namespace op runs on, plus the
+ * transient connection (if any) that op must release when it returns.
+ *
+ * A namespace op — unlike open()/opendir()/staged_open() — leaves no handle
+ * behind: the whole rados_* exchange happens inside the slot call. So it does
+ * not pin (there is nothing to outlive the call) and instead destroys a
+ * transient, uncached connection on the way out. `ioctx` is the export's own
+ * service ioctx when the credential carries no CephX keyring; `transient` is
+ * NULL for both that case and a cache hit — the LRU owns those. */
+typedef struct {
+    rados_ioctx_t   ioctx;
+    sd_ceph_conn_t *transient;
+} sd_ceph_cred_ioctx_t;
+
 /* ---- cross-TU driver-private helpers ------------------------------------- */
+
+/* sd_ceph_cred_ioctx_get / _put — defined in sd_ceph_cred.c, used by every
+ * cred-scoped NAMESPACE slot (sd_ceph_ns_cred.c).
+ *
+ * _get resolves `cred` to the ioctx the op must run on: the requesting user's
+ * own CephX connection when the cred carries a keyring, else the export's
+ * service ioctx — EXCEPT under fallback_deny, where a cred this driver cannot
+ * present must refuse (EACCES) rather than silently execute as the service
+ * account, exactly as sd_ceph_open_cred refuses. Returns 0, or -1 with errno.
+ * _put releases whatever _get took; it is safe to call on a zeroed record and
+ * MUST be called on every exit path of a slot that called _get. */
+int  sd_ceph_cred_ioctx_get(sd_ceph_state_t *st, ngx_pool_t *pool,
+        const brix_sd_cred_t *cred, sd_ceph_cred_ioctx_t *out);
+void sd_ceph_cred_ioctx_put(sd_ceph_cred_ioctx_t *ci);
+
+/* ---- ioctx-explicit namespace cores ---------------------------------------
+ * Each vtable namespace slot is a two-line wrapper over one of these, passing
+ * the export's own ioctx; the cred-scoped twin passes the requesting user's.
+ * The identity a RADOS op asserts at the OSDs is the ioctx it runs on and
+ * nothing else, so an op that reaches back to st->ioctx is an op that ran as
+ * the export no matter which credential the request carried. */
+ngx_int_t sd_ceph_stat_io(sd_ceph_state_t *st, rados_ioctx_t io,
+        const char *path, brix_sd_stat_t *out);
+ngx_int_t sd_ceph_unlink_io(sd_ceph_state_t *st, rados_ioctx_t io,
+        const char *path, int is_dir);
+ssize_t sd_ceph_getxattr_io(sd_ceph_state_t *st, rados_ioctx_t io,
+        const char *path, const char *name, void *buf, size_t cap);
+ssize_t sd_ceph_listxattr_io(sd_ceph_state_t *st, rados_ioctx_t io,
+        const char *path, void *buf, size_t cap);
+ngx_int_t sd_ceph_setxattr_io(sd_ceph_state_t *st, rados_ioctx_t io,
+        const char *path, const char *name, const void *val, size_t len);
+ngx_int_t sd_ceph_removexattr_io(sd_ceph_state_t *st, rados_ioctx_t io,
+        const char *path, const char *name);
+ngx_int_t sd_ceph_truncate_path_io(sd_ceph_state_t *st, rados_ioctx_t io,
+        const char *path, off_t len);
+brix_sd_dir_t *sd_ceph_opendir_io(brix_sd_instance_t *inst, rados_ioctx_t io,
+        const char *path, int *err_out);
+ngx_int_t sd_ceph_enumerate_io(sd_ceph_state_t *st, rados_ioctx_t io,
+        int want_stat, brix_sd_catalog_cb cb, void *ctx);
+ngx_int_t sd_ceph_setattr_io(sd_ceph_state_t *st, rados_ioctx_t io,
+        const char *path, const brix_sd_setattr_t *attr);
+
+/* The cred-scoped namespace slots themselves (sd_ceph_ns_cred.c). */
+ngx_int_t sd_ceph_stat_cred(brix_sd_instance_t *inst, const char *path,
+        brix_sd_stat_t *out, const brix_sd_cred_t *cred);
+ngx_int_t sd_ceph_unlink_cred(brix_sd_instance_t *inst, const char *path,
+        int is_dir, const brix_sd_cred_t *cred);
+ssize_t sd_ceph_getxattr_cred(brix_sd_instance_t *inst, const char *path,
+        const char *name, void *buf, size_t cap, const brix_sd_cred_t *cred);
+ssize_t sd_ceph_listxattr_cred(brix_sd_instance_t *inst, const char *path,
+        void *buf, size_t cap, const brix_sd_cred_t *cred);
+ngx_int_t sd_ceph_setxattr_cred(brix_sd_instance_t *inst, const char *path,
+        const char *name, const void *val, size_t len, int flags,
+        const brix_sd_cred_t *cred);
+ngx_int_t sd_ceph_removexattr_cred(brix_sd_instance_t *inst, const char *path,
+        const char *name, const brix_sd_cred_t *cred);
+ngx_int_t sd_ceph_truncate_path_cred(brix_sd_instance_t *inst, const char *path,
+        off_t len, const brix_sd_cred_t *cred);
+brix_sd_dir_t *sd_ceph_opendir_cred(brix_sd_instance_t *inst, const char *path,
+        int *err_out, const brix_sd_cred_t *cred);
+ngx_int_t sd_ceph_setattr_cred(brix_sd_instance_t *inst, const char *path,
+        const brix_sd_setattr_t *attr, const brix_sd_cred_t *cred);
 
 /* sd_ceph_set_errno / sd_ceph_cluster_connect — defined in sd_ceph.c, shared by
  * the byte-I/O, object and cred TUs. */
@@ -271,6 +347,19 @@ brix_sd_obj_t *sd_ceph_open_cred(brix_sd_instance_t *inst, const char *path,
         int sd_flags, mode_t mode, const brix_sd_cred_t *cred, int *err_out);
 ngx_int_t sd_ceph_enumerate(brix_sd_instance_t *inst, int want_stat,
         brix_sd_catalog_cb cb, void *ctx);
+
+/* cluster capacity for kXR_Qspace / QFSinfo (sd_ceph_io.c) */
+ngx_int_t sd_ceph_space(brix_sd_instance_t *inst, brix_sd_space_t *out);
+
+/* path-native truncate — rados_trunc needs no open handle (sd_ceph_io.c) */
+ngx_int_t sd_ceph_truncate_path(brix_sd_instance_t *inst, const char *path,
+        off_t len);
+
+/* advisory POSIX metadata + OSD-computed digest (sd_ceph_meta.c) */
+ngx_int_t sd_ceph_setattr(brix_sd_instance_t *inst, const char *path,
+        const brix_sd_setattr_t *attr);
+ngx_int_t sd_ceph_query_checksum(brix_sd_obj_t *obj, const char *algo,
+        char *hex_out, size_t hex_sz);
 
 #endif /* BRIX_HAVE_CEPH */
 

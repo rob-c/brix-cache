@@ -50,13 +50,33 @@ DATA_OPS = {
     "staged_open", "recall",
 }
 
+# The two DECORATOR drivers wrap the same source and compose in either order, so
+# a NAMESPACE slot published by one and not the other silently changes what an
+# export supports depending on which tier happened to end up on top. That is not
+# hypothetical: `truncate_path` was relayed by `stage` and not by `cache`, so a
+# cache-fronted root:// export lost the path-native truncate and fell back into
+# the whole-file staging round trip the slot exists to avoid. The BYTE plane is
+# deliberately excluded — the cache serves reads from its store and the stage
+# tier owns writes, so their data slots differ by design.
+DECORATORS = ("cache", "stage")
+_PARITY_BASE = (
+    "stat", "unlink", "mkdir", "rename", "setattr", "truncate_path",
+    "server_copy", "space", "opendir", "readdir", "closedir",
+    "getxattr", "listxattr", "setxattr", "removexattr",
+)
+PARITY_OPS = frozenset(_PARITY_BASE) | frozenset(
+    op + "_cred" for op in _PARITY_BASE
+)
+
 # X(ID, sym, "name", KIND) rows — mirrors the shell grep -oE + sed exactly.
 _ROW_RE = re.compile(
     r'X\([A-Z0-9_]+, *([a-z0-9_]+), *"([a-z0-9_]+)", *'
     r'(?:BACKEND|ORIGIN|DECORATOR|NEARLINE)\)'
 )
-# `.<slot> =` designated initializers (grep -oE '\.[a-z_]+[[:space:]]*=').
-_SLOT_RE = re.compile(r'\.[a-z_]+\s*=')
+# `.<slot> =` designated initializers. The digit matters: `.preadv2` is a real
+# slot, and a name class without [0-9] matched `.preadv` and then failed on the
+# `2`, so the slot was invisible to the matrix, the #ops count and every gate.
+_SLOT_RE = re.compile(r'\.[a-z0-9_]+\s*=')
 # `.name = "..."` extraction.
 _NAME_RE = re.compile(r'\.name\s*=\s*"([^"]*)"')
 
@@ -141,12 +161,46 @@ def _render_rows(rows):
     header = "%-11s %-10s %-6s" % ("driver", "name", "#ops")
     header += "".join(" %s" % op[:3] for op in MATRIX_OPS)
     results = list(_driver_reports(rows))
-    fail = _any_failed(results)
+    parity = _decorator_parity(rows)
+    fail = _any_failed(results) or bool(parity)
     out = [header]
     out.extend(_result_lines(results))
+    out.extend(parity)
     out.append("")
     out.extend(_success_lines(fail))
     return (not fail), out
+
+
+def _parity_slots(rows) -> dict[str, set[str]]:
+    """The namespace slot set each decorator publishes, or {} if either struct
+    cannot be located (the per-driver report already fails on that)."""
+    out: dict[str, set[str]] = {}
+    for sym, _name in rows:
+        if sym not in DECORATORS:
+            continue
+        path = _find_driver_file(sym)
+        if path is None:
+            return {}
+        out[sym] = _slots(_initializer_block(path, sym)) & PARITY_OPS
+    return out if len(out) == len(DECORATORS) else {}
+
+
+def _decorator_parity(rows) -> list[str]:
+    """FAIL lines for every namespace slot one decorator relays and the other
+    does not — see DECORATORS above for why that asymmetry is a live defect."""
+    sets = _parity_slots(rows)
+    if not sets:
+        return []
+    first, second = DECORATORS
+    lines = []
+    for op in sorted(sets[first] ^ sets[second]):
+        has, lacks = (first, second) if op in sets[first] else (second, first)
+        lines.append(
+            "FAIL decorator parity: '%s' relays .%s and '%s' does not — a "
+            "namespace slot must be published by both or by neither" %
+            (has, op, lacks)
+        )
+    return lines
 
 
 def _any_failed(results):

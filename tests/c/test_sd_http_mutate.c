@@ -41,7 +41,9 @@
 #include <ngx_core.h>
 #include "fs/backend/http/sd_http.h"
 
-/* ---- ngx + brix link stubs (see test_sd_http_dir.c) — inert on log=NULL. */
+/* ---- ngx + brix link stubs (see test_sd_http_dir.c) — inert on log=NULL.
+ * No ngx_string.c function may be stubbed here: the shared sd_http closure links
+ * nginx's own string kernel. */
 volatile ngx_cycle_t *ngx_cycle = NULL;
 
 void
@@ -63,25 +65,6 @@ brix_sanitize_log_string(const char *in, char *out, size_t outsz)
     }
     out[n] = '\0';
     return n;
-}
-
-ngx_int_t
-ngx_strncasecmp(u_char *s1, u_char *s2, size_t n)
-{
-    ngx_uint_t c1, c2;
-
-    while (n) {
-        c1 = (ngx_uint_t) *s1++;
-        c2 = (ngx_uint_t) *s2++;
-        c1 = (c1 >= 'A' && c1 <= 'Z') ? (c1 | 0x20) : c1;
-        c2 = (c2 >= 'A' && c2 <= 'Z') ? (c2 | 0x20) : c2;
-        if (c1 == c2) {
-            if (c1) { n--; continue; }
-            return 0;
-        }
-        return c1 - c2;
-    }
-    return 0;
 }
 
 /* ---- scripted fake transport ------------------------------------------- */

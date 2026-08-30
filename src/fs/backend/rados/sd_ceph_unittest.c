@@ -290,6 +290,71 @@ test_path_child(void)
     }
 }
 
+/* ---- sd_ceph_ck_crc32c_hex: the OSD checksum reply decode ------------------
+ *
+ * WHAT: Pins the CRC32C conditioning and the reply-buffer parse of the
+ * checksum-offload slot (sd_ceph_meta.c) without a cluster.
+ *
+ * WHY: This is the half of query_checksum that decides whether the digest handed
+ * to a client is right. The OSD's CRC32C op is a raw table update seeded with
+ * the caller's init value and NOT post-conditioned; the canonical crc32c this
+ * project speaks (XrdCksCalccrc32C, x-amz-checksum-crc32c) is that update seeded
+ * with 0xFFFFFFFF and finished by XOR with 0xFFFFFFFF. Drop the final XOR and
+ * the driver returns a confident, authoritative, wrong checksum — worse than
+ * declining, because the caller presents it as fact. The success case below is
+ * the canonical "123456789" check vector, so the arithmetic is pinned to a value
+ * no refactor can quietly drift off.
+ *
+ * HOW:
+ *   1. Success: a one-value reply whose raw CRC is the check vector's
+ *      pre-conditioning complement must decode to e3069283.
+ *   2. Error: a truncated reply and a too-small output buffer are refused.
+ *   3. Security-negative: an EMPTY reply (count 0 — the zeroed buffer left when
+ *      the OSD produced nothing) and a CHUNKED reply (count > 1 — a shape this
+ *      driver cannot combine) must both be refused rather than yielding a digest
+ *      derived from whatever the buffer happened to hold.
+ */
+static void
+test_ck_crc32c_hex(void)
+{
+    /* count=1, then the raw running value 0x1CF96D7C, little-endian.
+     * 0x1CF96D7C ^ 0xFFFFFFFF == 0xE3069283 == crc32c("123456789"). */
+    static const unsigned char ok[8] = {
+        0x01, 0x00, 0x00, 0x00, 0x7C, 0x6D, 0xF9, 0x1C
+    };
+    static const unsigned char empty[8] = { 0 };
+    static const unsigned char chunked[12] = {
+        0x02, 0x00, 0x00, 0x00, 0x7C, 0x6D, 0xF9, 0x1C, 0x00, 0x00, 0x00, 0x00
+    };
+    char hex[16];
+    char tiny[4];
+
+    if (sd_ceph_ck_crc32c_hex(ok, sizeof(ok), hex, sizeof(hex)) != 0
+        || strcmp(hex, "e3069283") != 0)
+    {
+        fprintf(stderr, "FAIL ck_crc32c_hex check vector -> \"%s\" "
+                        "(want \"e3069283\")\n", hex);
+        failures++;
+    }
+    if (sd_ceph_ck_crc32c_hex(ok, 4, hex, sizeof(hex)) == 0
+        || sd_ceph_ck_crc32c_hex(ok, sizeof(ok), tiny, sizeof(tiny)) == 0
+        || sd_ceph_ck_crc32c_hex(NULL, sizeof(ok), hex, sizeof(hex)) == 0)
+    {
+        fprintf(stderr, "FAIL ck_crc32c_hex accepted a malformed call\n");
+        failures++;
+    }
+    if (sd_ceph_ck_crc32c_hex(empty, sizeof(empty), hex, sizeof(hex)) == 0) {
+        fprintf(stderr, "FAIL ck_crc32c_hex emitted a digest for an EMPTY "
+                        "reply\n");
+        failures++;
+    }
+    if (sd_ceph_ck_crc32c_hex(chunked, sizeof(chunked), hex, sizeof(hex)) == 0) {
+        fprintf(stderr, "FAIL ck_crc32c_hex emitted a digest for a CHUNKED "
+                        "reply\n");
+        failures++;
+    }
+}
+
 /* ---- Run every pure-mapping check group and report the aggregate result ----
  *
  * WHAT: Invokes each check-group helper in order, then prints a pass line and
@@ -315,6 +380,7 @@ main(void)
     test_ino_hash();
     test_striper_layout();
     test_path_child();
+    test_ck_crc32c_hex();
 
     if (failures == 0) {
         printf("sd_ceph_unittest: all checks passed\n");

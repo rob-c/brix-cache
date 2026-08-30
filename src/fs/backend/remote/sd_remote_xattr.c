@@ -20,6 +20,7 @@
 #include "sd_remote_internal.h"
 #include "fs/backend/s3/sd_s3.h"
 #include "fs/backend/meta_advisory.h"
+#include "fs/backend/meta_advisory_sd.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -396,37 +397,6 @@ sd_remote_removexattr_cred(brix_sd_instance_t *inst, const char *path,
  *       and rewrite the whole set so co-existing user xattrs survive.
  */
 
-/* Build a meta-advisory delta from the setattr request. */
-static void
-sd_remote_setattr_delta(const brix_sd_setattr_t *attr,
-    brix_meta_advisory_t *delta)
-{
-    memset(delta, 0, sizeof(*delta));
-
-    if (attr->set_mode) {
-        delta->have_mode = 1;
-        delta->mode = attr->mode;
-    }
-    /* Owner: the advisory model carries uid AND gid together; a lone (id)-1
-     * ("leave unchanged") on either side means we cannot represent a partial
-     * owner change, so only set both when both are real. */
-    if (attr->set_owner && attr->uid != (uid_t) -1 && attr->gid != (gid_t) -1) {
-        delta->have_owner = 1;
-        delta->uid = attr->uid;
-        delta->gid = attr->gid;
-    }
-    if (attr->set_times && attr->mtime.tv_nsec != UTIME_OMIT) {
-        delta->have_mtime = 1;
-        if (attr->mtime.tv_nsec == UTIME_NOW) {
-            delta->mtime = time(NULL);
-            delta->mtime_ns = 0;
-        } else {
-            delta->mtime = attr->mtime.tv_sec;
-            delta->mtime_ns = attr->mtime.tv_nsec;
-        }
-    }
-}
-
 static ngx_int_t
 sd_remote_setattr_impl(brix_sd_instance_t *inst, const char *path,
     const brix_sd_setattr_t *attr,
@@ -439,8 +409,10 @@ sd_remote_setattr_impl(brix_sd_instance_t *inst, const char *path,
     char                        blob[SD_REMOTE_XA_VALUE];
     int                         idx;
 
-    /* Nothing to change is success (matches the POSIX/no-op setattr contract). */
-    if (!attr->set_mode && !attr->set_times && !attr->set_owner) {
+    /* Nothing representable is success (matches the POSIX/no-op setattr
+     * contract) — and it is decided BEFORE the object round-trip, so an
+     * atime-only request costs no request pair. */
+    if (!brix_meta_advisory_from_setattr(attr, &delta)) {
         return NGX_OK;
     }
 
@@ -466,7 +438,6 @@ sd_remote_setattr_impl(brix_sd_instance_t *inst, const char *path,
     if (idx >= 0) {
         memcpy(blob, ms.value[idx], strlen(ms.value[idx]) + 1);
     }
-    sd_remote_setattr_delta(attr, &delta);
     if (brix_meta_advisory_patch(blob, sizeof(blob), &delta) < 0) {
         errno = EIO;
         return NGX_ERROR;

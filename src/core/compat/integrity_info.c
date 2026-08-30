@@ -316,6 +316,78 @@ integrity_cache_lookup(int fd, const char *path, brix_integrity_info_t *out)
 }
 
 /*
+ * WHAT: Validates `hex` as a storable digest and writes the lowercase form into
+ *       out[cap], returning NGX_OK, or NGX_ERROR leaving out[] a NUL.
+ * WHY:  Both digest producers this file serves — the compute path and the seed
+ *       path — must store the SAME shape, or a value written by one is rejected
+ *       (or worse, half-accepted) when the other reads it back. A partial write
+ *       on a rejected value is the defect the RFC-3230 hex copier already shipped
+ *       once; validating the WHOLE value before writing any of it is the fix.
+ * HOW:  Length check first (so an over-long value never partially fills out[]),
+ *       then a full pass rejecting any non-hex byte, then the lowercasing copy.
+ */
+static ngx_int_t
+integrity_hex_normalize(const char *hex, char *out, size_t cap)
+{
+    size_t i;
+    size_t n;
+
+    out[0] = '\0';
+    if (hex == NULL) {
+        return NGX_ERROR;
+    }
+    n = strlen(hex);
+    if (n == 0 || n >= cap) {
+        return NGX_ERROR;
+    }
+    for (i = 0; i < n; i++) {
+        if (!isxdigit((unsigned char) hex[i])) {
+            return NGX_ERROR;
+        }
+    }
+    for (i = 0; i < n; i++) {
+        out[i] = (char) tolower((unsigned char) hex[i]);
+    }
+    out[n] = '\0';
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Asks a driver-backed object's backend for a native digest in the
+ *       already-canonicalized algorithm out->alg_name; returns 1 with out->hex
+ *       populated (validated lowercase hex) on an authoritative answer, else 0.
+ * WHY:  A backend can hold the digest as metadata (a root:// origin's
+ *       kXR_Qcksum, an object store's stored checksum) — one metadata round
+ *       trip replaces reading every byte of the object through the driver.
+ * HOW:  NULL-slot check → driver query (DECLINED/ERROR both mean "compute
+ *       instead") → the shared hex normaliser, which validates the WHOLE value
+ *       before writing any of it, so a partial or mixed-case driver write can
+ *       never leak into the caller's reply.
+ */
+static int
+integrity_driver_query(brix_sd_obj_t *obj, brix_integrity_info_t *out)
+{
+    char lower[sizeof(out->hex)];
+
+    if (obj->driver->query_checksum == NULL) {
+        return 0;
+    }
+    if (obj->driver->query_checksum(obj, out->alg_name, out->hex,
+                                      sizeof(out->hex)) != NGX_OK)
+    {
+        out->hex[0] = '\0';
+        return 0;
+    }
+    if (integrity_hex_normalize(out->hex, lower, sizeof(lower)) != NGX_OK) {
+        out->hex[0] = '\0';
+        return 0;
+    }
+    ngx_cpystrn((u_char *) out->hex, (u_char *) lower, sizeof(out->hex));
+    out->from_cache = 1;
+    return 1;
+}
+
+/*
  * WHAT: Computes the checksum hex for the target object.
  * WHY:  A backend-bound object must be read through its driver (every block),
  *       whereas a plain fd uses the default POSIX-fd kernel.
@@ -353,6 +425,29 @@ integrity_persist_computed(int fd, const char *path, const char *alg_name,
         || wrc == EPERM) {
         integrity_record_write(path, alg_name, hex);
     }
+}
+
+ngx_int_t
+brix_integrity_seed_fd(int fd, const char *path, const char *alg_name,
+    const char *hex)
+{
+    brix_checksum_alg_t alg;
+    char                  canon[16];
+    char                  lower[EVP_MAX_MD_SIZE * 2 + 1];
+
+    if (fd < 0 || alg_name == NULL) {
+        return NGX_ERROR;
+    }
+    if (brix_checksum_parse(alg_name, strlen(alg_name), &alg, canon,
+                              sizeof(canon)) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+    if (integrity_hex_normalize(hex, lower, sizeof(lower)) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    integrity_persist_computed(fd, path, canon, lower);
+    return NGX_OK;
 }
 
 ngx_int_t
@@ -394,6 +489,14 @@ brix_integrity_get_fd(ngx_log_t *log, int fd,
      * pay a full-file read on a latency-sensitive path. */
     if (o->no_compute) {
         return NGX_DECLINED;
+    }
+
+    /* Checksum offload: a driver-backed object's backend may hold the digest as
+     * native metadata — ask before paying a whole-object read. Placed AFTER the
+     * no_compute gate so latency-sensitive cache-only callers (which may run on
+     * the event loop) never block on a backend round trip. */
+    if (driver_backed && integrity_driver_query(obj, out)) {
+        return NGX_OK;
     }
 
     if (integrity_compute_hex(log, fd, obj, path, driver_backed, out,

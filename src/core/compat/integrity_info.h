@@ -67,6 +67,32 @@ ngx_int_t brix_integrity_get_fd(ngx_log_t *log, int fd,
     brix_integrity_info_t *out);
 
 /*
+ * brix_integrity_seed_fd — record an ALREADY-PROVEN digest without reading a byte.
+ *
+ * The producer side of the cache layer brix_integrity_get_fd consults first. A
+ * caller that has just verified `hex` over exactly the bytes behind `fd` (a cache
+ * fill comparing the origin's advertised checksum against the recomputed part) can
+ * hand the value over here instead of leaving the first kXR_Qcksum / Want-Digest
+ * request on the cached copy to re-read the whole file.
+ *
+ * `alg_name` is canonicalised the same way get_fd canonicalises it, so a seed
+ * written as "SHA256" is found by a lookup for "sha256", and one written as
+ * "crc64xz" by a lookup for "crc64". (The same parser also REJECTS a spelling
+ * that is not purely alphanumeric, "sha-256" among them.) `hex` is validated as
+ * non-empty pure hex and lowercased before it is stored: this API records an
+ * assertion about file content, so a malformed or over-long value is REFUSED
+ * (NGX_ERROR) rather than truncated into a digest nobody can verify. `path` is the
+ * file's local path for the §8.2 record fallback on filesystems without user
+ * xattrs, or NULL to attempt the xattr only.
+ *
+ * Best-effort by contract: NGX_OK means the value was accepted and the write was
+ * attempted, never that a particular cache layer holds it. A lost seed costs a
+ * recompute, never a wrong answer.
+ */
+ngx_int_t brix_integrity_seed_fd(int fd, const char *path,
+    const char *alg_name, const char *hex);
+
+/*
  * brix_integrity_format_http_digest — format a Digest header value.
  *
  * Writes "alg_name=hexvalue" into out[0..outsz), suitable for the HTTP Digest

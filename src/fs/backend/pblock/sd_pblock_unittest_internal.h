@@ -72,6 +72,7 @@ void test_block_striping(void);
 void test_block_size_configurable(void);
 void test_block_sparse(void);
 void test_block_truncate(void);
+void test_block_read_advise(void);
 void test_block_copy_and_unlink(void);
 
 /* ---- identity enforcement group ---- */

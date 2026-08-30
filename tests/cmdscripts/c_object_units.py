@@ -137,6 +137,37 @@ SPECS: dict[str, ObjectUnitSpec] = {
             str(addon("cache/cstore_scan.o")),
         ),
     ),
+    # The catalog verb's decorator walk. vfs_walk.o's cross-TU closure is small
+    # enough (resolve/fill_stat/*_beneath/*_confined_canon) that the harness
+    # stubs it outright and links the ONE real object, keeping the enumeration
+    # hermetic — no pool, no backend registry, no filesystem.
+    "vfs_enumerate_decorator": ObjectUnitSpec(
+        "vfs_enumerate_decorator",
+        "test_vfs_enumerate_decorator",
+        (addon("vfs/vfs_walk.o"),),
+        (
+            "-O",
+            "-Wall",
+            "-I",
+            "src",
+            "-I",
+            str(REPO_ROOT / "shared"),
+            "-I",
+            str(OBJS),
+            "-I",
+            str(NGX_SRC / "src/core"),
+            "-I",
+            str(NGX_SRC / "src/event"),
+            "-I",
+            str(NGX_SRC / "src/event/modules"),
+            "-I",
+            str(NGX_SRC / "src/event/quic"),
+            "-I",
+            str(NGX_SRC / "src/os/unix"),
+            "tests/c/test_vfs_enumerate_decorator.c",
+            str(addon("vfs/vfs_walk.o")),
+        ),
+    ),
     "vfs_caps": ObjectUnitSpec(
         "vfs_caps",
         "test_vfs_caps",

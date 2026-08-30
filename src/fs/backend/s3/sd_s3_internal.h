@@ -85,6 +85,14 @@ int  sd_s3_sign_ex(const sd_s3_file *f, const char *method, const char *canon_qs
 int  sd_s3_status_err(int status, const char *op, const char *key,
          char *errbuf, size_t errcap);
 
+/* Run an already-signed HEAD on f->key and hand back the LIVE response (the
+ * caller resp_free's it). 0, or -1 with errbuf set and the response already
+ * released. Defined in sd_s3_meta.c beside its first caller; shared so the
+ * archive-state reader (sd_s3_archive.c) can take three headers off ONE round
+ * trip instead of restating the wire leg and the status verdict. */
+int  sd_s3_head_send(sd_s3_file *f, const char *hdrs, brix_s3_resp_t *resp,
+         char *errbuf, size_t errcap);
+
 /* ---- extended SigV4 signer (sd_s3_sign_ext.c) ---------------------------
  * Signs an arbitrary verb with caller-supplied extra x-amz-* headers, for
  * the metadata/copy verbs that sd_s3_sign()'s fixed shape cannot cover. */

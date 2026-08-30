@@ -201,6 +201,16 @@ sd_xroot_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     return sd_xroot_rename_cred(inst, src, dst, noreplace, NULL);
 }
 
+/* Apply mode (kXR_chmod) to an origin path; times/owner are accepted-and-ignored
+ * — see sd_xroot_setattr_cred for why the vendor kXR_setattr opcode is not used
+ * here. Without this slot the VFS reports a chmod as a no-op success. */
+ngx_int_t
+sd_xroot_setattr(brix_sd_instance_t *inst, const char *path,
+    const brix_sd_setattr_t *attr)
+{
+    return sd_xroot_setattr_cred(inst, path, attr, NULL);
+}
+
 /* Path-based truncate (kXR_truncate with a path payload): resize the origin
  * object to `len` by NAME — no write-open, so a truncate over a staged remote
  * backend never RECALLs the whole file nor takes a staged write-open that would
@@ -209,67 +219,6 @@ ngx_int_t
 sd_xroot_truncate_path(brix_sd_instance_t *inst, const char *path, off_t len)
 {
     return sd_xroot_truncate_path_cred(inst, path, len, NULL);
-}
-
-/* §4.6: setattr slot — forward a chmod (attr->set_mode) to the origin via
- * kXR_chmod so a proxy/cache export's chmod actually changes the origin's mode
- * instead of the silent no-op an absent slot produced. Times/owner
- * (set_times/set_owner) have no origin-namespace op in this driver and are
- * accepted as a no-op success (documented divergence — the remote xroot node
- * owns its own timestamps). Same fresh-session pattern as truncate_path. */
-ngx_int_t
-sd_xroot_setattr(brix_sd_instance_t *inst, const char *path,
-    const brix_sd_setattr_t *attr)
-{
-    sd_xroot_inst_state       *is = inst->state;
-    brix_cache_origin_conn_t   oc;
-    brix_cache_fill_t         *t;
-    int                        rc, e = 0;
-
-    if (attr == NULL || !attr->set_mode) {
-        return NGX_OK;   /* nothing this driver forwards (times/owner: no-op) */
-    }
-    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) {
-        errno = e; return NGX_ERROR;
-    }
-    rc = brix_cache_origin_chmod(t, &oc, path, (mode_t) attr->mode);
-    e  = (rc == 0) ? 0 : sd_xroot_errno(t);
-    brix_cache_origin_close(&oc);
-    free(t);
-    if (rc != 0) { errno = e; return NGX_ERROR; }
-    return NGX_OK;
-}
-
-/* §4.6: space slot — forward kXR_Qspace to the origin so a proxy/cache export's
- * capacity report reflects the ORIGIN's oss.* space, not the raw statvfs of the
- * proxy's local cache disk. Same fresh-session pattern as truncate_path; the
- * origin is queried by the export root ("/"). NGX_OK with *out filled, or
- * NGX_ERROR (errno) — the VFS space seam then declines and the caller falls
- * back to local statvfs. */
-ngx_int_t
-sd_xroot_space(brix_sd_instance_t *inst, brix_sd_space_t *out)
-{
-    sd_xroot_inst_state       *is = inst->state;
-    brix_cache_origin_conn_t   oc;
-    brix_cache_fill_t         *t;
-    uint64_t                   total = 0, freeb = 0, used = 0;
-    int                        rc, e = 0;
-
-    if (out == NULL) { errno = EINVAL; return NGX_ERROR; }
-
-    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) {
-        errno = e; return NGX_ERROR;
-    }
-    rc = brix_cache_origin_space(t, &oc, "/", &total, &freeb, &used);
-    e  = (rc == 0) ? 0 : sd_xroot_errno(t);
-    brix_cache_origin_close(&oc);
-    free(t);
-    if (rc != 0) { errno = e; return NGX_ERROR; }
-
-    out->total_bytes = total;
-    out->free_bytes  = freeb;
-    out->used_bytes  = used;
-    return NGX_OK;
 }
 
 /* Delete a file or empty directory on the remote node. Required so a remote
@@ -292,6 +241,45 @@ ngx_int_t
 sd_xroot_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
 {
     return sd_xroot_mkdir_cred(inst, path, mode, NULL);
+}
+
+/* Export capacity from the ORIGIN (optional `space` vtable slot).
+ *
+ * WHAT: kXR_query/kXR_Qspace on a fresh anonymous session, decoded by the
+ *       shared oss.* grammar into a brix_sd_space_t.
+ * WHY:  A root:// gateway's statvfs/Qspace/QFSinfo/SRR answers described the
+ *       LOCAL export directory's filesystem — meaningless for capacity planning
+ *       when the bytes actually live on the origin. Any failure returns
+ *       NGX_ERROR so brix_query_backend_usage / statvfs consumers fall back to
+ *       the local statvfs rather than erroring the client op.
+ * HOW:  sd_xroot_session (bounded by the origin socket timeouts, same cost
+ *       class as sd_xroot_stat) → brix_cache_origin_query_space → close; used
+ *       is derived as total − free since the oss.* report carries both. */
+ngx_int_t
+sd_xroot_space(brix_sd_instance_t *inst, brix_sd_space_t *out)
+{
+    sd_xroot_inst_state       *is = inst->state;
+    brix_cache_origin_conn_t   oc;
+    brix_cache_fill_t         *t;
+    uint64_t                   total = 0, freeb = 0;
+    int                        rc, e = 0;
+
+    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) {
+        errno = e;
+        return NGX_ERROR;
+    }
+    rc = brix_cache_origin_query_space(t, &oc, &total, &freeb);
+    e = errno;
+    brix_cache_origin_close(&oc);
+    free(t);
+    if (rc != 0) {
+        errno = e;
+        return NGX_ERROR;
+    }
+    out->total_bytes = total;
+    out->free_bytes  = freeb;
+    out->used_bytes  = total > freeb ? total - freeb : 0;
+    return NGX_OK;
 }
 
 /* Copy src→dst byte stream on an open session (read each chunk from src_fh, write

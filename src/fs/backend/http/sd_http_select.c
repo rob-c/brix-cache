@@ -275,11 +275,12 @@ sd_http_fo_send(const sd_http_req_t *rq, const sd_http_endpoint *ep,
     {
         return is->transport->request_cred(is->tctx, ep->host, ep->port,
                                 ep->tls, rq->method, full, rq->extra_hdrs,
-                                NULL, 0, is->timeout_ms, rq->cert_pem,
-                                rq->resp, errbuf, errcap);
+                                rq->body, rq->body_len, is->timeout_ms,
+                                rq->cert_pem, rq->resp, errbuf, errcap);
     }
     return is->transport->request(is->tctx, ep->host, ep->port, ep->tls,
-                            rq->method, full, rq->extra_hdrs, NULL, 0,
+                            rq->method, full, rq->extra_hdrs,
+                            rq->body, rq->body_len,
                             is->timeout_ms, rq->resp, errbuf, errcap);
 }
 

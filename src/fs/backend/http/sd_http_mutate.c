@@ -26,29 +26,31 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <string.h>
 
-/* sd_http_ns_send — issue a body-less namespace request (DELETE/MKCOL/MOVE) on
- * endpoint 0. When `cert_pem` is set AND the transport can present a client cert
- * (request_cred), the request goes over a mutual-TLS leg carrying the per-user
- * x509 proxy; otherwise the plain request (whose `hdrs` already carries any
- * Authorization/Destination lines). Shared by the plain and credential-scoped
- * namespace slots so the transport selection lives in exactly one place, mirroring
- * sd_http_staged_commit's PUT selection. Returns the transport rc (0 = wire OK). */
-static int
-sd_http_ns_send(sd_http_inst_state *is, const char *method, const char *path,
-    const char *hdrs, const char *cert_pem, brix_s3_resp_t *resp,
-    char *errbuf, size_t errcap)
+/* sd_http_ns_send — issue one namespace request (DELETE/MKCOL/MOVE/COPY, and the
+ * PROPPATCH the xattr slots send) on endpoint 0. When `rq->cert_pem` is set AND
+ * the transport can present a client cert (request_cred), the request goes over a
+ * mutual-TLS leg carrying the per-user x509 proxy; otherwise the plain request
+ * (whose `hdrs` already carries any Authorization/Destination lines). Shared by
+ * the plain and credential-scoped namespace slots so the transport selection lives
+ * in exactly one place, mirroring sd_http_staged_commit's PUT selection. Returns
+ * the transport rc (0 = wire OK). */
+int
+sd_http_ns_send(sd_http_inst_state *is, const sd_http_ns_req_t *rq,
+    brix_s3_resp_t *resp, char *errbuf, size_t errcap)
 {
-    if (cert_pem != NULL && cert_pem[0] != '\0'
+    if (rq->cert_pem != NULL && rq->cert_pem[0] != '\0'
         && is->transport->request_cred != NULL)
     {
         return is->transport->request_cred(is->tctx, is->eps[0].host,
-                   is->eps[0].port, is->eps[0].tls, method, path, hdrs,
-                   NULL, 0, is->timeout_ms, cert_pem, resp, errbuf, errcap);
+                   is->eps[0].port, is->eps[0].tls, rq->method, rq->path,
+                   rq->hdrs, rq->body, rq->body_len, is->timeout_ms,
+                   rq->cert_pem, resp, errbuf, errcap);
     }
     return is->transport->request(is->tctx, is->eps[0].host, is->eps[0].port,
-               is->eps[0].tls, method, path, hdrs, NULL, 0, is->timeout_ms,
-               resp, errbuf, errcap);
+               is->eps[0].tls, rq->method, rq->path, rq->hdrs, rq->body,
+               rq->body_len, is->timeout_ms, resp, errbuf, errcap);
 }
 
 /* sd_http_status_to_errno — map a WebDAV mutation status to a POSIX errno for the
@@ -56,7 +58,7 @@ sd_http_ns_send(sd_http_inst_state *is, const char *method, const char *path,
  * absent), 405 → EEXIST (method not allowed on an existing collection), 412 →
  * EEXIST (Overwrite:F precondition — dst already present), anything else → EIO.
  * The caller decides which codes count as success before calling this. */
-static int
+int
 sd_http_status_to_errno(long status)
 {
     switch (status) {
@@ -167,6 +169,7 @@ sd_http_unlink_common(brix_sd_instance_t *inst, const char *path, int is_dir,
     char                errbuf[256], full[SD_HTTP_PATH_MAX];
     char                open_auth[SD_HTTP_AUTH_MAX];
     const char         *open_cert, *auth_hdr;
+    sd_http_ns_req_t    nsr = { NULL, NULL, NULL, NULL, NULL, 0 };
 
     if (sd_http_cred_gate(is, cred) != 0) {
         return NGX_ERROR;                       /* errno = EACCES (set by gate) */
@@ -174,6 +177,7 @@ sd_http_unlink_common(brix_sd_instance_t *inst, const char *path, int is_dir,
     open_cert = sd_http_resolve_open_cred(is, cred, open_auth, sizeof(open_auth));
     auth_hdr  = open_auth[0] ? open_auth
                              : (is->auth_hdr[0] ? is->auth_hdr : NULL);
+    nsr.cert_pem = open_cert;
 
     if (sd_http_delete_gate(inst, is, path, is_dir, auth_hdr, open_cert) != 0) {
         return NGX_ERROR;                       /* errno set by the gate */
@@ -181,9 +185,10 @@ sd_http_unlink_common(brix_sd_instance_t *inst, const char *path, int is_dir,
 
     sd_http_write_path(is, path, full, sizeof(full));
 
-    if (sd_http_ns_send(is, "DELETE", full, auth_hdr, open_cert, &resp,
-                        errbuf, sizeof(errbuf)) != 0)
-    {
+    nsr.method = "DELETE";
+    nsr.path   = full;
+    nsr.hdrs   = auth_hdr;
+    if (sd_http_ns_send(is, &nsr, &resp, errbuf, sizeof(errbuf)) != 0) {
         errno = EIO;
         return NGX_ERROR;
     }
@@ -239,6 +244,7 @@ sd_http_mkdir_common(brix_sd_instance_t *inst, const char *path, mode_t mode,
     char                errbuf[256], full[SD_HTTP_PATH_MAX];
     char                open_auth[SD_HTTP_AUTH_MAX];
     const char         *open_cert, *auth_hdr;
+    sd_http_ns_req_t    nsr = { NULL, NULL, NULL, NULL, NULL, 0 };
 
     (void) mode;
     if (sd_http_cred_gate(is, cred) != 0) {
@@ -247,11 +253,13 @@ sd_http_mkdir_common(brix_sd_instance_t *inst, const char *path, mode_t mode,
     open_cert = sd_http_resolve_open_cred(is, cred, open_auth, sizeof(open_auth));
     auth_hdr  = open_auth[0] ? open_auth
                              : (is->auth_hdr[0] ? is->auth_hdr : NULL);
+    nsr.cert_pem = open_cert;
 
     sd_http_write_path(is, path, full, sizeof(full));
-    if (sd_http_ns_send(is, "MKCOL", full, auth_hdr, open_cert, &resp,
-                        errbuf, sizeof(errbuf)) != 0)
-    {
+    nsr.method = "MKCOL";
+    nsr.path   = full;
+    nsr.hdrs   = auth_hdr;
+    if (sd_http_ns_send(is, &nsr, &resp, errbuf, sizeof(errbuf)) != 0) {
         errno = EIO;
         return NGX_ERROR;
     }
@@ -278,23 +286,53 @@ sd_http_mkdir_cred(brix_sd_instance_t *inst, const char *path, mode_t mode,
     return sd_http_mkdir_common(inst, path, mode, cred);
 }
 
-/* sd_http_rename — rename/move `src` to `dst` via WebDAV MOVE (RFC 4918 §9.9).
- * The Destination header must be a full absolute URI on this origin, so it is
- * composed from endpoint 0's scheme/host/port and the write-path of `dst`.
- * `noreplace` sends Overwrite: F so an existing destination fails 412 (→ EEXIST)
- * rather than being clobbered; otherwise Overwrite: T replaces it. 201 (created)
- * and 204 (replaced) are success. Any per-instance auth header is preserved
- * alongside the MOVE-specific headers. Endpoint 0 only (writes never fail over). */
-/* sd_http_rename_common — shared MOVE path for the plain and credential-scoped
- * rename slots (see sd_http_rename for the WebDAV semantics). A `cred` presents the
- * requesting user's bearer (folded into the MOVE header block, so the origin
- * authorizes BOTH the source and the Destination leg as the user) or x509 proxy
- * (mutual-TLS client cert); cred==NULL falls back to the instance static header.
- * The header block is sized for a full Destination URI PLUS a forwarded bearer
- * (SD_HTTP_AUTH_MAX) so a large JWT never truncates to a spurious ENAMETOOLONG. */
+/* sd_http_dest_verb — the shared RFC-4918 "Destination:" request, used by MOVE
+ * (§9.9, the rename slots) and COPY (§9.8, the server_copy slots).
+ *
+ * WHAT: Issue `method` on the write-path of `src` with a Destination header, and
+ *       report NGX_OK only for 201 (created) / 204 (replaced).
+ * WHY:  The two verbs differ on the wire in exactly one token. Composing the
+ *       absolute Destination URI, folding in the resolved credential and mapping
+ *       the status are all identical, and two copies of that would drift — the
+ *       Destination-composition bug class (a relative URI, a dropped port) is one
+ *       an origin reports as a flat 400 with no hint which leg was malformed.
+ * HOW:  The Destination header must be a full absolute URI ON THIS ORIGIN, so it
+ *       is composed from endpoint 0's scheme/host/port and the write-path of
+ *       `dst`; a default HTTP/HTTPS port is emitted explicitly, which is always
+ *       valid in an authority and keeps the composition branch-free. `noreplace`
+ *       sends Overwrite: F so an existing destination fails 412 (→ EEXIST) rather
+ *       than being clobbered; otherwise Overwrite: T replaces it. A `cred`
+ *       presents the requesting user's bearer (folded into the header block, so
+ *       the origin authorizes BOTH the source and the Destination leg as the
+ *       user) or x509 proxy (mutual-TLS client cert); cred==NULL falls back to
+ *       the instance static header. The block is sized for a full Destination URI
+ *       PLUS a forwarded bearer (SD_HTTP_AUTH_MAX) so a large JWT never truncates
+ *       to a spurious ENAMETOOLONG. Endpoint 0 only (writes never fail over).
+ *
+ * A collection COPY that partially fails answers 207 Multistatus, which is NOT in
+ * the success set: a half-copied tree must surface as an error, not as OK. */
+
+/*
+ * WHAT: 1 iff `p` carries a byte that would terminate a header line.
+ * WHY:  Here — and only here in the driver — a namespace path becomes a header
+ *       VALUE (Destination:) rather than a request-target. A raw CR or LF in it
+ *       would close that line and let whatever follows be read as a header of the
+ *       caller's own choosing: a second Destination pointing off this origin, or
+ *       an Authorization replacing ours. Paths reaching a driver are resolved,
+ *       but this is the layer where the injection would land, so it is the layer
+ *       that refuses it.
+ * HOW:  strcspn stops at the first CR/LF; a path with neither spans its whole
+ *       length.
+ */
+static int
+sd_http_path_injects(const char *p)
+{
+    return p == NULL || strcspn(p, "\r\n") != strlen(p);
+}
+
 static ngx_int_t
-sd_http_rename_common(brix_sd_instance_t *inst, const char *src, const char *dst,
-    int noreplace, const brix_sd_cred_t *cred)
+sd_http_dest_verb(brix_sd_instance_t *inst, const char *method, const char *src,
+    const char *dst, int noreplace, const brix_sd_cred_t *cred)
 {
     sd_http_inst_state *is = inst->state;
     brix_s3_resp_t      resp;
@@ -303,23 +341,26 @@ sd_http_rename_common(brix_sd_instance_t *inst, const char *src, const char *dst
     char                hdrs[SD_HTTP_PATH_MAX + SD_HTTP_AUTH_MAX + 128];
     char                open_auth[SD_HTTP_AUTH_MAX];
     const char         *open_cert, *eff_auth;
+    sd_http_ns_req_t    nsr = { NULL, NULL, NULL, NULL, NULL, 0 };
     int                 n;
 
+    if (sd_http_path_injects(src) || sd_http_path_injects(dst)) {
+        errno = EINVAL;                         /* refuse before any wire op */
+        return NGX_ERROR;
+    }
     if (sd_http_cred_gate(is, cred) != 0) {
         return NGX_ERROR;                       /* errno = EACCES (set by gate) */
     }
     open_cert = sd_http_resolve_open_cred(is, cred, open_auth, sizeof(open_auth));
     /* The per-user bearer header (open_auth) wins over the instance static; "" =
-     * anonymous/static. Folded into the MOVE header block below. */
+     * anonymous/static. Folded into the header block below. */
     eff_auth  = open_auth[0] ? open_auth
                              : (is->auth_hdr[0] ? is->auth_hdr : "");
+    nsr.cert_pem = open_cert;
 
     sd_http_write_path(is, src, srcfull, sizeof(srcfull));
     sd_http_write_path(is, dst, dstfull, sizeof(dstfull));
 
-    /* Destination is an absolute URI on this origin; append Overwrite and the
-     * resolved auth header. A default HTTP/HTTPS port is emitted explicitly — it is
-     * always valid in an authority and keeps the composition branch-free. */
     n = snprintf(hdrs, sizeof(hdrs),
                  "Destination: %s://%s:%d%s\r\nOverwrite: %c\r\n%s",
                  is->eps[0].tls ? "https" : "http",
@@ -330,9 +371,10 @@ sd_http_rename_common(brix_sd_instance_t *inst, const char *src, const char *dst
         return NGX_ERROR;
     }
 
-    if (sd_http_ns_send(is, "MOVE", srcfull, hdrs, open_cert, &resp,
-                        errbuf, sizeof(errbuf)) != 0)
-    {
+    nsr.method = method;
+    nsr.path   = srcfull;
+    nsr.hdrs   = hdrs;
+    if (sd_http_ns_send(is, &nsr, &resp, errbuf, sizeof(errbuf)) != 0) {
         errno = EIO;
         return NGX_ERROR;
     }
@@ -345,11 +387,12 @@ sd_http_rename_common(brix_sd_instance_t *inst, const char *src, const char *dst
     return NGX_OK;
 }
 
+/* sd_http_rename — vtable rename slot: WebDAV MOVE (see sd_http_dest_verb). */
 ngx_int_t
 sd_http_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     int noreplace)
 {
-    return sd_http_rename_common(inst, src, dst, noreplace, NULL);
+    return sd_http_dest_verb(inst, "MOVE", src, dst, noreplace, NULL);
 }
 
 /* sd_http_rename_cred — vtable rename_cred slot: per-user credential-scoped MOVE. */
@@ -357,5 +400,59 @@ ngx_int_t
 sd_http_rename_cred(brix_sd_instance_t *inst, const char *src, const char *dst,
     int noreplace, const brix_sd_cred_t *cred)
 {
-    return sd_http_rename_common(inst, src, dst, noreplace, cred);
+    return sd_http_dest_verb(inst, "MOVE", src, dst, noreplace, cred);
+}
+
+/*
+ * sd_http_copy_common — shared body of the server_copy / server_copy_cred slots.
+ *
+ * WHAT: Duplicate `src` to `dst` entirely INSIDE the WebDAV origin (RFC 4918 §9.8
+ *       COPY), then best-effort report the resulting size through `bytes_out`.
+ * WHY:  Without the slot, a same-origin copy — an xrdcp clone, a WebDAV COPY
+ *       arriving at the gateway, a TPC whose two legs resolve to one origin — has
+ *       to be read down to this host and pushed straight back up: the whole object
+ *       across the wire twice, for bytes that never needed to leave the store.
+ * HOW:  Overwrite: T. The no-clobber decision belongs to the VFS, which has
+ *       already pre-stat'ed the destination and refused EEXIST when the caller
+ *       withheld overwrite (vfs_copy.c); sending Overwrite: F here as well would
+ *       turn an explicitly authorized replace into a 412. `bytes_out` is a
+ *       follow-up stat, exactly as the POSIX and s3:// slots do it — COPY reports
+ *       no byte count of its own — and 0 when that stat cannot confirm a size,
+ *       which is an accounting gap in the metric, never a failed copy.
+ *
+ * Depth is deliberately absent: RFC 4918 §9.8.3 defaults a collection COPY to
+ * Depth: infinity, which is the only depth a namespace copy can mean here.
+ */
+static ngx_int_t
+sd_http_copy_common(brix_sd_instance_t *inst, const char *src, const char *dst,
+    off_t *bytes_out, const brix_sd_cred_t *cred)
+{
+    brix_sd_stat_t st;
+
+    if (sd_http_dest_verb(inst, "COPY", src, dst, 0, cred) != NGX_OK) {
+        return NGX_ERROR;                   /* errno set by the verb */
+    }
+    if (bytes_out != NULL) {
+        *bytes_out = (sd_http_stat_cred(inst, dst, &st, cred) == NGX_OK)
+                     ? st.size : 0;
+    }
+    return NGX_OK;
+}
+
+/* sd_http_server_copy — vtable server_copy slot: in-origin WebDAV COPY. */
+ngx_int_t
+sd_http_server_copy(brix_sd_instance_t *inst, const char *src, const char *dst,
+    off_t *bytes_out)
+{
+    return sd_http_copy_common(inst, src, dst, bytes_out, NULL);
+}
+
+/* sd_http_server_copy_cred — vtable server_copy_cred slot: the same COPY, with
+ * the requesting user's credential, so the origin authorizes BOTH legs as the
+ * end user rather than as the gateway's service identity. */
+ngx_int_t
+sd_http_server_copy_cred(brix_sd_instance_t *inst, const char *src,
+    const char *dst, off_t *bytes_out, const brix_sd_cred_t *cred)
+{
+    return sd_http_copy_common(inst, src, dst, bytes_out, cred);
 }

@@ -162,6 +162,22 @@ main(void)
     CHECK(drv->pwrite == NULL && drv->mkdir == NULL && drv->unlink == NULL
           && drv->rename == NULL && drv->staged_open == NULL);
 
+    /* capacity (kXR_Qspace / QFSinfo): a read-only export still has to answer
+     * how full the CLUSTER is — statvfs on the gateway would measure the local
+     * spool instead. Self-consistency of the triple is the success check; a NULL
+     * out is the security-negative (no write through a caller-supplied pointer). */
+    {
+        brix_sd_space_t sp;
+
+        CHECK(drv->space != NULL);
+        memset(&sp, 0, sizeof(sp));
+        CHECK(drv->space(&inst, &sp) == NGX_OK);
+        CHECK(sp.total_bytes > 0 && sp.free_bytes <= sp.total_bytes
+              && sp.used_bytes + sp.free_bytes <= sp.total_bytes);
+        errno = 0;
+        CHECK(drv->space(&inst, NULL) == NGX_ERROR && errno == EINVAL);
+    }
+
     drv->cleanup(&inst);
 
     /* ---- live mode: still-mounted, best-effort with optimistic revalidation -- */

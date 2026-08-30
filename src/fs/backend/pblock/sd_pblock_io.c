@@ -450,4 +450,51 @@ sd_pblock_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
     return NGX_OK;
 }
 
+/* sd_pblock_read_advise — map the backend-neutral advice onto posix_fadvise(2)
+ * over every block file the range touches (pblock_advise_blocks).
+ *
+ * WHAT: Clamps [off, off+len) to the object (len == 0 ⇒ from off to EOF) and
+ *       hands the clamped range to the block engine's advisory walk.
+ * WHY:  Without this slot the VFS treats brix_vfs_file_read_advise as a no-op on
+ *       a pblock export, so the sequential-read and prefetch engines lose their
+ *       readahead entirely — and advising only obj->fd would cover just block 0
+ *       (64 MiB by default) of a striped object.
+ * HOW:  Advisory throughout, per the slot contract: NGX_OK whether or not the
+ *       kernel honoured the hint, NGX_ERROR only when the range cannot be
+ *       described at all. Position, size and contents are untouched.
+ */
+ngx_int_t
+sd_pblock_read_advise(brix_sd_obj_t *obj, off_t off, size_t len, int advice)
+{
+    pblock_obj_t *os = obj->state;
+    size_t        avail;
+    int           a;
+
+    if (off < 0 || off >= os->meta.size) {
+        return NGX_OK;                     /* nothing at/after EOF to hint */
+    }
+    avail = (size_t) (os->meta.size - off);
+    if (len == 0 || len > avail) {
+        len = avail;
+    }
+    if (len == 0) {
+        return NGX_OK;
+    }
+
+#if defined(POSIX_FADV_SEQUENTIAL)
+    a = advice == BRIX_SD_ADV_WILLNEED ? POSIX_FADV_WILLNEED
+      : advice == BRIX_SD_ADV_RANDOM   ? POSIX_FADV_RANDOM
+      :                                  POSIX_FADV_SEQUENTIAL;
+#else
+    a = advice;
+#endif
+
+    if (pblock_advise_blocks(os->st, os->blob_id, os->block_size, obj->fd,
+                             len, off, a) != 0)
+    {
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
 #endif /* BRIX_HAVE_SQLITE */

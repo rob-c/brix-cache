@@ -369,6 +369,13 @@ cache_fill_commit(sd_cache_inst_state *st, const char *key,
         ngx_cpystrn((u_char *) ci.cks_hex, (u_char *) fs->cks_hex,
                     sizeof(ci.cks_hex));
         ci.cks_len = (uint8_t) ngx_strlen(ci.cks_hex);
+        /* Also seed the CHECKSUM CACHE the read path consults. The cinfo records
+         * provenance for the cache's own bookkeeping; a client's kXR_Qcksum /
+         * Want-Digest never looks there, and a cache HIT is served by the store's
+         * driver, so it never reaches the origin's query_checksum slot either —
+         * without this the first such request re-reads the whole cached file to
+         * re-derive a digest this fill just proved. */
+        brix_cstore_seed_checksum(&st->cstore, key, fs->cks_alg, fs->cks_hex);
     }
     if (st->policy.cvmfs_manifest_ttl > 0
         && sd_cache_is_manifest_key(st->policy.verify, key))

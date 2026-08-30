@@ -263,6 +263,7 @@ const brix_sd_driver_t brix_sd_pblock_driver = {
     .preadv2          = sd_pblock_preadv2,
     .copy_range       = sd_pblock_copy_range,
     .read_sendfile_fd = sd_pblock_read_sendfile_fd,
+    .read_advise      = sd_pblock_read_advise,
     .ftruncate        = sd_pblock_ftruncate,
     .fsync            = sd_pblock_fsync,
     .fstat            = sd_pblock_fstat,

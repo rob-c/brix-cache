@@ -162,6 +162,9 @@ brix_vbr_build_xroot(brix_vfs_backend_entry_t *e, ngx_log_t *log)
         .ca_dir     = (e->origin_ca_dir[0] != '\0') ? e->origin_ca_dir : NULL,
         .sss_keytab = (e->origin_sss_keytab[0] != '\0')
             ? e->origin_sss_keytab : NULL,
+        /* root+tape://: arm CAP_NEARLINE so reads recall through
+         * kXR_prepare(kXR_stage) instead of blocking on the tape mount. */
+        .nearline   = e->origin_nearline,
     };
 
     inst = brix_sd_xroot_create_origin(&cfg, log);
@@ -285,6 +288,11 @@ brix_vbr_build_http(brix_vfs_backend_entry_t *e, ngx_log_t *log)
      * (file or hashed dir); "" ⇒ system bundle (public-CA origin). */
     cfg.ca_path      = (e->origin_ca_dir[0] != '\0') ? e->origin_ca_dir : NULL;
     cfg.put_checksum  = e->origin_put_checksum;   /* #12 origin-enforced PUT integrity */
+    /* "?tape_api=/api/v1": the origin fronts an HSM and speaks the WLCG Tape
+     * REST API there, so the driver arms CAP_NEARLINE and answers residency /
+     * recall from it instead of reporting every path ONLINE. */
+    cfg.tape_api      = (e->origin_tape_api[0] != '\0') ? e->origin_tape_api
+                                                        : NULL;
     cfg.failover_note = brix_vfs_http_failover_note;   /* T16 */
     cfg.health_note   = brix_vfs_http_health_note;
     /* phase-68 T11: the remaining pipe-separated failover origins */
@@ -343,6 +351,11 @@ brix_vbr_build_s3(brix_vfs_backend_entry_t *e, ngx_log_t *log)
                             ? e->origin_s3_region : "us-east-1"),
                 sizeof(cfg.region));
     cfg.put_checksum = e->origin_put_checksum;   /* #12: origin-enforced PUT integrity */
+    /* "?nearline=1": an archive-backed bucket, so residency reads the storage
+     * class and recall issues RestoreObject rather than every open blocking on
+     * an InvalidObjectState the caller cannot act on. */
+    cfg.nearline     = e->origin_nearline;
+    cfg.restore_days = e->origin_restore_days;
 
     inst = brix_sd_remote_create(&cfg, log);
     if (inst == NULL) {

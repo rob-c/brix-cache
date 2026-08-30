@@ -270,3 +270,88 @@ sd_remote_unlink_cred(brix_sd_instance_t *inst, const char *path, int is_dir,
     }
     return sd_remote_unlink_impl(inst, path, is_dir, NULL, NULL, NULL, NULL);
 }
+
+/* ---- server-side copy (S3 CopyObject, x-amz-copy-source) ----------------
+ *
+ * WHAT: Copy the export-relative `src` object to `dst` entirely within the S3
+ *       origin — the bytes never traverse this host — signing with a per-user
+ *       ak/sk/region/session override when given (NULL = the instance's static
+ *       service credential).
+ * WHY:  finding #4 — WebDAV COPY / xrdcp server-side copy over an s3:// backend
+ *       previously fell through to ENOSYS. S3 exposes CopyObject natively, so
+ *       this is a single signed PUT rather than a read-back/re-upload. It lives
+ *       here, next to staged_open/unlink, because it is a MUTATION: it is the
+ *       one slot on this driver that both reads and writes an object, and the
+ *       identity it presents governs both halves at once.
+ * HOW:  compose the "/bucket/src" copy-source and the "/bucket/dst" request
+ *       target, call the shared sd_s3_copy primitive, then best-effort HEAD the
+ *       destination for the copied byte count (mirrors the POSIX server_copy;
+ *       0 when the follow-up stat cannot confirm the size). The follow-up HEAD
+ *       presents the SAME identity as the copy — the noreplace-commit rule from
+ *       the staged path: a probe signed by anyone else answers about visibility
+ *       the copying identity may not have.
+ */
+static ngx_int_t
+sd_remote_server_copy_impl(brix_sd_instance_t *inst, const char *src,
+    const char *dst, off_t *bytes_out, const brix_sd_cred_t *cred,
+    const char *ak, const char *sk, const char *region, const char *session)
+{
+    const brix_sd_remote_cfg_t *cfg = inst->state;
+    sd_s3_open_params           p;
+    char                        srcpath[768];
+    char                        dstpath[768];
+    char                        errbuf[256];
+
+    sd_remote_s3_key(cfg, src, srcpath, sizeof(srcpath));   /* /bucket/src   */
+    sd_remote_s3_key(cfg, dst, dstpath, sizeof(dstpath));   /* /bucket/dst   */
+    sd_remote_s3_params(cfg, dstpath, &p);                  /* target = dst  */
+    sd_remote_params_cred(&p, ak, sk, region, session);
+
+    errno = 0;
+    if (sd_s3_copy(&p, srcpath, errbuf, sizeof(errbuf)) != 0) {
+        if (errno == 0) { errno = EIO; }
+        return NGX_ERROR;
+    }
+    if (bytes_out != NULL) {
+        brix_sd_stat_t st;
+        ngx_int_t      rc = (cred != NULL)
+                            ? sd_remote_stat_cred(inst, dst, &st, cred)
+                            : sd_remote_stat(inst, dst, &st);
+        *bytes_out = (rc == NGX_OK) ? st.size : 0;
+    }
+    return NGX_OK;
+}
+
+ngx_int_t
+sd_remote_server_copy(brix_sd_instance_t *inst, const char *src,
+    const char *dst, off_t *bytes_out)
+{
+    return sd_remote_server_copy_impl(inst, src, dst, bytes_out, NULL,
+                                      NULL, NULL, NULL, NULL);
+}
+
+/* Cred-scoped server-side copy: the CopyObject runs as the requesting user.
+ *
+ * WHY: this slot is the widest one on the driver — a single signed request that
+ *      READS one key and WRITES another. Without a *_cred sibling the forwarder
+ *      fell through to the plain slot, so a per-user WebDAV COPY / third-party
+ *      copy was authorised as the export: it could duplicate an object the
+ *      caller's own keys could not read, into a prefix they could not write, and
+ *      report success. Gate semantics identical to sd_remote_unlink_cred. */
+ngx_int_t
+sd_remote_server_copy_cred(brix_sd_instance_t *inst, const char *src,
+    const char *dst, off_t *bytes_out, const brix_sd_cred_t *cred)
+{
+    int gate = sd_remote_cred_gate(cred);
+
+    if (gate > 0) {
+        return sd_remote_server_copy_impl(inst, src, dst, bytes_out, cred,
+            cred->s3_ak, cred->s3_sk, cred->s3_region, cred->s3_session);
+    }
+    if (gate < 0) {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    return sd_remote_server_copy_impl(inst, src, dst, bytes_out, NULL,
+                                      NULL, NULL, NULL, NULL);
+}

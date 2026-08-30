@@ -24,6 +24,9 @@
  *       byte count (or ERANGE) unchanged.
  */
 #include "vfs_internal.h"
+#include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_evict: the leaf
+                                          * dispatch bypasses the decorator's
+                                          * own cache invalidation */
 
 #include <sys/xattr.h>
 
@@ -195,61 +198,111 @@ brix_vfs_xattr_write_gate(brix_vfs_ctx_t *ctx, const char *path,
     return NGX_OK;
 }
 
+/* One mutation request, carried as a unit so the driver path can be a helper
+ * without a ten-parameter signature. `is_set` selects set (name = value[len]
+ * with raw setxattr(2) `flags`) or remove (value/len/flags ignored). */
+typedef struct {
+    int          is_set;
+    const char  *name;
+    const void  *value;
+    size_t       len;
+    int          flags;
+} brix_vfs_xattr_mut_t;
+
+/*
+ * brix_vfs_xattr_mutate_driver — driver-backed set/remove.
+ *
+ * WHAT: Run the write gate, dispatch the mutation on the leaf instance,
+ *       invalidate the cached copy it just outdated, and book the observation.
+ * WHY:  Split out of brix_vfs_xattr_mutate, which carried the confinement
+ *       check, the gate, both dispatch arms, the eviction and two observe tails
+ *       in one body and went over the complexity contract when the eviction
+ *       landed. Behaviour is identical to the inline branch it replaces.
+ * HOW:  On a gate refusal the gate has already observed, so return NGX_ERROR
+ *       directly. Otherwise dispatch through brix_sd_{set,remove}xattr_maybe_cred
+ *       (ENOTSUP for an absent slot), evict on success, wipe the borrowed
+ *       secret, and return through the shared mutation observe tail.
+ */
+static ngx_int_t
+brix_vfs_xattr_mutate_driver(brix_vfs_ctx_t *ctx, const char *path,
+    const brix_sd_driver_t *drv, const brix_vfs_xattr_mut_t *m,
+    ngx_msec_t start)
+{
+    brix_sd_instance_t *leaf;
+    const char         *rel;
+    brix_sd_cred_t     *cp;
+    brix_sd_ucred_t     store;
+    brix_sd_cred_t      cred;
+    int                 use_cred = 0;
+    int                 rc;
+
+    if (brix_vfs_xattr_write_gate(ctx, path, drv, &store, &cred, &use_cred,
+                                    start) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    /* Dispatch on the leaf so *_maybe_cred finds the leaf driver's
+     * setxattr/removexattr_cred slot (decorators have only plain relays). */
+    leaf = brix_vfs_ns_leaf(ctx->sd);
+    rel  = brix_vfs_export_relative(ctx, path);
+    cp   = use_cred ? &cred : NULL;
+
+    if (m->is_set) {
+        rc = (drv->setxattr != NULL
+              && brix_sd_setxattr_maybe_cred(leaf, rel, m->name, m->value,
+                     m->len, m->flags, cp) == NGX_OK)
+             ? 0 : (errno = (drv->setxattr ? errno : ENOTSUP), -1);
+    } else {
+        rc = (drv->removexattr != NULL
+              && brix_sd_removexattr_maybe_cred(leaf, rel, m->name, cp)
+                 == NGX_OK)
+             ? 0 : (errno = (drv->removexattr ? errno : ENOTSUP), -1);
+    }
+
+    if (rc == 0) {
+        /* The leaf dispatch skipped the cache decorator, so nothing has
+         * invalidated the cached copy whose metadata this call just changed at
+         * the origin — including the checksum record a cache fill seeds. Same
+         * compensation vfs_unlink/vfs_rename make; no-op off a cache. The
+         * decorator evicts too when it IS the dispatch instance; this site
+         * keeps its own call because only the VFS can label the eviction
+         * metric with the protocol (INVARIANT #8). */
+        brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx),
+                                  brix_sd_cache_evict(ctx->sd, rel));
+    }
+
+    brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
+    return brix_vfs_xattr_observe_mut(ctx, path, rc,
+                                      m->is_set ? m->len : 0, start);
+}
+
 /* Shared body for the mutation ops: is_set != 0 sets `name` to value[len]
  * (with raw setxattr(2) flags), is_set == 0 removes `name` (value/len/flags
- * ignored). One copy of the confinement check, write gate, leaf dispatch, and
- * observe tail. */
+ * ignored). One copy of the confinement check, the driver-vs-POSIX branch, and
+ * the observe tail. */
 static ngx_int_t
 brix_vfs_xattr_mutate(brix_vfs_ctx_t *ctx, int is_set, const char *name,
     const void *value, size_t len, int flags)
 {
-    const char *path = brix_vfs_ctx_path(ctx);
-    uint64_t    start = brix_vfs_now_ns();
-    int         rc;
+    const char             *path = brix_vfs_ctx_path(ctx);
+    uint64_t                start = brix_vfs_now_ns();
+    const brix_sd_driver_t *drv;
+    brix_vfs_xattr_mut_t    m;
+    int                     rc;
 
     if (brix_vfs_require_confined(ctx) != NGX_OK) {
         return brix_vfs_xattr_observe_mut(ctx, path, -1, 0, start);
     }
 
-    {
-        const brix_sd_driver_t *drv = brix_vfs_ctx_driver(ctx);
-
-        if (drv != NULL) {
-            brix_sd_ucred_t store;
-            int             use_cred = 0;
-            brix_sd_cred_t  cred;
-
-            if (brix_vfs_xattr_write_gate(ctx, path, drv, &store, &cred,
-                                            &use_cred, start) != NGX_OK)
-            {
-                return NGX_ERROR;
-            }
-
-            {
-                /* Dispatch on the leaf so *_maybe_cred finds the leaf
-                 * driver's setxattr/removexattr_cred slot (decorators have
-                 * only plain relays). */
-                brix_sd_instance_t *leaf = brix_vfs_ns_leaf(ctx->sd);
-                const char         *rel = brix_vfs_export_relative(ctx, path);
-                brix_sd_cred_t     *cp = use_cred ? &cred : NULL;
-
-                if (is_set) {
-                    rc = (drv->setxattr != NULL
-                          && brix_sd_setxattr_maybe_cred(leaf, rel, name,
-                                 value, len, flags, cp) == NGX_OK)
-                         ? 0 : (errno = (drv->setxattr ? errno : ENOTSUP), -1);
-                } else {
-                    rc = (drv->removexattr != NULL
-                          && brix_sd_removexattr_maybe_cred(leaf, rel, name,
-                                 cp) == NGX_OK)
-                         ? 0 : (errno = (drv->removexattr ? errno : ENOTSUP),
-                                -1);
-                }
-            }
-            brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
-            return brix_vfs_xattr_observe_mut(ctx, path, rc,
-                                              is_set ? len : 0, start);
-        }
+    drv = brix_vfs_ctx_driver(ctx);
+    if (drv != NULL) {
+        m.is_set = is_set;
+        m.name   = name;
+        m.value  = value;
+        m.len    = len;
+        m.flags  = flags;
+        return brix_vfs_xattr_mutate_driver(ctx, path, drv, &m, start);
     }
 
     rc = is_set

@@ -57,9 +57,20 @@ sd_remote_head_exists(const sd_s3_open_params *p)
  * listxattr enumerates every x-amz-meta-* header (needs a transport with the
  * optional resp_headers_raw slot — without it sd_s3_list_meta reports
  * ENOTSUP). Both open the object read-only just for the HEAD, mirroring the
- * stat body below. */
+ * stat body below.
+ *
+ * The HEAD signs with the per-user ak/sk/region/session when the caller passes
+ * them (NULL = the instance's static service credential), exactly as the stat
+ * and mutation bodies do. Reading metadata is a read of the user's data, and
+ * while these two slots had no *_cred sibling brix_sd_{get,list}xattr_maybe_cred
+ * fell through to the plain slot for every caller it could not refuse: a user
+ * presenting perfectly good S3 keys had the read signed as the EXPORT, so it
+ * returned attributes that identity's own keys would have been denied. (The
+ * forwarder's fallback_deny backstop already refused a credential it could not
+ * route — that arm was never the hole; the silent service-key signing was.) */
 static sd_s3_file *
-sd_remote_meta_open(brix_sd_instance_t *inst, const char *path)
+sd_remote_meta_open(brix_sd_instance_t *inst, const char *path,
+    const char *ak, const char *sk, const char *region, const char *session)
 {
     const brix_sd_remote_cfg_t *cfg = inst->state;
     sd_s3_open_params           p;
@@ -68,12 +79,14 @@ sd_remote_meta_open(brix_sd_instance_t *inst, const char *path)
 
     sd_remote_s3_key(cfg, path, objpath, sizeof(objpath));
     sd_remote_s3_params(cfg, objpath, &p);
+    sd_remote_params_cred(&p, ak, sk, region, session);
     return sd_s3_open_read(&p, errbuf, sizeof(errbuf));
 }
 
-ssize_t
-sd_remote_getxattr(brix_sd_instance_t *inst, const char *path,
-    const char *name, void *buf, size_t cap)
+static ssize_t
+sd_remote_getxattr_impl(brix_sd_instance_t *inst, const char *path,
+    const char *name, void *buf, size_t cap,
+    const char *ak, const char *sk, const char *region, const char *session)
 {
     char           val[2048];
     char           errbuf[256];
@@ -85,7 +98,7 @@ sd_remote_getxattr(brix_sd_instance_t *inst, const char *path,
         errno = ENODATA;      /* only the user. namespace maps to x-amz-meta- */
         return -1;
     }
-    s3 = sd_remote_meta_open(inst, path);
+    s3 = sd_remote_meta_open(inst, path, ak, sk, region, session);
     if (s3 == NULL) {
         errno = ENOMEM;
         return -1;
@@ -113,14 +126,44 @@ sd_remote_getxattr(brix_sd_instance_t *inst, const char *path,
 }
 
 ssize_t
-sd_remote_listxattr(brix_sd_instance_t *inst, const char *path,
-    void *buf, size_t cap)
+sd_remote_getxattr(brix_sd_instance_t *inst, const char *path,
+    const char *name, void *buf, size_t cap)
+{
+    return sd_remote_getxattr_impl(inst, path, name, buf, cap,
+                                   NULL, NULL, NULL, NULL);
+}
+
+/* Cred-scoped getxattr: the HEAD runs as the requesting user. Gate semantics
+ * identical to sd_remote_stat_cred — a cred this S3-only backend cannot use is
+ * refused under fallback_deny rather than signed with the service credential. */
+ssize_t
+sd_remote_getxattr_cred(brix_sd_instance_t *inst, const char *path,
+    const char *name, void *buf, size_t cap, const brix_sd_cred_t *cred)
+{
+    int gate = sd_remote_cred_gate(cred);
+
+    if (gate > 0) {
+        return sd_remote_getxattr_impl(inst, path, name, buf, cap,
+            cred->s3_ak, cred->s3_sk, cred->s3_region, cred->s3_session);
+    }
+    if (gate < 0) {
+        errno = EACCES;
+        return -1;
+    }
+    return sd_remote_getxattr_impl(inst, path, name, buf, cap,
+                                   NULL, NULL, NULL, NULL);
+}
+
+static ssize_t
+sd_remote_listxattr_impl(brix_sd_instance_t *inst, const char *path,
+    void *buf, size_t cap,
+    const char *ak, const char *sk, const char *region, const char *session)
 {
     char        errbuf[256];
     sd_s3_file *s3;
     ssize_t     n;
 
-    s3 = sd_remote_meta_open(inst, path);
+    s3 = sd_remote_meta_open(inst, path, ak, sk, region, session);
     if (s3 == NULL) {
         errno = ENOMEM;
         return -1;
@@ -132,6 +175,34 @@ sd_remote_listxattr(brix_sd_instance_t *inst, const char *path,
         errno = EIO;
     }
     return n;
+}
+
+ssize_t
+sd_remote_listxattr(brix_sd_instance_t *inst, const char *path,
+    void *buf, size_t cap)
+{
+    return sd_remote_listxattr_impl(inst, path, buf, cap,
+                                    NULL, NULL, NULL, NULL);
+}
+
+/* Cred-scoped listxattr: enumerating an object's metadata keys is as much a
+ * read of the user's object as getxattr, so it takes the same gate. */
+ssize_t
+sd_remote_listxattr_cred(brix_sd_instance_t *inst, const char *path,
+    void *buf, size_t cap, const brix_sd_cred_t *cred)
+{
+    int gate = sd_remote_cred_gate(cred);
+
+    if (gate > 0) {
+        return sd_remote_listxattr_impl(inst, path, buf, cap,
+            cred->s3_ak, cred->s3_sk, cred->s3_region, cred->s3_session);
+    }
+    if (gate < 0) {
+        errno = EACCES;
+        return -1;
+    }
+    return sd_remote_listxattr_impl(inst, path, buf, cap,
+                                    NULL, NULL, NULL, NULL);
 }
 
 /* Shared stat body: HEAD the object, optionally signing with a per-user
@@ -203,47 +274,6 @@ sd_remote_stat(brix_sd_instance_t *inst, const char *path,
     brix_sd_stat_t *out)
 {
     return sd_remote_stat_impl(inst, path, out, NULL, NULL, NULL, NULL);
-}
-
-/* ---- server-side copy (S3 CopyObject, x-amz-copy-source) ----------------
- *
- * WHAT: Copy the export-relative `src` object to `dst` entirely within the S3
- *       origin — the bytes never traverse this host. Runs on the instance's
- *       static service credential (Phase-1 namespace policy; a fallback_deny
- *       per-user request is refused upstream by the cred forwarder, which has no
- *       server_copy_cred slot to route to).
- * WHY:  finding #4 — WebDAV COPY / xrdcp server-side copy over an s3:// backend
- *       previously fell through to ENOSYS. S3 exposes CopyObject natively, so
- *       this is a single signed PUT rather than a read-back/re-upload.
- * HOW:  compose the "/bucket/src" copy-source and the "/bucket/dst" request
- *       target, call the shared sd_s3_copy primitive, then best-effort HEAD the
- *       destination for the copied byte count (mirrors the POSIX server_copy;
- *       0 when the follow-up stat cannot confirm the size).
- */
-ngx_int_t
-sd_remote_server_copy(brix_sd_instance_t *inst, const char *src,
-    const char *dst, off_t *bytes_out)
-{
-    const brix_sd_remote_cfg_t *cfg = inst->state;
-    sd_s3_open_params           p;
-    char                        srcpath[768];
-    char                        dstpath[768];
-    char                        errbuf[256];
-
-    sd_remote_s3_key(cfg, src, srcpath, sizeof(srcpath));   /* /bucket/src   */
-    sd_remote_s3_key(cfg, dst, dstpath, sizeof(dstpath));   /* /bucket/dst   */
-    sd_remote_s3_params(cfg, dstpath, &p);                  /* target = dst  */
-
-    errno = 0;
-    if (sd_s3_copy(&p, srcpath, errbuf, sizeof(errbuf)) != 0) {
-        if (errno == 0) { errno = EIO; }
-        return NGX_ERROR;
-    }
-    if (bytes_out != NULL) {
-        brix_sd_stat_t st;
-        *bytes_out = (sd_remote_stat(inst, dst, &st) == NGX_OK) ? st.size : 0;
-    }
-    return NGX_OK;
 }
 
 /* Cred-scoped stat (P80.3): the probe/HEAD runs as the requesting user, so a

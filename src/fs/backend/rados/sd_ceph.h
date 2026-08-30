@@ -55,6 +55,18 @@ int sd_ceph_key(const char *key_prefix, const char *lfn, char *out, size_t cap);
  */
 uint64_t sd_ceph_ino(const char *oid);
 
+/*
+ * sd_ceph_ck_crc32c_hex — decode one OSD CRC32C reply buffer (a little-endian
+ * uint32 count followed by that many little-endian values) into lowercase hex,
+ * applying the standard CRC32C post-conditioning. Returns 0 with `hex`
+ * NUL-terminated, or -1 when the reply is not a single unchunked value the
+ * driver can interpret — the caller then DECLINES rather than emitting a digest
+ * it is not sure of. Pure: defined outside the BRIX_HAVE_CEPH gate in
+ * sd_ceph_meta.c so the conditioning is testable without a cluster.
+ */
+int sd_ceph_ck_crc32c_hex(const unsigned char *reply, size_t len, char *hex,
+                          size_t cap);
+
 #if BRIX_HAVE_CEPH
 #include "fs/backend/sd.h"
 #include <rados/librados.h>   /* rados_ioctx_t in the shared oid-level API */
@@ -89,6 +101,14 @@ sd_ceph_conn_t *sd_ceph_conn_create(const brix_sd_ceph_conf_t *conf,
                                     ngx_pool_t *pool, int *err);
 void            sd_ceph_conn_destroy(sd_ceph_conn_t *c);
 rados_ioctx_t   sd_ceph_conn_ioctx(sd_ceph_conn_t *c);
+rados_t         sd_ceph_conn_cluster(sd_ceph_conn_t *c);
+
+/* Cluster capacity for the `space` vtable slot (both Ceph drivers): total/used/
+ * free from one rados_cluster_stat — the RAW, cluster-wide figures `ceph df`
+ * reports, which is the only self-consistent triple the C API offers (a pool's
+ * MAX AVAIL needs the replication factor, reachable only via a mon command).
+ * 0, or -1 with errno set. */
+int             sd_ceph_cluster_space(rados_t cluster, brix_sd_space_t *out);
 
 ssize_t sd_ceph_oid_read (sd_ceph_conn_t *c, const char *oid, void *buf,
                           size_t len, off_t off);

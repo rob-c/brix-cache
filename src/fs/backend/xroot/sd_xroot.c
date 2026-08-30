@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>   /* strcasecmp: algorithm-name match in query_checksum */
 #include <sys/stat.h>
 
 #include <openssl/x509.h>
@@ -201,6 +202,43 @@ sd_xroot_origin_open(const sd_xroot_origin_open_req_t *req)
     return st;
 }
 
+/* ---- sd_xroot_query_checksum — checksum-offload vtable slot ----
+ *
+ * WHAT: Asks the origin for its stored digest of the open object via kXR_Qcksum
+ *       and returns NGX_OK with hex_out filled only when the origin's digest is
+ *       in exactly the requested algorithm; NGX_DECLINED otherwise (no digest,
+ *       different algorithm, or a wire fault — the caller computes instead).
+ *
+ * WHY:  Without this slot a checksum request against a root:// primary pulls the
+ *       entire object through kXR_read just to hash bytes the origin has already
+ *       hashed; one metadata round trip on the already-open origin connection
+ *       replaces the whole-object transfer.
+ *
+ * HOW:  1) Delegate to brix_sd_xroot_query_checksum (path-based kXR_Qcksum on
+ *       the object's live origin connection). 2) An empty reply declines.
+ *       3) Match the origin's algorithm name against the requested canonical
+ *       name case-insensitively — an alias mismatch just declines to the compute
+ *       fallback, never mislabels a digest. 4) Copy the hex out on a match.
+ */
+static ngx_int_t
+sd_xroot_query_checksum(brix_sd_obj_t *obj, const char *algo,
+    char *hex_out, size_t hex_sz)
+{
+    char origin_alg[32];
+    char origin_hex[160];
+
+    brix_sd_xroot_query_checksum(obj, origin_alg, sizeof(origin_alg),
+                                   origin_hex, sizeof(origin_hex));
+    if (origin_alg[0] == '\0' || origin_hex[0] == '\0') {
+        return NGX_DECLINED;
+    }
+    if (strcasecmp(origin_alg, algo) != 0) {
+        return NGX_DECLINED;   /* origin digest is in a different algorithm */
+    }
+    ngx_cpystrn((u_char *) hex_out, (u_char *) origin_hex, hex_sz);
+    return NGX_OK;
+}
+
 /* Remote root:// driver (anonymous). Read slots + the write data path
  * (pwrite/ftruncate/fsync over kXR_write/_truncate/_sync) — the foundation for a
  * writable remote backend (Phase 1; staged-write and namespace slots are later
@@ -227,10 +265,17 @@ static const brix_sd_driver_t brix_sd_xroot_driver = {
     .rename        = sd_xroot_rename,
     .unlink        = sd_xroot_unlink,
     .mkdir         = sd_xroot_mkdir,
+    .setattr       = sd_xroot_setattr,
     .truncate_path = sd_xroot_truncate_path,
-    .setattr       = sd_xroot_setattr,           /* §4.6: forward chmod to origin */
-    .space         = sd_xroot_space,             /* §4.6: forward Qspace to origin */
     .server_copy   = sd_xroot_server_copy,
+    .query_checksum = sd_xroot_query_checksum,
+    .space         = sd_xroot_space,
+    /* Nearline (tape) pair — kXR_stat's kXR_offline flag and kXR_prepare with
+     * kXR_stage. Present on the vtable unconditionally, but reached only on an
+     * instance that advertises CAP_NEARLINE (cfg->nearline); see
+     * sd_xroot_nearline.c for why that opt-in cannot be automatic. */
+    .recall        = sd_xroot_recall,
+    .residency     = sd_xroot_residency,
     .getxattr      = sd_xroot_getxattr,
     .listxattr     = sd_xroot_listxattr,
     .setxattr      = sd_xroot_setxattr,
@@ -249,8 +294,8 @@ static const brix_sd_driver_t brix_sd_xroot_driver = {
     .unlink_cred         = sd_xroot_unlink_cred,
     .rename_cred         = sd_xroot_rename_cred,
     .mkdir_cred          = sd_xroot_mkdir_cred,
+    .setattr_cred        = sd_xroot_setattr_cred,
     .truncate_path_cred  = sd_xroot_truncate_path_cred,
-    .setattr_cred        = sd_xroot_setattr_cred,   /* §4.6 per-user chmod forward */
     .server_copy_cred    = sd_xroot_server_copy_cred,
     .getxattr_cred       = sd_xroot_getxattr_cred,
     .listxattr_cred      = sd_xroot_listxattr_cred,
@@ -434,6 +479,15 @@ brix_sd_xroot_create_origin(const brix_sd_xroot_origin_cfg_t *cfg,
     inst->log    = log;
     inst->pool   = NULL;
     inst->state  = is;
+    /* Effective caps start at the descriptor's, as brix_sd_instance_create does
+     * (this factory bypasses that path — it has no pool). CAP_NEARLINE is the one
+     * bit the OPERATOR adds: it makes the recall/residency slots reachable AND
+     * commits tier_build to requiring a cache tier in front, so it is never
+     * inferred. See sd_xroot_nearline.c. */
+    inst->caps   = brix_sd_xroot_driver.caps;
+    if (cfg->nearline) {
+        inst->caps |= BRIX_SD_CAP_NEARLINE;
+    }
     return inst;
 }
 

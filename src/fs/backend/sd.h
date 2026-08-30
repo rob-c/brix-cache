@@ -54,8 +54,20 @@ typedef struct ngx_pool_s ngx_pool_t;  /* opaque: only ever a pointer field */
 #ifndef NGX_ERROR
 #define NGX_ERROR         (-1)
 #endif
+#ifndef NGX_AGAIN
+#define NGX_AGAIN         (-2)
+#endif
 #ifndef NGX_DONE
 #define NGX_DONE          (-4)
+#endif
+/* Part of the slot contract, not a convenience: query_checksum returns
+ * NGX_DECLINED to mean "I hold no such digest" and recall returns NGX_AGAIN to
+ * mean "queued". A driver TU built for the ngx-free plane (client tools, the
+ * live-cluster tests) implements those slots too, so the values must be here as
+ * well as in ngx_core.h — and must be nginx's, since the same object files link
+ * against the module. */
+#ifndef NGX_DECLINED
+#define NGX_DECLINED      (-5)
 #endif
 #ifndef ngx_inline
 #define ngx_inline        inline
@@ -436,6 +448,20 @@ struct brix_sd_driver_s {
      * back to statvfs(2) on the export root. Returns NGX_OK (out set) or
      * NGX_ERROR (errno set). */
     ngx_int_t  (*space)(brix_sd_instance_t *inst, brix_sd_space_t *out);
+
+    /* native digest query (checksum offload) — ask the backend for a stored or
+     * origin-advertised digest of the open object in EXACTLY the requested
+     * canonical algorithm, WITHOUT reading the object's bytes (a root:// origin's
+     * kXR_Qcksum, an object store's stored checksum). Returns NGX_OK with
+     * hex_out filled (lowercase hex, NUL-terminated) only when the backend
+     * digest is authoritative for `algo`; NGX_DECLINED when it holds no digest
+     * in that algorithm; NGX_ERROR on a transport fault. Callers treat
+     * DECLINED and ERROR identically — fall back to the byte-reading compute —
+     * so a network fault can never fail a checksum request the compute path can
+     * still satisfy. Worker-safe (runs on AIO threads, like pread). NULL ⇒ the
+     * backend has no native digests. */
+    ngx_int_t  (*query_checksum)(brix_sd_obj_t *obj, const char *algo,
+                                 char *hex_out, size_t hex_sz);
 
     /* object-catalog enumeration (inventory/drift, spec §E1/D2). Enumerate the
      * driver's OWN physical object catalog — NOT a namespace walk — firing cb

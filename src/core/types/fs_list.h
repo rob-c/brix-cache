@@ -96,13 +96,23 @@
  * scheme selects a driver ("https" is the http driver with TLS; "davs" is
  * WebDAV-over-TLS = http; "frm" is the tape/HSM alias). The bespoke per-
  * scheme VALUE grammar stays in vfs_backend_config.c / tier_build.c —
- * this table is only the scheme→driver dispatch (fs/tier/tier_config.c). */
+ * this table is only the scheme→driver dispatch (fs/tier/tier_config.c).
+ *
+ * "root+tape"/"roots+tape" are the SAME root:// origin declared to sit in front
+ * of an MSS: residency comes from kXR_stat's kXR_offline flag and the recall
+ * from kXR_prepare(kXR_stage), so a read parks instead of blocking a worker for
+ * the length of a tape mount. It is a distinct SCHEME rather than a trailing
+ * flag because brix_storage_backend takes exactly one argument, and because the
+ * declaration is a contract, not a hint: it commits the export to carrying a
+ * cache tier as the recall target (§9.4, enforced at config time). */
 #define BRIX_FS_SCHEME_LIST(S)                                              \
     S("posix",  "posix",  0, 0)                                               \
     S("block",  "block",  0, 0)                                               \
     S("pblock", "pblock", 0, 0)                                               \
     S("root",   "xroot",  0, 0)                                               \
     S("roots",  "xroot",  1, 0)                                               \
+    S("root+tape",  "xroot", 0, 1)                                            \
+    S("roots+tape", "xroot", 1, 1)                                            \
     S("http",   "http",   0, 0)                                               \
     S("https",  "http",   1, 0)                                               \
     S("webdav", "http",   0, 0)                                               \

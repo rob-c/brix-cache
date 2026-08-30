@@ -35,19 +35,55 @@
 void brix_vfs_backend_config(const char *root_canon, const ngx_str_t *name,
     size_t block_size);
 
-/* Record (at config time) that the export rooted at `root_canon` is backed by a
- * REMOTE root:// origin (`host`:`port`, TLS iff `tls`), served through the
- * sd_xroot driver. Works for any export — stream OR http — since it carries the
- * origin params explicitly rather than a protocol-specific conf. Safe to call
- * repeatedly for the same root (idempotent reload). */
-void brix_vfs_backend_config_xroot(const char *root_canon, const char *host,
-    int port, int tls, int family);
+/* brix_vfs_xroot_origin_t — the endpoint a remote root:// primary backend binds
+ * to, as parsed from the brix_storage_backend URL.
+ *
+ * WHAT: host/port plus the three declarations the URL SCHEME carries: `tls`
+ *       (roots://), `family` (the export's address-family constraint) and
+ *       `nearline` (root+tape:// — the origin fronts an MSS).
+ * WHY:  the four fields are all int-or-string and trivially transposable
+ *       positionally, and `nearline` is the second flag to join them; one named
+ *       struct keeps the call site self-describing (the same reason
+ *       brix_sd_xroot_origin_cfg_t exists one layer down).
+ * HOW:  `host` need only outlive the call — it is copied onto the entry. */
+typedef struct {
+    const char *host;      /* required: origin hostname (non-empty) */
+    int         port;      /* required: origin port (1..65535) */
+    int         tls;       /* non-zero: roots:// (TLS) */
+    int         family;    /* brix_af_policy_t address-family constraint */
+    int         nearline;  /* non-zero: root+tape:// — recall, do not block */
+} brix_vfs_xroot_origin_t;
+
+/* Record (at config time) that the export rooted at `root_canon` is backed by
+ * the REMOTE root:// origin `o`, served through the sd_xroot driver. Works for
+ * any export — stream OR http — since it carries the origin params explicitly
+ * rather than a protocol-specific conf. Safe to call repeatedly for the same
+ * root (idempotent reload). */
+void brix_vfs_backend_config_xroot(const char *root_canon,
+    const brix_vfs_xroot_origin_t *o);
+
+/* The optional declarations an http origin URL carries in its query suffix.
+ * Both are opt-in and default off, so an origin URL without a query behaves
+ * exactly as it did before either existed. */
+typedef struct {
+    int         put_checksum;  /* "?put_checksum=1" (#12): the commit PUT carries
+                                * Content-MD5 so the origin rejects a
+                                * wire-corrupted upload. */
+    const char *tape_api;      /* "?tape_api=/api/v1": the WLCG Tape REST API
+                                * base on this origin. Non-empty arms
+                                * BRIX_SD_CAP_NEARLINE, which commits the export
+                                * to carrying a cache tier as the recall target
+                                * (§9.4, enforced at config time) — so it is a
+                                * declaration, never inferred. NULL = none. */
+} brix_vfs_http_origin_opts_t;
 
 /* Record (at config time) that the export rooted at `root_canon` is backed by a
  * read-only HTTP(S) source (`host`:`port`, TLS iff `tls`, URL base `base_path`),
- * served through the sd_http driver over the shared libcurl transport. */
+ * served through the sd_http driver over the shared libcurl transport. `opts`
+ * may be NULL (no query declarations). */
 void brix_vfs_backend_config_http(const char *root_canon, const char *host,
-    int port, int tls, const char *base_path, int put_checksum);
+    int port, int tls, const char *base_path,
+    const brix_vfs_http_origin_opts_t *opts);
 
 /* Record (at config time) that the export rooted at `root_canon` is backed by
  * an S3 source (`host`:`port`, TLS iff `tls`, path-style `bucket`), served
@@ -56,8 +92,21 @@ void brix_vfs_backend_config_http(const char *root_canon, const char *host,
  * partial writes are rejected at the cap layer, while sequential uploads go
  * through the whole-object staged path (.staged_* → single PUT or MPU) and
  * deletes through .unlink (phase-71/phase-80). */
+/* The optional declarations an s3 origin URL carries in its query suffix. */
+typedef struct {
+    int put_checksum;   /* "?put_checksum=1" (#12): sign x-amz-checksum-crc32 */
+    int nearline;       /* "?nearline=1": the bucket is archive-backed
+                         * (GLACIER/DEEP_ARCHIVE), so residency comes from the
+                         * storage class and recall from RestoreObject. Arms
+                         * BRIX_SD_CAP_NEARLINE — a declaration, like tape_api
+                         * above, and subject to the same cache-tier contract. */
+    int restore_days;   /* "?restore_days=N": how long a restored copy stays
+                         * readable. 0 leaves the driver's default. */
+} brix_vfs_s3_origin_opts_t;
+
 void brix_vfs_backend_config_s3(const char *root_canon, const char *host,
-    int port, int tls, const char *bucket, int put_checksum);
+    int port, int tls, const char *bucket,
+    const brix_vfs_s3_origin_opts_t *opts);
 
 /* Register the export's `storage_backend` config value, dispatching on its form:
  * a "root://host:port" / "roots://host:port" URL → a remote root:// primary

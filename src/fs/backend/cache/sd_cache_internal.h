@@ -184,6 +184,9 @@ ngx_int_t sd_cache_server_copy(brix_sd_instance_t *inst, const char *src,
     const char *dst, off_t *bytes_out);
 ngx_int_t sd_cache_setattr(brix_sd_instance_t *inst, const char *path,
     const brix_sd_setattr_t *attr);
+ngx_int_t sd_cache_truncate_path(brix_sd_instance_t *inst, const char *path,
+    off_t len);
+ngx_int_t sd_cache_space(brix_sd_instance_t *inst, brix_sd_space_t *out);
 brix_sd_dir_t *sd_cache_opendir(brix_sd_instance_t *inst, const char *path,
     int *err_out);
 ngx_int_t sd_cache_readdir(brix_sd_dir_t *d, brix_sd_dirent_t *out);
@@ -196,6 +199,36 @@ ngx_int_t sd_cache_setxattr(brix_sd_instance_t *inst, const char *path,
     const char *name, const void *val, size_t len, int flags);
 ngx_int_t sd_cache_removexattr(brix_sd_instance_t *inst, const char *path,
     const char *name);
+
+/* Credential-scoped twins of the namespace/xattr/dir forwarders above. A
+ * decorator that omits these erases the caller's credential for every path op
+ * behind it — see the file header of sd_cache_forward.c. */
+ngx_int_t sd_cache_stat_cred(brix_sd_instance_t *inst, const char *path,
+    brix_sd_stat_t *out, const brix_sd_cred_t *cred);
+ngx_int_t sd_cache_unlink_cred(brix_sd_instance_t *inst, const char *path,
+    int is_dir, const brix_sd_cred_t *cred);
+ngx_int_t sd_cache_mkdir_cred(brix_sd_instance_t *inst, const char *path,
+    mode_t mode, const brix_sd_cred_t *cred);
+ngx_int_t sd_cache_rename_cred(brix_sd_instance_t *inst, const char *src,
+    const char *dst, int noreplace, const brix_sd_cred_t *cred);
+ngx_int_t sd_cache_server_copy_cred(brix_sd_instance_t *inst, const char *src,
+    const char *dst, off_t *bytes_out, const brix_sd_cred_t *cred);
+ngx_int_t sd_cache_setattr_cred(brix_sd_instance_t *inst, const char *path,
+    const brix_sd_setattr_t *attr, const brix_sd_cred_t *cred);
+ngx_int_t sd_cache_truncate_path_cred(brix_sd_instance_t *inst, const char *path,
+    off_t len, const brix_sd_cred_t *cred);
+brix_sd_dir_t *sd_cache_opendir_cred(brix_sd_instance_t *inst, const char *path,
+    int *err_out, const brix_sd_cred_t *cred);
+ssize_t   sd_cache_getxattr_cred(brix_sd_instance_t *inst, const char *path,
+    const char *name, void *buf, size_t cap, const brix_sd_cred_t *cred);
+ssize_t   sd_cache_listxattr_cred(brix_sd_instance_t *inst, const char *path,
+    void *buf, size_t cap, const brix_sd_cred_t *cred);
+ngx_int_t sd_cache_setxattr_cred(brix_sd_instance_t *inst, const char *path,
+    const char *name, const void *val, size_t len, int flags,
+    const brix_sd_cred_t *cred);
+ngx_int_t sd_cache_removexattr_cred(brix_sd_instance_t *inst, const char *path,
+    const char *name, const brix_sd_cred_t *cred);
+
 brix_sd_staged_t *sd_cache_staged_open(brix_sd_instance_t *inst,
     const char *final_path, mode_t mode, int *err_out);
 brix_sd_staged_t *sd_cache_staged_open_cred(brix_sd_instance_t *inst,

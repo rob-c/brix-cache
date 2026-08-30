@@ -34,26 +34,46 @@ static const brix_sd_driver_t brix_sd_http_driver = {
      * phase-92: CAP_DIRS advertises WebDAV PROPFIND enumeration (.opendir);
      * CAP_DIRS_WRITE advertises the mutable catalog — .mkdir (MKCOL), .rename
      * (MOVE), and .unlink with is_dir (DELETE on a collection). CAP_HARD_RENAME:
-     * MOVE is atomic on the origin, so the VFS never falls back to copy+delete. */
+     * MOVE is atomic on the origin, so the VFS never falls back to copy+delete.
+     * CAP_SERVER_COPY: WebDAV COPY duplicates in-origin, so an intra-origin copy
+     * never round-trips the bytes through this host. CAP_XATTR/CAP_XATTR_WRITE:
+     * RFC 4918 dead properties carry the xattrs everything above this driver
+     * (WebDAV LOCK, PROPPATCH, S3 tagging/usermeta, kXR_fattr) already speaks —
+     * see sd_http_xattr.c. */
     .caps  = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_MEMFILE | BRIX_SD_CAP_DIRS
-           | BRIX_SD_CAP_DIRS_WRITE | BRIX_SD_CAP_HARD_RENAME,
+           | BRIX_SD_CAP_DIRS_WRITE | BRIX_SD_CAP_HARD_RENAME
+           | BRIX_SD_CAP_SERVER_COPY | BRIX_SD_CAP_XATTR
+           | BRIX_SD_CAP_XATTR_WRITE,
     .cred_accept = BRIX_SD_CRED_BEARER | BRIX_SD_CRED_PROXY_PEM,
     .open  = sd_http_open,
     .open_cred = sd_http_open_cred,
     .close = sd_http_close,
     .pread = sd_http_pread,
+    /* One coalesced range GET per vector read instead of the generic one-GET-
+     * per-iovec fallback — see sd_http_read.c. */
+    .preadv = sd_http_preadv,
     .fstat = sd_http_fstat,
     .stat  = sd_http_stat,
     .stat_cred     = sd_http_stat_cred,
+    /* Checksum offload: one Want-Digest HEAD instead of dragging the whole
+     * object across the network to hash bytes the origin already hashed. */
+    .query_checksum = sd_http_query_checksum,
+    /* Capacity: the ORIGIN's RFC-4331 quota pair, not the statvfs of the
+     * gateway's own (empty) export directory — see sd_http_space.c. */
+    .space          = sd_http_space,
     .unlink        = sd_http_unlink,
     .mkdir         = sd_http_mkdir,
     .rename        = sd_http_rename,
+    /* In-origin duplication (WebDAV COPY): the bytes never traverse this host —
+     * see sd_http_mutate.c. */
+    .server_copy   = sd_http_server_copy,
     /* phase-70 §5.1: per-user credential-scoped namespace mutation — the origin
-     * authorizes MKCOL/MOVE/DELETE AS the forwarded end user, not the service
+     * authorizes MKCOL/MOVE/COPY/DELETE AS the forwarded end user, not the service
      * credential (mirrors open_cred/staged_open_cred/stat_cred). */
     .unlink_cred   = sd_http_unlink_cred,
     .mkdir_cred    = sd_http_mkdir_cred,
     .rename_cred   = sd_http_rename_cred,
+    .server_copy_cred = sd_http_server_copy_cred,
     .staged_open   = sd_http_staged_open,
     .staged_open_cred = sd_http_staged_open_cred,
     .staged_write  = sd_http_staged_write,
@@ -63,6 +83,27 @@ static const brix_sd_driver_t brix_sd_http_driver = {
     .readdir       = sd_http_readdir,
     .closedir      = sd_http_closedir,
     .opendir_cred  = sd_http_opendir_cred,
+    /* Extended attributes as WebDAV dead properties, with the same per-user
+     * twins every other namespace slot carries — see sd_http_xattr.c. */
+    .getxattr      = sd_http_getxattr,
+    .listxattr     = sd_http_listxattr,
+    .setxattr      = sd_http_setxattr,
+    .removexattr   = sd_http_removexattr,
+    /* Advisory POSIX metadata (sd_http_setattr.c): RFC 4918 gives a resource no
+     * mode and no owner, so chmod/kXR_setattr rides in the reserved dead
+     * property and is overlaid on stat. Without the slot the VFS read the
+     * absence as "nothing to do" and the client was told a change it never got
+     * had succeeded. */
+    .setattr       = sd_http_setattr,
+    .setattr_cred  = sd_http_setattr_cred,
+    /* Nearline (sd_http_nearline.c): the WLCG Tape REST API. Both slots are
+     * gated on BRIX_SD_CAP_NEARLINE, which only a configured tape_api arms. */
+    .residency     = sd_http_residency,
+    .recall        = sd_http_recall,
+    .getxattr_cred = sd_http_getxattr_cred,
+    .listxattr_cred = sd_http_listxattr_cred,
+    .setxattr_cred = sd_http_setxattr_cred,
+    .removexattr_cred = sd_http_removexattr_cred,
 };
 
 /* 1 iff `inst` is an sd_http instance.  Kept beside the (file-private) driver
@@ -184,6 +225,20 @@ brix_sd_http_create(const brix_sd_http_cfg_t *cfg, ngx_log_t *log)
     inst->log    = log;
     inst->pool   = NULL;
     inst->state  = is;
+    /* Effective caps default to the descriptor's, exactly as the pool-allocating
+     * brix_sd_instance_create does. This factory bypasses that path (it is called
+     * from tier/registry composition, which has no pool), so without this line
+     * every cap read through brix_sd_caps() came back 0 and cap-gated branches —
+     * cstore's CAP_XATTR cinfo store, the residency/space seams — silently took
+     * their fallback. */
+    inst->caps   = brix_sd_http_driver.caps;
+    /* Nearline is an operator DECLARATION, not a discovery: a configured Tape
+     * REST API base is the only thing that arms the cap, and the composing
+     * registry then requires a cache tier in front of this instance. See
+     * sd_http_nearline.c. */
+    if (sd_http_tape_init(is, cfg->tape_api)) {
+        inst->caps |= BRIX_SD_CAP_NEARLINE;
+    }
     return inst;
 }
 

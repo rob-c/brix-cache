@@ -25,13 +25,69 @@
 
 /* ---- object metadata (x-amz-meta-*) ----------------------------------- */
 
+/*
+ * WHAT: Run an already-signed HEAD and hand back the LIVE response. 0 with
+ *       *resp filled (the caller must resp_free it), or -1 with errbuf set.
+ * WHY:  Three readers want the same wire leg and the same status verdict — a
+ *       user-metadata attribute, a stored checksum, and the archive-state pair
+ *       (sd_s3_archive.c) — and they differ only in what they sign and which
+ *       headers they then pull out. Handing back the live response rather than
+ *       one extracted value is what lets the archive reader take THREE headers
+ *       off ONE round trip instead of HEADing the object three times.
+ * HOW:  The caller signs (the signer differs: a plain HEAD vs one carrying an
+ *       extra x-amz-* header, which AWS requires in the signed set) and passes
+ *       the finished header block. Non-200 is mapped and the response released
+ *       here, so a failing caller never has to remember to free.
+ */
+int
+sd_s3_head_send(sd_s3_file *f, const char *hdrs, brix_s3_resp_t *resp,
+                char *errbuf, size_t errcap)
+{
+    if (f->transport->request(f->tctx, f->host, f->port, f->tls, "HEAD",
+                              f->key, hdrs, NULL, 0, f->timeout_ms, resp,
+                              errbuf, errcap) != 0)
+    {
+        return -1;
+    }
+    if (resp->status != 200) {
+        int rc = sd_s3_status_err(resp->status, "HEAD", f->key, errbuf, errcap);
+        f->transport->resp_free(resp);
+        return rc;   /* -1 */
+    }
+    return 0;
+}
+
+/*
+ * WHAT: One named response header off an already-signed HEAD. >0 = the value's
+ *       length, 0 = the header is absent, -1 = error (errbuf).
+ * WHY:  An absent header is NOT an error: on S3 it means "this object carries
+ *       no such value", which both the metadata and the checksum reader report
+ *       as a decline rather than a failure.
+ */
+static ssize_t
+sd_s3_head_header(sd_s3_file *f, const char *hdrs, const char *want,
+                  const sd_s3_meta_buf *out, char *errbuf, size_t errcap)
+{
+    brix_s3_resp_t resp;
+
+    if (sd_s3_head_send(f, hdrs, &resp, errbuf, errcap) != 0) {
+        return -1;
+    }
+    if (f->transport->resp_header(&resp, want, out->buf, out->cap) != 0) {
+        f->transport->resp_free(&resp);
+        out->buf[0] = '\0';
+        return 0;    /* header absent */
+    }
+    f->transport->resp_free(&resp);
+    return (ssize_t) strlen(out->buf);
+}
+
 ssize_t
 sd_s3_get_meta(sd_s3_file *f, const char *name, const sd_s3_meta_buf *out,
                char *errbuf, size_t errcap)
 {
     char             auth[SD_S3_AUTH_HDRS_CAP];
     char             hname[160];
-    brix_s3_resp_t resp;
     int              n;
 
     if (f == NULL || name == NULL || out == NULL || out->buf == NULL
@@ -49,24 +105,31 @@ sd_s3_get_meta(sd_s3_file *f, const char *name, const sd_s3_meta_buf *out,
         sd_s3_set_err(errbuf, errcap, "s3 HEAD: SigV4 sign failed on %s", f->key);
         return -1;
     }
-    if (f->transport->request(f->tctx, f->host, f->port, f->tls, "HEAD",
-                              f->key, auth, NULL, 0, f->timeout_ms, &resp,
-                              errbuf, errcap) != 0)
+    return sd_s3_head_header(f, auth, hname, out, errbuf, errcap);
+}
+
+ssize_t
+sd_s3_get_checksum(sd_s3_file *f, const char *hdr_name,
+                   const sd_s3_meta_buf *out, char *errbuf, size_t errcap)
+{
+    /* HeadObject returns a stored checksum only when asked; the ETag comes back
+     * either way, so one request shape serves both. AWS requires every x-amz-*
+     * header a request carries to be in the SIGNED set, hence sd_s3_sign_ext. */
+    static const sd_s3_sign_hdr_t ck_mode = { "x-amz-checksum-mode", "ENABLED" };
+    const sd_s3_sign_req_t        req = { "HEAD", "", &ck_mode, 1 };
+    char                          auth[SD_S3_AUTH_HDRS_CAP];
+
+    if (f == NULL || hdr_name == NULL || out == NULL || out->buf == NULL
+        || out->cap == 0)
     {
+        sd_s3_set_err(errbuf, errcap, "s3 get-checksum: bad parameters");
         return -1;
     }
-    if (resp.status != 200) {
-        int rc = sd_s3_status_err(resp.status, "HEAD", f->key, errbuf, errcap);
-        f->transport->resp_free(&resp);
-        return rc;   /* -1 */
+    if (sd_s3_sign_ext(f, &req, auth, sizeof(auth)) != 0) {
+        sd_s3_set_err(errbuf, errcap, "s3 HEAD: SigV4 sign failed on %s", f->key);
+        return -1;
     }
-    if (f->transport->resp_header(&resp, hname, out->buf, out->cap) != 0) {
-        f->transport->resp_free(&resp);
-        out->buf[0] = '\0';
-        return 0;    /* attribute absent */
-    }
-    f->transport->resp_free(&resp);
-    return (ssize_t) strlen(out->buf);
+    return sd_s3_head_header(f, auth, hdr_name, out, errbuf, errcap);
 }
 
 /* One "user.<name>" listxattr entry from a raw "x-amz-meta-<name>: v" header

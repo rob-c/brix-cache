@@ -150,6 +150,22 @@ ngx_int_t sd_xroot_rename(brix_sd_instance_t *inst, const char *src,
               const char *dst, int noreplace);
 ngx_int_t sd_xroot_unlink(brix_sd_instance_t *inst, const char *path, int is_dir);
 ngx_int_t sd_xroot_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode);
+/* Nearline (tape/MSS) pair — sd_xroot_nearline.c. Reachable only on an instance
+ * that advertises BRIX_SD_CAP_NEARLINE (the tier store line's `nearline` param):
+ * residency reads kXR_stat's kXR_offline flag, recall sends kXR_prepare with
+ * kXR_stage and reports NGX_AGAIN so the open parks instead of blocking. */
+ngx_int_t sd_xroot_residency(brix_sd_instance_t *inst, const char *key,
+              brix_sd_residency_t *out);
+ngx_int_t sd_xroot_recall(brix_sd_instance_t *inst, const char *key,
+              char reqid_out[40]);
+/* Export capacity from the ORIGIN (kXR_Qspace on a fresh anonymous session);
+ * NGX_ERROR ⇒ consumers fall back to local statvfs. */
+ngx_int_t sd_xroot_space(brix_sd_instance_t *inst, brix_sd_space_t *out);
+/* Metadata mutation: the mode group only, as kXR_chmod (times/owner are accepted
+ * and ignored — the base protocol has no opcode for them). Without the slot the
+ * VFS returns success for a chmod it never sent. */
+ngx_int_t sd_xroot_setattr(brix_sd_instance_t *inst, const char *path,
+              const brix_sd_setattr_t *attr);
 ngx_int_t sd_xroot_truncate_path(brix_sd_instance_t *inst, const char *path,
               off_t len);
 ngx_int_t sd_xroot_setattr(brix_sd_instance_t *inst, const char *path,
@@ -169,6 +185,8 @@ ngx_int_t sd_xroot_rename_cred(brix_sd_instance_t *inst, const char *src,
               const char *dst, int noreplace, const brix_sd_cred_t *cred);
 ngx_int_t sd_xroot_mkdir_cred(brix_sd_instance_t *inst, const char *path,
               mode_t mode, const brix_sd_cred_t *cred);
+ngx_int_t sd_xroot_setattr_cred(brix_sd_instance_t *inst, const char *path,
+              const brix_sd_setattr_t *attr, const brix_sd_cred_t *cred);
 ngx_int_t sd_xroot_truncate_path_cred(brix_sd_instance_t *inst, const char *path,
               off_t len, const brix_sd_cred_t *cred);
 ngx_int_t sd_xroot_setattr_cred(brix_sd_instance_t *inst, const char *path,

@@ -61,6 +61,29 @@ typedef struct {
                                                        * wire-corrupted upload (BadDigest) */
     char                  origin_sss_keytab[1024];   /* §14 SSS: shared-secret keytab*/
     int                   staging;       /* xroot: stage local + promote on commit */
+    int                   origin_nearline; /* xroot: "root+tape://" — the origin
+                                            * fronts an MSS, so the driver arms
+                                            * CAP_NEARLINE (residency via
+                                            * kXR_offline, recall via
+                                            * kXR_prepare/kXR_stage) instead of
+                                            * blocking a worker on the mount.
+                                            * s3: "?nearline=1" says the bucket
+                                            * is archive-backed (GLACIER /
+                                            * DEEP_ARCHIVE), which arms the same
+                                            * cap over RestoreObject. */
+    int                   origin_restore_days; /* s3 "?restore_days=N": how long a
+                                            * RestoreObject copy stays readable.
+                                            * 0 leaves the driver's default. */
+    char                  origin_tape_api[512]; /* http "?tape_api=/api/v1": the
+                                            * WLCG Tape REST API base on the
+                                            * origin. Non-empty is the operator's
+                                            * declaration that this origin fronts
+                                            * an HSM, and is the ONLY thing that
+                                            * arms CAP_NEARLINE on sd_http — the
+                                            * http twin of origin_nearline, which
+                                            * carries a value because the API
+                                            * base is not derivable from the data
+                                            * URL. */
     /* ceph backend: the export's namespace + data live in a RADOS pool (no local
      * dir); root_canon is just the logical mount point. */
     char                  ceph_pool[256];

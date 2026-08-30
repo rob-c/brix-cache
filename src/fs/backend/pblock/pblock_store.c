@@ -417,6 +417,68 @@ pblock_read_blocks(const pblock_state_t *st, const char *blob_id, int64_t bs,
     return (ssize_t) done;
 }
 
+/* pblock_advise_blocks — issue posix_fadvise(2) over the block files backing
+ * [off, off+len), translating each block's slice into a block-local range.
+ *
+ * WHAT: The advisory twin of pblock_read_blocks — same segment walk, same
+ *       block-0-fd reuse, but the pread is replaced by an fadvise and a missing
+ *       block is skipped instead of zero-filled.
+ * WHY:  A striped object is many files, so a single fadvise on the object's
+ *       block-0 fd (the only persistent one) describes at most the first block —
+ *       a sequential or WILLNEED hint over a multi-block read has to reach every
+ *       block file, or the readahead the caller asked for simply never happens.
+ * HOW:  Transient blocks are opened O_RDONLY for the hint and closed
+ *       immediately. Advisory throughout: a per-block failure is skipped, and
+ *       only a caller error (bad path) returns -1. A transform-configured export
+ *       returns 0 without hinting — the block bytes are encoded, so an advice
+ *       range computed in plaintext coordinates would describe the wrong bytes.
+ */
+int
+pblock_advise_blocks(const pblock_state_t *st, const char *blob_id, int64_t bs,
+    int blk0_fd, size_t len, off_t off, int advice)
+{
+#if defined(POSIX_FADV_SEQUENTIAL)
+    size_t done = 0;
+
+    if (pblock_xform_active(&st->xform)) {
+        return 0;
+    }
+
+    while (done < len) {
+        pblock_seg_t sg;
+        int          fd, transient = 0;
+
+        pblock_seg_at(bs, off, done, len, &sg);
+        if (sg.idx == 0 && blk0_fd >= 0) {
+            fd = blk0_fd;
+        } else {
+            char bp[PATH_MAX];
+
+            if (pblock_block_path(st, blob_id, sg.idx, bp, sizeof(bp)) != 0) {
+                return -1;
+            }
+            fd = open(bp, O_RDONLY);
+            if (fd < 0) {
+                done += sg.chunk;       /* hole / unwritten block: nothing to hint */
+                continue;
+            }
+            transient = 1;
+        }
+
+        (void) posix_fadvise(fd, sg.boff, (off_t) sg.chunk, advice);
+        if (transient) {
+            close(fd);
+        }
+        done += sg.chunk;
+    }
+    return 0;
+#else
+    (void) st; (void) blob_id; (void) bs; (void) blk0_fd;
+    (void) len; (void) off; (void) advice;
+    return 0;
+#endif
+}
+
 /* pblock_remove_blocks — unlink every block file of an object and remove its
  * per-object directory (and best-effort the now-possibly-empty fan-out dirs). */
 void

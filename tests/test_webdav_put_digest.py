@@ -78,6 +78,14 @@ def _sha256_b64(b):
     return base64.b64encode(hashlib.sha256(b).digest()).decode()
 
 
+def _sha512_b64(b):
+    return base64.b64encode(hashlib.sha512(b).digest()).decode()
+
+
+def _sha1_b64(b):
+    return base64.b64encode(hashlib.sha1(b).digest()).decode()
+
+
 def _crc32_hex(b):
     return format(zlib.crc32(b) & 0xffffffff, "08x")
 
@@ -98,6 +106,20 @@ def test_correct_md5_commits(put_server):
 
 def test_correct_sha256_commits(put_server):
     r = _put(put_server, {"Digest": f"sha-256={_sha256_b64(BODY)}"})
+    assert r.status_code in OK, r.text
+
+
+# sha-1 and sha-512 arrived with the shared RFC-3230 grammar
+# (src/core/compat/digest_header.c): before it, a PUT asserting either read as
+# "no usable digest" and was committed unverified. Both spellings — the
+# registered hyphenated one and the bare one origins also emit — must verify.
+def test_correct_sha512_commits(put_server):
+    r = _put(put_server, {"Digest": f"sha-512={_sha512_b64(BODY)}"})
+    assert r.status_code in OK, r.text
+
+
+def test_correct_sha1_unhyphenated_commits(put_server):
+    r = _put(put_server, {"Digest": f"sha1={_sha1_b64(BODY)}"})
     assert r.status_code in OK, r.text
 
 
@@ -149,6 +171,11 @@ def test_malformed_digest_value_rejected(put_server):
 
 def test_wrong_crc32_hex_rejected(put_server):
     r = _put(put_server, {"Digest": "crc32=00000000"})
+    assert r.status_code == 400, r.text
+
+
+def test_wrong_sha512_rejected(put_server):
+    r = _put(put_server, {"Digest": f"sha-512={_sha512_b64(b'a different body')}"})
     assert r.status_code == 400, r.text
 
 

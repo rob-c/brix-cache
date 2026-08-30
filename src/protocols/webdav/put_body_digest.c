@@ -12,6 +12,7 @@
 #include "webdav.h"
 #include "core/http/etag.h"
 #include "core/http/http_body.h"
+#include "core/compat/digest_header.h"   /* the shared RFC-3230 Digest grammar */
 #include "core/compat/integrity_info.h"
 #include "core/http/http_conditionals.h"
 #include "core/compat/range.h"
@@ -31,26 +32,6 @@
 
 /* ---- ingest-digest verification (client->server body integrity) ----------- */
 
-typedef enum {
-    WEBDAV_DIGEST_NONE = 0,   /* no usable ingest digest header present         */
-    WEBDAV_DIGEST_FOUND,      /* a supported alg + value parsed (alg/exp filled)*/
-    WEBDAV_DIGEST_BAD         /* a supported alg named, but its value is garbage*/
-} webdav_digest_kind_t;
-
-/* RFC-3230 Digest tokens / Content-MD5 we can recompute. `b64` = the value is
- * base64 (md5/sha per RFC 3230 + RFC 1864); otherwise it is lowercase hex (the
- * WLCG/dCache convention for adler32/crc32). */
-static const struct {
-    const char *tok; size_t toklen; const char *alg; int b64;
-} webdav_digest_tokens[] = {
-    { "md5",     3, "md5",     1 },
-    { "sha-256", 7, "sha256",  1 },
-    { "sha256",  6, "sha256",  1 },
-    { "adler32", 7, "adler32", 0 },
-    { "crc32c",  6, "crc32c",  0 },
-    { "crc32",   5, "crc32",   0 },
-};
-
 /* Two hex checksums are equal ignoring case and leading-zero padding (a client
  * may send an un-padded adler32 while our compute zero-pads to the alg width). */
 static int
@@ -66,164 +47,45 @@ webdav_hex_norm_equal(const char *a, const char *b)
     return *a == '\0' && *b == '\0';
 }
 
-/*
- * WHAT: Classify one ASCII hexadecimal digit from a checksum header.
- * WHY:  Digest decoding should keep output sizing separate from byte grammar.
- * HOW:  Accept decimal digits and either case of the six hexadecimal letters.
- */
-static int
-webdav_is_hex(u_char value)
-{
-    return (value >= '0' && value <= '9') ||
-           (value >= 'a' && value <= 'f') ||
-           (value >= 'A' && value <= 'F');
-}
-
-/* Normalise a digest header value into lowercase hex in out[]. A base64 value is
- * decoded then hex-encoded; a hex value is copied lowercased. */
-static ngx_int_t
-webdav_digest_value_hex(ngx_http_request_t *r, const u_char *val, size_t vlen,
-    int is_b64, char *out, size_t outsz)
-{
-    if (vlen == 0) {
-        return NGX_ERROR;
-    }
-    if (is_b64) {
-        ngx_str_t src, dst;
-        src.data = (u_char *) val;
-        src.len  = vlen;
-        dst.len  = ngx_base64_decoded_length(vlen);
-        dst.data = ngx_pnalloc(r->pool, dst.len ? dst.len : 1);
-        if (dst.data == NULL || ngx_decode_base64(&dst, &src) != NGX_OK) {
-            return NGX_ERROR;
-        }
-        if (dst.len == 0 || dst.len * 2 + 1 > outsz) {
-            return NGX_ERROR;
-        }
-        ngx_hex_dump((u_char *) out, dst.data, dst.len);
-        out[dst.len * 2] = '\0';
-        return NGX_OK;
-    }
-    if (vlen + 1 > outsz) {
-        return NGX_ERROR;
-    }
-    {
-        size_t i;
-        for (i = 0; i < vlen; i++) {
-            u_char c = val[i];
-            if (!webdav_is_hex(c)) {
-                return NGX_ERROR;   /* not a hex digit — malformed */
-            }
-            out[i] = (char) ngx_tolower(c);
-        }
-        out[vlen] = '\0';
-    }
-    return NGX_OK;
-}
-
-/* Strip leading and trailing linear whitespace from a [*s, *s+*len) slice. */
-static void
-webdav_tok_trim(u_char **s, size_t *len)
-{
-    u_char *p = *s;
-    size_t  n = *len;
-    while (n > 0 && (*p == ' ' || *p == '\t')) { p++; n--; }
-    while (n > 0 && (p[n - 1] == ' ' || p[n - 1] == '\t')) { n--; }
-    *s = p;
-    *len = n;
-}
-
-/* Match a trimmed Digest token=value pair against the supported-alg table.
- * Returns 1 if the token names a supported alg — *out is then FOUND (with *alg
- * and exp_hex filled) or BAD (value not valid hex) — else 0 to keep scanning. */
-static int
-webdav_digest_match(ngx_http_request_t *r, u_char *tok, size_t tlen,
-    u_char *v, size_t vlen, const char **alg, char *exp_hex, size_t exp_sz,
-    webdav_digest_kind_t *out)
-{
-    size_t ntok = sizeof(webdav_digest_tokens)
-                  / sizeof(webdav_digest_tokens[0]);
-    size_t i;
-
-    for (i = 0; i < ntok; i++) {
-        if (tlen == webdav_digest_tokens[i].toklen
-            && ngx_strncasecmp(tok,
-                   (u_char *) webdav_digest_tokens[i].tok, tlen) == 0)
-        {
-            if (webdav_digest_value_hex(r, v, vlen,
-                    webdav_digest_tokens[i].b64, exp_hex, exp_sz) != NGX_OK)
-            {
-                *out = WEBDAV_DIGEST_BAD;
-            } else {
-                *alg = webdav_digest_tokens[i].alg;
-                *out = WEBDAV_DIGEST_FOUND;
-            }
-            return 1;
-        }
-    }
-    return 0;
-}
-
-/* Scan a Digest: header value (comma-separated alg=value pairs) for the first
- * supported alg.  Returns 1 with *out set (FOUND/BAD) once a token matches, or 0
- * if no listed token is supported (caller falls through to Content-MD5). */
-static int
-webdav_digest_scan(ngx_http_request_t *r, ngx_table_elt_t *h,
-    const char **alg, char *exp_hex, size_t exp_sz, webdav_digest_kind_t *out)
-{
-    u_char *p = h->value.data, *end = p + h->value.len;
-
-    while (p < end) {
-        u_char *comma = ngx_strlchr(p, end, ',');
-        u_char *iend  = comma ? comma : end;
-        u_char *eq    = ngx_strlchr(p, iend, '=');
-        if (eq != NULL) {
-            u_char *tok = p, *v = eq + 1;
-            size_t  tlen = eq - p, vlen = iend - (eq + 1);
-            webdav_tok_trim(&tok, &tlen);
-            webdav_tok_trim(&v, &vlen);
-            if (webdav_digest_match(r, tok, tlen, v, vlen, alg,
-                    exp_hex, exp_sz, out))
-            {
-                return 1;
-            }
-        }
-        p = comma ? comma + 1 : end;
-    }
-    return 0;
-}
-
 /* Pick the first supported digest from Digest: (RFC 3230) then Content-MD5:. On
- * WEBDAV_DIGEST_FOUND, *alg points at a static alg name and exp_hex holds the
+ * BRIX_DIGEST_FOUND, *alg points at a static alg name and exp_hex holds the
  * client-asserted value as lowercase hex. Unsupported Digest tokens are skipped
  * (best-effort interop), so a Digest that names only algs we cannot compute reads
- * as NONE — require_digest then decides whether that is acceptable. */
-static webdav_digest_kind_t
+ * as NONE — require_digest then decides whether that is acceptable.
+ *
+ * The grammar itself (token table, base64-vs-hex encoding per algorithm, the
+ * comma-separated scan) lives in core/compat/digest_header.c, shared with the
+ * outbound direction — the sd_http checksum-offload slot parses the SAME header
+ * off an origin's reply, and a client and an origin must not be understood by
+ * two different parsers. */
+static brix_digest_kind_t
 webdav_digest_select(ngx_http_request_t *r, const char **alg,
     char *exp_hex, size_t exp_sz)
 {
-    ngx_table_elt_t      *h;
-    webdav_digest_kind_t  kind;
+    ngx_table_elt_t    *h;
+    brix_digest_kind_t  kind;
 
     h = brix_http_find_header(r, "Digest", sizeof("Digest") - 1);
-    if (h != NULL && h->value.len > 0
-        && webdav_digest_scan(r, h, alg, exp_hex, exp_sz, &kind))
-    {
-        return kind;
+    if (h != NULL && h->value.len > 0) {
+        kind = brix_digest_header_scan(h->value.data, h->value.len, NULL,
+                                       alg, exp_hex, exp_sz);
+        if (kind != BRIX_DIGEST_NONE) {
+            return kind;
+        }
     }
 
     h = brix_http_find_header(r, "Content-MD5", sizeof("Content-MD5") - 1);
     if (h != NULL && h->value.len > 0) {
-        if (webdav_digest_value_hex(r, h->value.data, h->value.len, 1,
+        if (brix_digest_value_hex(h->value.data, h->value.len, 1,
                 exp_hex, exp_sz) != NGX_OK)
         {
-            return WEBDAV_DIGEST_BAD;
+            return BRIX_DIGEST_BAD;
         }
         *alg = "md5";
-        return WEBDAV_DIGEST_FOUND;
+        return BRIX_DIGEST_FOUND;
     }
 
-    return WEBDAV_DIGEST_NONE;
+    return BRIX_DIGEST_NONE;
 }
 
 /*
@@ -255,7 +117,7 @@ webdav_put_verify_ingest_digest(ngx_http_request_t *r,
 {
     char                    exp_hex[129];
     const char             *alg = NULL;
-    webdav_digest_kind_t    kind;
+    brix_digest_kind_t      kind;
     ngx_fd_t                fd;
     ngx_table_elt_t        *ce;
     brix_integrity_info_t   info;
@@ -269,10 +131,10 @@ webdav_put_verify_ingest_digest(ngx_http_request_t *r,
     }
 
     kind = webdav_digest_select(r, &alg, exp_hex, sizeof(exp_hex));
-    if (kind == WEBDAV_DIGEST_BAD) {
+    if (kind == BRIX_DIGEST_BAD) {
         return NGX_HTTP_BAD_REQUEST;                 /* known alg, bad value */
     }
-    if (kind == WEBDAV_DIGEST_NONE) {
+    if (kind == BRIX_DIGEST_NONE) {
         return conf->require_digest ? NGX_HTTP_BAD_REQUEST : NGX_OK;
     }
 

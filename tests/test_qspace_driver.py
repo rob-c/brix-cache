@@ -7,7 +7,7 @@ even for a backend whose real capacity lives elsewhere. Both now consult the
 shared `query_space_probe` (the once-dormant `brix_vfs_space` seam) first, so:
   * a pblock export with a byte quota reports its QUOTA (not the host FS);
   * a proxy whose backend is a remote root:// origin forwards the query to the
-    origin (sd_xroot `.space` slot → brix_cache_origin_space);
+    origin (sd_xroot `.space` slot → brix_cache_origin_query_space);
   * a plain POSIX export declines the seam and falls back to local statvfs —
     byte-for-byte the prior behaviour.
 

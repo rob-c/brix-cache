@@ -290,8 +290,9 @@ brix_vfs_statf(brix_vfs_ctx_t *ctx, brix_vfs_stat_t *stat_out)
 /* Descend one cache/stage decorator to its wrapped source (NULL at a leaf or a
  * non-decorator instance). Both unwrap helpers self-guard, so this is safe on any
  * instance and lets the residency seam find a nearline driver buried under a
- * read-cache and/or write-stage tier. */
-static brix_sd_instance_t *
+ * read-cache and/or write-stage tier. Shared with the catalog-enumeration seam
+ * (vfs_walk.c), which walks the same chain for the same reason. */
+brix_sd_instance_t *
 brix_vfs_decorator_source(const brix_sd_instance_t *inst)
 {
     brix_sd_instance_t *s = brix_sd_cache_source_instance(inst);

@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import socket
 import sqlite3
+import struct
 import subprocess
 import time
 
@@ -294,3 +296,102 @@ def test_quota_uid_limit_binds_only_its_uid(lifecycle) -> None:
         assert run.call([XRDCP, "-f", src, f"{hub}allowed.bin"],
                         check=False).returncode == 0, \
             "another uid's quota row blocked uid 0's write"
+
+
+def _raw_recv(s: socket.socket) -> tuple[int, bytes]:
+    """One ServerResponseHdr + body off the wire → (status, body)."""
+    hdr = b""
+    while len(hdr) < 8:
+        chunk = s.recv(8 - len(hdr))
+        assert chunk, "server closed mid-header"
+        hdr += chunk
+    status, dlen = struct.unpack("!2sHI", hdr)[1:]
+    body = b""
+    while len(body) < dlen:
+        chunk = s.recv(dlen - len(body))
+        assert chunk, "server closed mid-body"
+        body += chunk
+    return status, body
+
+
+def _raw_query(host: str, port: int, infotype: int,
+               payload: bytes) -> tuple[int, bytes]:
+    """kXR_query `infotype` over a fresh anonymous session against the lab
+    endpoint (the shared query helpers are pinned to the fleet's anon port, so
+    a lifecycle-launched export needs its own session)."""
+    s = socket.create_connection((host, port), timeout=10)
+    try:
+        s.settimeout(10)
+        s.sendall(struct.pack("!IIIII", 0, 0, 0, 4, 2012))
+        assert _raw_recv(s)[0] == 0, "handshake refused"
+        s.sendall(struct.pack("!2sHI8sBBBBI", b"\x00\x01", 3007,
+                              os.getpid() & 0xFFFFFFFF, b"pytest\x00\x00",
+                              0, 0, 5, 0, 0))
+        assert _raw_recv(s)[0] == 0, "anonymous login refused"
+        s.sendall(struct.pack("!2sHHH4s8sI", b"\x00\x02", 3001, infotype,
+                              0, b"\x00" * 4, b"\x00" * 8, len(payload))
+                  + payload)
+        return _raw_recv(s)
+    finally:
+        s.close()
+
+
+def _check_qspace_reports_quota(st: int, body: bytes) -> int:
+    """(success) Qspace must report against the 100m quota, not the backing
+    disk. Returns the reported free bytes for the agreement checks."""
+    assert st == 0, f"Qspace failed: status={st}"
+    oss = dict(kv.split("=", 1)
+               for kv in body.rstrip(b"\x00").decode().split("&")
+               if "=" in kv)
+    total = int(oss["oss.space"])
+    free = int(oss["oss.free"])
+    used = int(oss["oss.used"])
+    assert total == 100 * 1024 * 1024, \
+        f"oss.space is the backing disk, not the quota: {total}"
+    assert 2_000_000 <= used < 3 * 1024 * 1024, f"oss.used off: {used}"
+    assert free == total - used, f"free {free} != total-used {total - used}"
+    return free
+
+
+def _check_fsinfo_agrees(st_f: int, body_f: bytes, free: int) -> None:
+    """(consistency) The QFSinfo compact report must carry the same free-MB
+    figure Qspace derived from the driver space slot."""
+    assert st_f == 0, f"QFSinfo failed: status={st_f}"
+    fields = body_f.rstrip(b"\x00").decode().split()
+    assert int(fields[1]) == free >> 20, \
+        f"QFSinfo freeMB {fields[1]} != Qspace free {free >> 20}"
+
+
+@pytest.mark.optin
+@pytest.mark.timeout(150)
+def test_qspace_and_fsinfo_report_quota_not_disk(lifecycle) -> None:
+    """kXR_Qspace (5) and kXR_QFSinfo (10) consult the driver `space` slot —
+    the same source as kXR_statvfs — instead of statvfs(2) on the local root.
+    On a quota-armed pblock export both must report the 100m quota, not the
+    backing disk (success); the two opcodes and kXR_statvfs must agree on one
+    free figure (error: a driver answering one opcode but not the others would
+    show clients two conflicting capacities); and the rpCheck-parity guard
+    still rejects an empty Qspace path BEFORE any backend consult
+    (security-neg)."""
+    _need_bins()
+    with LiveRun("pblock_quota_qspace", None) as run:
+        ep = lifecycle.start(
+            pblock_lab_spec("lc-pblock-quota-qspace", "?quota=100m"))
+        time.sleep(1)
+        host = f"root://{ep.host}:{ep.port}"
+        src = run.root / "src.bin"
+        random_file(src, 2_000_000)
+        assert run.call([XRDCP, "-f", src, f"{host}/qs.bin"],
+                        check=False).returncode == 0
+
+        st, body = _raw_query(ep.host, ep.port, 5, b"/\x00")
+        free = _check_qspace_reports_quota(st, body)
+
+        st_f, body_f = _raw_query(ep.host, ep.port, 10, b"")
+        _check_fsinfo_agrees(st_f, body_f, free)
+        assert _free_mb(run, host) == free >> 20, \
+            "kXR_statvfs disagrees with Qspace"
+
+        # (security-neg) empty Qspace path rejected before the backend consult.
+        st_e, _ = _raw_query(ep.host, ep.port, 5, b"")
+        assert st_e == 4003, f"empty Qspace path not rejected: status={st_e}"

@@ -156,8 +156,10 @@ sd_ceph_dir_collect(void *ctx, const brix_sd_catalog_ent_t *ent)
 }
 
 brix_sd_dir_t *
-sd_ceph_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
+sd_ceph_opendir_io(brix_sd_instance_t *inst, rados_ioctx_t io, const char *path,
+    int *err_out)
 {
+    sd_ceph_state_t       *st = inst->state;
     char                   norm[1024];
     sd_ceph_dir_state_t    snap;
     sd_ceph_dir_collect_t  c;
@@ -174,7 +176,7 @@ sd_ceph_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
     c.ds  = &snap;
     c.err = 0;
 
-    if (sd_ceph_enumerate(inst, 0, sd_ceph_dir_collect, &c) != NGX_OK) {
+    if (sd_ceph_enumerate_io(st, io, 0, sd_ceph_dir_collect, &c) != NGX_OK) {
         if (err_out != NULL) { *err_out = errno; }
         sd_ceph_dir_state_free(&snap);
         return NULL;
@@ -208,6 +210,14 @@ sd_ceph_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
     dir->inst  = inst;
     dir->state = ds;
     return dir;
+}
+
+brix_sd_dir_t *
+sd_ceph_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
+{
+    sd_ceph_state_t *st = inst->state;
+
+    return sd_ceph_opendir_io(inst, st->ioctx, path, err_out);
 }
 
 ngx_int_t

@@ -300,6 +300,21 @@ cephfsro_stat(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out)
     return NGX_OK;
 }
 
+/* cephfsro_space — cluster capacity for kXR_Qspace / QFSinfo. Read through the
+ * DATA-pool connection: the figures rados_cluster_stat returns are cluster-wide
+ * either way, but the data pool is the one whose bytes a client's write would
+ * consume, so a future pool-scoped refinement lands on the right handle. The
+ * driver is read-only and the answer is still the honest one — a client asking
+ * "how full is this?" gets the cluster, not the gateway's own spool. */
+static ngx_int_t
+cephfsro_space(brix_sd_instance_t *inst, brix_sd_space_t *out)
+{
+    cephfsro_state_t *st = inst->state;
+
+    return (sd_ceph_cluster_space(sd_ceph_conn_cluster(st->data), out) == 0)
+           ? NGX_OK : NGX_ERROR;
+}
+
 /* ---- xattr (read-only) ---------------------------------------------------- */
 
 /* Resolve a path's inode xattrs into a stack dentry; shared by get/list. */
@@ -385,6 +400,8 @@ const brix_sd_driver_t brix_sd_cephfs_ro_driver = {
 
     .getxattr  = cephfsro_getxattr,
     .listxattr = cephfsro_listxattr,
+
+    .space = cephfsro_space,   /* cluster capacity, not the gateway's spool */
 
     /* every mutating slot is intentionally absent (read-only driver) */
 };

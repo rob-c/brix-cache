@@ -2,39 +2,16 @@ from pathlib import Path
 
 import pytest
 
-from cmdscripts.c_regression_units import run_checks
+from cmdscripts.c_regression_units import RUNNERS, run_checks
 
 
-@pytest.mark.parametrize(
-    "name",
-    [
-        "cache_lock_reclaim",
-        "flush_deadletter",
-        "shm_mutex_recovery",
-        "ratelimit_gauge_reset",
-        "delegation_store",
-        "pblock",
-        "mu_unit",
-        "chunk_geometry",
-        "staged_commit_contract",
-        "staged_contract_tiers",
-        "staged_contract_origin",
-        "shared_thread_pool",
-        "fd_kind",
-        "stage_reconcile",
-        "compression",
-        "sreq_compat",
-        "stage_bearer_thread",
-        "sd_http_mutate",
-        "sd_mkdir_cred_forward",
-        "sd_remote_wrongkind",
-        "gftp_parse",
-        "cvmfs_url_rewrite",
-        "oci_parse",
-        "tpc_progress_total",
-        "tpc_xfr_cap",
-    ],
-)
+# Parametrized from the runner table itself, never a hand-kept copy of it: a
+# maintained list silently orphans every unit added to RUNNERS but forgotten
+# here, and they then compile and run only when someone invokes the runner by
+# hand. That is how the kXR_prepare packer went missing from sd_xroot_setattr's
+# link closure with no red anywhere — 19 units were registered and unreachable.
+# tests/test_c_object_units.py derives from its SPECS dict for the same reason.
+@pytest.mark.parametrize("name", sorted(RUNNERS))
 # Each case compiles a C harness before running it (~10s alone); under a full
 # -n 12 lane the compiler competes with 11 other workers for cores and the
 # suite-wide 30s signal-timeout is not enough headroom (seen live: the

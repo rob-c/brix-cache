@@ -25,17 +25,11 @@ def staged_contract_origin(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple
     sd_xroot (Mode-A write-through) and the sd_cache forwarding slots. These three
     obey it today — the unit pins it per driver, over a scripted fake transport and
     stubbed origin wire calls, under ASan. See test_staged_contract_origin.c."""
-    # sd_http_redirect.o + url.o come along for select.o's D1.4 redirect kernel, and
-    # authority.o for the brix_oci_url_authority() host:port split url.c calls.
-    names = ["sd_http.o", "sd_http_select.o", "sd_http_read.o", "sd_http_write.o",
-             "sd_http_dir.o", "sd_http_mutate.o", "sd_http_redirect.o",
-             "url.o", "authority.o", "sd_xroot_staged.o", "sd_cache_forward.o"]
-    objs: list[Path] = []
-    for name in names:
-        obj = _find_obj(ngx_src, name)
-        if obj is None:
-            return result(True, f"SKIP: build first; missing {name}")
-        objs.append(obj)
+    # The sd_http closure (SD_HTTP_OBJS) plus the two sibling publishers this
+    # contract also pins: sd_xroot's staged leg and the sd_cache forwarders.
+    objs = _sd_http_objs(ngx_src, extra=["sd_xroot_staged.o", "sd_cache_forward.o"])
+    if isinstance(objs, str):
+        return result(True, objs)
     return _compile_and_run(
         base / "test_staged_contract_origin",
         [
@@ -47,7 +41,7 @@ def staged_contract_origin(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple
             "-Wall",
             *_nginx_includes(ngx_src, http=True, stream=True),
             str(TEST_C / "test_staged_contract_origin.c"),
-            *[str(obj) for obj in objs],
+            *objs,
             "-lssl",
             "-lcrypto",
         ],
@@ -390,13 +384,116 @@ def tier_s3_creds(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, st
 # it lands in sd_remote.o's rodata slots, so the link needs it even when the
 # test never signs anything. Kept in one place: five runners share it, and a
 # per-runner copy is how sd_s3_sign_ext.o went missing from exactly one of them.
+# The sd_http driver's link closure, shared by every runner that builds a real
+# instance through brix_sd_http_create. The driver TABLE (sd_http.o) names every
+# slot, so a runner exercising ONE of them still needs all of their translation
+# units — that is why the read/write/dir/mutate objects are here regardless of
+# what the test calls. select.o reaches the phase-104 D1.4 redirect kernel
+# (sd_http_redirect.o), which parses the Location with shared/oci/url.c -> url.o,
+# and url.c calls brix_oci_url_authority() -> authority.o (host:port splitting,
+# incl. the bracketed-IPv6 form). sd_http_digest.o is the checksum-offload slot;
+# it parses the origin's RFC-3230 Digest reply with the shared grammar
+# (digest_header.o -> hex.o), whose base64 decode is nginx's own — see
+# SD_HTTP_NGX_OBJS. sd_http_space.o is the RFC-4331 quota slot, which shares
+# dir.o's PROPFIND issuer and tag scanner. sd_http_xattr.o + sd_http_xattr_write.o
+# are the two halves of the dead-property xattr mapping, and they land here for
+# the same reason as the rest: the driver table names their eight slots, so every
+# sd_http runner needs them linked whether or not it calls one. Kept in one place:
+# five runners share it, and a per-runner copy is how sd_s3_sign_ext.o went
+# missing from exactly one of them.
+SD_HTTP_OBJS = [
+    "sd_http.o", "sd_http_select.o", "sd_http_read.o", "sd_http_readv.o",
+    "sd_http_write.o",
+    "sd_http_dir.o", "sd_http_mutate.o", "sd_http_redirect.o",
+    "sd_http_digest.o", "sd_http_space.o",
+    "sd_http_xattr.o", "sd_http_xattr_write.o",
+    # The driver TABLE names every slot, so the closure is the whole vtable and
+    # not the slots a given test calls: sd_http.o's .rodata references every
+    # function it names, and one missing TU is an undefined reference in EVERY
+    # sd_http runner at once. sd_http_setattr.o reaches the advisory-attr codec
+    # (meta_advisory_sd.o -> meta_advisory.o), which is why those two are here
+    # rather than in the setattr runner alone.
+    "sd_http_nearline.o", "sd_http_setattr.o",
+    "meta_advisory_sd.o", "meta_advisory.o",
+    # The Tape REST API answers in JSON, so the nearline TU reaches the shared
+    # minimal parser (json_min.o) and its array walker (json_iter.o).
+    "json_min.o", "json_iter.o",
+    "digest_header.o", "hex.o", "url.o", "authority.o",
+]
+
+# nginx's own objects the sd_http closure needs, by path under the nginx tree
+# (_find_obj only searches objs/addon). digest_header.c decodes a base64 digest
+# value with ngx_decode_base64 rather than carrying a second copy of it, which
+# pulls ngx_string.o and its allocator closure. A test that links these must NOT
+# define its own ngx_string.c functions — the stub and the real symbol collide.
+SD_HTTP_NGX_OBJS = [
+    "objs/src/core/ngx_string.o",
+    "objs/src/core/ngx_palloc.o",
+    "objs/src/os/unix/ngx_alloc.o",
+]
+
+def _sd_http_objs(ngx_src: Path, extra: list[str] | None = None) -> list[str] | str:
+    """Resolve the sd_http link closure to absolute object paths.
+
+    Returns the argv fragment, or a "SKIP: ..." message when the tree has not
+    been built yet (the runners turn that into a skip, not a failure)."""
+    out: list[str] = []
+    for name in SD_HTTP_OBJS + list(extra or []):
+        obj = _find_obj(ngx_src, name)
+        if obj is None:
+            return f"SKIP: build first; missing {name}"
+        out.append(str(obj))
+    for rel in SD_HTTP_NGX_OBJS:
+        obj = _need_obj(ngx_src, rel)
+        if isinstance(obj, str):
+            return obj
+        out.append(str(obj))
+    return out
+
+
 SD_REMOTE_OBJS = [
     "sd_remote.o", "sd_remote_meta.o", "sd_remote_xattr.o", "sd_remote_write.o",
-    "sd_remote_dir.o",
-    "sd_s3.o", "sd_s3_meta.o", "sd_s3_list.o", "meta_advisory.o", "sd_s3_write.o",
+    "sd_remote_dir.o", "sd_remote_checksum.o", "sd_remote_enum.o",
+    # The nearline pair, for the same table-wide reason the sd_http closure
+    # carries sd_http_nearline.o: sd_remote.o names recall/residency in .rodata.
+    # sd_s3_archive.o is the HEAD-header reader and RestoreObject poster the
+    # pair delegates to; meta_advisory_sd.o is reached from sd_remote_xattr.o's
+    # setattr, which the table has named since the advisory blob landed.
+    "sd_remote_nearline.o", "sd_s3_archive.o", "meta_advisory_sd.o",
+    # sd_s3_list.o split when the flat (catalog) lister landed: sd_s3_list_scan.o
+    # holds the XML scanner + signed-request plumbing BOTH listers call, so it is
+    # in the closure of every sd_remote unit, not just the enumerate one.
+    "sd_s3.o", "sd_s3_meta.o", "sd_s3_list.o", "sd_s3_list_scan.o",
+    "sd_s3_list_flat.o", "meta_advisory.o", "sd_s3_write.o",
     "sd_s3_sign.o", "sd_s3_sign_ext.o", "crypto.o", "hex.o", "sigv4.o", "uri.o",
-    "host_format.o", "crc32_ieee.o",
+    "host_format.o", "crc32_ieee.o", "digest_header.o",
 ]
+
+
+def _sd_remote_objs(ngx_src: Path) -> list[str] | str:
+    """Resolve the sd_remote link closure to absolute object paths.
+
+    The driver TABLE names every slot, so a new slot widens this closure for
+    every runner at once -- sd_remote_checksum.o brought the shared digest
+    grammar (digest_header.o) and, through its base64 decode, nginx's own string
+    kernel (SD_HTTP_NGX_OBJS). Kept in one place for the same reason the sd_http
+    closure is: a per-runner copy is how an object went missing from exactly one
+    of them before."""
+    out: list[str] = []
+    for name in SD_REMOTE_OBJS:
+        obj = _find_obj(ngx_src, name)
+        if obj is None:
+            return f"SKIP: build first; missing {name}"
+        out.append(str(obj))
+    for rel in SD_HTTP_NGX_OBJS:
+        obj = _need_obj(ngx_src, rel)
+        if isinstance(obj, str):
+            return obj
+        out.append(str(obj))
+    # ngx_string.o + the allocator objects reference ngx_cycle/ngx_log_error_core;
+    # one shared TU defines them for every sd_remote unit (tests/c/ngx_link_stubs.c).
+    out.append(str(TEST_C / "ngx_link_stubs.c"))
+    return out
 
 
 def sd_remote_wrongkind(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
@@ -406,16 +503,12 @@ def sd_remote_wrongkind(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bo
     # never reflected in this hand-maintained object closure. sd_remote_dir.o
     # closes sd_remote's dir slots (opendir/readdir -> sd_s3_list_page in
     # sd_s3_list.o); the whole closure now lives in SD_REMOTE_OBJS.
-    names = SD_REMOTE_OBJS
-    objs: list[Path] = []
-    for name in names:
-        obj = _find_obj(ngx_src, name)
-        if obj is None:
-            return result(True, f"SKIP: build first; missing {name}")
-        objs.append(obj)
+    objs = _sd_remote_objs(ngx_src)
+    if isinstance(objs, str):
+        return result(True, objs)
     return _compile_and_run(
         base / "test_sd_remote_wrongkind",
-        ["-O", "-Wall", str(TEST_C / "test_sd_remote_wrongkind.c"), *[str(obj) for obj in objs], *_nginx_includes(ngx_src), "-lssl", "-lcrypto"],
+        ["-O", "-Wall", str(TEST_C / "test_sd_remote_wrongkind.c"), *objs, *_nginx_includes(ngx_src), "-lssl", "-lcrypto"],
     )
 
 

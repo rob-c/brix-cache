@@ -33,26 +33,6 @@
 
 #define SD_HTTP_PREAD_MAX  (8LL * 1024 * 1024)
 
-/* Per-open object state: an HTTP origin has no kernel fd, so the export key and
- * the per-user credential resolved at open time ride in the object itself. */
-typedef struct {
-    char key[SD_HTTP_PATH_MAX];    /* export-relative key (leading '/'); the
-                                      full URL path is composed per endpoint */
-    char auth_hdr[SD_HTTP_AUTH_MAX]; /* per-open "Authorization: Bearer <tok>\r\n"
-                                      (Phase 2 T7); "" when the object should
-                                      fall back to the instance's static
-                                      is->auth_hdr (plain open, or a cred with
-                                      no usable bearer). A COPY of the bearer
-                                      bytes — cred->bearer is only borrowed for
-                                      the duration of the open() call. */
-    char cert_pem[SD_HTTP_PATH_MAX]; /* per-open TLS client-cert PATH (phase-70
-                                      §5.1 GSI-over-https): the user's proxy PEM
-                                      (chain+key) presented via mutual-TLS on
-                                      each read. "" when the open carries no
-                                      x509 cred. A COPY of cred->x509_proxy,
-                                      which is only borrowed for the open call. */
-} sd_http_obj_state;
-
 /* One origin status → errno map for both request legs (HEAD probe and ranged
  * GET), because the fill tier classifies on the ERRNO alone: whether an answer
  * is definitive or worth retrying cannot depend on which leg observed it.
@@ -90,7 +70,8 @@ sd_http_head_size(sd_http_inst_state *is, const char *key,
     char             cl[32];
     int              auth_failed = 0;
     sd_http_req_t    rq = { is, "HEAD", key, auth_hdr, cert_pem, &resp,
-                            g_sd_http_force_primary, &auth_failed };
+                            g_sd_http_force_primary, &auth_failed,
+                            NULL, 0 /* no request entity */ };
 
     if (sd_http_request_fo(&rq, NULL) != 0)
     {
@@ -365,7 +346,8 @@ sd_http_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
     int auth_failed = 0;
     sd_http_req_t rq = { is, "GET", st->key, hdrs,
                          st->cert_pem[0] ? st->cert_pem : NULL, &resp,
-                         g_sd_http_force_primary, &auth_failed };
+                         g_sd_http_force_primary, &auth_failed,
+                         NULL, 0 /* no request entity */ };
     if (sd_http_request_fo(&rq, NULL) != 0) {
         return -1;                              /* errno = EIO */
     }

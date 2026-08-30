@@ -74,6 +74,76 @@ brix_vfs_backend_entry_claim(const char *root_canon, const char *backend)
     return e;
 }
 
+/*
+ * WHAT: Copy the value of one "key=value" query declaration out of an origin
+ *       spec into out[cap]; "" when the key is absent.
+ * WHY:  The http and s3 origin grammars carry the same query suffix, and the
+ *       terminator set is the part that is easy to get wrong: a value runs to
+ *       '&' OR to '|' (the T11 pipe that separates failover origins), and a
+ *       value that swallowed the pipe would silently take the next origin's URL
+ *       with it. Stating that once is the point of this helper.
+ * HOW:  `key` carries its own '=' so a key that is a prefix of another cannot
+ *       match it. Truncation is refused rather than silently applied — a
+ *       half-copied path is a DIFFERENT path — so an oversized value reads as
+ *       absent and the declaration it carried simply does not take effect.
+ */
+void
+brix_vfs_origin_opt_str(const u_char *spec, const char *key, char *out,
+    size_t cap)
+{
+    const u_char *p;
+    size_t        n = 0;
+
+    if (out == NULL || cap == 0) {
+        return;
+    }
+    out[0] = '\0';
+    if (spec == NULL || key == NULL) {
+        return;
+    }
+    p = (const u_char *) ngx_strstr(spec, key);
+    if (p == NULL) {
+        return;
+    }
+    p += ngx_strlen(key);
+    while (p[n] != '\0' && p[n] != '&' && p[n] != '|') {
+        n++;
+    }
+    if (n == 0 || n >= cap) {
+        return;                        /* absent, or too long to carry intact */
+    }
+    ngx_memcpy(out, p, n);
+    out[n] = '\0';
+}
+
+
+/*
+ * WHAT: The integer form of brix_vfs_origin_opt_str: the declaration's value as
+ *       a non-negative decimal, or `dflt` when it is absent or malformed.
+ * WHY:  Tuning values (restore_days) are read exactly like path values, and a
+ *       typo must fall back to the documented default rather than to 0 — 0 has
+ *       its own meaning in most of these fields.
+ * HOW:  ngx_atoi over the extracted span; NGX_ERROR (its "not a number") and an
+ *       absent key are the same outcome.
+ */
+int
+brix_vfs_origin_opt_int(const u_char *spec, const char *key, int dflt)
+{
+    char       buf[32];
+    ngx_int_t  v;
+
+    brix_vfs_origin_opt_str(spec, key, buf, sizeof(buf));
+    if (buf[0] == '\0') {
+        return dflt;
+    }
+    v = ngx_atoi((u_char *) buf, ngx_strlen(buf));
+    if (v == NGX_ERROR) {
+        return dflt;
+    }
+    return (int) v;
+}
+
+
 /* brix_vfs_backend_set_origin — see vfs_backend_config_internal.h. */
 void
 brix_vfs_backend_set_origin(brix_vfs_backend_entry_t *e, const char *host,

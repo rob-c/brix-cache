@@ -184,7 +184,8 @@ int
 brix_storage_backend_is_remote(const ngx_http_brix_shared_conf_t *common)
 {
     static const char *const remote_schemes[] = {
-        "root://", "roots://", "http://", "https://", "s3://",
+        "root://", "roots://", "root+tape://", "roots+tape://",
+        "http://", "https://", "s3://",
         "tape://", "frm://", "rados://", "ceph:", "cephfsro:", NULL
     };
 
@@ -205,6 +206,21 @@ brix_storage_backend_is_whole_object(const ngx_http_brix_shared_conf_t *common)
     return backend_scheme_in(common, gateway_schemes);
 }
 
+/* 1 iff the storage backend is NEARLINE: its bytes may be on tape, so a read has
+ * to be recalled asynchronously and the export is unservable without a cache
+ * tier to recall INTO. "tape://"/"frm://" go through the FRM adapter;
+ * "root+tape://"/"roots+tape://" are a plain root:// origin declared to front an
+ * MSS (sd_xroot's kXR_offline/kXR_prepare pair). */
+static int
+brix_storage_backend_is_nearline(const ngx_http_brix_shared_conf_t *common)
+{
+    static const char *const nearline_schemes[] = {
+        "tape://", "frm://", "root+tape://", "roots+tape://", NULL
+    };
+
+    return backend_scheme_in(common, nearline_schemes);
+}
+
 /*
  * WHAT: Validate cross-tier dependencies before backend registration.
  * WHY:  Nearline, cold, and peer tiers are unusable without their hot cache.
@@ -214,18 +230,13 @@ static ngx_int_t
 brix_tier_validate_dependencies(ngx_conf_t *cf,
     const ngx_http_brix_shared_conf_t *common)
 {
-    const ngx_str_t *sb = &common->storage_backend;
-    int nearline = (sb->len > sizeof("tape://") - 1
-                    && ngx_strncmp(sb->data, "tape://",
-                                   sizeof("tape://") - 1) == 0)
-                   || (sb->len > sizeof("frm://") - 1
-                       && ngx_strncmp(sb->data, "frm://",
-                                      sizeof("frm://") - 1) == 0);
-
-    if (nearline && common->cache_store.len == 0) {
+    if (brix_storage_backend_is_nearline(common)
+        && common->cache_store.len == 0)
+    {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix: a \"tape://\"/\"frm://\" backend is nearline and requires "
-            "brix_cache_store (the recall target); add a cache tier");
+            "brix: a \"tape://\"/\"frm://\"/\"root+tape://\" backend is "
+            "nearline and requires brix_cache_store (the recall target); "
+            "add a cache tier");
         return NGX_ERROR;
     }
     if (common->cache_cold_store.len > 0 && common->cache_store.len == 0) {

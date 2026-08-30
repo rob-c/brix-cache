@@ -76,6 +76,14 @@ typedef struct {
                                     commit PUT carries Content-MD5 (base64 MD5 of
                                     the whole object) so the origin validates the
                                     body and rejects a wire-corrupted upload. */
+    const char                    *tape_api;    /* WLCG Tape REST API base path
+                                    on endpoint 0 ("/api/v1"), or NULL. Setting
+                                    it is the operator's explicit declaration
+                                    that this origin fronts an HSM: it — and
+                                    nothing else — arms BRIX_SD_CAP_NEARLINE,
+                                    which the composing registry then requires a
+                                    cache tier behind. Must be absolute; see
+                                    sd_http_nearline.c. */
     void                         (*health_note)(const char *host, int port,
                                     int healthy);  /* endpoint health-state
                                     TRANSITION (EWMA hysteresis: degraded at

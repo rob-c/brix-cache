@@ -87,6 +87,14 @@ tools/*
 !tools/refactor/
 tools/refactor/*
 !tools/refactor/brix_rebrand.py
+# diag/: local crash and stall probes (scratch), except sd_slot_matrix.py — the
+# storage-driver slot matrix is GENERATED, and both the matrix doc and
+# src/fs/backend/README.md tell the reader to regenerate/drift-check it with
+# this script, so a clone without it cannot verify the census those docs state.
+# Re-ignore the directory's contents so a future probe dropped here stays local.
+!tools/diag/
+tools/diag/*
+!tools/diag/sd_slot_matrix.py
 .aider*
 
 .rpmbuild/

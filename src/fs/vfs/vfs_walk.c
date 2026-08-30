@@ -458,14 +458,26 @@ brix_vfs_backend_mkpath(const char *root_canon, const char *logical,
  * native object catalog (POSIX — the namespace IS the catalog) leaves the verb
  * NULL, and this reports ENOTSUP via NGX_DECLINED so the engine falls back to
  * walking the namespace with brix_vfs_walk(). See vfs.h.  (Lives here rather
- * than in vfs_dir.c: it enumerates a backend catalog, not a directory stream.) */
+ * than in vfs_dir.c: it enumerates a backend catalog, not a directory stream.)
+ *
+ * Walks cache/stage decorators down to the first instance that HAS the verb, the
+ * same descent brix_vfs_residency/brix_vfs_space make: the catalog belongs to the
+ * backing store, and a tier decorator holds only a partial local copy of it, so
+ * refusing at the decorator would have demoted a catalog-bearing export (rados,
+ * pblock) to a full namespace walk the moment a cache tier was configured in
+ * front of it. Neither decorator implements `enumerate`, so the walk changes
+ * nothing for an undecorated export. */
 ngx_int_t
 brix_vfs_enumerate_catalog(brix_sd_instance_t *sd, int want_stat,
     brix_sd_catalog_cb cb, void *ctx)
 {
-    if (sd == NULL || sd->driver == NULL || sd->driver->enumerate == NULL) {
-        errno = ENOTSUP;
-        return NGX_DECLINED;
+    brix_sd_instance_t *inst;
+
+    for (inst = sd; inst != NULL; inst = brix_vfs_decorator_source(inst)) {
+        if (inst->driver != NULL && inst->driver->enumerate != NULL) {
+            return inst->driver->enumerate(inst, want_stat, cb, ctx);
+        }
     }
-    return sd->driver->enumerate(sd, want_stat, cb, ctx);
+    errno = ENOTSUP;
+    return NGX_DECLINED;
 }

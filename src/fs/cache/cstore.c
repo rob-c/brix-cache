@@ -12,6 +12,7 @@
 #include "cstore.h"
 #include "gcas.h"                    /* phase-87 G13: canonical-name evict GC */
 #include "fs/meta/xmeta_carrier.h"   /* the unified record: xattr/sidecar carrier */
+#include "core/compat/integrity_info.h"  /* seed the proven digest into the cache */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -186,6 +187,50 @@ brix_cstore_fill_abort(brix_sd_staged_t *st)
 }
 
 /* ---- serve ---------------------------------------------------------------- */
+
+void
+brix_cstore_seed_checksum(brix_cstore_t *cs, const char *key, const char *alg,
+    const char *hex)
+{
+    brix_sd_obj_t *o;
+    char             path[PATH_MAX];
+    const char      *pathp = NULL;
+    int              err = 0;
+
+    if (cs == NULL || key == NULL || alg == NULL || hex == NULL
+        || alg[0] == '\0' || hex[0] == '\0')
+    {
+        return;
+    }
+
+    /* Open the COMMITTED object, not the staging handle: the xattr value carries
+     * the file's mtime+size and the reader rejects it when they no longer match,
+     * so it has to be written against the bytes that were actually published. */
+    o = brix_cstore_serve_open(cs, key, &err);
+    if (o == NULL) {
+        return;
+    }
+
+    /* The §8.2 record fallback needs a real path; only a LOCAL-mode store has
+     * one, and only then is `key` a filename under the store root. */
+    if (brix_cstore_local_root(cs) != NULL
+        && cstore_local_path(cs, key, path, sizeof(path)) == 0)
+    {
+        pathp = path;
+    }
+
+    /* Seed against the object's own fd — the same fd the serve path hands
+     * brix_integrity_get_fd, and the same one its recompute would have written
+     * back through. A store that exposes no fd at all leaves it invalid and
+     * brix_integrity_seed_fd refuses it, which is the whole of the handling a
+     * best-effort cache layer needs. */
+    (void) brix_integrity_seed_fd((int) o->fd, pathp, alg, hex);
+
+    (void) cs->store->driver->close(o);
+    if (o->heap_shell) {
+        free(o);
+    }
+}
 
 brix_sd_obj_t *
 brix_cstore_serve_open(brix_cstore_t *cs, const char *key, int *err)

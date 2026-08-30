@@ -23,6 +23,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <openssl/crypto.h>
+
 
 /* ---- directory listing (S3 ListObjectsV2, delimited + paged) --------------
  *
@@ -43,6 +45,16 @@ typedef struct {
     unsigned char  d_type;
 } sd_remote_dirent;
 
+/* Upper bounds for the copied per-user SigV4 credential below. ak/sk/region
+ * match the ucred store's own limits; the STS session token has no small bound
+ * in the API, so 4 KiB with a REFUSAL (never a truncation) on overflow — a
+ * clipped session token would surface as an inscrutable SignatureDoesNotMatch
+ * pages into the listing rather than as an error at opendir. */
+#define SD_REMOTE_DIR_AK_MAX       128
+#define SD_REMOTE_DIR_SK_MAX       256
+#define SD_REMOTE_DIR_REGION_MAX    64
+#define SD_REMOTE_DIR_SESSION_MAX  4096
+
 typedef struct {
     brix_sd_instance_t *inst;
     char                prefix[768];   /* S3 key prefix, "" or "dir/" */
@@ -53,6 +65,16 @@ typedef struct {
     size_t              n;
     size_t              cap;
     size_t              cursor;
+    /* Per-user SigV4 credential, COPIED at opendir. The listing is paged lazily
+     * from readdir, so the signing material has to outlive the opendir call that
+     * borrowed *cred — the same lifetime trap sd_http_obj_state's bearer copy
+     * documents. `have_cred` distinguishes "this handle signs as a user" from
+     * "no credential" so an empty string is never mistaken for one. */
+    int                 have_cred;
+    char                ak     [SD_REMOTE_DIR_AK_MAX];
+    char                sk     [SD_REMOTE_DIR_SK_MAX];
+    char                region [SD_REMOTE_DIR_REGION_MAX];
+    char                session[SD_REMOTE_DIR_SESSION_MAX];
 } sd_remote_dir_state;
 
 /* sd_s3_list_page callback: append one decoded entry to the page buffer. A
@@ -91,6 +113,14 @@ sd_remote_dir_fetch(sd_remote_dir_state *ds)
 
     snprintf(root, sizeof(root), "/%s/", cfg->bucket);  /* bucket-root canon URI */
     sd_remote_s3_params(cfg, root, &p);
+    if (ds->have_cred) {
+        /* Every page of this listing signs as the identity that opened it, not
+         * as the export — including the continuation pages fetched long after
+         * opendir returned. */
+        sd_remote_params_cred(&p, ds->ak, ds->sk,
+                              (ds->region[0] != '\0')  ? ds->region  : NULL,
+                              (ds->session[0] != '\0') ? ds->session : NULL);
+    }
 
     ds->n      = 0;
     ds->cursor = 0;
@@ -108,8 +138,72 @@ sd_remote_dir_fetch(sd_remote_dir_state *ds)
     return 0;
 }
 
-brix_sd_dir_t *
-sd_remote_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
+/* Copy one credential string into a fixed handle buffer. Returns 0, or -1 when
+ * the value does not fit: a SILENTLY truncated key or session token signs a
+ * request that the store rejects with an opaque SignatureDoesNotMatch, so the
+ * only safe answer is to refuse the open. NULL/empty leaves the slot empty. */
+static int
+sd_remote_dir_copy_str(char *dst, size_t cap, const char *src)
+{
+    size_t n;
+
+    if (src == NULL || *src == '\0') {
+        dst[0] = '\0';
+        return 0;
+    }
+    n = strlen(src);
+    if (n >= cap) {
+        return -1;
+    }
+    memcpy(dst, src, n + 1);
+    return 0;
+}
+
+/* Latch the requesting user's SigV4 material onto the handle. Returns 0 (signs
+ * as the user), 1 (no credential to apply — sign as the export) or -1 with
+ * *err_out set. */
+static int
+sd_remote_dir_take_cred(sd_remote_dir_state *ds, const brix_sd_cred_t *cred,
+    int *err_out)
+{
+    int gate = sd_remote_cred_gate(cred);
+
+    if (gate < 0) {
+        if (err_out != NULL) { *err_out = EACCES; }
+        return -1;
+    }
+    if (gate == 0) {
+        return 1;
+    }
+    if (sd_remote_dir_copy_str(ds->ak, sizeof(ds->ak), cred->s3_ak) != 0
+        || sd_remote_dir_copy_str(ds->sk, sizeof(ds->sk), cred->s3_sk) != 0
+        || sd_remote_dir_copy_str(ds->region, sizeof(ds->region),
+                                  cred->s3_region) != 0
+        || sd_remote_dir_copy_str(ds->session, sizeof(ds->session),
+                                  cred->s3_session) != 0)
+    {
+        if (err_out != NULL) { *err_out = E2BIG; }
+        return -1;
+    }
+    ds->have_cred = 1;
+    return 0;
+}
+
+/* Wipe the copied secret before the handle's memory goes back to the allocator:
+ * a freed page holding a live secret key is one heap re-use away from another
+ * request's buffer. */
+static void
+sd_remote_dir_wipe_cred(sd_remote_dir_state *ds)
+{
+    OPENSSL_cleanse(ds->sk, sizeof(ds->sk));
+    OPENSSL_cleanse(ds->session, sizeof(ds->session));
+}
+
+/* Shared body of opendir/opendir_cred: derive the key prefix (no I/O) and, when
+ * a usable credential came in, latch it for the lazy pages readdir will fetch. */
+static brix_sd_dir_t *
+sd_remote_opendir_impl(brix_sd_instance_t *inst, const char *path,
+    const brix_sd_cred_t *cred, int *err_out)
 {
     sd_remote_dir_state *ds;
     brix_sd_dir_t       *dir;
@@ -126,11 +220,19 @@ sd_remote_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
     }
     ds->inst = inst;
 
+    if (cred != NULL && sd_remote_dir_take_cred(ds, cred, err_out) < 0) {
+        sd_remote_dir_wipe_cred(ds);
+        free(ds);
+        free(dir);
+        return NULL;
+    }
+
     /* export-relative path -> S3 key prefix: drop the leading '/', ensure a
      * trailing '/' so LIST returns children of THIS level (root -> ""). */
     while (*rel == '/') { rel++; }
     n = strlen(rel);
     if (n + 1 >= sizeof(ds->prefix)) {
+        sd_remote_dir_wipe_cred(ds);
         free(ds);
         free(dir);
         if (err_out != NULL) { *err_out = ENAMETOOLONG; }
@@ -143,6 +245,31 @@ sd_remote_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
     dir->inst  = inst;
     dir->state = ds;
     return dir;
+}
+
+brix_sd_dir_t *
+sd_remote_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
+{
+    return sd_remote_opendir_impl(inst, path, NULL, err_out);
+}
+
+/* Cred-scoped opendir: the whole listing runs as the requesting user.
+ *
+ * WHY: this driver already signed every namespace op (stat/mkdir/rename/unlink)
+ *      and, since the metadata-read fix, every xattr read under the caller's own
+ *      SigV4 keys — but opendir had no *_cred sibling, so brix_sd_opendir's
+ *      forwarder fell through to the plain slot and LISTED THE BUCKET AS THE
+ *      EXPORT. A user whose keys are scoped to one prefix saw every sibling
+ *      prefix in the bucket, and the entries came back looking perfectly normal.
+ * HOW: sd_remote_cred_gate classifies the credential exactly as the other slots
+ *      do (usable keypair / unusable-under-deny / no S3 material), and the
+ *      material is COPIED, because ListObjectsV2 is paged lazily from readdir
+ *      long after *cred stops being ours to hold. */
+brix_sd_dir_t *
+sd_remote_opendir_cred(brix_sd_instance_t *inst, const char *path,
+    int *err_out, const brix_sd_cred_t *cred)
+{
+    return sd_remote_opendir_impl(inst, path, cred, err_out);
 }
 
 ngx_int_t
@@ -176,6 +303,7 @@ sd_remote_closedir(brix_sd_dir_t *d)
         return NGX_OK;
     }
     ds = d->state;
+    sd_remote_dir_wipe_cred(ds);
     free(ds->ents);
     free(ds);
     d->state = NULL;

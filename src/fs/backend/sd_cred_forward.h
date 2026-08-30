@@ -25,9 +25,11 @@
  *       run (driver-><op> != NULL): that combination means a per-user op
  *       would silently execute on the shared service credential in a mode
  *       that explicitly forbids the fallback, so refuse instead (EACCES).
- *       Defensive hardening (phase-3 T1): today inert (no driver has the
- *       cred-slot-missing/plain-slot-present shape), but prevents a future
- *       driver from silently leaking onto the service credential. Does NOT
+ *       Defensive hardening (phase-3 T1). This was inert when written; it is
+ *       LIVE now — posix, block, frm and cephfs_ro all carry slots with the
+ *       cred-slot-missing/plain-slot-present shape (a local/read-only backend
+ *       has no per-user identity to assume), and deny mode refuses on them
+ *       rather than running them as the export. Does NOT
  *       change allow-mode (fallback_deny==0 keeps falling back) or the
  *       legitimate no-op cases (a NULL plain slot with no *_cred slot either
  *       means "this driver has nothing to do here", not a leak). */

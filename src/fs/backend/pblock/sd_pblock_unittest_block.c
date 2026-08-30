@@ -70,6 +70,24 @@ open_block_export(brix_sd_instance_t *inst, char *root, int64_t block_size)
     return D->init(inst, &conf) == NGX_OK ? 0 : -1;
 }
 
+/* seed_block_export — mkdtemp + open_block_export(bs=16) + a `len`-byte
+ * repeating pattern written to `path`. Every striping test starts from exactly
+ * this state; each passes its own pattern base/span so a stray cross-test read
+ * is still visible in the bytes. Fills `data` with what was written. */
+static void
+seed_block_export(brix_sd_instance_t *inst, char *root, const char *path,
+    char *data, size_t len, char base, int span)
+{
+    size_t i;
+
+    CHECK(mkdtemp(root) != NULL, "mkdtemp");
+    CHECK(open_block_export(inst, root, 16) == 0, "init bs=16");
+    for (i = 0; i < len; i++) {
+        data[i] = (char) (base + (int) (i % (size_t) span));
+    }
+    CHECK(write_file(inst, path, data, len) == 0, "seed %zu bytes", len);
+}
+
 /* A 40-byte file with a 16-byte block size lands as three block files
  * (16 + 16 + 8); reads (incl. across a block boundary) are byte-exact. */
 void
@@ -180,14 +198,9 @@ test_block_truncate(void)
     brix_sd_obj_t     *o;
     brix_sd_stat_t     st;
     char                 data[40], buf[40];
-    int                  i, err = 0;
+    int                  err = 0;
 
-    CHECK(mkdtemp(root) != NULL, "mkdtemp");
-    CHECK(open_block_export(&inst, root, 16) == 0, "init bs=16");
-    for (i = 0; i < 40; i++) {
-        data[i] = (char) ('0' + (i % 10));
-    }
-    CHECK(write_file(&inst, "/t", data, 40) == 0, "seed 40");
+    seed_block_export(&inst, root, "/t", data, sizeof(data), '0', 10);
 
     o = D->open(&inst, "/t", BRIX_SD_O_WRITE | BRIX_SD_O_READ, 0, &err);
     CHECK(o != NULL, "reopen rw");
@@ -205,6 +218,78 @@ test_block_truncate(void)
     D->cleanup(&inst);
 }
 
+/* advise_ok — read_advise over [off,len) on an open handle, asserting the
+ * advisory contract (NGX_OK) under the caller's label. */
+static void
+advise_ok(brix_sd_obj_t *o, off_t off, size_t len, int advice, const char *what)
+{
+    CHECK(D->read_advise(o, off, len, advice) == NGX_OK, "read_advise %s", what);
+}
+
+/* read_advise spans every block of a striped object, is a no-op outside it, and
+ * never touches the object: contents, size and the on-disk block set are
+ * unchanged (a hole must NOT be materialised by a hint). */
+void
+test_block_read_advise(void)
+{
+    char                 root[] = "/tmp/pb_adv.XXXXXX";
+    brix_sd_instance_t inst;
+    brix_sd_obj_t     *o;
+    brix_sd_stat_t     st;
+    char                 data[40], buf[40];
+    long                 blocks_before;
+    int                  err = 0;
+
+    seed_block_export(&inst, root, "/adv", data, sizeof(data), 'a', 13);
+
+    /* A sparse neighbour: block 1 is a hole the hint must leave alone. */
+    o = D->open(&inst, "/hole",
+                BRIX_SD_O_WRITE | BRIX_SD_O_READ | BRIX_SD_O_CREATE,
+                0644, &err);
+    CHECK(o != NULL, "open hole");
+    if (o != NULL) {
+        CHECK(D->pwrite(o, "XY", 2, 33) == 2, "hole write at 33");
+        pb_close(o);
+    }
+    scan_blocks(root);
+    blocks_before = g_blk_count;
+
+    o = D->open(&inst, "/adv", BRIX_SD_O_READ, 0, &err);
+    CHECK(o != NULL, "open adv for read");
+    if (o != NULL) {
+        /* success: whole object (len 0), a boundary-crossing slice, and each
+         * advice value — all three blocks are described. */
+        advise_ok(o, 0, 0, BRIX_SD_ADV_SEQUENTIAL, "whole object");
+        advise_ok(o, 10, 20, BRIX_SD_ADV_WILLNEED, "boundary-crossing slice");
+        advise_ok(o, 0, 40, BRIX_SD_ADV_RANDOM, "random over all blocks");
+        /* edge: at/after EOF and an over-long length are no-ops, not errors. */
+        advise_ok(o, 40, 16, BRIX_SD_ADV_WILLNEED, "at EOF");
+        advise_ok(o, 100, 16, BRIX_SD_ADV_WILLNEED, "past EOF");
+        advise_ok(o, -1, 16, BRIX_SD_ADV_WILLNEED, "negative offset");
+        advise_ok(o, 32, 4096, BRIX_SD_ADV_SEQUENTIAL, "length past EOF");
+        pb_close(o);
+    }
+
+    o = D->open(&inst, "/hole", BRIX_SD_O_READ, 0, &err);
+    CHECK(o != NULL, "open hole for read");
+    if (o != NULL) {
+        advise_ok(o, 0, 0, BRIX_SD_ADV_WILLNEED, "over a hole block");
+        pb_close(o);
+    }
+
+    /* security-neg: an advisory hint must never mutate state — no block file
+     * created (the hole stays a hole), no size change, no content change. */
+    scan_blocks(root);
+    CHECK(g_blk_count == blocks_before,
+          "read_advise changed the block set: %ld != %ld",
+          g_blk_count, blocks_before);
+    CHECK(D->stat(&inst, "/adv", &st) == NGX_OK && st.size == 40,
+          "size unchanged after advise");
+    CHECK(read_file(&inst, "/adv", buf, sizeof(buf)) == 40
+          && memcmp(buf, data, 40) == 0, "contents unchanged after advise");
+    D->cleanup(&inst);
+}
+
 /* server_copy reproduces a multi-block file byte-exactly; unlink removes every
  * block file. */
 void
@@ -215,14 +300,8 @@ test_block_copy_and_unlink(void)
     brix_sd_stat_t     st;
     char                 data[40], buf[40];
     off_t                bytes = 0;
-    int                  i;
 
-    CHECK(mkdtemp(root) != NULL, "mkdtemp");
-    CHECK(open_block_export(&inst, root, 16) == 0, "init bs=16");
-    for (i = 0; i < 40; i++) {
-        data[i] = (char) ('A' + (i % 7));
-    }
-    CHECK(write_file(&inst, "/src", data, 40) == 0, "seed src");
+    seed_block_export(&inst, root, "/src", data, sizeof(data), 'A', 7);
 
     CHECK(D->server_copy(&inst, "/src", "/dst", &bytes) == NGX_OK, "copy");
     CHECK(bytes == 40, "copy bytes %lld", (long long) bytes);

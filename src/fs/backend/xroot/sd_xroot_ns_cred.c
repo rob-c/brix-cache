@@ -124,6 +124,45 @@ sd_xroot_mkdir_cred(brix_sd_instance_t *inst, const char *path, mode_t mode,
     return ns_result(&s, rc);
 }
 
+/* setattr_cred: apply a metadata mutation under the user's credential.
+ *
+ * WHAT: The union slot (mode + times + owner) against a root:// export.  Only
+ *       the mode group travels — as kXR_chmod, the one metadata mutation the
+ *       base XRootD protocol defines.
+ * WHY:  With no setattr slot at all the VFS treats the driver as having no
+ *       mutable metadata and returns success WITHOUT touching the origin, so a
+ *       chmod over a root:// export silently did nothing while reporting OK.
+ *       Wiring the slot makes the mode case real and the rest honest.
+ * HOW:  set_times / set_owner are accepted-and-ignored rather than refused: the
+ *       times+owner opcode (kXR_setattr, 3500) is this project's capability-
+ *       negotiated vendor extension, which a stock origin does not implement, and
+ *       the driver has no negotiation to lean on here.  Failing a `cp -p` on an
+ *       otherwise-applied chmod would be worse than the documented sd.h contract
+ *       ("a driver applies what its namespace can represent"), which sd_pblock
+ *       reads the same way for atime.  A request with no group set at all is an
+ *       immediate no-op success: opening an origin session to send nothing would
+ *       be pure latency.  errno comes straight from brix_cache_origin_chmod (which
+ *       maps the kXR status itself, like rm/rename/mkdir — unlike the truncate
+ *       path, which records its error on the fill task for sd_xroot_errno). */
+ngx_int_t
+sd_xroot_setattr_cred(brix_sd_instance_t *inst, const char *path,
+    const brix_sd_setattr_t *attr, const brix_sd_cred_t *cred)
+{
+    ns_session_t s;
+    int          rc;
+
+    if (attr == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    if (!attr->set_mode) {
+        return NGX_OK;      /* nothing this namespace can represent */
+    }
+    if (ns_open(inst, cred, &s) != NGX_OK) { return NGX_ERROR; }
+    rc = brix_cache_origin_chmod(s.t, &s.oc, path, attr->mode);
+    return ns_result(&s, rc);
+}
+
 /* truncate_path_cred: resize an origin object by path under the user's
  * credential (path-based kXR_truncate, no write-open). The origin's kXR error
  * is mapped to errno via sd_xroot_errno (ENOENT for a miss). */
@@ -138,32 +177,6 @@ sd_xroot_truncate_path_cred(brix_sd_instance_t *inst, const char *path,
     rc = brix_cache_origin_truncate_path(s.t, &s.oc, path, (uint64_t) len);
     if (rc != 0) { errno = sd_xroot_errno(s.t); }
     return ns_result(&s, rc);
-}
-
-/* setattr under the user's credential (§4.6): the per-user twin of
- * sd_xroot_setattr — same chmod-forward, but the origin bootstrap authenticates
- * as the mapped user via cred. Times/owner remain a no-op success. */
-ngx_int_t
-sd_xroot_setattr_cred(brix_sd_instance_t *inst, const char *path,
-    const brix_sd_setattr_t *attr, const brix_sd_cred_t *cred)
-{
-    sd_xroot_inst_state        *is = inst->state;
-    brix_cache_origin_conn_t   oc;
-    brix_cache_fill_t         *t;
-    int                        rc, e = 0;
-
-    if (attr == NULL || !attr->set_mode) {
-        return NGX_OK;   /* times/owner: no origin-namespace op here */
-    }
-    if (sd_xroot_session(is->conf, cred, &oc, &t, &e) != 0) {
-        errno = e; return NGX_ERROR;
-    }
-    rc = brix_cache_origin_chmod(t, &oc, path, (mode_t) attr->mode);
-    e  = (rc == 0) ? 0 : sd_xroot_errno(t);
-    brix_cache_origin_close(&oc);
-    free(t);
-    if (rc != 0) { errno = e; return NGX_ERROR; }
-    return NGX_OK;
 }
 
 /* server_copy_cred: server-side byte copy under the user's credential. */

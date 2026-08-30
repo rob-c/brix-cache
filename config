@@ -570,6 +570,7 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/core/http/etag.h \
                         $ngx_addon_dir/src/core/compat/crypto.h \
                         $ngx_addon_dir/src/core/compat/hex.h \
+                        $ngx_addon_dir/src/core/compat/digest_header.h \
                         $ngx_addon_dir/src/core/compat/fs_walk.h \
                         $ngx_addon_dir/src/core/compat/fs_usage.h \
                         $ngx_addon_dir/src/core/http/http_body.h \
@@ -750,6 +751,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/http/etag.c \
     $ngx_addon_dir/src/core/compat/crypto.c \
     $ngx_addon_dir/src/core/compat/hex.c \
+    $ngx_addon_dir/src/core/compat/digest_header.c \
     $ngx_addon_dir/src/core/compat/fs_walk.c \
     $ngx_addon_dir/src/core/compat/fs_walk_remove.c \
     $ngx_addon_dir/src/core/compat/fs_usage.c \
@@ -866,6 +868,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/xfer/stage_request_registry_query.c \
     $ngx_addon_dir/src/fs/xfer/stage_waiter.c \
     $ngx_addon_dir/src/fs/tier/tier_config.c \
+    $ngx_addon_dir/src/fs/tier/tier_status.c \
     $ngx_addon_dir/src/fs/tier/tier_build.c \
     $ngx_addon_dir/src/fs/vfs/fd_cache.c \
     $ngx_addon_dir/src/fs/backend/posix/sd_posix.c \
@@ -873,12 +876,15 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/posix/sd_posix_ns.c \
     $ngx_addon_dir/src/fs/backend/posix/sd_posix_dedup.c \
     $ngx_addon_dir/src/fs/backend/block/sd_block.c \
+    $ngx_addon_dir/src/fs/backend/block/sd_block_ns.c \
     $ngx_addon_dir/src/fs/backend/mirage/sd_mirage.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_io.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_object.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_object_rename.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_cred.c \
+    $ngx_addon_dir/src/fs/backend/rados/sd_ceph_ns_cred.c \
+    $ngx_addon_dir/src/fs/backend/rados/sd_ceph_meta.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_dir.c \
     $ngx_addon_dir/src/fs/backend/rados/cephfs_denc.c \
     $ngx_addon_dir/src/fs/backend/rados/cephfs_layout.c \
@@ -918,13 +924,19 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/s3/sd_s3_sign.c \
     $ngx_addon_dir/src/fs/backend/s3/sd_s3_write.c \
     $ngx_addon_dir/src/fs/backend/s3/sd_s3_meta.c \
+    $ngx_addon_dir/src/fs/backend/s3/sd_s3_archive.c \
     $ngx_addon_dir/src/fs/backend/s3/sd_s3_sign_ext.c \
     $ngx_addon_dir/src/fs/backend/s3/sd_s3_list.c \
+    $ngx_addon_dir/src/fs/backend/s3/sd_s3_list_scan.c \
+    $ngx_addon_dir/src/fs/backend/s3/sd_s3_list_flat.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote_dir.c \
+    $ngx_addon_dir/src/fs/backend/remote/sd_remote_enum.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote_meta.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote_xattr.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote_write.c \
+    $ngx_addon_dir/src/fs/backend/remote/sd_remote_checksum.c \
+    $ngx_addon_dir/src/fs/backend/remote/sd_remote_nearline.c \
     $ngx_addon_dir/src/fs/backend/ucred.c \
     $ngx_addon_dir/src/fs/backend/ucred_parse.c \
     $ngx_addon_dir/src/fs/backend/cred_mint.c \
@@ -935,14 +947,22 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/xroot/sd_xroot_ns.c \
     $ngx_addon_dir/src/fs/backend/xroot/sd_xroot_ns_cred.c \
     $ngx_addon_dir/src/fs/backend/xroot/sd_xroot_ns_dir.c \
+    $ngx_addon_dir/src/fs/backend/xroot/sd_xroot_nearline.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_select.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_redirect.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_read.c \
+    $ngx_addon_dir/src/fs/backend/http/sd_http_readv.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_write.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_mutate.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_dir.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_introspect.c \
+    $ngx_addon_dir/src/fs/backend/http/sd_http_digest.c \
+    $ngx_addon_dir/src/fs/backend/http/sd_http_space.c \
+    $ngx_addon_dir/src/fs/backend/http/sd_http_xattr.c \
+    $ngx_addon_dir/src/fs/backend/http/sd_http_xattr_write.c \
+    $ngx_addon_dir/src/fs/backend/http/sd_http_setattr.c \
+    $ngx_addon_dir/src/fs/backend/http/sd_http_nearline.c \
     $ngx_addon_dir/src/fs/backend/stage/sd_stage.c \
     $ngx_addon_dir/src/fs/backend/stage/sd_stage_write.c \
     $ngx_addon_dir/src/fs/backend/stage/sd_stage_wb.c \
@@ -962,6 +982,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/frm/sd_frm_exec.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm_lib.c \
     $ngx_addon_dir/src/fs/backend/meta_advisory.c \
+    $ngx_addon_dir/src/fs/backend/meta_advisory_sd.c \
     $ngx_addon_dir/src/fs/backend/site_n2n.c \
     $ngx_addon_dir/src/fs/backend/sd_registry.c \
     $ngx_addon_dir/src/fs/backend/sd_fs_id.c \

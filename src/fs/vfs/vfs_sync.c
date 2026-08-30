@@ -18,6 +18,9 @@
  */
 #include "vfs_internal.h"
 #include "vfs_io_core.h"
+#include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_evict: the leaf
+                                          * dispatch bypasses the decorator's
+                                          * own cache invalidation */
 
 /* Resize the open handle to `length` (ftruncate) and update the cached
  * fh->size. NGX_ERROR with errno set on a bad handle or negative length. */
@@ -60,17 +63,23 @@ brix_vfs_truncate(brix_vfs_file_t *fh, off_t length)
  *       surfacing as kXR_Unsupported. A path-native truncate resizes the origin by
  *       name in one round-trip, no staging.
  *
- * HOW:  When the bound driver advertises truncate_path (remote xroot, directly or
- *       via the stage decorator's forwarder), dispatch on the LEAF instance through
- *       brix_sd_truncate_path_maybe_cred so per-user credentials reach the leaf's
- *       truncate_path_cred slot (decorators carry only plain relays). Otherwise
- *       (POSIX and any backend without the slot) fall back to the original
- *       open(O_WRITE)+ftruncate+close, preserving prior behavior exactly.
+ * HOW:  Dispatch on the LEAF instance through brix_sd_truncate_path_maybe_cred so
+ *       per-user credentials reach the leaf's truncate_path_cred slot (decorators
+ *       carry only plain relays). The gate asks THE LEAF whether it has the slot,
+ *       for the same reason: asking the top driver made the answer depend on which
+ *       decorator happened to be composed on top — the stage tier relays
+ *       truncate_path and the cache tier did not, so a cache-fronted root:// export
+ *       skipped the path-native branch entirely and fell back into exactly the
+ *       staging round trip this function exists to avoid. Backends with no
+ *       path-native truncate (POSIX, http, s3) still take the original
+ *       open(O_WRITE)+ftruncate+close fallback, which is also why the gate cannot
+ *       just be the decorator's forwarder returning ENOTSUP.
  *       Unmetered like brix_vfs_truncate — the kXR_truncate handler logs access. */
 ngx_int_t
 brix_vfs_truncate_path(brix_vfs_ctx_t *ctx, off_t length)
 {
-    const brix_sd_driver_t *drv;
+    brix_sd_instance_t       *leaf;
+    const brix_sd_driver_t   *leaf_drv;
     const char               *path;
 
     if (length < 0) {
@@ -81,11 +90,14 @@ brix_vfs_truncate_path(brix_vfs_ctx_t *ctx, off_t length)
         return NGX_ERROR;
     }
 
-    path = brix_vfs_ctx_path(ctx);
-    drv  = brix_vfs_ctx_driver(ctx);
+    path     = brix_vfs_ctx_path(ctx);
+    leaf     = brix_vfs_ns_leaf(ctx->sd);
+    leaf_drv = (leaf != NULL) ? leaf->driver : NULL;
 
-    if (drv != NULL && drv->truncate_path != NULL) {
-        brix_sd_instance_t *leaf = brix_vfs_ns_leaf(ctx->sd);
+    if (leaf_drv != NULL
+        && (leaf_drv->truncate_path != NULL
+            || leaf_drv->truncate_path_cred != NULL))
+    {
         brix_sd_ucred_t     store;
         brix_sd_cred_t      cred;
         ngx_int_t           rc;
@@ -110,6 +122,15 @@ brix_vfs_truncate_path(brix_vfs_ctx_t *ctx, off_t length)
                  use_cred ? &cred : NULL);
         saved_errno = errno;
         brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
+        if (rc == NGX_OK) {
+            /* The origin object is now a different length. The leaf dispatch
+             * skipped the cache decorator, so the store still holds the old
+             * full-length copy and would serve it — drop it, exactly as
+             * vfs_unlink/vfs_rename compensate for the same bypass. No-op when
+             * ctx->sd is not a cache. */
+            brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx),
+                                      brix_sd_cache_evict(ctx->sd, key));
+        }
         errno = saved_errno;
         return rc;
     }

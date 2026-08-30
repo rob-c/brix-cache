@@ -51,6 +51,18 @@ typedef struct {
                                                    * 0 = UNSIGNED-PAYLOAD (stock). */
     const brix_s3_transport_t *transport;        /* injected by the cache */
     void                        *tctx;
+    int                          nearline;       /* the operator DECLARES this
+                                    bucket archive-backed (GLACIER /
+                                    DEEP_ARCHIVE / INTELLIGENT_TIERING with
+                                    archive tiers). It — and nothing else — arms
+                                    BRIX_SD_CAP_NEARLINE, which the composing
+                                    registry then requires a cache tier behind;
+                                    see sd_remote_nearline.c on why the cap can
+                                    never be inferred from an object. */
+    int                          restore_days;   /* how long a recalled copy
+                                    stays in the online tier; <=0 selects the
+                                    S3 layer's default. Only meaningful with
+                                    `nearline` set. */
 } brix_sd_remote_cfg_t;
 
 /* Build a remote-origin instance from cfg (deep-copied). Returns a malloc-owned

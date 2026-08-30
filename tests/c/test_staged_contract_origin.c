@@ -44,7 +44,9 @@ static int failures;
         failures++; \
     } } while (0)
 
-/* ---- ngx / brix link stubs (instances are built log=NULL ⇒ logging inert) -- */
+/* ---- ngx / brix link stubs (instances are built log=NULL ⇒ logging inert) --
+ * No ngx_string.c function may be stubbed here: the shared sd_http closure links
+ * nginx's own string kernel (ngx_strncasecmp/ngx_cpystrn used to be copied in). */
 
 volatile ngx_cycle_t *ngx_cycle = NULL;
 
@@ -59,32 +61,6 @@ size_t brix_sanitize_log_string(const char *in, char *out, size_t outsz)
     while (in != NULL && in[n] != '\0' && n + 1 < outsz) { out[n] = in[n]; n++; }
     out[n] = '\0';
     return n;
-}
-
-ngx_int_t ngx_strncasecmp(u_char *s1, u_char *s2, size_t n)
-{
-    ngx_uint_t c1, c2;
-
-    while (n) {
-        c1 = (ngx_uint_t) *s1++;
-        c2 = (ngx_uint_t) *s2++;
-        c1 = (c1 >= 'A' && c1 <= 'Z') ? (c1 | 0x20) : c1;
-        c2 = (c2 >= 'A' && c2 <= 'Z') ? (c2 | 0x20) : c2;
-        if (c1 == c2) {
-            if (c1) { n--; continue; }
-            return 0;
-        }
-        return (ngx_int_t) c1 - (ngx_int_t) c2;
-    }
-    return 0;
-}
-
-u_char *ngx_cpystrn(u_char *dst, u_char *src, size_t n)
-{
-    if (n == 0) { return dst; }
-    while (--n) { if ((*dst = *src) == '\0') { return dst; } dst++; src++; }
-    *dst = '\0';
-    return dst;
 }
 
 /* cstore slots sd_cache_forward.o references but the staged path never calls. */

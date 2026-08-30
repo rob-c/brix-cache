@@ -3,22 +3,17 @@
  * userland clients).
  *
  * WHAT: brix_sd_block_driver — a backend for writing/reading a raw block
- *       device (or a file used as one) in place. The raw byte I/O is identical to
- *       POSIX, so the pread/pwrite/preadv/fsync slots delegate to the POSIX
- *       driver; the only block-specific behaviour is `fstat`, which reports the
- *       true device capacity via BLKGETSIZE64 (a block device's struct.st_size is
- *       0), and `open`, which never creates or truncates the device.
+ *       device (or a file used as one) in place, plus the driver descriptor. The
+ *       raw byte I/O is identical to POSIX, so the pread/pwrite/preadv/fsync
+ *       slots delegate to the POSIX driver; the block-specific behaviour is
+ *       `fstat`, which reports the true device capacity via BLKGETSIZE64 (a
+ *       block device's struct.st_size is 0), `open`, which never creates or
+ *       truncates the device, and the EXTENT WINDOW every offset is translated
+ *       through.
  *
- *       SERVER PLANE (module build only): a block device has no directory
- *       namespace, so the export presents a FIXED-EXTENT namespace — the device
- *       capacity is divided into equal-size extents, each a logical object named
- *       by its 0-based index ("/0", "/1", ...). "/" is the namespace root that
- *       lists them. Opening "/N" returns the device fd WINDOWED to the extent's
- *       byte range [N*extent_size, (N+1)*extent_size); every read/write is
- *       shifted by the extent base and clamped to the extent length, so one
- *       object can never read or scribble into its neighbour. extent_size == 0
- *       (the default — the directive carries no block_size) makes the whole
- *       device a single extent "/0".
+ *       The server plane — the per-export instance and the fixed-extent
+ *       namespace it synthesizes — lives in sd_block_ns.c and compiles only in
+ *       the module build.
  * WHY:  block was previously implemented only in client/lib/vfs_block.c — a
  *       second storage driver outside src/. This is the single home: both the
  *       client (block:// copy endpoints) and a block-backed server export use the
@@ -30,9 +25,8 @@
  *       path, which wraps a bare fd) means "absolute offset, no clamp" so the raw
  *       ops serve both worlds from one implementation.
  */
-#include "fs/backend/sd.h"
+#include "sd_block_internal.h"
 
-#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
@@ -43,24 +37,13 @@
 #include <linux/fs.h>   /* BLKGETSIZE64 */
 #endif
 
-/* Per-open extent window (obj->state). base/len confine an opened extent to its
- * slice of the device; a NULL obj->state is the client/unconfined path (a bare
- * fd wrapped for raw I/O) where offsets are absolute and unclamped. */
-typedef struct {
-    off_t base;   /* absolute device offset of this extent            */
-    off_t len;    /* extent length in bytes (device tail may be short) */
-} sd_block_obj_t;
-
 /* Trailing-cap on a single windowed preadv so the iovec trim uses a bounded
  * stack copy; a larger iovcnt is honoured as a (legal) short read. */
 #define BRIX_BLOCK_IOV_MAX 64
 
-/* sd_block_read_window — translate a logical read [*off, *len) within an extent
- * to an absolute device range. Returns 0 when the request starts at/after the
- * extent end (the caller returns a 0-byte EOF read), else clamps *len to the
- * extent tail and shifts *off by the extent base. os == NULL (client path) is a
- * no-op pass-through: the offset stays absolute. */
-static int
+/* Declared in sd_block_internal.h — sd_block_ns.c has no use for it, but the
+ * advisory slot below and the byte ops share the one translation. */
+int
 sd_block_read_window(const sd_block_obj_t *os, off_t *off, size_t *len)
 {
     off_t avail;
@@ -217,6 +200,94 @@ sd_block_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
     return NGX_OK;
 }
 
+/* sd_block_read_sendfile_fd — hand back the device fd for zero-copy ONLY when
+ * the object's extent starts at device offset 0.
+ *
+ * WHAT: Returns obj->fd for the unconfined (client) handle and for extent 0;
+ *       NGX_INVALID_FILE for every extent with a non-zero base.
+ * WHY:  The fd this slot returns is consumed by callers that address it with
+ *       LOGICAL offsets — brix_vfs_file_sendfile_fd asks for the whole object and
+ *       the protocol handler then builds its own range from the object size. The
+ *       driver never sees that range, so it cannot clamp it after the fact; a
+ *       base-shifted extent handed out as a bare fd would serve the START of the
+ *       device under every object's name and let a ranged GET walk into the
+ *       neighbouring extent. base == 0 is exactly the condition under which
+ *       logical and physical offsets coincide, so it is the whole gate. This is
+ *       the common single-extent export (extent_size == 0 makes the device one
+ *       object "/0"), which is where the zero-copy win actually matters.
+ * HOW:  want_zerocopy is the VFS's transport verdict and is honoured first; a
+ *       NULL window is the client path, whose offsets are already absolute.
+ */
+static ngx_fd_t
+sd_block_read_sendfile_fd(brix_sd_obj_t *obj, off_t off, size_t len,
+    unsigned want_zerocopy)
+{
+    const sd_block_obj_t *os = obj->state;
+
+    if (!want_zerocopy || obj->fd == NGX_INVALID_FILE) {
+        return NGX_INVALID_FILE;
+    }
+    if (os != NULL) {
+        if (os->base != 0) {
+            return NGX_INVALID_FILE;      /* logical 0 is not physical 0 */
+        }
+        if (off < 0 || (off_t) len > os->len - off) {
+            return NGX_INVALID_FILE;      /* the ask already leaves the extent */
+        }
+    }
+    return obj->fd;
+}
+
+/* sd_block_read_advise — map the backend-neutral advice onto posix_fadvise(2)
+ * over the extent's absolute device range.
+ *
+ * WHAT: Windows [off, off+len) through the extent (len == 0 ⇒ from off to the
+ *       extent end) and advises the device fd over the resulting absolute range.
+ * WHY:  Without this slot brix_vfs_file_read_advise is a no-op on a block
+ *       export, so the sequential-serve and WILLNEED prefetch engines lose their
+ *       read-ahead entirely. Advising the UNWINDOWED offset would be worse than
+ *       nothing: it would warm the wrong extent's pages and evict the right
+ *       ones.
+ * HOW:  Advisory throughout, per the slot contract — NGX_OK whether or not the
+ *       kernel honoured the hint, NGX_ERROR (errno set) only on a hard failure.
+ *       posix_fadvise RETURNS the error number rather than setting errno, so it
+ *       is copied into errno to keep the seam's contract. Position, size and
+ *       contents are untouched.
+ */
+static ngx_int_t
+sd_block_read_advise(brix_sd_obj_t *obj, off_t off, size_t len, int advice)
+{
+    const sd_block_obj_t *os = obj->state;
+#if defined(POSIX_FADV_SEQUENTIAL)
+    int                   a, rc;
+#endif
+
+    if (os != NULL && len == 0) {
+        if (off < 0 || off >= os->len) {
+            return NGX_OK;                /* nothing at/after the extent end */
+        }
+        len = (size_t) (os->len - off);   /* "to EOF" is the EXTENT's end */
+    }
+    if (!sd_block_read_window(os, &off, &len)) {
+        return NGX_OK;                    /* wholly past the extent */
+    }
+
+#if defined(POSIX_FADV_SEQUENTIAL)
+    a = advice == BRIX_SD_ADV_WILLNEED ? POSIX_FADV_WILLNEED
+      : advice == BRIX_SD_ADV_RANDOM   ? POSIX_FADV_RANDOM
+      :                                  POSIX_FADV_SEQUENTIAL;
+
+    rc = posix_fadvise(obj->fd, off, (off_t) len, a);
+    if (rc != 0) {
+        errno = rc;
+        return NGX_ERROR;
+    }
+#else
+    (void) advice;
+#endif
+    return NGX_OK;
+}
+
 /* brix_sd_block_open_unconfined — open a block device (no O_CREAT/O_TRUNC: the
  * device exists and must not be re-created or zeroed). Returns an fd or -1. */
 int
@@ -227,290 +298,11 @@ brix_sd_block_open_unconfined(const char *path, int sd_flags, mode_t mode)
     return brix_sd_posix_open_unconfined(path, sd_flags, mode);
 }
 
-#ifndef XRDPROTO_NO_NGX   /* server plane: instance + fixed-extent namespace */
-
-/* Per-export instance state: the device path, its probed capacity, and the
- * fixed extent geometry derived at init. */
-typedef struct {
-    char    *device;
-    off_t    capacity;
-    off_t    extent_size;
-    uint32_t extents;
-} sd_block_state_t;
-
-/* Per-open directory cursor for the root listing. */
-typedef struct {
-    uint32_t next;
-    uint32_t extents;
-} sd_block_dir_t;
-
-/* sd_block_is_root — the empty path or a lone "/" is the namespace root. */
-static int
-sd_block_is_root(const char *path)
-{
-    return path == NULL || path[0] == '\0'
-        || (path[0] == '/' && path[1] == '\0');
-}
-
-/* sd_block_parse_index — an extent name is a leading-'/'-optional run of
- * decimal digits ("/0", "12"). Anything else — a non-numeric component, an
- * embedded '/', a path-escape attempt — is not an extent: return -1 so the
- * caller reports ENOENT (the namespace exposes ONLY the fixed extents). */
-static int64_t
-sd_block_parse_index(const char *path)
-{
-    const char *p = path;
-    int64_t     idx = 0;
-
-    if (p == NULL) {
-        return -1;
-    }
-    if (*p == '/') {
-        p++;
-    }
-    if (*p == '\0') {
-        return -1;                      /* the root dir, not an extent */
-    }
-    for (; *p != '\0'; p++) {
-        if (*p < '0' || *p > '9') {
-            return -1;
-        }
-        idx = idx * 10 + (*p - '0');
-        if (idx > 0x7fffffff) {
-            return -1;
-        }
-    }
-    return idx;
-}
-
-/* sd_block_init — probe the device capacity (BLKGETSIZE64 for a real block
- * device, st_size for a regular file used as one) and derive the fixed extent
- * geometry. extent_size == 0 makes the whole device one extent. */
-static ngx_int_t
-sd_block_init(brix_sd_instance_t *inst, void *driver_conf)
-{
-    const brix_sd_block_conf_t *conf = driver_conf;
-    sd_block_state_t           *st;
-    struct stat                 sb;
-    off_t                       cap;
-    size_t                      dlen;
-    int                         fd;
-
-    if (conf == NULL || conf->device == NULL || conf->device[0] == '\0') {
-        errno = EINVAL;
-        return NGX_ERROR;
-    }
-
-    fd = open(conf->device, O_RDONLY);
-    if (fd < 0) {
-        return NGX_ERROR;               /* errno set by open(2) */
-    }
-    if (fstat(fd, &sb) != 0) {
-        int e = errno;
-        close(fd);
-        errno = e;
-        return NGX_ERROR;
-    }
-    cap = sb.st_size;
-#ifdef BLKGETSIZE64
-    if (S_ISBLK(sb.st_mode)) {
-        uint64_t sz = 0;
-        if (ioctl(fd, BLKGETSIZE64, &sz) == 0) {
-            cap = (off_t) sz;
-        }
-    }
-#endif
-    close(fd);
-
-    if (cap <= 0) {
-        errno = ENODEV;
-        return NGX_ERROR;               /* an empty/zero-length device */
-    }
-
-    st = ngx_pcalloc(inst->pool, sizeof(*st));
-    if (st == NULL) {
-        errno = ENOMEM;
-        return NGX_ERROR;
-    }
-    dlen = ngx_strlen(conf->device);
-    st->device = ngx_pnalloc(inst->pool, dlen + 1);
-    if (st->device == NULL) {
-        errno = ENOMEM;
-        return NGX_ERROR;
-    }
-    ngx_memcpy(st->device, conf->device, dlen + 1);
-
-    st->capacity    = cap;
-    st->extent_size = (conf->extent_size > 0) ? (off_t) conf->extent_size : cap;
-    st->extents     = (uint32_t) ((cap + st->extent_size - 1) / st->extent_size);
-    inst->state     = st;
-    return NGX_OK;
-}
-
-/* sd_block_open — resolve an extent name to a windowed handle on the device. A
- * non-extent name is ENOENT; the root is EISDIR; a valid extent opens the device
- * (never create/truncate) and binds the extent window into obj->state. */
-static brix_sd_obj_t *
-sd_block_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
-    mode_t mode, int *err_out)
-{
-    sd_block_state_t *st = inst->state;
-    brix_sd_obj_t    *obj;
-    sd_block_obj_t   *os;
-    int64_t           idx;
-    int               fd;
-
-    if (sd_block_is_root(path)) {
-        if (err_out != NULL) { *err_out = EISDIR; }
-        return NULL;
-    }
-    idx = sd_block_parse_index(path);
-    if (idx < 0 || (uint32_t) idx >= st->extents) {
-        if (err_out != NULL) { *err_out = ENOENT; }
-        return NULL;
-    }
-
-    /* A device is opened in place: create/truncate/exclusive are meaningless. */
-    sd_flags &= ~(BRIX_SD_O_CREATE | BRIX_SD_O_TRUNC | BRIX_SD_O_EXCL);
-    fd = brix_sd_block_open_unconfined(st->device, sd_flags, mode);
-    if (fd < 0) {
-        if (err_out != NULL) { *err_out = errno; }
-        return NULL;
-    }
-
-    /* Heap-allocate the shell + window (ngx_calloc, NOT inst->pool): open can run
-     * on a cache-fill worker thread and inst->pool is the thread-unsafe cycle
-     * pool. heap_shell frees the shell in the adopting layer; sd_block_close
-     * frees the window. */
-    obj = ngx_calloc(sizeof(*obj), inst->log);
-    os  = ngx_calloc(sizeof(*os), inst->log);
-    if (obj == NULL || os == NULL) {
-        if (obj != NULL) { ngx_free(obj); }
-        if (os != NULL)  { ngx_free(os); }
-        close(fd);
-        if (err_out != NULL) { *err_out = ENOMEM; }
-        return NULL;
-    }
-
-    os->base = (off_t) idx * st->extent_size;
-    os->len  = st->extent_size;
-    if (os->base + os->len > st->capacity) {
-        os->len = st->capacity - os->base;   /* short device tail */
-    }
-
-    obj->driver     = inst->driver;
-    obj->inst       = inst;
-    obj->fd         = fd;
-    obj->state      = os;
-    obj->heap_shell = 1;
-    return obj;
-}
-
-/* sd_block_close — close the handle fd and free the extent window. */
-static ngx_int_t
-sd_block_close(brix_sd_obj_t *obj)
-{
-    ngx_int_t rc = NGX_OK;
-
-    if (obj == NULL) {
-        return NGX_OK;
-    }
-    if (obj->fd != NGX_INVALID_FILE) {
-        if (close(obj->fd) != 0) {
-            rc = NGX_ERROR;
-        }
-        obj->fd = NGX_INVALID_FILE;
-    }
-    if (obj->state != NULL) {
-        ngx_free(obj->state);
-        obj->state = NULL;
-    }
-    return rc;
-}
-
-/* sd_block_stat — the root is a directory; a valid extent index is a fixed-size
- * regular object (the last extent may be a short device tail); anything else is
- * ENOENT. */
-static ngx_int_t
-sd_block_stat(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out)
-{
-    sd_block_state_t *st = inst->state;
-    int64_t           idx;
-
-    ngx_memzero(out, sizeof(*out));
-    if (sd_block_is_root(path)) {
-        out->mode   = S_IFDIR | 0755;
-        out->is_dir = 1;
-        return NGX_OK;
-    }
-    idx = sd_block_parse_index(path);
-    if (idx < 0 || (uint32_t) idx >= st->extents) {
-        errno = ENOENT;
-        return NGX_ERROR;
-    }
-    out->mode   = S_IFREG | 0644;
-    out->is_reg = 1;
-    out->size   = ((uint32_t) idx == st->extents - 1)
-                ? st->capacity - (off_t) idx * st->extent_size
-                : st->extent_size;
-    return NGX_OK;
-}
-
-/* sd_block_opendir — only the root lists (the extents are a flat namespace); any
- * other path is ENOTDIR. */
-static brix_sd_dir_t *
-sd_block_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
-{
-    sd_block_state_t *st = inst->state;
-    brix_sd_dir_t    *dir;
-    sd_block_dir_t   *bd;
-
-    if (!sd_block_is_root(path)) {
-        if (err_out != NULL) { *err_out = ENOTDIR; }
-        return NULL;
-    }
-    dir = ngx_pcalloc(inst->pool, sizeof(*dir));
-    bd  = ngx_pcalloc(inst->pool, sizeof(*bd));
-    if (dir == NULL || bd == NULL) {
-        if (err_out != NULL) { *err_out = ENOMEM; }
-        return NULL;
-    }
-    bd->next    = 0;
-    bd->extents = st->extents;
-    dir->inst   = inst;
-    dir->state  = bd;
-    return dir;
-}
-
-static ngx_int_t
-sd_block_readdir(brix_sd_dir_t *d, brix_sd_dirent_t *out)
-{
-    sd_block_dir_t *bd = d->state;
-
-    if (bd->next >= bd->extents) {
-        return NGX_DONE;
-    }
-    ngx_memzero(out, sizeof(*out));
-    (void) ngx_snprintf((u_char *) out->name, sizeof(out->name), "%ui%Z",
-                        (ngx_uint_t) bd->next);
-    out->d_type = DT_REG;
-    bd->next++;
-    return NGX_OK;
-}
-
-static ngx_int_t
-sd_block_closedir(brix_sd_dir_t *d)
-{
-    (void) d;   /* the cursor lives on inst->pool */
-    return NGX_OK;
-}
-
-#endif /* !XRDPROTO_NO_NGX */
-
 /* The block driver: raw-I/O caps everywhere; in the module build it also grows a
  * fixed-extent server namespace (open/stat/dir + CAP_DIRS). No truncate (a fixed
- * extent), no rename, no xattr, no staged commit, no sendfile (the extent window
- * must be honoured by pread — a zero-copy fd would ignore the base offset). */
+ * extent), no rename, no xattr, no staged commit. Zero-copy is offered only for
+ * an extent based at device offset 0 — see sd_block_read_sendfile_fd for why the
+ * base is the whole gate. */
 const brix_sd_driver_t brix_sd_block_driver = {
     .name = "block",
     .caps = BRIX_SD_CAP_FD | BRIX_SD_CAP_RANDOM_WRITE
@@ -525,6 +317,8 @@ const brix_sd_driver_t brix_sd_block_driver = {
     .preadv2  = sd_block_preadv2,
     .fsync    = sd_block_fsync,
     .fstat    = sd_block_fstat,
+    .read_sendfile_fd = sd_block_read_sendfile_fd,
+    .read_advise      = sd_block_read_advise,
 #ifndef XRDPROTO_NO_NGX
     .init     = sd_block_init,
     .open     = sd_block_open,
@@ -533,5 +327,8 @@ const brix_sd_driver_t brix_sd_block_driver = {
     .opendir  = sd_block_opendir,
     .readdir  = sd_block_readdir,
     .closedir = sd_block_closedir,
+    /* The DEVICE capacity, so kXR_Qspace stops answering with the statvfs of
+     * whatever filesystem the mount point happens to sit on. */
+    .space    = sd_block_space,
 #endif
 };

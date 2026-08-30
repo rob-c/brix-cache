@@ -535,6 +535,13 @@ char *brix_vfs_copy_path(ngx_pool_t *pool, const char *path);
 ngx_int_t brix_vfs_adopt_fd(brix_vfs_ctx_t *ctx, const char *path,
     ngx_fd_t fd, brix_vfs_adopt_attrs_t attrs, brix_vfs_file_t **out);
 
+/* Descend ONE cache/stage decorator to the instance it wraps; NULL at a leaf or
+ * on a non-decorator instance. Defined in vfs_stat.c (the residency/space seams
+ * walk it) and shared with the catalog-enumeration seam in vfs_walk.c: a verb
+ * that describes the BACKING STORE rather than a cached copy must be answered by
+ * the leaf, never refused because a tier decorator sits on top. */
+brix_sd_instance_t *brix_vfs_decorator_source(const brix_sd_instance_t *inst);
+
 /* brix_vfs_pread_full / brix_vfs_pwrite_full are now declared in the public
  * vfs.h (raw fd full read/write primitives) so module byte loops outside src/fs
  * can route through the storage seam too. */

@@ -106,7 +106,8 @@ def write_origin_config(prefix: Path, port: int) -> Path:
         f"""daemon on; error_log {logs / 'e.log'} info; pid {prefix / 'nginx.pid'};
 events {{ worker_connections 64; }}
 stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {root};
-    brix_auth none; brix_allow_write on; }} }}
+    brix_auth none; brix_allow_write on;
+    brix_access_log {logs / 'access.log'}; }} }}
 """,
         encoding="utf-8",
     )
@@ -427,6 +428,172 @@ def _check_chmod(origin_root: Path, port: int,
         s.close()
 
 
+def _query_info(port: int, infotype: int, arg: bytes,
+                sid: bytes) -> tuple[int, bytes]:
+    """kXR_query/<infotype> for `arg` on a fresh gateway session. The gateway
+    runs a thread pool, so the answer may arrive async: absorb kXR_waitresp and
+    unwrap the kXR_attn(asynresp) frame (actnum[4] reserved[4] inner-hdr[8]
+    inner-body) exactly as a stock client does. Returns (status, body)."""
+    kXR_query, kXR_attn, kXR_waitresp = 3001, 4001, 4006
+    s = _session(port)
+    try:
+        body = struct.pack(">H", infotype) + b"\x00" * 14
+        s.sendall(H.make_request(sid, kXR_query, body, arg + b"\x00"))
+        for _ in range(8):
+            status, resp = H._recv_response(s)
+            if status == kXR_waitresp:
+                continue
+            if status == kXR_attn:
+                if len(resp) >= 16:
+                    return struct.unpack(">H", resp[10:12])[0], resp[16:]
+                continue
+            return status, resp
+        return -1, b""
+    finally:
+        s.close()
+
+
+def _query_cksum(port: int, arg: bytes, sid: bytes) -> tuple[int, bytes]:
+    return _query_info(port, 3, arg, sid)   # kXR_Qcksum
+
+
+def _query_space(port: int, arg: bytes, sid: bytes) -> tuple[int, bytes]:
+    return _query_info(port, 5, arg, sid)   # kXR_Qspace
+
+
+def _log_matches(log: Path, needle: str) -> list[str]:
+    if not log.exists():
+        return []
+    text = log.read_text(encoding="utf-8", errors="replace")
+    return [line for line in text.splitlines() if needle in line]
+
+
+def _origin_log_lines(origin_prefix: Path, needle: str,
+                      wait_for: str = "") -> list[str]:
+    """Lines of the origin access log naming `needle`. The log is written
+    through a per-worker buffer, so when `wait_for` is given, poll briefly
+    until a matching line containing it has flushed (bounded, never fails —
+    the caller's assertion decides)."""
+    log = origin_prefix / "logs" / "access.log"
+    lines: list[str] = []
+    for _ in range(50):
+        lines = _log_matches(log, needle)
+        if not wait_for or any(wait_for in line for line in lines):
+            break
+        time.sleep(0.1)
+    return lines
+
+
+def _cksum_offload_success(origin_prefix: Path, port: int, data: bytes,
+                           results: list[tuple[bool, str]]) -> None:
+    """Default alg (adler32) served from the origin digest, with zero reads."""
+    import zlib
+
+    st, resp = _query_cksum(port, b"/reg_cksum.bin", b"\x00\x61")
+    text = resp.rstrip(b"\x00").decode("ascii", "replace")
+    want = f"adler32 {zlib.adler32(data) & 0xffffffff:08x}"
+    results.append((st == kXR_ok and text == want,
+                    "gateway Qcksum (default alg) returns the origin digest"))
+    queried = _origin_log_lines(origin_prefix, "reg_cksum.bin",
+                                wait_for="cksum")
+    results.append(
+        (any("cksum" in line for line in queried)
+         and not any("READ" in line for line in queried),
+         "offloaded Qcksum queried the origin without reading bytes"),
+    )
+
+
+def _cksum_offload_fallback(origin_prefix: Path, port: int, data: bytes,
+                            results: list[tuple[bool, str]]) -> None:
+    """Origin advertises adler32 only → md5 must be computed from the bytes."""
+    import hashlib
+
+    st, resp = _query_cksum(port, b"/reg_cksum.bin?cks.type=md5", b"\x00\x62")
+    text = resp.rstrip(b"\x00").decode("ascii", "replace")
+    want = f"md5 {hashlib.md5(data).hexdigest()}"
+    results.append((st == kXR_ok and text == want,
+                    "non-origin algorithm falls back to compute correctly"))
+    after = _origin_log_lines(origin_prefix, "reg_cksum.bin",
+                              wait_for="READ")
+    results.append((any("READ" in line for line in after),
+                    "compute fallback read the object bytes from the origin"))
+
+
+def _check_cksum_offload(origin_prefix: Path, port: int,
+                         results: list[tuple[bool, str]]) -> None:
+    """Checksum offload (driver query_checksum slot). A default-algorithm
+    Qcksum through the gateway must be answered from the origin's OWN digest —
+    witnessed in the origin access log as a cksum QUERY with ZERO reads of the
+    file (success). A non-default algorithm the origin does not advertise must
+    fall back to the byte-reading compute and still answer correctly, now WITH
+    origin reads (error/fallback). A missing path and a traversal path must
+    error, never fabricate a digest (security-neg)."""
+    data = deterministic_bytes(300_000, 37)
+    (origin_prefix / "root" / "reg_cksum.bin").write_bytes(data)
+
+    _cksum_offload_success(origin_prefix, port, data, results)
+    _cksum_offload_fallback(origin_prefix, port, data, results)
+
+    # security-neg: no digest for a missing path or a traversal attempt
+    st_miss, _ = _query_cksum(port, b"/reg_cksum_missing.bin", b"\x00\x63")
+    st_esc, _ = _query_cksum(port, b"/../../etc/passwd", b"\x00\x64")
+    results.append((st_miss != kXR_ok and st_esc != kXR_ok,
+                    "Qcksum errors on missing and traversal paths"))
+
+
+def _parse_oss(resp: bytes) -> dict[str, int]:
+    """The oss.* key=value report ("&"- or space-joined) as an int dict."""
+    out: dict[str, int] = {}
+    text = resp.rstrip(b"\x00").decode("ascii", "replace")
+    for part in text.replace("&", " ").split():
+        key, _, val = part.partition("=")
+        if val.lstrip("-").isdigit():
+            out[key] = int(val)
+    return out
+
+
+def _check_space_delegation(origin_prefix: Path, port: int,
+                            results: list[tuple[bool, str]]) -> None:
+    """Space delegation (driver `space` slot). A Qspace through the gateway
+    must be answered with the ORIGIN's capacity — witnessed in the origin
+    access log as a space QUERY (success). An empty/relative path must be
+    rejected on the gateway before any backend call (security-neg). The
+    origin-down fallback leg runs last in run_checks (_check_space_fallback)."""
+    st, resp = _query_space(port, b"/", b"\x00\x71")
+    oss = _parse_oss(resp)
+    ok = (st == kXR_ok and oss.get("oss.space", 0) > 0
+          and 0 < oss.get("oss.free", 0) <= oss["oss.space"])
+    results.append((ok, "gateway Qspace reports origin-derived totals"))
+    queried = _origin_log_lines(origin_prefix, "space", wait_for="QUERY")
+    results.append((any("QUERY" in line for line in queried),
+                    "gateway Qspace delegated to the origin (origin QUERY space logged)"))
+
+    st_neg, _ = _query_space(port, b"", b"\x00\x72")
+    results.append((st_neg != kXR_ok,
+                    "gateway Qspace rejects an empty (relative) path"))
+
+
+def _check_space_fallback(origin_prefix: Path, origin_port: int, port: int,
+                          results: list[tuple[bool, str]]) -> None:
+    """Origin down → the driver `space` slot fails and the gateway must fall
+    back to local statvfs, still answering kXR_ok. DESTRUCTIVE (stops the
+    origin): must be the LAST check; the run_checks finally-block re-stop is a
+    no-op."""
+    stop_nginx(origin_prefix)
+    for _ in range(50):
+        try:
+            with socket.create_connection((HOST, origin_port), timeout=0.5):
+                pass
+        except OSError:
+            break
+        time.sleep(0.1)
+
+    st, resp = _query_space(port, b"/", b"\x00\x73")
+    oss = _parse_oss(resp)
+    results.append((st == kXR_ok and oss.get("oss.space", 0) > 0,
+                    "gateway Qspace falls back to local statvfs when the origin is down"))
+
+
 def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]:
     origin_port, gw_port = cmdscript_ports("xroot_gateway_regress", 2)
     origin = base / "o"
@@ -465,6 +632,13 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
         _check_mv(origin_root, gw_port, results)
         _check_truncate(origin_root, gw_port, results)
         _check_chmod(origin_root, gw_port, results)
+        # Checksum offload (driver query_checksum slot) — needs the origin
+        # access log written by write_origin_config for its read/query witness.
+        _check_cksum_offload(origin, gw_port, results)
+        # Space delegation (driver space slot) — same access-log witness. The
+        # fallback leg STOPS the origin, so it must stay last.
+        _check_space_delegation(origin, gw_port, results)
+        _check_space_fallback(origin, origin_port, gw_port, results)
         return results
     finally:
         for prefix in reversed(started):

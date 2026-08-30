@@ -136,77 +136,147 @@ sd_stage_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags,
                                     err_out);
 }
 
-/* ---- namespace / xattr / dir forwarders (delegate to the source) ---------- */
+/* ---- namespace / xattr / dir forwarders (delegate to the source) ----------
+ *
+ * Each op appears twice: a plain slot and its credential-scoped twin, both
+ * landing on brix_sd_<op>_maybe_cred against the SOURCE (cred=NULL for the
+ * plain one, which is exactly the pre-existing behaviour). The twins are not
+ * optional politeness: brix_sd_<op>_maybe_cred keys off the instance it is
+ * CALLED on, so a decorator publishing `.mkdir` and no `.mkdir_cred` looks
+ * from above like a driver with no per-user support, whatever the source can
+ * actually do. That is why every VFS namespace site unwraps to the LEAF today
+ * (brix_vfs_ns_leaf) — a bypass that also skips this decorator's own work, so
+ * each bypassing site has to re-add the cache eviction by hand. See the same
+ * block in sd_cache_forward.c. ENOTSUP is preserved where the pre-split code
+ * reported it: for the xattr ops it means "no extended attributes here". */
 
 static ngx_int_t
 sd_stage_stat(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out)
 {
-    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
-    return s->driver->stat ? s->driver->stat(s, path, out) : NGX_ERROR;
+    return brix_sd_stat_maybe_cred(SD_STAGE_SRC(inst), path, out, NULL);
+}
+
+static ngx_int_t
+sd_stage_stat_cred(brix_sd_instance_t *inst, const char *path,
+    brix_sd_stat_t *out, const brix_sd_cred_t *cred)
+{
+    return brix_sd_stat_maybe_cred(SD_STAGE_SRC(inst), path, out, cred);
 }
 
 static ngx_int_t
 sd_stage_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
 {
-    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
-    return s->driver->unlink ? s->driver->unlink(s, path, is_dir) : NGX_ERROR;
+    return brix_sd_unlink_maybe_cred(SD_STAGE_SRC(inst), path, is_dir, NULL);
+}
+
+static ngx_int_t
+sd_stage_unlink_cred(brix_sd_instance_t *inst, const char *path, int is_dir,
+    const brix_sd_cred_t *cred)
+{
+    return brix_sd_unlink_maybe_cred(SD_STAGE_SRC(inst), path, is_dir, cred);
 }
 
 static ngx_int_t
 sd_stage_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
 {
-    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
-    return s->driver->mkdir ? s->driver->mkdir(s, path, mode) : NGX_ERROR;
+    return brix_sd_mkdir_maybe_cred(SD_STAGE_SRC(inst), path, mode, NULL);
+}
+
+static ngx_int_t
+sd_stage_mkdir_cred(brix_sd_instance_t *inst, const char *path, mode_t mode,
+    const brix_sd_cred_t *cred)
+{
+    return brix_sd_mkdir_maybe_cred(SD_STAGE_SRC(inst), path, mode, cred);
 }
 
 static ngx_int_t
 sd_stage_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     int noreplace)
 {
-    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
-    return s->driver->rename ? s->driver->rename(s, src, dst, noreplace)
-                             : NGX_ERROR;
+    return brix_sd_rename_maybe_cred(SD_STAGE_SRC(inst), src, dst, noreplace,
+                                     NULL);
+}
+
+static ngx_int_t
+sd_stage_rename_cred(brix_sd_instance_t *inst, const char *src, const char *dst,
+    int noreplace, const brix_sd_cred_t *cred)
+{
+    return brix_sd_rename_maybe_cred(SD_STAGE_SRC(inst), src, dst, noreplace,
+                                     cred);
 }
 
 static ngx_int_t
 sd_stage_server_copy(brix_sd_instance_t *inst, const char *src, const char *dst,
     off_t *bytes_out)
 {
-    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
-    return s->driver->server_copy ? s->driver->server_copy(s, src, dst, bytes_out)
-                                  : NGX_ERROR;
+    return brix_sd_server_copy_maybe_cred(SD_STAGE_SRC(inst), src, dst,
+                                          bytes_out, NULL);
+}
+
+static ngx_int_t
+sd_stage_server_copy_cred(brix_sd_instance_t *inst, const char *src,
+    const char *dst, off_t *bytes_out, const brix_sd_cred_t *cred)
+{
+    return brix_sd_server_copy_maybe_cred(SD_STAGE_SRC(inst), src, dst,
+                                          bytes_out, cred);
 }
 
 static ngx_int_t
 sd_stage_setattr(brix_sd_instance_t *inst, const char *path,
     const brix_sd_setattr_t *attr)
 {
-    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
-    return s->driver->setattr ? s->driver->setattr(s, path, attr) : NGX_OK;
+    return brix_sd_setattr_maybe_cred(SD_STAGE_SRC(inst), path, attr, NULL);
+}
+
+static ngx_int_t
+sd_stage_setattr_cred(brix_sd_instance_t *inst, const char *path,
+    const brix_sd_setattr_t *attr, const brix_sd_cred_t *cred)
+{
+    return brix_sd_setattr_maybe_cred(SD_STAGE_SRC(inst), path, attr, cred);
 }
 
 /* Path-based truncate forwards straight to the source (no staging): resizing the
  * origin object by name is what lets kXR_truncate over a staged remote backend
- * avoid a RECALL + colliding write-open. Mirrors sd_stage_setattr. The VFS
- * dispatches the actual op on the leaf (which carries the *_cred slot); this slot
- * exists so the decorator advertises the capability to the VFS gate. */
+ * avoid a RECALL + colliding write-open. Mirrors sd_stage_setattr. */
 static ngx_int_t
 sd_stage_truncate_path(brix_sd_instance_t *inst, const char *path, off_t len)
 {
     brix_sd_instance_t *s = SD_STAGE_SRC(inst);
-    if (s->driver->truncate_path == NULL) { errno = ENOTSUP; return NGX_ERROR; }
-    return s->driver->truncate_path(s, path, len);
+    if (s->driver->truncate_path == NULL
+        && s->driver->truncate_path_cred == NULL)
+    {
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
+    return brix_sd_truncate_path_maybe_cred(s, path, len, NULL);
 }
 
+static ngx_int_t
+sd_stage_truncate_path_cred(brix_sd_instance_t *inst, const char *path,
+    off_t len, const brix_sd_cred_t *cred)
+{
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
+    if (s->driver->truncate_path == NULL
+        && s->driver->truncate_path_cred == NULL)
+    {
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
+    return brix_sd_truncate_path_maybe_cred(s, path, len, cred);
+}
+
+/* dir->inst is the SOURCE either way, so readdir/closedir need no cred twin. */
 static brix_sd_dir_t *
 sd_stage_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
 {
-    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
-    if (s->driver->opendir == NULL) {
-        if (err_out != NULL) { *err_out = ENOSYS; }
-        return NULL;
-    }
-    return s->driver->opendir(s, path, err_out);    /* dir->inst = the source */
+    return brix_sd_opendir_maybe_cred(SD_STAGE_SRC(inst), path, err_out, NULL);
+}
+
+static brix_sd_dir_t *
+sd_stage_opendir_cred(brix_sd_instance_t *inst, const char *path, int *err_out,
+    const brix_sd_cred_t *cred)
+{
+    return brix_sd_opendir_maybe_cred(SD_STAGE_SRC(inst), path, err_out, cred);
 }
 
 static ngx_int_t
@@ -222,40 +292,93 @@ sd_stage_closedir(brix_sd_dir_t *d)
     return d->inst->driver->closedir ? d->inst->driver->closedir(d) : NGX_ERROR;
 }
 
+/* Both slot pairs absent → the source has no extended attributes at all, which
+ * callers read off ENOTSUP rather than the forwarder's less specific ENOSYS. */
+static ngx_int_t
+sd_stage_src_no_xattr(const brix_sd_instance_t *s, int write_side)
+{
+    if (write_side) {
+        return s->driver->setxattr == NULL && s->driver->setxattr_cred == NULL
+            && s->driver->removexattr == NULL
+            && s->driver->removexattr_cred == NULL;
+    }
+    return s->driver->getxattr == NULL && s->driver->getxattr_cred == NULL
+        && s->driver->listxattr == NULL && s->driver->listxattr_cred == NULL;
+}
+
+static ssize_t
+sd_stage_getxattr_cred(brix_sd_instance_t *inst, const char *path,
+    const char *name, void *buf, size_t cap, const brix_sd_cred_t *cred)
+{
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
+    if (sd_stage_src_no_xattr(s, 0)) { errno = ENOTSUP; return -1; }
+    return brix_sd_getxattr_maybe_cred(s, path, name, buf, cap, cred);
+}
+
 static ssize_t
 sd_stage_getxattr(brix_sd_instance_t *inst, const char *path, const char *name,
     void *buf, size_t cap)
 {
+    return sd_stage_getxattr_cred(inst, path, name, buf, cap, NULL);
+}
+
+static ssize_t
+sd_stage_listxattr_cred(brix_sd_instance_t *inst, const char *path, void *buf,
+    size_t cap, const brix_sd_cred_t *cred)
+{
     brix_sd_instance_t *s = SD_STAGE_SRC(inst);
-    if (s->driver->getxattr == NULL) { errno = ENOTSUP; return -1; }
-    return s->driver->getxattr(s, path, name, buf, cap);
+    if (sd_stage_src_no_xattr(s, 0)) { errno = ENOTSUP; return -1; }
+    return brix_sd_listxattr_maybe_cred(s, path, buf, cap, cred);
 }
 
 static ssize_t
 sd_stage_listxattr(brix_sd_instance_t *inst, const char *path, void *buf,
     size_t cap)
 {
+    return sd_stage_listxattr_cred(inst, path, buf, cap, NULL);
+}
+
+static ngx_int_t
+sd_stage_setxattr_cred(brix_sd_instance_t *inst, const char *path,
+    const char *name, const void *val, size_t len, int flags,
+    const brix_sd_cred_t *cred)
+{
     brix_sd_instance_t *s = SD_STAGE_SRC(inst);
-    if (s->driver->listxattr == NULL) { errno = ENOTSUP; return -1; }
-    return s->driver->listxattr(s, path, buf, cap);
+    if (sd_stage_src_no_xattr(s, 1)) { errno = ENOTSUP; return NGX_ERROR; }
+    return brix_sd_setxattr_maybe_cred(s, path, name, val, len, flags, cred);
 }
 
 static ngx_int_t
 sd_stage_setxattr(brix_sd_instance_t *inst, const char *path, const char *name,
     const void *val, size_t len, int flags)
 {
+    return sd_stage_setxattr_cred(inst, path, name, val, len, flags, NULL);
+}
+
+static ngx_int_t
+sd_stage_removexattr_cred(brix_sd_instance_t *inst, const char *path,
+    const char *name, const brix_sd_cred_t *cred)
+{
     brix_sd_instance_t *s = SD_STAGE_SRC(inst);
-    if (s->driver->setxattr == NULL) { errno = ENOTSUP; return NGX_ERROR; }
-    return s->driver->setxattr(s, path, name, val, len, flags);
+    if (sd_stage_src_no_xattr(s, 1)) { errno = ENOTSUP; return NGX_ERROR; }
+    return brix_sd_removexattr_maybe_cred(s, path, name, cred);
 }
 
 static ngx_int_t
 sd_stage_removexattr(brix_sd_instance_t *inst, const char *path,
     const char *name)
 {
+    return sd_stage_removexattr_cred(inst, path, name, NULL);
+}
+
+/* Capacity belongs to the wrapped source (the stage store is a private spool),
+ * so statvfs/Qspace/QFSinfo/SRR report the source's numbers, not the spool's. */
+static ngx_int_t
+sd_stage_space(brix_sd_instance_t *inst, brix_sd_space_t *out)
+{
     brix_sd_instance_t *s = SD_STAGE_SRC(inst);
-    if (s->driver->removexattr == NULL) { errno = ENOTSUP; return NGX_ERROR; }
-    return s->driver->removexattr(s, path, name);
+    if (s->driver->space == NULL) { errno = ENOTSUP; return NGX_ERROR; }
+    return s->driver->space(s, out);
 }
 
 /* ---- driver descriptor ---------------------------------------------------- */
@@ -289,6 +412,7 @@ const brix_sd_driver_t brix_sd_stage_driver = {
     .rename      = sd_stage_rename,
     .server_copy = sd_stage_server_copy,
     .setattr     = sd_stage_setattr,
+    .space       = sd_stage_space,
     .truncate_path = sd_stage_truncate_path,
     .opendir     = sd_stage_opendir,
     .readdir     = sd_stage_readdir,
@@ -297,6 +421,20 @@ const brix_sd_driver_t brix_sd_stage_driver = {
     .listxattr   = sd_stage_listxattr,
     .setxattr    = sd_stage_setxattr,
     .removexattr = sd_stage_removexattr,
+    /* Credential-scoped twins — a decorator that omits them erases the caller's
+     * credential for every path op behind it (see the forwarder block above). */
+    .stat_cred          = sd_stage_stat_cred,
+    .unlink_cred        = sd_stage_unlink_cred,
+    .mkdir_cred         = sd_stage_mkdir_cred,
+    .rename_cred        = sd_stage_rename_cred,
+    .server_copy_cred   = sd_stage_server_copy_cred,
+    .setattr_cred       = sd_stage_setattr_cred,
+    .truncate_path_cred = sd_stage_truncate_path_cred,
+    .opendir_cred       = sd_stage_opendir_cred,
+    .getxattr_cred      = sd_stage_getxattr_cred,
+    .listxattr_cred     = sd_stage_listxattr_cred,
+    .setxattr_cred      = sd_stage_setxattr_cred,
+    .removexattr_cred   = sd_stage_removexattr_cred,
     .staged_open      = sd_stage_staged_open,
     .staged_open_cred = sd_stage_staged_open_cred,
     .staged_write     = sd_stage_staged_write,

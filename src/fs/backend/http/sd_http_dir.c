@@ -332,17 +332,9 @@ sd_http_dir_key(const char *path, char *key, size_t cap)
     key[kl] = '\0';
 }
 
-/* One PROPFIND request's identity: the key, the resolved credential, the depth
- * ("0" = this resource, "1" = its children) and whether the request is pinned to
- * the primary endpoint. Bundled so the shared issue helper keeps a small
- * parameter list; every field is immutable for the life of the call. */
-typedef struct {
-    const char *key;
-    const char *auth;        /* resolved "Authorization: …\r\n" line, or NULL */
-    const char *cert_pem;
-    int         depth;
-    int         force_primary;
-} sd_http_pf_t;
+/* sd_http_pf_t is declared in sd_http_internal.h: the quota reader
+ * (sd_http_space.c) is a third PROPFIND caller and shares this request identity
+ * and the issue helper below, so neither may be private to this file. */
 
 /* sd_http_propfind_errno — the one PROPFIND status→errno verdict.
  *
@@ -376,18 +368,27 @@ sd_http_propfind_errno(int status)
  *       issue+verdict keeps one wire spelling and one refusal map for both.
  * HOW:  `pf` carries the whole request identity so the parameter list stays
  *       small; force_primary is the caller's because a type verdict must pin the
- *       endpoint the mutation will act on while a listing may fail over. */
-static int
+ *       endpoint the mutation will act on while a listing may fail over. A
+ *       non-NULL pf->body is a NAMED-PROP request and needs its own
+ *       `Content-Type: application/xml`; a NULL body is the allprop spelling and
+ *       must send neither the header nor an entity. */
+int
 sd_http_propfind_issue(sd_http_inst_state *is, const sd_http_pf_t *pf,
     brix_s3_resp_t *resp, int *err_out)
 {
-    char          hdrs[SD_HTTP_AUTH_MAX + 32];
+    char          hdrs[SD_HTTP_AUTH_MAX + 96];
     sd_http_req_t rq = { is, "PROPFIND", pf->key, hdrs, pf->cert_pem, resp,
-                         pf->force_primary, NULL };
+                         pf->force_primary, NULL /* auth_failed */,
+                         NULL, 0 /* body: filled below when named-prop */ };
     int           rc;
 
-    snprintf(hdrs, sizeof(hdrs), "Depth: %d\r\n%s", pf->depth,
+    snprintf(hdrs, sizeof(hdrs), "Depth: %d\r\n%s%s", pf->depth,
+             (pf->body != NULL) ? "Content-Type: application/xml\r\n" : "",
              (pf->auth != NULL) ? pf->auth : "");
+    if (pf->body != NULL) {
+        rq.body     = pf->body;
+        rq.body_len = strlen(pf->body);
+    }
 
     if (sd_http_request_fo(&rq, NULL) != 0) {
         *err_out = EIO;
@@ -411,7 +412,7 @@ sd_http_propfind(sd_http_inst_state *is, const char *key,
 {
     brix_s3_resp_t resp;
     sd_http_pf_t   pf = { key, auth_hdr, cert_pem, 1 /* children */,
-                          g_sd_http_force_primary };
+                          g_sd_http_force_primary, NULL /* allprop */ };
     const void    *body;
     size_t         blen = 0;
     char          *xml;
@@ -473,7 +474,8 @@ sd_http_probe_type(sd_http_inst_state *is, const char *key, const char *auth,
 {
     brix_s3_resp_t resp;
     sd_http_pf_t   pf = { key, auth, cert_pem, 0 /* this resource only */,
-                          1 /* force_primary: pin the endpoint the caller acts on */ };
+                          1 /* force_primary: pin the endpoint the caller acts on */,
+                          NULL /* allprop */ };
     const void    *body;
     size_t         blen = 0;
 

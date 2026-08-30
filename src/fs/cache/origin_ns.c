@@ -239,94 +239,34 @@ brix_cache_origin_mkdir(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     return 0;
 }
 
-/* brix_cache_origin_chmod — kXR_chmod <path> on the origin (§4.6): change a
- * named file/dir's POSIX permission bits with NO open handle, so a chmod over a
- * proxy/cache export reaches the real origin instead of being a silent no-op.
- * Body layout (ClientChmodRequest): reserved(14) mode(2, big-endian) — the mode
- * occupies the last two bytes of the 16-byte body, exactly like kXR_mkdir's.
- * The reply must be kXR_ok. Returns 0, or -1 with errno set. */
+/* brix_cache_origin_chmod — kXR_chmod <path> on the origin (set the permission
+ * bits).  Body layout is reserved(14) mode(2, big-endian), packed by the shared
+ * codec rather than by hand.  Only the low nine bits travel: the XRootD mode bits
+ * (kXR_ur..kXR_ox) are numerically the POSIX 0777 layout, and the protocol has no
+ * encoding for setuid/setgid/sticky — so masking here is exactly symmetric with
+ * the server side (exec_chmod also masks & 0777) and a caller's file-type bits
+ * can never reach the wire.  A chmod of 0 is left as 0 rather than defaulted:
+ * this is the client half, and inventing a mode would hide a caller's mistake.
+ * Returns 0, or -1 with errno set. */
 int
 brix_cache_origin_chmod(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     const char *path, mode_t mode)
 {
-    uint8_t   body[XRDW_BODY_LEN];
-    size_t    pl = (path != NULL) ? strlen(path) : 0;
-    uint16_t  status;
-    uint32_t  dlen;
-    u_char   *rbody = NULL;
-    int       rc;
-
-    if (pl == 0 || pl > 0x7fff) {
-        errno = EINVAL;
-        return -1;
-    }
-    ngx_memzero(body, sizeof(body));
-    body[XRDW_BODY_LEN - 2] = (uint8_t) (((mode & 0777) >> 8) & 0xff); /* BE hi */
-    body[XRDW_BODY_LEN - 1] = (uint8_t) (mode & 0xff);                 /* BE lo */
-    rc = origin_request(t, oc, kXR_chmod, body, path, pl, &status, &rbody,
-                        &dlen, 256);
-    if (rc != 0) {
-        errno = EIO;
-        return -1;
-    }
-    if (status != kXR_ok) {
-        errno = brix_cache_origin_status_errno(status, rbody, dlen);
-        free(rbody);
-        return -1;
-    }
-    free(rbody);
-    return 0;
-}
-
-/* brix_cache_origin_space — kXR_query/kXR_Qspace <path> on the origin (§4.6):
- * ask the real origin for its oss.* capacity report so a proxy/cache export's
- * kXR_Qspace reflects the ORIGIN's space, not the proxy's local cache disk.
- * The infotype rides in the query body (xrdw_query_req_pack); the path is the
- * payload. The reply is the "&"-joined oss.* report — parse oss.space/oss.free
- * with the shared grammar (brix_qspace_parse) and derive used = total - free.
- * Returns 0 with the three out-params set, or -1 with errno set. */
-int
-brix_cache_origin_space(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
-    const char *path, uint64_t *total_out, uint64_t *free_out,
-    uint64_t *used_out)
-{
     uint8_t             body[XRDW_BODY_LEN];
-    size_t              pl = (path != NULL) ? strlen(path) : 0;
-    uint16_t            status;
     uint32_t            dlen;
-    u_char             *rbody = NULL;
-    int                 rc;
-    unsigned long long  total = 0, freeb = 0;
+    u_char             *rbody;
+    xrdw_chmod_req_t    b = { .mode = (uint16_t) (mode & 0777) };
 
-    if (pl == 0 || pl > 0x7fff) {
+    /* The packers return the packed length (XRDW_BODY_LEN), not XRDW_OK; only a
+     * negative is a failure, and for a non-NULL body it cannot happen. */
+    if (xrdw_chmod_req_pack(&b, body) < 0) {
         errno = EINVAL;
         return -1;
     }
-    ngx_memzero(body, sizeof(body));
-    {
-        xrdw_query_req_t q = { .infotype = kXR_Qspace };  /* fhandle 0 ⇒ by path */
-        xrdw_query_req_pack(&q, body);
+    if (origin_path_ok(t, oc, kXR_chmod, body, path, &rbody, &dlen) != 0) {
+        return -1;                          /* errno set by the status mapping */
     }
-    rc = origin_request(t, oc, kXR_query, body, path, pl, &status, &rbody,
-                        &dlen, 512);
-    if (rc != 0) {
-        errno = EIO;
-        return -1;
-    }
-    if (status != kXR_ok || rbody == NULL) {
-        errno = brix_cache_origin_status_errno(status, rbody, dlen);
-        free(rbody);
-        return -1;
-    }
-    /* The report is NUL-terminated ASCII; parse the total/free tokens. */
-    brix_qspace_parse((const char *) rbody, &total, &freeb);
     free(rbody);
-
-    if (total_out != NULL) { *total_out = (uint64_t) total; }
-    if (free_out  != NULL) { *free_out  = (uint64_t) freeb; }
-    if (used_out  != NULL) {
-        *used_out = (total > freeb) ? (uint64_t) (total - freeb) : 0;
-    }
     return 0;
 }
 
@@ -369,6 +309,52 @@ brix_cache_origin_stat(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     out->mtime  = (time_t) mtime;
     out->flags  = flags;
     out->is_dir = (flags & kXR_isDir) ? 1 : 0;
+    return 0;
+}
+
+/* brix_cache_origin_prepare_stage — kXR_prepare(kXR_stage) of ONE path on the
+ * origin: ask a tape-backed origin to bring `path` from its MSS onto online disk.
+ *
+ * WHAT: Sends kXR_prepare with options=kXR_stage|kXR_noerrs and the path as the
+ *       (newline-separated, here single-entry) payload, then copies the origin's
+ *       request-id reply into reqid_out[40]. Returns 0, or -1 with errno set.
+ * WHY:  A root:// origin fronting tape is the one nearline source we can drive
+ *       purely over the wire — kXR_prepare IS the protocol's stage verb, and its
+ *       reqid is exactly the parking handle the cache tier's recall contract
+ *       wants. Without it a tape-backed origin can only be read by blocking a
+ *       worker on a multi-minute open.
+ * HOW:  kXR_noerrs rides along so a path the origin cannot stage fails the READ
+ *       (with its own error) rather than the whole prepare — the recall is
+ *       advisory, and a hard prepare error would mask the real open error. The
+ *       reply body is a NUL-terminated request id (our own server answers "0");
+ *       an empty or absent body is not an error, it just leaves reqid_out empty,
+ *       the same "no parking handle" shape sd_frm_recall reports. */
+int
+brix_cache_origin_prepare_stage(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *path, char reqid_out[40])
+{
+    uint8_t              body[XRDW_BODY_LEN];
+    xrdw_prepare_req_t   pr;
+    uint32_t             dlen;
+    u_char              *rbody;
+
+    if (reqid_out != NULL) {
+        reqid_out[0] = '\0';
+    }
+    ngx_memzero(&pr, sizeof(pr));
+    pr.options = kXR_stage | kXR_noerrs;
+    if (xrdw_prepare_req_pack(&pr, body) < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (origin_path_ok(t, oc, kXR_prepare, body, path, &rbody, &dlen) != 0) {
+        return -1;                          /* errno set by the status mapping */
+    }
+    if (reqid_out != NULL && rbody != NULL && dlen > 0) {
+        /* rbody is NUL-terminated by brix_cache_read_response (alloc dlen+1). */
+        ngx_cpystrn((u_char *) reqid_out, rbody, 40);
+    }
+    free(rbody);
     return 0;
 }
 

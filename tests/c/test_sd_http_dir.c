@@ -43,7 +43,12 @@
 /* ---- ngx + brix link stubs -------------------------------------------------
  * Instances are built with log=NULL, so sd_http_live_log() short-circuits to
  * NULL and every ngx_log_error site is skipped — these definitions only satisfy
- * the linker; they are never executed on the tested paths. */
+ * the linker; they are never executed on the tested paths.
+ *
+ * Nothing from ngx_string.c belongs here: the sd_http closure links nginx's own
+ * string kernel (SD_HTTP_OBJS pulls the checksum-offload slot, whose base64
+ * decode is ngx_decode_base64), so a local copy of ngx_strncasecmp — which this
+ * file used to carry — is a duplicate-symbol link error. */
 volatile ngx_cycle_t *ngx_cycle = NULL;
 
 void
@@ -65,27 +70,6 @@ brix_sanitize_log_string(const char *in, char *out, size_t outsz)
     }
     out[n] = '\0';
     return n;
-}
-
-/* nginx's 7-bit ASCII case-insensitive compare (copied; sd_http_dir.c uses it
- * for namespace-agnostic tag matching). */
-ngx_int_t
-ngx_strncasecmp(u_char *s1, u_char *s2, size_t n)
-{
-    ngx_uint_t c1, c2;
-
-    while (n) {
-        c1 = (ngx_uint_t) *s1++;
-        c2 = (ngx_uint_t) *s2++;
-        c1 = (c1 >= 'A' && c1 <= 'Z') ? (c1 | 0x20) : c1;
-        c2 = (c2 >= 'A' && c2 <= 'Z') ? (c2 | 0x20) : c2;
-        if (c1 == c2) {
-            if (c1) { n--; continue; }
-            return 0;
-        }
-        return c1 - c2;
-    }
-    return 0;
 }
 
 /* ---- scripted fake transport ------------------------------------------- */

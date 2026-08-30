@@ -20,6 +20,9 @@
  *       destination (0 if that stat fails — it never affects the return value).
  */
 #include "vfs_internal.h"
+#include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_evict: the leaf
+                                          * dispatch bypasses the decorator's
+                                          * own invalidation of the copy dst */
 
 /*
  * brix_vfs_copy_fail — book a failed OP_COPY observation and return NGX_ERROR.
@@ -110,6 +113,15 @@ brix_vfs_copy_driver(brix_vfs_ctx_t *ctx, const char *src,
                use_cred ? &cred : NULL)
         : (errno = ENOTSUP, NGX_ERROR);
     brix_sd_ucred_wipe(&store);       /* secret consumed by copy; erase (A-4/T4) */
+    if (rc == NGX_OK) {
+        /* The leaf dispatch above skipped the cache decorator, so nothing has
+         * invalidated the DESTINATION — whose bytes this copy just replaced at
+         * the origin. Without this, a read of `d` keeps serving the pre-copy
+         * object from the store. (Same compensation vfs_unlink/vfs_rename make;
+         * no-op when ctx->sd is not a cache.) The source is unchanged. */
+        brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx),
+                                  brix_sd_cache_evict(ctx->sd, d));
+    }
     saved_errno = (rc == NGX_OK) ? 0 : errno;
     brix_vfs_observe_ctx_op(ctx, src, BRIX_METRIC_OP_COPY, NULL,
                               rc == NGX_OK ? (size_t) copied : 0, rc,

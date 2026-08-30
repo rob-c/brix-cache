@@ -273,10 +273,9 @@ sd_ceph_close(brix_sd_obj_t *obj)
  * cluster; deeper synthetic directories are served by opendir only — a
  * per-stat child probe would turn every stat-miss into a pool scan. */
 ngx_int_t
-sd_ceph_stat(brix_sd_instance_t *inst, const char *path,
+sd_ceph_stat_io(sd_ceph_state_t *st, rados_ioctx_t io, const char *path,
     brix_sd_stat_t *out)
 {
-    sd_ceph_state_t *st = inst->state;
     char             oid[1024];
     char             norm[1024];
     uint64_t         size = 0;
@@ -296,11 +295,19 @@ sd_ceph_stat(brix_sd_instance_t *inst, const char *path,
     if (sd_ceph_key(st->key_prefix, path, oid, sizeof(oid)) != 0) {
         return NGX_ERROR;
     }
-    if (sd_ceph_set_errno(rados_stat(st->ioctx, oid, &size, &mtime))) {
+    if (sd_ceph_set_errno(rados_stat(io, oid, &size, &mtime))) {
         return NGX_ERROR;
     }
     sd_ceph_fill_stat(oid, size, mtime, out);
     return NGX_OK;
+}
+
+ngx_int_t
+sd_ceph_stat(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out)
+{
+    sd_ceph_state_t *st = inst->state;
+
+    return sd_ceph_stat_io(st, st->ioctx, path, out);
 }
 
 /* sd_ceph_child_probe_cb — bounded "does this prefix have any child?" probe
@@ -327,7 +334,7 @@ sd_ceph_child_probe_cb(void *ctx, const brix_sd_catalog_ent_t *ent)
  * empty one succeeds without touching the cluster, a non-empty one is
  * ENOTEMPTY, and the export root is never removable (EBUSY). */
 static ngx_int_t
-sd_ceph_rmdir_synthetic(brix_sd_instance_t *inst, const char *path)
+sd_ceph_rmdir_synthetic(sd_ceph_state_t *st, rados_ioctx_t io, const char *path)
 {
     char                  norm[1024];
     sd_ceph_child_probe_t c;
@@ -342,7 +349,7 @@ sd_ceph_rmdir_synthetic(brix_sd_instance_t *inst, const char *path)
 
     c.dir   = norm;
     c.found = 0;
-    if (sd_ceph_enumerate(inst, 0, sd_ceph_child_probe_cb, &c) != NGX_OK) {
+    if (sd_ceph_enumerate_io(st, io, 0, sd_ceph_child_probe_cb, &c) != NGX_OK) {
         return NGX_ERROR;
     }
     if (c.found) {
@@ -356,22 +363,30 @@ sd_ceph_rmdir_synthetic(brix_sd_instance_t *inst, const char *path)
  * dispatches to the synthetic-directory semantics (nothing stored to remove;
  * non-empty prefixes refuse with ENOTEMPTY). */
 ngx_int_t
-sd_ceph_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
+sd_ceph_unlink_io(sd_ceph_state_t *st, rados_ioctx_t io, const char *path,
+    int is_dir)
 {
-    sd_ceph_state_t *st = inst->state;
-    char             oid[1024];
+    char oid[1024];
 
     if (is_dir) {
-        return sd_ceph_rmdir_synthetic(inst, path);
+        return sd_ceph_rmdir_synthetic(st, io, path);
     }
 
     if (sd_ceph_key(st->key_prefix, path, oid, sizeof(oid)) != 0) {
         return NGX_ERROR;
     }
-    if (sd_ceph_set_errno(rados_remove(st->ioctx, oid))) {
+    if (sd_ceph_set_errno(rados_remove(io, oid))) {
         return NGX_ERROR;
     }
     return NGX_OK;
+}
+
+ngx_int_t
+sd_ceph_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
+{
+    sd_ceph_state_t *st = inst->state;
+
+    return sd_ceph_unlink_io(st, st->ioctx, path, is_dir);
 }
 
 /* sd_ceph_mkdir — synthetic-directory create (phase-89 ADR-1: no marker
@@ -400,10 +415,9 @@ sd_ceph_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
  * return -ENOENT via librados). */
 
 ssize_t
-sd_ceph_getxattr(brix_sd_instance_t *inst, const char *path,
+sd_ceph_getxattr_io(sd_ceph_state_t *st, rados_ioctx_t io, const char *path,
     const char *name, void *buf, size_t cap)
 {
-    sd_ceph_state_t *st = inst->state;
     char             oid[1024];
     char             tmp[SD_CEPH_XATTR_MAX];
     int              n;
@@ -411,7 +425,7 @@ sd_ceph_getxattr(brix_sd_instance_t *inst, const char *path,
     if (sd_ceph_key(st->key_prefix, path, oid, sizeof(oid)) != 0) {
         return -1;
     }
-    n = rados_getxattr(st->ioctx, oid, name, tmp, sizeof(tmp));
+    n = rados_getxattr(io, oid, name, tmp, sizeof(tmp));
     if (n < 0) {
         errno = -n;
         return -1;
@@ -428,10 +442,18 @@ sd_ceph_getxattr(brix_sd_instance_t *inst, const char *path,
 }
 
 ssize_t
-sd_ceph_listxattr(brix_sd_instance_t *inst, const char *path,
+sd_ceph_getxattr(brix_sd_instance_t *inst, const char *path, const char *name,
     void *buf, size_t cap)
 {
-    sd_ceph_state_t    *st = inst->state;
+    sd_ceph_state_t *st = inst->state;
+
+    return sd_ceph_getxattr_io(st, st->ioctx, path, name, buf, cap);
+}
+
+ssize_t
+sd_ceph_listxattr_io(sd_ceph_state_t *st, rados_ioctx_t io, const char *path,
+    void *buf, size_t cap)
+{
     char                oid[1024];
     rados_xattrs_iter_t it;
     char               *out = buf;
@@ -440,7 +462,7 @@ sd_ceph_listxattr(brix_sd_instance_t *inst, const char *path,
     if (sd_ceph_key(st->key_prefix, path, oid, sizeof(oid)) != 0) {
         return -1;
     }
-    if (sd_ceph_set_errno(rados_getxattrs(st->ioctx, oid, &it))) {
+    if (sd_ceph_set_errno(rados_getxattrs(io, oid, &it))) {
         return -1;
     }
     for (;;) {
@@ -471,19 +493,51 @@ sd_ceph_listxattr(brix_sd_instance_t *inst, const char *path,
     return (ssize_t) total;
 }
 
-ngx_int_t
-sd_ceph_setxattr(brix_sd_instance_t *inst, const char *path,
-    const char *name, const void *val, size_t len, int flags)
+ssize_t
+sd_ceph_listxattr(brix_sd_instance_t *inst, const char *path, void *buf,
+    size_t cap)
 {
     sd_ceph_state_t *st = inst->state;
-    char             oid[1024];
 
-    (void) flags;   /* RADOS has no XATTR_CREATE/REPLACE; a plain set is applied */
+    return sd_ceph_listxattr_io(st, st->ioctx, path, buf, cap);
+}
+
+ngx_int_t
+sd_ceph_setxattr_io(sd_ceph_state_t *st, rados_ioctx_t io, const char *path,
+    const char *name, const void *val, size_t len)
+{
+    char oid[1024];
 
     if (sd_ceph_key(st->key_prefix, path, oid, sizeof(oid)) != 0) {
         return NGX_ERROR;
     }
-    if (sd_ceph_set_errno(rados_setxattr(st->ioctx, oid, name, val, len))) {
+    if (sd_ceph_set_errno(rados_setxattr(io, oid, name, val, len))) {
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+ngx_int_t
+sd_ceph_setxattr(brix_sd_instance_t *inst, const char *path, const char *name,
+    const void *val, size_t len, int flags)
+{
+    sd_ceph_state_t *st = inst->state;
+
+    (void) flags;   /* RADOS has no XATTR_CREATE/REPLACE; a plain set is applied */
+
+    return sd_ceph_setxattr_io(st, st->ioctx, path, name, val, len);
+}
+
+ngx_int_t
+sd_ceph_removexattr_io(sd_ceph_state_t *st, rados_ioctx_t io, const char *path,
+    const char *name)
+{
+    char oid[1024];
+
+    if (sd_ceph_key(st->key_prefix, path, oid, sizeof(oid)) != 0) {
+        return NGX_ERROR;
+    }
+    if (sd_ceph_set_errno(rados_rmxattr(io, oid, name))) {
         return NGX_ERROR;
     }
     return NGX_OK;
@@ -494,15 +548,8 @@ sd_ceph_removexattr(brix_sd_instance_t *inst, const char *path,
     const char *name)
 {
     sd_ceph_state_t *st = inst->state;
-    char             oid[1024];
 
-    if (sd_ceph_key(st->key_prefix, path, oid, sizeof(oid)) != 0) {
-        return NGX_ERROR;
-    }
-    if (sd_ceph_set_errno(rados_rmxattr(st->ioctx, oid, name))) {
-        return NGX_ERROR;
-    }
-    return NGX_OK;
+    return sd_ceph_removexattr_io(st, st->ioctx, path, name);
 }
 
 #endif /* BRIX_HAVE_CEPH */

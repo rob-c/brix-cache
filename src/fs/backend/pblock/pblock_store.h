@@ -82,6 +82,11 @@ ssize_t  pblock_write_blocks(const pblock_state_t *st, const char *blob_id,
              int64_t bs, int blk0_fd, const void *buf, size_t len, off_t off);
 ssize_t  pblock_read_blocks(const pblock_state_t *st, const char *blob_id,
              int64_t bs, int blk0_fd, void *buf, size_t len, off_t off);
+/* posix_fadvise(2) over every block file backing [off, off+len). Advisory: a
+ * per-block failure or a missing block is skipped; -1 only on a bad path. A
+ * transform-configured export is a no-op (encoded block bytes). */
+int      pblock_advise_blocks(const pblock_state_t *st, const char *blob_id,
+             int64_t bs, int blk0_fd, size_t len, off_t off, int advice);
 void     pblock_remove_blocks(const pblock_state_t *st, const char *blob_id,
              int64_t size, int64_t bs);
 ssize_t  pblock_copy_one_block(const char *src_path, const char *dst_path);

@@ -118,6 +118,25 @@ ngx_int_t brix_cstore_fill_commit(brix_sd_staged_t *st);
 /* Drop a partial fill (consumes `st`). Best-effort. */
 void brix_cstore_fill_abort(brix_sd_staged_t *st);
 
+/* Seed the just-committed object `key` with the digest the fill already PROVED
+ * over its bytes, so the first checksum request on the cached copy is answered
+ * from metadata instead of re-reading every byte of it.
+ *
+ * The cache is the one tier that always knows the answer and always paid to
+ * re-derive it: verification recomputes the digest during the fill and then
+ * throws it away as far as the read path is concerned, because a cache HIT is
+ * served by the STORE's driver (posix/pblock) — it never reaches the origin's
+ * `query_checksum` slot. This is the same "ask, never re-read" rule the origin
+ * drivers follow, applied where the answer is local.
+ *
+ * Best-effort and silent: a store that exposes no fd, and a filesystem that
+ * refuses the write, both leave the entry unseeded — which costs a recompute and
+ * nothing else. The value lands exactly where a recompute would have written it
+ * (the object's own fd, xattr first then the §8.2 record), so a seeded entry and
+ * a computed one are indistinguishable to every reader. */
+void brix_cstore_seed_checksum(brix_cstore_t *cs, const char *key,
+    const char *alg, const char *hex);
+
 /* ---- serve (a cache hit reads the object back) ---------------------------- */
 
 /* Open the cached object `key` for reading. Returns a store-backed read object

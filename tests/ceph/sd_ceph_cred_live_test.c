@@ -20,13 +20,22 @@
  *           cached connection (the driver's per-export instance state is not
  *           directly inspectable from here, so this is inferred indirectly
  *           via timing headroom — see the comment at CHECK "conn cache" —
- *           and is not a hard assertion).
+ *           and is not a hard assertion);
+ *       (f) the credential-scoped NAMESPACE slots (stat/unlink/xattr/setattr/
+ *           truncate_path/opendir) run as the CALLER too, not as the export:
+ *           "bob" drives the whole lifecycle, "readonly" is refused by the
+ *           cluster on every mutating one with the object provably intact
+ *           afterwards, and a wrong-kind cred in fallback_deny mode is
+ *           refused rather than quietly served on the service account — the
+ *           confused deputy these slots exist to close.
  *
  * Build (inside the xrd-ceph-build container, where librados-devel exists):
  *   gcc -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
  *       -include client/apps/ceph/ngx_shim.h \
- *       tests/ceph/sd_ceph_cred_live_test.c src/fs/backend/rados/sd_ceph.c \
+ *       tests/ceph/sd_ceph_cred_live_test.c src/fs/backend/rados/sd_ceph*.c \
  *       -lrados -o /tmp/sd_ceph_cred_live && /tmp/sd_ceph_cred_live
+ *   (the full TU list is in tests/cmdscripts/ceph_operator.py; sd_ceph_ns_cred.c
+ *    is required — the driver table names its symbols.)
  *
  * Env: CEPH_POOL (default xrdtest), CEPH_CONF (default /etc/ceph/ceph.conf),
  *      CEPH_BOB_KEYRING (default /etc/ceph/ceph.client.bob.keyring),
@@ -581,6 +590,236 @@ main(void)
                         ">8-simultaneous transient cred opens (no leak)");
 
         drv->unlink(&inst, "/credlivetest/evict-probe", 0);
+    }
+
+    /* =====================================================================
+     * (f) NAMESPACE slots under a per-user credential. Until the *_cred
+     * namespace twins existed the driver published open_cred alone, so a
+     * request carrying bob's keyring had its DATA plane checked as bob while
+     * every metadata op still reached the export's ioctx and executed as the
+     * service account — the confused deputy. The proof that the twins really
+     * scope the identity is the same as for the data plane: the readonly
+     * credential must be REFUSED by the cluster on every mutating namespace
+     * op, and the object must be intact afterwards. A service-credential
+     * fallthrough would let all of these succeed.
+     * ===================================================================== */
+    {
+        const char     *ns_path = "/credlivetest/ns-cred-obj";
+        const char     *ns_body = "namespace-cred payload";
+        size_t          ns_len  = strlen(ns_body);
+        brix_sd_stat_t  sb;
+        char            xbuf[128];
+        char            lbuf[512];
+        ssize_t         xn;
+
+        CHECK(drv->stat_cred != NULL && drv->unlink_cred != NULL
+              && drv->getxattr_cred != NULL && drv->listxattr_cred != NULL
+              && drv->setxattr_cred != NULL && drv->removexattr_cred != NULL
+              && drv->truncate_path_cred != NULL && drv->opendir_cred != NULL
+              && drv->setattr_cred != NULL,
+              "(f) driver publishes the credential-scoped namespace slots");
+        CHECK(drv->truncate_path != NULL,
+              "(f) driver publishes path-native truncate (rados_trunc)");
+
+        drv->unlink(&inst, ns_path, 0);
+        err = 0;
+        o = drv->open(&inst, ns_path,
+                       BRIX_SD_O_WRITE | BRIX_SD_O_CREATE | BRIX_SD_O_TRUNC,
+                       0644, &err);
+        CHECK(o != NULL, "(f) setup: service credential seeds the object");
+        if (o != NULL) {
+            drv->pwrite(o, ns_body, ns_len, 0);
+            drv->close(o);
+        }
+
+        /* --- success leg: bob (rwx) drives every namespace slot ---------- */
+        memset(&sb, 0, sizeof(sb));
+        CHECK(drv->stat_cred(&inst, ns_path, &sb, &bob_cred) == NGX_OK
+              && sb.size == (off_t) ns_len,
+              "(f) bob: stat_cred returns the seeded size");
+
+        CHECK(drv->setxattr_cred(&inst, ns_path, "user.owner", "bob", 3, 0,
+                                  &bob_cred) == NGX_OK,
+              "(f) bob: setxattr_cred succeeds");
+        memset(xbuf, 0, sizeof(xbuf));
+        xn = drv->getxattr_cred(&inst, ns_path, "user.owner", xbuf, sizeof(xbuf),
+                                 &bob_cred);
+        CHECK(xn == 3 && memcmp(xbuf, "bob", 3) == 0,
+              "(f) bob: getxattr_cred reads back what setxattr_cred wrote");
+        memset(lbuf, 0, sizeof(lbuf));
+        xn = drv->listxattr_cred(&inst, ns_path, lbuf, sizeof(lbuf), &bob_cred);
+        CHECK(xn > 0, "(f) bob: listxattr_cred returns a name buffer");
+        {
+            ssize_t  pos = 0;
+            int      found = 0;
+
+            while (pos < xn) {
+                if (strcmp(lbuf + pos, "user.owner") == 0) { found = 1; }
+                pos += (ssize_t) strlen(lbuf + pos) + 1;
+            }
+            CHECK(found, "(f) bob: listxattr_cred contains user.owner");
+        }
+        CHECK(drv->removexattr_cred(&inst, ns_path, "user.owner",
+                                     &bob_cred) == NGX_OK,
+              "(f) bob: removexattr_cred succeeds");
+        errno = 0;
+        xn = drv->getxattr_cred(&inst, ns_path, "user.owner", xbuf, sizeof(xbuf),
+                                 &bob_cred);
+        CHECK(xn == -1 && errno == ENODATA,
+              "(f) bob: the removed xattr is gone (ENODATA)");
+
+        /* opendir_cred snapshots the listing eagerly — the object must show. */
+        {
+            brix_sd_dir_t   *d;
+            brix_sd_dirent_t de;
+            int              seen = 0;
+
+            err = 0;
+            d = drv->opendir_cred(&inst, "/credlivetest", &err, &bob_cred);
+            CHECK(d != NULL, "(f) bob: opendir_cred on the parent succeeds");
+            if (d != NULL) {
+                while (drv->readdir(d, &de) == NGX_OK) {
+                    if (strcmp(de.name, "ns-cred-obj") == 0) { seen = 1; }
+                }
+                drv->closedir(d);
+            }
+            CHECK(seen, "(f) bob: opendir_cred lists the seeded object");
+        }
+
+        CHECK(drv->truncate_path_cred(&inst, ns_path, 4, &bob_cred) == NGX_OK,
+              "(f) bob: truncate_path_cred shrinks the object");
+        memset(&sb, 0, sizeof(sb));
+        CHECK(drv->stat_cred(&inst, ns_path, &sb, &bob_cred) == NGX_OK
+              && sb.size == 4,
+              "(f) bob: the truncation is visible to stat_cred");
+
+        /* setattr_cred: the advisory blob is an ordinary RADOS xattr, so
+         * rewriting a mode through the metadata plane has to be checked against
+         * the caller's own CephX authority — otherwise a user who cannot write
+         * the object changes its mode anyway by going the long way round. */
+        {
+            brix_sd_setattr_t attr;
+
+            memset(&attr, 0, sizeof(attr));
+            attr.set_mode = 1;
+            attr.mode     = 0640;
+            CHECK(drv->setattr_cred(&inst, ns_path, &attr, &bob_cred) == NGX_OK,
+                  "(f) bob: setattr_cred sets a mode");
+            memset(xbuf, 0, sizeof(xbuf));
+            CHECK(drv->getxattr_cred(&inst, ns_path, "user.xrd.unixattr", xbuf,
+                                      sizeof(xbuf) - 1, &bob_cred) > 0
+                  && strstr(xbuf, "640") != NULL,
+                  "(f) bob: the advisory blob carries the mode bob set");
+        }
+
+        /* --- error leg -------------------------------------------------- */
+        errno = 0;
+        CHECK(drv->stat_cred(&inst, "/credlivetest/no-such-object", &sb,
+                              &bob_cred) == NGX_ERROR && errno == ENOENT,
+              "(f) bob: stat_cred on a missing object is ENOENT");
+        errno = 0;
+        CHECK(drv->truncate_path_cred(&inst, ns_path, -1, &bob_cred) == NGX_ERROR
+              && errno == EINVAL,
+              "(f) bob: a negative truncate length is EINVAL");
+
+        /* --- security-negative: readonly must be refused, not deputised -- */
+        errno = 0;
+        CHECK(drv->setxattr_cred(&inst, ns_path, "user.injected", "x", 1, 0,
+                                  &ro_cred) == NGX_ERROR
+              && (errno == EACCES || errno == EPERM),
+              "(f) readonly: setxattr_cred denied by the cluster");
+        errno = 0;
+        CHECK(drv->truncate_path_cred(&inst, ns_path, 0, &ro_cred) == NGX_ERROR
+              && (errno == EACCES || errno == EPERM),
+              "(f) readonly: truncate_path_cred denied by the cluster");
+        errno = 0;
+        CHECK(drv->unlink_cred(&inst, ns_path, 0, &ro_cred) == NGX_ERROR
+              && (errno == EACCES || errno == EPERM),
+              "(f) readonly: unlink_cred denied by the cluster");
+        {
+            brix_sd_setattr_t attr;
+
+            memset(&attr, 0, sizeof(attr));
+            attr.set_mode = 1;
+            attr.mode     = 0777;
+            errno = 0;
+            CHECK(drv->setattr_cred(&inst, ns_path, &attr, &ro_cred)
+                  == NGX_ERROR && (errno == EACCES || errno == EPERM),
+                  "(f) readonly: setattr_cred denied by the cluster");
+            memset(xbuf, 0, sizeof(xbuf));
+            CHECK(drv->getxattr_cred(&inst, ns_path, "user.xrd.unixattr", xbuf,
+                                      sizeof(xbuf) - 1, &bob_cred) > 0
+                  && strstr(xbuf, "777") == NULL,
+                  "(f) readonly: the mode bob set is still the mode on record");
+        }
+
+        /* readonly's reads ARE permitted — the denials above are capability
+         * denials, not a broken keyring — and the object survived intact. */
+        memset(&sb, 0, sizeof(sb));
+        CHECK(drv->stat_cred(&inst, ns_path, &sb, &ro_cred) == NGX_OK
+              && sb.size == 4,
+              "(f) readonly: stat_cred still permitted, object untouched");
+        {
+            brix_sd_stat_t svc;
+
+            memset(&svc, 0, sizeof(svc));
+            CHECK(drv->stat(&inst, ns_path, &svc) == NGX_OK && svc.size == 4,
+                  "(f) the denied ops changed nothing (service-credential stat)");
+        }
+        memset(lbuf, 0, sizeof(lbuf));
+        xn = drv->listxattr_cred(&inst, ns_path, lbuf, sizeof(lbuf), &ro_cred);
+        CHECK(xn >= 0, "(f) readonly: listxattr_cred permitted");
+        {
+            ssize_t  pos = 0;
+            int      injected = 0;
+
+            while (pos < xn) {
+                if (strcmp(lbuf + pos, "user.injected") == 0) { injected = 1; }
+                pos += (ssize_t) strlen(lbuf + pos) + 1;
+            }
+            CHECK(!injected,
+                  "(f) readonly's denied setxattr left no attribute behind");
+        }
+
+        /* --- security-negative: a wrong-kind cred in deny mode must be
+         * REFUSED, never quietly served on the export's service account.
+         * The object exists, so a fallthrough would return NGX_OK here. */
+        {
+            brix_sd_cred_t wrongkind;
+
+            memset(&wrongkind, 0, sizeof(wrongkind));
+            wrongkind.x509_proxy    = "/some/other/kind.pem";
+            wrongkind.fallback_deny = 1;
+
+            errno = 0;
+            CHECK(drv->stat_cred(&inst, ns_path, &sb, &wrongkind) == NGX_ERROR
+                  && errno == EACCES,
+                  "(f) wrong-kind cred + fallback_deny -> stat_cred EACCES");
+            errno = 0;
+            CHECK(drv->unlink_cred(&inst, ns_path, 0, &wrongkind) == NGX_ERROR
+                  && errno == EACCES,
+                  "(f) wrong-kind cred + fallback_deny -> unlink_cred EACCES");
+            errno = 0;
+            CHECK(drv->opendir_cred(&inst, "/credlivetest", &err,
+                                     &wrongkind) == NULL && err == EACCES,
+                  "(f) wrong-kind cred + fallback_deny -> opendir_cred EACCES");
+            CHECK(drv->stat(&inst, ns_path, &sb) == NGX_OK,
+                  "(f) the refused wrong-kind ops did not remove the object");
+        }
+
+        /* bob finishes the lifecycle: his own delete is permitted. */
+        CHECK(drv->unlink_cred(&inst, ns_path, 0, &bob_cred) == NGX_OK,
+              "(f) bob: unlink_cred removes the object");
+        errno = 0;
+        CHECK(drv->stat(&inst, ns_path, &sb) == NGX_ERROR && errno == ENOENT,
+              "(f) the object is really gone (service-credential stat)");
+
+        /* path-native truncate on the SERVICE credential still works, and a
+         * missing object is ENOENT rather than a silent create. */
+        errno = 0;
+        CHECK(drv->truncate_path(&inst, ns_path, 0) == NGX_ERROR
+              && errno == ENOENT,
+              "(f) truncate_path on a missing object is ENOENT");
     }
 
     /* cleanup (service credential) */

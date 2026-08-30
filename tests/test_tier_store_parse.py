@@ -104,3 +104,65 @@ def test_slice_size_1m_accepted(tmp_path):
         f"    brix_cache_slice_size 1m;",
     )
     assert rc == 0, f"expected accept:\n{out}"
+
+
+# --- root+tape:// (a root:// origin declared to front an MSS) ---------------
+# The scheme is what arms sd_xroot's nearline pair: residency from kXR_stat's
+# kXR_offline flag, recall via kXR_prepare(kXR_stage). It is a CONTRACT, not a
+# hint — an export that declares it must carry a cache tier to recall into, so
+# the declaration is refused at config time when there is none.
+def test_root_tape_backend_with_cache_store_accepted(tmp_path):
+    rc, out = _nginx_t(
+        tmp_path,
+        f"brix_storage_backend root+tape://{HOST}:{NGINX_ANON_PORT};\n"
+        f"    brix_cache_store posix:{tmp_path}/cache;",
+    )
+    assert rc == 0, f"expected accept:\n{out}"
+
+
+def test_root_tape_backend_without_cache_store_rejected(tmp_path):
+    rc, out = _nginx_t(
+        tmp_path, f"brix_storage_backend root+tape://{HOST}:{NGINX_ANON_PORT};")
+    assert rc != 0
+    assert "nearline and requires" in out, out
+
+
+def test_roots_tape_backend_with_cache_store_accepted(tmp_path):
+    rc, out = _nginx_t(
+        tmp_path,
+        f"brix_storage_backend roots+tape://{HOST}:{NGINX_ANON_PORT};\n"
+        f"    brix_cache_store posix:{tmp_path}/cache;",
+    )
+    assert rc == 0, f"expected accept:\n{out}"
+
+
+# Confinement negative: a malformed nearline URL must be REJECTED, never fall
+# through the remote-origin branch to be read as a local driver name (which
+# would silently make the export a local store rooted wherever brix_export
+# points, with none of the nearline contract enforced).
+@pytest.mark.parametrize("url", [
+    "root+tape://host",            # no port
+    "root+tape://host:0",          # port out of range
+    "root+tape://host:99999",
+    "roots+tape://:1094",          # no host
+])
+def test_root_tape_malformed_rejected(tmp_path, url):
+    rc, out = _nginx_t(
+        tmp_path,
+        f"brix_storage_backend {url};\n"
+        f"    brix_cache_store posix:{tmp_path}/cache;",
+    )
+    assert rc != 0, f"expected reject for {url!r}:\n{out}"
+    assert "remote origin" in out, f"for {url!r}, got:\n{out}"
+
+
+# The `nearline` store param belongs to the BACKEND role only: a cache/stage
+# tier IS the recall target, so accepting it there would leave the operator
+# believing they had armed async recall when nothing reads the flag.
+def test_nearline_param_rejected_on_cache_store(tmp_path):
+    rc, out = _nginx_t(
+        tmp_path,
+        f"{REMOTE}\n    brix_cache_store posix:{tmp_path}/cache nearline;",
+    )
+    assert rc != 0
+    assert "belongs on brix_storage_backend" in out, out

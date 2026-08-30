@@ -314,6 +314,74 @@ sd_ceph_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags,
     return obj;
 }
 
+/* sd_ceph_cred_ioctx_get — resolve the connection ONE cred-scoped namespace op
+ * runs on (declared in sd_ceph_internal.h).
+ *
+ * WHAT: Fills `out` with the ioctx the op must issue its rados_* calls on, plus
+ *       the transient connection (if any) the caller has to release afterwards.
+ * WHY:  Every namespace slot that reaches st->ioctx executes as the EXPORT's
+ *       service account. On an export with per-user CephX keyrings that is a
+ *       confused deputy: the gate authenticated a user, the OSDs saw the
+ *       service identity, and a stat/unlink/xattr the user's own caps would
+ *       have refused succeeds anyway. The byte plane already avoids this
+ *       (sd_ceph_open_cred + sd_ceph_obj_state_t.ioctx); the namespace plane
+ *       needs the same resolution, and it needs the same wrong-kind refusal —
+ *       a cred this driver cannot present must NOT quietly become the service
+ *       account when the caller asked for deny-on-fallback.
+ * HOW:  No keyring: EACCES under fallback_deny, otherwise the export's own
+ *       ioctx (`transient` NULL — the instance owns that connection). Keyring:
+ *       sd_ceph_cred_conn resolves/creates the per-user connection, and only
+ *       an UNCACHED (transient) one is handed back for release — a cached
+ *       connection belongs to the LRU and must not be destroyed here. No pin
+ *       is taken: a namespace op leaves no handle behind, so nothing can
+ *       outlive the call, and the LRU cannot evict mid-op because a single
+ *       synchronous slot never yields. */
+int
+sd_ceph_cred_ioctx_get(sd_ceph_state_t *st, ngx_pool_t *pool,
+    const brix_sd_cred_t *cred, sd_ceph_cred_ioctx_t *out)
+{
+    sd_ceph_conn_t *conn;
+    int             err = 0;
+    int             transient = 0;
+
+    out->ioctx     = st->ioctx;
+    out->transient = NULL;
+
+    if (!sd_ceph_cred_has_keyring(cred)) {
+        if (cred != NULL && cred->fallback_deny) {
+            errno = EACCES;
+            return -1;
+        }
+        return 0;                                  /* service credential */
+    }
+
+    conn = sd_ceph_cred_conn(st, pool,
+        (cred->ceph_user != NULL) ? cred->ceph_user : "", cred->ceph_keyring,
+        &err, &transient);
+    if (conn == NULL) {
+        errno = (err != 0) ? err : EACCES;
+        return -1;
+    }
+
+    out->ioctx     = sd_ceph_conn_ioctx(conn);
+    out->transient = transient ? conn : NULL;
+    return 0;
+}
+
+/* sd_ceph_cred_ioctx_put — release what _get took. A transient connection was
+ * never inserted into the LRU and never pinned, so nothing else can reach it:
+ * destroying it here is the only way its mon session/ioctx/fds are freed.
+ * Idempotent, and a no-op for the service ioctx and for a cache hit. */
+void
+sd_ceph_cred_ioctx_put(sd_ceph_cred_ioctx_t *ci)
+{
+    if (ci->transient != NULL) {
+        sd_ceph_conn_destroy(ci->transient);
+        ci->transient = NULL;
+    }
+    ci->ioctx = NULL;
+}
+
 /* ---- shared oid-level byte/xattr layer (reused by cephfsro + recovery tools)
  * All keyed by an explicit RADOS object id (rather than a logical path). ------ */
 

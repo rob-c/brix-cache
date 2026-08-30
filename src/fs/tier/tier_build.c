@@ -231,6 +231,9 @@ tier_build_xroot(const brix_tier_cfg_t *t, ngx_log_t *log)
         .x509_key   = (key[0] != '\0') ? key : NULL,
         .ca_dir     = (cadir[0] != '\0') ? cadir : NULL,
         .sss_keytab = NULL,
+        /* `nearline` on the store line: the origin fronts tape, so reads recall
+         * (kXR_prepare/kXR_stage) instead of blocking a worker on the mount. */
+        .nearline   = t->nearline ? 1 : 0,
     };
     return brix_sd_xroot_create_origin(&cfg, log);
 }
@@ -326,6 +329,10 @@ tier_build_s3(const brix_tier_cfg_t *t, ngx_log_t *log)
 
     cfg.timeout_ms = BRIX_SD_HTTP_DEFAULT_TIMEOUT_MS;
     cfg.transport  = &brix_s3_origin_curl_transport;
+    /* `nearline` on the store line: the bucket is archive-backed, so residency
+     * reads the storage class and recall issues RestoreObject — the S3 spelling
+     * of what root+tape:// declares for an xroot origin (tier_build_xroot). */
+    cfg.nearline   = t->nearline ? 1 : 0;
     return brix_sd_remote_create(&cfg, log);
 }
 

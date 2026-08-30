@@ -480,7 +480,12 @@ SETTINGS_OFFSET, SETTINGS_WIDTH = 0, 178
 # cannot share a `listen` because config_merge refuses "brix_webdav and
 # brix_s3 both enabled under listen port N - one brix protocol per port").
 # Every offset below shifts by 5.
-LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 927
+# 2026-08-27: 927 -> 928 for the one slot lc-pblock-quota-qspace adds
+# (test_pblock_lab_quota.py: the Qspace/QFSinfo driver-space test needs its
+# own quota-armed pblock export — the existing quota subjects arm different
+# quotas, so their capacity reports would not be deterministic witnesses).
+# Every offset below shifts by 1.
+LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 928
 # 2026-08-09: 137 -> 140 for the three audit-fix lifecycle subjects
 # (test_audit_fixes_2026_08_09.py: only-if-cached, cold-purge, signing).
 # Every offset below shifts by the same 3 — the ladder is packed, so a width
@@ -552,23 +557,25 @@ LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 927
 # the five GridFTP write-gate slots above (893 -> 898).
 # 2026-08-19 (16th tranche, 37th file): 1076 -> 1081, the running sum again,
 # for the five cache-store-endpoint slots above (898 -> 903).
-LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1105, 142
+# 2026-08-27: 1105 -> 1106, the running sum again, for the one
+# lc-pblock-quota-qspace slot above (927 -> 928).
+LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1106, 142
 # 2026-08-19: 205 -> 211 for the six-port root_readonly_gateway block (origin +
 # read-only gateway + allow_write-override gateway + writable control +
 # data-substreams gateway + read_only_public gateway).  The config-time
 # role-conflict check needs no port: it listens on a unix socket, because
 # `nginx -t` opens the listening sockets and a TCP port would race the lane.
-CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1247, 211
-CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1458, 83
-HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1541, 23
-PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1564, 2
+CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1248, 211
+CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1459, 83
+HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1542, 23
+PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1565, 2
 # CVMFS conformance mock-Stratum-1 + nginx port blocks (cvmfs/conformance_common.py
 # PORT_BLOCKS): 26 files x a 20-port block.  Anchored into the ladder so every
 # port stays within TEST_PORT_START+2000 and a second suite on a different
 # TEST_PORT_START draws a disjoint range (replaces the old absolute 13100+ tiling).
 # 27 file blocks x 20 ports = 540, plus a 48-port matrix sub-range for the
 # concurrent fuse-trust mock origins (see conformance_common.matrix_port).
-CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1566, 588
+CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1567, 588
 # Differential-interop per-file fixed ports (official_interop_lib.worker_port):
 # one slot per distinct conformance base (65 today), anchored here so they stay
 # in the contiguous ladder within TEST_PORT_START+3000 instead of the old
@@ -577,5 +584,5 @@ CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1566, 588
 # 2026-08-26: 61 -> 65 — four conformance bases were registered in
 # _INTEROP_BASES without the matching width bump (caught by
 # test_fleet_ports.py: worker slots 12216-12219 fell past PORT_LAST).
-INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2154, 65
-PORT_COUNT = 2219
+INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2155, 65
+PORT_COUNT = 2220

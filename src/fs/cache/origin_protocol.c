@@ -5,6 +5,7 @@
 #include "auth/gsi/gsi_core.h"              /* shared XrdSecgsi handshake kernel (C-3 GSI) */
 #include "protocols/root/protocol/gsi.h"              /* kXRS_x509 bucket id (origin-cert verify) */
 #include "auth/sss/sss_keytab_kernel.h"     /* §14 SSS: shared keytab line grammar */
+#include "protocols/root/protocol/qspace.h" /* brix_qspace_parse (kXR_Qspace oss.* grammar) */
 #include <stdio.h>                        /* fdopen/fgets for the keytab reader */
 
 
@@ -30,7 +31,7 @@
  * negotiation/TLS-upgrade → anonymous kXR_login → credential dispatch) lives in
  * the sibling origin_protocol_bootstrap.c; brix_cache_origin_bootstrap is
  * declared in cache_internal.h. This file carries the post-session data-path
- * exchanges: kXR_open, kXR_query/kXR_Qcksum, and kXR_read. */
+ * exchanges: kXR_open, kXR_query (kXR_Qcksum / kXR_Qspace), and kXR_read. */
 
 /* brix_cache_origin_open — kXR_open (read + kXR_retstat) of the source file:
  * parse ServerOpenBody for the fhandle and the appended stat string, so file_size
@@ -133,24 +134,26 @@ brix_cache_origin_open(brix_cache_fill_t *t,
     return 0;
 }
 
-/* origin_cksum_send_query — build and send the path-based kXR_query/kXR_Qcksum
- * request for t->clean_path. WHY separate: the request assembly (malloc + pack +
- * send + free) is the only allocation in the checksum exchange; isolating it
- * keeps the best-effort orchestrator a flat status sequence. Returns 0 on send,
- * -1 on OOM or write failure — NO task error is set (best-effort). */
+/* origin_query_send — build and send a path-based kXR_query request (infotype
+ * kXR_Qcksum, kXR_Qspace, …) for `path`. WHY separate: the request assembly
+ * (malloc + pack + send + free) is the only allocation in a query exchange;
+ * isolating it keeps the best-effort orchestrator a flat status sequence.
+ * Returns 0 on send, -1 on OOM or write failure — NO task error is set
+ * (best-effort). */
 static int
-origin_cksum_send_query(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc)
+origin_query_send(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
+    uint16_t infotype, const char *path)
 {
     size_t              pathlen, total;
     u_char             *buf;
     ClientQueryRequest *req;
 
-    pathlen = strlen(t->clean_path);
+    pathlen = strlen(path);
     total = sizeof(ClientQueryRequest) + pathlen;
 
     buf = malloc(total);
     if (buf == NULL) {
-        return -1;      /* best-effort: skip verification on OOM */
+        return -1;      /* best-effort: skip the query on OOM */
     }
 
     ngx_memzero(buf, total);
@@ -158,11 +161,11 @@ origin_cksum_send_query(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc)
     req->streamid[1] = 6;                       /* unused stream slot */
     req->requestid = htons(kXR_query);
     {
-        xrdw_query_req_t b = { .infotype = kXR_Qcksum };  /* fhandle 0 ⇒ path-based */
+        xrdw_query_req_t b = { .infotype = infotype };  /* fhandle 0 ⇒ path-based */
         xrdw_query_req_pack(&b, ((ClientRequestHdr *) buf)->body);
     }
     req->dlen = htonl((kXR_int32) pathlen);
-    ngx_memcpy(buf + sizeof(*req), t->clean_path, pathlen);
+    ngx_memcpy(buf + sizeof(*req), path, pathlen);
 
     if (brix_cache_io_send(oc, buf, total) != 0) {
         free(buf);
@@ -206,13 +209,15 @@ origin_cksum_split(const u_char *body, char *alg_out, size_t alg_sz,
 }
 
 /*
- * WHAT: Decode one asynchronous checksum response attention frame.
+ * WHAT: Decode one asynchronous query-response attention frame into text.
  * WHY:  Deferred response framing should not complicate the bounded hop loop.
- * HOW:  Validate asynresp headers, split a valid digest, and always free body.
+ * HOW:  Validate asynresp headers, strdup a valid inner kXR_ok body into
+ *       *text_out, and always free body. Returns 1 when the frame terminates
+ *       the query (*text_out set, or left NULL for "no usable answer"), 0 when
+ *       it is an unrelated async push the caller should skip.
  */
 static int
-origin_cksum_async(const u_char *body, uint32_t dlen,
-    const brix_cache_cksum_out_t *out)
+origin_query_async_text(const u_char *body, uint32_t dlen, char **text_out)
 {
     uint32_t actnum;
     uint16_t inner_status;
@@ -236,10 +241,77 @@ origin_cksum_async(const u_char *body, uint32_t dlen,
         return 1;
     }
     owned[16 + inner_dlen] = '\0';
-    origin_cksum_split(owned + 16, out->alg, out->alg_sz,
-                       out->hex, out->hex_sz);
+    *text_out = strdup((char *) owned + 16);
     free(owned);
     return 1;
+}
+
+/* origin_query_text — run one path-based kXR_query exchange (infotype
+ * kXR_Qcksum / kXR_Qspace / …) and hand back the origin's NUL-terminated text
+ * reply as a malloc'd string in *text_out (NULL when the origin had no usable
+ * answer — kXR_error, empty body, or hop budget exhausted). Returns 0, or -1
+ * when the wire itself failed (send/recv error — the task error is then set by
+ * brix_cache_read_response; callers with best-effort semantics restore their
+ * snapshot of the error triple).
+ *
+ * WAITRESP: a real origin usually does NOT have the answer at hand — it
+ * computes it on demand and PARKS the query with kXR_waitresp, then delivers
+ * the answer as an unsolicited kXR_attn(kXR_asynresp) frame (exactly what a
+ * stock XRootD client absorbs transparently). We follow that handshake for a
+ * bounded number of hops so the common lazy origin still yields an answer,
+ * while a hostile origin that streams frames forever cannot wedge the calling
+ * thread — each recv is bounded by the origin socket timeout and the hop count
+ * caps the exchange. Unrelated async pushes (kXR_asyncms) are skipped. */
+static int
+origin_query_text(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
+    uint16_t infotype, const char *path, char **text_out)
+{
+    uint16_t  status;
+    uint32_t  dlen;
+    u_char   *body;
+    int       hops;
+
+    *text_out = NULL;
+
+    if (origin_query_send(t, oc, infotype, path) != 0) {
+        return -1;
+    }
+
+    for (hops = 0; hops < 8; hops++) {
+        body = NULL;
+        if (brix_cache_read_response(t, oc, &status, &body, &dlen, 512) != 0) {
+            return -1;
+        }
+
+        if (status == kXR_waitresp) {
+            free(body);      /* body = advised seconds; the answer frame follows */
+            continue;
+        }
+
+        if (status == kXR_attn) {
+            /* kXR_attn asynresp body layout (opcodes.h):
+             *   actnum[4] reserved[4] ServerResponseHdr[8] response[inner_dlen] */
+            if (origin_query_async_text(body, dlen, text_out)) {
+                return 0;
+            }
+            continue;
+        }
+
+        if (status == kXR_ok) {
+            if (body != NULL && dlen > 0) {
+                /* body is NUL-terminated by brix_cache_read_response. */
+                *text_out = strdup((char *) body);
+            }
+            free(body);
+            return 0;
+        }
+
+        /* kXR_error or any other status: origin has no usable answer. */
+        free(body);
+        return 0;
+    }
+
+    return 0;   /* too many hops — treat as no answer (caller decides) */
 }
 
 /* brix_cache_origin_query_checksum — ask the origin for its stored digest of
@@ -249,25 +321,14 @@ origin_cksum_async(const u_char *body, uint32_t dlen,
  * origin with no checksum or a wire hiccup must NOT fail an otherwise-complete
  * fill (data is already on disk) — on ANY failure it restores t's error state
  * and returns 0 with out->alg emptied, so the caller treats it as "no origin
- * digest" and the verify policy decides.
- *
- * WAITRESP: a real origin usually does NOT have the digest cached at fill time —
- * it computes it on demand and PARKS the query with kXR_waitresp, then delivers
- * the answer as an unsolicited kXR_attn(kXR_asynresp) frame (exactly what a stock
- * XRootD client absorbs transparently). We follow that handshake for a bounded
- * number of hops so the common lazy-checksum origin still yields a digest for
- * verify=require, while a hostile origin that streams frames forever cannot wedge
- * the fill thread — each recv is bounded by the origin socket timeout and the hop
- * count caps the exchange. Unrelated async pushes (kXR_asyncms) are skipped. */
+ * digest" and the verify policy decides. Waitresp/attn handling: see
+ * origin_query_text. */
 int
 brix_cache_origin_query_checksum(brix_cache_fill_t *t,
     brix_cache_origin_conn_t *oc, const brix_cache_cksum_out_t *out)
 {
-    uint16_t  status;
-    uint32_t  dlen;
-    u_char   *body;
-    int       saved_result, saved_xrd;
-    int       hops;
+    int   saved_result, saved_xrd;
+    char *text;
 
     if (out->alg_sz > 0) {
         out->alg[0] = '\0';
@@ -281,49 +342,54 @@ brix_cache_origin_query_checksum(brix_cache_fill_t *t,
     saved_result = t->result;
     saved_xrd    = t->xrd_error;
 
-    if (origin_cksum_send_query(t, oc) != 0) {
-        return 0;
+    if (origin_query_text(t, oc, kXR_Qcksum, t->clean_path, &text) == 0
+        && text != NULL)
+    {
+        origin_cksum_split((u_char *) text, out->alg, out->alg_sz,
+                           out->hex, out->hex_sz);
+        free(text);
     }
 
-    for (hops = 0; hops < 8; hops++) {
-        body = NULL;
-        if (brix_cache_read_response(t, oc, &status, &body, &dlen, 512) != 0) {
-            t->result    = saved_result;
-            t->xrd_error = saved_xrd;
-            return 0;
-        }
+    t->result    = saved_result;
+    t->xrd_error = saved_xrd;
+    return 0;
+}
 
-        if (status == kXR_waitresp) {
-            free(body);      /* body = advised seconds; the answer frame follows */
-            continue;
-        }
+/* brix_cache_origin_query_space — ask the origin for its export capacity
+ * (path-based kXR_query/kXR_Qspace on "/"), decoding the "oss.space=…&
+ * oss.free=…" reply with the shared grammar (protocol/qspace.h). Backs the
+ * sd_xroot driver's `space` vtable slot so a root:// gateway reports the
+ * ORIGIN's capacity, not the statvfs of its local export directory. Returns 0
+ * with *total_out / *free_out set, or -1 with errno (EIO wire failure /
+ * ENOTSUP unusable or missing reply) — the caller then falls back to local
+ * statvfs. Waitresp/attn handling: see origin_query_text. */
+int
+brix_cache_origin_query_space(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, uint64_t *total_out, uint64_t *free_out)
+{
+    char               *text;
+    unsigned long long  total = 0, freeb = 0;
 
-        if (status == kXR_attn) {
-            /* kXR_attn asynresp body layout (opcodes.h):
-             *   actnum[4] reserved[4] ServerResponseHdr[8] response[inner_dlen] */
-            if (origin_cksum_async(body, dlen, out))
-                return 0;
-            continue;
-        }
-
-        if (status == kXR_ok) {
-            if (body == NULL || dlen == 0) {
-                free(body);
-                return 0;
-            }
-            /* body is NUL-terminated "<algo> <hexvalue>". */
-            origin_cksum_split(body, out->alg, out->alg_sz,
-                               out->hex, out->hex_sz);
-            free(body);
-            return 0;
-        }
-
-        /* kXR_error or any other status: origin has no usable checksum. */
-        free(body);
-        return 0;
+    if (origin_query_text(t, oc, kXR_Qspace, "/", &text) != 0) {
+        errno = EIO;
+        return -1;
+    }
+    if (text == NULL) {
+        errno = ENOTSUP;
+        return -1;
     }
 
-    return 0;   /* too many hops — treat as no origin digest (verify decides) */
+    brix_qspace_parse(text, &total, &freeb);
+    free(text);
+
+    if (total == 0) {
+        errno = ENOTSUP;    /* reply lacked the oss.space token */
+        return -1;
+    }
+
+    *total_out = (uint64_t) total;
+    *free_out  = (uint64_t) freeb;
+    return 0;
 }
 
 

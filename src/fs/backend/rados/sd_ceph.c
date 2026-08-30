@@ -469,6 +469,7 @@ const brix_sd_driver_t brix_sd_ceph_driver = {
     .unlink = sd_ceph_unlink,
     .mkdir  = sd_ceph_mkdir,      /* synthetic no-op create (phase-89 ADR-1) */
     .rename = sd_ceph_rename,     /* copy+delete, no CAP_HARD_RENAME (ADR-5) */
+    .truncate_path = sd_ceph_truncate_path,   /* rados_trunc needs no handle */
 
     .opendir  = sd_ceph_opendir,  /* stripe-collapse listing (phase-89 §B.1) */
     .readdir  = sd_ceph_readdir,
@@ -479,12 +480,44 @@ const brix_sd_driver_t brix_sd_ceph_driver = {
     .setxattr    = sd_ceph_setxattr,
     .removexattr = sd_ceph_removexattr,
 
+    /* Advisory POSIX metadata (sd_ceph_meta.c): RADOS has no mode/owner of its
+     * own, so chmod/kXR_setattr is persisted as the reserved xattr blob every
+     * object backend shares and overlaid on stat. Without the slot the VFS
+     * treated the absence as "nothing to do" and the client was told a change
+     * it never got had succeeded. */
+    .setattr     = sd_ceph_setattr,
+
+    /* Checksum offload (sd_ceph_meta.c): the OSDs hash the bytes where they
+     * already are, instead of the gateway pulling the whole object back to hash
+     * it. crc32c only — see the slot for why a striped object declines. */
+    .query_checksum = sd_ceph_query_checksum,
+
     .staged_open   = sd_ceph_staged_open,
     .staged_write  = sd_ceph_staged_write,
     .staged_commit = sd_ceph_staged_commit,
     .staged_abort  = sd_ceph_staged_abort,
 
     .enumerate     = sd_ceph_enumerate,
+
+    /* Capacity is the CLUSTER's, not the gateway spool statvfs would measure. */
+    .space         = sd_ceph_space,
+
+    /* Credential-scoped NAMESPACE slots (sd_ceph_ns_cred.c). Without these the
+     * per-user keyring reached only the data plane and every metadata op ran as
+     * the export service account — the confused deputy documented there. The
+     * absentees are deliberate: rename_cred (the copy runs on the export's
+     * striper), staged_open_cred (the stage would have to pin a connection
+     * across commit and abort) and mkdir_cred (a synthetic mkdir touches no
+     * object, so there is no cluster-side authority to scope). */
+    .stat_cred           = sd_ceph_stat_cred,
+    .unlink_cred         = sd_ceph_unlink_cred,
+    .truncate_path_cred  = sd_ceph_truncate_path_cred,
+    .getxattr_cred       = sd_ceph_getxattr_cred,
+    .listxattr_cred      = sd_ceph_listxattr_cred,
+    .setxattr_cred       = sd_ceph_setxattr_cred,
+    .removexattr_cred    = sd_ceph_removexattr_cred,
+    .setattr_cred        = sd_ceph_setattr_cred,
+    .opendir_cred        = sd_ceph_opendir_cred,
 };
 
 #endif /* BRIX_HAVE_CEPH */

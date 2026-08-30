@@ -31,7 +31,8 @@
  * uploads go through the staged path. */
 void
 brix_vfs_backend_config_s3(const char *root_canon, const char *host,
-    int port, int tls, const char *bucket, int put_checksum)
+    int port, int tls, const char *bucket,
+    const brix_vfs_s3_origin_opts_t *opts)
 {
     brix_vfs_backend_entry_t *e;
 
@@ -46,30 +47,39 @@ brix_vfs_backend_config_s3(const char *root_canon, const char *host,
         return;
     }
     /* origin_path carries the bucket */
-    brix_vfs_backend_set_origin(e, host, port, tls, bucket, put_checksum);
+    brix_vfs_backend_set_origin(e, host, port, tls, bucket,
+                                (opts != NULL) ? opts->put_checksum : 0);
+    /* Both are stamped unconditionally so a reload that drops "?nearline=1"
+     * leaves the export a plain bucket rather than keeping the previous cycle's
+     * declaration — the cap commits the export to a cache tier, so a stale one
+     * would be a config-time failure nobody asked for. */
+    e->origin_nearline     = (opts != NULL && opts->nearline) ? 1 : 0;
+    e->origin_restore_days = (opts != NULL) ? opts->restore_days : 0;
 }
 
 static void
-brix_vfs_backend_set_xroot(brix_vfs_backend_entry_t *e, const char *host,
-    int port, int tls, int family)
+brix_vfs_backend_set_xroot(brix_vfs_backend_entry_t *e,
+    const brix_vfs_xroot_origin_t *o)
 {
     ngx_memcpy(e->backend, "xroot", sizeof("xroot"));
-    ngx_cpystrn((u_char *) e->origin_host, (u_char *) host,
+    ngx_cpystrn((u_char *) e->origin_host, (u_char *) o->host,
                 sizeof(e->origin_host));
-    e->origin_port   = port;
-    e->origin_tls    = tls;
-    e->origin_family = family;
-    e->inst          = NULL;                   /* rebuilt on next resolve */
+    e->origin_port     = o->port;
+    e->origin_tls      = o->tls;
+    e->origin_family   = o->family;
+    e->origin_nearline = o->nearline;
+    e->inst            = NULL;                 /* rebuilt on next resolve */
 }
 
 void
-brix_vfs_backend_config_xroot(const char *root_canon, const char *host,
-    int port, int tls, int family)
+brix_vfs_backend_config_xroot(const char *root_canon,
+    const brix_vfs_xroot_origin_t *o)
 {
     brix_vfs_backend_entry_t *e;
 
-    if (root_canon == NULL || root_canon[0] == '\0' || host == NULL
-        || host[0] == '\0' || port <= 0 || port > 65535)
+    if (root_canon == NULL || root_canon[0] == '\0' || o == NULL
+        || o->host == NULL || o->host[0] == '\0' || o->port <= 0
+        || o->port > 65535)
     {
         return;
     }
@@ -77,7 +87,7 @@ brix_vfs_backend_config_xroot(const char *root_canon, const char *host,
     /* Dedup on root_canon so a config reload updates rather than appends. */
     e = brix_vfs_backend_entry_get_or_create(root_canon);
     if (e != NULL) {
-        brix_vfs_backend_set_xroot(e, host, port, tls, family);
+        brix_vfs_backend_set_xroot(e, o);
     }
 }
 
@@ -205,9 +215,23 @@ vfs_parse_s3_origin(ngx_conf_t *cf, const char *root_canon, const ngx_str_t *sb)
      * the outbound-leg analogue of the ingest Content-MD5 gate (#7). Off by default
      * (UNSIGNED-PAYLOAD): unknown-header-rejecting origins stay working untouched. */
     {
-        int put_checksum = (ngx_strstr(sb->data, "put_checksum=1") != NULL);
+        brix_vfs_s3_origin_opts_t opts;
+
+        ngx_memzero(&opts, sizeof(opts));
+        opts.put_checksum = (ngx_strstr(sb->data, "put_checksum=1") != NULL);
+        /* "?nearline=1" declares the bucket archive-backed: residency then comes
+         * from x-amz-storage-class / x-amz-restore and recall from
+         * RestoreObject (sd_remote_nearline.c). It is a DECLARATION and never
+         * inferred from a storage class seen at runtime, because arming the cap
+         * commits the export to carrying a cache tier as the recall target
+         * (§9.4) — inferring it would turn a working bucket into a config-time
+         * failure the first time someone tiered one object to GLACIER.
+         * "?restore_days=N" tunes how long the restored copy stays readable. */
+        opts.nearline     = (ngx_strstr(sb->data, "nearline=1") != NULL);
+        opts.restore_days = brix_vfs_origin_opt_int(sb->data, "restore_days=",
+                                                    0);
         brix_vfs_backend_config_s3(root_canon, parsed.host, parsed.port, 0,
-                                   parsed.base, put_checksum);
+                                   parsed.base, &opts);
     }
     return NGX_OK;
 
@@ -237,7 +261,8 @@ vfs_config_local_backend(ngx_conf_t *cf, const char *root_canon,
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix_storage_backend \"%V\": unrecognized backend scheme "
                 "(known: posix, pblock, pblock://, mirage:, block:, "
-                "root://, roots://, tape://, frm://, http(s)://, s3://, "
+                "root://, roots://, root+tape://, roots+tape://, "
+                "tape://, frm://, http(s)://, s3://, "
                 "ceph:, rados:, cephfsro:)", sb);
             return NGX_ERROR;
         }
@@ -246,8 +271,26 @@ vfs_config_local_backend(ngx_conf_t *cf, const char *root_canon,
     return NGX_OK;
 }
 
-/* "root://host:port" / "roots://host:port" → a remote root:// primary backend;
- * any other value is a local driver name (pblock/posix) handled by
+/* The remote root:// spellings of a primary backend URL, longest first. "roots"
+ * selects TLS; the "+tape" pair additionally declares that the origin fronts an
+ * MSS, which arms the driver's nearline pair (residency from kXR_stat's
+ * kXR_offline, recall via kXR_prepare/kXR_stage) instead of letting a first read
+ * block a worker for the length of a tape mount. None of the four is a prefix of
+ * another today, but the scan is ordered so it never starts to matter. */
+static const struct {
+    const char *prefix;
+    size_t      len;
+    int         tls;
+    int         nearline;
+} vfs_xroot_scheme_table[] = {
+    { "roots+tape://", sizeof("roots+tape://") - 1, 1, 1 },
+    { "root+tape://",  sizeof("root+tape://") - 1,  0, 1 },
+    { "roots://",      sizeof("roots://") - 1,      1, 0 },
+    { "root://",       sizeof("root://") - 1,       0, 0 },
+};
+
+/* "root[s][+tape]://host:port" → a remote root:// primary backend; any other
+ * value is a local driver name (pblock/posix) handled by
  * brix_vfs_backend_config. Returns NGX_OK, or NGX_ERROR after an [emerg] for a
  * malformed remote origin. */
 ngx_int_t
@@ -257,19 +300,23 @@ vfs_parse_xroot_or_driver_origin(ngx_conf_t *cf, const char *root_canon,
     u_char *addr = NULL;
     size_t  addrn = 0;
     int     is_roots = 0;
-    /* "root://host:port" / "roots://host:port" → a remote root:// primary backend;
-     * any other value is a local driver name (pblock/posix) handled as before. */
-    if (sb->len > sizeof("roots://") - 1
-        && ngx_strncmp(sb->data, "roots://", sizeof("roots://") - 1) == 0)
+    int     is_nearline = 0;
+    size_t  s;
+
+    for (s = 0; s < sizeof(vfs_xroot_scheme_table)
+                    / sizeof(vfs_xroot_scheme_table[0]); s++)
     {
-        addr = sb->data + sizeof("roots://") - 1;
-        addrn = sb->len - (sizeof("roots://") - 1);
-        is_roots = 1;
-    } else if (sb->len > sizeof("root://") - 1
-        && ngx_strncmp(sb->data, "root://", sizeof("root://") - 1) == 0)
-    {
-        addr = sb->data + sizeof("root://") - 1;
-        addrn = sb->len - (sizeof("root://") - 1);
+        size_t n = vfs_xroot_scheme_table[s].len;
+
+        if (sb->len > n
+            && ngx_strncmp(sb->data, vfs_xroot_scheme_table[s].prefix, n) == 0)
+        {
+            addr        = sb->data + n;
+            addrn       = sb->len - n;
+            is_roots    = vfs_xroot_scheme_table[s].tls;
+            is_nearline = vfs_xroot_scheme_table[s].nearline;
+            break;
+        }
     }
 
     if (addr == NULL) {
@@ -302,8 +349,17 @@ vfs_parse_xroot_or_driver_origin(ngx_conf_t *cf, const char *root_canon,
         }
         ngx_memcpy(host, addr, hostn);
         host[hostn] = '\0';
-        brix_vfs_backend_config_xroot(root_canon, host, (int) portnum,
-                                        is_roots, family);
+        {
+            brix_vfs_xroot_origin_t o = {
+                .host     = host,
+                .port     = (int) portnum,
+                .tls      = is_roots,
+                .family   = family,
+                .nearline = is_nearline,
+            };
+
+            brix_vfs_backend_config_xroot(root_canon, &o);
+        }
     }
 
     return NGX_OK;

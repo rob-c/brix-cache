@@ -16,6 +16,9 @@
  */
 #include "vfs_internal.h"
 #include "fs/path/path.h"   /* brix_chmod_confined_canon (impersonation-aware) */
+#include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_evict: the leaf
+                                          * dispatch bypasses the decorator's
+                                          * own cache invalidation */
 
 /* vfs_backend_mkpath_leaf — leaf-aware recursive mkdir for non-POSIX backends.
  *
@@ -311,6 +314,7 @@ brix_vfs_chmod(brix_vfs_ctx_t *ctx, mode_t mode)
             brix_sd_cred_t    cred;
             brix_sd_setattr_t attr;
             ngx_int_t         chmod_rc;
+            const char       *rel;
             int               use_cred = 0, cred_err = 0;
 
             /* Zero before the gate: it fills only the active credential kind;
@@ -335,11 +339,19 @@ brix_vfs_chmod(brix_vfs_ctx_t *ctx, mode_t mode)
             attr.mode = mode;
             /* Dispatch on the leaf so brix_sd_setattr_maybe_cred finds the
              * leaf driver's setattr_cred slot (decorators relay to plain). */
+            rel      = brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx));
             chmod_rc = brix_sd_setattr_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
-                           brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx)),
-                           &attr, use_cred ? &cred : NULL) == NGX_OK
+                           rel, &attr, use_cred ? &cred : NULL) == NGX_OK
                        ? NGX_OK : NGX_ERROR;
             brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
+            if (chmod_rc == NGX_OK) {
+                /* The leaf dispatch skipped the cache decorator, so the cinfo
+                 * that sd_cache_stat answers from still carries the OLD mode.
+                 * Same compensation vfs_unlink/vfs_rename make for the same
+                 * bypass; no-op when ctx->sd is not a cache. */
+                brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx),
+                                          brix_sd_cache_evict(ctx->sd, rel));
+            }
             return chmod_rc;
         }
     }
@@ -376,6 +388,7 @@ brix_vfs_setattr(brix_vfs_ctx_t *ctx, const brix_sd_setattr_t *attr)
             brix_sd_ucred_t store;
             brix_sd_cred_t  cred;
             ngx_int_t       setattr_rc;
+            const char     *rel;
             int             use_cred = 0, cred_err = 0;
 
             /* Zero before the gate: it fills only the active credential kind;
@@ -397,12 +410,17 @@ brix_vfs_setattr(brix_vfs_ctx_t *ctx, const brix_sd_setattr_t *attr)
             }
             /* Dispatch on the leaf so brix_sd_setattr_maybe_cred finds the
              * leaf driver's setattr_cred slot (decorators relay to plain). */
+            rel        = brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx));
             setattr_rc = brix_sd_setattr_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
-                             brix_vfs_export_relative(ctx,
-                                 brix_vfs_ctx_path(ctx)),
-                             attr, use_cred ? &cred : NULL) == NGX_OK
+                             rel, attr, use_cred ? &cred : NULL) == NGX_OK
                          ? NGX_OK : NGX_ERROR;
             brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
+            if (setattr_rc == NGX_OK) {
+                /* As in the chmod path above: the cached cinfo still carries the
+                 * pre-setattr mode/mtime until the entry is dropped. */
+                brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx),
+                                          brix_sd_cache_evict(ctx->sd, rel));
+            }
             return setattr_rc;
         }
     }

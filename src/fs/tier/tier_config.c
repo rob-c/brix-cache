@@ -1,17 +1,15 @@
 /*
- * tier_config.c - parse a store URL into a tier cfg, and report a tier's
- * readiness against its role contract (phase-64 section 4.2 / 2.2, Appendix L/F).
+ * tier_config.c - parse a store URL into a tier cfg (phase-64 section 4.2,
+ * Appendix L/F).  The readiness half — brix_tier_status against the per-role
+ * slot+cap contract of section 2.2 — lives in tier_status.c: the two halves
+ * share only tier.h, and together they outgrew the 600-line file cap.
  *
  * brix_tier_parse_store turns "<scheme>:<location> [credential=][block_size=]"
  * into an brix_tier_cfg_t: scheme -> driver (root[s]->xroot, http[s]->http),
  * a local path confined via brix_prepare_export_root, or a remote //host[:port]
  * authority with a scheme default port. An unknown scheme / unknown credential /
  * missing port is an OPERATOR error ([emerg], fails nginx -t, Appendix F).
- *
- * brix_tier_status checks the built driver against the per-role slot+cap
- * contract (section 2.2): a missing slot/cap is a tracked "needs development"
- * (NEEDS_DEV + the closing sub-project), never a hard failure (P1).
- */
+ * */
 #include "tier.h"
 #include "core/types/fs_list.h"
 #include "core/config/root_prepare.h"   /* brix_prepare_export_root */
@@ -86,20 +84,6 @@ tier_default_port(const char *driver, int tls)
     if (ngx_strcmp(driver, "http") == 0)  { return tls ? 443 : 80; }
     if (ngx_strcmp(driver, "s3") == 0)    { return 7480; }
     return 0;
-}
-
-/* The sub-project that closes a gap for (driver, role) - the §3 status matrix. */
-static const char *
-tier_sp_for(const char *driver, brix_tier_role_t role)
-{
-    (void) role;
-    if (ngx_strcmp(driver, "pblock") == 0 || ngx_strcmp(driver, "xroot") == 0) {
-        return "SP2";
-    }
-    if (ngx_strcmp(driver, "tape") == 0) {
-        return "SP5";
-    }
-    return "SP3";   /* writable http/s3 + rados stores */
 }
 
 /* The parse context brix_tier_parse_t (config handle + cfg being built +
@@ -261,7 +245,18 @@ tier_parse_authority(brix_tier_parse_t *p, u_char *loc, size_t loclen)
     return tier_copy_remote_path(p, path, pathlen);
 }
 
-/* Parse the trailing "credential=<n>" / "block_size=<n>" params. */
+/* Parse the trailing "credential=<n>" / "block_size=<n>" / "nearline" params.
+ *
+ * `nearline` is a bare flag, not a key=value: it declares that the store this
+ * line names fronts tape/an MSS, so reads must recall asynchronously rather than
+ * block. It is accepted on ANY SCHEME — tier_validate's MISS_SLOT(recall)/
+ * MISS_CAP(NEARLINE) turns `nearline` on a driver that cannot stage into a clean
+ * startup error naming the missing slot, a better operator message than a scheme
+ * table with no spelling for "this origin sits in front of tape" — but only in
+ * the BACKEND role. A cache/stage/cold tier is by definition the ONLINE copy
+ * that a recall lands in, so `nearline` there is always an operator mistake, and
+ * nothing downstream reads t->nearline for those roles: accepting it silently
+ * would leave the operator believing they had armed async recall. */
 static ngx_int_t
 tier_parse_args(ngx_conf_t *cf, ngx_array_t *args, brix_tier_cfg_t *out,
     char *err, size_t errcap)
@@ -308,6 +303,16 @@ tier_parse_args(ngx_conf_t *cf, ngx_array_t *args, brix_tier_cfg_t *out,
                 return tier_fail(cf, 1, err, errcap, "invalid block_size");
             }
             out->block_size = (size_t) sz;
+        } else if (a[i].len == sizeof("nearline") - 1
+            && ngx_strncmp(a[i].data, "nearline", sizeof("nearline") - 1) == 0)
+        {
+            if (out->role != BRIX_TIER_BACKEND) {
+                return tier_fail(cf, 1, err, errcap,
+                    "\"nearline\" belongs on brix_storage_backend, not on %s "
+                    "(a cache/stage tier IS the recall target)",
+                    tier_role_directive(out->role));
+            }
+            out->nearline = 1;
         } else {
             return tier_fail(cf, 1, err, errcap,
                 "unknown store param \"%.*s\"", (int) a[i].len, a[i].data);
@@ -492,102 +497,4 @@ brix_tier_parse_store(brix_tier_parse_t *p, ngx_str_t *url, ngx_array_t *args,
 
     out->configured = 1;
     return NGX_OK;
-}
-
-/* ---- public: report a tier's readiness ------------------------------------ */
-
-brix_tier_status_t
-brix_tier_status(const brix_tier_cfg_t *t, brix_sd_instance_t *probe,
-    brix_tier_gap_t *gap_out)
-{
-    const brix_sd_driver_t *d;
-    uint32_t                  caps;
-    brix_tier_gap_t         g;
-
-    ngx_memzero(&g, sizeof(g));
-
-    if (t == NULL || probe == NULL || probe->driver == NULL) {
-        ngx_cpystrn((u_char *) g.slot, (u_char *) "open", sizeof(g.slot));
-        ngx_cpystrn((u_char *) g.sp_item, (u_char *) "SP1", sizeof(g.sp_item));
-        if (gap_out != NULL) { *gap_out = g; }
-        return BRIX_TIER_NEEDS_DEV;
-    }
-    d    = probe->driver;
-    caps = d->caps;
-    ngx_cpystrn((u_char *) g.sp_item, (u_char *) tier_sp_for(t->driver, t->role),
-                sizeof(g.sp_item));
-
-#define MISS_SLOT(field, nm)                                                   \
-    do {                                                                       \
-        if (d->field == NULL) {                                                \
-            ngx_cpystrn((u_char *) g.slot, (u_char *) (nm), sizeof(g.slot));    \
-            if (gap_out != NULL) { *gap_out = g; }                             \
-            return BRIX_TIER_NEEDS_DEV;                                       \
-        }                                                                      \
-    } while (0)
-
-#define MISS_CAP(bit, nm)                                                      \
-    do {                                                                       \
-        if ((caps & (bit)) == 0) {                                             \
-            ngx_cpystrn((u_char *) g.cap, (u_char *) (nm), sizeof(g.cap));      \
-            if (gap_out != NULL) { *gap_out = g; }                             \
-            return BRIX_TIER_NEEDS_DEV;                                       \
-        }                                                                      \
-    } while (0)
-
-    switch (t->role) {
-    case BRIX_TIER_BACKEND:
-        MISS_SLOT(open, "open");
-        MISS_SLOT(pread, "pread");
-        MISS_SLOT(stat, "stat");
-        MISS_SLOT(fstat, "fstat");
-        MISS_CAP(BRIX_SD_CAP_RANGE_READ, "RANGE_READ");
-        if (t->nearline) {
-            MISS_SLOT(recall, "recall");
-            MISS_CAP(BRIX_SD_CAP_NEARLINE, "NEARLINE");
-        }
-        break;
-
-    case BRIX_TIER_CACHE:
-        MISS_SLOT(open, "open");
-        MISS_SLOT(pread, "pread");
-        MISS_SLOT(stat, "stat");
-        MISS_SLOT(staged_open, "staged_open");
-        MISS_SLOT(staged_write, "staged_write");
-        MISS_SLOT(staged_commit, "staged_commit");
-        MISS_SLOT(staged_abort, "staged_abort");
-        MISS_SLOT(unlink, "unlink");
-        MISS_SLOT(opendir, "opendir");
-        MISS_SLOT(readdir, "readdir");
-        MISS_SLOT(closedir, "closedir");
-        MISS_SLOT(getxattr, "getxattr");
-        MISS_SLOT(setxattr, "setxattr");
-        MISS_CAP(BRIX_SD_CAP_RANGE_READ, "RANGE_READ");
-        MISS_CAP(BRIX_SD_CAP_RANDOM_WRITE, "RANDOM_WRITE");
-        MISS_CAP(BRIX_SD_CAP_DIRS, "DIRS");
-        MISS_CAP(BRIX_SD_CAP_XATTR, "XATTR");
-        break;
-
-    case BRIX_TIER_STAGE:
-        MISS_SLOT(staged_open, "staged_open");
-        MISS_SLOT(staged_write, "staged_write");
-        MISS_SLOT(staged_commit, "staged_commit");
-        MISS_SLOT(staged_abort, "staged_abort");
-        MISS_SLOT(open, "open");
-        MISS_SLOT(pread, "pread");
-        MISS_SLOT(unlink, "unlink");
-        MISS_SLOT(getxattr, "getxattr");
-        MISS_SLOT(setxattr, "setxattr");
-        MISS_CAP(BRIX_SD_CAP_RANDOM_WRITE, "RANDOM_WRITE");
-        MISS_CAP(BRIX_SD_CAP_XATTR, "XATTR");
-        break;
-    }
-
-#undef MISS_SLOT
-#undef MISS_CAP
-
-    if (gap_out != NULL) {
-        ngx_memzero(gap_out, sizeof(*gap_out));   /* READY: no gap */
-    }
-    return BRIX_TIER_READY;
 }

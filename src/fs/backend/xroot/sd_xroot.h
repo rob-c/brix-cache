@@ -76,6 +76,10 @@ typedef struct {
     const char *x509_key;    /* §14/C-3 separate GSI private key path */
     const char *ca_dir;      /* CA file or hashed dir verifying the origin cert */
     const char *sss_keytab;  /* §14 SSS shared-secret keytab path */
+    int         nearline;    /* non-zero: the origin fronts tape/an MSS — arms
+                              * CAP_NEARLINE so reads recall via kXR_prepare
+                              * (kXR_stage) instead of blocking, and commits the
+                              * tier to requiring a cache in front (§9.4) */
 } brix_sd_xroot_origin_cfg_t;
 
 /* Build a remote root:// instance from the EXPLICIT origin params in `cfg`,

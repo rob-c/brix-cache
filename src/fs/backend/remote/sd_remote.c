@@ -24,11 +24,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Per-open state: the delegated S3 read handle. */
-typedef struct {
-    sd_s3_file *s3;
-} sd_remote_obj_state;
-
 /* Compose the sd_s3 object path "/bucket/key" from the instance bucket and the
  * export-relative key (which already carries a leading '/'). Shared with the
  * meta/write siblings via sd_remote_internal.h. */
@@ -374,10 +369,18 @@ static const brix_sd_driver_t brix_sd_remote_driver = {
      * creation in put_inner.c — the marker mkdir keeps that self-consistent). */
     .caps  = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_MEMFILE
              | BRIX_SD_CAP_DIRS | BRIX_SD_CAP_DIRS_WRITE
+             /* CAP_CATALOG: the .enumerate slot below. The cap is the gate, not
+              * the slot — brix_cstore_scan checks the cap before calling, so an
+              * enumerate that is not advertised is never reached. */
+             | BRIX_SD_CAP_CATALOG
              /* #4: metadata mutation — setxattr/removexattr rewrite the
               * x-amz-meta-* user-xattr surface, setattr patches the advisory
               * unix-attr blob (both read-merge-write, sd_remote_xattr.c). */
-             | BRIX_SD_CAP_XATTR | BRIX_SD_CAP_XATTR_WRITE,
+             | BRIX_SD_CAP_XATTR | BRIX_SD_CAP_XATTR_WRITE
+             /* .server_copy is a native S3 CopyObject, so advertise it: the slot
+              * has been implemented since #4 while the cap said otherwise, and
+              * the cap is what introspection and the config advisor report. */
+             | BRIX_SD_CAP_SERVER_COPY,
     .cred_accept = BRIX_SD_CRED_BEARER | BRIX_SD_CRED_PROXY_PEM
                    | BRIX_SD_CRED_S3,   /* phase-70 §5.5 STS EXCHANGE keypair */
     .open  = sd_remote_open,
@@ -387,6 +390,7 @@ static const brix_sd_driver_t brix_sd_remote_driver = {
     .fstat = sd_remote_fstat,
     .stat  = sd_remote_stat,
     .opendir       = sd_remote_opendir,    /* #4: ListObjectsV2 (delimited) */
+    .enumerate     = sd_remote_enumerate,  /* ListObjectsV2 (flat) */
     .readdir       = sd_remote_readdir,
     .closedir      = sd_remote_closedir,
     .server_copy   = sd_remote_server_copy,   /* #4: S3 CopyObject (in-store) */
@@ -398,6 +402,14 @@ static const brix_sd_driver_t brix_sd_remote_driver = {
     .setxattr      = sd_remote_setxattr,       /* #4: read-merge-write REPLACE */
     .removexattr   = sd_remote_removexattr,
     .setattr       = sd_remote_setattr,        /* #4: advisory unix-attr blob */
+    /* Checksum offload: the digest the store already holds, off one signed HEAD,
+     * instead of reading the whole object back to hash it (sd_remote_checksum.c). */
+    .query_checksum = sd_remote_query_checksum,
+    /* Nearline (sd_remote_nearline.c): the archive headers of one HEAD classify
+     * a key, and RestoreObject brings it back. Both slots are gated on
+     * BRIX_SD_CAP_NEARLINE, which only cfg->nearline arms. */
+    .residency     = sd_remote_residency,
+    .recall        = sd_remote_recall,
     .staged_open   = sd_remote_staged_open,
     .staged_write  = sd_remote_staged_write,
     .staged_commit = sd_remote_staged_commit,
@@ -411,9 +423,13 @@ static const brix_sd_driver_t brix_sd_remote_driver = {
     .unlink_cred      = sd_remote_unlink_cred,
     .mkdir_cred       = sd_remote_mkdir_cred,
     .rename_cred      = sd_remote_rename_cred,
+    .getxattr_cred    = sd_remote_getxattr_cred,
+    .listxattr_cred   = sd_remote_listxattr_cred,
     .setxattr_cred    = sd_remote_setxattr_cred,
     .removexattr_cred = sd_remote_removexattr_cred,
     .setattr_cred     = sd_remote_setattr_cred,
+    .opendir_cred     = sd_remote_opendir_cred,
+    .server_copy_cred = sd_remote_server_copy_cred,
 };
 
 brix_sd_instance_t *
@@ -442,6 +458,17 @@ brix_sd_remote_create(const brix_sd_remote_cfg_t *cfg, ngx_log_t *log)
     inst->log    = log;
     inst->pool   = NULL;          /* malloc-owned: safe off the event loop */
     inst->state  = copy;
+    /* Seed the effective caps from the descriptor, as brix_sd_instance_create
+     * does — this factory bypasses that (no pool), and a zero cap word makes
+     * every brix_sd_caps() test fail closed on a store that does support the
+     * capability. */
+    inst->caps   = brix_sd_remote_driver.caps;
+    /* Nearline is an operator DECLARATION, not a discovery: seeing one archived
+     * object must never arm a cap the composing registry treats as a promise
+     * that a cache tier sits in front. See sd_remote_nearline.c. */
+    if (cfg->nearline) {
+        inst->caps |= BRIX_SD_CAP_NEARLINE;
+    }
     return inst;
 }
 

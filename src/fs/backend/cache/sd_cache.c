@@ -327,6 +327,8 @@ static const brix_sd_driver_t brix_sd_cache_driver = {
     .rename        = sd_cache_rename,
     .server_copy   = sd_cache_server_copy,
     .setattr       = sd_cache_setattr,
+    .truncate_path = sd_cache_truncate_path,
+    .space         = sd_cache_space,
     .opendir       = sd_cache_opendir,
     .readdir       = sd_cache_readdir,
     .closedir      = sd_cache_closedir,
@@ -334,6 +336,22 @@ static const brix_sd_driver_t brix_sd_cache_driver = {
     .listxattr     = sd_cache_listxattr,
     .setxattr      = sd_cache_setxattr,
     .removexattr   = sd_cache_removexattr,
+    /* Credential-scoped twins: without them this decorator LOOKS like a driver
+     * with no per-user support, and the tier above either refuses (deny mode) or
+     * silently signs as the export. They add no policy of their own — each
+     * re-dispatches through the source's own brix_sd_<op>_maybe_cred. */
+    .stat_cred        = sd_cache_stat_cred,
+    .unlink_cred      = sd_cache_unlink_cred,
+    .mkdir_cred       = sd_cache_mkdir_cred,
+    .rename_cred      = sd_cache_rename_cred,
+    .server_copy_cred = sd_cache_server_copy_cred,
+    .setattr_cred     = sd_cache_setattr_cred,
+    .truncate_path_cred = sd_cache_truncate_path_cred,
+    .opendir_cred     = sd_cache_opendir_cred,
+    .getxattr_cred    = sd_cache_getxattr_cred,
+    .listxattr_cred   = sd_cache_listxattr_cred,
+    .setxattr_cred    = sd_cache_setxattr_cred,
+    .removexattr_cred = sd_cache_removexattr_cred,
     .staged_open      = sd_cache_staged_open,
     .staged_open_cred = sd_cache_staged_open_cred,
     .staged_write     = sd_cache_staged_write,

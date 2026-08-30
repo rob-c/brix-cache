@@ -2208,6 +2208,30 @@ See the unified grammar section at the top of this page for the complete list.
 |---|---|---|---|
 | `brix_cvmfs_offline_ttl <sec>` | seconds | `0` (off) | Keep serving stale cached content for this long when every origin is unreachable |
 | `brix_cvmfs_origin_http_version <ver>` | enum | auto | Force the HTTP version for origin fills (requires a libcurl that supports it) |
+### Origin query options
+
+An origin URL in `brix_storage_backend` may carry query options after the path.
+They are read from the whole spec and applied to the **primary** endpoint; a
+value ends at `&` or at the `|` that separates failover origins.
+
+| Option | Origins | Effect |
+|---|---|---|
+| `?put_checksum=1` | `http`, `s3` | Sign and send a body checksum on every upload so the origin rejects a wire-corrupted PUT with `400 BadDigest` |
+| `?tape_api=<abs path>` | `http` | The origin fronts an HSM and speaks the [WLCG Tape REST API](https://twiki.cern.ch/twiki/bin/view/LCG/TapeRESTAPI) at that base (e.g. `/api/v1`). Non-empty is what arms tape awareness — `residency` reports staged/on-tape and `recall` submits the stage request. |
+| `?nearline=1` | `s3` | The bucket is archive-backed (GLACIER / DEEP_ARCHIVE / an INTELLIGENT_TIERING archive tier): `residency` reads the storage class and `recall` issues RestoreObject |
+| `?restore_days=N` | `s3` | How long a restored copy stays readable. `0` (the default) leaves the S3 layer's own default. |
+
+```nginx
+brix_storage_backend https://tape.example.org/data?tape_api=/api/v1;
+brix_storage_backend s3://s3.example.org/bucket?nearline=1&restore_days=7;
+```
+
+A tape-aware origin **must** have a cache tier configured — the cache is what a
+recall stages into — and composing one without `brix_cache_store` is a config
+error rather than a runtime surprise. `?tape_api=` is refused (leaving the export
+plain HTTP) unless it is an absolute path made only of unreserved URL bytes, so a
+typo cannot end up spliced into a request line. The `root://` equivalent is a
+scheme rather than an option: `root+tape://` / `roots+tape://`.
 
 ## Network / TCP tuning directives
 

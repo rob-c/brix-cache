@@ -341,6 +341,13 @@ typedef struct {
  * checksum-on-fill verification (verify.c). */
 int brix_cache_origin_query_checksum(brix_cache_fill_t *t,
     brix_cache_origin_conn_t *oc, const brix_cache_cksum_out_t *out);
+/* kXR_query/kXR_Qspace on "/" (path-based): the origin's export capacity from
+ * its "oss.space=…&oss.free=…" reply (shared grammar, protocol/qspace.h).
+ * Backs the sd_xroot driver's `space` vtable slot. Returns 0 with the two
+ * totals, or -1 with errno set (EIO wire failure / ENOTSUP no usable reply) —
+ * the caller then falls back to local statvfs. */
+int brix_cache_origin_query_space(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, uint64_t *total_out, uint64_t *free_out);
 /* Namespace/metadata ops on the origin (path-based; used by the sd_xroot driver
  * when a remote root:// is the export's PRIMARY backend). Each returns 0 / -1
  * with errno set (get/list return the byte count, or -1). */
@@ -356,11 +363,6 @@ int     brix_cache_origin_mkdir(brix_cache_fill_t *t,
  * real origin. 0 on success, -1 with errno set. */
 int     brix_cache_origin_chmod(brix_cache_fill_t *t,
             brix_cache_origin_conn_t *oc, const char *path, mode_t mode);
-/* kXR_query/kXR_Qspace on the origin (§4.6): report the origin's oss.* capacity
- * (total/free/used bytes). 0 on success, -1 with errno set. */
-int     brix_cache_origin_space(brix_cache_fill_t *t,
-            brix_cache_origin_conn_t *oc, const char *path,
-            uint64_t *total_out, uint64_t *free_out, uint64_t *used_out);
 /* Parsed origin kXR_stat reply (path-based). flags is the raw XRootD ASCII-stat
  * bitmask (kXR_isDir/kXR_readable/…); is_dir is the decoded (flags & kXR_isDir)
  * convenience so the caller need not include the protocol flags header. */
@@ -377,6 +379,12 @@ typedef struct {
 int     brix_cache_origin_stat(brix_cache_fill_t *t,
             brix_cache_origin_conn_t *oc, const char *path,
             brix_cache_stat_out_t *out);
+/* kXR_prepare(kXR_stage) of one path — ask a tape-backed origin to bring it
+ * online, copying the origin's request id into reqid_out[40] ("" when the origin
+ * returns none). Returns 0, or -1 with errno set. Drives sd_xroot's nearline
+ * recall slot; see origin_ns.c. */
+int     brix_cache_origin_prepare_stage(brix_cache_fill_t *t,
+            brix_cache_origin_conn_t *oc, const char *path, char reqid_out[40]);
 ssize_t brix_cache_origin_getfattr(brix_cache_fill_t *t,
             brix_cache_origin_conn_t *oc, const char *path, const char *name,
             void *buf, size_t cap);

@@ -327,6 +327,66 @@ sd_ceph_conn_ioctx(sd_ceph_conn_t *c)
     return c->ioctx;
 }
 
+rados_t
+sd_ceph_conn_cluster(sd_ceph_conn_t *c)
+{
+    return c->cluster;
+}
+
+/*
+ * WHAT: Fill `out` with the cluster's total/used/free bytes for the `space`
+ *       vtable slot, shared by the flat RADOS driver and the read-only CephFS
+ *       driver (both hold a live rados_t and neither can answer from statvfs).
+ * WHY:  Without a space slot the capacity seam falls back to statvfs(2) on the
+ *       export root — which on a RADOS export measures the GATEWAY's local spool
+ *       and has nothing to do with the storage the objects live in. kXR_Qspace /
+ *       kXR_QFSinfo drive a client's "can this server take my write?" decision,
+ *       so the wrong number is not cosmetic: it routes writes at a full cluster
+ *       and refuses them at an empty one.
+ * HOW:  One rados_cluster_stat(2) round trip, whose kb/kb_used/kb_avail are the
+ *       RAW figures `ceph df` reports — pre-replication, and cluster-wide rather
+ *       than pool-scoped. That is the only self-consistent triple librados' C API
+ *       offers: a pool's MAX AVAIL needs the replication factor, which is only
+ *       reachable through a mon command, and mixing a pool's logical bytes into a
+ *       raw total would produce a used+free that does not add up. Multiplication
+ *       is bounded by the kb fields being uint64 KiB counts (an overflow would
+ *       need an exabyte-scale cluster); on failure errno carries the negative
+ *       librados rc through sd_ceph_set_errno, like every other call here.
+ */
+int
+sd_ceph_cluster_space(rados_t cluster, brix_sd_space_t *out)
+{
+    struct rados_cluster_stat_t cs;
+
+    if (out == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (sd_ceph_set_errno(rados_cluster_stat(cluster, &cs))) {
+        return -1;
+    }
+    out->total_bytes = (uint64_t) cs.kb * 1024u;
+    out->used_bytes  = (uint64_t) cs.kb_used * 1024u;
+    out->free_bytes  = (uint64_t) cs.kb_avail * 1024u;
+    return 0;
+}
+
+/* sd_ceph_space — the flat driver's `space` slot: the export's capacity is the
+ * cluster's, read off the export's own connection (never a cred-scoped one — the
+ * figure is a property of the cluster, not of the caller). NGX_OK, or NGX_ERROR
+ * with errno set, which the seam reads as "ask statvfs instead". */
+ngx_int_t
+sd_ceph_space(brix_sd_instance_t *inst, brix_sd_space_t *out)
+{
+    sd_ceph_state_t *st = inst->state;
+
+    if (!st->connected) {
+        errno = ENOTCONN;
+        return NGX_ERROR;
+    }
+    return (sd_ceph_cluster_space(st->cluster, out) == 0) ? NGX_OK : NGX_ERROR;
+}
+
 /* sd_ceph_conn_pin — take one reference on a cred-scoped connection for an
  * open object that resolved onto it. Must be matched by exactly one
  * sd_ceph_conn_unpin (from sd_ceph_close) for the object's lifetime. */
@@ -374,15 +434,14 @@ sd_ceph_conn_unpin(sd_ceph_conn_t *c)
  * Returns NGX_OK (enumeration ran; the callback may have aborted early) or
  * NGX_ERROR (errno set) if the pool list could not be opened. */
 ngx_int_t
-sd_ceph_enumerate(brix_sd_instance_t *inst, int want_stat,
+sd_ceph_enumerate_io(sd_ceph_state_t *st, rados_ioctx_t io, int want_stat,
     brix_sd_catalog_cb cb, void *ctx)
 {
-    sd_ceph_state_t  *st = inst->state;
     rados_list_ctx_t  lc;
     const char       *oid;
     size_t            plen = (st->key_prefix != NULL) ? strlen(st->key_prefix) : 0;
 
-    if (sd_ceph_set_errno(rados_nobjects_list_open(st->ioctx, &lc))) {
+    if (sd_ceph_set_errno(rados_nobjects_list_open(io, &lc))) {
         return NGX_ERROR;
     }
 
@@ -412,7 +471,7 @@ sd_ceph_enumerate(brix_sd_instance_t *inst, int want_stat,
                    : (strncmp(key_name, st->key_prefix, plen) == 0
                           ? key_name + plen     /* recovered logical path */
                           : NULL);              /* outside prefix → orphan candidate */
-        if (want_stat && rados_stat(st->ioctx, oid, &size, &mtime) == 0) {
+        if (want_stat && rados_stat(io, oid, &size, &mtime) == 0) {
             ent.have_stat = 1;
             ent.size  = (off_t) size;
             ent.mtime = mtime;
@@ -424,6 +483,55 @@ sd_ceph_enumerate(brix_sd_instance_t *inst, int want_stat,
 
     rados_nobjects_list_close(lc);
     return NGX_OK;
+}
+
+ngx_int_t
+sd_ceph_enumerate(brix_sd_instance_t *inst, int want_stat,
+    brix_sd_catalog_cb cb, void *ctx)
+{
+    sd_ceph_state_t *st = inst->state;
+
+    return sd_ceph_enumerate_io(st, st->ioctx, want_stat, cb, ctx);
+}
+
+
+/* sd_ceph_truncate_path_io — path-native truncate on a caller-chosen ioctx.
+ * WHAT: resize the object backing `path` to `len`, with no open handle involved.
+ * WHY: RADOS gives truncate as a plain object op (rados_trunc), so the VFS's
+ *   open+ftruncate+close fallback would cost two extra round trips and would need
+ *   write access to a file the caller only wants shortened. The ioctx is a
+ *   parameter because the identity a RADOS op asserts at the OSDs is the ioctx it
+ *   runs on and nothing else — see sd_ceph_ns_cred.c.
+ * HOW: build the export-prefixed key, then one rados_trunc; a negative return is
+ *   translated to errno by sd_ceph_set_errno. Striped files are out of scope: the
+ *   flat driver stores one object per file, and a striper layout would need the
+ *   tail stripes removed too, which rados_trunc cannot express.
+ * Returns NGX_OK, or NGX_ERROR with errno set. */
+ngx_int_t
+sd_ceph_truncate_path_io(sd_ceph_state_t *st, rados_ioctx_t io, const char *path,
+    off_t len)
+{
+    char oid[1024];
+
+    if (len < 0) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    if (sd_ceph_key(st->key_prefix, path, oid, sizeof(oid)) != 0) {
+        return NGX_ERROR;
+    }
+    if (sd_ceph_set_errno(rados_trunc(io, oid, (uint64_t) len))) {
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+ngx_int_t
+sd_ceph_truncate_path(brix_sd_instance_t *inst, const char *path, off_t len)
+{
+    sd_ceph_state_t *st = inst->state;
+
+    return sd_ceph_truncate_path_io(st, st->ioctx, path, len);
 }
 
 #endif /* BRIX_HAVE_CEPH */

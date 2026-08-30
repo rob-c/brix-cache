@@ -126,6 +126,7 @@ main(void)
     test_block_size_configurable();
     test_block_sparse();
     test_block_truncate();
+    test_block_read_advise();
     test_block_copy_and_unlink();
     test_identity();
 

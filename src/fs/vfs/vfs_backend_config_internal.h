@@ -90,6 +90,19 @@ brix_vfs_backend_entry_t *brix_vfs_backend_entry_claim(const char *root_canon,
 #define VFS_BE_STR(e, field, src) \
     ngx_cpystrn((u_char *) (e)->field, (u_char *) (src), sizeof((e)->field))
 
+/* Read one "key=value" declaration out of an origin URL's query suffix into
+ * out[cap] (always NUL-terminated; "" when the key is absent). `key` carries its
+ * own '=' ("tape_api="). The value ends at '&', '|' (the T11 endpoint
+ * separator) or end-of-string. Shared because the http and s3 origin grammars
+ * carry the same query suffix and must read it identically — one place to get
+ * the terminators right. Defined in vfs_backend_config.c. */
+void brix_vfs_origin_opt_str(const u_char *spec, const char *key, char *out,
+    size_t cap);
+
+/* The integer form of the same read: the value parsed as a non-negative
+ * decimal, or `dflt` when the key is absent or malformed. */
+int brix_vfs_origin_opt_int(const u_char *spec, const char *key, int dflt);
+
 /* Stamp the libcurl-origin endpoint fields shared by the http and s3 builders
  * (host/port/tls, origin_path = base path or bucket, the #12 PUT-checksum flag)
  * and invalidate the built instance. Defined in vfs_backend_config.c. */

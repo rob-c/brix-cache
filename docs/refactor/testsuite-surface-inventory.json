@@ -525,7 +525,7 @@
    "cmdscripts/lint_loc.py": [
     "main"
    ],
-   "cmdscripts/live_common.py": [
+   "cmdscripts/live_common_runtime.py": [
     "open_tree_for_worker"
    ],
    "cmdscripts/operator_build.py": [
@@ -538,6 +538,12 @@
     "main"
    ],
    "cmdscripts/proxy_env_unit.py": [
+    "main"
+   ],
+   "cmdscripts/root_readonly_gateway.py": [
+    "run"
+   ],
+   "cmdscripts/root_readonly_gateway_part2.py": [
     "main"
    ],
    "cmdscripts/s3_storage_backend.py": [
@@ -926,6 +932,43 @@
     "run_checks"
    ]
   },
+  "cmdscripts.cache_source_helpers": {
+   "cmdscripts/cache_backend_source.py": [
+    "exact_transfer",
+    "start_servers",
+    "stop_servers"
+   ],
+   "cmdscripts/cache_http_source.py": [
+    "exact_transfer",
+    "start_servers",
+    "stop_servers"
+   ],
+   "cmdscripts/cache_slice_gsi_legacy.py": [
+    "start_servers",
+    "stop_servers"
+   ],
+   "cmdscripts/cache_xroot_origin.py": [
+    "exact_transfer",
+    "start_servers",
+    "stop_servers"
+   ],
+   "cmdscripts/credential_http_bearer.py": [
+    "start_servers",
+    "stop_servers"
+   ],
+   "cmdscripts/credential_xroot_gsi.py": [
+    "start_servers",
+    "stop_servers"
+   ],
+   "cmdscripts/credential_xroot_gsi_writeback.py": [
+    "start_servers",
+    "stop_servers"
+   ],
+   "cmdscripts/credential_xroot_ztn.py": [
+    "start_servers",
+    "stop_servers"
+   ]
+  },
   "cmdscripts.cache_stage_throttle": {
    "test_cmd_cache_stage_throttle.py": [
     "XRDCP",
@@ -964,6 +1007,85 @@
   "cmdscripts.ceph_operator": {
    "test_cmd_ceph_operator.py": [
     "run_checks"
+   ]
+  },
+  "cmdscripts.command_results": {
+   "cmdscripts/c_object_units.py": [
+    "print_results"
+   ],
+   "cmdscripts/c_regression_units_part3.py": [
+    "print_results"
+   ],
+   "cmdscripts/c_simple_units.py": [
+    "print_results"
+   ],
+   "cmdscripts/cache_backend_source.py": [
+    "print_results",
+    "selected_binary"
+   ],
+   "cmdscripts/cache_http_source.py": [
+    "print_results",
+    "selected_binary"
+   ],
+   "cmdscripts/cache_pblock_pblock.py": [
+    "print_results"
+   ],
+   "cmdscripts/cache_pblock_posix.py": [
+    "print_results"
+   ],
+   "cmdscripts/cache_reaper.py": [
+    "print_results"
+   ],
+   "cmdscripts/cache_s3_origin.py": [
+    "print_results"
+   ],
+   "cmdscripts/cache_slice_gsi_legacy.py": [
+    "print_results",
+    "selected_binary"
+   ],
+   "cmdscripts/cache_watermark_config.py": [
+    "print_results"
+   ],
+   "cmdscripts/cache_wt_driver.py": [
+    "print_results"
+   ],
+   "cmdscripts/cache_xroot_origin.py": [
+    "print_results",
+    "selected_binary"
+   ],
+   "cmdscripts/credential_http_bearer.py": [
+    "print_results",
+    "selected_binary"
+   ],
+   "cmdscripts/credential_webdav_xroot.py": [
+    "print_results"
+   ],
+   "cmdscripts/credential_xroot_gsi.py": [
+    "print_results",
+    "selected_binary"
+   ],
+   "cmdscripts/credential_xroot_gsi_writeback.py": [
+    "print_results",
+    "selected_binary"
+   ],
+   "cmdscripts/credential_xroot_ztn.py": [
+    "print_results",
+    "selected_binary"
+   ],
+   "cmdscripts/s3_storage_backend.py": [
+    "print_results"
+   ],
+   "cmdscripts/s3_store_writable.py": [
+    "print_results"
+   ],
+   "cmdscripts/s3_usermeta.py": [
+    "print_results"
+   ],
+   "cmdscripts/storage_backend_metrics.py": [
+    "print_results"
+   ],
+   "cmdscripts/xroot_gateway_regress.py": [
+    "print_results"
    ]
   },
   "cmdscripts.compile_run": {
@@ -1260,6 +1382,9 @@
   },
   "cmdscripts.container_runtime": {
    "cmdscripts/cvmfs_official_client.py": [
+    "container_runtime"
+   ],
+   "test_oci_convert_estargz.py": [
     "container_runtime"
    ],
    "test_oci_flatten.py": [
@@ -1607,6 +1732,11 @@
     "BUILD_ARGS"
    ]
   },
+  "cmdscripts.fwd_matrix_cell_a": {
+   "cmdscripts/fwd_matrix_live_part3.py": [
+    "run_cell_a"
+   ]
+  },
   "cmdscripts.fwd_matrix_live": {
    "cmdscripts/_fwd_matrix_live_part2_mixina.py": [
     "_call",
@@ -1948,7 +2078,7 @@
    "config_parse.py": [
     "inject_nginx_load_modules"
    ],
-   "conftest_part2.py": [
+   "conftest_session_setup.py": [
     "freeze_nginx"
    ],
    "cvmfs/conformance_common.py": [
@@ -2157,6 +2287,48 @@
   "cmdscripts.proxy_env_unit": {
    "test_cmd_proxy_env_unit.py": [
     "run_checks"
+   ]
+  },
+  "cmdscripts.root_readonly_gateway": {
+   "cmdscripts/root_readonly_gateway_deep.py": [
+    "DOC_PAGE",
+    "PUBLIC_FILE",
+    "Probe",
+    "REPO",
+    "_errmsg",
+    "_errnum",
+    "_send",
+    "_session",
+    "_wait",
+    "kXR_NotAuthorized",
+    "kXR_Unsupported",
+    "kXR_bind",
+    "kXR_close",
+    "kXR_dirlist",
+    "kXR_error",
+    "kXR_fsReadOnly",
+    "kXR_mkdir",
+    "kXR_ok",
+    "kXR_open",
+    "kXR_open_read",
+    "kXR_query",
+    "kXR_read",
+    "kXR_readv",
+    "kXR_set",
+    "kXR_sigver",
+    "kXR_stat",
+    "kXR_write",
+    "mutating_opcodes",
+    "probes"
+   ],
+   "test_cmd_root_readonly_gateway.py": [
+    "run_checks"
+   ]
+  },
+  "cmdscripts.root_readonly_gateway_deep": {
+   "cmdscripts/root_readonly_gateway_part2.py": [
+    "check_override_is_logged",
+    "run_deep_checks"
    ]
   },
   "cmdscripts.rpm_cvmfs_compose": {
@@ -2387,6 +2559,24 @@
    "test_audit16ad_inert_config_surface.py": [
     "nginx_t"
    ],
+   "test_audit16ae_gridftp_gate_off_arms.py": [
+    "nginx_t"
+   ],
+   "test_audit16af_oci_security_arms.py": [
+    "nginx_t"
+   ],
+   "test_audit16ag_guard_arms.py": [
+    "nginx_t"
+   ],
+   "test_audit16ah_frm_hc_arms.py": [
+    "nginx_t"
+   ],
+   "test_audit16ai_gridftp_write_gate.py": [
+    "nginx_t"
+   ],
+   "test_audit16aj_cache_store_endpoint_arms.py": [
+    "nginx_t"
+   ],
    "test_audit16b_ocsp_stapling.py": [
     "nginx_t"
    ],
@@ -2539,6 +2729,9 @@
    "test_data_substreams_gateway.py": [
     "render_config_to_path"
    ],
+   "test_rpm_mirror_native.py": [
+    "render_config_to_path"
+   ],
    "test_seccomp_enforce.py": [
     "render_config_to_path"
    ],
@@ -2554,6 +2747,12 @@
   "conftest_part3": {
    "test_ci_ts5_perf_move.py": [
     "<module>"
+   ]
+  },
+  "conftest_session_setup": {
+   "conftest_part2.py": [
+    "setup_local_session",
+    "setup_remote_session"
    ]
   },
   "ephemeral_port": {
@@ -2943,6 +3142,30 @@
     "LIFECYCLE_SHARED_PORTS",
     "PARSE_PLACEHOLDER_PORT"
    ],
+   "test_audit16ae_gridftp_gate_off_arms.py": [
+    "LIFECYCLE_SHARED_PORTS",
+    "PARSE_PLACEHOLDER_PORT"
+   ],
+   "test_audit16af_oci_security_arms.py": [
+    "LIFECYCLE_SHARED_PORTS",
+    "PARSE_PLACEHOLDER_PORT"
+   ],
+   "test_audit16ag_guard_arms.py": [
+    "LIFECYCLE_SHARED_PORTS",
+    "PARSE_PLACEHOLDER_PORT"
+   ],
+   "test_audit16ah_frm_hc_arms.py": [
+    "LIFECYCLE_SHARED_PORTS",
+    "PARSE_PLACEHOLDER_PORT"
+   ],
+   "test_audit16ai_gridftp_write_gate.py": [
+    "LIFECYCLE_SHARED_PORTS",
+    "PARSE_PLACEHOLDER_PORT"
+   ],
+   "test_audit16aj_cache_store_endpoint_arms.py": [
+    "LIFECYCLE_SHARED_PORTS",
+    "PARSE_PLACEHOLDER_PORT"
+   ],
    "test_audit16b_ocsp_stapling.py": [
     "LIFECYCLE_SHARED_PORTS",
     "PARSE_PLACEHOLDER_PORT"
@@ -3061,6 +3284,15 @@
    ],
    "test_negcache_backoff.py": [
     "PARSE_PLACEHOLDER_PORT"
+   ],
+   "test_oci_mirror_authdance.py": [
+    "SHARED_PARSE_PLACEHOLDER_PORT"
+   ],
+   "test_oci_mirror_delegate.py": [
+    "SHARED_PARSE_PLACEHOLDER_PORT"
+   ],
+   "test_oci_registry_gc_background.py": [
+    "SHARED_PARSE_PLACEHOLDER_PORT"
    ],
    "test_oci_registry_push.py": [
     "SHARED_PARSE_PLACEHOLDER_PORT"
@@ -3260,6 +3492,9 @@
    "cmdscripts/pblock_live_part2.py": [
     "cmdscript_ports"
    ],
+   "cmdscripts/root_readonly_gateway.py": [
+    "cmdscript_ports"
+   ],
    "cmdscripts/s3_storage_backend.py": [
     "cmdscript_ports"
    ],
@@ -3351,7 +3586,7 @@
    "cmdscripts/manage_test_servers.py": [
     "<module>"
    ],
-   "conftest_part2.py": [
+   "conftest_session_setup.py": [
     "<module>"
    ],
    "test_fleet_prep_cache.py": [
@@ -3486,6 +3721,10 @@
     "GuardServer"
    ],
    "test_audit15b_guard_webdav_tpc.py": [
+    "AuditLog",
+    "GuardServer"
+   ],
+   "test_audit16ag_guard_arms.py": [
     "AuditLog",
     "GuardServer"
    ],
@@ -3724,12 +3963,7 @@
     "listening_port_pids"
    ],
    "_server_launcher_part2_mixinb.py": [
-    "find_xrd_library",
-    "kill_pid_list",
-    "pids_on_port"
-   ],
-   "_server_launcher_part2_mixinc.py": [
-    "pids_on_port"
+    "find_xrd_library"
    ],
    "_test_cvmfs_conformance_fuse_cache_helpers.py": [
     "wait_tcp"
@@ -3741,19 +3975,16 @@
     "listening_port_pids"
    ],
    "brix_suite/_legacy/_server_launcher_part2_mixinb_flat.py": [
-    "find_xrd_library",
-    "kill_pid_list",
-    "pids_on_port"
-   ],
-   "brix_suite/_legacy/_server_launcher_part2_mixinc_flat.py": [
-    "pids_on_port"
+    "find_xrd_library"
    ],
    "brix_suite/launcher/control.py": [
-    "find_xrd_library",
+    "find_xrd_library"
+   ],
+   "brix_suite/launcher/control_operations.py": [
     "kill_pid_list",
     "pids_on_port"
    ],
-   "brix_suite/launcher/internals.py": [
+   "brix_suite/launcher/internal_operations.py": [
     "pids_on_port"
    ],
    "brix_suite/launcher/start.py": [
@@ -3898,6 +4129,12 @@
     "fetch",
     "value",
     "xrdcp"
+   ],
+   "test_audit16ai_gridftp_write_gate.py": [
+    "value"
+   ],
+   "test_audit16aj_cache_store_endpoint_arms.py": [
+    "value"
    ],
    "test_gridftp_metrics.py": [
     "value"
@@ -4216,10 +4453,22 @@
     "PORT_LAST"
    ]
   },
-  "server_launcher": {
-   "_server_launcher_part2_mixinb.py": [
+  "python_quality_lib": {
+   "test_python_quality.py": [
     "<module>"
-   ],
+   ]
+  },
+  "python_quality_paths": {
+   "python_quality_lib.py": [
+    "NPathScorer"
+   ]
+  },
+  "python_quality_structural": {
+   "python_quality_lib.py": [
+    "NestingScorer"
+   ]
+  },
+  "server_launcher": {
    "_test_chaos_mixed_auth_helpers.py": [
     "LifecycleHarness"
    ],
@@ -4288,9 +4537,6 @@
    "brix_suite/_legacy/_cachemx_flat.py": [
     "LifecycleHarness"
    ],
-   "brix_suite/_legacy/_server_launcher_part2_mixinb_flat.py": [
-    "<module>"
-   ],
    "brix_suite/_legacy/cms_mesh_lib_flat.py": [
     "launch_fleet_nginx"
    ],
@@ -4319,7 +4565,7 @@
     "LifecycleHarness",
     "RegistryLauncher"
    ],
-   "brix_suite/launcher/control.py": [
+   "brix_suite/launcher/control_operations.py": [
     "<module>"
    ],
    "brix_suite/mesh/cms_mesh_lib.py": [
@@ -4390,6 +4636,24 @@
     "LifecycleHarness"
    ],
    "test_audit16ad_inert_config_surface.py": [
+    "LifecycleHarness"
+   ],
+   "test_audit16ae_gridftp_gate_off_arms.py": [
+    "LifecycleHarness"
+   ],
+   "test_audit16af_oci_security_arms.py": [
+    "LifecycleHarness"
+   ],
+   "test_audit16ag_guard_arms.py": [
+    "LifecycleHarness"
+   ],
+   "test_audit16ah_frm_hc_arms.py": [
+    "LifecycleHarness"
+   ],
+   "test_audit16ai_gridftp_write_gate.py": [
+    "LifecycleHarness"
+   ],
+   "test_audit16aj_cache_store_endpoint_arms.py": [
     "LifecycleHarness"
    ],
    "test_audit16v_tpc_off_arms.py": [
@@ -5270,6 +5534,24 @@
     "NginxInstanceSpec"
    ],
    "test_audit16ad_inert_config_surface.py": [
+    "NginxInstanceSpec"
+   ],
+   "test_audit16ae_gridftp_gate_off_arms.py": [
+    "NginxInstanceSpec"
+   ],
+   "test_audit16af_oci_security_arms.py": [
+    "NginxInstanceSpec"
+   ],
+   "test_audit16ag_guard_arms.py": [
+    "NginxInstanceSpec"
+   ],
+   "test_audit16ah_frm_hc_arms.py": [
+    "NginxInstanceSpec"
+   ],
+   "test_audit16ai_gridftp_write_gate.py": [
+    "NginxInstanceSpec"
+   ],
+   "test_audit16aj_cache_store_endpoint_arms.py": [
     "NginxInstanceSpec"
    ],
    "test_audit16b_ocsp_stapling.py": [
@@ -7385,6 +7667,9 @@
    ],
    "cmdscripts/live_common.py": [
     "BIND_HOST",
+    "TEST_ROOT"
+   ],
+   "cmdscripts/live_common_runtime.py": [
     "CA_CERT",
     "SERVER_CERT",
     "TEST_ROOT"
@@ -7434,6 +7719,14 @@
    ],
    "cmdscripts/remote_backend.py": [
     "BIND_HOST",
+    "HOST"
+   ],
+   "cmdscripts/root_readonly_gateway.py": [
+    "BIND_HOST",
+    "HOST",
+    "NGINX_BIN"
+   ],
+   "cmdscripts/root_readonly_gateway_deep.py": [
     "HOST"
    ],
    "cmdscripts/s3_storage_backend.py": [
@@ -7662,7 +7955,6 @@
     "KRB5_CCACHE",
     "LOG_DIR",
     "NGINX_ANON_PORT",
-    "NGINX_BIN",
     "NGINX_GSI_PORT",
     "NGINX_GSI_TLS_PORT",
     "NGINX_HTTP_WEBDAV_PORT",
@@ -7823,6 +8115,16 @@
     "WEBDAV_TPC_SOURCE_OPEN_PORT",
     "WEBDAV_TPC_SOURCE_REQUIRED_PORT"
    ],
+   "conftest_session_setup.py": [
+    "CA_DIR",
+    "DATA_ROOT",
+    "LOG_DIR",
+    "NGINX_BIN",
+    "PKI_DIR",
+    "PROXY_STD",
+    "TEST_ROOT",
+    "TMP_DIR"
+   ],
    "cvmfs/conformance_common.py": [
     "BIND_HOST",
     "HOST",
@@ -7896,9 +8198,6 @@
    "resilience/run_mount_sweep.py": [
     "HOST"
    ],
-   "resilience/run_xrdcp_loss.py": [
-    "HOST"
-   ],
    "resilience/servers.py": [
     "BIND_HOST",
     "HOST"
@@ -7933,6 +8232,9 @@
     "HOST"
    ],
    "resilience/test_webdav_put_corruption.py": [
+    "HOST"
+   ],
+   "rpm/mirror_lane.py": [
     "HOST"
    ],
    "server_launcher.py": [
@@ -8353,6 +8655,42 @@
     "BIND_HOST",
     "HOST",
     "NGINX_BIN"
+   ],
+   "test_audit16ae_gridftp_gate_off_arms.py": [
+    "BIND_HOST",
+    "NGINX_BIN",
+    "PKI_DIR",
+    "SERVER_HOST"
+   ],
+   "test_audit16af_oci_security_arms.py": [
+    "BIND_HOST",
+    "CA_CERT",
+    "NGINX_BIN",
+    "SERVER_CERT",
+    "SERVER_KEY",
+    "USER_CERT",
+    "USER_KEY"
+   ],
+   "test_audit16ag_guard_arms.py": [
+    "BIND_HOST",
+    "HOST",
+    "NGINX_BIN"
+   ],
+   "test_audit16ah_frm_hc_arms.py": [
+    "BIND_HOST",
+    "HOST",
+    "NGINX_BIN"
+   ],
+   "test_audit16ai_gridftp_write_gate.py": [
+    "BIND_HOST",
+    "NGINX_BIN",
+    "SERVER_HOST"
+   ],
+   "test_audit16aj_cache_store_endpoint_arms.py": [
+    "BIND_HOST",
+    "HOST",
+    "NGINX_BIN",
+    "url_host"
    ],
    "test_audit16b_ocsp_stapling.py": [
     "HOST",
@@ -8783,6 +9121,9 @@
     "HOST"
    ],
    "test_cmd_remote_backend.py": [
+    "NGINX_BIN"
+   ],
+   "test_cmd_root_readonly_gateway.py": [
     "NGINX_BIN"
    ],
    "test_cmd_s3_storage_backend.py": [
@@ -9997,6 +10338,9 @@
    "test_rpm_mirror_dnf.py": [
     "HOST"
    ],
+   "test_rpm_mirror_native.py": [
+    "HOST"
+   ],
    "test_s3_acl_authz.py": [
     "S3_BUCKET"
    ],
@@ -10310,6 +10654,9 @@
     "NGINX_BIN"
    ],
    "test_tpc_gsi_nginx_source.py": [
+    "HOST"
+   ],
+   "test_tpc_gsi_outbound.py": [
     "HOST"
    ],
    "test_tpc_pull_integrity.py": [
@@ -10772,310 +11119,6 @@
    "userns/e2e_redteam.py": [
     "BIND_HOST",
     "HOST"
-   ],
-   "userns/e2e_redteam_part10.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part11.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part12.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part13.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part14.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part15.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part16.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part17.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part18.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part19.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part2.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part20.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part21.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part22.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part23.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part24.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part25.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part26.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part27.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part28.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part29.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part3.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part30.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part31.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part32.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part33.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part34.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part35.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part36.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part37.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part38.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part39.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part4.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part40.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part41.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part42.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part43.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part44.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part45.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part46.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part47.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part48.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part49.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part5.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part50.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part51.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part52.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part53.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part54.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part55.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part56.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part57.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part58.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part59.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part6.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part60.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part61.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part62.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part63.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part64.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part65.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part66.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part67.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part68.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part69.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part7.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part70.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part71.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part72.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part73.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part74.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part75.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part76.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part77.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part8.py": [
-    "BIND_HOST",
-    "HOST"
-   ],
-   "userns/e2e_redteam_part9.py": [
-    "BIND_HOST",
-    "HOST"
    ]
   },
   "source_guards_lib": {
@@ -11099,8 +11142,14 @@
    "_test_evil_actor_helpers.py": [
     "reexport"
    ],
+   "_test_evil_actor_v2_helpers.py": [
+    "load"
+   ],
    "_test_evil_actor_v3_helpers.py": [
     "reexport"
+   ],
+   "_test_evil_paths_helpers.py": [
+    "load"
    ],
    "_test_gsi_handshake_helpers.py": [
     "reexport"
@@ -11162,6 +11211,9 @@
    "cmdscripts/brixcvmfs_live.py": [
     "load"
    ],
+   "cmdscripts/brixcvmfs_live_part2.py": [
+    "load"
+   ],
    "cmdscripts/c_auth_units.py": [
     "load"
    ],
@@ -11177,16 +11229,28 @@
    "cmdscripts/cvmfs_live_ext.py": [
     "load"
    ],
+   "cmdscripts/cvmfs_matrix.py": [
+    "load"
+   ],
    "cmdscripts/fwd_matrix_live.py": [
     "load"
    ],
    "cmdscripts/gsi_trust_live.py": [
     "load"
    ],
+   "cmdscripts/live_common.py": [
+    "load"
+   ],
    "cmdscripts/nonutf8_codec.py": [
     "load"
    ],
    "cmdscripts/pblock_live.py": [
+    "load"
+   ],
+   "cmdscripts/pblock_live_part2.py": [
+    "load"
+   ],
+   "cmdscripts/root_readonly_gateway.py": [
     "load"
    ],
    "cmdscripts/tap_proxy_live.py": [
@@ -11224,6 +11288,18 @@
    ],
    "test_aio_b.py": [
     "reexport"
+   ],
+   "test_audit16e_krb5_ip_check.py": [
+    "load"
+   ],
+   "test_audit16h_shared_http_flags.py": [
+    "load"
+   ],
+   "test_audit16r_csi_flag_arms.py": [
+    "load"
+   ],
+   "test_audit_fixes_2026_08_09.py": [
+    "load"
    ],
    "test_brix_fault_proxy.py": [
     "reexport"
@@ -11735,6 +11811,9 @@
    "test_new_opcodes_b_d.py": [
     "reexport"
    ],
+   "test_oci_flatten.py": [
+    "load"
+   ],
    "test_open_flags_lifecycle.py": [
     "reexport"
    ],
@@ -11932,6 +12011,18 @@
    ],
    "test_xrootd_performance_conformance_b.py": [
     "reexport"
+   ],
+   "userns/e2e_redteam.py": [
+    "load_numbered"
+   ],
+   "userns/e2e_redteam_part10.py": [
+    "load"
+   ],
+   "userns/e2e_redteam_part11.py": [
+    "load"
+   ],
+   "userns/e2e_redteam_part15.py": [
+    "load"
    ]
   },
   "tokenforge": {
@@ -11972,6 +12063,10 @@
    ],
    "test_audit15p_s3_token.py": [
     "TokenForge"
+   ],
+   "test_audit16af_oci_security_arms.py": [
+    "TokenForge",
+    "write_scitokens_cfg"
    ],
    "test_audit16w_webdav_tpc_egress_off_arms.py": [
     "TokenForge",
@@ -12054,6 +12149,33 @@
    "test_tpc_token_mode.py": [
     "TpcOpaqueResult",
     "parse_tpc_opaque"
+   ]
+  },
+  "ts5_ast_checks": {
+   "test_ci_ts5_cluster_move.py": [
+    "assigned_literal",
+    "body_hashes",
+    "literal_call_problems",
+    "missing_name_groups",
+    "substring_matches"
+   ],
+   "test_ci_ts5_perf_move.py": [
+    "body_hashes",
+    "missing_names",
+    "substring_matches"
+   ],
+   "test_ci_ts5_servers_move.py": [
+    "binding_problem",
+    "body_hashes",
+    "missing_names",
+    "move_problem",
+    "server_bindings",
+    "settings_import_problem"
+   ],
+   "test_ci_ts5_x509_move.py": [
+    "missing_names",
+    "move_problem",
+    "top_level_body_hashes"
    ]
   },
   "upstream_protocol_stubs": {
@@ -12316,10 +12438,17 @@
     "XRDCP"
    ],
    "functions": [
+    "_cache_values",
+    "_make_http_node",
+    "_make_local_node",
+    "_make_xroot_node",
     "_optline",
+    "_origin_settings",
+    "_parsed_cinfo",
     "_read_frame",
     "_recv_exact",
     "_session",
+    "_start_cache",
     "backend_available",
     "kill_origin",
     "make_cache_node",
@@ -12368,6 +12497,8 @@
    "functions": [
     "_base_env",
     "_require_binaries",
+    "_s3_request_headers",
+    "_s3_tls_context",
     "env_gsi",
     "env_none",
     "env_sss",
@@ -12420,12 +12551,48 @@
    "shard_implicit": [],
    "variables": []
   },
+  "_oci_flatten_part2": {
+   "classes": [],
+   "constants": [
+    "_STARGZ_META"
+   ],
+   "functions": [
+    "_estargz",
+    "test_absolute_path_confined_to_upper",
+    "test_byte_budget_enforced",
+    "test_dotdot_member_refused",
+    "test_entry_budget_enforced",
+    "test_estargz_layer_flattens_like_its_original",
+    "test_marker_smuggling_refused",
+    "test_special_files_counted_when_not_strict",
+    "test_stargz_meta_is_dropped_before_it_can_plant_anything",
+    "test_strict_refuses_device",
+    "test_symlink_escape_refused_at_component",
+    "test_whiteout_of_dotdot_refused"
+   ],
+   "shard_implicit": [
+    "_add",
+    "_apply",
+    "_layer",
+    "_refused",
+    "_shape_from_tree",
+    "_stats",
+    "io",
+    "os",
+    "tarfile",
+    "zlib"
+   ],
+   "variables": []
+  },
   "_perf_ab_helpers": {
    "classes": [],
    "constants": [
     "READ_CHUNK"
    ],
    "functions": [
+    "_check_measure_read_throughput_1",
+    "_check_measure_read_throughput_2",
+    "_check_measure_read_throughput_3",
     "_connect_login_plain",
     "_connect_login_tls",
     "_main",
@@ -12452,15 +12619,20 @@
    ],
    "functions": [
     "_boot_nginx",
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
     "_inside",
     "_main",
     "_measure_in_client",
     "_measure_mode",
+    "_phase_inside_1",
     "_rtt_ms_client",
     "_setup_link",
     "_sh",
     "_stop_nginx",
     "_tune_netns",
+    "_wmem_cap_in_force",
     "_write_conf",
     "netns_bdp_available",
     "run_ab_over_bdp"
@@ -12694,22 +12866,41 @@
    "constants": [],
    "functions": [
     "_apply_env",
+    "_arg_normalizer",
     "_b64",
+    "_basic_encoder",
     "_call_method",
     "_decode_arg",
     "_decode_args",
+    "_directory_entry",
     "_encode_call_result",
+    "_encode_dict",
+    "_encode_directory",
+    "_encode_list",
+    "_encode_locations",
+    "_encode_public_object",
     "_encode_response",
+    "_encode_stat_vfs",
     "_encode_statinfo",
     "_encode_status",
+    "_encode_tuple",
+    "_encode_vector_read",
+    "_encode_xrd_status",
     "_get",
     "_handle",
+    "_identity",
     "_is_status",
+    "_location_entry",
+    "_normalize_set_xattr",
+    "_normalize_vector_read",
+    "_object_encoder",
+    "_public_attribute",
     "_register",
     "_release",
     "_send",
     "_service",
     "_strip_shadow_paths",
+    "_vector_chunk",
     "main"
    ],
    "shard_implicit": [],
@@ -12732,12 +12923,24 @@
    "variables": []
   },
   "cli_pty": {
-   "classes": [],
+   "classes": [
+    "_Capture"
+   ],
    "constants": [
-    "TIMEOUT_S"
+    "TIMEOUT_S",
+    "_MARKER"
    ],
    "functions": [
-    "_drain_master",
+    "_disable_echo",
+    "_drain",
+    "_input_bytes",
+    "_read_chunk",
+    "_read_pty",
+    "_resize",
+    "_stream",
+    "_sync_size",
+    "_terminate",
+    "_window_size",
     "run_pipe",
     "run_pty"
    ],
@@ -12757,7 +12960,13 @@
    ],
    "functions": [
     "_call",
-    "_curl_code"
+    "_curl_code",
+    "_expression_1",
+    "_expression_2",
+    "_guard_kill_pidfiles_1",
+    "_phase_kill_pidfiles_1",
+    "_phase_kill_pidfiles_2",
+    "_phase_kill_pidfiles_3"
    ],
    "shard_implicit": [],
    "variables": []
@@ -12781,6 +12990,45 @@
    "shard_implicit": [],
    "variables": []
   },
+  "cmdscripts._pblock_meta_gsi": {
+   "classes": [
+    "_PblockMetaScenario"
+   ],
+   "constants": [],
+   "functions": [
+    "_integer_option",
+    "_meta_config",
+    "_meta_options",
+    "_meta_requirements",
+    "_p99_option",
+    "_proxy_option",
+    "pblock_meta_gsi"
+   ],
+   "shard_implicit": [
+    "BIND_HOST",
+    "CA_CERT",
+    "CA_DIR",
+    "HOST",
+    "LIBXRDC",
+    "LiveRun",
+    "PROTOLIB",
+    "PROXY_STD",
+    "Path",
+    "SERVER_CERT",
+    "SERVER_KEY",
+    "XRDDIAG",
+    "XRDFS",
+    "_PORTS",
+    "_build_meta_bench",
+    "_checks",
+    "_ensure_pki",
+    "os",
+    "subprocess",
+    "threading",
+    "time"
+   ],
+   "variables": []
+  },
   "cmdscripts.af_family_conf": {
    "classes": [],
    "constants": [
@@ -12788,6 +13036,7 @@
     "VALID_TOKENS"
    ],
    "functions": [
+    "_print_results",
     "check_token",
     "entry",
     "run_checks",
@@ -12803,6 +13052,11 @@
    ],
    "functions": [
     "_build_umbrella",
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
+    "_expression_5",
     "_mountinfo_opts",
     "_stat_errno",
     "_wait_gone",
@@ -12841,11 +13095,18 @@
     "_build_mkrepo",
     "_checks",
     "_client_link_libs",
+    "_compiler_arguments",
+    "_extend_unique",
     "_fuse3_flags",
     "_gcc",
+    "_is_umbrella",
+    "_link_dependencies",
     "_listing",
     "_make_repo",
     "_overlay_xattr",
+    "_package_exists",
+    "_package_libraries",
+    "_prepare_umbrella_dependencies",
     "_read",
     "_repo_env",
     "_serve",
@@ -12859,6 +13120,35 @@
    "shard_implicit": [],
    "variables": []
   },
+  "cmdscripts.brixcvmfs_live_overlay": {
+   "classes": [
+    "_OverlayScenario"
+   ],
+   "constants": [],
+   "functions": [
+    "overlay"
+   ],
+   "shard_implicit": [
+    "LiveRun",
+    "Path",
+    "REPO",
+    "_build_brixcvmfs",
+    "_build_mkrepo",
+    "_checks",
+    "_fuse3_flags",
+    "_listing",
+    "_make_repo",
+    "_overlay_xattr",
+    "_read",
+    "_repo_env",
+    "_serve",
+    "_unmount",
+    "_wait_mounted",
+    "os",
+    "time"
+   ],
+   "variables": []
+  },
   "cmdscripts.brixcvmfs_live_part2": {
    "classes": [],
    "constants": [
@@ -12866,10 +13156,18 @@
    ],
    "functions": [
     "_find_small_file",
+    "_inspect_atlas_entries",
+    "_inspect_atlas_entry",
+    "_mount_atlas",
+    "_negfilter_mount_probe",
+    "_negfilter_results",
+    "_read_atlas_file",
+    "_require_atlas",
+    "_sidecar_rewritten",
+    "_tamper_sidecar",
     "atlas_live",
     "clever_live",
-    "negfilter_live",
-    "overlay"
+    "negfilter_live"
    ],
    "shard_implicit": [
     "LiveSkip",
@@ -12880,7 +13178,6 @@
     "_fuse3_flags",
     "_listing",
     "_make_repo",
-    "_overlay_xattr",
     "_read",
     "_repo_env",
     "_serve",
@@ -12934,7 +13231,15 @@
     "X509_POLICY_SOURCES"
    ],
    "functions": [
+    "_compile_deleg_gate",
     "_coverage_link_flags",
+    "_deleg_forge_failure",
+    "_find_objs",
+    "_guard_run_deleg_gate_4",
+    "_guard_sanitizer_link_flags_1",
+    "_guard_sanitizer_link_flags_2",
+    "_guard_sanitizer_link_flags_3",
+    "_missing_objs",
     "_sanitizer_link_flags",
     "compile_and_run",
     "find_obj",
@@ -12961,6 +13266,8 @@
     "TPC_EXPIRY_FORGE"
    ],
    "functions": [
+    "_compile_sts_units",
+    "_compile_token_unit",
     "_run_token_unit",
     "run_aud_match",
     "run_deleg_find_eec",
@@ -12976,6 +13283,8 @@
     "GSI_EEC_FORGE",
     "HERMETIC_ENV",
     "X509_POLICY_SOURCES",
+    "_find_objs",
+    "_missing_objs",
     "compile_and_run",
     "find_obj",
     "pkg_config",
@@ -12991,6 +13300,7 @@
     "RUNNERS"
    ],
    "functions": [
+    "_print_results",
     "entry",
     "run_checks",
     "run_krb5_deleg_capture"
@@ -13025,6 +13335,9 @@
     "SPECS"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
     "addon",
     "coverage_flags",
     "entry",
@@ -13046,8 +13359,14 @@
    "functions": [
     "_cc",
     "_compile_and_run",
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
     "_find_obj",
     "_gcov_flags",
+    "_guard_sanitizer_flags_1",
+    "_guard_sanitizer_flags_2",
+    "_guard_sanitizer_flags_3",
     "_need_obj",
     "_nginx_includes",
     "_nm_has",
@@ -13069,11 +13388,15 @@
    "classes": [],
    "constants": [
     "DEFAULT_NGX_SRC",
+    "SD_HTTP_NGX_OBJS",
+    "SD_HTTP_OBJS",
     "SD_REMOTE_OBJS",
     "TEST_C"
    ],
    "functions": [
     "_brix_have_defines",
+    "_sd_http_objs",
+    "_sd_remote_objs",
     "chunk_geometry",
     "compression",
     "fd_kind",
@@ -13108,23 +13431,38 @@
    ],
    "functions": [
     "cvmfs_url_rewrite",
+    "decorator_cred_forward",
+    "digest_header",
     "entry",
     "gftp_parse",
+    "integrity_seed",
+    "oci_parse",
     "reservation",
     "run_checks",
+    "sd_http_copy",
+    "sd_http_digest",
     "sd_http_dir",
     "sd_http_mutate",
+    "sd_http_space",
+    "sd_http_xattr",
     "sd_mkdir_cred_forward",
+    "sd_remote_checksum",
     "sd_remote_opendir",
+    "sd_remote_opendir_cred",
     "sd_remote_rename",
     "sd_remote_server_copy",
-    "sd_remote_setattr"
+    "sd_remote_setattr",
+    "sd_remote_xattr_cred",
+    "sd_xroot_setattr"
    ],
    "shard_implicit": [
-    "SD_REMOTE_OBJS",
+    "SD_HTTP_NGX_OBJS",
     "_compile_and_run",
     "_find_obj",
+    "_need_obj",
     "_nginx_includes",
+    "_sd_http_objs",
+    "_sd_remote_objs",
     "cache_lock_reclaim",
     "chunk_geometry",
     "compression",
@@ -13167,6 +13505,7 @@
     "SPECS"
    ],
    "functions": [
+    "_prepare_unit_dirs",
     "entry",
     "run_checks",
     "run_one"
@@ -13190,6 +13529,10 @@
     "XRDCINFO"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
     "entry",
     "run_checks",
     "run_json",
@@ -13248,7 +13591,11 @@
    ],
    "functions": [
     "_checks",
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
     "_get",
+    "_guard_serve_evict_1",
     "_node_conf",
     "_origin_conf",
     "_seed",
@@ -13268,6 +13615,11 @@
     "XRDFS"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
+    "_guard_run_checks_1",
     "deterministic_bytes",
     "entry",
     "is_pblock",
@@ -13303,6 +13655,12 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
+    "_expression_5",
+    "_phase_run_checks_1",
     "build_dirty_marker",
     "deterministic_bytes",
     "entry",
@@ -13323,6 +13681,10 @@
     "XRDFS"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
     "deterministic_bytes",
     "entry",
     "run_checks",
@@ -13341,6 +13703,8 @@
     "XRDFS"
    ],
    "functions": [
+    "_negative_succeeded",
+    "_read_exact",
     "deterministic_bytes",
     "ensure_pki",
     "entry",
@@ -13354,6 +13718,17 @@
    "shard_implicit": [],
    "variables": []
   },
+  "cmdscripts.cache_source_helpers": {
+   "classes": [],
+   "constants": [],
+   "functions": [
+    "exact_transfer",
+    "start_servers",
+    "stop_servers"
+   ],
+   "shard_implicit": [],
+   "variables": []
+  },
   "cmdscripts.cache_stage_throttle": {
    "classes": [],
    "constants": [
@@ -13362,6 +13737,19 @@
     "XRDFS"
    ],
    "functions": [
+    "_df_percent",
+    "_exercise_throttles",
+    "_last_nonempty_line",
+    "_print_results",
+    "_reject_read_ok",
+    "_reject_results",
+    "_result_code",
+    "_start_throttle_instances",
+    "_stop_wait_process",
+    "_throttle_configurations",
+    "_wait_metric",
+    "_wait_result",
+    "_watermarks",
     "deterministic_bytes",
     "entry",
     "fetch_metrics",
@@ -13393,6 +13781,19 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_append_calm_results",
+    "_append_metric_results",
+    "_append_purge_results",
+    "_collect_results",
+    "_entry_arguments",
+    "_fetch_metrics",
+    "_instance_specs",
+    "_print_results",
+    "_read_log",
+    "_start_instances",
+    "_stop_instances",
+    "_wait_for_purge",
+    "_watermarks",
     "build_dirty_marker",
     "deterministic_bytes",
     "entry",
@@ -13433,6 +13834,12 @@
     "XRDFS"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
+    "_expression_5",
+    "_expression_6",
     "deterministic_bytes",
     "entry",
     "run_checks",
@@ -13472,9 +13879,25 @@
     "_PORTS"
    ],
    "functions": [
+    "_check_sidecar_cold",
+    "_check_sidecar_record",
+    "_check_sidecar_warm",
     "_checks",
+    "_curl_download",
+    "_download_exact",
+    "_exercise_offload",
+    "_exercise_remote_store",
+    "_make_directories",
+    "_offload_results",
+    "_prepare_offload",
+    "_prepare_remote_store",
+    "_prepare_sidecar_cell",
+    "_remote_store_results",
+    "_restart_sidecar_node",
     "_sidecar_cell",
+    "_start_sidecar_cell",
     "_tail_log",
+    "_write_sidecar_store_config",
     "cache_xroot_webdav_offload",
     "cachestore_sidecar",
     "main",
@@ -13490,9 +13913,13 @@
    ],
    "functions": [
     "_container_running",
+    "_copy_ceph_config",
     "_docker",
     "_ensure_pool",
     "_env",
+    "_expression_1",
+    "_expression_2",
+    "_start_ceph_container",
     "ceph_conf",
     "ceph_container",
     "ceph_dir",
@@ -13523,11 +13950,20 @@
     "RUNNERS"
    ],
    "functions": [
+    "_archive_source",
     "_container_running",
+    "_copy_build_credentials",
     "_cp_many",
     "_docker",
     "_docker_text",
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_guard_sd_ceph_cred_live_1",
     "_need_docker",
+    "_pack_source",
+    "_prepare_build_container",
+    "_step_build_in_container_1",
     "_tail",
     "build_in_container",
     "ceph_export_smoke",
@@ -13553,6 +13989,15 @@
     "USAGE_ERROR"
    ],
    "functions": [
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
+    "_expression_5",
+    "_journal_ok_count",
+    "_mirror_delete_usage",
+    "_phase_section_journal_2",
+    "_phase_section_mirror_delete_1",
+    "_proc_output",
     "_seed_src_tree",
     "_touch",
     "section_dryrun_filters",
@@ -13572,8 +14017,25 @@
     "_MANIFEST_LINE"
    ],
    "functions": [
+    "_check_diag_fixtures",
+    "_check_diag_fleet",
+    "_check_hostile_json",
+    "_check_local_tree",
+    "_check_manifest_algorithm",
+    "_check_manifest_creation",
+    "_check_manifest_escape",
+    "_check_manifest_tamper",
+    "_check_newline_name",
+    "_check_remote_tree",
+    "_create_newline_name",
+    "_manifest_lines",
+    "_rm_basic",
+    "_rm_symlink",
+    "_rm_verbose",
     "_spawn_tail",
+    "_valid_du_json",
     "_valid_json",
+    "_valid_stat_json",
     "_write_fixture",
     "section_cat_compress",
     "section_cksum_tree",
@@ -13596,6 +14058,10 @@
     "USAGE_ERROR"
    ],
    "functions": [
+    "_exit_code",
+    "_guard_run_sections_3",
+    "_guard_section_xrdfs_uring_1",
+    "_guard_section_xrdfs_uring_2",
     "_scenario",
     "main",
     "missing_binaries",
@@ -13618,12 +14084,29 @@
    ],
    "variables": []
   },
+  "cmdscripts.command_results": {
+   "classes": [],
+   "constants": [],
+   "functions": [
+    "_all_passed",
+    "print_results",
+    "selected_binary"
+   ],
+   "shard_implicit": [],
+   "variables": []
+  },
   "cmdscripts.compile_run": {
    "classes": [],
    "constants": [
     "REPO_ROOT"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_guard_sanitizer_link_flags_1",
+    "_guard_sanitizer_link_flags_2",
+    "_guard_sanitizer_link_flags_3",
     "compile_binary",
     "result",
     "run",
@@ -13638,6 +14121,9 @@
     "_CANDIDATES"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
     "container_runtime"
    ],
    "shard_implicit": [],
@@ -13647,6 +14133,9 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
     "entry",
     "run_checks"
    ],
@@ -13659,8 +14148,16 @@
     "SCENARIOS"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
     "_front_conf",
+    "_metric_paths",
     "_metric_sum",
+    "_phase_counters_1",
+    "_phase_counters_2",
+    "_prepare_metrics",
+    "_scrape_metrics",
+    "_start_metrics_front",
     "counters",
     "main"
    ],
@@ -13673,6 +14170,8 @@
     "WARN"
    ],
    "functions": [
+    "_print_results",
+    "_report_status",
     "entry",
     "nginx_test",
     "run_checks",
@@ -13689,6 +14188,10 @@
     "XRDFS"
    ],
    "functions": [
+    "_successful_content",
+    "_token_file_check",
+    "_transfer_check",
+    "_unauthenticated_fill_succeeded",
     "client_detail",
     "deterministic_bytes",
     "entry",
@@ -13710,6 +14213,9 @@
     "REPO_ROOT"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
     "curl_get",
     "deterministic_bytes",
     "entry",
@@ -13731,8 +14237,16 @@
     "XRDCP"
    ],
    "functions": [
+    "_exercise_write_through",
+    "_listening_failure",
     "_log_tail",
+    "_negative_write_result",
+    "_positive_write_result",
+    "_prepare_scenario",
+    "_print_results",
     "_put_diag",
+    "_start_services",
+    "_stop_services",
     "deterministic_bytes",
     "entry",
     "make_token",
@@ -13754,6 +14268,9 @@
     "XRDFS"
    ],
    "functions": [
+    "_data_plane_results",
+    "_prepare_proxy_parts",
+    "_read_matches",
     "entry",
     "run_checks",
     "same_bytes",
@@ -13775,6 +14292,10 @@
     "XRDCP"
    ],
    "functions": [
+    "_pem_blocks",
+    "_prepare_proxy",
+    "_private_key_blocks",
+    "_write_landed",
     "deterministic_bytes",
     "ensure_pki",
     "entry",
@@ -13798,6 +14319,8 @@
     "XRDFS"
    ],
    "functions": [
+    "_negative_succeeded",
+    "_read_exact",
     "deterministic_bytes",
     "entry",
     "make_token",
@@ -13816,6 +14339,17 @@
     "FQRN"
    ],
    "functions": [
+    "_check_clean_gc",
+    "_check_gc_basic_refusals",
+    "_check_gc_reflog",
+    "_check_gc_sweep",
+    "_check_missing_reflog",
+    "_check_sabotaged_gc",
+    "_check_tag_add_list",
+    "_check_tag_rollback",
+    "_check_tampered_history",
+    "_check_tampered_reflog",
+    "_check_unknown_tag",
     "build_history",
     "cas_names",
     "catalog_rows",
@@ -13839,6 +14373,24 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_check",
+    "_check_oversized_xattr",
+    "_check_subtree_counter",
+    "_counter_initial_publish",
+    "_counter_verify_nested",
+    "_fsck_negatives",
+    "_identity_fsck_and_oversized",
+    "_identity_mkfs",
+    "_identity_properties",
+    "_identity_publish",
+    "_identity_rows",
+    "_identity_xattrs",
+    "_marker_birth",
+    "_marker_dissolve",
+    "_valid_child_properties",
+    "_valid_child_stats",
+    "_write_bad_xattr",
+    "_xattr_equals",
     "check_counters_markers",
     "check_identity",
     "entry",
@@ -13925,6 +14477,14 @@
     "RUNNERS"
    ],
    "functions": [
+    "_compile_check_binaries",
+    "_exercise_check",
+    "_generate_wrong_key",
+    "_prepare_check",
+    "_print_driver_results",
+    "_run_check",
+    "_start_check_server",
+    "_stop_check_server",
     "brixcvmfs_check",
     "entry",
     "run_checks"
@@ -13965,6 +14525,15 @@
    ],
    "functions": [
     "_build_ingesttool",
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
+    "_expression_5",
+    "_expression_6",
+    "_expression_7",
+    "_expression_8",
+    "_expression_9",
     "_ingest",
     "_revision",
     "_root_catalog",
@@ -13984,11 +14553,15 @@
     "SCENARIOS"
    ],
    "functions": [
+    "_check_keepalive_1",
     "_checks",
     "_config",
     "_count_log",
     "_ctl",
+    "_expression_1",
+    "_expression_2",
     "_mock",
+    "_phase_keepalive_1",
     "connection_reuse",
     "failover",
     "keepalive",
@@ -14011,22 +14584,36 @@
    ],
    "functions": [
     "_bench_cell",
+    "_bench_checks",
+    "_bench_files",
+    "_bench_rate",
+    "_bench_results",
+    "_bench_settings",
+    "_brix_bench_result",
     "_brix_mount",
     "_concurrent_gets",
     "_curl_code_to",
     "_ensure_brixcvmfs",
     "_enumerate_files",
     "_fault",
+    "_fault_free_reads",
+    "_fault_free_requests",
+    "_fault_free_throughput",
     "_grep",
     "_metrics",
     "_mock",
     "_mock_stop",
     "_mval",
     "_objects",
+    "_proxy_stats",
     "_read_files",
     "_require",
+    "_require_bench_prerequisites",
     "_restart_nginx",
+    "_stock_bench_result",
     "_stock_cvmfs2_conf",
+    "_stop_proxy",
+    "_terminate_if_running",
     "_umount_wait",
     "_wait_mount_ready",
     "bench"
@@ -14041,6 +14628,23 @@
     "_PORTS"
    ],
    "functions": [
+    "_hold_404_check",
+    "_hold_config",
+    "_hold_detached_check",
+    "_hold_objects",
+    "_hold_outage_check",
+    "_hold_same_socket_check",
+    "_retry_same_connection",
+    "_reverse_cache_checks",
+    "_reverse_cardinality_check",
+    "_reverse_config",
+    "_reverse_dashboard_checks",
+    "_reverse_manifest_checks",
+    "_reverse_observability_checks",
+    "_reverse_repo_metric_checks",
+    "_reverse_security_checks",
+    "_start_delayed_mock",
+    "_start_reverse",
     "holdopen",
     "proxy",
     "reverse"
@@ -14065,6 +14669,16 @@
     "_PORTS"
    ],
    "functions": [
+    "_both_trace_lines",
+    "_compact_geo_answer",
+    "_geo_port_available",
+    "_histogram_present",
+    "_hit_count",
+    "_numeric_geo_item",
+    "_resilience_geo_checks",
+    "_resilience_sink",
+    "_resilience_stall_checks",
+    "_successful_stall_read",
     "resilience",
     "stock",
     "unified_origin",
@@ -14092,6 +14706,15 @@
     "_PORTS"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
+    "_expression_5",
+    "_expression_6",
+    "_expression_7",
+    "_expression_8",
+    "_phase_logging_1",
     "logging",
     "select",
     "selectlog"
@@ -14116,7 +14739,29 @@
     "_PORTS"
    ],
    "functions": [
+    "_brix_detail",
+    "_brix_fuse_available",
+    "_brix_print_failures",
+    "_brix_run_fuse",
+    "_brix_run_unit",
+    "_brix_run_units",
+    "_brix_status",
+    "_brix_summary",
+    "_evict_append_cinfo_check",
+    "_evict_prepare",
+    "_evict_test_config",
     "_fault_proxy_ctl",
+    "_fp_brix_result",
+    "_fp_enumerate",
+    "_fp_has_throughput",
+    "_fp_read_succeeded",
+    "_fp_require_tools",
+    "_fp_result_checks",
+    "_fp_set_rate",
+    "_fp_stock_result",
+    "_fp_sweep",
+    "_http_file_matches",
+    "_http_sha_matches",
     "brix_all",
     "evict",
     "faultproxy_bench",
@@ -14156,30 +14801,84 @@
     "MATRIX_PROFILES",
     "NETEM_PROFILES",
     "RESULT_KEYS",
-    "SCENARIOS",
     "_PORTS"
    ],
    "functions": [
-    "_matrix_cell",
-    "_module_conf_body",
+    "_hash_convention",
+    "_inflated_sha1",
     "_netem_usable",
-    "_render_results",
     "_require_root_netem",
     "_sh",
+    "_start_baseline",
     "_start_mock",
-    "_stop_pidfile",
+    "_start_squid",
+    "_start_varnish",
     "cvmfs_baselines",
     "lab_down",
     "lab_profile",
     "lab_status",
     "lab_up",
-    "main",
-    "matrix",
     "netem_lab",
     "run_baseline",
     "spike_cas_hash"
    ],
    "shard_implicit": [],
+   "variables": []
+  },
+  "cmdscripts.cvmfs_matrix_part2": {
+   "classes": [],
+   "constants": [
+    "SCENARIOS"
+   ],
+   "functions": [
+    "_append_result_rows",
+    "_baseline_matrix_cell",
+    "_matrix_cell",
+    "_module_conf_body",
+    "_module_proxy_runtime",
+    "_module_reverse_runtime",
+    "_module_runtime",
+    "_render_result_rows",
+    "_render_results",
+    "_result_row",
+    "_run_cell_harness",
+    "_stock_runtime",
+    "_stop_pidfile",
+    "main",
+    "matrix"
+   ],
+   "shard_implicit": [
+    "BASELINES_DIR",
+    "BIND_HOST",
+    "CVMFS_DIR",
+    "HOST",
+    "LiveFailure",
+    "LiveRun",
+    "LiveSkip",
+    "MATRIX_CACHES",
+    "MATRIX_PROFILES",
+    "NS",
+    "NS_IP",
+    "Path",
+    "REPO_ROOT",
+    "RESULT_KEYS",
+    "_PORTS",
+    "_require_root_netem",
+    "_start_mock",
+    "argparse",
+    "cvmfs_baselines",
+    "datetime",
+    "json",
+    "lab_down",
+    "lab_profile",
+    "lab_up",
+    "netem_lab",
+    "os",
+    "run_baseline",
+    "signal",
+    "spike_cas_hash",
+    "sys"
+   ],
    "variables": []
   },
   "cmdscripts.cvmfs_official_client": {
@@ -14197,12 +14896,30 @@
     "WALK_SH"
    ],
    "functions": [
+    "_check_hashes",
+    "_check_listing",
+    "_check_stats",
     "_check_walk",
+    "_check_xattrs",
+    "_client_directory",
     "_client_run",
+    "_directories_match",
     "_flip_byte",
+    "_hardlinks_match",
+    "_initialize_repo",
+    "_official_walk",
     "_populate",
+    "_probe_refused",
+    "_publish_repo",
+    "_publish_transaction",
+    "_record",
+    "_restored_mount_check",
     "_sections",
+    "_security_checks",
     "_serve",
+    "_sizes_match",
+    "_tamper_check",
+    "_wrong_key_check",
     "preflight",
     "run_checks"
    ],
@@ -14221,6 +14938,28 @@
    ],
    "functions": [
     "_mkfs",
+    "_record",
+    "_s4_check_file_row",
+    "_s4_check_first_catalog",
+    "_s4_check_initial_commands",
+    "_s4_check_second_catalog",
+    "_s4_create_fixture",
+    "_s4_first_publish",
+    "_s4_second_publish",
+    "_s4_tamper_and_abort",
+    "_s5_check_symlinks",
+    "_s5_create_fixture",
+    "_s5_first_publish",
+    "_s5_incremental",
+    "_s5_symlink_publish",
+    "_s6_bad_pattern",
+    "_s6_check_dissolved",
+    "_s6_dissolve",
+    "_s7_publish",
+    "_s7_read_chunk",
+    "_s7_reassemble",
+    "_s7_start",
+    "_s7_tamper",
     "_upper",
     "cas_path",
     "check_s4",
@@ -14258,8 +14997,20 @@
     "REPO_CLI_SOURCES"
    ],
    "functions": [
+    "_build_oracle_client",
     "_build_repotool",
+    "_build_tail",
+    "_check_info_and_resign",
+    "_check_mkfs",
+    "_check_repo_info",
+    "_check_repo_resign",
+    "_check_tamper_rejections",
+    "_exercise_oracle",
     "_flip_byte",
+    "_mint_oracle_repo",
+    "_print_results",
+    "_require_prebuilt_objects",
+    "_stop_server",
     "entry",
     "run_check_oracle",
     "run_checks"
@@ -14297,9 +15048,22 @@
    ],
    "functions": [
     "_build_driver",
+    "_cas_digest",
+    "_cas_objects",
+    "_cas_objects_agree",
     "_catalog_spec",
+    "_check_cas_case",
+    "_check_cas_objects",
+    "_check_catalog",
+    "_check_malformed_inputs",
+    "_check_manifest",
+    "_check_security_negatives",
+    "_check_whitelist",
     "_compare_catalogs",
+    "_compare_table",
+    "_print_results",
     "_row",
+    "_statistics_result",
     "_stored_hex",
     "_table_rows",
     "_tree",
@@ -14310,7 +15074,9 @@
    "variables": []
   },
   "cmdscripts.dashboard_demo_live": {
-   "classes": [],
+   "classes": [
+    "_DemoChecks"
+   ],
    "constants": [
     "DASH_GATE_PORT",
     "DASH_HOST_PORT",
@@ -14331,10 +15097,23 @@
     "_CHUNK"
    ],
    "functions": [
+    "_close_sink",
     "_dashboard_login_cookie",
+    "_demo_announcement",
+    "_demo_dashboard",
+    "_demo_gateway",
+    "_demo_roundtrip",
+    "_demo_seed",
+    "_demo_settings",
+    "_drain_download",
     "_ensure_gateway",
+    "_ensure_source",
+    "_feed_upload",
     "_listening",
+    "_open_sink",
     "_pace",
+    "_remaining_bytes",
+    "_same_file",
     "_say",
     "_spawn_generator",
     "_stop_previous_generator",
@@ -14353,6 +15132,19 @@
     "PASSWORD"
    ],
    "functions": [
+    "_check_access_guards",
+    "_check_census",
+    "_check_pblock_download",
+    "_check_pblock_listing",
+    "_check_posix_listing",
+    "_decode_json",
+    "_exercise_dashboard",
+    "_export_index",
+    "_has_directory",
+    "_json_body",
+    "_print_results",
+    "_seed_pblock",
+    "_valid_posix_entries",
     "curl",
     "curl_body",
     "curl_code",
@@ -14366,11 +15158,31 @@
    "variables": []
   },
   "cmdscripts.delegation_twostep": {
-   "classes": [],
+   "classes": [
+    "_Context",
+    "_FrontendStartError"
+   ],
    "constants": [
     "REPO_ROOT"
    ],
    "functions": [
+    "_make_context",
+    "_mint_failed",
+    "_parse_assignments",
+    "_pki_available",
+    "_print_results",
+    "_put_signed_proxy",
+    "_request",
+    "_result_code",
+    "_scenario_cross_identity",
+    "_scenario_disabled",
+    "_scenario_garbage",
+    "_scenario_sign_and_put",
+    "_scenario_unknown_id",
+    "_scenario_untrusted",
+    "_start_frontend",
+    "_stop_frontend",
+    "_untrusted_proxy_results",
     "curl",
     "delegation_id",
     "ensure_pki",
@@ -14403,6 +15215,10 @@
    "constants": [],
    "functions": [
     "_config",
+    "_expression_1",
+    "_guard_main_1",
+    "_phase_main_1",
+    "_phase_main_2",
     "install",
     "main"
    ],
@@ -14431,6 +15247,10 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_guard_main_1",
+    "_phase_main_1",
     "main"
    ],
    "shard_implicit": [],
@@ -14464,7 +15284,18 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_argument",
+    "_arguments",
+    "_audit_line",
+    "_configuration",
+    "_dispatch",
+    "_ensure_parent",
     "_load_config",
+    "_migrate",
+    "_purge",
+    "_recall",
+    "_request",
+    "_write_audit",
     "install",
     "main"
    ],
@@ -14480,9 +15311,33 @@
     "SAN"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
     "entry",
     "excerpt",
     "run_checks"
+   ],
+   "shard_implicit": [],
+   "variables": []
+  },
+  "cmdscripts.fwd_matrix_cell_a": {
+   "classes": [],
+   "constants": [],
+   "functions": [
+    "_backend_ready",
+    "_expected_identity",
+    "_negative",
+    "_positive",
+    "_positive_failure_detail",
+    "_positive_result",
+    "_prepare_cell",
+    "_root_front_blocks",
+    "_spawn_backend",
+    "_spawn_front",
+    "_supported",
+    "_token_failure_evidence",
+    "run_cell_a"
    ],
    "shard_implicit": [],
    "variables": []
@@ -14500,7 +15355,14 @@
    ],
    "functions": [
     "_call",
-    "_curl_code"
+    "_curl_code",
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
+    "_expression_5",
+    "_expression_6",
+    "_guard_call_1"
    ],
    "shard_implicit": [],
    "variables": []
@@ -14534,9 +15396,23 @@
    ],
    "functions": [
     "_c_backend_extra",
+    "_c_backend_location",
+    "_c_cell_supported",
+    "_c_davs_auth",
+    "_c_davs_front_config",
+    "_c_gap_reason",
+    "_c_negative",
+    "_c_positive",
+    "_c_root_auth",
+    "_c_root_front_config",
+    "_finish_pairing_c",
     "_outcome",
+    "_prepare_c_cell",
+    "_prepare_pairing_c",
+    "_record_c_positive_failure",
     "_run_cell_a",
     "_run_cell_c",
+    "_run_pairing_c_cells",
     "_spawn_a_front_davs",
     "_spawn_a_front_root",
     "_spawn_c_front",
@@ -14560,11 +15436,26 @@
     "_PROBE_CFG"
    ],
    "functions": [
+    "_cell_b_backend_auth",
+    "_cell_b_supported",
+    "_classify_token_probe",
+    "_drive_cell_b",
+    "_drive_token_probe",
+    "_exercise_relay",
     "_grep_tail",
+    "_prepare_relay",
+    "_print_probe_logs",
+    "_print_relay_results",
     "_probe_front_sec_block",
     "_probe_spawn_front",
     "_probe_variant",
+    "_record_cell_b_gap",
+    "_record_cell_b_result",
+    "_record_cell_b_user",
+    "_record_probe",
+    "_relay_checks",
     "_run_cell_b",
+    "_start_relay",
     "fwd_brix_xrootd",
     "fwd_xrootd_brix",
     "main",
@@ -14597,12 +15488,22 @@
     "_C_VOMS"
    ],
    "functions": [
+    "_expression_1",
+    "_guard_build_interop_run_plan_1",
+    "_guard_build_interop_run_plan_2",
+    "_guard_build_interop_run_plan_3",
+    "_guard_build_interop_run_plan_4",
     "_image_present",
+    "_missing_pki",
+    "_phase_run_1",
+    "_phase_run_2",
     "_pki_paths",
     "_render_gateway_conf",
     "_render_s3_conf",
     "_repo_root",
+    "_runtime_problem",
     "_skip",
+    "_start_gateways",
     "_stop_pidfile",
     "_substitute",
     "build_image",
@@ -14620,8 +15521,13 @@
     "_PORTS"
    ],
    "functions": [
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
+    "_expression_5",
     "_grep",
     "_pgwrite_gate_intact",
+    "_proxy_make_failure",
     "_result",
     "_skip",
     "_tagged",
@@ -14641,6 +15547,16 @@
     "_PORTS"
    ],
    "functions": [
+    "_check_valid_delegation",
+    "_curl_as",
+    "_delegation_identity",
+    "_delegation_paths",
+    "_delegation_stems",
+    "_http_code",
+    "_phase_delegation_upload_1",
+    "_start_delegation_front",
+    "_start_delegation_origin",
+    "_stop_delegation_front",
     "_write_delegation_front",
     "delegation_upload",
     "main"
@@ -14673,6 +15589,10 @@
    ],
    "functions": [
     "_backend_config",
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
     "_origin_config",
     "main",
     "run_port"
@@ -14690,6 +15610,7 @@
     "SRC"
    ],
    "functions": [
+    "_unchecked_multiply",
     "allocation_multiply_findings",
     "c_files",
     "entry",
@@ -14711,6 +15632,14 @@
     "HARD"
    ],
    "functions": [
+    "_accepted_path",
+    "_listed_paths",
+    "_loc_tier",
+    "_patterns",
+    "_strict_failures",
+    "_strict_result",
+    "_walk_patterns",
+    "_write_baseline",
     "entry",
     "in_scope",
     "is_exempt",
@@ -14725,27 +15654,98 @@
   },
   "cmdscripts.live_common": {
    "classes": [
-    "LiveFailure",
-    "LiveRun"
+    "LiveFailure"
    ],
    "constants": [
     "_FREEZE_ROOT",
     "_FROZEN_NGINX"
    ],
    "functions": [
+    "_cached_frozen_binary",
+    "_call_cwd",
+    "_call_environment",
+    "_call_stdin",
+    "_call_text_mode",
+    "_configured_nginx_modules",
+    "_copy_frozen_binary",
+    "_ensure_freeze_cache",
     "_fuse_mounts_under",
+    "_http_runtime_directives",
+    "_inject_http_runtime_directives",
+    "_kill_other_processes",
+    "_main_runtime_directives",
+    "_matches_source",
+    "_missing_module_directives",
+    "_nginx_error_detail",
     "_nginx_validates",
+    "_raise_call_failure",
     "_reap_fuse_mounts",
+    "_reap_port",
+    "_referencing_pids",
+    "_remove_if_present",
+    "_retry_frozen_copy",
     "_session_freeze_dir",
+    "_terminate_pidfiles",
+    "_terminate_processes",
+    "_unmount_fuse_points",
+    "_wait_for_fuse_unmount",
+    "_wait_processes",
     "freeze_nginx",
     "inject_nginx_load_modules",
-    "inject_nginx_runtime_paths",
+    "inject_nginx_runtime_paths"
+   ],
+   "shard_implicit": [],
+   "variables": []
+  },
+  "cmdscripts.live_common_runtime": {
+   "classes": [
+    "LiveRun"
+   ],
+   "constants": [],
+   "functions": [
+    "_pki_certificates_present",
+    "_pki_outcome",
+    "_pki_output",
+    "_pki_provisioning_command",
+    "_pki_ready",
+    "_proxy_fresh",
+    "_write_pki_log",
     "nginx_binary_from_args",
     "random_file",
     "refresh_shared_pki",
     "sha256"
    ],
-   "shard_implicit": [],
+   "shard_implicit": [
+    "AbstractContextManager",
+    "BIND_HOST",
+    "Iterable",
+    "LiveFailure",
+    "Path",
+    "REPO_ROOT",
+    "_call_cwd",
+    "_call_environment",
+    "_call_stdin",
+    "_call_text_mode",
+    "_nginx_error_detail",
+    "_raise_call_failure",
+    "_reap_fuse_mounts",
+    "_reap_port",
+    "_terminate_pidfiles",
+    "_terminate_processes",
+    "_wait_processes",
+    "freeze_nginx",
+    "hashlib",
+    "inject_nginx_load_modules",
+    "inject_nginx_runtime_paths",
+    "os",
+    "shutil",
+    "signal",
+    "subprocess",
+    "sys",
+    "tempfile",
+    "time",
+    "wait_tcp"
+   ],
    "variables": [
     "__all__"
    ]
@@ -14756,6 +15756,9 @@
     "TEST_ROOT"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_guard_start_dedicated_1",
     "_launcher",
     "_register",
     "_sanitize_env",
@@ -14775,6 +15778,8 @@
    ],
    "functions": [
     "_checks",
+    "_expression_1",
+    "_expression_2",
     "main",
     "nonstaged_reap",
     "sd_s3_meta",
@@ -14809,12 +15814,20 @@
     "_NONUTF8_BLOBS"
    ],
    "functions": [
+    "_asize_verdict",
     "_codec",
+    "_decode_bytes",
+    "_decoded_token",
+    "_encode_bytes",
+    "_encoded_token",
     "_hexval",
     "_hx",
+    "_known_schema_key",
     "_name",
     "_opaque",
+    "_percent_byte",
     "_schema",
+    "_schema_key_value",
     "_schema_segment",
     "dec_ref",
     "enc_ref",
@@ -14844,10 +15857,27 @@
     "UNRESERVED",
     "VECTORS",
     "_HARNESS_SRC",
-    "_KERNELS"
+    "_KERNELS",
+    "_VECTOR_BUILDERS"
    ],
    "functions": [
     "_parse",
+    "_parse_codec",
+    "_parse_name",
+    "_parse_opaque",
+    "_run_harness",
+    "_validated_output_lines",
+    "_vectors_01_02",
+    "_vectors_03_04",
+    "_vectors_05_07",
+    "_vectors_08_09",
+    "_vectors_10_11",
+    "_vectors_12_13",
+    "_vectors_14_15",
+    "_vectors_16_17",
+    "_vectors_18_19",
+    "_vectors_20_21",
+    "_vectors_22_22",
     "build_harness",
     "build_vectors",
     "run_all"
@@ -14882,11 +15912,26 @@
    "functions": [
     "_adler32",
     "_checks",
+    "_checksum_mismatches",
     "_client_env",
+    "_clients_available",
+    "_failed_labels",
     "_host_url",
+    "_http_cross_lane",
     "_missing_tools",
+    "_native_cross_lanes",
+    "_noauth_checksums",
+    "_noauth_cleanup",
+    "_noauth_create_files",
+    "_noauth_transfer",
+    "_parallel",
+    "_print_failed_labels",
     "_random_size",
     "_run_backend",
+    "_stress_download_commands",
+    "_stress_files",
+    "_stress_remove_commands",
+    "_stress_upload_commands",
     "_tag",
     "all_suites",
     "anon_port",
@@ -14903,6 +15948,28 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_command_tail",
+    "_compile_dynamic",
+    "_configure_dynamic",
+    "_copy_nginx_source",
+    "_coverage_steps",
+    "_dynamic_prerequisite",
+    "_entry_results",
+    "_exit_code",
+    "_first_failure",
+    "_missing_codec_dependencies",
+    "_print_results",
+    "_process_cmdline",
+    "_process_ids",
+    "_remove_control_files",
+    "_remove_data_lanes",
+    "_remove_state_directories",
+    "_run_build_steps",
+    "_signal_owned_processes",
+    "_signal_process",
+    "_stop_registered_servers",
+    "_teardown_refusal",
+    "_validate_dynamic",
     "brutal_teardown",
     "build_coverage",
     "build_dynamic_modules",
@@ -14926,22 +15993,33 @@
    "functions": [
     "_configure_nginx_modules",
     "_configure_suite_binaries",
+    "_default_modules",
     "_existing",
+    "_insert_stream_dependency",
+    "_is_test_server",
+    "_kill_remaining_processes",
+    "_kill_root_processes",
+    "_kill_stale_listeners",
+    "_module_candidates",
     "_nginx_modules_path",
     "_pgrep_name",
     "_popen",
     "_prepare_test_root",
     "_process_cmdline",
+    "_publish_modules",
     "_pytest_lane",
     "_raise_if_sentinel_tripped",
+    "_resolve_modules",
     "_resolve_suite_binary",
     "_run_stream",
     "_safe_kill",
     "_sentinel_marker",
     "_serial_lane",
+    "_signal_root_processes",
     "_suite_lane",
     "_suite_serial_lane",
     "_tail",
+    "_wait_for_processes",
     "_wait_tcp",
     "clean_test_fleet",
     "clear_sentinel_marker",
@@ -14956,10 +16034,36 @@
     "TESTS"
    ],
    "functions": [
+    "_append_load_tls",
+    "_consume_data_tls",
     "_generate_load_pki",
+    "_load_options",
+    "_load_paths",
+    "_load_target",
     "_openssl",
+    "_optional_parallel_lane",
+    "_optional_serial_lane",
+    "_prepare_load_paths",
+    "_render_load_configs",
+    "_report_sentinel_abort",
     "_setup_load_data",
+    "_start_load_nginx",
+    "_start_load_targets",
+    "_start_load_xrootd",
+    "_start_xrootd_process",
+    "_stop_load_nginx",
+    "_stop_load_processes",
+    "_suite_arguments",
+    "_suite_fast",
+    "_suite_full",
+    "_suite_nightly",
+    "_suite_parser",
+    "_suite_pr",
+    "_suite_prepare_environment",
+    "_suite_sample",
+    "_suite_selected_mode",
     "_wait_port_or_raise",
+    "_write_anon_load_config",
     "run_load",
     "run_suite"
    ],
@@ -14991,7 +16095,17 @@
     "TESTS"
    ],
    "functions": [
+    "_collapse_perf",
+    "_combined_folded",
+    "_flamegraph_dir",
+    "_flamegraph_settings",
+    "_load_profile_args",
+    "_record_load_pass",
+    "_record_perf",
+    "_render_flamegraph",
     "_vg_module_frame_hits",
+    "_wait_load_pids",
+    "_wait_master_exit",
     "_worker_pids_csv",
     "run_profile_lifecycle",
     "run_profile_load"
@@ -15010,6 +16124,34 @@
     "TESTS"
    ],
    "functions": [
+    "_direct_runner",
+    "_discard_master_log",
+    "_exercise_gsi",
+    "_exercise_jwt",
+    "_exercise_macaroon",
+    "_exercise_s3_metrics",
+    "_exercise_tpc",
+    "_exercise_valgrind",
+    "_graceful_worker_shutdown",
+    "_http_code",
+    "_kill_valgrind_processes",
+    "_prepare_valgrind_directories",
+    "_print_operator_results",
+    "_render_valgrind_config",
+    "_shutdown_valgrind",
+    "_start_valgrind",
+    "_summarize_valgrind",
+    "_summarize_valgrind_log",
+    "_valgrind_context",
+    "_valgrind_processes",
+    "_valgrind_required_files",
+    "_valgrind_requirements",
+    "_valgrind_values",
+    "_valid_valgrind_config",
+    "_vg_finished_missing",
+    "_vg_note",
+    "_wait_for_valgrind",
+    "_wait_for_worker",
     "entry",
     "run_checks",
     "run_valgrind"
@@ -15058,8 +16200,16 @@
    ],
    "functions": [
     "_checks",
+    "_checksum_value",
     "_ctl_set",
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
     "_lab_conf",
+    "_root_checksum_checks",
+    "_root_namespace_checks",
+    "_root_transfer_checks",
     "lab_conf",
     "pblock_lab_spec",
     "pblock_root",
@@ -15095,15 +16245,17 @@
    "functions": [
     "_build_meta_bench",
     "_ensure_pki",
+    "_pblock_lab_off",
+    "_pblock_lab_on",
     "main",
     "pblock_lab",
-    "pblock_meta_gsi",
     "selftest"
    ],
    "shard_implicit": [
     "_checks",
     "_ctl_set",
     "_lab_conf",
+    "pblock_meta_gsi",
     "pblock_root",
     "pblock_webdav",
     "pblock_writethrough"
@@ -15114,6 +16266,7 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_append_entries",
     "_log_path",
     "install",
     "main"
@@ -15139,8 +16292,11 @@
    "functions": [
     "_checks",
     "_dav_config",
+    "_expression_1",
+    "_guard_stage_reconcile_1",
     "_make_nodes",
     "_stream_config",
+    "_webdav_write_checks",
     "main",
     "metadata",
     "serve_offload",
@@ -15149,6 +16305,231 @@
     "webdav_write"
    ],
    "shard_implicit": [],
+   "variables": []
+  },
+  "cmdscripts.root_readonly_gateway": {
+   "classes": [
+    "Probe"
+   ],
+   "constants": [
+    "DISPATCH_WRITE_C",
+    "PUBLIC_FILE",
+    "PUBLIC_PAYLOAD",
+    "REPO",
+    "XROOTD_BIN"
+   ],
+   "functions": [
+    "_errmsg",
+    "_errnum",
+    "_fattr_body",
+    "_open_probe",
+    "_open_read",
+    "_send",
+    "_session",
+    "mutating_opcodes",
+    "probes",
+    "seed_tree",
+    "stop_nginx",
+    "tree_snapshot",
+    "write_brix_origin_config",
+    "write_gateway_config",
+    "write_xrootd_config"
+   ],
+   "shard_implicit": [],
+   "variables": [
+    "kXR_InvalidRequest",
+    "kXR_readv"
+   ]
+  },
+  "cmdscripts.root_readonly_gateway_deep": {
+   "classes": [],
+   "constants": [
+    "DISPATCH_DIR",
+    "FLAGS_H",
+    "OPCODES_H",
+    "OPEN_FLAGS_H",
+    "PATH_SHAPES",
+    "QUERY_CONFIG_C",
+    "QUERY_DISPATCH_C",
+    "SERVER_OWNED"
+   ],
+   "functions": [
+    "_append_failed_case",
+    "_bind_secondary",
+    "_check_public_query",
+    "_check_qconfig_key",
+    "_collect_readv_limits",
+    "_collect_startup_output",
+    "_digest_diff",
+    "_is_not_authorized",
+    "_mutation_worker",
+    "_open_decision",
+    "_open_option_words",
+    "_probe_bound_mkdir",
+    "_probe_bound_open",
+    "_probe_bound_stream_mode",
+    "_probe_bound_write",
+    "_probe_enabled_bound_stream",
+    "_probe_readv_geometry",
+    "_qconfig",
+    "_read_log_text",
+    "_read_public_chunks",
+    "_record_disabled_bind",
+    "_record_manager_conflict",
+    "_record_opcode_inventory",
+    "_record_opcode_result",
+    "_record_opcode_summary",
+    "_record_open_misses",
+    "_record_open_summary",
+    "_record_open_word",
+    "_record_path_query",
+    "_record_public_checksum",
+    "_record_public_namespace_reads",
+    "_record_public_stream",
+    "_record_read_opcode",
+    "_record_readv_capabilities",
+    "_record_restricted_query",
+    "_record_safe_qconfig",
+    "_record_unrouted_opcode",
+    "_record_withheld_qconfig",
+    "_record_write_opcode",
+    "_response_outcome",
+    "_run_mutation_workers",
+    "_run_public_read_surface",
+    "_run_readv_probe",
+    "_sweep_frame",
+    "_sweep_opcodes",
+    "_sweep_open_words",
+    "_table_of",
+    "_try",
+    "_try_manager_conf",
+    "check_bound_stream",
+    "check_integrity",
+    "check_manager_mode_is_refused_at_config_time",
+    "check_mutation_storm",
+    "check_opcode_space",
+    "check_open_option_space",
+    "check_override_is_logged",
+    "check_path_shapes",
+    "check_public_mode_is_still_read_only",
+    "check_public_mode_qconfig_is_filtered_per_key",
+    "check_public_mode_readv_tuning_survives",
+    "check_public_mode_restricts_introspection",
+    "check_public_mode_still_serves_data",
+    "check_query_subcodes",
+    "check_read_surface_intact",
+    "check_reload_persistence",
+    "check_session_ops_cannot_lift_the_gate",
+    "check_signed_mutation",
+    "check_unauthenticated_mutations",
+    "open_flag_values",
+    "open_write_mask",
+    "public_restricted_infotypes",
+    "qconfig_keys",
+    "query_subcodes",
+    "routed_opcodes",
+    "run_deep_checks",
+    "tree_digest",
+    "wire_opcodes"
+   ],
+   "shard_implicit": [],
+   "variables": []
+  },
+  "cmdscripts.root_readonly_gateway_part2": {
+   "classes": [
+    "_Rig"
+   ],
+   "constants": [
+    "DOC_PAGE"
+   ],
+   "functions": [
+    "_check_clone_refused",
+    "_check_control_is_not_refusing",
+    "_check_doc_block",
+    "_check_doc_configs_parse",
+    "_check_origin_untouched",
+    "_check_read_only_surface",
+    "_check_reads_work",
+    "_check_table_is_covered",
+    "_doc_nginx_blocks",
+    "_materialize_doc_config",
+    "_prepare_doc_work",
+    "_probe_request",
+    "_report_results",
+    "_run_probe",
+    "_run_probes",
+    "_start_gateway",
+    "_start_origin",
+    "_wait",
+    "entry",
+    "run_checks"
+   ],
+   "shard_implicit": [
+    "HOST",
+    "NGINX_BIN",
+    "PUBLIC_FILE",
+    "PUBLIC_PAYLOAD",
+    "Path",
+    "Probe",
+    "REPO",
+    "XROOTD_BIN",
+    "_errmsg",
+    "_errnum",
+    "_fattr_body",
+    "_open_read",
+    "_send",
+    "_session",
+    "cmdscript_ports",
+    "dataclass",
+    "field",
+    "kXR_NotAuthorized",
+    "kXR_chkpoint",
+    "kXR_chmod",
+    "kXR_clone",
+    "kXR_delete",
+    "kXR_dirlist",
+    "kXR_error",
+    "kXR_fattr",
+    "kXR_fattrList",
+    "kXR_fsReadOnly",
+    "kXR_link",
+    "kXR_mkdir",
+    "kXR_mv",
+    "kXR_new",
+    "kXR_ok",
+    "kXR_open",
+    "kXR_open_read",
+    "kXR_open_updt",
+    "kXR_pgwrite",
+    "kXR_prepare",
+    "kXR_read",
+    "kXR_rm",
+    "kXR_rmdir",
+    "kXR_setattr",
+    "kXR_stage",
+    "kXR_stat",
+    "kXR_symlink",
+    "kXR_sync",
+    "kXR_truncate",
+    "kXR_write",
+    "kXR_writev",
+    "mutating_opcodes",
+    "probes",
+    "re",
+    "run",
+    "seed_tree",
+    "shutil",
+    "socket",
+    "stop_nginx",
+    "struct",
+    "subprocess",
+    "tempfile",
+    "time",
+    "tree_snapshot",
+    "write_brix_origin_config",
+    "write_gateway_config",
+    "write_xrootd_config"
+   ],
    "variables": []
   },
   "cmdscripts.rpm_cvmfs_compose": {
@@ -15160,7 +16541,18 @@
    ],
    "functions": [
     "_brixrpm",
+    "_c2_check_new_view",
+    "_c2_republish",
+    "_c2_revision",
+    "_check_package_published",
+    "_check_snapshot",
+    "_corrupt_package",
     "_ingest",
+    "_materialise_directory",
+    "_materialise_file",
+    "_materialise_path",
+    "_names_integrity_failure",
+    "_package_named",
     "_seed_repo",
     "check_c1",
     "check_c2",
@@ -15180,6 +16572,10 @@
     "REPO_ROOT"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_phase_run_checks_1",
+    "_phase_run_checks_2",
     "deterministic_bytes",
     "entry",
     "make_token",
@@ -15281,6 +16677,11 @@
     "_PORTS"
    ],
    "functions": [
+    "_block_transfer_results",
+    "_frm_cat",
+    "_frm_recall_result",
+    "_report_results",
+    "_sha256_if_present",
     "block_data_plane",
     "deterministic_bytes",
     "entry",
@@ -15301,8 +16702,20 @@
     "SCENARIOS"
    ],
    "functions": [
+    "_both",
     "_checks",
+    "_cleanup_ktls",
+    "_file_mode",
+    "_interrupt_upload",
+    "_invalid_ktls_check",
+    "_ktls_cell",
+    "_ktls_config",
+    "_proxy_results",
+    "_record_ktls_mode",
+    "_start_ktls",
     "_stream_config",
+    "_tls_stat_value",
+    "_tls_tx_sw",
     "cache_af_family",
     "io_uring_backend",
     "ktls",
@@ -15357,7 +16770,23 @@
    ],
    "functions": [
     "_await_mount",
+    "_build_proxy_tools",
+    "_check_brix_connection",
+    "_check_direct_mount",
+    "_check_proxy_mount",
+    "_check_tunnel",
+    "_direct_proxy_environment",
     "_fusermount",
+    "_missing_fuse_development",
+    "_missing_fuse_device",
+    "_missing_fusermount",
+    "_missing_proxy_build_tool",
+    "_missing_proxy_library",
+    "_mount_environment",
+    "_proxy_build_specs",
+    "_proxy_env_unavailable",
+    "_proxy_fuse_flags",
+    "_run_proxy_checks",
     "_spawn_logged",
     "main",
     "proxy_env_live"
@@ -15385,6 +16814,18 @@
    ],
    "functions": [
     "_checks",
+    "_download_status",
+    "_head_status",
+    "_invalid_state_result",
+    "_plain_download_result",
+    "_poll_download",
+    "_print_stat_flags",
+    "_report_error_counts",
+    "_report_failed_recall",
+    "_report_glacier_failure",
+    "_report_locality",
+    "_report_recall_park",
+    "_report_simple_failure",
     "_tail_log",
     "_write_stagecmd",
     "exec_adapter",
@@ -15404,6 +16845,11 @@
    ],
    "functions": [
     "_backend_config",
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
+    "_expression_5",
     "_store_config",
     "_user_line",
     "main",
@@ -15421,6 +16867,17 @@
     "SCENARIOS"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_10",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
+    "_expression_5",
+    "_expression_6",
+    "_expression_7",
+    "_expression_8",
+    "_expression_9",
+    "_guard_remote_store_1",
     "_result",
     "main",
     "remote_evict",
@@ -15442,8 +16899,17 @@
    ],
    "functions": [
     "_checks",
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
+    "_guard_stage_async_remote_flush_1",
     "_origin_config",
+    "_phase_stage_async_remote_flush_1",
+    "_phase_stage_async_remote_flush_2",
     "_wait_flush",
+    "_wait_remote_flush",
+    "_wait_stage_drop",
     "instance_lifetime",
     "main",
     "root_slice_fill",
@@ -15457,6 +16923,10 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
     "entry",
     "run_checks"
    ],
@@ -15467,6 +16937,9 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_comparison_label",
+    "_differential_args",
+    "_usable_stock_port",
     "entry",
     "run_checks"
    ],
@@ -15483,11 +16956,22 @@
     "_PORTS"
    ],
    "functions": [
+    "_copied_file_ok",
     "_grep_last",
+    "_identity_file",
+    "_record_root_identity_failure",
+    "_record_root_negative",
+    "_record_root_positive_failure",
     "_root_cell_bb",
     "_root_cell_bs",
     "_root_cell_sb",
-    "_tpc_outcome"
+    "_root_copy_process",
+    "_root_destination_blocks",
+    "_root_token_unavailable",
+    "_start_root_bb",
+    "_token_root_tpc",
+    "_tpc_outcome",
+    "_webdav_copy_command"
    ],
    "shard_implicit": [],
    "variables": []
@@ -15500,6 +16984,16 @@
     "_PORTS"
    ],
    "functions": [
+    "_delegation_ports_ready",
+    "_expression_1",
+    "_expression_1_next",
+    "_expression_2",
+    "_expression_3",
+    "_guard_tpc_delegation_nginx_1",
+    "_guard_tpc_delegation_nginx_2",
+    "_phase_tpc_delegation_nginx_1",
+    "_run_delegation_case",
+    "_start_delegation_servers",
     "_webdav_cell_bb",
     "_webdav_cell_bb_gsi",
     "_webdav_cell_bs",
@@ -15523,6 +17017,7 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_print_results",
     "entry",
     "nginx_test",
     "run_checks",
@@ -15535,6 +17030,9 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
     "_run_nginx_test",
     "main",
     "run"
@@ -15549,6 +17047,8 @@
     "UNIT_DIR"
    ],
    "functions": [
+    "_guard_run_checks_1",
+    "_guard_run_checks_2",
     "entry",
     "pkg_config",
     "run_checks"
@@ -15584,6 +17084,7 @@
     "_learn_key",
     "_mint_ee",
     "_origin_conf",
+    "_process_holds_path",
     "_quiet",
     "_read",
     "_skip",
@@ -15609,7 +17110,27 @@
     "_PORTS"
    ],
    "functions": [
+    "_base_assert_async",
+    "_base_assert_audit",
+    "_base_assert_expired",
+    "_base_assert_replay",
+    "_base_assert_user_a",
+    "_base_assert_user_b_denied",
+    "_base_assert_user_b_fallback",
+    "_base_audit_has_principal",
+    "_base_audit_write_lines",
+    "_base_check_journal_replay",
+    "_base_directories",
+    "_base_front_start",
+    "_base_identity",
+    "_base_kill_front",
+    "_base_learn_credential",
+    "_base_master_pid",
+    "_base_report_bad_audit",
+    "_base_values",
+    "_base_wait_for_front",
     "_gsi_env",
+    "_prepare_base_state",
     "_root_front_conf",
     "base"
    ],
@@ -15651,6 +17172,21 @@
    ],
    "functions": [
     "_ns_front_conf",
+    "_prepare_root_state",
+    "_root_check_wrong_kind",
+    "_root_directories",
+    "_root_front_start",
+    "_root_identities",
+    "_root_learn_credential",
+    "_root_parse_checks",
+    "_root_service_auth_hits",
+    "_root_user_a_checksum",
+    "_root_user_a_dirlist",
+    "_root_user_a_move",
+    "_root_user_a_transfer",
+    "_root_user_b_denied",
+    "_root_values",
+    "_root_wrong_kind_denied",
     "root"
    ],
    "shard_implicit": [
@@ -15688,8 +17224,14 @@
     "_PORTS"
    ],
    "functions": [
+    "_guard_ns_1",
+    "_ns_credentials",
+    "_ns_paths",
     "_p2_dav_conf",
     "_p2_s3_conf",
+    "_phase_ns_1",
+    "_prepare_ns",
+    "_start_ns_front",
     "ns"
    ],
    "shard_implicit": [
@@ -15713,7 +17255,9 @@
    "variables": []
   },
   "cmdscripts.user_backend_cred_part5": {
-   "classes": [],
+   "classes": [
+    "_P2Scenario"
+   ],
    "constants": [
     "SCENARIOS",
     "SKIP",
@@ -15726,6 +17270,11 @@
     "_PORTS"
    ],
    "functions": [
+    "_make_p2_directories",
+    "_provision_multiuser_pki",
+    "_restore_environment",
+    "_run_multiuser_c_unit",
+    "_run_multiuser_pytest",
     "main",
     "multiuser_authz",
     "p2"
@@ -15792,17 +17341,28 @@
    ],
    "functions": [
     "_check_big_read",
+    "_check_cksum_offload",
     "_check_concurrent_handles",
     "_check_locate",
     "_check_mv",
     "_check_remote_mkdir",
+    "_check_space_delegation",
+    "_check_space_fallback",
     "_check_staged_subdir_write",
     "_check_stat_directory",
     "_check_statx",
     "_check_truncate",
+    "_cksum_offload_fallback",
+    "_cksum_offload_success",
     "_close",
+    "_log_matches",
     "_mkdir",
     "_open",
+    "_origin_log_lines",
+    "_parse_oss",
+    "_query_cksum",
+    "_query_info",
+    "_query_space",
     "_read",
     "_read_whole",
     "_session",
@@ -15865,8 +17425,18 @@
     "_b",
     "_ensure_sssadmin",
     "_find_sssadmin",
+    "_kill_configured_daemons",
+    "_kill_mesh_listeners",
+    "_kill_mesh_pidfiles",
     "_kill_pidfile_group",
+    "_list_listeners",
+    "_manager_ports_closed",
+    "_mesh_listener_pid",
+    "_pending_after_probe",
+    "_phase_build_all_1",
     "_probe_ready",
+    "_ready_wait_finished",
+    "_wait_manager_ports_closed",
     "build_all",
     "cfg_datanode",
     "cfg_dual",
@@ -15934,8 +17504,18 @@
     "_b",
     "_ensure_sssadmin",
     "_find_sssadmin",
+    "_kill_configured_daemons",
+    "_kill_mesh_listeners",
+    "_kill_mesh_pidfiles",
     "_kill_pidfile_group",
+    "_list_listeners",
+    "_manager_ports_closed",
+    "_mesh_listener_pid",
+    "_pending_after_probe",
+    "_phase_build_all_1",
     "_probe_ready",
+    "_ready_wait_finished",
+    "_wait_manager_ports_closed",
     "build_all",
     "cfg_datanode",
     "cfg_dual",
@@ -16003,8 +17583,18 @@
     "_b",
     "_ensure_sssadmin",
     "_find_sssadmin",
+    "_kill_configured_daemons",
+    "_kill_mesh_listeners",
+    "_kill_mesh_pidfiles",
     "_kill_pidfile_group",
+    "_list_listeners",
+    "_manager_ports_closed",
+    "_mesh_listener_pid",
+    "_pending_after_probe",
+    "_phase_build_all_1",
     "_probe_ready",
+    "_ready_wait_finished",
+    "_wait_manager_ports_closed",
     "build_all",
     "cfg_datanode",
     "cfg_dual",
@@ -16120,11 +17710,18 @@
     "_ensure_client_x509_env",
     "_external_fleet_attached",
     "_fleet_main_master_alive",
+    "_hash_large_file",
     "_ipv6_loopback_available",
+    "_large_file_digest",
+    "_publish_large_digest",
     "_reap_lost_fleet_before_clean",
+    "_report_existing_fleet",
     "_reset_session_tree_once",
     "_seed_canonical_data",
+    "_seed_random_file",
+    "_seed_text_file",
     "_should_skip_local_lifecycle",
+    "_write_large_file",
     "requires_ipv6_loopback",
     "requires_krb5"
    ],
@@ -16135,7 +17732,8 @@
     "_external_fleet",
     "_foreign_fleet_collision",
     "_pytest_config",
-    "_test_tree_wiped"
+    "_test_tree_wiped",
+    "collect_ignore"
    ]
   },
   "conftest_mu": {
@@ -16156,8 +17754,12 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_fleet_already_ready",
+    "_invocation_root",
+    "_missing_requested_paths",
     "_reap_leaked_test_servers",
     "_register_fleet",
+    "_requested_path",
     "_setup_session",
     "_start_all_resilient",
     "_stop_owned_fleet",
@@ -16189,24 +17791,37 @@
     "_SLOW_MODULE_HINTS"
    ],
    "functions": [
+    "_add_xdist_group",
+    "_apply_first_percent",
     "_autouse_specs_for",
     "_conftest_fixture_spec_map",
     "_conftest_fixture_specs_for",
+    "_declaration_cache_ready",
     "_declaration_violations",
     "_declare_disk_entry",
     "_declare_disk_files",
     "_declare_disk_store",
+    "_enforce_declarations_and_flush",
     "_enforce_server_declarations",
     "_flush_declare_cache",
+    "_fresh_usage",
+    "_has_xdist_group",
+    "_interop_module",
     "_is_slow_module",
     "_item_declared_specs",
     "_item_qualname",
+    "_mark_collection_item",
+    "_mark_interop_group",
+    "_mark_path_groups",
+    "_mark_remote_skip",
     "_module_test_usage",
+    "_needs_serial",
     "_read_module_source",
     "_required_specs_for",
     "_specs_to_boot",
     "_usage_from_row",
     "_usage_to_row",
+    "_valid_declare_cache",
     "pytest_collection_modifyitems",
     "pytest_configure"
    ],
@@ -16227,6 +17842,17 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_finish_worker_collection",
+    "_record_fleet_conservation",
+    "_record_orphans",
+    "_remove_test_root",
+    "_report_orphans",
+    "_skip_controller_collection",
+    "_skip_session_finish",
+    "_skip_xdist_fleet_start",
+    "_start_xdist_fleet",
+    "_stop_session_fleet",
+    "_wait_for_xdist_fleet",
     "_xdist_fleet_wait_seconds",
     "_xdist_worker_count",
     "pytest_collection_finish",
@@ -16251,6 +17877,25 @@
     "_xdist_collected_nodes",
     "_xdist_fleet_started"
    ]
+  },
+  "conftest_session_setup": {
+   "classes": [],
+   "constants": [],
+   "functions": [
+    "_create_pki_directories",
+    "_create_session_directories",
+    "_hash_file",
+    "_large_file_needs_writing",
+    "_prepare_fleet",
+    "_replace_directory",
+    "_seed_data",
+    "_seed_large_file",
+    "_write_large_file",
+    "setup_local_session",
+    "setup_remote_session"
+   ],
+   "shard_implicit": [],
+   "variables": []
   },
   "ephemeral_port": {
    "classes": [],
@@ -16278,12 +17923,40 @@
     "LIFECYCLE_MARKER"
    ],
    "functions": [
+    "_add_direct_settings",
+    "_add_settings_aliases",
+    "_append_class_usages",
+    "_append_module_function_usage",
+    "_append_usage",
+    "_assignment_marks",
+    "_attribute_name",
+    "_cached_scan",
+    "_class_constants",
     "_const_specs",
+    "_decorator_call_and_target",
     "_fixture_reachable_specs",
+    "_function_constants",
+    "_function_definitions",
     "_function_params",
+    "_has_lifecycle",
     "_is_autouse_fixture",
     "_is_fixture",
+    "_is_fixture_target",
+    "_is_pytestmark_assignment",
+    "_is_true_keyword",
+    "_marker_call",
+    "_marker_specs",
+    "_marker_values",
+    "_module_constants",
+    "_module_declarations",
+    "_parse_source",
+    "_resolve_callable",
+    "_resolve_calls",
+    "_resolve_definition",
+    "_root_fixture_specs",
+    "_scan_body",
     "_settings_bindings",
+    "_test_usage",
     "analyze_source",
     "backbone_specs",
     "conftest_fixture_spec_map",
@@ -16320,13 +17993,21 @@
    ],
    "functions": [
     "_ancestry",
+    "_bounded_hit",
+    "_candidate_pids",
     "_cmdline",
+    "_daemon_name_matches",
     "_declared_root",
     "_environ",
+    "_helper_matches",
     "_is_fleet_process",
     "_is_harness_cmd",
+    "_owned_command",
     "_owns",
+    "_pgrep_pids",
     "_ppid",
+    "_process_name",
+    "_signal_processes",
     "find_orphans",
     "kill_orphans",
     "lane_claimants",
@@ -16351,6 +18032,8 @@
    ],
    "functions": [
     "_band",
+    "_guard_primary_const_by_spec_1",
+    "_phase_primary_const_by_spec_1",
     "_port_constants",
     "_primary_const_by_spec",
     "band_of",
@@ -16414,6 +18097,10 @@
     "_chmod_quiet",
     "_force_rmtree",
     "_generator_stamps",
+    "_guard_regenerate_pki_3",
+    "_guard_regenerate_pki_4",
+    "_guard_run_1",
+    "_guard_run_2",
     "_make_token",
     "_missing_sentinels",
     "_restore_session_artifacts",
@@ -16599,9 +18286,20 @@
     "SEED_REL"
    ],
    "functions": [
+    "_bound_pid",
+    "_delay_block",
+    "_http_block",
+    "_kill_bound_processes",
     "_kill_pidfile_group",
+    "_line_uses_mesh_port",
+    "_localroot_block",
     "_p",
+    "_pending_probes",
+    "_probe_ready",
+    "_pss_block",
+    "_socket_table",
     "_tmp",
+    "_wait_ports_closed",
     "_xrd_cfg",
     "build_all",
     "cfg_node_a",
@@ -16623,6 +18321,7 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_expression_1",
     "main"
    ],
    "shard_implicit": [],
@@ -16708,6 +18407,7 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_encode_oid_part",
     "der_length",
     "der_oid",
     "der_sequence",
@@ -16781,6 +18481,10 @@
     "_entries",
     "_load_cert",
     "_load_key",
+    "_request_nonce",
+    "_revocation_fields",
+    "_unauthorized_response",
+    "_wrong_nonce",
     "main"
    ],
    "shard_implicit": [],
@@ -16816,6 +18520,10 @@
     "_CONFORMANCE_FILES"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
     "_raw_handshake",
     "_read_response",
     "_recv_exact",
@@ -16876,6 +18584,9 @@
    ],
    "functions": [
     "_env_path",
+    "_guard_start_nginx_1",
+    "_guard_start_nginx_2",
+    "_guard_start_nginx_3",
     "force_stop_nginx",
     "start_nginx",
     "stop_nginx"
@@ -16900,6 +18611,8 @@
    "classes": [],
    "constants": [],
    "functions": [
+    "_directory_directive",
+    "_prepare_runas_paths",
     "ref_launch",
     "ref_runas_user",
     "start_ref_instance",
@@ -16927,6 +18640,13 @@
     "_CLK_TCK"
    ],
    "functions": [
+    "_direct_xrd_library",
+    "_ldconfig_line_library",
+    "_ldconfig_xrd_library",
+    "_library_below",
+    "_listener_port",
+    "_pid_field",
+    "_pids_in_text",
     "find_xrd_library",
     "find_xrd_sec_lib",
     "have_cmd",
@@ -16985,18 +18705,40 @@
     "_LOAD_ROOT"
    ],
    "functions": [
+    "_add_suite",
+    "_add_webdav_auth",
     "_apply_brix_gsi_env",
     "_brix_read_worker",
     "_brix_write_worker",
+    "_build_target_suites",
     "_cleanup_write_files",
+    "_cooldown",
+    "_execute",
     "_make_bearer_token",
+    "_parser",
+    "_print_run_settings",
     "_read_args_dav",
+    "_read_args_s3",
     "_read_args_xrd",
+    "_read_suites",
+    "_run_both",
+    "_run_interleaved",
+    "_run_single",
+    "_run_suite_level",
+    "_s3_enabled",
     "_safe_run",
+    "_save_both",
+    "_suite_context",
+    "_suite_wanted",
+    "_target_urls",
+    "_token_enabled",
+    "_url_enabled",
     "_webdav_read_worker",
     "_webdav_write_worker",
     "_write_args_dav",
+    "_write_args_s3",
     "_write_args_xrd",
+    "_write_suites",
     "build_suites",
     "main",
     "print_comparison",
@@ -17038,7 +18780,18 @@
     "_LOAD_ROOT"
    ],
    "functions": [
+    "_add_suite",
     "_cleanup_write_files",
+    "_read_args_s3",
+    "_read_suites",
+    "_s3_enabled",
+    "_suite_context",
+    "_suite_wanted",
+    "_target_urls",
+    "_token_enabled",
+    "_url_enabled",
+    "_write_args_s3",
+    "_write_suites",
     "build_suites",
     "print_comparison",
     "save_json",
@@ -17075,6 +18828,16 @@
     "_LOAD_ROOT"
    ],
    "functions": [
+    "_build_target_suites",
+    "_cooldown",
+    "_execute",
+    "_parser",
+    "_print_run_settings",
+    "_run_both",
+    "_run_interleaved",
+    "_run_single",
+    "_run_suite_level",
+    "_save_both",
     "main",
     "run_cli",
     "url_host"
@@ -17116,7 +18879,8 @@
     "S3_SECRET_KEY",
     "TOKEN_DIR",
     "XRDCP",
-    "_STREAM_PROTOCOLS"
+    "_STREAM_PROTOCOLS",
+    "_SUPPORT_CHECKS"
    ],
    "functions": [
     "_cert",
@@ -17125,10 +18889,18 @@
     "_http_server_extra",
     "_indent",
     "_key",
+    "_known_axis",
+    "_remove_output",
+    "_root_token_transport",
+    "_run_root_client",
+    "_s3_auth",
+    "_s3_http_origin",
+    "_secure_transport",
     "_spec",
     "_storage",
     "_stream_auth",
     "_stream_tls",
+    "_webdav_gsi_transport",
     "expand",
     "make_node",
     "sigv4_headers",
@@ -17177,7 +18949,11 @@
     "ROOT_TOKEN"
    ],
    "functions": [
+    "_migrate_path",
+    "_read_path",
+    "_report_summary",
     "_swap",
+    "_write_migration",
     "is_group_b",
     "main",
     "migrate_text"
@@ -17227,7 +19003,11 @@
    "functions": [
     "_det",
     "_entry_is_stale",
+    "_guard_reset_to_seeded_tree_2",
+    "_guard_wipe_stale_working_files_1",
     "_nobody_ids",
+    "_phase_reset_to_seeded_tree_1",
+    "_reset_one_tree",
     "_seed_file",
     "_wait",
     "_wipe_stale_working_files",
@@ -17260,7 +19040,14 @@
     "_IMPORT_TIME"
    ],
    "functions": [
+    "_chown_one",
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
     "_kill_proc",
+    "_mirror",
+    "_phase_chown_stock_1",
+    "_phase_harmonize_perms_2",
     "_wait_both",
     "central_pair",
     "chown_stock",
@@ -17302,6 +19089,9 @@
     "USER_SUBJECT"
    ],
    "functions": [
+    "_link_ca_hashes",
+    "_make_crl_if_available",
+    "_reset_pki_tree",
     "_run",
     "_symlink",
     "_write",
@@ -17322,6 +19112,12 @@
     "TOTAL_PORT_COUNT"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_expression_3",
+    "_expression_4",
+    "_expression_5",
+    "_guard_rebase_settings_1",
     "_port",
     "placeholder_port",
     "rebase_cmdscripts",
@@ -17329,6 +19125,57 @@
     "rebase_named_ports",
     "rebase_settings"
    ],
+   "shard_implicit": [],
+   "variables": []
+  },
+  "python_quality_lib": {
+   "classes": [
+    "Function",
+    "Report",
+    "Score",
+    "_FunctionCollector"
+   ],
+   "constants": [
+    "LIMITS",
+    "ROOT",
+    "SCAN_ROOTS"
+   ],
+   "functions": [
+    "_functions",
+    "_git_files",
+    "_is_python_candidate",
+    "_normalized",
+    "_score_file",
+    "_walk_files",
+    "python_files",
+    "score_repository",
+    "source_scores",
+    "violations"
+   ],
+   "shard_implicit": [],
+   "variables": [
+    "Number"
+   ]
+  },
+  "python_quality_paths": {
+   "classes": [
+    "NPathScorer",
+    "_Flow"
+   ],
+   "constants": [],
+   "functions": [
+    "_decision_weight",
+    "_expression_decisions"
+   ],
+   "shard_implicit": [],
+   "variables": []
+  },
+  "python_quality_structural": {
+   "classes": [
+    "NestingScorer"
+   ],
+   "constants": [],
+   "functions": [],
    "shard_implicit": [],
    "variables": []
   },
@@ -17342,6 +19189,12 @@
    ],
    "functions": [
     "_clear_foreign_fleet",
+    "_guard_reap_test_servers_1",
+    "_guard_run_root_handoff_2",
+    "_guard_run_root_handoff_3",
+    "_guard_run_root_handoff_4",
+    "_guard_run_root_handoff_5",
+    "_guard_run_root_handoff_6",
     "_pick_nginx",
     "_reap_test_servers",
     "_run_in_place",
@@ -17413,6 +19266,8 @@
    ],
    "functions": [
     "_caller_site",
+    "_expression_1",
+    "_marked_specs",
     "build_manifest",
     "clear_registry",
     "declared_ports",
@@ -17724,7 +19579,6 @@
     "ROOT",
     "_AV_ALLOW",
     "_AV_PATTERN",
-    "_CCN_BACKLOG",
     "_CLIENT_ALLOWLIST",
     "_CLIENT_EXCUSED_DIRS",
     "_CLIENT_SCAN",
@@ -17739,12 +19593,31 @@
     "_TODO_PATTERN"
    ],
    "functions": [
+    "_auth_verdict_hits",
+    "_auth_verdict_message",
+    "_client_object_stem",
     "_client_tree",
+    "_config_allowlist_messages",
+    "_config_tree",
+    "_config_unbuilt",
     "_gate_rows",
+    "_http_check_messages",
+    "_http_file_messages",
+    "_http_matches",
+    "_included_client_sources",
     "_is_comment_line",
+    "_metric_file_messages",
+    "_metric_line_messages",
+    "_metric_names",
+    "_named_in_makefile",
+    "_owner_includes",
     "_read",
     "_read_backlog",
+    "_stale_client_allowlist",
+    "_stale_config_messages",
     "_todo_counts",
+    "_todo_directory_counts",
+    "_unbuilt_client_sources",
     "auth_verdict_sentinel",
     "client_build_coverage",
     "complexity",
@@ -17763,6 +19636,7 @@
    "constants": [],
    "functions": [
     "load",
+    "load_numbered",
     "reexport"
    ],
    "shard_implicit": [],
@@ -17873,7 +19747,53 @@
    "constants": [],
    "functions": [
     "_copy_value",
+    "_store_tpc_value",
+    "_tpc_pair",
     "parse_tpc_opaque"
+   ],
+   "shard_implicit": [],
+   "variables": []
+  },
+  "ts5_ast_checks": {
+   "classes": [],
+   "constants": [
+    "DEFINITIONS",
+    "MODULE_NAMES"
+   ],
+   "functions": [
+    "_address_host",
+    "_allowed_literal",
+    "_argument_names",
+    "_definition_rows",
+    "_differing_problem",
+    "_file_missing_names",
+    "_first_problem",
+    "_import_names",
+    "_invented_problem",
+    "_loaded_names",
+    "_lost_problem",
+    "_named_call_argument",
+    "_parsed_files",
+    "_server_address",
+    "_server_call_host",
+    "_settings_imports",
+    "_settings_seen",
+    "_shape_problem",
+    "_shared_bound_names",
+    "_stored_names",
+    "_wrong_settings_problem",
+    "assigned_literal",
+    "binding_problem",
+    "body_hashes",
+    "bound_names",
+    "literal_call_problems",
+    "missing_name_groups",
+    "missing_names",
+    "move_problem",
+    "server_bindings",
+    "settings_import_problem",
+    "substring_matches",
+    "top_level_body_hashes"
    ],
    "shard_implicit": [],
    "variables": []
@@ -17966,6 +19886,9 @@
     "_SRV"
    ],
    "functions": [
+    "_expression_1",
+    "_expression_2",
+    "_guard_run_1",
     "_our_verdict",
     "_server_cert",
     "_write_findings",
@@ -17987,6 +19910,16 @@
     "HOST"
    ],
    "functions": [
+    "_append_divergences",
+    "_divergent_rows",
+    "_evaluate_case",
+    "_evaluate_cases",
+    "_findings_header",
+    "_load_davs_cases",
+    "_print_mismatches",
+    "_report_result",
+    "_start_reference_server",
+    "_stop_servers",
     "_write",
     "_xrootd_bin",
     "main",

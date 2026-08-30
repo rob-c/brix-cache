@@ -310,7 +310,9 @@ recording so they aren't re-attempted without new information:
 `http_transport.c`/`pelican.c`/`pelican_register.c` (~1,167 LOC) were also
 explicitly kept: `sd_http` lacks their GSI-mTLS/Digest/Pelican
 director-discovery features, so deleting them would have removed real
-capability, not just duplication.
+capability, not just duplication. (The Digest half of that gap closed later —
+`sd_http` now implements the `query_checksum` slot over RFC-3230
+`Want-Digest`/`Digest`; see storage-backend-drivers-deep-dive §4.5.)
 
 ### 2.5 Legacy directive removal — the "remove the table entry" technique
 

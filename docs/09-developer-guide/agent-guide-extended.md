@@ -97,6 +97,34 @@ entry or raises an allowance against the PR's base. Never resolve a red
 `check_file_size` / `check_complexity` / `check_todo_fixme` by appending to its
 backlog; split the file, cut the complexity, remove the marker.
 
+**A C regression unit's LINK CLOSURE is part of the build, and two traps live
+there:**
+
+- **Never stub a function defined by an nginx object the unit already links.**
+  Adding `digest_header.o` (it decodes base64 via `ngx_decode_base64`) to the
+  `sd_http` closure pulled in `objs/src/core/ngx_string.o`, `ngx_palloc.o` and
+  `ngx_alloc.o`, which then collided with the hand-copied `ngx_strncasecmp` /
+  `ngx_cpystrn` in three test files. Delete the copies — never drop the real
+  object. The closure is `SD_HTTP_OBJS` + `SD_HTTP_NGX_OBJS` in
+  `tests/cmdscripts/c_regression_units_part2.py`.
+- **Adding an optional slot to a leaf driver changes the closure of every unit
+  that builds that driver's instance.** The driver TABLE names the new symbol, so
+  suites exercising unrelated slots stop linking. Run `grep -rn "<driver>.o"
+  tests/cmdscripts/` before assuming the new suite is the only one to touch.
+
+**Code behind an "absent" optional dependency is still verifiable — LOOK FIRST,
+and usually the dependency is not absent.** `librados`/`libradosstriper` are not
+installed on this host, but the ceph-build image's layers are: `find
+~/.local/share/containers/storage/overlay -name librados.h` yields the real 3.0
+headers, and the same layer's `usr/lib64/librados.so` links when paired with
+`usr/lib64/ceph/libceph-common.so.2` (rpath both). Both ceph live tests then build
+under `-Wall -Wextra -Werror` and run to their init-time FATAL. Only if no such
+layer exists: stub the header in the scratchpad, syntax-check EVERY TU of the
+family in BOTH modes (nginx headers, and the docker-lab `-DXRDPROTO_NO_NGX
+-include client/apps/ceph/ngx_shim.h`), then generate a stub `.c` of no-op
+definitions and LINK against it — a syntax check alone misses a missing
+definition. Never leave a slot unwritten merely because the lab is not running.
+
 ---
 
 ## CODE STYLE headlines (full text)
@@ -159,6 +187,34 @@ Full mapping: [phase-66-map.tsv](../refactor/phase-66-map.tsv).
 | OCI Distribution `/v2/` (mirror + registry) | http | `src/protocols/oci/oci_module.c`→`oci_gate.c`→`oci_mirror.c` / `oci_registry.c` | tests 14100–14212 |
 | RPM repository mirror (`brix_rpm_mirror`) | http | `src/protocols/rpm/rpm_module.c`→`rpm_gate.c`→`rpm_mirror.c` (warm prefetch: `rpm_repomd.c`→`rpm_prefetch.c`) | tests 14170–14176 |
 | `/metrics` | http | `src/observability/metrics/stream.c`/`writer.c` | 9100 |
+
+## FINDING CODE (symbol → file)
+
+Use the OP→FILE tables below first — they answer "which file owns this
+operation" in one hop. For a **symbol** (a function, struct or macro), the tree
+is the index; there is no side-car to consult and none to keep current:
+
+```bash
+rg -n 'brix_vfs_truncate_path' src/ client/ shared/   # every mention, ranked by you
+rg -n --type c '^\w[\w \*]*brix_sd_space' src/       # definitions only (start of line)
+rg -l 'brix_metric_cache_evicted' src/ | head          # which files participate
+```
+
+For anything `rg` answers ambiguously — a macro-generated name, a slot reached
+through a vtable, the callers of an overloaded helper — use **clangd**, which
+resolves the real translation unit:
+
+```bash
+python3 tools/clangd/gen_compile_commands.py    # after any ./configure or src/ reorg
+```
+
+That writes a 1,300-entry `compile_commands.json` at the repo root (gitignored)
+by reading the flags back out of `/tmp/nginx-1.28.3/objs/Makefile` and
+`client/Makefile`, so an editor's clangd gets exact per-file flags for both
+builds; the committed `.clangd` supplies the same include set as a fallback for
+files not yet in the database. **Regenerate it after a `./configure` or any
+`src/` reorganisation** — a stale database silently points every query at paths
+that no longer exist, which is indistinguishable from "the symbol is gone".
 
 ## OP→FILE (search keywords → get files)
 
@@ -276,6 +332,23 @@ does not restore them. Recovery: reconfigure `/tmp/nginx-1.28.3` with the canoni
 line above, `make -j`, `make clean && make -j` in `client/`, and delete the stray
 `*.gcno`/`*.gcda`; verify with `objs/nginx -V` (canonical `configure arguments`, no
 `--coverage`).
+
+**Adding a lifecycle server spec means REBASING the port ladder, not picking a
+port.** The literal ports in `tests/fleet_ports_shared_waves.py` and the other
+lifecycle ledgers are assigned programmatically by
+`port_ladder.rebase_lifecycle_ledger`, so "a free port number" is meaningless. The
+procedure: add the ledger entry (any placeholder port), bump
+`LIFECYCLE_SHARED_WIDTH` in `tests/port_ladder.py` with a dated tranche comment,
+shift EVERY downstream lane offset by the same delta (running sum:
+`LIFECYCLE_EXCLUSIVE`, `CMDSCRIPTS`, `CMS_MESH`, `HYBRID_MESH`, `PLACEHOLDERS`,
+`CVMFS_CONFORMANCE`, `INTEROP_WORKER`) and `PORT_COUNT`, then run
+`tests/test_fleet_ports.py`.
+
+**`tools/ci/check_python_quality.py` applies the npath/halstead/cognitive contract
+to `tests/` and `tests/cmdscripts/` as well as to `src/`** — decompose a new test
+body into `_check_*` helpers up front, the style the pblock lab files already use.
+Retrofitting a green test to satisfy the contract afterwards is the expensive
+order.
 
 ## RECIPES
 **New WebDAV method:** `src/protocols/webdav/<op>.c` → declare `webdav.h` → register `dispatch.c` → update Allow header test → `make` → 3 tests

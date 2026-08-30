@@ -111,6 +111,9 @@ ssize_t sd_pblock_copy_range(brix_sd_obj_t *src, off_t src_off,
     brix_sd_obj_t *dst, off_t dst_off, size_t len);
 ngx_fd_t sd_pblock_read_sendfile_fd(brix_sd_obj_t *obj, off_t off, size_t len,
     unsigned want_zerocopy);
+/* Advisory readahead hint across the range's block files (len == 0 ⇒ to EOF). */
+ngx_int_t sd_pblock_read_advise(brix_sd_obj_t *obj, off_t off, size_t len,
+    int advice);
 /* Block-aware truncate; also the object-open O_TRUNC path in the core. */
 ngx_int_t sd_pblock_ftruncate(brix_sd_obj_t *obj, off_t len);
 ngx_int_t sd_pblock_fsync(brix_sd_obj_t *obj);

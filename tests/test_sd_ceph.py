@@ -23,7 +23,8 @@ def _guard_ceph_map_bin_1(cc):
         pytest.skip("no C compiler")
 
 def _guard_ceph_map_bin_2():
-    if not (os.path.exists(SRC) and os.path.exists(COMPAT) and os.path.exists(TEST)):
+    if not (os.path.exists(SRC) and os.path.exists(COMPAT)
+            and os.path.exists(META) and os.path.exists(TEST)):
         pytest.skip("sd_ceph sources missing")
 
 def _guard_ceph_map_bin_3(r):
@@ -40,6 +41,10 @@ SRC = os.path.join(RADOS, "sd_ceph.c")
 # (split out of sd_ceph.c); it must be linked too or the CEPH-off build fails
 # with undefined references to sd_ceph_oid_*.
 COMPAT = os.path.join(RADOS, "sd_ceph_compat.c")
+# sd_ceph_meta.c defines sd_ceph_ck_crc32c_hex OUTSIDE its BRIX_HAVE_CEPH gate
+# precisely so the checksum-offload conditioning is pinned here, with no cluster
+# and no librados: with the gate off this TU compiles to that one pure function.
+META = os.path.join(RADOS, "sd_ceph_meta.c")
 TEST = os.path.join(RADOS, "sd_ceph_unittest.c")
 
 
@@ -51,7 +56,7 @@ def ceph_map_bin(tmp_path_factory):
     out = str(tmp_path_factory.mktemp("sdceph") / "ut")
     r = subprocess.run(
         [cc, "-Wall", "-Wextra", "-Werror", "-I", RADOS, "-I", BACKEND,
-         SRC, COMPAT, TEST, "-o", out],
+         SRC, COMPAT, META, TEST, "-o", out],
         capture_output=True, text=True)
     _guard_ceph_map_bin_3(r)
     return out

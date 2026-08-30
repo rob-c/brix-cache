@@ -27,7 +27,8 @@
  * list so a reload re-registers cleanly. */
 void
 brix_vfs_backend_config_http(const char *root_canon, const char *host,
-    int port, int tls, const char *base_path, int put_checksum)
+    int port, int tls, const char *base_path,
+    const brix_vfs_http_origin_opts_t *opts)
 {
     brix_vfs_backend_entry_t *e;
 
@@ -42,7 +43,14 @@ brix_vfs_backend_config_http(const char *root_canon, const char *host,
     }
     e->n_http_extra = 0;                       /* reload resets the T11 list */
     brix_vfs_backend_set_origin(e, host, port, tls, base_path ? base_path : "",
-                                put_checksum);
+                                (opts != NULL) ? opts->put_checksum : 0);
+    /* Cleared on every registration, not only when a base is present: a reload
+     * that DROPS "?tape_api=" must leave the export plain http, not silently
+     * nearline from the previous cycle. */
+    e->origin_tape_api[0] = '\0';
+    if (opts != NULL && opts->tape_api != NULL && opts->tape_api[0] != '\0') {
+        VFS_BE_STR(e, origin_tape_api, opts->tape_api);
+    }
 }
 
 /* 1 iff `data`/`len` starts with an http:// or https:// scheme. */
@@ -232,7 +240,20 @@ vfs_parse_http_origin_list(ngx_conf_t *cf, const char *root_canon,
          * commit PUT (endpoint 0, the write target) carry Content-MD5 so the origin
          * validates the bytes and rejects a wire-corrupted upload. Off by default:
          * an origin that ignores Content-MD5 stays working untouched. */
-        int     put_checksum = (ngx_strstr(sb->data, "put_checksum=1") != NULL);
+        brix_vfs_http_origin_opts_t opts;
+        char    tape_api[512];
+
+        ngx_memzero(&opts, sizeof(opts));
+        opts.put_checksum = (ngx_strstr(sb->data, "put_checksum=1") != NULL);
+        /* "?tape_api=/api/v1" declares that endpoint 0 fronts an HSM and speaks
+         * the WLCG Tape REST API there, which arms the driver's nearline pair
+         * (sd_http_nearline.c). Read from the WHOLE spec but applied only to the
+         * primary: a stage submitted to a failover endpoint would queue the same
+         * tape work twice, and the driver pins both nearline verbs to endpoint 0
+         * for exactly that reason. */
+        brix_vfs_origin_opt_str(sb->data, "tape_api=", tape_api,
+                                sizeof(tape_api));
+        opts.tape_api = (tape_api[0] != '\0') ? tape_api : NULL;
 
         while (seg < end) {
             u_char *pipe = ngx_strlchr(seg, end, '|');
@@ -253,7 +274,7 @@ vfs_parse_http_origin_list(ngx_conf_t *cf, const char *root_canon,
             if (first) {
                 brix_vfs_backend_config_http(root_canon, parsed.host,
                                                parsed.port, parsed.tls,
-                                               parsed.base, put_checksum);
+                                               parsed.base, &opts);
                 first = 0;
             } else if (vfs_backend_add_http_endpoint(cf, root_canon, &parsed)
                        != NGX_OK)
