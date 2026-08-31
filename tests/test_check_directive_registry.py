@@ -192,3 +192,84 @@ def test_real_tree_gates_clean_under_fail():
     r = subprocess.run([sys.executable, CHECKER, "--fail"],
                        capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+# ---------------------------------------------------------------------------
+# phase-106 W8 — the VARIABLE rules (R7 naming, R9 plane parity, R10 exposure)
+# ---------------------------------------------------------------------------
+
+def _write_vars(tmp_path, relpath, rows, kind="http"):
+    """A fixture source registering an nginx variable array."""
+    p = tmp_path / "src" / relpath
+    p.parent.mkdir(parents=True, exist_ok=True)
+    body = "".join(f'    {{ ngx_string("{n}"), NULL, h_{i}, 0, 0, 0 }},\n'
+                   for i, n in enumerate(rows))
+    p.write_text(
+        f"static ngx_{kind}_variable_t v[] = {{\n{body}"
+        f"      ngx_{kind}_null_variable\n}};\n")
+    return tmp_path / "src"
+
+
+def test_r7_unprefixed_variable_is_flagged(tmp_path):
+    """An unprefixed variable sits in nginx's global namespace and collides
+    with any other module registering the same name."""
+    src = _write_vars(tmp_path, "protocols/x/mod.c", ["cvmfs_cache"])
+    r = _run(src)
+    assert "[R7]" in r.stdout, r.stdout
+    assert "cvmfs_cache" in r.stdout
+
+
+def test_r7_prefixed_variable_is_clean(tmp_path):
+    """(non-vacuity) The rule must not fire on a correctly named variable."""
+    src = _write_vars(tmp_path, "core/http/http_variables.c",
+                      ["brix_cache_status", "brix_tls"])
+    r = _run(src)
+    assert "[R7]" not in r.stdout, r.stdout
+
+
+def test_r9_same_plane_duplicate_is_flagged(tmp_path):
+    """Two registrations of one name on ONE plane is a duplicate-variable
+    config error at nginx startup."""
+    _write_vars(tmp_path, "protocols/a/mod.c", ["brix_thing"])
+    src = _write_vars(tmp_path, "protocols/b/mod.c", ["brix_thing"])
+    r = _run(src)
+    assert "[R9]" in r.stdout, r.stdout
+
+
+def test_r9_cross_plane_same_name_is_the_goal(tmp_path):
+    """(non-vacuity, and the rule's whole point) The SAME name on the http and
+    stream planes is plane parity — what lets one log_format field mean the
+    same thing everywhere. It must NOT be flagged."""
+    _write_vars(tmp_path, "protocols/webdav/module_init.c", ["brix_protocol"])
+    src = _write_vars(tmp_path, "protocols/root/stream/stream_variables.c",
+                      ["brix_protocol"], kind="stream")
+    r = _run(src)
+    assert "[R9]" not in r.stdout, r.stdout
+
+
+def test_r10_credential_shaped_variable_is_refused(tmp_path):
+    """Security rule: a variable is loggable and copyable into an upstream
+    header, so a credential-shaped name must never be registered."""
+    src = _write_vars(tmp_path, "protocols/x/mod.c", ["brix_bearer_token"])
+    r = _run(src)
+    assert "[R10]" in r.stdout, r.stdout
+    assert "brix_bearer_token" in r.stdout
+
+
+def test_r10_is_not_trivially_evadable(tmp_path):
+    """(security-neg) Near-miss spellings must still trip R10 — a rule that
+    only caught the exact word would be worthless."""
+    for name in ("brix_secret_thing", "brix_client_key", "brix_macaroon_x",
+                 "brix_authorization_hdr"):
+        src = _write_vars(tmp_path, "protocols/x/mod.c", [name])
+        r = _run(src)
+        assert "[R10]" in r.stdout, f"{name} slipped past R10:\n{r.stdout}"
+
+
+def test_r10_allows_the_one_reviewed_exception(tmp_path):
+    """$brix_delegated_cred predates the rule and exists to hand a delegated
+    credential to proxy_ssl_certificate; it is the single allowlisted entry."""
+    src = _write_vars(tmp_path, "protocols/webdav/module_init.c",
+                      ["brix_delegated_cred"])
+    r = _run(src)
+    assert "[R10]" not in r.stdout, r.stdout

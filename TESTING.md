@@ -170,7 +170,7 @@ make -C client -j$(nproc)         # brixMount, xrdcp, xrdfs, … (also relinks a
 
   ```bash
   cd /tmp/nginx-1.28.3 && ./configure --with-stream --with-stream_ssl_module \
-      --with-http_ssl_module --with-http_dav_module --with-threads \
+      --with-http_ssl_module --with-http_dav_module --with-http_auth_request_module --with-threads \
       --add-module=/root/dev/brix-cache && make -j$(nproc)   # module: BRIX_HAVE_*
   cd /root/dev/brix-cache
   make -C shared/xrdproto clean && make -C shared/xrdproto -j$(nproc)  # codec_zstd.o decoder

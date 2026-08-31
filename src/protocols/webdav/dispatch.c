@@ -18,6 +18,7 @@
 
 #include "webdav.h"
 #include "xrdhttp.h"
+#include "authz_endpoint.h"   /* phase-106 W3/W4 gate-only handlers */
 #include "tape_rest.h"
 #include "redirect.h"    /* §6.1: manager-side redirect-to-dataserver */
 #include "delegation.h"
@@ -502,6 +503,14 @@ webdav_dispatch_inner(ngx_http_request_t *r)
     /* Per-capability TLS gate (brix_tls_require): refuse before any handler
      * work, mirroring the stream plane's pre-dispatch enforcement. */
     rc = webdav_tls_require_gate(r, conf);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
+
+    /* phase-106 W4/W3: the gate-only seams (authz_endpoint.c). They serve no
+     * data, so they run before any method dispatch; NGX_DECLINED = neither is
+     * configured on this location. */
+    rc = webdav_gate_only_dispatch(r, conf);
     if (rc != NGX_DECLINED) {
         return rc;
     }

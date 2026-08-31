@@ -122,9 +122,12 @@ rpm_var_cache(ngx_http_request_t *r, ngx_http_variable_value_t *v,
 }
 
 
+/* phase-106 W1-a: dual registration — see the note in cvmfs/module.c. */
 static ngx_http_variable_t  ngx_http_brix_rpm_vars[] = {
     { ngx_string("rpm_class"), NULL, rpm_var_class, 0, 0, 0 },
     { ngx_string("rpm_cache"), NULL, rpm_var_cache, 0, 0, 0 },
+    { ngx_string("brix_rpm_class"), NULL, rpm_var_class, 0, 0, 0 },
+    { ngx_string("brix_rpm_cache"), NULL, rpm_var_cache, 0, 0, 0 },
       ngx_http_null_variable
 };
 

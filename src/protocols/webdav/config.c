@@ -139,6 +139,7 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->dig_enable = NGX_CONF_UNSET;
     conf->require_digest = NGX_CONF_UNSET;
     /* delegation_endpoint init -> shared preamble (phase-105 W2). */
+    conf->authz_endpoint      = NGX_CONF_UNSET;      /* phase-106 W4 */
     conf->html_listing        = NGX_CONF_UNSET;      /* §6.6 */
     /* §6.11 maxdelay init -> shared preamble (common.max_delay), phase-105 W3. */
     conf->redirect_dataserver = NGX_CONF_UNSET;      /* §6.1 */

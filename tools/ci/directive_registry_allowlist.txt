@@ -48,3 +48,15 @@ brix_tpc_outbound_scope   # same
 
 ## R6 — colliding stems that are DIFFERENT mechanisms (not drift).
 brix_webdav_secretkey   # redirect-CGI HMAC key (webdav redirect family); brix_s3_secret_key is the AWS SigV4 bucket credential — same stem, unrelated concepts
+## R7 (phase-106 W1-a) — the seven pre-phase-106 variable names, kept in their
+## unprefixed spelling ALONGSIDE a brix_-prefixed twin that resolves to the same
+## handler.  A hard rename was rejected because a stale variable in a
+## log_format is a startup ABORT on a config the admin may not control, not a
+## parse error they are already editing.  Deprecated: prefer the brix_ spelling.
+cvmfs_class   # phase-106 W1-a: deprecated alias of $brix_cvmfs_class
+cvmfs_cache   # phase-106 W1-a: deprecated alias of $brix_cvmfs_cache
+cvmfs_origin  # phase-106 W1-a: deprecated alias of $brix_cvmfs_origin
+oci_class     # phase-106 W1-a: deprecated alias of $brix_oci_class
+oci_cache     # phase-106 W1-a: deprecated alias of $brix_oci_cache
+rpm_class     # phase-106 W1-a: deprecated alias of $brix_rpm_class
+rpm_cache     # phase-106 W1-a: deprecated alias of $brix_rpm_cache

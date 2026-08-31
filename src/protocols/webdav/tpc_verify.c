@@ -155,6 +155,18 @@ tpc_verify_probe_source(ngx_log_t *log,
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, tpc_verify_header_cb);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, out);
 
+    /* SECURITY (phase-106 W5 follow-up): this HEAD probe runs on a thread-pool
+     * thread (webdav_tpc_verify_pulled <- the TPC pull task). Without a
+     * timeout a black-holed source pins that thread forever, and enough of
+     * them exhaust the pool — a slow-loris against the completion gate. Bound
+     * both the connect and the whole probe; reuse the operator's TPC budgets so
+     * one knob governs the transfer and its verification alike. */
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, BRIX_TPC_CONNECT_TIMEOUT_SECS);
+    if (conf->tpc_timeout > 0) {
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) conf->tpc_timeout);
+    }
+
     res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         ngx_log_error(NGX_LOG_WARN, log, 0,

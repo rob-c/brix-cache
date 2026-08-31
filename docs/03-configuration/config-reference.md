@@ -25,3 +25,135 @@ operators a precise startup error tied to the directive/path that is invalid.
 - [Quick reference tables](quick-reference.md) — stream, metrics, WebDAV, and S3 directive summary tables
 
 ---
+
+## nginx variables
+
+brix exposes its request state as ordinary nginx variables, so `log_format`,
+`map`, `if`, `add_header`, `split_clients` and `limit_req_zone` can consume it
+without brix needing to know about them. Registration is owned by the common
+HTTP module, so one `log_format` works on every brix HTTP plane
+(webdav / s3 / cvmfs / oci / rpm) — you do not need a different log line per
+protocol.
+
+| Variable | Value | Notes |
+|----------|-------|-------|
+| `$brix_cache_status` | `HIT`, `MISS`, `BYPASS`, `NEGHIT`, or `-` | nginx's own `$upstream_cache_status` vocabulary wherever the semantics match, so existing dashboards work unchanged. `NEGHIT` is a brix extension (negative-cache hit) with no nginx equivalent. `-` means no cache decision was reached — it is **not** a miss, so a hit rate computed from this variable is never silently wrong. Currently reported by the cvmfs plane; other planes report `-` until they track a disposition. |
+| `$brix_tls` | `on` / `off` | Whether the request arrived over TLS. Unlike `$https` this means the same thing on every brix plane. |
+| `$brix_protocol` | `webdav`, `s3`, `cvmfs`, `oci`, `rpm`, `http` | Which brix plane serves the matched location. |
+| `$brix_dn` | X.509 subject DN | The verified identity's DN; `-` for anonymous or token-only auth. The *subject*, never the chain. |
+| `$brix_vo` | comma-separated VO/FQAN list | The verified identity's full VO list. |
+| `$brix_fqan` | primary FQAN | The FIRST entry of the verified list (the VOMS convention for the operative FQAN); the full list is `$brix_vo`. |
+| `$brix_sub` | token `sub` / S3 access-key id | The verified subject identifier. Note: on the S3 plane this is the access-key *id* — an identifier, not the secret key. |
+| `$brix_issuer` | token `iss` | Empty (`-`) for non-token auth. |
+| `$brix_auth_method` | `none`, `gsi`, `token`, `sss`, ... | Same vocabulary as the Prometheus auth label and the JSON access log, so one parsing rule serves all three. |
+| `$brix_tier` | `posix`, `s3`, `http`, `xroot`, ... | The storage-driver family serving the location — the *resolved* instance's name, so config sugar cannot make the label drift. |
+| `$brix_origin` | configured origin | The `brix_storage_backend` value with any `user:pass@` userinfo stripped before publishing. |
+| `$brix_delegated_cred` | path, or empty | The verified client's delegated-credential path, for handing to `proxy_ssl_certificate`. Empty when there is none. **This is credential material** — do not log it or forward it anywhere it is not needed. |
+| `$brix_cvmfs_class`, `$brix_cvmfs_cache`, `$brix_cvmfs_origin` | cvmfs plane | Repository class, cache disposition and fill origin. `$brix_cvmfs_cache` uses the older cvmfs spelling (`hit`/`fill`/`neg`); prefer `$brix_cache_status` for new configs. |
+| `$brix_oci_class`, `$brix_oci_cache` | oci plane | Request class and cache disposition. |
+| `$brix_rpm_class`, `$brix_rpm_cache` | rpm plane | Request class and cache disposition. |
+| `$cvmfs_*`, `$oci_*`, `$rpm_*` | — | **Deprecated aliases** of the seven `$brix_*` names above, resolving to the same handlers. Kept because removing a variable turns a stale `log_format` into a startup abort; prefer the `brix_` spelling. |
+
+### Stream (`root://`) variables
+
+Session-scoped, for a `stream {}` `access_log`. A stream session carries many
+XRootD ops, so these describe the SESSION — totals and session-stable identity
+— which is what one line at session close should carry.
+
+| Variable | Value |
+|----------|-------|
+| `$brix_protocol` | Plane label (`root`), the same field name and meaning as the HTTP variable. |
+| `$brix_session_auth` | `token`, `gsi`, `none`, or `-` when brix never ran. |
+| `$brix_session_user` | The `kXR_login` username the client presented. |
+| `$brix_session_dn` | GSI subject DN, or `-`. |
+| `$brix_session_vo` | First VO from the VOMS attribute cert / token, or `-`. |
+| `$brix_session_tls` | `on` / `off`. |
+| `$brix_session_bytes_out` | Bytes served to the client this session. |
+| `$brix_session_bytes_in` | Bytes written by the client this session. |
+
+```nginx
+stream {
+    log_format brix_stream '$remote_addr vo=$brix_session_vo '
+                           'auth=$brix_session_auth out=$brix_session_bytes_out';
+    server { listen 1094; access_log /var/log/nginx/root.log brix_stream; }
+}
+```
+
+Example — one access log that works on every plane:
+
+```nginx
+log_format brix '$remote_addr $status $body_bytes_sent '
+                'cache=$brix_cache_status tls=$brix_tls proto=$brix_protocol';
+access_log /var/log/nginx/brix.log brix;
+```
+
+Variables are an exfiltration surface: anything you log can leave the box.
+brix variables expose the *subject* of an identity (DN, VO, issuer), never the
+credential that proved it. `$brix_delegated_cred` is the single deliberate
+exception and exists for credential forwarding.
+
+
+## Gating a location brix does not serve
+
+brix can act purely as an authorization decision point, so its WLCG token,
+VOMS FQAN, macaroon and GSI/X.509 logic can protect a data path you already
+run. Neither seam serves bytes; both reuse the same auth gate a normal brix
+request goes through, so there is no second copy of the policy.
+
+### `brix_webdav_authz on` — an `auth_request` target
+
+Makes the location an authorization endpoint: `204` when the request is
+authorized, otherwise the auth gate's own `401`/`403`. On success it sets
+`X-Brix-DN`, `X-Brix-Sub`, `X-Brix-Issuer` and `X-Brix-VO` for
+`auth_request_set`. These carry the *subject* of the identity, never the
+credential that proved it.
+
+```nginx
+location /protected/ {
+    auth_request /_authz;
+    auth_request_set $vo $upstream_http_x_brix_vo;
+    proxy_pass http://your_backend;
+}
+
+location = /_authz {
+    internal;                       # REQUIRED — see below
+    brix_webdav on;
+    brix_webdav_authz on;
+    brix_webdav_auth required;
+    brix_token_jwks /etc/brix/jwks.json;
+}
+```
+
+### `brix_webdav_accel_redirect <prefix>` — decide, then hand off
+
+After the request is authorized, brix internally redirects it to
+`<prefix><uri>` and serves nothing itself, so an nginx `internal` location (or
+anything behind it) delivers the bytes.
+
+```nginx
+location /gated/ { brix_webdav on; brix_webdav_accel_redirect /internal; }
+location /internal/ { internal; alias /srv/data/; }
+```
+
+### Serving via nginx's static module (the fast path)
+
+`brix_webdav_accel_redirect` doubles as the "let nginx serve the bytes"
+handoff. Point it at a plain `internal` `alias` location — one with no brix
+directive — and after brix authorizes the request, `ngx_http_static_module`
+serves the file with sendfile, byte-range and `open_file_cache`:
+
+```nginx
+location /files/ { brix_webdav on; brix_webdav_accel_redirect /static; }
+location /static/ { internal; alias /srv/data/; }   # served by the static module
+```
+
+A `Range` request to `/files/...` then comes back `206 Partial Content` from
+the static module. Note that brix already routes its own GETs through nginx's
+range and not-modified filters, so the practical gain here is `open_file_cache`
+and the static module's optimized sendfile — use it where that matters.
+
+**Both targets must be `internal`.** An externally reachable accel target would
+serve every byte with no authorization at all, and an externally reachable
+authz endpoint becomes an identity oracle. nginx enforces `internal` by
+returning 404 to outside clients; brix additionally fails closed (403) if the
+seam is enabled on a location with no brix policy configured.

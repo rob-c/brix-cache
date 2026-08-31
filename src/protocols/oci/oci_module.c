@@ -288,9 +288,14 @@ oci_var_cache(ngx_http_request_t *r, ngx_http_variable_value_t *v,
 }
 
 
+/* phase-106 W1-a: dual registration — see the note in cvmfs/module.c. The
+ * unprefixed spellings are deprecated but kept, because dropping them turns a
+ * stale log_format into a startup abort. */
 static ngx_http_variable_t  ngx_http_brix_oci_vars[] = {
     { ngx_string("oci_class"), NULL, oci_var_class, 0, 0, 0 },
     { ngx_string("oci_cache"), NULL, oci_var_cache, 0, 0, 0 },
+    { ngx_string("brix_oci_class"), NULL, oci_var_class, 0, 0, 0 },
+    { ngx_string("brix_oci_cache"), NULL, oci_var_cache, 0, 0, 0 },
       ngx_http_null_variable
 };
 

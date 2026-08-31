@@ -245,6 +245,20 @@ typedef struct {
      * backend see, as "&<cgikey>=<value>". ngx_keyval_t[] (key=header). */
     ngx_array_t   *header2cgi;
 
+    /* phase-106 W4 [brix_authz on]: turn this location into an
+     * auth_request-compatible authorization endpoint. The location serves no
+     * data — it answers 204 when the ACCESS phase (which has already run
+     * access_authenticate + the scope/acc gates) admitted the request, and the
+     * access phase's own rejection status otherwise. Nothing here re-implements
+     * a check; it only REPORTS the outcome, which is what keeps it honest. */
+    ngx_flag_t                authz_endpoint;
+
+    /* phase-106 W3 [brix_accel_redirect <internal-prefix>]: after the ACCESS
+     * phase admits the request, hand it to an nginx `internal` location by
+     * emitting X-Accel-Redirect: <prefix><uri> and no body, so brix can gate a
+     * location it does not serve. Empty (default) = feature off. */
+    ngx_str_t                 accel_redirect;
+
 } ngx_http_brix_webdav_loc_conf_t;
 
 #define BRIX_WEBDAV_RDR_HTTP   0

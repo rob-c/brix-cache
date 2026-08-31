@@ -305,6 +305,23 @@ LIFECYCLE_SHARED_PORTS_PHASE5: dict[str, dict] = {
     "gsihs-root-off": {"port": 30396},
     "gsihs-root-auto": {"port": 30397},
     "gsihs-root-require": {"port": 30398},
+
+    # phase-106 W1 ($brix_* variable surface, tests/test_brix_http_variables.py).
+    # One cleartext single-listen webdav node whose access_log is built from the
+    # new variables; idempotent (GETs only), driven serially by one file, and
+    # serialised with xdist_group("lc-brix-variables") so the fixed port never
+    # has two concurrent drivers.
+    "lc-brix-variables": {"port": 30913},
+    # phase-106 W2 ($brix_session_* stream surface,
+    # tests/test_brix_stream_variables.py). One single-listen root://
+    # node, idempotent, serialised with xdist_group("lc-brix-stream-vars").
+    "lc-brix-stream-vars": {"port": 30914},
+    # phase-106 W3/W4 (auth_request + X-Accel-Redirect seams,
+    # tests/test_brix_authz_accel.py). Single-listen, read-only, serialised
+    # with xdist_group("lc-brix-authz-accel").
+    "lc-brix-authz-accel": {"port": 30915},
+    # phase-106 W6 (authz-before-conditionals, tests/test_authz_before_conditionals.py).
+    "lc-authz-before-cond": {"port": 30916, "extra": {"S3_PORT": 30917}},
 }
 
 from split_continuation import load as _load_fleet_ports_shared_phase5_b

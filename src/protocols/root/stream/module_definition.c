@@ -2,6 +2,7 @@
 #include "net/proxy/proxy.h"
 #include "net/proxy/proxy_internal.h"
 #include "auth/impersonate/lifecycle.h"
+#include "protocols/root/stream/stream_variables.h"
 
 extern ngx_command_t ngx_stream_brix_commands[];
 
@@ -12,8 +13,12 @@ extern ngx_command_t ngx_stream_brix_commands[];
 
 
 static ngx_stream_module_t ngx_stream_brix_module_ctx = {
-    /* No global parser rewrites are needed before nginx reads stream blocks. */
-    NULL,                                 /* preconfiguration  */
+    /* phase-106 W2: registers the $brix_session_* variables. nginx accepts
+     * variable registrations only in preconfiguration, and until this hook
+     * existed the stream plane exposed NONE — root:// traffic could not be
+     * written to a `stream {}` access_log at all. (No global parser rewrites
+     * are needed here; that is what this slot used to be NULL for.) */
+    brix_stream_add_variables,            /* preconfiguration  */
     /* Final validation and resource setup once all stream servers are parsed. */
     ngx_stream_brix_postconfiguration,  /* postconfiguration */
     /* This module keeps no stream-wide main configuration object. */

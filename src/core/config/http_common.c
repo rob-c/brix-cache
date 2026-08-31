@@ -15,6 +15,7 @@
 #include "auth/token/token_cache.h"        /* brix_token_cache_directive */
 #include "net/ratelimit/ratelimit.h"       /* brix_rl_{zone,rule,bw,conc}_directive */
 #include "net/mirror/http_mirror.h"        /* brix_http_mirror_set_{url,methods} (phase-105 W2) */
+#include "core/http/http_variables.h"   /* brix_http_add_variables (phase-106 W1) */
 
 #include <stdio.h>
 #include <openssl/pem.h>
@@ -105,8 +106,19 @@ static ngx_command_t  brix_http_common_commands[] = {
       ngx_null_command
 };
 
+/* phase-106 W1: the common module owns the $brix_* variable surface, so one
+ * registration serves every HTTP protocol and a variable's existence does not
+ * depend on which protocol module is loaded. */
+static ngx_int_t
+brix_http_common_preconfiguration(ngx_conf_t *cf)
+{
+    return brix_http_add_variables(cf);
+}
+
+
 static ngx_http_module_t  brix_http_common_module_ctx = {
-    NULL, NULL,                          /* pre/postconfiguration */
+    brix_http_common_preconfiguration,   /* preconfiguration */
+    NULL,                                /* postconfiguration */
     NULL, NULL,                          /* create/init main conf */
     NULL, NULL,                          /* create/merge srv conf */
     brix_http_common_create_loc_conf,

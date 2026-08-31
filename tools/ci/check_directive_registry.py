@@ -423,15 +423,177 @@ def _report(findings, fail_mode):
 
     # phase-105 W5.4: R1/R2/R4/R5/R6 gate under --fail; R3 stays WARN-scoped
     # until W6 (docs-from-source) closes the 300+ backlog structurally.
-    hard = [f for f in findings
-            if f[0] in ("R1", "R2", "R4", "R5", "R6", "ALLOWLIST")]
+    # phase-106 W8: R7 (variable naming), R9 (plane parity) and R10 (the
+    # credential-exposure SECURITY rule) gate too — their backlogs are already
+    # empty, so they gate from the first commit. R8 (variable docs) stays
+    # WARN-scoped alongside R3, the same docs-from-source posture.
+    gating = ("R1", "R2", "R4", "R5", "R6", "R7", "R9", "R10", "ALLOWLIST")
+    hard = [f for f in findings if f[0] in gating]
     if fail_mode and hard:
         print(f"\ncheck_directive_registry: FAIL — {len(hard)} gating finding(s)",
               file=sys.stderr)
         return 1
     print("\ncheck_directive_registry: WARN — findings reported, not gating "
-          "(R3 gates after phase-105 W6; run with --fail for R1/R2/R4/R5/R6)")
+          "(R3/R8 gate after their docs-from-source backlogs close; run with "
+          "--fail for R1/R2/R4/R5/R6/R7/R9/R10)")
     return 0
+
+
+
+# ---- R7-R10 (phase-106 W8): the VARIABLE surface ------------------------- #
+#
+# Directives got governance in phases 101/105 (R1-R6) because a naming and
+# ownership surface drifts silently.  The variable surface never did, and it
+# shows: 7 of the 9 variables that existed before phase 106 are unprefixed
+# ($cvmfs_cache, $oci_class, ...), three planes invented three different
+# cache-status vocabularies, and nothing stopped a future variable from
+# carrying credential material into an operator's log file.
+#
+# R10 is the security rule and gates from the first commit — it has exactly one
+# reviewed allowlist entry.  R7/R8/R9 report until their backlogs are empty.
+
+# Variable registrations, both planes.
+_VAR_ARRAY_RE = re.compile(
+    r'ngx_(?:http|stream)_variable_t\s+\w+\[\]\s*=\s*\{(.*?)\n\};',
+    re.S)
+_VAR_NAME_RE = re.compile(r'ngx_string\("([a-z_][a-z0-9_]*)"\)')
+
+# Names that would place credential material into anything loggable.
+_CREDENTIAL_PATTERNS = ("token", "secret", "key", "password", "passwd",
+                        "macaroon", "authorization", "bearer", "private")
+
+# The single reviewed exception: it exists to hand a delegated credential to
+# proxy_ssl_certificate, and predates this rule.
+_R10_ALLOW = {"brix_delegated_cred"}
+
+
+def _collect_variables():
+    """(name, relpath) for every nginx variable a brix module registers."""
+    found = []
+    for path, text in _walk_src(".c"):
+        if "variable_t" not in text:
+            continue
+        found += _variables_in(text, os.path.relpath(path, ROOT))
+    return found
+
+
+def _variables_in(text, rel):
+    """Variable (name, rel) pairs registered by one source file."""
+    out = [(name, rel)
+           for block in _VAR_ARRAY_RE.findall(text)
+           for name in _VAR_NAME_RE.findall(block)]
+    out += _direct_variables_in(text, rel)
+    return out
+
+
+def _direct_variables_in(text, rel):
+    """ngx_*_add_variable(cf, &local, ...) registrations.
+    The variable NAME must be the identifier actually handed to add_variable —
+    matching every local ngx_str_t in a file that merely contains an
+    add_variable call elsewhere produces false positives (a thread-pool name,
+    a header name, ...).
+    """
+    registered = set(re.findall(r'add_variable\(\s*cf\s*,\s*&(\w+)', text))
+    return [(m.group(2), rel)
+            for m in re.finditer(
+                r'ngx_str_t\s+(\w+)\s*=\s*ngx_string\("([a-z_][a-z0-9_]*)"\)',
+                text)
+            if m.group(1) in registered]
+
+
+def _rule_r7(variables, allow):
+    """R7 — every brix-registered variable is brix_-prefixed."""
+    out = []
+    for name, rel in sorted(set(variables)):
+        if name.startswith("brix_") or name in allow:
+            continue
+        out.append(("R7", name,
+                    f"variable is not brix_-prefixed ({rel}); an unprefixed "
+                    "name sits in nginx's global namespace and collides with "
+                    "any other module registering it"))
+    return out
+
+
+def _var_plane(rel):
+    """Which nginx subsystem a variable registration belongs to."""
+    return "stream" if "stream" in rel else "http"
+
+
+def _rule_r9(variables, allow):
+    """R9 — plane parity: a name may appear once per plane, never twice within
+    one plane.
+
+    Registering the SAME name on both the http and stream planes is the GOAL,
+    not a violation — it is what lets one log_format field mean the same thing
+    everywhere ($brix_protocol is exactly this).  Two registrations on the SAME
+    plane, however, are a duplicate-variable config error at startup.
+    """
+    homes = {}
+    for name, rel in variables:
+        homes.setdefault((name, _var_plane(rel)), set()).add(rel)
+    out = []
+    for (name, plane), rels in sorted(homes.items()):
+        if len(rels) < 2 or name in allow:
+            continue
+        out.append(("R9", name,
+                    f"variable registered {len(rels)} times on the {plane} "
+                    f"plane ({', '.join(sorted(rels))}); nginx refuses a "
+                    "duplicate variable at startup"))
+    return out
+
+
+def _documented_variables():
+    """Names mentioned anywhere in docs/03-configuration/.
+
+    Variables are documented in config-reference.md, not directives.md (which
+    is the DIRECTIVE reference), so R8 reads the whole configuration-docs
+    directory rather than R3's single file.
+    """
+    docs_dir = os.environ.get("BRIX_REGISTRY_VARDOCS") or \
+        os.path.join(ROOT, "docs", "03-configuration")
+    if not os.path.isdir(docs_dir):
+        return set()
+    names = set()
+    for dp, _, fs in os.walk(docs_dir):
+        for f in fs:
+            if f.endswith(".md"):
+                text = open(os.path.join(dp, f), errors="replace").read()
+                names |= set(re.findall(r'\bbrix_[a-z0-9_]+', text))
+    return names
+
+
+def _rule_r8(variables, documented, allow):
+    """R8 — every registered variable is documented.
+
+    Mirrors R3's docs-from-source requirement for directives. An undocumented
+    variable is one an operator cannot discover: unlike a directive, there is
+    no config that fails to parse to tell them it exists.
+    """
+    out = []
+    for name, rel in sorted(set(variables)):
+        if name in documented or name in allow:
+            continue
+        out.append(("R8", name,
+                    f"variable is not documented ({rel}); add a row to "
+                    "docs/03-configuration/ — an undocumented variable is one "
+                    "nobody can discover"))
+    return out
+
+
+def _rule_r10(variables):
+    """R10 — no variable name carries credential material. Security rule:
+    gates from day one, allowlist is explicit and tiny."""
+    out = []
+    for name, rel in sorted(set(variables)):
+        if name in _R10_ALLOW:
+            continue
+        if any(p in name for p in _CREDENTIAL_PATTERNS):
+            out.append(("R10", name,
+                        f"variable name looks like credential material ({rel}); "
+                        "variables are loggable and copyable into upstream "
+                        "headers — expose the SUBJECT of an identity, never "
+                        "the credential that proved it"))
+    return out
 
 
 def main(argv):
@@ -449,6 +611,13 @@ def main(argv):
     findings += _rule_r4(allow)
     findings += _rule_r5(regs, allow)
     findings += _rule_r6(names, allow)
+
+    # phase-106 W8: the variable surface.
+    variables = _collect_variables()
+    findings += _rule_r7(variables, allow)
+    findings += _rule_r8(variables, _documented_variables(), allow)
+    findings += _rule_r9(variables, allow)
+    findings += _rule_r10(variables)
     # tamper pin: an allowlist line without a reason is itself a failure.
     for name in bad_allow:
         findings.append(("ALLOWLIST", name, "allowlist entry missing a '# reason'"))

@@ -199,10 +199,21 @@ cvmfs_var_origin(ngx_http_request_t *r, ngx_http_variable_value_t *v,
     return cvmfs_var_set(r, v, buf);
 }
 
+/* phase-106 W1-a: each name is registered TWICE — the legacy unprefixed
+ * spelling and the brix_-prefixed one. Both resolve to the same handler, so
+ * they can never disagree. A hard rename was rejected here (unlike every
+ * directive rename in phases 101/105) because a stale variable in a
+ * log_format is a STARTUP ABORT — `unknown "cvmfs_cache" variable` — on a
+ * config the admin may not control, where a stale directive merely fails a
+ * parse the operator is already editing. The unprefixed names are deprecated:
+ * prefer $brix_cvmfs_* and $brix_cache_status in new configs. */
 static ngx_http_variable_t  ngx_http_brix_cvmfs_vars[] = {
     { ngx_string("cvmfs_class"),  NULL, cvmfs_var_class,  0, 0, 0 },
     { ngx_string("cvmfs_cache"),  NULL, cvmfs_var_cache,  0, 0, 0 },
     { ngx_string("cvmfs_origin"), NULL, cvmfs_var_origin, 0, 0, 0 },
+    { ngx_string("brix_cvmfs_class"),  NULL, cvmfs_var_class,  0, 0, 0 },
+    { ngx_string("brix_cvmfs_cache"),  NULL, cvmfs_var_cache,  0, 0, 0 },
+    { ngx_string("brix_cvmfs_origin"), NULL, cvmfs_var_origin, 0, 0, 0 },
       ngx_http_null_variable
 };
 

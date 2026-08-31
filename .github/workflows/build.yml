@@ -65,7 +65,7 @@ jobs:
         run: |
           cd /tmp/nginx-1.28.3
           ./configure --with-stream --with-stream_ssl_module \
-            --with-http_ssl_module --with-http_dav_module --with-threads \
+            --with-http_ssl_module --with-http_dav_module --with-http_auth_request_module --with-threads \
             --add-module="$GITHUB_WORKSPACE"
 
       - name: Build the module (make -j)

@@ -101,6 +101,8 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
     ngx_conf_merge_value(conf->require_digest, prev->require_digest, 0);
 
     /* §6.6: HTML directory listing on GET (listingdeny/listingredir analog). */
+    ngx_conf_merge_value(conf->authz_endpoint, prev->authz_endpoint, 0);
+    ngx_conf_merge_str_value(conf->accel_redirect, prev->accel_redirect, "");
     ngx_conf_merge_value(conf->html_listing, prev->html_listing, 0);
     /* §6.11 maxdelay merge -> shared_merge (common.max_delay), phase-105 W3. */
     ngx_conf_merge_str_value(conf->listing_redirect,

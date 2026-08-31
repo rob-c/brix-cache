@@ -54,8 +54,13 @@ def test_webdav_success_access_log_has_protocol_label(test_env, http_access_log)
     r = requests.get(f"{test_env['http_webdav_url']}{path}", timeout=10)
     assert r.status_code == 200
 
-    _wait_for_log(http_access_log, offset, f"GET {path} HTTP/1.1",
-                  "proto=webdav")
+    # phase-106 W1: the SAME shared log_format carries the full $brix_* set on
+    # every plane. On a served webdav GET the fields resolve to real values
+    # (tls off on the cleartext listener, tier=posix, anonymous auth), not the
+    # sentinel — proving one log_format works across planes at runtime.
+    line = _wait_for_log(http_access_log, offset, f"GET {path} HTTP/1.1",
+                         "proto=webdav", "tls=off", "tier=posix")
+    assert "cache=" in line and "am=" in line, line
 
 
 @pytest.mark.requires_local_server
@@ -85,6 +90,9 @@ def test_s3_security_negative_access_log_has_protocol_label(test_env,
     )
     assert r.status_code in (400, 403)
 
-    _wait_for_log(http_access_log, offset,
-                  f"PUT /{BUCKET}/{dst_key} HTTP/1.1",
-                  "proto=s3")
+    # phase-106 W1: the identical log_format works unchanged on the s3 plane —
+    # the cross-plane claim, proven on a second real protocol.
+    line = _wait_for_log(http_access_log, offset,
+                         f"PUT /{BUCKET}/{dst_key} HTTP/1.1",
+                         "proto=s3", "tls=", "tier=", "cache=")
+    assert "am=" in line and "vo=" in line, line

@@ -32,6 +32,29 @@
       offsetof(ngx_http_brix_webdav_loc_conf_t, redirect_dataserver),
       NULL },
 
+    /* phase-106 W4: make this location an auth_request-compatible authorization
+     * endpoint — it serves no data, only the ACCESS phase's verdict (204, or
+     * that phase's own 401/403).  Registered on the WEBDAV module, not
+     * http_common, deliberately: the verdict comes from webdav's auth gate, and
+     * the phase-101 W5 precedent forbids advertising a security name at
+     * BRIX_HTTP_ALL_CONF while only one plane enforces it. */
+    { ngx_string("brix_webdav_authz"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_webdav_loc_conf_t, authz_endpoint),
+      NULL },
+
+    /* phase-106 W3: after the ACCESS phase admits the request, hand it to an
+     * nginx `internal` location via X-Accel-Redirect: <prefix><uri> with no
+     * body, so brix can gate a location it does not itself serve. */
+    { ngx_string("brix_webdav_accel_redirect"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_webdav_loc_conf_t, accel_redirect),
+      NULL },
+
     /* §6.6: render an HTML directory index on a GET of a directory (the
      * XrdHttp "Listing" analog; off = the listingdeny default → 403). */
     { ngx_string("brix_webdav_html_listing"),
