@@ -1,11 +1,18 @@
-# Phase 107 — VFS mutation surface completion: the eight verbs the layer cannot express
+# Phase 107 — VFS mutation surface completion: the verbs the layer cannot express
 
 **Date:** 2026-08-30
 
 **Status:** 📋 **PLANNED** — no code written. This document is the specification
 the implementation will be judged against.
 
-**Document version:** v1.
+**Document version:** v3 — v1 planned the eight capability gaps. v2 added a
+second part: the five places where BriX-Cache already implements a VFS mutation
+concern as an isolated per-feature copy. v3 executes the split v2's §13
+recommended. This document keeps the eight capability gaps **plus C9**, the
+typed storage domain — cheap, enabling, and belonging with the kernel work. The
+four consolidation items moved to
+[phase 108](phase-108-vfs-consolidation.md), which depends on the verbs built
+here; see [§13](#13-what-moved-to-phase-108).
 
 **Tree inspected:** `480ded2e4` ("close the storage-driver slot wave") plus the
 working tree present on 2026-08-30. Every `file:line` below was read on that
@@ -35,7 +42,7 @@ surfaces within the last week and this plan touches the same files.
 ## Contents
 
 1. [Outcome](#1-outcome)
-2. [The eight gaps](#2-the-eight-gaps)
+2. [The gaps](#2-the-gaps)
 3. [Normative model](#3-normative-model)
 4. [Per-item design](#4-per-item-design)
 5. [Protocol behavior](#5-protocol-behavior)
@@ -46,6 +53,7 @@ surfaces within the last week and this plan touches the same files.
 10. [Expected file map](#10-expected-file-map)
 11. [Compatibility and rollout](#11-compatibility-and-rollout)
 12. [Definition of done](#12-definition-of-done)
+13. [What moved to phase 108](#13-what-moved-to-phase-108)
 
 Appendices:
 
@@ -55,6 +63,7 @@ Appendices:
 - [D. Risk register and deliberately rejected alternatives](#appendix-d--risk-register-and-deliberately-rejected-alternatives)
 - [E. CI guards and static enforcement](#appendix-e--ci-guards-and-static-enforcement)
 - [F. Requirement traceability](#appendix-f--requirement-traceability)
+- [G. The storage-domain table](#appendix-g--the-storage-domain-table)
 
 ---
 
@@ -78,6 +87,23 @@ correct over the vocabulary it was given. They are the vocabulary's own edges.
 Three of the eight are capability holes a user can hit today with stock clients.
 Three are cost or correctness-at-scale problems. Two are contract problems that
 have not bitten yet and will.
+
+A ninth item joins them, and it is a different kind of thing: the export/service
+split that phase 105 drew in prose is carried through the tree in 117 free-text
+`vfs-seam-allow` comments that nothing reads. **C9** turns that line into a type
+and makes CI check it. It is here rather than in phase 108 because every verb
+below has to say which storage it is touching, and because it is the
+prerequisite the consolidation phase opens by verifying.
+
+Reading the same surface from the other direction asks a different question —
+where does BriX-Cache already do VFS work *without* the VFS? — and finds an OCI
+registry that has privately rebuilt staged publish and atomic tag swap over raw
+syscalls, ~25 sites that materialise a secret to disk by hand, an authorization
+decision taken at 37 protocol-edge call sites, and a name-translation module
+compiled, unit-tested, and called by nothing. That is
+[phase 108](phase-108-vfs-consolidation.md). It is sequenced after this one on
+purpose: three of its four items consolidate onto verbs this phase builds, so
+doing it first would consolidate onto a surface that is about to change.
 
 ---
 
@@ -114,6 +140,12 @@ When this phase is done:
 - The content-dedup plane cannot be pointed at an export root without the VFS
   refusing.
 
+And one thing no user sees, which is the point of C9:
+
+- A `vfs-seam-allow` waiver names a **typed storage domain** the file is
+  entitled to touch, and CI checks that claim, instead of accepting any prose
+  after the colon.
+
 ### 1.2 Non-goals
 
 Named so nobody proposes them in review:
@@ -144,86 +176,194 @@ Named so nobody proposes them in review:
   document stands. This phase *adds* members to the vocabulary; it reclassifies
   nothing that was called a read.
 
+C9 adds one more, which is the obvious over-reach of a typed domain:
+
+- **Migrating operator config files behind the seam.** The CMS blacklist, the
+  trust anchors, the CA bundles: read-mostly host configuration. A waiver that
+  says "operator config file, not managed storage" is *correct*, and C9 gives it
+  a typed name rather than taking it away. The domain is a classification, not a
+  relocation plan.
+
+[Phase 108](phase-108-vfs-consolidation.md) §1.2 carries the non-goals that
+belong to the consolidation items — notably that authorization does **not** move
+off the protocol edge, and that gridmap hot-reload is a configuration concern
+rather than a storage one.
+
 ---
 
-## 2. The eight gaps
+## 2. The gaps
 
-| # | Gap | Evidence | Class |
-|---|---|---|---|
-| C1 | Out-of-order writes are refused on every backend without `CAP_RANDOM_WRITE`, and the two that lack it buffer the whole object in heap | `vfs_writer.c:176`, `sd_http_write.c:167`, `sd_s3_write.c:406,434` | capability hole |
-| C2 | Prestage runs as a fork/exec subprocess while a `recall` slot sits unused on five drivers; evict is a documented no-op | `prepare_cmd.c`, `prepare.c:22,513`, `sd.h:435`, `sd_cache.c:128` | capability hole |
-| C3 | No publish is durable: nothing fsyncs a parent directory after a rename or a staged commit | `grep -rn fsync src/ --include=*.c`, `vfs_staged.c:300+`, `fetch.c:360`, `cred_mint.c:23` | capability hole |
-| C4 | Every namespace delete is one key per round trip, including a client's own batch request | `vfs_unlink.c:44`, `s3/delete_objects.c` | cost at scale |
-| C5 | The client's declared final size is validated and discarded; no backend preallocates | `opaque_validate.c:237`, `write.c:264` | cost / correctness |
-| C6 | The only publish precondition is a boolean `noreplace`, and on S3 it is an admitted check-then-act race | `vfs_staged.c:296`, `sd_remote_write.c:150+`, `webdav/copy.c:280` | correctness |
-| C7 | WebDAV locks are enforced by WebDAV only; four other write planes ignore them | `webdav/locks/README.md`, `lock_check.c:129` | security / correctness |
-| C8 | The dedup/CAS plane mutates persistent state with no gate, no vocabulary entry and no metric | `fs/cache/gcas.c:69,91`, phase-105 §0.1 | contract |
+### 2.1 The capability gaps
+
+Every row's evidence was re-read against the working tree at `480ded2e4`; the
+`file:line` anchors below are the exact statements that refuse, discard or
+duplicate the behaviour named, not approximate neighbourhoods.
+
+| # | Gap | Primary evidence | Class | Blast radius |
+|---|---|---|---|---|
+| C1 | Out-of-order writes are refused on every backend without `CAP_RANDOM_WRITE`, and the drivers that lack it buffer the whole object in heap | `vfs_writer.c:176` (`errno = EINVAL`), `sd_http_write.c:166` (`errno = ESPIPE`), `sd_s3_write.c:406,434` (both arms of `sd_s3_check_sequential`) | capability hole | a supported configuration fails outright |
+| C2 | Prestage runs as a fork/exec subprocess while a `recall` slot sits implemented and uncalled; evict is a documented no-op | `prepare.c:412,422,428`, `sd.h:435` (`recall`), `sd.h:443` (`residency`), `sd_cache.c:128` (the only caller) | capability hole | one feature, one export class |
+| C3 | No publish is durable: nothing fsyncs a parent directory after a rename or a staged commit | `vfs_staged.c:302–390`, `oci_store.c:318`, `webdav/delegation.c:312`, `cred_mint.c` (7 fsyncs, none on a directory) | capability hole | silent data loss on power cut |
+| C4 | Every namespace delete is one key per round trip, including a client's own explicit batch request | `vfs_unlink.c:44`, `s3/delete_objects.c:37` (`S3_DEL_MAX_KEYS 1000`), `:67` (`brix_vfs_unlink` per key) | cost at scale | 1 000× amplification on one request |
+| C5 | The client's declared final size is validated and discarded; no backend preallocates or sizes its parts from it | `opaque_validate.c:235–240`, `write.c:264`, `sd_remote_write.c:66` (`expected_size = -1`) | cost / correctness | 160 GB ceiling, unnecessary reallocation |
+| C6 | The only publish precondition is a boolean `noreplace`, and on `remote` it is an admitted check-then-act race | `vfs_staged.c:369–372`, `sd.h:394` (`staged_commit(..., int noreplace)`), `sd_remote_write.c:148–200` | correctness | lost update between two writers |
+| C7 | WebDAV locks are enforced at seven WebDAV call sites and nowhere else; four other write planes ignore them | `lock_check.c:129,267`, the seven callers in §4/C7, `webdav/locks/README.md` | security / correctness | the lock stops one of the deployment's clients |
+| C8 | The dedup/CAS plane mutates persistent service state with no gate, no vocabulary entry and no metric | `gcas.c:69` (`dedup_publish`), `gcas.c:91` (`dedup_gc`), phase-105 §0.1 | contract | one directive away from an ungated mutation |
 
 Each is designed in [§4](#4-per-item-design). The rest of this section states
-what each one costs, because the cost is what orders the waves.
+what each one costs, because the cost is what orders the waves in [§8](#8-implementation-waves).
 
 **C1** is the only gap in the list that makes a *supported configuration* fail
-outright. `writer_random_backend()` (`vfs_writer.c:45`) sends a backend with
-`BRIX_SD_CAP_RANDOM_WRITE` down the in-place handle path, where any offset is
-fine. The two drivers without it — `http` (`sd_http.c:33`, honest caps) and
-`remote` (`sd_remote.c:366`) — go down the staged path, where
-`writer_put()` refuses `off != w->staged_cursor` before the driver is even
-called. Below that, both drivers refuse independently:
-`sd_http_staged_write` returns `ESPIPE`, and `sd_s3_pwrite` gates both its
-multipart and single-PUT arms on `sd_s3_check_sequential`. So the sequential
-requirement is asserted in three places and documented as a limitation in none
-of the protocol handlers that can violate it. The S3 specification *explicitly
-permits* uploading multipart parts out of order; phase-94's bound-write
-substreams exist precisely to let an XRootD client write concurrently.
+outright, and it is refused in three independent places, which is why a
+one-line driver fix cannot reach it:
+
+1. `writer_random_backend()` (`vfs_writer.c:48`) selects the in-place handle
+   path only for a backend advertising `BRIX_SD_CAP_RANDOM_WRITE`. Everything
+   else lands in `writer_put()` (`vfs_writer.c:156`), which compares the
+   incoming offset against `w->staged_cursor` and sets `errno = EINVAL`
+   (`vfs_writer.c:176`) before any driver is consulted.
+2. `sd_http_staged_write` (`sd_http_write.c:162–190`) sets `errno = ESPIPE` on
+   the same condition, and grows its heap buffer by doubling from a 1 MiB
+   floor — so an out-of-order 10 GB upload would need 10 GB of worker heap even
+   if the offset check were removed.
+3. `sd_s3_pwrite` gates *both* its multipart arm (`sd_s3_write.c:406`) and its
+   single-PUT arm (`:434`) on `sd_s3_check_sequential` (`:300–360`).
+
+The requirement is therefore asserted three times and documented as a
+limitation in none of the protocol handlers that can violate it. This matters
+because the S3 specification *explicitly permits* uploading multipart parts out
+of order, and phase-94's bound-write substreams exist precisely to let an
+XRootD client write concurrently. Note that `s3` is not a registered driver —
+it is reached through `remote` with `brix_s3_origin_curl_transport` — so the
+`sd_s3_*` refusals are what a `remote` export hits.
 
 **C2** costs a whole feature on a whole class of export. The `recall` slot
-(`sd.h:435`) returns `NGX_AGAIN` plus a 40-byte request id — which is exactly
-the shape of a `kXR_prepare` response — and `residency` (`sd.h:443`) is exactly
-the shape of a `kXR_QPrep` answer. Five drivers implement both. The only caller
-of `recall` in the tree is a cache fill (`sd_cache.c:128`). Meanwhile
-`brix_handle_prepare` forks a configured `prepare_command`, which means tape
-staging works only where an operator wired a script, and not at all through the
-drivers that can already do it.
+(`sd.h:435`, `recall(inst, key, char reqid_out[40])`) returns `NGX_AGAIN` plus a
+40-byte request id — which is exactly the shape of a `kXR_prepare` response —
+and `residency` (`sd.h:443`) is exactly the shape of a `kXR_QPrep` answer. The
+only caller of `recall` anywhere in the tree is a cache fill
+(`sd_cache.c:128`). Meanwhile the protocol plane hands staging to a subprocess
+and answers the two management verbs with nothing: `prepare.c:412` gates on
+`kXR_wmode`, `:422` accepts and discards a cancel, `:428` accepts and discards
+an evict. Tape staging therefore works only where an operator wired a
+`prepare_command` script, and not at all through the drivers that already
+implement the two slots it would need.
 
-**C3** is the cheapest item and the one with the worst failure mode. Search the
-whole of `src/` for `fsync` and every hit is a file descriptor or a journal
-record; no directory is ever flushed. `brix_vfs_staged_commit` writes the temp,
-optionally fsyncs *the temp's* fd, and renames. On ext4 with default
-`data=ordered` the rename is durable only after the parent directory's metadata
-reaches disk, which nothing forces. The observable failure is an object whose
-bytes are all present and whose name is gone.
+**C3** is the cheapest item and the one with the worst failure mode. Directory
+durability is absent tree-wide, not in one place: `brix_vfs_staged_commit`
+(`vfs_staged.c:302–390`) writes the temp, optionally fsyncs *the temp's* fd, and
+renames; `brix_oci_store_put_text` (`oci_store.c:279–323`) does not fsync at
+all before its rename at `:318`; `webdav/delegation.c` fsyncs the file
+(`:303`) and renames (`:312`) without ever flushing the parent. On ext4 with
+default `data=ordered` the rename is durable only after the parent directory's
+metadata reaches disk, which nothing forces. The observable failure is an
+object whose bytes are all present and whose name is gone. `cred_mint.c` is the
+counter-example that proves the pattern is reachable — it carries seven fsyncs
+— and still flushes no directory.
 
-**C4** is pure round-trip arithmetic, and the protocol plane makes it vivid:
+**C4** is pure round-trip arithmetic, and the protocol plane makes it vivid.
 `src/protocols/s3/delete_objects.c` parses a `<Delete>` document that may carry
-1 000 keys, then deletes them one at a time. Over a `remote` backend that is
-1 000 signed HTTPS requests to serve one request whose entire purpose was to
-avoid that.
+`S3_DEL_MAX_KEYS` = 1 000 keys (`:37`), then calls `brix_vfs_unlink` once per
+key (`s3_delete_one`, `:67`). Over a `remote` backend that is 1 000 signed
+HTTPS requests to serve one request whose entire purpose was to avoid exactly
+that. The same arithmetic governs a recursive WebDAV `DELETE` and an XRootD
+`kXR_rmdir` over a wide collection.
 
 **C5** is a hint the code goes out of its way to validate and then throws away.
-`opaque_validate.c:237` type-checks `oss.asize` as an unsigned integer;
+`opaque_validate.c:235–240` type-checks `oss.asize` as an unsigned integer;
 `write.c:264` notes that the cap is enforced at the write plane "rather than
 only trusting the client's `oss.asize` hint at open" — which is correct as a
 security posture and is not a reason to discard the hint for capacity planning.
+The cost is concrete and computable: `sd_remote_write.c:37` fixes
+`SD_REMOTE_PART_SIZE` at 16 MiB, and S3 caps a multipart upload at 10 000
+parts, so a `remote` export refuses at **160 GB** — while
+`sd_s3_open_write(p, expected_size, part_size, …)` already *accepts* an
+expected size and is handed `-1` at `sd_remote_write.c:66`. The plumbing exists;
+one caller discards the only input it needs.
 
 **C6** is a race the source already documents. `sd_remote_staged_commit`
-implements `noreplace` as a HEAD followed by a PUT and says so: "This is
-check-then-act — RACY against a concurrent external writer landing the object
-between the HEAD and the PUT". S3 has supported conditional writes since 2024
-and the fix is one header.
+(`sd_remote_write.c:148–200`) implements `noreplace` as a HEAD followed by a PUT
+and says so in a comment: this is check-then-act, racy against a concurrent
+external writer landing the object between the HEAD and the PUT. S3 has
+supported conditional writes (`If-None-Match: *`, `If-Match: <etag>`) since
+2024 and the fix is one header — but the VFS cannot express the request,
+because `staged_commit` takes a boolean (`sd.h:394`) and
+`brix_vfs_staged_commit(st, unsigned excl)` (`vfs_staged.c:302`) has nowhere to
+put an etag.
 
 **C7** is the security item. The lock record lives as an xattr on the resource
 (`WEBDAV_LOCK_XATTR_KEY`), so the state is already in the storage layer, visible
-to every protocol. Only WebDAV reads it. Its own README says so: "the `root://`
-stream protocol and S3 REST surface have no notion of WebDAV locks." A
-deployment that serves the same export over `davs://` and `root://` — the
-common WLCG shape — has a lock primitive that stops exactly one of its clients.
+to every protocol that can read an xattr. Only WebDAV reads it, at exactly seven
+sites (enumerated in [§4/C7](#c7--locks-in-the-mutation-path)). Its own README
+says so: "the `root://` stream protocol and S3 REST surface have no notion of
+WebDAV locks." A deployment that serves the same export over `davs://` and
+`root://` — the common WLCG shape — has a lock primitive that stops exactly one
+of its clients. The expiry sweep is already policy-aware
+(`lock.c:176` returns early when
+`brix_vfs_policy_from_write_enable(conf->common.allow_write) != BRIX_VFS_MUTATION_ALLOWED`),
+which is the shape the enforcement path should have had from the start.
 
 **C8** has not bitten and is one configuration line away from biting.
 `brix_cstore_publish_dedup` calls `cs->store->driver->dedup_publish` directly
-(`gcas.c:69`); on POSIX that materialises a hardlink in the `/.gcas` farm.
-Phase 105 §0.1 works out why this is legal — the target is service-owned
-storage under its §3.4 — and then has to write the reasoning down because
-nothing enforces it.
+(`gcas.c:69`) and `brix_gcas_evict_gc` calls `dedup_gc` (`:91`); on POSIX that
+materialises and reaps a hardlink in the `/.gcas` farm. Phase 105 §0.1 works out
+why this is legal — the target is service-owned storage under its §3.4 — and
+then has to write the reasoning down *in prose* because nothing enforces it. The
+slots themselves are fully accounted for in
+`docs/09-developer-guide/storage-driver-slot-matrix.md`; what is missing is not
+the census entry but the gate, the vocabulary member and the metric dimension
+that would make an accidental re-pointing of the CAS store at an export
+observable rather than silent.
+
+---
+
+### 2.2 The enabling gap
+
+| # | Gap | Primary evidence | Class |
+|---|---|---|---|
+| C9 | 117 seam waivers carry unvalidated prose where a typed storage domain belongs | `check_vfs_seam.py:212` — `_raw_tier3_violation` returns `None` the moment the substring appears | contract |
+
+**C9** is not a capability hole; it is the reason the other eight cannot say
+what storage they are touching. `check_vfs_seam.py`'s `_raw_tier3_violation`
+returns `None` the moment the substring `vfs-seam-allow` appears on the line;
+nothing parses, validates or cross-references the reason that follows it. The
+reasons are nevertheless *good* — they are written by people who knew exactly
+which storage they meant — which is precisely the evidence that the domain is
+real and is being carried in prose instead of in a type.
+
+The 117 waivers as they stand at `480ded2e4`, by owning area:
+
+| Area | Waivers | Dominant reason cluster |
+|---|---|---|
+| `src/protocols/oci` | 25 | registry store tree, blob/manifest temps, tag pointers |
+| `src/protocols/webdav` | 21 | delegated credential dir, lock sidecars, TPC temps |
+| `src/protocols/root` | 17 | staged credential temps, prepare spool |
+| `src/fs/cache` | 15 | cache-store staging file, svc-owned domain |
+| `src/tpc/outbound` | 6 | transfer temps, delegated proxies |
+| `src/net/cms` | 6 | cluster-state spool |
+| `src/protocols/cvmfs` | 4 | catalogue/whitelist staging |
+| `src/protocols/shared` | 3 | shared temp helpers |
+| `src/fs/vfs` | 3 | the layer's own internals |
+| `src/core/config` | 3 | trust anchors, operator-supplied files |
+| `src/protocols/s3` | 2 | multipart bookkeeping |
+| `src/net/proxy` | 2 | GSI PEM temps |
+| `src/protocols/gridftp` | 1 | transfer temp |
+| `src/fs/backend` | 1 | driver-internal |
+| `src/core/aio` | 1 | AIO scratch |
+
+Read down the reason column and six domains fall out — "staged credential
+temp" ×10, "cache-store staging file, svc-owned domain" ×9, "cred dir is
+svc-owned config" ×6, the registry-store family, the TPC temps, the
+config/trust-anchor family. Those six, plus `EXPORT` itself, are exactly the
+seven members of `brix_vfs_domain_t` in [§3.7](#37-the-domain-is-a-type-not-a-sentence).
+C9 gives the prose a type, an entitlement table, and a runtime assert; the
+guard then checks the annotation against the table instead of checking that a
+string is present.
+
+C9 is also the prerequisite [phase 108](phase-108-vfs-consolidation.md) opens by
+checking: every waiver that phase deletes is one this phase had to annotate
+first, and the annotation is what proves the deletion did not change which
+storage the call reaches.
 
 ---
 
@@ -246,6 +386,12 @@ and mirrored in `unified.h` with a compile-time equality check
 the static assert in `vfs_policy.c` fails the build — which is the point of the
 assert.
 
+C9 adds no vocabulary: a *domain* (§3.7) is an orthogonal axis, not an
+operation. [Phase 108](phase-108-vfs-consolidation.md) appends the sixteenth
+member (`CREDENTIAL`, for C11); the mirror moves twice and the assert catches
+the second move exactly as it catches the first, which is why the assert is the
+mechanism and the number in this paragraph is not.
+
 **Nothing else is reclassified.** C1, C3, C5 and C6 all happen inside operations
 the vocabulary already names (`WRITE`, `PUBLISH`, `OPEN`, `RENAME`), and adding
 a label for "the durable half of a publish" would split one operator-visible
@@ -257,30 +403,50 @@ backend, a protocol or a path.
 
 ### 3.2 Slots the driver vtable gains
 
-Six new slots, four of them with `_cred` twins. All are **optional**: a NULL
-slot must leave a working generic path above it, or the slot does not get added
-(see §3.5).
+Six new *verbs*, four of which carry a `_cred` twin, which expands to **nine new
+members** of `struct brix_sd_driver_s` (`src/fs/backend/sd.h`). All are
+**optional**: a NULL slot must leave a working generic path above it, or the
+slot does not get added (see [§3.5](#35-fallback-doctrine)).
 
-| slot | signature sketch | for |
-|---|---|---|
-| `reserve` | `(brix_sd_obj_t *obj, off_t size)` | C5 |
-| `unlink_many` / `_cred` | `(inst, const char *const *paths, size_t n, int *errs, size_t *done)` | C4 |
-| `recall_cred` | `(inst, key, cred, char reqid[40])` | C2 |
-| `evict` / `_cred` | `(inst, const char *path, uint64_t *bytes_out)` | C2 |
-| `sync_publish` | `(inst, const char *path)` | C3 |
-| `exchange` / `_cred` | `(inst, const char *a, const char *b)` | C6 |
+| # | member | signature | verb | for |
+|---|---|---|---|---|
+| 1 | `reserve` | `ngx_int_t (*reserve)(brix_sd_obj_t *obj, off_t size)` | reserve | C5 |
+| 2 | `unlink_many` | `ngx_int_t (*unlink_many)(brix_sd_instance_t *inst, const char *const *paths, size_t n, int *errs, size_t *done)` | bulk delete | C4 |
+| 3 | `unlink_many_cred` | as above `+ const brix_sd_cred_t *cred` | bulk delete | C4 |
+| 4 | `recall_cred` | `ngx_int_t (*recall_cred)(brix_sd_instance_t *inst, const char *key, const brix_sd_cred_t *cred, char reqid_out[40])` | stage | C2 |
+| 5 | `evict` | `ngx_int_t (*evict)(brix_sd_instance_t *inst, const char *path, uint64_t *bytes_out)` | evict | C2 |
+| 6 | `evict_cred` | as above `+ const brix_sd_cred_t *cred` | evict | C2 |
+| 7 | `sync_publish` | `ngx_int_t (*sync_publish)(brix_sd_instance_t *inst, const char *path)` | durable publish | C3 |
+| 8 | `exchange` | `ngx_int_t (*exchange)(brix_sd_instance_t *inst, const char *a, const char *b)` | atomic exchange | C6 |
+| 9 | `exchange_cred` | as above `+ const brix_sd_cred_t *cred` | atomic exchange | C6 |
+
+`recall` itself already exists (`sd.h:435`); only its `_cred` twin is new, which
+is why the verb count (six) and the member count (nine) differ. The census
+arithmetic in [§6](#6-backend-independence-and-the-census) is 54 + 9 = **63**
+slots, not 60.
 
 and one **changed** slot, which is why C6 needs its own wave:
 
-- `staged_commit(st, int noreplace)` becomes
-  `staged_commit(st, const brix_sd_precond_t *pre)`. This is an ABI-visible
-  vtable change: every driver's initialiser and every caller moves in one
-  commit, and the tree needs a clean rebuild afterwards, not an incremental one.
+- `staged_commit(brix_sd_staged_t *st, int noreplace)` (`sd.h:394`) becomes
+  `staged_commit(brix_sd_staged_t *st, const brix_sd_precond_t *pre)`. This is
+  an ABI-visible vtable change: every driver's initialiser and every caller
+  moves in one commit, and the tree needs a clean rebuild afterwards, not an
+  incremental one — the same discipline a struct-field addition demands.
 
-Full contracts are in [Appendix A](#appendix-a--proposed-types-and-api-contracts);
+Full contracts, including per-parameter ownership and the complete errno set for
+each, are in [Appendix A](#appendix-a--proposed-types-and-api-contracts);
 per-driver verdicts for every cell in
 [Appendix B](#appendix-b--driver-verdicts-for-every-new-slot).
 
+Two structural constraints govern where the code lands. First, `sd.h` sits under
+a 600-LOC ceiling and has already been split once (`sd_cred_types.h`); the nine
+declarations plus `brix_sd_precond_t` will not fit, so the precondition type and
+the bulk-delete result vector go in a new `src/fs/backend/sd_batch_types.h`
+included from `sd.h`. Second, every new `_cred` twin is a candidate confused
+deputy: the slot wave found three, and the rule that came out of it —
+**assert on the signing key or connection identity, never on request bytes; a
+lazy slot copies the borrowed credential, an eager one may release it** — is a
+review gate for members 3, 6 and 9 before they land, not an audit afterwards.
 ### 3.3 Capability bits
 
 Two new bits in `brix_sd_cap_t` (`sd.h:95`), both used to *decline* work rather
@@ -308,6 +474,11 @@ adds obeys the same one, and the tests assert the order, not just the outcome:
 1. **Policy** — `brix_vfs_require_confined_mutation()` (or the carried form for
    delayed work). `EROFS`, before anything else, disclosing nothing about the
    gates behind it.
+1.5. **Authorization** — reserved. `brix_vfs_require_authorized()` fills this
+   position in [phase 108](phase-108-vfs-consolidation.md) (C12): `EACCES`,
+   *after* the policy kernel so a read-only endpoint still says only `EROFS`.
+   The position is named here so the verbs this phase adds are written against
+   the final order rather than retrofitted into it.
 2. **Lock** — `brix_vfs_require_unlocked()` (new, C7). `EACCES`-free: the errno
    is `EBUSY`, mapped per plane in [§5](#5-protocol-behavior).
 3. **Confinement** — already inside step 1's path form.
@@ -364,64 +535,206 @@ never named it). This phase leans on that split three times and hardens it once:
   refuses with `EINVAL` when the instance handed to it is not a service
   instance.
 
+### 3.7 The domain is a type, not a sentence
+
+Phase 105 drew the export/service line and wrote the reasoning into prose; the
+tree then carried that reasoning in 117 free-text `vfs-seam-allow` comments,
+because prose was all the seam offered. C9 gives the line a type:
+
+```c
+typedef enum {
+    BRIX_VFS_DOMAIN_EXPORT = 0,   /* client-named storage — the phase-105 gate */
+    BRIX_VFS_DOMAIN_CACHE,        /* cache store: cstore, meta sidecars, verify */
+    BRIX_VFS_DOMAIN_STAGE,        /* upload stage dir, TPC transfer temps       */
+    BRIX_VFS_DOMAIN_REGISTRY,     /* OCI store tree, tag pointers, indexes      */
+    BRIX_VFS_DOMAIN_CREDENTIAL,   /* delegated proxies, minted creds, keytabs   */
+    BRIX_VFS_DOMAIN_CONFIG,       /* trust anchors, CA bundles, operator files  */
+    BRIX_VFS_DOMAIN_JOURNAL,      /* FRM/stage journals and registries          */
+    BRIX_VFS_DOMAIN_COUNT
+} brix_vfs_domain_t;
+```
+
+`EXPORT` is zero, so a domain that is omitted or zero-initialised is the one the
+mutation gate protects — the same fail-closed default as the policy enum, on a
+different axis. A helper that means "this is not export storage" must say which
+kind of not-export it is, and the value it names is checkable.
+
+Two rules follow, and they are the whole of C9:
+
+1. **A waiver names a domain.** `/* vfs-seam-allow: BRIX_VFS_DOMAIN_CACHE —
+   cstore tree */` rather than free prose. The reason text stays; the constant is
+   what CI reads.
+2. **A file is entitled to a domain, or it is not.** `check_vfs_seam.py` grows a
+   file-to-domain map — `src/fs/cache/**` may waive `CACHE`, `src/protocols/oci/**`
+   may waive `REGISTRY`, the credential sites may waive `CREDENTIAL` — and a
+   waiver naming a domain the file has no entitlement to is a hard failure. A
+   `CONFIG` waiver appearing in a data-plane file is exactly the drift the
+   current guard cannot see.
+
+The domain does **not** create authority. A `CREDENTIAL`-domain write is not
+allowed because it named a domain; it is allowed because it is not export
+storage, which is what the domain asserts and what the guard now checks.
+
 ---
 
 ## 4. Per-item design
 
 ### C1 — Out-of-order writes on staged-only backends
 
-**Today.** Three independent refusals:
+**Today.** Three independent refusals, each of which must be satisfied before a
+reordered write reaches storage:
 
 ```
-vfs_writer.c:176      if (off != w->staged_cursor) -> NGX_ERROR   (driver never called)
-sd_http_write.c:167   if ((size_t) off != ss->len) -> ESPIPE
-sd_s3_write.c:406/434 sd_s3_check_sequential(off, f->{mpu,put}_write_off)
+vfs_writer.c:176        writer_put():  off != w->staged_cursor  -> errno = EINVAL, NGX_ERROR
+                                       (the driver is never called)
+sd_http_write.c:166     sd_http_staged_write():  (size_t) off != ss->len -> errno = ESPIPE
+sd_s3_write.c:406       sd_s3_pwrite() multipart arm:  sd_s3_check_sequential(off, f->mpu_write_off)
+sd_s3_write.c:434       sd_s3_pwrite() single-PUT arm: sd_s3_check_sequential(off, f->put_write_off)
 ```
 
-and two heap problems behind them: `sd_http_staged_write` doubles a `realloc`
-buffer up to the whole object size, and `sd_s3_pwrite_buffered` does the same
-for any upload that stays under the multipart threshold.
+and two heap problems behind them: `sd_http_staged_write`
+(`sd_http_write.c:162–190`) grows a `realloc` buffer by doubling from a 1 MiB
+floor up to the whole object size, and the S3 single-PUT arm does the same for
+any upload that stays under the multipart threshold. Both are reached through
+`remote`, which is the only registered driver that composes
+`brix_s3_origin_curl_transport`.
+
+**Which drivers are actually affected.** `BRIX_SD_CAP_RANDOM_WRITE`
+(`sd.h:101`, `1u << 2`) is advertised by eight of the twelve drivers —
+`posix` (`sd_posix.c:256`), `block` (`sd_block.c:308`), `pblock`
+(`sd_pblock.c:247`), `cache` (`sd_cache.c:312`), `stage` (`sd_stage.c:394`),
+`frm` (`sd_frm.c:494`), `ceph` (`sd_ceph.c:448`) and `xroot`
+(`sd_xroot.c:248`). Of the four that do not, `cephfs_ro` is read-only by
+construction and `mirage` is synthetic sizes-only; the gap is therefore exactly
+**`http` and `remote`** — which are also the two drivers most likely to sit
+under a WAN-facing export.
 
 **Design — one reorder buffer in the VFS, not three in the drivers.**
 
-`brix_vfs_writer_t` gains a third mode alongside `random` and staged-sequential:
-**spill**. The writer enters it when the backend has no `CAP_RANDOM_WRITE` and
-either the caller declared out-of-order delivery at open
+`brix_vfs_writer_t` gains a third mode alongside `random` and
+staged-sequential: **spill**. The writer enters it when the backend has no
+`CAP_RANDOM_WRITE` and either the caller declared out-of-order delivery at open
 (`BRIX_VFS_WRITER_O_UNORDERED`) or the first write arrives with
 `off != staged_cursor`. Entering it on the first violation, rather than only on
 the declaration, matters: neither the XRootD write path nor GridFTP mode E knows
 at open time whether the client will reorder.
 
+**Writer state machine.** Three states, five transitions, no state is ever
+re-entered:
+
+```
+                    open on CAP_RANDOM_WRITE backend
+   [OPEN] ─────────────────────────────────────────────► [RANDOM]
+      │                                                      │ commit -> driver close
+      │ open on staged-only backend
+      ▼
+  [SEQUENTIAL] ──── off == staged_cursor ────► stays SEQUENTIAL, driver staged_write
+      │                                                      │ commit -> staged_commit
+      │ off != staged_cursor, or O_UNORDERED at open
+      │ (T1: spill_enter)
+      ▼
+   [SPILL] ──── any off, brix_vfs_pwrite_full into the spill temp ──► stays SPILL
+      │                                                      │
+      │ T2: commit  -> drain spill sequentially into a fresh staged session,
+      │               then staged_commit; unlink spill
+      │ T3: abort   -> unlink spill, abort staged session
+      │ T4: ENOSPC on the spill write, or spill_max exceeded
+      ▼
+   [FAILED]  (errno = ENOSPC; the staged session is aborted, nothing is published)
+```
+
+`SEQUENTIAL → SPILL` is one-way: once a writer has spilled, later in-order
+writes still go to the spill, because the spill is now the authority on the
+object's contents. `RANDOM → SPILL` never happens — a random-capable backend
+has no ordering constraint to violate.
+
 In spill mode the writer:
 
-1. creates a POSIX spill temp under the configured spill root (service storage —
-   after the gate, §3.6),
-2. absorbs arbitrary-offset writes with the existing
-   `brix_vfs_pwrite_full()`,
-3. at commit, drains the spill sequentially into the driver's staged session and
-   commits that,
+1. creates a POSIX spill temp under the configured spill root — **service
+   storage**, so the `EXPORT`-domain gate has already fired at step 1 of
+   [§3.4](#34-the-order-every-new-mutator-obeys) and the spill's own creation
+   asserts `BRIX_VFS_DOMAIN_STAGE` under C9,
+2. absorbs arbitrary-offset writes with the existing `brix_vfs_pwrite_full()`,
+3. at commit, drains the spill sequentially into the driver's staged session
+   and commits that,
 4. on abort, unlinks the spill and aborts the staged session.
 
 The drain is where the object's real size becomes known, which C5 then uses to
-choose an S3 part size — the two items compose.
+choose an S3 part size — the two items compose, and W2 lands before W4 for that
+reason.
+
+**Contract.**
+
+| element | value |
+|---|---|
+| new open flag | `BRIX_VFS_WRITER_O_UNORDERED` — declares reordering up front; optional, the writer self-promotes without it |
+| new writer field | `spill_fd`, `spill_path` (pool-allocated), `spill_bytes`, `mode` |
+| `brix_vfs_writer_write` | unchanged signature; `EINVAL` at `vfs_writer.c:176` is replaced by the `spill_enter` transition |
+| `ENOSPC` | raised at the moment the writer *enters* spill mode when `spill_max` is already exceeded, and on any short spill write |
+| `EROFS` | unchanged — the gate at the writer's `MUTATE_WRITE` call sites (`vfs_writer.c:198,262,331`) still fires first |
+| commit ordering | drain → `staged_commit` → `sync_publish` (C3) → unlink spill. The spill is unlinked **after** the publish is durable, so a crash mid-publish leaves the bytes recoverable |
 
 **Why not per-driver.** An S3 multipart part must be uploaded whole and is at
 least 5 MiB; an out-of-order stream cannot be turned into parts without
 buffering somewhere. Buffering once in the VFS is the honest version. It also
-deletes the two heap-growth paths above: `sd_http_staged_write` and
-`sd_s3_pwrite_buffered` become spill-backed for any object past a threshold,
-which is a memory-safety fix independent of ordering.
+deletes the two heap-growth paths above: `sd_http_staged_write` and the S3
+single-PUT arm become spill-backed for any object past a threshold, which is a
+memory-safety fix independent of ordering.
 
 **Ceiling, stated up front.** A spill needs local scratch. When it will not fit,
 the honest answer is a capacity error at the moment the writer enters spill mode
-(`ENOSPC` → `kXR_NoSpace` / 507 Insufficient Storage), not a slow path and not a
-truncated object. Config: `brix_vfs_spill_path` (default: the export's staged
-temp directory) and `brix_vfs_spill_max` (default: unlimited, meaning the
-filesystem decides).
+(`ENOSPC` → `kXR_NoSpace` / `507 Insufficient Storage`), not a slow path and not
+a truncated object.
+
+**Configuration.**
+
+| directive | context | argument | default | validated at `nginx -t` |
+|---|---|---|---|---|
+| `brix_vfs_spill_path` | `http`, `server`, `location` | path | the export's staged temp directory | must be absolute; must not be inside any configured export root (that would make service storage reachable as export storage) |
+| `brix_vfs_spill_max` | `http`, `server`, `location` | `size` | `0` (unlimited — the filesystem decides) | `ngx_conf_set_size_slot`; `0` or ≥ 1 MiB |
+
+Both are declared in the `BRIX_TIER_DIRECTIVES` X-macro
+(`src/core/config/tier_directives.h`), which is what
+`tools/ci/check_directive_registry.py` parses for names, so no second
+registration site exists to drift.
+
+`nginx -t` negatives, each its own test:
+
+```
+brix_vfs_spill_path relative/path;      -> [emerg] brix_vfs_spill_path must be absolute
+brix_vfs_spill_path /srv/export/tmp;    -> [emerg] brix_vfs_spill_path is inside export root "/srv/export"
+brix_vfs_spill_max 4k;                  -> [emerg] brix_vfs_spill_max must be 0 or at least 1m
+```
+
+**Call sites that change.**
+
+| file:line | change |
+|---|---|
+| `src/fs/vfs/vfs_writer.c:48` | `writer_random_backend()` unchanged; spill is chosen below it |
+| `src/fs/vfs/vfs_writer.c:156–186` | `writer_put()` — the `EINVAL` refusal becomes the `spill_enter` transition |
+| `src/fs/vfs/vfs_writer.c:188` | `brix_vfs_writer_write()` — dispatch on `mode` |
+| `src/fs/vfs/vfs_writer.c:323` | `brix_vfs_writer_commit_ex()` — drain arm |
+| `src/fs/backend/http/sd_http_write.c:162–190` | keep the `ESPIPE` refusal (defence in depth); cap the doubling buffer at the spill threshold |
+| `src/fs/backend/s3/sd_s3_write.c:406,434` | unchanged — the VFS no longer presents out-of-order offsets |
+
+`vfs_writer.c` is near the 600-LOC ceiling; the spill mode lands in a new
+`src/fs/vfs/vfs_writer_spill.c` with its internals in `vfs_writer_internal.h`,
+and both go in the repo-root `./config` source list
+(guard `check_config_coverage.py`).
 
 **Gate.** `MUTATE_WRITE`, already carried by the writer
-(`vfs_writer.c:198,262,331`). No vocabulary change.
+(`vfs_writer.c:198,262,331`). No vocabulary change. The spill temp's own
+creation carries `BRIX_VFS_DOMAIN_STAGE` (C9), not `EXPORT`.
 
+**Tests** (`tests/test_vfs_writer_spill.py`, plus the C object unit):
+
+| test | asserts |
+|---|---|
+| success | 8 MiB written in reverse 1 MiB chunks over a `remote` export lands byte-exact; `md5` matches the in-order upload |
+| success | in-order writes never create a spill file (`spill_path` stays empty) |
+| error | `brix_vfs_spill_max 1m` + a 4 MiB reordered upload → `ENOSPC`, `kXR_NoSpace` on root, `507` on HTTP, and **no** object published |
+| security-negative | a read-only endpoint (`brix_write_enable off`) returns `EROFS` **before** any spill file is created — asserted by `stat`ing the spill root, not only by the errno |
+| security-negative | `brix_vfs_spill_path` pointing inside an export root is refused at `nginx -t`, so an export can never be written through the spill door |
 ### C2 — Prestage and evict as VFS mutations
 
 **Today.** `brix_handle_prepare` (`prepare.c:513`) validates paths, then — if
@@ -699,6 +1012,52 @@ census that will omit the next one.
 
 ---
 
+---
+
+### C9 — The service-storage domain becomes typed
+
+**Today.** `check_vfs_seam.py:212` — `if "vfs-seam-allow" in line: return None`.
+The marker is a substring test. 117 waivers carry reasons that are careful,
+consistent, and entirely unread by anything.
+
+**Design.** §3.7's `brix_vfs_domain_t`, plus two mechanical passes:
+
+- **Pass 1 — annotate.** Rewrite all 117 waivers to lead with a domain constant.
+  This is a comment-only change with no behavioural content, and it is the
+  wave's whole risk profile: a mis-assigned domain in pass 1 becomes a false
+  entitlement in pass 2. The reasons already cluster cleanly (§2.2), so the
+  mapping is mostly transcription — but "mostly" is why the pass gets reviewed
+  as a security change and not as a comment tidy.
+- **Pass 2 — enforce.** `check_vfs_seam.py` parses the constant, checks it
+  against a file-glob entitlement table, and fails on an unknown domain, a
+  missing domain, or a domain the path is not entitled to. The entitlement table
+  lives in the guard, is reviewed like an allowlist, and is deliberately coarse:
+  directories, not files, so it does not re-break on the next move
+  (a content-scanning guard allowlisted by exact path has broken on a file move
+  in this tree before; keying on directory prefixes is what stops an archive or
+  a shard from invalidating the table).
+
+**Runtime half.** The domain assert (Appendix A.3), which ships in W1 rather
+than here because C8 needs it immediately. It takes the domain as an argument
+instead of inferring "service or not" from the instance:
+
+```c
+ngx_int_t brix_vfs_domain_mutation(const brix_sd_instance_t *inst,
+                                   brix_vfs_domain_t domain,
+                                   brix_vfs_mutation_op_t op);
+```
+
+`EXPORT` routes to the phase-105 kernel. Every other domain asserts the instance
+actually belongs to that domain and books the metric. The compile-time half
+(the guard) and the runtime half (the assert) check the same claim from two
+directions, which is the pattern the mutation gate already uses.
+
+**What this is not.** It is not a permission system. A domain is a statement
+about *what the storage is*, not about who may touch it. C9 makes that statement
+checkable; it grants nothing.
+
+---
+
 ## 5. Protocol behavior
 
 The refusal each plane emits for each new condition. Where a mapping already
@@ -802,6 +1161,14 @@ alongside the byte plane.
 - Access log: the batch delete books one line with a key count, not N lines. The
   spill books its high-water mark on the commit line.
 
+C9 adds one label and no metric family:
+
+- The mutation counter gains a `domain` label, bounded to the seven values of
+  §3.7. This is the one place a low-cardinality label earns its keep: it turns
+  "something wrote outside the export" from an audit question into a graph, and
+  it is the signal [phase 108](phase-108-vfs-consolidation.md) measures its
+  consolidations against.
+
 ---
 
 ## 8. Implementation waves
@@ -831,10 +1198,13 @@ edge check for a condition the VFS now owns.
 
 - [ ] Append `STAGE`, `EVICT`, `LOCK`, `DEDUP` to `brix_vfs_mutation_op_t`;
       move `BRIX_VFS_MUTATE_OP_METRIC_COUNT` to 15; extend the label table.
+      ([Phase 108](phase-108-vfs-consolidation.md) appends `CREDENTIAL` and
+      takes it to 16.)
 - [ ] Add `brix_vfs_require_unlocked()` next to the kernel — separate function,
       kernel stays pure.
-- [ ] Add `brix_vfs_service_mutation()` and route `gcas.c` through it (C8, items
-      1–2).
+- [ ] Add `brix_vfs_domain_t` (§3.7) and `brix_vfs_domain_mutation()` (A.3) —
+      the type is trivial and C8 needs the assert now; W9 is the two passes that
+      make the claim checkable. Route `gcas.c` through it (C8, items 1–2).
 - [ ] Make `sd_slot_matrix.py` header-derived; regenerate; verdict every newly
       visible cell (C8, item 3).
 
@@ -910,6 +1280,21 @@ edge check for a condition the VFS now owns.
 - [ ] Cross-protocol proof: lock over `davs://`, refuse over `root://`,
       GridFTP, S3 and OCI; unlock; all five succeed.
 
+### W9 — C9 typed storage domains
+
+- [ ] Confirm the W1 assert: `EXPORT` routes to the phase-105 kernel unchanged,
+      every other domain refuses an instance that does not belong to it.
+- [ ] Pass 1: annotate all 117 waivers with a domain constant. Comment-only,
+      reviewed as a security change — a mis-assigned domain here becomes a false
+      entitlement in pass 2.
+- [ ] Pass 2: `check_vfs_seam.py` parses the constant, enforces a
+      directory-prefix entitlement table, and fails on unknown / missing /
+      unentitled.
+- [ ] Retire the narrow service-mutation assert in favour of the domain form;
+      `gcas.c` moves with it.
+- [ ] This wave is [phase 108](phase-108-vfs-consolidation.md)'s prerequisite:
+      that phase's W0 does not start until the entitlement table is enforcing.
+
 ---
 
 ## 9. Test matrix
@@ -926,6 +1311,7 @@ edge check for a condition the VFS now owns.
 | C6 | conditional publish atomic on `remote`/`http`; exchange atomic on `posix` | mismatched etag → 412 / `kXR_ItExists` | a non-`CAP_PRECOND` backend never reports an atomic guarantee; exchange never emulated |
 | C7 | locked resource refuses on all five planes; matching token succeeds | expired lock treated as absent on a read-only export, without reaping | a lock cannot be bypassed by choosing a different protocol; token from another lock does not match |
 | C8 | `gcas` publish/gc succeed against a store instance | export instance → `EINVAL` | a cache store configured at an export root is refused |
+| C9 | every waiver names an entitled domain; guard green | unknown/missing domain → guard fails | a `CONFIG` waiver in a data-plane file fails; a domain constant does not grant access |
 
 ### 9.2 Cross-cutting
 
@@ -945,6 +1331,10 @@ edge check for a condition the VFS now owns.
   carrying a verdict.
 - **Fleet**: the live lanes for root, WebDAV, S3, OCI and GridFTP, each
   exercising the plane's own new refusal.
+- **Domain entitlement (C9)**: `check_vfs_seam.py` green over the fully
+  annotated tree, plus a negative case per domain — a waiver naming a domain its
+  directory has no entitlement to must fail the guard, and a domain constant must
+  not be readable as a grant.
 
 ---
 
@@ -959,6 +1349,7 @@ src/fs/vfs/vfs_recall.c           C2 — brix_vfs_recall / brix_vfs_evict
 src/fs/vfs/vfs_bulk.c             C4 — chunker + brix_vfs_delete_many
 src/fs/backend/posix/sd_posix_durable.c   C3 — parent-directory flush
 tools/diag/brix_lock_scan.py      C7 — pre-upgrade live-lock inventory
+src/fs/vfs/vfs_domain.c           C9 — brix_vfs_domain_t + domain assert
 ```
 
 Modified (non-exhaustive; the ABI wave touches every driver):
@@ -978,7 +1369,10 @@ src/protocols/root/query/prepare*.c  stage/evict/QPrep rewiring
 src/protocols/s3/delete_objects.c    batch path
 src/protocols/webdav/copy.c          precondition at commit
 tools/ci/check_sd_driver_conformance.py
+tools/ci/check_vfs_seam.py           C9 — domain parsing + entitlement table
 tools/diag/sd_slot_matrix.py         header-derived census
+src/fs/vfs/vfs_deleg*, src/fs/cache/*, src/protocols/oci/*, src/tpc/*
+                                     C9 pass 1 — waivers gain a domain constant
 config                               new .c files (guard: check_config_coverage.py)
 ```
 
@@ -1013,16 +1407,24 @@ risk:
    require a clean rebuild — an incremental build across this wave links and
    misbehaves.
 
+6. **C9 is invisible at runtime.** Comments plus a guard plus an assert that
+   fires only on a mismatch nothing should be producing. It changes no wire
+   answer, no directive default and no supported configuration. Its risk is
+   entirely in review: a mis-assigned domain in pass 1 becomes a false
+   entitlement in pass 2.
+
 **Rollout order** follows the waves: W2–W5 are additive and can ship
 independently; W6 changes a protocol answer; W7 is the ABI wave and ships alone;
-W8 ships last and behind the directive, because it is the one that can refuse
-traffic that used to be accepted.
+W8 ships behind its directive, because it is the one that can refuse traffic
+that used to be accepted. W9 is independent of all of them and gates the whole
+of [phase 108](phase-108-vfs-consolidation.md), so it should not be the wave
+that slips.
 
 ---
 
 ## 12. Definition of done
 
-- [ ] All eight items implemented, or explicitly deferred here with the reason
+- [ ] All nine items implemented, or explicitly deferred here with the reason
       and the ceiling recorded.
 - [ ] Vocabulary is 15 members; the metric mirror asserts equal at compile time.
 - [ ] Every new slot has a verdict in every empty cell, the matrix is
@@ -1042,6 +1444,50 @@ traffic that used to be accepted.
 - [ ] An implementation record appended to this document, in the shape phase 105
       used: what the sweep actually found, including the defects only a
       plane-by-plane pass surfaced.
+
+C9 adds:
+
+- [ ] Every `vfs-seam-allow` waiver in the tree names a domain constant, that
+      constant is one of the seven, and the file's directory prefix is entitled
+      to it.
+- [ ] `check_vfs_seam.py` rejects a missing domain, an unknown domain and an
+      unentitled domain — with a test per case, because a guard that only
+      accepts is not a guard.
+- [ ] The waiver **count** is recorded per domain and published in this
+      document, as the baseline
+      [phase 108](phase-108-vfs-consolidation.md) measures its deletions
+      against.
+
+---
+
+## 13. What moved to phase 108
+
+v2 of this document carried a second part: four places where BriX-Cache already
+implements a VFS mutation concern as an isolated per-feature copy. They are now
+[phase 108 — VFS consolidation](phase-108-vfs-consolidation.md), because the two
+halves have different risk profiles, different review audiences and different
+definitions of done. This phase is nine items of new capability judged by "does
+it work on twelve drivers". That one is four waves of consolidation judged by "is
+the shared version at least as strong as every copy it replaced" — a
+security-review question, not a capability question. C12 alone touches 37 call
+sites across five protocol planes and needs a release in `observe` before it
+means anything; bundling that schedule with C1's spill writer helped neither.
+
+| moved item | what it consolidates | needs from this phase |
+|---|---|---|
+| C10 service publish | the OCI registry's private staged publish, atomic tag swap, CAS probe and index listing | C3 `sync_publish`, C6 `exchange` + precondition, C8 CAS gate, C9 domains |
+| C11 credential verb | ~25 hand-rolled secret-file writers in eleven files | C9 domains |
+| C12 authz backstop | 37 protocol-edge authorization sites over a rule engine already in `src/fs/path/` | the ordering position §3.4 reserves at 1.5 |
+| C13 n2n stage | `site_n2n.c`, compiled and called by nothing, versus `sd_ceph.c`'s partial copy | nothing — independent |
+
+**C9 stayed here.** It is cheap, it is enabling, and it belongs with the kernel
+work: the typed domain is what lets any of the verbs above say which storage
+they touch. It is also phase 108's stated prerequisite, so it lands on this side
+of the seam or that phase does not start.
+
+The evidence that motivates the moved items travels with them — phase 108 §2
+carries it in full, because separating the argument from the finding is how a
+plan loses the reason it was written.
 
 ---
 
@@ -1069,7 +1515,13 @@ typedef enum {
 
 `unified.h`'s `BRIX_VFS_MUTATE_OP_METRIC_COUNT` moves 11 → 15 in the same
 commit, or the static assert in `vfs_policy.c` fails the build. The label table
-in `brix_vfs_mutation_op_name()` gains `"stage"`, `"evict"`, `"lock"`, `"dedup"`.
+in `brix_vfs_mutation_op_name()` gains `"stage"`, `"evict"`, `"lock"` and
+`"dedup"`.
+
+[Phase 108](phase-108-vfs-consolidation.md) appends a sixteenth (`CREDENTIAL`).
+The mirror therefore moves twice, and the assert catches the second move exactly
+as it catches the first — which is why the assert is the mechanism and the
+number in this paragraph is not.
 
 ### A.2 The lock gate
 
@@ -1092,19 +1544,32 @@ read-only endpoint must not perform one (phase-105 W3).
 Enforcement mode comes from the export's merged config, not from an argument:
 callers must not be able to opt a site out.
 
-### A.3 Service-storage mutation assert
+### A.3 Domain assert (C8, C9)
 
 ```c
-/* src/fs/vfs/vfs_policy.c */
-ngx_int_t brix_vfs_service_mutation(const brix_sd_instance_t *inst,
-                                    brix_vfs_mutation_op_t op);
+/* src/fs/vfs/vfs_domain.c */
+ngx_int_t brix_vfs_domain_mutation(const brix_sd_instance_t *inst,
+                                   brix_vfs_domain_t domain,
+                                   brix_vfs_mutation_op_t op);
 ```
 
-`NGX_OK` when `inst` is a service instance (cache store, stage tier) — the
-storage class phase-105 §3.4 exempts from the endpoint gate because no endpoint
-named it. `NGX_ERROR` with `EINVAL` otherwise, plus one metric sample. This
-turns a paragraph of reasoning into a runtime refusal, and its only current
-callers are `gcas.c`'s two dedup slots.
+`EXPORT` delegates to the phase-105 kernel and behaves identically. Any other
+domain asserts `inst` belongs to that domain and books one metric sample;
+`NGX_ERROR` with `EINVAL` on a mismatch. This turns phase-105 §3.4's paragraph
+of reasoning into a runtime refusal.
+
+The narrow form C8 needs on its own — "is this a service instance at all?" — is
+this function called with the service domain the caller means, so only the
+general one ships. Its first callers are `gcas.c`'s two dedup slots (C8), and
+after W9 every service-storage mutator in the tree.
+
+The guard half is not a C API: `check_vfs_seam.py` parses
+`/* vfs-seam-allow: BRIX_VFS_DOMAIN_<NAME> — <reason> */`, requires the constant
+to be one of the seven, and requires the file's directory prefix to appear
+against that domain in [Appendix G](#appendix-g--the-storage-domain-table).
+Free-text waivers stop being accepted in the same commit that finishes pass 1,
+never before — a half-annotated tree with an enforcing guard is a red build with
+no information in it.
 
 ### A.4 Reserve
 
@@ -1421,6 +1886,8 @@ holding a lock means.
 | Prestage now consumes tape drives on behalf of an unauthenticated reader | C2 | `MUTATE_STAGE` is gated like any mutation, which is the change; FRM-1 ownership on evict and cancel |
 | A recall job outlives the request and uses a freed credential | C2 | the contract in A.6 requires a copy; the `_cred` audit is a wave exit criterion, not a review comment |
 | Four new vocabulary members drift from the metric mirror | W1 | the existing compile-time assert already fails the build; W0 proves it does |
+| A typed domain is read as a grant rather than a classification | C9 | §3.7 states it explicitly; the negative test asserts a domain constant confers no access; the runtime assert only ever *refuses* |
+| A mis-assigned domain in W9 pass 1 becomes a false entitlement in pass 2 | C9 | pass 1 is reviewed as a security change, not a comment tidy; the entitlement table is coarse and reviewed like an allowlist |
 
 ### D.2 Rejected alternatives
 
@@ -1457,6 +1924,10 @@ target is service storage and no endpoint named it, so the export policy is the
 wrong authority. The right assertion is that the instance really is service
 storage, which is A.3.
 
+**Typing the domain without enforcing it (C9).** Rejected: a constant nothing
+reads is the situation the item exists to fix, in a new syntax. Pass 1 without
+pass 2 is not worth doing.
+
 **Deriving `oss.asize` into a quota decision (C5).** Rejected: the hint is
 client-supplied and `write.c:264` already documents why it is not trusted for
 enforcement. It sizes a reservation; the cap stays where it is.
@@ -1478,6 +1949,12 @@ Existing guards that must stay green, with what each one will catch here:
   a reason naming service storage, or it moves behind an existing helper.
   Preference is the helper: `brix_vfs_pwrite_full` and the owned-temp path
   already exist and the spill should not be the tree's newest raw-syscall site.
+  **C9 changes this guard's contract**: today `_raw_tier3_violation` returns
+  `None` on the mere presence of the substring `vfs-seam-allow`, so the reason is
+  unread. After W9 it parses a domain constant and checks a directory-prefix
+  entitlement table. The switch from "any prose" to "an entitled domain" happens
+  in the commit that finishes annotating, not before — an enforcing guard over a
+  half-annotated tree is a red build carrying no information.
 - **`check_sd_driver_conformance.py`** — the six new slots join the parity base,
   minus `sync_publish` (leaf-only, `dec`), recorded in the script.
 - **`check_vfs_identity_branch.py`** — every new `_cred` twin.
@@ -1485,13 +1962,21 @@ Existing guards that must stay green, with what each one will catch here:
   where this bites: the Ceph work needed one tagged acquire/release runner
   because eight longhand bodies failed the gate. Every `_cred` twin here shares
   an `*_io` core with its plain sibling from the first commit.
-- **`check_config_coverage.py`** — five new `.c` files in the repo-root `config`
+- **`check_config_coverage.py`** — six new `.c` files in the repo-root `config`
   and a re-`./configure`.
 - **`sd_slot_matrix.py --check`** — drift, over a census that is now
   header-derived and therefore cannot omit a slot.
 - **Complexity contract** — absolute CCN/NPath. The spill writer and the tree
   batcher are the two that will push a function over; both split at the design
   stage rather than after the guard complains.
+- **The seam-waiver table as a census (C9).** Worth recording what `check_duplication`
+  cannot do, because W9 is what compensates: a hand-rolled
+  `open`/`write`/`rename` is not textually similar enough to `staged_file.c` to
+  trip a token-based detector, so structural duplication of a *contract* is
+  invisible to it. The census that does see it is the per-domain waiver count
+  (Appendix G). After W9 a rising count in a domain is the signal
+  `check_duplication` cannot give — and it is the signal
+  [phase 108](phase-108-vfs-consolidation.md) is measured by.
 
 ---
 
@@ -1507,9 +1992,48 @@ Existing guards that must stay green, with what each one will catch here:
 | C6 preconditions / exchange | §4 C6, A.8 | W7 | §9.1 C6, advisory-vs-atomic | `vfs_precond_failed_total{kind}` | conformance, ABI note |
 | C7 lock enforcement | §4 C7, A.2, C.4 | W8 | §9.1 C7, five-plane cross-protocol proof | `vfs_lock_refused_total{proto}` | mutation gate (extended) |
 | C8 dedup plane | §4 C8, A.3 | W1 | §9.1 C8 | `vfs_mutation_denied{op=dedup}` | slot matrix (header-derived) |
+| C9 typed domains | §3.7, §4 C9, A.3, App. G | W9 | §9.1 C9 | domain label on the mutation counter | seam guard (new contract) |
+
+---
+
+## Appendix G — the storage-domain table
+
+The seven domains of §3.7, what each covers, which directories are entitled to
+waive it, and whether a publish into it is durable — the last column is
+consumed by [phase 108](phase-108-vfs-consolidation.md) §3.3, which is where
+durability per domain is enforced.
+
+| domain | covers | entitled paths | durable |
+|---|---|---|---|
+| `EXPORT` | client-named storage | none — it takes the phase-105 gate, not a waiver | per `brix_durable_publish` |
+| `CACHE` | cache store tree, meta sidecars, verify staging | `src/fs/cache/**` | no (loss = re-fetch) |
+| `STAGE` | upload stage dir, TPC transfer temps, spill (C1) | `src/fs/xfer/**`, `src/tpc/**`, `src/protocols/webdav/tpc_*` | no (loss = retry) |
+| `REGISTRY` | OCI store tree, tag pointers, referrers/store indexes | `src/protocols/oci/**` | **yes** |
+| `CREDENTIAL` | delegated proxies, minted creds, keytabs, bearer files | `src/fs/vfs/vfs_deleg*`, `src/fs/backend/cred_mint*`, `src/auth/**`, the TPC/WebDAV delegation sites | **yes** |
+| `CONFIG` | trust anchors, CA bundles, operator files (CMS blacklist) | `src/core/config/**`, `src/net/cms/blacklist_file.c` | n/a (read-mostly) |
+| `JOURNAL` | FRM and stage journals, request registries | `src/fs/xfer/**`, `src/fs/tier/**` | **yes** |
+
+Counts from the tree at `480ded2e4`, as the starting point for W9 pass 1 — the
+prose reasons already cluster this way, which is the evidence the domain is real
+and not imposed:
+
+| reason cluster | waivers |
+|---|---|
+| staged credential temp / cred dir / config-domain proxy, PEM, token, keytab | ~25 |
+| cache-store staging, svc-owned cache tree, cache-root sidecar | ~15 |
+| registry store tree / indexes / tag pointers / session state | ~14 |
+| TPC in-progress temps and assembly | ~6 |
+| metadata on a VFS-opened confined fd (already correct — no change) | 4 |
+| trust anchors, operator config | ~5 |
+| the remainder: probes, scratch, sweeps, forensics | ~48 |
+| **total** | **117** |
+
+The remainder is where W9 pass 1 will do actual work rather than transcription,
+and it is sized accordingly in the wave.
 
 ---
 
 *End of plan. Nothing in this document has been implemented. When a wave lands,
 append its record here in the shape phase 105 used — what the sweep actually
-found, not what it set out to find.*
+found, not what it set out to find. The consolidation half of the original v2
+plan now lives in [phase 108](phase-108-vfs-consolidation.md).*
