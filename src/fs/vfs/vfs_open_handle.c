@@ -40,7 +40,15 @@ brix_vfs_close(brix_vfs_file_t *fh, ngx_log_t *log)
         fh->memfd = NGX_INVALID_FILE;
     }
 
-    if (fh->obj.driver == NULL || fh->obj.fd == NGX_INVALID_FILE) {
+    /* A memory-served backend (xroot/pblock/ceph — CAP_MEMFILE, no kernel fd)
+     * still owns per-open driver state: an origin connection holding a live
+     * remote write handle, catalog state, a RADOS ioctx. Skipping the close
+     * slot for fd == NGX_INVALID_FILE leaked all of it — on a root:// backend
+     * the origin kept counting this session as an open writer, so the very
+     * next read-open of the object was denied by single-writer semantics. */
+    if (fh->obj.driver == NULL
+        || (fh->obj.fd == NGX_INVALID_FILE && fh->obj.state == NULL))
+    {
         return NGX_OK;
     }
 

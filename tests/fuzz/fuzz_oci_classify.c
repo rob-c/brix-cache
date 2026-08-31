@@ -55,13 +55,14 @@ static void span_within(const char *p, size_t n, const char *base, size_t len)
     assert(n <= (size_t) (base + len - p));
 }
 
-static void hex64(const char *s)
+static void hex_matches_alg(const brix_oci_digest_t *d)
 {
-    size_t i;
+    size_t i, n = brix_oci_alg_hexlen(d->alg);
 
-    assert(strlen(s) == 64);
-    for (i = 0; i < 64; i++) {
-        assert((s[i] >= '0' && s[i] <= '9') || (s[i] >= 'a' && s[i] <= 'f'));
+    assert(n > 0 && strlen(d->hex) == n);
+    for (i = 0; i < n; i++) {
+        assert((d->hex[i] >= '0' && d->hex[i] <= '9')
+               || (d->hex[i] >= 'a' && d->hex[i] <= 'f'));
     }
 }
 
@@ -115,7 +116,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     if (req.cls == BRIX_OCI_REQ_BLOB
         || (req.cls == BRIX_OCI_REQ_MANIFEST && req.ref_is_digest))
     {
-        hex64(req.digest_hex);
+        hex_matches_alg(&req.digest);
     }
 
     if (req.cls == BRIX_OCI_REQ_UPLOAD_SESSION) {

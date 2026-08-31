@@ -220,6 +220,50 @@ SPECS: dict[str, ObjectUnitSpec] = {
             str(NGX_SRC / "objs/src/os/unix/ngx_alloc.o"),
         ),
     ),
+    # The handle-plane release/durability dispatch: the real vfs_open_handle.o
+    # + vfs_sync.o over the real policy kernel, with a counting spy driver and
+    # a spy executor. Pins the fix for the memory-served close leak (a root://
+    # write handle surviving its committed STOR) and the fd-less fsync dispatch.
+    "vfs_handle_close_dispatch": ObjectUnitSpec(
+        "vfs_handle_close_dispatch",
+        "test_vfs_handle_close_dispatch",
+        (
+            addon("vfs/vfs_open_handle.o"),
+            addon("vfs/vfs_sync.o"),
+            addon("vfs/vfs_policy.o"),
+        ),
+        (
+            "-O",
+            "-Wall",
+            "-I",
+            "src",
+            "-I",
+            str(REPO_ROOT / "shared"),
+            "-I",
+            str(OBJS),
+            "-I",
+            str(NGX_SRC / "src/core"),
+            "-I",
+            str(NGX_SRC / "src/event"),
+            "-I",
+            str(NGX_SRC / "src/event/modules"),
+            "-I",
+            str(NGX_SRC / "src/event/quic"),
+            "-I",
+            str(NGX_SRC / "src/os/unix"),
+            "-I",
+            str(NGX_SRC / "src/stream"),
+            "-I",
+            str(NGX_SRC / "src/http"),
+            "-I",
+            str(NGX_SRC / "src/http/modules"),
+            "tests/c/test_vfs_handle_close_dispatch.c",
+            "tests/c/ngx_link_stubs.c",
+            str(addon("vfs/vfs_open_handle.o")),
+            str(addon("vfs/vfs_sync.o")),
+            str(addon("vfs/vfs_policy.o")),
+        ),
+    ),
     # The phase-105 mutation-policy kernel. vfs_policy.o names exactly ONE
     # cross-TU symbol (brix_metric_vfs_mutation_denied), which the test supplies
     # as a spy, so the battery links the one real object and stays hermetic —

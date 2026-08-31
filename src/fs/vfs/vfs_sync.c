@@ -175,7 +175,15 @@ brix_vfs_sync(brix_vfs_file_t *fh)
 {
     brix_vfs_job_t job;
 
-    if (fh == NULL || fh->obj.fd == NGX_INVALID_FILE) {
+    /* A memory-served handle (no kernel fd) can still honor a durability
+     * barrier through its driver's fsync slot — the root:// backend maps it
+     * to kXR_sync on the origin write handle. Only a handle with neither an
+     * fd nor a dispatchable driver object is invalid here. */
+    if (fh == NULL
+        || (fh->obj.fd == NGX_INVALID_FILE
+            && (fh->obj.driver == NULL || fh->obj.driver->fsync == NULL
+                || fh->obj.state == NULL)))
+    {
         errno = EINVAL;
         return NGX_ERROR;
     }
@@ -189,6 +197,11 @@ brix_vfs_sync(brix_vfs_file_t *fh)
     }
 
     brix_vfs_job_sync_init(&job, fh->obj.fd);
+    if (fh->obj.fd == NGX_INVALID_FILE) {
+        /* Bind the driver object so the executor dispatches driver->fsync
+         * instead of wrapping the (invalid) fd. */
+        brix_vfs_job_set_obj(&job, &fh->obj);
+    }
     brix_vfs_io_execute(&job);
     if (job.io_errno != 0) {
         errno = job.io_errno;
