@@ -28,7 +28,7 @@ pytest-timeout>=2.4.0,<3
 # `-n` parallelism plus the xdist_group scheduling several suites rely on.
 pytest-xdist>=3.8.0,<4
 # --reruns for the documented lane flakes.
-pytest-rerunfailures>=16.4,<17
+pytest-rerunfailures>=16.6,<17
 
 # --- HTTP / WebDAV / token plane ---------------------------------------------
 requests>=2.25,<3
