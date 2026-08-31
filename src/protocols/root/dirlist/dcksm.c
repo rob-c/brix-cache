@@ -111,20 +111,19 @@ brix_dirlist_checksum_algorithm(const u_char *payload, size_t payload_len,
  * checksum fails.
  */
 void
-brix_dirlist_checksum_token(ngx_log_t *log, int dfd,
-    const char *name, const char *path, const struct stat *st,
-    const char *algo, char *out, size_t outsz)
+brix_dirlist_checksum_token(const brix_dirlist_cksum_req_t *req,
+    char *out, size_t outsz)
 {
     int   fd;
 
-    if (!S_ISREG(st->st_mode)) {
-        snprintf(out, outsz, "%s:none", algo);
+    if (!S_ISREG(req->st->st_mode)) {
+        snprintf(out, outsz, "%s:none", req->algo);
         return;
     }
 
-    fd = openat(dfd, name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);  /* vfs-seam-allow: dirfd-relative open within an already-VFS-opened confined dir stream (brix_vfs_dir_fd) */
+    fd = openat(req->dfd, req->name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);  /* vfs-seam-allow: dirfd-relative open within an already-VFS-opened confined dir stream (brix_vfs_dir_fd) */
     if (fd < 0) {
-        snprintf(out, outsz, "%s:none", algo);
+        snprintf(out, outsz, "%s:none", req->algo);
         return;
     }
 
@@ -134,12 +133,23 @@ brix_dirlist_checksum_token(ngx_log_t *log, int dfd,
 
         ngx_memzero(&iopts, sizeof(iopts));
         iopts.allow_xattr_cache  = 1;
-        iopts.update_xattr_cache = 1;
+        /* phase-105: the digest cache is an xattr on the EXPORT object, so a
+         * read-only endpoint still answers the listing — it just recomputes
+         * instead of persisting. The integrity layer refuses the write itself
+         * (EROFS) even when update_xattr_cache is set; asking for it only when
+         * the endpoint is writable keeps the refusal metric for real attempts
+         * to mutate rather than for every dcksm listing. */
+        iopts.update_xattr_cache =
+            (req->policy == BRIX_VFS_MUTATION_ALLOWED) ? 1 : 0;
+        iopts.mutation_policy    = req->policy;
+        iopts.proto              = BRIX_PROTO_ROOT;
 
-        if (brix_integrity_get_fd(log, fd, NULL, path, algo, &iopts, &info) == NGX_OK) {
+        if (brix_integrity_get_fd(req->log, fd, NULL, req->path, req->algo,
+                                    &iopts, &info) == NGX_OK)
+        {
             snprintf(out, outsz, "%s:%s", info.alg_name, info.hex);
         } else {
-            snprintf(out, outsz, "%s:none", algo);
+            snprintf(out, outsz, "%s:none", req->algo);
         }
     }
 

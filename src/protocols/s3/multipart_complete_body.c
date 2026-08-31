@@ -3,6 +3,7 @@
 #include "auth/impersonate/lifecycle.h"
 #include "auth/impersonate/impersonate.h"   /* BRIX_IMP_OFF mode constant */
 #include "fs/vfs/vfs.h"   /* thread-safe confined open/unlink (off-thread assemble) */
+#include "fs/vfs/vfs_policy.h"   /* phase-105 endpoint mutation gate */
 #include "core/compat/copy_range.h"
 
 #include <string.h>
@@ -77,11 +78,13 @@ s3_multipart_complete_body_handler(ngx_http_request_t *r)
  * *http_status_out.
  */
 static ngx_int_t
-s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
+s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *opctx,
     const char *mpu_dir, const char *final_tmp, const char *fs_path,
     struct stat *st_out, char *crc64_b64_out, size_t crc64_sz,
     int *http_status_out)
 {
+    ngx_log_t  *log = opctx->log;
+    const char *root_canon = opctx->root_canon;
     char        part_path[PATH_MAX];
     int         final_fd, part_fd, part_num;
     off_t       dst_off = 0;
@@ -95,11 +98,17 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
      * S3 objects are gateway-owned (SigV4, no per-user DAC impersonation) and
      * every other S3 write path publishes 0600, so 0600 both closes the
      * part-concatenation exposure window and matches the S3 final-object mode. */
-    final_fd = brix_vfs_open_fd(log, root_canon, final_tmp,
-                                 O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    /* phase-105: the assembly temp is the FIRST byte this request writes to the
+     * export, so gating its create refuses a read-only endpoint before any part
+     * is concatenated and before any name appears on disk. Everything below is
+     * either a read or a cleanup of this same temp, so one gate covers the whole
+     * publish. */
+    final_fd = brix_vfs_export_open_fd(opctx, final_tmp,
+                                        O_WRONLY | O_CREAT | O_TRUNC, 0600);
     if (final_fd < 0) {
         brix_log_safe_path(log, NGX_LOG_ERR, errno,
                              "s3 complete_mpu: open(\"%s\") failed", final_tmp);
+        *http_status_out = brix_http_errno_to_status(errno);
         return NGX_ERROR;
     }
 
@@ -118,7 +127,7 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
             ngx_log_error(NGX_LOG_ERR, log, errno,
                           "s3 complete_mpu: open part %d failed", part_num);
             close(final_fd);
-            brix_vfs_unlink_path(log, root_canon, final_tmp);
+            brix_vfs_export_unlink(opctx, final_tmp);
             return NGX_ERROR;
         }
 
@@ -127,7 +136,7 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
                           "s3 complete_mpu: fstat part %d failed", part_num);
             close(part_fd);
             close(final_fd);
-            brix_vfs_unlink_path(log, root_canon, final_tmp);
+            brix_vfs_export_unlink(opctx, final_tmp);
             return NGX_ERROR;
         }
 
@@ -145,7 +154,7 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
                           "s3 complete_mpu: copy part %d failed", part_num);
             close(part_fd);
             close(final_fd);
-            brix_vfs_unlink_path(log, root_canon, final_tmp);
+            brix_vfs_export_unlink(opctx, final_tmp);
             return NGX_ERROR;
         }
         dst_off += pst.st_size;
@@ -156,7 +165,7 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
         ngx_log_error(NGX_LOG_ERR, log, errno,
                       "s3 complete_mpu: fstat temp file failed");
         close(final_fd);
-        brix_vfs_unlink_path(log, root_canon, final_tmp);
+        brix_vfs_export_unlink(opctx, final_tmp);
         return NGX_ERROR;
     }
     close(final_fd);
@@ -164,7 +173,7 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
     if (brix_rename_confined_canon(log, root_canon, final_tmp, fs_path) != 0) {
         brix_log_safe_path(log, NGX_LOG_ERR, errno,
                              "s3 complete_mpu: rename to \"%s\" failed", fs_path);
-        brix_vfs_unlink_path(log, root_canon, final_tmp);
+        brix_vfs_export_unlink(opctx, final_tmp);
         return NGX_ERROR;
     }
 
@@ -267,6 +276,10 @@ typedef struct {
     char                final_tmp[PATH_MAX];
     char                fs_path[PATH_MAX];
     char                root_canon[PATH_MAX];
+    /* phase-105: the endpoint's write posture, copied by VALUE at post time.
+     * The assemble runs on a pool thread that holds no request configuration,
+     * so the authority to publish has to travel with the task (Appendix D.7). */
+    brix_vfs_mutation_policy_t policy;
     ngx_str_t           bucket;           /* points to stable cf->bucket config  */
     ngx_int_t           rc;
     int                 http_status;
@@ -277,9 +290,13 @@ typedef struct {
 static void
 s3_mpu_aio_thread(void *data, ngx_log_t *log)
 {
-    s3_mpu_aio_t *t = data;
+    s3_mpu_aio_t             *t = data;
+    brix_vfs_export_op_ctx_t  opctx;
 
-    t->rc = s3_mpu_assemble(t->r, log, t->root_canon, t->mpu_dir, t->final_tmp,
+    brix_vfs_export_op_ctx_init(&opctx, log, t->root_canon, t->policy,
+                                BRIX_PROTO_S3);
+
+    t->rc = s3_mpu_assemble(t->r, &opctx, t->mpu_dir, t->final_tmp,
                             t->fs_path, &t->st, t->crc64_b64,
                             sizeof(t->crc64_b64), &t->http_status);
 }
@@ -411,6 +428,7 @@ s3_multipart_complete_body_handler_inner(ngx_http_request_t *r)
                         sizeof(t->fs_path));
             ngx_cpystrn((u_char *) t->root_canon,
                         (u_char *) cf->common.root_canon, sizeof(t->root_canon));
+            t->policy = brix_vfs_policy_from_write_enable(cf->common.allow_write);
             brix_task_bind(task, s3_mpu_aio_thread, s3_mpu_aio_done);
 
             if (ngx_thread_task_post(pool, task) != NGX_OK) {
@@ -425,13 +443,18 @@ s3_multipart_complete_body_handler_inner(ngx_http_request_t *r)
 
         /* Synchronous fallback (no thread pool): assemble inline, then respond. */
         {
-            struct stat st2;
-            char        crc[S3_CRC64NVME_B64_MAX];
-            int         status = NGX_HTTP_INTERNAL_SERVER_ERROR;
+            struct stat              st2;
+            char                     crc[S3_CRC64NVME_B64_MAX];
+            int                      status = NGX_HTTP_INTERNAL_SERVER_ERROR;
+            brix_vfs_export_op_ctx_t opctx;
 
-            if (s3_mpu_assemble(r, r->connection->log, cf->common.root_canon,
-                                mpu_dir, final_tmp, fs_path, &st2, crc,
-                                sizeof(crc), &status) != NGX_OK)
+            brix_vfs_export_op_ctx_init(&opctx, r->connection->log,
+                cf->common.root_canon,
+                brix_vfs_policy_from_write_enable(cf->common.allow_write),
+                BRIX_PROTO_S3);
+
+            if (s3_mpu_assemble(r, &opctx, mpu_dir, final_tmp, fs_path, &st2,
+                                crc, sizeof(crc), &status) != NGX_OK)
             {
                 BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
                 s3_metrics_finalize_request_method(r, method_slot, status);

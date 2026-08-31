@@ -103,21 +103,33 @@ class TestTheUngatedVerbsAnswerTheSameOnBothFaces:
 
 class TestSiteAnswersOkToEverything:
     """DEFECT CANDIDATE #136 — ev_grp_session's SITE arm
-    (ftp_ev_dispatch.c:259) is a bare `200 OK` with the argument never read.
+    (ftp_ev_dispatch.c) was a bare `200 OK` with the argument never read, so a
+    client that issued `SITE CHMOD 000` against a read-only export was told the
+    mutation succeeded.  The gate was never bypassed: nothing happened.  What
+    was wrong was the reply.
 
-    The gate is not bypassed: nothing happens.  What is wrong is the reply — a
-    client that issues `SITE CHMOD 000` against a read-only export is told the
-    mutation succeeded.
+    Phase 105 W4 closed the half of #136 that is a read-only concern: the five
+    subcommands the GridFTP grammar defines as mutations (CHMOD, CHGRP, UTIME,
+    SYMLINK, RDEL) now answer the same 550 every other write verb answers with.
+    The OTHER half stands and is pinned below — SITE is still unimplemented, so
+    the armed face answers `200 OK` and changes nothing.  That is a reply bug
+    about an absent feature, not about the read-only policy, and phase 105 does
+    not touch it.
     """
 
-    def test_site_chmod_is_answered_ok_on_a_read_only_export(self, gw, request):
+    @pytest.mark.parametrize("sub", ("CHMOD 000", "CHGRP staff",
+                                     "UTIME 20260830000000", "SYMLINK /x",
+                                     "RDEL"))
+    def test_a_mutating_site_subcommand_is_refused_on_a_read_only_export(
+            self, gw, request, sub):
         name = _uid(request)
         _seed_file(gw, "off", name)
-        assert _one(G_OFF, f"SITE CHMOD 000 /{name}") == "200 OK"
+        reply = _one(G_OFF, f"SITE {sub} /{name}")
+        assert reply == "550 Permission denied (read-only)", (sub, reply)
 
-    def test_and_the_mode_is_unchanged(self, gw, request):
-        """The second half, and the one that makes it a reply bug rather than a
-        gate bypass."""
+    def test_and_the_mode_is_still_unchanged(self, gw, request):
+        """The refusal is honest in both directions: it reports no mutation and
+        it performs none."""
         name = _uid(request)
         path = _seed_file(gw, "off", name)
         _one(G_OFF, f"SITE CHMOD 000 /{name}")
@@ -125,9 +137,10 @@ class TestSiteAnswersOkToEverything:
 
     def test_the_armed_face_answers_ok_and_changes_nothing_either(self, gw,
                                                                   request):
-        """SITE is unimplemented, not gated — so the finding is about the reply
-        on every face, and an operator cannot use `allow_write on` to make
-        `SITE CHMOD` work."""
+        """The surviving half of #136: SITE is unimplemented, so on a WRITABLE
+        export `SITE CHMOD` still reports success and still does nothing.  An
+        operator cannot use `allow_write on` to make it work, and phase 105
+        deliberately left this alone — it is not a read-only defect."""
         name = _uid(request)
         path = _seed_file(gw, "on", name)
         assert _one(G_ON, f"SITE CHMOD 000 /{name}") == "200 OK"
@@ -135,8 +148,11 @@ class TestSiteAnswersOkToEverything:
 
     @pytest.mark.parametrize("argument", ("HELP", "UMASK 022", "EXEC /bin/sh",
                                           "NONSENSE", ""))
-    def test_every_site_argument_gets_the_same_answer(self, gw, argument):
-        """Including ones no server should accept.  `SITE EXEC` is the classic
+    def test_a_non_mutating_site_argument_still_gets_the_blanket_ok(
+            self, gw, argument):
+        """The classifier is a whitelist of five, not a prefix match or a
+        catch-all: everything outside it keeps the pre-existing answer.
+        Including arguments no server should accept — `SITE EXEC` is the classic
         wu-ftpd remote-execution verb; answering it `200 OK` executes nothing
         here, but it tells a scanner the verb is supported."""
         assert _one(G_OFF, ("SITE " + argument).strip()) == "200 OK", argument

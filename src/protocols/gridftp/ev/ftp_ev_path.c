@@ -360,7 +360,7 @@ brix_ftp_ev_vfs_ctx(ftp_ev_t *fc, const char *abs, void *vctx)
 
     brix_vfs_ctx_init(ctx, fc->c->pool, fc->c->log,
                       BRIX_PROTO_GRIDFTP, fc->conf->root_canon, "",
-                      fc->conf->allow_write ? 1 : 0,
+                      brix_vfs_policy_from_write_enable(fc->conf->allow_write),
                       fc->sec_active ? 1 : 0 /* is_tls */,
                       fc->identity, abs);
 

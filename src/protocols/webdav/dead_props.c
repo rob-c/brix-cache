@@ -47,7 +47,8 @@ webdav_dead_prop_vfs_ctx_init(ngx_http_request_t *r, const char *path,
 
     brix_vfs_ctx_init(vctx, r->pool, r->connection->log,
         BRIX_PROTO_WEBDAV, conf->common.root_canon,
-        conf->common.cache_root_canon, conf->common.allow_write, is_tls,
+        conf->common.cache_root_canon,
+        brix_vfs_policy_from_write_enable(conf->common.allow_write), is_tls,
         (wctx != NULL) ? wctx->identity : NULL, path);
 }
 

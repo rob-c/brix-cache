@@ -26,6 +26,7 @@
 #include "protocols/shared/deleg_capture.h"  /* phase-70 §5.1 proxy header capture */
 #include "fs/backend/sd.h"  /* enum brix_cred_mode / BRIX_CRED_SELECT */
 #include "access_internal.h"  /* access_authenticate — access_auth.c */
+#include "fs/vfs/vfs_policy.h"  /* brix_vfs_policy_from_write_enable — phase 105 */
 
 /* Map a WebDAV HTTP method to the XrdAcc operation it requires. */
 static brix_acc_op_t
@@ -123,6 +124,37 @@ webdav_is_write_method(ngx_http_request_t *r)
                                     brix_webdav_operations_count);
 
     return (op && (op->flags & BRIX_PROTO_OP_WRITE));
+}
+
+
+/*
+ * webdav_is_mutating_method — is this method a MUTATION for policy purposes?
+ *
+ * WHAT: Non-zero for every method that can change the export: the write
+ * methods above plus LOCK/UNLOCK, which carry BRIX_PROTO_OP_LOCK alone.
+ *
+ * WHY: Phase 105 W4 — a WebDAV lock is stored as an xattr on the target (and
+ * LOCK on a missing path materialises a lock-null placeholder), so LOCK and
+ * UNLOCK mutate the export just as PUT does.  BRIX_WEBDAV_ALLOW_FLAGS already
+ * withholds BRIX_PROTO_OP_LOCK from a read-only endpoint, so OPTIONS has
+ * always advertised locking as unavailable there; without this classifier the
+ * access-phase gate contradicted that advert, let LOCK through, and the
+ * request died at the VFS xattr gate as a 500 instead of a 403.
+ *
+ * This is deliberately NOT folded into webdav_is_write_method(): that
+ * predicate also makes access_apply_authdb() stand down (write methods carry
+ * their own allow_write + xrdacc + scope gates), and widening it would silently
+ * exempt LOCK/UNLOCK from the authdb and VO ACL checks.
+ */
+static int
+webdav_is_mutating_method(ngx_http_request_t *r)
+{
+    const brix_http_operation_t *op;
+
+    op = brix_http_operation_find(r, brix_webdav_operations,
+                                    brix_webdav_operations_count);
+
+    return (op && (op->flags & (BRIX_PROTO_OP_WRITE | BRIX_PROTO_OP_LOCK)));
 }
 
 
@@ -457,9 +489,13 @@ ngx_http_brix_webdav_access_handler(ngx_http_request_t *r)
         return rc;
     }
 
-    /* Write-method gate — the GLOBAL allow_write check runs BEFORE the token
-     * scope check below (INVARIANT 3). */
-    if (webdav_is_write_method(r) && !conf->common.allow_write) {
+    /* Mutation gate — the GLOBAL allow_write check runs BEFORE the token
+     * scope check below (INVARIANT 3).  Phase 105 W4: LOCK/UNLOCK are refused
+     * here too, before any request body is read and before any work happens. */
+    if (webdav_is_mutating_method(r)
+        && brix_vfs_policy_from_write_enable(conf->common.allow_write)
+           != BRIX_VFS_MUTATION_ALLOWED)
+    {
         return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
     }
 

@@ -9,7 +9,8 @@
  *       destination is verified to be inside the export root before the syscall,
  *       with one metric/access-log line — not an ad-hoc rename(2) per protocol.
  *
- * HOW:  Enforces brix_vfs_require_write(), then demands a non-NULL root_canon
+ * HOW:  Enforces brix_vfs_require_confined_mutation(MUTATE_RENAME) — EROFS on
+ *       a read-only endpoint — then demands a non-NULL root_canon
  *       and a destination that is itself is_confined with a non-empty resolved
  *       path. It delegates the actual move to brix_ns_rename() (namespace
  *       layer), maps the returned status back to errno (sys_errno or EIO), and
@@ -131,7 +132,9 @@ brix_vfs_rename(brix_vfs_ctx_t *ctx, const brix_path_result_t *dst,
     start = brix_vfs_now_ns();
     path = brix_vfs_ctx_path(ctx);
 
-    if (brix_vfs_require_write(ctx) != NGX_OK) {
+    if (brix_vfs_require_confined_mutation(ctx,
+            BRIX_VFS_MUTATE_RENAME) != NGX_OK)
+    {
         saved_errno = errno;
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,
                                   NGX_ERROR, saved_errno, start);

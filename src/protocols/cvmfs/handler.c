@@ -326,7 +326,7 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
 
     is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
-        BRIX_PROTO_CVMFS, root, "", /* allow_write */ 0, is_tls, NULL,
+        BRIX_PROTO_CVMFS, root, "", BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL,
         path);
     vctx.sd = cvmfs_resolve_sd(r, lcf);
     if (vctx.sd == NULL) {

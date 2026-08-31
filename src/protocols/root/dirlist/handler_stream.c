@@ -141,7 +141,7 @@ brix_dirlist_entry_not_online(ngx_connection_t *c,
     }
 
     brix_vfs_ctx_init(&residency_ctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        walk->conf->common.root_canon, NULL, 0 /* allow_write */,
+        walk->conf->common.root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY,
         0 /* is_tls */, NULL, entry_path);
 
     return brix_vfs_residency(&residency_ctx, &residency, NULL) == NGX_OK
@@ -203,10 +203,18 @@ brix_dirlist_entry_meta(ngx_log_t *log, brix_dirlist_walk_t *walk,
             snprintf(fmt->cksum_token, sizeof(fmt->cksum_token),
                      "%s:none", walk->cksum_algo);
         } else {
-            brix_dirlist_checksum_token(log,
-                                          brix_vfs_dir_fd(walk->dh), name,
-                                          entry_path, &entry_st,
-                                          walk->cksum_algo, fmt->cksum_token,
+            brix_dirlist_cksum_req_t creq;
+
+            ngx_memzero(&creq, sizeof(creq));
+            creq.log    = log;
+            creq.dfd    = brix_vfs_dir_fd(walk->dh);
+            creq.name   = name;
+            creq.path   = entry_path;
+            creq.st     = &entry_st;
+            creq.algo   = walk->cksum_algo;
+            creq.policy = walk->mutation_policy;
+
+            brix_dirlist_checksum_token(&creq, fmt->cksum_token,
                                           sizeof(fmt->cksum_token));
         }
         fmt->need += strlen(fmt->cksum_token) + sizeof(" [  ]") - 1;

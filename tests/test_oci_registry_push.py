@@ -596,16 +596,51 @@ def test_registry_without_an_auth_plane_is_refused_at_parse_time(
     assert "brix_oci_token_issuers" in output
 
 
+#: Phase-105 W4: the registry's whole mutation surface, one row per verb the
+#: distribution spec defines as a write. `oci_is_write()` classifies anything
+#: that is not GET/HEAD, so a read-only location must answer DENIED to all of
+#: them — including the two (referrer PUT, blob-mount POST) that reach the
+#: store by a route the plain upload session never touches.
+_OCI_MUTATIONS = (
+    ("blob-upload-start", "POST",   "/v2/lab/app/blobs/uploads/", None),
+    ("blob-mount",        "POST",
+     "/v2/lab/app/blobs/uploads/?mount=sha256:" + "0" * 64 + "&from=lab/other",
+     None),
+    ("blob-upload-chunk", "PATCH",  "/v2/lab/app/blobs/uploads/phase105",
+     b"chunk"),
+    ("blob-upload-close", "PUT",
+     "/v2/lab/app/blobs/uploads/phase105?digest=sha256:" + "0" * 64, b""),
+    ("manifest-put",      "PUT",    "/v2/lab/app/manifests/v1",
+     b'{"schemaVersion":2}'),
+    ("manifest-delete",   "DELETE", "/v2/lab/app/manifests/v1", None),
+    ("blob-delete",       "DELETE", "/v2/lab/app/blobs/sha256:" + "0" * 64,
+     None),
+    ("referrer-put",      "PUT",    "/v2/lab/app/manifests/sha256:" + "0" * 64,
+     b'{"schemaVersion":2,"subject":{}}'),
+)
+
+
 def test_a_read_only_location_refuses_every_write(lifecycle, tmp_path):
-    """INVARIANT #3: no credential promotes a read-only location."""
+    """INVARIANT #3 and phase-105 W4: no credential promotes a read-only
+    location, and the refusal covers the COMPLETE mutation surface — upload
+    session, chunk, close, mount, manifest put/delete, blob delete and
+    referrer put — each with the registry-shaped DENIED envelope rather than a
+    bare status a client cannot interpret."""
+    store = tmp_path / "ro"
     reg = start_registry(lifecycle, "lc-oci-registry-ro", NGINX_PORT + 3,
-                         tmp_path / "ro", writable=False)
+                         store, writable=False)
 
-    status, _, body = req(reg.base + "/v2/lab/app/blobs/uploads/",
-                          method="POST")
+    seen = {}
+    for label, method, path, data in _OCI_MUTATIONS:
+        status, _, body = req(reg.base + path, method=method, data=data)
+        seen[label] = (status, err_code(body))
 
-    assert status == 403
-    assert err_code(body) == "DENIED"
+    assert seen == {m[0]: (403, "DENIED") for m in _OCI_MUTATIONS}, seen
+
+    # Security-negative: not one of them left an upload session, a blob or a
+    # manifest behind in the store.
+    assert not [p for p in store.rglob("*") if p.is_file()], \
+        "a refused registry mutation still wrote into the store"
 
 
 def test_another_repos_layer_is_not_readable_by_digest(registry: Registry):

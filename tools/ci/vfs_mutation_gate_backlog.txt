@@ -1,0 +1,9 @@
+# vfs_mutation_gate_backlog.txt — grandfathered UNGATED export mutations
+# (phase-105 §4.1). Each entry is a 'path:' prefix whose confinement-only
+# mutator calls the guard still tolerates.
+#
+# This file is EMPTY BY CONTRACT: phase-105 landed with every export-storage
+# caller on a brix_vfs_export_* wrapper and every service-owned reclaim
+# carrying a per-call '/* vfs-mutation-gate-allow: <reason> */' marker.
+# Adding a line here re-opens a read-only export to writes — migrate the
+# caller or justify it with a marker instead.

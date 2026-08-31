@@ -40,6 +40,12 @@ brix_kxr_from_errno(int err)
     } table[] = {
         { ENOENT,    kXR_NotFound },
         { EACCES,    kXR_NotAuthorized },
+        /* phase-105: a read-only endpoint is a property of the SERVER, not
+         * of the caller's identity — kXR_fsReadOnly says "this export does
+         * not accept writes" where kXR_NotAuthorized would tell the client
+         * to go find better credentials. The reverse table already carries
+         * kXR_fsReadOnly → EROFS; this closes the round trip. */
+        { EROFS,     kXR_fsReadOnly },
         { EPERM,     kXR_NotAuthorized },
         { EXDEV,     kXR_NotAuthorized },
         { ELOOP,     kXR_NotAuthorized },

@@ -68,6 +68,20 @@ tpc_done_account(brix_tpc_pull_t *t, int ok, ngx_log_t *log)
  *      still present and idx is a valid slot, clear fd/transfer_id and free the
  *      fhandle (fd already -1, so the free cannot double-close). Pass ctx=NULL when
  *      there is no fhandle table to touch. */
+/* Phase-105 export authority for the destination side of this pull: the TPC
+ * endpoint's own write posture. The destination is a real export object (TPC
+ * writes the final name directly, it is not a service-owned temp), so even the
+ * failure cleanup goes through the gated form — a read-only endpoint could not
+ * have created it, and must not be able to remove one either. */
+static void
+tpc_dst_opctx(const brix_tpc_pull_t *t, ngx_log_t *log,
+    brix_vfs_export_op_ctx_t *opctx)
+{
+    brix_vfs_export_op_ctx_init(opctx, log, t->conf->common.root_canon,
+        brix_vfs_policy_from_write_enable(t->conf->common.allow_write),
+        BRIX_PROTO_ROOT);
+}
+
 static void
 tpc_done_teardown_dst(brix_tpc_pull_t *t, brix_ctx_t *ctx, int idx,
                       ngx_log_t *log)
@@ -87,8 +101,10 @@ tpc_done_teardown_dst(brix_tpc_pull_t *t, brix_ctx_t *ctx, int idx,
         close(t->dst_fd);
     }
     if (remove_final) {
-        (void) brix_vfs_unlink_path(log, t->conf->common.root_canon,
-                                    t->dst_path);
+        brix_vfs_export_op_ctx_t opctx;
+
+        tpc_dst_opctx(t, log, &opctx);
+        (void) brix_vfs_export_unlink(&opctx, t->dst_path);
     }
     if (ctx != NULL && idx >= 0 && idx < BRIX_MAX_FILES) {
         ctx->files[idx].fd = -1;
@@ -139,7 +155,8 @@ tpc_done_refresh_stat(brix_tpc_pull_t *t, brix_ctx_t *ctx,
                                              t->conf->common.root_canon);
 
     brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        t->conf->common.root_canon, NULL, t->conf->common.allow_write,
+        t->conf->common.root_canon, NULL,
+        brix_vfs_policy_from_write_enable(t->conf->common.allow_write),
         0, ctx->identity, logical);
     vctx.rootfd = t->conf->rootfd;
     brix_vfs_ctx_bind_backend_cred(&vctx,
@@ -202,16 +219,20 @@ tpc_done_sync_fail(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
         file->tpc_transfer_id = 0;
         brix_free_fhandle(ctx, idx);
         if (!had_writer) {
-            (void) brix_vfs_unlink_path(c->log, t->conf->common.root_canon,
-                                        t->dst_path);
+            brix_vfs_export_op_ctx_t opctx;
+
+            tpc_dst_opctx(t, c->log, &opctx);
+            (void) brix_vfs_export_unlink(&opctx, t->dst_path);
         }
     } else {
         if (t->dst_writer == NULL && t->dst_fd >= 0) {
             close(t->dst_fd);
         }
         if (t->dst_writer == NULL) {
-            (void) brix_vfs_unlink_path(c->log, t->conf->common.root_canon,
-                                        t->dst_path);
+            brix_vfs_export_op_ctx_t opctx;
+
+            tpc_dst_opctx(t, c->log, &opctx);
+            (void) brix_vfs_export_unlink(&opctx, t->dst_path);
         }
     }
 

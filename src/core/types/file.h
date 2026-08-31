@@ -2,6 +2,7 @@
 #define BRIX_TYPES_FILE_H
 
 #include "fs/backend/sd.h"   /* brix_sd_obj_t — per-handle storage object */
+#include "fs/vfs/vfs_policy.h"   /* brix_vfs_mutation_policy_t (phase-105) */
 #include "observability/sesslog/sesslog.h"
 
 /* Opaque VFS staged-write handle (whole-object staged-commit adapter, phase-70).
@@ -77,6 +78,17 @@ typedef struct {
     ngx_msec_t open_time;       /* timestamp of kXR_open (for throughput log) */
     brix_sess_xfer_t sess_xfer; /* session lifecycle transfer record */
     int        writable;        /* 1 = opened with write permission */
+    /*
+     * Phase-105: the ENDPOINT's write posture, copied by value when the handle
+     * was opened. `writable` records what the client asked for and the open
+     * granted; this records whether the export may be written at all. They are
+     * separate because a handle outlives the request that opened it — a reload
+     * can flip the endpoint to read-only under a still-open write handle, and
+     * every later write/truncate/sync must decide from the generation that
+     * opened it (Appendix D.5 / I.2). Zero is READ_ONLY, so a slot that never
+     * ran the open-time initializer cannot be written through.
+     */
+    brix_vfs_mutation_policy_t mutation_policy;
     int        readable;        /* 1 = opened with read permission */
     int        from_cache;      /* 1 = fd points into cache_root (not export root);
                                    drives kXR_cachersp in handle-based kXR_stat */

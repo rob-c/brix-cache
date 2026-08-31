@@ -105,7 +105,8 @@ brix_statx_symlink_fallback_stat(brix_ctx_t *ctx,
     /* Canonical target confirmed within the export root; read its metadata
      * through the VFS (chain already resolved). */
     brix_vfs_ctx_init(&rvctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL, conf->common.allow_write,
+        conf->common.root_canon, NULL,
+        brix_vfs_policy_from_write_enable(conf->common.allow_write),
         0 /* is_tls */, ctx->identity, real);
     brix_vfs_ctx_bind_backend_cred(&rvctx,
         &conf->common.storage_credential_dir,
@@ -172,7 +173,8 @@ brix_statx_compute_flag(ngx_stream_brix_srv_conf_t *conf,
     }
 
     brix_vfs_ctx_init(&rvc, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL, conf->common.allow_write,
+        conf->common.root_canon, NULL,
+        brix_vfs_policy_from_write_enable(conf->common.allow_write),
         0 /* is_tls */, NULL, full_path);
     if (brix_vfs_residency(&rvc, &res, NULL) == NGX_OK
         && (res == BRIX_SD_RES_NEARLINE || res == BRIX_SD_RES_OFFLINE))
@@ -212,7 +214,8 @@ brix_statx_vfs_stat(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     brix_vfs_stat_t vst;
 
     brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL, conf->common.allow_write,
+        conf->common.root_canon, NULL,
+        brix_vfs_policy_from_write_enable(conf->common.allow_write),
         0 /* is_tls */, NULL, full_path);
     if (brix_vfs_statf(&vctx, &vst) != NGX_OK) {
         return -1;

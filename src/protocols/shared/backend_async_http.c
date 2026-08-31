@@ -28,13 +28,12 @@ baq_http_wake(void *client, int op_errno)
 
 ngx_int_t
 brix_baq_http_try(ngx_http_request_t *r, ngx_http_brix_shared_conf_t *common,
-    brix_baq_op_t op, const char *root_canon, const char *src_key,
-    const char *dst_key, uint32_t mode, brix_baq_http_render_pt render,
-    void *ctx)
+    const brix_baq_req_t *req, brix_baq_http_render_pt render, void *ctx)
 {
     brix_baq_http_park_t *park;
+    brix_baq_req_t        q;
 
-    if (common == NULL || !common->backend_async) {
+    if (common == NULL || req == NULL || !common->backend_async) {
         return NGX_DECLINED;
     }
 
@@ -46,10 +45,12 @@ brix_baq_http_try(ngx_http_request_t *r, ngx_http_brix_shared_conf_t *common,
     park->render = render;
     park->ctx    = ctx;
 
-    if (brix_baq_enqueue(op, root_canon, src_key, dst_key, mode,
-                         common->backend_async_batch, common->backend_async_wait,
-                         baq_http_wake, park) != NGX_OK)
-    {
+    q          = *req;
+    q.policy   = brix_vfs_policy_from_write_enable(common->allow_write);
+    q.batch    = common->backend_async_batch;
+    q.wait_ms  = common->backend_async_wait;
+
+    if (brix_baq_enqueue(&q, baq_http_wake, park) != NGX_OK) {
         return NGX_DECLINED;                 /* caller falls back to inline */
     }
 

@@ -44,7 +44,7 @@ s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
         ngx_int_t       probed;
 
         brix_vfs_ctx_init(&fctx, r->pool, log, BRIX_PROTO_S3, root_canon,
-            NULL, 0 /* allow_write */, 0 /* is_tls */, NULL, final_path);
+            NULL, BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */, NULL, final_path);
         {
             ngx_http_s3_loc_conf_t *acf =
                 ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);

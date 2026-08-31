@@ -137,6 +137,40 @@ unified_emit_cred_deleg(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
 }
 
 /*
+ * unified_emit_vfs_mutation_denied — render the phase-105 read-only denial
+ * family: brix_vfs_mutation_denied_total{proto,op,reason}.
+ *
+ * WHAT: Emits one counter per (protocol, bounded mutation operation), always
+ *       with reason="read_only".
+ * WHY:  Operators need to see that an endpoint configured read-only is actually
+ *       refusing writes, and which family of write is being attempted, without
+ *       the path/subject/key that would make the series unbounded.
+ * HOW:  Two nested loops over the SHM cube; the reason label is a literal
+ *       because EROFS is the sole VFS read-only mutation result.
+ */
+static void
+unified_emit_vfs_mutation_denied(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    ngx_uint_t  proto, op;
+
+    mw_printf(mw,
+        "# HELP brix_vfs_mutation_denied_total Export mutations refused by the "
+            "VFS read-only policy, by protocol and operation.\n"
+        "# TYPE brix_vfs_mutation_denied_total counter\n");
+    for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
+        for (op = 0; op < BRIX_VFS_MUTATE_OP_METRIC_COUNT; op++) {
+            mw_printf(mw,
+                "brix_vfs_mutation_denied_total"
+                "{proto=\"%s\",op=\"%s\",reason=\"read_only\"} %llu\n",
+                brix_metric_proto_name((brix_proto_t) proto),
+                brix_metric_vfs_mutate_op_name(op),
+                brix_metric_value(
+                    &shm->unified.vfs_mutation_denied_total[proto][op]));
+        }
+    }
+}
+
+/*
  * unified_emit_cache — render the per-protocol cache families
  * (hits / misses / bytes_evicted).
  *
@@ -398,6 +432,7 @@ brix_export_unified_metrics(metrics_writer_t *mw,
     unified_emit_io_offload(mw, shm);
     unified_emit_cred_select(mw, shm);
     unified_emit_cred_deleg(mw, shm);
+    unified_emit_vfs_mutation_denied(mw, shm);
     unified_emit_cache(mw, shm);
     unified_emit_cache_watermark(mw, shm);
     unified_emit_cache_prefetch(mw, shm);

@@ -168,6 +168,89 @@ SPECS: dict[str, ObjectUnitSpec] = {
             str(addon("vfs/vfs_walk.o")),
         ),
     ),
+    # Phase-105 K.4: the five real VFS mutation TUs on top of the real policy
+    # kernel, with their whole cross-TU closure supplied as counting stubs — the
+    # namespace layer, the confined-path syscalls, the leaf/credential resolvers
+    # and the cache evictor. That closure is what makes "no mutating slot was
+    # reached" observable at all; a wire test can only see the response. The
+    # nginx string/pool objects come along for ngx_snprintf, the one libngx
+    # symbol the mutation TUs name.
+    "vfs_read_only_spy": ObjectUnitSpec(
+        "vfs_read_only_spy",
+        "test_vfs_read_only_spy",
+        (
+            addon("vfs/vfs_mkdir.o"),
+            addon("vfs/vfs_unlink.o"),
+            addon("vfs/vfs_rename.o"),
+            addon("vfs/vfs_copy.o"),
+            addon("vfs/vfs_xattr.o"),
+            addon("vfs/vfs_policy.o"),
+        ),
+        (
+            "-O",
+            "-Wall",
+            "-I",
+            "src",
+            "-I",
+            str(REPO_ROOT / "shared"),
+            "-I",
+            str(OBJS),
+            "-I",
+            str(NGX_SRC / "src/core"),
+            "-I",
+            str(NGX_SRC / "src/event"),
+            "-I",
+            str(NGX_SRC / "src/event/modules"),
+            "-I",
+            str(NGX_SRC / "src/event/quic"),
+            "-I",
+            str(NGX_SRC / "src/os/unix"),
+            "tests/c/test_vfs_read_only_spy.c",
+            # ngx_string/palloc/alloc reference these two globals; the shared
+            # stub file is the sanctioned way to satisfy them.
+            "tests/c/ngx_link_stubs.c",
+            str(addon("vfs/vfs_mkdir.o")),
+            str(addon("vfs/vfs_unlink.o")),
+            str(addon("vfs/vfs_rename.o")),
+            str(addon("vfs/vfs_copy.o")),
+            str(addon("vfs/vfs_xattr.o")),
+            str(addon("vfs/vfs_policy.o")),
+            str(NGX_SRC / "objs/src/core/ngx_string.o"),
+            str(NGX_SRC / "objs/src/core/ngx_palloc.o"),
+            str(NGX_SRC / "objs/src/os/unix/ngx_alloc.o"),
+        ),
+    ),
+    # The phase-105 mutation-policy kernel. vfs_policy.o names exactly ONE
+    # cross-TU symbol (brix_metric_vfs_mutation_denied), which the test supplies
+    # as a spy, so the battery links the one real object and stays hermetic —
+    # and the denial counter is observed directly rather than inferred.
+    "vfs_mutation_policy": ObjectUnitSpec(
+        "vfs_mutation_policy",
+        "test_vfs_mutation_policy",
+        (addon("vfs/vfs_policy.o"),),
+        (
+            "-O",
+            "-Wall",
+            "-I",
+            "src",
+            "-I",
+            str(REPO_ROOT / "shared"),
+            "-I",
+            str(OBJS),
+            "-I",
+            str(NGX_SRC / "src/core"),
+            "-I",
+            str(NGX_SRC / "src/event"),
+            "-I",
+            str(NGX_SRC / "src/event/modules"),
+            "-I",
+            str(NGX_SRC / "src/event/quic"),
+            "-I",
+            str(NGX_SRC / "src/os/unix"),
+            "tests/c/test_vfs_mutation_policy.c",
+            str(addon("vfs/vfs_policy.o")),
+        ),
+    ),
     "vfs_caps": ObjectUnitSpec(
         "vfs_caps",
         "test_vfs_caps",

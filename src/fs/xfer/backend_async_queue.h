@@ -40,6 +40,8 @@
 #include <ngx_core.h>
 #include <stdint.h>
 
+#include "fs/vfs/vfs_policy.h"   /* brix_vfs_mutation_policy_t, brix_proto_t */
+
 /* The four coalescable namespace mutations. Values are stable on-disk identities
  * (a journal record survives a restart), so they are append-only — never renumber. */
 typedef enum {
@@ -102,16 +104,40 @@ void brix_baq_init(void);
  * WHY:  The single entry point every protocol adapter calls after it has resolved
  *       + authorized the mutation and decided (from brix_backend_async) to defer.
  *
- * HOW:  root_canon / src_key / dst_key / mode populate the record; batch and
+ * HOW:  req->root_canon / src_key / dst_key / mode populate the record; batch and
  *       wait_ms are this server's coalescing thresholds (stored per-op so a worker
  *       shared by servers with different tunables still flushes each correctly).
  *       Returns NGX_OK when the op is queued (or drained inline), NGX_ERROR on a
- *       bad argument or a full queue that could not be drained (the caller then
+ *       bad argument, a READ-ONLY endpoint (errno EROFS — phase-105: deferring a
+ *       mutation is still a mutation, and the refusal must land before the client
+ *       is parked), or a full queue that could not be drained (the caller then
  *       runs the op inline / errors, never silently drops it).
  */
-ngx_int_t brix_baq_enqueue(brix_baq_op_t op, const char *root_canon,
-    const char *src_key, const char *dst_key, uint32_t mode,
-    ngx_uint_t batch, ngx_msec_t wait_ms,
+/*
+ * WHAT: one deferred mutation as the adapter describes it — the verb, the
+ *       endpoint's phase-105 write posture, the confining export root, the
+ *       target key(s), the MKDIR mode, and this server's coalescing thresholds.
+ * WHY:  the queue outlives the request that fills it, so the authority to
+ *       mutate has to travel WITH the op rather than be re-derived at drain
+ *       time from configuration that may since have been reloaded. Bundling
+ *       also keeps brix_baq_enqueue at three parameters.
+ * HOW:  a caller-owned value; brix_baq_enqueue copies everything it keeps.
+ *       `policy` zero-initialises to READ_ONLY, so an adapter that forgets it
+ *       has its op refused rather than silently queued.
+ */
+typedef struct {
+    brix_baq_op_t               op;
+    brix_vfs_mutation_policy_t  policy;      /* endpoint write posture        */
+    brix_proto_t                proto;       /* attribution for a refusal     */
+    const char                 *root_canon;  /* confining export root         */
+    const char                 *src_key;     /* target; RENAME source         */
+    const char                 *dst_key;     /* RENAME destination, else NULL */
+    uint32_t                    mode;        /* MKDIR mode, else 0            */
+    ngx_uint_t                  batch;       /* size trigger                  */
+    ngx_msec_t                  wait_ms;     /* time trigger                  */
+} brix_baq_req_t;
+
+ngx_int_t brix_baq_enqueue(const brix_baq_req_t *req,
     brix_baq_done_pt done, void *client);
 
 /*

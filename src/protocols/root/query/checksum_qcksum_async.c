@@ -40,6 +40,8 @@ brix_cksum_aio_thread(void *data, ngx_log_t *log)
     ngx_memzero(&iopts, sizeof(iopts));
     iopts.allow_xattr_cache  = 1;
     iopts.update_xattr_cache = 1;
+    iopts.mutation_policy    = t->mutation_policy;
+    iopts.proto              = BRIX_PROTO_ROOT;
 
     if (brix_integrity_get_fd(log, t->fd, &t->obj, t->resolved, t->algo,
                                 &iopts, &info) != NGX_OK)

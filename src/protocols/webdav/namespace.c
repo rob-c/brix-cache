@@ -30,7 +30,8 @@ webdav_ns_vfs_ctx_init(ngx_http_request_t *r, const char *path,
 
     brix_vfs_ctx_init(vctx, r->pool, r->connection->log,
         BRIX_PROTO_WEBDAV, conf->common.root_canon,
-        conf->common.cache_root_canon, conf->common.allow_write, is_tls,
+        conf->common.cache_root_canon,
+        brix_vfs_policy_from_write_enable(conf->common.allow_write), is_tls,
         (wctx != NULL) ? wctx->identity : NULL, path);
     /* Wire per-user backend credential gate (Phase 2 Task 1) so that
      * DELETE/MKCOL namespace ops on a remote backend use the per-user
@@ -276,10 +277,16 @@ webdav_handle_delete(ngx_http_request_t *r)
      * the Standard WebDAV module policy), a file/symlink to UNLINK. NGX_DECLINED
      * (async off / enqueue failure) falls through to the inline op. */
     if (conf->common.backend_async) {
-        brix_baq_op_t op = S_ISDIR(sb.st_mode) ? BRIX_BAQ_RMDIR
-                                               : BRIX_BAQ_UNLINK;
-        if (brix_baq_http_try(r, &conf->common, op, conf->common.root_canon,
-                              path, NULL, 0, webdav_delete_async_render,
+        brix_baq_req_t req = {
+            .op         = S_ISDIR(sb.st_mode) ? BRIX_BAQ_RMDIR
+                                              : BRIX_BAQ_UNLINK,
+            .proto      = BRIX_PROTO_WEBDAV,
+            .root_canon = conf->common.root_canon,
+            .src_key    = path,
+        };
+
+        if (brix_baq_http_try(r, &conf->common, &req,
+                              webdav_delete_async_render,
                               webdav_delete_async_ctx(r, path,
                                                       S_ISDIR(sb.st_mode)))
             == NGX_DONE)

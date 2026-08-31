@@ -41,6 +41,11 @@ fhandle_unlink_staging(const char *abs_path, const char *root_canon,
         && ngx_strncmp((u_char *) abs_path, (u_char *) root_canon, root_len) == 0
         && abs_path[root_len] == '/')
     {
+        /* vfs-mutation-gate-allow: reclaiming a handle-OWNED unpublished temp
+         * (checkpoint journal / POSC partial) that this server created under a
+         * write the endpoint had already authorised. Gating the reclaim would
+         * turn a posture flip across a reload into a permanent orphan, which
+         * is the one outcome teardown exists to prevent. */
         (void) brix_vfs_unlink_path(log, root_canon, abs_path + root_len);
         return;
     }

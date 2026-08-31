@@ -54,10 +54,19 @@ s3_put_try_sentinel(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         }
     }
 
-    /* Write the zero-byte sentinel (confined create via the VFS seam). */
-    fd = brix_vfs_open_fd(r->connection->log, cf->common.root_canon,
-                            (const char *) fs_path,
-                            O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    /* Write the zero-byte sentinel (confined create via the VFS seam). The
+     * sentinel is an object ON THE EXPORT, so the create takes the phase-105
+     * endpoint gate first — the mkdir above already did, through its ctx. */
+    {
+        brix_vfs_export_op_ctx_t opctx;
+
+        brix_vfs_export_op_ctx_init(&opctx, r->connection->log,
+            cf->common.root_canon,
+            brix_vfs_policy_from_write_enable(cf->common.allow_write),
+            BRIX_PROTO_S3);
+        fd = brix_vfs_export_open_fd(&opctx, (const char *) fs_path,
+                                     O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    }
     if (fd < 0) {
         int open_errno = errno;  /* capture before logging clobbers it */
         brix_log_safe_path(r->connection->log, NGX_LOG_ERR, open_errno,

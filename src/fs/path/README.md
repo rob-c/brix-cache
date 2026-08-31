@@ -167,8 +167,11 @@ the gate cache to an `brix_kv` SHM zone ([../shm/](../../core/shm/README.md)).
 - **Fail-closed auth ordering.** The gate denies on the first failing tier (authdb → VO → token
   scope) and returns access only on explicit `NGX_OK`. Empty rule arrays — and, for VO/manager,
   "no matching rule" — mean "unrestricted" by design (`src/auth/authz/acl.c`, `src/auth/authz/authdb.c`); be deliberate when
-  adding rules. The global `allow_write` check is enforced by callers *before* token scope (project
-  invariant), not inside this folder.
+  adding rules. The endpoint write check is enforced by callers *before* token scope (project
+  INVARIANT 3), not inside this folder. Since phase-105 it is the typed VFS mutation policy
+  (`fs/vfs/vfs_policy.h`) rather than an `allow_write` boolean, and its refusal is `EROFS`,
+  which is why it cannot be folded into this folder's `EACCES` verdicts: "wrong credentials"
+  invites a retry with better ones, and "the export does not accept writes" does not.
 - **Auth-cache key folds in every verdict input.** SHA-256 over `auth_level + need_write +
   resolved + reqpath + DN + VO list + raw token scope` (`src/auth/authz/auth_gate.c:22`), so a cached grant can
   never be replayed for a different token/path/level. Both grants and denies are cached. Short TTL

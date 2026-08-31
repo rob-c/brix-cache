@@ -33,6 +33,10 @@ struct brix_vfs_writer_s {
     brix_wverify_t    *wv;             /* verify accumulator (NULL when !verify) */
     off_t              staged_cursor;  /* next expected offset on the staged path*/
     off_t              written;        /* total bytes written                    */
+    /* Phase-105: the endpoint's mutation policy, copied at open. A write
+     * session outlives the request that opened it, so every writer gate
+     * decides from this copy and never from w->ctx being re-read. */
+    brix_vfs_mutation_policy_t mutation_policy;
     unsigned           random:1;       /* 1 = in-place handle, 0 = staged        */
     unsigned           verify:1;
     unsigned           finished:1;     /* commit or abort has run                */
@@ -109,9 +113,10 @@ brix_vfs_writer_open(brix_vfs_ctx_t *ctx, unsigned flags, int verify,
         writer_set_error(err_out, ENOMEM);
         return NULL;
     }
-    w->pool   = ctx->pool;
-    w->log    = ctx->log;
-    w->verify = verify ? 1 : 0;
+    w->pool            = ctx->pool;
+    w->log             = ctx->log;
+    w->verify          = verify ? 1 : 0;
+    w->mutation_policy = ctx->mutation_policy;
     /* O_ATOMIC forces the staged temp+publish path even for a random-write backend
      * so a failed write leaves no partial at the final path (WebDAV/S3 PUT). */
     w->random = (flags & BRIX_VFS_O_ATOMIC)
@@ -190,6 +195,11 @@ brix_vfs_writer_write(brix_vfs_writer_t *w, const void *buf, size_t len,
     if (len == 0) {
         return NGX_OK;
     }
+    if (brix_vfs_require_carried_mutation(w->mutation_policy,
+            brix_vfs_metrics_proto(w->ctx), BRIX_VFS_MUTATE_WRITE) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
     if (writer_put(w, buf, len, off) != NGX_OK) {
         return NGX_ERROR;
     }
@@ -248,6 +258,11 @@ brix_vfs_writer_write_fd(brix_vfs_writer_t *w, int src_fd, off_t src_off,
     }
     if (len == 0) {
         return NGX_OK;
+    }
+    if (brix_vfs_require_carried_mutation(w->mutation_policy,
+            brix_vfs_metrics_proto(w->ctx), BRIX_VFS_MUTATE_WRITE) != NGX_OK)
+    {
+        return NGX_ERROR;
     }
 
     /* Zero-copy fast path: a single-fd, sendfile-capable random backend with no
@@ -308,6 +323,14 @@ ngx_int_t
 brix_vfs_writer_commit_ex(brix_vfs_writer_t *w, unsigned excl)
 {
     if (w == NULL || w->finished) {
+        return NGX_ERROR;
+    }
+    /* MUTATE_PUBLISH: commit is where the object becomes visible under its final
+     * name — a distinct event from the body writes above, and reported as one
+     * (see the same reasoning in brix_vfs_staged_commit). */
+    if (brix_vfs_require_carried_mutation(w->mutation_policy,
+            brix_vfs_metrics_proto(w->ctx), BRIX_VFS_MUTATE_PUBLISH) != NGX_OK)
+    {
         return NGX_ERROR;
     }
     w->finished = 1;

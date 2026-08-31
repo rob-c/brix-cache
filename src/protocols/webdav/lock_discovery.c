@@ -65,8 +65,13 @@ webdav_lock_sweep_remove(webdav_lock_sweep_ctx_t *sw, const char *path)
 {
     brix_vfs_ctx_t vctx;
 
+    /* phase-105: ALLOWED on purpose. This is not a request — it is the writable
+     * maintenance path Appendix H.2 §5 reserves, run once at config-merge time
+     * because the operator asked for it with brix_webdav_lock_startup_sweep.
+     * Read-time expiry cleanup goes through webdav_lock_expired_cleanup(), which
+     * declines on a read-only export; this one is the operator's own decision. */
     brix_vfs_ctx_init(&vctx, sw->pool, sw->log, BRIX_PROTO_WEBDAV,
-        sw->root_canon, NULL, 1 /* allow_write */, 0 /* is_tls */, NULL, path);
+        sw->root_canon, NULL, BRIX_VFS_MUTATION_ALLOWED, 0 /* is_tls */, NULL, path);
 
     if (brix_vfs_removexattr(&vctx, WEBDAV_LOCK_XATTR_KEY) == NGX_OK) {
         sw->removed++;
@@ -138,8 +143,7 @@ webdav_handle_unlock(ngx_http_request_t *r)
     if (rc == NGX_DECLINED || e.expires <= (int64_t) ngx_time()) {
         /* No active lock on this path. */
         if (rc == NGX_OK) {
-            (void) webdav_lock_xattr_delete(r, path);
-            webdav_lock_reap_null(r, path, &e);
+            webdav_lock_expired_cleanup(r, path, &e, 1 /* reap lock-null */);
         }
         return NGX_HTTP_CONFLICT;
     }
@@ -262,8 +266,7 @@ webdav_lock_append_discovery(ngx_http_request_t *r, const char *path,
         }
     } else if (rc == NGX_OK) {
         /* Expired lock — clean up lazily (and reap a lock-null placeholder). */
-        (void) webdav_lock_xattr_delete(r, path);
-        webdav_lock_reap_null(r, path, &e);
+        webdav_lock_expired_cleanup(r, path, &e, 1 /* reap lock-null */);
     }
 
     if (brix_http_chain_appendf(r->pool, head, tail,

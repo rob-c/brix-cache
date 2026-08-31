@@ -30,6 +30,56 @@ CLAUDE.md is a **lookup reference**, not memorization material. If your context 
 
 ---
 
+## INVARIANT 12 — VFS mutation policy (phase 105, full text)
+
+**Read-only is a VFS-authoritative, typed, immutable policy — not a bit a caller
+may read, and not a protocol-edge convention.** Every mutation of *export*
+storage passes the kernel in `src/fs/vfs/vfs_policy.c` before it does anything
+else.
+
+- **The type.** `brix_vfs_mutation_policy_t`, with `BRIX_VFS_MUTATION_READ_ONLY
+  = 0` — so a zeroed struct, a hand-built ctx, or a `memset` that outran its
+  initializer all fail CLOSED. Build it only with
+  `brix_vfs_policy_from_write_enable()` on merged endpoint configuration; never
+  write the enum literal at a call site outside an intrinsically read-only plane
+  (cvmfs, rpm, dig), and never re-derive it from `allow_write`.
+- **The answer is `EROFS`, never `EACCES`.** They mean different things to a
+  client: `EACCES` invites a retry with better credentials, and no credential
+  opens a read-only export. `EROFS` precedes the deny-mode credential refusal and
+  the capability `ENOTSUP` *unconditionally*, so "which gate refused" cannot be
+  used to probe the export. Wire spellings: root `kXR_fsReadOnly`, WebDAV/S3 403
+  (S3 as an `AccessDenied` envelope), OCI `DENIED`, GridFTP `550 Permission
+  denied (read-only)`.
+- **Gate the ENTRY POINT, and gate it FIRST.** Before resolving a leaf
+  (`brix_vfs_ns_leaf`), selecting a credential, probing a backend, creating a
+  temp, or evicting a cache entry — each is observable work an unentitled caller
+  must not be able to cause, and several mutators dispatch past the cache
+  decorator onto the leaf, so the gate cannot live on the chain.
+- **Delayed work carries the policy BY VALUE.** Handles, staged sessions,
+  writers, queued jobs, async tasks and TPC destinations outlive the ctx that
+  created them: use `brix_vfs_require_carried_mutation()` on the copy they took,
+  or `brix_vfs_export_require_mutation()` for service-domain work with no live
+  ctx. A job must not be able to shed its policy, and a reload must not
+  retroactively widen one already in flight.
+- **Five forms** (`vfs_policy.h`): `_require_mutation_policy` (pure),
+  `_require_mutation` (ctx), `_require_confined_mutation` (confinement → EINVAL
+  first, then policy → EROFS), `_require_carried_mutation`,
+  `brix_vfs_export_require_mutation`. **Eleven ops**
+  (`BRIX_VFS_MUTATE_OPEN/WRITE/TRUNCATE/SYNC/MKDIR/REMOVE/RENAME/COPY/SETATTR/XATTR/PUBLISH`)
+  — bounded because the op is a metric label (INVARIANT 8). Use `_PUBLISH` for a
+  commit, not `_WRITE`: a refused publish means bytes were already staged, and an
+  operator needs to see that difference.
+- **Guard `tools/ci/check_vfs_mutation_gate.py`** — no backlog, no exception for
+  an export mutation. Metric:
+  `brix_vfs_mutation_denied_total{proto,op,reason="read_only"}`.
+- **This is distinct from the seam (INVARIANT 11).** The seam says mutations go
+  *through* the VFS; this says the VFS *decides* whether they happen. Both hold.
+
+See [phase-105](../refactor/phase-105-vfs-read-only-mutation-gate.md),
+[src/fs/README.md](../../src/fs/README.md).
+
+---
+
 ## INVARIANT 11 — VFS storage plane (full text)
 
 **Storage plane ≈ `proto → VFS → backend`. The VFS is the SOLE source of storage truth — bytes AND namespace AND metadata.** (a) **Byte data**: proto handler → VFS (`src/fs/`) → storage driver (`src/fs/backend/`, POSIX default); raw `pread`/`pwrite`/`preadv`/`copy_file_range`/`fstat`/`sendfile` on file data live ONLY in `src/fs/backend/` (tier-1, HARD rule). `root://` read/write/readv/pgread/pgwrite/sync/truncate → `brix_vfs_io_execute()` (`vfs_io_core.c`); WebDAV/S3 GET → `brix_vfs_open()`+`brix_vfs_file_sendfile_fd()`+`brix_vfs_close()`. (b) **Namespace + metadata (phase-62)**: every handler reaches `open`/`stat`/`opendir`/`unlink`/`rename`/`mkdir`/`truncate`/`chmod`/**xattr** on an export path through `brix_vfs_*` — `brix_vfs_probe` (non-metered existence/type), `brix_vfs_stat`/`statf`, `brix_vfs_open_fd`/`_at`, `brix_vfs_{get,set,list,remove}xattr` + fd variants `brix_vfs_f{get,set,list,remove}xattr`, `brix_vfs_unlink_path`/`_at`/`mkdir_path`/`rename_path`/`walk` — never a raw libc call. **Only raw FS left in handlers:** (i) non-export resources (config/cert/token, `/tmp` creds, `/dev/null`, `/proc`, sockets) and (ii) SEPARATE svc-owned storage domains (read-through cache, upload stage dir, FRM control/journal, S3 multipart staging, checkpoint journal) which MUST stay raw-as-worker — the VFS confines to ONE export root + routes to the impersonation broker as the mapped user, the wrong root/identity for those. Each such raw call carries a same-line `/* vfs-seam-allow: <reason> */` marker. `*_confined_canon` primitives take the ABSOLUTE path (they strip root_canon themselves — never pre-strip). **Guard `tools/ci/check_vfs_seam.py`** (3 tiers; tier-2 backlog `vfs_seam_backlog.txt`=0, tier-3 ns backlog `vfs_seam_backlog_ns.txt`=0; `--regen` only after a deliberate migration). Driver = capability-typed pluggable seam (`brix_sd_driver_t`, `src/fs/backend/sd.h`): an object/S3 backend can become primary without changing anything above it. See [src/fs/README.md](../../src/fs/README.md), [src/fs/backend/README.md](../../src/fs/backend/README.md), [phase-62 closure doc](../refactor/phase-62-vfs-namespace-metadata-seam-closure.md).
@@ -273,7 +323,7 @@ that no longer exist, which is indistinguishable from "the symbol is gone".
 **CRITICAL:**
 1. pgread/pgwrite → kXR_status(4007) framing + per-page CRC32c required
 2. TLS: `b->memory=1` only; cleartext: file-backed+sendfile; never mix
-3. `conf->allow_write` checked globally before token scope
+3. The endpoint write check runs globally BEFORE token scope. Since phase 105 the authority is the typed VFS mutation policy, not the `allow_write` bool — see INVARIANT 12 below; the protocol-edge gates remain as fast paths and may never disagree with it
 4. All wire paths → `resolve_path()` before `open()` — no exceptions
 
 **Subtle bugs:**
@@ -302,9 +352,20 @@ that no longer exist, which is indistinguishable from "the symbol is gone".
 |---|---|---|
 | ENOENT | kXR_NotFound | 404 |
 | EACCES/EPERM | kXR_NotAuthorized | 403 |
+| EROFS | kXR_fsReadOnly | 403 |
 | EINVAL | kXR_ArgInvalid | 400 |
 | EIO | kXR_IOError | 500 |
 | ENOMEM | kXR_NoMemory | 507 |
+
+`EROFS` is the endpoint READ-ONLY POLICY answer (phase 105) and never collapses
+onto `EACCES`: the two say different things — "this endpoint mutates nothing"
+versus "you are not allowed" — and the round trip `EROFS → kXR_fsReadOnly →
+EROFS` is pinned in `tests/c/test_error_mapping.c`. The policy kernel answers
+it BEFORE any credential is selected, so a read-only refusal must never be
+reported as an authorization failure. Per-plane spellings: WebDAV/S3 403 (S3 as
+an `AccessDenied` XML envelope), OCI `DENIED`, GridFTP `550 Permission denied
+(read-only)`. Full precedence rules in
+`docs/refactor/phase-105-vfs-read-only-mutation-gate.md` Appendix I.5.
 
 ## BUILD & TEST (full command block)
 ```bash

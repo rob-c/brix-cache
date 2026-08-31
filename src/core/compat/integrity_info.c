@@ -221,7 +221,8 @@ brix_integrity_set_xattr_format(ngx_uint_t fmt)
  * Emits the binary XrdCksData record (stock-interoperable) when the configured
  * format is XRDCKS, else our text record. */
 static int
-integrity_xattr_write_rc(int fd, const char *algo, const char *hexval)
+integrity_xattr_write_rc(brix_vfs_mutation_policy_t policy, brix_proto_t proto,
+    int fd, const char *algo, const char *hexval)
 {
     char        key[64];
     char        val[INTEGRITY_XATTR_VAL_MAX];
@@ -248,7 +249,9 @@ integrity_xattr_write_rc(int fd, const char *algo, const char *hexval)
         if (rn == 0) {
             return EINVAL;
         }
-        if (brix_vfs_fsetxattr(NULL, fd, key, rec, rn, 0) != NGX_OK) {
+        if (brix_vfs_fsetxattr_carried(policy, proto, fd, key, rec, rn, 0)
+            != NGX_OK)
+        {
             return errno;
         }
         return 0;
@@ -260,7 +263,9 @@ integrity_xattr_write_rc(int fd, const char *algo, const char *hexval)
     if (n < 0 || (size_t) n >= sizeof(val)) {
         return EINVAL;
     }
-    if (brix_vfs_fsetxattr(NULL, fd, key, val, (size_t) n, 0) != NGX_OK) {
+    if (brix_vfs_fsetxattr_carried(policy, proto, fd, key, val, (size_t) n, 0)
+        != NGX_OK)
+    {
         return errno;
     }
     return 0;
@@ -275,6 +280,10 @@ static const brix_integrity_opts_t s_default_opts = {
     .allow_xattr_cache    = 1,
     .update_xattr_cache   = 1,
     .require_regular_file = 0,
+    /* phase-105: deliberately left zero — READ_ONLY. A caller that supplies no
+     * opts at all supplies no authority either, so it reads the cache and never
+     * writes it. */
+    .mutation_policy      = BRIX_VFS_MUTATION_READ_ONLY,
 };
 
 /*
@@ -413,10 +422,18 @@ integrity_compute_hex(ngx_log_t *log, int fd, brix_sd_obj_t *obj,
  *       DIGEST entry in the file's unified xmeta record (§8.2, xmeta P4).
  */
 static void
-integrity_persist_computed(int fd, const char *path, const char *alg_name,
-    const char *hex)
+integrity_persist_computed(const brix_integrity_opts_t *o, int fd,
+    const char *path, const char *alg_name, const char *hex)
 {
-    int wrc = integrity_xattr_write_rc(fd, alg_name, hex);
+    int wrc = integrity_xattr_write_rc(o->mutation_policy, o->proto, fd,
+                                       alg_name, hex);
+
+    /* phase-105: a read-only export refuses the xattr, and the §8.2 record is
+     * a write to the SAME export — falling back to it would be the bypass the
+     * gate exists to prevent. The value is simply not cached. */
+    if (wrc == EROFS) {
+        return;
+    }
 
     if (wrc == ENOTSUP
 #ifdef EOPNOTSUPP
@@ -431,9 +448,10 @@ ngx_int_t
 brix_integrity_seed_fd(int fd, const char *path, const char *alg_name,
     const char *hex)
 {
-    brix_checksum_alg_t alg;
-    char                  canon[16];
-    char                  lower[EVP_MAX_MD_SIZE * 2 + 1];
+    brix_checksum_alg_t   alg;
+    char                    canon[16];
+    char                    lower[EVP_MAX_MD_SIZE * 2 + 1];
+    brix_integrity_opts_t sopts;
 
     if (fd < 0 || alg_name == NULL) {
         return NGX_ERROR;
@@ -446,7 +464,16 @@ brix_integrity_seed_fd(int fd, const char *path, const char *alg_name,
     if (integrity_hex_normalize(hex, lower, sizeof(lower)) != NGX_OK) {
         return NGX_ERROR;
     }
-    integrity_persist_computed(fd, path, canon, lower);
+
+    /* phase-105: the seed's target is the CACHE STORE object the fill just
+     * wrote (fs/cache/cstore.c is the only caller) — service-owned storage that
+     * sits outside the export's read-only policy, exactly like the cinfo record
+     * beside it. The export is never touched here, so the write is authorised
+     * by construction rather than by a policy the caller carries. */
+    ngx_memzero(&sopts, sizeof(sopts));
+    sopts.mutation_policy = BRIX_VFS_MUTATION_ALLOWED;
+
+    integrity_persist_computed(&sopts, fd, path, canon, lower);
     return NGX_OK;
 }
 
@@ -510,7 +537,7 @@ brix_integrity_get_fd(ngx_log_t *log, int fd,
 
     /* Persist the computed value: xattr first, xmeta-record fallback (§8.2). */
     if (o->allow_xattr_cache && o->update_xattr_cache) {
-        integrity_persist_computed(fd, path, out->alg_name, hex);
+        integrity_persist_computed(o, fd, path, out->alg_name, hex);
     }
 
     return NGX_OK;
@@ -538,7 +565,13 @@ brix_integrity_invalidate_fd(ngx_log_t *log, int fd)
 
     for (i = 0; s_algorithms[i] != NULL; i++) {
         if (integrity_xattr_key(s_algorithms[i], key, sizeof(key)) != NULL) {
-            (void) brix_vfs_fremovexattr(NULL, fd, key);
+            /* MUTATION_ALLOWED is correct here and only here: an invalidation
+             * is the tail of a write the endpoint has ALREADY been permitted to
+             * perform (see the header contract — "after any write, truncate or
+             * rename"). A stale digest left behind by a refused invalidation
+             * would be a wrong answer, which is worse than the write. */
+            (void) brix_vfs_fremovexattr_carried(BRIX_VFS_MUTATION_ALLOWED,
+                                                 BRIX_PROTO_ROOT, fd, key);
         }
     }
 }
@@ -551,8 +584,13 @@ brix_integrity_invalidate_path(ngx_log_t *log, const char *root_canon,
     char             key[64];
     int              i;
 
+    /* MUTATION_ALLOWED as in brix_integrity_invalidate_fd above: the header
+     * contract makes this the tail of a mutation (rename, local copy commit)
+     * the endpoint ALREADY permitted, and a stale digest surviving a refused
+     * invalidation is a wrong answer. NOT a licence to call this from a path
+     * that has not passed its own mutation gate. */
     brix_vfs_ctx_init(&vctx, NULL, log, BRIX_PROTO_ROOT, root_canon,
-        NULL, 1 /* allow_write */, 0 /* is_tls */, NULL, path);
+        NULL, BRIX_VFS_MUTATION_ALLOWED, 0 /* is_tls */, NULL, path);
 
     for (i = 0; s_algorithms[i] != NULL; i++) {
         if (integrity_xattr_key(s_algorithms[i], key, sizeof(key)) != NULL) {

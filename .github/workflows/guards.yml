@@ -40,6 +40,9 @@ jobs:
       - name: vfs seam — no new storage-plane bypasses
         if: '!cancelled()'
         run: tools/ci/check_vfs_seam.py
+      - name: vfs mutation gate — no ungated export mutation (phase-105)
+        if: '!cancelled()'
+        run: tools/ci/check_vfs_mutation_gate.py
       - name: http helper reimplementation
         if: '!cancelled()'
         run: tools/ci/check_http_helper_reimpl.py

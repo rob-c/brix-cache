@@ -832,6 +832,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/vfs/vfs_backend_config_http.c \
     $ngx_addon_dir/src/fs/vfs/vfs_backend_config_s3.c \
     $ngx_addon_dir/src/fs/vfs/vfs_secgate.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_policy.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_policy_export.c \
     $ngx_addon_dir/src/fs/vfs/vfs_io_core.c \
     $ngx_addon_dir/src/fs/vfs/vfs_io_core_dirlist.c \
     $ngx_addon_dir/src/fs/vfs/vfs_read.c \

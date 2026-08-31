@@ -68,6 +68,7 @@ _FAST = [
     "check_ports_doc",
     "check_template_refs",
     "check_vfs_seam",
+    "check_vfs_mutation_gate",
     "check_vfs_identity_branch",
     "check_brix_namespace",
     "check_gridftp_interop_image",

@@ -255,6 +255,13 @@ brix_open_error_details(int err, int *kxr, const char **message)
         *kxr = kXR_NotAuthorized;
         *message = "permission denied";
         break;
+    case EROFS:
+        /* phase-105: the endpoint refuses writes. Distinct from EACCES on
+         * purpose — the client's credential is irrelevant, so the reply must
+         * not invite it to retry with a different one. */
+        *kxr = kXR_fsReadOnly;
+        *message = "read-only export";
+        break;
     case EISDIR:
         *kxr = kXR_isDirectory;
         *message = "is a directory";
@@ -365,7 +372,19 @@ brix_open_posix_dispatch(brix_open_args_t *a)
 		/* The export final/staged path: open beneath the export root through
 		 * the VFS (openat2 RESOLVE_BENEATH, impersonation-aware). The VFS
 		 * strips the absolute path to its rootfd-relative form. */
-		fd = brix_vfs_open_fd_at(conf->rootfd,
+		/* phase-105: the POSIX leg of kXR_open. The staged/driver leg is
+		 * already gated through its VFS ctx (brix_vfs_writer_open); this is
+		 * the fallback that reaches the export directly, so it takes the same
+		 * posture here. A read open is not gated at all — the helper decides
+		 * from the flags, so ordinary reads on a read-only export are
+		 * untouched, and a create/truncate/append open answers EROFS. */
+		brix_vfs_export_op_ctx_t opctx;
+
+		brix_vfs_export_op_ctx_init(&opctx, a->c->log,
+		    conf->common.root_canon,
+		    brix_vfs_policy_from_write_enable(conf->common.allow_write),
+		    BRIX_PROTO_ROOT);
+		fd = brix_vfs_export_open_fd_at(&opctx, conf->rootfd,
 		    brix_open_logical(open_path, conf->common.root_canon),
 		    effective_oflags, create_mode);
 	}

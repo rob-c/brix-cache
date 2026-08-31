@@ -149,7 +149,10 @@ verb kernel), `backend/` (storage drivers), `path/` (confinement), `cache/`,
 | File | Responsibility |
 |---|---|
 | `vfs/vfs.h` | Public API. Open flags (`BRIX_VFS_O_READ/WRITE/CREATE/EXCL/TRUNC/APPEND/MKDIRPATH/NOCACHE`), opaque handle types, the `brix_vfs_ctx_t` request descriptor, `brix_vfs_stat_t`/`brix_vfs_io_result_t`, and every `brix_vfs_*` prototype. The only header protocol handlers should include. |
-| `vfs/vfs_internal.h` | Implementation-private definitions: the real `brix_vfs_file_s`/`brix_vfs_dir_s` structs, confinement/write guards (`brix_vfs_require_confined`, `brix_vfs_require_write`), the metrics+access-log observer helpers (`brix_vfs_observe_*`), and shared internal prototypes (`pread_full`, `pwrite_full`, `adopt_fd`, `fill_stat`). |
+| `vfs/vfs_internal.h` | Implementation-private definitions: the real `brix_vfs_file_s`/`brix_vfs_dir_s` structs, the confinement guard `brix_vfs_require_confined` (the write guard moved to `vfs_policy.h` in phase-105 and is no longer a boolean), the metrics+access-log observer helpers (`brix_vfs_observe_*`), and shared internal prototypes (`pread_full`, `pwrite_full`, `adopt_fd`, `fill_stat`). |
+| `vfs/vfs_policy.h` | The phase-105 mutation-policy contract: the typed `brix_vfs_mutation_policy_t` (`BRIX_VFS_MUTATION_READ_ONLY` = **0**, so anything zeroed fails closed; `BRIX_VFS_MUTATION_ALLOWED` = 1), the bounded `brix_vfs_mutation_op_t` vocabulary (`BRIX_VFS_MUTATE_OPEN`/`_WRITE`/`_TRUNCATE`/`_SYNC`/`_MKDIR`/`_REMOVE`/`_RENAME`/`_COPY`/`_SETATTR`/`_XATTR`/`_PUBLISH` — bounded because it becomes a metric label, INVARIANT 8), the one conversion `brix_vfs_policy_from_write_enable()`, and the five require-forms. |
+| `vfs/vfs_policy.c` | The kernel. Decides from the policy value alone: no ctx beyond validation, no path, no leaf instance, no credential, no driver, no cache. Refuses with **`EROFS`** and books `brix_vfs_mutation_denied_total{proto,op,reason="read_only"}`. Because it names no driver and no decorator, the refusal provably cannot vary with which backend is mounted or how the cache/stage/remote decorators are composed — pinned by `tests/test_vfs_read_only_static.py` and exercised against a spy driver carrying every capability bit by `tests/c/test_vfs_read_only_spy.c`. |
+| `vfs/vfs_policy_export.c` | `brix_vfs_export_require_mutation()` and the `brix_vfs_export_opctx_t` bundle: the same decision for **service-domain** export operations (TPC destination setup, backend async queue drain, CMS forwarding, multipart finalization) that run with no live request ctx. They carry the policy **by value**, captured when the work was accepted, so a job cannot shed it and a reload cannot retroactively widen one already in flight. |
 | `vfs/vfs_io_core.h` | The **thread-safe** I/O surface: the POD job descriptor `brix_vfs_job_t` (IN fields + OUT results), the readv/writev segment descriptors, the per-op `brix_vfs_job_*_init` helpers, and the `brix_vfs_io_execute()` prototype. The only fs header a thread-pool worker or io_uring fallback may include. |
 | `vfs/vfs_io_core.c` | The worker-safe EXECUTE core (phase-54). `brix_vfs_io_execute()` dispatches one job to a small per-op helper for READ/WRITE/PGREAD/READV/WRITEV/OPENDIR, mutating only the job's OUT fields and caller-owned buffers — **no pool, metrics, log, or cache**. Reuses the pure bodies (`brix_vfs_pread_full`/`pwrite_full`, `brix_pgread_read_encode_inplace`, `brix_readv_read_segments`) and builds the `kXR_dirlist` response from a confined `fdopendir` scan. This is the shared raw-I/O body for every dispatch tier (inline / thread pool / io_uring). |
 | `vfs/vfs_open.c` | Open/close + handle lifecycle. Maps flags to `O_*`, runs the cache-first / confinement-cascade open logic, `fstat`s into the handle, registers pool cleanup. Also hosts the shared helpers (`fill_stat`, `copy_path`, `register_fd_cleanup`, `adopt_fd`) and the `brix_vfs_file_*` accessors. |
@@ -157,13 +160,13 @@ verb kernel), `backend/` (storage drivers), `path/` (confinement), `cache/`,
 | `vfs/vfs_write.c` | `brix_vfs_pwrite_full()` — the EINTR-safe, short-write-safe full write through the driver `pwrite` slot; same driver-object wrapping as the read side. |
 | `vfs/vfs_dir.c` | Directory enumeration: `opendir`/`readdir`/`closedir`. Skips `.`/`..`, returns each entry name as a pooled `ngx_str_t` plus an optional `lstat` of the child. Returns `NGX_DONE` at end-of-stream. |
 | `vfs/vfs_stat.c` | `brix_vfs_stat()` (`lstat`, no follow) / `brix_vfs_statf()` (follow in-export symlinks, `RESOLVE_IN_ROOT`) — metered `OP_STAT`, filled into `brix_vfs_stat_t`. `brix_vfs_probe(ctx, nofollow, &vst)` is the **non-metered** existence/type pre-check for op-resolution / ACL gates (routing those pre-stats through the metered stat would log a phantom `OP_STAT` per rm/mkdir/mv). |
-| `vfs/vfs_mkdir.c` | `brix_vfs_mkdir()` — delegates to `brix_ns_mkdir` (namespace layer) with optional `parents`; write-gated. |
-| `vfs/vfs_rename.c` | `brix_vfs_rename()` — delegates to `brix_ns_rename`; requires a confined destination `brix_path_result_t`; write-gated. |
-| `vfs/vfs_unlink.c` | Delete family: shared `brix_vfs_delete()` → `brix_ns_delete`; `brix_vfs_unlink()` (file) and `brix_vfs_rmdir()` (recursive or require-empty). Write-gated. |
-| `vfs/vfs_sync.c` | `brix_vfs_truncate()` (`ftruncate` + handle-size update) and `brix_vfs_sync()` (`fsync`). |
-| `vfs/vfs_xattr.c` | Extended-attribute family over the `user.` namespace (S3 tagging, WebDAV dead-properties, the lock database, fattr, checksum-at-rest), metered as `OP_XATTR`, set/remove **not** `allow_write`-gated (the lock DB writes on read-only requests; the protocol layer authorizes). **Path/ctx variants** `brix_vfs_getxattr/listxattr/setxattr/removexattr` delegate to `brix_*xattr_confined_canon` (confined to `ctx->resolved`). **Open-handle (fd) variants** `brix_vfs_fgetxattr/flistxattr/fsetxattr/fremovexattr(ctx_or_NULL, fd, …)` operate on an fd the VFS already opened confined (confinement travels with the descriptor; `ctx` optional, only for the metric) — used by fattr's file-handle mode and `compat/integrity_info`'s checksum cache. |
-| `vfs/vfs_copy.c` | `brix_vfs_copy()` — single regular-file server-side copy (`copy_file_range`) behind WebDAV COPY / S3 CopyObject. Delegates to `brix_ns_local_copy`; write-gated; metered as `OP_COPY` (byte count from the post-copy destination size). |
-| `vfs/vfs_staged.c` | Atomic staged-write lifecycle (`brix_vfs_staged_open` → write the fd → `brix_vfs_staged_commit`/`abort`) behind crash-safe S3 PutObject / WebDAV PUT. Wraps `compat/staged_file`; write-gated at open; the commit (atomic publish onto the final path) is metered as `OP_WRITE`. |
+| `vfs/vfs_mkdir.c` | `brix_vfs_mkdir()` — delegates to `brix_ns_mkdir` (namespace layer) with optional `parents`; gated `BRIX_VFS_MUTATE_MKDIR`. Also hosts `brix_vfs_chmod()` and `brix_vfs_setattr()`, both gated `BRIX_VFS_MUTATE_SETATTR`. |
+| `vfs/vfs_rename.c` | `brix_vfs_rename()` — delegates to `brix_ns_rename`; requires a confined destination `brix_path_result_t`; gated `BRIX_VFS_MUTATE_RENAME`. The pool-less `brix_vfs_rename_path()` alongside it carries no ctx and so no policy: its only caller is the protected `vfs_policy_export.c` wrapper, which gates first and then delegates. |
+| `vfs/vfs_unlink.c` | Delete family: shared `brix_vfs_delete()` → `brix_ns_delete`; `brix_vfs_unlink()` (file) and `brix_vfs_rmdir()` (recursive or require-empty). Gated `BRIX_VFS_MUTATE_REMOVE` before any traversal — a read-only export must not be walked on behalf of a delete it will refuse. |
+| `vfs/vfs_sync.c` | `brix_vfs_truncate()` (`ftruncate` + handle-size update) and `brix_vfs_sync()` (`fsync`), plus path-native `brix_vfs_truncate_path()`. Gated `BRIX_VFS_MUTATE_TRUNCATE` / `_SYNC` against the policy the **handle** carries, not the caller's ctx — a handle outlives the request that opened it. |
+| `vfs/vfs_xattr.c` | Extended-attribute family over the `user.` namespace (S3 tagging, WebDAV dead-properties, the lock database, fattr, checksum-at-rest), metered as `OP_XATTR`. Set/remove are **mutation-gated** (`brix_vfs_require_confined_mutation`, `BRIX_VFS_MUTATE_XATTR`) — phase-105 closed the old carve-out that let the lock database write on a read-only export; an expired WebDAV lock is now simply not cleaned up inline there (`protocols/webdav/lock.c`). Reads are never gated. **Path/ctx variants** `brix_vfs_getxattr/listxattr/setxattr/removexattr` delegate to `brix_*xattr_confined_canon` (confined to `ctx->resolved`). **Open-handle (fd) variants** `brix_vfs_fgetxattr/flistxattr/fsetxattr/fremovexattr(ctx_or_NULL, fd, …)` operate on an fd the VFS already opened confined (confinement travels with the descriptor; `ctx` optional, only for the metric) — used by fattr's file-handle mode and `compat/integrity_info`'s checksum cache. |
+| `vfs/vfs_copy.c` | `brix_vfs_copy()` — single regular-file server-side copy (`copy_file_range`) behind WebDAV COPY / S3 CopyObject. Delegates to `brix_ns_local_copy`; gated `BRIX_VFS_MUTATE_COPY` on the policy of the ctx that carries the destination — a copy is checked where the bytes land, not where they came from; metered as `OP_COPY` (byte count from the post-copy destination size). |
+| `vfs/vfs_staged.c` | Atomic staged-write lifecycle (`brix_vfs_staged_open` → write the fd → `brix_vfs_staged_commit`/`abort`) behind crash-safe S3 PutObject / WebDAV PUT. Wraps `compat/staged_file`; gated `BRIX_VFS_MUTATE_OPEN` at open — before the temp file exists, so a refusal leaves no name behind — and `_PUBLISH` at commit, against the policy the session copied by value at open — a refused publish is a different event from a refused body write and is labelled as one; the commit (atomic publish onto the final path) is metered as `OP_WRITE`. |
 | `vfs/vfs_walk.c` | The **thread-safe, pool-free confined primitives** for off-loop / bulk consumers (multipart assembly, TPC, recursive scans) that cannot use the metered handle API but must still go through the VFS: `brix_vfs_open_fd`/`open_fd_at` (raw-fd confined open), `brix_vfs_unlink_path`/`unlink_at`, `brix_vfs_mkdir_path`, `brix_vfs_rename_path` (returns errno + `was_dir`), `brix_vfs_walk` (confined tree walk with a per-file callback), and `brix_vfs_copyfile`/`copytree`. Impersonation-aware; no pool, no metric. |
 | `vfs/fd_cache.c` | Reserved slot for future fd-cache unification; currently only a header include + design note. No live code. |
 | `vfs/vfs_backend_config.c` | Per-export storage-backend **directive parsing** (phase-67 split): turns the `brix_*_backend` / origin / §14-credential config into `brix_vfs_backend_entry_t` registry entries. |
@@ -175,7 +178,9 @@ verb kernel), `backend/` (storage drivers), `path/` (confinement), `cache/`,
   caller fills in: `pool`/`log`, `identity`, `metrics_proto` (stream/webdav/s3),
   `root_canon` + `cache_root_canon`, the persistent per-worker `rootfd`
   (O_PATH, or `-1`), the already-resolved `brix_path_result_t resolved`, and
-  the `allow_write` / `is_tls` / `want_pgcrc` / `cache_enabled` /
+  the typed `mutation_policy` (`brix_vfs_mutation_policy_t`, phase-105 — **not** a
+  bitflag: `BRIX_VFS_MUTATION_READ_ONLY` is 0, so a zeroed or hand-built context
+  fails closed) and the `is_tls` / `want_pgcrc` / `cache_enabled` /
   `cache_writethrough` bitflags. This struct *is* the VFS's view of a request.
 - **`brix_vfs_file_t`** (opaque; real definition `brix_vfs_file_s` in
   `vfs/vfs_internal.h`) — an open file handle: `fd`, cached `size`/`mtime`/`ctime`/
@@ -200,7 +205,9 @@ VFS function. There is no dispatcher inside `fs/`; each entry point is called
 directly.
 
 **Open (`vfs/vfs_open.c`).** `brix_vfs_require_confined()` rejects unconfined or
-empty paths; a write open additionally requires `allow_write`. Then:
+empty paths; a write open additionally passes `brix_vfs_require_mutation(ctx,
+`BRIX_VFS_MUTATE_OPEN`)`, which fails with `EROFS` before the cache, the
+parent mkdir, any temp file and any backend is touched. Then:
 1. `brix_cache_open()` ([`../cache/`](cache/README.md)) gets first refusal —
    a read-through cache hit returns a ready handle and bumps the cache-hit
    metric; `NGX_DECLINED` falls through (and records a miss).
@@ -262,10 +269,20 @@ per-op data-plane metrics.
    carries *no* root at all (server-constructed absolute path). Client requests
    always set a root and take the confined branches. Do not "simplify" the
    cascade in `vfs/vfs_open.c` without preserving this property.
-3. **Fail-closed writes.** `brix_vfs_require_write()` checks `allow_write`
-   *after* confinement and before any mutation; `brix_vfs_open()` rejects a
-   write open up front with `EACCES`. This is the data-plane backstop behind the
-   protocol-layer write gate — both must hold.
+3. **Fail-closed writes.** Every export mutation passes the phase-105 policy
+   kernel (`vfs/vfs_policy.c`) *after* confinement and before any work:
+   `brix_vfs_require_mutation` (ctx), `brix_vfs_require_confined_mutation`
+   (confinement first, so an unconfined path still answers `EINVAL`),
+   `brix_vfs_require_carried_mutation` (a policy copied by value into an object
+   that outlived its ctx — handle, staged session, writer, queued job), or
+   `brix_vfs_export_require_mutation` (service-domain export operations).
+   The refusal is **`EROFS`, never `EACCES`**: `EACCES` means "these credentials
+   may not", and retrying with better ones is the reasonable response to it,
+   whereas no credential opens a read-only export. It is decided before the
+   deny-mode credential refusal and before the capability `ENOTSUP`, so "which
+   gate refused" cannot be used to probe the export. The protocol-layer write
+   gates remain as fast paths; this is the authority, and they cannot disagree
+   with it. `tools/ci/check_vfs_mutation_gate.py` holds the seam at zero backlog.
 4. **TLS vs cleartext buffers never mix.** `vfs/vfs_read.c` is the chokepoint:
    `is_tls` (or `want_pgcrc`) → memory-backed buf (`b->memory=1`); cleartext →
    file-backed `in_file` buf for sendfile. Never emit a file-backed buf on a TLS
@@ -344,8 +361,11 @@ design, not omission. See
   `vfs/vfs.h`, add a focused `vfs_<op>.c`, register the file in the top-level `config`
   script (the module's `ngx_module_srcs` / `NGX_ADDON_SRCS` list) and re-run
   `./configure`, and in the body
-  (a) call `brix_vfs_require_confined()` / `brix_vfs_require_write()` as
-  appropriate, (b) prefer delegating to an `brix_ns_*` helper or the beneath
+  (a) call `brix_vfs_require_confined_mutation()` (or, if the path is already
+  known confined, `brix_vfs_require_mutation()`) as the **first** statement that
+  can fail — before resolving a leaf, selecting a credential, creating a temp or
+  evicting a cache entry, each of which is observable work an unentitled caller
+  must not be able to cause, (b) prefer delegating to an `brix_ns_*` helper or the beneath
   API rather than raw syscalls, and (c) wrap the result in
   `brix_vfs_observe_ctx_op()`/`brix_vfs_observe_file_op()` with the right
   `BRIX_METRIC_OP_*`. Then write the 3 tests (success + error + security-neg).
@@ -362,7 +382,9 @@ design, not omission. See
   the cache-eligibility check in `brix_vfs_open()`.
 - **A new protocol caller** only needs to populate an `brix_vfs_ctx_t`
   correctly — set `metrics_proto`, `rootfd`/`root_canon`, the resolved confined
-  path, and the `allow_write`/`is_tls`/`want_pgcrc` flags — and call the public
+  path, the typed `mutation_policy` (always via
+  `brix_vfs_policy_from_write_enable()` on the merged endpoint configuration —
+  never a hand-written literal), and the `is_tls`/`want_pgcrc` flags — and call the public
   API; metrics and access logging come for free.
 
 ## See also

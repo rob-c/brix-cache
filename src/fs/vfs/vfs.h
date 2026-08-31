@@ -20,7 +20,8 @@
  * HOW:  A caller populates brix_vfs_ctx_t with the export root_canon (and the
  *       persistent per-worker rootfd), the already-resolved client path
  *       (brix_path_result_t, produced by ../path/), the caller identity,
- *       allow_write/is_tls/want_pgcrc/cache flags, and the metrics_proto, then
+ *       mutation policy, the is_tls/want_pgcrc/cache flags, and the
+ *       metrics_proto, then
  *       invokes a single entry point. The handle accessors (brix_vfs_file_fd
  *       et al.) are the only way callers reach the underlying fd/size/mtime.
  */
@@ -35,6 +36,7 @@
 #include "observability/metrics/unified.h"
 #include "fs/backend/sd.h"
 #include "auth/s3/sts.h"                 /* brix_s3_sts_conf_t (§5.5 set_sts) */
+#include "vfs_policy.h"                  /* brix_vfs_mutation_policy_t (phase-105) */
 
 #define BRIX_VFS_O_READ        0x01
 #define BRIX_VFS_O_WRITE       0x02
@@ -96,7 +98,7 @@ typedef struct {
     unsigned     eof:1;
 } brix_vfs_io_result_t;
 
-typedef struct {
+struct brix_vfs_ctx_s {
     ngx_pool_t          *pool;
     ngx_log_t           *log;
     brix_identity_t   *identity;
@@ -126,22 +128,34 @@ typedef struct {
      * = no live bag ⇒ the cred gate stays on the SELECT path (phase-1). */
     brix_deleg_live_t   *deleg_live;
     brix_path_result_t resolved;
-    unsigned             allow_write:1;
+    /* Phase-105: whether this request's ENDPOINT may modify exported storage.
+     * Typed, not a bit, and zero is READ_ONLY, so a zeroed or hand-built ctx
+     * fails closed; immutable for the life of the operation. Every mutation
+     * entry point asks brix_vfs_require_mutation() rather than reading it. */
+    brix_vfs_mutation_policy_t mutation_policy;
     unsigned             is_tls:1;
     unsigned             want_pgcrc:1;
     unsigned             cache_enabled:1;
     unsigned             cache_writethrough:1;
     unsigned             storage_cred_deny:1;
-} brix_vfs_ctx_t;
+};
 
 /* Populate *vctx for a transient (rootfd = -1) confined open of an
  * already-resolved canonical path, filling the fields the HTTP front ends set
- * identically (pool/log/proto, export+cache roots, cache_enabled, allow_write,
- * is_tls, identity, resolved path). HTTP-agnostic: callers pass pool/log/is_tls
- * from their own request. Callers may tweak individual fields afterwards. */
+ * identically (pool/log/proto, export+cache roots, cache_enabled, the endpoint
+ * mutation policy, is_tls, identity, resolved path). HTTP-agnostic: callers
+ * pass pool/log/is_tls from their own request. Callers may tweak individual
+ * fields afterwards.
+ *
+ * `mutation_policy` is the TYPED endpoint policy (phase-105), not a boolean:
+ * derive it from merged configuration with brix_vfs_policy_from_write_enable()
+ * or name BRIX_VFS_MUTATION_READ_ONLY for an intrinsically read-only surface.
+ * Any value outside the enum is normalised to READ_ONLY here, so no caller can
+ * open an endpoint by passing a stray non-zero integer. */
 void brix_vfs_ctx_init(brix_vfs_ctx_t *vctx, ngx_pool_t *pool,
     ngx_log_t *log, brix_proto_t proto, const char *root_canon,
-    const char *cache_root_canon, int allow_write, int is_tls,
+    const char *cache_root_canon,
+    brix_vfs_mutation_policy_t mutation_policy, int is_tls,
     brix_identity_t *identity, const char *resolved_path);
 
 /* Bind the export's per-user backend credential policy onto an already-
@@ -283,7 +297,7 @@ const char *brix_vfs_export_relative(const brix_vfs_ctx_t *ctx,
 
 /* Open ctx->resolved under the confinement cascade with the given
  * BRIX_VFS_O_* flags (translated to O_* internally). BRIX_VFS_O_WRITE
- * requires ctx->allow_write (else EACCES); BRIX_VFS_O_MKDIRPATH pre-creates
+ * requires a writable endpoint (else EROFS); BRIX_VFS_O_MKDIRPATH pre-creates
  * the parent dir tree; read opens may be satisfied from the read-through cache.
  * Returns a handle allocated on ctx->pool, or NULL with the syscall errno
  * written to *err_out (if non-NULL). The fd is closed by brix_vfs_close. */
@@ -478,7 +492,8 @@ ngx_int_t brix_vfs_closedir(brix_vfs_dir_t *dh, ngx_log_t *log);
 ngx_fd_t brix_vfs_dir_fd(const brix_vfs_dir_t *dh);
 
 /* Remove the resolved ctx path as a regular file (non-recursive). Write-gated
- * (requires allow_write) and requires a non-NULL root_canon; metered as
+ * (requires a writable endpoint — EROFS otherwise) and a non-NULL root_canon;
+ * metered as
  * OP_DELETE. NGX_ERROR with errno set (mapped from the namespace status). */
 ngx_int_t brix_vfs_unlink(brix_vfs_ctx_t *ctx);
 /* Remove the resolved ctx directory: recursively when `recursive`, otherwise

@@ -198,7 +198,7 @@ webdav_get_serve_directory(ngx_http_request_t *r,
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
-        conf->common.root_canon, NULL, 0 /* allow_write */, is_tls, NULL, path);
+        conf->common.root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL, path);
 
     dh = brix_vfs_opendir(&vctx, NULL);
     if (dh == NULL) {

@@ -108,7 +108,7 @@ s3_put_aio_finish(s3_put_aio_t *t)
         char              etag_buf[48];
 
         brix_vfs_ctx_init(&fctx, r->pool, log, BRIX_PROTO_S3, t->root_canon,
-            NULL, 0 /* allow_write */, 0 /* is_tls */, NULL, t->final_path);
+            NULL, BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */, NULL, t->final_path);
         {
             ngx_http_s3_loc_conf_t *acf =
                 ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);

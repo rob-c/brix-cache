@@ -316,7 +316,8 @@ brix_qcksum_open(brix_qcksum_req_t *rq, ngx_int_t *out_rc)
      * The fd backs the backend-agnostic checksum kernel; the handle is closed
      * via brix_vfs_close on every exit (sync below, or the aio done cb). */
     brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL, conf->common.allow_write,
+        conf->common.root_canon, NULL,
+        brix_vfs_policy_from_write_enable(conf->common.allow_write),
         0 /* is_tls */, ctx->identity, full_path);
     brix_vfs_ctx_bind_backend_cred(&vctx,
         &conf->common.storage_credential_dir,
@@ -459,6 +460,8 @@ brix_qcksum_compute_sync(brix_qcksum_req_t *rq, brix_vfs_file_t *fh, int fd)
 
     brix_vfs_file_sd_obj(fh, &cobj);
     rc = brix_query_build_checksum(ctx, c, fd, &cobj, rq->full_path, rq->algo,
+                                     brix_vfs_policy_from_write_enable(
+                                         rq->conf->common.allow_write),
                                      resp, sizeof(resp));
     brix_vfs_close(fh, c->log);
     if (rc == NGX_DONE) {

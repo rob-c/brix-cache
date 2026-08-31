@@ -169,9 +169,18 @@ brix_vfs_io_dirlist_stat_entry(brix_vfs_job_t *job, int dfd,
         if (n < 0 || (size_t) n >= sizeof(entry_path)) {
             snprintf(cksum_token, cksum_token_cap, "%s:none", algo);
         } else {
-            brix_dirlist_checksum_token(job->log, dfd, name, entry_path,
-                                          &entry_st, algo, cksum_token,
-                                          cksum_token_cap);
+            brix_dirlist_cksum_req_t creq;
+
+            ngx_memzero(&creq, sizeof(creq));
+            creq.log    = job->log;
+            creq.dfd    = dfd;
+            creq.name   = name;
+            creq.path   = entry_path;
+            creq.st     = &entry_st;
+            creq.algo   = algo;
+            creq.policy = job->mutation_policy;
+
+            brix_dirlist_checksum_token(&creq, cksum_token, cksum_token_cap);
         }
         *need += strlen(cksum_token) + sizeof(" [  ]") - 1;
 

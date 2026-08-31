@@ -81,7 +81,8 @@ op_path_probe(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
                              full, sizeof(full));
     brix_vfs_ctx_init(&vctx, NULL /* no alloc in a probe */, log,
         BRIX_PROTO_ROOT, conf->common.root_canon, NULL,
-        conf->common.allow_write, 0 /* is_tls */, NULL, full);
+        brix_vfs_policy_from_write_enable(conf->common.allow_write),
+        0 /* is_tls */, NULL, full);
     return brix_vfs_probe(&vctx, nofollow, vst);
 }
 

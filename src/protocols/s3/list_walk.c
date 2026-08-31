@@ -109,7 +109,7 @@ s3_walk_classify(ngx_pool_t *pool, ngx_log_t *log, const char *root,
          * accounts for the walk). A symlink/special stats as neither dir nor
          * regular and is skipped, preserving the symlink-skip security property. */
         brix_vfs_ctx_init(&vctx, pool, log, BRIX_PROTO_S3, root, NULL,
-            0 /* allow_write */, 0 /* is_tls */, NULL, child_path);
+            BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */, NULL, child_path);
         if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_OK) {
             return 0;
         }
@@ -386,7 +386,7 @@ s3_walk_run(s3_walk_ctx_t *ctx, const char *dir_path, const char *key_prefix)
     /* Enumerate through the VFS (broker fdopendir under impersonation), using
      * the NON-METERED opendir. */
     brix_vfs_ctx_init(&wctx, ctx->entries->pool, ctx->log, BRIX_PROTO_S3,
-        ctx->root, NULL, 0 /* allow_write */, 0 /* is_tls */, NULL, dir_path);
+        ctx->root, NULL, BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */, NULL, dir_path);
     dh = brix_vfs_opendir_quiet(&wctx, NULL);
     if (dh == NULL) {
         return (int) ctx->entries->nelts;
@@ -476,7 +476,7 @@ s3_entry_fill_stat(ngx_pool_t *pool, ngx_log_t *log, const char *root,
      * swapped for a symlink after the walk), skip it — matching the eager
      * walker's stat-failure / symlink skip. */
     brix_vfs_ctx_init(&vctx, pool, log, BRIX_PROTO_S3, root, NULL,
-        0 /* allow_write */, 0 /* is_tls */, NULL, fs_path);
+        BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */, NULL, fs_path);
     if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_OK
         || !vst.is_regular) {
         return NGX_DECLINED;

@@ -100,8 +100,9 @@ cms_drv_trunc(brix_sd_instance_t *sd, const brix_cms_node_plan_t *plan)
  * is inherently export-confined, so a hostile manager still cannot escape it.
  */
 static int
-cms_node_exec_driver(brix_sd_instance_t *sd, const char *root_canon,
-    const brix_cms_node_plan_t *plan, ngx_log_t *log, int *handled)
+cms_node_exec_driver(brix_sd_instance_t *sd,
+    const brix_vfs_export_op_ctx_t *opctx,
+    const brix_cms_node_plan_t *plan, int *handled)
 {
     const brix_sd_driver_t *drv = sd->driver;
 
@@ -114,7 +115,7 @@ cms_node_exec_driver(brix_sd_instance_t *sd, const char *root_canon,
 
     case XRDCMS_NACT_MKPATH:
         /* create the whole path + missing parents in the driver namespace. */
-        return brix_vfs_backend_mkpath(root_canon, plan->path, plan->mode, log);
+        return brix_vfs_export_mkpath(opctx, plan->path, plan->mode);
 
     case XRDCMS_NACT_RMDIR:
         return cms_drv_unlink(sd, plan->path, 1);
@@ -141,6 +142,36 @@ cms_node_exec_driver(brix_sd_instance_t *sd, const char *root_canon,
 static int cms_posix_apply(ngx_brix_cms_ctx_t *ctx,
     const brix_cms_node_plan_t *plan, int *handled);
 
+/* Map a forwarded CMS action onto the phase-105 mutation vocabulary, so the
+ * refusal is counted under the operation the manager actually asked for. Every
+ * action in this plane mutates — Plane B carries no queries — so there is no
+ * "not a mutation" arm and the default is the safe, generic SETATTR. */
+static brix_vfs_mutation_op_t
+cms_forward_mutation_op(int action)
+{
+    switch (action) {
+    case XRDCMS_NACT_MKDIR:
+    case XRDCMS_NACT_MKPATH: return BRIX_VFS_MUTATE_MKDIR;
+    case XRDCMS_NACT_RMDIR:
+    case XRDCMS_NACT_RM:     return BRIX_VFS_MUTATE_REMOVE;
+    case XRDCMS_NACT_MV:     return BRIX_VFS_MUTATE_RENAME;
+    case XRDCMS_NACT_TRUNC:  return BRIX_VFS_MUTATE_TRUNCATE;
+    case XRDCMS_NACT_CHMOD:
+    default:                 return BRIX_VFS_MUTATE_SETATTR;
+    }
+}
+
+/* The node's export write posture, as an operation context the confined VFS
+ * helpers can be driven through. */
+static void
+cms_forward_opctx(ngx_brix_cms_ctx_t *ctx, brix_vfs_export_op_ctx_t *opctx)
+{
+    brix_vfs_export_op_ctx_init(opctx, ctx->cycle->log,
+        ctx->conf->common.root_canon,
+        brix_vfs_policy_from_write_enable(ctx->conf->common.allow_write),
+        BRIX_PROTO_ROOT);
+}
+
 /* cms_forward_exec — storage leg + reply tail of a forwarded namespace op:
  * run the planned mutation through the non-default backend's namespace slots
  * (sd != NULL) or apply it to the local POSIX export under kernel confinement
@@ -157,9 +188,30 @@ cms_forward_exec(ngx_brix_cms_ctx_t *ctx, brix_sd_instance_t *sd,
     int  handled;
     int  rc;
 
+    /* Phase-105: Plane B is a manager-driven mutation channel that never passes
+     * through a request VFS ctx, so without this it was the one namespace path
+     * a read-only export could still be written through — by a peer, not even
+     * by a client. The gate is here rather than in either leg because it must
+     * precede the choice of leg: driver and POSIX exports must refuse
+     * identically, and neither may be reached to discover it cannot comply.
+     * The refusal rides the existing cmsd-byte-exact failure tail, so the
+     * manager sees kYR_EINVAL + "Read-only file system". */
+    if (brix_vfs_require_carried_mutation(
+            brix_vfs_policy_from_write_enable(ctx->conf->common.allow_write),
+            BRIX_PROTO_ROOT, cms_forward_mutation_op(plan->action)) != NGX_OK)
+    {
+        ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+            "brix: CMS node: forwarded op code=%ui path=%s refused: "
+            "read-only export", (ngx_uint_t) code, plan->path);
+        return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
+                                         strerror(errno));
+    }
+
     if (sd != NULL) {
-        rc = cms_node_exec_driver(sd, ctx->conf->common.root_canon, plan,
-                                  ctx->cycle->log, &handled);
+        brix_vfs_export_op_ctx_t opctx;
+
+        cms_forward_opctx(ctx, &opctx);
+        rc = cms_node_exec_driver(sd, &opctx, plan, &handled);
     } else {
         rc = cms_posix_apply(ctx, plan, &handled);
     }
@@ -193,9 +245,11 @@ static int
 cms_posix_apply(ngx_brix_cms_ctx_t *ctx, const brix_cms_node_plan_t *plan,
     int *handled)
 {
-    int         rootfd = ctx->conf->rootfd;
-    const char *root_canon = ctx->conf->common.root_canon;
+    int                      rootfd = ctx->conf->rootfd;
+    const char              *root_canon = ctx->conf->common.root_canon;
+    brix_vfs_export_op_ctx_t opctx;
 
+    cms_forward_opctx(ctx, &opctx);
     *handled = 1;
 
     switch (plan->action) {
@@ -209,17 +263,18 @@ cms_posix_apply(ngx_brix_cms_ctx_t *ctx, const brix_cms_node_plan_t *plan,
                                               full, plan->mode, NULL);
     }
     case XRDCMS_NACT_RMDIR:
-        return brix_vfs_unlink_at(rootfd, plan->path, 1);
+        return brix_vfs_export_unlink_at(&opctx, rootfd, plan->path, 1);
 
     case XRDCMS_NACT_RM:
-        return brix_vfs_unlink_at(rootfd, plan->path, 0);
+        return brix_vfs_export_unlink_at(&opctx, rootfd, plan->path, 0);
 
     case XRDCMS_NACT_MV:
         return brix_rename_beneath(rootfd, plan->path, plan->path2);
 
     case XRDCMS_NACT_CHMOD: {
         int rc;
-        int fd = brix_vfs_open_fd_at(rootfd, plan->path, O_RDONLY, 0);
+        int fd = brix_vfs_export_open_fd_at(&opctx, rootfd, plan->path,
+                                            O_RDONLY, 0);
         if (fd < 0) { return -1; }
         rc = fchmod(fd, plan->mode);  /* vfs-seam-allow: metadata on a VFS-opened confined fd */
         close(fd);  /* vfs-seam-allow: metadata on a VFS-opened confined fd */
@@ -227,7 +282,8 @@ cms_posix_apply(ngx_brix_cms_ctx_t *ctx, const brix_cms_node_plan_t *plan,
     }
     case XRDCMS_NACT_TRUNC: {
         int rc;
-        int fd = brix_vfs_open_fd_at(rootfd, plan->path, O_WRONLY, 0);
+        int fd = brix_vfs_export_open_fd_at(&opctx, rootfd, plan->path,
+                                            O_WRONLY, 0);
         if (fd < 0) { return -1; }
         rc = ftruncate(fd, (off_t) plan->size);  /* vfs-seam-allow: metadata on a VFS-opened confined fd */
         close(fd);  /* vfs-seam-allow: metadata on a VFS-opened confined fd */

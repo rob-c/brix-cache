@@ -157,6 +157,32 @@ brix_metric_cred_fail_name(brix_cred_fail_t reason)
         ? brix_unified_cred_fail_names[reason] : "unknown";
 }
 
+/* Phase-105 bounded mutation-operation labels. Mirrors brix_vfs_mutation_op_t
+ * (fs/vfs/vfs_policy.h) so the exporter needs no fs-layer include; vfs_policy.c
+ * asserts the two stay the same length. */
+static const char *brix_unified_vfs_mutate_op_names
+    [BRIX_VFS_MUTATE_OP_METRIC_COUNT] =
+{
+    "open",
+    "write",
+    "truncate",
+    "sync",
+    "mkdir",
+    "remove",
+    "rename",
+    "copy",
+    "setattr",
+    "xattr",
+    "publish",
+};
+
+const char *
+brix_metric_vfs_mutate_op_name(ngx_uint_t op)
+{
+    return op < BRIX_VFS_MUTATE_OP_METRIC_COUNT
+        ? brix_unified_vfs_mutate_op_names[op] : "unknown";
+}
+
 /*
  * brix_metric_auth_slot — map an identity auth_method bitmask to one
  * BRIX_METRIC_AUTH_* slot. Tested in priority order (GSI, TOKEN, SSS, S3KEY,

@@ -252,11 +252,49 @@ ev_grp_dcprot(ftp_ev_t *fc, const char *verb, const char *arg)
 }
 
 
+/*
+ * ev_site_mutates — does this SITE subcommand ask to change the export?
+ *
+ * WHAT: Non-zero for the five SITE subcommands the GridFTP grammar defines as
+ * mutations — CHMOD, CHGRP, UTIME, SYMLINK and RDEL (recursive delete).
+ *
+ * WHY: Phase 105 W4 — SITE is answered here with a blanket "200 OK", so on a
+ * read-only export `SITE CHMOD 777 /file` reported success for a mode change
+ * that no code in this tree performs.  A client cannot tell that apart from a
+ * chmod that worked, which is the one thing a read-only endpoint must never
+ * say.  These five now get the same 550 every other write verb answers with
+ * (ftp_ev_cmd.c), leaving every other SITE subcommand exactly as it was.
+ */
+static int
+ev_site_mutates(const char *arg)
+{
+    static const char *const mutating[] = {
+        "CHMOD", "CHGRP", "UTIME", "SYMLINK", "RDEL"
+    };
+    size_t i;
+
+    for (i = 0; i < sizeof(mutating) / sizeof(mutating[0]); i++) {
+        size_t n = strlen(mutating[i]);
+
+        if (strncasecmp(arg, mutating[i], n) == 0
+            && (arg[n] == '\0' || arg[n] == ' '))
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
 /* Capability / session probes (SITE/SYST/FEAT/NOOP/OPTS). */
 static ngx_int_t
 ev_grp_session(ftp_ev_t *fc, const char *verb, const char *arg)
 {
     if (strcasecmp(verb, "SITE") == 0) {
+        if (ev_site_mutates(arg) && !fc->conf->allow_write) {
+            return brix_ftp_ev_reply(fc,
+                "550 Permission denied (read-only)\r\n");
+        }
         return brix_ftp_ev_reply(fc, "200 OK\r\n");
     } else if (strcasecmp(verb, "SYST") == 0) {
         return brix_ftp_ev_reply(fc, "215 UNIX Type: L8\r\n");

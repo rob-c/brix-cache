@@ -45,6 +45,12 @@ typedef struct {
     ngx_uint_t        batch;       /* this op's size trigger                      */
     ngx_msec_t        wait_ms;     /* this op's time trigger                      */
     ngx_msec_t        enqueued_ms; /* monotonic enqueue stamp (time trigger)      */
+    /* phase-105: the write posture and protocol of the endpoint that enqueued
+     * this op, captured by value at enqueue. The drain re-checks it rather than
+     * re-reading configuration the request no longer owns and a reload may
+     * since have flipped (Appendix D.8). */
+    brix_vfs_mutation_policy_t policy;
+    brix_proto_t               proto;
 } brix_baq_pending_t;
 
 static brix_baq_pending_t  baq_pending[BRIX_BAQ_MAX_PENDING];
@@ -139,15 +145,20 @@ baq_journal_remove(const char *reqid)
  *       benign errnos — see baq_apply_idempotent).
  *
  * HOW:  RENAME needs the resolved backend instance (brix_vfs_rename_path takes an
- *       sd); the others take root_canon directly.
+ *       sd); the others take root_canon directly. Every primitive is the
+ *       phase-105 policy-bearing export form, driven from `opctx` — the drain
+ *       re-checks the posture the enqueuing endpoint captured (Appendix D.8's
+ *       "worker/drain validates record and policy again") instead of re-reading
+ *       a configuration this op no longer belongs to. A refusal surfaces as
+ *       EROFS and reaches the parked client like any other backend errno.
  */
 static int
-baq_apply(const brix_baq_rec_t *rec, ngx_log_t *log)
+baq_apply(const brix_baq_rec_t *rec, const brix_vfs_export_op_ctx_t *opctx)
 {
     switch ((brix_baq_op_t) rec->op) {
 
     case BRIX_BAQ_UNLINK:
-        if (brix_vfs_unlink_path(log, rec->root_canon, rec->src_key) == 0) {
+        if (brix_vfs_export_unlink(opctx, rec->src_key) == 0) {
             return 0;
         }
         /* kXR_rm parity: "unlink a file, rmdir a directory" non-recursively. The
@@ -155,28 +166,28 @@ baq_apply(const brix_baq_rec_t *rec, ngx_log_t *log)
          * to the empty-dir removal (which itself returns ENOTEMPTY on a non-empty
          * dir) — matching brix_vfs_unlink's file-or-empty-dir behaviour exactly. */
         if (errno == EISDIR
-            && brix_vfs_rmdir_path(log, rec->root_canon, rec->src_key) == 0)
+            && brix_vfs_export_rmdir(opctx, rec->src_key) == 0)
         {
             return 0;
         }
         return errno ? errno : EIO;
 
     case BRIX_BAQ_RMDIR:
-        return brix_vfs_rmdir_path(log, rec->root_canon, rec->src_key) == 0
+        return brix_vfs_export_rmdir(opctx, rec->src_key) == 0
                ? 0 : (errno ? errno : EIO);
 
     case BRIX_BAQ_MKDIR:
-        return brix_vfs_mkdir_path(log, rec->root_canon, rec->src_key,
-                                   (mode_t) rec->mode) == 0
+        return brix_vfs_export_mkdir(opctx, rec->src_key,
+                                     (mode_t) rec->mode) == 0
                ? 0 : (errno ? errno : EIO);
 
     case BRIX_BAQ_RENAME: {
-        brix_sd_instance_t *sd = brix_vfs_backend_resolve(rec->root_canon, log);
+        brix_sd_instance_t *sd = brix_vfs_backend_resolve(rec->root_canon,
+                                                          opctx->log);
 
         errno = 0;
-        if (brix_vfs_rename_path(sd, log, rec->root_canon,
-                                 rec->src_key, rec->dst_key,
-                                 0 /* no overwrite */, NULL) == NGX_OK)
+        if (brix_vfs_export_rename(opctx, sd, rec->src_key, rec->dst_key,
+                                   0 /* no overwrite */, NULL) == NGX_OK)
         {
             return 0;
         }
@@ -188,14 +199,25 @@ baq_apply(const brix_baq_rec_t *rec, ngx_log_t *log)
     }
 }
 
+/* Build the drain-time operation context for `rec`: the record's own export
+ * root, the captured endpoint posture, and the protocol to attribute a refusal
+ * to. Kept in one place so no drain path can assemble a wider bundle. */
+static void
+baq_opctx(brix_vfs_export_op_ctx_t *opctx, const brix_baq_rec_t *rec,
+    ngx_log_t *log, brix_vfs_mutation_policy_t policy, brix_proto_t proto)
+{
+    brix_vfs_export_op_ctx_init(opctx, log, rec->root_canon, policy, proto);
+}
+
 /* Reconcile-time idempotency: a mutation the client was told to wait for has
  * already taken effect if the target is now in the desired end-state. Squash the
  * benign "already done" errnos to success so the replay removes the record; any
  * other errno is a real transient failure and the record is kept for a later try. */
 static int
-baq_apply_idempotent(const brix_baq_rec_t *rec, ngx_log_t *log)
+baq_apply_idempotent(const brix_baq_rec_t *rec,
+    const brix_vfs_export_op_ctx_t *opctx)
 {
-    int e = baq_apply(rec, log);
+    int e = baq_apply(rec, opctx);
 
     switch ((brix_baq_op_t) rec->op) {
     case BRIX_BAQ_UNLINK:
@@ -221,8 +243,12 @@ baq_drain_all(void)
     ngx_uint_t i;
 
     for (i = 0; i < baq_count; i++) {
-        brix_baq_pending_t *p = &baq_pending[i];
-        int e = baq_apply(&p->rec, log);
+        brix_baq_pending_t       *p = &baq_pending[i];
+        brix_vfs_export_op_ctx_t  opctx;
+        int                       e;
+
+        baq_opctx(&opctx, &p->rec, log, p->policy, p->proto);
+        e = baq_apply(&p->rec, &opctx);
 
         baq_journal_remove(p->rec.reqid);
         if (p->done != NULL) {
@@ -304,27 +330,52 @@ baq_time_triggered(void)
     return 0;
 }
 
+/* Map a queued verb onto the phase-105 mutation vocabulary, so a refusal is
+ * counted under the operation the client actually asked for. */
+static brix_vfs_mutation_op_t
+baq_mutation_op(brix_baq_op_t op)
+{
+    switch (op) {
+    case BRIX_BAQ_RMDIR:  return BRIX_VFS_MUTATE_REMOVE;
+    case BRIX_BAQ_RENAME: return BRIX_VFS_MUTATE_RENAME;
+    case BRIX_BAQ_MKDIR:  return BRIX_VFS_MUTATE_MKDIR;
+    case BRIX_BAQ_UNLINK:
+    default:              return BRIX_VFS_MUTATE_REMOVE;
+    }
+}
+
 /* ---- public API ------------------------------------------------------------ */
 
 ngx_int_t
-brix_baq_enqueue(brix_baq_op_t op, const char *root_canon,
-    const char *src_key, const char *dst_key, uint32_t mode,
-    ngx_uint_t batch, ngx_msec_t wait_ms,
-    brix_baq_done_pt done, void *client)
+brix_baq_enqueue(const brix_baq_req_t *req, brix_baq_done_pt done, void *client)
 {
     brix_baq_pending_t *p;
 
-    if (root_canon == NULL || src_key == NULL || done == NULL) {
+    if (req == NULL || req->root_canon == NULL || req->src_key == NULL
+        || done == NULL)
+    {
+        return NGX_ERROR;
+    }
+
+    /* phase-105: the gate runs HERE, before the journal record is written and
+     * before the client is parked. Deferring a mutation does not soften it — a
+     * read-only endpoint must not be able to leave an unlink sitting in a
+     * durable journal that a later replay would apply. The refusal is EROFS and
+     * is counted once; the caller falls back to running the op inline, where it
+     * meets the same refusal from the VFS and reports it to the client. */
+    if (brix_vfs_require_carried_mutation(req->policy, req->proto,
+            baq_mutation_op(req->op)) != NGX_OK)
+    {
         return NGX_ERROR;
     }
 
     /* Reject any path that would not fit the fixed record fields rather than
      * silently truncating it — a truncated path at drain would target the WRONG
      * object. The caller falls back to running the op inline. */
-    if (strlen(root_canon) >= sizeof(baq_pending[0].rec.root_canon)
-        || strlen(src_key) >= sizeof(baq_pending[0].rec.src_key)
-        || (dst_key != NULL
-            && strlen(dst_key) >= sizeof(baq_pending[0].rec.dst_key)))
+    if (strlen(req->root_canon) >= sizeof(baq_pending[0].rec.root_canon)
+        || strlen(req->src_key) >= sizeof(baq_pending[0].rec.src_key)
+        || (req->dst_key != NULL
+            && strlen(req->dst_key) >= sizeof(baq_pending[0].rec.dst_key)))
     {
         return NGX_ERROR;
     }
@@ -342,19 +393,22 @@ brix_baq_enqueue(brix_baq_op_t op, const char *root_canon,
     p = &baq_pending[baq_count];
     ngx_memzero(&p->rec, sizeof(p->rec));
     baq_reqid_mint(p->rec.reqid);
-    p->rec.op = (uint32_t) op;
-    snprintf(p->rec.root_canon, sizeof(p->rec.root_canon), "%s", root_canon);
-    snprintf(p->rec.src_key, sizeof(p->rec.src_key), "%s", src_key);
-    if (dst_key != NULL) {
-        snprintf(p->rec.dst_key, sizeof(p->rec.dst_key), "%s", dst_key);
+    p->rec.op = (uint32_t) req->op;
+    snprintf(p->rec.root_canon, sizeof(p->rec.root_canon), "%s",
+             req->root_canon);
+    snprintf(p->rec.src_key, sizeof(p->rec.src_key), "%s", req->src_key);
+    if (req->dst_key != NULL) {
+        snprintf(p->rec.dst_key, sizeof(p->rec.dst_key), "%s", req->dst_key);
     }
-    p->rec.mode        = mode;
+    p->rec.mode        = req->mode;
     p->rec.enqueued_at = (int64_t) time(NULL);
     p->done            = done;
     p->client          = client;
-    p->batch           = (batch == 0) ? 1 : batch;
-    p->wait_ms         = wait_ms;
+    p->batch           = (req->batch == 0) ? 1 : req->batch;
+    p->wait_ms         = req->wait_ms;
     p->enqueued_ms     = ngx_current_msec;
+    p->policy          = req->policy;      /* phase-105: captured, not re-read */
+    p->proto           = req->proto;
 
     baq_journal_write(&p->rec);              /* durable BEFORE the client parks */
     baq_count++;
@@ -423,7 +477,22 @@ baq_reconcile_one(const char *path, ngx_log_t *log)
         return -1;
     }
 
-    e = baq_apply_idempotent(&rec, log);
+    {
+        brix_vfs_export_op_ctx_t opctx;
+
+        /* phase-105: crash reconcile runs at worker start, with no request and
+         * no endpoint configuration in scope, so the posture cannot be re-read.
+         * The record itself is the authority: brix_baq_enqueue is its only
+         * writer and refuses a read-only endpoint, so a record on disk is proof
+         * that a WRITABLE endpoint authorised exactly this mutation and that a
+         * client was told to wait for it. Re-deciding here would turn an
+         * already-accepted mutation into a silent loss across a reload — the
+         * one outcome this journal exists to prevent (Appendix D.8). The proto
+         * label never reaches a metric, because ALLOWED never refuses. */
+        baq_opctx(&opctx, &rec, log, BRIX_VFS_MUTATION_ALLOWED,
+                  BRIX_PROTO_ROOT);
+        e = baq_apply_idempotent(&rec, &opctx);
+    }
     if (e == 0) {
         (void) unlink(path);
         return 1;

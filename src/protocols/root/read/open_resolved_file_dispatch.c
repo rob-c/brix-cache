@@ -134,7 +134,8 @@ brix_open_build_cred_ctx(brix_open_args_t *a, brix_sd_instance_t *sd_inst,
 	ngx_stream_brix_srv_conf_t *conf = a->conf;
 
 	brix_vfs_ctx_init(cred_vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-	    conf->common.root_canon, NULL, conf->common.allow_write,
+	    conf->common.root_canon, NULL,
+	    brix_vfs_policy_from_write_enable(conf->common.allow_write),
 	    0 /* is_tls */, ctx->identity, a->resolved);
 	brix_vfs_ctx_bind_backend_cred(cred_vctx,
 	    &conf->common.storage_credential_dir,

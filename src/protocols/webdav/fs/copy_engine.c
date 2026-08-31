@@ -14,10 +14,14 @@
  *       with preserve_xattrs=1 (the generic user.* fattrs) plus a metadata
  *       callback (webdav_copy_meta_cb) that carries the WebDAV-specific dead-
  *       property xattrs — the one bit the protocol-agnostic VFS must not know.
+ *       They take the phase-105 export operation context rather than a bare
+ *       log + root: a COPY writes to the export, so the endpoint's write
+ *       posture must reach the primitive that creates the destination, and it
+ *       must reach every child of a recursive copy, not only its parent.
  */
 
 #include "copy_engine.h"
-#include "fs/vfs/vfs.h"   /* brix_vfs_copyfile / brix_vfs_copytree */
+#include "fs/vfs/vfs.h"   /* brix_vfs_export_copyfile / _copytree */
 
 /*
  * webdav_copy_meta_cb — per-entry metadata callback for the VFS copy primitives.
@@ -41,17 +45,17 @@ webdav_copy_meta_cb(void *cookie, const char *src, const char *dst, int is_dir)
  * via the metadata callback, keeping the protocol-specific bit out of the VFS.
  */
 ngx_int_t
-webdav_copy_file(ngx_log_t *log, const char *root_canon,
+webdav_copy_file(const brix_vfs_export_op_ctx_t *opctx,
     const char *src, const char *dst)
 {
-    return brix_vfs_copyfile(log, root_canon, src, dst,
-                               1 /* preserve xattrs */, webdav_copy_meta_cb, log);
+    return brix_vfs_export_copyfile(opctx, src, dst,
+               1 /* preserve xattrs */, webdav_copy_meta_cb, opctx->log);
 }
 
 ngx_int_t
-webdav_copy_dir_recursive(ngx_log_t *log, const char *root_canon,
+webdav_copy_dir_recursive(const brix_vfs_export_op_ctx_t *opctx,
     const char *src, const char *dst)
 {
-    return brix_vfs_copytree(log, root_canon, src, dst,
-                               1 /* preserve xattrs */, webdav_copy_meta_cb, log);
+    return brix_vfs_export_copytree(opctx, src, dst,
+               1 /* preserve xattrs */, webdav_copy_meta_cb, opctx->log);
 }

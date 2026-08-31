@@ -17,7 +17,8 @@
  *       security seam (the confinement cascade) is unchanged.
  *
  * HOW:  brix_vfs_open() re-verifies confinement, gates writes on
- *       ctx->allow_write, optionally pre-creates the parent dir tree
+ *       the endpoint's mutation policy, optionally pre-creates the parent dir
+ *       tree
  *       (BRIX_VFS_O_MKDIRPATH), then tries brix_cache_open() first. On a
  *       cache miss it translates flags via brix_vfs_open_flags() and walks the
  *       confinement cascade strongest-first: persistent rootfd +
@@ -141,17 +142,21 @@ brix_vfs_open_set_err(int *err_out, int err)
 }
 
 /* brix_vfs_open_precheck — enforce the invariants every open must satisfy
- * before any storage is touched: confinement, the global write gate, and the
+ * before any storage is touched: confinement, the endpoint mutation gate, and
+ * the
  * optional parent-dir pre-create.
  *
- * WHAT: Re-verify ctx confinement, deny a write open unless ctx->allow_write,
+ * WHAT: Re-verify ctx confinement, refuse a write open on a read-only endpoint,
  *       and (for BRIX_VFS_O_MKDIRPATH) build the target's parent dir chain.
  * WHY:  These three gates are policy, not storage: they run identically for the
  *       driver and POSIX paths, so hoisting them keeps the orchestrator flat and
- *       keeps the confinement/write-gate decision in exactly one place.
+ *       keeps the confinement/mutation decision in exactly one place. The
+ *       mutation gate runs BEFORE the parent pre-create so a refused write open
+ *       never leaves a directory behind on a read-only export (phase-105).
  * HOW:  Early-return NGX_ERROR with errno set on the first failing gate (errno
- *       from require_confined / mkdir; EACCES for the write gate). NGX_OK ⇒ the
- *       caller may proceed to open `path`. */
+ *       from require_confined / mkdir; EROFS — never EACCES — for the mutation
+ *       gate, which also books one vfs_mutation_denied_total sample).
+ *       NGX_OK ⇒ the caller may proceed to open `path`. */
 static ngx_int_t
 brix_vfs_open_precheck(brix_vfs_ctx_t *ctx, ngx_uint_t flags, const char *path)
 {
@@ -159,8 +164,9 @@ brix_vfs_open_precheck(brix_vfs_ctx_t *ctx, ngx_uint_t flags, const char *path)
         return NGX_ERROR;
     }
 
-    if ((flags & BRIX_VFS_O_WRITE) && !ctx->allow_write) {
-        errno = EACCES;
+    if ((flags & BRIX_VFS_O_WRITE)
+        && brix_vfs_require_mutation(ctx, BRIX_VFS_MUTATE_OPEN) != NGX_OK)
+    {
         return NGX_ERROR;
     }
 
@@ -399,7 +405,7 @@ brix_vfs_open_via_posix(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
 
 /* Open the resolved ctx path under the confinement cascade. Returns a handle
  * or NULL with the syscall errno in *err_out. Cache hits short-circuit; writes
- * require ctx->allow_write. See the file header for the full open sequence.
+ * require a writable endpoint. See the file header for the full open sequence.
  *
  * Orchestrator: a flat sequence of named steps — precheck (confinement + write
  * gate + mkdir), cache, then either the non-POSIX driver open or the POSIX

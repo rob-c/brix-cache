@@ -170,6 +170,28 @@ webdav_lock_reap_null(ngx_http_request_t *r, const char *path,
     }
 }
 
+/* Phase-105 Appendix H.2: expired-lock cleanup is a WRITE, and a read-only
+ * endpoint performs none. See lock_internal.h for the full contract. */
+void
+webdav_lock_expired_cleanup(ngx_http_request_t *r, const char *path,
+    const webdav_lock_xattr_t *e, int reap_null)
+{
+    ngx_http_brix_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+
+    if (conf == NULL
+        || brix_vfs_policy_from_write_enable(conf->common.allow_write)
+           != BRIX_VFS_MUTATION_ALLOWED)
+    {
+        return;
+    }
+
+    (void) webdav_lock_xattr_delete(r, path);
+    if (reap_null) {
+        webdav_lock_reap_null(r, path, e);
+    }
+}
+
 static void webdav_handle_lock_inner(ngx_http_request_t *r);
 
 /*
@@ -433,9 +455,11 @@ webdav_handle_lock_inner(ngx_http_request_t *r)
         return;
     }
 
-    /* Treat expired lock as absent. */
+    /* Treat expired lock as absent. The stale xattr is cleared only on a
+     * writable export (H.2); never reap the placeholder here — the LOCK below
+     * is about to re-create the lock on this very path. */
     if (rc == NGX_OK && e.expires <= (int64_t) ngx_time()) {
-        (void) webdav_lock_xattr_delete(r, path);
+        webdav_lock_expired_cleanup(r, path, &e, 0 /* keep lock-null */);
         rc = NGX_DECLINED;
     }
 

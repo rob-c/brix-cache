@@ -118,6 +118,44 @@ int brix_vfs_backend_leaf_isdir(brix_sd_instance_t *leaf, const char *logical,
 int brix_vfs_mkdir_path(ngx_log_t *log, const char *root_canon,
     const char *logical, mode_t mode);
 
+/* --- policy-bearing export forms (src/fs/vfs/vfs_policy_export.c) -------------
+ * The helpers ABOVE carry confinement only: they answer "is this path inside the
+ * export?", never "may this request write to the export at all?". Protocol, TPC,
+ * CMS, and queue code must call the forms BELOW, which take the request's typed
+ * endpoint mutation policy in a brix_vfs_export_op_ctx_t (vfs_policy.h) and
+ * refuse a read-only endpoint with EROFS before the raw helper runs. The
+ * un-gated forms remain for VFS internals and explicitly service-owned domains
+ * (cache store, staging area, a VFS-owned unpublished temporary); the mutation
+ * seam guard (tools/ci/check_vfs_mutation_gate.py) enforces the split.
+ *
+ * Each mirrors its raw twin's return contract exactly, adding only the refusal:
+ * the int forms return -1 with errno==EROFS, the ngx_int_t forms NGX_ERROR with
+ * errno==EROFS. A provably read-only brix_vfs_export_open_fd[_at] (no O_WRONLY/
+ * O_RDWR/O_CREAT/O_TRUNC/O_APPEND) is never gated — reads stay free. */
+int brix_vfs_export_open_fd(const brix_vfs_export_op_ctx_t *opctx,
+    const char *logical, int flags, mode_t mode);
+int brix_vfs_export_open_fd_at(const brix_vfs_export_op_ctx_t *opctx,
+    int rootfd, const char *logical, int flags, mode_t mode);
+int brix_vfs_export_unlink(const brix_vfs_export_op_ctx_t *opctx,
+    const char *logical);
+int brix_vfs_export_unlink_at(const brix_vfs_export_op_ctx_t *opctx,
+    int rootfd, const char *logical, int is_dir);
+int brix_vfs_export_rmdir(const brix_vfs_export_op_ctx_t *opctx,
+    const char *logical);
+int brix_vfs_export_mkdir(const brix_vfs_export_op_ctx_t *opctx,
+    const char *logical, mode_t mode);
+int brix_vfs_export_mkpath(const brix_vfs_export_op_ctx_t *opctx,
+    const char *logical, mode_t mode);
+ngx_int_t brix_vfs_export_rename(const brix_vfs_export_op_ctx_t *opctx,
+    brix_sd_instance_t *sd, const char *src, const char *dst,
+    unsigned overwrite, int *was_dir_out);
+ngx_int_t brix_vfs_export_copyfile(const brix_vfs_export_op_ctx_t *opctx,
+    const char *src, const char *dst, int preserve_xattrs,
+    brix_vfs_copy_meta_cb meta_cb, void *cookie);
+ngx_int_t brix_vfs_export_copytree(const brix_vfs_export_op_ctx_t *opctx,
+    const char *src, const char *dst, int preserve_xattrs,
+    brix_vfs_copy_meta_cb meta_cb, void *cookie);
+
 /* --- raw fd full read/write primitives (src/fs/vfs/vfs_read.c) -----------------
  * EINTR-safe, short-I/O-tolerant transfers that route the byte syscall through
  * the storage-driver seam (a stack POSIX object — no allocation, so these are
@@ -137,9 +175,9 @@ ngx_int_t brix_vfs_pwrite_full(ngx_fd_t fd, const u_char *buf, size_t len,
  * Confined `user.`-namespace xattr ops on ctx->resolved, each metered as
  * OP_XATTR. get/list return the byte count (bufsz==0 asks the required size;
  * -1/ERANGE when a value does not fit); set/remove return NGX_OK / NGX_ERROR
- * with errno set. set/remove are intentionally NOT allow_write-gated — the lock
- * database writes on otherwise read-only requests and the protocol layer has
- * already authorized — matching the prior direct confined-helper behaviour. */
+ * with errno set. set/remove mutate the export and are gated on the endpoint's
+ * mutation policy (EROFS on a read-only endpoint), ahead of the capability and
+ * credential gates; get/list are reads and are never gated. */
 ssize_t brix_vfs_getxattr(brix_vfs_ctx_t *ctx, const char *name,
     void *buf, size_t bufsz);
 ssize_t brix_vfs_listxattr(brix_vfs_ctx_t *ctx, void *buf, size_t bufsz);
@@ -149,10 +187,12 @@ ngx_int_t brix_vfs_removexattr(brix_vfs_ctx_t *ctx, const char *name);
 
 /* Open-handle (fd) xattr variants: operate on an fd the VFS already opened
  * confined (so confinement travels with the descriptor — no path to re-resolve).
- * `ctx` is optional, used only to attribute the OP_XATTR metric/access-log line
- * (may be NULL → unobserved). get/list return the byte count (bufsz==0 asks the
- * required size; -1/ERANGE when a value does not fit); set/remove return
- * NGX_OK / NGX_ERROR with errno set. */
+ * For get/list `ctx` is optional, used only to attribute the OP_XATTR
+ * metric/access-log line (may be NULL → unobserved), and they return the byte
+ * count (bufsz==0 asks the required size; -1/ERANGE when a value does not fit).
+ * For set/remove `ctx` is REQUIRED and carries the mutation policy: NULL is
+ * EINVAL, a read-only endpoint is EROFS. They return NGX_OK / NGX_ERROR with
+ * errno set. */
 ssize_t brix_vfs_fgetxattr(const brix_vfs_ctx_t *ctx, int fd,
     const char *name, void *buf, size_t bufsz);
 ssize_t brix_vfs_flistxattr(const brix_vfs_ctx_t *ctx, int fd, void *buf,
@@ -161,6 +201,18 @@ ngx_int_t brix_vfs_fsetxattr(const brix_vfs_ctx_t *ctx, int fd,
     const char *name, const void *value, size_t len, int flags);
 ngx_int_t brix_vfs_fremovexattr(const brix_vfs_ctx_t *ctx, int fd,
     const char *name);
+
+/* Carried-policy fd xattr mutators, for a SERVICE-domain caller that holds the
+ * endpoint's policy as a value and has no request context to hand (the
+ * checksum-at-rest cache in core/compat/integrity_info.c is the one in-tree
+ * case). Same contract as the ctx forms — EROFS on a read-only endpoint,
+ * one OP_XATTR observation attributed to `proto` — without pretending a
+ * context exists. Never a way around the gate: the policy is still required. */
+ngx_int_t brix_vfs_fsetxattr_carried(brix_vfs_mutation_policy_t policy,
+    brix_proto_t proto, int fd, const char *name, const void *value,
+    size_t len, int flags);
+ngx_int_t brix_vfs_fremovexattr_carried(brix_vfs_mutation_policy_t policy,
+    brix_proto_t proto, int fd, const char *name);
 
 /* --- single-file copy (src/fs/vfs/vfs_copy.c) ---------------------------------
  * Copy the resolved ctx (source) regular file to dst_resolved within the same

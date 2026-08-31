@@ -75,8 +75,11 @@ brix_open_probe(ngx_log_t *log, const char *root, const char *abs,
      * caller — a policy-scoped AssumeRole could then answer the two differently and
      * turn a legitimate read into a spurious kXR_NotFound (the very failure this
      * probe's deleg exists to prevent). Only meaningful with a session ctx. */
+    /* phase-105: a probe stats, it never writes — READ_ONLY even when the open
+     * it precedes is a write. The policy that decides the write is the one the
+     * OPEN ctx carries; granting it here too would only widen a stat. */
     brix_vfs_ctx_init(&vctx, pool, log, BRIX_PROTO_ROOT, root, NULL,
-        1 /* allow_write */, 0 /* is_tls */,
+        BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */,
         ctx != NULL ? ctx->identity : NULL, abs);
     if (ctx != NULL && conf != NULL && pool != NULL) {
         brix_root_vfs_bind_deleg(ctx, conf, &vctx);

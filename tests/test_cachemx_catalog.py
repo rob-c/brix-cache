@@ -29,7 +29,7 @@ def _check_test_total_suffix_families_are_counters_2(types, f):
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cachemx")]
 
-# The complete catalogue, calibrated live (214 families).  A drift in either
+# The complete catalogue, calibrated live (215 families).  A drift in either
 # direction fails test_catalogue_complete_no_drift with the offending names.
 CATALOG = {
     "brix_acc_dns_breaker_open_total": "counter",
@@ -219,6 +219,7 @@ CATALOG = {
     "brix_unique_users_total": "counter",
     "brix_user_evictions_total": "counter",
     "brix_user_sessions_total": "gauge",
+    "brix_vfs_mutation_denied_total": "counter",
     "brix_vo_bytes_rx_total": "counter",
     "brix_vo_bytes_tx_total": "counter",
     "brix_vo_overflow_total": "counter",

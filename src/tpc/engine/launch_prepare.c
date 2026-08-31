@@ -233,6 +233,11 @@ tpc_init_dst_file(brix_ctx_t *ctx, ngx_connection_t *c,
 {
     file->writable = 1;
     file->readable = 0;
+    /* Phase-105: a TPC destination handle is written by the pull task, long
+     * after this request returns, so it carries the endpoint posture by value
+     * exactly as an ordinary write open does (Appendix D.5/D.7). */
+    file->mutation_policy =
+        brix_vfs_policy_from_write_enable(conf->common.allow_write);
     file->from_cache = 0;
     file->is_regular = S_ISREG(st->st_mode) ? 1 : 0;
     file->device = st->st_dev;

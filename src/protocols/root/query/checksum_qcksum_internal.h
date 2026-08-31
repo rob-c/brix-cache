@@ -46,9 +46,12 @@ typedef struct {
 ngx_flag_t brix_query_parse_algorithm(const u_char *src, size_t len, char *algo,
     size_t algo_sz);
 
+/* `policy` is the endpoint's phase-105 write posture: the digest cache write
+ * lands as an xattr on the export object, so a read-only export computes the
+ * answer and does not persist it. */
 ngx_int_t brix_query_build_checksum(brix_ctx_t *ctx, ngx_connection_t *c,
     int fd, brix_sd_obj_t *obj, const char *resolved, const char *algo,
-    char *resp, size_t resp_sz);
+    brix_vfs_mutation_policy_t policy, char *resp, size_t resp_sz);
 
 ngx_int_t brix_query_cksum_path(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf);

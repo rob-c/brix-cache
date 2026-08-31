@@ -163,7 +163,8 @@ webdav_head_emit_digest(ngx_http_request_t *r, const char *path,
     is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
         BRIX_PROTO_WEBDAV, conf->common.root_canon,
-        conf->common.cache_root_canon, conf->common.allow_write, is_tls,
+        conf->common.cache_root_canon,
+        brix_vfs_policy_from_write_enable(conf->common.allow_write), is_tls,
         (wctx != NULL) ? wctx->identity : NULL, path);
 
     fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);

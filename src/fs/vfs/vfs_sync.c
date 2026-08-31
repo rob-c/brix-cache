@@ -34,6 +34,16 @@ brix_vfs_truncate(brix_vfs_file_t *fh, off_t length)
         return NGX_ERROR;
     }
 
+    /* phase-105: the endpoint gate, from the policy the handle copied at open
+     * and BEFORE the capability question — a read-only export answers EROFS
+     * whatever the backend can do (Appendix I.5 precedence). */
+    if (brix_vfs_require_carried_mutation(fh->mutation_policy,
+            brix_vfs_metrics_proto(fh->ctx), BRIX_VFS_MUTATE_TRUNCATE)
+        != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
     /* phase-71: capability gate — a backend without CAP_TRUNCATE rejects resize
      * uniformly rather than issuing an ftruncate the driver cannot honor. */
     if (fh->obj.inst != NULL
@@ -86,7 +96,9 @@ brix_vfs_truncate_path(brix_vfs_ctx_t *ctx, off_t length)
         errno = EINVAL;
         return NGX_ERROR;
     }
-    if (brix_vfs_require_write(ctx) != NGX_OK) {
+    if (brix_vfs_require_confined_mutation(ctx,
+            BRIX_VFS_MUTATE_TRUNCATE) != NGX_OK)
+    {
         return NGX_ERROR;
     }
 
@@ -165,6 +177,14 @@ brix_vfs_sync(brix_vfs_file_t *fh)
 
     if (fh == NULL || fh->obj.fd == NGX_INVALID_FILE) {
         errno = EINVAL;
+        return NGX_ERROR;
+    }
+
+    /* phase-105: a durability barrier is only ever owed for bytes this endpoint
+     * was allowed to write, so it is gated with them (never EACCES). */
+    if (brix_vfs_require_carried_mutation(fh->mutation_policy,
+            brix_vfs_metrics_proto(fh->ctx), BRIX_VFS_MUTATE_SYNC) != NGX_OK)
+    {
         return NGX_ERROR;
     }
 

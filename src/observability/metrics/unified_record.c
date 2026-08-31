@@ -351,6 +351,39 @@ brix_metric_cred_fail(brix_proto_t proto, brix_cred_fail_t reason)
 }
 
 /*
+ * brix_metric_vfs_mutation_denied — record one phase-105 read-only denial.
+ *
+ * WHAT: Bumps vfs_mutation_denied_total[proto][op]. No-op on an out-of-range
+ *       protocol or operation, or on detached SHM.
+ *
+ * WHY:  A read-only export that is silently refusing writes is indistinguishable
+ *       from one nobody is writing to. This is the counter that tells the two
+ *       apart, at fixed cardinality: the reason is constant ("read_only",
+ *       rendered by the exporter) because EROFS is the only VFS read-only
+ *       result, and no path, subject, or key ever becomes a label.
+ *
+ * HOW:  Same contract as brix_metric_cred_fail: range-check both indices,
+ *       resolve the SHM, atomic-increment. `op` arrives as ngx_uint_t (the
+ *       fs-layer enum value); vfs_policy.c carries the compile-time size check.
+ */
+void
+brix_metric_vfs_mutation_denied(brix_proto_t proto, ngx_uint_t op)
+{
+    ngx_brix_metrics_t *shm;
+
+    if (proto >= BRIX_PROTO_COUNT || op >= BRIX_VFS_MUTATE_OP_METRIC_COUNT) {
+        return;
+    }
+
+    shm = brix_metrics_shared();
+    if (shm == NULL) {
+        return;
+    }
+
+    BRIX_ATOMIC_INC(&shm->unified.vfs_mutation_denied_total[proto][op]);
+}
+
+/*
  * brix_metric_cache_usage_ratio — publish the current cache_root occupancy
  * (ppm, 0-1e6) as a process-wide gauge. Called from the watermark reaper timer
  * each tick. A plain aligned-word store is atomic on the platforms nginx targets;

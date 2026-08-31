@@ -72,7 +72,8 @@ webdav_move_probe(ngx_http_request_t *r, const char *path, struct stat *sb)
     int                is_tls = brix_http_request_is_tls(r);
 
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
-        conf->common.root_canon, conf->common.cache_root_canon, conf->common.allow_write,
+        conf->common.root_canon, conf->common.cache_root_canon,
+        brix_vfs_policy_from_write_enable(conf->common.allow_write),
         is_tls, (rx != NULL) ? rx->identity : NULL, path);
     /* Bind the export's per-user backend credential policy so a remote-backed
      * export's probe (and the deny gate it enforces) sees the REQUESTING
@@ -136,7 +137,8 @@ webdav_move_execute_cred(const webdav_move_req_t *req, int *sys_errno)
 
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
         conf->common.root_canon, conf->common.cache_root_canon,
-        conf->common.allow_write, 0 /* is_tls: irrelevant off the wire */,
+        brix_vfs_policy_from_write_enable(conf->common.allow_write),
+        0 /* is_tls: irrelevant off the wire */,
         (wctx != NULL) ? wctx->identity : NULL, req->src_path);
     brix_vfs_ctx_bind_backend_cred(&vctx,
         &conf->common.storage_credential_dir,
@@ -564,8 +566,15 @@ webdav_handle_move(ngx_http_request_t *r)
     if (conf->common.backend_async && !req.dst_existed
         && !S_ISDIR(src_sb.st_mode))
     {
-        if (brix_baq_http_try(r, &conf->common, BRIX_BAQ_RENAME,
-                              conf->common.root_canon, src_path, dst_path, 0,
+        brix_baq_req_t req_q = {
+            .op         = BRIX_BAQ_RENAME,
+            .proto      = BRIX_PROTO_WEBDAV,
+            .root_canon = conf->common.root_canon,
+            .src_key    = src_path,
+            .dst_key    = dst_path,
+        };
+
+        if (brix_baq_http_try(r, &conf->common, &req_q,
                               webdav_move_async_render, NULL) == NGX_DONE)
         {
             return NGX_DONE;

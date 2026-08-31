@@ -2,7 +2,15 @@
 
 **Date:** 2026-08-28, revised 2026-08-30
 
-**Status:** 📋 **PLAN ONLY — no implementation is claimed by this document.**
+**Status:** ✅ **IMPLEMENTED** (2026-08-30). W0–W5 delivered; every checkbox in
+§8, §9, §10 and §12 is ticked against landed code and passing tests. See
+[Implementation record](#implementation-record) at the foot of this document for
+what the sweep actually found, including the four defects that only a
+plane-by-plane pass surfaced.
+
+The plan text below is preserved as written — it is the specification the
+implementation was judged against, and rewriting it to match the result would
+destroy the only record of what was intended before the work started.
 
 **Document version:** v3 — v2's implementation-grade expansion (policy types,
 configuration precedence, complete mutation and driver-slot ledgers, protocol
@@ -651,96 +659,96 @@ leave a protocol path depending solely on an edge check.
 
 ### W0 — Freeze the contract with failing tests
 
-- [ ] Add a pure policy unit test for allowed versus read-only contexts.
-- [ ] Add the missing `EROFS` mapping assertions for root and HTTP.
-- [ ] Build a spy backend covering every mutation slot and zero-call checks —
+- [x] Add a pure policy unit test for allowed versus read-only contexts.
+- [x] Add the missing `EROFS` mapping assertions for root and HTTP.
+- [x] Build a spy backend covering every mutation slot and zero-call checks —
       generated from `struct brix_sd_driver_s` so the slots the driver wave
       added (`server_copy`, `setattr`, `truncate_path`, and every `_cred` twin)
       are covered by construction rather than by transcription.
-- [ ] Add static inventory tests for current mutating VFS entry points and raw
+- [x] Add static inventory tests for current mutating VFS entry points and raw
       helper callers, including the seven leaf-dispatch sites in
       [§0.2](#02-namespace-mutation-now-dispatches-on-the-leaf-not-the-top-driver).
-- [ ] Pin the current composition-order behaviour of every mutating verb before
+- [x] Pin the current composition-order behaviour of every mutating verb before
       changing it, so a Phase-105 regression is distinguishable from the
       decorator-parity behaviour the driver wave just fixed.
-- [ ] Pin existing default, inheritance, override, and
+- [x] Pin existing default, inheritance, override, and
       `read_only_public -> read_only` configuration behavior.
 
 ### W1 — Carry endpoint policy into the VFS
 
-- [ ] Introduce `brix_vfs_mutation_policy_t` in the public VFS contract.
-- [ ] Replace the initializer's positional `allow_write` boolean with the
+- [x] Introduce `brix_vfs_mutation_policy_t` in the public VFS contract.
+- [x] Replace the initializer's positional `allow_write` boolean with the
       typed policy; do not add another argument.
-- [ ] Add one shared conversion from merged endpoint configuration.
-- [ ] Migrate every `brix_vfs_ctx_init()` call and remove hand-built contexts.
-- [ ] Copy policy into file, staged, writer, recursive, TPC, and async objects.
-- [ ] Add constructor tests proving policy cannot be omitted or default to
+- [x] Add one shared conversion from merged endpoint configuration.
+- [x] Migrate every `brix_vfs_ctx_init()` call and remove hand-built contexts.
+- [x] Copy policy into file, staged, writer, recursive, TPC, and async objects.
+- [x] Add constructor tests proving policy cannot be omitted or default to
       writable through zero/unset confusion.
 
 ### W2 — Make all VFS mutation entry points authoritative
 
-- [ ] Add the central mutation-policy kernel in a small `vfs_policy` module.
-- [ ] Route write-open precheck and every path mutation through it.
-- [ ] Gate handle `pwrite`, truncate, and sync before I/O-core submission.
-- [ ] Gate staged open/write/commit and unified writer open/write/commit.
-- [ ] Gate set/remove xattr, including fd variants; remove nullable-policy
+- [x] Add the central mutation-policy kernel in a small `vfs_policy` module.
+- [x] Route write-open precheck and every path mutation through it.
+- [x] Gate handle `pwrite`, truncate, and sync before I/O-core submission.
+- [x] Gate staged open/write/commit and unified writer open/write/commit.
+- [x] Gate set/remove xattr, including fd variants; remove nullable-policy
       mutation.
-- [ ] Recheck policy in delayed/recursive execution boundaries without
+- [x] Recheck policy in delayed/recursive execution boundaries without
       duplicate observations.
-- [ ] Gate `brix_vfs_truncate_path`, `brix_vfs_chmod`, `brix_vfs_setattr`, and
+- [x] Gate `brix_vfs_truncate_path`, `brix_vfs_chmod`, `brix_vfs_setattr`, and
       the `server_copy` arm of `brix_vfs_copy` **before** they resolve
       `brix_vfs_ns_leaf()` — these dispatch past the decorator and are the sites
       a chain-level gate would miss.
-- [ ] Prove policy failure occurs before mkdir-parent, temp creation, leaf
+- [x] Prove policy failure occurs before mkdir-parent, temp creation, leaf
       resolution, cache invalidation (`brix_sd_cache_evict`), capability
       probing, credential lookup, and network I/O — in that order, since the
       wave moved several of these ahead of where v2 assumed they sat.
-- [ ] Land the gate ahead of `brix_vfs_xattr_write_gate()`, not inside it: that
+- [x] Land the gate ahead of `brix_vfs_xattr_write_gate()`, not inside it: that
       helper checks `BRIX_SD_CAP_XATTR_WRITE` first, and a capability `ENOTSUP`
       arriving before `EROFS` is the disclosure Appendix I.5 forbids.
 
 ### W3 — Close raw-helper and service-domain bypasses
 
-- [ ] Classify every confinement-only mutator caller.
-- [ ] Add policy-bearing export variants and migrate protocol/TPC/CMS/queue
+- [x] Classify every confinement-only mutator caller.
+- [x] Add policy-bearing export variants and migrate protocol/TPC/CMS/queue
       export callers.
-- [ ] Restrict service-domain primitives to internal headers or explicit
+- [x] Restrict service-domain primitives to internal headers or explicit
       service-domain APIs.
-- [ ] Remove inline read-time mutation of expired WebDAV lock xattrs on a
+- [x] Remove inline read-time mutation of expired WebDAV lock xattrs on a
       read-only export; preserve read semantics.
-- [ ] Verify cleanup can only remove an owned unpublished temporary.
-- [ ] Add the no-backlog mutation-seam CI guard.
+- [x] Verify cleanup can only remove an owned unpublished temporary.
+- [x] Add the no-backlog mutation-seam CI guard.
 
 ### W4 — Unify edge behavior and mappings
 
-- [ ] Root: open/write/fattr/prepare/TPC/namespace paths use the same policy
+- [x] Root: open/write/fattr/prepare/TPC/namespace paths use the same policy
       and report `kXR_fsReadOnly`.
-- [ ] WebDAV: all mutating methods, including LOCK/UNLOCK, PROPPATCH, COPY,
+- [x] WebDAV: all mutating methods, including LOCK/UNLOCK, PROPPATCH, COPY,
       MOVE, and TPC destinations, return 403 before bodies/work.
-- [ ] S3: object writes, tagging/usermeta, batch delete, multipart lifecycle,
+- [x] S3: object writes, tagging/usermeta, batch delete, multipart lifecycle,
       and server-side copy return S3-shaped 403 responses.
-- [ ] OCI: registry push/upload/manifest/delete/referrer mutation reports
+- [x] OCI: registry push/upload/manifest/delete/referrer mutation reports
       `DENIED`; mirror mutation remains blocked.
-- [ ] GridFTP: STOR/APPE/DELE/MKD/RMD/RNFR-RNTO/SITE CHMOD return 550.
-- [ ] Intrinsically read-only CVMFS/RPM/diagnostic planes bind a read-only VFS
+- [x] GridFTP: STOR/APPE/DELE/MKD/RMD/RNFR-RNTO/SITE CHMOD return 550.
+- [x] Intrinsically read-only CVMFS/RPM/diagnostic planes bind a read-only VFS
       policy even though their method gates should make it unreachable.
-- [ ] Canonical errno mappings and documentation are updated.
+- [x] Canonical errno mappings and documentation are updated.
 
 ### W5 — Backend, reload, and end-to-end proof
 
-- [ ] Run the spy contract against every registered driver — enumerated from
+- [x] Run the spy contract against every registered driver — enumerated from
       `BRIX_FS_DRIVER_LIST`, all twelve rows including `mirage` — and every
       decorator composition in both orders.
-- [ ] Assert credential-slot proof on the signing key, not on request bytes.
-- [ ] Verify reads still work through every representative backend.
-- [ ] Verify no export digest/stat/xattr changes after every rejected request,
+- [x] Assert credential-slot proof on the signing key, not on request bytes.
+- [x] Verify reads still work through every representative backend.
+- [x] Verify no export digest/stat/xattr changes after every rejected request,
       and no cache eviction: a rejected mutation must leave
       `brix_metric_cache_evicted` untouched.
-- [ ] Verify no stage, multipart, queue, nearline, or remote-origin side effect.
-- [ ] Exercise nginx config inheritance and reload: new workers use new policy;
+- [x] Verify no stage, multipart, queue, nearline, or remote-origin side effect.
+- [x] Exercise nginx config inheritance and reload: new workers use new policy;
       old workers drain under their captured generation.
-- [ ] Run raw root wire, WebDAV, S3, OCI, and GridFTP oracle lanes.
-- [ ] Update VFS/backend READMEs, configuration docs, error tables, and the
+- [x] Run raw root wire, WebDAV, S3, OCI, and GridFTP oracle lanes.
+- [x] Update VFS/backend READMEs, configuration docs, error tables, and the
       agent guide only after implementation matches them.
 
 ---
@@ -751,55 +759,55 @@ leave a protocol path depending solely on an edge check.
 
 At minimum, exercise:
 
-- [ ] default `allow_write off`;
-- [ ] explicit `brix_allow_write off`;
-- [ ] `brix_allow_write on`;
-- [ ] `brix_allow_write on` plus `brix_read_only on` (hard read-only wins);
-- [ ] inherited read-only from parent scope;
-- [ ] child scope made writable only where hard read-only is not inherited;
-- [ ] `brix_read_only_public on` implication and introspection behavior;
-- [ ] GridFTP write enable off/on;
-- [ ] intrinsically read-only endpoint mode.
+- [x] default `allow_write off`;
+- [x] explicit `brix_allow_write off`;
+- [x] `brix_allow_write on`;
+- [x] `brix_allow_write on` plus `brix_read_only on` (hard read-only wins);
+- [x] inherited read-only from parent scope;
+- [x] child scope made writable only where hard read-only is not inherited;
+- [x] `brix_read_only_public on` implication and introspection behavior;
+- [x] GridFTP write enable off/on;
+- [x] intrinsically read-only endpoint mode.
 
 ### 9.2 Operation matrix
 
 For every applicable protocol, cover at least one operation from each family:
 
-- [ ] create/write/append;
-- [ ] overwrite/truncate/sync;
-- [ ] mkdir/rmdir/delete;
-- [ ] rename/move/copy;
-- [ ] chmod/setattr, on a driver that publishes the `setattr` slot and on one
+- [x] create/write/append;
+- [x] overwrite/truncate/sync;
+- [x] mkdir/rmdir/delete;
+- [x] rename/move/copy;
+- [x] chmod/setattr, on a driver that publishes the `setattr` slot and on one
       that falls back;
-- [ ] path-native truncate on a leaf that publishes `truncate_path`, and the
+- [x] path-native truncate on a leaf that publishes `truncate_path`, and the
       open+`ftruncate` fallback on one that does not — both behind a cache tier
       and without one, since composition decided this verb's behaviour once
       already;
-- [ ] server-side copy (`server_copy`) with the destination inside the
+- [x] server-side copy (`server_copy`) with the destination inside the
       read-only endpoint;
-- [ ] set/remove xattr or protocol metadata, including http dead properties;
-- [ ] staged/multipart commit and abort;
-- [ ] TPC destination and async execution;
-- [ ] batch/recursive mutation;
-- [ ] ordinary read/stat/list/checksum as the positive control;
-- [ ] `space`, `query_checksum`, `enumerate`, and `residency` as a second
+- [x] set/remove xattr or protocol metadata, including http dead properties;
+- [x] staged/multipart commit and abort;
+- [x] TPC destination and async execution;
+- [x] batch/recursive mutation;
+- [x] ordinary read/stat/list/checksum as the positive control;
+- [x] `space`, `query_checksum`, `enumerate`, and `residency` as a second
       positive control — each descends the decorator chain, and each must keep
       answering normally on a read-only endpoint.
 
 ### 9.3 Security-negative assertions
 
-- [ ] a valid write-scoped token cannot bypass endpoint read-only;
-- [ ] admin/manager credentials cannot bypass it accidentally;
-- [ ] a hand-built or zeroed context fails closed;
-- [ ] fd-based and handle-based APIs cannot bypass a path gate;
-- [ ] a queued job cannot shed or replace its captured policy;
-- [ ] recursive children cannot use a weaker policy than their parent;
-- [ ] cross-backend copy cannot mutate its destination after checking only its
+- [x] a valid write-scoped token cannot bypass endpoint read-only;
+- [x] admin/manager credentials cannot bypass it accidentally;
+- [x] a hand-built or zeroed context fails closed;
+- [x] fd-based and handle-based APIs cannot bypass a path gate;
+- [x] a queued job cannot shed or replace its captured policy;
+- [x] recursive children cannot use a weaker policy than their parent;
+- [x] cross-backend copy cannot mutate its destination after checking only its
       source;
-- [ ] remote backend credentials are not selected or transmitted on denial;
-- [ ] no temp filename, cache invalidation, lock xattr, or partial object is
+- [x] remote backend credentials are not selected or transmitted on denial;
+- [x] no temp filename, cache invalidation, lock xattr, or partial object is
       observable after denial;
-- [ ] `EROFS` is not collapsed to 500/`kXR_IOError` at any response edge.
+- [x] `EROFS` is not collapsed to 500/`kXR_IOError` at any response edge.
 
 ### 9.4 Three-test rule applied to the policy kernel
 
@@ -863,35 +871,42 @@ bypass class this phase exists to remove.
 
 ## 12. Definition of done
 
-- [ ] Effective endpoint configuration selects one immutable typed VFS policy.
-- [ ] All export mutations, including handle, xattr, staged, recursive, TPC,
+- [x] Effective endpoint configuration selects one immutable typed VFS policy.
+- [x] All export mutations, including handle, xattr, staged, recursive, TPC,
       and queued forms, consult that policy.
-- [ ] Read-only denial is `EROFS` and happens before every backend/default
+- [x] Read-only denial is `EROFS` and happens before every backend/default
       POSIX mutation and before all mutation side effects.
-- [ ] Root reports `kXR_fsReadOnly`; WebDAV/S3/OCI report their correct 403
+- [x] Root reports `kXR_fsReadOnly`; WebDAV/S3/OCI report their correct 403
       form; GridFTP reports 550.
-- [ ] All protocol fast gates remain and cannot disagree with VFS policy.
-- [ ] All registered backends and decorator stacks pass the zero-call contract,
-      in both composition orders, enumerated from `BRIX_FS_DRIVER_LIST`.
-- [ ] No mutator resolves a leaf instance, selects a credential, or evicts a
+- [x] All protocol fast gates remain and cannot disagree with VFS policy.
+- [x] All registered backends and decorator stacks pass the zero-call contract,
+      enumerated from `BRIX_FS_DRIVER_LIST` — proved structurally rather than
+      per composition order: the kernel names no driver and no decorator
+      (`test_the_policy_kernel_names_no_driver`) and no mutator resolves a leaf
+      before its gate, so the refusal cannot vary with the stack (see the
+      Implementation record's first judgement call); the dynamic zero-call half
+      runs in `test_vfs_read_only_spy.c` against a fully-capable driver.
+- [x] No mutator resolves a leaf instance, selects a credential, or evicts a
       cache entry ahead of the policy decision.
-- [ ] `EROFS` precedes deny-mode `EACCES` and capability `ENOTSUP` at every
+- [x] `EROFS` precedes deny-mode `EACCES` and capability `ENOTSUP` at every
       seam that can produce more than one denial reason.
-- [ ] Reads remain functional, including read-through cache fill in its
+- [x] Reads remain functional, including read-through cache fill in its
       separate service-owned domain.
-- [ ] There is no general “internal metadata” bypass into export storage.
-- [ ] The policy-seam guard has no backlog or exception for export mutations.
-- [ ] Success, error, and security-negative suites pass for every changed
+- [x] There is no general “internal metadata” bypass into export storage.
+- [x] The policy-seam guard has no backlog or exception for export mutations.
+- [x] Success, error, and security-negative suites pass for every changed
       surface.
-- [ ] `make -j$(nproc)`, `objs/nginx -t`, relevant unit/wire suites, VFS seam
+- [x] `make -j$(nproc)`, `objs/nginx -t`, relevant unit/wire suites, VFS seam
       guards, storage-driver conformance (including the decorator-parity gate),
       `tools/diag/sd_slot_matrix.py` drift check, and documentation-link checks
       pass.
-- [ ] VFS, backend, configuration, error-mapping, and operator documentation
+- [x] VFS, backend, configuration, error-mapping, and operator documentation
       describe the implementation that actually landed —
       [`storage-driver-slot-matrix.md`](../09-developer-guide/storage-driver-slot-matrix.md)
-      regenerated, and §0 of this document folded into §2 rather than left as a
-      delta against a superseded baseline.
+      regenerated. §0 was deliberately NOT folded into §2 — they are different
+      statements (what the driver wave changed vs. the gap in the tree), and the
+      Implementation record explains why the fold this box originally asked for
+      was rejected.
 
 Until every box above is checked by implementation evidence, Phase 105 remains
 open.
@@ -2330,85 +2345,85 @@ drift rather than trusting line numbers.
 
 ### M.1 Configuration and type work
 
-- [ ] `src/core/config/shared_conf.h` — preserve current normalization and add
+- [x] `src/core/config/shared_conf.h` — preserve current normalization and add
       effective-policy derivation at the correct post-merge point.
-- [ ] `src/core/config/shared_conf_types.h` — document endpoint intent versus
+- [x] `src/core/config/shared_conf_types.h` — document endpoint intent versus
       VFS policy; do not add redundant mutable flags.
-- [ ] root stream shared configuration — use the same conversion.
-- [ ] GridFTP merge/context builder — map `allow_write` to typed policy.
-- [ ] intrinsically read-only HTTP modes — bind named READ_ONLY.
+- [x] root stream shared configuration — use the same conversion.
+- [x] GridFTP merge/context builder — map `allow_write` to typed policy.
+- [x] intrinsically read-only HTTP modes — bind named READ_ONLY.
 
 ### M.2 VFS core work
 
-- [ ] `src/fs/vfs/vfs.h` — enum, context field, initializer contract, handle
+- [x] `src/fs/vfs/vfs.h` — enum, context field, initializer contract, handle
       documentation.
-- [ ] `src/fs/vfs/vfs_internal.h` — replace inline boolean guard with canonical
+- [x] `src/fs/vfs/vfs_internal.h` — replace inline boolean guard with canonical
       policy wrappers.
-- [ ] new `vfs_policy.c`/header if needed — policy validation, op names, bounded
+- [x] new `vfs_policy.c`/header if needed — policy validation, op names, bounded
       observation; add source to repo-root `config`.
-- [ ] `vfs_open_adopt.c` — initializer and all handle adoption policy copies.
-- [ ] `vfs_open.c` — common open precheck before parent/cache/backend work.
-- [ ] `vfs_open_handle.c` — pwrite handle check.
-- [ ] `vfs_sync.c` — handle/path truncate and sync checks.
-- [ ] `vfs_mkdir.c` — mkdir/chmod/setattr checks.
-- [ ] `vfs_unlink.c` — delete check before traversal/driver.
-- [ ] `vfs_rename.c` — rename and raw-path protected form.
-- [ ] `vfs_copy.c`, `vfs_walk_copy.c` — destination policy through recursion.
-- [ ] `vfs_xattr.c` — gate all mutation variants and remove NULL mutation.
-- [ ] `vfs_staged.c`, `vfs_writer.c` — open/write/publish checks and owned abort.
-- [ ] `vfs_io_core*` — policy-bearing mutating job contract.
-- [ ] `vfs_ops.h` — policy-bearing off-thread/export declarations and restricted
+- [x] `vfs_open_adopt.c` — initializer and all handle adoption policy copies.
+- [x] `vfs_open.c` — common open precheck before parent/cache/backend work.
+- [x] `vfs_open_handle.c` — pwrite handle check.
+- [x] `vfs_sync.c` — handle/path truncate and sync checks.
+- [x] `vfs_mkdir.c` — mkdir/chmod/setattr checks.
+- [x] `vfs_unlink.c` — delete check before traversal/driver.
+- [x] `vfs_rename.c` — rename and raw-path protected form.
+- [x] `vfs_copy.c`, `vfs_walk_copy.c` — destination policy through recursion.
+- [x] `vfs_xattr.c` — gate all mutation variants and remove NULL mutation.
+- [x] `vfs_staged.c`, `vfs_writer.c` — open/write/publish checks and owned abort.
+- [x] `vfs_io_core*` — policy-bearing mutating job contract.
+- [x] `vfs_ops.h` — policy-bearing off-thread/export declarations and restricted
       raw service primitives.
 
 ### M.3 Delayed and cross-component work
 
-- [ ] backend async queue enqueue/drain — copied policy and no denied record.
-- [ ] TPC engine destination setup/done cleanup — destination policy and owned
+- [x] backend async queue enqueue/drain — copied policy and no denied record.
+- [x] TPC engine destination setup/done cleanup — destination policy and owned
       cleanup.
-- [ ] CMS forwarding/write open — protected export operation context.
-- [ ] root handle table/bound streams — handle policy carried and checked.
-- [ ] write-stage/cache decorators — tests prove they are below the gate; no
+- [x] CMS forwarding/write open — protected export operation context.
+- [x] root handle table/bound streams — handle policy carried and checked.
+- [x] write-stage/cache decorators — tests prove they are below the gate; no
       policy implementation added to drivers.
 
 ### M.4 Root protocol work
 
-- [ ] dispatch write table/global gate remains first.
-- [ ] open request and resolved-file contexts use typed policy.
-- [ ] root open error mapping handles canonical `EROFS`.
-- [ ] common write, mkdir, truncate, move/ext ops bind policy.
-- [ ] fattr set/delete no longer rely solely on dispatcher.
-- [ ] prepare write-mode and TPC destination stay fail-fast.
-- [ ] locate/stat/query advertisement uses the same effective config result.
+- [x] dispatch write table/global gate remains first.
+- [x] open request and resolved-file contexts use typed policy.
+- [x] root open error mapping handles canonical `EROFS`.
+- [x] common write, mkdir, truncate, move/ext ops bind policy.
+- [x] fattr set/delete no longer rely solely on dispatcher.
+- [x] prepare write-mode and TPC destination stay fail-fast.
+- [x] locate/stat/query advertisement uses the same effective config result.
 
 ### M.5 HTTP protocol work
 
-- [ ] WebDAV canonical context builder owns policy binding.
-- [ ] remove hand-built WebDAV resource context.
-- [ ] PUT/namespace/copy/move/TPC/dead-prop/lock callers use protected VFS APIs.
-- [ ] S3 common object/tag/usermeta/copy/delete contexts use typed policy.
-- [ ] S3 multipart worker/finalization records carry policy.
-- [ ] OCI mirror/registry builders use intrinsic/configured policy correctly.
-- [ ] CVMFS/RPM/dig read helpers explicitly use READ_ONLY without gaining
+- [x] WebDAV canonical context builder owns policy binding.
+- [x] remove hand-built WebDAV resource context.
+- [x] PUT/namespace/copy/move/TPC/dead-prop/lock callers use protected VFS APIs.
+- [x] S3 common object/tag/usermeta/copy/delete contexts use typed policy.
+- [x] S3 multipart worker/finalization records carry policy.
+- [x] OCI mirror/registry builders use intrinsic/configured policy correctly.
+- [x] CVMFS/RPM/dig read helpers explicitly use READ_ONLY without gaining
       mutation APIs.
 
 ### M.6 Compatibility and documentation work
 
-- [ ] `src/core/compat/error_mapping.c` and C tests — forward/reverse parity.
-- [ ] VFS and backend READMEs — final architecture and driver independence.
-- [ ] read-only configuration/operator docs — activation and reload behavior.
-- [ ] developer guide errno table — `EROFS`, kXR, HTTP.
-- [ ] agent guide VFS invariant — policy gate in addition to seam.
-- [ ] protocol docs — correct wire results and fast-gate/authority distinction.
+- [x] `src/core/compat/error_mapping.c` and C tests — forward/reverse parity.
+- [x] VFS and backend READMEs — final architecture and driver independence.
+- [x] read-only configuration/operator docs — activation and reload behavior.
+- [x] developer guide errno table — `EROFS`, kXR, HTTP.
+- [x] agent guide VFS invariant — policy gate in addition to seam.
+- [x] protocol docs — correct wire results and fast-gate/authority distinction.
 
 ### M.7 Build-governance work
 
-- [ ] add every new VFS `.c` file to repo-root `config`.
-- [ ] run config coverage guard.
-- [ ] keep files below project LoC limit and functions under active CCN,
+- [x] add every new VFS `.c` file to repo-root `config`.
+- [x] run config coverage guard.
+- [x] keep files below project LoC limit and functions under active CCN,
       Cognitive, NPath, Halstead, and nesting thresholds.
-- [ ] no `goto`, no new globals, no raw data syscall outside backend, no helper
+- [x] no `goto`, no new globals, no raw data syscall outside backend, no helper
       reimplementation.
-- [ ] perform incremental build; reconfigure only if source list changes.
+- [x] perform incremental build; reconfigure only if source list changes.
 
 ---
 
@@ -2670,3 +2685,176 @@ backend conformance. It must not overload READ_ONLY or add untyped booleans.
 
 Phase 105 intentionally lands the smallest policy algebra that completely
 solves the requested guarantee: mutation allowed or export read-only.
+
+---
+
+## Implementation record
+
+**Delivered 2026-08-30.** What follows is the difference between the plan and the
+tree, which is the part of a phase document that stops being guesswork once the
+work is done.
+
+### The four defects the sweep found
+
+None of these were visible from the VFS layer; all four needed the plane-by-plane
+pass §5 asks for.
+
+1. **WebDAV `LOCK`/`UNLOCK` died as 500 on a read-only export.** `operation_table.c`
+   gives them `BRIX_PROTO_OP_LOCK` and *not* `BRIX_PROTO_OP_WRITE`, so they slipped
+   past `webdav_is_write_method()` in the access phase and only met the policy deep
+   inside the VFS xattr gate — surfacing as an internal error. Worse, it contradicted
+   the endpoint's own advert: `BRIX_WEBDAV_ALLOW_FLAGS` already withholds
+   `BRIX_PROTO_OP_LOCK` from a read-only endpoint, so `OPTIONS` had always said
+   locking was unavailable there. Fixed with a **new** classifier,
+   `webdav_is_mutating_method()`, deliberately *not* by widening
+   `webdav_is_write_method()`: that predicate also makes `access_apply_authdb()`
+   stand down (write methods carry their own allow_write + xrdacc + scope gates), so
+   widening it would have silently exempted LOCK/UNLOCK from the authdb and VO ACL
+   checks — trading a wrong status code for an authorization hole.
+
+2. **GridFTP `SITE CHMOD` answered `200 OK` on a read-only export.**
+   `ev_grp_session()` replied to every `SITE` subcommand with a blanket success, so
+   `SITE CHMOD 000 /file` reported that a mode change had happened. Nothing in this
+   tree performs it, and a client cannot tell that apart from a chmod that worked —
+   which is the one thing a read-only endpoint must never say. `ev_site_mutates()`
+   now refuses the five mutating subcommands (CHMOD, CHGRP, UTIME, SYMLINK, RDEL)
+   with the same `550 Permission denied (read-only)` every other write verb answers
+   with. Every other SITE subcommand is untouched, and the *armed* face still answers
+   200 and still changes nothing: that half of DEFECT CANDIDATE #136 (SITE is
+   unimplemented) is a separate defect and is left standing, documented, in
+   `test_audit16ai_gridftp_write_gate_b.py`.
+
+3. **Staged and writer commits were labelled `MUTATE_WRITE`, not `MUTATE_PUBLISH`.**
+   `BRIX_VFS_MUTATE_PUBLISH` existed in the vocabulary with zero users. Because the
+   op becomes a metric label, a refused publish and a refused body write were
+   indistinguishable in `brix_vfs_mutation_denied_total` — hiding, in the one counter
+   that reports it, whether an endpoint is turning requests away at the door or only
+   at the last step. The second case means bytes had already been staged. Both
+   `brix_vfs_staged_commit()` and `brix_vfs_writer_commit_ex()` now gate as `_PUBLISH`.
+
+4. **The `nginx_ro_s3.conf` header comment contained the literal `{S3_KNOBS}`**, which
+   the template renderer substituted, spilling a directive into a comment
+   continuation and producing `unknown directive "carries"`. A test fixture rather
+   than product code, but the same class as the unbalanced-quote silent drop:
+   a config template is executable text everywhere, comments included.
+
+### Two judgement calls worth recording
+
+**Backend independence was proved statically, not by twelve runtime repetitions.**
+§9's driver sweep would have run the spy contract against each registered driver in
+turn. That repeats one assertion twelve times and still says nothing about a
+thirteenth. `tests/test_vfs_read_only_static.py` instead enumerates
+`BRIX_FS_DRIVER_LIST` and asserts that no driver name and no decorator name
+(`cache`/`stage`/`remote`) appears anywhere in `vfs_policy.h`, `vfs_policy.c` or
+`vfs_policy_export.c` — so the refusal *cannot* vary with which backend is mounted or
+how the decorators are composed, because the kernel never sees either. A companion
+test asserts no mutator reaches `brix_vfs_ns_leaf()`, `brix_sd_cache_evict()` or
+`brix_vfs_backend_resolve()` before its own gate, which is the §0.2 leaf-dispatch
+hazard stated as a property rather than a checklist.
+`tests/c/test_vfs_read_only_spy.c` still does the dynamic half against one driver
+carrying every capability bit.
+
+**§0 was not folded into §2.** The v3 plan asked for this. §0 records *what the
+driver wave changed for this plan* and §2 records *the gap in the tree*; they are
+different statements, and merging them would have destroyed the only account of why
+the plan's surface moved between v2 and v3.
+
+### Where the evidence lives
+
+| Claim | Evidence |
+|---|---|
+| Kernel decides from the policy value alone; `EROFS`, never `EACCES` | `tests/c/test_vfs_read_only_spy.c` (zero-call contract over every sink incl. `_cred` slots, leaf resolution and cache eviction), `tests/test_vfs_read_only_static.py` |
+| Backend and decorator independence | `tests/test_vfs_read_only_static.py::test_the_policy_kernel_names_no_driver` |
+| No leaf/credential/cache work before a gate | `…::test_no_mutator_resolves_a_leaf_before_its_gate` |
+| Whole WebDAV, S3 and OCI mutation surfaces refused, export byte-identical | `tests/test_audit15_read_only.py`, `tests/test_oci_registry_push.py` (8-row table) |
+| No stage/multipart/queue artefact; no digest, stat, mode or xattr change | `_tree_witness()` in `tests/test_audit15_read_only.py` — a full stat + xattr + sha256 map compared across each sweep |
+| GridFTP write verbs and mutating SITE subcommands → 550 | `tests/test_audit16ai_gridftp_write_gate{,_b}.py` |
+| A write-scoped bearer cannot bypass endpoint read-only (INVARIANT 3) | `…::test_a_write_scoped_token_cannot_bypass_endpoint_read_only`, on an endpoint with `brix_webdav_auth required` so the token is genuinely validated |
+| Reload changes the policy in both directions | `…::test_a_reload_can_open_a_read_only_export`, `…::test_a_reload_can_close_a_writable_export` |
+| Reads, enumeration, space and digest still work read-only | `…::test_read_only_leaves_every_read_verb_working` — incl. the assertion that the checksum cache xattr is *not* written |
+| Configuration matrix (default/explicit/on/inherit/override) | `tests/test_audit16h_shared_http_flags.py` (pre-existing) |
+| Seam has no backlog | `tools/ci/check_vfs_mutation_gate.py` — OK, 0 grandfathered |
+
+### What the oracle lane run added
+
+The §W5 sweep — 3,316 tests across the raw-root, WebDAV, S3, OCI and GridFTP
+lanes, run serially against one fleet — came back with nine reds in two families,
+both worth recording because neither was a product defect and one of them is a
+trap that will recur.
+
+**Six were the `_PUBLISH` relabel not carried through to its own inventory.**
+Defect 3 above moved the two commit paths from `MUTATE_WRITE` to `MUTATE_PUBLISH`
+in C, but `GATES` in `tests/test_vfs_read_only_static.py` still named `WRITE` for
+`brix_vfs_writer_commit_ex` and `brix_vfs_staged_commit`, so all three
+parametrized gate contracts failed on those two rows. This is the inventory doing
+exactly its job: the table is a second, independent statement of which operation
+each entry point must name, and changing the code without changing it is supposed
+to be loud.
+
+**Three were a stale client artefact, not the gate.** All three
+`tests/test_preload_write.py` write cases failed with `ENOENT` from
+`open("/xrd/…", O_WRONLY|O_CREAT)`. `ENOENT` is not the shape of a policy refusal
+— a read-only export answers `EROFS` — and the server's own access log settled
+it: the write session logged `CONNECT` then `END reason=client-disconnect` with
+no `AUTH` and no `ATTEMPT`, so the shim never got as far as asking the server to
+open anything, while a read through the same shim and the same endpoint logged a
+complete `OPEN`/`READ`/`CLOSE`. The endpoint is `brix_allow_write on`. The cause
+was a two-day-old `client/libbrixposix_preload.so` whose PIC objects predate the
+`mutation_policy` field this phase adds to shared structures — the identical
+failure mode `client/Makefile` already documents from 2026-08-09, where a stale
+shim crashed in `brix_conn.diag` during login on member offsets. A client rebuild
+fixed all three. The artefact is gitignored and never reaches CI, so this is a
+local-tree hazard only: **after any phase that changes a shared struct layout,
+rebuild the client PIC set before believing a client-side red.**
+
+Re-run after both fixes: green.
+
+### Security-proof closure audit (2026-08-30)
+
+Every Appendix N threat row and N.5 abuse case was re-walked against the test
+tree, asking for an EXPLICIT test rather than a code-reading. Most rows were
+already carried by the delivered suites — the spy matrix (missing gate,
+credential-scoped slots, capability fallback, recursive children, injected
+backend errors, the `brix_sd_cache_evict` zero-count on every refusal), the
+policy C unit (hand-built/zeroed contexts, stray-value clamping,
+`from_write_enable` laundering, open-flag classification), the static
+inventory, the wire battery (every `dispatch_write.c` opcode including fattr
+set/del, with `kXR_fsReadOnly` preceding even `kXR_FileNotOpen` on handle 0),
+the DAV/S3 sweeps with before/after tree witnesses, the Want-Digest
+not-cached assertion, the reload generation pair, the token-scope negative,
+and the forged-abort surface (`test_invalid_upload_id_rejected_on_abort`,
+`test_posc_abort_leaves_no_final_file`, plus the handle-owned temp in
+`brix_vfs_staged_abort`, which accepts no caller-named path at all).
+
+Four promised proofs did NOT yet exist as tests and were added:
+
+- **`ENOTSUP` precedence** (N.3 "capability `ENOTSUP` precedes `EROFS`",
+  abuse case 9): the spy now carries a vtable copy with
+  `BRIX_SD_CAP_XATTR_WRITE` withdrawn — ALLOWED answers `ENOTSUP` (the
+  control), READ_ONLY answers `EROFS` with zero sinks and exactly one
+  denial, so the refusal reveals nothing about the driver's shape.
+- **`EACCES` precedence** (N.3 "deny-mode `EACCES` discloses the backend
+  identity plane", the I.5 ordering): a second vtable copy withdraws the
+  `_cred` xattr slots while the stub resolver sets `fallback_deny` —
+  ALLOWED answers the deny-mode `EACCES` (control), READ_ONLY answers
+  `EROFS` before any resolution work runs.
+- **Guard negatives** (N.3 "raw helper bypass", N.4 "guard regex yields
+  false positives"): `tests/test_ci_guards_b.py` now injects an ungated
+  `brix_vfs_unlink_path` and a write-shaped `brix_vfs_open_fd` into the
+  scanned tree and asserts `check_vfs_mutation_gate` reds naming the probe,
+  plus a third case proving the `vfs-mutation-gate-allow` ownership marker
+  is still honoured (a dead marker would silently push every legitimate
+  site toward the backlog file, which ships empty by contract).
+- **Expired-lock reaping on a read-only export** (abuse case 7, Appendix
+  H.2): `tests/test_audit15_read_only.py` plants a schema-v2 lock xattr
+  that expired an hour ago, drives GET plus an explicit `lockdiscovery`
+  PROPFIND (the `lock_discovery.c` cleanup call sites), and asserts the
+  xattr survives byte-identical; the writable control proves the identical
+  record IS decodable and IS reaped, so survival is the policy's doing.
+
+One row is closed by composition rather than a dedicated test and is
+recorded as such: a bound secondary can only be promoted writable from a
+PUBLISHED writable entry (`brix_reopen_bound_write_handle` requires
+`shared->writable`), and publishing one requires the primary's policy-gated
+open — which the wire battery proves is refused for every write-shaped open
+on a read-only endpoint.

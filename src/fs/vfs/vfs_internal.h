@@ -3,7 +3,8 @@
  *
  * WHAT: Defines the real handle structs hidden behind vfs.h's opaque typedefs
  *       (brix_vfs_file_s, brix_vfs_dir_s), the inline confinement/write
- *       guards (brix_vfs_require_confined, brix_vfs_require_write), the
+ *       guards (brix_vfs_require_confined; mutation authority lives in
+ *       vfs_policy.h), the
  *       ctx-path accessor (brix_vfs_ctx_path), the metrics/access-log observer
  *       helpers (brix_vfs_observe_ctx_op / brix_vfs_observe_file_op and the
  *       elapsed-usec/proto helpers they use), and the cross-unit prototypes
@@ -14,8 +15,9 @@
  *       per-op files thin and guarantees that confinement re-verification and
  *       metric/log emission happen identically for every operation.
  *
- * HOW:  The guards reject any ctx whose resolved path is empty or not confined
- *       (and, for writes, when allow_write is unset), setting errno. The
+ * HOW:  The guards reject any ctx whose resolved path is empty or not confined,
+ *       setting errno; mutation authority is decided separately by the
+ *       vfs_policy.c kernel, which returns EROFS for a read-only endpoint. The
  *       observer helpers translate an rc/errno into an brix_err_class_t,
  *       compute latency from a start ngx_current_msec, then call
  *       brix_metric_op_done + brix_access_log_emit and restore errno so the
@@ -133,6 +135,11 @@ struct brix_vfs_file_s {
     ngx_pool_t       *pool;
     ngx_log_t        *log;
     brix_vfs_ctx_t *ctx;
+    /* Phase-105: the endpoint's mutation policy, COPIED at open. A handle can
+     * outlive the ctx that opened it (and a caller may hold only the handle),
+     * so the handle carries its own copy rather than re-reading ctx — and a
+     * pcalloc'd handle that skipped the constructor reads READ_ONLY. */
+    brix_vfs_mutation_policy_t mutation_policy;
     char             *path;
     unsigned          from_cache:1;
     unsigned          is_tls:1;
@@ -181,6 +188,9 @@ struct brix_vfs_staged_s {
      * possible-NULL: it models the opaque parameter, not the constructor —
      * known false positive, do not "fix" with a guard that hides misuse.) */
     brix_vfs_ctx_t     *ctx;      /* carries root_canon + final (resolved) path */
+    /* Phase-105: the endpoint's mutation policy, copied at staged_open — the
+     * write/commit gates decide from this, never from a re-read of ctx. */
+    brix_vfs_mutation_policy_t mutation_policy;
     ngx_pool_t           *pool;
     ngx_log_t            *log;
 };
@@ -354,23 +364,21 @@ brix_vfs_require_confined(const brix_vfs_ctx_t *ctx)
     return NGX_OK;
 }
 
-/* Write guard: confinement check (as above) plus ctx->allow_write.
- * Returns NGX_OK only when both hold; otherwise NGX_ERROR with errno=EINVAL
- * (unconfined) or EACCES (write not permitted). */
-static ngx_inline ngx_int_t
-brix_vfs_require_write(const brix_vfs_ctx_t *ctx)
-{
-    if (brix_vfs_require_confined(ctx) != NGX_OK) {
-        return NGX_ERROR;
-    }
+/* Write guard: phase-105 replaced this with the typed mutation-policy kernel.
+ * Path mutators call brix_vfs_require_confined_mutation(ctx, op) (confinement
+ * then policy, EROFS on a read-only endpoint); handle/staged/writer mutators
+ * call brix_vfs_require_mutation_policy() on their own copied policy. There is
+ * deliberately no boolean-shaped wrapper left: a gate that cannot name its
+ * operation cannot be observed, and the old EACCES result was indistinguishable
+ * from an authorization failure. See vfs_policy.h. */
 
-    if (!ctx->allow_write) {
-        errno = EACCES;
-        return NGX_ERROR;
-    }
-
-    return NGX_OK;
-}
+/* Attribute ONE read-only mutation denial to (proto, op). Called by the policy
+ * kernel and by the handle/staged/writer gates that decide from a copied policy
+ * and therefore reject outside the kernel's context forms — never by a call
+ * site that merely relays an already-observed failure. Defined in
+ * vfs_policy.c. */
+void brix_vfs_mutation_denied_observe(brix_proto_t proto,
+    brix_vfs_mutation_op_t op);
 
 /* Translate a namespace status into a faithful POSIX errno. The namespace layer
  * sets res.sys_errno for syscall failures but leaves it 0 for the conditions it

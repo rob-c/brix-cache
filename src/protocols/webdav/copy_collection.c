@@ -46,6 +46,12 @@ typedef struct {
     ngx_flag_t  dst_existed;
     ngx_flag_t  dst_was_dir;
     ngx_flag_t  depth_infinity;
+    /* Phase-105: the endpoint write posture, copied by VALUE at job build. The
+     * job may run on a thread-pool worker long after the request that made it,
+     * so it must never re-derive the posture from configuration; and because
+     * the whole job is copied into the task context, the posture travels with
+     * it into every child of the recursion (Appendix D.7). */
+    brix_vfs_mutation_policy_t policy;
 } webdav_copy_job_t;
 
 typedef struct {
@@ -69,9 +75,11 @@ typedef struct {
  */
 static void
 webdav_copy_job_init(webdav_copy_job_t *job, ngx_log_t *log,
-    const char *root_canon, const webdav_copy_req_t *req)
+    const char *root_canon, brix_vfs_mutation_policy_t policy,
+    const webdav_copy_req_t *req)
 {
     job->log            = log;
+    job->policy         = policy;
     job->src_mode       = req->src_sb.st_mode;
     job->dst_existed    = req->dst_existed;
     job->dst_was_dir    = req->dst_existed && S_ISDIR(req->dst_sb.st_mode);
@@ -83,6 +91,17 @@ webdav_copy_job_init(webdav_copy_job_t *job, ngx_log_t *log,
                 sizeof(job->src_path));
     ngx_cpystrn((u_char *) job->dst_path, (u_char *) req->dst_path,
                 sizeof(job->dst_path));
+}
+
+/* Render the job's carried authority as an export operation context. The root
+ * is the job's OWN buffer, so the bundle is valid wherever the job is — event
+ * loop or pool thread. */
+static void
+webdav_copy_job_opctx(const webdav_copy_job_t *job,
+    brix_vfs_export_op_ctx_t *opctx)
+{
+    brix_vfs_export_op_ctx_init(opctx, job->log, job->root_canon,
+                                job->policy, BRIX_PROTO_WEBDAV);
 }
 
 /*
@@ -101,25 +120,31 @@ static ngx_int_t
 webdav_copy_collection_stage(const webdav_copy_job_t *job, char *tmp_path,
     size_t tmp_path_size)
 {
+    brix_vfs_export_op_ctx_t opctx;
+
+    webdav_copy_job_opctx(job, &opctx);
+
     if (brix_make_tmp_path(job->dst_path, tmp_path, tmp_path_size) != NGX_OK) {
         return NGX_HTTP_REQUEST_URI_TOO_LARGE;
     }
 
-    if (brix_vfs_mkdir_path(job->log, job->root_canon, tmp_path,
-                            job->src_mode & 0777) != 0)
-    {
+    /* The staging directory is a sibling of the destination and therefore lives
+     * ON THE EXPORT, not in a service-owned area — so it is the first mutation
+     * this COPY makes and the first thing the endpoint gate refuses. Nothing is
+     * created before this point (brix_make_tmp_path only builds a name), which
+     * is what makes an EROFS refusal here side-effect-free. */
+    if (brix_vfs_export_mkdir(&opctx, tmp_path, job->src_mode & 0777) != 0) {
         if (errno == ENOENT) {
             return NGX_HTTP_CONFLICT;
         }
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        return brix_http_errno_to_status(errno);
     }
 
     webdav_dead_props_copy(job->log, job->src_path, tmp_path);
     brix_ns_copy_fattrs(job->log, job->src_path, tmp_path);
 
     if (job->depth_infinity
-        && webdav_copy_dir_recursive(job->log, job->root_canon, job->src_path,
-                                     tmp_path) != NGX_OK)
+        && webdav_copy_dir_recursive(&opctx, job->src_path, tmp_path) != NGX_OK)
     {
         (void) webdav_delete_path_recursive(job->log, job->root_canon, tmp_path);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -328,7 +353,7 @@ webdav_copy_do_collection(ngx_http_request_t *r,
     ngx_int_t         rc;
 
     webdav_copy_job_init(&job, r->connection->log, conf->common.root_canon,
-                         req);
+        brix_vfs_policy_from_write_enable(conf->common.allow_write), req);
 
     if (req->depth_infinity) {
         rc = webdav_copy_collection_post_task(r, conf, &job);

@@ -178,6 +178,29 @@ class TestTheArmedGateLetsEveryGovernedVerbThrough:
         assert _stor(G_ON, "/" + name, payload, verb=verb) == 226
         assert (gw.export("on") / name).read_bytes() == payload
 
+    @pytest.mark.parametrize("sub", ("CHMOD 0777", "CHGRP staff",
+                                     "UTIME 20260830000000", "SYMLINK",
+                                     "RDEL"))
+    def test_the_armed_plane_still_answers_site_the_way_it_always_did(
+            self, gw, request, sub):
+        """Phase-105 W4 control: the SITE gate is the read-only policy and
+        nothing else.  On the writable face these subcommands keep the blanket
+        "200 OK" SITE has always given — the refusal in §A is the flag, not a
+        new blanket rejection of the SITE grammar."""
+        name = _uid(request)
+        _seed_file(gw, "on", name)
+        reply = _one(G_ON, f"SITE {sub} /{name}")
+        assert reply.startswith("200"), reply
+
+    def test_an_unknown_site_subcommand_is_untouched_on_every_face(
+            self, gw, request):
+        """And the classifier is a whitelist of five, not a prefix match: a
+        SITE subcommand that mutates nothing answers 200 even where writes are
+        refused, on every face."""
+        for label, port in (("on", G_ON), *ALL_DISARMED):
+            reply = _one(port, "SITE HELP")
+            assert reply.startswith("200"), (label, reply)
+
     def test_the_control_writes_land_in_its_own_export(self, gw, request):
         """Four exports under one data root, and the gate is the only thing
         keeping a write on the writable one — so the neighbour check is part of

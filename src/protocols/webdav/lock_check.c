@@ -76,8 +76,7 @@ webdav_check_lock_at(ngx_http_request_t *r, const webdav_lock_walk_t *w)
     }
 
     if (e.expires <= (int64_t) ngx_time()) {
-        (void) webdav_lock_xattr_delete(r, w->check);
-        webdav_lock_reap_null(r, w->check, &e);
+        webdav_lock_expired_cleanup(r, w->check, &e, 1 /* reap lock-null */);
         return NGX_OK;
     }
 
@@ -229,8 +228,8 @@ check_locks_descendants(ngx_http_request_t *r, const char *dir)
                     break;
                 }
             } else {
-                (void) webdav_lock_xattr_delete(r, child);
-                webdav_lock_reap_null(r, child, &e);
+                webdav_lock_expired_cleanup(r, child, &e,
+                                            1 /* reap lock-null */);
             }
         }
         /* xrc == NGX_DECLINED: no lock xattr on this child — OK */

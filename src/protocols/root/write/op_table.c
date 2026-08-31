@@ -34,7 +34,8 @@ static void
 op_vfs_ctx(const brix_op_exec_t *e, brix_vfs_ctx_t *vctx)
 {
     brix_vfs_ctx_init(vctx, e->c->pool, e->c->log, BRIX_PROTO_ROOT,
-        e->conf->common.root_canon, NULL, e->conf->common.allow_write,
+        e->conf->common.root_canon, NULL,
+        brix_vfs_policy_from_write_enable(e->conf->common.allow_write),
         0 /* is_tls */, e->ctx->identity, e->resolved);
     brix_vfs_ctx_bind_backend_cred(vctx,
         &e->conf->common.storage_credential_dir,

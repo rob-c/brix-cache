@@ -4,7 +4,8 @@ The `brix_vfs_*` surface every protocol handler calls: `vfs.h` (the only
 header handlers should include), the per-op implementation files
 (`vfs_open.c`, `vfs_read.c`, `vfs_write.c`, `vfs_stat.c`, `vfs_dir.c`,
 `vfs_unlink.c`, `vfs_rename.c`, `vfs_mkdir.c`, `vfs_sync.c`, `vfs_xattr.c`,
-`vfs_copy.c`, `vfs_staged.c`), the thread-safe worker surfaces
+`vfs_copy.c`, `vfs_staged.c`), the mutation-policy kernel every one of
+them passes (`vfs_policy.c`/`vfs_policy_export.c`), the thread-safe worker surfaces
 (`vfs_io_core.c`, `vfs_walk.c`), and the per-export storage-backend registry
 (`vfs_backend_config.c` = directive parsing, `vfs_backend_registry.c` =
 source build + decorator composition + resolve).
@@ -39,7 +40,10 @@ that first; this file is just the signpost.
 | `vfs_deleg_hooks.c` | The two origin-leg delegation seams that compile and are call-ready but are NOT yet driven from brix_vfs_deleg_live_cred: brix_vfs_deleg_sts_cred() — S3 STS assume-role → sd_remote cred form. |
 | `vfs_deleg_internal.h` | Declarations shared by vfs_deleg.c (strategy dispatch, SSS/krb5/STS arms) and vfs_deleg_x509.c (RFC-3820 proxy-chain trust gate). |
 | `vfs_deleg_x509.c` | The X.509 half of the delegation live-cred materialiser: parse the captured proxy PEM into a certificate chain, re-verify it against the CA store bound on the bag (phase-70 §5.1 / P90-70.4), and stage the PEM into a requ. |
-| `vfs_internal.h` | Defines the real handle structs hidden behind vfs.h's opaque typedefs (brix_vfs_file_s, brix_vfs_dir_s), the inline confinement/write guards (brix_vfs_require_confined, brix_vfs_require_write), the ctx-path accessor (bri. |
+| `vfs_internal.h` | Defines the real handle structs hidden behind vfs.h's opaque typedefs (brix_vfs_file_s, brix_vfs_dir_s), the inline confinement guard (brix_vfs_require_confined; the write guard became the typed mutation kernel in vfs_policy.h, phase-105), the ctx-path accessor (bri. |
+| `vfs_policy.h` | The phase-105 mutation-policy contract: brix_vfs_mutation_policy_t (READ_ONLY = 0, so a zeroed or hand-built ctx fails closed), the bounded brix_vfs_mutate_op vocabulary, brix_vfs_policy_from_write_enable() and the five require-forms (policy / ctx / confined / carried / export). |
+| `vfs_policy.c` | The kernel every export mutation passes: decides from the policy value alone — no path, no leaf, no credential, no driver, no cache — refuses with EROFS (never EACCES) before the deny-mode credential refusal and the capability ENOTSUP, and books brix_vfs_mutation_denied_total. |
+| `vfs_policy_export.c` | brix_vfs_export_require_mutation() and the brix_vfs_export_opctx_t bundle: the same decision for service-domain work that outlives its request (TPC destination, async queue drain, CMS forwarding, multipart finalization), carrying the policy by value so a job cannot shed it. |
 | `vfs_io_core.h` | Declares the POD job descriptor and small segment descriptor types used by worker-thread and inline-fallback disk I/O. |
 | `vfs_io_core_dirlist.c` | Implements brix_vfs_io_execute_opendir(), the OPENDIR arm of the POD-only VFS I/O execution core. |
 | `vfs_io_core_internal.h` | Declares the handful of symbols shared between vfs_io_core.c (the dispatch + read/write/vector/sync/truncate executors) and its vfs_io_core_dirlist.c sibling (the kXR_dirlist OPENDIR builder), plus the wire-chunk cap the. |

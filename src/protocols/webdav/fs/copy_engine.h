@@ -3,9 +3,9 @@
 
 #include "protocols/webdav/webdav.h"
 
-ngx_int_t webdav_copy_file(ngx_log_t *log, const char *root_canon,
+ngx_int_t webdav_copy_file(const brix_vfs_export_op_ctx_t *opctx,
     const char *src, const char *dst);
-ngx_int_t webdav_copy_dir_recursive(ngx_log_t *log, const char *root_canon,
+ngx_int_t webdav_copy_dir_recursive(const brix_vfs_export_op_ctx_t *opctx,
     const char *src, const char *dst);
 
 #endif /* BRIX_WEBDAV_COPY_ENGINE_H */

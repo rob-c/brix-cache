@@ -74,7 +74,9 @@ staged_alloc_handle(brix_vfs_ctx_t *ctx, int *err_out)
 {
     brix_vfs_staged_t *st;
 
-    if (brix_vfs_require_write(ctx) != NGX_OK) {
+    if (brix_vfs_require_confined_mutation(ctx,
+            BRIX_VFS_MUTATE_OPEN) != NGX_OK)
+    {
         return staged_open_fail(err_out);
     }
 
@@ -101,9 +103,10 @@ staged_alloc_handle(brix_vfs_ctx_t *ctx, int *err_out)
         return staged_open_fail(err_out);   /* errno set by the clone */
     }
 
-    st->pool      = ctx->pool;
-    st->log       = ctx->log;
-    st->staged.fd = NGX_INVALID_FILE;
+    st->pool            = ctx->pool;
+    st->log             = ctx->log;
+    st->mutation_policy = ctx->mutation_policy;
+    st->staged.fd       = NGX_INVALID_FILE;
     return st;
 }
 
@@ -255,6 +258,14 @@ brix_vfs_staged_write(brix_vfs_staged_t *st, const void *buf, size_t len,
         return NGX_ERROR;
     }
 
+    /* phase-105: the staged session decides from the policy it copied at open,
+     * not from a ctx it outlives (the body write runs on a thread pool). */
+    if (brix_vfs_require_carried_mutation(st->mutation_policy,
+            brix_vfs_metrics_proto(st->ctx), BRIX_VFS_MUTATE_WRITE) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
     if (st->driver_staged != NULL) {
         ssize_t n = st->ctx->sd->driver->staged_write(st->driver_staged, buf,
                                                       len, off);
@@ -299,6 +310,22 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
 
     if (st == NULL || st->ctx == NULL) {
         errno = EINVAL;
+        return NGX_ERROR;
+    }
+
+    /* phase-105: publish is the mutation that actually lands bytes in the
+     * export — gated on the carried policy before anything is renamed.
+     *
+     * MUTATE_PUBLISH, not MUTATE_WRITE: the op is a metric label, and a refused
+     * publish and a refused body write are different events for an operator.
+     * Writes to the temp are the caller's own bytes in a file nobody can see;
+     * the publish is the instant they become the export's. Booking both as
+     * "write" would hide, in the one counter that reports it, whether a
+     * read-only endpoint is turning requests away at the door or only at the
+     * last step — and the second would mean bytes had already been staged. */
+    if (brix_vfs_require_carried_mutation(st->mutation_policy,
+            brix_vfs_metrics_proto(st->ctx), BRIX_VFS_MUTATE_PUBLISH) != NGX_OK)
+    {
         return NGX_ERROR;
     }
 

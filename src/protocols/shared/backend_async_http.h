@@ -46,10 +46,15 @@ typedef void (*brix_baq_http_render_pt)(ngx_http_request_t *r, void *ctx,
  *
  * The auth/write gate MUST already have passed synchronously before this call —
  * a denied mutation must never reach the queue.
+ *
+ * The caller fills `req`'s op/proto/root_canon/src_key/dst_key/mode; the three
+ * fields that are properties of the ENDPOINT rather than of the operation —
+ * the phase-105 mutation policy and the batch/wait triggers — are derived here
+ * from `common`, so no http caller can hand the queue a write posture its own
+ * location does not have.
  */
 ngx_int_t brix_baq_http_try(ngx_http_request_t *r,
-    ngx_http_brix_shared_conf_t *common, brix_baq_op_t op,
-    const char *root_canon, const char *src_key, const char *dst_key,
-    uint32_t mode, brix_baq_http_render_pt render, void *ctx);
+    ngx_http_brix_shared_conf_t *common, const brix_baq_req_t *req,
+    brix_baq_http_render_pt render, void *ctx);
 
 #endif /* BRIX_BACKEND_ASYNC_HTTP_H */

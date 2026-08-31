@@ -158,7 +158,7 @@ webdav_search_entry_is_dir(webdav_search_walk_ctx_t *w,
     }
 
     brix_vfs_ctx_init(&pctx, w->r->pool, w->r->connection->log,
-        BRIX_PROTO_WEBDAV, root_canon, NULL, 0, 0, NULL, child_path);
+        BRIX_PROTO_WEBDAV, root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, 0, NULL, child_path);
     return brix_vfs_probe(&pctx, 1 /* no-follow */, &vst) == NGX_OK
            && vst.is_directory;
 }
@@ -296,7 +296,7 @@ webdav_search_walk(webdav_search_walk_ctx_t *w, const char *dir_path,
      * a depth-infinity SEARCH must not emit one OP_DIRLIST per visited subdir (the
      * SEARCH op accounts for the whole walk). */
     brix_vfs_ctx_init(&wctx, w->r->pool, w->r->connection->log,
-        BRIX_PROTO_WEBDAV, wdcf->common.root_canon, NULL, 0 /* allow_write */,
+        BRIX_PROTO_WEBDAV, wdcf->common.root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY,
         0 /* is_tls */, NULL, dir_path);
     dp = brix_vfs_opendir_quiet(&wctx, NULL);
     if (dp == NULL) {

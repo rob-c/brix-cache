@@ -58,6 +58,10 @@ typedef struct {
     struct brix_vfs_file_s *fh; /* VFS handle backing fd (path-based); vfs-closed */
     brix_sd_obj_t obj;     /* Layer 3: storage-driver object (whole-object read);
                               * driver==NULL ⇒ checksum the bare fd (POSIX) */
+    /* Phase-105: the endpoint's write posture, SNAPSHOTTED at post time. The
+     * worker persists a computed digest as an xattr on the export, and it must
+     * not read live configuration off the event loop to decide whether it may. */
+    brix_vfs_mutation_policy_t mutation_policy;
     char    algo[32];
     char    resolved[PATH_MAX];  /* for logging */
     char    resp[256];           /* filled by thread on success */

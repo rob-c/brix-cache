@@ -160,16 +160,30 @@ brix_root_backend_async_try(brix_ctx_t *ctx, ngx_connection_t *c,
      * the waker cannot fire before this call returns. */
     ctx->state = XRD_ST_WAITING_BAQ;
 
-    if (brix_baq_enqueue(baq_op, conf->common.root_canon, resolved,
-                         NULL /* no dst */, 0 /* mode */,
-                         conf->backend_async_batch, conf->backend_async_wait,
-                         baq_root_done, park) != NGX_OK)
     {
-        ctx->state = XRD_ST_REQ_HEADER;    /* enqueue refused — un-park, run inline */
-        return 0;
+        /* phase-105: the endpoint's write posture travels WITH the op — the
+         * queue drains long after this request is gone, and the refusal has to
+         * be the one this endpoint would have given. */
+        brix_baq_req_t req = {
+            .op         = baq_op,
+            .policy     =
+                brix_vfs_policy_from_write_enable(conf->common.allow_write),
+            .proto      = BRIX_PROTO_ROOT,
+            .root_canon = conf->common.root_canon,
+            .src_key    = resolved,
+            .dst_key    = NULL,
+            .mode       = 0,
+            .batch      = conf->backend_async_batch,
+            .wait_ms    = conf->backend_async_wait,
+        };
+
+        if (brix_baq_enqueue(&req, baq_root_done, park) == NGX_OK) {
+            return 1;                      /* parked; caller returns NGX_OK */
+        }
     }
 
-    return 1;                              /* parked; caller returns NGX_OK */
+    ctx->state = XRD_ST_REQ_HEADER;        /* enqueue refused — un-park, inline */
+    return 0;
 }
 
 int
@@ -208,13 +222,25 @@ brix_root_backend_async_mv_try(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ctx->state = XRD_ST_WAITING_BAQ;
 
-    if (brix_baq_enqueue(BRIX_BAQ_RENAME, conf->common.root_canon, src_resolved,
-                         dst_resolved, 0 /* mode */, conf->backend_async_batch,
-                         conf->backend_async_wait, baq_root_done, park) != NGX_OK)
     {
-        ctx->state = XRD_ST_REQ_HEADER;    /* enqueue refused — un-park, run inline */
-        return 0;
+        brix_baq_req_t req = {
+            .op         = BRIX_BAQ_RENAME,
+            .policy     =
+                brix_vfs_policy_from_write_enable(conf->common.allow_write),
+            .proto      = BRIX_PROTO_ROOT,
+            .root_canon = conf->common.root_canon,
+            .src_key    = src_resolved,
+            .dst_key    = dst_resolved,
+            .mode       = 0,
+            .batch      = conf->backend_async_batch,
+            .wait_ms    = conf->backend_async_wait,
+        };
+
+        if (brix_baq_enqueue(&req, baq_root_done, park) == NGX_OK) {
+            return 1;                      /* parked; caller returns NGX_OK */
+        }
     }
 
-    return 1;                              /* parked; caller returns NGX_OK */
+    ctx->state = XRD_ST_REQ_HEADER;        /* enqueue refused — un-park, inline */
+    return 0;
 }

@@ -9,7 +9,9 @@
  *       same parent-creation semantics and a single metric/access-log emission
  *       as the other namespace mutators.
  *
- * HOW:  Enforces brix_vfs_require_write() and a non-NULL root_canon, then
+ * HOW:  Enforces brix_vfs_require_confined_mutation() (MUTATE_MKDIR for the
+ *       directory create, MUTATE_SETATTR for chmod/setattr — EROFS on a
+ *       read-only endpoint) and a non-NULL root_canon, then
  *       delegates to brix_ns_mkdir() (namespace layer) passing mode and the
  *       parents flag. The namespace status is mapped back to errno (sys_errno or
  *       EIO) and observed as BRIX_METRIC_OP_MKDIR on every path.
@@ -237,7 +239,9 @@ brix_vfs_mkdir(brix_vfs_ctx_t *ctx, mode_t mode, unsigned parents)
     start = brix_vfs_now_ns();
     path = brix_vfs_ctx_path(ctx);
 
-    if (brix_vfs_require_write(ctx) != NGX_OK) {
+    if (brix_vfs_require_confined_mutation(ctx,
+            BRIX_VFS_MUTATE_MKDIR) != NGX_OK)
+    {
         saved_errno = errno;
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_MKDIR, NULL, 0,
                                   NGX_ERROR, saved_errno, start);
@@ -296,7 +300,9 @@ brix_vfs_mkdir(brix_vfs_ctx_t *ctx, mode_t mode, unsigned parents)
 ngx_int_t
 brix_vfs_chmod(brix_vfs_ctx_t *ctx, mode_t mode)
 {
-    if (brix_vfs_require_write(ctx) != NGX_OK) {
+    if (brix_vfs_require_confined_mutation(ctx,
+            BRIX_VFS_MUTATE_SETATTR) != NGX_OK)
+    {
         return NGX_ERROR;
     }
     if (ctx->root_canon == NULL) {
@@ -374,7 +380,9 @@ brix_vfs_chmod(brix_vfs_ctx_t *ctx, mode_t mode)
 ngx_int_t
 brix_vfs_setattr(brix_vfs_ctx_t *ctx, const brix_sd_setattr_t *attr)
 {
-    if (brix_vfs_require_write(ctx) != NGX_OK) {
+    if (brix_vfs_require_confined_mutation(ctx,
+            BRIX_VFS_MUTATE_SETATTR) != NGX_OK)
+    {
         return NGX_ERROR;
     }
     if (ctx->root_canon == NULL || attr == NULL) {

@@ -112,7 +112,7 @@ zip_http_open_archive(ngx_http_request_t *r, const char *root_canon,
      * touched-file scope, so threading identity here would require a public
      * signature change reaching two more files. Deferred, not a same-file fix. */
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
-        root_canon, NULL, 0 /* allow_write */, is_tls, NULL, archive_full);
+        root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL, archive_full);
     fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);
     if (fh == NULL) {
         errno = vfs_err;

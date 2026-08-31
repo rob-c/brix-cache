@@ -76,7 +76,8 @@ s3_cksum_vfs_op(ngx_http_request_t *r, const char *fs_path,
 
     /* root_canon is passed by the caller; it equals cf->common.root_canon. */
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
-        root_canon, cf->common.cache_root_canon, cf->common.allow_write, is_tls,
+        root_canon, cf->common.cache_root_canon,
+        brix_vfs_policy_from_write_enable(cf->common.allow_write), is_tls,
         (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 
     if (do_unlink) {
@@ -120,6 +121,8 @@ ngx_int_t
 s3_checksum_b64(ngx_http_request_t *r, int fd, const char *path,
     const char *alg_name, ngx_flag_t cache_only, char *out, size_t outsz)
 {
+    ngx_http_s3_loc_conf_t *cf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
     brix_integrity_info_t info;
     brix_integrity_opts_t iopts;
     unsigned char           bytes[64];
@@ -132,6 +135,11 @@ s3_checksum_b64(ngx_http_request_t *r, int fd, const char *path,
     iopts.update_xattr_cache   = cache_only ? 0 : 1;
     iopts.require_regular_file = 1;
     iopts.no_compute           = cache_only ? 1 : 0;
+    /* phase-105: caching the computed digest writes an xattr on the export, so
+     * it needs this endpoint's write posture — a read-only bucket recomputes. */
+    iopts.mutation_policy      =
+        brix_vfs_policy_from_write_enable(cf->common.allow_write);
+    iopts.proto                = BRIX_PROTO_S3;
 
     rc = brix_integrity_get_fd(r->connection->log, fd, NULL, path, alg_name,
                                  &iopts, &info);

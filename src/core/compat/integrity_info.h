@@ -4,6 +4,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include "checksum.h"
+#include "fs/vfs/vfs_policy.h"   /* brix_vfs_mutation_policy_t (phase-105) */
 
 /*
  * brix_integrity_info_t — result of a checksum lookup or computation.
@@ -29,12 +30,25 @@ typedef struct {
  *   no_compute           1 → cache-only: return NGX_DECLINED on a cache miss
  *                            instead of computing (avoids a full-file read on a
  *                            latency-sensitive path, e.g. S3 GET/HEAD echo)
+ *   mutation_policy      the ENDPOINT's phase-105 write posture. Persisting a
+ *                        computed checksum writes an xattr (or a §8.2 record)
+ *                        ONTO THE EXPORT OBJECT, so it is a mutation like any
+ *                        other and is refused on a read-only export — the
+ *                        request still gets its checksum, it is just recomputed
+ *                        next time. This unit has no request context (it is
+ *                        reached from thread-pool workers and the scanner), so
+ *                        the caller carries the policy here as a value.
+ *                        ZERO IS READ_ONLY: a caller that forgets it loses the
+ *                        cache write, never the other way round.
+ *   proto                protocol label for the refusal metric only.
  */
 typedef struct {
-    ngx_flag_t allow_xattr_cache;
-    ngx_flag_t update_xattr_cache;
-    ngx_flag_t require_regular_file;
-    ngx_flag_t no_compute;
+    ngx_flag_t                 allow_xattr_cache;
+    ngx_flag_t                 update_xattr_cache;
+    ngx_flag_t                 require_regular_file;
+    ngx_flag_t                 no_compute;
+    brix_vfs_mutation_policy_t mutation_policy;
+    brix_proto_t               proto;
 } brix_integrity_opts_t;
 
 /*
@@ -53,7 +67,8 @@ typedef struct {
  * Returns NGX_ERROR on algorithm parse failure or I/O error.
  *
  * opts may be NULL; NULL is treated as {allow_xattr_cache=1, update_xattr_cache=1,
- * require_regular_file=0}.
+ * require_regular_file=0, mutation_policy=READ_ONLY} — a caller that supplies no
+ * policy gets the cache READ but not the cache WRITE (phase-105 fail-closed).
  *
  * Layer 3: `obj` is the open file's storage-driver object, or NULL. When non-NULL
  * and obj->driver != NULL the checksum is COMPUTED by reading the whole logical

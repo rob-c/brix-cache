@@ -56,7 +56,8 @@ brix_handle_truncate(brix_ctx_t *ctx, ngx_connection_t *c,
 			brix_vfs_ctx_t   vctx;
 
 			brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-				conf->common.root_canon, NULL, conf->common.allow_write,
+				conf->common.root_canon, NULL,
+				brix_vfs_policy_from_write_enable(conf->common.allow_write),
 				0 /* is_tls */, ctx->identity, resolved);
 			brix_vfs_ctx_bind_backend_cred(&vctx,
 				&conf->common.storage_credential_dir,

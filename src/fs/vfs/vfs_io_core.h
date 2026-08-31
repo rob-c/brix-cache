@@ -27,6 +27,8 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
+#include "fs/vfs/vfs_policy.h"  /* brix_vfs_mutation_policy_t */
+
 #include "fs/backend/sd.h"   /* brix_sd_obj_t — the per-handle storage object */
 
 #include <stdint.h>
@@ -88,6 +90,11 @@ typedef struct {
     u_char              streamid[2];
     const char         *path;
     const char         *cksum_algo;
+    /* Phase-105: the posting endpoint's write posture, snapshotted before the
+     * job leaves the event loop. The dcksm dirlist worker persists a computed
+     * digest as an xattr on the export object, and a worker thread must never
+     * re-read live configuration to decide whether it may. Zero is READ_ONLY. */
+    brix_vfs_mutation_policy_t mutation_policy;
     ngx_log_t          *log;
     char               *err_msg;
     size_t              err_msg_cap;

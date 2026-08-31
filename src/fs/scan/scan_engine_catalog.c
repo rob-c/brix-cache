@@ -139,6 +139,9 @@ scan_verify_obj_record(scan_verify_obj_ctx_t *v)
     ngx_memzero(&io, sizeof(io));
     io.allow_xattr_cache = 1;
     io.no_compute = 1;                    /* stored value only — no byte read */
+    /* phase-105: catalog verify reads and reports; it never writes back. */
+    io.mutation_policy = BRIX_VFS_MUTATION_READ_ONLY;
+    io.proto = BRIX_PROTO_WEBDAV;         /* admin scan endpoint = HTTP plane */
     if (brix_integrity_get_fd(cc->log, -1, v->obj, v->logical, cc->alg, &io,
                                 &stored_info) == NGX_OK)
     {
@@ -149,6 +152,8 @@ scan_verify_obj_record(scan_verify_obj_ctx_t *v)
     ngx_memzero(&io, sizeof(io));
     io.allow_xattr_cache = 0;             /* force a fresh compute over the bytes */
     io.no_compute = 0;
+    io.mutation_policy = BRIX_VFS_MUTATION_READ_ONLY;
+    io.proto = BRIX_PROTO_WEBDAV;
     if (brix_integrity_get_fd(cc->log, -1, v->obj, v->logical, cc->alg, &io,
                                 &comp_info) != NGX_OK)
     {

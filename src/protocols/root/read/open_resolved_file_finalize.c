@@ -496,6 +496,11 @@ brix_open_init_handle(brix_open_args_t *a)
 	ctx->files[idx].fd          = a->fd;
 	ctx->files[idx].readable    = a->is_readable;
 	ctx->files[idx].writable    = is_write;
+	/* Phase-105: snapshot the endpoint posture onto the handle. Every later
+	 * write/truncate/sync on this fhandle decides from THIS value, not from a
+	 * fresh read of a configuration the handle may outlive (Appendix D.5). */
+	ctx->files[idx].mutation_policy =
+	    brix_vfs_policy_from_write_enable(a->conf->common.allow_write);
 	ctx->files[idx].from_cache  = a->from_cache;
 	ctx->files[idx].is_regular  = S_ISREG(st->st_mode) ? 1 : 0;
 	ctx->files[idx].device      = st->st_dev;

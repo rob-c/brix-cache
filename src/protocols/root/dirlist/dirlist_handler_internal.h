@@ -3,6 +3,7 @@
 
 #include "core/ngx_brix_module.h"
 #include "fs/vfs/vfs.h"                 /* brix_vfs_dir_t */
+#include "fs/vfs/vfs_policy.h"          /* brix_vfs_mutation_policy_t */
 
 /*
  * brix_dirlist_walk_t — per-request dirlist state threaded through the
@@ -18,6 +19,10 @@ typedef struct {
     ngx_flag_t         want_cksum;                  /* kXR_dcksm */
     ngx_flag_t         want_online;                 /* kXR_online — omit offline */
     ngx_stream_brix_srv_conf_t *conf;             /* residency probe config */
+    /* Phase-105: the endpoint's write posture, copied once at request
+     * decode. dcksm's digest cache writes an xattr on the export object,
+     * and a listing must not be the thing that mutates it. */
+    brix_vfs_mutation_policy_t mutation_policy;
     char               cksum_algo[32];              /* negotiated cksum algo */
     char               reqpath[BRIX_MAX_PATH + 1];  /* client-supplied path */
     char               full_path[PATH_MAX];         /* confined absolute path */

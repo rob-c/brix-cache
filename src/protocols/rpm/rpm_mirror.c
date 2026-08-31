@@ -192,7 +192,7 @@ rpm_tier_get(ngx_http_request_t *r, ngx_http_brix_rpm_loc_conf_t *lcf,
 
     is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_RPM,
-                      root, "", /* allow_write */ 0, is_tls, NULL, path);
+                      root, "", BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL, path);
 
     vctx.sd = brix_vfs_backend_resolve(root, r->connection->log);
     if (vctx.sd == NULL) {

@@ -12,8 +12,8 @@
  *       destination size, while still delegating the confined data move to the
  *       namespace layer.
  *
- * HOW:  brix_vfs_copy() write-gates (brix_vfs_require_write — a copy creates
- *       a new object), translates the public brix_vfs_copy_opts_t into an
+ * HOW:  brix_vfs_copy() mutation-gates (brix_vfs_require_confined_mutation
+ *       with MUTATE_COPY — a copy creates a new object), translates the public brix_vfs_copy_opts_t into an
  *       brix_ns_copy_opts_t, and calls brix_ns_local_copy(ctx->root_canon,
  *       src=ctx path, dst). The namespace status is mapped back to errno and
  *       observed as OP_COPY; bytes are best-effort from a post-copy lstat of the
@@ -185,7 +185,9 @@ brix_vfs_copy(brix_vfs_ctx_t *ctx, const char *dst_resolved,
     uint64_t                  start = brix_vfs_now_ns();
     const brix_sd_driver_t *drv;
 
-    if (brix_vfs_require_write(ctx) != NGX_OK) {
+    if (brix_vfs_require_confined_mutation(ctx,
+            BRIX_VFS_MUTATE_COPY) != NGX_OK)
+    {
         return brix_vfs_copy_fail(ctx, src, errno, start);
     }
 

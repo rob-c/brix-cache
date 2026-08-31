@@ -515,6 +515,7 @@ families, which iterate the identical protocol list:
 | `brix_cred_select_user_total` / `_fallback_total` / `_deny_total` | counter | `proto` |
 | `brix_cred_deleg_total` | counter | `proto`, `mode`, `outcome` |
 | `brix_cred_deleg_fail_total` | counter | `proto`, `reason` |
+| `brix_vfs_mutation_denied_total` | counter | `proto`, `op`, `reason` |
 
 Label values (closed sets — INVARIANT #8):
 
@@ -525,6 +526,9 @@ Label values (closed sets — INVARIANT #8):
   `pwd`; `status` on `brix_auth_total` is `ok` or `fail`
 - `direction` — `pull`, `push`
 - `result` (delegation) — `ok`, `expired`, `absent`
+- `op` on `brix_vfs_mutation_denied_total` — the closed VFS mutation
+  vocabulary `open`, `write`, `truncate`, `sync`, `mkdir`, `remove`, `rename`,
+  `copy`, `setattr`, `xattr`, `publish`; `reason` is always `read_only`
 - `le` — the eight finite microsecond bounds `1000`, `5000`, `10000`, `50000`,
   `100000`, `500000`, `1000000`, `5000000`, plus `+Inf`
 
@@ -544,7 +548,17 @@ brix_io_bytes_read{proto="gridftp"}                    92341760512
 brix_io_bytes_written{proto="gridftp"}                 44002181120
 brix_io_latency_usec_count{proto="gridftp",op="write"}         418
 brix_auth_total{proto="gridftp",method="gsi",status="ok"}      377
+brix_vfs_mutation_denied_total{proto="webdav",op="write",reason="read_only"}  12
 ```
+
+`brix_vfs_mutation_denied_total` is booked by the VFS mutation-policy kernel
+(phase-105, `src/fs/vfs/vfs_policy.c`), once per refused mutation, at the
+moment the endpoint policy answers `EROFS` — before any backend lookup,
+capability probe or credential selection. A non-zero rate on an export you
+believe is writable means the endpoint merged to read-only; a non-zero rate on
+a deliberately read-only export is the gate working, and the `op` label says
+which family of write the client is attempting. The counter is never bumped
+for an authorization failure, which stays `EACCES`/`brix_auth_total`.
 
 ---
 

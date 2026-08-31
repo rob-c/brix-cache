@@ -69,7 +69,8 @@ webdav_resolve_stat(ngx_http_request_t *r, char *path, size_t pathsz,
      * stat routes through the driver on a non-POSIX export. */
     vctx.sd = brix_vfs_backend_resolve(conf->common.root_canon,
                                          r->connection->log);
-    vctx.allow_write = conf->common.allow_write ? 1 : 0;
+    vctx.mutation_policy =
+        brix_vfs_policy_from_write_enable(conf->common.allow_write);
     vctx.resolved.resolved.data = (u_char *) path;
     vctx.resolved.resolved.len = ngx_strlen(path);
     vctx.resolved.is_confined = 1;

@@ -29,15 +29,22 @@
  * (WebDAV, S3) set identically: a transient (rootfd = -1) confined open of an
  * already-resolved canonical path. Zeroes the ctx first, then fills pool/log,
  * the metrics proto, the export + cache roots (deriving cache_enabled), the
- * write gate, the TLS flag, the identity, and the resolved path (is_confined).
- * Callers may still adjust individual fields afterwards (e.g. cache_writethrough
- * config). Kept HTTP-agnostic on purpose so the header stays stream-includable —
- * callers pass pool/log/is_tls extracted from their own request object. */
+ * endpoint mutation policy, the TLS flag, the identity, and the resolved path
+ * (is_confined). Callers may still adjust individual fields afterwards (e.g.
+ * cache_writethrough config). Kept HTTP-agnostic on purpose so the header stays
+ * stream-includable — callers pass pool/log/is_tls extracted from their own
+ * request object.
+ *
+ * The mutation policy is stored BEFORE the backend is resolved, and any value
+ * outside the enum is normalised to READ_ONLY (phase-105 §C.2): the initializer
+ * returns void, so coercion is the only way to guarantee that a caller passing
+ * a stray integer — or a flag that never survived a config merge — gets a
+ * closed endpoint rather than an open one. */
 void
 brix_vfs_ctx_init(brix_vfs_ctx_t *vctx, ngx_pool_t *pool, ngx_log_t *log,
     brix_proto_t proto, const char *root_canon, const char *cache_root_canon,
-    int allow_write, int is_tls, brix_identity_t *identity,
-    const char *resolved_path)
+    brix_vfs_mutation_policy_t mutation_policy, int is_tls,
+    brix_identity_t *identity, const char *resolved_path)
 {
     if (vctx == NULL) {
         return;
@@ -49,6 +56,8 @@ brix_vfs_ctx_init(brix_vfs_ctx_t *vctx, ngx_pool_t *pool, ngx_log_t *log,
     vctx->log = log;
     vctx->metrics_proto = proto;
     vctx->root_canon = root_canon;
+    vctx->mutation_policy = (mutation_policy == BRIX_VFS_MUTATION_ALLOWED)
+        ? BRIX_VFS_MUTATION_ALLOWED : BRIX_VFS_MUTATION_READ_ONLY;
     /* Resolve the export's selected storage backend (NULL ⇒ default POSIX) so
      * every VFS op on this ctx routes through the driver without each handler
      * threading the instance. Per-worker, lazily created on first use. */
@@ -56,7 +65,6 @@ brix_vfs_ctx_init(brix_vfs_ctx_t *vctx, ngx_pool_t *pool, ngx_log_t *log,
     vctx->cache_root_canon = cache_root_canon;
     vctx->cache_enabled =
         (cache_root_canon != NULL && cache_root_canon[0] != '\0') ? 1 : 0;
-    vctx->allow_write = allow_write ? 1 : 0;
     vctx->is_tls = is_tls ? 1 : 0;
     vctx->identity = identity;
     if (resolved_path != NULL) {
@@ -159,6 +167,7 @@ brix_vfs_adopt_fd(brix_vfs_ctx_t *ctx, const char *path, ngx_fd_t fd,
     fh->pool = ctx->pool;
     fh->log = ctx->log;
     fh->ctx = ctx;
+    fh->mutation_policy = ctx->mutation_policy;
     fh->size = st.size;
     fh->mtime = st.mtime;
     fh->ctime = st.ctime;
@@ -260,6 +269,7 @@ brix_vfs_adopt_obj(brix_vfs_ctx_t *ctx, const char *path,
     fh->pool = ctx->pool;
     fh->log = ctx->log;
     fh->ctx = ctx;
+    fh->mutation_policy = ctx->mutation_policy;
     fh->size = st.size;
     fh->mtime = st.mtime;
     fh->ctime = st.ctime;

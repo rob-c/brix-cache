@@ -112,6 +112,10 @@ scan_stored(scan_action_ctx_t *a, brix_integrity_info_t *info)
     ngx_memzero(&io, sizeof(io));
     io.allow_xattr_cache = 1;
     io.no_compute = 1;
+    /* phase-105: a lookup, never a persist — the zeroed policy is READ_ONLY and
+     * that is the intended posture here, stated rather than left implicit. */
+    io.mutation_policy = BRIX_VFS_MUTATION_READ_ONLY;
+    io.proto = BRIX_PROTO_WEBDAV;   /* the admin scan endpoint is an HTTP plane */
     if (brix_integrity_get_fd(a->cc->log, a->fd, NULL, a->logical,
                                 a->cc->opts->alg, &io, info) == NGX_OK)
     {
@@ -155,6 +159,10 @@ scan_action_verify(scan_action_ctx_t *a)
     ngx_memzero(&io, sizeof(io));
     io.allow_xattr_cache = 0;   /* force a fresh compute over the bytes */
     io.no_compute = 0;
+    /* phase-105: verify reports, it never repairs — READ_ONLY so a mismatch
+     * cannot silently overwrite the stored digest it just disagreed with. */
+    io.mutation_policy = BRIX_VFS_MUTATION_READ_ONLY;
+    io.proto = BRIX_PROTO_WEBDAV;
     if (brix_integrity_get_fd(a->cc->log, a->fd, NULL, a->logical,
                                 a->cc->opts->alg, &io, &comp_info) != NGX_OK)
     {
@@ -201,6 +209,12 @@ scan_action_fill(scan_action_ctx_t *a)
     io.allow_xattr_cache = 1;   /* required alongside update for the persist path */
     io.update_xattr_cache = 1;
     io.no_compute = 0;
+    /* phase-105: `fill` IS the writable maintenance path Appendix H.2 reserves —
+     * an admin-authenticated, operator-invoked backfill over the separately
+     * configured brix_dashboard_scan_root, not a client request against an
+     * export. It is the only scan mode that may mutate, and it says so here. */
+    io.mutation_policy = BRIX_VFS_MUTATION_ALLOWED;
+    io.proto = BRIX_PROTO_WEBDAV;
     if (brix_integrity_get_fd(a->cc->log, a->fd, NULL, a->logical,
                                 a->cc->opts->alg, &io, &info) != NGX_OK)
     {

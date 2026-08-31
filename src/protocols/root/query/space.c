@@ -76,7 +76,8 @@ brix_query_space_probe(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
     brix_fs_usage_t  fsu;
 
     brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL, conf->common.allow_write,
+        conf->common.root_canon, NULL,
+        brix_vfs_policy_from_write_enable(conf->common.allow_write),
         0 /* is_tls */, NULL, conf->common.root_canon);
     if (brix_vfs_space(&vctx, &sp) == NGX_OK) {
         *total = (unsigned long long) sp.total_bytes;

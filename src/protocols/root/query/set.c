@@ -169,8 +169,13 @@ brix_set_handle_cache_evict(brix_ctx_t *ctx, ngx_connection_t *c,
         return ctx->write_rc;
     }
 
+    /* phase-105: the only mutation below is brix_sd_cache_evict — the SERVICE
+     * cache store, which Appendix H.1 places outside export policy (dropping a
+     * cached copy changes no exported object). The ctx is ALLOWED so that
+     * intent is stated at the construction site rather than inferred from the
+     * fact that eviction happens not to route through a VFS mutator. */
     brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL, 1 /* allow_write */, 0 /* is_tls */,
+        conf->common.root_canon, NULL, BRIX_VFS_MUTATION_ALLOWED, 0 /* is_tls */,
         ctx->identity, full_path);
 
     if (vctx.sd == NULL || !brix_sd_cache_instance_is(vctx.sd)) {

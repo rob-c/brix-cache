@@ -17,11 +17,11 @@
  * HOW:  Each entry point re-verifies confinement (brix_vfs_require_confined),
  *       calls the matching brix_*xattr_confined_canon with ctx->root_canon and
  *       the resolved path, then observes the result as OP_XATTR. set/remove are
- *       mutations but are intentionally NOT allow_write-gated: the lock-database
- *       writes happen on otherwise read-only requests and the protocol layer has
- *       already authorized the principal — matching the prior direct-call
- *       behaviour exactly (no new EACCES surface). get/list propagate the helper
- *       byte count (or ERANGE) unchanged.
+ *       mutations of the export and are gated on the endpoint's mutation policy
+ *       (phase-105) BEFORE the capability and credential gates, so a read-only
+ *       export answers EROFS and never discloses which later gate would also
+ *       have refused. get/list propagate the helper byte count (or ERANGE)
+ *       unchanged and are never gated — reading an attribute is a read.
  */
 #include "vfs_internal.h"
 #include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_evict: the leaf
@@ -295,6 +295,14 @@ brix_vfs_xattr_mutate(brix_vfs_ctx_t *ctx, int is_set, const char *name,
         return brix_vfs_xattr_observe_mut(ctx, path, -1, 0, start);
     }
 
+    /* phase-105: the endpoint gate, ahead of brix_vfs_xattr_write_gate() — that
+     * helper answers ENOTSUP for a backend without CAP_XATTR_WRITE and EACCES
+     * for a refused credential, and either arriving before EROFS would tell a
+     * caller something about a backend it is not allowed to touch. */
+    if (brix_vfs_require_mutation(ctx, BRIX_VFS_MUTATE_XATTR) != NGX_OK) {
+        return brix_vfs_xattr_observe_mut(ctx, path, -1, 0, start);
+    }
+
     drv = brix_vfs_ctx_driver(ctx);
     if (drv != NULL) {
         m.is_set = is_set;
@@ -315,8 +323,8 @@ brix_vfs_xattr_mutate(brix_vfs_ctx_t *ctx, int is_set, const char *name,
 
 /* Set attribute `name` to value[len] on the resolved ctx path. `flags` are the
  * raw setxattr(2) flags (XATTR_CREATE / XATTR_REPLACE / 0). Returns NGX_OK or
- * NGX_ERROR with errno set. Metered as OP_XATTR. Not allow_write-gated (the
- * protocol layer authorizes; lock writes occur on read-only requests). */
+ * NGX_ERROR with errno set (EROFS on a read-only endpoint). Metered as
+ * OP_XATTR. */
 ngx_int_t
 brix_vfs_setxattr(brix_vfs_ctx_t *ctx, const char *name,
     const void *value, size_t len, int flags)
@@ -325,8 +333,8 @@ brix_vfs_setxattr(brix_vfs_ctx_t *ctx, const char *name,
 }
 
 /* Remove attribute `name` from the resolved ctx path. Returns NGX_OK or
- * NGX_ERROR with errno set (ENODATA when the attribute is absent). Metered as
- * OP_XATTR. Not allow_write-gated (see brix_vfs_setxattr). */
+ * NGX_ERROR with errno set (ENODATA when the attribute is absent, EROFS on a
+ * read-only endpoint). Metered as OP_XATTR. */
 ngx_int_t
 brix_vfs_removexattr(brix_vfs_ctx_t *ctx, const char *name)
 {
@@ -342,9 +350,17 @@ brix_vfs_removexattr(brix_vfs_ctx_t *ctx, const char *name)
  * file-handle mode (and any other open-fd xattr caller) reaches the backend
  * through the VFS instead of calling f*xattr(2) directly.
  *
- * `ctx` is optional and used only for the OP_XATTR metric + access-log line; it
- * may be NULL (then the op is unobserved). It is NOT required to be confined —
- * passing the request's ctx simply attributes the metric to the right proto. */
+ * For the READING pair (fget/flist) `ctx` is optional and used only for the
+ * OP_XATTR metric + access-log line; it may be NULL (then the op is
+ * unobserved). It is NOT required to be confined — passing the request's ctx
+ * simply attributes the metric to the right proto.
+ *
+ * For the MUTATING pair (fset/fremove) `ctx` is REQUIRED (phase-105): an fd
+ * carries confinement but not authority, so a mutation with no policy behind it
+ * has no way to fail closed and is refused with EINVAL. A service-domain caller
+ * that legitimately holds the policy as a value — the checksum-at-rest cache in
+ * core/compat/integrity_info.c is the one in-tree case — uses the _carried
+ * forms below instead of inventing a context. */
 
 ssize_t
 brix_vfs_fgetxattr(const brix_vfs_ctx_t *ctx, int fd, const char *name,
@@ -367,29 +383,67 @@ brix_vfs_flistxattr(const brix_vfs_ctx_t *ctx, int fd, void *buf,
 }
 
 ngx_int_t
+brix_vfs_fsetxattr_carried(brix_vfs_mutation_policy_t policy, brix_proto_t proto,
+    int fd, const char *name, const void *value, size_t len, int flags)
+{
+    if (brix_vfs_require_carried_mutation(policy, proto,
+            BRIX_VFS_MUTATE_XATTR) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    /* Unmetered, exactly as the NULL-ctx form was: a service-domain metadata
+     * touch is not client I/O, and labelling it would misattribute the proto
+     * (vfs_internal.h, brix_vfs_observe_ctx_op_ex). The REFUSAL above is
+     * counted — that one is an operator-visible policy event. */
+    if (fsetxattr(fd, name, value, len, flags) != 0) {
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
+ngx_int_t
+brix_vfs_fremovexattr_carried(brix_vfs_mutation_policy_t policy,
+    brix_proto_t proto, int fd, const char *name)
+{
+    if (brix_vfs_require_carried_mutation(policy, proto,
+            BRIX_VFS_MUTATE_XATTR) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    /* Unmetered — see brix_vfs_fsetxattr_carried. */
+    if (fremovexattr(fd, name) != 0) {
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
+ngx_int_t
 brix_vfs_fsetxattr(const brix_vfs_ctx_t *ctx, int fd, const char *name,
     const void *value, size_t len, int flags)
 {
-    uint64_t start = brix_vfs_now_ns();
-    int      rc = fsetxattr(fd, name, value, len, flags);
-    int      saved_errno = (rc != 0) ? errno : 0;
+    if (ctx == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
 
-    brix_vfs_observe_ctx_op(ctx, NULL, BRIX_METRIC_OP_XATTR, NULL,
-                              (rc == 0) ? len : 0,
-                              (rc != 0) ? NGX_ERROR : NGX_OK, saved_errno,
-                              start);
-    return (rc != 0) ? NGX_ERROR : NGX_OK;
+    return brix_vfs_fsetxattr_carried(ctx->mutation_policy,
+                                      brix_vfs_metrics_proto(ctx), fd, name,
+                                      value, len, flags);
 }
 
 ngx_int_t
 brix_vfs_fremovexattr(const brix_vfs_ctx_t *ctx, int fd, const char *name)
 {
-    uint64_t start = brix_vfs_now_ns();
-    int      rc = fremovexattr(fd, name);
-    int      saved_errno = (rc != 0) ? errno : 0;
+    if (ctx == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
 
-    brix_vfs_observe_ctx_op(ctx, NULL, BRIX_METRIC_OP_XATTR, NULL, 0,
-                              (rc != 0) ? NGX_ERROR : NGX_OK, saved_errno,
-                              start);
-    return (rc != 0) ? NGX_ERROR : NGX_OK;
+    return brix_vfs_fremovexattr_carried(ctx->mutation_policy,
+                                         brix_vfs_metrics_proto(ctx), fd,
+                                         name);
 }

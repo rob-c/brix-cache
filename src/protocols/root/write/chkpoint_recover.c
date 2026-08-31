@@ -115,6 +115,11 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
 
     ngx_close_file(ckp_fd);
 
+    /* vfs-mutation-gate-allow: startup recovery of THIS server's own .ckp
+     * journal, after its snapshot has been committed. The journal's existence
+     * is the durable proof that a writable endpoint authorised the checkpoint;
+     * no request and no endpoint configuration are in scope here to re-decide
+     * against, and leaving the record behind would replay it forever. */
     if (brix_vfs_unlink_path(log, root_canon, ckp_path) != 0) {
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "brix: checkpoint recovery cannot remove "

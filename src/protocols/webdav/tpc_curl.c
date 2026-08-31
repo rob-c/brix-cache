@@ -171,9 +171,18 @@ tpc_core_open_local(webdav_tpc_curl_ctx_t *ctx)
         return NGX_OK;
     }
 
-    fd = brix_vfs_open_fd(ctx->log, conf->common.root_canon, ctx->file_path,
-                          O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
-                          0600);
+    {
+        /* phase-105: the pull's local temp is created ON THE EXPORT, so the
+         * destination endpoint's write posture gates it — before any byte is
+         * requested from the remote source. */
+        brix_vfs_export_op_ctx_t opctx;
+
+        brix_vfs_export_op_ctx_init(&opctx, ctx->log, conf->common.root_canon,
+            brix_vfs_policy_from_write_enable(conf->common.allow_write),
+            BRIX_PROTO_WEBDAV);
+        fd = brix_vfs_export_open_fd(&opctx, ctx->file_path,
+                 O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0600);
+    }
     if (fd >= 0) {
         ctx->fp = fdopen(fd, "wb");
         if (ctx->fp == NULL) {

@@ -22,4 +22,26 @@ void
 webdav_lock_reap_null(ngx_http_request_t *r, const char *path,
     const webdav_lock_xattr_t *e);
 
+/*
+ * webdav_lock_expired_cleanup — opportunistic removal of an EXPIRED lock's
+ * stored state (defined in lock.c).
+ *
+ * WHAT: On a WRITABLE export, drop the stale lock xattr and — when `reap_null`
+ *       is set — the lock-null placeholder it reserved. On a read-only export,
+ *       do nothing at all.
+ * WHY:  Phase-105 Appendix H.2. Discovering an expired lock happens on read
+ *       paths (LOCK refresh, the If-header lock check, UNLOCK of a lock that
+ *       already lapsed), and a read-only endpoint must not mutate the export as
+ *       a side effect of reading it. The VFS would refuse the removexattr with
+ *       EROFS anyway; declining to attempt it keeps every ordinary request off
+ *       the mutation-denied counter, so that counter keeps meaning "something
+ *       tried to write to a read-only export".
+ * HOW:  Callers keep treating the expired lock as ABSENT regardless — request
+ *       semantics never depend on whether the cleanup ran. Pass reap_null = 0
+ *       on a path that is about to be re-locked (see webdav_lock_reap_null).
+ */
+void
+webdav_lock_expired_cleanup(ngx_http_request_t *r, const char *path,
+    const webdav_lock_xattr_t *e, int reap_null);
+
 #endif /* BRIX_WEBDAV_LOCK_INTERNAL_H */

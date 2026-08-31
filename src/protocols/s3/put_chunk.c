@@ -35,7 +35,7 @@ s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon,
         char              etag_buf[48];
 
         brix_vfs_ctx_init(&fctx, r->pool, r->connection->log, BRIX_PROTO_S3,
-            root_canon, NULL, 0 /* allow_write */, 0 /* is_tls */, NULL, fs_path);
+            root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */, NULL, fs_path);
         {
             ngx_http_s3_loc_conf_t *acf =
                 ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);

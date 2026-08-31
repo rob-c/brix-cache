@@ -30,7 +30,7 @@ propfind_dir_ctx(ngx_http_request_t *r, const char *root_canon,
 {
     int is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
-        root_canon, NULL, 0 /* allow_write */, is_tls, NULL, dir_path);
+        root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL, dir_path);
 }
 
 

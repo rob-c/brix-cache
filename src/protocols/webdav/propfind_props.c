@@ -126,7 +126,8 @@ propfind_emit_locality(ngx_http_request_t *r, ngx_chain_t **head,
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
         BRIX_PROTO_WEBDAV, conf->common.root_canon, conf->common.cache_root_canon,
-        conf->common.allow_write, 0 /* is_tls */, NULL, path);
+        brix_vfs_policy_from_write_enable(conf->common.allow_write),
+        0 /* is_tls */, NULL, path);
 
     if (brix_vfs_residency(&vctx, &res, &nearline) == NGX_OK && nearline) {
         switch (res) {

@@ -287,6 +287,9 @@ typedef struct {
     int         dirfd;               /* beneath-confined directory fd         */
     ngx_flag_t  want_stat;
     ngx_flag_t  want_cksum;
+    /* Phase-105: the endpoint's write posture, snapshotted at post time — the
+     * dcksm worker persists digests as xattrs on the export object. */
+    brix_vfs_mutation_policy_t mutation_policy;
     u_char     *response;            /* ngx_palloc'd; freed after full drain  */
     size_t      response_cap;        /* = BRIX_DIRLIST_AIO_RESPONSE_MAX     */
     size_t      response_len;        /* bytes written by thread               */

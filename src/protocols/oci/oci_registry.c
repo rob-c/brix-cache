@@ -125,7 +125,7 @@ oci_registry_serve(ngx_http_request_t *r, ngx_http_brix_oci_loc_conf_t *lcf,
 
     is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_OCI,
-                      st->root, "", /* allow_write */ 0, is_tls, NULL, path);
+                      st->root, "", BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL, path);
     vctx.sd = brix_vfs_backend_resolve(st->root, r->connection->log);
 
     fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);

@@ -219,8 +219,13 @@ s3_dispatch_object_delete(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
      * `resolved`). NGX_DECLINED (async off / enqueue failure) falls through to
      * the inline unlink. */
     if (cf->common.backend_async) {
-        ngx_int_t rc = brix_baq_http_try(r, &cf->common, BRIX_BAQ_UNLINK,
-            cf->common.root_canon, fs_path, NULL, 0,
+        brix_baq_req_t req = {
+            .op         = BRIX_BAQ_UNLINK,
+            .proto      = BRIX_PROTO_S3,
+            .root_canon = cf->common.root_canon,
+            .src_key    = fs_path,
+        };
+        ngx_int_t rc = brix_baq_http_try(r, &cf->common, &req,
             s3_delete_async_render, (void *) (uintptr_t) method_slot);
         if (rc == NGX_DONE) {
             return NGX_DONE;

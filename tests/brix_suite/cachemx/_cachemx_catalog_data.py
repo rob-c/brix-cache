@@ -382,6 +382,9 @@ HELP = {
         'User identity slots evicted from the tracking table.',
     'brix_user_sessions_total':
         'Sessions per tracked user identity. Sum across all entries equals total authenticated sessions.',
+    'brix_vfs_mutation_denied_total':
+        'Export mutations refused by the VFS read-only policy, by protocol '
+        'and operation.',
     'brix_vo_bytes_rx_total':
         'Bytes received from clients grouped by virtual organisation. VO names are truncated to 15 characters.',
     'brix_vo_bytes_tx_total':

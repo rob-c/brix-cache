@@ -184,7 +184,7 @@ brix_dirlist_open_dir(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL, 0 /* allow_write */, 0 /* is_tls */,
+        conf->common.root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */,
         ctx->identity, walk->full_path);
     brix_vfs_ctx_bind_backend_cred(&vctx,
         &conf->common.storage_credential_dir,
@@ -287,6 +287,8 @@ brix_handle_dirlist(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_memzero(&walk, sizeof(walk));
     walk.chunk_cap = 65536;
     walk.conf = conf;
+    walk.mutation_policy =
+        brix_vfs_policy_from_write_enable(conf->common.allow_write);
 
     if (!brix_dirlist_parse_request(ctx, c, &walk, &rc)) {
         return rc;

@@ -233,7 +233,7 @@ cvmfs_bundle_fill_one(ngx_http_request_t *r, const char *root,
 
     is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
-        BRIX_PROTO_CVMFS, root, "", /* allow_write */ 0, is_tls, NULL,
+        BRIX_PROTO_CVMFS, root, "", BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL,
         path);
     vctx.sd = sd;
     key = brix_vfs_export_relative(&vctx, path);

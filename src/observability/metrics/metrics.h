@@ -407,6 +407,13 @@ typedef struct {
     ngx_atomic_t  cred_deleg_fail_total[BRIX_PROTO_COUNT]
                                        [BRIX_CRED_FAIL_COUNT];
 
+    /* Phase-105 read-only endpoint denials: one bump per mutation the VFS
+     * policy kernel refused with EROFS, by protocol and bounded operation. The
+     * reason is constant ("read_only") and is rendered as a label rather than
+     * stored, so the cube stays proto x op (INVARIANT #8). */
+    ngx_atomic_t  vfs_mutation_denied_total[BRIX_PROTO_COUNT]
+                                           [BRIX_VFS_MUTATE_OP_METRIC_COUNT];
+
     /* Watermark-driven LRU reaper (reap_watermark.c). Process-wide, connection-
      * less: the background timer has no per-proto/per-server context. usage_ratio
      * is a GAUGE in ppm (0-1e6), emitted as a 0-1 ratio; the rest are counters. */

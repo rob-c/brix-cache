@@ -78,6 +78,12 @@ webdav_put_persist_checksums(ngx_http_request_t *r, const char *path)
         o.allow_xattr_cache    = 1;
         o.update_xattr_cache   = 1;
         o.require_regular_file = 1;
+        /* phase-105: persisting the digest writes an xattr on the export. This
+         * runs only after a committed PUT, so the endpoint is writable — but it
+         * is carried, never assumed. */
+        o.mutation_policy      =
+            brix_vfs_policy_from_write_enable(conf->common.allow_write);
+        o.proto                = BRIX_PROTO_WEBDAV;
         (void) brix_integrity_get_fd(r->connection->log, fd, NULL, path, tok,
                                        &o, &info);
     }

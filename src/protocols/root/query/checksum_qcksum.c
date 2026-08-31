@@ -94,7 +94,7 @@ brix_query_cksum_send_error(brix_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t
 brix_query_build_checksum(brix_ctx_t *ctx, ngx_connection_t *c,
     int fd, brix_sd_obj_t *obj, const char *resolved, const char *algo,
-    char *resp, size_t resp_sz)
+    brix_vfs_mutation_policy_t policy, char *resp, size_t resp_sz)
 {
     brix_integrity_info_t  info;
     brix_integrity_opts_t  iopts;
@@ -103,6 +103,9 @@ brix_query_build_checksum(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_memzero(&iopts, sizeof(iopts));
     iopts.allow_xattr_cache  = 1;
     iopts.update_xattr_cache = 1;
+    /* phase-105: caching the digest writes onto the export object. */
+    iopts.mutation_policy    = policy;
+    iopts.proto              = BRIX_PROTO_ROOT;
 
     if (brix_integrity_get_fd(c->log, fd, obj, resolved, algo, &iopts, &info)
         != NGX_OK)
@@ -189,6 +192,8 @@ brix_qcksum_handle_try_async(brix_qcksum_req_t *rq, int idx,
     t->fd       = ctx->files[idx].fd;
     t->close_fd = 0;
     t->obj      = ctx->files[idx].sd_obj; /* Layer 3: whole-object checksum */
+    t->mutation_policy =
+        brix_vfs_policy_from_write_enable(conf->common.allow_write);
     ngx_memcpy(t->streamid, ctx->recv.cur_streamid, 2);
     ngx_cpystrn((u_char *) t->algo, (u_char *) rq->algo, sizeof(t->algo));
     ngx_cpystrn((u_char *) t->resolved, (u_char *) resolved,
@@ -258,7 +263,10 @@ brix_query_cksum_handle(brix_ctx_t *ctx, ngx_connection_t *c,
 
     rc = brix_query_build_checksum(ctx, c, ctx->files[idx].fd,
                                      &ctx->files[idx].sd_obj, resolved,
-                                     rq.algo, resp, sizeof(resp));
+                                     rq.algo,
+                                     brix_vfs_policy_from_write_enable(
+                                         conf->common.allow_write),
+                                     resp, sizeof(resp));
     if (rc == NGX_DONE) {
         return NGX_OK;
     }

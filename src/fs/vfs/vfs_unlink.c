@@ -10,7 +10,8 @@
  *       empty semantics match the rest of the namespace mutators, with one
  *       metric/access-log emission per call.
  *
- * HOW:  brix_vfs_delete() enforces brix_vfs_require_write() and a non-NULL
+ * HOW:  brix_vfs_delete() enforces brix_vfs_require_confined_mutation()
+ *       (MUTATE_REMOVE — EROFS on a read-only endpoint) and a non-NULL
  *       root_canon, builds an brix_ns_delete_opts_t (recursive,
  *       require_empty_dir), and calls brix_ns_delete(); the namespace status
  *       is mapped back to errno (sys_errno or EIO) and observed as
@@ -257,7 +258,9 @@ brix_vfs_delete(brix_vfs_ctx_t *ctx, unsigned recursive,
     start = brix_vfs_now_ns();
     path = brix_vfs_ctx_path(ctx);
 
-    if (brix_vfs_require_write(ctx) != NGX_OK) {
+    if (brix_vfs_require_confined_mutation(ctx,
+            BRIX_VFS_MUTATE_REMOVE) != NGX_OK)
+    {
         saved_errno = errno;
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE, NULL, 0,
                                   NGX_ERROR, saved_errno, start);

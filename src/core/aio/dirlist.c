@@ -87,6 +87,7 @@ brix_dirlist_aio_thread(void *data, ngx_log_t *log)
                                 t->streamid, t->want_stat, t->want_cksum,
                                 t->resolved, t->cksum_algo, log,
                                 t->err_msg, sizeof(t->err_msg));
+    job.mutation_policy = t->mutation_policy;
     brix_vfs_io_execute(&job);
 
     t->response_len = job.out_size;

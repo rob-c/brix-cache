@@ -257,6 +257,25 @@ void brix_metric_cred_fail(brix_proto_t proto, brix_cred_fail_t reason);
 const char *brix_metric_cred_mode_name(ngx_uint_t mode);
 const char *brix_metric_cred_fail_name(brix_cred_fail_t reason);
 /*
+ * Phase-105 VFS mutation-policy denials.
+ *
+ * BRIX_VFS_MUTATE_OP_METRIC_COUNT mirrors `brix_vfs_mutation_op_t`
+ * (fs/vfs/vfs_policy.h: OPEN..PUBLISH) without importing the fs layer into this
+ * header; the recorder takes the operation as ngx_uint_t and vfs_policy.c
+ * carries the compile-time equality check, exactly as the phase-70 delegation
+ * mode dimension above does.
+ *
+ * The reason dimension is the constant "read_only": EROFS is the sole VFS
+ * read-only mutation result, and a denial that carried the path, the object
+ * key, or the requesting subject would be an unbounded label (INVARIANT #8).
+ * Only the boundary that REJECTS records — a protocol edge that already refused
+ * never reaches the VFS kernel, so an operator sees one count per refusal.
+ */
+#define BRIX_VFS_MUTATE_OP_METRIC_COUNT  11
+
+void brix_metric_vfs_mutation_denied(brix_proto_t proto, ngx_uint_t op);
+const char *brix_metric_vfs_mutate_op_name(ngx_uint_t op);
+/*
  * Watermark-driven LRU reaper telemetry (connection-less, process-wide):
  *  - cache_usage_ratio publishes cache_root occupancy (ppm) as a gauge each tick;
  *  - cache_watermark_purge accounts one purge run that reclaimed `files`/`bytes`.

@@ -77,7 +77,7 @@ fattr_recurse_init_node_ctx(fattr_recurse_ctx_t *rctx, brix_vfs_ctx_t *vctx,
     const char *node_path)
 {
     brix_vfs_ctx_init(vctx, rctx->pool, rctx->log, BRIX_PROTO_ROOT,
-        rctx->root_canon, NULL, 0 /* allow_write */, 0 /* is_tls */,
+        rctx->root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */,
         rctx->identity, node_path);
     brix_vfs_ctx_bind_backend_cred(vctx, rctx->storage_cred_dir,
         rctx->storage_cred_fallback);

@@ -56,7 +56,8 @@ tpc_destination_vfs_ctx(brix_ctx_t *ctx, ngx_connection_t *c,
         dst_path, conf->common.root_canon);
 
     brix_vfs_ctx_init(vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL, conf->common.allow_write,
+        conf->common.root_canon, NULL,
+        brix_vfs_policy_from_write_enable(conf->common.allow_write),
         0 /* is_tls */, ctx->identity, logical);
     vctx->rootfd = conf->rootfd;
     brix_vfs_ctx_bind_backend_cred(vctx,

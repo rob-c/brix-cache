@@ -324,3 +324,46 @@ def test_client_flags_allow_marker_cannot_launder_the_next_line(tmp_path) -> Non
         "`xrdprobe --smuggled` rides along on the exemption above.\n",
     )
     assert _flag_findings(root) == ["no client tool parses --smuggled @2"]
+
+
+# --- vfs mutation-gate guard: negatives (phase-105, threat rows N.3 "raw
+# helper bypass" / "a future handler forgets its protocol-edge gate") ---------
+# The fast lane proves the tree is gated today; these prove the guard would
+# actually bite on the hole it exists for: a confinement-only mutator called
+# outside src/fs/ with no policy gate and no service-ownership marker.  Probe
+# files are injected into the scanned tree and always removed.
+_GATE_PROBE = CI.parents[1] / "src" / "protocols" / "_vfs_gate_probe.c"
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        # a raw confinement-only namespace mutator
+        'void probe(brix_vfs_ctx_t *c) { brix_vfs_unlink_path(c, "/x"); }\n',
+        # a write-shaped open through the confinement-only fd helper
+        "void probe(brix_vfs_ctx_t *c)\n"
+        "{ (void) brix_vfs_open_fd(c, O_WRONLY | O_CREAT, 0644); }\n",
+    ],
+)
+def test_vfs_mutation_gate_guard_catches_an_ungated_mutator(content) -> None:
+    _GATE_PROBE.write_text(content)
+    try:
+        rc, out = _run("check_vfs_mutation_gate")
+    finally:
+        _GATE_PROBE.unlink()
+    assert rc != 0, f"guard missed an ungated export mutation:\n{out}"
+    assert "_vfs_gate_probe" in out, out
+
+
+def test_vfs_mutation_gate_guard_honours_the_ownership_marker() -> None:
+    """The service-ownership waiver is per-call and must keep working — a
+    marker that stopped being honoured would push every legitimate site into
+    the backlog file, which ships empty by contract."""
+    _GATE_PROBE.write_text(
+        "/* vfs-mutation-gate-allow: synthetic guard-negative fixture */\n"
+        'void probe(brix_vfs_ctx_t *c) { brix_vfs_unlink_path(c, "/x"); }\n')
+    try:
+        rc, out = _run("check_vfs_mutation_gate")
+    finally:
+        _GATE_PROBE.unlink()
+    assert rc == 0, f"guard ignored a valid ownership marker:\n{out}"

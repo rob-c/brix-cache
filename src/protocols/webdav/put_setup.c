@@ -233,7 +233,8 @@ webdav_put_precheck(ngx_http_request_t *r,
         int               is_tls = brix_http_request_is_tls(r);
         brix_vfs_ctx_init(&pctx, r->pool, r->connection->log,
             BRIX_PROTO_WEBDAV, conf->common.root_canon, conf->common.cache_root_canon,
-            conf->common.allow_write, is_tls,
+            brix_vfs_policy_from_write_enable(conf->common.allow_write),
+            is_tls,
             (rx != NULL) ? rx->identity : NULL, path);
         brix_vfs_ctx_bind_backend_cred(&pctx,
             &conf->common.storage_credential_dir,

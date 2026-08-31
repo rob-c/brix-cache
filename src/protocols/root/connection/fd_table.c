@@ -160,7 +160,18 @@ brix_bound_confined_open(brix_ctx_t *ctx, ngx_connection_t *c,
         {
             rel = shared->path + root_len;
         }
-        fd = brix_vfs_open_fd_at(conf->rootfd, rel, open_flags, 0);
+        /* phase-105 (Appendix K.8): a bound data stream reopens a handle the
+         * PRIMARY published, on a connection whose own endpoint decides what it
+         * may do. A writable-looking bound handle must therefore meet this
+         * server's write posture here — the gated form refuses a mutating
+         * open_flags with EROFS and leaves a read-only reopen untouched. */
+        brix_vfs_export_op_ctx_t opctx;
+
+        brix_vfs_export_op_ctx_init(&opctx, c->log, conf->common.root_canon,
+            brix_vfs_policy_from_write_enable(conf->common.allow_write),
+            BRIX_PROTO_ROOT);
+        fd = brix_vfs_export_open_fd_at(&opctx, conf->rootfd, rel, open_flags,
+                                        0);
     }
 
     if (fd < 0) {
@@ -286,6 +297,11 @@ brix_reopen_bound_write_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     file = &ctx->files[handle_index];
     file->fd             = fd;
     file->writable       = 1;
+    /* Phase-105: the reopen above already refused unless this endpoint allows
+     * writes (see brix_ensure_write_handle), so the secondary's handle carries
+     * the same ALLOWED posture the primary's does — recorded, not re-derived,
+     * because the per-op gate reads only the handle. */
+    file->mutation_policy = BRIX_VFS_MUTATION_ALLOWED;
     file->readable       = shared->readable ? 1 : 0;
     file->from_cache     = shared->from_cache ? 1 : 0;
     file->is_regular     = S_ISREG(st.st_mode) ? 1 : 0;
@@ -552,6 +568,24 @@ brix_validate_write_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     if (!ctx->files[handle_index].writable) {
         BRIX_BAIL_ERR(ctx, c, op, verb, ctx->files[handle_index].path, "-",
                         kXR_NotAuthorized, "file not open for writing", rc);
+    }
+
+    /*
+     * Phase-105: the endpoint gate for every handle-based mutation — kXR_write,
+     * writev, pgwrite, truncate, sync, chkpoint and the CLONE destination all
+     * reach the I/O core through this one validator, so gating here refuses
+     * BEFORE a job is posted (W2) rather than after a worker thread has already
+     * touched the file. The posture is the handle's own copy: a reload that
+     * turns the export read-only under an open write handle is answered
+     * kXR_fsReadOnly on the next op, and never with kXR_NotAuthorized, which
+     * would be indistinguishable from an authorization failure.
+     */
+    if (brix_vfs_require_carried_mutation(
+            ctx->files[handle_index].mutation_policy, BRIX_PROTO_ROOT,
+            BRIX_VFS_MUTATE_WRITE) != NGX_OK)
+    {
+        BRIX_BAIL_ERR(ctx, c, op, verb, ctx->files[handle_index].path, "-",
+                        kXR_fsReadOnly, "read-only export", rc);
     }
 
     return 1;

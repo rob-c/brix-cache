@@ -325,7 +325,8 @@ xattr_resolve_and_probe(brix_ctx_t *ctx, ngx_connection_t *c,
      * export root). probe (follow) replaces the raw stat; OP_STAT is suppressed
      * (probe) so only the enclosing QUERY op is accounted. */
     brix_vfs_ctx_init(vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL, conf->common.allow_write,
+        conf->common.root_canon, NULL,
+        brix_vfs_policy_from_write_enable(conf->common.allow_write),
         0 /* is_tls */, NULL, full_path);
     if (brix_vfs_probe(vctx, 0 /* follow */, vst) != NGX_OK) {
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);

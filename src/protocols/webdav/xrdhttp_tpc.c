@@ -171,6 +171,12 @@ xrdhttp_add_checksum_header(ngx_http_request_t *r,
         ngx_memzero(&iopts, sizeof(iopts));
         iopts.allow_xattr_cache  = 1;
         iopts.update_xattr_cache = 1;
+        /* phase-105: the digest cache write lands on the export object. */
+        iopts.mutation_policy    = brix_vfs_policy_from_write_enable(
+            ((ngx_http_brix_webdav_loc_conf_t *)
+             ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module))
+                ->common.allow_write);
+        iopts.proto              = BRIX_PROTO_WEBDAV;
 
         if (brix_integrity_get_fd(r->connection->log, fd, NULL, "<xrdhttp>",
                                     algo, &iopts, &info) != NGX_OK

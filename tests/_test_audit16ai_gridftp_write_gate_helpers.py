@@ -419,6 +419,22 @@ NS_VERBS = (
     ("RMD", "dir", "RMD /{n}", "550 Permission denied (read-only)"),
     ("XRMD", "dir", "XRMD /{n}", "550 Permission denied (read-only)"),
     ("RNFR", "file", "RNFR /{n}", "550 Permission denied (read-only)"),
+    # Phase-105 W4: SITE is answered by a blanket "200 OK" in
+    # ftp_ev_dispatch.c, so before the gate a read-only gateway reported a
+    # successful mode change for a chmod nothing in this tree performs.  The
+    # five subcommands the GridFTP grammar defines as mutations now answer the
+    # same 550 as every other write verb; every OTHER SITE subcommand is
+    # untouched (the armed control pins that).
+    ("SITE-CHMOD", "file", "SITE CHMOD 0777 /{n}",
+     "550 Permission denied (read-only)"),
+    ("SITE-CHGRP", "file", "SITE CHGRP staff /{n}",
+     "550 Permission denied (read-only)"),
+    ("SITE-UTIME", "file", "SITE UTIME 20260830000000 /{n}",
+     "550 Permission denied (read-only)"),
+    ("SITE-SYMLINK", "file", "SITE SYMLINK /{n} /{n}-link",
+     "550 Permission denied (read-only)"),
+    ("SITE-RDEL", "dir", "SITE RDEL /{n}",
+     "550 Permission denied (read-only)"),
 )
 
 

@@ -19,6 +19,7 @@
 #include "s3.h"
 #include "multipart_internal.h"
 #include "fs/vfs/vfs.h"   /* confined source open via the VFS seam */
+#include "fs/vfs/vfs_policy.h"   /* phase-105 endpoint mutation gate */
 #include "core/http/http_headers.h"
 #include "fs/backend/sd.h"   /* route the part-copy byte move through the SD backend */
 
@@ -310,6 +311,12 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
     int              dst_fd;
     ngx_int_t        rc;
     s3_upcp_req_t    req;
+    brix_vfs_export_op_ctx_t opctx;   /* phase-105 endpoint write posture */
+
+    brix_vfs_export_op_ctx_init(&opctx, r->connection->log,
+        cf->common.root_canon,
+        brix_vfs_policy_from_write_enable(cf->common.allow_write),
+        BRIX_PROTO_S3);
 
     ngx_memzero(&part_sb, sizeof(part_sb));
 
@@ -351,11 +358,21 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
                                  "The specified copy source does not exist.");
     }
 
-    dst_fd = brix_vfs_open_fd(r->connection->log, cf->common.root_canon,
-                               part_path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC,
-                               0600);
+    /* phase-105: staging a part IS a write to the export, even though the object
+     * only becomes visible at CompleteMultipartUpload. Gate the part create so a
+     * read-only endpoint refuses here rather than accumulating parts it can never
+     * publish; EROFS maps to 403, not to an internal error. */
+    dst_fd = brix_vfs_export_open_fd(&opctx, part_path,
+                                      O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC,
+                                      0600);
     if (dst_fd < 0) {
+        int open_err = errno;
+
         brix_vfs_close(fh_src, r->connection->log);
+        if (open_err == EROFS) {
+            return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
+                                     "The export is read-only.");
+        }
         BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -364,8 +381,7 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
                       iobuf, sizeof(iobuf)) != 0) {
         brix_vfs_close(fh_src, r->connection->log);
         close(dst_fd);
-        (void) brix_vfs_unlink_path(r->connection->log,
-                                    cf->common.root_canon, part_path);
+        (void) brix_vfs_export_unlink(&opctx, part_path);
         BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
