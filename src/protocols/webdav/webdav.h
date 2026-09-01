@@ -192,9 +192,34 @@ typedef struct {
     /* Session-lifecycle audit transfer record for request-sized data moves. */
     brix_sess_xfer_t  sess_xfer;
     unsigned          sess_xfer_started:1;
+
+    /* phase-109: task-private pool for a thread-offloaded metadata walk
+     * (PROPFIND against a remote backend).  nginx pools are NOT thread-safe,
+     * and the event loop can run teardown/abort handlers on r->pool while a
+     * task is in flight — so the offloaded build allocates EXCLUSIVELY from
+     * this pool (see propfind_pool()), created per-task and destroyed with the
+     * request (a cleanup on r->pool, so response chains outlive the send).
+     * NULL = not offloaded: every allocation goes to r->pool exactly as
+     * before. */
+    ngx_pool_t       *walk_pool;
 } ngx_http_brix_webdav_req_ctx_t;
 
+
 extern ngx_module_t ngx_http_brix_webdav_module;
+
+/* phase-109: the allocator for request work that may run on a thread-pool
+ * thread.  nginx pools are not thread-safe, so an offloaded metadata walk
+ * (walk_offload.c) allocates from a task-private pool; everything inline
+ * keeps allocating from r->pool.  Method code that can sit under the offload
+ * (the PROPFIND family, resource resolve/stat, later SEARCH/LOCK) must reach
+ * its pool through here rather than naming r->pool directly. */
+static ngx_inline ngx_pool_t *
+webdav_req_pool(ngx_http_request_t *r)
+{
+    ngx_http_brix_webdav_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+    return (rx != NULL && rx->walk_pool != NULL) ? rx->walk_pool : r->pool;
+}
 
 /* Escape control bytes/quotes/backslashes/non-ASCII in `in` to \xNN, writing a
  * NUL-terminated result into out[outsz] (truncated to fit).  Returns the number

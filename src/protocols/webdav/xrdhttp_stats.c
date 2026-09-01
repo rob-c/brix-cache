@@ -25,6 +25,7 @@
 
 #include "xrdhttp.h"
 #include "webdav.h"
+#include "core/http/http_headers.h"  /* brix_http_set_header */
 #include "core/ident.h"
 
 #include <stdio.h>
@@ -216,7 +217,6 @@ xrdhttp_handle_stats_query(ngx_http_request_t *r)
     int              len;
     ngx_buf_t       *b;
     ngx_chain_t      out;
-    ngx_table_elt_t *h;
 
     len = build_stats_xml(buf, sizeof(buf), r);
     if (len < 0) {
@@ -227,22 +227,14 @@ xrdhttp_handle_stats_query(ngx_http_request_t *r)
     r->headers_out.content_length_n = len;
     r->allow_ranges = 0;
 
-    h = ngx_list_push(&r->headers_out.headers);
-    if (h == NULL) {
+    if (brix_http_set_header(r, "Content-Type",
+                               "text/xml; charset=utf-8", NULL) != NGX_OK
+        /* Cache-Control: no-store — stats are always current. */
+        || brix_http_set_header(r, "Cache-Control", "no-store", NULL)
+           != NGX_OK)
+    {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    h->hash = 1;
-    ngx_str_set(&h->key, "Content-Type");
-    ngx_str_set(&h->value, "text/xml; charset=utf-8");
-
-    /* Cache-Control: no-store — stats are always current. */
-    h = ngx_list_push(&r->headers_out.headers);
-    if (h == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    h->hash = 1;
-    ngx_str_set(&h->key, "Cache-Control");
-    ngx_str_set(&h->value, "no-store");
 
     (void) xrdhttp_add_response_headers(r, NGX_HTTP_OK);
 

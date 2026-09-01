@@ -61,7 +61,7 @@ webdav_resolve_stat(ngx_http_request_t *r, char *path, size_t pathsz,
 
     ngx_memzero(&vctx, sizeof(vctx));
     vctx.rootfd = -1;
-    vctx.pool = r->pool;
+    vctx.pool = webdav_req_pool(r);   /* task pool when offloaded (phase-109) */
     vctx.log = r->connection->log;
     vctx.metrics_proto = BRIX_PROTO_WEBDAV;
     vctx.root_canon = conf->common.root_canon;

@@ -96,7 +96,7 @@ brix_vfs_truncate_path(brix_vfs_ctx_t *ctx, off_t length)
         errno = EINVAL;
         return NGX_ERROR;
     }
-    if (brix_vfs_require_confined_mutation(ctx,
+    if (brix_vfs_confined_mutation_checked(ctx,
             BRIX_VFS_MUTATE_TRUNCATE) != NGX_OK)
     {
         return NGX_ERROR;

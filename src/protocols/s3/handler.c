@@ -257,7 +257,6 @@ s3_add_preflight_headers(ngx_http_request_t *r, const ngx_str_t *allow)
 static ngx_int_t
 s3_handle_options(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
 {
-    ngx_table_elt_t *h;
     ngx_str_t        allow;
 
     if (brix_http_operation_allow_header(r->pool,
@@ -267,13 +266,9 @@ s3_handle_options(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    h = ngx_list_push(&r->headers_out.headers);
-    if (h == NULL) {
+    if (brix_http_set_header_str(r, "Allow", &allow, 0, NULL) != NGX_OK) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    h->hash = 1;
-    ngx_str_set(&h->key, "Allow");
-    h->value = allow;
 
     if (s3_add_preflight_headers(r, &allow) != NGX_OK) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;

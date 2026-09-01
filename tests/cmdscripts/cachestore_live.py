@@ -236,7 +236,8 @@ thread_pool default threads=2;
 events {{ worker_connections 64; }}
 http {{ client_body_temp_path {node}/tmp; server {{ listen {BIND_HOST}:{node_port};
   location / {{ brix_webdav on; brix_export {node}/backend; brix_webdav_auth none;
-    brix_cache_store {store_url}; }} }} }}
+    brix_cache_store {store_url};
+    brix_cache_meta sidecar; }} }} }}
 """)
     source = node / "backend/f.bin"
     digest = random_file(source, 450000)

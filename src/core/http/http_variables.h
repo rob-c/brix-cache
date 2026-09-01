@@ -54,4 +54,25 @@ const char *brix_cache_status_name(brix_cache_status_e status);
  * preconfiguration. */
 ngx_int_t brix_http_add_variables(ngx_conf_t *cf);
 
+/*
+ * Bind the request's I/O monitor onto a data-plane VFS ctx so the observer can
+ * fold bytes/latency/page-CRC into it for $brix_bytes_served /
+ * $brix_backend_time / $brix_checksum. Call from the HTTP data-plane ctx
+ * builders (webdav_vfs_ctx_build_data, s3 GET/PUT ctx), which run on the EVENT
+ * LOOP — never from an offloaded (thread) ctx build, as this may allocate on
+ * r->pool. Idempotent and safe on NULL args. Forward-declared brix_vfs_ctx_s so
+ * the header does not pull in the VFS surface.
+ */
+struct brix_vfs_ctx_s;
+void brix_http_monitor_bind(ngx_http_request_t *r, struct brix_vfs_ctx_s *vctx);
+
+/*
+ * Record the client-facing served-byte count for $brix_bytes_served. Call from
+ * the serve-metrics site with brix_http_serve_result_t.bytes_sent — the serve
+ * is zero-copy (sendfile) and never reaches the per-op VFS observer, so this is
+ * the authoritative byte source. No-op if the request bound no monitor or bytes
+ * <= 0. Safe on the event loop (the serve path); never allocates.
+ */
+void brix_http_monitor_record_served(ngx_http_request_t *r, off_t bytes);
+
 #endif /* BRIX_CORE_HTTP_VARIABLES_H */

@@ -20,6 +20,7 @@
 #include "webdav.h"
 #include "webdav_auth.h"    /* own declarations */
 #include "fs/vfs/vfs.h"     /* brix_vfs_ctx_init / bind_backend_* / deleg_bind */
+#include "core/http/http_variables.h"       /* brix_http_monitor_bind (W1 tail) */
 #include "protocols/shared/deleg_wire.h"    /* §5.2 aud gate + §5.4 exchange */
 #include "fs/backend/sd.h"  /* enum brix_cred_mode / BRIX_CRED_SELECT */
 
@@ -140,4 +141,10 @@ webdav_vfs_ctx_build_data(ngx_http_request_t *r,
     brix_vfs_ctx_t *vctx)
 {
     webdav_vfs_ctx_build_bound(r, conf, path, 1, vctx);
+    /* Data plane only: bind the per-request I/O monitor so the observer folds
+     * bytes/latency/page-CRC for $brix_bytes_served / $brix_backend_time /
+     * $brix_checksum. This is an event-loop builder (GET/PUT/COPY handlers);
+     * the metadata builders above deliberately do NOT bind, both because they
+     * move no bytes and because some run on an offload thread. */
+    brix_http_monitor_bind(r, vctx);
 }

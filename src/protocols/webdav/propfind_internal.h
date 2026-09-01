@@ -84,6 +84,29 @@ int propfind_parse_depth(ngx_http_request_t *r);
 ngx_int_t propfind_walk(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail, const char *dir_path, const char *base_href, ngx_uint_t *entry_count, ngx_uint_t max_entries, const propfind_req_t *req, ngx_flag_t recurse);
 ngx_int_t propfind_do(ngx_http_request_t *r);
 
+/* phase-109: the build/send split, so the walk (all the VFS I/O and the XML
+ * assembly) can run on a thread-pool thread while headers+body are sent from
+ * the event loop.  propfind_build fills *head with the finalized 207 body and
+ * *total_len with its length; on failure it returns the HTTP status and the
+ * chain is dead.  propfind_send emits headers + body on the EVENT LOOP only.
+ * propfind_do == build + send inline (the non-offloaded path, byte-identical
+ * to the pre-split behaviour). */
+ngx_int_t propfind_build(ngx_http_request_t *r, ngx_chain_t **head,
+                         off_t *total_len);
+ngx_int_t propfind_send(ngx_http_request_t *r, ngx_chain_t *head,
+                        off_t total_len);
+
+/* phase-109: the allocator for everything the PROPFIND build phase creates.
+ * The offloaded build must NOT touch r->pool (nginx pools are not thread-safe
+ * against concurrent event-loop teardown), so every build-phase allocation
+ * goes through here: the task-private pool when the walk is offloaded, r->pool
+ * otherwise. */
+static ngx_inline ngx_pool_t *
+propfind_pool(ngx_http_request_t *r)
+{
+    return webdav_req_pool(r);       /* the shared accessor in webdav.h */
+}
+
 /* propfind.c */
 void propfind_body_handler(ngx_http_request_t *r);
 

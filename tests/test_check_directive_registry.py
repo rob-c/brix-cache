@@ -266,6 +266,36 @@ def test_r10_is_not_trivially_evadable(tmp_path):
         assert "[R10]" in r.stdout, f"{name} slipped past R10:\n{r.stdout}"
 
 
+def test_r10_actually_gates_the_process_under_fail(tmp_path):
+    """(security, regression for the 'detected but not gating' bug) R10 is a
+    SECURITY rule, so a credential-shaped variable must fail the CI process
+    (exit 1) under --fail, not merely print a WARN line.
+
+    The bug this pins: R10 findings were computed and printed, but R10 was NOT
+    in the checker's gating set, so `check_directive_registry.py --fail` still
+    returned 0 with a credential-shaped variable present. WARN-mode coverage
+    (the cells above) cannot catch that — only asserting the exit code does.
+    """
+    src = _write_vars(tmp_path, "protocols/x/mod.c", ["brix_bearer_token"])
+    r = _run(src, fail=True)
+    assert r.returncode == 1, (
+        "R10 did not gate under --fail (a credential-shaped variable passed "
+        f"CI): rc={r.returncode}\n{r.stdout}\n{r.stderr}")
+    assert "[R10]" in r.stdout, r.stdout
+
+
+def test_r7_and_r9_also_gate_under_fail(tmp_path):
+    """(regression) R7 (naming) and R9 (same-plane duplicate) gate too — they
+    landed in the same gating-set fix as R10, so pin them the same way."""
+    # R7: an unprefixed variable.
+    src = _write_vars(tmp_path, "protocols/x/mod.c", ["cvmfs_cache"])
+    assert _run(src, fail=True).returncode == 1, "R7 did not gate"
+    # R9: one name registered twice on one plane.
+    _write_vars(tmp_path, "protocols/a/mod.c", ["brix_thing"])
+    src = _write_vars(tmp_path, "protocols/b/mod.c", ["brix_thing"])
+    assert _run(src, fail=True).returncode == 1, "R9 did not gate"
+
+
 def test_r10_allows_the_one_reviewed_exception(tmp_path):
     """$brix_delegated_cred predates the rule and exists to hand a delegated
     credential to proxy_ssl_certificate; it is the single allowlisted entry."""

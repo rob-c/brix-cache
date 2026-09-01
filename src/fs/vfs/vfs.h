@@ -98,6 +98,11 @@ typedef struct {
     unsigned     eof:1;
 } brix_vfs_io_result_t;
 
+/* Observability accumulator (src/observability/metrics/io_monitor.h). A bare
+ * forward decl keeps the VFS layer free of any observability include: it only
+ * ever folds into the pointee through brix_io_monitor_add(). */
+struct brix_io_monitor_s;
+
 struct brix_vfs_ctx_s {
     ngx_pool_t          *pool;
     ngx_log_t           *log;
@@ -133,6 +138,12 @@ struct brix_vfs_ctx_s {
      * fails closed; immutable for the life of the operation. Every mutation
      * entry point asks brix_vfs_require_mutation() rather than reading it. */
     brix_vfs_mutation_policy_t mutation_policy;
+    /* Per-request I/O monitor, or NULL when this request is not monitored
+     * (metadata-only paths, internal maintenance ops). The owning HTTP plane
+     * allocates it on the request pool on the EVENT LOOP and points here; the
+     * post-op observer folds bytes/latency/crc into it. Borrowed, never freed
+     * by the VFS. See io_monitor.h for the threading contract. */
+    struct brix_io_monitor_s *io_monitor;
     unsigned             is_tls:1;
     unsigned             want_pgcrc:1;
     unsigned             cache_enabled:1;

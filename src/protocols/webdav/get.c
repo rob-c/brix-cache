@@ -7,6 +7,7 @@
 #include "core/compat/error_mapping.h"
 #include "core/http/etag.h"
 #include "core/http/http_conditionals.h"
+#include "core/http/http_variables.h"       /* brix_http_monitor_record_served */
 #include "fs/cache/open.h"
 #include "observability/dashboard/dashboard_tracking.h"
 #include "fs/vfs/vfs.h"
@@ -31,6 +32,9 @@ webdav_serve_metrics(ngx_http_request_t *r,
         BRIX_WEBDAV_METRIC_INC(range_total[BRIX_WEBDAV_RANGE_FULL]);
     }
     if (result->bytes_sent > 0) {
+        /* phase-106 W1: the authoritative served-byte count for
+         * $brix_bytes_served (the serve is zero-copy, off the VFS observer). */
+        brix_http_monitor_record_served(r, result->bytes_sent);
         BRIX_WEBDAV_METRIC_ADD(bytes_tx_total, (size_t) result->bytes_sent);
         if (r->connection && r->connection->sockaddr) {
             if (r->connection->sockaddr->sa_family == AF_INET6) {

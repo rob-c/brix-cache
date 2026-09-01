@@ -199,6 +199,9 @@ LABEL_KEYS = {
     'brix_vo_bytes_tx_total': ('vo',),
     'brix_vo_overflow_total': (),
     'brix_vo_requests_total': ('vo',),
+    # 2026-08-31: phase-105 added this family to HELP without the schema
+    # half (labels per unified_export.c:141).
+    'brix_vfs_mutation_denied_total': ('op', 'proto', 'reason'),
     'brix_webdav_auth_total': ('result',),
     'brix_webdav_bytes_rx_ipv4_total': (),
     'brix_webdav_bytes_rx_ipv6_total': (),

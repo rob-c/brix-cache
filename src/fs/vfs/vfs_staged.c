@@ -74,7 +74,7 @@ staged_alloc_handle(brix_vfs_ctx_t *ctx, int *err_out)
 {
     brix_vfs_staged_t *st;
 
-    if (brix_vfs_require_confined_mutation(ctx,
+    if (brix_vfs_confined_mutation_checked(ctx,
             BRIX_VFS_MUTATE_OPEN) != NGX_OK)
     {
         return staged_open_fail(err_out);
@@ -312,6 +312,10 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
         errno = EINVAL;
         return NGX_ERROR;
     }
+    /* Snapshot the checked pointer: the analyzer loses st->ctx's non-NULL
+     * constraint across the cross-TU calls below (the catalogue shape); a
+     * local read once keeps the proof local (phase-109 cleanup). */
+    brix_vfs_ctx_t *ctx = st->ctx;
 
     /* phase-105: publish is the mutation that actually lands bytes in the
      * export — gated on the carried policy before anything is renamed.
@@ -324,19 +328,19 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
      * read-only endpoint is turning requests away at the door or only at the
      * last step — and the second would mean bytes had already been staged. */
     if (brix_vfs_require_carried_mutation(st->mutation_policy,
-            brix_vfs_metrics_proto(st->ctx), BRIX_VFS_MUTATE_PUBLISH) != NGX_OK)
+            brix_vfs_metrics_proto(ctx), BRIX_VFS_MUTATE_PUBLISH) != NGX_OK)
     {
         return NGX_ERROR;
     }
 
-    final_path = brix_vfs_ctx_path(st->ctx);
+    final_path = brix_vfs_ctx_path(ctx);
 
     /* Driver-backed: the driver publishes the object atomically. On success it
      * consumes its staged handle (NULL it out so abort is not double-applied);
      * on failure the handle stays valid for the caller's abort. The byte count
      * is the high-water mark tracked across staged writes. */
     if (st->driver_staged != NULL) {
-        rc = st->ctx->sd->driver->staged_commit(st->driver_staged, excl);
+        rc = ctx->sd->driver->staged_commit(st->driver_staged, excl);
         if (rc != NGX_OK) {
             saved_errno = errno;
             brix_vfs_observe_ctx_op_ex(st->ctx, final_path,
@@ -367,9 +371,9 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
     }
 
     rc = excl
-         ? brix_staged_commit_excl(st->log, st->ctx->root_canon, &st->staged,
+         ? brix_staged_commit_excl(st->log, ctx->root_canon, &st->staged,
                                      final_path)
-         : brix_staged_commit(st->log, st->ctx->root_canon, &st->staged,
+         : brix_staged_commit(st->log, ctx->root_canon, &st->staged,
                                 final_path);
     if (rc != NGX_OK) {
         saved_errno = errno;
@@ -381,7 +385,7 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
         return NGX_ERROR;
     }
 
-    brix_vfs_neg_stat_forget(st->ctx->root_canon, final_path);
+    brix_vfs_neg_stat_forget(ctx->root_canon, final_path);
     brix_vfs_observe_ctx_op_ex(st->ctx, final_path, BRIX_METRIC_OP_WRITE, NULL,
                               bytes, NGX_OK, 0, start, 0);
     /* The publication record — the single place this committed object is

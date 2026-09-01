@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from pathlib import Path
 
 import pytest
@@ -113,6 +114,22 @@ def _log_lines(inst):
     return [ln for ln in log.read_text(errors="replace").splitlines() if ln.strip()]
 
 
+def _wait_for_log_lines(inst, min_count, timeout=10.0):
+    """Poll the access log until it holds at least ``min_count`` non-empty
+    lines, or ``timeout`` elapses.  nginx writes the access-log line in the LOG
+    phase, which runs AFTER the client has received the response and closed the
+    connection — so under load that write can lag the client read by tens of
+    milliseconds and a single read races it (observed intermittently only in
+    the full parallel suite, never solo).  On timeout the current lines are
+    returned so the caller's own assertion still fires with its real message."""
+    deadline = time.monotonic() + timeout
+    lines = _log_lines(inst)
+    while len(lines) < min_count and time.monotonic() < deadline:
+        time.sleep(0.05)
+        lines = _log_lines(inst)
+    return lines
+
+
 def test_log_format_over_brix_variables_writes_every_field(node):
     """(success) One log_format built from the new variables serves a request
     and writes each field with its documented vocabulary.
@@ -123,6 +140,7 @@ def test_log_format_over_brix_variables_writes_every_field(node):
     """
     import http.client
 
+    before = len(_log_lines(node))
     conn = http.client.HTTPConnection(node.host, node.port, timeout=30)
     try:
         conn.request("GET", "/probe.txt")
@@ -133,8 +151,8 @@ def test_log_format_over_brix_variables_writes_every_field(node):
     assert resp.status == 200, f"GET failed: {resp.status}"
     assert body == b"brix variable probe\n"
 
-    lines = _log_lines(node)
-    assert lines, "no access-log line was written at all"
+    lines = _wait_for_log_lines(node, before + 1)
+    assert len(lines) > before, "no access-log line was written at all"
     last = lines[-1]
 
     _assert_core_fields(dict(re.findall(r"(\w+)=(\S+)", last)), last)
@@ -190,11 +208,73 @@ def test_variables_resolve_without_a_brix_handler(node):
     finally:
         conn.close()
 
-    lines = _log_lines(node)
+    lines = _wait_for_log_lines(node, before + 1)
     assert len(lines) > before, "the miss was not logged"
     fields = dict(re.findall(r"(\w+)=(\S+)", lines[-1]))
     assert fields.get("tls") == "off", lines[-1]
     assert fields.get("cache") == NONE, lines[-1]
+    # The data-plane monitor variables are the sentinel here: brix opened
+    # nothing and served no bytes, so a bogus "0" or empty field would be a
+    # lie. This is the same "-" != "measured zero" discipline as $brix_cache.
+    assert fields.get("bytes") == NONE, lines[-1]
+    assert fields.get("ck") == NONE, lines[-1]
+
+
+def test_data_plane_variables_reflect_a_real_get(node):
+    """(success) A real GET populates the data-plane monitor surface:
+    $brix_bytes_served equals the bytes brix actually served (the serve is
+    zero-copy sendfile — proving the value comes from the serve result, not the
+    per-op VFS observer), and $brix_backend_time is a seconds.mmm figure in the
+    SAME shape as nginx's $request_time so an operator reads one log line, not
+    two vocabularies. A plain GET computes no page-CRC, so $brix_checksum is the
+    honest sentinel — the value that makes the variable safe to always log."""
+    import http.client
+
+    before = len(_log_lines(node))
+    conn = http.client.HTTPConnection(node.host, node.port, timeout=30)
+    try:
+        conn.request("GET", "/probe.txt")
+        resp = conn.getresponse()
+        body = resp.read()
+    finally:
+        conn.close()
+    assert resp.status == 200, resp.status
+
+    lines = _wait_for_log_lines(node, before + 1)
+    fields = dict(re.findall(r"(\w+)=(\S+)", lines[-1]))
+    last = lines[-1]
+    # bytes served == the bytes the client received (no range, no compression).
+    assert fields.get("bytes") == str(len(body)), last
+    assert int(fields["bytes"]) > 0, last
+    # backend time: seconds.mmm, same format as $request_time; present (brix did
+    # the open/stat), never the sentinel once brix touched storage.
+    assert re.match(r"^\d+\.\d{3}$", fields.get("backend", "")), last
+    # checksum: no page-CRC on a plain GET → sentinel, and when present it is
+    # always algorithm-tagged (INVARIANT #9, encode at the edge) so it can never
+    # be misread as adler32/md5.
+    assert fields.get("ck") == NONE or fields["ck"].startswith("crc32c:"), last
+
+
+def test_bytes_served_is_the_brix_figure_not_a_range_slice(node):
+    """(success, range) A ranged GET serves fewer bytes; $brix_bytes_served
+    tracks what brix actually put on the wire for THIS request, so the value
+    follows the range rather than the file size — the property that makes it
+    usable for read-amplification accounting alongside $body_bytes_sent."""
+    import http.client
+
+    before = len(_log_lines(node))
+    conn = http.client.HTTPConnection(node.host, node.port, timeout=30)
+    try:
+        conn.request("GET", "/probe.txt", headers={"Range": "bytes=0-3"})
+        resp = conn.getresponse()
+        body = resp.read()
+    finally:
+        conn.close()
+    # 206 with 4 bytes if range honoured; some builds may 200 the whole file —
+    # either way bytes served must equal what the client received.
+    lines = _wait_for_log_lines(node, before + 1)
+    fields = dict(re.findall(r"(\w+)=(\S+)", lines[-1]))
+    assert fields.get("bytes") == str(len(body)), (resp.status, lines[-1])
 
 
 def test_brix_origin_strips_userinfo_from_a_remote_backend(tmp_path):

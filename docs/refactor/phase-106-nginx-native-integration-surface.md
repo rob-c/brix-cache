@@ -570,10 +570,13 @@ whether anything is urgent: **is any blocking `curl_easy_perform` reachable on
 a request-handling path that is NOT thread-offloaded?**
 `brix_token_exchange()` is called from `src/fs/vfs/vfs_deleg.c:199,214` and
 `src/protocols/webdav/tpc_cred.c:218`. TPC is thread-offloaded; the
-`vfs_deleg.c` path is **not yet traced** and is the specific thing to
-establish. If that path runs on the event loop, it is a latent worker stall
-under a slow/unreachable token endpoint — a real availability bug, and it
-would be promoted out of this study into its own fix immediately.
+`vfs_deleg.c` path **was traced (see the W5 audit result below): it runs on
+the EVENT LOOP** — `vfs_cred.c:127` → `brix_vfs_deleg_exchange` →
+`brix_vfs_opendir`, reached by WebDAV PROPFIND/SEARCH/LOCK, none of which are
+thread-offloaded. It is a latent worker stall under a slow/unreachable token
+endpoint (bounded at 30s, cached per-worker, opt-in), filed as R-7 and
+recommended for the phase-109 transport conversion; the interim bound is now
+enforced by `tests/test_blocking_curl_bounded.py`.
 
 ### Deliverables (study only — no production code)
 
@@ -1010,29 +1013,56 @@ tier-2 effort estimate is a guess.
 
 Eleven of the fourteen tier-1 variables are **handler-only work** — the value
 already exists at the VFS seam and needs a get_handler plus a registration
-row. Three (`$brix_tier`, `$brix_origin`, `$brix_backend_time`) need
+row. Three (`$brix_bytes_served`, `$brix_backend_time`, `$brix_checksum`) need
 data-plane work first.
 
-**Therefore W1 should ship in two commits**: the eleven cheap ones first
-(immediately useful, low risk, no data-plane change), then the three that need
-new tracking. Do not let the three expensive ones hold up the eleven.
+**W1 shipped in two commits as planned**: the eleven cheap ones first
+(2026-08-30), then the three data-plane ones (2026-09-01) once the per-request
+`brix_io_monitor_t` retention layer existed — see the Appendix H as-shipped
+note. `$brix_tier` and `$brix_origin`, though listed "new" above, turned out to
+be resolvable from the bound instance/config without new tracking and shipped
+in the first commit; the genuine data-plane trio was the served-bytes /
+backend-time / page-CRC set.
 
 ---
 
 ## Appendix H — target operator experience
 
-The point of the phase, expressed as config an operator would write. None of
-these work today; each is the acceptance criterion for its workstream in the
-form the user actually cares about.
+The point of the phase, expressed as config an operator would write. Written as
+the pre-implementation acceptance criterion for each workstream; **every
+variable below is now live** (the data-plane trio landed 2026-09-01) — see the
+Appendix F as-built log and the W1 as-shipped note below for the shipped
+surface.
 
 **W1 — a cache-hit-rate log line that works on every HTTP plane:**
 
 ```nginx
 log_format brix '$remote_addr $status $body_bytes_sent '
                 'cache=$brix_cache_status vo=$brix_vo auth=$brix_auth_method '
-                'origin=$brix_origin backend_ms=$brix_backend_time';
+                'origin=$brix_origin served=$brix_bytes_served '
+                'backend=$brix_backend_time';
 access_log /var/log/nginx/brix.log brix;
 ```
+
+> **As-shipped note (2026-09-01).** ALL of W1's variables are now live,
+> including the three data-plane values Appendix G sequenced as the "expensive
+> second commit" — `$brix_bytes_served`, `$brix_backend_time`, `$brix_checksum`.
+> The data-plane retention they needed is a single `brix_io_monitor_t`
+> (`src/observability/metrics/io_monitor.h`): a per-request accumulator the
+> HTTP plane allocates on the event loop, points `brix_vfs_ctx_t->io_monitor`
+> at (through a bare forward-declared pointer, so the VFS layer stays
+> observability-agnostic), and reads at log time. Backend time and page-CRC
+> fold from the VFS post-op observer; served bytes fold from the serve result
+> (`brix_http_serve_result_t.bytes_sent`), because the serve is zero-copy
+> (sendfile) and never reaches the per-op observer — giving each variable one
+> authoritative source and no double-count. `$brix_backend_time` renders in the
+> SAME `seconds.mmm` format as `$request_time` so an operator reads one
+> vocabulary; `$brix_checksum` is `crc32c:<hex>` (INVARIANT #9) and `-` unless
+> page-CRC was active. Wired at the event-loop data-plane ctx builders
+> (`webdav_vfs_ctx_build_data` → WebDAV GET/PUT/COPY; `s3_vfs_ctx` → S3 GET);
+> the metadata builders deliberately do not bind (they move no bytes and some
+> run on an offload thread). Tests: `test_brix_http_variables.py` (real-GET,
+> range, and sentinel cells).
 
 **W1 — routing and shaping on brix state, with no brix code involved:**
 
@@ -1131,7 +1161,7 @@ commit — re-run those two greps first.
 | R-4 | `X-Accel-Redirect` becomes an authz bypass — a client injects the header, or a denied decision still reaches the internal location | W3 | Low if tested, **catastrophic if not** | **Severe** (unauthenticated read of any object) | The W3 security-neg test is the workstream's load-bearing test; internal location must be `internal;` and unreachable externally |
 | R-5 | The outbound static-module handoff bypasses checksum/verification or POSC state, silently serving unverified bytes | W3 outbound | Medium | High (correctness + integrity regression) | Recommended deferral of the outbound half; if taken, the gate conditions must be enumerated and tested before any code |
 | R-6 | The `auth_request` endpoint becomes a token oracle or is called repeatedly with a state-mutating side effect | W4 | Medium | High | Local verification only (W4-a recommendation); idempotence requirement; security-neg test asserts non-distinguishable failure modes |
-| R-7 | An event-loop-reachable blocking `curl_easy_perform` stalls a worker under a slow token endpoint | W5 (existing, latent) | **Unknown — untraced** | High (availability) | W5 deliverable 1 is exactly this audit and runs FIRST; `vfs_deleg.c:199,214` is the specific unresolved caller |
+| R-7 | An event-loop-reachable blocking `curl_easy_perform` stalls a worker under a slow token endpoint | W5 (traced 2026-08-31) | **CLOSED 2026-08-31 by phase 109** — the three metadata methods (PROPFIND/SEARCH; LOCK excluded, see phase-109 W2) were thread-offloaded behind a remote/EXCHANGE gate, taking the exchange off the event loop. Bound (30s, cached, opt-in) retained as defence-in-depth | High (availability) | Was: bound enforced (`test_blocking_curl_bounded.py`, which also caught+fixed the unbounded `tpc_verify.c` HEAD). Now: fixed by **metadata thread-offload** — NOT the `curl_multi_socket_action` rewrite W5 first recommended (that had zero in-tree precedent and would break the synchronous vtable); see `phase-109-http-metadata-thread-offload.md` |
 | R-8 | A transport rewrite is started on the strength of this document's framing rather than the study's finding | W5 | Medium (the item is attractive) | High (large, risky, cross-cutting churn) | W5 ships no code; OP-DECIDE gate; the `curl_multi_socket_action` middle option must be costed before the big one |
 | R-9 | Variables registered in preconfiguration behave differently under `load_module` than in a static build | W7 | Low–Medium | Medium (packaged builds diverge from dev) | W7's acceptance names this as the specific regression to prevent; test both builds |
 | R-10 | This phase's variable surface drifts the way the directive surface did pre-101 | W8 | High without governance | Medium (accretes into another two-wave cleanup) | R7–R10 land alongside W1/W2, not after |
@@ -1292,13 +1322,20 @@ The OP directed "implement all," which decides every gate below.
    fill/verification step to bypass.
 3. **W4-a** — RESOLVED: local verification only, no token exchange. Reinforced
    by the W5 audit, which found the exchange to be a blocking event-loop call.
-4. **W5-a** — RESOLVED: recommendation written (option (b),
-   `curl_multi_socket_action`), transport rewrite deferred to its own phase 109
-   as the recommendation itself directs. The study — W5's actual scope — is
-   complete; no transport code was rushed onto the auth+data path.
+4. **W5-a** — RESOLVED, then SUPERSEDED. W5 wrote a recommendation (option
+   (b), `curl_multi_socket_action`) and deferred the work to phase 109. Phase
+   109's implementation investigation then REJECTED that recommendation:
+   `curl_multi_socket_action` has zero in-tree precedent and would break the
+   synchronous transport vtable every caller relies on. Phase 109 instead
+   thread-offloaded the metadata methods (the same pattern GET/PUT/COPY/MOVE
+   already use), which closes R-7 without touching the transport. The study —
+   W5's actual scope — is complete; no transport code was rushed onto the
+   auth+data path, and the transport is NOT rewritten.
 5. **External adoption vs observability** — RESOLVED: both. W1/W2 deliver
    observability; W3/W4 deliver external adoption. All landed.
 
-Nothing in phase 106 remains open. The single forward pointer is phase 109
-(the `curl_multi_socket_action` transport conversion), which this phase
-deliberately does not begin.
+Nothing in phase 106 remains open. Its single forward pointer, R-7, was
+carried by **phase 109** and CLOSED there — via metadata thread-offload, not
+the `curl_multi_socket_action` transport conversion W5 first sketched (phase
+109 rejected that as precedent-free and vtable-breaking). The transport is not
+rewritten. See `phase-109-http-metadata-thread-offload.md`.

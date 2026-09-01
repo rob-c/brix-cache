@@ -16,7 +16,7 @@ static ngx_int_t
 propfind_emit_owner(ngx_http_request_t *r, ngx_chain_t **head,
                      ngx_chain_t **tail, ngx_http_brix_webdav_req_ctx_t *ctx)
 {
-    ngx_pool_t *pool = r->pool;
+    ngx_pool_t *pool = propfind_pool(r);
     const char *owner = (ctx != NULL && ctx->dn[0] != '\0')
                         ? ctx->dn : "anonymous";
     char *safe_owner = webdav_escape_xml_text(pool, owner);
@@ -46,7 +46,7 @@ propfind_emit_current_privilege(ngx_http_request_t *r, ngx_chain_t **head,
                                   ngx_chain_t **tail,
                                   ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    ngx_pool_t *pool = r->pool;
+    ngx_pool_t *pool = propfind_pool(r);
 
     if (brix_http_chain_appendf(pool, head, tail,
             "<D:current-user-privilege-set>"
@@ -88,7 +88,7 @@ static ngx_int_t
 propfind_emit_supported_privilege(ngx_http_request_t *r, ngx_chain_t **head,
                                     ngx_chain_t **tail)
 {
-    ngx_pool_t *pool = r->pool;
+    ngx_pool_t *pool = propfind_pool(r);
 
     if (brix_http_chain_appendf(pool, head, tail,
             "<D:supported-privilege-set>"
@@ -134,7 +134,7 @@ static ngx_int_t
 propfind_emit_acl(ngx_http_request_t *r, ngx_chain_t **head,
                    ngx_chain_t **tail, ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    ngx_pool_t *pool = r->pool;
+    ngx_pool_t *pool = propfind_pool(r);
 
     if (brix_http_chain_appendf(pool, head, tail,
             "<D:acl><D:ace><D:principal><D:all/></D:principal>"
@@ -173,7 +173,7 @@ propfind_append_acl_properties(ngx_http_request_t *r, ngx_chain_t **head,
 {
     ngx_http_brix_webdav_loc_conf_t *conf;
     ngx_http_brix_webdav_req_ctx_t  *ctx;
-    ngx_pool_t                        *pool = r->pool;
+    ngx_pool_t                        *pool = propfind_pool(r);
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);

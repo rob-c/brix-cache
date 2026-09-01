@@ -379,8 +379,10 @@ test_setxattr_flag_semantics(void)
 }
 
 /* Test 3 (error): a non-user namespace is ENOTSUP (only user.* maps to
- * x-amz-meta-*) and a value carrying a header-breaking byte is EINVAL — both
- * rejected before any origin contact. */
+ * x-amz-meta-*) and a value this mapping cannot REPRESENT — a header-breaking
+ * byte (CR/LF/NUL) or an oversize blob — is reported with an errno the xmeta
+ * carrier's xattr->sidecar fallback recognises (ENOTSUP / E2BIG), never EINVAL.
+ * All are rejected before any origin contact. */
 static void
 test_setxattr_rejects_bad_input(void)
 {
@@ -398,11 +400,37 @@ test_setxattr_rejects_bad_input(void)
     assert(g_head_calls == 0 && g_put_calls == 0);
 
     reset_capture();
+    /* 2026-09-01: CR/LF -> ENOTSUP, not EINVAL. A value this mapping cannot
+     * REPRESENT is "unfit here": the xmeta carrier's xattr->sidecar fallback
+     * (xmeta_xattr_unfit) rides on ENOTSUP/E2BIG but hard-fails on EINVAL, and
+     * the old EINVAL broke every binary cinfo store over an sd_remote store. */
     rc = inst->driver->setxattr(inst, "/a.txt", "user.bad", "a\nb", 3, 0);
-    assert(rc == NGX_ERROR && errno == EINVAL);
+    assert(rc == NGX_ERROR && errno == ENOTSUP);
     assert(g_head_calls == 0 && g_put_calls == 0);
 
-    printf("  ok   3: non-user ns->ENOTSUP; CR/LF value->EINVAL (no I/O)\n");
+    /* 2026-09-01: a NUL byte is the REALISTIC trigger — the cache's cinfo
+     * record is a binary blob and routinely carries NUL, which cannot ride an
+     * x-amz-meta header.  It must map to ENOTSUP so the carrier falls back to
+     * the ".cinfo" sidecar rather than hard-failing the store (bug 26). */
+    reset_capture();
+    rc = inst->driver->setxattr(inst, "/a.txt", "user.cinfo", "a\0b", 3, 0);
+    assert(rc == NGX_ERROR && errno == ENOTSUP);
+    assert(g_head_calls == 0 && g_put_calls == 0);
+
+    /* Oversize (>= SD_REMOTE_XA_VALUE) is "unfit here" too: E2BIG, again in the
+     * carrier's fallback set, so an over-long value rides the sidecar. */
+    {
+        char big[4096];
+        memset(big, 'x', sizeof(big));
+        reset_capture();
+        rc = inst->driver->setxattr(inst, "/a.txt", "user.big",
+                                    big, sizeof(big), 0);
+        assert(rc == NGX_ERROR && errno == E2BIG);
+        assert(g_head_calls == 0 && g_put_calls == 0);
+    }
+
+    printf("  ok   3: non-user->ENOTSUP; CR/LF+NUL->ENOTSUP; oversize->E2BIG "
+           "(all unfit-set, no I/O)\n");
     brix_sd_remote_destroy(inst);
 }
 

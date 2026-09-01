@@ -5,6 +5,7 @@
 #include "core/http/http_headers.h"
 #include "observability/dashboard/dashboard_tracking.h"
 #include "fs/vfs/vfs.h"
+#include "core/http/http_variables.h"              /* brix_http_monitor_bind (W1 tail) */
 #include "protocols/shared/file_serve.h"
 #include "protocols/shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */
 #include "protocols/shared/http_serve_offload.h"  /* phase-64 SP3: off-loop remote serve */
@@ -26,6 +27,9 @@ s3_serve_metrics(ngx_http_request_t *r,
         BRIX_S3_METRIC_INC(range_total[BRIX_S3_RANGE_FULL]);
     }
     if (result->bytes_sent > 0) {
+        /* phase-106 W1: authoritative served-byte count for $brix_bytes_served
+         * (zero-copy serve, off the VFS observer) — same as WebDAV GET. */
+        brix_http_monitor_record_served(r, result->bytes_sent);
         BRIX_S3_METRIC_ADD(bytes_tx_total, (size_t) result->bytes_sent);
         if (r->connection && r->connection->sockaddr
             && r->connection->sockaddr->sa_family == AF_INET6) {
@@ -76,6 +80,11 @@ s3_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
         &cf->common.storage_credential_mint_ca_key,
         cf->common.storage_credential_mint_ttl);
     s3_vfs_bind_deleg(r, cf, vctx);
+    /* S3 GET serve path (event loop; the off-loop fill/serve gates below read
+     * this ctx). Bind the per-request I/O monitor so $brix_bytes_served /
+     * $brix_backend_time / $brix_checksum report on the S3 download plane
+     * exactly as they do on WebDAV. */
+    brix_http_monitor_bind(r, vctx);
 }
 
 /* Re-entry state for the off-event-loop cache fill: GetObject needs its absolute

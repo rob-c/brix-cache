@@ -29,7 +29,7 @@ propfind_dir_ctx(ngx_http_request_t *r, const char *root_canon,
     const char *dir_path, brix_vfs_ctx_t *vctx)
 {
     int is_tls = brix_http_request_is_tls(r);
-    brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
+    brix_vfs_ctx_init(vctx, propfind_pool(r), r->connection->log, BRIX_PROTO_WEBDAV,
         root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL, dir_path);
 }
 
@@ -334,7 +334,7 @@ propfind_build_body(const propfind_resp_t *rb, const char *path,
 {
     ngx_http_request_t *r = rb->r;
 
-    if (brix_http_chain_appendf(r->pool, rb->head, rb->tail,
+    if (brix_http_chain_appendf(propfind_pool(rb->r), rb->head, rb->tail,
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             "<D:multistatus xmlns:D=\"DAV:\""
             " xmlns:xrd=\"http://xrootd.org/2010/ns/dav\">") == NULL)
@@ -360,7 +360,7 @@ propfind_build_body(const propfind_resp_t *rb, const char *path,
         }
     }
 
-    if (brix_http_chain_appendf(r->pool, rb->head, rb->tail,
+    if (brix_http_chain_appendf(propfind_pool(rb->r), rb->head, rb->tail,
             "</D:multistatus>") == NULL)
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -448,8 +448,14 @@ propfind_count_tx(ngx_http_request_t *r, off_t total_len)
  * XML as an ngx_chain_t, sums the body length for Content-Length, marks the last
  * buffer, then sends headers + body.  Returns an HTTP status / NGX_* code.
  */
+/* phase-109 BUILD half: everything up to and including the finalized 207 body
+ * chain.  This is the part with the VFS I/O (resolve/stat, the walk's opendir/
+ * readdir, per-prop residency queries) — the part that blocks against a remote
+ * backend — so it is the part the offload runs on a thread.  Every allocation
+ * inside goes through propfind_pool(r), so on the offloaded path nothing here
+ * touches r->pool.  SHM metric adds are atomics and thread-safe. */
 ngx_int_t
-propfind_do(ngx_http_request_t *r)
+propfind_build(ngx_http_request_t *r, ngx_chain_t **out_head, off_t *total_len)
 {
     char             path[WEBDAV_MAX_PATH];
     char             href[WEBDAV_MAX_PATH + 2];
@@ -458,7 +464,6 @@ propfind_do(ngx_http_request_t *r)
     int              depth;
     ngx_chain_t     *head = NULL;
     ngx_chain_t     *tail = NULL;
-    off_t            total_len;
     ngx_uint_t       entry_count = 0;
     propfind_req_t   req;
 
@@ -484,8 +489,18 @@ propfind_do(ngx_http_request_t *r)
         return rc;
     }
 
-    total_len = propfind_finalize_chain(head, tail);
+    *total_len = propfind_finalize_chain(head, tail);
     BRIX_WEBDAV_METRIC_ADD(propfind_entries_total, entry_count);
+    *out_head = head;
+    return NGX_OK;
+}
+
+/* phase-109 SEND half: headers + body.  EVENT LOOP ONLY — it drives nginx's
+ * output machinery, which is never thread-safe. */
+ngx_int_t
+propfind_send(ngx_http_request_t *r, ngx_chain_t *head, off_t total_len)
+{
+    ngx_int_t rc;
 
     if (propfind_send_headers(r, total_len, &rc) != NGX_OK) {
         return rc;   /* header list allocation failed → 500 */
@@ -496,4 +511,20 @@ propfind_do(ngx_http_request_t *r)
 
     propfind_count_tx(r, total_len);
     return ngx_http_output_filter(r, head);
+}
+
+/* Build + send inline: the non-offloaded path, byte-identical to the pre-split
+ * behaviour (phase-109 factored it; it did not change it). */
+ngx_int_t
+propfind_do(ngx_http_request_t *r)
+{
+    ngx_chain_t *head = NULL;
+    off_t        total_len = 0;
+    ngx_int_t    rc;
+
+    rc = propfind_build(r, &head, &total_len);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    return propfind_send(r, head, total_len);
 }

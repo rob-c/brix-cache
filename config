@@ -578,6 +578,7 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/core/http/http_variables.h \
                         $ngx_addon_dir/src/protocols/root/stream/stream_variables.h \
                         $ngx_addon_dir/src/protocols/webdav/authz_endpoint.h \
+                        $ngx_addon_dir/src/protocols/webdav/walk_offload.h \
                         $ngx_addon_dir/src/protocols/shared/file_serve.h \
                         $ngx_addon_dir/src/protocols/shared/http_cache_fill.h \
                         $ngx_addon_dir/src/protocols/shared/http_serve_offload.h \
@@ -765,6 +766,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/http/http_variables.c \
     $ngx_addon_dir/src/protocols/root/stream/stream_variables.c \
     $ngx_addon_dir/src/protocols/webdav/authz_endpoint.c \
+    $ngx_addon_dir/src/protocols/webdav/walk_offload.c \
     $ngx_addon_dir/src/protocols/shared/protocol.c \
     $ngx_addon_dir/src/protocols/shared/file_serve.c \
     $ngx_addon_dir/src/protocols/shared/guard_audit_http.c \

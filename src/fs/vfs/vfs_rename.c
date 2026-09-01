@@ -132,7 +132,7 @@ brix_vfs_rename(brix_vfs_ctx_t *ctx, const brix_path_result_t *dst,
     start = brix_vfs_now_ns();
     path = brix_vfs_ctx_path(ctx);
 
-    if (brix_vfs_require_confined_mutation(ctx,
+    if (brix_vfs_confined_mutation_checked(ctx,
             BRIX_VFS_MUTATE_RENAME) != NGX_OK)
     {
         saved_errno = errno;

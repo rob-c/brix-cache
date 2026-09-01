@@ -258,12 +258,24 @@ sd_remote_setxattr_impl(brix_sd_instance_t *inst, const char *path,
         errno = ENOTSUP;
         return NGX_ERROR;
     }
-    if (len >= SD_REMOTE_XA_VALUE
-        || memchr(val, '\0', len) != NULL
+    /* A value this mapping cannot REPRESENT is "unfit here", not "invalid":
+     * the xmeta carrier's fallback contract (xmeta_xattr_unfit) rides the
+     * sidecar on E2BIG/ENOTSUP but hard-fails on EINVAL — and the cache's own
+     * cinfo record is a binary blob, so EINVAL here broke every sidecar-backed
+     * cinfo store over a remote store the moment this driver gained a setxattr
+     * slot (the cachestore-sidecar scenario caught it).  Oversize → E2BIG;
+     * bytes that cannot survive an HTTP header round-trip → ENOTSUP.  A real
+     * client xattr with binary content gets the same honest answer: this
+     * transport cannot carry it. */
+    if (len >= SD_REMOTE_XA_VALUE) {
+        errno = E2BIG;
+        return NGX_ERROR;
+    }
+    if (memchr(val, '\0', len) != NULL
         || memchr(val, '\r', len) != NULL
         || memchr(val, '\n', len) != NULL)
     {
-        errno = EINVAL;
+        errno = ENOTSUP;
         return NGX_ERROR;
     }
     if (sd_remote_xa_open(cfg, path, name + 5, ak, sk, region, session,

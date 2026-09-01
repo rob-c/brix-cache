@@ -36,6 +36,9 @@
  */
 #include "core/http/http_variables.h"
 #include "core/http/http_headers.h"        /* brix_http_request_is_tls */
+#include "core/config/http_common.h"       /* ngx_http_brix_common_module (ctx home) */
+#include "fs/vfs/vfs.h"                     /* brix_vfs_ctx_t (monitor bind)   */
+#include "observability/metrics/io_monitor.h" /* brix_io_monitor_t            */
 
 #include "protocols/cvmfs/cvmfs.h"         /* cvmfs request ctx: cache_status */
 #include "protocols/webdav/webdav.h"       /* webdav req ctx: identity        */
@@ -396,6 +399,178 @@ brix_var_origin(ngx_http_request_t *r, ngx_http_variable_value_t *v,
 }
 
 
+/*
+ * ---- The data-plane I/O monitor: $brix_bytes_served / $brix_backend_time /
+ *      $brix_checksum ------------------------------------------------------
+ *
+ * Unlike the identity/config variables above, these three report values the
+ * data plane produces while serving — bytes moved, backend time, page-CRC —
+ * which no HTTP plane retained per-request. The retention layer is a single
+ * brix_io_monitor_t on the request pool, allocated ON THE EVENT LOOP and stored
+ * in ngx_http_brix_common_module's request-ctx slot (the common module owns the
+ * variable surface, and no plane uses its ctx slot). The VFS post-op observer
+ * folds each op into it; these handlers read it at log time. See io_monitor.h
+ * for the single-writer/thread contract.
+ */
+
+/* Get-or-create the request's monitor. MUST be first called on the event loop
+ * (it allocates on r->pool). NULL only on allocation failure. */
+static brix_io_monitor_t *
+brix_http_monitor_get(ngx_http_request_t *r)
+{
+    brix_io_monitor_t *m = ngx_http_get_module_ctx(r, ngx_http_brix_common_module);
+
+    if (m != NULL) {
+        return m;
+    }
+    m = ngx_pcalloc(r->pool, sizeof(*m));
+    if (m == NULL) {
+        return NULL;
+    }
+    ngx_http_set_ctx(r, m, ngx_http_brix_common_module);
+    return m;
+}
+
+
+void
+brix_http_monitor_bind(ngx_http_request_t *r, brix_vfs_ctx_t *vctx)
+{
+    if (r == NULL || vctx == NULL) {
+        return;
+    }
+    /* Idempotent: create once, then every data-plane ctx of the request shares
+     * the same accumulator so bytes/latency sum across its ops. */
+    vctx->io_monitor = brix_http_monitor_get(r);
+}
+
+
+/* Peek without creating — for the log-phase handlers, which must not allocate
+ * and must tolerate a request that never bound a monitor (served with no brix
+ * data op, or by another module). */
+static brix_io_monitor_t *
+brix_http_monitor_peek(ngx_http_request_t *r)
+{
+    return ngx_http_get_module_ctx(r, ngx_http_brix_common_module);
+}
+
+
+void
+brix_http_monitor_record_served(ngx_http_request_t *r, off_t bytes)
+{
+    if (r == NULL || bytes <= 0) {
+        return;
+    }
+    /* Peek, not create: the data-plane ctx bind already created the monitor on
+     * the event loop before the serve. If it somehow did not, dropping the
+     * count is safer than allocating from a possibly-thread context here. This
+     * is the AUTHORITATIVE served-byte source (the serve is zero-copy and never
+     * reaches the per-op VFS observer). */
+    brix_io_monitor_add(brix_http_monitor_peek(r), (size_t) bytes, 0, 0, 0);
+}
+
+
+/*
+ * $brix_bytes_served — total bytes brix moved through its VFS for this request.
+ *
+ * The brix-measured figure, distinct from nginx's $body_bytes_sent (which is
+ * what left the socket, after range trimming and on-the-wire framing); logging
+ * both lets an operator see cache/backend read amplification. "-" when brix
+ * moved no bytes (a metadata request, a 304, a request brix never served).
+ * NOCACHEABLE: a data-plane outcome, unknown until the request is served.
+ */
+static ngx_int_t
+brix_var_bytes_served(ngx_http_request_t *r, ngx_http_variable_value_t *v,
+    uintptr_t data)
+{
+    brix_io_monitor_t *m = brix_http_monitor_peek(r);
+    u_char              *p;
+
+    (void) data;
+    if (m == NULL || !m->any) {
+        return brix_var_set_static(v, "-", 1);
+    }
+    p = ngx_pnalloc(r->pool, NGX_INT64_LEN);
+    if (p == NULL) {
+        return brix_var_set_static(v, "-", 1);
+    }
+    v->data = p;
+    v->len = (unsigned) (ngx_sprintf(p, "%uL", m->bytes) - p);
+    v->valid = 1;
+    v->no_cacheable = 1;
+    v->not_found = 0;
+    return NGX_OK;
+}
+
+
+/*
+ * $brix_backend_time — time brix spent in its own VFS I/O for this request,
+ * in SECONDS with millisecond precision, deliberately the SAME format as
+ * nginx's $request_time so the two sit side by side in a log line and subtract
+ * cleanly. It measures backend/storage service time (summed across the
+ * request's ops), which $request_time does not isolate — on a cache hit it is
+ * near zero, on a cold miss it is the origin fetch. "-" when brix did no I/O.
+ * NOCACHEABLE.
+ */
+static ngx_int_t
+brix_var_backend_time(ngx_http_request_t *r, ngx_http_variable_value_t *v,
+    uintptr_t data)
+{
+    brix_io_monitor_t *m = brix_http_monitor_peek(r);
+    u_char              *p;
+    uint64_t             usec, sec, ms;
+
+    (void) data;
+    if (m == NULL || !m->any) {
+        return brix_var_set_static(v, "-", 1);
+    }
+    usec = (uint64_t) m->backend_usec;
+    sec  = usec / 1000000ULL;
+    ms   = (usec % 1000000ULL) / 1000ULL;
+    p = ngx_pnalloc(r->pool, NGX_INT64_LEN + sizeof(".000"));
+    if (p == NULL) {
+        return brix_var_set_static(v, "-", 1);
+    }
+    v->data = p;
+    v->len = (unsigned) (ngx_sprintf(p, "%uL.%03uL", sec, ms) - p);
+    v->valid = 1;
+    v->no_cacheable = 1;
+    v->not_found = 0;
+    return NGX_OK;
+}
+
+
+/*
+ * $brix_checksum — the page CRC brix computed for the served bytes, rendered
+ * "crc32c:<8 hex>" so the algorithm is explicit and never misread as adler32
+ * or md5 (INVARIANT #9: encode at the edge). Populated only when page-CRC was
+ * active for the request (the xrootd pgread / integrity path sets want_pgcrc);
+ * a plain WebDAV/S3 GET does not compute one, so the honest answer is "-".
+ * NOCACHEABLE.
+ */
+static ngx_int_t
+brix_var_checksum(ngx_http_request_t *r, ngx_http_variable_value_t *v,
+    uintptr_t data)
+{
+    brix_io_monitor_t *m = brix_http_monitor_peek(r);
+    u_char              *p;
+
+    (void) data;
+    if (m == NULL || !m->have_crc) {
+        return brix_var_set_static(v, "-", 1);
+    }
+    p = ngx_pnalloc(r->pool, sizeof("crc32c:") - 1 + 8);
+    if (p == NULL) {
+        return brix_var_set_static(v, "-", 1);
+    }
+    v->data = p;
+    v->len = (unsigned) (ngx_sprintf(p, "crc32c:%08xD", m->crc32c) - p);
+    v->valid = 1;
+    v->no_cacheable = 1;
+    v->not_found = 0;
+    return NGX_OK;
+}
+
+
 static ngx_http_variable_t  brix_http_variables[] = {
     { ngx_string("brix_cache_status"), NULL, brix_var_cache_status,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
@@ -417,6 +592,14 @@ static ngx_http_variable_t  brix_http_variables[] = {
     { ngx_string("brix_auth_method"), NULL, brix_var_auth_method, 0, 0, 0 },
     { ngx_string("brix_tier"), NULL, brix_var_tier, 0, 0, 0 },
     { ngx_string("brix_origin"), NULL, brix_var_origin, 0, 0, 0 },
+    /* Data-plane tail (phase-106 W1 second commit): read the per-request I/O
+     * monitor, so all NOCACHEABLE. */
+    { ngx_string("brix_bytes_served"), NULL, brix_var_bytes_served,
+      0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
+    { ngx_string("brix_backend_time"), NULL, brix_var_backend_time,
+      0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
+    { ngx_string("brix_checksum"), NULL, brix_var_checksum,
+      0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
       ngx_http_null_variable
 };
 

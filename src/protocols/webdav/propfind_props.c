@@ -24,7 +24,7 @@ propfind_emit_quota(ngx_http_request_t *r, ngx_chain_t **head,
                      ngx_chain_t **tail, unsigned mask, const char *path,
                      struct stat *sb)
 {
-    ngx_pool_t *pool = r->pool;
+    ngx_pool_t *pool = propfind_pool(r);
 
     /*
      * RFC 4331 quota properties describe a COLLECTION's storage quota, not a
@@ -70,7 +70,7 @@ static ngx_int_t
 propfind_emit_displayname(ngx_http_request_t *r, ngx_chain_t **head,
                            ngx_chain_t **tail, const char *href)
 {
-    ngx_pool_t *pool = r->pool;
+    ngx_pool_t *pool = propfind_pool(r);
     const char *name = href + strlen(href);
     char       *safe_name;
 
@@ -104,7 +104,7 @@ propfind_emit_locality(ngx_http_request_t *r, ngx_chain_t **head,
                         ngx_chain_t **tail, const char *path, struct stat *sb)
 {
     ngx_http_brix_webdav_loc_conf_t *conf;
-    ngx_pool_t                        *pool = r->pool;
+    ngx_pool_t                        *pool = propfind_pool(r);
     brix_vfs_ctx_t                     vctx;
     brix_sd_residency_t                res;
     int                                nearline = 0;
@@ -124,7 +124,7 @@ propfind_emit_locality(ngx_http_request_t *r, ngx_chain_t **head,
     }
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
+    brix_vfs_ctx_init(&vctx, propfind_pool(r), r->connection->log,
         BRIX_PROTO_WEBDAV, conf->common.root_canon, conf->common.cache_root_canon,
         brix_vfs_policy_from_write_enable(conf->common.allow_write),
         0 /* is_tls */, NULL, path);
@@ -168,7 +168,7 @@ propfind_emit_basic_metadata(ngx_http_request_t *r, ngx_chain_t **head,
                                ngx_chain_t **tail, unsigned mask,
                                struct stat *sb, char *date_buf)
 {
-    ngx_pool_t *pool = r->pool;
+    ngx_pool_t *pool = propfind_pool(r);
 
     if (mask & PF_RESOURCETYPE) {
         if (S_ISDIR(sb->st_mode)) {
@@ -239,7 +239,7 @@ propfind_emit_standard_props(ngx_http_request_t *r, ngx_chain_t **head,
                               const char *href, const char *path,
                               struct stat *sb, char *date_buf)
 {
-    ngx_pool_t *pool = r->pool;
+    ngx_pool_t *pool = propfind_pool(r);
 
     /* Emit basic metadata properties (resourcetype, contentlength, etag, etc.). */
     if (propfind_emit_basic_metadata(r, head, tail, mask, sb, date_buf)
@@ -358,7 +358,7 @@ propfind_emit_404_propstat(ngx_http_request_t *r, ngx_chain_t **head,
                             ngx_chain_t **tail, const propfind_req_t *req,
                             const ngx_flag_t unknown_found[PF_UNKNOWN_MAX])
 {
-    ngx_pool_t *pool = r->pool;
+    ngx_pool_t *pool = propfind_pool(r);
     ngx_uint_t  i;
     ngx_flag_t  any_missing = 0;
 
@@ -423,7 +423,7 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
 {
     char        date_buf[30];
     char       *safe_href;
-    ngx_pool_t *pool  = r->pool;
+    ngx_pool_t *pool  = propfind_pool(r);
     /* For an explicit PROP request only the requested bits are emitted; ALLPROP
      * (and PROPNAME, handled separately below) emits the full PF_ALL set. */
     unsigned    mask  = (req->type == PROPFIND_PROP) ? req->prop_mask : PF_ALL;

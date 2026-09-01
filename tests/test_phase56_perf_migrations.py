@@ -126,8 +126,16 @@ def test_b2_protocol_funnels_ride_the_seam():
     assert "brix_vfs_file_read_advise(fh, 0, 0, BRIX_SD_ADV_SEQUENTIAL)" in \
         _read("src/protocols/s3/object.c")
     # The syscall itself lives in exactly one place: the POSIX driver.
-    assert _grep_c_sources("posix_fadvise(") == \
-        ["src/fs/backend/posix/sd_posix_io.c"]
+    # 2026-08-31: the storage-driver slot wave (480ded2e4) gave block/pblock
+    # their own read_advise implementations — fadvise at the DRIVER seam is
+    # exactly where phase-56 wanted it, so the census grows with the drivers.
+    assert _grep_c_sources("posix_fadvise(") == [
+        "src/fs/backend/block/sd_block.c",
+        "src/fs/backend/pblock/pblock_store.c",
+        "src/fs/backend/pblock/pblock_store.h",
+        "src/fs/backend/pblock/sd_pblock_io.c",
+        "src/fs/backend/posix/sd_posix_io.c",
+    ]
 
 
 def test_b2_wrapper_error_and_noop_semantics():

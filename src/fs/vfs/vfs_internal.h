@@ -36,6 +36,7 @@
 #include "core/compat/namespace_ops.h"
 #include "core/compat/staged_file.h"
 #include "observability/metrics/access_log.h"
+#include "observability/metrics/io_monitor.h"   /* per-request I/O monitor fold */
 #include "fs/path/path.h"
 
 #include <dirent.h>
@@ -46,6 +47,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include "fs/vfs/vfs_policy.h"  /* mutation op + gate (phase-109 checked wrapper) */
 
 /* Per-request delegation live-cred bag (phase-70 §4). Carries the raw
  * forwardable credential BYTES the front door captured — distinct from the
@@ -364,6 +366,23 @@ brix_vfs_require_confined(const brix_vfs_ctx_t *ctx)
     return NGX_OK;
 }
 
+/* NULL-checked confinement+mutation gate (phase-109).  The public
+ * brix_vfs_require_confined_mutation (vfs_policy.c) rejects a NULL ctx, but
+ * that contract sits across a TU boundary the analyzer cannot see — gcc 13
+ * flagged every post-gate ctx dereference in the path mutators (CWE-476).
+ * This inline makes the reject locally provable and keeps one copy of it
+ * instead of a guard block per call site.  Same behaviour: EINVAL + error. */
+static ngx_inline ngx_int_t
+brix_vfs_confined_mutation_checked(const brix_vfs_ctx_t *ctx,
+    brix_vfs_mutation_op_t op)
+{
+    if (ctx == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    return brix_vfs_require_confined_mutation(ctx, op);
+}
+
 /* Write guard: phase-105 replaced this with the typed mutation-policy kernel.
  * Path mutators call brix_vfs_require_confined_mutation(ctx, op) (confinement
  * then policy, EROFS on a read-only endpoint); handle/staged/writer mutators
@@ -474,6 +493,25 @@ brix_vfs_observe_ctx_op_ex(const brix_vfs_ctx_t *ctx, const char *path,
     err = rc == NGX_OK ? BRIX_ERR_NONE
                        : brix_metric_err_from_errno(sys_errno);
     latency_usec = brix_vfs_elapsed_usec(start_ns);
+
+    /* phase-106 W1 (data-plane variable tail): fold this op's BACKEND TIME and
+     * page-CRC into the request's I/O monitor, which $brix_backend_time /
+     * $brix_checksum read at log time. Bytes are deliberately NOT folded here:
+     * the client-facing serve is zero-copy (sendfile / output filter), so the
+     * authoritative served-byte count is result->bytes_sent booked at the serve
+     * site (brix_http_monitor_record_served), not this per-op observer — folding
+     * both would double-count on a remote MISS (origin read here + cache serve
+     * there). NULL monitor = an unmonitored path (metadata-only, internal
+     * maintenance) and is the common case. The crc is meaningful only when
+     * page-CRC was active for this ctx (want_pgcrc), so a real crc of 0 is never
+     * mistaken for "no checksum". Single-writer: see io_monitor.h. Only
+     * successful ops count — a failed op's latency is error-handling time, not
+     * backend service time. */
+    if (rc == NGX_OK) {
+        brix_io_monitor_add(ctx->io_monitor, 0, latency_usec,
+                            (unsigned) (ctx->want_pgcrc && result != NULL),
+                            result != NULL ? result->crc32c : 0);
+    }
 
     /* meter_io == 0: the owning protocol books the unified io_ops/latency row
      * for this operation itself (data-plane READ/WRITE via *_metrics_response,

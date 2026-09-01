@@ -96,10 +96,14 @@ EXPORT_WRAPPERS = (
     ("brix_vfs_export_copytree", "COPY"),
 )
 
-# The five kernel forms.  Any of them satisfies a gate.
+# The kernel forms.  Any of them satisfies a gate.  confined_mutation_checked
+# (phase-109) is the NULL-checked inline over require_confined_mutation —
+# added so the gcc-13 analyzer can see the ctx != NULL contract locally; it
+# routes into the same kernel, so it IS a gate.
 KERNEL_CALL = re.compile(
     r"brix_vfs_(?:require_(?:mutation_policy|mutation|confined_mutation"
-    r"|carried_mutation)|export_require_mutation)\s*\(")
+    r"|carried_mutation)|export_require_mutation"
+    r"|confined_mutation_checked)\s*\(")
 
 # Any project call in a gated body.  Everything not allowlisted below is work,
 # and work must not happen before the refusal: §0.2 records that several

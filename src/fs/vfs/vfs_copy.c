@@ -185,7 +185,7 @@ brix_vfs_copy(brix_vfs_ctx_t *ctx, const char *dst_resolved,
     uint64_t                  start = brix_vfs_now_ns();
     const brix_sd_driver_t *drv;
 
-    if (brix_vfs_require_confined_mutation(ctx,
+    if (brix_vfs_confined_mutation_checked(ctx,
             BRIX_VFS_MUTATE_COPY) != NGX_OK)
     {
         return brix_vfs_copy_fail(ctx, src, errno, start);

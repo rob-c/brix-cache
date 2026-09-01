@@ -3,6 +3,7 @@
  * Phase-38 split of propfind.c; behavior-identical.
  */
 #include "propfind_internal.h"
+#include "walk_offload.h"
 
 unsigned
 propfind_name_to_bit(const char *name)
@@ -129,7 +130,7 @@ propfind_capture_unknown(ngx_http_request_t *r, propfind_req_t *req,
     if (prop->ns != NULL
         && xmlStrcmp(prop->ns->href, BAD_CAST "DAV:") != 0)
     {
-        char *safe_ns = webdav_escape_xml_text(r->pool, ns_href);
+        char *safe_ns = webdav_escape_xml_text(propfind_pool(r), ns_href);
         if (safe_ns == NULL) {
             safe_ns = "";
         }
@@ -301,6 +302,16 @@ propfind_body_handler(ngx_http_request_t *r)
     ngx_http_brix_webdav_req_ctx_t *rx =
         ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     ngx_int_t rc;
+
+    /* phase-109: against a REMOTE backend the walk's VFS I/O blocks, so run
+     * the build on the thread pool (walk_offload.c).  NGX_DONE = posted; the
+     * done handler sends + finalizes.  NGX_DECLINED = the gate said inline
+     * (local backend, impersonation on, or no pool) — today's path, unchanged.
+     * The offload gate declines under impersonation, so the inline bracket
+     * below still covers every impersonated walk. */
+    if (webdav_propfind_offload(r) == NGX_DONE) {
+        return;
+    }
 
     brix_imp_request_begin(rx != NULL ? rx->identity : NULL);
     rc = propfind_do(r);

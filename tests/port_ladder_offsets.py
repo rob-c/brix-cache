@@ -488,7 +488,7 @@ SETTINGS_OFFSET, SETTINGS_WIDTH = 0, 178
 # 2026-08-31 (phase-106): 928 -> 933 for the five nginx-integration lifecycle
 # nodes (lc-brix-variables, lc-brix-stream-vars, lc-brix-authz-accel,
 # lc-authz-before-cond + its S3_PORT extra). Every offset below shifts by 5.
-LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 933
+LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 936
 # 2026-08-09: 137 -> 140 for the three audit-fix lifecycle subjects
 # (test_audit_fixes_2026_08_09.py: only-if-cached, cold-purge, signing).
 # Every offset below shifts by the same 3 — the ladder is packed, so a width
@@ -563,23 +563,23 @@ LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 933
 # 2026-08-27: 1105 -> 1106, the running sum again, for the one
 # lc-pblock-quota-qspace slot above (927 -> 928).
 # 2026-08-31: 1106 -> 1111, the running sum, for the five phase-106 slots.
-LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1111, 142
+LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1114, 142
 # 2026-08-19: 205 -> 211 for the six-port root_readonly_gateway block (origin +
 # read-only gateway + allow_write-override gateway + writable control +
 # data-substreams gateway + read_only_public gateway).  The config-time
 # role-conflict check needs no port: it listens on a unix socket, because
 # `nginx -t` opens the listening sockets and a TCP port would race the lane.
-CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1253, 211
-CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1464, 83
-HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1547, 23
-PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1570, 2
+CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1256, 211
+CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1467, 83
+HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1550, 23
+PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1573, 2
 # CVMFS conformance mock-Stratum-1 + nginx port blocks (cvmfs/conformance_common.py
 # PORT_BLOCKS): 26 files x a 20-port block.  Anchored into the ladder so every
 # port stays within TEST_PORT_START+2000 and a second suite on a different
 # TEST_PORT_START draws a disjoint range (replaces the old absolute 13100+ tiling).
 # 27 file blocks x 20 ports = 540, plus a 48-port matrix sub-range for the
 # concurrent fuse-trust mock origins (see conformance_common.matrix_port).
-CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1572, 588
+CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1575, 588
 # Differential-interop per-file fixed ports (official_interop_lib.worker_port):
 # one slot per distinct conformance base (65 today), anchored here so they stay
 # in the contiguous ladder within TEST_PORT_START+3000 instead of the old
@@ -588,8 +588,8 @@ CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1572, 588
 # 2026-08-26: 61 -> 65 — four conformance bases were registered in
 # _INTEROP_BASES without the matching width bump (caught by
 # test_fleet_ports.py: worker slots 12216-12219 fell past PORT_LAST).
-INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2160, 65
+INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2163, 65
 # 2026-08-31 (phase-106): shared lane +5 for the five nginx-integration nodes;
 # every lane below shifts by 5. Packed ladder — an intentional compatibility
 # event, per the note above.
-PORT_COUNT = 2225
+PORT_COUNT = 2228

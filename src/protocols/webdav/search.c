@@ -6,7 +6,8 @@
  * a DAV:contains/DAV:literal clause filters by displayname substring.
  */
 
-#include "search_internal.h"   /* webdav_search_query_t + webdav_search_parse */
+#include "search_internal.h"
+#include "walk_offload.h"   /* webdav_search_query_t + webdav_search_parse */
 #include "auth/impersonate/lifecycle.h"
 #include "fs/path/path.h"
 #include "fs/vfs/vfs.h"   /* confined walk via vfs_opendir_quiet/readdir_kind/probe */
@@ -14,6 +15,7 @@
 #include "core/compat/fs_walk.h"
 #include "core/http/http_body.h"
 #include "core/http/http_xml.h"
+#include "core/http/http_headers.h"  /* brix_http_set_header */
 
 #include <dirent.h>
 #include <stdio.h>
@@ -73,12 +75,12 @@ webdav_search_append_response(ngx_http_request_t *r, ngx_chain_t **head,
         return NGX_OK;
     }
 
-    safe_href = webdav_escape_xml_text(r->pool, href);
+    safe_href = webdav_escape_xml_text(webdav_req_pool(r), href);
     if (safe_href == NULL) {
         return NGX_ERROR;
     }
 
-    return brix_http_chain_appendf(r->pool, head, tail,
+    return brix_http_chain_appendf(webdav_req_pool(r), head, tail,
             "<D:response><D:href>%s</D:href>"
             "<D:status>HTTP/1.1 200 OK</D:status></D:response>",
             safe_href) == NULL
@@ -157,7 +159,7 @@ webdav_search_entry_is_dir(webdav_search_walk_ctx_t *w,
         return 0;
     }
 
-    brix_vfs_ctx_init(&pctx, w->r->pool, w->r->connection->log,
+    brix_vfs_ctx_init(&pctx, webdav_req_pool(w->r), w->r->connection->log,
         BRIX_PROTO_WEBDAV, root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, 0, NULL, child_path);
     return brix_vfs_probe(&pctx, 1 /* no-follow */, &vst) == NGX_OK
            && vst.is_directory;
@@ -295,7 +297,7 @@ webdav_search_walk(webdav_search_walk_ctx_t *w, const char *dir_path,
     /* Enumerate through the VFS (broker fdopendir under impersonation), NON-metered:
      * a depth-infinity SEARCH must not emit one OP_DIRLIST per visited subdir (the
      * SEARCH op accounts for the whole walk). */
-    brix_vfs_ctx_init(&wctx, w->r->pool, w->r->connection->log,
+    brix_vfs_ctx_init(&wctx, webdav_req_pool(w->r), w->r->connection->log,
         BRIX_PROTO_WEBDAV, wdcf->common.root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY,
         0 /* is_tls */, NULL, dir_path);
     dp = brix_vfs_opendir_quiet(&wctx, NULL);
@@ -328,7 +330,7 @@ webdav_search_build_body(webdav_search_walk_ctx_t *w, const char *path,
     char                href[WEBDAV_MAX_PATH + 2];
     size_t              uri_len;
 
-    if (brix_http_chain_appendf(r->pool, w->head, w->tail,
+    if (brix_http_chain_appendf(webdav_req_pool(r), w->head, w->tail,
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             "<D:multistatus xmlns:D=\"DAV:\">") == NULL)
     {
@@ -349,7 +351,7 @@ webdav_search_build_body(webdav_search_walk_ctx_t *w, const char *path,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (brix_http_chain_appendf(r->pool, w->head, w->tail,
+    if (brix_http_chain_appendf(webdav_req_pool(r), w->head, w->tail,
             "</D:multistatus>") == NULL)
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -375,7 +377,6 @@ webdav_search_finalize(ngx_http_request_t *r, ngx_chain_t *head,
 {
     off_t            total_len = 0;
     ngx_chain_t     *lc;
-    ngx_table_elt_t *h;
     ngx_int_t        rc;
 
     if (tail != NULL) {
@@ -390,13 +391,11 @@ webdav_search_finalize(ngx_http_request_t *r, ngx_chain_t *head,
     r->headers_out.status = 207;
     r->headers_out.content_length_n = total_len;
 
-    h = ngx_list_push(&r->headers_out.headers);
-    if (h == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    rc = brix_http_set_header(r, "Content-Type",
+                                "application/xml; charset=\"utf-8\"", NULL);
+    if (rc != NGX_OK) {
+        return rc;
     }
-    h->hash = 1;
-    ngx_str_set(&h->key, "Content-Type");
-    ngx_str_set(&h->value, "application/xml; charset=\"utf-8\"");
 
     rc = ngx_http_send_header(r);
     if (rc == NGX_ERROR || r->header_only) {
@@ -412,8 +411,11 @@ webdav_search_finalize(ngx_http_request_t *r, ngx_chain_t *head,
  * any matching children (depth 1) or descendants (infinity).  Returns an HTTP
  * status / NGX_* code.
  */
-static ngx_int_t
-webdav_search_do(ngx_http_request_t *r)
+/* phase-109 BUILD half: resolve/stat + parse + the walk — every blocking VFS
+ * call, allocating only via webdav_req_pool(r) so it can run on a thread. */
+ngx_int_t
+webdav_search_build(ngx_http_request_t *r, ngx_chain_t **out_head,
+    ngx_chain_t **out_tail)
 {
     char                     path[WEBDAV_MAX_PATH];
     struct stat              sb;
@@ -444,7 +446,29 @@ webdav_search_do(ngx_http_request_t *r)
         return rc;
     }
 
+    *out_head = head;
+    *out_tail = tail;
+    return NGX_OK;
+}
+
+/* phase-109 SEND half: EVENT LOOP ONLY (nginx output machinery). */
+ngx_int_t
+webdav_search_send(ngx_http_request_t *r, ngx_chain_t *head, ngx_chain_t *tail)
+{
     return webdav_search_finalize(r, head, tail);
+}
+
+static ngx_int_t
+webdav_search_do(ngx_http_request_t *r)
+{
+    ngx_chain_t *head = NULL, *tail = NULL;
+    ngx_int_t    rc;
+
+    rc = webdav_search_build(r, &head, &tail);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    return webdav_search_send(r, head, tail);
 }
 
 /*
@@ -465,6 +489,13 @@ webdav_search_body_handler(ngx_http_request_t *r)
     ngx_http_brix_webdav_req_ctx_t *rx =
         ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     ngx_int_t rc;
+
+    /* phase-109: remote-backend SEARCH runs its walk on the thread pool
+     * (walk_offload.c).  The gate declines under impersonation, so the inline
+     * bracket below still covers every impersonated walk. */
+    if (webdav_search_offload(r) == NGX_DONE) {
+        return;
+    }
 
     brix_imp_request_begin(rx != NULL ? rx->identity : NULL);
     rc = webdav_search_do(r);

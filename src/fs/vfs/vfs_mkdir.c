@@ -239,7 +239,7 @@ brix_vfs_mkdir(brix_vfs_ctx_t *ctx, mode_t mode, unsigned parents)
     start = brix_vfs_now_ns();
     path = brix_vfs_ctx_path(ctx);
 
-    if (brix_vfs_require_confined_mutation(ctx,
+    if (brix_vfs_confined_mutation_checked(ctx,
             BRIX_VFS_MUTATE_MKDIR) != NGX_OK)
     {
         saved_errno = errno;
@@ -300,7 +300,7 @@ brix_vfs_mkdir(brix_vfs_ctx_t *ctx, mode_t mode, unsigned parents)
 ngx_int_t
 brix_vfs_chmod(brix_vfs_ctx_t *ctx, mode_t mode)
 {
-    if (brix_vfs_require_confined_mutation(ctx,
+    if (brix_vfs_confined_mutation_checked(ctx,
             BRIX_VFS_MUTATE_SETATTR) != NGX_OK)
     {
         return NGX_ERROR;
@@ -380,7 +380,7 @@ brix_vfs_chmod(brix_vfs_ctx_t *ctx, mode_t mode)
 ngx_int_t
 brix_vfs_setattr(brix_vfs_ctx_t *ctx, const brix_sd_setattr_t *attr)
 {
-    if (brix_vfs_require_confined_mutation(ctx,
+    if (brix_vfs_confined_mutation_checked(ctx,
             BRIX_VFS_MUTATE_SETATTR) != NGX_OK)
     {
         return NGX_ERROR;

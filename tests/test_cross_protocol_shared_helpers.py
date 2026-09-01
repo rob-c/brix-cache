@@ -26,9 +26,11 @@ def test_copy_and_http_file_response_helpers_are_shared():
     # (brix_vfs_copyfile / brix_vfs_copytree, src/fs/vfs/vfs_walk.c), which owns
     # the underlying copy_file_range path.  The handler must route through that
     # seam, and the shared VFS layer keeps the single brix_copy_range() impl.
+    # 2026-08-31: brix_vfs_copyfile -> brix_vfs_export_copyfile (the phase-105
+    # typed-policy rename of the same shared seam).
     _assert_markers(
         "src/protocols/webdav/fs/copy_engine.c",
-        ["fs/vfs.h", "brix_vfs_copyfile("],
+        ["fs/vfs.h", "brix_vfs_export_copyfile("],
     )
     # vfs_walk.c was split; the copy_file_range impl moved to the copy sibling.
     _assert_markers(

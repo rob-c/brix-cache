@@ -213,6 +213,17 @@ brix_ssi_open(brix_ctx_t *ctx, ngx_connection_t *c,
     ctx->files[idx].readable   = 1;
     ctx->files[idx].writable   = 1;
     ctx->files[idx].is_regular = 0;
+    /* Phase-105/109: an SSI handle is a SERVICE conversation, not an export
+     * file — a "write" on it is the request submission the executor consumes,
+     * and it must work on a read-only export (the CTA archive workflow runs
+     * against exactly that posture).  The handle-based mutation gate in
+     * brix_validate_write_handle reads the handle's carried policy, whose
+     * fail-closed zero is READ_ONLY, so without this stamp every SSI submit
+     * answers kXR_fsReadOnly.  ALLOWED here governs only this virtual handle:
+     * any real file mutation the service performs goes through its own
+     * VFS/service-owned path and is judged there. (Same recorded-posture
+     * convention as the kXR_bind secondary in fd_table.c.) */
+    ctx->files[idx].mutation_policy = BRIX_VFS_MUTATION_ALLOWED;
 
     return ssi_open_send_reply(ctx, c, idx, want_stat);
 }

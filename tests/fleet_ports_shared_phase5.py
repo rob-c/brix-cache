@@ -322,6 +322,11 @@ LIFECYCLE_SHARED_PORTS_PHASE5: dict[str, dict] = {
     "lc-brix-authz-accel": {"port": 30915},
     # phase-106 W6 (authz-before-conditionals, tests/test_authz_before_conditionals.py).
     "lc-authz-before-cond": {"port": 30916, "extra": {"S3_PORT": 30917}},
+    # phase-109 (metadata walk thread-offload, tests/test_walk_offload.py).
+    # PORT = remote-backend webdav front; ORIGIN_PORT = the mock origin the
+    # test drives (slow-mode capable); LOCAL_PORT = local-posix control.
+    "lc-walk-offload": {"port": 30918,
+                        "extra": {"ORIGIN_PORT": 30919, "LOCAL_PORT": 30920}},
 }
 
 from split_continuation import load as _load_fleet_ports_shared_phase5_b
