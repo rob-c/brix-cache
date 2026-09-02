@@ -35,13 +35,23 @@ scan_display_path(const char *logical, char *out, size_t outsz)
 ngx_int_t
 brix_scan_mode_parse(const char *name, brix_scan_mode_t *out)
 {
-    if (strcmp(name, "dump") == 0)    { *out = BRIX_SCAN_DUMP;    return NGX_OK; }
-    if (strcmp(name, "verify") == 0)  { *out = BRIX_SCAN_VERIFY;  return NGX_OK; }
-    if (strcmp(name, "fill") == 0)    { *out = BRIX_SCAN_FILL;    return NGX_OK; }
-    if (strcmp(name, "compare") == 0) { *out = BRIX_SCAN_COMPARE; return NGX_OK; }
-    if (strcmp(name, "inspect") == 0) { *out = BRIX_SCAN_INSPECT; return NGX_OK; }
-    if (strcmp(name, "inventory") == 0) { *out = BRIX_SCAN_INVENTORY; return NGX_OK; }
-    if (strcmp(name, "drift") == 0)   { *out = BRIX_SCAN_DRIFT;   return NGX_OK; }
+    static const struct { const char *name; brix_scan_mode_t mode; } modes[] = {
+        { "dump",      BRIX_SCAN_DUMP      },
+        { "verify",    BRIX_SCAN_VERIFY    },
+        { "fill",      BRIX_SCAN_FILL      },
+        { "compare",   BRIX_SCAN_COMPARE   },
+        { "inspect",   BRIX_SCAN_INSPECT   },
+        { "inventory", BRIX_SCAN_INVENTORY },
+        { "drift",     BRIX_SCAN_DRIFT     },
+    };
+    size_t i;
+
+    for (i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
+        if (strcmp(name, modes[i].name) == 0) {
+            *out = modes[i].mode;
+            return NGX_OK;
+        }
+    }
     return NGX_ERROR;
 }
 

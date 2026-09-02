@@ -80,22 +80,24 @@ brix_vfs_fremovexattr(const void *ctx, int fd, const char *name)
     return (fremovexattr(fd, name) != 0) ? NGX_ERROR : NGX_OK;
 }
 
-/* 2026-08-31: integrity_info.c now routes through the phase-105 CARRIED xattr
- * variants (policy decided from the handle's own copy).  Stub them the same
- * way as the plain seam: the policy/proto are irrelevant to what this unit
- * tests (canonicalisation + staleness), so they pass through to the kernel. */
+/* Phase-105 carried-policy twins: same passthrough, honoring the one property
+ * the carried forms exist for — a READ_ONLY policy refuses with EROFS before
+ * the syscall (integrity_info.c hands its stored endpoint posture here). */
 ngx_int_t
-brix_vfs_fsetxattr_carried(int policy, int proto, int fd, const char *name,
-    const void *val, size_t len, int flags)
+brix_vfs_fsetxattr_carried(brix_vfs_mutation_policy_t policy, brix_proto_t proto,
+    int fd, const char *name, const void *value, size_t len, int flags)
 {
-    (void) policy; (void) proto;
-    return (fsetxattr(fd, name, val, len, flags) != 0) ? NGX_ERROR : NGX_OK;
+    (void) proto;
+    if (policy != BRIX_VFS_MUTATION_ALLOWED) { errno = EROFS; return NGX_ERROR; }
+    return (fsetxattr(fd, name, value, len, flags) != 0) ? NGX_ERROR : NGX_OK;
 }
 
 ngx_int_t
-brix_vfs_fremovexattr_carried(int policy, int proto, int fd, const char *name)
+brix_vfs_fremovexattr_carried(brix_vfs_mutation_policy_t policy,
+    brix_proto_t proto, int fd, const char *name)
 {
-    (void) policy; (void) proto;
+    (void) proto;
+    if (policy != BRIX_VFS_MUTATION_ALLOWED) { errno = EROFS; return NGX_ERROR; }
     return (fremovexattr(fd, name) != 0) ? NGX_ERROR : NGX_OK;
 }
 

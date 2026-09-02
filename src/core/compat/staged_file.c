@@ -8,14 +8,17 @@
 
 #include "staged_file.h"
 #include "tmp_path.h"
+#include "lock_record.h"                    /* phase-107 C7: lock carry-over */
 #include "fs/path/path.h"
 #include "fs/path/beneath.h"
 #include "auth/impersonate/impersonate.h"   /* brix_imp_client_active */
+#include "fs/vfs/vfs_backend_registry.h"    /* brix_vfs_backend_durable */
 
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/xattr.h>
 #include <unistd.h>
 
 /*
@@ -210,6 +213,100 @@ brix_staged_open_resume(ngx_log_t *log, const brix_staged_open_req_t *req,
     return NGX_OK;
 }
 
+
+/*
+ * staged_seal_temp — make the staged TEMP publishable: flush its data, restore
+ * the caller's intended mode, close the fd.
+ *
+ * Phase 51 (C1): flush the staged data to stable storage BEFORE the rename
+ * publishes it, so a crash / power loss / ENOSPC mid-write cannot expose a
+ * torn object.  A failed fsync means the data is NOT durable — fail the
+ * commit (unlink the temp, leave the final path untouched) rather than
+ * publish possibly-incomplete data.  (close() alone does not flush.)
+ *
+ * SECURITY (mode restore): the temp was written 0600 (private); the committed
+ * object carries its client-intended bits (e.g. 0644) with no world-readable
+ * in-flight window.  Under impersonation the fd fchmod runs as the
+ * unprivileged worker on the MAPPED USER's file and EPERMs (silently),
+ * leaving the object 0600 and blocking group DAC on a shared/setgid-dir
+ * upload — so re-apply the mode AS THE MAPPED USER via the broker
+ * (path-based), which the fd fchmod cannot reach.
+ *
+ * A no-op when the fd is already closed.  On failure: fd closed, temp
+ * unlinked, staged deactivated, errno set — the caller only closes rootfd.
+ */
+static ngx_int_t
+staged_seal_temp(ngx_log_t *log, const char *root_canon,
+    brix_staged_file_t *staged, int rootfd, const char *tmp_rel,
+    const char *final_path)
+{
+    if (staged->fd == NGX_INVALID_FILE) {
+        return NGX_OK;
+    }
+    if (fsync(staged->fd) != 0) {
+        int e = errno;
+        ngx_log_error(NGX_LOG_ERR, log, e,
+                      "brix: staged commit fsync failed — not publishing "
+                      "\"%s\"", final_path);
+        ngx_close_file(staged->fd);
+        staged->fd = NGX_INVALID_FILE;
+        (void) brix_unlink_beneath(rootfd, tmp_rel, 0);
+        staged->active = 0;
+        errno = e;
+        return NGX_ERROR;
+    }
+    if (staged->final_mode != 0 && brix_imp_client_active()) {
+        (void) brix_chmod_confined_canon(log, root_canon, staged->tmp_path,
+                                           staged->final_mode);
+    } else {
+        (void) fchmod(staged->fd, staged->final_mode);
+    }
+    ngx_close_file(staged->fd);
+    staged->fd = NGX_INVALID_FILE;
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Carry a live WebDAV lock record across a replace-publish.
+ *
+ * WHY:  Phase-107 C7 — the lock record (BRIX_LOCK_XATTR_KEY) lives in an xattr
+ *       ON the destination inode, and a rename publish REPLACES that inode. An
+ *       ADMITTED write under a live lock (the owner presenting the If: token
+ *       over WebDAV, or any write on an `advisory`-enforcement export) must
+ *       not silently discharge the lock: RFC 4918 §7.4 — a write does not
+ *       remove a lock. Only the lock STATE MACHINE (UNLOCK/expiry reap) may.
+ *
+ * HOW:  Quiet lgetxattr on the current destination; the absent class (ENOENT,
+ *       ENODATA, ENOTSUP, an over-cap value) means nothing to carry (NGX_OK).
+ *       A record found is copied VERBATIM onto the about-to-publish temp —
+ *       expired records included: expiry is the gate's question, and the reap
+ *       belongs to the WebDAV edge, never to a commit. A failed copy FAILS
+ *       the commit (errno preserved): publishing would strip the lock.
+ */
+ngx_int_t
+brix_staged_lock_carry(ngx_log_t *log, const char *final_path,
+    const char *tmp_path)
+{
+    char     buf[BRIX_LOCK_XATTR_MAXLEN];
+    ssize_t  n;
+
+    n = lgetxattr(final_path, BRIX_LOCK_XATTR_KEY, buf, sizeof(buf));
+    if (n <= 0) {
+        return NGX_OK;              /* absent class: nothing to carry */
+    }
+    if (lsetxattr(tmp_path, BRIX_LOCK_XATTR_KEY, buf, (size_t) n, 0) != 0) {
+        int e = errno;
+
+        ngx_log_error(NGX_LOG_ERR, log, e,
+                      "brix: staged publish could not carry the lock record "
+                      "onto \"%s\" — refusing a lock-stripping publish",
+                      tmp_path);
+        errno = e;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
 /*
  * WHAT: Atomically rename the temp file to its final path and clean up.
  *
@@ -227,6 +324,42 @@ brix_staged_open_resume(ngx_log_t *log, const brix_staged_open_req_t *req,
  *   staged — the staged file struct (must be active)
  *   final_path — destination path to rename into
  */
+/* Open the confinement root and strip both paths to their root-relative
+ * forms. Returns the rootfd, or -1 after full cleanup (temp fd closed,
+ * staged deactivated; errno = EXDEV on a path that does not strip). Split
+ * from staged_commit_internal to keep its decision count in budget. */
+static int
+staged_commit_confine(const char *root_canon, brix_staged_file_t *staged,
+    const char *final_path, const char **tmp_rel, const char **final_rel)
+{
+    int  rootfd;
+
+    /* Open the confinement root first so the fsync-failure cleanup path (C1) can
+     * unlink the temp without re-opening it. */
+    rootfd = brix_beneath_open_root(root_canon);
+    if (rootfd < 0) {
+        if (staged->fd != NGX_INVALID_FILE) {
+            ngx_close_file(staged->fd);
+            staged->fd = NGX_INVALID_FILE;
+        }
+        staged->active = 0;
+        return -1;
+    }
+    *tmp_rel   = brix_beneath_strip_root(root_canon, staged->tmp_path);
+    *final_rel = brix_beneath_strip_root(root_canon, final_path);
+    if (*tmp_rel == NULL || *final_rel == NULL) {
+        if (staged->fd != NGX_INVALID_FILE) {
+            ngx_close_file(staged->fd);
+            staged->fd = NGX_INVALID_FILE;
+        }
+        close(rootfd);
+        staged->active = 0;
+        errno = EXDEV;
+        return -1;
+    }
+    return rootfd;
+}
+
 static ngx_int_t
 staged_commit_internal(ngx_log_t *log, const char *root_canon,
     brix_staged_file_t *staged, const char *final_path, int exclusive)
@@ -240,67 +373,35 @@ staged_commit_internal(ngx_log_t *log, const char *root_canon,
     int         rc;
     const char *tmp_rel, *final_rel;
 
-    /* Open the confinement root first so the fsync-failure cleanup path (C1) can
-     * unlink the temp without re-opening it. */
-    rootfd = brix_beneath_open_root(root_canon);
+    rootfd = staged_commit_confine(root_canon, staged, final_path,
+                                     &tmp_rel, &final_rel);
     if (rootfd < 0) {
-        if (staged->fd != NGX_INVALID_FILE) {
-            ngx_close_file(staged->fd);
-            staged->fd = NGX_INVALID_FILE;
-        }
-        staged->active = 0;
-        return NGX_ERROR;
-    }
-    tmp_rel   = brix_beneath_strip_root(root_canon, staged->tmp_path);
-    final_rel = brix_beneath_strip_root(root_canon, final_path);
-    if (tmp_rel == NULL || final_rel == NULL) {
-        if (staged->fd != NGX_INVALID_FILE) {
-            ngx_close_file(staged->fd);
-            staged->fd = NGX_INVALID_FILE;
-        }
-        close(rootfd);
-        staged->active = 0;
-        errno = EXDEV;
         return NGX_ERROR;
     }
 
-    /*
-     * Phase 51 (C1): flush the staged data to stable storage BEFORE the rename
-     * publishes it, so a crash / power loss / ENOSPC mid-write cannot expose a
-     * torn object.  A failed fsync means the data is NOT durable — fail the
-     * commit (unlink the temp, leave the final path untouched) rather than
-     * publish possibly-incomplete data.  (close() alone does not flush.)
-     */
-    if (staged->fd != NGX_INVALID_FILE) {
-        if (fsync(staged->fd) != 0) {
-            int e = errno;
-            ngx_log_error(NGX_LOG_ERR, log, e,
-                          "brix: staged commit fsync failed — not publishing "
-                          "\"%s\"", final_path);
-            ngx_close_file(staged->fd);
-            staged->fd = NGX_INVALID_FILE;
-            (void) brix_unlink_beneath(rootfd, tmp_rel, 0);
-            close(rootfd);
-            staged->active = 0;
-            errno = e;
-            return NGX_ERROR;
-        }
-        /* SECURITY: restore the caller's intended mode just before the rename
-         * publishes it. The temp was written 0600 (private); the committed object
-         * carries its client-intended bits (e.g. 0644) with no world-readable
-         * in-flight window.  Under impersonation the fd fchmod runs as the
-         * unprivileged worker on the MAPPED USER's file and EPERMs (silently),
-         * leaving the object 0600 and blocking group DAC on a shared/setgid-dir
-         * upload — so re-apply the mode AS THE MAPPED USER via the broker
-         * (path-based), which the fd fchmod cannot reach. */
-        if (staged->final_mode != 0 && brix_imp_client_active()) {
-            (void) brix_chmod_confined_canon(log, root_canon, staged->tmp_path,
-                                               staged->final_mode);
-        } else {
-            (void) fchmod(staged->fd, staged->final_mode);
-        }
-        ngx_close_file(staged->fd);
-        staged->fd = NGX_INVALID_FILE;
+    if (staged_seal_temp(log, root_canon, staged, rootfd, tmp_rel,
+                           final_path) != NGX_OK)
+    {
+        int e = errno;
+        close(rootfd);
+        errno = e;
+        return NGX_ERROR;
+    }
+
+    /* Phase-107 C7: the replace-publish swaps the destination inode — carry a
+     * live lock record onto the temp first so an ADMITTED write under a lock
+     * does not discharge it (brix_staged_lock_carry). The exclusive commit
+     * (RENAME_NOREPLACE) has no destination inode to carry from. */
+    if (!exclusive
+        && brix_staged_lock_carry(log, final_path, staged->tmp_path) != NGX_OK)
+    {
+        int e = errno;
+
+        (void) brix_unlink_beneath(rootfd, tmp_rel, 0);
+        close(rootfd);
+        staged->active = 0;
+        errno = e;
+        return NGX_ERROR;
     }
 
     rc = exclusive ? brix_rename_beneath_excl(rootfd, tmp_rel, final_rel)
@@ -314,13 +415,111 @@ staged_commit_internal(ngx_log_t *log, const char *root_canon,
         return NGX_ERROR;
     }
 
-    /* C1: persist the directory entry so the rename itself survives a crash
-     * (best-effort — the data is already durable above). */
-    (void) fsync(rootfd);
+    /* Phase-107 C3: persist the DIRECTORY ENTRY so the rename itself survives
+     * a crash. This replaces an inert (void) fsync(rootfd): rootfd is O_PATH
+     * (fsync = EBADF, discarded) and the export ROOT is the wrong directory
+     * anyway — the publish to a/b/c needs a/b flushed. A failed barrier FAILS
+     * the commit: the name is already visible and cannot be un-renamed, but a
+     * publish that reports success without durability is the exact bug this
+     * barrier exists to remove (the caller sees EIO; dirsync logged at crit).
+     * Gated per export by brix_durable_publish (absent/unregistered = on). */
+    if (brix_vfs_backend_durable(root_canon)
+        && brix_publish_dirsync(log, rootfd, root_canon, final_rel) != NGX_OK)
+    {
+        int e = errno ? errno : EIO;
+
+        close(rootfd);
+        staged->active = 0;
+        staged->tmp_path[0] = '\0';   /* the temp was consumed by the rename */
+        errno = e;
+        return NGX_ERROR;
+    }
 
     close(rootfd);
     staged->active = 0;
     staged->tmp_path[0] = '\0';
+    return NGX_OK;
+}
+
+
+/*
+ * brix_publish_dirsync — see staged_file.h.
+ *
+ * HOW: derive the parent as everything before the last '/' of the
+ *      root-relative path ("." when the object sits directly under the root),
+ *      open it beneath the anchor with O_RDONLY — the one flag combination an
+ *      fsync accepts — and flush. The parent fd is derived from the SAME
+ *      rootfd the rename used, so a symlink swapped in after the rename can
+ *      redirect the flush only chroot-style within the export, never outside
+ *      it (RESOLVE_IN_ROOT).
+ */
+ngx_int_t
+brix_publish_dirsync(ngx_log_t *log, int rootfd, const char *root_canon,
+    const char *final_path)
+{
+    char        parent[PATH_MAX];
+    const char *rel, *slash;
+    size_t      n;
+    int         anchor = rootfd, dirfd, e;
+
+    if (final_path == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    /* Accept both forms the callers hand in: an ABSOLUTE canonical path under
+     * root_canon (vfs_rename's resolved dst), or a ROOT-RELATIVE tail — which
+     * strip_root itself produces WITH its leading '/' kept (staged commit's
+     * final_rel), so a failed strip on a '/'-path is not an escape, it is the
+     * already-relative form. beneath_rel then drops the slashes either way;
+     * RESOLVE_BENEATH keeps every interpretation confined. */
+    rel = final_path;
+    if (rel[0] == '/') {
+        const char *stripped = brix_beneath_strip_root(root_canon, rel);
+
+        if (stripped != NULL) {
+            rel = stripped;
+        }
+    }
+    rel = brix_beneath_rel(rel);
+    slash = strrchr(rel, '/');
+    if (slash == NULL) {
+        parent[0] = '.'; parent[1] = '\0';
+    } else {
+        n = (size_t) (slash - rel);
+        if (n == 0 || n >= sizeof(parent)) {
+            errno = EINVAL;
+            return NGX_ERROR;
+        }
+        memcpy(parent, rel, n);
+        parent[n] = '\0';
+    }
+
+    if (anchor < 0) {
+        anchor = brix_beneath_open_root(root_canon);
+        if (anchor < 0) {
+            return NGX_ERROR;
+        }
+    }
+    dirfd = brix_open_beneath(anchor, parent,
+                              O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0);
+    e = errno;
+    if (anchor != rootfd) {
+        close(anchor);
+    }
+    if (dirfd < 0) {
+        errno = e;
+        return NGX_ERROR;
+    }
+    if (fsync(dirfd) != 0) {
+        e = errno;
+        close(dirfd);
+        ngx_log_error(NGX_LOG_CRIT, log, e,
+                      "brix: durable publish: parent dirsync of \"%s\" "
+                      "failed — the published name is NOT durable", final_path);
+        errno = e ? e : EIO;
+        return NGX_ERROR;
+    }
+    close(dirfd);
     return NGX_OK;
 }
 

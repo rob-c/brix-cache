@@ -124,7 +124,9 @@ brix_query_route_extended(brix_ctx_t *ctx, ngx_connection_t *c,
          * and whose body is an XrdSsiRRInfo. Route those to the SSI engine; all
          * other opaqug queries keep the generic handler. */
         int fh = (int) (unsigned char) req->fhandle[0];
-        if (fh >= 0 && fh < BRIX_MAX_FILES && ctx->files[fh].ssi != NULL) {
+        if (fh >= 0 && fh < BRIX_MAX_FILES && ctx->files != NULL
+            && ctx->files[fh].ssi != NULL)
+        {
             return brix_ssi_query(ctx, c, fh, ctx->recv.payload, ctx->recv.cur_dlen);
         }
         return brix_query_opaqug(ctx, c, req);

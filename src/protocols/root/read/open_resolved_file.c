@@ -81,7 +81,13 @@ brix_open_build_retstat(brix_open_args_t *a)
 		 * Only the real-fd path needs a fresh fstat. Without this guard,
 		 * fstat(-1) fails and we silently drop the retstat the client requested
 		 * with kXR_open — which stock clients reject ("invalid response"). */
-		int have_st = (fd != NGX_INVALID_FILE) ? (fstat(fd, st) == 0) : 1;
+		/* Every successful open has already stat'd the file into `st` (the
+		 * POSIX validate fstat, or the driver snapshot synthesis) — reuse it
+		 * instead of a third fstat of the same fd in the same request.  A
+		 * zero st_mode means no earlier stat populated it (defensive; no
+		 * successful path leaves it zero), so only then re-fstat. */
+		int have_st = (fd == NGX_INVALID_FILE || st->st_mode != 0)
+		              ? 1 : (fstat(fd, st) == 0);
 
 		if (have_st) {
 			/* Compute the wire `flags` field through the shared StatGen-mirroring
@@ -244,6 +250,7 @@ brix_open_args_init(brix_open_args_t *a, brix_ctx_t *ctx,
 	a->options = req->options;
 	a->is_write = req->is_write;
 	a->codec = req->codec;
+	a->declared_size = req->is_write ? req->declared_size : 0;
 	a->fd = -1;
 	a->st = st;
 	a->use_posc = req->is_write && (req->options & kXR_posc);

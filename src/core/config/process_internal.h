@@ -39,6 +39,16 @@
 #define BRIX_CACHE_REAP_FIRST_MS     5000
 #define BRIX_CACHE_REAP_INTERVAL_MS  3600000   /* hourly */
 
+/* Resolve one cache-reaper delay: $BRIX_CACHE_REAP_FIRST_MS (test/dev knob,
+ * delivered to the worker via an `env` declaration in the config) overrides
+ * `dflt` when set. The knob governs BOTH the first tick and the stale-dirty
+ * re-arm — the walk is age-gated (brix_cache_dirty_max_age), so a shortened
+ * first tick alone can scan before any file matures and the hourly re-arm
+ * would then miss a test's whole window. Defined in process_timers.c, called
+ * from both timer-arming sites in process_server_init.c and the stale-dirty
+ * handler's re-arm. */
+ngx_msec_t brix_cache_reap_delay(ngx_msec_t dflt);
+
 /* Background CSI scrub (phase-59 W2b) first-tick delay: the steady-state cadence
  * is the operator's brix_csi_scrub_interval (seconds), so only the startup offset
  * is a fixed constant. Larger than the cache reaper's so the at-rest sweep never

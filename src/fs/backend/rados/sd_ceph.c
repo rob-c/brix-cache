@@ -467,6 +467,9 @@ const brix_sd_driver_t brix_sd_ceph_driver = {
 
     .stat   = sd_ceph_stat,
     .unlink = sd_ceph_unlink,
+    /* C4: N rados_remove on one ioctx; no CAP_BULK_DELETE - a loop, not a
+     * wire batch, so only the flat client batch reaches it wide. */
+    .unlink_many = sd_ceph_unlink_many,
     .mkdir  = sd_ceph_mkdir,      /* synthetic no-op create (phase-89 ADR-1) */
     .rename = sd_ceph_rename,     /* copy+delete, no CAP_HARD_RENAME (ADR-5) */
     .truncate_path = sd_ceph_truncate_path,   /* rados_trunc needs no handle */
@@ -511,6 +514,7 @@ const brix_sd_driver_t brix_sd_ceph_driver = {
      * object, so there is no cluster-side authority to scope). */
     .stat_cred           = sd_ceph_stat_cred,
     .unlink_cred         = sd_ceph_unlink_cred,
+    .unlink_many_cred    = sd_ceph_unlink_many_cred,   /* C4: one ioctx per window */
     .truncate_path_cred  = sd_ceph_truncate_path_cred,
     .getxattr_cred       = sd_ceph_getxattr_cred,
     .listxattr_cred      = sd_ceph_listxattr_cred,

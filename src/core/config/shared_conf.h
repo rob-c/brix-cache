@@ -43,6 +43,7 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
 {
     conf->enable             = NGX_CONF_UNSET;
     conf->allow_write        = NGX_CONF_UNSET;
+    conf->durable_commit     = NGX_CONF_UNSET;
     conf->verify_write       = NGX_CONF_UNSET;
     conf->require_pgwrite    = NGX_CONF_UNSET;
     conf->data_substreams    = NGX_CONF_UNSET;
@@ -130,6 +131,9 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->cache_slice_size   = NGX_CONF_UNSET_SIZE;
     conf->cache_prefetch     = NGX_CONF_UNSET;
     conf->cache_prefetch_window = NGX_CONF_UNSET_SIZE;
+    conf->vfs_spill_max      = NGX_CONF_UNSET_SIZE;   /* phase-107 C1 */
+    conf->durable_publish    = NGX_CONF_UNSET;        /* phase-107 C3 */
+    conf->lock_enforcement   = NGX_CONF_UNSET_UINT;   /* phase-107 C7 */
     conf->rootfd             = -1;   /* opened per worker at init_process */
     /* root_canon zeroed by ngx_pcalloc — no explicit memset needed */
     brix_pmark_conf_init(&conf->pmark);

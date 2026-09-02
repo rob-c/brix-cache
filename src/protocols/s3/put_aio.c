@@ -172,6 +172,15 @@ s3_put_aio_done(ngx_event_t *ev)
     ngx_http_s3_req_ctx_t *rx =
         ngx_http_get_module_ctx(t->r, ngx_http_brix_s3_module);
 
+    /* Balance the r->main->count++ at the task post that kept the request
+     * alive across the thread dispatch (webdav_put_aio_done precedent).
+     * Without it the finalize below leaves the request one reference high:
+     * the 200 is sent but the connection never re-enters keepalive, so the
+     * NEXT request on the same connection is never read - an sd_remote
+     * multipart commit (UploadPart then CompleteMPU back-to-back on one
+     * kept-alive transport connection) wedged for the full curl ceiling. */
+    t->r->main->count--;
+
     brix_imp_request_begin(rx != NULL ? rx->identity : NULL);
     s3_put_aio_finish(t);
     brix_imp_request_end();

@@ -152,6 +152,13 @@ int brix_resolve_path_noexist(ngx_log_t *log, const ngx_str_t *root,
  * Returns an fd (caller MUST close it; not pool-managed) or -1 with errno set. */
 int brix_open_confined(ngx_log_t *log, const ngx_str_t *root,
     const char *resolved, int flags, mode_t mode);
+/* realpath(3) semantics for an existing path, priced for the miss: one
+ * open(O_PATH) resolves the whole chain kernel-side (a nonexistent path
+ * costs exactly that failing open), and the canonical result is read back
+ * via /proc/self/fd.  `resolved` must be a PATH_MAX buffer.  Returns
+ * `resolved` or NULL with errno from the failing resolution. */
+char *brix_realpath_existing(const char *path, char *resolved);
+
 /* As above but <root_canon> is already canonical (skips the realpath). */
 int brix_open_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, int flags, mode_t mode);
@@ -239,6 +246,10 @@ ngx_int_t brix_dirlist_access_ok(ngx_log_t *log, const char *root_canon,
  */
 DIR *brix_opendir_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved);
+/* As above, on a BORROWED rootfd already anchored on root_canon — no per-call
+ * root open/close; never closes the fd. */
+DIR *brix_opendir_confined_canon_at(ngx_log_t *log, int rootfd,
+    const char *root_canon, const char *resolved);
 
 /*
  * brix_lstat_confined_canon — lstat()/stat() <resolved> as the mapped user
@@ -256,6 +267,12 @@ int brix_lstat_confined_canon(ngx_log_t *log, const char *root_canon,
  * Call once from init_process to log a warning on degraded systems.
  */
 int brix_openat2_runtime_available(void);
+
+/* brix_lstat_confined_canon on a BORROWED rootfd (see the .c): no per-call
+ * root open/close; the fd is never closed. */
+int brix_lstat_confined_canon_at(ngx_log_t *log, int rootfd,
+    const char *root_canon, const char *resolved, struct stat *st,
+    int nofollow);
 
 /* Extract a NUL-terminated path from a raw XRootD request payload. */
 int brix_extract_path(ngx_log_t *log, const u_char *payload,

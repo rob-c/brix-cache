@@ -316,9 +316,15 @@ brix_open_write_resolve(brix_ctx_t *ctx, ngx_connection_t *c,
 		slash = strrchr(parent, '/');
 		if (slash && slash > parent) {
 			*slash = '\0';
-			/* mode 0755 for new directories; propagate group policy */
-			brix_mkdir_recursive_policy(parent, 0755, c->log,
-										  conf->group_rules);
+			/* The export root itself always exists (config-time invariant) —
+			 * skip even the ensure's one stat for the overwhelmingly common
+			 * upload-into-root-level case; only a genuinely nested parent
+			 * pays for the walk. */
+			if (ngx_strcmp(parent, conf->common.root_canon) != 0) {
+				/* mode 0755 for new directories; propagate group policy */
+				brix_mkdir_recursive_policy(parent, 0755, c->log,
+											  conf->group_rules);
+			}
 		}
 	}
 

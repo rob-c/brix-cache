@@ -372,4 +372,100 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
     "lc-qspace-fwd-origin": {"port": 30543},
     "lc-qspace-fwd-proxy": {"port": 30544},
     "lc-qspace-posix": {"port": 30545},
+    # phase-107 C1 writer reorder spill (test_vfs_writer_spill.py);
+    # xdist_group("lc-p107-spill").  One instance, four root fronts over the
+    # two staged-only drivers (brix_upload_resume off on every front, so the
+    # kXR writes land in the VFS staged writer, not the protocol's own resume
+    # partial):
+    #   PORT              root front over http:// (sd_http), spill ON
+    #   REMOTE_PORT       root front over s3:// (sd_remote), spill ON
+    #   CAPPED_PORT       http front with brix_vfs_spill_max 1m
+    #   RO_PORT           http front, writes disabled — EROFS before any spill
+    #   HTTP_ORIGIN_PORT  WebDAV posix origin the http fronts commit to
+    #   S3_PORT           brix_s3 posix origin the remote front commits to
+    "lc-p107-spill": {"port": 30918,
+                      "extra": {"REMOTE_PORT": 30919,
+                                "CAPPED_PORT": 30920,
+                                "RO_PORT": 30921,
+                                "HTTP_ORIGIN_PORT": 30922,
+                                "S3_PORT": 30923}},
+    # phase-107 C5 declared-size reserve (test_vfs_reserve.py);
+    # xdist_group("lc-p107-reserve").  One instance, four root fronts + one
+    # origin:
+    #   PORT         posix front, writable — preallocation + the oversized
+    #                oss.asize -> kXR_NoSpace AT OPEN rows
+    #   QUOTA_PORT   posix front, brix_oss_maxsize 64k — a lying declaration
+    #                must not move the quota boundary
+    #   RO_PORT      posix front, writes disabled — EROFS before any reserve
+    #   REMOTE_PORT  root front over s3:// (sd_remote) — the 200 GB
+    #                declaration that used to be past the multipart ceiling
+    #   S3_PORT      brix_s3 posix origin the remote front commits to
+    "lc-p107-reserve": {"port": 30924,
+                        "extra": {"QUOTA_PORT": 30925,
+                                  "RO_PORT": 30926,
+                                  "REMOTE_PORT": 30927,
+                                  "S3_PORT": 30928}},
+    # phase-107 C4 DeleteObjects batch (test_s3_delete_objects_batch.py);
+    # xdist_group("lc-p107-bulkdel").  One instance, four S3 fronts + one
+    # logged origin:
+    #   PORT            S3 front over s3:// (sd_remote) — 1,000 keys, ONE
+    #                   upstream ?delete
+    #   POSIX_PORT      S3 front over posix — the mixed-batch vocabulary
+    #   RO_PORT         S3 front, writes disabled — EROFS for the whole batch
+    #   DEADFRONT_PORT  S3 front over s3://DEAD_PORT — the transport arm
+    #   DEAD_PORT       allocated, never bound: the dead origin itself
+    #   ORIGIN_PORT     brix_s3 posix origin whose access log counts trips
+    #   METRICS_PORT    brix_vfs_bulk_delete_{batches,keys}_total
+    "lc-p107-bulkdel": {"port": 30929,
+                        "extra": {"ORIGIN_PORT": 30930,
+                                  "POSIX_PORT": 30931,
+                                  "RO_PORT": 30932,
+                                  "DEADFRONT_PORT": 30933,
+                                  "DEAD_PORT": 30934,
+                                  "METRICS_PORT": 30935}},
+    # phase-107 C4 windowed rmtree walk (test_vfs_rmtree.py);
+    # xdist_group("lc-p107-rmtree").  One instance, two WebDAV fronts + two
+    # logged origins:
+    #   PORT             WebDAV front over http:// (sd_http, no batch verb)
+    #   REMOTE_PORT      WebDAV front over s3:// (sd_remote, CAP_BULK_DELETE)
+    #   DAV_ORIGIN_PORT  WebDAV posix origin — the child-before-parent witness
+    #   S3ORIGIN_PORT    brix_s3 posix origin — batches vs per-key DELETEs
+    #   METRICS_PORT     the batch metric pair
+    "lc-p107-rmtree": {"port": 30936,
+                       "extra": {"DAV_ORIGIN_PORT": 30937,
+                                 "S3ORIGIN_PORT": 30938,
+                                 "REMOTE_PORT": 30939,
+                                 "METRICS_PORT": 30940}},
+    # phase-107 C2 / W6 (test_prepare_recall.py + test_vfs_evict.py, one serial
+    # xdist_group("lc-prepare-recall")): the kXR_prepare stage/evict arms
+    # through brix_vfs_recall/brix_vfs_evict.  A writable frm://exec + durable
+    # stage-registry subject, its brix_allow_write-off twin (the kXR_fsReadOnly
+    # negative), and a posix + registry subject whose recall-less backend keeps
+    # records QUEUED for the FRM-1 ownership negatives.
+    "lc-prepare-recall": {"port": 30941},
+    "lc-prepare-recall-ro": {"port": 30942},
+    "lc-prepare-own": {"port": 30943},
+    # phase-107 C7 / W8 (test_cross_protocol_locks.py,
+    # xdist_group("lc-p107-locks")): the VFS lock gate proven across planes.
+    # ONE posix export dir shared by four fronts — a lock taken over WebDAV
+    # must refuse the same file over every other plane — plus three
+    # single-front exports because brix_lock_enforcement registers per
+    # canonical export root (root_prepare.c), so each mode needs its own dir:
+    #   PORT          root:// front, strict (default) — kXR_FileLocked
+    #   DAV_PORT      WebDAV front — LOCK/UNLOCK edge, 423, If: token
+    #   S3_PORT       brix_s3 front (anonymous) — 409 OperationAborted
+    #   FTP_PORT      cleartext GridFTP front — 450
+    #   ADV_PORT      root front, brix_lock_enforcement advisory (own export)
+    #   OFF_PORT      root front, brix_lock_enforcement off (own export)
+    #   RO_PORT       root front, writes disabled (own export) — EROFS
+    #                 precedes EBUSY; expired locks are never reaped
+    #   METRICS_PORT  brix_vfs_lock_refused_total{proto=...}
+    "lc-p107-locks": {"port": 30944,
+                      "extra": {"DAV_PORT": 30945,
+                                "S3_PORT": 30946,
+                                "FTP_PORT": 30947,
+                                "ADV_PORT": 30948,
+                                "OFF_PORT": 30949,
+                                "RO_PORT": 30950,
+                                "METRICS_PORT": 30951}},
 })

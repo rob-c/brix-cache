@@ -92,7 +92,7 @@ tpc_done_teardown_dst(brix_tpc_pull_t *t, brix_ctx_t *ctx, int idx,
         remove_final = 0;
         brix_vfs_writer_abort(t->dst_writer);
     }
-    if (ctx != NULL && idx >= 0 && idx < BRIX_MAX_FILES
+    if (ctx != NULL && ctx->files != NULL && idx >= 0 && idx < BRIX_MAX_FILES
         && ctx->files[idx].writer != NULL)
     {
         remove_final = 0;
@@ -106,7 +106,7 @@ tpc_done_teardown_dst(brix_tpc_pull_t *t, brix_ctx_t *ctx, int idx,
         tpc_dst_opctx(t, log, &opctx);
         (void) brix_vfs_export_unlink(&opctx, t->dst_path);
     }
-    if (ctx != NULL && idx >= 0 && idx < BRIX_MAX_FILES) {
+    if (ctx != NULL && ctx->files != NULL && idx >= 0 && idx < BRIX_MAX_FILES) {
         ctx->files[idx].fd = -1;
         ctx->files[idx].tpc_transfer_id = 0;
         brix_free_fhandle(ctx, idx);
@@ -118,7 +118,7 @@ tpc_done_commit_dst(brix_tpc_pull_t *t, brix_ctx_t *ctx, int idx)
 {
     int cerr = 0;
 
-    if (ctx == NULL || idx < 0 || idx >= BRIX_MAX_FILES
+    if (ctx == NULL || ctx->files == NULL || idx < 0 || idx >= BRIX_MAX_FILES
         || ctx->files[idx].writer == NULL
         || ctx->files[idx].staged_committed)
     {
@@ -143,7 +143,7 @@ tpc_done_refresh_stat(brix_tpc_pull_t *t, brix_ctx_t *ctx,
     brix_file_t    *file;
     const char      *logical;
 
-    if (t == NULL || ctx == NULL || c == NULL
+    if (t == NULL || ctx == NULL || c == NULL || ctx->files == NULL
         || idx < 0 || idx >= BRIX_MAX_FILES)
     {
         return NGX_ERROR;
@@ -204,7 +204,8 @@ tpc_done_sync_fail(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
     int          err = t->xrd_error ? t->xrd_error : kXR_ServerError;
 
     /* idx may be out of range if the handle was reaped; guard before use. */
-    file = (idx >= 0 && idx < BRIX_MAX_FILES) ? &ctx->files[idx] : NULL;
+    file = (ctx->files != NULL && idx >= 0 && idx < BRIX_MAX_FILES)
+           ? &ctx->files[idx] : NULL;
 
     tpc_sess_finish_pull(t, 0, BRIX_SESS_END_ERROR);
 
@@ -269,7 +270,8 @@ tpc_done_reply_sync(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /* idx may be out of range if the handle was reaped; guard before use. */
-    file = (idx >= 0 && idx < BRIX_MAX_FILES) ? &ctx->files[idx] : NULL;
+    file = (ctx->files != NULL && idx >= 0 && idx < BRIX_MAX_FILES)
+           ? &ctx->files[idx] : NULL;
 
     if (tpc_done_commit_dst(t, ctx, idx) != NGX_OK) {
         t->result = NGX_ERROR;
@@ -440,7 +442,7 @@ tpc_done_reply_open(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
     tpc_sess_finish_pull(t, 1, BRIX_SESS_END_SERVER);
     brix_log_access(ctx, c, "TPC-PULL", t->dst_path, "ok", 1, 0, NULL, 0);
     BRIX_OP_OK(ctx, BRIX_OP_OPEN_WR);
-    if (idx >= 0 && idx < BRIX_MAX_FILES) {
+    if (ctx->files != NULL && idx >= 0 && idx < BRIX_MAX_FILES) {
         ctx->files[idx].tpc_transfer_id = 0;
     }
     tpc_done_account(t, 1, c->log);

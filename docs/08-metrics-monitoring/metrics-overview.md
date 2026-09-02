@@ -516,6 +516,14 @@ families, which iterate the identical protocol list:
 | `brix_cred_deleg_total` | counter | `proto`, `mode`, `outcome` |
 | `brix_cred_deleg_fail_total` | counter | `proto`, `reason` |
 | `brix_vfs_mutation_denied_total` | counter | `proto`, `op`, `reason` |
+| `brix_vfs_spill_bytes_total` / `brix_vfs_spill_refused_total` | counter | `proto` |
+| `brix_vfs_spill_active` | gauge | *(none — process-wide)* |
+| `brix_vfs_lock_refused_total` | counter | `proto` |
+| `brix_vfs_precond_failed_total` | counter | `kind` |
+| `brix_vfs_precond_advisory_total` | counter | `driver` |
+| `brix_vfs_recall_total` | counter | `result` |
+| `brix_vfs_evict_bytes_total` | counter | `driver` |
+| `brix_vfs_bulk_delete_batches_total` / `brix_vfs_bulk_delete_keys_total` | counter | `driver` |
 
 Label values (closed sets — INVARIANT #8):
 
@@ -529,6 +537,10 @@ Label values (closed sets — INVARIANT #8):
 - `op` on `brix_vfs_mutation_denied_total` — the closed VFS mutation
   vocabulary `open`, `write`, `truncate`, `sync`, `mkdir`, `remove`, `rename`,
   `copy`, `setattr`, `xattr`, `publish`; `reason` is always `read_only`
+- `kind` on `brix_vfs_precond_failed_total` — `absent`, `etag`, `meta`
+- `result` on `brix_vfs_recall_total` — `queued`, `joined`, `online`, `error`
+- `driver` — the fixed storage-driver id table (`brix_fs_id_name`, bounded by
+  `BRIX_FS_ID_COUNT`), never an instance or export name
 - `le` — the eight finite microsecond bounds `1000`, `5000`, `10000`, `50000`,
   `100000`, `500000`, `1000000`, `5000000`, plus `+Inf`
 
@@ -559,6 +571,59 @@ believe is writable means the endpoint merged to read-only; a non-zero rate on
 a deliberately read-only export is the gate working, and the `op` label says
 which family of write the client is attempting. The counter is never bumped
 for an authorization failure, which stays `EACCES`/`brix_auth_total`.
+
+The three `brix_vfs_spill_*` families are the phase-107 C1 writer's
+reorder-spill telemetry (`src/fs/vfs/vfs_writer_spill.c`): `_bytes_total`
+counts bytes absorbed into the local scratch when a client writes
+out-of-order against a staged-only backend, `_refused_total` counts reordered
+uploads the spill could not serve (no `brix_vfs_spill_path`/`brix_stage_dir`
+configured, `brix_vfs_spill_max` exceeded, an overlapping extent, or a
+coverage hole at commit), and `_active` is the process-wide gauge of spill
+scratches currently open. A rising `_refused_total` with `_bytes_total` flat
+means clients reorder here but no scratch is configured — the fix is a
+directive, not a client change. No path, export or size ever becomes a label
+(INVARIANT #8).
+
+`brix_vfs_lock_refused_total` is the phase-107 C7 cross-protocol lock gate's
+ledger (`brix_vfs_require_unlocked` in `src/fs/vfs/vfs_lock_gate.c`): one
+observation per mutation that arrived under a live, unexpired WebDAV lock whose
+token the caller did not present. Under `brix_lock_enforcement strict` each
+observation is a refusal the client saw (`kXR_FileLocked` / 423 / S3 409
+`OperationAborted` / GridFTP 450); under `advisory` the same observation counts
+a breach that was warned to the error log and allowed through — so a non-zero
+rate during an `advisory` migration window is the exact traffic that will start
+refusing when the export moves to `strict`. Expired locks never book here (the
+gate treats them as absent), and the lock token never appears in any label or
+log line. The `proto` label says which plane's clients are colliding with the
+locks; `proto="webdav"` rows are unusual since the WebDAV edge check normally
+refuses first.
+
+The `brix_vfs_precond_*` pair is the phase-107 C6 conditional-publish ledger
+(observer `brix_vfs_precond_refused_observe` in `src/fs/vfs/vfs_staged.c`,
+called from every commit/copy failure path and from the HTTP edge's own
+RFC 9110 refusals). `_failed_total{kind}` counts every refused publish
+precondition — `absent` is a lost If-None-Match create race, `etag`/`meta` a
+lost If-Match overwrite race — each surfaced to the client as 412 / typed kXR
+error rather than a silent overwrite (the errno contract is what classifies:
+`EEXIST` is only ever the ABSENT verdict, `ECANCELED` only a MATCH one).
+`_advisory_total{driver}` is the honesty subset: those refusals whose verdict
+came from a *non-atomic* probe (a stat-then-act window, or an edge check ahead
+of a backend that can't enforce natively) rather than an atomic
+compare-and-act at the storage. The ratio to watch is `_advisory_total`
+against `_failed_total`: a rising advisory share on a driver that enforces
+natively (http If-Match, s3 conditional PUT) means the capability probe is
+degrading the verdict, not that clients changed behavior.
+
+`brix_vfs_recall_total{result}` and `brix_vfs_evict_bytes_total{driver}` are
+the phase-107 C2 nearline lifecycle pair: `queued` vs `joined` is the recall
+registry's dedup ratio (a `joined` recall attached to an in-flight stage
+instead of issuing a second one), `online` means the object needed no recall,
+and `error` is a failed bring-online. Evicted bytes are labelled by the
+dispatching driver, separating a cache reclaim from a nearline release. The
+`brix_vfs_bulk_delete_*` pair (phase-107 C4) counts batch-delete dispatches:
+`keys_total / batches_total` is the achieved batching factor — a ratio near 1
+on an S3 export means the bulk plane is not engaging and deletes are paying
+one round-trip per key.
 
 ---
 

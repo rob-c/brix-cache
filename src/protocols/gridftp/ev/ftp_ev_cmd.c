@@ -182,6 +182,12 @@ ftp_ev_ns_mutate(ftp_ev_t *fc, const char *arg, const ftp_ev_ns_verb_t *v)
     }
     brix_ftp_ev_vfs_ctx(fc, abs, &vctx);
     if (v->op(&vctx) != NGX_OK) {
+        /* phase-107 C7: a live foreign lock is a transient condition (RFC 959
+         * 450, "file busy"), not the permanent 550 the verb tables carry. */
+        if (errno == EBUSY) {
+            return brix_ftp_ev_reply(fc,
+                "450 Requested file action not taken (file busy)\r\n");
+        }
         return brix_ftp_ev_reply(fc, "%s", v->op_failed);
     }
 
@@ -442,6 +448,11 @@ brix_ftp_ev_cmd_rnto(ftp_ev_t *fc, const char *arg)
     dst.resolved.len  = ngx_strlen(abs);
 
     if (brix_vfs_rename(&vctx, &dst, 0 /* don't clobber a dir dest */) != NGX_OK) {
+        /* phase-107 C7: a live foreign lock on either name is transient (450). */
+        if (errno == EBUSY) {
+            return brix_ftp_ev_reply(fc,
+                "450 Requested file action not taken (file busy)\r\n");
+        }
         return brix_ftp_ev_reply(fc, "550 Rename failed\r\n");
     }
 

@@ -64,10 +64,23 @@ brix_release_disconnect_owned_buffers(brix_ctx_t *ctx)
         ctx->rd.write_scratch = NULL;
         ctx->rd.write_scratch_size = 0;
     }
+    if (ctx->rd.dirlist_chunk != NULL) {         /* cached kXR_dirlist chunk */
+        ngx_free(ctx->rd.dirlist_chunk);
+        ctx->rd.dirlist_chunk = NULL;
+    }
     if (ctx->rd.cmp_scratch != NULL) {           /* phase-42 W4 codec output */
         ngx_free(ctx->rd.cmp_scratch);
         ctx->rd.cmp_scratch = NULL;
         ctx->rd.cmp_scratch_size = 0;
+    }
+    if (ctx->rd.win_scratch_b != NULL) {         /* round-12 back window buffer
+                                                  * (an in-flight read-ahead is
+                                                  * counted in rd.aio_inflight,
+                                                  * so teardown deferred past it
+                                                  * before reaching here) */
+        ngx_free(ctx->rd.win_scratch_b);
+        ctx->rd.win_scratch_b = NULL;
+        ctx->rd.win_scratch_b_size = 0;
     }
 
     /*

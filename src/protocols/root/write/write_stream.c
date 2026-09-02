@@ -182,12 +182,11 @@ brix_write_stream_apply_chunk(brix_ctx_t *ctx, ngx_connection_t *c)
 
     if (ctx->recv.sw_staged) {
         int ar = brix_staged_append_raw(ctx, ctx->recv.sw_idx, off, buf, len);
-        if (ar == BRIX_STAGED_APPEND_ORDER) {
-            ctx->recv.sw_err    = kXR_Unsupported;
-            ctx->recv.sw_errmsg =
-                "random-offset write to whole-object backend unsupported";
-        } else if (ar == BRIX_STAGED_APPEND_IO) {
-            ctx->recv.sw_err    = kXR_IOError;
+        if (ar == BRIX_STAGED_APPEND_IO) {
+            /* errno → kXR (ENOSPC from an unspillable reorder → kXR_NoSpace);
+             * the message must be a literal — strerror's buffer would not
+             * survive until brix_write_stream_finish sends the reply. */
+            ctx->recv.sw_err    = brix_kxr_from_errno(errno);
             ctx->recv.sw_errmsg = "staged write I/O error";
         }
         return;

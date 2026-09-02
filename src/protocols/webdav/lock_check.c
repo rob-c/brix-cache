@@ -93,32 +93,6 @@ webdav_check_lock_at(ngx_http_request_t *r, const webdav_lock_walk_t *w)
 }
 
 /*
- * webdav_lock_path_ascend — strip the last component from `check` in place.
- *
- * WHAT: Removes trailing slashes then the final path component of `check`.
- * WHY:  Advances the ancestor walk one level toward the export root.
- * HOW:  Returns 1 when a shorter parent path remains in `check`, 0 when the
- *       path can no longer be shortened (no interior slash) so the caller stops.
- */
-static int
-webdav_lock_path_ascend(char *check, size_t check_len)
-{
-    char *slash = check + check_len - 1;
-
-    while (slash > check && *slash == '/') {
-        slash--;
-    }
-    while (slash > check && *slash != '/') {
-        slash--;
-    }
-    if (*slash != '/') {
-        return 0;
-    }
-    *slash = '\0';
-    return 1;
-}
-
-/*
  * webdav_check_locks — walk from path up to export root, checking for active
  * xattr locks at each level.  O(path_depth) xattr reads.
  *
@@ -158,7 +132,7 @@ webdav_check_locks(ngx_http_request_t *r, const char *path, int need_write)
             break;
         }
 
-        if (!webdav_lock_path_ascend(check, w.check_len)) {
+        if (!brix_lock_path_ascend(check, w.check_len)) {
             break;
         }
 

@@ -368,6 +368,9 @@ static const brix_sd_driver_t brix_sd_remote_driver = {
      * marker-based mkdir/rmdir/rename below (and gates S3-PUT parent-prefix
      * creation in put_inner.c — the marker mkdir keeps that self-consistent). */
     .caps  = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_MEMFILE
+             /* C6: ABSENT/MATCH_ETAG atomic — signed If-None-Match / If-Match
+              * on the publish PUT / CompleteMPU (sd_remote_write.c). */
+             | BRIX_SD_CAP_PRECOND
              | BRIX_SD_CAP_DIRS | BRIX_SD_CAP_DIRS_WRITE
              /* CAP_CATALOG: the .enumerate slot below. The cap is the gate, not
               * the slot — brix_cstore_scan checks the cap before calling, so an
@@ -377,6 +380,9 @@ static const brix_sd_driver_t brix_sd_remote_driver = {
               * x-amz-meta-* user-xattr surface, setattr patches the advisory
               * unix-attr blob (both read-merge-write, sd_remote_xattr.c). */
              | BRIX_SD_CAP_XATTR | BRIX_SD_CAP_XATTR_WRITE
+             /* C4: .unlink_many is a REAL batch (one DeleteObjects request),
+              * so the VFS chunker may fill the whole 1,000-key window. */
+             | BRIX_SD_CAP_BULK_DELETE
              /* .server_copy is a native S3 CopyObject, so advertise it: the slot
               * has been implemented since #4 while the cap said otherwise, and
               * the cap is what introspection and the config advisor report. */
@@ -397,6 +403,10 @@ static const brix_sd_driver_t brix_sd_remote_driver = {
     .mkdir         = sd_remote_mkdir,      /* #4: zero-byte "path/" folder marker */
     .rename        = sd_remote_rename,     /* #4: copy+delete (file / empty dir) */
     .unlink        = sd_remote_unlink,
+    /* Phase-107 C4: 1,000 keys per signed DeleteObjects POST - the batch this
+     * driver exists to avoid looping. CAP_BULK_DELETE below advertises the
+     * full window. */
+    .unlink_many   = sd_remote_unlink_many,
     .getxattr      = sd_remote_getxattr,   /* x-amz-meta-* as user.* xattrs */
     .listxattr     = sd_remote_listxattr,
     .setxattr      = sd_remote_setxattr,       /* #4: read-merge-write REPLACE */
@@ -410,6 +420,7 @@ static const brix_sd_driver_t brix_sd_remote_driver = {
      * BRIX_SD_CAP_NEARLINE, which only cfg->nearline arms. */
     .residency     = sd_remote_residency,
     .recall        = sd_remote_recall,
+    .recall_cred   = sd_remote_recall_cred, /* C2: user-signed restore */
     .staged_open   = sd_remote_staged_open,
     .staged_write  = sd_remote_staged_write,
     .staged_commit = sd_remote_staged_commit,
@@ -421,6 +432,7 @@ static const brix_sd_driver_t brix_sd_remote_driver = {
     .staged_open_cred = sd_remote_staged_open_cred,
     .stat_cred        = sd_remote_stat_cred,
     .unlink_cred      = sd_remote_unlink_cred,
+    .unlink_many_cred = sd_remote_unlink_many_cred,   /* C4: batch as the caller */
     .mkdir_cred       = sd_remote_mkdir_cred,
     .rename_cred      = sd_remote_rename_cred,
     .getxattr_cred    = sd_remote_getxattr_cred,
@@ -469,6 +481,8 @@ brix_sd_remote_create(const brix_sd_remote_cfg_t *cfg, ngx_log_t *log)
     if (cfg->nearline) {
         inst->caps |= BRIX_SD_CAP_NEARLINE;
     }
+    inst->domain = BRIX_VFS_DOMAIN_EXPORT;   /* strict default; composer overrides
+                                              * for service storage (C9) */
     return inst;
 }
 

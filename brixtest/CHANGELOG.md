@@ -4,6 +4,20 @@ All notable BriXTest changes are documented here. The project follows Semantic
 Versioning; compatibility aliases are retained for at least one minor release
 before removal.
 
+## 0.16.0
+
+- Added `native_test()` as a first-class pytest factory: every declared C/C++
+  program is independently collected, selected, supervised, reported, and
+  rerunnable rather than hidden behind a batch runner.
+- Added automatic C/C++ compiler selection, multi-source/object/include/define
+  and library inputs, pkg-config support, compile-only checks, expected exit
+  codes, and composable stdout/stderr expectations.
+- Added sanitizer/gcov object-link inheritance, bounded compile/run logs,
+  native duration/size metrics, content-addressed binaries, and source/object/
+  build provenance.
+- Added explicit native-input transport for OCI and Kubernetes helpers plus
+  standalone C and C++ executable examples.
+
 ## 0.15.0
 
 - Added declaration-owned typed references, parameter/workspace/run-root

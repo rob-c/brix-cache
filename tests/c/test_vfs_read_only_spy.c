@@ -3,8 +3,8 @@
  * read-only endpoint (phase-105, Appendix K.4).
  *
  * WHAT: drives the public VFS mutation API — mkdir, rmdir, unlink, rename,
- *       copy, chmod, setattr, setxattr, removexattr — against a confined
- *       context whose endpoint is READ_ONLY, and proves that every one of them
+ *       exchange, copy, chmod, setattr, setxattr, removexattr — against a
+ *       confined context whose endpoint is READ_ONLY, and proves that every one
  *       fails with EROFS having called NOTHING: no namespace mutation, no
  *       POSIX confined-path syscall, no storage-driver slot (plain OR
  *       credential-scoped), no leaf resolution, no credential resolution, and
@@ -72,8 +72,19 @@ typedef struct {
     int drv_mkdir_cred, drv_unlink_cred, drv_rename_cred, drv_copy_cred;
     int drv_setxattr_cred, drv_removexattr_cred, drv_setattr_cred;
     int drv_stat_cred;
+    /* the phase-107 mutation slots (W0/§9.3): every one is a counted sink, so
+     * an OLD verb leaking into a NEW slot — or any verb reaching one past the
+     * gate — trips the same zero-sink assertions as the original ten. */
+    int drv_reserve, drv_unlink_many, drv_sync_publish, drv_exchange;
+    int drv_recall, drv_evict;
+    int drv_unlink_many_cred, drv_exchange_cred, drv_recall_cred;
+    int drv_evict_cred;
     /* resolution and invalidation that must not happen either */
     int ns_leaf, cred_gate, ns_cred, cache_evict, leaf_isdir;
+    int publish_dirsync;   /* phase-107 C3 barrier (POSIX arm) */
+    int ns_exchange;       /* phase-107 C6 two-name swap (POSIX arm) */
+    int rmtree_dispatch;   /* driver-plane recursive delete */
+    int precond_refused;   /* C6 refusal observation (expected on refusal) */
     /* reads, which are never gated */
     int getxattr_canon, listxattr_canon;
     /* the policy kernel's own denial observation */
@@ -103,13 +114,18 @@ static int
 spy_mutations(void)
 {
     return g.ns_mkdir + g.ns_delete + g.ns_rename + g.ns_local_copy
+        + g.ns_exchange
         + g.chmod_canon + g.setattr_canon + g.setxattr_canon
-        + g.removexattr_canon + g.mkpath
+        + g.removexattr_canon + g.mkpath + g.rmtree_dispatch
         + g.drv_mkdir + g.drv_unlink + g.drv_rename + g.drv_copy
         + g.drv_setxattr + g.drv_removexattr + g.drv_setattr
         + g.drv_mkdir_cred + g.drv_unlink_cred + g.drv_rename_cred
         + g.drv_copy_cred + g.drv_setxattr_cred + g.drv_removexattr_cred
-        + g.drv_setattr_cred;
+        + g.drv_setattr_cred
+        + g.drv_reserve + g.drv_unlink_many + g.drv_sync_publish
+        + g.drv_exchange + g.drv_recall + g.drv_evict
+        + g.drv_unlink_many_cred + g.drv_exchange_cred + g.drv_recall_cred
+        + g.drv_evict_cred;
 }
 
 /* Every sink a mutation could reach past the gate — the mutations above plus
@@ -130,7 +146,12 @@ spy_sinks(void)
         + g.drv_mkdir_cred + g.drv_unlink_cred + g.drv_rename_cred
         + g.drv_copy_cred + g.drv_setxattr_cred + g.drv_removexattr_cred
         + g.drv_setattr_cred + g.drv_stat_cred
-        + g.ns_leaf + g.cred_gate + g.ns_cred + g.cache_evict + g.leaf_isdir;
+        + g.drv_reserve + g.drv_unlink_many + g.drv_sync_publish
+        + g.drv_exchange + g.drv_recall + g.drv_evict
+        + g.drv_unlink_many_cred + g.drv_exchange_cred + g.drv_recall_cred
+        + g.drv_evict_cred
+        + g.ns_leaf + g.cred_gate + g.ns_cred + g.cache_evict + g.leaf_isdir
+        + g.publish_dirsync + g.ns_exchange + g.rmtree_dispatch;
 }
 
 /* ---- namespace layer (the POSIX plane's mutating dispatch) --------------- */
@@ -169,6 +190,27 @@ brix_ns_delete(ngx_log_t *log, const char *root_canon, const char *path,
     return ns_answer();
 }
 
+/* The borrowed-rootfd twins are the SAME mutation on the same counter — a
+ * read-only export must reach neither the owned nor the borrowed entry. */
+brix_ns_result_t
+brix_ns_mkdir_at(ngx_log_t *log, int rootfd, const char *root_canon,
+    const char *path, mode_t mode, ngx_flag_t recursive)
+{
+    (void) log; (void) rootfd; (void) root_canon; (void) path;
+    (void) mode; (void) recursive;
+    g.ns_mkdir++;
+    return ns_answer();
+}
+
+brix_ns_result_t
+brix_ns_delete_at(ngx_log_t *log, int rootfd, const char *root_canon,
+    const char *path, const brix_ns_delete_opts_t *opts)
+{
+    (void) log; (void) rootfd; (void) root_canon; (void) path; (void) opts;
+    g.ns_delete++;
+    return ns_answer();
+}
+
 brix_ns_result_t
 brix_ns_rename(ngx_log_t *log, const char *root_canon, const char *src,
     const char *dst, ngx_flag_t overwrite_dirs)
@@ -185,6 +227,15 @@ brix_ns_local_copy(ngx_log_t *log, const char *root_canon, const char *src,
 {
     (void) log; (void) root_canon; (void) src; (void) dst; (void) opts;
     g.ns_local_copy++;
+    return ns_answer();
+}
+
+brix_ns_result_t
+brix_ns_exchange(ngx_log_t *log, const char *root_canon, const char *a,
+    const char *b)
+{
+    (void) log; (void) root_canon; (void) a; (void) b;
+    g.ns_exchange++;
     return ns_answer();
 }
 
@@ -319,6 +370,71 @@ void
 brix_vfs_neg_stat_forget(const char *root_canon, const char *path)
 {
     (void) root_canon; (void) path;
+}
+
+/* Phase-107 C7: the lock gate also sits AFTER the policy gate. It is a read
+ * of lock state, not a mutation sink — "unlocked" keeps every case on its
+ * pre-C7 flow, and a refused mutation still must not reach the sinks below. */
+ngx_int_t
+brix_vfs_require_unlocked(brix_vfs_ctx_t *ctx, brix_vfs_mutation_op_t op)
+{
+    (void) ctx; (void) op;
+    return NGX_OK;
+}
+
+ngx_int_t
+brix_vfs_require_unlocked_at(brix_vfs_ctx_t *ctx, const char *path,
+    brix_vfs_mutation_op_t op)
+{
+    (void) ctx; (void) path; (void) op;
+    return NGX_OK;
+}
+
+/* Phase-107 C3: the durable-publish barrier sits AFTER the policy gate, so a
+ * refused mutation must never reach it. durable=0 keeps the allowed-control
+ * cases on their pre-C3 sink counts (no dirfsync against the fake paths), and
+ * the dirsync spy still counts as a sink so a gate leak stays visible. */
+ngx_int_t
+brix_vfs_backend_durable(const char *root_canon)
+{
+    (void) root_canon;
+    return 0;
+}
+
+ngx_int_t
+brix_publish_dirsync(ngx_log_t *log, int rootfd, const char *root_canon,
+    const char *final_path)
+{
+    (void) log; (void) rootfd; (void) root_canon; (void) final_path;
+    g.publish_dirsync++;
+    return NGX_OK;
+}
+
+ngx_int_t
+brix_vfs_rmtree_dispatch(brix_sd_instance_t *leaf,
+    const brix_sd_driver_t *drv, const char *logical,
+    const brix_sd_cred_t *cred)
+{
+    (void) leaf; (void) drv; (void) logical; (void) cred;
+    g.rmtree_dispatch++;
+    return NGX_OK;
+}
+
+/* C6 refusal telemetry — an OBSERVATION, expected on a refusal (like the
+ * denial counter), so it is deliberately not a spy sink. */
+void
+brix_vfs_precond_refused_observe(const brix_sd_precond_t *pre, int err,
+    const char *driver_name)
+{
+    (void) pre; (void) err; (void) driver_name;
+    g.precond_refused++;
+}
+
+/* The RENAME_NOREPLACE degradation latch: this host never degraded. */
+int
+brix_renameat_noreplace_degraded(void)
+{
+    return 0;
 }
 
 /* The real helper strips the export root and the separator; the prefix walk in
@@ -561,6 +677,110 @@ spy_setattr_cred(brix_sd_instance_t *inst, const char *path,
     return drv_answer();
 }
 
+/* ---- the phase-107 slots (W0/§9.3) --------------------------------------- */
+static ngx_int_t
+spy_reserve(brix_sd_obj_t *obj, off_t size)
+{
+    (void) obj; (void) size;
+    g.drv_reserve++;
+    return drv_answer();
+}
+
+static ngx_int_t
+spy_unlink_many(brix_sd_instance_t *inst, brix_sd_unlink_batch_t *b)
+{
+    size_t i;
+
+    (void) inst;
+    g.drv_unlink_many++;
+    if (g_inject_errno != 0) {
+        errno = g_inject_errno;
+        return NGX_ERROR;
+    }
+    for (i = 0; i < b->n; i++) {
+        b->errs[i] = 0;
+    }
+    b->done = b->n;
+    return NGX_OK;
+}
+
+static ngx_int_t
+spy_unlink_many_cred(brix_sd_instance_t *inst, brix_sd_unlink_batch_t *b,
+    const brix_sd_cred_t *cred)
+{
+    (void) cred;
+    g.drv_unlink_many_cred++;
+    g.drv_unlink_many--;   /* the plain twin must not also count this call */
+    return spy_unlink_many(inst, b);
+}
+
+static ngx_int_t
+spy_sync_publish(brix_sd_instance_t *inst, const char *path)
+{
+    (void) inst; (void) path;
+    g.drv_sync_publish++;
+    return drv_answer();
+}
+
+static ngx_int_t
+spy_exchange(brix_sd_instance_t *inst, const char *a, const char *b)
+{
+    (void) inst; (void) a; (void) b;
+    g.drv_exchange++;
+    return drv_answer();
+}
+
+static ngx_int_t
+spy_exchange_cred(brix_sd_instance_t *inst, const char *a, const char *b,
+    const brix_sd_cred_t *cred)
+{
+    (void) inst; (void) a; (void) b; (void) cred;
+    g.drv_exchange_cred++;
+    return drv_answer();
+}
+
+static ngx_int_t
+spy_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
+{
+    (void) inst; (void) key;
+    g.drv_recall++;
+    if (reqid_out != NULL) {
+        reqid_out[0] = '\0';
+    }
+    return drv_answer();
+}
+
+static ngx_int_t
+spy_recall_cred(brix_sd_instance_t *inst, const char *key,
+    const brix_sd_cred_t *cred, char reqid_out[40])
+{
+    (void) cred;
+    g.drv_recall_cred++;
+    g.drv_recall--;   /* the plain twin must not also count this call */
+    return spy_recall(inst, key, reqid_out);
+}
+
+static ngx_int_t
+spy_evict(brix_sd_instance_t *inst, const char *path, uint64_t *bytes_out)
+{
+    (void) inst; (void) path;
+    g.drv_evict++;
+    if (bytes_out != NULL) {
+        *bytes_out = 0;
+    }
+    return drv_answer();
+}
+
+static ngx_int_t
+spy_evict_cred(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out, const brix_sd_cred_t *cred)
+{
+    (void) cred;
+    g.drv_evict_cred++;
+    g.drv_evict--;   /* the plain twin must not also count this call */
+    return spy_evict(inst, path, bytes_out);
+}
+
 static const brix_sd_driver_t  spy_driver = {
     .name = "spy",
     .caps = 0xffffffffu,
@@ -572,6 +792,12 @@ static const brix_sd_driver_t  spy_driver = {
     .setattr = spy_setattr,
     .setxattr = spy_setxattr,
     .removexattr = spy_removexattr,
+    .reserve = spy_reserve,
+    .unlink_many = spy_unlink_many,
+    .sync_publish = spy_sync_publish,
+    .exchange = spy_exchange,
+    .recall = spy_recall,
+    .evict = spy_evict,
     .stat_cred = spy_stat_cred,
     .unlink_cred = spy_unlink_cred,
     .mkdir_cred = spy_mkdir_cred,
@@ -580,6 +806,10 @@ static const brix_sd_driver_t  spy_driver = {
     .setattr_cred = spy_setattr_cred,
     .setxattr_cred = spy_setxattr_cred,
     .removexattr_cred = spy_removexattr_cred,
+    .unlink_many_cred = spy_unlink_many_cred,
+    .exchange_cred = spy_exchange_cred,
+    .recall_cred = spy_recall_cred,
+    .evict_cred = spy_evict_cred,
 };
 
 static brix_sd_instance_t  spy_instance;
@@ -642,6 +872,18 @@ op_rename(brix_vfs_ctx_t *ctx)
 }
 
 static ngx_int_t
+op_exchange(brix_vfs_ctx_t *ctx)
+{
+    brix_path_result_t other;
+
+    memset(&other, 0, sizeof(other));
+    other.resolved.data = dst_path;
+    other.resolved.len = sizeof(dst_path) - 1;
+    other.is_confined = 1;
+    return brix_vfs_exchange(ctx, &other);
+}
+
+static ngx_int_t
 op_copy(brix_vfs_ctx_t *ctx)
 {
     brix_vfs_copy_opts_t opts;
@@ -693,9 +935,15 @@ typedef struct {
 static const op_case_t  OPS[] = {
     { "mkdir",       op_mkdir,         SINK(ns_mkdir),           SINK(drv_mkdir),       SINK(drv_mkdir_cred) },
     { "mkdir -p",    op_mkdir_parents, SINK(ns_mkdir),           SINK(mkpath),          SINK(drv_mkdir_cred) },
-    { "rmdir",       op_rmdir,         SINK(ns_delete),          SINK(drv_unlink),      SINK(drv_unlink_cred) },
+    /* recursive rmdir routes the driver arm through brix_vfs_rmtree_dispatch
+     * (phase-107 C4), which carries the credential itself — one sink for both
+     * driver columns. */
+    { "rmdir",       op_rmdir,         SINK(ns_delete),          SINK(rmtree_dispatch), SINK(rmtree_dispatch) },
     { "unlink",      op_unlink,        SINK(ns_delete),          SINK(drv_unlink),      SINK(drv_unlink_cred) },
     { "rename",      op_rename,        SINK(ns_rename),          SINK(drv_rename),      SINK(drv_rename_cred) },
+    /* phase-107 C6: exchange is a rename-class two-name mutation; the same
+     * gate must hold on its POSIX arm, its driver slot, and its _cred twin. */
+    { "exchange",    op_exchange,      SINK(ns_exchange),        SINK(drv_exchange),    SINK(drv_exchange_cred) },
     { "copy",        op_copy,          SINK(ns_local_copy),      SINK(drv_copy),        SINK(drv_copy_cred) },
     { "chmod",       op_chmod,         SINK(chmod_canon),        SINK(drv_setattr),     SINK(drv_setattr_cred) },
     { "setattr",     op_setattr,       SINK(setattr_canon),      SINK(drv_setattr),     SINK(drv_setattr_cred) },

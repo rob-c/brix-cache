@@ -28,6 +28,14 @@ typedef enum {
 
 void webdav_put_persist_checksums(ngx_http_request_t *r, const char *path);
 
+/* Commit the staged temp under the request's carried If-Match / If-None-Match
+ * precondition (phase-107 C6): the storage re-decides at publish; the edge
+ * check in webdav_put_precheck is only the fast path. NGX_OK on success, else
+ * the HTTP status to finalize with (412 for a refused precondition — EEXIST /
+ * ECANCELED — else 500), errno left intact for the caller's log line. Shared
+ * by the sync (put.c) and async-done (put_body.c) commit sites. */
+ngx_int_t webdav_put_publish(ngx_http_request_t *r, brix_vfs_writer_t *writer);
+
 /* Verify a client-asserted ingest digest (Digest/Content-MD5) over the staged
  * bytes before commit; NGX_OK to proceed, or an HTTP status (>=400) to reject. */
 ngx_int_t webdav_put_verify_ingest_digest(ngx_http_request_t *r,

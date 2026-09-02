@@ -94,37 +94,14 @@ brix_cstore_evict(brix_cstore_t *cs, const char *key)
     return NGX_OK;
 }
 
-/* Stage slots the vtable names but this test never dispatches. */
-brix_sd_obj_t *sd_stage_open_writeback(brix_sd_instance_t *i,
-    sd_stage_inst_state *is, const char *p, int f, mode_t m,
-    const brix_sd_cred_t *c, int *e)
-{ (void) i; (void) is; (void) p; (void) f; (void) m; (void) c; (void) e;
-  abort(); }
-ngx_int_t sd_stage_wb_pread(brix_sd_obj_t *o, void *b, size_t l, off_t f)
-{ (void) o; (void) b; (void) l; (void) f; abort(); }
-ngx_int_t sd_stage_wb_pwrite(brix_sd_obj_t *o, const void *b, size_t l, off_t f)
-{ (void) o; (void) b; (void) l; (void) f; abort(); }
-ngx_int_t sd_stage_wb_ftruncate(brix_sd_obj_t *o, off_t l)
-{ (void) o; (void) l; abort(); }
-ngx_int_t sd_stage_wb_fstat(brix_sd_obj_t *o, brix_sd_stat_t *s)
-{ (void) o; (void) s; abort(); }
-ngx_int_t sd_stage_wb_fsync(brix_sd_obj_t *o)
-{ (void) o; abort(); }
-ngx_int_t sd_stage_wb_close(brix_sd_obj_t *o)
-{ (void) o; abort(); }
-brix_sd_staged_t *sd_stage_staged_open(brix_sd_instance_t *i, const char *p,
-    mode_t m, int *e)
-{ (void) i; (void) p; (void) m; (void) e; abort(); }
-brix_sd_staged_t *sd_stage_staged_open_cred(brix_sd_instance_t *i,
-    const char *p, mode_t m, const brix_sd_cred_t *c, int *e)
-{ (void) i; (void) p; (void) m; (void) c; (void) e; abort(); }
-ssize_t sd_stage_staged_write(brix_sd_staged_t *s, const void *b, size_t l,
-    off_t f)
-{ (void) s; (void) b; (void) l; (void) f; abort(); }
-ngx_int_t sd_stage_staged_commit(brix_sd_staged_t *s, int n)
-{ (void) s; (void) n; abort(); }
-void sd_stage_staged_abort(brix_sd_staged_t *s)
-{ (void) s; abort(); }
+/* The stage write/write-back planes (sd_stage_write.o / sd_stage_wb.o) are
+ * REAL since phase-107 put the truncate_path/exchange/evict forwarders under
+ * test in them; only the async engine below those planes is stubbed — nothing
+ * here submits a transfer. */
+const char *brix_stage_submit(brix_stage_kind_t k, brix_sd_instance_t *s,
+    const char *sk, brix_sd_instance_t *d, const char *dk,
+    const brix_stage_opts_t *o)
+{ (void) k; (void) s; (void) sk; (void) d; (void) dk; (void) o; abort(); }
 ngx_int_t brix_stage_run_inline_cred(brix_stage_kind_t k, brix_sd_instance_t *s,
     const char *sk, brix_sd_instance_t *d, const char *dk,
     const brix_stage_cred_t *c)

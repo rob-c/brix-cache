@@ -248,6 +248,15 @@ brix_vfs_mkdir(brix_vfs_ctx_t *ctx, mode_t mode, unsigned parents)
         return NGX_ERROR;
     }
 
+    /* phase-107 C7: lock gate after the mutation gate (EROFS precedes EBUSY) —
+     * a depth-infinity lock on an ancestor collection refuses child creation. */
+    if (brix_vfs_require_unlocked(ctx, BRIX_VFS_MUTATE_MKDIR) != NGX_OK) {
+        saved_errno = errno;
+        brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_MKDIR, NULL, 0,
+                                  NGX_ERROR, saved_errno, start);
+        return NGX_ERROR;
+    }
+
     if (ctx->root_canon == NULL) {
         errno = EINVAL;
         saved_errno = errno;
@@ -274,9 +283,16 @@ brix_vfs_mkdir(brix_vfs_ctx_t *ctx, mode_t mode, unsigned parents)
         return vfs_mkdir_backend(&req, drv);
     }
 
-    res = brix_ns_mkdir(ctx->log, ctx->root_canon,
-                          brix_vfs_ctx_path(ctx), mode,
-                          parents ? 1 : 0);
+    if (ctx->rootfd >= 0) {
+        /* Borrowed persistent confinement rootfd — see brix_ns_mkdir_at. */
+        res = brix_ns_mkdir_at(ctx->log, ctx->rootfd, ctx->root_canon,
+                                 brix_vfs_ctx_path(ctx), mode,
+                                 parents ? 1 : 0);
+    } else {
+        res = brix_ns_mkdir(ctx->log, ctx->root_canon,
+                              brix_vfs_ctx_path(ctx), mode,
+                              parents ? 1 : 0);
+    }
     if (res.status == BRIX_NS_OK) {
         brix_vfs_neg_stat_forget(ctx->root_canon, path);
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_MKDIR, NULL, 0,

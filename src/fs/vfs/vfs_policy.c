@@ -68,7 +68,8 @@ brix_vfs_mutation_op_name(brix_vfs_mutation_op_t op)
 {
     static const char *names[BRIX_VFS_MUTATE_OP_COUNT] = {
         "open", "write", "truncate", "sync", "mkdir", "remove",
-        "rename", "copy", "setattr", "xattr", "publish",
+        "rename", "copy", "setattr", "xattr", "publish", "stage",
+        "evict", "lock", "dedup",
     };
 
     return ((ngx_uint_t) op < BRIX_VFS_MUTATE_OP_COUNT)

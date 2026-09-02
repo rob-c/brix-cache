@@ -540,7 +540,7 @@ brix_admin_socket_init(ngx_cycle_t *cycle)
         return;
     }
 
-    (void) unlink(path);   /* drop a stale socket from a prior run */ /* vfs-seam-allow: admin unix socket, not export namespace */
+    (void) unlink(path);   /* drop a stale socket from a prior run */ /* vfs-seam-allow: NOT_STORAGE — admin unix socket, not export namespace */
 
     fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd == (ngx_socket_t) -1) {
@@ -554,7 +554,7 @@ brix_admin_socket_init(ngx_cycle_t *cycle)
     ngx_memcpy(sa.sun_path, path, (size_t) n + 1);
 
     if (bind(fd, (struct sockaddr *) &sa, sizeof(sa)) == -1
-        || chmod(path, 0600) == -1 /* vfs-seam-allow: admin socket 0600 privilege boundary */
+        || chmod(path, 0600) == -1 /* vfs-seam-allow: NOT_STORAGE — admin socket 0600 privilege boundary */
         || listen(fd, 8) == -1
         || ngx_nonblocking(fd) == -1)
     {

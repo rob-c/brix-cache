@@ -41,7 +41,7 @@ pk_staged_put(brix_sd_instance_t *inst, const char *path, const char *data,
     brix_sd_staged_t *h;
     int                 err = 0;
 
-    h = D->staged_open(inst, path, 0644, &err);
+    h = D->staged_open(inst, path, 0644, 0, &err);
     if (h == NULL) {
         return -1;
     }
@@ -49,7 +49,7 @@ pk_staged_put(brix_sd_instance_t *inst, const char *path, const char *data,
         D->staged_abort(h);
         return -1;
     }
-    if (D->staged_commit(h, 0) != NGX_OK) {
+    if (D->staged_commit(h, NULL) != NGX_OK) {
         D->staged_abort(h);
         return -1;
     }

@@ -180,6 +180,9 @@ s3_put_precondition(ngx_http_request_t *r, const char *root_canon,
             exists ? vst.mtime : 0, exists ? vst.size : 0,
             0, BRIX_HTTP_COND_WEAK_EQUIV) != NGX_OK)
     {
+        /* A PUT precondition the edge refused — a publish refusal for the C6
+         * metrics, unlike the GET-plane 412s above, which condition a READ. */
+        brix_http_precond_refused_edge(r);
         return s3_send_precondition_failed(r);
     }
 

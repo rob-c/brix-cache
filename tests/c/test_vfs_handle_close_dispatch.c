@@ -134,6 +134,10 @@ brix_vfs_file_t *brix_vfs_open(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
     return NULL;
 }
 
+ngx_int_t brix_vfs_require_unlocked(brix_vfs_ctx_t *ctx,
+    brix_vfs_mutation_op_t op)
+{ (void) ctx; (void) op; return NGX_OK; }
+
 void brix_metric_vfs_mutation_denied(brix_proto_t proto, ngx_uint_t op)
 { (void) proto; (void) op; g_denials++; }
 

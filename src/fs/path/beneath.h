@@ -76,6 +76,11 @@ int brix_rename_beneath(int rootfd, const char *src, const char *dst);
  * (logged once) on kernels/filesystems lacking RENAME_NOREPLACE. */
 int brix_rename_beneath_excl(int rootfd, const char *src, const char *dst);
 
+/* Atomic two-name exchange (phase-107 C6): renameat2(RENAME_EXCHANGE) confined
+ * under rootfd; -1/ENOTSUP where the kernel, filesystem or impersonation
+ * broker has no primitive — never emulated with two renames. */
+int brix_exchange_beneath(int rootfd, const char *a, const char *b);
+
 /* Hard-link src to dst within the same root. */
 int brix_link_beneath(int rootfd, const char *src, const char *dst);
 
@@ -83,6 +88,9 @@ int brix_link_beneath(int rootfd, const char *src, const char *dst);
  * components, with the once-logged plain-renameat fallback for
  * kernels/filesystems lacking the flag.  Backs both the beneath and the
  * confined-parent create-if-absent renames. */
+/* 1 iff the NOREPLACE fallback has ever degraded to a plain renameat on this
+ * host — the C6 ABSENT publish reports atomic=0 from then on. */
+int brix_renameat_noreplace_degraded(void);
 int brix_renameat_noreplace_fallback(ngx_log_t *log, int sfd,
     const char *sbase, int dfd, const char *dbase);
 

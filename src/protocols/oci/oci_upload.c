@@ -258,7 +258,7 @@ oci_upload_create(ngx_http_request_t *r, const brix_oci_store_t *st,
     if (brix_oci_store_mkparent(part, r->connection->log) != NGX_OK) {
         return NGX_ERROR;
     }
-    (void) chmod(dir, OCI_UPLOAD_SESSION_MODE);   /* vfs-seam-allow: registry staging area, private to the worker until seal */
+    (void) chmod(dir, OCI_UPLOAD_SESSION_MODE);   /* vfs-seam-allow: DOMAIN_REGISTRY — registry staging area, private to the worker until seal */
 
     /* The empty part-file IS the session: creating it is what makes the
      * session exist, and its absence is what makes every later request on a
@@ -416,12 +416,12 @@ brix_oci_upload_reap(const brix_oci_store_t *st, time_t grace, ngx_log_t *log)
     {
         return 0;
     }
-    dh = opendir(root);                    /* vfs-seam-allow: registry staging area sweep, not a VFS export listing */
+    dh = opendir(root);                    /* vfs-seam-allow: DOMAIN_REGISTRY — registry staging area sweep, not a VFS export listing */
     if (dh == NULL) {
         return 0;
     }
 
-    while ((ent = readdir(dh)) != NULL) {  /* vfs-seam-allow: registry staging area sweep, not a VFS export listing */
+    while ((ent = readdir(dh)) != NULL) {  /* vfs-seam-allow: DOMAIN_REGISTRY — registry staging area sweep, not a VFS export listing */
         if (ent->d_name[0] == '.') {
             continue;
         }
@@ -432,7 +432,7 @@ brix_oci_upload_reap(const brix_oci_store_t *st, time_t grace, ngx_log_t *log)
         }
         /* The part-file's mtime is the last time the client sent anything —
          * which is exactly the idleness the grace window is about. */
-        if (stat(part, &sb) != 0                 /* vfs-seam-allow: staging idleness probe */
+        if (stat(part, &sb) != 0                 /* vfs-seam-allow: DOMAIN_REGISTRY — staging idleness probe */
             || now - sb.st_mtime <= grace)
         {
             continue;

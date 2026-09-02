@@ -190,48 +190,64 @@ brix_kxr_map_ns_status(brix_ns_status_t status, int sys_errno)
  *       modules return identical codes for the same error (fixes ENOSPC→507,
  *       ENAMETOOLONG→414 divergences documented in file comment).
  *
- * HOW: Direct switch-case mapping per AGENTS.md errno→HTTP table. EDQUOT grouped
- *       with ENOSPC under 507 (storage quota exceeded). Default case returns 500.
+ * HOW: Table scan per AGENTS.md errno→HTTP table, the same shape as Section 1's
+ *      errno→kXR table. EDQUOT grouped with ENOSPC under 507 (storage quota
+ *      exceeded). An unmapped errno returns 500.
  */
+
+static const struct {
+    int err;
+    int status;
+} brix_http_errno_table[] = {
+    { ENOENT,       404 },
+    { ENOTDIR,      404 },
+    { EACCES,       403 },
+    { EPERM,        403 },
+    { EROFS,        403 },
+    /* EXDEV: openat2 RESOLVE_BENEATH path-escape via ".." out of the export
+     * root. ELOOP: RESOLVE_BENEATH/RESOLVE_NO_MAGICLINKS rejecting a symlink
+     * (or magic-link) that would escape it. Both are 403 now that confinement
+     * is enforced by the kernel at the op instead of by an upstream realpath()
+     * that used to fail earlier. A blocked traversal is forbidden, not a
+     * server fault — never a 500. */
+    { EXDEV,        403 },
+    { ELOOP,        403 },
+    { ENOSPC,       507 },
+#ifdef EDQUOT
+    { EDQUOT,       507 },
+#endif
+    { EEXIST,       409 },
+    { ENOTEMPTY,    409 },
+    { ENAMETOOLONG, 414 },
+    /* EBUSY: the VFS lock gate (phase-107 C7) refused a mutation on a path
+     * held by a live, foreign WebDAV lock: 423 Locked (RFC 4918 §11.3). EBUSY
+     * is the lock-refusal errno on every plane — the kernel is the only other
+     * EBUSY source here and it means the same thing (in use). */
+    { EBUSY,        423 },
+    /* ECANCELED: a conditional publish (If-Match / If-None-Match carried down
+     * to the storage as a brix_sd_precond_t) found the target changed
+     * underneath it: the storage refused the commit, nothing was published.
+     * That is the HTTP precondition-failed condition, not a server fault
+     * (phase-107 §5.2). An ABSENT-precondition failure surfaces as EEXIST; a
+     * commit site that carried the precondition maps that to 412 itself
+     * (RFC 7232 — the edge check always answered 412 for If-None-Match:*),
+     * because this generic table cannot tell it from a plain EEXIST (409). */
+    { ECANCELED,    412 },
+};
 
 int
 brix_http_errno_to_status(int err)
 {
-    switch (err) {
-    case ENOENT:
-    case ENOTDIR:
-        return 404;
+    size_t  i;
+    size_t  n = sizeof(brix_http_errno_table) / sizeof(brix_http_errno_table[0]);
 
-    case EACCES:
-    case EPERM:
-    case EROFS:
-    case EXDEV:    /* openat2 RESOLVE_BENEATH path-escape via ".." out of the
-                    * export root. */
-    case ELOOP:    /* RESOLVE_BENEATH/RESOLVE_NO_MAGICLINKS rejecting a symlink
-                    * (or magic-link) that would escape the export root. */
-        /*
-         * Both reach here now that confinement is enforced by the kernel at the
-         * op instead of by an upstream realpath() that used to fail earlier.  A
-         * blocked traversal is forbidden, not a server fault — never a 500.
-         */
-        return 403;
-
-    case ENOSPC:
-#ifdef EDQUOT
-    case EDQUOT:
-#endif
-        return 507;
-
-    case EEXIST:
-    case ENOTEMPTY:
-        return 409;
-
-    case ENAMETOOLONG:
-        return 414;
-
-    default:
-        return 500;
+    for (i = 0; i < n; i++) {
+        if (brix_http_errno_table[i].err == err) {
+            return brix_http_errno_table[i].status;
+        }
     }
+
+    return 500;
 }
 
 /*

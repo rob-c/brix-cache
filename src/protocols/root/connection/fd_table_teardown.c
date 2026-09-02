@@ -49,7 +49,7 @@ fhandle_unlink_staging(const char *abs_path, const char *root_canon,
         (void) brix_vfs_unlink_path(log, root_canon, abs_path + root_len);
         return;
     }
-    (void) unlink(abs_path);  /* vfs-seam-allow: handle-owned staging temp not under the export root */
+    (void) unlink(abs_path);  /* vfs-seam-allow: DOMAIN_STAGE — handle-owned staging temp not under the export root */
 }
 
 /* fhandle_release_descriptors — close the handle's byte-I/O descriptor(s) and the
@@ -228,7 +228,9 @@ brix_free_fhandle(brix_ctx_t *ctx, int handle_index)
     const char                   *root_canon;
     ngx_log_t                    *tlog;
 
-    if (handle_index < 0 || handle_index >= BRIX_MAX_FILES) {
+    if (handle_index < 0 || handle_index >= BRIX_MAX_FILES
+        || ctx->files == NULL)
+    {
         return;
     }
 
@@ -271,6 +273,10 @@ void
 brix_close_all_files(brix_ctx_t *ctx)
 {
     int handle_index;
+
+    if (ctx->files == NULL) {
+        return;                 /* no handle was ever opened on this session */
+    }
 
     for (handle_index = 0; handle_index < BRIX_MAX_FILES; handle_index++) {
         brix_free_fhandle(ctx, handle_index);

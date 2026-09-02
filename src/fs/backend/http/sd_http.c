@@ -43,7 +43,12 @@ static const brix_sd_driver_t brix_sd_http_driver = {
     .caps  = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_MEMFILE | BRIX_SD_CAP_DIRS
            | BRIX_SD_CAP_DIRS_WRITE | BRIX_SD_CAP_HARD_RENAME
            | BRIX_SD_CAP_SERVER_COPY | BRIX_SD_CAP_XATTR
-           | BRIX_SD_CAP_XATTR_WRITE,
+           | BRIX_SD_CAP_XATTR_WRITE
+           /* C6: PROBED — the cap says this driver speaks the precondition
+            * vocabulary; whether a given origin honours RFC 7232 conditional
+            * PUT is decided by the lazy 412-probe (sd_http_write.c), which
+            * refuses ENOTSUP on an origin that ignores the header. */
+           | BRIX_SD_CAP_PRECOND,
     .cred_accept = BRIX_SD_CRED_BEARER | BRIX_SD_CRED_PROXY_PEM,
     .open  = sd_http_open,
     .open_cred = sd_http_open_cred,
@@ -100,6 +105,7 @@ static const brix_sd_driver_t brix_sd_http_driver = {
      * gated on BRIX_SD_CAP_NEARLINE, which only a configured tape_api arms. */
     .residency     = sd_http_residency,
     .recall        = sd_http_recall,
+    .recall_cred   = sd_http_recall_cred, /* C2: user-signed tape REST */
     .getxattr_cred = sd_http_getxattr_cred,
     .listxattr_cred = sd_http_listxattr_cred,
     .setxattr_cred = sd_http_setxattr_cred,
@@ -232,6 +238,8 @@ brix_sd_http_create(const brix_sd_http_cfg_t *cfg, ngx_log_t *log)
      * cstore's CAP_XATTR cinfo store, the residency/space seams — silently took
      * their fallback. */
     inst->caps   = brix_sd_http_driver.caps;
+    inst->domain = BRIX_VFS_DOMAIN_EXPORT;   /* strict default; composer overrides
+                                              * for service storage (C9) */
     /* Nearline is an operator DECLARATION, not a discovery: a configured Tape
      * REST API base is the only thing that arms the cap, and the composing
      * registry then requires a cache tier in front of this instance. See

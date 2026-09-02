@@ -78,6 +78,13 @@ brix_open_dispatch_staged(brix_open_args_t *a, brix_vfs_ctx_t *vctx,
 
 	fh->writer           = w;
 	fh->staged_committed = 0;
+	/* kXR_new without kXR_delete is exclusive-create (open_flags.h maps it to
+	 * O_EXCL). A staged handle publishes at sync/close, so the intent must ride
+	 * to the COMMIT: brix_vfs_writer_commit_ex turns it into an ABSENT
+	 * precondition the storage enforces atomically at publish (phase-107 C1).
+	 * Any earlier open-time existence check is a fast path, not the guarantee. */
+	fh->staged_excl      =
+	    ((a->options & kXR_new) && !(a->options & kXR_delete)) ? 1 : 0;
 
 	/* No fd, no driver object: byte I/O routes through the staged handle. Mark
 	 * driver_backed so the POSIX-fd validation is skipped and synthesize a stat
@@ -149,6 +156,10 @@ brix_open_build_cred_ctx(brix_open_args_t *a, brix_sd_instance_t *sd_inst,
 	    conf->common.storage_credential_mint_ttl);
 	brix_root_vfs_bind_session(ctx, conf, cred_vctx);
 	cred_vctx->sd = sd_inst;
+	/* Phase-107 C5: hand the client's oss.asize declaration to the VFS — the
+	 * object plane reserves after a create/trunc open, the staged plane
+	 * forwards it as staged_open's declared_size. */
+	cred_vctx->declared_size = a->declared_size;
 }
 
 /* WHAT: Report whether a WRITE open must use the whole-object staged-commit
@@ -239,6 +250,35 @@ brix_open_dispatch_open(brix_open_args_t *a)
 	a->wt_via_stage  = 0;
 
 	sd_inst = brix_open_select_sd_inst(a);
+
+	/* Phase-107 C7: the cross-protocol lock gate for the root:// write plane.
+	 * The driver open (brix_sd_open_maybe_cred) and the POSIX-fd POSC/resume
+	 * staging below never pass brix_vfs_open/brix_vfs_staged_open, so they
+	 * would bypass the VFS lock check entirely — and the POSC publish is a
+	 * rename that REPLACES the locked inode, destroying the lock record.
+	 * Ordering: brix_open_mode_guard already refused a write on a read-only
+	 * server at the edge (kXR_fsReadOnly), so EROFS still precedes EBUSY and
+	 * the lock's existence is not disclosed on a read-only export (§3.4).
+	 * The staged route is EXCLUDED: it gates inside staged_alloc_handle, and
+	 * gating it here too would double-book the advisory refusal metric.
+	 * root:// clients present no lock token, so a live foreign lock always
+	 * refuses; EBUSY maps to kXR_FileLocked "file locked" (§5.0). */
+	if (a->is_write
+	    && !(sd_inst != NULL && !a->from_cache && !a->use_resume
+	         && brix_open_write_needs_staged(a, sd_inst)))
+	{
+		brix_vfs_ctx_t lock_vctx;
+
+		brix_vfs_ctx_init(&lock_vctx, c->pool, c->log, BRIX_PROTO_ROOT,
+		    a->conf->common.root_canon, NULL,
+		    brix_vfs_policy_from_write_enable(a->conf->common.allow_write),
+		    0 /* is_tls */, ctx->identity, resolved);
+		if (brix_vfs_require_unlocked(&lock_vctx, BRIX_VFS_MUTATE_OPEN)
+		    != NGX_OK) {
+			return brix_open_map_open_error(ctx, c, resolved, errno,
+			    a->is_write);
+		}
+	}
 
 	/* §14 (phase-64): the legacy driver-backed read cache (cache_storage_backend)
 	 * and the legacy slice decorator (cache_slice_inst) are RETIRED — a driver

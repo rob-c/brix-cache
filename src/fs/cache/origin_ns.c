@@ -358,6 +358,33 @@ brix_cache_origin_prepare_stage(brix_cache_fill_t *t,
     return 0;
 }
 
+/* brix_cache_origin_prepare_evict — kXR_prepare(optionX=kXR_evict) of ONE path:
+ * ask a tape-backed origin to release its online-disk copy of `path` (the MSS
+ * copy remains the durable one; a later prepare_stage restages it). The reply
+ * body (a reqid on our own server) is discarded — evict has no parking handle
+ * to return. 0, or -1 with errno set from the status mapping. */
+int
+brix_cache_origin_prepare_evict(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *path)
+{
+    uint8_t              body[XRDW_BODY_LEN];
+    xrdw_prepare_req_t   pr;
+    uint32_t             dlen;
+    u_char              *rbody;
+
+    ngx_memzero(&pr, sizeof(pr));
+    pr.optionX = kXR_evict;
+    if (xrdw_prepare_req_pack(&pr, body) < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (origin_path_ok(t, oc, kXR_prepare, body, path, &rbody, &dlen) != 0) {
+        return -1;                          /* errno set by the status mapping */
+    }
+    free(rbody);
+    return 0;
+}
+
 /* Build "<path>\0[int16 rc=0]<name>\0" (+ "[int32 BE vlen]<value>") for a single-
  * attribute fattr request. Returns a malloc'd buffer + *plen, or NULL (OOM). */
 static u_char *

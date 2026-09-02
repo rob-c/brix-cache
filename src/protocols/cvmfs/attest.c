@@ -513,7 +513,7 @@ cvmfs_conf_attest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
     ngx_cpystrn((u_char *) pathz, value[1].data, value[1].len + 1);
 
-    fd = open(pathz, O_RDONLY | O_CLOEXEC);   /* vfs-seam-allow: config-domain signing-key PEM (not export storage) */
+    fd = open(pathz, O_RDONLY | O_CLOEXEC);   /* vfs-seam-allow: DOMAIN_CONFIG — config-domain signing-key PEM (not export storage) */
     if (fd == -1) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
             "brix_cvmfs_attest: cannot open \"%s\"", pathz);
@@ -533,7 +533,7 @@ cvmfs_conf_attest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         (void) close(fd);
         return NGX_CONF_ERROR;
     }
-    n = read(fd, buf, (size_t) size);   /* vfs-seam-allow: config-domain signing-key PEM (not export storage) */
+    n = read(fd, buf, (size_t) size);   /* vfs-seam-allow: DOMAIN_CONFIG — config-domain signing-key PEM (not export storage) */
     (void) close(fd);
     if (n != (ssize_t) size) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,

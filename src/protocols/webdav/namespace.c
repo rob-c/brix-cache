@@ -13,10 +13,18 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+/* RFC 4918 §11.1: 423 Locked */
+#ifndef NGX_HTTP_LOCKED
+#define NGX_HTTP_LOCKED 423
+#endif
+
 /*
- * Build a transient VFS ctx for a confined namespace op on `path` (mirrors the
- * canonical construction in get.c).  Used by DELETE so the unlink/rmdir is
- * metered as OP_DELETE while keeping identical confinement and write-gating.
+ * Build a transient VFS ctx for a confined namespace op on `path`: the
+ * canonical _ns build (confined ctx + the C7 If/Lock-Token bytes so the
+ * OWNER's DELETE/MKCOL of its own locked resource does not read as foreign,
+ * plus the Phase-2-Task-1 per-user backend credential gate and delegation
+ * so a remote backend authenticates as the inbound user and deny mode
+ * rejects before opening any origin session).
  */
 static void
 webdav_ns_vfs_ctx_init(ngx_http_request_t *r, const char *path,
@@ -24,22 +32,8 @@ webdav_ns_vfs_ctx_init(ngx_http_request_t *r, const char *path,
 {
     ngx_http_brix_webdav_loc_conf_t *conf =
         ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    ngx_http_brix_webdav_req_ctx_t *wctx =
-        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
-    int is_tls = brix_http_request_is_tls(r);
 
-    brix_vfs_ctx_init(vctx, r->pool, r->connection->log,
-        BRIX_PROTO_WEBDAV, conf->common.root_canon,
-        conf->common.cache_root_canon,
-        brix_vfs_policy_from_write_enable(conf->common.allow_write), is_tls,
-        (wctx != NULL) ? wctx->identity : NULL, path);
-    /* Wire per-user backend credential gate (Phase 2 Task 1) so that
-     * DELETE/MKCOL namespace ops on a remote backend use the per-user
-     * credential and deny mode rejects before opening any origin session. */
-    brix_vfs_ctx_bind_backend_cred(vctx,
-        &conf->common.storage_credential_dir,
-        conf->common.storage_credential_fallback);
-    webdav_vfs_bind_deleg(r, conf, vctx);
+    webdav_vfs_ctx_build_ns(r, conf, path, vctx);
 }
 
 /*
@@ -156,7 +150,8 @@ webdav_delete_path_recursive(ngx_log_t *log, const char *root_canon,
  * Map a completed DELETE's result (op_errno 0 = removed) to the WebDAV response.
  * Shared by the synchronous handler and the async-queue wake so both render the
  * same status: 0 -> 204; ENOTEMPTY -> 409; ENOENT -> 404; EACCES -> 403 (deny-mode
- * per-user backend credential rejection); else 500. Success sends the body here;
+ * per-user backend credential rejection); EPERM -> 403 (export-root anchor
+ * refusal); else 500. Success sends the body here;
  * error branches return the status code for the caller to finalise.
  */
 static ngx_int_t
@@ -171,8 +166,15 @@ webdav_delete_respond(ngx_http_request_t *r, int op_errno)
     if (op_errno == ENOENT) {
         return NGX_HTTP_NOT_FOUND;
     }
-    if (op_errno == EACCES) {
+    if (op_errno == EACCES || op_errno == EPERM) {
+        /* EPERM: the VFS confinement-anchor refusal - a recursive DELETE of
+         * the export root itself (phase-107 C4). */
         return NGX_HTTP_FORBIDDEN;
+    }
+    if (op_errno == EBUSY) {
+        /* phase-107 C7: the VFS lock gate refused - the authority's answer
+         * even when the edge's fast-path check admitted (RFC 4918 §11.3). */
+        return NGX_HTTP_LOCKED;
     }
     return NGX_HTTP_INTERNAL_SERVER_ERROR;
 }
@@ -243,8 +245,13 @@ webdav_delete_async_ctx(ngx_http_request_t *r, const char *path, int is_dir)
 /*
  * webdav_handle_delete — handle HTTP DELETE: remove a file or directory.
  *
- * RFC 4918 §9.6.1: DELETE on a collection MUST recursively delete all its
- * members and all their properties.
+ * RFC 4918 §9.6.1 makes a collection DELETE recursive; this front's long-pinned
+ * default is stricter (require-empty -> 409, so one mis-aimed DELETE cannot take
+ * a subtree with it), and a client OPTS IN to the RFC behaviour by sending an
+ * explicit `Depth: infinity` (phase-107 C4). The recursive path runs through
+ * brix_vfs_rmdir(recursive=1) -> brix_vfs_rmtree_dispatch, which batches
+ * per-level windows on a CAP_BULK_DELETE leaf. Lock checking is tree-wide
+ * either way (webdav_check_locks_tree).
  *
  * The fd-cache entry for the path is evicted before the delete to prevent
  * use-after-free on cached file descriptors.
@@ -257,6 +264,8 @@ webdav_handle_delete(ngx_http_request_t *r)
     char                              path[WEBDAV_MAX_PATH];
     struct stat                       sb;
     ngx_int_t                         rc;
+    unsigned                          recursive;
+    ngx_table_elt_t                 *depth;
     brix_vfs_ctx_t                  vctx;
 
     rc = webdav_resolve_stat(r, path, sizeof(path), &sb);
@@ -269,14 +278,20 @@ webdav_handle_delete(ngx_http_request_t *r)
         return rc;
     }
 
+    depth = brix_http_find_header(r, "Depth", sizeof("Depth") - 1);
+    recursive = S_ISDIR(sb.st_mode)
+                && depth != NULL
+                && brix_http_header_value_equals(&depth->value, "infinity");
+
     /* Async backend: enqueue the unlink/rmdir and park the request until the
      * batch flushes. DELETE is already allow_write-gated at the access phase, so
      * the write gate has passed before we reach the queue. The queue drives the
      * same confined-VFS primitive as the sync path, keyed by the absolute
      * resolved `path`; a directory maps to RMDIR (non-recursive => require-empty,
-     * the Standard WebDAV module policy), a file/symlink to UNLINK. NGX_DECLINED
-     * (async off / enqueue failure) falls through to the inline op. */
-    if (conf->common.backend_async) {
+     * the pinned default policy), a file/symlink to UNLINK. A recursive delete
+     * has no queue op and runs inline below. NGX_DECLINED (async off / enqueue
+     * failure) falls through to the inline op. */
+    if (conf->common.backend_async && !recursive) {
         brix_baq_req_t req = {
             .op         = S_ISDIR(sb.st_mode) ? BRIX_BAQ_RMDIR
                                               : BRIX_BAQ_UNLINK,
@@ -298,13 +313,13 @@ webdav_handle_delete(ngx_http_request_t *r)
     /* Route the delete through the metered VFS surface. webdav_resolve_stat
      * lstat'd the target (vfs_stat does not follow symlinks), so S_ISDIR here
      * agrees with brix_ns_delete's own lstat dispatch: a directory goes to
-     * rmdir (non-recursive => require-empty, the Standard WebDAV module policy);
-     * a file or symlink goes to unlink. DELETE is already allow_write-gated at
-     * the access phase, so the VFS write-gate never fires here. */
+     * rmdir (require-empty unless the client sent `Depth: infinity`); a file or
+     * symlink goes to unlink. DELETE is already allow_write-gated at the access
+     * phase, so the VFS write-gate never fires here. */
     webdav_ns_vfs_ctx_init(r, path, &vctx);
 
     if (S_ISDIR(sb.st_mode)) {
-        rc = brix_vfs_rmdir(&vctx, 0);
+        rc = brix_vfs_rmdir(&vctx, recursive);
     } else {
         rc = brix_vfs_unlink(&vctx);
     }
@@ -364,6 +379,12 @@ webdav_handle_mkcol(ngx_http_request_t *r)
 
     if (errno == EACCES) {
         return NGX_HTTP_FORBIDDEN;
+    }
+
+    if (errno == EBUSY) {
+        /* phase-107 C7: the VFS lock gate refused — the authority's answer
+         * even when the edge's webdav_check_locks admitted (RFC 4918 §11.3). */
+        return NGX_HTTP_LOCKED;
     }
 
     return NGX_HTTP_INTERNAL_SERVER_ERROR;

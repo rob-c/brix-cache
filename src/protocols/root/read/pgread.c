@@ -4,6 +4,7 @@
 
 #include "read.h"
 #include "read_internal.h"
+#include "pgread_internal.h"  /* run struct + front-half seam */
 
 #include "core/ngx_brix_module.h"
 #include "fs/backend/sd.h"   /* phase-55: route preadv through the SD seam */
@@ -11,236 +12,43 @@
 #include "core/compat/pgio.h"     /* kXR_pgPageSZ / kXR_pgUnitSZ page geometry  */
 #include "protocols/root/session/registry.h" /* §1.2 pathid validation (bound-path bitmap) */
 #include "protocols/root/session/offload_registry.h" /* §1.1 brix_offload_lookup */
+#include "protocols/root/connection/budget.h" /* phase-31 W4 memory-budget admission */
 
-/* CRC32c word size per page unit ([CRC32c(4)][data]); == kXR_pgUnitSZ - page. */
-#define BRIX_PG_CKSZ        ((size_t) (kXR_pgUnitSZ - kXR_pgPageSZ))
 
-/*
- * brix_pgread_run_t - per-request state threaded through the pgread steps.
- *
- * WHAT: The decoded request (handle index, fd, offset, capped length), the
- *       shared scratch buffer, and the produced output {out_buf, out_size,
- *       flat_buf} — filled by exactly one producer path (warm hit, AIO
- *       offload, or sync fallback).
- *
- * WHY: Makes the phase-72.A invariant structural: out_buf/flat_buf/out_size
- *      start NULL/0 (the handler zeroes the struct) and every producer sets
- *      all three through this one struct, so the pre-framing out_buf==NULL
- *      guard catches any path that failed to produce output.
- */
-typedef struct {
-    int       idx;        /* file-handle table index                        */
-    int       fd;         /* resolved file descriptor                       */
-    int64_t   offset;     /* requested file offset                          */
-    size_t    rlen;       /* capped request length; sync path: bytes read   */
-    unsigned  pathid;     /* §1.2 request args: response path (0 = primary) */
-    unsigned  reqflags;   /* §1.2 request args: kXR_pgRetry or 0            */
-    u_char   *scratch;    /* gapped wire buffer (read_scratch slot)         */
-    u_char   *out_buf;    /* encoded output start (NULL until produced)     */
-    u_char   *flat_buf;   /* buffer to release after send (NULL until set)  */
-    size_t    out_size;   /* encoded output bytes (0 until produced)        */
-} brix_pgread_run_t;
 
-/*
- * brix_pgread_parse_validate - decode the request and run all early checks.
- *
- * WHAT: Unpacks the kXR_pgread request into `run`, validates the handle,
- *       rejects negative offset/length, answers a zero-length read with an
- *       empty kXR_status frame, caps rlen, and resolves the fd.  Returns 1 to
- *       continue; 0 when the request was fully handled (*rc holds the
- *       handler's return value — error sent, empty response queued, or
- *       NGX_ERROR).
- *
- * WHY: All reject/short-circuit paths in one early-return helper keeps the
- *      handler a flat orchestrator (coding-standards §8).
- *
- * HOW: Mirrors brix_validate_read_handle's continue-flag + *rc convention
- *      so the caller propagates the exact wire response codes unchanged.
- */
-static ngx_int_t
-brix_pgread_parse_validate(brix_ctx_t *ctx, ngx_connection_t *c,
-    brix_pgread_run_t *run, ngx_int_t *rc)
+/* Shared task-field init for BOTH pgread post sites (primary slot reuse and
+ * §1.1 offload).  Everything except the reply routing: the caller sets the
+ * sec_* trio and the §1.2 pool_send eligibility to its own shape after this
+ * returns.  The pool-send reporting flags are cleared here so a uring-path
+ * error completion (which skips both thread fns) can never see a previous
+ * request's stale values in a reused slot task. */
+static void
+brix_pgread_task_init(brix_pgread_aio_t *t, brix_ctx_t *ctx,
+    ngx_connection_t *c, brix_pgread_run_t *run)
 {
-    xrdw_pgread_req_t             req;
-    ServerStatusResponse_pgRead  *hdr_buf;
-
-    xrdw_pgread_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
-    run->idx = (int) (unsigned char) req.fhandle[0];
-    run->offset = req.offset;
-    run->rlen = (size_t) (uint32_t) req.rlen;
-
-    /* §1.2 optional request args ride the payload: pathid at byte 0 when
-     * dlen >= 1, reqflags at byte 1 when dlen >= 2 (extra bytes tolerated) —
-     * stock 5.6.9 parses exactly this shape at any dlen, verified live. A
-     * nonzero pathid must name one of THIS session's live kXR_bind paths;
-     * stock refuses anything else with kXR_ArgInvalid "invalid path ID".
-     * kXR_pgRetry (and unknown flag bits) change nothing server-side: the
-     * pages are re-read and re-checksummed fresh, which is stock behavior.
-     * The response itself still travels the control stream — response
-     * offloading over the bound path is the audit's §1.1 gap, all opcodes
-     * alike. */
-    if (ctx->recv.cur_dlen >= 1 && ctx->recv.payload != NULL) {
-        run->pathid   = (unsigned) ((u_char *) ctx->recv.payload)[0];
-        run->reqflags = (ctx->recv.cur_dlen >= 2)
-                        ? (unsigned) ((u_char *) ctx->recv.payload)[1] : 0;
-        if (run->pathid != 0
-            && !brix_session_pathid_bound(ctx->is_bound ? ctx->bound_sessid
-                                                          : ctx->login.sessid,
-                                            run->pathid))
-        {
-            BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
-            *rc = brix_send_error(ctx, c, kXR_ArgInvalid,
-                                    "invalid path ID");
-            return 0;
-        }
-    }
-
-    if (!brix_validate_read_handle(ctx, c, run->idx, "PGREAD",
-                                     BRIX_OP_PGREAD, rc)) {
-        return 0;
-    }
-
-    if (run->offset < 0) {
-        BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
-        *rc = brix_send_error(ctx, c, kXR_IOError,
-                                "negative read offset");
-        return 0;
-    }
-
-    /* The wire rlen is a signed 32-bit field; a negative request length is
-     * invalid.  Read unsigned it would turn -1 into ~4 GiB (then capped),
-     * silently succeeding where the reference rejects with kXR_ArgInvalid. */
-    if (req.rlen < 0) {
-        BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
-        *rc = brix_send_error(ctx, c, kXR_ArgInvalid,
-                                "negative read length");
-        return 0;
-    }
-
-    if (run->rlen == 0) {
-        hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));
-        if (hdr_buf == NULL) {
-            *rc = NGX_ERROR;
-            return 0;
-        }
-        brix_build_pgread_status(ctx, run->offset, 0, hdr_buf);
-        BRIX_OP_OK(ctx, BRIX_OP_PGREAD);
-        *rc = brix_queue_response(ctx, c, (u_char *) hdr_buf,
-                                    sizeof(*hdr_buf));
-        return 0;
-    }
-
-    if (run->rlen > BRIX_READ_REQUEST_MAX) {
-        run->rlen = BRIX_READ_REQUEST_MAX;
-    }
-
-    run->fd = ctx->files[run->idx].fd;
-    return 1;
-}
-
-/*
- * brix_pgread_alloc_scratch - size and fetch the gapped wire buffer.
- *
- * WHAT: Computes the worst-case page count for the request and returns the
- *       per-connection read scratch slot grown to hold the interleaved
- *       [CRC32c(4)][data] wire output (NULL on allocation failure).
- *
- * WHY: The buffer-size math is pure and self-contained; isolating it keeps
- *      the page-count subtlety (alignment split) documented in one place.
- *
- * HOW: File-offset alignment can split an otherwise single-page read across
- *      two pages (short first fragment + remainder), so the page count is
- *      derived from the in-page offset, not just rlen — otherwise the
- *      scratch/out region would be one CRC short.
- */
-static u_char *
-brix_pgread_alloc_scratch(brix_ctx_t *ctx, ngx_connection_t *c,
-    brix_pgread_run_t *run)
-{
-    size_t  n_pages_max;
-    size_t  scratch_size;
-
-    n_pages_max = ((size_t) (run->offset & (kXR_pgPageSZ - 1)) + run->rlen
-                   + kXR_pgPageSZ - 1) / kXR_pgPageSZ;
-    if (n_pages_max == 0) {
-        n_pages_max = 1;
-    }
-    /*
-     * Single buffer holding the final interleaved [CRC32c(4)][data] wire
-     * output (data is read straight into it — no separate flat copy region),
-     * so it needs only the data bytes plus one 4-byte CRC per page.
-     */
-    scratch_size = run->rlen + n_pages_max * BRIX_PG_CKSZ;
-
-    return BRIX_GET_SCRATCH(ctx, c, rd.read_scratch, rd.read_scratch_size,
-                              scratch_size);
-}
-
-/*
- * brix_pgread_try_warm - inline warm-cache fast path.
- *
- * WHAT: Attempts the whole read + in-place CRC on the event loop via
- *       preadv2(RWF_NOWAIT).  On a full hit fills run->{out_buf, out_size,
- *       flat_buf}, charges the backend byte metric, and returns 1; on any
- *       miss returns 0 with the run output untouched.
- *
- * WHY: When the whole range is already page-cache resident, reading + CRCing
- *      inline skips the thread-pool handoff entirely — the handoff latency,
- *      not the copy, is the single-stream (n=1) cost. A miss (not resident /
- *      EOF / error) falls through to the blocking offload, which re-reads the
- *      full range. Only attempted with a pool configured (else the blocking
- *      path runs inline anyway) and for a regular file (RWF_NOWAIT is
- *      meaningful against the page cache). Mirrors the kXR_read Phase-32 probe.
- *
- * HOW: Delegates to brix_pgread_read_encode_inplace with nowait=1 against
- *      the handle's effective storage object; a hit means errno stayed 0 and
- *      every requested byte was delivered.
- */
-static ngx_flag_t
-brix_pgread_try_warm(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *rconf,
-    brix_pgread_run_t *run)
-{
-    brix_pgread_io_t warm_io = { .nowait = 1, .nread = 0, .io_errno = 0 };
-    size_t          warm_osz;
-    brix_sd_obj_t warm_scratch;
-    brix_sd_obj_t *warm_obj;
-
-    if (rconf->common.thread_pool == NULL
-        || !ctx->files[run->idx].is_regular)
-    {
-        return 0;
-    }
-
-    warm_obj = brix_vfs_effective_obj(&ctx->files[run->idx].sd_obj, run->fd,
-                                        &warm_scratch);
-
-    /* The RWF_NOWAIT probe needs the driver's native preadv2; drivers without
-     * one (remote/object backends) have no page cache to probe — treat as a
-     * miss so the read offloads to the blocking path. */
-    if (warm_obj->driver->preadv2 == NULL) {
-        return 0;
-    }
-
-    warm_osz = brix_pgread_read_encode_inplace(warm_obj, (off_t) run->offset,
-                                                 run->rlen, run->scratch,
-                                                 &warm_io);
-    if (warm_io.io_errno != 0 || warm_io.nread != (ssize_t) run->rlen) {
-        return 0;
-    }
-
-    run->out_size = warm_osz;
-    run->flat_buf = run->scratch;
-    run->out_buf  = run->scratch;      /* rlen already == bytes encoded */
-
-    /* The warm fast path bypasses brix_vfs_io_execute (where the
-     * cold pgread paths attribute), so charge the per-backend read
-     * total here for the file bytes just read. */
-    brix_metric_backend_bytes(
-        ctx->files[run->idx].sd_obj.driver != NULL
-            ? ctx->files[run->idx].sd_obj.driver->name : "posix",
-        BRIX_METRIC_OP_READ, (size_t) warm_io.nread);
-
-    return 1;
+    t->c = c;
+    t->ctx = ctx;
+    t->fd = run->fd;
+    t->handle_idx = run->idx;
+    t->offset = (off_t) run->offset;
+    t->rlen = run->rlen;
+    t->scratch = run->scratch;
+    t->out_size = 0;
+    t->streamid[0] = ctx->recv.cur_streamid[0];
+    t->streamid[1] = ctx->recv.cur_streamid[1];
+    t->obj = ctx->files[run->idx].sd_obj; /* Layer 3: driver obj (or zeroed) */
+    t->start_ns = brix_phase_now_ns();  /* phase-56 D-2 */
+    t->counted = 1;                     /* single-shot pgread — the per-slot
+                                         * task may still hold a stale 0 from
+                                         * a kXR_read windowed post */
+    t->pool_sent = 0;
+    t->pool_sent_all = 0;
+    t->pool_token_held = 0;
+    t->pool_send_errno = 0;
+    t->pool_chunked = 0;
+    t->chunk_error = 0;
+    t->pool_image_len = 0;
+    t->pool_frames = 0;
 }
 
 /*
@@ -255,50 +63,70 @@ brix_pgread_try_warm(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *rconf,
  * WHY: The task-population boilerplate is one nameable step of the handler;
  *      extracting it keeps the orchestrator flat (coding-standards §8).
  *
- * HOW: Reuses ctx->rd.pgread_aio_task across requests (allocating it once
- *      from the connection pool), binds the pgread worker/done pair, and
- *      lets brix_aio_post_task log the fallback warning on post failure.
+ * HOW: Uses the rd_pool slot task backing run->scratch (phase-32 WS3
+ *      discipline, shared with read_post_aio): each in-flight pgread carries
+ *      an independent task struct, so several can run on worker threads at
+ *      once without a later post clobbering a task a worker still owns.  A
+ *      posted task is counted in rd.aio_inflight (t->counted) so teardown
+ *      defers and the recv loop's pipelining/backpressure bounds hold.
  */
 static ngx_int_t
 brix_pgread_post_aio(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *rconf, brix_pgread_run_t *run)
 {
-    ngx_thread_task_t   *task;
+    ngx_thread_task_t   *task = NULL;
     brix_pgread_aio_t *t;
     ngx_flag_t           posted;
+    ngx_uint_t           i;
 
-    task = ctx->rd.pgread_aio_task;
-    if (task == NULL) {
-        task = ngx_thread_task_alloc(c->pool,
-                                     sizeof(brix_pgread_aio_t));
-        if (task == NULL) {
-            return NGX_ERROR;
+    for (i = 0; i < ctx->out.pipeline_depth; i++) {
+        if (ctx->rd.pool[i].buf == run->scratch) {
+            task = ctx->rd.pool[i].task;
+            if (task == NULL) {
+                /* Sized for either pipelined read opcode — kXR_read posts
+                 * share the per-slot task (see brix_rd_slot_aio_u, aio.h). */
+                task = ngx_thread_task_alloc(c->pool,
+                                             sizeof(brix_rd_slot_aio_u));
+                if (task == NULL) {
+                    return NGX_ERROR;
+                }
+                ctx->rd.pool[i].task = task;
+            } else {
+                task->next = NULL;
+                task->event.complete = 0;
+            }
+            break;
         }
-        ctx->rd.pgread_aio_task = task;
-    } else {
-        task->next = NULL;
-        task->event.complete = 0;
+    }
+
+    /* A scratch that is not a pool slot cannot pipeline safely (no per-slot
+     * task to bind); decline so the caller serves synchronously instead. */
+    if (task == NULL) {
+        return NGX_DECLINED;
     }
 
     t = task->ctx;
-    t->c = c;
-    t->ctx = ctx;
-    t->fd = run->fd;
-    t->handle_idx = run->idx;
-    t->offset = (off_t) run->offset;
-    t->rlen = run->rlen;
-    t->scratch = run->scratch;
-    t->out_size = 0;
-    t->streamid[0] = ctx->recv.cur_streamid[0];
-    t->streamid[1] = ctx->recv.cur_streamid[1];
-    t->obj = ctx->files[run->idx].sd_obj; /* Layer 3: driver obj (or zeroed) */
-    t->start_ns = brix_phase_now_ns();  /* phase-56 D-2 */
+    brix_pgread_task_init(t, ctx, c, run);
+    t->sec_c = NULL;                    /* primary-stream reply (a reused slot
+                                         * task may hold stale offload fields) */
+    t->sec_ctx = NULL;
+    t->sec_counted = 0;
+    t->pool_send = 0;                   /* §1.2: never pool-send on the
+                                         * primary path (reused slot task) */
 
     brix_task_bind(task, brix_pgread_aio_thread, brix_pgread_aio_done);
 
     (void) brix_aio_post_task(ctx, c, rconf->common.thread_pool, task,
                                 "brix: thread_task_post failed, sync pgread fallback",
                                 &posted);
+
+    /* Only a posted task runs on a worker thread, so only then does its
+     * completion decrement rd.aio_inflight — count it here so disconnect
+     * defers teardown until the worker releases the rd_pool buffer, and so
+     * the recv loop's in-flight bounds see this read (mirrors read_post_aio). */
+    if (posted) {
+        ctx->rd.aio_inflight++;
+    }
 
     return posted ? NGX_OK : NGX_DECLINED;
 }
@@ -385,11 +213,101 @@ brix_pgread_send_response(brix_ctx_t *ctx, ngx_connection_t *c,
     }
     BRIX_OP_OK(ctx, BRIX_OP_PGREAD);
 
+    /* Self-contained frame (per-response palloc'd header, data in this
+     * request's own rd_pool slot): if it parks, the next pgread may safely
+     * queue behind it while it drains (brix_recv_try_pipeline_read). */
+    ctx->out.resp_pipelinable = 1;
+
     rc = brix_queue_response_chain(ctx, c, rsp_chain, run->flat_buf);
     if (rc != NGX_OK || ctx->state != XRD_ST_SENDING) {
         brix_release_read_buffer(ctx, c, run->flat_buf);
     }
     return rc;
+}
+
+/*
+ * brix_pgread_post_aio_offload — post a large pgread to the thread pool with
+ * the reply targeted at a bound same-worker SECONDARY channel (§1.1).
+ *
+ * WHAT: The offload analog of brix_pgread_post_aio: binds the SECONDARY's
+ *       per-slot task (fbuf is its rd_pool slot; the encode region starts 32
+ *       bytes in, after the pgRead status header the done handler stamps),
+ *       fills it from `run`, and posts.  Counted in BOTH connections'
+ *       rd.aio_inflight — the primary owns the request/recv state, the
+ *       secondary owns the buffer and the out-ring slot the reply will take —
+ *       so either side's teardown defers until the completion runs.
+ *
+ * WHY: One TCP socket tops out well below what a striped -S4 client can
+ *      sink; routing each large pgread's reply over the substream the client
+ *      asked for (pathid) engages every bound socket in parallel, which is
+ *      exactly how XRootD's do_Offload wins multi-stream benchmarks.
+ *
+ * HOW: Returns NGX_OK when posted (brix_pgread_aio_done routes to the
+ *      offload epilogue via t->sec_c) or NGX_DECLINED when no per-slot task
+ *      could be bound / the pool refused — the caller releases fbuf and falls
+ *      through to the primary producer paths.
+ */
+static ngx_int_t
+brix_pgread_post_aio_offload(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *rconf, brix_pgread_run_t *run,
+    brix_ctx_t *sec_ctx, ngx_connection_t *sec_c, u_char *fbuf)
+{
+    ngx_thread_task_t   *task = NULL;
+    brix_pgread_aio_t *t;
+    ngx_flag_t           posted;
+    ngx_uint_t           i;
+
+    for (i = 0; i < sec_ctx->out.pipeline_depth; i++) {
+        if (sec_ctx->rd.pool[i].buf == fbuf) {
+            task = sec_ctx->rd.pool[i].task;
+            if (task == NULL) {
+                task = ngx_thread_task_alloc(sec_c->pool,
+                                             sizeof(brix_rd_slot_aio_u));
+                if (task == NULL) {
+                    return NGX_DECLINED;
+                }
+                sec_ctx->rd.pool[i].task = task;
+            } else {
+                task->next = NULL;
+                task->event.complete = 0;
+            }
+            break;
+        }
+    }
+
+    if (task == NULL) {
+        return NGX_DECLINED;
+    }
+
+    t = task->ctx;
+    brix_pgread_task_init(t, ctx, c, run);  /* run->scratch = fbuf + hdr off */
+    t->sec_c = sec_c;
+    t->sec_ctx = sec_ctx;
+    t->sec_counted = 1;
+
+    /* §1.2 pool-send eligibility: any cleartext secondary (a worker thread
+     * cannot enter the TLS filter, invariant #2).  Ring state is NOT checked
+     * here — the thread's send-time gate (token CAS + send_busy) is the
+     * authoritative throttle; a post-time out.count check would cascade (one
+     * parked frame routes every task posted during its drain to the event
+     * loop, which keeps the ring busy, which extends the cascade). */
+    t->pool_send = (sec_c->ssl == NULL) ? 1 : 0;
+    if (t->pool_send) {
+        sec_ctx->out.pool_send_active = 1;   /* engage the send-token gates */
+    }
+
+    brix_task_bind(task, brix_pgread_aio_thread, brix_pgread_aio_done);
+
+    (void) brix_aio_post_task(ctx, c, rconf->common.thread_pool, task,
+                                "brix: thread_task_post failed, primary pgread fallback",
+                                &posted);
+
+    if (posted) {
+        ctx->rd.aio_inflight++;
+        sec_ctx->rd.aio_inflight++;
+    }
+
+    return posted ? NGX_OK : NGX_DECLINED;
 }
 
 /*
@@ -416,7 +334,7 @@ brix_pgread_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
 {
     ngx_connection_t *sec_c;
     brix_ctx_t       *sec_ctx;
-    size_t            n_pages_max, enc_max;
+    size_t            n_pages_max, enc_max, hdr_space;
     u_char           *buf;
     int               io_errno;
 
@@ -426,7 +344,7 @@ brix_pgread_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /* Encoded-reply upper bound — the gapped [CRC32c(4)][page] size, identical
-     * to brix_pgread_alloc_scratch's math. A reply larger than one streaming
+     * to brix_pgread_scratch_size's math. A reply larger than one streaming
      * window belongs on the (thread-pool-capable) primary path. */
     n_pages_max = ((size_t) (run->offset & (kXR_pgPageSZ - 1)) + run->rlen
                    + kXR_pgPageSZ - 1) / kXR_pgPageSZ;
@@ -435,7 +353,38 @@ brix_pgread_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
     }
     enc_max = run->rlen + n_pages_max * BRIX_PG_CKSZ;
     if (enc_max > (size_t) BRIX_READ_WINDOW) {
-        return 0;
+        /* Large reply: too big for the inline sync fill (it would stall the
+         * event loop for milliseconds), but exactly what the thread pool is
+         * for — post the normal pgread AIO with the response targeted at the
+         * SECONDARY (multi-socket parallelism for striped -S clients).  Any
+         * ineligibility falls through to the unchanged primary paths. */
+        if (rconf->common.thread_pool == NULL) {
+            return 0;
+        }
+        /* §1.3 chunked streaming lays one status header per chunk frame
+         * back-to-back in this buffer — size for the worst-case train. */
+        hdr_space = sizeof(ServerStatusResponse_pgRead)
+                    * (1 + (run->rlen + BRIX_PGREAD_STREAM_CHUNK - 1)
+                           / BRIX_PGREAD_STREAM_CHUNK);
+        if (!brix_budget_admit(ctx, rconf->memory_budget,
+                               hdr_space + enc_max)) {
+            return 0;   /* over budget — the primary path issues the kXR_wait */
+        }
+        buf = brix_acquire_read_buffer(sec_ctx, sec_c, hdr_space + enc_max);
+        if (buf == NULL) {
+            return 0;   /* secondary pool exhausted — primary path serves it */
+        }
+        brix_budget_sync(sec_ctx);   /* charge the (possibly grown) slot */
+        run->scratch = buf + sizeof(ServerStatusResponse_pgRead);
+        if (brix_pgread_post_aio_offload(ctx, c, rconf, run, sec_ctx, sec_c,
+                                           buf) != NGX_OK)
+        {
+            brix_release_read_buffer(sec_ctx, sec_c, buf);
+            run->scratch = NULL;
+            return 0;
+        }
+        *rc = NGX_OK;
+        return 1;
     }
 
     /* Frame buffer from the SECONDARY's pool: 32B status frame + encoding. */
@@ -532,16 +481,61 @@ brix_handle_pgread(brix_ctx_t *ctx, ngx_connection_t *c)
         return rc;
     }
 
-    run.scratch = brix_pgread_alloc_scratch(ctx, c, &run);
-    if (run.scratch == NULL) {
-        return NGX_ERROR;
+    /*
+     * Windowed streaming (pgread_window.c): a primary-path request larger
+     * than one window is served as a kXR_PartialResult train produced
+     * window-by-window into the hot read_scratch slot instead of a
+     * request-sized rd_pool fill — LLC-hot copy destination, one window of
+     * memory budget, first frame on the wire after one window.  Offload-
+     * eligible requests were consumed above, so everything reaching this
+     * gate rides the primary stream.
+     */
+    if (run.rlen > BRIX_PGREAD_WARM_INLINE_MAX) {
+        return brix_pgread_serve_windowed(ctx, c, rconf, &run);
     }
 
-    warm_hit = brix_pgread_try_warm(ctx, rconf, &run);
+    /* Memory-budget admission (phase-31 W4, parity with read_serve_buffered):
+     * this request will hold an rd_pool buffer of the encoded size until its
+     * response drains; over budget it is deferred with kXR_wait. */
+    if (!brix_budget_admit(ctx, rconf->memory_budget,
+                           brix_pgread_scratch_size(&run))) {
+        return brix_fsoverload_backoff(ctx, c, rconf);
+    }
+
+    /*
+     * Per-in-flight gapped wire buffer (pgread pipelining): each outstanding
+     * pgread encodes into its OWN rd_pool slot rather than the shared
+     * read_scratch, so this response can keep draining while the recv loop
+     * admits the next pgread into a different buffer (and a pool thread reads
+     * it concurrently).  Released back to the pool when the response's
+     * out_ring slot drains, or below on the error paths.
+     */
+    run.scratch = brix_acquire_read_buffer(ctx, c,
+                                             brix_pgread_scratch_size(&run));
+    if (run.scratch == NULL) {
+        /* Pool exhausted despite the recv-side depth bound — slot accounting
+         * has gone wrong upstream.  Never fatal: a bare NGX_ERROR here tears
+         * down a healthy pipelined connection (silent RST, client re-login
+         * storm); defer the request with the standard overload backoff. */
+        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+                      "brix: pgread rd_pool exhausted (depth %ui, "
+                      "rd_inflight %ui, aio_inflight %ui) — deferring",
+                      ctx->out.pipeline_depth, ctx->rd.inflight,
+                      ctx->rd.aio_inflight);
+        return brix_fsoverload_backoff(ctx, c, rconf);
+    }
+    brix_budget_sync(ctx);   /* charge the (possibly grown) slot promptly */
+
+    /* Large requests skip the inline warm probe even when resident: posting
+     * to the pool overlaps this request's read+CRC with the previous
+     * response's socket writes (see BRIX_PGREAD_WARM_INLINE_MAX). */
+    warm_hit = run.rlen <= BRIX_PGREAD_WARM_INLINE_MAX
+               ? brix_pgread_try_warm(ctx, rconf, &run) : 0;
 
     if (!warm_hit && rconf->common.thread_pool != NULL) {
         rc = brix_pgread_post_aio(ctx, c, rconf, &run);
         if (rc == NGX_ERROR) {
+            brix_release_read_buffer(ctx, c, run.scratch);
             return NGX_ERROR;
         }
         if (rc == NGX_OK) {
@@ -554,6 +548,7 @@ brix_handle_pgread(brix_ctx_t *ctx, ngx_connection_t *c)
         int io_errno = brix_pgread_sync_fill(ctx, &run);
 
         if (io_errno != 0) {
+            brix_release_read_buffer(ctx, c, run.scratch);
             BRIX_RETURN_ERR(ctx, c, BRIX_OP_PGREAD, "PGREAD",
                               ctx->files[run.idx].path, "-",
                               kXR_IOError, strerror(io_errno));
@@ -563,6 +558,7 @@ brix_handle_pgread(brix_ctx_t *ctx, ngx_connection_t *c)
     /* Invariant: exactly one of the producer paths (warm hit or sync
      * fallback) must have filled the output; the AIO path returned above. */
     if (run.out_buf == NULL) {
+        brix_release_read_buffer(ctx, c, run.scratch);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_PGREAD, "PGREAD",
                           ctx->files[run.idx].path, "-",
                           kXR_ServerError, "pgread: no output produced");

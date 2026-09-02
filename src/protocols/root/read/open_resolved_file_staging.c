@@ -81,6 +81,10 @@ brix_open_probe(ngx_log_t *log, const char *root, const char *abs,
     brix_vfs_ctx_init(&vctx, pool, log, BRIX_PROTO_ROOT, root, NULL,
         BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */,
         ctx != NULL ? ctx->identity : NULL, abs);
+    if (conf != NULL) {
+        /* Persistent per-worker confinement rootfd (op_vfs_ctx pattern). */
+        vctx.rootfd = conf->rootfd;
+    }
     if (ctx != NULL && conf != NULL && pool != NULL) {
         brix_root_vfs_bind_session(ctx, conf, &vctx);
     }
@@ -93,32 +97,39 @@ brix_open_probe(ngx_log_t *log, const char *root, const char *abs,
 	 * directory's name, create it, and wrongly report success — diverging from
 	 * stock. The read side is rejected symmetrically just below. */
 static ngx_int_t
-brix_open_check_write_target(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *conf, const char *resolved, ngx_flag_t is_write)
+brix_open_check_write_target(brix_open_args_t *a)
 {
-	if (is_write) {
-		brix_vfs_stat_t dst;
-		/* A final path that is itself a symlink must be rejected for write: we
-		 * never write THROUGH an in-root link. The direct-open mapping enforces
-		 * this with O_NOFOLLOW on the final component (ELOOP), but the staging
-		 * path opens a randomly-named temp instead of the final and would commit
-		 * over the link on rename — so guard it here. lstat (no-follow) reports
-		 * the link as itself; resolution is already confined to the export, so
-		 * this catches an in-export link with EITHER an in-root or outward target
-		 * without following it. */
-		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 1,
-		                      &dst, ctx, conf, c->pool)
-		    && S_ISLNK((mode_t) dst.mode)) {
-			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
-			                  resolved, "wr", kXR_NotAuthorized,
-			                  "refusing to write through a symlink");
-		}
-		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 0,
-		                      &dst, ctx, conf, c->pool)
-		    && dst.is_directory) {
-			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
-			                  resolved, "wr", kXR_isDirectory,
-			                  "is a directory");
+	BRIX_OPEN_ARGS_COMMON(a);
+
+	if (a->is_write) {
+		/* THE no-follow probe of the final path — run exactly once per write
+		 * open and shared via a->target_* with the exclusive-create check and
+		 * the resume in-place decide below. It answers both write-target
+		 * rejections here: a final path that is itself a symlink must be
+		 * rejected for write (we never write THROUGH an in-root link — the
+		 * direct-open mapping enforces this with O_NOFOLLOW, but the staging
+		 * path opens a randomly-named temp and would commit over the link on
+		 * rename), and lstat (no-follow) reports the link as itself. The
+		 * directory reject reuses the SAME probe: for any non-link target
+		 * lstat and stat agree on type, and a link target was already
+		 * rejected first — so a second (follow) probe could never change
+		 * the answer. */
+		a->target_found = brix_open_probe(c->log, conf->common.root_canon,
+		                                    resolved, 1, &a->target_st,
+		                                    ctx, conf, c->pool);
+		a->target_probed = 1;
+		if (a->target_found) {
+			brix_vfs_stat_t dst = a->target_st;
+			if (S_ISLNK((mode_t) dst.mode)) {
+				BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
+				                  resolved, "wr", kXR_NotAuthorized,
+				                  "refusing to write through a symlink");
+			}
+			if (dst.is_directory) {
+				BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
+				                  resolved, "wr", kXR_isDirectory,
+				                  "is a directory");
+			}
 		}
 	}
 	/* NGX_DECLINED = allow/continue.  A rejection above sends its own error and
@@ -178,9 +189,13 @@ brix_open_check_exclusive_create(brix_open_args_t *a)
 	BRIX_OPEN_ARGS_COMMON(a);
 
 	if (a->stage && (a->options & kXR_new) && !(a->options & kXR_delete)) {
-		brix_vfs_stat_t fst;
-		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 0,
-		                      &fst, ctx, conf, c->pool)) {
+		/* Existence comes from the ONE shared preflight probe (a->target_*):
+		 * kXR_new is a write open, so the probe always ran, and the symlink
+		 * reject before it means follow/no-follow cannot disagree here. */
+		if (a->target_probed ? a->target_found
+		                     : brix_open_probe(c->log, conf->common.root_canon,
+		                                         resolved, 0, &a->target_st,
+		                                         ctx, conf, c->pool)) {
 			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
 			                  resolved, "wr", kXR_ItExists,
 			                  "file already exists");
@@ -268,17 +283,27 @@ brix_open_resume_inplace_decide(brix_open_args_t *a)
 		 * external stage-dir partial is checked as the worker (separate domain,
 		 * same reasoning as the open below). */
 		if (conf->upload_stage_dir_canon[0] != '\0') {
-			struct stat sst;   /* vfs-seam-allow: separate upload stage-dir domain */
-			have_partial = (stat(posc_temp_path, &sst) == 0);  /* vfs-seam-allow: separate upload stage-dir domain */
+			struct stat sst;   /* vfs-seam-allow: DOMAIN_STAGE — separate upload stage-dir domain */
+			have_partial = (stat(posc_temp_path, &sst) == 0);  /* vfs-seam-allow: DOMAIN_STAGE — separate upload stage-dir domain */
 		} else {
 			brix_vfs_stat_t pst;
 			have_partial = brix_open_probe(c->log, conf->common.root_canon,
 			                                 posc_temp_path, 0, &pst,
 			                                 ctx, conf, c->pool);
 		}
-		int final_exists = brix_open_probe(c->log, conf->common.root_canon,
-		                                     resolved, 0, &fst,
-		                                     ctx, conf, c->pool);
+		/* Final-path existence/type from the ONE shared preflight probe:
+		 * a resume-eligible open is a write open, so the probe already ran,
+		 * and the symlink reject before it means the no-follow stat it took
+		 * matches what a follow stat would report here. */
+		int final_exists;
+		if (a->target_probed) {
+			final_exists = a->target_found;
+			fst = a->target_st;
+		} else {
+			final_exists = brix_open_probe(c->log, conf->common.root_canon,
+			                                 resolved, 0, &fst,
+			                                 ctx, conf, c->pool);
+		}
 		if (!have_partial && (!final_exists || fst.is_regular)) {
 			*use_resume = 0;
 			*stage = use_posc;
@@ -298,8 +323,10 @@ brix_open_stage_preflight(brix_open_args_t *a)
 	BRIX_OPEN_ARGS_COMMON(a);
 	ngx_int_t                   rc;
 
-	/* Reject a write open onto a symlink or existing directory (split out). */
-	rc = brix_open_check_write_target(ctx, c, conf, resolved, a->is_write);
+	/* Reject a write open onto a symlink or existing directory (split out);
+	 * this also runs the ONE shared no-follow probe of the final path that
+	 * the exclusive-create and resume in-place stages consume (a->target_*). */
+	rc = brix_open_check_write_target(a);
 	if (rc != NGX_DECLINED) {
 		return rc;   /* rejected: error already sent, propagate its rc */
 	}
@@ -353,7 +380,14 @@ brix_open_stage_preflight(brix_open_args_t *a)
 	 * composed tier serves objects, not directory listings, so the reject is
 	 * moot. (Legacy cache_root cache and plain posix/pblock exports keep the
 	 * probe — their backend stat is local and non-blocking.) */
-	if (!a->is_write && brix_cache_storage_decorator(conf) == NULL) {
+	/* Non-cache read opens already ran this exact existence+type probe at the
+	 * resolve layer (brix_open_read_resolve rejects a missing target with
+	 * kXR_NotFound and a directory with kXR_isDirectory BEFORE dispatch
+	 * reaches here), so re-probing would only re-answer a settled question at
+	 * the cost of a full confined stat per open. Only the legacy cache_root
+	 * path (open_cache.c) arrives without that probe. */
+	if (!a->is_write && conf->cache
+	    && brix_cache_storage_decorator(conf) == NULL) {
 		brix_vfs_stat_t rst;
 		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 0,
 		                      &rst, ctx, conf, c->pool)

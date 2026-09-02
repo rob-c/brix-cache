@@ -419,6 +419,45 @@ typedef struct {
     ngx_atomic_t  vfs_mutation_denied_total[BRIX_PROTO_COUNT]
                                            [BRIX_VFS_MUTATE_OP_METRIC_COUNT];
 
+    /* Phase-107 C1 writer spill (out-of-order extents on a staged-only
+     * backend): bytes absorbed into the local reorder scratch and reordered
+     * uploads refused (no scratch, capacity, overlap, coverage hole), by
+     * protocol; plus one process-wide gauge of spills currently open. No path,
+     * export, or size ever becomes a label (INVARIANT #8). */
+    ngx_atomic_t  vfs_spill_bytes_total[BRIX_PROTO_COUNT];
+    ngx_atomic_t  vfs_spill_refused_total[BRIX_PROTO_COUNT];
+    ngx_atomic_t  vfs_spill_active;              /* gauge: open spill scratches */
+
+    /* Phase-107 C4 bulk delete: batches flushed through the unlink_many path
+     * and keys successfully removed by them, by leaf driver (label bounded by
+     * BRIX_FS_ID_COUNT). keys/batches is the amplification ratio — the number
+     * that says whether DeleteObjects is actually batching. */
+    ngx_atomic_t  vfs_bulk_delete_batches_total[BRIX_FS_ID_COUNT];
+    ngx_atomic_t  vfs_bulk_delete_keys_total[BRIX_FS_ID_COUNT];
+
+    /* Phase-107 C2 prestage/evict: recall outcomes by result class (bounded by
+     * BRIX_VFS_RECALL_RESULT_COUNT — queued/joined/online/error) and bytes
+     * reclaimed by the evict verb, by dispatching driver (BRIX_FS_ID_COUNT).
+     * queued/joined separates new MSS work from joins on an in-flight recall
+     * — whether the join-not-duplicate lifecycle actually deduplicates. */
+    ngx_atomic_t  vfs_recall_total[4];
+    ngx_atomic_t  vfs_evict_bytes_total[BRIX_FS_ID_COUNT];
+
+    /* Phase-107 C6 publish preconditions: refusals by kind (bounded 3-value
+     * axis — absent/etag/meta; NONE never refuses) and refusals decided
+     * WITHOUT storage-side atomicity (pre->atomic == 0: a check-then-act
+     * compare), by deciding driver (BRIX_FS_ID_COUNT). advisory/failed is the
+     * honesty ratio: whether this site's 412s carry RFC 7232 semantics. */
+    ngx_atomic_t  vfs_precond_failed_total[3];
+    ngx_atomic_t  vfs_precond_advisory_total[BRIX_FS_ID_COUNT];
+
+    /* Phase-107 C7 cross-protocol lock gate: mutations that arrived under a
+     * live foreign lock, by protocol. Booked in strict mode (the mutation was
+     * refused EBUSY) AND advisory mode (it was warned through) — the advisory
+     * count is what says the relaxed mode is masking real contention. No
+     * path, token, or owner ever becomes a label (INVARIANT #8). */
+    ngx_atomic_t  vfs_lock_refused_total[BRIX_PROTO_COUNT];
+
     /* Watermark-driven LRU reaper (reap_watermark.c). Process-wide, connection-
      * less: the background timer has no per-proto/per-server context. usage_ratio
      * is a GAUGE in ppm (0-1e6), emitted as a 0-1 ratio; the rest are counters. */

@@ -37,6 +37,9 @@ op_vfs_ctx(const brix_op_exec_t *e, brix_vfs_ctx_t *vctx)
         e->conf->common.root_canon, NULL,
         brix_vfs_policy_from_write_enable(e->conf->common.allow_write),
         0 /* is_tls */, e->ctx->identity, e->resolved);
+    /* Persistent per-worker confinement rootfd (TPC call sites bind it the
+     * same way): lets the POSIX namespace arm skip a root open/close per op. */
+    vctx->rootfd = e->conf->rootfd;
     brix_vfs_ctx_bind_backend_cred(vctx,
         &e->conf->common.storage_credential_dir,
         e->conf->common.storage_credential_fallback);

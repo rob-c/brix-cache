@@ -150,12 +150,12 @@ main(void)
         brix_sd_staged_t *sh;
 
         drv->unlink(&inst, sp, 0);
-        sh = drv->staged_open(&inst, sp, 0644, &serr);
+        sh = drv->staged_open(&inst, sp, 0644, 0, &serr);
         CHECK(sh != NULL, "staged_open");
         if (sh != NULL) {
             CHECK(drv->staged_write(sh, spay, slen, 0) == (ssize_t) slen,
                   "staged_write");
-            CHECK(drv->staged_commit(sh, 0) == NGX_OK, "staged_commit");
+            CHECK(drv->staged_commit(sh, NULL) == NGX_OK, "staged_commit");
         }
         o = drv->open(&inst, sp, BRIX_SD_O_READ, 0, &err);
         CHECK(o != NULL, "open staged object for read");

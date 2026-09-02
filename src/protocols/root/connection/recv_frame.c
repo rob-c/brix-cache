@@ -218,6 +218,68 @@ brix_recv_advance(ngx_stream_session_t *s, ngx_connection_t *c,
     return BRIX_RECV_STEP_NEXT;
 }
 
+/*
+ * Buffered frame read.  Exact-size frame reads cost two extra syscalls each
+ * inside ngx_unix_recv (an ioctl(FIONREAD) follows every recv that exactly
+ * fills its buffer) plus a separate recv per framing stage.  Once a session
+ * can no longer be handed to a raw-socket consumer — auth complete (no
+ * handshake sniffing, no post-protocol STARTTLS, and a pre-bind secondary
+ * never qualifies, which keeps §1.4 fd migration exact-read), and no
+ * upstream/relay configured (those subsystems read the client socket
+ * directly and would never see stashed bytes) — pull one big recv into a
+ * per-connection stash and feed the framing stages from it: a whole
+ * metadata request (often several pipelined ones) costs ONE partial recv
+ * that nginx never follows with an ioctl.  Reads of at least the stash size
+ * (bulk write payloads) bypass the stash straight into their destination —
+ * no bounce copy — but only once the stash is drained, so byte order is
+ * preserved.  Returns exactly what c->recv returns (bytes / NGX_AGAIN /
+ * NGX_ERROR / 0), so the caller's result handling is unchanged.
+ */
+static ssize_t
+brix_recv_buffered(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, u_char *dest, size_t need)
+{
+    brix_ctx_recv_t *rv = &ctx->recv;
+    size_t            have = (size_t) (rv->stash_len - rv->stash_head);
+    ssize_t           n;
+
+    if (have == 0) {
+        if (need >= BRIX_RECV_STASH_SIZE
+            || !ctx->login.auth_done
+            || conf->upstream_host.len > 0
+            || conf->relay_addr != NULL)
+        {
+            return c->recv(c, dest, need);
+        }
+
+        if (rv->stash == NULL) {
+            rv->stash = ngx_palloc(c->pool, BRIX_RECV_STASH_SIZE);
+            if (rv->stash == NULL) {
+                return c->recv(c, dest, need);
+            }
+        }
+
+        n = c->recv(c, rv->stash, BRIX_RECV_STASH_SIZE);
+        if (n <= 0) {
+            return n;              /* NGX_AGAIN / NGX_ERROR / closed */
+        }
+        rv->stash_head = 0;
+        rv->stash_len  = (uint32_t) n;
+        have = (size_t) n;
+    }
+
+    if (have > need) {
+        have = need;
+    }
+    ngx_memcpy(dest, rv->stash + rv->stash_head, have);
+    rv->stash_head += (uint32_t) have;
+    if (rv->stash_head == rv->stash_len) {
+        rv->stash_head = 0;
+        rv->stash_len  = 0;
+    }
+    return (ssize_t) have;
+}
+
 brix_recv_step_t
 brix_recv_read_frame(ngx_stream_session_t *s, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, brix_ctx_t *ctx, ngx_event_t *rev,
@@ -251,8 +313,10 @@ brix_recv_read_frame(ngx_stream_session_t *s, ngx_connection_t *c,
     }
 
     if (need > 0) {
-        rev->available = -1;
-        n = c->recv(c, dest, need);
+        /* No forced rev->available reset here: -1 made ngx_unix_recv follow
+         * every exact-fill read with an ioctl(FIONREAD) this loop never
+         * consulted (it reads to EAGAIN regardless of rev->ready). */
+        n = brix_recv_buffered(ctx, c, conf, dest, need);
 
         if (n == NGX_AGAIN) {
             ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,

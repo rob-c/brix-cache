@@ -89,7 +89,10 @@ brix_release_read_buffer(brix_ctx_t *ctx, ngx_connection_t *c, u_char *buf)
     }
 
     if (buf == ctx->rd.read_scratch || buf == ctx->rd.read_hdr_scratch
-        || buf == ctx->rd.write_scratch || buf == ctx->rd.cmp_scratch)
+        || buf == ctx->rd.write_scratch || buf == ctx->rd.cmp_scratch
+        || buf == ctx->rd.win_scratch_b)   /* round-12: a drained window frame
+                                            * whose buffer was swapped to the
+                                            * back role is still a kept slot */
     {
         return;
     }
@@ -155,6 +158,7 @@ brix_acquire_read_buffer(brix_ctx_t *ctx, ngx_connection_t *c, size_t need)
             ctx->rd.pool[i].size = need;
         }
         ctx->rd.pool[i].in_use = 1;
+        ctx->rd.pool[i].hot = 1;   /* used this trim cycle — see brix_trim_scratch */
         ctx->rd.inflight++;
         return ctx->rd.pool[i].buf;
     }
@@ -177,7 +181,9 @@ brix_acquire_read_buffer(brix_ctx_t *ctx, ngx_connection_t *c, size_t need)
  * XRD_ST_REQ_HEADER with nothing buffered), so that no in-flight response chain
  * still points into these buffers.  The recv loop calls it at the top of a fresh
  * request.  Buffers at or below BRIX_SCRATCH_TRIM_THRESHOLD are left untouched
- * (hysteresis avoids realloc thrash on sessions that oscillate near the window).
+ * (hysteresis avoids realloc thrash on sessions that oscillate near the window),
+ * and a buffer used since the previous pass (its _hot mark set) is skipped for
+ * one cycle — see the hot-deferral comment in brix_trim_scratch.
  *
  * rd.read_hdr_scratch (per-chunk wire headers) is tiny and never trimmed.
  * payload_buf has detach semantics owned by the write path and is trimmed there.
@@ -211,6 +217,66 @@ brix_trim_one(ngx_pool_t *pool, u_char **slot, size_t *slot_size)
 void
 brix_trim_scratch(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    brix_trim_one(c->pool, &ctx->rd.read_scratch, &ctx->rd.read_scratch_size);
-    brix_trim_one(c->pool, &ctx->rd.write_scratch, &ctx->rd.write_scratch_size);
+    ngx_uint_t i;
+
+    /*
+     * Hot-deferred trim: a slot whose _hot mark is set was used since the
+     * previous trim pass — skip it (clearing the mark) so a streaming
+     * transfer reuses ONE warm buffer across back-to-back large requests.
+     * Shrinking it every request made glibc mmap/munmap the block each time
+     * (equal-size free/alloc churn re-arms the dynamic mmap threshold at the
+     * same size forever), costing ~25% of streaming-pgread worker CPU in
+     * page faults + kernel page zeroing.  A slot idle for one full cycle is
+     * trimmed exactly as before, so an idle connection still returns to
+     * window-scale heap — one request later than the eager trim did.
+     */
+    if (ctx->rd.read_scratch_hot) {
+        ctx->rd.read_scratch_hot = 0;
+    } else {
+        brix_trim_one(c->pool, &ctx->rd.read_scratch,
+                      &ctx->rd.read_scratch_size);
+    }
+
+    if (ctx->rd.write_scratch_hot) {
+        ctx->rd.write_scratch_hot = 0;
+    } else {
+        brix_trim_one(c->pool, &ctx->rd.write_scratch,
+                      &ctx->rd.write_scratch_size);
+    }
+
+    /* Round 12: the back window buffer follows the same hot-deferred
+     * discipline (trim runs only between requests, so no read-ahead can be
+     * in flight into it here), but a COLD one is freed outright rather than
+     * re-seated at window size — only streaming trains need a second window,
+     * and an idle session must not pay double the round-9 footprint. */
+    if (ctx->rd.win_scratch_b_hot) {
+        ctx->rd.win_scratch_b_hot = 0;
+    } else if (ctx->rd.win_scratch_b != NULL) {
+        ngx_free(ctx->rd.win_scratch_b);
+        ctx->rd.win_scratch_b = NULL;
+        ctx->rd.win_scratch_b_size = 0;
+    }
+
+    /*
+     * rd_pool slots: pipelined pgreads grow a slot to the REQUEST size (up to
+     * BRIX_READ_REQUEST_MAX), unlike kXR_read pool reads which stay <= one
+     * window.  Drop any cold idle slot that grew past the trim threshold so an
+     * idle connection returns to ~window-scale heap; the next acquire
+     * re-allocates at exactly the size it needs.  in_use slots are never
+     * touched — their buffer may still be referenced by a queued response or
+     * a worker thread.
+     */
+    for (i = 0; i < ctx->out.pipeline_depth; i++) {
+        if (ctx->rd.pool[i].hot) {
+            ctx->rd.pool[i].hot = 0;
+            continue;
+        }
+        if (!ctx->rd.pool[i].in_use
+            && ctx->rd.pool[i].size > BRIX_SCRATCH_TRIM_THRESHOLD)
+        {
+            ngx_free(ctx->rd.pool[i].buf);
+            ctx->rd.pool[i].buf  = NULL;
+            ctx->rd.pool[i].size = 0;
+        }
+    }
 }

@@ -255,6 +255,11 @@ X509_STORE *brix_build_ca_store(const char *path, int is_dir, int allow_proxy,
     int signing_policy, int *crl_count)
 { (void) path; (void) is_dir; (void) allow_proxy; (void) signing_policy;
   (void) crl_count; return NULL; }
+/* phase-107 C8: sd_xroot_nearline consults the registry's capability accessor
+ * before recall/residency dispatch. Faithful copy of sd_registry.c's one-line
+ * body — linking sd_registry.o would drag every builtin driver vtable. */
+uint32_t brix_sd_caps(const brix_sd_instance_t *inst)
+{ return (inst != NULL && inst->driver != NULL) ? inst->caps : 0; }
 
 /* ---- wire accessors over a captured frame ---------------------------------- */
 

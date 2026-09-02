@@ -52,4 +52,15 @@ brix_recv_step_t brix_recv_process_frame(ngx_stream_session_t *s,
     ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf, brix_ctx_t *ctx,
     ngx_event_t *rev, size_t *rx_pending);
 
+/*
+ * Reusable heap payload buffer (recv_payload_buf.c): _ensure sizes it at
+ * request start (free-then-alloc — the buffer is empty), _grow enlarges it
+ * mid-request preserving the payload_pos bytes already received (the
+ * kXR_writev / kXR_chkpoint body extension).  Both NUL-terminate at dlen.
+ */
+ngx_int_t brix_ensure_payload_buffer(brix_ctx_t *ctx, ngx_connection_t *c,
+    uint32_t dlen);
+ngx_int_t brix_grow_payload_buffer(brix_ctx_t *ctx, ngx_connection_t *c,
+    uint32_t dlen);
+
 #endif /* BRIX_RECV_FRAME_H */

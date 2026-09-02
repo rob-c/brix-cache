@@ -273,6 +273,12 @@ webdav_prepare_stage_and_cache(ngx_conf_t *cf,
     if (brix_prepare_cache_root(cf, &conf->common) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
+    /* phase-107 C1: writer reorder-spill scratch (defaults to the stage dir). */
+    if (brix_prepare_spill_scratch(cf, &conf->common,
+            conf->upload_stage_dir_canon) != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
     return NGX_CONF_OK;
 }
 

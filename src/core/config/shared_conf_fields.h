@@ -243,6 +243,17 @@
     ngx_array_t        *cache_allow_prefixes; /* brix_wt_prefix_entry_t[] — whitelist */
     regex_t            *cache_include_re;      /* compiled include filter, or NULL     */
     ngx_flag_t          allow_write;        /* write permission flag               */
+    ngx_flag_t          durable_commit;     /* brix_durable_commit on|off: fsync the
+                                             * staged upload's data before the commit
+                                             * rename publishes it (phase-51 C1
+                                             * torn-object guard). ON by default; off
+                                             * matches stock XRootD close semantics
+                                             * (no per-close fsync — a host crash in
+                                             * the writeback window can lose the tail
+                                             * of a just-closed upload, but a clean
+                                             * close never publishes torn data since
+                                             * the rename still orders after the
+                                             * writes).                            */
     ngx_flag_t          verify_write;       /* brix_verify_write: fold a self-computed
                                              * read-back CRC check into whole-object
                                              * writes routed through brix_vfs_writer
@@ -377,6 +388,30 @@
                                              * optional fast-cache staging device;
                                              * was brix_webdav_stage_dir. The derived
                                              * *_canon buffer stays protocol-local. */
+    ngx_str_t         vfs_spill_path;      /* [brix_vfs_spill_path <path>]
+                                             * (phase-107 C1): writer reorder-spill
+                                             * scratch root; validated absolute and
+                                             * outside every export root at nginx -t.
+                                             * Empty = fall back to brix_stage_dir,
+                                             * else reordered uploads are refused. */
+    size_t            vfs_spill_max;       /* [brix_vfs_spill_max <size>]
+                                             * (phase-107 C1): cap one spill's span;
+                                             * 0 = the filesystem decides. */
+    ngx_flag_t        durable_publish;     /* [brix_durable_publish on|off]
+                                             * (phase-107 C3): fsync the published
+                                             * name's parent directory at every
+                                             * publish. Default on — off trades a
+                                             * crash-lost name for one dirfsync
+                                             * per publish (cache-store use). */
+    ngx_uint_t        lock_enforcement;    /* [brix_lock_enforcement
+                                             * strict|advisory|off] (phase-107 C7):
+                                             * does a live foreign WebDAV lock
+                                             * refuse mutations on EVERY plane
+                                             * (strict, 0 — the default),
+                                             * log-and-allow outside WebDAV
+                                             * (advisory, 1), or bind WebDAV-only
+                                             * as before C7 (off, 2). Values are
+                                             * brix_vfs_lock_enforcement_t. */
     ngx_str_t         crl;                 /* [brix_crl <dir>] (phase-101 W4): CRL PEM
                                              * directory; was brix_webdav_crl. */
     ngx_uint_t        signing_policy_mode; /* [brix_signing_policy] BRIX_SP_MODE_*;

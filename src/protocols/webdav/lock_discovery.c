@@ -63,7 +63,10 @@ typedef struct {
 static void
 webdav_lock_sweep_remove(webdav_lock_sweep_ctx_t *sw, const char *path)
 {
-    brix_vfs_ctx_t vctx;
+    brix_vfs_ctx_t      vctx;
+    brix_lock_record_t  rec;
+    char                raw[WEBDAV_LOCK_XATTR_MAXLEN + 1];
+    ssize_t             n;
 
     /* phase-105: ALLOWED on purpose. This is not a request — it is the writable
      * maintenance path Appendix H.2 §5 reserves, run once at config-merge time
@@ -72,6 +75,19 @@ webdav_lock_sweep_remove(webdav_lock_sweep_ctx_t *sw, const char *path)
      * declines on a read-only export; this one is the operator's own decision. */
     brix_vfs_ctx_init(&vctx, sw->pool, sw->log, BRIX_PROTO_WEBDAV,
         sw->root_canon, NULL, BRIX_VFS_MUTATION_ALLOWED, 0 /* is_tls */, NULL, path);
+
+    /* phase-107 C7: the removal below passes the VFS lock gate, which would
+     * refuse removing a LIVE record with no token presented. The sweep holds
+     * the record itself, so present its own token — the sweep stays the
+     * owner-of-record's reaper rather than an opt-out. No record (or an
+     * undecodable one) presents nothing; removexattr is then a no-op anyway. */
+    n = brix_vfs_getxattr(&vctx, WEBDAV_LOCK_XATTR_KEY, raw, sizeof(raw) - 1);
+    if (n > 0) {
+        raw[n] = '\0';
+        if (brix_lock_record_decode(raw, (size_t) n, &rec) == NGX_OK) {
+            vctx.lock_token = rec.token;
+        }
+    }
 
     if (brix_vfs_removexattr(&vctx, WEBDAV_LOCK_XATTR_KEY) == NGX_OK) {
         sw->removed++;

@@ -308,6 +308,11 @@ s3_mpu_aio_done(ngx_event_t *ev)
     s3_mpu_aio_t       *t = task->ctx;
     ngx_http_request_t *r = t->r;
 
+    /* Balance the r->main->count++ at the task post (webdav_put_aio_done
+     * precedent) - without it the request stays one reference high and the
+     * connection never re-enters keepalive after the response. */
+    r->main->count--;
+
     if (t->rc != NGX_OK) {
         BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         s3_metrics_finalize_request_method(r, t->method_slot, t->http_status);
@@ -377,6 +382,29 @@ s3_multipart_complete_body_handler_inner(ngx_http_request_t *r)
                 s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
                                   "NoSuchUpload",
                                   "The specified upload does not exist."));
+            return;
+        }
+    }
+
+    /*
+     * phase-107 C7: the assemble publishes onto fs_path via a PATH-based rename
+     * (brix_rename_confined_canon on a pool thread — no vctx, so the VFS lock
+     * gate never sees it).  Without this pre-flight, CompleteMultipartUpload
+     * would be the one S3 write that ignores a live WebDAV lock on the key —
+     * exactly the choose-a-different-protocol bypass C7 closes.  Gate here on
+     * the event loop, where the request ctx exists; a refusal answers the same
+     * 409 OperationAborted the PUT path maps 423 to (§5.0).
+     */
+    {
+        brix_vfs_ctx_t lctx;
+
+        s3_build_vfs_ctx(r, fs_path, cf, &lctx);
+        if (brix_vfs_require_unlocked(&lctx, BRIX_VFS_MUTATE_RENAME) != NGX_OK) {
+            s3_metrics_finalize_request_method(r, method_slot,
+                s3_send_xml_error(r, NGX_HTTP_CONFLICT,
+                    "OperationAborted",
+                    "A conflicting conditional operation is currently in "
+                    "progress against this resource."));
             return;
         }
     }

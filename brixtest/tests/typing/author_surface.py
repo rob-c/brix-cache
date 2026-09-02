@@ -1,6 +1,7 @@
 """Static-only sample covering the canonical test-author workflow."""
 
 from brixtest import (
+    OutputExpectation,
     Placement,
     Run,
     Server,
@@ -8,6 +9,8 @@ from brixtest import (
     case,
     endpoint,
     execution,
+    expect_output,
+    native_test,
     param,
     server,
     server_config,
@@ -36,3 +39,13 @@ def test_typed_author_surface(run: Run) -> None:
     assert service.url(role="http").startswith("http://")
     assert run.tool(reader).run().check().ok
     assert run.artifact(payload).verify()
+
+
+native_output: OutputExpectation = expect_output("PASS", excludes=("FAIL",))
+test_typed_native = native_test(
+    "typed-native",
+    sources=("native.c",),
+    stdout=native_output,
+    observe=(),
+    keep="never",
+)

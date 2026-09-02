@@ -222,13 +222,15 @@ sd_ceph_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
  * cost; that is a follow-on, not needed for basic PUT parity with root://. */
 brix_sd_staged_t *
 sd_ceph_staged_open(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, int *err_out)
+    mode_t mode, off_t declared_size, int *err_out)
 {
     sd_ceph_state_t    *st = inst->state;
     brix_sd_staged_t *handle;
     sd_ceph_staged_t   *ps;
 
     (void) mode;
+    (void) declared_size;   /* RADOS allocates per-write at the OSDs; no
+                             * reservation primitive in the C librados API */
 
     handle = ngx_pcalloc(inst->pool, sizeof(*handle));
     ps     = ngx_pcalloc(inst->pool, sizeof(*ps));
@@ -264,11 +266,21 @@ sd_ceph_staged_write(brix_sd_staged_t *sh, const void *buf, size_t len,
     return (ssize_t) len;
 }
 
+/* Typed publish precondition (phase-107 C6): unanswerable on this driver's
+ * staged shape — staged_open rados_trunc's the FINAL object to zero and every
+ * staged_write lands in place, so by commit time the target this precondition
+ * would guard is already destroyed. The doc's aspirational write-op assertion
+ * (§C6 table) needs a temp-object commit, and the C librados API has no
+ * copy_from to publish one with (the sd_ceph server_copy verdict) — so any
+ * non-NONE kind refuses ENOTSUP rather than pretending (§3.5). */
 ngx_int_t
-sd_ceph_staged_commit(brix_sd_staged_t *sh, int noreplace)
+sd_ceph_staged_commit(brix_sd_staged_t *sh, brix_sd_precond_t *pre)
 {
-    (void) sh;
-    (void) noreplace;   /* the object is already written in place */
+    (void) sh;          /* the object is already written in place */
+    if (pre != NULL && pre->kind != BRIX_SD_PRECOND_NONE) {
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
     return NGX_OK;
 }
 

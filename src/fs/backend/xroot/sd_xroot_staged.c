@@ -69,13 +69,28 @@ sd_xroot_staged_teardown(brix_sd_staged_t *handle)
  *       actual origin reason, map errno, and close the connection. */
 static int
 sd_xroot_staged_connect_open(sd_xroot_staged_state *ss, const char *final_path,
-    mode_t mode, int *err_out)
+    mode_t mode, off_t declared_size, int *err_out)
 {
     brix_cache_fill_t *t = ss->t;
+    char               openpath[sizeof(t->clean_path) + 32];
+    const char        *reqpath = final_path;
+
+    /* Phase-107 C5: forward the client's declared final size as `oss.asize`
+     * opaque on the origin open — the same channel the size hint has always
+     * travelled in XRootD, so the origin's OSS can reserve before the first
+     * kXR_write. Request-building only: no extra round trip. A path too long
+     * to carry the CGI drops the hint (it is advisory at the origin). */
+    if (declared_size > 0
+        && (size_t) snprintf(openpath, sizeof(openpath), "%s?oss.asize=%lld",
+                             final_path, (long long) declared_size)
+           < sizeof(openpath))
+    {
+        reqpath = openpath;
+    }
 
     if (brix_cache_origin_connect(t, &ss->oc) != 0
         || brix_cache_origin_bootstrap(t, &ss->oc) != 0
-        || brix_cache_origin_open_write(t, &ss->oc, final_path,
+        || brix_cache_origin_open_write(t, &ss->oc, reqpath,
                (uint16_t) ((mode != 0) ? (mode & 0777) : 0644), ss->fhandle) != 0)
     {
         /* Surface the ACTUAL origin failure reason (auth/TLS/protocol) — the
@@ -106,7 +121,7 @@ sd_xroot_staged_connect_open(sd_xroot_staged_state *ss, const char *final_path,
  *       free all three shells on failure. */
 static brix_sd_staged_t *
 sd_xroot_staged_open_common(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, const brix_sd_cred_t *cred, int *err_out)
+    mode_t mode, off_t declared_size, const brix_sd_cred_t *cred, int *err_out)
 {
     sd_xroot_inst_state   *is = inst->state;
     brix_sd_staged_t    *handle = calloc(1, sizeof(*handle));
@@ -128,7 +143,9 @@ sd_xroot_staged_open_common(brix_sd_instance_t *inst, const char *final_path,
 
     sd_xroot_copy_cred_into_task(t, cred);
 
-    if (sd_xroot_staged_connect_open(ss, final_path, mode, err_out) != 0) {
+    if (sd_xroot_staged_connect_open(ss, final_path, mode, declared_size,
+                                     err_out) != 0)
+    {
         free(t);
         free(ss);
         free(handle);
@@ -147,9 +164,10 @@ sd_xroot_staged_open_common(brix_sd_instance_t *inst, const char *final_path,
  * HOW:  Delegates to sd_xroot_staged_open_common with cred=NULL. */
 brix_sd_staged_t *
 sd_xroot_staged_open(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, int *err_out)
+    mode_t mode, off_t declared_size, int *err_out)
 {
-    return sd_xroot_staged_open_common(inst, final_path, mode, NULL, err_out);
+    return sd_xroot_staged_open_common(inst, final_path, mode, declared_size,
+                                       NULL, err_out);
 }
 
 /* sd_xroot_staged_open_cred — vtable staged_open_cred slot: per-user proxy.
@@ -160,9 +178,10 @@ sd_xroot_staged_open(brix_sd_instance_t *inst, const char *final_path,
  * HOW:  Delegates to sd_xroot_staged_open_common with the supplied cred. */
 brix_sd_staged_t *
 sd_xroot_staged_open_cred(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, const brix_sd_cred_t *cred, int *err_out)
+    mode_t mode, off_t declared_size, const brix_sd_cred_t *cred, int *err_out)
 {
-    return sd_xroot_staged_open_common(inst, final_path, mode, cred, err_out);
+    return sd_xroot_staged_open_common(inst, final_path, mode, declared_size,
+                                       cred, err_out);
 }
 
 ssize_t
@@ -184,15 +203,21 @@ sd_xroot_staged_write(brix_sd_staged_t *handle, const void *buf, size_t len,
 }
 
 /* Publish: sync + close the origin file. On success the handle is consumed (freed);
- * on failure it stays valid for the caller to staged_abort. `noreplace` cannot be
- * enforced on a Mode-A direct write (open_write already created the destination) —
- * use a staging dir (Mode B) for exclusive/atomic publish. */
+ * on failure it stays valid for the caller to staged_abort. A commit-time
+ * precondition cannot be enforced on a Mode-A direct write — open_write
+ * already created the destination, so ABSENT is unanswerable here (a future
+ * Mode-B staging dir would carry it as kXR_new at the open) and XProtocol has
+ * no etag verb for MATCH_*. Refused ENOTSUP rather than silently ignored
+ * (phase-107 C6, §3.5 — the pre-W7 code dropped `noreplace` on the floor). */
 ngx_int_t
-sd_xroot_staged_commit(brix_sd_staged_t *handle, int noreplace)
+sd_xroot_staged_commit(brix_sd_staged_t *handle, brix_sd_precond_t *pre)
 {
     sd_xroot_staged_state *ss = handle->state;
 
-    (void) noreplace;
+    if (pre != NULL && pre->kind != BRIX_SD_PRECOND_NONE) {
+        errno = ENOTSUP;
+        return NGX_ERROR;            /* leave valid; caller aborts */
+    }
 
     if (brix_cache_origin_sync(ss->t, &ss->oc, ss->fhandle) != 0) {
         return NGX_ERROR;                    /* leave valid; caller aborts */

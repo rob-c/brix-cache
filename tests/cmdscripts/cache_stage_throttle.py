@@ -10,6 +10,7 @@ import time
 import urllib.request
 
 from cmdscripts import run
+from cmdscripts.cache_source_helpers import wait_workers_ready
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
 
@@ -130,9 +131,12 @@ def xrdfs_cat_text(port: int, path: str, xrdfs: Path = XRDFS) -> subprocess.Comp
 
 
 def xrdcp_put_bounded(xrdcp: Path, source: Path, url: str, timeout: int = 8) -> subprocess.CompletedProcess:
+    # --no-retry: the reject arm answers kXR_Overloaded, which the client's
+    # resilience loop treats as retryable and re-asks until the timeout —
+    # the first refusal is the whole result here.
     try:
         return subprocess.run(
-            [str(xrdcp), "-f", str(source), url],
+            [str(xrdcp), "-f", "--no-retry", str(source), url],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -182,7 +186,7 @@ def _wait_metric(process, metrics_port):
             return True
         if process.poll() is not None:
             return metric_positive(fetch_metrics(metrics_port), metric)
-        time.sleep(0.5)
+        time.sleep(0.05)
     return False
 
 
@@ -252,7 +256,9 @@ def run_checks(
         return [(False, message)]
 
     try:
-        time.sleep(1)
+        reject_port, wait_port, reject_metrics, wait_metrics = ports
+        wait_workers_ready(HOST, [(reject_port, "root"), (wait_port, "root"),
+                                  (reject_metrics, "http"), (wait_metrics, "http")])
         return _exercise_throttles(base, (xrdcp, xrdfs), ports)
     finally:
         for prefix in reversed(started):

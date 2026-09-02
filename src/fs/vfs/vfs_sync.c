@@ -116,6 +116,18 @@ brix_vfs_truncate_path(brix_vfs_ctx_t *ctx, off_t length)
         int                 use_cred = 0, cred_err = 0, saved_errno;
         const char           *key;
 
+        /* phase-107 C7: lock gate on the path-native branch ONLY — the
+         * open+ftruncate fallback below reaches brix_vfs_open, whose own gate
+         * already covers it, and gating both routes would double-book the
+         * advisory refusal metric (the same reason W8 excluded the staged
+         * route at root open dispatch). EROFS still precedes EBUSY: the
+         * confined-mutation gate ran above, before any lock read. */
+        if (brix_vfs_require_unlocked(ctx, BRIX_VFS_MUTATE_TRUNCATE)
+            != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+
         /* Zero before the gate: it fills only the active credential kind; an
          * unzeroed cred hands a garbage inactive pointer to the driver's slot. */
         ngx_memzero(&cred, sizeof(cred));

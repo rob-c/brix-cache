@@ -44,6 +44,12 @@ libraries into the run, renders `configs/nginx.conf.in`, waits for the allocated
 HTTP port, fetches `/`, and checks the returned HTML. It skips cleanly when
 nginx is not installed.
 
+`test_06_native.py` adds two independent native pytest items. One compiles a C
+program with a declared preprocessor definition; the other selects C++ from its
+source suffix and checks output with a regular expression. Both run through the
+same helper supervision, metrics, log archive, and provenance machinery as the
+Python examples.
+
 ## Authentication recipes
 
 The compact examples in `auth/test_auth_recipes.py` demonstrate custom checksum

@@ -74,9 +74,12 @@ brix_shared_handle_same_key(const brix_shared_handle_entry_t *entry,
  * only fall back to a fresh slot when none exists.  Isolating the scan keeps
  * the publish body free of the dual match/free-slot bookkeeping.
  *
- * HOW: Single pass over the slot array.  Returns the matching entry via *entry
- * (NULL when absent) and the first free index via *free_slot
- * (BRIX_SESSION_HANDLE_SLOTS when the table is full).  Caller holds the mutex.
+ * HOW: Single pass over the LIVE prefix of the slot array — high_water bounds
+ * every occupied slot, so nothing beyond it can match and everything beyond
+ * it is free (the frontier slot itself is the free fallback when the prefix
+ * has no hole).  Returns the matching entry via *entry (NULL when absent)
+ * and the first free index via *free_slot (BRIX_SESSION_HANDLE_SLOTS when
+ * the table is full).  Caller holds the mutex.
  */
 static void
 brix_shared_handle_find_slot(brix_shared_handle_table_t *tbl,
@@ -88,7 +91,7 @@ brix_shared_handle_find_slot(brix_shared_handle_table_t *tbl,
     *entry = NULL;
     *free_slot = BRIX_SESSION_HANDLE_SLOTS;
 
-    for (i = 0; i < BRIX_SESSION_HANDLE_SLOTS; i++) {
+    for (i = 0; i < tbl->high_water; i++) {
         if (brix_shared_handle_same_key(&tbl->slots[i], sessid,
                                           handle_index))
         {
@@ -101,6 +104,24 @@ brix_shared_handle_find_slot(brix_shared_handle_table_t *tbl,
         {
             *free_slot = i;
         }
+    }
+
+    if (*free_slot == BRIX_SESSION_HANDLE_SLOTS
+        && tbl->high_water < BRIX_SESSION_HANDLE_SLOTS)
+    {
+        *free_slot = tbl->high_water;   /* first slot past the live prefix */
+    }
+}
+
+/* Retire a freed top run: called after any slot clear, walks high_water down
+ * so the mark tracks the peak LIVE population.  Caller holds the mutex. */
+static void
+brix_shared_handle_shrink(brix_shared_handle_table_t *tbl)
+{
+    while (tbl->high_water > 0
+           && !tbl->slots[tbl->high_water - 1].in_use)
+    {
+        tbl->high_water--;
     }
 }
 
@@ -218,6 +239,11 @@ brix_session_handle_publish(const u_char sessid[BRIX_SESSION_ID_LEN],
 
     if (brix_shared_handle_select_target(tbl, file, free_slot, &entry)) {
         brix_shared_handle_store(entry, sessid, handle_index, file);
+        if ((ngx_uint_t) (entry - tbl->slots) >= tbl->high_water) {
+            tbl->high_water = (ngx_uint_t) (entry - tbl->slots) + 1;
+        }
+    } else if (entry != NULL) {
+        brix_shared_handle_shrink(tbl);   /* ineligibility evicted the entry */
     }
 
     ngx_shmtx_unlock(&brix_handle_mutex);
@@ -279,7 +305,7 @@ brix_session_handle_lookup_hint(const u_char sessid[BRIX_SESSION_ID_LEN],
         return 1;
     }
 
-    for (i = 0; i < BRIX_SESSION_HANDLE_SLOTS; i++) {
+    for (i = 0; i < tbl->high_water; i++) {
         if (brix_shared_handle_same_key(&tbl->slots[i], sessid,
                                           handle_index))
         {
@@ -333,11 +359,12 @@ brix_session_handle_unpublish(const u_char sessid[BRIX_SESSION_ID_LEN],
 
     ngx_shmtx_lock(&brix_handle_mutex);
 
-    for (i = 0; i < BRIX_SESSION_HANDLE_SLOTS; i++) {
+    for (i = 0; i < tbl->high_water; i++) {
         if (brix_shared_handle_same_key(&tbl->slots[i], sessid,
                                           handle_index))
         {
             ngx_memzero(&tbl->slots[i], sizeof(tbl->slots[i]));
+            brix_shared_handle_shrink(tbl);
             break;
         }
     }
@@ -366,7 +393,7 @@ brix_session_handle_unpublish_all(
 
     ngx_shmtx_lock(&brix_handle_mutex);
 
-    for (i = 0; i < BRIX_SESSION_HANDLE_SLOTS; i++) {
+    for (i = 0; i < tbl->high_water; i++) {
         if (tbl->slots[i].in_use
             && ngx_memcmp(tbl->slots[i].sessid, sessid,
                           BRIX_SESSION_ID_LEN) == 0)
@@ -374,6 +401,8 @@ brix_session_handle_unpublish_all(
             ngx_memzero(&tbl->slots[i], sizeof(tbl->slots[i]));
         }
     }
+
+    brix_shared_handle_shrink(tbl);
 
     ngx_shmtx_unlock(&brix_handle_mutex);
 }

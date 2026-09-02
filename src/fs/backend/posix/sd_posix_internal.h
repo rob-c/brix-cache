@@ -5,7 +5,8 @@
  * WHAT: Holds the driver-private instance-state struct and the cross-unit
  *       prototypes for the vtable slot functions that were split out of
  *       sd_posix.c (the worker-safe raw byte ops in sd_posix_io.c and the
- *       nginx-coupled namespace/dir/xattr/staged ops in sd_posix_ns.c), plus
+ *       nginx-coupled namespace/dir/xattr ops in sd_posix_ns.c and the
+ *       staged family in sd_posix_staged.c), plus
  *       the shared sd_posix_fill_stat helper. The registration descriptor
  *       (brix_sd_posix_driver) in sd_posix.c references these symbols; keeping
  *       them non-static + declared here lets the descriptor stay in one file.
@@ -54,21 +55,27 @@ ssize_t sd_posix_copy_range(brix_sd_obj_t *src, off_t src_off, brix_sd_obj_t *ds
     off_t dst_off, size_t len);
 ngx_fd_t sd_posix_read_sendfile_fd(brix_sd_obj_t *obj, off_t off, size_t len,
     unsigned want_zerocopy);
+ngx_int_t sd_posix_reserve(brix_sd_obj_t *obj, off_t size);
 ngx_int_t sd_posix_ftruncate(brix_sd_obj_t *obj, off_t len);
 ngx_int_t sd_posix_fsync(brix_sd_obj_t *obj);
 ngx_int_t sd_posix_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out);
 ngx_int_t sd_posix_read_advise(brix_sd_obj_t *obj, off_t off, size_t len,
     int advice);
 
-#ifndef XRDPROTO_NO_NGX   /* namespace/dir/xattr/staged: module-only (sd_posix_ns.c) */
+#ifndef XRDPROTO_NO_NGX   /* namespace/dir/xattr (sd_posix_ns.c) + staged
+                           * (sd_posix_staged.c): module-only */
 ngx_int_t sd_posix_stat(brix_sd_instance_t *inst, const char *path,
     brix_sd_stat_t *out);
 ngx_int_t sd_posix_unlink(brix_sd_instance_t *inst, const char *path, int is_dir);
 ngx_int_t sd_posix_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode);
 ngx_int_t sd_posix_setattr(brix_sd_instance_t *inst, const char *path,
     const brix_sd_setattr_t *attr);
+/* phase-107 C3: fsync the published name's parent directory (sd_posix_ns.c). */
+ngx_int_t sd_posix_sync_publish(brix_sd_instance_t *inst, const char *path);
 ngx_int_t sd_posix_rename(brix_sd_instance_t *inst, const char *src,
     const char *dst, int noreplace);
+ngx_int_t sd_posix_exchange(brix_sd_instance_t *inst, const char *a,
+    const char *b);
 ngx_int_t sd_posix_server_copy(brix_sd_instance_t *inst, const char *src,
     const char *dst, off_t *bytes_out);
 brix_sd_dir_t *sd_posix_opendir(brix_sd_instance_t *inst, const char *path,
@@ -84,10 +91,10 @@ ngx_int_t sd_posix_setxattr(brix_sd_instance_t *inst, const char *path,
 ngx_int_t sd_posix_removexattr(brix_sd_instance_t *inst, const char *path,
     const char *name);
 brix_sd_staged_t *sd_posix_staged_open(brix_sd_instance_t *inst,
-    const char *final_path, mode_t mode, int *err_out);
+    const char *final_path, mode_t mode, off_t declared_size, int *err_out);
 ssize_t sd_posix_staged_write(brix_sd_staged_t *st, const void *buf, size_t len,
     off_t off);
-ngx_int_t sd_posix_staged_commit(brix_sd_staged_t *st, int noreplace);
+ngx_int_t sd_posix_staged_commit(brix_sd_staged_t *st, brix_sd_precond_t *pre);
 void sd_posix_staged_abort(brix_sd_staged_t *st);
 const char *sd_posix_staged_path(const brix_sd_staged_t *st);
 

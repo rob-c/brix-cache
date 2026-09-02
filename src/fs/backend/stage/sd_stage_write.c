@@ -128,7 +128,7 @@ sd_stage_cred_wipe(brix_stage_cred_t *c)
  * HOW:  Allocate ss + h, wire them, copy cred when key is non-empty. */
 static brix_sd_staged_t *
 sd_stage_staged_open_inner(brix_sd_instance_t *inst, sd_stage_inst_state *is,
-    const char *final_path, mode_t mode,
+    const char *final_path, mode_t mode, off_t declared_size,
     const brix_sd_cred_t *cred, int *err_out)
 {
     sd_stage_staged_state *ss;
@@ -140,7 +140,8 @@ sd_stage_staged_open_inner(brix_sd_instance_t *inst, sd_stage_inst_state *is,
         if (err_out != NULL) { *err_out = ENOSYS; }
         return NULL;
     }
-    inner = is->store->driver->staged_open(is->store, final_path, mode, &err);
+    inner = is->store->driver->staged_open(is->store, final_path, mode,
+                                           declared_size, &err);
     if (inner == NULL) {
         if (err_out != NULL) { *err_out = err ? err : EIO; }
         return NULL;
@@ -170,10 +171,11 @@ sd_stage_staged_open_inner(brix_sd_instance_t *inst, sd_stage_inst_state *is,
 
 brix_sd_staged_t *
 sd_stage_staged_open(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, int *err_out)
+    mode_t mode, off_t declared_size, int *err_out)
 {
     sd_stage_inst_state *is = inst->state;
-    return sd_stage_staged_open_inner(inst, is, final_path, mode, NULL, err_out);
+    return sd_stage_staged_open_inner(inst, is, final_path, mode, declared_size,
+                                      NULL, err_out);
 }
 
 /* Credential-scoped staged_open: records the owner identity so the commit-time
@@ -189,10 +191,11 @@ sd_stage_staged_open(brix_sd_instance_t *inst, const char *final_path,
  *       ss->cred; sd_stage_staged_commit then passes &ss->cred to the flush. */
 brix_sd_staged_t *
 sd_stage_staged_open_cred(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, const brix_sd_cred_t *cred, int *err_out)
+    mode_t mode, off_t declared_size, const brix_sd_cred_t *cred, int *err_out)
 {
     sd_stage_inst_state *is = inst->state;
-    return sd_stage_staged_open_inner(inst, is, final_path, mode, cred, err_out);
+    return sd_stage_staged_open_inner(inst, is, final_path, mode, declared_size,
+                                      cred, err_out);
 }
 
 ssize_t
@@ -211,7 +214,7 @@ sd_stage_staged_write(brix_sd_staged_t *st, const void *buf, size_t len,
  * dropped; on a failed flush it is KEPT (durability preserved for retry, section
  * 16). Consumes the handle. */
 ngx_int_t
-sd_stage_staged_commit(brix_sd_staged_t *st, int noreplace)
+sd_stage_staged_commit(brix_sd_staged_t *st, brix_sd_precond_t *pre)
 {
     sd_stage_staged_state *ss = st->state;
     sd_stage_inst_state   *is = ss->is;
@@ -220,7 +223,7 @@ sd_stage_staged_commit(brix_sd_staged_t *st, int noreplace)
     ngx_int_t              rc;
 
     /* 1. publish the buffered object on the stage store. */
-    if (store->driver->staged_commit(ss->inner, noreplace) != NGX_OK) {
+    if (store->driver->staged_commit(ss->inner, pre) != NGX_OK) {
         /* Ownership contract (brix_vfs_staged_commit): a failed commit leaves
          * the whole handle valid — the inner store's commit did not free
          * ss->inner, so DON'T abort/free here. The caller invokes staged_abort
@@ -302,4 +305,55 @@ sd_stage_staged_abort(brix_sd_staged_t *st)
     sd_stage_cred_wipe(&ss->cred);           /* scrub any recorded token on abort */
     free(ss);
     free(st);
+}
+
+/* ---- namespace relays displaced from sd_stage.c (600-line cap) ------------ */
+
+/* Path-based truncate forwards straight to the source (no staging): resizing the
+ * origin object by name is what lets kXR_truncate over a staged remote backend
+ * avoid a RECALL + colliding write-open. Mirrors sd_stage_setattr. */
+ngx_int_t
+sd_stage_truncate_path(brix_sd_instance_t *inst, const char *path, off_t len)
+{
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
+
+    if (s->driver->truncate_path == NULL
+        && s->driver->truncate_path_cred == NULL)
+    {
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
+    return brix_sd_truncate_path_maybe_cred(s, path, len, NULL);
+}
+
+ngx_int_t
+sd_stage_truncate_path_cred(brix_sd_instance_t *inst, const char *path,
+    off_t len, const brix_sd_cred_t *cred)
+{
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
+
+    if (s->driver->truncate_path == NULL
+        && s->driver->truncate_path_cred == NULL)
+    {
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
+    return brix_sd_truncate_path_maybe_cred(s, path, len, cred);
+}
+
+/* Atomic exchange relay (phase-107 C6): the stage tier keeps no per-path state
+ * to swap here — a dirty write-back object is keyed by handle, not name — so
+ * the swap is the SOURCE's alone. brix_sd_exchange_maybe_cred refuses ENOTSUP
+ * when the source has no primitive (never a two-rename emulation, §3.5). */
+ngx_int_t
+sd_stage_exchange(brix_sd_instance_t *inst, const char *a, const char *b)
+{
+    return brix_sd_exchange_maybe_cred(SD_STAGE_SRC(inst), a, b, NULL);
+}
+
+ngx_int_t
+sd_stage_exchange_cred(brix_sd_instance_t *inst, const char *a, const char *b,
+    const brix_sd_cred_t *cred)
+{
+    return brix_sd_exchange_maybe_cred(SD_STAGE_SRC(inst), a, b, cred);
 }

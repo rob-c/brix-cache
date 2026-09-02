@@ -316,6 +316,10 @@ typedef struct {
      */
     brix_vfs_writer_t *writer;             /* non-NULL = whole-object staged write */
     unsigned           staged_committed:1;  /* 1 = object already committed (sync/close) */
+    unsigned           staged_excl:1;       /* 1 = kXR_new (no kXR_delete): commit must
+                                             * publish ABSENT-only — the storage decides
+                                             * at publish time (phase-107 C1), the open-
+                                             * time existence check is only a fast path */
 
     /* phase-92: XrdBwm-style bandwidth reservation (net/ratelimit/reservation.c).
      * Bytes this handle reserved against the configured brix_throttle_bandwidth_zone

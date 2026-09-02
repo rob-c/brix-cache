@@ -110,6 +110,44 @@ brix_open_adopt_cache_accounting(const brix_open_args_t *a,
                                 fh->sd_obj.cache_evicted_bytes);
 }
 
+/* The driver snapshot carries no device id, so st_dev would stay 0 and the
+ * published-handle table would record device 0. A bound secondary reopens the
+ * file for itself (a real fstat, real st_dev) and revalidates device+inode
+ * against the published entry — a 0 vs real-device mismatch would then wrongly
+ * revoke every bound read (kXR_error). For a driver with a real backing
+ * descriptor (the POSIX driver's fd is the file itself), capture the real
+ * device so the published identity matches the secondary's reopen.
+ *
+ * Anti-wedge parity with the non-driver path's S_ISREG gate: a FIFO, socket,
+ * or device is not a servable byte stream. The confined open forced O_NONBLOCK
+ * so the open(2) itself could not park the worker, but a subsequent read/write
+ * would spin on EAGAIN — refuse it here, where the real st_mode is available
+ * (the driver snapshot may not carry a mode). A directory keeps its own
+ * handling upstream; only special files are cut (errno = EINVAL). */
+static ngx_int_t
+brix_open_capture_fd_identity(brix_file_t *fh, brix_sd_instance_t *sd,
+    struct stat *st)
+{
+    struct stat rst;
+
+    if (fh->sd_obj.fd < 0 || fstat(fh->sd_obj.fd, &rst) != 0) {
+        return NGX_OK;           /* no backing fd / no identity to capture */
+    }
+
+    st->st_dev = rst.st_dev;
+
+    if (!S_ISREG(rst.st_mode) && !S_ISDIR(rst.st_mode)) {
+        (void) sd->driver->close(&fh->sd_obj);
+        fh->sd_obj.driver = NULL;
+        fh->sd_obj.inst   = NULL;
+        fh->sd_obj.state  = NULL;
+        fh->sd_obj.fd     = -1;
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
 /* Driver-backed kXR_open (Layer 3): open `logical` through the export's storage
  * driver into the handle's sd_obj, then synthesize a struct stat from the
  * driver's captured open snapshot so the rest of the open path (bookkeeping,
@@ -181,13 +219,20 @@ brix_open_resolved_via_driver(brix_open_args_t *a, brix_vfs_ctx_t *vctx,
 
     /* The driver's open may defer metadata (the POSIX driver deliberately skips
      * the fstat at open — see sd_posix_open). Populate the snapshot now via the
-     * driver's own fstat so the synthesized `struct stat` (and hence the handle's
-     * cached_size) is correct: a driver-aware fstat reports the LOGICAL object
-     * size (e.g. pblock's whole-object size, not block 0). Without this the
-     * cached_size stays 0 and the buffered read path — inline read compression,
-     * and any non-sendfile serve — sees EOF immediately and returns nothing. */
-    if (sd->driver->fstat != NULL && fh->sd_obj.snap.size == 0) {
-        (void) sd->driver->fstat(&fh->sd_obj, &fh->sd_obj.snap);
+     * OBJECT's own fstat slot so the synthesized `struct stat` (and hence the
+     * handle's cached_size) is correct: a driver-aware fstat reports the LOGICAL
+     * object size (e.g. pblock's whole-object size, not block 0). Dispatch on
+     * fh->sd_obj.driver, NOT sd->driver — a decorator open can adopt its
+     * component's obj (the cache decorator serves a COMPLETE hit as the store's
+     * own posix obj), and the instance driver's fstat would then misread that
+     * foreign obj's state (sd_cache_fstat casts state to the partial struct)
+     * and stamp size 0.  Without a correct populate the cached_size stays 0 and
+     * every serve path that trusts it — inline read compression, the zero-copy
+     * sendfile clamp — sees EOF immediately and returns nothing. */
+    if (fh->sd_obj.driver != NULL && fh->sd_obj.driver->fstat != NULL
+        && fh->sd_obj.snap.size == 0)
+    {
+        (void) fh->sd_obj.driver->fstat(&fh->sd_obj, &fh->sd_obj.snap);
     }
 
     ngx_memzero(st, sizeof(*st));
@@ -200,35 +245,8 @@ brix_open_resolved_via_driver(brix_open_args_t *a, brix_vfs_ctx_t *vctx,
                  : (fh->sd_obj.snap.is_dir ? (S_IFDIR | 0755)
                                            : (S_IFREG | 0644));
 
-    /* The driver snapshot carries no device id, so st_dev would stay 0 and the
-     * published-handle table would record device 0. A bound secondary reopens
-     * the file for itself (a real fstat, real st_dev) and revalidates device+
-     * inode against the published entry — a 0 vs real-device mismatch would then
-     * wrongly revoke every bound read (kXR_error). For a driver with a real
-     * backing descriptor (the POSIX driver's fd is the file itself), capture the
-     * real device here so the published identity matches the secondary's reopen. */
-    if (fh->sd_obj.fd >= 0) {
-        struct stat rst;
-        if (fstat(fh->sd_obj.fd, &rst) == 0) {
-            st->st_dev = rst.st_dev;
-
-            /* Anti-wedge parity with the non-driver path's S_ISREG gate: a FIFO,
-             * socket, or device is not a servable byte stream. The confined open
-             * forced O_NONBLOCK so the open(2) itself could not park the worker,
-             * but a subsequent read/write would spin on EAGAIN — refuse it here,
-             * where the real st_mode is available (the driver snapshot may not
-             * carry a mode). A directory keeps its own handling upstream; only
-             * special files are cut. */
-            if (!S_ISREG(rst.st_mode) && !S_ISDIR(rst.st_mode)) {
-                (void) sd->driver->close(&fh->sd_obj);
-                fh->sd_obj.driver = NULL;
-                fh->sd_obj.inst   = NULL;
-                fh->sd_obj.state  = NULL;
-                fh->sd_obj.fd     = -1;
-                errno = EINVAL;
-                return NGX_ERROR;
-            }
-        }
+    if (brix_open_capture_fd_identity(fh, sd, st) != NGX_OK) {
+        return NGX_ERROR;        /* special file refused; errno = EINVAL */
     }
 
     a->fd = fh->sd_obj.fd;   /* block-0 fd, or NGX_INVALID_FILE (-1) */
@@ -271,6 +289,15 @@ brix_open_error_details(int err, int *kxr, const char **message)
     case EBUSY:
         *kxr = kXR_FileLocked;
         *message = "file locked";
+        break;
+    case ENOSPC:
+    case EDQUOT:
+        /* phase-107 C5: a declared final size (oss.asize) the export cannot
+         * hold refuses the OPEN - the reference raises kXR_NoSpace, and the
+         * distinct code lets a client fail over to another endpoint instead
+         * of retrying a write that can never fit. */
+        *kxr = kXR_NoSpace;
+        *message = "insufficient space for the declared file size";
         break;
     default:
         *kxr = kXR_IOError;
@@ -360,7 +387,7 @@ brix_open_posix_dispatch(brix_open_args_t *a)
 		 * as the worker — NOT through the export-confined, impersonation-aware
 		 * VFS (which would resolve under the export rootfd / mapped user).
 		 * O_NOFOLLOW guards the final component. */
-		fd = open(open_path, effective_oflags | O_NOFOLLOW | O_CLOEXEC,  /* vfs-seam-allow: separate svc-owned storage domain (cache/stage), opened as worker */
+		fd = open(open_path, effective_oflags | O_NOFOLLOW | O_CLOEXEC,  /* vfs-seam-allow: DOMAIN_STAGE — separate svc-owned storage domain (cache/stage), opened as worker */
 		          create_mode);
 	} else if (from_cache) {
 		/* vfs-seam-allow: separate storage domain. cache_root files are
@@ -368,7 +395,7 @@ brix_open_posix_dispatch(brix_open_args_t *a)
 		 * svc-owned) in a different root than the export, so they are opened
 		 * as the worker rather than through the export-confined VFS. O_NOFOLLOW
 		 * is defence-in-depth; O_CLOEXEC prevents FD leak into a forked child. */
-		fd = open(open_path, effective_oflags | O_NOFOLLOW | O_CLOEXEC,  /* vfs-seam-allow: separate svc-owned storage domain (cache/stage), opened as worker */
+		fd = open(open_path, effective_oflags | O_NOFOLLOW | O_CLOEXEC,  /* vfs-seam-allow: DOMAIN_CACHE — separate svc-owned storage domain (cache/stage), opened as worker */
 		          create_mode);
 	} else {
 		/* The export final/staged path: open beneath the export root through
@@ -397,6 +424,24 @@ brix_open_posix_dispatch(brix_open_args_t *a)
 	 * commit, which forgets there. */
 	if (fd >= 0 && !stage && (effective_oflags & O_CREAT)) {
 		brix_vfs_neg_stat_forget(conf->common.root_canon, open_path);
+	}
+
+	/* Phase-107 C5: a declared final size (oss.asize) the filesystem cannot
+	 * hold fails the OPEN with ENOSPC — before the client streams a byte. The
+	 * entry is not unlinked: an O_TRUNC overwrite target must survive, a
+	 * resume partial must survive, and a POSC temp is tolerated stale by
+	 * design (see the O_EXCL comment above). */
+	if (fd >= 0 && a->is_write && a->declared_size > 0
+	    && (effective_oflags & (O_CREAT | O_TRUNC)))
+	{
+		if (brix_vfs_fd_reserve(a->c->log, fd, a->declared_size) != NGX_OK) {
+			int err = errno;
+
+			(void) close(fd);
+			a->fd = -1;
+			errno = err;
+			return 1;
+		}
 	}
 
 	a->fd = fd;

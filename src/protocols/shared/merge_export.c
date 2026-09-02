@@ -46,5 +46,11 @@ brix_http_merge_export_anchor(ngx_conf_t *cf,
         return NGX_CONF_ERROR;
     }
 
+    /* phase-107 C1: writer reorder-spill scratch (these surfaces have no
+     * brix_stage_dir, so only an explicit brix_vfs_spill_path provisions one). */
+    if (brix_prepare_spill_scratch(cf, common, NULL) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+
     return NGX_CONF_OK;
 }

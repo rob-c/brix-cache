@@ -52,7 +52,7 @@ webdav_tpc_user_proxy_temp_cleanup(void *data)
     if (t == NULL || t->path == NULL) {
         return;
     }
-    (void) unlink(t->path);   /* vfs-seam-allow: config-domain delegated proxy credential temp (not export storage) */
+    (void) unlink(t->path);   /* vfs-seam-allow: DOMAIN_CREDENTIAL — config-domain delegated proxy credential temp (not export storage) */
     ngx_memzero(t->path, ngx_strlen(t->path));
     t->path = NULL;
 }
@@ -91,7 +91,7 @@ webdav_tpc_user_proxy_materialise(ngx_http_request_t *r,
     path_len = ngx_strlen(tmp);
     path = ngx_pnalloc(r->pool, path_len + 1);
     if (path == NULL) {
-        (void) unlink(tmp);   /* vfs-seam-allow: config-domain delegated proxy credential temp (not export storage) */
+        (void) unlink(tmp);   /* vfs-seam-allow: DOMAIN_CREDENTIAL — config-domain delegated proxy credential temp (not export storage) */
         return NGX_ERROR;
     }
     ngx_memcpy(path, tmp, path_len);
@@ -99,7 +99,7 @@ webdav_tpc_user_proxy_materialise(ngx_http_request_t *r,
 
     cln = ngx_pool_cleanup_add(r->pool, sizeof(*payload));
     if (cln == NULL) {
-        (void) unlink(path);  /* vfs-seam-allow: config-domain delegated proxy credential temp (not export storage) */
+        (void) unlink(path);  /* vfs-seam-allow: DOMAIN_CREDENTIAL — config-domain delegated proxy credential temp (not export storage) */
         ngx_memzero(path, path_len);
         return NGX_ERROR;
     }

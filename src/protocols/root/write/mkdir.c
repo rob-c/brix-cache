@@ -68,6 +68,8 @@ brix_handle_mkdir(brix_ctx_t *ctx, ngx_connection_t *c,
 			conf->common.root_canon, NULL,
 			brix_vfs_policy_from_write_enable(conf->common.allow_write),
 			0 /* is_tls */, ctx->identity, resolved);
+		/* Persistent per-worker confinement rootfd — see op_vfs_ctx(). */
+		vctx.rootfd = conf->rootfd;
 		brix_vfs_ctx_bind_backend_cred(&vctx,
 			&conf->common.storage_credential_dir,
 			conf->common.storage_credential_fallback);

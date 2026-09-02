@@ -206,4 +206,3 @@ k8s-tests/rpms/
 # copy of a module is the one in the tree, never a *.orig beside it
 *.orig
 *.rej
-

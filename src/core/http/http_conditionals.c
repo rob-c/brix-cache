@@ -19,6 +19,8 @@
 #include "etag.h"
 #include "http_headers.h"
 
+#include "observability/metrics/unified.h"   /* the C6 refusal recorders */
+
 #include <string.h>
 
 /*
@@ -264,6 +266,7 @@ brix_http_check_etag_preconditions(ngx_http_request_t *r,
         && !brix_http_validator_selects(&if_match->value, resource_exists, etag,
                                          condition_flags))
     {
+        brix_http_precond_refused_edge(r);
         return NGX_HTTP_PRECONDITION_FAILED;
     }
 
@@ -272,6 +275,7 @@ brix_http_check_etag_preconditions(ngx_http_request_t *r,
         && brix_http_validator_selects(&if_none_match->value, resource_exists,
                                        etag, condition_flags))
     {
+        brix_http_precond_refused_edge(r);
         return NGX_HTTP_PRECONDITION_FAILED;
     }
 
@@ -421,4 +425,100 @@ brix_http_overwrite_forbidden(ngx_http_request_t *r)
 
     h = brix_http_find_header(r, "Overwrite", sizeof("Overwrite") - 1);
     return h != NULL && brix_http_header_value_equals(&h->value, "F");
+}
+
+/*
+ * brix_http_write_precond - lift a write's conditional headers into the typed
+ *                           storage precondition (phase-107 C6).
+ *
+ * WHAT: Fills `pre` from If-Match / If-None-Match so the PUBLISH (staged
+ *       commit) re-decides the precondition at the storage instead of trusting
+ *       an edge check that raced. Zeroes the struct first, so every form this
+ *       lift cannot express carries NONE — the edge evaluation stays the
+ *       deciding authority for those, exactly today's behaviour.
+ *
+ * WHY: The edge check (brix_http_check_etag_preconditions and the S3
+ *      evaluator) runs before the body is even staged; a writer landing
+ *      between that check and the rename used to win silently. Carrying the
+ *      condition down lets a capable backend decide atomically (and report it
+ *      via pre->atomic); the edge check is kept as a fast path that spares
+ *      the client the body upload on an already-doomed request.
+ *
+ * HOW: RFC 9110 §13.2.2 precedence — If-Match first. Only forms with an exact
+ *      storage meaning are lifted:
+ *        If-Match: "<one-tag>"   -> MATCH_ETAG (value borrowed from r's pool,
+ *                                   alive across the commit; W/ handled by the
+ *                                   evaluator per §2.3.2 weak comparison)
+ *        If-None-Match: *        -> ABSENT (create-if-absent)
+ *      A list (ETag grammar forbids ',' inside a tag, so a comma IS a list),
+ *      If-Match: *, or an empty value stays NONE. When If-Match is present it
+ *      wins the lift and If-None-Match remains edge-checked, mirroring the
+ *      evaluator's precedence.
+ */
+void
+brix_http_write_precond(ngx_http_request_t *r, brix_sd_precond_t *pre)
+{
+    ngx_table_elt_t *if_match      = r->headers_in.if_match;
+    ngx_table_elt_t *if_none_match = r->headers_in.if_none_match;
+
+    ngx_memzero(pre, sizeof(*pre));   /* NONE: fail-safe-by-zero */
+
+    if (cond_header_present(if_match)) {
+        if (!(if_match->value.len == 1 && if_match->value.data[0] == '*')
+            && ngx_strlchr(if_match->value.data,
+                           if_match->value.data + if_match->value.len,
+                           ',') == NULL)
+        {
+            pre->kind     = BRIX_SD_PRECOND_MATCH_ETAG;
+            pre->etag     = (const char *) if_match->value.data;
+            pre->etag_len = if_match->value.len;
+        }
+        return;
+    }
+
+    if (cond_header_present(if_none_match)
+        && if_none_match->value.len == 1 && if_none_match->value.data[0] == '*')
+    {
+        pre->kind = BRIX_SD_PRECOND_ABSENT;
+    }
+}
+
+/*
+ * brix_http_precond_refused_edge - book an EDGE-answered publish-precondition
+ *                                  refusal into the C6 metric pair (phase-107).
+ *
+ * WHAT: Bumps brix_vfs_precond_failed_total{kind} and the advisory counter for
+ *       a 412 the pre-body fast path answered, classifying the kind from the
+ *       request's conditional headers by RFC 9110 §13.2.2 precedence.
+ *
+ * WHY: The commit-path observer (brix_vfs_precond_refused_observe) only sees
+ *      refusals that reach the storage; the edge fast path spares a doomed
+ *      request its body upload and answers 412 before any commit exists, so
+ *      without this the COMMON refusal was invisible to the one metric that
+ *      counts refusals.  An edge check is a stat-then-compare with the publish
+ *      still to come — non-atomic by construction — so every edge refusal
+ *      books advisory, and under the compat label: the deciding compare is
+ *      the gateway's own stat grammar, not any storage driver's.
+ *
+ * HOW: If-Match present -> etag (it is evaluated first; when both headers are
+ *      present and If-Match passed, an If-None-Match refusal still books as
+ *      etag — the same precedence rule the typed lift above applies).  Else
+ *      If-None-Match "*" -> absent, a named tag -> etag.  The date-based
+ *      conditionals never reach a write-plane 412 (write mode strips
+ *      COND_READ|COND_TIME), so the tag classes are exhaustive here.
+ */
+void
+brix_http_precond_refused_edge(ngx_http_request_t *r)
+{
+    ngx_table_elt_t *if_match = r->headers_in.if_match;
+    ngx_table_elt_t *if_none  = r->headers_in.if_none_match;
+    ngx_uint_t       kind = (ngx_uint_t) BRIX_SD_PRECOND_MATCH_ETAG;
+
+    if (if_match == NULL && if_none != NULL
+        && if_none->value.len == 1 && if_none->value.data[0] == '*')
+    {
+        kind = (ngx_uint_t) BRIX_SD_PRECOND_ABSENT;
+    }
+    brix_metric_vfs_precond_failed(kind);
+    brix_metric_vfs_precond_advisory(NULL /* -> "posix": the gateway decided */);
 }

@@ -9,6 +9,7 @@ import subprocess
 import time
 
 from cmdscripts import run
+from cmdscripts.cache_source_helpers import wait_workers_ready
 from cmdscripts.command_results import print_results
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
@@ -151,7 +152,8 @@ def run_checks(
         started.append(prefix)
 
     try:
-        time.sleep(1)
+        wait_workers_ready(HOST, [(origin_port, "root"), (sync_port, "root"),
+                                  (async_port, "root")])
         results: list[tuple[bool, str]] = []
         small = deterministic_bytes(300_000, 83)
         big = deterministic_bytes(2_600_000, 89)

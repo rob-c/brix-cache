@@ -91,7 +91,7 @@ NAMES := crc32c crc32c_hw crc64 crc32_ieee hex crypto error_mapping checksum_cor
          host_format host_split kxr_names sigv4 pgio vendor_ext sss_bf fattr_codec \
          subprocess json_min json_iter \
          codec_core codec_zlib codec_zstd codec_lzma codec_brotli codec_bzip2 \
-         codec_lz4
+         codec_lz4 cred_stage wverify
 COMPAT_OBJS := $(addprefix $(BUILD)/,$(addsuffix .o,$(NAMES)))
 # GSI/sigver crypto + wire kernels (shared with the module's src/auth/gsi).
 GSI   := $(REPO)/src/auth/gsi

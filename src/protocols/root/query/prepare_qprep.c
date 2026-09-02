@@ -58,20 +58,37 @@ qprep_path_authorized(brix_ctx_t *ctx, ngx_connection_t *c,
 
 /*
  * Residency status letter for one already-extracted logical path.  Unauthorized
- * or non-resident with no live queue record → 'M'; resident regular file → 'A';
- * otherwise the FRM queue state when a durable record exists.
+ * or non-resident with no live queue record → 'M'; resident → 'A'; otherwise
+ * the FRM queue state when a durable record exists.  W6 (phase-107 C2): on a
+ * nearline export the residency MODEL is the truth and the registry only the
+ * bookkeeping — the CAP_NEARLINE tier's answer decides A-vs-not, so a recall
+ * that landed reports 'A' before the registry record reads DONE, and an
+ * evicted file never reports a stale 'A' from one.  A flat export keeps the
+ * confined stat probe (its residency answer is a constant ONLINE and says
+ * nothing about existence).
  */
 static char
 qprep_status_for_path(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const char *pathbuf, const char *full_path)
 {
-    struct stat st;
+    struct stat          st;
+    brix_vfs_ctx_t       vctx;
+    brix_sd_residency_t  res;
+    int                  nearline = 0;
 
     if (!qprep_path_authorized(ctx, c, conf, pathbuf, full_path)) {
         return 'M';
     }
 
-    if (brix_stat_beneath(conf->rootfd, pathbuf, &st) == 0 && S_ISREG(st.st_mode)) {
+    brix_prepare_vfs_ctx(ctx, c, conf, full_path, &vctx);
+    if (brix_vfs_residency(&vctx, &res, &nearline) == NGX_OK && nearline) {
+        if (res == BRIX_SD_RES_ONLINE) {
+            return 'A';                               /* recalled and online */
+        }
+        /* NEARLINE/OFFLINE/LOST: not online — report the queue state below */
+    } else if (brix_stat_beneath(conf->rootfd, pathbuf, &st) == 0
+               && S_ISREG(st.st_mode))
+    {
         return 'A';                                   /* resident on disk */
     }
 

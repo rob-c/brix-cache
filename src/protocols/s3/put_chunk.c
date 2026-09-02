@@ -164,6 +164,11 @@ s3_chunk_aio_done(ngx_event_t *ev)
     ngx_http_s3_req_ctx_t *rx =
         ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
 
+    /* Balance the r->main->count++ at the task post (webdav_put_aio_done
+     * precedent) - without it the request stays one reference high and the
+     * connection never re-enters keepalive after the response. */
+    r->main->count--;
+
     /* The finalize/decode-abort below are PATH-based (commit rename, unlink) and
      * must run as the MAPPED user; this event-loop completion lost the per-request
      * impersonation bracket, so re-establish it (the threaded write was fd-based).

@@ -49,6 +49,11 @@ def test_origin(run):
     assert run.artifact("payload").size == 100_000_000
 ```
 
+Native programs are first-class pytest items too. `native_test(...)` compiles
+one declared C or C++ program, runs it in the normal supervised helper, checks
+its exit code and text streams, and archives exact build provenance. See the
+[native-test guide](docs/native-tests.md).
+
 The same declaration can run locally or on Kubernetes; select the backend with
 `--brixtest-backend` or `BRIXTEST_BACKEND`. Test code continues to consume the
 same `run.server()`, `run.client()`, `run.artifact()`, and `run.binary()` API.

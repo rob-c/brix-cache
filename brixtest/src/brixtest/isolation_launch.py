@@ -343,12 +343,16 @@ def _bridge_spec(
     isolation: Isolation, *, pytest_argv: Sequence[str], child_env: Mapping[str, str],
     cwd: Path, control_dir: Path, writable_root: Path,
     host_aliases: Sequence[HostMapping], validate: bool,
+    helper_inputs: Sequence[Path] = (),
 ) -> tuple[Path, tuple[tuple[str, ...], ...], Mapping[str, object]]:
     nodeid = _helper_nodeid(pytest_argv)
     trusted = _repeated_option(pytest_argv, "-p") + _repeated_option(
         pytest_argv, "--brixtest-safe-import",
     )
-    bundle = build_helper_bundle(cwd, nodeid, control_dir / "bundles", trusted_modules=trusted)
+    bundle = build_helper_bundle(
+        cwd, nodeid, control_dir / "bundles", trusted_modules=trusted,
+        project_inputs=helper_inputs,
+    )
     job = "brixtest-%s" % control_dir.name[-24:].lower()
     secret = "%s-env" % job
     manifest = control_dir / "kubernetes-helper.json"
@@ -399,11 +403,12 @@ def _kubernetes_launch(
     host_env: Mapping[str, str], cwd: Path, writable_root: Path,
     control_dir: Path, *, validate: bool,
     host_aliases: Sequence[HostMapping] = (),
+    helper_inputs: Sequence[Path] = (),
 ) -> LaunchSpec:
     spec, cleanup, identity = _bridge_spec(
         isolation, pytest_argv=pytest_argv, child_env=child_env, cwd=cwd,
         control_dir=control_dir, writable_root=writable_root,
-        host_aliases=host_aliases, validate=validate,
+        host_aliases=host_aliases, validate=validate, helper_inputs=helper_inputs,
     )
     argv = (sys.executable, "-m", "brixtest.kubernetes_helper_bridge", str(spec))
     return LaunchSpec(argv, cwd, dict(host_env), cleanup, {"helper_bundle": identity})
@@ -424,6 +429,7 @@ def build_launch(
     *, cwd: Path, readonly_roots: Sequence[Path], writable_root: Path,
     control_dir: Path, validate_executable: bool = True,
     host_aliases: Sequence[HostMapping] = (),
+    helper_inputs: Sequence[Path] = (),
 ) -> LaunchSpec:
     """Build one shell-free helper launch and its best-effort cleanup commands."""
     selected = isolation.resolved(cwd)
@@ -444,6 +450,7 @@ def build_launch(
         return _kubernetes_launch(
             selected, pytest_argv, child_env, os.environ, cwd, writable_root,
             control_dir, validate=validate_executable, host_aliases=host_aliases,
+            helper_inputs=helper_inputs,
         )
     return _runc_launch(
         selected, pytest_argv, child_env, os.environ, cwd, readonly_roots,

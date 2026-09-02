@@ -59,7 +59,7 @@ cache_meta_read_legacy(const char *cache_path, brix_cache_meta_t *meta)
     if (brix_cache_meta_path(path, sizeof(path), cache_path) != 0) {
         return NGX_DECLINED;
     }
-    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: server-managed cache-root sidecar, opened as worker */
+    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: DOMAIN_CACHE — server-managed cache-root sidecar, opened as worker */
     if (fd < 0) {
         return NGX_DECLINED;   /* ENOENT / no legacy sidecar -> cache miss */
     }

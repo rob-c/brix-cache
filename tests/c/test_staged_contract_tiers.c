@@ -58,6 +58,10 @@ u_char *ngx_cpystrn(u_char *dst, u_char *src, size_t n)
 void ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
     const char *fmt, ...) { (void) level; (void) log; (void) err; (void) fmt; }
 void brix_xfer_finish(void) { }
+/* W4 C5: the tier cases never declare a size, so the frm online-buffer reserve
+ * arm is dead here — satisfy the link only. */
+ngx_int_t sd_posix_reserve(brix_sd_obj_t *obj, off_t size)
+{ (void) obj; (void) size; return NGX_OK; }
 
 /* sd_stage_write.c stamps write-back objects with this descriptor; the staged
  * path never dispatches through it, so an empty table satisfies the link. */
@@ -72,11 +76,11 @@ static int g_store_unlinks;     /* stage-buffer drops (success path only)     */
 
 static brix_sd_staged_t *
 fake_store_staged_open(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, int *err_out)
+    mode_t mode, off_t declared_size, int *err_out)
 {
     brix_sd_staged_t *h = calloc(1, sizeof(*h));
 
-    (void) final_path; (void) mode;
+    (void) final_path; (void) mode; (void) declared_size;
     if (h == NULL) { if (err_out) { *err_out = ENOMEM; } return NULL; }
     h->inst  = inst;
     h->state = calloc(1, 16);            /* a real allocation ASan can track */
@@ -85,9 +89,9 @@ fake_store_staged_open(brix_sd_instance_t *inst, const char *final_path,
 }
 
 static ngx_int_t
-fake_store_staged_commit(brix_sd_staged_t *st, int noreplace)
+fake_store_staged_commit(brix_sd_staged_t *st, brix_sd_precond_t *pre)
 {
-    (void) noreplace;
+    (void) pre;
     if (g_inner_commit_rc != NGX_OK) {
         errno = EIO;                     /* contract: handle left VALID */
         return NGX_ERROR;
@@ -245,10 +249,10 @@ run_stage_arms(void)
 
         is.policy.flush_mode = BRIX_WT_MODE_SYNC;
         stage_reset(NGX_OK, NGX_OK);
-        h = sd_stage_staged_open(&stage, "/obj_ok", 0644, &err);
+        h = sd_stage_staged_open(&stage, "/obj_ok", 0644, 0, &err);
         CHECK(h != NULL, "stage staged_open (sync ok)");
         if (h != NULL) {
-            CHECK(sd_stage_staged_commit(h, 0) == NGX_OK, "sync commit succeeds");
+            CHECK(sd_stage_staged_commit(h, NULL) == NGX_OK, "sync commit succeeds");
             CHECK(g_flush_calls == 1, "sync commit flushes exactly once");
             CHECK(g_store_unlinks == 1, "stage buffer dropped after a good flush");
             CHECK(g_inner_live == 0, "inner handle consumed by its own commit");
@@ -265,10 +269,10 @@ run_stage_arms(void)
 
         is.policy.flush_mode = BRIX_WT_MODE_SYNC;
         stage_reset(NGX_OK, NGX_ERROR);
-        h = sd_stage_staged_open(&stage, "/obj_flushfail", 0644, &err);
+        h = sd_stage_staged_open(&stage, "/obj_flushfail", 0644, 0, &err);
         CHECK(h != NULL, "stage staged_open (flush-fail)");
         if (h != NULL) {
-            CHECK(sd_stage_staged_commit(h, 0) != NGX_OK,
+            CHECK(sd_stage_staged_commit(h, NULL) != NGX_OK,
                   "a failed inline flush must fail the commit");
             CHECK(g_store_unlinks == 0,
                   "stage buffer KEPT for retry when the flush failed");
@@ -289,10 +293,10 @@ run_stage_arms(void)
 
         is.policy.flush_mode = BRIX_WT_MODE_SYNC;
         stage_reset(NGX_ERROR, NGX_OK);
-        h = sd_stage_staged_open(&stage, "/obj_innerfail", 0644, &err);
+        h = sd_stage_staged_open(&stage, "/obj_innerfail", 0644, 0, &err);
         CHECK(h != NULL, "stage staged_open (inner-fail)");
         if (h != NULL) {
-            CHECK(sd_stage_staged_commit(h, 0) != NGX_OK,
+            CHECK(sd_stage_staged_commit(h, NULL) != NGX_OK,
                   "a failed store publish must fail the commit");
             CHECK(g_flush_calls == 0,
                   "SECURITY: no flush to the backend after a failed publish");
@@ -311,10 +315,10 @@ run_stage_arms(void)
 
         is.policy.flush_mode = BRIX_WT_MODE_ASYNC;
         stage_reset(NGX_OK, NGX_OK);
-        h = sd_stage_staged_open(&stage, "/obj_async", 0644, &err);
+        h = sd_stage_staged_open(&stage, "/obj_async", 0644, 0, &err);
         CHECK(h != NULL, "stage staged_open (async)");
         if (h != NULL) {
-            CHECK(sd_stage_staged_commit(h, 0) == NGX_OK, "async commit succeeds");
+            CHECK(sd_stage_staged_commit(h, NULL) == NGX_OK, "async commit succeeds");
             CHECK(g_submit_calls == 1, "async commit queues exactly one flush");
             CHECK(g_flush_calls == 0, "async commit does not flush inline");
             CHECK(g_store_unlinks == 0,
@@ -341,11 +345,11 @@ run_frm_arms(void)
 
         g_migrate_rc = -1;
         g_migrates = g_purges = 0;
-        h = inst->driver->staged_open(inst, "/tape_fail", 0644, &err);
+        h = inst->driver->staged_open(inst, "/tape_fail", 0644, 0, &err);
         CHECK(h != NULL, "frm staged_open (migrate-fail)");
         if (h != NULL) {
             CHECK(inst->driver->staged_write(h, "x", 1, 0) == 1, "frm staged_write");
-            CHECK(inst->driver->staged_commit(h, 0) != NGX_OK,
+            CHECK(inst->driver->staged_commit(h, NULL) != NGX_OK,
                   "a failed migrate must fail the commit");
             inst->driver->staged_abort(h);      /* must not UAF / double free */
             CHECK(g_migrates == 1 && g_purges == 1,
@@ -361,10 +365,10 @@ run_frm_arms(void)
 
         g_migrate_rc = 0;
         g_migrates = g_purges = 0;
-        h = inst->driver->staged_open(inst, "/tape_ok", 0644, &err);
+        h = inst->driver->staged_open(inst, "/tape_ok", 0644, 0, &err);
         CHECK(h != NULL, "frm staged_open (ok)");
         if (h != NULL) {
-            CHECK(inst->driver->staged_commit(h, 0) == NGX_OK,
+            CHECK(inst->driver->staged_commit(h, NULL) == NGX_OK,
                   "a clean migrate must succeed");
             CHECK(g_migrates == 1 && g_purges == 0,
                   "published object is not purged from the online buffer");

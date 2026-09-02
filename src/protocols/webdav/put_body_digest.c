@@ -158,7 +158,7 @@ webdav_put_verify_ingest_digest(ngx_http_request_t *r,
          * temp — and hash the already-written bytes over the read handle. */
         (void) ngx_snprintf((u_char *) procpath, sizeof(procpath),
                             "/proc/self/fd/%d%Z", (int) fd);
-        rfd = open(procpath, O_RDONLY | O_CLOEXEC);  /* vfs-seam-allow: read-back of staged PUT bytes for pre-commit ingest-digest verify (no final path yet) */
+        rfd = open(procpath, O_RDONLY | O_CLOEXEC);  /* vfs-seam-allow: DOMAIN_STAGE — read-back of staged PUT bytes for pre-commit ingest-digest verify (no final path yet) */
         if (rfd < 0) {
             /* Cannot obtain a readable view of what we must verify: fail closed. */
             return NGX_HTTP_BAD_REQUEST;

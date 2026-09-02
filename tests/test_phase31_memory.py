@@ -337,3 +337,151 @@ def test_oversize_request_guard_preserved():
     assert status.ok, f"follow-up read failed: {status.message}"
     assert bytes(tail) == payload[:256]
     f.close()
+
+
+# ---------------------------------------------------------------------------
+# Hot-deferred trim: a scratch slot used since the previous trim pass is kept
+# warm for one cycle (streaming reuse); a slot idle for a full cycle is trimmed
+# exactly as before.  Trio: streaming reuse / deferred trim then regrow /
+# interleaved read+write with both slots hot.
+# ---------------------------------------------------------------------------
+
+@anon_only
+def test_hot_streaming_readv_reuses_warm_scratch():
+    """Back-to-back large readvs on one handle stay byte-exact.
+
+    Every request re-marks read_scratch hot, so the trim between requests must
+    now skip it every cycle — this asserts the skipped trim never leaves the
+    slot stale, undersized, or pointing at freed memory during a stream.
+    """
+    payload = _deterministic(8 * 1024 * 1024)
+    remote  = "/test_phase31_hot_stream.bin"
+
+    w = client.File()
+    status, _ = w.open(f"{ANON_URL}//{remote.lstrip('/')}",
+                       OpenFlags.DELETE | OpenFlags.NEW)
+    assert status.ok, f"open for write failed: {status.message}"
+    status, _ = w.write(payload)
+    assert status.ok
+    w.close()
+
+    f = client.File()
+    status, _ = f.open(f"{ANON_URL}//{remote.lstrip('/')}", OpenFlags.READ)
+    assert status.ok, f"open for read failed: {status.message}"
+
+    chunks = [(0, 2_000_000), (3_000_000, 2_000_000), (6_000_000, 2_000_000)]
+    for i in range(8):
+        status, vr = f.vector_read(chunks)
+        assert status.ok, f"hot readv {i} failed: {status.message}"
+        for ch in vr:
+            assert bytes(ch.buffer) == payload[ch.offset:ch.offset + ch.length], (
+                f"hot readv {i} chunk at {ch.offset} corrupted")
+    f.close()
+
+
+@anon_only
+def test_deferred_trim_fires_then_regrows_byte_exact():
+    """Large readv -> two tiny requests -> large readv, all byte-exact.
+
+    The first tiny request clears the hot mark; the second lets the deferred
+    trim actually fire (the new-code path).  The follow-up large readv must
+    regrow from the trimmed buffer with no use-after-trim and exact bytes.
+    """
+    payload = _deterministic(8 * 1024 * 1024)
+    remote  = "/test_phase31_hot_defer.bin"
+
+    w = client.File()
+    status, _ = w.open(f"{ANON_URL}//{remote.lstrip('/')}",
+                       OpenFlags.DELETE | OpenFlags.NEW)
+    assert status.ok, f"open for write failed: {status.message}"
+    status, _ = w.write(payload)
+    assert status.ok
+    w.close()
+
+    f = client.File()
+    status, _ = f.open(f"{ANON_URL}//{remote.lstrip('/')}", OpenFlags.READ)
+    assert status.ok, f"open for read failed: {status.message}"
+
+    chunks = [(0, 2_000_000), (3_000_000, 2_000_000), (6_000_000, 2_000_000)]
+
+    for cycle in range(3):
+        status, vr = f.vector_read(chunks)
+        assert status.ok, f"large readv (cycle {cycle}) failed: {status.message}"
+        for ch in vr:
+            assert bytes(ch.buffer) == payload[ch.offset:ch.offset + ch.length]
+
+        # Two small request cycles: #1 clears the hot mark, #2's preamble trim
+        # actually shrinks the scratch (the deferred-trim path under test).
+        for j in range(2):
+            status, small = f.read(offset=j * 4096, size=512)
+            assert status.ok, f"small read {j} (cycle {cycle}) failed"
+            assert bytes(small) == payload[j * 4096:j * 4096 + 512], (
+                f"small read {j} (cycle {cycle}) bled data")
+    f.close()
+
+
+def _ilv_seed_file(remote, payload):
+    """Create+fill the read-side file for the interleave test."""
+    w0 = client.File()
+    status, _ = w0.open(f"{ANON_URL}//{remote.lstrip('/')}",
+                        OpenFlags.DELETE | OpenFlags.NEW)
+    assert status.ok, f"seed open failed: {status.message}"
+    status, _ = w0.write(payload)
+    assert status.ok
+    w0.close()
+
+
+def _ilv_cycle(r, w, i, wr_payload, rd_payload, chunks):
+    """One interleave cycle: a large write then a large readv, both verified."""
+    status, _ = w.write(wr_payload, offset=i * len(wr_payload))
+    assert status.ok, f"interleaved write {i} failed: {status.message}"
+
+    status, vr = r.vector_read(chunks)
+    assert status.ok, f"interleaved readv {i} failed: {status.message}"
+    for ch in vr:
+        assert bytes(ch.buffer) == rd_payload[ch.offset:ch.offset + ch.length], (
+            f"interleaved readv {i} chunk at {ch.offset} bled write bytes")
+
+
+def _ilv_read_back(remote, wr_payload):
+    """Read the written file back whole: no read-scratch bytes crept in."""
+    rb = client.File()
+    status, _ = rb.open(f"{ANON_URL}//{remote.lstrip('/')}", OpenFlags.READ)
+    assert status.ok
+    for i in range(4):
+        status, seg = rb.read(offset=i * len(wr_payload), size=len(wr_payload))
+        assert status.ok, f"read-back segment {i} failed: {status.message}"
+        assert bytes(seg) == wr_payload, f"read-back segment {i} corrupted"
+    rb.close()
+
+
+@anon_only
+def test_interleaved_large_read_write_no_cross_slot_bleed():
+    """Interleave large writes and large readvs on one connection.
+
+    Both transfer directions run in the same trim cycle, so multiple scratch
+    slots are hot simultaneously; nothing may bleed between the read and write
+    buffers and the final read-back of each file must be byte-exact.
+    """
+    rd_payload = _deterministic(8 * 1024 * 1024)
+    wr_payload = bytes((i * 31 + 7) & 0xFF for i in range(4 * 1024 * 1024))
+    rd_remote  = "/test_phase31_hot_ilv_rd.bin"
+    wr_remote  = "/test_phase31_hot_ilv_wr.bin"
+
+    _ilv_seed_file(rd_remote, rd_payload)
+
+    r = client.File()
+    status, _ = r.open(f"{ANON_URL}//{rd_remote.lstrip('/')}", OpenFlags.READ)
+    assert status.ok, f"open for read failed: {status.message}"
+    w = client.File()
+    status, _ = w.open(f"{ANON_URL}//{wr_remote.lstrip('/')}",
+                       OpenFlags.DELETE | OpenFlags.NEW)
+    assert status.ok, f"open for write failed: {status.message}"
+
+    chunks = [(0, 2_000_000), (3_000_000, 2_000_000), (6_000_000, 2_000_000)]
+    for i in range(4):
+        _ilv_cycle(r, w, i, wr_payload, rd_payload, chunks)
+    w.close()
+    r.close()
+
+    _ilv_read_back(wr_remote, wr_payload)

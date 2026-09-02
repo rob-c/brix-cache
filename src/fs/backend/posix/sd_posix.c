@@ -183,6 +183,8 @@ brix_sd_posix_borrow_instance(ngx_pool_t *pool, ngx_log_t *log, int rootfd,
     inst->log = log;
     inst->pool = pool;
     inst->state = st;
+    inst->domain = BRIX_VFS_DOMAIN_EXPORT;   /* strict default; composer overrides
+                                              * for service storage (C9) */
     return inst;
 }
 
@@ -256,6 +258,9 @@ const brix_sd_driver_t brix_sd_posix_driver = {
           | BRIX_SD_CAP_RANDOM_WRITE | BRIX_SD_CAP_RANGE_READ
           | BRIX_SD_CAP_TRUNCATE | BRIX_SD_CAP_APPEND
           | BRIX_SD_CAP_IOURING
+          /* C6: ABSENT atomic via RENAME_NOREPLACE, MATCH_* advisory —
+           * the commit reports which through pre->atomic. */
+          | BRIX_SD_CAP_PRECOND
 #ifndef XRDPROTO_NO_NGX
           | BRIX_SD_CAP_SERVER_COPY | BRIX_SD_CAP_XATTR
           | BRIX_SD_CAP_HARD_RENAME | BRIX_SD_CAP_DIRS
@@ -279,12 +284,15 @@ const brix_sd_driver_t brix_sd_posix_driver = {
     .fsync = sd_posix_fsync,
     .fstat = sd_posix_fstat,
     .read_advise = sd_posix_read_advise,
+    .reserve = sd_posix_reserve,        /* phase-107 C5 fallocate KEEP_SIZE */
 #ifndef XRDPROTO_NO_NGX
     .stat = sd_posix_stat,
     .unlink = sd_posix_unlink,
     .mkdir = sd_posix_mkdir,
     .setattr = sd_posix_setattr,
     .rename = sd_posix_rename,
+    .exchange = sd_posix_exchange,          /* phase-107 C6 RENAME_EXCHANGE */
+    .sync_publish = sd_posix_sync_publish,  /* phase-107 C3 dirsync barrier */
     .server_copy = sd_posix_server_copy,
     .opendir = sd_posix_opendir,
     .readdir = sd_posix_readdir,

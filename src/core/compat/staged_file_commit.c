@@ -13,7 +13,8 @@
  *       (SD) seam and the per-export backend registry. Isolating them keeps each
  *       file single-concept and under the size budget.
  *
- * HOW:  brix_commit_staged() flushes+chmods the open fd (commit_flush_and_chmod),
+ * HOW:  brix_commit_staged() flushes+chmods the open fd (commit_flush_and_chmod;
+ *       the fsync is skipped under BRIX_COMMIT_RELAXED / brix_durable_commit off),
  *       resolves the final export's backend, and dispatches: non-POSIX backend →
  *       commit_staged_to_backend (cstb_open_source + cstb_pump_and_commit);
  *       same-FS → rename(2); EXDEV → commit_cross_device. All byte I/O routes
@@ -172,7 +173,7 @@ cstb_pump_and_commit(ngx_fd_t rfd, brix_sd_instance_t *dst,
 
     /* Atomic publish. On failure staged_commit leaves the handle valid, so abort
      * to release it; KEEP the POSIX partial so a resume retry can republish. */
-    if (dst->driver->staged_commit(st, 0 /* replace allowed */) != NGX_OK) {
+    if (dst->driver->staged_commit(st, NULL /* replace allowed */) != NGX_OK) {
         int e = errno;
         dst->driver->staged_abort(st);
         errno = e ? e : EIO;
@@ -201,7 +202,9 @@ commit_staged_to_backend(ngx_fd_t fd, const char *stage_path,
 {
     const char        *logical = commit_be_logical(final_path, root_canon);
     brix_sd_staged_t  *st;
+    struct stat        sb;
     mode_t             mode = 0644;
+    off_t              dsz;
     int                rfd, owned = 0, serr = 0;
     ngx_int_t          rc;
 
@@ -222,7 +225,11 @@ commit_staged_to_backend(ngx_fd_t fd, const char *stage_path,
         return NGX_ERROR;
     }
 
-    st = dst->driver->staged_open(dst, logical, mode, &serr);
+    /* Phase-107 C5: the partial's size is exact — declare it so the backend
+     * driver can reserve (pblock quota-admits the bytes at open). */
+    dsz = (fstat(rfd, &sb) == 0) ? sb.st_size : 0;
+
+    st = dst->driver->staged_open(dst, logical, mode, dsz, &serr);
     if (st == NULL) {
         if (owned) { (void) close(rfd); }
         errno = serr ? serr : EIO;
@@ -259,7 +266,7 @@ commit_staged_to_backend(ngx_fd_t fd, const char *stage_path,
  *   final_mode — mode to publish, or 0 to keep the temp's mode
  */
 static ngx_int_t
-commit_flush_and_chmod(ngx_fd_t fd, mode_t final_mode)
+commit_flush_and_chmod(ngx_fd_t fd, mode_t final_mode, int relaxed)
 {
     brix_sd_obj_t  sobj;
 
@@ -267,8 +274,12 @@ commit_flush_and_chmod(ngx_fd_t fd, mode_t final_mode)
         return NGX_OK;
     }
 
+    /* `relaxed` (brix_durable_commit off): skip the data fsync — the operator
+     * chose stock-XRootD close semantics. The commit rename still orders after
+     * every completed write, so a CLEAN close never publishes torn data; only a
+     * host crash inside the writeback window can lose the tail. */
     brix_sd_posix_wrap(&sobj, fd);   /* durability flush via the backend */
-    if (sobj.driver->fsync(&sobj) != NGX_OK) {
+    if (!relaxed && sobj.driver->fsync(&sobj) != NGX_OK) {
         return NGX_ERROR;   /* not durable — do not publish */
     }
     /* SECURITY: publish the caller's intended mode on the still-open fd before any
@@ -296,9 +307,11 @@ commit_flush_and_chmod(ngx_fd_t fd, mode_t final_mode)
  * Parameters:
  *   stage_path — the staged partial (cross-device source)
  *   final_path — destination path (drives the adjacent temp + final rename)
+ *   log        — for the phase-107 C7 lock-carry refusal report
  */
 static ngx_int_t
-commit_cross_device(const char *stage_path, const char *final_path)
+commit_cross_device(const char *stage_path, const char *final_path,
+    ngx_log_t *log)
 {
     char         tmp[PATH_MAX];
     int          rfd, dfd, e;
@@ -336,6 +349,13 @@ commit_cross_device(const char *stage_path, const char *final_path)
     if (close(dfd) != 0) {
         e = errno; (void) unlink(tmp); errno = e; return NGX_ERROR;
     }
+    /* Phase-107 C7: the data copy above moved bytes only — the lock record
+     * carried onto the STAGED partial (brix_commit_staged) did not follow it,
+     * so carry from the destination onto this adjacent temp before it
+     * publishes (brix_staged_lock_carry). */
+    if (brix_staged_lock_carry(log, final_path, tmp) != NGX_OK) {
+        e = errno; (void) unlink(tmp); errno = e; return NGX_ERROR;
+    }
     if (rename(tmp, final_path) != 0) {
         e = errno; (void) unlink(tmp); errno = e; return NGX_ERROR;
     }
@@ -364,12 +384,13 @@ commit_cross_device(const char *stage_path, const char *final_path)
  */
 ngx_int_t
 brix_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
-                     mode_t final_mode, ngx_log_t *log)
+                     mode_t final_mode, unsigned flags, ngx_log_t *log)
 {
     const char          *be_root = NULL;
     brix_sd_instance_t  *dst;
 
-    if (commit_flush_and_chmod(fd, final_mode) != NGX_OK) {
+    if (commit_flush_and_chmod(fd, final_mode,
+                               (flags & BRIX_COMMIT_RELAXED) != 0) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -384,6 +405,16 @@ brix_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
     {
         return commit_staged_to_backend(fd, stage_path, final_path, dst,
                                         be_root, log);
+    }
+
+    /* Phase-107 C7: every rename route below REPLACES the destination inode —
+     * carry a live lock record onto the staged partial first, so an ADMITTED
+     * write under a lock (advisory enforcement; root:// strict refuses at open)
+     * does not silently discharge it (brix_staged_lock_carry). The backend
+     * route above publishes through the driver's own staged commit, which
+     * carries inside staged_commit_internal. */
+    if (brix_staged_lock_carry(log, final_path, stage_path) != NGX_OK) {
+        return NGX_ERROR;
     }
 
     /*
@@ -430,5 +461,5 @@ brix_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
 
     /* Cross-device commit: copy the staged data to a temp adjacent to (and on the
      * same filesystem as) the final path, then atomically rename it into place. */
-    return commit_cross_device(stage_path, final_path);
+    return commit_cross_device(stage_path, final_path, log);
 }

@@ -93,6 +93,7 @@ PUBLIC_METHODS: Mapping[str, tuple[str, ...]] = {
     "MetricSample": ("as_dict",),
     "MetricTimer": (),
     "Mount": (),
+    "OutputExpectation": (),
     "Placement": (),
     "Probe": (),
     "ProviderContext": ("resource_root", "kubernetes"),

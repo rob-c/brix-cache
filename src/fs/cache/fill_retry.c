@@ -41,6 +41,14 @@ brix_fill_classify(ngx_int_t fill_rc, int err, brix_fill_retry_t *rs)
          * retry, and both read as an origin-side problem (429 / 502). */
         return BRIX_FILL_DEFINITIVE;
     }
+    if (err == ENODATA) {
+        /* verify=require refused the fill: the origin advertises no usable
+         * digest (or an algorithm we cannot compute). A POLICY answer — the
+         * next attempt asks the same origin the same question, so retrying
+         * only stretches a clean refusal into the whole backoff ladder while
+         * the client hangs. Definitive: the client gets a terminal error. */
+        return BRIX_FILL_DEFINITIVE;
+    }
     if (err == EBADMSG) {
         /* digest MISMATCH: corruption is often path-local — try each
          * remaining endpoint once, then give up definitively (502 — the

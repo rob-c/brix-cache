@@ -13,10 +13,14 @@ from _cache_partial_helpers import (
 )
 
 # Each test stands up its OWN dedicated cache + origin nginx (2 per xroot test)
-# through the registry lifecycle harness, and the slice-cache origin read path
-# SIGSEGVs under heavy concurrency — so this suite runs in the suite runner's
-# SERIAL lane, not the -n12 parallel pool.
-pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
+# through the registry lifecycle harness. The suite once carried `serial` for a
+# slice-cache origin-read SIGSEGV under heavy concurrency (2026-07, pre-
+# loadgroup free-scheduling); on current HEAD it is not reproducible — four
+# consecutive full-cache-family runs at -n 6/-n 8 --dist loadgroup passed with
+# zero nginx segfaults (2026-09-01) — so the suite runs in the parallel pool.
+# The xdist_group stays MANDATORY: every test reuses the same two fixed-port
+# specs, so the group is what keeps them on one worker.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cache-partial")]
 
 BLK = 1024 * 1024  # 1 MiB slice granule (matches the proven brix_cache_slice 1m)

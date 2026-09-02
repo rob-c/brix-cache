@@ -302,20 +302,20 @@ test_staged(brix_sd_instance_t *inst)
     brix_sd_stat_t    st;
     char                buf[16];
 
-    s = D->staged_open(inst, "/staged", 0644, &err);
+    s = D->staged_open(inst, "/staged", 0644, 0, &err);
     CHECK(s != NULL, "staged_open: %s", strerror(err));
     if (s != NULL) {
         CHECK(D->staged_write(s, "atomic", 6, 0) == 6, "staged_write");
         /* not visible before commit */
         CHECK(D->stat(inst, "/staged", &st) == NGX_ERROR, "visible pre-commit");
-        CHECK(D->staged_commit(s, 0) == NGX_OK, "commit");
+        CHECK(D->staged_commit(s, NULL) == NGX_OK, "commit");
         CHECK(D->stat(inst, "/staged", &st) == NGX_OK && st.size == 6,
               "visible post-commit");
         CHECK(read_file(inst, "/staged", buf, sizeof(buf)) == 6
               && memcmp(buf, "atomic", 6) == 0, "committed content");
     }
 
-    s = D->staged_open(inst, "/aborted", 0644, &err);
+    s = D->staged_open(inst, "/aborted", 0644, 0, &err);
     CHECK(s != NULL, "staged_open 2");
     if (s != NULL) {
         CHECK(D->staged_write(s, "gone", 4, 0) == 4, "write");

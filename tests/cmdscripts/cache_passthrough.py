@@ -21,6 +21,7 @@ import re
 import sys
 import time
 
+from cmdscripts.cache_source_helpers import wait_workers_ready
 from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST
@@ -52,6 +53,18 @@ def _expression_3(small_ok, mid_ok, huge_status, small_status, mid_status, log, 
                      "huge object never spooled beyond the passthrough cap"),
                 ])
     )
+
+
+def _await_serve_evict(node, timeout=3.0):
+    deadline = time.monotonic() + timeout
+    while True:
+        log = (node / "logs/e.log").read_text(errors="replace")
+        if ("event=passthrough-evict" in log
+                and not (node / "cache/mid.bin").exists()):
+            return log
+        if time.monotonic() >= deadline:
+            return log
+        time.sleep(0.05)
 
 
 def _guard_serve_evict_1(mid_ok, node):
@@ -155,7 +168,7 @@ def serve_evict(nginx: Path | None = None) -> int:
         origin, digests = _seed(run, oport)
         run.write(node / "nginx.conf", _node_conf(node, bport, oport, passthrough=True))
         run.start_nginx(node, node / "nginx.conf", bport)
-        time.sleep(1)
+        wait_workers_ready(HOST, [(oport, "root"), (bport, "http")])
         url = f"http://{HOST}:{bport}"
 
         # 1) small <= max_object -> normal admission, RETAINED in the store.
@@ -167,8 +180,10 @@ def serve_evict(nginx: Path | None = None) -> int:
         mid = run.root / "mid.got"
         mid_status = _get(run, f"{url}/mid.bin", mid)
         mid_ok = _expression_2(mid_status, mid, digests)
-        time.sleep(0.7)  # let brix_http_cache_fill_done run the post-serve evict
-        log = (node / "logs/e.log").read_text(errors="replace")
+        # brix_http_cache_fill_done runs the post-serve evict off-loop; wait
+        # for it to land (log marker + store entry gone) instead of a fixed
+        # settle.
+        log = _await_serve_evict(node)
         _guard_serve_evict_1(mid_ok, node)
 
         # 3) huge > pt_max -> refused (no unbounded spool).
@@ -189,7 +204,7 @@ def disabled_declines(nginx: Path | None = None) -> int:
         origin, digests = _seed(run, oport)
         run.write(node / "nginx.conf", _node_conf(node, bport, oport, passthrough=False))
         run.start_nginx(node, node / "nginx.conf", bport)
-        time.sleep(1)
+        wait_workers_ready(HOST, [(oport, "root"), (bport, "http")])
         url = f"http://{HOST}:{bport}"
 
         # small still caches normally (control: OFF only changes declined objects).

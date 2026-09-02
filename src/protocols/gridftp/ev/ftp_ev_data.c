@@ -332,9 +332,14 @@ brix_ftp_ev_data_finish(ftp_ev_dc_t *dc, ngx_int_t rc)
     fc->dc    = NULL;
     fc->state = FTP_EV_ST_CMD;
 
+    /* phase-107 C7: a failure site that knows a more precise RFC-959 class
+     * (the lock gate's EBUSY → 450 "file busy") stamps dc->fail_reply; the
+     * generic 550 stays the default for everything else. */
     (void) brix_ftp_ev_reply(fc, (rc == NGX_OK)
                                  ? "226 Transfer complete\r\n"
-                                 : "550 Transfer failed\r\n");
+                                 : (dc->fail_reply != NULL)
+                                   ? dc->fail_reply
+                                   : "550 Transfer failed\r\n");
 
     /* Resume the control channel: flush the result and frame the next command. */
     brix_ftp_ev_resume(fc);

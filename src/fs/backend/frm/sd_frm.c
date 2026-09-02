@@ -36,14 +36,6 @@ extern char **environ;
 
 /* ===================== the sd_frm driver ===================== */
 
-typedef struct {
-    sd_frm_state *fst;
-    int           fd;
-    char          key[1024];
-} sd_frm_staged_state;
-
-#define SD_FRM_ST(inst)  ((sd_frm_state *) (inst)->state)
-
 /* Bounded synchronous recall: ensure `key` is online in the MSS buffer. Returns 0
  * (online), or -1 (errno: ENOENT absent, EAGAIN still in-flight, EIO error). A
  * genuinely slow MSS would return EAGAIN and the cache tier would park the open on
@@ -262,8 +254,48 @@ sd_frm_residency(brix_sd_instance_t *inst, const char *key,
     return NGX_OK;
 }
 
+/* Evict (phase-107 C2) — release the MSS ONLINE-BUFFER copy of `key`; the tape
+ * copy remains the durable one (a later recall restages it). Safe because the
+ * staged-write lifecycle guarantees ONLINE ⇒ a tape copy exists: staged_commit
+ * fails when the migrate fails, and abort purges the buffer copy, so outside a
+ * mid-commit crash window nothing is ever ONLINE without its tape counterpart.
+ * Idempotent: NEARLINE/OFFLINE (already released) is NGX_OK with 0 bytes;
+ * ABSENT is ENOENT (the logical object does not exist — distinct from "already
+ * evicted"). Bytes reclaimed = the residency-reported size of the buffer copy.
+ * No *_cred twin: the MSS adapter has no per-user leg (every verb runs as the
+ * service), so a cred-accepting slot here would BE the confused deputy — the
+ * *_maybe_cred forwarder instead refuses per-user evicts in DENY mode. */
 static ngx_int_t
-sd_frm_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
+sd_frm_evict(brix_sd_instance_t *inst, const char *path, uint64_t *bytes_out)
+{
+    sd_frm_state *st = SD_FRM_ST(inst);
+    off_t         sz = 0;
+    time_t        mt = 0;
+    int           res = st->mss->residency(st->mss_ctx, path, &sz, &mt);
+
+    if (bytes_out != NULL) {
+        *bytes_out = 0;
+    }
+    if (res == BRIX_RESIDENCY_ABSENT) {
+        errno = ENOENT;
+        return NGX_ERROR;
+    }
+    if (res != BRIX_RESIDENCY_ONLINE) {
+        return NGX_OK;                       /* already released — idempotent */
+    }
+    if (st->mss->purge == NULL || st->mss->purge(st->mss_ctx, path) != 0) {
+        errno = EIO;
+        return NGX_ERROR;
+    }
+    if (bytes_out != NULL) {
+        *bytes_out = (uint64_t) (sz > 0 ? sz : 0);
+    }
+    return NGX_OK;
+}
+
+static ngx_int_t
+sd_frm_recall_common(brix_sd_instance_t *inst, const char *key,
+    char reqid_out[40], const char *principal)
 {
     sd_frm_state *st  = SD_FRM_ST(inst);
     ngx_log_t    *log = (ngx_cycle != NULL) ? ngx_cycle->log : NULL;
@@ -283,7 +315,7 @@ sd_frm_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
             time_t mt = 0;
 
             (void) st->mss->residency(st->mss_ctx, key, &sz, &mt);
-            brix_xfer_finish(BRIX_XFER_TAPE, "in", key, NULL,
+            brix_xfer_finish(BRIX_XFER_TAPE, "in", key, principal,
                 (size_t) (sz > 0 ? sz : 0), BRIX_XFER_OK, 0, log);
         }
         return NGX_OK;               /* online now - the cache tier does a normal fill */
@@ -294,92 +326,33 @@ sd_frm_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
         /* Terminal recall failure books a kind=tape/error line; EAGAIN (async
          * still in flight) is non-terminal and must not be recorded. */
         if (recalled && e != EAGAIN) {
-            brix_xfer_finish(BRIX_XFER_TAPE, "in", key, NULL, 0,
+            brix_xfer_finish(BRIX_XFER_TAPE, "in", key, principal, 0,
                 BRIX_XFER_SRC_ERR, e, log);
         }
         return (e == EAGAIN) ? NGX_AGAIN : NGX_ERROR;
     }
 }
 
-/* ---- migrate via the staged-write path (online buffer -> tape on commit) ---- */
-
-static brix_sd_staged_t *
-sd_frm_staged_open(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, int *err_out)
-{
-    sd_frm_state        *st = SD_FRM_ST(inst);
-    sd_frm_staged_state *ss;
-    brix_sd_staged_t  *h;
-    int                  fd;
-
-    fd = st->mss->create_online(st->mss_ctx, final_path, mode);
-    if (fd < 0) {
-        if (err_out) { *err_out = errno ? errno : EIO; }
-        return NULL;
-    }
-    ss = calloc(1, sizeof(*ss));
-    h  = calloc(1, sizeof(*h));
-    if (ss == NULL || h == NULL) {
-        (void) close(fd);
-        free(ss);
-        free(h);
-        if (err_out) { *err_out = ENOMEM; }
-        return NULL;
-    }
-    ss->fst = st;
-    ss->fd  = fd;
-    ngx_cpystrn((u_char *) ss->key, (u_char *) final_path, sizeof(ss->key));
-    h->inst  = inst;
-    h->state = ss;
-    return h;
-}
-
-static ssize_t
-sd_frm_staged_write(brix_sd_staged_t *st, const void *buf, size_t len, off_t off)
-{
-    sd_frm_staged_state *ss = st->state;
-
-    return pwrite(ss->fd, buf, len, off);
-}
-
 static ngx_int_t
-sd_frm_staged_commit(brix_sd_staged_t *st, int noreplace)
+sd_frm_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
 {
-    sd_frm_staged_state *ss = st->state;
-    int                  rc;
-
-    (void) noreplace;
-    if (ss->fd >= 0) {
-        (void) close(ss->fd);
-        ss->fd = -1;
-    }
-    /* Publish: migrate the online-buffer object to tape. */
-    rc = ss->fst->mss->migrate(ss->fst->mss_ctx, ss->key);
-    if (rc != 0) {
-        /* Ownership contract: only a SUCCESSFUL commit consumes the handle. A
-         * failed migrate must leave st+ss valid — every caller aborts a failed
-         * commit (stage_engine, cstb_pump_and_commit, cache fetch), and abort
-         * frees them. Freeing here made that mandatory abort a use-after-free,
-         * a double free, and a second purge of the online buffer. */
-        return NGX_ERROR;
-    }
-    free(ss);
-    free(st);
-    return NGX_OK;
+    return sd_frm_recall_common(inst, key, reqid_out, NULL);
 }
 
-static void
-sd_frm_staged_abort(brix_sd_staged_t *st)
+/* recall_cred (phase-107 C2) — SAME recall, attributed. The MSS adapter has no
+ * per-user execution leg (every verb runs as the service — the reason evict has
+ * no twin), but the tape LEDGER does: this twin books the kind=tape line under
+ * the requesting principal instead of anonymously, so a per-user kXR_prepare
+ * on an frm export is auditable to who asked for the tape mount. The recall is
+ * SYNCHRONOUS (no parking handle), so borrowing the cred for the call's
+ * duration retains nothing — the copy rule in sd.h binds only a driver whose
+ * recall outlives the call. */
+static ngx_int_t
+sd_frm_recall_cred(brix_sd_instance_t *inst, const char *key,
+    const brix_sd_cred_t *cred, char reqid_out[40])
 {
-    sd_frm_staged_state *ss = st->state;
-
-    if (ss->fd >= 0) {
-        (void) close(ss->fd);
-        ss->fd = -1;
-    }
-    (void) ss->fst->mss->purge(ss->fst->mss_ctx, ss->key);
-    free(ss);
-    free(st);
+    return sd_frm_recall_common(inst, key, reqid_out,
+                                cred != NULL ? cred->principal : NULL);
 }
 
 /* §3.7 pure-tape enumeration: the dir cursor snapshots the MSS listing at
@@ -492,14 +465,18 @@ static const brix_sd_driver_t brix_sd_frm_driver = {
     .name = "frm",
     .caps = BRIX_SD_CAP_NEARLINE | BRIX_SD_CAP_RANGE_READ
           | BRIX_SD_CAP_RANDOM_WRITE | BRIX_SD_CAP_FD | BRIX_SD_CAP_DIRS
-          | BRIX_SD_CAP_DIRS_WRITE,   /* §3.7 rcreate: mkdir via mss->mkpath */
+          | BRIX_SD_CAP_DIRS_WRITE    /* §3.7 rcreate: mkdir via mss->mkpath */
+          /* C6: every kind advisory via the MSS residency probe (atomic=0) */
+          | BRIX_SD_CAP_PRECOND,
     .open          = sd_frm_open,
     .close         = sd_frm_close,
     .pread         = sd_frm_pread,
     .fstat         = sd_frm_fstat,
     .stat          = sd_frm_stat,
     .recall        = sd_frm_recall,
+    .recall_cred   = sd_frm_recall_cred, /* C2: ledger-attributed twin */
     .residency     = sd_frm_residency,
+    .evict         = sd_frm_evict,        /* C2: release the online-buffer copy */
     .opendir       = sd_frm_opendir,
     .readdir       = sd_frm_readdir,
     .closedir      = sd_frm_closedir,
@@ -508,6 +485,11 @@ static const brix_sd_driver_t brix_sd_frm_driver = {
     .staged_write  = sd_frm_staged_write,
     .staged_commit = sd_frm_staged_commit,
     .staged_abort  = sd_frm_staged_abort,
+    .sync_publish  = sd_frm_sync_publish,   /* phase-107 C3: flush the online
+                                             * buffer's directory entry */
+    .exchange      = sd_frm_exchange,       /* C6: online swap + tape catch-up
+                                             * (no _cred twin: no per-user MSS
+                                             * leg, same as evict_cred) */
 };
 
 
@@ -572,12 +554,12 @@ brix_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
     inst->driver = &brix_sd_frm_driver;
     inst->caps   = brix_sd_frm_driver.caps;  /* effective caps default = descriptor
                                               * caps (matches brix_sd_instance_create);
-                                              * without this brix_sd_caps() reports 0
-                                              * and the CAP_NEARLINE residency/recall
-                                              * gates never see the tape driver. */
+                                              * without this brix_sd_caps() reports 0 and
+                                              * the CAP_NEARLINE gates never see tape. */
     inst->log    = log;
     inst->pool   = NULL;
     inst->state  = st;
+    inst->domain = BRIX_VFS_DOMAIN_EXPORT;   /* strict default (C9) */
     return inst;
 }
 

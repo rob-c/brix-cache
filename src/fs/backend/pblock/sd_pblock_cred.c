@@ -157,7 +157,7 @@ sd_pblock_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags,
  * final path (overwrite) or W on the parent (create); owner = requester. */
 brix_sd_staged_t *
 sd_pblock_staged_open_cred(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, const brix_sd_cred_t *cred, int *err_out)
+    mode_t mode, off_t declared_size, const brix_sd_cred_t *cred, int *err_out)
 {
     pblock_ids_t ids;
 
@@ -171,8 +171,8 @@ sd_pblock_staged_open_cred(brix_sd_instance_t *inst, const char *final_path,
         if (err_out != NULL) { *err_out = errno; }
         return NULL;
     }
-    return sd_pblock_staged_open_as(inst, final_path, mode, ids.uid, ids.gid,
-                                    err_out);
+    return sd_pblock_staged_open_as(inst, final_path, mode, declared_size,
+                                    ids.uid, ids.gid, err_out);
 }
 
 /* ---- namespace ------------------------------------------------------------- */
@@ -202,6 +202,42 @@ sd_pblock_unlink_cred(brix_sd_instance_t *inst, const char *path, int is_dir,
         return NGX_ERROR;
     }
     return sd_pblock_unlink(inst, path, is_dir);
+}
+
+/* Per-key gate for the C4 batch: the same remove_gate the single unlink runs,
+ * bound to the identity resolved once for the whole window. */
+typedef struct {
+    pblock_state_t     *st;
+    const pblock_ids_t *ids;
+} pblock_batch_gate_ctx_t;
+
+static ngx_int_t
+pblock_unlink_batch_gate(void *gctx, const char *path)
+{
+    const pblock_batch_gate_ctx_t *c = gctx;
+
+    return remove_gate(c->st, path, c->ids);
+}
+
+/* unlink_many_cred - identity resolved ONCE, then the shared transactional
+ * core (sd_pblock_batch.c) runs remove_gate + unlink per key. A service
+ * identity skips the gates exactly as the single slot does. */
+ngx_int_t
+sd_pblock_unlink_many_cred(brix_sd_instance_t *inst, brix_sd_unlink_batch_t *b,
+    const brix_sd_cred_t *cred)
+{
+    pblock_ids_t            ids;
+    pblock_batch_gate_ctx_t c;
+
+    if (resolve_or_fail(inst, cred, &ids) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (ids.service) {
+        return sd_pblock_unlink_many(inst, b);
+    }
+    c.st  = inst->state;
+    c.ids = &ids;
+    return sd_pblock_unlink_many_core(inst, b, pblock_unlink_batch_gate, &c);
 }
 
 /* mkdir_cred — W+X on the parent; the new directory is owned by the requester. */
@@ -263,6 +299,29 @@ sd_pblock_rename_cred(brix_sd_instance_t *inst, const char *src,
         }
     }
     return sd_pblock_rename(inst, src, dst, noreplace);
+}
+
+/* exchange_cred — both names exist and both contents are replaced, so the
+ * authority needed is removal authority on EACH (parent W+X plus the sticky
+ * rule); no placement gate — both slots stay occupied throughout (C6). */
+ngx_int_t
+sd_pblock_exchange_cred(brix_sd_instance_t *inst, const char *a, const char *b,
+    const brix_sd_cred_t *cred)
+{
+    pblock_state_t *st = inst->state;
+    pblock_ids_t    ids;
+
+    if (resolve_or_fail(inst, cred, &ids) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (!ids.service) {
+        if (remove_gate(st, a, &ids) != NGX_OK
+            || remove_gate(st, b, &ids) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    }
+    return sd_pblock_exchange(inst, a, b);
 }
 
 /* setattr_cred — chmod/chown are owner-only; changing the uid at all is
@@ -423,6 +482,37 @@ sd_pblock_server_copy_cred(brix_sd_instance_t *inst, const char *src,
     }
     return sd_pblock_server_copy_as(inst, src, dst, bytes_out, ids.uid,
                                     ids.gid);
+}
+
+/* recall_cred (phase-107 C2) — R on the object: a recall exists to make the
+ * object READABLE, so the identity that may read it is the identity that may
+ * stage it (and pays the simulated tape latency). pblock is its own multi-user
+ * authority, so unlike the wire drivers the twin does not re-sign anything —
+ * it gates and delegates, like every R/W-ruled slot above. The recall is
+ * bounded-synchronous (pblock_nearline.h), so nothing outlives the call and
+ * the borrowed cred is never retained. */
+ngx_int_t
+sd_pblock_recall_cred(brix_sd_instance_t *inst, const char *key,
+    const brix_sd_cred_t *cred, char reqid_out[40])
+{
+    const char *path = key;              /* catalog keys ARE the object paths */
+
+    PBLOCK_CRED_GATED(R_OK, NGX_ERROR,
+                      sd_pblock_recall(inst, key, reqid_out));
+}
+
+/* evict_cred (phase-107 C2) — W on the object: eviction destroys the online
+ * copy, the same class of mutation as truncate/removexattr, so it takes the
+ * same W_OK rule (R would let any reader flush another user's staged data
+ * back to simulated tape and re-impose the recall latency on the owner).
+ * Gate-and-delegate like every slot above; the demote is synchronous, so the
+ * borrowed cred is never retained. */
+ngx_int_t
+sd_pblock_evict_cred(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out, const brix_sd_cred_t *cred)
+{
+    PBLOCK_CRED_GATED(W_OK, NGX_ERROR,
+                      sd_pblock_evict(inst, path, bytes_out));
 }
 
 /* opendir_cred — R on the directory (listing = reading the directory). */

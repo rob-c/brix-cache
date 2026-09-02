@@ -44,6 +44,13 @@ int pblock_nearline_res(const pblock_state_t *st, const char *path,
  * return -1/errno=EIO (the recall failed; the object is gone). */
 int pblock_nearline_recall(const pblock_state_t *st, const char *path);
 
+/* Evict (phase-107 C2) — the inverse of recall: demote `path` to NEARLINE (the
+ * simulated online copy is released; the simulated tape copy survives, so a
+ * later recall restages it). Idempotent: NEARLINE/OFFLINE (already released)
+ * is 0; LOST is -1/errno=ENOENT (the object is gone — distinct from "already
+ * evicted"). -1/errno=EIO on a sqlite failure. */
+int pblock_nearline_evict(const pblock_state_t *st, const char *path);
+
 /* Row maintenance at namespace boundaries: residency follows the logical path
  * (a rename moves it; an unlink/overwrite discards it — new content is ONLINE
  * by absence). Best-effort: errors are swallowed (simulation bookkeeping must

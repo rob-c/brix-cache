@@ -134,7 +134,7 @@ def test_public_manifest_is_unique_sorted_and_exactly_matches_star_import():
     assert brixtest.__all__ == ["__version__", *sorted(PUBLIC_EXPORTS)]
     assert len(PUBLIC_EXPORTS) == sum(len(group) for group in PUBLIC_GROUPS.values())
     assert all(PUBLIC_GROUPS.values())
-    assert brixtest.__version__ == "0.15.0"
+    assert brixtest.__version__ == "0.16.0"
 
 
 def test_typed_package_facade_exactly_reexports_the_runtime_contract():
@@ -266,7 +266,7 @@ def test_api_cli_browses_the_same_contract_in_human_and_json_forms():
         command, capture_output=True, text=True, timeout=10, check=False,
     )
     assert human.returncode == 0, human.stderr
-    assert "BriXTest 0.15.0 public API" in human.stdout
+    assert "BriXTest 0.16.0 public API" in human.stdout
     assert "api_contract()" in human.stdout and "Run" in human.stdout
     assert "fixtures: brixtest_metrics, metrics, run" in human.stdout
 
@@ -276,7 +276,7 @@ def test_api_cli_browses_the_same_contract_in_human_and_json_forms():
     )
     assert machine.returncode == 0, machine.stderr
     payload = json.loads(machine.stdout)
-    assert payload["version"] == "0.15.0"
+    assert payload["version"] == "0.16.0"
     assert {row["name"] for row in payload["symbols"]} == set(brixtest.__all__)
 
 

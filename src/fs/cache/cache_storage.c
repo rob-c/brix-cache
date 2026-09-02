@@ -387,6 +387,11 @@ brix_cache_storage_init(ngx_stream_brix_srv_conf_t *conf, ngx_cycle_t *cycle)
         ngx_str_t no_backend = ngx_null_string;
         conf->cache_storage_inst = cache_build_instance(pool, log,
             &conf->cache_root, &no_backend, conf->cache_rootfd);
+        if (conf->cache_storage_inst != NULL) {
+            /* cache_root is service storage, never a client-named export (C9) */
+            ((brix_sd_instance_t *) conf->cache_storage_inst)->domain =
+                BRIX_VFS_DOMAIN_CACHE;
+        }
     }
 
     /* Policy-layer cstore over the bare read-cache store: eviction / reaper /

@@ -1,6 +1,20 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_pgread_wire_conformance_helpers")
 
+def _drain_rest_of_train(sock, first_body, pages):
+    """Follow a kXR_status train to its kXR_FinalResult frame (resptype at
+    body[7]; 1 = kXR_PartialResult) and return the concatenated page bytes."""
+    body = first_body
+    while len(body) >= STATUS_BODY_MIN_LEN and body[7] == 1:
+        _, status, body = _read_response(sock)
+        assert status == kXR_status, f"mid-train status {status}"
+        bdy_dlen = struct.unpack(
+            "!i", body[STATUS_BODY_DLEN_OFF:STATUS_BODY_DLEN_OFF + 4])[0]
+        if bdy_dlen > 0:
+            pages += _recv_exact(sock, bdy_dlen)
+    return pages
+
+
 class TestPgreadWireConformance:
     """Frame, CRC, EOF, parity, cap, and error behaviour of kXR_pgread."""
 
@@ -133,7 +147,11 @@ class TestPgreadWireConformance:
 
     def test_huge_rlen_capped(self, rd_handle):
         """An enormous rlen (INT32_MAX) is capped server-side to the available
-        file bytes — no crash, no over-read, no wild allocation."""
+        file bytes — no crash, no over-read, no wild allocation.  The capped
+        request is over-window, so a kXR_status reply arrives as a windowed
+        TRAIN (kXR_PartialResult ... kXR_FinalResult, resptype at body[7]);
+        the property under test — no over-read — is asserted on the train's
+        total page bytes."""
         sock, fh = rd_handle
         _, status, body, pages = _pgread(sock, fh, 0, 0x7FFFFFFF,
                                          streamid=b"\x00\x29")
@@ -142,6 +160,7 @@ class TestPgreadWireConformance:
         # is not hard-failed — the property under test is "no over-read".
         assert status in (kXR_status, kXR_ok, kXR_error)
         if status == kXR_status:
+            pages = _drain_rest_of_train(sock, body, pages)
             # Page data <= file size + per-page CRC overhead (4 bytes/page).
             max_pages = DATA_SIZE // PG_PAGESZ + 1
             assert len(pages) <= DATA_SIZE + max_pages * 4, (

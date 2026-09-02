@@ -155,6 +155,10 @@ PUBLIC_GROUPS: Mapping[str, Mapping[str, str]] = {
         "brixtest.auth",
     ),
     "network": dict.fromkeys(("HostMapping", "host_mapping"), "brixtest.network"),
+    "native": dict.fromkeys(
+        ("OutputExpectation", "expect_output", "native_test"),
+        "brixtest.native",
+    ),
     "evidence": dict.fromkeys(
         (
             "CollectorSpec",

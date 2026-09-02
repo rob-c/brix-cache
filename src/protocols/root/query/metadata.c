@@ -328,6 +328,8 @@ xattr_resolve_and_probe(brix_ctx_t *ctx, ngx_connection_t *c,
         conf->common.root_canon, NULL,
         brix_vfs_policy_from_write_enable(conf->common.allow_write),
         0 /* is_tls */, NULL, full_path);
+    /* Persistent per-worker confinement rootfd (op_vfs_ctx pattern). */
+    vctx->rootfd = conf->rootfd;
     if (brix_vfs_probe(vctx, 0 /* follow */, vst) != NGX_OK) {
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
         return brix_send_error(ctx, c, brix_kxr_from_errno(errno),

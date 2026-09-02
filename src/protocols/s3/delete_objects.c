@@ -2,19 +2,21 @@
  * delete_objects.c — S3 DeleteObjects handler (POST /bucket/?delete).
  *
  * Parses a list of <Object><Key>…</Key></Object> entries from the request
- * body, deletes each key, and returns a <DeleteResult> XML response with
+ * body, deletes them, and returns a <DeleteResult> XML response with
  * <Deleted> or <Error> entries for each object.
  *
  * The body XML parser uses libxml2 with network access disabled, so XML
  * entities in <Key> values are decoded correctly before filesystem resolution.
- * Non-regular objects (directories) that fail with EISDIR/EPERM are retried
- * as rmdir.  ENOENT is treated as success per S3 idempotency rules.
+ * ENOENT is treated as success per S3 idempotency rules.
  */
 /* WHY: S3 DeleteObjects supports batch deletion in a single POST request —
  * far more efficient than individual DELETE calls for pipelines that need to
- * remove hundreds or thousands of objects. Non-regular-object fallback
- * (unlink → rmdir) handles directories transparently; ENOENT is treated as
- * success per S3 idempotency semantics. */
+ * remove hundreds or thousands of objects. Phase-107 C4 makes the server side
+ * match: every key is collected and CONFINED first, then disposed by ONE
+ * brix_vfs_delete_many() call (one write gate, one OP_DELETE observation, and
+ * over a remote backend one signed DeleteObjects round trip per 1,000-key
+ * window instead of 1,000). The per-object stages live in
+ * delete_objects_batch.c; the XML rendering in delete_objects_xml.c. */
 
 #include "s3.h"
 #include "core/http/http_body.h"
@@ -41,51 +43,6 @@
  * up to 1000 keys. The body XML cap (1 MiB) prevents oversized payloads; the output
  * buffer is sized to hold escaped per-key <Deleted>/<Error> entries for the
  * capped request body without reallocating. */
-
-/*
- * s3_delete_one — remove one resolved object through the VFS unlink surface
- * (OP_DELETE metric + access-log + write gate + confinement). S3 DeleteObjects
- * is idempotent, so a missing key (ENOENT) is reported as success. On a real
- * failure returns NGX_ERROR and fills *err with the S3 error pair (errno is
- * mapped the same way the old brix_ns_delete status was: EACCES/EPERM →
- * AccessDenied, ENOTEMPTY → BucketNotEmpty, else InternalError).
- */
-static ngx_int_t
-s3_delete_one(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    const char *fs_path, s3_del_err_t *err)
-{
-    ngx_http_s3_req_ctx_t *s3ctx =
-        ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
-    brix_vfs_ctx_t       vctx;
-    int                    is_tls = brix_http_request_is_tls(r);
-
-    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
-        cf->common.root_canon, cf->common.cache_root_canon,
-        brix_vfs_policy_from_write_enable(cf->common.allow_write),
-        is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
-
-    if (brix_vfs_unlink(&vctx) == NGX_OK) {
-        /* phase-97 §5: a real removal — retract it from the manager inventory. */
-        brix_cns_emit_at(cf->common.root_canon, BRIX_CNS_DEL, fs_path, 0, 0);
-        return NGX_OK;
-    }
-
-    if (errno == ENOENT) {
-        return NGX_OK;   /* idempotent-missing: nothing removed, nothing to say */
-    }
-
-    if (errno == EACCES || errno == EPERM) {
-        err->code    = "AccessDenied";
-        err->message = "Access Denied.";
-    } else if (errno == ENOTEMPTY) {
-        err->code    = "BucketNotEmpty";
-        err->message = "The directory is not empty.";
-    } else {
-        err->code    = "InternalError";
-        err->message = "Internal server error.";
-    }
-    return NGX_ERROR;
-}
 
 /*
  * s3_delete_objects_finish — write the buffered DeleteResult XML and finalise
@@ -166,20 +123,6 @@ s3_delete_objects_finish(ngx_http_request_t *r,
  */
 
 static void s3_delete_objects_body_handler_inner(ngx_http_request_t *r);
-
-/*
- * s3_del_ctx_t — the state a single per-<Object> stage needs to render its
- * result: the request (for metrics/pool/identity), the location config (root
- * confinement + write gate), and the shared output-XML buffer plus its running
- * length. Passing it as one value keeps the per-object helpers under the
- * five-parameter limit and makes the data flow through the batch loop explicit.
- */
-typedef struct {
-    ngx_http_request_t      *r;
-    ngx_http_s3_loc_conf_t  *cf;
-    ngx_buf_t               *xml_buf;
-    size_t                  *xml_len;
-} s3_del_ctx_t;
 
 /*
  * s3_delete_parse_body — read the buffered POST body and parse it into a
@@ -298,106 +241,6 @@ s3_delete_result_init(ngx_http_request_t *r, ngx_buf_t *xml_buf,
 }
 
 /*
- * s3_delete_dispose_key — resolve one already-extracted key and render its
- * batch result (<Deleted> or <Error>).
- *
- * WHAT: Confines the key to root_canon via s3_resolve_key(), and on success
- *   deletes it through s3_delete_one(); appends the matching per-key XML.
- * WHY: This is the per-key auth+delete stage. The path-escape (AccessDenied)
- *   check runs BEFORE any unlink — a key that resolves outside the export root
- *   is rejected without ever touching the filesystem, which is
- *   security-load-bearing and must precede the delete.
- * HOW: Returns NGX_OK once a result element has been appended, or NGX_ERROR if
- *   the output buffer overflowed (fatal → caller maps to 500).
- */
-static ngx_int_t
-s3_delete_dispose_key(s3_del_ctx_t *dc, const xmlChar *key_text, size_t key_len)
-{
-    char         fs_path[PATH_MAX];
-    s3_del_err_t err;
-    char         key_str[S3_MAX_KEY];
-    int          rrc;
-
-    ngx_memcpy(key_str, key_text, key_len);
-    key_str[key_len] = '\0';
-
-    rrc = s3_resolve_key_ex(dc->cf->common.root_canon, key_str, fs_path,
-                            sizeof(fs_path), dc->cf->common.cache_store_endpoint);
-    if (rrc == 404) {
-        /* A RESERVED key must read exactly as an absent one, and DeleteObjects
-         * is idempotent — s3_delete_one() below reports ENOENT as <Deleted>.
-         * So report <Deleted> and touch nothing: an <Error> of any code would
-         * single the name out of a batch of keys that are merely not there. */
-        return s3_delete_xml_append_deleted(dc->xml_buf, dc->xml_len,
-                                            key_text, key_len);
-    }
-    if (rrc != 0) {
-        s3_key_error_t kerr;
-        s3_resolve_key_error(rrc, &kerr);
-        err.code    = kerr.code;
-        err.message = kerr.message;
-        return s3_delete_xml_append_error(dc->xml_buf, dc->xml_len,
-                                          key_text, key_len, &err);
-    }
-
-    if (s3_delete_one(dc->r, dc->cf, fs_path, &err) == NGX_OK) {
-        return s3_delete_xml_append_deleted(dc->xml_buf, dc->xml_len,
-                                            key_text, key_len);
-    }
-
-    return s3_delete_xml_append_error(dc->xml_buf, dc->xml_len,
-                                      key_text, key_len, &err);
-}
-
-/*
- * s3_delete_process_object — process one <Object> node end to end.
- *
- * WHAT: Extracts and length-validates the object's <Key>, then either appends
- *   a per-key InvalidArgument <Error> (empty/too-long key) or dispatches the
- *   key to s3_delete_dispose_key() for confinement, deletion and result XML.
- * WHY: One object is one loop iteration; isolating it flattens the batch loop
- *   and keeps every xmlFree paired with its xmlNodeGetContent on all exits.
- * HOW: Returns NGX_OK (result appended — continue the batch), NGX_ERROR
- *   (output buffer overflow — fatal), or NGX_ABORT (malformed object: missing
- *   <Key> or unreadable content — whole request is MalformedXML/500). The
- *   *malformed_500 out-flag distinguishes the two NGX_ABORT sub-cases.
- */
-static ngx_int_t
-s3_delete_process_object(s3_del_ctx_t *dc, xmlNodePtr obj, int *malformed_500)
-{
-    xmlNodePtr key_node;
-    xmlChar   *key_text;
-    size_t     key_len;
-    ngx_int_t  rc;
-
-    *malformed_500 = 0;
-
-    key_node = s3_delete_xml_find_child(obj, "Key");
-    if (key_node == NULL) {
-        return NGX_ABORT;   /* missing <Key> → MalformedXML */
-    }
-
-    key_text = xmlNodeGetContent(key_node);
-    if (key_text == NULL) {
-        *malformed_500 = 1;
-        return NGX_ABORT;   /* unreadable content → 500 */
-    }
-    key_len = (size_t) xmlStrlen(key_text);
-
-    if (key_len == 0 || key_len >= S3_MAX_KEY) {
-        s3_del_err_t err = { "InvalidArgument",
-                             "Object key is empty or too long." };
-        rc = s3_delete_xml_append_error(dc->xml_buf, dc->xml_len,
-                                        key_text, key_len, &err);
-    } else {
-        rc = s3_delete_dispose_key(dc, key_text, key_len);
-    }
-
-    xmlFree(key_text);
-    return rc;
-}
-
-/*
  * Phase 40: the DeleteObjects body is read asynchronously, so the dispatch
  * wrapper already cleared the impersonation principal.  Re-establish it (mirrors
  * s3_put_body_handler) so each unlink/rmdir runs under the mapped user's DAC via
@@ -415,29 +258,39 @@ s3_delete_objects_body_handler(ngx_http_request_t *r)
 }
 
 /*
- * s3_delete_run_batch — iterate the <Object> children of <Delete>, rendering a
- * per-key result for each into the output XML.
+ * s3_delete_run_batch — collect the <Object> children of <Delete>, dispose
+ * them through ONE VFS batch call, and render a per-key result for each.
  *
- * WHAT: Enforces the S3_DEL_MAX_KEYS cap, requires at least one <Object>, and
- *   delegates each object to s3_delete_process_object(); non-<Object> children
- *   are skipped.
- * WHY: Separating the loop from the surrounding setup/teardown keeps this
- *   function's only concern the batch iteration and its client-facing
- *   MalformedXML edge cases (too many keys / no objects).
- * HOW: Returns NGX_OK once every object has an appended result (caller sends
- *   the buffered response). On any error it finalises the response here and
+ * WHAT: Enforces the S3_DEL_MAX_KEYS cap, requires at least one <Object>,
+ *   collects every key via s3_delete_collect_one() (validate + confine — no
+ *   deletes yet), then s3_delete_execute() (one brix_vfs_delete_many) and
+ *   s3_delete_render() (client-ordered <Deleted>/<Error> elements).
+ * WHY: Collect-before-execute means a malformed <Object> anywhere in the body
+ *   now rejects the request BEFORE anything is deleted (the old
+ *   parse-and-delete loop had already removed the keys ahead of it), and the
+ *   batch runs under exactly one write gate and one metric observation
+ *   (phase-107 C4).
+ * HOW: Returns NGX_OK once every result element is appended (caller sends the
+ *   buffered response). On any error it finalises the response here and
  *   returns NGX_DONE — the malformed sub-cases pick the exact message.
  */
 static ngx_int_t
 s3_delete_run_batch(s3_del_ctx_t *dc, ngx_uint_t method_slot, xmlNodePtr root)
 {
     ngx_http_request_t *r = dc->r;
-    xmlNodePtr          obj;
-    ngx_uint_t          nkeys = 0;
+    s3_del_item_t      *items;
+    xmlNodePtr           obj;
+    ngx_uint_t           nkeys = 0;
+
+    items = ngx_palloc(r->pool, S3_DEL_MAX_KEYS * sizeof(s3_del_item_t));
+    if (items == NULL) {
+        s3_metrics_finalize_request_method(r, method_slot,
+                                           NGX_HTTP_INTERNAL_SERVER_ERROR);
+        return NGX_DONE;
+    }
 
     for (obj = root->children; obj != NULL; obj = obj->next) {
-        int       malformed_500 = 0;
-        ngx_int_t rc;
+        int malformed_500 = 0;
 
         if (!s3_delete_xml_name_is(obj, "Object")) {
             continue;
@@ -451,28 +304,22 @@ s3_delete_run_batch(s3_del_ctx_t *dc, ngx_uint_t method_slot, xmlNodePtr root)
                                   "many keys."));
             return NGX_DONE;
         }
-        nkeys++;
 
-        rc = s3_delete_process_object(dc, obj, &malformed_500);
-        if (rc == NGX_OK) {
-            continue;
-        }
-        if (rc == NGX_ERROR) {
-            s3_metrics_finalize_request_method(r, method_slot,
-                                               NGX_HTTP_INTERNAL_SERVER_ERROR);
+        if (s3_delete_collect_one(dc, obj, &items[nkeys], &malformed_500)
+            != NGX_OK)
+        {
+            if (malformed_500) {
+                s3_metrics_finalize_request_method(r, method_slot,
+                                                   NGX_HTTP_INTERNAL_SERVER_ERROR);
+            } else {
+                s3_metrics_finalize_request_method(r, method_slot,
+                    s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST,
+                                      "MalformedXML",
+                                      "DeleteObjects object is missing Key."));
+            }
             return NGX_DONE;
         }
-        /* rc == NGX_ABORT: malformed object */
-        if (malformed_500) {
-            s3_metrics_finalize_request_method(r, method_slot,
-                                               NGX_HTTP_INTERNAL_SERVER_ERROR);
-        } else {
-            s3_metrics_finalize_request_method(r, method_slot,
-                s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST,
-                                  "MalformedXML",
-                                  "DeleteObjects object is missing Key."));
-        }
-        return NGX_DONE;
+        nkeys++;
     }
 
     if (nkeys == 0) {
@@ -481,6 +328,16 @@ s3_delete_run_batch(s3_del_ctx_t *dc, ngx_uint_t method_slot, xmlNodePtr root)
                               "MalformedXML",
                               "DeleteObjects request has no Object entries."));
         return NGX_DONE;
+    }
+
+    if (s3_delete_execute(dc, items, nkeys) != NGX_OK) {
+        return NGX_DONE;   /* response finalised (EROFS 403 or alloc 500) */
+    }
+
+    if (s3_delete_render(dc, items, nkeys) != NGX_OK) {
+        s3_metrics_finalize_request_method(r, method_slot,
+                                           NGX_HTTP_INTERNAL_SERVER_ERROR);
+        return NGX_DONE;   /* output buffer overflow */
     }
 
     return NGX_OK;
@@ -511,10 +368,11 @@ s3_delete_objects_body_handler_inner(ngx_http_request_t *r)
         return;
     }
 
-    dc.r       = r;
-    dc.cf      = cf;
-    dc.xml_buf = xml_buf;
-    dc.xml_len = &xml_len;
+    dc.r           = r;
+    dc.cf          = cf;
+    dc.method_slot = method_slot;
+    dc.xml_buf     = xml_buf;
+    dc.xml_len     = &xml_len;
 
     if (s3_delete_run_batch(&dc, method_slot, xmlDocGetRootElement(doc))
         != NGX_OK)

@@ -133,6 +133,10 @@ brix_disconnect_log_open_files(brix_ctx_t *ctx, ngx_connection_t *c,
 {
     int handle_index;
 
+    if (ctx->files == NULL) {
+        return;                 /* no handle was ever opened on this session */
+    }
+
     for (handle_index = 0; handle_index < BRIX_MAX_FILES; handle_index++) {
         brix_file_t *file;
         char           detail[64];

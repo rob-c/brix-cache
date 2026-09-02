@@ -114,6 +114,10 @@ brix_vbr_wrap_staging_shim(brix_sd_instance_t *top,
 
     store = brix_sd_instance_create(log, "posix",
                                       (void *) e->root_canon, &sderr);
+    if (store != NULL) {
+        store->domain = BRIX_VFS_DOMAIN_STAGE;   /* write-back buffer, not the
+                                                  * export itself (C9) */
+    }
     dec = (store != NULL)
         ? brix_sd_stage_create(top, store, NULL, e->root_canon, log) : NULL;
 
@@ -142,6 +146,9 @@ brix_vbr_wrap_stage_tier(brix_sd_instance_t *top,
     }
 
     store = brix_tier_build(&e->stage_tier, log);
+    if (store != NULL) {
+        store->domain = BRIX_VFS_DOMAIN_STAGE;   /* service storage (C9) */
+    }
     dec = (store != NULL)
         ? brix_sd_stage_create(top, store, &e->stage_policy, e->root_canon,
                                  log) : NULL;
@@ -169,6 +176,9 @@ brix_vbr_wrap_cache_tier(brix_sd_instance_t *top,
     }
 
     store = brix_tier_build(&e->cache_tier, log);
+    if (store != NULL) {
+        store->domain = BRIX_VFS_DOMAIN_CACHE;   /* service storage (C9) */
+    }
     local_root = (ngx_strcmp(e->cache_tier.driver, "posix") == 0
                   && e->cache_tier.path[0] != '\0') ? e->cache_tier.path : NULL;
     dec = (store != NULL)
@@ -186,6 +196,7 @@ brix_vbr_wrap_cache_tier(brix_sd_instance_t *top,
             brix_sd_instance_t *cold = brix_tier_build(&e->cold_tier, log);
 
             if (cold != NULL) {
+                cold->domain = BRIX_VFS_DOMAIN_CACHE;   /* service storage (C9) */
                 brix_sd_cache_set_cold(dec, cold);
                 ngx_log_error(NGX_LOG_NOTICE, log, 0,
                     "brix: cold cache tier (%s) attached under \"%s\"",
@@ -250,14 +261,26 @@ brix_vfs_backend_entry_build(brix_vfs_backend_entry_t *e, ngx_log_t *log)
 {
     brix_sd_instance_t *top;
 
-    if (e->inst != NULL) {
-        return e->inst;                /* already built in this worker */
+    if (e->inst != NULL && e->inst_cycle == (const void *) ngx_cycle) {
+        return e->inst;                /* already built under this cycle */
     }
     /* The built stack is memoized for the worker's whole life, and drivers
      * keep the log they are built with for later diagnostics (sd_http logs
      * selection/failover from fill threads). A request-time resolver hands
      * us its connection log, which dies with the connection — build with
-     * the cycle log instead so stored pointers never go stale. */
+     * the cycle log instead so stored pointers never go stale.
+     *
+     * The memo is keyed on the CYCLE the stack was built under. A stack built
+     * under an earlier cycle — config parse in the master, or the cycle before
+     * a reload — captured THAT cycle's log, and nginx closes that log's fd once
+     * the new cycle's log is open. The kernel then recycles the fd NUMBER (an
+     * accepted client socket takes it), so every log write through the stored
+     * pointer sprays log text into an unrelated fd — on a root:// plane that
+     * is wire corruption in the middle of a kXR response stream. Rebuilding
+     * under the current cycle re-captures a live log; the superseded stack is
+     * deliberately leaked (an in-flight fill thread may still hold it, and it
+     * is one small build per export per cycle change). */
+    e->inst = NULL;
     if (ngx_cycle != NULL && ngx_cycle->log != NULL) {
         log = ngx_cycle->log;
     }
@@ -271,6 +294,7 @@ brix_vfs_backend_entry_build(brix_vfs_backend_entry_t *e, ngx_log_t *log)
     top = brix_vbr_wrap_cache_tier(top, e, log);
 
     e->inst = top;
+    e->inst_cycle = (const void *) ngx_cycle;
     return e->inst;
 }
 
@@ -360,4 +384,72 @@ brix_vfs_backend_resolve_for_path(const char *abs_path, const char **root_out,
         *root_out = best->root_canon;
     }
     return brix_vfs_backend_entry_build(best, log);
+}
+
+/*
+ * Phase-107 C3 durable publish — the per-export brix_durable_publish flag.
+ *
+ * WHAT: set_durable records the merged flag at config time; durable answers at
+ *       publish time (staged_commit_internal, brix_vfs_rename).
+ * WHY:  The barrier's cost is one dirfsync per PUBLISH; a cache store whose
+ *       loss is a re-fetch may opt out. The lookup is keyed on the export's
+ *       canonical root exactly like the spill registration.
+ * HOW:  Inverted storage (no_durable_publish) so absence — an unregistered
+ *       root, a NULL root, a zeroed entry — is DURABLE: the failure this flag
+ *       can introduce is silent data loss, so it fails safe.
+ */
+void
+brix_vfs_backend_set_durable(const char *root_canon, ngx_flag_t on)
+{
+    brix_vfs_backend_entry_t *e = brix_vfs_backend_entry_get_or_create(root_canon);
+
+    if (e != NULL) {
+        e->no_durable_publish = (on == 0);
+    }
+}
+
+ngx_int_t
+brix_vfs_backend_durable(const char *root_canon)
+{
+    brix_vfs_backend_entry_t *e;
+
+    if (root_canon == NULL || root_canon[0] == '\0') {
+        return 1;
+    }
+    e = brix_vfs_backend_entry_find(root_canon);
+    return (e == NULL || !e->no_durable_publish) ? 1 : 0;
+}
+
+/*
+ * Phase-107 C7 lock enforcement — the per-export brix_lock_enforcement mode.
+ *
+ * WHAT: set_lock_enforcement records the merged mode at config time; the
+ *       getter answers on the mutation path (brix_vfs_require_unlocked).
+ * WHY:  The gate runs inside the VFS, where no merged conf is reachable; the
+ *       registry is the same root_canon-keyed channel durable_publish uses.
+ * HOW:  Zero — a zeroed entry, an unregistered root, a NULL root — is STRICT:
+ *       the failure a stray mode could introduce is a lock silently ignored,
+ *       so absence fails toward enforcement, and root_prepare registers only
+ *       exports that relaxed the default.
+ */
+void
+brix_vfs_backend_set_lock_enforcement(const char *root_canon, ngx_uint_t mode)
+{
+    brix_vfs_backend_entry_t *e = brix_vfs_backend_entry_get_or_create(root_canon);
+
+    if (e != NULL) {
+        e->lock_enforcement = mode & 3;
+    }
+}
+
+ngx_uint_t
+brix_vfs_backend_lock_enforcement(const char *root_canon)
+{
+    brix_vfs_backend_entry_t *e;
+
+    if (root_canon == NULL || root_canon[0] == '\0') {
+        return 0;
+    }
+    e = brix_vfs_backend_entry_find(root_canon);
+    return (e == NULL) ? 0 : e->lock_enforcement;
 }

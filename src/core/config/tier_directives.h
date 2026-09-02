@@ -4,9 +4,10 @@
  * stage_flush,cache_max_object,cache_evict_at,cache_evict_to,
  * cache_index_cache,cache_meta,cache_slice_size,cache_global_cas,
  * cache_passthrough,cache_passthrough_max,cache_prefetch,
- * cache_prefetch_window,cache_only_if_cached}).
+ * cache_prefetch_window,cache_only_if_cached,vfs_spill_path,vfs_spill_max,
+ * durable_publish,lock_enforcement}).
  *
- * WHAT: BRIX_TIER_DIRECTIVES(pfx, conf_t, ctx, conf_off) expands to the 17
+ * WHAT: BRIX_TIER_DIRECTIVES(pfx, conf_t, ctx, conf_off) expands to the 21
  *       ngx_command_t initializers for the tier grammar, all writing into the
  *       embedded ngx_http_brix_shared_conf_t `common` preamble.  The
  *       authoritative name list is the `ngx_string(pfx "...")` tokens in the
@@ -35,6 +36,18 @@ static ngx_conf_enum_t  brix_tier_stage_flush_enum[] = {
     { ngx_string("sync"),  0 },
     { ngx_string("async"), 1 },
     { ngx_null_string,     0 }
+};
+
+/* brix_lock_enforcement (phase-107 C7): does a live foreign WebDAV lock refuse
+ * mutations on every plane (strict — the default), warn-and-allow outside
+ * WebDAV (advisory), or bind WebDAV-only as before C7 (off). Values are
+ * brix_vfs_lock_enforcement_t (fs/vfs/vfs_policy.h); 0 = strict fails toward
+ * enforcement. */
+static ngx_conf_enum_t  brix_lock_enforcement_enum[] = {
+    { ngx_string("strict"),   0 },
+    { ngx_string("advisory"), 1 },
+    { ngx_string("off"),      2 },
+    { ngx_null_string,        0 }
 };
 
 /* brix_*_cache_meta map (BRIX_CMETA_* in fs/cache/cstore.h). */
@@ -168,7 +181,41 @@ static ngx_conf_enum_t  brix_tier_cache_meta_enum[] = {
       ngx_conf_set_flag_slot,                                                 \
       conf_off,                                                               \
       offsetof(conf_t, common.cache_only_if_cached),                          \
-      NULL }
+      NULL },                                                                 \
+    { ngx_string(pfx "vfs_spill_path"), /* <abs path>: writer reorder scratch \
+                                         * root (phase-107 C1) — validated    \
+                                         * absolute + OUTSIDE every export    \
+                                         * root at nginx -t */                \
+      (ctx) | NGX_CONF_TAKE1,                                                 \
+      ngx_conf_set_str_slot,                                                  \
+      conf_off,                                                               \
+      offsetof(conf_t, common.vfs_spill_path),                                \
+      NULL },                                                                 \
+    { ngx_string(pfx "vfs_spill_max"),  /* <size>: cap ONE spill's span       \
+                                         * (0 = unlimited; else >= 1m) */     \
+      (ctx) | NGX_CONF_TAKE1,                                                 \
+      ngx_conf_set_size_slot,                                                 \
+      conf_off,                                                               \
+      offsetof(conf_t, common.vfs_spill_max),                                 \
+      NULL },                                                                 \
+    { ngx_string(pfx "durable_publish"), /* on|off: fsync the published       \
+                                          * name's PARENT DIRECTORY at every  \
+                                          * publish (phase-107 C3); off = a   \
+                                          * crash may lose the name */        \
+      (ctx) | NGX_CONF_FLAG,                                                  \
+      ngx_conf_set_flag_slot,                                                 \
+      conf_off,                                                               \
+      offsetof(conf_t, common.durable_publish),                               \
+      NULL },                                                                 \
+    { ngx_string(pfx "lock_enforcement"), /* strict|advisory|off: does a live \
+                                           * foreign WebDAV lock refuse       \
+                                           * mutations on every plane         \
+                                           * (phase-107 C7) */                \
+      (ctx) | NGX_CONF_TAKE1,                                                 \
+      ngx_conf_set_enum_slot,                                                 \
+      conf_off,                                                               \
+      offsetof(conf_t, common.lock_enforcement),                              \
+      brix_lock_enforcement_enum }
 
 /*
  * BRIX_BACKEND_ASYNC_DIRECTIVES(pfx, conf_t, ctx, conf_off) — the three-directive

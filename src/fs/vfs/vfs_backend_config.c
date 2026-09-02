@@ -358,6 +358,49 @@ brix_vfs_backend_set_staging(const char *root_canon, int on)
 }
 
 void
+brix_vfs_backend_set_spill(const char *root_canon, const char *spill_root,
+    off_t spill_max)
+{
+    brix_vfs_backend_entry_t *e;
+
+    if (spill_root == NULL || spill_root[0] == '\0') {
+        return;
+    }
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
+    if (e == NULL) {
+        return;
+    }
+    ngx_cpystrn((u_char *) e->spill_root, (u_char *) spill_root,
+                sizeof(e->spill_root));
+    e->spill_max = spill_max;
+}
+
+ngx_int_t
+brix_vfs_backend_spill(const char *root_canon, const char **root_out,
+    off_t *max_out)
+{
+    brix_vfs_backend_entry_t *e;
+
+    if (root_out != NULL) {
+        *root_out = NULL;
+    }
+    if (max_out != NULL) {
+        *max_out = 0;
+    }
+    e = brix_vfs_backend_entry_find(root_canon);
+    if (e == NULL) {
+        return NGX_ERROR;
+    }
+    if (root_out != NULL && e->spill_root[0] != '\0') {
+        *root_out = e->spill_root;
+    }
+    if (max_out != NULL) {
+        *max_out = e->spill_max;
+    }
+    return NGX_OK;
+}
+
+void
 brix_vfs_backend_config_cache_store(const char *root_canon,
     const brix_tier_cfg_t *cfg, const brix_cache_policy_t *policy)
 {

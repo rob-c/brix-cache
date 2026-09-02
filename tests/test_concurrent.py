@@ -244,7 +244,7 @@ class TestPipelinedTLSReads:
 
     Only the roots:// endpoint reaches read_post_aio — a cleartext regular-file
     read is served zero-copy by sendfile and never buffers (see
-    read_sendfile_eligible).  Each read here is 1 MiB, i.e. <= BRIX_READ_WINDOW
+    read_sendfile_serve_fd).  Each read here is 1 MiB, i.e. <= BRIX_READ_WINDOW
     (2 MiB), so it is a single-shot buffered read: exactly the counted=1 path
     the flip lets pipeline (windowed reads > one window stay serial).
     """

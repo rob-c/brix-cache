@@ -45,6 +45,31 @@
 #define BRIX_READ_REQUEST_MAX  (64 * 1024 * 1024)
 
 /*
+ * Small-read sendfile floor.  A [memory header][in_file body] chain makes
+ * ngx_linux_sendfile_chain bracket every response with four setsockopt(2)
+ * calls (TCP_NODELAY off, TCP_CORK on ... CORK off, NODELAY on) around the
+ * writev+sendfile pair — six syscalls to move a 1 KiB frame.  Below this
+ * floor a kXR_read takes the memory path instead: one preadv2 (warm-cache
+ * probe) plus one writev of [hdr|data], zero setsockopts, and the copy cost
+ * of so few bytes is far below the setsockopt bracket it saves.  At and above
+ * the floor zero-copy sendfile wins and keeps the bracket.
+ */
+#define BRIX_READ_SENDFILE_MIN (32 * 1024)
+
+/*
+ * Post-auth request read-ahead stash.  Reading exact frame sizes makes every
+ * metadata request cost four socket syscalls (header recv, payload recv, and
+ * an ioctl(FIONREAD) after each exact fill inside ngx_unix_recv); asking for
+ * this much instead pulls a whole small request — usually header AND payload,
+ * often several pipelined requests — in ONE partial recv that nginx never
+ * follows with an ioctl.  Reads at least this large bypass the stash and go
+ * straight to the destination buffer (bulk write payloads must not pay a
+ * bounce copy).  Sized to hold any metadata request (paths cap at PATH_MAX)
+ * while staying a trivial per-connection allocation.
+ */
+#define BRIX_RECV_STASH_SIZE (8 * 1024)
+
+/*
  * Memory-budget streaming (Phase 31).
  *
  * BRIX_READ_WINDOW caps the *resident heap* a single in-flight read may hold
@@ -57,7 +82,10 @@
  * BRIX_SCRATCH_TRIM_THRESHOLD is the high-water mark above which a per-session
  * reusable scratch buffer is shrunk back to BRIX_READ_WINDOW once a request
  * has fully drained.  Hysteresis (2x window) avoids realloc thrash on sessions
- * that legitimately oscillate around the window size.
+ * that legitimately oscillate around the window size, and the trim is hot-
+ * deferred (brix_trim_scratch): a buffer used since the previous pass is kept
+ * warm for one more cycle so streaming transfers never free/realloc per
+ * request (equal-size churn made glibc mmap/munmap the block every request).
  *
  * BRIX_CONN_XFER_HEAP_MAX bounds the combined size of one connection's
  * transfer scratch buffers (read_scratch + read_hdr_scratch + write_scratch +

@@ -51,6 +51,12 @@
  * leaves a partial object at the final path (the WebDAV/S3 PUT invariant). Ignored
  * by brix_vfs_open (only O_TRUNC is forwarded from the writer to the handle open). */
 #define BRIX_VFS_O_ATOMIC      0x100
+/* Writer-session only (phase-107 C1): the caller declares up front that extents
+ * may arrive out of order, so a staged-only backend provisions its spill scratch
+ * at open instead of on the first reordered write. Without it the writer still
+ * self-promotes into spill mode on the first off != cursor write. Ignored by
+ * brix_vfs_open and by a random-write-capable backend (no ordering constraint). */
+#define BRIX_VFS_WRITER_O_UNORDERED  0x200
 
 typedef struct brix_vfs_file_s   brix_vfs_file_t;
 typedef struct brix_vfs_dir_s    brix_vfs_dir_t;
@@ -73,6 +79,11 @@ typedef struct {
     unsigned overwrite_dirs:1;
     unsigned preserve_xattrs:1;
     unsigned staged_commit:1;
+    /* Publish precondition on the DESTINATION (phase-107 C6), decided at the
+     * copy's own commit rather than by an edge check that races. BORROWED
+     * (NULL = none); refusals surface as EEXIST (ABSENT) / ECANCELED
+     * (MATCH_*), same contract as staged_commit's parameter. */
+    const brix_sd_precond_t *precond;
 } brix_vfs_copy_opts_t;
 
 typedef struct {
@@ -151,6 +162,25 @@ struct brix_vfs_ctx_s {
      * self-sufficient (no join to nginx's log). Borrowed: the pointee lives on
      * the request/connection, never freed by the VFS. */
     const char          *peer;
+    /* Phase-107 C5: the final object size the client declared for THIS write
+     * (root:// `oss.asize`, HTTP Content-Length on PUT, GridFTP ALLO), or 0
+     * when none was declared. Consumed once by the open paths - the object
+     * plane calls driver->reserve after a create/trunc write-open, the staged
+     * plane forwards it as staged_open's declared_size - so remote picks a
+     * legal multipart part size, xroot forwards `oss.asize` to the origin, and
+     * posix/frm preallocate. A scalar, so brix_vfs_ctx_pool_clone carries it
+     * into detached write sessions for free. Never a limit: a client may write
+     * past its declaration (the driver's own quota/extent still applies). */
+    off_t                declared_size;
+    /* Phase-107 C7: the client's lock-token presentation for THIS operation —
+     * the raw `If:` (else `Lock-Token:`) header VALUE, borrowed and
+     * NUL-terminated, or NULL when the request presented none. Filled by the
+     * WebDAV edge only; every other protocol has no way to present a WebDAV
+     * lock token, so its mutations are always "foreign" to a held lock. The
+     * lock gate matches by substring search, exactly as the WebDAV edge's
+     * webdav_lock_if_header_matches does, so ownership answers agree across
+     * planes. Never logged: it is a bearer secret for the lock. */
+    const char          *lock_token;
     unsigned             is_tls:1;
     unsigned             want_pgcrc:1;
     unsigned             cache_enabled:1;
@@ -465,6 +495,16 @@ ngx_int_t brix_vfs_residency(brix_vfs_ctx_t *ctx,
  * NGX_ERROR (errno) on a guard/driver failure. */
 ngx_int_t brix_vfs_space(brix_vfs_ctx_t *ctx, brix_sd_space_t *out);
 
+/* 1 iff any tier of the resolved ctx chain declares CAP_NEARLINE (phase-107
+ * C2): the export fronts tape/archive even if no tier implements recall. */
+int brix_vfs_nearline_export(brix_vfs_ctx_t *ctx);
+
+/* Startup advisor probe (phase-107 C2): 1 iff the composed chain declares
+ * CAP_NEARLINE on some tier but pairs it with a recall slot on none — the
+ * export can only stage through a prepare_command, and with none configured
+ * should say so at worker startup. NULL chain (default POSIX) is 0. */
+int brix_vfs_chain_nearline_unstageable(brix_sd_instance_t *chain);
+
 /* Confined existence/type probe for pre-op resolution / ACL gates. Like
  * brix_vfs_stat but emits NO OP_STAT metric/access-log line (the caller's own
  * op accounts for the access). nofollow selects lstat vs stat semantics.
@@ -487,6 +527,14 @@ brix_vfs_dir_t *brix_vfs_opendir_quiet(brix_vfs_ctx_t *ctx, int *err_out);
  * (pass NULL to skip). "." and ".." are filtered out. Returns NGX_DONE at
  * end-of-stream, NGX_ERROR (errno set) on failure, NGX_OK otherwise. */
 ngx_int_t brix_vfs_readdir(brix_vfs_dir_t *dh, ngx_str_t *name_out,
+    brix_vfs_stat_t *stat_out);
+
+/* Zero-copy sibling of brix_vfs_readdir: name_out->data BORROWS the handle's
+ * current entry name — valid ONLY until the next readdir or closedir on this
+ * handle. For single-pass consumers (the kXR_dirlist chunk streamer) that
+ * finish with the name inside the same loop iteration; anyone who must hold a
+ * name across iterations uses brix_vfs_readdir (pooled copy). */
+ngx_int_t brix_vfs_readdir_borrow(brix_vfs_dir_t *dh, ngx_str_t *name_out,
     brix_vfs_stat_t *stat_out);
 
 /* Entry kind derived from the readdir d_type, for callers that only need to
@@ -518,33 +566,6 @@ ngx_int_t brix_vfs_closedir(brix_vfs_dir_t *dh, ngx_log_t *log);
  * handle, or a backend with no real fd (caller then has no dirfd-relative path). */
 ngx_fd_t brix_vfs_dir_fd(const brix_vfs_dir_t *dh);
 
-/* Remove the resolved ctx path as a regular file (non-recursive). Write-gated
- * (requires a writable endpoint — EROFS otherwise) and a non-NULL root_canon;
- * metered as
- * OP_DELETE. NGX_ERROR with errno set (mapped from the namespace status). */
-ngx_int_t brix_vfs_unlink(brix_vfs_ctx_t *ctx);
-/* Remove the resolved ctx directory: recursively when `recursive`, otherwise
- * only if empty. Write-gated, confined; metered as OP_DELETE. NGX_ERROR with
- * errno set on failure (e.g. ENOTEMPTY for a non-empty dir when not recursive). */
-ngx_int_t brix_vfs_rmdir(brix_vfs_ctx_t *ctx, unsigned recursive);
-/* Move the resolved ctx (source) path to the already-resolved destination `dst`
- * (borrowed; must be is_confined with a non-empty resolved path). Write-gated;
- * both endpoints confined; metered as OP_RENAME. `overwrite_dirs` removes an
- * existing DIRECTORY destination first (WebDAV MOVE Overwrite:T; rename(2)
- * alone only replaces an empty dir); with it 0 an existing dir dest fails
- * with errno==EEXIST (kXR_mv semantics). NGX_ERROR with errno set. */
-ngx_int_t brix_vfs_rename(brix_vfs_ctx_t *ctx,
-    const brix_path_result_t *dst, unsigned overwrite_dirs);
-/* Thread-safe confined rename of src→dst under root_canon (no pool alloc, no
- * metric — usable off the event loop / pool-less). `overwrite` replaces an
- * existing destination; otherwise an existing dst fails with errno==EEXIST.
- * *was_dir_out (optional) reports whether a conflicting destination was a
- * directory (kXR_mv maps EEXIST + was_dir → kXR_isDirectory vs kXR_ItExists).
- * NGX_OK, or NGX_ERROR with errno set (EEXIST/ENOTEMPTY/EACCES/ENOTDIR/ENOENT
- * from the namespace status). */
-ngx_int_t brix_vfs_rename_path(brix_sd_instance_t *sd, ngx_log_t *log,
-    const char *root_canon, const char *src, const char *dst,
-    unsigned overwrite, int *was_dir_out);
 /* Enumerate the bound backend's OWN object catalog (inventory/drift, spec
  * §E1/D2) — the driver-agnostic seam over the SD `enumerate` verb. Fires cb once
  * per stored object (brix_sd_catalog_ent_t); want_stat asks for per-object
@@ -554,38 +575,6 @@ ngx_int_t brix_vfs_rename_path(brix_sd_instance_t *sd, ngx_log_t *log,
  * the extent the driver's enumerate is (the Ceph verb runs on a thread worker). */
 ngx_int_t brix_vfs_enumerate_catalog(brix_sd_instance_t *sd, int want_stat,
     brix_sd_catalog_cb cb, void *ctx);
-/* Create the resolved ctx path as a directory with `mode`, creating missing
- * parent components when `parents`. Write-gated, confined; metered as OP_MKDIR.
- * NGX_ERROR with errno set (e.g. EEXIST when the target already exists). */
-/* Change the resolved ctx path's permission bits. Write-gated; impersonation-
- * aware (performed by the broker as the mapped user when impersonation is on, so
- * the file's real owner can chmod even though the worker is not the owner). NGX_OK
- * / NGX_ERROR with errno set. */
-ngx_int_t brix_vfs_chmod(brix_vfs_ctx_t *ctx, mode_t mode);
-
-/* Apply kXR_setattr (timestamps and/or owner) to the resolved ctx path through
- * the VFS seam. Write-gated; routes to the backend's setattr slot for a non-POSIX
- * export (no-op success when the backend has no mutable metadata) and to the
- * impersonation-aware confined utimensat/fchownat path for the default POSIX
- * export. NGX_OK / NGX_ERROR with errno set. */
-ngx_int_t brix_vfs_setattr(brix_vfs_ctx_t *ctx,
-    const brix_sd_setattr_t *attr);
-
-ngx_int_t brix_vfs_mkdir(brix_vfs_ctx_t *ctx, mode_t mode,
-    unsigned parents);
-/* ftruncate the open handle to `length` and update the cached fh->size so later
- * reads see the new length. Unmetered. NGX_ERROR with errno set on a bad handle,
- * negative length, or ftruncate failure. */
-ngx_int_t brix_vfs_truncate(brix_vfs_file_t *fh, off_t length);
-/* Path-based truncate of the resolved ctx path to `length` — write-gated. Uses a
- * backend path-native truncate (remote xroot / stage decorator) when available so
- * a remote resize needs no write-open (no staging self-collision); otherwise falls
- * back to open(O_WRITE)+ftruncate+close. Unmetered (the kXR_truncate handler logs
- * access). NGX_ERROR with errno set on failure (ENOENT for a missing path). */
-ngx_int_t brix_vfs_truncate_path(brix_vfs_ctx_t *ctx, off_t length);
-/* fsync the open handle to stable storage. Unmetered (the enclosing write op
- * records the metric). NGX_ERROR with errno set on a bad handle or fsync error. */
-ngx_int_t brix_vfs_sync(brix_vfs_file_t *fh);
 /* Advisory read-ahead hint (BRIX_SD_ADV_*) for [off, off+len) on the open
  * handle; len == 0 hints the whole object. Best-effort: NGX_OK whether or not
  * the backend/kernel honours it, and a silent no-op success on a backend with
@@ -595,8 +584,10 @@ ngx_int_t brix_vfs_file_read_advise(brix_vfs_file_t *fh, off_t off, size_t len,
     int advice);
 
 /* Confined walk / open-unlink / raw-rw / xattr / copy / staged-write declarations
- * were split out (phase-79 file-size burndown) into vfs_ops.h, included here so
- * every fs/vfs.h consumer still sees them. */
+ * were split out (phase-79 file-size burndown) into vfs_ops.h, and the
+ * namespace/object mutation declarations (phase-107 W5) into vfs_mutate.h; both
+ * are included here so every fs/vfs.h consumer still sees them. */
 #include "fs/vfs/vfs_ops.h"
+#include "fs/vfs/vfs_mutate.h"
 
 #endif /* BRIX_VFS_H */

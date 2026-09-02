@@ -51,4 +51,13 @@ ngx_int_t brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
  */
 ngx_int_t brix_flush_pending(brix_ctx_t *ctx, ngx_connection_t *c);
 
+/*
+ * brix_park_front_buf — §1.2 pool-send handoff: park the unsent remainder of
+ * a frame a worker thread already started sending at the HEAD of the out-ring
+ * (mid-frame bytes cannot reorder behind parked whole frames).  Caller must
+ * hold the connection's send token and release it after this returns.
+ */
+ngx_int_t brix_park_front_buf(brix_ctx_t *ctx, ngx_connection_t *c,
+    u_char *buffer, size_t buffer_len, u_char *owned_base);
+
 #endif /* BRIX_CONN_WRITE_HELPERS_H */

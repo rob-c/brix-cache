@@ -102,9 +102,14 @@ ngx_chain_t *brix_build_pgread_chain(brix_ctx_t *ctx,
 u_char *brix_get_pool_scratch(ngx_pool_t *pool, u_char **slot,
     size_t *slot_size, size_t need);
 
+/* The ##_hot paste marks the slot used-since-last-trim (see brix_trim_scratch:
+ * only a slot idle for a whole trim cycle is shrunk — a streaming transfer
+ * keeps its buffer warm instead of paying a free + mmap + fault cycle per
+ * request).  Every BRIX_GET_SCRATCH slot therefore carries a <name>_hot bit. */
 #define BRIX_GET_SCRATCH(ctx, c, slot_field, sz_field, need)  \
-    brix_get_pool_scratch((c)->pool, &(ctx)->slot_field,      \
-                            &(ctx)->sz_field, (need))
+    ((ctx)->slot_field##_hot = 1,                             \
+     brix_get_pool_scratch((c)->pool, &(ctx)->slot_field,     \
+                             &(ctx)->sz_field, (need)))
 
 /* Return a response data buffer when a request completes.  NULL is a no-op.
  * If buf is one of the reusable per-connection scratch slots (read_scratch /
@@ -179,6 +184,10 @@ typedef struct {
                            * rd.aio_inflight (0 for the windowed task, which
                            * self-serializes on win_active and is never
                            * pipelined) — gates the concurrent-read teardown */
+    unsigned  pg:1;       /* windowed kXR_pgread: the worker runs the in-place
+                           * encode+CRC (BRIX_VFS_IO_PGREAD) into databuf and
+                           * fills out_size (see pgread_window.c) */
+    size_t    out_size;   /* pg only: encoded wire bytes ([CRC][page] units) */
 } brix_read_aio_t;
 
 typedef struct {
@@ -258,7 +267,55 @@ typedef struct {
     int       io_errno;
     brix_sd_obj_t obj;  /* Layer 3: driver obj (driver==NULL ⇒ POSIX-wrap fd) */
     uint64_t  start_ns;   /* phase-56 D-2: stamped at post, read in done      */
+    unsigned  counted:1;  /* pipelined-pgread parity with brix_read_aio_t:
+                           * counted in rd.aio_inflight while a worker thread
+                           * owns this task's rd_pool buffer — gates the
+                           * concurrent-read teardown deferral */
+
+    /* §1.1 offload-AIO: when sec_c is non-NULL the reply rides this bound
+     * same-worker secondary — scratch points 32 bytes into the SECONDARY's
+     * rd_pool slot (the frame is [pgRead status | encoded pages], contiguous),
+     * and the task is counted in BOTH connections' rd.aio_inflight so either
+     * side's teardown defers while a worker thread owns the buffer. */
+    ngx_connection_t *sec_c;
+    brix_ctx_t       *sec_ctx;
+    unsigned          sec_counted:1;
+
+    /* §1.2 pool-send: the worker thread itself sends the finished
+     * [status|pages] frame on the SECONDARY's cleartext socket, so the socket
+     * copy runs on a pool core instead of the (single) event-loop core.
+     * pool_send is decided at post time (secondary ring idle + no TLS); the
+     * thread records what reached the wire; the done epilogue disposes of the
+     * buffer, the send token, and any unsent tail accordingly. */
+    unsigned  pool_send:1;       /* thread may send the frame itself         */
+    unsigned  pool_sent_all:1;   /* thread: the full frame hit the socket    */
+    unsigned  pool_token_held:1; /* thread: partial send — token kept for the
+                                  * done handler's front-of-ring park        */
+    size_t    pool_sent;         /* bytes of [status|pages] already sent     */
+    int       pool_send_errno;   /* hard send()/socket errno (0 = none)      */
+    unsigned  pool_chunked:1;    /* §1.3 the thread streamed the reply as N
+                                  * kXR_PartialResult chunk frames laid out
+                                  * back-to-back in the slot buffer          */
+    unsigned  chunk_error:1;     /* read error AFTER ≥1 partial frame was
+                                  * committed — the terminating kXR_error
+                                  * must ride the SECONDARY under the
+                                  * request sid, never the control stream   */
+    size_t    pool_image_len;    /* total wire-image bytes built in the slot
+                                  * (all chunk frames; classic = hdr+enc)   */
+    ngx_uint_t pool_frames;      /* wire frames inside that image           */
 } brix_pgread_aio_t;
+
+/*
+ * brix_rd_slot_aio_u — sizing union for a rd_pool slot's one-time task
+ * allocation.  A slot's buffer serves whichever pipelined read opcode
+ * (kXR_read or kXR_pgread) acquired it, one request at a time, and the task is
+ * re-bound at every post — so the single per-slot task context must be sized
+ * for the larger of the two.  Both post sites allocate sizeof(this union).
+ */
+typedef union {
+    brix_read_aio_t   read;
+    brix_pgread_aio_t pgread;
+} brix_rd_slot_aio_u;
 
 /*
  * brix_dirlist_aio_t — async kXR_dirlist context.
@@ -276,6 +333,13 @@ typedef struct {
  * listing would overflow, io_errno is set to E2BIG and a kXR_IOError is sent.
  */
 #define BRIX_DIRLIST_AIO_RESPONSE_MAX  (4 * 1024 * 1024)
+
+/* §1.3 chunked pgread streaming: file bytes per kXR_PartialResult chunk on
+ * the pool-send path.  Sized so the client starts verifying pages while the
+ * pool thread reads the next chunk (the reference server streams ~1.4 MiB
+ * partials); must be a multiple of kXR_pgPageSZ.  Shared with the offload
+ * producer (pgread.c), whose buffer sizing adds one status header per chunk. */
+#define BRIX_PGREAD_STREAM_CHUNK  ((size_t) (1024 * 1024))
 
 typedef struct {
     ngx_connection_t              *c;
@@ -334,6 +398,35 @@ void brix_aio_resume(ngx_connection_t *c);
  * handler (src/connection/send.c) to continue once a window's chunk drains. */
 void brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *rconf);
+
+/* Round 12 (reads_window.c ↔ reads.c seam): _emit_step posts the next
+ * window's read-ahead, emits the current window, and swaps the double
+ * buffers; _park_or_resume handles a dead train with a read-ahead still on a
+ * worker (park in XRD_ST_AIO until its completion discards itself) vs. an
+ * immediate resume.  Called from the windowed completion halves in reads.c. */
+ngx_int_t brix_read_window_emit_step(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *rconf, ssize_t nread, size_t out_size,
+    int io_errno);
+void brix_read_window_park_or_resume(brix_ctx_t *ctx, ngx_connection_t *c);
+
+/* Windowed kXR_pgread (primary-path streaming — pgread_window.c).  The shared
+ * window pump drives these when ctx->rd.win_pgread is set: _want cuts the next
+ * window's data length on the absolute 4 KiB page grid, _scratch sizes the
+ * frame buffer ([32-byte status header][gapped [CRC][page] wire data]), and
+ * _emit stamps the kXR_status partial/final header ahead of the encoded bytes
+ * and queues the contiguous frame. */
+size_t brix_pgread_window_want(off_t cur, size_t left);
+size_t brix_pgread_window_scratch(off_t cur, size_t want);
+ngx_int_t brix_pgread_window_emit(brix_ctx_t *ctx, ngx_connection_t *c,
+    ssize_t nread, size_t out_size, int io_errno);
+/* _try_warm: preadv2(RWF_NOWAIT) read+encode+CRC of one window inline on the
+ * event loop — a resident window skips the thread-pool round-trip entirely
+ * (the train self-serializes, so the pool buys no overlap per window).  Hit:
+ * returns 1 with *nread and *out_size set and backend bytes charged; miss: 0,
+ * outputs untouched, caller posts to the pool as usual. */
+ngx_flag_t brix_pgread_window_try_warm(brix_ctx_t *ctx,
+    ngx_stream_brix_srv_conf_t *rconf, u_char *datap, size_t want,
+    ssize_t *nread, size_t *out_size);
 
 /*
  * Main-thread completion callbacks (posted to the event loop via ngx_post_event

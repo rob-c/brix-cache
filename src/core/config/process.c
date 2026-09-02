@@ -27,7 +27,8 @@
 #include "core/aio/uring.h"
 #include "core/seccomp/seccomp.h"          /* D-3 per-worker syscall filter */
 #include "observability/sesslog/sesslog_ngx.h"
-#include "protocols/root/session/admin_socket.h"  /* §1.16 admin unix socket */
+#include "protocols/root/session/admin_socket.h"
+#include "protocols/root/session/bind_migrate.h" /* §1.4 cross-worker bind */  /* §1.16 admin unix socket */
 
 #if defined(__SANITIZE_ADDRESS__)   /* Phase 27 W6: explicit LSan check at exit */
 #include <sanitizer/lsan_interface.h>
@@ -164,6 +165,27 @@ brix_warn_openat2_unavailable(ngx_cycle_t *cycle)
  *      identity broker, arm the stage-out reaper.
  *   8. Log the per-worker boot-cost breakdown and return NGX_OK.
  */
+/*
+ * WHAT: Master-process init-module hook — impersonation settings snapshot,
+ *       then the §1.4 bind-migration channel pairs.
+ * WHY : SCM_RIGHTS fd passing between workers needs fds created BEFORE fork;
+ *       init_module is the last pre-fork hook.  Channel failure is non-fatal
+ *       (migration simply stays disabled).
+ * HOW : Chain the pre-existing impersonation init (its return is the module
+ *       verdict) with the channel creation.
+ */
+ngx_int_t
+brix_stream_init_module(ngx_cycle_t *cycle)
+{
+    ngx_int_t rc = brix_imp_init_module(cycle);
+
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    brix_bind_migrate_create_channels(cycle);
+    return NGX_OK;
+}
+
 ngx_int_t
 ngx_stream_brix_init_process(ngx_cycle_t *cycle)
 {
@@ -220,6 +242,10 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
     /* §1.16: the runtime admin unix socket (no-op unless brix_admin_socket is
      * configured; worker 0 only — see session/admin_socket.h). */
     brix_admin_socket_init(cycle);
+
+    /* §1.4: arm this worker's bind-migration channel read end (no-op when
+     * migration is disabled — single worker, or channel creation failed). */
+    brix_bind_migrate_init_worker(cycle);
 
     cscfp = cmcf->servers.elts;
 

@@ -68,6 +68,10 @@ typedef enum {
     BRIX_VFS_MUTATE_SETATTR,    /* chmod/chown/utimes/setattr                */
     BRIX_VFS_MUTATE_XATTR,      /* set/remove xattr, dead props, tags        */
     BRIX_VFS_MUTATE_PUBLISH,    /* staged commit, multipart complete, promote */
+    BRIX_VFS_MUTATE_STAGE,      /* recall from nearline into the online buffer */
+    BRIX_VFS_MUTATE_EVICT,      /* drop an online copy (cache or nearline)   */
+    BRIX_VFS_MUTATE_LOCK,       /* acquire/refresh/release a resource lock   */
+    BRIX_VFS_MUTATE_DEDUP,      /* CAS alias publish and alias reap          */
     BRIX_VFS_MUTATE_OP_COUNT    /* never a real operation                    */
 } brix_vfs_mutation_op_t;
 
@@ -119,6 +123,46 @@ ngx_int_t brix_vfs_require_confined_mutation(const brix_vfs_ctx_t *ctx,
  * is. EROFS on refusal, exactly one metric sample. */
 ngx_int_t brix_vfs_require_carried_mutation(brix_vfs_mutation_policy_t policy,
     brix_proto_t proto, brix_vfs_mutation_op_t op);
+
+/* Per-export lock-enforcement mode (phase-107 C7), carried by the
+ * `brix_lock_enforcement` directive and distributed through the backend
+ * registry (brix_vfs_backend_lock_enforcement). STRICT is zero on purpose: an
+ * unregistered export, a zeroed entry, and every default-configured export all
+ * fail toward enforcement. ADVISORY refuses only at the WebDAV edge (whose
+ * RFC-4918 checks predate this gate); the VFS gate warns, books the refusal
+ * metric, and allows. OFF restores the pre-C7 behaviour: the gate performs no
+ * reads at all. */
+typedef enum {
+    BRIX_VFS_LOCK_STRICT   = 0,
+    BRIX_VFS_LOCK_ADVISORY = 1,
+    BRIX_VFS_LOCK_OFF      = 2
+} brix_vfs_lock_enforcement_t;
+
+/* Lock gate (phase-107 C7) — NOT part of the pure kernel: it reads lock
+ * records (xattrs), so it is impure and lives in vfs_lock_gate.c. Called AFTER
+ * brix_vfs_require_confined_mutation() at every site, so EROFS continues to
+ * precede every other refusal. NGX_OK when no live foreign lock covers ctx's
+ * target or the ctx carries a matching token; NGX_ERROR with errno = EBUSY
+ * under a live foreign lock, EINVAL for a missing/unconfined ctx. Enforcement
+ * mode comes from the export's merged config, never from an argument — a call
+ * site cannot opt itself out. */
+ngx_int_t brix_vfs_require_unlocked(brix_vfs_ctx_t *ctx,
+    brix_vfs_mutation_op_t op);
+
+/* Alternate-target form for the two-name mutations: ask the same question
+ * about `path` (a confined resolved path in ctx's export — a rename or copy
+ * DESTINATION whose confinement the call site has already validated) instead
+ * of ctx's own resolved target. Same contract and errno mapping. */
+ngx_int_t brix_vfs_require_unlocked_at(brix_vfs_ctx_t *ctx, const char *path,
+    brix_vfs_mutation_op_t op);
+
+/* Batch form for the delete window: gate every resolved path in ONE sweep,
+ * memoizing each proven-clean parent chain so a flat n-key batch costs n + 2
+ * quiet reads instead of 3n over a remote leaf. Refusal is ATOMIC and
+ * identical to the per-path form — the first strict EBUSY or read fault
+ * returns before the caller runs any arm. */
+ngx_int_t brix_vfs_require_unlocked_many(brix_vfs_ctx_t *ctx,
+    const char *const *paths, size_t n, brix_vfs_mutation_op_t op);
 
 /* ---- policy-bearing raw/export operation context --------------------------
  * The thread-safe raw helpers (vfs_ops.h) take a log + root_canon rather than a

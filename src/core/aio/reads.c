@@ -6,13 +6,13 @@
 /*
  * reads.c — thread-pool offload for the stream kXR_read / kXR_pgread opcodes.
  *
- * WHAT: Two read paths share this file. (1) Windowed memory read
- *       (brix_read_window_pump / _emit) streams a large memory-backed
- *       (TLS / non-regular) read as fill->drain->fill chunks. (2) Plain
- *       kXR_read AIO (brix_read_aio_thread / _done) offloads a single
- *       file reads to a worker thread and returns one chained response.
- *       The third member of the family — pgread AIO, which interleaves a
- *       per-page CRC32C into the wire output — lives in pgreads.c.
+ * WHAT: The worker-thread half and every completion half of the read-AIO
+ *       family: brix_read_aio_thread (the blocking VFS read) and
+ *       brix_read_aio_done, which routes a completion to the single-shot
+ *       deliver path or to the windowed train (whose forward drive — pump,
+ *       per-window post, round-12 double-buffered read-ahead — lives in
+ *       reads_window.c).  pgread AIO, which interleaves a per-page CRC32C
+ *       into the wire output, lives in pgreads.c.
  *
  * WHY:  File I/O (and the pgread CRC32C loop) can block; running them on the
  *       nginx event-loop thread would stall every other connection on this
@@ -49,225 +49,6 @@ brix_read_io_failure_log(ngx_log_t *log, const char *who, int fd,
 }
 
 
-/*                                                                      */
-/* BRIX_READ_WINDOW is served as a sequence of kXR_oksofar wire chunks */
-
-/*
- * brix_read_window_emit — build + queue one window's wire chunk from
- * rd.read_scratch[0..nread), advancing the continuation state.  Status is
- * kXR_oksofar for every window except the last (or a short read at EOF), which
- * is kXR_ok.  Returns NGX_ERROR if the read failed or the chain could not be
- * built (an error response has already been sent); otherwise NGX_OK, with
- * ctx->state == XRD_ST_SENDING if the chunk is still draining and
- * ctx->rd.win_active cleared when this was the final window.
- */
-static ngx_int_t
-brix_read_window_emit(brix_ctx_t *ctx, ngx_connection_t *c,
-    ssize_t nread, int io_errno)
-{
-    ngx_chain_t *chain;
-    uint16_t     status;
-    size_t       got;
-
-    if (nread < 0) {
-        brix_read_io_failure_log(c->log, "windowed", ctx->rd.win_fd,
-                                   ctx->rd.win_offset, ctx->rd.win_remaining,
-                                   io_errno);
-        ctx->rd.win_active = 0;
-        ctx->state = XRD_ST_REQ_HEADER;
-        ctx->recv.hdr_pos = 0;
-        BRIX_OP_ERR(ctx, BRIX_OP_READ);
-        brix_send_error(ctx, c, kXR_IOError,
-                          io_errno ? strerror(io_errno) : "async read error");
-        return NGX_ERROR;
-    }
-
-    got = (size_t) nread;
-    ctx->files[ctx->rd.win_idx].bytes_read += got;
-    ctx->totals.bytes += got;
-
-    if (got < ctx->rd.win_remaining) {
-        ctx->rd.win_remaining -= got;
-        ctx->rd.win_offset += (off_t) got;
-    } else {
-        ctx->rd.win_remaining = 0;
-    }
-
-    /* Last planned window, or a short read (EOF), terminates the response. */
-    status = (ctx->rd.win_remaining == 0 || got == 0) ? kXR_ok : kXR_oksofar;
-
-    chain = brix_build_window_chain(ctx, c, ctx->rd.read_scratch, got, status);
-    if (chain == NULL) {
-        ctx->rd.win_active = 0;
-        ctx->state = XRD_ST_REQ_HEADER;
-        return NGX_ERROR;
-    }
-
-    if (status == kXR_ok) {
-        ctx->rd.win_active = 0;
-        BRIX_OP_OK(ctx, BRIX_OP_READ);
-    }
-
-    ctx->state = XRD_ST_REQ_HEADER;
-    ctx->recv.hdr_pos = 0;
-    brix_queue_response_chain(ctx, c, chain, ctx->rd.read_scratch);
-    if (ctx->state != XRD_ST_SENDING) {
-        brix_release_read_buffer(ctx, c, ctx->rd.read_scratch);  /* no-op slot */
-    }
-    return NGX_OK;
-}
-
-/*
- * brix_read_window_pump — read the next window into rd.read_scratch and emit it,
- * looping while sends complete synchronously.  Posts an AIO task when a thread
- * pool is available (returns with state XRD_ST_AIO; brix_read_aio_done resumes
- * the pump); otherwise reads the window inline (bounded to one window).  When
- * the windowed read finishes it resumes the event loop for the next request.
- */
-void
-brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *rconf)
-{
-    for ( ;; ) {
-        size_t   want;
-        u_char  *databuf;
-        ssize_t  nread;
-
-        if (!ctx->rd.win_active) {
-            brix_aio_resume(c);
-            return;
-        }
-
-        want = ctx->rd.win_remaining < (size_t) BRIX_READ_WINDOW
-               ? ctx->rd.win_remaining : (size_t) BRIX_READ_WINDOW;
-
-        databuf = BRIX_GET_SCRATCH(ctx, c, rd.read_scratch, rd.read_scratch_size,
-                                     want);
-        if (databuf == NULL) {
-            ctx->rd.win_active = 0;
-            ctx->state = XRD_ST_REQ_HEADER;
-            brix_send_error(ctx, c, kXR_NoMemory, "read window alloc failed");
-            brix_aio_resume(c);
-            return;
-        }
-        brix_budget_sync(ctx);
-
-        /* Driver-backed (memory-served, fd<0) handles — e.g. a remote root://
-         * storage backend — must NOT be posted to the pread thread pool: the
-         * driver drives an event-loop-bound origin connection (brix_cache_*),
-         * which returns EIO when driven from a worker thread.  Serve such reads
-         * inline on the event loop (the branch below), matching how the ≤window
-         * buffered path and the sendfile gate already exclude driver handles. */
-        if (rconf->common.thread_pool != NULL
-            && ctx->files[ctx->rd.win_idx].sd_obj.driver == NULL) {
-            ngx_thread_task_t *task = ctx->rd.read_aio_task;
-            brix_read_aio_t *t;
-            ngx_flag_t         posted = 0;
-
-            /*
-             * One task struct is allocated once per stream and cached on
-             * ctx->rd.read_aio_task, then reused across every window of this read
-             * (and across later reads) to avoid a pool allocation per window.
-             * On reuse the task is dirty from its last trip through the pool:
-             * task->next must be cleared (the pool threads it onto its run
-             * queue) and event.complete reset to 0 (ngx_post_event set it when
-             * the previous completion fired) or the next post would be ignored.
-             */
-            if (task == NULL) {
-                task = ngx_thread_task_alloc(c->pool,
-                                             sizeof(brix_read_aio_t));
-                if (task != NULL) {
-                    ctx->rd.read_aio_task = task;
-                }
-            } else {
-                task->next = NULL;
-                task->event.complete = 0;
-            }
-
-            if (task != NULL) {
-                t = task->ctx;
-                t->c = c;
-                t->ctx = ctx;
-                t->conf = rconf;
-                t->fd = ctx->rd.win_fd;
-                t->handle_idx = ctx->rd.win_idx;
-                t->offset = ctx->rd.win_offset;
-                t->rlen = want;
-                t->databuf = databuf;
-                /*
-                 * Snapshot the 2-word streamid into the task so the completion
-                 * callback can verify it still matches the live ctx — by the
-                 * time the worker finishes, this connection may have been torn
-                 * down and the slot reused by an unrelated stream.
-                 */
-                t->streamid[0] = ctx->rd.win_streamid[0];
-                t->streamid[1] = ctx->rd.win_streamid[1];
-                t->nread = 0;
-                t->io_errno = 0;
-                /*
-                 * The task struct is shared with the single-shot buffered path
-                 * (read_post_aio), so csi/obj still hold the LAST read's handle
-                 * state.  The worker routes the pread through t->obj's driver
-                 * (which carries its own fd) whenever obj.driver != NULL, so a
-                 * stale obj sends this window to the previous handle's fd —
-                 * wrong file if the number was recycled, EBADF if closed or
-                 * write-only — and a stale csi is a dangling pointer once that
-                 * handle closed.  Rebind both to the windowed read's own handle
-                 * on every post.
-                 */
-                t->csi = ctx->files[ctx->rd.win_idx].csi;
-                t->obj = ctx->files[ctx->rd.win_idx].sd_obj;
-                t->start_ns = brix_phase_now_ns();  /* phase-56 D-2 */
-                /* phase-32 WS3: the windowed read self-serializes on win_active
-                 * (recv stays suspended in XRD_ST_AIO across its windows), so it
-                 * is NOT counted in rd.aio_inflight — only the pipelined single-
-                 * shot path is.  Clear explicitly to survive task-struct reuse. */
-                t->counted = 0;
-                brix_task_bind(task, brix_read_aio_thread,
-                                 brix_read_aio_done);
-                (void) brix_aio_post_task(ctx, c, rconf->common.thread_pool,
-                    task, "brix: window task post failed, sync fallback",
-                    &posted);
-                if (posted) {
-                    return;   /* async: done callback resumes the pump */
-                }
-                /* post failed (queue full): fall through to the inline read. */
-            }
-        }
-
-        /*
-         * Inline fallback (no pool configured, or post failed): do the blocking
-         * VFS read on the event-loop thread for this one window only, then let
-         * the for(;;) loop pick up the next window. Bounded to a single window
-         * so a large read can never monopolise the loop for more than
-         * BRIX_READ_WINDOW.
-         */
-        {
-            brix_vfs_job_t job;
-
-            brix_vfs_job_read_init(&job, ctx->rd.win_fd,
-                                      ctx->rd.win_offset, want, databuf,
-                                      want, 0);
-            /* Same handle binding as the posted task above: verify CSI pages
-             * and route driver-backed handles through their storage object. */
-            job.csi = ctx->files[ctx->rd.win_idx].csi;
-            brix_vfs_job_set_obj(&job, &ctx->files[ctx->rd.win_idx].sd_obj);
-            brix_vfs_io_execute(&job);
-            nread = job.nio;
-            if (brix_read_window_emit(ctx, c, nread, job.io_errno)
-                == NGX_ERROR)
-            {
-                brix_aio_resume(c);
-                return;
-            }
-        }
-        if (ctx->state == XRD_ST_SENDING) {
-            return;   /* async send: send.c resumes the pump on drain */
-        }
-        /* sync send complete → loop reads the next window */
-    }
-}
-
 /*
  * brix_read_aio_thread — thread-pool worker for kXR_read.
  *
@@ -291,10 +72,15 @@ brix_read_aio_thread(void *data, ngx_log_t *log)
      */
     brix_vfs_job_read_init(&job, t->fd, t->offset, t->rlen,
                              t->databuf, t->rlen, 0);
+    if (t->pg) {
+        job.op = BRIX_VFS_IO_PGREAD;     /* windowed pgread: in-place gapped
+                                          * encode + per-page CRC32c */
+    }
     job.csi = t->csi;                    /* phase-59 W2: verify in the worker */
     brix_vfs_job_set_obj(&job, &t->obj); /* Layer 3: route via driver if bound */
     brix_vfs_io_execute(&job);
 
+    t->out_size = job.out_size;          /* pg only: encoded wire bytes */
     t->nread = job.nio;
     t->io_errno = job.io_errno;          /* CSI mismatch surfaces as EIO here */
 }
@@ -345,8 +131,10 @@ static void
 brix_read_aio_window_done(brix_read_aio_t *t, brix_ctx_t *ctx,
     ngx_connection_t *c)
 {
-    if (brix_read_window_emit(ctx, c, t->nread, t->io_errno) == NGX_ERROR) {
-        brix_aio_resume(c);
+    if (brix_read_window_emit_step(ctx, c, t->conf, t->nread, t->out_size,
+                                     t->io_errno) == NGX_ERROR)
+    {
+        brix_read_window_park_or_resume(ctx, c);
         return;
     }
     /* phase-56 D-2, one sample per REQUEST: the emit clears win_active on the
@@ -364,6 +152,40 @@ brix_read_aio_window_done(brix_read_aio_t *t, brix_ctx_t *ctx,
         return;
     }
     brix_aio_resume(c);        /* (c) finished */
+}
+
+
+/*
+ * Round 12: a read-ahead window finished on the worker.  If the train died
+ * while it ran (an emit failed), discard the result — and if the pump parked
+ * the connection on this very completion, restore the request loop.  Live
+ * train: stash the result (win_ready) and let the previous frame's drain
+ * (send.c → pump) emit it; if the drain already happened, emit now.
+ */
+static void
+brix_read_window_prefetch_done(brix_read_aio_t *t, brix_ctx_t *ctx,
+    ngx_connection_t *c)
+{
+    ctx->rd.win_prefetch = 0;
+
+    if (!ctx->rd.win_active) {
+        if (ctx->state == XRD_ST_AIO) {
+            ctx->state = XRD_ST_REQ_HEADER;
+            ctx->recv.hdr_pos = 0;
+            brix_aio_resume(c);
+        }
+        return;
+    }
+
+    ctx->rd.win_ready = 1;
+    ctx->rd.win_pf_nread = t->nread;
+    ctx->rd.win_pf_osz = t->out_size;
+    ctx->rd.win_pf_errno = t->io_errno;
+
+    if (ctx->state == XRD_ST_SENDING) {
+        return;   /* previous frame still draining; send.c re-enters the pump */
+    }
+    brix_read_window_pump(ctx, c, t->conf);
 }
 
 
@@ -454,11 +276,22 @@ brix_read_aio_done(ngx_event_t *ev)
      * The exporter's io_ops_total books ONE op per kXR_read REQUEST (the
      * legacy per-port fold), so a windowed read must sample ONCE too — the
      * windowed path files its own sample on the final window (inside
-     * brix_read_aio_window_done, where ctx is still alive), or the histogram
-     * count would exceed the op count and break aio.h's "AIO-sampled subset
-     * of ops" contract. */
-    if (ctx->rd.win_active) {
-        brix_read_aio_window_done(t, ctx, c);
+     * brix_read_aio_window_done / the pump's win_ready path, where ctx is
+     * still alive), or the histogram count would exceed the op count and
+     * break aio.h's "AIO-sampled subset of ops" contract.
+     *
+     * Round 12: windowed-family completions route on TASK IDENTITY, never on
+     * win_active alone — a pipelined single-shot completion (per-slot task)
+     * can land while a train is active and must take the classic path below.
+     * Within the family, win_prefetch says whether this is a read-ahead. */
+    if (task == ctx->rd.read_aio_task) {
+        if (ctx->rd.win_prefetch) {
+            brix_read_window_prefetch_done(t, ctx, c);
+        } else if (ctx->rd.win_active) {
+            brix_read_aio_window_done(t, ctx, c);
+        } else {
+            brix_aio_resume(c);   /* stale windowed completion — train gone */
+        }
         return;
     }
     brix_aio_metric_done(t->start_ns, BRIX_METRIC_OP_READ);

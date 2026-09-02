@@ -126,6 +126,137 @@ _TIER3_EXCL = (
 )
 TIER3_EXCL_RE = re.compile(_TIER3_EXCL)
 
+# --- C9 typed storage domains (phase-107 W9) ---------------------------------
+# Every real src/ marker leads with a domain constant:
+#     /* vfs-seam-allow: DOMAIN_CACHE — <reason for humans> */
+# The guard checks the half a machine can check — the constant exists, is
+# known, and its file is entitled to claim it — and never judges the prose.
+# Client-tier markers (client/) are out of scope: the client has its own
+# xrdc_vfs storage model, not the server's domain table.
+#
+# The two non-domain classifications keep pass 1 honest (Appendix G.4):
+#   NOT_STORAGE  — the waived call is not a filesystem object at all (probe
+#                  socket, admin unix socket, /proc fd hygiene, fd forensics);
+#                  entitled everywhere, granting nothing, and COUNTED in the
+#                  success line so it cannot quietly become the default.
+#   SEAM_CORRECT — the call is already on the right side of the seam (fstat-
+#                  class on a VFS-opened fd, an openat inside a VFS-opened dir
+#                  stream, a stat of the confinement anchor itself, or compat
+#                  code that IS the posix storage plane); annotated, then left
+#                  alone. Entitled everywhere, also counted.
+DOMAIN_CONSTANTS = frozenset((
+    "DOMAIN_CACHE", "DOMAIN_STAGE", "DOMAIN_REGISTRY", "DOMAIN_CREDENTIAL",
+    "DOMAIN_CONFIG", "DOMAIN_JOURNAL",
+    "NOT_STORAGE", "SEAM_CORRECT",
+))
+# DOMAIN_EXPORT deliberately absent: an export mutation takes the phase-105
+# policy gate, never a waiver (Appendix G.1 row 1).
+
+# The entitlement table (normative source: phase-107 Appendix G.1, extended by
+# the W9 census — every extension is recorded in the W9 landed notes).
+# DIRECTORY or file-stem prefixes, never full path:line, so a shard or an
+# archived copy does not invalidate the table; the LONGEST matching prefix
+# decides (the fs/cache origin_auth and net/cms blacklist bends need it).
+DOMAIN_ENTITLE = (
+    # (prefix, frozenset of domains the prefix may claim)
+    ("src/fs/cache/origin_auth",                  frozenset(("DOMAIN_CONFIG",))),
+    ("src/fs/cache/",                             frozenset(("DOMAIN_CACHE",))),
+    ("src/fs/backend/cache/",                     frozenset(("DOMAIN_CACHE",))),
+    ("src/fs/backend/stage/",                     frozenset(("DOMAIN_STAGE",))),
+    ("src/fs/backend/cred_mint",                  frozenset(("DOMAIN_CREDENTIAL",))),
+    ("src/fs/meta/",                              frozenset(("DOMAIN_CACHE",))),
+    ("src/fs/vfs/vfs_deleg",                      frozenset(("DOMAIN_CREDENTIAL",))),
+    ("src/fs/vfs/vfs_writer_spill",               frozenset(("DOMAIN_STAGE",))),
+    ("src/fs/xfer/stage_",                        frozenset(("DOMAIN_JOURNAL",))),
+    ("src/fs/xfer/",                              frozenset(("DOMAIN_STAGE",))),
+    ("src/fs/tier/",                              frozenset(("DOMAIN_JOURNAL",))),
+    ("src/tpc/",                                  frozenset(("DOMAIN_STAGE", "DOMAIN_CREDENTIAL"))),
+    ("src/protocols/oci/",                        frozenset(("DOMAIN_REGISTRY",))),
+    ("src/protocols/webdav/tpc_cred_exchange.c",  frozenset(("DOMAIN_CREDENTIAL",))),
+    ("src/protocols/webdav/tpc_user_proxy.c",     frozenset(("DOMAIN_CREDENTIAL",))),
+    ("src/protocols/webdav/tpc_",                 frozenset(("DOMAIN_STAGE",))),
+    ("src/protocols/webdav/put_body_digest.c",    frozenset(("DOMAIN_STAGE",))),
+    ("src/protocols/webdav/delegation.c",         frozenset(("DOMAIN_CREDENTIAL",))),
+    ("src/protocols/shared/http_serve_offload.c", frozenset(("DOMAIN_STAGE",))),
+    ("src/protocols/root/read/",                  frozenset(("DOMAIN_CACHE", "DOMAIN_STAGE"))),
+    ("src/protocols/root/connection/",            frozenset(("DOMAIN_CACHE", "DOMAIN_STAGE"))),
+    ("src/protocols/cvmfs/attest.c",              frozenset(("DOMAIN_CONFIG",))),
+    ("src/protocols/gridftp/ftp_module_gsi.c",    frozenset(("DOMAIN_CONFIG",))),
+    ("src/auth/",                                 frozenset(("DOMAIN_CREDENTIAL",))),
+    ("src/net/proxy/",                            frozenset(("DOMAIN_CREDENTIAL",))),
+    ("src/net/cms/blacklist_file.c",              frozenset(("DOMAIN_CONFIG",))),
+    ("src/net/cms/",                              frozenset(("DOMAIN_JOURNAL",))),
+    ("src/core/config/",                          frozenset(("DOMAIN_CONFIG",))),
+    ("src/core/compat/cred_stage",                frozenset(("DOMAIN_CREDENTIAL",))),
+)
+
+# A doc-comment line (leading '*', '//' or a full-line '/*') that merely
+# MENTIONS the convention is not a marker — the marker form is a trailing
+# comment on a code line (Appendix G.2's 108-not-117 rule).
+DOC_LINE_RE = re.compile(r"^[ \t]*(\*|//|/\*)")
+DOMAIN_TOKEN_RE = re.compile(r"vfs-seam-allow:\s*([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def _src_ch_files():
+    for dirpath, dirnames, filenames in os.walk("src"):
+        dirnames.sort()
+        for name in sorted(filenames):
+            if name.endswith(".c") or name.endswith(".h"):
+                yield os.path.join(dirpath, name)
+
+
+def _file_domain_markers(path):
+    """One file's real markers as (path, lineno, token-or-None)."""
+    try:
+        with open(path, "r", encoding="latin-1") as fh:
+            data = fh.read()
+    except OSError:
+        return []
+    out = []
+    for lineno, content in enumerate(data.split("\n"), 1):
+        if "vfs-seam-allow" not in content or DOC_LINE_RE.match(content):
+            continue
+        m = DOMAIN_TOKEN_RE.search(content)
+        out.append((path, lineno, m.group(1) if m else None))
+    return out
+
+
+def domain_markers():
+    """Every real src/ marker as (path, lineno, token-or-None)."""
+    return [marker
+            for path in _src_ch_files()
+            for marker in _file_domain_markers(path)]
+
+
+def domain_entitled(path):
+    """The domain set the longest matching table prefix entitles `path` to."""
+    best = None
+    for prefix, domains in DOMAIN_ENTITLE:
+        if path.startswith(prefix) and (best is None or len(prefix) > len(best[0])):
+            best = (prefix, domains)
+    return best[1] if best is not None else frozenset()
+
+
+def domain_violation(path, lineno, token):
+    """One marker's verdict: None when in order, else the failure line."""
+    if token is None or token not in DOMAIN_CONSTANTS:
+        kind = "unknown domain constant" if token else "missing domain constant"
+        known = ", ".join(sorted(DOMAIN_CONSTANTS))
+        return (f"{path}:{lineno}: {kind}"
+                f"{' ' + repr(token) if token else ''} — a marker reads"
+                f" '/* vfs-seam-allow: <DOMAIN> — <reason> */' with <DOMAIN>"
+                f" one of: {known}")
+    if token in ("NOT_STORAGE", "SEAM_CORRECT"):
+        return None            # entitled everywhere, granting nothing
+    entitled = domain_entitled(path)
+    if token not in entitled:
+        have = ", ".join(sorted(entitled)) if entitled else "(none)"
+        return (f"{path}:{lineno}: {token} is not entitled here — this path"
+                f" may claim: {have}. Extend DOMAIN_ENTITLE only as a reviewed"
+                f" change (it is an allowlist).")
+    return None
+
+
 # --- client tier -------------------------------------------------------------
 _CLIENT_ALLOW = (
     r"^client/lib/fs/vfs\.c|^client/lib/fs/vfs_posix\.c|^client/lib/fs/vfs_block\.c"
@@ -317,7 +448,7 @@ def check():
         print(f"check_vfs_seam: missing {BACKLOG} (run with --regen to seed it)", file=sys.stderr)
         return 2
     for checker in (_check_raw_tier1, _check_bypasses, _check_raw_tier3,
-                    _check_raw_client):
+                    _check_raw_client, _check_domains):
         result = checker()
         if result:
             return result
@@ -394,6 +525,26 @@ def _check_raw_client():
     return 1
 
 
+def _check_domains():
+    violations = [
+        v for v in (domain_violation(p, n, t) for p, n, t in domain_markers())
+        if v is not None
+    ]
+    if not violations:
+        return 0
+    _print_violation(
+        violations,
+        "ERROR: vfs-seam-allow marker without a valid, entitled storage domain",
+        ("       (phase-107 C9 — the typed storage domain; Appendix G.1 is the",
+         "       normative table):",),
+        ("Every src/ marker leads with a domain constant. Assigning one is a",
+         "SECURITY decision — a wrong domain here becomes a false entitlement.",
+         "NOT_STORAGE (not a filesystem object) and SEAM_CORRECT (already on the",
+         "right side of the seam) exist so a marker never has to lie."),
+    )
+    return 1
+
+
 def _print_violation(violations, heading, explanation, guidance):
     print(heading, file=sys.stderr)
     for line in explanation:
@@ -409,10 +560,15 @@ def _print_success():
     allow_n = _noncomment_lines(BACKLOG, _WS_HASH_RE)
     ns_allow_n = _noncomment_lines(BACKLOG_NS, _WS_HASH_RE)
     client_allow_n = _noncomment_lines(BACKLOG_CLIENT, _WS_HASH_RE)
+    markers = domain_markers()
+    not_storage = sum(1 for _, _, t in markers if t == "NOT_STORAGE")
+    seam_correct = sum(1 for _, _, t in markers if t == "SEAM_CORRECT")
     print("check_vfs_seam: OK — no raw data POSIX outside the backend (tier-1), no new "
           f"tier-2/1.5 bypass ({allow_n} files on the migration backlog), no new "
           f"tier-3 raw namespace/metadata syscall ({ns_allow_n} files on the ns backlog), "
-          f"and no new raw client data POSIX ({client_allow_n} files on the client backlog)")
+          f"no new raw client data POSIX ({client_allow_n} files on the client backlog), "
+          f"and every domain claim entitled ({len(markers)} markers: "
+          f"{not_storage} NOT_STORAGE, {seam_correct} SEAM_CORRECT)")
 
 
 def main():

@@ -453,7 +453,7 @@ blfile_refresh(brix_cms_blfile_t *bl, const ngx_str_t *path,
     memcpy(pathbuf, path->data, path->len);
     pathbuf[path->len] = '\0';
 
-    if (stat(pathbuf, &st) != 0) {  /* vfs-seam-allow: operator config file, not managed storage */
+    if (stat(pathbuf, &st) != 0) {  /* vfs-seam-allow: DOMAIN_CONFIG — operator config file, not managed storage */
         ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
                       "brix: cms blacklist file \"%s\" stat failed; "
                       "keeping previous %ui entries", pathbuf, bl->nentries);

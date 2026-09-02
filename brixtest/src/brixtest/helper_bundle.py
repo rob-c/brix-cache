@@ -95,13 +95,30 @@ def _regular_named_files(parent: Path, names: Sequence[str]) -> Iterable[Path]:
             yield path
 
 
-def _project_files(source_root: Path, test: Path, relative: Path) -> dict[str, Path]:
+def _project_files(
+    source_root: Path, test: Path, relative: Path,
+    project_inputs: Sequence[Path] = (),
+) -> dict[str, Path]:
     first = source_root / relative.parts[0]
     selected = first if first.is_dir() else test
     result = _workspace_files(source_root, selected)
     result.update(_portable_project_files(source_root))
     result.update(_root_config_files(source_root))
     result.update(_ancestor_conftests(source_root, test))
+    result.update(_project_input_files(source_root, project_inputs))
+    return result
+
+
+def _project_input_files(source_root: Path, values: Sequence[Path]) -> dict[str, Path]:
+    result = {}
+    for value in values:
+        selected = Path(value).resolve()
+        relative = Path() if selected == source_root.resolve() else _safe_relative(
+            selected, source_root, "native helper input",
+        )
+        for path in _walk_regular(selected):
+            target = relative / path.relative_to(selected) if selected.is_dir() else relative
+            result["workspace/%s" % target] = path
     return result
 
 
@@ -316,12 +333,12 @@ class HelperBundle:
 
 def build_helper_bundle(
     source_root: Path, nodeid: str, destination: Path, *,
-    trusted_modules: Sequence[str] = (),
+    trusted_modules: Sequence[str] = (), project_inputs: Sequence[Path] = (),
 ) -> HelperBundle:
     """Build a deterministic bundle for exactly one remotely collected item."""
     source_root = Path(source_root).resolve()
     test, relative = _selected_test(nodeid, source_root)
-    files = _project_files(source_root, test, relative)
+    files = _project_files(source_root, test, relative, project_inputs)
     files.update(_runtime_files(trusted_modules))
     files.update(_runtime_tools())
     rows, total = _validated_files(files)

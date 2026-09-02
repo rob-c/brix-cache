@@ -114,12 +114,15 @@ sd_http_json_quote(const char *in, char *out, size_t cap)
  * WHY:  residency and recall differ only in the suffix and the body; the header
  *       block, the identity and the no-failover rule belong to both.
  * HOW:  Through sd_http_ns_send, so this shares the mutation sender's endpoint-0
- *       pinning rather than opening a second wire path. The instance's static
- *       Authorization line rides along when one is configured.
+ *       pinning rather than opening a second wire path. `auth`/`cert_pem`
+ *       (phase-107 C2) override the identity for the recall_cred twin — a
+ *       non-empty `auth` replaces the instance's static Authorization line and
+ *       `cert_pem` presents the user's x509 proxy; NULL/"" keeps the static
+ *       header, exactly the resolve_open_cred fallback every mutation slot uses.
  */
 static int
 sd_http_tape_post(sd_http_inst_state *is, const char *suffix, const char *body,
-    brix_s3_resp_t *resp)
+    brix_s3_resp_t *resp, const char *auth, const char *cert_pem)
 {
     sd_http_ns_req_t rq;
     char             path[SD_HTTP_PATH_MAX];
@@ -133,12 +136,14 @@ sd_http_tape_post(sd_http_inst_state *is, const char *suffix, const char *body,
         return -1;
     }
     (void) snprintf(hdrs, sizeof(hdrs),
-                    "Content-Type: application/json\r\n%s", is->auth_hdr);
+                    "Content-Type: application/json\r\n%s",
+                    (auth != NULL && auth[0] != '\0') ? auth : is->auth_hdr);
 
     memset(&rq, 0, sizeof(rq));
     rq.method   = "POST";
     rq.path     = path;
     rq.hdrs     = hdrs;
+    rq.cert_pem = cert_pem;
     rq.body     = body;
     rq.body_len = strlen(body);
 
@@ -241,9 +246,9 @@ sd_http_archiveinfo_parse(const char *body, size_t len,
  *       WebDAV status verdict so a 401 here reads as EACCES exactly as it does
  *       on every other slot of this driver.
  */
-ngx_int_t
-sd_http_residency(brix_sd_instance_t *inst, const char *key,
-    brix_sd_residency_t *out)
+static ngx_int_t
+sd_http_residency_auth(brix_sd_instance_t *inst, const char *key,
+    brix_sd_residency_t *out, const char *auth, const char *cert_pem)
 {
     sd_http_inst_state *is;
     brix_s3_resp_t      resp;
@@ -269,7 +274,9 @@ sd_http_residency(brix_sd_instance_t *inst, const char *key,
     (void) snprintf(body, sizeof(body), "{\"paths\":[%s]}", quoted);
 
     memset(&resp, 0, sizeof(resp));
-    if (sd_http_tape_post(is, "/archiveinfo", body, &resp) != 0) {
+    if (sd_http_tape_post(is, "/archiveinfo", body, &resp, auth, cert_pem)
+        != 0)
+    {
         return NGX_ERROR;
     }
     if (resp.status != 200) {
@@ -290,6 +297,13 @@ sd_http_residency(brix_sd_instance_t *inst, const char *key,
     return NGX_OK;
 }
 
+ngx_int_t
+sd_http_residency(brix_sd_instance_t *inst, const char *key,
+    brix_sd_residency_t *out)
+{
+    return sd_http_residency_auth(inst, key, out, NULL, NULL);
+}
+
 
 /*
  * WHAT: Submit the stage request for `key` and copy the origin's request id (or
@@ -303,7 +317,7 @@ sd_http_residency(brix_sd_instance_t *inst, const char *key,
  */
 static void
 sd_http_tape_stage(sd_http_inst_state *is, const char *quoted,
-    char reqid_out[40])
+    char reqid_out[40], const char *auth, const char *cert_pem)
 {
     brix_s3_resp_t resp;
     char           body[SD_HTTP_TAPE_BODY_MAX];
@@ -313,7 +327,7 @@ sd_http_tape_stage(sd_http_inst_state *is, const char *quoted,
     (void) snprintf(body, sizeof(body), "{\"files\":[{\"path\":%s}]}", quoted);
 
     memset(&resp, 0, sizeof(resp));
-    if (sd_http_tape_post(is, "/stage", body, &resp) != 0) {
+    if (sd_http_tape_post(is, "/stage", body, &resp, auth, cert_pem) != 0) {
         return;
     }
     if (resp.status == 200 || resp.status == 201 || resp.status == 202) {
@@ -346,8 +360,9 @@ sd_http_tape_stage(sd_http_inst_state *is, const char *quoted,
  *       of retrying will produce a file the tape system has declared destroyed,
  *       and telling the client to keep waiting for it would be a lie.
  */
-ngx_int_t
-sd_http_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
+static ngx_int_t
+sd_http_recall_common(brix_sd_instance_t *inst, const char *key,
+    char reqid_out[40], const char *auth, const char *cert_pem)
 {
     sd_http_inst_state *is;
     brix_sd_residency_t res;
@@ -356,7 +371,7 @@ sd_http_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
     if (reqid_out != NULL) {
         reqid_out[0] = '\0';
     }
-    if (sd_http_residency(inst, key, &res) != NGX_OK) {
+    if (sd_http_residency_auth(inst, key, &res, auth, cert_pem) != NGX_OK) {
         return NGX_ERROR;              /* errno already set (ENOENT/EACCES/…) */
     }
     if (res == BRIX_SD_RES_ONLINE) {
@@ -376,9 +391,41 @@ sd_http_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
         return NGX_ERROR;
     }
     if (reqid_out != NULL) {
-        sd_http_tape_stage(is, quoted, reqid_out);
+        sd_http_tape_stage(is, quoted, reqid_out, auth, cert_pem);
     }
     return NGX_AGAIN;                  /* queued — park the open on reqid */
+}
+
+ngx_int_t
+sd_http_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
+{
+    return sd_http_recall_common(inst, key, reqid_out, NULL, NULL);
+}
+
+/* recall_cred (phase-107 C2) — the SAME classify-then-stage, with both tape
+ * REST POSTs (archiveinfo + stage) presenting the requesting user's bearer or
+ * x509 proxy instead of the instance's static Authorization line — the same
+ * gate + resolve_open_cred pair every mutation slot of this driver uses, so a
+ * deny-mode prestage is refused here rather than silently signed as the
+ * service (the confused-deputy rule). Both POSTs complete before return: the
+ * STAGING is asynchronous at the origin (the caller parks on reqid), but the
+ * requests themselves are synchronous round trips, so the borrowed cred is
+ * consumed inside the call and never retained — the sd.h copy rule binds only
+ * a driver that keeps issuing requests after it returns. */
+ngx_int_t
+sd_http_recall_cred(brix_sd_instance_t *inst, const char *key,
+    const brix_sd_cred_t *cred, char reqid_out[40])
+{
+    sd_http_inst_state *is = inst->state;
+    char                open_auth[SD_HTTP_AUTH_MAX];
+    const char         *cert;
+
+    if (sd_http_cred_gate(is, cred) != 0) {
+        return NGX_ERROR;                   /* errno = EACCES (set by gate) */
+    }
+    cert = sd_http_resolve_open_cred(is, cred, open_auth, sizeof(open_auth));
+    return sd_http_recall_common(inst, key, reqid_out,
+                                 open_auth[0] ? open_auth : NULL, cert);
 }
 
 

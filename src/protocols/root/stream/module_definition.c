@@ -37,9 +37,10 @@ ngx_module_t ngx_stream_brix_module = {
   ngx_stream_brix_commands,
   NGX_STREAM_MODULE,
   /* init_master: none.  init_module (master, once per load): spawn the phase-40
-   * identity broker when brix_idmap=map; a no-op otherwise. */
+   * identity broker when brix_idmap=map, then create the §1.4 bind-migration
+   * channel pairs (pre-fork; non-fatal). */
     NULL,                                   /* init master        */
-    brix_imp_init_module,                 /* init module        */
+    brix_stream_init_module,              /* init module        */
     ngx_stream_brix_init_process,         /* init process       */
     NULL, NULL, brix_exit_process, NULL,
     NGX_MODULE_V1_PADDING

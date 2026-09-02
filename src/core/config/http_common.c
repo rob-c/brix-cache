@@ -213,6 +213,7 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_STR(stage_store);
     BRIX_ADOPT_PTR(stage_store_args);
     BRIX_ADOPT_VAL(allow_write,       NGX_CONF_UNSET);
+    BRIX_ADOPT_VAL(durable_commit,    NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(read_only,         NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(compress,          NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(strict_security,   NGX_CONF_UNSET);
@@ -311,6 +312,13 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_STR(token_macaroon_secret_old);
     /* phase-101 W4: upload staging dir (was brix_webdav_stage_dir). */
     BRIX_ADOPT_STR(upload_stage_dir);
+    /* phase-107 C1: writer reorder-spill scratch. */
+    BRIX_ADOPT_STR(vfs_spill_path);
+    BRIX_ADOPT_VAL(vfs_spill_max, (size_t) NGX_CONF_UNSET_SIZE);
+    /* phase-107 C3: durable-publish barrier flag. */
+    BRIX_ADOPT_VAL(durable_publish, NGX_CONF_UNSET);
+    /* phase-107 C7: cross-protocol lock enforcement mode. */
+    BRIX_ADOPT_VAL(lock_enforcement, NGX_CONF_UNSET_UINT);
     /* phase-101 W4: pblock stripe size (was brix_webdav_pblock_block_size). */
     BRIX_ADOPT_VAL(pblock_block_size, (size_t) NGX_CONF_UNSET_SIZE);
     /* phase-101 W4: x509 CRL family (was brix_webdav_crl/_crl_mode/_signing_policy). */

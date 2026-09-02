@@ -48,6 +48,11 @@ int frm_mss_migrate(void *mss, const char *key);
 int frm_mss_purge(void *mss, const char *key);
 int frm_mss_open_online(void *mss, const char *key);
 int frm_mss_create_online(void *mss, const char *key, mode_t mode);
+int frm_mss_sync_publish(void *mss, const char *key);
+/* phase-107 C6; defined in sd_frm_exec.c (sd_frm_stub.c is at the 600-line
+ * cap) and shared by the exec and lib adapters; the stub leaves the slot NULL
+ * (same precedent as the lib adapter's absent list/mkpath). */
+int frm_mss_exchange(void *mss, const char *a, const char *b);
 
 /* Resolve <base>/.online/<key> (key's leading '/' stripped) into out[cap]. */
 int frm_online_path(const char *base, const char *key, char *out, size_t cap);

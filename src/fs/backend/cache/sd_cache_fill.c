@@ -180,7 +180,8 @@ cache_fill_acquire(sd_cache_inst_state *st, const char *key,
         return NGX_DECLINED;
     }
 
-    fs->staged = brix_cstore_fill_open(&st->cstore, key, fmode);
+    fs->staged = brix_cstore_fill_open(&st->cstore, key, fmode,
+                                       fs->so->snap.size);
     if (fs->staged == NULL) {
         ngx_log_error(NGX_LOG_WARN, st->log, errno,
             "sd_cache: fill_open on the cache store failed for \"%s\" - not cached",

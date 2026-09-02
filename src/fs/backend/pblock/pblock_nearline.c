@@ -142,6 +142,31 @@ pblock_nearline_recall(const pblock_state_t *st, const char *path)
     return 0;
 }
 
+int
+pblock_nearline_evict(const pblock_state_t *st, const char *path)
+{
+    brix_sd_residency_t res;
+
+    if (pblock_nearline_res(st, path, &res) != 0) {
+        errno = EIO;                    /* unlike recall, evict must not
+                                         * fail-open: a claimed eviction that
+                                         * left the row ONLINE would lie */
+        return -1;
+    }
+    if (res == BRIX_SD_RES_LOST) {
+        errno = ENOENT;
+        return -1;
+    }
+    if (res != BRIX_SD_RES_ONLINE) {
+        return 0;                       /* already released — idempotent */
+    }
+    if (nearline_set(st, path, BRIX_SD_RES_NEARLINE) != 0) {
+        errno = EIO;
+        return -1;
+    }
+    return 0;
+}
+
 void
 pblock_nearline_rename(const pblock_state_t *st, const char *src,
     const char *dst)

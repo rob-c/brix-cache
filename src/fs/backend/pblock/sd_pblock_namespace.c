@@ -46,6 +46,7 @@
 #include "pblock_hist.h"         /* Phase-83 F11 versioning + trash/undelete */
 
 #include <errno.h>
+#include <fcntl.h>      /* open(O_DIRECTORY) — the C3 sync_publish barrier */
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -54,6 +55,7 @@
 
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>     /* close/fsync — the C3 sync_publish barrier */
 
 /* Per-open directory state (dir->state); local to the iteration slots. The
  * dir path is kept for the F9 list-lag filter (entries hide by full path). */
@@ -440,6 +442,31 @@ sd_pblock_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     rc = pblock_catalog_rename(st->cat, src, dst) == 0 ? NGX_OK : NGX_ERROR;
     pblock_rename_observe(st, src, dst, rc);
     return rc;
+}
+
+/* Durable-publish barrier (phase-107 C3): the namespace IS the SQLite
+ * catalog, whose own journal fsyncs cover the row — what can still be lost is
+ * the catalog.db DIRECTORY ENTRY on a freshly-created store. Flush the store
+ * root (the catalogue's directory); `path` is irrelevant to where durability
+ * lives here. */
+ngx_int_t
+sd_pblock_sync_publish(brix_sd_instance_t *inst, const char *path)
+{
+    pblock_state_t *st = inst->state;
+    int             fd, e;
+
+    (void) path;
+    fd = open(st->root, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (fd < 0)
+        return NGX_ERROR;
+    if (fsync(fd) != 0) {
+        e = errno;
+        close(fd);
+        errno = e ? e : EIO;
+        return NGX_ERROR;
+    }
+    close(fd);
+    return NGX_OK;
 }
 
 /* ---- directory iteration -------------------------------------------------- */

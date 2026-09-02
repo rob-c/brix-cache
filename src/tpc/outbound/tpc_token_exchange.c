@@ -185,20 +185,20 @@ tpc_rfc8693_run_curl(brix_tpc_pull_t *t, char **curl_argv,
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC token: token-exchange subprocess failed "
                  "(pipe/fork or signal)");
-        unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
+        unlink(body_file);  /* vfs-seam-allow: DOMAIN_CREDENTIAL — staged credential temp, not export storage */
         t->xrd_error = kXR_ServerError;
         return -1;
     }
     if (ec != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC token: token exchange failed (curl exit %d)", ec);
-        unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
+        unlink(body_file);  /* vfs-seam-allow: DOMAIN_CREDENTIAL — staged credential temp, not export storage */
         t->xrd_error = kXR_AuthFailed;
         return -1;
     }
 
     /* Success: body file no longer needed; remove before parsing the reply. */
-    unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
+    unlink(body_file);  /* vfs-seam-allow: DOMAIN_CREDENTIAL — staged credential temp, not export storage */
     return 0;
 }
 
@@ -240,7 +240,7 @@ tpc_token_rfc8693(brix_tpc_pull_t *t, char *token_out, size_t token_out_sz)
 
     body_len = ngx_strlen(body_file);
     if (body_len + 2 > sizeof(body_arg)) {
-        unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
+        unlink(body_file);  /* vfs-seam-allow: DOMAIN_CREDENTIAL — staged credential temp, not export storage */
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC token: staged body path is too long");
         t->xrd_error = kXR_IOError;
@@ -255,7 +255,7 @@ tpc_token_rfc8693(brix_tpc_pull_t *t, char *token_out, size_t token_out_sz)
         client_secret_len = t->conf->tpc_outbound_client_secret.len;
         if (client_secret_len > NGX_MAX_PATH - 2
             || client_id_len > NGX_MAX_PATH - client_secret_len - 2) {
-            unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
+            unlink(body_file);  /* vfs-seam-allow: DOMAIN_CREDENTIAL — staged credential temp, not export storage */
             snprintf(t->err_msg, sizeof(t->err_msg),
                      "TPC token: client credentials are too long");
             t->xrd_error = kXR_ArgInvalid;
@@ -264,7 +264,7 @@ tpc_token_rfc8693(brix_tpc_pull_t *t, char *token_out, size_t token_out_sz)
         auth_len = client_id_len + 1 + client_secret_len;
         basic_auth = malloc(auth_len + 1);
         if (basic_auth == NULL) {
-            unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
+            unlink(body_file);  /* vfs-seam-allow: DOMAIN_CREDENTIAL — staged credential temp, not export storage */
             snprintf(t->err_msg, sizeof(t->err_msg),
                      "TPC token: cannot allocate client credentials");
             t->xrd_error = kXR_IOError;

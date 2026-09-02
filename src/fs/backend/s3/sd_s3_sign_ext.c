@@ -262,3 +262,31 @@ sd_s3_sign_ext(const sd_s3_file *f, const sd_s3_sign_req_t *req,
     }
     return sd_s3_emit_auth_header(f, &sx, hdrs, hdrsz);
 }
+
+/* Sign a publish leg (PUT or CompleteMPU POST) that carries the armed
+ * conditional header (phase-107 C6) — this signer, because sd_s3_sign_ex's
+ * fixed canonical ordering cannot place an if-* header, and because the STS
+ * session token must then join the extras by hand (the s3_batch_post idiom):
+ * sign_ext does not fold it on its own. `ck_val` non-NULL adds the signed
+ * x-amz-checksum-crc32 (the #12 body-integrity header the unconditional PUT
+ * arm signs via sd_s3_sign_ex). Lives here rather than sd_s3_write.c, which
+ * sits against the 600-line cap — and it is a signing stage anyway. */
+int
+sd_s3_sign_publish_cond(sd_s3_file *f, const char *method,
+    const char *canon_qs, const char *ck_val, char *hdrs, size_t hdrsz)
+{
+    sd_s3_sign_hdr_t  extra[3];
+    sd_s3_sign_req_t  req = { method, canon_qs, extra, 0 };
+
+    if (ck_val != NULL) {
+        extra[req.n_extra].name    = "x-amz-checksum-crc32";
+        extra[req.n_extra++].value = ck_val;
+    }
+    extra[req.n_extra].name    = f->cond_name;
+    extra[req.n_extra++].value = f->cond_val;
+    if (f->session_token[0] != '\0') {
+        extra[req.n_extra].name    = "x-amz-security-token";
+        extra[req.n_extra++].value = f->session_token;
+    }
+    return sd_s3_sign_ext(f, &req, hdrs, hdrsz);
+}

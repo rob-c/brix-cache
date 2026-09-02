@@ -6,36 +6,40 @@ checks the bits.  Nothing checked that a shipped driver's declared capabilities
 match what a client actually gets when it asks for an operation the driver does
 not implement.
 
-The http backend (`fs/backend/http/sd_http.c`) is the clearest case: it declares
-RANGE_READ | MEMFILE | DIRS | DIRS_WRITE | HARD_RENAME and deliberately no
-xattr and no truncate capability, and it has no `.getxattr` / `.setxattr` /
-`.listxattr` / `.removexattr` / `.truncate` slots at all.  Every one of those
-must come back as an honest refusal — never a success, and never a silent
-fallback onto the local POSIX file under the export root, which would put the
-metadata in a different storage domain from the bytes.
+The http backend (`fs/backend/http/sd_http.c`) is the probe: it declares no
+truncate capability and has no `.truncate` / `.truncate_path` slots, so a
+resize must come back as an honest refusal.  Its xattr surface is the OTHER
+side of the same coin: since the storage-driver slot wave (item Q) the driver
+carries all four xattr slots as RFC-4918 dead properties (PROPPATCH against
+the origin, `bxa<hex(name)>` elements), so an fattr set must SUCCEED and land
+at the ORIGIN — never as a silent fallback onto the local POSIX file under the
+export root, which would put the metadata in a different storage domain from
+the bytes.
 
-Two exports share one origin so both spellings of "this backend has no xattrs"
-are covered:
-  * STAGED  — the default write-stage tier composes over the http origin, so the
-    VFS sees a decorator that *does* carry an xattr relay and dispatches to the
-    leaf, where the missing slot surfaces as ENOSYS (`sd_cred_forward.h`);
-  * DIRECT  — `brix_stage off`, so sd_http is the top driver and the VFS's own
-    NULL-slot check surfaces ENOTSUP (`fs/vfs/vfs_xattr.c`).
-Both paths must look identical to a client.  They did not: fattr LIST mapped only
-ENOTSUP/EOPNOTSUPP to the documented empty-list answer, so the staged arm
-answered `kXR_FSError "listxattr failed"` for a perfectly healthy backend that
-simply has no extended attributes (fixed in `protocols/root/fattr/list.c`).
+Two exports share one origin so both dispatch spellings are covered:
+  * STAGED  — the default write-stage tier composes over the http origin, so
+    every xattr op travels through the decorator's relay to the leaf slot;
+  * DIRECT  — `brix_stage off`, so sd_http is the top driver and the VFS
+    dispatches the slot directly (`fs/vfs/vfs_xattr.c`).
+Both paths must look identical to a client.  Historically they did not: before
+the driver had xattr slots, fattr LIST mapped only ENOTSUP/EOPNOTSUPP to the
+documented empty-list answer, so the staged arm answered `kXR_FSError
+"listxattr failed"` for a perfectly healthy backend (fixed in
+`protocols/root/fattr/list.c`); that empty-list contract is still pinned here.
 
 Coverage (success + error + security-negative):
   * success           — a file that exists ONLY at the origin reads back
     byte-exact through both exports, and no copy appears in the export root
     (without this the whole module could pass against local POSIX storage);
-  * error             — fattr get/set/del are refused kXR_Unsupported on both
-    arms; fattr list is an empty success on both arms; truncate is refused;
-  * security-negative — a refused set on a WORLD-WRITABLE local placeholder
-    inside the export root leaves that file's xattrs untouched (no fallback into
-    the wrong storage domain), and a traversal-shaped fattr target writes
-    nothing above the export.
+    fattr set/get/del round-trip on both arms and persist at the ORIGIN as
+    `user.nginx_xrootd.webdav.*` dead-property xattrs;
+  * error             — fattr list of a file with no attributes is an empty
+    success on both arms; truncate is refused (Unsupported through the stage
+    tier, fsReadOnly on the direct export);
+  * security-negative — a successful set beside a WORLD-WRITABLE local
+    placeholder inside the export root leaves that file's xattrs and bytes
+    untouched (no write into the wrong storage domain), and a traversal-shaped
+    fattr target writes nothing above the export.
 
 Run:
   PYTHONPATH=tests pytest tests/test_backend_caps_negative.py -v
@@ -66,8 +70,8 @@ pytestmark = [
 ]
 
 # XProtocol.hh:1031+
-kXR_IOError = 3007
 kXR_Unsupported = 3013
+kXR_fsReadOnly = 3025
 
 NAME = "lc-caps-http"
 PROBE = "caps_probe.bin"
@@ -180,25 +184,35 @@ def test_reads_come_from_the_http_backend(caps, arm):
 # --------------------------------------------------------------------------- #
 
 @pytest.mark.parametrize("arm", [STAGED, DIRECT])
-def test_xattr_mutations_and_reads_are_unsupported(caps, arm):
-    """get/set/del report kXR_Unsupported per attribute — the backend has no
-    xattr slots and the VFS gate refuses rather than inventing local storage."""
+def test_xattr_round_trips_to_the_origin(caps, arm):
+    """set → get → del round-trips through the driver's dead-property slots
+    (slot wave, item Q): the value survives the PROPPATCH/PROPFIND hex
+    encoding byte-exact, and the ORIGIN's backing file — not anything local —
+    holds the persisted `user.nginx_xrootd.webdav.*` xattr for exactly as long
+    as the attribute exists."""
     fs = caps.fs(arm)
     path = f"/{PROBE}"
 
-    for label, call in (
-        ("set", lambda: fs.set_xattr(path, [("user.caps", "v")])),
-        ("get", lambda: fs.get_xattr(path, ["user.caps"])),
-        ("del", lambda: fs.del_xattr(path, ["user.caps"])),
-    ):
-        _st, resp = call()
-        ok, err = _perattr(resp)
-        assert not ok, f"fattr {label} succeeded on an xattr-less backend"
-        assert err == kXR_Unsupported, \
-            f"fattr {label} answered {err}, expected kXR_Unsupported"
+    _st, resp = fs.set_xattr(path, [("user.caps", "v")])
+    ok, err = _perattr(resp)
+    assert ok, f"fattr set refused on an xattr-capable backend: errno={err}"
 
+    names = _local_xattrs(caps.origin / PROBE)
+    assert names and all(n.startswith("user.nginx_xrootd.webdav.") for n in names), \
+        f"the set did not persist as a dead-property xattr at the origin: {names}"
+
+    gst, attrs = fs.get_xattr(path, ["user.caps"])
+    gok, gerr = _perattr(attrs)
+    assert gst.ok and gok, f"fattr get of a set attribute refused: errno={gerr}"
+    values = {t[0]: t[1] for t in attrs}
+    assert values.get("user.caps") == "v", \
+        f"the value did not survive the round trip: {values!r}"
+
+    _st, resp = fs.del_xattr(path, ["user.caps"])
+    ok, err = _perattr(resp)
+    assert ok, f"fattr del of a set attribute refused: errno={err}"
     assert _local_xattrs(caps.origin / PROBE) == [], \
-        "a refused fattr set still wrote an attribute at the origin"
+        "the deleted attribute's dead-property xattr survived at the origin"
 
 
 @pytest.mark.parametrize("arm", [STAGED, DIRECT])
@@ -214,13 +228,15 @@ def test_xattr_list_is_an_empty_success(caps, arm):
 
 
 @pytest.mark.parametrize("arm,code", [(STAGED, kXR_Unsupported),
-                                      (DIRECT, kXR_IOError)])
+                                      (DIRECT, kXR_fsReadOnly)])
 def test_truncate_is_refused(caps, arm, code):
     """sd_http advertises no CAP_TRUNCATE and has no `.truncate` slot, so the
     resize is refused and the object keeps its size.  The two arms refuse with
     different-but-honest codes: through the stage tier the missing slot is
     Unsupported, while the direct export answers EROFS (the http backend is not
-    randomly writable) — both are refusals, neither is a silent no-op."""
+    randomly writable), which round-trips as kXR_fsReadOnly since phase-105's
+    `error_mapping.c` closed the EROFS mapping — both are refusals, neither is
+    a silent no-op."""
     st, _ = caps.fs(arm).truncate(f"/{PROBE}", 4)
 
     assert not st.ok, "truncate succeeded on a backend without CAP_TRUNCATE"
@@ -234,15 +250,15 @@ def test_truncate_is_refused(caps, arm, code):
 # --------------------------------------------------------------------------- #
 
 @pytest.mark.parametrize("arm", [STAGED, DIRECT])
-def test_refused_xattr_does_not_fall_back_to_local_storage(caps, arm):
-    """A driver-backed export whose fattr set is refused must NOT write the
-    attribute onto a local file under the export root: the bytes live at the
-    origin, so metadata landing locally is a storage-domain split that survives
-    no failover and is invisible to every other reader of the object.
+def test_xattr_does_not_touch_local_storage(caps, arm):
+    """A driver-backed export's fattr set must write the attribute at the
+    ORIGIN, never onto a local file under the export root: the bytes live at
+    the origin, so metadata landing locally is a storage-domain split that
+    survives no failover and is invisible to every other reader of the object.
 
     The decoy is world-writable and carries the same name as the object, so a
-    fallback would have succeeded — the assertion is about the code path taken,
-    not about permissions."""
+    local write would have succeeded — the assertion is about the code path
+    taken, not about permissions."""
     decoy = caps.export(arm) / PROBE
     decoy.write_bytes(b"local-decoy")
     os.chmod(decoy, 0o666)
@@ -250,11 +266,12 @@ def test_refused_xattr_does_not_fall_back_to_local_storage(caps, arm):
         _st, resp = caps.fs(arm).set_xattr(f"/{PROBE}", [("user.caps", "v")])
         ok, err = _perattr(resp)
 
-        assert not ok and err == kXR_Unsupported, \
-            f"fattr set on an xattr-less backend answered ok={ok} errno={err}"
+        assert ok, f"fattr set refused on an xattr-capable backend: errno={err}"
         assert _local_xattrs(decoy) == [], \
-            "the refused set fell back onto the local file under the export root"
+            "the set landed on the local file under the export root"
         assert decoy.read_bytes() == b"local-decoy", "the local file was rewritten"
+        assert _local_xattrs(caps.origin / PROBE) != [], \
+            "the set went to neither the origin nor the decoy — where did it land?"
     finally:
         decoy.unlink(missing_ok=True)
 

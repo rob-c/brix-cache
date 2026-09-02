@@ -348,9 +348,11 @@ brix_dirlist_stream_entries(brix_ctx_t *ctx, ngx_connection_t *c,
     /* kXR_online needs per-entry stat data (to pass directories through), so
      * it turns on the readdir lstat like dstat does — the response format
      * still emits stat lines only under want_stat. */
-    while (brix_vfs_readdir(walk->dh, &entry_name,
-                              (walk->want_stat || walk->want_online)
-                                  ? &entry_vst : NULL) == NGX_OK) {
+    /* Borrowed names (zero-copy): each entry is fully consumed — skip
+     * checks, meta, chunk append — before the next readdir invalidates it. */
+    while (brix_vfs_readdir_borrow(walk->dh, &entry_name,
+                                     (walk->want_stat || walk->want_online)
+                                         ? &entry_vst : NULL) == NGX_OK) {
         const char                *name = (char *) entry_name.data;
         size_t                     nlen = entry_name.len;
         brix_dirlist_entry_fmt_t fmt;

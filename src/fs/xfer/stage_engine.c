@@ -211,8 +211,10 @@ stage_engine_move(const stage_move_ep_t *ep, const brix_sd_cred_t *cred,
 {
     brix_sd_obj_t     *so;
     brix_sd_staged_t  *ds;
+    brix_sd_stat_t     sst;
     brix_xfer_result_t res;
     int                 oerr = 0;
+    off_t               dsz;
     mode_t              mode;
 
     res = stage_move_caps_check(ep, err_out);
@@ -234,7 +236,15 @@ stage_engine_move(const stage_move_ep_t *ep, const brix_sd_cred_t *cred,
     /* Use the cred-aware staged_open for the destination so the backend driver
      * presents the per-user x509 proxy when flushing to a remote origin.  The
      * source (stage store) is always local so no cred is needed there. */
-    ds = brix_sd_staged_open_maybe_cred(ep->dst, ep->dst_key, mode, cred, &oerr);
+    /* Phase-107 C5: a mover knows the exact final size (the source object is
+     * complete) — declare it so a remote destination can derive a legal
+     * multipart part size and a posix/frm one can preallocate. */
+    dsz = 0;
+    if (so->driver->fstat != NULL && so->driver->fstat(so, &sst) == NGX_OK) {
+        dsz = sst.size;
+    }
+    ds = brix_sd_staged_open_maybe_cred(ep->dst, ep->dst_key, mode, dsz, cred,
+                                        &oerr);
     if (ds == NULL) {
         brix_sd_obj_release(so);
         *err_out = oerr ? oerr : EIO;
@@ -251,7 +261,7 @@ stage_engine_move(const stage_move_ep_t *ep, const brix_sd_cred_t *cred,
         return res;
     }
 
-    if (ep->dst->driver->staged_commit(ds, 0) != NGX_OK) {
+    if (ep->dst->driver->staged_commit(ds, NULL) != NGX_OK) {
         oerr = errno ? errno : EIO;
         ngx_log_error(NGX_LOG_ERR, ep->dst->log, oerr,
             "stage move: dest commit failed (%s key=\"%s\")",

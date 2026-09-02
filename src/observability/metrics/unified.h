@@ -308,10 +308,61 @@ const char *brix_metric_cred_fail_name(brix_cred_fail_t reason);
  * Only the boundary that REJECTS records — a protocol edge that already refused
  * never reaches the VFS kernel, so an operator sees one count per refusal.
  */
-#define BRIX_VFS_MUTATE_OP_METRIC_COUNT  11
+#define BRIX_VFS_MUTATE_OP_METRIC_COUNT  15
 
 void brix_metric_vfs_mutation_denied(brix_proto_t proto, ngx_uint_t op);
 const char *brix_metric_vfs_mutate_op_name(ngx_uint_t op);
+/*
+ * Phase-107 C1 writer-spill telemetry: spill_bytes accounts bytes absorbed
+ * into the reorder scratch, spill_refused one reordered upload the spill could
+ * not serve (no scratch configured, capacity, overlap, coverage hole), both by
+ * protocol; spill_active is a process-wide gauge moved by +/-1 as a scratch is
+ * created/discarded. Lock-free; all three no-op on detached SHM.
+ */
+void brix_metric_vfs_spill_bytes(brix_proto_t proto, size_t bytes);
+void brix_metric_vfs_spill_refused(brix_proto_t proto);
+void brix_metric_vfs_spill_active(int delta);
+
+/* brix_metric_vfs_bulk_delete — book ONE completed unlink_many batch: bump the
+ * per-driver batch counter and add `keys` (the batch's successfully removed
+ * key count) to the key total. One call per batch, key count in the VALUE,
+ * never in a label (phase-107 C4 / INVARIANT #8). Unknown driver names no-op,
+ * exactly like brix_metric_backend_bytes. */
+void brix_metric_vfs_bulk_delete(const char *driver_name, size_t keys);
+
+/* Phase-107 C2 recall/evict telemetry. A recall books exactly ONE result:
+ * QUEUED (new registry record, driver recall in flight), JOINED (an existing
+ * record absorbed the request — no new driver work), ONLINE (the object was
+ * already resident) or ERROR. queued vs joined is the dedup ratio of the
+ * join-not-duplicate lifecycle. Evict adds the driver-reported reclaimed byte
+ * count under the BRIX_FS_ID_COUNT-bounded driver label (a successful evict of
+ * an already-absent object books 0 bytes and no row change — counters only
+ * move on reclaim). Both lock-free, no-op on detached SHM. */
+typedef enum {
+    BRIX_VFS_RECALL_QUEUED = 0,
+    BRIX_VFS_RECALL_JOINED,
+    BRIX_VFS_RECALL_ONLINE,
+    BRIX_VFS_RECALL_ERROR,
+    BRIX_VFS_RECALL_RESULT_COUNT
+} brix_vfs_recall_result_t;
+
+void brix_metric_vfs_recall(brix_vfs_recall_result_t result);
+void brix_metric_vfs_evict(const char *driver_name, uint64_t bytes);
+
+/* Phase-107 C6 publish-precondition refusals. `kind` is the fs layer's
+ * brix_sd_precond_kind_t value taken as ngx_uint_t (the same firewall the
+ * mutation-denied `op` above uses — no fs include here; vfs_staged.c carries
+ * the compile-time equality check). NONE (0) never refuses and no-ops, as
+ * does anything out of range. _advisory books one refusal that was decided
+ * by a check-then-act compare rather than at the storage (pre->atomic == 0)
+ * under the BRIX_FS_ID_COUNT-bounded driver label; unknown names no-op. */
+void brix_metric_vfs_precond_failed(ngx_uint_t kind);
+void brix_metric_vfs_precond_advisory(const char *driver_name);
+
+/* Phase-107 C7: one mutation that arrived under a live foreign lock, by
+ * protocol. Booked by the VFS lock gate in strict (refused EBUSY) AND
+ * advisory (warned through) enforcement; out-of-range protos no-op. */
+void brix_metric_vfs_lock_refused(brix_proto_t proto);
 /*
  * Watermark-driven LRU reaper telemetry (connection-less, process-wide):
  *  - cache_usage_ratio publishes cache_root occupancy (ppm) as a gauge each tick;

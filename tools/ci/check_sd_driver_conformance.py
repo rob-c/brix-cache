@@ -57,12 +57,17 @@ DATA_OPS = {
 # cache-fronted root:// export lost the path-native truncate and fell back into
 # the whole-file staging round trip the slot exists to avoid. The BYTE plane is
 # deliberately excluded — the cache serves reads from its store and the stage
-# tier owns writes, so their data slots differ by design.
+# tier owns writes, so their data slots differ by design — with one exception:
+# `reserve` (phase-107 C5) is object-keyed but must exist on BOTH decorators (a
+# spool relay on stage, an honest EOPNOTSUPP pass-through answer on cache),
+# because a slot relayed by one and absent on the other is the truncate_path
+# asymmetry again.
 DECORATORS = ("cache", "stage")
 _PARITY_BASE = (
-    "stat", "unlink", "mkdir", "rename", "setattr", "truncate_path",
-    "server_copy", "space", "opendir", "readdir", "closedir",
-    "getxattr", "listxattr", "setxattr", "removexattr",
+    "stat", "unlink", "unlink_many", "mkdir", "rename", "setattr",
+    "truncate_path", "server_copy", "space", "opendir", "readdir", "closedir",
+    "getxattr", "listxattr", "setxattr", "removexattr", "reserve", "evict",
+    "exchange",   # phase-107 C6: relayed by both decorators (ENOTSUP downward)
 )
 PARITY_OPS = frozenset(_PARITY_BASE) | frozenset(
     op + "_cred" for op in _PARITY_BASE

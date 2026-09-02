@@ -20,7 +20,7 @@ brix_fd_kind(int fd)
 {
     struct stat st;
 
-    if (fstat(fd, &st) != 0) {  /* vfs-seam-allow: error-path fd forensics, no data I/O */
+    if (fstat(fd, &st) != 0) {  /* vfs-seam-allow: NOT_STORAGE — error-path fd forensics, no data I/O */
         return "stale";
     }
     if (S_ISREG(st.st_mode)) {

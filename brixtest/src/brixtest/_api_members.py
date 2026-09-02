@@ -279,6 +279,7 @@ PUBLIC_ATTRIBUTES: Mapping[str, tuple[str, ...]] = {
     "MetricSample": ("name", "value", "unit", "kind", "labels", "at_seconds"),
     "MetricTimer": ("elapsed",),
     "Mount": ("source", "target", "read_only", "kind", "propagation"),
+    "OutputExpectation": ("contains", "excludes", "regex", "exact", "strip"),
     "Placement": ("backend", "image", "namespace", "labels", "node_selector", "security_context", "resources", "options", "allow_mutable_image", "environment", "group", "identity", "network_policy"),
     "Probe": ("kind", "endpoint", "timeout", "interval", "path", "command", "statuses", "pattern"),
     "ProviderContext": ("nodeid", "root", "backend", "evidence", "metrics"),

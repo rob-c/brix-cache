@@ -96,16 +96,16 @@ static ssize_t
 mock_staged_write(brix_sd_staged_t *st, const void *buf, size_t len, off_t off)
 { (void) st; (void) buf; (void) off; return (ssize_t) len; }
 static ngx_int_t
-mock_staged_commit(brix_sd_staged_t *st, int noreplace)
-{ (void) noreplace; free(st); return NGX_OK; }
+mock_staged_commit(brix_sd_staged_t *st, brix_sd_precond_t *pre)
+{ (void) pre; free(st); return NGX_OK; }
 static void mock_staged_abort(brix_sd_staged_t *st) { free(st); }
 
 static brix_sd_staged_t *
 mock_staged_open(brix_sd_instance_t *inst, const char *final_path, mode_t mode,
-    int *err)
+    off_t declared_size, int *err)
 {
     brix_sd_staged_t *h = calloc(1, sizeof(*h));
-    (void) final_path; (void) mode;
+    (void) final_path; (void) mode; (void) declared_size;
     g_plain_open_calls++;
     h->inst = inst;
     if (err != NULL) { *err = 0; }
@@ -113,10 +113,10 @@ mock_staged_open(brix_sd_instance_t *inst, const char *final_path, mode_t mode,
 }
 static brix_sd_staged_t *
 mock_staged_open_cred(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, const brix_sd_cred_t *cred, int *err)
+    mode_t mode, off_t declared_size, const brix_sd_cred_t *cred, int *err)
 {
     brix_sd_staged_t *h = calloc(1, sizeof(*h));
-    (void) final_path; (void) mode;
+    (void) final_path; (void) mode; (void) declared_size;
     g_cred_open_calls++;
     if (cred != NULL && cred->bearer != NULL) {
         snprintf(g_seen_bearer, sizeof(g_seen_bearer), "%s", cred->bearer);

@@ -126,7 +126,7 @@ brix_cache_path_flag(const ngx_stream_brix_srv_conf_t *conf, const char *reqpath
     /* vfs-seam-allow: separate storage domain. cache_path is under the
      * server-managed cache root (svc-owned, distinct from the export root); the
      * cachersp existence probe runs as the worker, not via the export VFS. */
-    return (stat(cache_path, &cst) == 0 && S_ISREG(cst.st_mode))  /* vfs-seam-allow: separate cache-root domain */
+    return (stat(cache_path, &cst) == 0 && S_ISREG(cst.st_mode))  /* vfs-seam-allow: DOMAIN_CACHE — separate cache-root domain */
            ? kXR_cachersp : 0;
 }
 
@@ -167,6 +167,8 @@ stat_vfs_ctx_prepare(brix_ctx_t *ctx, ngx_connection_t *c,
         conf->common.root_canon, NULL,
         brix_vfs_policy_from_write_enable(conf->common.allow_write),
         0 /* is_tls */, ctx->identity, path);
+    /* Persistent per-worker confinement rootfd (op_vfs_ctx pattern). */
+    vctx->rootfd = conf->rootfd;
     brix_vfs_ctx_bind_backend_cred(vctx,
         &conf->common.storage_credential_dir,
         conf->common.storage_credential_fallback);
@@ -180,7 +182,9 @@ stat_vfs_ctx_prepare(brix_ctx_t *ctx, ngx_connection_t *c,
  * RESOLVE_IN_ROOT chroots the absolute target and lands on ENOENT, where
  * stock follows it on the real fs.  Match stock, but CONFINE via realpath —
  * accept only when the canonical target is within the export root (an
- * escaping link is rejected).  Read-only, so the realpath/stat TOCTOU window
+ * escaping link is rejected; brix_realpath_existing keeps the common
+ * genuine-miss leg at one failing open instead of glibc realpath's
+ * per-component readlink walk).  Read-only, so the resolve/stat TOCTOU window
  * is benign.  Returns 0 with *tgt->st filled from the confirmed in-root
  * target, or -1 (errno describes the last failing probe) to keep the
  * original miss.
@@ -194,7 +198,7 @@ stat_symlink_follow_fallback(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_vfs_ctx_t  rvctx;
     brix_vfs_stat_t rvst;
 
-    if (realpath(tgt->full_path, real) == NULL
+    if (brix_realpath_existing(tgt->full_path, real) == NULL
         || ngx_strncmp(real, conf->common.root_canon, rl) != 0
         || (real[rl] != '/' && real[rl] != '\0'))
     {
@@ -272,6 +276,8 @@ stat_residency_flags(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
         conf->common.root_canon, NULL,
         brix_vfs_policy_from_write_enable(conf->common.allow_write),
         0 /* is_tls */, NULL, full_path);
+    /* Persistent per-worker confinement rootfd (op_vfs_ctx pattern). */
+    rvc.rootfd = conf->rootfd;
     if (brix_vfs_residency(&rvc, &res, NULL) == NGX_OK
         && (res == BRIX_SD_RES_NEARLINE
             || res == BRIX_SD_RES_OFFLINE))

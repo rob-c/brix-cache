@@ -138,7 +138,8 @@ cstore_make_parents(brix_cstore_t *cs, const char *key)
 }
 
 brix_sd_staged_t *
-brix_cstore_fill_open(brix_cstore_t *cs, const char *key, mode_t mode)
+brix_cstore_fill_open(brix_cstore_t *cs, const char *key, mode_t mode,
+    off_t declared_size)
 {
     brix_sd_staged_t *st;
     int                 err = 0;
@@ -148,7 +149,8 @@ brix_cstore_fill_open(brix_cstore_t *cs, const char *key, mode_t mode)
         return NULL;
     }
     cstore_make_parents(cs, key);
-    st = cs->store->driver->staged_open(cs->store, key, mode, &err);
+    st = cs->store->driver->staged_open(cs->store, key, mode, declared_size,
+                                        &err);
     if (st == NULL && err != 0) {
         errno = err;
     }
@@ -173,7 +175,7 @@ brix_cstore_fill_commit(brix_sd_staged_t *st)
         errno = ENOSYS;
         return NGX_ERROR;
     }
-    return st->inst->driver->staged_commit(st, 0);
+    return st->inst->driver->staged_commit(st, NULL);
 }
 
 void
@@ -342,7 +344,7 @@ brix_cstore_evict(brix_cstore_t *cs, const char *key)
         if (cstore_local_path(cs, key, path, sizeof(path)) == 0
             && brix_cache_cinfo_path(cipath, sizeof(cipath), path) == 0)
         {
-            (void) unlink(cipath);   /* vfs-seam-allow: svc-owned cache tree */
+            (void) unlink(cipath);   /* vfs-seam-allow: DOMAIN_CACHE — svc-owned cache tree */
         }
     }
 
@@ -374,7 +376,7 @@ brix_cstore_evict_sized(brix_cstore_t *cs, const char *key)
         struct stat sb;
 
         if (cstore_local_path(cs, key, path, sizeof(path)) == 0
-            && stat(path, &sb) == 0     /* vfs-seam-allow: svc-owned cache tree */
+            && stat(path, &sb) == 0     /* vfs-seam-allow: DOMAIN_CACHE — svc-owned cache tree */
             && S_ISREG(sb.st_mode))
         {
             bytes = (uint64_t) sb.st_size;

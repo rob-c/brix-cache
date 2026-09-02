@@ -40,6 +40,10 @@ typedef struct {
     ngx_log_t             *log;
 } sd_stage_inst_state;
 
+/* The decorated SOURCE instance (moved here from sd_stage.c when the C6 relays
+ * displaced to sd_stage_write.c needed it too). */
+#define SD_STAGE_SRC(inst)  (((sd_stage_inst_state *) (inst)->state)->source)
+
 /* The stage decorator's driver descriptor. Defined in sd_stage.c; referenced by
  * the write-back open in sd_stage_write.c, which stamps each write-back object
  * with it so pwrite/pread/fsync/close dispatch to the write-back methods. */
@@ -69,19 +73,39 @@ ssize_t   sd_stage_wb_pwrite(brix_sd_obj_t *obj, const void *buf, size_t len,
     off_t off);
 ssize_t   sd_stage_wb_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off);
 ngx_int_t sd_stage_wb_ftruncate(brix_sd_obj_t *obj, off_t length);
+/* phase-107 C5: relay a declared-size reservation onto the stage-store spool. */
+ngx_int_t sd_stage_wb_reserve(brix_sd_obj_t *obj, off_t size);
 ngx_int_t sd_stage_wb_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out);
 ngx_int_t sd_stage_wb_fsync(brix_sd_obj_t *obj);
 ngx_int_t sd_stage_wb_close(brix_sd_obj_t *obj);
 
+/* phase-107 C2 evict pair (sd_stage_wb.c): EBUSY on a dirty store copy, else
+ * idempotent success relayed downward. */
+/* Namespace relays displaced from sd_stage.c by the 600-line cap (bodies in
+ * sd_stage_write.c): path-truncate forwarding and the phase-107 C6 exchange
+ * relay (source primitive or ENOTSUP — never a two-rename emulation). */
+ngx_int_t sd_stage_truncate_path(brix_sd_instance_t *inst, const char *path,
+    off_t len);
+ngx_int_t sd_stage_truncate_path_cred(brix_sd_instance_t *inst,
+    const char *path, off_t len, const brix_sd_cred_t *cred);
+ngx_int_t sd_stage_exchange(brix_sd_instance_t *inst, const char *a,
+    const char *b);
+ngx_int_t sd_stage_exchange_cred(brix_sd_instance_t *inst, const char *a,
+    const char *b, const brix_sd_cred_t *cred);
+ngx_int_t sd_stage_evict(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out);
+ngx_int_t sd_stage_evict_cred(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out, const brix_sd_cred_t *cred);
+
 /* Staged-upload methods (the HTTP-PUT interposed path). */
 brix_sd_staged_t *sd_stage_staged_open(brix_sd_instance_t *inst,
-    const char *final_path, mode_t mode, int *err_out);
+    const char *final_path, mode_t mode, off_t declared_size, int *err_out);
 brix_sd_staged_t *sd_stage_staged_open_cred(brix_sd_instance_t *inst,
-    const char *final_path, mode_t mode, const brix_sd_cred_t *cred,
-    int *err_out);
+    const char *final_path, mode_t mode, off_t declared_size,
+    const brix_sd_cred_t *cred, int *err_out);
 ssize_t   sd_stage_staged_write(brix_sd_staged_t *st, const void *buf,
     size_t len, off_t off);
-ngx_int_t sd_stage_staged_commit(brix_sd_staged_t *st, int noreplace);
+ngx_int_t sd_stage_staged_commit(brix_sd_staged_t *st, brix_sd_precond_t *pre);
 void      sd_stage_staged_abort(brix_sd_staged_t *st);
 
 #endif /* BRIX_SD_STAGE_INTERNAL_H */

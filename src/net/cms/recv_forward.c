@@ -276,8 +276,8 @@ cms_posix_apply(ngx_brix_cms_ctx_t *ctx, const brix_cms_node_plan_t *plan,
         int fd = brix_vfs_export_open_fd_at(&opctx, rootfd, plan->path,
                                             O_RDONLY, 0);
         if (fd < 0) { return -1; }
-        rc = fchmod(fd, plan->mode);  /* vfs-seam-allow: metadata on a VFS-opened confined fd */
-        close(fd);  /* vfs-seam-allow: metadata on a VFS-opened confined fd */
+        rc = fchmod(fd, plan->mode);  /* vfs-seam-allow: SEAM_CORRECT — metadata on a VFS-opened confined fd */
+        close(fd);  /* vfs-seam-allow: SEAM_CORRECT — metadata on a VFS-opened confined fd */
         return rc;
     }
     case XRDCMS_NACT_TRUNC: {
@@ -285,8 +285,8 @@ cms_posix_apply(ngx_brix_cms_ctx_t *ctx, const brix_cms_node_plan_t *plan,
         int fd = brix_vfs_export_open_fd_at(&opctx, rootfd, plan->path,
                                             O_WRONLY, 0);
         if (fd < 0) { return -1; }
-        rc = ftruncate(fd, (off_t) plan->size);  /* vfs-seam-allow: metadata on a VFS-opened confined fd */
-        close(fd);  /* vfs-seam-allow: metadata on a VFS-opened confined fd */
+        rc = ftruncate(fd, (off_t) plan->size);  /* vfs-seam-allow: SEAM_CORRECT — metadata on a VFS-opened confined fd */
+        close(fd);  /* vfs-seam-allow: SEAM_CORRECT — metadata on a VFS-opened confined fd */
         return rc;
     }
     default:

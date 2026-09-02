@@ -64,28 +64,31 @@ def _call_name(node: ast.Call) -> str:
 
 
 def _managed(tree: ast.Module) -> bool:
-    direct, modules = _case_imports(tree)
-    return any(_managed_function(node, direct, modules) for node in ast.walk(tree))
+    direct, modules = _managed_imports(tree)
+    return any(_managed_node(node, direct, modules) for node in ast.walk(tree))
 
 
-def _case_imports(tree: ast.Module) -> tuple[set[str], set[str]]:
+def _managed_imports(tree: ast.Module) -> tuple[set[str], set[str]]:
     direct = set()
     modules = set()
     for node in ast.walk(tree):
-        direct.update(_direct_case_imports(node))
-        modules.update(_module_case_imports(node))
+        direct.update(_direct_managed_imports(node))
+        modules.update(_module_imports(node))
     return direct, modules
 
 
-def _direct_case_imports(node: ast.AST) -> set[str]:
+def _direct_managed_imports(node: ast.AST) -> set[str]:
     if not isinstance(node, ast.ImportFrom) or not node.module:
         return set()
     if node.module.split(".", 1)[0] != "brixtest":
         return set()
-    return {alias.asname or alias.name for alias in node.names if alias.name == "case"}
+    return {
+        alias.asname or alias.name for alias in node.names
+        if alias.name in ("case", "native_test")
+    }
 
 
-def _module_case_imports(node: ast.AST) -> set[str]:
+def _module_imports(node: ast.AST) -> set[str]:
     if not isinstance(node, ast.Import):
         return set()
     return {alias.asname or alias.name for alias in node.names if alias.name == "brixtest"}
@@ -95,6 +98,27 @@ def _managed_function(node: ast.AST, direct: set[str], modules: set[str]) -> boo
     if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         return False
     return any(_managed_decorator(decorator, direct, modules) for decorator in node.decorator_list)
+
+
+def _managed_node(node: ast.AST, direct: set[str], modules: set[str]) -> bool:
+    if _managed_function(node, direct, modules):
+        return True
+    value = getattr(node, "value", None)
+    return isinstance(node, (ast.Assign, ast.AnnAssign)) and _native_call(
+        value, direct, modules,
+    )
+
+
+def _native_call(node: object, direct: set[str], modules: set[str]) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    target = node.func
+    if isinstance(target, ast.Name):
+        return target.id in direct and target.id != "case"
+    return (
+        isinstance(target, ast.Attribute) and target.attr == "native_test"
+        and isinstance(target.value, ast.Name) and target.value.id in modules
+    )
 
 
 def _managed_decorator(node: ast.expr, direct: set[str], modules: set[str]) -> bool:

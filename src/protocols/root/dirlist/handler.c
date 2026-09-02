@@ -186,6 +186,7 @@ brix_dirlist_open_dir(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
         conf->common.root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */,
         ctx->identity, walk->full_path);
+    vctx.rootfd = conf->rootfd;   /* persistent per-worker confinement rootfd */
     brix_vfs_ctx_bind_backend_cred(&vctx,
         &conf->common.storage_credential_dir,
         conf->common.storage_credential_fallback);
@@ -222,6 +223,34 @@ static int
 brix_dirlist_alloc_chunk(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_dirlist_walk_t *walk, ngx_int_t *rc)
 {
+    /* Fast path: the out-ring is empty, so no parked response can still
+     * reference the connection's cached chunk — reuse it (allocated on first
+     * dirlist, freed at disconnect). One 64KB allocation per CONNECTION
+     * instead of per request; this also stops a long-lived listing connection
+     * from walking into the BRIX_MAX_CONN_POOL_BYTES cap below. The cached
+     * buffer's size is exactly this fixed chunk_cap (set once in
+     * brix_handle_dirlist); a parked previous response falls through to the
+     * per-request pool allocation, preserving the old semantics. */
+    if (ctx->out.count == 0) {
+        if (ctx->rd.dirlist_chunk == NULL) {
+            ctx->rd.dirlist_chunk =
+                ngx_alloc(XRD_RESPONSE_HDR_LEN + walk->chunk_cap, c->log);
+            if (ctx->rd.dirlist_chunk == NULL) {
+                brix_vfs_closedir(walk->dh, c->log);
+                *rc = NGX_ERROR;
+                return 0;
+            }
+        }
+        walk->chunk = ctx->rd.dirlist_chunk;
+
+        if (walk->want_stat) {
+            ngx_memcpy(walk->chunk + XRD_RESPONSE_HDR_LEN,
+                       BRIX_DSTAT_LEADIN, BRIX_DSTAT_LEADIN_LEN);
+            walk->chunk_pos = BRIX_DSTAT_LEADIN_LEN;
+        }
+        return 1;
+    }
+
     if (ctx->login.pool_bytes_used + XRD_RESPONSE_HDR_LEN + walk->chunk_cap
             > BRIX_MAX_CONN_POOL_BYTES)
     {

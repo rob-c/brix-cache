@@ -75,6 +75,13 @@ static ngx_command_t  brix_stream_common_commands[] = {
       offsetof(ngx_stream_brix_common_conf_t, common.allow_write),
       NULL },
 
+    { ngx_string("brix_durable_commit"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_common_conf_t, common.durable_commit),
+      NULL },
+
     { ngx_string("brix_verify_write"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,

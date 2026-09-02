@@ -70,7 +70,7 @@ the tunables, the auth-mode constants, and the `brix_identity_t` principal defin
     `rd_inflight`/`rd_backpressured`, the windowed-read continuation fields (`rd_win_*`),
     reusable scratch buffers and cached AIO tasks
     (`read_scratch`/`read_hdr_scratch`/`write_scratch`,
-    `read_aio_task`/`pgread_aio_task`/`readv_aio_task`), and `budget_charged` for the
+    `read_aio_task`/`readv_aio_task`; pipelined pgread tasks live per rd-pool slot), and `budget_charged` for the
     SHM-global transfer-heap accounting.
   - *Crypto/security:* `gsi_dh_key` (DH key, valid only between `kXGS_cert` and the secret
     derive at `kXGC_cert`), the `signing_*`/`sigver_*` kXR_sigver request-signing lifecycle

@@ -382,6 +382,7 @@ def build_launch(
     *, cwd: Path, readonly_roots: Sequence[Path], writable_root: Path,
     control_dir: Path, validate_executable: bool = True,
     host_aliases: Sequence[HostMapping] = (),
+    helper_inputs: Sequence[Path] = (),
 ) -> LaunchSpec:
     """Build one shell-free helper launch and its best-effort cleanup commands."""
     from brixtest.isolation_launch import build_launch as build
@@ -390,4 +391,5 @@ def build_launch(
         isolation, pytest_argv, child_env, cwd=cwd, readonly_roots=readonly_roots,
         writable_root=writable_root, control_dir=control_dir,
         validate_executable=validate_executable, host_aliases=host_aliases,
+        helper_inputs=helper_inputs,
     )

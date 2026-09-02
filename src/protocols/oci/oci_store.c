@@ -165,7 +165,7 @@ brix_oci_store_mkparent(const char *path, ngx_log_t *log)
             continue;
         }
         *p = '\0';
-        if (mkdir(buf, OCI_STORE_DIR_MODE) != 0   /* vfs-seam-allow: registry store tree, not a VFS export object */
+        if (mkdir(buf, OCI_STORE_DIR_MODE) != 0   /* vfs-seam-allow: DOMAIN_REGISTRY — registry store tree, not a VFS export object */
             && ngx_errno != NGX_EEXIST)
         {
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
@@ -174,7 +174,7 @@ brix_oci_store_mkparent(const char *path, ngx_log_t *log)
         }
         *p = '/';
     }
-    if (mkdir(buf, OCI_STORE_DIR_MODE) != 0       /* vfs-seam-allow: registry store tree, not a VFS export object */
+    if (mkdir(buf, OCI_STORE_DIR_MODE) != 0       /* vfs-seam-allow: DOMAIN_REGISTRY — registry store tree, not a VFS export object */
         && ngx_errno != NGX_EEXIST)
     {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
@@ -191,7 +191,7 @@ brix_oci_store_exists(const char *path, off_t *size_out)
 {
     struct stat sb;
 
-    if (stat(path, &sb) != 0 || !S_ISREG(sb.st_mode)) {  /* vfs-seam-allow: store presence probe (CAS existence, no bytes read) */
+    if (stat(path, &sb) != 0 || !S_ISREG(sb.st_mode)) {  /* vfs-seam-allow: DOMAIN_REGISTRY — store presence probe (CAS existence, no bytes read) */
         return 0;
     }
     if (size_out != NULL) {
@@ -212,7 +212,7 @@ brix_oci_store_verify(const char *path, const brix_oci_digest_t *want,
     ssize_t                n;
     int                    fd;
 
-    fd = open(path, O_RDONLY | O_CLOEXEC);   /* vfs-seam-allow: seal-time hash of the staged upload, before it becomes an object */
+    fd = open(path, O_RDONLY | O_CLOEXEC);   /* vfs-seam-allow: DOMAIN_REGISTRY — seal-time hash of the staged upload, before it becomes an object */
     if (fd < 0) {
         return NGX_ERROR;
     }
@@ -266,7 +266,7 @@ brix_oci_store_publish(const char *tmp_path, const char *final_path,
     if (brix_oci_store_mkparent(final_path, log) != NGX_OK) {
         return NGX_ERROR;
     }
-    if (rename(tmp_path, final_path) != 0) {   /* vfs-seam-allow: atomic store publish; the object never exists partially at its final path */
+    if (rename(tmp_path, final_path) != 0) {   /* vfs-seam-allow: DOMAIN_REGISTRY — atomic store publish; the object never exists partially at its final path */
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
                       "oci: cannot publish \"%s\" -> \"%s\"",
                       tmp_path, final_path);
@@ -293,7 +293,7 @@ brix_oci_store_put_text(const char *final_path, const char *text, size_t len,
         return NGX_ERROR;
     }
 
-    fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC,   /* vfs-seam-allow: store bookkeeping record (tag pointer / ref mark), staged for the rename below */
+    fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC,   /* vfs-seam-allow: DOMAIN_REGISTRY — store bookkeeping record (tag pointer / ref mark), staged for the rename below */
               OCI_STORE_FILE_MODE);
     if (fd < 0) {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
@@ -307,7 +307,7 @@ brix_oci_store_put_text(const char *final_path, const char *text, size_t len,
                 continue;
             }
             (void) close(fd);
-            (void) unlink(tmp);            /* vfs-seam-allow: drop our own failed staging file */
+            (void) unlink(tmp);            /* vfs-seam-allow: DOMAIN_REGISTRY — drop our own failed staging file */
             return NGX_ERROR;
         }
         text += n;
@@ -315,10 +315,10 @@ brix_oci_store_put_text(const char *final_path, const char *text, size_t len,
     }
     (void) close(fd);
 
-    if (rename(tmp, final_path) != 0) {    /* vfs-seam-allow: atomic tag/mark swap — a concurrent reader sees old or new, never torn */
+    if (rename(tmp, final_path) != 0) {    /* vfs-seam-allow: DOMAIN_REGISTRY — atomic tag/mark swap — a concurrent reader sees old or new, never torn */
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
                       "oci: cannot publish \"%s\"", final_path);
-        (void) unlink(tmp);                /* vfs-seam-allow: drop our own failed staging file */
+        (void) unlink(tmp);                /* vfs-seam-allow: DOMAIN_REGISTRY — drop our own failed staging file */
         return NGX_ERROR;
     }
     return NGX_OK;
@@ -331,7 +331,7 @@ brix_oci_store_get_text(const char *path, char *out, size_t outsz)
     ssize_t  n;
     int      fd;
 
-    fd = open(path, O_RDONLY | O_CLOEXEC);   /* vfs-seam-allow: store bookkeeping record (tag pointer / session state) */
+    fd = open(path, O_RDONLY | O_CLOEXEC);   /* vfs-seam-allow: DOMAIN_REGISTRY — store bookkeeping record (tag pointer / session state) */
     if (fd < 0) {
         return -1;
     }
@@ -435,12 +435,12 @@ brix_oci_store_tag_list(const brix_oci_store_t *st, const char *name,
     {
         return -1;
     }
-    dh = opendir(dir);                     /* vfs-seam-allow: registry's own store index, not a VFS export listing */
+    dh = opendir(dir);                     /* vfs-seam-allow: DOMAIN_REGISTRY — registry's own store index, not a VFS export listing */
     if (dh == NULL) {
         return 0;                          /* a repo with no tags is not an error */
     }
 
-    while ((ent = readdir(dh)) != NULL) {  /* vfs-seam-allow: registry's own store index, not a VFS export listing */
+    while ((ent = readdir(dh)) != NULL) {  /* vfs-seam-allow: DOMAIN_REGISTRY — registry's own store index, not a VFS export listing */
         size_t len = ngx_strlen(ent->d_name);
 
         if (ent->d_name[0] == '.' || used + len + 2 > outsz) {
@@ -480,7 +480,7 @@ brix_oci_store_mark_layer(const brix_oci_store_t *st, const char *name,
 ngx_int_t
 brix_oci_store_remove(const char *path, ngx_log_t *log)
 {
-    if (unlink(path) != 0 && ngx_errno != NGX_ENOENT) {   /* vfs-seam-allow: store object removal (DELETE / session abort) */
+    if (unlink(path) != 0 && ngx_errno != NGX_ENOENT) {   /* vfs-seam-allow: DOMAIN_REGISTRY — store object removal (DELETE / session abort) */
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
                       "oci: cannot remove \"%s\"", path);
         return NGX_ERROR;
@@ -505,7 +505,7 @@ brix_oci_store_drop_dir(const char *dir, ngx_log_t *log)
             (void) brix_oci_store_remove(path, log);
         }
     }
-    if (rmdir(dir) != 0 && ngx_errno != NGX_ENOENT) {   /* vfs-seam-allow: session directory teardown (abort / reap / seal) */
+    if (rmdir(dir) != 0 && ngx_errno != NGX_ENOENT) {   /* vfs-seam-allow: DOMAIN_REGISTRY — session directory teardown (abort / reap / seal) */
         ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
                       "oci: cannot remove upload session \"%s\"", dir);
     }

@@ -291,5 +291,11 @@ s3_merge_export(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *conf)
         return NGX_CONF_ERROR;
     }
 
+    /* phase-107 C1: writer reorder-spill scratch (no brix_stage_dir on this
+     * surface, so only an explicit brix_vfs_spill_path provisions one). */
+    if (brix_prepare_spill_scratch(cf, &conf->common, NULL) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+
     return NGX_CONF_OK;
 }

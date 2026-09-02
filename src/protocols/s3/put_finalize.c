@@ -3,6 +3,7 @@
  * Phase-38 split of put.c; behavior-identical.
  */
 #include "s3_put_internal.h"
+#include "core/http/http_conditionals.h"   /* brix_http_write_precond (C6) */
 #include "fs/xfer/xfer.h"   /* unified transfer audit ledger (S3 PUT = STAGE) */
 
 #include <sys/stat.h>
@@ -24,15 +25,27 @@ s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
 {
     ngx_http_s3_req_ctx_t *rx =
         ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
+    brix_sd_precond_t pre;
     size_t      bytes;
     ngx_int_t   rc;
     int         e;
 
     /* Publish through the unified write session (routes through sd_stage when a
      * stage store is composed; a local temp+rename otherwise) — §6.5/G9 unified
-     * staging — folding the verify-on-write read-back when the export opts in. */
-    rc = brix_vfs_writer_commit_ex(writer,
-             (rx != NULL && rx->exclusive_create) ? 1 : 0);
+     * staging — folding the verify-on-write read-back when the export opts in
+     * and the request's carried precondition (phase-107 C6): If-Match lifts to
+     * MATCH_ETAG, If-None-Match:* to ABSENT (the W6b exclusive-create bit is
+     * kept as a backstop so the two spellings can never diverge). The edge
+     * evaluation in s3_put_precondition remains the fast path that spares a
+     * doomed request the body upload; the storage's decision here is the one
+     * that counts. */
+    brix_http_write_precond(r, &pre);
+    if (pre.kind == BRIX_SD_PRECOND_NONE
+        && rx != NULL && rx->exclusive_create)
+    {
+        pre.kind = BRIX_SD_PRECOND_ABSENT;
+    }
+    rc = brix_vfs_writer_commit_pre(writer, &pre);
 
     /* Unified ledger: S3 PutObject (chunked / aio path) is a STAGE publish — the
      * same audit line as S3 POST, WebDAV PUT, and root:// uploads. The staged fd
@@ -88,13 +101,19 @@ s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
 int
 s3_put_commit_conflict(ngx_http_request_t *r)
 {
-    if (ngx_errno != EEXIST) {
+    /* EEXIST: an ABSENT (If-None-Match: *) create lost the race at the
+     * rename. ECANCELED: a carried If-Match (MATCH_*) precondition failed at
+     * the commit (C6). Both are the S3 PreconditionFailed answer (§5.3). */
+    if (ngx_errno != EEXIST && ngx_errno != ECANCELED) {
         return 0;
     }
     s3_put_finalize_client_error(r, NGX_HTTP_PRECONDITION_FAILED,
         "PreconditionFailed",
-        "At least one of the preconditions you specified did not hold "
-        "(If-None-Match).");
+        ngx_errno == ECANCELED
+        ? "At least one of the preconditions you specified did not hold "
+          "(If-Match)."
+        : "At least one of the preconditions you specified did not hold "
+          "(If-None-Match).");
     return 1;
 }
 
@@ -166,6 +185,16 @@ s3_put_finalize_fs_error(ngx_http_request_t *r, int saved_errno)
     case 414:
         code = "KeyTooLongError";
         message = "Your key is too long.";
+        break;
+    case 423:
+        /* phase-107 C7: the VFS lock gate refused the write (a live foreign
+         * WebDAV lock on the key or an ancestor).  423 Locked is WebDAV
+         * vocabulary S3 clients do not speak — re-express it as the S3 wire's
+         * own contention answer, 409 Conflict + OperationAborted (§5.0). */
+        status = 409;
+        code = "OperationAborted";
+        message = "A conflicting conditional operation is currently in "
+                  "progress against this resource.";
         break;
     default:
         code = "InvalidRequest";

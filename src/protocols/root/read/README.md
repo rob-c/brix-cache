@@ -78,7 +78,7 @@ and the global `allow_write` policy for write-mode opens.
   opcode reads it; `kXR_close` frees it. A slot is "in use" iff `fd >= 0`.
 - **`brix_ctx_t`** (`src/core/types/context.h`): the per-connection context carrying
   `files[]`, `cur_streamid`, `payload`/`cur_dlen`, the reusable AIO task handles
-  (`read_aio_task`, `readv_aio_task`, `pgread_aio_task`), the `read_scratch` buffer and
+  (`read_aio_task`, `readv_aio_task`; pgread tasks are per rd-pool slot), the `read_scratch` buffer and
   its size, the windowed-read cursor (`rd_win_*`), `session_bytes`, the
   `cms_wait_streamid`, and the `XRD_ST_*` state (`XRD_ST_AIO`, `XRD_ST_WAITING_CMS`,
   `XRD_ST_SENDING`, …) used to suspend/resume across AIO and CMS round-trips.

@@ -73,6 +73,13 @@ int sd_s3_pwrite(sd_s3_file *f, const void *buf, size_t n, off_t off,
 
 /* Finalize the write: single PUT, or flush-last-part + CompleteMultipartUpload.
  * 0 / -1 (errbuf). */
+/* Arm a conditional publish (phase-107 C6) on a write handle: the final PUT /
+ * CompleteMultipartUpload will carry "name: value" as a SIGNED header, letting
+ * the origin refuse atomically with 412 (errno ECANCELED). name is the RFC
+ * 7232 header lowercased ("if-none-match" / "if-match"); value is "*" or the
+ * origin's quoted etag. 0, or -1 (name/value too long, or a read handle). */
+int sd_s3_set_publish_cond(sd_s3_file *f, const char *name, const char *value);
+
 int sd_s3_commit(sd_s3_file *f, char *errbuf, size_t errcap);
 
 /* Discard a partial write (AbortMultipartUpload / drop buffer). Best-effort. */
@@ -87,6 +94,15 @@ void sd_s3_close(sd_s3_file *f);
 /* Delete the object (signed DELETE). Idempotent: a missing object (HTTP 404) is
  * success. 0 / -1 (errbuf; errno set to the POSIX class). */
 int sd_s3_delete(const sd_s3_open_params *p, char *errbuf, size_t errcap);
+
+/* Batch delete (phase-107 C4): ONE signed DeleteObjects POST for up to 1,000
+ * keys. p->key is the "/bucket" request target; keys[i] are object keys WITHIN
+ * the bucket (no leading '/'). Fills errs[n] with 0 / a positive errno per key
+ * (an absent key deletes idempotently -> 0; AccessDenied stays per-key) and
+ * *done with the attempted count (n, or 0 on a batch-level failure). 0 / -1
+ * (errbuf; errno set). Defined in sd_s3_batch.c. */
+int sd_s3_delete_many(const sd_s3_open_params *p, const char *const *keys,
+        size_t n, int *errs, size_t *done, char *errbuf, size_t errcap);
 
 /* ---- object metadata (x-amz-meta-*) ----------------------------------- *
  * S3 has no in-place metadata mutation: get is a HEAD that reads one user-meta

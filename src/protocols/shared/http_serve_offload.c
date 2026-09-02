@@ -112,7 +112,7 @@ serve_offload_tmp_open(ngx_log_t *log)
     if (dir == NULL || dir[0] == '\0') {
         dir = "/tmp";
     }
-    fd = open(dir, O_TMPFILE | O_RDWR | O_CLOEXEC, 0600);  /* vfs-seam-allow: transient serve scratch (not export storage) */
+    fd = open(dir, O_TMPFILE | O_RDWR | O_CLOEXEC, 0600);  /* vfs-seam-allow: DOMAIN_STAGE — transient serve scratch (not export storage) */
     if (fd >= 0) {
         return fd;
     }
@@ -122,9 +122,9 @@ serve_offload_tmp_open(ngx_log_t *log)
                               "%s/xrd-serve.XXXXXX", dir) - (u_char *) tmpl;
 
         tmpl[n] = '\0';
-        fd = mkstemp(tmpl);                                /* vfs-seam-allow: transient serve scratch (not export storage) */
+        fd = mkstemp(tmpl);                                /* vfs-seam-allow: DOMAIN_STAGE — transient serve scratch (not export storage) */
         if (fd >= 0) {
-            (void) unlink(tmpl);                           /* vfs-seam-allow: transient serve scratch (not export storage) */
+            (void) unlink(tmpl);                           /* vfs-seam-allow: DOMAIN_STAGE — transient serve scratch (not export storage) */
             return fd;
         }
     }

@@ -14,13 +14,17 @@
 | `fsync` | ✅ | ✅ | ✅ | syn | ✅ | ro | tier | np | np | ✅ | dec | ✅ |
 | `fstat` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `read_advise` | ✅ | ✅ | ✅ | syn | np | np | tier | np | np | np | ✅ | dec |
+| `reserve` | ✅ | ✅ | ✅ | syn | np | ro | sup | np | sup | sup | ✅ | ✅ |
 | `stat` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `unlink` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `unlink_many` | np | ✅ | flat | syn | ✅ | ro | tier | np | ✅ | np | ✅ | ✅ |
 | `mkdir` | ✅ | ✅ | flat | syn | ✅ | ro | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `rename` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `server_copy` | ✅ | ✅ | flat | syn | np | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `setattr` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `truncate_path` | seam | seam | flat | syn | ✅ | ro | tier | np | np | ✅ | ✅ | ✅ |
+| `sync_publish` | ✅ | ✅ | flat | syn | np | ro | ✅ | np | np | np | ✅ | ✅ |
+| `exchange` | ✅ | ✅ | flat | syn | np | ro | ✅ | np | np | np | ✅ | ✅ |
 | `opendir` | ✅ | ✅ | ✅ | syn | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `readdir` | ✅ | ✅ | ✅ | syn | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `closedir` | ✅ | ✅ | ✅ | syn | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -37,6 +41,9 @@
 | `dedup_gc` | ✅ | refc | cas | cas | cas | cas | cas | cas | cas | cas | cas | cas |
 | `recall` | np | ✅ | np | syn | np | np | ✅ | ✅ | ✅ | ✅ | walk | walk |
 | `residency` | np | ✅ | np | syn | np | np | ✅ | ✅ | ✅ | ✅ | walk | walk |
+| `recall_cred` | id | ✅ | id | syn | np | ro | ✅ | ✅ | ✅ | ✅ | walk | walk |
+| `evict` | nil | ✅ | flat | syn | nil | ro | ✅ | np | np | ✅ | ✅ | ✅ |
+| `evict_cred` | id | ✅ | id | syn | nil | ro | id | np | np | ✅ | ✅ | ✅ |
 | `space` | seam | ✅ | ✅ | syn | ✅ | ✅ | tier | ✅ | np | ✅ | ✅ | ✅ |
 | `query_checksum` | seam | seam | seam | syn | ✅ | seam | tier | ✅ | ✅ | ✅ | walk | walk |
 | `enumerate` | ns | ✅ | ns | syn | ✅ | ns | np | ns | ✅ | ns | walk | walk |
@@ -44,8 +51,10 @@
 | `staged_open_cred` | id | ✅ | id | syn | scope | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `stat_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `unlink_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `unlink_many_cred` | id | ✅ | id | syn | ✅ | ro | id | np | ✅ | np | ✅ | ✅ |
 | `mkdir_cred` | id | ✅ | id | syn | scope | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `rename_cred` | id | ✅ | id | syn | scope | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `exchange_cred` | id | ✅ | id | syn | np | ro | id | np | np | np | ✅ | ✅ |
 | `setattr_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `truncate_path_cred` | id | seam | id | syn | ✅ | ro | id | np | np | ✅ | ✅ | ✅ |
 | `getxattr_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -54,6 +63,6 @@
 | `removexattr_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `server_copy_cred` | id | ✅ | id | syn | np | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `opendir_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **implemented** | **34** | **50** | **16** | **7** | **42** | **14** | **15** | **39** | **39** | **44** | **39** | **40** |
+| **implemented** | **37** | **59** | **17** | **7** | **44** | **14** | **19** | **40** | **42** | **47** | **47** | **48** |
 
-_54 slots x 12 drivers = 648 cells: 379 implemented, 0 open gaps (marked ⚠)._
+_63 slots x 12 drivers = 756 cells: 421 implemented, 0 open gaps (marked ⚠)._

@@ -53,9 +53,10 @@ ngx_int_t brix_staged_append(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
                                ngx_int_t *rc);
 
 /* Reply-free, metric-free append core (see write_staged.c) — the primitive the
- * chunked streaming writer applies per chunk. Returns one of: */
+ * chunked streaming writer applies per chunk. Ordering is the writer's problem
+ * (phase-107 C1 spill); a reordered extent it cannot absorb is an IO outcome
+ * with errno = ENOSPC. Returns one of: */
 #define BRIX_STAGED_APPEND_OK     0
-#define BRIX_STAGED_APPEND_ORDER  1   /* offset != writer's expected offset */
 #define BRIX_STAGED_APPEND_IO     2   /* writer I/O error (errno preserved) */
 int brix_staged_append_raw(brix_ctx_t *ctx, int idx, int64_t offset,
                              const u_char *buf, size_t len);

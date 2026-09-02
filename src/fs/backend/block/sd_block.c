@@ -200,6 +200,37 @@ sd_block_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
     return NGX_OK;
 }
 
+/* sd_block_reserve — phase-107 C5: a fixed extent IS the reservation, so this
+ * is a pure capacity check. A declared final size that cannot fit the extent
+ * refuses the OPEN with ENOSPC (kXR_NoSpace / 507) before any byte lands,
+ * instead of the write that eventually crosses the boundary. A server extent
+ * checks os->len; the unconfined client handle (state == NULL) queries the
+ * device capacity via fstat, and reports nothing on a probe failure (the
+ * caller treats a non-ENOSPC errno as advisory). */
+static ngx_int_t
+sd_block_reserve(brix_sd_obj_t *obj, off_t size)
+{
+    const sd_block_obj_t *os = obj->state;
+    brix_sd_stat_t        st;
+
+    if (os != NULL) {
+        if (size > os->len) {
+            errno = ENOSPC;
+            return NGX_ERROR;
+        }
+        return NGX_OK;
+    }
+    if (sd_block_fstat(obj, &st) != NGX_OK) {
+        return NGX_ERROR;               /* errno from the probe: advisory */
+    }
+    if (st.size > 0 && size > st.size) {
+        errno = ENOSPC;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+
 /* sd_block_read_sendfile_fd — hand back the device fd for zero-copy ONLY when
  * the object's extent starts at device offset 0.
  *
@@ -319,6 +350,7 @@ const brix_sd_driver_t brix_sd_block_driver = {
     .fstat    = sd_block_fstat,
     .read_sendfile_fd = sd_block_read_sendfile_fd,
     .read_advise      = sd_block_read_advise,
+    .reserve  = sd_block_reserve,   /* phase-107 C5 extent-capacity admit */
 #ifndef XRDPROTO_NO_NGX
     .init     = sd_block_init,
     .open     = sd_block_open,

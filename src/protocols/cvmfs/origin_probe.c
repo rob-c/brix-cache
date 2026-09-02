@@ -114,7 +114,7 @@ brix_cvmfs_connect_rtt_us(const char *host, int port, int timeout_ms)
     if (getaddrinfo(host, svc, &hints, &ai) != 0 || ai == NULL) {
         return -1;
     }
-    fd = socket(ai->ai_family, SOCK_STREAM | SOCK_NONBLOCK, 0); /* vfs-seam-allow: probe socket, non-export resource */
+    fd = socket(ai->ai_family, SOCK_STREAM | SOCK_NONBLOCK, 0); /* vfs-seam-allow: NOT_STORAGE — probe socket, non-export resource */
     if (fd < 0) {
         freeaddrinfo(ai);
         return -1;
@@ -136,7 +136,7 @@ brix_cvmfs_connect_rtt_us(const char *host, int port, int timeout_ms)
                + (t1.tv_nsec - t0.tv_nsec) / 1000L;
         }
     }
-    close(fd); /* vfs-seam-allow: probe socket, non-export resource */
+    close(fd); /* vfs-seam-allow: NOT_STORAGE — probe socket, non-export resource */
     freeaddrinfo(ai);
     return us;
 }

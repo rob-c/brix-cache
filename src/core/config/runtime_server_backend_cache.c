@@ -53,7 +53,7 @@ brix_tier_load_master_key(ngx_conf_t *cf, const ngx_str_t *path,
     }
     ngx_cpystrn((u_char *) pathz, path->data, path->len + 1);
 
-    fd = open(pathz, O_RDONLY | O_CLOEXEC);   /* vfs-seam-allow: config-domain trust-anchor PEM (not export storage) */
+    fd = open(pathz, O_RDONLY | O_CLOEXEC);   /* vfs-seam-allow: DOMAIN_CONFIG — config-domain trust-anchor PEM (not export storage) */
     if (fd == -1) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
             "brix_cvmfs_verify_manifest: cannot open \"%s\"", pathz);
@@ -73,7 +73,7 @@ brix_tier_load_master_key(ngx_conf_t *cf, const ngx_str_t *path,
         (void) close(fd);
         return NGX_ERROR;
     }
-    n = read(fd, buf, (size_t) size);   /* vfs-seam-allow: config-domain trust-anchor PEM (not export storage) */
+    n = read(fd, buf, (size_t) size);   /* vfs-seam-allow: DOMAIN_CONFIG — config-domain trust-anchor PEM (not export storage) */
     (void) close(fd);
     if (n != (ssize_t) size) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,

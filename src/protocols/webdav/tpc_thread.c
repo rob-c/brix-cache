@@ -122,7 +122,7 @@ tpc_thread_record_size(tpc_thread_ctx_t *t)
 {
     struct stat st;
 
-    if (stat(t->local_path, &st) == 0) {  /* vfs-seam-allow: TPC local transfer temp */
+    if (stat(t->local_path, &st) == 0) {  /* vfs-seam-allow: DOMAIN_STAGE — TPC local transfer temp */
         t->bytes_transferred = st.st_size;
     }
 }

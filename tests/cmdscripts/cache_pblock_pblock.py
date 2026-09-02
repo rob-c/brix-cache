@@ -9,6 +9,7 @@ import subprocess
 import time
 
 from cmdscripts import run
+from cmdscripts.cache_source_helpers import wait_workers_ready
 from cmdscripts.command_results import print_results
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
@@ -40,6 +41,17 @@ def _expression_4(results, warm, warm_got, hidden):
                     )
                 )
     )
+
+
+def _await_mirror(target: Path, payload: Path, timeout=8.0) -> None:
+    """Poll until the staged copy lands byte-complete at the backend (the
+    stage flush runs just after the PUT completes)."""
+    want = payload.stat().st_size
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if target.exists() and target.stat().st_size >= want:
+            return
+        time.sleep(0.05)
 
 
 def _guard_run_checks_1(backend_write, results, write_payload):
@@ -161,15 +173,15 @@ def run_checks(
         return _expression_2(node_start)
 
     try:
-        time.sleep(1)
+        wait_workers_ready(HOST, [(origin_port, "root"), (node_port, "root")])
 
         write_payload = base / "cpb_w.bin"
         write_payload.write_bytes(deterministic_bytes(2_621_440, 17))
         put = run([str(xrdcp), "-f", str(write_payload), f"root://{HOST}:{node_port}//w.bin"])
         results.append((put.returncode == 0, "PUT through the stage tier"))
-        time.sleep(1)
 
         backend_write = origin / "root" / "w.bin"
+        _await_mirror(backend_write, write_payload)
         _guard_run_checks_1(backend_write, results, write_payload)
         results.append((is_pblock(node / "stageC"), "stage tier is pblock"))
 

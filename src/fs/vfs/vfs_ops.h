@@ -222,6 +222,12 @@ ngx_int_t brix_vfs_fremovexattr_carried(brix_vfs_mutation_policy_t policy,
 ngx_int_t brix_vfs_copy(brix_vfs_ctx_t *ctx, const char *dst_resolved,
     const brix_vfs_copy_opts_t *opts);
 
+/* Phase-107 C5, the fd-keyed reserve (src/fs/vfs/vfs_open.c): admit or refuse
+ * a client-declared final size on a bare write fd (the root:// posix fast path,
+ * the staged temp). NGX_OK = reserved / advisory / nothing to do; NGX_ERROR
+ * with errno ENOSPC/EDQUOT = fail the open (caller owns any temp cleanup). */
+ngx_int_t brix_vfs_fd_reserve(ngx_log_t *log, int fd, off_t declared_size);
+
 /* --- atomic staged write (src/fs/vfs/vfs_staged.c) ----------------------------
  * Crash-safe upload lifecycle: open a unique O_EXCL temp inside the export root
  * (final path = resolved ctx), write its fd, then commit (atomic publish onto
@@ -242,10 +248,17 @@ ngx_int_t brix_vfs_staged_write(brix_vfs_staged_t *st, const void *buf,
     size_t len, off_t off);
 /* The staged temp path (borrowed; "" when st is NULL). */
 const char *brix_vfs_staged_tmp_path(const brix_vfs_staged_t *st);
-/* Atomically publish the temp onto the final path; `excl` uses RENAME_NOREPLACE
- * (errno==EEXIST if the final exists). Metered as OP_WRITE (committed size).
- * NGX_OK / NGX_ERROR with errno set. */
-ngx_int_t brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl);
+/* Atomically publish the temp onto the final path, honouring the typed
+ * publish precondition (phase-107 C6; contract + refusal errnos in
+ * fs/backend/sd_batch_types.h). `pre` may be NULL — NULL and a zeroed struct
+ * both mean NONE, the unconditional replace. ABSENT is the old `excl`
+ * (RENAME_NOREPLACE → errno==EEXIST); MATCH_* is compare-and-publish
+ * (errno==ECANCELED on a failed compare, ENOTSUP where the backend cannot
+ * evaluate it). `pre` is non-const because `atomic` is an OUT bit: the commit
+ * sets it when the storage itself decided, and the protocol layer must not
+ * claim RFC 7232 semantics when it stays 0. Metered as OP_WRITE (committed
+ * size). NGX_OK / NGX_ERROR with errno set. */
+ngx_int_t brix_vfs_staged_commit(brix_vfs_staged_t *st, brix_sd_precond_t *pre);
 /* Close and (when remove_tmp) unlink the temp. Idempotent; NULL-safe. */
 void brix_vfs_staged_abort(brix_vfs_staged_t *st, unsigned remove_tmp);
 
@@ -312,6 +325,15 @@ ngx_int_t brix_vfs_writer_commit(brix_vfs_writer_t *w);
  * staged path (S3 If-None-Match exclusive create): NGX_ERROR with errno==EEXIST if
  * the final object already exists. `excl` is a no-op on the in-place random path. */
 ngx_int_t brix_vfs_writer_commit_ex(brix_vfs_writer_t *w, unsigned excl);
+/* The full-precondition commit (phase-107 C6): publish honouring `pre`
+ * (contract in fs/backend/sd_batch_types.h; NULL = NONE). This is the primary
+ * — commit/commit_ex are its NONE/ABSENT compatibility spellings. On the
+ * staged path the precondition reaches the storage driver; the in-place
+ * random path cannot evaluate MATCH_* at publish time (the bytes already
+ * landed), so a non-NONE `pre` there refuses ENOTSUP rather than pretending.
+ * After it returns, pre->atomic reports whether the storage itself decided. */
+ngx_int_t brix_vfs_writer_commit_pre(brix_vfs_writer_t *w,
+    brix_sd_precond_t *pre);
 /* Discard an un-committed session: close + remove any staged temp / created
  * object. Idempotent and NULL-safe. */
 void brix_vfs_writer_abort(brix_vfs_writer_t *w);

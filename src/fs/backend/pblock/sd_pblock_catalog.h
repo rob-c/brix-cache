@@ -127,6 +127,9 @@ int pblock_catalog_child_count(pblock_catalog *cat, const char *path);
 /* Rename src->dst; a directory reparents every descendant in one transaction.
  * 0, or -1/errno. */
 int pblock_catalog_rename(pblock_catalog *cat, const char *src, const char *dst);
+/* Atomic two-name swap in ONE transaction (phase-107 C6); EINVAL for equal or
+ * nested names, ENOENT when either is missing. */
+int pblock_catalog_exchange(pblock_catalog *cat, const char *a, const char *b);
 /* POSIX parent gate: 0 when `path`'s immediate parent exists and is a
  * directory ("/" implicitly exists); else -1 with errno ENOENT/ENOTDIR.
  * The catalog enforces this on every create — call it early (e.g. at

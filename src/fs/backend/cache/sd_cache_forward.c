@@ -219,6 +219,63 @@ sd_cache_truncate_path_cred(brix_sd_instance_t *inst, const char *path,
     return sd_cache_truncate_path_common(inst, path, len, cred);
 }
 
+/* Phase-107 C4: the batch is a relay, never a loop the decorator invents — a
+ * source without the slot pair is ENOTSUP so brix_vfs_rmtree_dispatch keeps
+ * the per-key walk (and with it this decorator's own unlink+evict). On a
+ * relayed batch the store's copies of the removed keys go the same way
+ * sd_cache_unlink_common's does, over the leading `done` entries a failed
+ * batch actually attempted. */
+static ngx_int_t
+sd_cache_unlink_many_common(brix_sd_instance_t *inst,
+    brix_sd_unlink_batch_t *b, const brix_sd_cred_t *cred)
+{
+    sd_cache_inst_state  *st = SD_CACHE_ST(inst);
+    ngx_int_t             rc;
+    size_t                i, attempted;
+
+    if (st->source->driver->unlink_many == NULL
+        && st->source->driver->unlink_many_cred == NULL)
+    {
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
+    rc = brix_sd_unlink_many_maybe_cred(st->source, b, cred);
+    attempted = (rc == NGX_OK) ? b->n : b->done;
+    for (i = 0; i < attempted; i++) {
+        if (b->errs[i] == 0) {
+            (void) brix_cstore_evict(&st->cstore, b->paths[i]);
+        }
+    }
+    return rc;
+}
+
+ngx_int_t
+sd_cache_unlink_many(brix_sd_instance_t *inst, brix_sd_unlink_batch_t *b)
+{
+    return sd_cache_unlink_many_common(inst, b, NULL);
+}
+
+ngx_int_t
+sd_cache_unlink_many_cred(brix_sd_instance_t *inst, brix_sd_unlink_batch_t *b,
+    const brix_sd_cred_t *cred)
+{
+    return sd_cache_unlink_many_common(inst, b, cred);
+}
+
+/* Phase-107 C3: the publish the barrier protects happened in the SOURCE — the
+ * cache holds only copies whose loss is a re-fetch, so there is nothing of its
+ * own to flush and nothing to evict (sync_publish mutates no object). A source
+ * without the slot has nothing local to flush (NGX_OK, mirroring the VFS's
+ * NULL-slot contract on a bare leaf). */
+ngx_int_t
+sd_cache_sync_publish(brix_sd_instance_t *inst, const char *path)
+{
+    brix_sd_instance_t *src = SD_CACHE_ST(inst)->source;
+
+    return (src->driver->sync_publish != NULL)
+         ? src->driver->sync_publish(src, path) : NGX_OK;
+}
+
 /* The DESTINATION is what changed — a cached copy of it predates the copy and
  * would keep being served. The source object is untouched, so it stays. */
 static ngx_int_t
@@ -434,9 +491,25 @@ sd_cache_removexattr_cred(brix_sd_instance_t *inst, const char *path,
 
 /* ---- staged write forwarders (the write path runs through the source) ----- */
 
+/* Phase-107 C5 decorator parity. A cache write open PASSES THROUGH — the
+ * sd_cache_open_common WRITE arm returns the SOURCE's object, so a reserve
+ * dispatch on a cache-fronted create/trunc open already lands on the leaf (or
+ * on the stage decorator's spool relay) and never reaches this slot. It exists
+ * so the byte-plane parity rule holds — a slot relayed by stage and absent on
+ * cache is the truncate_path asymmetry again — and answers any direct dispatch
+ * on a cache-keyed (read) object honestly: no reservation primitive here. */
+ngx_int_t
+sd_cache_reserve(brix_sd_obj_t *obj, off_t size)
+{
+    (void) obj;
+    (void) size;
+    errno = EOPNOTSUPP;
+    return NGX_ERROR;
+}
+
 brix_sd_staged_t *
 sd_cache_staged_open(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, int *err_out)
+    mode_t mode, off_t declared_size, int *err_out)
 {
     sd_cache_inst_state  *st = SD_CACHE_ST(inst);
     brix_sd_instance_t *s = st->source;
@@ -449,7 +522,8 @@ sd_cache_staged_open(brix_sd_instance_t *inst, const char *final_path,
     }
     /* A staged publish replaces the object; drop any cached copy now. */
     (void) brix_cstore_evict(&st->cstore, final_path);
-    return s->driver->staged_open(s, final_path, mode, err_out);
+    return s->driver->staged_open(s, final_path, mode, declared_size,
+                                  err_out);
 }
 
 /* Credential-scoped staged_open: forwards the per-user cred into the source's
@@ -465,7 +539,7 @@ sd_cache_staged_open(brix_sd_instance_t *inst, const char *final_path,
  * HOW:  Evict → brix_sd_staged_open_maybe_cred (cred forwarded to source). */
 brix_sd_staged_t *
 sd_cache_staged_open_cred(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, const brix_sd_cred_t *cred, int *err_out)
+    mode_t mode, off_t declared_size, const brix_sd_cred_t *cred, int *err_out)
 {
     sd_cache_inst_state  *st = SD_CACHE_ST(inst);
     brix_sd_instance_t *s = st->source;
@@ -477,7 +551,8 @@ sd_cache_staged_open_cred(brix_sd_instance_t *inst, const char *final_path,
         return NULL;
     }
     (void) brix_cstore_evict(&st->cstore, final_path);
-    return brix_sd_staged_open_maybe_cred(s, final_path, mode, cred, err_out);
+    return brix_sd_staged_open_maybe_cred(s, final_path, mode, declared_size,
+                                          cred, err_out);
 }
 
 ssize_t
@@ -489,10 +564,10 @@ sd_cache_staged_write(brix_sd_staged_t *st, const void *buf, size_t len,
 }
 
 ngx_int_t
-sd_cache_staged_commit(brix_sd_staged_t *st, int noreplace)
+sd_cache_staged_commit(brix_sd_staged_t *st, brix_sd_precond_t *pre)
 {
     return st->inst->driver->staged_commit
-         ? st->inst->driver->staged_commit(st, noreplace) : NGX_ERROR;
+         ? st->inst->driver->staged_commit(st, pre) : NGX_ERROR;
 }
 
 void

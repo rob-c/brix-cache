@@ -72,7 +72,9 @@ brix_statx_next_path(const u_char **cursor, const u_char *end,
  *        stock XRootD follows it on the real filesystem.  We match stock while
  *        staying confined: the realpath must canonically resolve inside the
  *        export root before we read its metadata through the VFS.
- * HOW:   Guard on ENOENT + a configured root; realpath() the full path, verify
+ * HOW:   Guard on ENOENT + a configured root; canonicalise the full path
+ *        (brix_realpath_existing — one failing open on the hot genuine-miss
+ *        leg, not a per-component readlink walk), verify
  *        it is prefix-bounded by root_canon at a '/' or end boundary, then VFS
  *        probe.  On success fills *st and returns 1; otherwise returns 0 and
  *        leaves *st untouched.
@@ -95,7 +97,7 @@ brix_statx_symlink_fallback_stat(brix_ctx_t *ctx,
     /* rl bound keeps the real[rl] prefix-boundary probe inside the buffer even
      * for a maximal-length configured export root. */
     if (rl >= sizeof(real)
-        || realpath(full_path, real) == NULL
+        || brix_realpath_existing(full_path, real) == NULL
         || ngx_strncmp(real, conf->common.root_canon, rl) != 0
         || (real[rl] != '/' && real[rl] != '\0'))
     {
@@ -108,6 +110,8 @@ brix_statx_symlink_fallback_stat(brix_ctx_t *ctx,
         conf->common.root_canon, NULL,
         brix_vfs_policy_from_write_enable(conf->common.allow_write),
         0 /* is_tls */, ctx->identity, real);
+    /* Persistent per-worker confinement rootfd (op_vfs_ctx pattern). */
+    rvctx.rootfd = conf->rootfd;
     brix_vfs_ctx_bind_backend_cred(&rvctx,
         &conf->common.storage_credential_dir,
         conf->common.storage_credential_fallback);
@@ -176,6 +180,8 @@ brix_statx_compute_flag(ngx_stream_brix_srv_conf_t *conf,
         conf->common.root_canon, NULL,
         brix_vfs_policy_from_write_enable(conf->common.allow_write),
         0 /* is_tls */, NULL, full_path);
+    /* Persistent per-worker confinement rootfd (op_vfs_ctx pattern). */
+    rvc.rootfd = conf->rootfd;
     if (brix_vfs_residency(&rvc, &res, NULL) == NGX_OK
         && (res == BRIX_SD_RES_NEARLINE || res == BRIX_SD_RES_OFFLINE))
     {
@@ -217,6 +223,8 @@ brix_statx_vfs_stat(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
         conf->common.root_canon, NULL,
         brix_vfs_policy_from_write_enable(conf->common.allow_write),
         0 /* is_tls */, NULL, full_path);
+    /* Persistent per-worker confinement rootfd (op_vfs_ctx pattern). */
+    vctx.rootfd = conf->rootfd;
     if (brix_vfs_statf(&vctx, &vst) != NGX_OK) {
         return -1;
     }

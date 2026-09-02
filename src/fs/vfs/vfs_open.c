@@ -170,6 +170,16 @@ brix_vfs_open_precheck(brix_vfs_ctx_t *ctx, ngx_uint_t flags, const char *path)
         return NGX_ERROR;
     }
 
+    /* phase-107 C7: the lock gate, strictly AFTER the mutation gate (EROFS
+     * precedes EBUSY — a read-only export discloses nothing about lock state)
+     * and before the parent pre-create, so a lock-refused open never leaves a
+     * directory behind. */
+    if ((flags & BRIX_VFS_O_WRITE)
+        && brix_vfs_require_unlocked(ctx, BRIX_VFS_MUTATE_OPEN) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
     if ((flags & BRIX_VFS_O_MKDIRPATH)
         && brix_vfs_mkdir_parent_path(ctx, path) != NGX_OK)
     {
@@ -421,6 +431,82 @@ brix_vfs_open_via_posix(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
     return NGX_OK;
 }
 
+/* Phase-107 C5, the fd-keyed half: reserve a declared final size on a bare
+ * POSIX fd that never becomes a brix_vfs_file_t — the root:// posix fast path
+ * and the staged temp both open raw fds, and both must refuse an
+ * unsatisfiable declaration AT open. A stack shell obj carries the fd to the
+ * default driver's slot (the posix reserve needs nothing else). Returns
+ * NGX_OK when reserved, advisory (logged at info), or nothing to do;
+ * NGX_ERROR with errno ENOSPC/EDQUOT when the declaration cannot be
+ * satisfied — the caller fails its open and owns any temp cleanup. */
+ngx_int_t
+brix_vfs_fd_reserve(ngx_log_t *log, int fd, off_t declared_size)
+{
+    const brix_sd_driver_t *drv = brix_sd_default_driver();
+    brix_sd_obj_t           shell;
+
+    if (declared_size <= 0 || fd < 0 || drv->reserve == NULL) {
+        return NGX_OK;
+    }
+
+    ngx_memzero(&shell, sizeof(shell));
+    shell.driver = drv;
+    shell.fd     = fd;
+
+    if (drv->reserve(&shell, declared_size) == NGX_OK) {
+        return NGX_OK;
+    }
+    if (errno == ENOSPC || errno == EDQUOT) {
+        return NGX_ERROR;
+    }
+    ngx_log_error(NGX_LOG_INFO, log, errno,
+                  "vfs: advisory reserve of %O bytes failed, open proceeds",
+                  declared_size);
+    return NGX_OK;
+}
+
+/* Phase-107 C5: reserve the declared final size on a freshly-opened object.
+ *
+ * WHAT: dispatch driver->reserve once, immediately after a create/trunc
+ *       write-open, when the client declared the final object size up front
+ *       (`oss.asize`, Content-Length, ALLO - carried on ctx->declared_size).
+ * WHY:  a declaration the backend cannot satisfy must fail the OPEN (ENOSPC ->
+ *       kXR_NoSpace / 507) before the first byte is streamed, and a successful
+ *       reservation lets fd-backed stores preallocate contiguous extents.
+ * HOW:  ENOSPC/EDQUOT close the handle and fail the open (the created entry is
+ *       left as-is - an O_TRUNC overwrite target must not be unlinked); every
+ *       other failure - including an absent slot - is advisory per the A.4
+ *       contract: log at info, keep the handle. */
+static ngx_int_t
+brix_vfs_open_reserve(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
+    brix_vfs_file_t *fh, int *err_out)
+{
+    if (ctx->declared_size <= 0
+        || (flags & BRIX_VFS_O_WRITE) == 0
+        || (flags & (BRIX_VFS_O_CREATE | BRIX_VFS_O_TRUNC)) == 0
+        || fh->obj.driver == NULL
+        || fh->obj.driver->reserve == NULL)
+    {
+        return NGX_OK;
+    }
+
+    if (fh->obj.driver->reserve(&fh->obj, ctx->declared_size) == NGX_OK) {
+        return NGX_OK;
+    }
+    if (errno == ENOSPC || errno == EDQUOT) {
+        int err = errno;
+
+        (void) brix_vfs_close(fh, ctx->log);
+        brix_vfs_open_set_err(err_out, err);
+        errno = err;
+        return NGX_ERROR;
+    }
+    ngx_log_error(NGX_LOG_INFO, ctx->log, errno,
+                  "vfs open: advisory reserve of %O bytes failed, "
+                  "open proceeds", ctx->declared_size);
+    return NGX_OK;
+}
+
 /* Open the resolved ctx path under the confinement cascade. Returns a handle
  * or NULL with the syscall errno in *err_out. Cache hits short-circuit; writes
  * require a writable endpoint. See the file header for the full open sequence.
@@ -462,6 +548,9 @@ brix_vfs_open(brix_vfs_ctx_t *ctx, ngx_uint_t flags, int *err_out)
      */
     rc = brix_vfs_open_via_driver(ctx, flags, path, err_out, &fh);
     if (rc == NGX_OK) {
+        if (brix_vfs_open_reserve(ctx, flags, fh, err_out) != NGX_OK) {
+            return NULL;
+        }
         return fh;
     }
     if (rc == NGX_ERROR) {
@@ -476,6 +565,10 @@ brix_vfs_open(brix_vfs_ctx_t *ctx, ngx_uint_t flags, int *err_out)
      * path, so drop any per-worker cached negative for it. */
     if (flags & BRIX_VFS_O_CREATE) {
         brix_vfs_neg_stat_forget(ctx->root_canon, path);
+    }
+
+    if (brix_vfs_open_reserve(ctx, flags, fh, err_out) != NGX_OK) {
+        return NULL;
     }
 
     return fh;

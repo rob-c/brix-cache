@@ -6,10 +6,10 @@ from pathlib import Path
 import os
 import signal
 import subprocess
-import time
 
 from cmdscripts import run
-from cmdscripts.cache_source_helpers import exact_transfer, start_servers, stop_servers
+from cmdscripts.cache_source_helpers import (exact_transfer, start_servers,
+                                             stop_servers, wait_workers_ready)
 from cmdscripts.command_results import print_results, selected_binary
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
@@ -100,7 +100,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> l
         return [failure]
 
     try:
-        time.sleep(1)
+        wait_workers_ready(HOST, [(origin_port, "http"), (cache_port, "root")])
         results: list[tuple[bool, str]] = []
         small_got = base / "cache_http_s.got"
         expected_small = (origin / "root" / "small.bin").read_bytes()

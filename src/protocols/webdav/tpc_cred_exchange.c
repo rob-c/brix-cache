@@ -80,7 +80,7 @@ tpc_cred_make_body_arg(ngx_http_request_t *r, const char *body_file,
     if (body_len + 2 > body_arg_size) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                       "tpc_cred(rfc8693): staged body path is too long");
-        unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
+        unlink(body_file);  /* vfs-seam-allow: DOMAIN_CREDENTIAL — staged credential temp, not export storage */
         return NGX_ERROR;
     }
     body_arg[0] = '@';
@@ -221,13 +221,13 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
     if (tpc_cred_build_basic_auth(r, client_id, client_secret,
                                   &basic_auth, &auth_len) != NGX_OK)
     {
-        unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
+        unlink(body_file);  /* vfs-seam-allow: DOMAIN_CREDENTIAL — staged credential temp, not export storage */
         return NGX_ERROR;
     }
     if (tpc_cred_run_curl(r, token_endpoint, curl_path, basic_auth, body_arg,
                           buf, sizeof(buf)) != NGX_OK)
     {
-        unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
+        unlink(body_file);  /* vfs-seam-allow: DOMAIN_CREDENTIAL — staged credential temp, not export storage */
         if (basic_auth != NULL) {
             OPENSSL_cleanse(basic_auth, auth_len + 1);
             free(basic_auth);
@@ -236,7 +236,7 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
     }
 
     /* Clean up temp file. */
-    unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
+    unlink(body_file);  /* vfs-seam-allow: DOMAIN_CREDENTIAL — staged credential temp, not export storage */
     if (basic_auth != NULL) {
         OPENSSL_cleanse(basic_auth, auth_len + 1);
         free(basic_auth);

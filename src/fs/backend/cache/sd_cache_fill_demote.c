@@ -47,7 +47,7 @@ sd_cache_demote_copy(brix_sd_obj_t *source, brix_sd_staged_t *staged,
             return NGX_ERROR;
         }
         if (n == 0) {
-            return staged->inst->driver->staged_commit(staged, 0);
+            return staged->inst->driver->staged_commit(staged, NULL);
         }
         if (staged->inst->driver->staged_write(staged, buf, (size_t) n,
                                                 off) < 0)
@@ -68,6 +68,21 @@ sd_cache_demote_copy(brix_sd_obj_t *source, brix_sd_staged_t *staged,
  * fill spine's move-granule idiom. NGX_OK / NGX_DECLINED (no cold tier — not
  * an error) / NGX_ERROR with errno set (the caller evicts anyway: space relief
  * wins and the origin refill preserves correctness). */
+/* Phase-107 C5: a demotion knows the exact final size up front (the hot copy
+ * is complete) - declare it, so a remote cold tier can derive a legal
+ * multipart part size instead of hitting the 10,000-part ceiling.  0 when the
+ * hot object cannot answer (the cold tier then reserves nothing). */
+static off_t
+sd_cache_demote_declared_size(brix_sd_obj_t *so)
+{
+    brix_sd_stat_t  hst;
+
+    if (so->driver->fstat != NULL && so->driver->fstat(so, &hst) == NGX_OK) {
+        return hst.size;
+    }
+    return 0;
+}
+
 ngx_int_t
 brix_sd_cache_demote(brix_sd_instance_t *inst, const char *key)
 {
@@ -105,7 +120,8 @@ brix_sd_cache_demote(brix_sd_instance_t *inst, const char *key)
     /* 0600 like the hot store object: the cold tier aggregates many users'
      * bytes under the svc identity too; client-facing perms live in the cinfo
      * the PROMOTE rebuilds, never on the physical cold object. */
-    sg = cold->driver->staged_open(cold, key, S_IRUSR | S_IWUSR, &err);
+    sg = cold->driver->staged_open(cold, key, S_IRUSR | S_IWUSR,
+                                   sd_cache_demote_declared_size(so), &err);
     if (sg == NULL) {
         brix_sd_obj_release(so);
         errno = err ? err : EIO;

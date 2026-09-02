@@ -1,5 +1,6 @@
 #include "opaque_validate.h"
 
+#include <limits.h>
 #include <stddef.h>
 
 /*
@@ -308,4 +309,52 @@ brix_opaque_schema_check(const char *opaque, char *keybuf, size_t keybuf_len)
     }
 
     return BRIX_OPAQUE_SCHEMA_OK;
+}
+
+long long
+brix_opaque_asize(const char *opaque)
+{
+    const char *seg;
+
+    if (opaque == NULL) {
+        return 0;
+    }
+    if (*opaque == '?') {                    /* tolerate a stray leading '?' */
+        opaque++;
+    }
+
+    for (seg = opaque; *seg != '\0'; /* advanced at the bottom */) {
+        size_t seg_len = 0;
+        size_t key_len;
+
+        while (seg[seg_len] != '\0' && seg[seg_len] != '&') {
+            seg_len++;                       /* '&' is the sole separator */
+        }
+        key_len = brix_opaque_key_len(seg, seg_len);
+
+        if (brix_opaque_key_eq(seg, key_len, "oss.asize")
+            && key_len < seg_len)
+        {
+            const char *val     = seg + key_len + 1;
+            size_t      val_len = seg_len - key_len - 1;
+            long long   v       = 0;
+            size_t      i;
+
+            if (!brix_opaque_is_uint(val, val_len)) {
+                return 0;                    /* malformed hint: dropped */
+            }
+            for (i = 0; i < val_len; i++) {
+                int d = val[i] - '0';
+
+                if (v > (LLONG_MAX - d) / 10) {
+                    return LLONG_MAX;        /* unsatisfiable, never wrapped */
+                }
+                v = v * 10 + d;
+            }
+            return v;
+        }
+
+        seg += seg_len + (seg[seg_len] == '&' ? 1 : 0);
+    }
+    return 0;
 }

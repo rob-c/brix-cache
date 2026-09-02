@@ -41,10 +41,11 @@ typedef struct {
 } brix_read_io_t;
 
 /* Defined in read_sendfile.c */
-ngx_flag_t read_sendfile_eligible(brix_ctx_t *ctx, ngx_connection_t *c,
-    int idx);
+ngx_fd_t read_sendfile_serve_fd(brix_ctx_t *ctx, ngx_connection_t *c,
+    const brix_read_io_t *io);
 ngx_int_t brix_read_serve_sendfile(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *rconf, const brix_read_io_t *io);
+    ngx_stream_brix_srv_conf_t *rconf, const brix_read_io_t *io,
+    ngx_fd_t sfd);
 
 /* Defined in read_buffered.c */
 size_t read_clamped_total(brix_ctx_t *ctx, const brix_read_io_t *io);

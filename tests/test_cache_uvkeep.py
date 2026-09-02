@@ -34,7 +34,8 @@ from settings import BIND_HOST, HOST
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _XRDCP = os.path.join(_REPO, "client", "bin", "xrdcp")
 
-_UVKEEP = 4  # seconds — long enough that the fill + two reads land inside it
+_UVKEEP = 2  # seconds — long enough that the fill + two reads land inside it
+             # (loopback ops take ~0.1 s each; uvkeep resolution is 1 s)
 
 pytestmark = [
     pytest.mark.timeout(180),
@@ -105,7 +106,8 @@ class TestUvkeep:
             "the cache served revalidated bytes INSIDE the uvkeep window")
 
         # 4. Age the entry past uvkeep.
-        time.sleep(_UVKEEP + 2)
+        # +1.5 s clears the window even with filled_at truncated to the second.
+        time.sleep(_UVKEEP + 1.5)
 
         # 5. The unverified aged entry is now revalidated: the next open misses,
         #    refills from the source, and serves the new bytes.

@@ -317,6 +317,24 @@ brix_open_try_cache_offload(brix_ctx_t *ctx, ngx_connection_t *c,
 	return NGX_DECLINED;
 }
 
+
+/* Phase-107 C5: the client's declared final size, read leniently from the raw
+ * opaque ("?oss.asize=N"). Called only on a write open, after the opaque guard
+ * (byte hygiene + optional strict schema) has passed. 0 = no declaration. */
+static off_t
+brix_open_declared_asize(brix_ctx_t *ctx)
+{
+	char opq[BRIX_MAX_PATH + 1];
+
+	if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0
+	    || !open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen,
+	                            opq, sizeof(opq)))
+	{
+		return 0;
+	}
+	return (off_t) brix_opaque_asize(opq);
+}
+
 /*
  *
  * WHAT: Protocol-level entry point for kXR_open. Parses ClientOpenRequest from wire,
@@ -436,6 +454,7 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 		.mode_bits = mode_bits,
 		.is_write  = is_write,
 		.codec     = open_negotiate_compress_codec(ctx, conf, is_write),
+		.declared_size = is_write ? brix_open_declared_asize(ctx) : 0,
 	};
 	return brix_open_resolved_file(ctx, c, conf, &oreq);
 }

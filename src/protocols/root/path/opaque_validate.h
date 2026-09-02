@@ -44,4 +44,15 @@ int brix_opaque_illegal_byte(const char *opaque, unsigned char *bad);
  */
 int brix_opaque_schema_check(const char *opaque, char *keybuf, size_t keybuf_len);
 
+/*
+ * Read the typed `oss.asize` value out of a NUL-terminated opaque (phase-107
+ * C5 — the client's declared final object size). Returns the value, 0 when the
+ * key is absent or its value is not a well-formed unsigned integer (this is
+ * the lenient read the non-strict tier needs — a malformed hint is DROPPED
+ * here and, under brix_opaque_strict, separately rejected by the schema
+ * check), or LLONG_MAX on overflow (an unsatisfiably large declaration must
+ * stay unsatisfiable, never wrap into a small one).
+ */
+long long brix_opaque_asize(const char *opaque);
+
 #endif /* BRIX_OPAQUE_VALIDATE_H */

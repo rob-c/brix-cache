@@ -69,7 +69,7 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
 | `get.c` | GET via VFS open (read-through cache aware) → `brix_http_serve_file_ranged` (shared ranged sendfile); routes multi-range to XrdHttp multipart; If-Modified-Since; checksum/XrdHttp headers; range + byte-transfer metrics. |
 | `put.c` | PUT body callback: thread-pool async write (memory body), synchronous spooled-file copy, or in-memory `pwrite`; ETag preconditions; gzip/deflate `Content-Encoding` inflate; 201/204; missing parent → 409. |
 | `methods_basic.c` | OPTIONS (DAV/DASL/Allow/MS-Author-Via), HEAD (`webdav_resolve_stat`, Content-Type, ETag, Want-Digest), and PROPPATCH (dead-property set/remove via xattr, 207 Multi-Status). |
-| `namespace.c` | DELETE (recursive collection delete via `../compat/fs_walk`, tree lock check) and MKCOL (delegates to `brix_ns_mkdir`). |
+| `namespace.c` | DELETE (require-empty 409 by default; an explicit `Depth: infinity` opts in to the RFC 4918 recursive walk — batched per level on a `CAP_BULK_DELETE` leaf; tree lock check either way) and MKCOL (delegates to `brix_ns_mkdir`). |
 | `copy.c` | RFC 4918 COPY (local, same-root): Destination/Overwrite/Depth parse, staged temp-path + atomic rename, recursive dir copy (thread-pool offloaded), xattr/dead-prop preservation, self-copy → 403. |
 | `move.c` | RFC 4918 MOVE: confined `rename(2)` via `brix_ns_rename`; collection moves offloaded to thread pool; Overwrite:F → 412, self-move → 403, non-empty dest dir → 409. |
 | `propfind.c` | RFC 4918 PROPFIND entry/dispatch: request + Depth parse, prop-name→bit, body assembly. *(Phase 38: split.)* |

@@ -20,6 +20,7 @@
  *       destination (0 if that stat fails — it never affects the return value).
  */
 #include "vfs_internal.h"
+#include "fs/path/beneath.h"   /* NOREPLACE degradation latch (C6 atomic verdict) */
 #include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_evict: the leaf
                                           * dispatch bypasses the decorator's
                                           * own invalidation of the copy dst */
@@ -47,6 +48,53 @@ brix_vfs_copy_fail(brix_vfs_ctx_t *ctx, const char *src, int err,
 }
 
 /*
+ * vfs_copy_driver_precond — evaluate a carried publish precondition against
+ * the DESTINATION before the driver's server-copy replaces it (phase-107 C6).
+ *
+ * WHAT: For ABSENT, refuses with EEXIST when the destination exists; for
+ *       MATCH_*, stats the destination and runs the shared stat-grammar
+ *       evaluator (a missing target is a failed match, ECANCELED). Returns 0
+ *       to proceed, -1 with errno set to refuse.
+ * WHY:  server_copy has no precondition parameter (the C6 ABI change covered
+ *       staged_commit only), so the honest evaluation here is check-then-act
+ *       against the driver's own stat — never atomic, but a backend that
+ *       silently IGNORED If-Match instead of answering 412 would be worse
+ *       (§B.2: "ignores If-Match … must not be advertised"). A driver with no
+ *       stat slot cannot evaluate at all and refuses ENOTSUP rather than
+ *       pretending.
+ */
+static int
+vfs_copy_driver_precond(brix_sd_instance_t *leaf, const brix_sd_driver_t *drv,
+    const char *d, const brix_sd_precond_t *pre, const brix_sd_cred_t *cred)
+{
+    brix_sd_stat_t dst_st;
+    int            exists;
+
+    if (pre == NULL || pre->kind == BRIX_SD_PRECOND_NONE) {
+        return 0;
+    }
+    if (drv->stat == NULL) {
+        errno = ENOTSUP;
+        return -1;
+    }
+    exists = brix_sd_stat_maybe_cred(leaf, d, &dst_st, cred) == NGX_OK;
+
+    if (pre->kind == BRIX_SD_PRECOND_ABSENT) {
+        if (exists) {
+            errno = EEXIST;
+            return -1;
+        }
+        return 0;
+    }
+    if (!exists) {
+        errno = ECANCELED;
+        return -1;
+    }
+    return brix_sd_precond_eval_stat(pre, dst_st.size, dst_st.mtime) != 0
+           ? -1 : 0;
+}
+
+/*
  * brix_vfs_copy_driver — non-POSIX backend server-side copy path.
  *
  * WHAT: Copy the export-relative source `src` to `dst_resolved` through the
@@ -62,6 +110,44 @@ brix_vfs_copy_fail(brix_vfs_ctx_t *ctx, const char *src, int err,
  *       server_copy slot (ENOTSUP when absent) and book the OP_COPY observation
  *       with the copied byte count.
  */
+/* The destination gates for a driver server-copy: the overwrite pre-stat
+ * (EEXIST when the destination exists and overwrite is unset) and the carried
+ * publish precondition (C6) — both evaluated before server_copy replaces the
+ * destination's bytes, both check-then-act, which the protocol layer already
+ * treats as non-atomic on this arm. On refusal: wipes the credential store,
+ * books the C6 refusal telemetry (precondition arm), and returns the
+ * copy-fail verdict; the caller just propagates. */
+static ngx_int_t
+vfs_copy_driver_dst_gate(brix_vfs_ctx_t *ctx, brix_sd_instance_t *leaf,
+    const brix_sd_driver_t *drv, const char *src, const char *d,
+    const brix_vfs_copy_opts_t *opts, brix_sd_ucred_t *store,
+    const brix_sd_cred_t *cred, uint64_t start)
+{
+    brix_sd_stat_t dst_st;
+    int            saved_errno;
+
+    if (opts == NULL) {
+        return NGX_OK;
+    }
+    if (!opts->overwrite && drv->stat != NULL
+        && brix_sd_stat_maybe_cred(leaf, d, &dst_st, cred) == NGX_OK)
+    {
+        brix_sd_ucred_wipe(store);    /* secret consumed; erase (A-4/T4) */
+        return brix_vfs_copy_fail(ctx, src, EEXIST, start);
+    }
+    if (vfs_copy_driver_precond(leaf, drv, d, opts->precond, cred) != 0) {
+        saved_errno = errno;
+        brix_sd_ucred_wipe(store);    /* secret consumed; erase (A-4/T4) */
+        /* C6 refusal telemetry: this arm's evaluation is check-then-act by
+         * construction (see the helper), so pre->atomic is 0 and a refusal
+         * books the advisory row too. */
+        brix_vfs_precond_refused_observe(opts->precond, saved_errno,
+                                         brix_sd_backend_name(leaf));
+        return brix_vfs_copy_fail(ctx, src, saved_errno, start);
+    }
+    return NGX_OK;
+}
+
 static ngx_int_t
 brix_vfs_copy_driver(brix_vfs_ctx_t *ctx, const char *src,
     const char *dst_resolved, const brix_vfs_copy_opts_t *opts,
@@ -73,7 +159,6 @@ brix_vfs_copy_driver(brix_vfs_ctx_t *ctx, const char *src,
     brix_sd_instance_t *leaf = brix_vfs_ns_leaf(ctx->sd);
     brix_sd_ucred_t     store;
     brix_sd_cred_t      cred;
-    brix_sd_stat_t      dst_st;
     off_t               copied = 0;
     ngx_int_t           rc;
     int                 saved_errno;
@@ -100,12 +185,10 @@ brix_vfs_copy_driver(brix_vfs_ctx_t *ctx, const char *src,
         }
     }
 
-    if (opts != NULL && !opts->overwrite && drv->stat != NULL
-        && brix_sd_stat_maybe_cred(leaf, d, &dst_st,
-               use_cred ? &cred : NULL) == NGX_OK)
+    if (vfs_copy_driver_dst_gate(ctx, leaf, drv, src, d, opts, &store,
+            use_cred ? &cred : NULL, start) != NGX_OK)
     {
-        brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
-        return brix_vfs_copy_fail(ctx, src, EEXIST, start);
+        return NGX_ERROR;
     }
 
     rc = (drv->server_copy != NULL)
@@ -157,15 +240,29 @@ brix_vfs_copy_ns(brix_vfs_ctx_t *ctx, const char *src,
         ns_opts.overwrite_dirs  = opts->overwrite_dirs ? 1 : 0;
         ns_opts.preserve_xattrs = opts->preserve_xattrs ? 1 : 0;
         ns_opts.staged_commit   = opts->staged_commit ? 1 : 0;
+        ns_opts.precond         = opts->precond;   /* C6: decided at the commit */
     }
 
     res = brix_ns_local_copy(ctx->log, ctx->root_canon, src, dst_resolved,
                                &ns_opts);
     if (res.status != BRIX_NS_OK) {
-        return brix_vfs_copy_fail(ctx, src,
-                   res.sys_errno != 0 ? res.sys_errno
-                                      : brix_vfs_ns_status_errno(res.status),
-                   start);
+        int err = res.sys_errno != 0 ? res.sys_errno
+                                     : brix_vfs_ns_status_errno(res.status);
+
+        if (ns_opts.precond != NULL) {
+            /* C6 refusal telemetry. MATCH_* on this arm is a stat-compare
+             * (advisory); an ABSENT refusal came from O_EXCL or
+             * RENAME_NOREPLACE at the filesystem itself — atomic unless this
+             * host ever degraded (beneath.c latch). The carried precondition
+             * is const on the copy plane, so the verdict is restated on a
+             * local copy rather than written through it. */
+            brix_sd_precond_t seen = *ns_opts.precond;
+
+            seen.atomic = seen.kind == BRIX_SD_PRECOND_ABSENT
+                          && !brix_renameat_noreplace_degraded();
+            brix_vfs_precond_refused_observe(&seen, err, "posix");
+        }
+        return brix_vfs_copy_fail(ctx, src, err, start);
     }
 
     brix_vfs_observe_ctx_op(ctx, src, BRIX_METRIC_OP_COPY, NULL,
@@ -193,6 +290,15 @@ brix_vfs_copy(brix_vfs_ctx_t *ctx, const char *dst_resolved,
 
     if (ctx->root_canon == NULL || dst_resolved == NULL) {
         return brix_vfs_copy_fail(ctx, src, EINVAL, start);
+    }
+
+    /* phase-107 C7: lock gate after the mutation gate (EROFS precedes EBUSY),
+     * on the DESTINATION — a copy reads the source and replaces the
+     * destination's bytes, so only the destination's lock coverage matters. */
+    if (brix_vfs_require_unlocked_at(ctx, dst_resolved,
+            BRIX_VFS_MUTATE_COPY) != NGX_OK)
+    {
+        return brix_vfs_copy_fail(ctx, src, errno, start);
     }
 
     /* Non-POSIX backend: copy through the driver's server-copy slot. */

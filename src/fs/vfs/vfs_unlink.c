@@ -39,8 +39,10 @@
  *
  * HOW:  Accepts the pre-resolved leaf `leaf` and pre-computed `cred` pointer
  *       (NULL when use_cred=0) from the caller, uses brix_sd_*_maybe_cred on
- *       `leaf` for every driver call, and recurses with the same arguments. */
-static ngx_int_t
+ *       `leaf` for every driver call, and recurses with the same arguments.
+ *       Non-static: brix_vfs_rmtree_dispatch (vfs_unlink_many.c) falls back to
+ *       this per-key walk when the leaf has no real batch slot (C4). */
+ngx_int_t
 brix_vfs_driver_rmtree(brix_sd_instance_t *leaf, const brix_sd_driver_t *drv,
     const char *logical, const brix_sd_cred_t *cred, ngx_uint_t depth)
 {
@@ -152,8 +154,10 @@ brix_vfs_delete_via_driver(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
     }
 
     if (recursive) {
-        rc = brix_vfs_driver_rmtree(leaf, drv, logical,
-                                    use_cred ? &cred : NULL, 0);
+        /* phase-107 C4: routes to the windowed bulk walk when the leaf
+         * advertises CAP_BULK_DELETE, else to brix_vfs_driver_rmtree. */
+        rc = brix_vfs_rmtree_dispatch(leaf, drv, logical,
+                                        use_cred ? &cred : NULL);
     } else if (drv->unlink != NULL) {
         rc = brix_sd_unlink_maybe_cred(leaf, logical,
                  require_empty_dir ? 1 : 0, use_cred ? &cred : NULL);
@@ -211,8 +215,15 @@ brix_vfs_delete_via_namespace(brix_vfs_ctx_t *ctx, unsigned recursive,
      * remove a file directly, so require_directory stays off there. */
     opts.require_directory = require_empty_dir ? 1 : 0;
 
-    res = brix_ns_delete(ctx->log, ctx->root_canon,
-                           brix_vfs_ctx_path(ctx), &opts);
+    if (ctx->rootfd >= 0) {
+        /* Borrow the ctx's persistent confinement rootfd: same beneath
+         * semantics, minus a root open/close per delete. */
+        res = brix_ns_delete_at(ctx->log, ctx->rootfd, ctx->root_canon,
+                                  brix_vfs_ctx_path(ctx), &opts);
+    } else {
+        res = brix_ns_delete(ctx->log, ctx->root_canon,
+                               brix_vfs_ctx_path(ctx), &opts);
+    }
     if (res.status == BRIX_NS_OK) {
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE, NULL, 0,
                                   NGX_OK, 0, start);
@@ -267,12 +278,41 @@ brix_vfs_delete(brix_vfs_ctx_t *ctx, unsigned recursive,
         return NGX_ERROR;
     }
 
+    /* phase-107 C7: lock gate after the mutation gate (EROFS precedes EBUSY).
+     * Ancestor coverage only — the recursive descendant scan for collection
+     * deletes stays at the WebDAV edge. */
+    if (brix_vfs_require_unlocked(ctx, BRIX_VFS_MUTATE_REMOVE) != NGX_OK) {
+        saved_errno = errno;
+        brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE, NULL, 0,
+                                  NGX_ERROR, saved_errno, start);
+        return NGX_ERROR;
+    }
+
     if (ctx->root_canon == NULL) {
         errno = EINVAL;
         saved_errno = errno;
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE, NULL, 0,
                                   NGX_ERROR, saved_errno, start);
         return NGX_ERROR;
+    }
+
+    /* Confinement anchor (phase-107 C4): a recursive delete of the export root
+     * itself is refused outright - the walk would empty the entire export off
+     * one one-character URI, and the root is the object every confined path is
+     * resolved AGAINST, not one of the objects it resolves. EPERM, not EACCES:
+     * no credential makes this legal. */
+    if (recursive) {
+        const char *logical = brix_vfs_export_relative(ctx, path);
+
+        if (logical[0] == '\0'
+            || (logical[0] == '/' && logical[1] == '\0'))
+        {
+            errno = EPERM;
+            saved_errno = errno;
+            brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE, NULL, 0,
+                                      NGX_ERROR, saved_errno, start);
+            return NGX_ERROR;
+        }
     }
 
     /* Non-POSIX backend: delete through the driver namespace. A recursive delete

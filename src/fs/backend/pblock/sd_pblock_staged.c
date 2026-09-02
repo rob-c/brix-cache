@@ -42,6 +42,7 @@
 #include "pblock_refs.h"         /* Phase-83 F10 refcounted blobs + dedup */
 #include "pblock_pack.h"         /* phase-88 W2 packed small-blob arena */
 #include "pblock_hist.h"         /* Phase-83 F11 versioning + trash/undelete */
+#include "sd_pblock_catalog_internal.h"  /* cat_exec (C6 commit transaction) */
 #include "core/compat/wverify.h" /* F10 whole-object CRC accumulator */
 
 #include <errno.h>
@@ -97,12 +98,39 @@ pblock_staged_alloc(pblock_staged_t **state, int *err_out)
 
 /* ---- staged atomic publish ------------------------------------------------ */
 
+/* F5: refuse a quota-busting PUT before any body byte is accepted.  The
+ * inode delta is known here (an overwrite of an existing row adds none);
+ * bytes are the declared final size when the client sent one (phase-107 C5:
+ * minus the row being replaced - commit re-admits the ACTUAL delta, so this
+ * is admission, not a charge), else 0 and byte admission waits for the
+ * commit as before.  errno carries the refusal (EDQUOT). */
+static ngx_int_t
+pblock_staged_admit(pblock_state_t *st, const char *final_path,
+    off_t declared_size, uint32_t uid)
+{
+    pblock_meta  prev;
+    int          existed;
+    int64_t      add_bytes = 0;
+
+    if (!st->quota) {
+        return NGX_OK;
+    }
+    existed = pblock_catalog_lookup(st->cat, final_path, &prev) == 0;
+    if (declared_size > 0) {
+        add_bytes = (int64_t) declared_size - (existed ? prev.size : 0);
+    }
+    if (pblock_quota_admit(st, uid, add_bytes, existed ? 0 : 1) != 0) {
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
 /* sd_pblock_staged_open_as — staged open whose eventual committed row is owned
  * by (uid, gid). The plain slot passes 0/0 (service); staged_open_cred
  * (sd_pblock_cred.c) passes the requester's resolved catalog ids. */
 brix_sd_staged_t *
 sd_pblock_staged_open_as(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, uint32_t uid, uint32_t gid, int *err_out)
+    mode_t mode, off_t declared_size, uint32_t uid, uint32_t gid, int *err_out)
 {
     pblock_state_t     *st = inst->state;
     brix_sd_staged_t *handle;
@@ -116,14 +144,7 @@ sd_pblock_staged_open_as(brix_sd_instance_t *inst, const char *final_path,
         return NULL;
     }
 
-    /* F5: refuse an inode-quota-busting PUT before any body byte is accepted.
-     * Byte admission happens at commit (the size is unknown here); an overwrite
-     * of an existing row adds no inode, so admit 0 in that case. */
-    if (st->quota
-        && pblock_quota_admit(st, uid, 0,
-               pblock_catalog_lookup(st->cat, final_path, NULL) == 0 ? 0 : 1)
-           != 0)
-    {
+    if (pblock_staged_admit(st, final_path, declared_size, uid) != NGX_OK) {
         if (err_out != NULL) { *err_out = errno; }
         return NULL;
     }
@@ -165,9 +186,10 @@ sd_pblock_staged_open_as(brix_sd_instance_t *inst, const char *final_path,
 
 brix_sd_staged_t *
 sd_pblock_staged_open(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, int *err_out)
+    mode_t mode, off_t declared_size, int *err_out)
 {
-    return sd_pblock_staged_open_as(inst, final_path, mode, 0, 0, err_out);
+    return sd_pblock_staged_open_as(inst, final_path, mode, declared_size,
+                                    0, 0, err_out);
 }
 
 ssize_t
@@ -190,14 +212,43 @@ sd_pblock_staged_write(brix_sd_staged_t *st, const void *buf, size_t len,
     return n;
 }
 
+/* The typed publish precondition against the CURRENT catalog row (C6):
+ * evaluated inside the pblock commit transaction, so the verdict is atomic
+ * with the publish. 0 = passes; -1 with errno = EEXIST (ABSENT vs an existing
+ * row), ECANCELED (MATCH_* mismatch or missing target) or ENOTSUP. */
+static int
+pblock_staged_precond(const brix_sd_precond_t *pre,
+    const pblock_meta *previous, int existed)
+{
+    if (pre == NULL || pre->kind == BRIX_SD_PRECOND_NONE)
+        return 0;
+    if (pre->kind == BRIX_SD_PRECOND_ABSENT) {
+        if (existed) {
+            errno = EEXIST;
+            return -1;
+        }
+        return 0;
+    }
+    if (!existed) {
+        errno = ECANCELED;      /* MATCH_* against a missing target */
+        return -1;
+    }
+    return brix_sd_precond_eval_stat(pre, (off_t) previous->size,
+                                     (time_t) previous->mtime);
+}
+
 /*
  * WHAT: Validate and, when necessary, remove a staged commit destination.
- * WHY:  Lease, quota, no-replace, and history rules form one namespace gate.
- * HOW:  Lookup once, admit the delta, preserve history, then drop an overwrite.
+ * WHY:  Lease, quota, precondition, and history rules form one namespace gate.
+ * HOW:  Lookup once, admit the delta, evaluate the typed publish precondition
+ *       (phase-107 C6) against the looked-up row, preserve history, then drop
+ *       an overwrite.  The caller runs this inside BEGIN IMMEDIATE, so the
+ *       compare and the publish commit or roll back together — pblock's
+ *       preconditions are ATOMIC at the catalog.
  */
 static int
 pblock_staged_prepare_destination(pblock_state_t *pst, pblock_staged_t *ps,
-    int noreplace, pblock_meta *previous, int *existed)
+    const brix_sd_precond_t *pre, pblock_meta *previous, int *existed)
 {
     int rc = pblock_catalog_lookup(pst->cat, ps->final_path, previous);
 
@@ -210,12 +261,10 @@ pblock_staged_prepare_destination(pblock_state_t *pst, pblock_staged_t *ps,
             ps->size - (rc == 0 ? previous->size : 0), rc == 0 ? 0 : 1) != 0)
         return -1;
     *existed = rc == 0;
+    if (pblock_staged_precond(pre, previous, *existed) != 0)
+        return -1;
     if (!*existed)
         return 0;
-    if (noreplace) {
-        errno = EEXIST;
-        return -1;
-    }
     if (pst->versions > 0)
         (void) pblock_hist_version_push(pst, ps->final_path, previous);
     return sd_pblock_drop_dst(pst, ps->final_path, previous) == NGX_OK ? 0 : -1;
@@ -303,24 +352,58 @@ pblock_staged_record_commit(pblock_state_t *pst, pblock_staged_t *ps,
  * the final object — no copy or rename). On success the handle is consumed; on
  * failure it stays valid and the caller must staged_abort to release it. */
 ngx_int_t
-sd_pblock_staged_commit(brix_sd_staged_t *st, int noreplace)
+sd_pblock_staged_commit(brix_sd_staged_t *st, brix_sd_precond_t *pre)
 {
     pblock_staged_t *ps = st->state;
     pblock_state_t  *pst = ps->st;
     pblock_meta      meta, dmeta;
     int              existed;
+    int              err;
 
-    if (pblock_staged_prepare_destination(pst, ps, noreplace, &dmeta,
-                                          &existed) != 0)
+    /* C6: one BEGIN IMMEDIATE spans the destination gate (lookup, lease,
+     * quota, PRECONDITION, history, overwrite drop) and the publishing
+     * catalog_put, so compare-and-publish is atomic at the catalog — no
+     * concurrent commit can slip a row in between the check and the put
+     * (the per-driver verdict in §C6's table). The post-publish observers
+     * (anomaly/csi/dedup/pack/audit) stay OUTSIDE: some run their own
+     * transactions, and they must only see an authoritative row. */
+    if (cat_exec(pst->cat, "BEGIN IMMEDIATE;") != 0) {
+        errno = EIO;
         return NGX_ERROR;
+    }
+    if (pblock_staged_prepare_destination(pst, ps, pre, &dmeta,
+                                          &existed) != 0) {
+        err = errno;
+        (void) cat_exec(pst->cat, "ROLLBACK;");
+        if (pre != NULL && pre->kind != BRIX_SD_PRECOND_NONE
+            && (err == EEXIST || err == ECANCELED))
+        {
+            pre->atomic = 1;    /* refused inside the transaction — a
+                                 * storage-decided verdict (C6 advisory) */
+        }
+        errno = err;
+        return NGX_ERROR;
+    }
     pblock_staged_build_meta(ps, &meta);
 
-    /* F7: a crash here leaves the staged blocks on disk with no catalog row —
-     * the canonical orphan-blob residue pblock-fsck must detect and --gc. */
+    /* F7: a crash here leaves the staged blocks on disk with no catalog row
+     * (the open transaction rolls back in WAL recovery) — the canonical
+     * orphan-blob residue pblock-fsck must detect and --gc. */
     pblock_lab_crash(pst->lab, "mid_staged_commit");
 
     if (pblock_catalog_put(pst->cat, ps->final_path, &meta) != 0) {
+        err = errno;
+        (void) cat_exec(pst->cat, "ROLLBACK;");
+        errno = err;
         return NGX_ERROR;
+    }
+    if (cat_exec(pst->cat, "COMMIT;") != 0) {
+        (void) cat_exec(pst->cat, "ROLLBACK;");
+        errno = EIO;
+        return NGX_ERROR;
+    }
+    if (pre != NULL && pre->kind != BRIX_SD_PRECOND_NONE) {
+        pre->atomic = 1;            /* decided inside the transaction */
     }
 
     pblock_staged_record_commit(pst, ps, &meta, &dmeta, existed);

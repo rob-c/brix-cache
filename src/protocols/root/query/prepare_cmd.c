@@ -102,7 +102,7 @@ brix_prepare_close_inherited_fds(void)
 
 #if defined(__linux__)
     {
-        DIR *dp = opendir("/proc/self/fd");  /* vfs-seam-allow: /proc fd hygiene before execv, not export storage */
+        DIR *dp = opendir("/proc/self/fd");  /* vfs-seam-allow: NOT_STORAGE — /proc fd hygiene before execv, not export storage */
         if (dp != NULL) {
             struct dirent *de;
             /*
@@ -114,7 +114,7 @@ brix_prepare_close_inherited_fds(void)
              * socket/log/pipe and is closed before execv.
              */
             int            dirfd_self = dirfd(dp);
-            while ((de = readdir(dp)) != NULL) {  /* vfs-seam-allow: /proc fd hygiene, not export storage */
+            while ((de = readdir(dp)) != NULL) {  /* vfs-seam-allow: NOT_STORAGE — /proc fd hygiene, not export storage */
                 /* entry names are decimal fd numbers; non-numeric ("." "..")
                  * parse to 0 and are filtered by the fd >= 3 guard. */
                 fd = (int) strtol(de->d_name, NULL, 10);

@@ -3,7 +3,9 @@
  *
  * WHAT: Implements the catalog operations that go beyond single-row objects CRUD:
  *       subtree-aware rename (collect every descendant, then reparent each in one
- *       transaction), directory iteration (opendir/readdir/closedir over the
+ *       transaction), the atomic two-name exchange (phase-107 C6: both subtrees
+ *       swapped through a reserved temp prefix inside ONE transaction),
+ *       directory iteration (opendir/readdir/closedir over the
  *       parent index), and the xattr CRUD (get/list/set/remove over the `xattrs`
  *       table). All declared in sd_pblock_catalog.h.
  *
@@ -222,6 +224,86 @@ pblock_catalog_rename(pblock_catalog *cat, const char *src, const char *dst)
         if (crc == 0) {
             /* a rename reparents whole subtrees — drop every cached path. */
             nscache_clear(cat);
+        }
+        return crc;
+    }
+}
+
+/* ---- exchange (phase-107 C6) ---------------------------------------------- */
+
+/* exchange_move — reparent `src` and its whole subtree to `dst` inside the
+ * caller's already-open transaction (the un-transacted middle of
+ * pblock_catalog_rename). 0 rows is ENOENT — exchange requires both names. */
+static int
+exchange_move(pblock_catalog *cat, const char *src, const char *dst)
+{
+    path_list pl = {0};
+    size_t    i;
+
+    if (rename_collect(cat, src, &pl) != 0) {
+        path_list_free(&pl);
+        return -1;
+    }
+    if (pl.len == 0) {
+        path_list_free(&pl);
+        return cat_fail(ENOENT);
+    }
+    for (i = 0; i < pl.len; i++) {
+        if (rename_one(cat, pl.items[i], src, dst) != 0) {
+            int err = errno;
+
+            path_list_free(&pl);
+            return cat_fail(err);
+        }
+    }
+    path_list_free(&pl);
+    return 0;
+}
+
+/* pblock_catalog_exchange — atomic two-name swap: both subtrees move through a
+ * reserved temp prefix inside ONE transaction, so a concurrent reader sees the
+ * old mapping or the new one and never a state in which either name is absent
+ * (the whole point of the slot — pblock_catalog_rename opens its own
+ * transaction, so composing it three times would NOT be atomic). The temp
+ * prefix carries a 0x01 byte no client path can contain, and BEGIN IMMEDIATE
+ * serializes writers, so it cannot collide. A name nested under the other is
+ * EINVAL (matching renameat2(RENAME_EXCHANGE)); a missing name is ENOENT.
+ * Side tables follow exactly as far as rename takes them (objects + xattrs). */
+int
+pblock_catalog_exchange(pblock_catalog *cat, const char *a, const char *b)
+{
+    static const char  tmp[] = "/\001brix-xchg\001";
+    size_t             la, lb;
+
+    if (a == NULL || b == NULL) {
+        return cat_fail(EINVAL);
+    }
+    la = strlen(a);
+    lb = strlen(b);
+    if (strcmp(a, b) == 0
+        || (lb > la && strncmp(b, a, la) == 0 && b[la] == '/')
+        || (la > lb && strncmp(a, b, lb) == 0 && a[lb] == '/'))
+    {
+        return cat_fail(EINVAL);
+    }
+
+    if (cat_exec(cat, "BEGIN IMMEDIATE;") != 0) {
+        return -1;
+    }
+    if (exchange_move(cat, a, tmp) != 0
+        || exchange_move(cat, b, a) != 0
+        || exchange_move(cat, tmp, b) != 0)
+    {
+        int err = errno;
+
+        cat_exec(cat, "ROLLBACK;");
+        return cat_fail(err);
+    }
+    {
+        int crc = cat_exec(cat, "COMMIT;");
+
+        if (crc == 0) {
+            nscache_clear(cat);       /* both subtrees reparented */
         }
         return crc;
     }

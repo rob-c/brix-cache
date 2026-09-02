@@ -14,15 +14,8 @@
 
 #include "webdav.h"
 
-/* Lock xattr encode/decode/read/write/delete (prop_xattr.c) */
-/* Serialise a lock entry to the pipe-delimited xattr value form in out[outsz].
- * NGX_OK, or NGX_ERROR if it would not fit. */
-ngx_int_t webdav_lock_xattr_encode(const webdav_lock_xattr_t *e,
-    char *out, size_t outsz);
-/* Parse a stored lock value raw[rawlen] back into *e.  NGX_OK; NGX_DECLINED if
- * empty/oversized or no token field was found (not a valid lock record). */
-ngx_int_t webdav_lock_xattr_decode(const char *raw, size_t rawlen,
-    webdav_lock_xattr_t *e);
+/* Lock xattr read/write/delete (prop_xattr.c); the record encode/decode moved
+ * to core/compat/lock_record.h (phase-107 C7 — the VFS gate shares them). */
 /* setxattr the encoded lock onto `path`.  Pass flags=XATTR_CREATE for atomic
  * cross-worker lock acquisition: NGX_DECLINED means another worker won the race
  * (EEXIST -> caller maps to 423).  NGX_OK / NGX_ERROR otherwise.  Takes the

@@ -20,11 +20,17 @@ xmeta_sidecar_key(const char *key, char *out, size_t cap)
     return (n > 0 && (size_t) n < cap) ? 0 : -1;
 }
 
-/* "the value cannot ride in an xattr here" — fall back, don't fail */
+/* "the value cannot ride in an xattr here" — fall back, don't fail.
+ * EINVAL belongs in this set FOR THIS CALL SITE: the save passes flags=0 and
+ * a well-formed name/value, so a driver's EINVAL can only be a carrier-shape
+ * refusal — sd_remote maps xattrs onto x-amz-meta-* HTTP headers and rejects
+ * the binary xmeta blob's NUL/CR/LF bytes with EINVAL (an injection defence,
+ * not a caller error). The sidecar carries any bytes, so ride it instead. */
 static int
 xmeta_xattr_unfit(int err)
 {
     return err == E2BIG || err == ERANGE || err == ENOSPC || err == ENOTSUP
+           || err == EINVAL
 #ifdef EOPNOTSUPP
            /* phase74-fp: ENOTSUP == EOPNOTSUPP on Linux so the operands are
             * equivalent HERE, but POSIX allows them to differ — the second
@@ -58,7 +64,7 @@ xmeta_sidecar_write(brix_sd_instance_t *store, const char *key,
     /* SECURITY: the "<key>.cinfo" sidecar leaks cache residency (block-present
      * bitmap), size and mtime. 0600 (not 0644) so a mapped low-priv uid cannot
      * read another user's cache metadata from the svc-owned store. */
-    st = store->driver->staged_open(store, ck, 0600, &err);
+    st = store->driver->staged_open(store, ck, 0600, (off_t) len, &err);
     if (st == NULL) {
         errno = err ? err : EIO;
         return NGX_ERROR;
@@ -72,7 +78,7 @@ xmeta_sidecar_write(brix_sd_instance_t *store, const char *key,
         errno = e ? e : EIO;
         return NGX_ERROR;
     }
-    if (store->driver->staged_commit(st, 0) != NGX_OK) {
+    if (store->driver->staged_commit(st, NULL) != NGX_OK) {
         int e = errno;                             /* errno from the driver */
 
         /* Contract: a failed commit leaves the handle valid (the driver frees

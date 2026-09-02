@@ -26,7 +26,8 @@ Three rules cover all four protocols (`brix_root`, `brix_webdav`, `brix_s3`, `br
   Storage/lifecycle: `brix_allow_write`, `brix_read_only`,
   `brix_read_only_public` (stream only), `brix_compress`, `brix_ktls`,
   `brix_metrics`, `brix_health`, `brix_credential`, `brix_upload_resume`, `brix_stage_dir`,
-  `brix_zip_access`, `brix_pblock_block_size`. Authorization / trust (phase-101 W4):
+  `brix_vfs_spill_path`, `brix_vfs_spill_max`, `brix_durable_publish`,
+  `brix_lock_enforcement`, `brix_zip_access`, `brix_pblock_block_size`. Authorization / trust (phase-101 W4):
   `brix_require_vo`, `brix_protbind`, `brix_pwd_file`, `brix_macaroon_secret`,
   `brix_token_jwks`, `brix_token_issuer`, `brix_token_audience`, `brix_token_clock_skew`,
   `brix_token_config`, `brix_trusted_ca`, `brix_trusted_ca_dir`, `brix_crl`, `brix_crl_mode`,
@@ -183,6 +184,108 @@ atomic at the destination). Must resolve within a path the worker can write.
 
 ```nginx
 brix_stage_dir /srv/fast/upload-staging;
+```
+
+---
+
+### `brix_vfs_spill_path <path>`
+
+**Default:** unset (fall back to `brix_stage_dir`; with neither set, reordered
+uploads on a staged-only backend are refused)
+
+Scratch root for the VFS writer's **reorder spill** (phase-107 C1). A backend
+without random-write capability (an `http://` or `s3://` storage origin) can
+only accept an upload as a strictly sequential staged stream; when a client
+writes out-of-order (multi-stream `xrdcp`, GridFTP mode E), the writer absorbs
+the out-of-order extents into an owned-temp scratch file under this directory
+and drains them sequentially into the staged session at close. The path must be
+**absolute**, an existing writable directory, and **outside every export root**
+— all three are `nginx -t` errors. The directory is registered with the
+owned-temp reaper, so a crashed worker's spill scratch is reclaimed at startup.
+Telemetry: `brix_vfs_spill_bytes_total`, `brix_vfs_spill_refused_total`,
+`brix_vfs_spill_active`.
+
+```nginx
+brix_vfs_spill_path /srv/fast/vfs-spill;
+```
+
+---
+
+### `brix_vfs_spill_max <size>`
+
+**Default:** `0` (unlimited — the scratch filesystem decides)
+
+Caps the **span** of a single reorder spill (highest absorbed offset, i.e. the
+scratch file's apparent size — see `brix_vfs_spill_path`). An upload whose
+out-of-order extents would exceed the cap is refused with the same errno a full
+scratch device would produce (`ENOSPC`), and nothing is published. Values other
+than `0` must be at least `1m` (`nginx -t` error otherwise) — a smaller spill
+cannot hold even one typical reordered block, so a tiny value is always a
+configuration mistake.
+
+```nginx
+brix_vfs_spill_max 2g;   # refuse any single spill spanning more than 2 GiB
+```
+
+---
+
+### `brix_durable_publish <on|off>`
+
+**Default:** `on`
+
+The **durable-publish barrier** (phase-107 C3). Every publish that makes a name
+visible in the export — a staged-upload commit, a rename — is followed by an
+`fsync` of the destination's **parent directory**, so the name itself survives a
+crash or power loss (the file *data* was already flushed before the rename; the
+directory entry was not). A failed barrier fails the operation: the name is
+visible but reporting success would claim durability the store does not have —
+the client sees `EIO` and the failure is logged at `crit`. On non-POSIX
+backends the barrier dispatches the driver's `sync_publish` slot (a no-op where
+the far end's publish is already atomic-and-durable).
+
+`off` trades crash-durability of the *name* for one less fsync per publish —
+defensible on a cache/scratch export whose contents are rebuildable, wrong for
+an origin. Fails safe: an export with no explicit `off` is always durable.
+
+```nginx
+brix_durable_publish off;   # scratch export: rebuildable, skip the dirsync
+```
+
+---
+
+### `brix_lock_enforcement <strict|advisory|off>`
+
+**Default:** `strict`
+
+**Cross-protocol lock enforcement** (phase-107 C7). A WebDAV `LOCK` persists as
+an xattr on the resource, so the lock state is already visible to every
+protocol sharing the export — this directive decides whether it *binds* them.
+The VFS lock gate (`brix_vfs_require_unlocked`) runs on every path mutation —
+write-open, staged open, delete, rename (both names), copy destination, mkdir,
+xattr write — after the read-only policy check (`EROFS` always precedes
+`EBUSY`) and walks target → export root, honouring `Depth: infinity` on
+ancestor collection locks. A WebDAV client defeats its own lock by presenting
+the token in an `If:` header; no other plane can present one, which is what
+holding a lock means.
+
+- `strict` — a live foreign lock refuses the mutation on **every** plane:
+  `root://` answers `kXR_FileLocked`, HTTP/WebDAV `423 Locked`, S3
+  `409 Conflict` + `OperationAborted`, GridFTP `450` (transient). Probe
+  failures fail toward enforcement.
+- `advisory` — WebDAV refuses as always (its edge check is untouched); the
+  other planes log a warning, book the metric, and proceed. One release of
+  migration cover for a deployment that discovers stale locks on upgrade.
+- `off` — today's behaviour exactly: locks bind WebDAV clients only.
+
+An **expired** lock is treated as absent but never reaped by the gate —
+read-time cleanup stays with the writable WebDAV edge, so a read-only export
+answers correctly without mutating. Run `tools/diag/lock_scan.py` before
+upgrading an export with long-lived locks; watch
+`brix_vfs_lock_refused_total{proto}` during an `advisory` window — its rate is
+exactly the traffic `strict` will start refusing.
+
+```nginx
+brix_lock_enforcement advisory;   # migration window: warn, count, allow
 ```
 
 ---

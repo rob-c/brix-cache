@@ -162,14 +162,14 @@ test_ident_vo_dir(brix_sd_instance_t *inst)
 
     /* staged publish obeys the same parent gate and records the requester */
     err = 0;
-    sh = D->staged_open_cred(inst, "/atlas/stage.dat", 0640, &CRED_BOB, &err);
+    sh = D->staged_open_cred(inst, "/atlas/stage.dat", 0640, 0, &CRED_BOB, &err);
     CHECK(sh == NULL && err == EACCES, "foreign-VO staged (err %d)", err);
-    sh = D->staged_open_cred(inst, "/atlas/stage.dat", 0640, &CRED_CAROL,
+    sh = D->staged_open_cred(inst, "/atlas/stage.dat", 0640, 0, &CRED_CAROL,
                              &err);
     CHECK(sh != NULL, "same-VO staged: %s", strerror(err));
     if (sh != NULL) {
         CHECK(D->staged_write(sh, "zz", 2, 0) == 2, "staged write");
-        CHECK(D->staged_commit(sh, 0) == NGX_OK, "staged commit");
+        CHECK(D->staged_commit(sh, NULL) == NGX_OK, "staged commit");
         CHECK(D->stat(inst, "/atlas/stage.dat", &st) == NGX_OK
               && st.uid == sub.uid, "staged row not owned by carol");
     }

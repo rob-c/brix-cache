@@ -79,6 +79,40 @@ webdav_handle_put_body(ngx_http_request_t *r)
 }
 
 /*
+ * webdav_put_publish — commit the staged temp under the request's carried
+ * write precondition (phase-107 C6).
+ *
+ * WHAT: Lifts If-Match / If-None-Match into a brix_sd_precond_t and commits
+ *   through brix_vfs_writer_commit_pre, so the STORAGE re-decides the
+ *   precondition at publish time (atomically where the backend can — the
+ *   edge check in webdav_put_precheck stays as the fast path that spares a
+ *   doomed request its body upload, but is no longer the guarantee).
+ *
+ * WHY: The edge check races: a writer landing between it and the rename used
+ *   to win silently. Both PUT commit sites (sync and async-done) share this
+ *   body so the lift and the status mapping cannot fork.
+ *
+ * HOW: Returns NGX_OK on success. On failure returns the HTTP status to
+ *   finalize with — 412 when the storage refused the carried precondition
+ *   (EEXIST from ABSENT, ECANCELED from MATCH_*, the RFC 7232 answer the
+ *   edge check always gave), else 500 — leaving errno intact for the
+ *   caller's log line.
+ */
+ngx_int_t
+webdav_put_publish(ngx_http_request_t *r, brix_vfs_writer_t *writer)
+{
+    brix_sd_precond_t pre;
+
+    brix_http_write_precond(r, &pre);
+    if (brix_vfs_writer_commit_pre(writer, &pre) == NGX_OK) {
+        return NGX_OK;
+    }
+    return (ngx_errno == EEXIST || ngx_errno == ECANCELED)
+           ? NGX_HTTP_PRECONDITION_FAILED
+           : NGX_HTTP_INTERNAL_SERVER_ERROR;
+}
+
+/*
  * webdav_put_commit — atomically publish the staged temp and reply.
  *
  * WHAT: Commits the staged temp onto the final path (excl=0 == replace),
@@ -127,15 +161,19 @@ webdav_put_commit(ngx_http_request_t *r, const char *path,
 
     /* Atomically publish the staged temp onto the final path (an empty PUT
      * commits an empty file), folding the verify read-back when the export opts
-     * in.  Replace semantics (excl=0 — the prior brix_staged_commit non-EXCL
-     * behaviour); a mismatch/short verify unlinks and fails. */
-    if (brix_vfs_writer_commit(writer) != NGX_OK) {
-        brix_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
+     * in and the request's carried If-Match / If-None-Match precondition
+     * (phase-107 C6 — the storage decides, 412 when it refuses); a
+     * mismatch/short verify unlinks and fails. */
+    status = webdav_put_publish(r, writer);
+    if (status != NGX_OK) {
+        brix_log_safe_path(r->connection->log,
+                             status == NGX_HTTP_PRECONDITION_FAILED
+                             ? NGX_LOG_INFO : NGX_LOG_ERR, ngx_errno,
                              "brix_webdav: staged commit failed for: \"%s\"",
                              path);
         brix_xfer_finish(BRIX_XFER_STAGE, "in", path, NULL, xfer_bytes,
                          BRIX_XFER_COMMIT_ERR, ngx_errno, r->connection->log);
-        webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        webdav_metrics_finalize_request(r, (ngx_uint_t) status);
         return;
     }
 

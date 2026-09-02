@@ -78,6 +78,9 @@ read_serve_windowed(brix_ctx_t *ctx, ngx_connection_t *c,
      * before this stream finishes draining.
      */
     ctx->rd.win_active = 1;
+    ctx->rd.win_pgread = 0;   /* plain kXR_read stream (oksofar chunks) */
+    ctx->rd.win_prefetch = 0; /* round-12: fresh train — no read-ahead state */
+    ctx->rd.win_ready = 0;
     ctx->rd.win_fd = io->fd;
     ctx->rd.win_idx = io->idx;
     ctx->rd.win_offset = (off_t) io->offset;
@@ -247,7 +250,10 @@ read_post_aio(brix_ctx_t *ctx, ngx_connection_t *c,
         if (ctx->rd.pool[i].buf == io->databuf) {
             task = ctx->rd.pool[i].task;
             if (task == NULL) {
-                task = ngx_thread_task_alloc(c->pool, sizeof(brix_read_aio_t));
+                /* Sized for either pipelined read opcode — pgread posts share
+                 * the per-slot task (see brix_rd_slot_aio_u in aio.h). */
+                task = ngx_thread_task_alloc(c->pool,
+                                             sizeof(brix_rd_slot_aio_u));
                 if (task == NULL) {
                     brix_release_read_buffer(ctx, c, io->databuf);
                     return NGX_ERROR;
@@ -285,6 +291,8 @@ read_post_aio(brix_ctx_t *ctx, ngx_connection_t *c,
     t->obj = ctx->files[io->idx].sd_obj; /* Layer 3: driver obj (or zeroed) */
     t->start_ns = brix_phase_now_ns();  /* phase-56 D-2 */
     t->counted = 1;                     /* phase-32 WS3: single-shot read */
+    t->pg = 0;                          /* the slot task unions with pgread
+                                         * tasks — never inherit a stale mode */
 
     brix_task_bind(task, brix_read_aio_thread, brix_read_aio_done);
 

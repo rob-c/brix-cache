@@ -20,8 +20,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define SD_STAGE_SRC(inst)  (((sd_stage_inst_state *) (inst)->state)->source)
-
 /* sd_stage_store_mkparents — create `key`'s parent chain inside the stage STORE.
  *
  * WHAT: EEXIST-tolerant prefix walk calling the store driver's mkdir slot for
@@ -205,6 +203,19 @@ sd_stage_rename_cred(brix_sd_instance_t *inst, const char *src, const char *dst,
                                      cred);
 }
 
+/* Phase-107 C3: the write-back store keeps no namespace of its own — the
+ * publish the barrier protects happened in the SOURCE, so the flush belongs
+ * there too. A source without the slot has nothing local to flush (NGX_OK,
+ * mirroring the NULL-slot contract the VFS applies to a bare leaf). */
+static ngx_int_t
+sd_stage_sync_publish(brix_sd_instance_t *inst, const char *path)
+{
+    brix_sd_instance_t *src = SD_STAGE_SRC(inst);
+
+    return (src->driver->sync_publish != NULL)
+         ? src->driver->sync_publish(src, path) : NGX_OK;
+}
+
 static ngx_int_t
 sd_stage_server_copy(brix_sd_instance_t *inst, const char *src, const char *dst,
     off_t *bytes_out)
@@ -235,34 +246,35 @@ sd_stage_setattr_cred(brix_sd_instance_t *inst, const char *path,
     return brix_sd_setattr_maybe_cred(SD_STAGE_SRC(inst), path, attr, cred);
 }
 
-/* Path-based truncate forwards straight to the source (no staging): resizing the
- * origin object by name is what lets kXR_truncate over a staged remote backend
- * avoid a RECALL + colliding write-open. Mirrors sd_stage_setattr. */
+/* The truncate-path and exchange relays live in sd_stage_write.c — this file
+ * sits at the 600-line cap (phase-107 C6 displacement); protos in
+ * sd_stage_internal.h. */
+
+/* Phase-107 C4: the batch relays straight to the source (mirrors
+ * sd_stage_unlink — the stage tier keeps no per-path state to drop here);
+ * ENOTSUP without a source slot pair, so the VFS chunker keeps its per-key
+ * walk instead of the decorator inventing a loop. */
 static ngx_int_t
-sd_stage_truncate_path(brix_sd_instance_t *inst, const char *path, off_t len)
+sd_stage_unlink_many(brix_sd_instance_t *inst, brix_sd_unlink_batch_t *b)
 {
     brix_sd_instance_t *s = SD_STAGE_SRC(inst);
-    if (s->driver->truncate_path == NULL
-        && s->driver->truncate_path_cred == NULL)
-    {
+    if (s->driver->unlink_many == NULL && s->driver->unlink_many_cred == NULL) {
         errno = ENOTSUP;
         return NGX_ERROR;
     }
-    return brix_sd_truncate_path_maybe_cred(s, path, len, NULL);
+    return brix_sd_unlink_many_maybe_cred(s, b, NULL);
 }
 
 static ngx_int_t
-sd_stage_truncate_path_cred(brix_sd_instance_t *inst, const char *path,
-    off_t len, const brix_sd_cred_t *cred)
+sd_stage_unlink_many_cred(brix_sd_instance_t *inst, brix_sd_unlink_batch_t *b,
+    const brix_sd_cred_t *cred)
 {
     brix_sd_instance_t *s = SD_STAGE_SRC(inst);
-    if (s->driver->truncate_path == NULL
-        && s->driver->truncate_path_cred == NULL)
-    {
+    if (s->driver->unlink_many == NULL && s->driver->unlink_many_cred == NULL) {
         errno = ENOTSUP;
         return NGX_ERROR;
     }
-    return brix_sd_truncate_path_maybe_cred(s, path, len, cred);
+    return brix_sd_unlink_many_maybe_cred(s, b, cred);
 }
 
 /* dir->inst is the SOURCE either way, so readdir/closedir need no cred twin. */
@@ -403,17 +415,22 @@ const brix_sd_driver_t brix_sd_stage_driver = {
     .pread       = sd_stage_wb_pread,
     .pwrite      = sd_stage_wb_pwrite,
     .ftruncate   = sd_stage_wb_ftruncate,
+    .reserve     = sd_stage_wb_reserve,   /* phase-107 C5 spool relay */
     .fstat       = sd_stage_wb_fstat,
     .fsync       = sd_stage_wb_fsync,
     .close       = sd_stage_wb_close,
     .stat        = sd_stage_stat,
     .unlink      = sd_stage_unlink,
+    .unlink_many = sd_stage_unlink_many,
     .mkdir       = sd_stage_mkdir,
     .rename      = sd_stage_rename,
     .server_copy = sd_stage_server_copy,
     .setattr     = sd_stage_setattr,
     .space       = sd_stage_space,
     .truncate_path = sd_stage_truncate_path,
+    .exchange      = sd_stage_exchange,      /* C6 relay: source or ENOTSUP */
+    .evict         = sd_stage_evict,         /* C2: EBUSY when dirty, else relay */
+    .sync_publish  = sd_stage_sync_publish,   /* phase-107 C3 relay */
     .opendir     = sd_stage_opendir,
     .readdir     = sd_stage_readdir,
     .closedir    = sd_stage_closedir,
@@ -425,11 +442,14 @@ const brix_sd_driver_t brix_sd_stage_driver = {
      * credential for every path op behind it (see the forwarder block above). */
     .stat_cred          = sd_stage_stat_cred,
     .unlink_cred        = sd_stage_unlink_cred,
+    .unlink_many_cred   = sd_stage_unlink_many_cred,
     .mkdir_cred         = sd_stage_mkdir_cred,
     .rename_cred        = sd_stage_rename_cred,
     .server_copy_cred   = sd_stage_server_copy_cred,
     .setattr_cred       = sd_stage_setattr_cred,
     .truncate_path_cred = sd_stage_truncate_path_cred,
+    .exchange_cred      = sd_stage_exchange_cred,
+    .evict_cred         = sd_stage_evict_cred,
     .opendir_cred       = sd_stage_opendir_cred,
     .getxattr_cred      = sd_stage_getxattr_cred,
     .listxattr_cred     = sd_stage_listxattr_cred,
@@ -481,6 +501,8 @@ brix_sd_stage_create(brix_sd_instance_t *source, brix_sd_instance_t *store,
     inst->log    = log;
     inst->pool   = NULL;
     inst->state  = is;
+    inst->domain = BRIX_VFS_DOMAIN_EXPORT;   /* the decorator FRONTS the export;
+                                              * only its store is DOMAIN_STAGE (C9) */
     return inst;
 }
 

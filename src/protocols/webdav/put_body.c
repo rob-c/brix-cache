@@ -167,9 +167,14 @@ webdav_put_aio_finish(webdav_put_aio_t *t)
     }
 
     /* Atomically publish the completed temp onto the final path (folding the
-     * verify read-back when the export opts in; a mismatch unlinks + fails). */
-    if (brix_vfs_writer_commit(t->writer) != NGX_OK) {
-        brix_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
+     * verify read-back when the export opts in and the request's carried
+     * If-Match / If-None-Match precondition — phase-107 C6, the storage
+     * decides, 412 when it refuses; a mismatch unlinks + fails). */
+    status = webdav_put_publish(r, t->writer);
+    if (status != NGX_OK) {
+        brix_log_safe_path(r->connection->log,
+                             status == NGX_HTTP_PRECONDITION_FAILED
+                             ? NGX_LOG_INFO : NGX_LOG_ERR, ngx_errno,
                              "brix_webdav: async staged commit failed for: "
                              "\"%s\"", t->path);
         /* A direct WebDAV PUT is a STAGE-class ingest — record the failed
@@ -179,7 +184,7 @@ webdav_put_aio_finish(webdav_put_aio_t *t)
                          r->connection->log);
         brix_dashboard_http_error(r, "webdav PUT staged commit failed");
         brix_dashboard_http_finish(r);
-        webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        webdav_metrics_finalize_request(r, (ngx_uint_t) status);
         return;
     }
 

@@ -129,6 +129,9 @@ char *ngx_stream_brix_enable(ngx_conf_t *cf, ngx_command_t *cmd,
 /* Postconfig phase: load VOMS, init auth (GSI/TLS/token/SSS), finalize ACL
  * rules, create the SHM registries, and size AIO pools. NGX_OK / NGX_ERROR. */
 ngx_int_t ngx_stream_brix_postconfiguration(ngx_conf_t *cf);
+/* Master init-module (pre-fork): impersonation settings snapshot + the §1.4
+ * bind-migration channel pairs. NGX_OK, or the impersonation init's error. */
+ngx_int_t brix_stream_init_module(ngx_cycle_t *cycle);
 /* Per-worker init after fork: proxy pool, CMS heartbeat clients, per-worker
  * CRL-reload timers. NGX_OK, or NGX_ERROR on timer alloc failure. */
 ngx_int_t ngx_stream_brix_init_process(ngx_cycle_t *cycle);

@@ -186,6 +186,16 @@ ngx_int_t sd_cache_setattr(brix_sd_instance_t *inst, const char *path,
     const brix_sd_setattr_t *attr);
 ngx_int_t sd_cache_truncate_path(brix_sd_instance_t *inst, const char *path,
     off_t len);
+ngx_int_t sd_cache_unlink_many(brix_sd_instance_t *inst,
+    brix_sd_unlink_batch_t *b);
+ngx_int_t sd_cache_unlink_many_cred(brix_sd_instance_t *inst,
+    brix_sd_unlink_batch_t *b, const brix_sd_cred_t *cred);
+/* phase-107 C2 evict pair (sd_cache_maint.c): drop own copy + relay downward. */
+ngx_int_t sd_cache_evict_op(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out);
+ngx_int_t sd_cache_evict_op_cred(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out, const brix_sd_cred_t *cred);
+ngx_int_t sd_cache_sync_publish(brix_sd_instance_t *inst, const char *path);
 ngx_int_t sd_cache_space(brix_sd_instance_t *inst, brix_sd_space_t *out);
 brix_sd_dir_t *sd_cache_opendir(brix_sd_instance_t *inst, const char *path,
     int *err_out);
@@ -229,14 +239,17 @@ ngx_int_t sd_cache_setxattr_cred(brix_sd_instance_t *inst, const char *path,
 ngx_int_t sd_cache_removexattr_cred(brix_sd_instance_t *inst, const char *path,
     const char *name, const brix_sd_cred_t *cred);
 
+/* phase-107 C5 parity slot (sd_cache_forward.c): write opens pass through, so
+ * this is never reached via the VFS — see the definition's comment. */
+ngx_int_t sd_cache_reserve(brix_sd_obj_t *obj, off_t size);
 brix_sd_staged_t *sd_cache_staged_open(brix_sd_instance_t *inst,
-    const char *final_path, mode_t mode, int *err_out);
+    const char *final_path, mode_t mode, off_t declared_size, int *err_out);
 brix_sd_staged_t *sd_cache_staged_open_cred(brix_sd_instance_t *inst,
-    const char *final_path, mode_t mode, const brix_sd_cred_t *cred,
-    int *err_out);
+    const char *final_path, mode_t mode, off_t declared_size,
+    const brix_sd_cred_t *cred, int *err_out);
 ssize_t   sd_cache_staged_write(brix_sd_staged_t *st, const void *buf,
     size_t len, off_t off);
-ngx_int_t sd_cache_staged_commit(brix_sd_staged_t *st, int noreplace);
+ngx_int_t sd_cache_staged_commit(brix_sd_staged_t *st, brix_sd_precond_t *pre);
 void      sd_cache_staged_abort(brix_sd_staged_t *st);
 
 #endif /* BRIX_FS_BACKEND_CACHE_SD_CACHE_INTERNAL_H */

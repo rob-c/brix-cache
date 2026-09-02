@@ -46,6 +46,52 @@ brix_sd_cache_evict(brix_sd_instance_t *inst, const char *key)
     return brix_cstore_evict_sized(&st->cstore, key);
 }
 
+/* Vtable evict pair (phase-107 C2) — the promoted form of brix_sd_cache_evict
+ * above: drop THIS decorator's cached copy of `path`, then RELAY downward when
+ * the source also carries the slot, summing the reclaimed bytes. The relay is
+ * what keeps a nearline release reachable on a cache-fronted export — a cache
+ * that only dropped its own copy would leave the frm online buffer full
+ * forever — while a source without the slot (posix/http) simply contributes
+ * nothing. INSTANCE-keyed cred twin: the decorator's own store is
+ * service-owned so the cred adds nothing to the local drop; it exists so the
+ * *_maybe_cred forwarder threads the per-user credential into the relay
+ * instead of refusing in DENY mode (the truncate_path_cred rationale). The
+ * local drop always happens; a relay failure propagates with *bytes_out still
+ * carrying everything actually reclaimed. */
+static ngx_int_t
+sd_cache_evict_common(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out, const brix_sd_cred_t *cred)
+{
+    sd_cache_inst_state  *st = SD_CACHE_ST(inst);
+    uint64_t              bytes, below = 0;
+    ngx_int_t             rc = NGX_OK;
+
+    bytes = brix_cstore_evict_sized(&st->cstore, path);
+    if (st->source->driver->evict != NULL
+        || st->source->driver->evict_cred != NULL)
+    {
+        rc = brix_sd_evict_maybe_cred(st->source, path, &below, cred);
+    }
+    if (bytes_out != NULL) {
+        *bytes_out = bytes + below;
+    }
+    return rc;
+}
+
+ngx_int_t
+sd_cache_evict_op(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out)
+{
+    return sd_cache_evict_common(inst, path, bytes_out, NULL);
+}
+
+ngx_int_t
+sd_cache_evict_op_cred(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out, const brix_sd_cred_t *cred)
+{
+    return sd_cache_evict_common(inst, path, bytes_out, cred);
+}
+
 /* Logical size of the cached copy of `key` (0 when uncached / not a cache
  * decorator). Read-only probe for callers that must account an eviction they
  * cannot observe directly (e.g. the staged-open path, where the decorator's

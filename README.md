@@ -12,7 +12,7 @@
 # BriX-Cache
 
 **The whole HEP data stack in one nginx binary — `root://`, WebDAV, S3,
-`gsiftp://`, `httpg`, and CVMFS — built from snap-together parts you assemble
+`gsiftp://`, `httpg`, and `CVMFS` — built from snap-together parts you assemble
 to fit your site, instead of a monolith you bend to fit.**
 
 [![ASan/UBSan](https://github.com/rob-c/brix-cache/actions/workflows/asan.yml/badge.svg)](https://github.com/rob-c/brix-cache/actions/workflows/asan.yml)

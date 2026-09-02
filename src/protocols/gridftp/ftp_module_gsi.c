@@ -158,7 +158,7 @@ brix_ftp_build_gsi(ngx_conf_t *cf, ngx_stream_brix_ftp_srv_conf_t *conf)
     }
     conf->tls_ctx->ctx = ctx;
 
-    ca_is_dir = (stat(ca_raw, &stbuf) == 0 && S_ISDIR(stbuf.st_mode)); /* vfs-seam-allow: trust-anchor path (CApath dir vs CAfile bundle), not export storage */
+    ca_is_dir = (stat(ca_raw, &stbuf) == 0 && S_ISDIR(stbuf.st_mode)); /* vfs-seam-allow: DOMAIN_CONFIG — trust-anchor path (CApath dir vs CAfile bundle), not export storage */
 
     conf->ca_store = brix_build_ca_store_cached(cf->cycle, cf->log,
         ca_is_dir ? ca_raw : NULL,          /* CApath (hashed dir) */

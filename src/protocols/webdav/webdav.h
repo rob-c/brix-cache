@@ -53,6 +53,7 @@
 
 #include "observability/metrics/metrics.h"
 #include "core/compat/error_mapping.h"
+#include "core/compat/lock_record.h"
 #include "core/http/http_headers.h"
 #include "core/compat/log.h"
 #include "auth/token/token.h"
@@ -82,33 +83,22 @@ typedef struct x509_store_st X509_STORE;
 #define WEBDAV_PUT_COPY_CHUNK    (16 * 1024 * 1024)
 #define WEBDAV_TPC_MAX_HEADERS   64
 
-/* --- WebDAV xattr-based lock constants --- */
-#define WEBDAV_LOCK_XATTR_KEY    "user.nginx_xrootd.lock"
-#define WEBDAV_LOCK_XATTR_MAXLEN  512
+/* --- WebDAV xattr-based lock constants + record ---
+ *
+ * The record FORMAT (key, maxlen, struct, encode/decode) moved to
+ * core/compat/lock_record.h in phase-107 C7 so the VFS lock gate can read a
+ * lock without a protocol dependency; WebDAV keeps its historical names as
+ * aliases and still owns the lock state machine. */
+#define WEBDAV_LOCK_XATTR_KEY    BRIX_LOCK_XATTR_KEY
+#define WEBDAV_LOCK_XATTR_MAXLEN BRIX_LOCK_XATTR_MAXLEN
+
+typedef brix_lock_record_t webdav_lock_xattr_t;
 
 typedef enum {
     WEBDAV_AUTH_NONE,
     WEBDAV_AUTH_OPTIONAL,
     WEBDAV_AUTH_REQUIRED,
 } webdav_auth_t;
-
-/* --- WebDAV xattr-based lock entry --- */
-
-typedef struct {
-    char        token[64];           /* full opaquelocktoken:UUID string */
-    char        owner[256];          /* DN or free-form owner */
-    int64_t     expires;             /* absolute expiry, Unix WALL-CLOCK seconds
-                                      * (ngx_time()-based, NOT the monotonic
-                                      * ngx_current_msec): a persisted lock must
-                                      * keep meaningful expiry across a machine
-                                      * reboot, where the monotonic clock resets. */
-    unsigned    exclusive:1;
-    unsigned    depth_infinity:1;
-    unsigned    is_null:1;           /* lock-null: the lock created a zero-byte
-                                      * placeholder on a non-existent resource
-                                      * (RFC 4918 §9.10.1); reaped on UNLOCK/expiry
-                                      * while the resource is still empty. */
-} webdav_lock_xattr_t;
 
 /*
  * Per-location WebDAV configuration.  Populated from nginx directives during

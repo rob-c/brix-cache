@@ -2,7 +2,7 @@
 
 > **Audience:** anyone extending a storage backend, or deciding whether a feature
 > can be offered over a given export type.
-> **Scope:** the 54 function-pointer slots of `struct brix_sd_driver_s`
+> **Scope:** the 58 function-pointer slots of `struct brix_sd_driver_s`
 > (`src/fs/backend/sd.h`) against all 12 registered drivers.
 > **Companions:** [`storage-backend-drivers-deep-dive.md`](storage-backend-drivers-deep-dive.md)
 > (how each driver works), [`src/fs/backend/README.md`](../../src/fs/backend/README.md)
@@ -24,7 +24,7 @@ protocol cannot express the verb, or something above the driver already answers
 it correctly, or it is a real gap — and a real gap gets closed, not catalogued.
 §6 is the record of the last eleven.
 
-**Current state: 379 of 648 cells implemented, zero open gaps.** Every empty
+**Current state: 421 of 756 cells implemented, zero open gaps.** Every empty
 cell now carries a verdict, and the verdicts are machine-checked against the
 source. §6 records what each of the eleven former gaps landed as, and — where the
 protocol stops short of the whole verb — exactly where the ceiling is.
@@ -66,13 +66,17 @@ do that" is how a table like this becomes a fiction.
 | `fsync` | ✅ | ✅ | ✅ | syn | ✅ | ro | tier | np | np | ✅ | dec | ✅ |
 | `fstat` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `read_advise` | ✅ | ✅ | ✅ | syn | np | np | tier | np | np | np | ✅ | dec |
+| `reserve` | ✅ | ✅ | ✅ | syn | np | ro | sup | np | sup | sup | ✅ | ✅ |
 | `stat` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `unlink` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `unlink_many` | np | ✅ | flat | syn | ✅ | ro | tier | np | ✅ | np | ✅ | ✅ |
 | `mkdir` | ✅ | ✅ | flat | syn | ✅ | ro | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `rename` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `server_copy` | ✅ | ✅ | flat | syn | np | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `setattr` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `truncate_path` | seam | seam | flat | syn | ✅ | ro | tier | np | np | ✅ | ✅ | ✅ |
+| `sync_publish` | ✅ | ✅ | flat | syn | np | ro | ✅ | np | np | np | ✅ | ✅ |
+| `exchange` | ✅ | ✅ | flat | syn | np | ro | ✅ | np | np | np | ✅ | ✅ |
 | `opendir` | ✅ | ✅ | ✅ | syn | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `readdir` | ✅ | ✅ | ✅ | syn | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `closedir` | ✅ | ✅ | ✅ | syn | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -89,6 +93,9 @@ do that" is how a table like this becomes a fiction.
 | `dedup_gc` | ✅ | refc | cas | cas | cas | cas | cas | cas | cas | cas | cas | cas |
 | `recall` | np | ✅ | np | syn | np | np | ✅ | ✅ | ✅ | ✅ | walk | walk |
 | `residency` | np | ✅ | np | syn | np | np | ✅ | ✅ | ✅ | ✅ | walk | walk |
+| `recall_cred` | id | ✅ | id | syn | np | ro | ✅ | ✅ | ✅ | ✅ | walk | walk |
+| `evict` | nil | ✅ | flat | syn | nil | ro | ✅ | np | np | ✅ | ✅ | ✅ |
+| `evict_cred` | id | ✅ | id | syn | nil | ro | id | np | np | ✅ | ✅ | ✅ |
 | `space` | seam | ✅ | ✅ | syn | ✅ | ✅ | tier | ✅ | np | ✅ | ✅ | ✅ |
 | `query_checksum` | seam | seam | seam | syn | ✅ | seam | tier | ✅ | ✅ | ✅ | walk | walk |
 | `enumerate` | ns | ✅ | ns | syn | ✅ | ns | np | ns | ✅ | ns | walk | walk |
@@ -96,8 +103,10 @@ do that" is how a table like this becomes a fiction.
 | `staged_open_cred` | id | ✅ | id | syn | scope | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `stat_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `unlink_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `unlink_many_cred` | id | ✅ | id | syn | ✅ | ro | id | np | ✅ | np | ✅ | ✅ |
 | `mkdir_cred` | id | ✅ | id | syn | scope | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `rename_cred` | id | ✅ | id | syn | scope | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `exchange_cred` | id | ✅ | id | syn | np | ro | id | np | np | np | ✅ | ✅ |
 | `setattr_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `truncate_path_cred` | id | seam | id | syn | ✅ | ro | id | np | np | ✅ | ✅ | ✅ |
 | `getxattr_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -106,9 +115,9 @@ do that" is how a table like this becomes a fiction.
 | `removexattr_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `server_copy_cred` | id | ✅ | id | syn | np | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `opendir_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **implemented** | **34** | **50** | **16** | **7** | **42** | **14** | **15** | **39** | **39** | **44** | **39** | **40** |
+| **implemented** | **37** | **59** | **17** | **7** | **44** | **14** | **19** | **40** | **42** | **47** | **47** | **48** |
 
-_54 slots x 12 drivers = 648 cells: 379 implemented, 0 open gaps (marked ⚠)._
+_63 slots x 12 drivers = 756 cells: 421 implemented, 0 open gaps (marked ⚠)._
 
 ## 2. Legend
 
@@ -135,11 +144,11 @@ _54 slots x 12 drivers = 648 cells: 379 implemented, 0 open gaps (marked ⚠)._
 
 ### The two counts that do not match
 
-`tools/ci/check_sd_driver_conformance.py` reports 36 ops for `posix` where this
-table says 34. Both are right: the conformance checker counts every field of the
+`tools/ci/check_sd_driver_conformance.py` reports 38 ops for `posix` where this
+table says 36. Both are right: the conformance checker counts every field of the
 struct initialiser, and `name`, `caps` and `cred_accept` are **data**, not
-function pointers. This table censuses the 54 *slots*. `posix` has 34 slots plus
-`name` and `caps`; `remote` has 39 plus all three.
+function pointers. This table censuses the 61 *slots*. `posix` has 36 slots plus
+`name` and `caps`; `remote` has 42 plus all three.
 
 ---
 
@@ -183,26 +192,26 @@ open + `ftruncate` fallback into `ENOSYS` over http/s3/posix.
 
 ## 4. Per-driver reading
 
-**`posix` (32).** The reference implementation, and the only driver with
+**`posix` (36).** The reference implementation, and the only driver with
 `staged_path`. Its six non-`_cred` blanks are all `seam` or `np`: `statvfs(2)` *is*
 the exact answer for `space` (the slot exists for backends whose logical space
 differs from the filesystem underneath — pblock quota, an origin's `oss.space`);
 `query_checksum` is answered from `user.XrdCks.*` by the layer above; a plain
 filesystem is never nearline.
 
-**`pblock` (48).** The most complete driver — POSIX parity over a SQLite catalog,
+**`pblock` (57).** The most complete driver — POSIX parity over a SQLite catalog,
 including the nearline pair and its own `enumerate` (catalog rows vs. block
 files is precisely the reconciliation `enumerate` was added for). Its four blanks
 are `staged_path` (the staged object is block-chain, not a file) and the
 `truncate_path`/`query_checksum` seams.
 
-**`block` (16).** A raw device presented as fixed-size extents. Almost every blank
+**`block` (17).** A raw device presented as fixed-size extents. Almost every blank
 is the `flat` verdict: there is no namespace, so nothing to rename or list
 xattrs on, and the extents are fixed, so there is nothing to truncate. It carries
 `space` because the device capacity is a real number. Its two zero-copy/advisory
 slots are implemented **inside the extent window** — §6.6.
 
-**`ceph` (42).** Flat RADOS with a synthetic directory model (ADR-1). `server_copy`
+**`ceph` (44).** Flat RADOS with a synthetic directory model (ADR-1). `server_copy`
 is `np` on a verified reading of the headers, not the documentation: librados'
 `copy_from` is **C++-only**, and the C API has no equivalent — the C header is the
 authority here. The three `scope` cells are documented at the top of
@@ -230,13 +239,13 @@ this driver reads the **metadata pool's omaps** directly, and raw metadata-pool
 access is an admin-level CephX capability that no per-user keyring should hold.
 Per-user scoping here would be worse than the export account, not better.
 
-**`frm` (11).** The nearline (tape/MSS) driver is a thin residency layer, and the
+**`frm` (18).** The nearline (tape/MSS) driver is a thin residency layer, and the
 composing registry **requires a cache tier in front** — so the byte and namespace
 verbs are the tier's, not the tape's. `enumerate` is `np` rather than `tier`: the
 MSS adapter vtable is `exists`/`recall`/`migrate`/`purge`, per key. HSMs answer
 about a key you name; they do not hand you the tape's inventory.
 
-**`http` (39) and `remote` (39).** The two object/HTTP origins share a shape: no
+**`http` (40) and `remote` (42).** The two object/HTTP origins share a shape: no
 partial write (`PUT`/`COPY` are whole-object, which is exactly what the
 `staged_*` slots do), no local fd, no per-read flags. `remote`'s `space` is `np`
 because the S3 API has no capacity endpoint at all — no bucket usage, no quota;
@@ -245,7 +254,7 @@ Both now carry the nearline pair — over the WLCG Tape REST API and over S3
 GLACIER respectively — and both arm `CAP_NEARLINE` only from an explicit operator
 field, never by inference (§6.1–6.3).
 
-**`xroot` (44).** The most complete remote driver, with a native spelling for
+**`xroot` (47).** The most complete remote driver, with a native spelling for
 nearly everything: `kXR_Qspace`/`kXR_QFSinfo` for `space`, `kXR_Qcksum` for
 `query_checksum`, `kXR_chmod` for `setattr`, TPC for `server_copy`, and the
 nearline pair over `kXR_prepare`. Its blanks are the vectored/advisory reads that

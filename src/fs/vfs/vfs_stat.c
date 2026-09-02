@@ -252,8 +252,12 @@ brix_vfs_stat_impl(brix_vfs_ctx_t *ctx, brix_vfs_stat_t *stat_out,
         return NGX_ERROR;
     }
 
-    if (brix_lstat_confined_canon(ctx->log, ctx->root_canon, path, &st,
-                                    nofollow) != 0)
+    if ((ctx->rootfd >= 0
+             ? brix_lstat_confined_canon_at(ctx->log, ctx->rootfd,
+                                              ctx->root_canon, path, &st,
+                                              nofollow)
+             : brix_lstat_confined_canon(ctx->log, ctx->root_canon, path,
+                                           &st, nofollow)) != 0)
     {
         saved_errno = errno;
         if (saved_errno == ENOENT) {
@@ -340,6 +344,29 @@ brix_vfs_residency(brix_vfs_ctx_t *ctx, brix_sd_residency_t *out,
         }
     }
     return NGX_OK;
+}
+
+/* 1 iff any tier of the resolved ctx chain declares CAP_NEARLINE — the export
+ * fronts tape/archive, whether or not that tier also implements a recall slot.
+ * The prepare plane (phase-107 C2) uses this to tell "flat export: staging is
+ * advisory" from "nearline export that cannot stage" (the kXR_Unsupported arm),
+ * exactly the distinction brix_vfs_recall's single ENOTSUP cannot carry. */
+int
+brix_vfs_nearline_export(brix_vfs_ctx_t *ctx)
+{
+    brix_sd_instance_t *inst;
+
+    if (ctx == NULL) {
+        return 0;
+    }
+    for (inst = ctx->sd; inst != NULL;
+         inst = brix_vfs_decorator_source(inst))
+    {
+        if ((brix_sd_caps(inst) & BRIX_SD_CAP_NEARLINE) != 0) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 /* Driver-reported export space (phase-83 F5). Same decorator walk as residency:
@@ -429,9 +456,14 @@ brix_vfs_probe(brix_vfs_ctx_t *ctx, int nofollow,
         return NGX_OK;
     }
 
-    if (brix_lstat_confined_canon(ctx->log, ctx->root_canon,
-                                    brix_vfs_ctx_path(ctx), &st,
-                                    nofollow) != 0)
+    if ((ctx->rootfd >= 0
+             ? brix_lstat_confined_canon_at(ctx->log, ctx->rootfd,
+                                              ctx->root_canon,
+                                              brix_vfs_ctx_path(ctx), &st,
+                                              nofollow)
+             : brix_lstat_confined_canon(ctx->log, ctx->root_canon,
+                                           brix_vfs_ctx_path(ctx), &st,
+                                           nofollow)) != 0)
     {
         return NGX_DECLINED;
     }

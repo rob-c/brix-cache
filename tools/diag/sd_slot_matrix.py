@@ -2,7 +2,7 @@
 """Regenerate the storage-driver slot matrix in
 docs/09-developer-guide/storage-driver-slot-matrix.md.
 
-WHAT: census every registered ``brix_sd_*_driver`` against the 52 function-pointer
+WHAT: census every registered ``brix_sd_*_driver`` against the function-pointer
       slots of ``struct brix_sd_driver_s`` and emit the markdown table, one
       verdict per cell.
 WHY:  the matrix is the map of what each backend can and cannot do; a hand-kept
@@ -45,6 +45,12 @@ def put(d, ss, code):
 
 put("posix", "truncate_path space query_checksum", "seam")
 put("posix", "recall residency", "np")
+# C2: the online copy is the ONLY copy (sd.h evict contract) - evicting a
+# flat export is a delete wearing a different verb, so the slot stays NULL.
+put("posix", "evict", "nil")
+# C4: the kernel has no batch unlink; the VFS per-key loop issues the
+# same n unlinkat(2) calls a slot would, so there is nothing to amortize.
+put("posix", "unlink_many", "np")
 put("posix", "enumerate", "ns")
 for s in CRED: V[("posix", s)] = "id"
 
@@ -52,24 +58,37 @@ put("pblock", "truncate_path truncate_path_cred query_checksum", "seam")
 
 put("block", "cleanup", "nil")
 put("block", "copy_range query_checksum", "seam")
-put("block", "ftruncate unlink mkdir rename server_copy setattr truncate_path "
+put("block", "ftruncate unlink unlink_many mkdir rename exchange server_copy setattr truncate_path "
+             "sync_publish "
              "getxattr listxattr setxattr removexattr staged_open staged_write "
              "staged_commit staged_abort staged_path", "flat")
 put("block", "recall residency", "np")
+put("block", "evict", "flat")
 put("block", "enumerate", "ns")
 for s in CRED: V[("block", s)] = "id"
 
 put("ceph", "copy_range", "seam")
-put("ceph", "read_advise server_copy server_copy_cred recall residency", "np")
+put("ceph", "read_advise server_copy server_copy_cred recall residency "
+            "recall_cred "
+            "sync_publish "
+            "reserve", "np")
+# C2: RADOS holds the only copy (sd.h evict contract), same as posix.
+put("ceph", "evict evict_cred", "nil")  # librados has no preallocation call
+# C6: librados has no atomic two-name swap (rename itself is copy+delete
+# there); SS3.5 forbids emulating one, so the slot stays honestly absent.
+put("ceph", "exchange exchange_cred", "np")
 put("ceph", "staged_path", "path")
 put("ceph", "staged_open_cred mkdir_cred rename_cred", "scope")
 
-put("cephfs_ro", "pwrite copy_range ftruncate fsync unlink mkdir rename "
+put("cephfs_ro", "pwrite copy_range ftruncate fsync unlink unlink_many mkdir rename "
                  "server_copy setattr truncate_path setxattr removexattr "
+                 "sync_publish reserve "
                  "staged_open staged_write staged_commit staged_abort "
                  "staged_path", "ro")
+put("cephfs_ro", "exchange", "ro")
 put("cephfs_ro", "preadv2 query_checksum", "seam")
 put("cephfs_ro", "read_sendfile_fd read_advise recall residency", "np")
+put("cephfs_ro", "evict", "ro")
 put("cephfs_ro", "enumerate", "ns")
 for s in CRED: V[("cephfs_ro", s)] = "ro"
 
@@ -77,47 +96,79 @@ put("frm", "init cleanup", "nil")
 put("frm", "staged_path", "path")
 put("frm", "enumerate", "np")
 put("frm", "pwrite preadv preadv2 copy_range read_sendfile_fd ftruncate fsync "
-           "read_advise unlink rename server_copy setattr truncate_path "
+           "read_advise unlink unlink_many rename server_copy setattr truncate_path "
            "getxattr listxattr setxattr removexattr "
            "space query_checksum", "tier")
-for s in CRED: V[("frm", s)] = "id"
+# C5: frm's own staged_open reserves on the posix shell (sd_frm_staged.c),
+# so the object-keyed slot is carried by the staged plane, not missing.
+put("frm", "reserve", "sup")
+for s in CRED:
+    if s != "recall_cred":               # C2: implemented (tape-ledger attribution)
+        V[("frm", s)] = "id"
 
 put("http", "init cleanup", "nil")
 put("http", "pwrite preadv2 read_sendfile_fd ftruncate fsync read_advise "
-            "truncate_path truncate_path_cred", "np")
+            "truncate_path truncate_path_cred sync_publish "
+            "reserve", "np")  # no HTTP/WebDAV verb preallocates space
 put("http", "copy_range", "sup")
+# C2: the Tape REST release verb is reqid-scoped (POST /release/{id}), so a
+# path-keyed evict cannot name the pin to drop - no honest wire mapping.
+put("http", "evict evict_cred", "np")
+# C4: neither HTTP nor WebDAV defines a batch DELETE verb.
+put("http", "unlink_many unlink_many_cred", "np")
+# C6: WebDAV MOVE is single-name; no wire verb swaps two names atomically
+# and SS3.5 forbids the two-MOVE emulation.
+put("http", "exchange exchange_cred", "np")
 put("http", "staged_path", "path")
 put("http", "enumerate", "ns")
 
 put("remote", "init cleanup", "nil")
 put("remote", "pwrite preadv2 read_sendfile_fd ftruncate fsync read_advise "
-              "truncate_path truncate_path_cred space", "np")
+              "truncate_path truncate_path_cred space sync_publish", "np")
 put("remote", "copy_range", "sup")
+# C2: a GLACIER restore expires on its own (RestoreObject Days); S3 has no
+# verb to drop the restored copy early.
+put("remote", "evict evict_cred", "np")
+# C5: staged_open(declared_size) carries the declaration - it sizes the
+# multipart parts (sd_remote_part_size), which is S3's whole reserve story.
+put("remote", "reserve", "sup")
+# C6: S3 has no rename, let alone an atomic two-name swap.
+put("remote", "exchange exchange_cred", "np")
 put("remote", "staged_path", "path")
 
 put("xroot", "init cleanup", "nil")
 put("xroot", "copy_range", "sup")
-put("xroot", "preadv2 read_sendfile_fd read_advise", "np")
+# C5: staged_open(declared_size) forwards the declaration as oss.asize on
+# the remote kXR open (sd_xroot_staged.c) - the origin runs its own reserve.
+put("xroot", "reserve", "sup")
+put("xroot", "preadv2 read_sendfile_fd read_advise sync_publish", "np")
+# C4: the kXR wire has one kXR_rm per request - no batch form.
+put("xroot", "unlink_many unlink_many_cred", "np")
+# C6: kXR_mv is single-pair with no exchange option; SS3.5 forbids emulation.
+put("xroot", "exchange exchange_cred", "np")
 put("xroot", "staged_path", "path")
 put("xroot", "enumerate", "ns")
 
 put("cache", "init cleanup", "nil")
 put("cache", "pwrite preadv preadv2 copy_range ftruncate fsync", "dec")
 put("cache", "staged_path", "path")
-put("cache", "recall residency query_checksum enumerate", "walk")
+put("cache", "recall recall_cred residency query_checksum enumerate", "walk")
 
 put("stage", "init cleanup", "nil")
 put("stage", "preadv preadv2 copy_range read_sendfile_fd read_advise", "dec")
 put("stage", "staged_path", "path")
-put("stage", "recall residency query_checksum enumerate", "walk")
+put("stage", "recall recall_cred residency query_checksum enumerate", "walk")
 
 put("mirage", "cleanup", "nil")
-put("mirage", "pwrite copy_range ftruncate fsync unlink mkdir rename "
+put("mirage", "pwrite copy_range ftruncate fsync unlink unlink_many mkdir rename exchange "
               "server_copy setattr truncate_path setxattr removexattr "
+              "sync_publish "
               "staged_open staged_write staged_commit staged_abort "
               "staged_path", "syn")
+put("mirage", "evict", "syn")
 put("mirage", "preadv2 read_sendfile_fd read_advise opendir readdir closedir "
-              "getxattr listxattr recall residency space query_checksum", "syn")
+              "getxattr listxattr recall residency space query_checksum "
+              "reserve", "syn")
 put("mirage", "enumerate", "syn")
 for s_ in CRED: V[("mirage", s_)] = "syn"
 

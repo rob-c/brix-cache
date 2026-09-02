@@ -22,6 +22,14 @@ int64_t webdav_lock_parse_timeout(ngx_http_request_t *r,
  */
 int webdav_lock_if_header_matches(ngx_http_request_t *r, const char *token);
 /*
+ * The raw lock-token presentation for this request: the "If" header VALUE
+ * (falling back to "Lock-Token" for noncompliant clients), NUL-terminated and
+ * borrowed from the request, or NULL when neither header is present. This is
+ * what the WebDAV ctx builders hand to the VFS lock gate (ctx->lock_token,
+ * phase-107 C7), so gate and edge match ownership against the same bytes.
+ */
+const char *webdav_lock_token_header(ngx_http_request_t *r);
+/*
  * Parse the "Depth" header for LOCK. Sets *depth_infinity to 0 only for "0",
  * to 1 for absent or "infinity" (default = infinity per RFC 4918). Returns
  * NGX_OK, or NGX_HTTP_BAD_REQUEST for any other depth value (e.g. "1").

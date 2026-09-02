@@ -47,7 +47,7 @@ oci_append_body(ngx_http_request_t *r, const oci_upload_ctx_t *u,
     {
         return -1;
     }
-    fd = open(path, O_WRONLY | O_CLOEXEC);   /* vfs-seam-allow: registry staging area; the received bytes are not an object until the seal */
+    fd = open(path, O_WRONLY | O_CLOEXEC);   /* vfs-seam-allow: DOMAIN_REGISTRY — registry staging area; the received bytes are not an object until the seal */
     if (fd < 0) {
         *status = NGX_HTTP_NOT_FOUND;
         return -1;

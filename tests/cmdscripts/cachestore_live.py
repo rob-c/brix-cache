@@ -9,12 +9,14 @@ dynamically instead of the scripts' fixed literals.
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 import re
 import struct
 import sys
 import time
 
+from cmdscripts.cache_source_helpers import wait_workers_ready
 from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST
@@ -55,7 +57,7 @@ def cache_xroot_webdav_offload(nginx: Path | None = None) -> int:
         context = _prepare_offload(run, oport, bport)
         run.start_nginx(context["origin"], context["origin_conf"], oport)
         run.start_nginx(context["node"], context["node_conf"], bport)
-        time.sleep(1)
+        wait_workers_ready(HOST, [(oport, "root"), (bport, "http")])
         return _exercise_offload(run, context, bport)
 
 
@@ -148,7 +150,7 @@ def xroot_cachestore_serve(nginx: Path | None = None) -> int:
         context = _prepare_remote_store(run, sport, bport)
         run.start_nginx(context["store"], context["store_conf"], sport)
         run.start_nginx(context["node"], context["node_conf"], bport)
-        time.sleep(1)
+        wait_workers_ready(HOST, [(sport, "root"), (bport, "http")])
         return _exercise_remote_store(run, context, bport)
 
 
@@ -215,7 +217,7 @@ def _sidecar_cell(run: LiveRun, label: str, kind: str, sport: int, bport: int,
     print(f"== cache_store: {label} (SIDECAR cinfo) ==")
     if not _start_sidecar_cell(run, context, sport, bport, checks):
         return
-    time.sleep(1)
+    wait_workers_ready(HOST, [(sport, "http"), (bport, "http")])
     _check_sidecar_cold(run, context, bport, checks)
     _check_sidecar_record(context, checks)
     if not _restart_sidecar_node(run, context, bport, checks):
@@ -286,15 +288,53 @@ def _check_sidecar_cold(run, context, port, checks):
     checks.append((cold_ok, f"{label} cold GET byte-exact (got {status})"))
 
 
+# The RFC-4918 dead-property local name sd_http writes for the cinfo record:
+# "bxa" + hex(xattr name). The store node persists the PROPPATCH property as a
+# real xattr on the backing file whose element text is hex(record bytes).
+_CINFO_PROP = "bxa" + "user.xrd.cinfo".encode().hex()
+
+
+def _xattr_carrier_record(store_file: Path) -> bytes | None:
+    """The cinfo record via the store's XATTR carrier, or None. An http store
+    carries it as a dead property (element text = hex-encoded record); s3
+    stores refuse the binary value at the header carrier and use the sidecar."""
+    try:
+        names = os.listxattr(store_file)
+    except OSError:
+        return None
+    for n in names:
+        try:
+            txt = os.getxattr(store_file, n).decode("ascii", "replace")
+        except OSError:
+            continue
+        if _CINFO_PROP not in txt:
+            continue
+        m = re.search(r">([0-9a-fA-F]+)</", txt)
+        if m is None:
+            return None
+        try:
+            return bytes.fromhex(m.group(1))
+        except ValueError:
+            return None
+    return None
+
+
 def _check_sidecar_record(context, checks):
+    """The record must land on exactly the carrier the store's driver offers:
+    xattr-preferred, '<key>.cinfo' sidecar where the xattr cannot carry it
+    (xmeta_save's contract — s3's x-amz-meta-* header refuses binary bytes)."""
     label = context["label"]
     sidecar = context["store"] / "store/f.bin.cinfo"
-    checks.append((sidecar.is_file(), f"{label} <key>.cinfo xmeta sidecar landed on the store"))
-    prefix_v4 = False
     if sidecar.is_file():
-        head = sidecar.read_bytes()[:4]
-        prefix_v4 = len(head) == 4 and struct.unpack("<i", head)[0] == 4
-    checks.append((prefix_v4, f"{label} sidecar is a stock-prefixed record (cinfo v4)"))
+        carrier, record = "sidecar", sidecar.read_bytes()
+    else:
+        carrier = "xattr"
+        record = _xattr_carrier_record(context["store"] / "store/f.bin")
+    checks.append((record is not None,
+                   f"{label} cinfo xmeta record landed on the store ({carrier} carrier)"))
+    prefix_v4 = (record is not None and len(record) >= 4
+                 and struct.unpack("<i", record[:4])[0] == 4)
+    checks.append((prefix_v4, f"{label} record is a stock-prefixed record (cinfo v4)"))
 
 
 def _restart_sidecar_node(run, context, port, checks):
@@ -308,7 +348,7 @@ def _restart_sidecar_node(run, context, port, checks):
         checks.append((False, f"{label} B restart failed: {exc}"))
         run.stop_nginx(context["store"])
         return False
-    time.sleep(1)
+    wait_workers_ready(HOST, [(port, "http")])
     return True
 
 

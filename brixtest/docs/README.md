@@ -4,6 +4,8 @@ Start here:
 
 - [Getting started](getting-started.md) — install and run the executable example.
 - [Writing tests](writing-tests.md) — the Python declaration model and `run` API.
+- [Native C and C++ tests](native-tests.md) — one compiled program per normal,
+  independently selectable, supervised pytest item.
 - [Managed resources](managed-resources.md) — typed plans, finite tasks,
   volumes, capability failures, and `Service.fs`.
 - [Public API reference](api-reference.md) — every stable top-level name,

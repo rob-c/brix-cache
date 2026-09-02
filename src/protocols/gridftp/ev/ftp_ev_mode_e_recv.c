@@ -457,7 +457,13 @@ ev_eb_receiver_open(ftp_ev_dc_t *dc)
     }
 
     brix_ftp_ev_vfs_ctx(fc, dc->abs, &vctx);
+    vctx.declared_size = dc->declared_size;   /* phase-107 C5: ALLO, 0 = none */
     dc->writer = brix_vfs_writer_open(&vctx, dc->flags, dc->verify, &verr);
+    if (dc->writer == NULL && verr == EBUSY) {
+        /* phase-107 C7: lock-gate refusal — data_finish replies 450 not 550. */
+        dc->fail_reply =
+            "450 Requested file action not taken (file busy)\r\n";
+    }
     return (dc->writer != NULL) ? NGX_OK : NGX_ERROR;
 }
 

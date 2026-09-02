@@ -264,13 +264,13 @@ brix_cache_verify_cvmfs_cas(const char *part_path, const char *key,
         return BRIX_CACHE_VERIFY_UNVERIFIED;
     }
 
-    fd = open(part_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NOCTTY); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+    fd = open(part_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NOCTTY); /* vfs-seam-allow: DOMAIN_CACHE — cache-store staging file, svc-owned domain */
     if (fd < 0) {
         return BRIX_CACHE_VERIFY_ERROR;
     }
     rc = brix_checksum_hex_name_fd("sha1", fd, part_path, log,
                                      hex, sizeof(hex), norm, sizeof(norm));
-    close(fd); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+    close(fd); /* vfs-seam-allow: DOMAIN_CACHE — cache-store staging file, svc-owned domain */
     if (rc != NGX_OK) {
         return BRIX_CACHE_VERIFY_ERROR;
     }
@@ -326,14 +326,14 @@ brix_cache_verify_oci_digest(const char *part_path, const char *key,
         return BRIX_CACHE_VERIFY_UNVERIFIED;
     }
 
-    fd = open(part_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NOCTTY); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+    fd = open(part_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NOCTTY); /* vfs-seam-allow: DOMAIN_CACHE — cache-store staging file, svc-owned domain */
     if (fd < 0) {
         return BRIX_CACHE_VERIFY_ERROR;
     }
     alg = brix_oci_alg_name(req.digest.alg);
     rc = brix_checksum_hex_name_fd(alg, fd, part_path, log,
                                      hex, sizeof(hex), norm, sizeof(norm));
-    close(fd); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+    close(fd); /* vfs-seam-allow: DOMAIN_CACHE — cache-store staging file, svc-owned domain */
     if (rc != NGX_OK) {
         return BRIX_CACHE_VERIFY_ERROR;
     }
@@ -391,13 +391,13 @@ brix_cache_verify_rpm_repodata(const char *part_path, const char *key,
     ngx_memcpy(want, req.hex, req.hex_len);
     want[req.hex_len] = '\0';
 
-    fd = open(part_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NOCTTY); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+    fd = open(part_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NOCTTY); /* vfs-seam-allow: DOMAIN_CACHE — cache-store staging file, svc-owned domain */
     if (fd < 0) {
         return BRIX_CACHE_VERIFY_ERROR;
     }
     rc = brix_checksum_hex_name_fd(alg, fd, part_path, log,
                                      hex, sizeof(hex), norm, sizeof(norm));
-    close(fd); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+    close(fd); /* vfs-seam-allow: DOMAIN_CACHE — cache-store staging file, svc-owned domain */
     if (rc != NGX_OK) {
         return BRIX_CACHE_VERIFY_ERROR;
     }
@@ -436,7 +436,7 @@ brix_cache_quarantine_part(const char *part_path,
     int         n;
 
     if (quarantine_dir == NULL || quarantine_dir[0] == '\0') {
-        unlink(part_path); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+        unlink(part_path); /* vfs-seam-allow: DOMAIN_CACHE — cache-store staging file, svc-owned domain */
         return;
     }
     base = strrchr(part_path, '/');
@@ -444,9 +444,9 @@ brix_cache_quarantine_part(const char *part_path,
     n = snprintf(dst, sizeof(dst), "%s/%s.%ld", quarantine_dir, base,
                  (long) time(NULL));
     if (n < 0 || (size_t) n >= sizeof(dst)
-        || rename(part_path, dst) != 0) /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+        || rename(part_path, dst) != 0) /* vfs-seam-allow: DOMAIN_CACHE — cache-store staging file, svc-owned domain */
     {
-        unlink(part_path); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+        unlink(part_path); /* vfs-seam-allow: DOMAIN_CACHE — cache-store staging file, svc-owned domain */
         return;
     }
     if (log != NULL) {

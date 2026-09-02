@@ -81,8 +81,10 @@ const brix_mss_adapter_t brix_mss_lib_adapter = {
     .recall_poll   = frm_mss_recall_poll,
     .migrate       = frm_mss_migrate,
     .purge         = frm_mss_purge,
+    .exchange      = frm_mss_exchange,       /* phase-107 C6 */
     .open_online   = frm_mss_open_online,
     .create_online = frm_mss_create_online,
+    .sync_publish  = frm_mss_sync_publish,   /* phase-107 C3 */
     .destroy       = lib_destroy,
 };
 

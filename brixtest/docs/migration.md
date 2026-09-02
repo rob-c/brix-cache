@@ -6,6 +6,13 @@ spellings for at least one minor release. Deprecations use Python's
 `DeprecationWarning` so normal test output remains quiet while migration tools
 can enable them explicitly.
 
+## Canonical 0.16 API
+
+- Use `native_test()` for one independently collected C/C++ program and
+  `expect_output()` for declarative stream checks.
+- Keep fixture generation in normal resources/tasks; native declarations remain
+  one shell-free compile invocation plus at most one executable invocation.
+
 ## Canonical 0.15 API
 
 - Prefer declaration-owned references such as `origin.url("http")`,

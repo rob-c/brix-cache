@@ -18,6 +18,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+/* RFC 4918 §11.1: 423 Locked */
+#ifndef NGX_HTTP_LOCKED
+#define NGX_HTTP_LOCKED 423
+#endif
+
 /*
  * Map a VFS single-file-copy errno to the same HTTP status the prior
  * brix_ns_local_copy → status mapping produced.  brix_vfs_copy() returns
@@ -26,7 +31,10 @@
  * it to brix_http_map_ns_status — guaranteeing byte-for-byte parity with the
  * old code (including DENIED→403, TOO_LONG→414, NO_SPACE→507, CONFLICT→409,
  * IO_ERROR→500).  The two COPY-specific overrides (EXISTS→412, NOT_FOUND→409)
- * are applied by the caller before this helper is reached.
+ * are applied by the caller before this helper is reached.  The one departure
+ * from that parity is EBUSY: since phase-107 C7 it is the VFS lock gate's
+ * refusal errno, and the RFC 4918 §11.3 answer is 423 Locked (matching the
+ * shared errno table), never a generic 409.
  */
 static ngx_int_t
 webdav_copy_errno_to_status(int err)
@@ -47,7 +55,7 @@ webdav_copy_errno_to_status(int err)
 #ifdef EDQUOT
     case EDQUOT:       status = BRIX_NS_NO_SPACE;  break;
 #endif
-    case EBUSY:
+    case EBUSY:        return NGX_HTTP_LOCKED;
     case EINVAL:       status = BRIX_NS_CONFLICT;  break;
     default:           status = BRIX_NS_IO_ERROR;  break;
     }
@@ -233,6 +241,7 @@ webdav_copy_do_file(ngx_http_request_t *r,
 {
     brix_vfs_copy_opts_t copy_opts;
     brix_vfs_ctx_t       vctx;
+    brix_sd_precond_t    precond;
 
     if (req->dst_existed && S_ISDIR(req->dst_sb.st_mode)) {
         (void) webdav_delete_path_recursive(r->connection->log,
@@ -251,6 +260,14 @@ webdav_copy_do_file(ngx_http_request_t *r,
     copy_opts.preserve_xattrs = 1;
     copy_opts.staged_commit   = 1;
 
+    /* Carry If-Match / If-None-Match down to the copy's own commit (phase-107
+     * C6): webdav_check_copy_conditionals stays as the fast path that spares
+     * a doomed request the data copy, but the deciding evaluation now runs at
+     * the publish — a writer landing on dst mid-copy no longer wins silently.
+     * `precond` borrows header bytes from r's pool, alive across this call. */
+    brix_http_write_precond(r, &precond);
+    copy_opts.precond = &precond;
+
     if (brix_vfs_copy(&vctx, req->dst_path, &copy_opts) != NGX_OK) {
         /* COPY-specific RFC 4918 semantics that differ from the generic
          * namespace→HTTP mapping: an existing dst with Overwrite:F is a
@@ -258,7 +275,11 @@ webdav_copy_do_file(ngx_http_request_t *r,
          * parent is a Conflict (409, not 404).  brix_vfs_copy reports the
          * namespace failure via errno. */
         int err = errno;
-        if (err == EEXIST) {
+        if (err == EEXIST || err == ECANCELED) {
+            /* EEXIST: Overwrite:F against an existing dst, or a carried
+             * If-None-Match:* (ABSENT) refused at the commit. ECANCELED: a
+             * carried If-Match (MATCH_*) refused at the commit (C6). Both are
+             * RFC 4918/7232 precondition failures. */
             return NGX_HTTP_PRECONDITION_FAILED;
         }
         if (err == ENOENT) {

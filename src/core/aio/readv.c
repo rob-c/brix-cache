@@ -96,6 +96,7 @@ brix_readv_aio_done(ngx_event_t *ev)
     ngx_connection_t    *c = t->c;
     ngx_chain_t         *rsp_chain;
     size_t               i;
+    ngx_uint_t           out_before;
 
     if (!brix_aio_restore_request(ctx, t->streamid)) {
         ngx_free(t->segments);
@@ -133,8 +134,12 @@ brix_readv_aio_done(ngx_event_t *ev)
     }
 
     ngx_free(t->segments);
+    /* Ring-ownership test by out.count delta, not ctx->state — a stale
+     * XRD_ST_SENDING from the recv admission park would otherwise skip the
+     * release after a fully-inline send (see brix_pgread_aio_done). */
+    out_before = ctx->out.count;
     brix_queue_response_chain(ctx, c, rsp_chain, t->response_buffer);
-    if (ctx->state != XRD_ST_SENDING) {
+    if (ctx->out.count == out_before) {
         brix_release_read_buffer(ctx, c, t->response_buffer);
     }
     brix_aio_resume(c);

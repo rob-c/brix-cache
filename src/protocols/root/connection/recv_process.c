@@ -25,116 +25,82 @@
  * invariant can be fuzzed standalone (hyper-hardening C-2); see
  * recv_frame_bounds.h. Behaviour and the call site below are unchanged. */
 
-/* brix_ensure_payload_buffer: ensure payload_buf holds dlen (+1 NUL) bytes at
- * request start (free-then-alloc on resize — the buffer is empty here). */
-static ngx_int_t
-brix_ensure_payload_buffer(brix_ctx_t *ctx, ngx_connection_t *c,
-    uint32_t dlen)
-{
-    u_char  *buf;
-    size_t   need;
-
-    if (dlen > (uint32_t) (SIZE_MAX - 1)) {
-        return NGX_ERROR;
-    }
-    need = (size_t) dlen + 1;
-
-    if (ctx->recv.payload_buf != NULL && ctx->recv.payload_buf_size >= need) {
-        ctx->recv.payload = ctx->recv.payload_buf;
-        ctx->recv.payload[dlen] = '\0';
-        return NGX_OK;
-    }
-
-    buf = ngx_alloc(need, c->log);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
-
-    if (ctx->recv.payload_buf != NULL) {
-        ngx_free(ctx->recv.payload_buf);
-    }
-
-    ctx->recv.payload_buf = buf;
-    ctx->recv.payload_buf_size = need;
-    ctx->recv.payload = buf;
-    ctx->recv.payload[dlen] = '\0';
-
-    return NGX_OK;
-}
-
-/* brix_grow_payload_buffer — enlarge payload_buf PRESERVING the received bytes
- * (payload_pos of them), for the mid-request kXR_writev / kXR_chkpoint body
- * extension that raises the expected body length after data has landed. */
-static ngx_int_t
-brix_grow_payload_buffer(brix_ctx_t *ctx, ngx_connection_t *c,
-    uint32_t dlen)
-{
-    u_char  *buf;
-    size_t   need;
-
-    if (dlen > (uint32_t) (SIZE_MAX - 1)) {
-        return NGX_ERROR;
-    }
-    need = (size_t) dlen + 1;
-
-    if (ctx->recv.payload_buf != NULL && ctx->recv.payload_buf_size >= need) {
-        ctx->recv.payload = ctx->recv.payload_buf;
-        ctx->recv.payload[dlen] = '\0';
-        return NGX_OK;
-    }
-
-    buf = ngx_alloc(need, c->log);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
-
-    if (ctx->recv.payload_buf != NULL) {
-        ngx_memcpy(buf, ctx->recv.payload_buf, ctx->recv.payload_pos);
-        ngx_free(ctx->recv.payload_buf);
-    }
-
-    ctx->recv.payload_buf = buf;
-    ctx->recv.payload_buf_size = need;
-    ctx->recv.payload = buf;
-    ctx->recv.payload[dlen] = '\0';
-
-    return NGX_OK;
-}
+/* brix_ensure_payload_buffer / brix_grow_payload_buffer — the reusable heap
+ * payload buffer — live in recv_payload_buf.c (size-cap split); declared in
+ * recv_frame.h.  Behaviour and the call sites below are unchanged. */
 
 /*
  * Phase 29 drain barrier condition: a non-read/write opcode arriving while
  * reads (out.count) or writes (wr_inflight) are still in flight must run with
  * the connection quiescent (a kXR_close could free a handle an in-flight
- * sendfile chain or pwrite still references).  kXR_read and kXR_write both
- * pipeline and are never deferred.
+ * sendfile chain or pwrite still references).  kXR_read, kXR_pgread and
+ * kXR_write all pipeline and are never deferred (a pgread behind another
+ * pgread reads its own rd_pool slot from a still-open handle — only handle
+ * mutation needs the barrier, and close/truncate still defer here).
  *
  * phase-32 WS3: a cold kXR_read now stays in flight on a worker thread
  * (rd.aio_inflight) with recv still receiving — a following kXR_close would
  * otherwise retire the very handle that read's pread is using.  Defer on
  * rd.aio_inflight too so the barrier waits for the read worker to finish.
  */
+
+/*
+ * Round 12: would this read take the windowed-train path?  A train suspends
+ * recv for its whole duration and owns the connection's request/send state
+ * machine, so it must START quiescent: a straggler single-shot read or write
+ * completion arriving mid-train would reset the state to REQ_HEADER and
+ * resume recv under it.  rlen is the last 4 bytes of the 16-byte parameter
+ * block for both opcodes (fhandle[4] offset[8] rlen[4]).  This deliberately
+ * over-approximates (the kXR_read memory path also clamps to file size and
+ * the sendfile path never windows) — the cost is one drain-barrier defer on
+ * a large read behind in-flight small ops, never a wrong dispatch.
+ */
+static ngx_flag_t
+brix_recv_read_is_windowed(brix_ctx_t *ctx)
+{
+    uint32_t rlen;
+
+    ngx_memcpy(&rlen, ctx->recv.cur_body + 12, 4);
+    return (int32_t) ntohl(rlen) > (int32_t) BRIX_READ_WINDOW;
+}
+
 static ngx_flag_t
 brix_recv_should_defer(brix_ctx_t *ctx)
 {
-    return (ctx->out.count > 0 || ctx->out.wr_inflight > 0
-            || ctx->rd.aio_inflight > 0)
-        && ctx->recv.cur_reqid != kXR_read
-        && ctx->recv.cur_reqid != kXR_write;
+    if (ctx->recv.cur_reqid == kXR_read
+        || ctx->recv.cur_reqid == kXR_pgread)
+    {
+        /* Small reads always pipeline; a would-be train waits for the
+         * in-flight AIO stragglers whose completions it cannot coexist
+         * with (parked-but-completed responses are fine — send.c drains
+         * them before re-entering the window pump). */
+        return brix_recv_read_is_windowed(ctx)
+            && (ctx->out.wr_inflight > 0 || ctx->rd.aio_inflight > 0);
+    }
+    if (ctx->recv.cur_reqid == kXR_write) {
+        return 0;
+    }
+    return ctx->out.count > 0 || ctx->out.wr_inflight > 0
+        || ctx->rd.aio_inflight > 0;
 }
 
 /*
- * Phase 29 pipelining condition for a parked cleartext sendfile kXR_read: keep
- * reading so the next read's sendfile span queues behind this one while the
- * prior response drains.  All four conjuncts are load-bearing: resp_pipelinable
- * = a single self-contained sendfile span (safe to queue another behind);
- * !rd.win_active excludes a multi-window read still streaming out of the shared
- * read_scratch (which must stay serial); out.count < depth is the in-flight cap.
+ * Phase 29 pipelining condition for a parked pipelinable read response: keep
+ * reading so the next read's response queues behind this one while the prior
+ * response drains.  Applies to a cleartext sendfile kXR_read span and to a
+ * pool-backed kXR_pgread frame (its header is a per-response palloc and its
+ * data lives in the request's own rd_pool slot).  All four conjuncts are
+ * load-bearing: resp_pipelinable = a single self-contained response (safe to
+ * queue another behind); !rd.win_active excludes a multi-window read still
+ * streaming out of the shared read_scratch (which must stay serial);
+ * out.count < depth is the in-flight cap.
  */
 static ngx_flag_t
 brix_recv_try_pipeline_read(brix_ctx_t *ctx)
 {
     return ctx->state == XRD_ST_SENDING
-        && ctx->recv.cur_reqid == kXR_read
+        && (ctx->recv.cur_reqid == kXR_read
+            || ctx->recv.cur_reqid == kXR_pgread)
         && ctx->out.resp_pipelinable
         && !ctx->rd.win_active
         && ctx->out.count < ctx->out.pipeline_depth;
@@ -263,15 +229,18 @@ brix_recv_rearm_header(brix_ctx_t *ctx)
 }
 
 /*
- * AIO tail shared by the dlen==0 and payload dispatch paths: a cold kXR_read
- * whose pread just posted pipelines (back to REQ_HEADER, keep receiving);
- * every other AIO op suspends on the read event.  CONTINUE / RETURN / BREAK.
+ * AIO tail shared by the dlen==0 and payload dispatch paths: a kXR_read or
+ * kXR_pgread whose read just posted pipelines (back to REQ_HEADER, keep
+ * receiving — both post per-slot tasks reading into per-request rd_pool
+ * buffers, so nothing is clobbered by admitting the next request); every
+ * other AIO op suspends on the read event.  CONTINUE / RETURN / BREAK.
  */
 static brix_recv_step_t
 brix_recv_aio_tail(brix_ctx_t *ctx, ngx_event_t *rev)
 {
-    if (ctx->recv.cur_reqid == kXR_read && ctx->rd.aio_inflight > 0
-        && !ctx->rd.win_active)
+    if ((ctx->recv.cur_reqid == kXR_read
+         || ctx->recv.cur_reqid == kXR_pgread)
+        && ctx->rd.aio_inflight > 0 && !ctx->rd.win_active)
     {
         brix_recv_rearm_header(ctx);
         return BRIX_RECV_STEP_CONTINUE;
@@ -432,9 +401,9 @@ brix_recv_after_header(ngx_stream_session_t *s, ngx_connection_t *c,
 
     /*
      * Reset the pipelinable marker before dispatch; only the single-chunk
-     * sendfile read builder sets it back to 1.  A read served from the
-     * memory/window path thus stays non-pipelinable (its header/data live in the
-     * shared scratch buffers).
+     * sendfile read builder and the pool-backed pgread responders set it back
+     * to 1.  A read served from the memory/window path thus stays
+     * non-pipelinable (its header/data live in the shared scratch buffers).
      */
     ctx->out.resp_pipelinable = 0;
 

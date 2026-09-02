@@ -357,10 +357,21 @@ brix_mkdir_recursive_policy(const char *path, mode_t mode,
 {
     char              tmp[PATH_MAX];
     int               n = 0;
+    struct stat       sb;
     brix_mkdir_walk_t w;
 
     if (brix_mkdir_copy_tmp(tmp, path, &n) != 0) {
         return -1;
+    }
+
+    /* Whole-target-exists short-circuit: one stat instead of a per-component
+     * mkdir+policy ladder. Behaviour-identical — this variant applies policy
+     * only on a FRESH create (policy_on_exist=0), and an existing final level
+     * (even a non-directory) already returned success via EEXIST — but it
+     * turns the per-upload kXR_mkpath/kXR_async parent ensure from ~2N
+     * syscalls into one for the overwhelmingly common existing-parent case. */
+    if (stat(tmp, &sb) == 0) {
+        return 0;
     }
 
     ngx_memzero(&w, sizeof(w));
@@ -381,49 +392,15 @@ brix_mkdir_recursive_policy(const char *path, mode_t mode,
  *
  * HOW: Normalise resolved into tmp[PATH_MAX], confinement-gate it against root_canon (EXDEV on mismatch, EEXIST if equal) to obtain the relative-walk start pointer, then drive the shared walk with the confined-canon backend and best-effort policy (policy_on_exist=1). Returns 0 on success, -1 on first failure. Thread safety: uses local stack buffers only — safe for concurrent use. */
 
-int
-brix_mkdir_recursive_confined_canon(ngx_log_t *log, const char *root_canon,
-                                      const char *resolved, mode_t mode,
-                                      ngx_array_t *rules)
-{
-    char              tmp[PATH_MAX];
-    char             *p;
-    int               n = 0;
-    brix_mkdir_walk_t w;
-
-    if (brix_mkdir_copy_tmp(tmp, resolved, &n) != 0) {
-        return -1;
-    }
-
-    ngx_memzero(&w, sizeof(w));
-    w.log             = log;
-    w.root_canon      = root_canon;
-    w.root_len        = strlen(root_canon);
-    w.mode            = mode;
-    w.rules           = rules;
-    w.policy_on_exist = 1;
-    w.make_level      = brix_mkdir_level_confined;
-
-    p = brix_mkdir_confined_start(tmp, root_canon, w.root_len);
-    if (p == NULL) {
-        return -1;
-    }
-
-    return brix_mkdir_walk(&w, tmp, p);
-}
-
-/*
- *
- * WHAT: Creates directories recursively from root to target path, creating each level via openat2(RESOLVE_BENEATH) under a pre-opened export-root dirfd. Validates that resolved is within root_canon before proceeding. Applies optional group policy at each newly-created intermediate level.
- *
- * WHY: As the confined-canon variant, but reuses an already-open rootfd (O_PATH dirfd of the export root) instead of re-opening parents per level — the same symlink-escape-proof confinement with less per-call syscall overhead. Used on the hot WebDAV/native mkdir paths.
- *
- * HOW: Normalise resolved into tmp[PATH_MAX], confinement-gate it against root_canon (EXDEV on mismatch, EEXIST if equal) to obtain the relative-walk start pointer, then drive the shared walk with the beneath backend (which passes the export-relative path tmp+root_len to brix_mkdir_beneath) and best-effort policy (policy_on_exist=1). Returns 0 on success, -1 on first failure. Thread safety: uses local stack buffers only — safe for concurrent use. */
-
-int
-brix_mkdir_recursive_beneath(ngx_log_t *log, int rootfd,
-                                const char *root_canon, const char *resolved,
-                                mode_t mode, ngx_array_t *rules)
+/* Shared body of the two confined recursive variants: normalise, confinement-
+ * gate against root_canon, then drive the walk with the given make_level
+ * backend and best-effort policy. `rootfd` is read only by the beneath
+ * backend (the confined-canon caller passes -1). */
+static int
+brix_mkdir_recursive_confined_core(ngx_log_t *log, int rootfd,
+    const char *root_canon, const char *resolved, mode_t mode,
+    ngx_array_t *rules,
+    int (*make_level)(const brix_mkdir_walk_t *w, const char *dir))
 {
     char              tmp[PATH_MAX];
     char             *p;
@@ -442,7 +419,7 @@ brix_mkdir_recursive_beneath(ngx_log_t *log, int rootfd,
     w.mode            = mode;
     w.rules           = rules;
     w.policy_on_exist = 1;
-    w.make_level      = brix_mkdir_level_beneath;
+    w.make_level      = make_level;
 
     p = brix_mkdir_confined_start(tmp, root_canon, w.root_len);
     if (p == NULL) {
@@ -450,6 +427,34 @@ brix_mkdir_recursive_beneath(ngx_log_t *log, int rootfd,
     }
 
     return brix_mkdir_walk(&w, tmp, p);
+}
+
+int
+brix_mkdir_recursive_confined_canon(ngx_log_t *log, const char *root_canon,
+                                      const char *resolved, mode_t mode,
+                                      ngx_array_t *rules)
+{
+    return brix_mkdir_recursive_confined_core(log, -1, root_canon, resolved,
+                                                mode, rules,
+                                                brix_mkdir_level_confined);
+}
+
+/*
+ *
+ * WHAT: Creates directories recursively from root to target path, creating each level via openat2(RESOLVE_BENEATH) under a pre-opened export-root dirfd. Validates that resolved is within root_canon before proceeding. Applies optional group policy at each newly-created intermediate level.
+ *
+ * WHY: As the confined-canon variant, but reuses an already-open rootfd (O_PATH dirfd of the export root) instead of re-opening parents per level — the same symlink-escape-proof confinement with less per-call syscall overhead. Used on the hot WebDAV/native mkdir paths.
+ *
+ * HOW: Normalise resolved into tmp[PATH_MAX], confinement-gate it against root_canon (EXDEV on mismatch, EEXIST if equal) to obtain the relative-walk start pointer, then drive the shared walk with the beneath backend (which passes the export-relative path tmp+root_len to brix_mkdir_beneath) and best-effort policy (policy_on_exist=1). Returns 0 on success, -1 on first failure. Thread safety: uses local stack buffers only — safe for concurrent use. */
+
+int
+brix_mkdir_recursive_beneath(ngx_log_t *log, int rootfd,
+                                const char *root_canon, const char *resolved,
+                                mode_t mode, ngx_array_t *rules)
+{
+    return brix_mkdir_recursive_confined_core(log, rootfd, root_canon,
+                                                resolved, mode, rules,
+                                                brix_mkdir_level_beneath);
 }
 
 /* Recursive directory creation with optional group policy enforcement

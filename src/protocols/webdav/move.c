@@ -5,11 +5,17 @@
 #include "webdav.h"
 #include "fs/vfs/vfs.h"   /* brix_vfs_rename (ctx-bound) + brix_vfs_probe */
 #include "core/http/http_conditionals.h"
+#include "protocols/webdav/locks/request.h" /* webdav_lock_token_header (C7) */
 #include "auth/impersonate/impersonate.h"
 #include "fs/path/path.h"
 #include "protocols/shared/backend_async_http.h"
 
 #include <errno.h>
+
+/* RFC 4918 §11.1: 423 Locked */
+#ifndef NGX_HTTP_LOCKED
+#define NGX_HTTP_LOCKED 423
+#endif
 #include <limits.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -146,6 +152,12 @@ webdav_move_execute_cred(const webdav_move_req_t *req, int *sys_errno)
     webdav_vfs_bind_deleg(r, conf, &vctx);
     vctx.sd = req->sd;
 
+    /* phase-107 C7: the rename's VFS lock gate (src and destination) must see
+     * the If/Lock-Token bytes the edge matched, or the OWNER's MOVE of its
+     * own locked resource reads as foreign. Pure header lookup — a borrowed
+     * pointer into the parked request, safe on the thread-pool worker too. */
+    vctx.lock_token = webdav_lock_token_header(r);
+
     ngx_memzero(&dst_result, sizeof(dst_result));
     dst_result.is_confined = 1;
     dst_result.resolved.data = (u_char *) req->dst_path;
@@ -177,6 +189,9 @@ webdav_move_execute_cred(const webdav_move_req_t *req, int *sys_errno)
 
     if (errno == EACCES || errno == EPERM) {      /* deny-mode credential gate */
         return NGX_HTTP_FORBIDDEN;
+    }
+    if (errno == EBUSY) {                         /* VFS lock gate (C7) */
+        return NGX_HTTP_LOCKED;
     }
 
     return NGX_HTTP_INTERNAL_SERVER_ERROR;

@@ -11,6 +11,7 @@
  * full ngx-coupled API below; the enum is single-sourced via this include.
  */
 #include "ns_status.h"
+#include "fs/backend/sd_batch_types.h"   /* brix_sd_precond_t (phase-107 C6) */
 
 /*
  * brix_ns_result_t — result of a namespace mutation.
@@ -46,6 +47,13 @@ typedef struct {
     ngx_flag_t overwrite_dirs;
     ngx_flag_t preserve_xattrs;
     ngx_flag_t staged_commit;
+    /* Publish precondition on the destination (phase-107 C6), BORROWED, NULL =
+     * none. staged path: decided at the commit (ABSENT = RENAME_NOREPLACE,
+     * MATCH_* = stat-compare just before the rename — honest, not atomic);
+     * direct path: ABSENT = O_EXCL at the create, MATCH_* = stat-compare
+     * before the O_TRUNC open destroys the target. Refusals: EEXIST / ECANCELED
+     * (sd_batch_types.h contract). */
+    const brix_sd_precond_t *precond;
 } brix_ns_copy_opts_t;
 
 /*
@@ -95,6 +103,16 @@ brix_ns_result_t brix_ns_delete(ngx_log_t *log,
     const brix_ns_delete_opts_t *opts);
 
 /*
+ * brix_ns_delete_at — brix_ns_delete on a BORROWED confinement rootfd (an
+ *   O_PATH|O_DIRECTORY fd already anchored on root_canon, e.g. a driver's
+ *   persistent root handle): identical semantics, but skips the per-call
+ *   rootfd open/close and never closes the fd it was handed.
+ */
+brix_ns_result_t brix_ns_delete_at(ngx_log_t *log, int rootfd,
+    const char *root_canon, const char *path,
+    const brix_ns_delete_opts_t *opts);
+
+/*
  * brix_ns_mkdir — create directory path beneath root_canon (RESOLVE_BENEATH).
  *   mode is the raw mkdir(2) mode (subject to the process umask). recursive => mkdir -p
  *   (creates each missing parent component). path borrowed, not freed. Returns a
@@ -103,6 +121,14 @@ brix_ns_result_t brix_ns_delete(ngx_log_t *log,
  *   Opens/closes its own rootfd; no heap allocation.
  */
 brix_ns_result_t brix_ns_mkdir(ngx_log_t *log,
+    const char *root_canon, const char *path, mode_t mode,
+    ngx_flag_t recursive);
+
+/*
+ * brix_ns_mkdir_at — brix_ns_mkdir on a BORROWED confinement rootfd (see
+ *   brix_ns_delete_at): identical semantics, no per-call rootfd open/close.
+ */
+brix_ns_result_t brix_ns_mkdir_at(ngx_log_t *log, int rootfd,
     const char *root_canon, const char *path, mode_t mode,
     ngx_flag_t recursive);
 
@@ -119,6 +145,15 @@ brix_ns_result_t brix_ns_mkdir(ngx_log_t *log,
 brix_ns_result_t brix_ns_rename(ngx_log_t *log,
     const char *root_canon, const char *src, const char *dst,
     ngx_flag_t overwrite_dirs);
+
+/*
+ * Atomically exchange two names under the same export root (phase-107 C6):
+ * renameat2(RENAME_EXCHANGE), confined. EXDEV when either name is outside
+ * root_canon; ENOENT unless both exist; ENOTSUP where the kernel/filesystem
+ * has no primitive — never emulated with two renames.
+ */
+brix_ns_result_t brix_ns_exchange(ngx_log_t *log,
+    const char *root_canon, const char *a, const char *b);
 
 /*
  * brix_ns_local_copy — copy a single regular file src to dst within root_canon

@@ -65,6 +65,9 @@ typedef struct {
     int                         oflags;
     int                         is_readable;
     mode_t                      create_mode;
+    /* phase-107 C5: the client-declared final size (oss.asize), 0 = none —
+     * stamped onto the VFS ctx by the dispatch stage so the open can reserve. */
+    off_t                       declared_size;
 
     /* Staging decision.  use_posc: kXR_posc write — stage to a random temp,
      * rename on clean close, unlink on non-clean close.  use_resume
@@ -77,6 +80,15 @@ typedef struct {
     ngx_flag_t                  stage;
     ngx_flag_t                  from_cache;  /* server-managed cache-root open */
     char                        posc_temp_path[PATH_MAX];
+
+    /* One shared no-follow probe of the FINAL path, run once at the top of the
+     * write-open preflight and consumed by every stage that used to probe on
+     * its own (write-target reject, kXR_new exclusive-create, resume in-place
+     * decide).  Safe to share because the symlink reject runs first: after it
+     * the final path is never a link, so follow and no-follow stats agree. */
+    ngx_flag_t                  target_probed;  /* probe ran (write opens only) */
+    ngx_flag_t                  target_found;   /* final path exists */
+    brix_vfs_stat_t             target_st;      /* valid when target_found */
 
     /* open outcome */
     int                         idx;         /* allocated fhandle slot */

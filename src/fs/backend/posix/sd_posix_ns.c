@@ -1,14 +1,14 @@
 /*
- * sd_posix_ns.c — the POSIX Storage Driver's namespace/dir/xattr/staged ops.
+ * sd_posix_ns.c — the POSIX Storage Driver's namespace/dir/xattr ops.
  *
  * WHAT: The nginx-coupled vtable slots of brix_sd_posix_driver — stat/unlink/
- *       mkdir/rename/server_copy, directory iteration, xattr metadata, and the
- *       staged-write (temp + atomic rename) family — split VERBATIM out of
- *       sd_posix.c. The driver descriptor stays in sd_posix.c and references
- *       these via sd_posix_internal.h.
+ *       mkdir/rename/server_copy, directory iteration and xattr metadata —
+ *       split VERBATIM out of sd_posix.c. The staged-write family moved on to
+ *       sd_posix_staged.c (phase-107 C6). The driver descriptor stays in
+ *       sd_posix.c and references these via sd_posix_internal.h.
  *
- * WHY:  These ops delegate to the shared brix_ns_* / *_confined_canon /
- *       brix_staged_* helpers and only build in the module (they are guarded by
+ * WHY:  These ops delegate to the shared brix_ns_* / *_confined_canon
+ *       helpers and only build in the module (they are guarded by
  *       !XRDPROTO_NO_NGX). Splitting them keeps every unit under the file-size
  *       cap with zero behaviour change.
  *
@@ -19,7 +19,7 @@
 
 #include "fs/backend/sd.h"
 
-/* The instance lifecycle + namespace/dir/xattr/staged ops below are nginx-coupled
+/* The instance lifecycle + namespace/dir/xattr ops below are nginx-coupled
  * (confined open, ngx pool, the shared brix_ns_* helpers). They — and these
  * headers — compile only in the module. The worker-safe raw fd byte ops
  * (pread/pwrite/preadv/...) are pure POSIX and also build into the ngx-free
@@ -29,7 +29,6 @@
 #include "fs/vfs/vfs_internal.h"          /* pread_full/pwrite_full + ns_status_errno */
 #include "core/compat/crc32c.h"
 #include "core/compat/namespace_ops.h"
-#include "core/compat/staged_file.h"
 #include "fs/path/beneath.h"
 #include "fs/path/path.h"
 #endif
@@ -43,7 +42,7 @@
 
 #include "sd_posix_internal.h"
 
-#ifndef XRDPROTO_NO_NGX   /* namespace/dir/xattr/staged: confined paths + ns_* (module only) */
+#ifndef XRDPROTO_NO_NGX   /* namespace/dir/xattr: confined paths + ns_* (module only) */
 /* namespace ops — each delegates to the shared brix_ns_* helper and maps its
  * status to errno via brix_vfs_ns_status_errno(), preserving exact semantics. */
 
@@ -74,26 +73,49 @@ sd_posix_ns_result(brix_ns_result_t res)
     return NGX_ERROR;
 }
 
+/* sd_posix_abs_key — materialise the vtable's root-RELATIVE key (leading
+ * slash, matching sd_posix_open/stat and the non-POSIX drivers) as the
+ * ABSOLUTE path under root_canon that the brix_ns_* / *_confined_canon
+ * helpers take (they strip root_canon; the relative form silently failed).
+ * Returns root_canon for the helper call that follows, or NULL with errno
+ * ENAMETOOLONG when the key does not fit. */
+static const char *
+sd_posix_abs_key(brix_sd_instance_t *inst, const char *path, char *abs,
+    size_t cap)
+{
+    sd_posix_state_t *st = inst->state;
+
+    if ((size_t) snprintf(abs, cap, "%s%s", st->root_canon, path) >= cap) {
+        errno = ENAMETOOLONG;
+        return NULL;
+    }
+    return st->root_canon;
+}
+
 ngx_int_t
 sd_posix_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
 {
-    sd_posix_state_t       *st = inst->state;
     brix_ns_delete_opts_t opts;
+    sd_posix_state_t       *st;
     char                    abspath[PATH_MAX];
+    const char             *root;
 
-    /* The vtable contract is a root-RELATIVE key (leading slash), matching
-     * sd_posix_open/stat and the non-POSIX drivers. brix_ns_delete works in
-     * ABSOLUTE paths under root_canon (strip_root), so build the absolute here. */
-    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
-                          st->root_canon, path) >= sizeof(abspath))
-    {
-        errno = ENAMETOOLONG;
+    root = sd_posix_abs_key(inst, path, abspath, sizeof(abspath));
+    if (root == NULL) {
         return NGX_ERROR;
     }
     ngx_memzero(&opts, sizeof(opts));
     opts.require_directory = is_dir ? 1 : 0;
+
+    st = inst->state;
+    if (st->rootfd >= 0) {
+        /* Borrow the driver's persistent confinement rootfd: same beneath
+         * semantics, minus a root open/close per delete. */
+        return sd_posix_ns_result(
+            brix_ns_delete_at(inst->log, st->rootfd, root, abspath, &opts));
+    }
     return sd_posix_ns_result(
-        brix_ns_delete(inst->log, st->root_canon, abspath, &opts));
+        brix_ns_delete(inst->log, root, abspath, &opts));
 }
 
 /* WHAT: Apply a metadata mutation (mode / times / owner) to `path`, kernel-
@@ -110,17 +132,15 @@ ngx_int_t
 sd_posix_setattr(brix_sd_instance_t *inst, const char *path,
     const brix_sd_setattr_t *attr)
 {
-    sd_posix_state_t *st = inst->state;
-    char              abspath[PATH_MAX];
+    char        abspath[PATH_MAX];
+    const char *root;
 
-    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
-                          st->root_canon, path) >= sizeof(abspath))
-    {
-        errno = ENAMETOOLONG;
+    root = sd_posix_abs_key(inst, path, abspath, sizeof(abspath));
+    if (root == NULL) {
         return NGX_ERROR;
     }
     if (attr->set_mode
-        && brix_chmod_confined_canon(inst->log, st->root_canon, abspath,
+        && brix_chmod_confined_canon(inst->log, root, abspath,
                                        attr->mode & 07777) != 0)
     {
         return NGX_ERROR;
@@ -130,7 +150,7 @@ sd_posix_setattr(brix_sd_instance_t *inst, const char *path,
 
         times[0] = attr->atime;
         times[1] = attr->mtime;
-        if (brix_setattr_confined_canon(inst->log, st->root_canon, abspath,
+        if (brix_setattr_confined_canon(inst->log, root, abspath,
                 attr->set_times ? 1 : 0, times,
                 attr->set_owner ? 1 : 0, attr->uid, attr->gid) != 0)
         {
@@ -143,46 +163,57 @@ sd_posix_setattr(brix_sd_instance_t *inst, const char *path,
 ngx_int_t
 sd_posix_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
 {
-    sd_posix_state_t *st = inst->state;
+    sd_posix_state_t *st;
     char              abspath[PATH_MAX];
+    const char       *root;
 
-    /* The vtable contract is a root-RELATIVE key; brix_ns_mkdir works in
-     * ABSOLUTE paths under root_canon (strip_root), so build the absolute here
-     * (matches sd_posix_unlink — the relative-path form silently failed). */
-    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
-                          st->root_canon, path) >= sizeof(abspath))
-    {
-        errno = ENAMETOOLONG;
+    root = sd_posix_abs_key(inst, path, abspath, sizeof(abspath));
+    if (root == NULL) {
         return NGX_ERROR;
     }
+
+    st = inst->state;
+    if (st->rootfd >= 0) {
+        /* Borrowed persistent rootfd — see sd_posix_unlink. */
+        return sd_posix_ns_result(
+            brix_ns_mkdir_at(inst->log, st->rootfd, root, abspath, mode, 0));
+    }
     return sd_posix_ns_result(
-        brix_ns_mkdir(inst->log, st->root_canon, abspath, mode, 0));
+        brix_ns_mkdir(inst->log, root, abspath, mode, 0));
 }
 
 ngx_int_t
 sd_posix_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     int noreplace)
 {
-    sd_posix_state_t *st = inst->state;
-    char              abssrc[PATH_MAX];
-    char              absdst[PATH_MAX];
+    char        abssrc[PATH_MAX];
+    char        absdst[PATH_MAX];
+    const char *root;
 
     (void) noreplace;   /* overwrite_dirs=0: stock replace-file semantics */
 
-    /* The vtable contract is a root-RELATIVE key; brix_ns_rename takes
-     * ABSOLUTE paths under root_canon and refuses anything outside it as a
-     * cross-root move (EXDEV), so build the absolutes here (matches
-     * sd_posix_mkdir/sd_posix_unlink — the relative form always failed). */
-    if ((size_t) snprintf(abssrc, sizeof(abssrc), "%s%s",
-                          st->root_canon, src) >= sizeof(abssrc)
-        || (size_t) snprintf(absdst, sizeof(absdst), "%s%s",
-                             st->root_canon, dst) >= sizeof(absdst))
+    /* brix_ns_rename refuses anything outside root_canon as a cross-root
+     * move (EXDEV), so both endpoints go absolute. */
+    root = sd_posix_abs_key(inst, src, abssrc, sizeof(abssrc));
+    if (root == NULL
+        || sd_posix_abs_key(inst, dst, absdst, sizeof(absdst)) == NULL)
     {
-        errno = ENAMETOOLONG;
         return NGX_ERROR;
     }
     return sd_posix_ns_result(
-        brix_ns_rename(inst->log, st->root_canon, abssrc, absdst, 0));
+        brix_ns_rename(inst->log, root, abssrc, absdst, 0));
+}
+
+/* Atomic two-name exchange (phase-107 C6): renameat2(RENAME_EXCHANGE) via the
+ * confined beneath helper — both keys resolve under rootfd, both must exist
+ * (ENOENT otherwise), and a kernel/filesystem without the flag reports
+ * ENOTSUP, never a two-rename emulation (sd.h contract, §3.5). */
+ngx_int_t
+sd_posix_exchange(brix_sd_instance_t *inst, const char *a, const char *b)
+{
+    sd_posix_state_t *st = inst->state;
+
+    return brix_exchange_beneath(st->rootfd, a, b) == 0 ? NGX_OK : NGX_ERROR;
 }
 
 ngx_int_t
@@ -201,12 +232,9 @@ sd_posix_server_copy(brix_sd_instance_t *inst, const char *src,
      * failed every server-side COPY on a driver-backed export — WebDAV COPY
      * answered 403 and S3 CopyObject 500 — while a plain export (NULL driver,
      * VFS namespace path) worked, which is why it went unnoticed. */
-    if ((size_t) snprintf(abssrc, sizeof(abssrc), "%s%s",
-                          st->root_canon, src) >= sizeof(abssrc)
-        || (size_t) snprintf(absdst, sizeof(absdst), "%s%s",
-                             st->root_canon, dst) >= sizeof(absdst))
+    if (sd_posix_abs_key(inst, src, abssrc, sizeof(abssrc)) == NULL
+        || sd_posix_abs_key(inst, dst, absdst, sizeof(absdst)) == NULL)
     {
-        errno = ENAMETOOLONG;
         return NGX_ERROR;
     }
 
@@ -308,60 +336,45 @@ sd_posix_closedir(brix_sd_dir_t *d)
 
 /* xattr / metadata */
 
-/* The vtable contract is a root-RELATIVE key; the *_confined_canon helpers work in
- * ABSOLUTE paths under root_canon (they strip root_canon), so build the absolute
- * here - matching sd_posix_unlink/mkdir. (The VFS reaches posix xattrs via the
- * canon helpers directly; these driver slots are used by cstore over a posix cache
- * store, where the relative-path form silently failed.) */
+/* The VFS reaches posix xattrs via the canon helpers directly; these driver
+ * slots are used by cstore over a posix cache store, where the relative-path
+ * form silently failed — hence the sd_posix_abs_key derivation. */
 ssize_t
 sd_posix_getxattr(brix_sd_instance_t *inst, const char *path,
     const char *name, void *buf, size_t cap)
 {
-    sd_posix_state_t *st = inst->state;
-    char              abspath[PATH_MAX];
+    char        abspath[PATH_MAX];
+    const char *root = sd_posix_abs_key(inst, path, abspath, sizeof(abspath));
 
-    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
-                          st->root_canon, path) >= sizeof(abspath))
-    {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    return brix_getxattr_confined_canon(inst->log, st->root_canon, abspath,
-                                          name, buf, cap);
+    return root == NULL
+               ? -1
+               : brix_getxattr_confined_canon(inst->log, root, abspath,
+                                                name, buf, cap);
 }
 
 ssize_t
 sd_posix_listxattr(brix_sd_instance_t *inst, const char *path,
     void *buf, size_t cap)
 {
-    sd_posix_state_t *st = inst->state;
-    char              abspath[PATH_MAX];
+    char        abspath[PATH_MAX];
+    const char *root = sd_posix_abs_key(inst, path, abspath, sizeof(abspath));
 
-    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
-                          st->root_canon, path) >= sizeof(abspath))
-    {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    return brix_listxattr_confined_canon(inst->log, st->root_canon, abspath,
-                                           buf, cap);
+    return root == NULL
+               ? -1
+               : brix_listxattr_confined_canon(inst->log, root, abspath,
+                                                 buf, cap);
 }
 
 ngx_int_t
 sd_posix_setxattr(brix_sd_instance_t *inst, const char *path,
     const char *name, const void *val, size_t len, int flags)
 {
-    sd_posix_state_t *st = inst->state;
-    char              abspath[PATH_MAX];
+    char        abspath[PATH_MAX];
+    const char *root = sd_posix_abs_key(inst, path, abspath, sizeof(abspath));
 
-    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
-                          st->root_canon, path) >= sizeof(abspath))
-    {
-        errno = ENAMETOOLONG;
-        return NGX_ERROR;
-    }
-    return brix_setxattr_confined_canon(inst->log, st->root_canon, abspath,
-                                          name, val, len, flags) == 0
+    return root != NULL
+                   && brix_setxattr_confined_canon(inst->log, root, abspath,
+                                                     name, val, len, flags) == 0
                ? NGX_OK : NGX_ERROR;
 }
 
@@ -369,168 +382,26 @@ ngx_int_t
 sd_posix_removexattr(brix_sd_instance_t *inst, const char *path,
     const char *name)
 {
-    sd_posix_state_t *st = inst->state;
-    char              abspath[PATH_MAX];
+    char        abspath[PATH_MAX];
+    const char *root = sd_posix_abs_key(inst, path, abspath, sizeof(abspath));
 
-    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
-                          st->root_canon, path) >= sizeof(abspath))
-    {
-        errno = ENAMETOOLONG;
-        return NGX_ERROR;
-    }
-    return brix_removexattr_confined_canon(inst->log, st->root_canon, abspath,
-                                             name) == 0
+    return root != NULL
+                   && brix_removexattr_confined_canon(inst->log, root, abspath,
+                                                        name) == 0
                ? NGX_OK : NGX_ERROR;
 }
 
-/* staged write (temp + atomic rename) */
-
-/* Driver-private staged state: the compat primitive + final path. */
-typedef struct {
-    brix_staged_file_t staged;
-    char                 final_path[PATH_MAX];
-} sd_posix_staged_t;
-
-brix_sd_staged_t *
-sd_posix_staged_open(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, int *err_out)
-{
-    sd_posix_state_t   *st = inst->state;
-    brix_sd_staged_t *handle;
-    sd_posix_staged_t  *ps;
-    char                abspath[PATH_MAX];
-
-    /* Allocate the staged handle on the heap (ngx_calloc), NOT from inst->pool.
-     * staged_open runs in a cache-fill thread-pool thread (brix_cache_fill_*),
-     * but inst->pool is the shared, thread-UNSAFE backend pool the main thread
-     * also allocates from (sd_posix_open/opendir). Concurrent fills racing on
-     * inst->pool corrupt its `last` pointer -> a bad allocation whose memzero
-     * SIGSEGVs. The handle + ps are freed explicitly in staged_commit /
-     * staged_abort (the terminal ops — the driver vtable has no close). */
-    handle = ngx_calloc(sizeof(*handle), inst->log);
-    ps = ngx_calloc(sizeof(*ps), inst->log);
-    if (handle == NULL || ps == NULL) {
-        if (handle != NULL) { ngx_free(handle); }
-        if (ps != NULL) { ngx_free(ps); }
-        if (err_out != NULL) { *err_out = ENOMEM; }
-        return NULL;
-    }
-
-    /* The vtable contract is a root-RELATIVE key (leading slash), matching
-     * sd_posix_open and the non-POSIX drivers' staged_open. brix_staged_open
-     * (and _commit/_abort) work in ABSOLUTE paths under root_canon, so build the
-     * absolute final path here and store it for commit/abort. */
-    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
-                          st->root_canon, final_path) >= sizeof(abspath))
-    {
-        ngx_free(handle);
-        ngx_free(ps);
-        if (err_out != NULL) { *err_out = ENAMETOOLONG; }
-        return NULL;
-    }
-
-    /* Create the target's parent-directory chain inside the store root before the
-     * O_EXCL temp is opened.  A staged upload into a fresh subdirectory (e.g. a
-     * write-stage tier keyed on "/sub/file" whose store is a dedicated dir that
-     * has never seen "/sub") would otherwise ENOENT: brix_staged_open opens the
-     * temp adjacent to abspath and does NOT create parents.  This mirrors the
-     * O_MKDIRPATH mkpath a direct write runs, so the store side of a subdirectory
-     * commit succeeds (the source-side origin creates its own chain via mkpath). */
-    {
-        char  parent[PATH_MAX];
-        char *slash;
-        size_t alen = ngx_strlen(abspath);
-        if (alen < sizeof(parent)) {
-            ngx_memcpy(parent, abspath, alen + 1);
-            slash = strrchr(parent, '/');
-            if (slash != NULL && slash > parent) {
-                *slash = '\0';
-                (void) brix_mkdir_recursive_confined_canon(inst->log,
-                    st->root_canon, parent, 0755, NULL);
-            }
-        }
-    }
-
-    {
-        brix_staged_open_req_t  oreq = {
-            .root_canon = st->root_canon,
-            .final_path = abspath,
-            .open_flags = O_WRONLY | O_CREAT | O_EXCL,
-            .mode       = mode,
-            .attempts   = 8,
-        };
-        if (brix_staged_open(inst->log, &oreq, &ps->staged) != NGX_OK) {
-            ngx_free(handle);
-            ngx_free(ps);
-            if (err_out != NULL) { *err_out = errno; }
-            return NULL;
-        }
-    }
-
-    ngx_cpystrn((u_char *) ps->final_path, (u_char *) abspath,
-                sizeof(ps->final_path));
-    handle->inst = inst;
-    handle->state = ps;
-    return handle;
-}
-
-ssize_t
-sd_posix_staged_write(brix_sd_staged_t *st, const void *buf, size_t len,
-    off_t off)
-{
-    sd_posix_staged_t *ps = st->state;
-
-    if (brix_vfs_pwrite_full(ps->staged.fd, buf, len, off) != NGX_OK) {
-        return -1;
-    }
-    return (ssize_t) len;
-}
-
+/* Durable-publish barrier (phase-107 C3): fsync the parent directory of the
+ * just-published `path` so the NAME survives a crash, not just the bytes.
+ * Routed through brix_publish_dirsync — the same confined derivation the
+ * staged commit uses — anchored on this instance's persistent rootfd (or a
+ * transient one when the instance carries none). */
 ngx_int_t
-sd_posix_staged_commit(brix_sd_staged_t *st, int noreplace)
+sd_posix_sync_publish(brix_sd_instance_t *inst, const char *path)
 {
-    sd_posix_staged_t *ps = st->state;
-    sd_posix_state_t  *inst_st = st->inst->state;
-    ngx_int_t          rc;
+    sd_posix_state_t *st = inst->state;
 
-    rc = noreplace
-        ? brix_staged_commit_excl(st->inst->log, inst_st->root_canon,
-                                    &ps->staged, ps->final_path)
-        : brix_staged_commit(st->inst->log, inst_st->root_canon,
-                               &ps->staged, ps->final_path);
-    /* Ownership contract (brix_vfs_staged_commit / sd_remote_staged_commit):
-     * free the heap-allocated handle ONLY on success. On failure the handle
-     * stays valid and the caller (stage_engine / brix_vfs) invokes
-     * staged_abort to release it — freeing here would double-free. */
-    if (rc != NGX_OK) {
-        return rc;
-    }
-    ngx_free(ps);
-    ngx_free(st);
-    return NGX_OK;
-}
-
-void
-sd_posix_staged_abort(brix_sd_staged_t *st)
-{
-    sd_posix_staged_t *ps = st->state;
-    sd_posix_state_t  *inst_st = st->inst->state;
-
-    brix_staged_abort(st->inst->log, inst_st->root_canon, &ps->staged, 1);
-    /* Terminal op — release the heap-allocated handle (see staged_open). */
-    ngx_free(ps);
-    ngx_free(st);
-}
-
-/* Physical staged-temp path — lets the cache tier digest-verify a fill (and
- * quarantine a mismatch) before commit (phase-68). */
-const char *
-sd_posix_staged_path(const brix_sd_staged_t *st)
-{
-    const sd_posix_staged_t *ps = st->state;
-
-    return (ps != NULL && ps->staged.tmp_path[0] != '\0') ? ps->staged.tmp_path
-                                                          : NULL;
+    return brix_publish_dirsync(inst->log, st->rootfd, st->root_canon, path);
 }
 
 #endif /* !XRDPROTO_NO_NGX */

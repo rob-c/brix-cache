@@ -3,11 +3,11 @@
 
 /*
  * unified_internal.h — private cross-file contract for the unified metrics
- * implementation (unified.c + unified_record.c + unified_export_io.c +
- * unified_export.c).
+ * implementation (unified.c + unified_record.c + unified_record_vfs.c +
+ * unified_export_io.c + unified_export.c).
  *
  * WHAT: Declares the handful of symbols that the unified metrics
- *       implementation shares ACROSS its four .c files but that are NOT part
+ *       implementation shares ACROSS its five .c files but that are NOT part
  *       of the public unified.h API: the two label tables the exporter indexes
  *       directly (auth + tpc-direction names), the latency-bucket bound table,
  *       the lock-free counter reader (brix_metric_value), the root:// legacy
@@ -42,6 +42,12 @@ extern const ngx_msec_t brix_latency_bounds[BRIX_IO_LATENCY_BUCKETS - 1];
  * Defined in unified_export_io.c; used by every exporter file. */
 unsigned long long brix_metric_value(ngx_atomic_t *counter);
 
+/* Shared recorder prologue: range-check the protocol plane and resolve the
+ * SHM block; NULL (drop the sample) on an out-of-range proto or detached SHM.
+ * Defined in unified_record.c; used by every per-proto record mutator in
+ * unified_record.c / unified_record_vfs.c. */
+ngx_brix_metrics_t *brix_metric_shm_for_proto(brix_proto_t proto);
+
 /* Export-time fold of the legacy per-server stream auth counters into one
  * unified auth cell (non-zero for root:// only). Defined in
  * unified_export_io.c; called from the auth exporter in unified_export.c. */
@@ -55,5 +61,15 @@ void unified_emit_io_ops(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
 void unified_emit_io_latency(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
 void unified_emit_io_slowop(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
 void unified_emit_io_offload(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
+
+/* Per-family phase-107 VFS-verb exporters (defined in unified_export_vfs.c);
+ * called from the brix_export_unified_metrics orchestrator in
+ * unified_export.c. */
+void unified_emit_vfs_bulk_delete(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
+void unified_emit_vfs_recall_evict(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
+void unified_emit_vfs_precond(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
+void unified_emit_vfs_lock(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
 
 #endif /* NGX_BRIX_METRICS_UNIFIED_INTERNAL_H */

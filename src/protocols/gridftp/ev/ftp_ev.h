@@ -161,8 +161,13 @@ struct ftp_ev_dc_s {
     ngx_msec_t         start_msec;  /* ngx_current_msec when the verb began  */
     off_t              size;        /* RETR total size                       */
     off_t              allo_size;   /* STOR: ALLO-declared file size, -1 off */
+    off_t              declared_size; /* phase-107 C5: ALLO size fed to the
+                                        * VFS reserve, 0 = none (both modes)  */
     unsigned           flags;       /* writer open flags (TRUNC)            */
     int                verify;      /* writer read-back verify (whole STOR)  */
+    const char        *fail_reply;  /* phase-107 C7: static reply overriding
+                                     * the generic 550 in data_finish (e.g.
+                                     * 450 for a lock-gate EBUSY); NULL = 550 */
 
     /* Transfer buffer: RETR/LIST fill it from the source and drain to the
      * socket; STOR fills it from the socket and drains to the writer. */

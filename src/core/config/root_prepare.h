@@ -47,4 +47,24 @@ char *brix_prepare_export_root(ngx_conf_t *cf,
 char *brix_prepare_cache_root(ngx_conf_t *cf,
     ngx_http_brix_shared_conf_t *common);
 
+/*
+ * brix_prepare_spill_scratch — validate and register the writer's reorder
+ * spill scratch (phase-107 C1) for this export.  Order of authority:
+ *   1. brix_vfs_spill_path when set — must be absolute, an existing writable
+ *      directory, and OUTSIDE the export root (all three are nginx -t emergs);
+ *   2. else `stage_dir_canon` (the export's prepared brix_stage_dir canonical
+ *      path; pass NULL/"" when the surface has none) — already validated by
+ *      its own preparation;
+ *   3. else no scratch: a reordered upload on a staged-only backend is
+ *      refused ENOSPC at the moment the writer would spill.
+ * Also enforces brix_vfs_spill_max in {0} ∪ [1 MiB, ∞) and registers the
+ * chosen root with the owned-temp reaper.  Call AFTER the export root and any
+ * stage dir are prepared, in every protocol merge that anchors an export.
+ * Phase-107 C3 rides the same hook: a merged `brix_durable_publish off` is
+ * registered with the backend registry here, so the publish barrier is
+ * skipped for this export (absence = durable).
+ */
+char *brix_prepare_spill_scratch(ngx_conf_t *cf,
+    ngx_http_brix_shared_conf_t *common, const char *stage_dir_canon);
+
 #endif /* BRIX_ROOT_PREPARE_H */

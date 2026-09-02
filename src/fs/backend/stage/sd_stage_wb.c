@@ -320,6 +320,25 @@ sd_stage_wb_ftruncate(brix_sd_obj_t *obj, off_t length)
     return rc;
 }
 
+/* Phase-107 C5: the write-back object's reservation is a reservation on the
+ * SPOOL — the stage store is where the declared bytes actually land first, and
+ * an undersized spool is this decorator's own ENOSPC failure mode. The source
+ * side needs no reservation here: the flush is a staged upload whose driver
+ * received the declaration through staged_open's declared_size. */
+ngx_int_t
+sd_stage_wb_reserve(brix_sd_obj_t *obj, off_t size)
+{
+    sd_stage_wb_state *wb = obj->state;
+
+    if (wb == NULL || wb->store_obj.driver == NULL
+        || wb->store_obj.driver->reserve == NULL)
+    {
+        errno = EOPNOTSUPP;
+        return NGX_ERROR;
+    }
+    return wb->store_obj.driver->reserve(&wb->store_obj, size);
+}
+
 ngx_int_t
 sd_stage_wb_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
 {
@@ -349,4 +368,57 @@ sd_stage_wb_close(brix_sd_obj_t *obj)
     sd_stage_cred_wipe(&wb->cred);            /* scrub the token before free */
     free(wb);
     return rc;
+}
+
+/* Vtable evict pair (phase-107 C2) — this tier holds NO clean copies by
+ * construction (read opens return the source's own object; the store carries
+ * only bytes awaiting or retrying a flush, dropped the moment a flush
+ * succeeds), so "release the staged copy when clean" decomposes exactly:
+ *
+ *   - a non-empty store copy is the ONLY durable copy of un-flushed client
+ *     bytes → EBUSY, never data loss (the same non-empty test the hydrate
+ *     probe uses to declare the store copy newer than the backend);
+ *   - no store copy → idempotent success, RELAYED downward when the source
+ *     also carries the slot so a nearline release stays reachable behind the
+ *     write-back tier (the sd_cache_evict_common rationale).
+ *
+ * INSTANCE-keyed cred twin, like the cache's: the store probe is service-side;
+ * the cred exists to be threaded into the relay rather than refused in DENY
+ * mode. */
+static ngx_int_t
+sd_stage_evict_common(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out, const brix_sd_cred_t *cred)
+{
+    sd_stage_inst_state *is = inst->state;
+    brix_sd_stat_t       st;
+
+    if (bytes_out != NULL) {
+        *bytes_out = 0;
+    }
+    if (is->store->driver->stat != NULL
+        && is->store->driver->stat(is->store, path, &st) == NGX_OK
+        && st.size > 0)
+    {
+        errno = EBUSY;                 /* dirty: flush pending or retrying */
+        return NGX_ERROR;
+    }
+    if (is->source->driver->evict != NULL
+        || is->source->driver->evict_cred != NULL)
+    {
+        return brix_sd_evict_maybe_cred(is->source, path, bytes_out, cred);
+    }
+    return NGX_OK;
+}
+
+ngx_int_t
+sd_stage_evict(brix_sd_instance_t *inst, const char *path, uint64_t *bytes_out)
+{
+    return sd_stage_evict_common(inst, path, bytes_out, NULL);
+}
+
+ngx_int_t
+sd_stage_evict_cred(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out, const brix_sd_cred_t *cred)
+{
+    return sd_stage_evict_common(inst, path, bytes_out, cred);
 }

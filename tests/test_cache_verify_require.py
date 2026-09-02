@@ -71,7 +71,10 @@ from settings import HOST
 FILE_MB = 8
 FILE_BYTES = FILE_MB * 1024 * 1024
 
-pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
+# Historical serial-lane quarantine lifted with test_cache_partial_fill.py's
+# (see its pytestmark comment); the fixed-port specs stay pinned to one worker
+# by the xdist_group.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-verify-require"),
               pytest.mark.timeout(300)]
 
@@ -95,7 +98,11 @@ def _md5(path):
 def _env():
     e = dict(os.environ)
     e.pop("LD_LIBRARY_PATH", None)   # keep the stock XRootD libs clean
-    e.update(XRD_REQUESTTIMEOUT="20", XRD_STREAMTIMEOUT="10",
+    # Everything here is loopback and the payload is 8 MiB: a healthy leg
+    # finishes in well under a second, so a stall longer than a few seconds is
+    # already the refusal the TEETH/NEG legs are waiting to observe.  Tight
+    # deadlines turn the fail-closed hang into a fast, attributable failure.
+    e.update(XRD_REQUESTTIMEOUT="8", XRD_STREAMTIMEOUT="5",
              XRD_CONNECTIONWINDOW="6", XRD_CONNECTIONRETRY="1",
              XRD_TIMEOUTRESOLUTION="1")
     return e
@@ -158,13 +165,15 @@ def _hang_evidence():
     return f"instances present: {', '.join(sorted(named))}\n" + "\n".join(tails)
 
 
-def _xrdcp(url, out, timeout=60):
+def _xrdcp(url, out, timeout=30):
     """Copy through this repo's client.  A hang is a delivery FAILURE, not a test
-    error — return a sentinel rc.  Fresh cold read every time."""
+    error — return a sentinel rc.  Fresh cold read every time.  --no-retry: the
+    refusal legs must surface the FIRST fault — resilience retries would only
+    re-ask a server whose answer is the point of the test."""
     if os.path.exists(out):
         os.remove(out)
     try:
-        r = subprocess.run([XRDCP, "-f", url, out],
+        r = subprocess.run([XRDCP, "-f", "--no-retry", url, out],
                            env=_env(), capture_output=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         return 124, ("client hung — did not deliver within the window\n"

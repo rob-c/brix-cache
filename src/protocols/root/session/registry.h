@@ -92,6 +92,12 @@ typedef struct {
                                                  session (set at kXR_bind, cleared on the
                                                  secondary's disconnect) — the validation
                                                  source for pathid-tagged requests */
+    ngx_int_t  owner_worker;                  /* §1.4: ngx_worker slot of the worker that
+                                                 registered the session (owns the primary
+                                                 connection); -1 = unknown. A kXR_bind
+                                                 landing on another worker migrates its
+                                                 secondary to this worker so response
+                                                 offloading stays same-worker. */
 } brix_session_entry_t;
 
 /* Phase 27 F4: a slot that is the global-LRU AND older than this minimum age is
@@ -137,6 +143,17 @@ typedef struct {
 
 typedef struct {
     ngx_shmtx_sh_t                lock;     /* must be first — shmtx init req */
+    ngx_uint_t                    high_water; /* 1 + highest slot index ever
+                                             * in_use (mutex-guarded).  Every
+                                             * scan stops here instead of
+                                             * walking all 4096 ~4KB slots —
+                                             * the full-table walk was 25% of
+                                             * worker CPU on the open-heavy
+                                             * metadata benchmark.  unpublish
+                                             * walks it back down over a freed
+                                             * top run, so it tracks the peak
+                                             * LIVE population, not the boot-
+                                             * time peak. */
     brix_shared_handle_entry_t  slots[BRIX_SESSION_HANDLE_SLOTS]; /* published handle entries */
 } brix_shared_handle_table_t;
 
@@ -172,6 +189,10 @@ int brix_session_lookup(const u_char sessid[BRIX_SESSION_ID_LEN],
  * WHAT: Marks `pathid` (1-253) as a bound data path of session `sessid` in the shared registry, so any worker can later validate pathid-tagged requests against it. No-op for out-of-range ids or an unknown session. */
 void brix_session_pathid_bind(const u_char sessid[BRIX_SESSION_ID_LEN],
     unsigned pathid);
+
+/* ---- Function: brix_session_owner_worker() ----
+ * WHAT: Returns the ngx_worker slot of the worker that registered session `sessid` (the worker owning the primary connection), or -1 for an unknown session. §1.4 bind migration uses it to route a kXR_bind that landed on the wrong worker. */
+ngx_int_t brix_session_owner_worker(const u_char sessid[BRIX_SESSION_ID_LEN]);
 
 /* ---- Function: brix_session_pathid_unbind() ----
  * WHAT: Clears `pathid` from session `sessid`'s bound-path bitmap (secondary disconnect). No-op for out-of-range ids or an unknown session. */

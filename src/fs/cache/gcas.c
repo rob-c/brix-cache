@@ -23,6 +23,7 @@
 #include "gcas.h"
 
 #include "protocols/cvmfs/classify.h"
+#include "fs/vfs/vfs_policy_domain.h"  /* the service-domain gate (phase-107 C8) */
 
 #include <errno.h>
 #include <stdio.h>
@@ -66,6 +67,13 @@ brix_gcas_publish(brix_cstore_t *cs, const char *key)
         return;
     }
 
+    /* C8: the CAS alias publish mutates the cache STORE — assert this is
+     * service storage before the slot runs. A refusal here is a composition
+     * defect (export-pointed store), already logged at crit by the gate. */
+    if (brix_vfs_service_mutation(cs->store, BRIX_VFS_MUTATE_DEDUP) != NGX_OK) {
+        return;
+    }
+
     if (cs->store->driver->dedup_publish(cs->store, key, rel) != NGX_OK) {
         ngx_log_error(NGX_LOG_WARN, cs->log, errno,
             "gcas: dedup publish failed for \"%s\"%s", key,
@@ -86,6 +94,10 @@ brix_gcas_evict_gc(brix_cstore_t *cs, const char *key)
     {
         return;   /* a /.gcas/... key itself classifies REJECT — no-op; a
                    * refcounting store (dedup_gc NULL) needs no alias GC */
+    }
+
+    if (brix_vfs_service_mutation(cs->store, BRIX_VFS_MUTATE_DEDUP) != NGX_OK) {
+        return;   /* C8: alias reap is a store mutation too — same gate */
     }
 
     (void) cs->store->driver->dedup_gc(cs->store, rel);

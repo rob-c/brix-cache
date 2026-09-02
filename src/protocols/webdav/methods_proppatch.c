@@ -163,17 +163,23 @@ webdav_proppatch_prop_status(webdav_proppatch_walk_t *w, xmlNodePtr prop,
         size_t  xml_len;
 
         xml = webdav_proppatch_serialize_dead_prop(w->r, prop, &xml_len);
-        if (xml == NULL
-            || webdav_dead_prop_set(w->r, w->path, ns, local, xml, xml_len)
-               != NGX_OK)
-        {
+        if (xml == NULL) {
             return "HTTP/1.1 507 Insufficient Storage";
+        }
+        if (webdav_dead_prop_set(w->r, w->path, ns, local, xml, xml_len)
+            != NGX_OK)
+        {
+            /* EBUSY: the VFS lock gate (C7) — the authority's refusal even
+             * when the edge's fast-path check admitted. */
+            return (errno == EBUSY) ? "HTTP/1.1 423 Locked"
+                                    : "HTTP/1.1 507 Insufficient Storage";
         }
         return "HTTP/1.1 200 OK";
     }
 
     if (webdav_dead_prop_remove(w->r, w->path, ns, local) != NGX_OK) {
-        return "HTTP/1.1 507 Insufficient Storage";
+        return (errno == EBUSY) ? "HTTP/1.1 423 Locked"
+                                : "HTTP/1.1 507 Insufficient Storage";
     }
     return "HTTP/1.1 200 OK";
 }

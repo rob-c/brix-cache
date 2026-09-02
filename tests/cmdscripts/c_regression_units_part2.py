@@ -463,8 +463,10 @@ SD_REMOTE_OBJS = [
     # sd_s3_list.o split when the flat (catalog) lister landed: sd_s3_list_scan.o
     # holds the XML scanner + signed-request plumbing BOTH listers call, so it is
     # in the closure of every sd_remote unit, not just the enumerate one.
+    # sd_s3_batch.o: the phase-107 C2 bulk plane (sd_s3_delete_many, one
+    # DeleteObjects POST) — reached from sd_remote_write.o's delete_many relay.
     "sd_s3.o", "sd_s3_meta.o", "sd_s3_list.o", "sd_s3_list_scan.o",
-    "sd_s3_list_flat.o", "meta_advisory.o", "sd_s3_write.o",
+    "sd_s3_list_flat.o", "sd_s3_batch.o", "meta_advisory.o", "sd_s3_write.o",
     "sd_s3_sign.o", "sd_s3_sign_ext.o", "crypto.o", "hex.o", "sigv4.o", "uri.o",
     "host_format.o", "crc32_ieee.o", "digest_header.o",
 ]

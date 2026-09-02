@@ -188,7 +188,7 @@ cache_origin_load_sss_key(const char *path, brix_sss_key_t *out)
     char  line[1024];
     int   found = 0;
 
-    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: config-domain SSS keytab (not export storage) */
+    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: DOMAIN_CONFIG — config-domain SSS keytab (not export storage) */
     if (fd < 0) {
         return -1;
     }

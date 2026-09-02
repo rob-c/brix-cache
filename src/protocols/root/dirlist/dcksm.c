@@ -121,7 +121,7 @@ brix_dirlist_checksum_token(const brix_dirlist_cksum_req_t *req,
         return;
     }
 
-    fd = openat(req->dfd, req->name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);  /* vfs-seam-allow: dirfd-relative open within an already-VFS-opened confined dir stream (brix_vfs_dir_fd) */
+    fd = openat(req->dfd, req->name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);  /* vfs-seam-allow: SEAM_CORRECT — dirfd-relative open within an already-VFS-opened confined dir stream (brix_vfs_dir_fd) */
     if (fd < 0) {
         snprintf(out, outsz, "%s:none", req->algo);
         return;

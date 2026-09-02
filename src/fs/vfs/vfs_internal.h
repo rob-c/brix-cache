@@ -163,13 +163,13 @@ struct brix_vfs_dir_s {
     ngx_log_t  *log;
     char       *path;
     const char *root_canon;   /* for broker-routed per-child lstat (impersonation) */
-    /* Non-POSIX backend: the driver's open directory + the bits readdir needs to
-     * stat children through the same driver. sd_dir != NULL selects the driver
-     * path; `dir` stays NULL. */
+    /* Non-POSIX backend: the driver's open directory + what readdir needs to stat
+     * children through the same driver. sd_dir != NULL selects it; `dir` NULL. */
     brix_sd_dir_t          *sd_dir;
     brix_sd_instance_t     *sd;
     const brix_sd_driver_t *drv;
     const char               *sd_logical;   /* export-relative dir path */
+    brix_sd_dirent_t de_scratch; /* handle-owned borrow-API readdir scratch */
 };
 
 struct brix_vfs_staged_s {
@@ -206,6 +206,23 @@ const char *brix_vfs_export_relative(const brix_vfs_ctx_t *ctx,
 /* Path-based form for ctx-less callers (rename_path/mkdir_path). */
 const char *brix_vfs_export_relative_root(const char *path,
     const char *root_canon);
+
+/* Quiet getxattr at an explicit confined path (vfs_xattr.c, phase-107 C7):
+ * the full pipeline with NO OP_XATTR observation — the lock gate's ancestor
+ * probes must not perturb the pinned xattr counter deltas. `path` = ctx's
+ * resolved path or a same-export ancestor. Byte count, or -1 with errno. */
+ssize_t brix_vfs_getxattr_quiet_at(brix_vfs_ctx_t *ctx, const char *path,
+    const char *name, void *buf, size_t bufsz);
+
+/* Recursive driver-namespace delete (vfs_unlink.c): per-key DFS, cred-threaded
+ * on the LEAF. brix_vfs_rmtree_dispatch (vfs_unlink_many.c, phase-107 C4)
+ * routes to the windowed bulk walk under BRIX_SD_CAP_BULK_DELETE, else here. */
+ngx_int_t brix_vfs_driver_rmtree(brix_sd_instance_t *leaf,
+    const brix_sd_driver_t *drv, const char *logical,
+    const brix_sd_cred_t *cred, ngx_uint_t depth);
+ngx_int_t brix_vfs_rmtree_dispatch(brix_sd_instance_t *leaf,
+    const brix_sd_driver_t *drv, const char *logical,
+    const brix_sd_cred_t *cred);
 
 /* The NON-default storage driver bound to this ctx (e.g. pblock), or NULL when
  * the export uses the default POSIX path. The VFS namespace + data ops dispatch
@@ -296,8 +313,9 @@ brix_vfs_ctx_path(const brix_vfs_ctx_t *ctx)
     return (const char *) ctx->resolved.resolved.data;
 }
 
-/* Deep-copy `ctx` and the two buffers it POINTS at — the resolved confined path
- * and root_canon, both of which can live in a caller stack frame — onto `pool`,
+/* Deep-copy `ctx` and the buffers it POINTS at — the resolved confined path,
+ * root_canon and the lock-token presentation, all of which can live in a caller
+ * stack frame or request header buffer — onto `pool`,
  * returning a self-contained ctx that outlives the caller. Every other ctx member
  * points at config- or connection-scoped memory that already outlives any write
  * session, so a shallow struct copy carries them correctly. Returns NULL
@@ -344,6 +362,19 @@ brix_vfs_ctx_pool_clone(const brix_vfs_ctx_t *ctx, ngx_pool_t *pool)
         }
         ngx_memcpy(d, ctx->root_canon, n + 1);
         copy->root_canon = (const char *) d;
+    }
+    /* phase-107 C7: the lock-token presentation borrows the request's header
+     * buffer, which dies while this clone lives on — carried BY VALUE like
+     * the mutation policy; dropping it would 423 the lock's own holder. */
+    if (ctx->lock_token != NULL) {
+        size_t  n = ngx_strlen(ctx->lock_token);
+        u_char *d = ngx_pnalloc(pool, n + 1);
+        if (d == NULL) {
+            errno = ENOMEM;
+            return NULL;
+        }
+        ngx_memcpy(d, ctx->lock_token, n + 1);
+        copy->lock_token = (const char *) d;
     }
     return copy;
 }
@@ -593,6 +624,16 @@ ngx_int_t brix_vfs_adopt_fd(brix_vfs_ctx_t *ctx, const char *path,
  * that describes the BACKING STORE rather than a cached copy must be answered by
  * the leaf, never refused because a tier decorator sits on top. */
 brix_sd_instance_t *brix_vfs_decorator_source(const brix_sd_instance_t *inst);
+
+/* Book the phase-107 C6 metric pair for ONE refused publish precondition:
+ * brix_vfs_precond_failed_total{kind}, plus _advisory_total{driver} when the
+ * refusal was NOT decided atomically at the storage (pre->atomic == 0).
+ * Filters on the typed refusal errno (EEXIST for ABSENT, ECANCELED for
+ * MATCH_*) — callable on any commit/copy failure path; NULL/NONE precondition
+ * or unrelated errno is a no-op. `driver_name` = the deciding backend
+ * ("posix" for compat arms). Defined in vfs_staged.c; shared w/ vfs_copy.c. */
+void brix_vfs_precond_refused_observe(const brix_sd_precond_t *pre, int err,
+    const char *driver_name);
 
 /* brix_vfs_pread_full / brix_vfs_pwrite_full are now declared in the public
  * vfs.h (raw fd full read/write primitives) so module byte loops outside src/fs

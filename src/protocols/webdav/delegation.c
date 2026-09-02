@@ -276,16 +276,16 @@ delegation_store_pem(ngx_log_t *log, const ngx_str_t *dir, const char *key,
     (void) snprintf(tmp_path, sizeof(tmp_path), "%.*s/.%s.pem.upload.%ld",
         (int) dir->len, dir->data, key, (long) getpid());
 
-    fd = open(tmp_path, /* vfs-seam-allow: cred dir is svc-owned config, not an export */
+    fd = open(tmp_path, /* vfs-seam-allow: DOMAIN_CREDENTIAL — cred dir is svc-owned config, not an export */
               O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
     if (fd < 0 && ngx_errno == NGX_ENOENT) {
         /* Store dir vanished (tmpfs default is wiped by a reboot without a
          * config reload, or an admin rm'd it) — recreate it 0700 as the
          * worker uid and retry once before shouting. */
-        if (mkdir((const char *) dir->data, 0700) == 0 /* vfs-seam-allow: cred dir is svc-owned config, not an export */
+        if (mkdir((const char *) dir->data, 0700) == 0 /* vfs-seam-allow: DOMAIN_CREDENTIAL — cred dir is svc-owned config, not an export */
             || ngx_errno == NGX_EEXIST)
         {
-            fd = open(tmp_path, /* vfs-seam-allow: cred dir is svc-owned config, not an export */
+            fd = open(tmp_path, /* vfs-seam-allow: DOMAIN_CREDENTIAL — cred dir is svc-owned config, not an export */
                       O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
         }
     }
@@ -304,16 +304,16 @@ delegation_store_pem(ngx_log_t *log, const ngx_str_t *dir, const char *key,
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
                       "brix_delegation: write/fsync(\"%s\") failed", tmp_path);
         close(fd);
-        unlink(tmp_path); /* vfs-seam-allow: cred dir is svc-owned config, not an export */
+        unlink(tmp_path); /* vfs-seam-allow: DOMAIN_CREDENTIAL — cred dir is svc-owned config, not an export */
         return NGX_ERROR;
     }
     close(fd);
 
-    if (rename(tmp_path, final_path) != 0) { /* vfs-seam-allow: cred dir is svc-owned config, not an export */
+    if (rename(tmp_path, final_path) != 0) { /* vfs-seam-allow: DOMAIN_CREDENTIAL — cred dir is svc-owned config, not an export */
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
                       "brix_delegation: rename(\"%s\" -> \"%s\") failed",
                       tmp_path, final_path);
-        unlink(tmp_path); /* vfs-seam-allow: cred dir is svc-owned config, not an export */
+        unlink(tmp_path); /* vfs-seam-allow: DOMAIN_CREDENTIAL — cred dir is svc-owned config, not an export */
         return NGX_ERROR;
     }
     return NGX_OK;

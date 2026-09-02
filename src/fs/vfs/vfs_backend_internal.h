@@ -118,7 +118,30 @@ typedef struct {
     int                   peer_self;     /* index of this node in peer_ring */
     brix_tier_cfg_t      stage_tier;
     brix_stage_policy_t  stage_policy;
+    /* phase-107 C1: local scratch for the writer's SPILL mode (out-of-order
+     * extents on a staged-only backend). Empty = none configured, so a
+     * reordered upload is refused ENOSPC. spill_max caps one spill's span
+     * (high_water - base); 0 = the filesystem decides. */
+    char                 spill_root[PATH_MAX];
+    off_t                spill_max;
+    /* phase-107 C3: brix_durable_publish off — the export opted OUT of the
+     * per-publish directory-entry fsync. Inverted so a zeroed / unregistered
+     * entry (and every export that never says otherwise) is DURABLE. */
+    unsigned             no_durable_publish:1;
+    /* phase-107 C7: brix_lock_enforcement (brix_vfs_lock_enforcement_t).
+     * Zero — a zeroed or unregistered entry — is STRICT: absence fails toward
+     * enforcement, and the table holds entries only for exports that relaxed
+     * the default (advisory=1 / off=2). */
+    unsigned             lock_enforcement:2;
     brix_sd_instance_t *inst;          /* lazily built per worker, or NULL */
+    const void          *inst_cycle;   /* the ngx_cycle `inst` was built under —
+                                        * identity only, never dereferenced. A
+                                        * stack built under an earlier cycle
+                                        * (config parse in the master, or the
+                                        * cycle before a reload) captured that
+                                        * cycle's log, whose fd dies with the
+                                        * cycle; entry_build rebuilds when the
+                                        * global cycle has moved on. */
 } brix_vfs_backend_entry_t;
 
 /* Exports are few (one per location/server block); a small fixed table avoids any

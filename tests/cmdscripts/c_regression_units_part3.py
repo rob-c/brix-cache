@@ -133,6 +133,20 @@ def sd_remote_checksum(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[boo
     )
 
 
+def sd_remote_part_size(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # sd_remote_part_size (sd_remote_write.o) — the phase-107 C5 derivation that
+    # lifts the 160 GB multipart ceiling. Pure function, but linked from the real
+    # driver closure so the constant under test is the shipping one.
+    objs = _sd_remote_objs(ngx_src)
+    if isinstance(objs, str):
+        return result(True, objs)
+    return _compile_and_run(
+        base / "test_sd_remote_part_size",
+        ["-O", "-Wall", str(TEST_C / "test_sd_remote_part_size.c"), *objs,
+         *_nginx_includes(ngx_src), "-lssl", "-lcrypto"],
+    )
+
+
 def sd_http_dir(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
     # driver->opendir/readdir/closedir (+ opendir_cred) -> sd_http_opendir
     # (sd_http_dir.o) which issues a WebDAV PROPFIND Depth:1 via sd_http_request_fo
@@ -294,6 +308,10 @@ def sd_xroot_query(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, s
     # (the kXR_query client) joins origin_ns.o (kXR_stat, kXR_prepare) below it,
     # and only the socket is stubbed.
     objs: list[str] = []
+    # phase-107 C8: sd_xroot_nearline.c consults brix_sd_caps before the
+    # recall/residency dispatch. The accessor lives in sd_registry.o, whose
+    # .rodata names every builtin driver vtable — so the test carries a
+    # faithful one-line stub of it instead of linking that world in.
     for name in ["sd_xroot.o", "sd_xroot_io.o", "sd_xroot_staged.o",
                  "sd_xroot_ns.o", "sd_xroot_ns_cred.o", "sd_xroot_ns_dir.o",
                  "sd_xroot_nearline.o",
@@ -415,21 +433,25 @@ def decorator_cred_forward(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple
     # namespace slot they publish: brix_sd_<op>_maybe_cred decides on the instance
     # it is called on, so a decorator missing the twin looks like a driver with no
     # per-user support and the credential is erased one tier above the source.
-    # Links the real forwarders (sd_cache_forward.o for the cache half, sd_stage.o
-    # for the stage half, dispatched through its real vtable) over a fake source;
-    # only the cstore lookups, the write-back/staged slots and ngx_cpystrn are
-    # stubbed — no nginx object is linked, so stubbing ngx_cpystrn is safe here.
+    # Links the real forwarders (sd_cache_forward.o for the cache half; for the
+    # stage half sd_stage.o plus the phase-107 write/write-back planes
+    # sd_stage_write.o/sd_stage_wb.o, where the truncate_path/exchange/evict
+    # relays under test live), dispatched through the real vtable over a fake
+    # source; only the cstore lookups, the async stage engine and ngx_cpystrn
+    # are stubbed — no nginx object is linked, so stubbing ngx_cpystrn is safe.
     objs: list[str] = []
-    for name in ["sd_cache_forward.o", "sd_stage.o"]:
+    for name in ["sd_cache_forward.o", "sd_stage.o", "sd_stage_write.o",
+                 "sd_stage_wb.o"]:
         obj = _find_obj(ngx_src, name)
         if obj is None:
             return result(True, f"SKIP: build first; missing {name}")
         objs.append(str(obj))
     return _compile_and_run(
         base / "test_decorator_cred_forward",
+        # -lcrypto: sd_stage_write.o's cred wipe is OPENSSL_cleanse.
         ["-O", "-Wall", "-D_GNU_SOURCE",
          str(TEST_C / "test_decorator_cred_forward.c"), *objs,
-         *_nginx_includes(ngx_src, http=True, stream=True)],
+         *_nginx_includes(ngx_src, http=True, stream=True), "-lcrypto"],
     )
 
 
@@ -558,6 +580,7 @@ RUNNERS = {
     "sd_remote_setattr": sd_remote_setattr,
     "sd_remote_xattr_cred": sd_remote_xattr_cred,
     "sd_remote_checksum": sd_remote_checksum,
+    "sd_remote_part_size": sd_remote_part_size,
     "sd_http_dir": sd_http_dir,
     "sd_http_mutate": sd_http_mutate,
     "sd_http_copy": sd_http_copy,

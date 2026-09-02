@@ -27,6 +27,54 @@ typedef struct {
     const char *message;
 } s3_del_err_t;
 
+/*
+ * s3_del_ctx_t — the state the per-request batch stages share: the request
+ * (metrics/pool/identity), the location config (root confinement + write
+ * gate), the method's metrics slot, and the shared output-XML buffer plus its
+ * running length. One value keeps the stage helpers at or below the
+ * five-parameter limit and makes the data flow explicit.
+ */
+typedef struct {
+    ngx_http_request_t      *r;
+    ngx_http_s3_loc_conf_t  *cf;
+    ngx_uint_t               method_slot;
+    ngx_buf_t               *xml_buf;
+    size_t                  *xml_len;
+} s3_del_ctx_t;
+
+/*
+ * s3_del_item_t — one <Object> entry's journey through the two-phase batch
+ * (phase-107 C4): collection resolves and confines every key BEFORE any
+ * delete, then ONE brix_vfs_delete_many() call disposes the confinable subset,
+ * then rendering emits per-key XML in the client's order.
+ *
+ *   key/key_len  pool copy of the client's key text (render needs it after
+ *                the parsed document is freed)
+ *   fs           confined absolute path (pool copy) — NULL when the key was
+ *                pre-disposed at collection (bad key, escape, reserved-absent)
+ *   err          collection-time verdict: .code != NULL renders as <Error>
+ *                without ever reaching the VFS; both NULL with fs == NULL
+ *                renders as <Deleted> (a RESERVED key reads exactly as an
+ *                absent one, and DeleteObjects is idempotent)
+ *   batch_err    the per-key errno brix_vfs_delete_many() wrote (0 = removed,
+ *                ENOENT = idempotent-success, ECANCELED = never attempted)
+ */
+typedef struct {
+    u_char       *key;
+    size_t        key_len;
+    char         *fs;
+    s3_del_err_t  err;
+    int           batch_err;
+} s3_del_item_t;
+
+/* Two-phase batch stages — defined in delete_objects_batch.c. */
+ngx_int_t s3_delete_collect_one(s3_del_ctx_t *dc, xmlNodePtr obj,
+    s3_del_item_t *it, int *malformed_500);
+ngx_int_t s3_delete_execute(s3_del_ctx_t *dc, s3_del_item_t *items,
+    size_t count);
+ngx_int_t s3_delete_render(s3_del_ctx_t *dc, const s3_del_item_t *items,
+    size_t count);
+
 /* DeleteResult XML rendering + <Delete> DOM navigation — defined in
  * delete_objects_xml.c. */
 ngx_int_t s3_delete_xml_append_raw(ngx_buf_t *xml_buf, size_t *xml_len,

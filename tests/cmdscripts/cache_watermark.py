@@ -108,6 +108,7 @@ def write_config(prefix: Path, port: int, high: int, low: int, metrics_port: int
     conf = prefix / "nginx.conf"
     conf.write_text(
         f"""daemon on; error_log {logs / 'e.log'} info; pid {prefix / 'nginx.pid'};
+env BRIX_CACHE_REAP_FIRST_MS=250;
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{ server {{
@@ -233,7 +234,7 @@ def _wait_for_purge(base):
     deadline = time.time() + 25
     pattern = base / "purge" / "cache"
     while time.time() < deadline and list(pattern.glob("plain_*.bin")):
-        time.sleep(1)
+        time.sleep(0.1)
 
 
 def _collect_results(base, metrics_port):

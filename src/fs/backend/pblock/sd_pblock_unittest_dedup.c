@@ -63,7 +63,7 @@ staged_put(brix_sd_instance_t *inst, const char *path, const char *data,
     size_t len)
 {
     int               err = 0;
-    brix_sd_staged_t *s = D->staged_open(inst, path, 0644, &err);
+    brix_sd_staged_t *s = D->staged_open(inst, path, 0644, 0, &err);
 
     if (s == NULL) {
         errno = err;
@@ -73,7 +73,7 @@ staged_put(brix_sd_instance_t *inst, const char *path, const char *data,
         D->staged_abort(s);
         return -1;
     }
-    return D->staged_commit(s, 0) == NGX_OK ? 0 : -1;
+    return D->staged_commit(s, NULL) == NGX_OK ? 0 : -1;
 }
 
 /* trunc_write — O_TRUNC-create `path` (breaks any share), write `data`, close. */

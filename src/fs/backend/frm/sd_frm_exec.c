@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <spawn.h>
+#include <sys/syscall.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -188,6 +189,41 @@ exec_mkpath(void *mss, const char *key, mode_t mode)
     return (exec_run(c, "rcreate", key, "") == 0) ? 0 : -1;
 }
 
+/* frm_mss_exchange — atomic swap of two ONLINE-BUFFER copies (phase-107 C6).
+ * Head-generic (frm_mss_head_t), shared by the exec and lib adapters; lives
+ * here because sd_frm_stub.c, home of the other frm_mss_* head ops, is at the
+ * 600-line cap. Raw SYS_renameat2 (glibc's wrapper postdates 2.28); a
+ * kernel/filesystem without RENAME_EXCHANGE answers ENOSYS/EINVAL, reported
+ * as ENOTSUP and never degraded to two renames (§3.5). */
+#ifndef RENAME_EXCHANGE
+#define RENAME_EXCHANGE (1u << 1)    /* <linux/fs.h>; avoided for its struct
+                                      * collisions, same as fs/path/beneath.c */
+#endif
+
+int
+frm_mss_exchange(void *mss, const char *a, const char *b)
+{
+    frm_mss_head_t *h = mss;
+    char            pa[PATH_MAX];
+    char            pb[PATH_MAX];
+
+    if (frm_online_path(h->base, a, pa, sizeof(pa)) != 0
+        || frm_online_path(h->base, b, pb, sizeof(pb)) != 0)
+    {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    if (syscall(SYS_renameat2, AT_FDCWD, pa, AT_FDCWD, pb,
+                (unsigned int) RENAME_EXCHANGE) != 0)
+    {
+        if (errno == ENOSYS || errno == EINVAL) {
+            errno = ENOTSUP;
+        }
+        return -1;
+    }
+    return 0;
+}
+
 const brix_mss_adapter_t brix_mss_exec_adapter = {
     .name          = "exec",
     .residency     = frm_mss_residency,
@@ -195,10 +231,12 @@ const brix_mss_adapter_t brix_mss_exec_adapter = {
     .recall_poll   = frm_mss_recall_poll,
     .migrate       = frm_mss_migrate,
     .purge         = frm_mss_purge,
+    .exchange      = frm_mss_exchange,       /* phase-107 C6 */
     .list          = exec_list,
     .mkpath        = exec_mkpath,
     .open_online   = frm_mss_open_online,
     .create_online = frm_mss_create_online,
+    .sync_publish  = frm_mss_sync_publish,   /* phase-107 C3 */
     .destroy       = exec_destroy,
 };
 

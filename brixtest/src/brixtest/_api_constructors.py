@@ -209,6 +209,7 @@ PUBLIC_CLASS_CALL_SHAPES: Mapping[str, tuple[str, ...]] = {
     "MetricSample": ("name", "value", "unit", "kind", "labels", "at_seconds"),
     "MetricTimer": ("recorder", "name", "labels"),
     "Mount": ("source", "target", "read_only?", "kind?", "propagation?"),
+    "OutputExpectation": ("contains?", "excludes?", "regex?", "exact?", "strip?"),
     "Placement": (
         "backend?",
         "image?",

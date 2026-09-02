@@ -24,6 +24,16 @@ u_char *brix_open_ok_frame(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
 ngx_int_t brix_send_error(brix_ctx_t *ctx, ngx_connection_t *c,
     uint16_t errcode, const char *msg);
 
+/*
+ * brix_send_error_sid — brix_send_error with an explicit streamid: for error
+ * frames that answer a request whose sid is not ctx->recv.cur_streamid
+ * (e.g. a chunked pgread that already committed partial frames on a bound
+ * SECONDARY channel — the terminating error must ride the same channel
+ * under the original request's sid).
+ */
+ngx_int_t brix_send_error_sid(brix_ctx_t *ctx, ngx_connection_t *c,
+    const u_char sid[2], uint16_t errcode, const char *msg);
+
 /* Send kXR_redirect (status=kXR_redirect) with a host:port target. */
 ngx_int_t brix_send_redirect(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *host, uint16_t port);
@@ -52,6 +62,9 @@ ngx_int_t brix_send_pgwrite_cse(brix_ctx_t *ctx, ngx_connection_t *c,
 /* Build the kXR_status body for a pgread response.
  * hdr.dlen = sizeof(bdy)+sizeof(pgr) = 24; bdy.dlen = total_with_crcs.
  * CRC covers bdy.streamID..pgr.offset (20 bytes), not the page data. */
+void brix_build_pgread_status_sid(const u_char sid[2], int64_t file_offset,
+    uint32_t total_with_crcs, u_char resptype,
+    ServerStatusResponse_pgRead *out);
 void brix_build_pgread_status(brix_ctx_t *ctx, int64_t file_offset,
     uint32_t total_with_crcs, ServerStatusResponse_pgRead *out);
 

@@ -32,6 +32,7 @@ brix_shared_merge_core(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev,
         }
     }
     ngx_conf_merge_value(conf->allow_write, prev->allow_write, 0);
+    ngx_conf_merge_value(conf->durable_commit, prev->durable_commit, 1);
     ngx_conf_merge_value(conf->verify_write, prev->verify_write, 0);
     ngx_conf_merge_value(conf->require_pgwrite, prev->require_pgwrite, 0);
     ngx_conf_merge_value(conf->data_substreams, prev->data_substreams, 1);
@@ -222,6 +223,11 @@ brix_shared_merge_authx(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev,
     ngx_conf_merge_str_value(conf->token_macaroon_secret_old,
                              prev->token_macaroon_secret_old, "");
     ngx_conf_merge_str_value(conf->upload_stage_dir, prev->upload_stage_dir, "");  /* W4 */
+    ngx_conf_merge_str_value(conf->vfs_spill_path, prev->vfs_spill_path, "");  /* phase-107 C1 */
+    ngx_conf_merge_size_value(conf->vfs_spill_max, prev->vfs_spill_max, 0);   /* phase-107 C1 */
+    ngx_conf_merge_value(conf->durable_publish, prev->durable_publish, 1);   /* phase-107 C3 */
+    ngx_conf_merge_uint_value(conf->lock_enforcement, prev->lock_enforcement,
+                              0 /* strict — phase-107 C7, fails toward enforcement */);
     ngx_conf_merge_str_value(conf->crl, prev->crl, "");  /* W4 */
     ngx_conf_merge_uint_value(conf->signing_policy_mode, prev->signing_policy_mode,
                               BRIX_SP_MODE_ON);

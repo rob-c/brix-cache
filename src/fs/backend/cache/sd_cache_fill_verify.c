@@ -269,7 +269,12 @@ sd_cache_hex_ieq(const char *a, const char *b)
  *   - digest matches            -> fs->verified = 1, NGX_OK (commit)
  *   - digest MISMATCH           -> quarantine + tamper signal, NGX_ERROR
  *   - no origin digest / unknown algorithm:
- *         REQUIRE  -> fail closed (EIO) — an unverifiable object must not cache
+ *         REQUIRE  -> fail closed (ENODATA) — an unverifiable object must not
+ *                     cache. ENODATA, not EIO: this is a POLICY refusal the
+ *                     next attempt cannot change (the origin will advertise
+ *                     the same nothing), so brix_fill_classify treats it as
+ *                     DEFINITIVE and the client gets a clean terminal error
+ *                     instead of a backoff ladder.
  *         BEST-EFFORT -> NGX_OK (commit; nothing to check against)
  *
  * On every fail-closed path the staged fill is aborted so nothing publishes. */
@@ -289,7 +294,7 @@ cache_fill_verify_origin(sd_cache_inst_state *st, const char *key,
                 "sd_cache: verify=require but the origin advertised no usable "
                 "digest for \"%s\" - refusing to cache unverifiable bytes", key);
             brix_cstore_fill_abort(fs->staged);
-            errno = EIO;
+            errno = ENODATA;           /* policy refusal — definitive, no retry */
             return NGX_ERROR;
         }
         return NGX_OK;                 /* best-effort: nothing to verify against */
@@ -322,7 +327,7 @@ cache_fill_verify_origin(sd_cache_inst_state *st, const char *key,
                 "sd_cache: verify=require but origin algorithm \"%s\" is "
                 "unsupported for \"%s\" - failing closed", fs->origin_alg, key);
             brix_cstore_fill_abort(fs->staged);
-            errno = EIO;
+            errno = ENODATA;           /* policy refusal — definitive, no retry */
             return NGX_ERROR;
         }
         return NGX_OK;                 /* best-effort: cannot check, commit */
@@ -374,7 +379,9 @@ cache_fill_verify_origin(sd_cache_inst_state *st, const char *key,
  * HOW:  No-op (NGX_OK) unless policy.verify is a self-addressing mode or a
  *       master key is loaded. Sets fs->verified on a VERIFIED result. On
  *       failure aborts the staged fill and returns NGX_ERROR with errno
- *       EBADMSG (mismatch — T20 budgets retries) or EIO (verify could not
+ *       EBADMSG (mismatch — T20 budgets retries), ENODATA (REQUIRE policy
+ *       refusal — no usable origin digest / unsupported algorithm, which
+ *       brix_fill_classify treats as definitive) or EIO (verify could not
  *       run). */
 ngx_int_t
 cache_fill_verify(sd_cache_inst_state *st, const char *key,

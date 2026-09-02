@@ -49,7 +49,10 @@ from settings import HOST
 FILE_MB = 8
 FILE_BYTES = FILE_MB * 1024 * 1024
 
-pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
+# Historical serial-lane quarantine lifted with test_cache_partial_fill.py's
+# (see its pytestmark comment); the fixed-port specs stay pinned to one worker
+# by the xdist_group.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.timeout(300),
               pytest.mark.xdist_group("lc-trunc-cache")]
 

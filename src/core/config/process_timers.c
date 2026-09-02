@@ -170,6 +170,29 @@ brix_stage_reap_handler(ngx_event_t *ev)
     }
 }
 
+/* Resolve one cache-reaper delay: $BRIX_CACHE_REAP_FIRST_MS (test/dev knob —
+ * reach the worker via an `env` declaration in the config) overrides `dflt`,
+ * else the compiled default is used. The knob governs the WHOLE cadence, not
+ * just the first tick: the stale-dirty walk is age-gated on
+ * brix_cache_dirty_max_age, so a lone shortened first tick can scan before any
+ * file matures — and the hourly steady-state re-arm would then sit out the
+ * test's whole observation window. Production configs never set it. */
+ngx_msec_t
+brix_cache_reap_delay(ngx_msec_t dflt)
+{
+    const char *env = getenv("BRIX_CACHE_REAP_FIRST_MS");
+    ngx_int_t   v;
+
+    if (env == NULL || env[0] == '\0') {
+        return dflt;
+    }
+    v = ngx_atoi((u_char *) env, ngx_strlen(env));
+    if (v < 0) {
+        return dflt;
+    }
+    return (ngx_msec_t) v;
+}
+
 /*
  * Unified cache-state engine: per-server stale-dirty reaper. Removes write-back
  * staging files dirty longer than brix_cache_dirty_max_age (the eviction guard
@@ -189,7 +212,7 @@ brix_cache_reap_handler(ngx_event_t *ev)
                       "brix: cache stale-dirty reaper removed %ui file(s)", n);
     }
     if (!ngx_exiting) {
-        ngx_add_timer(ev, BRIX_CACHE_REAP_INTERVAL_MS);
+        ngx_add_timer(ev, brix_cache_reap_delay(BRIX_CACHE_REAP_INTERVAL_MS));
     }
 }
 

@@ -218,6 +218,11 @@ ngx_int_t sd_ceph_stat_io(sd_ceph_state_t *st, rados_ioctx_t io,
         const char *path, brix_sd_stat_t *out);
 ngx_int_t sd_ceph_unlink_io(sd_ceph_state_t *st, rados_ioctx_t io,
         const char *path, int is_dir);
+/* Phase-107 C4 batch core (sd_ceph_batch.c): N rados_remove on ONE ioctx -
+ * in RADOS the ioctx is the identity, so establishing it once per window is
+ * the batch's entire value. Contract in sd_batch_types.h. */
+ngx_int_t sd_ceph_unlink_many_io(sd_ceph_state_t *st, rados_ioctx_t io,
+        brix_sd_unlink_batch_t *b);
 ssize_t sd_ceph_getxattr_io(sd_ceph_state_t *st, rados_ioctx_t io,
         const char *path, const char *name, void *buf, size_t cap);
 ssize_t sd_ceph_listxattr_io(sd_ceph_state_t *st, rados_ioctx_t io,
@@ -240,6 +245,10 @@ ngx_int_t sd_ceph_stat_cred(brix_sd_instance_t *inst, const char *path,
         brix_sd_stat_t *out, const brix_sd_cred_t *cred);
 ngx_int_t sd_ceph_unlink_cred(brix_sd_instance_t *inst, const char *path,
         int is_dir, const brix_sd_cred_t *cred);
+/* C4 batch as the caller: ONE cred-ioctx acquire/release brackets the whole
+ * window (sd_ceph_ns_cred.c runner). */
+ngx_int_t sd_ceph_unlink_many_cred(brix_sd_instance_t *inst,
+        brix_sd_unlink_batch_t *b, const brix_sd_cred_t *cred);
 ssize_t sd_ceph_getxattr_cred(brix_sd_instance_t *inst, const char *path,
         const char *name, void *buf, size_t cap, const brix_sd_cred_t *cred);
 ssize_t sd_ceph_listxattr_cred(brix_sd_instance_t *inst, const char *path,
@@ -314,10 +323,11 @@ ngx_int_t sd_ceph_ftruncate(brix_sd_obj_t *obj, off_t len);
 ngx_int_t sd_ceph_fsync(brix_sd_obj_t *obj);
 ngx_int_t sd_ceph_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out);
 brix_sd_staged_t *sd_ceph_staged_open(brix_sd_instance_t *inst,
-        const char *final_path, mode_t mode, int *err_out);
+        const char *final_path, mode_t mode, off_t declared_size,
+        int *err_out);
 ssize_t sd_ceph_staged_write(brix_sd_staged_t *sh, const void *buf, size_t len,
         off_t off);
-ngx_int_t sd_ceph_staged_commit(brix_sd_staged_t *sh, int noreplace);
+ngx_int_t sd_ceph_staged_commit(brix_sd_staged_t *sh, brix_sd_precond_t *pre);
 void sd_ceph_staged_abort(brix_sd_staged_t *sh);
 
 /* directory iteration — stripe-collapse listing (sd_ceph_dir.c, phase-89 §B.1) */
@@ -330,6 +340,8 @@ ngx_int_t sd_ceph_closedir(brix_sd_dir_t *d);
 ngx_int_t sd_ceph_stat(brix_sd_instance_t *inst, const char *path,
         brix_sd_stat_t *out);
 ngx_int_t sd_ceph_unlink(brix_sd_instance_t *inst, const char *path, int is_dir);
+ngx_int_t sd_ceph_unlink_many(brix_sd_instance_t *inst,
+        brix_sd_unlink_batch_t *b);
 ngx_int_t sd_ceph_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode);
 ngx_int_t sd_ceph_rename(brix_sd_instance_t *inst, const char *src,
         const char *dst, int noreplace);

@@ -35,7 +35,11 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#if defined(__linux__)
+#include <linux/falloc.h>   /* FALLOC_FL_KEEP_SIZE for sd_posix_reserve */
+#endif
 #include <string.h>
+#include <sys/stat.h>     /* fstat - the reserve failure release */
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -116,6 +120,56 @@ sd_posix_read_sendfile_fd(brix_sd_obj_t *obj, off_t off, size_t len,
         return NGX_INVALID_FILE;
     }
     return obj->fd;
+}
+
+/* sd_posix_reserve — phase-107 C5: preallocate the declared final size.
+ * fallocate(FALLOC_FL_KEEP_SIZE) claims the blocks WITHOUT changing st_size,
+ * so a concurrent stat never sees bytes that were only promised. ENOSPC is the
+ * caller's fail-the-open signal; a filesystem without the primitive returns
+ * EOPNOTSUPP, which the caller treats as advisory. `fallocate` is already in
+ * the seccomp allowlist (seccomp_core.c) — permitted and, until now, unused. */
+ngx_int_t
+sd_posix_reserve(brix_sd_obj_t *obj, off_t size)
+{
+#if defined(__linux__) && defined(FALLOC_FL_KEEP_SIZE)
+    int rc;
+
+    do {
+        rc = fallocate(obj->fd, FALLOC_FL_KEEP_SIZE, 0, size);
+    } while (rc != 0 && errno == EINTR);
+
+    if (rc == 0) {
+        return NGX_OK;
+    }
+
+    /* fallocate is NOT atomic on ENOSPC (ext4 allocates extent-by-extent and
+     * keeps what it got): a refused oversized declaration can park nearly all
+     * free space on a file whose st_size is still 0 - an invisible full disk
+     * behind a failed open, repeatable by any client (observed live: 66 GB
+     * stuck on a 1 TB fs from one call). Release the beyond-EOF part of the
+     * failed range before reporting. ftruncate to the UNCHANGED st_size is the
+     * release primitive: any truncate drops blocks past the new EOF - verified
+     * live; PUNCH_HOLE|KEEP_SIZE over the same range does NOT touch beyond-EOF
+     * extents on ext4. Data inside EOF survives (size 0 at this call site
+     * anyway), and a failed release changes nothing the caller can act on. */
+    if (errno == ENOSPC || errno == EDQUOT) {
+        int          err = errno;
+        struct stat  st;
+
+        if (fstat(obj->fd, &st) == 0 && st.st_size < size
+            && ftruncate(obj->fd, st.st_size) != 0)
+        {
+            /* nothing left to do: the open is failing with ENOSPC either way */
+        }
+        errno = err;
+    }
+    return NGX_ERROR;
+#else
+    (void) obj;
+    (void) size;
+    errno = EOPNOTSUPP;
+    return NGX_ERROR;
+#endif
 }
 
 /* sd_posix_ftruncate / _fsync / _fstat — direct fd ops */

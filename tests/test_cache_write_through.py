@@ -99,6 +99,22 @@ def _wait_port(host, port, timeout=10.0):
     pytest.fail(f"server at {host}:{port} not reachable after {timeout}s")
 
 
+def _wait_flushed(data_dir, fname, size, timeout=8.0):
+    """Block until the async flush lands `fname` in the origin backing store at
+    the expected size, or raise pytest.fail. Replaces a fixed sleep: the flush
+    normally completes in milliseconds, so poll tightly."""
+    path = os.path.join(data_dir, fname)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            if os.path.getsize(path) == size:
+                return
+        except OSError:
+            pass
+        time.sleep(0.02)
+    pytest.fail(f"async flush did not land {path} at {size} bytes within {timeout}s")
+
+
 # ---------------------------------------------------------------------------
 # Fixtures — wait for each pre-started server, then yield connection info
 # ---------------------------------------------------------------------------
@@ -267,8 +283,9 @@ class TestWriteThroughAsync:
             f"WT-async write failed:\n{r.stderr.decode('utf-8', errors='replace')}"
         )
 
-        # Async mode: flush is posted to a thread pool; brief wait for completion.
-        time.sleep(0.5)
+        # Async mode: flush is posted to a thread pool; wait for it to land in
+        # the origin store rather than sleeping a fixed interval.
+        _wait_flushed(write_through_async_server["data_dir"], fname, len(payload))
 
         out = str(tmp_path / f"back_{fname}")
         r2 = subprocess.run(["xrdcp", "-s", f"{base_url}//{fname}", out],
@@ -341,7 +358,8 @@ class TestWTChecksumConsistency:
             f"WT-async write failed:\n{r.stderr.decode('utf-8', errors='replace')}"
         )
 
-        time.sleep(1)  # Allow async flush thread to complete before reading back.
+        # Wait for the async flush to land in the origin store before reading back.
+        _wait_flushed(write_through_async_server["data_dir"], fname, len(payload))
 
         dst = str(tmp_path / f"back_{fname}")
         r2 = subprocess.run(["xrdcp", "-f", "-s", f"{base_url}//{fname}", dst],

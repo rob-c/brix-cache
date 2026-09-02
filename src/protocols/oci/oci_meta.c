@@ -196,18 +196,18 @@ brix_oci_meta_store(const char *body_path, off_t size, time_t mtime,
      * failure would then be indistinguishable from a close failure. */
     if (rc < 0 || fflush(fp) != 0) {
         (void) fclose(fp);
-        (void) unlink(tmp);                /* vfs-seam-allow: sidecar staging file, not object data */
+        (void) unlink(tmp);                /* vfs-seam-allow: DOMAIN_REGISTRY — sidecar staging file, not object data */
         return NGX_ERROR;
     }
     if (fclose(fp) != 0) {
-        (void) unlink(tmp);                /* vfs-seam-allow: sidecar staging file, not object data */
+        (void) unlink(tmp);                /* vfs-seam-allow: DOMAIN_REGISTRY — sidecar staging file, not object data */
         return NGX_ERROR;
     }
 
-    if (rename(tmp, final) != 0) {         /* vfs-seam-allow: sidecar publish, not object data */
+    if (rename(tmp, final) != 0) {         /* vfs-seam-allow: DOMAIN_REGISTRY — sidecar publish, not object data */
         ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
                       "oci: sidecar rename failed \"%s\"", final);
-        (void) unlink(tmp);                /* vfs-seam-allow: sidecar staging file, not object data */
+        (void) unlink(tmp);                /* vfs-seam-allow: DOMAIN_REGISTRY — sidecar staging file, not object data */
         return NGX_ERROR;
     }
 

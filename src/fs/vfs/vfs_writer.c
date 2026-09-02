@@ -20,27 +20,8 @@
  *       brix_vfs_wverify_check over a fresh read-only handle and unlinks on any
  *       mismatch. No goto; early-return per coding-standards.
  */
-#include "vfs_internal.h"
-#include "core/compat/wverify.h"
+#include "vfs_writer_internal.h"       /* session struct + spill (phase-107 C1) */
 #include "core/compat/copy_range.h"   /* brix_copy_range — zero-copy fd ingest */
-
-struct brix_vfs_writer_s {
-    brix_vfs_ctx_t    *ctx;            /* pool-owned deep clone (self-contained) */
-    ngx_pool_t        *pool;
-    ngx_log_t         *log;
-    brix_vfs_file_t   *fh;             /* random-write path (else NULL)          */
-    brix_vfs_staged_t *st;             /* staged-upload path (else NULL)         */
-    brix_wverify_t    *wv;             /* verify accumulator (NULL when !verify) */
-    off_t              staged_cursor;  /* next expected offset on the staged path*/
-    off_t              written;        /* total bytes written                    */
-    /* Phase-105: the endpoint's mutation policy, copied at open. A write
-     * session outlives the request that opened it, so every writer gate
-     * decides from this copy and never from w->ctx being re-read. */
-    brix_vfs_mutation_policy_t mutation_policy;
-    unsigned           random:1;       /* 1 = in-place handle, 0 = staged        */
-    unsigned           verify:1;
-    unsigned           finished:1;     /* commit or abort has run                */
-};
 
 /* Does the backend behind `ctx` accept an in-place random-offset write? The
  * POSIX default export has no resolved sd instance (ctx->sd == NULL) and is
@@ -69,6 +50,7 @@ writer_release(brix_vfs_writer_t *w)
         brix_vfs_staged_abort(w->st, 1 /* remove temp */);
         w->st = NULL;
     }
+    brix_vfs_writer_spill_discard(w);   /* unlink any spill scratch (C1 T3) */
     if (w->wv != NULL) {
         brix_wverify_free(w->wv);
         w->wv = NULL;
@@ -117,13 +99,14 @@ brix_vfs_writer_open(brix_vfs_ctx_t *ctx, unsigned flags, int verify,
     w->log             = ctx->log;
     w->verify          = verify ? 1 : 0;
     w->mutation_policy = ctx->mutation_policy;
+    w->spill.fd        = NGX_INVALID_FILE;   /* pcalloc's 0 is a real fd */
     /* O_ATOMIC forces the staged temp+publish path even for a random-write backend
      * so a failed write leaves no partial at the final path (WebDAV/S3 PUT). */
-    w->random = (flags & BRIX_VFS_O_ATOMIC)
-              ? 0
-              : (writer_random_backend(w->ctx) ? 1 : 0);
+    w->mode = ((flags & BRIX_VFS_O_ATOMIC) == 0 && writer_random_backend(w->ctx))
+            ? BRIX_VFS_WRITER_RANDOM
+            : BRIX_VFS_WRITER_SEQUENTIAL;
 
-    if (w->random) {
+    if (w->mode == BRIX_VFS_WRITER_RANDOM) {
         unsigned oflags = BRIX_VFS_O_WRITE | BRIX_VFS_O_CREATE
                         | (flags & BRIX_VFS_O_TRUNC);
         w->fh = brix_vfs_open(w->ctx, oflags, &verr);
@@ -137,6 +120,16 @@ brix_vfs_writer_open(brix_vfs_ctx_t *ctx, unsigned flags, int verify,
         if (w->st == NULL) {
             writer_set_error(err_out, verr ? verr : EIO);
             return NULL;
+        }
+        /* BRIX_VFS_WRITER_O_UNORDERED (phase-107 C1): the caller declares the
+         * extents may arrive out of order, so provision the spill now rather
+         * than on the first violation. The MUTATE_OPEN gate has already fired
+         * inside brix_vfs_staged_open, so a read-only endpoint never reaches
+         * this line — the scratch is created strictly AFTER the gate. Failure
+         * to provision is not fatal at open: a strictly in-order stream still
+         * succeeds, and a real reorder re-attempts (and then errors). */
+        if (flags & BRIX_VFS_WRITER_O_UNORDERED) {
+            (void) brix_vfs_writer_spill_enter(w, 0, 0);
         }
     }
 
@@ -155,7 +148,9 @@ brix_vfs_writer_open(brix_vfs_ctx_t *ctx, unsigned flags, int verify,
 static ngx_int_t
 writer_put(brix_vfs_writer_t *w, const void *buf, size_t len, off_t off)
 {
-    if (w->random) {
+    switch (w->mode) {
+
+    case BRIX_VFS_WRITER_RANDOM: {
         const u_char *p    = buf;
         size_t        left = len;
 
@@ -171,11 +166,27 @@ writer_put(brix_vfs_writer_t *w, const void *buf, size_t len, off_t off)
         return NGX_OK;
     }
 
-    /* Staged / object store: no in-place patching — extents must land in order
-     * from offset 0 (the object is built sequentially into the temp/upload). */
-    if (off != w->staged_cursor) {
-        errno = EINVAL;
+    case BRIX_VFS_WRITER_SPILL:
+        return brix_vfs_writer_spill_put(w, buf, len, off);
+
+    case BRIX_VFS_WRITER_FAILED:
+        errno = ENOSPC;             /* scratch was exhausted; nothing recovers */
         return NGX_ERROR;
+
+    case BRIX_VFS_WRITER_SEQUENTIAL:
+        break;
+    }
+
+    /* Staged / object store: the upload is built sequentially into the
+     * temp/upload, so a reordered extent cannot be patched in place. Phase-107
+     * C1 replaced the old EINVAL refusal here with the one-way T1 promotion
+     * into spill mode; a rewind below the already-staged prefix (or a missing
+     * spill root) is still refused inside spill_enter. */
+    if (off != w->staged_cursor) {
+        if (brix_vfs_writer_spill_enter(w, off, len) != NGX_OK) {
+            return NGX_ERROR;
+        }
+        return brix_vfs_writer_spill_put(w, buf, len, off);
     }
     if (brix_vfs_staged_write(w->st, buf, len, off) != NGX_OK) {
         return NGX_ERROR;
@@ -270,7 +281,7 @@ brix_vfs_writer_write_fd(brix_vfs_writer_t *w, int src_fd, off_t src_off,
      * sendfile_fd() returns NGX_INVALID_FILE for an object/block backend (no single
      * seekable destination), which — like verify and the staged path — falls back
      * to the bounce so block routing / the CRC accumulator are not bypassed. */
-    if (w->random && !w->verify) {
+    if (w->mode == BRIX_VFS_WRITER_RANDOM && !w->verify) {
         ngx_fd_t dfd = brix_vfs_file_sendfile_fd(w->fh);
 
         if (dfd != NGX_INVALID_FILE) {
@@ -292,9 +303,20 @@ brix_vfs_writer_expected_off(const brix_vfs_writer_t *w)
     if (w == NULL) {
         return -1;
     }
-    /* Staged/object path: the next byte must land at the sequential cursor. The
-     * random path has no ordering constraint; report the high-water byte count. */
-    return w->random ? w->written : w->staged_cursor;
+    /* Advisory only since phase-107 C1: the writer accepts any offset in RANDOM
+     * and SPILL modes and self-promotes SEQUENTIAL -> SPILL on a reorder, so
+     * callers must NOT pre-refuse on a mismatch — submit the write and let the
+     * writer's errno decide (EINVAL = unservable order, ENOSPC = no scratch). */
+    switch (w->mode) {
+    case BRIX_VFS_WRITER_SEQUENTIAL:
+        return w->staged_cursor;
+    case BRIX_VFS_WRITER_SPILL:
+        return w->spill.high_water;
+    case BRIX_VFS_WRITER_RANDOM:
+    case BRIX_VFS_WRITER_FAILED:
+        break;
+    }
+    return w->written;
 }
 
 /* Re-open the just-committed object read-only and confirm the driver persisted
@@ -319,8 +341,64 @@ writer_verify(brix_vfs_writer_t *w)
     return rc;
 }
 
+/* Free the read-back verifier state, if armed. */
+static void
+writer_wv_free(brix_vfs_writer_t *w)
+{
+    if (w->wv != NULL) {
+        brix_wverify_free(w->wv);
+        w->wv = NULL;
+    }
+}
+
+/*
+ * WHAT: The staged half of commit: drain a spill, publish the temp onto the
+ *       final path, tear the staged session down.
+ * WHY:  A staged commit failure must leave nothing published; `pre` rides to
+ *       brix_vfs_staged_commit, whose errno (EEXIST/ECANCELED = precondition
+ *       refused) must survive the teardown that follows.
+ * HOW:  T4 (FAILED) refuses ENOSPC without publishing. T2: a spilled object is
+ *       drained sequentially into the staged session first; a coverage hole
+ *       refuses (EINVAL). The scratch is unlinked only AFTER the publish
+ *       succeeds, so a crash mid-publish leaves the bytes recoverable (C1).
+ */
+static ngx_int_t
+writer_commit_staged(brix_vfs_writer_t *w, brix_sd_precond_t *pre)
+{
+    ngx_int_t crc;
+    int       ce;
+
+    if (w->mode == BRIX_VFS_WRITER_FAILED) {
+        /* T4 already aborted the staged session; nothing may publish. */
+        writer_release(w);
+        errno = ENOSPC;
+        return NGX_ERROR;
+    }
+    if (w->mode == BRIX_VFS_WRITER_SPILL
+        && brix_vfs_writer_spill_drain(w) != NGX_OK)
+    {
+        ce = errno;
+        writer_release(w);
+        errno = ce;
+        return NGX_ERROR;
+    }
+
+    crc = brix_vfs_staged_commit(w->st, pre);
+    ce  = errno;   /* preserve EEXIST/ECANCELED (precondition refused) */
+
+    brix_vfs_staged_abort(w->st, 0 /* already published/closed */);
+    w->st = NULL;
+    brix_vfs_writer_spill_discard(w);
+    if (crc != NGX_OK) {
+        writer_wv_free(w);
+        errno = ce;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
 ngx_int_t
-brix_vfs_writer_commit_ex(brix_vfs_writer_t *w, unsigned excl)
+brix_vfs_writer_commit_pre(brix_vfs_writer_t *w, brix_sd_precond_t *pre)
 {
     if (w == NULL || w->finished) {
         return NGX_ERROR;
@@ -333,52 +411,55 @@ brix_vfs_writer_commit_ex(brix_vfs_writer_t *w, unsigned excl)
     {
         return NGX_ERROR;
     }
+    /* The in-place path cannot evaluate a publish precondition: the bytes
+     * already landed on the final object when they were written. NONE and
+     * ABSENT are legitimately settled earlier (ABSENT was the open's O_EXCL);
+     * a MATCH_* here would be a silent pass, so it refuses (§3.5 — a refusal
+     * over an emulation that lies). After the policy gate, so a read-only
+     * endpoint still answers EROFS, never ENOTSUP. */
+    if (w->mode == BRIX_VFS_WRITER_RANDOM
+        && pre != NULL && pre->kind != BRIX_SD_PRECOND_NONE
+        && pre->kind != BRIX_SD_PRECOND_ABSENT)
+    {
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
     w->finished = 1;
 
     /* Persist: fsync + close the in-place handle, or atomically publish the temp
      * onto the final path. A staged commit failure leaves nothing published.
      * `excl` uses RENAME_NOREPLACE on the staged path (S3 If-None-Match → EEXIST);
      * it is meaningless for the in-place random path (no separate publish). */
-    if (w->random) {
+    if (w->mode == BRIX_VFS_WRITER_RANDOM) {
         (void) brix_vfs_sync(w->fh);
         brix_vfs_close(w->fh, w->log);
         w->fh = NULL;
-    } else {
-        ngx_int_t crc = brix_vfs_staged_commit(w->st, excl);
-        int       ce  = errno;   /* preserve EEXIST (excl create lost the race) */
-
-        brix_vfs_staged_abort(w->st, 0 /* already published/closed */);
-        w->st = NULL;
-        if (crc != NGX_OK) {
-            if (w->wv != NULL) {
-                brix_wverify_free(w->wv);
-                w->wv = NULL;
-            }
-            errno = ce;
-            return NGX_ERROR;
-        }
+    } else if (writer_commit_staged(w, pre) != NGX_OK) {
+        return NGX_ERROR;
     }
 
     /* Read-back integrity check; a mismatch must never leave a corrupt object. */
     if (writer_verify(w) != NGX_OK) {
         (void) brix_vfs_unlink(w->ctx);
-        if (w->wv != NULL) {
-            brix_wverify_free(w->wv);
-            w->wv = NULL;
-        }
+        writer_wv_free(w);
         return NGX_ERROR;
     }
-    if (w->wv != NULL) {
-        brix_wverify_free(w->wv);
-        w->wv = NULL;
-    }
+    writer_wv_free(w);
     return NGX_OK;
+}
+
+ngx_int_t
+brix_vfs_writer_commit_ex(brix_vfs_writer_t *w, unsigned excl)
+{
+    brix_sd_precond_t pre = { .kind = BRIX_SD_PRECOND_ABSENT };
+
+    return brix_vfs_writer_commit_pre(w, excl ? &pre : NULL);
 }
 
 ngx_int_t
 brix_vfs_writer_commit(brix_vfs_writer_t *w)
 {
-    return brix_vfs_writer_commit_ex(w, 0 /* replace */);
+    return brix_vfs_writer_commit_pre(w, NULL /* replace */);
 }
 
 void
@@ -400,8 +481,14 @@ brix_vfs_writer_fd(const brix_vfs_writer_t *w)
     /* The random path patches the final file in place through its handle fd; the
      * staged path exposes the temp fd (NGX_INVALID_FILE for a driver-backed object
      * with no kernel fd — those bodies must go through brix_vfs_writer_write). */
-    if (w->random) {
+    if (w->mode == BRIX_VFS_WRITER_RANDOM) {
         return brix_vfs_file_fd(w->fh);
+    }
+    /* Never the spill scratch: a raw write there would bypass the coverage set
+     * and the byte accounting. Raw-fd consumers stream strictly in order, so a
+     * writer they drive never leaves SEQUENTIAL. */
+    if (w->mode != BRIX_VFS_WRITER_SEQUENTIAL) {
+        return NGX_INVALID_FILE;
     }
     return brix_vfs_staged_fd(w->st);
 }
@@ -409,5 +496,5 @@ brix_vfs_writer_fd(const brix_vfs_writer_t *w)
 brix_vfs_staged_t *
 brix_vfs_writer_staged(const brix_vfs_writer_t *w)
 {
-    return (w != NULL && !w->random) ? w->st : NULL;
+    return (w != NULL && w->mode == BRIX_VFS_WRITER_SEQUENTIAL) ? w->st : NULL;
 }

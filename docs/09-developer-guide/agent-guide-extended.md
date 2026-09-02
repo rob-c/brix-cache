@@ -110,6 +110,15 @@ a third, separate build; see the note below):
 - **Do NOT run `./configure` unless** you added a new source file (not in `./config`), a new top-level config block,
    or changed `--with-*` options. Incremental builds use `make -j$(nproc)` alone.
 
+**In-tree ABI changes force a clean rebuild.** `make` rebuilds only TUs whose
+`.c` changed; a signature or struct edit in a widely-included header leaves stale
+objects that link fine and misbehave at runtime. After changing a driver-slot
+signature or a shared struct layout, `rm -rf /tmp/nginx-1.28.3/objs && ./configure
+… && make`. Precedent: phase-107 W7 changed the `staged_commit` slot from
+`(h, unsigned excl)` to `(h, brix_sd_precond_t *pre)` across every storage driver
+(`src/fs/backend/sd.h`) — every driver TU and every VFS commit site had to
+recompile together.
+
 **The client CLIs build from `client/Makefile`, not `./config`.** A new `.c` under
 `client/` (or under the client-only `shared/cvmfs`, `shared/cache`) must be named
 there — in `LIB_SRCS`, a per-CLI `<name>_OBJS` list, or one of the grouped object

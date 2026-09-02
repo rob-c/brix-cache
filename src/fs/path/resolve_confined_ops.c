@@ -368,8 +368,36 @@ DIR *
 brix_opendir_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved)
 {
-    char rel[PATH_MAX];
     int  rootfd;
+    DIR *d;
+
+    if (brix_imp_client_active()) {
+        /* The brokered branch never touches a rootfd. */
+        return brix_opendir_confined_canon_at(log, -1, root_canon, resolved);
+    }
+
+    rootfd = brix_open_root_fd(log, root_canon);
+    if (rootfd < 0) {
+        return NULL;
+    }
+    d = brix_opendir_confined_canon_at(log, rootfd, root_canon, resolved);
+    close(rootfd);
+    return d;
+}
+
+/*
+ * brix_opendir_confined_canon_at — brix_opendir_confined_canon on a BORROWED
+ * confinement rootfd (an O_PATH|O_DIRECTORY fd already anchored on
+ * root_canon, e.g. the per-worker conf->rootfd): identical semantics and
+ * impersonation dispatch, minus the per-call root open/close.  Never closes
+ * the fd it was handed.  WHY: the root open/close pair was 2 of the 10
+ * syscalls on every kXR_dirlist.
+ */
+DIR *
+brix_opendir_confined_canon_at(ngx_log_t *log, int rootfd,
+    const char *root_canon, const char *resolved)
+{
+    char rel[PATH_MAX];
     DIR *d;
 
     if (!brix_resolved_relative_to_root(log, root_canon, resolved,
@@ -398,12 +426,7 @@ brix_opendir_confined_canon(ngx_log_t *log, const char *root_canon,
      * and enumerates it — a confinement escape. RESOLVE_IN_ROOT confines the
      * resolution so an escaping target is refused.
      */
-    rootfd = brix_open_root_fd(log, root_canon);
-    if (rootfd < 0) {
-        return NULL;
-    }
     d = brix_opendir_beneath(rootfd, rel);
-    close(rootfd);
     return d;
 }
 
@@ -453,4 +476,32 @@ brix_lstat_confined_canon(ngx_log_t *log, const char *root_canon,
                   : brix_stat_beneath(rootfd, rel, st);
     close(rootfd);
     return rc;
+}
+
+/*
+ * brix_lstat_confined_canon_at — brix_lstat_confined_canon on a BORROWED
+ * confinement rootfd (an O_PATH|O_DIRECTORY fd already anchored on
+ * root_canon, e.g. the per-worker conf->rootfd): identical semantics and
+ * impersonation dispatch, minus the per-call root open/close.  Never closes
+ * the fd it was handed.
+ */
+int
+brix_lstat_confined_canon_at(ngx_log_t *log, int rootfd,
+    const char *root_canon, const char *resolved, struct stat *st,
+    int nofollow)
+{
+    char rel[PATH_MAX];
+
+    if (!brix_resolved_relative_to_root(log, root_canon, resolved,
+                                          rel, sizeof(rel)))
+    {
+        return -1;
+    }
+
+    if (brix_imp_client_active()) {
+        return brix_imp_stat(rel, st, nofollow);    /* as mapped user */
+    }
+
+    return nofollow ? brix_lstat_beneath(rootfd, rel, st)
+                    : brix_stat_beneath(rootfd, rel, st);
 }

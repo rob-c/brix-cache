@@ -33,6 +33,7 @@
 
 /* ---- write path: single PUT + multipart upload ----------------------- */
 
+
 /* sd_s3_ck_crc32 — render the AWS x-amz-checksum-crc32 value for a body: base64
  * of the 4 big-endian bytes of CRC-32/IEEE (the algorithm AWS/MinIO/radosgw
  * validate for that header). out must hold >= 9 bytes (8 chars + NUL). #12. */
@@ -253,7 +254,11 @@ sd_s3_mpu_complete(sd_s3_file *f, char *errbuf, size_t errcap)
         }
         len += (size_t) t;
     }
-    if (sd_s3_sign(f, "POST", qs, auth, sizeof(auth)) != 0) {
+    if (f->cond_name[0] != '\0'
+        ? sd_s3_sign_publish_cond(f, "POST", qs, NULL, auth,
+                                  sizeof(auth)) != 0
+        : sd_s3_sign(f, "POST", qs, auth, sizeof(auth)) != 0)
+    {
         free(xml);
         sd_s3_set_err(errbuf, errcap, "s3 CompleteMPU: sign failed");
         return -1;
@@ -440,6 +445,12 @@ sd_s3_pwrite_buffered(sd_s3_file *f, const void *buf, size_t n, off_t off,
 
         while (cap < f->put_len + n)
             cap *= 2;
+        /* Explicit staged_max bound (phase-107 C1, W2): the lazy-MPU upgrade in
+         * sd_s3_pwrite guarantees put_len + n <= part_size on this arm, so the
+         * buffer's true ceiling is part_size — clamp the geometric overshoot
+         * (doubling could otherwise allocate just under 2x part_size). */
+        if (cap > (size_t) f->part_size)
+            cap = (size_t) f->part_size;
         grown = realloc(f->put_buf, cap);
         if (grown == NULL) {
             sd_s3_set_err(errbuf, errcap, "s3 single-put: out of memory");
@@ -480,6 +491,20 @@ sd_s3_pwrite(sd_s3_file *f, const void *buf, size_t n, off_t off,
 }
 
 int
+sd_s3_set_publish_cond(sd_s3_file *f, const char *name, const char *value)
+{
+    if (f == NULL || !f->is_write || name == NULL || value == NULL
+        || strlen(name) >= sizeof(f->cond_name)
+        || strlen(value) >= sizeof(f->cond_val))
+    {
+        return -1;
+    }
+    strcpy(f->cond_name, name);
+    strcpy(f->cond_val, value);
+    return 0;
+}
+
+int
 sd_s3_commit(sd_s3_file *f, char *errbuf, size_t errcap)
 {
     if (!f->is_write) {
@@ -505,6 +530,12 @@ sd_s3_commit(sd_s3_file *f, char *errbuf, size_t errcap)
          * body and rejects a wire-corrupted PUT with 400 BadDigest. */
         if (f->put_checksum) {
             sd_s3_ck_crc32(f->put_buf, f->put_len, ck);
+        }
+        if (f->cond_name[0] != '\0') {
+            sr = sd_s3_sign_publish_cond(f, "PUT", "",
+                                         f->put_checksum ? ck : NULL,
+                                         auth, sizeof(auth));
+        } else if (f->put_checksum) {
             sr = sd_s3_sign_ex(f, "PUT", "", "x-amz-checksum-crc32", ck,
                                auth, sizeof(auth));
         } else {

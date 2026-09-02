@@ -118,6 +118,7 @@ def write_config(base: Path, port: int) -> Path:
         f"""daemon on;
 error_log {logs / 'error.log'} info;
 pid {base / 'nginx.pid'};
+env BRIX_CACHE_REAP_FIRST_MS=250;
 events {{ worker_connections 64; }}
 stream {{
     server {{

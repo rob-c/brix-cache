@@ -26,6 +26,7 @@ from brixtest.helper_bundle import archive_helper_bundle
 from brixtest.helper_control import CANCEL_ENV, HEARTBEAT_ENV
 from brixtest.isolation import build_launch
 from brixtest.metrics import evaluate_budget
+from brixtest.native import native_input_paths
 from brixtest.pytest_state import METRICS_SESSION, SHARED_TOPOLOGY
 from brixtest.runtime.logcapture import BoundedLogPump
 
@@ -245,11 +246,15 @@ def _run_helper(
     argv = _helper_argv(item)
     isolation = pytest_options.selected_isolation(item.config, definition)
     env["BRIXTEST_ISOLATION_KIND"] = isolation.kind
+    helper_inputs = native_input_paths(item.obj)
     launch = build_launch(
         isolation, argv, env, cwd=Path(item.config.rootpath),
-        readonly_roots=(Path(item.config.rootpath), Path(__file__).resolve().parents[1]),
+        readonly_roots=(
+            Path(item.config.rootpath), Path(__file__).resolve().parents[1],
+            *helper_inputs,
+        ),
         writable_root=run_root.parent, control_dir=control,
-        host_aliases=definition.hosts,
+        host_aliases=definition.hosts, helper_inputs=helper_inputs,
     )
     started = time.time()
     process = subprocess.Popen(

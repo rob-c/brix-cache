@@ -72,6 +72,16 @@ struct sd_s3_file {
      * upload with 400 BadDigest (brix_backend_put_checksum). Off ⇒ UNSIGNED-PAYLOAD
      * with no body integrity — the stock behaviour. */
     int                          put_checksum;
+
+    /* C6 conditional publish (phase-107 W7): when cond_name[0] != '\0' the
+     * final PUT / CompleteMultipartUpload carries "cond_name: cond_val" in the
+     * SIGNED header set (sd_s3_sign_ext), so the ORIGIN decides atomically —
+     * If-None-Match: * for create-if-absent, If-Match: <etag> for
+     * compare-and-publish. A 412 maps to ECANCELED (sd_s3_status_err); the
+     * remote driver retypes ABSENT's 412 to EEXIST. Set via
+     * sd_s3_set_publish_cond (sd_s3.h). */
+    char                         cond_name[16];
+    char                         cond_val[SD_S3_ETAG_LEN];
 };
 
 /* ---- SigV4 signing + error mapping (sd_s3.c), shared by every path --------- */
@@ -110,5 +120,11 @@ typedef struct {
 /* Emit an Authorization header for `req` into hdrs (0 = ok, -1 = failure). */
 int sd_s3_sign_ext(const sd_s3_file *f, const sd_s3_sign_req_t *req,
         char *hdrs, size_t hdrsz);
+
+/* Conditional-publish signer (phase-107 C6, sd_s3_sign_ext.c): signs a PUT or
+ * CompleteMPU POST carrying the armed f->cond_name/cond_val header (plus the
+ * optional crc32 body checksum and the STS session token). */
+int sd_s3_sign_publish_cond(sd_s3_file *f, const char *method,
+    const char *canon_qs, const char *ck_val, char *hdrs, size_t hdrsz);
 
 #endif /* BRIX_FS_BACKEND_S3_SD_S3_INTERNAL_H */

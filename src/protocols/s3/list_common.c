@@ -81,7 +81,7 @@ s3_list_collect_sorted(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     if (cf->list_cache) {
         struct stat rst;
 
-        if (stat((const char *) cf->common.root.data, &rst) == 0) {  /* vfs-seam-allow: export-root mtime for the list cache (the root itself, not a path beneath it) */
+        if (stat((const char *) cf->common.root.data, &rst) == 0) {  /* vfs-seam-allow: SEAM_CORRECT — export-root mtime for the list cache (the root itself, not a path beneath it) */
             dir_mtime = rst.st_mtime;
         }
         cached = s3_list_cache_get(r, (const char *) cf->common.root.data,

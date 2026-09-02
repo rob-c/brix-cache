@@ -394,15 +394,13 @@ brix_open_validate_fd(brix_open_args_t *a)
 							  kXR_IOError, "not a regular file");
 		}
 
-		/* The fd is a confirmed regular file: drop O_NONBLOCK so every downstream
-		 * read/write/sendfile sees ordinary blocking semantics (a no-op for local
-		 * regular files, but it keeps the fd's flags unsurprising for callers). */
-		{
-			int fl = fcntl(fd, F_GETFL);
-			if (fl != -1 && (fl & O_NONBLOCK)) {
-				(void) fcntl(fd, F_SETFL, fl & ~O_NONBLOCK);
-			}
-		}
+		/* The fd is a confirmed regular file, and Linux ignores O_NONBLOCK for
+		 * regular-file read/write/sendfile/fsync — so the flag left over from
+		 * the anti-wedge open is inert and stays set.  (It used to be cleared
+		 * here with an F_GETFL/F_SETFL pair: two syscalls per open buying
+		 * nothing on a confirmed-regular fd.  Non-blocking semantics against
+		 * the page cache are opted into per-call with RWF_NOWAIT, never via
+		 * the fd flag.) */
 	}
 	return NGX_OK;
 }

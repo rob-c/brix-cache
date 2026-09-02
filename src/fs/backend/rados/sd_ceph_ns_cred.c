@@ -57,6 +57,7 @@ typedef enum {
     SD_CEPH_NS_GETXATTR,
     SD_CEPH_NS_LISTXATTR,
     SD_CEPH_NS_SETXATTR,
+    SD_CEPH_NS_UNLINK_MANY,     /* phase-107 C4 batch */
     SD_CEPH_NS_REMOVEXATTR,
     SD_CEPH_NS_TRUNCATE_PATH,
     SD_CEPH_NS_SETATTR
@@ -70,6 +71,7 @@ typedef struct {
     size_t           cap;       /* buf capacity, or setxattr value length */
     off_t            len;       /* truncate length */
     int              is_dir;    /* unlink */
+    brix_sd_unlink_batch_t *batch;   /* unlink_many (C4) */
     brix_sd_stat_t  *stat_out;
     const brix_sd_setattr_t *attr;   /* setattr request */
 } sd_ceph_ns_args_t;
@@ -90,6 +92,8 @@ sd_ceph_ns_apply(sd_ceph_state_t *st, rados_ioctx_t io, sd_ceph_ns_op_e op,
         return sd_ceph_stat_io(st, io, a->path, a->stat_out);
     case SD_CEPH_NS_UNLINK:
         return sd_ceph_unlink_io(st, io, a->path, a->is_dir);
+    case SD_CEPH_NS_UNLINK_MANY:
+        return sd_ceph_unlink_many_io(st, io, a->batch);
     case SD_CEPH_NS_GETXATTR:
         return sd_ceph_getxattr_io(st, io, a->path, a->name, a->buf, a->cap);
     case SD_CEPH_NS_LISTXATTR:
@@ -149,6 +153,23 @@ sd_ceph_unlink_cred(brix_sd_instance_t *inst, const char *path, int is_dir,
     sd_ceph_ns_args_t a = { .path = path, .is_dir = is_dir };
 
     return (ngx_int_t) sd_ceph_ns_cred_run(inst, cred, SD_CEPH_NS_UNLINK, &a);
+}
+
+/* sd_ceph_unlink_many_cred - the C4 batch as the caller. The batch's entire
+ * value on this driver: the caller's ioctx (= identity at the OSDs) is
+ * resolved ONCE and every rados_remove in the window runs on it, against N
+ * acquire/release cycles for the per-key loop. The acquire/release bracket is
+ * safe for the same reason the single unlink's is: a namespace op leaves no
+ * handle behind (EAGER - nothing outlives the call, so nothing needs the
+ * lazy-slot credential COPY). */
+ngx_int_t
+sd_ceph_unlink_many_cred(brix_sd_instance_t *inst, brix_sd_unlink_batch_t *b,
+    const brix_sd_cred_t *cred)
+{
+    sd_ceph_ns_args_t a = { .batch = b };
+
+    return (ngx_int_t) sd_ceph_ns_cred_run(inst, cred, SD_CEPH_NS_UNLINK_MANY,
+                                           &a);
 }
 
 /* sd_ceph_getxattr_cred — read one xattr as the caller. */

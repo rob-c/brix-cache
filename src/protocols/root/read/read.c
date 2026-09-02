@@ -323,12 +323,17 @@ brix_handle_read(brix_ctx_t *ctx, ngx_connection_t *c)
     }
 
     /*
-     * Zero-copy sendfile fast path (gate in read_sendfile_eligible — the
-     * TLS-vs-cleartext INVARIANT lives there).  Anything that fails the gate
-     * drops to the memory/window path below.
+     * Zero-copy sendfile fast path (gate in read_sendfile_serve_fd — the
+     * TLS-vs-cleartext INVARIANT lives there, and the BACKEND elects the fd
+     * for driver-backed handles).  Anything that fails the gate drops to the
+     * memory/window path below.
      */
-    if (read_sendfile_eligible(ctx, c, io.idx)) {
-        return brix_read_serve_sendfile(ctx, c, rconf, &io);
+    {
+        ngx_fd_t sfd = read_sendfile_serve_fd(ctx, c, &io);
+
+        if (sfd != NGX_INVALID_FILE) {
+            return brix_read_serve_sendfile(ctx, c, rconf, &io, sfd);
+        }
     }
 
     /*

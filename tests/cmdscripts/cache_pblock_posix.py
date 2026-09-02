@@ -9,6 +9,7 @@ import subprocess
 import time
 
 from cmdscripts import run
+from cmdscripts.cache_source_helpers import wait_workers_ready
 from cmdscripts.command_results import print_results
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
@@ -102,6 +103,17 @@ def xrdfs_cat(port: int, path: str, dest: Path, xrdfs: Path = XRDFS) -> subproce
         )
 
 
+def _await_mirror(target: Path, payload: Path, timeout=8.0) -> None:
+    """Poll until the staged copy lands byte-complete at the origin (the
+    stage flush runs just after the PUT completes)."""
+    want = payload.stat().st_size
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if target.exists() and target.stat().st_size >= want:
+            return
+        time.sleep(0.05)
+
+
 def run_checks(
     base: Path,
     nginx_bin: str = NGINX_BIN,
@@ -124,16 +136,17 @@ def run_checks(
         started.append(prefix)
 
     try:
-        time.sleep(1)
+        wait_workers_ready(HOST, [(origin_port, "root"), (write_port, "root"),
+                                  (read_port, "root")])
         results: list[tuple[bool, str]] = []
 
         write_payload = base / "cpp_w.bin"
         write_payload.write_bytes(deterministic_bytes(2_621_440, 67))
         put = run([str(xrdcp), "-f", str(write_payload), f"root://{HOST}:{write_port}//w.bin"])
         results.append((put.returncode == 0, "PUT to pblock primary"))
-        time.sleep(1)
 
         origin_write = origin / "root" / "w.bin"
+        _await_mirror(origin_write, write_payload)
         results.append(
             (
                 origin_write.exists() and origin_write.read_bytes() == write_payload.read_bytes(),

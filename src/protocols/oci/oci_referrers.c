@@ -324,13 +324,13 @@ oci_referrers_collect(const char *dir, const ngx_str_t *filter, u_char *body,
     DIR            *dh;
     int             count = 0;
 
-    dh = opendir(dir);                     /* vfs-seam-allow: registry's own referrers index, not a VFS export listing */
+    dh = opendir(dir);                     /* vfs-seam-allow: DOMAIN_REGISTRY — registry's own referrers index, not a VFS export listing */
     if (dh == NULL) {
         return 0;                          /* unknown subject: an empty graph */
     }
 
     while (count < BRIX_OCI_REFERRERS_MAX
-           && (ent = readdir(dh)) != NULL)  /* vfs-seam-allow: registry's own referrers index, not a VFS export listing */
+           && (ent = readdir(dh)) != NULL)  /* vfs-seam-allow: DOMAIN_REGISTRY — registry's own referrers index, not a VFS export listing */
     {
         size_t  len;
 

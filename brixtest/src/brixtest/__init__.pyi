@@ -8,15 +8,9 @@ from brixtest.auth import decode_token as decode_token
 from brixtest.auth import issue_token as issue_token
 from brixtest.auth import kerberos_auth as kerberos_auth
 from brixtest.auth import tls_auth as tls_auth
-from brixtest.auth import (
-    token_auth as token_auth,
-)
-from brixtest.auth import (
-    verify_token as verify_token,
-)
-from brixtest.auth import (
-    voms_auth as voms_auth,
-)
+from brixtest.auth import token_auth as token_auth
+from brixtest.auth import verify_token as verify_token
+from brixtest.auth import voms_auth as voms_auth
 from brixtest.clients.configured import (
     ConfiguredClient as ConfiguredClient,
 )
@@ -251,6 +245,9 @@ from brixtest.metrics import (
 )
 from brixtest.network import HostMapping as HostMapping
 from brixtest.network import host_mapping as host_mapping
+from brixtest.native import OutputExpectation as OutputExpectation
+from brixtest.native import expect_output as expect_output
+from brixtest.native import native_test as native_test
 from brixtest.resources import (
     Command as Command,
 )
@@ -411,6 +408,7 @@ __all__ = [  # noqa: RUF022 - mirrors the runtime facade order
     "MetricTimer",
     "MiB",
     "Mount",
+    "OutputExpectation",
     "Placement",
     "Probe",
     "ProviderContext",
@@ -453,6 +451,7 @@ __all__ = [  # noqa: RUF022 - mirrors the runtime facade order
     "endpoint",
     "exec_probe",
     "execution",
+    "expect_output",
     "file_artifact",
     "get_case",
     "get_extension",
@@ -467,6 +466,7 @@ __all__ = [  # noqa: RUF022 - mirrors the runtime facade order
     "kubernetes_events",
     "load_template",
     "mount",
+    "native_test",
     "noise",
     "nsenter",
     "param",

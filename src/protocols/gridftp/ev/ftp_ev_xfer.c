@@ -271,8 +271,19 @@ brix_ftp_ev_data_ready(ftp_ev_dc_t *dc)
 
     case FTP_EV_OP_STOR:
     case FTP_EV_OP_APPE:
+        /* Phase-107 C5: hand the ALLO declaration to the VFS — the object plane
+         * reserves after the create/trunc open, the staged plane forwards it as
+         * staged_open's declared_size (remote derives a legal multipart part
+         * size). An unsatisfiable declaration fails the open → 550 here. */
+        vctx.declared_size = dc->declared_size;
         dc->writer = brix_vfs_writer_open(&vctx, dc->flags, dc->verify, &verr);
         if (dc->writer == NULL) {
+            if (verr == EBUSY) {
+                /* phase-107 C7: the VFS lock gate refused the write — a
+                 * transient condition per RFC 959, not a permanent 550. */
+                dc->fail_reply =
+                    "450 Requested file action not taken (file busy)\r\n";
+            }
             brix_ftp_ev_data_finish(dc, NGX_ERROR);
             return;
         }
@@ -400,6 +411,12 @@ ev_xfer_alloc_dc(ftp_ev_t *fc, int op, const char *abs,
     /* ALLO completeness enforcement is stream-mode STOR only: MODE E validates
      * completeness structurally (gapless tiling), and RETR/APPE have no ALLO. */
     dc->allo_size = (op == FTP_EV_OP_STOR && !fc->mode_e) ? allo : -1;
+    /* Phase-107 C5: the ALLO value doubles as the declared final size for the
+     * VFS reserve — useful in BOTH modes (MODE E random writes preallocate just
+     * as well), and unlike the completeness check above it is advisory, so it
+     * is safe to carry where enforcement is not. STOR only: an APPE ALLO would
+     * be ambiguous (append amount vs final size) and RFC 959 leaves it so. */
+    dc->declared_size = (op == FTP_EV_OP_STOR && allo > 0) ? allo : 0;
     dc->mode_e  = fc->mode_e;
     dc->eb_eof_total = -1;               /* set by the EOF block (MODE E STOR)    */
     dc->ls_mode = (op == FTP_EV_OP_LIST) ? FTP_EV_LS_LONG

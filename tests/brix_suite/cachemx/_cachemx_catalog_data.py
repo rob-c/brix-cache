@@ -382,9 +382,33 @@ HELP = {
         'User identity slots evicted from the tracking table.',
     'brix_user_sessions_total':
         'Sessions per tracked user identity. Sum across all entries equals total authenticated sessions.',
+    'brix_vfs_bulk_delete_batches_total':
+        'unlink_many batches flushed, by leaf driver.',
+    'brix_vfs_bulk_delete_keys_total':
+        'Keys removed via the batch delete path, by leaf driver.',
+    'brix_vfs_evict_bytes_total':
+        'Bytes reclaimed by the VFS evict verb, by dispatching driver.',
+    'brix_vfs_lock_refused_total':
+        'Mutations arriving under a live foreign lock (refused in strict '
+        'enforcement, warned through in advisory), by protocol.',
     'brix_vfs_mutation_denied_total':
         'Export mutations refused by the VFS read-only policy, by protocol '
         'and operation.',
+    'brix_vfs_precond_advisory_total':
+        'Precondition refusals decided non-atomically (check-then-act), '
+        'by driver.',
+    'brix_vfs_precond_failed_total':
+        'Publish preconditions refused (412), by kind.',
+    'brix_vfs_recall_total':
+        'Nearline recall (prestage) outcomes, by result class.',
+    'brix_vfs_spill_active':
+        'Writer spill scratches currently open.',
+    'brix_vfs_spill_bytes_total':
+        "Bytes absorbed into the writer's out-of-order spill scratch, "
+        'by protocol.',
+    'brix_vfs_spill_refused_total':
+        'Reordered uploads the spill could not serve (no scratch, capacity, '
+        'overlap, or coverage hole), by protocol.',
     'brix_vo_bytes_rx_total':
         'Bytes received from clients grouped by virtual organisation. VO names are truncated to 15 characters.',
     'brix_vo_bytes_tx_total':

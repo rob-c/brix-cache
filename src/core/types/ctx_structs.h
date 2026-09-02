@@ -228,6 +228,17 @@ typedef struct {
     u_char    *payload_buf;        /* reusable receive buffer */
     size_t     payload_buf_size;   /* allocated size of payload_buf */
 
+    /* Post-auth read-ahead stash (see BRIX_RECV_STASH_SIZE): one big recv
+     * feeds many exact-size frame reads with zero further syscalls.  Only
+     * engaged once no other subsystem can ever read this socket raw
+     * (auth done; no upstream/relay conf), so buffered bytes are always
+     * consumed by the framing loop.  stash_len > stash_head means pipelined
+     * request bytes are buffered — a kXR_bind must then refuse migration
+     * (the bytes would not travel with the fd). */
+    u_char    *stash;              /* lazily allocated from c->pool */
+    uint32_t   stash_head;         /* next unconsumed byte */
+    uint32_t   stash_len;          /* bytes buffered (0 = empty) */
+
     /* Streaming large plain kXR_write.  When sw_active is set the payload is a
      * SINGLE bounded chunk (payload_buf holds BRIX_WRITE_STREAM_CHUNK bytes) and
      * cur_dlen is repurposed as the CURRENT chunk length rather than the whole
@@ -265,6 +276,18 @@ typedef struct {
     unsigned           resp_async:1;       /* ack drains without disturbing recv */
     unsigned           finalize_pending:1; /* deferred teardown while wr_inflight > 0 */
     ngx_int_t          finalize_status;    /* ngx_stream status to finalize with */
+
+    /* §1.2 pool-send (offload-AIO): a worker thread that finished a large
+     * pgread may send the frame on this connection's cleartext socket itself,
+     * so the socket has two potential writers.  send_token is the ownership
+     * CAS (0 free / 1 held) every socket-touching path takes once
+     * pool_send_active is set; send_busy mirrors "the out-ring holds parked
+     * frames" for the worker thread (the head one may be mid-frame, so it
+     * must decline and preserve wire order).  Whole frames may reorder freely
+     * — responses correlate by streamid — but bytes within a frame may not. */
+    ngx_atomic_t       send_token;         /* socket ownership: 0 free, 1 held */
+    ngx_atomic_t       send_busy;          /* 1 while ring holds parked frames */
+    unsigned           pool_send_active:1; /* pool-send discipline engaged */
 } brix_ctx_out_t;
 
 /* Read pipeline + reusable read/write scratch buffers.  The *_scratch buffers
@@ -281,8 +304,25 @@ typedef struct {
     size_t    write_scratch_size;
     u_char   *cmp_scratch;           /* inline read-compression codec output (Phase-42 W4) */
     size_t    cmp_scratch_size;
+
+    /* used-since-last-trim marks, one per BRIX_GET_SCRATCH slot (the macro
+     * sets <slot>_hot on every fetch).  brix_trim_scratch only shrinks a slot
+     * whose mark is CLEAR — i.e. one idle for a whole trim cycle — and clears
+     * the marks as it passes.  This keeps a streaming transfer's buffer warm
+     * across back-to-back large requests (no per-request free/mmap churn)
+     * while an idle connection still returns to window-scale heap one request
+     * later than before.  hdr/cmp slots carry the mark for macro uniformity
+     * even though the trim never targets them. */
+    unsigned  read_scratch_hot:1;
+    unsigned  read_hdr_scratch_hot:1;
+    unsigned  write_scratch_hot:1;
+    unsigned  cmp_scratch_hot:1;
+    u_char   *dirlist_chunk;         /* kXR_dirlist header + chunk accumulator,
+                                      * fixed XRD_RESPONSE_HDR_LEN + 64KB
+                                      * (handler.c chunk_cap); alloc'd on first
+                                      * dirlist, reused across requests while no
+                                      * parked response references it */
     ngx_thread_task_t *read_aio_task;
-    ngx_thread_task_t *pgread_aio_task;
     ngx_thread_task_t *readv_aio_task;
     brix_read_slot_t *pool;          /* [pipeline_depth] in-flight read buffers */
     ngx_uint_t         inflight;     /* pool entries currently in use */
@@ -293,11 +333,32 @@ typedef struct {
                                       * (mirrors out.wr_inflight for writes) */
     unsigned           backpressured:1; /* recv stopped admitting reads (pool full) */
     unsigned   win_active:1;         /* windowed memory-read in flight */
+    unsigned   win_pgread:1;         /* windowed stream is a kXR_pgread: the
+                                      * pump cuts windows on the 4 KiB page
+                                      * grid, the worker runs the in-place
+                                      * encode+CRC, and emit frames kXR_status
+                                      * partial/final (pgread_window.c) */
     int        win_idx;
     int        win_fd;
     off_t      win_offset;           /* next file offset to read */
     size_t     win_remaining;        /* bytes still to send */
     u_char     win_streamid[2];
+
+    /* Round 12 — double-buffered windows: while window N drains from
+     * read_scratch, window N+1 is read ahead into win_scratch_b by a counted
+     * thread-pool task; after each emit the two (ptr,size,hot) field triples
+     * swap, so the just-filled back buffer becomes the next emit source and
+     * the just-drained front buffer becomes the next read-ahead target.
+     * win_prefetch = a read-ahead task is on a worker; win_ready = its result
+     * is stashed in win_pf_* awaiting the previous frame's drain. */
+    u_char    *win_scratch_b;        /* back window buffer (read-ahead target) */
+    size_t     win_scratch_b_size;
+    unsigned   win_scratch_b_hot:1;  /* used-since-last-trim (BRIX_GET_SCRATCH) */
+    unsigned   win_prefetch:1;       /* read-ahead task in flight */
+    unsigned   win_ready:1;          /* read-ahead result stashed in win_pf_* */
+    ssize_t    win_pf_nread;         /* stashed read-ahead completion */
+    size_t     win_pf_osz;
+    int        win_pf_errno;
 } brix_ctx_rd_t;
 
 #endif /* BRIX_TYPES_CTX_STRUCTS_H */

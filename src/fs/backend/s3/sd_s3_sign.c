@@ -278,6 +278,14 @@ sd_s3_status_err(int status, const char *op, const char *key,
         sd_s3_set_err(errbuf, errcap, "s3 %s: not found (HTTP 404) on %s",
                       op, key);
         errno = ENOENT;
+    } else if (status == 412) {
+        /* Conditional publish refused by the ORIGIN (phase-107 C6): the signed
+         * If-Match / If-None-Match on the PUT / CompleteMPU did not hold.
+         * ECANCELED is the typed precondition verdict; the remote driver
+         * retypes an ABSENT refusal to EEXIST. */
+        sd_s3_set_err(errbuf, errcap,
+            "s3 %s: precondition failed (HTTP 412) on %s", op, key);
+        errno = ECANCELED;
     } else {
         sd_s3_set_err(errbuf, errcap, "s3 %s: HTTP %d on %s", op, status, key);
         errno = EIO;

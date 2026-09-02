@@ -34,4 +34,4 @@ def test_copied_subproject_imports_without_host_repository(tmp_path):
         check=False, timeout=30,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert result.stdout.strip() == "0.15.0"
+    assert result.stdout.strip() == "0.16.0"

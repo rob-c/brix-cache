@@ -29,9 +29,11 @@
 #include "vfs_internal.h"
 
 #include "core/compat/staged_file.h"
+#include "fs/path/beneath.h"   /* NOREPLACE degradation latch (C6 atomic verdict) */
 #include "fs/backend/cache/sd_cache.h"   /* cached-bytes pre-probe: the decorator's
                                           * staged_open evicts the cached copy */
 #include "fs/xfer/xfer.h"   /* unified transfer audit ledger (one line per publish) */
+#include "vfs_backend_registry.h"   /* brix_vfs_backend_durable (C3 barrier gate) */
 
 #include <unistd.h>      /* pread for the write-back promote read loop */
 
@@ -77,6 +79,13 @@ staged_alloc_handle(brix_vfs_ctx_t *ctx, int *err_out)
     if (brix_vfs_confined_mutation_checked(ctx,
             BRIX_VFS_MUTATE_OPEN) != NGX_OK)
     {
+        return staged_open_fail(err_out);
+    }
+
+    /* phase-107 C7: lock gate after the mutation gate (EROFS precedes EBUSY).
+     * Gated at open: the staged handle outlives the request that presented
+     * the lock token, so this is the one point where ownership is provable. */
+    if (brix_vfs_require_unlocked(ctx, BRIX_VFS_MUTATE_OPEN) != NGX_OK) {
         return staged_open_fail(err_out);
     }
 
@@ -147,7 +156,7 @@ staged_open_driver(brix_vfs_ctx_t *ctx, brix_vfs_staged_t *st,
     cached_bytes = brix_sd_cache_cached_bytes(ctx->sd, key);
 
     st->driver_staged = brix_sd_staged_open_maybe_cred(ctx->sd, key, mode,
-        use_cred ? &ucred : NULL, &sderr);
+        ctx->declared_size, use_cred ? &ucred : NULL, &sderr);
     /* Secret consumed by the staged-origin session; erase the stack copy
      * (A-4 / T4). */
     brix_sd_ucred_wipe(&ustore);
@@ -188,6 +197,39 @@ staged_open_posix(brix_vfs_ctx_t *ctx, brix_vfs_staged_t *st,
     return NGX_OK;
 }
 
+/*
+ * Phase-107 C5: reserve the declared final size on the confined POSIX temp.
+ *
+ * WHAT: dispatch the default driver's `reserve` slot on the just-opened temp
+ *       fd when the client declared the final object size up front.
+ * WHY:  a declaration the export cannot satisfy must fail the OPEN (ENOSPC ->
+ *       kXR_NoSpace / 507) before the client streams a single byte - not at
+ *       the commit hours later. Everything short of "no space" is advisory:
+ *       the filesystem may simply lack a preallocation primitive.
+ * HOW:  a stack shell obj carries the temp fd to the slot (the posix reserve
+ *       needs nothing else). ENOSPC/EDQUOT -> abort the temp (unlinking it)
+ *       and fail; any other failure logs at info and the open proceeds.
+ */
+static ngx_int_t
+staged_reserve_posix(brix_vfs_ctx_t *ctx, brix_vfs_staged_t *st, int *err_out)
+{
+    int err;
+
+    if (brix_vfs_fd_reserve(ctx->log, st->staged.fd, ctx->declared_size)
+        == NGX_OK)
+    {
+        return NGX_OK;
+    }
+
+    err = errno;
+    brix_staged_abort(ctx->log, ctx->root_canon, &st->staged, 1);
+    if (err_out != NULL) {
+        *err_out = err;
+    }
+    errno = err;
+    return NGX_ERROR;
+}
+
 /* Open a staged temp file for the resolved ctx (final) path. Write-gated.
  * `mode` is the final object's permission bits; `attempts` bounds the O_EXCL
  * unique-name retries. Returns a handle on ctx->pool, or NULL with the errno in
@@ -223,7 +265,9 @@ brix_vfs_staged_open(brix_vfs_ctx_t *ctx, mode_t mode, ngx_uint_t attempts,
             .mode       = mode,
             .attempts   = attempts,
         };
-        if (staged_open_posix(ctx, st, &oreq, err_out) != NGX_OK) {
+        if (staged_open_posix(ctx, st, &oreq, err_out) != NGX_OK
+            || staged_reserve_posix(ctx, st, err_out) != NGX_OK)
+        {
             return NULL;
         }
     }
@@ -298,15 +342,180 @@ brix_vfs_staged_tmp_path(const brix_vfs_staged_t *st)
  * already exists (caller maps to 412). Books backend bytes + access log with
  * the committed object size; the unified WRITE op row belongs to the owning
  * protocol. Returns NGX_OK or NGX_ERROR with errno set. */
+
+/* The C6 refusal pair's kind axis is sized [3] in the SHM block (metrics.h);
+ * this is the compile-time tie to the fs enum, the same firewall pattern
+ * vfs_policy.c carries for the mutation-denied op axis. */
+_Static_assert((int) BRIX_SD_PRECOND_MATCH_META == 3,
+    "brix_sd_precond_kind_t and the vfs_precond_failed SHM axis disagree");
+
+/* One refused publish precondition → the C6 metric pair (contract in
+ * vfs_internal.h). The errno filter is what lets every commit/copy failure
+ * path call this without classifying first: EEXIST is only the ABSENT
+ * verdict and ECANCELED only the MATCH_* verdict on these paths — any other
+ * errno means the commit failed for a different reason and books nothing. */
+void
+brix_vfs_precond_refused_observe(const brix_sd_precond_t *pre, int err,
+    const char *driver_name)
+{
+    if (pre == NULL || pre->kind == BRIX_SD_PRECOND_NONE) {
+        return;
+    }
+    if (err != (pre->kind == BRIX_SD_PRECOND_ABSENT ? EEXIST : ECANCELED)) {
+        return;
+    }
+    brix_metric_vfs_precond_failed((ngx_uint_t) pre->kind);
+    if (!pre->atomic) {
+        brix_metric_vfs_precond_advisory(driver_name);
+    }
+}
+
+/* The one commit-failure record: metric + transfer bookkeeping with errno
+ * preserved across both observers.  Always returns NGX_ERROR.  Books the C6
+ * refusal pair when the failure IS a refused precondition (the observer's
+ * errno filter decides); the deciding driver is the leaf — decorators only
+ * relay staged_commit — and the non-driver compat arm is "posix". */
+static ngx_int_t
+vfs_staged_commit_fail(brix_vfs_staged_t *st, const char *final_path,
+    uint64_t start, const brix_sd_precond_t *pre)
+{
+    int                 e    = errno;
+    brix_sd_instance_t *leaf = brix_vfs_ns_leaf(st->ctx->sd);
+
+    brix_vfs_precond_refused_observe(pre, e,
+        leaf != NULL ? brix_sd_backend_name(leaf) : "posix");
+    brix_vfs_observe_ctx_op_ex(st->ctx, final_path, BRIX_METRIC_OP_WRITE,
+                              NULL, 0, NGX_ERROR, e, start, 0);
+    brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, 0,
+                       BRIX_XFER_COMMIT_ERR, e, st->log);
+    errno = e;
+    return NGX_ERROR;
+}
+
+/* Phase-107 C3 durable publish, driver arm. The default POSIX driver's
+ * staged_commit already routed through brix_staged_commit, which carries the
+ * barrier inline — calling the slot again would double the dirfsync, so it is
+ * dispatched only on a NON-default leaf that has something local to flush
+ * (pblock's catalogue dir; NULL slot for http/xroot/remote/ceph, whose publish
+ * is atomic at the far end). A failed barrier FAILS the publish: the name is
+ * visible but a success report would claim durability the store does not
+ * have. NGX_ERROR with errno set (EIO fallback); skip conditions are NGX_OK. */
+static ngx_int_t
+vfs_staged_driver_barrier(brix_vfs_staged_t *st, const char *final_path)
+{
+    brix_sd_instance_t *leaf = brix_vfs_ns_leaf(st->ctx->sd);
+    int                 e;
+
+    if (leaf == NULL || leaf->driver == brix_sd_default_driver()
+        || leaf->driver->sync_publish == NULL
+        || !brix_vfs_backend_durable(st->ctx->root_canon))
+    {
+        return NGX_OK;
+    }
+    if (leaf->driver->sync_publish(leaf,
+            brix_vfs_export_relative(st->ctx, final_path)) != NGX_OK)
+    {
+        e = errno ? errno : EIO;
+        ngx_log_error(NGX_LOG_CRIT, st->log, e,
+                      "brix: staged commit: durable-publish barrier failed "
+                      "for \"%s\"", final_path);
+        errno = e;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/* The non-driver (compat posix) arm's MATCH_* evaluation: stat the final
+ * path and run the shared stat-grammar evaluator. Check-then-rename — honest
+ * but NOT atomic, so pre->atomic stays 0 (the same verdict the posix driver
+ * reports). The stat is fd-relative to nothing: final_path here is already
+ * the resolved export-absolute path the commit renames onto, and a racing
+ * writer between this stat and the rename is exactly what atomic==0 tells
+ * the protocol layer it may not rule out. */
+static ngx_int_t
+vfs_staged_precond_compat(brix_vfs_staged_t *st, const brix_sd_precond_t *pre,
+    const char *final_path)
+{
+    struct stat sb;
+
+    (void) st;
+    if (stat(final_path, &sb) != 0) {   /* vfs-seam-allow: SEAM_CORRECT — the compat staged
+                                         * arm IS the posix storage plane here
+                                         * (brix_staged_commit renames on this
+                                         * same path); MATCH_* against a
+                                         * missing target is a failed match */
+        errno = ECANCELED;
+        return NGX_ERROR;
+    }
+    if (brix_sd_precond_eval_stat(pre, sb.st_size, sb.st_mtime) != 0) {
+        return NGX_ERROR;               /* errno = ECANCELED / ENOTSUP */
+    }
+    return NGX_OK;
+}
+
+/* The compat (posix rename) arm of the staged commit: size the temp, evaluate
+ * a typed precondition, publish by rename, book the outcome. */
+static ngx_int_t
+vfs_staged_commit_compat(brix_vfs_staged_t *st, brix_sd_precond_t *pre,
+    const char *final_path, uint64_t start)
+{
+    size_t      bytes = 0;
+    struct stat sb;
+    ngx_int_t   rc;
+
+    /* The staged fd is still open here (commit renames; only abort closes), so
+     * the committed size comes from a local fstat of OUR temp taken before the
+     * rename — never a path re-stat of final_path, which under impersonation is
+     * a broker IPC round-trip per upload and can race a concurrent overwrite. */
+    if (st->staged.fd != NGX_INVALID_FILE && fstat(st->staged.fd, &sb) == 0
+        && S_ISREG(sb.st_mode))
+    {
+        bytes = (size_t) sb.st_size;
+    }
+
+    /* Typed precondition on the compat arm (C6): ABSENT is the atomic
+     * RENAME_NOREPLACE publish (the old `excl`); MATCH_* is an advisory
+     * stat-compare before a plain rename — refused before anything is
+     * renamed, and reported non-atomic. */
+    if (pre != NULL && pre->kind != BRIX_SD_PRECOND_NONE
+        && pre->kind != BRIX_SD_PRECOND_ABSENT)
+    {
+        if (vfs_staged_precond_compat(st, pre, final_path) != NGX_OK) {
+            return vfs_staged_commit_fail(st, final_path, start, pre);
+        }
+    }
+    rc = brix_sd_precond_absent(pre)
+         ? brix_staged_commit_excl(st->log, st->ctx->root_canon, &st->staged,
+                                     final_path)
+         : brix_staged_commit(st->log, st->ctx->root_canon, &st->staged,
+                                final_path);
+    if (brix_sd_precond_absent(pre) && (rc == NGX_OK || errno == EEXIST)) {
+        /* RENAME_NOREPLACE decided at the filesystem — unless this host has
+         * ever degraded to the check-then-act fallback (beneath.c latch);
+         * the C6 advisory metric keys on this verdict. */
+        pre->atomic = !brix_renameat_noreplace_degraded();
+    }
+    if (rc != NGX_OK) {
+        return vfs_staged_commit_fail(st, final_path, start, pre);
+    }
+
+    brix_vfs_neg_stat_forget(st->ctx->root_canon, final_path);
+    brix_vfs_observe_ctx_op_ex(st->ctx, final_path, BRIX_METRIC_OP_WRITE, NULL,
+                              bytes, NGX_OK, 0, start, 0);
+    /* The publication record — the single place this committed object is
+     * accounted for across all transfer kinds. */
+    brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, bytes,
+                       BRIX_XFER_OK, 0, st->log);
+    return NGX_OK;
+}
+
 ngx_int_t
-brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
+brix_vfs_staged_commit(brix_vfs_staged_t *st, brix_sd_precond_t *pre)
 {
     const char *final_path;
     uint64_t    start = brix_vfs_now_ns();
     size_t      bytes = 0;
-    struct stat sb;
     ngx_int_t   rc;
-    int         saved_errno;
 
     if (st == NULL || st->ctx == NULL) {
         errno = EINVAL;
@@ -340,19 +549,16 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
      * on failure the handle stays valid for the caller's abort. The byte count
      * is the high-water mark tracked across staged writes. */
     if (st->driver_staged != NULL) {
-        rc = ctx->sd->driver->staged_commit(st->driver_staged, excl);
+        rc = ctx->sd->driver->staged_commit(st->driver_staged, pre);
         if (rc != NGX_OK) {
-            saved_errno = errno;
-            brix_vfs_observe_ctx_op_ex(st->ctx, final_path,
-                                      BRIX_METRIC_OP_WRITE, NULL, 0, NGX_ERROR,
-                                      saved_errno, start, 0);
-            brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, 0,
-                               BRIX_XFER_COMMIT_ERR, saved_errno, st->log);
-            errno = saved_errno;
-            return NGX_ERROR;
+            return vfs_staged_commit_fail(st, final_path, start, pre);
         }
         bytes = (size_t) st->driver_total;
         st->driver_staged = NULL;   /* consumed by a successful commit */
+
+        if (vfs_staged_driver_barrier(st, final_path) != NGX_OK) {
+            return vfs_staged_commit_fail(st, final_path, start, pre);
+        }
         brix_vfs_observe_ctx_op_ex(st->ctx, final_path, BRIX_METRIC_OP_WRITE,
                                   NULL, bytes, NGX_OK, 0, start, 0);
         brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, bytes,
@@ -360,39 +566,7 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
         return NGX_OK;
     }
 
-    /* The staged fd is still open here (commit renames; only abort closes), so
-     * the committed size comes from a local fstat of OUR temp taken before the
-     * rename — never a path re-stat of final_path, which under impersonation is
-     * a broker IPC round-trip per upload and can race a concurrent overwrite. */
-    if (st->staged.fd != NGX_INVALID_FILE && fstat(st->staged.fd, &sb) == 0
-        && S_ISREG(sb.st_mode))
-    {
-        bytes = (size_t) sb.st_size;
-    }
-
-    rc = excl
-         ? brix_staged_commit_excl(st->log, ctx->root_canon, &st->staged,
-                                     final_path)
-         : brix_staged_commit(st->log, ctx->root_canon, &st->staged,
-                                final_path);
-    if (rc != NGX_OK) {
-        saved_errno = errno;
-        brix_vfs_observe_ctx_op_ex(st->ctx, final_path, BRIX_METRIC_OP_WRITE,
-                                  NULL, 0, NGX_ERROR, saved_errno, start, 0);
-        brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, 0,
-                           BRIX_XFER_COMMIT_ERR, saved_errno, st->log);
-        errno = saved_errno;
-        return NGX_ERROR;
-    }
-
-    brix_vfs_neg_stat_forget(ctx->root_canon, final_path);
-    brix_vfs_observe_ctx_op_ex(st->ctx, final_path, BRIX_METRIC_OP_WRITE, NULL,
-                              bytes, NGX_OK, 0, start, 0);
-    /* The publication record — the single place this committed object is
-     * accounted for across all transfer kinds. */
-    brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, bytes,
-                       BRIX_XFER_OK, 0, st->log);
-    return NGX_OK;
+    return vfs_staged_commit_compat(st, pre, final_path, start);
 }
 
 /* Close the staged temp and, when `remove_tmp`, unlink it (the failure/cleanup

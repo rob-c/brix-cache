@@ -45,6 +45,9 @@
 #define RENAME_NOREPLACE (1u << 0)   /* <linux/fs.h>; defined here to avoid the
                                       * header's struct collisions */
 #endif
+#ifndef RENAME_EXCHANGE
+#define RENAME_EXCHANGE  (1u << 1)   /* same header, same collision dodge */
+#endif
 
 /*
  * IMPERSONATION SEAM (phase 40).
@@ -224,8 +227,10 @@ brix_opendir_beneath(int rootfd, const char *reqpath)
  * create a fresh name.
  *
  * beneath_open_parent() returns an O_PATH fd on the confined parent of reqpath
- * (caller closes) and points *base at the final component (into reqpath).
- * pbuf must be >= PATH_MAX.  Returns -1 (errno: EXDEV/ELOOP on escape).
+ * — rootfd ITSELF (borrowed) when the parent is the root — and points *base
+ * at the final component (into reqpath).  Callers must release the fd with
+ * beneath_close_parent(), never a bare close().  pbuf must be >= PATH_MAX.
+ * Returns -1 (errno: EXDEV/ELOOP on escape).
  */
 static int
 beneath_open_parent(int rootfd, const char *reqpath,
@@ -236,9 +241,13 @@ beneath_open_parent(int rootfd, const char *reqpath,
     size_t      plen;
 
     if (slash == NULL || slash == rel) {
-        /* single component, or only a leading-slash remnant → parent is root */
+        /* Single component, or only a leading-slash remnant → the parent IS
+         * the root: hand back rootfd itself, BORROWED — callers release via
+         * beneath_close_parent(), which never closes it.  Re-opening the root
+         * as "." only re-derived an fd we already hold, at an openat2+close
+         * per top-level mutation. */
         *base = (slash == NULL) ? rel : slash + 1;
-        return do_openat2(rootfd, ".", O_PATH | O_DIRECTORY, 0);
+        return rootfd;
     }
 
     *base = slash + 1;
@@ -252,12 +261,50 @@ beneath_open_parent(int rootfd, const char *reqpath,
     return do_openat2(rootfd, pbuf, O_PATH | O_DIRECTORY, 0);
 }
 
+/* Release a parent fd from beneath_open_parent(), preserving errno; a no-op
+ * when the parent was the borrowed rootfd itself. */
+static void
+beneath_close_parent(int pfd, int rootfd)
+{
+    int e;
+
+    if (pfd != rootfd) {
+        e = errno;
+        close(pfd);
+        errno = e;
+    }
+}
+
+/* Strip trailing '/' (keeping a lone root) into norm[] and return the
+ * normalized path: a trailing slash denotes the same object, and without this
+ * beneath_open_parent() would split "name/" into parent="name" + an empty
+ * leaf. Two callers hit it from opposite directions: globus-url-copy -cd
+ * issues `MKD interop/` (parent does not exist yet -> ENOENT), and an S3
+ * folder marker is addressed as "key/", so DeleteObject of one — and any
+ * rmdir arriving through it — died with EINVAL. Matches the recursive
+ * mkdir path's brix_mkdir_normalise(). NULL/ENAMETOOLONG when it cannot fit. */
+static const char *
+beneath_strip_trailing_slash(const char *reqpath, char *norm, size_t cap)
+{
+    size_t  n;
+
+    n = strlen(reqpath);
+    if (n >= cap) { errno = ENAMETOOLONG; return NULL; }
+    memcpy(norm, reqpath, n + 1);
+    while (n > 1 && norm[n - 1] == '/') { norm[--n] = '\0'; }
+    return norm;
+}
+
 int
 brix_unlink_beneath(int rootfd, const char *reqpath, int is_dir)
 {
     char         pbuf[PATH_MAX];
+    char         norm[PATH_MAX];
     const char  *base;
-    int          pfd, rc, e;
+    int          pfd, rc;
+
+    reqpath = beneath_strip_trailing_slash(reqpath, norm, sizeof(norm));
+    if (reqpath == NULL) { return -1; }
 
     if (brix_imp_client_active()) {
         return brix_imp_unlink(reqpath, is_dir);
@@ -265,9 +312,11 @@ brix_unlink_beneath(int rootfd, const char *reqpath, int is_dir)
 
     pfd = beneath_open_parent(rootfd, reqpath, pbuf, sizeof(pbuf), &base);
     if (pfd < 0) { return -1; }
-    if (base[0] == '\0') { close(pfd); errno = EINVAL; return -1; }
+    if (base[0] == '\0') {
+        beneath_close_parent(pfd, rootfd); errno = EINVAL; return -1;
+    }
     rc = unlinkat(pfd, base, is_dir ? AT_REMOVEDIR : 0);
-    e = errno; close(pfd); errno = e;
+    beneath_close_parent(pfd, rootfd);
     return rc;
 }
 
@@ -277,20 +326,10 @@ brix_mkdir_beneath(int rootfd, const char *reqpath, mode_t mode)
     char         pbuf[PATH_MAX];
     char         norm[PATH_MAX];
     const char  *base;
-    size_t       n;
-    int          pfd, rc, e;
+    int          pfd, rc;
 
-    /* A trailing slash denotes the same directory: globus-url-copy -cd issues
-     * `MKD interop/`, and without this beneath_open_parent() would split it into
-     * parent="interop" (which does not exist yet) + an empty leaf, failing the
-     * create with ENOENT. Drop trailing '/' (keeping a lone root) so the split
-     * lands on the real leaf — matching the recursive path's brix_mkdir_
-     * normalise(), so both mkdir variants tolerate `MKD dir/`. */
-    n = strlen(reqpath);
-    if (n >= sizeof(norm)) { errno = ENAMETOOLONG; return -1; }
-    memcpy(norm, reqpath, n + 1);
-    while (n > 1 && norm[n - 1] == '/') { norm[--n] = '\0'; }
-    reqpath = norm;
+    reqpath = beneath_strip_trailing_slash(reqpath, norm, sizeof(norm));
+    if (reqpath == NULL) { return -1; }
 
     if (brix_imp_client_active()) {
         return brix_imp_mkdir(reqpath, mode);
@@ -298,10 +337,27 @@ brix_mkdir_beneath(int rootfd, const char *reqpath, mode_t mode)
 
     pfd = beneath_open_parent(rootfd, reqpath, pbuf, sizeof(pbuf), &base);
     if (pfd < 0) { return -1; }
-    if (base[0] == '\0') { close(pfd); errno = EINVAL; return -1; }
+    if (base[0] == '\0') {
+        beneath_close_parent(pfd, rootfd); errno = EINVAL; return -1;
+    }
     rc = mkdirat(pfd, base, mode);
-    e = errno; close(pfd); errno = e;
+    beneath_close_parent(pfd, rootfd);
     return rc;
+}
+
+/* Latched once the NOREPLACE fallback below ever degraded to a plain
+ * renameat on this host (kernel/filesystem without RENAME_NOREPLACE). The
+ * C6 precondition path reads it to report ABSENT as non-atomic from then on
+ * (file-scope, not function-local, so the accessor can see it; monotonic and
+ * process-wide, so it can only UNDER-claim atomicity — the safe direction). */
+static int noreplace_degraded;
+static int noreplace_warned;
+
+/* 1 iff create-if-absent has ever fallen back to check-then-act here. */
+int
+brix_renameat_noreplace_degraded(void)
+{
+    return noreplace_degraded;
 }
 
 /*
@@ -321,9 +377,9 @@ brix_renameat_noreplace_fallback(ngx_log_t *log, int sfd, const char *sbase,
                            (unsigned int) RENAME_NOREPLACE);
 
     if (rc != 0 && (errno == ENOSYS || errno == EINVAL)) {
-        static int warned = 0;
-        if (!warned) {
-            warned = 1;
+        noreplace_degraded = 1;
+        if (!noreplace_warned) {
+            noreplace_warned = 1;
             ngx_log_error(NGX_LOG_WARN, log, errno,
                           "brix: renameat2(RENAME_NOREPLACE) unsupported; "
                           "create-if-absent falls back to non-atomic rename");
@@ -340,6 +396,7 @@ brix_renameat_noreplace_fallback(ngx_log_t *log, int sfd, const char *sbase,
 typedef enum {
     BENEATH_2P_RENAME,
     BENEATH_2P_RENAME_EXCL,
+    BENEATH_2P_EXCHANGE,
     BENEATH_2P_LINK,
 } beneath_two_path_op_t;
 
@@ -349,12 +406,17 @@ beneath_two_path(beneath_two_path_op_t op, int rootfd, const char *src,
 {
     char         sbuf[PATH_MAX], dbuf[PATH_MAX];
     const char  *sbase, *dbase;
-    int          sfd, dfd, rc, e;
+    int          sfd, dfd, rc;
 
     if (brix_imp_client_active()) {
         switch (op) {
         case BENEATH_2P_RENAME:      return brix_imp_rename(src, dst);
         case BENEATH_2P_RENAME_EXCL: return brix_imp_rename_noreplace(src, dst);
+        case BENEATH_2P_EXCHANGE:
+            /* No impersonation-broker exchange verb, and §3.5 forbids a
+             * two-rename emulation: refuse rather than fake atomicity. */
+            errno = ENOTSUP;
+            return -1;
         default:                     return brix_imp_link(src, dst);
         }
     }
@@ -362,9 +424,11 @@ beneath_two_path(beneath_two_path_op_t op, int rootfd, const char *src,
     sfd = beneath_open_parent(rootfd, src, sbuf, sizeof(sbuf), &sbase);
     if (sfd < 0) { return -1; }
     dfd = beneath_open_parent(rootfd, dst, dbuf, sizeof(dbuf), &dbase);
-    if (dfd < 0) { e = errno; close(sfd); errno = e; return -1; }
+    if (dfd < 0) { beneath_close_parent(sfd, rootfd); return -1; }
     if (sbase[0] == '\0' || dbase[0] == '\0') {
-        close(sfd); close(dfd); errno = EINVAL; return -1;
+        beneath_close_parent(sfd, rootfd);
+        beneath_close_parent(dfd, rootfd);
+        errno = EINVAL; return -1;
     }
 
     switch (op) {
@@ -378,11 +442,25 @@ beneath_two_path(beneath_two_path_op_t op, int rootfd, const char *src,
         rc = brix_renameat_noreplace_fallback(ngx_cycle->log, sfd, sbase,
                                               dfd, dbase);
         break;
+    case BENEATH_2P_EXCHANGE:
+        /* Atomic two-name swap; no glibc wrapper predates 2.28, so raw
+         * SYS_renameat2 like the NOREPLACE arm above. A kernel or filesystem
+         * without the flag answers ENOSYS/EINVAL — reported as ENOTSUP, and
+         * NEVER degraded to two renames: unlike NOREPLACE there is no
+         * pre-checked consolation whose only failure mode is under-claiming
+         * (sd.h exchange contract, phase-107 §3.5). */
+        rc = (int) syscall(SYS_renameat2, sfd, sbase, dfd, dbase,
+                           (unsigned int) RENAME_EXCHANGE);
+        if (rc != 0 && (errno == ENOSYS || errno == EINVAL)) {
+            errno = ENOTSUP;
+        }
+        break;
     default:
         rc = linkat(sfd, sbase, dfd, dbase, 0);
         break;
     }
-    e = errno; close(sfd); close(dfd); errno = e;
+    beneath_close_parent(sfd, rootfd);
+    beneath_close_parent(dfd, rootfd);
     return rc;
 }
 
@@ -401,6 +479,19 @@ int
 brix_rename_beneath_excl(int rootfd, const char *src, const char *dst)
 {
     return beneath_two_path(BENEATH_2P_RENAME_EXCL, rootfd, src, dst);
+}
+
+/*
+ * Atomic two-name exchange: renameat2(RENAME_EXCHANGE) on the final
+ * components, confined under rootfd exactly like brix_rename_beneath().
+ * Returns 0; or -1 with errno (ENOENT when either name is missing, ENOTSUP
+ * when the kernel/filesystem has no RENAME_EXCHANGE or an impersonation
+ * broker is active — never emulated with two renames).
+ */
+int
+brix_exchange_beneath(int rootfd, const char *a, const char *b)
+{
+    return beneath_two_path(BENEATH_2P_EXCHANGE, rootfd, a, b);
 }
 
 int

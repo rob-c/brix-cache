@@ -27,10 +27,11 @@ from _cache_partial_helpers import (
     _session, _read_frame, make_open_req,
 )
 
-# serial + registry lifecycle: each test boots its own cache+origin pair, and the
-# slice read path is flagged crash-prone under concurrency (see
-# test_cache_partial_fill.py); mirror its markers.
-pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
+# Registry lifecycle: each test boots its own cache+origin pair on the same
+# fixed-port specs as test_cache_partial_fill.py — mirror its markers (shared
+# xdist_group keeps both suites on one worker). The historical serial-lane
+# quarantine was lifted with that suite's; see its pytestmark comment.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cache-partial")]
 
 kXR_rm = 3014

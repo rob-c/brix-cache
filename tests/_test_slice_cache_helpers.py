@@ -28,10 +28,6 @@ from cmdscripts import c_object_units
 from server_registry import NginxInstanceSpec
 from settings import HOST, NGINX_BIN
 
-def _expression_1(body):
-    return (
-        struct.unpack("!I", body[:4])[0] if len(body) >= 4 else 1
-    )
 
 
 def _guard_cached_1(on_disk, obj, bs, wholes, fields, slices):
@@ -104,8 +100,12 @@ def _read(sock, fhandle, offset, length, deadline=30.0):
                                  offset, length, 0))
         status, body = _resp(sock)
         if status == _kXR_wait:
-            secs = _expression_1(body)
-            time.sleep(min(max(secs, 0.2), 1.0))
+            # Ignore the server-suggested delay: on loopback a 1 MiB slice
+            # fill lands in milliseconds, and honoring a whole advertised
+            # second per slice turns a 16-slice read into ~16 s of idling.
+            # A herd-polite backoff protects a shared production cache, not
+            # a single-client test against its own private instance.
+            time.sleep(0.05)
             continue
         if status in (_kXR_ok, _kXR_oksofar):
             data = body
@@ -246,11 +246,17 @@ def _wait_cinfo(xc, name, want_block, timeout=8.0):
     (the fill thread writes the bitmap just after the slice file lands, so it can
     lag the client read by a moment); return (fields, present_set)."""
     end = time.time() + timeout
+    grace = time.time() + 2.0
     last = None
     while time.time() < end:
         last = _read_cinfo(xc, name)
         if last is not None and want_block in last[1]:
             return last
+        if last is None and time.time() >= grace:
+            # No sidecar AT ALL after the grace window: the store never began
+            # a fill, so the full timeout (meant for a bitmap write lagging a
+            # completed read) buys nothing but idle seconds.
+            break
         time.sleep(0.1)
     raise AssertionError("cinfo for %s never recorded block %d (got %r)"
                          % (name, want_block, last))

@@ -76,7 +76,8 @@ webdav_lock_xml_response(ngx_http_request_t *r, webdav_lock_xattr_t *e)
 
     /* expires is absolute wall-clock seconds → remaining is a plain subtraction. */
     remaining = (e->expires > now) ? (ngx_uint_t) (e->expires - now) : 0;
-    ngx_sprintf((u_char *) timeout_buf, "Second-%ui", remaining);
+    /* ngx_sprintf writes no NUL; terminate before the %s render below. */
+    *ngx_sprintf((u_char *) timeout_buf, "Second-%ui", remaining) = '\0';
 
     safe_owner = webdav_escape_xml_text(r->pool, e->owner);
     if (safe_owner == NULL) {

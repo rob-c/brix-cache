@@ -147,7 +147,7 @@ proxy_gsi_login_done(ngx_event_t *ev)
     brix_proxy_ctx_t *proxy = g->proxy;
 
     if (g->deleg_path[0] != '\0') {
-        (void) unlink(g->deleg_path);   /* vfs-seam-allow: config-domain delegated GSI proxy credential temp (not export storage) */
+        (void) unlink(g->deleg_path);   /* vfs-seam-allow: DOMAIN_CREDENTIAL — config-domain delegated GSI proxy credential temp (not export storage) */
     }
 
     /* Client vanished while we were logging in: drop the authed fd and stop. */
@@ -226,7 +226,7 @@ brix_proxy_gsi_connect_async(brix_proxy_ctx_t *proxy,
     brix_task_bind(task, proxy_gsi_login_thread, proxy_gsi_login_done);
 
     if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
-        (void) unlink(g->deleg_path);   /* vfs-seam-allow: config-domain delegated GSI proxy credential temp (not export storage) */
+        (void) unlink(g->deleg_path);   /* vfs-seam-allow: DOMAIN_CREDENTIAL — config-domain delegated GSI proxy credential temp (not export storage) */
         ngx_log_error(NGX_LOG_ERR, c->log, 0,
             "xrootd tap proxy: GSI login thread post failed");
         return NGX_ERROR;

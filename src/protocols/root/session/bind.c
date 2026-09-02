@@ -5,6 +5,7 @@
 #include "core/ngx_brix_module.h"
 #include "registry.h"
 #include "offload_registry.h"   /* §1.1 per-worker (sessid,pathid)->conn map */
+#include "bind_migrate.h"      /* §1.4 cross-worker secondary migration */
 #include "core/compat/alloc_guard.h"
 
 /*
@@ -28,43 +29,26 @@
 
 static ngx_uint_t  brix_next_pathid = 0;
 
-/* Handle kXR_bind — attach a secondary TCP data channel to an existing primary
- * session: look the session up in the registry and assign a pathid (1-253; 0 is
- * the primary).  Bound connections are capability-restricted (e.g. read primary-
- * published handles via pathid-tagged kXR_read). */
+/* §1.4: the attach core shared by the local path and the migration target.
+ * Runs everything AFTER the sessid is known: registry lookup, identity
+ * inheritance, pathid assignment, offload registration and the kXR_ok reply
+ * (streamid read from ctx->recv.cur_streamid — the adopting worker stamps it
+ * from the migrate message before calling). */
 ngx_int_t
-brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *conf)
+brix_bind_attach(brix_ctx_t *ctx, ngx_connection_t *c,
+    const u_char sessid[BRIX_SESSION_ID_LEN])
 {
-    xrdw_sessid_req_t  req;
     u_char             pathid;
     u_char            *buf;
     size_t             total;
     ngx_uint_t         token_auth = 0;
 
     /*
-     * brix_data_substreams off: refuse the bind so the client streams every
-     * request — and its data — inline on the primary connection (pathid 0).  A
-     * data path is an optimisation, not a requirement (go-hep session.go), so a
-     * refused bind is a clean fallback; this is the supported posture when
-     * fronting a client that would otherwise stream WRITE payloads on a secondary
-     * connection, which BriX does not yet service as a cross-connection data-path.
-     */
-    if (!conf->common.data_substreams) {
-        brix_log_access(ctx, c, "BIND", "-", "-", 0, kXR_Unsupported,
-                          "data substreams disabled (brix_data_substreams off)", 0);
-        return brix_send_error(ctx, c, kXR_Unsupported,
-                                 "data substreams disabled on this server");
-    }
-
-    xrdw_sessid_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
-
-    /*
      * The primary connection inserts its session registry entry at the point
      * where the session is allowed to perform file I/O: anonymous login for
      * auth=none, or successful kXR_auth for authenticated deployments.
      */
-    if (!brix_session_lookup(req.sessid,
+    if (!brix_session_lookup(sessid,
                                ctx->login.dn, sizeof(ctx->login.dn),
                                ctx->login.vo_list, sizeof(ctx->login.vo_list),
                                &token_auth))
@@ -104,7 +88,7 @@ brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
     pathid = (u_char) brix_next_pathid;
 
     /* Bind the session: record the primary's sessid and inherit auth state. */
-    ngx_memcpy(ctx->bound_sessid, req.sessid, BRIX_SESSION_ID_LEN);
+    ngx_memcpy(ctx->bound_sessid, sessid, BRIX_SESSION_ID_LEN);
     ctx->is_bound  = 1;
     ctx->pathid    = (int) pathid;
     ctx->login.logged_in = 1;   /* secondary skips kXR_login */
@@ -114,7 +98,7 @@ brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
      * can validate pathid-tagged requests against the session's live binds
      * (stock refuses an unbound pathid with kXR_ArgInvalid). Cleared again in
      * the disconnect path when this secondary goes away. */
-    brix_session_pathid_bind(req.sessid, (unsigned) pathid);
+    brix_session_pathid_bind(sessid, (unsigned) pathid);
 
     /* §1.1 response offloading: record this secondary's per-worker connection so
      * a later read/readv handler can route a pathid-tagged response out its
@@ -125,8 +109,8 @@ brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXR_bind: pathid=%d sessid=%02xd%02xd...",
                    (int) pathid,
-                   (unsigned) req.sessid[0],
-                   (unsigned) req.sessid[1]);
+                   (unsigned) sessid[0],
+                   (unsigned) sessid[1]);
 
     total = XRD_RESPONSE_HDR_LEN + 1;
     BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
@@ -138,4 +122,47 @@ brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_log_access(ctx, c, "BIND", "-", "-", 1, 0, NULL, 0);
 
     return brix_queue_response(ctx, c, buf, total);
+}
+
+/* Handle kXR_bind — attach a secondary TCP data channel to an existing primary
+ * session: look the session up in the registry and assign a pathid (1-253; 0 is
+ * the primary).  Bound connections are capability-restricted (e.g. read primary-
+ * published handles via pathid-tagged kXR_read).
+ *
+ * §1.4: when the session's primary lives on ANOTHER worker (reuseport scatters
+ * the client's connections across workers), first try to migrate this
+ * secondary's fd to the owning worker over the pre-fork channel pair — response
+ * offloading (§1.1-§1.3) requires primary and secondary on the same event
+ * loop.  On success the owner adopts the socket and sends the bind reply; the
+ * local connection is abandoned by returning NGX_ERROR, whose recv-loop BREAK
+ * teardown closes only this worker's fd reference without writing a byte (the
+ * finalize status is a log-side artifact — nothing is on the wire). */
+ngx_int_t
+brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    xrdw_sessid_req_t  req;
+
+    /*
+     * brix_data_substreams off: refuse the bind so the client streams every
+     * request — and its data — inline on the primary connection (pathid 0).  A
+     * data path is an optimisation, not a requirement (go-hep session.go), so a
+     * refused bind is a clean fallback; this is the supported posture when
+     * fronting a client that would otherwise stream WRITE payloads on a secondary
+     * connection, which BriX does not yet service as a cross-connection data-path.
+     */
+    if (!conf->common.data_substreams) {
+        brix_log_access(ctx, c, "BIND", "-", "-", 0, kXR_Unsupported,
+                          "data substreams disabled (brix_data_substreams off)", 0);
+        return brix_send_error(ctx, c, kXR_Unsupported,
+                                 "data substreams disabled on this server");
+    }
+
+    xrdw_sessid_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
+
+    if (brix_bind_migrate_try(ctx, c, req.sessid) == NGX_OK) {
+        return NGX_ERROR;   /* fd handed to the owning worker; quiet local close */
+    }
+
+    return brix_bind_attach(ctx, c, req.sessid);
 }

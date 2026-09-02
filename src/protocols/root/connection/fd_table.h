@@ -25,9 +25,24 @@
  */
 
 /*
- * brix_alloc_fhandle — find the first free slot in ctx->files[].
+ * brix_files_ensure — allocate the handle table on first use.
  *
- * Returns: slot index [0, BRIX_MAX_FILES) on success, -1 if table full.
+ * ctx->files starts NULL (metadata-only sessions never pay the ~170 KB
+ * table); the open path and the bound-secondary ensure paths call this
+ * before touching a slot.  Idempotent; the table is a single fixed-size
+ * block from the connection pool, never reallocated (AIO tasks hold
+ * brix_file_t pointers across threads).
+ *
+ * Returns: NGX_OK (table present) or NGX_ERROR (allocation failed).
+ */
+ngx_int_t brix_files_ensure(brix_ctx_t *ctx, ngx_connection_t *c);
+
+/*
+ * brix_alloc_fhandle — find the first free slot in ctx->files[], allocating
+ * the table itself on first use (brix_files_ensure).
+ *
+ * Returns: slot index [0, BRIX_MAX_FILES) on success, -1 if table full or
+ * the lazy table allocation failed.
  */
 int brix_alloc_fhandle(brix_ctx_t *ctx);
 

@@ -104,6 +104,14 @@ void ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
 
 /* Linker-only refs from sd_posix_ns.o that this test never calls. */
 void sd_posix_fill_stat(const struct stat *st, brix_sd_stat_t *out) { (void) st; (void) out; }
+/* W3 C3: keep the real durable-publish barrier (brix_publish_dirsync is in the
+ * linked staged_file.o) — "unregistered = on" is the production default. */
+ngx_int_t brix_vfs_backend_durable(const char *root_canon)
+{ (void) root_canon; return 1; }
+/* W4 C5: the contract cases never declare a size, so the reserve arm is dead
+ * here — satisfy the link only. */
+ngx_int_t sd_posix_reserve(brix_sd_obj_t *obj, off_t size)
+{ (void) obj; (void) size; return NGX_OK; }
 int brix_lstat_beneath(int rf, const char *p, struct stat *s) { (void) rf; (void) p; (void) s; return -1; }
 ngx_int_t brix_chmod_confined_canon(void) { return NGX_ERROR; }
 ngx_int_t brix_getxattr_confined_canon(void) { return NGX_ERROR; }
@@ -123,6 +131,14 @@ ngx_int_t brix_ns_delete(void) { return NGX_ERROR; }
 ngx_int_t brix_ns_local_copy(void) { return NGX_ERROR; }
 ngx_int_t brix_ns_mkdir(void) { return NGX_ERROR; }
 ngx_int_t brix_ns_rename(void) { return NGX_ERROR; }
+/* phase-107 fd-relative kernels sd_posix_ns.o names but this test never
+ * dispatches (it drives only the staged plane). */
+ngx_int_t brix_ns_delete_at(void) { return NGX_ERROR; }
+ngx_int_t brix_ns_mkdir_at(void) { return NGX_ERROR; }
+int brix_exchange_beneath(void) { return -1; }
+/* Consulted by sd_posix_staged_commit to annotate pre->atomic: this host's
+ * RENAME_NOREPLACE never degraded during the test. */
+int brix_renameat_noreplace_degraded(void) { return 0; }
 
 /* --------------------------------------------------------------------------- */
 
@@ -142,7 +158,8 @@ int main(void)
      * releases the still-valid handle exactly once. Pre-fix this double-freed. */
     {
         int err = 0;
-        brix_sd_staged_t *h = sd_posix_staged_open(&inst, "/obj_fail.bin", 0644, &err);
+        brix_sd_staged_t *h = sd_posix_staged_open(&inst, "/obj_fail.bin", 0644, 0,
+                                                   &err);
         CHECK(h != NULL, "staged_open (failure case)");
         if (h != NULL) {
             CHECK(sd_posix_staged_write(h, "hello", 5, 0) == 5, "staged_write");
@@ -151,7 +168,7 @@ int main(void)
             snprintf(finalp, sizeof finalp, "%s/obj_fail.bin", root);
             CHECK(mkdir(finalp, 0755) == 0, "mkdir final (inject EISDIR)");
 
-            ngx_int_t rc = sd_posix_staged_commit(h, 0);
+            ngx_int_t rc = sd_posix_staged_commit(h, NULL);
             CHECK(rc != NGX_OK, "commit must fail when publish target is a dir");
 
             sd_posix_staged_abort(h);           /* releases the still-valid handle */
@@ -163,11 +180,12 @@ int main(void)
      * exactly once (a following abort would be UAF, so we must not abort). */
     {
         int err = 0;
-        brix_sd_staged_t *h = sd_posix_staged_open(&inst, "/obj_ok.bin", 0644, &err);
+        brix_sd_staged_t *h = sd_posix_staged_open(&inst, "/obj_ok.bin", 0644, 0,
+                                                   &err);
         CHECK(h != NULL, "staged_open (success case)");
         if (h != NULL) {
             CHECK(sd_posix_staged_write(h, "world", 5, 0) == 5, "staged_write ok");
-            CHECK(sd_posix_staged_commit(h, 0) == NGX_OK, "clean commit must succeed");
+            CHECK(sd_posix_staged_commit(h, NULL) == NGX_OK, "clean commit must succeed");
 
             char okp[512];
             snprintf(okp, sizeof okp, "%s/obj_ok.bin", root);

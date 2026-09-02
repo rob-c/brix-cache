@@ -98,8 +98,8 @@ brix_open_ok_frame(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
 }
 
 ngx_int_t
-brix_send_error(brix_ctx_t *ctx, ngx_connection_t *c,
-    uint16_t errcode, const char *msg)
+brix_send_error_sid(brix_ctx_t *ctx, ngx_connection_t *c,
+    const u_char sid[2], uint16_t errcode, const char *msg)
 {
     size_t    msglen, bodylen, total;
     uint32_t  ecode;
@@ -115,7 +115,7 @@ brix_send_error(brix_ctx_t *ctx, ngx_connection_t *c,
 
     BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_error, (uint32_t) bodylen,
+    brix_build_resp_hdr(sid, kXR_error, (uint32_t) bodylen,
         (ServerResponseHdr *) buf);
 
     ecode = htonl(errcode);
@@ -127,3 +127,11 @@ brix_send_error(brix_ctx_t *ctx, ngx_connection_t *c,
 
     return brix_queue_response(ctx, c, buf, total);
 }
+
+ngx_int_t
+brix_send_error(brix_ctx_t *ctx, ngx_connection_t *c,
+    uint16_t errcode, const char *msg)
+{
+    return brix_send_error_sid(ctx, c, ctx->recv.cur_streamid, errcode, msg);
+}
+

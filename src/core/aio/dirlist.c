@@ -118,6 +118,7 @@ brix_dirlist_aio_done(ngx_event_t *ev)
     brix_dirlist_aio_t *t    = task->ctx;
     brix_ctx_t         *ctx  = t->ctx;
     ngx_connection_t     *c    = t->c;
+    ngx_uint_t          out_before;
 
     /* Restore connection state; abort silently if connection was destroyed. */
     if (!brix_aio_restore_request(ctx, t->streamid)) {
@@ -157,9 +158,13 @@ brix_dirlist_aio_done(ngx_event_t *ev)
      * buffer so an empty final body still sends its 8-byte header and so the
      * owned backing allocation is retained across partial writes.
      */
+    /* Ring-ownership test by out.count delta, not ctx->state — a stale
+     * XRD_ST_SENDING from the recv admission park would otherwise skip the
+     * release after a fully-inline send (see brix_pgread_aio_done). */
+    out_before = ctx->out.count;
     brix_queue_response_base(ctx, c, t->response, t->response_len,
                                t->response);
-    if (ctx->state != XRD_ST_SENDING) {
+    if (ctx->out.count == out_before) {
         brix_release_read_buffer(ctx, c, t->response);
     }
 

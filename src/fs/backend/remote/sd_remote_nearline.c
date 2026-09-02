@@ -29,11 +29,16 @@
  *   archived a single key.
  *
  * IDENTITY
- *   Neither slot has a _cred twin — the vtable defines none for either — so both
- *   sign as the export's service credential. That is correct rather than
- *   convenient: a recall is the gateway's own housekeeping, driven by the cache
- *   tier on a miss, and the restored copy is charged to and owned by the export,
- *   not by whichever user's read happened to trigger it.
+ *   residency has no _cred twin: it signs as the export's service credential,
+ *   because a residency probe is the gateway's own housekeeping, driven by the
+ *   cache tier on a miss. recall carries one (phase-107 C2): a CLIENT-initiated
+ *   prestage (kXR_prepare) is the user's request, so the RestoreObject — an
+ *   operation the bucket owner may well have IAM-scoped per user, and one that
+ *   is BILLED — signs with the requester's keys when the VFS cred gate resolves
+ *   them, and the internal residency probe inside recall_cred signs the same
+ *   way so a deny-mode request never reaches the origin under the service
+ *   credential at all (the stat_cred rationale). The cache tier's own
+ *   recall-at-fill keeps calling the plain slot and stays export-charged.
  */
 
 #include "sd_remote_internal.h"
@@ -131,9 +136,10 @@ sd_remote_restore_state(const char *restore)
  *       404 would tell every plane above that a file had been DESTROYED because
  *       the bucket merely does not have it).
  */
-ngx_int_t
-sd_remote_residency(brix_sd_instance_t *inst, const char *key,
-    brix_sd_residency_t *out)
+static ngx_int_t
+sd_remote_residency_impl(brix_sd_instance_t *inst, const char *key,
+    brix_sd_residency_t *out, const char *ak, const char *sk,
+    const char *region, const char *session)
 {
     const brix_sd_remote_cfg_t *cfg;
     sd_s3_open_params           p;
@@ -156,6 +162,7 @@ sd_remote_residency(brix_sd_instance_t *inst, const char *key,
     cfg = inst->state;
     sd_remote_s3_key(cfg, key, objpath, sizeof(objpath));
     sd_remote_s3_params(cfg, objpath, &p);
+    sd_remote_params_cred(&p, ak, sk, region, session);
 
     s3 = sd_s3_open_read(&p, errbuf, sizeof(errbuf));
     if (s3 == NULL) {
@@ -172,6 +179,13 @@ sd_remote_residency(brix_sd_instance_t *inst, const char *key,
     }
     *out = sd_remote_restore_state(restore);
     return NGX_OK;
+}
+
+ngx_int_t
+sd_remote_residency(brix_sd_instance_t *inst, const char *key,
+    brix_sd_residency_t *out)
+{
+    return sd_remote_residency_impl(inst, key, out, NULL, NULL, NULL, NULL);
 }
 
 /* sd_remote_recall — vtable recall slot: bring `key` online, without blocking.
@@ -194,8 +208,10 @@ sd_remote_residency(brix_sd_instance_t *inst, const char *key,
  *       the slot contract says an empty id means "queued, poll the state" —
  *       which is exactly what a caller must do with S3.
  */
-ngx_int_t
-sd_remote_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
+static ngx_int_t
+sd_remote_recall_impl(brix_sd_instance_t *inst, const char *key,
+    char reqid_out[40], const char *ak, const char *sk, const char *region,
+    const char *session)
 {
     const brix_sd_remote_cfg_t *cfg;
     sd_s3_open_params           p;
@@ -206,7 +222,9 @@ sd_remote_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
     if (reqid_out != NULL) {
         reqid_out[0] = '\0';
     }
-    if (sd_remote_residency(inst, key, &res) != NGX_OK) {
+    if (sd_remote_residency_impl(inst, key, &res, ak, sk, region, session)
+        != NGX_OK)
+    {
         return NGX_ERROR;              /* errno already set (ENOENT/EACCES/…) */
     }
     if (res == BRIX_SD_RES_ONLINE) {
@@ -215,6 +233,41 @@ sd_remote_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
     cfg = inst->state;
     sd_remote_s3_key(cfg, key, objpath, sizeof(objpath));
     sd_remote_s3_params(cfg, objpath, &p);
+    sd_remote_params_cred(&p, ak, sk, region, session);
     (void) sd_s3_restore(&p, cfg->restore_days, errbuf, sizeof(errbuf));
     return NGX_AGAIN;                  /* queued — the caller polls residency */
+}
+
+ngx_int_t
+sd_remote_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
+{
+    return sd_remote_recall_impl(inst, key, reqid_out,
+                                 NULL, NULL, NULL, NULL);
+}
+
+/* recall_cred (phase-107 C2) — the SAME probe-then-restore, signed with the
+ * requesting user's keys (sd_remote_cred_gate: 1 = override, 0 = static
+ * fallback, -1 = deny — the stat_cred shape). Both the HEAD and the
+ * RestoreObject POST complete before return: S3's restore is asynchronous at
+ * the SERVICE (the caller polls residency), but the REQUEST itself is one
+ * synchronous signed round trip, so the borrowed cred is consumed inside the
+ * call and never retained — the sd.h copy rule binds only a driver that keeps
+ * issuing requests after it returns (the opendir asymmetry this driver
+ * documented). */
+ngx_int_t
+sd_remote_recall_cred(brix_sd_instance_t *inst, const char *key,
+    const brix_sd_cred_t *cred, char reqid_out[40])
+{
+    int gate = sd_remote_cred_gate(cred);
+
+    if (gate > 0) {
+        return sd_remote_recall_impl(inst, key, reqid_out,
+            cred->s3_ak, cred->s3_sk, cred->s3_region, cred->s3_session);
+    }
+    if (gate < 0) {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    return sd_remote_recall_impl(inst, key, reqid_out,
+                                 NULL, NULL, NULL, NULL);
 }

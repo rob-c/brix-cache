@@ -307,6 +307,40 @@ sd_cache_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags,
 /* The decorator advertises the namespace/write cap set; the served read object
  * carries the cache store's own byte caps (sendfile/fd), and write/namespace ops
  * forward to the source - so the cache is transport-transparent above the seam. */
+/* Atomic exchange relay (phase-107 C6): the source swaps, and BOTH cached
+ * copies are now the wrong content, so both keys are evicted on success — the
+ * same discipline sd_cache_rename_common applies. Lives here rather than
+ * sd_cache_forward.c, which sits against the 600-line cap.
+ * brix_sd_exchange_maybe_cred refuses ENOTSUP when the source has no
+ * primitive (never a two-rename emulation, §3.5). */
+static ngx_int_t
+sd_cache_exchange_common(brix_sd_instance_t *inst, const char *a,
+    const char *b, const brix_sd_cred_t *cred)
+{
+    sd_cache_inst_state *st = SD_CACHE_ST(inst);
+    ngx_int_t            rc;
+
+    rc = brix_sd_exchange_maybe_cred(st->source, a, b, cred);
+    if (rc == NGX_OK) {
+        (void) brix_cstore_evict(&st->cstore, a);
+        (void) brix_cstore_evict(&st->cstore, b);
+    }
+    return rc;
+}
+
+static ngx_int_t
+sd_cache_exchange(brix_sd_instance_t *inst, const char *a, const char *b)
+{
+    return sd_cache_exchange_common(inst, a, b, NULL);
+}
+
+static ngx_int_t
+sd_cache_exchange_cred(brix_sd_instance_t *inst, const char *a, const char *b,
+    const brix_sd_cred_t *cred)
+{
+    return sd_cache_exchange_common(inst, a, b, cred);
+}
+
 static const brix_sd_driver_t brix_sd_cache_driver = {
     .name        = "cache",
     .caps        = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_RANDOM_WRITE
@@ -319,15 +353,20 @@ static const brix_sd_driver_t brix_sd_cache_driver = {
     .close            = sd_cache_close,
     .pread            = sd_cache_pread,
     .read_advise      = sd_cache_read_advise,
+    .reserve          = sd_cache_reserve,     /* phase-107 C5 parity slot */
     .fstat            = sd_cache_fstat,
     .read_sendfile_fd = sd_cache_read_sendfile_fd,
     .stat          = sd_cache_stat,
     .unlink        = sd_cache_unlink,
+    .unlink_many   = sd_cache_unlink_many,
     .mkdir         = sd_cache_mkdir,
     .rename        = sd_cache_rename,
     .server_copy   = sd_cache_server_copy,
     .setattr       = sd_cache_setattr,
     .truncate_path = sd_cache_truncate_path,
+    .exchange      = sd_cache_exchange,       /* C6 relay + evict both keys */
+    .evict         = sd_cache_evict_op,       /* C2: drop own copy + relay down */
+    .sync_publish  = sd_cache_sync_publish,   /* phase-107 C3 relay */
     .space         = sd_cache_space,
     .opendir       = sd_cache_opendir,
     .readdir       = sd_cache_readdir,
@@ -342,11 +381,14 @@ static const brix_sd_driver_t brix_sd_cache_driver = {
      * re-dispatches through the source's own brix_sd_<op>_maybe_cred. */
     .stat_cred        = sd_cache_stat_cred,
     .unlink_cred      = sd_cache_unlink_cred,
+    .unlink_many_cred   = sd_cache_unlink_many_cred,
     .mkdir_cred       = sd_cache_mkdir_cred,
     .rename_cred      = sd_cache_rename_cred,
     .server_copy_cred = sd_cache_server_copy_cred,
     .setattr_cred     = sd_cache_setattr_cred,
     .truncate_path_cred = sd_cache_truncate_path_cred,
+    .exchange_cred    = sd_cache_exchange_cred,
+    .evict_cred       = sd_cache_evict_op_cred,
     .opendir_cred     = sd_cache_opendir_cred,
     .getxattr_cred    = sd_cache_getxattr_cred,
     .listxattr_cred   = sd_cache_listxattr_cred,
@@ -402,6 +444,8 @@ brix_sd_cache_create(brix_sd_instance_t *source, brix_sd_instance_t *store,
     inst->log    = log;
     inst->pool   = NULL;
     inst->state  = st;
+    inst->domain = BRIX_VFS_DOMAIN_EXPORT;   /* the decorator FRONTS the export;
+                                              * only its store is DOMAIN_CACHE (C9) */
     return inst;
 }
 

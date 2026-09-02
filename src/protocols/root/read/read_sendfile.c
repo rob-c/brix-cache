@@ -45,10 +45,12 @@ brix_ktls_send_active(ngx_connection_t *c)
 /* Zero-copy sendfile serve path for a regular-file cleartext (or kTLS) read:
  * clamps the chunk to EOF, charges bytes/bandwidth/dashboard + access log,
  * builds the sendfile chain and queues it.  Always completes the request --
- * the caller tail-calls this under the is_regular && (!ssl || kTLS) gate. */
+ * the caller tail-calls this with the fd read_sendfile_serve_fd resolved
+ * (the handle's own fd, or the one its backend elected for this range). */
 ngx_int_t
 brix_read_serve_sendfile(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *rconf, const brix_read_io_t *io)
+    ngx_stream_brix_srv_conf_t *rconf, const brix_read_io_t *io,
+    ngx_fd_t sfd)
 {
     size_t       data_total;
     u_char      *send_base = NULL;
@@ -62,10 +64,23 @@ brix_read_serve_sendfile(brix_ctx_t *ctx, ngx_connection_t *c,
      * Read-only handles: file size is stable, use the value cached at open
      * time to skip the fstat(2) syscall on every chunk request.
      * Writable handles (kXR_open_updt): re-stat so a write on the same
-     * session is visible to subsequent reads.
+     * session is visible to subsequent reads — through the driver's fstat
+     * slot when the handle is driver-backed (a bare fstat on the serve fd
+     * would report block-0 size, not object size, for a striped backend).
      */
     if (!ctx->files[idx].writable) {
         file_size = ctx->files[idx].cached_size;
+    } else if (ctx->files[idx].sd_obj.driver != NULL) {
+        brix_sd_stat_t snap;
+        if (ctx->files[idx].sd_obj.driver->fstat == NULL
+            || ctx->files[idx].sd_obj.driver->fstat(&ctx->files[idx].sd_obj,
+                                                    &snap) != NGX_OK)
+        {
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
+                              ctx->files[idx].path, "-",
+                              kXR_IOError, strerror(errno));
+        }
+        file_size = snap.size;
     } else {
         struct stat st;
         if (fstat(io->fd, &st) != 0) {
@@ -98,11 +113,14 @@ brix_read_serve_sendfile(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_rl_charge_ctx(ctx, data_total);  /* Phase 25 bandwidth */
 
     /* Per-backend storage byte totals: this zero-copy branch never reaches
-     * brix_vfs_io_execute (the kernel moves the bytes), so attribute here.
-     * The branch gate (sd_obj.driver == NULL) means the backend is always the
-     * default POSIX driver. Buffered/driver-backed reads attribute at the
-     * io_execute seam instead — no double count. */
-    brix_metric_backend_bytes("posix", BRIX_METRIC_OP_READ, data_total);
+     * brix_vfs_io_execute (the kernel moves the bytes), so attribute here,
+     * to the backend that elected the serve fd (bare-fd handles are the
+     * default POSIX driver). Buffered reads attribute at the io_execute seam
+     * instead — no double count. */
+    brix_metric_backend_bytes(ctx->files[idx].sd_obj.driver != NULL
+                                  ? ctx->files[idx].sd_obj.driver->name
+                                  : "posix",
+                              BRIX_METRIC_OP_READ, data_total);
 
     if (ctx->files[idx].dashboard_slot >= 0 &&
         ngx_brix_dashboard_shm_zone != NULL)
@@ -126,7 +144,7 @@ brix_read_serve_sendfile(brix_ctx_t *ctx, ngx_connection_t *c,
     }
     BRIX_OP_OK(ctx, BRIX_OP_READ);
 
-    rsp_chain = brix_build_sendfile_chain(ctx, c, io->fd,
+    rsp_chain = brix_build_sendfile_chain(ctx, c, sfd,
                                             ctx->files[idx].path,
                                             (off_t) io->offset, data_total,
                                             &send_base);
@@ -147,34 +165,50 @@ brix_read_serve_sendfile(brix_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /*
- * read_sendfile_eligible — gate for the zero-copy sendfile fast path.
+ * read_sendfile_serve_fd — gate + fd resolver for the zero-copy sendfile path.
  *
- * WHAT: true when this handle/connection pair may serve the read via a
- * file-backed sendfile chain instead of the memory/window path.
+ * WHAT: the kernel fd to sendfile this read from, or NGX_INVALID_FILE when the
+ * handle/connection pair must take the memory/window path instead.
  * WHY: INVARIANT — TLS serves memory-backed buffers and cleartext serves
- * file-backed + sendfile, never mixed; this predicate is the single place
- * that split is decided for kXR_read.
- * HOW: two conditions must both hold:
+ * file-backed + sendfile, never mixed; this resolver is the single place that
+ * split is decided for kXR_read.  The storage side of the decision belongs to
+ * the BACKEND (its read_sendfile_fd slot — e.g. pblock declines a range that
+ * spans striped blocks, cache declines a partial object), so a driver-backed
+ * handle asks the driver rather than being refused outright: requiring a bare
+ * fd here quietly turned the whole fast path off once every open became
+ * driver-backed, buffering each cleartext byte through userspace twice.
+ * HOW: the transport conditions must all hold —
  *   - is_regular: sendfile(2) only works against a real file, not a pipe/dir.
+ *   - rlen >= BRIX_READ_SENDFILE_MIN: a small read is cheaper on the memory
+ *     path (one preadv2 + one writev of [hdr|data]) than through the
+ *     4-setsockopt TCP_CORK bracket nginx wraps around a header+file chain.
  *   - !c->ssl OR kTLS active: a userspace-TLS stream cannot sendfile because
  *     nginx must encrypt each record in user memory (INVARIANT: TLS =>
  *     memory-backed buffers).  kTLS lifts that — the kernel encrypts inside
  *     sendfile — so a TLS connection with kTLS negotiated rejoins this branch.
- * Anything that fails the gate (TLS without kTLS, irregular file) drops to the
- * memory/window path.
+ *   - no CSI: phase-59 W2/ADR-6 — CSI needs the bytes in memory to verify.
+ * Then the storage verdict: a bare-fd handle serves from its own fd; a
+ * driver-backed handle serves from whatever fd its read_sendfile_fd slot
+ * elects for [offset, offset+rlen) (NULL slot / decline => memory path).
  */
-ngx_flag_t
-read_sendfile_eligible(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
+ngx_fd_t
+read_sendfile_serve_fd(brix_ctx_t *ctx, ngx_connection_t *c,
+    const brix_read_io_t *io)
 {
-    return ctx->files[idx].is_regular
-        && (!c->ssl || brix_ktls_send_active(c))
-        && ctx->files[idx].csi == NULL   /* phase-59 W2/ADR-6: CSI needs the
-                                          * bytes in memory to verify, so an
-                                          * integrity-checked handle takes the
-                                          * buffered path, not zero-copy sendfile */
-        && ctx->files[idx].sd_obj.driver == NULL; /* Layer 3: a driver-backed
-                                          * handle's bare fd is only block 0 — a
-                                          * sendfile over it cannot span striped
-                                          * blocks, so serve via the buffered
-                                          * io_core path (driver preadv) instead */
+    brix_sd_obj_t *obj = &ctx->files[io->idx].sd_obj;
+
+    if (!ctx->files[io->idx].is_regular
+        || io->rlen < BRIX_READ_SENDFILE_MIN
+        || (c->ssl && !brix_ktls_send_active(c))
+        || ctx->files[io->idx].csi != NULL)
+    {
+        return NGX_INVALID_FILE;
+    }
+    if (obj->driver == NULL) {
+        return io->fd;
+    }
+    if (obj->driver->read_sendfile_fd == NULL) {
+        return NGX_INVALID_FILE;
+    }
+    return obj->driver->read_sendfile_fd(obj, (off_t) io->offset, io->rlen, 1);
 }

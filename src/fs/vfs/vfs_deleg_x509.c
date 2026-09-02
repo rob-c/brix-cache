@@ -201,7 +201,7 @@ brix_vfs_deleg_proxy(brix_vfs_ctx_t *ctx, brix_sd_cred_t *cred,
     path_len = ngx_strlen(tmp);
     path = ngx_pnalloc(ctx->pool, path_len + 1);
     if (path == NULL) {
-        (void) unlink(tmp);   /* vfs-seam-allow: config-domain PASSTHROUGH proxy credential temp (not export storage) */
+        (void) unlink(tmp);   /* vfs-seam-allow: DOMAIN_CREDENTIAL — config-domain PASSTHROUGH proxy credential temp (not export storage) */
         brix_metric_cred_fail(brix_vfs_metrics_proto(ctx),
                               BRIX_CRED_FAIL_MATERIALISE);
         errno = ENOMEM;
@@ -216,7 +216,7 @@ brix_vfs_deleg_proxy(brix_vfs_ctx_t *ctx, brix_sd_cred_t *cred,
 
     cln = ngx_pool_cleanup_add(ctx->pool, sizeof(*payload));
     if (cln == NULL) {
-        (void) unlink(path);  /* vfs-seam-allow: config-domain PASSTHROUGH proxy credential temp (not export storage) */
+        (void) unlink(path);  /* vfs-seam-allow: DOMAIN_CREDENTIAL — config-domain PASSTHROUGH proxy credential temp (not export storage) */
         ngx_memzero(path, path_len);
         brix_metric_cred_fail(brix_vfs_metrics_proto(ctx),
                               BRIX_CRED_FAIL_MATERIALISE);

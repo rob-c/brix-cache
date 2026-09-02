@@ -346,6 +346,9 @@ def pblock(base: Path) -> tuple[bool, str]:
             str(backend / "pblock/sd_pblock_open.c"),
             str(backend / "pblock/sd_pblock_namespace_copy.c"),
             str(backend / "pblock/sd_pblock_io.c"),
+            # phase-107 C2: the bulk plane (sd_pblock_unlink_many) — named in
+            # the driver table, so every pblock link needs it.
+            str(backend / "pblock/sd_pblock_batch.c"),
             str(backend / "pblock/pblock_ctl.c"),
             str(backend / "pblock/pblock_fault.c"),
             str(backend / "pblock/pblock_csi.c"),
@@ -390,12 +393,16 @@ def staged_commit_contract(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple
     # impersonation hardening: staged_commit_internal now consults
     # brix_imp_client_active (auth/impersonate/client.c)
     imp = _need_obj(ngx_src, "objs/addon/impersonate/client.o")
-    if isinstance(ns, str):
-        return result(True, ns)
-    if isinstance(staged, str):
-        return result(True, staged)
-    if isinstance(imp, str):
-        return result(True, imp)
+    # phase-107: the staged slots the test drives moved out of sd_posix.c into
+    # their own TU. (sd_posix_ns.o's new fd-relative kernels — delete_at/
+    # mkdir_at/exchange_beneath — are never dispatched here and are stubbed in
+    # the test alongside the other named-but-undriven ns slots; linking the
+    # real namespace_ops.o would both collide with those stubs and drag the
+    # whole beneath kernel.)
+    posix_staged = _need_obj(ngx_src, "objs/addon/posix/sd_posix_staged.o")
+    for dep in (ns, staged, imp, posix_staged):
+        if isinstance(dep, str):
+            return result(True, dep)
     return _compile_and_run(
         base / "test_staged_commit_contract",
         [
@@ -410,6 +417,7 @@ def staged_commit_contract(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple
             str(ns),
             str(staged),
             str(imp),
+            str(posix_staged),
         ],
     )
 
@@ -424,10 +432,13 @@ def staged_contract_tiers(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[
     test_staged_contract_tiers.c."""
     stage = _need_obj(ngx_src, "objs/addon/stage/sd_stage_write.o")
     frm = _need_obj(ngx_src, "objs/addon/frm/sd_frm.o")
+    frm_staged = _need_obj(ngx_src, "objs/addon/frm/sd_frm_staged.o")
     if isinstance(stage, str):
         return result(True, stage)
     if isinstance(frm, str):
         return result(True, frm)
+    if isinstance(frm_staged, str):
+        return result(True, frm_staged)
     return _compile_and_run(
         base / "test_staged_contract_tiers",
         [
@@ -441,6 +452,7 @@ def staged_contract_tiers(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[
             str(TEST_C / "test_staged_contract_tiers.c"),
             str(stage),
             str(frm),
+            str(frm_staged),
             "-lcrypto",
         ],
     )

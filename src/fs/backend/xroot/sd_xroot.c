@@ -275,7 +275,10 @@ static const brix_sd_driver_t brix_sd_xroot_driver = {
      * instance that advertises CAP_NEARLINE (cfg->nearline); see
      * sd_xroot_nearline.c for why that opt-in cannot be automatic. */
     .recall        = sd_xroot_recall,
+    .recall_cred   = sd_xroot_recall_cred, /* C2: per-user sessions */
     .residency     = sd_xroot_residency,
+    .evict         = sd_xroot_evict,       /* C2: kXR_prepare evict upstream */
+    .evict_cred    = sd_xroot_evict_cred,
     .getxattr      = sd_xroot_getxattr,
     .listxattr     = sd_xroot_listxattr,
     .setxattr      = sd_xroot_setxattr,
@@ -347,6 +350,8 @@ brix_sd_xroot_create(void *conf, ngx_log_t *log)
     inst->log    = log;
     inst->pool   = NULL;
     inst->state  = is;
+    inst->domain = BRIX_VFS_DOMAIN_EXPORT;   /* strict default; composer overrides
+                                              * for service storage (C9) */
     return inst;
 }
 
@@ -488,6 +493,8 @@ brix_sd_xroot_create_origin(const brix_sd_xroot_origin_cfg_t *cfg,
     if (cfg->nearline) {
         inst->caps |= BRIX_SD_CAP_NEARLINE;
     }
+    inst->domain = BRIX_VFS_DOMAIN_EXPORT;   /* strict default; composer overrides
+                                              * for service storage (C9) */
     return inst;
 }
 

@@ -89,9 +89,15 @@ ngx_int_t brix_staged_open_resume(ngx_log_t *log,
  * the durability fsync) or NGX_INVALID_FILE.  final_mode = the mode to publish
  * on the committed object (the temp is written 0600); pass 0 to leave the temp's
  * current mode untouched (callers whose temp already carries the intended mode).
+ * flags: BRIX_COMMIT_RELAXED skips the pre-publish data fsync (phase-51 C1) for
+ * a same-filesystem rename commit — the operator opted out of per-close
+ * durability via `brix_durable_commit off` (stock-XRootD close semantics). The
+ * cross-device and cross-backend movers keep their own fsyncs: there the copy
+ * itself is the publish and a torn copy WOULD be visible.
  * See staged_file.c. */
+#define BRIX_COMMIT_RELAXED  0x1u
 ngx_int_t brix_commit_staged(ngx_fd_t fd, const char *stage_path,
-    const char *final_path, mode_t final_mode, ngx_log_t *log);
+    const char *final_path, mode_t final_mode, unsigned flags, ngx_log_t *log);
 /* --- upload stage-out tracking (durable pending-commit markers + reaper) --- */
 
 /* Register a (canonicalized) stage dir so the reaper sweeps it.  Called at config
@@ -120,5 +126,31 @@ ngx_int_t brix_staged_commit_excl(ngx_log_t *log, const char *root_canon,
 /* brix_staged_abort() — See staged_file.c for WHAT/WHY/HOW. */
 void brix_staged_abort(ngx_log_t *log, const char *root_canon,
     brix_staged_file_t *staged, ngx_flag_t remove_tmp);
+
+/* brix_staged_lock_carry() — phase-107 C7: copy a live lock record from the
+ * destination inode onto the about-to-publish temp, so a replace-publish under
+ * an ADMITTED write does not silently discharge the lock (RFC 4918 §7.4).
+ * Absent record = NGX_OK; a failed copy fails the commit (errno preserved).
+ * See staged_file.c for WHAT/WHY/HOW. */
+ngx_int_t brix_staged_lock_carry(ngx_log_t *log, const char *final_path,
+    const char *tmp_path);
+
+/*
+ * brix_publish_dirsync — the phase-107 C3 durable-publish barrier.
+ *
+ * Make the DIRECTORY ENTRY of the just-published object durable: open the
+ * PARENT directory of `final_path` (absolute under root_canon, or already
+ * root-relative) through the confined-fd machinery — O_RDONLY|O_DIRECTORY,
+ * never O_PATH (fsync on an O_PATH fd is EBADF; that inert cast-away barrier
+ * is the defect this helper replaces) and never by re-resolving the full path
+ * by name — fsync it, close it. `rootfd` is the confinement anchor (an O_PATH
+ * root fd is fine as an openat anchor); pass -1 to have the helper open and
+ * close a transient anchor on root_canon. Returns NGX_OK, or NGX_ERROR with
+ * errno (EIO fsync failed, ENOENT the parent vanished). Callers gate on
+ * brix_vfs_backend_durable(root_canon) and treat failure as failing the
+ * publish (the name is already visible — report EIO, log crit).
+ */
+ngx_int_t brix_publish_dirsync(ngx_log_t *log, int rootfd,
+    const char *root_canon, const char *final_path);
 
 #endif /* BRIX_COMPAT_STAGED_FILE_H */

@@ -139,7 +139,7 @@ static brix_sd_staged_t *
 staged_body(brix_sd_instance_t *inst, const char *path, const char *body)
 {
     int                err = 0;
-    brix_sd_staged_t *h = inst->driver->staged_open(inst, path, 0644, &err);
+    brix_sd_staged_t *h = inst->driver->staged_open(inst, path, 0644, 0, &err);
 
     if (h != NULL && body != NULL) {
         CHECK(inst->driver->staged_write(h, body, strlen(body), 0)
@@ -170,7 +170,7 @@ run_http_arms(void)
             CHECK(h != NULL, "sd_http staged_open (success)");
             if (h == NULL) { continue; }
             g_status = ok_status[i]; g_fail = 0; g_puts = 0;
-            CHECK(inst->driver->staged_commit(h, 0) == NGX_OK,
+            CHECK(inst->driver->staged_commit(h, NULL) == NGX_OK,
                   "an accepted PUT status must commit");
             CHECK(g_puts == 1, "exactly one PUT per commit");
         }
@@ -184,7 +184,7 @@ run_http_arms(void)
         CHECK(h != NULL, "sd_http staged_open (transport-fail)");
         if (h != NULL) {
             g_status = 201; g_fail = 1; g_puts = 0; errno = 0;
-            CHECK(inst->driver->staged_commit(h, 0) == NGX_ERROR
+            CHECK(inst->driver->staged_commit(h, NULL) == NGX_ERROR
                       && errno == EIO,
                   "a transport failure must fail the commit with EIO");
             CHECK(g_puts == 1, "one PUT attempted");
@@ -203,7 +203,7 @@ run_http_arms(void)
         CHECK(h != NULL, "sd_http staged_open (403)");
         if (h != NULL) {
             g_status = 403; g_fail = 0; g_puts = 0; errno = 0;
-            CHECK(inst->driver->staged_commit(h, 0) == NGX_ERROR
+            CHECK(inst->driver->staged_commit(h, NULL) == NGX_ERROR
                       && errno == EACCES,
                   "SECURITY: a 403 PUT must fail with EACCES, never succeed");
             inst->driver->staged_abort(h);
@@ -221,7 +221,7 @@ run_http_arms(void)
         CHECK(h != NULL, "sd_http staged_open (forwarded)");
         if (h != NULL) {
             g_status = 500; g_fail = 0; g_puts = 0; errno = 0;
-            CHECK(sd_cache_staged_commit(h, 0) == NGX_ERROR,
+            CHECK(sd_cache_staged_commit(h, NULL) == NGX_ERROR,
                   "forwarded commit reports the driver's failure");
             CHECK(g_puts == 1, "the forwarder issues exactly one PUT");
             sd_cache_staged_abort(h);           /* releases the still-valid handle */
@@ -308,12 +308,12 @@ run_xroot_arms(void)
 
         g_sync_rc = -1;
         g_syncs = g_file_closes = g_conn_closes = 0;
-        h = sd_xroot_staged_open(&inst, "/o_fail.bin", 0644, &err);
+        h = sd_xroot_staged_open(&inst, "/o_fail.bin", 0644, 0, &err);
         CHECK(h != NULL, "sd_xroot staged_open (sync-fail)");
         if (h != NULL) {
             CHECK(sd_xroot_staged_write(h, "hello", 5, 0) == 5,
                   "sd_xroot staged_write");
-            CHECK(sd_xroot_staged_commit(h, 0) == NGX_ERROR,
+            CHECK(sd_xroot_staged_commit(h, NULL) == NGX_ERROR,
                   "a failed origin sync must fail the commit");
             CHECK(g_file_closes == 0 && g_conn_closes == 0,
                   "a failed commit must not tear the handle down");
@@ -331,10 +331,10 @@ run_xroot_arms(void)
 
         g_sync_rc = 0;
         g_syncs = g_file_closes = g_conn_closes = 0;
-        h = sd_xroot_staged_open(&inst, "/o_ok.bin", 0644, &err);
+        h = sd_xroot_staged_open(&inst, "/o_ok.bin", 0644, 0, &err);
         CHECK(h != NULL, "sd_xroot staged_open (ok)");
         if (h != NULL) {
-            CHECK(sd_xroot_staged_commit(h, 0) == NGX_OK,
+            CHECK(sd_xroot_staged_commit(h, NULL) == NGX_OK,
                   "a clean origin sync must commit");
             CHECK(g_syncs == 1 && g_file_closes == 1 && g_conn_closes == 1,
                   "one sync, one file close, one connection close");

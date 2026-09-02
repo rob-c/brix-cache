@@ -17,10 +17,11 @@
  *       the same unified brix_vfs_writer; this routes the root:// path through it
  *       too, so every filesystem shares one verified-write call to the VFS layer.
  *
- * HOW:  Uploads are sequential appends, which is the only shape a whole-object
- *       store supports. brix_staged_append refuses an out-of-order offset cleanly
- *       with kXR_Unsupported (comparing against brix_vfs_writer_expected_off before
- *       corrupting the object), then appends via brix_vfs_writer_write. sync/close
+ * HOW:  Uploads are appended via brix_vfs_writer_write; the writer itself keeps
+ *       the sequential contract, spilling an out-of-order extent to local scratch
+ *       (phase-107 C1) and refusing only when it cannot (no spill root, capacity,
+ *       overlap) — that surfaces here as an I/O error whose errno maps to the
+ *       kXR code (ENOSPC → kXR_NoSpace). sync/close
  *       call brix_staged_commit_handle → brix_vfs_writer_commit (one whole-object
  *       PUT, plus the optional read-back CRC check when brix_verify_write is on),
  *       which on success consumes the session; brix_free_fhandle aborts an
@@ -37,18 +38,19 @@
  * WITHOUT sending a success reply (the caller chooses the reply frame: kXR_ok for
  * kXR_write, kXR_status for pgwrite).
  *
- * Enforces sequential append (offset == the writer's expected offset); an
- * out-of-order offset is refused with kXR_Unsupported. On any failure the error
- * reply is sent here and *rc holds its return value. Returns NGX_OK when appended
- * (no reply sent yet); NGX_ERROR when the caller must return *rc immediately.
+ * Ordering is the writer's problem now (phase-107 C1: reordered extents spill to
+ * local scratch); a failure — including "cannot spill" ENOSPC — is replied here
+ * with the kXR code mapped from errno, and *rc holds the reply's return value.
+ * Returns NGX_OK when appended (no reply sent yet); NGX_ERROR when the caller
+ * must return *rc immediately.
  */
 /*
- * brix_staged_append_raw — the reply-free core of a staged append: enforce the
- * sequential-offset contract and forward the block to the write session, with the
- * success-path byte accounting.  Returns BRIX_STAGED_APPEND_OK on success,
- * BRIX_STAGED_APPEND_ORDER when `offset` is not the writer's expected offset (a
- * whole-object backend cannot honour a random offset), or BRIX_STAGED_APPEND_IO
- * on a writer I/O error (errno preserved).  Sends nothing and touches no metrics
+ * brix_staged_append_raw — the reply-free core of a staged append: forward the
+ * block to the write session (which spills a reordered extent to local scratch,
+ * phase-107 C1), with the success-path byte accounting.  Returns
+ * BRIX_STAGED_APPEND_OK on success or BRIX_STAGED_APPEND_IO on a writer error
+ * (errno preserved — ENOSPC when a reordered extent could not be spilled).
+ * Sends nothing and touches no metrics
  * — the caller chooses the reply/log framing.  This is the primitive the chunked
  * streaming writer (write_stream.c) applies per chunk without acking mid-stream.
  */
@@ -57,10 +59,6 @@ brix_staged_append_raw(brix_ctx_t *ctx, int idx, int64_t offset,
     const u_char *buf, size_t len)
 {
     brix_file_t *file = &ctx->files[idx];
-
-    if (offset != (int64_t) brix_vfs_writer_expected_off(file->writer)) {
-        return BRIX_STAGED_APPEND_ORDER;
-    }
 
     if (brix_vfs_writer_write(file->writer, buf, len, offset) != NGX_OK) {
         return BRIX_STAGED_APPEND_IO;
@@ -95,24 +93,16 @@ brix_staged_append(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
 
     snprintf(detail, sizeof(detail), "%lld+%zu", (long long) offset, len);
 
-    if (ar == BRIX_STAGED_APPEND_ORDER) {
-        /* Sequential-append contract: refuse an out-of-order block cleanly
-         * (kXR_Unsupported) before corrupting the object. */
-        brix_log_access(ctx, c, "WRITE", ctx->files[idx].path, detail, 0,
-                          kXR_Unsupported,
-                          "random-offset write to whole-object backend unsupported", 0);
-        BRIX_OP_ERR(ctx, BRIX_OP_WRITE);
-        *rc = brix_send_error(ctx, c, kXR_Unsupported,
-            "random-offset write to whole-object backend unsupported");
-        return NGX_ERROR;
-    }
-
     {
+        /* errno → kXR so a refused spill surfaces as kXR_NoSpace (ENOSPC), not a
+         * generic I/O error the client would retry against the same wall. */
+        uint16_t    code  = brix_kxr_from_errno(errno);
         const char *ioerr = strerror(errno);
+
         brix_log_access(ctx, c, "WRITE", ctx->files[idx].path, detail, 0,
-                          kXR_IOError, ioerr, 0);
+                          code, ioerr, 0);
         BRIX_OP_ERR(ctx, BRIX_OP_WRITE);
-        *rc = brix_send_error(ctx, c, kXR_IOError, ioerr);
+        *rc = brix_send_error(ctx, c, code, ioerr);
     }
     return NGX_ERROR;
 }
@@ -167,7 +157,10 @@ brix_staged_commit_handle(brix_ctx_t *ctx, int idx, int *err_out)
         return NGX_OK;   /* nothing staged, or already published */
     }
 
-    if (brix_vfs_writer_commit(file->writer) != NGX_OK) {
+    /* staged_excl carries the open's kXR_new intent to the publish: the storage
+     * enforces create-if-absent atomically here (EEXIST → kXR_ItExists), rather
+     * than trusting the open-time existence check that raced (phase-107 C1). */
+    if (brix_vfs_writer_commit_ex(file->writer, file->staged_excl) != NGX_OK) {
         if (err_out != NULL) {
             *err_out = errno ? errno : EIO;
         }

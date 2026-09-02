@@ -262,7 +262,8 @@ brix_cache_fill_body(brix_cache_fill_t *t, brix_sd_instance_t *source,
      * branch, not the impersonation VFS). 0600 (not 0644) so a mapped low-priv uid
      * cannot read another user's cached bytes by direct filesystem access; the
      * per-user protocol gate (open_cache.c) already fronts the served path. */
-    staged = cache_inst->driver->staged_open(cache_inst, key, 0600, &e);
+    staged = cache_inst->driver->staged_open(cache_inst, key, 0600,
+                                             (off_t) t->file_size, &e);
     if (staged == NULL) {
         brix_cache_src_close(source, src);
         brix_cache_set_error(t, kXR_IOError, e, "cache staged open failed");
@@ -304,7 +305,7 @@ brix_cache_fill_body(brix_cache_fill_t *t, brix_sd_instance_t *source,
 
     brix_cache_src_close(source, src);
 
-    if (cache_inst->driver->staged_commit(staged, 0) != NGX_OK) {
+    if (cache_inst->driver->staged_commit(staged, NULL) != NGX_OK) {
         /* Contract: a failed commit leaves the handle valid — abort to release
          * it (the driver frees on success only). */
         cache_inst->driver->staged_abort(staged);

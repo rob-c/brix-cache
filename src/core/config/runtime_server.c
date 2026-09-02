@@ -244,6 +244,12 @@ brix_server_setup_export(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     {
         return NGX_ERROR;
     }
+    /* phase-107 C1: writer reorder-spill scratch (defaults to the stage dir). */
+    if (brix_prepare_spill_scratch(cf, &xcf->common,
+            xcf->upload_stage_dir_canon) != NGX_CONF_OK)
+    {
+        return NGX_ERROR;
+    }
     return NGX_OK;
 }
 

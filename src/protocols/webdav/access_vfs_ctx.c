@@ -22,6 +22,7 @@
 #include "fs/vfs/vfs.h"     /* brix_vfs_ctx_init / bind_backend_* / deleg_bind */
 #include "core/http/http_variables.h"       /* brix_http_monitor_bind (W1 tail) */
 #include "protocols/shared/deleg_wire.h"    /* §5.2 aud gate + §5.4 exchange */
+#include "protocols/webdav/locks/request.h" /* webdav_lock_token_header (C7) */
 #include "fs/backend/sd.h"  /* enum brix_cred_mode / BRIX_CRED_SELECT */
 
 /* ---- webdav_vfs_bind_deleg -------------------------------------------------
@@ -105,6 +106,12 @@ webdav_vfs_ctx_build(ngx_http_request_t *r, const char *path,
         brix_vfs_policy_from_write_enable(conf->common.allow_write),
         brix_http_request_is_tls(r),
         (wctx != NULL) ? wctx->identity : NULL, path);
+
+    /* phase-107 C7: hand the VFS lock gate the same raw If/Lock-Token bytes
+     * the WebDAV edge matches against, so ownership answers agree. WebDAV is
+     * the only protocol with a way to present a lock token — every other
+     * plane's mutations stay "foreign" to a held lock. */
+    vctx->lock_token = webdav_lock_token_header(r);
 }
 
 static void

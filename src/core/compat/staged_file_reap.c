@@ -252,7 +252,7 @@ reap_one_marker(const char *stage_dir, const char *name, ngx_log_t *log)
     }
     /* Crash-recovery: no open fd, so final_mode is unused (fchmod is fd-guarded);
      * the recovered partial keeps its on-disk mode. */
-    if (brix_commit_staged(NGX_INVALID_FILE, partial, final, 0, log) == NGX_OK) {
+    if (brix_commit_staged(NGX_INVALID_FILE, partial, final, 0, 0, log) == NGX_OK) {
         (void) unlink(marker);
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
             "brix: completed pending stage-out \"%s\" -> \"%s\"",

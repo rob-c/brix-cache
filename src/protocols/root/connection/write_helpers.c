@@ -107,12 +107,39 @@ typedef enum {
     PARK_STALLED,
 } park_kind_t;
 
-/* Commit the tail slot to the out-ring (advance tail, bump count). */
+/* Commit the tail slot to the out-ring (advance tail, bump count).  send_busy
+ * mirrors count > 0 for the pool-send worker threads (§1.2): a worker that
+ * wins the send token must still decline while parked frames exist, because
+ * the head frame may already be partially on the wire. */
 static void
 out_ring_commit(brix_ctx_t *ctx)
 {
     ctx->out.tail = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
     ctx->out.count++;
+    ctx->out.send_busy = 1;
+}
+
+/* §1.2 pool-send: take/put the socket-ownership token around every event-loop
+ * send on a connection whose socket a worker thread may also write.  A failed
+ * take means a worker owns the socket right now — the caller parks instead
+ * (whole frames reorder legally), and the worker's completion callback
+ * re-kicks the drain, so no progress is ever lost.  No-ops until the first
+ * offload pool-send engages the discipline (pool_send_active). */
+static ngx_flag_t
+send_token_take(brix_ctx_t *ctx)
+{
+    if (!ctx->out.pool_send_active) {
+        return 1;
+    }
+    return ngx_atomic_cmp_set(&ctx->out.send_token, 0, 1) ? 1 : 0;
+}
+
+static void
+send_token_put(brix_ctx_t *ctx)
+{
+    if (ctx->out.pool_send_active) {
+        ctx->out.send_token = 0;
+    }
 }
 
 /* Park a memory response in the tail slot, commit it, and arm the writer.
@@ -184,6 +211,11 @@ brix_queue_response_base(brix_ctx_t *ctx, ngx_connection_t *c,
         return park_buf(ctx, c, buffer, buffer_len, owned_base, PARK_QUEUED);
     }
 
+    /* §1.2 pool-send: a worker thread owns the socket right now — park. */
+    if (!send_token_take(ctx)) {
+        return park_buf(ctx, c, buffer, buffer_len, owned_base, PARK_QUEUED);
+    }
+
     while (buffer_len > 0) {
         bytes_sent = c->send(c, buffer, buffer_len);
         if (bytes_sent > 0) {
@@ -195,15 +227,21 @@ brix_queue_response_base(brix_ctx_t *ctx, ngx_connection_t *c,
         }
 
         if (bytes_sent == NGX_AGAIN) {
+            ngx_int_t prc;
+
             BRIX_SRV_METRIC_INC(ctx, response_write_stalls_total);
-            return park_buf(ctx, c, buffer, buffer_len, owned_base,
-                            PARK_STALLED);
+            prc = park_buf(ctx, c, buffer, buffer_len, owned_base,
+                           PARK_STALLED);
+            send_token_put(ctx);
+            return prc;
         }
 
         BRIX_SRV_METRIC_INC(ctx, response_write_errors_total);
+        send_token_put(ctx);
         return NGX_ERROR;
     }
 
+    send_token_put(ctx);
     return NGX_OK;
 }
 
@@ -241,6 +279,13 @@ brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
                           PARK_QUEUED);
     }
 
+    /* §1.2 pool-send: a worker thread owns the socket right now — park. */
+    if (!send_token_take(ctx)) {
+        return park_chain(ctx, c, chain,
+                          (off_t) brix_chain_pending_bytes(chain), owned_base,
+                          PARK_QUEUED);
+    }
+
     pending = (off_t) brix_chain_pending_bytes(unsent);
 
     for (;;) {
@@ -248,6 +293,7 @@ brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
         unsent = c->send_chain(c, unsent, 0);
         if (unsent == NGX_CHAIN_ERROR) {
             BRIX_SRV_METRIC_INC(ctx, response_write_errors_total);
+            send_token_put(ctx);
             return NGX_ERROR;
         }
 
@@ -260,6 +306,7 @@ brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
             }
             slot->wchain_pending = 0;
             brix_tcp_push(c);
+            send_token_put(ctx);
             return NGX_OK;
         }
 
@@ -268,14 +315,22 @@ brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
         }
 
         BRIX_SRV_METRIC_INC(ctx, response_write_stalls_total);
-        return park_chain(ctx, c, unsent, pending, owned_base, PARK_STALLED);
+        {
+            ngx_int_t prc;
+
+            prc = park_chain(ctx, c, unsent, pending, owned_base,
+                             PARK_STALLED);
+            send_token_put(ctx);
+            return prc;
+        }
     }
 }
 
 /* Flush as much of the connection's pending out-ring to the socket as the kernel
- * accepts; re-arms the write event on a partial flush. */
-ngx_int_t
-brix_flush_pending(brix_ctx_t *ctx, ngx_connection_t *c)
+ * accepts; re-arms the write event on a partial flush.  Runs with the send
+ * token held when the pool-send discipline is active (see brix_flush_pending). */
+static ngx_int_t
+brix_flush_pending_locked(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     ssize_t      bytes_sent;
     ngx_chain_t *unsent;
@@ -373,10 +428,66 @@ brix_flush_pending(brix_ctx_t *ctx, ngx_connection_t *c)
         ctx->out.count--;
     }
 
+    /* §1.2 pool-send: the ring is empty again — a worker thread that wins the
+     * send token may now write the socket directly. */
+    ctx->out.send_busy = 0;
+
     /* Phase 39: the output queue fully drained (reached only on the NGX_OK exit;
      * the NGX_AGAIN re-park paths above leave the deadline armed/refreshed via
      * brix_schedule_write_resume).  Disarm the response-drain deadline. */
     brix_disarm_send_deadline(c, ctx);
 
     return NGX_OK;
+}
+
+/* Public flush entry — takes the send token around the drain once the
+ * pool-send discipline is active (§1.2).  A failed take means a worker thread
+ * is sending on this socket right now; its completion callback re-kicks the
+ * write path after releasing, so returning NGX_AGAIN with no re-arm cannot
+ * strand the ring. */
+ngx_int_t
+brix_flush_pending(brix_ctx_t *ctx, ngx_connection_t *c)
+{
+    ngx_int_t  rc;
+
+    if (!send_token_take(ctx)) {
+        return NGX_AGAIN;
+    }
+
+    rc = brix_flush_pending_locked(ctx, c);
+    send_token_put(ctx);
+    return rc;
+}
+
+/* §1.2 pool-send handoff: park the UNSENT REMAINDER of a frame a worker
+ * thread already started sending, at the HEAD of the out-ring — mid-frame
+ * bytes cannot reorder, so it must reach the socket before every parked whole
+ * frame.  The ring always has a free slot here: the offload task that carried
+ * this frame was counted in rd.aio_inflight at the admission bound until its
+ * own completion (the caller) ran.  The caller still holds the send token and
+ * releases it AFTER this returns, so a worker that wins the token next sees
+ * send_busy = 1 and declines. */
+ngx_int_t
+brix_park_front_buf(brix_ctx_t *ctx, ngx_connection_t *c, u_char *buffer,
+    size_t buffer_len, u_char *owned_base)
+{
+    brix_resp_slot_t *slot;
+
+    ctx->out.head = (ctx->out.head + ctx->out.pipeline_depth - 1)
+                    % ctx->out.pipeline_depth;
+    ctx->out.count++;
+    ctx->out.send_busy = 1;
+
+    slot = &ctx->out.ring[ctx->out.head];
+    slot->wbuf      = buffer;
+    slot->wbuf_len  = buffer_len;
+    slot->wbuf_pos  = 0;
+    slot->wbuf_base = owned_base;
+    slot->wchain         = NULL;
+    slot->wchain_pending = 0;
+    slot->wchain_base    = NULL;
+
+    ctx->state = XRD_ST_SENDING;
+    BRIX_SRV_METRIC_INC(ctx, response_write_stalls_total);
+    return brix_ensure_write_event(c);
 }

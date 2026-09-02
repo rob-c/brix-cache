@@ -201,6 +201,99 @@ ns_delete_remove(ngx_log_t *log, const char *root_canon, const char *path,
     }
 }
 
+/*
+ * ns_delete_fast — probe-free removal for the plain non-recursive delete.
+ *
+ * WHAT: For every non-recursive delete, the classify lstat tells us nothing
+ *       the removal syscall's own verdict does not:
+ *       attempt the confined unlink directly (AT_REMOVEDIR when the caller
+ *       demands a directory) and derive existed/was_dir and every error status
+ *       from its errno.  Fills res exactly as the probe+remove pair would.
+ * WHY: The lstat_beneath probe costs an openat2+fstat+close per delete — three
+ *      syscalls on the metadata hot path whose only surviving job here was
+ *      picking the AT_REMOVEDIR flag; errno picks it just as well (EISDIR).
+ * HOW: 1. unlinkat via brix_unlink_beneath with is_dir = require_directory
+ *      (kXR_rmdir goes straight to AT_REMOVEDIR; a file answers ENOTDIR and a
+ *      symlink-to-dir also answers ENOTDIR — matching the lstat-based
+ *      rejection, which classified a symlink as not-a-dir).  2. EISDIR means
+ *      kXR_rm hit a real directory the probed path would have classified
+ *      was_dir and removed with AT_REMOVEDIR: retry once with it (non-empty
+ *      answers ENOTEMPTY, as before).  3. ENOENT honors idempotent_missing.
+ *      4. Anything else maps through the same ns_set_err as the probed path.
+ */
+static void
+ns_delete_fast(int rootfd, const char *rel,
+    const brix_ns_delete_opts_t *opts, brix_ns_result_t *res)
+{
+    if (brix_unlink_beneath(rootfd, rel,
+                              opts->require_directory ? 1 : 0) == 0) {
+        res->existed = 1;
+        res->was_dir = opts->require_directory ? 1 : 0;
+        res->status  = BRIX_NS_OK;
+        return;
+    }
+
+    if (errno == EISDIR) {
+        res->existed = 1;
+        res->was_dir = 1;
+        if (brix_unlink_beneath(rootfd, rel, 1) == 0) {
+            res->status = BRIX_NS_OK;
+        } else {
+            ns_set_err(res, errno);
+        }
+        return;
+    }
+
+    if (errno == ENOENT && opts->idempotent_missing) {
+        res->status = BRIX_NS_OK;
+        return;
+    }
+
+    ns_set_err(res, errno);
+}
+
+/* The delete body shared by the owned-rootfd and borrowed-rootfd entry
+ * points: fast path when no probe is needed, else classify then remove. */
+static void
+ns_delete_run(ngx_log_t *log, const char *root_canon, const char *path,
+    int rootfd, const char *rel, const brix_ns_delete_opts_t *opts,
+    brix_ns_result_t *res)
+{
+    if (!opts->recursive) {
+        /* require_empty_dir needs no getdents pre-probe on this path either:
+         * a non-recursive directory removal ends in unlinkat(AT_REMOVEDIR),
+         * whose own ENOTEMPTY answers exactly what the emptiness scan asked —
+         * and race-free, where check-then-remove was not. */
+        ns_delete_fast(rootfd, rel, opts, res);
+        return;
+    }
+
+    if (ns_delete_probe(rootfd, rel, opts, res)) {
+        return;
+    }
+
+    ns_delete_remove(log, root_canon, path, rootfd, rel, opts, res);
+}
+
+brix_ns_result_t
+brix_ns_delete_at(ngx_log_t *log, int rootfd, const char *root_canon,
+    const char *path, const brix_ns_delete_opts_t *opts)
+{
+    brix_ns_result_t  res;
+    const char       *rel;
+
+    ngx_memzero(&res, sizeof(res));
+
+    rel = brix_beneath_strip_root(root_canon, path);
+    if (rel == NULL) {
+        ns_set_err(&res, EXDEV);   /* path is not under the export root */
+        return res;
+    }
+
+    ns_delete_run(log, root_canon, path, rootfd, rel, opts, &res);
+    return res;
+}
+
 brix_ns_result_t
 brix_ns_delete(ngx_log_t *log, const char *root_canon, const char *path,
     const brix_ns_delete_opts_t *opts)
@@ -217,14 +310,54 @@ brix_ns_delete(ngx_log_t *log, const char *root_canon, const char *path,
         return res;
     }
 
-    if (ns_delete_probe(rootfd, rel, opts, &res)) {
-        close(rootfd);
+    ns_delete_run(log, root_canon, path, rootfd, rel, opts, &res);
+
+    close(rootfd);
+    return res;
+}
+
+/* The mkdir body shared by the owned-rootfd and borrowed-rootfd entry points. */
+static void
+ns_mkdir_run(ngx_log_t *log, const char *root_canon, const char *path,
+    int rootfd, const char *rel, mode_t mode, ngx_flag_t recursive,
+    brix_ns_result_t *res)
+{
+    ngx_int_t rc;
+
+    if (recursive) {
+        /* mkdir -p, confined: creates each missing component beneath rootfd.
+         * This variant takes the absolute path + root_canon and strips
+         * internally, so pass `path` (not the pre-stripped rel). */
+        rc = brix_mkdir_recursive_beneath(log, rootfd, root_canon, path,
+                                            mode, NULL);
+    } else {
+        rc = brix_mkdir_beneath(rootfd, rel, mode);
+    }
+
+    if (rc == 0) {
+        res->status  = BRIX_NS_OK;
+        res->created = 1;
+    } else {
+        ns_set_err(res, errno);
+    }
+}
+
+brix_ns_result_t
+brix_ns_mkdir_at(ngx_log_t *log, int rootfd, const char *root_canon,
+    const char *path, mode_t mode, ngx_flag_t recursive)
+{
+    brix_ns_result_t  res;
+    const char       *rel;
+
+    ngx_memzero(&res, sizeof(res));
+
+    rel = brix_beneath_strip_root(root_canon, path);
+    if (rel == NULL) {
+        ns_set_err(&res, EXDEV);   /* path is not under the export root */
         return res;
     }
 
-    ns_delete_remove(log, root_canon, path, rootfd, rel, opts, &res);
-
-    close(rootfd);
+    ns_mkdir_run(log, root_canon, path, rootfd, rel, mode, recursive, &res);
     return res;
 }
 
@@ -240,33 +373,52 @@ brix_ns_mkdir(ngx_log_t *log, const char *root_canon, const char *path,
 
     rel = ns_rel(root_canon, path, &rootfd);
     if (rel == NULL) {
+        ns_set_err(&res, errno);
+        return res;
+    }
+
+    ns_mkdir_run(log, root_canon, path, rootfd, rel, mode, recursive, &res);
+
+    close(rootfd);
+    return res;
+}
+
+/* Atomic two-name exchange (phase-107 C6): renameat2(RENAME_EXCHANGE) via the
+ * confined beneath helper. Both names must be under the SAME export root
+ * (EXDEV otherwise — never a confinement escape) and both must exist (ENOENT,
+ * matching the kernel). A kernel/filesystem without the primitive reports
+ * ENOTSUP and is NEVER emulated with two renames (§3.5). */
+brix_ns_result_t
+brix_ns_exchange(ngx_log_t *log, const char *root_canon, const char *a,
+    const char *b)
+{
+    brix_ns_result_t res;
+    int              rootfd;
+    const char      *a_rel, *b_rel;
+
+    (void) log;
+    ngx_memzero(&res, sizeof(res));
+
+    b_rel = ns_rel(root_canon, b, &rootfd);
+    if (b_rel == NULL) {
         res.sys_errno = errno;
         res.status    = errno_to_ns_status(errno);
         return res;
     }
-
-    if (recursive) {
-        /* mkdir -p, confined: creates each missing component beneath rootfd.
-         * This variant takes the absolute path + root_canon and strips
-         * internally, so pass `path` (not the pre-stripped rel). */
-        if (brix_mkdir_recursive_beneath(log, rootfd, root_canon, path,
-                                           mode, NULL) == 0) {
-            res.status  = BRIX_NS_OK;
-            res.created = 1;
-        } else {
-            res.sys_errno = errno;
-            res.status    = errno_to_ns_status(errno);
-        }
-    } else {
-        if (brix_mkdir_beneath(rootfd, rel, mode) == 0) {
-            res.status  = BRIX_NS_OK;
-            res.created = 1;
-        } else {
-            res.sys_errno = errno;
-            res.status    = errno_to_ns_status(errno);
-        }
+    a_rel = brix_beneath_strip_root(root_canon, a);
+    if (a_rel == NULL) {
+        close(rootfd);
+        res.sys_errno = EXDEV;
+        res.status    = errno_to_ns_status(EXDEV);
+        return res;
     }
 
+    if (brix_exchange_beneath(rootfd, a_rel, b_rel) == 0) {
+        res.status = BRIX_NS_OK;
+    } else {
+        res.sys_errno = errno;
+        res.status    = errno_to_ns_status(errno);
+    }
     close(rootfd);
     return res;
 }

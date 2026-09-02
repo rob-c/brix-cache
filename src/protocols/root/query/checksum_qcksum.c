@@ -249,7 +249,9 @@ brix_query_cksum_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_qcksum_handle_extract_algo(ctx, rq.algo, sizeof(rq.algo));
 
     idx = (int) (unsigned char) req->fhandle[0];
-    if (idx < 0 || idx >= BRIX_MAX_FILES || ctx->files[idx].fd < 0) {
+    if (idx < 0 || idx >= BRIX_MAX_FILES || ctx->files == NULL
+        || ctx->files[idx].fd < 0)
+    {
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSUM);
         return brix_send_error(ctx, c, kXR_FileNotOpen,
                                  "invalid file handle");

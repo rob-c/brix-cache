@@ -179,7 +179,7 @@ sd_pblock_residency(brix_sd_instance_t *inst, const char *key,
  * is either ONLINE (NGX_OK — a normal fill follows) or the recall failed
  * (NGX_ERROR, errno set). The simulated latency/outcome are ctl-driven
  * (pblock_nearline.h). */
-static ngx_int_t
+ngx_int_t
 sd_pblock_recall(brix_sd_instance_t *inst, const char *key,
     char reqid_out[40])
 {
@@ -196,6 +196,50 @@ sd_pblock_recall(brix_sd_instance_t *inst, const char *key,
         return NGX_ERROR;
     }
     return pblock_nearline_recall(st, key) == 0 ? NGX_OK : NGX_ERROR;
+}
+
+/* driver->evict (phase-107 C2) — release the simulated online copy: demote the
+ * residency row to NEARLINE (the simulated tape copy survives; a later recall
+ * restages it — the exact inverse of sd_pblock_recall). ENOTSUP when the
+ * export is not armed nearline: without a tape model the block store's copy is
+ * the ONLY copy and evicting it would be a delete wearing a different verb
+ * (the sd.h contract). Reports the object's catalog size as the bytes
+ * released — the logical online footprint the simulation just gave up (no
+ * physical block moves; this is bookkeeping, exactly like the recall's sleep).
+ * The *_cred twin gates W_OK against catalog ownership and delegates here
+ * (sd_pblock_cred.c) — pblock is its own multi-user authority, unlike frm's
+ * service-only MSS adapter. */
+ngx_int_t
+sd_pblock_evict(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out)
+{
+    pblock_state_t *st = inst->state;
+    pblock_meta     meta;
+    int             rc;
+
+    if (bytes_out != NULL) {
+        *bytes_out = 0;
+    }
+    if (st == NULL || !st->nearline) {
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
+    rc = pblock_catalog_lookup(st->cat, path, &meta);
+    if (rc != 0) {
+        errno = rc == 1 ? ENOENT : errno;
+        return NGX_ERROR;
+    }
+    if (meta.is_dir) {
+        errno = EISDIR;
+        return NGX_ERROR;
+    }
+    if (pblock_nearline_evict(st, path) != 0) {
+        return NGX_ERROR;               /* errno set (ENOENT lost / EIO) */
+    }
+    if (bytes_out != NULL && meta.size > 0) {
+        *bytes_out = (uint64_t) meta.size;
+    }
+    return NGX_OK;
 }
 
 /* ---- commit-time dedup (phase-88 W1) -------------------------------------- */
@@ -234,6 +278,52 @@ sd_pblock_dedup_publish(brix_sd_instance_t *inst, const char *path,
 
 /* ---- the driver descriptor ------------------------------------------------ */
 
+/* Atomic two-name exchange (phase-107 C6): one catalog transaction swaps both
+ * subtrees (pblock_catalog_exchange), so a concurrent reader never sees either
+ * name absent. Lives here rather than sd_pblock_namespace.c because that file
+ * sits at the 600-line cap. Side tables (nearline residency, anomaly history,
+ * lease rows) swap post-commit through the catalog's reserved temp name —
+ * exact-path, best-effort, the same discipline pblock_rename_observe applies
+ * after pblock_catalog_rename. Lease checks come first, like rename. */
+ngx_int_t
+sd_pblock_exchange(brix_sd_instance_t *inst, const char *a, const char *b)
+{
+    static const char tmp[] = "/\001brix-xchg\001";
+    pblock_state_t   *st = inst->state;
+    ngx_int_t         rc;
+
+    if (st->locks
+        && (pblock_locks_ns_check(st, a, 0) != 0
+            || pblock_locks_ns_check(st, b, 0) != 0))
+    {
+        return NGX_ERROR;
+    }
+
+    rc = pblock_catalog_exchange(st->cat, a, b) == 0 ? NGX_OK : NGX_ERROR;
+    if (rc == NGX_OK) {
+        if (st->nearline) {
+            pblock_nearline_rename(st, a, tmp);
+            pblock_nearline_rename(st, b, a);
+            pblock_nearline_rename(st, tmp, b);
+        }
+        if (st->lab != NULL) {
+            pblock_anomaly_rename(st, a, tmp);
+            pblock_anomaly_rename(st, b, a);
+            pblock_anomaly_rename(st, tmp, b);
+        }
+        if (st->locks) {
+            pblock_locks_rename(st, a, tmp);
+            pblock_locks_rename(st, b, a);
+            pblock_locks_rename(st, tmp, b);
+        }
+    }
+    if (st->audit) {
+        pblock_audit_log(st->cat, "exchange", a, b, 0, 0,
+                         rc == NGX_OK ? 0 : -1, rc == NGX_OK ? 0 : errno);
+    }
+    return rc;
+}
+
 /* Full POSIX-parity capabilities: block 0 is a real kernel file, so the backend
  * is fd-backed, sendfile-able and io_uring-submittable; the catalog provides
  * atomic rename, real directories, server copy and object xattrs. */
@@ -249,6 +339,9 @@ const brix_sd_driver_t brix_sd_pblock_driver = {
           | BRIX_SD_CAP_IOURING | BRIX_SD_CAP_SERVER_COPY
           | BRIX_SD_CAP_XATTR | BRIX_SD_CAP_XATTR_WRITE
           | BRIX_SD_CAP_HARD_RENAME
+          /* C6: ABSENT + MATCH_* atomic — one BEGIN IMMEDIATE spans the
+           * compare and the publishing catalog_put (sd_pblock_staged.c). */
+          | BRIX_SD_CAP_PRECOND
           | BRIX_SD_CAP_DIRS | BRIX_SD_CAP_DIRS_WRITE
           | BRIX_SD_CAP_CATALOG,   /* F14: native object enumeration */
 
@@ -265,13 +358,20 @@ const brix_sd_driver_t brix_sd_pblock_driver = {
     .read_sendfile_fd = sd_pblock_read_sendfile_fd,
     .read_advise      = sd_pblock_read_advise,
     .ftruncate        = sd_pblock_ftruncate,
+    .reserve          = sd_pblock_reserve,   /* phase-107 C5 quota+space admit */
     .fsync            = sd_pblock_fsync,
     .fstat            = sd_pblock_fstat,
 
     .stat        = sd_pblock_stat,
     .unlink      = sd_pblock_unlink,
+    /* C4: one SQLite transaction per window; no CAP_BULK_DELETE - the win is
+     * commit count, not round trips, so only the flat client batch
+     * (brix_vfs_delete_many) reaches it wide. */
+    .unlink_many = sd_pblock_unlink_many,
     .mkdir       = sd_pblock_mkdir,
     .rename      = sd_pblock_rename,
+    .sync_publish = sd_pblock_sync_publish, /* phase-107 C3: catalog-dir flush */
+    .exchange    = sd_pblock_exchange,      /* C6: one catalog transaction */
     .server_copy = sd_pblock_server_copy,
     .setattr     = sd_pblock_setattr,
 
@@ -282,7 +382,10 @@ const brix_sd_driver_t brix_sd_pblock_driver = {
     .enumerate = sd_pblock_enumerate,
     .space     = sd_pblock_space,        /* F5: quota-aware capacity */
     .recall    = sd_pblock_recall,       /* F4: simulated tape recall */
+    .recall_cred = sd_pblock_recall_cred, /* C2: R-gated twin */
     .residency = sd_pblock_residency,    /* F4: simulated residency model */
+    .evict     = sd_pblock_evict,        /* C2: demote the row to NEARLINE */
+    .evict_cred = sd_pblock_evict_cred,  /* C2: W-gated twin */
 
     .getxattr    = sd_pblock_getxattr,
     .listxattr   = sd_pblock_listxattr,
@@ -306,8 +409,10 @@ const brix_sd_driver_t brix_sd_pblock_driver = {
     .staged_open_cred = sd_pblock_staged_open_cred,
     .stat_cred        = sd_pblock_stat_cred,
     .unlink_cred      = sd_pblock_unlink_cred,
+    .unlink_many_cred = sd_pblock_unlink_many_cred,   /* C4: gate per key, one txn */
     .mkdir_cred       = sd_pblock_mkdir_cred,
     .rename_cred      = sd_pblock_rename_cred,
+    .exchange_cred    = sd_pblock_exchange_cred,      /* C6: remove-gate both */
     .setattr_cred     = sd_pblock_setattr_cred,
     .getxattr_cred    = sd_pblock_getxattr_cred,
     .listxattr_cred   = sd_pblock_listxattr_cred,

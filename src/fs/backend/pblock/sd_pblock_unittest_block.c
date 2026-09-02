@@ -67,6 +67,9 @@ open_block_export(brix_sd_instance_t *inst, char *root, int64_t block_size)
     conf.block_size = block_size;
     memset(inst, 0, sizeof(*inst));
     inst->driver = D;
+    inst->domain = BRIX_VFS_DOMAIN_EXPORT;   /* strict default (C9); memset already
+                                              * yields EXPORT == 0, stated for the
+                                              * reader */
     return D->init(inst, &conf) == NGX_OK ? 0 : -1;
 }
 

@@ -80,32 +80,25 @@ conn_set_immutable_labels(ngx_connection_t *c, brix_ctx_t *ctx)
 }
 
 /*
- * WHAT: Mark all fd slots free and mint the 16-byte opaque session ID.
- * WHY : fd < 0 is the free-slot sentinel every handle path relies on; the
- *       session ID identifies this connection within the process AND is later
- *       presented back by kXR_bind/kXR_endsess as an unauthenticated bearer
- *       (session.c: a matching sessid inherits the primary's auth state), so it
- *       must be unpredictable — a guessed sessid would let a fresh connection
- *       bind to another client's authenticated session (hyper-hardening D-4).
- * HOW : Loop the fixed slot array, then draw all 16 bytes from the OpenSSL
- *       CSPRNG. The former time|pid|ptr|ngx_random() packing was predictable
- *       (ngx_random() is the non-cryptographic random(3)) and additionally
- *       leaked a live heap pointer past ASLR. RAND_bytes failure means the
- *       process entropy source is dead (TLS would be broken too), so we fail
- *       closed: return NGX_ERROR and let the caller drop the connection rather
- *       than emit a weak, forgeable session ID.
+ * WHAT: Mint the 16-byte opaque session ID (the handle table itself is
+ *       lazily allocated on first open — brix_files_ensure).
+ * WHY : The session ID identifies this connection within the process AND is
+ *       later presented back by kXR_bind/kXR_endsess as an unauthenticated
+ *       bearer (session.c: a matching sessid inherits the primary's auth
+ *       state), so it must be unpredictable — a guessed sessid would let a
+ *       fresh connection bind to another client's authenticated session
+ *       (hyper-hardening D-4).
+ * HOW : Draw all 16 bytes from the OpenSSL CSPRNG. The former
+ *       time|pid|ptr|ngx_random() packing was predictable (ngx_random() is the
+ *       non-cryptographic random(3)) and additionally leaked a live heap
+ *       pointer past ASLR. RAND_bytes failure means the process entropy source
+ *       is dead (TLS would be broken too), so we fail closed: return NGX_ERROR
+ *       and let the caller drop the connection rather than emit a weak,
+ *       forgeable session ID.
  */
 static ngx_int_t
 conn_init_slots_and_sessid(ngx_connection_t *c, brix_ctx_t *ctx)
 {
-    int  i;
-
-    /* Sentinel value: fd < 0 means the slot is free. */
-    for (i = 0; i < BRIX_MAX_FILES; i++) {
-        ctx->files[i].fd = -1;
-        ctx->files[i].shared_handle_slot_hint = -1;  /* Phase 33 C2: no cache yet */
-    }
-
     if (RAND_bytes(ctx->login.sessid, BRIX_SESSION_ID_LEN) != 1) {
         ngx_log_error(NGX_LOG_ERR, c->log, 0,
                       "brix: RAND_bytes failed minting session id — "
@@ -518,4 +511,35 @@ ngx_stream_brix_handler(ngx_stream_session_t *s)
 
     conn_begin_session(s, c, ctx);
     conn_pump(c);
+}
+
+/*
+ * WHAT: Attach the brix protocol context to an ADOPTED connection — one whose
+ *       fd arrived from another worker via the §1.4 bind-migration channel
+ *       rather than through accept.
+ * WHY : The migration target must produce a ctx indistinguishable from the
+ *       accept path's (same pipeline, sockopts, metrics admission, session
+ *       log record) so every later invariant holds; reusing the exact same
+ *       helpers is the only way to keep the two paths from drifting.
+ * HOW : The accept orchestration minus the relay branch (a relay port never
+ *       terminates kXR_bind) and minus conn_pump (the caller stamps the bind
+ *       streamid and protocol state first, then arms the handlers itself).
+ *       NULL means a helper refused and ALREADY finalized the session.
+ */
+brix_ctx_t *
+brix_conn_adopt_attach(ngx_stream_session_t *s, ngx_connection_t *c)
+{
+    brix_ctx_t *ctx;
+
+    ctx = conn_init_ctx(s, c);
+    if (ctx == NULL) {
+        return NULL;
+    }
+
+    if (conn_apply_srv_conf(s, c, ctx) != NGX_OK) {
+        return NULL;
+    }
+
+    conn_begin_session(s, c, ctx);
+    return ctx;
 }

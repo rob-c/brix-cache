@@ -159,7 +159,9 @@ writev_validate_handles(brix_ctx_t *ctx, ngx_connection_t *c,
 		ngx_int_t rc;
 
 		/* fd < 0 means the slot is closed/never-opened (stale handle). */
-		if (idx < 0 || idx >= BRIX_MAX_FILES || ctx->files[idx].fd < 0) {
+		if (idx < 0 || idx >= BRIX_MAX_FILES || ctx->files == NULL
+			|| ctx->files[idx].fd < 0)
+		{
 			BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
 			rc = brix_send_error(ctx, c, kXR_FileNotOpen,
 									 "invalid file handle in writev");

@@ -148,6 +148,9 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     }
 
     s3_build_vfs_ctx(r, fs_path, cf, &vctx);
+    /* Phase-107 C5: the form file part is fully buffered, so its length is the
+     * exact final size — declare it for the staged plane. */
+    vctx.declared_size = (off_t) form->file_len;
     w = brix_vfs_writer_open(&vctx, BRIX_VFS_O_ATOMIC, cf->common.verify_write,
                              &vfs_err);
     if (w == NULL) {

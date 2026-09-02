@@ -7,6 +7,8 @@
 
 #include <sys/stat.h>
 
+#include "fs/backend/sd_batch_types.h"   /* brix_sd_precond_t (phase-107 C6) */
+
 /*
  * BRIX_HTTP_COND_WEAK_EQUIV — flag enabling weak ETag equivalence (W/"etag" ≡ "etag").
  *
@@ -128,5 +130,26 @@ ngx_int_t brix_http_check_if_modified_since(ngx_http_request_t *r,
  *      (case-insensitive, trimmed), and verifies resource_exists flag.
  */
 ngx_flag_t brix_http_overwrite_forbidden(ngx_http_request_t *r);
+
+/*
+ * brix_http_write_precond - lift If-Match / If-None-Match into the typed
+ * storage precondition (phase-107 C6) so the staged commit re-decides at the
+ * storage. Only exact-meaning forms are lifted (If-Match single tag ->
+ * MATCH_ETAG with the value borrowed from r's pool; If-None-Match: * ->
+ * ABSENT); every other form leaves the struct zeroed (NONE), keeping the edge
+ * check the deciding authority there. Shared by WebDAV PUT and S3 PUT so the
+ * lift rules never fork.
+ */
+void brix_http_write_precond(ngx_http_request_t *r, brix_sd_precond_t *pre);
+
+/*
+ * brix_http_precond_refused_edge - book an EDGE-answered 412 into the C6
+ * refusal metrics (brix_vfs_precond_failed_total{kind} + the advisory
+ * counter; phase-107).  Called at each write-plane fast-path refusal site —
+ * brix_http_check_etag_preconditions books its own 412s, the S3 PUT
+ * evaluator calls this alongside its 412 send.  Edge refusals are advisory
+ * by construction (stat-then-compare, the publish still to come).
+ */
+void brix_http_precond_refused_edge(ngx_http_request_t *r);
 
 #endif /* BRIX_COMPAT_HTTP_CONDITIONALS_H */

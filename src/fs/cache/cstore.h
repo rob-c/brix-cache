@@ -105,7 +105,7 @@ void brix_cstore_enable_gcas(brix_cstore_t *cs);
  * staged handle, or NULL (errno set). The handle carries its own store inst, so
  * fill_write/commit/abort dispatch through it without the cstore. */
 brix_sd_staged_t *brix_cstore_fill_open(brix_cstore_t *cs, const char *key,
-    mode_t mode);
+    mode_t mode, off_t declared_size);
 
 /* Write `len` bytes at `off` into the fill sink. Returns bytes written, or -1. */
 ssize_t brix_cstore_fill_write(brix_sd_staged_t *st, const void *buf,

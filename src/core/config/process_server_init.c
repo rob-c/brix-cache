@@ -34,6 +34,7 @@
 #include "fs/cache/cache_storage.h"           /* brix_cache_storage_init, brix_cache_state_root */
 #include "fs/xfer/xfer.h"                      /* brix_xfer_resume_sweep_register */
 #include "fs/vfs/vfs_backend_registry.h"      /* brix_vfs_backend_set_credential */
+#include "fs/vfs/vfs.h"                       /* brix_vfs_chain_nearline_unstageable */
 #include "core/config/credential_block.h"     /* brix_credential_lookup (per-worker) */
 #include "core/compat/cstr.h"                 /* brix_str_cbuf */
 
@@ -145,6 +146,49 @@ brix_init_server_stage_registry(ngx_cycle_t *cycle,
     }
 }
 
+/* ---- Startup advisor: an unstageable nearline export says so ONCE ----
+ *
+ * WHAT: One worker-0 [warn] (phase-107 C2 advisor note) when this export's
+ * composed chain declares a nearline tier that no recall slot can stage AND
+ * no brix_prepare_command fallback is configured: every kXR_prepare(kXR_stage)
+ * it will ever see answers kXR_Unsupported. Advisory — never fatal.
+ *
+ * WHY: "Can never stage" is a config-time fact; discovering it at the first
+ * client prepare hides it from the operator behind a client-side error. The
+ * capability walk itself lives in the VFS (brix_vfs_chain_nearline_
+ * unstageable), so this note can never disagree with brix_vfs_recall's own
+ * tier selection.
+ *
+ * HOW:
+ *   1. Skip when a prepare_command is configured (the fallback stages), when
+ *      there is no local export root, or off worker 0 (one note, not N).
+ *   2. Resolve the export's chain head (NULL = default POSIX, never
+ *      nearline) and ask the VFS probe; warn iff it says unstageable.
+ */
+static void
+brix_init_server_stage_advisor(ngx_cycle_t *cycle,
+    ngx_stream_brix_srv_conf_t *xcf)
+{
+    brix_sd_instance_t  *chain;
+
+    if (xcf->prepare_command.len > 0
+        || xcf->common.root_canon[0] == '\0'
+        || ngx_worker != 0)
+    {
+        return;
+    }
+    chain = brix_vfs_backend_resolve(xcf->common.root_canon, cycle->log);
+    if (chain != NULL && brix_vfs_chain_nearline_unstageable(chain)) {
+        ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+            "brix: export \"%s\" is nearline but no tier of its driver "
+            "chain implements recall and no brix_prepare_command is "
+            "configured - kXR_prepare(kXR_stage) can never stage and will "
+            "answer kXR_Unsupported; configure brix_prepare_command or a "
+            "recall-capable nearline tier",
+            xcf->common.root_canon);
+    }
+}
+
 /* ---- Open the confined export-root fd for a data server ----
  *
  * WHAT: Opens the server's export root as an O_PATH directory fd for
@@ -199,7 +243,7 @@ brix_init_server_rootfd(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
  *      purge — the same walk services both) and a state root resolves.
  *   2. pcalloc the timer event from the cycle pool (NGX_ERROR on failure).
  *   3. Point it at brix_cache_reap_handler with the srv conf as ev->data,
- *      mark cancelable, arm at BRIX_CACHE_REAP_FIRST_MS.
+ *      mark cancelable, arm at the resolved first-tick delay.
  */
 static ngx_int_t
 brix_init_server_cache_reap_timer(ngx_cycle_t *cycle,
@@ -219,7 +263,8 @@ brix_init_server_cache_reap_timer(ngx_cycle_t *cycle,
     xcf->cache_reap_timer->data    = xcf;
     xcf->cache_reap_timer->log     = cycle->log;
     xcf->cache_reap_timer->cancelable = 1;  /* don't delay graceful shutdown */
-    ngx_add_timer(xcf->cache_reap_timer, BRIX_CACHE_REAP_FIRST_MS);
+    ngx_add_timer(xcf->cache_reap_timer,
+                  brix_cache_reap_delay(BRIX_CACHE_REAP_FIRST_MS));
 
     return NGX_OK;
 }
@@ -279,7 +324,8 @@ brix_init_server_csi_scrub_timer(ngx_cycle_t *cycle,
  *      0 < high_watermark < 1000000.
  *   2. pcalloc the timer event from the cycle pool (NGX_ERROR on failure).
  *   3. Point it at brix_cache_watermark_timer_handler, mark cancelable, arm
- *      at BRIX_CACHE_REAP_FIRST_MS + (pid % 1000) jitter.
+ *      at the resolved first-tick delay + per-worker jitter (bounded by the
+ *      delay itself so a shortened test cadence stays short).
  */
 static ngx_int_t
 brix_init_server_watermark_timer(ngx_cycle_t *cycle,
@@ -307,9 +353,13 @@ brix_init_server_watermark_timer(ngx_cycle_t *cycle,
     xcf->reaper.timer->data = xcf;
     xcf->reaper.timer->log  = cycle->log;
     xcf->reaper.timer->cancelable = 1;  /* don't delay graceful shutdown */
-    ngx_add_timer(xcf->reaper.timer,
-                  BRIX_CACHE_REAP_FIRST_MS
-                  + (ngx_msec_t) (ngx_pid % 1000));
+    {
+        ngx_msec_t first = brix_cache_reap_delay(BRIX_CACHE_REAP_FIRST_MS);
+        ngx_msec_t span = (first < 1000) ? first : 1000;
+        ngx_msec_t jitter = (span > 0) ? (ngx_msec_t) (ngx_pid % span) : 0;
+
+        ngx_add_timer(xcf->reaper.timer, first + jitter);
+    }
 
     return NGX_OK;
 }
@@ -451,6 +501,12 @@ brix_init_one_server(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
      * It must NOT be started here as well: this ladder runs on every worker,
      * which would resurrect the per-worker connection collision.
      */
+
+    /* Phase-107 C2 advisor: warn once when a nearline export can never
+     * stage (no recall-capable tier, no prepare_command). After the cache
+     * storage init so resolving the chain here builds it in its final,
+     * fully-registered shape. */
+    brix_init_server_stage_advisor(cycle, xcf);
 
     /* Phase 22: start the active health-check timer (no-op if disabled). */
     brix_hc_manager_start(cycle, xcf);

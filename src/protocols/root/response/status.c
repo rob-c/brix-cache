@@ -131,8 +131,8 @@ brix_send_pgwrite_cse(brix_ctx_t *ctx, ngx_connection_t *c,
 }
 
 void
-brix_build_pgread_status(brix_ctx_t *ctx, int64_t file_offset,
-    uint32_t total_with_crcs, ServerStatusResponse_pgRead *out)
+brix_build_pgread_status_sid(const u_char sid[2], int64_t file_offset,
+    uint32_t total_with_crcs, u_char resptype, ServerStatusResponse_pgRead *out)
 {
     size_t    hdr_crc_len;
     uint32_t  crc;
@@ -151,15 +151,15 @@ brix_build_pgread_status(brix_ctx_t *ctx, int64_t file_offset,
      */
     hdr_crc_len = sizeof(out->bdy) - sizeof(out->bdy.crc32c) + sizeof(out->pgr);
 
-    out->hdr.streamid[0] = ctx->recv.cur_streamid[0];
-    out->hdr.streamid[1] = ctx->recv.cur_streamid[1];
+    out->hdr.streamid[0] = sid[0];
+    out->hdr.streamid[1] = sid[1];
     out->hdr.status = htons(kXR_status);
     out->hdr.dlen = htonl((uint32_t) (sizeof(out->bdy) + sizeof(out->pgr)));
 
-    out->bdy.streamID[0] = ctx->recv.cur_streamid[0];
-    out->bdy.streamID[1] = ctx->recv.cur_streamid[1];
+    out->bdy.streamID[0] = sid[0];
+    out->bdy.streamID[1] = sid[1];
     out->bdy.requestid = (kXR_char) (kXR_pgread - kXR_1stRequest);
-    out->bdy.resptype = kXR_FinalResult;
+    out->bdy.resptype = (kXR_char) resptype;
     ngx_memzero(out->bdy.reserved, sizeof(out->bdy.reserved));
     out->bdy.dlen = htonl(total_with_crcs);
 
@@ -167,4 +167,16 @@ brix_build_pgread_status(brix_ctx_t *ctx, int64_t file_offset,
 
     crc = brix_crc32c(&out->bdy.streamID[0], hdr_crc_len);
     out->bdy.crc32c = htonl(crc);
+}
+
+/* ctx-flavored wrapper: the event-thread call sites build for the CURRENT
+ * request's streamid (restored by brix_aio_restore_stream before use); the
+ * _sid core exists so a pool-send worker thread (§1.2) can stamp the header
+ * from its task's saved streamid without touching ctx. */
+void
+brix_build_pgread_status(brix_ctx_t *ctx, int64_t file_offset,
+    uint32_t total_with_crcs, ServerStatusResponse_pgRead *out)
+{
+    brix_build_pgread_status_sid(ctx->recv.cur_streamid, file_offset,
+                                   total_with_crcs, kXR_FinalResult, out);
 }

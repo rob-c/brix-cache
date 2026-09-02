@@ -385,6 +385,12 @@ int     brix_cache_origin_stat(brix_cache_fill_t *t,
  * recall slot; see origin_ns.c. */
 int     brix_cache_origin_prepare_stage(brix_cache_fill_t *t,
             brix_cache_origin_conn_t *oc, const char *path, char reqid_out[40]);
+
+/* kXR_prepare(optionX=kXR_evict) of ONE path on the origin (phase-107 C2):
+ * ask a tape-backed origin to release its online-disk copy — the MSS copy
+ * remains the durable one. 0, or -1 with errno set. */
+int     brix_cache_origin_prepare_evict(brix_cache_fill_t *t,
+            brix_cache_origin_conn_t *oc, const char *path);
 ssize_t brix_cache_origin_getfattr(brix_cache_fill_t *t,
             brix_cache_origin_conn_t *oc, const char *path, const char *name,
             void *buf, size_t cap);

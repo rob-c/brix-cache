@@ -23,9 +23,11 @@
 #include "pblock_ctl.h"
 #include "pblock_quota.h"
 #include "sd_pblock_catalog_internal.h"   /* cat_prepare / cat_exec */
+#include "sd_pblock_internal.h"            /* pblock_obj_t (sd_pblock_reserve) */
 
 #include <errno.h>
 #include <stdint.h>
+#include <sys/statvfs.h>   /* physical free-space probe (sd_pblock_reserve) */
 #include <stdio.h>
 #include <string.h>
 
@@ -213,6 +215,38 @@ pblock_quota_touch_admit(const pblock_state_t *st, const char *path,
         return 0;                        /* fresh row: admitted at create time */
     }
     return pblock_quota_admit(st, uid, newsize - m.size, 0);
+}
+
+
+/* sd_pblock_reserve — phase-107 C5: admit a declared final size at open.
+ *
+ * WHAT: Decide, before the first byte is accepted, whether this handle may
+ *       grow the object to `size`: the F5 quota ceiling snapshotted at open
+ *       (per-uid + export, EDQUOT) and the physical free space of the block
+ *       store's filesystem (ENOSPC).
+ * WHY:  A declaration the catalog quota or the disk cannot satisfy must fail
+ *       the OPEN (kXR_NoSpace / 507), not the write hours of streaming later.
+ * HOW:  Pure admission — no block is chained (block files materialise on
+ *       write; a physical preallocation would buy nothing on a store whose
+ *       blocks are independent files). statvfs failure is ignored: quota is
+ *       the deterministic contract, the physical probe is best-effort. */
+ngx_int_t
+sd_pblock_reserve(brix_sd_obj_t *obj, off_t size)
+{
+    pblock_obj_t   *os = obj->state;
+    struct statvfs  sv;
+
+    if ((int64_t) size > os->quota_max) {
+        errno = EDQUOT;
+        return NGX_ERROR;
+    }
+    if (statvfs(os->st->data_dir, &sv) == 0
+        && (uint64_t) size > (uint64_t) sv.f_bavail * (uint64_t) sv.f_frsize)
+    {
+        errno = ENOSPC;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
 }
 
 #endif /* BRIX_HAVE_SQLITE */

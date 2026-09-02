@@ -431,6 +431,7 @@ tier_compose_stage(brix_tier_stack_t *s, brix_sd_instance_t *top,
     if (store == NULL) {
         return NULL;
     }
+    store->domain = BRIX_VFS_DOMAIN_STAGE;   /* service storage (C9) */
     top = brix_sd_stage_create(top, store, &s->stage, NULL, log);
     if (top == NULL) {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
@@ -460,6 +461,7 @@ tier_compose_cache(brix_tier_stack_t *s, brix_sd_instance_t *top,
     if (store == NULL) {
         return NULL;
     }
+    store->domain = BRIX_VFS_DOMAIN_CACHE;   /* service storage (C9) */
     local_root = (ngx_strcmp(s->cache_store.driver, "posix") == 0
                   && s->cache_store.path[0] != '\0')
                ? s->cache_store.path : NULL;

@@ -336,7 +336,7 @@ brix_credential_bearer(const brix_credential_t *cred, char *out, size_t cap,
 
     /* Read the bearer from token_file (a trusted config path, not export data:
      * O_NOFOLLOW so a planted symlink cannot redirect it). First line only. */
-    fd = open((const char *) cred->token_file.data,    /* vfs-seam-allow: config-domain bearer token file (not export storage) */
+    fd = open((const char *) cred->token_file.data,    /* vfs-seam-allow: DOMAIN_CONFIG — config-domain bearer token file (not export storage) */
               O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
     if (fd < 0) {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,

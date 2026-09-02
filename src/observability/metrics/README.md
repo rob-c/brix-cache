@@ -151,6 +151,7 @@ deliberately-invalid example or a metric a design doc has only proposed.
 | `unified_export_io.c` | Renders the three brix_io_* Prometheus families — io_bytes_{read, written}, io_ops_total, and the io_latency_usec histogram — and hosts the two helpers shared with the rest of the exporter: brix_metric_value (lock-free c. |
 | `unified_internal.h` | Declares the handful of symbols that the unified metrics implementation shares ACROSS its four .c files but that are NOT part of the public unified.h API: the two label tables the exporter indexes directly (auth + tpc-di. |
 | `unified_record.c` | Implements the hot-path record helpers protocol handlers call to bump the unified SHM counters — brix_metric_op_done (io ops/bytes/latency), brix_metric_backend_bytes (per-backend byte totals), brix_metric_cache_result /. |
+| `unified_record_vfs.c` | Record-side mutators for the VFS mutation-surface families — brix_metric_vfs_mutation_denied (phase-105 read-only refusals), the phase-107 C1 writer-spill trio, and the phase-107 C4 bulk-delete pair; keyed by the fs layer's own enums rather than protocol-plane labels. |
 
 ## Key types & data structures
 

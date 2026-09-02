@@ -159,7 +159,7 @@ tpc_marker_build_ctx(const tpc_marker_start_args_t *a)
 
     if (!a->is_pull && a->tmp_path != NULL) {
         struct stat sb;
-        if (stat(a->tmp_path, &sb) == 0) {  /* vfs-seam-allow: TPC push source temp size */
+        if (stat(a->tmp_path, &sb) == 0) {  /* vfs-seam-allow: DOMAIN_STAGE — TPC push source temp size */
             ctx->push_file_size = sb.st_size;
         }
     }

@@ -26,6 +26,7 @@ pyright, IDE completion, and runtime introspection see the same contract.
 | `KiB` | size | Binary kibibyte. |
 | `MB` | size | Decimal megabyte. |
 | `MiB` | size | Binary mebibyte. |
+| `OutputExpectation` | native | Immutable stdout or stderr assertion contract. |
 | `Identity` | declaration | Least-privilege process, container, or Kubernetes identity. |
 | `Readiness` | declaration | Server readiness contract. |
 | `Resource` | declaration | Versioned provider-managed infrastructure. |
@@ -40,6 +41,7 @@ pyright, IDE completion, and runtime introspection see the same contract.
 | `configs` | factory | Group multiple server config files. |
 | `file_artifact` | factory | Capture and checksum an existing file. |
 | `environment` | factory | Declare an explicit execution realm. |
+| `expect_output` | native | Declare exact, substring, exclusion, and regex stream checks. |
 | `get_case` | introspection | Return the validated contract attached by `@case`. |
 | `immediate` | factory | Declare spawn-only readiness. |
 | `identity` | factory | Declare a portable least-privilege identity. |
@@ -77,6 +79,7 @@ pyright, IDE completion, and runtime introspection see the same contract.
 | `http_endpoint` | factory | Declare an HTTP or HTTPS endpoint. |
 | `http_probe` | factory | Declare HTTP or HTTPS readiness. |
 | `mount` | factory | Project one declared input into a resource environment. |
+| `native_test` | native | Create one independently collected, compiled, supervised C/C++ pytest item. |
 | `param` | factory | Reference the current pytest parameter value in a declaration. |
 | `probe` | factory | Declare a backend-neutral readiness probe. |
 | `ref` | factory | Create an advanced typed runtime reference. |

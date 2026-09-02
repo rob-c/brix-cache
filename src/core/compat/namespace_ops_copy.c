@@ -177,7 +177,9 @@ ns_copy_open_dst(ngx_log_t *log, int rootfd, const char *root_canon,
     int *dst_fd_out, ngx_flag_t *use_staging_out, brix_ns_result_t *res)
 {
     if (opts->staged_commit) {
-        /* staged_file confines its own temp open/rename internally. */
+        /* staged_file confines its own temp open/rename internally. Any
+         * carried precondition (C6) is decided later, at the commit in
+         * ns_copy_finalize — the whole point of staging. */
         brix_staged_open_req_t staged_req = {
             .root_canon = root_canon,
             .final_path = dst,
@@ -194,8 +196,32 @@ ns_copy_open_dst(ngx_log_t *log, int rootfd, const char *root_canon,
         return 0;
     }
 
+    /* Direct (unstaged) destination: the O_TRUNC open below DESTROYS the
+     * target, so a carried MATCH_* precondition (C6) must be decided here —
+     * check-then-act, the best an unstaged create can offer. ABSENT gets the
+     * atomic answer instead: O_EXCL at the create itself. */
+    if (opts->precond != NULL
+        && opts->precond->kind != BRIX_SD_PRECOND_NONE
+        && opts->precond->kind != BRIX_SD_PRECOND_ABSENT)
+    {
+        struct stat dsb;
+
+        if (brix_stat_beneath(rootfd, dst_rel, &dsb) != 0) {
+            ns_set_err(res, ECANCELED);   /* missing target = failed match */
+            return 1;
+        }
+        if (brix_sd_precond_eval_stat(opts->precond, dsb.st_size,
+                                        dsb.st_mtime) != 0)
+        {
+            ns_set_err(res, errno);       /* ECANCELED / ENOTSUP */
+            return 1;
+        }
+    }
+
     *dst_fd_out = brix_open_beneath(rootfd, dst_rel,
-                                    O_WRONLY | O_CREAT | O_TRUNC, mode);
+                                    O_WRONLY | O_CREAT | O_TRUNC
+                                    | (brix_sd_precond_absent(opts->precond)
+                                       ? O_EXCL : 0), mode);
     if (*dst_fd_out < 0) {
         ns_set_err(res, errno);
         return 1;
@@ -249,7 +275,35 @@ ns_copy_finalize(ngx_log_t *log, const char *root_canon, const char *src,
     close(src_fd);
 
     if (use_staging) {
-        if (brix_staged_commit(log, root_canon, staged, dst) != NGX_OK) {
+        const brix_sd_precond_t *pre = opts->precond;
+
+        /* Carried publish precondition (C6), decided HERE — after the bytes
+         * are staged, immediately before the rename publishes them — not by
+         * an edge check that raced the whole copy. MATCH_* is a stat-compare
+         * against the live target (missing target = failed match), honest but
+         * not atomic — the same verdict the VFS compat staged arm reports;
+         * ABSENT is the atomic RENAME_NOREPLACE publish. */
+        if (pre != NULL && pre->kind != BRIX_SD_PRECOND_NONE
+            && pre->kind != BRIX_SD_PRECOND_ABSENT)
+        {
+            struct stat dsb;
+
+            if (stat(dst, &dsb) != 0    /* vfs-seam-allow: SEAM_CORRECT — this compat copy
+                                         * engine IS the posix storage plane —
+                                         * the commit below renames onto this
+                                         * same path */
+                || brix_sd_precond_eval_stat(pre, dsb.st_size,
+                                               dsb.st_mtime) != 0)
+            {
+                ns_set_err(res, errno == ENOTSUP ? ENOTSUP : ECANCELED);
+                brix_staged_abort(log, root_canon, staged, 1);
+                return;
+            }
+        }
+        if ((brix_sd_precond_absent(pre)
+             ? brix_staged_commit_excl(log, root_canon, staged, dst)
+             : brix_staged_commit(log, root_canon, staged, dst)) != NGX_OK)
+        {
             ns_set_err(res, errno);
             return;
         }

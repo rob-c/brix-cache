@@ -225,6 +225,53 @@ brix_prefetch_flush(ngx_log_t *log, int fd, off_t range_start,
     }
 }
 
+/* Decode + bounds-check one readv segment against the open-handle table.
+ * Returns 1 with fd_out, start_out and end_out filled for a hintable range,
+ * 0 for a segment to skip (unopened handle, zero/overflowing range). */
+static int
+prefetch_decode_segment(brix_ctx_t *ctx, const readahead_list *seg,
+    size_t readv_seg_max, int *fd_out, off_t *start_out, off_t *end_out)
+{
+    int      handle_index;
+    int64_t  request_offset;
+    uint32_t request_length;
+    off_t    segment_start;
+    off_t    segment_end;
+
+    handle_index = (int) (unsigned char) seg->fhandle[0];
+    if (handle_index < 0 || handle_index >= BRIX_MAX_FILES
+        || ctx->files[handle_index].fd < 0)
+    {
+        return 0;
+    }
+
+    request_length = (uint32_t) ntohl((uint32_t) seg->rlen);
+    if ((size_t) request_length > readv_seg_max) {
+        request_length = (uint32_t) readv_seg_max;
+    }
+    if (request_length == 0) {
+        return 0;
+    }
+
+    request_offset = (int64_t) be64toh((uint64_t) seg->offset);
+    if (request_offset < 0
+        || (off_t) request_length > NGX_MAX_OFF_T_VALUE - request_offset)
+    {
+        return 0;
+    }
+
+    segment_start = (off_t) request_offset;
+    segment_end = segment_start + (off_t) request_length;
+    if (segment_end <= segment_start) {
+        return 0;
+    }
+
+    *fd_out = ctx->files[handle_index].fd;
+    *start_out = segment_start;
+    *end_out = segment_end;
+    return 1;
+}
+
 /* Issue read-ahead hints for the segments of a kXR_readv request. */
 void
 brix_prefetch_readv_segments(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -235,40 +282,18 @@ brix_prefetch_readv_segments(brix_ctx_t *ctx, ngx_connection_t *c,
     off_t   merged_end = 0;
     size_t  i;
 
+    if (ctx->files == NULL) {
+        return;                 /* no handle open yet — nothing to hint */
+    }
+
     for (i = 0; i < segment_count; i++) {
-        int      handle_index;
-        int      fd;
-        int64_t  request_offset;
-        uint32_t request_length;
-        off_t    segment_start;
-        off_t    segment_end;
+        int    fd;
+        off_t  segment_start;
+        off_t  segment_end;
 
-        handle_index = (int) (unsigned char) segments[i].fhandle[0];
-        if (handle_index < 0 || handle_index >= BRIX_MAX_FILES
-            || ctx->files[handle_index].fd < 0)
+        if (!prefetch_decode_segment(ctx, &segments[i], readv_seg_max,
+                                     &fd, &segment_start, &segment_end))
         {
-            continue;
-        }
-
-        request_length = (uint32_t) ntohl((uint32_t) segments[i].rlen);
-        if ((size_t) request_length > readv_seg_max) {
-            request_length = (uint32_t) readv_seg_max;
-        }
-        if (request_length == 0) {
-            continue;
-        }
-
-        request_offset = (int64_t) be64toh((uint64_t) segments[i].offset);
-        if (request_offset < 0
-            || (off_t) request_length > NGX_MAX_OFF_T_VALUE - request_offset)
-        {
-            continue;
-        }
-
-        fd = ctx->files[handle_index].fd;
-        segment_start = (off_t) request_offset;
-        segment_end = segment_start + (off_t) request_length;
-        if (segment_end <= segment_start) {
             continue;
         }
 

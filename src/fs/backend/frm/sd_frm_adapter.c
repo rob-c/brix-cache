@@ -45,6 +45,65 @@ frm_adapter_is_exec_family(const char *adapter)
          || ngx_strcmp(adapter, "cta") == 0);
 }
 
+/* ---- master-environ snapshot for the dialect contract vars (W6) ----
+ *
+ * WHAT: frm_env() is getenv() that REMEMBERS: every successful read of one of
+ * the six dialect vars refreshes its slot, and a later miss answers from the
+ * slot.  Non-contract names fall through to plain getenv semantics.
+ *
+ * WHY: The stage command/HSM library contract is "read from the MASTER
+ * environment at config time" — and the master's parse-time chain build
+ * honours it.  But the registry memo is CYCLE-keyed (vfs_backend_registry.c:
+ * a chain built under an earlier cycle holds that cycle's dead log pointer),
+ * so every worker rebuilds its chain once — AFTER ngx_worker_process_init has
+ * replaced environ with the `env`-directive allowlist.  Without this snapshot
+ * that rebuild silently degrades an exec/lib dialect to the stub (caught by
+ * test_frm_scratch when the cycle keying landed).  The slots are warmed in
+ * the master during config parse and reach workers by fork inheritance; an
+ * operator `env` directive still works and simply keeps getenv succeeding.
+ * A reload re-parses in the master (whose environ never changes), re-warming
+ * the slots before the new workers fork. */
+typedef struct {
+    const char  *name;               /* contract var (static literal)      */
+    char         value[PATH_MAX];    /* last non-empty value seen          */
+    unsigned     set;                /* value[] is meaningful              */
+} frm_env_slot_t;
+
+static frm_env_slot_t  frm_env_snapshot[] = {
+    { "BRIX_FRM_STAGECMD",      "", 0 },
+    { "BRIX_FRM_HPSS_STAGECMD", "", 0 },
+    { "BRIX_FRM_CTA_STAGECMD",  "", 0 },
+    { "BRIX_FRM_LIB",           "", 0 },
+    { "BRIX_FRM_HPSS_LIB",      "", 0 },
+    { "BRIX_FRM_CTA_LIB",       "", 0 },
+};
+
+static const char *
+frm_env(const char *name)
+{
+    const char  *v = getenv(name);
+    ngx_uint_t   i;
+
+    for (i = 0;
+         i < sizeof(frm_env_snapshot) / sizeof(frm_env_snapshot[0]);
+         i++)
+    {
+        frm_env_slot_t *s = &frm_env_snapshot[i];
+
+        if (ngx_strcmp(s->name, name) != 0) {
+            continue;
+        }
+        if (v != NULL && v[0] != '\0'
+            && ngx_strlen(v) < sizeof(s->value))
+        {
+            ngx_cpystrn((u_char *) s->value, (u_char *) v, sizeof(s->value));
+            s->set = 1;
+        }
+        return s->set ? s->value : NULL;
+    }
+    return (v != NULL && v[0] != '\0') ? v : NULL;
+}
+
 /* Resolve a per-dialect env override with a generic fallback.
  *
  * WHY: a node can front an HPSS silo and a CTA silo at once, so each named
@@ -59,14 +118,14 @@ frm_dialect_env(const char *adapter, const char *hpss_name,
     const char *v = NULL;
 
     if (ngx_strcmp(adapter, hpss_name) == 0) {
-        v = getenv(hpss_var);
+        v = frm_env(hpss_var);
     } else if (ngx_strcmp(adapter, cta_name) == 0) {
-        v = getenv(cta_var);
+        v = frm_env(cta_var);
     }
-    if (v == NULL || v[0] == '\0') {
-        v = getenv(generic_var);
+    if (v == NULL) {
+        v = frm_env(generic_var);
     }
-    return (v != NULL && v[0] != '\0') ? v : NULL;
+    return v;
 }
 
 /* Resolve the stage command for an exec-family `adapter` (an `hsi`/`pftp`

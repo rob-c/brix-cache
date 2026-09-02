@@ -41,8 +41,8 @@ webdav_lock_parse_timeout(ngx_http_request_t *r,
     return (int64_t) ngx_time() + (int64_t) timeout;
 }
 
-int
-webdav_lock_if_header_matches(ngx_http_request_t *r, const char *token)
+const char *
+webdav_lock_token_header(ngx_http_request_t *r)
 {
     ngx_table_elt_t *h;
 
@@ -53,14 +53,17 @@ webdav_lock_if_header_matches(ngx_http_request_t *r, const char *token)
          * here to preserve compatibility with the previous handler behavior.
          */
         h = webdav_tpc_find_header(r, "Lock-Token", sizeof("Lock-Token") - 1);
-        if (h == NULL) return 0;
     }
 
-    if (ngx_strstr(h->value.data, (u_char *) token) != NULL) {
-        return 1;
-    }
+    return (h != NULL) ? (const char *) h->value.data : NULL;
+}
 
-    return 0;
+int
+webdav_lock_if_header_matches(ngx_http_request_t *r, const char *token)
+{
+    const char *v = webdav_lock_token_header(r);
+
+    return v != NULL && ngx_strstr(v, token) != NULL;
 }
 
 ngx_int_t

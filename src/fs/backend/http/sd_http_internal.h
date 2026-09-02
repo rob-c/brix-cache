@@ -78,6 +78,16 @@ typedef struct {
                                     ONLY thing that arms BRIX_SD_CAP_NEARLINE —
                                     see sd_http_nearline.c on why the cap is an
                                     explicit opt-in and never inferred. */
+    _Atomic int                  cond_probe;  /* C6 (phase-107 W7): does the
+                                    write origin HONOUR RFC 7232 conditional
+                                    PUT? 0 = not yet probed, 1 = answers 412,
+                                    -1 = ignores the header (conditional
+                                    publish then refuses ENOTSUP — sending a
+                                    precondition an origin ignores would
+                                    publish unconditionally, §3.5). Probed
+                                    lazily by the first conditional commit
+                                    (sd_http_write.c), never at init: a probe
+                                    needs an authenticated PUT. */
     int                          cur_ep;      /* index of the endpoint that
                                     answered the last successful request, -1 =
                                     none yet. Written by fill threads without
@@ -270,13 +280,13 @@ ngx_int_t sd_http_space(brix_sd_instance_t *inst, brix_sd_space_t *out);
 
 /* Write-path vtable slots (sd_http_write.c), referenced by the driver struct. */
 brix_sd_staged_t *sd_http_staged_open(brix_sd_instance_t *inst,
-    const char *final_path, mode_t mode, int *err_out);
+    const char *final_path, mode_t mode, off_t declared_size, int *err_out);
 brix_sd_staged_t *sd_http_staged_open_cred(brix_sd_instance_t *inst,
-    const char *final_path, mode_t mode, const brix_sd_cred_t *cred,
-    int *err_out);
+    const char *final_path, mode_t mode, off_t declared_size,
+    const brix_sd_cred_t *cred, int *err_out);
 ssize_t   sd_http_staged_write(brix_sd_staged_t *h, const void *buf,
     size_t len, off_t off);
-ngx_int_t sd_http_staged_commit(brix_sd_staged_t *h, int noreplace);
+ngx_int_t sd_http_staged_commit(brix_sd_staged_t *h, brix_sd_precond_t *pre);
 void      sd_http_staged_abort(brix_sd_staged_t *h);
 ngx_int_t sd_http_unlink(brix_sd_instance_t *inst, const char *path,
     int is_dir);
@@ -335,8 +345,8 @@ typedef struct {
 int sd_http_ns_send(sd_http_inst_state *is, const sd_http_ns_req_t *rq,
     brix_s3_resp_t *resp, char *errbuf, size_t errcap);
 
-/* The WebDAV mutation statusâerrno verdict (sd_http_mutate.c): 401/403 â EACCES,
- * 404/409 â ENOENT, 405/412 â EEXIST, anything else â EIO. Shared so the property
+/* The WebDAV mutation status->errno verdict (sd_http_mutate.c): 401/403 -> EACCES,
+ * 404/409 -> ENOENT, 405/412 -> EEXIST, anything else -> EIO. Shared so the property
  * writer (sd_http_xattr.c) overrides only the codes whose MEANING differs there,
  * instead of restating the common half. */
 int sd_http_status_to_errno(long status);
@@ -385,6 +395,8 @@ ngx_int_t sd_http_residency(brix_sd_instance_t *inst, const char *key,
     brix_sd_residency_t *out);
 ngx_int_t sd_http_recall(brix_sd_instance_t *inst, const char *key,
     char reqid_out[40]);
+ngx_int_t sd_http_recall_cred(brix_sd_instance_t *inst, const char *key,
+    const brix_sd_cred_t *cred, char reqid_out[40]);
 int       sd_http_tape_init(sd_http_inst_state *is, const char *base);
 
 /* Directory-enumeration slots (sd_http_dir.c) — a WebDAV PROPFIND Depth:1 read

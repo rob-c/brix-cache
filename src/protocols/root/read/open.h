@@ -69,6 +69,11 @@ typedef struct {
     uint16_t     mode_bits;
     ngx_flag_t   is_write;
     uint8_t      codec;
+    /* phase-107 C5: the client's declared final object size (`oss.asize` CGI),
+     * or 0 when none was declared. Write opens only — every read-open caller's
+     * designated initializer leaves it 0. Carried onto the VFS ctx so the open
+     * paths can reserve (object plane) or forward it (staged plane). */
+    off_t        declared_size;
 } brix_open_request_t;
 ngx_int_t brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf, const brix_open_request_t *req);
 /*

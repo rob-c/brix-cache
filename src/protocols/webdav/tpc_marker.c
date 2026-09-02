@@ -121,7 +121,7 @@ tpc_marker_send_all(ngx_http_request_t *r, time_t ts,
         off_t bytes = 0;
         if (ctx->is_pull && ctx->tmp_path[0] != '\0') {
             struct stat sb;
-            if (stat(ctx->tmp_path, &sb) == 0) {  /* vfs-seam-allow: TPC in-progress transfer temp (committed via rename) */
+            if (stat(ctx->tmp_path, &sb) == 0) {  /* vfs-seam-allow: DOMAIN_STAGE — TPC in-progress transfer temp (committed via rename) */
                 bytes = sb.st_size;
             }
         }
@@ -145,7 +145,7 @@ tpc_marker_final_bytes(tpc_marker_ctx_t *ctx)
 {
     if (ctx->is_pull && ctx->tmp_path[0] != '\0') {
         struct stat sb;
-        return (stat(ctx->tmp_path, &sb) == 0) ? sb.st_size : 0;  /* vfs-seam-allow: TPC in-progress transfer temp */
+        return (stat(ctx->tmp_path, &sb) == 0) ? sb.st_size : 0;  /* vfs-seam-allow: DOMAIN_STAGE — TPC in-progress transfer temp */
     }
     return ctx->is_pull ? 0 : ctx->push_file_size;
 }
@@ -409,7 +409,7 @@ tpc_marker_cleanup(void *data)
     }
 
     if (ctx->is_pull && ctx->tmp_path[0] != '\0') {
-        (void) unlink(ctx->tmp_path);  /* vfs-seam-allow: TPC in-progress transfer temp cleanup */
+        (void) unlink(ctx->tmp_path);  /* vfs-seam-allow: DOMAIN_STAGE — TPC in-progress transfer temp cleanup */
         ctx->tmp_path[0] = '\0';
     }
 }

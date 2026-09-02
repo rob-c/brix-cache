@@ -146,6 +146,35 @@ void brix_vfs_backend_set_credential(const char *root_canon,
  * (xroot) backend. Set after the backend is registered for the same root. */
 void brix_vfs_backend_set_staging(const char *root_canon, int on);
 
+/* phase-107 C1 — the writer's SPILL scratch for this export. The setter runs at
+ * config time (spill_root already canonical, validated OUTSIDE every export
+ * root by the caller); the getter runs on the write path and never allocates:
+ * *root_out borrows the entry's storage (NULL means "no scratch"), *max_out is
+ * the per-spill byte cap (0 = uncapped). Returns NGX_OK when the export is
+ * registered, NGX_ERROR otherwise (outputs are zeroed either way first). */
+void brix_vfs_backend_set_spill(const char *root_canon,
+    const char *spill_root, off_t spill_max);
+ngx_int_t brix_vfs_backend_spill(const char *root_canon,
+    const char **root_out, off_t *max_out);
+
+/* phase-107 C3 durable publish. set_durable registers the export's merged
+ * brix_durable_publish flag at config time (on==0 opts the export out of the
+ * per-publish parent-directory fsync). brix_vfs_backend_durable answers at
+ * publish time; an unregistered root — including the NULL/empty root of a
+ * transient ctx — is DURABLE (the default is on, and absence fails safe). */
+void brix_vfs_backend_set_durable(const char *root_canon, ngx_flag_t on);
+ngx_int_t brix_vfs_backend_durable(const char *root_canon);
+
+/* phase-107 C7 lock enforcement. set_lock_enforcement registers the export's
+ * merged brix_lock_enforcement mode at config time (registered only when it
+ * relaxes the default); brix_vfs_backend_lock_enforcement answers on the
+ * mutation path. An unregistered root — including the NULL/empty root of a
+ * transient ctx — is STRICT (0): absence fails toward enforcement. Values are
+ * brix_vfs_lock_enforcement_t (vfs_policy.h). */
+void brix_vfs_backend_set_lock_enforcement(const char *root_canon,
+    ngx_uint_t mode);
+ngx_uint_t brix_vfs_backend_lock_enforcement(const char *root_canon);
+
 /* Resolve `root_canon` to its bound storage-driver instance, creating it on first
  * use in this worker (on ngx_cycle->pool). Returns NULL when the export has no
  * registered non-POSIX backend (⇒ default POSIX) or on creation failure (logged). */

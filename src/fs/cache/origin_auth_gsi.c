@@ -51,7 +51,7 @@ cache_origin_load_proxy_pem(const char *path, size_t *outlen)
     uint8_t *buf = NULL;
     int      n = 0;
 
-    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: config-domain X.509 proxy PEM (not export storage) */
+    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: DOMAIN_CONFIG — config-domain X.509 proxy PEM (not export storage) */
     if (fd < 0) {
         return NULL;
     }
@@ -93,7 +93,7 @@ cache_origin_load_proxy_key(const char *path)
     BIO      *in;
     EVP_PKEY *k = NULL;
 
-    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: config-domain X.509 proxy key (not export storage) */
+    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: DOMAIN_CONFIG — config-domain X.509 proxy key (not export storage) */
     if (fd < 0) {
         return NULL;
     }

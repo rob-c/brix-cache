@@ -31,26 +31,11 @@
  */
 
 /*
- * Build a transient VFS ctx for a confined dead-property xattr op on `path`
- * (mirrors the canonical construction in get.c).  The xattr family is not
- * allow_write-gated, so the allow_write flag does not affect set/remove.
+ * VFS ctx per op: the canonical bare webdav_vfs_ctx_build (confined ctx + the
+ * C7 If/Lock-Token bytes, so the OWNER's PROPPATCH of its own locked resource
+ * does not read as foreign at the gate).  The xattr family is not
+ * allow_write-gated and binds no backend credential here.
  */
-static void
-webdav_dead_prop_vfs_ctx_init(ngx_http_request_t *r, const char *path,
-    brix_vfs_ctx_t *vctx)
-{
-    ngx_http_brix_webdav_loc_conf_t *conf =
-        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    ngx_http_brix_webdav_req_ctx_t *wctx =
-        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
-    int is_tls = brix_http_request_is_tls(r);
-
-    brix_vfs_ctx_init(vctx, r->pool, r->connection->log,
-        BRIX_PROTO_WEBDAV, conf->common.root_canon,
-        conf->common.cache_root_canon,
-        brix_vfs_policy_from_write_enable(conf->common.allow_write), is_tls,
-        (wctx != NULL) ? wctx->identity : NULL, path);
-}
 
 /*
  * WHAT: Report whether a DAV:-namespace property is server-managed (protected).
@@ -149,7 +134,7 @@ webdav_dead_prop_set_target(const webdav_dead_prop_target_t *t,
         return NGX_ERROR;
     }
 
-    webdav_dead_prop_vfs_ctx_init(t->r, t->path, &vctx);
+    webdav_vfs_ctx_build(t->r, t->path, &vctx);
 
     if (brix_vfs_setxattr(&vctx, attr, xml, xml_len, 0) != NGX_OK) {
         ngx_log_error(NGX_LOG_WARN, t->r->connection->log, errno,
@@ -192,7 +177,7 @@ webdav_dead_prop_remove(ngx_http_request_t *r, const char *path,
         return NGX_ERROR;
     }
 
-    webdav_dead_prop_vfs_ctx_init(r, path, &vctx);
+    webdav_vfs_ctx_build(r, path, &vctx);
 
     /* "not present" == already removed, so treat ENODATA/ENOATTR as success. */
     /* phase74-fp: ENOATTR is an alias of ENODATA on Linux but a distinct errno
@@ -245,7 +230,7 @@ webdav_dead_prop_read_value(const webdav_dead_prop_target_t *t,
         return NGX_DECLINED;
     }
 
-    webdav_dead_prop_vfs_ctx_init(t->r, t->path, &vctx);
+    webdav_vfs_ctx_build(t->r, t->path, &vctx);
 
     /* Probe length first (buf=NULL, size=0). */
     len = brix_vfs_getxattr(&vctx, attr, NULL, 0);
@@ -319,7 +304,7 @@ webdav_dead_props_append_all(ngx_http_request_t *r, const char *path,
     ssize_t          len;
     char            *p;
 
-    webdav_dead_prop_vfs_ctx_init(r, path, &vctx);
+    webdav_vfs_ctx_build(r, path, &vctx);
 
     /* Probe the size of the NUL-separated key list. */
     len = brix_vfs_listxattr(&vctx, NULL, 0);

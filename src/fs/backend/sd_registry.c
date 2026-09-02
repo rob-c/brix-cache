@@ -140,6 +140,10 @@ brix_sd_instance_create(ngx_log_t *log, const char *name,
     inst->pool = pool;
     inst->caps = driver->caps;   /* effective caps default = descriptor caps;
                                   * init may narrow/extend (Phase-83 pblock mask) */
+    inst->domain = BRIX_VFS_DOMAIN_EXPORT;   /* pcalloc already yields EXPORT (0);
+                                  * a service-storage composition site (cache/
+                                  * stage tier, registry) overrides after create
+                                  * (phase-107 C9) */
 
     if (driver->init != NULL && driver->init(inst, driver_conf) != NGX_OK) {
         if (err_out != NULL) { *err_out = errno != 0 ? errno : EINVAL; }

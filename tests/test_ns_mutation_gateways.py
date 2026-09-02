@@ -34,8 +34,9 @@ Coverage (success + error + security-negative):
   * error             — `mkdir -p` over a regular file is refused kXR_ItExists on
     every plane and leaves the file's bytes intact; rm of a missing object is
     kXR_NotFound on every plane; rmdir of a regular file and rm of a directory
-    are refused and the target SURVIVES; xattr through the http gateway is an
-    honest per-attribute kXR_Unsupported (no slot on that driver);
+    are refused and the target SURVIVES; xattr through the http gateway
+    round-trips as a WebDAV dead property and lands at the ORIGIN (the driver
+    grew xattr slots in the storage-driver slot wave, item Q);
   * security-negative — a traversal-shaped mkdir/rm through either gateway
     writes nothing above the export and forwards nothing to the origin.
 
@@ -73,7 +74,6 @@ pytestmark = [
 kXR_FSError = 3005
 kXR_IOError = 3007
 kXR_NotFound = 3011
-kXR_Unsupported = 3013
 kXR_ItExists = 3018
 
 NAME = "lc-ns-gateways"
@@ -385,20 +385,21 @@ def test_a_populated_directory_is_never_deleted_non_recursively(mesh, plane, op)
         f"{op} of a populated directory destroyed a child collection on {plane}"
 
 
-def test_xattr_through_the_http_gateway_is_per_attribute_unsupported(mesh):
-    """sd_http has no xattr slots, and the refusal lives in the PER-ATTRIBUTE
-    status: the fattr envelope is a successful round trip that reports each
-    attribute as Unsupported.  Pinned because an envelope-only reading of this
-    response looks like a successful set."""
+def test_xattr_through_the_http_gateway_lands_at_the_origin(mesh):
+    """sd_http carries xattr slots (slot wave, item Q): a fattr set travels as
+    a WebDAV PROPPATCH dead property and the origin's own backing file holds
+    the persisted `user.nginx_xrootd.webdav.*` xattr — metadata stays in the same
+    storage domain as the bytes, and the PER-ATTRIBUTE status is ok (an
+    envelope-only reading of an fattr response proves nothing either way)."""
     mesh.seed_file(GW_HTTP, "attr.bin")
 
     _st, resp = mesh.fs(GW_HTTP).set_xattr("/attr.bin", [("user.ns", "v")])
     ok, err = _perattr(resp)
 
-    assert not ok, "fattr set succeeded on a backend with no xattr slot"
-    assert err == kXR_Unsupported, f"fattr set answered {err}, expected Unsupported"
-    assert os.listxattr(str(mesh.store(GW_HTTP) / "attr.bin")) == [], \
-        "the refused set wrote an attribute at the origin anyway"
+    assert ok, f"fattr set through the http gateway refused: errno={err}"
+    names = os.listxattr(str(mesh.store(GW_HTTP) / "attr.bin"))
+    assert names and all(n.startswith("user.nginx_xrootd.webdav.") for n in names), \
+        f"the set did not land as a dead-property xattr at the origin: {names}"
 
 
 # --------------------------------------------------------------------------- #

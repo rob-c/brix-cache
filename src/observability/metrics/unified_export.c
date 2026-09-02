@@ -8,7 +8,8 @@
  *       write-back staging, auth, and tpc Prometheus families, and hosts the
  *       brix_export_unified_metrics entry point that fans out over every
  *       unified_emit_<family> helper (the io families live in
- *       unified_export_io.c). Also provides unified_emit_proto_counter, the
+ *       unified_export_io.c, the phase-107 VFS-verb families in
+ *       unified_export_vfs.c). Also provides unified_emit_proto_counter, the
  *       generic per-proto counter renderer these families share.
  * WHY:  The exporter half of unified.c exceeded the file-size budget; this file
  *       owns the credential/cache/auth/tpc families and the orchestrator, while
@@ -168,6 +169,42 @@ unified_emit_vfs_mutation_denied(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
                     &shm->unified.vfs_mutation_denied_total[proto][op]));
         }
     }
+}
+
+/*
+ * unified_emit_vfs_spill — render the phase-107 C1 writer-spill families.
+ *
+ * WHAT: Emits the per-proto spill bytes/refused counters and the process-wide
+ *       open-spill gauge.
+ * WHY:  Distinguishes "no client reorders on this site" from "reordered
+ *       uploads are being refused for want of spill scratch" — the operator
+ *       signal behind the brix_vfs_spill_path/_max directives.
+ * HOW:  Two unified_emit_proto_counter calls plus one single-line gauge.
+ */
+static void
+unified_emit_vfs_spill(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    unified_emit_proto_counter(mw,
+        "# HELP brix_vfs_spill_bytes_total "
+            "Bytes absorbed into the writer's out-of-order spill scratch, "
+            "by protocol.\n"
+        "# TYPE brix_vfs_spill_bytes_total counter\n",
+        "brix_vfs_spill_bytes_total",
+        shm->unified.vfs_spill_bytes_total);
+
+    unified_emit_proto_counter(mw,
+        "# HELP brix_vfs_spill_refused_total "
+            "Reordered uploads the spill could not serve (no scratch, "
+            "capacity, overlap, or coverage hole), by protocol.\n"
+        "# TYPE brix_vfs_spill_refused_total counter\n",
+        "brix_vfs_spill_refused_total",
+        shm->unified.vfs_spill_refused_total);
+
+    mw_printf(mw,
+        "# HELP brix_vfs_spill_active Writer spill scratches currently open.\n"
+        "# TYPE brix_vfs_spill_active gauge\n"
+        "brix_vfs_spill_active %llu\n",
+        brix_metric_value(&shm->unified.vfs_spill_active));
 }
 
 /*
@@ -469,6 +506,11 @@ brix_export_unified_metrics(metrics_writer_t *mw,
     unified_emit_cred_select(mw, shm);
     unified_emit_cred_deleg(mw, shm);
     unified_emit_vfs_mutation_denied(mw, shm);
+    unified_emit_vfs_spill(mw, shm);
+    unified_emit_vfs_bulk_delete(mw, shm);
+    unified_emit_vfs_recall_evict(mw, shm);
+    unified_emit_vfs_precond(mw, shm);
+    unified_emit_vfs_lock(mw, shm);
     unified_emit_cache(mw, shm);
     unified_emit_cache_watermark(mw, shm);
     unified_emit_cache_prefetch(mw, shm);

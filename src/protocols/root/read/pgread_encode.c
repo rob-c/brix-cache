@@ -19,8 +19,10 @@
 
 /* CRC32c word size per page unit ([CRC32c(4)][data]); == kXR_pgUnitSZ - page. */
 #define BRIX_PG_CKSZ        ((size_t) (kXR_pgUnitSZ - kXR_pgPageSZ))
-/* preadv scatter cap per syscall — mirrors kXR_readv (BRIX_READV_PREADV_MAXIOV). */
-#define BRIX_PGREAD_MAXIOV  64
+/* preadv scatter cap per syscall.  512 pages = 2 MiB of data per preadv —
+ * an 8 MiB xrdcp pgread costs 4 syscalls instead of 32 (batch arrays below
+ * are ~16 KB of stack at this width; IOV_MAX itself allows 1024). */
+#define BRIX_PGREAD_MAXIOV  512
 
 /*
  * brix_pgread_batch_t - one preadv scatter batch of gapped wire pages.

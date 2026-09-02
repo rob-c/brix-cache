@@ -65,7 +65,7 @@ brix_vfs_deleg_temp_cleanup(void *data)
         return;
     }
 
-    (void) unlink(t->path);   /* vfs-seam-allow: config-domain PASSTHROUGH proxy credential temp (not export storage) */
+    (void) unlink(t->path);   /* vfs-seam-allow: DOMAIN_CREDENTIAL — config-domain PASSTHROUGH proxy credential temp (not export storage) */
     ngx_memzero(t->path, ngx_strlen(t->path));
     t->path = NULL;
 }

@@ -172,7 +172,9 @@ fattr_fhandle_target(brix_ctx_t *ctx, ngx_connection_t *c,
     /* fhandle index is one wire byte; bounds + open-state checked. */
     int idx = (int) fh0;
 
-    if (idx < 0 || idx >= BRIX_MAX_FILES || ctx->files[idx].fd < 0) {
+    if (idx < 0 || idx >= BRIX_MAX_FILES || ctx->files == NULL
+        || ctx->files[idx].fd < 0)
+    {
         BRIX_OP_ERR(ctx, BRIX_OP_FATTR);
         return fattr_fail(st, brix_send_error(ctx, c, kXR_FileNotOpen,
                                                 "fattr: invalid file handle"));

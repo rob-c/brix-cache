@@ -189,6 +189,10 @@ static const char *brix_unified_vfs_mutate_op_names
     "setattr",
     "xattr",
     "publish",
+    "stage",
+    "evict",
+    "lock",
+    "dedup",
 };
 
 const char *

@@ -299,6 +299,13 @@ s3put_open_target(s3put_state_t *st)
      * (and the strings it points at) onto r->pool, so the session survives the async
      * body-write completion (put_aio/put_chunk commit after this function returns). */
     s3_build_vfs_ctx(st->r, (const char *) st->fs_path, st->cf, &svctx);
+    /* Phase-107 C5: a PUT's Content-Length IS the declared final size — the
+     * staged plane forwards it (remote derives a legal multipart part size,
+     * posix/frm preallocate); an unsatisfiable declaration fails the open with
+     * ENOSPC before the body streams. Chunked/absent (-1) declares none. */
+    if (st->r->headers_in.content_length_n > 0) {
+        svctx.declared_size = (off_t) st->r->headers_in.content_length_n;
+    }
     st->writer = brix_vfs_writer_open(&svctx, BRIX_VFS_O_ATOMIC,
                                       st->cf->common.verify_write, &staged_err);
     if (st->writer == NULL) {

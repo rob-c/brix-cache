@@ -102,13 +102,14 @@ ngx_int_t sd_xroot_stat(brix_sd_instance_t *inst, const char *path,
 /* Staged atomic-publish vtable slots (sd_xroot_staged.c), referenced by the
  * driver struct in sd_xroot.c. */
 brix_sd_staged_t *sd_xroot_staged_open(brix_sd_instance_t *inst,
-              const char *final_path, mode_t mode, int *err_out);
-brix_sd_staged_t *sd_xroot_staged_open_cred(brix_sd_instance_t *inst,
-              const char *final_path, mode_t mode, const brix_sd_cred_t *cred,
+              const char *final_path, mode_t mode, off_t declared_size,
               int *err_out);
+brix_sd_staged_t *sd_xroot_staged_open_cred(brix_sd_instance_t *inst,
+              const char *final_path, mode_t mode, off_t declared_size,
+              const brix_sd_cred_t *cred, int *err_out);
 ssize_t   sd_xroot_staged_write(brix_sd_staged_t *handle, const void *buf,
               size_t len, off_t off);
-ngx_int_t sd_xroot_staged_commit(brix_sd_staged_t *handle, int noreplace);
+ngx_int_t sd_xroot_staged_commit(brix_sd_staged_t *handle, brix_sd_precond_t *pre);
 void      sd_xroot_staged_abort(brix_sd_staged_t *handle);
 
 /* ---- shared namespace helpers (defined in sd_xroot_ns.c) ------------------
@@ -158,6 +159,12 @@ ngx_int_t sd_xroot_residency(brix_sd_instance_t *inst, const char *key,
               brix_sd_residency_t *out);
 ngx_int_t sd_xroot_recall(brix_sd_instance_t *inst, const char *key,
               char reqid_out[40]);
+ngx_int_t sd_xroot_recall_cred(brix_sd_instance_t *inst, const char *key,
+    const brix_sd_cred_t *cred, char reqid_out[40]);
+ngx_int_t sd_xroot_evict(brix_sd_instance_t *inst, const char *path,
+              uint64_t *bytes_out);
+ngx_int_t sd_xroot_evict_cred(brix_sd_instance_t *inst, const char *path,
+              uint64_t *bytes_out, const brix_sd_cred_t *cred);
 /* Export capacity from the ORIGIN (kXR_Qspace on a fresh anonymous session);
  * NGX_ERROR ⇒ consumers fall back to local statvfs. */
 ngx_int_t sd_xroot_space(brix_sd_instance_t *inst, brix_sd_space_t *out);

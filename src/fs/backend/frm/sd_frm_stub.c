@@ -277,6 +277,62 @@ stub_create_online(void *mss, const char *key, mode_t mode)
                 mode ? mode : 0644);
 }
 
+/* Fsync the parent directory of `path` so its directory entry survives a
+ * crash (phase-107 C3). The adapters hold plain absolute paths under their own
+ * base — no export confinement applies here, the base IS the boundary. */
+static int
+frm_dirsync_parent(const char *path)
+{
+    char        parent[PATH_MAX];
+    const char *slash = strrchr(path, '/');
+    size_t      n;
+    int         fd, e;
+
+    if (slash == NULL || slash == path) {
+        errno = EINVAL;
+        return -1;
+    }
+    n = (size_t) (slash - path);
+    if (n >= sizeof(parent)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    memcpy(parent, path, n);
+    parent[n] = '\0';
+    fd = open(parent, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (fd < 0) {
+        return -1;
+    }
+    if (fsync(fd) != 0) {
+        e = errno;
+        (void) close(fd);
+        errno = e ? e : EIO;
+        return -1;
+    }
+    (void) close(fd);
+    return 0;
+}
+
+/* Phase-107 C3: the stub IS the MSS, so both local artifacts of a publish get
+ * their entries flushed — the tape copy (what migrate published) and the
+ * online-buffer copy (what create_online wrote). */
+static int
+stub_sync_publish(void *mss, const char *key)
+{
+    stub_ctx_t *c = mss;
+    char        tape[PATH_MAX];
+    char        online[PATH_MAX];
+
+    if (stub_path(c, key, 0, tape, sizeof(tape)) != 0
+        || stub_path(c, key, 1, online, sizeof(online)) != 0)
+    {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    return (frm_dirsync_parent(tape) == 0
+            && frm_dirsync_parent(online) == 0) ? 0 : -1;
+}
+
 static void
 stub_destroy(void *mss)
 {
@@ -361,6 +417,7 @@ const brix_mss_adapter_t brix_mss_stub_adapter = {
     .purge         = stub_purge,
     .open_online   = stub_open_online,
     .create_online = stub_create_online,
+    .sync_publish  = stub_sync_publish,   /* phase-107 C3 */
     .destroy       = stub_destroy,
 };
 
@@ -523,4 +580,20 @@ int
 frm_mss_create_online(void *mss, const char *key, mode_t mode)
 {
     return mss_online_op(mss, key, MSS_OP_CREATE, mode);
+}
+
+/* Phase-107 C3, shared-head form (exec/lib adapters): the only LOCAL artifact
+ * of a publish is the online-buffer copy — flush its parent's entry. Tape-side
+ * durability belongs to the real MSS behind `invoke`. */
+int
+frm_mss_sync_publish(void *mss, const char *key)
+{
+    frm_mss_head_t *h = mss;
+    char             online[PATH_MAX];
+
+    if (frm_online_path(h->base, key, online, sizeof(online)) != 0) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    return frm_dirsync_parent(online);
 }

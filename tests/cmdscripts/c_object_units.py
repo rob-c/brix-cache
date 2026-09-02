@@ -44,6 +44,28 @@ def addon(path: str) -> Path:
     return OBJS / "addon" / path
 
 
+def _inc(*dirs) -> tuple[str, ...]:
+    """Interleave ``-I`` flags for `dirs` (Paths or strings), in order."""
+    flags: list[str] = []
+    for d in dirs:
+        flags += ["-I", str(d)]
+    return tuple(flags)
+
+
+# The nginx header sets the object-linked units compile against, in the same
+# order the build tree uses; HTTP adds the stream/http trees for specs whose
+# structs reach past them.
+_NGX_CORE_INC = (NGX_SRC / "src/core", NGX_SRC / "src/event",
+                 NGX_SRC / "src/event/modules", NGX_SRC / "src/event/quic",
+                 NGX_SRC / "src/os/unix")
+_NGX_HTTP_INC = (NGX_SRC / "src/stream", NGX_SRC / "src/http",
+                 NGX_SRC / "src/http/modules")
+# ngx_string/palloc/alloc: the three libngx objects ngx_link_stubs.c leans on.
+_NGX_LIB_OBJS = (str(NGX_SRC / "objs/src/core/ngx_string.o"),
+                 str(NGX_SRC / "objs/src/core/ngx_palloc.o"),
+                 str(NGX_SRC / "objs/src/os/unix/ngx_alloc.o"))
+
+
 SPECS: dict[str, ObjectUnitSpec] = {
     "cache_admit": ObjectUnitSpec(
         "cache_admit",
@@ -112,30 +134,11 @@ SPECS: dict[str, ObjectUnitSpec] = {
         "cstore_scan_enumerate",
         "test_cstore_scan_enumerate",
         (addon("cache/cstore_scan.o"),),
-        (
-            "-O",
-            "-Wall",
-            "-I",
-            str(REPO_ROOT / "src"),
-            "-I",
-            str(REPO_ROOT / "src/fs/cache"),
-            "-I",
-            str(REPO_ROOT / "shared"),
-            "-I",
-            str(OBJS),
-            "-I",
-            str(NGX_SRC / "src/core"),
-            "-I",
-            str(NGX_SRC / "src/event"),
-            "-I",
-            str(NGX_SRC / "src/event/modules"),
-            "-I",
-            str(NGX_SRC / "src/event/quic"),
-            "-I",
-            str(NGX_SRC / "src/os/unix"),
-            "tests/c/test_cstore_scan_enumerate.c",
-            str(addon("cache/cstore_scan.o")),
-        ),
+        ("-O", "-Wall",
+         *_inc(REPO_ROOT / "src", REPO_ROOT / "src/fs/cache",
+               REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC),
+         "tests/c/test_cstore_scan_enumerate.c",
+         str(addon("cache/cstore_scan.o"))),
     ),
     # The catalog verb's decorator walk. vfs_walk.o's cross-TU closure is small
     # enough (resolve/fill_stat/*_beneath/*_confined_canon) that the harness
@@ -145,28 +148,10 @@ SPECS: dict[str, ObjectUnitSpec] = {
         "vfs_enumerate_decorator",
         "test_vfs_enumerate_decorator",
         (addon("vfs/vfs_walk.o"),),
-        (
-            "-O",
-            "-Wall",
-            "-I",
-            "src",
-            "-I",
-            str(REPO_ROOT / "shared"),
-            "-I",
-            str(OBJS),
-            "-I",
-            str(NGX_SRC / "src/core"),
-            "-I",
-            str(NGX_SRC / "src/event"),
-            "-I",
-            str(NGX_SRC / "src/event/modules"),
-            "-I",
-            str(NGX_SRC / "src/event/quic"),
-            "-I",
-            str(NGX_SRC / "src/os/unix"),
-            "tests/c/test_vfs_enumerate_decorator.c",
-            str(addon("vfs/vfs_walk.o")),
-        ),
+        ("-O", "-Wall",
+         *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC),
+         "tests/c/test_vfs_enumerate_decorator.c",
+         str(addon("vfs/vfs_walk.o"))),
     ),
     # Phase-105 K.4: the five real VFS mutation TUs on top of the real policy
     # kernel, with their whole cross-TU closure supplied as counting stubs — the
@@ -186,39 +171,47 @@ SPECS: dict[str, ObjectUnitSpec] = {
             addon("vfs/vfs_xattr.o"),
             addon("vfs/vfs_policy.o"),
         ),
+        ("-O", "-Wall",
+         *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC),
+         "tests/c/test_vfs_read_only_spy.c",
+         # ngx_string/palloc/alloc reference these two globals; the shared
+         # stub file is the sanctioned way to satisfy them.
+         "tests/c/ngx_link_stubs.c",
+         str(addon("vfs/vfs_mkdir.o")),
+         str(addon("vfs/vfs_unlink.o")),
+         str(addon("vfs/vfs_rename.o")),
+         str(addon("vfs/vfs_copy.o")),
+         str(addon("vfs/vfs_xattr.o")),
+         str(addon("vfs/vfs_policy.o")),
+         *_NGX_LIB_OBJS),
+    ),
+    # The phase-107 W2/W3 verbs (recall/evict/delete_many) over the real policy
+    # kernel, with the §3.4 ordering assertion (vfs_order_spy.h) wired in:
+    # dispatch DIRECTION (recall descends, evict stays on top), the C4
+    # one-batch-call-per-window rule, and EROFS-before-ENOTSUP/EACCES with a
+    # zero-sink, policy-only ordering tape on refusal. vfs_unlink.o rides along
+    # because vfs_unlink_many.o's rmtree dispatch and its per-key walk are
+    # mutually referential across the two TUs.
+    "vfs_new_mutator_gate": ObjectUnitSpec(
+        "vfs_new_mutator_gate",
+        "test_vfs_new_mutator_gate",
         (
-            "-O",
-            "-Wall",
-            "-I",
-            "src",
-            "-I",
-            str(REPO_ROOT / "shared"),
-            "-I",
-            str(OBJS),
-            "-I",
-            str(NGX_SRC / "src/core"),
-            "-I",
-            str(NGX_SRC / "src/event"),
-            "-I",
-            str(NGX_SRC / "src/event/modules"),
-            "-I",
-            str(NGX_SRC / "src/event/quic"),
-            "-I",
-            str(NGX_SRC / "src/os/unix"),
-            "tests/c/test_vfs_read_only_spy.c",
-            # ngx_string/palloc/alloc reference these two globals; the shared
-            # stub file is the sanctioned way to satisfy them.
-            "tests/c/ngx_link_stubs.c",
-            str(addon("vfs/vfs_mkdir.o")),
-            str(addon("vfs/vfs_unlink.o")),
-            str(addon("vfs/vfs_rename.o")),
-            str(addon("vfs/vfs_copy.o")),
-            str(addon("vfs/vfs_xattr.o")),
-            str(addon("vfs/vfs_policy.o")),
-            str(NGX_SRC / "objs/src/core/ngx_string.o"),
-            str(NGX_SRC / "objs/src/core/ngx_palloc.o"),
-            str(NGX_SRC / "objs/src/os/unix/ngx_alloc.o"),
+            addon("vfs/vfs_recall.o"),
+            addon("vfs/vfs_unlink_many.o"),
+            addon("vfs/vfs_unlink.o"),
+            addon("vfs/vfs_sync.o"),
+            addon("vfs/vfs_policy.o"),
         ),
+        ("-O", "-Wall",
+         *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC),
+         "tests/c/test_vfs_new_mutator_gate.c",
+         "tests/c/ngx_link_stubs.c",
+         str(addon("vfs/vfs_recall.o")),
+         str(addon("vfs/vfs_unlink_many.o")),
+         str(addon("vfs/vfs_unlink.o")),
+         str(addon("vfs/vfs_sync.o")),
+         str(addon("vfs/vfs_policy.o")),
+         *_NGX_LIB_OBJS),
     ),
     # The handle-plane release/durability dispatch: the real vfs_open_handle.o
     # + vfs_sync.o over the real policy kernel, with a counting spy driver and
@@ -232,37 +225,50 @@ SPECS: dict[str, ObjectUnitSpec] = {
             addon("vfs/vfs_sync.o"),
             addon("vfs/vfs_policy.o"),
         ),
+        ("-O", "-Wall",
+         *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC,
+               *_NGX_HTTP_INC),
+         "tests/c/test_vfs_handle_close_dispatch.c",
+         "tests/c/ngx_link_stubs.c",
+         str(addon("vfs/vfs_open_handle.o")),
+         str(addon("vfs/vfs_sync.o")),
+         str(addon("vfs/vfs_policy.o"))),
+    ),
+    # Phase-107 W1 (C8/C9): the typed storage-domain assert. The real
+    # vfs_policy_domain.o over the real kernel; the denial metric AND
+    # ngx_log_error_core are counting spies, so the crit log line the
+    # wrong-domain refusal promises is asserted, not assumed.
+    "vfs_service_domain": ObjectUnitSpec(
+        "vfs_service_domain",
+        "test_vfs_service_domain",
         (
-            "-O",
-            "-Wall",
-            "-I",
-            "src",
-            "-I",
-            str(REPO_ROOT / "shared"),
-            "-I",
-            str(OBJS),
-            "-I",
-            str(NGX_SRC / "src/core"),
-            "-I",
-            str(NGX_SRC / "src/event"),
-            "-I",
-            str(NGX_SRC / "src/event/modules"),
-            "-I",
-            str(NGX_SRC / "src/event/quic"),
-            "-I",
-            str(NGX_SRC / "src/os/unix"),
-            "-I",
-            str(NGX_SRC / "src/stream"),
-            "-I",
-            str(NGX_SRC / "src/http"),
-            "-I",
-            str(NGX_SRC / "src/http/modules"),
-            "tests/c/test_vfs_handle_close_dispatch.c",
-            "tests/c/ngx_link_stubs.c",
-            str(addon("vfs/vfs_open_handle.o")),
-            str(addon("vfs/vfs_sync.o")),
-            str(addon("vfs/vfs_policy.o")),
+            addon("vfs/vfs_policy_domain.o"),
+            addon("vfs/vfs_policy.o"),
         ),
+        ("-O", "-Wall",
+         *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC),
+         "tests/c/test_vfs_service_domain.c",
+         str(addon("vfs/vfs_policy_domain.o")),
+         str(addon("vfs/vfs_policy.o"))),
+    ),
+    # Phase-107 W2 (C1): the writer's reorder-spill engine. The real
+    # vfs_writer_spill.o with its whole cross-TU closure supplied as spies —
+    # the backend-registry spill lookup, the owned-temp namer, the staged
+    # write/abort sinks (the staged spy ASSERTS sequential offsets: the drain
+    # contract IS the assertion) and the three spill metrics as counters.
+    # pread/pwrite_full are real loops over the scratch fd, so the reverse-order
+    # drain case proves byte-exactness against a reference buffer.
+    "vfs_writer_spill": ObjectUnitSpec(
+        "vfs_writer_spill",
+        "test_vfs_writer_spill",
+        (addon("vfs/vfs_writer_spill.o"),),
+        ("-O", "-Wall",
+         *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC,
+               *_NGX_HTTP_INC),
+         "tests/c/test_vfs_writer_spill.c",
+         "tests/c/ngx_link_stubs.c",
+         str(addon("vfs/vfs_writer_spill.o")),
+         *_NGX_LIB_OBJS),
     ),
     # The phase-105 mutation-policy kernel. vfs_policy.o names exactly ONE
     # cross-TU symbol (brix_metric_vfs_mutation_denied), which the test supplies
@@ -272,53 +278,32 @@ SPECS: dict[str, ObjectUnitSpec] = {
         "vfs_mutation_policy",
         "test_vfs_mutation_policy",
         (addon("vfs/vfs_policy.o"),),
-        (
-            "-O",
-            "-Wall",
-            "-I",
-            "src",
-            "-I",
-            str(REPO_ROOT / "shared"),
-            "-I",
-            str(OBJS),
-            "-I",
-            str(NGX_SRC / "src/core"),
-            "-I",
-            str(NGX_SRC / "src/event"),
-            "-I",
-            str(NGX_SRC / "src/event/modules"),
-            "-I",
-            str(NGX_SRC / "src/event/quic"),
-            "-I",
-            str(NGX_SRC / "src/os/unix"),
-            "tests/c/test_vfs_mutation_policy.c",
-            str(addon("vfs/vfs_policy.o")),
-        ),
+        ("-O", "-Wall",
+         *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC),
+         "tests/c/test_vfs_mutation_policy.c",
+         str(addon("vfs/vfs_policy.o"))),
     ),
     "vfs_caps": ObjectUnitSpec(
         "vfs_caps",
         "test_vfs_caps",
         (addon("backend/sd_registry.o"),),
-        (
-            "-O",
-            "-Wall",
-            "-I",
-            "src",
-            "-I",
-            str(NGX_SRC / "src/core"),
-            "-I",
-            str(NGX_SRC / "src/event"),
-            "-I",
-            str(NGX_SRC / "src/event/modules"),
-            "-I",
-            str(NGX_SRC / "src/event/quic"),
-            "-I",
-            str(NGX_SRC / "src/os/unix"),
-            "-I",
-            str(OBJS),
-            "tests/c/test_vfs_caps.c",
-            str(addon("backend/sd_registry.o")),
-        ),
+        ("-O", "-Wall",
+         *_inc("src", *_NGX_CORE_INC, OBJS),
+         "tests/c/test_vfs_caps.c",
+         str(addon("backend/sd_registry.o"))),
+    ),
+    # phase-107 C2 (W6): the startup advisor probe on synthetic chains — the
+    # unstageable shape (CAP_NEARLINE, no recall slot) is unconstructible from a
+    # live config (every shipped nearline driver has the slot), so the probe's
+    # truth table is only reachable here. Links the real vfs_recall.o.
+    "vfs_nearline_probe": ObjectUnitSpec(
+        "vfs_nearline_probe",
+        "test_vfs_nearline_probe",
+        (addon("vfs/vfs_recall.o"),),
+        ("-O", "-Wall",
+         *_inc("src", *_NGX_CORE_INC, OBJS),
+         "tests/c/test_vfs_nearline_probe.c",
+         str(addon("vfs/vfs_recall.o"))),
     ),
     # Pelican OriginAdvertiseV2 payload builders (build_ad / caps_json / rfc3339)
     # linked against the real object; -ljansson for the document, -lcurl/-lcrypto
@@ -346,34 +331,117 @@ SPECS: dict[str, ObjectUnitSpec] = {
             "-DBRIX_HAVE_BZIP2=1",
             "-DBRIX_HAVE_LZ4=1",
             "-DBRIX_HAVE_SQLITE=1",
-            "-I",
-            "/usr/include/libxml2",
-            "-I",
-            "src",
-            "-I",
-            str(NGX_SRC / "src/core"),
-            "-I",
-            str(NGX_SRC / "src/event"),
-            "-I",
-            str(NGX_SRC / "src/event/modules"),
-            "-I",
-            str(NGX_SRC / "src/event/quic"),
-            "-I",
-            str(NGX_SRC / "src/os/unix"),
-            "-I",
-            str(NGX_SRC / "src/http"),
-            "-I",
-            str(NGX_SRC / "src/http/modules"),
-            "-I",
-            str(NGX_SRC / "src/stream"),
-            "-I",
-            str(OBJS),
+            *_inc("/usr/include/libxml2", "src", *_NGX_CORE_INC,
+                  NGX_SRC / "src/http", NGX_SRC / "src/http/modules",
+                  NGX_SRC / "src/stream", OBJS),
             "tests/c/pelican_ad_test.c",
             str(addon("origin/pelican_register.o")),
             "-ljansson",
             "-lcurl",
             "-lcrypto",
         ),
+    ),
+    # Phase-107 C3 durable-publish barrier: the REAL staged_file.o + beneath.o
+    # (the confined-fd machinery IS the security case), with fsync interposed
+    # via --wrap so "one dirsync, on the PARENT of the published path" is
+    # asserted by inode. Spies: the impersonation broker (inactive), the tmp/
+    # resume namers, and a switchable brix_vfs_backend_durable.
+    "publish_dirsync": ObjectUnitSpec(
+        "publish_dirsync",
+        "test_publish_dirsync",
+        (addon("compat/staged_file.o"), addon("path/beneath.o")),
+        ("-O", "-Wall",
+         *_inc("src", OBJS, *_NGX_CORE_INC),
+         "-Wl,--wrap=fsync",
+         "tests/c/test_publish_dirsync.c",
+         "tests/c/ngx_link_stubs.c",
+         str(addon("compat/staged_file.o")),
+         str(addon("path/beneath.o"))),
+    ),
+    # Phase-107 C6 atomic two-name exchange: the REAL namespace_ops.o +
+    # beneath.o (renameat2(RENAME_EXCHANGE) through the confined rootfd).
+    # No protocol verb reaches brix_vfs_exchange yet (OCI tag flip is
+    # phase-108), so this unit is the verb's only behavior coverage: inode-swap
+    # atomicity witness, both-must-exist ENOENT, EXDEV confinement (either
+    # name, plus the prefix-boundary trap), file<->dir type-agnosticism.
+    "vfs_exchange": ObjectUnitSpec(
+        "vfs_exchange",
+        "test_vfs_exchange",
+        (addon("compat/namespace_ops.o"), addon("path/beneath.o")),
+        ("-O", "-Wall",
+         *_inc("src", OBJS, *_NGX_CORE_INC),
+         "tests/c/test_vfs_exchange.c",
+         "tests/c/ngx_link_stubs.c",
+         str(addon("compat/namespace_ops.o")),
+         str(addon("path/beneath.o"))),
+    ),
+    # The metadata-hot-path syscall reductions: ns_delete_fast (probe-free
+    # non-recursive delete classified from the unlinkat errno), the borrowed
+    # persistent-rootfd entry points brix_ns_delete_at/brix_ns_mkdir_at (the
+    # handed-in fd must survive every call, including the single-component
+    # root-borrow arm of beneath_open_parent), and brix_realpath_existing
+    # (realpath(3) parity via one open(O_PATH) + /proc/self/fd readback —
+    # including the escaping-symlink case the stat fallback's prefix check
+    # depends on). REAL namespace_ops.o + beneath.o + canonical.o; the
+    # brix_fs_dir_is_empty abort stub proves no getdents pre-probe runs.
+    "ns_fastpath": ObjectUnitSpec(
+        "ns_fastpath",
+        "test_ns_fastpath",
+        (
+            addon("compat/namespace_ops.o"),
+            addon("path/beneath.o"),
+            addon("path/canonical.o"),
+        ),
+        ("-O", "-Wall",
+         *_inc("src", OBJS, *_NGX_CORE_INC),
+         "tests/c/test_ns_fastpath.c",
+         "tests/c/ngx_link_stubs.c",
+         str(addon("compat/namespace_ops.o")),
+         str(addon("path/beneath.o")),
+         str(addon("path/canonical.o"))),
+    ),
+    # The shared handle table's high-water mark: every scan (publish/lookup/
+    # unpublish/unpublish_all) is bounded by the peak LIVE population instead
+    # of walking all 4096 ~4KB shm slots (25% of worker CPU on open-heavy
+    # loads pre-fix). REAL handles.o + shm_slots.o + ngx_shmtx.o; the unit
+    # reads tbl->high_water directly across the whole lifecycle, including
+    # full-table refusal and the stale-hint revocation security case.
+    "handle_high_water": ObjectUnitSpec(
+        "handle_high_water",
+        "test_handle_high_water",
+        (
+            addon("session/handles.o"),
+            addon("compat/shm_slots.o"),
+            OBJS / "src/core/ngx_shmtx.o",
+        ),
+        ("-O", "-Wall",
+         *_inc("src", OBJS, *_NGX_CORE_INC, *_NGX_HTTP_INC),
+         "tests/c/test_handle_high_water.c",
+         "tests/c/ngx_link_stubs.c",
+         str(addon("session/handles.o")),
+         str(addon("compat/shm_slots.o")),
+         str(OBJS / "src/core/ngx_shmtx.o"),
+         *_NGX_LIB_OBJS,
+         "-pthread"),
+    ),
+    # Phase-107 C7: the cross-protocol lock gate's four expiry states (absent /
+    # live-owned / live-foreign / expired-unreaped), ancestor coverage rules,
+    # the three enforcement modes, and strict's fail-closed on an unreadable
+    # record. Links the REAL gate + the REAL record codec; the quiet xattr
+    # read, registry mode lookup and refusal metric are counting stubs — which
+    # is what makes "OFF reads nothing" and "expired is not reaped" observable.
+    "vfs_lock_gate": ObjectUnitSpec(
+        "vfs_lock_gate",
+        "test_vfs_lock_gate",
+        (addon("vfs/vfs_lock_gate.o"), addon("compat/lock_record.o")),
+        ("-O", "-Wall",
+         *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC,
+               *_NGX_HTTP_INC),
+         "tests/c/test_vfs_lock_gate.c",
+         "tests/c/ngx_link_stubs.c",
+         str(addon("vfs/vfs_lock_gate.o")),
+         str(addon("compat/lock_record.o")),
+         *_NGX_LIB_OBJS),
     ),
 }
 

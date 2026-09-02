@@ -98,6 +98,7 @@ void      sd_pblock_cleanup(brix_sd_instance_t *inst);
 brix_sd_obj_t *sd_pblock_open(brix_sd_instance_t *inst, const char *path,
     int sd_flags, mode_t mode, int *err_out);
 ngx_int_t sd_pblock_close(brix_sd_obj_t *obj);
+ngx_int_t sd_pblock_reserve(brix_sd_obj_t *obj, off_t size);
 
 /* ---- worker-safe byte I/O (sd_pblock_io.c) ------------------------------- */
 ssize_t sd_pblock_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off);
@@ -124,15 +125,39 @@ ngx_int_t sd_pblock_stat(brix_sd_instance_t *inst, const char *path,
     brix_sd_stat_t *out);
 ngx_int_t sd_pblock_unlink(brix_sd_instance_t *inst, const char *path,
     int is_dir);
+
+/* ---- bulk delete (sd_pblock_batch.c, phase-107 C4) ----------------------
+ * One SQLite transaction per window. The core takes an optional per-key gate
+ * so the _cred twin (sd_pblock_cred.c) runs its POSIX authority check per key
+ * INSIDE the same transaction, before that key's mutation. Contract in
+ * sd_batch_types.h. */
+typedef ngx_int_t (*sd_pblock_key_gate_fn)(void *gctx, const char *path);
+ngx_int_t sd_pblock_unlink_many_core(brix_sd_instance_t *inst,
+    brix_sd_unlink_batch_t *b, sd_pblock_key_gate_fn gate, void *gctx);
+ngx_int_t sd_pblock_unlink_many(brix_sd_instance_t *inst,
+    brix_sd_unlink_batch_t *b);
 ngx_int_t sd_pblock_mkdir(brix_sd_instance_t *inst, const char *path,
     mode_t mode);
 ngx_int_t sd_pblock_setattr(brix_sd_instance_t *inst, const char *path,
     const brix_sd_setattr_t *attr);
+/* phase-107 C3: flush the SQLite catalogue's directory entry. */
+ngx_int_t sd_pblock_sync_publish(brix_sd_instance_t *inst, const char *path);
+ngx_int_t sd_pblock_recall(brix_sd_instance_t *inst, const char *key,
+    char reqid_out[40]);
+ngx_int_t sd_pblock_recall_cred(brix_sd_instance_t *inst, const char *key,
+    const brix_sd_cred_t *cred, char reqid_out[40]);
+ngx_int_t sd_pblock_evict(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out);
+ngx_int_t sd_pblock_evict_cred(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out, const brix_sd_cred_t *cred);
 /* Clear a rename/copy destination; also called by staged-commit's replace. */
 ngx_int_t sd_pblock_drop_dst(pblock_state_t *st, const char *dst,
     const pblock_meta *dmeta);
 ngx_int_t sd_pblock_rename(brix_sd_instance_t *inst, const char *src,
     const char *dst, int noreplace);
+/* phase-107 C6 (body in sd_pblock.c — sd_pblock_namespace.c is at the cap). */
+ngx_int_t sd_pblock_exchange(brix_sd_instance_t *inst, const char *a,
+    const char *b);
 ngx_int_t sd_pblock_server_copy(brix_sd_instance_t *inst, const char *src,
     const char *dst, off_t *bytes_out);
 brix_sd_dir_t *sd_pblock_opendir(brix_sd_instance_t *inst, const char *path,
@@ -150,10 +175,10 @@ ngx_int_t sd_pblock_removexattr(brix_sd_instance_t *inst, const char *path,
 
 /* ---- staged atomic publish (sd_pblock_staged.c) -------------------------- */
 brix_sd_staged_t *sd_pblock_staged_open(brix_sd_instance_t *inst,
-    const char *final_path, mode_t mode, int *err_out);
+    const char *final_path, mode_t mode, off_t declared_size, int *err_out);
 ssize_t sd_pblock_staged_write(brix_sd_staged_t *st, const void *buf,
     size_t len, off_t off);
-ngx_int_t sd_pblock_staged_commit(brix_sd_staged_t *st, int noreplace);
+ngx_int_t sd_pblock_staged_commit(brix_sd_staged_t *st, brix_sd_precond_t *pre);
 void sd_pblock_staged_abort(brix_sd_staged_t *st);
 /* phase-88 W1: block-0 path of a single-block, untransformed staged blob (the
  * cache tier's verify-before-commit contract), or NULL when striped/encoded. */
@@ -174,8 +199,8 @@ int pblock_path_canon(const char *in, char *out, size_t cap);
 ngx_int_t sd_pblock_server_copy_as(brix_sd_instance_t *inst, const char *src,
     const char *dst, off_t *bytes_out, uint32_t uid, uint32_t gid);
 brix_sd_staged_t *sd_pblock_staged_open_as(brix_sd_instance_t *inst,
-    const char *final_path, mode_t mode, uint32_t uid, uint32_t gid,
-    int *err_out);
+    const char *final_path, mode_t mode, off_t declared_size, uint32_t uid,
+    uint32_t gid, int *err_out);
 
 /* ---- identity resolution + POSIX access checks (sd_pblock_ident.c) ------- *
  * A request identity resolved to catalog-internal synthetic ids: the
@@ -208,16 +233,20 @@ ngx_int_t pblock_ident_sticky_gate(const pblock_meta *parent,
 brix_sd_obj_t *sd_pblock_open_cred(brix_sd_instance_t *inst, const char *path,
     int sd_flags, mode_t mode, const brix_sd_cred_t *cred, int *err_out);
 brix_sd_staged_t *sd_pblock_staged_open_cred(brix_sd_instance_t *inst,
-    const char *final_path, mode_t mode, const brix_sd_cred_t *cred,
-    int *err_out);
+    const char *final_path, mode_t mode, off_t declared_size,
+    const brix_sd_cred_t *cred, int *err_out);
 ngx_int_t sd_pblock_stat_cred(brix_sd_instance_t *inst, const char *path,
     brix_sd_stat_t *out, const brix_sd_cred_t *cred);
 ngx_int_t sd_pblock_unlink_cred(brix_sd_instance_t *inst, const char *path,
     int is_dir, const brix_sd_cred_t *cred);
+ngx_int_t sd_pblock_unlink_many_cred(brix_sd_instance_t *inst,
+    brix_sd_unlink_batch_t *b, const brix_sd_cred_t *cred);
 ngx_int_t sd_pblock_mkdir_cred(brix_sd_instance_t *inst, const char *path,
     mode_t mode, const brix_sd_cred_t *cred);
 ngx_int_t sd_pblock_rename_cred(brix_sd_instance_t *inst, const char *src,
     const char *dst, int noreplace, const brix_sd_cred_t *cred);
+ngx_int_t sd_pblock_exchange_cred(brix_sd_instance_t *inst, const char *a,
+    const char *b, const brix_sd_cred_t *cred);
 ngx_int_t sd_pblock_setattr_cred(brix_sd_instance_t *inst, const char *path,
     const brix_sd_setattr_t *attr, const brix_sd_cred_t *cred);
 ssize_t sd_pblock_getxattr_cred(brix_sd_instance_t *inst, const char *path,

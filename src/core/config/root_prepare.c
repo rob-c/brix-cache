@@ -14,6 +14,8 @@
 #include "config.h"
 #include "root_prepare.h"
 #include "export_guard.h"   /* brix_assert_dir_outside_export (hard guard) */
+#include "core/compat/tmp_path.h"        /* brix_tmp_reap_register */
+#include "fs/vfs/vfs_backend_registry.h"  /* brix_vfs_backend_set_spill */
 
 #include <errno.h>
 #include <limits.h>
@@ -98,5 +100,101 @@ brix_prepare_cache_root(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common)
     {
         return NGX_CONF_ERROR;
     }
+    return NGX_CONF_OK;
+}
+
+/* Validate an explicit brix_vfs_spill_path and canonicalise it into
+ * spill_canon (size PATH_MAX). Split from brix_prepare_spill_scratch to keep
+ * its decision count in budget. */
+static char *
+brix_prepare_spill_path(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common,
+    char *spill_canon)
+{
+    brix_export_root_opts_t  opts;
+
+    /* realpath() would silently resolve a relative path against the
+     * master's cwd — refuse it up front so the boundary is explicit. */
+    if (common->vfs_spill_path.data[0] != '/') {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_vfs_spill_path must be absolute (got \"%V\")",
+            &common->vfs_spill_path);
+        return NGX_CONF_ERROR;
+    }
+    opts.directive_name = "brix_vfs_spill_path";
+    opts.allow_write    = 1;
+    opts.required       = 0;
+    opts.canon_size     = PATH_MAX;
+    if (brix_prepare_export_root(cf, &common->vfs_spill_path, &opts,
+                                 spill_canon) != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    /* HARD config guard: scratch inside the export would make service
+     * storage reachable as export storage (and expose spill temps in the
+     * client namespace). */
+    if (brix_assert_dir_outside_export(cf, "brix_vfs_spill_path",
+            common->root_canon, spill_canon) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    return NGX_CONF_OK;
+}
+
+char *
+brix_prepare_spill_scratch(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common,
+    const char *stage_dir_canon)
+{
+    char                     spill_canon[PATH_MAX];
+    const char              *scratch = NULL;
+    size_t                   max;
+
+    max = (common->vfs_spill_max == (size_t) NGX_CONF_UNSET_SIZE)
+        ? 0 : common->vfs_spill_max;
+    if (max != 0 && max < 1024 * 1024) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_vfs_spill_max must be 0 or at least 1m (got %uz)", max);
+        return NGX_CONF_ERROR;
+    }
+
+    if (common->vfs_spill_path.len > 0) {
+        if (brix_prepare_spill_path(cf, common, spill_canon) != NGX_CONF_OK) {
+            return NGX_CONF_ERROR;
+        }
+        scratch = spill_canon;
+    } else if (stage_dir_canon != NULL && stage_dir_canon[0] != '\0') {
+        /* Default per the C1 contract: the export's staged temp directory —
+         * already canonical and already guarded outside the export by its own
+         * brix_stage_dir preparation. */
+        scratch = stage_dir_canon;
+    }
+
+    /* Phase-107 C3 rides the same per-export preparation: register a merged
+     * `brix_durable_publish off` so the publish barrier is skipped for this
+     * export. Registered only when OFF — an absent registry entry is durable
+     * (fails safe), and the table stays free of entries for every
+     * default-configured export. */
+    if (common->durable_publish == 0 && common->root_canon[0] != '\0') {
+        brix_vfs_backend_set_durable(common->root_canon, 0);
+    }
+
+    /* Phase-107 C7 rides the same preparation: register a merged
+     * `brix_lock_enforcement advisory|off` so the VFS lock gate relaxes for
+     * this export. Registered only when non-strict — an absent registry entry
+     * is STRICT (fails toward enforcement), and the table stays free of
+     * entries for every default-configured export. */
+    if (common->lock_enforcement != 0 && common->root_canon[0] != '\0') {
+        brix_vfs_backend_set_lock_enforcement(common->root_canon,
+                                              common->lock_enforcement);
+    }
+
+    if (scratch == NULL || common->root_canon[0] == '\0') {
+        /* No scratch (reordered uploads refuse ENOSPC) or no export anchored
+         * here to key the registry entry on — directives were still validated. */
+        return NGX_CONF_OK;
+    }
+    brix_vfs_backend_set_spill(common->root_canon, scratch, (off_t) max);
+    /* Owned-temp reclaim: a crashed worker's spill is recognised by its
+     * .xrd-tmp.<pid>. name when the reaper walks this registered root. */
+    brix_tmp_reap_register(scratch);
     return NGX_CONF_OK;
 }

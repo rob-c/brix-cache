@@ -54,9 +54,73 @@ brix_vfs_xattr_observe_count(const brix_vfs_ctx_t *ctx, const char *path,
     return n;
 }
 
+/* Unmetered path-parameterized read core: one copy of the credential gate,
+ * leaf dispatch, and POSIX fallback, shared by the metered read entry points
+ * below and the quiet form the lock gate uses. `path` is an absolute confined
+ * path — the ctx's own resolved path, or an ancestor of it inside the same
+ * export (the lock-gate walk constructs those, so re-resolution would be
+ * redundant). Books NOTHING: the caller owns the observe tail (or its
+ * deliberate absence). Returns the byte count, or -1 with errno set. */
+static ssize_t
+brix_vfs_xattr_read_at(brix_vfs_ctx_t *ctx, const char *path,
+    const char *name, void *buf, size_t bufsz)
+{
+    const brix_sd_driver_t *drv = brix_vfs_ctx_driver(ctx);
+    ssize_t                 n;
+
+    if (drv != NULL) {
+        brix_sd_ucred_t store;
+        brix_sd_cred_t  cred;
+        int             use_cred = 0, cred_err = 0;
+
+        /* Zero before the gate: it fills only the active credential kind;
+         * an unzeroed cred hands a garbage inactive pointer to the driver
+         * cred slot (bearer PASSTHROUGH would leave x509_proxy dangling). */
+        ngx_memzero(&cred, sizeof(cred));
+
+        if (brix_vfs_cred_gate_active(ctx)) {
+            if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
+                != NGX_OK)
+            {
+                errno = cred_err ? cred_err : EACCES;
+                return -1;
+            }
+        }
+
+        {
+            /* Dispatch on the leaf so *_maybe_cred finds the leaf
+             * driver's getxattr/listxattr_cred slot (decorators have only
+             * plain relays). */
+            brix_sd_instance_t *leaf = brix_vfs_ns_leaf(ctx->sd);
+            const char         *rel = brix_vfs_export_relative(ctx, path);
+            brix_sd_cred_t     *cp = use_cred ? &cred : NULL;
+
+            if (name != NULL) {
+                n = (drv->getxattr != NULL)
+                    ? brix_sd_getxattr_maybe_cred(leaf, rel, name, buf,
+                                                  bufsz, cp)
+                    : (errno = ENOTSUP, (ssize_t) -1);
+            } else {
+                n = (drv->listxattr != NULL)
+                    ? brix_sd_listxattr_maybe_cred(leaf, rel, buf, bufsz,
+                                                   cp)
+                    : (errno = ENOTSUP, (ssize_t) -1);
+            }
+        }
+        brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
+        return n;
+    }
+
+    return (name != NULL)
+        ? brix_getxattr_confined_canon(ctx->log, ctx->root_canon, path, name,
+                                         buf, bufsz)
+        : brix_listxattr_confined_canon(ctx->log, ctx->root_canon, path,
+                                          buf, bufsz);
+}
+
 /* Shared body for the read-side ops: name != NULL reads that attribute
  * (getxattr), name == NULL lists the attribute names (listxattr). One copy of
- * the confinement check, credential gate, leaf dispatch, and observe tail. */
+ * the confinement check and observe tail around the core above. */
 static ssize_t
 brix_vfs_xattr_read(brix_vfs_ctx_t *ctx, const char *name, void *buf,
     size_t bufsz)
@@ -69,59 +133,27 @@ brix_vfs_xattr_read(brix_vfs_ctx_t *ctx, const char *name, void *buf,
         return brix_vfs_xattr_observe_count(ctx, path, -1, start);
     }
 
-    {
-        const brix_sd_driver_t *drv = brix_vfs_ctx_driver(ctx);
+    n = brix_vfs_xattr_read_at(ctx, path, name, buf, bufsz);
+    return brix_vfs_xattr_observe_count(ctx, path, n, start);
+}
 
-        if (drv != NULL) {
-            brix_sd_ucred_t store;
-            brix_sd_cred_t  cred;
-            int             use_cred = 0, cred_err = 0;
-
-            /* Zero before the gate: it fills only the active credential kind;
-             * an unzeroed cred hands a garbage inactive pointer to the driver
-             * cred slot (bearer PASSTHROUGH would leave x509_proxy dangling). */
-            ngx_memzero(&cred, sizeof(cred));
-
-            if (brix_vfs_cred_gate_active(ctx)) {
-                if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
-                    != NGX_OK)
-                {
-                    errno = cred_err ? cred_err : EACCES;
-                    return brix_vfs_xattr_observe_count(ctx, path, -1, start);
-                }
-            }
-
-            {
-                /* Dispatch on the leaf so *_maybe_cred finds the leaf
-                 * driver's getxattr/listxattr_cred slot (decorators have only
-                 * plain relays). */
-                brix_sd_instance_t *leaf = brix_vfs_ns_leaf(ctx->sd);
-                const char         *rel = brix_vfs_export_relative(ctx, path);
-                brix_sd_cred_t     *cp = use_cred ? &cred : NULL;
-
-                if (name != NULL) {
-                    n = (drv->getxattr != NULL)
-                        ? brix_sd_getxattr_maybe_cred(leaf, rel, name, buf,
-                                                      bufsz, cp)
-                        : (errno = ENOTSUP, (ssize_t) -1);
-                } else {
-                    n = (drv->listxattr != NULL)
-                        ? brix_sd_listxattr_maybe_cred(leaf, rel, buf, bufsz,
-                                                       cp)
-                        : (errno = ENOTSUP, (ssize_t) -1);
-                }
-            }
-            brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
-            return brix_vfs_xattr_observe_count(ctx, path, n, start);
-        }
+/* Quiet attribute read at an explicit confined path (phase-107 C7): the lock
+ * gate probes every ancestor between a mutation target and the export root for
+ * a lock record, and those probes must not book OP_XATTR metrics — a strict
+ * per-request counter delta is part of the metrics conformance contract, and a
+ * gate that inflated it per path level would make the xattr counters
+ * depth-dependent. Same confinement requirement, credential gate, and leaf
+ * dispatch as brix_vfs_getxattr; no observation. Returns the byte count, or -1
+ * with errno set (EINVAL for an unconfined ctx). */
+ssize_t
+brix_vfs_getxattr_quiet_at(brix_vfs_ctx_t *ctx, const char *path,
+    const char *name, void *buf, size_t bufsz)
+{
+    if (brix_vfs_require_confined(ctx) != NGX_OK) {
+        return -1;
     }
 
-    n = (name != NULL)
-        ? brix_getxattr_confined_canon(ctx->log, ctx->root_canon, path, name,
-                                         buf, bufsz)
-        : brix_listxattr_confined_canon(ctx->log, ctx->root_canon, path,
-                                          buf, bufsz);
-    return brix_vfs_xattr_observe_count(ctx, path, n, start);
+    return brix_vfs_xattr_read_at(ctx, path, name, buf, bufsz);
 }
 
 /* Read attribute `name` on the resolved ctx path into buf[bufsz] (bufsz==0 asks
@@ -300,6 +332,14 @@ brix_vfs_xattr_mutate(brix_vfs_ctx_t *ctx, int is_set, const char *name,
      * for a refused credential, and either arriving before EROFS would tell a
      * caller something about a backend it is not allowed to touch. */
     if (brix_vfs_require_mutation(ctx, BRIX_VFS_MUTATE_XATTR) != NGX_OK) {
+        return brix_vfs_xattr_observe_mut(ctx, path, -1, 0, start);
+    }
+
+    /* phase-107 C7: lock gate after the mutation gate (EROFS precedes EBUSY).
+     * The WebDAV lock DB's own writes pass through here too: an initial LOCK
+     * finds no covering record, and UNLOCK/refresh present the lock's token
+     * (ctx->lock_token), which the gate matches as ownership. */
+    if (brix_vfs_require_unlocked(ctx, BRIX_VFS_MUTATE_XATTR) != NGX_OK) {
         return brix_vfs_xattr_observe_mut(ctx, path, -1, 0, start);
     }
 

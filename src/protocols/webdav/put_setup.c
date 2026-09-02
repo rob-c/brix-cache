@@ -127,8 +127,10 @@ webdav_put_ranged_resume(ngx_http_request_t *r,
             (void) brix_stage_mark_pending(staged.tmp_path, path,
                                              r->connection->log);
         }
+        /* flags 0 = durable: WebDAV keeps phase-51 semantics unconditionally
+         * for now (brix_durable_commit currently gates the root:// close). */
         crc = brix_commit_staged(staged.fd, staged.tmp_path, path,
-                                   staged.final_mode, r->connection->log);
+                                   staged.final_mode, 0, r->connection->log);
         if (staged.fd != NGX_INVALID_FILE) {
             ngx_close_file(staged.fd);
             staged.fd = NGX_INVALID_FILE;
@@ -306,6 +308,13 @@ webdav_put_open_target(ngx_http_request_t *r,
      * PUT is allow_write-gated at the access phase, so the staged open's
      * write-gate never fires here. */
     vctx->sd = brix_webdav_backend_instance(conf, r->connection->log);
+    /* Phase-107 C5: a PUT's Content-Length IS the declared final size — the
+     * staged plane forwards it (remote derives a legal multipart part size,
+     * posix/frm preallocate) and an unsatisfiable declaration fails the open
+     * with ENOSPC → 507 before the body streams. Chunked (-1) declares none. */
+    if (r->headers_in.content_length_n > 0) {
+        vctx->declared_size = (off_t) r->headers_in.content_length_n;
+    }
 
     writer = brix_vfs_writer_open(vctx, BRIX_VFS_O_ATOMIC,
                                     conf->common.verify_write, &staged_err);

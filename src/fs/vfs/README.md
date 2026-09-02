@@ -3,7 +3,7 @@
 The `brix_vfs_*` surface every protocol handler calls: `vfs.h` (the only
 header handlers should include), the per-op implementation files
 (`vfs_open.c`, `vfs_read.c`, `vfs_write.c`, `vfs_stat.c`, `vfs_dir.c`,
-`vfs_unlink.c`, `vfs_rename.c`, `vfs_mkdir.c`, `vfs_sync.c`, `vfs_xattr.c`,
+`vfs_unlink.c`, `vfs_unlink_many.c`, `vfs_rename.c`, `vfs_mkdir.c`, `vfs_sync.c`, `vfs_xattr.c`,
 `vfs_copy.c`, `vfs_staged.c`), the mutation-policy kernel every one of
 them passes (`vfs_policy.c`/`vfs_policy_export.c`), the thread-safe worker surfaces
 (`vfs_io_core.c`, `vfs_walk.c`), and the per-export storage-backend registry
@@ -43,6 +43,9 @@ that first; this file is just the signpost.
 | `vfs_internal.h` | Defines the real handle structs hidden behind vfs.h's opaque typedefs (brix_vfs_file_s, brix_vfs_dir_s), the inline confinement guard (brix_vfs_require_confined; the write guard became the typed mutation kernel in vfs_policy.h, phase-105), the ctx-path accessor (bri. |
 | `vfs_policy.h` | The phase-105 mutation-policy contract: brix_vfs_mutation_policy_t (READ_ONLY = 0, so a zeroed or hand-built ctx fails closed), the bounded brix_vfs_mutate_op vocabulary, brix_vfs_policy_from_write_enable() and the five require-forms (policy / ctx / confined / carried / export). |
 | `vfs_policy.c` | The kernel every export mutation passes: decides from the policy value alone — no path, no leaf, no credential, no driver, no cache — refuses with EROFS (never EACCES) before the deny-mode credential refusal and the capability ENOTSUP, and books brix_vfs_mutation_denied_total. |
+| `vfs_policy_domain.c` | The typed storage-domain assert (phase-107 C8/C9): brix_vfs_domain_mutation() checks a caller's claim about what an instance's storage IS against inst->domain (fs/backend/sd.h) — EXPORT routes to the phase-105 kernel fail-closed (EROFS), a service-domain mismatch is a programming error (EINVAL + crit, never EROFS). brix_vfs_service_mutation() is the not-export narrow form; first callers are gcas' dedup slots. |
+| `vfs_policy_domain.h` | Declares the two domain-assert forms; includable from fs/cache and every service-storage mutator (the domain enum itself lives beside the field it types, in fs/backend/sd.h). |
+| `vfs_lock_gate.c` | brix_vfs_require_unlocked() (phase-107 C7): the cross-protocol lock gate, called AFTER the mutation kernel so EROFS precedes EBUSY. W1 ships the final signature over pre-C7 semantics (no readable lock records — every confined target admits); W8 lands the xattr-backed body and wires position 2 of every path mutator. Impure by design, so not part of vfs_policy.c's pure kernel. |
 | `vfs_policy_export.c` | brix_vfs_export_require_mutation() and the brix_vfs_export_opctx_t bundle: the same decision for service-domain work that outlives its request (TPC destination, async queue drain, CMS forwarding, multipart finalization), carrying the policy by value so a job cannot shed it. |
 | `vfs_io_core.h` | Declares the POD job descriptor and small segment descriptor types used by worker-thread and inline-fallback disk I/O. |
 | `vfs_io_core_dirlist.c` | Implements brix_vfs_io_execute_opendir(), the OPENDIR arm of the POD-only VFS I/O execution core. |
@@ -50,7 +53,10 @@ that first; this file is just the signpost.
 | `vfs_open_adopt.c` | Hosts the handle-construction half of the VFS open unit: brix_vfs_ctx_init() (prime a per-request ctx), brix_vfs_fill_stat() (struct stat -> brix_vfs_stat_t), brix_vfs_copy_path() (pool-dup a C string), brix_vfs_adopt_fd. |
 | `vfs_open_handle.c` | Implements brix_vfs_close() and every read-only accessor over an open brix_vfs_file_t: fd / sd_obj / pread / sendfile-fd / can-sendfile / backend-name / path / size / mtime / from_cache / file_stat, plus the phase-71 mem. |
 | `vfs_ops.h` | confined walk / thread-safe open-unlink / raw fd read-write / xattr / single-file-copy / atomic-staged-write VFS declarations, split (phase-79 file-size burndown) out of the oversized vfs.h with zero behaviour change. |
+| `vfs_mutate.h` | namespace/object MUTATION declarations (unlink / rmdir / bulk delete / rename / mkdir / chmod / setattr / truncate / sync), split (phase-107 W5 file-size burndown) out of vfs.h the same way phase-79 cut vfs_ops.h; the W6–W8 mutation-surface declarations land here. |
 | `vfs_secgate.h` | The capability mask (BRIX_TLSREQ_LOGIN/SESSION/DATA/TPC), the pure parser for the `brix_tls_require` directive grammar (`none \| [all\|login\|session\|data\|tpc].. |
 | `vfs_walk_copy.c` | Implements brix_vfs_copyfile() (one confined regular file src→dst) and brix_vfs_copytree() (a confined directory tree src→dst), both impersonation-aware via the confined-canon helpers and thread-safe (no pool allocation. |
 | `vfs_writer.c` | brix_vfs_writer_open/write/commit/abort — one write entry point a protocol path (GridFTP STOR) uses regardless of backend, with an optional self-computed read-back integrity check folded in. |
+| `vfs_writer_internal.h` | The writer's private state shared between vfs_writer.c and vfs_writer_spill.c (phase-107 C1): the OPEN→RANDOM/SEQUENTIAL→SPILL/FAILED mode enum, the per-handle spill record (scratch fd/path, extent tree, cap), and the spill entry points the writer calls at the reorder boundary. |
+| `vfs_writer_spill.c` | Phase-107 C1 reorder-spill engine behind brix_vfs_writer_write on a staged-only backend: absorbs out-of-order extents into an owned-temp scratch under the registered spill root (brix_vfs_spill_path, else brix_stage_dir, else refuse ENOSPC), refuses overlap/cap/hole, and at commit drains strictly sequentially into the staged session before staged_commit — then unlinks the scratch. Telemetry: brix_vfs_spill_{bytes_total,refused_total,active}. |
 | `vfs_wverify.c` | brix_vfs_wverify_check() — given a write-side CRC accumulator and a FRESH read-only handle on the just-written object, re-read the object through its storage driver and confirm the persisted bytes match what was written. |

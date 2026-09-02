@@ -76,6 +76,8 @@ ngx_int_t sd_remote_residency(brix_sd_instance_t *inst, const char *key,
     brix_sd_residency_t *out);
 ngx_int_t sd_remote_recall(brix_sd_instance_t *inst, const char *key,
     char reqid_out[40]);
+ngx_int_t sd_remote_recall_cred(brix_sd_instance_t *inst, const char *key,
+    const brix_sd_cred_t *cred, char reqid_out[40]);
 
 /* ---- HEAD-based metadata slots (defined in sd_remote_meta.c) --------------- */
 ssize_t sd_remote_getxattr(brix_sd_instance_t *inst, const char *path,
@@ -105,18 +107,29 @@ ngx_int_t sd_remote_rename_cred(brix_sd_instance_t *inst, const char *src,
 
 /* ---- staged write path + unlink slots (defined in sd_remote_write.c) ------- */
 brix_sd_staged_t *sd_remote_staged_open(brix_sd_instance_t *inst,
-    const char *final_path, mode_t mode, int *err_out);
+    const char *final_path, mode_t mode, off_t declared_size, int *err_out);
 brix_sd_staged_t *sd_remote_staged_open_cred(brix_sd_instance_t *inst,
-    const char *final_path, mode_t mode, const brix_sd_cred_t *cred,
-    int *err_out);
+    const char *final_path, mode_t mode, off_t declared_size,
+    const brix_sd_cred_t *cred, int *err_out);
+/* Phase-107 C5: the declared-size -> legal multipart part-size derivation
+ * (max(16 MiB, MiB-aligned ceil(declared / 10,000)); 0 -> the 16 MiB default).
+ * Pure; exported for the C object unit that proves a 5 TB declaration picks a
+ * legal part count. */
+int64_t sd_remote_part_size(off_t declared_size);
 ssize_t sd_remote_staged_write(brix_sd_staged_t *h, const void *buf, size_t len,
     off_t off);
-ngx_int_t sd_remote_staged_commit(brix_sd_staged_t *h, int noreplace);
+ngx_int_t sd_remote_staged_commit(brix_sd_staged_t *h, brix_sd_precond_t *pre);
 void sd_remote_staged_abort(brix_sd_staged_t *h);
 ngx_int_t sd_remote_unlink(brix_sd_instance_t *inst, const char *path,
     int is_dir);
 ngx_int_t sd_remote_unlink_cred(brix_sd_instance_t *inst, const char *path,
     int is_dir, const brix_sd_cred_t *cred);
+/* Phase-107 C4: one signed DeleteObjects for the whole window (contract in
+ * sd_batch_types.h); the _cred twin signs the WHOLE batch as the caller. */
+ngx_int_t sd_remote_unlink_many(brix_sd_instance_t *inst,
+    brix_sd_unlink_batch_t *b);
+ngx_int_t sd_remote_unlink_many_cred(brix_sd_instance_t *inst,
+    brix_sd_unlink_batch_t *b, const brix_sd_cred_t *cred);
 /* Server-side copy (S3 CopyObject) — a mutation, so it lives with the write
  * slots. The _cred sibling matters more here than anywhere else on this driver:
  * one signed request READS one key and WRITES another, so signing it as the

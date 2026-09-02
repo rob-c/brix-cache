@@ -59,6 +59,12 @@ typedef struct {
     int  (*migrate)(void *mss, const char *key);
     /* Drop the online copy of `key` (free buffer space). */
     int  (*purge)(void *mss, const char *key);
+    /* Atomic two-name exchange of the ONLINE-BUFFER copies (phase-107 C6):
+     * renameat2(RENAME_EXCHANGE) on <base>/.online/<a|b>. Both names must be
+     * online (ENOENT otherwise — recall first); the driver migrates both keys
+     * afterwards so tape truth catches up. A NULL slot means this MSS cannot
+     * swap — the driver reports ENOTSUP, never a two-rename emulation. */
+    int  (*exchange)(void *mss, const char *a, const char *b);
     /* §3.7 MSS namespace enumeration (the stock `rsscmd dread` analog): call
      * cb(ud, name, is_dir) for each entry of MSS directory `key` until done
      * (a nonzero cb return stops early). 0 ok / -1 error (errno set). A NULL
@@ -75,6 +81,10 @@ typedef struct {
     int  (*open_online)(void *mss, const char *key);
     /* Create+open the online-buffer file of `key` for a staged write; fd or -1. */
     int  (*create_online)(void *mss, const char *key, mode_t mode);
+    /* Phase-107 C3: make the LOCAL directory entry of `key`'s just-published
+     * artifact durable (fsync its parent directory). 0 ok / -1 error (errno
+     * set). NULL slot ⇒ the adapter keeps nothing local worth flushing. */
+    int  (*sync_publish)(void *mss, const char *key);
     void (*destroy)(void *mss);
 } brix_mss_adapter_t;
 

@@ -155,7 +155,7 @@ s3_handle_head_bucket(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     struct stat st;
 
     if (cf->common.root_canon[0] == '\0'
-        || stat(cf->common.root_canon, &st) != 0  /* vfs-seam-allow: HeadBucket stats the export root itself (the confinement anchor), not a path beneath it */
+        || stat(cf->common.root_canon, &st) != 0  /* vfs-seam-allow: SEAM_CORRECT — HeadBucket stats the export root itself (the confinement anchor), not a path beneath it */
         || !S_ISDIR(st.st_mode))
     {
         BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INVALID_URI]);

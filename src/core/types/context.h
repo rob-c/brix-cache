@@ -81,6 +81,14 @@ typedef struct {
     size_t             size;      /* allocated size of buf */
     ngx_thread_task_t *task;      /* per-entry thread task (kXR_read AIO) */
     unsigned           in_use:1;  /* 1 while an in-flight read owns this entry */
+    unsigned           hot:1;     /* used since the last trim pass — trim skips
+                                   * (and clears) it, so a slot is only shrunk
+                                   * after a full request cycle without use.
+                                   * Freeing an 8 MiB slot on EVERY request made
+                                   * glibc mmap/munmap the block each time
+                                   * (equal-size churn never clears the dynamic
+                                   * mmap threshold): ~25% of streaming-pgread
+                                   * worker CPU went to page faults + zeroing. */
 } brix_read_slot_t;
 
 /* Per-connection concern sub-structs (ctx->recv, ctx->gsi, ctx->out, ...).
@@ -108,8 +116,16 @@ typedef struct brix_ctx_s {
      * first file open, ended on disconnect.  See src/pmark/. */
     brix_ctx_pmark_t  pmark;  /* SciTags packet-marking flow — see brix_ctx_pmark_t. */
 
-    /* Open file table — array index IS the XRootD file handle (0-based) */
-    brix_file_t  files[BRIX_MAX_FILES];
+    /* Open file table — array index IS the XRootD file handle (0-based).
+     * Lazily allocated (brix_files_ensure) as one fixed BRIX_MAX_FILES block
+     * on the first kXR_open / bound-handle ensure: brix_file_t is ~10 KB, so
+     * embedding the table made every metadata-only session pay ~170 KB of
+     * touched pages it never used.  NULL until then — every path that indexes
+     * the table without a prior brix_validate/brix_ensure handle call must
+     * treat NULL as "no handle is open".  Never reallocated (in-flight AIO tasks
+     * hold brix_file_t pointers), so once non-NULL the address is stable for
+     * the connection's life; freed with the connection pool. */
+    brix_file_t  *files;
 
     /*
      * Output queue (Phase 29 pipelining).

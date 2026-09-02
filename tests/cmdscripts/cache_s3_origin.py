@@ -6,10 +6,10 @@ from pathlib import Path
 import os
 import signal
 import subprocess
-import time
 
 from cmdscripts import run
 from cmdscripts.command_results import print_results
+from cmdscripts.cache_source_helpers import wait_workers_ready
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
 
@@ -140,7 +140,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> l
         return _expression_1(result)
 
     try:
-        time.sleep(1)
+        wait_workers_ready(HOST, [(s3_port, "http"), (node_port, "root")])
         results: list[tuple[bool, str]] = []
         expected_hello = (base / "s3root" / "hello.bin").read_bytes()
 

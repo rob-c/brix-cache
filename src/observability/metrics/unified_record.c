@@ -22,6 +22,21 @@
  */
 
 /*
+ * brix_metric_shm_for_proto — the shared recorder prologue (see
+ * unified_internal.h): every per-proto mutator opens with the same
+ * range-check + SHM resolve, so it lives once here instead of five times
+ * (coding-standards §8).
+ */
+ngx_brix_metrics_t *
+brix_metric_shm_for_proto(brix_proto_t proto)
+{
+    if (proto >= BRIX_PROTO_COUNT) {
+        return NULL;
+    }
+    return brix_metrics_shared();
+}
+
+/*
  * brix_metric_op_done — record one completed I/O operation: bump the
  * io_ops_total[proto][op][err] counter, add bytes to the read/write totals for
  * read/write ops, and update the latency histogram (single bucket + count + sum).
@@ -95,13 +110,8 @@ brix_metric_op_count(brix_proto_t proto, brix_metric_op_t op,
 void
 brix_metric_offload(brix_proto_t proto)
 {
-    ngx_brix_metrics_t *shm;
+    ngx_brix_metrics_t *shm = brix_metric_shm_for_proto(proto);
 
-    if (proto >= BRIX_PROTO_COUNT) {
-        return;
-    }
-
-    shm = brix_metrics_shared();
     if (shm == NULL) {
         return;
     }
@@ -210,13 +220,8 @@ void
 brix_metric_cache_result(brix_proto_t proto, unsigned int hit,
     size_t bytes_evicted)
 {
-    ngx_brix_metrics_t *shm;
+    ngx_brix_metrics_t *shm = brix_metric_shm_for_proto(proto);
 
-    if (proto >= BRIX_PROTO_COUNT) {
-        return;
-    }
-
-    shm = brix_metrics_shared();
     if (shm == NULL) {
         return;
     }
@@ -288,13 +293,8 @@ brix_metric_cache_evicted(brix_proto_t proto, uint64_t bytes)
 void
 brix_metric_cred_result(brix_proto_t proto, brix_cred_outcome_t outcome)
 {
-    ngx_brix_metrics_t *shm;
+    ngx_brix_metrics_t *shm = brix_metric_shm_for_proto(proto);
 
-    if (proto >= BRIX_PROTO_COUNT) {
-        return;
-    }
-
-    shm = brix_metrics_shared();
     if (shm == NULL) {
         return;
     }
@@ -364,39 +364,6 @@ brix_metric_cred_fail(brix_proto_t proto, brix_cred_fail_t reason)
     }
 
     BRIX_ATOMIC_INC(&shm->unified.cred_deleg_fail_total[proto][reason]);
-}
-
-/*
- * brix_metric_vfs_mutation_denied — record one phase-105 read-only denial.
- *
- * WHAT: Bumps vfs_mutation_denied_total[proto][op]. No-op on an out-of-range
- *       protocol or operation, or on detached SHM.
- *
- * WHY:  A read-only export that is silently refusing writes is indistinguishable
- *       from one nobody is writing to. This is the counter that tells the two
- *       apart, at fixed cardinality: the reason is constant ("read_only",
- *       rendered by the exporter) because EROFS is the only VFS read-only
- *       result, and no path, subject, or key ever becomes a label.
- *
- * HOW:  Same contract as brix_metric_cred_fail: range-check both indices,
- *       resolve the SHM, atomic-increment. `op` arrives as ngx_uint_t (the
- *       fs-layer enum value); vfs_policy.c carries the compile-time size check.
- */
-void
-brix_metric_vfs_mutation_denied(brix_proto_t proto, ngx_uint_t op)
-{
-    ngx_brix_metrics_t *shm;
-
-    if (proto >= BRIX_PROTO_COUNT || op >= BRIX_VFS_MUTATE_OP_METRIC_COUNT) {
-        return;
-    }
-
-    shm = brix_metrics_shared();
-    if (shm == NULL) {
-        return;
-    }
-
-    BRIX_ATOMIC_INC(&shm->unified.vfs_mutation_denied_total[proto][op]);
 }
 
 /*

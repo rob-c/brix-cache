@@ -62,11 +62,11 @@ brix_sd_open_maybe_cred(brix_sd_instance_t *inst, const char *path,
 
 static ngx_inline brix_sd_staged_t *
 brix_sd_staged_open_maybe_cred(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, const brix_sd_cred_t *cred, int *err_out)
+    mode_t mode, off_t declared_size, const brix_sd_cred_t *cred, int *err_out)
 {
     if (cred != NULL && inst->driver->staged_open_cred != NULL) {
-        return inst->driver->staged_open_cred(inst, final_path, mode, cred,
-                                              err_out);
+        return inst->driver->staged_open_cred(inst, final_path, mode,
+                                              declared_size, cred, err_out);
     }
     if (cred != NULL && cred->fallback_deny
         && inst->driver->staged_open_cred == NULL
@@ -85,7 +85,8 @@ brix_sd_staged_open_maybe_cred(brix_sd_instance_t *inst, const char *final_path,
         errno = ENOSYS;
         return NULL;
     }
-    return inst->driver->staged_open(inst, final_path, mode, err_out);
+    return inst->driver->staged_open(inst, final_path, mode, declared_size,
+                                     err_out);
 }
 
 /* ---- credential-scoped namespace forwarders --------------------------------
@@ -143,6 +144,31 @@ brix_sd_unlink_maybe_cred(brix_sd_instance_t *inst, const char *path,
     return inst->driver->unlink(inst, path, is_dir);
 }
 
+/* Batch twin (phase-107 C4): same deny-mode semantics as unlink - a cred with
+ * fallback_deny and no _cred slot refuses the WHOLE batch (EACCES) rather than
+ * silently running it as the export. ENOSYS = no batch slot at all; the VFS
+ * chunker then runs its per-key loop. */
+static ngx_inline ngx_int_t
+brix_sd_unlink_many_maybe_cred(brix_sd_instance_t *inst,
+    brix_sd_unlink_batch_t *b, const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->unlink_many_cred != NULL) {
+        return inst->driver->unlink_many_cred(inst, b, cred);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->unlink_many_cred == NULL
+        && inst->driver->unlink_many != NULL)
+    {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    if (inst->driver->unlink_many == NULL) {
+        errno = ENOSYS;
+        return NGX_ERROR;
+    }
+    return inst->driver->unlink_many(inst, b);
+}
+
 static ngx_inline ngx_int_t
 brix_sd_mkdir_maybe_cred(brix_sd_instance_t *inst, const char *path,
     mode_t mode, const brix_sd_cred_t *cred)
@@ -179,6 +205,31 @@ brix_sd_rename_maybe_cred(brix_sd_instance_t *inst, const char *src,
         return NGX_ERROR;
     }
     return inst->driver->rename(inst, src, dst, noreplace);
+}
+
+static ngx_inline ngx_int_t
+brix_sd_exchange_maybe_cred(brix_sd_instance_t *inst, const char *a,
+    const char *b, const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->exchange_cred != NULL) {
+        return inst->driver->exchange_cred(inst, a, b, cred);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->exchange_cred == NULL
+        && inst->driver->exchange != NULL)
+    {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    if (inst->driver->exchange == NULL) {
+        /* No primitive — the caller refuses ENOTSUP, never a two-rename
+         * emulation (phase-107 C6, sd.h exchange contract). ENOSYS here
+         * would read as "slot missing on a driver that should have it";
+         * exchange is OPTIONAL by contract, so the refusal is ENOTSUP. */
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
+    return inst->driver->exchange(inst, a, b);
 }
 
 static ngx_inline ngx_int_t
@@ -330,6 +381,46 @@ brix_sd_server_copy_maybe_cred(brix_sd_instance_t *inst, const char *src,
         return NGX_ERROR;
     }
     return inst->driver->server_copy(inst, src, dst, bytes_out);
+}
+
+static ngx_inline ngx_int_t
+brix_sd_recall_maybe_cred(brix_sd_instance_t *inst, const char *key,
+    char reqid_out[40], const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->recall_cred != NULL) {
+        return inst->driver->recall_cred(inst, key, cred, reqid_out);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->recall_cred == NULL && inst->driver->recall != NULL)
+    {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    if (inst->driver->recall == NULL) {
+        errno = ENOSYS;
+        return NGX_ERROR;
+    }
+    return inst->driver->recall(inst, key, reqid_out);
+}
+
+static ngx_inline ngx_int_t
+brix_sd_evict_maybe_cred(brix_sd_instance_t *inst, const char *path,
+    uint64_t *bytes_out, const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->evict_cred != NULL) {
+        return inst->driver->evict_cred(inst, path, bytes_out, cred);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->evict_cred == NULL && inst->driver->evict != NULL)
+    {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    if (inst->driver->evict == NULL) {
+        errno = ENOSYS;
+        return NGX_ERROR;
+    }
+    return inst->driver->evict(inst, path, bytes_out);
 }
 
 static ngx_inline brix_sd_dir_t *
