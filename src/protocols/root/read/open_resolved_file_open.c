@@ -1,6 +1,6 @@
 #include "open.h"
 #include "fs/vfs/vfs.h"   /* VFS confined open/probe seam */
-#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
+#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_session (phase-70) */
 #include "fs/vfs/vfs_backend_registry.h"  /* per-export storage-driver resolution */
 #include "fs/vfs/vfs_internal.h"          /* brix_vfs_export_relative_root key form */
 #include "fs/backend/sd.h"            /* Layer 3: driver-backed export open */
@@ -101,7 +101,9 @@ brix_open_adopt_cache_accounting(const brix_open_args_t *a,
     if (fh->sd_obj.cache_outcome != BRIX_SD_CACHE_OUTCOME_NONE) {
         unsigned hit = (fh->sd_obj.cache_outcome == BRIX_SD_CACHE_OUTCOME_HIT)
                        && !a->ctx->open_fill_miss;
-        brix_metric_cache_result(brix_vfs_metrics_proto(vctx), hit, 0);
+        /* phase-110 W1: metric + the session monitor's $brix_cache_status in
+         * one call (the same word on root:// as on WebDAV/S3). */
+        brix_vfs_observe_cache_result(vctx, hit);
     }
 
     brix_metric_cache_evicted(brix_vfs_metrics_proto(vctx),

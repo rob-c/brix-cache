@@ -31,7 +31,8 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
 
 HISTOGRAMS = {"brix_cvmfs_upstream_fill_duration_seconds",
               "brix_frm_stage_latency_seconds",
-              "brix_io_latency_usec"}
+              "brix_io_latency_usec",
+              "brix_io_latency_seconds"}
 
 # Config-bounded exemptions from the value-shape rules, pinned exactly:
 # `export` labels carry the configured mount path (one row per export —

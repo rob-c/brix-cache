@@ -8,7 +8,7 @@
 
 #include "ngx_brix_fattr.h"
 #include "fs/vfs/vfs.h"   /* confinement check via the VFS seam */
-#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
+#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_session (phase-70) */
 
 #include <string.h>
 #include "core/compat/alloc_guard.h"
@@ -148,7 +148,7 @@ fattr_bind_vctx(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_vfs_ctx_bind_backend_cred(&st->vctx,
         &conf->common.storage_credential_dir,
         conf->common.storage_credential_fallback);
-    brix_root_vfs_bind_deleg(ctx, conf, &st->vctx);
+    brix_root_vfs_bind_session(ctx, conf, &st->vctx);
 }
 
 /*

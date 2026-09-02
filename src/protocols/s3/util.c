@@ -3,6 +3,7 @@
  */
 
 #include "s3.h"
+#include "core/http/http_variables.h"   /* brix_http_monitor_bind (phase-110 W3) */
 #include "protocols/shared/deleg_wire.h"
 #include "core/http/etag.h"
 #include "core/http/http_headers.h"
@@ -50,6 +51,10 @@ s3_build_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
         &cf->common.storage_credential_mint_ca_key,
         cf->common.storage_credential_mint_ttl);
     s3_vfs_bind_deleg(r, cf, vctx);
+    /* phase-110 W3: S3 write/multipart ctx builder (event-loop handlers) —
+     * bind the request's I/O monitor so $brix_bytes_received / $brix_op /
+     * $brix_status report on S3 PUT/POST exactly as on WebDAV PUT. */
+    brix_http_monitor_bind(r, vctx);
 }
 
 /* ---- s3_vfs_bind_deleg -----------------------------------------------------

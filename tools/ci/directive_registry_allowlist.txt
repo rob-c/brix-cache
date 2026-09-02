@@ -60,3 +60,13 @@ oci_class     # phase-106 W1-a: deprecated alias of $brix_oci_class
 oci_cache     # phase-106 W1-a: deprecated alias of $brix_oci_cache
 rpm_class     # phase-106 W1-a: deprecated alias of $brix_rpm_class
 rpm_cache     # phase-106 W1-a: deprecated alias of $brix_rpm_cache
+## phase-110 W5.4: deprecated stream variable aliases, superseded by the
+## uniform $brix_* names. The `removal:` annotation is the self-deleting pin
+## (R14): once phase-112 is marked IMPLEMENTED these MUST be gone.
+brix_session_dn         # removal: phase-112 — deprecated alias of brix_dn
+brix_session_vo         # removal: phase-112 — deprecated alias of brix_vo
+brix_session_user       # removal: phase-112 — deprecated alias of brix_sub
+brix_session_auth       # removal: phase-112 — deprecated alias of brix_auth_method
+brix_session_tls        # removal: phase-112 — deprecated alias of brix_tls
+brix_session_bytes_out  # removal: phase-112 — deprecated alias of brix_bytes_served
+brix_session_bytes_in   # removal: phase-112 — deprecated alias of brix_bytes_received

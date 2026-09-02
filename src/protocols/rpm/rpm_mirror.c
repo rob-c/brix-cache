@@ -232,6 +232,14 @@ brix_rpm_finalize_observe(void *data)
     /* One request, one row. Both indices are enums (INVARIANT #8): no
      * repository path, package name or digest is ever a metric label. */
     BRIX_RPM_METRIC_INC(requests_total[ctx->req.cls][ctx->disp]);
+    /* phase-110 W10: also feed the unified cache family (brix_cache_requests_total)
+     * so an RPM cache hit-rate is one query across planes. HIT/LOCAL = local
+     * store; FILL = origin fill (miss); REFUSED/ERROR are not cache outcomes. */
+    if (ctx->disp == BRIX_RPM_OUT_HIT || ctx->disp == BRIX_RPM_OUT_LOCAL) {
+        brix_metric_cache_result(BRIX_PROTO_RPM, 1, 0);
+    } else if (ctx->disp == BRIX_RPM_OUT_FILL) {
+        brix_metric_cache_result(BRIX_PROTO_RPM, 0, 0);
+    }
 }
 
 

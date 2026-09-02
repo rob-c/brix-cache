@@ -92,6 +92,7 @@ brix_access_log_emit(const brix_vfs_ctx_t *ctx, const char *path,
 {
     char        path_json[1024];
     char        subject_json[256];
+    char        remote_json[128];
     const char *subject;
     off_t       offset;
     ngx_uint_t  from_cache;
@@ -111,27 +112,52 @@ brix_access_log_emit(const brix_vfs_ctx_t *ctx, const char *path,
 
     brix_access_json_escape(path, path_json, sizeof(path_json));
     brix_access_json_escape(subject, subject_json, sizeof(subject_json));
+    /* phase-110 W7: the client address, so the JSON log is self-sufficient.
+     * NULL peer (an unbound/internal ctx) stays the "-" sentinel. */
+    brix_access_json_escape(ctx->peer != NULL ? ctx->peer : "-",
+                            remote_json, sizeof(remote_json));
 
     offset = result != NULL ? result->offset : 0;
     from_cache = result != NULL && result->from_cache ? 1 : 0;
     tp = ngx_timeofday();
 
+    /* phase-110 rule 3: a JSON key is the $brix_* variable's name minus
+     * "brix_", carrying the SAME value string as that variable and as the
+     * Prometheus label of the same name (one word per fact on every surface):
+     *   cache_status  ← brix_metric_cache_status_name (was the bool from_cache)
+     *   sub           ← the identity subject (was "subject")
+     *   bytes_served  ← this op's bytes (was "bytes")
+     *   backend_time_us ← this op's latency; unit suffix per rule 4 because the
+     *                   variable renders seconds (was "latency_us")
+     * The old keys are still emitted for one release (deprecated aliases,
+     * removal phase-112) so no existing consumer breaks. A per-op line
+     * reports the op's own cache decision: HIT/MISS/- (BYPASS/NEGHIT are
+     * request-level decisions the variable can carry, an op line cannot). */
     ngx_log_error(NGX_LOG_INFO, ctx->log, 0,
                   "brix_access_json: "
                   "{\"ts\":%T.%03M,\"proto\":\"%s\","
-                  "\"remote\":\"-\",\"op\":\"%s\","
-                  "\"path\":\"%s\",\"bytes\":%uz,\"offset\":%O,"
-                  "\"latency_us\":%M,\"status\":\"%s\","
-                  "\"from_cache\":%s,\"auth_method\":\"%s\","
-                  "\"subject\":\"%s\"}",
+                  "\"remote\":\"%s\",\"op\":\"%s\","
+                  "\"path\":\"%s\",\"bytes_served\":%uz,\"bytes\":%uz,"
+                  "\"offset\":%O,"
+                  "\"backend_time_us\":%M,\"latency_us\":%M,"
+                  "\"status\":\"%s\","
+                  "\"cache_status\":\"%s\",\"from_cache\":%s,"
+                  "\"auth_method\":\"%s\","
+                  "\"sub\":\"%s\",\"subject\":\"%s\"}",
                   tp->sec, tp->msec,
                   brix_metric_proto_name(ctx->metrics_proto),
+                  remote_json,
                   brix_metric_op_name(op),
-                  path_json, bytes, offset, latency_usec,
+                  path_json, bytes, bytes, offset, latency_usec, latency_usec,
                   brix_metric_err_name(err),
+                  brix_metric_cache_status_name(
+                      result == NULL ? BRIX_CACHE_STATUS_NONE
+                      : from_cache   ? BRIX_CACHE_STATUS_HIT
+                      : ctx->cache_enabled ? BRIX_CACHE_STATUS_MISS
+                                           : BRIX_CACHE_STATUS_NONE),
                   from_cache ? "true" : "false",
                   ctx->identity != NULL
                       ? brix_metric_auth_method_name(ctx->identity->auth_method)
                       : "none",
-                  subject_json);
+                  subject_json, subject_json);
 }

@@ -229,6 +229,22 @@ brix_metric_cache_result(brix_proto_t proto, unsigned int hit,
     BRIX_ATOMIC_ADD(&shm->unified.cache_bytes_evicted[proto], bytes_evicted);
 }
 
+
+void
+brix_metric_cache_neghit(brix_proto_t proto)
+{
+    ngx_brix_metrics_t *shm;
+
+    if (proto >= BRIX_PROTO_COUNT) {
+        return;
+    }
+    shm = brix_metrics_shared();
+    if (shm == NULL) {
+        return;
+    }
+    BRIX_ATOMIC_INC(&shm->unified.cache_neghits[proto]);
+}
+
 /*
  * brix_metric_cache_evicted — record a protocol-driven cache invalidation
  * (delete / rename / write-open over a cached path) without a hit/miss bump.

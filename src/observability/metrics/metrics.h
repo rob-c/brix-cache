@@ -377,6 +377,11 @@ typedef struct {
 
     ngx_atomic_t  cache_hits[BRIX_PROTO_COUNT];
     ngx_atomic_t  cache_misses[BRIX_PROTO_COUNT];
+    /* phase-110 W10: negative-cache hits, per protocol — the NEGHIT disposition
+     * of the shared cache vocabulary. Kept beside hits/misses so the unified
+     * brix_cache_requests_total{cache_status} family covers every plane's
+     * NEGHIT (previously only cvmfs's own negative_hits_total). */
+    ngx_atomic_t  cache_neghits[BRIX_PROTO_COUNT];
     ngx_atomic_t  cache_bytes_evicted[BRIX_PROTO_COUNT];
 
     /* Per-user backend credential gate outcomes (Phase 2 Task 3).  Indexed by

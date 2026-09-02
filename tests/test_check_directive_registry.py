@@ -303,3 +303,151 @@ def test_r10_allows_the_one_reviewed_exception(tmp_path):
                       ["brix_delegated_cred"])
     r = _run(src)
     assert "[R10]" not in r.stdout, r.stdout
+
+
+# ---------------------------------------------------------------------------
+# phase-110 W5: the uniform-vocabulary rules R11 (parity) / R12 (shared
+# vocabulary) / R13 (cross-surface key parity).
+# ---------------------------------------------------------------------------
+
+import importlib.util as _ilu
+
+
+def _load_checker():
+    """Import check_directive_registry as a module so R12/R13's detectors
+    (which scan fixed real-tree files) can be unit-tested with temp inputs."""
+    spec = _ilu.spec_from_file_location("cdr", CHECKER)
+    mod = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_r11_requires_a_fact_on_both_planes(tmp_path):
+    """(error) A PARITY_FACT registered on the http plane only fails --fail
+    citing R11 — the switching-between-planes defect this phase removes."""
+    # brix_op is a parity fact; register it on ONE plane (an http source).
+    src = _write_vars(tmp_path, "core/http/http_variables.c", ["brix_op"])
+    r = _run(src, fail=True)
+    assert r.returncode == 1, f"R11 did not gate a single-plane fact:\n{r.stdout}"
+    assert "[R11]" in r.stdout and "brix_op" in r.stdout, r.stdout
+
+
+def test_r11_r12_r13_pass_on_the_real_tree():
+    """(success) The real tree satisfies all three uniform-vocabulary rules —
+    the post-W4 state. Runs the checker against the REAL sources (no
+    BRIX_REGISTRY_SRC override) so it exercises the shipped tree."""
+    env = dict(os.environ)
+    env.pop("BRIX_REGISTRY_SRC", None)
+    env.pop("BRIX_REGISTRY_ALLOWLIST", None)
+    env.pop("BRIX_REGISTRY_DOCS", None)
+    r = subprocess.run([sys.executable, CHECKER, "--fail"],
+                       capture_output=True, text=True, env=env, timeout=120)
+    assert r.returncode == 0, (
+        f"the real tree fails a gating registry rule:\n{r.stdout}\n{r.stderr}")
+    for rule in ("[R11]", "[R12]", "[R13]"):
+        assert rule not in r.stdout, f"{rule} finding on the real tree:\n{r.stdout}"
+
+
+def test_r12_detector_flags_inline_cache_vocabulary(tmp_path):
+    """(error) A variable-handler file that hand-spells a cache word ("HIT")
+    instead of calling brix_metric_cache_status_name is an R12 finding."""
+    cdr = _load_checker()
+    f = tmp_path / "handler.c"
+    # Calls every required name fn (so only the literal trips it).
+    f.write_text(
+        'x = brix_metric_cache_status_name(s);\n'
+        'y = brix_metric_op_name(o); z = brix_metric_err_name(e);\n'
+        'w = brix_metric_auth_method_name(a);\n'
+        'return v == 1 ? "HIT" : "MISS";\n')
+    findings = cdr._vocab_findings_for(os.path.relpath(f, cdr.ROOT))
+    assert any('"HIT"' in msg for _, _, msg in findings), findings
+
+
+def test_r12_detector_flags_a_missing_name_function(tmp_path):
+    """(error) A handler file that renders a shared fact without the name
+    function is an R12 finding."""
+    cdr = _load_checker()
+    f = tmp_path / "handler.c"
+    f.write_text('return brix_metric_op_name(o);\n')  # missing the other 3
+    findings = cdr._vocab_findings_for(os.path.relpath(f, cdr.ROOT))
+    assert any("brix_metric_cache_status_name" in msg for _, _, msg in findings)
+
+
+def test_r13_detector_flags_a_missing_json_key(tmp_path):
+    """(error) The cross-surface pin fires when a canonical JSON key is absent
+    — i.e. a fact whose JSON key does not match its $brix_ variable name."""
+    cdr = _load_checker()
+    f = tmp_path / "access_log.c"
+    f.write_text('log("{\\"from_cache\\":%s}");\n')   # old key only, no cache_status
+    missing = cdr._missing_tokens(os.path.relpath(f, cdr.ROOT),
+                                  cdr._R13_REQUIRED_JSON_KEYS)
+    assert r'\"cache_status\":' in missing, missing
+
+
+def test_r13_detector_is_not_vacuous(tmp_path):
+    """(meta) The token check really passes when the canonical keys ARE
+    present, so the real-tree success above is meaningful."""
+    cdr = _load_checker()
+    f = tmp_path / "access_log.c"
+    f.write_text('log("{\\"cache_status\\":\\"%s\\",\\"sub\\":\\"%s\\",'
+                 '\\"bytes_served\\":%d,\\"backend_time_us\\":%d}");\n')
+    missing = cdr._missing_tokens(os.path.relpath(f, cdr.ROOT),
+                                  cdr._R13_REQUIRED_JSON_KEYS)
+    assert missing == [], missing
+
+
+def test_r14_dormant_while_removal_phase_is_unwritten(tmp_path):
+    """(success) R14 is silent while a deprecated alias's removal phase does not
+    exist yet — the deprecation window is open, the alias is allowed."""
+    cdr = _load_checker()
+    import directive_registry_w5 as w5
+    w5._REFACTOR_DOCS = str(tmp_path / "empty")  # no phase-112 doc
+    variables = [("brix_session_dn", "src/protocols/root/stream/x.c")]
+    allow = {"brix_session_dn": "removal: phase-112 — alias of brix_dn"}
+    assert cdr._rule_r14(variables, allow) == [], "R14 fired with no removal doc"
+
+
+def test_r14_fires_when_removal_phase_is_implemented(tmp_path):
+    """(error) The self-deleting pin: once the removal phase's doc is marked
+    IMPLEMENTED and the alias is still registered, R14 fails — forcing the
+    cleanup at exactly the moment it is due."""
+    import directive_registry_w5 as w5
+    cdr = _load_checker()
+    docs = tmp_path / "refactor"
+    docs.mkdir()
+    (docs / "phase-112-cleanup.md").write_text("# 112\n**Status:** IMPLEMENTED\n")
+    w5._REFACTOR_DOCS = str(docs)
+    variables = [("brix_session_dn", "src/protocols/root/stream/x.c")]
+    allow = {"brix_session_dn": "removal: phase-112 — alias of brix_dn"}
+    findings = cdr._rule_r14(variables, allow)
+    assert len(findings) == 1 and findings[0][0] == "R14", findings
+    # And it stays silent once the alias is actually removed.
+    assert cdr._rule_r14([], allow) == [], "R14 fired for an unregistered alias"
+
+
+def test_r14_dormant_while_removal_phase_is_only_planned(tmp_path):
+    """(security-neg / non-vacuity) A removal phase still marked PLANNED does NOT
+    trip the pin — the window is open until the phase actually lands, so R14
+    never blocks a legitimate deprecation window."""
+    import directive_registry_w5 as w5
+    cdr = _load_checker()
+    docs = tmp_path / "refactor"
+    docs.mkdir()
+    (docs / "phase-112-cleanup.md").write_text("# 112\n**Status:** PLANNED\n")
+    w5._REFACTOR_DOCS = str(docs)
+    variables = [("brix_session_dn", "src/protocols/root/stream/x.c")]
+    allow = {"brix_session_dn": "removal: phase-112 — alias of brix_dn"}
+    assert cdr._rule_r14(variables, allow) == [], "R14 fired on a PLANNED phase"
+
+
+def test_r14_passes_on_the_real_tree():
+    """(success) phase-112 does not exist yet, so every $brix_session_* alias is
+    within its window and the real tree is clean under --fail."""
+    env = dict(os.environ)
+    for k in ("BRIX_REGISTRY_SRC", "BRIX_REGISTRY_ALLOWLIST",
+              "BRIX_REGISTRY_DOCS", "BRIX_REGISTRY_REFACTOR_DOCS"):
+        env.pop(k, None)
+    r = subprocess.run([sys.executable, CHECKER, "--fail"],
+                       capture_output=True, text=True, env=env, timeout=120)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "[R14]" not in r.stdout, r.stdout

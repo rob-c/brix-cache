@@ -170,7 +170,7 @@ stat_vfs_ctx_prepare(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_vfs_ctx_bind_backend_cred(vctx,
         &conf->common.storage_credential_dir,
         conf->common.storage_credential_fallback);
-    brix_root_vfs_bind_deleg(ctx, conf, vctx);
+    brix_root_vfs_bind_session(ctx, conf, vctx);
 }
 
 /*

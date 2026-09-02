@@ -150,6 +150,12 @@ brix_vfs_require_mutation(const brix_vfs_ctx_t *ctx, brix_vfs_mutation_op_t op)
     if (brix_vfs_require_mutation_policy(ctx->mutation_policy, op) != NGX_OK) {
         if (errno == EROFS) {
             brix_vfs_mutation_denied_observe(brix_vfs_metrics_proto(ctx), op);
+            /* phase-110 W4: the refusal happens BEFORE any VFS op runs, so no
+             * observer will record it — stamp the outcome class on the
+             * request's/session's monitor here so $brix_status says
+             * "forbidden" on every plane (the same class EROFS maps to in
+             * brix_metric_err_from_errno). */
+            brix_io_monitor_record_err(ctx->io_monitor, BRIX_ERR_FORBIDDEN);
             errno = EROFS;
         }
         return NGX_ERROR;

@@ -150,6 +150,155 @@ def test_root_session_is_logged_through_nginx_stream_access_log(node, tmp_path):
         f"{lines[-1]}")
 
 
+import json as _json
+
+
+def _brix_access_json(inst):
+    log = Path(inst.prefix) / "logs" / "error.log"
+    if not log.exists():
+        return []
+    out = []
+    for ln in log.read_text(errors="replace").splitlines():
+        i = ln.find("brix_access_json: ")
+        if i == -1:
+            continue
+        s = ln[i + len("brix_access_json: "):]
+        j = s.find("}")          # nginx appends ", client: ..., server: ..."
+        if j == -1:
+            continue
+        try:
+            out.append(_json.loads(s[:j + 1]))
+        except ValueError:
+            pass
+    return out
+
+
+def _access_json_remotes(inst, timeout=2.0):
+    """Do a metered op (dirlist), then the non-"-" `remote` fields of the
+    brix_access_json lines it produced (the log-phase write lags the op)."""
+    xrdfs = Path(__file__).resolve().parent.parent / "client" / "bin" / "xrdfs"
+    if not xrdfs.exists():
+        return None
+    subprocess.run([str(xrdfs), f"{inst.host}:{inst.port}", "ls", "/"],
+                   capture_output=True, text=True, timeout=60)
+    deadline = time.monotonic() + timeout
+    recs = _brix_access_json(inst)
+    while not recs and time.monotonic() < deadline:
+        time.sleep(0.05)
+        recs = _brix_access_json(inst)
+    return [r["remote"] for r in recs if r.get("remote", "-") != "-"]
+
+
+def test_json_access_log_records_the_client_address(node, tmp_path):
+    """(success, phase-110 W7) The brix JSON access log records the client
+    address on root://, so it is self-sufficient (no join to nginx's log).
+    bind_session borrows ctx->login.peer_ip onto every root VFS ctx."""
+    remotes = _access_json_remotes(node)
+    if remotes is None:
+        pytest.skip("brix xrdfs not built")
+    if not remotes:
+        pytest.skip("no brix_access_json line carried a remote for this op set")
+    assert remotes[-1].startswith(("127.0.0.1", "::1")), remotes[-1]
+
+
+def _uniform_lines(inst):
+    log = Path(inst.prefix) / "logs" / "brixuniform.log"
+    if not log.exists():
+        return []
+    return [ln for ln in log.read_text(errors="replace").splitlines()
+            if ln.strip()]
+
+
+def _xrdfs_query_checksum(inst, path="/probe.bin"):
+    """`xrdfs query checksum <path>` -> (rc, tokens). brix computes the digest
+    natively (no plugin), so a successful query returns "<algo> <hex>"."""
+    xrdfs = Path(__file__).resolve().parent.parent / "client" / "bin" / "xrdfs"
+    if not xrdfs.exists():
+        return None, []
+    proc = subprocess.run(
+        [str(xrdfs), f"{inst.host}:{inst.port}", "query", "checksum", path],
+        capture_output=True, text=True, timeout=60)
+    return proc.returncode, proc.stdout.split()
+
+
+def _require_wire_checksum(inst):
+    """(algo, hex) from a `xrdfs query checksum`, or skip if unavailable."""
+    rc, toks = _xrdfs_query_checksum(inst)
+    if rc is None:
+        pytest.skip("brix xrdfs not built (client/bin/xrdfs)")
+    if rc != 0 or len(toks) < 2:
+        pytest.skip(f"harness did not answer query checksum (rc={rc}, {toks})")
+    return toks[0].lower(), toks[-1].lower()
+
+
+def _latest_uniform_checksum(inst):
+    """The ck= field of the most recent uniform line that carried one, or None."""
+    for ln in reversed(_uniform_lines(inst)):
+        fields = dict(re.findall(r"(\w+)=(\S+)", ln))
+        if fields.get("ck", "-") != "-":
+            return fields["ck"]
+    return None
+
+
+def test_checksum_resolves_on_the_stream_plane(node):
+    """(success, phase-110 W3) $brix_checksum on root:// — the plane that
+    actually computes file digests. A `xrdfs query checksum` (kXR_Qcksum) makes
+    brix report a digest; the session's $brix_checksum logs it as "alg:hex"
+    (INVARIANT #9, algorithm-tagged) and its hex equals the value brix returned
+    on the wire. Skips cleanly if the harness cannot compute a checksum."""
+    algo, wire_hex = _require_wire_checksum(node)
+
+    _wait_for_new_line(node, 0)          # the query session logged at close
+    ck = _latest_uniform_checksum(node)
+    assert ck is not None, "no uniform line reported a checksum after the query"
+    assert ck == f"{algo}:{wire_hex}", (
+        f"$brix_checksum {ck!r} != the wire digest {algo}:{wire_hex}")
+
+
+def _wait_uniform_op(inst, op, timeout=15.0):
+    """The last uniform log line whose op== `op`, once the session-close write
+    lands (other cells' sessions write their own lines), or None."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        reads = [ln for ln in _uniform_lines(inst)
+                 if dict(re.findall(r"(\w+)=(\S+)", ln)).get("op") == op]
+        if reads:
+            return reads[-1]
+        time.sleep(0.25)
+    return None
+
+
+def test_uniform_names_resolve_on_the_stream_plane(node, tmp_path):
+    """(success, phase-110 W2/W3/W4) The SAME $brix_* names the HTTP plane uses
+    resolve on root://: a real xrdcp transfer writes a line whose uniform fields
+    carry real values, so one log_format body serves both planes.
+
+    $brix_sub (not $brix_session_user), $brix_auth_method (not
+    $brix_session_auth), $brix_bytes_served (not $brix_session_bytes_out), plus
+    the new $brix_op / $brix_status / $brix_tier / $brix_duration.
+    """
+    dest = tmp_path / "out2.bin"
+    rc = _xrdcp_get(node, dest)
+    assert rc == 0, "xrdcp GET failed"
+
+    # The session-close write lags and other cells' sessions write their own
+    # lines, so select the READ line this transfer produced (helper waits).
+    last = _wait_uniform_op(node, "read")
+    assert last is not None, "no uniform read line was written for the transfer"
+    fields = dict(re.findall(r"(\w+)=(\S+)", last))
+
+    assert fields.get("proto") == "root", last
+    assert fields.get("am") in {"none", "gsi", "token"}, last   # shared vocabulary
+    assert fields.get("tier") == "posix", last
+    # A read transfer moved bytes and did a read op — the data-plane monitor
+    # facts the phase-106 stream surface could not express.
+    served = fields.get("served", "-")
+    assert served.isdigit() and int(served) >= len(PAYLOAD), last
+    assert fields.get("op") == "read", last
+    assert fields.get("st") == "ok", last
+    assert re.match(r"^\d+\.\d{3}$", fields.get("dur", "")), last  # $session_time shape
+
+
 # ---------------------------------------------------------------------------
 # error
 # ---------------------------------------------------------------------------

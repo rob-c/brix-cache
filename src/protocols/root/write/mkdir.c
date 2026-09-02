@@ -5,7 +5,7 @@
 #include "core/ngx_brix_module.h"
 #include "core/compat/error_mapping.h"
 #include "fs/vfs/vfs.h"   /* mkdir via the VFS seam */
-#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
+#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_session (phase-70) */
 #include "fs/vfs/vfs_backend_registry.h"   /* POSIX-vs-driver export check for group policy */
 #include "net/cms/cns.h"                    /* BRIX_CNS_MKDIR                    */
 #include "net/cms/cns_emit.h"              /* brix_cns_emit (§6 wire wrappers)  */
@@ -71,7 +71,7 @@ brix_handle_mkdir(brix_ctx_t *ctx, ngx_connection_t *c,
 		brix_vfs_ctx_bind_backend_cred(&vctx,
 			&conf->common.storage_credential_dir,
 			conf->common.storage_credential_fallback);
-		brix_root_vfs_bind_deleg(ctx, conf, &vctx);
+		brix_root_vfs_bind_session(ctx, conf, &vctx);
 		rc = brix_vfs_mkdir(&vctx, mode, recursive);
 		if (rc != NGX_OK) {
 			int err = errno;

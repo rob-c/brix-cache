@@ -389,6 +389,15 @@ brix_oci_finalize_observe(void *data)
      * repository name, tag or digest is ever a label. */
     BRIX_OCI_METRIC_INC(
         requests_total[BRIX_OCI_SURFACE_MIRROR][ctx->mclass][ctx->disp]);
+    /* phase-110 W10: also feed the unified cache family, so an OCI cache
+     * hit-rate is one query across every plane (brix_cache_requests_total).
+     * HIT/LOCAL served from the local store; FILL is an origin fill (a miss);
+     * REFUSED/ERROR are not cache outcomes. */
+    if (ctx->disp == BRIX_OCI_OUT_HIT || ctx->disp == BRIX_OCI_OUT_LOCAL) {
+        brix_metric_cache_result(BRIX_PROTO_OCI, 1, 0);
+    } else if (ctx->disp == BRIX_OCI_OUT_FILL) {
+        brix_metric_cache_result(BRIX_PROTO_OCI, 0, 0);
+    }
 }
 
 /* ---- entry point --------------------------------------------------------- */

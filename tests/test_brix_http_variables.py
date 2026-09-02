@@ -86,7 +86,14 @@ def node(tmp_path_factory):
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
     data = tmp_path_factory.mktemp("brixvars-data")
-    (data / "probe.txt").write_bytes(b"brix variable probe\n")
+    # Cache-enabled (phase-110 W1): origin + a sibling cache dir (neither
+    # beneath the other, satisfying the cache_root security check) so
+    # $brix_cache_status reports a real HIT/MISS on the WebDAV data plane.
+    origin = data / "origin"
+    origin.mkdir()
+    (origin / "probe.txt").write_bytes(b"brix variable probe\n")
+    cache = data / "cache"
+    cache.mkdir()
 
     harness = LifecycleHarness()
     try:
@@ -95,8 +102,8 @@ def node(tmp_path_factory):
             template=TEMPLATE,
             protocol="webdav",
             readiness="tcp",
-            data_root=str(data),
-            template_values={"DATA_DIR": str(data)},
+            data_root=str(origin),
+            template_values={"DATA_DIR": str(origin), "CACHE_DIR": str(cache)},
             reason="phase-106 W1 $brix_* variable surface"))
     except Exception as exc:                      # noqa: BLE001 — clean skip
         harness.close()
@@ -212,12 +219,14 @@ def test_variables_resolve_without_a_brix_handler(node):
     assert len(lines) > before, "the miss was not logged"
     fields = dict(re.findall(r"(\w+)=(\S+)", lines[-1]))
     assert fields.get("tls") == "off", lines[-1]
-    assert fields.get("cache") == NONE, lines[-1]
     # The data-plane monitor variables are the sentinel here: brix opened
     # nothing and served no bytes, so a bogus "0" or empty field would be a
     # lie. This is the same "-" != "measured zero" discipline as $brix_cache.
     assert fields.get("bytes") == NONE, lines[-1]
     assert fields.get("ck") == NONE, lines[-1]
+    # A 404 GET consulted the cache and missed → MISS (a real disposition on
+    # the WebDAV data plane, which before phase-110 W1 was always "-").
+    assert fields.get("cache") in {NONE, "MISS"}, lines[-1]
 
 
 def test_data_plane_variables_reflect_a_real_get(node):
@@ -253,6 +262,108 @@ def test_data_plane_variables_reflect_a_real_get(node):
     # always algorithm-tagged (INVARIANT #9, encode at the edge) so it can never
     # be misread as adler32/md5.
     assert fields.get("ck") == NONE or fields["ck"].startswith("crc32c:"), last
+
+
+def test_cache_status_reports_a_disposition_on_the_webdav_data_plane(node):
+    """(success, phase-110 W1) The flagship fix: $brix_cache_status reports a
+    real cache disposition on the WebDAV data plane, in the shared
+    HIT/MISS/BYPASS/NEGHIT vocabulary — where before W1 it ALWAYS logged "-"
+    (only cvmfs/oci/rpm reported). A GET against the cache-enabled export logs a
+    genuine decision (MISS on a cold object), never the sentinel."""
+    import http.client
+
+    before = len(_log_lines(node))
+    conn = http.client.HTTPConnection(node.host, node.port, timeout=30)
+    try:
+        conn.request("GET", "/probe.txt")
+        resp = conn.getresponse()
+        resp.read()
+        assert resp.status == 200
+    finally:
+        conn.close()
+    lines = _wait_for_log_lines(node, before + 1)
+    fields = dict(re.findall(r"(\w+)=(\S+)", lines[-1]))
+    assert fields.get("cache") in {"HIT", "MISS"}, (
+        "WebDAV GET reported no cache disposition — phase-110 W1 gives the data "
+        f"planes a real HIT/MISS instead of the pre-W1 sentinel:\n{lines[-1]}")
+
+
+def test_op_path_status_describe_the_brix_operation(node):
+    """(success, phase-110 W4) A GET populates the facts no nginx variable can
+    express: $brix_op is the brix operation (read, not the HTTP verb), $brix_path
+    is the confined export-relative path (not the URL), $brix_status is the
+    plane-neutral outcome word, $brix_duration matches $request_time's shape, and
+    $brix_user is the sentinel for an unmapped anonymous request."""
+    import http.client
+
+    before = len(_log_lines(node))
+    conn = http.client.HTTPConnection(node.host, node.port, timeout=30)
+    try:
+        conn.request("GET", "/probe.txt")
+        conn.getresponse().read()
+    finally:
+        conn.close()
+
+    lines = _wait_for_log_lines(node, before + 1)
+    fields = dict(re.findall(r"(\w+)=(\S+)", lines[-1]))
+    last = lines[-1]
+    assert fields.get("op") == "read", last          # the brix op, not "GET"
+    assert int(fields.get("ops", "0")) >= 1, last
+    assert fields.get("path", "").endswith("/probe.txt"), last  # confined resolved path
+    assert ".." not in fields.get("path", ""), last            # never an escape
+    assert fields.get("st") == "ok", last             # plane-neutral outcome
+    assert re.match(r"^\d+\.\d{3}$", fields.get("dur", "")), last  # $request_time shape
+    assert fields.get("user") == NONE, last           # anonymous → unmapped
+    assert fields.get("recv") == NONE, last           # a GET receives no body
+
+
+def test_readonly_refusal_logs_status_forbidden(node):
+    """(security-neg, phase-110 W4) The cross-plane headline: a write to a
+    read-only export (the node has no brix_allow_write, so allow_write defaults
+    off) is refused with EROFS, and $brix_status logs `forbidden` — the SAME
+    plane-neutral outcome word a read-only refusal produces on S3 and root://,
+    whatever HTTP code was sent. The mutation gate stamps the class on the
+    monitor before any VFS op runs, so the word appears even though the write
+    never happened."""
+    import http.client
+
+    before = len(_log_lines(node))
+    conn = http.client.HTTPConnection(node.host, node.port, timeout=30)
+    try:
+        conn.request("PUT", "/rejected-%s.txt" % os.getpid(), body=b"nope")
+        resp = conn.getresponse()
+        resp.read()
+    finally:
+        conn.close()
+    # A read-only export refuses the write (403 EROFS, or 405 if the method is
+    # gated earlier); either way the brix outcome class is the same word.
+    assert resp.status in (403, 405), resp.status
+
+    lines = _wait_for_log_lines(node, before + 1)
+    fields = dict(re.findall(r"(\w+)=(\S+)", lines[-1]))
+    assert fields.get("st") == "forbidden", (
+        "a read-only-export write did not log $brix_status=forbidden "
+        f"(phase-110 W4, the cross-plane outcome word):\n{lines[-1]}")
+
+
+def test_status_is_the_outcome_class_not_the_http_code(node):
+    """(error, phase-110 W4) A 404 logs $brix_status=not_found — the brix
+    outcome class, one word that means the same on every plane, distinct from
+    the HTTP $status code."""
+    import http.client
+
+    before = len(_log_lines(node))
+    conn = http.client.HTTPConnection(node.host, node.port, timeout=30)
+    try:
+        conn.request("GET", "/no-such-%s.txt" % os.getpid())
+        conn.getresponse().read()
+    finally:
+        conn.close()
+
+    lines = _wait_for_log_lines(node, before + 1)
+    fields = dict(re.findall(r"(\w+)=(\S+)", lines[-1]))
+    assert fields.get("status") == "404", lines[-1]     # nginx code
+    assert fields.get("st") == "not_found", lines[-1]   # brix outcome class
 
 
 def test_bytes_served_is_the_brix_figure_not_a_range_slice(node):
@@ -361,12 +472,14 @@ def test_unknown_brix_variable_is_refused_by_nginx_itself(tmp_path):
     """
     (tmp_path / "logs").mkdir(parents=True, exist_ok=True)
     (tmp_path / "data").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "cache").mkdir(parents=True, exist_ok=True)
     result = nginx_t(
         TEMPLATE, tmp_path,
         PORT=SHARED_PARSE_PLACEHOLDER_PORT,
         LOG_DIR=str(tmp_path / "logs"),
         TMP_DIR=str(tmp_path / "logs"),
-        DATA_DIR=str(tmp_path / "data"))
+        DATA_DIR=str(tmp_path / "data"),
+        CACHE_DIR=str(tmp_path / "cache"))
     assert result.returncode == 0, result.stderr
 
     # Now the same config with one variable misspelled.

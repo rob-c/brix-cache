@@ -20,7 +20,7 @@
  * WHY:  The origin auth engine (brix_cache_origin_auth_krb5) and the async-safe
  *       cred carry (carry.c) are already live; this is the missing front-door
  *       CAPTURE that feeds them. Its output (the parked ccache) is consumed at
- *       request time by brix_root_vfs_bind_deleg → brix_vfs_deleg_set_krb5, so the
+ *       request time by brix_root_vfs_bind_session → brix_vfs_deleg_set_krb5, so the
  *       forwarded TGT re-authenticates the backend leg AS the inbound user.
  *
  * The capture crypto (brix_krb5_capture_fwd_cred) and the FILE-ccache export

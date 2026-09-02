@@ -5,7 +5,7 @@
 #include "statx.h"
 #include "stat.h"
 #include "core/ngx_brix_module.h"
-#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
+#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_session (phase-70) */
 #include "fs/path/beneath.h"
 #include "auth/authz/auth_gate.h"     /* brix_authz_check — xrdacc-aware */
 #include "fs/path/reserved_names.h"   /* brix_is_internal_name — hide sidecars */
@@ -111,7 +111,7 @@ brix_statx_symlink_fallback_stat(brix_ctx_t *ctx,
     brix_vfs_ctx_bind_backend_cred(&rvctx,
         &conf->common.storage_credential_dir,
         conf->common.storage_credential_fallback);
-    brix_root_vfs_bind_deleg(ctx, conf, &rvctx);
+    brix_root_vfs_bind_session(ctx, conf, &rvctx);
     if (brix_vfs_probe(&rvctx, 0 /* follow */, &rvst) != NGX_OK) {
         return 0;
     }

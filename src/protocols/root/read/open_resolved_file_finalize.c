@@ -1,6 +1,6 @@
 #include "open.h"
 #include "fs/vfs/vfs.h"   /* VFS confined open/probe seam */
-#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
+#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_session (phase-70) */
 #include "fs/vfs/vfs_backend_registry.h"  /* per-export storage-driver resolution */
 #include "fs/vfs/vfs_internal.h"          /* brix_vfs_export_relative_root key form */
 #include "fs/backend/sd.h"            /* Layer 3: driver-backed export open */
@@ -13,6 +13,7 @@
 #include "protocols/root/write/wrts_journal.h"
 #include "core/compat/tmp_path.h"
 #include "fs/cache/writethrough_metrics.h"
+#include "observability/metrics/io_monitor.h"
 #include "fs/cache/cache_storage.h"   /* driver-backed read-cache serve + key helper */
 #include "net/manager/registry.h"
 #include "net/manager/pending.h"
@@ -496,6 +497,14 @@ brix_open_init_handle(brix_open_args_t *a)
 	ctx->files[idx].fd          = a->fd;
 	ctx->files[idx].readable    = a->is_readable;
 	ctx->files[idx].writable    = is_write;
+	/* phase-110 W4: the open IS the session's data op for the monitor — the
+	 * root read/write I/O runs through brix_vfs_io_execute (the warm fast
+	 * path), which bypasses the per-op VFS observer, so without this record the
+	 * session's $brix_op would be the incidental open-time stat, not the read
+	 * or write the client actually performed. Weight 2 beats that stat. */
+	brix_io_monitor_record_op(&ctx->io_monitor,
+	    is_write ? BRIX_METRIC_OP_WRITE : BRIX_METRIC_OP_READ,
+	    a->resolved, BRIX_ERR_NONE);
 	/* Phase-105: snapshot the endpoint posture onto the handle. Every later
 	 * write/truncate/sync on this fhandle decides from THIS value, not from a
 	 * fresh read of a configuration the handle may outlive (Appendix D.5). */

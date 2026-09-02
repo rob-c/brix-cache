@@ -1,6 +1,6 @@
 #include "open.h"
 #include "fs/vfs/vfs.h"   /* VFS confined open/probe seam */
-#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
+#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_session (phase-70) */
 #include "fs/vfs/vfs_backend_registry.h"  /* per-export storage-driver resolution */
 #include "fs/vfs/vfs_internal.h"          /* brix_vfs_export_relative_root key form */
 #include "fs/backend/sd.h"            /* Layer 3: driver-backed export open */
@@ -147,7 +147,7 @@ brix_open_build_cred_ctx(brix_open_args_t *a, brix_sd_instance_t *sd_inst,
 	    &conf->common.storage_credential_mint_ca_cert,
 	    &conf->common.storage_credential_mint_ca_key,
 	    conf->common.storage_credential_mint_ttl);
-	brix_root_vfs_bind_deleg(ctx, conf, cred_vctx);
+	brix_root_vfs_bind_session(ctx, conf, cred_vctx);
 	cred_vctx->sd = sd_inst;
 }
 

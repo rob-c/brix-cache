@@ -1,6 +1,6 @@
 #include "open.h"
 #include "fs/vfs/vfs.h"   /* VFS confined open/probe seam */
-#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
+#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_session (phase-70) */
 #include "fs/vfs/vfs_backend_registry.h"  /* per-export storage-driver resolution */
 #include "fs/vfs/vfs_internal.h"          /* brix_vfs_export_relative_root key form */
 #include "fs/backend/sd.h"            /* Layer 3: driver-backed export open */
@@ -58,7 +58,7 @@
  * deleg the origin refuses ("backend has NO credential") and the probe reports
  * the file absent, which turns a legitimate read into a spurious kXR_NotFound.
  * The actual open path binds the deleg on its own vctx (brix_open_dispatch_open
- * → brix_root_vfs_bind_deleg); the pre-flight probe must do the same. Pass a
+ * → brix_root_vfs_bind_session); the pre-flight probe must do the same. Pass a
  * NULL ctx/conf for a probe of a purely worker-local path (an external upload
  * stage-dir partial), which never routes to the origin. `pool` supplies the
  * deleg bag's allocation (the request pool); NULL leaves the probe deleg-less. */
@@ -82,7 +82,7 @@ brix_open_probe(ngx_log_t *log, const char *root, const char *abs,
         BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */,
         ctx != NULL ? ctx->identity : NULL, abs);
     if (ctx != NULL && conf != NULL && pool != NULL) {
-        brix_root_vfs_bind_deleg(ctx, conf, &vctx);
+        brix_root_vfs_bind_session(ctx, conf, &vctx);
     }
     return brix_vfs_probe(&vctx, nofollow, vst) == NGX_OK;
 }

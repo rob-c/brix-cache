@@ -191,6 +191,42 @@ unified_emit_cache(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
         "# TYPE brix_cache_misses_total counter\n",
         "brix_cache_misses_total", shm->unified.cache_misses);
 
+    /* phase-110 W1: the vocabulary-carrying view of the two counters above —
+     * the label VALUE is brix_metric_cache_status_name(), i.e. the identical
+     * word $brix_cache_status logs and the JSON "cache_status" key prints, so
+     * a PromQL selector and a log grep share one string. Rendered from the
+     * SAME SHM fields (no new counter, no layout change): HIT ← hits, MISS ←
+     * misses. BYPASS/NEGHIT have no counter and emit no series — an absent
+     * series is honest, a zero one would claim a measurement. The two legacy
+     * families stay for one release (deprecated, removal phase-112). */
+    {
+        ngx_uint_t  proto;
+
+        mw_printf(mw, "%s",
+            "# HELP brix_cache_requests_total Cache lookups by protocol and "
+            "disposition (HIT/MISS — the $brix_cache_status vocabulary).\n"
+            "# TYPE brix_cache_requests_total counter\n");
+        for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
+            const char *pn = brix_metric_proto_name((brix_proto_t) proto);
+
+            mw_printf(mw, "brix_cache_requests_total{proto=\"%s\","
+                          "cache_status=\"%s\"} %llu\n", pn,
+                      brix_metric_cache_status_name(BRIX_CACHE_STATUS_HIT),
+                      brix_metric_value(&shm->unified.cache_hits[proto]));
+            mw_printf(mw, "brix_cache_requests_total{proto=\"%s\","
+                          "cache_status=\"%s\"} %llu\n", pn,
+                      brix_metric_cache_status_name(BRIX_CACHE_STATUS_MISS),
+                      brix_metric_value(&shm->unified.cache_misses[proto]));
+            /* phase-110 W10: the NEGHIT series, from the unified neghit slot —
+             * so a fleet-wide negative-hit rate is one query across every plane
+             * (was only cvmfs's own negative_hits_total). */
+            mw_printf(mw, "brix_cache_requests_total{proto=\"%s\","
+                          "cache_status=\"%s\"} %llu\n", pn,
+                      brix_metric_cache_status_name(BRIX_CACHE_STATUS_NEGHIT),
+                      brix_metric_value(&shm->unified.cache_neghits[proto]));
+        }
+    }
+
     unified_emit_proto_counter(mw,
         "# HELP brix_cache_bytes_evicted_total Cache bytes evicted, by protocol.\n"
         "# TYPE brix_cache_bytes_evicted_total counter\n",

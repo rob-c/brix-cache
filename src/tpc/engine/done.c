@@ -166,7 +166,7 @@ tpc_done_refresh_stat(brix_tpc_pull_t *t, brix_ctx_t *ctx,
         &t->conf->common.storage_credential_mint_ca_cert,
         &t->conf->common.storage_credential_mint_ca_key,
         t->conf->common.storage_credential_mint_ttl);
-    brix_root_vfs_bind_deleg(ctx, t->conf, &vctx);
+    brix_root_vfs_bind_session(ctx, t->conf, &vctx);
 
     if (brix_vfs_probe(&vctx, 1, &vst) != NGX_OK) {
         t->dst_stat_valid = 0;

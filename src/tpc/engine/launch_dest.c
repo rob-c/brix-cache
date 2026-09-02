@@ -67,7 +67,7 @@ tpc_destination_vfs_ctx(brix_ctx_t *ctx, ngx_connection_t *c,
         &conf->common.storage_credential_mint_ca_cert,
         &conf->common.storage_credential_mint_ca_key,
         conf->common.storage_credential_mint_ttl);
-    brix_root_vfs_bind_deleg(ctx, conf, vctx);
+    brix_root_vfs_bind_session(ctx, conf, vctx);
 }
 
 static void

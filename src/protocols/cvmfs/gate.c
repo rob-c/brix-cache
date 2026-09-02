@@ -242,6 +242,9 @@ cvmfs_gate_cas(ngx_http_request_t *r,
         if (ctx->repo != NULL) {
             BRIX_ATOMIC_INC(&ctx->repo->negative_hits_total);
         }
+        /* phase-110 W10: also feed the unified NEGHIT series so a fleet-wide
+         * negative-hit rate is one query (brix_cache_requests_total). */
+        brix_metric_cache_neghit(BRIX_PROTO_CVMFS);
         ctx->cache_status = BRIX_CVMFS_CACHE_NEG;
         /* One NOTICE per absorbed 404: a client hammering missing objects shows
          * as a stream of these (bounded by its own request rate). r->uri.data is

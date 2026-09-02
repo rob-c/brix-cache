@@ -5,7 +5,7 @@
 #include "protocols/root/response/response.h"
 #include "core/aio/aio.h"
 #include "fs/vfs/vfs.h"   /* confined read-open via the VFS seam */
-#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
+#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_session (phase-70) */
 #include "net/manager/registry.h"
 #include "net/manager/pending.h"
 #include "net/cms/cms_internal.h"
@@ -328,7 +328,7 @@ brix_qcksum_open(brix_qcksum_req_t *rq, ngx_int_t *out_rc)
         &conf->common.storage_credential_mint_ca_cert,
         &conf->common.storage_credential_mint_ca_key,
         conf->common.storage_credential_mint_ttl);
-    brix_root_vfs_bind_deleg(ctx, conf, &vctx);
+    brix_root_vfs_bind_session(ctx, conf, &vctx);
     fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);
     errno = vfs_err;
 

@@ -486,7 +486,7 @@ op_path_backend_host(const ngx_str_t *url)
 }
 #endif
 
-/* ---- brix_root_vfs_bind_deleg ----------------------------------------------
+/* ---- brix_root_vfs_bind_session ----------------------------------------------
  *
  * WHAT: Bind the session's captured raw bearer JWT onto a cred-bound VFS ctx for
  *       backend PASSTHROUGH. See op_path.h for the full contract.
@@ -504,17 +504,35 @@ op_path_backend_host(const ngx_str_t *url)
  *       mode — the only strategy that replays the user's own credential
  *       verbatim. If neither credential is present, nothing is bound. */
 void
-brix_root_vfs_bind_deleg(brix_ctx_t *ctx,
-                           ngx_stream_brix_srv_conf_t *conf,
-                           brix_vfs_ctx_t *vctx)
+brix_root_vfs_bind_session(brix_ctx_t *ctx,
+                             ngx_stream_brix_srv_conf_t *conf,
+                             brix_vfs_ctx_t *vctx)
 {
     ngx_str_t         bearer;
     const ngx_str_t  *bearer_arg = NULL;
     const ngx_str_t  *proxy_arg = NULL;
 
-    if (ctx == NULL || conf == NULL || vctx == NULL
-        || conf->common.backend_delegation == BRIX_CRED_SELECT)
-    {
+    if (ctx == NULL || vctx == NULL) {
+        return;
+    }
+
+    /* phase-110 W3: every VFS ctx the session builds folds into the session's
+     * I/O monitor (context.h) — this is the root plane's ONE per-session
+     * post-init hook, called at all 14 ctx-build sites, which is what makes
+     * the stream $brix_* surface complete by construction rather than by
+     * remembering each site. Unconditional and before the delegation
+     * early-return: monitoring does not depend on the credential mode. The
+     * monitor is embedded in the pcalloc'd per-connection ctx, so this is an
+     * event-loop-allocated target the offload thread may scalar-write. */
+    vctx->io_monitor = &ctx->io_monitor;
+    /* phase-110 W7: the client address for the JSON access log's `remote`.
+     * ctx->peer_ip is an already-NUL-terminated cstr (populated for authdb HOST
+     * rules), so this is a borrow, not an alloc — safe on any thread. */
+    if (ctx->login.peer_ip[0] != '\0') {
+        vctx->peer = ctx->login.peer_ip;
+    }
+
+    if (conf == NULL || conf->common.backend_delegation == BRIX_CRED_SELECT) {
         return;
     }
 

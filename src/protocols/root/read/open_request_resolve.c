@@ -88,7 +88,7 @@ brix_open_read_probe(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
             &conf->common.storage_credential_dir,
             conf->common.storage_credential_fallback);
         if (ctx != NULL) {
-            brix_root_vfs_bind_deleg(ctx, conf, &pvctx);
+            brix_root_vfs_bind_session(ctx, conf, &pvctx);
         }
         if (brix_vfs_backend_cred(&pvctx, &ustore, &ucred, &use_cred, &cerr)
             != NGX_OK)

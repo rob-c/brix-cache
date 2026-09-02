@@ -294,7 +294,7 @@ brix_open_try_cache_offload(brix_ctx_t *ctx, ngx_connection_t *c,
 		    &conf->common.storage_credential_dir,
 		    conf->common.storage_credential_fallback);
 		if (ctx != NULL) {
-			brix_root_vfs_bind_deleg(ctx, conf, &cvctx);
+			brix_root_vfs_bind_session(ctx, conf, &cvctx);
 		}
 		if (brix_vfs_backend_cred(&cvctx, &ustore, &ucred, &use_cred, &cerr)
 		    != NGX_OK)

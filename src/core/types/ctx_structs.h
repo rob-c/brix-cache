@@ -39,7 +39,7 @@ typedef struct {
  * leaks into this widely-included header; deleg_capture.c owns the casts and the
  * pool-cleanup that frees them.  On capture the forwarded TGT is serialised to a
  * 0600 FILE ccache whose path is stashed in `ccache` for the request-time VFS
- * delegation bind (brix_root_vfs_bind_deleg → brix_vfs_deleg_set_krb5). */
+ * delegation bind (brix_root_vfs_bind_session → brix_vfs_deleg_set_krb5). */
 typedef struct {
     unsigned  round;          /* 0 = fresh; 1 = fwdtgt challenge sent, awaiting KRB_CRED */
     void     *auth_ctx;       /* round-1 krb5_auth_context (session subkey), freed at round 2/cleanup */

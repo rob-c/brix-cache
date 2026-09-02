@@ -144,6 +144,13 @@ struct brix_vfs_ctx_s {
      * post-op observer folds bytes/latency/crc into it. Borrowed, never freed
      * by the VFS. See io_monitor.h for the threading contract. */
     struct brix_io_monitor_s *io_monitor;
+    /* phase-110 W7: the client's address as a borrowed NUL-terminated string
+     * (r->connection->addr_text on HTTP, ctx->peer_ip on root://), or NULL ⇒
+     * "-". Set at the ctx builders on the EVENT LOOP; read by
+     * brix_access_log_emit so the JSON access log records `remote` and is
+     * self-sufficient (no join to nginx's log). Borrowed: the pointee lives on
+     * the request/connection, never freed by the VFS. */
+    const char          *peer;
     unsigned             is_tls:1;
     unsigned             want_pgcrc:1;
     unsigned             cache_enabled:1;
@@ -168,6 +175,15 @@ void brix_vfs_ctx_init(brix_vfs_ctx_t *vctx, ngx_pool_t *pool,
     const char *cache_root_canon,
     brix_vfs_mutation_policy_t mutation_policy, int is_tls,
     brix_identity_t *identity, const char *resolved_path);
+
+/* phase-110 W1: record a cache lookup outcome for this ctx — bumps the unified
+ * brix_cache_hits/misses counters (brix_metric_cache_result) AND folds the
+ * same HIT/MISS word into ctx->io_monitor, so $brix_cache_status, the JSON
+ * "cache_status" key and the Prometheus label agree by construction. Every
+ * ctx-bearing site that used to call brix_metric_cache_result directly calls
+ * this instead; the metric-only call remains for planes with no VFS ctx
+ * (cvmfs). NULL ctx is a no-op. */
+void brix_vfs_observe_cache_result(brix_vfs_ctx_t *ctx, unsigned hit);
 
 /* Bind the export's per-user backend credential policy onto an already-
  * initialised VFS ctx (called immediately after brix_vfs_ctx_init at data-plane

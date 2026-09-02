@@ -38,6 +38,7 @@ FAMILY_SCHEMA = {
     "brix_io_ops_total": ["proto", "op", "status"],
     "brix_cache_hits_total": ["proto"],
     "brix_cache_misses_total": ["proto"],
+    "brix_cache_requests_total": ["proto", "cache_status"],
     "brix_cache_bytes_evicted_total": ["proto"],
     "brix_cache_watermark_purges_total": [],
     "brix_cache_watermark_evicted_files_total": [],
@@ -108,6 +109,41 @@ def test_metrics_get_ok(mx):
     st, body, hdrs = cx.http_request(mx.metrics)
     assert st == 200
     assert body
+
+
+def test_cache_requests_carries_the_neghit_series(mx):
+    """(phase-110 W10) The unified cache family emits a NEGHIT disposition series
+    per protocol — so a fleet-wide negative-hit rate is one query, not cvmfs's
+    private negative_hits_total. HIT and MISS series are already present; NEGHIT
+    is the W10 addition that completes the shared cache vocabulary on the metric
+    surface."""
+    st, body, _ = cx.http_request(mx.metrics)
+    assert st == 200
+    text = body.decode(errors="replace") if isinstance(body, bytes) else body
+    assert 'brix_cache_requests_total{' in text, "cache family missing"
+    assert 'cache_status="NEGHIT"' in text, (
+        "brix_cache_requests_total has no NEGHIT series (phase-110 W10 "
+        "unification of the negative-cache disposition)")
+    # And the vocabulary is complete: HIT and MISS series coexist.
+    for disp in ('HIT', 'MISS', 'NEGHIT'):
+        assert f'cache_status="{disp}"' in text, disp
+
+
+def test_latency_family_is_in_seconds(mx):
+    """(phase-110 W11) The canonical latency histogram is brix_io_latency_seconds
+    (the uniform latency unit — Prometheus `_seconds`), emitted alongside the
+    DEPRECATED brix_io_latency_usec for the removal window. So every latency
+    histogram (io + cvmfs + frm) carries the `_seconds` suffix."""
+    st, body, _ = cx.http_request(mx.metrics)
+    assert st == 200
+    text = body.decode(errors="replace") if isinstance(body, bytes) else body
+    assert "brix_io_latency_seconds_bucket{" in text, "no seconds histogram"
+    assert "brix_io_latency_seconds_count{" in text
+    # deprecated µs family still present for the window.
+    assert "brix_io_latency_usec_bucket{" in text
+    # the seconds `le` values are fractional (µs bounds / 1e6): a bucket <= 1s.
+    assert 'le="0.001000"' in text or 'le="0.005000"' in text, (
+        "seconds histogram le values are not scaled to seconds")
 
 
 def test_metrics_content_type(mx):
@@ -257,6 +293,7 @@ def test_latency_histogram_consistent(scrape, proto, op):
 
 MONOTONIC = ["brix_io_ops_total", "brix_requests_total", "brix_bytes_tx_total",
              "brix_cache_hits_total", "brix_cache_misses_total",
+             "brix_cache_requests_total",
              "brix_webdav_requests_total", "brix_s3_requests_total",
              "brix_auth_total", "brix_connections_total",
              "brix_cache_bytes_evicted_total"]

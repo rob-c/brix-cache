@@ -11,7 +11,7 @@
 #include "core/compat/error_mapping.h"
 #include "fs/path/path.h"
 #include "fs/vfs/vfs.h"   /* chmod/rm/rmdir via the VFS seam */
-#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
+#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_session (phase-70) */
 #include "backend_async_root.h"           /* brix_backend_async park/resume     */
 #include "net/cms/cns.h"                   /* BRIX_CNS_DEL / BRIX_CNS_RMDIR      */
 #include "net/cms/cns_emit.h"             /* brix_cns_emit (§6 wire wrappers)   */
@@ -40,7 +40,7 @@ op_vfs_ctx(const brix_op_exec_t *e, brix_vfs_ctx_t *vctx)
     brix_vfs_ctx_bind_backend_cred(vctx,
         &e->conf->common.storage_credential_dir,
         e->conf->common.storage_credential_fallback);
-    brix_root_vfs_bind_deleg(e->ctx, e->conf, vctx);
+    brix_root_vfs_bind_session(e->ctx, e->conf, vctx);
 }
 
 /* exec functions (one per op) */

@@ -17,7 +17,7 @@
  */
 #include "core/ngx_brix_module.h"
 #include "fs/vfs/vfs.h"                    /* brix_vfs_probe for size/mtime     */
-#include "protocols/root/path/op_path.h"   /* brix_root_vfs_bind_deleg          */
+#include "protocols/root/path/op_path.h"   /* brix_root_vfs_bind_session          */
 #include "net/cms/cns.h"                   /* BRIX_CNS_ADD / BRIX_CNS_MKDIR     */
 #include "net/cms/cns_emit.h"              /* brix_cns_emit{,_rename}           */
 
@@ -46,7 +46,7 @@ root_cns_probe(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_vfs_ctx_bind_backend_cred(&vctx,
         &conf->common.storage_credential_dir,
         conf->common.storage_credential_fallback);
-    brix_root_vfs_bind_deleg(ctx, conf, &vctx);
+    brix_root_vfs_bind_session(ctx, conf, &vctx);
 
     return brix_vfs_probe(&vctx, 1 /* no-follow */, st);
 }

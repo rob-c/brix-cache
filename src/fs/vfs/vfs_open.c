@@ -190,6 +190,18 @@ brix_vfs_open_precheck(brix_vfs_ctx_t *ctx, ngx_uint_t flags, const char *path)
  * HOW:  Returns NGX_OK (hit, *fh set), NGX_ERROR (cache error, errno set), or
  *       NGX_DECLINED (miss — caller opens the backing store). No behaviour
  *       change: same brix_metric_cache_result() calls in the same order. */
+void
+brix_vfs_observe_cache_result(brix_vfs_ctx_t *ctx, unsigned hit)
+{
+    if (ctx == NULL) {
+        return;
+    }
+    brix_metric_cache_result(brix_vfs_metrics_proto(ctx), hit, 0);
+    brix_io_monitor_record_cache(ctx->io_monitor,
+        hit ? BRIX_CACHE_STATUS_HIT : BRIX_CACHE_STATUS_MISS);
+}
+
+
 static ngx_int_t
 brix_vfs_open_try_cache(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
     brix_vfs_file_t **fh)
@@ -198,17 +210,23 @@ brix_vfs_open_try_cache(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
 
     rc = brix_cache_open(ctx, flags, fh);
     if (rc == NGX_OK) {
-        brix_metric_cache_result(brix_vfs_metrics_proto(ctx), 1, 0);
+        brix_vfs_observe_cache_result(ctx, 1);
         return NGX_OK;
     }
     if (rc == NGX_ERROR) {
         return NGX_ERROR;
     }
 
-    if (ctx->cache_enabled && !(flags & BRIX_VFS_O_WRITE)
-        && !(flags & BRIX_VFS_O_NOCACHE))
-    {
-        brix_metric_cache_result(brix_vfs_metrics_proto(ctx), 0, 0);
+    if (ctx->cache_enabled && !(flags & BRIX_VFS_O_WRITE)) {
+        if (flags & BRIX_VFS_O_NOCACHE) {
+            /* phase-110 W1: a cache tier IS configured and the caller asked
+             * to skip it — nginx's BYPASS, distinct from a MISS (no metric:
+             * the hit-rate counters describe consulted lookups only). */
+            brix_io_monitor_record_cache(ctx->io_monitor,
+                                         BRIX_CACHE_STATUS_BYPASS);
+        } else {
+            brix_vfs_observe_cache_result(ctx, 0);
+        }
     }
 
     return NGX_DECLINED;
@@ -292,8 +310,8 @@ brix_vfs_open_via_driver(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
      * unified hit/miss counters here (parity with the legacy cache_root path in
      * brix_vfs_open_try_cache). NONE = no cache tier consulted this open. */
     if (cache_outcome != BRIX_SD_CACHE_OUTCOME_NONE) {
-        brix_metric_cache_result(brix_vfs_metrics_proto(ctx),
-            cache_outcome == BRIX_SD_CACHE_OUTCOME_HIT ? 1 : 0, 0);
+        brix_vfs_observe_cache_result(ctx,
+            cache_outcome == BRIX_SD_CACHE_OUTCOME_HIT ? 1u : 0u);
     }
 
     /* WRITE/CREATE/TRUNC through a cache tier invalidated the cached copy;

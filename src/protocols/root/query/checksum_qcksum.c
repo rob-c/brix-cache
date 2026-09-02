@@ -5,7 +5,7 @@
 #include "protocols/root/response/response.h"
 #include "core/aio/aio.h"
 #include "fs/vfs/vfs.h"   /* confined read-open via the VFS seam */
-#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
+#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_session (phase-70) */
 #include "net/manager/registry.h"
 #include "net/manager/pending.h"
 #include "net/cms/cms_internal.h"
@@ -118,6 +118,10 @@ brix_query_build_checksum(brix_ctx_t *ctx, ngx_connection_t *c,
     /* kXR_Qcksum wire format: "algo hexvalue" (space-separated) */
     snprintf(token, sizeof(token), "%s %s", info.alg_name, info.hex);
     ngx_cpystrn((u_char *) resp, (u_char *) token, resp_sz);
+    /* phase-110 W3: the checksum brix REPORTS to the client is what the
+     * session's $brix_checksum logs — the same alg:hex the WebDAV Digest
+     * header records on the HTTP plane. */
+    brix_io_monitor_record_checksum(&ctx->io_monitor, info.alg_name, info.hex);
     return NGX_OK;
 }
 

@@ -61,6 +61,30 @@ typedef enum {
     BRIX_ERR_COUNT     = 5
 } brix_err_class_t;
 
+/*
+ * Cache-disposition vocabulary (phase-106 W1, made the shared vocabulary in
+ * phase-110 W1). Deliberately nginx's own $upstream_cache_status spelling
+ * wherever the semantics correspond, so existing dashboards and log parsers work
+ * unchanged. NEGHIT is the one brix extension (negative-cache hit) and must not
+ * be overloaded onto BYPASS, which means "a cache tier is configured and was
+ * deliberately not consulted for this request". NONE renders "-": no cache
+ * decision was reached (no cache tier on the export, or no data op ran) — it is
+ * NOT a miss, so a hit rate computed from it is never silently wrong.
+ *
+ * This enum lives here, not in an HTTP header, because the SAME word must come
+ * out of the $brix_cache_status variable (both planes), the JSON access log's
+ * "cache_status" key, and the brix_cache_requests_total{cache_status} label —
+ * one vocabulary, one name function (brix_metric_cache_status_name).
+ */
+typedef enum {
+    BRIX_CACHE_STATUS_NONE = 0,   /* no cache decision was reached: "-"      */
+    BRIX_CACHE_STATUS_HIT,        /* served from cache                       */
+    BRIX_CACHE_STATUS_MISS,       /* went to origin and populated            */
+    BRIX_CACHE_STATUS_BYPASS,     /* cache tier present, deliberately skipped */
+    BRIX_CACHE_STATUS_NEGHIT,     /* negative-cache hit (brix extension)     */
+    BRIX_CACHE_STATUS_COUNT
+} brix_cache_status_e;
+
 #define BRIX_METRIC_AUTH_NONE    0
 #define BRIX_METRIC_AUTH_GSI     1
 #define BRIX_METRIC_AUTH_TOKEN   2
@@ -101,6 +125,10 @@ typedef enum {
 const char *brix_metric_proto_name(brix_proto_t proto);
 const char *brix_metric_op_name(brix_metric_op_t op);
 const char *brix_metric_err_name(brix_err_class_t err);
+/* "HIT" / "MISS" / "BYPASS" / "NEGHIT" / "-" (NONE and out-of-range). Static
+ * literal, never pool memory, so a log-phase variable handler can hand it
+ * straight to nginx. */
+const char *brix_metric_cache_status_name(brix_cache_status_e status);
 /*
  * Label string for an identity auth_method BITMASK (not a slot): resolves the
  * mask via brix_metric_auth_slot() then names it. Borrowed static literal;
@@ -180,6 +208,15 @@ void brix_metric_backend_bytes(const char *backend_name,
  */
 void brix_metric_cache_result(brix_proto_t proto, unsigned int hit,
     size_t bytes_evicted);
+/*
+ * phase-110 W10: record a NEGATIVE-cache hit (a cached "this does not exist"
+ * answer served without an origin round-trip) for the unified
+ * brix_cache_requests_total{cache_status="NEGHIT"} series. Lock-free; no-op on
+ * out-of-range proto or detached SHM. The NEGHIT disposition of the shared
+ * cache vocabulary — a plane that serves negative-cache hits (cvmfs) bumps this
+ * so a fleet-wide NEGHIT rate is one query.
+ */
+void brix_metric_cache_neghit(brix_proto_t proto);
 /*
  * Record a protocol-driven cache invalidation (delete/rename/write-open over a
  * cached path): adds bytes to cache_bytes_evicted[proto] without a hit/miss

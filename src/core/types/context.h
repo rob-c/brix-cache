@@ -87,6 +87,7 @@ typedef struct {
  * Split into ctx_structs.h so brix_ctx_t reads as named groups; included after
  * the slot structs above and after this TU's prerequisite includes. */
 #include "ctx_structs.h"
+#include "observability/metrics/io_monitor.h"   /* brix_io_monitor_t (phase-110 W3) */
 
 typedef struct brix_ctx_s {
     ngx_stream_session_t  *session;  /* nginx session; gives us c, pool, log */
@@ -197,6 +198,17 @@ typedef struct brix_ctx_s {
 
     /* Session-level transfer totals written to the access log at disconnect */
     brix_ctx_totals_t  totals;  /* session transfer totals — see brix_ctx_totals_t. */
+
+    /* phase-110 W3: the session's I/O monitor — the retention layer the
+     * uniform $brix_* stream variables read at session close (cache status,
+     * primary op/path/outcome, backend time, op count, reported checksum).
+     * Embedded, not pointed-to: it is allocated with the ctx on c->pool at
+     * connection accept (event loop, pcalloc'd → zero = "nothing happened"),
+     * and every VFS ctx the session builds is pointed at it by
+     * brix_root_vfs_bind_session(). Served/received BYTES stay in `totals`
+     * above (the root plane books them at its wire sites); the monitor's byte
+     * fields are unused on this plane. Threading contract: io_monitor.h. */
+    brix_io_monitor_t  io_monitor;
 
     /* Points into the shared-memory metrics segment for this server slot.
      * NULL if metrics are not configured (brix_metrics_zone not set). */

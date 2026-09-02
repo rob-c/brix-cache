@@ -119,6 +119,21 @@ brix_metric_err_name(brix_err_class_t err)
     return err < BRIX_ERR_COUNT ? brix_unified_err_names[err] : "other";
 }
 
+/* phase-110 W1: the ONE cache-disposition vocabulary. Every surface (both
+ * planes' $brix_cache_status, the JSON access log's "cache_status", the
+ * brix_cache_requests_total{cache_status} label) renders through this table, so
+ * a grep, a `map` and a PromQL selector share a string by construction. */
+static const char *brix_unified_cache_status_names[BRIX_CACHE_STATUS_COUNT] = {
+    "-", "HIT", "MISS", "BYPASS", "NEGHIT"
+};
+
+const char *
+brix_metric_cache_status_name(brix_cache_status_e status)
+{
+    return (ngx_uint_t) status < BRIX_CACHE_STATUS_COUNT
+           ? brix_unified_cache_status_names[status] : "-";
+}
+
 /* Phase-70 delegation-gate label vocabularies (P90-70.6). Mode names mirror
  * the brix_backend_delegation directive enum; the fail names are the closed
  * reason set from unified.h. Out-of-range renders "unknown" so future enum
@@ -241,6 +256,11 @@ brix_metric_err_from_errno(int sys_errno)
         return BRIX_ERR_NOT_FOUND;
     case EACCES:
     case EPERM:
+    case EROFS:
+        /* phase-110 W4: a read-only-export refusal (the phase-105 typed
+         * mutation gate's EROFS) is a permission-class outcome, not "other":
+         * one $brix_status / JSON "status" / io_ops{status} word for it on
+         * every plane. */
         return BRIX_ERR_FORBIDDEN;
     case EIO:
     case ENOMEM:

@@ -5,7 +5,7 @@
 #include "core/ngx_brix_module.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "fs/vfs/vfs.h"   /* path-based truncate via the VFS seam */
-#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
+#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_session (phase-70) */
 #include "protocols/root/write/write.h"   /* brix_root_cns_emit_resized (§6 CNS) */
 
 #include <fcntl.h>
@@ -68,7 +68,7 @@ brix_handle_truncate(brix_ctx_t *ctx, ngx_connection_t *c,
 				&conf->common.storage_credential_mint_ca_cert,
 				&conf->common.storage_credential_mint_ca_key,
 				conf->common.storage_credential_mint_ttl);
-			brix_root_vfs_bind_deleg(ctx, conf, &vctx);
+			brix_root_vfs_bind_session(ctx, conf, &vctx);
 			/* Path-native truncate: over a remote (root://) backend this resizes
 			 * the origin BY NAME — no write-open, so no staged RECALL + colliding
 			 * commit (the pre-fix kXR_Unsupported). POSIX falls back to

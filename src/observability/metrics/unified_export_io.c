@@ -280,10 +280,33 @@ unified_emit_io_ops(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
  *       bucket then equals the total count. Byte-frozen against the prior inline
  *       form.
  */
+/* Emit one histogram bucket line, le rendered in the family's unit
+ * (µs integer, or seconds with %.6f — phase-110 W11). */
+static void
+unified_emit_latency_bucket(metrics_writer_t *mw, const char *fam,
+    const char *pn, const char *opn, ngx_msec_t bound_usec, int seconds,
+    unsigned long long value)
+{
+    if (seconds) {
+        mw_printf(mw, "%s_bucket{proto=\"%s\",op=\"%s\",le=\"%.6f\"} %llu\n",
+                  fam, pn, opn, (double) bound_usec / 1000000.0, value);
+    } else {
+        mw_printf(mw, "%s_bucket{proto=\"%s\",op=\"%s\",le=\"%llu\"} %llu\n",
+                  fam, pn, opn, (unsigned long long) bound_usec, value);
+    }
+}
+
+
+/* One (proto, op) latency series under `fam`, in µs (seconds==0) or seconds
+ * (seconds==1). phase-110 W11 renders the SAME SHM histogram in the uniform
+ * `_seconds` unit beside the deprecated `_usec` family. */
 static void
 unified_emit_io_latency_series(metrics_writer_t *mw, ngx_brix_metrics_t *shm,
-    ngx_uint_t proto, ngx_uint_t op)
+    ngx_uint_t proto, ngx_uint_t op, const char *fam, int seconds)
 {
+    const char         *pn = brix_metric_proto_name((brix_proto_t) proto);
+    const char         *opn = brix_metric_op_name((brix_metric_op_t) op);
+    unsigned long long  sum_usec;
     ngx_uint_t          bucket;
     unsigned long long  value;
 
@@ -291,32 +314,25 @@ unified_emit_io_latency_series(metrics_writer_t *mw, ngx_brix_metrics_t *shm,
     for (bucket = 0; bucket < BRIX_IO_LATENCY_BUCKETS - 1; bucket++) {
         value += brix_metric_value(&shm->unified.io_latency_bucket
             [proto][op][bucket]);
-        mw_printf(mw,
-            "brix_io_latency_usec_bucket"
-            "{proto=\"%s\",op=\"%s\",le=\"%llu\"} %llu\n",
-            brix_metric_proto_name((brix_proto_t) proto),
-            brix_metric_op_name((brix_metric_op_t) op),
-            (unsigned long long) brix_latency_bounds[bucket],
-            value);
+        unified_emit_latency_bucket(mw, fam, pn, opn,
+            brix_latency_bounds[bucket], seconds, value);
     }
     value += brix_metric_value(&shm->unified.io_latency_bucket
         [proto][op][BRIX_IO_LATENCY_BUCKETS - 1]);
-    mw_printf(mw,
-        "brix_io_latency_usec_bucket"
-        "{proto=\"%s\",op=\"%s\",le=\"+Inf\"} %llu\n",
-        brix_metric_proto_name((brix_proto_t) proto),
-        brix_metric_op_name((brix_metric_op_t) op),
-        value);
-    mw_printf(mw,
-        "brix_io_latency_usec_sum{proto=\"%s\",op=\"%s\"} %llu\n",
-        brix_metric_proto_name((brix_proto_t) proto),
-        brix_metric_op_name((brix_metric_op_t) op),
-        brix_metric_value(&shm->unified.io_latency_sum_usec[proto][op]));
-    mw_printf(mw,
-        "brix_io_latency_usec_count{proto=\"%s\",op=\"%s\"} %llu\n",
-        brix_metric_proto_name((brix_proto_t) proto),
-        brix_metric_op_name((brix_metric_op_t) op),
-        brix_metric_value(&shm->unified.io_latency_count[proto][op]));
+    mw_printf(mw, "%s_bucket{proto=\"%s\",op=\"%s\",le=\"+Inf\"} %llu\n",
+              fam, pn, opn, value);
+
+    sum_usec = brix_metric_value(&shm->unified.io_latency_sum_usec[proto][op]);
+    if (seconds) {
+        mw_printf(mw, "%s_sum{proto=\"%s\",op=\"%s\"} %.6f\n",
+                  fam, pn, opn, (double) sum_usec / 1000000.0);
+    } else {
+        mw_printf(mw, "%s_sum{proto=\"%s\",op=\"%s\"} %llu\n",
+                  fam, pn, opn, sum_usec);
+    }
+    mw_printf(mw, "%s_count{proto=\"%s\",op=\"%s\"} %llu\n",
+              fam, pn, opn,
+              brix_metric_value(&shm->unified.io_latency_count[proto][op]));
 }
 
 /*
@@ -332,12 +348,30 @@ unified_emit_io_latency(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
 {
     ngx_uint_t  proto, op;
 
+    /* phase-110 W11: the canonical family in SECONDS (the uniform latency unit
+     * — every latency histogram now carries the _seconds suffix, matching
+     * brix_cvmfs_upstream_fill_duration_seconds / brix_frm_stage_latency_seconds
+     * and the Prometheus convention). */
     mw_printf(mw,
-        "# HELP brix_io_latency_usec I/O operation latency in microseconds.\n"
+        "# HELP brix_io_latency_seconds I/O operation latency in seconds.\n"
+        "# TYPE brix_io_latency_seconds histogram\n");
+    for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
+        for (op = 0; op < BRIX_METRIC_OP_COUNT; op++) {
+            unified_emit_io_latency_series(mw, shm, proto, op,
+                "brix_io_latency_seconds", 1);
+        }
+    }
+
+    /* DEPRECATED (removal phase-112): the µs-unit family, kept for one release
+     * so existing dashboards/alerts on brix_io_latency_usec keep working. */
+    mw_printf(mw,
+        "# HELP brix_io_latency_usec I/O operation latency in microseconds "
+        "(DEPRECATED — use brix_io_latency_seconds).\n"
         "# TYPE brix_io_latency_usec histogram\n");
     for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
         for (op = 0; op < BRIX_METRIC_OP_COUNT; op++) {
-            unified_emit_io_latency_series(mw, shm, proto, op);
+            unified_emit_io_latency_series(mw, shm, proto, op,
+                "brix_io_latency_usec", 0);
         }
     }
 }

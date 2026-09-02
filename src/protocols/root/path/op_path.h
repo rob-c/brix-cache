@@ -100,7 +100,7 @@ ngx_int_t brix_path_resolve_beneath(ngx_stream_brix_srv_conf_t *conf,
                                       char *resolved, size_t resolved_sz);
 
 /*
- * brix_root_vfs_bind_deleg — phase-70 §5.4 bearer PASSTHROUGH for root://.
+ * brix_root_vfs_bind_session — phase-70 §5.4 bearer PASSTHROUGH for root://.
  *
  * WHAT: Bind the session's captured raw bearer JWT (ctx->bearer_token, filled by
  *       the GSI token auth path) onto an already-cred-bound VFS ctx, using the
@@ -111,13 +111,17 @@ ngx_int_t brix_path_resolve_beneath(ngx_stream_brix_srv_conf_t *conf,
  *       an x509 full-proxy channel needs a client-side wire change (out of scope
  *       this pass), so no proxy is captured here.
  *
- * HOW:  No-op on the default SELECT export or when the session has no bearer.
- *       Otherwise wraps ctx->bearer_token as an ngx_str_t and calls
- *       brix_vfs_deleg_bind on the ctx's pool (the VFS ctx borrows the bytes,
- *       which live for the session). Include vfs.h at the call site.
+ * HOW:  ALWAYS points vctx->io_monitor at the session's monitor (phase-110
+ *       W3: this is the root plane's one per-session post-init hook, so the
+ *       stream $brix_* surface is complete by construction). Then, on a
+ *       non-SELECT export with a captured bearer, wraps ctx->bearer_token as
+ *       an ngx_str_t and calls brix_vfs_deleg_bind on the ctx's pool (the VFS
+ *       ctx borrows the bytes, which live for the session). Include vfs.h at
+ *       the call site. Renamed from brix_root_vfs_bind_session in phase-110
+ *       because it now binds the whole session, not only the credential.
  */
-void brix_root_vfs_bind_deleg(brix_ctx_t *ctx,
-                                ngx_stream_brix_srv_conf_t *conf,
-                                brix_vfs_ctx_t *vctx);
+void brix_root_vfs_bind_session(brix_ctx_t *ctx,
+                                  ngx_stream_brix_srv_conf_t *conf,
+                                  brix_vfs_ctx_t *vctx);
 
 #endif /* BRIX_PATH_OP_PATH_H */

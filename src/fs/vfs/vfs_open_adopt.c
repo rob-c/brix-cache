@@ -175,6 +175,14 @@ brix_vfs_adopt_fd(brix_vfs_ctx_t *ctx, const char *path, ngx_fd_t fd,
     fh->mode = st.mode;
     fh->from_cache = attrs.from_cache ? 1 : 0;
     fh->is_tls = ctx->is_tls;
+    /* phase-110 W4: the open IS the request's data op as far as the monitor
+     * can see — the client-facing serve is zero-copy and never reaches the
+     * per-op observer — so record it as read/write here. Weight 2 displaces the
+     * stat that preceded it (a GET logs op=read, not op=stat); a later composite
+     * op (copy/tpc) displaces this in turn. */
+    brix_io_monitor_record_op(ctx->io_monitor,
+        attrs.writable ? BRIX_METRIC_OP_WRITE : BRIX_METRIC_OP_READ,
+        path, BRIX_ERR_NONE);
     /* Trust the open-time metadata for stat() only on a read-only handle: the
      * file cannot change through it, so the fstat above stays authoritative for
      * the handle's lifetime. A writable handle leaves this 0 so brix_vfs_file_stat()

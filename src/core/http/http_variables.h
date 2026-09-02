@@ -29,26 +29,12 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
-/*
- * The cache-status vocabulary reported by $brix_cache_status.
- *
- * Deliberately nginx's own $upstream_cache_status spelling wherever the
- * semantics correspond, so an operator's existing dashboards and log parsers
- * work unchanged. BRIX_CACHE_STATUS_NEGHIT is the one brix extension: a
- * negative-cache hit has no nginx equivalent and must NOT be overloaded onto
- * BYPASS, which means something else entirely.
- */
-typedef enum {
-    BRIX_CACHE_STATUS_NONE = 0,   /* no cache decision was reached: "-"      */
-    BRIX_CACHE_STATUS_HIT,        /* served from cache                       */
-    BRIX_CACHE_STATUS_MISS,       /* went to origin and populated            */
-    BRIX_CACHE_STATUS_BYPASS,     /* cache deliberately not consulted        */
-    BRIX_CACHE_STATUS_NEGHIT      /* negative-cache hit (brix extension)     */
-} brix_cache_status_e;
-
-/* The wire spelling for a status; always a static string, never pool memory,
- * so a variable handler can hand it straight to nginx at log time. */
-const char *brix_cache_status_name(brix_cache_status_e status);
+/* The cache-status vocabulary (brix_cache_status_e) and its name function
+ * (brix_metric_cache_status_name) live in observability/metrics/unified.h —
+ * the shared vocabulary home — since phase-110 W1: the SAME word must come out
+ * of both planes' $brix_cache_status, the JSON access log and the Prometheus
+ * label, so no HTTP header may own it. */
+#include "observability/metrics/unified.h"
 
 /* Register every $brix_* HTTP variable. Called from the common HTTP module's
  * preconfiguration. */
@@ -74,5 +60,15 @@ void brix_http_monitor_bind(ngx_http_request_t *r, struct brix_vfs_ctx_s *vctx);
  * <= 0. Safe on the event loop (the serve path); never allocates.
  */
 void brix_http_monitor_record_served(ngx_http_request_t *r, off_t bytes);
+
+/*
+ * Record the file checksum this plane REPORTED to the client for
+ * $brix_checksum, as the canonical lowercase algorithm name and hex digits
+ * (brix_integrity_info_t.alg_name / .hex — the same fields the WebDAV Digest
+ * header and the root kXR_Qcksum reply are built from). Rendered "alg:hex".
+ * No-op if the request bound no monitor. Event-loop only; never allocates.
+ */
+void brix_http_monitor_record_checksum(ngx_http_request_t *r, const char *alg,
+    const char *hex);
 
 #endif /* BRIX_CORE_HTTP_VARIABLES_H */

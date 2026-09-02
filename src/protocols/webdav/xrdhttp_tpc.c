@@ -20,6 +20,7 @@
 
 #include "xrdhttp.h"
 #include "webdav.h"
+#include "core/http/http_variables.h"   /* brix_http_monitor_record_checksum */
 #include "protocols/root/protocol/opcodes.h"
 #include "core/compat/integrity_info.h"
 #include "core/compat/net_target.h"
@@ -185,6 +186,10 @@ xrdhttp_add_checksum_header(ngx_http_request_t *r,
         {
             return NGX_OK;
         }
+        /* phase-110 W3: the checksum brix is about to REPORT to the client is
+         * what $brix_checksum logs ("alg:hex", from the same info the Digest
+         * header is built from). */
+        brix_http_monitor_record_checksum(r, info.alg_name, info.hex);
     } else {
         char safe_alg[sizeof(ctx->want_cksum) * 4];
         brix_sanitize_log_string(ctx->want_cksum,

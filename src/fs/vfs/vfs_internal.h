@@ -494,23 +494,29 @@ brix_vfs_observe_ctx_op_ex(const brix_vfs_ctx_t *ctx, const char *path,
                        : brix_metric_err_from_errno(sys_errno);
     latency_usec = brix_vfs_elapsed_usec(start_ns);
 
-    /* phase-106 W1 (data-plane variable tail): fold this op's BACKEND TIME and
-     * page-CRC into the request's I/O monitor, which $brix_backend_time /
-     * $brix_checksum read at log time. Bytes are deliberately NOT folded here:
-     * the client-facing serve is zero-copy (sendfile / output filter), so the
-     * authoritative served-byte count is result->bytes_sent booked at the serve
-     * site (brix_http_monitor_record_served), not this per-op observer — folding
-     * both would double-count on a remote MISS (origin read here + cache serve
-     * there). NULL monitor = an unmonitored path (metadata-only, internal
-     * maintenance) and is the common case. The crc is meaningful only when
-     * page-CRC was active for this ctx (want_pgcrc), so a real crc of 0 is never
-     * mistaken for "no checksum". Single-writer: see io_monitor.h. Only
-     * successful ops count — a failed op's latency is error-handling time, not
-     * backend service time. */
+    /* phase-106 W1 / phase-110 W1-W4: fold this op into the request's or
+     * session's I/O monitor, which the uniform $brix_* variables read at log
+     * time (io_monitor.h). NULL monitor = an unmonitored path (metadata-only
+     * builders, internal maintenance) and is the common case; every helper
+     * below is a silent no-op on NULL.
+     *   - op/path/outcome: candidate primary op under the weight rule, on
+     *     success AND failure (a failed stat on a GET of a missing file is the
+     *     outcome the operator wants: op=stat status=not_found).
+     *   - backend time: successful ops only — a failed op's latency is error
+     *     handling, not backend service time.
+     *   - received bytes: a successful WRITE's count is what the client sent
+     *     (the staged PUT commit observes its total once; a GET's cache fill
+     *     writes through its own unmonitored ctx, so it never lands here).
+     *   - SERVED bytes are deliberately NOT folded here: the client-facing
+     *     serve is zero-copy (sendfile / output filter) and never reaches this
+     *     observer, so the plane books result->bytes_sent at its serve site.
+     * Single-writer contract: see io_monitor.h. */
+    brix_io_monitor_record_op(ctx->io_monitor, op, path, err);
     if (rc == NGX_OK) {
-        brix_io_monitor_add(ctx->io_monitor, 0, latency_usec,
-                            (unsigned) (ctx->want_pgcrc && result != NULL),
-                            result != NULL ? result->crc32c : 0);
+        brix_io_monitor_add_latency(ctx->io_monitor, latency_usec);
+        if (op == BRIX_METRIC_OP_WRITE) {
+            brix_io_monitor_add_received(ctx->io_monitor, bytes);
+        }
     }
 
     /* meter_io == 0: the owning protocol books the unified io_ops/latency row

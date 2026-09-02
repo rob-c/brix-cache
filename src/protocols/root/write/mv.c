@@ -146,7 +146,7 @@ mv_parse_paths(brix_ctx_t *ctx, ngx_connection_t *c, mv_req_t *mv)
  *       credential) for a remote-backed export.
  * HOW:  Pure setup, no I/O: brix_vfs_ctx_init for BRIX_PROTO_ROOT on the
  *       given resolved path, then credential-dir/fallback bind and
- *       brix_root_vfs_bind_deleg.
+ *       brix_root_vfs_bind_session.
  */
 static void
 mv_bind_vfs(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -160,7 +160,7 @@ mv_bind_vfs(brix_ctx_t *ctx, ngx_connection_t *c,
 	brix_vfs_ctx_bind_backend_cred(vctx,
 		&conf->common.storage_credential_dir,
 		conf->common.storage_credential_fallback);
-	brix_root_vfs_bind_deleg(ctx, conf, vctx);
+	brix_root_vfs_bind_session(ctx, conf, vctx);
 }
 
 /*
