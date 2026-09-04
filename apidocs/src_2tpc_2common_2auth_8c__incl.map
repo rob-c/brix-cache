@@ -1,0 +1,20 @@
+<map id="src/tpc/common/auth.c" name="src/tpc/common/auth.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="220,5,391,31"/>
+<area shape="rect" id="Node000002" href="$auth_8h.html" title=" " alt="" coords="230,79,293,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="300,32,278,68,273,66,296,30"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="335,299,406,324"/>
+<area shape="poly" id="edge10_Node000001_Node000008" title=" " alt="" coords="316,29,363,108,390,164,409,225,411,238,409,251,391,289,386,286,404,250,406,238,404,226,385,166,358,111,311,32"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="291,225,395,251"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="270,103,332,212,327,215,266,106"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="5,225,99,251"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="231,102,174,121,143,136,115,154,87,183,66,214,62,212,83,180,112,150,141,131,172,116,229,97"/>
+<area shape="rect" id="Node000005" href="$identity_8h.html" title=" " alt="" coords="125,152,280,177"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="254,106,223,143,219,140,250,103"/>
+<area shape="poly" id="edge5_Node000005_Node000003" title=" " alt="" coords="226,175,309,217,307,221,224,180"/>
+<area shape="poly" id="edge6_Node000005_Node000004" title=" " alt="" coords="180,180,90,222,88,217,177,175"/>
+<area shape="rect" id="Node000006" href="$token_8h.html" title=" " alt="" coords="123,225,266,251"/>
+<area shape="poly" id="edge7_Node000005_Node000006" title=" " alt="" coords="204,178,200,212,195,212,199,177"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="139,299,251,324"/>
+<area shape="poly" id="edge8_Node000006_Node000007" title=" " alt="" coords="197,251,197,285,192,285,192,251"/>
+<area shape="poly" id="edge9_Node000006_Node000008" title=" " alt="" coords="224,248,330,291,328,296,222,253"/>
+</map>

@@ -1,0 +1,25 @@
+var searchData=
+[
+  ['zip_5fcdfh_5fbase_0',['ZIP_CDFH_BASE',['../zip__dir_8c.html#a1fb25d20b13aa682cd3d23c5c9f7dd41',1,'zip_dir.c']]],
+  ['zip_5fcdfh_5fsig_1',['ZIP_CDFH_SIG',['../zip__dir_8c.html#a61e20c6a03799586e74bf598783fe1b9',1,'zip_dir.c']]],
+  ['zip_5fgpf_5fdatadesc_2',['ZIP_GPF_DATADESC',['../zip__dir_8c.html#a6981806628507a6e9eafe0cc5f3d20f7',1,'zip_dir.c']]],
+  ['zip_5fgpf_5fencrypted_3',['ZIP_GPF_ENCRYPTED',['../zip__dir_8c.html#aaf7401b1148ac2d1a55087b8e5c84a76',1,'zip_dir.c']]],
+  ['zip_5fhttp_5fmem_5fmax_4',['ZIP_HTTP_MEM_MAX',['../zip__http_8c.html#a092182820cba19eff165301784afd02f',1,'zip_http.c']]],
+  ['zip_5finfl_5fscratch_5',['ZIP_INFL_SCRATCH',['../zip__member_8c.html#a63ed6b56be90a58e1ba56abc7ee5223f',1,'zip_member.c']]],
+  ['zip_5fk_5fecorrupt_6',['ZIP_K_ECORRUPT',['../zip__kernel_8h.html#a871e8b8c7c5f9a16994bc418c6fd76be',1,'zip_kernel.h']]],
+  ['zip_5fk_5feio_7',['ZIP_K_EIO',['../zip__kernel_8h.html#abc0afb6cc7494d27c1bef2f95b3001b4',1,'zip_kernel.h']]],
+  ['zip_5fk_5fenotzip_8',['ZIP_K_ENOTZIP',['../zip__kernel_8h.html#af364823ec00dea91653db7e3df53e3fe',1,'zip_kernel.h']]],
+  ['zip_5fk_5fok_9',['ZIP_K_OK',['../zip__kernel_8h.html#a3815d05a56356bb8899928a4b7b71bd9',1,'zip_kernel.h']]],
+  ['zip_5fu32_5fmax_10',['ZIP_U32_MAX',['../zip__internal_8h.html#a8050c9ad36c758511f548627aba82a06',1,'zip_internal.h']]],
+  ['zipk_5feocd_5fbase_11',['ZIPK_EOCD_BASE',['../zip__kernel_8c.html#afdbea32b4b2b72f8a948aeec1b2ac0de',1,'zip_kernel.c']]],
+  ['zipk_5feocd_5fsig_12',['ZIPK_EOCD_SIG',['../zip__kernel_8c.html#a3ef20eace967a39db36cf6914a08eff5',1,'zip_kernel.c']]],
+  ['zipk_5flfh_5fbase_13',['ZIPK_LFH_BASE',['../zip__kernel_8c.html#a2f1eff4852755830a9ad6eb43e3df920',1,'zip_kernel.c']]],
+  ['zipk_5flfh_5fsig_14',['ZIPK_LFH_SIG',['../zip__kernel_8c.html#a07792e72e092a3cffe76eeafa8b4c786',1,'zip_kernel.c']]],
+  ['zipk_5fmax_5fcomment_15',['ZIPK_MAX_COMMENT',['../zip__kernel_8c.html#ae0e71c47470f748fc25cf3c2e4f7beb3',1,'zip_kernel.c']]],
+  ['zipk_5fu16_5fmax_16',['ZIPK_U16_MAX',['../zip__kernel_8c.html#a1751b5b0420f5b3750047393901cec56',1,'zip_kernel.c']]],
+  ['zipk_5fu32_5fmax_17',['ZIPK_U32_MAX',['../zip__kernel_8c.html#a6be67c595be38b34be44a3093dbe8025',1,'zip_kernel.c']]],
+  ['zipk_5fz64eocd_5fsig_18',['ZIPK_Z64EOCD_SIG',['../zip__kernel_8c.html#a426acfc925d25f7e1af948c8700c8a39',1,'zip_kernel.c']]],
+  ['zipk_5fz64eocd_5fsz_19',['ZIPK_Z64EOCD_SZ',['../zip__kernel_8c.html#adad78a11b4fc6d7fb7ba9f4832132dcc',1,'zip_kernel.c']]],
+  ['zipk_5fz64loc_5fsig_20',['ZIPK_Z64LOC_SIG',['../zip__kernel_8c.html#ab15be2979f0add7e979ec39dc622cb4d',1,'zip_kernel.c']]],
+  ['zipk_5fz64loc_5fsize_21',['ZIPK_Z64LOC_SIZE',['../zip__kernel_8c.html#ae7ee26d2528d11bfc6a23b3008c48f7a',1,'zip_kernel.c']]]
+];

@@ -1,0 +1,9 @@
+<map id="src/protocols/root/read/pgread_internal.h" name="src/protocols/root/read/pgread_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="163,5,337,45"/>
+<area shape="rect" id="Node000002" href="$pgread_8c.html" title=" " alt="" coords="5,93,140,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="200,54,113,96,110,91,198,49"/>
+<area shape="rect" id="Node000003" href="$pgread__request_8c.html" title=" " alt="" coords="165,93,335,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="253,59,253,93,247,93,247,59"/>
+<area shape="rect" id="Node000004" href="$pgread__window_8c.html" title=" " alt="" coords="359,93,530,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="306,48,403,91,401,96,304,53"/>
+</map>

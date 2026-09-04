@@ -1,0 +1,26 @@
+<map id="src/auth/crypto/gsi_verify.c" name="src/auth/crypto/gsi_verify.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="347,5,489,45"/>
+<area shape="rect" id="Node000002" href="$gsi__verify_8h.html" title=" " alt="" coords="204,93,299,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="379,48,289,90,287,85,377,43"/>
+<area shape="rect" id="Node000006" href="$store__policy_8h.html" title=" " alt="" coords="323,93,513,119"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="421,46,421,79,415,79,415,46"/>
+<area shape="rect" id="Node000009" href="$log__diag_8h.html" title=" " alt="" coords="5,93,180,119"/>
+<area shape="poly" id="edge10_Node000001_Node000009" title=" " alt="" coords="347,46,154,93,153,88,346,41"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="537,93,673,119"/>
+<area shape="poly" id="edge12_Node000001_Node000010" title=" " alt="" coords="464,43,566,85,564,90,462,48"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="697,93,768,119"/>
+<area shape="poly" id="edge13_Node000001_Node000011" title=" " alt="" coords="490,42,685,90,683,95,489,47"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="61,174,154,199"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="231,121,142,170,139,165,229,116"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="191,174,311,199"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="254,119,254,160,249,160,249,119"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="336,174,481,199"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="275,116,375,166,372,170,273,121"/>
+<area shape="poly" id="edge8_Node000006_Node000004" title=" " alt="" coords="395,121,289,171,287,166,393,116"/>
+<area shape="poly" id="edge9_Node000006_Node000005" title=" " alt="" coords="419,119,414,160,409,160,414,119"/>
+<area shape="rect" id="Node000007" href="$signing__policy_8h.html" title=" " alt="" coords="506,167,653,207"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="443,116,529,158,527,163,440,121"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="542,255,617,280"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="582,207,582,241,577,241,577,207"/>
+<area shape="poly" id="edge11_Node000009_Node000003" title=" " alt="" coords="97,118,105,160,100,161,92,119"/>
+</map>

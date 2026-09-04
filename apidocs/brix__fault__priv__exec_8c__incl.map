@@ -1,0 +1,33 @@
+<map id="client/apps/diag/brix_fault_priv_exec.c" name="client/apps/diag/brix_fault_priv_exec.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="602,5,757,45"/>
+<area shape="rect" id="Node000002" href="$brix__fault__priv_8h.html" title=" " alt="" coords="5,93,132,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="602,38,146,96,145,90,601,33"/>
+<area shape="rect" id="Node000005" href="$brix__fault__priv__internal_8h.html" title=" " alt="" coords="156,93,341,119"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="602,43,326,93,325,88,601,38"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="311,167,378,192"/>
+<area shape="poly" id="edge10_Node000001_Node000006" title=" " alt="" coords="602,34,555,41,505,53,454,70,408,95,378,124,358,156,354,153,374,120,404,91,452,66,503,48,554,36,601,29"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="417,93,488,119"/>
+<area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="626,48,500,91,498,86,624,43"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="512,93,580,119"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="649,48,579,89,576,84,646,43"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="604,93,667,119"/>
+<area shape="poly" id="edge9_Node000001_Node000009" title=" " alt="" coords="671,47,651,83,646,80,666,44"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="691,93,758,119"/>
+<area shape="poly" id="edge11_Node000001_Node000010" title=" " alt="" coords="693,44,713,80,709,83,688,47"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="783,93,853,119"/>
+<area shape="poly" id="edge12_Node000001_Node000011" title=" " alt="" coords="714,43,787,84,784,89,711,48"/>
+<area shape="rect" id="Node000012" title=" " alt="" coords="877,93,948,119"/>
+<area shape="poly" id="edge13_Node000001_Node000012" title=" " alt="" coords="736,43,866,86,865,91,734,48"/>
+<area shape="rect" id="Node000013" title=" " alt="" coords="973,93,1058,119"/>
+<area shape="poly" id="edge14_Node000001_Node000013" title=" " alt="" coords="757,42,960,89,959,94,756,47"/>
+<area shape="rect" id="Node000014" title=" " alt="" coords="1082,93,1170,119"/>
+<area shape="poly" id="edge15_Node000001_Node000014" title=" " alt="" coords="757,37,1068,90,1068,96,756,42"/>
+<area shape="rect" id="Node000015" title=" " alt="" coords="1194,93,1269,119"/>
+<area shape="poly" id="edge16_Node000001_Node000015" title=" " alt="" coords="757,32,946,55,1181,91,1180,96,945,60,756,37"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="178,167,253,192"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="93,116,180,158,178,163,91,121"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="17,167,120,192"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="71,119,71,153,66,153,66,119"/>
+<area shape="poly" id="edge6_Node000005_Node000003" title=" " alt="" coords="246,120,229,155,224,153,241,118"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="266,117,319,156,316,160,263,121"/>
+</map>

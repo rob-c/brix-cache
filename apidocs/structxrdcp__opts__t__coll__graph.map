@@ -1,0 +1,18 @@
+<map id="xrdcp_opts_t" name="xrdcp_opts_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="153,357,258,383"/>
+<area shape="rect" id="Node000002" href="$structbrix__copy__opts.html" title=" " alt="" coords="37,269,157,295"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="121,302,155,331,189,355,186,359,152,335,118,306"/>
+<area shape="rect" id="Node000003" href="$structbrix__opts.html" title=" " alt="" coords="303,269,385,295"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="315,304,226,359,223,355,312,300"/>
+<area shape="rect" id="Node000004" href="$structbrix__cred__store.html" title=" " alt="" coords="165,181,288,207"/>
+<area shape="poly" id="edge8_Node000001_Node000004" title=" " alt="" coords="226,220,220,270,209,357,204,357,215,269,221,220"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="255,213,330,267,326,271,252,217"/>
+<area shape="rect" id="Node000005" href="$structbrix__cred__config.html" title=" " alt="" coords="5,93,133,119"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="104,123,207,179,204,183,101,128"/>
+<area shape="rect" id="Node000006" href="$structbrix__cred__handler.html" title=" " alt="" coords="157,93,296,119"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="229,133,229,181,224,181,224,133"/>
+<area shape="rect" id="Node000007" href="$structcred__slot.html" title=" " alt="" coords="321,93,402,119"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="338,129,295,160,252,183,249,179,292,155,335,125"/>
+<area shape="rect" id="Node000008" href="$structbrix__cred__view.html" title=" " alt="" coords="301,5,421,31"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="364,45,364,93,359,93,359,45"/>
+</map>

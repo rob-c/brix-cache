@@ -1,0 +1,26 @@
+var codec__core_8c =
+[
+    [ "brix_codec_stream_t", "structbrix__codec__stream__s.html", "structbrix__codec__stream__s" ],
+    [ "brix_codec_available", "codec__core_8c.html#a9d4917e0602a82e19a7ddf6abd59121c", null ],
+    [ "brix_codec_by_http_token", "codec__core_8c.html#a81a6249f5068c3c611a8b1bd7380ebb0", null ],
+    [ "brix_codec_by_id", "codec__core_8c.html#a88c53d1a99913946ae71bc80a1da3dbf", null ],
+    [ "brix_codec_by_name", "codec__core_8c.html#a6b8f742e777ab95f5958f2921c26cd21", null ],
+    [ "brix_codec_close", "codec__core_8c.html#a60c7279795fd0c65ebfc9295486d6379", null ],
+    [ "brix_codec_open", "codec__core_8c.html#a64ff3ae6fb2ee1eefcc75e56c80fbd2a", null ],
+    [ "brix_codec_step", "codec__core_8c.html#a6e61a2ec80dd0133a452d6d0a8c4f71c", null ],
+    [ "codec_ci_eq", "codec__core_8c.html#ad8aeed26a4d2209665e24038ec50196f", null ],
+    [ "codec_match", "codec__core_8c.html#a47f6d1699f330ebf8921f4f492c2c0de", null ],
+    [ "identity_end", "codec__core_8c.html#a420550d9c3dbad3d61850bce32fefedf", null ],
+    [ "identity_init", "codec__core_8c.html#aa6bea7cc975530a6f320755a2345bc7e", null ],
+    [ "identity_step", "codec__core_8c.html#a10269eaa3a9a19a4658eba555abb01bc", null ],
+    [ "brix_codec_brotli_desc", "codec__core_8c.html#aa65adf3858e346728f3317284a79629a", null ],
+    [ "brix_codec_bzip2_desc", "codec__core_8c.html#a518bf40b95ce176ba5afb0f1befdc071", null ],
+    [ "brix_codec_deflate_desc", "codec__core_8c.html#ac4f8a148e0ecef760047395af3dd7d0d", null ],
+    [ "brix_codec_gzip_desc", "codec__core_8c.html#a7b2ee4ff5643cdf2f15a2ed4f62bc3bd", null ],
+    [ "brix_codec_identity_desc", "codec__core_8c.html#afc5eec6bcee5cbad0386fc3002f8f192", null ],
+    [ "brix_codec_lz4_desc", "codec__core_8c.html#a185daae80dd4cd5c8271c5be84bb6221", null ],
+    [ "brix_codec_xz_desc", "codec__core_8c.html#a4ad086cac7b1c292c2278fe48599d726", null ],
+    [ "brix_codec_zstd_desc", "codec__core_8c.html#aaa7c34027073b87ed5aaf3f8af84aaba", null ],
+    [ "codec_table", "codec__core_8c.html#a88306ffbea6acf0815cc63cd381abb92", null ],
+    [ "identity_backend", "codec__core_8c.html#aca762e7d562c1762383a895ea1bb5b5d", null ]
+];

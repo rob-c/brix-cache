@@ -1,0 +1,18 @@
+<map id="client/lib/oci/ref.c" name="client/lib/oci/ref.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="227,5,360,31"/>
+<area shape="rect" id="Node000002" href="$ref_8h.html" title=" " alt="" coords="41,79,116,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="260,33,127,77,126,72,258,28"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="105,152,202,177"/>
+<area shape="poly" id="edge4_Node000001_Node000004" title=" " alt="" coords="256,33,217,52,198,65,182,80,166,109,159,139,154,137,161,107,178,77,195,61,214,47,254,28"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="191,79,286,104"/>
+<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="286,33,258,69,254,66,282,29"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="311,79,385,104"/>
+<area shape="poly" id="edge6_Node000001_Node000006" title=" " alt="" coords="304,29,333,66,329,69,300,33"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="409,79,476,104"/>
+<area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="318,28,407,70,405,75,316,33"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="501,79,571,104"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="333,28,489,73,487,79,332,33"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,152,80,177"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="75,106,57,141,52,138,70,103"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="92,102,133,141,129,144,89,106"/>
+</map>

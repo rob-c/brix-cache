@@ -1,0 +1,15 @@
+<map id="src/core/compat/range.c" name="src/core/compat/range.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="180,5,359,31"/>
+<area shape="rect" id="Node000002" href="$range_8h.html" title=" " alt="" coords="115,79,186,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="252,33,183,74,181,69,249,28"/>
+<area shape="rect" id="Node000005" href="$range__vector_8h.html" title=" " alt="" coords="210,79,329,104"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="272,31,272,65,267,65,267,31"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="353,79,423,104"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="290,28,358,69,355,74,287,33"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,152,80,177"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="135,106,73,147,70,142,132,102"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="104,152,200,177"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="154,104,154,138,149,139,148,104"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="224,152,315,177"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="272,104,272,138,267,138,267,104"/>
+</map>

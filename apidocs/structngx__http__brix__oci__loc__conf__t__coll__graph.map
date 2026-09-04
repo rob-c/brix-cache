@@ -1,0 +1,15 @@
+<map id="ngx_http_brix_oci_loc_conf_t" name="ngx_http_brix_oci_loc_conf_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="191,284,353,324"/>
+<area shape="rect" id="Node000002" href="$structngx__http__brix__shared__conf__t.html" title=" " alt="" coords="5,181,168,221"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="135,226,239,282,236,286,132,230"/>
+<area shape="rect" id="Node000003" href="$structbrix__token__registry__t.html" title=" " alt="" coords="193,189,351,214"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="275,228,275,284,269,284,269,228"/>
+<area shape="rect" id="Node000004" href="$structbrix__token__issuer__t.html" title=" " alt="" coords="198,93,346,119"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="275,132,275,189,269,189,269,132"/>
+<area shape="rect" id="Node000005" href="$structbrix__jwks__key__t.html" title=" " alt="" coords="209,5,335,31"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="275,45,275,93,269,93,269,45"/>
+<area shape="rect" id="Node000006" href="$structbrix__oci__upstream__t.html" title=" " alt="" coords="376,189,531,214"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="422,223,307,286,305,282,419,218"/>
+<area shape="rect" id="Node000007" href="$structbrix__kv__t.html" title=" " alt="" coords="412,93,495,119"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="456,132,456,189,451,189,451,132"/>
+</map>

@@ -1,0 +1,37 @@
+<map id="src/fs/path/path_internal.h" name="src/fs/path/path_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1433,5,1625,31"/>
+<area shape="rect" id="Node000002" href="$auth_2authz_2acl_8c.html" title=" " alt="" coords="5,86,153,111"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1419,24,778,43,424,60,277,70,165,81,125,89,124,83,164,76,276,65,423,55,778,38,1419,19"/>
+<area shape="rect" id="Node000003" href="$authdb_8c.html" title=" " alt="" coords="177,86,352,111"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="1419,23,1221,26,959,36,663,53,365,81,319,89,318,83,364,76,663,48,958,31,1221,21,1419,17"/>
+<area shape="rect" id="Node000004" href="$authdb__parse_8c.html" title=" " alt="" coords="377,79,539,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="1419,24,1251,29,1035,39,794,56,552,81,540,83,539,78,551,76,793,50,1034,34,1251,23,1419,18"/>
+<area shape="rect" id="Node000005" href="$group__policy_8c.html" title=" " alt="" coords="563,79,718,119"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="1419,26,1108,43,919,59,730,81,718,83,718,78,730,76,919,54,1108,37,1419,20"/>
+<area shape="rect" id="Node000006" href="$fs_2path_2helpers_8c.html" title=" " alt="" coords="743,86,896,111"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="1419,29,1183,48,1045,63,908,81,869,89,868,83,907,76,1045,57,1183,43,1419,23"/>
+<area shape="rect" id="Node000007" href="$fs_2path_2mkdir_8c.html" title=" " alt="" coords="920,86,1063,111"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="1419,34,1257,54,1076,81,1040,89,1039,83,1075,76,1256,48,1419,28"/>
+<area shape="rect" id="Node000008" href="$normalize_8c.html" title=" " alt="" coords="1087,86,1258,111"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1464,36,1225,89,1224,83,1463,31"/>
+<area shape="rect" id="Node000009" href="$resolve__confined__helpers_8c.html" title=" " alt="" coords="1283,79,1433,119"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1492,39,1400,81,1398,76,1490,34"/>
+<area shape="rect" id="Node000010" href="$resolve__confined__ops_8c.html" title=" " alt="" coords="1457,79,1600,119"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1531,44,1531,79,1526,79,1526,44"/>
+<area shape="rect" id="Node000011" href="$resolve__confined__ops__meta_8c.html" title=" " alt="" coords="1624,79,1791,119"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1568,34,1665,76,1663,81,1566,39"/>
+<area shape="rect" id="Node000012" href="$resolve__confined__ops__xattr_8c.html" title=" " alt="" coords="1815,79,1978,119"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="1596,31,1816,77,1815,83,1595,36"/>
+<area shape="rect" id="Node000013" href="$resolve__path__variants_8c.html" title=" " alt="" coords="2003,79,2145,119"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="1639,28,1805,48,1990,76,2003,78,2002,84,1990,81,1804,53,1638,33"/>
+<area shape="rect" id="Node000014" href="$fs_2path_2unified_8c.html" title=" " alt="" coords="2170,86,2319,111"/>
+<area shape="poly" id="edge13_Node000001_Node000014" title=" " alt="" coords="1639,23,1878,42,2018,57,2158,76,2197,83,2196,89,2158,81,2018,62,1877,47,1638,28"/>
+<area shape="rect" id="Node000015" href="$unified__build_8c.html" title=" " alt="" coords="2343,79,2482,119"/>
+<area shape="poly" id="edge14_Node000001_Node000015" title=" " alt="" coords="1639,20,1951,36,2142,52,2332,76,2344,78,2343,83,2331,81,2141,58,1951,41,1638,25"/>
+<area shape="rect" id="Node000016" href="$unified__resolve_8c.html" title=" " alt="" coords="2506,79,2645,119"/>
+<area shape="poly" id="edge15_Node000001_Node000016" title=" " alt="" coords="1638,18,1805,22,2018,31,2256,49,2494,76,2506,78,2505,83,2494,81,2255,54,2018,36,1805,27,1638,23"/>
+<area shape="rect" id="Node000017" href="$vfs__authz_8c.html" title=" " alt="" coords="2669,86,2828,111"/>
+<area shape="poly" id="edge16_Node000001_Node000017" title=" " alt="" coords="1639,17,1831,20,2084,30,2370,47,2657,76,2700,83,2699,89,2656,81,2369,52,2084,35,1831,26,1638,22"/>
+<area shape="rect" id="Node000018" href="$op__path_8c.html" title=" " alt="" coords="2852,79,2987,119"/>
+<area shape="poly" id="edge17_Node000001_Node000018" title=" " alt="" coords="1638,19,2255,38,2594,54,2734,65,2841,76,2852,78,2851,83,2840,81,2734,70,2593,60,2255,43,1638,24"/>
+</map>

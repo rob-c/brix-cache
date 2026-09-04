@@ -1,0 +1,11 @@
+<map id="src/core/compat/protocol_caps.c" name="src/core/compat/protocol_caps.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="47,5,229,45"/>
+<area shape="rect" id="Node000002" href="$protocol__caps_8h.html" title=" " alt="" coords="5,93,129,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="123,47,89,85,85,81,119,44"/>
+<area shape="rect" id="Node000004" href="$alloc__guard_8h.html" title=" " alt="" coords="154,93,263,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="157,44,191,81,187,85,153,47"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="22,167,113,192"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="70,119,70,153,65,153,65,119"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="162,167,255,192"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="211,119,211,153,206,153,206,119"/>
+</map>

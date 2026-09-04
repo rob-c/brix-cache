@@ -1,0 +1,11 @@
+<map id="ftp_ev_t" name="ftp_ev_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="135,211,209,236"/>
+<area shape="rect" id="Node000002" href="$structngx__stream__brix__ftp__srv__conf__t.html" title=" " alt="" coords="15,108,169,148"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="119,157,164,209,160,212,115,160"/>
+<area shape="rect" id="Node000003" href="$structngx__http__brix__shared__conf__t.html" title=" " alt="" coords="5,5,168,45"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="91,59,94,108,88,108,86,59"/>
+<area shape="rect" id="Node000004" href="$structbrix__identity__t.html" title=" " alt="" coords="203,115,319,141"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="243,152,185,212,181,209,239,149"/>
+<area shape="rect" id="Node000005" href="$structbrix__token__scope__t.html" title=" " alt="" coords="192,13,339,38"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="267,52,264,115,259,115,262,52"/>
+</map>

@@ -1,0 +1,26 @@
+var structbrix__ssi__req__t =
+[
+    [ "defer_ctx", "structbrix__ssi__req__t.html#af9cb9c4ee2ef7bc7b6688598632730b6", null ],
+    [ "defer_streamid", "structbrix__ssi__req__t.html#a9afc73c415c7c045cdffebc71ffd3c6b", null ],
+    [ "deferred", "structbrix__ssi__req__t.html#a9a8f9928cc66d6b18fda413aa0f61c1f", null ],
+    [ "dispatched", "structbrix__ssi__req__t.html#af1ab40367d7fb7c2fa76e5341f9cc80f", null ],
+    [ "err_code", "structbrix__ssi__req__t.html#aac500ff13ba80f23875154028665d5e9", null ],
+    [ "err_text", "structbrix__ssi__req__t.html#a1d6140d4b4a087dabf83d4aba0343db3", null ],
+    [ "error", "structbrix__ssi__req__t.html#a332985d92f3a177a4a6f218490d69b24", null ],
+    [ "have_size", "structbrix__ssi__req__t.html#a918d87a9a27073eb85e0d5c2293cb8ba", null ],
+    [ "in_use", "structbrix__ssi__req__t.html#a08dd211f27fb5120c8d11edf066b319b", null ],
+    [ "meta", "structbrix__ssi__req__t.html#a05386f63a3e58443ab7b6a3ee25142e6", null ],
+    [ "meta_len", "structbrix__ssi__req__t.html#a993e77ba66df3248d95ae01258bf12bf", null ],
+    [ "pool", "structbrix__ssi__req__t.html#adbc99f4aa7eaa821554d450af73ff9b4", null ],
+    [ "read_cursor", "structbrix__ssi__req__t.html#aa5caafc49e2bb21eae6921008542e20c", null ],
+    [ "req", "structbrix__ssi__req__t.html#a61bd5e8c6004a59dbedc2c01bc810e49", null ],
+    [ "req_expected", "structbrix__ssi__req__t.html#a11a8e61e39f6b40c391519896e6547c4", null ],
+    [ "req_id", "structbrix__ssi__req__t.html#ae48b804b01e55b2e8a2230ce92f26d08", null ],
+    [ "req_len", "structbrix__ssi__req__t.html#a626a2b48f925263037aa26f167b0e461", null ],
+    [ "resp", "structbrix__ssi__req__t.html#a920d34d74a80c3a0e1058591ca239cf5", null ],
+    [ "responded", "structbrix__ssi__req__t.html#a531b0040d69804645638e9d08a880424", null ],
+    [ "response_max", "structbrix__ssi__req__t.html#a01fd1e6a301c48c9df26b3a1d5dc56b7", null ],
+    [ "streaming", "structbrix__ssi__req__t.html#a979cf5194b3f99f493749437912ae049", null ],
+    [ "svc_state", "structbrix__ssi__req__t.html#a5e852bdfdb7312694bf33970b93d55ec", null ],
+    [ "waiting", "structbrix__ssi__req__t.html#a8cd5a7d19cf263310437ed572a799029", null ]
+];

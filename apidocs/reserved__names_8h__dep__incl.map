@@ -1,0 +1,25 @@
+<map id="src/fs/path/reserved_names.h" name="src/fs/path/reserved_names.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="897,5,1047,45"/>
+<area shape="rect" id="Node000002" href="$src_2core_2compat_2path_8c.html" title=" " alt="" coords="5,101,176,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="883,34,575,55,382,73,188,96,145,103,144,98,188,91,382,68,575,50,883,29"/>
+<area shape="rect" id="Node000003" href="$protocols_2root_2dirlist_2handler_8c.html" title=" " alt="" coords="201,93,335,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="883,35,641,57,494,74,347,96,336,98,335,93,346,91,493,69,640,51,883,30"/>
+<area shape="rect" id="Node000004" href="$handler__stream_8c.html" title=" " alt="" coords="359,93,539,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="884,43,551,96,540,98,539,93,550,91,883,37"/>
+<area shape="rect" id="Node000005" href="$op__path_8c.html" title=" " alt="" coords="563,93,698,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="885,51,699,98,698,92,883,46"/>
+<area shape="rect" id="Node000006" href="$open__request_8c.html" title=" " alt="" coords="722,93,881,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="924,54,840,96,838,91,921,49"/>
+<area shape="rect" id="Node000007" href="$stat_8c.html" title=" " alt="" coords="905,93,1039,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="975,59,975,93,969,93,969,59"/>
+<area shape="rect" id="Node000008" href="$statx_8c.html" title=" " alt="" coords="1063,93,1198,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1020,50,1097,91,1095,96,1018,54"/>
+<area shape="rect" id="Node000009" href="$list__walk_8c.html" title=" " alt="" coords="1222,93,1370,133"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1057,46,1226,91,1224,96,1055,51"/>
+<area shape="rect" id="Node000010" href="$get__directory_8c.html" title=" " alt="" coords="1395,93,1555,133"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1061,37,1383,91,1395,93,1394,98,1382,96,1061,43"/>
+<area shape="rect" id="Node000011" href="$propfind__walk_8c.html" title=" " alt="" coords="1579,93,1739,133"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1061,31,1291,54,1567,91,1579,93,1578,98,1566,96,1290,60,1061,37"/>
+<area shape="rect" id="Node000012" href="$search_8c.html" title=" " alt="" coords="1763,93,1923,133"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="1061,28,1367,49,1559,67,1751,91,1763,93,1762,98,1750,96,1558,72,1367,54,1061,34"/>
+</map>

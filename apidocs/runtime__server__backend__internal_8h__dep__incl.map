@@ -1,0 +1,13 @@
+<map id="src/core/config/runtime_server_backend_internal.h" name="src/core/config/runtime_server_backend_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="388,5,588,45"/>
+<area shape="rect" id="Node000002" href="$runtime__server_8c.html" title=" " alt="" coords="5,93,176,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="388,51,177,96,176,91,387,46"/>
+<area shape="rect" id="Node000003" href="$runtime__server__backend_8c.html" title=" " alt="" coords="200,93,371,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="432,53,331,96,329,91,430,48"/>
+<area shape="rect" id="Node000004" href="$runtime__server__backend__cache_8c.html" title=" " alt="" coords="395,93,581,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="491,59,491,93,485,93,485,59"/>
+<area shape="rect" id="Node000005" href="$runtime__server__backend__stage_8c.html" title=" " alt="" coords="606,93,791,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="548,48,654,91,652,96,546,53"/>
+<area shape="rect" id="Node000006" href="$runtime__server__tls_8c.html" title=" " alt="" coords="816,93,987,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="592,45,816,92,815,97,591,51"/>
+</map>

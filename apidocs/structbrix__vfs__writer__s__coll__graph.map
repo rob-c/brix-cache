@@ -1,0 +1,7 @@
+<map id="brix_vfs_writer_t" name="brix_vfs_writer_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="14,181,145,207"/>
+<area shape="rect" id="Node000002" href="$structbrix__vfs__spill__t.html" title=" " alt="" coords="19,93,139,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="82,133,82,181,77,181,77,133"/>
+<area shape="rect" id="Node000003" href="$structbrix__vfs__spill__ext__t.html" title=" " alt="" coords="5,5,153,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="82,45,82,93,77,93,77,45"/>
+</map>

@@ -1,0 +1,26 @@
+var structing__img__ctx__t =
+[
+    [ "desc", "structing__img__ctx__t.html#a17dbeb0fb90b51afa010bd82536fa95b", null ],
+    [ "diffids", "structing__img__ctx__t.html#a5870654f69493cddaffacb171fa77903", null ],
+    [ "dig", "structing__img__ctx__t.html#a7a9234344544b7666aeb4295cbda2586", null ],
+    [ "flat_path", "structing__img__ctx__t.html#af8672ba9d7ad5a2d72ddc943fc68ce88", null ],
+    [ "hex", "structing__img__ctx__t.html#a0debcb8ea11e99a1ab99d4247b9ba31f", null ],
+    [ "layers", "structing__img__ctx__t.html#af6f695a372da5bf5660dee29153dd553", null ],
+    [ "layers_path", "structing__img__ctx__t.html#a5103cf490dd942893033d26c695fc94e", null ],
+    [ "memo_path", "structing__img__ctx__t.html#ada07b59aff23ffd0739b2a0ee8d58774", null ],
+    [ "name", "structing__img__ctx__t.html#a72880e3fa9f3a3f519ec94fe0d0ed9cc", null ],
+    [ "ndiffids", "structing__img__ctx__t.html#a9d9eff73e405b7348b8ec55a79848feb", null ],
+    [ "nlayers", "structing__img__ctx__t.html#afe437b75ff5b1a2b0dbbff512936c93b", null ],
+    [ "o", "structing__img__ctx__t.html#ac8c1d9f9c7faedd057bd6d31afb5939a", null ],
+    [ "old_digest", "structing__img__ctx__t.html#a405ea2b5013e28e65624d05dee536af4", null ],
+    [ "pruned_old", "structing__img__ctx__t.html#a9cbfad385bffecef292dc4368c7740fd", null ],
+    [ "ref", "structing__img__ctx__t.html#af09f133179380576160cbabc2d77a0c1", null ],
+    [ "reg", "structing__img__ctx__t.html#a2149279d80bf8a6ac251fe6378cd75c3", null ],
+    [ "root_abs", "structing__img__ctx__t.html#adfd5c0a3cea468b5225c04cda4075c89", null ],
+    [ "root_path", "structing__img__ctx__t.html#a93f9ef18ddaf2dac177f692e674dbc53", null ],
+    [ "root_rel", "structing__img__ctx__t.html#aa5ebf5e6d3d0b8147c1c142d3a613e45", null ],
+    [ "scratch", "structing__img__ctx__t.html#a214a96e0e4a1af83d1f9eaf340e644c2", null ],
+    [ "st", "structing__img__ctx__t.html#affa3e3faa99198cc889085d24baa1a5b", null ],
+    [ "tagrel", "structing__img__ctx__t.html#adddc21530cf93ddc1a7c5de877eb0ddc", null ],
+    [ "upper", "structing__img__ctx__t.html#a4d04c6057e2d34436142c4df25ed597e", null ]
+];

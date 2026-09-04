@@ -1,0 +1,23 @@
+<map id="remote_tree_ctx" name="remote_tree_ctx">
+<area shape="rect" id="Node000001" title=" " alt="" coords="181,445,310,471"/>
+<area shape="rect" id="Node000002" href="$structbrix__conn.html" title=" " alt="" coords="203,357,288,383"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="248,397,248,445,243,445,243,397"/>
+<area shape="rect" id="Node000003" href="$structbrix__io.html" title=" " alt="" coords="113,269,180,295"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="172,302,233,355,230,359,169,306"/>
+<area shape="rect" id="Node000004" href="$structbrix__opts.html" title=" " alt="" coords="204,269,287,295"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="248,309,248,357,243,357,243,309"/>
+<area shape="rect" id="Node000005" href="$structbrix__cred__store.html" title=" " alt="" coords="165,181,288,207"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="235,219,245,268,240,269,229,221"/>
+<area shape="rect" id="Node000006" href="$structbrix__cred__config.html" title=" " alt="" coords="5,93,133,119"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="104,123,207,179,204,183,101,128"/>
+<area shape="rect" id="Node000007" href="$structbrix__cred__handler.html" title=" " alt="" coords="157,93,296,119"/>
+<area shape="poly" id="edge6_Node000005_Node000007" title=" " alt="" coords="229,133,229,181,224,181,224,133"/>
+<area shape="rect" id="Node000008" href="$structcred__slot.html" title=" " alt="" coords="321,93,402,119"/>
+<area shape="poly" id="edge7_Node000005_Node000008" title=" " alt="" coords="338,129,295,160,252,183,249,179,292,155,335,125"/>
+<area shape="rect" id="Node000009" href="$structbrix__cred__view.html" title=" " alt="" coords="301,5,421,31"/>
+<area shape="poly" id="edge8_Node000008_Node000009" title=" " alt="" coords="364,45,364,93,359,93,359,45"/>
+<area shape="rect" id="Node000010" href="$structbrix__diag.html" title=" " alt="" coords="315,269,397,295"/>
+<area shape="poly" id="edge9_Node000002_Node000010" title=" " alt="" coords="332,305,262,359,259,355,328,301"/>
+<area shape="rect" id="Node000011" href="$structbrix__capture.html" title=" " alt="" coords="313,181,415,207"/>
+<area shape="poly" id="edge10_Node000010_Node000011" title=" " alt="" coords="364,221,360,269,354,269,359,220"/>
+</map>

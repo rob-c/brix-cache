@@ -1,0 +1,9 @@
+<map id="client/apps/ceph/ngx_shim.h" name="client/apps/ceph/ngx_shim.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="234,5,390,45"/>
+<area shape="rect" id="Node000002" href="$xrdceph__migrate_8c.html" title=" " alt="" coords="5,93,189,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="253,53,145,96,143,91,251,48"/>
+<area shape="rect" id="Node000003" href="$xrdcephfs__rescue_8c.html" title=" " alt="" coords="214,93,410,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="315,59,315,93,309,93,309,59"/>
+<area shape="rect" id="Node000004" href="$xrdrados__rescue_8c.html" title=" " alt="" coords="435,93,624,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="373,48,483,91,481,96,372,53"/>
+</map>

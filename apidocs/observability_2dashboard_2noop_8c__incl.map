@@ -1,0 +1,19 @@
+<map id="src/observability/dashboard/noop.c" name="src/observability/dashboard/noop.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="173,5,375,45"/>
+<area shape="rect" id="Node000002" href="$dashboard_8h.html" title=" " alt="" coords="164,167,267,192"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="266,47,243,94,224,154,219,152,238,92,261,44"/>
+<area shape="rect" id="Node000006" href="$dashboard__tracking_8h.html" title=" " alt="" coords="253,93,415,119"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="291,44,319,81,315,84,286,47"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,240,76,265"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="188,194,83,237,81,232,186,190"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="291,240,385,265"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="236,190,308,231,305,235,234,194"/>
+<area shape="rect" id="Node000005" href="$proto__list_8h.html" title=" " alt="" coords="100,240,267,265"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="212,193,196,229,192,227,208,191"/>
+<area shape="poly" id="edge9_Node000006_Node000002" title=" " alt="" coords="316,121,248,162,245,157,314,116"/>
+<area shape="poly" id="edge7_Node000006_Node000004" title=" " alt="" coords="337,119,340,226,335,226,332,119"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="357,167,461,192"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="348,117,388,155,385,159,344,121"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="485,167,575,192"/>
+<area shape="poly" id="edge8_Node000006_Node000008" title=" " alt="" coords="366,116,486,159,484,164,365,121"/>
+</map>

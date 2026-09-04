@@ -1,0 +1,26 @@
+var admin__socket_8c =
+[
+    [ "brix_admin_conn_t", "structbrix__admin__conn__t.html", "structbrix__admin__conn__t" ],
+    [ "admin_list_state_t", "structadmin__list__state__t.html", "structadmin__list__state__t" ],
+    [ "BRIX_ADMIN_REPLY_MAX", "admin__socket_8c.html#a548cefe5d957d3c345368e9c683110cf", null ],
+    [ "admin_accept_handler", "admin__socket_8c.html#a1b797216dccdbe48fa401a7241ab82e6", null ],
+    [ "admin_close", "admin__socket_8c.html#a6ed7bef42bd29fd6689e1ffd6860ea29", null ],
+    [ "admin_cmd_abort", "admin__socket_8c.html#a0f5dd8032a73bad5b1335a3a63af5cf2", null ],
+    [ "admin_cmd_cont", "admin__socket_8c.html#a47f03d7bc61371c02e65945765f962f6", null ],
+    [ "admin_cmd_disc", "admin__socket_8c.html#a13c7e58da5ffa4ef66f5f53556f7e359", null ],
+    [ "admin_cmd_list", "admin__socket_8c.html#a61468179d58f59b6d8f40e77dc03ef49", null ],
+    [ "admin_cmd_msg", "admin__socket_8c.html#aa0ffa5d51cd20a53a14ee3773db80455", null ],
+    [ "admin_cmd_pause", "admin__socket_8c.html#a0fb8fc7c9bed6fdbf1c32334c7f4796f", null ],
+    [ "admin_dispatch", "admin__socket_8c.html#ab006709a7b45e9ad3d754aa5ce34db06", null ],
+    [ "admin_list_cb", "admin__socket_8c.html#a71e4b7e328bf342ff9853a831f6024f1", null ],
+    [ "admin_parse_sessid", "admin__socket_8c.html#a731a2a5ea0ae39e3f813cbdb4548afad", null ],
+    [ "admin_pause_timeout", "admin__socket_8c.html#ac221cf7181575607b264dc9487b32db2", null ],
+    [ "admin_read_handler", "admin__socket_8c.html#af03cb487752c0cc872490e2e232c2617", null ],
+    [ "admin_reply", "admin__socket_8c.html#a4265858b262303fc0d0a6c4531facf40", null ],
+    [ "admin_resolve_ctx", "admin__socket_8c.html#a4334f3381cec0885106381ae116196ec", null ],
+    [ "admin_strip_eol", "admin__socket_8c.html#af640657b6ca70a4a24bd7e0031a9d8b9", null ],
+    [ "admin_write_handler", "admin__socket_8c.html#a010a11e1bef8840cd5412d360697bf70", null ],
+    [ "brix_admin_socket_init", "admin__socket_8c.html#a14d1f3f66eccb36d8d91ded9368fae76", null ],
+    [ "brix_conf_set_admin_socket", "admin__socket_8c.html#a062f1e959082f90199ceec52a1526530", null ],
+    [ "s_admin_path", "admin__socket_8c.html#a3bb43dd564e13160570a444492bc44d3", null ]
+];

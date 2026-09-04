@@ -1,0 +1,9 @@
+<map id="brix_ssi_session_t" name="brix_ssi_session_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="52,181,192,207"/>
+<area shape="rect" id="Node000002" href="$structbrix__ssi__provider__t.html" title=" " alt="" coords="5,93,151,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="93,130,118,180,114,182,88,132"/>
+<area shape="rect" id="Node000003" href="$structbrix__ssi__req__t.html" title=" " alt="" coords="175,93,287,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="207,129,169,159,138,183,135,179,166,155,204,125"/>
+<area shape="rect" id="Node000004" href="$structbrix__ssi__respbuf__t.html" title=" " alt="" coords="161,5,301,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="234,45,234,93,229,93,229,45"/>
+</map>

@@ -1,0 +1,28 @@
+var structbrix__cache__policy__t =
+[
+    [ "allow_prefixes", "structbrix__cache__policy__t.html#a6da071cab95021f06723851de1a7160f", null ],
+    [ "batch_cinfo", "structbrix__cache__policy__t.html#a9ccbde18641b2b2ee9625072394cd21f", null ],
+    [ "cvmfs_manifest_ttl", "structbrix__cache__policy__t.html#aedb91dbb51523159b1d3a1defec35b04", null ],
+    [ "cvmfs_master_pub", "structbrix__cache__policy__t.html#aef7b8bea99954f1057eb0b5d1ae84786", null ],
+    [ "cvmfs_master_pub_len", "structbrix__cache__policy__t.html#a964d12e6ded408a95266475ca98d6516", null ],
+    [ "cvmfs_offline_ttl", "structbrix__cache__policy__t.html#a44ace4b208423e3e6ff146e2d213f185", null ],
+    [ "deny_prefixes", "structbrix__cache__policy__t.html#a90ddc5023e1cd9dcd0b885655638089f", null ],
+    [ "dirty_max_age", "structbrix__cache__policy__t.html#a9894b3065df228fee31e587674444fc2", null ],
+    [ "enabled", "structbrix__cache__policy__t.html#af4a6a64948176e4831273df5c1597ff0", null ],
+    [ "evict_at", "structbrix__cache__policy__t.html#aef99e600c16ab935df39e959db995e10", null ],
+    [ "evict_to", "structbrix__cache__policy__t.html#ab7b83c686ee29d5d973c2800b62bba18", null ],
+    [ "global_cas", "structbrix__cache__policy__t.html#a490a7e6152288881aa90374b3d23b07e", null ],
+    [ "include_regex", "structbrix__cache__policy__t.html#aba1f2cba0d755dcbde19573169cb229a", null ],
+    [ "l1_entries", "structbrix__cache__policy__t.html#a363233f1c63d228a3061d444b0efcf3a", null ],
+    [ "max_file_size", "structbrix__cache__policy__t.html#a17fc8b824eccb09130135c1883167d5c", null ],
+    [ "meta_mode", "structbrix__cache__policy__t.html#ad28e031d44175afffa100dae3d903da7", null ],
+    [ "only_if_cached", "structbrix__cache__policy__t.html#aa6e3b74527a92b7afdd7939ec5d8f8c2", null ],
+    [ "passthrough", "structbrix__cache__policy__t.html#a0d372ec46db106d8c3f32f4f302d1c63", null ],
+    [ "passthrough_max", "structbrix__cache__policy__t.html#acf88e682aea94344febd461af8e16950", null ],
+    [ "prefetch_jobs", "structbrix__cache__policy__t.html#ad5fa931b8aa9f10c721a8287de5931e9", null ],
+    [ "prefetch_window", "structbrix__cache__policy__t.html#abfd0f80ffcb2797199de01b706a7a879", null ],
+    [ "quarantine_dir", "structbrix__cache__policy__t.html#ad50a1d4690ea901644f91cb0cea0b05f", null ],
+    [ "slice_size", "structbrix__cache__policy__t.html#ada167c850be4f40e5db0b2906acbb916", null ],
+    [ "uvkeep", "structbrix__cache__policy__t.html#aeec9e92a8e3e2dce34f4d6fe35efee9d", null ],
+    [ "verify", "structbrix__cache__policy__t.html#a6805ad6c1f0108323ed0789ab6397096", null ]
+];

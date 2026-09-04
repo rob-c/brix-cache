@@ -1,0 +1,7 @@
+<map id="src/protocols/rpm/rpm_repomd.h" name="src/protocols/rpm/rpm_repomd.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="100,5,265,45"/>
+<area shape="rect" id="Node000002" href="$rpm__prefetch_8c.html" title=" " alt="" coords="5,93,171,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="153,57,111,95,107,91,150,53"/>
+<area shape="rect" id="Node000003" href="$rpm__repomd_8c.html" title=" " alt="" coords="195,93,360,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="216,53,258,91,255,95,212,57"/>
+</map>

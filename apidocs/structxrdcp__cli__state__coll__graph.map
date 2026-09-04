@@ -1,0 +1,24 @@
+<map id="xrdcp_cli_state" name="xrdcp_cli_state">
+<area shape="rect" id="Node000001" title=" " alt="" coords="255,504,375,529"/>
+<area shape="rect" id="Node000002" href="$structxrdcp__opts__t.html" title=" " alt="" coords="198,416,303,441"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="270,451,308,502,304,505,265,454"/>
+<area shape="rect" id="Node000003" href="$structbrix__copy__opts.html" title=" " alt="" coords="37,269,157,295"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="107,307,125,350,138,371,155,390,176,404,199,414,197,418,173,409,152,394,134,374,120,352,102,309"/>
+<area shape="rect" id="Node000004" href="$structbrix__opts.html" title=" " alt="" coords="303,269,385,295"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="331,308,260,417,256,414,327,305"/>
+<area shape="rect" id="Node000005" href="$structbrix__cred__store.html" title=" " alt="" coords="165,181,288,207"/>
+<area shape="poly" id="edge9_Node000002_Node000005" title=" " alt="" coords="225,220,220,269,220,294,234,363,249,415,244,417,229,364,215,295,215,269,220,220"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="255,213,330,267,326,271,252,217"/>
+<area shape="rect" id="Node000006" href="$structbrix__cred__config.html" title=" " alt="" coords="5,93,133,119"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="104,123,207,179,204,183,101,128"/>
+<area shape="rect" id="Node000007" href="$structbrix__cred__handler.html" title=" " alt="" coords="157,93,296,119"/>
+<area shape="poly" id="edge6_Node000005_Node000007" title=" " alt="" coords="229,133,229,181,224,181,224,133"/>
+<area shape="rect" id="Node000008" href="$structcred__slot.html" title=" " alt="" coords="321,93,402,119"/>
+<area shape="poly" id="edge7_Node000005_Node000008" title=" " alt="" coords="338,129,295,160,252,183,249,179,292,155,335,125"/>
+<area shape="rect" id="Node000009" href="$structbrix__cred__view.html" title=" " alt="" coords="301,5,421,31"/>
+<area shape="poly" id="edge8_Node000008_Node000009" title=" " alt="" coords="364,45,364,93,359,93,359,45"/>
+<area shape="rect" id="Node000010" href="$structxrdcp__lists__t.html" title=" " alt="" coords="368,416,472,441"/>
+<area shape="poly" id="edge10_Node000001_Node000010" title=" " alt="" coords="397,452,331,506,327,502,394,448"/>
+<area shape="rect" id="Node000011" href="$structxrdcp__strlist.html" title=" " alt="" coords="410,269,513,295"/>
+<area shape="poly" id="edge11_Node000010_Node000011" title=" " alt="" coords="457,309,426,417,421,415,452,308"/>
+</map>

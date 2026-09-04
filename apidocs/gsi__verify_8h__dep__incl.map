@@ -1,0 +1,21 @@
+<map id="src/auth/crypto/gsi_verify.h" name="src/auth/crypto/gsi_verify.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="711,5,853,45"/>
+<area shape="rect" id="Node000002" href="$gsi__verify_8c.html" title=" " alt="" coords="5,93,148,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="697,35,455,57,308,75,161,96,149,98,148,93,160,91,308,69,455,52,697,30"/>
+<area shape="rect" id="Node000003" href="$src_2auth_2gsi_2auth_8c.html" title=" " alt="" coords="173,101,314,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="697,40,526,63,326,96,291,103,290,98,326,91,525,58,697,34"/>
+<area shape="rect" id="Node000004" href="$auth_2gsi_2auth__cert_8c.html" title=" " alt="" coords="338,101,511,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="698,49,473,103,472,98,697,44"/>
+<area shape="rect" id="Node000005" href="$gsi__mech_8c.html" title=" " alt="" coords="536,93,679,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="733,54,647,96,644,91,730,49"/>
+<area shape="rect" id="Node000006" href="$vfs__deleg_8c.html" title=" " alt="" coords="703,101,861,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="785,59,785,100,779,100,779,59"/>
+<area shape="rect" id="Node000007" href="$vfs__deleg__x509_8c.html" title=" " alt="" coords="885,93,1033,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="834,49,922,91,919,96,832,54"/>
+<area shape="rect" id="Node000008" href="$ftp__dc__sec_8c.html" title=" " alt="" coords="1057,93,1208,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="867,45,1058,91,1057,96,866,50"/>
+<area shape="rect" id="Node000009" href="$protocols_2webdav_2auth__cert_8c.html" title=" " alt="" coords="1233,93,1393,133"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="868,36,1221,91,1233,93,1232,98,1220,96,867,41"/>
+<area shape="rect" id="Node000010" href="$protocols_2webdav_2delegation_8c.html" title=" " alt="" coords="1417,93,1577,133"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="867,31,1110,53,1405,91,1417,93,1416,98,1404,96,1109,59,867,36"/>
+</map>

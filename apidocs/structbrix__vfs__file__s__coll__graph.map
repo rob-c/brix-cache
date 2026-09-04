@@ -1,0 +1,9 @@
+<map id="brix_vfs_file_t" name="brix_vfs_file_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="68,181,181,207"/>
+<area shape="rect" id="Node000002" href="$structbrix__vfs__authz__t.html" title=" " alt="" coords="5,93,135,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="87,129,119,179,115,182,82,132"/>
+<area shape="rect" id="Node000003" href="$structbrix__identity__t.html" title=" " alt="" coords="159,93,275,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="196,130,139,183,136,179,192,126"/>
+<area shape="rect" id="Node000004" href="$structbrix__token__scope__t.html" title=" " alt="" coords="143,5,290,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="219,45,219,93,214,93,214,45"/>
+</map>

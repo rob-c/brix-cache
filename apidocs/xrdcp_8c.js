@@ -1,0 +1,23 @@
+var xrdcp_8c =
+[
+    [ "alias_name_of", "xrdcp_8c.html#aadac06fc38a9bae6c52509f60e6714b0", null ],
+    [ "build_and_preflight_credentials", "xrdcp_8c.html#a52a6bb8fff734a721bbb417c3b9d159f", null ],
+    [ "dest_is_dir", "xrdcp_8c.html#af88aafdedf1d8e6cdacdfc9a627e67aa", null ],
+    [ "fold_alias_creds", "xrdcp_8c.html#adc4b5ab13d7d2c0d798a079560f30ff8", null ],
+    [ "is_local_dir", "xrdcp_8c.html#a77fb96327672bc58e139dc2055044209", null ],
+    [ "is_root_url", "xrdcp_8c.html#ae4840a5b96c28061ec860d3bc0239d1b", null ],
+    [ "is_s3_url", "xrdcp_8c.html#a128749536e1d8e11e77e16b059a23972", null ],
+    [ "join_dest", "xrdcp_8c.html#a670d99d2c2a1717b80e861e140d587c9", null ],
+    [ "main", "xrdcp_8c.html#a3c04138a5bfe5d72780bb7e82a18e627", null ],
+    [ "manifest_trim", "xrdcp_8c.html#ac237ba7221708d31d40f71f38eef0394", null ],
+    [ "merge_alias_auth", "xrdcp_8c.html#a541b0b3c50aee7d62637692c6c39b193", null ],
+    [ "path_basename", "xrdcp_8c.html#a8ee4d141e95a8775ca64d32a6400457b", null ],
+    [ "read_manifest", "xrdcp_8c.html#a35b4257c277c36c9c1cb12190674af81", null ],
+    [ "str_append", "xrdcp_8c.html#af090b82aff6106aacc9b77cb0d9bfc41", null ],
+    [ "str_free", "xrdcp_8c.html#a24c06f82fc52ea926ddb2359340e527a", null ],
+    [ "usage", "xrdcp_8c.html#a364112f4dc61f0649eec6b78e586509d", null ],
+    [ "usage_fp", "xrdcp_8c.html#ad161a36ec0e0fb6778f1919bd4ac6b77", null ],
+    [ "uses_cred_auth", "xrdcp_8c.html#a22e0ecabe3ebf781f8fa10be6d3dba88", null ],
+    [ "xrdcp_lists_free", "xrdcp_8c.html#a695941b89d901c6719966b055ccfa3f0", null ],
+    [ "xrdcp_progress", "xrdcp_8c.html#a46a4f3e698e4473355104bf5fd1da8e1", null ]
+];

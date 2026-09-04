@@ -1,0 +1,16 @@
+<map id="src/protocols/root/relay/relay_guard.h" name="src/protocols/root/relay/relay_guard.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="173,5,325,45"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,93,109,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="204,48,99,91,97,86,202,43"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="133,93,227,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="235,47,202,84,198,81,231,44"/>
+<area shape="rect" id="Node000004" href="$tap_8h.html" title=" " alt="" coords="413,93,518,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="302,43,422,86,420,91,300,48"/>
+<area shape="rect" id="Node000007" href="$guard_8h.html" title=" " alt="" coords="251,93,389,119"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="268,44,302,81,298,85,264,47"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="307,167,381,192"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="447,121,377,162,374,157,444,116"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="430,167,501,192"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="468,119,468,153,463,153,463,119"/>
+<area shape="poly" id="edge7_Node000007_Node000005" title=" " alt="" coords="326,118,338,153,333,154,321,120"/>
+</map>

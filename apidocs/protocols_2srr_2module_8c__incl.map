@@ -1,0 +1,21 @@
+<map id="src/protocols/srr/module.c" name="src/protocols/srr/module.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="209,5,399,31"/>
+<area shape="rect" id="Node000002" href="$srr_8h.html" title=" " alt="" coords="25,79,76,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="262,33,90,81,89,76,261,28"/>
+<area shape="rect" id="Node000006" href="$alloc__guard_8h.html" title=" " alt="" coords="316,79,511,104"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="323,28,385,69,382,73,320,33"/>
+<area shape="rect" id="Node000007" href="$conf__handler_8h.html" title=" " alt="" coords="100,79,292,104"/>
+<area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="288,33,227,73,224,69,285,28"/>
+<area shape="rect" id="Node000008" href="$ident_8h.html" title=" " alt="" coords="535,79,633,104"/>
+<area shape="poly" id="edge11_Node000001_Node000008" title=" " alt="" coords="350,28,526,73,525,78,348,33"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="120,152,224,177"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="72,102,142,143,139,147,69,106"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="248,152,341,177"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="77,98,89,101,242,146,241,151,87,107,76,103"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="5,152,96,177"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="53,104,53,138,48,138,48,104"/>
+<area shape="poly" id="edge6_Node000006_Node000004" title=" " alt="" coords="396,106,327,147,325,142,393,102"/>
+<area shape="poly" id="edge8_Node000007_Node000003" title=" " alt="" coords="195,105,183,140,178,138,190,103"/>
+<area shape="poly" id="edge9_Node000007_Node000004" title=" " alt="" coords="213,102,269,142,266,146,210,106"/>
+<area shape="poly" id="edge10_Node000007_Node000005" title=" " alt="" coords="174,106,88,148,85,144,171,102"/>
+</map>

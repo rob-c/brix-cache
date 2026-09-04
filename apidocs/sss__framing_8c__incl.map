@@ -1,0 +1,14 @@
+<map id="src/auth/sss/sss_framing.c" name="src/auth/sss/sss_framing.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="12,5,205,31"/>
+<area shape="rect" id="Node000002" href="$sss__framing_8h.html" title=" " alt="" coords="8,167,121,192"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="74,33,40,52,25,64,14,80,8,98,14,118,25,138,41,155,37,159,21,141,9,120,3,98,9,77,21,61,37,47,72,28"/>
+<area shape="rect" id="Node000004" href="$sss_8h.html" title=" " alt="" coords="24,79,193,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="111,31,111,65,106,65,106,31"/>
+<area shape="rect" id="Node000005" href="$tunables_8h.html" title=" " alt="" coords="218,86,381,111"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="137,28,260,78,258,83,135,33"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="105,240,179,265"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="79,190,121,229,117,232,75,194"/>
+<area shape="rect" id="Node000006" href="$core_2compat_2path_8h.html" title=" " alt="" coords="185,167,333,192"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="296,113,274,156,269,153,291,110"/>
+<area shape="poly" id="edge6_Node000006_Node000003" title=" " alt="" coords="242,194,174,235,172,230,239,190"/>
+</map>

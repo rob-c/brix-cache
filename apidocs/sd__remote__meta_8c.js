@@ -1,0 +1,25 @@
+var sd__remote__meta_8c =
+[
+    [ "SD_REMOTE_MARKER_PART", "sd__remote__meta_8c.html#ad62d96e37f2215faaf5ada1b0ac35748", null ],
+    [ "sd_remote_copy_then_delete", "sd__remote__meta_8c.html#ade0330bbad1bf1a2937fd32a85e1949e", null ],
+    [ "sd_remote_getxattr", "sd__remote__meta_8c.html#a2fd1edfc86c105385144872d9b7c62fa", null ],
+    [ "sd_remote_getxattr_cred", "sd__remote__meta_8c.html#a7eda5267904fa1218fe922ca65bf4d62", null ],
+    [ "sd_remote_getxattr_impl", "sd__remote__meta_8c.html#a37cd4a0ec94e3d6eadf152be4573b5f2", null ],
+    [ "sd_remote_head_exists", "sd__remote__meta_8c.html#a6b43f734c6401ca9e95e33941539ca00", null ],
+    [ "sd_remote_listxattr", "sd__remote__meta_8c.html#ace58e570c2ed2c373a9b164387396001", null ],
+    [ "sd_remote_listxattr_cred", "sd__remote__meta_8c.html#a3153bdeffa59e01490b461676d651561", null ],
+    [ "sd_remote_listxattr_impl", "sd__remote__meta_8c.html#adc9654556b5dc44fd26955cb93029f66", null ],
+    [ "sd_remote_meta_open", "sd__remote__meta_8c.html#a4340031c64b014099d4e3f88eba1a535", null ],
+    [ "sd_remote_mkdir", "sd__remote__meta_8c.html#ab90298c7ee7c1050007ce3ead536e1fb", null ],
+    [ "sd_remote_mkdir_cred", "sd__remote__meta_8c.html#a3a64e1912dc1ec08c82fd713c54a1d1e", null ],
+    [ "sd_remote_mkdir_impl", "sd__remote__meta_8c.html#a50ef5f8570ba5c0573241275597a2391", null ],
+    [ "sd_remote_params_cred", "sd__remote__meta_8c.html#a8efd5276014d4b14c8ea2a05d80ec5ed", null ],
+    [ "sd_remote_prefix_has_child", "sd__remote__meta_8c.html#aa08f6125fdf70faff49cb7dd9ca97fac", null ],
+    [ "sd_remote_rename", "sd__remote__meta_8c.html#ac293fd92cb8ea51021142c084f05d6c4", null ],
+    [ "sd_remote_rename_child_cb", "sd__remote__meta_8c.html#a47c7604da2906082cb8fcec03cea11fa", null ],
+    [ "sd_remote_rename_cred", "sd__remote__meta_8c.html#abb8004e5047228fd585d68a4e9483770", null ],
+    [ "sd_remote_rename_impl", "sd__remote__meta_8c.html#ae97ef8fd42a06ee751f328d4b697fdb8", null ],
+    [ "sd_remote_stat", "sd__remote__meta_8c.html#afe34861d8bdf37ddce070a0f25dd5cfb", null ],
+    [ "sd_remote_stat_cred", "sd__remote__meta_8c.html#ac17ce09c2335b8dad889cce1eae8225e", null ],
+    [ "sd_remote_stat_impl", "sd__remote__meta_8c.html#a4418d69aacf6e97a2532563600ff8d02", null ]
+];

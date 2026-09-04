@@ -1,0 +1,15 @@
+<map id="src/protocols/root/protocol/codec/wire_codec_ns.c" name="src/protocols/root/protocol/codec/wire_codec_ns.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="94,5,247,60"/>
+<area shape="rect" id="Node000002" href="$wire__codec_8h.html" title=" " alt="" coords="117,108,224,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="173,60,173,94,168,94,168,60"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="5,181,80,207"/>
+<area shape="poly" id="edge6_Node000001_Node000004" title=" " alt="" coords="149,62,107,110,61,171,57,168,103,106,144,58"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="321,181,391,207"/>
+<area shape="poly" id="edge7_Node000001_Node000005" title=" " alt="" coords="203,58,334,170,331,174,200,62"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="105,181,175,207"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="168,135,153,170,148,168,163,133"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="151,136,77,177,75,172,149,131"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="201,131,314,174,312,179,199,136"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="200,181,296,207"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="185,131,227,170,223,174,181,135"/>
+</map>

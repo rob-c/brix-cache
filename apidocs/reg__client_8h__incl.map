@@ -1,0 +1,10 @@
+<map id="client/lib/oci/reg_client.h" name="client/lib/oci/reg_client.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="17,5,143,45"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,167,80,192"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="78,46,51,154,46,152,73,45"/>
+<area shape="rect" id="Node000003" href="$ref_8h.html" title=" " alt="" coords="80,93,155,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="91,44,108,80,104,82,87,47"/>
+<area shape="poly" id="edge3_Node000003_Node000002" title=" " alt="" coords="107,121,67,159,63,155,104,117"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="105,167,202,192"/>
+<area shape="poly" id="edge4_Node000003_Node000004" title=" " alt="" coords="126,118,144,153,139,156,121,120"/>
+</map>
