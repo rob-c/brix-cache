@@ -400,6 +400,32 @@ def pblock_lab_spec(name: str, tail: str, *,
     )
 
 
+def pblock_lab_start(lifecycle, name: str, tail: str, **kwargs):
+    """Start a pblock lab export on a VIRGIN store.
+
+    The registry lays a lifecycle instance's export at ``TEST_ROOT/data-<name>``
+    and nothing wipes it between runs, so a lab's whole simulated state — the
+    objects, the ``ctl`` gate rows and the driver's ``recent`` event table —
+    survives into the next run.  Two labs are provably not idempotent without
+    this:
+
+      * the anomaly lab is about a FRESH create; with ``/f.bin`` already an
+        object and its ``recent`` row carrying the previous run's created_ms,
+        the next PUT is an overwrite whose visibility window expired long ago,
+        so the reader sees it at once and the gate looks dead.
+      * the crash lab LATCHES: a run that dies before its disarm line leaves
+        ``crash.at`` armed, so the next run's clean-baseline transfer is the
+        one that crashes — before reaching the disarm — and no later run can
+        ever recover on its own.
+
+    Each export belongs to the one test that starts it, so clearing it touches
+    nothing shared.  Use this instead of ``lifecycle.start(pblock_lab_spec(...))``
+    wherever a lab's premise is a known-clean store.
+    """
+    shutil.rmtree(os.path.join(TEST_ROOT, f"data-{name}"), ignore_errors=True)
+    return lifecycle.start(pblock_lab_spec(name, tail, **kwargs))
+
+
 def pblock_worker_own(catalog: Path) -> None:
     """Hand a test-written catalog.db (and its WAL/SHM sidecars) to the pblock
     worker's account so the worker can open it read-write.

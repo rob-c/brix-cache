@@ -30,11 +30,13 @@ Run:
 import os
 import socket
 import struct
+import time
 
 import pytest
 
 from settings import (
     HOST,
+    TEST_ROOT,
     TPC_SRC_GUARD_PORT,
     TPC_SSRF_DEFAULT_PORT,
 )
@@ -158,6 +160,25 @@ def _open_leg(port, src_url, dst_filename):
     assert _login(sock) == kXR_OK, "login failed"
     status, body = _open_tpc_pull(sock, dst_filename, src_url)
     return sock, status, body
+
+
+# The fleet lays each registry server's export at TEST_ROOT/data-<name>
+# (brix_suite/registry.py:289).  The success-path open below CREATES its
+# destination there and nothing else reaps it.
+GUARD_EXPORT = os.path.join(TEST_ROOT, "data-tpc-source-guard")
+
+
+def _fresh_dst(stem):
+    """A destination name no earlier run can have taken."""
+    return "/%s.%d.%d.dat" % (stem, os.getpid(), time.monotonic_ns())
+
+
+def _unlink_dst(dst):
+    """Drop a destination this module created; absent is fine."""
+    try:
+        os.unlink(os.path.join(GUARD_EXPORT, dst.lstrip("/")))
+    except OSError:
+        pass
 
 
 def _tpc_attempt(port, src_url, dst_filename="/tpc_guard_dst.dat"):
@@ -344,11 +365,17 @@ class TestRefusalStopsTheRequest:
         # kXR_sync, so the accepted open is also the server's last word here —
         # which is what makes the two assertions above a difference in kind and
         # not just a difference in timing.
-        sock, status, _body = _open_leg(guard_on["port"],
-                                        "root://10.255.255.1//test.txt",
-                                        "/tpc_guard_permitted.dat")
+        # The open carries kXR_new, so it CREATES its destination.  With a
+        # FIXED name this case passed only against a virgin fleet: the file the
+        # first run left behind answered every later run with kXR_error "File
+        # exists", so the accepted open under test never happened.  A unique
+        # destination, removed again below, makes the case idempotent.
+        dst = _fresh_dst("tpc_guard_permitted")
+        sock, status, body = _open_leg(guard_on["port"],
+                                       "root://10.255.255.1//test.txt", dst)
         try:
-            assert status == kXR_OK, "allowlisted source must open: %d" % status
+            assert status == kXR_OK, "allowlisted source must open: %d (%s)" % (
+                status, body[4:].rstrip(b"\x00").decode("utf-8", "replace"))
             extra = _drain_extra_frame(sock)
             assert extra is None, (
                 "accepted open answered twice: status=%d body=%r"
@@ -356,3 +383,4 @@ class TestRefusalStopsTheRequest:
             )
         finally:
             sock.close()
+            _unlink_dst(dst)

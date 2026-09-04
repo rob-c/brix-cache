@@ -644,6 +644,25 @@ def test_an_untrusted_chain_cannot_obtain_a_macaroon(macvoms, pki):
         "refusal above was a rule, not the chain check")
 
 
+def _auth_log_tail(endpoint, keep=12):
+    """The instance's recent macaroon/WebDAV auth decisions.
+
+    nginx answers a rejected token with its stock 401 page, which names no
+    reason at all — so an assertion that prints only the body and the code
+    leaves nothing to diagnose.  Every verdict IS logged (`brix_macaroon:
+    valid ...` / `brix_webdav: token auth OK` / the refusal), so hand those
+    over instead.
+    """
+    path = os.path.join(os.path.dirname(endpoint.pidfile), "error.log")
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            decisions = [ln for ln in fh
+                         if "brix_macaroon" in ln or "brix_webdav" in ln]
+    except OSError as exc:
+        return f"(no error.log to read: {exc})"
+    return "".join(decisions[-keep:]) or "(the server logged no auth decision)"
+
+
 def test_a_download_only_macaroon_cannot_upload(macvoms, pki, tmp_path):
     """security-negative: the activity caveats bind.  Both PUTs are made on the
     face with no authdb and `brix_allow_write on`, so the only thing that can
@@ -666,4 +685,5 @@ def test_a_download_only_macaroon_cannot_upload(macvoms, pki, tmp_path):
                            token=writer, upload=str(payload))
     assert allowed in ("200", "201", "204"), (
         f"an UPLOAD macaroon could not upload either ({allowed}): {text} — the "
-        "refusal above is not the activity caveat")
+        "refusal above is not the activity caveat\n"
+        f"server auth decisions:\n{_auth_log_tail(macvoms)}")

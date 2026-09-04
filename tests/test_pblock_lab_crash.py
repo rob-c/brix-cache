@@ -17,7 +17,7 @@ import time
 import pytest
 
 from cmdscripts.live_common import LiveRun, REPO_ROOT, random_file
-from cmdscripts.pblock_live import XRDCP, _ctl_set, pblock_lab_spec
+from cmdscripts.pblock_live import XRDCP, _ctl_set, pblock_lab_start
 
 def _check_test_crash_point_orphan_and_fsck_gc_1(run, src, hub):
     assert run.call([XRDCP, "-f", src, f"{hub}clean.bin"], check=False).returncode == 0
@@ -87,7 +87,7 @@ def test_crash_point_orphan_and_fsck_gc(lifecycle, fsck: Path) -> None:
     leaves residue fsck flags and --gc converges to zero, then I/O recovers."""
     _need_bins()
     with LiveRun("pblock_crash", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-crash", "?lab=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-crash", "?lab=1")
         time.sleep(1)
         root = Path(ep.data_root)
         catalog = root / "catalog.db"
@@ -130,7 +130,7 @@ def test_crash_gate_off_is_inert(lifecycle, fsck: Path) -> None:
     consulted — the write completes normally and the store stays consistent."""
     _need_bins()
     with LiveRun("pblock_crash_off", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-crash-off", ""))  # lab OFF
+        ep = pblock_lab_start(lifecycle, "lc-pblock-crash-off", "")  # lab OFF
         time.sleep(1)
         root = Path(ep.data_root)
         hub = f"root://{ep.host}:{ep.port}/"

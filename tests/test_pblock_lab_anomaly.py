@@ -24,7 +24,8 @@ import time
 import pytest
 
 from cmdscripts.live_common import LiveRun, random_file, sha256
-from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec, pblock_worker_own
+from cmdscripts.pblock_live import (XRDCP, XRDFS, pblock_lab_start,
+                                    pblock_worker_own)
 
 def _check_test_anomaly_fresh_create_lags_then_converges_1(run, src, host):
     assert run.call([XRDCP, "-f", src, f"{host}/f.bin"],
@@ -114,7 +115,7 @@ def test_anomaly_fresh_create_lags_then_converges(lifecycle) -> None:
     real object — deterministic S3 read-after-write emulation."""
     _need_bins()
     with LiveRun("pblock_an_ok", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-an-ok", "?lab=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-an-ok", "?lab=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         host = f"root://{ep.host}:{ep.port}"
@@ -160,7 +161,7 @@ def test_anomaly_stale_stat_serves_pre_update_row(lifecycle) -> None:
     the wrong-but-deterministic answer callers must tolerate."""
     _need_bins()
     with LiveRun("pblock_an_stale", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-an-stale", "?lab=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-an-stale", "?lab=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         host = f"root://{ep.host}:{ep.port}"
@@ -199,7 +200,7 @@ def test_anomaly_writer_exempt_and_gate_off_inert(lifecycle) -> None:
     be armed from the data plane."""
     _need_bins()
     with LiveRun("pblock_an_sec", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-an-sec", "?lab=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-an-sec", "?lab=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         host = f"root://{ep.host}:{ep.port}"
@@ -220,7 +221,7 @@ def test_anomaly_writer_exempt_and_gate_off_inert(lifecycle) -> None:
             "reader GET ignored the visibility lag"
 
     with LiveRun("pblock_an_off", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-an-off", ""))  # gate OFF
+        ep = pblock_lab_start(lifecycle, "lc-pblock-an-off", "")   # gate OFF
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         host = f"root://{ep.host}:{ep.port}"
