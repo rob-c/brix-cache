@@ -416,13 +416,24 @@ def test_the_http_backed_member_serves_the_remote_object(cores):
 
 
 def test_the_http_backed_member_registers_as_a_cluster_client(cores):
-    endpoint, _ = cores
-    port = endpoint.extra_ports["HTTPBE_PORT"]
-    log = _wait_for_log(endpoint, f"this node is a client (listen :{port}")
+    """Two role announcements, two independent waits.
 
-    assert f"this node is a client (listen :{port}" in log, (
+    The client and the manager are announced by different workers, in no fixed
+    order.  Waiting for the client line and then asserting the manager line
+    against THAT snapshot fails whenever the manager's lands a moment later —
+    which is what the log shows: two `this node is a client` lines present and
+    the manager's not yet written.  Each needle now gets its own wait.
+    """
+    endpoint, _ = cores
+    client = f"this node is a client (listen :{endpoint.extra_ports['HTTPBE_PORT']}"
+    manager = f"this node is a manager (listen :{endpoint.extra_ports['MGR_PORT']}"
+
+    log = _wait_for_log(endpoint, client)
+    assert client in log, (
         "the http-backed server never joined the cluster:\n" + log[-2000:])
-    assert f"this node is a manager (listen :{endpoint.extra_ports['MGR_PORT']}" in log, (
+
+    log = _wait_for_log(endpoint, manager)
+    assert manager in log, (
         "the manager never announced itself:\n" + log[-2000:])
 
 
@@ -453,37 +464,6 @@ def test_the_gridftp_door_registers_into_the_cluster(cores):
     assert f"this node is a client (listen :{port}" in log, (
         "the door no longer registers; #47 may be fixed at the join:\n"
         + log[-2000:])
-
-
-DOORSPACE = "/doorspace"          # the namespace the door alone registers
-
-
-def _manager_targets(endpoint, want_port, prefix=DOORSPACE, tries=24, pause=0.5):
-    """Ask the manager to place a path until it names `want_port`, collecting
-    every answer on the way (registration takes a heartbeat or two).
-
-    `prefix` is the namespace the query falls in, and it is the whole
-    experiment: the door registers /doorspace and the http-backed member
-    registers /httpspace, so which member answers is decided by the path.  Give
-    either one `brix_cms_paths /` instead and it becomes a candidate for the
-    other's subtree — srv_path_matches() (registry_select.c:28) short-circuits a
-    bare "/" token to `return 1` before the directory-boundary logic runs — so
-    the winner is whatever the load ladder picks, and a coin flip proves nothing
-    about what the door does when it IS chosen."""
-    seen = []
-    for _ in range(tries):
-        sock = _connect_plain(endpoint.extra_ports["MGR_PORT"])
-        try:
-            for status, body in (_dirlist(sock, prefix),
-                                 _open(sock, f"{prefix}/door.txt",
-                                       kXR_open_read)):
-                _guard_manager_targets_1(status, seen, body)
-        finally:
-            sock.close()
-        if any(kind == "redirect" and port == want_port for kind, _h, port in seen):
-            return seen
-        time.sleep(pause)
-    return seen
 
 
 def test_the_manager_redirects_xrootd_clients_to_the_gridftp_door(cores):
@@ -517,13 +497,30 @@ def test_the_endpoint_the_manager_redirects_to_speaks_ftp(cores):
 
 def test_the_manager_never_serves_the_data_itself(cores):
     """The fact the defect sits on: manager mode is a redirector, so whatever it
-    names is what the client gets — there is no fallback that would mask #47."""
+    names is what the client gets — there is no fallback that would mask #47.
+
+    "Serving it itself" is an ANSWER — kXR_ok — not a refusal.  `_manager_targets`
+    polls from before the door has registered and keeps every answer on the way,
+    so the early ones are `kXR_error 'no data server available'`: the manager
+    declining for want of a member, which is the opposite of the fallback this
+    pins and was never in scope.  Reading those as "served a request itself"
+    made the case pass only when registration beat the very first probe.
+    """
     endpoint, _ = cores
-    seen = _manager_targets(endpoint, endpoint.extra_ports["GRIDFTP_PORT"])
+    door = endpoint.extra_ports["GRIDFTP_PORT"]
+    seen = _manager_targets(endpoint, door)
 
     assert seen, "the manager answered nothing at all"
-    assert all(kind in ("redirect", "wait") for kind, _h, _p in seen), (
-        f"the manager served a request itself: {seen}")
+    # Non-vacuity: a manager that only ever said "wait" would satisfy the check
+    # below without ever having placed anything.
+    settled = _first_placement(seen, door)
+    assert settled is not None, (
+        DEFECT47 + f" (the manager never named the door; answers were {seen[:8]})")
+
+    served = [answer for answer in seen if _answered_here(answer)]
+    assert not served, f"the manager served a request itself: {served}"
+    assert all(kind in ("redirect", "wait") for kind, _h, _p in seen[settled:]), (
+        f"the manager stopped redirecting once placement settled: {seen[settled:]}")
 
 
 def test_the_manager_sends_the_other_namespace_to_the_other_member(cores):

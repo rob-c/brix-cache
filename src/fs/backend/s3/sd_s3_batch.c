@@ -210,7 +210,7 @@ s3_batch_apply_errors(const char *xml, const char *const *keys, size_t n,
 {
     const char *p = xml, *blk, *blk_end, *k, *c;
     char        raw[SD_S3_KEY_MAX];
-    size_t      klen, clen, i;
+    size_t      klen = 0, clen = 0, i;
 
     while ((blk = strstr(p, "<Error>")) != NULL) {
         blk_end = strstr(blk, "</Error>");

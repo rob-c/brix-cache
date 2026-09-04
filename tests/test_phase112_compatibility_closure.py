@@ -89,7 +89,17 @@ def _tracked_files():
 # belongs to nginx or to a third-party module and is not ours to police.
 OWNED_PREFIX = ("brix_", "cvmfs_", "oci_", "rpm_")
 _VAR = re.compile(r"\$\{?([a-z][a-z0-9_]*)\}?")
-_LOGFMT = re.compile(r"\blog_format\b.*?;", re.S)
+# Only in a non-.conf artifact, where the span has to be carved out of a file
+# that is mostly NOT nginx config.  A bare `\blog_format\b.*?;` reads PROSE
+# as a directive: every docstring and comment that says "log_format" starts a
+# span running to the next `;` anywhere below, sweeping unrelated `$names`
+# in with it.  That is how a docstring saying ``log_format`` still names
+# ``$cvmfs_cache`` was reported as a config artifact nginx would reject.
+# Two bounds keep prose out and cost no real directive: nginx spells the
+# directive `log_format <name> ...;` — whitespace then a bare format name,
+# never a backtick or quote — and never puts a blank line inside one.
+_LOGFMT = re.compile(r"\blog_format[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t\r\n]"
+                     r"(?:(?!\n[ \t]*\n).)*?;", re.S)
 # A config may mint its own variables; those are as real as a registered one.
 _LOCAL_DEF = re.compile(
     r"\b(?:map|geo|split_clients)\b[^;{]*\$([a-z][a-z0-9_]*)\s*\{"

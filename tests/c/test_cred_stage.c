@@ -698,7 +698,10 @@ test_cred_write_rejects_foreign_dir_owner(void)
     assert(errno == EPERM);
     assert(dir_entry_count(dir) == 0);      /* fail closed, before any fd */
 
-    (void) chown(dir, geteuid(), (gid_t) -1);   /* restore so rm_tree can clean */
+    /* restore so rm_tree can clean.  The same privilege planted the foreign
+     * owner a moment ago, so this must succeed; a `(void)` cast does NOT
+     * silence chown's warn_unused_result, so consume the result for real. */
+    assert(chown(dir, geteuid(), (gid_t) -1) == 0);
     rm_tree(dir);
     printf("ok cred_write_rejects_foreign_dir_owner\n");
 }

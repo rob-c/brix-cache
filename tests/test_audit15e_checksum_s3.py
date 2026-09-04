@@ -64,10 +64,30 @@ from settings import HOST
 def _check_test_defect8_put_refusals_are_500_and_fail_closed_2(codes):
     assert any(c in (201, 204) for c in codes), (codes, DEFECT8)
 
-def _check_test_defect8_put_refusals_are_500_and_fail_closed_1(codes, ep):
-    assert EIO_NEEDLE in _errlog(ep), \
-        ("the front 500ed a PUT over the s3:// backend for a reason "
-         "other than the lock-probe EIO — re-diagnose defect #8", codes)
+def _serious_log_lines(ep):
+    """Every [error]/[crit]/[alert]/[emerg] line the instance logged.
+
+    When this guard fires it is asking a human to re-diagnose, so it has to
+    hand over the evidence.  Asserting on the whole log put a multi-kilobyte
+    string in the assertion, which pytest elides in the middle — exactly where
+    the reason lives — leaving a report that says a 500 happened for an unknown
+    reason and shows nothing about it.
+    """
+    return [line for line in _errlog(ep).splitlines()
+            if any(f"[{level}]" in line
+                   for level in ("error", "crit", "alert", "emerg"))]
+
+
+def _check_test_defect8_put_refusals_are_500_and_fail_closed_1(codes, ep, bodies):
+    assert EIO_NEEDLE in _errlog(ep), (
+        "the front 500ed a PUT over the s3:// backend for a reason other than "
+        "the lock-probe EIO — re-diagnose defect #8\n"
+        f"  codes:     {codes}\n"
+        f"  500 bodies:{bodies}\n"
+        "  error-level log lines:\n    "
+        + ("\n    ".join(_serious_log_lines(ep)) or "(none — the 500 was "
+           "never logged at error level, so it did not come from a brix "
+           "handler that logs its refusal)"))
 
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
@@ -145,11 +165,14 @@ def _put_landing(ep, path, attempts=10):
 def test_defect8_put_refusals_are_500_and_fail_closed(cks3):
     ep, s3dir, _ = cks3
     codes = []
+    bodies = []
     for i in range(12):
         r = requests.put(_url(ep.port, f"/ck/probe{i}.bin"), data=PAYLOAD,
                          timeout=20)
         codes.append(r.status_code)
         if r.status_code not in (201, 204):
+            bodies.append((r.status_code, r.text[:200]))
+
             # Fail-closed: a refused PUT must leave nothing behind.
             def _assert_test_defect8_put_refusals_are_500_and_fail_closed_1():
                 assert r.status_code == 500, (r.status_code, r.text[:200])
@@ -158,7 +181,8 @@ def test_defect8_put_refusals_are_500_and_fail_closed(cks3):
 
             _assert_test_defect8_put_refusals_are_500_and_fail_closed_1()
     if any(c == 500 for c in codes):
-        _check_test_defect8_put_refusals_are_500_and_fail_closed_1(codes, ep)
+        _check_test_defect8_put_refusals_are_500_and_fail_closed_1(codes, ep,
+                                                                  bodies)
     # Whatever the mix, at least one write must get through: a backend that
     # refuses every write is a harder failure than the one pinned here.
     _check_test_defect8_put_refusals_are_500_and_fail_closed_2(codes)

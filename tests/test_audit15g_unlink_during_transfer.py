@@ -52,9 +52,18 @@ from settings import NGINX_BIN, BIND_HOST
 from _test_audit15g_helpers import (ReadHandle, XERR_IO_ERROR, XERR_NOT_FOUND,
                                     open_fails, pattern, read_whole, seed_tree)
 
+# One group for BOTH audit15g mid-transfer files, named for the instance that
+# forces it: they share the single fixed-port `lc-audit15g-mtorigin` ledger
+# entry (fleet_ports_shared_phase5_b.py), and a fixed-port instance may have
+# exactly ONE driver at a time (server_launcher_part3.LifecycleHarness.register).
+# In separate groups --dist=loadgroup put the two files on different workers,
+# where each fixture's origin start/stop clobbered the other's: the unlink
+# plane read /cached/obj.bin off the evict file's origin (kXR 3011 file not
+# found) and the evict plane filled from an origin that had just been stopped
+# underneath it (kXR 3007 cache fill from source failed).
 pytestmark = [pytest.mark.timeout(120),
               pytest.mark.uses_lifecycle_harness,
-              pytest.mark.xdist_group("lc-audit15g-unlink")]
+              pytest.mark.xdist_group("lc-audit15g-mtorigin")]
 
 # Big enough that a first chunk leaves real work outstanding, small enough that
 # every test in the file stays well inside the per-test timeout.

@@ -546,8 +546,10 @@ CEPH_CORE_SRCS := $(CEPH_RADOS_DIR)/sd_ceph.c \
                   $(CEPH_RADOS_DIR)/sd_ceph_object.c \
                   $(CEPH_RADOS_DIR)/sd_ceph_object_rename.c \
                   $(CEPH_RADOS_DIR)/sd_ceph_dir.c \
+                  $(CEPH_RADOS_DIR)/sd_ceph_batch.c \
                   $(SRC)/fs/backend/meta_advisory.c \
-                  $(SRC)/fs/backend/meta_advisory_sd.c
+                  $(SRC)/fs/backend/meta_advisory_sd.c \
+                  $(SRC)/fs/path/site_n2n.c
 CEPHFS_RO_SRCS := $(CEPH_RADOS_DIR)/sd_cephfs_ro.c \
                   $(CEPH_RADOS_DIR)/sd_cephfs_ro_dir.c \
                   $(CEPH_RADOS_DIR)/sd_cephfs_ro_resolve.c \

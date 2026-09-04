@@ -331,3 +331,62 @@ def _wait_for_log(endpoint, needle, timeout=25.0):
 # proto:gridftp × store:posix — whose namespace does a door actually serve?     #
 # --------------------------------------------------------------------------- #
 
+
+# --------------------------------------------------------------------------- #
+# proto:gridftp x xfer:cms placement probes (here for the 600 logical-line cap) #
+# --------------------------------------------------------------------------- #
+
+DOORSPACE = "/doorspace"          # the namespace the door alone registers
+
+
+def _manager_targets(endpoint, want_port, prefix=DOORSPACE, tries=24, pause=0.5):
+    """Ask the manager to place a path until it names `want_port`, collecting
+    every answer on the way (registration takes a heartbeat or two).
+
+    `prefix` is the namespace the query falls in, and it is the whole
+    experiment: the door registers /doorspace and the http-backed member
+    registers /httpspace, so which member answers is decided by the path.  Give
+    either one `brix_cms_paths /` instead and it becomes a candidate for the
+    other's subtree — srv_path_matches() (registry_select.c:28) short-circuits a
+    bare "/" token to `return 1` before the directory-boundary logic runs — so
+    the winner is whatever the load ladder picks, and a coin flip proves nothing
+    about what the door does when it IS chosen."""
+    seen = []
+    for _ in range(tries):
+        sock = _connect_plain(endpoint.extra_ports["MGR_PORT"])
+        try:
+            for status, body in (_dirlist(sock, prefix),
+                                 _open(sock, f"{prefix}/door.txt",
+                                       kXR_open_read)):
+                _guard_manager_targets_1(status, seen, body)
+        finally:
+            sock.close()
+        if any(kind == "redirect" and port == want_port for kind, _h, port in seen):
+            return seen
+        time.sleep(pause)
+    return seen
+
+
+def _named_the_door(answer, door):
+    """True when this answer redirects the client to `door`."""
+    kind, _host, port = answer
+    return kind == "redirect" and port == door
+
+
+def _answered_here(answer):
+    """True when the MANAGER answered the request itself.
+
+    Only a kXR_ok counts.  An error answer — `no data server available` while
+    the door is still registering — is the manager declining, which is the
+    opposite of the fallback this file pins.
+    """
+    kind, _body, status = answer
+    return kind == "status" and status == kXR_ok
+
+
+def _first_placement(seen, door):
+    """Index of the first answer naming `door`, or None if it never came."""
+    for index, answer in enumerate(seen):
+        if _named_the_door(answer, door):
+            return index
+    return None

@@ -149,16 +149,37 @@ def _scripted_frames(scenario, sid):
     raise ValueError(scenario)
 
 
-def _serve_once(port, scenario, ready):
+def _listener(port):
+    """Bind and listen on `port`, in the CALLER's thread.
+
+    Binding used to happen inside the server thread, which left the port chosen
+    but unowned for as long as the thread took to start, and — worse — made a
+    bind failure fatal in silence: the thread died before `ready.set()`, the
+    driver then connected to whatever else held the port, and the test failed
+    as an opaque "connection closed by peer" naming neither the port nor the
+    real error.  Owning the socket before the thread exists removes both.
+    """
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.bind((BIND_HOST, port))
     srv.listen(1)
+    return srv
+
+
+def _serve_once(srv, scenario, ready, notes):
+    """Serve one scripted session on the already-bound listener `srv`.
+
+    `notes` collects what only this thread can see.  A mid-session OSError stays
+    swallowed — several scenarios END with the driver hanging up on us, so a
+    write failing is expected — but anything that means the session never got
+    off the ground is recorded for `_run_mock` to raise on.
+    """
     srv.settimeout(30)
     ready.set()
     try:
         conn, _ = srv.accept()
     except socket.timeout:
+        notes.append("mock server: driver never connected (30s accept timeout)")
         srv.close()
         return
     try:
@@ -177,7 +198,10 @@ def _serve_once(port, scenario, ready):
         except OSError:
             pass
     except (ConnectionResetError, BrokenPipeError, OSError):
-        pass
+        pass                        # the driver hung up on us — several
+                                    # scenarios end exactly that way
+    except Exception as exc:        # noqa: BLE001 - a mock bug, not a driver one
+        notes.append(f"mock server: {type(exc).__name__}: {exc}")
     finally:
         conn.close()
         srv.close()
@@ -214,17 +238,26 @@ def _snapshot_driver(directory, source=DRIVER):
     raise RuntimeError(f"could not snapshot stable test driver: {source}")
 
 
-def _run_mock(scenario, deadline_ms=30000):
-    if not os.path.exists(DRIVER):
-        if shutil.which("cc") is None and shutil.which("gcc") is None:
-            pytest.skip("no C compiler / aio_waitresp not built")
-        subprocess.run(["make", "-C", CLIENT_DIR, "aio-waitresp"],
-                       capture_output=True, text=True, timeout=240)
+def _ensure_driver():
+    """Build the driver on demand; skip when it cannot be built."""
+    if os.path.exists(DRIVER):
+        return
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler / aio_waitresp not built")
+    subprocess.run(["make", "-C", CLIENT_DIR, "aio-waitresp"],
+                   capture_output=True, text=True, timeout=240)
     if not os.path.exists(DRIVER):
         pytest.skip("aio_waitresp build failed")
+
+
+def _run_mock(scenario, deadline_ms=30000):
+    _ensure_driver()
     port = _free_port()
+    srv = _listener(port)
     ready = threading.Event()
-    t = threading.Thread(target=_serve_once, args=(port, scenario, ready), daemon=True)
+    notes = []
+    t = threading.Thread(target=_serve_once, args=(srv, scenario, ready, notes),
+                         daemon=True)
     t.start()
     ready.wait(5)
     url = f"root://{HOST}:{port}"
@@ -233,6 +266,10 @@ def _run_mock(scenario, deadline_ms=30000):
         p = subprocess.run([driver, url, str(deadline_ms)],
                            capture_output=True, text=True, timeout=45)
     t.join(15)
+    if notes:
+        raise AssertionError(
+            f"{scenario} on port {port}: " + "; ".join(notes)
+            + f" (driver rc={p.returncode} stderr={p.stderr!r})")
     return p
 
 
