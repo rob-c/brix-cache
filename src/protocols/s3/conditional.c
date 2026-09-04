@@ -171,6 +171,7 @@ s3_put_precondition(ngx_http_request_t *r, const char *root_canon,
         root_canon, cf->common.cache_root_canon,
         brix_vfs_policy_from_write_enable(cf->common.allow_write), is_tls,
         (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
+    s3_vfs_bind_deleg(r, cf, &vctx);
 
     if (brix_vfs_stat(&vctx, &vst) == NGX_OK && vst.is_regular) {
         exists = 1;

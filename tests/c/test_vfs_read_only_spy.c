@@ -49,6 +49,7 @@
 #include "fs/vfs/vfs.h"
 #include "fs/backend/ucred.h"
 #include "fs/vfs/vfs_cred_internal.h"
+#include "auth/authz/acc/privs.h"
 #include "core/compat/namespace_ops.h"
 #include "observability/metrics/access_log.h"
 
@@ -814,6 +815,9 @@ static const brix_sd_driver_t  spy_driver = {
 
 static brix_sd_instance_t  spy_instance;
 
+void brix_test_authz_eval_set(ngx_int_t rc);
+unsigned brix_test_authz_eval_calls(void);
+
 /* Two deliberately-degraded copies of the spy vtable, filled in main():
  * `noxw` withdraws BRIX_SD_CAP_XATTR_WRITE (the phase-71 capability gate
  * answers ENOTSUP), `nocred` withdraws the credential-scoped xattr slots
@@ -1165,6 +1169,60 @@ test_security_negative(void)
     printf("ok security-negative\n");
 }
 
+static void
+test_authorization_ordering(void)
+{
+    brix_vfs_ctx_t ctx;
+    ngx_array_t    rules;
+
+    memset(&rules, 0, sizeof(rules));
+    rules.nelts = 1;
+
+    /* Position 1 owns read-only policy.  It must answer EROFS without
+     * consulting identity or exposing the storage driver's behaviour. */
+    spy_reset();
+    ctx_build(&ctx, BRIX_VFS_MUTATION_READ_ONLY, 1);
+    brix_vfs_ctx_bind_authz(&ctx, &rules, NULL, NULL,
+                            BRIX_AUTHDB_FORMAT_NATIVE, NULL,
+                            BRIX_AUTHZ_BACKSTOP_ENFORCE);
+    brix_test_authz_eval_set(NGX_ERROR);
+    errno = 0;
+    assert(op_unlink(&ctx) == NGX_ERROR);
+    assert(errno == EROFS);
+    assert(brix_test_authz_eval_calls() == 0);
+    assert(spy_sinks() == 0);
+
+    /* Position 1.5 evaluates authorization only after policy allowed the
+     * mutation.  A refusal is EACCES and still cannot reach storage. */
+    spy_reset();
+    ctx_build(&ctx, BRIX_VFS_MUTATION_ALLOWED, 1);
+    brix_vfs_ctx_bind_authz(&ctx, &rules, NULL, NULL,
+                            BRIX_AUTHDB_FORMAT_NATIVE, NULL,
+                            BRIX_AUTHZ_BACKSTOP_ENFORCE);
+    brix_test_authz_eval_set(NGX_ERROR);
+    errno = 0;
+    assert(op_unlink(&ctx) == NGX_ERROR);
+    assert(errno == EACCES);
+    assert(brix_test_authz_eval_calls() == 1);
+    assert(spy_sinks() == 0);
+
+    /* Storage is the final position and runs exactly once only when the two
+     * preceding gates both permit the request. */
+    spy_reset();
+    ctx_build(&ctx, BRIX_VFS_MUTATION_ALLOWED, 1);
+    brix_vfs_ctx_bind_authz(&ctx, &rules, NULL, NULL,
+                            BRIX_AUTHDB_FORMAT_NATIVE, NULL,
+                            BRIX_AUTHZ_BACKSTOP_ENFORCE);
+    brix_test_authz_eval_set(NGX_OK);
+    errno = 0;
+    assert(op_unlink(&ctx) == NGX_OK);
+    assert(brix_test_authz_eval_calls() == 1);
+    assert(g.drv_unlink == 1);
+    assert(spy_mutations() == 1);
+
+    printf("ok authz-order\n");
+}
+
 int
 main(void)
 {
@@ -1188,6 +1246,7 @@ main(void)
     test_success();
     test_error();
     test_security_negative();
+    test_authorization_ordering();
     printf("PASS test_vfs_read_only_spy\n");
     return 0;
 }

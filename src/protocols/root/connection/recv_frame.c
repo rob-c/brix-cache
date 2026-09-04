@@ -319,7 +319,7 @@ brix_recv_read_frame(ngx_stream_session_t *s, ngx_connection_t *c,
         n = brix_recv_buffered(ctx, c, conf, dest, need);
 
         if (n == NGX_AGAIN) {
-            ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
+            ngx_log_debug5(NGX_LOG_DEBUG_STREAM, c->log, 0,
                           "brix: recv AGAIN st=%d hdr_pos=%uz avail=%d"
                           " ready=%d active=%d",
                           (int) ctx->state, ctx->recv.hdr_pos,

@@ -136,29 +136,12 @@ brix_export_webdav_metrics(metrics_writer_t *mw,
         brix_webdav_auth_names, BRIX_WEBDAV_NAUTH_RESULTS,
         shm->webdav.auth_total);
 
-    /* Legacy scalar byte totals. Kept (and still incremented at the callsites)
-     * for dashboard backward-compat, but superseded by the protocol-neutral
-     * brix_io_bytes_{read,written}{proto="webdav"} families — hence the
-     * # DEPRECATED line so scrapers/operators migrate off them. */
-    mw_printf(mw,
-        "# DEPRECATED: use brix_io_bytes_written{proto=\"webdav\"} "
-            "for protocol-neutral write throughput.\n"
-        "# HELP brix_webdav_bytes_rx_total "
-            "Bytes received into WebDAV storage writes.\n"
-        "# TYPE brix_webdav_bytes_rx_total counter\n"
-        "brix_webdav_bytes_rx_total %lu\n",
-        (unsigned long) ngx_atomic_fetch_add(
-            &shm->webdav.bytes_rx_total, 0));
-
-    mw_printf(mw,
-        "# DEPRECATED: use brix_io_bytes_read{proto=\"webdav\"} "
-            "for protocol-neutral read throughput.\n"
-        "# HELP brix_webdav_bytes_tx_total "
-            "Bytes sent from WebDAV GET and PROPFIND responses.\n"
-        "# TYPE brix_webdav_bytes_tx_total counter\n"
-        "brix_webdav_bytes_tx_total %lu\n",
-        (unsigned long) ngx_atomic_fetch_add(
-            &shm->webdav.bytes_tx_total, 0));
+    /* Phase 112 removed the scalar brix_webdav_bytes_{rx,tx}_total pair that
+     * was exposed here: brix_io_bytes_written{proto="webdav"} and
+     * brix_io_bytes_read{proto="webdav"} carry the same two numbers, folded
+     * from these very SHM counters. shm->webdav.bytes_{rx,tx}_total are STILL
+     * incremented at the callsites and STILL read — by that fold and by the
+     * dashboard JSON — so nothing about the accounting changed. */
 
     mw_emit_scalar(mw,
         "brix_webdav_bytes_rx_ipv4_total",

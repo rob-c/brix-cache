@@ -75,8 +75,8 @@ brix_server_guard_remote_authz(ngx_conf_t *cf,
         return NGX_OK;
     }
 
-    has_rules = xcf->authdb.len > 0
-                || (xcf->vo_rules != NULL && xcf->vo_rules->nelts > 0)
+    has_rules = xcf->common.acc.authdb.len > 0
+                || (xcf->common.vo_rules != NULL && xcf->common.vo_rules->nelts > 0)
                 || (xcf->group_rules != NULL && xcf->group_rules->nelts > 0);
     if (!has_rules) {
         return NGX_OK;
@@ -205,6 +205,12 @@ brix_server_setup_export(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     if (brix_vfs_backend_config_str(cf, xcf->common.root_canon,
             &xcf->common.storage_backend, xcf->common.pblock_block_size,
             (int) xcf->cache_origin_family) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+    if (brix_vfs_backend_config_n2n(cf, xcf->common.root_canon,
+            &xcf->common.n2n_scheme, &xcf->common.n2n_pool,
+            &xcf->common.n2n_prefix) != NGX_OK)
     {
         return NGX_ERROR;
     }

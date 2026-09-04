@@ -1,13 +1,10 @@
 # Phase 110 — one monitoring vocabulary: the same word for the same fact on every plane and every surface
 
-**Status:** Part I (W1–W6, the nginx VARIABLE surface) IMPLEMENTED 2026-09-01;
-as-built log after W6. Part II: W7 (JSON `remote`), W10 (cache metric unification + NEGHIT), W11 (one
-latency unit `_seconds`), W12 (metric governance) IMPLEMENTED 2026-09-02; W8 (request count) RESOLVED as a
-re-scope (the uniform brix_io_ops_total already exists; a new family would
-collide) and W9 (byte vocabulary) DONE (the uniform brix_io_bytes_* already
-existed; the duplicates were already deprecated in-source and are now pinned). From a deep-dive of the log and metric surfaces — see "Part II — the metric surface" near the end. Part I made the
-`$brix_*` variables uniform; Part II finishes the job on the log and metric
-surfaces, where per-protocol families still fragment the same facts.
+**Status:** COMPLETE 2026-09-02. W1–W7 and W9–W12 are implemented; W8 was
+correctly resolved as a re-scope because `brix_io_ops_total` already provides
+the uniform request count. The retained aliases, JSON keys and duplicate metric
+families are an intentional one-release compatibility surface whose removal is
+owned by Phase 112, not an incomplete Phase-110 workstream.
 
 Source: the phase-106 W1/W2/W8 variable surface as shipped, the JSON access
 log (`src/observability/metrics/access_log.c`), and the Prometheus export
@@ -17,6 +14,8 @@ log (`src/observability/metrics/access_log.c`), and the Prometheus export
 Companion docs: `phase-106-nginx-native-integration-surface.md` (built the
 variable surface this phase makes uniform), `phase-109-http-metadata-thread-offload.md`
 (the offload pattern W3's stream-side monitor reuses).
+Compatibility removal after the migration window is owned by
+[Phase 112](phase-112-observability-compatibility-removal.md).
 
 **Goal.** An operator writing a `log_format`, a `map`, a Prometheus query or a
 `jq` filter over brix should use ONE word per fact and never have to know
@@ -247,7 +246,13 @@ variable on either plane. The JSON log key is `subject`.
 - **security-neg** — `$brix_user` on a request whose identity did NOT map
   reports `-`, never the DN and never the worker's own account; and
   `$brix_session_user` (deprecated) still equals `$brix_sub` byte-for-byte
-  (alias identity test).
+  (alias identity test). **Update (2026-09-03):** phase-112 REMOVED the
+  `$brix_session_*` aliases, so the alias half of this bullet is retired; the
+  de-conflation it protected — `$brix_user`=mapped_user vs `$brix_sub`=subject
+  as *distinct* fields on both planes — is now pinned structurally by
+  `test_uniform_monitoring_guard::test_user_is_the_mapped_account_and_sub_is_the_subject_on_both_planes`,
+  because the unmapped-`-` runtime test alone cannot catch a re-conflation (`-`
+  is what both a missing mapping and an anonymous subject render).
 
 ### Acceptance
 
@@ -357,10 +362,18 @@ never became an HTTP response).
 - **success** — a TPC COPY and a plain COPY to the same location log
   `op=copy_tpc` vs `op=copy` while `$request_method` says `COPY` for both; an
   S3 GetObject and ListBucket log different `op=` under the same `GET`.
-- **error** — a PUT on a read-only export logs `status=erofs` on WebDAV, on S3
-  and on root:// (three planes, one word), and the JSON line's `status` and
-  the `brix_vfs_mutation_denied_total{reason}` label carry the identical
-  string.
+- **error** — a PUT on a read-only export logs `status=forbidden` on WebDAV, on
+  S3 and on root:// (three planes, one word). **Correction (2026-09-03):** the
+  Prometheus twin of that status word is the `status` label on
+  `brix_io_ops_total` / `brix_tpc_transfers_total` (both rendered through the
+  same `brix_metric_err_name`), NOT `brix_vfs_mutation_denied_total{reason}` as
+  an earlier draft of this bullet claimed. `status` and that `reason` label are
+  DIFFERENT facts and correctly carry DIFFERENT strings: `status` is the outcome
+  CLASS (`forbidden`), while `reason` is the denial CAUSE — the fixed literal
+  `read_only` (the sole VFS read-only mutation result; a bounded label, never
+  the outcome word). Pinned by `test_uniform_monitoring_guard::test_status_word_renders_through_the_shared_err_name_on_every_surface`
+  (the one-word-every-surface identity) and `::test_mutation_denied_reason_is_the_denial_cause_not_the_outcome_class`
+  (the two are distinct facts, not to be unified).
 - **security-neg** — `GET /../../../../etc/passwd` logs `path=-` or the
   confined refusal path, never a string containing `/etc/`; a URL carrying
   `user:pass@` in an alias target never appears in `$brix_path`.
@@ -582,7 +595,7 @@ The deprecation table that ships with the phase (config-reference.md,
 | W1 | **DONE** | The cache-disposition vocabulary moved to the shared home: `brix_cache_status_e` + `brix_metric_cache_status_name()` now live in `observability/metrics/unified.h`/`.c` (was an HTTP header), so the variable, JSON and metric render one word. `brix_vfs_observe_cache_result(ctx, hit)` (new, `vfs_open.c`) books the unified counter AND folds HIT/MISS into `ctx->io_monitor`; wired at every ctx-bearing cache-decision site (`vfs_open.c` ×2, `open_resolved_file_open.c`). BYPASS folded on the `NOCACHE` path. `brix_request_cache_status()` gained a monitor-first arm, so **WebDAV/S3 GET now report a real disposition** (a 404 logs `cache=MISS`, a served GET `HIT`/`MISS`) where before W1 they were always `-`. New Prometheus family `brix_cache_requests_total{proto,cache_status}` renders the two existing SHM counters through the name function (no new counter). JSON log emits `cache_status` beside the deprecated `from_cache`. |
 | W2 | **DONE** | The stream plane (`stream_variables.c`) registers the identity set under the SAME names as HTTP — `$brix_dn/vo/fqan/sub/issuer/user/auth_method/tls` — reading `ctx->identity` with a `ctx->login.*` fallback (no phase-106 value lost). `$brix_auth_method` routes through `brix_metric_auth_method_name()` (R12). `$brix_user` is the new mapped-account fact on both planes (`brix_var_user` / `BRIX_SV_USER`). The seven `$brix_session_*` names stay as deprecated aliases; JSON adds `sub` beside `subject`. |
 | W3 | **DONE** | A `brix_io_monitor_t` is embedded in the per-connection `brix_ctx_t` (root plane), allocated with the pcalloc'd ctx on the event loop; `brix_root_vfs_bind_deleg` was renamed `brix_root_vfs_bind_session` and, at all 14 root ctx-build sites, now points `vctx->io_monitor` at it (the one per-session hook). `$brix_bytes_served/_received/_backend_time/_checksum/_tier/_origin` register on stream. The root open (`open_resolved_file_finalize.c`) records the read/write op on the monitor, because the root read I/O runs the warm `brix_vfs_io_execute` fast path that bypasses the per-op observer — so `$brix_op` is `read`, not the incidental open-time `stat`. The root `kXR_Qcksum` reply folds its `alg:hex` into `$brix_checksum` (parity with the WebDAV `Digest` header on the HTTP plane). |
-| W4 | **DONE** | `$brix_op` / `$brix_path` / `$brix_status` on both planes, from the monitor's weight-ranked primary op (`io_monitor.h`): op via `brix_metric_op_name`, path the confined resolved path (`brix_vfs_adopt_fd` records it; bounded copy, never a stack pointer), status the outcome class via `brix_metric_err_name`. `EROFS` was folded into `brix_metric_err_from_errno`'s FORBIDDEN bucket, and the mutation gate stamps FORBIDDEN on the monitor before any op runs, so a read-only refusal is `status=forbidden` on WebDAV, S3 and root:// alike. `$brix_status`'s HTTP fallback uses `brix_metric_err_from_http_status` for a refusal that never reached the VFS. `$brix_ops` is the op count. |
+| W4 | **DONE** | `$brix_op` / `$brix_path` / `$brix_status` on both planes, from the monitor's weight-ranked primary op (`io_monitor.h`): op via `brix_metric_op_name`, path the confined resolved path (`brix_vfs_adopt_fd` records it; bounded copy, never a stack pointer), status the outcome class via `brix_metric_err_name`. `EROFS` was folded into `brix_metric_err_from_errno`'s FORBIDDEN bucket, and the mutation gate (`vfs_policy.c`) stamps FORBIDDEN on the monitor before any op runs, so a read-only refusal is `status=forbidden` on WebDAV and S3. **Post-close verification (2026-09-03) found the root:// arm short of that promise:** a write-open on a read-only root:// export is refused earlier, at the protocol gate `brix_open_mode_guard` (`open_request.c`), which returns `kXR_fsReadOnly` BEFORE the VFS mutation gate ever runs — so the monitor was never stamped and the session logged `status=-`, not `forbidden`, while every other plane said `forbidden`. The gate now mirrors `vfs_policy.c`'s one-liner (`brix_io_monitor_record_err(&ctx->io_monitor, BRIX_ERR_FORBIDDEN)`) at that refusal, so `status=forbidden` is now honest on WebDAV, S3 **and** root:// alike. Pinned by `test_readonly_write_refusal_logs_status_forbidden_on_root` (the root:// arm, alongside the WebDAV `test_readonly_refusal_logs_status_forbidden`). `$brix_status`'s HTTP fallback uses `brix_metric_err_from_http_status` for a refusal that never reached the VFS. `$brix_ops` is the op count. |
 | W5 | **DONE** | `check_directive_registry.py` gains **R14** (the self-deleting alias pin: a deprecated `$brix_session_*` alias carries a `removal: phase-112` annotation in the allowlist, and once phase-112's doc is marked IMPLEMENTED while the alias is still registered, R14 fails the build — dormant until then). Plus R11 (parity: a PARITY_FACT on one plane and not the other fails — a fact on *neither* plane is not a violation), R12 (the variable-handler files must render shared facts through `brix_metric_*_name()`, no inline `"HIT"` literal), R13 (the JSON keys and metric labels carry the canonical variable-name spelling). All three gate under `--fail` and report zero on the real tree. Rules + constants split into `directive_registry_w5.py` to hold the checker under the 600-line cap. Fixtures: `test_check_directive_registry.py` gains 6 cells (R11 single-plane fixture, the real-tree gates-clean pin, R12/R13 detector unit-tests). |
 | W6 | **DONE** | `$brix_duration` on both planes: HTTP renders it byte-identical to `$request_time` (`ngx_http_variable_request_time`'s formula), stream byte-identical to `$session_time`. The sole transport twin (rule 6). |
 
@@ -997,3 +1010,115 @@ its cachemx label-schema pins; W7 is an afternoon (one ctx field + one emit
 line); W12 is guard work in the established `check_directive_registry` shape.
 Recommended order: W7 (immediate operator win), then W10 (finishes W1), then
 W8/W9/W11 in any order, W12 last to lock them.
+
+---
+
+## Coverage audit — every discovery / change maps to a describing test (2026-09-03)
+
+A test-by-test reconciliation: each workstream's stated obligation is named
+against a test whose docstring DESCRIBES it, so the coverage is discoverable
+from the test list alone. SEVEN describing tests were added on 2026-09-03 to
+close bullets the implementation satisfied but no test NAMED (a first wave of
+four on the HTTP/variable surface, then a second wave of three on the stream
+plane's own success/error/security-neg triplet for W3/W6); all pass green.
+
+| WS / obligation | Describing test |
+|-----------------|-----------------|
+| W1 success — cache_status HIT/MISS on WebDAV data plane | `test_brix_http_variables::test_cache_status_reports_a_disposition_on_the_webdav_data_plane` |
+| W1 success — metric carries the word | `test_cachemx_exposition::test_cache_requests_carries_the_neghit_series` |
+| **W1 error — no-tier export logs `cache=-` (NONE), not MISS/BYPASS** (R-4) | **NEW `test_no_cache_tier_export_logs_cache_none_not_miss`** |
+| W1 error — 404 on a cache-enabled export logs MISS | `test_variables_resolve_without_a_brix_handler` |
+| **W1 security-neg — monitor is per-request, no cross-request bleed on keepalive** (R-3) | **NEW `test_monitor_is_per_request_not_per_connection`** |
+| W2 success — same names both planes | `test_log_format_over_brix_variables_writes_every_field` · `test_uniform_names_resolve_on_the_stream_plane` |
+| W2 error — abort-before-login logs `-` | `test_connection_without_login_still_logs_a_wellformed_line` |
+| W2 security-neg — `$brix_user` unmapped `-` | `test_op_path_status_describe_the_brix_operation` (`user==-`) |
+| **W2 de-conflation — `$brix_user`=mapped_user, `$brix_sub`=subject; distinct fields both planes (the old `$brix_session_user` conflation cannot silently return)** | **NEW `test_uniform_monitoring_guard::test_user_is_the_mapped_account_and_sub_is_the_subject_on_both_planes`** |
+| W3 success — checksum equals wire digest on stream | `test_checksum_resolves_on_the_stream_plane` |
+| W3 success — bytes/backend/tier on stream | `test_uniform_names_resolve_on_the_stream_plane` |
+| **W3 error — a metadata op serves a MEASURED `0`, not `-`, and st is per-op** | **NEW `test_metadata_op_serves_zero_bytes_with_its_own_outcome`** |
+| **W3 security-neg — per-session monitor, no cross-session byte bleed** (R-3) | **NEW `test_stream_monitor_is_per_session_no_byte_bleed`** |
+| W4 success — op is the brix word, not the HTTP verb | `test_op_path_status_describe_the_brix_operation` |
+| W4 error — read-only PUT logs `status=forbidden` (WebDAV arm) | `test_readonly_refusal_logs_status_forbidden` |
+| **W4 error — read-only write logs `status=forbidden` on root:// too** (the protocol-gate arm the mutation gate misses — see Appendix I) | **NEW `test_readonly_write_refusal_logs_status_forbidden_on_root`** |
+| W4 error — outcome class ≠ HTTP code | `test_status_is_the_outcome_class_not_the_http_code` |
+| **W4 security-neg — traversal never leaks outside the export into `$brix_path`** (R-2, Severe) | **NEW `test_brix_path_never_leaks_outside_the_export_on_a_traversal`** |
+| W4 security-neg — `$brix_origin` strips userinfo | `test_brix_origin_strips_userinfo_from_a_remote_backend` |
+| W5 — R11/R12/R13/R14/R15 detect + gate + real-tree | `test_check_directive_registry` (R11–R15 cells, detectors + real-tree pins) |
+| **W6 — `$brix_duration` == `$request_time` byte-for-byte** (not just shape) | **NEW `test_brix_duration_is_byte_identical_to_request_time`** |
+| **W6 error — an aborted session still logs a duration, never `-`** | **NEW `test_aborted_session_still_logs_a_duration`** |
+| W7 — JSON `remote` records the client IP | `test_brix_stream_variables::test_json_access_log_records_the_client_address` |
+| W7 security-neg — `remote` is the kernel peer, not a client-supplied header | see note ‡ below |
+| W7/W1/W3 compat — canonical JSON keys, no compat keys | `test_phase_112_access_json_carries_each_fact_exactly_once` |
+| W10 — NEGHIT series on the unified cache family | `test_cachemx_exposition::test_cache_requests_carries_the_neghit_series` |
+| W11 — every latency histogram is `_seconds` | `test_cachemx_exposition::test_latency_family_is_in_seconds` · `test_check_metric_naming` M1 |
+| W12 — metric governance (M1 unit lint, M2 self-deleting pin) | `test_check_metric_naming` |
+| **Rule 2 — the `status` word is one string on every surface (variable/JSON/Prometheus), all via the shared `brix_metric_err_name`** | **NEW `test_uniform_monitoring_guard::test_status_word_renders_through_the_shared_err_name_on_every_surface`** |
+| **W4 error correction — `status` (outcome class) ≠ `mutation_denied{reason}` (denial cause `read_only`); distinct facts, not to be unified** | **NEW `test_uniform_monitoring_guard::test_mutation_denied_reason_is_the_denial_cause_not_the_outcome_class`** |
+| Per-plane wiring pinned structurally (S3 has no fleet node) | `test_uniform_monitoring_guard` (every data-plane ctx binds the monitor; observer folds op/latency/cache; vocabulary in the shared header) |
+
+**The four gaps closed (2026-09-03), all pinning already-correct behaviour:**
+1. **W4 R-2 (Severe)** — `$brix_path` is loggable; a `..`-traversal must never
+   leak a string from outside the export. `test_brix_path...traversal` drives
+   `GET /../../../../etc/passwd`, asserts the refusal, and asserts the logged
+   `path=` field contains neither `/etc/` nor `passwd` nor `..` — the runtime
+   half of R-2 (the userinfo half was already `test_brix_origin_strips_userinfo`).
+2. **W1 R-3** — the monitor is per-REQUEST. `test_monitor_is_per_request...`
+   issues a served GET and a 404 on ONE keepalive connection and asserts each
+   line carries its own op/path/status, so no connection-scoped bleed can hide.
+3. **W6** — the doc's W6 success is byte-IDENTITY with `$request_time`, but the
+   existing cells asserted only the `^\d+\.\d{3}$` shape.
+   `test_brix_duration_is_byte_identical...` logs both on one line and asserts
+   equality.
+4. **W1 R-4 vocabulary** — the `-` (no tier) vs `MISS` (tier consulted) vs
+   `BYPASS` (tier skipped) distinction had no describing test for the NONE arm.
+   `test_no_cache_tier_export_logs_cache_none...` serves a GET on an export with
+   no `brix_cache_root` and asserts `cache=-`.
+
+**The second wave (2026-09-03) — the stream plane's W3/W6 triplet, closed after
+a re-audit found the per-workstream Tests sections list stream success/error/
+security-neg cells the table above had not mapped:**
+5. **W3 security-neg (R-3)** — the per-session `brix_io_monitor_t` must not
+   bleed one session's bytes into another. `test_stream_monitor_is_per_session_no_byte_bleed`
+   runs two concurrent transfers of DELIBERATELY different sizes (76 B and
+   ~108 KiB) on the single-worker node and asserts each session's uniform read
+   line reports its OWN `$brix_bytes_served` — exactly two small and two large,
+   never the sum — so a shared-ctx accumulation bug cannot hide.
+6. **W3 error** — the doc's W3 error bullet drafted `served=-` for "nothing
+   served", but the implementation reserves `-` for a fact that never occurred
+   and books a real op that moved no client bytes as a MEASURED `0`
+   (INVARIANT: `-` = no event, `0` = measured zero). `test_metadata_op_serves_zero_bytes_with_its_own_outcome`
+   pins the as-built: an `xrdfs stat` (hit and miss) logs `op=stat served=0`
+   with `st` per-op (`ok` vs `not_found`), never a read's byte count.
+   **As-built deviation recorded:** the W3 error bullet's `served=-` is superseded
+   by `served=0`; the `-`/`0` semantics is the real, tested contract.
+7. **W6 error** — a duration is defined for every session that opened a
+   connection, including one that hangs up before login.
+   `test_aborted_session_still_logs_a_duration` drives the pre-login handshake-
+   then-hangup and asserts the uniform line carries a real `dur` (the
+   `$session_time` shape, a measured `0.000`), never `-`, while `op` IS `-` —
+   proving the twin is populated independently, not inherited from a served line.
+
+‡ **W7 security-neg.** `remote` is sourced from the kernel-provided peer
+(`ctx->login.peer_ip` on stream via `bind_session`; `r->connection->addr_text`
+on HTTP), never from a client-supplied header — the stream plane has no
+forwarded-header path at all, so an X-Forwarded-For spoof is structurally
+impossible there, and `test_json_access_log_records_the_client_address` pins
+that the recorded value is the actual (length-bounded) loopback peer. The HTTP
+XFF-spoof arm is a code-review property (the emitter reads `addr_text`, not a
+header) and is not runtime-tested, consistent with the as-built W7 scope note
+that HTTP GET peer-capture is deferred.
+
+**Full-surface verification (2026-09-03):** the entire phase-110 test surface is
+green in this session — **169 passed** across `test_brix_http_variables` (+`_part2`),
+`test_brix_stream_variables` (18, incl. the three new W3/W6 cells),
+`test_uniform_monitoring_guard`, `test_check_metric_naming`,
+`test_check_directive_registry`, and the full `test_cachemx_exposition` (which
+owns the W10/W11 doc-named tests). `check_py_file_size` and `check_python_quality`
+both OK. The one environmental caveat: `test_cachemx_exposition` needs the shared
+session artifacts under `/tmp/xrd-test` (PKI + tokens/JWKS); when a foreign WSL2
+fleet owns that tree they are not regenerated, so the `lc-cachemx` TLS node fails
+`nginx -t` and the suite errors at setup. Reconstructing them is FILE-ONLY and
+touches no ports/processes (`python3 -c "import brix_suite.prep_steps as p; p.prepare()"`),
+so it is safe alongside a foreign fleet — done here, after which the suite runs
+green. The `lc-*` LifecycleHarness nodes (variable/stream/guard suites) allocate
+ephemeral ports and run green regardless.

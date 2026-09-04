@@ -337,7 +337,8 @@ events { worker_connections 4096; }
 http {
     log_format cvmfs '$remote_addr [$time_local] "$request" $status '
                      '$body_bytes_sent $request_time '
-                     'class=$cvmfs_class cache=$cvmfs_cache origin=$cvmfs_origin';
+                     'class=$cvmfs_class cache=$brix_cache_status '
+                     'origin=$cvmfs_origin';
     access_log /var/log/nginx/cvmfs_access.log cvmfs;
 
     # Keep WN connections alive — prevents spurious proxy-failure marks

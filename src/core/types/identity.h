@@ -70,6 +70,21 @@ typedef struct {
      */
     char         mapped_user[256];   /* "" once resolved = unmapped */
     unsigned     mapped_resolved:1;  /* gate mapping already attempted */
+
+    /*
+     * phase-108 C12: the XrdAcc entity derived from this identity's
+     * name/host/vorg/role/grp for the VFS authorization backstop.  The engine's
+     * decision (brix_acc_access) is pure, but building the entity allocates on
+     * a pool; since every field is a per-connection identity view, the entity
+     * is rebuilt identically on every request unless memoized.  Cached here at
+     * the first backstop check, exactly like mapped_user above: connection-
+     * lifetime, built once on the connection pool, so position 1.5 stays
+     * allocation-free.  brix_acc_entity_t is opaque to core/, so a void* keeps
+     * this header free of the acc engine.  NULL after a resolve = build failed
+     * or no host bound → the backstop's xrdacc arm treats it as fail-closed.
+     */
+    void        *acc_entity;         /* brix_acc_entity_t*, connection-lifetime */
+    unsigned     acc_entity_resolved:1; /* backstop entity build already tried */
 } brix_identity_t;
 
 /*

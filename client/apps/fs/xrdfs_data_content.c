@@ -26,29 +26,7 @@ typedef struct {
 int
 slurp_file(brix_conn *c, const char *path, uint8_t **out, int64_t *len, brix_status *st)
 {
-    brix_rfile    f;
-    brix_statinfo si;
-    uint8_t      *buf;
-    int64_t       off = 0;
-
-    if (brix_stat(c, path, &si, st) != 0) { return -1; }
-    if (brix_rfile_open_read(c, path, NULL, 0, -1, &f, st) != 0) { return -1; }
-    buf = (uint8_t *) malloc(si.size > 0 ? (size_t) si.size : 1);
-    if (buf == NULL) {
-        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
-        brix_rfile_close(&f, st);
-        return -1;
-    }
-    while (off < si.size) {
-        ssize_t got = brix_rfile_pread(&f, off, buf + off, (size_t) (si.size - off), st);
-        if (got < 0) { free(buf); brix_rfile_close(&f, st); return -1; }
-        if (got == 0) { break; }
-        off += got;
-    }
-    brix_rfile_close(&f, st);
-    *out = buf;
-    *len = off;
-    return 0;
+    return brix_rfile_slurp(c, path, NULL, -1, out, len, st);
 }
 
 
@@ -159,6 +137,27 @@ grep_scan_chunk(const uint8_t *buf, ssize_t got, const regex_t *re, int numbered
     return 0;
 }
 
+typedef struct {
+    const regex_t *regex;
+    int            numbered;
+    grep_scan_t   *scan;
+} grep_sink_t;
+
+static int
+grep_sink(const uint8_t *data, size_t len, int64_t offset, void *arg,
+          brix_status *st)
+{
+    grep_sink_t *sink = arg;
+
+    (void) offset;
+    if (grep_scan_chunk(data, (ssize_t) len, sink->regex,
+                        sink->numbered, sink->scan) == 0) {
+        return 0;
+    }
+    brix_status_set(st, XRDC_EIO, ENOMEM, "grep: out of memory");
+    return -1;
+}
+
 
 /* grep operand set: the regex source, target path, and case/number flags. */
 typedef struct {
@@ -202,9 +201,8 @@ do_grep(brix_conn *c, const char *cwd, int argc, char **argv)
     int         cflags = REG_NEWLINE;
     regex_t     re;
     brix_rfile  f;
-    uint8_t    *buf;
     grep_scan_t g = { NULL, 0, 0, 0, 0 };
-    int64_t     off = 0;
+    grep_sink_t sink;
     int         rc = 0;
 
     rc = grep_parse_args(argc, argv, &a);
@@ -223,24 +221,16 @@ do_grep(brix_conn *c, const char *cwd, int argc, char **argv)
         regfree(&re);
         return rc > 1 ? rc : 2;
     }
-    buf = (uint8_t *) malloc(1 << 20);
-    if (buf == NULL) { brix_rfile_close(&f, &st); regfree(&re); return 2; }
-
-    for (;;) {
-        ssize_t got = brix_rfile_pread(&f, off, buf, 1 << 20, &st);
-        if (got < 0) { rc = 2; break; }
-        if (got == 0) { break; }
-        rc = grep_scan_chunk(buf, got, &re, a.numbered, &g);
-        if (rc != 0) { break; }
-        off += got;
-    }
-    free(buf);
+    sink.regex = &re;
+    sink.numbered = a.numbered;
+    sink.scan = &g;
+    rc = brix_rfile_pump(&f, 0, -1, 0, grep_sink, &sink, NULL, &st);
     free(g.line);
     brix_rfile_close(&f, &st);
     regfree(&re);
     if (rc != 0) {
         (void) xrdfs_report_err("grep", path, &st, 0, c);
-        return rc;
+        return 2;
     }
     return g.matched ? 0 : 1;
 }
@@ -267,28 +257,18 @@ hexdump_row(const uint8_t *buf, ssize_t base, ssize_t row, int64_t abs_off)
 }
 
 
-/* Read the open handle `*f` in 64 KiB chunks from *off, emitting an xxd-style row per
- * 16 bytes; `limit` (>=0) caps the total bytes shown. Advances *off; 0 / -1 (st set). */
 static int
-hexdump_stream(brix_rfile *f, uint8_t *buf, long long limit, int64_t *off,
-               brix_status *st)
+hexdump_sink(const uint8_t *data, size_t len, int64_t offset, void *arg,
+             brix_status *st)
 {
-    for (;;) {
-        size_t  want = 1 << 16;
-        ssize_t got, base;
-        if (limit >= 0) {
-            int64_t rem = limit - *off;
-            if (rem <= 0) { break; }
-            if ((int64_t) want > rem) { want = (size_t) rem; }
-        }
-        got = brix_rfile_pread(f, *off, buf, want, st);
-        if (got < 0) { return -1; }
-        if (got == 0) { break; }
-        for (base = 0; base < got; base += 16) {
-            ssize_t row = (got - base < 16) ? got - base : 16;
-            hexdump_row(buf, base, row, *off + base);
-        }
-        *off += got;
+    size_t base;
+
+    (void) arg;
+    (void) st;
+    for (base = 0; base < len; base += 16) {
+        size_t row = len - base < 16 ? len - base : 16;
+        hexdump_row(data, (ssize_t) base, (ssize_t) row,
+                    offset + (int64_t) base);
     }
     return 0;
 }
@@ -305,8 +285,6 @@ do_hexdump(brix_conn *c, const char *cwd, int argc, char **argv)
     long long   limit = -1;        /* -n; < 0 = whole file */
     int         i;
     brix_rfile  f;
-    uint8_t    *buf;
-    int64_t     off = 0;
     int         rc = 0;
 
     for (i = 1; i < argc; i++) {
@@ -320,11 +298,8 @@ do_hexdump(brix_conn *c, const char *cwd, int argc, char **argv)
     if (brix_rfile_open_read(c, path, NULL, 0, -1, &f, &st) != 0) {
         return xrdfs_report_err("hexdump", path, &st, 0, c);
     }
-    buf = (uint8_t *) malloc(1 << 16);
-    if (buf == NULL) { brix_rfile_close(&f, &st); return 51; }
-
-    rc = hexdump_stream(&f, buf, limit, &off, &st);
-    free(buf);
+    rc = brix_rfile_pump(&f, 0, limit, 1 << 16,
+                         hexdump_sink, NULL, NULL, &st);
     brix_rfile_close(&f, &st);
     if (rc != 0) {
         return xrdfs_report_err("hexdump", path, &st, 0, c);
@@ -370,6 +345,28 @@ dd_parse_args(int argc, char **argv, dd_args_t *a)
     return 0;
 }
 
+typedef struct {
+    const struct timespec *start;
+    double                 rate;
+    int64_t                produced;
+} dd_sink_t;
+
+static int
+dd_sink(const uint8_t *data, size_t len, int64_t offset, void *arg,
+        brix_status *st)
+{
+    dd_sink_t *sink = arg;
+
+    (void) offset;
+    if (fwrite(data, 1, len, stdout) != len) {
+        brix_status_set(st, XRDC_EIO, errno, "stdout write failed");
+        return -1;
+    }
+    sink->produced += (int64_t) len;
+    rate_pace(sink->start, sink->produced, sink->rate);
+    return 0;
+}
+
 
 int
 do_dd(brix_conn *c, const char *cwd, int argc, char **argv)
@@ -380,8 +377,8 @@ do_dd(brix_conn *c, const char *cwd, int argc, char **argv)
     int64_t         want_total, off, produced = 0;
     int             rc = 0;
     brix_rfile      f;
-    uint8_t        *buf;
     struct timespec start;
+    dd_sink_t       sink;
 
     a.bs = 1 << 20; a.count = -1;   /* skip/rate default to 0 via zero-init */
 
@@ -399,32 +396,13 @@ do_dd(brix_conn *c, const char *cwd, int argc, char **argv)
     if (brix_rfile_open_read(c, path, NULL, 0, -1, &f, &st) != 0) {
         return xrdfs_report_err("dd", path, &st, 0, c);
     }
-    buf = (uint8_t *) malloc((size_t) a.bs);
-    if (buf == NULL) {
-        brix_rfile_close(&f, &st);
-        fprintf(stderr, "xrdfs: dd: out of memory\n");
-        return 51;
-    }
     clock_gettime(CLOCK_MONOTONIC, &start);
-    for (;;) {
-        size_t  want = (size_t) a.bs;
-        ssize_t n;
-        if (want_total >= 0) {
-            int64_t rem = want_total - produced;
-            if (rem <= 0) { break; }
-            if ((int64_t) want > rem) { want = (size_t) rem; }
-        }
-        n = brix_rfile_pread(&f, off, buf, want, &st);
-        if (n < 0) { rc = -1; break; }
-        if (n == 0) { break; }
-        if (fwrite(buf, 1, (size_t) n, stdout) != (size_t) n) {
-            brix_status_set(&st, XRDC_ESOCK, 0, "stdout write failed");
-            rc = -1; break;
-        }
-        off += n; produced += n;
-        rate_pace(&start, produced, a.rate);
-    }
-    free(buf);
+    sink.start = &start;
+    sink.rate = a.rate;
+    sink.produced = 0;
+    rc = brix_rfile_pump(&f, off, want_total, (size_t) a.bs,
+                         dd_sink, &sink, &produced, &st);
+    produced = sink.produced;
     brix_rfile_close(&f, &st);
     if (rc != 0) {
         return xrdfs_report_err("dd", path, &st, 0, c);

@@ -100,18 +100,6 @@ typedef struct {
 } batch_ctx;
 
 typedef struct {
-    const brix_weburl    *u;        /* dst endpoint (host/port/tls/is_s3) */
-    const char           *base;     /* dst path, trailing '/' trimmed */
-    const char           *scheme;   /* web_scheme_str(u->proto) */
-    const char           *bearer;   /* WebDAV Authorization, NULL ⇒ anon */
-    const brix_copy_opts *fo;       /* per-file opts (recursive cleared) */
-    const brix_opts      *co;       /* connection opts (verify/ca_dir) */
-    int                   retries;
-    size_t                ok;
-    size_t                fail;
-} web_upload_ctx;
-
-typedef struct {
     const char *label;
     uint64_t    start_ns;
     uint64_t    last_ns;
@@ -138,61 +126,14 @@ int expand_source(const char *s_in, const brix_opts *co, char ***out, size_t *n,
 /* xrdcp.c */
 int dest_is_dir(const char *dst, const brix_opts *co);
 int join_dest(const char *dstdir, const char *base, char *out, size_t sz);
-int both_web(const char *src, const char *dst);
 
 /* xrdcp_transfer.c */
 int copy_one_with_retry(const char *src, const char *dst, const brix_copy_opts *o, const brix_opts *co, int retries, brix_status *st);
 int entry_meta(const char *url, const brix_opts *co, long long *size, long long *mtime);
 int transfer_one(const char *src, const char *dst, const brix_copy_opts *o, const brix_opts *co, int retries, int sync_mode, brix_status *st);
-int relay_web_to_web(const char *src, const char *dst, const brix_copy_opts *o, const brix_opts *co, int retries, brix_status *st);
 int batch_copy_one(const char *item, const char *dstdir, const brix_copy_opts *o, const brix_opts *co, int retries, int sync_mode, char *dpath, size_t dpsz, brix_status *st);
 void * batch_worker(void *arg);
 void batch_parallel(char **items, size_t n, const char *dst, const brix_copy_opts *o, const brix_opts *co, int retries, int sync_mode, int jobs, brix_journal *jrn, size_t *ok, size_t *skip, size_t *fail);
-
-/* xrdcp.c */
-const char * web_scheme_str(brix_web_proto pr);
-
-/* xrdcp_recursive.c */
-void mkdirs_for(const char *filepath);
-
-/* xrdcp.c */
-int rel_is_unsafe(const char *rel);
-
-/* xrdcp_recursive.c */
-
-/* The invariant inputs of one mkcol_parents call (web endpoint, base path,
- * credentials), bundled so the ancestor-collection builder stays under the
- * 5-parameter gate. */
-typedef struct {
-    const brix_weburl *du;      /* web destination endpoint                  */
-    const char        *base;    /* dst base path, trailing '/' trimmed       */
-    const char        *bearer;  /* WebDAV Authorization token, NULL = anon   */
-    const brix_opts   *co;      /* connection opts (verify/ca_dir; may be NULL) */
-} mkcol_ctx_t;
-
-/* WHAT: bundled arguments for one recursive placement (source URL, relative
- * destination path, per-file opts, connection opts, retry budget, status out).
- * WHY: recursive_place fans out to a web and a local placement helper; a struct
- * keeps each helper at a reviewable parameter count with explicit data flow.
- * HOW: built on the stack by recursive_place's callers; read-only for the
- * placement helpers except `st`. */
-typedef struct {
-    const char           *rel;      /* destination path relative to dstroot */
-    const char           *srcurl;   /* fully-qualified source URL */
-    const brix_copy_opts *fo;       /* per-file copy opts (may be NULL) */
-    const brix_opts      *co;       /* connection opts (may be NULL) */
-    int                   retries;  /* copy retry budget */
-    brix_status          *st;       /* error detail out */
-} place_ctx_t;
-
-int mkcol_parents(const mkcol_ctx_t *m, const char *rel, brix_status *st);
-int recursive_place(const char *dstroot, const place_ctx_t *p);
-void ensure_web_dst_base(const char *dstroot, const brix_copy_opts *fo, const brix_opts *co);
-int recursive_s3_download(const brix_weburl *u, const char *dstdir, const brix_copy_opts *fo, const brix_opts *co, int retries);
-int recursive_web_download(const char *src, const char *dstdir, const brix_copy_opts *o, const brix_opts *co, int retries);
-int web_join(const char *base, const char *rel, char *out, size_t outsz);
-void web_upload_walk(web_upload_ctx *c, const char *localdir, const char *rel);
-int recursive_web_upload(const char *localdir, const char *dst, const brix_copy_opts *o, const brix_opts *co, int retries);
 
 /* xrdcp.c */
 void xrdcp_progress(void *arg, long long done, long long total);

@@ -230,7 +230,10 @@ def wdpush(lifecycle, tmp_path, pki):
         (data / "peer" / name.lstrip("/")).write_bytes(SEED)
 
     cred_dir = tmp_path / "cred"
-    cred_dir.mkdir()
+    # 0700: brix_cred_write (phase-108 C11) refuses a group/other-accessible
+    # credential store with EPERM, so the fixture matches the store's own bar.
+    cred_dir.mkdir(mode=0o700)
+    cred_dir.chmod(0o700)
     tmp = tmp_path / "ngxtmp"
     tmp.mkdir()
 

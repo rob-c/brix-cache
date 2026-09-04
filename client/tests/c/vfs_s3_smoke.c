@@ -23,9 +23,9 @@
  * NOTE: link against $(CLIENT_LIB) + $(PROTO_LIB) + $(LDLIBS) (same as aio-smoke).
  */
 
-#include "../../lib/vfs.h"
+#include "../../lib/fs/vfs.h"
 #include "../../lib/brix.h"
-#include "../../src/core/compat/crypto.h"   /* brix_crypto_init — arms SHA-256/HMAC */
+#include "../../../src/core/compat/crypto.h" /* brix_crypto_init — arms SHA-256/HMAC */
 
 #include <stdio.h>
 #include <stdlib.h>

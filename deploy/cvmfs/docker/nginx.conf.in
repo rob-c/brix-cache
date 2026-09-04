@@ -19,8 +19,8 @@ events { worker_connections 4096; }
 
 http {
     log_format cvmfs '$remote_addr [$time_local] "$request" $status '
-                     '$body_bytes_sent class=$cvmfs_class cache=$cvmfs_cache '
-                     'origin=$cvmfs_origin';
+                     '$body_bytes_sent class=$cvmfs_class '
+                     'cache=$brix_cache_status origin=$cvmfs_origin';
 
     # ---- :3128  the CVMFS site cache --------------------------------------
     # CVMFS clients set CVMFS_HTTP_PROXY to this port and send absolute-form

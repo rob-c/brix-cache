@@ -205,10 +205,7 @@ locate_check_data_server(locate_ctx_t *lc, ngx_int_t *out_rc)
      * on the empty local export always missed and locate answered NotFound for
      * files that exist. brix_vfs_statf reaches the backend (and, via the keystone
      * kXR_stat, resolves directories too). */
-    brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL,
-        brix_vfs_policy_from_write_enable(conf->common.allow_write),
-        0 /* is_tls */, NULL, full_path);
+    brix_root_vfs_ctx_init(ctx, c, conf, &vctx, full_path);
     if (brix_vfs_statf(&vctx, &vst) != NGX_OK) {
         if (conf->upstream_host.len > 0) {
             brix_log_access(ctx, c, "LOCATE", lc->reqpath, "upstream",

@@ -145,9 +145,8 @@ def test_redirect_counts_miss_on_data_server(cms):
     assert r.returncode == 0, r.stderr
     cx.settle()
     after = cx.mfetch(cms.ds_metrics)
-    assert s.delta("brix_cache_misses_total", {"proto": "stream"},
-                   after) == 1
-    assert s.delta("brix_cache_hits_total", {"proto": "stream"}, after) == 0
+    assert s.cache_delta("stream", "MISS", after) == 1
+    assert s.cache_delta("stream", "HIT", after) == 0
 
 
 def test_redirect_warm_read_is_hit(cms):
@@ -162,9 +161,8 @@ def test_redirect_warm_read_is_hit(cms):
     assert r.returncode == 0, r.stderr
     cx.settle()
     after = cx.mfetch(cms.ds_metrics)
-    assert s.delta("brix_cache_hits_total", {"proto": "stream"}, after) == 1
-    assert s.delta("brix_cache_misses_total", {"proto": "stream"},
-                   after) == 0
+    assert s.cache_delta("stream", "HIT", after) == 1
+    assert s.cache_delta("stream", "MISS", after) == 0
 
 
 def test_manager_books_login_ledger(cms):
@@ -192,11 +190,15 @@ def _manager_login_rows(text, label):
 
 
 def test_manager_holds_no_cache_counters(cms):
-    """The manager plane never serves data itself: its own cache hit/miss
-    counters stay untouched by redirected traffic."""
+    """The manager plane never serves data itself: every disposition of
+    its own cache ledger stays at zero under redirected traffic.
+
+    Phase 112 removed the per-outcome brix_cache_{hits,misses}_total
+    pair, so the walk is over the one family and reads the disposition
+    off the cache_status label — which makes the check STRICTER: NEGHIT
+    rows had no counterpart family and went unexamined before."""
     text = cx.mfetch(cms.redir_metrics)
-    for fam in ("brix_cache_hits_total", "brix_cache_misses_total"):
-        rows = [l for l in text.splitlines()
-                if l.startswith(fam + "{") or l.startswith(fam + " ")]
-        for row in rows:
-            assert float(row.rsplit(" ", 1)[1]) == 0, row
+    fam = "brix_cache_requests_total"
+    rows = [l for l in text.splitlines() if l.startswith(fam + "{")]
+    for row in rows:
+        assert float(row.rsplit(" ", 1)[1]) == 0, row

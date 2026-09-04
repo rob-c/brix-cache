@@ -153,10 +153,30 @@ def _handoff_stores(text, worker):
     import re  # noqa: PLC0415
     stores = re.findall(r"\bbrix_storage_credential_dir\s+([^;\s]+)\s*;", text)
     for raw_store in stores:
-        store = raw_store.strip('"')
-        if store and os.path.isdir(store):
-            subprocess.run(["chown", "-R", worker, store], check=False)
-            os.chmod(store, 0o700)
+        handoff_credential_store(raw_store.strip('"'), worker)
+
+
+def handoff_credential_store(store, worker=None) -> None:
+    """Give one credential store directory to the nginx worker: owner + 0700.
+
+    The path-taking public form of the store handoff, for standalone live-lab
+    launchers that build their store directly rather than through
+    ``open_tree_for_worker`` (which is root-gated and so does nothing under a
+    non-root harness).  The PERSISTENT arm of ``brix_cred_write``
+    (``cred_stage.c`` ``cred_dir_check``) refuses a store that is group/other
+    accessible or not owned by the writing worker, returning ``EPERM`` — surfaced
+    as ``507``.  Under a root harness the recursive chown hands the tree to
+    ``nobody``; under a non-root harness the chown to ``nobody`` harmlessly fails
+    and the ``0700`` directory stays owned by the launching user, which is also
+    the worker, satisfying ``cred_dir_check``'s euid test either way.
+    """
+    store = str(store)
+    if not store or not os.path.isdir(store):
+        return
+    worker = worker if worker is not None else _worker_user()
+    if worker:
+        subprocess.run(["chown", "-R", worker, store], check=False)
+    os.chmod(store, 0o700)
 
 
 def _worker_credential_path(path, tree, twin_dir, worker):

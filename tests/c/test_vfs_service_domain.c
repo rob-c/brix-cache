@@ -70,6 +70,19 @@ brix_metric_vfs_mutation_denied(brix_proto_t proto, ngx_uint_t op)
     g_denials++;
 }
 
+void
+brix_metric_vfs_domain_mutation(ngx_uint_t domain, ngx_uint_t op)
+{
+    (void) domain; (void) op;
+}
+
+const brix_n2n_cfg_t *
+brix_vfs_backend_n2n(const char *root_canon)
+{
+    (void) root_canon;
+    return NULL;
+}
+
 /* vfs_policy_domain.o's one libngx symbol (via the ngx_log_error macro):
  * record the level so "logs at crit" is an assertion, not a hope. */
 void

@@ -391,6 +391,9 @@ brix_tier_build(const brix_tier_cfg_t *t, ngx_log_t *log)
     if (ngx_strcmp(t->driver, "xroot") == 0) {
         return tier_build_xroot(t, log);
     }
+    if (ngx_strcmp(t->driver, "gsiftp") == 0) {
+        return brix_tier_build_gsiftp(t, log);
+    }
     if (ngx_strcmp(t->driver, "http") == 0) {
         return tier_build_http(t, log);
     }

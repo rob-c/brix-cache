@@ -1,5 +1,10 @@
 # File-Size Burndown — every src/ file under 600 LOC
 
+**Status:** HISTORICAL BURNDOWN. It reached an empty backlog; subsequent work
+has reintroduced five native and five Python size offenders. Use
+`phase-111-repository-work-burndown.md` for the current exact list and this
+document only for the split discipline.
+
 **Guard:** `tools/ci/check_file_size.py` (ratchet + `file_size_backlog.txt`), wired in
 `.github/workflows/guards.yml` ("file-size ratchet"), exercised by `tests/test_ci_guards.py`.
 **Standard:** coding-standards.md §1 ("Size and Focus" — one concept per file, ~500 soft cap).

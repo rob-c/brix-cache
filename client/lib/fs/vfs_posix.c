@@ -461,7 +461,12 @@ posix_be_open(const brix_vfs_backend *be, const char *path, int flags,
         }
     } else {
         /* READ — through the shared POSIX driver (unconfined). */
-        fd = brix_sd_posix_open_unconfined(path, BRIX_SD_O_READ, 0);
+        int read_flags = BRIX_SD_O_READ;
+
+        if (flags & XRDC_VFS_NOFOLLOW) {
+            read_flags |= BRIX_SD_O_NOFOLLOW;
+        }
+        fd = brix_sd_posix_open_unconfined(path, read_flags, 0);
         if (fd < 0) {
             brix_status_set(st, XRDC_EIO, errno,
                             "vfs posix open read %s: %s",

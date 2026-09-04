@@ -176,47 +176,26 @@ metrics_emit_xfer_heap(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
 /*
  * metrics_emit_bytes() — payload byte-count families.
  *
- * WHAT: Client payload rx/tx totals — legacy aggregate pair (DEPRECATED in
- *       favour of the protocol-neutral brix_io_bytes_* series), the native
- *       root:// per-protocol pair, and the per-IP-version split.
+ * WHAT: The per-IP-version client payload rx/tx split.
  * WHY: Throughput accounting; the IPv4/IPv6 split avoids the
  *      high-cardinality label explosion of per-client series.
- * HOW: Eight-entry descriptor table; deprecated families carry their
- *      DEPRECATED notice verbatim in the header preamble.
+ * HOW: Four-entry descriptor table.
+ *
+ * Phase 112 removed the four families that exposed this accounting a second
+ * time under protocol-specific names: brix_bytes_{rx,tx}_total and
+ * brix_bytes_root_{rx,tx}_total. Their SHM slots
+ * (servers[].bytes_{rx,tx}_total, servers[].proto_root_bytes_{rx,tx}_total)
+ * are STILL recorded and STILL read — brix_unified_legacy_stream_bytes() folds
+ * the aggregate pair into brix_io_bytes_read{proto="stream"} /
+ * brix_io_bytes_written{proto="stream"}, which subsumes the root:// pair on a
+ * stream plane that speaks only root://, and the dashboard JSON reads both.
+ * Only the duplicate exposition is gone. The IPv4/IPv6 pairs below are NOT
+ * duplicates — no canonical family carries the address-family split.
  */
 void
 metrics_emit_bytes(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
 {
     static const srv_family_desc_t tab[] = {
-        SRV_FAMILY(
-            "# DEPRECATED: use brix_io_bytes_written{proto=\"stream\"} "
-                "for protocol-neutral write throughput.\n"
-            SRV_COUNTER_HDR("brix_bytes_rx_total",
-                "Bytes received from clients (write payloads)."),
-            "brix_bytes_rx_total", bytes_rx_total),
-        SRV_FAMILY(
-            "# DEPRECATED: use brix_io_bytes_read{proto=\"stream\"} "
-                "for protocol-neutral read throughput.\n"
-            SRV_COUNTER_HDR("brix_bytes_tx_total",
-                "Bytes sent to clients (read data)."),
-            "brix_bytes_tx_total", bytes_tx_total),
-
-        /* Per-protocol byte counters — native XRootD stream-layer data only. */
-        SRV_FAMILY(
-            "# DEPRECATED: use brix_io_bytes_written{proto=\"stream\"} "
-                "for protocol-neutral write throughput.\n"
-            SRV_COUNTER_HDR("brix_bytes_root_rx_total",
-                "Bytes received from clients via the native XRootD root:// protocol."),
-            "brix_bytes_root_rx_total", proto_root_bytes_rx_total),
-        SRV_FAMILY(
-            "# DEPRECATED: use brix_io_bytes_read{proto=\"stream\"} "
-                "for protocol-neutral read throughput.\n"
-            SRV_COUNTER_HDR("brix_bytes_root_tx_total",
-                "Bytes sent to clients via the native XRootD root:// protocol."),
-            "brix_bytes_root_tx_total", proto_root_bytes_tx_total),
-
-        /* Per-IP-version bandwidth counters — avoids high-cardinality label
-         * explosion. */
         SRV_FAMILY(SRV_COUNTER_HDR("brix_bytes_rx_ipv4_total",
                 "Bytes received from IPv4 clients (stream layer)."),
             "brix_bytes_rx_ipv4_total", bytes_rx_ipv4_total),

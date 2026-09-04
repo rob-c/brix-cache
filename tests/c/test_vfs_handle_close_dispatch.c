@@ -141,6 +141,36 @@ ngx_int_t brix_vfs_require_unlocked(brix_vfs_ctx_t *ctx,
 void brix_metric_vfs_mutation_denied(brix_proto_t proto, ngx_uint_t op)
 { (void) proto; (void) op; g_denials++; }
 
+const brix_n2n_cfg_t *brix_vfs_backend_n2n(const char *root_canon)
+{ (void) root_canon; return NULL; }
+
+ngx_int_t brix_vfs_gate_mutation(const brix_vfs_ctx_t *ctx,
+    brix_vfs_mutation_op_t op)
+{ return brix_vfs_require_mutation(ctx, op); }
+
+ngx_int_t brix_vfs_gate_file_mutation(const brix_vfs_file_t *fh,
+    brix_vfs_mutation_op_t op)
+{
+    return brix_vfs_require_carried_mutation(
+        fh->mutation_policy, fh->metrics_proto, op);
+}
+
+ngx_int_t brix_vfs_gate_confined(const brix_vfs_ctx_t *ctx,
+    brix_vfs_mutation_op_t op)
+{ return brix_vfs_require_confined_mutation(ctx, op); }
+
+ngx_int_t brix_path_resolved_to_pfn(const brix_vfs_ctx_t *ctx,
+    const char *path, char *pfn, size_t cap)
+{
+    size_t len;
+    (void) ctx;
+    if (path == NULL || pfn == NULL) { errno = EINVAL; return NGX_ERROR; }
+    len = strlen(path);
+    if (len >= cap) { errno = ENAMETOOLONG; return NGX_ERROR; }
+    memcpy(pfn, path, len + 1);
+    return NGX_OK;
+}
+
 /* The spy executor: record whether vfs_sync bound the handle's driver object
  * into the job (which is what makes the real executor dispatch driver->fsync
  * instead of wrapping the — invalid — kernel fd). */
@@ -167,6 +197,7 @@ handle_init(brix_vfs_file_t *fh, const brix_sd_driver_t *drv, ngx_fd_t fd,
     fh->obj.state       = state;
     fh->memfd           = NGX_INVALID_FILE;
     fh->mutation_policy = policy;
+    fh->metrics_proto   = BRIX_PROTO_ROOT;
 }
 
 static void

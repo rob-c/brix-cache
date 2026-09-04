@@ -26,6 +26,7 @@
 #include "observability/metrics/metrics.h"
 #include "observability/metrics/metrics_macros.h"
 #include "protocols/shared/file_serve.h"
+#include "protocols/shared/vfs_authz_bind.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -126,6 +127,7 @@ oci_registry_serve(ngx_http_request_t *r, ngx_http_brix_oci_loc_conf_t *lcf,
     is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_OCI,
                       st->root, "", BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL, path);
+    brix_http_vfs_bind_no_rules(&lcf->common, &vctx);
     vctx.sd = brix_vfs_backend_resolve(st->root, r->connection->log);
 
     fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);

@@ -82,51 +82,6 @@ brix_acc_gate_select_op(brix_acc_op_t op_in, int auth_level)
  * connection.  Restricted to the structured-identity path: without a place to
  * cache (identity==NULL) the login.dn fallback runs unmapped, as before.
  */
-static const char *
-brix_acc_gate_map_name(brix_identity_t *id, const char *dn)
-{
-    if (id == NULL || !brix_idmap_gate_enabled()) {
-        return (dn != NULL) ? dn : "";
-    }
-    if (!id->mapped_resolved) {
-        id->mapped_resolved = 1;
-        id->mapped_user[0] = '\0';
-
-        /* §5.4 VOMS FQAN mapping (XrdVomsMapfile): a VOMS FQAN maps to a local
-         * account with PRECEDENCE over the raw DN, so a whole VO/role collapses
-         * to one identity regardless of which member cert presented it. The same
-         * wildcard-capable grid-mapfile serves both — an FQAN key
-         * ("/atlas/Role=production") or a DN key — since both are quoted
-         * "/"-delimited strings; the first FQAN (in credential order) that maps
-         * wins. */
-        if (id->vo_list != NULL) {
-            ngx_str_t  *fqans = id->vo_list->elts;
-            ngx_uint_t  k;
-            char        fqan[512];
-
-            for (k = 0; k < id->vo_list->nelts; k++) {
-                if (brix_str_cbuf(fqan, sizeof(fqan), &fqans[k]) != NULL
-                    && brix_idmap_gate_username(fqan, id->mapped_user,
-                                                sizeof(id->mapped_user)))
-                {
-                    break;
-                }
-                id->mapped_user[0] = '\0';
-            }
-        }
-
-        /* §5.8 DN mapping when no FQAN matched — unchanged behaviour. */
-        if (id->mapped_user[0] == '\0' && dn != NULL && dn[0] != '\0'
-            && !brix_idmap_gate_username(dn, id->mapped_user,
-                                         sizeof(id->mapped_user)))
-        {
-            id->mapped_user[0] = '\0';        /* unmapped: keep the DN */
-        }
-    }
-    return (id->mapped_user[0] != '\0') ? id->mapped_user
-                                        : ((dn != NULL) ? dn : "");
-}
-
 /*
  * brix_acc_gate_identity — resolve the XrdAcc entity's name and VO views.
  *
@@ -143,7 +98,7 @@ brix_acc_gate_identity(brix_ctx_t *ctx, const char **name,
     const char **vorg, const char **role, const char **grp)
 {
     if (ctx->identity != NULL) {
-        *name = brix_acc_gate_map_name(ctx->identity,
+        *name = brix_authz_mapped_name(ctx->identity,
                                        brix_identity_dn_cstr(ctx->identity));
         *vorg = brix_identity_acc_vorg_cstr(ctx->identity);
         *role = brix_identity_acc_role_cstr(ctx->identity);
@@ -174,7 +129,7 @@ brix_acc_gate_host(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *host = (ctx->login.peer_ip[0] != '\0') ? ctx->login.peer_ip : "?";
     const char *resolved;
 
-    if (!conf->acc.resolve_hosts) {
+    if (!conf->common.acc.resolve_hosts) {
         return host;
     }
 
@@ -203,7 +158,7 @@ brix_acc_gate_engine(const auth_gate_ctx_t *g, const char *path)
     const char                  *name, *host;
     const char                  *vorg, *role = "", *grp = "";
 
-    if (conf->acc.tables == NULL) {
+    if (conf->common.acc.tables == NULL) {
         return NGX_ERROR;   /* xrdacc selected but authdb failed to load */
     }
     if (path == NULL) {
@@ -224,9 +179,9 @@ brix_acc_gate_engine(const auth_gate_ctx_t *g, const char *path)
         return NGX_ERROR;
     }
 
-    privs = brix_acc_access(conf->acc.tables, ent, path, op);
+    privs = brix_acc_access(conf->common.acc.tables, ent, path, op);
 
-    brix_acc_audit(c->log, conf->acc.audit, privs != BRIX_ACC_PRIV_NONE,
+    brix_acc_audit(c->log, conf->common.acc.audit, privs != BRIX_ACC_PRIV_NONE,
                      g->op_name, name, host, path);
 
     return (privs != BRIX_ACC_PRIV_NONE) ? NGX_OK : NGX_ERROR;
@@ -249,7 +204,7 @@ brix_authz_check(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *resolved, const char *op_name, int auth_level,
     brix_acc_op_t aop)
 {
-    if (conf->acc.format == BRIX_AUTHDB_FORMAT_XRDACC) {
+    if (conf->common.acc.format == BRIX_AUTHDB_FORMAT_XRDACC) {
         auth_gate_ctx_t  g = {0};
 
         g.ctx        = ctx;
@@ -392,7 +347,7 @@ brix_auth_gate_cache_probe(const auth_gate_ctx_t *g, u_char out_key[32],
     int *out_have_key, int *out_verdict)
 {
     ngx_stream_brix_srv_conf_t  *conf = g->conf;
-    int             is_xrdacc = (conf->acc.format == BRIX_AUTHDB_FORMAT_XRDACC);
+    int             is_xrdacc = (conf->common.acc.format == BRIX_AUTHDB_FORMAT_XRDACC);
     /* xrdacc verdicts also depend on the operation and peer host, so fold both
      * into the key (native passes AOP_ANY + "" -> its keys are unchanged).  OS
      * group membership — the one remaining xrdacc input — is bounded by the
@@ -453,7 +408,7 @@ brix_auth_gate_evaluate(const auth_gate_ctx_t *g, const u_char ac_key[32],
 {
     brix_ctx_t  *ctx = g->ctx;
 
-    if (g->conf->acc.format == BRIX_AUTHDB_FORMAT_XRDACC) {
+    if (g->conf->common.acc.format == BRIX_AUTHDB_FORMAT_XRDACC) {
         /* XrdAcc authorizes the logical namespace path, not the backing FS path. */
         if (brix_acc_gate_engine(g, (g->reqpath != NULL) ? g->reqpath
                                                          : g->resolved) != NGX_OK)
@@ -466,7 +421,7 @@ brix_auth_gate_evaluate(const auth_gate_ctx_t *g, const u_char ac_key[32],
                                      g->resolved, "authdb denied");
     }
 
-    if (brix_check_vo_acl_identity(g->c->log, g->resolved, g->conf->vo_rules,
+    if (brix_check_vo_acl_identity(g->c->log, g->resolved, g->conf->common.vo_rules,
                                      ctx->identity) != NGX_OK) {
         return brix_auth_gate_deny(g, ac_key, ac_have_key,
                                      g->resolved, "VO not authorized");

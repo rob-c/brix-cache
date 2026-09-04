@@ -89,6 +89,13 @@ typedef struct {
     char                  ceph_pool[256];
     char                  ceph_conf[1024];
     char                  ceph_key_prefix[256];
+    /* phase-108 A.4: the export's resolved logical→physical name translation.
+     * Defaulted by the backend parser (ceph ⇒ CEPHFS_PATH with prefix ==
+     * ceph_key_prefix; every other backend leaves the zero value, IDENTITY) and
+     * overridden by the explicit brix_n2n_* directives. ctx->n2n borrows a
+     * pointer to this (brix_vfs_backend_n2n), so the generic path stage reads one
+     * worker-lifetime cfg with no per-request copy. */
+    brix_n2n_cfg_t        n2n;
     /* cephfsro (read-only CephFS-via-RADOS): ceph_pool holds the METADATA pool,
      * ceph_data_pool the DATA pool; cephfs_quiesced is the operator's safety
      * assertion (carried in the backend URI as "?assume_quiesced=1"). */
@@ -160,6 +167,9 @@ brix_vfs_backend_entry_t *brix_vfs_backend_entry_get_or_create(
  * defined in vfs_backend_registry_source.c and called by the decorator-composition
  * orchestrator in vfs_backend_registry.c. Returns NULL (logged) on init failure. */
 brix_sd_instance_t *brix_vfs_backend_build_source(
+    brix_vfs_backend_entry_t *e, ngx_log_t *log);
+
+brix_sd_instance_t *brix_vbr_build_gsiftp(
     brix_vfs_backend_entry_t *e, ngx_log_t *log);
 
 #endif /* BRIX_VFS_BACKEND_INTERNAL_H */

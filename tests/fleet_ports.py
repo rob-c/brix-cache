@@ -312,6 +312,7 @@ CMDSCRIPTS_PORTS = {
     "cvmfs_driver_units": (29086, 2),
     "cvmfs_live_ext": (29088, 38),
     "cvmfs_matrix": (29126, 6),
+    "cvmfs_verify": (29231, 2),
     "dashboard_vfs_browse": (29132, 4),
     "delegation_twostep": (29136, 2),
     "fwd_matrix_live": (29138, 11),

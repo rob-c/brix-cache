@@ -123,7 +123,7 @@ LIB_SRCS   := \
   lib/auth/sec/sec_gsi.c lib/auth/sec/sec_host.c lib/auth/sec/sec_krb5.c lib/auth/sec/sec_pwd.c lib/auth/sec/sec_sss.c lib/auth/sec/sec_token.c lib/auth/sec/sec_unix.c \
   lib/auth/gsi/proxy.c \
   lib/auth/sss/sss_keytab.c \
-  lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/overlay_copyup.c lib/fs/path.c lib/fs/rmtree.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c lib/fs/walk.c \
+  lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/overlay_copyup.c lib/fs/path.c lib/fs/rfile_stream.c lib/fs/rmtree.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c lib/fs/walk.c \
   lib/fs/backend/s3/vfs_s3.c lib/fs/backend/s3/vfs_s3_http.c lib/fs/backend/s3/vfs_s3_io.c lib/fs/backend/s3/vfs_s3_transport.c \
   lib/protocols/root/frame.c lib/protocols/root/frame_roundtrip.c lib/protocols/root/ops_ext.c lib/protocols/root/ops_file.c lib/protocols/root/ops_file_pg.c lib/protocols/root/ops_file_rw.c lib/protocols/root/ops_fs.c lib/protocols/root/ops_meta.c \
   lib/protocols/http/http.c lib/protocols/http/http_download.c lib/protocols/http/http_req.c lib/protocols/http/http_upload.c lib/protocols/http/web_ka.c lib/protocols/http/webfile.c lib/protocols/http/webfile_io.c lib/protocols/http/weblist.c \
@@ -138,7 +138,7 @@ LIB_SRCS   := \
   ../shared/oci/gc.c ../shared/oci/gc_mark.c ../shared/oci/gc_sweep.c \
   ../shared/rpm/rpmhdr.c ../shared/rpm/repomd_write.c \
   lib/protocols/shared/checksum.c lib/protocols/shared/cks_verify.c lib/protocols/shared/cksum_manifest.c lib/protocols/shared/zip.c lib/protocols/shared/zip_write.c \
-  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_continue.c lib/xfer/copy_gsiftp.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_l2l.c lib/xfer/copy_local.c lib/xfer/copy_local_parallel.c lib/xfer/copy_metalink.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_xattr.c lib/xfer/copy_xcp.c lib/xfer/copy_xcp_sources.c lib/xfer/copy_zip.c lib/xfer/metalink.c lib/xfer/metalink_lex.c \
+  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_continue.c lib/xfer/copy_gsiftp.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_l2l.c lib/xfer/copy_local.c lib/xfer/copy_local_parallel.c lib/xfer/copy_metalink.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_web_recursive.c lib/xfer/copy_web_recursive_upload.c lib/xfer/copy_web_relay.c lib/xfer/copy_xattr.c lib/xfer/copy_xcp.c lib/xfer/copy_xcp_sources.c lib/xfer/copy_zip.c lib/xfer/metalink.c lib/xfer/metalink_lex.c \
   lib/posix/fuse_ops.c lib/posix/posix_map.c \
   lib/cli/cli_cksum.c lib/cli/cli_conn.c lib/cli/cli_cred.c lib/cli/cli_hint.c lib/cli/cli_opts.c lib/cli/jsonout.c lib/cli/suggest.c lib/cli/xferjournal.c \
   lib/observability/capture.c lib/observability/trace.c \
@@ -276,7 +276,7 @@ COMPAT_COMPLETION_NAMES := $(foreach n,xrd xrdfs xrdcp xrdcksum xrdprep xrdgsipr
 # phase-69: apps regrouped into tool-family subdirs — each CLI's translation units
 # are listed in a <name>_OBJS variable (the Phase-38 split siblings are just extra
 # entries). The single link rule below expands these via .SECONDEXPANSION.
-xrdcp_OBJS        := apps/copy/xrdcp.o apps/copy/xrdcp_transfer.o apps/copy/xrdcp_recursive.o apps/copy/xrdcp_dispatch.o apps/copy/xrdcp_parse.o apps/copy/xrdcp_parse_validate.o apps/copy/xrdcp_parse_transport.o apps/copy/xrdcp_recursive_upload.o
+xrdcp_OBJS        := apps/copy/xrdcp.o apps/copy/xrdcp_transfer.o apps/copy/xrdcp_recursive.o apps/copy/xrdcp_dispatch.o apps/copy/xrdcp_parse.o apps/copy/xrdcp_parse_validate.o apps/copy/xrdcp_parse_transport.o
 xrdfs_OBJS        := apps/fs/xrdfs.o apps/fs/xrdfs_data.o apps/fs/xrdfs_data_content.o apps/fs/xrdfs_data_wc.o apps/fs/xrdfs_data_xfer.o apps/fs/xrdfs_data_xfer_vec.o apps/fs/xrdfs_walk.o apps/fs/xrdfs_fmt.o apps/fs/xrdfs_attr.o apps/fs/xrdfs_xattr.o apps/fs/xrdfs_meta.o apps/fs/xrdfs_meta_ls.o apps/fs/xrdfs_meta_ns.o apps/fs/xrdfs_web.o
 xrd_OBJS          := apps/diag/xrd.o apps/diag/xrd_battery.o apps/diag/xrd_battery_web.o apps/diag/xrd_doctor.o apps/diag/xrd_doctor_json.o apps/diag/xrd_clockskew.o apps/diag/xrd_mount.o apps/diag/xrd_usage.o
 xrddiag_OBJS      := apps/diag/xrddiag.o apps/diag/diag_check.o apps/diag/diag_check_probe.o apps/diag/diag_bench.o apps/diag/diag_metabench.o apps/diag/diag_watch.o apps/diag/diag_topology.o apps/diag/diag_compare.o apps/diag/diag_doctor.o apps/diag/diag_doctor_json.o apps/diag/diag_doctor_probe.o apps/diag/diag_doctor_proto.o apps/diag/diag_doctor_audit.o apps/diag/diag_doctor_graph.o apps/diag/diag_doctor_latency.o apps/diag/diag_doctor_recon.o apps/diag/diag_doctor_eos.o apps/diag/diag_doctor_eos_fileinfo.o apps/diag/diag_tpc_egress.o apps/diag/diag_authsuite.o apps/diag/diag_misc.o \
@@ -610,7 +610,7 @@ $(CEPH_TOOL_NAMES): %: $(BINDIR)/%
 # Run against a live S3 server: S3_URL=s3://host:port/bucket/key AWS_* ./vfs_s3_smoke
 .PHONY: vfs-s3-smoke
 vfs-s3-smoke: tests/c/vfs_s3_smoke.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) tests/c/vfs_s3_smoke.c \
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) tests/c/vfs_s3_smoke.c \
 	    -Wl,--whole-archive $(CLIENT_LIB) -Wl,--no-whole-archive \
 	    $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/vfs_s3_smoke
 	@echo " + built $(BINDIR)/vfs_s3_smoke (no libXrdCl/libXrdSec*)"
@@ -619,7 +619,7 @@ vfs-s3-smoke: tests/c/vfs_s3_smoke.c $(CLIENT_LIB) | $(BINDIR)
 # Run against a live S3 server: ./sd_s3_meta_smoke <host> <port> </bucket/key>
 .PHONY: sd-s3-meta-smoke
 sd-s3-meta-smoke: ../tests/c/sd_s3_meta_smoke.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) ../tests/c/sd_s3_meta_smoke.c \
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/sd_s3_meta_smoke.c \
 	    -Wl,--whole-archive $(CLIENT_LIB) -Wl,--no-whole-archive \
 	    $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/sd_s3_meta_smoke
 	@echo " + built $(BINDIR)/sd_s3_meta_smoke"
@@ -628,25 +628,25 @@ sd-s3-meta-smoke: ../tests/c/sd_s3_meta_smoke.c $(CLIENT_LIB) | $(BINDIR)
 # Run against a live root:// server: ./aio_smoke root://host:port /scratch.bin
 .PHONY: aio-smoke aio-resil
 aio-smoke: ../tests/c/aio_smoke.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) ../tests/c/aio_smoke.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_smoke
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_smoke.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_smoke
 	@echo " + built $(BINDIR)/aio_smoke (no libXrdCl/libXrdSec*)"
 
 # M2 resilience test — bounces the server mid-stream (set XRD_BOUNCE_CMD).
 aio-resil: ../tests/c/aio_resil.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) ../tests/c/aio_resil.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_resil
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_resil.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_resil
 	@echo " + built $(BINDIR)/aio_resil (no libXrdCl/libXrdSec*)"
 
 # Deferred-reply (kXR_waitresp → kXR_attn/asynresp) driver for the mock-server
 # pytest (tests/test_aio_waitresp.py).
 .PHONY: aio-waitresp
 aio-waitresp: ../tests/c/aio_waitresp.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) ../tests/c/aio_waitresp.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_waitresp
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_waitresp.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_waitresp
 	@echo " + built $(BINDIR)/aio_waitresp (no libXrdCl/libXrdSec*)"
 
 # M3 file-handle resumption test — read/write survive a mid-transfer bounce.
 .PHONY: aio-mfile brix-fault-proxy
 aio-mfile: ../tests/c/aio_mfile.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) ../tests/c/aio_mfile.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_mfile
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_mfile.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_mfile
 	@echo " + built $(BINDIR)/aio_mfile (no libXrdCl/libXrdSec*)"
 
 # brix-fault-proxy — root-free TCP fault-injection proxy ("toxiproxy-lite") for
@@ -685,7 +685,7 @@ $(BINDIR)/brix-fault-proxy: $(FAULT_PROXY_SRCS) $(FAULT_PROXY_HDRS) lib/core/ver
 # Run: ./bin/netfb_test state ; LD_PRELOAD=./bin/gai_shim.so ./bin/netfb_test connect
 .PHONY: netfb gai-shim
 netfb: ../tests/c/netfb_test.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) ../tests/c/netfb_test.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/netfb_test
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/netfb_test.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/netfb_test
 	@echo " + built $(BINDIR)/netfb_test"
 
 gai-shim: ../tests/c/gai_shim.c | $(BINDIR)
@@ -695,7 +695,7 @@ gai-shim: ../tests/c/gai_shim.c | $(BINDIR)
 # Network-timeout + retry-backoff unit test (nettmo.c).
 .PHONY: nettmo
 nettmo: ../tests/c/nettmo_test.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) ../tests/c/nettmo_test.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/nettmo_test
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/nettmo_test.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/nettmo_test
 	@echo " + built $(BINDIR)/nettmo_test"
 
 # §14.4 LD_PRELOAD POSIX shim — fold the PIC client + protocol kernels into a .so.
@@ -914,7 +914,7 @@ install-automount:
 # vfs_s3_smoke is excluded (needs an external S3 endpoint; run it manually).
 # Each test is a standalone main() linking the client lib + libxrdproto, the
 # same recipe as the Build+run comment in each test's header.
-CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit ftp_client_unit web_proxy_pem_unit sigver_kernel_unit metalink_unit kxr_errors_unit
+CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit rfile_stream_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit ftp_client_unit web_proxy_pem_unit sigver_kernel_unit metalink_unit kxr_errors_unit
 # The tests predate the phase-69 bucket reshuffle and include bucket-local
 # headers bare ("cred.h"); add the bucket dirs rather than churning the tests.
 TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -Ilib/core/config -Ilib/net
@@ -931,7 +931,7 @@ test: $(CLIENT_LIB) proto | $(BINDIR)
 	  *" $$t "*) lib='-Wl,--whole-archive $(CLIENT_LIB) -Wl,--no-whole-archive' ;; \
 	  *)         lib='$(CLIENT_LIB)' ;; \
 	  esac; \
-	  $(CC) $(ALL_CFLAGS) $(TEST_INC) tests/c/$$t.c \
+	  $(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(TEST_INC) tests/c/$$t.c \
 	    $$lib $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/$$t; \
 	  $(BINDIR)/$$t; \
 	done; echo "client unit tests: ALL PASS"
@@ -950,7 +950,7 @@ test: $(CLIENT_LIB) proto | $(BINDIR)
 	*" $$t "*) lib='-Wl,--whole-archive $(CLIENT_LIB) -Wl,--no-whole-archive' ;; \
 	*)         lib='$(CLIENT_LIB)' ;; \
 	esac; \
-	$(CC) $(ALL_CFLAGS) $(TEST_INC) tests/c/$$t.c \
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(TEST_INC) tests/c/$$t.c \
 	  $$lib $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/$$t
 
 # Build the sample consumer against the INSTALLED library via pkg-config.
@@ -965,6 +965,8 @@ clean:
 	    $(BRIX_CVMFS_OBJS) $(BRIX_CVMFS_OBJS:.o=.d) \
 	    $(CLIENT_LIB) $(LIBBRIX_SO) $(LIBBRIX_SONAME) $(LIBBRIX_REAL) libbrix.pc \
 	    $(PRELOAD_SO)
+	rm -f $(ALL_OBJS:.o=.gcno) $(ALL_OBJS:.o=.gcda) \
+	    $(BRIX_CVMFS_OBJS:.o=.gcno) $(BRIX_CVMFS_OBJS:.o=.gcda)
 	rm -rf $(BINDIR)
 
 -include $(DEPS)

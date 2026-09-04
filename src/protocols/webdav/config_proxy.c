@@ -68,6 +68,14 @@ webdav_merge_auth_token_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *pr
         {
             return NGX_CONF_ERROR;
         }
+        if (rc > 0
+            && brix_http_common_register_jwks_refresh(cf,
+                   &conf->common.token_jwks, conf->jwks_keys,
+                   &conf->jwks_key_count,
+                   conf->common.token_jwks_refresh_interval) != NGX_OK)
+        {
+            return NGX_CONF_ERROR;
+        }
     }
 
     /* Multi-issuer registry (phase-59 W1) — only build it on a leaf location

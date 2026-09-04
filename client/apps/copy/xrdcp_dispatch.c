@@ -69,9 +69,11 @@ xrdcp_dispatch_recursive_web_download(const xrdcp_transfer_ctx *ctx)
     brix_status_clear(&st);
     for (i = 0; i < ctx->nexp; i++) {
         if (brix_is_web_url(ctx->exp[i])) {
-            if (recursive_web_download(ctx->exp[i], ctx->dst, ctx->opts,
-                                       ctx->conn, ctx->retries) != 0) {
+            brix_status_clear(&st);
+            if (brix_copy(ctx->exp[i], ctx->dst, ctx->opts,
+                          ctx->conn, &st) != 0) {
                 bad++;
+                fprintf(stderr, "xrdcp: %s: %s\n", ctx->exp[i], st.msg);
             }
         } else if (copy_one_with_retry(ctx->exp[i], ctx->dst, ctx->opts,
                                        ctx->conn, ctx->retries, &st) != 0) {
@@ -98,9 +100,11 @@ xrdcp_dispatch_recursive_web_upload(const xrdcp_transfer_ctx *ctx)
     }
     for (i = 0; i < ctx->nexp; i++) {
         if (is_local_dir(ctx->exp[i])) {
-            if (recursive_web_upload(ctx->exp[i], ctx->dst, ctx->opts,
-                                     ctx->conn, ctx->retries) != 0) {
+            brix_status_clear(&st);
+            if (brix_copy(ctx->exp[i], ctx->dst, ctx->opts,
+                          ctx->conn, &st) != 0) {
                 bad++;
+                fprintf(stderr, "xrdcp: %s: %s\n", ctx->exp[i], st.msg);
             }
         } else if (copy_one_with_retry(ctx->exp[i], ctx->dst, ctx->opts,
                                        ctx->conn, ctx->retries, &st) != 0) {

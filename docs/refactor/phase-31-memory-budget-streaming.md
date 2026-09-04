@@ -2,9 +2,11 @@
 
 **Date:** 2026-06-12
 **Author:** memory audit
-**Status:** MOSTLY COMPLETE — raw-alloc scratch fix + W1 trim (re-enabled) + W3 +
-W2.1 windowed read + W2.2 PUT + W4 budget all landed & verified; W2.3 readv is
-budget-bounded (full resident windowing is a follow-up)
+**Status:** IMPLEMENTED AND VERIFIED (reconciled 2026-09-04) — raw-allocated
+scratch, trim, ordinary/TLS read, `pgread`, `readv`, PUT streaming, the smaller
+handle registry, and aggregate backpressure are all landed.  The current
+`readv` path advertises one protocol body and emits its segment headers and data
+through a reusable bounded window; it no longer allocates the logical response.
 **Scope:** all bulk data paths — `src/protocols/root/read`, `src/protocols/root/write`, `src/core/aio`, `src/protocols/webdav`,
 `src/protocols/s3`, `src/fs/cache`, `src/protocols/root/session`, `src/core/types/context.h`, `src/core/types/tunables.h`
 **Companion:** Phase 29 (read throughput) and Phase 30 (whole-src hyper-opt). 29/30
@@ -23,18 +25,18 @@ data plane and must land consistently — do not regress the sendfile path.
 | **W3 SHM handle table** | **DONE** | `512×8` = 4096 slots ≈ 17 MB (was 68 MB). `src/protocols/root/session/registry.h`. |
 | **W2.2 PUT streaming** | **DONE, verified** | `webdav/put.c` + `s3/put.c` stream the body via `xrootd_http_body_write_to_fd` — no full-body copy. |
 | **W2.1 windowed read** | **DONE, verified** | Memory-backed `kXR_read` (TLS / non-regular) > `XROOTD_READ_WINDOW` is served as a fill→drain→fill loop of `kXR_oksofar` chunks ending in `kXR_ok`, holding ~one window in `read_scratch`. New `rd_win_*` ctx state, `xrootd_build_window_chain()`, `xrootd_read_window_pump()`/`_emit()` in `src/core/aio/reads.c`, continuation hook in `src/protocols/root/connection/send.c`. **Validated: a 200 MiB TLS read is byte-exact and `xrootd_xfer_heap_high_water_bytes` peaks at ~2 MiB** (vs up to 64 MiB before) — 32× per-stream reduction. |
-| **W2.3 readv** | **PARTIAL** | `kXR_readv` now respects the budget (`xrootd_budget_admit`/`_sync` in `src/protocols/root/read/readv.c`) so a burst of large readv cannot blow the cap — **safe/bounded**. Full *resident* windowing (256 MiB upfront → window via incremental segment-batch streaming) is a tracked **follow-up**: readv's interleaved `[seghdr][data]` layout needs an incremental builder, higher risk for lower frequency. |
+| **W2.3 readv** | **DONE, verified** | `src/protocols/root/read/readv_window.c` streams the one logical `[seghdr][data]…` body through `BRIX_READ_WINDOW`. It preserves XrdCl's exact requested offset/length records, validates every extent before publishing a body length, applies the 256 MiB logical cap, and aborts the connection if an I/O failure occurs after framing began. A 32 MiB vector read is byte-exact while worker RSS growth stays below 24 MiB. |
+| **`pgread` resident windowing** | **DONE, verified** | The page-read state in `src/protocols/root/read/pgread_window.c` uses the shared window pump while preserving per-page CRC32c and `kXR_status(4007)` framing. |
 | **W4 SHM budget + backpressure** | **DONE, verified** | `xrootd_memory_budget` directive (off_t, default 768m); SHM atomics in `ngx_xrootd_srv_metrics_t`; idempotent charge/release in `src/protocols/root/connection/budget.h`; admission defers over-budget reads with `kXR_wait`; `/metrics` gauges. |
 
 **Net effect:** memory is now bounded and enforced end-to-end — idle connections
-trim to the window, an active large TLS read holds ~2 MiB (windowing), readv and
-single reads are budget-admitted with `kXR_wait` backpressure, and the SHM floor
+trim to the window, active large TLS, page and vector reads hold approximately
+one window, reads are budget-admitted with `kXR_wait` backpressure, and the SHM floor
 dropped ~50 MB. The two pre-existing crashes/bugs (trim corruption, TLS EFAULT)
 are fixed by the raw-alloc foundation.
 
-**Remaining follow-up:** full readv *resident* windowing; `kXR_pgread` windowing
-(kXR_status/CRC framing — currently budget-bounded). Both are safe today via the
-budget; they would further improve per-stream density.
+**Remaining work:** none for this phase. Kernel page-cache tuning and direct I/O
+remain explicitly out of scope because they are not module-heap accounting.
 
 ---
 
@@ -60,7 +62,7 @@ the invariant is *enforced*, not hoped for.
 
 ---
 
-## Where the memory actually goes today (audited)
+## Original memory audit (pre-implementation)
 
 Constants verified in `src/core/types/tunables.h`; per-connection layout in
 `src/core/types/context.h`.
@@ -106,11 +108,12 @@ worst-case buffer above is also the *normal* buffer.
   spilled to a spool file. Collecting it again doubles resident memory for the
   in-memory case and defeats the spool for the large case.
 
-### D. `kXR_readv` — up to 256 MiB allocated upfront
+### D. `kXR_readv` — formerly up to 256 MiB allocated upfront
 
-`src/protocols/root/read/readv.c`: response buffer sized to the sum of all segment payloads,
-allocated before the first `preadv`. A single large `readv` is a 256 MiB resident
-spike per request.
+Before W2.3, `src/protocols/root/read/readv.c` sized a response buffer to the sum
+of all segment payloads and allocated it before the first `preadv`. A single
+large `readv` could therefore create a 256 MiB resident spike. The as-built path
+now preflights the vector and streams it through `readv_window.c`.
 
 ### E. Shared memory (fixed, cross-worker) — ~70 MB baseline, one big item
 
@@ -283,6 +286,25 @@ directive" pattern (field in `config.h`, `ngx_command_t`, merge in
 ---
 
 ## Verification — prove the invariant, don't assume it
+
+### Close evidence (2026-09-04)
+
+- `tests/test_readv_segment_size.py`: **3 passed**, including a byte-exact
+  32 MiB logical vector read with worker RSS growth below 24 MiB, an 8 MiB
+  single element through stock XrdCl, and per-element cap behaviour.
+- `tests/test_readv_variable_blocks.py`: **2 passed** for differently sized
+  records and their exact framing.
+- The focused readv/security/client fleet (`test_readv_security.py`,
+  `test_readv.py`, `test_xrdfs_readv_multi.py`, and the reachable Phase 31
+  cases): **40 passed, 12 environment skips**. The skips are import-time
+  reachability markers, not executed failures.
+- Native file-size, CCN, VFS-seam and configuration-coverage guards pass; the
+  nginx module rebuild succeeds.
+
+The RSS assertion is intentionally against a logical response much larger than
+the allowed growth. It distinguishes bounded windowing from the former
+whole-response allocation without depending on allocator-specific shrink
+behaviour after a request.
 
 Baseline first (must stay green throughout — CLAUDE.md BUILD & TEST):
 

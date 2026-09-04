@@ -78,13 +78,22 @@ brix_prepare_export_root(ngx_conf_t *cf,
 char *
 brix_prepare_cache_root(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common)
 {
+    static const char       prefix[] = "posix:";
     brix_export_root_opts_t cache_opts;
+    u_char                 *store;
+    size_t                  root_len;
 
     if (common->cache_root.len == 0) {
         return NGX_CONF_OK;
     }
+    if (common->cache_store.len > 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_root is shorthand for a POSIX brix_cache_store; "
+            "configure only one of them");
+        return NGX_CONF_ERROR;
+    }
     cache_opts.directive_name = "brix_cache_root";
-    cache_opts.allow_write    = 0;
+    cache_opts.allow_write    = 1;
     cache_opts.required       = 0;
     cache_opts.canon_size     = sizeof(common->cache_root_canon);
     if (brix_prepare_export_root(cf, &common->cache_root, &cache_opts,
@@ -100,6 +109,25 @@ brix_prepare_cache_root(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common)
     {
         return NGX_CONF_ERROR;
     }
+
+    /* W9: cache_root is syntax sugar, not a second runtime cache engine.
+     * Canonicalize and confinement-check the directory under its public name,
+     * then lower it to the composable tier grammar before registration. Clear
+     * both legacy fields so VFS opens cannot consult the old by-root cache and
+     * the sd_cache decorator for the same request. */
+    root_len = ngx_strlen(common->cache_root_canon);
+    store = ngx_pnalloc(cf->pool, sizeof(prefix) - 1 + root_len + 1);
+    if (store == NULL) {
+        return NGX_CONF_ERROR;
+    }
+    ngx_memcpy(store, prefix, sizeof(prefix) - 1);
+    ngx_memcpy(store + sizeof(prefix) - 1, common->cache_root_canon,
+               root_len + 1);
+    common->cache_store.data = store;
+    common->cache_store.len = sizeof(prefix) - 1 + root_len;
+    common->cache_root.data = NULL;
+    common->cache_root.len = 0;
+    common->cache_root_canon[0] = '\0';
     return NGX_CONF_OK;
 }
 

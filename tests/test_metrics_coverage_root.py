@@ -268,7 +268,7 @@ class TestRootFileLifecycle:
 class TestRootByteCounters:
     """Data-transfer byte counters flush at TCP disconnect, so drive them with
     xrdcp subprocesses (clean disconnect) and assert a lower-bound delta >=
-    payload on the aggregate AND the per-protocol (root) series."""
+    payload on the canonical per-protocol series."""
 
     PAYLOAD = 4 * 1024 * 1024
 
@@ -281,9 +281,9 @@ class TestRootByteCounters:
         assert r.returncode == 0, r.stderr
         time.sleep(1.0)                      # let the closed session flush
         after = fetch()
-        for name in ("brix_bytes_rx_total", "brix_bytes_root_rx_total"):
-            d = snap.delta(name, LBL, after=after)
-            assert d >= self.PAYLOAD, f"{name} delta {d} < {self.PAYLOAD}"
+        name = "brix_io_bytes_written"
+        d = snap.delta(name, {"proto": "stream"}, after=after)
+        assert d >= self.PAYLOAD, f"{name} delta {d} < {self.PAYLOAD}"
 
     def test_download_increments_tx_bytes(self):
         # seed a server-side file of known size
@@ -296,9 +296,9 @@ class TestRootByteCounters:
         assert r.returncode == 0, r.stderr
         time.sleep(1.0)
         after = fetch()
-        for name in ("brix_bytes_tx_total", "brix_bytes_root_tx_total"):
-            d = snap.delta(name, LBL, after=after)
-            assert d >= self.PAYLOAD, f"{name} delta {d} < {self.PAYLOAD}"
+        name = "brix_io_bytes_read"
+        d = snap.delta(name, {"proto": "stream"}, after=after)
+        assert d >= self.PAYLOAD, f"{name} delta {d} < {self.PAYLOAD}"
 
     def test_wire_bytes_move_on_any_traffic(self):
         snap = Snapshot()

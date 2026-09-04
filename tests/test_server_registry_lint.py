@@ -9,12 +9,9 @@ Policy (docs/refactor/phase-81-test-server-registry.md §"registry lint"):
   * Test code must not reach around the registry by shelling out to the
     (now-deleted) ``manage_test_servers.sh`` / ``tests/lib/*.sh`` helpers.
 
-The direct-launch ban is enforced against a *strictly shrinking* backlog: files
-that still launch nginx directly are enumerated in ``LAUNCH_BACKLOG``.  The lint
-fails on (a) any NEW direct launch outside the backlog, and (b) any backlog entry
-that no longer launches directly — a migrated file must be removed from the list.
-So the only legal way to change the backlog is to make it smaller.  A file drops
-out of scope the moment it carries the ``uses_lifecycle_harness`` marker.
+The only direct launchers left are three explicit operator/namespace labs whose
+isolation model cannot be represented by the host registry.  The lint fails on
+any new direct launcher and on a stale exception after a lab is migrated.
 """
 
 from pathlib import Path
@@ -70,8 +67,8 @@ _LAUNCH = re.compile(
 )
 _MARKER = "uses_lifecycle_harness"
 
-# Documented, strictly-shrinking backlog of files that still launch nginx
-# directly (relative to tests/).  Burn this down phase by phase; never add to it.
+# Documented exceptions for files that must launch nginx outside the host
+# registry (relative to tests/).  Never add an ordinary pytest fixture here.
 # `userns/e2e_redteam.py` is a deliberate long-lived entry: it is a standalone
 # in-namespace-root privilege-escalation battery (launched by the C
 # userns_exec_launcher, not a shell) whose `user svc;` worker-setuid model and
@@ -101,22 +98,6 @@ LAUNCH_BACKLOG = frozenset({
     "userns/e2e_redteam_part4.py",
     "cmdscripts/system_live_ports.py",
     "_perf_netem_helpers.py",
-    # 2026-08-12: modules landed by the 2026-08-11 phase-105/parity waves
-    # WITHOUT registry migration — recorded here the day they were caught so
-    # the debt is visible and shrink-only from this point.  Burn down by
-    # extracting their inline configs to tests/configs/ templates and driving
-    # them through LifecycleHarness.
-    "cmdscripts/live_common.py",
-    "test_admin_socket.py",
-    "test_checksum_default.py",
-    "test_frm_dirlist.py",
-    "test_locate_prefname.py",
-    "test_login_fullurl.py",
-    "test_mirage_backend.py",
-    "test_oss_quota.py",
-    "test_oss_quota_enforce.py",
-    "test_qconfig_sitename.py",
-    "test_s3_native_authz.py",
 })
 
 
@@ -127,20 +108,7 @@ LAUNCH_BACKLOG = frozenset({
 # shrinking, like LAUNCH_BACKLOG.
 _INLINE_EVENTS = re.compile(r"events\s*\{")
 _INLINE_HTTP_STREAM = re.compile(r"(?:^|\W)(?:http|stream)\s*\{")
-INLINE_CONFIG_BACKLOG = frozenset({
-    # 2026-08-12: same newly-landed wave as the LAUNCH_BACKLOG additions above.
-    "test_admin_socket.py",
-    "test_checksum_default.py",
-    "test_frm_dirlist.py",
-    "test_locate_prefname.py",
-    "test_login_fullurl.py",
-    "test_mirage_backend.py",
-    "test_offload_metric.py",
-    "test_oss_quota.py",
-    "test_oss_quota_enforce.py",
-    "test_qconfig_sitename.py",
-    "test_s3_native_authz.py",
-})
+INLINE_CONFIG_BACKLOG = frozenset()
 # Fully burned down: every test module that embedded an nginx config heredoc has
 # been migrated to a committed tests/configs/*.conf template driven through the
 # registry.  An entry here would have to both embed an inline config *and* be
@@ -161,14 +129,22 @@ def _rel(path):
     return path.relative_to(TESTS).as_posix()
 
 
-def _argv_is_validation(argv_tail):
-    """True when a captured nginx argv tail carries the `-t` config-test flag."""
-    return '"-t"' in argv_tail or "'-t'" in argv_tail
+def _argv_is_non_server_action(argv_tail):
+    """True when nginx exits after validation or version/build inspection."""
+    quoted_flags = {
+        flag
+        for quote in ('"', "'")
+        for flag in (f"{quote}-t{quote}", f"{quote}-v{quote}", f"{quote}-V{quote}")
+    }
+    return any(flag in argv_tail for flag in quoted_flags)
 
 
 def _server_launches(text):
     """nginx-as-argv0 subprocess calls that START a server (i.e. NOT `nginx -t`)."""
-    return [m for m in _LAUNCH.finditer(text) if not _argv_is_validation(m.group(1))]
+    return [
+        match for match in _LAUNCH.finditer(text)
+        if not _argv_is_non_server_action(match.group(1))
+    ]
 
 
 def _validation_only(text):
@@ -178,7 +154,7 @@ def _validation_only(text):
     runnable-template equivalent, so it is exempt from the inline-config ban."""
     calls = list(_LAUNCH.finditer(text))
     return bool(calls) and not _server_launches(text) and any(
-        _argv_is_validation(m.group(1)) for m in calls
+        '"-t"' in m.group(1) or "'-t'" in m.group(1) for m in calls
     )
 
 
@@ -232,6 +208,16 @@ def test_no_new_direct_nginx_launches():
         "new direct nginx launch(es) — route through the registry "
         f"(LifecycleHarness + @pytest.mark.{_MARKER}): {new_offenders}"
     )
+
+
+def test_non_server_nginx_actions_are_not_launchers():
+    """Build inspection and config validation exit without starting nginx."""
+    source = "\n".join((
+        'subprocess.run([NGINX_BIN, "-t", "-c", config])',
+        'subprocess.run([str(nginx_bin), "-V"])',
+        'subprocess.run([NGINX, "-v"])',
+    ))
+    assert not _server_launches(source)
 
 
 def test_launch_backlog_only_shrinks():

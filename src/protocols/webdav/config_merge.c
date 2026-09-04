@@ -28,6 +28,7 @@
 #include "core/compat/staged_file.h"
 #include "fs/backend/sd.h"           /* SD registry: lazy per-worker instance */
 #include "fs/vfs/vfs_backend_registry.h" /* per-export backend config + resolve */
+#include "protocols/shared/merge_export.h"
 
 #include <openssl/x509.h>
 
@@ -236,9 +237,8 @@ static char *
 webdav_configure_storage_backend(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    if (brix_vfs_backend_config_str(cf, conf->common.root_canon,
-            &conf->common.storage_backend, conf->common.pblock_block_size,
-            BRIX_AF_AUTO) != NGX_OK)
+    if (brix_http_register_storage_backend(cf, &conf->common)
+        != NGX_CONF_OK)
     {
         return NGX_CONF_ERROR;
     }
@@ -492,8 +492,8 @@ webdav_validate_webdav_enabled(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *
         || webdav_finalize_authz_rules(cf, conf) != NGX_CONF_OK
         || webdav_configure_storage_backend(cf, conf) != NGX_CONF_OK
         || brix_http_open_rootfd(cf, &conf->common) != NGX_CONF_OK
-        || brix_tier_register_stores(cf, &conf->common) != NGX_OK
-        || webdav_prepare_stage_and_cache(cf, conf) != NGX_CONF_OK)
+        || webdav_prepare_stage_and_cache(cf, conf) != NGX_CONF_OK
+        || brix_tier_register_stores(cf, &conf->common) != NGX_OK)
     {
         return NGX_CONF_ERROR;
     }

@@ -67,8 +67,9 @@ import pytest
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS
 from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN, BIND_HOST
-from _test_audit15g_helpers import (ReadHandle, pattern, read_whole,
-                                    serve_paced, wait_until, write_open)
+from _test_audit15g_helpers import (ReadHandle, XERR_IO_ERROR, pattern,
+                                    read_whole, serve_paced, wait_until,
+                                    write_open)
 
 pytestmark = [pytest.mark.timeout(120),
               pytest.mark.uses_lifecycle_harness,
@@ -297,5 +298,8 @@ def test_a_filled_object_survives_the_reload_without_the_origin(fill,
 
     assert read_whole(endpoint.port, PATH, SIZE, chunk=CHUNK) == PAYLOAD, \
         "the store did not survive the reload once the origin was gone"
-    assert write_open(endpoint.port, "/objs/post.bin") == 0, \
-        "the reload did not take: the new config's allow_write is not live"
+    # This export has no writable stage and the origin is intentionally gone,
+    # so a permitted write reaches the backend and fails with I/O error.  The
+    # important distinction is that it no longer stops at the read-only gate.
+    assert write_open(endpoint.port, "/objs/post.bin") == XERR_IO_ERROR, \
+        "the reload did not expose the new config's writable policy"

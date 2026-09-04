@@ -14,7 +14,10 @@ def _check_test_combined_lifecycle_on_our_server_4(rc, o, e):
 
 _reexport(globals(), "_test_conf_xrdfs_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_xrdfs_b")
+pytestmark = [pytest.mark.timeout(240),
+              pytest.mark.skipif(not L.have_official(),
+                                 reason="stock xrootd/xrdfs/xrdcp not installed"),
+              pytest.mark.xdist_group("conf_xrdfs_b")]
 
 @pytest.mark.parametrize("size", [0, 10])
 def test_truncate_size_parity(srv, size):

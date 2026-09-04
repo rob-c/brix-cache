@@ -20,10 +20,15 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 #include "core/config/shared_conf.h"
+#include "auth/token/token.h"
 
 typedef struct {
     ngx_http_brix_shared_conf_t  common;
 } ngx_http_brix_common_conf_t;
+
+typedef struct {
+    ngx_array_t *jwks_refresh_specs; /* brix_jwks_refresh_spec_t[] */
+} ngx_http_brix_common_main_conf_t;
 
 extern ngx_module_t  ngx_http_brix_common_module;
 
@@ -46,6 +51,13 @@ void brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
  */
 void brix_http_common_adopt(ngx_conf_t *cf,
                             ngx_http_brix_shared_conf_t *dst);
+
+/* Register one protocol-owned HTTP key array for per-worker JWKS refresh.
+ * The common module owns timer startup so WebDAV and S3 share one lifecycle
+ * implementation while retaining their existing validation arrays. */
+ngx_int_t brix_http_common_register_jwks_refresh(ngx_conf_t *cf,
+    const ngx_str_t *path, brix_jwks_key_t *keys, int *key_count,
+    ngx_msec_t interval);
 
 /*
  * Hand-written directive setters for the shared preamble (http_common_setters.c).

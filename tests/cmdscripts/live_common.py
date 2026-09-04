@@ -205,6 +205,30 @@ def _cached_frozen_binary(real: str) -> Path | None:
     return cached
 
 
+def _frozen_binary_path(real: str) -> Path:
+    source_tag = hashlib.sha1(real.encode()).hexdigest()[:8]
+    return _session_freeze_dir() / f"nginx-{source_tag}"
+
+
+def _frozen_for_missing_source(source: Path, real: str) -> Path:
+    """Resolve a previously validated session copy during a relink window."""
+    cached = _cached_frozen_binary(real)
+    if cached is not None:
+        return cached
+    frozen = _frozen_binary_path(real)
+    if not _nginx_validates(frozen):
+        return source
+    _FROZEN_NGINX[real] = frozen
+    return frozen
+
+
+def cleanup_frozen_nginx() -> None:
+    """Remove this session's immutable copies after every server is stopped."""
+    global _FROZEN_NGINX
+    shutil.rmtree(_session_freeze_dir(), ignore_errors=True)
+    _FROZEN_NGINX = {}
+
+
 def _matches_source(frozen: Path, source_stat: os.stat_result) -> bool:
     if not frozen.exists():
         return False
@@ -269,15 +293,14 @@ def freeze_nginx(src: str | Path) -> Path:
     """
     global _FROZEN_NGINX
     src = Path(src)
-    if not src.exists():
-        return src
     cache_was_reset = _ensure_freeze_cache()
     real = os.path.realpath(src)
+    if not src.exists():
+        return _frozen_for_missing_source(src, real)
     cached = _cached_frozen_binary(real)
     if cached is not None:
         return cached
-    srctag = hashlib.sha1(real.encode()).hexdigest()[:8]
-    frozen = _session_freeze_dir() / f"nginx-{srctag}"
+    frozen = _frozen_binary_path(real)
     frozen.parent.mkdir(parents=True, exist_ok=True)
     sstat = src.stat()
     # Reuse a copy an earlier process (the controller, another xdist worker)
@@ -435,4 +458,3 @@ def _nginx_error_detail(prefix: Path) -> str:
 
 from split_continuation import load as _load_continuation
 _load_continuation(globals(), __file__, "live_common_runtime.py")
-

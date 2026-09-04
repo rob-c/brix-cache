@@ -50,6 +50,15 @@ static ngx_conf_enum_t  brix_lock_enforcement_enum[] = {
     { ngx_null_string,        0 }
 };
 
+/* VFS authorization backstop rollout. OBSERVE is the merged default; explicit
+ * OFF silences evaluation and ENFORCE turns disagreements into EACCES. */
+static ngx_conf_enum_t  brix_authz_backstop_enum[] = {
+    { ngx_string("off"),      0 },
+    { ngx_string("observe"),  1 },
+    { ngx_string("enforce"),  2 },
+    { ngx_null_string,         0 }
+};
+
 /* brix_*_cache_meta map (BRIX_CMETA_* in fs/cache/cstore.h). */
 static ngx_conf_enum_t  brix_tier_cache_meta_enum[] = {
     { ngx_string("auto"),    0 },
@@ -215,7 +224,13 @@ static ngx_conf_enum_t  brix_tier_cache_meta_enum[] = {
       ngx_conf_set_enum_slot,                                                 \
       conf_off,                                                               \
       offsetof(conf_t, common.lock_enforcement),                              \
-      brix_lock_enforcement_enum }
+      brix_lock_enforcement_enum },                                           \
+    { ngx_string(pfx "authz_backstop"), /* off|observe|enforce: VFS C12 */    \
+      (ctx) | NGX_CONF_TAKE1,                                                 \
+      ngx_conf_set_enum_slot,                                                 \
+      conf_off,                                                               \
+      offsetof(conf_t, common.authz_backstop),                                \
+      brix_authz_backstop_enum }
 
 /*
  * BRIX_BACKEND_ASYNC_DIRECTIVES(pfx, conf_t, ctx, conf_off) — the three-directive

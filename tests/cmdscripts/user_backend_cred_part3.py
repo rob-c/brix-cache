@@ -24,6 +24,7 @@ import tempfile
 import time
 from types import SimpleNamespace
 
+from cmdscripts import handoff_credential_store
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, CA_CERT, CA_DIR, CA_KEY, HOST, PROXY_STD, SERVER_CERT, SERVER_KEY
@@ -72,7 +73,7 @@ def _root_directories(run):
                  front / "logs"):
         path.mkdir(exist_ok=True)
     creds = run.mkdir("creds")
-    creds.chmod(0o777)
+    handoff_credential_store(creds)
     return origin, front, creds
 
 

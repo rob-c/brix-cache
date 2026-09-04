@@ -96,8 +96,15 @@ brix_budget_release(brix_ctx_t *ctx)
  * proceed now, 0 if it should be deferred (caller sends kXR_wait).
  *
  * budget <= 0 disables the cap.  A connection is never blocked by the bytes it
- * already holds (subtracted), and a lone transfer is never deadlocked when the
- * pool is otherwise empty.  On deferral, budget_waits_total is incremented.
+ * already holds (subtracted), and a transfer is never starved when the pool is
+ * effectively idle: every logged-in connection pins a few framing bytes
+ * (payload_buf), so `others` is almost never exactly 0 — treating any nonzero
+ * remainder as pressure would put a want > budget transfer into a permanent
+ * kXR_wait retry loop.  Half the budget is the idle/pressure threshold: real
+ * transfer scratch (>= one streaming window) lands far above it, idle framing
+ * residue far below, and an admitted over-budget transfer then holds enough
+ * charge to defer the next one — the backpressure the cap exists for.  On
+ * deferral, budget_waits_total is incremented.
  */
 static ngx_inline ngx_int_t
 brix_budget_admit(brix_ctx_t *ctx, off_t budget, size_t want)
@@ -113,7 +120,9 @@ brix_budget_admit(brix_ctx_t *ctx, off_t budget, size_t want)
     others = (in_use > ctx->budget_charged)
              ? in_use - (ngx_atomic_uint_t) ctx->budget_charged : 0;
 
-    if (others == 0 || others + want <= (ngx_atomic_uint_t) budget) {
+    if (others <= (ngx_atomic_uint_t) budget / 2
+        || others + want <= (ngx_atomic_uint_t) budget)
+    {
         return 1;
     }
 

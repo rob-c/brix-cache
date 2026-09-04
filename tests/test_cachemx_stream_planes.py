@@ -146,7 +146,6 @@ def test_cold_read_payload_bytes_exact(mx, plane):
     """Payload byte ledgers are exact: root-plane tx == file size, and the
     unified per-protocol read tally moves by the same amount."""
     size = 3072 + len(plane)      # distinct per plane, catches cross-talk
-    lbl = plane_labels(mx, plane)
     s = snap(mx)
     name = cx.unique_name(f"{plane}bytes")
     mx.seed_origin(name, size)
@@ -156,7 +155,6 @@ def test_cold_read_payload_bytes_exact(mx, plane):
     out.unlink()
     cx.settle()
     after = cx.mfetch(mx.metrics)
-    assert s.delta("brix_bytes_root_tx_total", lbl, after) == size
     assert s.delta("brix_io_bytes_read", {"proto": "stream"}, after) == size
 
 
@@ -169,8 +167,8 @@ def test_cold_read_miss_then_warm_hit(mx, plane):
     name, payload, r = cold_read(mx, plane, size=1536)
     assert r.returncode == 0, r.stderr
     mid = cx.mfetch(mx.metrics)
-    assert s.delta("brix_cache_misses_total", {"proto": "stream"}, mid) == 1
-    assert s.delta("brix_cache_hits_total", {"proto": "stream"}, mid) == 0
+    assert s.cache_delta("stream", "MISS", mid) == 1
+    assert s.cache_delta("stream", "HIT", mid) == 0
 
     s2 = snap(mx)
     out = str(mx.local_data.parent / cx.unique_name("warm"))
@@ -178,9 +176,8 @@ def test_cold_read_miss_then_warm_hit(mx, plane):
     assert r2.returncode == 0, r2.stderr
     cx.settle()
     after = cx.mfetch(mx.metrics)
-    assert s2.delta("brix_cache_hits_total", {"proto": "stream"}, after) == 1
-    assert s2.delta("brix_cache_misses_total", {"proto": "stream"},
-                    after) == 0
+    assert s2.cache_delta("stream", "HIT", after) == 1
+    assert s2.cache_delta("stream", "MISS", after) == 0
     assert s2.delta("brix_io_bytes_read", {"proto": "stream"},
                     after) == len(payload)
     with open(out, "rb") as f:
@@ -245,7 +242,6 @@ def test_put_new_file_exact(mx, plane, tmp_path):
             after) == 1, f"op={op}"
     assert s.delta("brix_io_bytes_written", {"proto": "stream"},
                    after) == size
-    assert s.delta("brix_bytes_rx_total", lbl, after) == size
     assert (mx.origin_data / name).read_bytes() == payload
 
 
@@ -454,8 +450,8 @@ def test_auth_rejected_counts_only_failure(mx, plane, env_builder, tmp_path):
 
     _assert_test_auth_rejected_counts_only_failure_1()
     def _assert_test_auth_rejected_counts_only_failure_2():
-        assert s.delta("brix_cache_hits_total", {"proto": "stream"}, after) == 0
-        assert s.delta("brix_cache_misses_total", {"proto": "stream"}, after) == 0
+        assert s.cache_delta("stream", "HIT", after) == 0
+        assert s.cache_delta("stream", "MISS", after) == 0
 
     _assert_test_auth_rejected_counts_only_failure_2()
     _check_test_auth_rejected_counts_only_failure_1(after, s)
@@ -476,7 +472,7 @@ def test_stream_read_latency_not_observed(mx):
     assert s.delta("brix_io_ops_total",
                    {"proto": "stream", "op": "read", "status": "ok"},
                    after) == 1
-    assert s.delta("brix_io_latency_usec_count",
+    assert s.delta("brix_io_latency_seconds_count",
                    {"proto": "stream", "op": "read"}, after) == 0
 
 
@@ -487,5 +483,5 @@ def test_stream_stat_latency_observed(mx):
     _, _, r = cold_read(mx, "none")
     assert r.returncode == 0, r.stderr
     after = cx.mfetch(mx.metrics)
-    assert s.delta("brix_io_latency_usec_count",
+    assert s.delta("brix_io_latency_seconds_count",
                    {"proto": "stream", "op": "stat"}, after) == 1

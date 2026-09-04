@@ -29,35 +29,9 @@ typedef struct {
     size_t      root_len;   /* length of root path; relpath = fullpath + root_len */
     /* Carried so each visited node can build a transient VFS ctx (every opendir /
      * lstat / listxattr in the walk routes through the confined VFS seam). */
-    ngx_pool_t         *pool;
+    const brix_vfs_ctx_t *vfs_scope;
     ngx_log_t          *log;
-    const char          *root_canon;
-    /* Per-user backend credential (Phase 2 Task 6 review-finding fix): the
-     * requesting session's identity, plus the export's credential dir/fallback
-     * policy — carried so every transient per-node ctx below binds the SAME
-     * credential gate as the enclosing fattrList op, instead of riding the
-     * shared service credential for the whole recursive walk. */
-    brix_identity_t   *identity;
-    const ngx_str_t     *storage_cred_dir;
-    ngx_uint_t           storage_cred_fallback;
-    /* Phase-70 §5.4: the enclosing op's resolved delegation mode + captured raw
-     * bearer, snapshotted from the parent vctx so every transient per-node ctx
-     * below re-binds the SAME backend PASSTHROUGH credential as the top-level
-     * fattrList op (not just the dir-based SELECT). deleg_bearer borrows session
-     * memory (outlives the walk); deleg_mode is BRIX_CRED_SELECT when off. */
-    enum brix_cred_mode  deleg_mode;
-    ngx_str_t            deleg_bearer;
 } fattr_recurse_ctx_t;
-
-/* Re-bind the enclosing op's captured PASSTHROUGH credential onto a transient
- * per-node ctx during the recursive walk (phase-70 §5.4). A no-op when the op is
- * on the SELECT path or captured no bearer. */
-static void
-fattr_recurse_bind_deleg(fattr_recurse_ctx_t *rctx, brix_vfs_ctx_t *vctx)
-{
-    (void) brix_vfs_deleg_bind(rctx->pool, vctx, rctx->deleg_mode,
-        &rctx->deleg_bearer, NULL);
-}
 
 /*
  *
@@ -76,12 +50,7 @@ static void
 fattr_recurse_init_node_ctx(fattr_recurse_ctx_t *rctx, brix_vfs_ctx_t *vctx,
     const char *node_path)
 {
-    brix_vfs_ctx_init(vctx, rctx->pool, rctx->log, BRIX_PROTO_ROOT,
-        rctx->root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */,
-        rctx->identity, node_path);
-    brix_vfs_ctx_bind_backend_cred(vctx, rctx->storage_cred_dir,
-        rctx->storage_cred_fallback);
-    fattr_recurse_bind_deleg(rctx, vctx);
+    (void) brix_vfs_ctx_derive_path(vctx, rctx->vfs_scope, node_path);
 }
 
 /*
@@ -274,25 +243,8 @@ fattr_list_recurse(brix_ctx_t *ctx, ngx_connection_t *c,
     rctx.cap        = FATTR_RECURSE_RESP_CAP;
     rctx.len        = 0;
     rctx.root_len   = strlen(path);  /* relpath = fullpath + root_len in the walk */
-    rctx.pool                  = vctx->pool;
+    rctx.vfs_scope             = vctx;
     rctx.log                   = vctx->log;
-    rctx.root_canon            = vctx->root_canon;
-    rctx.identity              = vctx->identity;
-    rctx.storage_cred_dir      = NULL;
-    rctx.storage_cred_fallback = 0;
-    if (vctx->storage_cred_dir != NULL && vctx->storage_cred_dir[0] != '\0') {
-        ngx_str_t *cred_dir_str;
-
-        BRIX_PALLOC_OR_RETURN(cred_dir_str, c->pool, sizeof(ngx_str_t),
-            brix_send_error(ctx, c, kXR_NoMemory, "out of memory"));
-        cred_dir_str->data = (u_char *) vctx->storage_cred_dir;
-        cred_dir_str->len  = ngx_strlen(vctx->storage_cred_dir);
-        rctx.storage_cred_dir      = cred_dir_str;
-        rctx.storage_cred_fallback = vctx->storage_cred_deny;
-    }
-    /* Snapshot the op's captured PASSTHROUGH credential (mode + raw bearer) so
-     * every per-node ctx in the walk re-binds it, not just the SELECT dir. */
-    brix_vfs_deleg_snapshot(vctx, &rctx.deleg_mode, &rctx.deleg_bearer);
 
     fattr_recurse_dir(&rctx, path, 0);
 

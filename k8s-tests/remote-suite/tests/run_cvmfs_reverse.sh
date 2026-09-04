@@ -20,7 +20,8 @@ http {
     # T16 canonical cvmfs access-log format (class / cache disposition / origin)
     log_format cvmfs '\$remote_addr [\$time_local] "\$request" \$status '
                      '\$body_bytes_sent \$request_time '
-                     'class=\$cvmfs_class cache=\$cvmfs_cache origin=\$cvmfs_origin';
+                     'class=\$cvmfs_class cache=\$brix_cache_status '
+                     'origin=\$cvmfs_origin';
     access_log $PFX/logs/cvmfs_access.log cvmfs;
     # T21 canonical connection-durability block (proven by run_cvmfs_keepalive.sh)
     keepalive_timeout 3600s; keepalive_requests 1000000;
@@ -161,11 +162,14 @@ printf '%s' "$M" | grep -q 'proto="cvmfs"' \
     || bad "metrics: no proto=cvmfs label"
 FILLB="$(printf '%s' "$M" | sed -n 's/^brix_cvmfs_bytes_served_total{source="fill"} //p')"
 [ "${FILLB:-0}" -ge 1 ] && ok "metrics: fill bytes counted" || bad "metrics: fill bytes zero"
-grep -q 'class=cas cache=fill' "$PFX/logs/cvmfs_access.log" \
-    && ok "access log: cold read logged as class=cas cache=fill" \
+# phase-112: the format above logs $brix_cache_status, so a cold fill reads
+# MISS and a warm read HIT — the one cross-plane vocabulary, not the
+# plane-local hit/fill spelling the removed $cvmfs_cache emitted.
+grep -q 'class=cas cache=MISS' "$PFX/logs/cvmfs_access.log" \
+    && ok "access log: cold read logged as class=cas cache=MISS" \
     || bad "access log: no fill line"
-grep -q 'class=cas cache=hit' "$PFX/logs/cvmfs_access.log" \
-    && ok "access log: warm read logged as cache=hit" \
+grep -q 'class=cas cache=HIT' "$PFX/logs/cvmfs_access.log" \
+    && ok "access log: warm read logged as cache=HIT" \
     || bad "access log: no hit line"
 curl -s "http://127.0.0.1:$XPORT/healthz?verbose" | grep -q '"cvmfs_origins":\[{"host"' \
     && ok "healthz: cvmfs_origins present" || bad "healthz: no cvmfs_origins"

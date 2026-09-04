@@ -41,13 +41,14 @@
  *         still in the future, and the EEC's subject DN (brix_x509_oneline,
  *         same normalisation as ctx->dn) equals the authenticated client's
  *         DN — a client may only upload a proxy for its own identity.
- *      6. Derive the credential key (brix_sd_ucred_key) and atomically
- *         write the whole uploaded PEM to <cred_dir>/<key>.pem: open a
- *         temp file in the same directory (O_CREAT|O_EXCL|O_WRONLY, 0600),
- *         write, fsync, close, then rename() over the final path.  This is
- *         a raw filesystem write to a service-owned config directory (not
- *         an export), so it is marked vfs-seam-allow rather than routed
- *         through the VFS, which confines to the export root only.
+ *      6. Derive the credential key (brix_sd_ucred_key) and publish the
+ *         whole uploaded PEM to <cred_dir>/<key>.pem through brix_cred_write
+ *         (phase-108 C11, PERSISTENT/PROXY): the shared engine stages a
+ *         random-suffix 0600 temp in the same directory, writes, fsyncs,
+ *         checks close, renames over the final path and flushes the parent
+ *         dir, under the CREDENTIAL domain claim + one audit line.  The
+ *         raw-syscall seam waivers this file used to carry left with the
+ *         hand-rolled write they excused.
  */
 
 #include "webdav.h"
@@ -56,6 +57,7 @@
 #include "fs/backend/ucred.h"
 #include "auth/crypto/store_policy.h"
 #include "auth/crypto/gsi_verify.h"
+#include "core/compat/cred_stage.h"   /* brix_cred_write (phase-108 C11) */
 #include "core/compat/log_diag.h"
 #include "core/http/http_body.h"
 
@@ -243,77 +245,58 @@ delegation_chain_trusted(ngx_http_request_t *r,
 }
 
 /*
- * delegation_store_pem - atomically write `pem`/`pem_len` to
- * <dir>/<key>.pem: temp file in the same directory (O_CREAT|O_EXCL|
- * O_WRONLY, 0600), write, fsync, close, rename() over the final path.
- * vfs-seam-allow: storage_credential_dir is service-owned server config,
- * not export storage — the VFS confines to the export root only, the
- * wrong root for this write.
+ * delegation_store_pem - atomically publish `pem`/`pem_len` as
+ * <dir>/<key>.pem through the shared credential-write verb (phase-108 C11,
+ * PERSISTENT arm): exclusive 0600 temp in the same directory, write, fsync,
+ * rename, parent-dir flush — with the destination dir held to the staging
+ * dir's owner/mode standard and recreated 0700 if it vanished (tmpfs default
+ * wiped by a reboot, or an admin rm'd it).
  *
- * Returns NGX_OK on success, NGX_ERROR on any I/O failure (temp file is
- * best-effort unlinked on the way out; caller maps failure to 507).
+ * Returns NGX_OK on success, NGX_ERROR on any failure (no temp is left
+ * behind; caller maps failure to 507). The failure log names only the DIR:
+ * the key stem is derived from the subject DN and never appears in a log
+ * line.
  */
 ngx_int_t
 delegation_store_pem(ngx_log_t *log, const ngx_str_t *dir, const char *key,
     const u_char *pem, size_t pem_len)
 {
-    char    final_path[1024];
-    char    tmp_path[1024];
-    int     fd;
-    ssize_t written;
+    char                   dir_c[1024];
+    char                   name[256];
+    char                   final_path[1024];
+    int                    n;
+    brix_cred_write_req_t  req;
 
-    if (dir->len == 0
-        || dir->len + 1 + strlen(key) + sizeof(".pem") >= sizeof(final_path)
-        || dir->len + 1 + strlen(key) + sizeof(".pem.XXXXXX") >= sizeof(tmp_path))
-    {
+    if (dir->len == 0 || dir->len >= sizeof(dir_c)) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "brix_delegation: credential dir/key too long");
+                      "brix_delegation: credential dir too long");
+        return NGX_ERROR;
+    }
+    ngx_memcpy(dir_c, dir->data, dir->len);
+    dir_c[dir->len] = '\0';
+
+    n = snprintf(name, sizeof(name), "%s.pem", key);
+    if (n < 0 || (size_t) n >= sizeof(name)) {
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+                      "brix_delegation: credential key too long");
         return NGX_ERROR;
     }
 
-    (void) ngx_snprintf((u_char *) final_path, sizeof(final_path) - 1,
-        "%V/%s.pem%Z", dir, key);
-    (void) snprintf(tmp_path, sizeof(tmp_path), "%.*s/.%s.pem.upload.%ld",
-        (int) dir->len, dir->data, key, (long) getpid());
+    ngx_memzero(&req, sizeof(req));
+    req.log  = log;
+    req.arm  = BRIX_CRED_ARM_PERSISTENT;
+    req.kind = BRIX_CRED_KIND_PROXY;
+    req.dir  = dir_c;
+    req.name = name;
 
-    fd = open(tmp_path, /* vfs-seam-allow: DOMAIN_CREDENTIAL — cred dir is svc-owned config, not an export */
-              O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
-    if (fd < 0 && ngx_errno == NGX_ENOENT) {
-        /* Store dir vanished (tmpfs default is wiped by a reboot without a
-         * config reload, or an admin rm'd it) — recreate it 0700 as the
-         * worker uid and retry once before shouting. */
-        if (mkdir((const char *) dir->data, 0700) == 0 /* vfs-seam-allow: DOMAIN_CREDENTIAL — cred dir is svc-owned config, not an export */
-            || ngx_errno == NGX_EEXIST)
-        {
-            fd = open(tmp_path, /* vfs-seam-allow: DOMAIN_CREDENTIAL — cred dir is svc-owned config, not an export */
-                      O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
-        }
-    }
-    if (fd < 0) {
+    if (brix_cred_write(&req, pem, pem_len, final_path, sizeof(final_path))
+        != 0)
+    {
         ngx_log_error(NGX_LOG_ALERT, log, ngx_errno,
-                      "brix_delegation: open(\"%s\") temp cred file failed — "
-                      "credential store \"%V\" is missing or not writable; "
-                      "delegation will not work until "
-                      "brix_storage_credential_dir is fixed",
-                      tmp_path, dir);
-        return NGX_ERROR;
-    }
-
-    written = write(fd, pem, pem_len);
-    if (written < 0 || (size_t) written != pem_len || fsync(fd) != 0) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "brix_delegation: write/fsync(\"%s\") failed", tmp_path);
-        close(fd);
-        unlink(tmp_path); /* vfs-seam-allow: DOMAIN_CREDENTIAL — cred dir is svc-owned config, not an export */
-        return NGX_ERROR;
-    }
-    close(fd);
-
-    if (rename(tmp_path, final_path) != 0) { /* vfs-seam-allow: DOMAIN_CREDENTIAL — cred dir is svc-owned config, not an export */
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "brix_delegation: rename(\"%s\" -> \"%s\") failed",
-                      tmp_path, final_path);
-        unlink(tmp_path); /* vfs-seam-allow: DOMAIN_CREDENTIAL — cred dir is svc-owned config, not an export */
+                      "brix_delegation: storing a delegated credential in "
+                      "\"%V\" failed — the store is missing, not writable, or "
+                      "fails the 0700/owner safety check; delegation will not "
+                      "work until brix_storage_credential_dir is fixed", dir);
         return NGX_ERROR;
     }
     return NGX_OK;

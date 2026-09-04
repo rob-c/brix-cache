@@ -304,6 +304,7 @@ dig_open_confined(ngx_http_request_t *r, dig_req_t *req)
     is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
         canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL, full);
+    brix_vfs_ctx_bind_no_authz_rules(&vctx, BRIX_AUTHZ_BACKSTOP_OBSERVE);
 
     req->fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);
     if (req->fh == NULL) {

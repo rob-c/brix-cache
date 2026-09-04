@@ -27,6 +27,7 @@ from oci.registry_lane import (
     Registry, digest_of, err_code, image_manifest, push_blob, push_manifest,
     registry_spec, req, start_registry,
 )
+from metrics_helpers import value as metric_value
 
 def _check_test_retag_between_two_manifests_is_never_seen_half_done_2(_put):
     assert _put(b'{"a":"one"}')[0] == 201
@@ -175,6 +176,20 @@ def test_manifest_put_publishes_a_tag_a_pull_resolves(registry: Registry):
     # The same object is reachable by digest — that is what makes the digest
     # a stable pin while the tag stays free to move.
     assert req("%s/v2/lab/app/manifests/%s" % (registry.base, digest))[0] == 200
+
+
+def test_manifest_publish_moves_the_registry_domain_metric(registry: Registry):
+    """The shared publish verb is observable as one typed REGISTRY mutation."""
+    metric = "brix_vfs_domain_mutation_total"
+    labels = {"domain": "registry", "op": "publish"}
+    before = req(registry.base + "/metrics")[2].decode()
+    config = push_blob(registry, "lab/domain", CONFIG)
+    layer = push_blob(registry, "lab/domain", LAYER)
+    status, _, _ = push_manifest(
+        registry, "lab/domain", "v1", image_manifest(config, [layer]))
+    assert status == 201
+    after = req(registry.base + "/metrics")[2].decode()
+    assert metric_value(after, metric, labels) > metric_value(before, metric, labels)
 
 
 def test_sha512_image_pushes_and_resolves_under_its_own_algorithm(

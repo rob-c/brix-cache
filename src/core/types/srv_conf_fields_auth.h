@@ -26,8 +26,6 @@
     ngx_array_t *protbind;   /* [brix_protbind <tpl> none|[only] <proto>...] */
 
     /* ---- GSI / x509 settings (used when auth = gsi or both) ---- */
-    ngx_str_t   certificate;      /* [brix_certificate /etc/grid.pem] */
-    ngx_str_t   certificate_key;  /* [brix_certificate_key /etc/grid.key] */
     ngx_str_t   tls_ciphers;      /* [brix_tls_ciphers <list>] §5.10 xrd.tlsciphers
                                      analog: OpenSSL cipher list applied to the
                                      root:// in-protocol TLS context via
@@ -47,12 +45,6 @@
                                      tickets) on the root:// TLS context. Default
                                      on (OpenSSL/nginx behaviour); off disables
                                      both so every connection full-handshakes. */
-    ngx_str_t   trusted_ca;       /* [brix_trusted_ca /etc/grid-security/certificates]
-                                     PEM file or directory of trusted CA certs */
-    ngx_str_t   vomsdir;          /* [brix_vomsdir /etc/grid-security/vomsdir]
-                                     VOMS LSC directory for attribute cert verification */
-    ngx_str_t   voms_cert_dir;    /* [brix_voms_cert_dir /etc/grid-security/certificates]
-                                     CA cert directory for VOMS server certificate chains */
     ngx_str_t   crl;              /* [brix_crl /etc/grid-security/certificates]
                                      PEM CRL file or directory; reloaded on crl_timer */
     time_t      crl_reload;       /* [brix_crl_reload 3600] — seconds between CRL
@@ -69,13 +61,9 @@
                                      BRIX_CRL_MODE_*; default TRY */
 
     /* ---- VO access-control lists ---- */
-    ngx_array_t  *vo_rules;     /* brix_vo_rule_t[] from brix_require_vo */
-    ngx_str_t     authdb;       /* [brix_authdb /etc/xrootd/authdb] */
     ngx_array_t  *authdb_rules; /* brix_authdb_rule_t[] parsed from authdb (native) */
 
     /* ---- XrdAcc engine (selected by `brix_authdb_engine xrdacc`) ---- */
-    brix_acc_conf_t  acc;  /* [brix_authdb_engine, brix_acc_audit, ...]
-                              — see brix_acc_conf_t. */
     ngx_array_t  *group_rules;  /* brix_group_rule_t[] from brix_inherit_parent_group */
     ngx_array_t  *manager_map;  /* brix_manager_map_t[] from brix_manager_map */
 
@@ -165,17 +153,6 @@
                                     than this BEFORE any parse/crypto work.
                                     0 (default) = no extra cap beyond the auth
                                     frame limit (current behaviour). */
-    ngx_str_t   token_jwks;      /* [brix_token_jwks /etc/xrd/jwks.json] */
-    ngx_str_t   token_issuer;    /* [brix_token_issuer https://cilogon.org] */
-    ngx_str_t   token_audience;  /* [brix_token_audience https://storage.example.org] */
-    time_t      token_clock_skew; /* [brix_token_clock_skew 30|30s] exp grace;
-                                     sec_slot (phase-105 W8 — suffixes legal, the
-                                     300s security clamp still rejects loudly);
-                                     NGX_CONF_UNSET = inherit/default
-                                     (BRIX_TOKEN_CLOCK_SKEW_SECS); max 300 */
-    ngx_str_t   token_config;    /* [brix_token_config /etc/xrd/scitokens.cfg]
-                                    multi-issuer registry (phase-59 W1); when set
-                                    it overrides the single-issuer fields above */
     void       *token_registry;  /* brix_token_registry_t* built at postconfig;
                                     NULL = single-issuer path.  void* keeps
                                     issuer_registry.h out of this header. */
@@ -188,20 +165,10 @@
     brix_csi_conf_t  csi;  /* [brix_csi, brix_csi_block, brix_csi_require,
                               brix_csi_trust_fs] — see brix_csi_conf_t. */
 
-    ngx_str_t   token_macaroon_secret;     /* [brix_macaroon_secret <hex>] */
-    ngx_str_t   token_macaroon_secret_old; /* [brix_macaroon_secret_old <hex>]
-                                              grace-period key: tokens signed with
-                                              this key are also accepted so that
-                                              in-flight tokens survive nginx -s reload
-                                              while the operator rotates secrets. */
-
     /* JWKS keys parsed at postconfiguration from token_jwks */
     brix_jwks_key_t  jwks_keys[BRIX_MAX_JWKS_KEYS];
     int                 jwks_key_count;  /* 0 if token auth is not configured */
     time_t              jwks_mtime;      /* st_mtime of token_jwks at last successful load */
-    ngx_msec_t          token_jwks_refresh_interval; /* [brix_token_jwks_refresh_interval 60000ms]
-                                                        Polling interval (ms) for mtime-based JWKS
-                                                        hot refresh. NGX_CONF_UNSET_MSEC = disabled. */
     ngx_event_t        *jwks_timer;     /* per-worker timer event; NULL if not scheduled */
 
     /* ---- Phase 20: shared-memory caches & rate limiting ---- */
@@ -251,4 +218,3 @@
                                        one "user:salthex:hashhex" line per user,
                                        hash = PBKDF2-HMAC-SHA1(pw,salt,10000,24B).
                                        Empty = pwd auth disabled (deny all). */
-

@@ -66,7 +66,7 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         return NGX_OK;
     }
 
-    if (xcf->certificate.len == 0 || xcf->certificate_key.len == 0) {
+    if (xcf->common.certificate.len == 0 || xcf->common.certificate_key.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_tls requires brix_certificate and "
             "brix_certificate_key");
@@ -87,8 +87,8 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     }
 
     if (ngx_ssl_certificate(cf, xcf->tls_ctx,
-                            &xcf->certificate,
-                            &xcf->certificate_key,
+                            &xcf->common.certificate,
+                            &xcf->common.certificate_key,
                             NULL) != NGX_OK)
     {
         return NGX_ERROR;
@@ -175,7 +175,7 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
         "brix: kXR_ableTLS enabled - cert=%s",
-        xcf->certificate.data);
+        xcf->common.certificate.data);
 
     return NGX_OK;
 }

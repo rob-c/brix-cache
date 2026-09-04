@@ -28,17 +28,30 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include "fs/path/site_n2n.h"   /* brix_n2n_cfg_t — the shared name-translation the
+                                * RADOS key map delegates to (phase-108 C13/A.4) */
+
 /*
  * sd_ceph_normalize — lexically canonicalize a logical path into `out` (cap
- * bytes): collapse repeated/leading/trailing '/', drop "." components, and apply
- * ".." by popping the previous component. A ".." that would climb above the root
- * is rejected (escape attempt). The result always begins with '/', has no "."/
- * ".." and no "//", and never ends in '/' (except the bare root "/"). Returns 0,
- * or -1 with errno set (EINVAL on bad args / escape, ENAMETOOLONG if it won't
- * fit). This is the single point that guarantees the LFN->oid map is injective
- * and prefix-confined.
+ * bytes): collapse repeated/leading/trailing '/', drop "." components, and
+ * REJECT any ".." component (phase-108 C13 — the driver no longer resolves ".."
+ * by popping; a confined path never carries one, and one that arrives another way
+ * is refused, not silently rewritten). The result always begins with '/', has no
+ * "."/".." and no "//", and never ends in '/' (except the bare root "/"). Returns
+ * 0, or -1 with errno set (EINVAL on bad args / a ".." component, ENAMETOOLONG if
+ * it won't fit). A thin shim over the shared brix_n2n_canonicalize — the single
+ * point that guarantees the LFN->oid map is injective and prefix-confined.
  */
 int sd_ceph_normalize(const char *lfn, char *out, size_t cap);
+
+/*
+ * sd_ceph_prefix_cfg — build the driver's CEPHFS_PATH translation cfg from a
+ * `key_prefix` (the RADOS object name is the prefix + the canonicalized LFN; the
+ * pool is bound at the ioctx, not named). Shared by sd_ceph_key (forward) and the
+ * listing recovery in sd_ceph_enumerate_io (reverse). Returns 0, or -1/
+ * ENAMETOOLONG when the prefix would not fit the scheme's field.
+ */
+int sd_ceph_prefix_cfg(const char *key_prefix, brix_n2n_cfg_t *cfg);
 
 /*
  * sd_ceph_key — compose the RADOS object id for a logical path:

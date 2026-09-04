@@ -1,6 +1,7 @@
 /*
- * stream_variables.c — the $brix_session_* nginx-variable surface for the
- * root:// stream plane (phase 106 W2).
+ * stream_variables.c — the nginx-variable surface for the root:// stream plane
+ * (phase 106 W2; renamed to the uniform $brix_* vocabulary by phase 110 W2,
+ * and the phase-106 $brix_session_* aliases removed by phase 112).
  *
  * WHAT: Registers the session-scoped variables an operator needs to write a
  *       `stream {}` access_log for root:// traffic, and implements their
@@ -51,86 +52,7 @@
 #include "fs/backend/sd.h"                  /* brix_sd_backend_name ($brix_tier)  */
 
 #include "protocols/root/stream/stream_variables.h"
-
-
-/* The sentinel for "brix has nothing to say about this session". Distinct from
- * an empty value so a log line never silently reads as a zero-byte session. */
-static const char  brix_stream_var_none[] = "-";
-
-
-static brix_ctx_t *
-brix_stream_var_ctx(ngx_stream_session_t *s)
-{
-    return ngx_stream_get_module_ctx(s, ngx_stream_brix_module);
-}
-
-
-static ngx_int_t
-brix_stream_var_none_value(ngx_stream_variable_value_t *v,
-    ngx_uint_t no_cacheable)
-{
-    v->len = sizeof(brix_stream_var_none) - 1;
-    v->valid = 1;
-    v->no_cacheable = no_cacheable ? 1 : 0;
-    v->not_found = 0;
-    v->data = (u_char *) brix_stream_var_none;
-    return NGX_OK;
-}
-
-
-/*
- * brix_stream_var_cstr — publish a NUL-terminated session string.
- *
- * Copies into the CONNECTION pool: the session's own buffers are reused across
- * ops, so handing nginx a pointer into ctx would risk the value changing (or
- * the buffer being recycled) between the handler running and the log line
- * being written. An empty source string reports the sentinel, not "".
- */
-static ngx_int_t
-brix_stream_var_cstr(ngx_stream_session_t *s, ngx_stream_variable_value_t *v,
-    const char *src, ngx_uint_t no_cacheable)
-{
-    size_t   len;
-    u_char  *copy;
-
-    if (src == NULL || *src == '\0') {
-        return brix_stream_var_none_value(v, no_cacheable);
-    }
-
-    len = ngx_strlen(src);
-    copy = ngx_pnalloc(s->connection->pool, len);
-    if (copy == NULL) {
-        return brix_stream_var_none_value(v, no_cacheable);
-    }
-    ngx_memcpy(copy, src, len);
-
-    v->len = (unsigned) len;
-    v->valid = 1;
-    v->no_cacheable = no_cacheable ? 1 : 0;
-    v->not_found = 0;
-    v->data = copy;
-    return NGX_OK;
-}
-
-
-static ngx_int_t
-brix_stream_var_size(ngx_stream_session_t *s, ngx_stream_variable_value_t *v,
-    size_t value)
-{
-    u_char  *buf;
-
-    buf = ngx_pnalloc(s->connection->pool, NGX_SIZE_T_LEN);
-    if (buf == NULL) {
-        return brix_stream_var_none_value(v, 1);
-    }
-
-    v->len = (unsigned) (ngx_sprintf(buf, "%uz", value) - buf);
-    v->valid = 1;
-    v->no_cacheable = 1;
-    v->not_found = 0;
-    v->data = buf;
-    return NGX_OK;
-}
+#include "protocols/root/stream/stream_variables_internal.h"
 
 
 /*
@@ -147,7 +69,7 @@ typedef enum {
     BRIX_SV_DN,
     BRIX_SV_VO,
     BRIX_SV_FQAN,
-    BRIX_SV_SUB,        /* the identity SUBJECT ($brix_sub; alias $brix_session_user) */
+    BRIX_SV_SUB,        /* the identity SUBJECT ($brix_sub) */
     BRIX_SV_ISSUER,
     BRIX_SV_USER,       /* the MAPPED local account ($brix_user) */
     BRIX_SV_AUTH,
@@ -222,7 +144,7 @@ static const char *brix_stream_first_vo(ngx_stream_session_t *s,
 
 
 /* An identity cstr, or a login.* fallback when the identity field is empty —
- * the dn/vo shape (no phase-106 value lost by the rename). */
+ * the dn/vo shape. */
 static const char *
 brix_stream_id_or(const char *idval, const char *fallback)
 {
@@ -231,7 +153,7 @@ brix_stream_id_or(const char *idval, const char *fallback)
 
 
 /* $brix_sub: token sub / S3 key, else the DN, else the kXR_login username the
- * client presented (the phase-106 $brix_session_user value — this alias). */
+ * client presented. */
 static const char *
 brix_stream_subject(const brix_identity_t *id, const brix_ctx_t *ctx)
 {
@@ -270,8 +192,8 @@ brix_stream_mapped_user(const brix_identity_t *id)
  * Identity on the stream plane (phase-110 W2): the SAME meaning as the HTTP
  * variables. The canonical source is ctx->identity (the phase-2 identity object
  * every plane populates at authn); the legacy login.* fields are the fallback
- * for a session that authenticated through a path that filled only them, so
- * the phase-106 $brix_session_dn/vo values are never lost by the rename.
+ * for a session that authenticated through a path that filled only them, so a
+ * DN or VO carried only on the login record is still reported.
  */
 static const char *
 brix_stream_identity_field(ngx_stream_session_t *sess, const brix_ctx_t *ctx,
@@ -284,8 +206,8 @@ brix_stream_identity_field(ngx_stream_session_t *sess, const brix_ctx_t *ctx,
         return brix_stream_id_or(id != NULL ? brix_identity_dn_cstr(id) : NULL,
                                  ctx->login.dn);
     case BRIX_SV_VO:
-        /* The FULL VO list; login.primary_vo fallback keeps the phase-106
-         * $brix_session_vo value. */
+        /* The FULL VO list; the login.primary_vo fallback covers a session
+         * whose VO reached only the login record. */
         return brix_stream_id_or(id != NULL ? brix_identity_vo_csv_cstr(id)
                                             : NULL, ctx->login.primary_vo);
     case BRIX_SV_FQAN:
@@ -458,8 +380,7 @@ brix_stream_var_str(ngx_stream_session_t *s, ngx_stream_variable_value_t *v,
 }
 
 
-/* $brix_session_bytes_out / _in and their $brix_bytes_served / _received
- * successors — the session transfer totals. */
+/* $brix_bytes_served / $brix_bytes_received — the session transfer totals. */
 static ngx_int_t
 brix_stream_var_bytes(ngx_stream_session_t *s, ngx_stream_variable_value_t *v,
     uintptr_t data)
@@ -586,23 +507,10 @@ static ngx_stream_variable_t  brix_stream_variables[] = {
     { ngx_string("brix_duration"), NULL, brix_stream_var_duration,
       BRIX_SV_DURATION, NGX_STREAM_VAR_NOCACHEABLE, 0 },
 
-    /* Deprecated phase-106 aliases (removal phase-112): same handlers, old
-     * spelling, so a phase-106 log_format keeps working. Allowlisted in
-     * directive_registry_allowlist.txt. */
-    { ngx_string("brix_session_dn"), NULL, brix_stream_var_str,
-      BRIX_SV_DN, 0, 0 },
-    { ngx_string("brix_session_vo"), NULL, brix_stream_var_str,
-      BRIX_SV_VO, 0, 0 },
-    { ngx_string("brix_session_user"), NULL, brix_stream_var_str,
-      BRIX_SV_SUB, 0, 0 },
-    { ngx_string("brix_session_auth"), NULL, brix_stream_var_str,
-      BRIX_SV_AUTH, 0, 0 },
-    { ngx_string("brix_session_tls"), NULL, brix_stream_var_str,
-      BRIX_SV_TLS, 0, 0 },
-    { ngx_string("brix_session_bytes_out"), NULL, brix_stream_var_bytes,
-      BRIX_SV_BYTES_OUT, NGX_STREAM_VAR_NOCACHEABLE, 0 },
-    { ngx_string("brix_session_bytes_in"), NULL, brix_stream_var_bytes,
-      BRIX_SV_BYTES_IN, NGX_STREAM_VAR_NOCACHEABLE, 0 },
+    /* phase-112: the seven deprecated phase-106 $brix_session_* aliases were
+     * removed here. They are now UNKNOWN names, so a config still using one is
+     * a startup abort naming the variable — the loud failure an operator can
+     * act on, not a silent "-". */
       ngx_stream_null_variable
 };
 

@@ -24,7 +24,7 @@
 #       src/observability/metrics/, parsed the way the C preprocessor sees them —
 #       adjacent string literals are concatenated first, because the row
 #       templates are routinely split across lines:
-#           "brix_io_latency_usec_bucket" "{proto=\"%s\",op=\"%s\",le=\"%llu\"}\n"
+#           "brix_io_latency_seconds_bucket" "{proto=\"%s\",op=\"%s\",le=\"%.6f\"}\n"
 #       Four emission shapes are recognised:
 #         1. `# HELP <name>` / `# TYPE <name>`        -> family declared
 #         2. `<name>{key="…",…}`                      -> family + exact labels
@@ -110,7 +110,7 @@ _LITERAL = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
 _HELP = re.compile(r"#\s*(?:HELP|TYPE)\s+(" + _NAME + r")\b")
 _TYPE = re.compile(r"#\s*TYPE\s+(" + _NAME + r")\s+([a-z]+)")
 _ROW = re.compile(r"(" + _NAME + r")\{([^}]*)\}")
-_TEMPLATE = re.compile(r"(?:^|%s)\{([^}]*)\}")
+_TEMPLATE = re.compile(r"(?:^|%s)(?:_(bucket|sum|count))?\{([^}]*)\}")
 _BARE = re.compile(r"^" + _NAME + r"$")
 _EMITTED_KEY = re.compile(r'([a-z_]+)=\\"')
 _DIRECTIVE = re.compile(r'ngx_string\("(brix_[a-z0-9_]+)"\)')
@@ -249,7 +249,9 @@ def _declare_family(name, key, families, home):
 def _scan_exposition_literal(literal, key, directive_names, state):
     families, _kinds, home, templates = state
     for match in _TEMPLATE.finditer(literal):
-        templates.setdefault(key, set()).update(_EMITTED_KEY.findall(match.group(1)))
+        suffix = match.group(1) or ""
+        labels = _EMITTED_KEY.findall(match.group(2))
+        templates.setdefault(key, {}).setdefault(suffix, set()).update(labels)
     if _BARE.match(literal) and literal not in directive_names:
         _declare_family(literal, key, families, home)
 
@@ -278,9 +280,33 @@ def _add_histogram(name, families, home):
 
 def _resolve_templates(families, home, templates):
     return {
-        name: labels or templates.get(home.get(name, ""), set())
+        name: labels | _template_labels(name, families, home, templates)
         for name, labels in families.items()
     }
+
+
+def _template_labels(name, families, home, templates):
+    """Labels emitted through a dynamic family-name template.
+
+    Histogram helpers commonly receive ``fam`` and render ``%s_bucket`` rather
+    than repeating a literal family at each call site.  Associate each suffix
+    with only its own template; the conceptual base family inherits the count
+    labels, while ``le`` remains exclusive to buckets.
+    """
+    by_suffix = templates.get(home.get(name, ""), {})
+    suffix = _series_suffix(name)
+    labels = set(by_suffix.get("", ()))
+    labels.update(by_suffix.get(suffix, ()))
+    if not suffix and name + "_count" in families:
+        labels.update(by_suffix.get("count", ()))
+    return labels
+
+
+def _series_suffix(name):
+    for suffix in ("bucket", "count", "sum"):
+        if name.endswith("_" + suffix):
+            return suffix
+    return ""
 
 
 # --- documentation surface ----------------------------------------------------

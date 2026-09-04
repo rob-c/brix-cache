@@ -131,8 +131,9 @@ backend (e.g. `pblock`) is resolved through the backend registry instead, so a n
 can run one object/block backend for its primary export AND a different one for each
 cache role. There are three roles, each independently pluggable:
 
-- **Read cache** (`brix_cache_root`, optional `brix_cache_storage_backend`) — the
-  XCache data tree.
+- **Read cache** (`brix_cache_store`; HTTP `brix_cache_root` is POSIX
+  shorthand) — the XCache data tree. Both spellings enter the same composed
+  `sd_cache` runtime path; configuring both is an error.
 - **Sidecar/state tree** (`brix_cache_state_root`, always POSIX) — the `.meta`/`.cinfo`
   records. A driver-backed cache keeps its bytes in the driver namespace (no POSIX file
   at `cache_root + key`), so its sidecars **cannot** live under `cache_root`; a distinct
@@ -142,7 +143,7 @@ cache role. There are three roles, each independently pluggable:
 
 | File | Responsibility |
 |---|---|
-| `cache_storage.c` | Per-worker per-role SD instances + the `cache_root → instance` lookup table for the conf-less VFS/serve hooks. `brix_cache_storage_init/_cleanup` (build/close the rootfds + instances, from `src/core/config/process.c`), the role resolvers (`brix_cache_storage`/`_state_storage`/`_wt_stage`), the by-root resolvers (`brix_cache_storage_by_root`/`_state_by_root`/`_state_root_by_root`) — the last **lazily self-registers a POSIX co-located instance** for a cache root the stream-only init loop never visited (an HTTP `brix_webdav_cache_root`), `brix_cache_ready()` (driver-aware three-state readiness: a driver `stat` of the export-relative key for a backend-backed cache, else `brix_cache_file_ready()`), `brix_cache_key_under_root`, and `brix_cache_sidecar_path` (map `cache_path → state_root + key`). |
+| `cache_storage.c` | Per-worker instances for the distinct read, state and write-staging roles. `brix_cache_storage_init/_cleanup` builds and closes them; the conf-based role resolvers select the composable tier. The by-root resolver remains for the native stream cache path and its co-located POSIX fallback; HTTP `brix_cache_root` is lowered to `brix_cache_store` before runtime initialization. |
 | `cache_key.c` | Pure, libc-only `brix_cache_key_from()` (export-relative, leading-slash cache key) — split out so the standalone unit test (`tests/c/test_cache_storage.c`) links without nginx symbols. |
 | `cache_storage.h` | Public interface for the above. |
 

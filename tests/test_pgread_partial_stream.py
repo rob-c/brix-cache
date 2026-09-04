@@ -44,6 +44,8 @@ from _test_data_substreams_parallel_helpers import (
     _recv_exact,
 )
 
+pytestmark = pytest.mark.xdist_group("pgread-partial-shared-data")
+
 # Hand-validation overrides (mirror BRIX_SUBS_EXPORT_DIR in the substreams
 # helpers): point the suite at a bespoke server without touching the fleet.
 HOST = os.environ.get("BRIX_PGSTREAM_HOST", SERVER_HOST)

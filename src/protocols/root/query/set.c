@@ -1,6 +1,7 @@
 #include "core/ngx_brix_module.h"
 #include "protocols/root/path/op_path.h"   /* brix_beneath_full_path, auth gate */
 #include "fs/vfs/vfs.h"                    /* VFS ctx + export-relative key */
+#include "fs/path/n2n_stage.h"
 #include "fs/backend/cache/sd_cache.h"     /* brix_sd_cache_evict */
 
 #include <stdlib.h>
@@ -125,6 +126,7 @@ brix_set_handle_cache_evict(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_vfs_ctx_t  vctx;
     char            reqpath[BRIX_MAX_PATH + 1];
     char            full_path[PATH_MAX];
+    char            physical[PATH_MAX];
     uint64_t        freed_bytes;
     const char     *verb = force ? "fevict" : "evict";
 
@@ -177,6 +179,7 @@ brix_set_handle_cache_evict(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
         conf->common.root_canon, NULL, BRIX_VFS_MUTATION_ALLOWED, 0 /* is_tls */,
         ctx->identity, full_path);
+    brix_root_vfs_bind_session(ctx, conf, &vctx);
 
     if (vctx.sd == NULL || !brix_sd_cache_instance_is(vctx.sd)) {
         BRIX_OP_ERR(ctx, BRIX_OP_SET);
@@ -184,9 +187,14 @@ brix_set_handle_cache_evict(brix_ctx_t *ctx, ngx_connection_t *c,
                                  "no cache tier on this export");
     }
 
-    freed_bytes = brix_sd_cache_evict(vctx.sd,
-                                        brix_vfs_export_relative(&vctx,
-                                                                 full_path));
+    if (brix_path_resolved_to_pfn(&vctx, full_path, physical,
+                                  sizeof(physical)) != NGX_OK)
+    {
+        BRIX_OP_ERR(ctx, BRIX_OP_SET);
+        return brix_send_error(ctx, c, kXR_IOError,
+                               "cache key translation failed");
+    }
+    freed_bytes = brix_sd_cache_evict(vctx.sd, physical);
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
                   "brix: cache %s \"%s\": %uL bytes evicted",
                   verb, reqpath, (uint64_t) freed_bytes);

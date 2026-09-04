@@ -42,6 +42,14 @@ def _read(rel):
     return p.read_text(encoding="utf-8")
 
 
+def _read_registry():
+    # registry.c was split; the F4/W5 logic now spans registry.c (locked
+    # orchestration, kept first so ordering asserts stay meaningful) +
+    # registry_slots.c (scan/fill/evict slot helpers).
+    return (_read("src/protocols/root/session/registry.c")
+            + _read("src/protocols/root/session/registry_slots.c"))
+
+
 # --------------------------------------------------------------------------- #
 # 1. Source-marker checks                                                      #
 # --------------------------------------------------------------------------- #
@@ -75,7 +83,7 @@ def test_f4_session_reaper_and_f5_cap_drift():
     assert "BRIX_SESSION_REAP_MIN_AGE_MS" in h
     # F5: cap-drift fixed — no stale "default 256" docstring remains.
     assert "default 256" not in h
-    c = _read("src/protocols/root/session/registry.c")
+    c = _read_registry()
     assert "session_evict_total" in c
     assert "session_registry_full_total" in c
 
@@ -88,7 +96,7 @@ def test_w5_per_source_soft_quota_present():
     assert "BRIX_SESSION_PER_SOURCE_SOFT_CAP" in h
     assert "BRIX_SESSION_SRC_KEY_LEN" in h
     assert "src_key" in h
-    c = _read("src/protocols/root/session/registry.c")
+    c = _read_registry()
     assert "brix_rl_key_dn_hash" in c and "brix_rl_key_sub_hash" in c
     assert "src_count" in c and "src_lru_slot" in c
     assert "brix_session_src_cap_evict" in c
@@ -97,7 +105,7 @@ def test_w5_per_source_soft_quota_present():
 def test_w5_unkeyed_exemption_and_defensive_bounds():
     # Error/edge shape: a DN-less login is un-keyed (exempt, pre-W5 regime) and
     # the self-evictor bounds-checks the own-LRU slot before touching it.
-    c = _read("src/protocols/root/session/registry.c")
+    c = _read_registry()
     assert "src_key[0] != '\\0'" in c            # un-keyed slots never counted
     assert "src_lru_slot >= tbl->capacity" in c  # defensive no-victim return
 
@@ -106,7 +114,7 @@ def test_w5_self_eviction_only_and_ordering():
     # Security-negative shape: the cap must evict the over-quota identity's OWN
     # slot (src_lru_slot, matched by src_key strcmp), never another identity's,
     # and must bite BEFORE the F4 global reap so third parties are untouched.
-    c = _read("src/protocols/root/session/registry.c")
+    c = _read_registry()
     assert "ngx_strcmp(e->src_key, src_key) == 0" in c
     cap_branch = c.index("sc.src_count >= BRIX_SESSION_PER_SOURCE_SOFT_CAP")
     f4_branch = c.index("brix_session_reap_lru(tbl, now, sc.lru_slot")

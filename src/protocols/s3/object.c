@@ -5,6 +5,7 @@
 #include "core/http/http_headers.h"
 #include "observability/dashboard/dashboard_tracking.h"
 #include "fs/vfs/vfs.h"
+#include "fs/path/n2n_stage.h"
 #include "core/http/http_variables.h"              /* brix_http_monitor_bind (W1 tail) */
 #include "protocols/shared/file_serve.h"
 #include "protocols/shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */
@@ -12,9 +13,7 @@
 #include "protocols/root/zip/zip_http.h"   /* phase-57 W2: ZIP member access over S3 GET */
 #include "protocols/webdav/xrdhttp.h"       /* shared multipart/byteranges (vector-read) serve */
 #include "object_internal.h"
-
-/* GetObject range/bytes metrics — shared by the inline serve and the off-loop
- * serve completion (brix_http_serve_offload), so both report identically. */
+/* GetObject metrics shared by inline and off-loop completion. */
 static void
 s3_serve_metrics(ngx_http_request_t *r,
     const brix_http_serve_result_t *result)
@@ -39,7 +38,6 @@ s3_serve_metrics(ngx_http_request_t *r,
         }
     }
 }
-
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -47,9 +45,7 @@ s3_serve_metrics(ngx_http_request_t *r,
 #include <sys/stat.h>
 #include <unistd.h>
 
-/*
- * GET /bucket/key - file download with Range support
- * */
+/* GET /bucket/key - file download with Range support. */
 
 void
 s3_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
@@ -66,12 +62,8 @@ s3_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
         cf->common.root_canon, cf->common.cache_root_canon,
         brix_vfs_policy_from_write_enable(cf->common.allow_write),
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
-    /* Data-plane GET: bind the export's per-user backend credential policy
-     * (+ opt-in mint), mirroring s3_build_vfs_ctx (util.c, the PUT/POST-object
-     * path) — without this, both the inline brix_vfs_open below AND the
-     * off-loop brix_http_serve_offload_remote gate (which reads this bound
-     * ctx) would silently use the shared service credential for every user
-     * on a remote-backed export. */
+    /* Mirror PUT's per-user backend credentials for inline and off-loop reads;
+     * never fall back silently to a service credential. */
     brix_vfs_ctx_bind_backend_cred(vctx,
         &cf->common.storage_credential_dir,
         cf->common.storage_credential_fallback);
@@ -117,7 +109,7 @@ s3_get_reenter(ngx_http_request_t *r, void *data)
  */
 static ngx_int_t
 s3_get_serve_zip_member(ngx_http_request_t *r, const char *fs_path,
-    ngx_http_s3_loc_conf_t *cf)
+    ngx_http_s3_loc_conf_t *cf, const brix_vfs_ctx_t *vfs_scope)
 {
     char member[PATH_MAX];
     int  zr;
@@ -136,9 +128,9 @@ s3_get_serve_zip_member(ngx_http_request_t *r, const char *fs_path,
     }
 
     {
-        ngx_int_t zs = brix_zip_http_serve(r, cf->common.root_canon,
-                                             cf->common.zip_cd_max_bytes,
-                                             fs_path, member);
+        ngx_int_t zs = brix_zip_http_serve(r, vfs_scope,
+                                          cf->common.zip_cd_max_bytes,
+                                          fs_path, member);
         if (zs == NGX_HTTP_NOT_FOUND) {
             return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
                            "The specified key does not exist.",
@@ -190,6 +182,13 @@ s3_get_serve_offload(ngx_http_request_t *r, const char *fs_path,
 {
     brix_http_serve_opts_t sopts;
     ngx_int_t                sr;
+    char                     physical[PATH_MAX];
+    if (brix_path_resolved_to_pfn(vctx, fs_path, physical,
+                                  sizeof(physical)) != NGX_OK)
+    {
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
 
     ngx_memzero(&sopts, sizeof(sopts));
     sopts.xfer_proto = BRIX_XFER_PROTO_S3;
@@ -198,8 +197,7 @@ s3_get_serve_offload(ngx_http_request_t *r, const char *fs_path,
     sopts.etag_flags = 0;
     sopts.compress   = cf->common.compress;
 
-    sr = brix_http_serve_offload_remote(r, vctx->sd,
-        brix_vfs_export_relative(vctx, fs_path), fs_path, &sopts,
+    sr = brix_http_serve_offload_remote(r, vctx->sd, physical, fs_path, &sopts,
         &cf->common, vctx, s3_serve_metrics);
     if (sr == NGX_DONE) {
         return NGX_DONE;
@@ -237,6 +235,14 @@ s3_get_cache_fill(ngx_http_request_t *r, const char *fs_path,
     char             *fp;
     size_t            fplen;
     ngx_int_t         fr;
+    char              physical[PATH_MAX];
+
+    if (brix_path_resolved_to_pfn(vctx, fs_path, physical,
+                                  sizeof(physical)) != NGX_OK)
+    {
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
 
     rd = ngx_palloc(r->pool, sizeof(*rd));
     if (rd == NULL) {
@@ -253,13 +259,18 @@ s3_get_cache_fill(ngx_http_request_t *r, const char *fs_path,
     rd->fs_path = fp;
     rd->cf      = cf;
 
-    fr = brix_http_cache_fill_if_needed(r, vctx->sd,
-        brix_vfs_export_relative(vctx, fs_path), &cf->common,
+    fr = brix_http_cache_fill_if_needed(r, vctx->sd, physical, &cf->common,
+        vctx,
         s3_get_reenter, rd, NULL);
     if (fr == NGX_DONE) {
         return NGX_DONE;
     }
     if (fr == NGX_ERROR) {
+        if (errno == EACCES || errno == EPERM) {
+            return s3_fail(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
+                "Access to the requested object is denied.",
+                BRIX_S3_EVENT_ACCESS_DENIED);
+        }
         BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -511,13 +522,14 @@ s3_handle_get(ngx_http_request_t *r,
     ngx_int_t           rc;
     char                identity[128];
 
-    /* Phase-57 W2: ZIP member access. NGX_DECLINED ⇒ serve the object normally. */
-    rc = s3_get_serve_zip_member(r, fs_path, cf);
+    s3_vfs_ctx(r, fs_path, cf, &vctx);
+
+    /* ZIP archive reads derive from the normal GetObject context so they use
+     * the same identity, authorization, credentials and selected backend. */
+    rc = s3_get_serve_zip_member(r, fs_path, cf, &vctx);
     if (rc != NGX_DECLINED) {
         return rc;
     }
-
-    s3_vfs_ctx(r, fs_path, cf, &vctx);
 
     /* Tape residency (phase-64 VFS seam): reject a GET of a nearline/offline
      * object before any open/fill. NGX_DECLINED ⇒ online; fall through. */

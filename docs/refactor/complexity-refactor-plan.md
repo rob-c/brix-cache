@@ -1,5 +1,9 @@
 # Complexity Refactor Plan — Top 20 Hotspots
 
+**Status:** SUPERSEDED / COMPLETED by Phases 72–79 and 103. Its hotspot ranking
+is historical. Native CCN currently passes; the seven current Python CCN
+offenders are recorded in Phase 111.
+
 **Generated:** 2026-07-08 · **Source ranking:** `tools/readability.py` (McCabe CCN via lizard)
 **Enforcement:** `tools/ci/check_complexity.sh` (CCN-15 ratchet) — every file below is a frozen
 backlog entry that may only ratchet *down*. Land a refactor, run `--regen`, ceiling drops.

@@ -140,7 +140,7 @@ ngx_int_t brix_query_space(brix_ctx_t *ctx, ngx_connection_t *c,
  * catalog / sd_xroot origin forward) with the local-statvfs fallback. Exported
  * so the §3.3 brix_oss_quota_enforce write-admission gate prices usage from the
  * SAME source the Qspace report advertises. */
-ngx_int_t brix_query_space_probe(ngx_connection_t *c,
+ngx_int_t brix_query_space_probe(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, unsigned long long *total,
     unsigned long long *freeb, unsigned long long *used);
 /* kXR_QFSinfo (3017): capacity in the compact "wVal freeMB util sVal freeMB util"

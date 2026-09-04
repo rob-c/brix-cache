@@ -366,6 +366,101 @@ copy_web_upload(const brix_url *su, const brix_weburl *du, const brix_copy_opts 
 }
 
 
+static int
+copy_web_recursive_route(const char *src, const char *dst,
+                         const brix_copy_opts *opts, const brix_opts *conn,
+                         brix_status *status)
+{
+    int src_web = brix_is_web_url(src);
+    int dst_web = brix_is_web_url(dst);
+
+    if (src_web && dst_web) {
+        return copy_web_recursive_download(src, dst, opts, conn, status);
+    }
+    if (src_web) {
+        brix_url du;
+
+        if (brix_url_parse(dst, &du, status) != 0
+            || du.scheme != XRDC_SCHEME_LOCAL) {
+            brix_status_set(status, XRDC_EUSAGE, 0,
+                            "recursive web download destination must be local or web");
+            return -1;
+        }
+        return copy_web_recursive_download(src, du.path, opts, conn, status);
+    }
+    if (dst_web) {
+        brix_url su;
+
+        if (brix_url_parse(src, &su, status) != 0
+            || su.scheme != XRDC_SCHEME_LOCAL) {
+            brix_status_set(status, XRDC_EUSAGE, 0,
+                            "recursive web upload source must be local");
+            return -1;
+        }
+        return copy_web_recursive_upload(su.path, dst, opts, conn, status);
+    }
+    brix_status_set(status, XRDC_EUSAGE, 0,
+                    "unsupported recursive web copy direction");
+    return -1;
+}
+
+
+static int
+copy_web_download_route(const char *src, const char *dst,
+                        const brix_copy_opts *opts, const brix_opts *conn,
+                        brix_status *status)
+{
+    brix_weburl source;
+    brix_url    destination;
+
+    if (brix_weburl_parse(src, &source) != 0) {
+        brix_status_set(status, XRDC_EUSAGE, 0, "bad web source URL");
+        return -1;
+    }
+    if (brix_url_parse(dst, &destination, status) != 0) {
+        return -1;
+    }
+    if (destination.scheme != XRDC_SCHEME_LOCAL
+        && destination.scheme != XRDC_SCHEME_STDIO) {
+        brix_status_set(status, XRDC_EUSAGE, 0,
+                        "web download destination must be local or '-'");
+        return -1;
+    }
+    {
+        web_dl_req request = { &source, &destination,
+                               destination.scheme == XRDC_SCHEME_STDIO,
+                               opts, conn };
+        return copy_web_download(&request, status);
+    }
+}
+
+
+static int
+copy_web_upload_route(const char *src, const char *dst,
+                      const brix_copy_opts *opts, const brix_opts *conn,
+                      brix_status *status)
+{
+    brix_url    source;
+    brix_weburl destination;
+
+    if (brix_url_parse(src, &source, status) != 0) {
+        return -1;
+    }
+    if (brix_weburl_parse(dst, &destination) != 0) {
+        brix_status_set(status, XRDC_EUSAGE, 0,
+                        "bad web destination URL");
+        return -1;
+    }
+    if (source.scheme != XRDC_SCHEME_LOCAL
+        && source.scheme != XRDC_SCHEME_STDIO) {
+        brix_status_set(status, XRDC_EUSAGE, 0,
+                        "web upload source must be a local file");
+        return -1;
+    }
+    return copy_web_upload(&source, &destination, opts, conn, status);
+}
+
+
 /* Dispatch a copy where at least one endpoint is a web URL. */
 int
 copy_web(const char *src, const char *dst, const brix_copy_opts *o,
@@ -375,48 +470,17 @@ copy_web(const char *src, const char *dst, const brix_copy_opts *o,
     int dst_web = brix_is_web_url(dst);
 
     if (o && o->recursive) {
-        brix_status_set(st, XRDC_EUSAGE, 0,
-                        "recursive copy is not supported for web (davs/s3) endpoints");
-        return -1;
+        return copy_web_recursive_route(src, dst, o, co, st);
     }
     if (src_web && !dst_web) {                 /* download: web → local/stdout */
-        brix_weburl su;
-        brix_url    du;
-        if (brix_weburl_parse(src, &su) != 0) {
-            brix_status_set(st, XRDC_EUSAGE, 0, "bad web source URL");
-            return -1;
-        }
-        if (brix_url_parse(dst, &du, st) != 0) {
-            return -1;
-        }
-        if (du.scheme != XRDC_SCHEME_LOCAL && du.scheme != XRDC_SCHEME_STDIO) {
-            brix_status_set(st, XRDC_EUSAGE, 0,
-                            "web download destination must be local or '-'");
-            return -1;
-        }
-        {
-            web_dl_req rq = { &su, &du, du.scheme == XRDC_SCHEME_STDIO, o, co };
-            return copy_web_download(&rq, st);
-        }
+        return copy_web_download_route(src, dst, o, co, st);
     }
     if (!src_web && dst_web) {                 /* upload: local → web */
-        brix_url    su;
-        brix_weburl du;
-        if (brix_url_parse(src, &su, st) != 0) {
-            return -1;
-        }
-        if (brix_weburl_parse(dst, &du) != 0) {
-            brix_status_set(st, XRDC_EUSAGE, 0, "bad web destination URL");
-            return -1;
-        }
-        if (su.scheme != XRDC_SCHEME_LOCAL && su.scheme != XRDC_SCHEME_STDIO) {
-            brix_status_set(st, XRDC_EUSAGE, 0,
-                            "web upload source must be a local file");
-            return -1;
-        }
-        return copy_web_upload(&su, &du, o, co, st);
+        return copy_web_upload_route(src, dst, o, co, st);
     }
-    brix_status_set(st, XRDC_EUSAGE, 0,
-                    "web→web copy is not supported (stage via a local file)");
+    if (src_web && dst_web) {
+        return copy_web_relay(src, dst, o, co, st);
+    }
+    brix_status_set(st, XRDC_EUSAGE, 0, "unsupported web copy direction");
     return -1;
 }

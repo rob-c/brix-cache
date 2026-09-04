@@ -4,7 +4,7 @@ from the AIO done callbacks.
 
 The unified exporter already folds the legacy per-port stream counters into
 brix_io_ops_total / brix_io_bytes_* {proto="stream"}, so ops and bytes were
-complete before D-2; only the latency histogram (brix_io_latency_usec_*) was
+complete before D-2; only the latency histogram (now exported in seconds) was
 blind for the root wire.  D-2 stamps start_ns at each AIO post site and files
 ONE histogram sample (bucket + count + sum) per completion via the new
 histogram-only recorder brix_metric_op_latency().
@@ -15,7 +15,7 @@ the legacy fold (live-observed as ops_total +2 per single write op).
 
 Covers per the 3-tests rule:
   - success:      one xrdcp upload => ops_total{stream,write,ok} +1 EXACTLY
-                  with latency_usec_count{stream,write} +1 (write path is AIO);
+                  with latency_seconds_count{stream,write} +1 (write is AIO);
                   cold TLS read (page-cache evicted) => read latency sample.
   - error:        source contract — every AIO done callback (including the
                   errored-completion paths) files brix_aio_metric_done, and
@@ -33,7 +33,14 @@ import subprocess
 
 import pytest
 
-from settings import DATA_ROOT, NGINX_ANON_PORT, NGINX_GSI_TLS_PORT, SERVER_HOST
+from settings import (
+    CA_DIR,
+    DATA_ROOT,
+    NGINX_ANON_PORT,
+    NGINX_GSI_TLS_PORT,
+    PROXY_STD,
+    SERVER_HOST,
+)
 from metrics_helpers import Snapshot, fetch, value, xrdcp
 
 pytestmark = pytest.mark.timeout(120)
@@ -41,13 +48,23 @@ pytestmark = pytest.mark.timeout(120)
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DATA_DIR = DATA_ROOT
 
-LAT_COUNT = "brix_io_latency_usec_count"
-LAT_SUM = "brix_io_latency_usec_sum"
+LAT_COUNT = "brix_io_latency_seconds_count"
+LAT_SUM = "brix_io_latency_seconds_sum"
 OPS = "brix_io_ops_total"
 
 
 def _stream(op):
     return {"proto": "stream", "op": op}
+
+
+def _float_value(text, name, labels):
+    for line in text.splitlines():
+        if not line.startswith(name + "{"):
+            continue
+        block, raw = line.rsplit(None, 1)
+        if all(f'{key}="{val}"' in block for key, val in labels.items()):
+            return float(raw)
+    return -1.0
 
 
 def _url(port, name):
@@ -136,7 +153,13 @@ def test_cold_tls_read_files_latency_sample(tmp_path):
 
     snap = Snapshot()
     dst = tmp_path / "cold.out"
-    env = dict(os.environ, XrdSecPROTOCOL="gsi")
+    env = dict(
+        os.environ,
+        X509_CERT_DIR=CA_DIR,
+        X509_USER_PROXY=PROXY_STD,
+        XrdSecGSICADIR=CA_DIR,
+        XrdSecPROTOCOL="gsi",
+    )
     r = subprocess.run(
         ["env", "-u", "LD_LIBRARY_PATH",
          os.path.join(_REPO, "client", "bin", "xrdcp"),
@@ -147,7 +170,10 @@ def test_cold_tls_read_files_latency_sample(tmp_path):
 
     after = fetch()
     d_cnt = snap.delta(LAT_COUNT, _stream("read"), after=after)
-    d_sum = snap.delta(LAT_SUM, _stream("read"), after=after)
+    before_sum = _float_value(snap.before, LAT_SUM, _stream("read"))
+    after_sum = _float_value(after, LAT_SUM, _stream("read"))
+    assert after_sum >= 0, f"{LAT_SUM} is absent from /metrics"
+    d_sum = after_sum - max(0.0, before_sum)
     d_ops = snap.delta(OPS, {**_stream("read"), "status": "ok"}, after=after)
     # `posix_fadvise(DONTNEED)` is advisory and is a no-op on several supported
     # filesystems (notably tmpfs). In that case the server's warm probe is the
@@ -200,10 +226,9 @@ DONE_CALLBACKS = [
 POST_SITES = [
     "src/protocols/root/read/read_buffered.c",
     "src/protocols/root/read/pgread.c",
-    "src/protocols/root/read/readv.c",
     "src/protocols/root/write/common.c",
     "src/protocols/root/write/writev_aio.c",
-    "src/core/aio/reads.c",
+    "src/core/aio/reads_window.c",   # windowed post split out of reads.c
 ]
 
 

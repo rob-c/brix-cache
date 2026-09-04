@@ -17,22 +17,14 @@ HELP = {
         'Authentication attempts by protocol, method, and status.',
     'brix_budget_waits_total':
         'Reads deferred with kXR_wait because they would exceed brix_memory_budget.',
-    'brix_bytes_root_rx_total':
-        'Bytes received from clients via the native XRootD root:// protocol.',
-    'brix_bytes_root_tx_total':
-        'Bytes sent to clients via the native XRootD root:// protocol.',
     'brix_bytes_rx_ipv4_total':
         'Bytes received from IPv4 clients (stream layer).',
     'brix_bytes_rx_ipv6_total':
         'Bytes received from IPv6 clients (stream layer).',
-    'brix_bytes_rx_total':
-        'Bytes received from clients (write payloads).',
     'brix_bytes_tx_ipv4_total':
         'Bytes sent to IPv4 clients (stream layer).',
     'brix_bytes_tx_ipv6_total':
         'Bytes sent to IPv6 clients (stream layer).',
-    'brix_bytes_tx_total':
-        'Bytes sent to clients (read data).',
     'brix_cache_bytes':
         'Cache filesystem bytes by state.',
     'brix_cache_bytes_evicted_total':
@@ -47,10 +39,6 @@ HELP = {
         'Configured cache eviction high-water occupancy ratio.',
     'brix_cache_evictions_total':
         'Files evicted from brix_cache_export.',
-    'brix_cache_hits_total':
-        'Cache hits by protocol.',
-    'brix_cache_misses_total':
-        'Cache misses by protocol.',
     'brix_cache_occupancy_ratio':
         'Filesystem occupancy ratio for brix_cache_export.',
     'brix_cache_prefetch_blocks_total':
@@ -59,6 +47,9 @@ HELP = {
         'Background cache prefetch jobs that failed.',
     'brix_cache_prefetch_jobs_total':
         'Background cache prefetch jobs posted.',
+    'brix_cache_requests_total':
+        'Cache lookups by protocol and disposition (HIT/MISS — the '
+        '$brix_cache_status vocabulary).',
     'brix_cache_usage_ratio':
         'Cache filesystem occupancy (0-1).',
     'brix_cache_watermark_evicted_bytes_total':
@@ -181,8 +172,8 @@ HELP = {
         'Total bytes read from storage, by protocol.',
     'brix_io_bytes_written':
         'Total bytes written to storage, by protocol.',
-    'brix_io_latency_usec':
-        'I/O operation latency in microseconds.',
+    'brix_io_latency_seconds':
+        'I/O operation latency in seconds.',
     'brix_io_offload_total':
         'Read-family responses (read/readv/pgread) routed over a bound '
         'secondary data channel (pathid response offloading).',
@@ -286,14 +277,10 @@ HELP = {
         'Bytes received from IPv4 clients via S3-compatible PUT.',
     'brix_s3_bytes_rx_ipv6_total':
         'Bytes received from IPv6 clients via S3-compatible PUT.',
-    'brix_s3_bytes_rx_total':
-        'Bytes accepted into successful S3-compatible PUT writes.',
     'brix_s3_bytes_tx_ipv4_total':
         'Bytes sent to IPv4 clients via S3-compatible GET.',
     'brix_s3_bytes_tx_ipv6_total':
         'Bytes sent to IPv6 clients via S3-compatible GET.',
-    'brix_s3_bytes_tx_total':
-        'Bytes emitted by S3-compatible GET, LIST, and XML error responses.',
     'brix_s3_events_total':
         'Low-cardinality S3-compatible endpoint diagnostic events.',
     'brix_s3_list_common_prefixes_total':
@@ -386,6 +373,12 @@ HELP = {
         'unlink_many batches flushed, by leaf driver.',
     'brix_vfs_bulk_delete_keys_total':
         'Keys removed via the batch delete path, by leaf driver.',
+    'brix_vfs_authz_backstop_total':
+        'VFS authorization-backstop evaluations, by protocol and result '
+        '(agree|edge_missing|no_rules|unbound).',
+    'brix_vfs_domain_mutation_total':
+        'Service-storage mutations passed by the typed domain assert, by '
+        'storage domain and operation.',
     'brix_vfs_evict_bytes_total':
         'Bytes reclaimed by the VFS evict verb, by dispatching driver.',
     'brix_vfs_lock_refused_total':
@@ -423,14 +416,10 @@ HELP = {
         'Bytes received from IPv4 clients via WebDAV PUT.',
     'brix_webdav_bytes_rx_ipv6_total':
         'Bytes received from IPv6 clients via WebDAV PUT.',
-    'brix_webdav_bytes_rx_total':
-        'Bytes received into WebDAV storage writes.',
     'brix_webdav_bytes_tx_ipv4_total':
         'Bytes sent to IPv4 clients via WebDAV GET and PROPFIND.',
     'brix_webdav_bytes_tx_ipv6_total':
         'Bytes sent to IPv6 clients via WebDAV GET and PROPFIND.',
-    'brix_webdav_bytes_tx_total':
-        'Bytes sent from WebDAV GET and PROPFIND responses.',
     'brix_webdav_cors_total':
         'WebDAV CORS request/header decisions.',
     'brix_webdav_propfind_depth_total':

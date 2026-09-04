@@ -25,6 +25,12 @@
 #include "vfs_internal.h"
 #include "vfs_policy_domain.h"
 
+/* The metrics layer mirrors the domain vocabulary as a plain count so it
+ * keeps no dependency on the fs layer (phase-107 §7.5); if a domain is
+ * appended in sd_domain.h the mirror must grow with it. */
+_Static_assert((int) BRIX_VFS_DOMAIN_COUNT == BRIX_VFS_DOMAIN_METRIC_COUNT,
+    "brix_vfs_domain_t and BRIX_VFS_DOMAIN_METRIC_COUNT disagree");
+
 /* ---- Assert an instance belongs to a claimed storage domain ----
  *
  * WHAT: NGX_OK when inst->domain == domain (service domains) — EROFS via the
@@ -70,6 +76,59 @@ brix_vfs_domain_mutation(const brix_sd_instance_t *inst,
         return NGX_ERROR;
     }
 
+    brix_metric_vfs_domain_mutation((ngx_uint_t) domain, (ngx_uint_t) op);
+    return NGX_OK;
+}
+
+/* ---- Assert a claimed storage domain with no instance in hand ----
+ *
+ * WHAT: The instance-free form of the assert above, for mutators whose
+ *       service storage is not a bound driver instance at all — the
+ *       credential staging dir (phase-108 C11), the OCI store tree (C10).
+ *       NGX_OK for a valid service-domain claim (one metric sample booked);
+ *       EROFS via the phase-105 kernel for an EXPORT claim; EINVAL out of
+ *       range.
+ *
+ * WHY:  brix_vfs_domain_mutation() deliberately refuses a NULL instance —
+ *       for instance-bearing paths that is a wiring bug. But a credential
+ *       write has no brix_sd_instance_t and never will; without this form
+ *       those verbs would either skip the domain gate (untyped, unaccounted)
+ *       or fake an instance (worse). With nothing to cross-check, the claim's
+ *       enforcement is the seam guard's source-level entitlement table plus
+ *       the EXPORT routing here: no caller can launder an export mutation
+ *       through a bare claim, because EXPORT routes to the fail-closed
+ *       kernel and answers EROFS.
+ *
+ * HOW:  1. Range-check op and domain; 2. route an EXPORT claim to the kernel
+ *       under the fail-closed policy (with one crit line — a service caller
+ *       claiming EXPORT is a programming error, same as a domain mismatch);
+ *       3. book the accounting sample and allow.
+ */
+ngx_int_t
+brix_vfs_domain_claim(ngx_log_t *log, brix_vfs_domain_t domain,
+    brix_vfs_mutation_op_t op)
+{
+    if ((ngx_uint_t) op >= BRIX_VFS_MUTATE_OP_COUNT
+        || (ngx_uint_t) domain >= BRIX_VFS_DOMAIN_COUNT)
+    {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+
+    if (domain == BRIX_VFS_DOMAIN_EXPORT) {
+        if (log != NULL) {
+            ngx_log_error(NGX_LOG_CRIT, log, 0,
+                "brix vfs: service mutation \"%s\" claimed the EXPORT domain "
+                "with no instance — refused (wrong_domain)",
+                brix_vfs_mutation_op_name(op));
+        }
+        /* Only the fail-closed policy is available to a bare claim: export
+         * mutations arrive through the policy-bearing kernel forms. */
+        return brix_vfs_require_mutation_policy(BRIX_VFS_MUTATION_READ_ONLY,
+                                                op);
+    }
+
+    brix_metric_vfs_domain_mutation((ngx_uint_t) domain, (ngx_uint_t) op);
     return NGX_OK;
 }
 

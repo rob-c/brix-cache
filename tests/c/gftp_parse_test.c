@@ -62,6 +62,8 @@ test_reply_incomplete_and_bad(void)
           "incomplete: needs more bytes → 0");
     CHECK(gftp_reply_scan("22", 2, &r) == 0,
           "incomplete: short code → 0");
+    CHECK(gftp_reply_scan("220", 3, &r) == 0,
+          "incomplete: code without separator → 0");
 
     /* error: a present non-digit code byte is malformed, not incomplete. */
     CHECK(gftp_reply_scan("2x0 no\r\n", 8, &r) == -1,

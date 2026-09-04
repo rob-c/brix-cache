@@ -1,8 +1,8 @@
 # Phase 77 — Effort-Hotspot Burndown, Wave 3 (+ regression triage)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
-> (recommended) or superpowers:executing-plans to implement this plan task-by-task.
-> Steps use checkbox (`- [ ]`) syntax for tracking.
+**Reference note:** “Phase 74” below means the analyzer-sweep record embedded in
+Phase 72; “Phase 76” means the parameter-residual record embedded in Phase 75.
+Neither points to a missing standalone document.
 
 **Goal:** (A) Verify and fix the 5 analyzer HIGH findings — 4 of which sit in files the
 phase-75 decomposition just touched, so they are prime regression suspects — then (B)

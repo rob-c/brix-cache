@@ -15,7 +15,7 @@ into three standing properties:
   1. the inventory of directive-FACTORY macros is closed — a third family
      fails here, in the one place that knows how to expand them, instead of
      silently shrinking every name-based scan in the tree;
-  2. the hole is real and its exact shape is pinned — 17 of the 20
+  2. the hole is real and its exact shape is pinned — 23 of the 26
      macro-generated directives have no `ngx_string("brix_...")` literal
      anywhere in src/, so a name-based scan sees nothing; the other 3 do,
      because the root:// stream plane declares the async triple by hand
@@ -26,15 +26,9 @@ into three standing properties:
 
 Pure source analysis plus a handful of `nginx -t` parses; nothing boots.
 
-DEFECT CANDIDATE #33 — the hole has already cost documentation.
-docs/03-configuration/directives.md names 174 brix directives but misses 7 of
-the 20 the macros generate (brix_cache_cold_store, brix_cache_global_cas,
-brix_cache_passthrough, brix_cache_passthrough_max, and the whole
-brix_backend_async triple).  Every one of the 13 that IS documented is a name a
-literal scan would also have found via some other mention; the undocumented
-seven are exactly the ones that only ever existed as macro expansions.
-test_the_documentation_gap_matches_the_macro_hole pins the set: documenting one
-makes it fail, and so does adding a new tier directive without documenting it.
+The original documentation defect is closed: all 26 generated names are in the
+directive reference. ``test_the_documentation_gap_matches_the_macro_hole`` now
+pins the empty gap so a new macro-born directive cannot ship undocumented.
 """
 
 import os
@@ -82,15 +76,7 @@ LITERALLY_DECLARED_TOO = {
 
 # DEFECT CANDIDATE #33: macro-born directives missing from the directive
 # reference. See the module docstring.
-UNDOCUMENTED = {
-    "brix_cache_cold_store",
-    "brix_cache_global_cas",
-    "brix_cache_passthrough",
-    "brix_cache_passthrough_max",
-    "brix_backend_async",
-    "brix_backend_async_batch",
-    "brix_backend_async_wait",
-}
+UNDOCUMENTED = set()
 DEFECT33 = ("DEFECT CANDIDATE #33 has changed: the set of macro-generated "
             "directives missing from docs/03-configuration/directives.md is no "
             "longer the pinned one. If they were documented, shrink "
@@ -213,10 +199,10 @@ def test_the_factories_are_invoked_only_with_the_brix_prefix():
 def test_the_generated_inventory_is_the_expected_size():
     tier, async_ = _suffixes("BRIX_TIER_DIRECTIVES"), \
         _suffixes("BRIX_BACKEND_ASYNC_DIRECTIVES")
-    assert len(tier) == 18, tier   # +cache_uvkeep (2026-08-10, §4.3)
+    assert len(tier) == 23, tier
     assert len(async_) == 3, async_
     assert len(set(tier) & set(async_)) == 0, "a suffix belongs to one family"
-    assert len(_generated_names()) == 21, sorted(_generated_names())
+    assert len(_generated_names()) == 26, sorted(_generated_names())
 
 
 # --------------------------------------------------------------------------- #
@@ -225,7 +211,7 @@ def test_the_generated_inventory_is_the_expected_size():
 
 
 def test_the_tier_grammar_is_invisible_to_a_literal_directive_scan():
-    """The §E claim, pinned to the byte: 18 of the 21 generated directives have
+    """The §E claim, pinned to the byte: 23 of the 26 generated directives have
     no `ngx_string("<name>")` anywhere in src/, so the scan the audit's §Method
     used — and every other name-based guard — reports them as nonexistent."""
     blob = _src_blob()
@@ -236,7 +222,7 @@ def test_the_tier_grammar_is_invisible_to_a_literal_directive_scan():
         "the literal/macro-only split moved. A name that gained a literal "
         f"declaration is now double-declared; a name that lost one just went "
         f"invisible to every name-based guard. visible={sorted(visible)}")
-    assert len(invisible) == 18, sorted(invisible)
+    assert len(invisible) == 23, sorted(invisible)
 
 
 def test_the_hand_maintained_call_site_comment_still_lists_every_directive():
@@ -261,7 +247,7 @@ def test_the_documentation_gap_matches_the_macro_hole():
 
 def test_every_generated_directive_is_exercised_by_the_test_corpus():
     """The audit's own closure condition, applied to the names it had to
-    expand by hand: all 21 appear in a template or an inline config."""
+    expand by hand: all 26 appear in a template or an inline config."""
     blob = _tests_blob()
     missing = sorted(n for n in _generated_names() if not _mentions(blob, n))
     assert missing == [], (

@@ -221,6 +221,8 @@ brix_tier_status_t brix_tier_status(const brix_tier_cfg_t *t,
  * init failure. */
 brix_sd_instance_t *brix_tier_build(const brix_tier_cfg_t *t,
     ngx_log_t *log);
+brix_sd_instance_t *brix_tier_build_gsiftp(const brix_tier_cfg_t *t,
+    ngx_log_t *log);
 
 /* Compose the stack's top of stack (cache → stage → backend) from `s`, memoising
  * it in s->composed (per worker). Enforces tape-requires-cache (P4/G8): a

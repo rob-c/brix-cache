@@ -304,6 +304,33 @@ typedef struct {
     const brix_opts      *co;
 } web_dl_req;
 
+/* Recursive web-copy state belongs to the transfer engine, not the CLI. */
+typedef struct {
+    const brix_weburl *du;
+    const char        *base;
+    const char        *bearer;
+    const brix_opts   *co;
+} web_mkcol_ctx_t;
+
+typedef struct {
+    const char           *rel;
+    const char           *srcurl;
+    const brix_copy_opts *opts;
+    const brix_opts      *conn;
+    brix_status          *status;
+} web_place_ctx_t;
+
+typedef struct {
+    const brix_weburl    *endpoint;
+    const char           *base;
+    const char           *scheme;
+    const char           *bearer;
+    const brix_copy_opts *opts;
+    const brix_opts      *conn;
+    size_t                copied;
+    size_t                failed;
+} web_upload_ctx_t;
+
 int copy_tree_download(const copy_walk_ctx *w);
 int copy_tree_upload(const copy_walk_ctx *w);
 /* shared recursive-walk helpers (copy_recursive.c); used across the Phase-38
@@ -319,6 +346,21 @@ int recursive_dest_root(const char *dstdir, const char *srcpath, char *out, size
 int copy_recursive(const copy_recurse_req *rq, brix_status *st);
 int web_auth_headers(const web_auth_ctx *a, char *hdrs, size_t hdrsz);
 int copy_web_download(const web_dl_req *rq, brix_status *st);
+int copy_web_leaf_retry(const char *src, const char *dst,
+                        const brix_copy_opts *o, const brix_opts *co,
+                        brix_status *st);
+int copy_web_relay(const char *src, const char *dst,
+                   const brix_copy_opts *o, const brix_opts *co,
+                   brix_status *st);
+int copy_web_recursive_download(const char *src, const char *dst,
+                                const brix_copy_opts *o,
+                                const brix_opts *co, brix_status *st);
+int copy_web_recursive_upload(const char *src, const char *dst,
+                              const brix_copy_opts *o,
+                              const brix_opts *co, brix_status *st);
+const char *copy_web_scheme(brix_web_proto proto);
+void copy_web_upload_walk(web_upload_ctx_t *ctx, const char *localdir,
+                          const char *rel);
 
 /* copy_local.c */
 int copy_web_upload(const brix_url *su, const brix_weburl *du, const brix_copy_opts *o, const brix_opts *co, brix_status *st);

@@ -50,8 +50,8 @@ tpc_connect(brix_tpc_pull_t *t)
         char                        ssrf_err[128];
 
         ngx_memzero(&policy, sizeof(policy));
-        policy.allow_local   = t->conf->tpc_allow_local;
-        policy.allow_private = t->conf->tpc_allow_private;
+        policy.allow_local   = t->conf->common.tpc_allow_local;
+        policy.allow_private = t->conf->common.tpc_allow_private;
 
         if (brix_net_target_check_addr(rp->ai_addr, &policy,
                                          ssrf_err, sizeof(ssrf_err))

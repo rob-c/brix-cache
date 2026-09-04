@@ -1,8 +1,8 @@
 # `src/fs/backend/gsiftp/` — outbound `gsiftp://` storage driver
 
 Kind **ORIGIN** (`src/core/types/fs_list.h`): an SD driver that backs a BriX export with a
-*remote* GridFTP / gsiftp server (dCache, DPM/StoRM, Globus GridFTP,
-XRootD-gsiftp), authenticating with the full WLCG credential matrix. This is the
+*remote* FTP or GridFTP/gsiftp server (dCache, DPM/StoRM, Globus GridFTP,
+XRootD-gsiftp), anonymously or with a static/per-user GSI proxy. This is the
 **outbound** mirror of the phase-82 *inbound* gateway (`src/protocols/gridftp/`):
 there BriX *accepts* gsiftp clients; here BriX *is* a gsiftp client.
 
@@ -19,18 +19,21 @@ caller.
 
 ## Module map
 
-Landed (phase-91 Wave-A protocol kernels — pure, no nginx/socket deps, unit
-tested by `tests/c/gftp_parse_test.c`, fast-tier runner `gftp_parse`):
+The production v1 is split by transport concern and every native file stays
+below the repository size cap:
 
 | File | Concern |
 |---|---|
-| `gftp_reply.{c,h}` | control-channel reply parser: 3-digit + multiline `-` continuation framing; SSRF-critical `227` (PASV/IPv4) and `229` (EPSV, RFC 2428) address decoders with per-octet bounds checks — the caller screens the extracted address through `src/core/compat/net_target.h` before dialling. |
+| `gftp_reply.{c,h}` | Control-channel reply parser: 3-digit and multiline continuation framing, plus bounded 227/229 parsing. The data connector uses only the returned port and pins the address to the established control peer. |
 | `gftp_mlsx.{c,h}` | MLSD/MLST fact-line parser (RFC 3659 §7): inverts `type=;size=;modify=;…` into size/type/UTC-mtime/name; rejects traversal (`/`) and control-byte names, drops overflowing numeric facts. |
+| `gftp_control.c` / `gftp_data.c` | Deadline-bounded control I/O, protected-command framing, EPSV/PASV peer pinning, REST+RETR reads, STOR writes and bounded listing collection. |
+| `gftp_auth.c` / `gftp_gsi.c` | Anonymous USER/PASS and client-role GSI `AUTH GSSAPI`/ADAT. GSI loads and verifies a proxy chain, performs the initiator handshake, and preserves VOMS attributes carried by that chain. |
+| `sd_gsiftp.c` / `sd_gsiftp_internal.h` | Instance factory, vtable/capabilities, credential selection and confined logical-to-origin path joining. |
+| `sd_gsiftp_io.c` | Open/close, SIZE/MLST metadata and bounded range reads. |
+| `sd_gsiftp_ns.c` | MLSD iteration and DELE/RMD/MKD/RNFR/RNTO namespace operations, including `_cred` twins. |
+| `sd_gsiftp_staged.c` | Whole-object staged writes: local spool, STOR to a unique temporary name, atomic RNFR/RNTO promotion and abort cleanup. |
 
-Planned (subsequent waves, per the phase-91 plan §3/§13): `sd_gsiftp.{c,h}`
-(driver struct + `brix_sd_gsiftp_create` factory), `sd_gsiftp_io.c`,
-`sd_gsiftp_ns.c`, `sd_gsiftp_ns_cred.c`, `sd_gsiftp_staged.c`, `gftp_session.c`,
-`gftp_auth*.c`, `gftp_data.c`. The parser kernels above are consumed by
-`gftp_session.c` (control loop) and `gftp_data.c` (data-channel address
-resolution); they are wired into `./config` when that first consumer lands, so
-the production binary carries no uncalled code today.
+The shipped data path is MODE S with `PROT C`/`DCAU N`. MODE E striping,
+private data-channel protection, Kerberos, mTLS and configured password auth are
+not silently emulated and are not advertised by the vtable. See the Phase-91
+landing record for the deliberate v1 boundary.

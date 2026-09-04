@@ -26,6 +26,7 @@
  */
 
 #include "brix.h"
+#include "fs/vfs.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -194,24 +195,40 @@ ckv_collect_sidecar(const char *path, ckv_record *recs, size_t max, size_t *n)
     fclose(fp);
 }
 
+/* Read one local metadata carrier through the client VFS. */
+static ssize_t
+ckv_read_path_blob(const char *path, void *buf, size_t size)
+{
+    brix_vfs_open_opts opts = {0};
+    brix_vfs_file     *file = NULL;
+    brix_status        status;
+    ssize_t            got;
+
+    opts.io_uring = XRDC_IO_URING_OFF;
+    opts.expected_size = -1;
+    brix_status_clear(&status);
+    if (brix_vfs_open(path, XRDC_VFS_READ | XRDC_VFS_NOFOLLOW,
+                      &opts, &file, &status) != 0) {
+        return -1;
+    }
+    got = brix_vfs_pread(file, 0, buf, size, &status);
+    brix_vfs_close(file);
+    return got;
+}
+
 /* Read a fixed-size record from "<path><suffix>" into buf (zeroed first). */
 static int
 ckv_read_sidecar_blob(const char *path, const char *suffix, void *buf, size_t sz)
 {
-    char    p[XRDC_PATH_MAX];
-    int     fd;
+    char    sidecar[XRDC_PATH_MAX];
     ssize_t got;
 
-    if ((size_t) snprintf(p, sizeof(p), "%s%s", path, suffix) >= sizeof(p)) {
-        return -1;
-    }
-    fd = open(p, O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NOCTTY);
-    if (fd < 0) {
+    if ((size_t) snprintf(sidecar, sizeof(sidecar), "%s%s", path, suffix)
+        >= sizeof(sidecar)) {
         return -1;
     }
     memset(buf, 0, sz);
-    got = pread(fd, buf, sz, 0);
-    close(fd);
+    got = ckv_read_path_blob(sidecar, buf, sz);
     return (got >= 0) ? (int) got : -1;
 }
 
@@ -378,7 +395,6 @@ static ssize_t
 ckv_read_xmeta(const char *path, uint8_t *buf, size_t cap)
 {
     char    scpath[XRDC_PATH_MAX];
-    int     fd;
     ssize_t got;
 
     got = getxattr(path, CKV_XMETA_XATTR, buf, cap);
@@ -390,12 +406,7 @@ ckv_read_xmeta(const char *path, uint8_t *buf, size_t cap)
     {
         return -1;
     }
-    fd = open(scpath, O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NOCTTY);
-    if (fd < 0) {
-        return -1;
-    }
-    got = pread(fd, buf, cap, 0);
-    close(fd);
+    got = ckv_read_path_blob(scpath, buf, cap);
     return (got > 0) ? got : -1;
 }
 

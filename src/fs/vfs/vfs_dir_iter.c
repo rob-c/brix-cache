@@ -158,14 +158,90 @@ vfs_readdir_stat_child(brix_vfs_dir_t *dh, const char *name,
  * HOW:  Fixed PATH_MAX join via ngx_snprintf, then the driver's stat verb;
  *       the caller must have checked dh->drv->stat != NULL. */
 static ngx_int_t
+vfs_sd_join_child(const char *directory, const char *name, char *child,
+    size_t cap)
+{
+    int written;
+
+    written = snprintf(child, cap, "%s%s%s", directory,
+                       directory[0] != '\0'
+                           && directory[ngx_strlen(directory) - 1] == '/'
+                           ? "" : "/", name);
+    if (written < 0 || (size_t) written >= cap) {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/* vfs_sd_stat_child -- stat a driver entry by its physical child name.
+ *
+ * WHAT: Joins the handle's translated directory PFN with a raw driver entry
+ *       name and stats that physical key. Returns the driver result.
+ * WHY:  Once N2N is active, joining the visible LFN would address a different
+ *       key. Driver work must remain physical until the listing is rendered.
+ * HOW:  Use the checked fixed-buffer join, then invoke the driver's stat slot. */
+static ngx_int_t
 vfs_sd_stat_child(brix_vfs_dir_t *dh, const char *name, brix_sd_stat_t *sd_st)
 {
     char child[PATH_MAX];
 
-    ngx_snprintf((u_char *) child, sizeof(child), "%s/%s%Z",
-                 (dh->sd_logical[0] == '/' && dh->sd_logical[1] == '\0')
-                     ? "" : dh->sd_logical, name);
+    if (vfs_sd_join_child(dh->sd_physical, name, child, sizeof(child))
+        != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
     return dh->drv->stat(dh->sd, child, sd_st);
+}
+
+/* vfs_sd_render_entry -- turn one raw driver child into its visible LFN name.
+ *
+ * WHAT: Reconstructs the entry's full PFN, reverses the ctx-bound N2N mapping,
+ *       validates that the result is an immediate child of the opened logical
+ *       directory, and overwrites `entry->name` with that basename.
+ * WHY:  Protocols must never expose configured pools/prefixes, and a malformed
+ *       backend listing must not escape or change directory level while being
+ *       reversed.
+ * HOW:  Checked PFN join, shared PFN->LFN translator, exact parent-prefix
+ *       check, slash-free basename check, then a capacity-checked copy. */
+static ngx_int_t
+vfs_sd_render_entry(brix_vfs_dir_t *dh, brix_sd_dirent_t *entry)
+{
+    char        physical[PATH_MAX];
+    char        logical[PATH_MAX];
+    const char *basename;
+    size_t      parent_len;
+    size_t      name_len;
+
+    if (vfs_sd_join_child(dh->sd_physical, entry->name, physical,
+                          sizeof(physical)) != NGX_OK
+        || brix_path_pfn_to_lfn(dh->ctx, physical, logical,
+                                sizeof(logical)) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    parent_len = ngx_strlen(dh->sd_logical);
+    if (parent_len == 1 && dh->sd_logical[0] == '/') {
+        basename = logical[0] == '/' ? logical + 1 : NULL;
+    } else if (ngx_strncmp(logical, dh->sd_logical, parent_len) == 0
+               && logical[parent_len] == '/')
+    {
+        basename = logical + parent_len + 1;
+    } else {
+        basename = NULL;
+    }
+    if (basename == NULL || basename[0] == '\0' || ngx_strchr(basename, '/')) {
+        errno = EIO;
+        return NGX_ERROR;
+    }
+    name_len = ngx_strlen(basename);
+    if (name_len >= sizeof(entry->name)) {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+    ngx_memcpy(entry->name, basename, name_len + 1);
+    return NGX_OK;
 }
 
 /* vfs_readdir_sd — driver-plane body of the readdir core.
@@ -197,11 +273,17 @@ vfs_readdir_sd(brix_vfs_dir_t *dh, const char **name_out,
             return rc;                                 /* NGX_DONE / NGX_ERROR */
         }
         if (stat_out == NULL || dh->drv->stat == NULL) {
-            break;
+            if (vfs_sd_render_entry(dh, de_sd) == NGX_OK) {
+                break;
+            }
+            continue;
         }
         if (vfs_sd_stat_child(dh, de_sd->name, &sd_st) == NGX_OK) {
-            brix_vfs_sd_stat_fill(&sd_st, stat_out);
-            break;
+            if (vfs_sd_render_entry(dh, de_sd) == NGX_OK) {
+                brix_vfs_sd_stat_fill(&sd_st, stat_out);
+                break;
+            }
+            continue;
         }
         /* Child vanished mid-scan (ENOENT): skip it and keep enumerating.
          * Any other driver stat failure is surfaced before the skip. */
@@ -382,6 +464,9 @@ brix_vfs_readdir_kind(brix_vfs_dir_t *dh, ngx_str_t *name_out,
         }
         if (kind_out != NULL) {
             *kind_out = vfs_sd_entry_kind(dh, &de_sd);
+        }
+        if (vfs_sd_render_entry(dh, &de_sd) != NGX_OK) {
+            return NGX_ERROR;
         }
         return vfs_readdir_fill_entry(dh->pool, de_sd.name, name_out);
     }

@@ -51,7 +51,7 @@ qprep_path_authorized(brix_ctx_t *ctx, ngx_connection_t *c,
 {
     return brix_authz_check(ctx, c, conf, pathbuf, full_path, "PREPARE",
                               BRIX_AUTH_READ, BRIX_AOP_STAGE) == NGX_OK
-        && brix_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
+        && brix_check_vo_acl_identity(c->log, full_path, conf->common.vo_rules,
                                         ctx->identity) == NGX_OK
         && brix_check_token_scope(ctx, pathbuf, 0) == NGX_OK;
 }

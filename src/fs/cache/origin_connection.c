@@ -102,7 +102,8 @@ brix_cache_origin_tls_upgrade(brix_cache_fill_t *t,
     SSL_CTX_set_min_proto_version(oc->ssl_ctx, TLS1_2_VERSION);
     SSL_CTX_set_verify(oc->ssl_ctx, SSL_VERIFY_PEER, NULL);
 
-    if (origin_tls_load_verify(oc->ssl_ctx, &t->conf->trusted_ca) != 0) {
+    if (origin_tls_load_verify(oc->ssl_ctx,
+                               &t->conf->common.trusted_ca) != 0) {
         brix_cache_set_error(t, kXR_ServerError, 0,
                                "cache origin CA load failed");
         return -1;
@@ -247,4 +248,3 @@ brix_cache_origin_connect(brix_cache_fill_t *t,
                                             &t->conf->cache_origin_host,
                                             t->conf->cache_origin_port);
 }
-

@@ -129,7 +129,8 @@ class TestS3RequestCounters:
         after = _fetch()
         assert _delta(self.before, after, "brix_s3_requests_total",
                       {"method": "PUT"}) >= 1
-        delta_rx = _delta(self.before, after, "brix_s3_bytes_rx_total")
+        delta_rx = _delta(self.before, after, "brix_io_bytes_written",
+                          {"proto": "s3"})
         assert delta_rx >= len(payload), f"bytes_rx delta {delta_rx} < payload {len(payload)}"
 
     def test_delete_increments_requests(self):

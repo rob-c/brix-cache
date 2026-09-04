@@ -497,7 +497,10 @@ def _try_manager_conf(
         "events { worker_connections 64; }\n"
         "stream {\n"
         "  server {\n"
-        f"    listen unix:{work / (name + '.sock')};\n"
+        # ``nginx -t`` never serves this listener.  Keep the address relative
+        # to the supplied prefix so xdist's deeply nested tmp directory cannot
+        # overflow sockaddr_un.sun_path before the role-conflict merge runs.
+        f"    listen unix:{name[:12]}.sock;\n"
         "    brix_root on;\n"
         f"    brix_export {work / 'export'};\n"
         "    brix_auth none;\n"
@@ -661,4 +664,3 @@ def _record_path_query(
             f"{pub_error})",
         )
     )
-

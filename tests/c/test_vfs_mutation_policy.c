@@ -47,6 +47,7 @@
  * Build+run: see tests/cmdscripts/c_object_units.py ("vfs_mutation_policy").
  */
 #include "fs/vfs/vfs.h"
+#include "fs/vfs/vfs_backend_registry.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -68,6 +69,13 @@ brix_metric_vfs_mutation_denied(brix_proto_t proto, ngx_uint_t op)
     g_denials++;
     g_last_proto = proto;
     g_last_op = op;
+}
+
+const brix_n2n_cfg_t *
+brix_vfs_backend_n2n(const char *root_canon)
+{
+    (void) root_canon;
+    return NULL;
 }
 
 static void

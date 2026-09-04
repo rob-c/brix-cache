@@ -61,11 +61,12 @@ brix_vfs_recall(brix_vfs_ctx_t *ctx, char reqid_out[40])
     ngx_int_t           rc;
     int                 saved_errno;
     int                 use_cred = 0, cred_err = 0;
+    char                physical[PATH_MAX];
 
     if (reqid_out != NULL) {
         reqid_out[0] = '\0';
     }
-    if (brix_vfs_require_confined_mutation(ctx, BRIX_VFS_MUTATE_STAGE)
+    if (brix_vfs_gate_confined(ctx, BRIX_VFS_MUTATE_STAGE)
         != NGX_OK)
     {
         return NGX_ERROR;                  /* EROFS/EINVAL; gate booked it */
@@ -99,8 +100,14 @@ brix_vfs_recall(brix_vfs_ctx_t *ctx, char reqid_out[40])
         }
     }
 
-    rc = brix_sd_recall_maybe_cred(inst,
-             brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx)),
+    if (brix_path_resolved_to_pfn(ctx, brix_vfs_ctx_path(ctx), physical,
+                                  sizeof(physical)) != NGX_OK)
+    {
+        brix_sd_ucred_wipe(&store);
+        brix_metric_vfs_recall(BRIX_VFS_RECALL_ERROR);
+        return NGX_ERROR;
+    }
+    rc = brix_sd_recall_maybe_cred(inst, physical,
              reqid_out, use_cred ? &cred : NULL);
     saved_errno = errno;
     brix_sd_ucred_wipe(&store);            /* secret consumed; erase (A-4/T4) */
@@ -137,11 +144,12 @@ brix_vfs_evict(brix_vfs_ctx_t *ctx, uint64_t *bytes_out)
     ngx_int_t        rc;
     int              saved_errno;
     int              use_cred = 0, cred_err = 0;
+    char             physical[PATH_MAX];
 
     if (bytes_out != NULL) {
         *bytes_out = 0;
     }
-    if (brix_vfs_require_confined_mutation(ctx, BRIX_VFS_MUTATE_EVICT)
+    if (brix_vfs_gate_confined(ctx, BRIX_VFS_MUTATE_EVICT)
         != NGX_OK)
     {
         return NGX_ERROR;                  /* EROFS/EINVAL; gate booked it */
@@ -164,8 +172,13 @@ brix_vfs_evict(brix_vfs_ctx_t *ctx, uint64_t *bytes_out)
         }
     }
 
-    rc = brix_sd_evict_maybe_cred(ctx->sd,
-             brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx)),
+    if (brix_path_resolved_to_pfn(ctx, brix_vfs_ctx_path(ctx), physical,
+                                  sizeof(physical)) != NGX_OK)
+    {
+        brix_sd_ucred_wipe(&store);
+        return NGX_ERROR;
+    }
+    rc = brix_sd_evict_maybe_cred(ctx->sd, physical,
              &bytes, use_cred ? &cred : NULL);
     saved_errno = errno;
     brix_sd_ucred_wipe(&store);

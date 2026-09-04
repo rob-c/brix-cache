@@ -1,14 +1,13 @@
 # Phase 103 — Project-wide maintainability conformance (file-size + complexity, every tree)
 
 **Date:** 2026-08-09
-**Status:** 🚧 **IN PROGRESS.** Workstream A (the guard-coverage gaps) is landed
-and wired into CI; the `tools/`+`utils/` Python complexity backlog is burned to
-zero. The C burndowns (B/C/D) and the `tests/` Python burndown (E) remain, gated
-behind the two §3 ratification decisions. See the **Implementation progress**
-ledger below. This document remains the work order; the census numbers below are
-measured on `99eff8bd` (2026-08-09) and reproducible with the §11.4 commands — no
-figure is estimated unless "≈" precedes it. Execution lands in separate PRs, each
-gated exactly as §11 describes.
+**Status:** HISTORICAL BURNDOWN, CURRENT GATES RESTORED (reconciled 2026-09-02).
+The later ledger correctly records that every native/Python backlog reached zero
+on 2026-08-11; the introductory “burndowns remain” text was stale. New work has
+since crossed and was returned below the native/Python size gates. Python CCN
+and the higher-order Cognitive/NPath gate were also restored on 2026-09-02. The exact current inventory is in
+`phase-111-repository-work-burndown.md` B111-002–005. Do not restore a backlog or
+ratify exemptions: return each absolute gate to zero.
 
 ### Implementation progress (updated 2026-08-11)
 

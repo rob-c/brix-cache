@@ -1,5 +1,14 @@
 # Phase-87 — CVMFS *next-gen* storage & distribution (leapfrog the official client)
 
+**Status:** IMPLEMENTED / CLOSED FOR THE REPOSITORY SURFACE (Phase-111
+reconciliation, 2026-09-03). Waves A, B, D and E landed. G7/G8/G9 are optional
+kernel/filesystem characterizations and remain operator-owned where EROFS,
+overlay, fs-verity, reflink or sufficiently new FUSE passthrough exist. G14 was
+correctly ruled out: proxy-side repo-as-image cannot provide CAS sharing until
+the client-side G7 emitter exists and a concrete runtime consumes it. Neither
+item is unfinished in-tree work. The Status section near the end is the as-built
+record.
+
 **Goal:** having proven in Phase-85 that the native CVMFS surfaces are **not
 bound to stay bug-compatible with the official driver**, take the next step and
 attack the two structural weaknesses the upstream stack cannot fix without a

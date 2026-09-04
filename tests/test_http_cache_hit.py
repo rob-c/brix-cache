@@ -1,4 +1,4 @@
-"""Section 3.1 — HTTP read-through cache hit tests.
+"""HTTP read-through tests for the composable cache-store path.
 
 Verifies that WebDAV GET serves files from the read-through cache when
 ``brix_cache_root`` is configured.  The dedicated ``http-cache``
@@ -11,10 +11,10 @@ Export root and cache root are siblings under data-http-cache so neither
 is beneath the other, satisfying the security check that rejects cache_root
 at or beneath the export root (which would expose .cinfo/.meta sidecars).
 
-Cache path formula (shared with src/fs/cache/open.c):
-    cache_path = cache_root_canon + (fs_path - root_canon)
-    e.g. GET /foo.txt → check /tmp/xrd-test/data-http-cache/cache/foo.txt
-    plus /tmp/xrd-test/data-http-cache/cache/foo.txt.meta metadata
+``brix_cache_root`` is compatibility shorthand for
+``brix_cache_store posix:<root>``.  These tests exercise the resulting cache
+decorator through real HTTP reads; they do not manufacture implementation-
+specific metadata.
 
 Three test cases (per AGENTS.md: success + error + security-neg):
   1. cache_hit_served  — cache file + valid .meta exists → cache content
@@ -23,7 +23,6 @@ Three test cases (per AGENTS.md: success + error + security-neg):
 """
 
 import os
-import struct
 import uuid
 
 import pytest
@@ -43,27 +42,8 @@ HTTP_CACHE_ORIGIN = os.path.join(HTTP_CACHE_DATA, "origin")
 HTTP_CACHE_CACHE = os.path.join(HTTP_CACHE_DATA, "cache")
 
 
-def cache_meta_path(cache_path):
-    return f"{cache_path}.meta"
-
-
-def write_cache_meta(cache_path):
-    st = os.stat(cache_path)
-    etag = b""
-    with open(cache_meta_path(cache_path), "wb") as f:
-        f.write(struct.pack("<QQB55s", int(st.st_mtime), st.st_size,
-                            len(etag), etag.ljust(55, b"\0")))
-
-
-def write_cache_entry(cache_path, payload):
-    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-    with open(cache_path, "wb") as f:
-        f.write(payload)
-    write_cache_meta(cache_path)
-
-
 def unlink_cache_entry(cache_path):
-    for p in (cache_path, cache_meta_path(cache_path)):
+    for p in (cache_path, f"{cache_path}.meta", f"{cache_path}.cinfo"):
         try:
             os.unlink(p)
         except FileNotFoundError:
@@ -88,11 +68,7 @@ def ensure_dirs():
 
 @pytest.mark.registry_server("http-cache")
 def test_cache_hit_served(base_url):
-    """GET returns the cached copy when cache file and metadata are valid.
-
-    VFS maps the resolved origin path into cache_root_canon and validates the
-    cache metadata sidecar before serving the cached file.
-    """
+    """A second GET is served from the copy filled by the first GET."""
     uid = uuid.uuid4().hex
     rel = f"cache_hit_{uid}.txt"
 
@@ -100,18 +76,20 @@ def test_cache_hit_served(base_url):
     cache_path = os.path.join(HTTP_CACHE_CACHE, rel)
 
     origin_content = b"origin-content-" + uid.encode()
-    cache_content = b"cache-content-" + uid.encode()
-
     try:
         with open(origin_path, "wb") as f:
             f.write(origin_content)
-        write_cache_entry(cache_path, cache_content)
 
-        r = requests.get(f"{base_url}/{rel}", timeout=10)
-        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
-        assert r.content == cache_content, (
-            f"Expected cache content, got {r.content!r}"
-        )
+        first = requests.get(f"{base_url}/{rel}", timeout=10)
+        assert first.status_code == 200
+        assert first.content == origin_content
+        assert os.path.exists(cache_path), "first read did not populate cache store"
+
+        with open(origin_path, "wb") as f:
+            f.write(b"changed-origin-" + uid.encode())
+        second = requests.get(f"{base_url}/{rel}", timeout=10)
+        assert second.status_code == 200
+        assert second.content == origin_content
     finally:
         try:
             os.unlink(origin_path)
@@ -252,23 +230,23 @@ class TestXCacheAlternative:
         uid = uuid.uuid4().hex
         rel = f"xcache_second_{uid}.bin"
         origin_data = b"origin-" + uid.encode()
-        cache_data = b"cached-" + uid.encode()  # Different content to distinguish
-
         origin_path = os.path.join(HTTP_CACHE_ORIGIN, rel)
         cache_path = os.path.join(HTTP_CACHE_CACHE, rel)
 
         try:
             with open(origin_path, "wb") as fh:
                 fh.write(origin_data)
-            write_cache_entry(cache_path, cache_data)
+            first = requests.get(f"{base_url}/{rel}", timeout=15)
+            assert first.status_code == 200
+            assert first.content == origin_data
+            assert os.path.exists(cache_path)
 
-            # Second read: cache file exists → served from cache (no origin fetch).
-            r = requests.get(f"{base_url}/{rel}", timeout=15)
-            assert r.status_code == 200
-            assert r.content == cache_data, (
-                "Second read did not serve from cache — "
-                f"got {r.content!r}, expected cached {cache_data!r}"
-            )
+            changed = b"changed-" + uid.encode()
+            with open(origin_path, "wb") as fh:
+                fh.write(changed)
+            second = requests.get(f"{base_url}/{rel}", timeout=15)
+            assert second.status_code == 200
+            assert second.content == origin_data
         finally:
             try:
                 os.unlink(origin_path)
@@ -298,16 +276,17 @@ class TestXCacheAlternative:
         try:
             with open(origin_path, "wb") as fh:
                 fh.write(payload)
-            # Simulate a correctly-filled cache entry (same bytes as origin).
-            write_cache_entry(cache_path, payload)
-
-            r = requests.get(f"{base_url}/{rel}", timeout=15)
-            assert r.status_code == 200
-            got_sha256 = hashlib.sha256(r.content).hexdigest()
+            first = requests.get(f"{base_url}/{rel}", timeout=15)
+            assert first.status_code == 200
+            second = requests.get(f"{base_url}/{rel}", timeout=15)
+            assert second.status_code == 200
+            got_sha256 = hashlib.sha256(second.content).hexdigest()
             assert got_sha256 == expected_sha256, (
                 "Checksum mismatch between origin and cache-served content — "
                 f"expected {expected_sha256}, got {got_sha256}"
             )
+            with open(cache_path, "rb") as fh:
+                assert hashlib.sha256(fh.read()).hexdigest() == expected_sha256
         finally:
             try:
                 os.unlink(origin_path)

@@ -17,6 +17,30 @@ what changed for a user of the server.
 
 ---
 
+## Unreleased
+
+### Breaking
+
+- **Observability compatibility aliases have been removed.** Update nginx
+  `log_format` variables, JSON ingest mappings and Prometheus queries before
+  deploying this version. Canonical replacements are:
+
+  | Removed surface | Replacement |
+  |---|---|
+  | `$brix_session_dn`, `$brix_session_vo`, `$brix_session_user` | `$brix_dn`, `$brix_vo`, `$brix_sub` |
+  | `$brix_session_auth`, `$brix_session_tls` | `$brix_auth_method`, `$brix_tls` |
+  | `$brix_session_bytes_out`, `$brix_session_bytes_in` | `$brix_bytes_served`, `$brix_bytes_received` |
+  | `$cvmfs_cache`, `$brix_cvmfs_cache`, `$oci_cache`, `$brix_oci_cache`, `$rpm_cache`, `$brix_rpm_cache` | `$brix_cache_status` |
+  | JSON `bytes`, `latency_us`, `from_cache`, `subject` | `bytes_served`, `backend_time_us`, `cache_status`, `sub` |
+  | stream/WebDAV/S3 byte counter aliases | `brix_io_bytes_read{proto}` / `brix_io_bytes_written{proto}` |
+  | microsecond I/O latency histogram alias | `brix_io_latency_seconds` |
+  | cache hit/miss counter aliases | `brix_cache_requests_total{proto,cache_status}` |
+
+  Latency bucket values and sums are now seconds. The unified byte families use
+  a bounded `proto` label and intentionally do not retain the removed per-listener
+  `port`/`auth` breakdown. See
+  [Phase 112](docs/refactor/phase-112-observability-compatibility-removal.md).
+
 ## v1.5.0 — 2026-08-26
 
 ### Security

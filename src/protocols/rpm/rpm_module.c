@@ -3,7 +3,7 @@
  *
  * WHAT: the config lifecycle head (create_loc_conf + the UNSET sentinels the
  *       merge reads), the one directive setter that cannot be a stock slot
- *       writer, the `$rpm_class` / `$rpm_cache` log variables, the SHM-zone
+ *       writer, the `$rpm_class` log variable, the SHM-zone
  *       postconfiguration, the directive table and the module record.
  * WHY:  the shape is deliberately the OCI module's, because the lifecycle
  *       question is the same one: a location becomes a mirror endpoint the
@@ -11,9 +11,11 @@
  *       metrics zone, the dashboard zones, the fill thread pool — must exist
  *       for that endpoint whether or not a stream{} block was ever configured.
  * HOW:  create sets sentinels and nothing else (the merge owns every default),
- *       the merge lives in rpm_merge.c, and the two variables read the request
- *       ctx the handler fills — one enum, one name table, so the access log and
- *       the metric family can never tell different stories.
+ *       the merge lives in rpm_merge.c, and $rpm_class reads the request ctx
+ *       the handler fills. The disposition ($rpm_cache) moved to the shared
+ *       $brix_cache_status in phase 112; its five-value vocabulary survives as
+ *       the brix_rpm_requests_total{outcome} labels, so the access log and the
+ *       metric family still cannot disagree.
  */
 
 #include "rpm.h"
@@ -65,7 +67,7 @@ rpm_conf_mirror(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 
-/* ---- $rpm_class / $rpm_cache --------------------------------------------- */
+/* ---- $rpm_class ---------------------------------------------------------- */
 
 static ngx_int_t
 rpm_var_set(ngx_http_request_t *r, ngx_http_variable_value_t *v,
@@ -102,32 +104,18 @@ rpm_var_class(ngx_http_request_t *r, ngx_http_variable_value_t *v,
 }
 
 
-/* The disposition enum is the metric label vocabulary: one source, so a log
- * line and a scrape can never disagree about what happened. */
-static ngx_int_t
-rpm_var_cache(ngx_http_request_t *r, ngx_http_variable_value_t *v,
-    uintptr_t data)
-{
-    ngx_http_brix_rpm_ctx_t *ctx =
-        ngx_http_get_module_ctx(r, ngx_http_brix_rpm_module);
-    static const char *names[BRIX_RPM_OUT_COUNT] = {
-        "hit", "fill", "local", "refused", "error"
-    };
-
-    (void) data;
-    if (ctx == NULL || ctx->disp >= BRIX_RPM_OUT_COUNT) {
-        return rpm_var_set(r, v, "-");
-    }
-    return rpm_var_set(r, v, names[ctx->disp]);
-}
+/* phase-112: rpm_var_cache() was removed with $rpm_cache / $brix_rpm_cache.
+ * $brix_cache_status reports the same ctx->disp through
+ * brix_request_cache_status() (src/core/http/http_variables.c) in the shared
+ * HIT/MISS/BYPASS/NEGHIT vocabulary. The five-value disposition itself is NOT
+ * lost: it remains the label vocabulary of brix_rpm_requests_total{outcome},
+ * which is where `local`, `refused` and `error` are still distinguishable. */
 
 
 /* phase-106 W1-a: dual registration — see the note in cvmfs/module.c. */
 static ngx_http_variable_t  ngx_http_brix_rpm_vars[] = {
     { ngx_string("rpm_class"), NULL, rpm_var_class, 0, 0, 0 },
-    { ngx_string("rpm_cache"), NULL, rpm_var_cache, 0, 0, 0 },
     { ngx_string("brix_rpm_class"), NULL, rpm_var_class, 0, 0, 0 },
-    { ngx_string("brix_rpm_cache"), NULL, rpm_var_cache, 0, 0, 0 },
       ngx_http_null_variable
 };
 

@@ -1,9 +1,10 @@
-"""phase-110 W5 uniform-vocabulary registry rules (R11/R12/R13).
+"""phase-110 W5 uniform-vocabulary registry rules (R11/R12/R13), plus the two
+self-deleting removal pins they grew (R14 aliases, R15 JSON keys).
 
 Split out of check_directive_registry.py to keep that file under the 600-line
 focus cap (coding-standards §1). Self-contained: computes its own ROOT and
 inlines the plane test, so it imports nothing from the main checker. The main
-checker imports rule_r11/_r12/_r13 and re-exports the detector helpers the
+checker imports the rule functions and re-exports the detector helpers the
 tests unit-call.
 """
 import glob
@@ -22,7 +23,13 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 _REFACTOR_DOCS = os.environ.get("BRIX_REGISTRY_REFACTOR_DOCS") or \
     os.path.join(ROOT, "docs", "refactor")
 _REMOVAL_RE = re.compile(r"removal:\s*(phase-\d+)")
-_IMPLEMENTED_RE = re.compile(r"\*\*Status:\*\*\s*IMPLEMENTED", re.IGNORECASE)
+# ANCHORED at line start (and kept identical in check_metric_naming.py, which
+# owns the M2 twin of this pin). Unanchored it also matched a doc that merely
+# QUOTES the trigger while explaining the mechanism — phase-112's own §W6 does
+# exactly that — so a still-PLANNED doc documenting the pin would arm it on its
+# first draft and fail CI on the very commit that opens the deprecation window.
+_IMPLEMENTED_RE = re.compile(r"^\*\*Status:\*\*\s*IMPLEMENTED",
+                             re.IGNORECASE | re.MULTILINE)
 
 
 def _w5_plane(rel):
@@ -49,9 +56,13 @@ _PARITY_FACTS = frozenset({
 # the Prometheus label render the identical word. Each maps to (source files
 # that implement its handlers, the name function they must call, forbidden
 # inline value literals that would mean a hand-spelled vocabulary).
-_VOCAB_SOURCES = (
-    "src/core/http/http_variables.c",
-    "src/protocols/root/stream/stream_variables.c",
+_VOCAB_SOURCE_GROUPS = (
+    (
+        "src/core/http/http_variables.c",
+        "src/core/http/http_variable_identity.c",
+        "src/core/http/http_variable_monitor.c",
+    ),
+    ("src/protocols/root/stream/stream_variables.c",),
 )
 _VOCAB_REQUIRED_FNS = (
     "brix_metric_cache_status_name",
@@ -66,7 +77,7 @@ _VOCAB_FORBIDDEN_LITERALS = ('"HIT"', '"MISS"', '"BYPASS"', '"NEGHIT"')
 
 # R13 — the JSON access-log keys and the Prometheus labels for the uniform
 # facts must equal the variable name minus "brix_". A presence check on the
-# canonical spellings; the old (deprecated) keys may coexist.
+# canonical spellings; R15 below owns the absence of the superseded ones.
 _R13_JSON_SOURCE = "src/observability/metrics/access_log.c"
 # The keys as they appear in the C format string (escaped quotes + colon), so
 # "sub" is not matched inside "subject".
@@ -74,6 +85,18 @@ _R13_REQUIRED_JSON_KEYS = (r'\"cache_status\":', r'\"sub\":',
                            r'\"bytes_served\":', r'\"backend_time_us\":')
 _R13_METRIC_SOURCE = "src/observability/metrics/unified_export.c"
 _R13_REQUIRED_METRIC = ("brix_cache_requests_total", 'cache_status=')
+
+# R15 — the JSON counterpart of R14's self-deleting pin. Before phase 110 the
+# same four facts were spelled twice per record; phase 112 deletes the older
+# spelling. Written as key + colon exactly as they appear in the C format
+# string, so \"bytes\": cannot match inside \"bytes_served\": and \"subject\":
+# cannot match inside a comment mentioning the word. Dormant until
+# docs/refactor/phase-112-*.md is IMPLEMENTED — the deprecation window stays
+# open on its own terms — and permanent after: re-adding one of these keys
+# means one fact is spelled two ways on the same surface again.
+_R15_REMOVAL_PHASE = "phase-112"
+_R15_REMOVED_JSON_KEYS = (r'\"from_cache\":', r'\"subject\":',
+                          r'\"bytes\":', r'\"latency_us\":')
 
 
 def _plane_names(variables, plane):
@@ -128,13 +151,53 @@ def _vocab_findings_for(rel):
     return out
 
 
+def _read_vocab_group(rels):
+    """Return the present source names and their combined text."""
+    texts = []
+    present = []
+    for rel in rels:
+        path = os.path.join(ROOT, rel)
+        if os.path.exists(path):
+            present.append(rel)
+            texts.append(open(path, errors="replace").read())
+    return present, "\n".join(texts)
+
+
+def _vocab_missing_function_findings(label, text):
+    """Report shared name functions absent from one logical surface."""
+    return [("R12", label,
+             f"does not call {fn}() — a $brix_* handler that renders a shared "
+             "fact must use the metric name function so the variable, JSON and "
+             "label agree")
+            for fn in _VOCAB_REQUIRED_FNS if fn not in text]
+
+
+def _vocab_literal_findings(label, text):
+    """Report shared vocabulary values hand-spelled on one surface."""
+    return [("R12", label,
+             f"contains the inline cache-vocabulary literal {lit} — render it "
+             "via brix_metric_cache_status_name() so no surface spells the "
+             "vocabulary by hand")
+            for lit in _VOCAB_FORBIDDEN_LITERALS if lit in text]
+
+
+def _vocab_findings_for_group(rels):
+    """R12 findings for one split logical variable-handler implementation."""
+    present, text = _read_vocab_group(rels)
+    if not present:
+        return []
+    label = ", ".join(present)
+    return (_vocab_missing_function_findings(label, text)
+            + _vocab_literal_findings(label, text))
+
+
 def _rule_r12():
     """R12 — shared vocabulary: the variable-handler files render the uniform
     facts through the brix_metric_*_name() functions, never a hand-spelled
     literal."""
     out = []
-    for rel in _VOCAB_SOURCES:
-        out += _vocab_findings_for(rel)
+    for rels in _VOCAB_SOURCE_GROUPS:
+        out += _vocab_findings_for_group(rels)
     return out
 
 
@@ -186,6 +249,26 @@ def _overdue_removal_phase(name, reason, registered):
         return None
     phase = m.group(1)
     return phase if _phase_is_implemented(phase) else None
+
+
+def _rule_r15():
+    """R15 — self-deleting pin on the JSON access-log record: once the removal
+    phase is IMPLEMENTED, no deprecated key may be emitted alongside the
+    canonical one R13 requires.
+
+    R13 says the canonical key is PRESENT; R15 says the superseded one is
+    GONE. Together they hold the record to exactly one spelling per fact."""
+    path = os.path.join(ROOT, _R13_JSON_SOURCE)
+    if not _phase_is_implemented(_R15_REMOVAL_PHASE) \
+            or not os.path.exists(path):
+        return []                       # no emitter, nothing deprecated to find
+    text = open(path, errors="replace").read()
+    present = [k for k in _R15_REMOVED_JSON_KEYS if k in text]
+    return [("R15", _R13_JSON_SOURCE,
+             f"deprecated JSON access-log key {key} is still emitted but its "
+             f"removal phase ({_R15_REMOVAL_PHASE}) is marked IMPLEMENTED — "
+             "delete the key; the canonical spelling already carries the fact")
+            for key in present]
 
 
 def _rule_r14(variables, allow):

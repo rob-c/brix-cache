@@ -37,6 +37,7 @@ from _test_a_robustness_helpers import (
 from fleet_lifecycle_ports import SHARED_PARSE_PLACEHOLDER_PORT
 from server_registry import NginxInstanceSpec
 from settings import HOST, BIND_HOST, NGINX_BIN
+from metrics_helpers import value as metric_value
 
 # Same doctrine as test_cache_partial_fill.py: every test stands up dedicated
 # throwaway instances, and the slice-cache origin read path is serial-only.
@@ -372,3 +373,19 @@ def test_webdav_default_off_no_speculation(lifecycle, tmp_path):
     time.sleep(1.5)                           # grace: nothing may appear
     assert set(_present(cache_dir, "f.bin")) <= {0, 1}
     assert _metric(metrics, "brix_cache_prefetch_jobs_total") == 0
+
+
+def test_webdav_authz_backstop_observe_is_clean(lifecycle, tmp_path):
+    front, metrics, _, doc_root = _webdav_front(tmp_path, lifecycle, "")
+    payload = _seed_http(doc_root, "authz-backstop.bin", 64)
+    status, body = _get_range(front, "/authz-backstop.bin", 0, 63)
+    assert status == 206 and body == payload
+    with urllib.request.urlopen(f"http://{HOST}:{metrics}/metrics",
+                                timeout=10) as response:
+        text = response.read().decode()
+    labels = {"proto": "webdav"}
+    assert metric_value(text, "brix_vfs_authz_backstop_total",
+                        {**labels, "result": "no_rules"}) > 0
+    for result in ("edge_missing", "unbound"):
+        assert metric_value(text, "brix_vfs_authz_backstop_total",
+                            {**labels, "result": result}) == 0

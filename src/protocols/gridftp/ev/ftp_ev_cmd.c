@@ -24,7 +24,7 @@
  *
  * HOW: brix_ftp_ev_resolve() confines the path (INVARIANT 4), brix_ftp_ev_vfs_ctx()
  * builds the identity-bearing context, and the brix_vfs_* seam performs the
- * operation; write verbs gate on conf->allow_write first (INVARIANT 3-adjacent).
+ * operation; write verbs gate on conf->common.allow_write first (INVARIANT 3-adjacent).
  */
 
 
@@ -67,7 +67,7 @@ brix_ftp_ev_cmd_cwd(ftp_ev_t *fc, const char *arg)
     }
     /* Re-derive the logical form for display / future joins by stripping the
      * root_canon prefix off `abs`. */
-    rlen = ngx_strlen(fc->conf->root_canon);
+    rlen = ngx_strlen(fc->conf->common.root_canon);
     tail = abs + rlen;
     if (tail[0] == '\0') {
         tail = "/";
@@ -125,7 +125,7 @@ brix_ftp_ev_cns_note_stored(ftp_ev_t *fc, const char *abs)
         return;                  /* unobservable → report nothing over a guess */
     }
 
-    brix_cns_emit_at(fc->conf->root_canon, BRIX_CNS_ADD, abs,
+    brix_cns_emit_at(fc->conf->common.root_canon, BRIX_CNS_ADD, abs,
                      (uint64_t) st.size, (uint64_t) st.mtime);
 }
 
@@ -174,7 +174,7 @@ ftp_ev_ns_mutate(ftp_ev_t *fc, const char *arg, const ftp_ev_ns_verb_t *v)
     char           abs[PATH_MAX];
     brix_vfs_ctx_t vctx;
 
-    if (!fc->conf->allow_write) {
+    if (!fc->conf->common.allow_write) {
         return brix_ftp_ev_reply(fc, "%s", v->denied);
     }
     if (brix_ftp_ev_resolve(fc, arg, abs, sizeof(abs)) != 0) {
@@ -193,7 +193,7 @@ ftp_ev_ns_mutate(ftp_ev_t *fc, const char *arg, const ftp_ev_ns_verb_t *v)
 
     /* phase-97 §5: success path only — a refused mutation may neither seed a
      * phantom entry nor retract a live one. */
-    brix_cns_emit_at(fc->conf->root_canon, v->cns_op, abs, 0, 0);
+    brix_cns_emit_at(fc->conf->common.root_canon, v->cns_op, abs, 0, 0);
     return brix_ftp_ev_reply(fc, v->ok, arg);
 }
 
@@ -409,7 +409,7 @@ brix_ftp_ev_cmd_rnfr(ftp_ev_t *fc, const char *arg)
 {
     char abs[PATH_MAX];
 
-    if (!fc->conf->allow_write) {
+    if (!fc->conf->common.allow_write) {
         return brix_ftp_ev_reply(fc, "550 Permission denied (read-only)\r\n");
     }
     if (brix_ftp_ev_resolve(fc, arg, abs, sizeof(abs)) != 0) {
@@ -434,7 +434,7 @@ brix_ftp_ev_cmd_rnto(ftp_ev_t *fc, const char *arg)
     }
     fc->rnfr_set = 0;                                /* single-shot pairing    */
 
-    if (!fc->conf->allow_write) {
+    if (!fc->conf->common.allow_write) {
         return brix_ftp_ev_reply(fc, "550 Permission denied (read-only)\r\n");
     }
     if (brix_ftp_ev_resolve(fc, arg, abs, sizeof(abs)) != 0) {
@@ -466,13 +466,13 @@ brix_ftp_ev_cmd_rnto(ftp_ev_t *fc, const char *arg)
 
         brix_ftp_ev_vfs_ctx(fc, abs, &dctx);
         if (brix_vfs_probe(&dctx, 1 /* no-follow */, &st) == NGX_OK) {
-            brix_cns_emit_rename_at(fc->conf->root_canon, fc->rnfr, abs,
+            brix_cns_emit_rename_at(fc->conf->common.root_canon, fc->rnfr, abs,
                                     (uint64_t) st.size, (uint64_t) st.mtime,
                                     st.is_directory);
         } else {
             /* Unobservable at the destination — retract the source rather than
              * leave the manager pointing at a name that no longer exists. */
-            brix_cns_emit_at(fc->conf->root_canon, BRIX_CNS_DEL, fc->rnfr, 0, 0);
+            brix_cns_emit_at(fc->conf->common.root_canon, BRIX_CNS_DEL, fc->rnfr, 0, 0);
         }
     }
 

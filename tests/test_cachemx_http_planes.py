@@ -55,7 +55,7 @@ def cached_copies(mx, name):
 @pytest.mark.parametrize("plane", PLANES)
 def test_get_serves_exact_and_counts_once(mx, plane):
     """A GET is exactly ONE webdav read op (no phantom stat/write — Fix B/C),
-    with exact payload bytes on both byte ledgers, one 2xx response row, one
+    with exact payload bytes on the read ledger, one 2xx response row, one
     full-object range classification, and one real latency observation."""
     size = 3000 + 10 * PLANES.index(plane)
     name, payload = seed(mx, f"{plane}get", size)
@@ -76,7 +76,6 @@ def test_get_serves_exact_and_counts_once(mx, plane):
                        after) == 0, f"phantom {op} on GET"
     def _assert_test_get_serves_exact_and_counts_once_2():
         assert s.delta("brix_io_bytes_read", io, after) == size
-        assert s.delta("brix_webdav_bytes_tx_total", after=after) == size
 
     _assert_test_get_serves_exact_and_counts_once_2()
     def _assert_test_get_serves_exact_and_counts_once_3():
@@ -89,7 +88,7 @@ def test_get_serves_exact_and_counts_once(mx, plane):
     def _assert_test_get_serves_exact_and_counts_once_4():
         assert s.delta("brix_webdav_range_requests_total", {"result": "full"},
                        after) == 1
-        assert s.delta("brix_io_latency_usec_count", {**io, "op": "read"},
+        assert s.delta("brix_io_latency_seconds_count", {**io, "op": "read"},
                        after) == 1
 
     _assert_test_get_serves_exact_and_counts_once_4()
@@ -105,17 +104,16 @@ def test_get_miss_then_hit(mx, plane):
     cx.settle()
     mid = cx.mfetch(mx.metrics)
     assert st == 200 and body == payload
-    assert s.delta("brix_cache_misses_total", {"proto": "webdav"}, mid) == 1
-    assert s.delta("brix_cache_hits_total", {"proto": "webdav"}, mid) == 0
+    assert s.cache_delta("webdav", "MISS", mid) == 1
+    assert s.cache_delta("webdav", "HIT", mid) == 0
 
     s2 = snap(mx)
     st2, body2, _ = mx.dav_request(plane, f"/{name}")
     cx.settle()
     after = cx.mfetch(mx.metrics)
     assert st2 == 200 and body2 == payload
-    assert s2.delta("brix_cache_hits_total", {"proto": "webdav"}, after) == 1
-    assert s2.delta("brix_cache_misses_total", {"proto": "webdav"},
-                    after) == 0
+    assert s2.cache_delta("webdav", "HIT", after) == 1
+    assert s2.cache_delta("webdav", "MISS", after) == 0
 
 
 @pytest.mark.parametrize("plane", PLANES)
@@ -195,8 +193,8 @@ def _assert_put_counts(mx, s, after, size):
                       after)) == 1
     assert s.delta("brix_webdav_responses_total",
                    {"method": "PUT", "status_class": "2xx"}, after) == 1
-    assert s.delta("brix_webdav_bytes_rx_total", after=after) == size
-    assert s.delta("brix_io_latency_usec_count", {**io, "op": "write"},
+    assert s.delta("brix_io_bytes_written", {"proto": "webdav"}, after) == size
+    assert s.delta("brix_io_latency_seconds_count", {**io, "op": "write"},
                    after) == 1
 
 

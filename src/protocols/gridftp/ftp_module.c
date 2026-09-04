@@ -28,14 +28,13 @@ brix_ftp_create_conf(ngx_conf_t *cf)
         return NULL;
     }
 
+    ngx_http_brix_shared_init(&conf->common);
     conf->enable       = NGX_CONF_UNSET;
-    conf->allow_write  = NGX_CONF_UNSET;
-    conf->verify_write = NGX_CONF_UNSET;
     conf->gsi          = NGX_CONF_UNSET;
     conf->pasv_port_lo = NGX_CONF_UNSET;
     conf->pasv_port_hi = NGX_CONF_UNSET;
     conf->require_allo_size = NGX_CONF_UNSET;
-    /* export / root_canon / cert paths zero-initialised by pcalloc. */
+    /* Runtime GSI objects remain zero-initialised by pcalloc. */
 
     return conf;
 }
@@ -227,20 +226,21 @@ brix_ftp_init_process(ngx_cycle_t *cycle)
         conf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
                                                    ngx_stream_brix_ftp_module);
         if (conf == NULL || !conf->enable
-            || conf->storage_credential.len == 0
-            || conf->root_canon[0] == '\0')
+            || conf->common.storage_credential.len == 0
+            || conf->common.root_canon[0] == '\0')
         {
             continue;
         }
 
-        ngx_cpystrn((u_char *) name, conf->storage_credential.data,
-                    ngx_min(conf->storage_credential.len + 1, sizeof(name)));
+        ngx_cpystrn((u_char *) name, conf->common.storage_credential.data,
+                    ngx_min(conf->common.storage_credential.len + 1,
+                            sizeof(name)));
         cred = brix_credential_lookup(name);
         if (cred == NULL) {
             ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
                 "brix_gridftp: worker credential replay: no brix_credential "
                 "\"%s\" for export \"%s\" — upstream auth WILL fail",
-                name, conf->root_canon);
+                name, conf->common.root_canon);
             continue;
         }
         if (brix_credential_to_backend_cred(cred, bearer, sizeof(bearer),
@@ -249,10 +249,10 @@ brix_ftp_init_process(ngx_cycle_t *cycle)
             ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
                 "brix_gridftp: worker credential replay: cannot derive "
                 "credential \"%s\" for export \"%s\" — upstream auth WILL fail",
-                name, conf->root_canon);
+                name, conf->common.root_canon);
             continue;
         }
-        brix_vfs_backend_set_credential(conf->root_canon, &bcred);
+        brix_vfs_backend_set_credential(conf->common.root_canon, &bcred);
     }
 
     return NGX_OK;

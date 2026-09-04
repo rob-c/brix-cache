@@ -1,23 +1,24 @@
 # Phase 48 — Native client real XrdSecgsi interop (talk GSI to stock XRootD/EOS)
 
-**Status:** PLAN + stop-gap + regression fixture landed 2026-06-21; the crypto
-port (W1–W7) pending (multi-session). **Landed this session:** §1 stop-gap
-(visible GSI failure, verified vs. EOS + local); §3 the local stock-xrootd GSI
-test fixture + `tests/test_native_gsi_interop.py` (stock-client auth PASS proving
-the fixture, native-client auth XFAIL = the keystone gap, stop-gap guard PASS).
-The fixture also gives a **fast local iteration target** for the port (no remote
-EOS needed) — confirmed: stock `xrdfs` lists `/gsidata` over GSI, ours reproduces
-`ErrParseBuffer: main buffer missing: kXGC_certreq` exactly as against EOS.
+**Status:** COMPLETE — W1–W7 and bidirectional stock-XRootD interoperability
+verified 2026-09-03. The original failure analysis and wire inventory below are
+retained as the implementation rationale. The clean-room implementation now
+lives in `client/lib/auth/sec/sec_gsi.c` and the shared
+`src/auth/gsi/gsi_core*.c` crypto kernel. There is no keystone `xfail`.
+Acceptance is the self-provisioning six-test stock/native matrix in
+`tests/test_native_gsi_interop.py`: stock→stock fixture sanity, native→stock,
+credential-failure propagation, stock→our server, and both stock and native
+clients against the required signed-DH server. All six passed on 2026-09-03.
 **Problem:** `./client/xrdfs root://eoslhcb.cern.ch ls /eos/lhcb` fails
 ("user access restricted - unauthorized identity used"), while stock
 `/usr/bin/xrdfs` works with the same proxy (`/tmp/x509up_u1000`).
 
 ---
 
-## 0. Diagnosis (certain)
+## 0. Original diagnosis (resolved)
 
-The native GSI module (`client/lib/sec/sec_gsi.c`) is a **minimal stub that only
-interoperates with our own (equally non-standard) server**, not real XrdSecgsi:
+The former native GSI module was a minimal stub that interoperated only with the
+then-non-standard in-tree peer. The symptoms below describe the pre-port state:
 
 - Forcing `--auth gsi` against EOS returns
   `Secgsi: ErrParseBuffer: main buffer missing: kXGC_certreq` — the server rejects
@@ -85,7 +86,7 @@ Keeps stdout (data) clean. Built + verified against EOS.
 
 ---
 
-## 2. The port — workstreams
+## 2. The port — completed workstreams
 
 Order chosen so each step is independently testable against the **local stock-xrootd
 GSI server** (§3) for fast iteration; final check vs. EOS.
@@ -99,7 +100,7 @@ GSI server** (§3) for fast iteration; final check vs. EOS.
   `main buffer missing: kXGC_certreq` → `no/garbled server DH key` — i.e. the server
   **accepts round-1** and we now fail only at round-2 because `gsi_more` still reads
   the legacy `kXRS_puk`. No regression (native_tools 15/15, no harness break).
-- **W4 — XrdCryptosslCipher port (the big one, NEXT).** The wire `kXRS_cipher` is
+- **W4 — XrdCryptosslCipher port — DONE + VERIFIED.** The wire `kXRS_cipher` is
   `XrdCryptosslCipher::Public()` (NOT `AsBucket()`):
   `<PEM "DH PARAMETERS" block incl. "-----END DH PARAMETERS-----\n"> + "---BPUB---"
   + <DH pub as BN_bn2hex uppercase> + "---EPUB---"`.  (Our existing
@@ -113,19 +114,21 @@ GSI server** (§3) for fast iteration; final check vs. EOS.
   peer path) — that, plus IV-prepend `Encrypt()`/`Decrypt()` (L1112–1186) and
   `aes-128-cbc`. Byte-match exactly; iterate vs. the local server (next error after
   this lands should be a round-2 main/x509/signed_rtag issue, not DH).
-- **W5 — round-2 assembly.** kXRS_cryptomod + kXRS_cipher (W4) + kXRS_cipher_alg +
+- **W5 — round-2 assembly — DONE + VERIFIED.** kXRS_cryptomod + kXRS_cipher (W4) + kXRS_cipher_alg +
   kXRS_md_alg("sha256") + kXRS_x509(proxy chain) + kXRS_main(encrypted:
   signed_rtag + new client rtag).
-- **W6 — proof-of-possession + mutual auth.** Load the proxy **private key** from
+- **W6 — proof-of-possession + mutual auth — DONE + VERIFIED.** Load the proxy **private key** from
   the proxy file; sign the server's round-1 `kXRS_rtag` (RSA, sha256) →
   `kXRS_signed_rtag`. Verify the server's signature over *our* round-1 rtag
   (`secgsi_CheckRtag` equivalent) using the server cert's public key.
-- **W7 — issuer hash.** Compute the X509 issuer hash(es) of our chain
+- **W7 — issuer hash — DONE + VERIFIED.** Compute the X509 issuer hash of our chain
   (`X509_NAME_hash`-compatible `%08x.0`) and/or echo the server `ca:` list; send the
   intersection so the server picks the right CA.
 
-Each WS keeps the existing happy-path against our own server working (the server is
-lenient and ignores the extra/standard buckets) — verify no harness regression.
+The implementation also retains the negotiated session cipher for opt-in proxy
+delegation and arms request signing only when the peer's security level requires
+it. The same response kernel is shared by the native client and outbound GSI
+users, avoiding a second wire implementation.
 
 ---
 
@@ -152,21 +155,23 @@ against a real XrdSecgsi peer. The regression suite must close that:
    stock-client trace and assert our `AsBucket()`/derive/`Encrypt` reproduce it
    byte-for-byte (catches cipher-format drift without a live server).
 
-> Until the port lands, the keystone assertion is an **xfail** documenting the gap —
-> so the suite records it rather than hiding it.
+The keystone assertion is an ordinary required assertion. Missing stock tools
+skip the module fixture explicitly; an installed but incompatible peer fails.
 
 ---
 
-## 4. Non-goals / follow-ups
+## 4. Scope decisions
 
-- Making the *server* (`src/auth/gsi/`) XrdCrypto-compatible (so stock `xrdcp` can GSI to
-  us) is a separate phase — related but out of scope here.
+- Server XrdCrypto compatibility was implemented through the same shared kernel
+  and is now part of the reverse-direction acceptance test.
 - VOMS AC parsing on the client (the proxy already carries it inside the cert; we
   just need to transmit the chain intact, which W5's `kXRS_x509` does).
 
-## 5. Verification
+## 5. Verification record
 
-- Per-WS: against the §3 local stock-xrootd server (fast), then `XrdSecDEBUG=3`
-  trace diff vs. stock `xrdfs`.
-- Final: `./client/xrdfs root://eoslhcb.cern.ch ls /eos/lhcb` lists the directory.
-- Harness: existing GSI tests (11095/11096) + full client suite stay green.
+- 2026-09-03: `make -C client` completed successfully.
+- 2026-09-03: isolated `tests/test_native_gsi_interop.py` passed 6/6 in 1.68 s.
+- The local fixture mints its CA, host credential and user proxy, launches a
+  stock `xrootd` restricted to GSI, and exercises both handshake directions.
+- A remote EOS smoke remains optional deployment evidence; it is not required
+  for deterministic repository acceptance.

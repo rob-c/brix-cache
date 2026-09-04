@@ -317,7 +317,7 @@ tpc_stream_to_dst(brix_tpc_pull_t *t, int fd, const u_char *fhandle)
             t->xrd_error = kXR_IOError;
             return -1;
         }
-    } else if (t->conf != NULL && t->conf->tpc_require_source_size) {
+    } else if (t->conf != NULL && t->conf->common.tpc_require_source_size) {
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC pull: source declared no size and "
                  "brix_tpc_require_source_size is on");

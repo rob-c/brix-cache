@@ -54,4 +54,93 @@ int brix_cred_stage_dir(char *out, size_t outsz);
 int brix_cred_stage_write(const char *prefix, const void *bytes, size_t len,
                           char *path_out, size_t path_outsz);
 
+/*
+ * ---- The shared credential-write verb (phase-108 C11) ----
+ *
+ * One engine for EVERY file this server creates whose content is a live
+ * secret.  Before it, four sites hand-rolled the same dance with divergent
+ * invariants (deleg_capture wrote a forwarded TGT into getenv("TMPDIR")||
+ * "/tmp" — the exact CWE-377 this module exists to prevent).  The engine owns
+ * the invariant table once: O_CREAT|O_EXCL|O_WRONLY|O_NOFOLLOW|O_CLOEXEC
+ * create at 0600 (+ defensive fchmod), a directory that is 0700/euid-owned/
+ * (mode & 0077)==0 re-checked on every call for BOTH arms, EINTR-safe
+ * full-length write, close() checked as a write error, unlink on every
+ * failure branch.
+ *
+ * Forward-declared so this header stays nginx-free (ngx_log_t is a typedef of
+ * struct ngx_log_s); the pure engine and the standalone unit never touch it.
+ */
+struct ngx_log_s;
+
+/* The lifetime arm is stated by the CALLER, never inferred (no statfs probe:
+ * a probe would turn a mount change into a silent durability change). */
+typedef enum {
+    BRIX_CRED_ARM_VOLATILE = 0,   /* per-uid tmpfs staging dir; consumed and
+                                   * unlinked by the caller; NEVER fsynced —
+                                   * the §3.3 tmpfs carve-out, weaker on
+                                   * purpose: durability of a secret that must
+                                   * not survive reboot is an anti-goal */
+    BRIX_CRED_ARM_PERSISTENT,     /* caller-named dir + final name; fsync data,
+                                   * publish by rename, fsync parent dir */
+    BRIX_CRED_ARM_COUNT
+} brix_cred_arm_t;
+
+/* What the bytes ARE — audit vocabulary (and a future TTL-reaper key), never
+ * mechanics: both arms treat every kind identically on the wire to disk. */
+typedef enum {
+    BRIX_CRED_KIND_BEARER = 0,    /* OAuth2 bearer/subject token */
+    BRIX_CRED_KIND_PROXY,         /* delegated X.509 proxy PEM */
+    BRIX_CRED_KIND_CCACHE,        /* krb5 credential cache */
+    BRIX_CRED_KIND_KEYTAB,        /* krb5 keytab */
+    BRIX_CRED_KIND_COUNT
+} brix_cred_kind_t;
+
+typedef struct {
+    struct ngx_log_s  *log;       /* audit sink; unused by the pure engine */
+    brix_cred_arm_t    arm;
+    brix_cred_kind_t   kind;
+    const char        *dir;       /* PERSISTENT: destination directory */
+    const char        *name;      /* PERSISTENT: final basename (no '/') */
+    const char        *prefix;    /* VOLATILE: staged-name prefix (no '/') */
+} brix_cred_write_req_t;
+
+/*
+ * brix_cred_write_engine — the pure-libc mechanics of both arms.
+ *
+ * VOLATILE: stages under brix_cred_stage_dir() as "<prefix><random>"; the
+ * temp file IS the product (path_out) and no rename or fsync happens.
+ * PERSISTENT: creates "<dir>/.<name>.<random>", fsyncs the data, publishes it
+ * as "<dir>/<name>" by rename, then fsyncs the parent directory; path_out is
+ * the final path.  len == 0 is valid on both arms (an empty 0600 file — the
+ * krb5 ccache pre-creation shape).
+ *
+ * Returns 0, or -1 with errno: EINVAL (request shape — missing/'/'-bearing
+ * name or prefix, out-of-range arm/kind, NULL bytes with len > 0), EPERM (the
+ * directory safety check failed — fail closed, never a fallback location),
+ * ENAMETOOLONG, or the failing syscall's errno (write/fsync/close/rename all
+ * checked).  On failure before publish the temp file is always unlinked; a
+ * PERSISTENT parent-fsync failure after rename reports -1 but does NOT unlink
+ * the published file (the rename may have replaced a live credential —
+ * destroying it would be worse than the lost durability barrier).
+ *
+ * Pure libc; unit-tested standalone in tests/c/test_cred_stage.c.
+ */
+int brix_cred_write_engine(const brix_cred_write_req_t *req,
+                           const void *bytes, size_t len,
+                           char *path_out, size_t path_outsz);
+
+/*
+ * brix_cred_write — the domain-gated, audited form (src/core/compat/
+ * cred_write.c, nginx-aware).  Validates the request shape, claims the
+ * CREDENTIAL storage domain through the typed policy seam
+ * (brix_vfs_domain_claim — an EXPORT claim can never be laundered through
+ * it: EROFS), runs the engine, and emits exactly one structured audit line:
+ * arm/kind/dir/outcome only — never the bytes, never a secret-bearing path
+ * component.  Same return contract as the engine, plus EROFS/EINVAL from the
+ * domain claim.  Returns 0 on success, -1 with errno set.
+ */
+int brix_cred_write(const brix_cred_write_req_t *req,
+                    const void *bytes, size_t len,
+                    char *path_out, size_t path_outsz);
+
 #endif /* BRIX_COMPAT_CRED_STAGE_H */

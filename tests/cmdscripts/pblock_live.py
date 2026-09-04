@@ -452,8 +452,11 @@ def _ctl_set(catalog: Path, key: str, value: str, epoch: int) -> None:
         conn.execute("CREATE TABLE IF NOT EXISTS ctl("
                      "key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '', "
                      "epoch INTEGER NOT NULL DEFAULT 0);")
+        row = conn.execute(
+            "SELECT COALESCE(MAX(epoch), 0) + 1 FROM ctl;").fetchone()
+        next_epoch = max(epoch, int(row[0]))
         conn.execute("INSERT OR REPLACE INTO ctl(key, value, epoch) "
-                     "VALUES(?, ?, ?);", (key, value, epoch))
+                     "VALUES(?, ?, ?);", (key, value, next_epoch))
         conn.commit()
     finally:
         conn.close()

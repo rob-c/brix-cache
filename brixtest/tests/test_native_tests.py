@@ -13,10 +13,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from brixtest import OutputExpectation, SpecError, expect_output, get_case, native_test
+from brixtest import OutputExpectation, SpecError, binary, expect_output, get_case, native_test
 from brixtest.helper_bundle import build_helper_bundle
 from brixtest.native import _NativeSpec, native_input_paths
 from brixtest.native_runtime import (
+    _available_compiler,
     _build_argv,
     _checked_text,
     _instrumentation_flags,
@@ -129,7 +130,7 @@ def test_language_and_build_argv_cover_cxx_defines_objects_and_libraries(tmp_pat
     argv = _build_argv(
         ("g++",), spec, (tmp_path / "main.cc",), (tmp_path / "built.o",),
         tmp_path / "program", ("-Ithird",), ("-lssl",),
-        ("-fsanitize=address",), tmp_path,
+        ("-fsanitize=address",), (tmp_path / "include",),
     )
     assert _language(spec) == "c++"
     assert argv[:3] == ("g++", "-std=c++17", "-O2")
@@ -163,6 +164,23 @@ def test_object_instrumentation_flags_are_inherited_once(tmp_path, monkeypatch):
     spec = _NativeSpec("instrumented", ("main.c",), objects=(linked,))
     assert _instrumentation_flags(run, spec, (linked,), tmp_path) == (
         "-fsanitize=address", "-fsanitize=undefined", "--coverage",
+    )
+
+
+def test_captured_binary_can_supply_the_native_compiler(monkeypatch):
+    compiler = binary("test-compiler", "/original/cc")
+    manager = SimpleNamespace(
+        _render_value=lambda value, **_kwargs: (
+            "/captured/cc" if value is compiler else str(value)
+        ),
+    )
+    monkeypatch.setattr(
+        "brixtest.native_runtime.shutil.which",
+        lambda value: value if value == "/captured/cc" else None,
+    )
+    spec = _NativeSpec("captured", ("main.c",), compiler=(compiler,))
+    assert _available_compiler(SimpleNamespace(_manager=manager), spec, "c") == (
+        "/captured/cc",
     )
 
 
@@ -306,6 +324,50 @@ test_modes = pytest.mark.parametrize("mode", ("read", "write"))(test_modes)
 """)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "2 passed" in result.stdout
+
+
+@pytest.mark.skipif(_compiler() is None, reason="C compiler unavailable")
+def test_native_source_and_compiler_can_be_runtime_resources(tmp_path):
+    source = '#include <stdio.h>\nint main(void){puts("GENERATED PASS");return 0;}\n'
+    result = _nested_pytest(tmp_path, """
+import pytest
+from brixtest import native_test, param, text_artifact
+
+generated = text_artifact(
+    "generated-source", %r,
+    filename="generated.c",
+)
+test_generated = native_test(
+    "generated", sources=(generated.ref(),), resources=(generated,),
+    compiler=param("compiler"), stdout="GENERATED PASS",
+    observe=(), keep="never",
+)
+test_generated = pytest.mark.parametrize("compiler", (%r,))(test_generated)
+""" % (source, _compiler()))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 passed" in result.stdout
+
+
+@pytest.mark.skipif(_compiler("c++") is None, reason="C++ compiler unavailable")
+def test_native_source_can_be_a_managed_task_output(tmp_path):
+    source = '#include <iostream>\nint main(){std::cout << "TASK PASS\\n";}\n'
+    generator = "open('generated.cc','w').write(%r)" % source
+    result = _nested_pytest(tmp_path, '''
+import sys
+from brixtest import native_test, task
+
+generated = task(
+    "generate-source",
+    command=(sys.executable, "-c", %r),
+    outputs={"source": "generated.cc"},
+)
+test_generated = native_test(
+    "task-source", sources=(generated.output("source"),), resources=(generated,),
+    stdout="TASK PASS", observe=(), keep="never",
+)
+''' % generator)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 passed" in result.stdout
 
 
 @pytest.mark.skipif(_compiler("c++") is None, reason="C++ compiler unavailable")

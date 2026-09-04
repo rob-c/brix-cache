@@ -9,24 +9,48 @@ WHY:  the matrix is the map of what each backend can and cannot do; a hand-kept
       copy of it goes stale the day a slot lands. The IMPLEMENTED half is read
       out of the source, so only the verdicts for the EMPTY cells are editorial —
       and every one of them must be spelled out below or this script exits 1.
-HOW:  run from the repo root:
+HOW:  run from any directory:
 
-          python3 tools/diag/sd_slot_matrix.py \\
-              docs/09-developer-guide/_slot-matrix-table.md
+          python3 tools/diag/sd_slot_matrix.py --check
+          python3 tools/diag/sd_slot_matrix.py --update
+          python3 tools/diag/sd_slot_matrix.py /tmp/slot-matrix.md
 
-      then paste the table into §1 of the doc (or diff it against what is there).
+      ``--check`` compares the generated table with the fenced region in the
+      checked-in reference. The output form writes a reviewable standalone
+      table without modifying documentation.
       Two invariants are enforced: no empty cell without a verdict code, and no
       verdict code for a cell the source actually implements — the second is what
       catches a verdict left behind after the slot it excused was written.
 """
-import re, pathlib, sys
-root = pathlib.Path("src/fs/backend")
+import difflib
+import os
+import pathlib
+import re
+import sys
+
+REPO = pathlib.Path(__file__).resolve().parents[2]
+DOC = pathlib.Path(os.environ.get(
+    "BRIX_SD_MATRIX_DOC",
+    REPO / "docs/09-developer-guide/storage-driver-slot-matrix.md"))
+BEGIN = "<!-- sd-slot-matrix:begin -->"
+END = "<!-- sd-slot-matrix:end -->"
+
+root = REPO / "src/fs/backend"
 drv = {}
 for f in sorted(root.rglob("*.c")):
     t = f.read_text(errors="replace")
-    for m in re.finditer(r'brix_sd_([a-z0-9_]+)_driver\s*=\s*\{', t):
-        sym = m.group(1); i = m.end(); j = t.find("\n};", i)
-        drv[sym] = set(x.strip(". =") for x in re.findall(r'\.[a-z0-9_]+\s*=', t[i:j]))
+    pattern = (r'(?:static\s+)?const\s+brix_sd_driver_t\s+'
+               r'(?:brix_sd_([a-z0-9_]+)_driver|driver)\s*=\s*\{')
+    for m in re.finditer(pattern, t):
+        i = m.end(); j = t.find("\n    };", i)
+        if j < 0:
+            j = t.find("\n};", i)
+        body = t[i:j]
+        name = re.search(r'\.name\s*=\s*"([a-z0-9_]+)"', body)
+        sym = m.group(1) or (name.group(1) if name else "")
+        if not sym:
+            continue
+        drv[sym] = set(x.strip(". =") for x in re.findall(r'\.[a-z0-9_]+\s*=', body))
 h = (root/"sd.h").read_text()
 i = h.index("struct brix_sd_driver_s {"); j = h.index("\n};", i)
 slots, seen = [], set()
@@ -34,7 +58,7 @@ for m in re.finditer(r'\(\s*\*\s*([a-z0-9_]+)\s*\)\s*\(', h[i:j]):
     s = m.group(1)
     if s not in seen: seen.add(s); slots.append(s)
 order = ["posix","pblock","block","mirage","ceph","cephfs_ro","frm","http",
-         "remote","xroot","cache","stage"]
+         "remote","xroot","gsiftp","cache","stage"]
 short = {"cephfs_ro":"cfs-ro","mirage":"mir"}
 
 CRED = [s for s in slots if s.endswith("_cred")]
@@ -149,6 +173,25 @@ put("xroot", "exchange exchange_cred", "np")
 put("xroot", "staged_path", "path")
 put("xroot", "enumerate", "ns")
 
+# GridFTP has a complete portable RFC 959/RFC 3659 namespace and staged byte
+# plane.  Random in-place writes, xattrs, truncate, recall and authoritative
+# digest/space queries have no interoperable FTP verb.  Whole-object copy and
+# durability are already exact through RETR -> staged STOR -> RNFR/RNTO; a
+# second vtable fast path would only remove round trips.
+put("gsiftp", "init cleanup", "nil")
+put("gsiftp", "pwrite copy_range fsync reserve server_copy sync_publish", "sup")
+put("gsiftp", "preadv2", "seam")
+put("gsiftp", "read_sendfile_fd ftruncate read_advise setattr truncate_path "
+              "getxattr listxattr setxattr removexattr recall residency "
+              "recall_cred space query_checksum", "np")
+put("gsiftp", "unlink_many exchange unlink_many_cred exchange_cred "
+              "setattr_cred truncate_path_cred getxattr_cred listxattr_cred "
+              "setxattr_cred removexattr_cred", "np")
+put("gsiftp", "server_copy_cred", "sup")
+put("gsiftp", "staged_path", "path")
+put("gsiftp", "evict evict_cred", "nil")
+put("gsiftp", "enumerate", "ns")
+
 put("cache", "init cleanup", "nil")
 put("cache", "pwrite preadv preadv2 copy_range ftruncate fsync", "dec")
 put("cache", "staged_path", "path")
@@ -179,7 +222,7 @@ for s_ in CRED: V[("mirage", s_)] = "syn"
 # reaps the alias — dedup_gc NULL is the contract, not an omission (sd.h).
 put("pblock", "dedup_gc", "refc")
 for d_ in ("block", "mirage", "ceph", "cephfs_ro", "frm", "http", "remote",
-           "xroot", "cache", "stage"):
+           "xroot", "gsiftp", "cache", "stage"):
     put(d_, "dedup_publish dedup_gc", "cas")
 
 miss = [(d, s) for d in order for s in slots if s not in drv[d] and (d, s) not in V]
@@ -203,5 +246,66 @@ gaps = sum(1 for k, v in V.items() if v == "GAP")
 rows.append("")
 rows.append("_%d slots x %d drivers = %d cells: %d implemented, %d open gaps (marked ⚠)._"
             % (len(slots), len(order), len(slots)*len(order), sum(tot.values()), gaps))
-pathlib.Path(sys.argv[1]).write_text("\n".join(rows) + "\n")
-print("\n".join(rows[-2:]))
+rendered = "\n".join(rows) + "\n"
+
+
+def _document_matrix(text):
+    """Return the fenced matrix or fail closed on missing/duplicate fences."""
+    if text.count(BEGIN) != 1 or text.count(END) != 1:
+        raise ValueError("expected exactly one matrix begin/end fence")
+    start = text.index(BEGIN) + len(BEGIN)
+    finish = text.index(END, start)
+    if finish <= start:
+        raise ValueError("matrix fences are reversed")
+    return text[start:finish].strip("\n") + "\n"
+
+
+def _check_document():
+    try:
+        actual = _document_matrix(DOC.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"sd_slot_matrix: FAIL — {DOC}: {exc}", file=sys.stderr)
+        return 1
+    if actual == rendered:
+        print("sd_slot_matrix: OK — checked-in matrix matches source")
+        return 0
+    diff = difflib.unified_diff(
+        actual.splitlines(), rendered.splitlines(),
+        fromfile=str(DOC), tofile="generated-from-source", lineterm="")
+    print("\n".join(diff), file=sys.stderr)
+    print("sd_slot_matrix: FAIL — checked-in matrix is stale", file=sys.stderr)
+    return 1
+
+
+def _update_document():
+    """Replace only the generated fence after validating document structure."""
+    try:
+        text = DOC.read_text(encoding="utf-8")
+        _document_matrix(text)
+    except (OSError, ValueError) as exc:
+        print(f"sd_slot_matrix: FAIL — {DOC}: {exc}", file=sys.stderr)
+        return 1
+    start = text.index(BEGIN) + len(BEGIN)
+    finish = text.index(END, start)
+    DOC.write_text(text[:start] + "\n" + rendered + text[finish:],
+                   encoding="utf-8")
+    print(f"sd_slot_matrix: updated {DOC}")
+    return 0
+
+
+def main(argv):
+    if argv == ["--check"]:
+        return _check_document()
+    if argv == ["--update"]:
+        return _update_document()
+    if len(argv) == 1 and not argv[0].startswith("-"):
+        pathlib.Path(argv[0]).write_text(rendered, encoding="utf-8")
+        print("\n".join(rows[-2:]))
+        return 0
+    print("usage: sd_slot_matrix.py --check | --update | OUTPUT.md",
+          file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

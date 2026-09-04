@@ -87,7 +87,9 @@ brix_gsi_complete_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                                      "identity allocation failed");
         }
     }
-    brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 0);
+    ctx->login.session_slot_hint =
+        brix_session_register(ctx->login.sessid, ctx->login.dn,
+                              ctx->login.vo_list, 0);
 
     /* Track unique user and VO at auth completion. */
     {

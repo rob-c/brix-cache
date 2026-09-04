@@ -1,6 +1,9 @@
 # Phase 26 — Sub-request Slicing & Slice-Granular Caching
 
-**Status:** Draft (2026-06-11) — UNIMPLEMENTED; tracked open as the §4 slice-cache item in `phase-92-open-work-audit.md`  
+**Status:** SUPERSEDED / DELIVERED. The protocol-local design below was not
+implemented as written; Phase 64 delivered generic VFS-tier slice fill shared by
+all front ends. See [`phase-64-generic-slice-fill.md`](phase-64-generic-slice-fill.md).
+The Phase-92 claim that slice caching remained open is historical.
 **Effort:** Large (≈ 1,800 LoC new, ≈ 350 LoC integration changes)  
 **Depends on:** existing cache layer (`src/fs/cache/`), Phase 3 (path resolution)  
 **Optional:** Phase 20 (SHM KV store) for in-progress slice-fill tracking across workers

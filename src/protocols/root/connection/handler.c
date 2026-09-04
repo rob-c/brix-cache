@@ -138,6 +138,9 @@ conn_init_ctx(ngx_stream_session_t *s, ngx_connection_t *c)
     ctx->session = s;
     ctx->state = XRD_ST_HANDSHAKE;
     ctx->recv.hdr_pos = 0;
+    /* Round 15: the pcalloc zero would read as "registered in slot 0", so the
+     * "never registered" sentinel must be set explicitly. */
+    ctx->login.session_slot_hint = -1;
     ctx->identity = brix_identity_alloc(c->pool);
     if (ctx->identity == NULL) {
         ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);

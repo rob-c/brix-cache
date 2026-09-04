@@ -98,6 +98,9 @@ typedef struct {
                                 * fault (--no-retry / --retry 0 / --max-stall 0).
                                 * Distinguishes "fail fast" from max_stall_ms==0
                                 * meaning "use the default". See copy_stall_ms(). */
+    int         retry_count;   /* outer retry budget for each leaf of a recursive
+                                * web/S3 copy and each leg of a web-to-web relay.
+                                * Zero preserves the fail-fast library default. */
     brix_progress_cb progress;  /* periodic transfer progress, or NULL */
     void            *progress_arg;
     int         io_uring;  /* phase-44 --io-uring: 0=auto, 1=on, 2=off. Selects

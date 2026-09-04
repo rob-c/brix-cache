@@ -235,7 +235,7 @@ brix_session_pathid_bound(const u_char sessid[BRIX_SESSION_ID_LEN],
  * W5/P90-27.2: an identity at its per-source soft cap recycles its OWN LRU slot
  * first (self-eviction), so the F4 global reap only ever fires for genuinely
  * diverse load.  Mutex-protected (cross-worker). */
-void
+int
 brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
     const char *dn, const char *vo_list, ngx_uint_t token_auth)
 {
@@ -243,12 +243,13 @@ brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
     brix_session_scan_t     sc;
     ngx_msec_t              now;
     int                     found, reaped = 0;
+    int                     slot = -1;
     char                    src_key[BRIX_SESSION_SRC_KEY_LEN];
     u_char                  victim[BRIX_SESSION_ID_LEN];
 
     tbl = session_table();
     if (tbl == NULL) {
-        return;
+        return -1;
     }
 
     brix_session_src_key(dn, token_auth, src_key);
@@ -272,9 +273,12 @@ brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
                                        &sc.free_slot, victim);
     }
 
-    if (!found && sc.free_slot < tbl->capacity) {
+    if (found) {
+        slot = (int) sc.match_slot;          /* already registered, same slot */
+    } else if (sc.free_slot < tbl->capacity) {
         brix_session_fill_slot(tbl, sc.free_slot, sessid, dn, vo_list,
                                token_auth, src_key, now);
+        slot = (int) sc.free_slot;
     }
 
     ngx_shmtx_unlock(&brix_session_mutex);
@@ -284,6 +288,10 @@ brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
     if (reaped) {
         brix_session_finish_eviction(victim);
     }
+
+    /* Round 15: the slot is the caller's teardown hint; -1 when the table was
+     * unavailable or full (a rejected registration has nothing to tear down). */
+    return slot;
 }
 
 /* Look a session up by sessid, copying its DN / VO list / token_auth out (used
@@ -307,7 +315,8 @@ brix_session_lookup(const u_char sessid[BRIX_SESSION_ID_LEN],
 
     ngx_shmtx_lock(&brix_session_mutex);
 
-    for (i = 0; i < tbl->capacity; i++) {
+    /* Live prefix only: high_water bounds every occupied slot. */
+    for (i = 0; i < tbl->high_water; i++) {
         e = &tbl->slots[i];
         if (!e->in_use) {
             continue;
@@ -331,6 +340,35 @@ brix_session_lookup(const u_char sessid[BRIX_SESSION_ID_LEN],
 void
 brix_session_unregister(const u_char sessid[BRIX_SESSION_ID_LEN])
 {
+    brix_session_unregister_hinted(sessid, -1);
+}
+
+/*
+ *
+ * WHAT: As brix_session_unregister(), but clears the registry slot that
+ * brix_session_register() reported at login (round 15).
+ *
+ * WHY: The scan below is O(live sessions) under the single cross-worker
+ * brix_session_mutex, and it runs on EVERY disconnect.  Under an ultra-parallel
+ * storm the live prefix is at its longest exactly when every session is also
+ * disconnecting, so the cost per teardown grew with concurrency instead of
+ * backing off — the same shape round 14 removed from the handle table.
+ *
+ * HOW: A session occupies exactly one slot, and register() reports it.  The
+ * sessid is re-checked at the hinted slot under the lock, so a hint made stale
+ * by the F4 reap or the W5 self-eviction simply does not match and clears
+ * nothing — which is correct, because an evicted session has no entry left to
+ * clear.  That re-check also makes the hinted path STRICTER than the scan: if
+ * this session was evicted and then re-registered by a NEW connection into a
+ * different slot, the scan would find and destroy that live registration, while
+ * the hint refuses to touch a slot it does not own.  hint < 0 (never
+ * registered, or a caller with no ctx such as kXR_endsess for a foreign
+ * sessid) keeps the original scan.
+ */
+void
+brix_session_unregister_hinted(const u_char sessid[BRIX_SESSION_ID_LEN],
+    int slot_hint)
+{
     brix_session_table_t *tbl;
     brix_session_entry_t *e;
     ngx_uint_t              i;
@@ -342,13 +380,30 @@ brix_session_unregister(const u_char sessid[BRIX_SESSION_ID_LEN])
 
     ngx_shmtx_lock(&brix_session_mutex);
 
-    for (i = 0; i < tbl->capacity; i++) {
-        e = &tbl->slots[i];
+    if (slot_hint >= 0 && (ngx_uint_t) slot_hint < tbl->high_water) {
+        e = &tbl->slots[slot_hint];
         if (e->in_use
             && ngx_memcmp(e->sessid, sessid, BRIX_SESSION_ID_LEN) == 0)
         {
             ngx_memzero(e, sizeof(*e));
-            break;
+            brix_session_shrink(tbl);
+        }
+
+    } else if (slot_hint < 0) {
+        /* Live prefix only: high_water bounds every occupied slot. */
+        for (i = 0; i < tbl->high_water; i++) {
+            e = &tbl->slots[i];
+            if (e->in_use
+                && ngx_memcmp(e->sessid, sessid, BRIX_SESSION_ID_LEN) == 0)
+            {
+                ngx_memzero(e, sizeof(*e));
+                /* This is the only clear that is not immediately refilled by
+                 * its caller (reap and self-eviction both hand the slot
+                 * straight to fill_slot), so it alone retires a freed top
+                 * run. */
+                brix_session_shrink(tbl);
+                break;
+            }
         }
     }
 

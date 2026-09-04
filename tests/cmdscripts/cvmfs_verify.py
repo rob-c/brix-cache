@@ -6,14 +6,14 @@ import argparse
 import json
 from pathlib import Path
 import sys
-import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
+from fleet_ports import cmdscript_ports
+from lib_py.util import wait_tcp
 from settings import BIND_HOST, HOST
 
 
-MOCK_PORT = 12841
-CACHE_PORT = 12842
+MOCK_PORT, CACHE_PORT = cmdscript_ports("cvmfs_verify")
 
 
 def config(run: LiveRun, verify: str | None) -> Path:
@@ -43,16 +43,26 @@ def set_fault(run: LiveRun, mode: str, count: int) -> None:
     )
 
 
+def start_mock(run: LiveRun):
+    mock = run.spawn([
+        sys.executable,
+        REPO_ROOT / "tests/cvmfs/mock_stratum1.py",
+        "--port", str(MOCK_PORT), "--objects", "4", "--seed", "3",
+    ])
+    if mock.poll() is not None:
+        raise LiveFailure("mock_stratum1 exited during startup")
+    if not wait_tcp(BIND_HOST, MOCK_PORT, 10):
+        raise LiveFailure(f"mock_stratum1 did not listen on {MOCK_PORT}")
+    return mock
+
+
 def run_port(nginx: Path | None = None) -> int:
     failures: list[str] = []
     with LiveRun("cvmfs_verify", nginx) as run:
         run.mkdir("cache")
         quarantine = run.mkdir("quarantine")
         run.mkdir("logs")
-        mock = run.spawn([sys.executable, REPO_ROOT / "tests/cvmfs/mock_stratum1.py", "--port", str(MOCK_PORT), "--objects", "4", "--seed", "3"])
-        if mock.poll() is not None:
-            raise LiveFailure("mock_stratum1 did not start")
-        time.sleep(0.2)
+        start_mock(run)
         objects = json.loads(run.call(["curl", "-sS", f"http://{HOST}:{MOCK_PORT}/ctl/objects"]).stdout)
         obj = objects[1]
 

@@ -48,6 +48,8 @@ def fleet_decision_env(monkeypatch):
     monkeypatch.setattr(conftest, "manifest_owns_test_root", lambda: True)
     monkeypatch.setattr(conftest, "fleet_ready_for_test_root", lambda: True)
     monkeypatch.setattr(conftest, "_fleet_main_master_alive", lambda: True)
+    monkeypatch.setattr(conftest, "listener_owned_by_test_root",
+                        lambda *args: False)
 
     def configure(*, fleet_running: bool):
         conftest._external_fleet = None
@@ -85,13 +87,28 @@ def test_foreign_listener_aborts_before_lifecycle_start(
         conftest._should_skip_local_lifecycle(_Config())
 
 
-def test_owned_orphan_listener_is_reaped_instead_of_attached(
+def test_unproven_listener_is_never_reaped_from_stale_markers(
     fleet_decision_env, monkeypatch
 ):
     fleet_decision_env(fleet_running=True)
     monkeypatch.setattr(conftest, "_fleet_main_master_alive", lambda: False)
 
     assert conftest._external_fleet_attached() is False
+    assert conftest._foreign_fleet_collision is True
+
+
+def test_stale_marker_recovers_only_the_exact_root_listener(
+    fleet_decision_env, monkeypatch
+):
+    """A lost marker never turns a demonstrably owned live fleet into cleanup."""
+    fleet_decision_env(fleet_running=True)
+    monkeypatch.setattr(conftest, "manifest_owns_test_root", lambda: False)
+    monkeypatch.setattr(conftest, "fleet_ready_for_test_root", lambda: False)
+    monkeypatch.setattr(conftest, "_fleet_main_master_alive", lambda: False)
+    monkeypatch.setattr(conftest, "listener_owned_by_test_root",
+                        lambda root, port: True)
+
+    assert conftest._external_fleet_attached() is True
     assert conftest._foreign_fleet_collision is False
 
 

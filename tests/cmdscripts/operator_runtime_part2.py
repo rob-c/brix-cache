@@ -73,6 +73,25 @@ def _suite_parser():
     return parser
 
 
+def _capture_suite_nginx() -> bool:
+    """Pin every suite consumer to one immutable nginx executable."""
+    from cmdscripts.live_common import freeze_nginx  # noqa: PLC0415
+
+    source = Path(os.environ["TEST_NGINX_BIN"])
+    frozen = freeze_nginx(source)
+    if frozen == source:
+        print(
+            f"ERROR: could not capture immutable suite nginx binary: {source}",
+            file=sys.stderr,
+        )
+        return False
+    os.environ.update({
+        "TEST_NGINX_BIN": str(frozen),
+        "NGINX_BIN": str(frozen),
+    })
+    return True
+
+
 def _suite_prepare_environment(ns):
     env = {"PYTHONPATH": f"tests{os.pathsep}{os.environ.get('PYTHONPATH', '')}",
            "TEST_OWN_FLEET": "1"}
@@ -86,7 +105,9 @@ def _suite_prepare_environment(ns):
         return None
     test_root = Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test")).expanduser().resolve()
     os.environ["TEST_ROOT"] = str(test_root)
-    return test_root if _prepare_test_root(test_root) else None
+    if not _prepare_test_root(test_root) or not _capture_suite_nginx():
+        return None
+    return test_root
 
 
 def _suite_arguments(ns):
@@ -105,18 +126,27 @@ def _suite_arguments(ns):
     return destructive, clientconf, ignore, common, str(REPO_ROOT / "tests")
 
 
+def _suite_marker(ns, expression):
+    if ns.include_suite_jobs:
+        return expression
+    return f"({expression}) and not suite_job"
+
+
 def _suite_fast(ns, test_root, tests_root, ignore, common):
-    selection = [tests_root, *ignore, "-m", "not slow and not serial"]
+    selection = [tests_root, *ignore, "-m",
+                 _suite_marker(ns, "not slow and not serial")]
     parallel = ["-n", str(ns.n), "--dist", "loadgroup"]
     return 0 if _suite_lane(test_root, selection, parallel, common) else 1
 
 
 def _suite_pr(ns, test_root, tests_root, ignore, common):
     rc = 0
-    selection = [tests_root, *ignore, "-m", "not slow and not serial"]
+    selection = [tests_root, *ignore, "-m",
+                 _suite_marker(ns, "not slow and not serial")]
     if not _suite_lane(test_root, selection, ["-n", str(ns.n), "--dist", "loadgroup"], common):
         rc = 1
-    serial = [tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m", "serial and not slow"]
+    serial = [tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m",
+              _suite_marker(ns, "serial and not slow")]
     if not _suite_serial_lane(test_root, serial, common):
         rc = 1
     return rc
@@ -139,10 +169,12 @@ def _optional_parallel_lane(test_root, paths, common, distribution):
 
 def _suite_nightly(ns, test_root, tests_root, ignore, common, destructive, clientconf):
     rc = 0
-    slow = [tests_root, *ignore, "-m", "slow and not serial"]
+    slow = [tests_root, *ignore, "-m",
+            _suite_marker(ns, "slow and not serial")]
     if not _suite_lane(test_root, slow, ["-n", str(ns.n), "--dist", "loadgroup"], common):
         rc = 1
-    serial = [tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m", "slow and serial"]
+    serial = [tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m",
+              _suite_marker(ns, "slow and serial")]
     if not _suite_serial_lane(test_root, serial, common):
         rc = 1
     extra = _optional_serial_lane(test_root, destructive, common)
@@ -152,18 +184,20 @@ def _suite_nightly(ns, test_root, tests_root, ignore, common, destructive, clien
 
 def _suite_sample(ns, test_root, tests_root, common):
     sample_common = ["-q", "--tb=short", *common[2:]]
-    selection = [tests_root, f"--first-percent={ns.first_percent:g}"]
+    selection = [tests_root, f"--first-percent={ns.first_percent:g}",
+                 "-m", _suite_marker(ns, "not serial")]
     parallel = ["-n", str(ns.n), "--dist", "loadgroup"]
     return 0 if _suite_lane(test_root, selection, parallel, sample_common) else 1
 
 
 def _suite_full(ns, test_root, tests_root, ignore, common, destructive, clientconf):
     rc = 0
-    selection = [tests_root, *ignore, "-m", "not serial"]
+    selection = [tests_root, *ignore, "-m", _suite_marker(ns, "not serial")]
     parallel = ["-n", str(ns.n), "--dist", "loadgroup"]
     if not _suite_lane(test_root, selection, parallel, common):
         rc = 1
-    serial = [tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m", "serial"]
+    serial = [tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m",
+              _suite_marker(ns, "serial")]
     if not _suite_serial_lane(test_root, serial, common):
         rc = 1
     extra = _optional_serial_lane(test_root, destructive, common)

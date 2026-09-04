@@ -29,14 +29,9 @@ def snap(mx):
     return cx.Snap(mx.metrics)
 
 
-def stream_labels(mx):
-    meta = cx.STREAM_PLANES["none"]
-    return {"port": str(mx.port(meta["port_key"])), "auth": meta["auth"]}
-
-
 @pytest.mark.parametrize("size", SIZES)
 def test_dav_get_bytes_exact(mx, size):
-    """Cached dav GET at `size`: read ledger, tx ledger and body agree."""
+    """Cached dav GET at `size`: the read ledger and the body agree."""
     name = cx.unique_name(f"exdg{size}")
     payload = mx.seed_local(name, size)
     assert mx.dav_request("dav", f"/{name}")[0] == 200   # prime
@@ -50,7 +45,6 @@ def test_dav_get_bytes_exact(mx, size):
                    {"proto": "webdav", "op": "read", "status": "ok"},
                    after) == 1
     assert s.delta("brix_io_bytes_read", {"proto": "webdav"}, after) == size
-    assert s.delta("brix_webdav_bytes_tx_total", after=after) == size
 
 
 @pytest.mark.parametrize("size", SIZES)
@@ -68,13 +62,12 @@ def test_dav_put_bytes_exact(mx, size):
                    after) == 1
     assert s.delta("brix_io_bytes_written", {"proto": "webdav"},
                    after) == size
-    assert s.delta("brix_webdav_bytes_rx_total", after=after) == size
     assert (mx.local_data / name).read_bytes() == payload
 
 
 @pytest.mark.parametrize("size", SIZES)
 def test_s3_get_bytes_exact(mx, size):
-    """Cached s3 GET at `size`: unified + s3 tx ledgers byte-exact."""
+    """Cached s3 GET at `size`: the unified read ledger is byte-exact."""
     name = cx.unique_name(f"exsg{size}")
     payload = mx.seed_local(name, size)
     assert mx.s3_request("s3", name)[0] == 200           # prime
@@ -88,7 +81,6 @@ def test_s3_get_bytes_exact(mx, size):
                    {"proto": "s3", "op": "read", "status": "ok"},
                    after) == 1
     assert s.delta("brix_io_bytes_read", {"proto": "s3"}, after) == size
-    assert s.delta("brix_s3_bytes_tx_total", after=after) == size
 
 
 @pytest.mark.parametrize("size", SIZES)
@@ -110,12 +102,11 @@ def test_s3_put_bytes_exact(mx, size):
 
 @pytest.mark.parametrize("size", SIZES)
 def test_stream_get_bytes_exact(mx, size, tmp_path):
-    """Cold stream read at `size`: unified + per-plane tx ledgers exact,
+    """Cold stream read at `size`: the unified read ledger is exact and the
     payload intact (1 MiB exercises the multi-chunk origin fill)."""
     name = cx.unique_name(f"extg{size}")
     payload = mx.seed_origin(name, size)
     dst = tmp_path / name
-    lbl = stream_labels(mx)
     s = snap(mx)
     r = mx.xrdcp_get("none", f"/{name}", str(dst))
     assert r.returncode == 0, r.stderr
@@ -123,7 +114,6 @@ def test_stream_get_bytes_exact(mx, size, tmp_path):
     after = cx.mfetch(mx.metrics)
     assert dst.read_bytes() == payload
     assert s.delta("brix_io_bytes_read", {"proto": "stream"}, after) == size
-    assert s.delta("brix_bytes_root_tx_total", lbl, after) == size
     assert s.delta("brix_io_ops_total",
                    {"proto": "stream", "op": "read", "status": "ok"},
                    after) == 1
@@ -131,13 +121,12 @@ def test_stream_get_bytes_exact(mx, size, tmp_path):
 
 @pytest.mark.parametrize("size", SIZES)
 def test_stream_put_bytes_exact(mx, size, tmp_path):
-    """Stream write at `size`: unified + per-plane rx ledgers exact,
+    """Stream write at `size`: the unified write ledger is exact and the
     origin object intact."""
     name = cx.unique_name(f"extp{size}")
     payload = b"T" * size
     src = tmp_path / name
     src.write_bytes(payload)
-    lbl = stream_labels(mx)
     s = snap(mx)
     r = mx.xrdcp_put("none", str(src), f"/{name}")
     assert r.returncode == 0, r.stderr
@@ -145,7 +134,6 @@ def test_stream_put_bytes_exact(mx, size, tmp_path):
     after = cx.mfetch(mx.metrics)
     assert s.delta("brix_io_bytes_written", {"proto": "stream"},
                    after) == size
-    assert s.delta("brix_bytes_rx_total", lbl, after) == size
     # The stream op ledger counts WIRE write requests: xrdcp splits large
     # uploads into client-chosen chunks (e.g. 16 ops at 128 KiB), so only
     # the byte ledgers are size-exact.  Small payloads land in one request.

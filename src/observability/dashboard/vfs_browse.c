@@ -168,6 +168,9 @@ vfs_browse_ctx(ngx_http_request_t *r, const brix_vfs_backend_info_t *info,
     brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_ROOT,
                         info->root_canon, "", BRIX_VFS_MUTATION_READ_ONLY, is_tls,
                         NULL, abs);
+    /* The authenticated dashboard API is its own authorization plane and has
+     * no export authdb rule set to bind. Preserve that boundary explicitly. */
+    brix_vfs_ctx_bind_no_authz_rules(vctx, BRIX_AUTHZ_BACKSTOP_OBSERVE);
 }
 
 /* GET /xrootd/api/v1/vfs — the export census (index, root, backend, origin). */

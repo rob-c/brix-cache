@@ -144,6 +144,23 @@ sd_remote_s3_params(const brix_sd_remote_cfg_t *cfg, const char *objpath,
     p->key  = objpath;
 }
 
+/* ---- cred plumbing (real: sd_remote.c / sd_remote_meta.c) ----------------
+ * Gate answers "no per-user credential" so the slots run on the service
+ * credential; the params overlay is a no-op for the same reason. */
+int
+sd_remote_cred_gate(const brix_sd_cred_t *cred)
+{
+    (void) cred;
+    return 0;
+}
+
+void
+sd_remote_params_cred(sd_s3_open_params *p, const char *ak, const char *sk,
+    const char *region, const char *session)
+{
+    (void) p; (void) ak; (void) sk; (void) region; (void) session;
+}
+
 #include "fs/backend/remote/sd_remote_nearline.c"   /* NOLINT — unity build */
 
 /* ---- fixture -------------------------------------------------------------- */

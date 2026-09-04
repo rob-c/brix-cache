@@ -1,9 +1,13 @@
 # Phase 93 — Remote config & performance advisor: scrape → classify → recommend for remote XRootD endpoints
 
-**Status:** **LANDED (client slices S1–S5), 2026-08-03.** Originally drafted as a
-DESIGN / PROPOSAL; the client-side advisor (S1–S5) is now implemented, built
-clean, and tested. S6 (server-side authoritative read surface) remains deferred /
-opt-in. It scopes expanding the existing `xrddiag` diagnostic family so a remote
+**Status:** **IMPLEMENTED / CLOSED (client slices S1–S5), reconciled
+2026-09-03.** The client-side advisor is implemented, built and tested. Phase
+111 closed S6 by design: exposing additional authoritative CMS/CNS internals
+would enlarge the server information-disclosure surface while S1–S5 already
+produce useful wire-derived recommendations. A future server endpoint needs a
+named operator consumer and its own authorization/privacy review; it is not a
+missing part of this phase. This phase scopes expanding the existing `xrddiag`
+diagnostic family so a remote
 operator can point the client at a remote XRootD server (data server,
 redirector/manager, or protocol gateway), have it scrape every fact reachable
 over the wire, and receive a classified verdict plus a concrete remedy for each
@@ -799,7 +803,7 @@ Ordered by value-per-line; each independently landable and separately tested.
 | **S5m** | **mesh diagram** — `--map`/`--map-format ascii\|dot\|mermaid` renders the fan-out topology as an ASCII tree / Graphviz digraph / Mermaid graph, coloured by per-node health | new `diag_doctor_graph.c`, `diag_internal.h`, `xrddiag.c`, `diag_doctor.c`, `client/Makefile` | S4 | S | ✅ LANDED |
 | **S5o** | **EOS dialect for `--map`** — detect an EOS MGM via the `/proc/user/?mgm.cmd=version` banner and enumerate the FST farm via `/proc/admin/?mgm.cmd=fs&mgm.subcmd=ls&mgm.outformat=m` (admin-gated → graceful degrade); FST nodes rendered in ASCII/DOT/Mermaid/text/JSON | new `diag_doctor_eos.c`, `diag_internal.h`, `diag_doctor_audit.c`, `diag_doctor_graph.c`, `diag_doctor.c`, `client/Makefile` | S5m + S5n | M | ✅ LANDED |
 | **S5p** | **unprivileged FST discovery** — when `fs ls` (S5o) is NotAuthorized, fall back to the user-plane `fileinfo` command: a bounded DFS samples files under the map target and unions the distinct FSTs their replica tables name (honestly tagged `sampled` / "via fileinfo replica sampling", partial coverage) | new `diag_doctor_eos_fileinfo.c`, `diag_internal.h`, `diag_doctor_eos.c`, `diag_doctor_graph.c`, `client/Makefile` | S5o | M | ✅ LANDED |
-| **S6** | *(deferred, opt-in)* server-side read surface (§7) | `src/observability/metrics/stream.c` **or** `src/protocols/root/query/` | — | M–L, server change, separate review | ⏸ DEFERRED |
+| **S6** | server-side read surface (§7) | `src/observability/metrics/stream.c` **or** `src/protocols/root/query/` | — | Would add an authorization/privacy surface without a named consumer | CLOSED BY PHASE-111 DECISION |
 
 S1–S3 are pure client-side, zero server change, and deliver the "scrape a remote
 host → advise" ask on their own. S4–S5 add the federation view. S6 is the only
@@ -933,7 +937,8 @@ These need no fleet and run in the fast tier. The e2e side lives in
 - Any write/stage/auth-forge probe by default (gated behind existing flags).
 - Root-only / privileged local probes (the tool stays unprivileged-runnable,
   consistent with the rest of the client family).
-- The S6 server-side read surface is *planned but deferred* — not part of the
+- The S6 server-side read surface is retained as historical design, but closed
+  by the Phase-111 disclosure/use-case decision — not part of the
   client deliverable and separately reviewed.
 
 ---

@@ -81,7 +81,7 @@ prepare_path_authz(brix_ctx_t *ctx, ngx_connection_t *c,
         return brix_prepare_check_fail(ctx, c, full_path, kXR_NotAuthorized,
                                          "not authorized");
     }
-    if (brix_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
+    if (brix_check_vo_acl_identity(c->log, full_path, conf->common.vo_rules,
                                      ctx->identity) != NGX_OK) {
         return brix_prepare_check_fail(ctx, c, full_path, kXR_NotAuthorized,
                                          "VO not authorized");

@@ -1,10 +1,12 @@
 # Plan — the seccomp "spawn broker" (Option B: block arbitrary exec, allow only known helpers)
 
-**Status:** design/plan (not implemented). Companion to the shipped Option A
-(`brix_seccomp_allow_exec on`, which allowlists `execve` wholesale under enforce).
-Option B is the high-assurance follow-up: keep `execve`/`execveat` **killed** in
-the worker, and route the few legitimate fork+exec paths through a small, audited
-broker that only ever execs an **allowlisted set of binaries**.
+**Status:** DORMANT DESIGN / NOT SCHEDULED (Phase-111 decision, 2026-09-03).
+The shipped Option A is the supported opt-in compatibility surface. Option B is
+not partially implemented and is not current repository backlog: it introduces
+a privileged IPC boundary and is justified only by a concrete deployment threat
+model that both requires helper execution and rejects Option A. Reopen in a new
+security phase with that threat model, helper allowlist and broker ownership.
+The design below remains the high-assurance reference for such a phase.
 
 ## Why
 

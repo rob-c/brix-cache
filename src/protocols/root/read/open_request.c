@@ -61,6 +61,12 @@ brix_open_mode_guard(brix_ctx_t *ctx, ngx_connection_t *c,
 						  ctx->recv.payload ? (char *) ctx->recv.payload : "-", "wr",
 						  0, kXR_fsReadOnly, "read-only server", 0);
 		BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
+		/* phase-110 W4: this protocol-level read-only refusal short-circuits
+		 * BEFORE the VFS mutation gate (vfs_policy.c) that would otherwise stamp
+		 * the monitor, so stamp FORBIDDEN here too — otherwise $brix_status is
+		 * "-" on root:// while WebDAV/S3 say "forbidden". Same class kXR_fsReadOnly
+		 * (EROFS) maps to; one refusal word on every plane. */
+		brix_io_monitor_record_err(&ctx->io_monitor, BRIX_ERR_FORBIDDEN);
 		return brix_send_error(ctx, c, kXR_fsReadOnly,
 								 "this is a read-only server");
 	}

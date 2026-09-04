@@ -201,6 +201,25 @@ ssize_t brix_rfile_pread (brix_rfile *rf, int64_t off, void *buf, size_t len, br
 int     brix_rfile_pwrite(brix_rfile *rf, int64_t off, const void *buf, size_t len, brix_status *st);
 int     brix_rfile_close (brix_rfile *rf, brix_status *st);
 
+/* Bounded streaming over an already-open resilient file.  The sink sees each
+ * chunk with its absolute remote offset.  Return 0 to continue, a positive
+ * value to stop successfully, or a negative value to fail (with st set).
+ * limit=-1 means EOF; otherwise at most limit bytes are read. */
+typedef int (*brix_rfile_sink_fn)(const uint8_t *data, size_t len,
+                                  int64_t offset, void *arg,
+                                  brix_status *st);
+int brix_rfile_pump(brix_rfile *rf, int64_t offset, int64_t limit,
+                    size_t chunk_size, brix_rfile_sink_fn sink, void *arg,
+                    int64_t *moved, brix_status *st);
+int brix_rfile_drain_to_fd(brix_rfile *rf, int64_t offset, int64_t limit,
+                           size_t chunk_size, int fd, int64_t *moved,
+                           brix_status *st);
+/* Read a complete remote file into one owned allocation.  max_bytes=-1 means
+ * no caller cap.  Empty files still return a freeable allocation. */
+int brix_rfile_slurp(brix_conn *c, const char *path, const char *opaque,
+                     int64_t max_bytes, uint8_t **out, int64_t *len,
+                     brix_status *st);
+
 /* §7.13 --xattr (copy_xattr.c): after a COMPLETED root://↔local copy, mirror
  * the user-namespace extended attributes in the copy's direction.
  * Best-effort: failures warn on stderr (suppressed by `silent`) and never

@@ -41,6 +41,8 @@ compiled via `NGX_ADDON_SRCS` (`config:236-237`). Treat `module.c` as ground tru
 |------|----------------|
 | `module.c` | **Authoritative — compiled.** Defines the live `ngx_stream_brix_commands[]`: the complete directive table (core + auth + TLS/OCSP + native TPC + manager/CMS + read-through cache + write-through + transparent proxy + Phase 20 KV/rate-limit + Phase 22 health-check + Phase 24 mirror + Phase 25/26/29/31 tuning), terminated by `ngx_null_command`. Also defines the `brix_auth_modes[]`, `brix_security_levels[]`, and `brix_hc_types[]` enum tables. |
 | `module_definition.c` | **Compiled.** Declares the static module wiring: `ngx_stream_brix_module_ctx` (`ngx_stream_module_t` lifecycle hooks — `postconfiguration`, `create_srv_conf`, `merge_srv_conf`; main-conf slots `NULL`) and the `ngx_module_t ngx_stream_brix_module` descriptor (`NGX_STREAM_MODULE`, with `init_process` = `ngx_stream_brix_init_process` and `exit_process` = `brix_exit_process`). Holds an `extern` reference to `ngx_stream_brix_commands[]`. |
+| `stream_variables.c` | Registers and resolves the `$brix_*` stream observability surface. |
+| `stream_variable_values.c` | Publishes sentinel, string and numeric stream-variable values with connection-pool lifetime. |
 
 ### Other files
 

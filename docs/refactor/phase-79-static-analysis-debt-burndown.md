@@ -397,7 +397,7 @@ Work landed in the working tree (uncommitted; `--regen` + commit remain OP-owned
 
 ---
 
-> **For agentic workers:** triage-and-fix phase. Every finding below is an individually
+> **Execution discipline:** triage-and-fix phase. Every finding below is an individually
 > tickable item with file and line number, generated from LIVE analyzer runs on
 > 2026-07-13 (HEAD = 27c89e3) — not from the (stale) committed baselines. Zero behavior
 > change unless a finding is a confirmed real bug (then: fix + 3 tests: success + error +

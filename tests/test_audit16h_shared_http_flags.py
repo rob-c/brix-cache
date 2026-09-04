@@ -210,7 +210,7 @@ def _http_common_commands_text():
         text += header.read_text()
     return text
 PUT_SETUP_C = ROOT / "src/protocols/webdav/put_setup.c"
-OP_PATH_C = ROOT / "src/protocols/root/path/op_path.c"
+OP_PATH_C = ROOT / "src/protocols/root/path/op_path_vfs.c"
 COMPRESS_H = ROOT / "src/core/http/http_compress.h"
 COMPRESS_C = ROOT / "src/core/http/http_compress.c"
 FILE_SERVE_C = ROOT / "src/protocols/shared/file_serve.c"

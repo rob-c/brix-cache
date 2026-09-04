@@ -165,6 +165,26 @@ class Snap:
             return 0
         return va - (vb if vb != -1 else 0)
 
+    def cache_delta(self, proto: str, status: str,
+                    after: str | None = None) -> int:
+        """Cache lookups of one disposition on one protocol.
+
+        phase-110 W1 made the disposition a LABEL VALUE on a single family
+        instead of a family per outcome, and phase 112 removed the
+        brix_cache_{hits,misses}_total pair it replaced.  `status` is a word
+        from the one cache vocabulary ("HIT", "MISS", "NEGHIT") — the same
+        string $brix_cache_status logs and the JSON "cache_status" prints.
+        """
+        return self.delta("brix_cache_requests_total",
+                          {"proto": proto, "cache_status": status}, after)
+
+    def cache_delta_or_absent(self, proto: str, status: str,
+                              after: str | None = None) -> int:
+        """cache_delta() for a disposition whose series may not exist yet."""
+        return self.delta_or_absent("brix_cache_requests_total",
+                                    {"proto": proto,
+                                     "cache_status": status}, after)
+
 
 def gauge(url: str, name: str, labels: dict | None = None) -> int:
     text = mfetch(url)

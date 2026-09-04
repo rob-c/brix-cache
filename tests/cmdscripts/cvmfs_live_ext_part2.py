@@ -35,7 +35,8 @@ events {{ worker_connections 128; }}
 http {{
     log_format cvmfs '$remote_addr [$time_local] "$request" $status '
                      '$body_bytes_sent $request_time '
-                     'class=$cvmfs_class cache=$cvmfs_cache origin=$cvmfs_origin';
+                     'class=$cvmfs_class cache=$brix_cache_status '
+                     'origin=$cvmfs_origin';
     access_log {access_log} cvmfs;
     keepalive_timeout 3600s; keepalive_requests 1000000;
     send_timeout 300s; client_header_timeout 300s;
@@ -190,10 +191,13 @@ def _reverse_observability_checks(run, metrics_port, access_log, error_log):
         (request_count >= 1, f"metrics: cas requests counted ({request_count:g})"),
         ('proto="cvmfs"' in metrics, "metrics: proto=cvmfs on module-wide families"),
         (fill_bytes >= 1, "metrics: fill bytes counted"),
-        (_grep(access_log, "class=cas cache=fill"),
-         "access log: cold read logged as class=cas cache=fill"),
-        (_grep(access_log, "class=cas cache=hit"),
-         "access log: warm read logged as cache=hit"),
+        # phase-112: the log now carries $brix_cache_status, so the cold fill
+        # reads MISS and the warm read HIT — the one cross-plane vocabulary,
+        # not the plane-local hit/fill spelling $cvmfs_cache used to emit.
+        (_grep(access_log, "class=cas cache=MISS"),
+         "access log: cold read logged as class=cas cache=MISS"),
+        (_grep(access_log, "class=cas cache=HIT"),
+         "access log: warm read logged as cache=HIT"),
         ('"cvmfs_origins":[{"host"' in health,
          "healthz: cvmfs_origins present"),
     ]

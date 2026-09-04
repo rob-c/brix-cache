@@ -6,13 +6,11 @@ import socket
 import struct
 import os
 import pytest
-import time
 
 from settings import (
     NGINX_ANON_PORT,
     SERVER_HOST,
     DATA_ROOT,
-    LOG_DIR,
 )
 
 # Flag constants
@@ -25,7 +23,7 @@ _kXR_protocol     = 3006
 _kXR_login        = 3007
 _kXR_open         = 3010
 _kXR_write        = 3019
-_kXR_close        = 3004
+_kXR_close        = 3003
 
 # Status codes
 _kXR_ok           = 0
@@ -129,28 +127,23 @@ def test_write_idempotency():
     
     data = b"idempotency test data"
 
-    # Snapshot log position before the writes so we only scan new output.
-    # Under parallel test load the log grows fast and a fixed tail window
-    # would miss the replay-skip message written by our specific request.
-    error_log = os.path.join(LOG_DIR, "error.log")
-    try:
-        log_start = os.path.getsize(error_log)
-    except FileNotFoundError:
-        log_start = 0
-
     status, _ = conn.write(handle, 0, data)
     assert status == _kXR_ok
 
     # Replay
-    status, _ = conn.write(handle, 0, data)
+    status, _ = conn.write(handle, 0, b"X" * len(data))
     assert status == _kXR_ok
 
-    # Wait for nginx to flush the replay-skip log entry.
-    time.sleep(0.1)
-    with open(error_log, "rb") as fh:
-        fh.seek(log_start)
-        new_log = fh.read().decode(errors="replace")
-    assert "write recovery replay skip" in new_log
-    
-    conn.close(handle)
+    status, _ = conn.close(handle)
+    assert status == _kXR_ok
     conn.disconnect()
+
+    stored = os.path.join(DATA_ROOT, path)
+    try:
+        with open(stored, "rb") as fh:
+            assert fh.read() == data
+    finally:
+        try:
+            os.unlink(stored)
+        except FileNotFoundError:
+            pass

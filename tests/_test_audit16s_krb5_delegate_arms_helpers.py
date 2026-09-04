@@ -77,21 +77,22 @@ SUCCESS, and nothing is left to account for the round that never comes back.
 An operator who arms delegation and breaks every client whose tickets are not
 forwardable — the default for ``kinit`` — sees a flat line.
 
-FINDING — DEFECT CANDIDATE #96
-------------------------------
-The captured TGT lands in ``/tmp`` and the documented knob for moving it cannot
-be set from a config file.  ``brix_krb5_deleg_mkccache`` (deleg_capture.c:209-216)
-is commented "Honors $TMPDIR, defaulting to /tmp" — but nginx builds a worker's
-environment from the ``env`` directives alone, so unless the operator writes a
-main-scope ``env TMPDIR;``, ``getenv("TMPDIR")`` in the worker is NULL and every
-capture is a ``mkstemp`` under ``/tmp``.  §G measures both renderings of the
-same instance: without the directive the file is ``/tmp/brix-krb5-fwd-XXXXXX``,
-with it the file moves to the handed-in directory.  The file is mode 0600 and is
-unlinked at connection close, so this is a siting question and not an exposure —
-but what sits there is a live, usable TGT (§G reads it back with ``klist``:
-``alice@NGINX.TEST``, ``krbtgt/NGINX.TEST@NGINX.TEST``), the directive that
-relocates it is nginx's rather than this module's, and no doc, README or config
-in the corpus mentions it.
+FINDING #96 — RESOLVED BY PHASE-108 C11
+---------------------------------------
+As found, the captured TGT landed in ``/tmp`` (CWE-377: a world-writable,
+unvalidated directory) and the only knob that moved it was a main-scope
+``env TMPDIR;`` no doc or config in the corpus mentioned.  Phase-108 C11
+removed the knob along with the exposure: ``brix_krb5_deleg_mkccache``
+(deleg_capture.c) now stages through ``brix_cred_write`` on the VOLATILE arm,
+so every capture is created ``O_CREAT|O_EXCL|O_NOFOLLOW`` 0600 under the
+per-uid, owner-checked, 0700 tmpfs staging dir ``/dev/shm/brix-creds.<euid>``
+— ``$TMPDIR`` is never consulted and there is no ``/tmp`` fallback (a staging
+dir that fails the owner/mode check refuses EPERM rather than degrading).  §G
+measures the resolved shape: the capture sits in the staging dir, stays mode
+0600 while it lives (a live, usable TGT — §G still reads it back with
+``klist``: ``alice@NGINX.TEST``, ``krbtgt/NGINX.TEST@NGINX.TEST``), is
+unlinked at connection close, and the ``env TMPDIR;`` rendering that used to
+relocate it now changes nothing.
 
 WHY THIS IS NOT test_krb5_delegation_e2e.py
 -------------------------------------------
@@ -204,11 +205,11 @@ def _writes(text, value):
     return re.search(rf"^\s*{DIRECTIVE}\s+{value}\s*;\s*$", text,
                      re.MULTILINE) is not None
 
-# The captured forwarded TGT: a mkstemp template the C spells out, and the
-# directory it falls back to when the worker has no $TMPDIR — which is every
-# worker that was not given one by an nginx `env` directive (#96).
+# The captured forwarded TGT: the fixed prefix deleg_capture.c hands to
+# brix_cred_write (an 8-hex entropy suffix follows), and the per-uid tmpfs
+# staging dir the VOLATILE arm always uses — the resolved shape of #96.
 CAPTURE_GLOB = "brix-krb5-fwd-*"
-DEFAULT_CAPTURE_DIR = Path("/tmp")     # host-literal-allow: deleg_capture.c:218
+DEFAULT_CAPTURE_DIR = Path(f"/dev/shm/brix-creds.{os.geteuid()}")  # cred_stage.c:26
 
 MARKER = "krb5 delegation captured forwarded TGT"
 NOTICE = "brix: krb5 auth configured"

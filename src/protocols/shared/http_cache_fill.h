@@ -36,6 +36,8 @@
 #include "core/config/shared_conf.h"      /* ngx_http_brix_shared_conf_t */
 #include "fs/backend/sd.h"           /* brix_sd_instance_t */
 
+struct brix_vfs_ctx_s;
+
 /* The handler re-entry callback: invoked on the event loop after a successful
  * fill to serve the now-cached object. `data` is the opaque pointer passed to
  * brix_http_cache_fill_if_needed (NULL for handlers that re-resolve from r).
@@ -70,6 +72,7 @@ typedef ngx_int_t (*brix_http_fill_fail_pt)(ngx_http_request_t *r,
 ngx_int_t brix_http_cache_fill_if_needed(ngx_http_request_t *r,
     brix_sd_instance_t *inst, const char *key,
     ngx_http_brix_shared_conf_t *common,
+    struct brix_vfs_ctx_s *vctx,
     brix_http_cache_reenter_pt reenter, void *reenter_data,
     brix_http_fill_fail_pt on_fail);
 

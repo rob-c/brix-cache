@@ -11,6 +11,7 @@
 #include "core/compat/integrity_info.h"
 #include "core/compat/path.h"
 #include "core/compat/xml.h"
+#include "protocols/shared/vfs_authz_bind.h"
 
 #include <sys/stat.h>
 #include <limits.h>
@@ -83,6 +84,7 @@ s3_vfs_bind_deleg(ngx_http_request_t *r,
     ngx_http_s3_req_ctx_t *s3ctx;
     const ngx_str_t       *bearer;
 
+    brix_http_vfs_bind_authz(r, &cf->common, cf->authdb_final, NULL, vctx);
     if (cf->common.backend_delegation == BRIX_CRED_SELECT) {
         return;
     }

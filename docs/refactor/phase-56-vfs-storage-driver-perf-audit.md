@@ -2,8 +2,10 @@
 
 **Date:** 2026-06-25
 **Author:** performance audit (`src/fs/` + `src/fs/backend/` whole-layer sweep)
-**Status:** AUDIT / roadmap — **first phases landed (F0 + A-1, 2026-06-25)**; the
-rest is sequenced below. This is the perf + expansion catalogue for the data-plane
+**Status:** HISTORICAL AUDIT / CLOSED REGISTER (reconciled 2026-09-02). Later
+VFS phases closed the F pillar and the final D-2 latency histogram; Phase 88
+records that closure. The sequences below are the original catalogue, not a
+second current backlog. This is the perf + expansion catalogue for the data-plane
 stack introduced by Phase 54 (thread-safe VFS I/O core) and Phase 55 (pluggable
 Storage Driver seam). Treat `src/` as authoritative; re-check an item's
 reachability before quoting it as open.

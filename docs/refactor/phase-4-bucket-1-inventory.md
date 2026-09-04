@@ -1,10 +1,11 @@
 # Phase-4 Bucket-1 conversion inventory (fixed-port harness refactor)
 
-Status: **IN PROGRESS 2026-07-22.** This doc is the durable work-list for converting the
-remaining ~120 lifecycle-harness consumer files (Bucket 1 of Phase 4) off dynamic
-`-{pid}`/`free_port` registration and onto **fixed ports** sourced from a ledger, with
-per-file `@pytest.mark.xdist_group(...)` serialisation. Plan + PROGRESS:
-`~/.claude/plans/linear-churning-stallman.md`; memory `test-harness-fixed-port-refactor`.
+Status: **HISTORICAL MIGRATION RECORD / RECONCILED (2026-09-03).** The
+fixed-port conversion landed. Later Phase-105 additions deliberately advanced
+the shared width to 975, the ledger and collection guards agree, and Phase 81
+closed the ordinary server-lifecycle migration. Unticked historical rows below
+are not current backlog. This was the work-list for converting roughly 120
+lifecycle-harness consumers from dynamic registration onto ledgered ports.
 
 ## Model (decided with OP 2026-07-22 — "Hybrid")
 
@@ -345,6 +346,6 @@ the 5 CVMFS origins (fuse/docker-gated, unrunnable from this shell — carried f
 `lc-interop-*` conformance suite + `wdeesc-*` root-only (fixed-band / root-gated, Phase-5/7).
 
 ## Verify each wave
-`PYTHONPATH=. python3 -m pytest <wave files> -p no:cacheprovider` (OP-owner runs; subagents
+`PYTHONPATH=. python3 -m pytest <wave files> -p no:cacheprovider` (test owner runs; other contributors
 never run pytest). Band+ledger lints: `test_fleet_ports.py` (must stay green after each
 ledger edit). Collection clean for the whole set.

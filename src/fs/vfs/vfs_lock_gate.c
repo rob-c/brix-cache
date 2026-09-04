@@ -190,6 +190,10 @@ brix_vfs_lock_walk_gate(brix_vfs_ctx_t *ctx, brix_vfs_mutation_op_t op,
     *clean = 1;
 
     w.path     = brix_vfs_ctx_path(ctx);
+    if (w.path == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
     w.path_len = strlen(w.path);
     root_len   = strlen(ctx->root_canon);
 

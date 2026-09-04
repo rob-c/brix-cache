@@ -55,6 +55,20 @@ brix_make_tmp_path(const char *base_path, char *out, size_t out_sz)
 }
 
 /*
+ * brix_tmp_is_temp_name — does this directory-entry name belong to a staged
+ * atomic-write temp ("<base>.xrd-tmp.<pid>.<random>")? Enumerators that walk a
+ * store tree (the OCI tag/referrers listers) call this to skip a crash-orphaned
+ * temp so it is never surfaced as an object in the window before worker-0's
+ * brix_tmp_reap_all() removes it. The marker is the same infix the writer and
+ * the reaper agree on, kept in one place here.
+ */
+int
+brix_tmp_is_temp_name(const char *name)
+{
+    return name != NULL && strstr(name, ".xrd-tmp.") != NULL;
+}
+
+/*
  * WHAT: Construct the DETERMINISTIC resume-staging path for an upload, keyed to
  *       the authenticated principal AND the final path.
  *

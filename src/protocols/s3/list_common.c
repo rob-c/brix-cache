@@ -91,13 +91,16 @@ s3_list_collect_sorted(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     }
 
     if (!cached) {
+        brix_vfs_ctx_t list_scope;
+
         entries = ngx_array_create(r->pool, 256, sizeof(s3_entry_t));
         if (entries == NULL) {
             return NGX_ERROR;
         }
 
-        s3_walk(r->connection->log,
-                (const char *) cf->common.root.data,
+        s3_build_vfs_ctx(r, (const char *) cf->common.root.data,
+                         cf, &list_scope);
+        s3_walk(&list_scope,
                 (const char *) cf->common.root.data,
                 "", prefix, delimiter, entries, S3_LIST_MAX_ENTRIES);
 
@@ -163,10 +166,13 @@ s3_list_emit_entries(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                      u_char *xml, size_t *xml_len_io, size_t xml_capacity,
                      int *contents_out, int *prefixes_out)
 {
+    brix_vfs_ctx_t list_scope;
     size_t xml_len   = *xml_len_io;
     int    contents  = 0;
     int    prefixes  = 0;
     char   iso_buf[32];
+
+    s3_build_vfs_ctx(r, (const char *) cf->common.root.data, cf, &list_scope);
 
     for (int entry_index = start_idx; entry_index < end_idx; entry_index++) {
         s3_entry_t *entry = &items[entry_index];
@@ -184,9 +190,7 @@ s3_list_emit_entries(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         /* phase-45 W1: stat is done HERE, only for the emitted page.  If the
          * object vanished or is no longer a regular file, skip it (matches the
          * eager walker's stat-failure skip). */
-        if (s3_entry_fill_stat(r->pool, r->connection->log,
-                               (const char *) cf->common.root.data,
-                               entry) != NGX_OK)
+        if (s3_entry_fill_stat(&list_scope, entry) != NGX_OK)
         {
             continue;
         }

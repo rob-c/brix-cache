@@ -14,6 +14,7 @@ import re
 import sys
 import time
 
+from cmdscripts import handoff_credential_store
 from cmdscripts.live_common import LiveFailure, LiveRun
 from cmdscripts.user_backend_cred import (
     SKIP,
@@ -134,7 +135,7 @@ def _metric_paths(run):
         (origin / name).mkdir(exist_ok=True)
     _phase_counters_1(front)
     creds = run.mkdir("creds")
-    creds.chmod(0o777)
+    handoff_credential_store(creds)
     return origin, front, creds
 
 

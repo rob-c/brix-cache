@@ -115,6 +115,12 @@ brix_vfs_ctx_init(void *ctx, void *conf, const char *root, size_t rootlen)
     (void) ctx; (void) conf; (void) root; (void) rootlen;
 }
 
+void
+brix_vfs_ctx_bind_no_authz_rules(void *ctx)
+{
+    (void) ctx;
+}
+
 /* ---- stubs: the compute kernels, which this test must never reach ---------- */
 
 #define NEVER_COMPUTE(fn)                                                     \

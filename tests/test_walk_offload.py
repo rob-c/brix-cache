@@ -203,6 +203,23 @@ def test_remote_walk_returns_the_origin_listing(rig):
     assert b"alpha.txt" in body, body[:400]
 
 
+def test_remote_walk_depth_infinity_rides_the_offload(rig):
+    """(success) The doc's W1 obligation names BOTH Depth:1 and Depth:infinity:
+    the deepest recursive walk is the one that holds a thread-pool thread the
+    longest (Appendix-B R-5), so the offload must cover it too. The offload is
+    method-level (not depth-level), so a Depth:infinity PROPFIND against the
+    remote backend must still return a well-formed multistatus listing through
+    the offloaded build — never an error or a hang — the same way Depth:1 does.
+    (Depth:1 and infinity are not byte-identical: infinity recurses, so the
+    bodies legitimately differ; what this pins is that the DEEP walk rides the
+    offload and lists the tree.)"""
+    inst = rig["inst"]
+    status, body = _propfind(inst.host, inst.port, depth="infinity")
+    assert status == 207, status
+    assert b"multistatus" in body
+    assert b"alpha.txt" in body, body[:400]
+
+
 # ---------------------------------------------------------------------------
 # error
 # ---------------------------------------------------------------------------

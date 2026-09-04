@@ -85,7 +85,8 @@ http {
     # One-glance access log: class=hit/fill/reject, which Stratum-1 was used
     log_format cvmfs '$remote_addr [$time_local] "$request" $status '
                      '$body_bytes_sent $request_time '
-                     'class=$cvmfs_class cache=$cvmfs_cache origin=$cvmfs_origin';
+                     'class=$cvmfs_class cache=$brix_cache_status '
+                     'origin=$cvmfs_origin';
     access_log /var/log/nginx-xrootd/cvmfs_access.log cvmfs;
 
     # Keep every WN connection alive — prevents spurious proxy-failure marks
@@ -232,8 +233,8 @@ sum by (repo) (rate(brix_cvmfs_repo_bytes_served_total{source="hit"}[5m]))
   / sum by (repo) (rate(brix_cvmfs_repo_bytes_served_total[5m]))
 
 # cvmfs share of ALL cache lookups this node serves (proto identity, T16)
-sum(rate(brix_cache_hits_total{proto="cvmfs"}[5m]))
-  / sum(rate(brix_cache_hits_total[5m]))
+sum(rate(brix_cache_requests_total{proto="cvmfs",cache_status="HIT"}[5m]))
+  / sum(rate(brix_cache_requests_total{proto="cvmfs"}[5m]))
 ```
 
 (Adjust the per-proto family name in the last query to the module's actual
@@ -245,12 +246,15 @@ stable part.)
 Every request lands in `cvmfs_access.log` with the cvmfs format:
 
 ```
-10.1.2.3 [02/Jul/2026:14:31:07 +0000] "GET /cvmfs/atlas.cern.ch/data/ab/cd…01 HTTP/1.1" 200 187342 0.004 class=cas cache=hit origin=-
-10.1.2.4 [02/Jul/2026:14:31:09 +0000] "GET /cvmfs/atlas.cern.ch/.cvmfspublished HTTP/1.1" 200 421 0.812 class=manifest cache=fill origin=cvmfs-stratum-one.cern.ch:80
+10.1.2.3 [02/Jul/2026:14:31:07 +0000] "GET /cvmfs/atlas.cern.ch/data/ab/cd…01 HTTP/1.1" 200 187342 0.004 class=cas cache=HIT origin=-
+10.1.2.4 [02/Jul/2026:14:31:09 +0000] "GET /cvmfs/atlas.cern.ch/.cvmfspublished HTTP/1.1" 200 421 0.812 class=manifest cache=MISS origin=cvmfs-stratum-one.cern.ch:80
 ```
 
-`cache=fill` lines ARE your WAN traffic; `awk '$0~/cache=fill/'` over a
-time window is a poor man's WAN audit when Prometheus is down.
+The disposition is `$brix_cache_status`, the one cross-plane vocabulary
+(`HIT`/`MISS`/`NEGHIT`/`-`); phase 112 removed the plane-local `$cvmfs_cache`
+and its `hit`/`fill`/`neg` spelling of the same fact, so a **fill now reads
+`MISS`**. `cache=MISS` lines ARE your WAN traffic; `awk '$0~/cache=MISS/'`
+over a time window is a poor man's WAN audit when Prometheus is down.
 
 ### Diagnostic event log (error_log)
 

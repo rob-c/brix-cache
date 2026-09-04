@@ -15,72 +15,36 @@ Coverage:
 Self-contained (no shared fleet).
 """
 
-import os
 import re
 import socket
 import struct
-import subprocess
-import time
+from pathlib import Path
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN
+from settings import BIND_HOST
+from server_registry import NginxInstanceSpec
 
 import _test_session_bind_helpers as H
-from ephemeral_port import free_port
+
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-locate-prefname")]
+
+_SERVER = "lc-locate-prefname"
 
 kXR_locate = 3027
 kXR_prefname = 0x0100
 _IPV4 = re.compile(rb"^\d{1,3}(\.\d{1,3}){3}$")
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, free_port()))  # leased mock-range port (never kernel-assigned)
-    port = s.getsockname()[1]
-    s.close()
-    return port
-
-
-def _launch(tmp_path):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    ns = tmp_path / "ns"
-    ns.mkdir(exist_ok=True)
-    (ns / "f.bin").write_bytes(b"L" * 4096)
-    logs = tmp_path / "logs"
-    logs.mkdir(exist_ok=True)
-    port = _free_port()
-    conf = tmp_path / "nginx.conf"
-    conf.write_text(
-        "daemon on;\nworker_processes 1;\n"
-        f"pid {logs}/nginx.pid;\nerror_log {logs}/error.log info;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n  server {\n"
-        f"    listen {BIND_HOST}:{port};\n"
-        "    brix_root on;\n"
-        f"    brix_export {ns};\n"
-        "    brix_auth none;\n"
-        "  }\n}\n")
-    t = subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf), "-t"],
-                       capture_output=True, text=True, timeout=30)
-    assert t.returncode == 0, f"config rejected: {t.stderr}"
-    r = subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf)],
-                       capture_output=True, text=True, timeout=30)
-    assert r.returncode == 0, f"nginx failed to start: {r.stderr}"
-    for _ in range(50):
-        try:
-            socket.create_connection((BIND_HOST, port), timeout=0.5).close()
-            break
-        except OSError:
-            time.sleep(0.1)
-    return port, conf
-
-
-def _stop(tmp_path, conf):
-    subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf),
-                    "-s", "quit"], capture_output=True, timeout=30)
-    time.sleep(0.2)
+def _launch(lifecycle):
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name=_SERVER,
+        template="nginx_lc_locate_prefname.conf",
+        template_values={"BIND_HOST": BIND_HOST},
+        reason="locate prefname wire coverage"))
+    Path(endpoint.data_root, "f.bin").write_bytes(b"L" * 4096)
+    return endpoint.port
 
 
 def _locate(sock, stream, path, options):
@@ -99,9 +63,9 @@ def _split_token(tok):
     return access, hostport[0], hostport[1]
 
 
-def test_default_locate_returns_ip(tmp_path):
+def test_default_locate_returns_ip(lifecycle):
     """(regression) option clear ⇒ the IP literal, exactly as before."""
-    port, conf = _launch(tmp_path)
+    port = _launch(lifecycle)
     sock = None
     try:
         H.ANON_HOST = BIND_HOST
@@ -117,13 +81,12 @@ def test_default_locate_returns_ip(tmp_path):
     finally:
         if sock is not None:
             sock.close()
-        _stop(tmp_path, conf)
 
 
-def test_prefname_returns_hostname(tmp_path):
+def test_prefname_returns_hostname(lifecycle):
     """(success) kXR_prefname set ⇒ gethostname(2), not a dotted IP; access +
     port preserved."""
-    port, conf = _launch(tmp_path)
+    port = _launch(lifecycle)
     sock = None
     try:
         H.ANON_HOST = BIND_HOST
@@ -141,13 +104,12 @@ def test_prefname_returns_hostname(tmp_path):
     finally:
         if sock is not None:
             sock.close()
-        _stop(tmp_path, conf)
 
 
-def test_prefname_and_default_differ(tmp_path):
+def test_prefname_and_default_differ(lifecycle):
     """(discriminator) the two forms genuinely diverge — same server, one call
     each, host field IP vs name."""
-    port, conf = _launch(tmp_path)
+    port = _launch(lifecycle)
     sock = None
     try:
         H.ANON_HOST = BIND_HOST
@@ -162,4 +124,3 @@ def test_prefname_and_default_differ(tmp_path):
     finally:
         if sock is not None:
             sock.close()
-        _stop(tmp_path, conf)

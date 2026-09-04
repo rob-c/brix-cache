@@ -41,6 +41,7 @@
 #include "protocols/shared/file_serve.h"
 #include "protocols/shared/http_cache_fill.h"
 #include "protocols/shared/http_serve_offload.h"
+#include "protocols/shared/vfs_authz_bind.h"
 #include "protocols/shared/mirror_common.h"
 
 #include <limits.h>
@@ -122,7 +123,8 @@ oci_fill_fail(ngx_http_request_t *r, void *data, ngx_int_t status)
 
 /* Re-entry trampoline: the completed fill re-runs the whole handler, which now
  * takes the hit path. The disposition stays FILL — the bytes came from a fresh
- * upstream pull, and an operator reading $oci_cache wants to know that. */
+ * upstream pull, and an operator reading $brix_cache_status wants to know
+ * that. */
 static ngx_int_t
 oci_reenter(ngx_http_request_t *r, void *data)
 {
@@ -159,7 +161,7 @@ oci_serve_or_fill(ngx_http_request_t *r, ngx_http_brix_oci_loc_conf_t *lcf,
                               BRIX_OCI_ERR_UNAVAILABLE, NULL);
     }
 
-    rc = brix_http_cache_fill_if_needed(r, sd, ctx->key, &lcf->common,
+    rc = brix_http_cache_fill_if_needed(r, sd, ctx->key, &lcf->common, NULL,
                                         oci_reenter, NULL, oci_fill_fail);
     if (rc == NGX_DONE) {
         ctx->disp = BRIX_OCI_OUT_FILL;
@@ -344,6 +346,7 @@ oci_tier_get(ngx_http_request_t *r, ngx_http_brix_oci_loc_conf_t *lcf,
     is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_OCI,
                       root, "", BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL, path);
+    brix_http_vfs_bind_no_rules(&lcf->common, &vctx);
 
     vctx.sd = brix_vfs_backend_resolve(root, r->connection->log);
     if (vctx.sd == NULL) {

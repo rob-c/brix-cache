@@ -27,11 +27,17 @@
 static int
 brix_parse_port_str(const char *port_str, int *port)
 {
-    int p = atoi(port_str);
-    if (p <= 0 || p > 65535) {
+    char *end;
+    long  p;
+
+    if (port_str == NULL || port_str[0] == '\0') {
         return -1;
     }
-    *port = p;
+    p = strtol(port_str, &end, 10);
+    if (*end != '\0' || p <= 0 || p > 65535) {
+        return -1;
+    }
+    *port = (int) p;
     return 0;
 }
 

@@ -37,6 +37,7 @@ typedef enum {
     XRDC_VFS_WRITE  = 0x02,   /* open for writing (create+truncate unless RESUME)  */
     XRDC_VFS_RESUME = 0x04,   /* writer: keep existing object, resume at offset     */
     XRDC_VFS_FORCE  = 0x08,   /* writer: overwrite an existing destination          */
+    XRDC_VFS_NOFOLLOW = 0x10, /* local reader: refuse a symlink at the final component */
 } brix_vfs_oflags;
 
 typedef enum {

@@ -262,8 +262,12 @@ oci_upload_create(ngx_http_request_t *r, const brix_oci_store_t *st,
 
     /* The empty part-file IS the session: creating it is what makes the
      * session exist, and its absence is what makes every later request on a
-     * finished id answer 404 without a lookup table to consult. */
-    return brix_oci_store_put_text(part, "", 0, r->connection->log);
+     * finished id answer 404 without a lookup table to consult. STAGE, not
+     * REGISTRY: a lost session marker is a retried upload, not a broken promise,
+     * so it renames without the fsync a durable domain would pay for. */
+    return brix_oci_store_publish_bytes(st, part, "", 0,
+                                        BRIX_VFS_DOMAIN_STAGE,
+                                        r->connection->log);
 }
 
 

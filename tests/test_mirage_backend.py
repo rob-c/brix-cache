@@ -16,18 +16,20 @@ Coverage:
 Self-contained: launches its own short-lived nginx; no shared fleet.
 """
 
-import os
 import socket
 import struct
-import subprocess
-import time
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN
+from settings import BIND_HOST
+from server_registry import NginxInstanceSpec
 
 import _test_session_bind_helpers as H
-from ephemeral_port import free_port
+
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-mirage-backend")]
+
+_SERVER = "lc-mirage-backend"
 
 SIZE = 65536
 kXR_open, kXR_read = 3010, 3013
@@ -40,58 +42,16 @@ def _pattern(off, n):
     return bytes(((o * 131 + 7) & 0xFF) for o in range(off, off + n))
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, free_port()))  # leased mock-range port (never kernel-assigned)
-    port = s.getsockname()[1]
-    s.close()
-    return port
+def _spec(backend_line):
+    return NginxInstanceSpec(
+        name=_SERVER,
+        template="nginx_lc_mirage_backend.conf",
+        template_values={"BIND_HOST": BIND_HOST, "BACKEND": backend_line},
+        reason="mirage backend wire and config coverage")
 
 
-def _launch(tmp_path, backend_line):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    ns = tmp_path / "ns"
-    ns.mkdir(exist_ok=True)
-    logs = tmp_path / "logs"
-    logs.mkdir(exist_ok=True)
-    port = _free_port()
-    conf = tmp_path / "nginx.conf"
-    conf.write_text(
-        "daemon on;\n"
-        "worker_processes 1;\n"
-        f"pid {logs}/nginx.pid;\n"
-        f"error_log {logs}/error.log info;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n"
-        "  server {\n"
-        f"    listen {BIND_HOST}:{port};\n"
-        "    brix_root on;\n"
-        f"    brix_export {ns};\n"
-        "    brix_auth none;\n"
-        f"    {backend_line}\n"
-        "  }\n"
-        "}\n")
-    t = subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf), "-t"],
-                       capture_output=True, text=True, timeout=30)
-    if t.returncode != 0:
-        return port, conf, t   # caller inspects (config-reject tests)
-    r = subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf)],
-                       capture_output=True, text=True, timeout=30)
-    assert r.returncode == 0, f"nginx failed to start: {r.stderr}"
-    for _ in range(50):
-        try:
-            socket.create_connection((BIND_HOST, port), timeout=0.5).close()
-            break
-        except OSError:
-            time.sleep(0.1)
-    return port, conf, t
-
-
-def _stop(tmp_path, conf):
-    subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf),
-                    "-s", "quit"], capture_output=True, timeout=30)
-    time.sleep(0.2)
+def _launch(lifecycle, backend_line):
+    return lifecycle.start(_spec(backend_line)).port
 
 
 def _open(sock, stream, path, mode_flags):
@@ -100,10 +60,10 @@ def _open(sock, stream, path, mode_flags):
                        payload=path.encode() + b"\x00")
 
 
-def test_pattern_reads_and_stat(tmp_path):
+def test_pattern_reads_and_stat(lifecycle):
     """(success) any path opens at the configured size and range reads return
     the exact deterministic pattern — including the EOF straddle."""
-    port, conf, _ = _launch(tmp_path, f"brix_storage_backend mirage:{SIZE};")
+    port = _launch(lifecycle, f"mirage:{SIZE}")
     H.ANON_HOST = BIND_HOST
     primary = None
     try:
@@ -127,13 +87,12 @@ def test_pattern_reads_and_stat(tmp_path):
     finally:
         if primary is not None:
             primary.close()
-        _stop(tmp_path, conf)
 
 
-def test_write_open_refused_and_eof_empty(tmp_path):
+def test_write_open_refused_and_eof_empty(lifecycle):
     """(error) the backend is read-only: a create/update open is refused; a
     read entirely past EOF returns zero bytes."""
-    port, conf, _ = _launch(tmp_path, f"brix_storage_backend mirage:{SIZE};")
+    port = _launch(lifecycle, f"mirage:{SIZE}")
     H.ANON_HOST = BIND_HOST
     primary = None
     try:
@@ -154,11 +113,12 @@ def test_write_open_refused_and_eof_empty(tmp_path):
     finally:
         if primary is not None:
             primary.close()
-        _stop(tmp_path, conf)
 
 
-def test_malformed_size_refused(tmp_path):
+def test_malformed_size_refused(lifecycle):
     """(config) a malformed mirage size fails nginx -t."""
-    port, conf, t = _launch(tmp_path, "brix_storage_backend mirage:notasize;")
+    lifecycle.register(_spec("mirage:notasize"))
+    lifecycle.reconfigure(_SERVER)
+    t = lifecycle.nginx_test(_SERVER, check=False)
     assert t.returncode != 0, "malformed mirage size accepted by nginx -t"
     assert "mirage" in t.stderr, t.stderr

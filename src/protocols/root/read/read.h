@@ -54,6 +54,19 @@ ngx_int_t brix_fsoverload_backoff(brix_ctx_t *ctx, ngx_connection_t *c,
  */
 ngx_int_t brix_handle_readv(brix_ctx_t *ctx, ngx_connection_t *c);
 
+/* Windowed kXR_readv support.  The shared read-window pump asks these helpers
+ * for the current payload placement and hands completed I/O back for streaming.
+ * The original segment records remain exact in one logical response body while
+ * its bytes are produced through a bounded BRIX_READ_WINDOW scratch buffer. */
+void brix_readv_window_sizes(brix_ctx_t *ctx, size_t *want,
+    size_t *scratch_need);
+u_char *brix_readv_window_payload(brix_ctx_t *ctx, u_char *scratch);
+ngx_int_t brix_readv_window_emit(brix_ctx_t *ctx, ngx_connection_t *c,
+    ssize_t nread, int io_errno);
+ngx_int_t brix_readv_serve_windowed(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *rconf, void *wire_segments,
+    size_t segment_count, size_t body_size);
+
 /* ---- Function: brix_handle_pgread() ----
  * Handles kXR_pgread opcode — page-mode read returning raw bytes interleaved with per-page CRC32c checksums.
  * Validates handle, parses offset/rlen, divides into pages (BRIX_READ_PAGE_SIZE), performs pread(2)

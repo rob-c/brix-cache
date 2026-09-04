@@ -2,9 +2,14 @@
  * walk_offload.h — thread-offload for blocking metadata walks (phase 109).
  *
  * WHAT: Declares the gate + dispatch that move a WebDAV metadata build
- *       (PROPFIND today; SEARCH/LOCK are the planned W2 adopters) onto the
- *       shared thread pool when its VFS I/O would otherwise block the event
- *       loop against a remote storage backend.
+ *       (PROPFIND and SEARCH) onto the shared thread pool when its VFS I/O
+ *       would otherwise block the event loop against a remote storage backend.
+ *       LOCK is deliberately NOT an adopter: its descendant conflict walk is
+ *       not read-only (it reaps expired lock-null resources and mutates the
+ *       lock table inline), so splitting it across a worker and the event loop
+ *       would open a TOCTOU window — phase-113 deferred that offload with its
+ *       trigger not observed, and reopening it must satisfy the whole
+ *       boundary in that doc together, not just move the blocking read.
  *
  * WHY:  phase-106 W5 traced a real availability defect: PROPFIND/SEARCH/LOCK
  *       run their backend I/O INLINE, so against a remote backend (the origin

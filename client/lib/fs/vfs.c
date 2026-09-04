@@ -47,8 +47,7 @@ brix_vfs_register_backend(const brix_vfs_backend *be)
  * A5 (s3).  Declared __attribute__((weak)) so libbrix.{a,so} builds cleanly
  * before those tasks land; a NULL weak symbol is skipped in vfs_init_backends.
  */
-extern const brix_vfs_backend *brix_vfs_posix_backend(void)
-    __attribute__((weak));
+extern const brix_vfs_backend *brix_vfs_posix_backend(void);
 extern const brix_vfs_backend *brix_vfs_block_backend(void)
     __attribute__((weak));
 extern const brix_vfs_backend *brix_vfs_s3_backend(void)
@@ -64,9 +63,7 @@ extern const brix_vfs_backend *brix_vfs_s3_backend(void)
 static void
 vfs_init_backends(void)
 {
-    if (brix_vfs_posix_backend != NULL) {
-        brix_vfs_register_backend(brix_vfs_posix_backend());
-    }
+    brix_vfs_register_backend(brix_vfs_posix_backend());
     if (brix_vfs_block_backend != NULL) {
         brix_vfs_register_backend(brix_vfs_block_backend());
     }

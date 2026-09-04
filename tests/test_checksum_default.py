@@ -17,77 +17,38 @@ overrides; unset ⇒ adler32 (regression); a bad value degrades to adler32; the
 directive passes `nginx -t`. Self-contained (no shared fleet).
 """
 
-import os
-import socket
 import struct
-import subprocess
-import time
+from pathlib import Path
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN
+from settings import BIND_HOST
+from server_registry import NginxInstanceSpec
 
 import _test_session_bind_helpers as H
-from ephemeral_port import free_port
+
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-checksum-default")]
+
+_SERVER = "lc-checksum-default"
 
 kXR_query = 3001
 kXR_Qcksum = 3
 kXR_Qconfig = 7
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, free_port()))  # leased mock-range port (never kernel-assigned)
-    port = s.getsockname()[1]
-    s.close()
-    return port
+def _spec(extra):
+    return NginxInstanceSpec(
+        name=_SERVER,
+        template="nginx_lc_checksum_default.conf",
+        template_values={"BIND_HOST": BIND_HOST, "CHECKSUM_DIRECTIVE": extra},
+        reason="checksum-default wire and config coverage")
 
 
-def _write_conf(tmp_path, extra):
-    ns = tmp_path / "ns"
-    ns.mkdir(exist_ok=True)
-    (ns / "f.bin").write_bytes(b"checksum default payload\n")
-    logs = tmp_path / "logs"
-    logs.mkdir(exist_ok=True)
-    port = _free_port()
-    conf = tmp_path / "nginx.conf"
-    conf.write_text(
-        "daemon on;\nworker_processes 1;\n"
-        f"pid {logs}/nginx.pid;\nerror_log {logs}/error.log info;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n  server {\n"
-        f"    listen {BIND_HOST}:{port};\n"
-        "    brix_root on;\n"
-        f"    brix_export {ns};\n"
-        "    brix_auth none;\n"
-        f"    {extra}\n"
-        "  }\n}\n")
-    return port, conf
-
-
-def _launch(tmp_path, extra):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    port, conf = _write_conf(tmp_path, extra)
-    t = subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf), "-t"],
-                       capture_output=True, text=True, timeout=30)
-    assert t.returncode == 0, f"config rejected: {t.stderr}"
-    r = subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf)],
-                       capture_output=True, text=True, timeout=30)
-    assert r.returncode == 0, f"nginx failed to start: {r.stderr}"
-    for _ in range(50):
-        try:
-            socket.create_connection((BIND_HOST, port), timeout=0.5).close()
-            break
-        except OSError:
-            time.sleep(0.1)
-    return port, conf
-
-
-def _stop(tmp_path, conf):
-    subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf),
-                    "-s", "quit"], capture_output=True, timeout=30)
-    time.sleep(0.2)
+def _launch(lifecycle, extra):
+    endpoint = lifecycle.start(_spec(extra))
+    Path(endpoint.data_root, "f.bin").write_bytes(b"checksum default payload\n")
+    return endpoint.port
 
 
 def _query(port, subcode, payload):
@@ -108,56 +69,42 @@ def _cksum_algo(port, path):
     return _query(port, kXR_Qcksum, path).split(b" ", 1)[0]
 
 
-def test_default_drives_qcksum_and_qconfig(tmp_path):
+def test_default_drives_qcksum_and_qconfig(lifecycle):
     """(success) crc32c default ⇒ path-Qcksum computes crc32c and Qconfig leads
     with it (once, not duplicated)."""
-    port, conf = _launch(tmp_path, "brix_checksum_default crc32c;")
-    try:
-        assert _cksum_algo(port, b"/f.bin") == b"crc32c"
-        chksum = _query(port, kXR_Qconfig, b"chksum")
-        assert chksum.startswith(b"crc32c,"), f"chksum list: {chksum!r}"
-        assert chksum.count(b"crc32c") == 1, "default duplicated in cslist"
-        assert b"adler32" in chksum, "full algo set no longer advertised"
-    finally:
-        _stop(tmp_path, conf)
+    port = _launch(lifecycle, "brix_checksum_default crc32c;")
+    assert _cksum_algo(port, b"/f.bin") == b"crc32c"
+    chksum = _query(port, kXR_Qconfig, b"chksum")
+    assert chksum.startswith(b"crc32c,"), f"chksum list: {chksum!r}"
+    assert chksum.count(b"crc32c") == 1, "default duplicated in cslist"
+    assert b"adler32" in chksum, "full algo set no longer advertised"
 
 
-def test_explicit_request_algo_overrides_default(tmp_path):
+def test_explicit_request_algo_overrides_default(lifecycle):
     """(override) an explicit ?cks.type=md5 still wins over the default."""
-    port, conf = _launch(tmp_path, "brix_checksum_default crc32c;")
-    try:
-        assert _cksum_algo(port, b"/f.bin?cks.type=md5") == b"md5"
-    finally:
-        _stop(tmp_path, conf)
+    port = _launch(lifecycle, "brix_checksum_default crc32c;")
+    assert _cksum_algo(port, b"/f.bin?cks.type=md5") == b"md5"
 
 
-def test_unset_defaults_to_adler32(tmp_path):
+def test_unset_defaults_to_adler32(lifecycle):
     """(regression) no directive ⇒ adler32 leads Qconfig and answers Qcksum."""
-    port, conf = _launch(tmp_path, "")
-    try:
-        assert _cksum_algo(port, b"/f.bin") == b"adler32"
-        assert _query(port, kXR_Qconfig, b"chksum").startswith(b"adler32,")
-    finally:
-        _stop(tmp_path, conf)
+    port = _launch(lifecycle, "")
+    assert _cksum_algo(port, b"/f.bin") == b"adler32"
+    assert _query(port, kXR_Qconfig, b"chksum").startswith(b"adler32,")
 
 
-def test_bad_value_degrades_to_adler32(tmp_path):
+def test_bad_value_degrades_to_adler32(lifecycle):
     """(robustness) an unrecognized algo does not break checksums — it falls
     back to adler32 at use, never erroring the request."""
-    port, conf = _launch(tmp_path, "brix_checksum_default not_an_algo;")
-    try:
-        assert _cksum_algo(port, b"/f.bin") == b"adler32"
-        assert _query(port, kXR_Qconfig, b"chksum").startswith(b"adler32,")
-    finally:
-        _stop(tmp_path, conf)
+    port = _launch(lifecycle, "brix_checksum_default not_an_algo;")
+    assert _cksum_algo(port, b"/f.bin") == b"adler32"
+    assert _query(port, kXR_Qconfig, b"chksum").startswith(b"adler32,")
 
 
-def test_directive_accepted_by_config_test(tmp_path):
+def test_directive_accepted_by_config_test(lifecycle):
     """(config) brix_checksum_default passes `nginx -t`."""
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip("nginx not executable")
-    _port, conf = _write_conf(tmp_path, "brix_checksum_default sha256;")
-    r = subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf), "-t"],
-                       capture_output=True, text=True, timeout=30)
+    lifecycle.register(_spec("brix_checksum_default sha256;"))
+    lifecycle.reconfigure(_SERVER)
+    r = lifecycle.nginx_test(_SERVER, check=False)
     assert r.returncode == 0, f"rejected by -t: {r.stderr}"
     assert "unknown directive" not in r.stderr

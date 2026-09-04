@@ -54,7 +54,7 @@ def test_move_fresh_dest_created_201(mx):
     after = cx.mfetch(mx.metrics)
     assert st == 201
     assert s.delta("brix_io_ops_total", RENAME_OK, after) == 1
-    assert s.delta("brix_io_latency_usec_count", {**IO, "op": "rename"},
+    assert s.delta("brix_io_latency_seconds_count", {**IO, "op": "rename"},
                    after) == 1
     assert s.delta("brix_webdav_responses_total",
                    {"method": "MOVE", "status_class": "2xx"}, after) == 1

@@ -552,7 +552,7 @@ class TestTheSourceSaysWhatThisFileSays:
         for path in ("protocols/s3/handler_dispatch.c",
                      "protocols/s3/copy.c",
                      "protocols/s3/post_object.c",
-                     "protocols/s3/delete_objects.c"):
+                     "protocols/s3/delete_objects_batch.c"):
             body = _source(path)
             assert "s3_resolve_key_ex(" in body, path
 

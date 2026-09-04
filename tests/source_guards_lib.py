@@ -50,8 +50,6 @@ def _is_comment_line(code: str) -> bool:
 # ---------------------------------------------------------------------------
 _CONFIG_ALLOWLIST = (
     "src/core/compat/kxr_names.c",
-    "src/fs/backend/gsiftp/gftp_mlsx.c",
-    "src/fs/backend/gsiftp/gftp_reply.c",
     "src/fs/cache/noop.c",
     "src/fs/scan/scan_drift.c",
     "src/net/guard/guard_test.c",
@@ -303,6 +301,12 @@ _MC_APPROVED = {
     # tables).  Kept in lock-step with tools/ci/check_metric_cardinality.py.
     "mode",
     "outcome",
+    # ENUM: publish precondition and registered storage-driver vocabularies.
+    "kind",
+    "driver",
+    # ENUM: storage domain (BRIX_VFS_DOMAIN_METRIC_COUNT fixed domains,
+    # brix_metric_vfs_domain_name table — phase-108 C11).
+    "domain",
     # CONFIG-N (deployment-bounded named resources)
     "export",
     "backend",

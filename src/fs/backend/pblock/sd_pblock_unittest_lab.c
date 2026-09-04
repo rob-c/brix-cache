@@ -103,6 +103,8 @@ test_lab_fault_inject(void)
     o = D->open(&inst, "/f", BRIX_SD_O_READ, 0, &err);
     CHECK(o != NULL, "open read (faulted)");
     if (o != NULL) {
+        CHECK(D->read_sendfile_fd(o, 0, 5, 1) == NGX_INVALID_FILE,
+              "faulted handle refuses sendfile bypass");
         errno = 0;
         CHECK(D->pread(o, buf, sizeof(buf), 0) == -1 && errno == EIO,
               "faulted pread → EIO");

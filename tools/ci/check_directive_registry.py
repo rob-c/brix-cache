@@ -41,8 +41,10 @@ import re
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from directive_registry_w5 import (   # phase-110 W5 rules (file-size split)
-    _rule_r11, _rule_r12, _rule_r13, _rule_r14, _phase_is_implemented,
-    _vocab_findings_for, _missing_tokens, _R13_REQUIRED_JSON_KEYS)
+    _rule_r11, _rule_r12, _rule_r13, _rule_r14, _rule_r15,
+    _phase_is_implemented,
+    _vocab_findings_for, _missing_tokens, _R13_REQUIRED_JSON_KEYS,
+    _R13_JSON_SOURCE, _R15_REMOVED_JSON_KEYS)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # The three inputs are env-overridable so the checker's own tests can point it at
@@ -425,22 +427,25 @@ def _report(findings, fail_mode):
     """Group findings by rule, print them, and return the process exit code."""
     _print_findings_by_rule(findings)
 
-    # phase-105 W5.4: R1/R2/R4/R5/R6 gate under --fail; R3 stays WARN-scoped
-    # until W6 (docs-from-source) closes the 300+ backlog structurally.
+    # phase-105 W6: the source-derived reference closes R3 structurally, so it
+    # gates alongside the ownership and spelling rules.
     # phase-106 W8: R7 (variable naming), R9 (plane parity) and R10 (the
     # credential-exposure SECURITY rule) gate too — their backlogs are already
-    # empty, so they gate from the first commit. R8 (variable docs) stays
-    # WARN-scoped alongside R3, the same docs-from-source posture.
-    gating = ("R1", "R2", "R4", "R5", "R6", "R7", "R9", "R10",
-              "R11", "R12", "R13", "R14", "ALLOWLIST")
+    # empty, so they gate from the first commit. R8 (variable docs) remains
+    # advisory until its separate reference is generated.
+    # phase-112 W6: R15 joins them. It is a self-deleting pin — silent until
+    # its own document says IMPLEMENTED — so it has no backlog to close, and a
+    # pin that can never fail the build is not a pin.
+    gating = ("R1", "R2", "R3", "R4", "R5", "R6", "R7", "R9", "R10",
+              "R11", "R12", "R13", "R14", "R15", "ALLOWLIST")
     hard = [f for f in findings if f[0] in gating]
     if fail_mode and hard:
         print(f"\ncheck_directive_registry: FAIL — {len(hard)} gating finding(s)",
               file=sys.stderr)
         return 1
     print("\ncheck_directive_registry: WARN — findings reported, not gating "
-          "(R3/R8 gate after their docs-from-source backlogs close; run with "
-          "--fail for R1/R2/R4/R5/R6/R7/R9/R10/R11/R12/R13/R14)")
+          "(R8 remains advisory; run with --fail for "
+          "R1/R2/R3/R4/R5/R6/R7/R9/R10/R11/R12/R13/R14/R15)")
     return 0
 
 
@@ -629,6 +634,7 @@ def main(argv):
     findings += _rule_r12()
     findings += _rule_r13()
     findings += _rule_r14(variables, allow)   # W5.4 self-deleting alias pin
+    findings += _rule_r15()                   # phase-112 JSON-key pin
     # tamper pin: an allowlist line without a reason is itself a failure.
     for name in bad_allow:
         findings.append(("ALLOWLIST", name, "allowlist entry missing a '# reason'"))

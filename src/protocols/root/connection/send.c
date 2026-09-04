@@ -82,7 +82,7 @@ ngx_stream_brix_send(ngx_event_t *wev)
 
     ctx->state = XRD_ST_REQ_HEADER;
     ctx->recv.hdr_pos = 0;
-    ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
                   "brix: send_done avail=%d ready=%d active=%d",
                   c->read->available, (int) c->read->ready,
                   (int) c->read->active);

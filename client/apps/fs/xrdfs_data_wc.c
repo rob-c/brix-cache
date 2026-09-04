@@ -10,43 +10,54 @@
  */
 #include "xrdfs_internal.h"
 
-/* Stream `path` once, accumulating line (newline) and word counts into *lines and *words.
- * On error prints the wc diagnostic and returns the shell exit code (>0); 0 on success. */
+typedef struct {
+    long long lines;
+    long long words;
+    int       in_word;
+} wc_sink_t;
+
+static int
+wc_sink(const uint8_t *data, size_t len, int64_t offset, void *arg,
+        brix_status *st)
+{
+    wc_sink_t *sink = arg;
+    size_t     i;
+
+    (void) offset;
+    (void) st;
+    for (i = 0; i < len; i++) {
+        if (data[i] == '\n') {
+            sink->lines++;
+        }
+        if (isspace(data[i])) {
+            sink->in_word = 0;
+        } else if (!sink->in_word) {
+            sink->in_word = 1;
+            sink->words++;
+        }
+    }
+    return 0;
+}
+
+/* Stream `path` once and accumulate newline and word counts. */
 static int
 wc_count_stream(brix_conn *c, const char *path, long long *lines, long long *words,
                 brix_status *st)
 {
-    brix_rfile f;
-    uint8_t   *buf;
-    int64_t    off = 0;
-    int        in_word = 0, rc = 0;
+    brix_rfile file;
+    wc_sink_t  sink = {0};
+    int        rc;
 
-    if (brix_rfile_open_read(c, path, NULL, 0, -1, &f, st) != 0) {
+    if (brix_rfile_open_read(c, path, NULL, 0, -1, &file, st) != 0) {
         return xrdfs_report_err("wc", path, st, 0, c);
     }
-    buf = (uint8_t *) malloc(1 << 20);
-    if (buf == NULL) {
-        brix_rfile_close(&f, st);
-        fprintf(stderr, "xrdfs: wc: out of memory\n");
-        return 51;
-    }
-    for (;;) {
-        ssize_t got = brix_rfile_pread(&f, off, buf, 1 << 20, st);
-        ssize_t k;
-        if (got < 0) { rc = -1; break; }
-        if (got == 0) { break; }
-        for (k = 0; k < got; k++) {
-            if (buf[k] == '\n') { (*lines)++; }
-            if (isspace(buf[k])) { in_word = 0; }
-            else if (!in_word) { in_word = 1; (*words)++; }
-        }
-        off += got;
-    }
-    free(buf);
-    brix_rfile_close(&f, st);
+    rc = brix_rfile_pump(&file, 0, -1, 0, wc_sink, &sink, NULL, st);
+    brix_rfile_close(&file, st);
     if (rc != 0) {
         return xrdfs_report_err("wc", path, st, 0, c);
     }
+    *lines = sink.lines;
+    *words = sink.words;
     return 0;
 }
 

@@ -305,7 +305,7 @@ typedef struct {
     cvmfs_url_info_t      url;             /* classify result                */
     ngx_brix_cvmfs_repo_metrics_t *repo; /* per-fqrn SHM counters (bounded
                                               slot table; NULL = unmapped)   */
-    ngx_uint_t            cache_status;    /* HIT/FILL/STALE/NEG — $cvmfs_cache
+    ngx_uint_t            cache_status;    /* HIT/FILL/STALE/NEG — the source
                                               (T16)                          */
     ngx_str_t             origin_used;     /* host:port of the fill origin —
                                               $cvmfs_origin (T16)            */
@@ -510,7 +510,9 @@ ngx_int_t brix_cvmfs_swarm_init_worker(ngx_cycle_t *cycle);
 ngx_int_t brix_cvmfs_swarm_roster_serve(ngx_http_request_t *r,
     ngx_http_brix_cvmfs_loc_conf_t *lcf);
 
-/* $cvmfs_cache dispositions (request ctx cache_status; 0 = not applicable). */
+/* cvmfs cache dispositions (request ctx cache_status; 0 = not applicable).
+ * Translated to the shared $brix_cache_status vocabulary by
+ * src/core/http/http_variables.c:cvmfs_cache_status(). */
 #define BRIX_CVMFS_CACHE_NONE  0u
 #define BRIX_CVMFS_CACHE_HIT   1u
 #define BRIX_CVMFS_CACHE_FILL  2u

@@ -67,6 +67,45 @@ def shared_thread_pool(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[boo
     )
 
 
+def service_publish(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    """phase-108 C10: the domain-gated service-publish verb
+    (compat/service_publish.c) over the REAL phase-107 primitives it composes —
+    the staged temp + confined durable commit (staged_file.o), the confined
+    openat2 layer (beneath.o), the temp-name kernel (tmp_path.o), and the typed
+    domain claim + read-only mutation kernel (vfs_policy_domain.o + vfs_policy.o).
+    Only the surfaces the normal-server path never reaches are doubled in the
+    test TU (impersonation inactive, the chmod broker, the resume hash, the
+    metric sink) — so the durable rename, the EROFS export refusal, and the
+    short-write reap all run through production code. ASan on the test TU catches
+    a torn temp lifecycle. See test_service_publish.c."""
+    objs = [
+        _need_obj(ngx_src, "objs/addon/compat/service_publish.o"),
+        _need_obj(ngx_src, "objs/addon/compat/staged_file.o"),
+        _need_obj(ngx_src, "objs/addon/compat/tmp_path.o"),
+        _need_obj(ngx_src, "objs/addon/path/beneath.o"),
+        _need_obj(ngx_src, "objs/addon/vfs/vfs_policy.o"),
+        _need_obj(ngx_src, "objs/addon/vfs/vfs_policy_domain.o"),
+    ]
+    for dep in objs:
+        if isinstance(dep, str):
+            return result(True, dep)
+    return _compile_and_run(
+        base / "test_service_publish",
+        [
+            "-O1",
+            "-g",
+            "-D_GNU_SOURCE",
+            "-fsanitize=address",
+            "-fno-omit-frame-pointer",
+            "-Wall",
+            *_nginx_includes(ngx_src),
+            str(TEST_C / "test_service_publish.c"),
+            *[str(o) for o in objs],
+            "-ldl",  # dlsym(RTLD_NEXT) for the fsync-ordering interposer
+        ],
+    )
+
+
 def chunk_geometry(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
     """brix_chunk_geometry wire-frame split contract at the phase-33 P3-B1
     BRIX_READ_CHUNK_MAX (32 MiB): ceil-divide, exact-boundary, zero-remainder
@@ -371,7 +410,7 @@ def tier_s3_creds(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, st
         base / "test_tier_s3_creds",
         [
             "-O", "-Wall",
-            *_nginx_includes(ngx_src),
+            *_nginx_includes(ngx_src, stream=True),
             str(TEST_C / "test_tier_s3_creds.c"),
             str(obj),
         ],
@@ -512,5 +551,3 @@ def sd_remote_wrongkind(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bo
         base / "test_sd_remote_wrongkind",
         ["-O", "-Wall", str(TEST_C / "test_sd_remote_wrongkind.c"), *objs, *_nginx_includes(ngx_src), "-lssl", "-lcrypto"],
     )
-
-

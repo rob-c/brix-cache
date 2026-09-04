@@ -228,8 +228,8 @@ These seconds-valued directives now accept nginx time units (`s`/`m`/`h`/`d`) in
 | `brix_webdav_cors_max_age` | *(same name)* | now `sec_slot` — accepts nginx time units (`1h` == `3600`). Additive. |
 | `brix_webdav_lock_timeout` | *(same name)* | now `sec_slot` — accepts nginx time units (`5m` == `300`). Additive. |
 | `brix_storage_credential_mint_ttl` | *(same name)* | now `sec_slot` on both planes — accepts nginx time units (`1h` == `3600`). Additive. |
-| `brix_webdav_cache_root` | `brix_cache_root` | legacy read-through cache root; field moved to the shared preamble. Bare name covers both HTTP protocols. Canon + outside-export guard unchanged. |
-| `brix_s3_cache_root` | `brix_cache_root` | same, s3 plane. |
+| `brix_webdav_cache_root` | `brix_cache_root` | POSIX shorthand for `brix_cache_store`; bare name covers both HTTP protocols. Canonicalization and the outside-export guard are unchanged. Configure only one of the two forms. |
+| `brix_s3_cache_root` | `brix_cache_root` | Same shorthand on the S3 plane. |
 
 > ~~Not converted: `brix_token_clock_skew`~~ **Converted in phase-105 W8** (see below): now `sec_slot` on both planes; the `[0,300]` security clamp is retained and rejects loudly — `10m` fails `nginx -t` with "capped at 300s", never silently truncates. Of the `ngx_uint_t` seconds fields, `brix_webdav_cors_max_age` and `brix_webdav_lock_timeout` are now `time_t`/`sec_slot` (done); `brix_storage_credential_mint_ttl` remains deferred — it has 10+ readers threading into the `ngx_uint_t` vfs field, so a clean conversion needs the vfs struct + signatures changed in the same pass.
 

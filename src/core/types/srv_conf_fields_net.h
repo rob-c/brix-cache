@@ -41,27 +41,7 @@
                                         (JWT).  Read synchronously when kXR_authmore
                                         is received; file may be refreshed externally. */
 
-    /* ---- TPC SSRF policy ---- */
-    ngx_flag_t  tpc_allow_local;    /* [brix_tpc_allow_local on|off] — allow
-                                       TPC pulls from loopback (127/8, ::1) and
-                                       link-local (169.254/16, fe80::/10) addresses.
-                                       Default off: these cannot be legitimate
-                                       XRootD federation nodes and are a SSRF surface. */
-    ngx_flag_t  tpc_allow_private;  /* [brix_tpc_allow_private on|off] — allow
-                                       TPC pulls from RFC-1918 private addresses
-                                       (10/8, 172.16/12, 192.168/16).
-                                       Default on: storage federation nodes commonly
-                                       live on private networks. */
-    ngx_flag_t  tpc_source_guard;   /* [brix_tpc_source_guard on|off] — when on,
-                                       a TPC pull is refused unless its source host
-                                       is on tpc_source_allow. Default off (opt-in):
-                                       a naming allowlist on top of the address-range
-                                       gate — an operator says "only these known
-                                       storage endpoints", fail-closed. */
-    ngx_array_t *tpc_source_allow;  /* [brix_tpc_source_allow <host>...] ngx_str_t[]
-                                       — exact hostnames or leading-'.' domain
-                                       suffixes a TPC pull may originate from when
-                                       tpc_source_guard is on (empty = deny all). */
+    /* ---- TPC root-specific controls (shared policy lives in common) ---- */
     ngx_flag_t  ssi_enable;         /* [brix_ssi on|off] — §7 XrdSsi
                                        request/response over /.ssi/<service>. */
     ngx_flag_t  ssi_cta_enable;     /* [brix_ssi_service cta] — gate the flagship
@@ -84,22 +64,9 @@
                                        (no per-frame syscall).  Bounds a slow-drip
                                        remote that keeps resetting the per-recv
                                        SO_RCVTIMEO idle timer.  0 = no cap. */
-    ngx_flag_t  tpc_require_source_size; /* [brix_tpc_require_source_size on|off] —
-                                       hostile-network completion gate. A source
-                                       size mismatch (bytes_written != kXR_stat size)
-                                       ALWAYS fails the pull; this knob additionally
-                                       refuses a pull whose source will not declare a
-                                       size at all (stat error / unparseable). Default
-                                       off: an unknown size proceeds unverified. */
     /* tpc_verify_checksum moved to the shared preamble (common.tpc_verify_checksum)
      * in phase-101 W4 — unified on|off|<alg> grammar across planes; the native path
      * reads it as a boolean gate (kXR_Qcksum negotiates its own algorithm). */
-    ngx_flag_t  tpc_outbound_tls;   /* [brix_tpc_outbound_tls on|off] — phase-57
-                                       §F5: advertise kXR_ableTLS on the TPC pull and
-                                       perform an in-protocol TLS upgrade when the
-                                       source answers kXR_gotoTLS, so TLS-requiring
-                                       sources can be pulled from. Default off:
-                                       behaviour identical to today (no gotoTLS). */
     ngx_flag_t  tpc_delegate;       /* [brix_tpc_delegate on|off] — phase-57 §F6:
                                        X.509 proxy delegation. When on, the inbound
                                        GSI login captures the client's delegated
@@ -119,41 +86,6 @@
                                        starvation.  Applied to the shared registry
                                        via brix_tpc_registry_set_max_age().
                                        0 = disabled.  Recommended 3600. */
-    ngx_str_t   tpc_outbound_bearer_file; /* [brix_tpc_outbound_bearer_file path]
-                                            JWT for outbound TPC kXR_auth ztn when
-                                            the remote source advertises token auth. */
-
-    ngx_flag_t  tpc_outbound_passthrough; /* [brix_tpc_outbound_passthrough on|off]
-                                             Phase-70: forward the client's own
-                                             inbound bearer JWT (ctx->bearer_token)
-                                             verbatim to the TPC source, so the
-                                             source authenticates the END USER — not
-                                             a static service credential. Selects the
-                                             OPPORTUNISTIC "passthrough-opt" token_mode
-                                             for every native root:// TPC pull opened
-                                             on this server: an inbound token is
-                                             forwarded when present, but its absence
-                                             falls back to bearer-file/GSI proxy
-                                             delegation/anonymous — never a new denial.
-                                             (An explicit client tpc.token_mode=
-                                             passthrough is still STRICT/fail-closed.)
-                                             Default ON; set `off` to disable. */
-
-    /* ---- TPC OAuth2/OIDC token delegation ---- */
-    ngx_str_t   tpc_outbound_token_endpoint; /* [brix_tpc_outbound_token_endpoint URL]
-                                                 OAuth2 token endpoint for RFC 8693
-                                                 token exchange when delegating credentials
-                                                 to a protected TPC source. */
-    ngx_str_t   tpc_outbound_client_id;       /* [brix_tpc_outbound_client_id ID]
-                                                  OAuth2 client ID for confidential
-                                                  client token exchange. */
-    ngx_str_t   tpc_outbound_client_secret;   /* [brix_tpc_outbound_client_secret SECRET]
-                                                  OAuth2 client secret for confidential
-                                                  client token exchange. */
-    ngx_str_t   tpc_outbound_scope;           /* [brix_tpc_outbound_scope SCOPE]
-                                                  Scope to request during token exchange
-                                                  (e.g. "storage.read"). */
-
     /*
      * ---- read-through cache ----
      *

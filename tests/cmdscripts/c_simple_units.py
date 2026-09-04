@@ -81,7 +81,7 @@ SPECS: dict[str, CUnitSpec] = {
             "-Wextra",
             "-Werror",
             "tests/c/test_site_n2n.c",
-            "src/fs/backend/site_n2n.c",
+            "src/fs/path/site_n2n.c",
         ),
     ),
     "stage_admit": CUnitSpec(
@@ -193,6 +193,7 @@ SPECS: dict[str, CUnitSpec] = {
             "src",
             "tests/c/test_cred_stage.c",
             "src/core/compat/cred_stage.c",
+            "-ldl",  # dlsym(RTLD_NEXT) for the fsync-ordering interposer
         ),
     ),
     "sesslog": CUnitSpec(

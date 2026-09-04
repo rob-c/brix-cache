@@ -10,7 +10,7 @@ import signal
 import subprocess
 import time
 
-from cmdscripts import run
+from cmdscripts import handoff_credential_store, run
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, CA_CERT, CA_KEY, HOST, NGINX_BIN, SERVER_CERT, SERVER_KEY, TEST_ROOT
 
@@ -122,7 +122,7 @@ def write_front_config(base: Path, origin_port: int, front_port: int, delegation
         (front / sub).mkdir(parents=True, exist_ok=True)
     creds = base / "creds"
     creds.mkdir(parents=True, exist_ok=True)
-    creds.chmod(0o777)
+    handoff_credential_store(creds)
     conf = front / "nginx.conf"
     conf.write_text(
         f"""daemon on;

@@ -84,7 +84,7 @@ tpc_bootstrap_maybe_tls(brix_tpc_pull_t *t, int fd, u_char *body, uint32_t dlen)
     free(body);
 
     if (flags & kXR_gotoTLS) {
-        if (!t->conf->tpc_outbound_tls) {
+        if (!t->conf->common.tpc_outbound_tls) {
             snprintf(t->err_msg, sizeof(t->err_msg),
                 "TPC source requires TLS; set brix_tpc_outbound_tls on");
             t->xrd_error = kXR_NotAuthorized;
@@ -120,7 +120,7 @@ tpc_bootstrap_protocol(brix_tpc_pull_t *t, int fd)
      * directive off we send no TLS flag, so the source never offers gotoTLS and
      * behaviour is identical to before. */
     xrd_pack_protocol_request(&pr, tpc_bootstrap_streamid,
-                              t->conf->tpc_outbound_tls ? kXR_ableTLS : 0);
+                              t->conf->common.tpc_outbound_tls ? kXR_ableTLS : 0);
 
     if (tpc_send_all(t, fd, &pr, sizeof(pr)) != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg), "TPC kXR_protocol send failed");

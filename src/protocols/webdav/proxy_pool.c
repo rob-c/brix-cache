@@ -238,13 +238,12 @@ brix_proxy_pool_add(const char *url, ngx_uint_t weight, ngx_pool_t *pool,
 }
 
 /*
- * Shared implementation for remove/drain/undrain: find the slot with this id and
- * either zero it (remove_it) or set its state (drain stamps drained_at so callers
- * can age out idle draining backends).  Returns 1 if a matching backend was
- * found, 0 otherwise.  Holds the lock for the whole O(n) scan.
+ * Shared implementation for drain/undrain: find the slot with this id and set
+ * its state. Drain stamps drained_at so callers can age out idle draining
+ * backends. Returns 1 if a matching backend was found, 0 otherwise.
  */
 static int
-proxy_pool_set_state(uint32_t id, int remove_it, brix_proxy_be_state_e state)
+proxy_pool_set_state(uint32_t id, brix_proxy_be_state_e state)
 {
     brix_proxy_be_table_t *tbl;
     ngx_uint_t               i;
@@ -261,13 +260,9 @@ proxy_pool_set_state(uint32_t id, int remove_it, brix_proxy_be_state_e state)
         if (!e->in_use || e->id != id) {
             continue;
         }
-        if (remove_it) {
-            ngx_memzero(e, sizeof(*e));
-        } else {
-            e->state = state;
-            e->drained_at = (state == BRIX_PROXY_BE_DRAINING)
-                            ? ngx_current_msec : 0;
-        }
+        e->state = state;
+        e->drained_at = (state == BRIX_PROXY_BE_DRAINING)
+                        ? ngx_current_msec : 0;
         found = 1;
         break;
     }
@@ -275,11 +270,38 @@ proxy_pool_set_state(uint32_t id, int remove_it, brix_proxy_be_state_e state)
     return found;
 }
 
-/* Remove a backend entirely (frees its slot). Returns 1 if found. */
-int
+/*
+ * Remove a quiescent backend and free its slot.  The check and slot clear are
+ * performed under the same lock as selection, so no new reservation can race
+ * between them.  A busy backend remains intact and must be drained first.
+ */
+brix_proxy_remove_result_e
 brix_proxy_pool_remove(uint32_t id)
 {
-    return proxy_pool_set_state(id, 1, BRIX_PROXY_BE_ACTIVE);
+    brix_proxy_be_table_t      *tbl;
+    brix_proxy_remove_result_e  result = BRIX_PROXY_REMOVE_NOT_FOUND;
+    ngx_uint_t                  i;
+
+    tbl = pool_table();
+    if (tbl == NULL) {
+        return result;
+    }
+    ngx_shmtx_lock(&brix_proxy_pool_mutex);
+    for (i = 0; i < tbl->capacity; i++) {
+        brix_proxy_be_entry_t *e = &tbl->slots[i];
+        if (!e->in_use || e->id != id) {
+            continue;
+        }
+        if (e->in_flight != 0) {
+            result = BRIX_PROXY_REMOVE_BUSY;
+            break;
+        }
+        ngx_memzero(e, sizeof(*e));
+        result = BRIX_PROXY_REMOVE_REMOVED;
+        break;
+    }
+    ngx_shmtx_unlock(&brix_proxy_pool_mutex);
+    return result;
 }
 
 /* Mark a backend draining: it stops receiving new picks (select skips non-ACTIVE)
@@ -287,14 +309,14 @@ brix_proxy_pool_remove(uint32_t id)
 int
 brix_proxy_pool_drain(uint32_t id)
 {
-    return proxy_pool_set_state(id, 0, BRIX_PROXY_BE_DRAINING);
+    return proxy_pool_set_state(id, BRIX_PROXY_BE_DRAINING);
 }
 
 /* Return a drained backend to ACTIVE so it is eligible for selection again. */
 int
 brix_proxy_pool_undrain(uint32_t id)
 {
-    return proxy_pool_set_state(id, 0, BRIX_PROXY_BE_ACTIVE);
+    return proxy_pool_set_state(id, BRIX_PROXY_BE_ACTIVE);
 }
 
 /* Current in-flight request count for a backend, or -1 if the id is unknown

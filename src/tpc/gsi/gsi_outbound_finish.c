@@ -19,7 +19,7 @@
  *
  * WHY: TPC pull outbound authentication needs to select between WLCG JWT (ztn) and GSI certreq auth paths based on what the server supports (advertised in login/authmore parameters) and what credentials are configured locally. The selection logic prefers JWT when the server lists ztn first (typical for auth=both deployments) and a bearer file exists, with fallback to GSI if ZTN fails but server also allows GSI — this prevents silent failure from expired token files at sites that have both auth methods available.
  *
- * HOW: login_dlen <= session_id_len+1 → error kXR_ArgInvalid → parms = login_body + session_id_len → strstr(parms, "ztn") for want_ztn + strstr(parms, "gsi") for want_gsi → delegated_token or conf->tpc_outbound_bearer_file for have_ztn_cred + certificate.len > 0 && certificate_key.len > 0 for have_cert → if want_ztn && have_ztn_cred: tpc_outbound_ztn(t, fd) == 0 → return 0; else if !want_gsi || !have_cert → return -1 (no fallback available); if want_gsi && have_cert: tpc_outbound_gsi(t, fd) → error snprintf referencing missing config + kXR_AuthFailed.
+ * HOW: login_dlen <= session_id_len+1 → error kXR_ArgInvalid → parms = login_body + session_id_len → strstr(parms, "ztn") for want_ztn + strstr(parms, "gsi") for want_gsi → delegated_token or conf->common.tpc_outbound_bearer_file for have_ztn_cred + certificate.len > 0 && certificate_key.len > 0 for have_cert → if want_ztn && have_ztn_cred: tpc_outbound_ztn(t, fd) == 0 → return 0; else if !want_gsi || !have_cert → return -1 (no fallback available); if want_gsi && have_cert: tpc_outbound_gsi(t, fd) → error snprintf referencing missing config + kXR_AuthFailed.
  * */
 
 /* WHAT: Auth path selection/dispatch — parse server login/authmore params for ztn/gsi, check have_ztn_cred+have_cert config → prefer JWT if want_ztn && have_ztn_cred (fall through to GSI on failure), else delegate tpc_outbound_gsi(t, fd). Returns 0 or -1 with t->xrd_error set. Caller: thread.c auth path dispatch after bootstrap. */
@@ -56,9 +56,9 @@ tpc_outbound_finish_login(brix_tpc_pull_t *t, int fd,
      * so have_ztn_cred degrades to the bearer-file test and the code below falls
      * back to GSI proxy delegation (or anonymous) — the pre-default-flip behaviour. */
     have_ztn_cred = (t->delegated_token[0] != '\0'
-                     || t->conf->tpc_outbound_bearer_file.len > 0) ? 1 : 0;
-    have_cert = (t->conf->certificate.len > 0
-                 && t->conf->certificate_key.len > 0) ? 1 : 0;
+                     || t->conf->common.tpc_outbound_bearer_file.len > 0) ? 1 : 0;
+    have_cert = (t->conf->common.certificate.len > 0
+                 && t->conf->common.certificate_key.len > 0) ? 1 : 0;
 
     /*
      * Prefer WLCG JWT when the server lists ztn first (typical for auth=both)

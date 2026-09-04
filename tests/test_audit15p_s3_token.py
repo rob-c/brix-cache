@@ -523,14 +523,14 @@ def _source(rel):
 def test_the_skew_clamp_is_shared_not_copied():
     """DEFECT CANDIDATE #50, pinned at the source after the unification.
 
-    The [0, 300] clamp lives ONCE for the HTTP planes (shared_conf_merge.h,
-    behind the shared preamble every protocol merges through) plus its stream
-    twin, and the S3 module no longer registers a skew slot of its own — so a
-    plane cannot drift back to an unbounded copy.
+    The [0, 300] clamp lives once in shared_conf_merge.h, behind the shared
+    preamble every HTTP and stream protocol merges through. The S3 module no
+    longer registers a skew slot of its own, so a plane cannot drift back to an
+    unbounded copy.
     """
     assert "is capped at 300s" in _source(
         "src/core/config/shared_conf_merge.h")
-    assert "is capped at 300s" in _source(
+    assert "ngx_http_brix_shared_merge" in _source(
         "src/core/config/server_conf_merge_security.c")
     assert 'ngx_string("brix_s3_token_clock_skew")' not in _source(
         "src/protocols/s3/module.c")

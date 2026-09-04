@@ -232,9 +232,9 @@ class TestTheKrb5ForwardableFlag:
         http declaration is parse-only, and nothing says so at either config
         time or run time."""
         readers = _krb5_forwardable_readers()
-        # 2026-08-31: 566 -> 567 — the phase-105 VFS commit (c41272caf) touched
-        # op_path.c above the reader without updating this pin.
-        assert readers == ["src/protocols/root/path/op_path.c:567"], readers
+        # The VFS context-builder split moved this one consumer out of
+        # op_path.c; pin its new cohesive home as well as its uniqueness.
+        assert readers == ["src/protocols/root/path/op_path_vfs.c:201"], readers
         assert "brix_krb5_deleg_origin_spn" in OP_PATH_C.read_text()
 
 
@@ -248,11 +248,18 @@ def _krb5_forwardable_readers():
 
 def _forwardable_readers_in(path):
     readers = []
-    text = path.read_text(errors="replace")
+    try:
+        text = path.read_text(errors="replace")
+    except FileNotFoundError:
+        return readers
     for number, line in enumerate(text.splitlines(), start=1):
         if _is_forwardable_reader(line):
             readers.append(f"{path.relative_to(ROOT)}:{number}")
     return readers
+
+
+def test_forwardable_reader_scan_ignores_a_vanished_generated_file(tmp_path):
+    assert _forwardable_readers_in(tmp_path / "vanished.c") == []
 
 
 def _is_forwardable_reader(line):

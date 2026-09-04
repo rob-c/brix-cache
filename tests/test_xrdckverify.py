@@ -208,6 +208,17 @@ def test_cache_truncated_xmeta_record_is_rejected(datafile):
     assert rc == 2 and "no recorded checksum" in err, err
 
 
+def test_cache_sidecar_symlink_is_rejected(datafile, tmp_path):
+    """A substituted metadata sidecar cannot redirect verification reads."""
+    path, data = datafile
+    outside = tmp_path / "attacker.cinfo"
+    outside.write_bytes(_xmeta_record("adler32", _adler32(data), len(data)))
+    os.symlink(outside, path + ".cinfo")
+
+    rc, _out, err = _run("--cache", path)
+    assert rc == 2 and "no recorded checksum" in err, err
+
+
 def test_auto_finds_cache_record(datafile):
     path, data = datafile
     _write_cinfo(path, "adler32", _adler32(data), len(data))

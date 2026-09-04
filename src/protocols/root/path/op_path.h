@@ -69,6 +69,14 @@ ngx_int_t brix_resolve_op_path(brix_ctx_t *ctx, ngx_connection_t *c,
  */
 int brix_op_path_forbidden_component(const char *reqpath);
 
+/* Initialise the standard request-scoped root:// VFS context, attach the
+ * persistent confinement rootfd, and bind the session's monitoring,
+ * authorization and delegation state. Protocol-specific credential and mint
+ * policy may be added by the caller before the first VFS operation. */
+void brix_root_vfs_ctx_init(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, brix_vfs_ctx_t *vctx,
+    const char *resolved_path);
+
 /*
  * brix_reject_dotdot_path — for the EXTRACT-based ops (stat/open/dirlist/
  * locate) that resolve straight through the kernel RESOLVE_BENEATH and so do

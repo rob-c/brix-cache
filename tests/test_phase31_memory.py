@@ -1,18 +1,15 @@
 """
 Phase 31 — memory-budget streaming regression tests.
 
-These cover W1 (bound & reclaim per-connection scratch buffers).  The module
-grows its reusable scratch buffers (read_scratch for memory-backed/TLS reads,
-write_scratch for pgwrite decode) to the largest request a session has served,
-then trims them back to BRIX_READ_WINDOW between requests once they exceed
-BRIX_SCRATCH_TRIM_THRESHOLD (see brix_trim_scratch / the recv loop).
+These cover W1 (bound and reclaim reusable scratch buffers) and the interaction
+between that lifecycle and W2's bounded streaming paths.  Ordinary, TLS, page,
+and vector reads reuse BRIX_READ_WINDOW-sized storage instead of retaining the
+logical response; write scratch still follows the hot/deferred-trim lifecycle.
 
-The Python client cannot observe worker heap directly, so these tests assert the
-property that a grow -> trim -> regrow cycle MUST preserve: byte-exact data and a
-stable connection.  A use-after-trim, truncation, or cross-request data-bleed
-bug introduced by the trim path would surface as a short/incorrect read or a
-broken connection here.  The RSS-level assertion (resident heap returns to
-~window when idle) is covered separately by the load-test harness.
+These tests assert byte-exact data and a stable connection across repeated and
+interleaved requests.  `test_readv_segment_size.py` separately observes the
+server worker and proves that a 32 MiB logical vector response does not produce
+whole-response resident growth.
 
 Trio per CLAUDE.md:
   * success          — TLS large-read trim cycle is byte-exact (read_scratch)
@@ -73,18 +70,16 @@ def _deterministic(n: int) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# success — read_scratch (memory-backed) grows past the threshold every request
-# and is trimmed between requests; data must stay byte-exact.
+# success — the bounded readv window is reused between requests and data stays
+# byte-exact.
 #
-# kXR_readv is served from read_scratch even on a cleartext connection (only
-# regular-file kXR_read uses sendfile), so repeated large readvs exercise the
-# exact read_scratch grow -> trim -> regrow cycle without depending on the TLS
-# data plane.  The send mechanism (queue_response_chain / flush_pending, with the
-# trim deferred until XRD_ST_SENDING drains) is identical to the TLS read path.
+# kXR_readv uses the memory-backed response path even on a cleartext connection
+# (ordinary regular-file kXR_read uses sendfile). Repeated vectors therefore
+# exercise the bounded fill/drain state and pending-send ownership directly.
 # ---------------------------------------------------------------------------
 
 @anon_only
-def test_readv_read_scratch_trim_cycle_integrity():
+def test_readv_window_reuse_integrity():
     payload = _deterministic(12 * 1024 * 1024)
     remote  = "/test_phase31_readv.bin"
 
@@ -100,8 +95,7 @@ def test_readv_read_scratch_trim_cycle_integrity():
     status, _ = f.open(f"{ANON_URL}//{remote.lstrip('/')}", OpenFlags.READ)
     assert status.ok, f"open for read failed: {status.message}"
 
-    # Each readv totals ~6 MiB -> read_scratch grows past the 4 MiB threshold;
-    # the recv loop trims it back to the window before the next readv regrows it.
+    # Each logical body totals ~6 MiB but is emitted through the reusable window.
     # Each element stays <= readv_ior_max (~2 MiB): the server rejects a single
     # element larger than that (matching stock do_ReadV), so use more, smaller
     # elements rather than fewer oversized ones.

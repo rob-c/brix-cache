@@ -197,17 +197,14 @@ def _check_reads_work(port: int, label: str,
         st, body = _send(s, kXR_fattr, _fattr_body(kXR_fattrList, 0),
                          PUBLIC_FILE.encode() + b"\x00")
         results.append((st == kXR_ok, f"{label}: fattr list (read side) succeeds"))
-        # The read-only gate on kXR_prepare is scoped to kXR_wmode; a plain
-        # stage hint must not draw it.  (Its path scan runs against the LOCAL
-        # export, not the backend, so a backend-only path answers "file not
-        # found" here — a pre-existing scoping quirk, not the read-only gate.)
+        # Phase 107 deliberately treats a stage hint as a mutation.  Reject it
+        # at the typed VFS policy gate before it can enqueue backend work.
         st, body = _send(s, kXR_prepare,
                          struct.pack(">BBH12x", kXR_stage, 0, 0),
                          PUBLIC_FILE.encode() + b"\n")
-        results.append((_errnum(body) != kXR_fsReadOnly if st == kXR_error
-                        else True,
-                        f"{label}: prepare WITHOUT kXR_wmode is not refused as "
-                        f"read-only (status={st} {_errmsg(body)!r})"))
+        results.append((st == kXR_error and _errnum(body) == kXR_fsReadOnly,
+                        f"{label}: prepare stage is refused as read-only "
+                        f"(status={st} {_errmsg(body)!r})"))
     finally:
         s.close()
 

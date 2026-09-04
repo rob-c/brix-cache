@@ -13,6 +13,27 @@
 
 
 char *
+brix_http_register_storage_backend(ngx_conf_t *cf,
+    ngx_http_brix_shared_conf_t *common)
+{
+    if (brix_vfs_backend_config_str(cf, common->root_canon,
+                                    &common->storage_backend,
+                                    common->pblock_block_size, BRIX_AF_AUTO)
+        != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    if (brix_vfs_backend_config_n2n(cf, common->root_canon,
+                                    &common->n2n_scheme, &common->n2n_pool,
+                                    &common->n2n_prefix) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    return NGX_CONF_OK;
+}
+
+
+char *
 brix_http_merge_export_anchor(ngx_conf_t *cf,
     ngx_http_brix_shared_conf_t *common, const char *directive_name,
     ngx_flag_t allow_write)
@@ -38,11 +59,7 @@ brix_http_merge_export_anchor(ngx_conf_t *cf,
         return NGX_CONF_ERROR;
     }
 
-    if (brix_vfs_backend_config_str(cf, common->root_canon,
-                                    &common->storage_backend,
-                                    common->pblock_block_size, BRIX_AF_AUTO)
-        != NGX_OK)
-    {
+    if (brix_http_register_storage_backend(cf, common) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
 

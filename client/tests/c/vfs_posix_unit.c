@@ -128,5 +128,29 @@ int main(void) {
         printf("vfs posix abort OK\n");
     }
 
+    /* Test 6: metadata readers can refuse a final-component symlink. */
+    {
+        brix_status s6 = {0};
+        char target[] = "/tmp/vfs_target_XXXXXX";
+        char link[] = "/tmp/vfs_link_XXXXXX";
+        brix_vfs_open_opts ro = { .io_uring = XRDC_IO_URING_OFF,
+                                  .expected_size = -1, .cred = NULL };
+        brix_vfs_file *r = NULL;
+        int target_fd = mkstemp(target);
+        int link_fd = mkstemp(link);
+
+        assert(target_fd >= 0 && link_fd >= 0);
+        close(target_fd);
+        close(link_fd);
+        unlink(link);
+        assert(symlink(target, link) == 0);
+        assert(brix_vfs_open(link, XRDC_VFS_READ | XRDC_VFS_NOFOLLOW,
+                             &ro, &r, &s6) != 0);
+        assert(r == NULL);
+        unlink(link);
+        unlink(target);
+        printf("vfs posix nofollow guard OK\n");
+    }
+
     return 0;
 }

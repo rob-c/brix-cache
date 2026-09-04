@@ -137,10 +137,37 @@ def test_suite_binary_args_propagate_to_all_helper_names(monkeypatch, tmp_path: 
     assert operator_runtime.run_suite([
         "--fast", "--nginx-bin", str(nginx), "--xrootd-bin", str(xrootd),
     ]) == 0
-    assert operator_runtime.os.environ["TEST_NGINX_BIN"] == str(nginx)
-    assert operator_runtime.os.environ["NGINX_BIN"] == str(nginx)
+    frozen = Path(operator_runtime.os.environ["TEST_NGINX_BIN"])
+    assert frozen != nginx
+    assert frozen.read_bytes() == nginx.read_bytes()
+    assert operator_runtime.os.environ["NGINX_BIN"] == str(frozen)
     for name in ("TEST_BRIX_BIN", "BRIX_BIN", "XROOTD_BIN", "REF_BIN"):
         assert operator_runtime.os.environ[name] == str(xrootd)
+
+
+def test_fast_suite_jobs_are_opt_in(monkeypatch, tmp_path: Path):
+    nginx = _executable(tmp_path / "custom-nginx")
+    xrootd = _executable(tmp_path / "custom-xrootd")
+    selections = []
+    monkeypatch.setattr(operator_runtime, "teardown_test_fleet", lambda root: None)
+    monkeypatch.setattr(operator_runtime, "_existing", lambda paths: [])
+    monkeypatch.setattr(
+        operator_runtime, "_pytest_lane",
+        lambda selection, *args, **kwargs: selections.append(selection) or True,
+    )
+
+    base = ["--fast", "--nginx-bin", str(nginx),
+            "--xrootd-bin", str(xrootd)]
+    assert operator_runtime.run_suite(base) == 0
+    assert "not suite_job" in selections[-1][-1]
+
+    assert operator_runtime.run_suite([*base, "--include-suite-jobs"]) == 0
+    assert "suite_job" not in selections[-1][-1]
+
+
+def _assert_default_sample_selection(selection):
+    assert "--first-percent=10" in selection
+    assert "not suite_job" in selection[-1]
 
 
 def test_explicit_first_percent_is_one_no_retry_sample_lane(monkeypatch, tmp_path: Path):
@@ -160,7 +187,7 @@ def test_explicit_first_percent_is_one_no_retry_sample_lane(monkeypatch, tmp_pat
     ]) == 0
     assert len(calls) == 1
     selection, main, common = calls[0]
-    assert selection[-1] == "--first-percent=10"
+    _assert_default_sample_selection(selection)
     assert main == ["-n", "8", "--dist", "loadgroup"]
     assert ["-p", "no:rerunfailures"] == common[4:6]
     # positional pinning stops here: the crash-storm bound
@@ -210,6 +237,24 @@ def test_suite_rejects_missing_xrootd_before_cleanup(monkeypatch, tmp_path: Path
         "--fast", "--nginx-bin", str(nginx),
         "--xrootd-bin", str(tmp_path / "missing"),
     ])
+    assert rc == 2
+    assert cleaned == []
+
+
+def test_suite_rejects_nginx_when_immutable_capture_fails(monkeypatch,
+                                                          tmp_path: Path):
+    from cmdscripts import live_common
+
+    nginx = _executable(tmp_path / "nginx")
+    xrootd = _executable(tmp_path / "xrootd")
+    cleaned = []
+    monkeypatch.setattr(live_common, "freeze_nginx", lambda source: Path(source))
+    monkeypatch.setattr(operator_runtime, "clean_test_fleet", cleaned.append)
+
+    rc = operator_runtime.run_suite([
+        "--fast", "--nginx-bin", str(nginx), "--xrootd-bin", str(xrootd),
+    ])
+
     assert rc == 2
     assert cleaned == []
 

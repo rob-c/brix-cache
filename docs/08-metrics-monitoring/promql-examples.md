@@ -9,8 +9,8 @@ Concrete PromQL queries for common monitoring scenarios. Replace `[1m]`, `[5m]`,
 Every protocol plane reports into the same process-wide metrics zone under a
 `proto` label — `stream` (native XRootD), `webdav`, `s3`, `cvmfs`, `gridftp` —
 so the unified `brix_io_*` families answer "by protocol" questions in one query
-with no per-plane arithmetic. Prefer them. The legacy per-protocol byte families
-below are the older wire-ledger view and exist for `stream`/`webdav`/`s3` only.
+with no per-plane arithmetic. Prefer them. The per-IP families below are the
+lower-level wire-ledger view and exist for `stream`/`webdav`/`s3` only.
 
 ### Throughput and operations by protocol (all protocols):
 ```promql
@@ -31,12 +31,12 @@ sum by (proto, op) (rate(brix_io_ops_total[5m]))
 sum by (proto, method) (rate(brix_auth_total{status="fail"}[5m]))
 ```
 
-### Legacy per-protocol wire ledgers (stream / WebDAV / S3 only)
+### Protocol throughput and per-IP wire ledgers
 
 ### Total throughput by protocol in MB/s:
 ```promql
 # Native XRootD root:// throughput
-sum(rate(brix_bytes_root_tx_total[5m])) / 1024 / 1024
+sum(rate(brix_io_bytes_read{proto="stream"}[5m])) / 1024 / 1024
 
 # WebDAV (davs:// and https://) throughput — combine both IP versions
 sum(rate(brix_webdav_bytes_tx_ipv4_total[5m]) + rate(brix_webdav_bytes_tx_ipv6_total[5m])) / 1024 / 1024
@@ -50,7 +50,7 @@ sum(rate(brix_s3_bytes_tx_ipv4_total[5m]) + rate(brix_s3_bytes_tx_ipv6_total[5m]
 # Total throughput across stream + WebDAV + S3 in MB/s
 # (for a genuinely all-protocol total use sum(rate(brix_io_bytes_read[5m])))
 (
-  sum(rate(brix_bytes_root_tx_total[5m]))
+  sum(rate(brix_io_bytes_read{proto="stream"}[5m]))
 + sum(rate(brix_webdav_bytes_tx_ipv4_total[5m]) + rate(brix_webdav_bytes_tx_ipv6_total[5m]))
 + sum(rate(brix_s3_bytes_tx_ipv4_total[5m]) + rate(brix_s3_bytes_tx_ipv6_total[5m]))
 ) / 1024 / 1024
@@ -64,9 +64,9 @@ sum(rate(brix_s3_bytes_tx_ipv4_total[5m]) + rate(brix_s3_bytes_tx_ipv6_total[5m]
 
 # The wire-ledger equivalent: what fraction is root:// vs WebDAV vs S3?
 (
-  sum(rate(brix_bytes_root_tx_total[5m]))
+  sum(rate(brix_io_bytes_read{proto="stream"}[5m]))
 / (
-    sum(rate(brix_bytes_root_tx_total[5m]))
+    sum(rate(brix_io_bytes_read{proto="stream"}[5m]))
   + sum(rate(brix_webdav_bytes_tx_ipv4_total[5m]) + rate(brix_webdav_bytes_tx_ipv6_total[5m]))
   + sum(rate(brix_s3_bytes_tx_ipv4_total[5m]) + rate(brix_s3_bytes_tx_ipv6_total[5m])))
 ) * 100
@@ -134,7 +134,7 @@ rate(brix_vo_bytes_tx_total{vo="cms"}[5m]) / 1024 / 1024
 
 # Compare with aggregate native XRootD tx to see VO share of total
 rate(brix_vo_bytes_tx_total{vo="cms"}[5m]) 
-/ sum(rate(brix_bytes_root_tx_total[5m])) * 100
+/ sum(rate(brix_io_bytes_read{proto="stream"}[5m])) * 100
 ```
 
 ### VO request rate:
@@ -240,7 +240,7 @@ increase(brix_unique_users_total[3600]) - increase(brix_user_evictions_total[360
 
 | Expression | Label |
 |---|---|
-| `sum(rate(brix_bytes_root_tx_total[5m])) / 1024 / 1024` | root:// |
+| `sum(rate(brix_io_bytes_read{proto="stream"}[5m])) / 1024 / 1024` | root:// |
 | `sum(rate(brix_webdav_bytes_tx_ipv4_total[5m]) + rate(brix_webdav_bytes_tx_ipv6_total[5m])) / 1024 / 1024` | davs:// |
 | `sum(rate(brix_s3_bytes_tx_ipv4_total[5m]) + rate(brix_s3_bytes_tx_ipv6_total[5m])) / 1024 / 1024` | s3:// |
 

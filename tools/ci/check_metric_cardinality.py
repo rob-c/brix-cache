@@ -51,6 +51,7 @@ APPROVED = (
     "reason staging "                                          # ENUM (reap reason; 0/1 staging flag)
     "mode outcome "                                            # ENUM (cred-deleg gate: 6 fixed modes × 3 fixed outcomes, unified.c name tables)
     "kind "                                                    # ENUM (precond-refusal kind: the fixed absent/etag/meta table, unified_export_vfs.c)
+    "domain "                                                  # ENUM (BRIX_VFS_DOMAIN_METRIC_COUNT storage domains, brix_metric_vfs_domain_name table)
     "driver "                                                  # ENUM (BRIX_FS_ID_COUNT registered storage drivers, brix_fs_id_name table)
     "export backend origin upstream zone repo vo "             # CONFIG-N (named resources)
     "server port"                                              # CONFIG-N (cluster member host:port / listen port)

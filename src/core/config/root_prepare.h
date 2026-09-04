@@ -38,11 +38,13 @@ char *brix_prepare_export_root(ngx_conf_t *cf,
     char *root_canon);
 
 /*
- * brix_prepare_cache_root — canonicalize the shared preamble's read-through
- * cache root (brix_cache_root) and enforce the HARD guard that it lives
- * OUTSIDE the export (cache sidecars must never appear in the client
- * namespace).  No-op when cache_root is unset.  One helper for every HTTP
- * protocol's merge so the policy cannot drift per surface.
+ * brix_prepare_cache_root — lower brix_cache_root into the composable cache.
+ * Canonicalizes the shared preamble's POSIX cache directory, requires it to be
+ * writable, enforces the HARD outside-export guard, and turns it into a
+ * `posix:<canonical-path>` brix_cache_store before tier registration. The
+ * legacy cache-root fields are cleared so only one cache engine runs. A config
+ * that names both forms is rejected as ambiguous. No-op when cache_root is
+ * unset. One helper for every HTTP protocol's merge keeps the policy uniform.
  */
 char *brix_prepare_cache_root(ngx_conf_t *cf,
     ngx_http_brix_shared_conf_t *common);

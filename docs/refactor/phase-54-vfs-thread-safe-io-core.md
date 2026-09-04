@@ -1,6 +1,7 @@
 # Phase 54 — Thread-Safe VFS I/O Core (route all disk ops through the VFS layer)
 
-**Status:** PLAN ONLY (not implemented). Authored 2026-06-24.
+**Status:** SUPERSEDED / LANDED as `brix_vfs_io_core`. Authored 2026-06-24;
+reconciled 2026-09-02. No Phase-54 implementation remainder.
 
 > SUPERSEDED (2026-07-25): LANDED as `brix_vfs_io_core`
 > (`src/fs/vfs/vfs_io_core.{h,c}`). Note the repo-wide `xrootd_*`→`brix_*`

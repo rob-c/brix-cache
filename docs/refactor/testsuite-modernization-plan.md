@@ -2,8 +2,16 @@
 
 **Date:** 2026-08-17
 **Author:** architecture planning session
-**Status:** CORE IMPLEMENTED (2026-08-17) — the generic `brixtest` package now
-exists ground-up under `BriXTest/src/brixtest/` (35 modules, every file well
+**Current reconciliation (2026-09-03):** the standalone generic framework is
+implemented at repository path `brixtest/` (the product name remains BriXTest),
+with its own tests, docs and dependencies. Uppercase `BriXTest/` paths in the
+preserved original design should be read as `brixtest/`. Repository adoption is
+complete for ordinary pytest-owned nginx fixtures: Phase 81 records zero inline
+runnable configs and only three explicitly isolated operator/namespace
+launchers. The lifecycle-port ledger and full collection are green; preserved
+TS6–TS9 prose is historical design sequencing, not missing core API.
+**Status:** IMPLEMENTED / CLOSED (reconciled 2026-09-03) — the generic `brixtest` package now
+exists ground-up under `brixtest/src/brixtest/` (35 modules, every file well
 under the 600-line cap), deliberately **without tests** per OP direction; the
 two contract kits in `brixtest/testing/` are the seed the first test wave grows
 from. Same-day second wave: the **test-services layer** (§7.11, F16–F20 —
@@ -29,7 +37,7 @@ exists (`InstanceSpec.to_dict`/`from_dict`, warn-only `Registry.validate`,
 `OriginStub`, F13 `strict_templates` wiring, spec-env template rendering with
 the `BRIXTEST_LANE_ROOT`/`PORT_BASE`/`PORT_SPAN` lane triple) — and, at OP
 direction superseding the earlier "no tests" instruction, a **project test
-suite** under `BriXTest/tests/` demonstrates and tests the public API
+suite** under `brixtest/tests/` demonstrates and tests the public API
 end-to-end: static fleet addressing, marked log views, artifact
 catalog, workspaces, payloads, `wait_until`, a dynamic `OriginStub`, spec
 round-trip + validation tiers, the kind-contract kit, and the procworker
@@ -38,7 +46,7 @@ RPC including error frames. The checked-in `configs/servers.json` and
 activates them through the uniform `brix` fixture. The suite runs green
 back-to-back on kept and fresh lanes with a proven-quiescent fleet stop.
 The full CLI surface was then driven verb-by-verb against that same
-project (`--project BriXTest` — plan/start/status/restart/stop with
+project (`--project brixtest` — plan/start/status/restart/stop with
 quiescence, prep --explain, lane status, artifacts list/path incl. the
 miss contract, logs, gate explain in both verdict shapes with exit
 codes, results list/show, report, export, a live portal round-trip on
@@ -62,7 +70,7 @@ xdist degradations: markers/params capture columns are empty, not
 reconstructible from bare ids, and the mid-run sentinel-abort check in
 `pytest_runtest_setup` runs only where tests run, while the sentinel
 runs on the controller). The BriXTest suite is green serial and `-n 2`
-under both Python 3.13 and 3.9; `pip install -e BriXTest/` in a clean
+under both Python 3.13 and 3.9; `pip install -e brixtest/` in a clean
 venv yields a working `brixtest` entry point, driven against the
 example adapter; and the F13/F1 tiers are proven end-to-end (strict →
 `TemplateError` naming placeholder and template, warn → stderr finding

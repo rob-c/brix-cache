@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence, Union
 
 from brixtest._design_cases import case, get_case
-from brixtest._design_inputs import _name, _string_mapping
+from brixtest._design_inputs import Binary, _name, _string_mapping
 from brixtest.errors import SpecError
 from brixtest.evidence.collectors import CollectorSpec
 from brixtest.isolation import Isolation
@@ -21,7 +21,10 @@ _MISSING_POLICIES = ("skip", "fail")
 _DEFINE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _STANDARD = re.compile(r"^[A-Za-z0-9+_.-]+$")
 
-PathValue = Union[str, Path]
+PathValue = Union[str, Path, Reference]
+BuildArg = Union[str, Path, Reference]
+CompilerPart = Union[str, Path, Reference, Binary]
+CompilerValue = Optional[Union[CompilerPart, Sequence[CompilerPart]]]
 OutputValue = Optional[Union[str, "OutputExpectation"]]
 
 
@@ -39,7 +42,10 @@ def _text_item(value: object, field: str, *, paths: bool) -> None:
 
 
 def _text_contract(paths: bool) -> tuple[tuple[type, ...], str]:
-    return ((str, Path), "paths") if paths else ((str,), "non-empty NUL-free strings")
+    return (
+        ((str, Path, Reference), "paths or typed path references")
+        if paths else ((str,), "non-empty NUL-free strings")
+    )
 
 
 def _text_content(value: object, field: str, label: str) -> None:
@@ -78,7 +84,7 @@ def _expected_codes(value: object) -> tuple[int, ...]:
 def _defines(value: object) -> Mapping[str, object]:
     if not isinstance(value, Mapping):
         raise SpecError("native_test.defines", value, "must map preprocessor names to values")
-    valid_values = (str, int, bool, type(None))
+    valid_values = (str, int, bool, Reference, type(None))
     valid = all(
         isinstance(name, str) and _DEFINE.fullmatch(name)
         and isinstance(item, valid_values) and "\0" not in str(item)
@@ -92,16 +98,36 @@ def _defines(value: object) -> Mapping[str, object]:
     return freeze_mapping(value)
 
 
-def _compiler(value: object) -> Optional[tuple[str, ...]]:
+def _compiler(value: object) -> Optional[tuple[CompilerPart, ...]]:
     if value is None:
         return None
-    if isinstance(value, str):
-        selected = (value,)
-    else:
-        selected = _text_tuple(value, "native_test.compiler")
-    if any(not part or "\0" in part for part in selected):
-        raise SpecError("native_test.compiler", value, "must be shell-free argv")
+    selected = _compiler_parts(value)
+    _validate_compiler_parts(selected, value)
     return selected
+
+
+def _compiler_parts(value: object) -> tuple:
+    if isinstance(value, (str, Path, Reference, Binary)):
+        return (value,)
+    return _sequence(value, "native_test.compiler")
+
+
+def _validate_compiler_parts(selected: tuple, original: object) -> None:
+    if not selected or not all(isinstance(part, (str, Path, Reference, Binary))
+                               for part in selected):
+        raise SpecError(
+            "native_test.compiler", original,
+            "must be a command, captured binary, typed reference, or argv sequence",
+        )
+    if any(_invalid_compiler_part(part) for part in selected):
+        raise SpecError("native_test.compiler", original, "must be shell-free argv")
+
+
+def _invalid_compiler_part(value: CompilerPart) -> bool:
+    text = str(value)
+    if not text:
+        return True
+    return "\0" in text
 
 
 def _arguments(value: object) -> tuple[object, ...]:
@@ -156,14 +182,14 @@ class _NativeSpec:
     name: str
     sources: Sequence[PathValue]
     language: str = "auto"
-    compiler: Optional[Sequence[str]] = None
+    compiler: Optional[Sequence[CompilerPart]] = None
     standard: Optional[str] = None
     include_dirs: Sequence[PathValue] = ()
     defines: Mapping[str, object] = dataclasses.field(default_factory=dict)
     objects: Sequence[PathValue] = ()
     libraries: Sequence[str] = ()
-    compile_args: Sequence[str] = ("-Wall", "-Wextra", "-Werror")
-    link_args: Sequence[str] = ()
+    compile_args: Sequence[BuildArg] = ("-Wall", "-Wextra", "-Werror")
+    link_args: Sequence[BuildArg] = ()
     pkg_config: Sequence[str] = ()
     required_files: Sequence[PathValue] = ()
     required_commands: Sequence[str] = ()
@@ -198,8 +224,13 @@ class _NativeSpec:
         object.__setattr__(
             self, "objects", _text_tuple(self.objects, "native_test.objects", paths=True),
         )
-        for field in ("libraries", "compile_args", "link_args", "pkg_config", "required_commands"):
+        for field in ("libraries", "pkg_config", "required_commands"):
             value = _text_tuple(getattr(self, field), "native_test.%s" % field)
+            object.__setattr__(self, field, value)
+        for field in ("compile_args", "link_args"):
+            value = _text_tuple(
+                getattr(self, field), "native_test.%s" % field, paths=True,
+            )
             object.__setattr__(self, field, value)
         object.__setattr__(
             self, "required_files",
@@ -272,8 +303,8 @@ def _validate_output_limit(value: object) -> None:
 
 
 def _validate_cwd(value: object) -> None:
-    if value is not None and (not isinstance(value, (str, Path)) or not str(value)):
-        raise SpecError("native_test.cwd", value, "must be a path or None")
+    if value is not None and (not isinstance(value, (str, Path, Reference)) or not str(value)):
+        raise SpecError("native_test.cwd", value, "must be a path, typed reference, or None")
 
 
 def _validate_input(value: object) -> None:
@@ -328,7 +359,12 @@ def _native_signature(spec: _NativeSpec) -> inspect.Signature:
 
 
 def _parameter_names(spec: _NativeSpec) -> tuple[str, ...]:
-    values = (*spec.args, *spec.env.values(), *spec.compile_env.values())
+    values = (
+        *spec.sources, *spec.include_dirs, *spec.objects, *spec.required_files,
+        *(spec.compiler or ()), *spec.compile_args, *spec.link_args,
+        *spec.defines.values(), *((spec.cwd,) if spec.cwd is not None else ()),
+        *spec.args, *spec.env.values(), *spec.compile_env.values(),
+    )
     return tuple(dict.fromkeys(
         item.name for item in values
         if isinstance(item, Reference) and item.kind == "parameter"
@@ -362,12 +398,12 @@ def _case_options(
 
 def native_test(
     name: str, *, sources: Sequence[PathValue], resources: Sequence[object] = (),
-    language: str = "auto", compiler: Optional[Union[str, Sequence[str]]] = None,
+    language: str = "auto", compiler: CompilerValue = None,
     standard: Optional[str] = None, include_dirs: Sequence[PathValue] = (),
     defines: Optional[Mapping[str, object]] = None, objects: Sequence[PathValue] = (),
     libraries: Sequence[str] = (),
-    compile_args: Sequence[str] = ("-Wall", "-Wextra", "-Werror"),
-    link_args: Sequence[str] = (), pkg_config: Sequence[str] = (),
+    compile_args: Sequence[BuildArg] = ("-Wall", "-Wextra", "-Werror"),
+    link_args: Sequence[BuildArg] = (), pkg_config: Sequence[str] = (),
     required_files: Sequence[PathValue] = (), required_commands: Sequence[str] = (),
     args: Sequence[object] = (), env: Optional[Mapping[str, object]] = None,
     compile_env: Optional[Mapping[str, object]] = None, cwd: Optional[PathValue] = None,
@@ -404,7 +440,7 @@ def native_input_paths(value: object) -> tuple[Path, ...]:
     if not isinstance(spec, _NativeSpec) or definition is None:
         return ()
     root = Path(definition.source).parent
-    cwd = _resolve_path(spec.cwd or ".", root)
+    cwd = root if isinstance(spec.cwd, Reference) else _resolve_path(spec.cwd or ".", root)
     selected = (*spec.sources, *spec.include_dirs, *spec.objects, *spec.required_files)
     return _existing_paths(selected, cwd)
 
@@ -412,13 +448,15 @@ def native_input_paths(value: object) -> tuple[Path, ...]:
 def _existing_paths(values: Sequence[PathValue], cwd: Path) -> tuple[Path, ...]:
     result = []
     for value in values:
+        if isinstance(value, Reference):
+            continue
         path = _resolve_path(value, cwd)
         if path.exists():
             result.append(path)
     return tuple(dict.fromkeys(result))
 
 
-def _resolve_path(value: PathValue, root: Path) -> Path:
+def _resolve_path(value: Union[str, Path], root: Path) -> Path:
     path = Path(value)
     return (path if path.is_absolute() else root / path).resolve()
 

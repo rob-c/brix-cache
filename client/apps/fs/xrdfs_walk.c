@@ -13,32 +13,12 @@ int
 walk_dir(brix_conn *c, const char *path, int depth, xrdfs_visit visit, void *u,
          brix_status *st)
 {
-    brix_dirent *ents = NULL;
-    size_t       n = 0, i;
-
-    if (brix_dirlist(c, path, 1 /*want_stat*/, &ents, &n, st) != 0) {
+    if (depth != 0) {
+        brix_status_set(st, XRDC_EUSAGE, 0,
+                        "walk must begin at the requested root");
         return -1;
     }
-    for (i = 0; i < n; i++) {
-        char full[XRDC_PATH_MAX];
-        if (is_dot(ents[i].name) || join_path(path, ents[i].name, full, sizeof(full)) != 0) {
-            continue;
-        }
-        if (visit(full, &ents[i], depth, u) != 0) {
-            free(ents);
-            return 1;
-        }
-        if (ents[i].have_stat && (ents[i].st.flags & kXR_isDir)
-            && depth + 1 < XRDFS_MAXDEPTH) {
-            int rc = walk_dir(c, full, depth + 1, visit, u, st);
-            if (rc != 0) {
-                free(ents);
-                return rc;
-            }
-        }
-    }
-    free(ents);
-    return 0;
+    return brix_tree_walk(c, path, visit, u, st);
 }
 
 

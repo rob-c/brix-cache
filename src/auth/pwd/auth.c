@@ -283,7 +283,9 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
                                  "identity allocation failed");
     }
 
-    brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 0);
+    ctx->login.session_slot_hint =
+        brix_session_register(ctx->login.sessid, ctx->login.dn,
+                              ctx->login.vo_list, 0);
 
     ngx_log_error(NGX_LOG_INFO, c->log, 0, "brix: pwd auth OK user=\"%s\"",
                   ctx->login.dn);

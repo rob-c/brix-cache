@@ -22,6 +22,7 @@ directory guarantees the *string* handed to the VFS is well-formed.
 | `extract.c` | extract + sanitize a path from wire payload: NUL-embedding, length, optional CGI strip; single validation point |
 | `strip_cgi.c` | truncate a wire path at `?` — resolver only ever sees the POSIX component |
 | `op_path.c` | unified extract → depth-check → resolve pre-gate for namespace ops (was duplicated across 10+ handlers) |
+| `op_path_vfs.c` | binds session monitoring and delegated bearer/X.509/Kerberos credentials to each root:// VFS operation |
 | `op_path.h` | the pre-gate contract |
 | `stat_body.c` | format `struct stat` into the kXR_stat/kXR_statx 4-field wire body (VFS and non-VFS modes) |
 

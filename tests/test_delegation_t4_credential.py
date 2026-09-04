@@ -76,7 +76,12 @@ def pki(tmp_path_factory):
 def front(tmp_path_factory, pki):
     base = tmp_path_factory.mktemp("t4front")
     creds = base / "creds"
-    creds.mkdir()
+    # The credential store must be private: brix_cred_write (phase-108 C11)
+    # refuses a group/other-accessible destination with EPERM (the delegation
+    # endpoint then answers 507), so hold the fixture to the 0700 the store
+    # itself is held to.
+    creds.mkdir(mode=0o700)
+    creds.chmod(0o700)
     harness = LifecycleHarness()
     try:
         ep = harness.start(NginxInstanceSpec(

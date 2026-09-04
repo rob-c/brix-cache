@@ -101,7 +101,9 @@ class TestBindHandleSlotCache:
             return (root / rel).read_text(encoding="utf-8")
 
         assert "shared_handle_slot_hint" in rd("src/core/types/file.h")
-        assert "shared_handle_slot_hint = -1" in rd("src/protocols/root/connection/handler.c")
+        # Round-9 lazy file table: per-file init moved from handler.c into
+        # the fd_table.c lazy-arm path.
+        assert "shared_handle_slot_hint = -1" in rd("src/protocols/root/connection/fd_table.c")
         # Reset on free so a reopened/closed handle drops its stale slot.
         # phase-79 split: the free/teardown half of fd_table.c moved into
         # fd_table_teardown.c.
@@ -110,8 +112,9 @@ class TestBindHandleSlotCache:
         h = rd("src/protocols/root/session/handles.c")
         assert "brix_session_handle_lookup_hint" in h
         assert "brix_shared_handle_same_key" in h
-        # The read path uses the hinted variant.
-        assert "brix_session_handle_lookup_hint" in rd("src/protocols/root/connection/fd_table.c")
+        # The read path uses the hinted variant (bound-handle half of the
+        # fd_table split).
+        assert "brix_session_handle_lookup_hint" in rd("src/protocols/root/connection/fd_table_bound.c")
 
     def test_repeated_reads_cache_hit_byte_exact(self, bind_nginx):
         """Reads 2..N on a bound handle (the slot-hint fast path) stay byte-exact."""

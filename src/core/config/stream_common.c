@@ -38,7 +38,7 @@ brix_stream_common_set_require_vo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf
     ngx_stream_brix_common_conf_t *c = conf;
 
     (void) cmd;
-    return brix_vo_rules_append(cf, cf->args->elts, &c->vo_rules);
+    return brix_vo_rules_append(cf, cf->args->elts, &c->common.vo_rules);
 }
 
 static ngx_command_t  brix_stream_common_commands[] = {
@@ -59,6 +59,29 @@ static ngx_command_t  brix_stream_common_commands[] = {
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_common_conf_t, common.storage_backend),
+      NULL },
+
+    /* phase-108 A.4: name-translation override (see the http twin). Validated at
+     * nginx -t by brix_vfs_backend_config_n2n at merge. */
+    { ngx_string("brix_n2n_scheme"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_common_conf_t, common.n2n_scheme),
+      NULL },
+
+    { ngx_string("brix_n2n_pool"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_common_conf_t, common.n2n_pool),
+      NULL },
+
+    { ngx_string("brix_n2n_prefix"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_common_conf_t, common.n2n_prefix),
       NULL },
 
     { ngx_string("brix_storage_credential"),
@@ -89,44 +112,40 @@ static ngx_command_t  brix_stream_common_commands[] = {
       offsetof(ngx_stream_brix_common_conf_t, common.verify_write),
       NULL },
 
-    /* phase-101 W3 stage 3: the x509 GSI-trust strings, MOVED here from the root
-     * stream module (directives_auth.h).  Stored in this module's own conf
-     * fields (NOT the preamble); root and gridftp adopt them into their existing
-     * per-protocol fields via brix_stream_common_adopt_gsi(), so the GSI SSL_CTX
-     * / trust-store / VOMS readers stay byte-for-byte unchanged. */
+    /* Shared x509 and VOMS trust material for every stream protocol. */
     { ngx_string("brix_certificate"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_common_conf_t, certificate),
+      offsetof(ngx_stream_brix_common_conf_t, common.certificate),
       NULL },
 
     { ngx_string("brix_certificate_key"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_common_conf_t, certificate_key),
+      offsetof(ngx_stream_brix_common_conf_t, common.certificate_key),
       NULL },
 
     { ngx_string("brix_trusted_ca"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_common_conf_t, trusted_ca),
+      offsetof(ngx_stream_brix_common_conf_t, common.trusted_ca),
       NULL },
 
     { ngx_string("brix_vomsdir"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_common_conf_t, vomsdir),
+      offsetof(ngx_stream_brix_common_conf_t, common.vomsdir),
       NULL },
 
     { ngx_string("brix_voms_cert_dir"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_common_conf_t, voms_cert_dir),
+      offsetof(ngx_stream_brix_common_conf_t, common.voms_cert_dir),
       NULL },
 
     /* phase-101 W3 stage 3b: brix_require_vo VO-ACL, MOVED here from the root
@@ -197,7 +216,7 @@ brix_stream_common_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 }
 
 void
-brix_stream_common_adopt(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *dst)
+brix_stream_common_adopt(ngx_conf_t *cf, brix_shared_conf_t *dst)
 {
     ngx_stream_brix_common_conf_t  *scf;
 
@@ -211,55 +230,18 @@ brix_stream_common_adopt(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *dst)
     }
 }
 
-/* Inherit-only string adopt: fill an unset (*dst empty) target from a set
- * source. NULL dst/empty source are no-ops. */
-static void
-adopt_str(ngx_str_t *dst, const ngx_str_t *src)
-{
-    if (dst != NULL && dst->len == 0 && src->len) {
-        *dst = *src;
-    }
-}
-
-void
-brix_stream_common_adopt_gsi(ngx_conf_t *cf,
-                             ngx_str_t *certificate,
-                             ngx_str_t *certificate_key,
-                             ngx_str_t *trusted_ca,
-                             ngx_str_t *vomsdir,
-                             ngx_str_t *voms_cert_dir)
-{
-    ngx_stream_brix_common_conf_t  *scf;
-
-    scf = ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_brix_common_module);
-    if (scf == NULL) {
-        return;
-    }
-
-    adopt_str(certificate,     &scf->certificate);
-    adopt_str(certificate_key, &scf->certificate_key);
-    adopt_str(trusted_ca,      &scf->trusted_ca);
-    adopt_str(vomsdir,         &scf->vomsdir);
-    adopt_str(voms_cert_dir,   &scf->voms_cert_dir);
-}
-
 ngx_int_t
-brix_stream_common_adopt_vo_rules(ngx_conf_t *cf, ngx_array_t **dst)
+brix_shared_clone_vo_rules(ngx_conf_t *cf, brix_shared_conf_t *conf)
 {
-    ngx_stream_brix_common_conf_t  *scf;
     ngx_array_t                    *copy;
     brix_vo_rule_t                 *src, *r;
     ngx_uint_t                      i;
 
-    scf = ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_brix_common_module);
-    if (scf == NULL || scf->vo_rules == NULL || scf->vo_rules->nelts == 0) {
-        return NGX_OK;                       /* nothing to adopt */
-    }
-    if (*dst != NULL && (*dst)->nelts > 0) {
-        return NGX_OK;                       /* caller set its own — keep it */
+    if (conf->vo_rules == NULL || conf->vo_rules->nelts == 0) {
+        return NGX_OK;
     }
 
-    copy = ngx_array_create(cf->pool, scf->vo_rules->nelts,
+    copy = ngx_array_create(cf->pool, conf->vo_rules->nelts,
                             sizeof(brix_vo_rule_t));
     if (copy == NULL) {
         return NGX_ERROR;
@@ -268,8 +250,8 @@ brix_stream_common_adopt_vo_rules(ngx_conf_t *cf, ngx_array_t **dst)
     /* Shallow struct copy per rule: path/vo point into cf->pool (immutable), and
      * .resolved is empty on the common owner (it never finalizes), so each plane
      * finalizes this fresh array against its own root_canon. */
-    src = scf->vo_rules->elts;
-    for (i = 0; i < scf->vo_rules->nelts; i++) {
+    src = conf->vo_rules->elts;
+    for (i = 0; i < conf->vo_rules->nelts; i++) {
         r = ngx_array_push(copy);
         if (r == NULL) {
             return NGX_ERROR;
@@ -277,6 +259,6 @@ brix_stream_common_adopt_vo_rules(ngx_conf_t *cf, ngx_array_t **dst)
         *r = src[i];
     }
 
-    *dst = copy;
+    conf->vo_rules = copy;
     return NGX_OK;
 }

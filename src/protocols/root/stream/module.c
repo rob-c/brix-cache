@@ -237,17 +237,17 @@ brix_tpc_conf_source_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     (void) cmd;
 
-    if (xcf->tpc_source_allow == NGX_CONF_UNSET_PTR) {
-        xcf->tpc_source_allow = ngx_array_create(cf->pool, 4,
-                                                 sizeof(ngx_str_t));
-        if (xcf->tpc_source_allow == NULL) {
+    if (xcf->common.tpc_source_allow == NULL) {
+        xcf->common.tpc_source_allow = ngx_array_create(cf->pool, 4,
+                                                  sizeof(ngx_str_t));
+        if (xcf->common.tpc_source_allow == NULL) {
             return NGX_CONF_ERROR;
         }
     }
 
     value = cf->args->elts;
     for (i = 1; i < cf->args->nelts; i++) {
-        slot = ngx_array_push(xcf->tpc_source_allow);
+        slot = ngx_array_push(xcf->common.tpc_source_allow);
         if (slot == NULL) {
             return NGX_CONF_ERROR;
         }

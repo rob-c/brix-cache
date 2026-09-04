@@ -81,6 +81,9 @@ brix_neg_stat_fnv(const char *s)
     uint64_t       h = BRIX_FNV1A64_OFFSET_BASIS;
     const u_char  *p;
 
+    if (s == NULL) {
+        return 0;
+    }
     for (p = (const u_char *) s; *p != '\0'; p++) {
         h = (h ^ *p) * BRIX_FNV1A64_PRIME;
     }
@@ -171,6 +174,26 @@ brix_vfs_neg_stat_forget(const char *root_canon, const char *path)
  * owner/group-member. Off impersonation this is the same bare lstat/stat.
  */
 static ngx_int_t
+vfs_stat_precheck(brix_vfs_ctx_t *ctx, brix_vfs_stat_t *stat_out,
+    const char *path, uint64_t start)
+{
+    int saved_errno;
+
+    if (stat_out == NULL) {
+        errno = EINVAL;
+    } else if (brix_vfs_require_confined(ctx) != NGX_OK) {
+        errno = EINVAL;
+    } else if (brix_vfs_require_authorized_lookup(ctx) == NGX_OK) {
+        return NGX_OK;
+    }
+
+    saved_errno = errno;
+    brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_STAT, NULL, 0,
+                            NGX_ERROR, saved_errno, start);
+    return NGX_ERROR;
+}
+
+static ngx_int_t
 brix_vfs_stat_impl(brix_vfs_ctx_t *ctx, brix_vfs_stat_t *stat_out,
     int nofollow)
 {
@@ -183,11 +206,7 @@ brix_vfs_stat_impl(brix_vfs_ctx_t *ctx, brix_vfs_stat_t *stat_out,
     start = brix_vfs_now_ns();
     path = brix_vfs_ctx_path(ctx);
 
-    if (stat_out == NULL || brix_vfs_require_confined(ctx) != NGX_OK) {
-        errno = EINVAL;
-        saved_errno = errno;
-        brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_STAT, NULL, 0,
-                                  NGX_ERROR, saved_errno, start);
+    if (vfs_stat_precheck(ctx, stat_out, path, start) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -200,6 +219,7 @@ brix_vfs_stat_impl(brix_vfs_ctx_t *ctx, brix_vfs_stat_t *stat_out,
         brix_sd_stat_t    sd_st;
         int               use_cred = 0, cred_err = 0;
         ngx_int_t         grc;
+        char              physical[PATH_MAX];
 
         /* Zero the cred before the gate: the gate fills only the ACTIVE kind
          * (an x509 proxy path OR a bearer OR an s3/ceph tuple) and leaves the
@@ -209,6 +229,15 @@ brix_vfs_stat_impl(brix_vfs_ctx_t *ctx, brix_vfs_stat_t *stat_out,
          * on the two-hop token read). Mirrors the data-plane callers, which all
          * memzero their ucred before brix_vfs_backend_cred. */
         ngx_memzero(&cred, sizeof(cred));
+
+        if (brix_path_resolved_to_pfn(ctx, path, physical,
+                                      sizeof(physical)) != NGX_OK)
+        {
+            saved_errno = errno;
+            brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_STAT, NULL, 0,
+                                    NGX_ERROR, saved_errno, start);
+            return NGX_ERROR;
+        }
 
         if (brix_vfs_cred_gate_active(ctx)) {
             grc = brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err);
@@ -225,7 +254,7 @@ brix_vfs_stat_impl(brix_vfs_ctx_t *ctx, brix_vfs_stat_t *stat_out,
          * leaf driver's stat_cred slot (decorators have only plain relays). */
         if (drv->stat == NULL
             || brix_sd_stat_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
-                   brix_vfs_export_relative(ctx, path), &sd_st,
+                   physical, &sd_st,
                    use_cred ? &cred : NULL) != NGX_OK)
         {
             saved_errno = errno;
@@ -317,6 +346,7 @@ brix_vfs_residency(brix_vfs_ctx_t *ctx, brix_sd_residency_t *out,
     int *nearline_export)
 {
     brix_sd_instance_t *inst;
+    char                physical[PATH_MAX];
 
     if (nearline_export != NULL) {
         *nearline_export = 0;
@@ -325,22 +355,26 @@ brix_vfs_residency(brix_vfs_ctx_t *ctx, brix_sd_residency_t *out,
         errno = EINVAL;
         return NGX_ERROR;
     }
+    if (brix_vfs_require_authorized_lookup(ctx) != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     *out = BRIX_SD_RES_ONLINE;
-
     for (inst = ctx->sd; inst != NULL;
          inst = brix_vfs_decorator_source(inst))
     {
         if ((brix_sd_caps(inst) & BRIX_SD_CAP_NEARLINE) != 0
             && inst->driver->residency != NULL)
         {
-            const char *path = brix_vfs_ctx_path(ctx);
-
+            if (brix_path_resolved_to_pfn(ctx, brix_vfs_ctx_path(ctx), physical,
+                                          sizeof(physical)) != NGX_OK)
+            {
+                return NGX_ERROR;
+            }
             if (nearline_export != NULL) {
                 *nearline_export = 1;
             }
-            return inst->driver->residency(
-                inst, brix_vfs_export_relative(ctx, path), out);
+            return inst->driver->residency(inst, physical, out);
         }
     }
     return NGX_OK;
@@ -378,8 +412,11 @@ brix_vfs_space(brix_vfs_ctx_t *ctx, brix_sd_space_t *out)
 {
     brix_sd_instance_t *inst;
 
-    if (out == NULL || ctx == NULL) {
+    if (out == NULL || brix_vfs_require_confined(ctx) != NGX_OK) {
         errno = EINVAL;
+        return NGX_ERROR;
+    }
+    if (brix_vfs_require_authorized_lookup(ctx) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -414,6 +451,9 @@ brix_vfs_probe(brix_vfs_ctx_t *ctx, int nofollow,
         errno = EINVAL;
         return NGX_ERROR;
     }
+    if (brix_vfs_require_authorized_lookup(ctx) != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     drv = brix_vfs_ctx_driver(ctx);
     if (drv != NULL) {
@@ -421,12 +461,19 @@ brix_vfs_probe(brix_vfs_ctx_t *ctx, int nofollow,
         brix_sd_cred_t   cred;
         brix_sd_stat_t   sd_st;
         int              use_cred = 0, cred_err = 0;
+        char             physical[PATH_MAX];
 
         /* Zero before the gate: it fills only the active credential kind and
          * leaves the inactive pointers as-is, so an unzeroed cred would pass a
          * garbage x509_proxy/bearer pointer to the driver (see the companion
          * note in brix_vfs_stat_impl). */
         ngx_memzero(&cred, sizeof(cred));
+
+        if (brix_path_resolved_to_pfn(ctx, brix_vfs_ctx_path(ctx), physical,
+                                      sizeof(physical)) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
 
         /* Credential gate for the probe: a denied pre-flight MUST return
          * NGX_ERROR (EACCES), not NGX_DECLINED — a denied probe must not be
@@ -445,8 +492,7 @@ brix_vfs_probe(brix_vfs_ctx_t *ctx, int nofollow,
          * leaf driver's stat_cred slot (decorators have only plain relays). */
         if (drv->stat == NULL
             || brix_sd_stat_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
-                   brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx)),
-                   &sd_st, use_cred ? &cred : NULL) != NGX_OK)
+                   physical, &sd_st, use_cred ? &cred : NULL) != NGX_OK)
         {
             brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
             return NGX_DECLINED;   /* absent (or unsupported) — caller's errno */

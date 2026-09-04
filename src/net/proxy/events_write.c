@@ -220,7 +220,7 @@ brix_proxy_write_complete(ngx_connection_t *uconn, brix_proxy_ctx_t *proxy)
     brix_proxy_wbuf_release(proxy);
 
     /* Write complete — arm upstream read */
-    ngx_log_debug(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
                   "xrootd proxy: write done, arming read (state=%d)",
                   (int) proxy->state);
     if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {

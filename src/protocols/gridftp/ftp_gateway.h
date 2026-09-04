@@ -27,22 +27,8 @@
 
 /* Per-server-block config for the GridFTP gateway module. */
 typedef struct {
+    brix_shared_conf_t common;             /* export/storage/auth policy */
     ngx_flag_t   enable;                 /* brix_gridftp on|off               */
-    ngx_str_t    export;                 /* brix_gridftp_export <dir> (raw)   */
-    ngx_flag_t   allow_write;            /* brix_gridftp_allow_write on|off   */
-    ngx_str_t    storage_backend;        /* brix_gridftp_storage_backend      */
-                                         /*   ("" = posix, "pblock", ...)     */
-    ngx_str_t    storage_credential;     /* brix_gridftp_storage_credential:   */
-                                         /*   name of a brix_credential block  */
-                                         /*   supplying the s3:// backend's     */
-                                         /*   SigV4 keys (unset for posix/pblock) */
-    ngx_flag_t   verify_write;           /* brix_gridftp_verify_write on|off:  */
-                                         /*   read each STOR back through the  */
-                                         /*   driver and CRC-check it (default */
-                                         /*   off — doubles read I/O). STORAGE- */
-                                         /*   persistence check, not wire: CKSM */
-                                         /*   is the client-side wire check.   */
-    char         root_canon[PATH_MAX];   /* realpath(export); confinement root */
 
     /* Passive-mode data-port range (brix_gridftp_pasv_port_range <lo> <hi>).
      * Deployment knob for firewalled sites: an FTP data connection lands on a
@@ -74,9 +60,6 @@ typedef struct {
 
     /* RFC 2228 GSI security layer (phase-82 P82.3) — gsiftp:// support. */
     ngx_flag_t   gsi;                    /* brix_gridftp_gsi: enable AUTH GSSAPI */
-    ngx_str_t    certificate;            /* brix_gridftp_certificate <pem>    */
-    ngx_str_t    certificate_key;        /* brix_gridftp_certificate_key <pem> */
-    ngx_str_t    trusted_ca;             /* brix_gridftp_trusted_ca <dir|file> */
     ngx_ssl_t   *tls_ctx;                /* host cert/key ctx (built at config) */
     X509_STORE  *ca_store;               /* client-proxy trust store (config)  */
 
@@ -87,8 +70,6 @@ typedef struct {
      * an export with no require_vo is unaffected. Every namespace/transfer verb
      * is gated in one place (brix_ftp_ev_resolve): a resolved path covered by a
      * rule is served only when the client's VOMS VO CSV lists the required VO. */
-    ngx_array_t *vo_rules;
-
     /* VOMS attribute carry (phase-92): when a VO ACL rule is in force, the
      * client's VOMS FQANs must be lifted off its GSI proxy into the session
      * identity so an authorized VO can *satisfy* a rule (not merely be denied).
@@ -97,8 +78,6 @@ typedef struct {
      * WebDAV plane's brix_webdav_vomsdir / brix_webdav_voms_cert_dir. Both empty
      * ⇒ no carry (a proxy's VOMS AC is ignored), so a require_vo export stays
      * fail-closed (deny-until-VOMS-carry). */
-    ngx_str_t    vomsdir;                /* brix_gridftp_vomsdir <dir>         */
-    ngx_str_t    voms_cert_dir;          /* brix_gridftp_voms_cert_dir <dir>   */
 } ngx_stream_brix_ftp_srv_conf_t;
 
 /* Module descriptor, defined in ftp_module.c. */

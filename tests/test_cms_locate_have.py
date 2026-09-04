@@ -175,6 +175,16 @@ def _locate(sock, path):
     return _recv_response(sock)
 
 
+def _wait_for_probe(node, path, timeout=2.0):
+    """Wait for the peer reader thread to publish an observed state probe."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if path in node.probes():
+            return True
+        time.sleep(0.02)
+    return path in node.probes()
+
+
 # ---------------------------------------------------------------------------
 # Fixture
 # ---------------------------------------------------------------------------
@@ -216,8 +226,8 @@ def test_have_wins_redirect_then_loc_cache(manager):
             assert port == PORT_ANSWERER, f"redirected to wrong node: {port}"
 
             # Both nodes were probed for the miss.
-            assert "/w3/file.bin" in answerer.probes()
-            assert "/w3/file.bin" in silent.probes()
+            assert _wait_for_probe(answerer, "/w3/file.bin")
+            assert _wait_for_probe(silent, "/w3/file.bin")
 
             # Second locate: loc-cache hit — same redirect, no new probes.
             probes_before = len(answerer.probes())

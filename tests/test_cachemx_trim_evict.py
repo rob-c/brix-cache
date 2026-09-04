@@ -110,8 +110,7 @@ def ev(tmp_path_factory):
             assert r.returncode == 0, f"evict fill read {i}: {r.stderr}"
             outputs.append(out)
         cx.settle()
-        misses = snap.delta_or_absent("brix_cache_misses_total",
-                                      {"proto": "stream"})
+        misses = snap.cache_delta_or_absent("stream", "MISS")
         run = EvictRun(ep, cache_dir, metrics, snap, misses, outputs)
         run.wait_for_purge()
         yield run

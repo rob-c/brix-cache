@@ -22,6 +22,30 @@
       offsetof(ngx_http_brix_common_conf_t, common.storage_backend),
       NULL },
 
+    /* phase-108 A.4: explicit override of the export's logical→physical name
+     * translation (default is derived from the backend origin). Validated at
+     * nginx -t by brix_vfs_backend_config_n2n at merge. */
+    { ngx_string("brix_n2n_scheme"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.n2n_scheme),
+      NULL },
+
+    { ngx_string("brix_n2n_pool"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.n2n_pool),
+      NULL },
+
+    { ngx_string("brix_n2n_prefix"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.n2n_prefix),
+      NULL },
+
     /* Per-worker seccomp-BPF syscall filter for HTTP (WebDAV/S3/cvmfs) servers —
      * off|audit|enforce.  Process-global: the strictest value across ALL brix
      * servers (stream + http) is installed once per worker, so HTTP-only workers

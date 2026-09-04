@@ -43,7 +43,7 @@ def test_dav_get_x3_linear(mx):
                    after) == N
     assert s.delta("brix_io_bytes_read", {"proto": "webdav"},
                    after) == N * size
-    assert s.delta("brix_cache_hits_total", {"proto": "webdav"}, after) == N
+    assert s.cache_delta("webdav", "HIT", after) == N
     assert s.delta("brix_webdav_responses_total",
                    {"method": "GET", "status_class": "2xx"}, after) == N
 
@@ -82,7 +82,7 @@ def test_s3_get_x3_linear(mx):
                    {"proto": "s3", "op": "read", "status": "ok"},
                    after) == N
     assert s.delta("brix_io_bytes_read", {"proto": "s3"}, after) == N * size
-    assert s.delta("brix_cache_hits_total", {"proto": "s3"}, after) == N
+    assert s.cache_delta("s3", "HIT", after) == N
 
 
 def test_s3_put_x3_linear(mx):
@@ -114,10 +114,8 @@ def test_stream_get_x3_one_miss_two_hits(mx, tmp_path):
         assert r.returncode == 0, r.stderr
     cx.settle()
     after = cx.mfetch(mx.metrics)
-    assert s.delta("brix_cache_misses_total", {"proto": "stream"},
-                   after) == 1
-    assert s.delta("brix_cache_hits_total", {"proto": "stream"},
-                   after) == N - 1
+    assert s.cache_delta("stream", "MISS", after) == 1
+    assert s.cache_delta("stream", "HIT", after) == N - 1
     assert s.delta("brix_io_ops_total",
                    {"proto": "stream", "op": "read", "status": "ok"},
                    after) == N

@@ -1,6 +1,10 @@
 # Phase-65: Generic bad-actor MITM guard (ARC + XRootD) — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**Status:** IMPLEMENTED / AS-BUILT RECONCILIATION REQUIRED. The guard core,
+HTTP/stream adapters, fail2ban integration and focused test families exist in
+the tree. The unchecked implementation checklist below is the original work
+order, not an outstanding-work count; reconcile its evidence before making any
+new Phase-65 claim.
 
 **Design spec:** [`docs/superpowers/specs/2026-07-01-generic-bad-actor-guard-arc-xrootd-design.md`](../superpowers/specs/2026-07-01-generic-bad-actor-guard-arc-xrootd-design.md)
 

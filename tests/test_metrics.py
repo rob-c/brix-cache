@@ -108,10 +108,10 @@ class TestMetricsEndpoint:
             "# TYPE brix_connections_total counter",
             "# HELP brix_connections_active",
             "# TYPE brix_connections_active gauge",
-            "# HELP brix_bytes_rx_total",
-            "# TYPE brix_bytes_rx_total counter",
-            "# HELP brix_bytes_tx_total",
-            "# TYPE brix_bytes_tx_total counter",
+            "# HELP brix_io_bytes_written",
+            "# TYPE brix_io_bytes_written counter",
+            "# HELP brix_io_bytes_read",
+            "# TYPE brix_io_bytes_read counter",
             "# HELP brix_requests_total",
             "# TYPE brix_requests_total counter",
             "# HELP brix_s3_requests_total",
@@ -171,7 +171,7 @@ class TestAnonCounters:
             f.flush()
             rc = xrdcp_put(f.name, f"root://{HOST}:{ANON_PORT}//metrics_bytes_rx.bin")
         assert rc == 0
-        delta = self._delta("brix_bytes_rx_total", {"port": ANON_PORT, "auth": "anon"})
+        delta = self._delta("brix_io_bytes_written", {"proto": "stream"})
         assert delta >= len(payload)
 
     def test_read_increments_bytes_tx(self):
@@ -185,7 +185,7 @@ class TestAnonCounters:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as out:
             rc = xrdcp_get(f"root://{HOST}:{ANON_PORT}//metrics_bytes_tx.bin", out.name)
         assert rc == 0
-        delta = self._delta("brix_bytes_tx_total", {"port": ANON_PORT, "auth": "anon"})
+        delta = self._delta("brix_io_bytes_read", {"proto": "stream"})
         assert delta >= len(payload)
 
     def test_open_wr_counter(self):

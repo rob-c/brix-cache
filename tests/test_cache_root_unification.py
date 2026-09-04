@@ -1,18 +1,10 @@
-"""test_cache_root_unification.py — phase-101 W8: brix_{webdav,s3}_cache_root →
-bare brix_cache_root.
+"""Phase-101 W8/Phase-105 W9 cache grammar convergence.
 
-W8 was a MIGRATE-OR-KEEP decision. The behavior diff showed the legacy read-through
-cache (cache_root → cache_storage_inst) is a DISTINCT, live mechanism that the
-composable tier (brix_cache_store → sd_cache decorator) does not subsume (see
-cache_storage.c: the reaper evicts through different instances depending on which
-is set). So the honest outcome is option B — keep the mechanism, unify the two
-byte-parallel prefixed twins into one bare name.
-
-The cache_root (str) + cache_root_canon (char[PATH_MAX]) fields moved into the
-shared preamble (common.*); brix_cache_root is registered once by the common
-module and adopted into webdav and s3; each protocol still canonicalizes it (and
-enforces the "outside every export root" guard) at merge. The stream plane's
-fd-based cache (brix_cache_export) is a separate mechanism, left as-is.
+``brix_cache_root`` is the concise POSIX shorthand for the composable
+``brix_cache_store`` tier. It is registered once by the HTTP common module,
+canonicalized and checked outside the export, then lowered to the tier grammar;
+the old HTTP legacy cache engine is no longer a second runtime path. The stream
+plane's ``brix_cache_export`` role remains separate.
 """
 import os
 import subprocess
@@ -82,6 +74,22 @@ def test_cache_root_outside_export_guard_names_new_directive():
     rc, out = _nginx_t(webdav_loc="brix_cache_root {UNDER};")
     assert rc != 0, out
     assert "brix_cache_root" in out and "brix_webdav" + "_cache_root" not in out, out
+
+
+def test_cache_root_and_cache_store_are_rejected_as_ambiguous():
+    rc, out = _nginx_t(
+        webdav_loc="brix_cache_root {CACHE}; brix_cache_store posix:{CACHE};")
+    assert rc != 0, out
+    assert "configure only one" in out, out
+
+
+def test_cache_root_lowers_to_one_composable_tier_path():
+    source = os.path.join(os.path.dirname(__file__), "..", "src", "core",
+                          "config", "root_prepare.c")
+    text = open(source, encoding="utf-8").read()
+    assert 'prefix[] = "posix:"' in text
+    assert "common->cache_store.data = store" in text
+    assert "common->cache_root_canon[0] = '\\0'" in text
 
 
 def test_old_webdav_cache_root_unknown():

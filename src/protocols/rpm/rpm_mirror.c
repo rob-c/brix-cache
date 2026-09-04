@@ -25,6 +25,7 @@
 #include "core/http/http_headers.h"            /* brix_http_request_is_tls */
 #include "fs/vfs/vfs.h"
 #include "fs/vfs/vfs_backend_registry.h"
+#include "protocols/shared/vfs_authz_bind.h"
 #include "observability/dashboard/dashboard.h"
 #include "observability/dashboard/dashboard_tracking.h"
 #include "observability/metrics/metrics.h"
@@ -54,7 +55,8 @@ rpm_serve_opts(brix_http_serve_opts_t *opts)
 
 /* Re-entry trampoline: the completed fill re-runs the whole handler, which
  * now takes the hit path. The disposition stays FILL — the bytes came from a
- * fresh upstream pull, and an operator reading $rpm_cache wants to know. */
+ * fresh upstream pull, and an operator reading $brix_cache_status wants to
+ * know. */
 static ngx_int_t
 rpm_reenter(ngx_http_request_t *r, void *data)
 {
@@ -112,7 +114,7 @@ rpm_serve_or_fill(ngx_http_request_t *r, ngx_http_brix_rpm_loc_conf_t *lcf,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    rc = brix_http_cache_fill_if_needed(r, sd, ctx->key, &lcf->common,
+    rc = brix_http_cache_fill_if_needed(r, sd, ctx->key, &lcf->common, NULL,
                                         rpm_reenter, NULL, rpm_fill_fail);
     if (rc == NGX_DONE) {
         ctx->disp = BRIX_RPM_OUT_FILL;
@@ -193,6 +195,7 @@ rpm_tier_get(ngx_http_request_t *r, ngx_http_brix_rpm_loc_conf_t *lcf,
     is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_RPM,
                       root, "", BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL, path);
+    brix_http_vfs_bind_no_rules(&lcf->common, &vctx);
 
     vctx.sd = brix_vfs_backend_resolve(root, r->connection->log);
     if (vctx.sd == NULL) {

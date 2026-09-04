@@ -1,5 +1,12 @@
 # Phase-82 — GridFTP gateway protocol (gsiftp:// front-end over the VFS)
 
+**Status:** IMPLEMENTED / CLOSED FOR THE ADVERTISED CONTRACT (Phase-111
+reconciliation, 2026-09-03). MODE-E parallel STOR and a protocol-valid
+single-stream MODE-E RETR are shipped and tested. `OPTS RETR Parallelism=N` is a
+lenient compatibility acknowledgement, not a promise of striped output. True
+parallel RETR would add fan-out scheduling and EOF/EOD coordination without a
+measured consumer benefit, so it is not scheduled and no inert setting is kept.
+
 **Goal:** add a GridFTP server front-end as a fourth protocol under
 `src/protocols/gridftp/`, following the `root://` stream-module pattern:
 line-based FTP control channel, GSSAPI/GSI control-channel auth (RFC 2228

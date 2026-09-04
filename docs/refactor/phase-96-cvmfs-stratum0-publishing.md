@@ -1,5 +1,13 @@
 # Phase-96 — CVMFS Stratum-0 / Tier-0 publishing (release-manager plane)
 
+**Status:** IMPLEMENTED / CLOSED for S0–S14 (Phase-111 reconciliation,
+2026-09-03). S15 remote ingest is declined for this phase: accepting remotely
+supplied object packs would create a new multi-writer authorization, lease,
+catalog-serialization and untrusted-parser boundary. The complete local
+Stratum-0 publisher remains the supported contract. Remote ingest may be
+proposed as a separate threat-modeled feature for a named consumer; it is not
+missing local publisher work.
+
 **Goal:** give the project the *producing* half of CVMFS. Phases 68/84/85/87
 built a near-complete **consume** stack — FUSE client, caching proxy,
 conformance corpus, secure (scvmfs) serving — all of it downstream of somebody
@@ -159,7 +167,7 @@ Shared (`shared/cvmfs/`) / Proxy (nginx).
 | S12 | Tag / history database (`H` field) — named snapshots | Tool | D | `brixcvmfs tag` |
 | S13 | Serve the published repo: nginx cvmfs location over the S0 tree + replication markers | Proxy | E | existing directives; `brix_cvmfs_stratum0_root` |
 | S14 | **scvmfs on the Stratum-0**: TLS/bearer/x509/VOMS-gated serving of the published repo | Proxy | E | existing `brix_scvmfs_*` |
-| S15 | Remote-ingest gateway (lease + object-pack upload), scvmfs-authenticated | Proxy | E′ | `brix_cvmfs_gateway` — **DEFERRED, decision required** |
+| S15 | Remote-ingest gateway (lease + object-pack upload), scvmfs-authenticated | Proxy | E′ | **DECLINED FOR THIS PHASE** — Phase 111 requires a separate threat-modeled proposal and named consumer |
 
 **Non-goals (phase-96):**
 - **No change to the cache/proxy read plane.** The cvmfs cache location stays
@@ -555,7 +563,7 @@ authz preamble, guard contract) exists by end of Wave E.
 | C | S8-S9 | **M** | The **official cvmfs client** mounts our published repos |
 | D | S10-S12 | **M** | GC + rollback — operationally real Tier-0 |
 | E | S13-S14 | **S-M** | Served (incl. scvmfs-secured) Stratum-0; Stratum-1s can replicate it |
-| E′ | S15 | L-XL | *(deferred)* multi-publisher remote ingest |
+| E′ | S15 | L-XL | closed by Phase-111 scope decision; not current backlog |
 
 Waves A+B are ~40% of the effort and deliver ~80% of the demonstrable
 capability (a working single-node Stratum-0). Wave C is where correctness

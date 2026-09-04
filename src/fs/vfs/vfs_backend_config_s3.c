@@ -262,7 +262,7 @@ vfs_config_local_backend(ngx_conf_t *cf, const char *root_canon,
                 "brix_storage_backend \"%V\": unrecognized backend scheme "
                 "(known: posix, pblock, pblock://, mirage:, block:, "
                 "root://, roots://, root+tape://, roots+tape://, "
-                "tape://, frm://, http(s)://, s3://, "
+                "tape://, frm://, ftp://, gsiftp://, http(s)://, s3://, "
                 "ceph:, rados:, cephfsro:)", sb);
             return NGX_ERROR;
         }

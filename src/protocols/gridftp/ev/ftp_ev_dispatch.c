@@ -291,7 +291,7 @@ static ngx_int_t
 ev_grp_session(ftp_ev_t *fc, const char *verb, const char *arg)
 {
     if (strcasecmp(verb, "SITE") == 0) {
-        if (ev_site_mutates(arg) && !fc->conf->allow_write) {
+        if (ev_site_mutates(arg) && !fc->conf->common.allow_write) {
             return brix_ftp_ev_reply(fc,
                 "550 Permission denied (read-only)\r\n");
         }

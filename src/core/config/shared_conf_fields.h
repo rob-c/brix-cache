@@ -1,16 +1,17 @@
-/* ngx_http_brix_shared_conf_t field block — included inside the struct braces by shared_conf_types.h
- *
- * Extracted from shared_conf_types.h to hold each translation unit under the
- * 600-line file-size cap. Included by shared_conf_types.h (one TU); not built
- * standalone. */
+/* Included inside shared_conf_types.h's shared-conf struct. */
     ngx_flag_t          enable;             /* on/off toggle for protocol          */
     ngx_str_t           root;               /* filesystem export root path         */
     char                root_canon[PATH_MAX]; /* canonicalized/confined root        */
-    ngx_str_t           storage_backend;    /* SD backend name: "" / "posix" = the
-                                             * default POSIX tree; "pblock" = the
-                                             * block-based backend rooted at root.  */
+    ngx_str_t           storage_backend;    /* SD backend: posix or named driver. */
     size_t              pblock_block_size;  /* pblock stripe size for new files
                                              * (bytes); 0 = backend default (64 MiB) */
+    /* phase-108 A.4: explicit override of the export's logical→physical name
+     * translation. All-unset ("") ⇒ the backend parser's derived default
+     * (ceph ⇒ CEPHFS_PATH+key_prefix; everything else ⇒ IDENTITY). n2n_scheme is
+     * "identity" | "ral" | "cephfs_path"; validated at nginx -t. */
+    ngx_str_t           n2n_scheme;         /* [brix_n2n_scheme <name>] */
+    ngx_str_t           n2n_pool;           /* [brix_n2n_pool <name>]  (RAL only) */
+    ngx_str_t           n2n_prefix;         /* [brix_n2n_prefix <path>] prefix/localroot */
     ngx_flag_t          storage_staging;    /* write-back: a remote (root://) backend
                                              * stages uploads to the LOCAL export and
                                              * promotes them on commit, vs streaming
@@ -412,6 +413,9 @@
                                              * (advisory, 1), or bind WebDAV-only
                                              * as before C7 (off, 2). Values are
                                              * brix_vfs_lock_enforcement_t. */
+    ngx_uint_t        authz_backstop;      /* [brix_authz_backstop
+                                             * off|observe|enforce], default
+                                             * observe; brix_authz_backstop_mode_t */
     ngx_str_t         crl;                 /* [brix_crl <dir>] (phase-101 W4): CRL PEM
                                              * directory; was brix_webdav_crl. */
     ngx_uint_t        signing_policy_mode; /* [brix_signing_policy] BRIX_SP_MODE_*;
@@ -446,10 +450,7 @@
                                              * (XRootD sec.protbind); was brix_webdav_
                                              * protbind. NULL = no rules; shared engine
                                              * in src/auth/protbind/. */
-    /* HTTP-TPC SSRF + source-allowlist policy (phase-101 W4): were brix_webdav_
-     * tpc_{allow_local,allow_private,source_guard,source_allow,require_source_size};
-     * bare brix_tpc_* on the stream plane already. Honored by the webdav curl-COPY
-     * engine; the native (root) TPC reads its own stream-conf copies. */
+    /* HTTP/stream TPC policy. */
     ngx_flag_t        tpc_allow_local;     /* 0: reject loopback+link-local targets */
     ngx_flag_t        tpc_allow_private;   /* default 1: allow RFC-1918/ULA targets */
     ngx_flag_t        tpc_source_guard;    /* 0: off; on = pull only from an
@@ -471,10 +472,19 @@
                                              * brix_tpc_verify_checksum (stream) and
                                              * the <alg> brix_webdav_tpc_verify_
                                              * checksum (webdav) — now one grammar. */
+    ngx_flag_t        tpc_outbound_tls;       /* native TPC source TLS */
+    ngx_flag_t        tpc_outbound_passthrough; /* forward inbound bearer */
+    ngx_str_t         tpc_outbound_bearer_file; /* static source bearer */
+    ngx_str_t         tpc_outbound_token_endpoint; /* RFC 8693 endpoint */
+    ngx_str_t         tpc_outbound_client_id;
+    ngx_str_t         tpc_outbound_client_secret;
+    ngx_str_t         tpc_outbound_scope;
     ngx_str_t         token_jwks;          /* [brix_token_jwks <file>] (phase-101 W4):
                                              * JWKS pubkey file; collapsed webdav+s3
                                              * twins. Per-worker jwks_keys[] stays
                                              * protocol-local. */
+    /* [brix_token_jwks_refresh_interval] mtime poll; 0 disables. */
+    ngx_msec_t        token_jwks_refresh_interval;
     ngx_str_t         token_issuer;        /* [brix_token_issuer] required "iss". */
     ngx_str_t         token_audience;      /* [brix_token_audience] required "aud". */
     time_t            token_clock_skew;    /* [brix_token_clock_skew] exp/nbf grace;
@@ -503,6 +513,8 @@
     time_t            introspect_ttl;      /* [brix_token_introspect_ttl] verdict TTL;
                                              * sec_slot since the move (was num) */
     ngx_flag_t        introspect_fail_open; /* [brix_token_introspect_fail_open] */
+    ngx_str_t         certificate;      /* stream GSI/TLS certificate PEM */
+    ngx_str_t         certificate_key;  /* stream GSI/TLS private-key PEM */
     ngx_str_t         trusted_ca;         /* [brix_trusted_ca <file>] (phase-105 W2):
                                              * auth-layer verify-source CA bundle for
                                              * the GSI/VOMS chain (101-W6 role name).

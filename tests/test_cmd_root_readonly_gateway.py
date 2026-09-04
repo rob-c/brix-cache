@@ -63,7 +63,6 @@ def test_read_only_gateway_still_serves_reads(probe_results):
         _assert_all_green(_rows(probe_results, label, "dirlist succeeds"))
         _assert_all_green(_rows(probe_results, label, "fattr list"))
         _assert_all_green(_rows(probe_results, label, "stat succeeds"))
-        _assert_all_green(_rows(probe_results, label, "prepare WITHOUT"))
     _assert_all_green(_rows(probe_results, "read-open still succeeds after"))
     _assert_all_green(_rows(probe_results, "read still returns bytes after"))
 
@@ -80,6 +79,8 @@ def test_read_only_gateway_refuses_every_mutating_opcode(probe_results):
     _assert_all_green(_rows(probe_results, "read_only:", "(got status="))
     _assert_all_green(_rows(probe_results, "read_only:", "mutating probes refused"))
     _assert_all_green(_rows(probe_results, "read_only:", "clone onto an open READ"))
+    _assert_all_green(_rows(probe_results, "read_only:",
+                            "prepare stage is refused"))
 
 
 def test_read_only_overrides_allow_write_and_leaves_the_origin_intact(
@@ -96,6 +97,9 @@ def test_read_only_overrides_allow_write_and_leaves_the_origin_intact(
         _rows(probe_results, "read_only+allow_write:", "mutating probes refused"))
     _assert_all_green(
         _rows(probe_results, "read_only+allow_write:", "clone onto an open READ"))
+    _assert_all_green(
+        _rows(probe_results, "read_only+allow_write:",
+              "prepare stage is refused"))
     _assert_all_green(_rows(probe_results, "control: no probe draws"))
     _assert_all_green(_rows(probe_results, "control: every well-formed"))
     _assert_all_green(_rows(probe_results, "origin tree is byte-for-byte"))

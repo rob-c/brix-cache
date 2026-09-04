@@ -777,7 +777,7 @@ brix_io_ops_total{proto="cvmfs",op="stat",status="ok"}       36510
 brix_io_ops_total{proto="gridftp",op="read",status="ok"}      6120
 brix_io_bytes_read{proto="stream"}                     920000000000
 brix_io_bytes_written{proto="gridftp"}                  44002181120
-brix_io_latency_usec_bucket{proto="webdav",op="read",le="10000"} 8402
+brix_io_latency_seconds_bucket{proto="webdav",op="read",le="0.010000"} 8402
 brix_auth_total{proto="gridftp",method="gsi",status="ok"}      377
 brix_auth_total{proto="webdav",method="token",status="fail"}     3
 

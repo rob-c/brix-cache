@@ -249,8 +249,9 @@ brix_pelican_set_ca(ngx_stream_brix_srv_conf_t *conf, CURL *curl)
 {
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
-    if (conf->trusted_ca.len > 0) {
-        curl_easy_setopt(curl, CURLOPT_CAPATH, (char *) conf->trusted_ca.data);
+    if (conf->common.trusted_ca.len > 0) {
+        curl_easy_setopt(curl, CURLOPT_CAPATH,
+                         (char *) conf->common.trusted_ca.data);
     }
 }
 

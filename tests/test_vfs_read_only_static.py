@@ -49,11 +49,16 @@ FD_TABLE_C = "src/protocols/root/connection/fd_table.c"
 ADOPT_C = "src/fs/vfs/vfs_open_adopt.c"
 
 # The closed operation vocabulary, in declaration order (vfs_policy.h).
+# STAGE..CREDENTIAL are the phase-107 growth; LOCK and CREDENTIAL are declared
+# ahead of their call sites (lock acquisition books the op it protects via
+# require_unlocked; CREDENTIAL is phase-108 C11).
 OPS = ("OPEN", "WRITE", "TRUNCATE", "SYNC", "MKDIR", "REMOVE",
-       "RENAME", "COPY", "SETATTR", "XATTR", "PUBLISH")
+       "RENAME", "COPY", "SETATTR", "XATTR", "PUBLISH",
+       "STAGE", "EVICT", "LOCK", "DEDUP", "CREDENTIAL")
 
 OP_LABELS = ("open", "write", "truncate", "sync", "mkdir", "remove",
-             "rename", "copy", "setattr", "xattr", "publish")
+             "rename", "copy", "setattr", "xattr", "publish",
+             "stage", "evict", "lock", "dedup", "credential")
 
 # Every VFS/protocol entry point that must consult the kernel, with the
 # operation it is required to name.  Sourced from the phase-105 inventory; a new
@@ -66,14 +71,20 @@ GATES = (
     ("src/fs/vfs/vfs_sync.c", "brix_vfs_sync", "SYNC"),
     ("src/fs/vfs/vfs_writer.c", "brix_vfs_writer_write", "WRITE"),
     ("src/fs/vfs/vfs_writer.c", "brix_vfs_writer_write_fd", "WRITE"),
-    ("src/fs/vfs/vfs_writer.c", "brix_vfs_writer_commit_ex", "PUBLISH"),
+    # Phase-107 reshaped commit into commit_pre (precondition-carrying core);
+    # commit and commit_ex are argument-shaping wrappers over it.
+    ("src/fs/vfs/vfs_writer.c", "brix_vfs_writer_commit_pre", "PUBLISH"),
     ("src/fs/vfs/vfs_xattr.c", "brix_vfs_xattr_mutate", "XATTR"),
     ("src/fs/vfs/vfs_xattr.c", "brix_vfs_fsetxattr_carried", "XATTR"),
     ("src/fs/vfs/vfs_xattr.c", "brix_vfs_fremovexattr_carried", "XATTR"),
     ("src/fs/vfs/vfs_staged.c", "staged_alloc_handle", "OPEN"),
     ("src/fs/vfs/vfs_staged.c", "brix_vfs_staged_write", "WRITE"),
     ("src/fs/vfs/vfs_staged.c", "brix_vfs_staged_commit", "PUBLISH"),
-    ("src/fs/vfs/vfs_rename.c", "brix_vfs_rename", "RENAME"),
+    # Phase-107 extracted the shared rename/exchange entry gate; both public
+    # verbs enter through it before any endpoint work.
+    ("src/fs/vfs/vfs_rename.c", "brix_vfs_two_name_entry", "RENAME"),
+    ("src/fs/vfs/vfs_recall.c", "brix_vfs_recall", "STAGE"),
+    ("src/fs/vfs/vfs_recall.c", "brix_vfs_evict", "EVICT"),
     ("src/fs/vfs/vfs_mkdir.c", "brix_vfs_mkdir", "MKDIR"),
     ("src/fs/vfs/vfs_mkdir.c", "brix_vfs_chmod", "SETATTR"),
     ("src/fs/vfs/vfs_mkdir.c", "brix_vfs_setattr", "SETATTR"),
@@ -103,7 +114,7 @@ EXPORT_WRAPPERS = (
 KERNEL_CALL = re.compile(
     r"brix_vfs_(?:require_(?:mutation_policy|mutation|confined_mutation"
     r"|carried_mutation)|export_require_mutation"
-    r"|confined_mutation_checked)\s*\(")
+    r"|confined_mutation_checked|gate_(?:mutation|confined|file_mutation))\s*\(")
 
 # Any project call in a gated body.  Everything not allowlisted below is work,
 # and work must not happen before the refusal: §0.2 records that several

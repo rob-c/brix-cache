@@ -13,8 +13,8 @@ The existing test suite has 90+ files covering individual opcodes, protocol conf
 ### `tests/test_metrics.py`
 Tests Prometheus `/metrics` endpoint for:
 - Per-listener request counters (`brix_requests_total{port,auth,op,status}`)
-- Per-listener byte and connection counters (`brix_bytes_tx_total`,
-  `brix_bytes_rx_total`, `brix_connections_active`, `brix_connections_total`)
+- Protocol byte and connection counters (`brix_io_bytes_read`,
+  `brix_io_bytes_written`, `brix_connections_active`, `brix_connections_total`)
 - IP version tracking
 - Token auth counters
 
@@ -44,10 +44,10 @@ without an `absent()` guard.
 |---------------|--------|----------------|
 | `brix_io_ops_total` | `proto`, `op`, `status` | `sum by (proto, op) (rate(brix_io_ops_total[5m]))` |
 | `brix_io_bytes_read` / `brix_io_bytes_written` | `proto` | `sum by (proto) (rate(brix_io_bytes_read[1m]))` |
-| `brix_io_latency_usec_bucket` / `_sum` / `_count` | `proto`, `op`, `le` | `histogram_quantile(0.99, sum by (proto, le) (rate(brix_io_latency_usec_bucket[5m])))` |
+| `brix_io_latency_seconds_bucket` / `_sum` / `_count` | `proto`, `op`, `le` | `histogram_quantile(0.99, sum by (proto, le) (rate(brix_io_latency_seconds_bucket[5m])))` |
 | `brix_auth_total` | `proto`, `method`, `status` | `sum by (proto, method) (rate(brix_auth_total{status="fail"}[5m]))` |
 | `brix_tpc_transfers_total` / `brix_tpc_bytes_total` | `proto`, `direction`(, `status`) | `sum by (direction) (rate(brix_tpc_transfers_total[5m]))` |
-| `brix_cache_hits_total` / `brix_cache_misses_total` | `proto` | hit ratio per plane |
+| `brix_cache_requests_total` | `proto`, `cache_status` | hit ratio per plane |
 | `brix_cred_select_user_total` / `_fallback_total` / `_deny_total` | `proto` | per-user backend-credential gate outcomes |
 | `brix_requests_total` | `port`, `auth`, `op`, `status` | per-listener stream counters (**no `proto` label**) |
 | `brix_cvmfs_repo_requests_total` / `brix_cvmfs_bytes_served_total` | `{repo,class}` / `{source="hit"\|"fill"}` | cvmfs plane's own data-plane accounting |
@@ -105,7 +105,7 @@ These tests validate read-through cache hit/miss ratios and write-through mirror
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 15 | `test_e2e_cache_hit_metrics_validation` | Configure nginx read-through cache → xrdcp read same file N times through redirect → scrape `/metrics` → verify first request = cache miss, subsequent requests = cache hits, `brix_cache_hits_total` / `brix_cache_misses_total` ratio matches expected pattern | Cache tested (`test_http_cache_hit.py`) but no test validates cache hit/miss metrics over multiple accesses |
+| 15 | `test_e2e_cache_hit_metrics_validation` | Configure nginx read-through cache → xrdcp read same file N times through redirect → scrape `/metrics` → verify first request = cache miss, subsequent requests = cache hits, the `brix_cache_requests_total{cache_status}` ratio matches the expected pattern | Cache tested (`test_http_cache_hit.py`) but no test validates cache hit/miss metrics over multiple accesses |
 | 16 | `test_e2e_write_through_metrics_validation` | Configure write-through mirroring → xrdcp write file through nginx redirect to origin → scrape `/metrics` → verify `brix_wt_flushes_total` / `brix_wt_flush_bytes_total` increment, that the flushed bytes match on both cache server and origin, and that `brix_wt_stage_throttled_total` stays at 0 on the unthrottled path | Write-through tested (`test_cache_write_through.py`) but no test validates metrics during write-through operations |
 | 17 | `test_e2e_cache_eviction_metrics` | Fill cache → evict entries (via config reload or TTL expiry) → scrape `/metrics` → verify cache hit ratio drops after eviction, new accesses = misses, total hits/misses reset appropriately | Cache lifecycle tested but no test validates metrics during cache eviction events |
 
@@ -181,7 +181,7 @@ These tests validate WebDAV perimeter proxy mode with metric validation.
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 35 | `test_e2e_webdav_proxy_metrics_validation` | HTTPS client → nginx WebDAV proxy → HTTP backend DAV server → scrape `/metrics` on nginx → verify `brix_webdav_bytes_tx_total` and `brix_auth_total{proto="webdav"}` increment, proxy-specific counters if defined (upstream requests, backend latency) | WebDAV proxy tested but no test validates metrics in proxy mode specifically |
+| 35 | `test_e2e_webdav_proxy_metrics_validation` | HTTPS client → nginx WebDAV proxy → HTTP backend DAV server → scrape `/metrics` on nginx → verify `brix_io_bytes_read{proto="webdav"}` and `brix_auth_total{proto="webdav"}` increment, proxy-specific counters if defined (upstream requests, backend latency) | WebDAV proxy tested but no test validates metrics in proxy mode specifically |
 | 36 | `test_e2e_webdav_proxy_auth_metrics_validation` | WLCG token auth at nginx perimeter → forward to HTTP backend without auth → scrape `/metrics` → verify `brix_auth_total{proto="webdav",method="token",status="ok"}` counted at nginx, bytes counters match, backend sees no auth events (nginx terminates auth) | WebDAV proxy auth tested but no test validates metrics showing auth termination at nginx layer |
 
 ### Category 14: ACL + VO Metrics Validation

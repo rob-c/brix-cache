@@ -11,6 +11,7 @@
 #include "fs/cache/open.h"
 #include "observability/dashboard/dashboard_tracking.h"
 #include "fs/vfs/vfs.h"
+#include "fs/path/n2n_stage.h"
 #include "protocols/shared/file_serve.h"
 #include "protocols/shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */
 #include "protocols/shared/http_serve_offload.h"  /* phase-64 SP3: off-loop remote serve */
@@ -95,7 +96,8 @@ webdav_get_fill_failed(ngx_http_request_t *r, void *data, ngx_int_t rc)
  */
 static ngx_int_t
 get_zip_member_serve(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf, const char *path)
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
+    const brix_vfs_ctx_t *vfs_scope)
 {
     char member[WEBDAV_MAX_PATH];
     int  zr;
@@ -109,8 +111,8 @@ get_zip_member_serve(ngx_http_request_t *r,
         return NGX_HTTP_BAD_REQUEST;
     }
     if (zr > 0) {
-        return brix_zip_http_serve(r, conf->common.root_canon,
-                                     conf->common.zip_cd_max_bytes, path, member);
+        return brix_zip_http_serve(r, vfs_scope,
+                                  conf->common.zip_cd_max_bytes, path, member);
     }
     return NGX_DECLINED;
 }
@@ -139,6 +141,13 @@ get_offload_or_fill(ngx_http_request_t *r,
     brix_http_serve_opts_t  sopts;
     ngx_int_t               sr;
     ngx_int_t               fr;
+    char                    physical[PATH_MAX];
+
+    if (brix_path_resolved_to_pfn(vctx, path, physical,
+                                  sizeof(physical)) != NGX_OK)
+    {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
 
     ngx_memzero(&sopts, sizeof(sopts));
     sopts.xfer_proto = BRIX_XFER_PROTO_WEBDAV;
@@ -147,8 +156,7 @@ get_offload_or_fill(ngx_http_request_t *r,
     sopts.etag_flags = BRIX_ETAG_WEAK;
     sopts.compress   = conf->common.compress;
 
-    sr = brix_http_serve_offload_remote(r, vctx->sd,
-        brix_vfs_export_relative(vctx, path), path, &sopts,
+    sr = brix_http_serve_offload_remote(r, vctx->sd, physical, path, &sopts,
         &conf->common, vctx, webdav_serve_metrics);
     if (sr == NGX_DONE) {
         return NGX_DONE;
@@ -158,14 +166,15 @@ get_offload_or_fill(ngx_http_request_t *r,
                ? NGX_HTTP_FORBIDDEN : NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    fr = brix_http_cache_fill_if_needed(r, vctx->sd,
-        brix_vfs_export_relative(vctx, path), &conf->common,
+    fr = brix_http_cache_fill_if_needed(r, vctx->sd, physical, &conf->common,
+        vctx,
         webdav_get_reenter, NULL, webdav_get_fill_failed);
     if (fr == NGX_DONE) {
         return NGX_DONE;
     }
     if (fr == NGX_ERROR) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        return (errno == EACCES || errno == EPERM)
+               ? NGX_HTTP_FORBIDDEN : NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     return NGX_DECLINED;
 }
@@ -219,17 +228,17 @@ webdav_handle_get(ngx_http_request_t *r)
         return rc;
     }
 
-    /* Phase-57 W2: ZIP member access over HTTP GET.  Auth on the archive ran in
-     * the access phase; serve the requested member instead of the whole file. */
-    rc = get_zip_member_serve(r, conf, path);
-    if (rc != NGX_DECLINED) {
-        return rc;
-    }
-
     wctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     webdav_vfs_ctx_build_data(r, conf, path, &vctx);
     /* Route through the export's selected storage backend (NULL ⇒ default POSIX). */
     vctx.sd = brix_webdav_backend_instance(conf, r->connection->log);
+
+    /* ZIP archive reads derive from the same fully bound request context as a
+     * normal GET, preserving identity, authorization, credentials and backend. */
+    rc = get_zip_member_serve(r, conf, path, &vctx);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
 
     /* phase-64 SP3/SP2: socket-wire serve offload and remote cache-fill offload
      * (both off the event loop).  NGX_DONE ⇒ async took over; a terminal HTTP

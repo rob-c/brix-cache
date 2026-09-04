@@ -184,7 +184,6 @@ webdav_get_serve_directory(ngx_http_request_t *r,
     brix_vfs_dir_t  *dh;
     ngx_chain_t     *head = NULL, **tail = NULL;
     ngx_int_t        rc;
-    int              is_tls = 0;
 
     if (conf->listing_redirect.len > 0) {
         return get_listing_redirect(r, conf);
@@ -194,11 +193,7 @@ webdav_get_serve_directory(ngx_http_request_t *r,
         return NGX_HTTP_FORBIDDEN;              /* listingdeny default */
     }
 
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
-    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
-        conf->common.root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL, path);
+    webdav_vfs_ctx_build(r, path, &vctx);
 
     dh = brix_vfs_opendir(&vctx, NULL);
     if (dh == NULL) {

@@ -154,6 +154,28 @@ sd_http_setxattr_cred(brix_sd_instance_t *inst, const char *path,
     return NGX_OK;
 }
 
+/* ---- cred plumbing (real: sd_http_read.c) --------------------------------
+ * The *_cred nearline slots gate and resolve through these; here the gate
+ * always admits and resolves to the anonymous shape (no bearer, no cert), so
+ * the suite exercises the slot bodies, not the credential grammar. */
+int
+sd_http_cred_gate(sd_http_inst_state *is, const brix_sd_cred_t *cred)
+{
+    (void) is; (void) cred;
+    return 0;
+}
+
+const char *
+sd_http_resolve_open_cred(sd_http_inst_state *is, const brix_sd_cred_t *cred,
+    char *open_auth, size_t auth_cap)
+{
+    (void) is; (void) cred;
+    if (auth_cap > 0) {
+        open_auth[0] = '\0';
+    }
+    return NULL;
+}
+
 #include "fs/backend/http/sd_http_nearline.c"   /* NOLINT — unity build */
 #include "fs/backend/http/sd_http_setattr.c"    /* NOLINT */
 

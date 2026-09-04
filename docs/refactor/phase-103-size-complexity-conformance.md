@@ -5,13 +5,12 @@
 (CCN>15) backlog across the *whole* project: the Python test suite and every
 C/C++ source and header under `src/`, `client/`, and `shared/` — and leave the
 gates positioned so it stays burned.
-**Status:** 🔨 **IN PROGRESS.** Wave W0 (metric tooling) and the whole
-file-size dimension are landed; **the entire C/C++/header complexity dimension
-is now at zero** (`src/`, `client/`, `shared/` — `complexity_backlog.txt` empty),
-and the Python/gate-flip waves remain. Live status + exactly what landed vs.
-what remains is in the **[Execution status](#execution-status-2026-08-11)**
-section appended at the end of this document. The plan text below is preserved
-as originally written (numbers measured at `99eff8bd`).
+**Status:** HISTORICAL BURNDOWN, CURRENT GATES RESTORED (reconciled 2026-09-02).
+The execution ledger records the genuine zero-debt close on 2026-08-11. The
+current native and Python size/CCN gates and the Python Cognitive/NPath gate
+were restored on 2026-09-02. See
+`phase-111-repository-work-burndown.md` B111-002–005 for exact names. The plan
+text below preserves the `99eff8bd` baseline; it is not the current census.
 **Prerequisite reading:** `docs/refactor/phase-38-file-size-unix-modularity.md`
 (the framework this phase completes), `docs/09-developer-guide/coding-standards.md`
 §1/§8/§9, `CLAUDE.md` HARD BLOCKS.

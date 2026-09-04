@@ -253,11 +253,11 @@ brix_queue_response(brix_ctx_t *ctx, ngx_connection_t *c,
     return brix_queue_response_base(ctx, c, buffer, buffer_len, NULL);
 }
 
-/* Queue an ngx_chain_t response (e.g. a sendfile chain); owned_base is released
- * when the out-ring slot drains. */
-ngx_int_t
-brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_chain_t *chain, u_char *owned_base)
+/* Shared chain sender.  Body fragments reuse the response's existing wire
+ * header and therefore must not increment the protocol-frame counter. */
+static ngx_int_t
+queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_chain_t *chain, u_char *owned_base, ngx_uint_t frame_count)
 {
     ngx_chain_t *unsent = chain;
     ngx_uint_t  spin_count = 0;
@@ -265,7 +265,7 @@ brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_flag_t  progressed;
     brix_resp_slot_t *slot = &ctx->out.ring[ctx->out.tail];
 
-    BRIX_SRV_METRIC_INC(ctx, response_frames_total);
+    BRIX_SRV_METRIC_ADD(ctx, response_frames_total, frame_count);
 
     /*
      * Pipelining (Phase 29): an earlier slot is still draining — park this whole
@@ -324,6 +324,20 @@ brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
             return prc;
         }
     }
+}
+
+ngx_int_t
+brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_chain_t *chain, u_char *owned_base)
+{
+    return queue_response_chain(ctx, c, chain, owned_base, 1);
+}
+
+ngx_int_t
+brix_queue_response_fragment_chain(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_chain_t *chain, u_char *owned_base)
+{
+    return queue_response_chain(ctx, c, chain, owned_base, 0);
 }
 
 /* Flush as much of the connection's pending out-ring to the socket as the kernel

@@ -1,14 +1,8 @@
 /*
  * vfs.h — public API for the unified VFS (POSIX-filesystem data plane).
  *
- * WHAT: The only header protocol op handlers include to touch the export root.
- *       Declares the open flags (BRIX_VFS_O_READ/WRITE/CREATE/EXCL/TRUNC/
- *       APPEND/MKDIRPATH/NOCACHE), the opaque handle types (brix_vfs_file_t,
- *       brix_vfs_dir_t), the per-operation request descriptor
- *       brix_vfs_ctx_t, the result/stat structs (brix_vfs_stat_t,
- *       brix_vfs_io_result_t), and every brix_vfs_* entry point —
- *       open/close, read/write, stat, opendir/readdir/closedir, and the
- *       namespace mutators unlink/rmdir/rename/mkdir plus truncate/sync.
+ * WHAT: The only header protocol handlers include to touch the export root:
+ *       flags, opaque handles, request/results and every brix_vfs_* operation.
  *
  * WHY:  All four front ends (XRootD root://, WebDAV davs://, the S3 subset, and
  *       CMS data-server I/O) funnel through this one protocol-agnostic surface
@@ -17,26 +11,22 @@
  *       never call open/pread/rename directly — they fill an brix_vfs_ctx_t
  *       and call here.
  *
- * HOW:  A caller populates brix_vfs_ctx_t with the export root_canon (and the
- *       persistent per-worker rootfd), the already-resolved client path
- *       (brix_path_result_t, produced by ../path/), the caller identity,
- *       mutation policy, the is_tls/want_pgcrc/cache flags, and the
- *       metrics_proto, then
- *       invokes a single entry point. The handle accessors (brix_vfs_file_fd
- *       et al.) are the only way callers reach the underlying fd/size/mtime.
+ * HOW:  A caller supplies an already-resolved path, export, identity and policy
+ *       in brix_vfs_ctx_t. Handle accessors alone expose fd/size/mtime.
  */
 #ifndef BRIX_VFS_H
 #define BRIX_VFS_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
-
 #include "fs/path/unified.h"
 #include "core/types/identity.h"
 #include "observability/metrics/unified.h"
 #include "fs/backend/sd.h"
+#include "fs/path/site_n2n.h"            /* brix_n2n_cfg_t (phase-108 C13/A.4) */
 #include "auth/s3/sts.h"                 /* brix_s3_sts_conf_t (§5.5 set_sts) */
 #include "vfs_policy.h"                  /* brix_vfs_mutation_policy_t (phase-105) */
+#include "vfs_authz_types.h"             /* brix_vfs_authz_t (phase-108 C12) */
 
 #define BRIX_VFS_O_READ        0x01
 #define BRIX_VFS_O_WRITE       0x02
@@ -113,7 +103,6 @@ typedef struct {
  * forward decl keeps the VFS layer free of any observability include: it only
  * ever folds into the pointee through brix_io_monitor_add(). */
 struct brix_io_monitor_s;
-
 struct brix_vfs_ctx_s {
     ngx_pool_t          *pool;
     ngx_log_t           *log;
@@ -126,6 +115,9 @@ struct brix_vfs_ctx_s {
      * POSIX backend (full-featured, sendfile-capable). Reserved for per-export
      * backend selection; today the VFS treats NULL as POSIX. */
     brix_sd_instance_t *sd;
+    /* Export N2N rule borrowed from the backend registry. NULL is IDENTITY;
+     * pool clones carry the scalar pointer without per-request allocation. */
+    const brix_n2n_cfg_t *n2n;
     void                *cache_writethrough_cfg;
     /* Phase-1 per-user backend credentials: the export's credential dir
      * (borrowed from conf, NUL-terminated; NULL/"" = feature off) and the
@@ -143,6 +135,11 @@ struct brix_vfs_ctx_s {
      * resolved delegation mode here via brix_vfs_ctx_bind_backend_deleg(). NULL
      * = no live bag ⇒ the cred gate stays on the SELECT path (phase-1). */
     brix_deleg_live_t   *deleg_live;
+    /* phase-108 C12: the export's authorization rule set + rollout mode for the
+     * VFS authorization backstop (position 1.5, after the mutation-policy
+     * kernel, before the lock check). Bound by brix_vfs_ctx_bind_authz(); a
+     * zeroed ctx has bound=0 ⇒ the backstop fails closed under ENFORCE. */
+    brix_vfs_authz_t     authz;
     brix_path_result_t resolved;
     /* Phase-105: whether this request's ENDPOINT may modify exported storage.
      * Typed, not a bit, and zero is READ_ONLY, so a zeroed or hand-built ctx
@@ -205,6 +202,15 @@ void brix_vfs_ctx_init(brix_vfs_ctx_t *vctx, ngx_pool_t *pool,
     const char *cache_root_canon,
     brix_vfs_mutation_policy_t mutation_policy, int is_tls,
     brix_identity_t *identity, const char *resolved_path);
+
+/* Derive a child operation from an already-bound VFS context. The complete
+ * request/export scope (identity, authorization rules, backend, N2N, delegated
+ * credentials, endpoint policy, monitor, and peer) is copied by value; only
+ * the confined resolved path changes. This is the canonical way for recursive
+ * walkers and lazy metadata probes to avoid rebuilding a partial context.
+ * Returns NGX_OK, or NGX_ERROR/EINVAL for a NULL input or target path. */
+ngx_int_t brix_vfs_ctx_derive_path(brix_vfs_ctx_t *vctx,
+    const brix_vfs_ctx_t *parent, const char *resolved_path);
 
 /* phase-110 W1: record a cache lookup outcome for this ctx — bumps the unified
  * brix_cache_hits/misses counters (brix_metric_cache_result) AND folds the
@@ -565,7 +571,6 @@ ngx_int_t brix_vfs_closedir(brix_vfs_dir_t *dh, ngx_log_t *log);
  * per-entry openat() for a dirlist checksum. NGX_INVALID_FILE for a NULL/closed
  * handle, or a backend with no real fd (caller then has no dirfd-relative path). */
 ngx_fd_t brix_vfs_dir_fd(const brix_vfs_dir_t *dh);
-
 /* Enumerate the bound backend's OWN object catalog (inventory/drift, spec
  * §E1/D2) — the driver-agnostic seam over the SD `enumerate` verb. Fires cb once
  * per stored object (brix_sd_catalog_ent_t); want_stat asks for per-object

@@ -453,3 +453,15 @@ brix_vfs_backend_lock_enforcement(const char *root_canon)
     e = brix_vfs_backend_entry_find(root_canon);
     return (e == NULL) ? 0 : e->lock_enforcement;
 }
+
+const brix_n2n_cfg_t *
+brix_vfs_backend_n2n(const char *root_canon)
+{
+    brix_vfs_backend_entry_t *e;
+
+    if (root_canon == NULL || root_canon[0] == '\0') {
+        return NULL;
+    }
+    e = brix_vfs_backend_entry_find(root_canon);
+    return (e == NULL) ? NULL : &e->n2n;
+}

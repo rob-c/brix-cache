@@ -53,10 +53,10 @@ tpc_start_tls(brix_tpc_pull_t *t, int fd)
      * hostname below (verify_host) — chain-only would accept any CA-valid cert
      * for any host, a MITM gap. */
     int verify_host = 0;
-    if (t->conf->trusted_ca.len > 0 && t->conf->trusted_ca.len < PATH_MAX) {
+    if (t->conf->common.trusted_ca.len > 0 && t->conf->common.trusted_ca.len < PATH_MAX) {
         char cadir[PATH_MAX];
 
-        if (brix_str_cbuf(cadir, sizeof(cadir), &t->conf->trusted_ca) != NULL
+        if (brix_str_cbuf(cadir, sizeof(cadir), &t->conf->common.trusted_ca) != NULL
             && SSL_CTX_load_verify_locations(ctx, NULL, cadir) == 1) {
             SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
             verify_host = 1;

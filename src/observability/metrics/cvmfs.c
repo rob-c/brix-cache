@@ -142,14 +142,37 @@ cvmfs_up_slot_is(const ngx_brix_cvmfs_upstream_metrics_t *u, const char *host)
 }
 
 static ngx_brix_cvmfs_upstream_metrics_t *
+cvmfs_upstream_overflow(ngx_brix_cvmfs_upstream_metrics_t *ups)
+{
+    ngx_uint_t last = BRIX_CVMFS_UPSTREAM_SLOTS - 1;
+
+    if (ups == NULL) {
+        return NULL;
+    }
+    if (ups[last].state != BRIX_CVMFS_REPO_READY
+        && ngx_atomic_cmp_set(&ups[last].state, BRIX_CVMFS_REPO_EMPTY,
+                              BRIX_CVMFS_REPO_CLAIMED))
+    {
+        memcpy(ups[last].name, "_other", sizeof("_other"));
+        (void) ngx_atomic_cmp_set(&ups[last].state,
+                                  BRIX_CVMFS_REPO_CLAIMED,
+                                  BRIX_CVMFS_REPO_READY);
+    }
+    return (ups[last].state == BRIX_CVMFS_REPO_READY) ? &ups[last] : NULL;
+}
+
+static ngx_brix_cvmfs_upstream_metrics_t *
 cvmfs_upstream_slot(const char *host)
 {
     ngx_brix_metrics_t                *m = brix_metrics_shared();
-    ngx_brix_cvmfs_upstream_metrics_t *ups, *other;
+    ngx_brix_cvmfs_upstream_metrics_t *ups;
     size_t                               len;
     ngx_uint_t                           i;
 
-    if (m == NULL || host == NULL || host[0] == '\0') {
+    /* The shared accessor rejects NULL and its attach-in-progress sentinel.
+     * Keep the scalar form here as well so both compilers can prove that
+     * member-address arithmetic never starts from either invalid value. */
+    if ((uintptr_t) m <= 1 || host == NULL || host[0] == '\0') {
         return NULL;
     }
     len = strlen(host);
@@ -157,7 +180,6 @@ cvmfs_upstream_slot(const char *host)
         return NULL;
     }
     ups   = m->cvmfs.upstreams;
-    other = &ups[BRIX_CVMFS_UPSTREAM_SLOTS - 1];
 
     for (i = 0; i < BRIX_CVMFS_UPSTREAM_SLOTS - 1; i++) {
         if (cvmfs_up_slot_is(&ups[i], host)) {
@@ -184,15 +206,7 @@ cvmfs_upstream_slot(const char *host)
             return &ups[i];
         }
     }
-    if (other->state != BRIX_CVMFS_REPO_READY
-        && ngx_atomic_cmp_set(&other->state, BRIX_CVMFS_REPO_EMPTY,
-                              BRIX_CVMFS_REPO_CLAIMED))
-    {
-        memcpy(other->name, "_other", sizeof("_other"));
-        (void) ngx_atomic_cmp_set(&other->state, BRIX_CVMFS_REPO_CLAIMED,
-                                  BRIX_CVMFS_REPO_READY);
-    }
-    return (other->state == BRIX_CVMFS_REPO_READY) ? other : NULL;
+    return cvmfs_upstream_overflow(ups);
 }
 
 void

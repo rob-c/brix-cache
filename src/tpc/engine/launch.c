@@ -40,13 +40,13 @@ tpc_sess_auth_method(const brix_tpc_pull_t *t)
     }
 
     if ((t->token_mode[0] != '\0' && ngx_strcmp(t->token_mode, "none") != 0)
-        || t->conf->tpc_outbound_bearer_file.len > 0)
+        || t->conf->common.tpc_outbound_bearer_file.len > 0)
     {
         return BRIX_SESS_AM_TOKEN;
     }
 
     if (t->deleg_cred_len > 0
-        || (t->conf->certificate.len > 0 && t->conf->certificate_key.len > 0))
+        || (t->conf->common.certificate.len > 0 && t->conf->common.certificate_key.len > 0))
     {
         return BRIX_SESS_AM_GSI;
     }
@@ -271,7 +271,7 @@ tpc_pull_capture_passthrough_token(brix_tpc_pull_t *t, brix_ctx_t *ctx)
  * the PEM and set deleg_cred_len (malloc failure leaves deleg_cred_pem NULL → fall
  * back to the gateway cert); a delegate-on pull with nothing captured records the
  * ABSENT outcome; tpc_pull_capture_passthrough_token for the inbound-token
- * snapshot; token_scope defaults to empty then filled from conf->tpc_outbound_scope.
+ * snapshot; token_scope defaults to empty then filled from conf->common.tpc_outbound_scope.
  * Returns NGX_OK (pull may proceed) or NGX_DECLINED (expired proxy — caller must
  * refuse the pull). */
 static ngx_int_t
@@ -315,9 +315,9 @@ tpc_pull_attach_creds(brix_tpc_pull_t *t, brix_ctx_t *ctx,
     tpc_pull_capture_passthrough_token(t, ctx);
 
     t->token_scope[0] = '\0';
-    if (conf->tpc_outbound_scope.len > 0) {
+    if (conf->common.tpc_outbound_scope.len > 0) {
         (void) brix_str_cbuf(t->token_scope, sizeof(t->token_scope),
-                             &conf->tpc_outbound_scope);
+                             &conf->common.tpc_outbound_scope);
     }
 
     return NGX_OK;

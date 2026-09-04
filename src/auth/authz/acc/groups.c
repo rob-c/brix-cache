@@ -96,10 +96,12 @@ brix_acc_groups_set_nisdomain(const char *domain)
 #define ACC_GRP_CACHE_SLOTS  256
 #define ACC_DJB2_SEED        5381   /* djb2 hash initial basis */
 #define ACC_GRP_USER_MAX     128
+#define ACC_GRP_NAMES_MAX    64
+#define ACC_GRP_NAME_MAX     256
 
 typedef struct {
     char     user[ACC_GRP_USER_MAX];
-    char   **names;     /* malloc'd vector of malloc'd group names */
+    char     names[ACC_GRP_NAMES_MAX][ACC_GRP_NAME_MAX];
     int      count;
     time_t   expiry;
 } acc_grp_cache_t;
@@ -150,28 +152,19 @@ acc_user_hash(const char *user)
 static void
 acc_cache_free(acc_grp_cache_t *e)
 {
-    int i;
-    if (e->names) {
-        for (i = 0; i < e->count; i++) { free(e->names[i]); }
-        free(e->names);
-        e->names = NULL;
-    }
     e->count = 0;
     e->user[0] = '\0';
 }
 
-/* Resolve a user's Unix groups via NSS into a fresh malloc'd vector.
- * Returns count (>=0) and *namesp (malloc'd, NULL if 0), or -1 on unknown user. */
+/* Resolve a user's Unix groups into bounded cache storage. Oversize group names
+ * are omitted fail-closed rather than truncated into a different identity. */
 static int
-acc_resolve_unix(const char *user, char ***namesp)
+acc_resolve_unix(const char *user, acc_grp_cache_t *entry)
 {
     struct passwd  *pw;
     gid_t           gids[64];
     int             ng = (int) (sizeof(gids) / sizeof(gids[0]));
-    char          **names;
     int             out = 0, i;
-
-    *namesp = NULL;
 
     pw = getpwnam(user);
     if (pw == NULL) {
@@ -189,23 +182,22 @@ acc_resolve_unix(const char *user, char ***namesp)
         return 0;
     }
 
-    names = malloc((size_t) ng * sizeof(char *));
-    if (names == NULL) {
-        return 0;
-    }
     for (i = 0; i < ng; i++) {
         struct group *gr;
+        size_t        len;
+
         if (acc_gid_retran(gids[i])) {
             continue;               /* ambiguous shared gid — skip its name */
         }
         gr = getgrgid(gids[i]);
         if (gr != NULL && gr->gr_name != NULL) {
-            names[out] = strdup(gr->gr_name);
-            if (names[out] != NULL) { out++; }
+            len = ngx_strlen(gr->gr_name);
+            if (len < ACC_GRP_NAME_MAX && out < ACC_GRP_NAMES_MAX) {
+                ngx_memcpy(entry->names[out], gr->gr_name, len + 1);
+                out++;
+            }
         }
     }
-    if (out == 0) { free(names); names = NULL; }
-    *namesp = names;
     return out;
 }
 
@@ -273,9 +265,9 @@ acc_nss_note_latency(int64_t elapsed, time_t now)
  *      return NGX_OK.
  */
 static ngx_int_t
-acc_cache_refresh(acc_grp_cache_t *e, const char *user, time_t now)
+acc_cache_refresh(unsigned slot, const char *user, time_t now)
 {
-    char  **names;
+    acc_grp_cache_t *e = &acc_grp_cache[slot];
     int     cnt;
     int64_t t0, elapsed;
 
@@ -285,25 +277,22 @@ acc_cache_refresh(acc_grp_cache_t *e, const char *user, time_t now)
     }
 
     t0  = acc_monotonic_ms();
-    cnt = acc_resolve_unix(user, &names);
+    acc_cache_free(e);
+    cnt = acc_resolve_unix(user, e);
     elapsed = acc_monotonic_ms() - t0;
 
     acc_nss_note_latency(elapsed, now);
-
-    acc_cache_free(e);
 
     /* E3: negative-cache an unknown / no-group user (short TTL) so a flood of
      * distinct misses cannot re-block NSS on every request. */
     if (cnt <= 0) {
         ngx_memcpy(e->user, user, ngx_strlen(user) + 1);
-        e->names  = NULL;
         e->count  = 0;
         e->expiry = now + ngx_min(ACC_NSS_NEG_TTL_SECS, acc_gidlifetime);
         return NGX_DECLINED;
     }
 
     ngx_memcpy(e->user, user, ngx_strlen(user) + 1);
-    e->names = names;
     e->count = cnt;
     e->expiry = now + acc_gidlifetime;
     return NGX_OK;
@@ -354,19 +343,21 @@ static ngx_array_t *
 brix_acc_unix_groups(ngx_pool_t *pool, const char *user)
 {
     acc_grp_cache_t *e;
+    unsigned         slot;
     time_t           now;
 
     if (user == NULL || *user == '\0' || ngx_strlen(user) >= ACC_GRP_USER_MAX) {
         return NULL;
     }
     now = time(NULL);
-    e = &acc_grp_cache[acc_user_hash(user)];
+    slot = acc_user_hash(user);
+    e = &acc_grp_cache[slot];
 
     /* Cache miss (absent, expired, or different user) → refresh from NSS. A
      * breaker-open or no-group refresh yields "no supplementary groups" now,
      * without rendering any stale entry. */
     if (!(e->user[0] != '\0' && e->expiry > now && ngx_strcmp(e->user, user) == 0)) {
-        if (acc_cache_refresh(e, user, now) != NGX_OK) {
+        if (acc_cache_refresh(slot, user, now) != NGX_OK) {
             return NULL;
         }
     }

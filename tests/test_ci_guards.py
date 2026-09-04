@@ -466,7 +466,9 @@ def test_metric_names_extractor_reads_the_real_exposition() -> None:
     got wrong, pinned here against the C so a doc can never re-invent them."""
     families = _NAMES.exposition(_REPO)
     assert families["brix_io_ops_total"] == {"proto", "op", "status"}
-    assert families["brix_io_latency_usec_bucket"] == {"proto", "op", "le"}
+    assert families["brix_io_latency_seconds_bucket"] == {"proto", "op", "le"}
+    assert families["brix_io_latency_seconds_count"] == {"proto", "op"}
+    assert families["brix_io_latency_seconds"] == {"proto", "op"}
     assert "proto" not in families["brix_requests_total"]
     assert families["brix_auth_total"] == {"proto", "method", "status"}
     assert families["brix_tpc_transfers_total"] == {"proto", "direction", "status"}

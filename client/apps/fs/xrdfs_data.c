@@ -33,41 +33,20 @@ stream_file(brix_conn *c, const char *path, const char *opaque,
             int64_t start, int64_t limit, brix_status *st)
 {
     brix_rfile rf;
-    uint8_t  *buf;
-    int64_t   off = start;
-    int64_t   remaining = limit;   /* meaningful only when limit >= 0 */
-    int       rc = 0;
+    int        rc;
 
     /* Resilient read: rides out a mid-stream sever (reconnect + reopen + resume
      * at offset) within the connection's stall window — xrootdfs parity. */
     if (brix_rfile_open_read(c, path, opaque, 0, -1, &rf, st) != 0) {
         return -1;
     }
-    buf = (uint8_t *) malloc(1 << 20);
-    if (buf == NULL) {
-        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
+    if (fflush(stdout) != 0) {
+        brix_status_set(st, XRDC_EIO, errno, "stdout flush failed");
         brix_rfile_close(&rf, st);
         return -1;
     }
-    for (;;) {
-        size_t  want = 1 << 20;
-        ssize_t n;
-        if (limit >= 0) {
-            if (remaining <= 0) { break; }
-            if ((int64_t) want > remaining) { want = (size_t) remaining; }
-        }
-        n = brix_rfile_pread(&rf, off, buf, want, st);
-        if (n < 0) { rc = -1; break; }
-        if (n == 0) { break; }
-        if (fwrite(buf, 1, (size_t) n, stdout) != (size_t) n) {
-            brix_status_set(st, XRDC_ESOCK, 0, "stdout write failed");
-            rc = -1;
-            break;
-        }
-        off += n;
-        if (limit >= 0) { remaining -= n; }
-    }
-    free(buf);
+    rc = brix_rfile_drain_to_fd(&rf, start, limit, 0,
+                                fileno(stdout), NULL, st);
     {
         brix_status tw;
         brix_status_clear(&tw);
@@ -150,52 +129,49 @@ do_cat(brix_conn *c, const char *cwd, int argc, char **argv)
 }
 
 
-/* Stream the first `nlines` newline-delimited lines of `path` to stdout, reading
- * forward in 1 MiB chunks and stopping at the Nth newline (emitting any trailing
- * partial line if EOF arrives first). 0 / -1. */
+typedef struct {
+    long seen;
+    long limit;
+} head_sink_t;
+
+static int
+head_sink(const uint8_t *data, size_t len, int64_t offset, void *arg,
+          brix_status *st)
+{
+    head_sink_t *sink = arg;
+    size_t       emit = len;
+    size_t       i;
+
+    (void) offset;
+    for (i = 0; i < len; i++) {
+        if (data[i] == '\n' && ++sink->seen == sink->limit) {
+            emit = i + 1;
+            break;
+        }
+    }
+    if (fwrite(data, 1, emit, stdout) != emit) {
+        brix_status_set(st, XRDC_EIO, errno, "stdout write failed");
+        return -1;
+    }
+    return sink->seen >= sink->limit ? 1 : 0;
+}
+
+/* Stream the first `nlines` newline-delimited lines of `path`. */
 int
 head_lines(brix_conn *c, const char *path, long nlines, brix_status *st)
 {
-    brix_rfile f;
-    uint8_t  *buf;
-    int64_t   off = 0;
-    long      seen = 0;
-    int       rc = 0;
+    brix_rfile  file;
+    head_sink_t sink = {0, nlines};
+    int         rc;
 
-    if (brix_rfile_open_read(c, path, NULL, 0, -1, &f, st) != 0) {
+    if (brix_rfile_open_read(c, path, NULL, 0, -1, &file, st) != 0) {
         return -1;
     }
-    buf = (uint8_t *) malloc(1 << 20);
-    if (buf == NULL) {
-        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
-        brix_rfile_close(&f, st);
-        return -1;
-    }
-    while (seen < nlines) {
-        ssize_t n = brix_rfile_pread(&f, off, buf, 1 << 20, st);
-        size_t  emit;
-        ssize_t i;
-        if (n < 0) { rc = -1; break; }
-        if (n == 0) { break; }
-        emit = (size_t) n;
-        for (i = 0; i < n; i++) {
-            if (buf[i] == '\n' && ++seen == nlines) {
-                emit = (size_t) (i + 1);
-                break;
-            }
-        }
-        if (fwrite(buf, 1, emit, stdout) != emit) {
-            brix_status_set(st, XRDC_ESOCK, 0, "stdout write failed");
-            rc = -1;
-            break;
-        }
-        off += n;
-    }
-    free(buf);
+    rc = brix_rfile_pump(&file, 0, -1, 0, head_sink, &sink, NULL, st);
     {
         brix_status tw;
         brix_status_clear(&tw);
-        brix_rfile_close(&f, rc == 0 ? st : &tw);
+        brix_rfile_close(&file, rc == 0 ? st : &tw);
     }
     return rc;
 }

@@ -126,7 +126,7 @@ def test_delete_absent_books_stat_not_found_only(mx, plane):
 @pytest.mark.parametrize("plane", AUTHED)
 def test_propfind_depth0_stat_and_entry(mx, plane):
     """PROPFIND depth 0: 207, one stat-ok, depth="0" row, exactly one
-    entry, and the multistatus body's bytes land on the read/tx ledgers."""
+    entry, and the multistatus body's bytes land on the read ledger."""
     name = cx.unique_name(f"mp_pf_{plane}")
     mx.seed_local(name, 400)
     s = snap(mx)

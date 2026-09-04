@@ -53,13 +53,18 @@ brix_session_src_key(const char *dn, ngx_uint_t token_auth,
  * flat sequence of decisions.  Must run with brix_session_mutex held — it reads
  * and (on a hit) writes shared slot state.
  *
+ * The pass covers the LIVE prefix only: high_water bounds every occupied slot,
+ * so nothing beyond it can match the sessid, contribute to an LRU minimum or
+ * count against the per-source quota, and everything beyond it is free.  The
+ * frontier slot itself is the free-slot fallback when the prefix has no hole.
+ *
  * HOW:
  *   1. Seed `sc` to its empty-table defaults.
- *   2. For each slot: record the first free one and skip it.
+ *   2. For each slot in the live prefix: record the first free one and skip it.
  *   3. On a sessid match, stamp last_seen and return 1.
  *   4. Otherwise fold the occupied slot into the global LRU minimum, and — on
  *      a src_key match — into the registrant's own count + own-LRU minimum.
- *   5. Return 0 if no slot matched.
+ *   5. Fall the free slot back to the frontier, then return 0 (no match).
  */
 int
 brix_session_scan(brix_session_table_t *tbl,
@@ -75,8 +80,9 @@ brix_session_scan(brix_session_table_t *tbl,
     sc->src_count    = 0;
     sc->src_lru_slot = tbl->capacity;
     sc->src_lru_seen = 0;
+    sc->match_slot   = tbl->capacity;
 
-    for (i = 0; i < tbl->capacity; i++) {
+    for (i = 0; i < tbl->high_water; i++) {
         e = &tbl->slots[i];
         if (!e->in_use) {
             if (sc->free_slot == tbl->capacity) {
@@ -86,6 +92,7 @@ brix_session_scan(brix_session_table_t *tbl,
         }
         if (ngx_memcmp(e->sessid, sessid, BRIX_SESSION_ID_LEN) == 0) {
             e->last_seen = now;        /* refresh activity on re-register */
+            sc->match_slot = i;        /* round 15: the caller's slot hint */
             return 1;
         }
         /* Track the global-LRU occupied slot for reap-on-full (F4). */
@@ -105,7 +112,32 @@ brix_session_scan(brix_session_table_t *tbl,
         }
     }
 
+    if (sc->free_slot == tbl->capacity && tbl->high_water < tbl->capacity) {
+        sc->free_slot = tbl->high_water;   /* first slot past the live prefix */
+    }
+
     return 0;
+}
+
+/* ---- Retire a freed top run so the mark tracks the peak LIVE population ----
+ *
+ * WHAT: Walks high_water down over any trailing free slots.
+ *
+ * WHY: Without this the mark would only ever grow, so one transient peak would
+ * tax every later scan for the process's lifetime — exactly the full-table cost
+ * the mark exists to remove.  Must run with brix_session_mutex held.
+ *
+ * WHERE: brix_session_unregister only.  The other two slot clears (the F4 reap
+ * and the W5 self-eviction) hand their freed index straight to fill_slot, so the
+ * slot is occupied again before any scan can observe it; retiring the frontier
+ * there would only be undone on the next line.
+ */
+void
+brix_session_shrink(brix_session_table_t *tbl)
+{
+    while (tbl->high_water > 0 && !tbl->slots[tbl->high_water - 1].in_use) {
+        tbl->high_water--;
+    }
 }
 
 /* ---- Reap the LRU slot when the table is full, else count the rejection ----
@@ -162,6 +194,7 @@ brix_session_reap_lru(brix_session_table_t *tbl, ngx_msec_t now,
  *   1. Copy the fixed-length sessid.
  *   2. Bounded-copy DN and VO list, substituting "" for NULL inputs.
  *   3. Store token_auth and last_seen, then flag the slot in_use.
+ *   4. Extend the live prefix if this slot sits past the frontier.
  */
 void
 brix_session_fill_slot(brix_session_table_t *tbl, ngx_uint_t slot,
@@ -185,6 +218,10 @@ brix_session_fill_slot(brix_session_table_t *tbl, ngx_uint_t slot,
     e->owner_worker = (ngx_int_t) ngx_worker;
     /* A recycled slot must not inherit the previous session's bound paths. */
     ngx_memzero(e->pathid_map, sizeof(e->pathid_map));
+
+    if (slot >= tbl->high_water) {
+        tbl->high_water = slot + 1;         /* extend the live prefix */
+    }
 }
 
 /* ---- Locate a live slot by sessid (registry mutex held) ----
@@ -195,16 +232,17 @@ brix_session_fill_slot(brix_session_table_t *tbl, ngx_uint_t slot,
  *      helper keeps each public function a flat lock→find→bit-op→unlock
  *      sequence.
  *
- * HOW: Linear scan to capacity, ngx_memcmp on the 16-byte id.
+ * HOW: Linear scan over the LIVE prefix (high_water bounds every occupied slot,
+ * so no match can exist beyond it), ngx_memcmp on the 16-byte id.
  */
 brix_session_entry_t *
 brix_session_find_locked(brix_session_table_t *tbl,
     const u_char sessid[BRIX_SESSION_ID_LEN])
 {
     brix_session_entry_t *slots = tbl->slots;
-    ngx_uint_t            i, capacity = tbl->capacity;
+    ngx_uint_t            i, live = tbl->high_water;
 
-    for (i = 0; i < capacity; i++) {
+    for (i = 0; i < live; i++) {
         if (slots[i].in_use
             && ngx_memcmp(slots[i].sessid, sessid,
                           BRIX_SESSION_ID_LEN) == 0)

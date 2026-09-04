@@ -566,6 +566,7 @@ RUNNERS = {
     "staged_contract_tiers": staged_contract_tiers,
     "staged_contract_origin": staged_contract_origin,
     "shared_thread_pool": shared_thread_pool,
+    "service_publish": service_publish,
     "fd_kind": fd_kind,
     "stage_reconcile": stage_reconcile,
     "compression": compression,

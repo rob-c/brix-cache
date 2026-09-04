@@ -2,8 +2,10 @@
 
 **Date:** 2026-08-30
 
-**Status:** 📋 **PLANNED** — no code written. This document is the specification
-the implementation will be judged against.
+**Status:** IMPLEMENTED AND VERIFIED (closed 2026-09-04). C1–C9 and W0–W9 are
+landed; the local guards, C units, serial `--pr` acceptance tier, and live
+protocol evidence are green. The plan body is retained as the specification and
+the checked execution ledger near the end is the as-built record.
 
 **Document version:** v3 — v1 planned the eight capability gaps. v2 added a
 second part: the five places where BriX-Cache already implements a VFS mutation
@@ -880,6 +882,17 @@ online copy — and both are today reachable by a reader on a read-only endpoint
 because phase 105 could only gate the `kXR_wmode` arm of prepare
 (`prepare.c:412`; phase-105 §F.1). This closes that.
 
+> **Fallout for test fleets (2026-09-02, observed as 16 fast-tier reds):**
+> `brix_allow_write` is stream-server-conf only (`stream_common.c`), so it
+> must appear **per server block**. Any pre-C2 fleet config that exercised
+> `kXR_prepare`+`kXR_stage` (or evict) without declaring writability — the
+> audit16ah FRM configs were the whole class — now correctly gets
+> `kXR_fsReadOnly` ("this is a read-only server") from
+> `prepare_dispatch_special` before the path scan. The fix is
+> `brix_allow_write on;` in each server block of the test face, not a gate
+> exemption: a red of this shape after touching prepare/stage paths is the
+> gate working, not a regression.
+
 **Tests** (`tests/test_prepare_recall.py`, `tests/test_vfs_evict.py`):
 
 | test | asserts |
@@ -1397,7 +1410,12 @@ may perform and a read-only one must skip, and correctness cannot depend on it.
   locks are WebDAV-only.
 
 `nginx -t` negative: `brix_lock_enforcement yes;` →
-`[emerg] invalid value "yes" in "brix_lock_enforcement" directive`.
+`[emerg] invalid value "yes" in <conf>:<line>`. Note the shape: nginx's
+`ngx_conf_set_enum_slot` does **not** name the offending directive — only the
+file and line identify it — where `ngx_conf_set_flag_slot` does (contrast
+`brix_durable_publish` in [§3.2](#32-c3-a-durable-publish-barrier)). Verified
+against `objs/nginx -t` on 2026-09-03; pinned by
+`test_the_new_directive_diagnostics_are_quoted_as_their_setter_emits_them`.
 
 The compatibility risk is real and [§11](#11-compatibility-and-rollout) owns it:
 an export carrying stale non-expiring locks would start refusing XRootD writes
@@ -1492,7 +1510,7 @@ invariant, and conflating them is how a service path acquires an export-shaped
 refusal that nobody notices.
 
 **Tests** (`tests/c/test_vfs_service_domain.c` via the C object-unit runner,
-plus `tests/test_gcas_gate.py`):
+plus `tests/test_gcas_store_gate.py`):
 
 | test | asserts |
 |---|---|
@@ -2627,12 +2645,12 @@ index.
 |---|---|---|---|---|
 | C1 | `tests/test_vfs_writer_spill.py` | out-of-order write over `http` + `remote` → byte-identical object | spill root full → `ENOSPC`/507, no partial publish | spill temp not created before the mutation gate passes; read-only endpoint reaches no spill |
 | C2 | `tests/test_prepare_recall.py`, `tests/test_vfs_evict.py` | prestage on `frm`/`xroot` returns a reqid; QPrep tracks residency | no slot, no command → `kXR_Unsupported`, not silent success | prestage and evict refused `kXR_fsReadOnly`; evict refused for a non-owner |
-| C3 | `tests/test_durable_publish.py` | dirfsync issued once per publish, on the **parent**, on POSIX | fsync failure fails the publish | not issued for a service-storage temp; not issued on a refused publish |
+| C3 | `tests/c/test_publish_dirsync.c` (`publish_dirsync` unit) | dirfsync issued once per publish, on the **parent**, on POSIX | fsync failure fails the publish | not issued for a service-storage temp; not issued on a refused publish |
 | C4 | `tests/test_s3_delete_objects_batch.py`, `tests/test_vfs_rmtree.py` | 1 000-key delete → 1 batch on `remote`, 1 transaction on `pblock` | partial failure reports per-key errno and a correct `done` count | one policy check covers the batch; a read-only endpoint deletes zero keys and discloses nothing |
 | C5 | `tests/test_vfs_reserve.py` | `oss.asize` reaches the driver; part size derived on `remote` | oversized declaration → `ENOSPC` at open | a declared size cannot raise a quota or bypass `oss.maxsize` |
 | C6 | `tests/test_conditional_publish.py`, `tests/test_vfs_exchange.py` | conditional publish atomic on `remote`/`http`; exchange atomic on `posix` | mismatched etag → 412 / `kXR_ItExists` | a non-`CAP_PRECOND` backend never reports an atomic guarantee; exchange never emulated |
 | C7 | `tests/test_cross_protocol_locks.py` | locked resource refuses on all five planes; matching token succeeds | expired lock treated as absent on a read-only export, without reaping | a lock cannot be bypassed by choosing a different protocol; `EROFS` precedes `EBUSY` |
-| C8 | `tests/test_gcas_gate.py`, `tests/c/test_vfs_service_domain.c` | `gcas` publish/gc succeed against a store instance | export instance → `EINVAL` | a cache store configured at an export root is refused at `nginx -t` **and** at runtime |
+| C8 | `tests/test_gcas_store_gate.py`, `tests/c/test_vfs_service_domain.c` | `gcas` publish/gc succeed against a store instance | export instance → `EINVAL` | a cache store configured at an export root is refused at `nginx -t` **and** at runtime |
 | C9 | `tests/test_vfs_seam_domains.py` | every waiver names an entitled domain; guard green | unknown/missing domain → guard fails | a `CONFIG` waiver in a data-plane file fails; a domain constant does not grant access |
 
 ### 9.2 How the C-level units are registered
@@ -2653,12 +2671,22 @@ New specs:
 
 ```
 vfs_writer_spill        C1 — the three-state machine, transitions only
-vfs_sync_publish        C3 — parent-fd derivation, O_RDONLY not O_PATH
+publish_dirsync         C3 — parent-fd derivation, O_RDONLY not O_PATH
 vfs_bulk_chunker        C4 — level boundaries, window fill, short `done`
 sd_precond              C6 — kind dispatch, `atomic` reporting
 vfs_lock_gate           C7 — the four expiry states
 vfs_service_domain      C8/C9 — domain assert, EXPORT-is-zero default
 ```
+
+As built the six landed as the spec names above (`publish_dirsync`, not the
+planned `vfs_sync_publish`); `sorted(SPECS)` is 28 entries and
+`tests/test_c_object_units.py` collects 28, which is the count-growth check this
+section demands. The two written last — `sd_precond` and `vfs_bulk_chunker` —
+were mutation-checked rather than merely run green: removing the C4 boundary
+flush, the ECANCELED pre-fill, the window-fill comparison against the constant,
+the `done`-bounded success count, or the leaf capability probe each makes the
+chunker unit fail, and truncating or extending a generated ETag each makes the
+precondition unit fail.
 
 ### 9.3 Cross-cutting
 
@@ -2690,6 +2718,62 @@ vfs_service_domain      C8/C9 — domain assert, EXPORT-is-zero default
 - **Tier placement.** Every new test is either in the `--pr` tier or explicitly
   marked `slow`; a gate named after a slow family gets deselected from the PR
   tier and the run still says green, which is how a gate goes dark.
+- **Closure (as built).** `tests/test_phase107_mutation_surface_closure.py`
+  (18 tests, hermetic, `xdist_group("phase107-closure")`) pins the facts the
+  completion work itself discovered, one assertion each, grouped
+  compatibility / feature / security: the C6 evaluator's private copy of the
+  ETag grammar must stay equal to `brix_http_etag_str`'s and its buffer no
+  narrower than the 48 bytes `etag.h` documents; all seven evaluator callsites
+  answer a missing target with `ECANCELED` (412) and never `ENOENT` (404); the
+  §9.1 matrix names files that exist and §9.2's promised units are all in the
+  parametrized table; the vocabulary is closed, mirrored, uniquely labelled and
+  every member is passed by some caller outside the kernel; the bulk-delete
+  window and its capability bit are singular; all three refusal enums read
+  safest at zero (`READ_ONLY` / `PRECOND_NONE` / `DOMAIN_EXPORT`); the kernel's
+  executable text contains no `EACCES`; all eighteen `_maybe_cred` wrappers
+  refuse a `fallback_deny` credential; the evaluator's fall-through is
+  `ENOTSUP`; and the enum/metric-mirror `_Static_assert` still exists.
+
+  A second wave (2026-09-03) pins what the `_Static_assert` structurally
+  **cannot** see, because it compares a count to a count:
+
+  * the two hand-written mutation label tables — the kernel's
+    `names[BRIX_VFS_MUTATE_OP_COUNT]` (`vfs_policy.c:70`) and the exporter's
+    `brix_unified_vfs_mutate_op_names[]` (`unified.c:179`) — agree word for
+    word, closing the fork `vfs_policy.c`'s own WHY comment forbids ("a second
+    table would let the two drift") in the one place nothing defended it;
+  * every label in **both** vocabularies is its own enum member's suffix,
+    lowercased, in enum order.  This is the pin with teeth: inserting a member
+    mid-enum and *appending* its label — the append-only reflex — keeps both
+    counts equal and both tables identical while silently renaming every series
+    after the insertion point (`evict` starts reporting as `lock`).  Six
+    mutants were run against a copied tree; this assertion is the only one that
+    kills that case;
+  * no bounded `static const char *t[N]` label table in `src/` carries a hole
+    (fewer initialisers than `N` is legal C, and the tail NULLs never reach the
+    `"unknown"` fallback, which is only for an out-of-range index).  Eight
+    tables qualify; the `BRIX_PROTO_LIST(X)` expansion is skipped as hole-free
+    by shape;
+  * the three refusals stay tellable apart on every plane — `EROFS` 403,
+    `EBUSY` 423, `ECANCELED` 412 — which is what makes the C7 ordering
+    guarantee (`EROFS` before `EBUSY`, so a read-only endpoint never discloses
+    that a lock exists) observable at all; `EROFS` round-trips through
+    `kXR_fsReadOnly` as the forward table's comment says it must; and the one
+    deliberate asymmetry is pinned WITH its reason so a future reader does not
+    "fix" it: `EBUSY → kXR_FileLocked` forward, but `kXR_FileLocked → EAGAIN`
+    back (fcntl's "held, retry"), with `EBUSY` reserved on the reverse side for
+    `kXR_Overloaded`, which is server load, not a resource lock;
+  * the forward errno→kXR table has **no** `ECANCELED` row, so a precondition
+    failure that reached the root plane would render as `kXR_IOError` — a
+    server fault a client retries, for a condition retrying cannot fix.  Today
+    nothing defends that but a design fact (the root plane constructs only
+    ABSENT preconditions).  The pin is the implication, green in either future:
+    the root plane may name `ECANCELED` only once the table can spell it;
+  * the `nginx -t` diagnostics this document quotes are the ones the chosen
+    setter can actually emit.  §4's original text promised a directive-naming
+    `[emerg]` for `brix_lock_enforcement`; only `ngx_conf_set_flag_slot` names
+    the directive, so the enum rows log the bad value alone.  Corrected above
+    and pinned as the rule, not the string.
 
 ---
 
@@ -2810,7 +2894,9 @@ that slips.
       C5 W4, C6 W7, C7 W8, C8 W1+W9, C9 W1+W9; no deferrals.)*
 - [x] Vocabulary is 15 members; the metric mirror asserts equal at compile time.
       *(And the assert proven live 2026-09-02 by the W0 compile-fail
-      experiment.)*
+      experiment. Now 16 — phase-108's C11 added `CREDENTIAL` — and the
+      closure test pins enum == mirror == 16 with one unique label each, so
+      the next member cannot land in only one of the three places.)*
 - [x] Every new slot has a verdict in every empty cell, the matrix is
       header-derived, and both census guards are green.
 - [x] The ordering assertion (§3.4) passes for every new mutator.
@@ -2827,18 +2913,18 @@ that slips.
       across complexity, file-size, duplication, python-quality, config and
       client-build coverage, and driver conformance.)*
 - [x] `objs/nginx -t` green for every new directive, including the negative
-      config cases.
-- [ ] The `--pr` tier is green; the five live protocol lanes are green.
-      *(NOT re-run since the phase-107 code landed: a concurrent session's
-      fleet claims `/tmp/xrd-test` and one host fits exactly one full lane
-      (~18.5k reserved ports), so a fresh tier run must wait for the ladder.
-      The per-change batteries — `test_vfs_mutation_baseline.py`,
-      `test_vfs_rmtree.py`, `test_vfs_reserve.py`, `test_vfs_evict.py`,
-      `test_prepare_recall.py`, `test_vfs_exchange.py`,
-      `test_vfs_writer_spill.py`, `test_cross_protocol_locks.py`,
-      `test_vfs_seam_domains.py` (79 tests) and the full C regression-unit
-      file (49/49 after the closure burndown) — are green; this box stays
-      open until a clean full-tier pass is banked.)*
+      config cases. *(Re-verified 2026-09-03 against a binary built from this
+      tree: the four-export `lock_enforcement` config parses clean;
+      `brix_lock_enforcement yes`, `brix_durable_publish maybe` and
+      `brix_authz_backstop loud` are each refused at `[emerg]`;
+      `brix_durable_publish off` — the C3 opt-out — is accepted. The refusal
+      TEXT was wrong in §4 and is corrected there; see §12.1.)*
+- [x] The `--pr` tier is green; the five live protocol lanes are green.
+      *(Closed 2026-09-04 against an isolated post-W9 binary: the serial PR
+      acceptance lane completed with **561 passed, 273 skipped, 42,120
+      deselected**. The live root/stream, GridFTP, CVMFS, WebDAV and S3 probes
+      passed; they exercised the phase's mutator and metrics paths without
+      attaching to or replacing the foreign fleet at port 10005.)*
 - [x] `src/fs/README.md`, `src/fs/backend/README.md`, the slot matrix, the
       errno→kXR→HTTP table and `agent-guide-extended.md` updated **after** the
       code matches them, never before.
@@ -2882,6 +2968,99 @@ This table is the phase-108 baseline: its consolidation waves (C10–C13) are
 measured by how many of the 94 domain-bearing waivers (111 minus the 7
 `NOT_STORAGE` and 10 `SEAM_CORRECT` markers, which are annotations rather than
 storage bypasses) they delete.
+
+### 12.1 Post-close verification (2026-09-03)
+
+The ledger above was re-checked against the tree rather than taken on faith.
+Five drifts, two of them real coverage gaps:
+
+- **Two promised object units were never written.** §9.2 listed six new specs
+  and §12 ticked "all nine items implemented", but `vfs_bulk_chunker` (C4) and
+  `sd_precond` (C6) were absent from `SPECS`, so the chunker's recursion and the
+  precondition evaluator had **no hermetic coverage at all** while the ledger
+  read as if they did — §9.2's own trap ("a unit present in RUNNERS but absent
+  from the parametrized table never runs, and the suite still reports green"),
+  landing one level up. Both are now written and registered:
+  `tests/c/test_vfs_bulk_chunker.c` (13 cases) links the real
+  `vfs_unlink_many.o` against an in-memory fake namespace and asserts the
+  ordering property no wire test can see — every child is gone **before** its
+  directory, at every level — plus the window splitting on
+  `BRIX_SD_BULK_DELETE_WINDOW` exactly, the `ECANCELED` pre-fill, `d_type` as a
+  hint and never authority, `ELOOP` past the depth cap, deny-mode refusal of a
+  whole batch, and a driver writing past `done` being unable to inflate the
+  metric. `tests/c/test_sd_precond.c` (13 cases) links the real `http/etag.o`
+  and compares generated tags against the evaluator at runtime.
+  `sorted(SPECS)` went 26 → 28, and `test_c_object_units.py` collects 28.
+- **Both new units were mutation-checked, not merely run green.** Removing the
+  C4 boundary flush, the `ECANCELED` pre-fill, the window comparison against the
+  constant, or the leaf capability probe each makes the chunker unit fail;
+  truncating or extending a generated ETag each makes the precondition unit
+  fail. One mutant initially **survived** — replacing the `done`-bounded success
+  count with the full window size — because untried keys already read
+  `ECANCELED`; case 13 (the metric carries the count in the value) was added to
+  kill it.
+- **The §9.1 matrix named three files that never shipped** under those names:
+  `tests/test_durable_publish.py` (C3 landed as the `publish_dirsync` object
+  unit) and two rows naming `tests/test_gcas_gate.py` (shipped as
+  `tests/test_gcas_store_gate.py`). Fixed, and
+  `test_the_doc_test_matrix_names_files_that_exist` now holds §9 to it.
+- **The §4 `nginx -t` refusal text was wrong for the enum directives.** §12
+  ticked "`objs/nginx -t` green for every new directive, including the negative
+  config cases", and the negatives ARE refused — but §4 quoted the refusal in
+  the directive-naming form (`… in "brix_lock_enforcement" directive`), and
+  nginx does not say that. Only `ngx_conf_set_flag_slot` names the offending
+  directive (`ngx_conf_file.c:1050`); `ngx_conf_set_enum_slot` (`:1382`) logs
+  the value alone, so an operator with two enum directives in one server block
+  is left with the line number as their only clue. Measured against a binary
+  built from this tree: `brix_lock_enforcement yes` →
+  `[emerg] invalid value "yes" in <conf>:115`, while `brix_durable_publish
+  maybe` → `[emerg] invalid value "maybe" in "brix_durable_publish" directive,
+  it must be "on" or "off"` exactly as §3.2 says. §4 corrected;
+  `test_the_new_directive_diagnostics_are_quoted_as_their_setter_emits_them`
+  now holds the doc to the RULE (a named diagnostic may be quoted only for a
+  flag-slot row), so the same wrong promise cannot be written for
+  `brix_authz_backstop` either.
+- **The discoveries are pinned.** `tests/test_phase107_mutation_surface_closure.py`
+  (§9.3) carries all eighteen, one assertion each. Six of the newest were
+  themselves mutation-checked against a copied tree, including the case that
+  motivated the positional-label pin: a *correct* mid-enum insertion passes
+  every test, so the mutant that matters is the realistic mistake — insert
+  mid-enum, append the label — which only the positional assertion kills.
+
+Re-verified on a quiet tree: the C1–C9 lanes plus the closure file
+(`test_vfs_writer_spill` · `test_prepare_recall` · `test_vfs_reserve` ·
+`test_conditional_publish` · `test_cross_protocol_locks` ·
+`test_gcas_store_gate` · `test_vfs_mutation_baseline` · `test_c_object_units` ·
+`test_phase107_mutation_surface_closure`) run **121 passed / 1 skipped**, six
+consecutive times; `test_c_object_units.py` 27 passed / 1 skipped;
+`check_vfs_mutation_gate.py` and `check_config_coverage.py` green. Two guards
+are red for reasons **outside this phase** and are left to their owner: a
+concurrent session's uncommitted `src/fs/backend/gsiftp/gftp_gsi.c` claims
+`DOMAIN_CONFIG` from a prefix with no entitlement (`check_vfs_seam.py`, and so
+`tests/test_vfs_seam_domains.py`'s two live-tree cases) — the entitlement it
+wants is the analogue of the existing `src/protocols/gridftp/ftp_module_gsi.c`
+row, but widening a security allowlist for another session's in-flight file is
+that session's reviewed change to make, not this phase's; and the same
+session's `tests/brix_suite/servers/ftp_origin_server.py:73` exceeds the NPath
+limit (`check_python_quality.py`). *(Both closed later the same day by their
+owner — `check_vfs_seam.py` now carries a `gftp_gsi` → `DOMAIN_CREDENTIAL`
+entitlement row and `check_python_quality.py` reports OK across 235,500
+function scores. Neither was touched from this phase.)*
+
+**One unexplained red, recorded rather than waved off.** The first of the six
+runs above failed at
+`test_vfs_writer_spill.py::test_reverse_order_remote_is_byte_exact` — the
+`root://` *open* on `REMOTE_PORT` (the s3-fronted C1 spill export) answered
+`[3007] Input/output error`, i.e. `kXR_IOError`, before a single byte was
+written. It did not recur: five further runs of the same nine-file set and
+eight cold single-test runs are green — 1 red in 15 executions — and the lane's
+`error.log` was recycled by the next run before it could be read. The mechanism
+is NOT the familiar TCP-ready race: `wait_ready` probes only the primary `PORT`
+(`launcher/internal_operations.py:166`, never the six `extra_ports`), but nginx
+binds every `listen` in the master before forking, so readiness on one implies
+binding on all. No code was changed on a guess. The signature to match on a
+recurrence: an `open()` — not a write, not the commit — refused with 3007 on
+the s3 front only, at the lane's first operation.
 
 ---
 
@@ -3893,7 +4072,6 @@ guard greps by syscall name. They are annotated and then left alone — no
 migration, no phase-108 follow-up.
 
 ---
-*End of plan. Nothing in this document has been implemented. When a wave lands,
-append its record here in the shape phase 105 used — what the sweep actually
-found, not what it set out to find. The consolidation half of the original v2
-plan now lives in [phase 108](phase-108-vfs-consolidation.md).*
+*End of design record. The implementation and checked execution ledger above
+supersede the original plan-only wording. The consolidation half of the original
+v2 plan lives in [phase 108](phase-108-vfs-consolidation.md).*

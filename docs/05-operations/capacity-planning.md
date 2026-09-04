@@ -76,7 +76,7 @@ objects. Signals:
 If `brix_cache` is enabled, size it to your hot working set:
 
 - `brix_cache_occupancy_ratio` near 1.0 with a low
-  `brix_cache_hits_total / (hits+misses)` ratio ⇒ the cache is too small or the
+  `brix_cache_requests_total{cache_status="HIT"}` hit ratio ⇒ the cache is too small or the
   working set is not cacheable.
 - `brix_cache_evictions_total` climbing ⇒ churn; grow the cache or raise
   `brix_cache_max_file_size` selectivity.

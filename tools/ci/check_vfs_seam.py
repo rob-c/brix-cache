@@ -73,6 +73,7 @@ SYMS_RE = re.compile(r"\b(" + _SYMS + r")\s*\(")
 _ALLOW = (
     r"^src/fs/"
     r"|^src/core/compat/namespace_ops|^src/core/compat/staged_file|^src/core/compat/fs_walk"
+    r"|^src/core/compat/service_publish"
     r"|^src/auth/impersonate/|^src/observability/dashboard/"
 )
 ALLOW_RE = re.compile(_ALLOW)
@@ -164,6 +165,7 @@ DOMAIN_ENTITLE = (
     ("src/fs/backend/cache/",                     frozenset(("DOMAIN_CACHE",))),
     ("src/fs/backend/stage/",                     frozenset(("DOMAIN_STAGE",))),
     ("src/fs/backend/cred_mint",                  frozenset(("DOMAIN_CREDENTIAL",))),
+    ("src/fs/backend/gsiftp/gftp_gsi",            frozenset(("DOMAIN_CREDENTIAL",))),
     ("src/fs/meta/",                              frozenset(("DOMAIN_CACHE",))),
     ("src/fs/vfs/vfs_deleg",                      frozenset(("DOMAIN_CREDENTIAL",))),
     ("src/fs/vfs/vfs_writer_spill",               frozenset(("DOMAIN_STAGE",))),

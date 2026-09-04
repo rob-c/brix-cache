@@ -163,16 +163,10 @@ static void
 stat_vfs_ctx_prepare(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const char *path, brix_vfs_ctx_t *vctx)
 {
-    brix_vfs_ctx_init(vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL,
-        brix_vfs_policy_from_write_enable(conf->common.allow_write),
-        0 /* is_tls */, ctx->identity, path);
-    /* Persistent per-worker confinement rootfd (op_vfs_ctx pattern). */
-    vctx->rootfd = conf->rootfd;
+    brix_root_vfs_ctx_init(ctx, c, conf, vctx, path);
     brix_vfs_ctx_bind_backend_cred(vctx,
         &conf->common.storage_credential_dir,
         conf->common.storage_credential_fallback);
-    brix_root_vfs_bind_session(ctx, conf, vctx);
 }
 
 /*
@@ -266,18 +260,13 @@ stat_vfs_query(brix_ctx_t *ctx, ngx_connection_t *c,
  * flag bits to OR in (0 when online or unknown).
  */
 static int
-stat_residency_flags(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
-    const char *full_path)
+stat_residency_flags(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *full_path)
 {
     brix_vfs_ctx_t      rvc;
     brix_sd_residency_t res;
 
-    brix_vfs_ctx_init(&rvc, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL,
-        brix_vfs_policy_from_write_enable(conf->common.allow_write),
-        0 /* is_tls */, NULL, full_path);
-    /* Persistent per-worker confinement rootfd (op_vfs_ctx pattern). */
-    rvc.rootfd = conf->rootfd;
+    brix_root_vfs_ctx_init(ctx, c, conf, &rvc, full_path);
     if (brix_vfs_residency(&rvc, &res, NULL) == NGX_OK
         && (res == BRIX_SD_RES_NEARLINE
             || res == BRIX_SD_RES_OFFLINE))
@@ -372,7 +361,7 @@ stat_query_path(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     tgt->extra_flags = brix_cache_path_flag(conf, tgt->reqpath);
-    tgt->extra_flags |= stat_residency_flags(c, conf, tgt->full_path);
+    tgt->extra_flags |= stat_residency_flags(ctx, c, conf, tgt->full_path);
 
     return 1;
 }

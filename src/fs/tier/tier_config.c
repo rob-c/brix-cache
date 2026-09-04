@@ -81,6 +81,7 @@ static int
 tier_default_port(const char *driver, int tls)
 {
     if (ngx_strcmp(driver, "xroot") == 0) { return 1094; }
+    if (ngx_strcmp(driver, "gsiftp") == 0) { return tls ? 2811 : 21; }
     if (ngx_strcmp(driver, "http") == 0)  { return tls ? 443 : 80; }
     if (ngx_strcmp(driver, "s3") == 0)    { return 7480; }
     return 0;

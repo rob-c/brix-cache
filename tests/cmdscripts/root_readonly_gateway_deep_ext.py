@@ -319,7 +319,7 @@ def _run_readv_probe(
     handle = response[:4]
     segments = min(4, segment_limit)
     body = b"".join(
-        handle + struct.pack(">qi", index * 4, 4) for index in range(segments)
+        handle + struct.pack(">Iq", 4, index * 4) for index in range(segments)
     )
     status, data = _send(session, kXR_readv, b"\x00" * 16, body)
     results.append(

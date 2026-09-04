@@ -94,3 +94,43 @@ def test_group_reaches_the_scheduler_not_just_the_marker():
         "tests/test_conf_rename.py::test_x@interop-test_conf_rename")
     assert item._nodeid.count("@") == 1, "stale suffix was appended, not replaced"
     assert item.markers, "the marker must be set too, for -m selection"
+
+
+def test_late_group_marker_is_materialized_for_scheduler():
+    """A group added after xdist's hook still becomes a scheduler suffix."""
+    marker = pytest.mark.xdist_group("late-group").mark
+
+    class _Item:
+        nodeid = "tests/test_late.py::test_one"
+
+        def __init__(self):
+            self._nodeid = self.nodeid
+
+        def iter_markers(self, name):
+            return [marker] if name == "xdist_group" else []
+
+    item = _Item()
+    grouping.materialize_xdist_group(item)
+    assert item._nodeid == "tests/test_late.py::test_one@late-group"
+
+
+def test_forced_group_replaces_stale_marker_set():
+    """A computed shared-port group overrides, rather than combines with, stale groups."""
+    markers = [
+        pytest.mark.xdist_group("old-a").mark,
+        pytest.mark.xdist_group("old-b").mark,
+    ]
+
+    class _Item:
+        nodeid = "tests/test_shared.py::test_one@old-a_old-b"
+
+        def __init__(self):
+            self._nodeid = self.nodeid
+            self._brix_xdist_group_override = "shared-port"
+
+        def iter_markers(self, name):
+            return markers if name == "xdist_group" else []
+
+    item = _Item()
+    grouping.materialize_xdist_group(item)
+    assert item._nodeid == "tests/test_shared.py::test_one@shared-port"

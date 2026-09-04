@@ -26,7 +26,7 @@ brix_conf_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
      * xrdacc engine also authorizes anonymous `u *` rules, so it is exempt.
      * (Directive order means xcf->auth / acc_format are not yet settled here.)
      */
-    xcf->authdb = value[1];
+    xcf->common.acc.authdb = value[1];
 
     if (xcf->authdb_rules == NULL) {
         xcf->authdb_rules = ngx_array_create(cf->pool, 4,
@@ -36,7 +36,9 @@ brix_conf_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         }
     }
 
-    if (brix_parse_authdb(cf, &xcf->authdb, xcf->authdb_rules) != NGX_OK) {
+    if (brix_parse_authdb(cf, &xcf->common.acc.authdb,
+                          xcf->authdb_rules) != NGX_OK)
+    {
         return NGX_CONF_ERROR;
     }
 
@@ -110,7 +112,7 @@ brix_conf_set_require_vo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_stream_brix_srv_conf_t *xcf = conf;
 
     (void) cmd;
-    return brix_vo_rules_append(cf, cf->args->elts, &xcf->vo_rules);
+    return brix_vo_rules_append(cf, cf->args->elts, &xcf->common.vo_rules);
 }
 
 /* `brix_tpc_verify_checksum on|off|<alg>` on EVERY plane (phase-101 W4): unify the
@@ -247,7 +249,7 @@ ngx_int_t
 brix_config_finalize_policy(ngx_conf_t *cf,
     ngx_stream_brix_srv_conf_t *xcf)
 {
-    if (xcf->vo_rules != NULL
+    if (xcf->common.vo_rules != NULL
         && xcf->auth != BRIX_AUTH_GSI
         && xcf->auth != BRIX_AUTH_TOKEN
         && xcf->auth != BRIX_AUTH_BOTH)
@@ -257,31 +259,32 @@ brix_config_finalize_policy(ngx_conf_t *cf,
         return NGX_ERROR;
     }
 
-    if (xcf->vo_rules != NULL) {
+    if (xcf->common.vo_rules != NULL) {
         if (!brix_voms_available()) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix_require_vo requires libvomsapi.so.1 at runtime "
                 "(install voms-libs on EL9)");
             return NGX_ERROR;
         }
-        if (xcf->vomsdir.len == 0 || xcf->voms_cert_dir.len == 0) {
+        if (xcf->common.vomsdir.len == 0 || xcf->common.voms_cert_dir.len == 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix_require_vo requires brix_vomsdir and brix_voms_cert_dir");
             return NGX_ERROR;
         }
 
-        if (brix_validate_path(cf, "brix_vomsdir", &xcf->vomsdir,
+        if (brix_validate_path(cf, "brix_vomsdir", &xcf->common.vomsdir,
                                  BRIX_PATH_DIRECTORY, R_OK | X_OK)
             != NGX_OK
             || brix_validate_path(cf, "brix_voms_cert_dir",
-                                    &xcf->voms_cert_dir,
+                                    &xcf->common.voms_cert_dir,
                                     BRIX_PATH_DIRECTORY, R_OK | X_OK)
                != NGX_OK)
         {
             return NGX_ERROR;
         }
     }
-    if (brix_finalize_vo_rules(cf->log, &xcf->common.root, xcf->vo_rules)
+    if (brix_finalize_vo_rules(cf->log, &xcf->common.root,
+                               xcf->common.vo_rules)
         != NGX_OK)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,

@@ -28,8 +28,9 @@ def _load():
 
 
 def test_real_tree_passes_under_fail():
-    """(success) The shipped emitters satisfy M1/M2: brix_io_latency_seconds is
-    the canonical unit and brix_io_latency_usec is a registered deprecation."""
+    """(success) The shipped emitters satisfy M1/M2: brix_io_latency_seconds
+    is the one latency unit, and phase 112 left DEPRECATED_METRICS empty, so
+    no `_usec` histogram survives anywhere in the tree to be exempted."""
     r = subprocess.run([sys.executable, CHECK, "--fail"],
                        capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stdout + r.stderr

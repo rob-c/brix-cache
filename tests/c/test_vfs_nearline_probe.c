@@ -45,6 +45,19 @@ const brix_sd_cred_t *brix_vfs_ns_cred(const void *vctx)
     { (void) vctx; return NULL; }
 ngx_int_t brix_vfs_require_confined_mutation(void *vctx, int op)
     { (void) vctx; (void) op; return NGX_OK; }
+ngx_int_t brix_vfs_gate_confined(const void *vctx, int op)
+    { (void) vctx; (void) op; return NGX_OK; }
+ngx_int_t brix_path_resolved_to_pfn(const void *vctx, const char *path,
+    char *pfn, size_t cap)
+{
+    size_t len;
+    (void) vctx;
+    if (path == NULL || pfn == NULL) { return NGX_ERROR; }
+    len = strlen(path);
+    if (len >= cap) { return NGX_ERROR; }
+    memcpy(pfn, path, len + 1);
+    return NGX_OK;
+}
 void brix_metric_vfs_recall(int outcome) { (void) outcome; }
 void brix_metric_vfs_evict(const char *driver_name, uint64_t bytes)
     { (void) driver_name; (void) bytes; }

@@ -27,7 +27,8 @@ serializes auth decisions across workers on the GSI hot path.
 
 | File | Responsibility |
 |---|---|
-| `auth_gate.c` / `auth_gate.h` | the three-tier gate entry point (authdb → VO ACL → token scope) + L1 counters |
+| `auth_gate.c` / `auth_gate.h` | the three-tier protocol-edge gate entry point (authdb → VO ACL → token scope) + L1 counters |
+| `auth_gate_identity.c` | cache-free identity form of that same evaluator for the VFS authorization backstop |
 | `acl.c` | postconfig finalization of the VO-rule array (resolved against the export root) |
 | `authdb.c` | postconfig finalization of the authdb rule array |
 | `find_rule.c` | longest-prefix rule matching for path policies |

@@ -181,8 +181,10 @@ s3_commit(brix_vfs_file *f, brix_status *st)
     vfs_s3_file *sf = (vfs_s3_file *) f;
     char         errbuf[256] = "";
 
+    errno = 0;
     if (sd_s3_commit(sf->sd, errbuf, sizeof(errbuf)) != 0) {
-        brix_status_set(st, XRDC_EIO, 0, "%s", errbuf);
+        int e = errno;
+        brix_status_set(st, s3_brix_from_errno(e), e, "%s", errbuf);
         return -1;
     }
     return 0;

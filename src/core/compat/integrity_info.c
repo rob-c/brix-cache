@@ -584,13 +584,12 @@ brix_integrity_invalidate_path(ngx_log_t *log, const char *root_canon,
     char             key[64];
     int              i;
 
-    /* MUTATION_ALLOWED as in brix_integrity_invalidate_fd above: the header
-     * contract makes this the tail of a mutation (rename, local copy commit)
-     * the endpoint ALREADY permitted, and a stale digest surviving a refused
-     * invalidation is a wrong answer. NOT a licence to call this from a path
-     * that has not passed its own mutation gate. */
+    /* Tail of an already-permitted mutation; stale digests are worse than the
+     * write. This is not authority for an ungated caller. */
     brix_vfs_ctx_init(&vctx, NULL, log, BRIX_PROTO_ROOT, root_canon,
         NULL, BRIX_VFS_MUTATION_ALLOWED, 0 /* is_tls */, NULL, path);
+    /* No request identity survives into this checksum-maintenance tail. */
+    brix_vfs_ctx_bind_no_authz_rules(&vctx, BRIX_AUTHZ_BACKSTOP_OFF);
 
     for (i = 0; s_algorithms[i] != NULL; i++) {
         if (integrity_xattr_key(s_algorithms[i], key, sizeof(key)) != NULL) {

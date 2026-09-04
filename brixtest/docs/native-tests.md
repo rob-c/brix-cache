@@ -44,6 +44,23 @@ test_modes = native_test(
 test_modes = pytest.mark.parametrize("mode", ("read", "write"))(test_modes)
 ```
 
+Build matrices use the same mechanism. `param(...)` is accepted in compiler,
+source/include/object paths, preprocessor values, raw compile/link arguments,
+runtime arguments, and compile/runtime environments:
+
+```python
+test_codecs = native_test(
+    "codecs",
+    sources=("c/test_codecs.c",),
+    defines={"CODEC_ID": param("codec_id")},
+    compile_args=("-Wall", "-Werror", param("optimization")),
+    stdout="PASS",
+)
+test_codecs = pytest.mark.parametrize(
+    "codec_id,optimization", ((1, "-O0"), (2, "-O2")),
+)(test_codecs)
+```
+
 ## Declaration model
 
 `native_test(name, *, sources=...)` accepts the following groups of options:
@@ -142,8 +159,53 @@ test_http_client = native_test(
 ```
 
 The native build runs after declared resources are materialized and servers
-are ready. References in `args`, `env`, and `compile_env` therefore use the same
-backend-neutral rendering as `run.command()`.
+are ready. References in source, include, object, prerequisite, working-directory,
+compiler, argument, and environment fields therefore use the same backend-neutral
+rendering as `run.command()`.
+
+This makes generated translation units first-class inputs without introducing
+a source-generation mini-language. Use the existing artifact declaration for
+literal source and the existing task declaration for computed source:
+
+```python
+from brixtest import native_test, task, text_artifact
+
+embedded = text_artifact(
+    "probe-source",
+    '#include <stdio.h>\nint main(void){puts("PASS");}\n',
+    filename="probe.c",
+)
+
+generate = task(
+    "generate-stub",
+    command=("python3", "make_stub.py", "generated.c"),
+    outputs={"source": "generated.c"},
+)
+
+test_embedded = native_test(
+    "embedded", sources=(embedded.ref(),), resources=(embedded,), stdout="PASS",
+)
+test_generated = native_test(
+    "generated", sources=(generate.output("source"),), resources=(generate,),
+    language="c", stdout="PASS",
+)
+```
+
+Every materialized source is hashed into the native build manifest. References
+must come from resources listed by the case, preserving dependency ordering,
+provenance, remote transport, and teardown ownership.
+
+A captured compiler is equally explicit and immutable:
+
+```python
+from brixtest import binary, native_test
+
+toolchain = binary("test-cc", "/opt/toolchains/bin/cc")
+test_with_toolchain = native_test(
+    "custom-toolchain", sources=("c/unit.c",), resources=(toolchain,),
+    compiler=toolchain, stdout="PASS",
+)
+```
 
 ## Objects, sanitizers, and coverage builds
 

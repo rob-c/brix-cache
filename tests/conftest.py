@@ -150,6 +150,7 @@ from brix_suite.harness.fixtures import (  # noqa: F401  (re-exported)
     registry_server,
     test_env,
 )
+from brix_suite.orphans import listener_owned_by_test_root
 
 # Repo cwd captured at import (pytest's rootdir).  The session chdir()s into
 # CWD_DIR for the run and restores this at teardown before wiping the tree.
@@ -300,17 +301,22 @@ def _reset_session_tree_once() -> None:
     _test_tree_wiped = True
 
 
-def _report_existing_fleet(reachable, owned, attached):
+def _report_existing_fleet(reachable, owned, attached, recovered=False):
     global _foreign_fleet_collision
     if attached:
+        recovery = (
+            " Socket/process ownership was recovered from procfs because the "
+            "manifest or completion marker is stale; those files are not "
+            "rewritten while another session may own them."
+            if recovered else "")
         print(
             f"\n[conftest] A fleet is already listening on {HOST}:{NGINX_ANON_PORT}; "
             "attaching WITHOUT lifecycle management (no wipe / start-all / stop-all "
             "/ rmtree) so a stray test run cannot tear down a fleet it did not "
-            "start.  Set TEST_OWN_FLEET=1 to force a clean wipe+restart.",
+            f"start.{recovery}  Set TEST_OWN_FLEET=1 to force a clean wipe+restart.",
             flush=True)
         return
-    if reachable and owned:
+    if owned and not reachable:
         print(
             f"\n[conftest] Found stale/incomplete servers owned by "
             f"TEST_ROOT={TEST_ROOT}; startup will reap them before cleaning "
@@ -356,8 +362,11 @@ def _external_fleet_attached() -> bool:
     owned = manifest_owns_test_root()
     ready = fleet_ready_for_test_root()
     master_alive = _fleet_main_master_alive()
-    _external_fleet = reachable and owned and ready and master_alive
-    _report_existing_fleet(reachable, owned, _external_fleet)
+    marker_verified = all((owned, ready, master_alive))
+    recovered = all((reachable, not marker_verified,
+                     listener_owned_by_test_root(TEST_ROOT, NGINX_ANON_PORT)))
+    _external_fleet = all((reachable, any((marker_verified, recovered))))
+    _report_existing_fleet(reachable, owned, _external_fleet, recovered)
     return _external_fleet
 
 

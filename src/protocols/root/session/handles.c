@@ -216,7 +216,7 @@ brix_shared_handle_select_target(brix_shared_handle_table_t *tbl,
  */
 void
 brix_session_handle_publish(const u_char sessid[BRIX_SESSION_ID_LEN],
-    int handle_index, const brix_file_t *file)
+    int handle_index, brix_file_t *file)
 {
     brix_shared_handle_table_t *tbl;
     brix_shared_handle_entry_t *entry = NULL;
@@ -242,8 +242,20 @@ brix_session_handle_publish(const u_char sessid[BRIX_SESSION_ID_LEN],
         if ((ngx_uint_t) (entry - tbl->slots) >= tbl->high_water) {
             tbl->high_water = (ngx_uint_t) (entry - tbl->slots) + 1;
         }
-    } else if (entry != NULL) {
-        brix_shared_handle_shrink(tbl);   /* ineligibility evicted the entry */
+        /* Round 14: remember where this handle landed.  Entries are only ever
+         * cleared in place — never relocated — so this slot is the ONLY place
+         * an entry for (sessid, handle_index) can live until the next publish
+         * for the same key, which makes the teardown clear an O(1) direct hit
+         * instead of a scan.  See brix_session_handle_unpublish_hinted. */
+        file->shared_handle_slot_hint = (int) (entry - tbl->slots);
+    } else {
+        /* Not published (ineligible or table full): no slot to remember, and a
+         * stale hint from an earlier publish of this reused handle slot must
+         * not survive into the teardown. */
+        file->shared_handle_slot_hint = -1;
+        if (entry != NULL) {
+            brix_shared_handle_shrink(tbl);   /* ineligibility evicted the entry */
+        }
     }
 
     ngx_shmtx_unlock(&brix_handle_mutex);
@@ -345,6 +357,35 @@ void
 brix_session_handle_unpublish(const u_char sessid[BRIX_SESSION_ID_LEN],
     int handle_index)
 {
+    brix_session_handle_unpublish_hinted(sessid, handle_index, -1);
+}
+
+/*
+ *
+ * WHAT: As brix_session_handle_unpublish(), but with the publish-time slot
+ * recorded in brix_file_t.shared_handle_slot_hint (round 14).
+ *
+ * WHY: The teardown of an open handle was a full scan of the table's live
+ * prefix under the single cross-worker brix_handle_mutex, and at disconnect it
+ * runs AFTER brix_session_unregister() has already cleared the session's
+ * entries — so every open file cost a scan that was guaranteed to find
+ * nothing.  Under an ultra-parallel storm the live prefix is long and the
+ * mutex is contended by every other disconnecting session, so that wasted scan
+ * grew with concurrency instead of backing off.
+ *
+ * HOW: A published entry can only ever live at the slot brix_session_handle_
+ * publish() wrote it to — entries are cleared in place and never relocated —
+ * so the hint is authoritative, not merely an optimisation.  A hinted slot
+ * whose FULL key (in_use + sessid + handle_index) still matches is the entry,
+ * and is cleared; a hinted slot whose key does NOT match proves the entry is
+ * already gone (closed, evicted, or its slot reused by another session), so
+ * there is nothing to clear and no scan can find one.  hint < 0 means no
+ * publish recorded a slot, and keeps the original scan.
+ */
+void
+brix_session_handle_unpublish_hinted(const u_char sessid[BRIX_SESSION_ID_LEN],
+    int handle_index, int slot_hint)
+{
     brix_shared_handle_table_t *tbl;
     ngx_uint_t                    i;
 
@@ -359,13 +400,26 @@ brix_session_handle_unpublish(const u_char sessid[BRIX_SESSION_ID_LEN],
 
     ngx_shmtx_lock(&brix_handle_mutex);
 
-    for (i = 0; i < tbl->high_water; i++) {
-        if (brix_shared_handle_same_key(&tbl->slots[i], sessid,
+    if (slot_hint >= 0 && (ngx_uint_t) slot_hint < tbl->high_water) {
+        if (brix_shared_handle_same_key(&tbl->slots[slot_hint], sessid,
                                           handle_index))
         {
-            ngx_memzero(&tbl->slots[i], sizeof(tbl->slots[i]));
+            ngx_memzero(&tbl->slots[slot_hint], sizeof(tbl->slots[0]));
             brix_shared_handle_shrink(tbl);
-            break;
+        }
+        ngx_shmtx_unlock(&brix_handle_mutex);
+        return;
+    }
+
+    if (slot_hint < 0) {
+        for (i = 0; i < tbl->high_water; i++) {
+            if (brix_shared_handle_same_key(&tbl->slots[i], sessid,
+                                              handle_index))
+            {
+                ngx_memzero(&tbl->slots[i], sizeof(tbl->slots[i]));
+                brix_shared_handle_shrink(tbl);
+                break;
+            }
         }
     }
 

@@ -327,24 +327,6 @@ typedef struct {
                                  * sweeps of the export root; 0 = off (default) */
 } brix_csi_conf_t;
 
-/* XrdAcc authorization engine (selected by `brix_authdb_engine xrdacc`).  Grouped
- * as one sub-struct so the per-server config block stays navigable; every field
- * is reached as conf->acc.<field>. */
-typedef struct {
-    ngx_uint_t    format;        /* 0=native (default), 1=xrdacc */
-    ngx_uint_t    audit;         /* 0=none 1=deny 2=grant 3=all */
-    ngx_int_t     refresh;       /* authdb hot-reload interval, s; 0=off */
-    ngx_int_t     gidlifetime;   /* Unix group cache TTL, s */
-    ngx_flag_t    pgo;           /* resolve primary Unix group only */
-    ngx_str_t     nisdomain;     /* NIS domain for netgroup lookups */
-    ngx_flag_t    resolve_hosts; /* reverse-DNS peer for 'h' host rules */
-    ngx_str_t     spacechar;     /* legacy: char substituted for spaces in ids */
-    ngx_flag_t    encoding;      /* legacy: URI-decode authdb path tokens */
-    ngx_str_t     gidretran;     /* legacy: gids to skip in group resolution */
-    struct brix_acc_tables_s *tables; /* per-worker tables (init_process) */
-    ngx_event_t  *timer;         /* per-worker authdb refresh timer */
-} brix_acc_conf_t;
-
 /* Pelican cache registration / advertisement (origin/pelican_register.c): a node
  * periodically POSTs a signed OriginAdvertiseV2 to the federation Director so it
  * is discoverable as a cache.  Grouped as one sub-struct so the per-server config
@@ -508,18 +490,6 @@ brix_csi_conf_init(brix_csi_conf_t *c)
     c->require  = NGX_CONF_UNSET;
     c->trust_fs = NGX_CONF_UNSET;
     c->scrub_interval = NGX_CONF_UNSET;
-}
-
-static ngx_inline void
-brix_acc_conf_init(brix_acc_conf_t *c)
-{
-    c->format        = NGX_CONF_UNSET_UINT;
-    c->audit         = NGX_CONF_UNSET_UINT;
-    c->refresh       = NGX_CONF_UNSET;
-    c->gidlifetime   = NGX_CONF_UNSET;
-    c->pgo           = NGX_CONF_UNSET;
-    c->resolve_hosts = NGX_CONF_UNSET;
-    c->encoding      = NGX_CONF_UNSET;
 }
 
 static ngx_inline void

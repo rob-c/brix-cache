@@ -25,6 +25,10 @@ conditional-request or ETag behaviour needs to change, it changes here once.
 
 ## Files
 
+`http_variables.c` owns registration and common handlers;
+`http_variable_identity.c` owns verified identity and configured-origin
+values; `http_variable_monitor.c` owns per-request I/O observations.
+
 | File | Responsibility |
 |---|---|
 | `http_headers.c` / `http_headers.h` | Case-insensitive `headers_in` lookup, `Authorization: Bearer` extraction, control-char validation, whitespace-trimmed value compare, response/request header insertion (`set_header`/`_str`/`_num`), and the canonical handler-rc→HTTP-status mapper `brix_http_effective_status` (keeps WebDAV/S3 metric buckets aligned). |

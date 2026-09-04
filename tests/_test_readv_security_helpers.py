@@ -54,7 +54,10 @@ except Exception:  # pragma: no cover - optional GSI assets
     CA_DIR = None
     PROXY_STD = None
 
-pytestmark = pytest.mark.registry_server("main")
+pytestmark = [
+    pytest.mark.registry_server("main"),
+    pytest.mark.xdist_group("readv-security-shared-data"),
+]
 bindings_required = pytest.mark.skipif(
     not real_bindings_available(), reason="real libXrdCl bindings unavailable")
 

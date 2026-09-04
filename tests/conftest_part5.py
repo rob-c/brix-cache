@@ -323,12 +323,17 @@ def _report_orphans(session, survivors) -> None:
 
 
 def _remove_test_root() -> None:
-    """Restore the original directory and remove the session scratch tree."""
+    """Remove the session scratch tree and its immutable executable copies."""
     try:
         os.chdir(_ORIG_CWD)
     except OSError:
         pass
     shutil.rmtree(TEST_ROOT, ignore_errors=True)
+    try:
+        from cmdscripts.live_common import cleanup_frozen_nginx  # noqa: PLC0415
+        cleanup_frozen_nginx()
+    except OSError:
+        pass
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config):

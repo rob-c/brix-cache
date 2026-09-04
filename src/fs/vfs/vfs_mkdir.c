@@ -135,7 +135,13 @@ vfs_backend_mkdir_dispatch(const vfs_mkdir_req_t *req,
     int use_cred, const brix_sd_cred_t *cred)
 {
     brix_vfs_ctx_t *ctx = req->ctx;
-    const char     *logical = brix_vfs_export_relative(ctx, req->path);
+    char            physical[PATH_MAX];
+
+    if (brix_path_resolved_to_pfn(ctx, req->path, physical,
+                                  sizeof(physical)) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
 
     if (drv->mkdir == NULL) {
         errno = ENOTSUP;
@@ -146,14 +152,14 @@ vfs_backend_mkdir_dispatch(const vfs_mkdir_req_t *req,
 
         if (use_cred) {
             /* Leaf-aware, cred-threaded mkpath for the per-user case. */
-            mkrc = vfs_backend_mkpath_leaf(leaf, logical, req->mode, cred);
+            mkrc = vfs_backend_mkpath_leaf(leaf, physical, req->mode, cred);
         } else {
-            mkrc = brix_vfs_backend_mkpath(ctx->root_canon, logical, req->mode,
+            mkrc = brix_vfs_backend_mkpath(ctx->root_canon, physical, req->mode,
                                            ctx->log);
         }
         return (mkrc == 0) ? NGX_OK : NGX_ERROR;
     }
-    return brix_sd_mkdir_maybe_cred(leaf, logical, req->mode,
+    return brix_sd_mkdir_maybe_cred(leaf, physical, req->mode,
                                     use_cred ? cred : NULL);
 }
 
@@ -336,7 +342,7 @@ brix_vfs_chmod(brix_vfs_ctx_t *ctx, mode_t mode)
             brix_sd_cred_t    cred;
             brix_sd_setattr_t attr;
             ngx_int_t         chmod_rc;
-            const char       *rel;
+            char              rel[PATH_MAX];
             int               use_cred = 0, cred_err = 0;
 
             /* Zero before the gate: it fills only the active credential kind;
@@ -356,12 +362,17 @@ brix_vfs_chmod(brix_vfs_ctx_t *ctx, mode_t mode)
                 brix_sd_ucred_wipe(&store);   /* resolved but unused; erase */
                 return NGX_OK;
             }
+            if (brix_path_resolved_to_pfn(ctx, brix_vfs_ctx_path(ctx), rel,
+                                          sizeof(rel)) != NGX_OK)
+            {
+                brix_sd_ucred_wipe(&store);
+                return NGX_ERROR;
+            }
             ngx_memzero(&attr, sizeof(attr));
             attr.set_mode = 1;
             attr.mode = mode;
             /* Dispatch on the leaf so brix_sd_setattr_maybe_cred finds the
              * leaf driver's setattr_cred slot (decorators relay to plain). */
-            rel      = brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx));
             chmod_rc = brix_sd_setattr_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
                            rel, &attr, use_cred ? &cred : NULL) == NGX_OK
                        ? NGX_OK : NGX_ERROR;
@@ -384,18 +395,65 @@ brix_vfs_chmod(brix_vfs_ctx_t *ctx, mode_t mode)
     return NGX_OK;
 }
 
-/*
- * brix_vfs_setattr — apply kXR_setattr (times and/or owner) to the resolved
- * path through the VFS seam. A non-POSIX backend routes to its setattr slot
- * (no-op success if it has none); the default POSIX path uses the
- * impersonation-aware confined utimensat/fchownat helper so under impersonation
- * the change is performed by the broker as the mapped user. The unified slot also
- * carries mode, so a backend satisfies chmod and setattr through one entry point —
- * kXR_setattr itself never sets mode (that is kXR_chmod's job).
- */
+/* vfs_setattr_driver -- apply metadata through a non-POSIX backend.
+ *
+ * WHAT: Translates the confined path, calls the leaf credential-aware setattr
+ *       slot and invalidates stale cached metadata. An absent slot is a no-op.
+ * WHY:  Object backends own metadata representation and cannot use host-path
+ *       syscalls; the branch also forms one bounded, independently testable job.
+ * HOW:  Resolve any credential, short-circuit unsupported metadata, translate
+ *       LFN to PFN, dispatch, wipe the credential and evict on success. */
+static ngx_int_t
+vfs_setattr_driver(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
+    const brix_sd_setattr_t *attr)
+{
+    brix_sd_ucred_t store;
+    brix_sd_cred_t  cred;
+    ngx_int_t       rc;
+    char            physical[PATH_MAX];
+    int             use_cred = 0, cred_err = 0;
+
+    ngx_memzero(&store, sizeof(store));
+    ngx_memzero(&cred, sizeof(cred));
+    if (brix_vfs_cred_gate_active(ctx)
+        && brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err) != NGX_OK)
+    {
+        errno = cred_err ? cred_err : EACCES;
+        return NGX_ERROR;
+    }
+    if (drv->setattr == NULL) {
+        brix_sd_ucred_wipe(&store);
+        return NGX_OK;
+    }
+    if (brix_path_resolved_to_pfn(ctx, brix_vfs_ctx_path(ctx), physical,
+                                  sizeof(physical)) != NGX_OK)
+    {
+        brix_sd_ucred_wipe(&store);
+        return NGX_ERROR;
+    }
+    rc = brix_sd_setattr_maybe_cred(brix_vfs_ns_leaf(ctx->sd), physical,
+             attr, use_cred ? &cred : NULL) == NGX_OK ? NGX_OK : NGX_ERROR;
+    brix_sd_ucred_wipe(&store);
+    if (rc == NGX_OK) {
+        brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx),
+                                  brix_sd_cache_evict(ctx->sd, physical));
+    }
+    return rc;
+}
+
+/* brix_vfs_setattr -- apply metadata to the resolved VFS path.
+ *
+ * WHAT: Applies times, ownership and optional mode through the selected
+ *       backend. Returns NGX_OK or NGX_ERROR with errno set.
+ * WHY:  One VFS entry keeps policy, confinement, credentials and backend/POSIX
+ *       behavior uniform for kXR_setattr and protocol siblings.
+ * HOW:  Gate the mutation, validate inputs, dispatch a non-POSIX driver through
+ *       vfs_setattr_driver, otherwise use the confined POSIX helpers. */
 ngx_int_t
 brix_vfs_setattr(brix_vfs_ctx_t *ctx, const brix_sd_setattr_t *attr)
 {
+    const brix_sd_driver_t *drv;
+
     if (brix_vfs_confined_mutation_checked(ctx,
             BRIX_VFS_MUTATE_SETATTR) != NGX_OK)
     {
@@ -406,47 +464,9 @@ brix_vfs_setattr(brix_vfs_ctx_t *ctx, const brix_sd_setattr_t *attr)
         return NGX_ERROR;
     }
 
-    {
-        const brix_sd_driver_t *drv = brix_vfs_ctx_driver(ctx);
-        if (drv != NULL) {
-            brix_sd_ucred_t store;
-            brix_sd_cred_t  cred;
-            ngx_int_t       setattr_rc;
-            const char     *rel;
-            int             use_cred = 0, cred_err = 0;
-
-            /* Zero before the gate: it fills only the active credential kind;
-             * an unzeroed cred hands a garbage inactive pointer to the driver
-             * cred slot (bearer PASSTHROUGH would leave x509_proxy dangling). */
-            ngx_memzero(&cred, sizeof(cred));
-
-            if (brix_vfs_cred_gate_active(ctx)) {
-                if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
-                    != NGX_OK)
-                {
-                    errno = cred_err ? cred_err : EACCES;
-                    return NGX_ERROR;
-                }
-            }
-            if (drv->setattr == NULL) {
-                brix_sd_ucred_wipe(&store);   /* resolved but unused; erase */
-                return NGX_OK;   /* no mutable metadata — no-op success */
-            }
-            /* Dispatch on the leaf so brix_sd_setattr_maybe_cred finds the
-             * leaf driver's setattr_cred slot (decorators relay to plain). */
-            rel        = brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx));
-            setattr_rc = brix_sd_setattr_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
-                             rel, attr, use_cred ? &cred : NULL) == NGX_OK
-                         ? NGX_OK : NGX_ERROR;
-            brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
-            if (setattr_rc == NGX_OK) {
-                /* As in the chmod path above: the cached cinfo still carries the
-                 * pre-setattr mode/mtime until the entry is dropped. */
-                brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx),
-                                          brix_sd_cache_evict(ctx->sd, rel));
-            }
-            return setattr_rc;
-        }
+    drv = brix_vfs_ctx_driver(ctx);
+    if (drv != NULL) {
+        return vfs_setattr_driver(ctx, drv, attr);
     }
 
     {

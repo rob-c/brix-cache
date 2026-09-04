@@ -6,7 +6,7 @@
 /*
  * Build (or rebuild) the X509_STORE used for GSI certificate verification.
  *
- * Loads the trusted CA from xcf->trusted_ca, then loads CRLs from xcf->crl.
+ * Loads the trusted CA from xcf->common.trusted_ca, then loads CRLs from xcf->crl.
  * Sets X509_V_FLAG_ALLOW_PROXY_CERTS so GSI proxy certificate chains verify.
  *
  * On success the new store is atomically swapped into xcf->gsi_store and any
@@ -27,14 +27,14 @@ brix_rebuild_gsi_store(ngx_stream_brix_srv_conf_t *xcf, ngx_log_t *log,
      * directory (e.g. /etc/grid-security/certificates).  A directory is loaded
      * as an OpenSSL CApath so on-demand hash lookup verifies real grid proxy
      * chains (any CA under the dir), which a single-file bundle cannot cover. */
-    ca_is_dir = (stat((char *) xcf->trusted_ca.data, &ca_st) == 0
+    ca_is_dir = (stat((char *) xcf->common.trusted_ca.data, &ca_st) == 0
                  && S_ISDIR(ca_st.st_mode));
 
     store = brix_build_ca_store_cached(cache_scope, log,
-                                   ca_is_dir ? (char *) xcf->trusted_ca.data
+                                   ca_is_dir ? (char *) xcf->common.trusted_ca.data
                                              : NULL,
                                    ca_is_dir ? NULL
-                                             : (char *) xcf->trusted_ca.data,
+                                             : (char *) xcf->common.trusted_ca.data,
                                    xcf->crl.len > 0
                                        ? (char *) xcf->crl.data : NULL,
                                    X509_V_FLAG_ALLOW_PROXY_CERTS,
@@ -148,8 +148,8 @@ brix_gsi_compute_ca_hashes(ngx_stream_brix_srv_conf_t *xcf)
 static ngx_int_t
 brix_gsi_require_trust_inputs(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
-    if (xcf->certificate.len == 0 || xcf->certificate_key.len == 0
-        || xcf->trusted_ca.len == 0)
+    if (xcf->common.certificate.len == 0 || xcf->common.certificate_key.len == 0
+        || xcf->common.trusted_ca.len == 0)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_auth gsi requires brix_certificate, "
@@ -157,12 +157,12 @@ brix_gsi_require_trust_inputs(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         return NGX_ERROR;
     }
 
-    if (brix_validate_path(cf, "brix_certificate", &xcf->certificate,
+    if (brix_validate_path(cf, "brix_certificate", &xcf->common.certificate,
                              BRIX_PATH_REGULAR_FILE, R_OK) != NGX_OK
         || brix_validate_path(cf, "brix_certificate_key",
-                                &xcf->certificate_key,
+                                &xcf->common.certificate_key,
                                 BRIX_PATH_REGULAR_FILE, R_OK) != NGX_OK
-        || brix_validate_path(cf, "brix_trusted_ca", &xcf->trusted_ca,
+        || brix_validate_path(cf, "brix_trusted_ca", &xcf->common.trusted_ca,
                                 BRIX_PATH_FILE_OR_DIRECTORY, R_OK) != NGX_OK
         || brix_validate_path(cf, "brix_crl", &xcf->crl,
                                 BRIX_PATH_FILE_OR_DIRECTORY, R_OK) != NGX_OK)
@@ -175,7 +175,7 @@ brix_gsi_require_trust_inputs(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 
 /* ---- Load the server certificate PEM into xcf->gsi_cert ----
  *
- * WHAT: Opens xcf->certificate, parses the first X509 with PEM_read_X509() and
+ * WHAT: Opens xcf->common.certificate, parses the first X509 with PEM_read_X509() and
  * stores it in xcf->gsi_cert; returns NGX_OK on success or NGX_ERROR after an
  * NGX_LOG_EMERG line when the file cannot be opened or parsed.
  *
@@ -191,11 +191,11 @@ brix_gsi_require_trust_inputs(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 static ngx_int_t
 brix_gsi_load_certificate(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
-    FILE *fp = fopen((char *) xcf->certificate.data, "r");
+    FILE *fp = fopen((char *) xcf->common.certificate.data, "r");
     if (fp == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
             "brix: cannot open certificate \"%s\"",
-            xcf->certificate.data);
+            xcf->common.certificate.data);
         return NGX_ERROR;
     }
     fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
@@ -204,7 +204,7 @@ brix_gsi_load_certificate(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     if (xcf->gsi_cert == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix: cannot parse certificate \"%s\"",
-            xcf->certificate.data);
+            xcf->common.certificate.data);
         return NGX_ERROR;
     }
 
@@ -242,7 +242,7 @@ brix_gsi_cache_cert_pem(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         BIO_free(bio);
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix: cannot serialize certificate \"%s\"",
-            xcf->certificate.data);
+            xcf->common.certificate.data);
         return NGX_ERROR;
     }
 
@@ -262,7 +262,7 @@ brix_gsi_cache_cert_pem(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 
 /* ---- Load the server private key PEM into xcf->gsi_key ----
  *
- * WHAT: Opens xcf->certificate_key, parses it with PEM_read_PrivateKey() and
+ * WHAT: Opens xcf->common.certificate_key, parses it with PEM_read_PrivateKey() and
  * stores it in xcf->gsi_key; returns NGX_OK on success or NGX_ERROR after an
  * NGX_LOG_EMERG line when the file cannot be opened or parsed.
  *
@@ -278,11 +278,11 @@ brix_gsi_cache_cert_pem(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 static ngx_int_t
 brix_gsi_load_private_key(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
-    FILE *fp = fopen((char *) xcf->certificate_key.data, "r");
+    FILE *fp = fopen((char *) xcf->common.certificate_key.data, "r");
     if (fp == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
             "brix: cannot open private key \"%s\"",
-            xcf->certificate_key.data);
+            xcf->common.certificate_key.data);
         return NGX_ERROR;
     }
     fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
@@ -291,7 +291,7 @@ brix_gsi_load_private_key(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     if (xcf->gsi_key == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix: cannot parse private key \"%s\"",
-            xcf->certificate_key.data);
+            xcf->common.certificate_key.data);
         return NGX_ERROR;
     }
 
@@ -330,7 +330,7 @@ brix_gsi_build_trust_store(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 
     ngx_log_error(NGX_LOG_NOTICE, cf->log, 0,
                   "brix: GSI trust store built from \"%V\" in %uLus",
-                  &xcf->trusted_ca,
+                  &xcf->common.trusted_ca,
                   (brix_phase_now_ns() - t0) / 1000ull);
 
     return NGX_OK;
@@ -368,7 +368,7 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         /* An anonymous TPC destination may still use brix_trusted_ca for
          * outbound TLS/GSI peer verification.  Build that store without
          * requiring an inbound GSI certificate/key pair. */
-        if (xcf->trusted_ca.len == 0) {
+        if (xcf->common.trusted_ca.len == 0) {
             return NGX_OK;
         }
         return brix_rebuild_gsi_store(xcf, cf->log, cf->cycle);
@@ -398,7 +398,7 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
         "brix: GSI auth configured - cert=%s ca_hashes=%s",
-        xcf->certificate.data, xcf->gsi_ca_hashes);
+        xcf->common.certificate.data, xcf->gsi_ca_hashes);
 
     return NGX_OK;
 }

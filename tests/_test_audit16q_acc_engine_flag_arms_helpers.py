@@ -157,7 +157,7 @@ TEMPLATE = "nginx_audit16q_acc_engine.conf"
 
 ROOT = Path(__file__).resolve().parents[1]
 DIRECTIVES_H = ROOT / "src/protocols/root/stream/directives_auth.h"
-MERGE_C = ROOT / "src/core/config/server_conf_merge_security.c"
+MERGE_C = ROOT / "src/auth/authz/acc/config.c"
 ACC_CONFIG_C = ROOT / "src/auth/authz/acc/config.c"
 ACC_GROUPS_C = ROOT / "src/auth/authz/acc/groups.c"
 PROCESS_C = ROOT / "src/core/config/process.c"
@@ -427,4 +427,3 @@ def engine(lifecycle, tmp_path):
 # --------------------------------------------------------------------------- #
 # §A — brix_acc_pgo, one arm per process                                      #
 # --------------------------------------------------------------------------- #
-

@@ -20,6 +20,10 @@ typedef struct {
     ngx_uint_t src_count;     /* live slots owned by the registrant's src_key */
     ngx_uint_t src_lru_slot;  /* LRU among the registrant's OWN slots (W5) */
     ngx_msec_t src_lru_seen;
+    ngx_uint_t match_slot;    /* slot the sessid matched, or capacity if none.
+                               * Round 15: only meaningful when the scan
+                               * returned 1; it is what a re-register reports
+                               * back as the caller's slot hint. */
 } brix_session_scan_t;
 
 void brix_session_src_key(const char *dn, ngx_uint_t token_auth,
@@ -30,6 +34,7 @@ int brix_session_scan(brix_session_table_t *tbl,
 int brix_session_reap_lru(brix_session_table_t *tbl, ngx_msec_t now,
     ngx_uint_t lru_slot, ngx_msec_t lru_seen,
     ngx_uint_t *free_slot_out, u_char victim[BRIX_SESSION_ID_LEN]);
+void brix_session_shrink(brix_session_table_t *tbl);
 void brix_session_fill_slot(brix_session_table_t *tbl, ngx_uint_t slot,
     const u_char sessid[BRIX_SESSION_ID_LEN],
     const char *dn, const char *vo_list, ngx_uint_t token_auth,

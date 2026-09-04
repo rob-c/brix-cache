@@ -43,6 +43,9 @@ jobs:
       - name: vfs mutation gate — no ungated export mutation (phase-105)
         if: '!cancelled()'
         run: tools/ci/check_vfs_mutation_gate.py
+      - name: vfs authorization backstop — fused ordered gates and bound contexts
+        if: '!cancelled()'
+        run: tools/ci/check_authz_backstop.py
       - name: http helper reimplementation
         if: '!cancelled()'
         run: tools/ci/check_http_helper_reimpl.py
@@ -58,12 +61,18 @@ jobs:
       - name: metric names — docs cite families and labels the exporters emit
         if: '!cancelled()'
         run: tools/ci/check_metric_names.py
+      - name: metric naming — one latency unit, no surviving deprecated twin (M1/M2)
+        if: '!cancelled()'
+        run: tools/ci/check_metric_naming.py --fail
       - name: client flags — docs cite flags the client tools actually parse
         if: '!cancelled()'
         run: tools/ci/check_client_flags_doc.py
       - name: sd driver conformance
         if: '!cancelled()'
         run: tools/ci/check_sd_driver_conformance.py
+      - name: sd slot matrix — generated reference matches source
+        if: '!cancelled()'
+        run: python3 tools/diag/sd_slot_matrix.py --check
       - name: shm mutex — no bare ngx_shmtx_create (INVARIANT 10)
         if: '!cancelled()'
         run: tools/ci/check_shm_mutex.py
@@ -102,7 +111,11 @@ jobs:
         run: |
           pip install --quiet 'lizard>=1.17,<2' 'complexipy>=6,<8' 'radon>=6,<7'
           tools/ci/check_python_quality.py
-      - name: "directive registry — config-surface drift (phase-105 W5.4: R1/R2/R4/R5/R6 gate; R3 WARN until W6)"
+      - name: "directive reference — generated registry is current (phase-105 W6)"
+        if: '!cancelled()'
+        run: tools/ci/generate_directive_reference.py --check
+
+      - name: "directive registry — config-surface drift (phase-105 W6: R1-R15 gate)"
         if: '!cancelled()'
         run: tools/ci/check_directive_registry.py --fail
       - name: todo/fixme ratchet (no new deferred-work markers)

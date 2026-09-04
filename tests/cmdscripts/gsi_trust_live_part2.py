@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 
+from cmdscripts import handoff_credential_store
 from cmdscripts.delegation_twostep import ensure_pki, key_for_dn, mint_certs
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, SERVER_CERT, SERVER_HOST, SERVER_KEY, TEST_ROOT
@@ -120,7 +121,7 @@ def _delegation_identity(run):
 def _delegation_paths(run):
     certs = run.root / "certs"
     creds = run.mkdir("creds")
-    creds.chmod(0o777)
+    handoff_credential_store(creds)
     origin, front = run.mkdir("o"), run.mkdir("f")
     for name in ("logs", "root"):
         (origin / name).mkdir(exist_ok=True)

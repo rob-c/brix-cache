@@ -89,8 +89,8 @@ s3_walk_push(ngx_array_t *entries, const char *key, unsigned is_prefix)
  * */
 
 static int
-s3_walk_classify(ngx_pool_t *pool, ngx_log_t *log, const char *root,
-    const char *child_path, brix_vfs_dirent_kind_t dkind)
+s3_walk_classify(const brix_vfs_ctx_t *vfs_scope, const char *child_path,
+    brix_vfs_dirent_kind_t dkind)
 {
     brix_vfs_ctx_t  vctx;
     brix_vfs_stat_t vst;
@@ -108,8 +108,11 @@ s3_walk_classify(ngx_pool_t *pool, ngx_log_t *log, const char *root,
          * via a confined no-follow probe (non-metered — the ListObjects op already
          * accounts for the walk). A symlink/special stats as neither dir nor
          * regular and is skipped, preserving the symlink-skip security property. */
-        brix_vfs_ctx_init(&vctx, pool, log, BRIX_PROTO_S3, root, NULL,
-            BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */, NULL, child_path);
+        if (brix_vfs_ctx_derive_path(&vctx, vfs_scope, child_path)
+            != NGX_OK)
+        {
+            return 0;
+        }
         if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_OK) {
             return 0;
         }
@@ -141,8 +144,7 @@ s3_walk_classify(ngx_pool_t *pool, ngx_log_t *log, const char *root,
  *   change at each recursion level.
  */
 typedef struct {
-    ngx_log_t   *log;            /* request log (for the access gate)  */
-    const char  *root;           /* filesystem root (== root_canon)    */
+    const brix_vfs_ctx_t *vfs_scope; /* complete request/export scope   */
     const char  *filter_prefix;  /* ListObjects prefix param (or NULL) */
     const char  *delimiter;      /* hierarchy delimiter (or NULL)      */
     size_t       fp_len;         /* strlen(filter_prefix), cached      */
@@ -343,8 +345,7 @@ s3_walk_entry(s3_walk_ctx_t *ctx, const char *dir_path, const char *key_prefix,
      * Classify from the readdir d_type (no stat); a confined no-follow probe is
      * used only on DT_UNKNOWN.  Symlinks/specials are skipped (kind==0).
      */
-    kind = s3_walk_classify(ctx->entries->pool, ctx->log, ctx->root,
-                            cp.path, dkind);
+    kind = s3_walk_classify(ctx->vfs_scope, cp.path, dkind);
     if (kind == 0) {
         return 0;
     }
@@ -379,14 +380,17 @@ s3_walk_run(s3_walk_ctx_t *ctx, const char *dir_path, const char *key_prefix)
      * open it as the mapped user first; on denial skip the whole subtree rather
      * than enumerate it with the worker's credentials.  No-op when off.
      */
-    if (brix_dirlist_access_ok(ctx->log, ctx->root, dir_path) != NGX_OK) {
+    if (brix_dirlist_access_ok(ctx->vfs_scope->log,
+                              ctx->vfs_scope->root_canon,
+                              dir_path) != NGX_OK) {
         return (int) ctx->entries->nelts;
     }
 
     /* Enumerate through the VFS (broker fdopendir under impersonation), using
      * the NON-METERED opendir. */
-    brix_vfs_ctx_init(&wctx, ctx->entries->pool, ctx->log, BRIX_PROTO_S3,
-        ctx->root, NULL, BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */, NULL, dir_path);
+    if (brix_vfs_ctx_derive_path(&wctx, ctx->vfs_scope, dir_path) != NGX_OK) {
+        return (int) ctx->entries->nelts;
+    }
     dh = brix_vfs_opendir_quiet(&wctx, NULL);
     if (dh == NULL) {
         return (int) ctx->entries->nelts;
@@ -412,7 +416,7 @@ s3_walk_run(s3_walk_ctx_t *ctx, const char *dir_path, const char *key_prefix)
         }
     }
 
-    brix_vfs_closedir(dh, ctx->log);
+    brix_vfs_closedir(dh, ctx->vfs_scope->log);
     return (int) ctx->entries->nelts;
 }
 
@@ -422,8 +426,7 @@ s3_walk_run(s3_walk_ctx_t *ctx, const char *dir_path, const char *key_prefix)
  * */
 
 int
-s3_walk(ngx_log_t  *log,           /* request log (for the access gate)   */
-        const char *root,          /* filesystem root (== root_canon)     */
+s3_walk(const brix_vfs_ctx_t *vfs_scope, /* bound request/export scope     */
         const char *dir_path,      /* filesystem path to scan    */
         const char *key_prefix,    /* key prefix so far          */
         const char *filter_prefix, /* ListObjects prefix param   */
@@ -434,8 +437,11 @@ s3_walk(ngx_log_t  *log,           /* request log (for the access gate)   */
     s3_walk_ctx_t  ctx;
 
     ngx_memzero(&ctx, sizeof(ctx));
-    ctx.log           = log;
-    ctx.root          = root;
+    if (vfs_scope == NULL) {
+        errno = EINVAL;
+        return (int) entries->nelts;
+    }
+    ctx.vfs_scope     = vfs_scope;
     ctx.filter_prefix = filter_prefix;
     ctx.delimiter     = delimiter;
     /* Cache lengths once — avoids repeated strlen() in the readdir loop. */
@@ -452,8 +458,7 @@ s3_walk(ngx_log_t  *log,           /* request log (for the access gate)   */
  * */
 
 ngx_int_t
-s3_entry_fill_stat(ngx_pool_t *pool, ngx_log_t *log, const char *root,
-    s3_entry_t *e)
+s3_entry_fill_stat(const brix_vfs_ctx_t *vfs_scope, s3_entry_t *e)
 {
     char              fs_path[PATH_MAX];
     brix_vfs_ctx_t  vctx;
@@ -466,7 +471,12 @@ s3_entry_fill_stat(ngx_pool_t *pool, ngx_log_t *log, const char *root,
 
     /* The walk built keys relative to root, so the filesystem path of an object
      * is always root + "/" + key (see s3_walk's child_path/child_key). */
-    if ((size_t) snprintf(fs_path, sizeof(fs_path), "%s/%s", root, e->key)
+    if (vfs_scope == NULL || vfs_scope->root_canon == NULL) {
+        errno = EINVAL;
+        return NGX_DECLINED;
+    }
+    if ((size_t) snprintf(fs_path, sizeof(fs_path), "%s/%s",
+                          vfs_scope->root_canon, e->key)
         >= sizeof(fs_path)) {
         return NGX_DECLINED;
     }
@@ -475,8 +485,9 @@ s3_entry_fill_stat(ngx_pool_t *pool, ngx_log_t *log, const char *root,
      * the page): if the entry vanished or is no longer a regular file (e.g.
      * swapped for a symlink after the walk), skip it — matching the eager
      * walker's stat-failure / symlink skip. */
-    brix_vfs_ctx_init(&vctx, pool, log, BRIX_PROTO_S3, root, NULL,
-        BRIX_VFS_MUTATION_READ_ONLY, 0 /* is_tls */, NULL, fs_path);
+    if (brix_vfs_ctx_derive_path(&vctx, vfs_scope, fs_path) != NGX_OK) {
+        return NGX_DECLINED;
+    }
     if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_OK
         || !vst.is_regular) {
         return NGX_DECLINED;

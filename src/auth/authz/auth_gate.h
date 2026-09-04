@@ -65,4 +65,37 @@ ngx_int_t brix_authz_check(brix_ctx_t *ctx, ngx_connection_t *c,
                             const char *op_name, int auth_level,
                             brix_acc_op_t aop);
 
+/* Decision-only identity form used by the VFS backstop. It composes the same
+ * native/XrdAcc, VO and token-scope evaluators as the edge gate but owns no
+ * wire response and consults no verdict cache. All pointers are borrowed. */
+typedef struct {
+    ngx_pool_t       *pool;
+    ngx_log_t        *log;
+    brix_identity_t  *identity;
+    ngx_array_t      *authdb_rules;
+    ngx_array_t      *vo_rules;
+    void             *acc_tables;
+    void             *acc_entity;
+    ngx_uint_t        acc_format;
+    const char       *peer_ip;
+    const char       *logical_path;
+    const char       *resolved_path;
+    uint32_t          needed_privs;
+    brix_acc_op_t     acc_op;
+    int               need_write;
+} brix_authz_identity_query_t;
+
+/* Shared lazy identity-to-account mapping used by both the protocol-edge and
+ * identity-only evaluators. The returned string is borrowed from `identity`
+ * (or `dn`) and remains valid for the connection lifetime. */
+const char *brix_authz_mapped_name(brix_identity_t *identity, const char *dn);
+
+/* Construct (or return the connection-lifetime memo of) the XrdAcc entity
+ * derived from an identity. A NULL identity yields an anonymous request-owned
+ * entity so host/default rules retain the edge evaluator's semantics. */
+void *brix_authz_acc_entity(ngx_pool_t *pool, brix_identity_t *identity,
+    const char *peer);
+
+ngx_int_t brix_authz_check_identity(const brix_authz_identity_query_t *query);
+
 #endif /* BRIX_PATH_AUTH_GATE_H */

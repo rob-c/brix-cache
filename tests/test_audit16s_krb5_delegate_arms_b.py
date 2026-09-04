@@ -42,11 +42,12 @@ def _capture_while_open(port, ccache, directory=DEFAULT_CAPTURE_DIR):
 
 
 class TestWhereTheCapturedTicketLands:
-    """FINDING #96 — /tmp, and a knob no config file can turn."""
+    """FINDING #96, resolved by phase-108 C11 — the private staging dir, and
+    no knob at all."""
 
-    def test_the_capture_is_a_file_in_tmp_while_the_session_lives(self, planes):
-        """The default rendering, which is every deployment that did not write
-        an nginx `env` directive it was never told about."""
+    def test_the_capture_lands_in_the_private_staging_dir(self, planes):
+        """The only rendering there is now: every capture is staged under the
+        per-uid tmpfs dir the VOLATILE arm owns, with no environment input."""
         path, session = _capture_while_open(planes.on, planes.forwardable)
         try:
             assert path is not None, (
@@ -56,9 +57,9 @@ class TestWhereTheCapturedTicketLands:
             session.close()
 
     def test_it_is_private_to_the_worker(self, planes):
-        """security-negative: mkstemp's 0600 survives libkrb5 rewriting the
-        file by name, and the file is owned by the worker's own uid.  This is
-        what keeps #96 a siting question rather than an exposure."""
+        """security-negative: the engine's O_EXCL 0600 create (plus its
+        defensive fchmod) survives libkrb5 rewriting the file by name, and
+        the file is owned by the worker's own uid."""
         path, session = _capture_while_open(planes.on, planes.forwardable)
         try:
             assert path is not None
@@ -105,37 +106,66 @@ class TestWhereTheCapturedTicketLands:
         time.sleep(1.0)
         try:
             assert set(_captures()) - before == set(), (
-                "the off arm wrote a ccache under /tmp")
+                "the off arm wrote a ccache into the staging dir")
         finally:
             session.close()
 
-    def test_only_an_nginx_env_directive_can_move_it(self, relocated):
-        """FINDING #96: the same instance rendered with `env TMPDIR;` puts the
-        capture in the handed-in directory, and without it the same $TMPDIR is
-        invisible to the worker — nginx rebuilds the environment from the env
-        list alone, so the C's documented fallback is the only reachable
-        behaviour until an operator writes a directive belonging to nginx
-        rather than to this module."""
-        endpoint, ticket, ccdir = relocated
-        assert "env TMPDIR;" in _read(endpoint.config)
-        path, session = _capture_while_open(endpoint.port, ticket, ccdir)
+    def test_krb5_deleg_ccache_not_in_world_dir(self, planes):
+        """security-negative (phase-108 C11): the forwarded TGT's ccache is
+        never created under a world-writable directory — the CWE-377
+        regression test for brix_krb5_deleg_mkccache.  The capture's parent
+        must be the per-uid staging dir, owned by this uid, 0700, and no
+        capture may appear under /tmp at the same moment."""
+        tmp_before = set(Path("/tmp").glob(CAPTURE_GLOB))
+        path, session = _capture_while_open(planes.on, planes.forwardable)
         try:
             assert path is not None, (
-                f"the capture did not follow $TMPDIR into {ccdir} — #96 has "
-                f"changed shape\n{_read(os.path.join(endpoint.prefix, 'logs', 'error.log'))}")
-            assert path.parent == ccdir
-            assert oct(path.stat().st_mode & 0o777) == "0o600"
+                f"no capture file appeared under {DEFAULT_CAPTURE_DIR}\n"
+                f"{planes.errlog()}")
+            parent = path.parent
+            assert parent == DEFAULT_CAPTURE_DIR
+            info = parent.stat()
+            assert info.st_uid == os.getuid()
+            assert oct(info.st_mode & 0o777) == "0o700", oct(info.st_mode)
+            assert set(Path("/tmp").glob(CAPTURE_GLOB)) - tmp_before == set(), (
+                "a capture appeared under world-writable /tmp — CWE-377 is back")
         finally:
             session.close()
 
-    def test_the_directory_is_the_c_s_own_fallback(self):
-        """Pinned at the source, so a change to either the template or the
-        fallback has to come past this file."""
+    def test_no_env_directive_can_move_it_anymore(self, relocated):
+        """FINDING #96 inverted by phase-108 C11: the rendering that used to
+        relocate the capture (`env TMPDIR;` plus a handed-in directory) now
+        changes nothing — the VOLATILE arm never consults the environment, so
+        the capture still lands in the staging dir and the handed-in
+        directory stays empty."""
+        endpoint, ticket, ccdir = relocated
+        assert "env TMPDIR;" in _read(endpoint.config)
+        path, session = _capture_while_open(endpoint.port, ticket)
+        try:
+            assert path is not None, (
+                f"no capture file appeared under {DEFAULT_CAPTURE_DIR} — the "
+                f"TMPDIR rendering broke the capture outright\n"
+                f"{_read(os.path.join(endpoint.prefix, 'logs', 'error.log'))}")
+            assert path.parent == DEFAULT_CAPTURE_DIR
+            assert oct(path.stat().st_mode & 0o777) == "0o600"
+            assert sorted(ccdir.glob(CAPTURE_GLOB)) == [], (
+                "the capture followed $TMPDIR again — the #96 knob is back")
+        finally:
+            session.close()
+
+    def test_the_verb_is_pinned_at_the_source(self):
+        """Pinned at the source, so a change away from the shared credential
+        verb (or a regrown $TMPDIR/mkstemp fallback) has to come past this
+        file."""
         source = _read(CAPTURE_C)
-        assert 'const char *dir = getenv("TMPDIR");' in source
-        assert 'dir = "/tmp";' in source
-        assert '"%s/brix-krb5-fwd-XXXXXX"' in source
-        assert "fd = mkstemp(path);" in source
+        assert "brix_cred_write(&req" in source
+        assert "BRIX_CRED_ARM_VOLATILE" in source
+        assert "BRIX_CRED_KIND_CCACHE" in source
+        assert '"brix-krb5-fwd-"' in source
+        # The calls, not the words: the file's own comment records the #96
+        # history and may name $TMPDIR in prose.
+        assert "getenv(" not in source
+        assert "mkstemp(" not in source
 
     def test_no_config_in_the_corpus_writes_that_env_directive(self):
         """And the census half of #96: nothing in the coverage corpus except

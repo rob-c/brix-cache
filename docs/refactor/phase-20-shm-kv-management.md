@@ -1,5 +1,12 @@
 # Phase 20 — Shared Memory & Key-Value Management
 
+**Status:** IMPLEMENTED / CLOSED (Phase-111 reconciliation, 2026-09-03). The
+generic KV store and all production consumers are complete. The TPC registry
+deliberately retains its fixed 1024-slot ABI, and the Phase-20 token bucket
+deliberately retains best-effort admission. Neither has an operator requirement
+that justifies cross-context configuration ownership or a callback-bearing KV
+read-modify-write API.
+
 **Scope**: Replace eleven ad-hoc fixed-size SHM tables with a unified infrastructure:
 a zone boilerplate macro layer, a generic hash-table KV store, and three concrete
 consumers (JWT validation cache, auth result cache, rate limiting).
@@ -51,14 +58,19 @@ few integration details diverge from the original design — all detailed below.
    doc's concern about Phase-20 rate limiting being superseded is moot; the two
    coexist. See `phase-25-rate-limiting.md`.
 
-### Still incomplete / pending
+### Closed design decisions
 
-- **Step A** SHM zone macros — not implemented; recommend marking **won't-do**
-  (superseded by the KV store) rather than pending.
-- **Step F** `xrootd_tpc_slots` — pending; blocked on the dual-postconfig call-site
-  issue described in Step F. The compile-time default (1024) is in effect.
-- The "atomic get-modify-set" KV helper for strict rate-limit admission (noted in
-  *Known constraints*) — not added; the best-effort get+set is what ships.
+- **Step A** SHM zone macros — **won't do**: the generic KV store superseded
+  the boilerplate they were intended to remove.
+- **Step F** `xrootd_tpc_slots` — **fixed by design**: both HTTP and stream
+  contexts create the same ABI-sized registry. A per-context knob would add
+  ambiguous ownership and reload compatibility risk without measured capacity
+  pressure. The compile-time 1024-slot bound is the supported contract.
+- **Atomic get-modify-set** — **not part of the generic KV contract**. The
+  Phase-20 token bucket explicitly provides best-effort throttling and tolerates
+  bounded over-admission under contention. Strict admission belongs to the
+  separate Phase-25 limiter rather than a KV callback executed under a SHM
+  spinlock.
 
 > **Forward note (Phase 30, M1.2):** `manager/redir_cache.c` — listed below as an
 > O(n) linear-scan ring buffer — was subsequently converted to a bounded
@@ -848,7 +860,7 @@ PYTHONPATH=tests pytest tests/ -k "rate_limit_refill" -v
 
 | Constraint | Reason | Future fix |
 |---|---|---|
-| KV `set` + `get` not atomic (rate limiter) | Two separate spinlock acquisitions | Add `xrootd_kv_update()` for read-modify-write in single lock hold |
+| KV `set` + `get` not atomic (Phase-20 rate limiter) | Deliberate best-effort admission; strict policy uses the Phase-25 limiter | Closed by contract; do not run caller callbacks while holding the generic KV SHM spinlock |
 | Token cache does not detect revocation | Stateless JWT design — revocation requires OIDC token introspection endpoint | Phase 21: `xrootd_token_introspection_url` directive + async check |
 | Auth cache TTL is wall-clock, not config-change-aware | nginx config reload clears zones but short TTL is the mitigation | Future: increment a config-version counter in the zone header; cache entries include version; stale version = miss |
 | Linear probe degrades at load factor > 0.5 | Refusal to insert above 0.5 prevents worst-case degradation but wastes memory | Future: open-addressing with Robin Hood hashing improves average probe distance |

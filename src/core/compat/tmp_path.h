@@ -27,6 +27,14 @@
 ngx_int_t brix_make_tmp_path(const char *base_path, char *out, size_t out_sz);
 
 /*
+ * brix_tmp_is_temp_name — nonzero if `name` (a bare directory-entry name)
+ * is a staged atomic-write temp, i.e. carries the ".xrd-tmp." infix. Store
+ * enumerators use it to skip a crash-orphaned temp so it is never listed as
+ * an object before the startup reaper removes it.
+ */
+int brix_tmp_is_temp_name(const char *name);
+
+/*
  * brix_make_resume_path — build the DETERMINISTIC upload-resume staging path.
  *
  * With stage_dir empty/NULL: writes

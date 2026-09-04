@@ -3,7 +3,7 @@
  *
  * WHAT: the config lifecycle head (create_loc_conf + the UNSET sentinels the
  *       merge reads), the four directive setters that cannot be a stock slot
- *       writer, the `$oci_class` / `$oci_cache` log variables, the SHM-zone
+ *       writer, the `$oci_class` log variable, the SHM-zone
  *       postconfiguration, the directive table and the module record.
  * WHY:  the shape is deliberately the cvmfs module's, because the lifecycle
  *       question is the same one: a location becomes a protocol endpoint the
@@ -11,9 +11,11 @@
  *       metrics zone, the dashboard zones, the fill thread pool — must exist
  *       for that endpoint whether or not a stream{} block was ever configured.
  * HOW:  create sets sentinels and nothing else (the merge owns every default),
- *       the merge lives in oci_merge.c, and the two variables read the request
- *       ctx the handler fills — one enum, one name table, so the access log and
- *       the metric family can never tell different stories (Appendix J.6).
+ *       the merge lives in oci_merge.c, and $oci_class reads the request ctx
+ *       the handler fills. The disposition ($oci_cache) moved to the shared
+ *       $brix_cache_status in phase 112; its five-value vocabulary survives as
+ *       the brix_oci_requests_total{outcome} labels (Appendix J.6), so the
+ *       access log and the metric family still cannot disagree.
  */
 
 #include "oci.h"
@@ -228,7 +230,7 @@ oci_conf_token_zone(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 
-/* ---- $oci_class / $oci_cache --------------------------------------------- */
+/* ---- $oci_class ---------------------------------------------------------- */
 
 static ngx_int_t
 oci_var_set(ngx_http_request_t *r, ngx_http_variable_value_t *v,
@@ -265,37 +267,20 @@ oci_var_class(ngx_http_request_t *r, ngx_http_variable_value_t *v,
 }
 
 
-/* The disposition enum is the metric label vocabulary (J.6): one source, so a
- * log line and a scrape can never disagree about what happened. `wait`,
- * `reval` and `stale` are deliberately NOT separate values in v1 — a coalesced
- * waiter and a revalidation both end as the fill that satisfied them, and
- * staleness is reported by the RFC 9111 Warning header on the response. */
-static ngx_int_t
-oci_var_cache(ngx_http_request_t *r, ngx_http_variable_value_t *v,
-    uintptr_t data)
-{
-    ngx_http_brix_oci_ctx_t *ctx =
-        ngx_http_get_module_ctx(r, ngx_http_brix_oci_module);
-    static const char *names[BRIX_OCI_OUT_COUNT] = {
-        "hit", "fill", "local", "refused", "error"
-    };
-
-    (void) data;
-    if (ctx == NULL || ctx->disp >= BRIX_OCI_OUT_COUNT) {
-        return oci_var_set(r, v, "-");
-    }
-    return oci_var_set(r, v, names[ctx->disp]);
-}
+/* phase-112: oci_var_cache() was removed with $oci_cache / $brix_oci_cache.
+ * $brix_cache_status reports the same ctx->disp through
+ * brix_request_cache_status() (src/core/http/http_variables.c) in the shared
+ * HIT/MISS/BYPASS/NEGHIT vocabulary. The five-value disposition itself is NOT
+ * lost: it remains the label vocabulary of brix_oci_requests_total{outcome},
+ * which is where `local`, `refused` and `error` are still distinguishable. */
 
 
 /* phase-106 W1-a: dual registration — see the note in cvmfs/module.c. The
- * unprefixed spellings are deprecated but kept, because dropping them turns a
+ * unprefixed spelling is deprecated but kept, because dropping it turns a
  * stale log_format into a startup abort. */
 static ngx_http_variable_t  ngx_http_brix_oci_vars[] = {
     { ngx_string("oci_class"), NULL, oci_var_class, 0, 0, 0 },
-    { ngx_string("oci_cache"), NULL, oci_var_cache, 0, 0, 0 },
     { ngx_string("brix_oci_class"), NULL, oci_var_class, 0, 0, 0 },
-    { ngx_string("brix_oci_cache"), NULL, oci_var_cache, 0, 0, 0 },
       ngx_http_null_variable
 };
 

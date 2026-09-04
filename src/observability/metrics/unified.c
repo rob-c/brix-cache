@@ -193,6 +193,7 @@ static const char *brix_unified_vfs_mutate_op_names
     "evict",
     "lock",
     "dedup",
+    "credential",
 };
 
 const char *
@@ -200,6 +201,47 @@ brix_metric_vfs_mutate_op_name(ngx_uint_t op)
 {
     return op < BRIX_VFS_MUTATE_OP_METRIC_COUNT
         ? brix_unified_vfs_mutate_op_names[op] : "unknown";
+}
+
+/* Phase-107 §7.5 bounded storage-domain labels. Mirrors brix_vfs_domain_t
+ * (fs/backend/sd_domain.h) so the exporter needs no fs-layer include;
+ * vfs_policy_domain.c asserts the two stay the same length. */
+static const char *brix_unified_vfs_domain_names
+    [BRIX_VFS_DOMAIN_METRIC_COUNT] =
+{
+    "export",
+    "cache",
+    "stage",
+    "registry",
+    "credential",
+    "config",
+    "journal",
+};
+
+const char *
+brix_metric_vfs_domain_name(ngx_uint_t domain)
+{
+    return domain < BRIX_VFS_DOMAIN_METRIC_COUNT
+        ? brix_unified_vfs_domain_names[domain] : "unknown";
+}
+
+/* Phase-108 C12 bounded authorization-backstop result labels. Mirrors
+ * brix_authz_backstop_result_t (fs/vfs/vfs_authz.h) so the exporter needs no
+ * fs-layer include; vfs_authz.c asserts the two stay the same length. */
+static const char *brix_unified_vfs_authz_backstop_names
+    [BRIX_AUTHZ_BACKSTOP_RESULT_COUNT] =
+{
+    "agree",
+    "edge_missing",
+    "no_rules",
+    "unbound",
+};
+
+const char *
+brix_metric_vfs_authz_backstop_result_name(ngx_uint_t result)
+{
+    return result < BRIX_AUTHZ_BACKSTOP_RESULT_COUNT
+        ? brix_unified_vfs_authz_backstop_names[result] : "unknown";
 }
 
 /*

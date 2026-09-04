@@ -36,28 +36,28 @@ brix_ftp_gsi_paths(ngx_conf_t *cf, ngx_stream_brix_ftp_srv_conf_t *conf,
     char *cert, size_t cert_cap, char *key, size_t key_cap,
     char *ca, size_t ca_cap)
 {
-    if (conf->certificate.len == 0 || conf->certificate_key.len == 0
-        || conf->trusted_ca.len == 0)
+    if (conf->common.certificate.len == 0 || conf->common.certificate_key.len == 0
+        || conf->common.trusted_ca.len == 0)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_gridftp_gsi requires brix_certificate, "
             "brix_certificate_key and brix_trusted_ca");
         return NGX_ERROR;
     }
-    if (conf->certificate.len >= cert_cap
-        || conf->certificate_key.len >= key_cap
-        || conf->trusted_ca.len >= ca_cap)
+    if (conf->common.certificate.len >= cert_cap
+        || conf->common.certificate_key.len >= key_cap
+        || conf->common.trusted_ca.len >= ca_cap)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                            "brix_gridftp_gsi certificate/key/CA path too long");
         return NGX_ERROR;
     }
-    ngx_memcpy(cert, conf->certificate.data, conf->certificate.len);
-    cert[conf->certificate.len] = '\0';
-    ngx_memcpy(key, conf->certificate_key.data, conf->certificate_key.len);
-    key[conf->certificate_key.len] = '\0';
-    ngx_memcpy(ca, conf->trusted_ca.data, conf->trusted_ca.len);
-    ca[conf->trusted_ca.len] = '\0';
+    ngx_memcpy(cert, conf->common.certificate.data, conf->common.certificate.len);
+    cert[conf->common.certificate.len] = '\0';
+    ngx_memcpy(key, conf->common.certificate_key.data, conf->common.certificate_key.len);
+    key[conf->common.certificate_key.len] = '\0';
+    ngx_memcpy(ca, conf->common.trusted_ca.data, conf->common.trusted_ca.len);
+    ca[conf->common.trusted_ca.len] = '\0';
     return NGX_OK;
 }
 
@@ -174,6 +174,6 @@ brix_ftp_build_gsi(ngx_conf_t *cf, ngx_stream_brix_ftp_srv_conf_t *conf)
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
         "brix: GridFTP gsiftp security enabled (cert=%V ca=%s)",
-        &conf->certificate, ca_raw);
+        &conf->common.certificate, ca_raw);
     return NGX_CONF_OK;
 }

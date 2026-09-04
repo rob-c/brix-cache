@@ -72,8 +72,8 @@ def test_dav_traffic_moves_no_stream_or_s3_rows(mx):
     for fam, tag in [("brix_io_ops_total", 'proto="stream"'),
                      ("brix_io_ops_total", 'proto="s3"'),
                      ("brix_s3_requests_total", ""),
-                     ("brix_cache_hits_total", 'proto="stream"'),
-                     ("brix_cache_hits_total", 'proto="s3"'),
+                     ("brix_cache_requests_total", 'proto="stream"'),
+                     ("brix_cache_requests_total", 'proto="s3"'),
                      ("brix_requests_total", "")]:
         assert family_sum(after, fam, tag) == family_sum(before, fam, tag), \
             f"dav traffic moved {fam}{{{tag}}}"
@@ -92,7 +92,7 @@ def test_s3_traffic_moves_no_webdav_or_stream_rows(mx):
     for fam, tag in [("brix_io_ops_total", 'proto="webdav"'),
                      ("brix_io_ops_total", 'proto="stream"'),
                      ("brix_webdav_requests_total", ""),
-                     ("brix_cache_hits_total", 'proto="webdav"'),
+                     ("brix_cache_requests_total", 'proto="webdav"'),
                      ("brix_requests_total", "")]:
         assert family_sum(after, fam, tag) == family_sum(before, fam, tag), \
             f"s3 traffic moved {fam}{{{tag}}}"
@@ -167,7 +167,7 @@ def test_latency_count_matches_read_semantics(mx, flow, tmp_path):
     after = cx.mfetch(mx.metrics)
     ops = s.delta("brix_io_ops_total",
                   {"proto": proto, "op": "read", "status": "ok"}, after)
-    lat = s.delta("brix_io_latency_usec_count",
+    lat = s.delta("brix_io_latency_seconds_count",
                   {"proto": proto, "op": "read"}, after)
     def _assert_test_latency_count_matches_read_semantics_1():
         assert ops == 1

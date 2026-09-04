@@ -151,6 +151,30 @@ def test_freeze_nginx_missing_source_falls_back_to_live_path(fresh_freeze, tmp_p
     assert not live_common._FROZEN_NGINX, "nothing may be cached"
 
 
+def test_freeze_nginx_reuses_session_copy_while_source_is_absent(
+        fresh_freeze, tmp_path):
+    src = Path(fake_nginx.install(tmp_path))
+    frozen = live_common.freeze_nginx(src)
+
+    src.unlink()
+    live_common._FROZEN_NGINX = {}  # simulate a later xdist worker
+
+    assert live_common.freeze_nginx(src) == frozen
+    assert frozen.exists()
+
+
+def test_cleanup_frozen_nginx_removes_only_the_session_copies(
+        fresh_freeze, tmp_path):
+    src = Path(fake_nginx.install(tmp_path))
+    frozen = live_common.freeze_nginx(src)
+
+    live_common.cleanup_frozen_nginx()
+
+    assert src.exists()
+    assert not frozen.exists()
+    assert live_common._FROZEN_NGINX == {}
+
+
 def test_freeze_nginx_never_caches_a_broken_binary(fresh_freeze, tmp_path):
     # A source caught mid-relink copies fine but fails validation (-v != 0);
     # the freeze must refuse to pin it and fall back rather than serve a

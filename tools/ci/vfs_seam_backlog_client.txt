@@ -11,8 +11,6 @@
 # local zip-archive assembly (not export data) and annotated with per-line
 # 'vfs-seam-allow: local zip-archive assembly, not export data' markers.
 #
-# cks_verify.c remains backlogged: its pread reads on-disk .cinfo/.meta
-# sidecars to verify a file's recorded checksum.  The client VFS vtable has
-# no read-by-name or xattr op yet, so there is no seam to route through.
-# When the vtable gains those ops this entry should be migrated (not marked).
-client/lib/protocols/shared/cks_verify.c:
+# cks_verify.c was removed from this backlog on 2026-09-03. Its .cinfo/.meta
+# sidecar reads now use XRDC_VFS_READ|XRDC_VFS_NOFOLLOW and brix_vfs_pread;
+# the POSIX VFS unit pins the final-component symlink refusal.

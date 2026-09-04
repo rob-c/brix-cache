@@ -157,6 +157,24 @@ def _report_locality(nearline, propfind):
         print(f"    {match.group(0)}")
 
 
+def _propfind_nearline(run: LiveRun, url: str, timeout: float = 5.0) -> str:
+    """Read locality until the external MSS probe has produced its verdict."""
+    body = ('<D:propfind xmlns:D="DAV:" '
+            'xmlns:xrd="http://brix.org/2010/ns/dav"><D:prop>'
+            '<xrd:locality/></D:prop></D:propfind>')
+    deadline = time.monotonic() + timeout
+    response = ""
+    while time.monotonic() < deadline:
+        response = run.call([
+            "curl", "-sS", "-X", "PROPFIND", "-H", "Depth: 0",
+            "--data", body, url,
+        ], check=False).stdout
+        if "<xrd:locality>NEARLINE</xrd:locality>" in response:
+            return response
+        time.sleep(0.1)
+    return response
+
+
 def recall_stream(nginx: Path | None = None) -> int:
     """Async nearline recall over root://: a read-open of an OFFLINE tape
     object faults a recall and the server answers kXR_wait; the client
@@ -272,11 +290,7 @@ http {{ client_body_temp_path {run.root}/tmp; server {{ listen {BIND_HOST}:{bpor
         time.sleep(1)
         url = f"http://{HOST}:{bport}/f.bin"
 
-        propfind = run.call([
-            "curl", "-sS", "-X", "PROPFIND", "-H", "Depth: 0",
-            "--data", '<D:propfind xmlns:D="DAV:" xmlns:xrd="http://brix.org/2010/ns/dav"><D:prop><xrd:locality/></D:prop></D:propfind>',
-            url,
-        ], check=False).stdout
+        propfind = _propfind_nearline(run, url)
         nearline = "<xrd:locality>NEARLINE</xrd:locality>" in propfind
         _report_locality(nearline, propfind)
         propfind_no_recall = not (run.root / "online/f.bin").exists()

@@ -17,6 +17,11 @@ before removal.
   build provenance.
 - Added explicit native-input transport for OCI and Kubernetes helpers plus
   standalone C and C++ executable examples.
+- Native source, include, object, prerequisite, working-directory, and compiler
+  inputs now accept runtime references, including text artifacts, managed task
+  outputs, pytest parameters, and captured compiler binaries.
+- Preprocessor values and raw compile/link arguments accept pytest parameter
+  references, so build matrices retain native pytest parametrization and node IDs.
 
 ## 0.15.0
 

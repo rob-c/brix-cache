@@ -41,10 +41,12 @@ static ngx_conf_enum_t  brix_http_crl_modes[] = {
 };
 
 static void *brix_http_common_create_loc_conf(ngx_conf_t *cf);
+static void *brix_http_common_create_main_conf(ngx_conf_t *cf);
 static char *brix_http_common_merge_loc_conf(ngx_conf_t *cf,
                                              void *parent, void *child);
 static char *brix_http_conf_tpc_source_allow(ngx_conf_t *cf,
                                              ngx_command_t *cmd, void *conf);
+static ngx_int_t brix_http_common_init_process(ngx_cycle_t *cycle);
 
 static ngx_conf_enum_t  brix_http_ucred_fallback_enum[] = {
     { ngx_string("allow"), 0 },
@@ -119,7 +121,7 @@ brix_http_common_preconfiguration(ngx_conf_t *cf)
 static ngx_http_module_t  brix_http_common_module_ctx = {
     brix_http_common_preconfiguration,   /* preconfiguration */
     NULL,                                /* postconfiguration */
-    NULL, NULL,                          /* create/init main conf */
+    brix_http_common_create_main_conf, NULL,
     NULL, NULL,                          /* create/merge srv conf */
     brix_http_common_create_loc_conf,
     brix_http_common_merge_loc_conf
@@ -130,7 +132,7 @@ ngx_module_t  ngx_http_brix_common_module = {
     &brix_http_common_module_ctx,
     brix_http_common_commands,
     NGX_HTTP_MODULE,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, brix_http_common_init_process, NULL, NULL, NULL, NULL,
     NGX_MODULE_V1_PADDING
 };
 
@@ -139,6 +141,15 @@ ngx_module_t  ngx_http_brix_common_module = {
  * conf and seed the embedded preamble with UNSET sentinels so parent->child
  * inheritance (below) can tell "not configured" from an explicit value.
  */
+static void *
+brix_http_common_create_main_conf(ngx_conf_t *cf)
+{
+    ngx_http_brix_common_main_conf_t *mcf;
+
+    mcf = ngx_pcalloc(cf->pool, sizeof(*mcf));
+    return mcf;
+}
+
 static void *
 brix_http_common_create_loc_conf(ngx_conf_t *cf)
 {
@@ -183,6 +194,9 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
 {
     BRIX_ADOPT_STR(root);
     BRIX_ADOPT_STR(storage_backend);
+    BRIX_ADOPT_STR(n2n_scheme);
+    BRIX_ADOPT_STR(n2n_pool);
+    BRIX_ADOPT_STR(n2n_prefix);
     BRIX_ADOPT_STR(storage_credential);
     BRIX_ADOPT_STR(storage_credential_dir);
     BRIX_ADOPT_VAL(storage_credential_fallback, NGX_CONF_UNSET_UINT);
@@ -319,6 +333,8 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_VAL(durable_publish, NGX_CONF_UNSET);
     /* phase-107 C7: cross-protocol lock enforcement mode. */
     BRIX_ADOPT_VAL(lock_enforcement, NGX_CONF_UNSET_UINT);
+    /* phase-108 C12: authorization-backstop rollout mode. */
+    BRIX_ADOPT_VAL(authz_backstop, NGX_CONF_UNSET_UINT);
     /* phase-101 W4: pblock stripe size (was brix_webdav_pblock_block_size). */
     BRIX_ADOPT_VAL(pblock_block_size, (size_t) NGX_CONF_UNSET_SIZE);
     /* phase-101 W4: x509 CRL family (was brix_webdav_crl/_crl_mode/_signing_policy). */
@@ -337,8 +353,18 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_PTR(tpc_source_allow);
     BRIX_ADOPT_VAL(tpc_require_source_size, NGX_CONF_UNSET);
     BRIX_ADOPT_STR(tpc_verify_checksum);
+    BRIX_ADOPT_VAL(tpc_outbound_tls, NGX_CONF_UNSET);
+    BRIX_ADOPT_VAL(tpc_outbound_passthrough, NGX_CONF_UNSET);
+    BRIX_ADOPT_STR(tpc_outbound_bearer_file);
+    BRIX_ADOPT_STR(tpc_outbound_token_endpoint);
+    BRIX_ADOPT_STR(tpc_outbound_client_id);
+    BRIX_ADOPT_STR(tpc_outbound_client_secret);
+    BRIX_ADOPT_STR(tpc_outbound_scope);
+    BRIX_ADOPT_STR(certificate);
+    BRIX_ADOPT_STR(certificate_key);
     /* phase-101 W4: WLCG token trust quartet (collapsed webdav+s3 twins). */
     BRIX_ADOPT_STR(token_jwks);
+    BRIX_ADOPT_VAL(token_jwks_refresh_interval, NGX_CONF_UNSET_MSEC);
     BRIX_ADOPT_STR(token_issuer);
     BRIX_ADOPT_STR(token_audience);
     BRIX_ADOPT_STR(token_config);
@@ -375,6 +401,67 @@ brix_http_common_adopt(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *dst)
         return;
     }
     brix_shared_adopt_unified(dst, &ucf->common);
+}
+
+ngx_int_t
+brix_http_common_register_jwks_refresh(ngx_conf_t *cf, const ngx_str_t *path,
+    brix_jwks_key_t *keys, int *key_count, ngx_msec_t interval)
+{
+    ngx_http_brix_common_main_conf_t *mcf;
+    brix_jwks_refresh_spec_t          *spec;
+    struct stat                        st;
+
+    if (path == NULL || path->len == 0 || keys == NULL || key_count == NULL
+        || interval == 0
+        || interval == (ngx_msec_t) NGX_CONF_UNSET_MSEC)
+    {
+        return NGX_OK;
+    }
+    mcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_brix_common_module);
+    if (mcf == NULL) {
+        return NGX_ERROR;
+    }
+    if (mcf->jwks_refresh_specs == NULL) {
+        mcf->jwks_refresh_specs = ngx_array_create(cf->pool, 4,
+                                      sizeof(brix_jwks_refresh_spec_t));
+        if (mcf->jwks_refresh_specs == NULL) {
+            return NGX_ERROR;
+        }
+    }
+    spec = ngx_array_push(mcf->jwks_refresh_specs);
+    if (spec == NULL) {
+        return NGX_ERROR;
+    }
+    ngx_memzero(spec, sizeof(*spec));
+    spec->path = *path;
+    spec->keys = keys;
+    spec->key_count = key_count;
+    spec->interval = interval;
+    if (stat((const char *) path->data, &st) == 0) {
+        spec->mtime = st.st_mtime;
+    }
+    return NGX_OK;
+}
+
+static ngx_int_t
+brix_http_common_init_process(ngx_cycle_t *cycle)
+{
+    ngx_http_brix_common_main_conf_t *mcf;
+    brix_jwks_refresh_spec_t          *specs;
+    ngx_uint_t                         i;
+
+    mcf = ngx_http_cycle_get_module_main_conf(cycle,
+                                               ngx_http_brix_common_module);
+    if (mcf == NULL || mcf->jwks_refresh_specs == NULL) {
+        return NGX_OK;
+    }
+    specs = mcf->jwks_refresh_specs->elts;
+    for (i = 0; i < mcf->jwks_refresh_specs->nelts; i++) {
+        if (brix_token_jwks_schedule(cycle, &specs[i]) != NGX_OK) {
+            return NGX_ERROR;
+        }
+    }
+    return NGX_OK;
 }
 
 /* brix_tpc_source_allow <host>... on the HTTP planes (phase-101 W4): append EVERY

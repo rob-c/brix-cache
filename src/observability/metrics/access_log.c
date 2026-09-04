@@ -5,8 +5,11 @@
  *
  * WHAT: Emits one machine-parsable JSON access record per completed VFS I/O
  *       operation via brix_access_log_emit(). Each line carries timestamp,
- *       protocol, op name, request path, byte count, offset, latency, error
- *       status, cache-hit flag, auth method, and the authenticated subject/DN.
+ *       protocol, remote peer, op name, request path, bytes_served, offset,
+ *       backend_time_us, status, cache_status, auth_method, and the
+ *       authenticated subject (key "sub"). Every fact appears exactly once:
+ *       phase 112 removed the pre-110 compatibility spellings ("bytes",
+ *       "latency_us", "from_cache", "subject") that duplicated four of them.
  * WHY:  Prometheus counters are aggregate and low-cardinality (no paths or DNs
  *       as labels — INVARIANT #8), but operators still need per-request audit
  *       detail. A JSON log line carries the high-cardinality fields (path,
@@ -124,40 +127,40 @@ brix_access_log_emit(const brix_vfs_ctx_t *ctx, const char *path,
     /* phase-110 rule 3: a JSON key is the $brix_* variable's name minus
      * "brix_", carrying the SAME value string as that variable and as the
      * Prometheus label of the same name (one word per fact on every surface):
-     *   cache_status  ← brix_metric_cache_status_name (was the bool from_cache)
-     *   sub           ← the identity subject (was "subject")
-     *   bytes_served  ← this op's bytes (was "bytes")
+     *   cache_status    ← brix_metric_cache_status_name
+     *   sub             ← the identity subject
+     *   bytes_served    ← this op's bytes
      *   backend_time_us ← this op's latency; unit suffix per rule 4 because the
-     *                   variable renders seconds (was "latency_us")
-     * The old keys are still emitted for one release (deprecated aliases,
-     * removal phase-112) so no existing consumer breaks. A per-op line
-     * reports the op's own cache decision: HIT/MISS/- (BYPASS/NEGHIT are
-     * request-level decisions the variable can carry, an op line cannot). */
+     *                     variable renders seconds
+     * phase-112 removed the four compatibility keys these replaced
+     * ("from_cache", "subject", "bytes", "latency_us"), so every fact now
+     * appears EXACTLY ONCE per record. A per-op line reports the op's own cache
+     * decision: HIT/MISS/- (BYPASS/NEGHIT are request-level decisions the
+     * variable can carry, an op line cannot). */
     ngx_log_error(NGX_LOG_INFO, ctx->log, 0,
                   "brix_access_json: "
                   "{\"ts\":%T.%03M,\"proto\":\"%s\","
                   "\"remote\":\"%s\",\"op\":\"%s\","
-                  "\"path\":\"%s\",\"bytes_served\":%uz,\"bytes\":%uz,"
+                  "\"path\":\"%s\",\"bytes_served\":%uz,"
                   "\"offset\":%O,"
-                  "\"backend_time_us\":%M,\"latency_us\":%M,"
+                  "\"backend_time_us\":%M,"
                   "\"status\":\"%s\","
-                  "\"cache_status\":\"%s\",\"from_cache\":%s,"
+                  "\"cache_status\":\"%s\","
                   "\"auth_method\":\"%s\","
-                  "\"sub\":\"%s\",\"subject\":\"%s\"}",
+                  "\"sub\":\"%s\"}",
                   tp->sec, tp->msec,
                   brix_metric_proto_name(ctx->metrics_proto),
                   remote_json,
                   brix_metric_op_name(op),
-                  path_json, bytes, bytes, offset, latency_usec, latency_usec,
+                  path_json, bytes, offset, latency_usec,
                   brix_metric_err_name(err),
                   brix_metric_cache_status_name(
                       result == NULL ? BRIX_CACHE_STATUS_NONE
                       : from_cache   ? BRIX_CACHE_STATUS_HIT
                       : ctx->cache_enabled ? BRIX_CACHE_STATUS_MISS
                                            : BRIX_CACHE_STATUS_NONE),
-                  from_cache ? "true" : "false",
                   ctx->identity != NULL
                       ? brix_metric_auth_method_name(ctx->identity->auth_method)
                       : "none",
-                  subject_json, subject_json);
+                  subject_json);
 }

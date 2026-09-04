@@ -65,8 +65,8 @@ groups:
     rules:
       - alert: XrootdCacheMissSurge
         expr: |
-          sum(rate(brix_cache_hits_total[10m]))
-            / clamp_min(sum(rate(brix_cache_hits_total[10m])) + sum(rate(brix_cache_misses_total[10m])), 1)
+          sum(rate(brix_cache_requests_total{cache_status="HIT"}[10m]))
+            / clamp_min(sum(rate(brix_cache_requests_total{cache_status=~"HIT|MISS"}[10m])), 1)
             < 0.5
         for: 30m
         labels:

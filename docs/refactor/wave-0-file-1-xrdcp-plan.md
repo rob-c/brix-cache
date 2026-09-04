@@ -3,7 +3,9 @@
 **File**: `client/apps/copy/xrdcp.c`  
 **Function**: `main` — CCN 187, 527 lines (lines 349-875)  
 **Estimated effort**: 2.5–3 days  
-**Status**: Ready to begin
+**Status:** HISTORICAL / SUPERSEDED. The xrdcp complexity work landed through
+the later effort-hotspot waves and Phase 103; do not execute this old signature
+sketch against the current client tree.
 
 ## Completed Wave 0 Files
 

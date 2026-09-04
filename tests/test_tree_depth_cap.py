@@ -34,6 +34,8 @@ _SRC = Path(__file__).resolve().parents[1] / "src"
 REMOVE_TREE = _SRC / "core" / "compat" / "fs_walk_remove.c"
 COPYTREE = _SRC / "fs" / "vfs" / "vfs_walk_copy.c"
 DRIVER_RMTREE = _SRC / "fs" / "vfs" / "vfs_unlink.c"
+# The depth-0 entry call moved with the CAP_BULK_DELETE fallback split.
+DRIVER_RMTREE_ENTRY = _SRC / "fs" / "vfs" / "vfs_unlink_many.c"
 FS_WALK_H = _SRC / "core" / "compat" / "fs_walk.h"
 
 
@@ -94,6 +96,6 @@ class TestTreeDepthCap:
     def test_driver_rmtree_threads_depth(self, driver_rmtree):
         assert "brix_vfs_driver_rmtree(leaf, drv, child, cred, depth + 1)" \
             in driver_rmtree
-        assert "brix_vfs_driver_rmtree(leaf, drv, logical,\n" \
-            "                                    use_cred ? &cred : NULL, 0)" \
-            in driver_rmtree
+        # Entry point (depth 0): the non-bulk fallback in vfs_unlink_many.c.
+        entry = DRIVER_RMTREE_ENTRY.read_text(encoding="utf-8")
+        assert "brix_vfs_driver_rmtree(leaf, drv, logical, cred, 0)" in entry

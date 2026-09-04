@@ -34,9 +34,6 @@ import pytest
 from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 from settings import BIND_HOST, NGINX_BIN
 
-pytestmark = pytest.mark.usefixtures()  # self-contained; no fleet attach
-
-
 @pytest.fixture(scope="module")
 def export_dir(tmp_path_factory):
     d = tmp_path_factory.mktemp("e1_export")

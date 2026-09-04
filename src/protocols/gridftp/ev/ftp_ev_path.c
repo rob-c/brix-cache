@@ -26,7 +26,7 @@
  *
  * HOW: brix_ftp_ev_resolve() joins the session CWD with the argument, then hands
  * the logical path to brix_http_resolve_path() for canonicalisation + confinement
- * against conf->root_canon; brix_ftp_ev_vfs_ctx() threads the GSI identity and
+ * against conf->common.root_canon; brix_ftp_ev_vfs_ctx() threads the GSI identity and
  * TLS state into brix_vfs_ctx_init().
  */
 
@@ -102,7 +102,7 @@ brix_ftp_ev_resolve_ex(ftp_ev_t *fc, const char *arg, char *abs, size_t abssz,
         return 553;
     }
 
-    rc = brix_http_resolve_path(fc->conf->root_canon, logical, abs, abssz);
+    rc = brix_http_resolve_path(fc->conf->common.root_canon, logical, abs, abssz);
     if (rc != 0) {
         if (err != NULL) {
             *err = brix_metric_err_from_http_status((ngx_uint_t) rc);
@@ -115,7 +115,7 @@ brix_ftp_ev_resolve_ex(ftp_ev_t *fc, const char *arg, char *abs, size_t abssz,
      * Same matcher/semantics as the HTTP/root planes (brix_auth_gate). No rules
      * ⇒ allow-all (early return in the callee); a cleartext session carries no
      * VO, so a VO-gated path is refused — the secure default, never a bypass. */
-    if (brix_check_vo_acl_identity(fc->c->log, abs, fc->conf->vo_rules,
+    if (brix_check_vo_acl_identity(fc->c->log, abs, fc->conf->common.vo_rules,
                                    fc->identity) != NGX_OK)
     {
         if (err != NULL) {
@@ -359,10 +359,21 @@ brix_ftp_ev_vfs_ctx(ftp_ev_t *fc, const char *abs, void *vctx)
     brix_vfs_ctx_t *ctx = vctx;
 
     brix_vfs_ctx_init(ctx, fc->c->pool, fc->c->log,
-                      BRIX_PROTO_GRIDFTP, fc->conf->root_canon, "",
-                      brix_vfs_policy_from_write_enable(fc->conf->allow_write),
+                      BRIX_PROTO_GRIDFTP, fc->conf->common.root_canon, "",
+                      brix_vfs_policy_from_write_enable(fc->conf->common.allow_write),
                       fc->sec_active ? 1 : 0 /* is_tls */,
                       fc->identity, abs);
+
+    {
+        char   peer[256];
+        size_t len = ngx_min(fc->c->addr_text.len, sizeof(peer) - 1);
+
+        ngx_memcpy(peer, fc->c->addr_text.data, len);
+        peer[len] = '\0';
+        brix_vfs_ctx_bind_authz(ctx, NULL, fc->conf->common.vo_rules, NULL,
+            BRIX_AUTHDB_FORMAT_NATIVE, peer,
+            (brix_authz_backstop_mode_t) fc->conf->common.authz_backstop);
+    }
 
     if (fc->deleg_proxy.len > 0
         && fc->conf->deleg_mode != BRIX_CRED_SELECT

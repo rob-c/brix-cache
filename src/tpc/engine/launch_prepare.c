@@ -222,7 +222,7 @@ tpc_build_origin_id(brix_ctx_t *ctx, ngx_connection_t *c, char *dst,
  * HOW: set rw/cache/size/time scalars → tpc_destination=1 → echo-or-generate
  * tpc_key → tpc_build_origin_id → cpystrn src_host/src_path → store token_mode
  * from tpc->token_mode when has_token_mode, else the opportunistic
- * "passthrough-opt" when conf->tpc_outbound_passthrough is enabled (default on),
+ * "passthrough-opt" when conf->common.tpc_outbound_passthrough is enabled (default on),
  * else empty. The caller sets
  * file->fd before calling. Pure side-effect on *file (no I/O beyond the
  * origin-id host lookup already isolated in its own helper). */
@@ -286,7 +286,7 @@ tpc_init_dst_file(brix_ctx_t *ctx, ngx_connection_t *c,
     if (tpc->has_token_mode && tpc->token_mode[0] != '\0') {
         ngx_cpystrn((u_char *) file->tpc_token_mode,
                     (u_char *) tpc->token_mode, sizeof(file->tpc_token_mode));
-    } else if (conf->tpc_outbound_passthrough) {
+    } else if (conf->common.tpc_outbound_passthrough) {
         ngx_cpystrn((u_char *) file->tpc_token_mode,
                     (u_char *) "passthrough-opt", sizeof(file->tpc_token_mode));
     } else {
@@ -376,8 +376,8 @@ tpc_prepare_check_preconditions(brix_ctx_t *ctx, ngx_connection_t *c,
      * self-test verifies; a refusal is banworthy, so it emits the guard signal
      * and bumps the labelless refusal counter.
      */
-    if (brix_tpc_source_guard_check(conf->tpc_source_guard,
-            conf->tpc_source_allow, tpc->src_host,
+    if (brix_tpc_source_guard_check(conf->common.tpc_source_guard,
+            conf->common.tpc_source_allow, tpc->src_host,
             egress_err, sizeof(egress_err))
         != 0)
     {
@@ -394,7 +394,7 @@ tpc_prepare_check_preconditions(brix_ctx_t *ctx, ngx_connection_t *c,
      */
     sport = tpc->src_port ? tpc->src_port : 1094;
     if (brix_tpc_check_src_policy(tpc->src_host, sport,
-            conf->tpc_allow_local, conf->tpc_allow_private,
+            conf->common.tpc_allow_local, conf->common.tpc_allow_private,
             policy_err, sizeof(policy_err))
         != 0)
     {

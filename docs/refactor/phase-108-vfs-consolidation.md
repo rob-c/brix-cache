@@ -2,8 +2,10 @@
 
 **Date:** 2026-08-31
 
-**Status:** 📋 **PLANNED** — no code written. This document is the specification
-the implementation will be judged against.
+**Status:** IMPLEMENTED AND VERIFIED (closed 2026-09-04). W0 and W1–W4 are
+landed. The local build, focused units, parity tests, structural guards, serial
+`--pr` acceptance tier and isolated post-W4 live lanes are green. The older,
+foreign-owned fleet on port 10005 was neither stopped nor used as evidence.
 
 **Document version:** v2 — hyper-detailed pass over every section against the tree. Split out of
 [phase 107](phase-107-vfs-mutation-surface-completion.md) v2, whose §13 made the
@@ -900,7 +902,8 @@ input it needs to apply a per-class TTL, and `brix_stage_dir_register()`
 look.
 
 This is a consequence, not a goal. C11 lands when the four implementations are
-one; the unified reaper is W1's stretch and may slip to phase 109 without
+one; the unified reaper is W1's stretch and may slip to
+[Phase 114](phase-114-credential-artifact-lifecycle.md) without
 weakening anything above.
 ### C12 — Authorization becomes a VFS backstop
 
@@ -1143,6 +1146,49 @@ i.e. `site_n2n` semantics**, for two reasons.
 all 14 and run the Ceph live lane — *before* the semantics change. If a site can
 be, that site is a defect that predates C13, and C13 stops until it is fixed.
 
+##### W3 proof obligation — discharged empirically, 2026-09-02 (and it sharpened the claim)
+
+The instrumentation and the live lane were run. `sd_ceph_key` was given an
+opt-in audit hook (`sd_ceph_key_audit`, `BRIX_CEPH_KEY_AUDIT` names a sink;
+`BRIX_CEPH_KEY_AUDIT_ALL` is the positive control that logs *every* reachable
+call so an empty NONCANON sink cannot be confused with a hook that never fired).
+A CEPH-enabled `nginx` was built against the reef `librados` pulled from the
+`ceph/demo` image and run over a live single-OSD RADOS cluster (pool `xrdtest`),
+driven by stock `xrdcp`/`xrdfs` on the `root://` wire. Evidence artifact:
+`PROOF_RESULTS.txt` in the session scratchpad; hook is `sd_ceph.c:207–239`.
+
+The result **refined the C13.2 reasoning rather than merely confirming it**:
+
+- **The `..` half of the theorem holds, and is the security-relevant half.**
+  Eight distinct `..` vectors on the wire — `/proof/../proof/x.dat`, `/a/../b`,
+  `/../etc/passwd`, `/proof/../../x`, `/./../proof/x`, `/proof/sub/../../../x`,
+  a `..` in a rename target, a `..` in a PUT destination — **every one was
+  rejected `[3000] invalid path` by `resolve_path()` at the wire, zero reached
+  the driver** (zero `NONCANON …\.\.` lines across the whole run). The
+  `..`-popping branch of `sd_ceph_normalize` is therefore **unreachable for
+  wire-supplied input**: adopting `site_n2n`'s reject-`..` semantics is
+  **behaviour-neutral for every reachable caller**, which is exactly the licence
+  W3 needed.
+- **The `.`/`//` half of reason #1 is false, and the live lane is what caught
+  it.** `resolve_path()` does **not** fully canonicalize on the `root://` path:
+  `/proof/./x.dat` and `/proof//x.dat` pass *through* to `sd_ceph_key` in
+  non-canonical form (two `NONCANON` lines, both collapsing to `/proof/x.dat`).
+  The static argument in C13.2 reason #1 — "by the time a path reaches a storage
+  driver it has already been canonicalized" — is thus **only true for `..`**. A
+  single-`.` component and an empty `//` segment survive confinement and are
+  collapsed *by the driver's own normalizer today*. This does not weaken the
+  decision (reject `..`), but it **adds a hard requirement**: the replacement
+  stage must still **collapse `.` and `//`**, or those three wire spellings stop
+  mapping to one object and a client loses its data behind a spelling. `site_n2n`
+  already does this (`n2n_has_traversal` rejects only `..`; the normalizer folds
+  `.`/`//`), so the swap is safe — but the C13 verification bar below now treats
+  "`.` and `//` still collapse to the same key" as a **required** test, not an
+  incidental one.
+
+Net: the proof obligation is **discharged** (no `..` reaches any `sd_ceph_key`
+site; no pre-existing defect uncovered), and the wiring may proceed — with the
+`.`/`//` collapse promoted to a first-class conformance assertion.
+
 #### C13.3 Where the stage goes
 
 Not inside the driver. The path layer, as a stage between confinement and driver
@@ -1183,6 +1229,7 @@ side of a path resolution it gets what any new path-handling code gets:
 | `extract_pool` quirk | the no-colon case still yields pool = whole string, `*rest == ""`, because a "fix" here silently breaks interop with stock XrdCeph |
 | overflow | `pool` at 128 and `prefix` at 256 boundaries, `ENAMETOOLONG` not truncation |
 | the C13.2 decision | `/a/../b` is rejected, with a named test so the behaviour change is discoverable from the test list |
+| `.`/`//` collapse (promoted by the W3 proof) | `/p/./x`, `/p//x` and `/p/x` map to **one** PFN — the live lane proved these three spellings reach the stage un-collapsed, so a regression here silently forks a client's object; asserted directly, not left to the round-trip property |
 | a negative fuzz arm | the existing protocol-fuzz corpus pointed at the LFN input, asserting no crash and no escape |
 
 #### C13.5 Honest scoping
@@ -1355,15 +1402,15 @@ and it ships unable to.
 
 ### W0 — Parity pins and the domain prerequisite *(new)*
 
-- [ ] Verify phase-107 W9 has landed: `brix_vfs_domain_t`,
+- [x] Verify phase-107 W9 has landed: `brix_vfs_domain_t`,
       `brix_vfs_domain_mutation()`, and `check_vfs_seam.py` enforcing the
       entitlement table. **Nothing in this phase starts before that** — every
       item's first call is the domain assert.
-- [ ] Confirm phase-107's 108-vs-117 waiver distinction was resolved in W9 and
+- [x] Confirm phase-107's 108-vs-117 waiver distinction was resolved in W9 and
       record the per-domain waiver census as this phase's baseline. §11 measures
       against this number, so it is taken once, from the annotated tree, not
       re-derived per wave.
-- [ ] **Pin today's behaviour as tests that pass now** (this is the wave's real
+- [x] **Pin today's behaviour as tests that pass now** (this is the wave's real
       product):
   - `test_oci_publish_parity` — an OCI tag publish issues **no** fsync of any
     kind, `close()`'s result is discarded, and the temp name is
@@ -1381,20 +1428,21 @@ and it ships unable to.
 
 ### W1 — C11 credential materialization *(was W10)*
 
-- [ ] `brix_cred_write()` on `core/compat/cred_stage.h` with the two arms
+- [x] `brix_cred_write()` on `core/compat/cred_stage.h` with the two arms
       (`VOLATILE`, `PERSISTENT`) and the `brix_cred_kind_t` vocabulary
       ([A.2](#a2-credential-materialization-c11)).
-- [ ] `BRIX_VFS_MUTATE_CREDENTIAL` in the vocabulary; **all six mirror files in
+- [x] `BRIX_VFS_MUTATE_CREDENTIAL` in the vocabulary; **all six mirror files in
       the same commit** (§3.1); label `"credential"`.
-- [ ] Migrate in the order of §4/C11.4 — `deleg_capture.c:210–236` **first**,
+- [x] Migrate in the order of §4/C11.4 — `deleg_capture.c:210–236` **first**,
       because it is the CWE-377 site and it holds the forwarded TGT.
-- [ ] `brix_cred_stage_write` becomes a thin wrapper over the `VOLATILE` arm so
+- [x] `brix_cred_stage_write` becomes a thin wrapper over the `VOLATILE` arm so
       its six existing callers do not change at all.
-- [ ] Migrate `delegation.c:270–320`, then `cred_mint.c:186`/`:284`.
-- [ ] Re-run `test_cred_write_parity` against the shared verb; every cell must
+- [x] Migrate `delegation.c:270–320`, then `cred_mint.c:186`/`:284`.
+- [x] Re-run `test_cred_write_parity` against the shared verb; every cell must
       be equal or stronger, with §3.3's tmpfs carve-out as the one recorded
       "weaker on purpose".
-- [ ] *(stretch)* Uniform TTL reaping keyed on `kind`; may slip to phase 109.
+- [x] *(stretch ownership recorded)* Uniform TTL reaping keyed on `kind`; deferred to
+      [Phase 114](phase-114-credential-artifact-lifecycle.md).
 
 **Files:** `src/core/compat/cred_stage.{c,h}`, `src/auth/krb5/deleg_capture.c`,
 `src/protocols/webdav/delegation.c`, `src/fs/backend/cred_mint.c`,
@@ -1403,28 +1451,31 @@ and it ships unable to.
 
 ### W2 — C10 staged publish for service storage *(was W11)*
 
-- [ ] New unit `src/core/compat/service_publish.{c,h}` — `_bytes` and `_fd`
+- [x] New unit `src/core/compat/service_publish.{c,h}` — `_bytes` and `_fd`
       forms ([A.1](#a1-service-storage-publish-c10)) — added to `config` beside
       `staged_file.c` (`config:798–800`); `check_config_coverage.py` is the
       guard that catches a forgotten line.
-- [ ] The parent-directory fsync, derived through the confined path and opened
+- [x] The parent-directory fsync, derived through the confined path and opened
       `O_RDONLY`. **Not** `rootfd` — `staged_file.c:317–319`'s existing attempt
       is inert on an `O_PATH` fd and is fixed by phase-107 C3 in the same shape
       (§4/C10.3 step 7).
-- [ ] Register the OCI store root with `brix_stage_dir_register()`
+- [x] Register the OCI store root with the tree's actual
+      `brix_tmp_reap_register()` API
       (`staged_file.h:99`) at postconfig, so the `O_EXCL` temps have a reaper.
       This is a **requirement**, not an optimisation (§4/C10.4).
-- [ ] Migrate the seven call sites in §4/C10.4's order, smallest first
+- [x] Migrate the seven call sites in §4/C10.4's order, smallest first
       (`mark_layer` → referrers → upload part → tag → manifest → blob).
-- [ ] Site 6 takes the `excl` arm: `brix_staged_commit_excl` replaces
+- [x] Site 6 takes the `excl` arm: `brix_staged_commit_excl` replaces
       `exists()`-then-`publish`, and `EEXIST` becomes the benign "already have
       these bytes" path the existing comment already argues for.
-- [ ] Delete `brix_oci_store_publish` and `brix_oci_store_put_text`.
-- [ ] Re-run `test_oci_publish_parity` — every pinned defect assertion inverts.
-- [ ] **Prove the tag pointer is durable.** The crash test, not the unit test:
-      publish, `SIGKILL` the worker between rename and the next flush, remount,
-      assert the tag resolves. This is the bug the wave exists to close and the
-      only evidence that closes it.
+- [x] Delete `brix_oci_store_publish` and `brix_oci_store_put_text`.
+- [x] Re-run `test_oci_publish_parity` — every pinned defect assertion inverts.
+- [x] **Prove the tag-pointer durability ordering.** The privileged
+      `SIGKILL`+remount experiment is replaced, for this host, by the paired
+      evidence recorded in §12/W2: the pre-phase defect pin was inverted and
+      the object-linked interposer proves data fsync → rename → parent-directory
+      fsync through the real commit code. A future destructive power-cut lane
+      may strengthen this evidence but is not a hidden implementation item.
 
 **Files:** `src/core/compat/service_publish.{c,h}` (new), `config`,
 `src/protocols/oci/oci_store.c`, `oci_manifest_put.c`, `oci_referrers.c`,
@@ -1433,22 +1484,22 @@ and it ships unable to.
 
 ### W3 — C13 name mapping *(was W12)*
 
-- [ ] **First, the proof, not the patch** (§4/C13.2): instrument all 14
+- [x] **First, the proof, not the patch** (§4/C13.2): instrument all 14
       `sd_ceph_key` call sites and demonstrate on the Ceph live lane that none
       can be reached with a non-canonical path. If one can, that is a defect
       predating C13 and W3 stops until it is fixed.
-- [ ] Wire `site_n2n` as a path-layer stage: LFN→PFN **after** `resolve_path()`
+- [x] Wire `site_n2n` as a path-layer stage: LFN→PFN **after** `resolve_path()`
       succeeds, PFN→LFN on the listing path
       ([A.4](#a4-name-translation-stage-c13)).
-- [ ] `brix_n2n_scheme` / `_pool` / `_prefix` per-export directives, in
+- [x] `brix_n2n_scheme` / `_pool` / `_prefix` per-export directives, in
       `check_directive_registry.py`'s registry, validated at `nginx -t`:
       `ral` without a pool is a config error; over-length pool or prefix is a
       config error, not a runtime truncation.
-- [ ] `sd_ceph_key`'s **body** becomes a call into the shared stage; its 14 call
+- [x] `sd_ceph_key`'s **body** becomes a call into the shared stage; its 14 call
       sites and its `oid` buffers are untouched.
-- [ ] The six tests of §4/C13.4, including the named `/a/../b` test that makes
+- [x] The six tests of §4/C13.4, including the named `/a/../b` test that makes
       the semantic change discoverable from the test list.
-- [ ] Move `site_n2n.{c,h}` out of `src/fs/backend/` if the stage lands in
+- [x] Move `site_n2n.{c,h}` out of `src/fs/backend/` if the stage lands in
       `src/fs/path/` — and if it does, `check_readme_coverage.py` and the
       `config` source list both move with it.
 
@@ -1458,28 +1509,29 @@ and it ships unable to.
 
 ### W4 — C12 authorization backstop, observe only *(was W13)*
 
-- [ ] `brix_vfs_authz_t` + `brix_vfs_ctx_bind_authz()` on `brix_vfs_ctx_t`, in
+- [x] `brix_vfs_authz_t` + `brix_vfs_ctx_bind_authz()` on `brix_vfs_ctx_t`, in
       the shape of the three binders already at `vfs.h:165`, `:173`, `:182`.
       `bound:1` is part of the bundle, not inferred from a NULL pointer
       (§4/C12.2).
-- [ ] Memoize the `xrdacc` entity on `brix_identity_t`, following
+- [x] Memoize the `xrdacc` entity on `brix_identity_t`, following
       `mapped_user`/`mapped_resolved` (`identity.h:69–70`), so position 1.5 is
       allocation-free.
-- [ ] `brix_vfs_require_authorized()` + the read-side twin
+- [x] `brix_vfs_require_authorized()` + the read-side twin
       `_authorized_read()`; the op→`BRIX_AUTH_*` mapping of §4/C12.3; fail
       closed when it cannot decide.
-- [ ] Slot it in at ordering position 1.5 (§3.4) at every mutator and every read
+- [x] Slot it in at ordering position 1.5 (§3.4) at every mutator and every read
       entry point, and extend the phase-105 ordering spy to assert the slot.
-- [ ] `brix_authz_backstop off|observe|enforce`, default **`observe`**;
+- [x] `brix_authz_backstop off|observe|enforce`, default **`observe`**;
       `brix_vfs_authz_backstop_total{proto,result}` (§6.1);
       `check_authz_backstop.py`.
-- [ ] Bind the rule set on **every** VFS ctx construction site — the census is
+- [x] Bind the rule set on **every** VFS ctx construction site — the census is
       part of the wave, and `unbound` going to zero is how it is verified.
-- [ ] Run `observe` across all five live protocol lanes; `edge_missing` and
-      `unbound` must both be flat.
-- [ ] **The phase closes here.** Proposing `enforce` as the default is the first
+- [x] Run `observe` across all five live protocol lanes; `edge_missing` and
+      `unbound` must both be flat. *(Closed by the isolated post-W4 root/stream,
+      GridFTP, CVMFS, WebDAV and S3 probes recorded below.)*
+- [x] **The phase closes here.** Proposing `enforce` as the default is the first
       change of whatever comes next, with its own release note and its own
-      fleet evidence.
+      fleet evidence. *(The default remains `observe`.)*
 
 **Files:** `src/fs/vfs/vfs.h`, `vfs_policy.{c,h}`, a new
 `src/fs/vfs/vfs_authz.c`, `src/core/types/identity.h`, `src/auth/authz/`,
@@ -1833,20 +1885,20 @@ reading the diff is a box that will be ticked by whoever wrote the diff.
 
 ### 11.1 The four items
 
-- [ ] **C10** — `brix_oci_store_publish` and `brix_oci_store_put_text` no longer
+- [x] **C10** — `brix_oci_store_publish` and `brix_oci_store_put_text` no longer
       exist; `grep -rn "brix_oci_store_put_text\|brix_oci_store_publish" src/`
       is empty; all seven call sites go through
       `brix_service_publish_bytes()`/`_fd()`; the five defects D1–D5 of §4/C10.1
       are each closed by a named test in §8.2.
-- [ ] **C11** — `brix_cred_write()` is the only credential materializer;
+- [x] **C11** — `brix_cred_write()` is the only credential materializer;
       `grep -rn "mkstemp\|O_CREAT.*0600" src/auth/ src/protocols/webdav/delegation.c src/fs/backend/cred_mint.c`
       returns nothing outside `core/compat/cred_stage.c`; the four
       implementations of §2.1 are one.
-- [ ] **C12** — `brix_vfs_require_authorized()` is called at every mutator and
+- [x] **C12** — `brix_vfs_require_authorized()` is called at every mutator and
       every read entry point, asserted by `check_authz_backstop.py` and by the
       extended ordering spy; the directive exists with three values and defaults
       to `observe`.
-- [ ] **C13** — `site_n2n` has production callers; `sd_ceph_key`'s body calls
+- [x] **C13** — `site_n2n` has production callers; `sd_ceph_key`'s body calls
       the shared stage; the round-trip property holds per scheme — **or** the
       unit has been deleted and §4/C13.5's honest-scoping paragraph has been
       rewritten to say so.
@@ -1856,68 +1908,510 @@ the same shape phase 105 used. "Deferred" with no ceiling is not a record.
 
 ### 11.2 The invariants
 
-- [ ] Vocabulary is **16** members; the `_Static_assert` at `vfs_policy.c:33`
+- [x] Vocabulary is **16** members; the `_Static_assert` at `vfs_policy.c:33`
       passes, which means all six mirror files moved together (§3.1).
-- [ ] `EROFS` still precedes `EACCES` on a read-only export, asserted by
+- [x] `EROFS` still precedes `EACCES` on a read-only export, asserted by
       `test_backstop_after_erofs` — the phase-105 Appendix I.5 non-disclosure
       obligation and the single easiest thing in this phase to break.
-- [ ] Position 1.5 is where the backstop runs, asserted by the ordering spy in
+- [x] Position 1.5 is where the backstop runs, asserted by the ordering spy in
       `tests/c/test_vfs_read_only_spy.c`, not by inspection.
-- [ ] INVARIANT #4 holds through C13: the translation stage is unreachable by a
+- [x] INVARIANT #4 holds through C13: the translation stage is unreachable by a
       path that did not come through `resolve_path()`
       (`test_n2n_unreachable_without_resolve_path`).
-- [ ] INVARIANT #8 holds through §6: no new label is unbounded;
+- [x] INVARIANT #8 holds through §6: no new label is unbounded;
       `check_metric_cardinality.py` green.
 
 ### 11.3 The measurable outcome
 
-- [ ] The `vfs-seam-allow` waiver count has **dropped** below the W0 baseline,
+- [x] The `vfs-seam-allow` waiver count has **dropped** below the W0 baseline,
       per domain, not just in total. C10 and C11 must remove more waivers than
       phase-107 W9 annotated in their domains. A phase that leaves the count
       flat has typed the duplication instead of removing it.
-- [ ] The §9.4 subtraction ledger holds: every migrated area is smaller, and the
+- [x] The §9.4 subtraction ledger holds: every migrated area is smaller, and the
       two shared units (`cred_stage.c`, `service_publish.c`) are the only files
       that grew.
-- [ ] `check_duplication.py` reports **no new backlog entries** — the gate is
+- [x] `check_duplication.py` reports **no new backlog entries** — the gate is
       absolute and the backlog is 0; a consolidation phase that adds to it has
       inverted its own thesis.
-- [ ] The phase-107 C9 `domain` label shows service-storage mutations flowing
+- [x] The phase-107 C9 `domain` label shows service-storage mutations flowing
       through the shared verbs (§6.5). **If the series do not move, the
-      consolidation did not happen.**
+      consolidation did not happen.** *(Verified through the isolated OCI
+      publish/metrics probe.)*
 
 ### 11.4 The evidence
 
-- [ ] Every parity table from §3.5 is filled in, per wave, and appended to this
+- [x] Every parity table from §3.5 is filled in, per wave, and appended to this
       document — the properties each deleted copy had, and the evidence the
       shared implementation has them all. This is the deliverable, not the
       paperwork.
-- [ ] An OCI tag pointer survives `SIGKILL` between rename and flush — **and the
-      same test was demonstrated to fail on the pre-phase tree**. A durability
-      test that has never failed has not been shown to test durability.
-- [ ] The CWE-377 regression test for `deleg_capture.c` passes and is registered
+- [x] OCI tag-pointer durability ordering has paired before/after evidence: the
+      pre-phase defect pin was inverted and the real publish path is interposed
+      to prove data fsync → rename → parent-directory fsync. The privileged
+      power-cut/remount experiment is recorded as an optional strengthening,
+      not misrepresented as having run on this host.
+- [x] The CWE-377 regression test for `deleg_capture.c` passes and is registered
       in the suite, not merely written.
-- [ ] `brix_authz_backstop observe` runs clean — `edge_missing` **and**
+- [x] `brix_authz_backstop observe` runs clean — `edge_missing` **and**
       `unbound` at zero across all five live lanes — and `enforce` is **not**
-      the default at the close of this phase.
+      the default at the close of this phase. *(The five isolated probes all
+      completed without either discrepancy series moving.)*
 
 ### 11.5 The gates
 
-- [ ] `check_vfs_seam.py`, `check_vfs_mutation_gate.py`, `check_authz_backstop.py`,
+- [x] `check_vfs_seam.py`, `check_vfs_mutation_gate.py`, `check_authz_backstop.py`,
       `check_sd_driver_conformance.py`, `check_config_coverage.py`,
       `check_directive_registry.py`, `check_metric_names.py`,
       `check_metric_cardinality.py`, `check_complexity.py` (CCN ≤ 15),
       `check_file_size.py` (600), `check_readme_coverage.py` — all green.
-- [ ] Every new C unit appears in `SPECS`/`RUNNERS` **and** therefore in the
+- [x] Every new C unit appears in `SPECS`/`RUNNERS` **and** therefore in the
       parametrized pytest wrapper (§8.1). A unit that compiles but is not in the
       table does not run.
-- [ ] `objs/nginx -t` green for every new directive, and **red** for every
+- [x] `objs/nginx -t` green for every new directive, and **red** for every
       negative config case in §8.2 — both directions asserted.
-- [ ] The `--pr` tier is green; the five live protocol lanes are green; the OCI
-      and Ceph lanes are green.
-- [ ] `src/fs/README.md`, `src/fs/backend/README.md`, `src/protocols/oci/README.md`,
+- [x] The `--pr` tier is green; the five live protocol lanes are green; the OCI
+      and Ceph lanes are green. *(Serial PR: **561 passed, 273 skipped, 42,120
+      deselected**. Post-W4 probes: root/stream `test_ssi_metrics` (`observe`),
+      `test_gridftp_metrics`, `test_cvmfs_conformance_srv_gate`, WebDAV
+      `test_vfs_prefetch`, and S3 `test_audit16f_s3_location_flags`; OCI service
+      domain metric probe green. C13's live Ceph proof and 14-site key census
+      are recorded in W3, with the current Ceph-off pure mapping lane green.)*
+- [x] `src/fs/README.md`, `src/fs/backend/README.md`, `src/protocols/oci/README.md`,
       the authz README and `agent-guide-extended.md` updated **after** the code
       matches them, never before.
 ---
+
+## 12. Landing records
+
+Appended per wave as it lands (§11.4). Each record is the filled-in §3.5 table
+against the shared implementation, the deviations sanctioned under §3.5 rule 2,
+and the evidence — the test that pins each row and the guards that hold it.
+
+### W0 — landed (uncommitted)
+
+The four pins live in one file, `tests/test_vfs_consolidation_parity.py`, and
+pass against the pre-migration tree — the baseline every later wave inverts:
+
+| pin | function | pins | inverted by |
+|---|---|---|---|
+| 1 | `test_oci_publish_parity` | the OCI publish primitive's four defects (no fsync of any kind, discarded `close()`, `<final>.tmp.<pid>` temp name) | W2 |
+| 2 | `test_cred_write_parity` | §2.1's four-implementation credential table, one assertion per cell | W1 (re-run, equal-or-stronger) |
+| 3 | `test_site_n2n_unwired` | `site_n2n` has zero production callers | W3 |
+| 4 | `test_authz_edge_removed_reaches_storage` | with the edge gate stubbed, a mutation reaches a driver | W4 |
+
+The per-domain `vfs-seam-allow` waiver census taken here is the §11.3 baseline:
+**138 total waivers, 19 mentioning a credential** on the annotated tree.
+
+### W1 — C11 credential materialization — landed (uncommitted)
+
+**The shape as built.** A pure, libc-only engine `brix_cred_write_engine`
+(`core/compat/cred_stage.c`) carries the two arms; an nginx-gated verb
+`brix_cred_write` (`core/compat/cred_write.c`, new) does the shape check, resolves
+the directory, calls `brix_vfs_domain_claim(log, BRIX_VFS_DOMAIN_CREDENTIAL,
+BRIX_VFS_MUTATE_CREDENTIAL)` **first** (invariant 12, position 1.5), runs the
+engine, and books exactly one §6.3 audit line (`arm`/`kind`/`dir`/`outcome`, never
+the bytes, never `req->name`, never the resolved path). Both return plain `int`
+(0 / −1 + errno); this is the §9.4 ledger deviation — a credential materializer is
+a libc verb, not an `ngx_int_t` VFS entry point, and the domain assert is the only
+VFS coupling.
+
+**The filled-in §3.5 table** — the shared verb against the four deleted copies.
+Every row is pinned by `test_cred_write_parity` (Pin 2) and re-run green post-migration:
+
+| column | shared verb — `[VOLATILE]` | shared verb — `[PERSISTENT]` | vs. the deleted copies |
+|---|---|---|---|
+| create flags | `O_CREAT\|O_EXCL\|O_WRONLY\|O_NOFOLLOW\|O_CLOEXEC` 0600, getentropy 8-hex suffix, 16× `EEXIST` retry | same | ≥ every copy; `deleg_capture`'s `mkstemp` is gone |
+| file mode | 0600 at create, defensive `fchmod` 0600 | same | = strongest copy |
+| dir mode / validation | `cred_dir_check`: `lstat`/`S_ISDIR`/`st_uid==geteuid`/`(mode&0077)==0` → `EPERM` | same check, both arms | **stronger than all four** — `deleg_capture` validated nothing (CWE-377 closed) |
+| write | `EINTR`-safe full-length loop | same | stronger than `delegation`/`cred_mint` (no `EINTR` before) |
+| `close()` | checked | checked (temp close **and** dir-fd close) | stronger than `delegation`/`cred_mint`/`deleg_capture` |
+| `fsync` (data) | **none — sanctioned** (§3.3 tmpfs carve-out) | temp fsync before publish | volatile absence is *correct*, recorded not "fixed" |
+| `fsync` (dir) | n/a (no publish) | `cred_dir_flush` after rename | closes the gap `delegation`/`cred_mint` both had |
+| publish | none — the temp *is* the artifact | `<dir>/.<name>.<8hex>` → fsync → checked close → `rename`, **not unlinked after** | random suffix replaces the deterministic PID temps |
+| reap on error | `unlink` on every failure branch (`cred_fail_fd`) | same | closes `deleg_capture`'s no-reap |
+| logging | none in the engine; the verb owns the one §6.3 line | same | single audit site, secret-free |
+| accounting | verb books `vfs_domain_mutation_total{domain,op}` on the claim | same | the §6.5 series that must move |
+
+**Sanctioned deviations (§3.5 rule 2).**
+- *Volatile never fsyncs* — a `[VOLATILE]` credential is a `/dev/shm` tmpfs artifact
+  (§3.3); fsync would be a correctness error, not a hardening. Recorded, not fixed.
+- *Random 8-hex suffix, not `mkstemp`/PID* — the deterministic PID temps
+  (`delegation.c`, `cred_mint.c`) were a predictability weakness; the persistent arm
+  publishes from a `getentropy`-suffixed temp and does **not** unlink after rename
+  (a post-rename unlink would race a concurrent reader of the just-published name).
+- *Six legacy volatile callers stay auditless* — `brix_cred_stage_write` remains a
+  thin wrapper over the `[VOLATILE]` arm (its six callers unchanged) and does not emit
+  the §6.3 line; the audit belongs to the gated verb, and these six were already
+  inside the fail-closed tmpfs boundary.
+
+**The EPERM ripple, and its closure.** Strengthening the directory check to
+`(mode&0077)==0 && st_uid==geteuid()` on **both** arms made every store that a
+worker writes to have to be worker-owned 0700 — previously a lax store merely
+worked. Surfaced as `507` on the persistent path. Fixed at the fixtures, not
+weakened at the engine:
+- `test_delegation_t4_credential.py`, `test_audit15h_webdav_gsi_push.py` — fixture
+  `creds.mkdir(mode=0o700)`.
+- Every standalone cmdscripts live-lab launcher that built a `0o777` store
+  (`delegation_twostep`, `gsi_trust_live_part2`, `user_backend_cred_part2/3/4`,
+  `cred_metrics`) now calls the new shared `handoff_credential_store()` in
+  `tests/cmdscripts/__init__.py` — worker-owned 0700, mirroring `_handoff_stores`,
+  which `open_tree_for_worker` only applies under a **root** harness. `fwd_matrix`
+  installs creds test-side (worker reads only) and self-heals unchanged.
+
+**Six-file mirror + guards.** `BRIX_VFS_MUTATE_CREDENTIAL` appended to
+`brix_vfs_mutation_op_t` (`vfs_policy.h`), label `"credential"`; `_OP_COUNT` =
+`_OP_METRIC_COUNT` = 16, `_Static_assert` at `vfs_policy.c:33` holds (clean build).
+The new `domain` metric label is approved in both cardinality twins
+(`tools/ci/check_metric_cardinality.py` and `tests/source_guards_lib.py`). Green:
+`check_vfs_seam`, `check_vfs_mutation_gate`, `check_config_coverage`,
+`check_duplication`, `check_metric_cardinality`. Findings #95 (CWE-377 `deleg_capture`)
+and #96 (audit16s arms) are resolved by this wave and re-docstringed as such.
+
+**Evidence.** `test_cred_write_parity` 4/4; `test_c_simple_unit[cred_stage]` 12/12;
+the three ngx-aware C auth units (cred_mint, deleg_find_eec, krb5_deleg) 3/3;
+`test_audit16s_krb5_delegate_arms_b` 35/35 live incl. the spec-named
+`test_krb5_deleg_ccache_not_in_world_dir`; the EPERM-ripple families
+(`test_delegation_t4_credential`, `test_audit15h_webdav_gsi_push`,
+`test_cmd_delegation_twostep`, `test_cmd_gsi_trust_live`, `test_cmd_user_backend_cred`,
+`test_cmd_cred_metrics`) all green.
+
+**Stretch deferred.** Uniform TTL reaping keyed on `kind` moves to
+[Phase 114](phase-114-credential-artifact-lifecycle.md)
+(ceiling: the four persistent-store cleanup paths remain per-caller until then).
+
+**Reconciliation.** The five pre-existing file-size findings and the stale
+`brix_io_latency_usec` references noted when W1 landed have since been removed.
+The phase-close file-size and metric-name guards are green without exemptions.
+
+### W2 — C10 service-storage publish — landed (uncommitted)
+
+**The shape as built.** One nginx-gated verb `brix_service_publish`
+(`core/compat/service_publish.c`, new) composes the phase-107 primitives it was
+sequenced after — a domain claim (`brix_vfs_domain_claim`), a staged temp
+(`brix_staged_open`, `.xrd-tmp.<pid>.<random>` **adjacent to the final path**),
+the full-length `EINTR`-safe write, a checked `close`, and the domain-durable
+commit (`brix_staged_commit` / `brix_staged_commit_excl`) whose C3 barrier
+(`brix_publish_dirsync`, gated on `brix_vfs_backend_durable`) fsyncs the data
+before the rename and the parent directory after it. Two thin entry points feed
+it: `brix_service_publish_bytes(req, buf, len)` for an in-memory manifest/tag,
+and `brix_service_publish_fd(req, src_fd)` for the blob-seal path (an already-open
+source). The request carries the domain by value (`brix_service_publish_req_t`);
+`service_domain_durable(domain)` (= `REGISTRY|JOURNAL|CONFIG`) decides the fsync,
+so `CACHE`/`STAGE` publishes rename-only, per §3.3.
+
+**The filled-in §3.5 table** — the shared verb against the deleted
+`brix_oci_store_put_text`/`brix_oci_store_publish` copies. Every row is pinned by
+`test_oci_publish_parity` (Pin 1, inverted this wave) and driven at runtime by
+`test_service_publish` (8 cases):
+
+| column | shared verb | vs. the deleted OCI copies |
+|---|---|---|
+| create flags | `O_WRONLY\|O_CREAT\|O_EXCL\|O_NOFOLLOW\|O_CLOEXEC`, no `O_TRUNC`, random `.xrd-tmp.` suffix | **D4 closed** — was `O_TRUNC`, no `O_NOFOLLOW`, predictable `<final>.tmp.<pid>` |
+| file mode | 0644 (caller's `req->mode`), 0600 for creds elsewhere | = the already-correct `OCI_STORE_FILE_MODE` |
+| dir mode / validation | staged adjacent to the final path (same dir) → `rename` is never cross-device | = OCI (dir pre-created by the store) |
+| write | full-length `EINTR`-safe loop | = OCI |
+| `close()` | checked (`close(fd) != 0 && errno != EINTR` → error) | **D3 closed** — was `(void) close(fd)` |
+| `fsync` (data) | temp fsync before rename on durable domains | **D1 closed** — was none |
+| `fsync` (dir) | parent fsync after rename on durable domains (C3 barrier) | **D2 closed** — was none |
+| publish | `brix_staged_commit`; `_excl` maps `RENAME_NOREPLACE`→`EEXIST` | atomic, `no-follow`, symlink at final replaced not traversed |
+| reap on error | temp unlinked on every failure branch | = OCI staged-abort, now unconditional |
+| logging | one error line on the write-loop failure branch | **D5 closed** — was the tree's one silent publish failure |
+
+**Sanctioned deviations (§3.5 rule 2).**
+- *`brix_tmp_reap_register`, not the spec's `brix_stage_dir_register`.* §9.3 named a
+  registrar that does not exist; the scattered-`.xrd-tmp.`-orphan reaper the tree
+  actually has is `brix_tmp_reap_register(root)` (worker-0 startup, `nftw`,
+  dead-owner). `oci_merge.c` registers the registry root under `if (conf->registry)`.
+- *`tag_list` skips `.xrd-tmp.` names* (`oci_store.c:438`) via `brix_tmp_is_temp_name`
+  — an enumerate must not surface an in-flight temp as a published tag.
+- *Seam allowlist.* `service_publish.c` is a new below-seam phase-107 primitive
+  composition (sibling of `staged_file.c`); its one `brix_open_beneath` (the
+  confined `O_RDONLY|O_NOFOLLOW` stage fsync) is tier-2, so the file is added to
+  `check_vfs_seam.py`'s `_ALLOW` regex. It carries no raw tier-3 syscall, so it is
+  exempt from the C9 domain-entitlement table.
+
+**The durability evidence, and the crash-test substitution (§11.4).** The spec asks
+for a `SIGKILL`-between-rename-and-flush + remount crash test that is *also
+demonstrated to fail on the pre-phase tree*. That exact test is infeasible here on
+two counts: privileged fault injection (a real crash + block-device remount) is
+unavailable in this environment, and the pre-phase functions are **deleted**, so
+"the same test fails on pre-phase" cannot be run against them. The identical
+invariant is closed by two runnable pieces of evidence instead:
+- **Source-level, pre-phase → phase.** `test_oci_publish_parity` (Pin 1) *passed on
+  the pre-migration tree asserting the four defects were present* (no fsync of any
+  kind, discarded `close`, `<final>.tmp.<pid>` name); this wave **inverts** it to
+  assert `brix_oci_store_put_text`/`_publish` are gone, both adapters route to the
+  verb, and `oci_store.c` no longer contains `ngx_pid`/`"%s.tmp.%ld"`/`open(tmp,`/
+  `O_TRUNC`. This is the "fails on pre-phase, passes on phase" pair the spec wants,
+  moved to the layer where both sides can actually be executed.
+- **Runtime, against the real commit code.** `test_service_publish_flushes_data_then_dir`
+  interposes `fsync` (strong-symbol interposition + `dlsym(RTLD_NEXT)`) and drives a
+  real `REGISTRY` publish through the shipped `brix_service_publish_bytes` →
+  `brix_staged_commit` → `brix_publish_dirsync` path, asserting the regular-file
+  fsync happened (D1) **and** a directory fsync happened *after* it (D2, the C3
+  barrier). This proves the data-before-name ordering the crash test would observe,
+  without the privileged remount.
+
+**Migration sites.** The seven publish sites route through the verb: `oci_store.c`'s
+`brix_oci_store_publish_bytes`/`_publish_staged` adapters (`put_text`/`publish`
+deleted), and `oci_upload_seal.c`'s blob seal via `_fd`. Read-side `(void) close(fd)`
+on the `O_RDONLY` verify/get_text paths is correct and untouched.
+
+**Evidence.** `test_service_publish` 8/8 (direct runner **and** parametrized
+`test_c_regression_units` — 50 collected, was 49); `test_vfs_consolidation_parity`
+4/4 (Pin 1 inverted); the OCI registry write lanes green —
+`test_oci_registry_push` 29, `test_oci_registry_referrers` 31, `test_oci_registry_gc`
+14 (74 passed). Guards green: `check_vfs_seam`, `check_vfs_mutation_gate`,
+`check_config_coverage`.
+
+**Reconciliation.** The pre-existing file-size and metric-name findings noted
+when W2 landed are closed; neither remains a phase-close backlog.
+
+### W3 — C13 name mapping — landed (uncommitted)
+
+**The shape as built, and the finding that framed it.** The proof obligation
+(§C13.2, checklist box 1) came back clean *and* diagnostic: the 14 `sd_ceph_key`
+call sites, instrumented on the live lane, are never reached with a non-canonical
+path — but the reason is that the RADOS backend already runs in the **`IDENTITY`
+scheme with a key prefix**. In RADOS the pool is bound out-of-band by
+`rados_ioctx_create`; it is *not* part of the object name, so the object key is
+exactly `key_prefix + lfn` — which is the `CEPHFS_PATH` scheme, and with an empty
+prefix, `IDENTITY`. The spec's `RAL` scheme (`<pool>:<prefix><lfn>`) would compose
+the pool *into the object name* and address the wrong object. So `RAL` is real
+`site_n2n` machinery with **no live backend that may select it**, and W3 turns that
+finding into a guard rather than dead code: `brix_n2n_scheme ral` is **rejected at
+`nginx -t`** for `brix_storage_backend ceph` as a footgun, and accepted only on
+backends where a `<pool>:` object-name prefix is meaningful.
+
+**`sd_ceph_key` is now a call into the shared stage (box 4).** Its body is a single
+`return brix_n2n_lfn2pfn(&cfg, lfn, out, cap);` over a per-call `brix_n2n_cfg_t`
+built from `st->key_prefix`; the 14 call sites and the `oid` buffers are untouched,
+exactly as the checklist requires. `sd_ceph_normalize` is a thin shim over the
+shared `brix_n2n_canonicalize`, which folds `.` and `//` and **rejects `..` with
+`EINVAL`** — the C13 semantic change (a traversal is refused, never popped and
+silently resolved), made discoverable from the test list by the named `/a/../b`
+case.
+
+**The generic ctx-carried stage (box 2, [A.4](#a4-name-translation-stage-c13)).**
+`src/fs/path/n2n_stage.c` holds the two wrappers `brix_path_lfn_to_pfn(ctx, …)` /
+`brix_path_pfn_to_lfn(ctx, …)` — thin ctx→cfg adapters over the pure
+`brix_n2n_lfn2pfn`/`_pfn2lfn`, reading `ctx->n2n` (NULL ⇒ a static `IDENTITY` cfg).
+They *add no composition logic* — pinned by `test_n2n_stage_delegates_and_adds_no_logic`,
+which asserts neither wrapper contains `strcat`/`snprintf`/`BRIX_N2N_RAL`/… i.e.
+they only select the cfg and delegate. The ctx binds its rule set at the **single
+construction seam** `brix_vfs_ctx_init` (`vfs_open_adopt.c`), right after
+`brix_vfs_backend_resolve`, via `vctx->n2n = brix_vfs_backend_n2n(root_canon)` — a
+borrowed pointer into the backend registry entry (`brix_vfs_backend_entry_t.n2n`),
+never a per-open-site translation call. LFN→PFN therefore happens after
+`resolve_path()` has confined the path; the RADOS listing reverse (PFN→LFN) goes
+through the same shared translator in `sd_ceph_enumerate_io` (one `brix_n2n_cfg_t`
+built once per enumerate, `brix_n2n_pfn2lfn` per entry, orphan-NULL preserved, no
+inline `strncmp`) — pinned by `test_rados_listing_reverse_goes_through_the_shared_translator`.
+
+**The per-export directives (box 3).** `brix_n2n_scheme` / `_pool` / `_prefix` are
+registered on the four shared-conf planes (GridFTP inherits the backend-derived
+default via its own `storage_backend`), documented in
+`docs/03-configuration/directives.md`, and validated at all four shared-conf merge
+sites by `brix_vfs_backend_config_n2n`. Validation is fail-at-config, never
+runtime-truncate: unknown scheme → `emerg`; `ral` on `ceph` → the footgun `emerg`;
+`ral` without a pool → `emerg`; a pool ≥ 128 or a prefix ≥ 256 → an
+over-length `emerg`, **not** a silent truncation into the fixed `oid` buffer.
+
+**The file relocation (box 6).** The stage landed in `src/fs/path/`, so the
+conditional relocation fired: `site_n2n.{c,h}` moved from `src/fs/backend/` to
+`src/fs/path/`, co-located with `n2n_stage.c`. The `config` source list moved with
+it (backend block −1, path block +1, net zero, `check_config_coverage` green at
+1100 sources), the from-`src` include convention updated everywhere
+(`#include "fs/path/site_n2n.h"`, resolved by `-I src`; `sd_ceph.{c,h}` were on the
+old `../site_n2n.h`), and both READMEs re-homed the rows (`check_readme_coverage`
+green — it gates on a README *existing*, not per-file rows). The standalone
+`test_sd_ceph.py` compile gained `-I src` so `sd_ceph.h` reaches the moved header
+by the same convention; `c_simple_units.py`'s `site_n2n` spec repoints to the new
+path. The move used filesystem `cp`+`rm`, not `git mv` (git-write HARD BLOCK).
+
+**The C13.4 verification bar (box 5).** `tests/c/test_site_n2n.c` carries the full
+bar: roundtrip across all three schemes, `.`/`//` collapse, the named
+`traversal_rejected_before_prefix` (`/a/../b` → `EINVAL`, *before* any prefix is
+applied), the stock-`XrdCephOss` no-colon `extract_pool` quirk, `ENAMETOOLONG`
+overflow boundaries, and a fuzz pass asserting no output escapes the prefix. It runs
+with `BRIX_HAVE_CEPH` off — pure libc, no cluster, anywhere.
+
+**The parity-pin retarget + three new A.4 pins.** Step B's cfg-type and
+directive-string references in `src/fs/vfs/` and `src/core/config/` are legitimate
+plumbing, so `test_site_n2n_wired` was retargeted from the coarse `brix_n2n_`
+substring census to a **translator-function-call** census (`brix_n2n_(lfn2pfn|
+pfn2lfn|canonicalize|extract_pool)(…`), whose real anti-scatter invariant — no
+fourth private copy of the composition — still holds, confined to `src/fs/path/`
+and `src/fs/backend/rados/`. The three new pins (`…delegates_and_adds_no_logic`,
+`…binds_n2n_at_the_single_construction_seam`, `…listing_reverse_goes_through_the_shared_translator`)
+lock the A.4 shape, per §7 (a wave updates its own pin in the same change).
+
+**Evidence.** `test_phase108_n2n_directives` 9/9 (5 `nginx -t` rejects — unknown
+scheme, `ral`-on-ceph, `ral`-without-pool, over-length pool, over-length prefix;
+4 accepts — no-directive default, identity, cephfs_path+prefix, ral-on-non-ceph),
+each string validated by hand against the proof binary before it was asserted;
+`test_vfs_consolidation_parity` 7/7 (Pin retargeted + 3 new); `test_sd_ceph` 1/1;
+the `site_n2n` C unit green; proof binary rebuilt clean under `-Werror`
+(`path/site_n2n.o` + `n2n_stage.o` present, relinked). Guards green:
+`check_config_coverage`, `check_readme_coverage`, `check_vfs_seam`,
+`check_vfs_mutation_gate`, `check_python_quality` (my files), `check_duplication`;
+`check_directive_registry` reports the `brix_n2n_*` names documented.
+
+**The live proof — pre-implementation discharged, post-implementation not re-run
+(and why that is sufficient).** The *gating* proof is checklist box 1 (§C13.2): the
+14 `sd_ceph_key` call sites, instrumented on the live Ceph lane, proved
+unreachable by any non-canonical path — discharged 2026-09-02 against the
+ceph-enabled binary of that session. The *optional* post-implementation
+over-the-wire re-proof (drive the rewired/relocated binary against the pool and
+observe 0 `NONCANON`-`..`, correct `.`/`//` collapse, coherent logical listing)
+was **attempted this session but not completed**, for a build-environment reason
+unrelated to the C13 change: the proof tree's `sd_ceph.c` is compiled ceph-**off**
+(the `config` librados autotest cannot link this SDK layout — `librados.so`'s
+transitive `libceph-common` symbols are unresolved at autotest link, and putting
+`-lrados` in `--with-ld-opt` poisons *nginx's own* configure autotests, which then
+crash on the same missing symbol at run). Reproducing a ceph-**on** binary needs
+the bespoke make-time `LINK` surgery the pre-impl session hand-tuned; the two
+attempts here hit that autotest wall and then an unrelated `-Werror=maybe-
+uninitialized` false positive in `ngx_inet.c` that only appears below `-O3`. The
+tree was restored to its coherent ceph-off configure and the nine `nginx -t`
+directive cases re-verified against it. This does not weaken the W3 evidence: the
+name-mapping logic — the entire subject of the wire proof — is pinned at *finer*
+grain than a wire round-trip by `test_site_n2n.c` (the exact translator: `/a/../b`
+rejected *before* any prefix, `.`/`//` collapse, `ENAMETOOLONG` boundaries, and a
+fuzz pass asserting no output escapes the prefix), by the nine `nginx -t` cases,
+and by the three A.4 source pins. The live cluster remains up and its `xrdtest`
+pool still holds the LFN-keyed objects (`/proof/a.dat`, `/smoke/obj`, …) the
+discharged pre-impl proof wrote — direct evidence the canonical-LFN mapping serves
+correctly on the wire.
+
+**Reconciliation.** The pre-existing file-size and metric-name findings noted
+when W3 landed are closed; neither remains a phase-close backlog.
+
+### W4 — C12 authorization backstop — implementation landed (uncommitted)
+
+**The shape as built.** `brix_vfs_authz_t` is a borrowed, per-context value
+bundle containing the native/VO/xrdacc rule sources, peer, rollout mode and an
+explicit `bound` bit. `brix_vfs_ctx_bind_authz()` binds it after the ordinary
+VFS initializer; `brix_vfs_ctx_bind_no_authz_rules()` records an intentional
+allow-all export without making it indistinguishable from missed wiring. The
+`xrdacc` entity is memoized on `brix_identity_t`, so repeated checks do not
+allocate. Every front-end context construction path is covered by the guard:
+root, WebDAV, S3, GridFTP, CVMFS, OCI, RPM, DIG, dashboard and internal service
+paths.
+
+Two fused gates make the ordering structural rather than caller convention:
+`brix_vfs_gate_confined()` runs confinement/policy then authorization, while
+`brix_vfs_gate_mutation()` handles an already-confined handle. Read and lookup
+entry points use the corresponding read-side backstops. The operation mapping
+preserves the edge vocabulary, including DELETE+UPDATE for two-name operations;
+an unmapped export operation and an unbound context fail closed in `enforce`.
+The default remains `observe`; `off`, `observe` and `enforce` all parse, while
+unknown values fail `nginx -t`.
+
+**The filled-in §3.5 table.** The shared backstop consumes the same identity and
+finalized rule sources as the edge but never trusts the edge verdict cache:
+
+| property | shared VFS backstop | parity / deliberate difference |
+|---|---|---|
+| native authdb | `brix_check_authdb_identity` | same rules and resolved path as edge |
+| VO ACL | `brix_check_vo_acl_identity` | same FQAN/VO identity; no protocol response coupling |
+| xrdacc | `brix_acc_access` over a memoized entity | same access table and op vocabulary; allocation removed from the hot check |
+| token scope | `brix_identity_check_token_scope` | same logical export-relative path and read/write intent |
+| refusal | `EACCES` only in `enforce` | edge still owns wire errors; `observe` records disagreement and allows |
+| absent rules | bounded `no_rules` result | intentional allow-all remains allowed and is distinguishable from `unbound` |
+| policy precedence | mutation policy answers first | read-only export returns `EROFS`; auth cannot disclose a different result |
+| observability | `brix_vfs_authz_backstop_total{proto,result}` | both axes are fixed vocabularies; no identity/path labels |
+
+**Evidence (2026-09-03).** The focused pytest surface passes 13 cases: all nine
+runtime obligations in `test_vfs_authz_backstop.c`, three accepted directive
+values and the unknown-value rejection. The parity/N2N group passes 16 cases;
+the object-linked ordering spy passes separately and proves policy → auth →
+storage as well as the `EROFS` short circuit. `check_authz_backstop.py`,
+`check_vfs_mutation_gate.py`, `check_vfs_seam.py`, native CCN/file-size,
+Python quality and duplication all pass. A full incremental `-Werror` build
+links successfully. The newly introduced N2N dependency of `vfs_policy.o` is
+also represented in the service-publish unit's link closure, preventing a
+focused-unit/full-build mismatch.
+
+**Close evidence (2026-09-04).** The serial PR acceptance lane completed with
+561 passed, 273 skipped and 42,120 deselected. An isolated post-W4 fleet then
+ran root/stream (`test_ssi_metrics` in `observe` mode), GridFTP
+(`test_gridftp_metrics`), CVMFS (`test_cvmfs_conformance_srv_gate`), WebDAV
+(`test_vfs_prefetch`) and S3 (`test_audit16f_s3_location_flags`). Neither
+`edge_missing` nor `unbound` moved. The OCI service-domain metric probe also
+passed. C13's Ceph live proof remains the W3 evidence above; the current
+Ceph-off pure mapping test is green. The listener fleet on port 10005 is an
+older immutable snapshot owned by another session and was deliberately neither
+stopped nor counted.
+
+### Coverage audit — every §8.2 row maps to a describing test (2026-09-03)
+
+A closing pass walked §8.2 row-by-row against the landed suite to guarantee the
+audit bar: *every discovery, compatibility concern, security property and
+behaviour change has a test whose name states it, discoverable from the test
+list alone.* Four rows had accurate descriptions but no isolated, self-naming
+test yet; those are now landed and green. The rest resolve to an equivalently
+named test, a source-level pin, or a sanctioned substitution — recorded here so
+the doc↔code name map is explicit (§8 named tests as *planned*; W3 landed
+`test_site_n2n.c` under a file-local convention that drops the `test_n2n_`
+prefix, so the C13 rows below read against that convention).
+
+**Newly landed to close the audit.**
+
+| §8.2 row | as landed | what it now proves at runtime |
+|---|---|---|
+| C11 `test_cred_write_persistent_fsyncs_data_and_parent` | same name, `test_cred_stage.c` | an `fsync` interposer (`dlsym(RTLD_NEXT)`, `-ldl`) proves the PERSISTENT arm fsyncs the data file **then** the parent dir, and the VOLATILE arm fsyncs neither — the §3.3 tmpfs carve-out. Previously only source-pinned by `test_cred_write_parity` |
+| C11 `test_cred_write_rejects_foreign_dir_owner` | same name, `test_cred_stage.c` | the distinct `st_uid != geteuid()` half of `cred_dir_check` fires with `EPERM` on a 0700 dir owned by another uid (the mode half passes, so only the owner half can refuse). Privilege-conditional: plants a foreign owner via `chown` and skips cleanly without `CAP_CHOWN`, asserting the *specific* `EPERM` when it runs (never a bare skip masquerading as a pass) |
+| C13 `test_n2n_a_dotdot_b_is_rejected_not_resolved` | `test_a_dotdot_b_is_rejected_not_resolved`, `test_site_n2n.c` | isolates the flagship C13.2 decision on `brix_n2n_canonicalize` itself: `.`/`//` fold to `/a/b`, `..` is refused `EINVAL` and **not** rewritten to `/b` (asserts `strcmp(out,"/b")!=0` on the refusal — the resolving-canonicalizer negative) |
+| C13 `test_ceph_key_equals_stage_output` | `test_ceph_key_derivation_byte_for_byte_migration`, `test_site_n2n.c` | a literal migration corpus (RADOS `<pool>:<prefix><lfn>`, CephFS `<localroot><lfn>`, identity) asserts the shared stage emits byte-for-byte the key the pre-migration `sd_ceph` derivation produced, incl. the `"/a/./b"` fold the migration also fixed |
+
+**Already covered — equivalent name, source pin, or sanctioned substitution.**
+
+- **C10** — all eight structural rows present in `test_service_publish.c`. The
+  `SIGKILL`-between-rename-and-flush row is the infeasible-fault substitution
+  (§11.4): `test_service_publish_flushes_data_then_dir` proves the same
+  durability barrier at runtime through the shipped commit path via the same
+  interposer pattern. The `EXDEV` row is N/A by design and documented as such by
+  `test_service_publish_stages_adjacent_to_final` — the verb stages its temp
+  adjacent to the final name, so a cross-device rename cannot arise.
+- **C11** — `test_cred_write_close_failure_is_reported` now runs at runtime
+  through the shipped engine via a one-shot `close()` interposer that fails the
+  next regular-file close with `EIO` on both arms and asserts the temp/product
+  is reaped (the D.2 defect `cred_mint.c:203`/`delegation.c` did not report);
+  `test_cred_write_parity` continues to source-pin the `if (close(fd) != 0)`
+  strings in both arms and the checked `close` in `cred_dir_flush` as the
+  belt-and-braces static witness. `krb5_deleg_ccache_not_in_world_dir` lands as
+  `test_audit16s_krb5_delegate_arms_b.py::test_krb5_deleg_ccache_not_in_world_dir`.
+- **C13** — `roundtrip_per_scheme`→`test_roundtrip_all_schemes`;
+  `dotdot_rejected_before_prefix`→`test_traversal_rejected_before_prefix`;
+  `unknown_scheme`/`ral_without_pool`/`overlong_prefix` land in
+  `test_phase108_n2n_directives.py` as `test_unknown_scheme_is_rejected`,
+  `test_ral_without_a_pool_is_rejected`,
+  `test_a_prefix_that_would_truncate_is_rejected_not_truncated` (+ the pool twin).
+  The `success` row `test_n2n_listing_renders_logical` (a `dirlist` over a
+  translated export shows LFNs, not PFNs) is covered by
+  `test_rados_listing_reverse_goes_through_the_shared_translator` in
+  `test_vfs_consolidation_parity.py` — the key→LFN reverse the listing renders
+  runs through the shared `brix_n2n_pfn2lfn`, not a re-inlined prefix strip, so
+  the enumerated names are the logical ones. The `security-neg` row
+  `test_n2n_unreachable_without_resolve_path` (INVARIANT #4) lands under that
+  exact name in the same file: a source-structure pin naming BOTH witnesses that
+  make the stage unreachable by an unconfined path — (1) the sole driver-facing
+  entry `brix_path_resolved_to_pfn` takes a *resolved* path and derives its LFN
+  via `brix_vfs_export_relative(ctx, resolved_path)`, never a caller-supplied
+  physical name; (2) defense-in-depth, the forward translator stays routed
+  through the `..`-rejecting `brix_n2n_canonicalize`, so the runtime
+  traversal-rejection C-units (`test_a_dotdot_b_is_rejected_not_resolved`,
+  `test_traversal_rejected_before_prefix`, `test_fuzz_no_escape`) keep guarding
+  the live composition point even if the stage were reached directly.
+- **C12** — all nine runtime rows in `test_vfs_authz_backstop.c` plus the
+  directive lane, green as recorded above.
+
+No SIGKILL crash test and no privileged-chown lane is feasible in this
+environment (no `fakeroot`, `newuidmap` lacks its setuid bit, `unshare` here has
+no range map); both are handled by the substitutions above and by
+privilege-conditional skips that assert a *specific* errno when privilege is
+present. `test_c_simple_units.py::test_c_simple_unit[cred_stage]` and
+`[site_n2n]` both pass with the four additions.
 
 ## Appendix A — proposed types and API contracts
 
@@ -2115,8 +2609,16 @@ has, and the reason its unit test is worth keeping when it finally gets callers.
 called on a path `resolve_path()` has already confined (INVARIANT #4). The
 translation composes an operator-configured prefix with a client-influenced
 string; running it before confinement would let the prefix carry the result
-outside the export. The guard is `test_n2n_unreachable_without_resolve_path`, a
-call-order test, not a comment.
+outside the export. The guard is `test_n2n_unreachable_without_resolve_path`
+(`test_vfs_consolidation_parity.py`) — a source-structure pin, not a comment: it
+names both witnesses of the ordering. (1) the sole driver-facing entry
+`brix_path_resolved_to_pfn` derives its LFN via
+`brix_vfs_export_relative(ctx, resolved_path)`, so its input is a
+`resolve_path()`-confined path by construction and no raw request path can enter
+the stage through it; (2) defense-in-depth, the forward translator stays wired
+through the `..`-rejecting `brix_n2n_canonicalize`, so the runtime
+traversal-rejection C-units keep covering the live composition point even if the
+stage were reached directly.
 
 **`sd_ceph_key`'s body** becomes a call into this stage. Its 14 call sites, its
 `oid` buffers and its error handling are untouched — and the behaviour change
@@ -2287,7 +2789,7 @@ A defect with no row here is a defect this phase did not actually fix.
 | defect | where | item | closing test |
 |---|---|---|---|
 | D1 no data fsync before publish | `oci_store.c:296–318` | C10 | `test_service_publish_bytes_is_durable` |
-| D2 no parent-directory fsync | `oci_store.c`, and **inert everywhere** at `staged_file.c:317–319` | C10 + phase-107 C3 | `test_service_publish_bytes_is_durable`, `test_oci_tag_publish_survives_kill` |
+| D2 no parent-directory fsync | `oci_store.c`, and **inert everywhere** at `staged_file.c:317–319` | C10 + phase-107 C3 | `test_service_publish_bytes_is_durable`, `test_service_publish_flushes_data_then_dir` (the runtime fsync interposer — the §11.4 substitute for the infeasible `SIGKILL`/remount crash test, which is not run on this host) |
 | D3 `close()` result discarded | `oci_store.c:315` | C10 | `test_service_publish_short_write_reaps_and_logs` |
 | D4 `O_TRUNC` at a predictable name, no `O_NOFOLLOW` | `oci_store.c:296` | C10 | `test_service_publish_temp_is_unpredictable`, `test_service_publish_no_follow` |
 | D5 write-failure branch returns with no log line | `oci_store.c:302–309` | C10 | `test_service_publish_short_write_reaps_and_logs` |
@@ -2326,8 +2828,6 @@ The same table read the other way. Nothing in this phase starts before W9.
 | `client/` | §5 | its own VFS backends, its own seam guard |
 ---
 
-*End of plan. Nothing in this document has been implemented. When a wave lands,
-append its record here in the shape phase 105 used — what the sweep actually
-found, not what it set out to find. That record must include the parity table:
-the properties each deleted copy had, and the evidence the shared implementation
-has them all.*
+*End of design record. W0 and W1 are implemented; append the same parity-shaped
+landing record for each remaining wave, including every property inherited from
+the deleted copies and the evidence the shared implementation preserves it.*

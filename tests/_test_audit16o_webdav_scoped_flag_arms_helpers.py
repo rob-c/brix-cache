@@ -212,6 +212,7 @@ Run:
 
 import base64
 import hashlib
+import io
 import os
 import zipfile
 import zlib
@@ -378,6 +379,13 @@ def _issuer():
     return iss
 
 
+def _archive_bytes():
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w") as archive:
+        archive.writestr(MEMBER_NAME, MEMBER, compress_type=zipfile.ZIP_STORED)
+    return output.getvalue()
+
+
 @pytest.fixture
 def sc(lifecycle, tmp_path):
     """Eleven locations, seven vhosts, one listener.
@@ -393,10 +401,10 @@ def sc(lifecycle, tmp_path):
 
     data = tmp_path / "data"
     data.mkdir()
+    archive = _archive_bytes()
     for arm in EXPORT_ARMS:
         (data / arm).mkdir(parents=True, exist_ok=True)
-        with zipfile.ZipFile(data / arm / "a.zip", "w") as z:
-            z.writestr(MEMBER_NAME, MEMBER, compress_type=zipfile.ZIP_STORED)
+        (data / arm / "a.zip").write_bytes(archive)
         (data / arm / SECRET_NAME).write_bytes(SECRET)
 
     # The object the dig prefix shadows.  Its parent collections also make the
@@ -436,4 +444,3 @@ def sc(lifecycle, tmp_path):
 def _unzip(sc, host, prefix, member):
     """GET the arm's archive asking for `member`."""
     return sc.request("GET", f"{prefix}a.zip?xrdcl.unzip={member}", host=host)
-

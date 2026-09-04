@@ -30,24 +30,24 @@ rate(brix_requests_total{op="auth",status="error"}[5m])
 
 ```promql
 # Read throughput in bytes/s (file data only, not protocol overhead)
-rate(brix_bytes_tx_total[1m])
+rate(brix_io_bytes_read{proto="stream"}[1m])
 
 # Write throughput in bytes/s
-rate(brix_bytes_rx_total[1m])
+rate(brix_io_bytes_written{proto="stream"}[1m])
 
 # WebDAV GET throughput
-rate(brix_webdav_bytes_tx_total[1m])
+rate(brix_io_bytes_read{proto="webdav"}[1m])
 
 # S3 GET throughput
-rate(brix_s3_bytes_tx_total[1m])
+rate(brix_io_bytes_read{proto="s3"}[1m])
 ```
 
-`brix_bytes_tx_total` covers native `kXR_read`, `kXR_readv`, and `kXR_pgread` data payloads. `brix_wire_bytes_tx_total` includes protocol framing on top. The gap between the two grows with small-read workloads (many headers, little data) and shrinks toward zero for large sequential reads.
+`brix_io_bytes_read{proto="stream"}` covers native `kXR_read`, `kXR_readv`, and `kXR_pgread` data payloads. `brix_wire_bytes_tx_total` includes protocol framing on top. The gap between the two grows with small-read workloads (many headers, little data) and shrinks toward zero for large sequential reads.
 
 ```text
   "throughput is low" — triage by metric
   ──────────────────────────────────────
-  rate(brix_bytes_tx_total) below line rate?
+  rate(brix_io_bytes_read{proto="stream"}) below line rate?
         │
         ├─ write_stalls rate high? ──yes──▶ socket buffer full: slow client,
         │                                    high RTT, small TCP rcv window
@@ -63,7 +63,9 @@ rate(brix_s3_bytes_tx_total[1m])
                                              framing, little payload
 ```
 
-**Normal range:** For large file sequential reads over a 10 Gbps link you should see `brix_bytes_tx_total` rate approaching 1–1.2 GB/s per worker. If you are significantly below that on a dedicated machine, look at:
+**Normal range:** For large sequential reads over a 10 Gbps link, the
+`brix_io_bytes_read{proto="stream"}` rate should approach 1–1.2 GB/s per
+worker. If it is significantly lower on a dedicated machine, look at:
 
 1. `brix_stream_response_write_stalls_total` rate — a high stall rate means the kernel socket buffer is full and the server is waiting for the client. Caused by slow clients, high network RTT, or undersized TCP receive windows.
 2. The `CLOSE` verb in access logs — look for throughputs well below the line rate across many files. Combined with high stall counts, this points to client-side bottlenecks or network congestion.
@@ -132,7 +134,7 @@ sum by (proto, method) (rate(brix_auth_total{status="fail"}[5m]))
 
 # p99-ish latency per plane and operation (histogram over the shared buckets)
 histogram_quantile(0.99,
-  sum by (proto, op, le) (rate(brix_io_latency_usec_bucket[5m])))
+  sum by (proto, op, le) (rate(brix_io_latency_seconds_bucket[5m])))
 ```
 
 **What to watch:**
@@ -144,7 +146,7 @@ histogram_quantile(0.99,
 - A `forbidden` rate that tracks the request rate on exactly one plane usually
   means that plane's export is read-only or its token scope is wrong, not a
   storage fault — the other planes over the same export stay clean.
-- `brix_io_latency_usec_count{proto="stream",op="read"}` sitting at zero under
+- `brix_io_latency_seconds_count{proto="stream",op="read"}` sitting at zero under
   heavy root:// reads is expected, not a broken histogram: the stream plane's
   READ rows come from the scrape-time wire-ledger fold, which carries no latency
   samples. See the single-owner rule in

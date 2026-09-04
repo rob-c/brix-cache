@@ -17,57 +17,30 @@ Self-contained: each wire case launches its own short-lived nginx on a free port
 ``PYTHONPATH=tests pytest tests/test_oss_quota.py``.
 """
 
-import os
 import socket
 import struct
-import subprocess
-import time
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN
-from ephemeral_port import free_port
+from settings import BIND_HOST
+from server_registry import NginxInstanceSpec
+
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-oss-quota")]
+
+_SERVER = "lc-oss-quota"
 
 kXR_login, kXR_query = 3007, 3001
 kXR_Qspace = 5
 kXR_ok = 0
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, free_port()))  # leased mock-range port (never kernel-assigned)
-    port = s.getsockname()[1]
-    s.close()
-    return port
-
-
-def _write_conf(tmp_path, quota_line, port):
-    data = tmp_path / "data"
-    data.mkdir(exist_ok=True)
-    logs = tmp_path / "logs"
-    logs.mkdir(exist_ok=True)
-    conf = tmp_path / "nginx.conf"
-    conf.write_text(
-        "worker_processes 1;\n"
-        f"pid {logs}/nginx.pid;\n"
-        f"error_log {logs}/error.log info;\n"
-        "daemon on;\n"
-        "events { worker_connections 32; }\n"
-        "stream {\n"
-        "  server {\n"
-        f"    listen {BIND_HOST}:{port};\n"
-        "    brix_root on;\n"
-        f"    brix_storage_backend posix:{data};\n"
-        "    brix_auth none;\n"
-        f"    {quota_line}\n"
-        "  }\n"
-        "}\n")
-    return conf
-
-
-def _nginx(*args, timeout=30):
-    return subprocess.run([NGINX_BIN, *args], capture_output=True, text=True,
-                          timeout=timeout)
+def _spec(quota_line):
+    return NginxInstanceSpec(
+        name=_SERVER,
+        template="nginx_lc_oss_quota.conf",
+        template_values={"BIND_HOST": BIND_HOST, "QUOTA_DIRECTIVE": quota_line},
+        reason="Qspace quota advertisement and config coverage")
 
 
 def _recv_exact(sock, n):
@@ -110,52 +83,33 @@ def _qspace(port, path="/"):
         sock.close()
 
 
-def _report(tmp_path, quota_line):
+def _report(lifecycle, quota_line):
     """Launch a short-lived nginx with `quota_line`, return its Qspace report."""
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    port = _free_port()
-    conf = _write_conf(tmp_path, quota_line, port)
-    t = _nginx("-p", str(tmp_path), "-c", str(conf), "-t")
-    assert t.returncode == 0, f"config rejected: {t.stderr}"
-    started = _nginx("-p", str(tmp_path), "-c", str(conf))
-    assert started.returncode == 0, f"nginx failed to start: {started.stderr}"
-    try:
-        for _ in range(50):
-            try:
-                socket.create_connection((BIND_HOST, port), timeout=0.5).close()
-                break
-            except OSError:
-                time.sleep(0.1)
-        return _qspace(port)
-    finally:
-        _nginx("-p", str(tmp_path), "-c", str(conf), "-s", "quit")
-        time.sleep(0.2)
+    endpoint = lifecycle.start(_spec(quota_line))
+    return _qspace(endpoint.port)
 
 
-def test_configured_quota_reported(tmp_path):
+def test_configured_quota_reported(lifecycle):
     """(success) the configured quota is what oss.quota advertises (5G = the byte
     count), and the other oss.* keys remain present."""
-    report = _report(tmp_path, "brix_oss_quota 5G;")
+    report = _report(lifecycle, "brix_oss_quota 5G;")
     assert "oss.quota=5368709120" in report, report
     for key in ("oss.cgroup=", "oss.space=", "oss.free=", "oss.used="):
         assert key in report, f"{key} missing from report: {report}"
     assert report.count("oss.quota=") == 1, report
 
 
-def test_default_quota_is_unlimited(tmp_path):
+def test_default_quota_is_unlimited(lifecycle):
     """(default) no directive: oss.quota is still -1 (unlimited), unchanged."""
-    report = _report(tmp_path, "")
+    report = _report(lifecycle, "")
     assert "oss.quota=-1" in report, report
 
 
-def test_malformed_size_refused(tmp_path):
+def test_malformed_size_refused(lifecycle):
     """(error/neg) a malformed size fails nginx -t, so a bad quota can never
     reach the wire report."""
-    port = _free_port()
-    conf = _write_conf(tmp_path, "brix_oss_quota notasize;", port)
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    proc = _nginx("-p", str(tmp_path), "-c", str(conf), "-t")
+    lifecycle.register(_spec("brix_oss_quota notasize;"))
+    lifecycle.reconfigure(_SERVER)
+    proc = lifecycle.nginx_test(_SERVER, check=False)
     assert proc.returncode != 0, "a malformed brix_oss_quota size was accepted"
     assert "brix_oss_quota" in proc.stderr, proc.stderr

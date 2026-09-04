@@ -353,43 +353,6 @@ join_dest(const char *dstdir, const char *base, char *out, size_t sz)
 }
 
 
-/* True when both endpoints are web URLs (davs/http/s3) — a web->web transfer the
- * wire can't do directly, so xrdcp relays it through a local temp file. */
-int
-both_web(const char *src, const char *dst)
-{
-    return brix_is_web_url(src) && brix_is_web_url(dst);
-}
-
-
-/* Scheme keyword for a parsed web URL, for rebuilding per-file source URLs. */
-const char *
-web_scheme_str(brix_web_proto pr)
-{
-    switch (pr) {
-    case XRDC_WEB_HTTPS: return "https";
-    case XRDC_WEB_HTTP:  return "http";
-    case XRDC_WEB_DAVS:  return "davs";
-    case XRDC_WEB_DAV:   return "dav";
-    case XRDC_WEB_S3S:   return "s3s";
-    case XRDC_WEB_S3:    return "s3";
-    }
-    return "http";
-}
-
-
-/* Recursively download a WebDAV/HTTP collection into local directory `dstdir`,
- * preserving the tree: PROPFIND-list the files, then copy each to dstdir/<relpath>.
- * Reuses the public brix_copy per file (no copy-engine changes). Returns 0/1. */
-/* 1 if a server-supplied relative path would escape the destination directory
- * (absolute, or contains a ".." component) — used to reject hostile listings. */
-int
-rel_is_unsafe(const char *rel)
-{
-    return brix_rel_is_unsafe(rel);
-}
-
-
 /* Live progress state for a single transfer (label + timing). */
 
 /* brix_copy progress callback: a throttled \r-updated stderr bar with rate + ETA. */

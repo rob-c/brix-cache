@@ -57,8 +57,8 @@ class TestTheOutboundTlsArm:
         with the answer, which is why an off destination normally never sees a
         gotoTLS at all and the splice has to forge one."""
         text = _source(BOOTSTRAP_C)
-        assert "t->conf->tpc_outbound_tls ? kXR_ableTLS : 0" in text
-        assert "if (!t->conf->tpc_outbound_tls) {" in text
+        assert "t->conf->common.tpc_outbound_tls ? kXR_ableTLS : 0" in text
+        assert "if (!t->conf->common.tpc_outbound_tls) {" in text
         assert "TPC source requires TLS; set brix_tpc_outbound_tls on" in text
 
 
@@ -122,7 +122,7 @@ class TestTheOutboundPassthroughArm:
         text = _source(PREPARE_C)
         idx = text.index("if (tpc->has_token_mode && tpc->token_mode[0]")
         window = text[idx:idx + 600]
-        assert "} else if (conf->tpc_outbound_passthrough) {" in window, window
+        assert "} else if (conf->common.tpc_outbound_passthrough) {" in window, window
         assert '"passthrough-opt"' in window, window
         assert "file->tpc_token_mode[0] = '\\0';" in window, window
 

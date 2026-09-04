@@ -112,7 +112,7 @@ ngx_http_brix_cvmfs_create_loc_conf(ngx_conf_t *cf)
     return c;
 }
 
-/* ---- T16: nginx variables ($cvmfs_class / $cvmfs_cache / $cvmfs_origin) ---
+/* ---- T16: nginx variables ($cvmfs_class / $cvmfs_origin) -----------------
  * Backed by the request ctx the handler fills; "-" outside cvmfs requests.
  * $cvmfs_origin queries the http driver's last-answering endpoint (display
  * only — approximate under concurrent fills, exact in the common case). */
@@ -155,21 +155,12 @@ cvmfs_var_class(ngx_http_request_t *r, ngx_http_variable_value_t *v,
     return cvmfs_var_set(r, v, names[ctx->url.cls]);
 }
 
-static ngx_int_t
-cvmfs_var_cache(ngx_http_request_t *r, ngx_http_variable_value_t *v,
-    uintptr_t data)
-{
-    ngx_http_brix_cvmfs_ctx_t *ctx =
-        ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
-    static const char *names[] = { "-", "hit", "fill", "neg" };
-
-    (void) data;
-    if (ctx == NULL || ctx->cache_status > BRIX_CVMFS_CACHE_NEG) {
-        return cvmfs_var_set(r, v, "-");
-    }
-    return cvmfs_var_set(r, v, names[ctx->cache_status]);
-}
-
+/* phase-112: cvmfs_var_cache() was removed with $cvmfs_cache /
+ * $brix_cvmfs_cache. The disposition it rendered is now reported by the
+ * cross-plane $brix_cache_status, which reads this same ctx->cache_status
+ * through brix_request_cache_status() (src/core/http/http_variables.c).
+ * ctx->cache_status itself stays: cvmfs_var_origin() below and the cvmfs
+ * metrics still consume it. */
 static ngx_int_t
 cvmfs_var_origin(ngx_http_request_t *r, ngx_http_variable_value_t *v,
     uintptr_t data)
@@ -199,20 +190,23 @@ cvmfs_var_origin(ngx_http_request_t *r, ngx_http_variable_value_t *v,
     return cvmfs_var_set(r, v, buf);
 }
 
-/* phase-106 W1-a: each name is registered TWICE — the legacy unprefixed
- * spelling and the brix_-prefixed one. Both resolve to the same handler, so
- * they can never disagree. A hard rename was rejected here (unlike every
- * directive rename in phases 101/105) because a stale variable in a
- * log_format is a STARTUP ABORT — `unknown "cvmfs_cache" variable` — on a
+/* phase-106 W1-a: the remaining names are registered TWICE — the legacy
+ * unprefixed spelling and the brix_-prefixed one. Both resolve to the same
+ * handler, so they can never disagree. A hard rename was rejected here (unlike
+ * every directive rename in phases 101/105) because a stale variable in a
+ * log_format is a STARTUP ABORT — `unknown "cvmfs_class" variable` — on a
  * config the admin may not control, where a stale directive merely fails a
  * parse the operator is already editing. The unprefixed names are deprecated:
- * prefer $brix_cvmfs_* and $brix_cache_status in new configs. */
+ * prefer $brix_cvmfs_* in new configs.
+ *
+ * phase-112: the cache pair ($cvmfs_cache / $brix_cvmfs_cache) is GONE — its
+ * fact has a cross-plane home in $brix_cache_status, which is the whole point
+ * of the uniform vocabulary. The class/origin pairs have no such home: they are
+ * cvmfs-specific facts, so they keep their deprecated spelling. */
 static ngx_http_variable_t  ngx_http_brix_cvmfs_vars[] = {
     { ngx_string("cvmfs_class"),  NULL, cvmfs_var_class,  0, 0, 0 },
-    { ngx_string("cvmfs_cache"),  NULL, cvmfs_var_cache,  0, 0, 0 },
     { ngx_string("cvmfs_origin"), NULL, cvmfs_var_origin, 0, 0, 0 },
     { ngx_string("brix_cvmfs_class"),  NULL, cvmfs_var_class,  0, 0, 0 },
-    { ngx_string("brix_cvmfs_cache"),  NULL, cvmfs_var_cache,  0, 0, 0 },
     { ngx_string("brix_cvmfs_origin"), NULL, cvmfs_var_origin, 0, 0, 0 },
       ngx_http_null_variable
 };

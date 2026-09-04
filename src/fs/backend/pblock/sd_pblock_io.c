@@ -269,6 +269,13 @@ sd_pblock_read_sendfile_fd(brix_sd_obj_t *obj, off_t off, size_t len,
     if (!want_zerocopy || obj->fd == NGX_INVALID_FILE) {
         return NGX_INVALID_FILE;
     }
+    /* Lab read faults and shaping are evaluated by sd_pblock_pread().  A
+     * sendfile fd would bypass that byte-path gate completely, making an armed
+     * fault silently inert. Force lab-snapshotted handles through pread; the
+     * production path (os->lab == NULL) keeps zero-copy unchanged. */
+    if (os->lab != NULL) {
+        return NGX_INVALID_FILE;
+    }
     if (pblock_xform_active(&os->st->xform)) {
         return NGX_INVALID_FILE;   /* F12/F13: block 0 holds transformed bytes */
     }

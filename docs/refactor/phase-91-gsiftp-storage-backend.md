@@ -1,27 +1,60 @@
-# Phase 91 — `gsiftp://` Storage Backend (Outbound GridFTP Gateway + Full Auth Matrix)
+# Phase 91 — `gsiftp://` Storage Backend (Outbound GridFTP Gateway)
 
 **Date:** 2026-07-28
-**Status:** PLAN — the *storage driver* is not yet implemented. The two pure
-kernels this plan calls for, `gftp_reply.c` (reply parser, incl. 227/229 address
-extraction) and `gftp_mlsx.c` (MLSx fact-line parser), were landed early and sat
-unwired; as of 2026-08-05 they are compiled into `libbrix.a` and consumed by the
-**client-side** GridFTP engine (`client/lib/protocols/ftp/`, `xrdcp gsiftp://` —
-see [native-client-tools.md](../04-protocols/native-client-tools.md) and
-`tests/test_xrdcp_gsiftp.py`). The client is an *initiator*, not the outbound
-`brix_sd_gsiftp` storage driver described below; that driver is still unwritten,
-but its parsing layer now has a production consumer and live coverage.
+**Status:** IMPLEMENTED / CLOSED — production v1 landed 2026-09-03. The
+outbound storage driver, config grammar, tier builder, anonymous FTP path,
+GSI/VOMS path, namespace and staged-write planes are compiled and live-tested.
+The broader mechanism/transport matrix below is retained as the original design
+space; unsupported variants are explicit v1 non-goals, not hidden capabilities.
 **Depends on:** Phase 55 (storage-driver seam `brix_sd_*`), Phase 70 (full credential
 delegation), Phase 82 (inbound GridFTP gateway — supplies reusable protocol/crypto
 kernels), Phase 60/80 (`sd_remote`/S3 outbound-origin template), the unified VFS
 (`src/fs/`).
 
-> **One-line goal.** Add a new **outbound** storage-driver — `src/fs/backend/gsiftp/` —
-> so any BriX export can be backed by an *existing remote GridFTP / gsiftp server*
-> (dCache, DPM/StoRM, Globus GridFTP, XRootD-gsiftp), authenticating to it with **every**
-> credential the WLCG GridFTP ecosystem uses: GSI X.509 proxies (with VOMS), delegated
-> per-user proxies, plain EEC certs, Kerberos-5/GSSAPI, mutual-TLS client certs,
-> username/password, and anonymous. Nothing above the storage seam changes — a gsiftp
-> origin looks like any other backend to protocol handlers, cache, metrics, and TPC.
+> **One-line goal.** Add an **outbound** storage driver under
+> `src/fs/backend/gsiftp/` so an export can use an existing FTP/GridFTP origin
+> through the same VFS contract as every other backend, with anonymous FTP or
+> GSI X.509 proxy authentication (including VOMS attributes).
+
+## Landing record and production contract
+
+The production implementation is deliberately smaller than the original
+maximum matrix while remaining a complete, honest storage driver:
+
+| Surface | Shipped behavior |
+|---|---|
+| Configuration | `brix_storage_backend ftp://host[:21]/base` and `gsiftp://host[:2811]/base`; IPv4/IPv6 authority parsing, confined absolute base path, and static `brix_storage_credential` integration. The same scheme is available to tier composition. |
+| Authentication | `ftp://` uses anonymous USER/PASS. `gsiftp://` requires an X.509 proxy, performs client-role `AUTH GSSAPI`/ADAT, verifies the chain against the configured CA material, and carries proxy/VOMS extensions unchanged. Static and VFS-selected per-user proxy paths use the same `_cred` driver slots; deny mode never falls back to the service proxy. |
+| Data | Passive MODE-S, peer-pinned EPSV/PASV, `REST` + `RETR` bounded range reads, and `STOR` whole-object writes. A PASV response can choose a port but cannot redirect the data connection away from the already-connected control peer. |
+| Namespace | SIZE/MLST stat, MLSD directory iteration, DELE/RMD/MKD and RNFR/RNTO. Hostile logical `.`/`..`, control-byte and backslash components are rejected again inside the backend. |
+| Publication | Staged writes spool locally, upload to a unique origin-side temporary path, then publish with RNFR/RNTO; abort removes local and remote temporary state. |
+| VFS | The source census, primary-origin factory, tier builder and 63-slot matrix include `gsiftp`; 23 of 63 slots are implemented and every absent slot has a machine-checked verdict. |
+
+Acceptance evidence:
+
+- `tests/test_gsiftp_backend.py`: seven live anonymous FTP cases covering
+  byte-exact full/range reads, MLSD, staged PUT/promotion, namespace mutation,
+  absent-object recovery, typed read-only rejection and traversal refusal;
+- `tests/test_gsiftp_backend_voms.py`: authorized Atlas VOMS read plus plain-proxy
+  and wrong-VO denials against a GSI-enabled BriX GridFTP origin;
+- `tests/c/gftp_parse_test.c`: reply/MLSx framing and hostile-input unit corpus;
+- `tools/diag/sd_slot_matrix.py --check`, source-list/config guards and the
+  configured `-Werror` module build.
+
+### Explicit v1 boundaries
+
+The driver does not advertise MODE E, PROT P/data-channel GSI, Kerberos,
+`AUTH TLS`, configured username/password, session pooling, striped transfers or
+server-to-server copy. There is no standards-safe fallback for these features;
+adding any one requires its own measured use case, protocol implementation and
+success/error/security-negative interop lane. Reconnecting per operation is the
+simple correctness baseline and keeps authenticated sessions isolated by
+construction. These optional expansions do not leave the production v1
+incomplete.
+
+The remainder of this document is the original broad design record. Statements
+using “new”, “planned” or future file names describe that design history; the
+landing record above is authoritative for shipped behavior.
 
 ---
 
@@ -365,15 +398,15 @@ Per repo rule (3 tests per change: success + error + security-neg) and the fleet
 
 ## 13. Work breakdown (increments)
 
-| Wave | Deliverable | Depends |
+| Wave | Disposition | Evidence / boundary |
 |---|---|---|
-| **A** | SD skeleton + factory + config parser + census + build wiring; anonymous read-only (`RETR`/`SIZE`/`MLSD`) against a plaintext FTP stub | §3,4,9,10 |
-| **B** | FTP reply parser + control-channel FSM + MODE S read (`REST`+`RETR`); `pread`/`preadv`/`fstat`/`stat`/`opendir` | Wave A |
-| **C** | MODE E read (reuse recv reassembler); staged write (`STOR`/`ESTO`) + `RNFR`/`RNTO` promote; `unlink`/`mkdir`/`rename` | Wave B |
-| **D** | **GSI client initiator + delegator** (`gftp_auth_gsi.c`); `PBSZ`/`PROT P`/`DCAU`; data-channel GSI via `ftp_dc_sec.c`; per-user delegated proxy (`open_cred`) | Wave C, Phase-70 |
-| **E** | mTLS (#6) client-cert outbound CTX; krb5/GSSAPI (#5) behind `BRIX_HAVE_KRB5`; VOMS in-band (#3); connection pool (§8) | Wave D |
-| **F** | Tiering (`tier_build_gsiftp`), TPC-through, fuzz corpus, live lab, docs + `development-history.md` index entry | Waves A–E |
-| **deferred** | `ERET`/`ESTO` true partial + `SPAS`/`SPOR` striped multi-stream (perf); SSH-transport GridFTP (#9); third-party same-origin `SERVER_COPY` | post-F |
+| **A** | ✅ Landed | Factory, config parser, census/build wiring and anonymous FTP live lane. |
+| **B** | ✅ Landed | Reply/control FSM, peer-pinned MODE-S range read and metadata/listing slots. |
+| **C** | ✅ Landed with MODE-S publication | Staged STOR + RNFR/RNTO and namespace slots; MODE E was not needed for correctness and is outside v1. |
+| **D** | ✅ Landed with clear data channel | GSI initiator, protected control channel, static/per-user proxy slots and VOMS identity carry. PROT P is outside v1. |
+| **E** | ✅ Closed by scope decision | VOMS shipped. mTLS, krb5 and pooling require separate use cases and interop evidence; they are not advertised. |
+| **F** | ✅ Landed for in-tree scope | Tier builder, local live lab, docs, source/config/slot guards. External product interop and TPC performance are environment-owned evidence, not driver correctness blockers. |
+| **Optional expansion** | Not scheduled | MODE E/PROT P, ERET/ESTO, SPAS/SPOR striping, SSH transport and same-origin server copy. |
 
 ---
 

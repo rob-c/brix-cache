@@ -43,7 +43,7 @@ def test_mkcol_created_full_ledger(mx):
     assert st == 201
     assert s.delta("brix_io_ops_total", {**IO, "op": "mkdir", "status": "ok"},
                    after) == 1
-    assert s.delta("brix_io_latency_usec_count", {**IO, "op": "mkdir"},
+    assert s.delta("brix_io_latency_seconds_count", {**IO, "op": "mkdir"},
                    after) == 1
     assert s.delta("brix_webdav_requests_total", {"method": "MKCOL"},
                    after) == 1
@@ -107,7 +107,7 @@ def test_mkcol_escape_path_denied(mx):
 
 def test_head_cached_is_pure_stat(mx):
     """HEAD of a cached object: exactly one stat op (with latency), zero
-    payload bytes on either ledger, one HEAD request + 2xx response."""
+    payload bytes on the read ledger, one HEAD request + 2xx response."""
     name = cx.unique_name("nshead")
     mx.seed_local(name, 800)
     st, _, _ = mx.dav_request("dav", f"/{name}")     # prime
@@ -120,10 +120,9 @@ def test_head_cached_is_pure_stat(mx):
     assert st == 200
     assert s.delta("brix_io_ops_total", {**IO, "op": "stat", "status": "ok"},
                    after) == 1
-    assert s.delta("brix_io_latency_usec_count", {**IO, "op": "stat"},
+    assert s.delta("brix_io_latency_seconds_count", {**IO, "op": "stat"},
                    after) == 1
     assert s.delta("brix_io_bytes_read", IO, after) == 0
-    assert s.delta("brix_webdav_bytes_tx_total", after=after) == 0
     assert s.delta("brix_webdav_requests_total", {"method": "HEAD"},
                    after) == 1
     assert s.delta("brix_webdav_responses_total",
@@ -151,7 +150,7 @@ def test_head_absent_404_stat_not_found(mx):
 
 def test_propfind_depth0_byte_and_entry_exact(mx):
     """Depth:0 on a file: 207, exactly one entry, one stat, depth bucket
-    "0", and the multistatus body's bytes on BOTH tx ledgers."""
+    "0", and the multistatus body's bytes on the read ledger."""
     name = cx.unique_name("nspf0")
     mx.seed_local(name, 640)
     s = snap(mx)
@@ -166,7 +165,6 @@ def test_propfind_depth0_byte_and_entry_exact(mx):
                    after) == 1
     assert s.delta("brix_webdav_propfind_entries_total", after=after) == 1
     assert s.delta("brix_io_bytes_read", IO, after) == len(body)
-    assert s.delta("brix_webdav_bytes_tx_total", after=after) == len(body)
 
 
 def test_propfind_depth1_counts_self_plus_children(mx):
@@ -193,7 +191,7 @@ def test_propfind_depth1_counts_self_plus_children(mx):
                    after) == 1
     assert s.delta("brix_webdav_propfind_entries_total",
                    after=after) == k + 1
-    assert s.delta("brix_webdav_bytes_tx_total", after=after) == len(body)
+    assert s.delta("brix_io_bytes_read", IO, after) == len(body)
 
 
 def test_propfind_absent_404_no_entries(mx):
@@ -369,14 +367,14 @@ def test_s3_head_is_stat_plus_miss(mx):
     assert st == 200
     assert s.delta("brix_io_ops_total", {**S3, "op": "stat", "status": "ok"},
                    after) == 1
-    assert s.delta("brix_cache_misses_total", S3, after) == 1
+    assert s.cache_delta(S3["proto"], "MISS", after) == 1
     assert s.delta("brix_s3_responses_total",
                    {"method": "HEAD", "status_class": "2xx"}, after) == 1
     assert s.delta("brix_s3_auth_total", {"result": "anonymous"}, after) == 1
 
 
 def test_s3_list_bucket_entry_and_byte_exact(mx):
-    """Bucket LIST: one read op, the XML body's bytes on both tx ledgers,
+    """Bucket LIST: one read op, the XML body's bytes on the read ledger,
     and list_contents_total moves by exactly the number of <Contents>
     entries in the returned document."""
     mx.seed_local(cx.unique_name("nss3list"), 100)
@@ -390,7 +388,6 @@ def test_s3_list_bucket_entry_and_byte_exact(mx):
     assert s.delta("brix_io_ops_total", {**S3, "op": "read", "status": "ok"},
                    after) == 1
     assert s.delta("brix_io_bytes_read", S3, after) == len(body)
-    assert s.delta("brix_s3_bytes_tx_total", after=after) == len(body)
     assert s.delta("brix_s3_list_contents_total", after=after) == entries
 
 

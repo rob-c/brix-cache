@@ -206,13 +206,20 @@ int
 brix_vfs_export_mkpath(const brix_vfs_export_op_ctx_t *opctx,
     const char *logical, mode_t mode)
 {
+    char physical[PATH_MAX];
+
     if (brix_vfs_export_require_mutation(opctx, BRIX_VFS_MUTATE_MKDIR)
         != NGX_OK)
     {
         return -1;
     }
 
-    return brix_vfs_backend_mkpath(opctx->root_canon, logical, mode,
+    if (brix_path_export_to_pfn(opctx->root_canon, opctx->n2n, logical,
+                                physical, sizeof(physical)) != NGX_OK)
+    {
+        return -1;
+    }
+    return brix_vfs_backend_mkpath(opctx->root_canon, physical, mode,
                                    opctx->log);
 }
 
@@ -238,8 +245,8 @@ brix_vfs_export_rename(const brix_vfs_export_op_ctx_t *opctx,
         return NGX_ERROR;
     }
 
-    return brix_vfs_rename_path(sd, opctx->log, opctx->root_canon, src, dst,
-                                overwrite, was_dir_out);
+    return brix_vfs_rename_path(sd, opctx->log, opctx->root_canon, opctx->n2n,
+                                src, dst, overwrite, was_dir_out);
 }
 
 /* ---- Gated single-file confined copy ----

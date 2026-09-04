@@ -70,8 +70,11 @@ check_key(const char *prefix, const char *lfn, const char *want)
  *
  * HOW:
  *   1. Assert slash collapsing, synthesized leading slash, and dot-drop rules.
- *   2. Assert dot-dot popping (one component, to root, trailing) rules.
- *   3. Assert trailing-slash stripping and the bare-root and empty-string cases.
+ *   2. Assert trailing-slash stripping and the bare-root and empty-string cases.
+ *
+ * NOTE: ".." is never resolved here — phase-108 C13 rejects every ".." component
+ * outright (see test_normalize_escape_rejects), so no ".."-popping row lives in
+ * the accept table.
  */
 static void
 test_normalize_canonicalization(void)
@@ -80,13 +83,9 @@ test_normalize_canonicalization(void)
     check_norm_ok("a/b/c",           "/a/b/c");   /* leading slash synthesized */
     check_norm_ok("/a//b///c",       "/a/b/c");   /* repeated slashes collapse */
     check_norm_ok("/a/./b/./c",      "/a/b/c");   /* dot component dropped      */
-    check_norm_ok("/a/b/../c",       "/a/c");     /* dot-dot pops one component */
-    check_norm_ok("/a/b/../../c",    "/c");       /* dot-dot pops to root       */
     check_norm_ok("/a/b/",           "/a/b");     /* trailing slash stripped    */
     check_norm_ok("/",               "/");        /* bare root                  */
     check_norm_ok("",                "/");         /* empty -> root              */
-    check_norm_ok("/a/b/..",         "/a");       /* trailing dot-dot           */
-    check_norm_ok("/a/../b",         "/b");
 }
 
 /* ---- Assert the key map is injective across aliasing inputs ----
@@ -116,23 +115,32 @@ test_key_alias_injectivity(void)
     }
 }
 
-/* ---- Assert dot-dot escape attempts are rejected ----
+/* ---- Assert every dot-dot component is rejected ----
  *
- * WHAT: Feeds sd_ceph_normalize a table of inputs whose dot-dot sequences would
- * climb above the export root; each must be rejected. Bumps the shared failures
- * counter (via check_norm_reject) on any accepted input.
+ * WHAT: Feeds sd_ceph_normalize a table of inputs that carry a ".." component;
+ * each must be rejected. Bumps the shared failures counter (via check_norm_reject)
+ * on any accepted input.
  *
  * WHY: Prefix confinement is the other security-critical guarantee: no input may
- * escape the export's key prefix, so every above-root climb must fail closed.
+ * escape the export's key prefix. Phase-108 C13 refuses ".." outright rather than
+ * resolving it by popping, so the driver never rewrites a traversal into a
+ * different-but-valid key — every "..", above-root or not, fails closed. The
+ * first three rows below would previously have been *popped* to an in-bound key;
+ * C13 makes them rejections, which is the behavior a confined path never triggers.
  *
  * HOW:
- *   1. Assert rejection of dot-dot at or immediately below root.
- *   2. Assert rejection of mid-path climbs that net above root.
- *   3. Assert rejection of a relative traversal payload.
+ *   1. Assert rejection of the popping forms C13 no longer resolves.
+ *   2. Assert rejection of dot-dot at or immediately below root.
+ *   3. Assert rejection of mid-path climbs that net above root, and a relative
+ *      traversal payload.
  */
 static void
 test_normalize_escape_rejects(void)
 {
+    check_norm_reject("/a/b/../c");     /* was popped to "/a/c"  — now rejected */
+    check_norm_reject("/a/b/../../c");  /* was popped to "/c"    — now rejected */
+    check_norm_reject("/a/b/..");       /* was popped to "/a"    — now rejected */
+    check_norm_reject("/a/../b");       /* was popped to "/b"    — now rejected */
     check_norm_reject("/..");
     check_norm_reject("..");
     check_norm_reject("/a/../..");

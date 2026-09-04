@@ -27,7 +27,7 @@ pipeline. This map shows which family increments at each stage:
   ──────────────────────────────────────────────────────────────────────────────────
   wire_bytes_rx/tx_total, stream_*_frames, write_stalls  ← low-level, every socket op
   ──────────────────────────────────────────────────────────────────────────────────
-  io_ops_total, io_bytes_read/written, io_latency_usec, auth_total, tpc_*
+  io_ops_total, io_bytes_read/written, io_latency_seconds, auth_total, tpc_*
     ← the unified {proto=...} view, written by ALL FIVE planes
       (stream · webdav · s3 · cvmfs · gridftp) into the one process-wide zone
 
@@ -67,24 +67,24 @@ brix_connections_active{port="1095",auth="gsi"} 1
 
 ### Byte Counters
 
-#### `brix_bytes_rx_total`
+#### `brix_io_bytes_written`
 
 Total bytes received from clients (i.e. uploaded data). Counts only file data payloads, not protocol overhead.
 
-Labels: `port`, `auth`
+Labels: `proto`
 
 ```
-brix_bytes_rx_total{port="1094",auth="anon"} 5368709120
+brix_io_bytes_written{proto="stream"} 5368709120
 ```
 
-#### `brix_bytes_tx_total`
+#### `brix_io_bytes_read`
 
 Total bytes sent to clients (i.e. downloaded data). Counts only file data, not protocol overhead.
 
-Labels: `port`, `auth`
+Labels: `proto`
 
 ```
-brix_bytes_tx_total{port="1094",auth="anon"} 107374182400
+brix_io_bytes_read{proto="stream"} 107374182400
 ```
 
 ### Native Stream Wire Counters
@@ -109,18 +109,11 @@ brix_wire_bytes_rx_total{port="1094",auth="anon"} 8209232
 brix_stream_response_write_stalls_total{port="1094",auth="anon"} 14
 ```
 
-### Per-Protocol Byte Counters (Extended)
+### Per-protocol byte counters
 
-Separates root:// data transfer from WebDAV and S3 at the stream layer:
-
-Metrics:
-- `brix_bytes_root_rx_total` — bytes received via root:// protocol only
-- `brix_bytes_root_tx_total` — bytes sent via root:// protocol only
-
-```
-brix_bytes_root_rx_total{port="1094",auth="gsi"} 5368709120
-brix_bytes_root_tx_total{port="1094",auth="gsi"} 107374182400
-```
+The two canonical families above distinguish all five planes through `proto`.
+Use `proto="stream"` for root://, `webdav` for WebDAV, `s3` for S3-compatible,
+`cvmfs` for CVMFS and `gridftp` for GridFTP.
 
 ### Per-IP-Version Byte Counters (Extended)
 
@@ -349,8 +342,8 @@ Metrics:
 - `brix_webdav_requests_total{method}` - requests by method (`OPTIONS`, `HEAD`, `GET`, `PUT`, `DELETE`, `MKCOL`, `COPY`, `PROPFIND`, `MOVE`, `OTHER`; MOVE has been first-class since the 2026-08 conformance pass — it previously folded into `OTHER`)
 - `brix_webdav_responses_total{method,status_class}` - responses by method and HTTP status class
 - `brix_webdav_auth_total{result}` - auth outcomes (`none`, `cert_ok`, `token_ok`, `anonymous_fallback`, `rejected`)
-- `brix_webdav_bytes_rx_total` - bytes accepted into WebDAV writes
-- `brix_webdav_bytes_tx_total` - bytes sent by WebDAV GET and PROPFIND
+- `brix_io_bytes_written{proto="webdav"}` - bytes accepted into WebDAV writes
+- `brix_io_bytes_read{proto="webdav"}` - bytes sent by WebDAV GET and PROPFIND
 - `brix_webdav_range_requests_total{result}` - full, partial, or unsatisfied GET ranges
 - `brix_webdav_put_bodies_total{mode}` - empty, memory, spooled, or threaded PUT bodies
 - `brix_webdav_propfind_depth_total{depth}` - PROPFIND depth buckets
@@ -388,8 +381,8 @@ Metrics:
 - `brix_s3_requests_total{method}` - requests by operation (`GET`, `HEAD`, `PUT`, `DELETE`, `LIST`, `OTHER`)
 - `brix_s3_responses_total{method,status_class}` - responses by operation and HTTP status class
 - `brix_s3_auth_total{result}` - auth outcomes (`anonymous`, `sigv4_ok`, `missing`, `malformed`, `bad_access_key`, `bad_date`, `signature_mismatch`, `internal_error`)
-- `brix_s3_bytes_rx_total` - bytes accepted into successful PUT writes
-- `brix_s3_bytes_tx_total` - bytes emitted by GET, ListObjectsV2, and XML error responses
+- `brix_io_bytes_written{proto="s3"}` - bytes accepted into successful PUT writes
+- `brix_io_bytes_read{proto="s3"}` - bytes emitted by GET, ListObjectsV2, and XML error responses
 - `brix_s3_range_requests_total{result}` - full, partial, or unsatisfied GET ranges
 - `brix_s3_put_bodies_total{mode}` - empty, memory, spooled, or mixed PUT bodies
 - `brix_s3_events_total{event}` - low-cardinality diagnostics such as invalid URI, access denied, missing key, write disabled, method not allowed, internal error, directory sentinel, or idempotent delete-missing
@@ -499,7 +492,7 @@ without an `absent()` guard.
 | `brix_io_ops_total` | counter | `proto`, `op`, `status` |
 | `brix_io_bytes_read` | counter | `proto` |
 | `brix_io_bytes_written` | counter | `proto` |
-| `brix_io_latency_usec` | histogram | `proto`, `op` (+ `le` on `_bucket`) |
+| `brix_io_latency_seconds` | histogram | `proto`, `op` (+ `le` on `_bucket`) |
 | `brix_auth_total` | counter | `proto`, `method`, `status` |
 | `brix_tpc_transfers_total` | counter | `proto`, `direction`, `status` |
 | `brix_tpc_bytes_total` | counter | `proto`, `direction` |
@@ -510,7 +503,7 @@ families, which iterate the identical protocol list:
 
 | Family | Type | Labels |
 |--------|------|--------|
-| `brix_cache_hits_total` / `brix_cache_misses_total` | counter | `proto` |
+| `brix_cache_requests_total` | counter | `proto`, `cache_status` |
 | `brix_cache_bytes_evicted_total` | counter | `proto` |
 | `brix_cred_select_user_total` / `_fallback_total` / `_deny_total` | counter | `proto` |
 | `brix_cred_deleg_total` | counter | `proto`, `mode`, `outcome` |
@@ -558,7 +551,7 @@ brix_io_ops_total{proto="cvmfs",op="read",status="ok"}       36510
 brix_io_ops_total{proto="gridftp",op="read",status="ok"}      6120
 brix_io_bytes_read{proto="gridftp"}                    92341760512
 brix_io_bytes_written{proto="gridftp"}                 44002181120
-brix_io_latency_usec_count{proto="gridftp",op="write"}         418
+brix_io_latency_seconds_count{proto="gridftp",op="write"}      418
 brix_auth_total{proto="gridftp",method="gsi",status="ok"}      377
 brix_vfs_mutation_denied_total{proto="webdav",op="write",reason="read_only"}  12
 ```
@@ -681,7 +674,7 @@ table and the double-count bugs this rule closed):
   request, with full-request latency. Bytes come from the per-protocol rx/tx wire
   ledgers at scrape time.
 - Stream (root://) READ + WRITE ops: the per-server wire-ledger fold. These carry
-  **no latency observations** — `brix_io_latency_usec{proto="stream",op="read"}`
+  **no latency observations** — `brix_io_latency_seconds{proto="stream",op="read"}`
   staying at zero under pure streaming reads is correct, not a bug.
 - GridFTP (gsiftp://) READ + WRITE ops, latency and `brix_io_bytes_*`:
   `brix_ftp_ev_metric_xfer()` at transfer completion
@@ -691,8 +684,8 @@ table and the double-count bugs this rule closed):
   channel opened (read-only export, denied path, absent file) are counted without
   a latency sample, so a refusal cannot falsify the lowest bucket.
 - cvmfs (`cvmfs://`) data plane: the dedicated `brix_cvmfs_bytes_served_total`
-  family (bytes by cache disposition) plus `brix_cache_hits_total` /
-  `brix_cache_misses_total` under `proto="cvmfs"`. The plane deliberately books
+  family (bytes by cache disposition) plus `brix_cache_requests_total` under
+  `proto="cvmfs"`, split by `cache_status`. The plane deliberately books
   **no** unified `op="read"` row — a transparent public cache serves the same
   object from cache, origin fill, or bundle, and the cvmfs families are the
   authoritative split. Its unified rows come from the VFS observer.
@@ -742,12 +735,12 @@ brix_connections_total{port="1095",auth="gsi"} 7
 # TYPE brix_connections_active gauge
 brix_connections_active{port="1094",auth="anon"} 3
 brix_connections_active{port="1095",auth="gsi"} 0
-# HELP brix_bytes_rx_total Bytes received from clients (write payloads).
-# TYPE brix_bytes_rx_total counter
-brix_bytes_rx_total{port="1094",auth="anon"} 12582912
-# HELP brix_bytes_tx_total Bytes sent to clients (read data).
-# TYPE brix_bytes_tx_total counter
-brix_bytes_tx_total{port="1094",auth="anon"} 4194304
+# HELP brix_io_bytes_written Total bytes written to storage, by protocol.
+# TYPE brix_io_bytes_written counter
+brix_io_bytes_written{proto="stream"} 12582912
+# HELP brix_io_bytes_read Total bytes read from storage, by protocol.
+# TYPE brix_io_bytes_read counter
+brix_io_bytes_read{proto="stream"} 4194304
 # HELP brix_cache_occupancy_ratio Filesystem occupancy ratio for brix_cache_export.
 # TYPE brix_cache_occupancy_ratio gauge
 brix_cache_occupancy_ratio{port="1094",auth="anon"} 0.734218

@@ -16,98 +16,44 @@ bookkeeping leak, no recall side-effect); missing dir errors; exec dread via a
 shell-script stagecmd. Self-contained (no shared fleet).
 """
 
-import os
-import socket
 import stat as statmod
 import struct
-import subprocess
-import time
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN
+from settings import BIND_HOST
+from server_registry import NginxInstanceSpec
 
 import _test_session_bind_helpers as H
-from ephemeral_port import free_port
+
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-frm-dirlist")]
+
+_SERVER = "lc-frm-dirlist"
 
 kXR_dirlist = 3004
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, free_port()))  # leased mock-range port (never kernel-assigned)
-    port = s.getsockname()[1]
-    s.close()
-    return port
-
-
-def _write_frm_conf(conf, ns, cache, logs, port, backend, extra_env):
-    """Write the single-server stream config for the FRM dirlist fixture."""
-    stagecmd_line = ""
-    if extra_env and "BRIX_FRM_STAGECMD" in extra_env:
-        # nginx scrubs the worker environment: pin the exec adapter's stagecmd
-        # with the inline `env VAR=value` form so it reaches the worker.
-        stagecmd_line = f"env BRIX_FRM_STAGECMD={extra_env['BRIX_FRM_STAGECMD']};\n"
-    conf.write_text(
-        "daemon on;\n"
-        "worker_processes 1;\n"
-        + stagecmd_line +
-        f"pid {logs}/nginx.pid;\n"
-        f"error_log {logs}/error.log info;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n"
-        "  server {\n"
-        f"    listen {BIND_HOST}:{port};\n"
-        "    brix_root on;\n"
-        f"    brix_export {ns};\n"
-        "    brix_auth none;\n"
-        "    brix_allow_write on;\n"
-        f"    brix_storage_backend {backend};\n"
-        f"    brix_cache_store posix:{cache};\n"
-        "    brix_cache_export /;\n"
-        "  }\n"
-        "}\n")
-
-
-def _await_listen(port):
-    """Poll until `port` accepts a connection on BIND_HOST (or the tries run out)."""
-    for _ in range(50):
-        try:
-            socket.create_connection((BIND_HOST, port), timeout=0.5).close()
-            return
-        except OSError:
-            time.sleep(0.1)
-
-
-def _launch(tmp_path, backend, extra_env=None):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+def _launch(lifecycle, tmp_path, backend, extra_env=None):
     ns = tmp_path / "ns"
     ns.mkdir(exist_ok=True)
     cache = tmp_path / "cache"
     cache.mkdir(exist_ok=True)
-    logs = tmp_path / "logs"
-    logs.mkdir(exist_ok=True)
-    port = _free_port()
-    conf = tmp_path / "nginx.conf"
-    _write_frm_conf(conf, ns, cache, logs, port, backend, extra_env)
-    env = dict(os.environ)
-    if extra_env:
-        env.update(extra_env)
-    t = subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf), "-t"],
-                       capture_output=True, text=True, timeout=30, env=env)
-    assert t.returncode == 0, f"config rejected: {t.stderr}"
-    r = subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf)],
-                       capture_output=True, text=True, timeout=30, env=env)
-    assert r.returncode == 0, f"nginx failed to start: {r.stderr}"
-    _await_listen(port)
-    return port, conf
-
-
-def _stop(tmp_path, conf):
-    subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf),
-                    "-s", "quit"], capture_output=True, timeout=30)
-    time.sleep(0.2)
+    stagecmd = (extra_env or {}).get("BRIX_FRM_STAGECMD")
+    stagecmd_env = f"env BRIX_FRM_STAGECMD={stagecmd};" if stagecmd else ""
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name=_SERVER,
+        template="nginx_lc_frm_dirlist.conf",
+        data_root=str(ns),
+        env=extra_env or {},
+        template_values={
+            "BIND_HOST": BIND_HOST,
+            "BACKEND": backend,
+            "CACHE_DIR": str(cache),
+            "STAGECMD_ENV": stagecmd_env,
+        },
+        reason="FRM stub and exec namespace enumeration coverage"))
+    return endpoint.port
 
 
 def _dirlist(sock, stream, path):
@@ -142,7 +88,7 @@ def _online_empty(tape):
     return not online.exists() or not any(online.rglob("*"))
 
 
-def test_stub_tape_dirlist(tmp_path):
+def test_stub_tape_dirlist(lifecycle, tmp_path):
     """(success) the offline tape namespace lists over kXR_dirlist without any
     recall and without leaking the .online/.recalling bookkeeping roots."""
     tape = tmp_path / "tape"
@@ -151,7 +97,7 @@ def test_stub_tape_dirlist(tmp_path):
     (tape / "b.bin").write_bytes(b"B" * 32)
     (tape / "sub" / "c.bin").write_bytes(b"C" * 8)
 
-    port, conf = _launch(tmp_path, f"frm://stub{tape}")
+    port = _launch(lifecycle, tmp_path, f"frm://stub{tape}")
     primary = None
     try:
         H.ANON_HOST = BIND_HOST
@@ -172,15 +118,14 @@ def test_stub_tape_dirlist(tmp_path):
     finally:
         if primary is not None:
             primary.close()
-        _stop(tmp_path, conf)
 
 
-def test_missing_dir_errors(tmp_path):
+def test_missing_dir_errors(lifecycle, tmp_path):
     """(error) a dirlist of an absent tape directory is an error, not an empty
     fabricated listing."""
     tape = tmp_path / "tape"
     tape.mkdir()
-    port, conf = _launch(tmp_path, f"frm://stub{tape}")
+    port = _launch(lifecycle, tmp_path, f"frm://stub{tape}")
     primary = None
     try:
         H.ANON_HOST = BIND_HOST
@@ -190,15 +135,14 @@ def test_missing_dir_errors(tmp_path):
     finally:
         if primary is not None:
             primary.close()
-        _stop(tmp_path, conf)
 
 
-def test_stub_rcreate(tmp_path):
+def test_stub_rcreate(lifecycle, tmp_path):
     """(rcreate/stub) kXR_mkdir on a tape export creates the directory on the
     MSS (the local tape root for the stub) — and it lists afterwards."""
     tape = tmp_path / "tape"
     tape.mkdir()
-    port, conf = _launch(tmp_path, f"frm://stub{tape}")
+    port = _launch(lifecycle, tmp_path, f"frm://stub{tape}")
     primary = None
     try:
         H.ANON_HOST = BIND_HOST
@@ -215,10 +159,9 @@ def test_stub_rcreate(tmp_path):
     finally:
         if primary is not None:
             primary.close()
-        _stop(tmp_path, conf)
 
 
-def test_exec_rcreate_verb(tmp_path):
+def test_exec_rcreate_verb(lifecycle, tmp_path):
     """(rcreate/exec) kXR_mkdir drives `$BRIX_FRM_STAGECMD rcreate <key>`; a
     stagecmd that refuses the verb makes the mkdir an error."""
     base = tmp_path / "buffer"
@@ -234,8 +177,8 @@ def test_exec_rcreate_verb(tmp_path):
         "esac\n")
     stagecmd.chmod(stagecmd.stat().st_mode | statmod.S_IEXEC)
 
-    port, conf = _launch(tmp_path, f"tape://exec{base}",
-                         extra_env={"BRIX_FRM_STAGECMD": str(stagecmd)})
+    port = _launch(lifecycle, tmp_path, f"tape://exec{base}",
+                   extra_env={"BRIX_FRM_STAGECMD": str(stagecmd)})
     primary = None
     try:
         H.ANON_HOST = BIND_HOST
@@ -247,10 +190,9 @@ def test_exec_rcreate_verb(tmp_path):
     finally:
         if primary is not None:
             primary.close()
-        _stop(tmp_path, conf)
 
 
-def test_exec_dread(tmp_path):
+def test_exec_dread(lifecycle, tmp_path):
     """(exec adapter) `$BRIX_FRM_STAGECMD dread` drives the listing: one name
     per line, trailing '/' marks a directory."""
     base = tmp_path / "buffer"
@@ -265,8 +207,8 @@ def test_exec_dread(tmp_path):
         "esac\n")
     stagecmd.chmod(stagecmd.stat().st_mode | statmod.S_IEXEC)
 
-    port, conf = _launch(tmp_path, f"tape://exec{base}",
-                         extra_env={"BRIX_FRM_STAGECMD": str(stagecmd)})
+    port = _launch(lifecycle, tmp_path, f"tape://exec{base}",
+                   extra_env={"BRIX_FRM_STAGECMD": str(stagecmd)})
     primary = None
     try:
         H.ANON_HOST = BIND_HOST
@@ -279,4 +221,3 @@ def test_exec_dread(tmp_path):
     finally:
         if primary is not None:
             primary.close()
-        _stop(tmp_path, conf)

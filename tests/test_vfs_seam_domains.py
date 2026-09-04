@@ -124,6 +124,12 @@ class TestLongestPrefixEntitlement:
             ("DOMAIN_STAGE",)
         )
 
+    def test_gsiftp_gsi_can_read_only_credential_domain(self):
+        path = "src/fs/backend/gsiftp/gftp_gsi.c"
+        assert SEAM.domain_entitled(path) == frozenset(("DOMAIN_CREDENTIAL",))
+        assert SEAM.domain_violation(path, 1, "DOMAIN_CREDENTIAL") is None
+        assert SEAM.domain_violation(path, 1, "DOMAIN_CONFIG") is not None
+
 
 # --- error --------------------------------------------------------------------
 

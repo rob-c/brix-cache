@@ -154,8 +154,8 @@ brix_vfs_copy_driver(brix_vfs_ctx_t *ctx, const char *src,
     uint64_t start)
 {
     const brix_sd_driver_t *drv  = brix_vfs_ctx_driver(ctx);
-    const char         *s    = brix_vfs_export_relative(ctx, src);
-    const char         *d    = brix_vfs_export_relative(ctx, dst_resolved);
+    char                s[PATH_MAX];
+    char                d[PATH_MAX];
     brix_sd_instance_t *leaf = brix_vfs_ns_leaf(ctx->sd);
     brix_sd_ucred_t     store;
     brix_sd_cred_t      cred;
@@ -169,6 +169,11 @@ brix_vfs_copy_driver(brix_vfs_ctx_t *ctx, const char *src,
      * the invariant local so a future caller cannot hand us a NULL vtable. */
     if (drv == NULL) {
         return brix_vfs_copy_fail(ctx, src, ENOTSUP, start);
+    }
+    if (brix_path_resolved_to_pfn(ctx, src, s, sizeof(s)) != NGX_OK
+        || brix_path_resolved_to_pfn(ctx, dst_resolved, d, sizeof(d)) != NGX_OK)
+    {
+        return brix_vfs_copy_fail(ctx, src, errno, start);
     }
 
     /* Zero before the gate: it fills only the active credential kind; an
@@ -290,6 +295,11 @@ brix_vfs_copy(brix_vfs_ctx_t *ctx, const char *dst_resolved,
 
     if (ctx->root_canon == NULL || dst_resolved == NULL) {
         return brix_vfs_copy_fail(ctx, src, EINVAL, start);
+    }
+    if (brix_vfs_require_authorized_target(ctx, dst_resolved,
+            BRIX_VFS_MUTATE_COPY) != NGX_OK)
+    {
+        return brix_vfs_copy_fail(ctx, src, errno, start);
     }
 
     /* phase-107 C7: lock gate after the mutation gate (EROFS precedes EBUSY),

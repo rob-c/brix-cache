@@ -55,6 +55,80 @@ brix_metric_vfs_mutation_denied(brix_proto_t proto, ngx_uint_t op)
 }
 
 /*
+ * brix_metric_vfs_domain_mutation — record one service-storage mutation that
+ * passed the typed domain assert (phase-107 §7.5 / phase-108 §6.5).
+ *
+ * WHAT: Bumps vfs_domain_mutation_total[domain][op]. No-op on an out-of-range
+ *       domain or operation, or on detached SHM.
+ *
+ * WHY:  This is the series a consolidation is measured by: a write migrated
+ *       from a hand-rolled copy onto a domain-aware verb starts booking here,
+ *       and if the series does not move the consolidation did not happen. The
+ *       export data path deliberately never books (a per-write SHM increment
+ *       would contend on the hot path); its refusals are accounted by
+ *       brix_metric_vfs_mutation_denied above.
+ *
+ * HOW:  Same contract as brix_metric_vfs_mutation_denied: range-check both
+ *       indices, resolve the SHM, atomic-increment. Both arrive as ngx_uint_t
+ *       (the fs-layer enum values); vfs_policy_domain.c carries the
+ *       compile-time size checks.
+ */
+void
+brix_metric_vfs_domain_mutation(ngx_uint_t domain, ngx_uint_t op)
+{
+    ngx_brix_metrics_t *shm;
+
+    if (domain >= BRIX_VFS_DOMAIN_METRIC_COUNT
+        || op >= BRIX_VFS_MUTATE_OP_METRIC_COUNT)
+    {
+        return;
+    }
+
+    shm = brix_metrics_shared();
+    if (shm == NULL) {
+        return;
+    }
+
+    BRIX_ATOMIC_INC(&shm->unified.vfs_domain_mutation_total[domain][op]);
+}
+
+/*
+ * brix_metric_vfs_authz_backstop — book one VFS authorization-backstop
+ * evaluation (phase-108 C12), by protocol and bounded result.
+ *
+ * WHAT: Bumps vfs_authz_backstop_total[proto][result]. No-op on an out-of-range
+ *       protocol or result, or on detached SHM.
+ *
+ * WHY:  This is the observe-mode evidence the enforce flip waits on. Every
+ *       evaluation books exactly one sample (including AGREE) so the ratio of
+ *       edge_missing / total is directly readable — an operator can see that
+ *       the backstop is running and agreeing before trusting it to refuse.
+ *
+ * HOW:  Same contract as brix_metric_vfs_mutation_denied: range-check both
+ *       indices, resolve the SHM, atomic-increment. `result` arrives as
+ *       ngx_uint_t (the fs-layer enum value); vfs_authz.c carries the
+ *       compile-time size check.
+ */
+void
+brix_metric_vfs_authz_backstop(brix_proto_t proto, ngx_uint_t result)
+{
+    ngx_brix_metrics_t *shm;
+
+    if (proto >= BRIX_PROTO_COUNT
+        || result >= BRIX_AUTHZ_BACKSTOP_RESULT_COUNT)
+    {
+        return;
+    }
+
+    shm = brix_metrics_shared();
+    if (shm == NULL) {
+        return;
+    }
+
+    BRIX_ATOMIC_INC(&shm->unified.vfs_authz_backstop_total[proto][result]);
+}
+
+/*
  * brix_metric_vfs_spill_* — phase-107 C1 writer-spill telemetry.
  *
  * WHAT: spill_bytes adds `bytes` absorbed into the reorder scratch;

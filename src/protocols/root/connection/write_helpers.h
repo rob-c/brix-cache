@@ -38,6 +38,11 @@ ngx_int_t brix_queue_response(brix_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_chain_t *chain, u_char *owned_base);
 
+/* Queue raw continuation bytes belonging to a response frame already counted
+ * and introduced on the wire. */
+ngx_int_t brix_queue_response_fragment_chain(brix_ctx_t *ctx,
+    ngx_connection_t *c, ngx_chain_t *chain, u_char *owned_base);
+
 /*
  * brix_flush_pending — resume draining a previously-parked wbuf or wchain.
  *

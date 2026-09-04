@@ -14,8 +14,11 @@
  *       once, rather than a sanitizer repeated per call site and eventually
  *       forgotten in one of them.
  * HOW:  fixed-size buffers and snprintf with an overflow check on every
- *       build; writes stage to a `.tmp.<pid>` sibling and rename into place,
- *       so a reader following the same tree never observes a partial object.
+ *       build; writes go through the phase-108 C10 service-publish verb
+ *       (brix_service_publish_*), which stages to a random confined sibling,
+ *       fsyncs the data on the durable REGISTRY domain, then renames and flushes
+ *       the parent — so a reader never observes a partial object AND an object
+ *       the client was told was 201 Created survives a crash.
  *
  * The raw namespace calls below carry per-line vfs-seam-allow markers
  * (invariant #12), for the reason oci_meta.c gives at its own head: this is
@@ -29,6 +32,9 @@
 
 #include "oci_registry.h"
 
+#include "core/compat/service_publish.h"
+#include "core/compat/tmp_path.h"          /* brix_tmp_is_temp_name (C10 lister skip) */
+
 #include <dirent.h>
 #include <fcntl.h>
 #include <stdarg.h>
@@ -39,7 +45,6 @@
 #include <unistd.h>
 
 #define OCI_STORE_DIR_MODE   0700
-#define OCI_STORE_FILE_MODE  0600
 #define OCI_STORE_IO_CHUNK   (64 * 1024)
 
 
@@ -259,69 +264,49 @@ brix_oci_store_verify(const char *path, const brix_oci_digest_t *want,
 }
 
 
-ngx_int_t
-brix_oci_store_publish(const char *tmp_path, const char *final_path,
-    ngx_log_t *log)
+/* Fill the service-publish request the two adapters share: same store root and
+ * log, the caller's domain and exclusivity; the mode is left 0 so the published
+ * object inherits the staged temp's private 0600 — the mode every store object
+ * has always carried, now without a redundant fchmod. */
+static void
+oci_store_publish_req(brix_service_publish_req_t *req,
+    const brix_oci_store_t *st, const char *final_path, brix_vfs_domain_t domain,
+    unsigned excl, ngx_log_t *log)
 {
-    if (brix_oci_store_mkparent(final_path, log) != NGX_OK) {
-        return NGX_ERROR;
-    }
-    if (rename(tmp_path, final_path) != 0) {   /* vfs-seam-allow: DOMAIN_REGISTRY — atomic store publish; the object never exists partially at its final path */
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "oci: cannot publish \"%s\" -> \"%s\"",
-                      tmp_path, final_path);
-        return NGX_ERROR;
-    }
-    return NGX_OK;
+    ngx_memzero(req, sizeof(*req));
+    req->log        = log;
+    req->domain     = domain;
+    req->root_canon = st->root;
+    req->final_path = final_path;
+    req->excl       = excl;
 }
 
 
 ngx_int_t
-brix_oci_store_put_text(const char *final_path, const char *text, size_t len,
-    ngx_log_t *log)
+brix_oci_store_publish_bytes(const brix_oci_store_t *st, const char *path,
+    const void *bytes, size_t len, brix_vfs_domain_t domain, ngx_log_t *log)
 {
-    char     tmp[PATH_MAX];
-    ssize_t  n;
-    int      fd;
+    brix_service_publish_req_t  req;
+
+    if (brix_oci_store_mkparent(path, log) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    oci_store_publish_req(&req, st, path, domain, 0, log);
+    return brix_service_publish_bytes(&req, bytes, len);
+}
+
+
+ngx_int_t
+brix_oci_store_publish_staged(const brix_oci_store_t *st, const char *stage_path,
+    const char *final_path, ngx_log_t *log)
+{
+    brix_service_publish_req_t  req;
 
     if (brix_oci_store_mkparent(final_path, log) != NGX_OK) {
         return NGX_ERROR;
     }
-    if (oci_store_fmt(tmp, sizeof(tmp), "%s.tmp.%ld",
-                      final_path, (long) ngx_pid) != 0)
-    {
-        return NGX_ERROR;
-    }
-
-    fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC,   /* vfs-seam-allow: DOMAIN_REGISTRY — store bookkeeping record (tag pointer / ref mark), staged for the rename below */
-              OCI_STORE_FILE_MODE);
-    if (fd < 0) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "oci: cannot stage \"%s\"", tmp);
-        return NGX_ERROR;
-    }
-    while (len > 0) {
-        n = write(fd, text, len);
-        if (n < 0) {
-            if (ngx_errno == NGX_EINTR) {
-                continue;
-            }
-            (void) close(fd);
-            (void) unlink(tmp);            /* vfs-seam-allow: DOMAIN_REGISTRY — drop our own failed staging file */
-            return NGX_ERROR;
-        }
-        text += n;
-        len  -= (size_t) n;
-    }
-    (void) close(fd);
-
-    if (rename(tmp, final_path) != 0) {    /* vfs-seam-allow: DOMAIN_REGISTRY — atomic tag/mark swap — a concurrent reader sees old or new, never torn */
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "oci: cannot publish \"%s\"", final_path);
-        (void) unlink(tmp);                /* vfs-seam-allow: DOMAIN_REGISTRY — drop our own failed staging file */
-        return NGX_ERROR;
-    }
-    return NGX_OK;
+    oci_store_publish_req(&req, st, final_path, BRIX_VFS_DOMAIN_REGISTRY, 1, log);
+    return brix_service_publish_fd(&req, NGX_INVALID_FILE, stage_path);
 }
 
 
@@ -414,7 +399,10 @@ brix_oci_store_tag_set(const brix_oci_store_t *st, const brix_oci_req_t *req,
     if (n >= sizeof(line)) {
         return NGX_ERROR;
     }
-    return brix_oci_store_put_text(path, line, n, log);
+    /* A tag swap is deliberately NOT excl: overwriting the pointer is the
+     * operation. REGISTRY makes the new pointer durable before we answer. */
+    return brix_oci_store_publish_bytes(st, path, line, n,
+                                        BRIX_VFS_DOMAIN_REGISTRY, log);
 }
 
 
@@ -443,7 +431,11 @@ brix_oci_store_tag_list(const brix_oci_store_t *st, const char *name,
     while ((ent = readdir(dh)) != NULL) {  /* vfs-seam-allow: DOMAIN_REGISTRY — registry's own store index, not a VFS export listing */
         size_t len = ngx_strlen(ent->d_name);
 
-        if (ent->d_name[0] == '.' || used + len + 2 > outsz) {
+        /* Skip dotfiles, over-long entries, and a crash-orphaned publish temp
+         * (<tag>.xrd-tmp.<pid>.<rand>) that the startup reaper has not yet swept
+         * — a stale temp is not a tag. */
+        if (ent->d_name[0] == '.' || used + len + 2 > outsz
+            || brix_tmp_is_temp_name(ent->d_name)) {
             continue;
         }
         ngx_memcpy(out + used, ent->d_name, len);
@@ -473,7 +465,8 @@ brix_oci_store_mark_layer(const brix_oci_store_t *st, const char *name,
     /* An empty file: the MARK is the fact, and its name carries the digest.
      * Rewriting an existing mark is harmless and keeps the caller free of a
      * "does it already reference this?" probe on every push. */
-    return brix_oci_store_put_text(path, "", 0, log);
+    return brix_oci_store_publish_bytes(st, path, "", 0,
+                                        BRIX_VFS_DOMAIN_REGISTRY, log);
 }
 
 

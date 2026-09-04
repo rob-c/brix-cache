@@ -431,7 +431,7 @@ brix_proxy_relay_to_client(brix_proxy_ctx_t *proxy)
         proxy->resp_body = NULL;
     }
 
-    ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    ngx_log_debug4(NGX_LOG_DEBUG_STREAM, c->log, 0,
                   "xrootd proxy: relay reqid=%d status=%d dlen=%uz resptype=%d",
                   (int) proxy->fwd_reqid, (int) status, (size_t) dlen,
                   (int) resptype);

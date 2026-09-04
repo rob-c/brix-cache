@@ -1,6 +1,11 @@
 # Fast-Tier Coverage: Baseline, Lessons & Test-Building Plan
 
-**Status:** baseline read 2026-07-21 (local); plan OPEN. Wave-0 landed.
+**Status:** IMPLEMENTED / RATCHET ACTIVE (reconciled 2026-09-03). A clean
+instrumented run measured 68.9% combined line coverage and 77.6% function
+coverage across `src/` and `client/`. CI enforces `COVERAGE_MIN=67`; a test-suite
+failure is fatal even when partial counters render successfully. The workflow
+has no `continue-on-error`, uses `pipefail`, and always uploads the diagnostic
+report.
 **Owner doc for:** `QUALITY_ROADMAP.md` §2.3.3 / §3.4 coverage floor.
 **Companion tooling:** `tools/ci/coverage.py`, `cmdscripts.operator_build build_coverage`,
 `.github/workflows/coverage.yml`.
@@ -19,7 +24,8 @@ does not protect day-to-day development.
 
 ## 1. How to reproduce the baseline (methodology)
 
-The lane is report-only and self-skips cleanly without `lcov`/`gcov`. Two ways to run it:
+The lane is blocking when `COVERAGE_MIN` is set (as it is in CI) and self-skips
+cleanly without `lcov`/`gcov`. Two ways to run it:
 
 ### 1a. Packaged lane (what CI runs)
 ```bash
@@ -28,7 +34,7 @@ NGINX_SRC=/tmp/nginx-1.28.3 python3 tools/ci/coverage.py
 # → builds instrumented nginx+client, runs COVERAGE_TEST_CMD
 #   (default: python3 -m cmdscripts.operator_runtime suite --fast),
 #   lcov-captures src/* client/*, genhtml, prints line-rate. Floor enforced
-#   ONLY when COVERAGE_MIN is set (B-1 lesson: never gate pre-baseline).
+#   enforces the line floor when COVERAGE_MIN is set (CI sets 67).
 ```
 
 ### 1b. Manual / private-tree (what produced this baseline; survives concurrent `make`)
@@ -74,7 +80,23 @@ cd <repo>/client && gcovr --root . --merge-mode-functions=separate \
 
 ---
 
-## 2. The baseline (fast tier only)
+## 2. Baselines
+
+### 2.1 Current combined ratchet baseline — 2026-09-03
+
+The reproducible instrumented report is retained at the Phase-111 acceptance
+boundary. `lcov --summary coverage.info` reported:
+
+| Tree | Lines | Functions | Branches |
+|---|---:|---:|---:|
+| `src/` + `client/` | **68.9%** (101,308 / 146,998) | **77.6%** (8,150 / 10,497) | not captured |
+
+The blocking floor is **67%**, 1.9 percentage points below the observation. It
+is a regression ratchet rather than an aspirational target: raise it only after
+a new complete observation. `tools/ci/coverage.py` combines the suite result
+and floor verdict, so a broken suite can never publish a green coverage job.
+
+### 2.2 Historical first fast-tier baseline — 2026-07-21
 
 Suite result: 7659 passed / 21 failed / 147 skipped / 42 xfailed (the 21 failures were
 instrumentation artifacts + pre-existing CI-guard debt, not coverage-relevant).
@@ -84,7 +106,7 @@ instrumentation artifacts + pre-existing CI-guard debt, not coverage-relevant).
 | `src/`    | **67.5 %** (59 484 / 88 166)   | 76.5 % (4482/5856) | 46.8 %   |
 | `client/` | **53.4 %** (12 867 / 24 107)   | 63.0 %             | 41.2 %   |
 
-**This is a floor, not the true coverage.** See §3 for exactly what the fast tier
+**This historical split is diagnostic, not the active floor.** See §3 for exactly what the fast tier
 excludes and — crucially — what it does *not* exclude.
 
 ---
@@ -190,7 +212,7 @@ Ranked by uncovered lines in the `src/` baseline.
 Each wave follows the repo's **3-test ritual** (success + error + security-negative)
 and the fleet-declaration gate (`@pytest.mark.registry_server(<name>)` or a declared
 fixture). Prefer extending an existing config/spec over adding a new fleet instance.
-**Every subagent dispatched to help must be told: never run git-write commands, never
+**Every contributor working in parallel must be told: never run git-write commands, never
 run pytest (single-owner fleet).**
 
 ---
@@ -528,22 +550,26 @@ the line rate. Reuse existing data-plane test helpers rather than new fixtures.
 
 ---
 
-## 6. Graduating the CI floor (do this before setting `COVERAGE_MIN`)
+## 6. CI-floor graduation record
 
-1. Run **one full-tier** instrumented capture in CI (not `--fast`) to read the true
-   number — Category A code will light up (impersonate as root, serial TPC/GSI) and the
-   real `src/` line-rate will exceed 67.5 %. This is the number a full-tier floor is set
-   against (B-1 lesson).
-2. Optionally fix Category **D**: add `tests/c/` gcda to the lcov capture so the existing
-   C-unit coverage (cred_mint, token/scope units) is credited.
-3. Land Wave 1–2 (no-infra), re-read fast-tier %, and set an initial **fast-tier**
-   `COVERAGE_MIN` a few points under the observed fast number as a ratchet-only floor.
-4. Keep the fast floor and any full-tier floor as **separate** env values — a fast-only
-   gate must never assume Category A/B coverage the fast tier can't produce.
+The floor graduated on 2026-09-03 after the combined 68.9% observation:
+
+1. `.github/workflows/coverage.yml` sets `COVERAGE_MIN: 67` and uses shell
+   `pipefail`, so piping through `tee` cannot conceal a tool failure.
+2. The coverage step is blocking; only the artifact upload uses `if: always()`.
+3. `tools/ci/coverage.py` captures partial diagnostics after a suite failure but
+   returns that failure after evaluating the floor.
+4. Unit regressions pin green-above-floor, below-floor and failed-suite behavior.
+
+Future full-tier or privileged coverage may use its own separately observed
+floor; it must not silently replace this fast-tier ratchet.
 
 ---
 
 ## 7. Progress log
+- **2026-09-03** — B111-017 closed: combined baseline 68.9% lines / 77.6%
+  functions; blocking 67% CI floor, fatal suite result, pipe-safe workflow and
+  always-uploaded report landed.
 - **2026-07-21** — baseline read (§2); lane bugs fixed (§1); Category-C Wave-0 landed:
   `test_webdav_search.py` (10) + ListParts/ListMultipartUploads in `test_s3_multipart.py`
   (10) → `search.c` 0→95 %, `multipart_complete_list_parts.c` 0→92 %,

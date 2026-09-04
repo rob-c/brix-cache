@@ -317,7 +317,7 @@ brix_ftp_ev_data_ready(ftp_ev_dc_t *dc)
 static ngx_int_t
 ev_xfer_guards(ftp_ev_t *fc, int op, int writing)
 {
-    if (writing && !fc->conf->allow_write) {
+    if (writing && !fc->conf->common.allow_write) {
         brix_ftp_ev_metric_refused(op, BRIX_ERR_FORBIDDEN);
         return brix_ftp_ev_reply(fc,
             "550 Permission denied (read-only export)\r\n");
@@ -358,7 +358,7 @@ ev_xfer_resolve_start(ftp_ev_t *fc, int op, const char *arg,
     if (op == FTP_EV_OP_STOR) {
         *start  = fc->rest_off;
         *flags  = (fc->rest_off == 0) ? BRIX_VFS_O_TRUNC : 0;
-        *verify = (fc->conf->verify_write && *start == 0) ? 1 : 0;
+        *verify = (fc->conf->common.verify_write && *start == 0) ? 1 : 0;
     } else if (op == FTP_EV_OP_APPE) {
         brix_vfs_ctx_t  vctx;
         brix_vfs_stat_t st;

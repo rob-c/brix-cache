@@ -1,47 +1,12 @@
-"""Phase-107 C7 — the VFS lock gate, live across protocol planes.
+"""Phase-107 C7 live cross-protocol VFS lock-gate contracts.
 
-A WebDAV lock is one xattr on the resource (user.nginx_xrootd.lock), which
-means the state was always in the storage layer and visible to every plane —
-but only the WebDAV edge ever *checked* it.  W8 hoisted the check into the VFS
-mutation path (src/fs/vfs/vfs_lock_gate.c, position 2 of the §3.4 gate order),
-so a lock taken over WebDAV now refuses the same file over root://, S3 and
-GridFTP, each in its own wire idiom (§5.0):
-
-    root://   EBUSY -> kXR_FileLocked
-    WebDAV    EBUSY -> 423 Locked
-    S3        423   -> 409 Conflict + OperationAborted
-    GridFTP   EBUSY -> 450
-
-These are the seven contract rows from
-docs/refactor/phase-107-vfs-mutation-surface-completion.md §4/C7:
-
-  success   davs LOCK, then root:// write -> kXR_FileLocked; the same write
-            succeeds after UNLOCK;
-  success   the lock owner writing over WebDAV with the If: token succeeds;
-  success   an EXPIRED lock refuses nothing, and the xattr is still present
-            afterwards on a read-only export (the gate never reaps);
-  error     `brix_lock_enforcement advisory` -> the root:// write succeeds,
-            one warn names the path (never the token), and the refused-metric
-            still books;
-  error     `brix_lock_enforcement off` -> today's behaviour exactly: the
-            write succeeds, nothing is logged, nothing is booked;
-  sec-neg   a forged lock token is refused and the refusal does not echo the
-            real token;
-  sec-neg   on a read-only export the answer is kXR_fsReadOnly, never
-            kXR_FileLocked — EROFS precedes EBUSY, so the lock's existence is
-            not disclosed.
-
-Plus the cross-protocol closure the W8 checklist demands: ONE lock refusing
-S3 PutObject, S3 CompleteMultipartUpload (the pool-thread path-rename bypass
-the MPU pre-flight gate closed), GridFTP STOR and DELE, and root:// — all at
-once — and every plane succeeding after UNLOCK.  The OCI publish plane still
-re-implements its mutations below the VFS (phase-108 W1 consolidates it) and
-is enforced there, not here.
-
-The C object unit (tests/c/test_vfs_lock_gate.c, `vfs_lock_gate` in
-cmdscripts/c_object_units.py) proves the gate's state machine hermetically;
-this file proves the wire-to-storage composition.  Instance topology in
-tests/configs/nginx_p107_locks.conf.
+A WebDAV lock xattr must refuse root://, WebDAV, S3 and GridFTP mutations in
+each protocol's wire idiom, while owner tokens, expired locks, advisory/off
+mode and the EROFS-before-EBUSY ordering retain their documented behavior.
+The hermetic state-machine coverage is in ``tests/c/test_vfs_lock_gate.c``;
+this module proves wire-to-storage composition with the topology in
+``tests/configs/nginx_p107_locks.conf``. Detailed rationale and the complete
+seven-row contract live in Phase 107 §4/C7.
 """
 import ftplib
 import io
@@ -700,36 +665,5 @@ def test_owner_token_copies_onto_its_own_locked_destination(lock_srv):
     assert unlock_rc == 204
 
 
-# --------------------------------------------------------------------------- #
-# nginx -t negative                                                           #
-# --------------------------------------------------------------------------- #
-def _write_bad_enforcement_conf(d: str) -> str:
-    os.makedirs(os.path.join(d, "logs"), exist_ok=True)
-    os.makedirs(os.path.join(d, "exp"), exist_ok=True)
-    conf = os.path.join(d, "nginx.conf")
-    modules = [m for m in os.environ.get(
-        "TEST_NGINX_LOAD_MODULES", "").split(os.pathsep) if m]
-    with open(conf, "w") as fh:
-        fh.write("".join(f"load_module {m};\n" for m in modules)
-                 + f"error_log {d}/logs/e.log info;\npid {d}/logs/n.pid;\n"
-                 + "events {}\nstream {\n  server {\n"
-                 + f"    listen {BIND_HOST}:{SHARED_PARSE_PLACEHOLDER_PORT};\n"
-                 + "    brix_root on;\n    brix_auth none;\n"
-                 + f"    brix_export {d}/exp;\n"
-                 + "    brix_allow_write on;\n"
-                 + "    brix_lock_enforcement yes;\n"
-                 + "  }\n}\n")
-    return conf
-
-
-def test_lock_enforcement_bad_value_refused_at_nginx_t():
-    """`brix_lock_enforcement yes;` is not an enum member: [emerg] at parse."""
-    _need_nginx()
-    with tempfile.TemporaryDirectory() as d:
-        conf = _write_bad_enforcement_conf(d)
-        env = dict(os.environ, ASAN_OPTIONS="detect_leaks=0")
-        r = subprocess.run([NGINX_BIN, "-t", "-c", conf, "-p", d],
-                           capture_output=True, text=True, timeout=30, env=env)
-    out = r.stdout + r.stderr
-    assert r.returncode != 0, "nginx -t accepted brix_lock_enforcement yes"
-    assert 'invalid value "yes"' in out, out[-1500:]
+from split_continuation import load as _load_lock_config
+_load_lock_config(globals(), __file__, "_test_cross_protocol_locks_config.py")

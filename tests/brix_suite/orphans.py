@@ -163,6 +163,77 @@ def find_orphans(test_root, exes=FLEET_EXES):
     return sorted(owned.items())
 
 
+def _listening_socket_inodes(port):
+    """Kernel socket inodes listening on ``port`` (IPv4 or IPv6).
+
+    Reading procfs is deliberately read-only and avoids shelling out to
+    ``ss``/``lsof``, either of which may be absent in a minimal CI image.
+    Malformed or permission-denied tables simply provide no ownership proof.
+    """
+    try:
+        port_hex = "%04X" % int(port)
+    except (TypeError, ValueError):
+        return set()
+    if not 0 < int(port) <= 65535:
+        return set()
+    inodes = set()
+    for table in ("/proc/net/tcp", "/proc/net/tcp6"):
+        inodes.update(_table_listener_inodes(table, port_hex))
+    return inodes
+
+
+def _table_listener_inodes(path, port_hex):
+    try:
+        rows = open(path, "r", encoding="ascii").read().splitlines()[1:]
+    except OSError:
+        return set()
+    return {_tcp_inode(fields) for row in rows
+            if (fields := row.split()) and _tcp_listener(fields, port_hex)}
+
+
+def _tcp_listener(fields, port_hex):
+    return (len(fields) > 9 and fields[3] == "0A"
+            and fields[1].rsplit(":", 1)[-1].upper() == port_hex)
+
+
+def _tcp_inode(fields):
+    return fields[9]
+
+
+def _process_socket_inodes(pid):
+    """Socket inodes held by one process, tolerating concurrent process exit."""
+    directory = "/proc/%d/fd" % int(pid)
+    try:
+        entries = os.listdir(directory)
+    except OSError:
+        return set()
+    sockets = set()
+    for entry in entries:
+        try:
+            target = os.readlink(os.path.join(directory, entry))
+        except OSError:
+            continue
+        if target.startswith("socket:[") and target.endswith("]"):
+            sockets.add(target[8:-1])
+    return sockets
+
+
+def listener_owned_by_test_root(test_root, port, exes=FLEET_EXES):
+    """Prove that the listener on ``port`` belongs to this exact test root.
+
+    This is the recovery proof used when an interrupted manager lost its
+    manifest or completion marker.  A textual argv match alone is insufficient:
+    the process proven to reference ``test_root`` must hold the actual kernel
+    listening socket.  Failure to prove ownership is always ``False`` and never
+    licenses cleanup of the listener.
+    """
+    listeners = _listening_socket_inodes(port)
+    if not listeners:
+        return False
+    return any(listeners & _process_socket_inodes(pid)
+               for pid, _command in find_orphans(test_root, exes))
+
+
 def _candidate_pids(exes):
     pids = {int(entry) for entry in os.listdir("/proc") if entry.isdigit()}
     for executable in exes:

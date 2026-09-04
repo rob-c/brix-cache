@@ -19,6 +19,7 @@ Run:
 """
 
 import os
+from pathlib import Path
 
 import pytest
 from XRootD import client
@@ -30,7 +31,7 @@ from server_registry import NginxInstanceSpec
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-readv-seg16m")]
 
-FILE_BYTES = 20 * 1024 * 1024
+FILE_BYTES = 36 * 1024 * 1024
 SEG_CAP = 16 * 1024 * 1024          # the configured brix_readv_segment_size
 MAXSEGS = 1024                       # BRIX_READV_MAXSEGS
 
@@ -49,7 +50,8 @@ def server16m(lifecycle, tmp_path):
         template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data),
                          "READV_SEG": "16m"},
         reason="official VectorRead against a 16m brix_readv_segment_size cap"))
-    return {"url": f"root://{HOST}:{ep.port}", "payload": payload}
+    return {"url": f"root://{HOST}:{ep.port}", "payload": payload,
+            "pidfile": ep.pidfile}
 
 
 def test_qconfig_advertises_configured_segment_size(server16m):
@@ -80,3 +82,52 @@ def test_official_vectorread_large_element(server16m):
         assert got == server16m["payload"][:req], "VectorRead bytes are not byte-exact"
     finally:
         f.close()
+
+
+def _worker_rss_bytes(pidfile: str) -> int:
+    master = int(Path(pidfile).read_text(encoding="ascii").strip())
+    children = Path(f"/proc/{master}/task/{master}/children")
+    pids = [int(value) for value in children.read_text().split()]
+    assert pids, "test nginx has no worker process"
+    total = 0
+    for pid in pids:
+        status = Path(f"/proc/{pid}/status").read_text()
+        rss_line = next(line for line in status.splitlines()
+                        if line.startswith("VmRSS:"))
+        total += int(rss_line.split()[1]) * 1024
+    return total
+
+
+def _open_test_file(url: str):
+    handle = client.File()
+    status, _ = handle.open(url + "//big.bin", 0)
+    assert status.ok, f"open failed: {status.message}"
+    return handle
+
+
+def _vector_bytes(handle, chunks) -> bytes:
+    status, result = handle.vector_read(chunks)
+    assert status.ok, f"vector_read failed: {status.message}"
+    return b"".join(bytes(chunk.buffer) for chunk in result.chunks)
+
+
+def _expected_bytes(payload: bytes, chunks) -> bytes:
+    return b"".join(payload[offset:offset + length]
+                    for offset, length in chunks)
+
+
+def test_large_vectorread_server_residency_is_window_bounded(server16m):
+    """A 32 MiB logical response must not create the old 32 MiB server buffer."""
+    chunks = [(index * 8 * 1024 * 1024, 8 * 1024 * 1024)
+              for index in range(4)]
+    f = _open_test_file(server16m["url"])
+    before = _worker_rss_bytes(server16m["pidfile"])
+    try:
+        got = _vector_bytes(f, chunks)
+    finally:
+        f.close()
+    assert got == _expected_bytes(server16m["payload"], chunks)
+    growth = max(0, _worker_rss_bytes(server16m["pidfile"]) - before)
+    assert growth < 24 * 1024 * 1024, (
+        f"worker RSS grew {growth} bytes for a 32 MiB readv; response was likely "
+        "assembled instead of streamed through BRIX_READ_WINDOW")

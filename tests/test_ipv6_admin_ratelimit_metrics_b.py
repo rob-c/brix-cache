@@ -64,10 +64,14 @@ def test_metrics_ipv6_label_cardinality_bounded():
         "action",        # write-through stage throttle action: wait/reject
         "auth",          # auth method: anon/gsi/token/sss/krb
         "backend",       # storage backend driver name (fs_list.h census: posix/pblock/...)
+        "cache_status",  # bounded cache outcome: hit/miss/fill/error
         "class",         # cvmfs request class: cas/manifest/geo
         "depth",         # request-pipeline depth bucket (phase-29)
         "direction",     # in/out (read vs write data direction)
+        "domain",        # bounded service domain: registry/gridftp/webdav/...
+        "driver",        # configured VFS driver (closed driver registry)
         "event",         # lifecycle event class
+        "kind",          # bounded operation/resource kind
         "le",            # Prometheus histogram bucket upper bound
         "method",        # HTTP method (GET/PUT/...)
         "mode",          # server mode (standalone/manager/...)

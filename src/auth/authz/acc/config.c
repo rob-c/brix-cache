@@ -55,48 +55,6 @@ brix_acc_build(const char *authdb_path, ngx_int_t gidlifetime, ngx_int_t pgo,
     return brix_acc_authfile_parse(log, authdb_path, spacechar, encoding);
 }
 
-/* Re-read the authdb when its mtime changes; swap the live tables atomically. */
-static void
-brix_acc_refresh_handler(ngx_event_t *ev)
-{
-    ngx_stream_brix_srv_conf_t  *xcf = ev->data;
-    ngx_file_info_t                fi;
-
-    if (xcf->authdb.len > 0
-        && ngx_file_info(xcf->authdb.data, &fi) != NGX_FILE_ERROR)
-    {
-        time_t mt  = ngx_file_mtime(&fi);
-        time_t cur = (xcf->acc.tables != NULL) ? xcf->acc.tables->mtime : 0;
-
-        if (mt != cur) {
-            brix_acc_tables_t *nt =
-                brix_acc_build((const char *) xcf->authdb.data,
-                                 xcf->acc.gidlifetime, xcf->acc.pgo,
-                                 (xcf->acc.nisdomain.len > 0)
-                                     ? (const char *) xcf->acc.nisdomain.data
-                                     : NULL,
-                                 (xcf->acc.gidretran.len > 0)
-                                     ? (const char *) xcf->acc.gidretran.data
-                                     : NULL,
-                                 (xcf->acc.spacechar.len > 0)
-                                     ? (char) xcf->acc.spacechar.data[0] : 0,
-                                 xcf->acc.encoding,
-                                 ev->log);
-            if (nt != NULL) {
-                brix_acc_tables_t *old = xcf->acc.tables;
-                xcf->acc.tables = nt;          /* single-threaded: safe swap */
-                brix_acc_tables_free(old);
-                ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
-                              "xrootd authdb reloaded: %s", xcf->authdb.data);
-            }
-        }
-    }
-
-    if (xcf->acc.refresh > 0 && !ngx_exiting) {
-        ngx_add_timer(ev, (ngx_msec_t) xcf->acc.refresh * 1000);
-    }
-}
-
 /* Build a fresh table generation for an HTTP acc block (honours the tunables). */
 static brix_acc_tables_t *
 brix_acc_http_build(brix_acc_http_t *acc, ngx_log_t *log)
@@ -241,40 +199,25 @@ brix_acc_http_authorize(ngx_pool_t *pool, ngx_log_t *log,
 ngx_int_t
 brix_acc_init_server(ngx_stream_brix_srv_conf_t *xcf, ngx_cycle_t *cycle)
 {
+    brix_acc_http_t *acc = &xcf->common.acc;
+
     /* Only servers using the xrdacc engine with an authdb file. */
-    if (xcf->acc.format != BRIX_AUTHDB_FORMAT_XRDACC || xcf->authdb.len == 0) {
+    if (acc->format != BRIX_AUTHDB_FORMAT_XRDACC || acc->authdb.len == 0) {
         return NGX_OK;
     }
 
-    xcf->acc.tables = brix_acc_build(
-        (const char *) xcf->authdb.data, xcf->acc.gidlifetime, xcf->acc.pgo,
-        (xcf->acc.nisdomain.len > 0) ? (const char *) xcf->acc.nisdomain.data
-                                     : NULL,
-        (xcf->acc.gidretran.len > 0) ? (const char *) xcf->acc.gidretran.data
-                                     : NULL,
-        (xcf->acc.spacechar.len > 0) ? (char) xcf->acc.spacechar.data[0] : 0,
-        xcf->acc.encoding,
-        cycle->log);
-    if (xcf->acc.tables == NULL) {
+    acc->tables = brix_acc_http_build(acc, cycle->log);
+    if (acc->tables == NULL) {
         BRIX_DIAG_EMERG(cycle->log, 0,
             "brix: failed to load authorization database \"%V\"",
             "the authdb could not be opened or parsed",
             "see the specific \"xrootd authdb:\" error logged just above for "
             "the exact file/line and how to fix it",
-            &xcf->authdb);
+            &acc->authdb);
         return NGX_ERROR;
     }
 
-    if (xcf->acc.refresh > 0) {
-        xcf->acc.timer = ngx_pcalloc(cycle->pool, sizeof(ngx_event_t));
-        if (xcf->acc.timer == NULL) {
-            return NGX_ERROR;
-        }
-        xcf->acc.timer->handler = brix_acc_refresh_handler;
-        xcf->acc.timer->data    = xcf;
-        xcf->acc.timer->log     = cycle->log;
-        ngx_add_timer(xcf->acc.timer, (ngx_msec_t) xcf->acc.refresh * 1000);
-    }
+    brix_acc_http_arm_timer(acc);
 
     return NGX_OK;
 }

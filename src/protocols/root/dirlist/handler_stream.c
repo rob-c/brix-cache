@@ -121,7 +121,7 @@ brix_dirlist_entry_skip(ngx_log_t *log, const char *name)
  *          probe error or an export with no nearline tier reports online).
  */
 static int
-brix_dirlist_entry_not_online(ngx_connection_t *c,
+brix_dirlist_entry_not_online(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_dirlist_walk_t *walk, const char *name,
     const brix_vfs_stat_t *vst)
 {
@@ -142,7 +142,8 @@ brix_dirlist_entry_not_online(ngx_connection_t *c,
 
     brix_vfs_ctx_init(&residency_ctx, c->pool, c->log, BRIX_PROTO_ROOT,
         walk->conf->common.root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY,
-        0 /* is_tls */, NULL, entry_path);
+        0 /* is_tls */, ctx->identity, entry_path);
+    brix_root_vfs_bind_session(ctx, walk->conf, &residency_ctx);
 
     return brix_vfs_residency(&residency_ctx, &residency, NULL) == NGX_OK
            && (residency == BRIX_SD_RES_NEARLINE
@@ -361,7 +362,7 @@ brix_dirlist_stream_entries(brix_ctx_t *ctx, ngx_connection_t *c,
             continue;
         }
 
-        if (brix_dirlist_entry_not_online(c, walk, name, &entry_vst)) {
+        if (brix_dirlist_entry_not_online(ctx, c, walk, name, &entry_vst)) {
             continue;
         }
 

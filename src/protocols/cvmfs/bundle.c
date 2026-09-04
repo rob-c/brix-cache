@@ -24,6 +24,8 @@
 #include "cvmfs/bundle/bundle.h"
 #include "fs/backend/cache/sd_cache.h"     /* brix_sd_cache_fill_needs_offload */
 #include "fs/vfs/vfs.h"
+#include "fs/path/n2n_stage.h"
+#include "protocols/shared/vfs_authz_bind.h"
 #include "core/http/http_headers.h"   /* brix_http_request_is_tls */
 
 #include <limits.h>
@@ -220,12 +222,14 @@ cvmfs_bundle_fill_one(ngx_http_request_t *r, const char *root,
 {
     ngx_http_brix_cvmfs_ctx_t *ctx =
         ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
+    ngx_http_brix_cvmfs_loc_conf_t *lcf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_cvmfs_module);
     char              path[PATH_MAX];
     brix_vfs_ctx_t  vctx;
     brix_vfs_file_t *fh;
     int               vfs_err = 0;
     int               is_tls = 0;
-    const char       *key;
+    char              key[PATH_MAX];
 
     if (cvmfs_bundle_fs_path(ctx, root, w, path, sizeof(path)) != 0) {
         return;                                              /* stays a miss */
@@ -235,8 +239,11 @@ cvmfs_bundle_fill_one(ngx_http_request_t *r, const char *root,
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
         BRIX_PROTO_CVMFS, root, "", BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL,
         path);
+    brix_http_vfs_bind_no_rules(&lcf->common, &vctx);
     vctx.sd = sd;
-    key = brix_vfs_export_relative(&vctx, path);
+    if (brix_path_resolved_to_pfn(&vctx, path, key, sizeof(key)) != NGX_OK) {
+        return;
+    }
 
     /* resident-only contract: a remote miss is NEVER filled from here */
     if (brix_sd_cache_fill_needs_offload(sd, key)) {

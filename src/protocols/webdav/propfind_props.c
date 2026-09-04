@@ -103,7 +103,6 @@ static ngx_int_t
 propfind_emit_locality(ngx_http_request_t *r, ngx_chain_t **head,
                         ngx_chain_t **tail, const char *path, struct stat *sb)
 {
-    ngx_http_brix_webdav_loc_conf_t *conf;
     ngx_pool_t                        *pool = propfind_pool(r);
     brix_vfs_ctx_t                     vctx;
     brix_sd_residency_t                res;
@@ -123,11 +122,7 @@ propfind_emit_locality(ngx_http_request_t *r, ngx_chain_t **head,
         return NGX_OK; /* Only emit for regular files. */
     }
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    brix_vfs_ctx_init(&vctx, propfind_pool(r), r->connection->log,
-        BRIX_PROTO_WEBDAV, conf->common.root_canon, conf->common.cache_root_canon,
-        brix_vfs_policy_from_write_enable(conf->common.allow_write),
-        0 /* is_tls */, NULL, path);
+    webdav_vfs_ctx_build(r, path, &vctx);
 
     if (brix_vfs_residency(&vctx, &res, &nearline) == NGX_OK && nearline) {
         switch (res) {

@@ -1,6 +1,6 @@
 # Throughput hyper-optimization — round 12: double-buffered windowed reads
 
-Date: 2026-09-02 · Status: implemented, tested, benched (single-stream 1.36×; 8-client gap −9% → ahead) · UNCOMMITTED
+Date: 2026-09-02 · Status: implemented, tested, benched (single-stream 1.36×; 8-client gap −9% → ahead) · landed in 5f5822004 (+ post-round fixes below, working tree)
 
 ## Symptom
 
@@ -159,6 +159,46 @@ error/alert/crit lines across all runs.
   pgrw + plain trains (≈4,000 prefetch/swap cycles each).
 - All CI guards green (config_coverage, complexity, duplication, file_size,
   vfs_seam, vfs_mutation_gate, python_quality, import_direction, namespace).
+
+## Post-round fixes (2026-09-02 evening, found by the full fast tier)
+
+Three defects surfaced when the whole `-m "not slow"` tier ran against the
+round-12 binary; all three are fixed in the working tree on top of 5f5822004.
+
+1. **pgread short-window framing = silent truncation** (`pgread_window.c`,
+   `reads_window.c`). The emit treated ANY `got < win_remaining` as "more
+   windows follow" and kept the train going — but a short read is EOF, and
+   pgread framing permits a partial page only in the FINAL frame. The short
+   window went out as `kXR_PartialResult`, the follow-up read returned 0, and
+   the zero-byte Final under-filled the request: the client saw a corrupt
+   tail page / short file. Rule now pinned in both files: **a short window is
+   EOF and MUST end the train in the same emit** (`kXR_FinalResult` on the
+   short frame); only a byte-exact full window with bytes still owed
+   continues. The prefetch side got the mirror guard — a read-ahead behind a
+   train-ending short window would outlive the train and race the swapped
+   scratch buffer, so `brix_read_window_prefetch` now skips when
+   `nread < want`. Proof: `test_pgread_primary_stream.py` +
+   `test_vfs_read_only_static.py` (EOF-straddling windowed pgreads).
+
+2. **Budget admission starvation** (`budget.h`). The idle-pool escape was
+   `others == 0` — but every logged-in connection pins a few framing bytes
+   (`payload_buf`), so `others` is almost never exactly 0, and a
+   `want > budget` transfer fell into a permanent `kXR_wait` retry loop the
+   moment any second session existed. The threshold is now `others <=
+   budget/2`: real transfer scratch (≥ one streaming window) sits far above
+   half-budget, idle framing residue far below, and an admitted over-budget
+   transfer then holds enough charge to defer the next — which is the
+   backpressure the cap exists for. Proof: `test_fsoverload_stall.py`.
+
+3. **`config` dep-list gap** (build governance). `budget.h` was never in
+   `ngx_brix_stream_deps`, so editing it rebuilt NOTHING — the fix above
+   silently didn't take until a manual `touch` of an includer. The general
+   trap: a new header that misses the deps list produces stale-binary
+   debugging sessions, and no guard catches it (`check_config_coverage.py`
+   audits `.c` source entries only, not `NGX_ADDON_DEPS`). When adding a
+   header under `src/`, add it to the deps block in `config` in the same
+   change; symptom of the gap is an edit that "doesn't do anything" until
+   re-`./configure` or a clean build.
 
 Trap for the next reader: the two payload-buffer helpers tripped
 `check_duplication` the moment they moved to their own file — the clone was

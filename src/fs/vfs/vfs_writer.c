@@ -206,8 +206,7 @@ brix_vfs_writer_write(brix_vfs_writer_t *w, const void *buf, size_t len,
     if (len == 0) {
         return NGX_OK;
     }
-    if (brix_vfs_require_carried_mutation(w->mutation_policy,
-            brix_vfs_metrics_proto(w->ctx), BRIX_VFS_MUTATE_WRITE) != NGX_OK)
+    if (brix_vfs_gate_mutation(w->ctx, BRIX_VFS_MUTATE_WRITE) != NGX_OK)
     {
         return NGX_ERROR;
     }
@@ -270,8 +269,7 @@ brix_vfs_writer_write_fd(brix_vfs_writer_t *w, int src_fd, off_t src_off,
     if (len == 0) {
         return NGX_OK;
     }
-    if (brix_vfs_require_carried_mutation(w->mutation_policy,
-            brix_vfs_metrics_proto(w->ctx), BRIX_VFS_MUTATE_WRITE) != NGX_OK)
+    if (brix_vfs_gate_mutation(w->ctx, BRIX_VFS_MUTATE_WRITE) != NGX_OK)
     {
         return NGX_ERROR;
     }
@@ -406,8 +404,7 @@ brix_vfs_writer_commit_pre(brix_vfs_writer_t *w, brix_sd_precond_t *pre)
     /* MUTATE_PUBLISH: commit is where the object becomes visible under its final
      * name — a distinct event from the body writes above, and reported as one
      * (see the same reasoning in brix_vfs_staged_commit). */
-    if (brix_vfs_require_carried_mutation(w->mutation_policy,
-            brix_vfs_metrics_proto(w->ctx), BRIX_VFS_MUTATE_PUBLISH) != NGX_OK)
+    if (brix_vfs_gate_mutation(w->ctx, BRIX_VFS_MUTATE_PUBLISH) != NGX_OK)
     {
         return NGX_ERROR;
     }

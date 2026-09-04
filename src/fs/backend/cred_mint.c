@@ -40,6 +40,7 @@
 #include <openssl/rand.h>
 #include <openssl/x509.h>
 #include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
+#include "core/compat/cred_stage.h"   /* brix_cred_write (phase-108 C11) */
 
 #define MINT_PATH_MAX 1024
 
@@ -166,106 +167,38 @@ mint_serialize_pem(X509 *cert, EVP_PKEY *key, X509 *ca_cert, ngx_log_t *log)
     return mem;
 }
 
-/* ---- mint_write_tmp ------------------------------------------------------
- * WHAT: Write `len` bytes of `data` to a freshly-created, O_EXCL, 0600,
- *       O_NOFOLLOW temp file at `tmp_path`, then fsync it. On any failure the
- *       temp file is unlinked before returning NGX_ERROR; on success the file
- *       persists (owned by the caller, which renames it into place).
- * WHY:  Isolates the durable-write failure ladder (open/write/fsync) so
- *       mint_write_pem() reads as serialize -> write-tmp -> rename.
- * HOW:  open(O_CREAT|O_EXCL|O_WRONLY|O_NOFOLLOW,0600), full-length write,
- *       fsync, close; unlink on the error paths. */
-static int
-mint_write_tmp(const char *tmp_path, const char *data, long len,
-    ngx_log_t *log)
-{
-    int     fd;
-    int     rc = NGX_ERROR;
-    ssize_t w;
-
-    fd = open(tmp_path, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, 0600);
-    if (fd < 0) {
-        MINT_LOG(NGX_LOG_ERR, log, errno,
-            "brix: cred_mint: cannot create temp file \"%s\"", tmp_path);
-        return NGX_ERROR;
-    }
-
-    w = write(fd, data, (size_t) len);
-    if (w < 0 || w != len) {
-        MINT_LOG(NGX_LOG_ERR, log, errno,
-            "brix: cred_mint: short/failed write to \"%s\"", tmp_path);
-    } else if (fsync(fd) != 0) {
-        MINT_LOG(NGX_LOG_ERR, log, errno,
-            "brix: cred_mint: fsync failed on \"%s\"", tmp_path);
-    } else {
-        rc = NGX_OK;
-    }
-    close(fd);
-
-    if (rc != NGX_OK) {
-        unlink(tmp_path);
-    }
-    return rc;
-}
-
-/* ---- mint_build_paths ----------------------------------------------------
- * WHAT: Fill `final_path` (<dir>/<key_stem>.pem) and `tmp_path`
- *       (<dir>/.mint-<key_stem>.<pid>.tmp) — the PID keeps concurrent mints
- *       from colliding on the temp name. NGX_ERROR if either overflows its
- *       MINT_PATH_MAX buffer.
- * WHY:  Removes two length-check branches from mint_write_pem() and names the
- *       temp-file naming convention in one place.
- * HOW:  Bounded snprintf into caller-owned MINT_PATH_MAX buffers. */
-static int
-mint_build_paths(const char *dir, const char *key_stem,
-    char final_path[MINT_PATH_MAX], char tmp_path[MINT_PATH_MAX],
-    ngx_log_t *log)
-{
-    int n;
-
-    n = snprintf(final_path, MINT_PATH_MAX, "%s/%s.pem", dir, key_stem);
-    if (n < 0 || (size_t) n >= (size_t) MINT_PATH_MAX) {
-        MINT_LOG(NGX_LOG_ERR, log, 0,
-            "brix: cred_mint: credential path too long");
-        return NGX_ERROR;
-    }
-    n = snprintf(tmp_path, MINT_PATH_MAX, "%s/.mint-%s.%d.tmp",
-        dir, key_stem, (int) getpid());
-    if (n < 0 || (size_t) n >= (size_t) MINT_PATH_MAX) {
-        MINT_LOG(NGX_LOG_ERR, log, 0,
-            "brix: cred_mint: temp credential path too long");
-        return NGX_ERROR;
-    }
-    return NGX_OK;
-}
-
 /* ---- mint_write_pem -------------------------------------------------------
  * WHAT: Serialize mat->cert + mat->key + mat->ca_cert (leaf, then key, then
  *       the mint CA cert as the trust-chain tail) as concatenated PEM blocks
- *       and write them atomically to <dir>/<key_stem>.pem.
+ *       and publish them atomically as <dir>/<key_stem>.pem.
  * WHY:  A reader (brix_sd_ucred_resolve, or any other process racing this
  *       mint) must never observe a partially-written file; a crash between
  *       open() and the final bytes must not leave a corrupt .pem where a
  *       valid one previously existed.
- * HOW:  mint_build_paths -> mint_serialize_pem (in-memory) -> mint_write_tmp
- *       (same-directory O_EXCL 0600 temp + fsync) -> rename() over the final
- *       path (POSIX rename is atomic within one filesystem). The temp name
- *       embeds the PID so concurrent mints cannot collide.
- * vfs-seam-allow: svc-owned credential dir, not an export — this is the
- * shared per-user backend-credential cache directory (brix_storage_
- * credential_dir), not an fs/ export root; raw POSIX I/O here is the
- * existing Phase-1 seam convention (see ucred.c's O_NOFOLLOW token read). */
+ * HOW:  mint_serialize_pem (in-memory) -> brix_cred_write (phase-108 C11,
+ *       PERSISTENT/PROXY): same-directory exclusive 0600 random-suffix temp,
+ *       full-length write, fsync, rename over the final path, parent-dir
+ *       flush — plus the staging-standard owner/mode check on the credential
+ *       dir. The random suffix replaces the PID-keyed temp name (stronger
+ *       against concurrent mints of the same stem in one worker). The
+ *       failure log names only the DIR: key_stem is a caller identity and
+ *       never appears in a log line. */
 static int
 mint_write_pem(const char *dir, const char *key_stem,
     const mint_material_t *mat, ngx_log_t *log)
 {
-    char  final_path[MINT_PATH_MAX];
-    char  tmp_path[MINT_PATH_MAX];
-    BIO  *mem = NULL;
-    char *data = NULL;
-    long  len = 0;
+    char                   name[256];
+    char                   final_path[MINT_PATH_MAX];
+    BIO                   *mem = NULL;
+    char                  *data = NULL;
+    long                   len = 0;
+    int                    n;
+    brix_cred_write_req_t  req;
 
-    if (mint_build_paths(dir, key_stem, final_path, tmp_path, log) != NGX_OK) {
+    n = snprintf(name, sizeof(name), "%s.pem", key_stem);
+    if (n < 0 || (size_t) n >= sizeof(name)) {
+        MINT_LOG(NGX_LOG_ERR, log, 0,
+            "brix: cred_mint: credential name too long");
         return NGX_ERROR;
     }
 
@@ -275,19 +208,23 @@ mint_write_pem(const char *dir, const char *key_stem,
     }
     len = BIO_get_mem_data(mem, &data);   /* aliases into mem; valid till free */
 
-    if (mint_write_tmp(tmp_path, data, len, log) != NGX_OK) {
+    ngx_memzero(&req, sizeof(req));
+    req.log  = log;
+    req.arm  = BRIX_CRED_ARM_PERSISTENT;
+    req.kind = BRIX_CRED_KIND_PROXY;
+    req.dir  = dir;
+    req.name = name;
+
+    if (brix_cred_write(&req, data, (size_t) len, final_path,
+                        sizeof(final_path)) != 0)
+    {
+        MINT_LOG(NGX_LOG_ERR, log, errno,
+            "brix: cred_mint: publishing a minted credential in \"%s\" failed",
+            dir);
         BIO_free(mem);
         return NGX_ERROR;
     }
     BIO_free(mem);
-
-    if (rename(tmp_path, final_path) != 0) {
-        MINT_LOG(NGX_LOG_ERR, log, errno,
-            "brix: cred_mint: rename \"%s\" -> \"%s\" failed",
-            tmp_path, final_path);
-        unlink(tmp_path);
-        return NGX_ERROR;
-    }
 
     return NGX_OK;
 }

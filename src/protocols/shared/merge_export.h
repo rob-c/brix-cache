@@ -4,11 +4,13 @@
 /*
  * merge_export.h — the export-anchor sequence every HTTP protocol merge runs.
  *
- * WHAT: One helper, brix_http_merge_export_anchor(), that turns a location's
- *       configured export root into the three things the read/write planes
- *       below it need: a canonical path (root_canon), the persistent O_PATH
- *       confinement fd every openat2(RESOLVE_BENEATH) anchors on, and a
- *       registered VFS storage backend for whatever brix_storage_backend named.
+ * WHAT: brix_http_merge_export_anchor() turns a location's configured export
+ *       root into the three things the read/write planes below it need: a
+ *       canonical path (root_canon), the persistent O_PATH confinement fd
+ *       every openat2(RESOLVE_BENEATH) anchors on, and a registered VFS
+ *       storage backend. brix_http_register_storage_backend() exposes the
+ *       backend plus site-name-translation portion to protocols whose root
+ *       preparation has additional ordering constraints.
  *
  * WHY:  CVMFS, OCI and RPM each ran the identical four steps in their own
  *       merge, in the identical order, with the identical error handling — and
@@ -23,8 +25,8 @@
  * HOW:  Defaults an unset root to "/" (the pure-cache-node anchor: the location
  *       serves the "/" namespace and fills from its backend into the cache
  *       store), then brix_prepare_export_root → brix_http_open_rootfd →
- *       brix_vfs_backend_config_str. Every failure is already reported by the
- *       step that failed, so the caller just propagates NGX_CONF_ERROR.
+ *       brix_http_register_storage_backend. Every failure is already reported
+ *       by the step that failed, so the caller just propagates NGX_CONF_ERROR.
  *
  * NOT in scope, deliberately: the per-plane freshness stamps
  * (cache_manifest_ttl and friends) and brix_tier_register_stores. Those come
@@ -34,6 +36,9 @@
  */
 
 #include "core/config/shared_conf.h"
+
+char *brix_http_register_storage_backend(ngx_conf_t *cf,
+    ngx_http_brix_shared_conf_t *common);
 
 char *brix_http_merge_export_anchor(ngx_conf_t *cf,
     ngx_http_brix_shared_conf_t *common, const char *directive_name,

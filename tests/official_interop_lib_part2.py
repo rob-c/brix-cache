@@ -335,12 +335,17 @@ def start_pair(base=None, rich=True, our_port=None, off_port=None):
     tag = worker_tag()
     harness = LifecycleHarness()
     try:
+        prefname_host = socket.gethostbyname(socket.gethostname())
+        prefname_listen = ""
+        if prefname_host != BIND:
+            prefname_listen = f"listen {prefname_host}:{our_port};"
         our_ep = harness.start(NginxInstanceSpec(
             name="lc-interop-our-%s" % tag,
             template="nginx_lc_interop_our.conf",
             port=our_port,
             protocol="root", readiness="tcp",
-            data_root=our_data))
+            data_root=our_data,
+            template_values={"PREFNAME_LISTEN": prefname_listen}))
         off_ep = harness.start(NginxInstanceSpec(
             name="lc-interop-off-%s" % tag,
             template="xrootd_interop_anon.cfg",

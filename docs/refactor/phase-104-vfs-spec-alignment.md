@@ -1,6 +1,9 @@
 # Phase 104 — VFS spec alignment: every backend and front end to 100% of the idealized interface
 
-**Date:** 2026-08-10 · **Status:** PLAN (not started)
+**Date:** 2026-08-10 · **Status:** REBASED / REGISTER CLOSED 2026-09-03.
+The original census below is retained as design history, not as an executable
+backlog. The authoritative rebaseline immediately below supersedes its slot
+tables, gap labels and package estimates.
 **Source of truth:** [`docs/11-architecture/vfs-interface-specification.md`](../11-architecture/vfs-interface-specification.md)
 (the idealized contract — §3 axioms, §7.7 conformance tiers, §13 checklists,
 §14 guards), with the gap history in
@@ -13,6 +16,72 @@ field list and `.caps`/`.cred_accept` expressions (protocol: Appendix A) — not
 from docs. Several cited files are in the locally-modified set (`git status`);
 **re-verify any §0 fact against `src/` immediately before implementing its
 workstream** — this plan will age. Line numbers are anchors, not gospel.
+
+---
+
+## 2026-09-02 authoritative rebaseline
+
+Appendix A was rerun against the current tree with
+`python3 tools/diag/sd_slot_matrix.py /tmp/phase111-slot-matrix.md`, followed by
+`check_sd_driver_conformance.py` and `check_vfs_identity_branch.py`. The result
+was **63 slots × 12 registered drivers = 756 cells, 421 implemented, zero open
+gaps**. Every one of the 335 empty cells has a checked verdict in
+[`storage-driver-slot-matrix.md`](../09-developer-guide/storage-driver-slot-matrix.md),
+and the generator fails if a verdict is absent or survives after its slot is
+implemented. The matrix now includes the `mirage` driver and the post-Phase-107
+verbs and credential twins omitted from the August census.
+
+This closes the old B1–B9 slot-gap list and C1–C3 decorator/capability hazard
+list as a source inventory. In particular, current source has the expanded
+namespace, publish, reserve, eviction, checksum, recall and `_cred` vocabulary;
+HTTP/remote/Ceph credential twins are represented in the generated matrix; and
+the cache/stage empty byte-plane cells carry the explicit `dec`/`walk` verdicts
+rather than being described as accidental holes. Do not implement a package
+from the historical §0 tables without first reproducing a new generator
+failure.
+
+The Phase-91 landing added the thirteenth driver. The current generator result
+is **63 slots × 13 registered drivers = 819 cells, 444 implemented, zero open
+gaps**.
+
+The following Phase-104 decisions are closed as follows:
+
+- [x] **R104-1 — capability-to-slot semantic guard.** The current
+  `check_sd_driver_conformance.py` validates registration and callback shape,
+  while `sd_slot_matrix.py` validates every matrix cell. Neither implements the
+  slot/verdict matrix provides the stronger full-vtable check: every present
+  callback is source-derived, every absent callback requires an explicit
+  semantic verdict, and a stale verdict fails. Capability-specific runtime
+  tests remain beside the feature they exercise; a second partial cap parser
+  was rejected as a competing source of truth.
+- [x] **R104-2 — executable driver-profile conformance rig.** The planned
+  `tests/c/sd_conformance.c` and parametrized pytest wrapper are not present.
+  monolithic binary was rejected: it would either link mutually incompatible
+  optional backends or silently mock away their real contracts. The generated
+  63-slot matrix owns structural conformance, while backend-native C units and
+  fleet origins own behavior. This keeps one pytest item per real profile and
+  makes an unavailable Ceph/remote environment a visible skip, not a mock pass.
+- [x] **R104-3 — generated-document drift gate.** The source/verdict generator
+  now has a deterministic, fail-closed `--check` mode for the fenced matrix
+  region and runs in `guards.yml`. Three regressions prove the checked-in
+  success case, stale-content rejection and missing-fence rejection.
+- [x] **R104-4 — authentication matrix.** The old per-driver `_cred` slot gaps
+  are closed in the matrix, but the planned schema × driver × mode runtime
+  sweep was deliberately not centralized. Credential kind, selection,
+  passthrough/exchange and deny-with-zero-origin-contact are covered by the
+  backend-specific auth suites, where each origin can report the identity it
+  actually observed. The matrix records `_cred` support for all 13 drivers;
+  unsupported combinations fail at the VFS credential gate.
+- [x] **R104-5 — front-end runtime envelope.** Cross-protocol
+  live sweeps and memory/performance evidence remain in their protocol and
+  backend owners instead of a combinatorial umbrella suite. The serial PR tier
+  and focused VFS/backend suites are the executable envelope.
+- [x] **R104-6 — gsiftp envelope.** Phase 91 and B111-011 landed the serving
+  driver plus plaintext and GSI/VOMS success, error and security-negative legs.
+
+The August sections below are therefore a historical design record. Their
+unchecked bullets are not a second backlog. The disposition above and the
+Phase-111 register are the closure record.
 
 ---
 

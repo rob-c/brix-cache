@@ -308,10 +308,38 @@ const char *brix_metric_cred_fail_name(brix_cred_fail_t reason);
  * Only the boundary that REJECTS records — a protocol edge that already refused
  * never reaches the VFS kernel, so an operator sees one count per refusal.
  */
-#define BRIX_VFS_MUTATE_OP_METRIC_COUNT  15
+#define BRIX_VFS_MUTATE_OP_METRIC_COUNT  16
 
 void brix_metric_vfs_mutation_denied(brix_proto_t proto, ngx_uint_t op);
 const char *brix_metric_vfs_mutate_op_name(ngx_uint_t op);
+
+/*
+ * Phase-107 §7.5 / phase-108 §6.5: the storage-domain axis. Mirrors
+ * brix_vfs_domain_t (fs/backend/sd_domain.h) as a plain count, the same way
+ * the mutate-op mirror above works; vfs_policy_domain.c carries the
+ * compile-time equality check. One sample is booked per SUCCESSFUL typed
+ * domain assert — service-storage mutations only, never the export data
+ * path (a per-write SHM increment there would contend on the hot path for a
+ * series the export policy kernel already accounts on refusal).
+ */
+#define BRIX_VFS_DOMAIN_METRIC_COUNT  7
+
+void brix_metric_vfs_domain_mutation(ngx_uint_t domain, ngx_uint_t op);
+const char *brix_metric_vfs_domain_name(ngx_uint_t domain);
+
+/*
+ * Phase-108 C12: the VFS authorization backstop result axis. Mirrors
+ * brix_authz_backstop_result_t (fs/vfs/vfs_authz.h: AGREE, EDGE_MISSING,
+ * NO_RULES, UNBOUND) as a plain count, the same way the mutate-op mirror above
+ * works; vfs_authz.c carries the compile-time equality check. One sample is
+ * booked per backstop evaluation, by protocol; the result is the only label and
+ * it is a bounded enum (INVARIANT #8). `edge_missing` and `unbound` are the two
+ * the enforce rollout waits on going flat.
+ */
+#define BRIX_AUTHZ_BACKSTOP_RESULT_COUNT  4
+
+void brix_metric_vfs_authz_backstop(brix_proto_t proto, ngx_uint_t result);
+const char *brix_metric_vfs_authz_backstop_result_name(ngx_uint_t result);
 /*
  * Phase-107 C1 writer-spill telemetry: spill_bytes accounts bytes absorbed
  * into the reorder scratch, spill_refused one reordered upload the spill could

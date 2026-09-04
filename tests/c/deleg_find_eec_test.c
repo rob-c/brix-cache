@@ -42,6 +42,7 @@ X509 *delegation_find_eec(STACK_OF(X509) *chain);
  * below. delegation_find_eec() calls NONE of them, so name-only stubs resolve
  * the link; they are never invoked at run time. No nginx headers are included,
  * so these definitions cannot collide with a real prototype. */
+void brix_cred_write(void) {}
 void brix_gsi_verify_chain(void) {}
 void brix_http_body_read_all(void) {}
 void brix_sanitize_log_string(void) {}

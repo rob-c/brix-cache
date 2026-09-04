@@ -17,7 +17,7 @@ import subprocess
 import pytest
 
 from settings import NGINX_HTTP_WEBDAV_PORT, HOST, TOKENS_DIR, TMP_DIR
-from metrics_helpers import Snapshot, fetch, value, scalar
+from metrics_helpers import Snapshot, fetch, value
 
 try:
     from utils.make_token import TokenIssuer
@@ -164,8 +164,9 @@ class TestWebdavByteCounters:
         before = fetch()
         assert _curl("-T", local, _url("/cov_wd_bytes.bin")).stdout in ("201", "204")
         after = fetch()
-        d = scalar(after, "brix_webdav_bytes_rx_total") - max(
-            0, scalar(before, "brix_webdav_bytes_rx_total"))
+        labels = {"proto": "webdav"}
+        d = value(after, "brix_io_bytes_written", labels) - max(
+            0, value(before, "brix_io_bytes_written", labels))
         assert d >= payload, f"webdav bytes_rx delta {d} < {payload}"
 
     def test_get_increments_bytes_tx(self):
@@ -177,6 +178,7 @@ class TestWebdavByteCounters:
         before = fetch()
         assert _curl(_url("/cov_wd_bytes_tx.bin")).stdout == "200"
         after = fetch()
-        d = scalar(after, "brix_webdav_bytes_tx_total") - max(
-            0, scalar(before, "brix_webdav_bytes_tx_total"))
+        labels = {"proto": "webdav"}
+        d = value(after, "brix_io_bytes_read", labels) - max(
+            0, value(before, "brix_io_bytes_read", labels))
         assert d >= payload, f"webdav bytes_tx delta {d} < {payload}"

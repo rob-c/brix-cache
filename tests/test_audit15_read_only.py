@@ -659,7 +659,8 @@ def test_every_refusal_happens_at_the_edge_not_the_vfs(lifecycle, tmp_path):
     assert cells, "brix_vfs_mutation_denied_total missing from the exporter"
     ops = {op for _, op in cells}
     assert ops == {"open", "write", "truncate", "sync", "mkdir", "remove",
-                   "rename", "copy", "setattr", "xattr", "publish"}, ops
+                   "rename", "copy", "setattr", "xattr", "publish", "stage",
+                   "evict", "lock", "dedup", "credential"}, ops
     tripped = {cell: n for cell, n in cells.items() if n}
     assert not tripped, (
         f"a mutation slipped past its protocol edge and was only refused by "

@@ -150,7 +150,9 @@ brix_login_respond_anon(brix_ctx_t *ctx, ngx_connection_t *c, const char *user)
         ctx->identity->auth_method = BRIX_AUTHN_NONE;
     }
     brix_sess_auth_once(ctx->sess, BRIX_SESS_AM_ANON, "-", "-");
-    brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 0);
+    ctx->login.session_slot_hint =
+        brix_session_register(ctx->login.sessid, ctx->login.dn,
+                              ctx->login.vo_list, 0);
     brix_log_access(ctx, c, "LOGIN", "-", user, 1, 0, NULL, 0);
     brix_count_login_ok(ctx);
 

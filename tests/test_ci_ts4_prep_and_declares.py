@@ -112,6 +112,11 @@ _ADDED_SINCE_MOVE = {
         # test_ci_lane_ownership_gate.py.
         "ForeignLaneError", "__init__", "_ancestry", "_declared_root",
         "_is_harness_cmd", "lane_claimants", "lane_harnesses", "live_lanes",
+        # Phase-111 fleet recovery proves ownership through the listener's
+        # socket inode before adopting stale registry state.
+        "_tcp_inode", "_table_listener_inodes", "_listening_socket_inodes",
+        "_process_socket_inodes", "_tcp_listener",
+        "listener_owned_by_test_root",
     },
 }
 

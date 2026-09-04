@@ -54,6 +54,14 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     include(GNUInstallDirs)   # re-derive CMAKE_INSTALL_FULL_* against the new prefix
 endif()
 
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_custom_target(docs-directives
+    COMMAND "${Python3_EXECUTABLE}"
+            "${REPO_ROOT}/tools/ci/generate_directive_reference.py"
+    WORKING_DIRECTORY "${REPO_ROOT}"
+    COMMENT "Regenerating the directive reference from source registrations"
+    VERBATIM)
+
 # --------------------------------------------------------------------------
 # Locate the distribution nginx source + module install paths.
 #

@@ -91,6 +91,16 @@ brix_vfs_backend_config_ceph(const char *root_canon, const char *backend,
     ngx_cpystrn((u_char *) e->ceph_key_prefix,
                 (u_char *) (key_prefix ? key_prefix : ""),
                 sizeof(e->ceph_key_prefix));
+    /* phase-108 A.4: derive the default name translation from the parsed origin.
+     * A RADOS object name is the key prefix prepended to the canonicalized LFN
+     * (the pool is bound at the ioctx, NOT emitted as a "<pool>:" prefix), which
+     * is exactly the CEPHFS_PATH scheme with prefix == key_prefix. Explicit
+     * brix_n2n_* directives override this later via brix_vfs_backend_config_n2n;
+     * `ral` is rejected there for this backend. */
+    ngx_memzero(&e->n2n, sizeof(e->n2n));
+    e->n2n.scheme = BRIX_N2N_CEPHFS_PATH;
+    ngx_cpystrn((u_char *) e->n2n.prefix,
+                (u_char *) e->ceph_key_prefix, sizeof(e->n2n.prefix));
     e->inst = NULL;                            /* rebuilt on next resolve */
 }
 

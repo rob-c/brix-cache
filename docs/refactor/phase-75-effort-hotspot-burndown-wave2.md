@@ -1,8 +1,7 @@
 # Phase 75 — Effort-Hotspot Burndown, Wave 2 (top-50 residual complexity)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
-> (recommended) or superpowers:executing-plans to implement this plan task-by-task.
-> Steps use checkbox (`- [ ]`) syntax for tracking.
+**Record layout:** the Phase-76 parameter-residual cleanup is embedded near the
+end of this file. It is not a reference to a missing standalone phase document.
 
 **Goal:** Drive the 50 highest fix-effort files (re-measured 2026-07-10, AFTER
 phase-72/73/74) below the complexity gate (CCN ≤ 15, fn NLOC ≤ 100, params ≤ 5)

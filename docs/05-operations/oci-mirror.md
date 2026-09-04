@@ -267,11 +267,16 @@ something a test may do).
 ## 7. Observing it
 
 Access log variables: `$oci_class` (api\|manifest\|blob\|upload\|tags\|bad)
-and `$oci_cache` (hit\|fill\|local\|refused\|error).
+and `$brix_cache_status` (`HIT`\|`MISS`\|`NEGHIT`\|`-`), the one
+cross-plane cache vocabulary. Phase 112 removed the plane-local
+`$oci_cache`: its `hit`/`fill`/`local` map onto `HIT`/`MISS`/`HIT`, and
+`refused`/`error` — which were never cache dispositions — report `-`. The
+refusal and the error are not lost: they are the `outcome` label on
+`brix_oci_requests_total{surface,class,outcome}`.
 
 ```nginx
 log_format oci '$remote_addr $status $body_bytes_sent '
-               '$oci_class $oci_cache "$request"';
+               '$oci_class $brix_cache_status "$request"';
 ```
 
 `local` is the `GET /v2/` liveness probe, answered without touching the

@@ -1,6 +1,11 @@
 # Phase-68: CVMFS Site Cache Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**Status:** IMPLEMENTED / CLOSED (Phase-111 reconciliation, 2026-09-03). The
+execution record below closes all 22 implementation tasks. The root-only netem
+matrix is an optional operator characterization recipe whose result depends on
+host networking; it is not repository acceptance and no result is fabricated
+on an unsuitable host. Unticked original-plan boxes are not implementation
+backlog.
 
 **Spec:** [docs/superpowers/specs/2026-07-02-cvmfs-site-cache-design.md](../superpowers/specs/2026-07-02-cvmfs-site-cache-design.md)
 
@@ -100,7 +105,7 @@ Phase 3B: T11 ─→ T19 (origin selection: static/geoip/rtt)
 Phase 4:  T9 ─→ T16 (metrics)  T9 ─→ T17 (guard/fail2ban)  all ─→ T18 (runbook)
 ```
 
-Parallelizable groups (independent files, safe for parallel subagents):
+Parallelizable groups (independent files, safe for concurrent contributors):
 {T1, T2}, {T10, T11, T12, T13} after T9, {T19, T20} after T11, {T16, T17}
 after T9. Everything else is sequential. T6 can run any time after T1 (it
 only needs a network). **T15 (matrix) and Gate 2 run only after Phase 3B**

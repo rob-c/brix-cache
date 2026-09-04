@@ -1,6 +1,14 @@
 # Phase 33 — Performance Optimization (post feature-complete)
 
-**Status:** P2 + P3-B2 + P3-B3 + P4-D1 IMPLEMENTED (P3-B3 2026-07-28); **P5 safety-default landed 2026-07-28** (kTLS default flipped ON→OFF — see below); **P0 regression-gate harness landed 2026-07-30** (`test_perf_ab_gate.py`); **P1 pipeline-depth knob + correctness gate landed 2026-07-30** (`brix_pipeline_depth`, default 4→8, `test_pipeline_depth.py`); **P5 userspace-TLS A/B leg + remote-host CLI landed 2026-07-30** (harness now drives `roots://`; `python3 _perf_ab_helpers.py --host … [--tls]` measures a remote perf host). **P3-B3/P1 magnitude now measured unprivileged via a user+net-namespace `netem` BDP harness landed 2026-07-31** (`_perf_netem_helpers.py` + `test_perf_netem_bdp.py`; ~4→~33 MiB/s / ~8× at 30 ms RTT). **P3-B1 sendfile-span LANDED 2026-08-01** (`BRIX_READ_CHUNK_MAX` 16→32 MiB; geometry-unit gated `test_chunk_geometry.c`) **and the concurrent-AIO recv flip (P1.2 / WS3 / P29.P3) LANDED 2026-08-01** (`aio_inflight` teardown-deferral counter; ASan disconnect drivers `TestAioDestroyedGuard` + buffered-path pipelining `TestPipelinedTLSReads`) — see §"P1.2 + P3-B1 landed" below. Residual is now purely infra: the P5 kTLS-on-HW-offload NIC and the trustworthy high-BDP *magnitude* number for P3-B1
+**Status:** CODE-SIDE WORK IMPLEMENTED AND VERIFIED (reconciled 2026-09-04).
+P0's A/B harness, P1 pipeline/concurrent-AIO receive, P2 fixed-cost cuts
+(including access-log batching), P3 buffer/span work, P4 build defaults and P5's
+safe kTLS default plus remote TLS measurement leg are landed. Unprivileged
+`netem` records the high-BDP socket-buffer magnitude (~4→~33 MiB/s at 30 ms).
+The optional hardware-offload kTLS measurement requires external equipment and
+is an operator lab recipe, not repository acceptance. Phase 111 closed B111-028
+without fabricating a hardware result; future measurements may add deployment
+guidance but cannot reopen the verified code-side phase.
 **Author:** perf audit, 2026-06-13
 **Predecessors:** [phase-29 read-throughput bottlenecks](../_archive/refactor/phase-29-read-throughput-bottlenecks.md),
 [phase-32 data-plane perf-parity](phase-32-data-plane-perf-parity.md)
@@ -79,11 +87,12 @@ real perf host per P0; none of these is throughput-validatable on WSL2):
   `dashboard_slot >= 0 && shm_zone != NULL`. No early-out work was needed; the
   residual atomic-collapse is low-value and **was dropped**.
 
-**Still open (need real hardware):** P3-B1 (sendfile span, P0-gated hot-path
-geometry), the deferred concurrent-AIO recv flip (P1.2 — highest leverage, but
-gateway-fatal-risky, deliberately not landed), and **P5 *throughput*** (kTLS-on-
-HW-offload A/B — needs a `tls`-ULP-capable offload NIC; the safe kTLS-off default
-already landed 2026-07-28). **P3-B3/P1 *magnitude* is NO LONGER perf-host-blocked
+**Historical open-set note (superseded by the dated updates below):** P3-B1 and
+the concurrent-AIO receive flip were still open when this paragraph was first
+written; both landed on 2026-08-01. The only remaining external measurement is
+**P5 throughput** (kTLS-on-HW-offload A/B), which needs a
+`tls`-ULP-capable offload NIC; the safe kTLS-off default already landed
+2026-07-28. **P3-B3/P1 magnitude is no longer perf-host-blocked
 (UPDATE 2026-07-31):** the unprivileged user+net-namespace `netem` harness
 (`tests/_perf_netem_helpers.py` + gate `test_perf_netem_bdp.py`) synthesizes a
 genuine server-socket BDP and measures the `brix_socket_sndbuf` win directly —

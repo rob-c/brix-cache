@@ -24,6 +24,7 @@
 
 #include "core/http/http_body.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sys/file.h>
@@ -100,11 +101,13 @@ oci_seal_commit(ngx_http_request_t *r, const oci_upload_ctx_t *u,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /* Content addressing makes a re-upload a no-op rather than a conflict:
-     * the bytes already in the store hash to the same digest by definition,
-     * so the winner of a race is irrelevant. */
-    if (!brix_oci_store_exists(blob, NULL)
-        && brix_oci_store_publish(part, blob, log) != NGX_OK)
+    /* Content addressing makes a re-upload a no-op rather than a conflict: the
+     * bytes already in the store hash to the same digest by definition, so the
+     * winner of a race is irrelevant. The exclusive publish makes that atomic —
+     * EEXIST is the "already have these bytes" answer, not a failure — and
+     * closes the exists()-then-publish window the previous two-step left open. */
+    if (brix_oci_store_publish_staged(&u->st, part, blob, log) != NGX_OK
+        && errno != EEXIST)
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }

@@ -431,7 +431,7 @@ class TestTheSourceSizeArm:
         """Source pin: the two arms are the two branches of one ``if``."""
         text = _source(STREAM_C)
         assert "if (t->src_size_known) {" in text, text[:0]
-        assert "} else if (t->conf != NULL && t->conf->tpc_require_source_size)" \
+        assert ("} else if (t->conf != NULL "
+                "&& t->conf->common.tpc_require_source_size)") \
             in text
         assert "brix_tpc_require_source_size is on" in text
-

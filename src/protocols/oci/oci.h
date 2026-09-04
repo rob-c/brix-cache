@@ -128,7 +128,8 @@ typedef struct {
     char                       key[BRIX_OCI_KEY_MAX];  /* canonical route    */
     size_t                     key_len;
     brix_oci_mclass_metric_e   mclass;      /* metric + $oci_class           */
-    brix_oci_outcome_metric_e  disp;        /* metric + $oci_cache (J.6)     */
+    brix_oci_outcome_metric_e  disp;        /* metric outcome (J.6) +        *
+                                             * $brix_cache_status            */
     unsigned                   classified:1;
     unsigned                   keyed:1;
     unsigned                   counted:1;   /* the finalize observer ran     */

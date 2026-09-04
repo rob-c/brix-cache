@@ -140,10 +140,16 @@ staged_open_driver(brix_vfs_ctx_t *ctx, brix_vfs_staged_t *st,
     brix_sd_ucred_t  ustore;
     brix_sd_cred_t   ucred;
     int              use_cred = 0;
-    const char      *key = brix_vfs_export_relative(ctx, final_path);
+    char             key[PATH_MAX];
     uint64_t         cached_bytes;
 
     ngx_memzero(&ucred, sizeof(ucred));
+    if (brix_path_resolved_to_pfn(ctx, final_path, key, sizeof(key)) != NGX_OK) {
+        if (err_out != NULL) {
+            *err_out = errno;
+        }
+        return NGX_ERROR;
+    }
     if (brix_vfs_backend_cred(ctx, &ustore, &ucred, &use_cred, err_out)
         != NGX_OK)
     {
@@ -304,8 +310,7 @@ brix_vfs_staged_write(brix_vfs_staged_t *st, const void *buf, size_t len,
 
     /* phase-105: the staged session decides from the policy it copied at open,
      * not from a ctx it outlives (the body write runs on a thread pool). */
-    if (brix_vfs_require_carried_mutation(st->mutation_policy,
-            brix_vfs_metrics_proto(st->ctx), BRIX_VFS_MUTATE_WRITE) != NGX_OK)
+    if (brix_vfs_gate_mutation(st->ctx, BRIX_VFS_MUTATE_WRITE) != NGX_OK)
     {
         return NGX_ERROR;
     }
@@ -405,6 +410,7 @@ vfs_staged_driver_barrier(brix_vfs_staged_t *st, const char *final_path)
 {
     brix_sd_instance_t *leaf = brix_vfs_ns_leaf(st->ctx->sd);
     int                 e;
+    char                physical[PATH_MAX];
 
     if (leaf == NULL || leaf->driver == brix_sd_default_driver()
         || leaf->driver->sync_publish == NULL
@@ -412,8 +418,9 @@ vfs_staged_driver_barrier(brix_vfs_staged_t *st, const char *final_path)
     {
         return NGX_OK;
     }
-    if (leaf->driver->sync_publish(leaf,
-            brix_vfs_export_relative(st->ctx, final_path)) != NGX_OK)
+    if (brix_path_resolved_to_pfn(st->ctx, final_path, physical,
+                                  sizeof(physical)) != NGX_OK
+        || leaf->driver->sync_publish(leaf, physical) != NGX_OK)
     {
         e = errno ? errno : EIO;
         ngx_log_error(NGX_LOG_CRIT, st->log, e,
@@ -536,13 +543,16 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, brix_sd_precond_t *pre)
      * "write" would hide, in the one counter that reports it, whether a
      * read-only endpoint is turning requests away at the door or only at the
      * last step — and the second would mean bytes had already been staged. */
-    if (brix_vfs_require_carried_mutation(st->mutation_policy,
-            brix_vfs_metrics_proto(ctx), BRIX_VFS_MUTATE_PUBLISH) != NGX_OK)
+    if (brix_vfs_gate_mutation(ctx, BRIX_VFS_MUTATE_PUBLISH) != NGX_OK)
     {
         return NGX_ERROR;
     }
 
     final_path = brix_vfs_ctx_path(ctx);
+    if (final_path == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
 
     /* Driver-backed: the driver publishes the object atomically. On success it
      * consumes its staged handle (NULL it out so abort is not double-applied);

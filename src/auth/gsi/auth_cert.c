@@ -221,14 +221,14 @@ gsi_cert_extract_voms(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_int_t voms_rc;
 
     if (!brix_voms_available()
-        || conf->vomsdir.len == 0 || conf->voms_cert_dir.len == 0)
+        || conf->common.vomsdir.len == 0 || conf->common.voms_cert_dir.len == 0)
     {
         return;
     }
 
     voms_rc = brix_extract_voms_info(
         c->log, leaf, chain,
-        &conf->vomsdir, &conf->voms_cert_dir,
+        &conf->common.vomsdir, &conf->common.voms_cert_dir,
         ctx->login.primary_vo, sizeof(ctx->login.primary_vo),
         ctx->login.vo_list, sizeof(ctx->login.vo_list));
 

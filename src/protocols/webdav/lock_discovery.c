@@ -75,6 +75,7 @@ webdav_lock_sweep_remove(webdav_lock_sweep_ctx_t *sw, const char *path)
      * declines on a read-only export; this one is the operator's own decision. */
     brix_vfs_ctx_init(&vctx, sw->pool, sw->log, BRIX_PROTO_WEBDAV,
         sw->root_canon, NULL, BRIX_VFS_MUTATION_ALLOWED, 0 /* is_tls */, NULL, path);
+    brix_vfs_ctx_bind_no_authz_rules(&vctx, BRIX_AUTHZ_BACKSTOP_OBSERVE);
 
     /* phase-107 C7: the removal below passes the VFS lock gate, which would
      * refuse removing a LIVE record with no token presented. The sweep holds

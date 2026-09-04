@@ -395,7 +395,7 @@ brix_vfs_backend_leaf_isdir(brix_sd_instance_t *leaf, const char *logical,
  * -1 with errno set on a real failure.
  */
 int
-brix_vfs_backend_mkpath(const char *root_canon, const char *logical,
+brix_vfs_backend_mkpath(const char *root_canon, const char *physical,
     mode_t mode, ngx_log_t *log)
 {
     brix_sd_instance_t *sd = brix_vfs_backend_resolve(root_canon, log);
@@ -412,8 +412,8 @@ brix_vfs_backend_mkpath(const char *root_canon, const char *logical,
     }
 
     /* Create each prefix in turn: "/a/b/c" → "/a", "/a/b", "/a/b/c". */
-    while (logical[i] != '\0') {
-        if (logical[i] != '/') {
+    while (physical[i] != '\0') {
+        if (physical[i] != '/') {
             i++;                          /* defensive: skip a leading non-slash */
             continue;
         }
@@ -423,12 +423,12 @@ brix_vfs_backend_mkpath(const char *root_canon, const char *logical,
         }
         acc[j++] = '/';
         i++;
-        while (logical[i] != '\0' && logical[i] != '/') {
+        while (physical[i] != '\0' && physical[i] != '/') {
             if (j + 1 >= sizeof(acc)) {
                 errno = ENAMETOOLONG;
                 return -1;
             }
-            acc[j++] = logical[i++];
+            acc[j++] = physical[i++];
         }
         acc[j] = '\0';
         if (j > 1) {                       /* skip the bare "/" root */

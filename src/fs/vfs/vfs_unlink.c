@@ -127,7 +127,7 @@ brix_vfs_delete_via_driver(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
     unsigned recursive, unsigned require_empty_dir, const char *path,
     uint64_t start)
 {
-    const char         *logical = brix_vfs_export_relative(ctx, path);
+    char                logical[PATH_MAX];
     brix_sd_instance_t *leaf    = brix_vfs_ns_leaf(ctx->sd);
     brix_sd_ucred_t     store;
     brix_sd_cred_t      cred;
@@ -139,6 +139,14 @@ brix_vfs_delete_via_driver(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
      * unzeroed cred hands a garbage inactive pointer to the driver's
      * cred slot (bearer PASSTHROUGH would leave x509_proxy dangling). */
     ngx_memzero(&cred, sizeof(cred));
+
+    if (brix_path_resolved_to_pfn(ctx, path, logical, sizeof(logical))
+        != NGX_OK)
+    {
+        brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE,
+                                NULL, 0, NGX_ERROR, errno, start);
+        return NGX_ERROR;
+    }
 
     if (brix_vfs_cred_gate_active(ctx)) {
         if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)

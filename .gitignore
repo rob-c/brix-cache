@@ -95,6 +95,11 @@ tools/refactor/*
 !tools/diag/
 tools/diag/*
 !tools/diag/sd_slot_matrix.py
+# storm_ab_bench.py is exempted for the same reason: the hyper-optimization
+# round docs quote its throughput/CPU-per-job tables as the evidence for each
+# round's claim, and every BriX-vs-official ratio in them is only reproducible
+# with the interleaved A/B driver that lives here.
+!tools/diag/storm_ab_bench.py
 .aider*
 
 .rpmbuild/

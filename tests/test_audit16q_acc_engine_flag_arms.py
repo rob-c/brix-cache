@@ -251,9 +251,10 @@ class TestThePgoScopeIsNotTheDeclaredOne:
         assert "if (brix_acc_init_server(xcf, cycle) != NGX_OK) {" in init
         acc = " ".join(ACC_CONFIG_C.read_text().split())
         # The early return is what lets §A isolate an arm: no authdb, no install.
-        assert ("if (xcf->acc.format != BRIX_AUTHDB_FORMAT_XRDACC "
-                "|| xcf->authdb.len == 0) { return NGX_OK; }") in acc
-        assert "xcf->acc.tables = brix_acc_build(" in acc
+        assert "brix_acc_http_t *acc = &xcf->common.acc;" in acc
+        assert ("if (acc->format != BRIX_AUTHDB_FORMAT_XRDACC "
+                "|| acc->authdb.len == 0) { return NGX_OK; }") in acc
+        assert "acc->tables = brix_acc_http_build(" in acc
 
     def test_the_same_call_installs_three_more_process_wide_tunables(self):
         """#92 is a family and not a directive: gidlifetime, nisdomain and
@@ -573,7 +574,7 @@ class TestTheDeclarationsAndTheCorpus:
         assert lines[0] == "NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,", lines
         assert lines[1] == "ngx_conf_set_flag_slot,", lines
         assert lines[2] == "NGX_STREAM_SRV_CONF_OFFSET,", lines
-        assert lines[3] == ("offsetof(ngx_stream_brix_srv_conf_t, "
+        assert lines[3] == ("offsetof(ngx_stream_brix_srv_conf_t, common."
                             f"{SUBJECTS[directive]}),"), lines
 
     @pytest.mark.parametrize("directive", sorted(SUBJECTS))
@@ -581,7 +582,7 @@ class TestTheDeclarationsAndTheCorpus:
         """The bare arm reads this 0, which is what makes ``off`` the arm nobody
         needed to write and ``on`` the arm everybody did.  A merge default of 1
         would have made the corpus census come out the other way round."""
-        field = SUBJECTS[directive]
+        field = SUBJECTS[directive].removeprefix("acc.")
         assert (f"ngx_conf_merge_value(conf->{field}, prev->{field}, 0);"
                 in _squashed(MERGE_C))
 

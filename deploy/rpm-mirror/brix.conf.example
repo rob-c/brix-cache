@@ -17,7 +17,7 @@
 #   * dnf never writes. A write-class method is answered 405 at the gate,
 #     before the store is touched, and lands a signal=rpmwrite guard line for
 #     fail2ban (deploy/fail2ban/jail.d/xrootd-guard.conf).
-#   * The route is named in the log ($rpm_class/$rpm_cache) and in
+#   * The route is named in the log ($rpm_class/$brix_cache_status) and in
 #     brix_rpm_requests_total{class,outcome}, so "which half of the repository
 #     is my miss rate coming from" is a query, not a guess.
 #

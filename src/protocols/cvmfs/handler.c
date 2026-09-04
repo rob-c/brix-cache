@@ -22,6 +22,7 @@
 #include "core/http/sesslog_conn.h"
 #include "fs/backend/cache/sd_cache.h"     /* brix_sd_cache_fill_needs_offload */
 #include "fs/vfs/vfs.h"
+#include "fs/path/n2n_stage.h"
 #include "fs/vfs/vfs_backend_registry.h"
 #include "observability/dashboard/dashboard.h"
 #include "observability/dashboard/dashboard_tracking.h"
@@ -29,6 +30,7 @@
 #include "protocols/shared/file_serve.h"
 #include "protocols/shared/http_cache_fill.h"
 #include "protocols/shared/http_serve_offload.h"
+#include "protocols/shared/vfs_authz_bind.h"
 #include "core/compat/cstr.h"
 
 #include <limits.h>
@@ -158,7 +160,8 @@ cvmfs_serve_opts_init(brix_http_serve_opts_t *opts, ngx_flag_t compress)
  *       coalescing hold are owned by the shared fill helper, untouched here.
  * HOW:  returns NGX_DECLINED when the caller must proceed to open; otherwise
  *       the terminal rc (NGX_DONE, or an HTTP error status) to return as-is.
- *       On a parked fill it records the FILL disposition for $cvmfs_cache. */
+ *       On a parked fill it records the FILL disposition, which surfaces as
+ *       $brix_cache_status=MISS. */
 static ngx_int_t
 cvmfs_tier_serve_or_fill(ngx_http_request_t *r,
     ngx_http_brix_cvmfs_loc_conf_t *lcf, brix_sd_instance_t *sd,
@@ -195,12 +198,12 @@ cvmfs_tier_serve_or_fill(ngx_http_request_t *r,
     }
 
     /* miss → one coalesced off-loop fill, re-entering this handler on land */
-    rc = brix_http_cache_fill_if_needed(r, sd, key, &lcf->common,
+    rc = brix_http_cache_fill_if_needed(r, sd, key, &lcf->common, NULL,
                                           cvmfs_reenter, NULL,
                                           cvmfs_fill_fail);
     if (rc == NGX_DONE) {
         if (ctx != NULL) {
-            ctx->cache_status = BRIX_CVMFS_CACHE_FILL;   /* $cvmfs_cache */
+            ctx->cache_status = BRIX_CVMFS_CACHE_FILL;   /* → MISS */
         }
         return NGX_DONE;
     }
@@ -235,7 +238,7 @@ cvmfs_tier_open_respond(ngx_http_request_t *r,
         return (ngx_int_t) cvmfs_errno_status(vfs_err);
     }
     if (ctx != NULL && ctx->cache_status == BRIX_CVMFS_CACHE_NONE) {
-        ctx->cache_status = BRIX_CVMFS_CACHE_HIT;        /* $cvmfs_cache */
+        ctx->cache_status = BRIX_CVMFS_CACHE_HIT;        /* → HIT */
     }
     if (brix_vfs_file_stat(fh, &vst) != NGX_OK) {
         brix_vfs_close(fh, r->connection->log);
@@ -303,7 +306,8 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
     ngx_http_brix_cvmfs_ctx_t *ctx =
         ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
     char                path[PATH_MAX];
-    const char         *root, *key;
+    const char         *root;
+    char                key[PATH_MAX];
     brix_vfs_ctx_t    vctx;
     int                 is_tls = 0;
     ngx_int_t           rc;
@@ -328,6 +332,7 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
         BRIX_PROTO_CVMFS, root, "", BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL,
         path);
+    brix_http_vfs_bind_no_rules(&lcf->common, &vctx);
     vctx.sd = cvmfs_resolve_sd(r, lcf);
     if (vctx.sd == NULL) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
@@ -335,7 +340,9 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
             "brix_storage_backend", root);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    key = brix_vfs_export_relative(&vctx, path);
+    if (brix_path_resolved_to_pfn(&vctx, path, key, sizeof(key)) != NGX_OK) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
 
     /* phase-87 G11: passively learn this connection's CAS access sequence
      * and prewarm the predicted successors (advisory — never touches this

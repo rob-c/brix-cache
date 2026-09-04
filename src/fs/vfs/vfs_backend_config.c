@@ -340,6 +340,8 @@ brix_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
     if (rc != NGX_DECLINED) { return rc; }
     rc = vfs_parse_tape_origin(cf, root_canon, sb);
     if (rc != NGX_DECLINED) { return rc; }
+    rc = vfs_parse_gsiftp_origin(cf, root_canon, sb);
+    if (rc != NGX_DECLINED) { return rc; }
     rc = vfs_parse_http_origin_list(cf, root_canon, sb);
     if (rc != NGX_DECLINED) { return rc; }
     rc = vfs_parse_s3_origin(cf, root_canon, sb);

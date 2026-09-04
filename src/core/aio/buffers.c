@@ -141,6 +141,44 @@ brix_build_window_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     return brix_build_fast_chain(ctx, hdrbuf, databuf, data_total, status);
 }
 
+/* Build a bounded fragment of one logical response body.  Only the first
+ * fragment has an XRootD header; its dlen describes the complete body so raw
+ * readers keep consuming the later body-only fragments from the socket. */
+ngx_chain_t *
+brix_build_body_fragment_chain(brix_ctx_t *ctx, ngx_connection_t *c,
+    u_char *databuf, size_t fragment_size, size_t body_total, ngx_flag_t first)
+{
+    brix_resp_slot_t *slot = &ctx->out.ring[ctx->out.tail];
+
+    if (first) {
+        u_char *hdrbuf = BRIX_GET_SCRATCH(ctx, c, rd.read_hdr_scratch,
+                                            rd.read_hdr_scratch_size,
+                                            XRD_RESPONSE_HDR_LEN);
+        if (hdrbuf == NULL) {
+            return NULL;
+        }
+        (void) brix_build_fast_chain(ctx, hdrbuf, databuf, fragment_size,
+                                       kXR_ok);
+        brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok,
+                              (uint32_t) body_total,
+                              (ServerResponseHdr *) hdrbuf);
+        return &slot->read_fast_hdr_chain;
+    }
+
+    ngx_memzero(&slot->read_fast_body_chain,
+                sizeof(slot->read_fast_body_chain));
+    ngx_memzero(&slot->read_fast_body_buf, sizeof(slot->read_fast_body_buf));
+    slot->read_fast_body_buf.pos = databuf;
+    slot->read_fast_body_buf.last = databuf + fragment_size;
+    slot->read_fast_body_buf.memory = 1;
+    slot->read_fast_body_buf.temporary = 1;
+    slot->read_fast_body_buf.last_buf = 1;
+    slot->read_fast_body_buf.last_in_chain = 1;
+    slot->read_fast_body_chain.buf = &slot->read_fast_body_buf;
+    slot->read_fast_body_chain.next = NULL;
+    return &slot->read_fast_body_chain;
+}
+
 /*
  * brix_chunk_geometry — compute the wire-frame count and final-frame size for
  * a multi-chunk read.

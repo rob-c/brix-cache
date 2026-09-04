@@ -240,7 +240,7 @@ path, so there are no blocks to keep in sync.
 | digest-named metadata | cached by pattern | **hashed and checked** against the digest in its own name, before it is published |
 | write attempt | `405` from an `if` | `405` at the gate + `signal=rpmwrite` for fail2ban |
 | tampered upstream | cached and served | `502`, nothing stored, `signal=rpm_tamper` |
-| which route did this request take | infer from the URL | `$rpm_class` / `$rpm_cache`, and `brix_rpm_requests_total{class,outcome}` |
+| which route did this request take | infer from the URL | `$rpm_class` / `$brix_cache_status`, and `brix_rpm_requests_total{class,outcome}` |
 | upstream flapping | `502` from `proxy_next_upstream` | held to the fill deadline, then `504` + `Retry-After` |
 
 **Two things it refuses to start with**, both deliberate: any

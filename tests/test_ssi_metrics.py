@@ -15,6 +15,7 @@ import urllib.request
 import pytest
 
 from settings import BIND_HOST, HOST, NGINX_BIN
+from metrics_helpers import value as metric_value, xrdfs
 from server_registry import NginxInstanceSpec
 from test_ssi_wire import _handshake_login, _open_ssi, _write_request, _query_wait
 
@@ -57,6 +58,18 @@ def _label_keys(text, name):
 
 
 class TestSsiMetrics:
+    def test_vfs_authz_backstop_observe_is_clean(self, ssi_metrics_server):
+        sport, mport = ssi_metrics_server
+        result = xrdfs(f"root://{HOST}:{sport}", "ls", "/")
+        assert result.returncode == 0, result.stderr
+        text = _scrape(mport)
+        labels = {"proto": "stream"}
+        assert metric_value(text, "brix_vfs_authz_backstop_total",
+                            {**labels, "result": "no_rules"}) > 0
+        for outcome in ("edge_missing", "unbound"):
+            assert metric_value(text, "brix_vfs_authz_backstop_total",
+                                {**labels, "result": outcome}) == 0
+
     def test_requests_counter_increments(self, ssi_metrics_server):
         sport, mport = ssi_metrics_server
         before = _counter(_scrape(mport), "brix_ssi_requests_total")

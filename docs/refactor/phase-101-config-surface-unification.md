@@ -1,8 +1,12 @@
 # Phase 101 — config-surface unification: one grammar, two owners, zero drift
 
-Source: full directive-surface audit of 2026-08-09 (artifact:
-<https://claude.ai/code/artifact/1e1dd7de-949a-48fc-b012-e6f3ac7c2c41>), building
-on `docs/superpowers/plans/2026-07-05-unified-brix-config-grammar.md` (Tasks 1–5
+**Status:** SUBSTANTIALLY COMPLETE. W1–W6, W8 and W9 are done. W7 is complete
+except for the deliberately retained numeric `brix_token_clock_skew` grammar;
+the structural follow-on work is owned by Phase 105 rather than hidden in this
+document's historical census.
+
+Source: full directive-surface audit of 2026-08-09, building on
+`docs/superpowers/plans/2026-07-05-unified-brix-config-grammar.md` (Tasks 1–5
 landed 2026-07; Tasks 6–7 still open — absorbed here as W9.3). Every line
 citation below was verified against the working tree on 2026-08-09 (`main`
 @ d2ddfcd + local edits; none of the cited files are among the locally modified

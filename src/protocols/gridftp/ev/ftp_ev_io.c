@@ -338,7 +338,7 @@ brix_ftp_ev_handler(ngx_stream_session_t *s)
 
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
                   "brix: GridFTP(ev) gateway session start (export=%s write=%d)",
-                  conf->root_canon, conf->allow_write ? 1 : 0);
+                  conf->common.root_canon, conf->common.allow_write ? 1 : 0);
 
     if (brix_ftp_ev_reply(fc, "220 BriX GridFTP Gateway ready\r\n") != NGX_OK) {
         brix_ftp_ev_finalize(fc, NGX_STREAM_INTERNAL_SERVER_ERROR);

@@ -60,6 +60,7 @@
     X(BLOCK,     block,     "block",    BACKEND)   /* fixed-extent blocks  */ \
     X(HTTP,      http,      "http",     ORIGIN)    /* HTTP(S) Stratum/DAV  */ \
     X(XROOT,     xroot,     "xroot",    ORIGIN)    /* root:// origin       */ \
+    X(GSIFTP,    gsiftp,    "gsiftp",   ORIGIN)    /* ftp/gsiftp origin    */ \
     X(CACHE,     cache,     "cache",    DECORATOR) /* read-through cache   */ \
     X(STAGE,     stage,     "stage",    DECORATOR) /* write-back stage     */ \
     X(REMOTE,    remote,    "remote",   DECORATOR) /* broker/impersonate   */ \
@@ -113,6 +114,8 @@
     S("roots",  "xroot",  1, 0)                                               \
     S("root+tape",  "xroot", 0, 1)                                            \
     S("roots+tape", "xroot", 1, 1)                                            \
+    S("ftp",     "gsiftp", 0, 0)                                               \
+    S("gsiftp",  "gsiftp", 1, 0)                                               \
     S("http",   "http",   0, 0)                                               \
     S("https",  "http",   1, 0)                                               \
     S("webdav", "http",   0, 0)                                               \

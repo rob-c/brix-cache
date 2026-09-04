@@ -30,19 +30,14 @@ def snap(mx):
     return cx.Snap(mx.metrics)
 
 
-def stream_labels(mx):
-    meta = cx.STREAM_PLANES["none"]
-    return {"port": str(mx.port(meta["port_key"])), "auth": meta["auth"]}
-
-
 # --------------------------------------------------------------------------
 # dav
 # --------------------------------------------------------------------------
 
 @pytest.mark.parametrize("size", SIZES)
 def test_dav_get_bytes_exact(mx, size, tmp_path):
-    """A cached dav GET reads exactly `size` bytes: unified read ledger,
-    legacy tx ledger, and the returned body all agree."""
+    """A cached dav GET reads exactly `size` bytes: the unified read
+    ledger and the returned body agree."""
     name = cx.unique_name(f"axdg{size}")
     payload = mx.seed_local(name, size)
     st, _, _ = mx.dav_request("dav", f"/{name}")     # prime the cache
@@ -57,14 +52,13 @@ def test_dav_get_bytes_exact(mx, size, tmp_path):
                    {"proto": "webdav", "op": "read", "status": "ok"},
                    after) == 1
     assert s.delta("brix_io_bytes_read", {"proto": "webdav"}, after) == size
-    assert s.delta("brix_webdav_bytes_tx_total", after=after) == size
 
 
 @pytest.mark.parametrize("size", SIZES)
 def test_dav_put_bytes_exact(mx, size):
     """A dav PUT writes exactly `size` bytes ONCE (Bug F pinned the staged
-    -commit double count): unified write ledger, legacy rx ledger, and the
-    stored object all agree."""
+    -commit double count): the unified write ledger and the stored object
+    agree."""
     name = cx.unique_name(f"axdp{size}")
     payload = b"P" * size
     s = snap(mx)
@@ -77,7 +71,6 @@ def test_dav_put_bytes_exact(mx, size):
                    after) == 1
     assert s.delta("brix_io_bytes_written", {"proto": "webdav"},
                    after) == size
-    assert s.delta("brix_webdav_bytes_rx_total", after=after) == size
     assert (mx.local_data / name).read_bytes() == payload
 
 
@@ -87,8 +80,8 @@ def test_dav_put_bytes_exact(mx, size):
 
 @pytest.mark.parametrize("size", SIZES)
 def test_s3_get_bytes_exact(mx, size):
-    """A cached s3 GET reads exactly `size` bytes on the unified and s3 tx
-    ledgers."""
+    """A cached s3 GET reads exactly `size` bytes on the unified read
+    ledger."""
     name = cx.unique_name(f"axsg{size}")
     payload = mx.seed_local(name, size)
     st, _, _ = mx.s3_request("s3", name)             # prime the cache
@@ -103,7 +96,6 @@ def test_s3_get_bytes_exact(mx, size):
                    {"proto": "s3", "op": "read", "status": "ok"},
                    after) == 1
     assert s.delta("brix_io_bytes_read", {"proto": "s3"}, after) == size
-    assert s.delta("brix_s3_bytes_tx_total", after=after) == size
 
 
 @pytest.mark.parametrize("size", SIZES)
@@ -131,11 +123,10 @@ def test_s3_put_bytes_exact(mx, size):
 @pytest.mark.parametrize("size", SIZES)
 def test_stream_get_bytes_exact(mx, size, tmp_path):
     """A cold stream read moves exactly `size` bytes on the unified read
-    ledger and the per-plane root-tx ledger, and delivers them intact."""
+    ledger and delivers them intact."""
     name = cx.unique_name(f"axtg{size}")
     payload = mx.seed_origin(name, size)
     dst = tmp_path / name
-    lbl = stream_labels(mx)
     s = snap(mx)
     r = mx.xrdcp_get("none", f"/{name}", str(dst))
     assert r.returncode == 0, r.stderr
@@ -143,7 +134,6 @@ def test_stream_get_bytes_exact(mx, size, tmp_path):
     after = cx.mfetch(mx.metrics)
     assert dst.read_bytes() == payload
     assert s.delta("brix_io_bytes_read", {"proto": "stream"}, after) == size
-    assert s.delta("brix_bytes_root_tx_total", lbl, after) == size
     assert s.delta("brix_io_ops_total",
                    {"proto": "stream", "op": "read", "status": "ok"},
                    after) == 1
@@ -152,12 +142,11 @@ def test_stream_get_bytes_exact(mx, size, tmp_path):
 @pytest.mark.parametrize("size", SIZES)
 def test_stream_put_bytes_exact(mx, size, tmp_path):
     """A stream write moves exactly `size` bytes on the unified write ledger
-    and the per-plane rx ledger, and materializes intact at the origin."""
+    and materializes intact at the origin."""
     name = cx.unique_name(f"axtp{size}")
     payload = b"T" * size
     src = tmp_path / name
     src.write_bytes(payload)
-    lbl = stream_labels(mx)
     s = snap(mx)
     r = mx.xrdcp_put("none", str(src), f"/{name}")
     assert r.returncode == 0, r.stderr
@@ -165,7 +154,6 @@ def test_stream_put_bytes_exact(mx, size, tmp_path):
     after = cx.mfetch(mx.metrics)
     assert s.delta("brix_io_bytes_written", {"proto": "stream"},
                    after) == size
-    assert s.delta("brix_bytes_rx_total", lbl, after) == size
     assert s.delta("brix_io_ops_total",
                    {"proto": "stream", "op": "write", "status": "ok"},
                    after) == 1
@@ -201,7 +189,6 @@ def test_dav_get_zero_byte_reads_nothing(mx):
     after = cx.mfetch(mx.metrics)
     assert st == 200 and body == b""
     assert s.delta("brix_io_bytes_read", {"proto": "webdav"}, after) == 0
-    assert s.delta("brix_webdav_bytes_tx_total", after=after) == 0
 
 
 def test_stream_get_zero_byte_reads_nothing(mx, tmp_path):

@@ -48,8 +48,6 @@ brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
     conf->auth         = NGX_CONF_UNSET_UINT;
     conf->auth_maxfail = NGX_CONF_UNSET;
 
-    /* XrdAcc engine (acc_tables / acc_timer / acc_nisdomain stay NULL/zero). */
-    brix_acc_conf_init(&conf->acc);
     brix_csi_conf_init(&conf->csi);
     conf->throttle.max_open_files  = NGX_CONF_UNSET_UINT;
     conf->throttle.bwm_budget      = NGX_CONF_UNSET_SIZE;
@@ -69,7 +67,6 @@ brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
     conf->gsi_max_inflight = NGX_CONF_UNSET;
     conf->gsi_verify_depth = NGX_CONF_UNSET;
     conf->tls_reuse        = NGX_CONF_UNSET;
-    conf->vo_rules     = NULL;
     conf->group_rules  = NULL;
     conf->session_log  = NGX_CONF_UNSET;
     conf->access_log_fd = NGX_INVALID_FILE;
@@ -86,9 +83,7 @@ brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
     conf->gsi_keypool_size = NGX_CONF_UNSET_UINT;
     conf->gsi_keypool_seed = NGX_CONF_UNSET_UINT;
     conf->jwks_mtime                 = 0;
-    conf->token_jwks_refresh_interval = NGX_CONF_UNSET_MSEC;
     conf->jwks_timer                  = NULL;
-    conf->token_clock_skew            = NGX_CONF_UNSET;
     conf->sss_lifetime      = NGX_CONF_UNSET;
     conf->sss_keys          = NULL;
     brix_krb5_conf_init(&conf->krb5);
@@ -204,10 +199,6 @@ brix_create_srv_cluster(ngx_stream_brix_srv_conf_t *conf)
     conf->ckscan_max_depth = NGX_CONF_UNSET_UINT;
     conf->ckscan_max_files = NGX_CONF_UNSET_UINT;
     conf->slowop_usec      = NGX_CONF_UNSET;
-    conf->tpc_allow_local   = NGX_CONF_UNSET;
-    conf->tpc_allow_private = NGX_CONF_UNSET;
-    conf->tpc_source_guard  = NGX_CONF_UNSET;
-    conf->tpc_source_allow  = NGX_CONF_UNSET_PTR;
     conf->ssi_enable        = NGX_CONF_UNSET;
     conf->ssi_cta_enable    = NGX_CONF_UNSET;
     conf->ssi_max_inflight  = NGX_CONF_UNSET_UINT;
@@ -217,23 +208,10 @@ brix_create_srv_cluster(ngx_stream_brix_srv_conf_t *conf)
     conf->cns_mode          = NGX_CONF_UNSET_UINT;
     conf->tpc_key_ttl_ms    = NGX_CONF_UNSET_MSEC;
     conf->tpc_max_transfer_secs = NGX_CONF_UNSET_UINT;
-    conf->tpc_require_source_size = NGX_CONF_UNSET;
     /* tpc_verify_checksum now lives in common.* (phase-101 W4), init'd by the
      * shared preamble as a str ("" = off). */
-    conf->tpc_outbound_tls  = NGX_CONF_UNSET;
     conf->tpc_delegate      = NGX_CONF_UNSET;
-    conf->tpc_outbound_passthrough = NGX_CONF_UNSET;
     conf->tpc_transfer_max_age  = NGX_CONF_UNSET;
-    conf->tpc_outbound_bearer_file.len = 0;
-    conf->tpc_outbound_bearer_file.data = NULL;
-    conf->tpc_outbound_token_endpoint.len = 0;
-    conf->tpc_outbound_token_endpoint.data = NULL;
-    conf->tpc_outbound_client_id.len = 0;
-    conf->tpc_outbound_client_id.data = NULL;
-    conf->tpc_outbound_client_secret.len = 0;
-    conf->tpc_outbound_client_secret.data = NULL;
-    conf->tpc_outbound_scope.len = 0;
-    conf->tpc_outbound_scope.data = NULL;
 }
 
 /*
@@ -338,23 +316,10 @@ ngx_stream_brix_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
      * THIS server wins and everything else this module owns is untouched. */
     brix_stream_common_adopt(cf, &conf->common);
 
-    /* phase-101 W3 stage 3: the x509 GSI-trust strings are also owned by the
-     * common module now; adopt them into this server's own fields BEFORE
-     * brix_merge_srv_security inherits and the GSI postconfig builds the SSL_CTX
-     * / trust store from them. */
-    brix_stream_common_adopt_gsi(cf, &conf->certificate, &conf->certificate_key,
-                                 &conf->trusted_ca, &conf->vomsdir,
-                                 &conf->voms_cert_dir);
-
-    /* phase-101 W3 stage 3b: brix_require_vo is owned by the common module too;
-     * deep-copy its VO-ACL rules into this server's own array (brix_config_
-     * finalize_policy later finalizes them against common.root, and only when
-     * brix_root is enabled — a gridftp-only server never finalizes root's copy). */
-    if (brix_stream_common_adopt_vo_rules(cf, &conf->vo_rules) != NGX_OK) {
+    if (brix_merge_srv_security(cf, conf, prev) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
-
-    if (brix_merge_srv_security(cf, conf, prev) != NGX_CONF_OK) {
+    if (brix_shared_clone_vo_rules(cf, &conf->common) != NGX_OK) {
         return NGX_CONF_ERROR;
     }
     if (brix_merge_srv_storage(cf, conf, prev) != NGX_CONF_OK) {

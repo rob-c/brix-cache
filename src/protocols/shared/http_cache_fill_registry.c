@@ -36,12 +36,15 @@ brix_http_fill_log_key(const char *key, char *buf, size_t cap)
 brix_http_cache_fill_ctx_t  *brix_http_fills;
 
 brix_http_cache_fill_ctx_t *
-brix_http_fill_find(brix_sd_instance_t *inst, const char *key)
+brix_http_fill_find(brix_sd_instance_t *inst, const char *key,
+    const brix_http_fill_cred_t *cred)
 {
     brix_http_cache_fill_ctx_t *t;
 
     for (t = brix_http_fills; t != NULL; t = t->next) {
-        if (t->inst == inst && ngx_strcmp(t->key, key) == 0) {
+        if (t->inst == inst && ngx_strcmp(t->key, key) == 0
+            && brix_http_fill_cred_equal(&t->cred, cred))
+        {
             return t;
         }
     }

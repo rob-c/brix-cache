@@ -315,10 +315,7 @@ brix_qcksum_open(brix_qcksum_req_t *rq, ngx_int_t *out_rc)
     /* Confined read-open through the VFS seam (impersonation-aware, metered).
      * The fd backs the backend-agnostic checksum kernel; the handle is closed
      * via brix_vfs_close on every exit (sync below, or the aio done cb). */
-    brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL,
-        brix_vfs_policy_from_write_enable(conf->common.allow_write),
-        0 /* is_tls */, ctx->identity, full_path);
+    brix_root_vfs_ctx_init(ctx, c, conf, &vctx, full_path);
     brix_vfs_ctx_bind_backend_cred(&vctx,
         &conf->common.storage_credential_dir,
         conf->common.storage_credential_fallback);
@@ -328,7 +325,6 @@ brix_qcksum_open(brix_qcksum_req_t *rq, ngx_int_t *out_rc)
         &conf->common.storage_credential_mint_ca_cert,
         &conf->common.storage_credential_mint_ca_key,
         conf->common.storage_credential_mint_ttl);
-    brix_root_vfs_bind_session(ctx, conf, &vctx);
     fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);
     errno = vfs_err;
 

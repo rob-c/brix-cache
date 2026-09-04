@@ -4,9 +4,9 @@ The base ladders cover the anonymous planes; this grid crosses every HTTP
 credential route (dav plain, davs bearer, davsg client-cert, s3 anonymous,
 s3sig SigV4) with GET and PUT at three sizes, and every stream security
 plane (none, gsi, token, sss) with GET and PUT at two sizes.  Each cell
-asserts the unified op/byte ledgers and the per-proto wire byte ledgers
-move by exactly the payload size, and that the payload itself lands
-byte-identical — proving the accounting is credential-route independent.
+asserts the unified op/byte ledgers move by exactly the payload size,
+and that the payload itself lands byte-identical — proving the accounting
+is credential-route independent.
 """
 
 import os
@@ -55,15 +55,10 @@ def http_put(mx, flow, name, payload):
                           headers=hdr)
 
 
-def stream_labels(mx, plane):
-    meta = cx.STREAM_PLANES[plane]
-    return {"port": str(mx.port(meta["port_key"])), "auth": meta["auth"]}
-
-
 @pytest.mark.parametrize("size", HTTP_SIZES)
 @pytest.mark.parametrize("flow", HTTP_FLOWS)
 def test_http_get_bytes_exact(mx, flow, size):
-    """Warm GET over `flow` at `size`: read op +1, both byte ledgers +size,
+    """Warm GET over `flow` at `size`: read op +1, read ledger +size,
     body byte-identical."""
     proto = proto_of(flow)
     name = cx.unique_name(f"pg{flow}{size}")
@@ -79,13 +74,12 @@ def test_http_get_bytes_exact(mx, flow, size):
                    {"proto": proto, "op": "read", "status": "ok"},
                    after) == 1
     assert s.delta("brix_io_bytes_read", {"proto": proto}, after) == size
-    assert s.delta(f"brix_{proto}_bytes_tx_total", after=after) == size
 
 
 @pytest.mark.parametrize("size", HTTP_SIZES)
 @pytest.mark.parametrize("flow", HTTP_FLOWS)
 def test_http_put_bytes_exact(mx, flow, size):
-    """PUT over `flow` at `size`: write op +1, both byte ledgers +size,
+    """PUT over `flow` at `size`: write op +1, write ledger +size,
     stored object byte-identical."""
     proto = proto_of(flow)
     name = cx.unique_name(f"pp{flow}{size}")
@@ -99,19 +93,17 @@ def test_http_put_bytes_exact(mx, flow, size):
                    {"proto": proto, "op": "write", "status": "ok"},
                    after) == 1
     assert s.delta("brix_io_bytes_written", {"proto": proto}, after) == size
-    assert s.delta(f"brix_{proto}_bytes_rx_total", after=after) == size
     assert (mx.local_data / name).read_bytes() == payload
 
 
 @pytest.mark.parametrize("size", STREAM_SIZES)
 @pytest.mark.parametrize("plane", STREAM_PLANES)
 def test_stream_get_bytes_exact(mx, plane, size, tmp_path):
-    """Cold stream read on security plane `plane`: unified + per-plane tx
-    ledgers exact, payload intact."""
+    """Cold stream read on security plane `plane`: the unified read ledger
+    is exact, payload intact."""
     name = cx.unique_name(f"sg{plane}{size}")
     payload = mx.seed_origin(name, size)
     dst = tmp_path / name
-    lbl = stream_labels(mx, plane)
     s = snap(mx)
     r = mx.xrdcp_get(plane, f"/{name}", str(dst))
     assert r.returncode == 0, r.stderr
@@ -122,20 +114,18 @@ def test_stream_get_bytes_exact(mx, plane, size, tmp_path):
                    {"proto": "stream", "op": "read", "status": "ok"},
                    after) == 1
     assert s.delta("brix_io_bytes_read", {"proto": "stream"}, after) == size
-    assert s.delta("brix_bytes_root_tx_total", lbl, after) == size
 
 
 @pytest.mark.parametrize("size", STREAM_SIZES)
 @pytest.mark.parametrize("plane", STREAM_PLANES)
 def test_stream_put_bytes_exact(mx, plane, size, tmp_path):
-    """Stream write on security plane `plane`: unified + per-plane rx
-    ledgers exact, origin object intact (ops per WIRE chunk, so only
-    counted exactly for single-chunk payloads)."""
+    """Stream write on security plane `plane`: the unified write ledger is
+    exact, origin object intact (ops per WIRE chunk, so only counted
+    exactly for single-chunk payloads)."""
     name = cx.unique_name(f"sp{plane}{size}")
     payload = b"H" * size
     src = tmp_path / name
     src.write_bytes(payload)
-    lbl = stream_labels(mx, plane)
     s = snap(mx)
     r = mx.xrdcp_put(plane, str(src), f"/{name}")
     assert r.returncode == 0, r.stderr
@@ -143,7 +133,6 @@ def test_stream_put_bytes_exact(mx, plane, size, tmp_path):
     after = cx.mfetch(mx.metrics)
     assert s.delta("brix_io_bytes_written", {"proto": "stream"},
                    after) == size
-    assert s.delta("brix_bytes_rx_total", lbl, after) == size
     ops = s.delta("brix_io_ops_total",
                   {"proto": "stream", "op": "write", "status": "ok"}, after)
     if size <= 65536:

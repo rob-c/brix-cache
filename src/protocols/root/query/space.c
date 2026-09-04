@@ -67,7 +67,8 @@
  * which store's free space a proxy is advertising.
  */
 ngx_int_t
-brix_query_space_probe(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
+brix_query_space_probe(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf,
     unsigned long long *total, unsigned long long *freeb,
     unsigned long long *used)
 {
@@ -78,7 +79,9 @@ brix_query_space_probe(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
     brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
         conf->common.root_canon, NULL,
         brix_vfs_policy_from_write_enable(conf->common.allow_write),
-        0 /* is_tls */, NULL, conf->common.root_canon);
+        0 /* is_tls */, ctx != NULL ? ctx->identity : NULL,
+        conf->common.root_canon);
+    brix_root_vfs_bind_session(ctx, conf, &vctx);
     if (brix_vfs_space(&vctx, &sp) == NGX_OK) {
         *total = (unsigned long long) sp.total_bytes;
         *freeb = (unsigned long long) sp.free_bytes;
@@ -118,7 +121,7 @@ brix_query_space(brix_ctx_t *ctx, ngx_connection_t *c,
 
     /* §4.6: driver space view (pblock quota / sd_xroot origin forward) with a
      * local-statvfs fallback — see query_space_probe. */
-    if (brix_query_space_probe(c, conf, &total, &freeb, &used) != NGX_OK) {
+    if (brix_query_space_probe(ctx, c, conf, &total, &freeb, &used) != NGX_OK) {
         brix_log_access(ctx, c, "QUERY", (char *) conf->common.root.data,
                           "space", 0, kXR_IOError, strerror(errno), 0);
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_SPACE);
@@ -183,7 +186,7 @@ brix_query_fsinfo(brix_ctx_t *ctx, ngx_connection_t *c,
     /* §4.6: same driver-space seam as Qspace — a proxy/quota backend advertises
      * the origin's (or its quota's) free space for CMS/locate writable-server
      * selection, not the proxy's own cache disk. */
-    if (brix_query_space_probe(c, conf, &total, &freeb, &used) != NGX_OK) {
+    if (brix_query_space_probe(ctx, c, conf, &total, &freeb, &used) != NGX_OK) {
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_FSINFO);
         return brix_send_error(ctx, c, kXR_IOError, "statvfs failed");
     }

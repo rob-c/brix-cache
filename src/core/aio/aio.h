@@ -80,6 +80,13 @@ ngx_chain_t *brix_build_chunked_chain(brix_ctx_t *ctx,
 ngx_chain_t *brix_build_window_chain(brix_ctx_t *ctx,
     ngx_connection_t *c, u_char *databuf, size_t data_total, uint16_t status);
 
+/* Build one bounded fragment of a single logical response body.  The first
+ * fragment carries the response header whose dlen advertises body_total;
+ * later fragments are raw body bytes and carry no additional wire header. */
+ngx_chain_t *brix_build_body_fragment_chain(brix_ctx_t *ctx,
+    ngx_connection_t *c, u_char *databuf, size_t fragment_size,
+    size_t body_total, ngx_flag_t first);
+
 /* Build a zero-copy sendfile chain (uses ngx_buf_t with in_file=1). */
 ngx_chain_t *brix_build_sendfile_chain(brix_ctx_t *ctx,
     ngx_connection_t *c, int fd, const char *path, off_t offset,

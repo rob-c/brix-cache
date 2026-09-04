@@ -70,6 +70,12 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->thread_pool        = NULL;
     conf->storage_backend.len   = 0;
     conf->storage_backend.data  = NULL;
+    conf->n2n_scheme.len   = 0;
+    conf->n2n_scheme.data  = NULL;
+    conf->n2n_pool.len     = 0;
+    conf->n2n_pool.data    = NULL;
+    conf->n2n_prefix.len   = 0;
+    conf->n2n_prefix.data  = NULL;
     conf->storage_credential.len  = 0;
     conf->storage_credential.data = NULL;
     conf->storage_credential_dir.len   = 0;
@@ -134,6 +140,7 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->vfs_spill_max      = NGX_CONF_UNSET_SIZE;   /* phase-107 C1 */
     conf->durable_publish    = NGX_CONF_UNSET;        /* phase-107 C3 */
     conf->lock_enforcement   = NGX_CONF_UNSET_UINT;   /* phase-107 C7 */
+    conf->authz_backstop     = NGX_CONF_UNSET_UINT;   /* phase-108 C12 */
     conf->rootfd             = -1;   /* opened per worker at init_process */
     /* root_canon zeroed by ngx_pcalloc — no explicit memset needed */
     brix_pmark_conf_init(&conf->pmark);
@@ -144,6 +151,7 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->signing_policy_mode = NGX_CONF_UNSET_UINT; /* phase-101 W4 */
     conf->crl_mode           = NGX_CONF_UNSET_UINT;  /* phase-101 W4 */
     conf->token_clock_skew   = NGX_CONF_UNSET;       /* phase-101 W4 */
+    conf->token_jwks_refresh_interval = NGX_CONF_UNSET_MSEC; /* phase-105 W4.3 */
     conf->vo_rules           = NULL;  /* phase-101 W4: lazily created by the
                                        * brix_require_vo setter; NULL-inherit at
                                        * merge, like cache_store_args/cache_peers. */
@@ -156,6 +164,8 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->tpc_source_guard       = NGX_CONF_UNSET;
     conf->tpc_source_allow       = NULL;
     conf->tpc_require_source_size = NGX_CONF_UNSET;
+    conf->tpc_outbound_tls = NGX_CONF_UNSET;
+    conf->tpc_outbound_passthrough = NGX_CONF_UNSET;
 
     /* phase-105 W2/W3/W3.5/W4.1 scalars.  Every field a stock ngx_conf_set_*
      * slot setter writes MUST start at its UNSET sentinel: pcalloc's 0 both

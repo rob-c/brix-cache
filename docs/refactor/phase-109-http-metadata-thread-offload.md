@@ -1,8 +1,11 @@
 # Phase 109 — take the event-loop stall off the metadata path (don't rewrite the transport)
 
-**Status:** IMPLEMENTED 2026-08-31 (OP directed "implement all" after the
-plan-only review round). As-built record in the implementation log at the
-bottom; one deliberate deviation (LOCK deferred, with reason).
+**Status:** IMPLEMENTED / CLOSED (reconciled 2026-09-03) for PROPFIND and
+SEARCH. The as-built record is in the implementation log at the bottom. LOCK
+was deliberately excluded because its walk mutates expired lock-null resources
+and lock-table state. Phase 113 closed without implementation because no
+measurable LOCK stall triggered the higher-risk mutation/revalidation protocol;
+the bounded inline path is the supported behavior.
 
 Source: the phase-106 W5 transport audit
 (`docs/refactor/phase-106-nginx-native-integration-surface.md`, "Deliverable
@@ -401,3 +404,49 @@ restructure re-triggered a pre-existing header-push clone family
 
 Ports: `lc-walk-offload` (30918 + ORIGIN_PORT/LOCAL_PORT extras); shared
 lifecycle lane 933→936, `PORT_COUNT` 2225→2228.
+
+---
+
+## Coverage audit — every workstream maps to a describing test (2026-09-03)
+
+A closing pass walked W1–W4's test obligations against the landed suite so that
+every discovery / compat / security property / behaviour change is named by a
+test discoverable from the test list alone. Two obligations had accurate
+prose but no self-naming test; both are now landed and green.
+
+**Newly landed to close the audit.**
+
+| obligation | as landed | what it now pins |
+|---|---|---|
+| W3 — the exchange rides the offload (phase-106 R-7 closed) | `test_gate_offloads_local_exchange_mode`, `test_metadata_offload_guard.py` | the gate's local-backend decline carries the `BRIX_CRED_EXCHANGE` exception, so a LOCAL EXCHANGE-mode metadata walk still offloads and its RFC-8693 mint leaves the event loop. This is the *only* test of the W3 arm — dropping the exception silently reopens R-7 (the gate still 'works', it just blocks the worker on every cold token mint); modelled on W4's "cannot silently regress" bar rather than a heavyweight slow-token runtime lane, since the stall mechanism itself is already exercised by the PROPFIND load-bearing cell through the shared `walk_offload` helper |
+| W1 — Depth:infinity rides the offload | `test_remote_walk_depth_infinity_rides_the_offload`, `test_walk_offload.py` | the doc named both Depth:1 and Depth:infinity; the deep walk (Appendix-B R-5, the longest thread hold) now has its own cell asserting a well-formed 207 listing through the offloaded build. (Depth:1 and infinity are not byte-identical — infinity recurses — so the cell pins that the deep walk rides the offload and lists the tree, not a false depth-equality) |
+
+**Already covered — equivalent name, source pin, or shared mechanism.**
+
+- **W1 success (non-stall)** — `test_slow_origin_no_longer_stalls_the_worker`
+  (load-bearing, single-worker probe under a 5s origin) + the listing cell.
+- **W1 error** — `test_unreachable_origin_fails_cleanly_and_worker_survives`.
+- **W1 security-neg** — the plan's "walk runs as the mapped user on the thread"
+  was resolved by the gate DECLINING under impersonation (the copy_collection.c
+  precedent), so impersonated walks stay INLINE where the phase-106 authz tests
+  already enforce mapped-user enumeration. Pinned by
+  `test_gate_declines_under_impersonation` (the decline is present and FIRST) +
+  the runtime `test_offloaded_walk_still_refuses_traversal` and
+  `test_local_backend_stays_inline_and_correct`.
+- **W2 SEARCH** — `test_adopters_dispatch_through_the_offload` names `search.c →
+  webdav_search_offload` (dispatches through the offload before its inline
+  fallback); functional correctness stays covered by the local `test_webdav_search.py`
+  suite (depth-1/infinity/filters), and the non-stall property holds through the
+  same shared `walk_offload` helper the PROPFIND load-bearing cell exercises.
+- **W2 LOCK exclusion** — `test_lock_is_not_offloaded_while_its_walk_mutates`
+  pins both that LOCK does NOT dispatch through the offload and that its
+  in-walk mutation (`webdav_lock_expired_cleanup`) still exists — so the
+  exclusion rationale can't go stale unnoticed.
+- **W4 guard** — the whole `test_metadata_offload_guard.py`: adopter order,
+  thread-side no-bare-`r->pool`, the impersonation decline, and
+  `test_detector_is_not_vacuous` (the order check really rejects inline-first).
+
+Runtime lane `test_walk_offload.py` 6/6 and guard `test_metadata_offload_guard.py`
+6/6 green post-audit. No W1–W4 obligation now lacks a describing test; LOCK
+remains the one deliberate, test-pinned exclusion (its offload is
+[Phase 113](phase-113-webdav-lock-mutation-offload.md)).

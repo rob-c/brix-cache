@@ -26,6 +26,7 @@
 #include <ngx_core.h>
 
 #include "fs/backend/sd.h"
+#include "fs/path/site_n2n.h"        /* brix_n2n_cfg_t for config_n2n / backend_n2n */
 #include "core/compat/af_policy.h"   /* BRIX_AF_* family policy for config_str/_xroot */
 
 /* Record (at config time) that the export rooted at `root_canon` uses backend
@@ -108,6 +109,18 @@ void brix_vfs_backend_config_s3(const char *root_canon, const char *host,
     int port, int tls, const char *bucket,
     const brix_vfs_s3_origin_opts_t *opts);
 
+typedef struct {
+    const char *host;
+    int         port;
+    const char *base_path;
+    int         require_gsi;
+} brix_vfs_gsiftp_origin_t;
+
+/* Register an outbound ftp:// or gsiftp:// storage origin. GSI credentials use
+ * the existing backend credential setter; `o` only describes the endpoint. */
+void brix_vfs_backend_config_gsiftp(const char *root_canon,
+    const brix_vfs_gsiftp_origin_t *o);
+
 /* Register the export's `storage_backend` config value, dispatching on its form:
  * a "root://host:port" / "roots://host:port" URL → a remote root:// primary
  * (config_xroot); any other value → a local driver name (config, pblock). One
@@ -117,6 +130,23 @@ void brix_vfs_backend_config_s3(const char *root_canon, const char *host,
  * (cf-logged) on a malformed remote URL. */
 ngx_int_t brix_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
     const ngx_str_t *backend, size_t block_size, int family);
+
+/* Phase-108 A.4: apply the export's explicit `brix_n2n_scheme` / `brix_n2n_pool`
+ * / `brix_n2n_prefix` directives over the default translation the backend parser
+ * already derived (ceph ⇒ CEPHFS_PATH+key_prefix; every other backend ⇒
+ * IDENTITY). Validates at nginx -t and OVERRIDES nothing when all three are unset
+ * (scheme->len==0). Rejects: an unknown scheme; `ral` without a pool; a pool
+ * over 127 or a prefix over 255 bytes (a config error, never a runtime
+ * truncation); and — the footgun guard — `ral` on the RADOS ("ceph") backend,
+ * whose object names are ioctx-bound, not "<pool>:"-prefixed. Returns NGX_OK, or
+ * NGX_ERROR (cf-logged). A no-op for an export with no backend registry entry. */
+ngx_int_t brix_vfs_backend_config_n2n(ngx_conf_t *cf, const char *root_canon,
+    const ngx_str_t *scheme, const ngx_str_t *pool, const ngx_str_t *prefix);
+
+/* Phase-108 A.4: the export's resolved name translation (borrowed, worker-
+ * lifetime), or NULL when the export has no registry entry (⇒ IDENTITY). Bound
+ * onto ctx->n2n in brix_vfs_ctx_init. Pure lookup, no allocation. */
+const brix_n2n_cfg_t *brix_vfs_backend_n2n(const char *root_canon);
 
 /* Upstream credential material a backend build consumes (plain primitives, so the
  * registry stays independent of the config credential block). NULL / "" ⇒ unset.

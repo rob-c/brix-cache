@@ -9,7 +9,7 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, tpc_allow_local),
+      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_allow_local),
       NULL },
 
     /* Allow TPC pulls from RFC-1918 private addresses (default: on). */
@@ -17,7 +17,7 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, tpc_allow_private),
+      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_allow_private),
       NULL },
 
     /* Enforce the TPC source-host allowlist (default: off / opt-in). */
@@ -25,7 +25,7 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, tpc_source_guard),
+      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_source_guard),
       NULL },
 
     /* Hostnames (exact or leading-'.' domain suffix) a TPC pull may originate
@@ -107,7 +107,7 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, tpc_outbound_tls),
+      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_outbound_tls),
       NULL },
 
     /* phase-57 §F6: X.509 proxy delegation (capture client proxy → present to
@@ -142,7 +142,7 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, tpc_require_source_size),
+      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_require_source_size),
       NULL },
 
     /* Opt-in post-copy integrity: query the source checksum and compare it to the
@@ -169,7 +169,7 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, tpc_outbound_bearer_file),
+      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_outbound_bearer_file),
       NULL },
 
     /* Phase-70: forward the client's inbound bearer JWT verbatim to the TPC
@@ -181,7 +181,7 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, tpc_outbound_passthrough),
+      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_outbound_passthrough),
       NULL },
 
     /* OAuth2/OIDC token endpoint for RFC 8693 token exchange on TPC pulls. */
@@ -189,7 +189,7 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, tpc_outbound_token_endpoint),
+      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_outbound_token_endpoint),
       NULL },
 
     /* OAuth2 client ID for confidential client token exchange. */
@@ -197,7 +197,7 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, tpc_outbound_client_id),
+      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_outbound_client_id),
       NULL },
 
     /* OAuth2 client secret for confidential client token exchange. */
@@ -205,7 +205,7 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, tpc_outbound_client_secret),
+      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_outbound_client_secret),
       NULL },
 
     /* Scope string for token exchange (default: "storage.read"). */
@@ -213,7 +213,7 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, tpc_outbound_scope),
+      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_outbound_scope),
       NULL },
 
     /* brix_allow_write + brix_verify_write -> owned by

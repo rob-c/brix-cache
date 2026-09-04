@@ -2,12 +2,11 @@
 
 **Date:** 2026-06-13
 **Author:** performance deep-dive
-**Status:** IN PROGRESS — WS1 (kTLS), WS2 (multi-chunk pipelining), WS4 (inline
-warm-cache `preadv2(RWF_NOWAIT)` reads), WS5 (config bundle + tuning docs) DONE &
-verified. WS3 **foundation** landed+verified (concurrent-AIO read-buffer/task pool)
-+ architecture fully documented; the WS3 recv-state-machine flip is **deferred to a
-benchmark-backed session** (throughput-unvalidatable here + flaky harness). WS5
-access-log batching + WebDAV per-request cuts: tracked follow-ups (documented).
+**Status:** IMPLEMENTED / CLOSED (reconciled 2026-09-03). WS1–WS4 and WS5's
+configuration/docs are verified; Phase 33 landed the receive-state-machine
+flip, access-log batching and WebDAV fixed-cost cuts. High-BDP behavior has an
+unprivileged measured lane. Hardware-offload kTLS remains an optional operator
+characterization, not repository acceptance.
 
 > **WS4 (2026-06-13):** `src/protocols/root/read/read.c` memory single-shot path probes the page
 > cache with `preadv2(RWF_NOWAIT)` before posting AIO; a full hit completes inline

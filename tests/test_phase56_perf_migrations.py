@@ -190,7 +190,7 @@ def test_c1_dtype_rides_the_sd_seam():
     verb decides otherwise)."""
     assert "out->d_type = de->d_type" in \
         _read("src/fs/backend/posix/sd_posix_ns.c")
-    vfs_dir = _read("src/fs/vfs/vfs_dir.c")
+    vfs_dir = _read("src/fs/vfs/vfs_dir_iter.c")
     body = _fn_body(vfs_dir, "vfs_sd_entry_kind")
     assert "de->d_type != DT_UNKNOWN" in body
 
@@ -199,8 +199,12 @@ def test_c1_sd_dirents_are_zeroed_before_fill():
     """Error contract: both sd-plane call sites zero the dirent before the
     driver fills it, so a name-only driver yields d_type == DT_UNKNOWN (= 0),
     never stack garbage promoted to a fake kind."""
-    vfs_dir = _read("src/fs/vfs/vfs_dir.c")
-    assert vfs_dir.count("ngx_memzero(&de_sd, sizeof(de_sd))") >= 2
+    vfs_dir = _read("src/fs/vfs/vfs_dir_iter.c")
+    # One site zeroes a stack dirent, the other the ctx-held de_scratch
+    # through a pointer — both must zero before the driver fills.
+    zeroed = (vfs_dir.count("ngx_memzero(&de_sd, sizeof(de_sd))")
+              + vfs_dir.count("ngx_memzero(de_sd, sizeof(*de_sd))"))
+    assert zeroed >= 2
 
 
 def test_c1_dtype_never_reaches_auth_or_confinement():
@@ -218,7 +222,8 @@ def test_c4_omitted_entries_are_logged_except_unlink_race():
     """Success+error contract: both dirlist planes log 'entry omitted from the
     listing' on a per-entry stat failure, gated on errno != ENOENT (the benign
     unlink race stays silent)."""
-    for rel in ("src/fs/vfs/vfs_dir.c", "src/fs/vfs/vfs_io_core_dirlist.c"):
+    for rel in ("src/fs/vfs/vfs_dir_iter.c",
+                "src/fs/vfs/vfs_io_core_dirlist.c"):
         text = _read(rel)
         assert "entry omitted from the" in text, rel
         assert "errno != ENOENT" in text, rel
@@ -231,7 +236,8 @@ def test_c4_omitted_entries_are_logged_except_unlink_race():
 def test_c5_fstatat_fast_path_gated_on_impersonation():
     """Success contract: the O(1) fstatat(dirfd, name, AT_SYMLINK_NOFOLLOW)
     fast path runs only when no client is being impersonated."""
-    body = _fn_body(_read("src/fs/vfs/vfs_dir.c"), "vfs_readdir_stat_child")
+    body = _fn_body(_read("src/fs/vfs/vfs_dir_iter.c"),
+                    "vfs_readdir_stat_child")
     assert "!brix_imp_client_active()" in body
     assert "int dfd = dirfd(dh->dir)" in body
     assert re.search(r"fstatat\(dfd, name, &st,\s*AT_SYMLINK_NOFOLLOW\)", body)
@@ -241,7 +247,8 @@ def test_c5_impersonation_keeps_broker_confined_stat():
     """Security-negative: under impersonation the join + broker-routed
     brix_lstat_confined_canon stays mandatory — mapped-user DAC must keep
     applying to every listed entry."""
-    body = _fn_body(_read("src/fs/vfs/vfs_dir.c"), "vfs_readdir_stat_child")
+    body = _fn_body(_read("src/fs/vfs/vfs_dir_iter.c"),
+                    "vfs_readdir_stat_child")
     imp_branch = body.split("!brix_imp_client_active()")[1]
     assert "brix_lstat_confined_canon" in imp_branch
 

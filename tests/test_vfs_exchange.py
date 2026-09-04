@@ -55,7 +55,8 @@ def test_policy_gate_runs_before_any_name_comparison():
     call above the EXDEV check in brix_vfs_exchange itself."""
     text = _src("src/fs/vfs/vfs_rename.c")
     entry = _fn(text, "brix_vfs_two_name_entry")
-    assert "brix_vfs_require_confined_mutation" in entry, (
+    assert ("brix_vfs_require_confined_mutation" in entry
+            or "brix_vfs_confined_mutation_checked" in entry), (
         "the typed policy gate left the shared entry helper")
     assert "BRIX_VFS_MUTATE_RENAME" in entry, (
         "exchange is write-gated as a rename-class mutation")

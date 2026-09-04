@@ -208,6 +208,12 @@ typedef struct {
     const char *acc_host;       /* XrdAcc reverse-DNS host cache (points into c->pool) */
     unsigned    acc_host_done:1;
     unsigned    gsi_counted:1;  /* holds a GSI in-flight handshake slot (Phase 51 E4) */
+    int         session_slot_hint; /* Round 15: SHM registry slot this session was
+                                    * registered into, or -1 if it never was.  Lets
+                                    * the disconnect clear that slot directly instead
+                                    * of scanning the live prefix under the global
+                                    * session mutex — see
+                                    * brix_session_unregister_hinted(). */
 } brix_ctx_login_t;
 
 /* Request receive/framing state.  Read in two stages: the fixed 24-byte header
@@ -338,11 +344,23 @@ typedef struct {
                                       * grid, the worker runs the in-place
                                       * encode+CRC, and emit frames kXR_status
                                       * partial/final (pgread_window.c) */
+    unsigned   win_readv:1;          /* windowed kXR_readv body stream */
+    unsigned   win_readv_started:1;  /* outer response header was sent */
+    unsigned   win_readv_seg_started:1; /* current segment header was sent */
     int        win_idx;
     int        win_fd;
     off_t      win_offset;           /* next file offset to read */
     size_t     win_remaining;        /* bytes still to send */
     u_char     win_streamid[2];
+
+    /* kXR_readv continuation cursor.  win_readv_wire borrows recv.payload;
+     * recv remains suspended while win_active is set, so the request buffer
+     * outlives the train.  No backend locator or payload buffer is retained. */
+    void      *win_readv_wire;
+    size_t     win_readv_count;
+    size_t     win_readv_index;
+    size_t     win_readv_total;
+    size_t     win_readv_body_size;  /* complete wire body advertised in dlen */
 
     /* Round 12 — double-buffered windows: while window N drains from
      * read_scratch, window N+1 is read ahead into win_scratch_b by a counted

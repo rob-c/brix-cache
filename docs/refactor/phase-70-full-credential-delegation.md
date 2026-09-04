@@ -1,6 +1,9 @@
 # Phase-70 — Full Credential Delegation & Pass-Through to Backend Storage
 
-**Status:** planned
+**Status:** SUPERSEDED / SUBSTANTIALLY LANDED. The chronological update block
+below is authoritative; the remaining live-backend details are owned by the
+newer audit and backend plans, not by every unchecked item in this original
+design.
 
 > SUPERSEDED (2026-07-25): substantially LANDED. Bearer + x509-proxy PASSTHROUGH
 > and token EXCHANGE are live end-to-end — capture (`deleg_capture.h`,

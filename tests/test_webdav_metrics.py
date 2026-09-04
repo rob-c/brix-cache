@@ -2,7 +2,7 @@
 Prometheus metrics tests for the WebDAV protocol layer.
 
 Covers brix_webdav_requests_total, brix_webdav_responses_total,
-brix_webdav_bytes_rx/tx_total, per-IP-version byte counters,
+canonical protocol byte totals, per-IP-version byte counters,
 brix_webdav_auth_total, brix_webdav_tpc_total, and PROPFIND depth counters.
 
 All requests target the plain HTTP WebDAV port (8080) to avoid TLS overhead.
@@ -178,7 +178,8 @@ class TestWebDAVRequestCounters:
             local = f.name
         r = _curl("-T", local, _webdav_url(path))
         assert r.returncode == 0
-        delta = _delta(self.before, _fetch(), "brix_webdav_bytes_rx_total")
+        delta = _delta(self.before, _fetch(), "brix_io_bytes_written",
+                       {"proto": "webdav"})
         assert delta >= len(payload), f"bytes_rx_total delta {delta} < payload {len(payload)}"
 
     def test_propfind_increments_requests_and_bytes_tx(self):
@@ -190,7 +191,8 @@ class TestWebDAVRequestCounters:
         after = _fetch()
         assert _delta(before, after, "brix_webdav_requests_total",
                       {"method": "PROPFIND"}) >= 1
-        assert _delta(before, after, "brix_webdav_bytes_tx_total") >= 1
+        assert _delta(before, after, "brix_io_bytes_read",
+                      {"proto": "webdav"}) >= 1
 
     def test_propfind_bytes_tx_ipv4_also_increments(self):
         before = _fetch()

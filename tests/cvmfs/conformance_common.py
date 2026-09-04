@@ -290,6 +290,7 @@ def _write_server_config(run, port, location, directives, worker_threads,
 worker_processes 1; thread_pool default threads={worker_threads};
 events {{ worker_connections 256; }}
 http {{ access_log off; server {{ {listen}; {ssl_lines}
+    location = /metrics {{ brix_metrics on; }}
     location {location} {{
         {' '.join(directives)}
     }}

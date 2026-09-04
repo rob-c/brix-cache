@@ -221,8 +221,8 @@ brix_oci_referrers_index(const brix_oci_store_t *st,
 
     if (oci_referrers_path(st, req->name, req->name_len, &subject, d,
                            path, sizeof(path)) != 0
-        || brix_oci_store_put_text(path, desc_text, (size_t) len, log)
-           != NGX_OK)
+        || brix_oci_store_publish_bytes(st, path, desc_text, (size_t) len,
+                                        BRIX_VFS_DOMAIN_REGISTRY, log) != NGX_OK)
     {
         return NGX_ERROR;
     }
@@ -241,7 +241,8 @@ brix_oci_referrers_index(const brix_oci_store_t *st,
      * reverse would be a DELETE that removes a descriptor never written. */
     if (brix_oci_store_manifest_path(st, req->name, req->name_len, d,
                                      ".subject", path, sizeof(path)) != 0
-        || brix_oci_store_put_text(path, subj, ngx_strlen(subj), log) != NGX_OK)
+        || brix_oci_store_publish_bytes(st, path, subj, ngx_strlen(subj),
+                                        BRIX_VFS_DOMAIN_REGISTRY, log) != NGX_OK)
     {
         return NGX_ERROR;
     }

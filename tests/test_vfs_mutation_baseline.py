@@ -306,14 +306,14 @@ def test_b8_gcas_dedup_is_gated_on_the_service_domain():
 # Vocabulary width — W1 took the metric mirror 11 -> 15 (phase-108 -> 16)
 # --------------------------------------------------------------------------
 
-def test_vocabulary_is_fifteen_members():
+def test_vocabulary_is_sixteen_members():
     """Inverted by W1.  The four phase-107 members exist, the metric mirror
     moved with them, and the label tables carry exactly the new strings — the
     _Static_assert at vfs_policy.c:33 enforces the count equality at compile
     time; this pin catches a string-table drift the assert cannot see."""
     unified = _src("src/observability/metrics/unified.h")
-    assert "#define BRIX_VFS_MUTATE_OP_METRIC_COUNT  15" in unified, (
-        "the metric mirror is not 15 — the W1 vocabulary landed only in part")
+    assert "#define BRIX_VFS_MUTATE_OP_METRIC_COUNT  16" in unified, (
+        "the metric mirror is not 16 — the credential operation landed only in part")
     policy = _src("src/fs/vfs/vfs_policy.h")
     for member in ("BRIX_VFS_MUTATE_STAGE", "BRIX_VFS_MUTATE_EVICT",
                    "BRIX_VFS_MUTATE_LOCK", "BRIX_VFS_MUTATE_DEDUP"):

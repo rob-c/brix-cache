@@ -6,6 +6,581 @@ Reference for the most commonly-used `brix_*` directives — name, context, type
 
 ## Directives
 
+<!-- BEGIN GENERATED DIRECTIVE REGISTRY -->
+
+### Complete directive registry (generated)
+
+This table is generated from the live `ngx_command_t` registrations, including directive fragments and X-macro families. Context and argument shape are authoritative; exact defaults and validation constraints remain in the curated sections below and in the linked registration owner. Run `cmake --build build --target docs-directives` after changing the surface.
+
+| Directive | Plane | Arguments | Registration owner |
+|---|---|---|---|
+| `brix_acc_audit` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_acc_authdb` | http | `<value>` | `src/core/config/http_directives_auth.h` |
+| `brix_acc_encoding` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_acc_format` | http | `<value>` | `src/core/config/http_directives_auth.h` |
+| `brix_acc_gidlifetime` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_acc_gidretran` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_acc_nisdomain` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_acc_pgo` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_acc_refresh` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_acc_resolve_hosts` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_acc_spacechar` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_access_log` | http | `<value>` | `src/core/config/http_directives_core.h` |
+| `brix_admin_allow` | http | `<value>...` | `src/observability/dashboard/module.c` |
+| `brix_admin_proxy_allow` | http | `<value>...` | `src/observability/dashboard/module.c` |
+| `brix_admin_rate_limit` | http | `<value>` | `src/observability/dashboard/module.c` |
+| `brix_admin_require_both` | http | `on|off` | `src/observability/dashboard/module.c` |
+| `brix_admin_secret` | http | `<value>` | `src/observability/dashboard/module.c` |
+| `brix_admin_socket` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
+| `brix_allow_write` | http, stream | `on|off` | `src/core/config/http_directives_core.h`<br>`src/core/config/stream_common.c` |
+| `brix_auth_cache` | stream | `<value>` | `src/protocols/root/stream/directives_zones.h` |
+| `brix_auth_maxfail` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_authdb` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_authdb_engine` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_authz_backstop` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_backend_async` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_backend_async_batch` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_backend_async_wait` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_backend_ca_dir` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_backend_delegation` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_backend_krb5_forwardable` | http, stream | `on|off` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_backend_passthrough_persist` | http | `on|off` | `src/core/config/http_directives_core.h` |
+| `brix_backend_s3_sts_access_key` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_backend_s3_sts_endpoint` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_backend_s3_sts_flavor` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_backend_s3_sts_region` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_backend_s3_sts_role` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_backend_s3_sts_secret_key` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_backend_s3_sts_ttl` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_backend_sss_keytab` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_backend_token_audience_ok` | http | `<value>...` | `src/core/config/http_directives_core.h` |
+| `brix_backend_token_exchange_client_id` | http | `<value>` | `src/core/config/http_directives_core.h` |
+| `brix_backend_token_exchange_client_secret` | http | `<value>` | `src/core/config/http_directives_core.h` |
+| `brix_backend_token_exchange_endpoint` | http | `<value>` | `src/core/config/http_directives_core.h` |
+| `brix_bandwidth_limit` | http, stream | `<value> <value>...` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_net.h` |
+| `brix_cache` | stream | `on|off` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_allow_prefix` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_cold_max_age` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_cold_store` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_deny_prefix` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_dirty_max_age` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_evict_at` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_evict_to` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_eviction_threshold` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_export` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_global_cas` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_high_watermark` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_include_regex` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_index_cache` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_lock_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_low_watermark` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_max_bytes` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_max_file_size` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_max_object` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_meta` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_only_if_cached` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_origin_family` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_passthrough` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_passthrough_max` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_peers` | http | `<value>...` | `src/core/config/http_directives_core.h` |
+| `brix_cache_prefetch` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_prefetch_window` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_reap_interval` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_root` | http | `<value>` | `src/core/config/http_directives_core.h` |
+| `brix_cache_slice_size` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_state_root` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_store` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_store_endpoint` | http, stream | `on|off` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_cache_uvkeep` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_cache_verify` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/directives_cache.h` |
+| `brix_certificate` | stream | `<value>` | `src/core/config/stream_common.c` |
+| `brix_certificate_key` | stream | `<value>` | `src/core/config/stream_common.c` |
+| `brix_checksum_default` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
+| `brix_chkpnt_maxsz` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
+| `brix_ckscan_depth` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_ckscan_max_files` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_client_ca_store` | http | `<value>` | `src/core/config/http_directives_ops.h` |
+| `brix_client_certificate_folder` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_cms_affinity` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_altds` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_altds_interval` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_blacklist_file` | stream | `<value>` | `src/net/cms/server_module.c` |
+| `brix_cms_connect_retry` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_delay_hold` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_delay_servers` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_dfs` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_emptylife` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_fanout` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_fanout_window` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_fxhold` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_initial_delay` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_interval` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_load_weight` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_locate_multi` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_locate_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_locate_window` | stream | `<value>` | `src/protocols/root/stream/directives_caps.h` |
+| `brix_cms_manager` | stream | `<value>...` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_min_free` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_paths` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_perf_interval` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_perf_pgm` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_read_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_role` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_sched` | stream | `<value>...` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_send_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_server` | stream | `on|off` | `src/net/cms/server_module.c` |
+| `brix_cms_server_allow` | stream | `<value>...` | `src/net/cms/server_module.c` |
+| `brix_cms_server_idle_timeout` | stream | `<value>` | `src/net/cms/server_module.c` |
+| `brix_cms_server_interval` | stream | `<value>` | `src/net/cms/server_module.c` |
+| `brix_cms_server_login_timeout` | stream | `<value>` | `src/net/cms/server_module.c` |
+| `brix_cms_server_max_connections` | stream | `<value>` | `src/net/cms/server_module.c` |
+| `brix_cms_server_max_connections_per_ip` | stream | `<value>` | `src/net/cms/server_module.c` |
+| `brix_cms_server_max_direct` | stream | `<value>` | `src/net/cms/server_module.c` |
+| `brix_cms_server_sss_keytab` | stream | `<value>` | `src/net/cms/server_module.c` |
+| `brix_cms_server_tcp_keepalive` | stream | `on|off` | `src/net/cms/server_module.c` |
+| `brix_cms_server_tcp_user_timeout` | stream | `<value>` | `src/net/cms/server_module.c` |
+| `brix_cms_stage_select` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_state_fanout` | stream | `<value>` | `src/protocols/root/stream/directives_caps.h` |
+| `brix_cms_state_relay` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_tcp_keepalive` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_tcp_user_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_vnid` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_whitelist_file` | stream | `<value>` | `src/net/cms/server_module.c` |
+| `brix_cns` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_collapse_redir` | stream | `on|off` | `src/protocols/root/stream/directives_caps.h` |
+| `brix_collapse_redir_ttl` | stream | `<value>` | `src/protocols/root/stream/directives_caps.h` |
+| `brix_compress` | http | `on|off` | `src/core/config/http_directives_core.h` |
+| `brix_concurrency_limit` | http, stream | `<value> <value>...` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_net.h` |
+| `brix_credential` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_crl` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_crl_mode` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_crl_reload` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_csi` | stream | `on|off` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_csi_block` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_csi_require` | stream | `on|off` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_csi_scrub_interval` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_csi_trust_fs` | stream | `on|off` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_cvmfs` | http | `on|off` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_cvmfs_attest` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_cvmfs_bundle` | http | `on|off` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_client_hold` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_delta` | http | `on|off` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_dict` | http | `on|off` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_fill_max_life` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_fill_retry_policy` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_geo_answer` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_geo_cache_ttl` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_geo_max_servers` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_here` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_learn` | http | `on|off` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_manifest_ttl` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_cvmfs_negative_ttl` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_cvmfs_offline_ttl` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_cvmfs_origin_attempt_timeout` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_origin_connect_timeout` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_origin_coords` | http | `<value> <value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_origin_http_version` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_origin_reuse_conn` | http | `on|off` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_origin_select` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_origin_stall_bytes` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_origin_stall_timeout` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_qos` | http | `<value> <value> <value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_cvmfs_quarantine_dir` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_cvmfs_repo_authz` | http | `<value> <value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_cvmfs_rtt_interval` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_scrub` | http | `on|off` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_scrub_interval` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_scrub_rate` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_shared_cache` | http | `on|off` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_stratum0_root` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_cvmfs_swarm` | http | `on|off` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_swarm_interval` | http | `<value>` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_trace` | http | `on|off` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_cvmfs_unified_origin` | http | `on|off` | `src/protocols/cvmfs/directives_resilience.h` |
+| `brix_cvmfs_upstream_allow` | http | `<value>...` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_cvmfs_upstream_max` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_cvmfs_verify_manifest` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_cvmfs_virtual_repo` | http | `<value> <value>...` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_dashboard` | http | `on|off` | `src/observability/dashboard/module.c` |
+| `brix_dashboard_anonymous` | http | `on|off` | `src/observability/dashboard/module.c` |
+| `brix_dashboard_browse_root` | http | `<value>` | `src/observability/dashboard/module.c` |
+| `brix_dashboard_cluster_stale_after` | http | `<value>` | `src/observability/dashboard/module.c` |
+| `brix_dashboard_cookie_path` | http | `<value>` | `src/observability/dashboard/module.c` |
+| `brix_dashboard_idle_threshold` | http | `<value>` | `src/observability/dashboard/module.c` |
+| `brix_dashboard_password` | http | `<value>` | `src/observability/dashboard/module.c` |
+| `brix_dashboard_scan_max_files` | http | `<value>` | `src/observability/dashboard/module.c` |
+| `brix_dashboard_scan_root` | http | `<value>` | `src/observability/dashboard/module.c` |
+| `brix_dashboard_session_ttl` | http | `<value>` | `src/observability/dashboard/module.c` |
+| `brix_dashboard_stalled_threshold` | http | `<value>` | `src/observability/dashboard/module.c` |
+| `brix_dashboard_users` | http | `<value>` | `src/observability/dashboard/module.c` |
+| `brix_dashboard_vfs_browse` | http | `on|off` | `src/observability/dashboard/module.c` |
+| `brix_data_substreams` | stream | `on|off` | `src/protocols/root/stream/module.c` |
+| `brix_delegation_endpoint` | http | `on|off` | `src/core/config/http_directives_ops.h` |
+| `brix_dirstats` | stream | `on|off` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_durable_commit` | stream | `on|off` | `src/core/config/stream_common.c` |
+| `brix_durable_publish` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_export` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/core/config/stream_common.c` |
+| `brix_frm` | stream | `on|off` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_async_recall` | stream | `on|off` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_control_dir` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_copy_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_copycmd` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_copymax` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_fail_backoff` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_fail_retries` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_force_scratch` | stream | `on|off` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_max_inflight` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_max_per_source` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_migrate_copycmd` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_purge_interval` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_purge_watermark` | stream | `<value> <value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_queue_path` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_residency_cmd` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_stage_dir` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_stage_ttl` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_stage_wait` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_stagecmd` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_xfrhold` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_fsoverload_redirect` | stream | `<value> <value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_fsoverload_stall` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_gridftp` | stream | `on|off` | `src/protocols/gridftp/ftp_module.c` |
+| `brix_gridftp_gsi` | stream | `on|off` | `src/protocols/gridftp/ftp_module.c` |
+| `brix_gridftp_pasv_port_range` | stream | `<value> <value>` | `src/protocols/gridftp/ftp_module.c` |
+| `brix_gridftp_require_allo_size` | stream | `on|off` | `src/protocols/gridftp/ftp_module.c` |
+| `brix_gsi_ciphers` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_gsi_keypool_seed` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_gsi_keypool_size` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_gsi_max_inflight_handshakes` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_gsi_signed_dh` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_guard` | http | `on|off` | `src/net/httpguard/module.c` |
+| `brix_guard_audit_log` | http | `<value>` | `src/net/httpguard/module.c` |
+| `brix_guard_bounce_status` | http | `<value>` | `src/net/httpguard/module.c` |
+| `brix_guard_default_signatures` | http | `on|off` | `src/net/httpguard/module.c` |
+| `brix_guard_profile` | http | `<value>` | `src/net/httpguard/module.c` |
+| `brix_guard_signature` | http | `<value>` | `src/net/httpguard/module.c` |
+| `brix_guard_stream` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_guard_valid_method` | http | `<value>...` | `src/net/httpguard/module.c` |
+| `brix_guard_valid_prefix` | http | `<value>` | `src/net/httpguard/module.c` |
+| `brix_handshake_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_health` | http | `on|off` | `src/observability/metrics/module.c` |
+| `brix_health_check` | stream | `on|off` | `src/protocols/root/stream/directives_net.h` |
+| `brix_health_check_blacklist` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_health_check_interval` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_health_check_threshold` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_health_check_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_health_check_type` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_host_allow` | stream | `<value>...` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_http_handoff` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_idmap` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
+| `brix_idmap_broker_user` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
+| `brix_idmap_cache_ttl` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
+| `brix_idmap_default_user` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
+| `brix_idmap_export` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
+| `brix_idmap_forbidden_groups` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
+| `brix_idmap_forbidden_users` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
+| `brix_idmap_gridmap` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
+| `brix_idmap_min_uid` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
+| `brix_idmap_socket` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
+| `brix_idmap_user` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
+| `brix_inherit_parent_group` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_io_uring` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_io_uring_admin` | stream | `on|off` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_io_uring_panic_file` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_io_uring_queue_depth` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_io_uring_restrict` | stream | `on|off` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_krb5_delegate` | stream | `on|off` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_krb5_ip_check` | stream | `on|off` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_krb5_keytab` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_krb5_principal` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_ktls` | http, stream | `on|off` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/directives_security.h` |
+| `brix_kv_zone` | http, stream | `<value> <value>...` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_zones.h` |
+| `brix_listen_port` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_lock_enforcement` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_macaroon_secret` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_macaroon_secret_old` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_manager_map` | stream | `<value> <value>` | `src/protocols/root/stream/module.c` |
+| `brix_manager_mode` | stream | `on|off` | `src/protocols/root/stream/module.c` |
+| `brix_manager_stale_after` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_max_connections` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_max_delay` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_cms.h` |
+| `brix_memory_budget` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_metadata_only` | stream | `on|off` | `src/protocols/root/stream/directives_caps.h` |
+| `brix_metrics` | http | `on|off` | `src/observability/metrics/module.c` |
+| `brix_metrics_slowop` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_min_sec_level` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
+| `brix_mirror_exclude_opcodes` | stream | `<value>...` | `src/protocols/root/stream/directives_net.h` |
+| `brix_mirror_log_diverge` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_net.h` |
+| `brix_mirror_methods` | http | `<value>...` | `src/core/config/http_directives_ops.h` |
+| `brix_mirror_opcodes` | stream | `<value>...` | `src/protocols/root/stream/directives_net.h` |
+| `brix_mirror_sample` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_net.h` |
+| `brix_mirror_strip_auth` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_net.h` |
+| `brix_mirror_timeout` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_net.h` |
+| `brix_mirror_token` | http | `<value>` | `src/core/config/http_directives_ops.h` |
+| `brix_mirror_url` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_net.h` |
+| `brix_mirror_writes` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_net.h` |
+| `brix_n2n_pool` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/core/config/stream_common.c` |
+| `brix_n2n_prefix` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/core/config/stream_common.c` |
+| `brix_n2n_scheme` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/core/config/stream_common.c` |
+| `brix_negcache_backoff` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
+| `brix_oci_delegate_insecure` | http | `on|off` | `src/protocols/oci/directives_mirror.h` |
+| `brix_oci_delegate_proof_ttl` | http | `<value>` | `src/protocols/oci/directives_mirror.h` |
+| `brix_oci_delegate_realm` | http | `<value>` | `src/protocols/oci/directives_mirror.h` |
+| `brix_oci_gc_grace` | http | `<value>` | `src/protocols/oci/directives_registry.h` |
+| `brix_oci_gc_interval` | http | `<value>` | `src/protocols/oci/directives_registry.h` |
+| `brix_oci_manifest_ttl` | http | `<value>` | `src/protocols/oci/directives_mirror.h` |
+| `brix_oci_max_blob_size` | http | `<value>` | `src/protocols/oci/directives_registry.h` |
+| `brix_oci_mirror` | http | `<value>` | `src/protocols/oci/directives_mirror.h` |
+| `brix_oci_mirror_auth` | http | `<value> <value>` | `src/protocols/oci/directives_mirror.h` |
+| `brix_oci_mirror_delegate` | http | `on|off` | `src/protocols/oci/directives_mirror.h` |
+| `brix_oci_mirror_insecure` | http | `on|off` | `src/protocols/oci/directives_mirror.h` |
+| `brix_oci_registry` | http | `on|off` | `src/protocols/oci/directives_registry.h` |
+| `brix_oci_registry_allow_anonymous` | http | `on|off` | `src/protocols/oci/directives_registry.h` |
+| `brix_oci_registry_root` | http | `<value>` | `src/protocols/oci/directives_registry.h` |
+| `brix_oci_token_issuers` | http | `<value>` | `src/protocols/oci/directives_registry.h` |
+| `brix_oci_token_zone` | http | `<value> <value>` | `src/protocols/oci/directives_mirror.h` |
+| `brix_oci_upload_grace` | http | `<value>` | `src/protocols/oci/directives_registry.h` |
+| `brix_oci_upstream_auth_realm` | http | `<value>` | `src/protocols/oci/directives_mirror.h` |
+| `brix_oci_upstream_namespace` | http | `<value>` | `src/protocols/oci/directives_mirror.h` |
+| `brix_ocsp` | stream | `on|off` | `src/protocols/root/stream/module.c` |
+| `brix_ocsp_require_nonce` | stream | `on|off` | `src/protocols/root/stream/module.c` |
+| `brix_ocsp_soft_fail` | stream | `on|off` | `src/protocols/root/stream/module.c` |
+| `brix_ocsp_stapling` | stream | `on|off` | `src/protocols/root/stream/module.c` |
+| `brix_opaque_strict` | stream | `on|off` | `src/protocols/root/stream/directives_security.h` |
+| `brix_oss_cgroup` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
+| `brix_oss_maxsize` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
+| `brix_oss_quota` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
+| `brix_oss_quota_enforce` | stream | `on|off` | `src/protocols/root/stream/directives_security.h` |
+| `brix_pblock_block_size` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_pipeline_depth` | stream | `<value>` | `src/protocols/root/stream/module.c` |
+| `brix_pmark` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_pmark.h` |
+| `brix_pmark_appname` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_pmark.h` |
+| `brix_pmark_defsfile` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_pmark.h` |
+| `brix_pmark_domain` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_pmark.h` |
+| `brix_pmark_echo` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_pmark.h` |
+| `brix_pmark_firefly` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_pmark.h` |
+| `brix_pmark_firefly_dest` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_pmark.h` |
+| `brix_pmark_firefly_origin` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_pmark.h` |
+| `brix_pmark_flowlabel` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_pmark.h` |
+| `brix_pmark_http_plain` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_pmark.h` |
+| `brix_pmark_map_activity` | http, stream | `<value> <value> <value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_pmark.h` |
+| `brix_pmark_map_experiment` | http, stream | `<value> <value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_pmark.h` |
+| `brix_pmark_scitag_cgi` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_pmark.h` |
+| `brix_posc_persist` | stream | `<value>` | `src/protocols/root/stream/directives_writethrough.h` |
+| `brix_prepare_command` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_protbind` | http, stream | `<value> <value>...` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_pss_dca` | stream | `on|off` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_pwd_file` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_rate_limit` | http, stream | `<value> <value>...` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_zones.h` |
+| `brix_rate_limit_rule` | http, stream | `<value> <value>...` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_net.h` |
+| `brix_rate_limit_zone` | http, stream | `<value>...` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_net.h` |
+| `brix_read_compress` | stream | `on|off` | `src/protocols/root/stream/directives_security.h` |
+| `brix_read_only` | http, stream | `on|off` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/directives_tpc.h` |
+| `brix_read_only_public` | stream | `on|off` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_read_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_readv_segment_size` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_recover_writes` | stream | `on|off` | `src/protocols/root/stream/directives_caps.h` |
+| `brix_redir_cache_slots` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_registry_slots` | stream | `<value>` | `src/protocols/root/stream/directives_caps.h` |
+| `brix_require_pgwrite` | stream | `on|off` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_require_vo` | http, stream | `<value> <value>` | `src/core/config/http_directives_auth.h`<br>`src/core/config/stream_common.c` |
+| `brix_rpm_metadata_ttl` | http | `<value>` | `src/protocols/rpm/rpm_module.c` |
+| `brix_rpm_mirror` | http | `<value>` | `src/protocols/rpm/rpm_module.c` |
+| `brix_rpm_mirror_insecure` | http | `on|off` | `src/protocols/rpm/rpm_module.c` |
+| `brix_rpm_prefetch` | http | `on|off` | `src/protocols/rpm/rpm_module.c` |
+| `brix_s3` | http | `on|off` | `src/protocols/s3/module.c` |
+| `brix_s3_access_key` | http | `<value>` | `src/protocols/s3/module.c` |
+| `brix_s3_allow_unsigned_session_token` | http | `on|off` | `src/protocols/s3/module.c` |
+| `brix_s3_bucket` | http | `<value>` | `src/protocols/s3/module.c` |
+| `brix_s3_list_cache` | http | `on|off` | `src/protocols/s3/module.c` |
+| `brix_s3_list_cache_ttl` | http | `<value>` | `src/protocols/s3/module.c` |
+| `brix_s3_max_keys` | http | `<value>` | `src/protocols/s3/module.c` |
+| `brix_s3_mpu_max_age` | http | `<value>` | `src/protocols/s3/module.c` |
+| `brix_s3_region` | http | `<value>` | `src/protocols/s3/module.c` |
+| `brix_s3_secret_key` | http | `<value>` | `src/protocols/s3/module.c` |
+| `brix_s3_token` | http | `on|off` | `src/protocols/s3/module.c` |
+| `brix_s3_verify_chunk_signatures` | http | `on|off` | `src/protocols/s3/module.c` |
+| `brix_scvmfs` | http | `on|off` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_scvmfs_authz` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_scvmfs_token_issuers` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_scvmfs_voms_cert_dir` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_scvmfs_vomsdir` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_seccomp` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/directives_security.h` |
+| `brix_seccomp_allow_exec` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/directives_security.h` |
+| `brix_security_level` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
+| `brix_send_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_session_log` | http, stream | `on|off` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_session_slots` | stream | `<value>` | `src/protocols/root/stream/module.c` |
+| `brix_signing_policy` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_signing_required` | stream | `on|off` | `src/protocols/root/stream/directives_security.h` |
+| `brix_sitename` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_socket_rcvbuf` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_socket_sndbuf` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_srr` | http | `on|off` | `src/protocols/srr/module.c` |
+| `brix_srr_endpoint` | http | `<value> <value> <value>` | `src/protocols/srr/module.c` |
+| `brix_srr_id` | http | `<value>` | `src/protocols/srr/module.c` |
+| `brix_srr_name` | http | `<value>` | `src/protocols/srr/module.c` |
+| `brix_srr_quality` | http | `<value>` | `src/protocols/srr/module.c` |
+| `brix_srr_share` | http | `<value> <value>` | `src/protocols/srr/module.c` |
+| `brix_srr_version` | http | `<value>` | `src/protocols/srr/module.c` |
+| `brix_ssi` | stream | `on|off` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_ssi_cta_executor` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_ssi_cta_journal` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_ssi_max_inflight` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_ssi_request_max` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_ssi_response_max` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_ssi_service` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_sss_keytab` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_stage` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_stage_dir` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_caps.h` |
+| `brix_stage_flush` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_stage_store` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_storage_backend` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/core/config/stream_common.c` |
+| `brix_storage_credential` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/core/config/stream_common.c` |
+| `brix_storage_credential_dir` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_storage_credential_fallback` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_storage_credential_mint_ca` | http, stream | `<value> <value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_storage_credential_mint_ttl` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_strict_security` | http | `on|off` | `src/core/config/http_directives_core.h` |
+| `brix_supervisor` | stream | `on|off` | `src/protocols/root/stream/directives_caps.h` |
+| `brix_tap_proxy` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_tap_proxy_audit_log` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_tap_proxy_auth` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_tap_proxy_login_user` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_tap_proxy_upstream` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_tap_proxy_upstream_tls` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_tap_proxy_upstream_tls_ca` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_tap_proxy_upstream_tls_name` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_tap_proxy_upstream_tls_verify` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_tcp_congestion` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_cms.h` |
+| `brix_tcp_keepalive` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_tcp_user_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_thread_pool` | http | `<value>` | `src/core/config/http_directives_core.h` |
+| `brix_throttle_bandwidth_budget` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_throttle_bandwidth_zone` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_throttle_max_open_files` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_throttle_zone` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_tls` | stream | `on|off` | `src/protocols/root/stream/directives_security.h` |
+| `brix_tls_ciphers` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
+| `brix_tls_ciphersuites` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
+| `brix_tls_require` | http, stream | `<value>...` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/directives_security.h` |
+| `brix_tls_reuse` | stream | `on|off` | `src/protocols/root/stream/directives_security.h` |
+| `brix_token_audience` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_token_cache` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_zones.h` |
+| `brix_token_clock_skew` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_token_config` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_token_introspect_fail_open` | http | `on|off` | `src/core/config/http_directives_auth.h` |
+| `brix_token_introspect_loc` | http | `<value>` | `src/core/config/http_directives_auth.h` |
+| `brix_token_introspect_ttl` | http | `<value>` | `src/core/config/http_directives_auth.h` |
+| `brix_token_introspect_url` | http | `<value>` | `src/core/config/http_directives_auth.h` |
+| `brix_token_issuer` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_token_jwks` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_token_jwks_refresh_interval` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_tpc_allow_local` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_allow_private` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_delegate` | stream | `on|off` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_key_ttl` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_max_transfer_secs` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_outbound_bearer_file` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_outbound_client_id` | http, stream | `<value>` | `src/protocols/root/stream/directives_tpc.h`<br>`src/protocols/webdav/directives_tpc.h` |
+| `brix_tpc_outbound_client_secret` | http, stream | `<value>` | `src/protocols/root/stream/directives_tpc.h`<br>`src/protocols/webdav/directives_tpc.h` |
+| `brix_tpc_outbound_passthrough` | stream | `on|off` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_outbound_scope` | http, stream | `<value>` | `src/protocols/root/stream/directives_tpc.h`<br>`src/protocols/webdav/directives_tpc.h` |
+| `brix_tpc_outbound_tls` | stream | `on|off` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_outbound_token_endpoint` | http, stream | `<value>` | `src/protocols/root/stream/directives_tpc.h`<br>`src/protocols/webdav/directives_tpc.h` |
+| `brix_tpc_require_source_size` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_source_allow` | http, stream | `<value>...` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_source_guard` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_transfer_max_age` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_verify_checksum` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
+| `brix_transparent_proxy` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_trusted_ca` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/core/config/stream_common.c` |
+| `brix_trusted_ca_dir` | http | `<value>` | `src/core/config/http_directives_ops.h` |
+| `brix_unix_trust_remote` | stream | `on|off` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_upload_resume` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_caps.h` |
+| `brix_upstream` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_upstream_tls` | stream | `on|off` | `src/protocols/root/stream/directives_net.h` |
+| `brix_upstream_tls_ca` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_upstream_tls_name` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_upstream_tls_verify` | stream | `on|off` | `src/protocols/root/stream/directives_net.h` |
+| `brix_upstream_token_file` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_verify_depth` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_verify_write` | http, stream | `on|off` | `src/core/config/http_directives_core.h`<br>`src/core/config/stream_common.c` |
+| `brix_vfs_spill_max` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_vfs_spill_path` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
+| `brix_virtual_redirector` | stream | `on|off` | `src/protocols/root/stream/directives_caps.h` |
+| `brix_voms_cert_dir` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/core/config/stream_common.c` |
+| `brix_vomsdir` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/core/config/stream_common.c` |
+| `brix_webdav` | http | `on|off` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_accel_redirect` | http | `<value>` | `src/protocols/webdav/directives_net.h` |
+| `brix_webdav_auth` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_authz` | http | `on|off` | `src/protocols/webdav/directives_net.h` |
+| `brix_webdav_checksum_on_write` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_checksum_xattr_format` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_cors_credentials` | http | `on|off` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_cors_max_age` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_cors_origin` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_dig` | http | `on|off` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_dig_auth` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_dig_export` | http | `<value> <value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_header2cgi` | http | `<value> <value>` | `src/protocols/webdav/directives_net.h` |
+| `brix_webdav_html_listing` | http | `on|off` | `src/protocols/webdav/directives_net.h` |
+| `brix_webdav_listing_redirect` | http | `<value>` | `src/protocols/webdav/directives_net.h` |
+| `brix_webdav_lock_startup_sweep` | http | `on|off` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_lock_timeout` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_macaroon_location` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_macaroon_max_validity` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_open_file_cache` | http | `[value ...]` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_open_file_cache_errors` | http | `on|off` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_open_file_cache_events` | http | `on|off` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_open_file_cache_min_uses` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_open_file_cache_valid` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_proxy_certs` | http | `on|off` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_query_token` | http | `on|off` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_redirect_dataserver` | http | `on|off` | `src/protocols/webdav/directives_net.h` |
+| `brix_webdav_redirect_port` | http | `<value>` | `src/protocols/webdav/directives_net.h` |
+| `brix_webdav_redirect_scheme` | http | `<value>` | `src/protocols/webdav/directives_net.h` |
+| `brix_webdav_redirect_window` | http | `<value>` | `src/protocols/webdav/directives_net.h` |
+| `brix_webdav_require_digest` | http | `on|off` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_revoke_cache` | http | `<value>` | `src/protocols/webdav/directives_zones.h` |
+| `brix_webdav_secretkey` | http | `<value>` | `src/protocols/webdav/directives_net.h` |
+| `brix_webdav_storage_staging` | http | `on|off` | `src/protocols/webdav/directives_storage.h` |
+| `brix_webdav_tape_rest` | http | `on|off` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_tpc` | http | `on|off` | `src/protocols/webdav/module_commands.c` |
+| `brix_webdav_tpc_cadir` | http | `<value>` | `src/protocols/webdav/directives_tpc.h` |
+| `brix_webdav_tpc_cafile` | http | `<value>` | `src/protocols/webdav/directives_tpc.h` |
+| `brix_webdav_tpc_cert` | http | `<value>` | `src/protocols/webdav/directives_tpc.h` |
+| `brix_webdav_tpc_credential_forward` | http | `on|off` | `src/protocols/webdav/directives_tpc.h` |
+| `brix_webdav_tpc_curl` | http | `<value>` | `src/protocols/webdav/directives_tpc.h` |
+| `brix_webdav_tpc_key` | http | `<value>` | `src/protocols/webdav/directives_tpc.h` |
+| `brix_webdav_tpc_low_speed_bytes` | http | `<value>` | `src/protocols/webdav/directives_tpc.h` |
+| `brix_webdav_tpc_low_speed_secs` | http | `<value>` | `src/protocols/webdav/directives_tpc.h` |
+| `brix_webdav_tpc_marker_interval` | http | `<value>` | `src/protocols/webdav/directives_tpc.h` |
+| `brix_webdav_tpc_max_streams` | http | `<value>` | `src/protocols/webdav/directives_tpc.h` |
+| `brix_webdav_tpc_timeout` | http | `<value>` | `src/protocols/webdav/directives_tpc.h` |
+| `brix_webdav_tpc_xfr` | http | `<value>` | `src/protocols/webdav/directives_tpc.h` |
+| `brix_worker_user` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/directives_security.h` |
+| `brix_write_compress` | stream | `on|off` | `src/protocols/root/stream/directives_security.h` |
+| `brix_write_through` | stream | `on|off` | `src/protocols/root/stream/directives_writethrough.h` |
+| `brix_wt_allow_prefix` | stream | `<value>` | `src/protocols/root/stream/directives_writethrough.h` |
+| `brix_wt_credential` | stream | `<value>` | `src/protocols/root/stream/directives_writethrough.h` |
+| `brix_wt_deny_prefix` | stream | `<value>` | `src/protocols/root/stream/directives_writethrough.h` |
+| `brix_wt_mode` | stream | `<value>` | `src/protocols/root/stream/directives_writethrough.h` |
+| `brix_wt_origin` | stream | `<value>` | `src/protocols/root/stream/directives_writethrough.h` |
+| `brix_wt_stage_backend` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_wt_stage_block_size` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_wt_stage_high_watermark` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_wt_stage_low_watermark` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_wt_stage_root` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_zip_access` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_security.h` |
+| `brix_zip_cd_max_bytes` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_security.h` |
+| `brix_zip_force_scratch` | stream | `on|off` | `src/protocols/root/stream/directives_security.h` |
+| `brix_zip_stage_dir` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
+| `brix_zip_stage_max_bytes` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
+| `brix_ztn_cleartext` | stream | `on|off` | `src/protocols/root/stream/directives_security.h` |
+| `brix_ztn_maxsz` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
+
+<!-- END GENERATED DIRECTIVE REGISTRY -->
+
 ## Unified storage grammar
 
 Three rules cover all four protocols (`brix_root`, `brix_webdav`, `brix_s3`, `brix_cvmfs`):
@@ -27,7 +602,8 @@ Three rules cover all four protocols (`brix_root`, `brix_webdav`, `brix_s3`, `br
   `brix_read_only_public` (stream only), `brix_compress`, `brix_ktls`,
   `brix_metrics`, `brix_health`, `brix_credential`, `brix_upload_resume`, `brix_stage_dir`,
   `brix_vfs_spill_path`, `brix_vfs_spill_max`, `brix_durable_publish`,
-  `brix_lock_enforcement`, `brix_zip_access`, `brix_pblock_block_size`. Authorization / trust (phase-101 W4):
+  `brix_lock_enforcement`, `brix_authz_backstop`, `brix_zip_access`,
+  `brix_pblock_block_size`. Authorization / trust (phase-101 W4):
   `brix_require_vo`, `brix_protbind`, `brix_pwd_file`, `brix_macaroon_secret`,
   `brix_token_jwks`, `brix_token_issuer`, `brix_token_audience`, `brix_token_clock_skew`,
   `brix_token_config`, `brix_trusted_ca`, `brix_trusted_ca_dir`, `brix_crl`, `brix_crl_mode`,
@@ -44,6 +620,45 @@ The only remaining per-protocol directive families are behavior specific to one 
 > the CA/trust quartet) is listed in
 > [migration-unified-grammar.md](migration-unified-grammar.md). Old names are hard-removed:
 > nginx reports a stock `unknown directive`, never a silent alias.
+
+---
+
+### `brix_storage_backend ftp://…|gsiftp://…` — outbound FTP/GridFTP origin
+
+An export may use a remote FTP/GridFTP namespace as its primary storage without
+changing the client-facing protocol:
+
+```nginx
+# Anonymous RFC 959 origin; default port 21.
+brix_storage_backend ftp://ftp.example.org/archive;
+
+# GSI-authenticated GridFTP origin; default port 2811.
+brix_credential atlas_origin {
+    x509_proxy /run/credentials/atlas-proxy.pem;
+    ca_dir /etc/grid-security/certificates;
+}
+brix_storage_backend gsiftp://grid.example.org/store;
+brix_storage_credential atlas_origin;
+```
+
+The URL requires a host and an absolute base path (omitting the path means
+`/`). Bracketed IPv6 authorities are accepted. Query strings, fragments,
+userinfo, `.`/`..` path components, control bytes and backslashes are rejected
+at `nginx -t`; the driver repeats logical-path confinement before emitting an
+FTP command.
+
+`ftp://` performs anonymous login. `gsiftp://` requires an X.509 proxy selected
+from `brix_storage_credential` or the existing per-user backend-credential
+machinery. A VOMS proxy is forwarded as the same certificate chain, preserving
+its attributes. The v1 data plane uses passive MODE S and `PROT C`/`DCAU N`;
+EPSV/PASV ports are always connected on the established control peer, so a
+malicious PASV address cannot redirect BriX. MODE E, PROT P, Kerberos,
+username/password and session pooling are not enabled by this URL.
+
+Available operations are range/full read, stat/list, MKCOL, MOVE, DELETE and
+whole-object staged PUT with origin-side temporary-name promotion. A typed
+read-only export rejects mutations in the VFS before any FTP command reaches
+the origin.
 
 ---
 
@@ -290,6 +905,35 @@ brix_lock_enforcement advisory;   # migration window: warn, count, allow
 
 ---
 
+### `brix_authz_backstop <off|observe|enforce>`
+
+**Default:** `observe`
+
+Re-evaluates the export's native or XrdAcc rules, VO ACL and token scope at the
+VFS boundary. Protocol handlers still perform the primary authorization check
+and compose their own wire error. The backstop exists so a new or refactored
+handler cannot accidentally reach a storage driver without an equivalent
+decision.
+
+- `off` — skip the VFS re-evaluation.
+- `observe` — allow the operation, but count and warn when the VFS would deny
+  it or when a VFS context was not bound to its export's rules.
+- `enforce` — return `EACCES` on a disagreement or unbound context. An export
+  with no configured rules remains allow-all and is reported separately.
+
+For mutations, the read-only policy always runs first, so `EROFS` continues to
+take precedence over `EACCES` and reveals no authorization detail. Watch
+`brix_vfs_authz_backstop_total{proto,result}`, where `result` is one of
+`agree`, `edge_missing`, `no_rules`, or `unbound`. Both `edge_missing` and
+`unbound` must remain zero across real traffic before a deployment opts into
+`enforce`.
+
+```nginx
+brix_authz_backstop observe;  # rollout-safe coverage audit
+```
+
+---
+
 ### `brix_posc_persist <auto|manual|off> [hold <time>]`
 
 **Default:** `auto` (no grace period)
@@ -319,6 +963,43 @@ kept, never wrongly deleted).
 ```nginx
 brix_posc_persist manual;              # keep crash orphans for manual recovery
 brix_posc_persist auto hold 1h;        # reap, but spare orphans younger than 1h
+```
+
+---
+
+### `brix_n2n_scheme identity|ral|cephfs_path`, `brix_n2n_pool <name>`, `brix_n2n_prefix <path>`
+
+**Default:** derived from the backend origin (unset)
+
+Override the export's **name translation** — the map from a wire logical path
+(LFN) to the physical name a backend addresses (PFN), and back for directory
+listing. Every scheme first canonicalizes the LFN (folds `.` and `//`, and
+**rejects** any `..` component) and only then composes the physical name; the
+translation runs only *after* the path has been confined to the export, so it
+maps an already-legal name and never widens access.
+
+- `identity` — the physical name is the canonicalized LFN.
+- `cephfs_path` — `<brix_n2n_prefix><lfn>`; the RADOS/CephFS convention where the
+  object/path is a prefix (localroot / key prefix) prepended to the LFN.
+- `ral` — `<brix_n2n_pool>:<brix_n2n_prefix><lfn>`; the RAL/Glasgow `XrdCeph`
+  object convention where the pool is a `:`-prefix in the name. Requires
+  `brix_n2n_pool`.
+
+Left unset, the translation is **derived from `brix_storage_backend`**: a `ceph:`
+/ `rados://` origin defaults to `cephfs_path` with the origin's key prefix (the
+RADOS pool is bound at the ioctx, so it is *not* named — `ral` is rejected for
+the `ceph` backend); every other backend defaults to `identity`. These
+directives only override that default.
+
+Validated at `nginx -t`: an unknown scheme, `ral` without `brix_n2n_pool`, `ral`
+on the `ceph` backend, a `brix_n2n_pool` over 127 bytes, or a `brix_n2n_prefix`
+over 255 bytes is a configuration error (never a silent runtime truncation to a
+different physical name). Available on the `root://` (stream), WebDAV and S3
+export planes; GridFTP exports take the derived default.
+
+```nginx
+brix_storage_backend ceph:xrdtest?/store/;   # → cephfs_path, prefix "/store/"
+brix_n2n_prefix /site/atlas/;                # override just the prefix
 ```
 
 ---
@@ -1250,7 +1931,7 @@ server without the directive.
 
 The threshold is stamped into the metrics shared-memory zone once per config
 load, so it applies process-wide to every protocol's latency-sampled ops (the
-same completions the `brix_io_latency_usec` histogram bins). The unit is
+same completions the `brix_io_latency_seconds` histogram bins). The unit is
 microseconds — not a time token — so a fine threshold is expressible. Requires
 the metrics zone (an enabled server block). Only ops that file a latency sample
 (the AIO data-plane completions) are eligible, matching the histogram's scope.

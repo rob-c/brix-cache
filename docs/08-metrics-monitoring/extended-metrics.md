@@ -4,20 +4,19 @@ High-level monitoring counters for traffic analysis by protocol, IP version, vir
 
 ---
 
-## Per-protocol Byte Counters (Native XRootD)
+## Per-protocol byte counters
 
-Separates root:// data transfer from WebDAV and S3 at the stream layer:
+The canonical counters cover all five protocol planes with one bounded label:
 
-**Metrics:**
-- `brix_bytes_root_rx_total` — bytes received via root:// protocol only
-- `brix_bytes_root_tx_total` — bytes sent via root:// protocol only
+- `brix_io_bytes_written{proto="stream"}` — root:// upload bytes;
+- `brix_io_bytes_read{proto="stream"}` — root:// download bytes.
 
+```promql
+brix_io_bytes_written{proto="stream"} 5368709120
+brix_io_bytes_read{proto="stream"} 107374182400
 ```
-brix_bytes_root_rx_total{port="1094",auth="gsi"} 5368709120
-brix_bytes_root_tx_total{port="1094",auth="gsi"} 107374182400
-```
 
-Use `rate(brix_bytes_root_tx_total[1m])` for root:// read throughput and compare against the aggregate `brix_bytes_tx_total` to verify no other protocol is contributing.
+Change `proto` to `webdav`, `s3`, `cvmfs`, or `gridftp` for the other planes.
 
 ---
 
@@ -52,10 +51,11 @@ brix_s3_bytes_tx_ipv6_total 0
 **PromQL examples:**
 ```promql
 # IPv6 traffic fraction (should be low for most sites)
-rate(brix_bytes_tx_ipv6_total[1m]) / rate(brix_bytes_tx_total[1m])
+rate(brix_bytes_tx_ipv6_total[1m])
+  / rate(brix_io_bytes_read{proto="stream"}[1m])
 
 # Protocol separation — sum the three wire-ledger tx counters to verify consistency
-rate(brix_bytes_root_tx_total[1m]) + rate(brix_webdav_bytes_tx_ipv4_total[1m]) + rate(brix_webdav_bytes_tx_ipv6_total[1m]) + rate(brix_s3_bytes_tx_ipv4_total[1m]) + rate(brix_s3_bytes_tx_ipv6_total[1m])
+sum(rate(brix_io_bytes_read{proto=~"stream|webdav|s3"}[1m]))
 
 # Read throughput across ALL protocols, including cvmfs and gridftp
 sum by (proto) (rate(brix_io_bytes_read[1m]))
@@ -154,8 +154,8 @@ For a complete view of system health, combine these metrics in Grafana panels:
 
 | Panel | Query | Purpose |
 |---|---|---|
-| Protocol breakdown | `rate(brix_bytes_root_tx_total[1m])`, `rate(brix_webdav_bytes_tx_ipv4_total[1m]) + rate(brix_webdav_bytes_tx_ipv6_total[1m])` etc. | See which protocol is dominant |
-| IPv6 adoption | `sum(rate(brix_bytes_tx_ipv6_total[1m])) / sum(rate(brix_bytes_tx_total[1m]))` across all families | Track IPv6 migration progress |
+| Protocol breakdown | `sum by (proto) (rate(brix_io_bytes_read[1m]))` | See which protocol is dominant |
+| Native IPv6 adoption | `sum(rate(brix_bytes_tx_ipv6_total[1m])) / sum(rate(brix_io_bytes_read{proto="stream"}[1m]))` | Track IPv6 migration progress |
 | VO activity ranking | `sort_desc(sum by (vo) (rate(brix_vo_bytes_tx_total[1m]))) limit 20` | Identify top VOs by traffic |
 | User growth trend | `increase(brix_unique_users_total[7d]) / 7 * 24` | Daily new user rate |
 | Cache efficiency | `brix_user_sessions_total{hash=...} > 10` with connection active gauge | Identify heavy users for cache tuning |

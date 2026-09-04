@@ -130,6 +130,43 @@ SPECS: dict[str, ObjectUnitSpec] = {
          "tests/c/test_offload_registry.c",
          str(addon("session/offload_registry.o"))),
     ),
+    # The live-prefix mark on the SHM session registry.  registry_slots.o names
+    # five cross-TU symbols (the two ratelimit key formatters, the metrics
+    # accessor, the handle-table unpublish, ngx_worker); the test supplies each
+    # as a spy, so the battery links the one real object and stays hermetic.
+    "session_registry_high_water": ObjectUnitSpec(
+        "session_registry_high_water",
+        "test_session_registry_high_water",
+        (addon("session/registry_slots.o"),),
+        ("-O", "-Wall", "-D_GNU_SOURCE",   # in6_pktinfo, as the real build does
+         *_inc(REPO_ROOT / "src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC,
+               *_NGX_HTTP_INC),
+         "tests/c/test_session_registry_high_water.c",
+         "tests/c/ngx_link_stubs.c",
+         str(addon("session/registry_slots.o")),
+         *_NGX_LIB_OBJS),
+    ),
+    # Round 15's registry slot hint. Unlike the high_water unit above — which
+    # models register/unregister locally against registry_slots.o — this one
+    # links the REAL registry.o so brix_session_unregister_hinted() itself is
+    # under test, including the divergence that makes the hint safer than the
+    # scan it replaces (a stale hint must not destroy a re-registration).
+    "session_unregister_hint": ObjectUnitSpec(
+        "session_unregister_hint",
+        "test_session_unregister_hint",
+        (addon("session/registry.o"), addon("session/registry_slots.o"),
+         addon("compat/shm_slots.o"), OBJS / "src/core/ngx_shmtx.o"),
+        ("-O", "-Wall", "-D_GNU_SOURCE",   # in6_pktinfo, as the real build does
+         *_inc(REPO_ROOT / "src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC,
+               *_NGX_HTTP_INC),
+         "tests/c/test_session_unregister_hint.c",
+         "tests/c/ngx_link_stubs.c",
+         str(addon("session/registry.o")),
+         str(addon("session/registry_slots.o")),
+         str(addon("compat/shm_slots.o")),
+         str(OBJS / "src/core/ngx_shmtx.o"),
+         *_NGX_LIB_OBJS, "-pthread"),
+    ),
     "cstore_scan_enumerate": ObjectUnitSpec(
         "cstore_scan_enumerate",
         "test_cstore_scan_enumerate",
@@ -170,6 +207,7 @@ SPECS: dict[str, ObjectUnitSpec] = {
             addon("vfs/vfs_copy.o"),
             addon("vfs/vfs_xattr.o"),
             addon("vfs/vfs_policy.o"),
+            addon("vfs/vfs_authz.o"),
         ),
         ("-O", "-Wall",
          *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC),
@@ -183,7 +221,23 @@ SPECS: dict[str, ObjectUnitSpec] = {
          str(addon("vfs/vfs_copy.o")),
          str(addon("vfs/vfs_xattr.o")),
          str(addon("vfs/vfs_policy.o")),
+         str(addon("vfs/vfs_authz.o")),
+         "tests/c/vfs_phase108_link_stubs.c",
          *_NGX_LIB_OBJS),
+    ),
+    # Phase-108 C12: the real backstop evaluator shell with identity/rule,
+    # metric and policy dependencies supplied as deterministic spies. Covers
+    # success, observe/enforce refusal, no-rules/unbound distinction, two-name
+    # mapping, read authorization and the EROFS-before-EACCES ordering tape.
+    "vfs_authz_backstop": ObjectUnitSpec(
+        "vfs_authz_backstop",
+        "test_vfs_authz_backstop",
+        (addon("vfs/vfs_authz.o"),),
+        ("-O", "-Wall", "-Wextra", "-Werror",
+         *_inc("src", REPO_ROOT / "shared", OBJS,
+               *_NGX_CORE_INC, *_NGX_HTTP_INC),
+         "tests/c/test_vfs_authz_backstop.c",
+         str(addon("vfs/vfs_authz.o"))),
     ),
     # The phase-107 W2/W3 verbs (recall/evict/delete_many) over the real policy
     # kernel, with the §3.4 ordering assertion (vfs_order_spy.h) wired in:
@@ -201,6 +255,7 @@ SPECS: dict[str, ObjectUnitSpec] = {
             addon("vfs/vfs_unlink.o"),
             addon("vfs/vfs_sync.o"),
             addon("vfs/vfs_policy.o"),
+            addon("vfs/vfs_authz.o"),
         ),
         ("-O", "-Wall",
          *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC),
@@ -211,6 +266,8 @@ SPECS: dict[str, ObjectUnitSpec] = {
          str(addon("vfs/vfs_unlink.o")),
          str(addon("vfs/vfs_sync.o")),
          str(addon("vfs/vfs_policy.o")),
+         str(addon("vfs/vfs_authz.o")),
+         "tests/c/vfs_phase108_link_stubs.c",
          *_NGX_LIB_OBJS),
     ),
     # The handle-plane release/durability dispatch: the real vfs_open_handle.o
@@ -424,6 +481,32 @@ SPECS: dict[str, ObjectUnitSpec] = {
          *_NGX_LIB_OBJS,
          "-pthread"),
     ),
+    # Round 14: the publish-time slot hint that turns the per-handle teardown
+    # from an O(live prefix) scan under the cross-worker handle mutex into an
+    # O(1) direct clear. At disconnect that scan ran AFTER the session's entries
+    # were already cleared, so it was guaranteed to find nothing — a cost that
+    # grew with concurrency instead of backing off. The hint is authoritative
+    # (entries are cleared in place, never relocated), so the unit's security
+    # case is the one that matters: a stale hint whose slot was REUSED by
+    # another session must not clear that session's entry.
+    "handle_unpublish_hint": ObjectUnitSpec(
+        "handle_unpublish_hint",
+        "test_handle_unpublish_hint",
+        (
+            addon("session/handles.o"),
+            addon("compat/shm_slots.o"),
+            OBJS / "src/core/ngx_shmtx.o",
+        ),
+        ("-O", "-Wall",
+         *_inc("src", OBJS, *_NGX_CORE_INC, *_NGX_HTTP_INC),
+         "tests/c/test_handle_unpublish_hint.c",
+         "tests/c/ngx_link_stubs.c",
+         str(addon("session/handles.o")),
+         str(addon("compat/shm_slots.o")),
+         str(OBJS / "src/core/ngx_shmtx.o"),
+         *_NGX_LIB_OBJS,
+         "-pthread"),
+    ),
     # Phase-107 C7: the cross-protocol lock gate's four expiry states (absent /
     # live-owned / live-foreign / expired-unreaped), ancestor coverage rules,
     # the three enforcement modes, and strict's fail-closed on an unreadable
@@ -441,6 +524,42 @@ SPECS: dict[str, ObjectUnitSpec] = {
          "tests/c/ngx_link_stubs.c",
          str(addon("vfs/vfs_lock_gate.o")),
          str(addon("compat/lock_record.o")),
+         *_NGX_LIB_OBJS),
+    ),
+    # Phase-107 C6: the publish-precondition evaluator every stat-grammar
+    # commit path shares (seven callsites across posix/frm/pblock and the VFS
+    # compat arm). The evaluator formats its own tag instead of calling the
+    # generator, so the REAL http/etag.o is linked and the two grammars are
+    # compared rather than assumed — plus the refusal edges (prefix, length-vs-
+    # NUL, bare W/, NULL tag, untaught kind) that decide whether If-Match is a
+    # guarantee or a formality. Header-inline body + an ngx-free object, so the
+    # unit links exactly the two real bodies and nothing else.
+    "sd_precond": ObjectUnitSpec(
+        "sd_precond",
+        "test_sd_precond",
+        (addon("http/etag.o"),),
+        ("-O", "-Wall",
+         *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC),
+         "tests/c/test_sd_precond.c",
+         str(addon("http/etag.o"))),
+    ),
+    # Phase-107 C4: the RECURSIVE arm of bulk delete — the per-level rmtree
+    # chunker and its accumulation window — over a fake in-memory namespace.
+    # test_vfs_new_mutator_gate covers the flat brix_vfs_delete_many entry; the
+    # walk's correctness is an ORDERING property between two driver slots across
+    # recursion levels (children gone before their directory) that a wire test
+    # cannot observe, plus the window split ON the constant and the ECANCELED
+    # pre-fill that keeps an untried key from ever reading as deleted.
+    "vfs_bulk_chunker": ObjectUnitSpec(
+        "vfs_bulk_chunker",
+        "test_vfs_bulk_chunker",
+        (addon("vfs/vfs_unlink_many.o"),),
+        ("-O", "-Wall",
+         *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC,
+               *_NGX_HTTP_INC),
+         "tests/c/test_vfs_bulk_chunker.c",
+         "tests/c/ngx_link_stubs.c",
+         str(addon("vfs/vfs_unlink_many.o")),
          *_NGX_LIB_OBJS),
     ),
 }

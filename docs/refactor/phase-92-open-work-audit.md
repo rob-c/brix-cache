@@ -1,11 +1,14 @@
 # Phase 92 — Open-work audit: whole-tree verified remaining-work register (src · client · shared · tests)
 
-**Status:** AUDIT EXECUTED 2026-08-01. This document is a **register only** — it
+**Status:** HISTORICAL SNAPSHOT — audit executed 2026-08-01. It has been
+superseded as the current repository queue by
+`phase-111-repository-work-burndown.md`. This document is a **register only** — it
 enumerates and verifies the remaining-work backlog; it does not itself land code
 or edit the stale docs it identifies (the corrections in §2 are *owed*, not
 applied). It supersedes the actionable slices of
 `phase-88-open-work-audit.md` and `phase-90-plan-phase-remainder-register.md`
-where noted, and is the current truth for what remains to complete the module.
+where noted. Its findings are evidence at that date, not current truth after
+Phases 93–110 and the subsequent VFS work.
 
 **Scope:** the whole tree — `src/` (core · protocols · net · observability ·
 tpc · fs · auth), `shared/`, `client/` (native clean-room tools), and the
@@ -962,8 +965,11 @@ decisions.
 
 - **Client async pipelining disabled under request signing**
   (`client/lib/core/aio/aio.c:322`) — signed sessions fall back to synchronous
-  I/O. Likely a permanent design boundary (per-request signature ordering vs
-  out-of-order completion); flagged for confirmation. **Effort: L** if ever lifted.
+  I/O. **CONFIRMED PERMANENT BOUNDARY (Phase 111, 2026-09-03):** request
+  signatures bind ordering-sensitive state, so out-of-order completion cannot
+  reuse the unsigned AIO pipeline without a new sequence/verification protocol.
+  No measured signed-session throughput requirement justifies that protocol;
+  synchronous ordering remains the supported behavior.
 
 ---
 

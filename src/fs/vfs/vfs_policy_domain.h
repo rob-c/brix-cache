@@ -53,4 +53,14 @@ ngx_int_t brix_vfs_domain_mutation(const brix_sd_instance_t *inst,
 ngx_int_t brix_vfs_service_mutation(const brix_sd_instance_t *inst,
     brix_vfs_mutation_op_t op);
 
+/* The instance-free claim (phase-108): for service-storage mutators whose
+ * storage is not a bound driver instance — the credential staging dir (C11),
+ * the OCI store tree (C10). With nothing to cross-check, enforcement is the
+ * seam guard's entitlement table plus the EXPORT routing: an EXPORT claim
+ * goes to the phase-105 kernel fail-closed and answers EROFS, so a bare
+ * claim can never launder an export mutation. NGX_OK for a valid service
+ * domain (books one accounting sample); NGX_ERROR/EINVAL out of range. */
+ngx_int_t brix_vfs_domain_claim(ngx_log_t *log, brix_vfs_domain_t domain,
+    brix_vfs_mutation_op_t op);
+
 #endif /* BRIX_VFS_POLICY_DOMAIN_H */

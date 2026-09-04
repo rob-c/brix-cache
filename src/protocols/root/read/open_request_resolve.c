@@ -149,10 +149,7 @@ brix_open_residency_gate(brix_ctx_t *ctx, ngx_connection_t *c,
 		return NGX_DECLINED;
 	}
 
-	brix_vfs_ctx_init(&_rvc, c->pool, c->log, BRIX_PROTO_ROOT,
-	    conf->common.root_canon, NULL,
-	    brix_vfs_policy_from_write_enable(conf->common.allow_write),
-	    0 /* is_tls */, NULL, full_path);
+	brix_root_vfs_ctx_init(ctx, c, conf, &_rvc, full_path);
 
 	if (brix_vfs_residency(&_rvc, &_res, NULL) != NGX_OK) {
 		return NGX_DECLINED;

@@ -80,14 +80,26 @@ int brix_oci_store_exists(const char *path, off_t *size_out);
 ngx_int_t brix_oci_store_verify(const char *path,
     const brix_oci_digest_t *want, ngx_log_t *log);
 
-/* Publish `tmp_path` (a staged sibling) onto `final_path`, creating parents.
- * Atomic: readers see the old object or the new one, never a partial. */
-ngx_int_t brix_oci_store_publish(const char *tmp_path, const char *final_path,
-    ngx_log_t *log);
+/* Publish `len` bytes durably at `path` under store `st`, creating the parent
+ * chain first (tag pointers, ref marks, manifests, index entries). The registry
+ * adapter over brix_service_publish_bytes (phase-108 C10): it carries the
+ * store-model glue (parent layout, st->root, the storage domain) the generic
+ * verb deliberately does not, and inherits the verb's typed domain claim,
+ * confined O_EXCL staging, per-domain data fsync and the C3 durable-publish
+ * barrier. `domain` is REGISTRY for durable objects, STAGE for reconstructible
+ * session markers. NGX_OK / NGX_ERROR (errno set). */
+ngx_int_t brix_oci_store_publish_bytes(const brix_oci_store_t *st,
+    const char *path, const void *bytes, size_t len,
+    brix_vfs_domain_t domain, ngx_log_t *log);
 
-/* Write `text` into `final_path` atomically (tag files, ref marks). */
-ngx_int_t brix_oci_store_put_text(const char *final_path, const char *text,
-    size_t len, ngx_log_t *log);
+/* Publish an already-written staged file at `stage_path` onto `final_path`
+ * (the sealed blob), CAS-exclusive: the rename is RENAME_NOREPLACE, so a
+ * concurrent seal of the same content-addressed digest resolves to a benign
+ * EEXIST the caller treats as success rather than a torn overwrite. Creates
+ * `final_path`'s parent chain first. NGX_OK, or NGX_ERROR with errno==EEXIST on
+ * the already-present path. The REGISTRY adapter over brix_service_publish_fd. */
+ngx_int_t brix_oci_store_publish_staged(const brix_oci_store_t *st,
+    const char *stage_path, const char *final_path, ngx_log_t *log);
 
 /* Read at most `outsz-1` bytes of `path` into `out` (NUL-terminated).
  * Bytes read, or -1. */

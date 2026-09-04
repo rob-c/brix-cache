@@ -137,8 +137,9 @@ brix_krb5_deleg_origin_spn(const ngx_str_t *ccache, int forwardable,
 
 #include <krb5.h>
 #include <gssapi/gssapi.h>
-#include <stdlib.h>
 #include <unistd.h>
+
+#include "core/compat/cred_stage.h"   /* brix_cred_write (phase-108 C11) */
 
 /* Pool-cleanup payload: enough to reach the parked handles + ccache at close. */
 typedef struct {
@@ -206,32 +207,29 @@ brix_krb5_deleg_park(brix_ctx_t *ctx, ngx_connection_t *c, krb5_context kctx,
     return NGX_OK;
 }
 
-/* Create a fresh 0600 temp file to back the captured forwarded-TGT ccache. Honors
- * $TMPDIR, defaulting to /tmp; mkstemp() guarantees O_EXCL + mode 0600. */
+/* Create a fresh EMPTY 0600 file to back the captured forwarded-TGT ccache,
+ * through the shared credential-write verb (phase-108 C11). Before C11 this
+ * honored $TMPDIR with a /tmp fallback — a world-traversable parent, the exact
+ * CWE-377 co-tenant race cred_stage.h exists to prevent, on a forwarded TGT.
+ * The fix is the unreachable 0700 per-uid parent, not the file's own mode:
+ * libkrb5 rewrites the FILE by name (keeping 0600), so the empty pre-created
+ * file only reserves the name — len == 0 is the intended shape. */
 static ngx_int_t
 brix_krb5_deleg_mkccache(ngx_connection_t *c, char *path, size_t pathlen)
 {
-    const char *dir = getenv("TMPDIR");
-    u_char     *end;
-    int         fd;
+    brix_cred_write_req_t req;
 
-    if (dir == NULL || dir[0] == '\0') {
-        dir = "/tmp";
-    }
+    ngx_memzero(&req, sizeof(req));
+    req.log    = c->log;
+    req.arm    = BRIX_CRED_ARM_VOLATILE;
+    req.kind   = BRIX_CRED_KIND_CCACHE;
+    req.prefix = "brix-krb5-fwd-";
 
-    end = ngx_snprintf((u_char *) path, pathlen, "%s/brix-krb5-fwd-XXXXXX", dir);
-    if ((size_t) (end - (u_char *) path) >= pathlen) {
-        return NGX_ERROR;
-    }
-    *end = '\0';
-
-    fd = mkstemp(path);
-    if (fd < 0) {
+    if (brix_cred_write(&req, NULL, 0, path, pathlen) != 0) {
         ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno,
                       "brix: krb5 fwdtgt: cannot create temp ccache");
         return NGX_ERROR;
     }
-    (void) close(fd);   /* libkrb5 rewrites the FILE by name, keeping mode 0600 */
     return NGX_OK;
 }
 

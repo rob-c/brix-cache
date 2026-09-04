@@ -172,6 +172,82 @@ unified_emit_vfs_mutation_denied(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
 }
 
 /*
+ * unified_emit_vfs_domain_mutation — render the phase-107 §7.5 domain axis:
+ * brix_vfs_domain_mutation_total{domain,op}.
+ *
+ * WHAT: Emits one counter per (bounded storage domain, bounded mutation
+ *       operation) — the service-storage mutations that passed the typed
+ *       domain assert.
+ * WHY:  Phase-108 §6.5: a consolidation that moves a write from a hand-rolled
+ *       copy onto a domain-aware verb must show as a shift between two
+ *       series; the export row stays zero by design (the export data path
+ *       never books success-side — see unified_record_vfs.c).
+ * HOW:  Two nested loops over the SHM cube; both label sets are compile-time
+ *       bounded mirrors of the fs layer's enums (INVARIANT #8).
+ */
+static void
+unified_emit_vfs_domain_mutation(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm)
+{
+    ngx_uint_t  domain, op;
+
+    mw_printf(mw,
+        "# HELP brix_vfs_domain_mutation_total Service-storage mutations "
+            "passed by the typed domain assert, by storage domain and "
+            "operation.\n"
+        "# TYPE brix_vfs_domain_mutation_total counter\n");
+    for (domain = 0; domain < BRIX_VFS_DOMAIN_METRIC_COUNT; domain++) {
+        for (op = 0; op < BRIX_VFS_MUTATE_OP_METRIC_COUNT; op++) {
+            mw_printf(mw,
+                "brix_vfs_domain_mutation_total"
+                "{domain=\"%s\",op=\"%s\"} %llu\n",
+                brix_metric_vfs_domain_name(domain),
+                brix_metric_vfs_mutate_op_name(op),
+                brix_metric_value(
+                    &shm->unified.vfs_domain_mutation_total[domain][op]));
+        }
+    }
+}
+
+/*
+ * unified_emit_vfs_authz_backstop — render the phase-108 C12 authorization
+ * backstop family.
+ *
+ * WHAT: Emits vfs_authz_backstop_total{proto,result} across every protocol and
+ *       the four bounded results.
+ * WHY:  observe-mode evidence: enforce is a one-line flip once `edge_missing`
+ *       (the backstop would have refused a request the edge allowed) and
+ *       `unbound` (a ctx reached a mutation without a bound rule set) have been
+ *       flat across the fleet for a release. AGREE is emitted too so the ratio
+ *       is readable.
+ * HOW:  Nested loops over the proto x result cube; both label sets are
+ *       compile-time bounded mirrors of the fs layer's enums (INVARIANT #8).
+ */
+static void
+unified_emit_vfs_authz_backstop(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm)
+{
+    ngx_uint_t  proto, result;
+
+    mw_printf(mw,
+        "# HELP brix_vfs_authz_backstop_total VFS authorization-backstop "
+            "evaluations, by protocol and result (agree|edge_missing|no_rules|"
+            "unbound).\n"
+        "# TYPE brix_vfs_authz_backstop_total counter\n");
+    for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
+        for (result = 0; result < BRIX_AUTHZ_BACKSTOP_RESULT_COUNT; result++) {
+            mw_printf(mw,
+                "brix_vfs_authz_backstop_total"
+                "{proto=\"%s\",result=\"%s\"} %llu\n",
+                brix_metric_proto_name(proto),
+                brix_metric_vfs_authz_backstop_result_name(result),
+                brix_metric_value(
+                    &shm->unified.vfs_authz_backstop_total[proto][result]));
+        }
+    }
+}
+
+/*
  * unified_emit_vfs_spill — render the phase-107 C1 writer-spill families.
  *
  * WHAT: Emits the per-proto spill bytes/refused counters and the process-wide
@@ -209,59 +285,48 @@ unified_emit_vfs_spill(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
 
 /*
  * unified_emit_cache — render the per-protocol cache families
- * (hits / misses / bytes_evicted).
+ * (requests-by-disposition / bytes_evicted).
  *
- * WHAT: Emits the three per-proto cache counters.
+ * WHAT: Emits the labelled cache-lookup counter and the eviction counter.
  * WHY:  Groups the cache-lookup outcome concern behind one call.
- * HOW:  Three unified_emit_proto_counter calls over the matching SHM arrays.
+ * HOW:  One proto x disposition loop, then one unified_emit_proto_counter.
  */
 static void
 unified_emit_cache(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
 {
-    unified_emit_proto_counter(mw,
-        "# HELP brix_cache_hits_total Cache hits by protocol.\n"
-        "# TYPE brix_cache_hits_total counter\n",
-        "brix_cache_hits_total", shm->unified.cache_hits);
+    ngx_uint_t  proto;
 
-    unified_emit_proto_counter(mw,
-        "# HELP brix_cache_misses_total Cache misses by protocol.\n"
-        "# TYPE brix_cache_misses_total counter\n",
-        "brix_cache_misses_total", shm->unified.cache_misses);
+    /* phase-110 W1: cache lookups carry the disposition as a LABEL VALUE from
+     * brix_metric_cache_status_name(), i.e. the identical word
+     * $brix_cache_status logs and the JSON "cache_status" key prints, so a
+     * PromQL selector and a log grep share one string. Rendered from the SAME
+     * SHM fields the removed brix_cache_{hits,misses}_total counters read (no
+     * new counter, no layout change): HIT ← cache_hits, MISS ← cache_misses.
+     * BYPASS has no counter and emits no series — an absent series is honest,
+     * a zero one would claim a measurement. Phase 112 removed the two
+     * one-fact-per-family counters this view replaced. */
+    mw_printf(mw, "%s",
+        "# HELP brix_cache_requests_total Cache lookups by protocol and "
+        "disposition (HIT/MISS — the $brix_cache_status vocabulary).\n"
+        "# TYPE brix_cache_requests_total counter\n");
+    for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
+        const char *pn = brix_metric_proto_name((brix_proto_t) proto);
 
-    /* phase-110 W1: the vocabulary-carrying view of the two counters above —
-     * the label VALUE is brix_metric_cache_status_name(), i.e. the identical
-     * word $brix_cache_status logs and the JSON "cache_status" key prints, so
-     * a PromQL selector and a log grep share one string. Rendered from the
-     * SAME SHM fields (no new counter, no layout change): HIT ← hits, MISS ←
-     * misses. BYPASS/NEGHIT have no counter and emit no series — an absent
-     * series is honest, a zero one would claim a measurement. The two legacy
-     * families stay for one release (deprecated, removal phase-112). */
-    {
-        ngx_uint_t  proto;
-
-        mw_printf(mw, "%s",
-            "# HELP brix_cache_requests_total Cache lookups by protocol and "
-            "disposition (HIT/MISS — the $brix_cache_status vocabulary).\n"
-            "# TYPE brix_cache_requests_total counter\n");
-        for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
-            const char *pn = brix_metric_proto_name((brix_proto_t) proto);
-
-            mw_printf(mw, "brix_cache_requests_total{proto=\"%s\","
-                          "cache_status=\"%s\"} %llu\n", pn,
-                      brix_metric_cache_status_name(BRIX_CACHE_STATUS_HIT),
-                      brix_metric_value(&shm->unified.cache_hits[proto]));
-            mw_printf(mw, "brix_cache_requests_total{proto=\"%s\","
-                          "cache_status=\"%s\"} %llu\n", pn,
-                      brix_metric_cache_status_name(BRIX_CACHE_STATUS_MISS),
-                      brix_metric_value(&shm->unified.cache_misses[proto]));
-            /* phase-110 W10: the NEGHIT series, from the unified neghit slot —
-             * so a fleet-wide negative-hit rate is one query across every plane
-             * (was only cvmfs's own negative_hits_total). */
-            mw_printf(mw, "brix_cache_requests_total{proto=\"%s\","
-                          "cache_status=\"%s\"} %llu\n", pn,
-                      brix_metric_cache_status_name(BRIX_CACHE_STATUS_NEGHIT),
-                      brix_metric_value(&shm->unified.cache_neghits[proto]));
-        }
+        mw_printf(mw, "brix_cache_requests_total{proto=\"%s\","
+                      "cache_status=\"%s\"} %llu\n", pn,
+                  brix_metric_cache_status_name(BRIX_CACHE_STATUS_HIT),
+                  brix_metric_value(&shm->unified.cache_hits[proto]));
+        mw_printf(mw, "brix_cache_requests_total{proto=\"%s\","
+                      "cache_status=\"%s\"} %llu\n", pn,
+                  brix_metric_cache_status_name(BRIX_CACHE_STATUS_MISS),
+                  brix_metric_value(&shm->unified.cache_misses[proto]));
+        /* phase-110 W10: the NEGHIT series, from the unified neghit slot —
+         * so a fleet-wide negative-hit rate is one query across every plane
+         * (was only cvmfs's own negative_hits_total). */
+        mw_printf(mw, "brix_cache_requests_total{proto=\"%s\","
+                      "cache_status=\"%s\"} %llu\n", pn,
+                  brix_metric_cache_status_name(BRIX_CACHE_STATUS_NEGHIT),
+                  brix_metric_value(&shm->unified.cache_neghits[proto]));
     }
 
     unified_emit_proto_counter(mw,
@@ -506,6 +571,8 @@ brix_export_unified_metrics(metrics_writer_t *mw,
     unified_emit_cred_select(mw, shm);
     unified_emit_cred_deleg(mw, shm);
     unified_emit_vfs_mutation_denied(mw, shm);
+    unified_emit_vfs_domain_mutation(mw, shm);
+    unified_emit_vfs_authz_backstop(mw, shm);
     unified_emit_vfs_spill(mw, shm);
     unified_emit_vfs_bulk_delete(mw, shm);
     unified_emit_vfs_recall_evict(mw, shm);

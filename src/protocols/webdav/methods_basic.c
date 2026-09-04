@@ -138,12 +138,9 @@ webdav_head_emit_digest(ngx_http_request_t *r, const char *path,
     const struct stat *sb)
 {
     xrdhttp_req_ctx_t *ctx;
-    ngx_http_brix_webdav_loc_conf_t *conf;
-    ngx_http_brix_webdav_req_ctx_t  *wctx;
     brix_vfs_ctx_t   vctx;
     brix_vfs_file_t *fh;
     int              vfs_err = 0;
-    int              is_tls  = 0;
 
     if (S_ISDIR(sb->st_mode)) {
         return;
@@ -154,18 +151,10 @@ webdav_head_emit_digest(ngx_http_request_t *r, const char *path,
         return;
     }
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    wctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
-
     /* Open the same way GET does (confined VFS read open) so the Digest
      * reflects exactly the bytes a GET would serve — including an
      * in-export symlink target. Metered + impersonation-aware. */
-    is_tls = brix_http_request_is_tls(r);
-    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
-        BRIX_PROTO_WEBDAV, conf->common.root_canon,
-        conf->common.cache_root_canon,
-        brix_vfs_policy_from_write_enable(conf->common.allow_write), is_tls,
-        (wctx != NULL) ? wctx->identity : NULL, path);
+    webdav_vfs_ctx_build(r, path, &vctx);
 
     fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);
     if (fh != NULL) {

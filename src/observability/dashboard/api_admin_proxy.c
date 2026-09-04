@@ -256,7 +256,12 @@ admin_proxy_one(ngx_http_request_t *r, const char *action, uint32_t id)
     }
     if (action[0] == '\0') {
         if (r->method == NGX_HTTP_DELETE) {
-            if (!brix_proxy_pool_remove(id)) {
+            brix_proxy_remove_result_e result = brix_proxy_pool_remove(id);
+            if (result == BRIX_PROXY_REMOVE_BUSY) {
+                admin_audit(r, "proxy/delete", target, "in_flight");
+                return admin_send_error(r, NGX_HTTP_CONFLICT, "in_flight");
+            }
+            if (result == BRIX_PROXY_REMOVE_NOT_FOUND) {
                 admin_audit(r, "proxy/delete", target, "not_found");
                 return admin_send_error(r, NGX_HTTP_NOT_FOUND, "not_found");
             }

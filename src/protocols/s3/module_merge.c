@@ -28,6 +28,7 @@
 #include "core/config/http_common.h"        /* unified brix_* directive adoption */
 #include "core/config/export_guard.h"       /* brix_assert_dir_outside_export (hard guard) */
 #include "fs/vfs/vfs_backend_registry.h"   /* per-export backend registration */
+#include "protocols/shared/merge_export.h"
 #include "core/compat/alloc_guard.h"
 #include "module_internal.h"
 
@@ -152,6 +153,13 @@ s3_merge_token(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *prev,
         {
             return NGX_CONF_ERROR;
         }
+        if (brix_http_common_register_jwks_refresh(cf,
+                &conf->common.token_jwks, conf->jwks_keys,
+                &conf->jwks_key_count,
+                conf->common.token_jwks_refresh_interval) != NGX_OK)
+        {
+            return NGX_CONF_ERROR;
+        }
     }
 
     return NGX_CONF_OK;
@@ -267,10 +275,8 @@ s3_merge_export(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *conf)
      * "root://"/"http://" URL or a driver name routes every VFS op (S3 GET
      * goes through brix_vfs_open) to the source backend; default POSIX is a
      * no-op. Mirrors the stream/webdav config paths. */
-    if (brix_vfs_backend_config_str(cf, conf->common.root_canon,
-            &conf->common.storage_backend, conf->common.pblock_block_size,
-            BRIX_AF_AUTO)
-        != NGX_OK)
+    if (brix_http_register_storage_backend(cf, &conf->common)
+        != NGX_CONF_OK)
     {
         return NGX_CONF_ERROR;
     }
@@ -282,12 +288,13 @@ s3_merge_export(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *conf)
         }
     }
 
-    /* Phase-64: register the composable cache/stage tiers (§4.4 mirror). */
-    if (brix_tier_register_stores(cf, &conf->common) != NGX_OK) {
+    if (brix_prepare_cache_root(cf, &conf->common) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
 
-    if (brix_prepare_cache_root(cf, &conf->common) != NGX_CONF_OK) {
+    /* Phase-64/W9: cache_root has now been lowered to cache_store, so there is
+     * exactly one composable cache registration path. */
+    if (brix_tier_register_stores(cf, &conf->common) != NGX_OK) {
         return NGX_CONF_ERROR;
     }
 

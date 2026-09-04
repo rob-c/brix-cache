@@ -26,68 +26,33 @@ worker-0 slice is complete) — no shared fleet.
 import os
 import socket
 import struct
-import subprocess
 import time
+from pathlib import Path
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN
+from settings import BIND_HOST
+from server_registry import NginxInstanceSpec
 
 import _test_session_bind_helpers as H
-from ephemeral_port import free_port
+
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-admin-socket")]
+
+_SERVER = "lc-admin-socket"
 
 kXR_attn = 4001
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, free_port()))  # leased mock-range port (never kernel-assigned)
-    port = s.getsockname()[1]
-    s.close()
-    return port
-
-
-def _write_conf(tmp_path, port, admin_path, workers=1):
-    data = tmp_path / "data"
-    data.mkdir(exist_ok=True)
-    logs = tmp_path / "logs"
-    logs.mkdir(exist_ok=True)
-    conf = tmp_path / "nginx.conf"
-    conf.write_text(
-        "daemon on;\n"
-        f"worker_processes {workers};\n"
-        f"pid {logs}/nginx.pid;\n"
-        f"error_log {logs}/error.log info;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n"
-        "  server {\n"
-        f"    listen {BIND_HOST}:{port};\n"
-        "    brix_root on;\n"
-        f"    brix_export {data};\n"
-        "    brix_auth none;\n"
-        f"    brix_admin_socket {admin_path};\n"
-        "  }\n"
-        "}\n")
-    return conf, str(data)
-
-
-def _nginx(*args, timeout=30):
-    return subprocess.run([NGINX_BIN, *args], capture_output=True, text=True,
-                          timeout=timeout)
-
-
-def _launch(tmp_path, workers=1):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    port = _free_port()
-    admin_path = str(tmp_path / "admin.sock")
-    conf, data = _write_conf(tmp_path, port, admin_path, workers)
-    t = _nginx("-p", str(tmp_path), "-c", str(conf), "-t")
-    assert t.returncode == 0, f"config rejected: {t.stderr}"
-    started = _nginx("-p", str(tmp_path), "-c", str(conf))
-    assert started.returncode == 0, f"nginx failed to start: {started.stderr}"
-    _await_admin_ready(port, admin_path, workers)
-    return port, admin_path, data, conf
+def _launch(lifecycle, workers=1):
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name=_SERVER,
+        template="nginx_lc_admin_socket.conf",
+        template_values={"BIND_HOST": BIND_HOST, "WORKERS": workers},
+        reason="runtime admin socket command and worker-isolation coverage"))
+    admin_path = str(Path(endpoint.prefix) / "tmp" / "admin.sock")
+    _await_admin_ready(endpoint.port, admin_path, workers)
+    return endpoint.port, admin_path, endpoint.data_root
 
 
 def _port_accepts(port):
@@ -108,11 +73,6 @@ def _await_admin_ready(port, admin_path, workers, deadline_s=5):
         if all(os.path.exists(p) for p in want) and _port_accepts(port):
             return
         time.sleep(0.1)
-
-
-def _stop(tmp_path, conf):
-    _nginx("-p", str(tmp_path), "-c", str(conf), "-s", "quit")
-    time.sleep(0.2)
 
 
 def _admin(admin_path, command, timeout=5):
@@ -174,10 +134,10 @@ def _admin_probe_disc(admin_path, hexid, primary):
     assert got == b"", f"connection still alive after disc: {got!r}"
 
 
-def test_list_msg_disc_roundtrip(tmp_path):
+def test_list_msg_disc_roundtrip(lifecycle):
     """(success) list shows the session; msg reaches the client as kXR_attn;
     disc closes the session's connection."""
-    port, admin_path, data, conf = _launch(tmp_path)
+    port, admin_path, data = _launch(lifecycle)
     H.ANON_HOST = BIND_HOST
     H.DATA_ROOT = data
     primary = None
@@ -191,14 +151,13 @@ def test_list_msg_disc_roundtrip(tmp_path):
     finally:
         if primary is not None:
             primary.close()
-        _stop(tmp_path, conf)
 
 
-def test_pause_cont_gates_requests(tmp_path):
+def test_pause_cont_gates_requests(lifecycle):
     """(success) pause: a request sent while paused gets NO reply (the server
     stops reading it — TCP backpressure) while the connection stays alive;
     cont: the backed-up request is then served."""
-    port, admin_path, data, conf = _launch(tmp_path)
+    port, admin_path, data = _launch(lifecycle)
     H.ANON_HOST = BIND_HOST
     H.DATA_ROOT = data
     primary = None
@@ -230,13 +189,12 @@ def test_pause_cont_gates_requests(tmp_path):
     finally:
         if primary is not None:
             primary.close()
-        _stop(tmp_path, conf)
 
 
-def test_timed_pause_auto_resumes(tmp_path):
+def test_timed_pause_auto_resumes(lifecycle):
     """(success) pause <secs>: the session resumes by itself — the gated
     request is served after ~secs without any cont."""
-    port, admin_path, data, conf = _launch(tmp_path)
+    port, admin_path, data = _launch(lifecycle)
     H.ANON_HOST = BIND_HOST
     H.DATA_ROOT = data
     primary = None
@@ -264,13 +222,12 @@ def test_timed_pause_auto_resumes(tmp_path):
     finally:
         if primary is not None:
             primary.close()
-        _stop(tmp_path, conf)
 
 
-def test_abort_resets_connection(tmp_path):
+def test_abort_resets_connection(lifecycle):
     """(success) abort: the client is cut with an RST (ECONNRESET), the
     discriminator vs disc's clean FIN/EOF."""
-    port, admin_path, data, conf = _launch(tmp_path)
+    port, admin_path, data = _launch(lifecycle)
     H.ANON_HOST = BIND_HOST
     H.DATA_ROOT = data
     primary = None
@@ -289,44 +246,35 @@ def test_abort_resets_connection(tmp_path):
     finally:
         if primary is not None:
             primary.close()
-        _stop(tmp_path, conf)
 
 
-def test_unknown_sessid_and_verb_are_errors(tmp_path):
+def test_unknown_sessid_and_verb_are_errors(lifecycle):
     """(error) unknown sessid -> err for every targeted verb; unknown verb and
     malformed seconds -> err."""
-    port, admin_path, data, conf = _launch(tmp_path)
-    try:
-        bogus = "00" * 16
-        for cmd in (f"disc {bogus}", f"msg {bogus} nobody-home",
-                    f"pause {bogus}", f"cont {bogus}", f"abort {bogus}"):
-            reply = _admin(admin_path, cmd)
-            assert reply.startswith("err"), f"{cmd!r} -> {reply!r}"
-        reply = _admin(admin_path, "explode")
-        assert reply.startswith("err"), reply
-        reply = _admin(admin_path, f"pause {bogus} notasecs")
-        assert reply.startswith("err"), reply
-    finally:
-        _stop(tmp_path, conf)
+    _port, admin_path, _data = _launch(lifecycle)
+    bogus = "00" * 16
+    for cmd in (f"disc {bogus}", f"msg {bogus} nobody-home",
+                f"pause {bogus}", f"cont {bogus}", f"abort {bogus}"):
+        reply = _admin(admin_path, cmd)
+        assert reply.startswith("err"), f"{cmd!r} -> {reply!r}"
+    assert _admin(admin_path, "explode").startswith("err")
+    assert _admin(admin_path, f"pause {bogus} notasecs").startswith("err")
 
 
-def test_socket_is_owner_only(tmp_path):
+def test_socket_is_owner_only(lifecycle):
     """(security-neg) the admin socket is created mode 0600 — filesystem
     permission is the privilege boundary, so group/other get nothing."""
-    port, admin_path, data, conf = _launch(tmp_path)
-    try:
-        mode = os.stat(admin_path).st_mode & 0o777
-        assert mode == 0o600, f"admin socket mode {oct(mode)}, want 0600"
-    finally:
-        _stop(tmp_path, conf)
+    _port, admin_path, _data = _launch(lifecycle)
+    mode = os.stat(admin_path).st_mode & 0o777
+    assert mode == 0o600, f"admin socket mode {oct(mode)}, want 0600"
 
 
-def test_multi_worker_socket_sweep(tmp_path):
+def test_multi_worker_socket_sweep(lifecycle):
     """(multi-worker reach) with worker_processes 2, worker 0 serves <path> and
     worker 1 serves <path>.1 — a session appears in exactly its owning worker's
     `list`, the non-owner refuses targeted verbs (worker isolation), and the
     owner's disc reaches it. Both socket files are 0600."""
-    port, admin_path, data, conf = _launch(tmp_path, workers=2)
+    port, admin_path, data = _launch(lifecycle, workers=2)
     socks = [admin_path, f"{admin_path}.1"]
     H.ANON_HOST = BIND_HOST
     H.DATA_ROOT = data
@@ -350,7 +298,6 @@ def test_multi_worker_socket_sweep(tmp_path):
     finally:
         if primary is not None:
             primary.close()
-        _stop(tmp_path, conf)
 
 
 def _sole_owner(socks, hexid):

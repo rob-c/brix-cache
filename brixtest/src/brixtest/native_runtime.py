@@ -33,19 +33,24 @@ def _sha256(path: Path) -> str:
 
 def _cwd(run, spec: _NativeSpec) -> Path:
     root = Path(run._manager.source_root)
-    selected = Path(spec.cwd or ".")
+    selected = Path(_render(run, spec.cwd or ".", "native_test.cwd"))
     return (selected if selected.is_absolute() else root / selected).resolve()
 
 
-def _path(value: object, cwd: Path) -> Path:
-    selected = Path(str(value))
+def _render(run, value: object, label: str) -> str:
+    return run._manager._render_value(value, label=label)
+
+
+def _path(run, value: object, cwd: Path, label: str) -> Path:
+    selected = Path(_render(run, value, label))
     return (selected if selected.is_absolute() else cwd / selected).resolve()
 
 
-def _language(spec: _NativeSpec) -> str:
+def _language(spec: _NativeSpec, sources: Sequence[Path] = ()) -> str:
     if spec.language != "auto":
         return spec.language
-    return "c++" if any(Path(value).suffix in _CXX_SUFFIXES for value in spec.sources) else "c"
+    selected = sources or tuple(Path(str(value)) for value in spec.sources)
+    return "c++" if any(path.suffix in _CXX_SUFFIXES for path in selected) else "c"
 
 
 def _compiler_candidates(language: str) -> tuple[str, ...]:
@@ -57,10 +62,13 @@ def _environment_compiler(language: str) -> tuple[str, ...]:
     return tuple(shlex.split(value)) if value else ()
 
 
-def _available_compiler(spec: _NativeSpec, language: str) -> tuple[str, ...]:
+def _available_compiler(run, spec: _NativeSpec, language: str) -> tuple[str, ...]:
     selected = tuple(spec.compiler or ()) or _environment_compiler(language)
     if selected:
-        return selected if shutil.which(selected[0]) else ()
+        rendered = tuple(
+            _render(run, part, "native_test.compiler") for part in selected
+        )
+        return rendered if shutil.which(rendered[0]) else ()
     return _first_compiler(_compiler_candidates(language))
 
 
@@ -78,17 +86,24 @@ def _unavailable(spec: _NativeSpec, detail: str) -> None:
     raise AssertionError(detail)
 
 
-def _required_sources(spec: _NativeSpec, cwd: Path) -> tuple[Path, ...]:
-    sources = tuple(_path(value, cwd) for value in spec.sources)
+def _required_sources(run, spec: _NativeSpec, cwd: Path) -> tuple[Path, ...]:
+    sources = tuple(
+        _path(run, value, cwd, "native_test.sources") for value in spec.sources
+    )
     missing_sources = [str(path) for path in sources if not path.is_file()]
     if missing_sources:
         raise AssertionError("native test sources are missing: %s" % ", ".join(missing_sources))
     return sources
 
 
-def _required_objects(spec: _NativeSpec, cwd: Path) -> tuple[Path, ...]:
-    objects = tuple(_path(value, cwd) for value in spec.objects)
-    required = tuple(_path(value, cwd) for value in spec.required_files)
+def _required_objects(run, spec: _NativeSpec, cwd: Path) -> tuple[Path, ...]:
+    objects = tuple(
+        _path(run, value, cwd, "native_test.objects") for value in spec.objects
+    )
+    required = tuple(
+        _path(run, value, cwd, "native_test.required_files")
+        for value in spec.required_files
+    )
     missing = _missing_regular_files(objects) + _missing_paths(required)
     if missing:
         _unavailable(spec, "native test prerequisites are missing: %s" % ", ".join(missing))
@@ -109,11 +124,17 @@ def _require_commands(spec: _NativeSpec) -> None:
         _unavailable(spec, "native test commands are unavailable: %s" % ", ".join(commands))
 
 
-def _require_inputs(spec: _NativeSpec, cwd: Path) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
-    sources = _required_sources(spec, cwd)
-    objects = _required_objects(spec, cwd)
+def _require_inputs(
+    run, spec: _NativeSpec, cwd: Path,
+) -> tuple[tuple[Path, ...], tuple[Path, ...], tuple[Path, ...]]:
+    sources = _required_sources(run, spec, cwd)
+    objects = _required_objects(run, spec, cwd)
+    includes = tuple(
+        _path(run, value, cwd, "native_test.include_dirs")
+        for value in spec.include_dirs
+    )
     _require_commands(spec)
-    return sources, objects
+    return sources, objects, includes
 
 
 def _pkg_flags(run, spec: _NativeSpec, cwd: Path, mode: str) -> tuple[str, ...]:
@@ -170,13 +191,13 @@ def _instrumentation_symbols(run, spec, objects, cwd) -> str:
 def _build_argv(
     compiler: Sequence[str], spec: _NativeSpec, sources: Sequence[Path],
     objects: Sequence[Path], output: Path, cflags: Sequence[str],
-    libs: Sequence[str], instrumentation: Sequence[str], cwd: Path,
-) -> tuple[str, ...]:
+    libs: Sequence[str], instrumentation: Sequence[str], includes: Sequence[Path],
+) -> tuple[object, ...]:
     standard = ("-std=%s" % spec.standard,) if spec.standard else ()
-    includes = tuple(part for path in spec.include_dirs for part in ("-I", str(_path(path, cwd))))
+    include_flags = tuple(part for path in includes for part in ("-I", str(path)))
     libraries = tuple("-l%s" % name for name in spec.libraries)
     return (
-        *compiler, *standard, *spec.compile_args, *includes,
+        *compiler, *standard, *spec.compile_args, *include_flags,
         *_define_flags(spec.defines), *cflags, *map(str, sources), *map(str, objects),
         "-o", str(output), *spec.link_args, *libs, *libraries, *instrumentation,
     )
@@ -187,15 +208,17 @@ def _result_output(result) -> str:
 
 
 def _compile(run, spec: _NativeSpec, cwd: Path, output: Path):
-    sources, objects = _require_inputs(spec, cwd)
-    language = _language(spec)
-    compiler = _available_compiler(spec, language)
+    sources, objects, includes = _require_inputs(run, spec, cwd)
+    language = _language(spec, sources)
+    compiler = _available_compiler(run, spec, language)
     if not compiler:
         _unavailable(spec, "no %s compiler is available" % language)
     cflags = _pkg_flags(run, spec, cwd, "--cflags")
     libs = _pkg_flags(run, spec, cwd, "--libs")
     inherited = _instrumentation_flags(run, spec, objects, cwd)
-    argv = _build_argv(compiler, spec, sources, objects, output, cflags, libs, inherited, cwd)
+    argv = _build_argv(
+        compiler, spec, sources, objects, output, cflags, libs, inherited, includes,
+    )
     result = run.command(
         *argv, check=False, cwd=cwd, env=spec.compile_env,
         timeout=spec.compile_timeout, output_limit=spec.output_limit,
@@ -281,7 +304,7 @@ def _manifest(spec, compiler_result, run_result, sources, objects, inherited, bi
         }
     return {
         "schema": 1, "name": spec.name,
-        "language": _language(spec), "compile_argv": list(compiler_result.argv),
+        "language": _language(spec, sources), "compile_argv": list(compiler_result.argv),
         "compile_returncode": compiler_result.returncode,
         "compile_seconds": compiler_result.elapsed_seconds,
         "run_argv": list(run_result.argv) if run_result is not None else [],

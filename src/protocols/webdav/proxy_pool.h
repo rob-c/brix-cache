@@ -26,6 +26,12 @@ typedef enum {
     BRIX_PROXY_BE_DEAD,       /* health-check failure; no new selects */
 } brix_proxy_be_state_e;
 
+typedef enum {
+    BRIX_PROXY_REMOVE_NOT_FOUND = 0,
+    BRIX_PROXY_REMOVE_REMOVED,
+    BRIX_PROXY_REMOVE_BUSY,
+} brix_proxy_remove_result_e;
+
 typedef struct {
     ngx_uint_t               in_use;
     uint32_t                 id;            /* monotonic ID for the REST API */
@@ -74,8 +80,11 @@ ngx_int_t brix_proxy_pool_configure(ngx_conf_t *cf);
 ngx_int_t brix_proxy_pool_add(const char *url, ngx_uint_t weight,
     ngx_pool_t *pool, ngx_log_t *log, uint32_t *id_out);
 
-/* Remove / drain / undrain by id.  Return 1 on success, 0 if id not found. */
-int brix_proxy_pool_remove(uint32_t id);
+/*
+ * Remove refuses to clear a slot while requests still reference it.  Drain and
+ * undrain retain the boolean success/not-found contract.
+ */
+brix_proxy_remove_result_e brix_proxy_pool_remove(uint32_t id);
 int brix_proxy_pool_drain(uint32_t id);
 int brix_proxy_pool_undrain(uint32_t id);
 

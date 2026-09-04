@@ -1,8 +1,12 @@
 # Full Test-Suite State — 2026-07-28 (hyper-detailed)
 
+**Status:** HISTORICAL RUN SNAPSHOT. Do not use these counts as the current
+suite state. The 2026-09-02 audit collected 43,008 tests after the shared
+lifecycle port ledger was reconciled; Phase-111 B111-001 records that close.
+
 Complete `--pr` (fast + serial) followed by `--nightly` (slow + destructive +
-clientconf) run on the current uncommitted working tree. This document is the
-authoritative triage reference: every failing and erroring test is attributed to
+clientconf) run on the then-current uncommitted working tree. This document was
+the authoritative triage reference for that run: every failing/erroring test is attributed to
 an exact root cause with the verbatim error signature, the concrete fix, and a
 real-bug-vs-infra classification.
 

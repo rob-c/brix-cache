@@ -114,11 +114,11 @@ tpc_certreq_open_creds(brix_tpc_pull_t *t, ngx_stream_brix_srv_conf_t *conf,
      * paths and any that would not fit (with room for the NUL) in the local
      * PATH_MAX buffers — brix_str_cbuf() copies + NUL-terminates and
      * returns NULL when the result would not fit. */
-    if (conf->certificate.len == 0 || conf->certificate_key.len == 0
+    if (conf->common.certificate.len == 0 || conf->common.certificate_key.len == 0
         || brix_str_cbuf((char *) cert_path, PATH_MAX,
-                         &conf->certificate) == NULL
+                         &conf->common.certificate) == NULL
         || brix_str_cbuf((char *) key_path, PATH_MAX,
-                         &conf->certificate_key) == NULL)
+                         &conf->common.certificate_key) == NULL)
     {
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC GSI outbound needs brix_certificate and "
@@ -196,7 +196,7 @@ tpc_certreq_load_chain_key(brix_tpc_pull_t *t, ngx_stream_brix_srv_conf_t *conf,
         ngx_memzero(&cred, sizeof(cred));
         cred.type = BRIX_TPC_CREDENTIAL_PROXY;
         cred.proxy_pem.data = cert_path;
-        cred.proxy_pem.len = conf->certificate.len;
+        cred.proxy_pem.len = conf->common.certificate.len;
 
         if (brix_tpc_credential_validate(
                 &cred, t->c != NULL ? t->c->log : NULL) != NGX_OK)

@@ -18,6 +18,8 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
+#include "fs/vfs/vfs.h"
+
 /*
  * Pull a validated member name from the request query "?xrdcl.unzip=<member>"
  * into out[outsz] (URL-decoded).  Returns 1 (serve member), 0 (no key present →
@@ -32,7 +34,8 @@ int brix_zip_http_member_arg(ngx_http_request_t *r, char *out, size_t outsz);
  * the central-directory read.  Returns an NGX_HTTP_* status, or the output-filter
  * result once the response is sent.
  */
-ngx_int_t brix_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
-    size_t cd_max, const char *archive_full, const char *member);
+ngx_int_t brix_zip_http_serve(ngx_http_request_t *r,
+    const brix_vfs_ctx_t *vfs_scope, size_t cd_max,
+    const char *archive_full, const char *member);
 
 #endif /* BRIX_ZIP_HTTP_H */

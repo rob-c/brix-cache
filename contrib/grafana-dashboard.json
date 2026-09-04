@@ -111,25 +111,25 @@
     },
     {
       "id": 5,
-      "title": "I/O latency p50 / p95 / p99 (usec)",
+      "title": "I/O latency p50 / p95 / p99",
       "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
-      "fieldConfig": { "defaults": { "unit": "µs" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(brix_io_latency_usec_bucket[5m])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(brix_io_latency_seconds_bucket[5m])))",
           "legendFormat": "p50"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(brix_io_latency_usec_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(brix_io_latency_seconds_bucket[5m])))",
           "legendFormat": "p95"
         },
         {
           "refId": "C",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(brix_io_latency_usec_bucket[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(brix_io_latency_seconds_bucket[5m])))",
           "legendFormat": "p99"
         }
       ]
@@ -164,7 +164,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(brix_cache_hits_total[5m])) / clamp_min(sum(rate(brix_cache_hits_total[5m])) + sum(rate(brix_cache_misses_total[5m])), 1)",
+          "expr": "sum(rate(brix_cache_requests_total{cache_status=\"HIT\"}[5m])) / clamp_min(sum(rate(brix_cache_requests_total{cache_status=~\"HIT|MISS\"}[5m])), 1)",
           "legendFormat": "hit ratio"
         }
       ]

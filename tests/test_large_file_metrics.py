@@ -148,7 +148,7 @@ def _skip_if_missing():
 
 @pytest.mark.timeout(300)
 def test_xrdcp_200mb_download_bytes_tx_delta():
-    """xrdcp download of large200.bin: MD5 preserved, bytes_tx_total delta in [200, 220] MiB."""
+    """xrdcp download: MD5 preserved, stream read delta in [200, 220] MiB."""
     _skip_if_missing()
     known_md5 = _known_md5()
 
@@ -168,8 +168,7 @@ def test_xrdcp_200mb_download_bytes_tx_delta():
             os.unlink(out_path)
 
     after = _fetch()
-    delta = _delta(before, after, "brix_bytes_tx_total",
-                   {"port": ANON_PORT, "auth": "anon"})
+    delta = _delta(before, after, "brix_io_bytes_read", {"proto": "stream"})
     assert delta >= 200 * MiB, (
         f"bytes_tx_total delta {delta // MiB} MiB < 200 MiB after large file download"
     )
@@ -184,7 +183,7 @@ def test_xrdcp_200mb_download_bytes_tx_delta():
 
 @pytest.mark.timeout(300)
 def test_xrdcp_200mb_upload_bytes_rx_delta():
-    """xrdcp upload of large200.bin: file arrives intact, bytes_rx_total delta in [200, 220] MiB."""
+    """xrdcp upload: file arrives intact, stream write delta in [200, 220] MiB."""
     _skip_if_missing()
     known_md5 = _known_md5()
 
@@ -199,8 +198,8 @@ def test_xrdcp_200mb_upload_bytes_rx_delta():
     assert rc == 0, "xrdcp upload of large200.bin failed"
 
     after = _fetch()
-    delta = _delta(before, after, "brix_bytes_rx_total",
-                   {"port": ANON_PORT, "auth": "anon"})
+    delta = _delta(before, after, "brix_io_bytes_written",
+                   {"proto": "stream"})
     assert delta >= 200 * MiB, (
         f"bytes_rx_total delta {delta // MiB} MiB < 200 MiB after large file upload"
     )

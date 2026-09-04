@@ -43,7 +43,7 @@ ev_gss_carry_voms(ftp_ev_t *fc)
     char             vo_list[1024]   = "";
 
     if (fc->identity == NULL
-        || fc->conf->vomsdir.len == 0 || fc->conf->voms_cert_dir.len == 0
+        || fc->conf->common.vomsdir.len == 0 || fc->conf->common.voms_cert_dir.len == 0
         || !brix_voms_available())
     {
         return;
@@ -52,7 +52,7 @@ ev_gss_carry_voms(ftp_ev_t *fc)
         return;
     }
     (void) brix_extract_voms_info(fc->c->log, leaf, chain,
-                                  &fc->conf->vomsdir, &fc->conf->voms_cert_dir,
+                                  &fc->conf->common.vomsdir, &fc->conf->common.voms_cert_dir,
                                   primary_vo, sizeof(primary_vo),
                                   vo_list, sizeof(vo_list));
     if (vo_list[0] != '\0'

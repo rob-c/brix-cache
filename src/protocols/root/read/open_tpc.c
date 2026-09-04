@@ -119,7 +119,7 @@ tpc_handle_dest(brix_ctx_t *ctx, ngx_connection_t *c,
 	}
 
 	if (brix_check_vo_acl_identity(c->log, tpc_full_path,
-	                                 conf->vo_rules,
+	                                 conf->common.vo_rules,
 	                                 ctx->identity) != NGX_OK) {
 		BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
 		                  tpc_clean, "tpc-pull", kXR_NotAuthorized,

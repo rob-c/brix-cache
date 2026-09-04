@@ -362,8 +362,9 @@ brix_krb5_session_grant(brix_krb5_req_t *rq, const char *cname)
         }
     }
 
-    brix_session_register(ctx->login.sessid, ctx->login.dn,
-                            ctx->login.vo_list, 0);
+    ctx->login.session_slot_hint =
+        brix_session_register(ctx->login.sessid, ctx->login.dn,
+                                ctx->login.vo_list, 0);
     brix_krb5_track_identity(ctx);
 
     brix_sanitize_log_string((char *) cname, safe_cname, sizeof(safe_cname));

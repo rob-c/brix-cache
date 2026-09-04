@@ -37,7 +37,17 @@ typedef struct {
                          * CephFS: the localroot (mount + base) prepended to the LFN */
 } brix_n2n_cfg_t;
 
-/* LFN → physical name. Rejects ".." traversal. 0, or -1 (bad args/escape/overflow). */
+/* Lexically canonicalize a logical path into `out` (cap >= 2): collapse empty
+ * "//" segments and "." components, and REJECT any ".." component (traversal)
+ * rather than resolving it — the C13 decision. A path that canonicalizes to
+ * nothing becomes the bare root "/". Returns 0, or -1 with errno set (EINVAL on
+ * bad args or a ".." component, ENAMETOOLONG on overflow). Pure libc; it is the
+ * single canonicalizer shared by the name-translation schemes and the RADOS
+ * driver's key derivation, so "/a/./b", "/a//b" and "/a/b" map to one name. */
+int brix_n2n_canonicalize(const char *lfn, char *out, size_t cap);
+
+/* LFN → physical name. Canonicalizes first (so "." and "//" fold and ".." is
+ * rejected), then applies the scheme. 0, or -1 (bad args/traversal/overflow). */
 int brix_n2n_lfn2pfn(const brix_n2n_cfg_t *cfg, const char *lfn,
                        char *pfn, size_t cap);
 

@@ -45,6 +45,11 @@ COMPAT = os.path.join(RADOS, "sd_ceph_compat.c")
 # precisely so the checksum-offload conditioning is pinned here, with no cluster
 # and no librados: with the gate off this TU compiles to that one pure function.
 META = os.path.join(RADOS, "sd_ceph_meta.c")
+# sd_ceph_normalize is now a thin shim over the shared canonicalizer in
+# site_n2n.c (phase-108 C13): the ".."-reject / "."-and-"//"-fold rules live
+# there and are linked in so the CEPH-off build resolves brix_n2n_canonicalize.
+# The kernel moved to the path layer with its stage (W3/A.4), out of backend/.
+N2N = os.path.join(REPO, "src", "fs", "path", "site_n2n.c")
 TEST = os.path.join(RADOS, "sd_ceph_unittest.c")
 
 
@@ -54,9 +59,14 @@ def ceph_map_bin(tmp_path_factory):
     _guard_ceph_map_bin_1(cc)
     _guard_ceph_map_bin_2()
     out = str(tmp_path_factory.mktemp("sdceph") / "ut")
+    # -I src too: sd_ceph.h reaches the moved kernel by its from-src include
+    # `fs/path/site_n2n.h` (W3/A.4 relocated site_n2n out of backend/), the same
+    # convention the nginx build uses.
+    src_root = os.path.join(REPO, "src")
     r = subprocess.run(
-        [cc, "-Wall", "-Wextra", "-Werror", "-I", RADOS, "-I", BACKEND,
-         SRC, COMPAT, META, TEST, "-o", out],
+        [cc, "-Wall", "-Wextra", "-Werror",
+         "-I", RADOS, "-I", BACKEND, "-I", src_root,
+         SRC, COMPAT, META, N2N, TEST, "-o", out],
         capture_output=True, text=True)
     _guard_ceph_map_bin_3(r)
     return out

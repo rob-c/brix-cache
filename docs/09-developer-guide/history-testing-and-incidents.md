@@ -2085,3 +2085,55 @@ class (b)/(f) port contention from §21, no code change. **Meta-rule: a
 that encoded the duplication as their contract. Re-run every source-structure
 audit and every C-table parser after a consolidation lands, and classify each
 red as stale-contract vs real before touching code.**
+
+## 23. The fast-tier burndown after the 5f5822004 rebase — attribution before fixes, and two genuinely lost tools (2026-09-02)
+
+The first full `-m "not slow"` run after landing 5f5822004 (hyperopt rounds
+5–12 + phase-107 C1–C9 + BriXTest 0.16, 455 files, rebased onto phase-106
+W1/110) showed 178 F + 2 E. Every family was **attributed via git archaeology
+first** (`git log -S`, `git show <sha>:<path>`, `git ls-tree`) and only then
+fixed; the reds split four ways:
+
+**(a) My own commit's file splits vs source-structure audits** — the §22
+meta-rule replayed exactly. `vfs_dir.c`→`vfs_dir_iter.c`,
+`registry.c`→`registry_slots.c`, the depth-0 `brix_vfs_driver_rmtree` call
+→`vfs_unlink_many.c`, and the round-9 `fd_table.c`/`fd_table_bound.c` split
+each invalidated path-pinned assertions (phase56 ×5, phase27 ×4, session_bind,
+tree_depth_cap, aio_op_latency). One subtlety worth keeping: a split can turn
+a literal `ngx_memzero(&x, sizeof(x))` into the pointer form
+`ngx_memzero(p, sizeof(*p))` when the object moves behind a ctx pointer — a
+count-the-literal audit must count both spellings. Unity-build unit TUs
+(`tests/unit/test_sd_*_nearline.c`) red for the sibling reason: new calls in
+the included `.c` (`sd_http_cred_gate`, `sd_remote_params_cred`, …) need
+TU-local stubs, never extra link objects.
+
+**(b) My own gate working as designed** — 16 audit16ah reds were phase-107
+C2/W6 refusing `kXR_prepare`+`kXR_stage` on read-only fleet faces
+(`kXR_fsReadOnly` before the path scan). Fix in the CONFIGS
+(`brix_allow_write on;` per server block — it is srv-conf only), not the gate.
+Recorded in the phase-107 doc at the C2 gate table.
+
+**(c) Origin drift that CI didn't catch** — phase-110 (7e2aa0639) shipped
+`brix_io_latency_seconds` + the deprecated `_usec` help rewrite +
+`brix_cache_requests_total` WITHOUT updating the pinned help catalog
+(`tests/brix_suite/cachemx/_cachemx_catalog_data.py` — the canonical module;
+`tests/_cachemx_catalog_data.py` is a TS-5 shim). A peer session's
+UNCOMMITTED `brix_vfs_domain_mutation_total` family was also live in the
+shared working tree and fleet binary; its help text is now pinned too.
+
+**(d) Two tools that never existed in git.** `tools/split_large_c.py` and
+`tools/split_large_tests.py` were referenced by tracked tests since 08-11 but
+were only ever untracked working-tree files — no commit anywhere contains
+them (verified: `git log --all --follow`, ls-tree at three heads, stash
+trees, filesystem find). Any fresh clone of origin/main had those 4 audits
+broken-by-construction; they now `pytest.skip` when the file is absent.
+**Rule: a tracked test that audits a tool pins that tool into the repo — the
+commit adding the test must add the tool, and a "works on my checkout" audit
+green proves nothing about origin.**
+
+Process traps from the burndown itself: a `cd` into a subdirectory persisted
+across shell calls and made relative-path greps of `src` return silent false
+negatives (briefly "proving" a symbol existed nowhere) — **grep with absolute
+paths during archaeology**; and a background pytest task's output file held
+only the tail of the failure list — re-run the shortlist in the foreground
+before concluding.

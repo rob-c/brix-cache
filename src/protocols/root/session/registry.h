@@ -127,12 +127,29 @@ typedef struct {
 
 /* ---- Struct: brix_session_table_t ----
  *
- * WHAT: Shared-memory session registry table containing slot array for client session metadata. lock (ngx_shmtx_sh_t) must be first field — required by ngx_shmtx_create() which embeds the spinlock at the start of the shared region. slots array provides BRIX_SESSION_REGISTRY_SLOTS entries (default 1024) for concurrent cross-worker session lookup, registration, and unregistration operations.
+ * WHAT: Shared-memory session registry table containing slot array for client session metadata. lock (ngx_shmtx_sh_t) must be first field — required by ngx_shmtx_create() which embeds the spinlock at the start of the shared region. slots array provides BRIX_SESSION_REGISTRY_SLOTS entries (default 1024) for concurrent cross-worker session lookup, registration, and unregistration operations. high_water bounds the live prefix so those scans cost the live session population rather than the configured capacity; every in_use slot has index < high_water, and that invariant is what keeps the F4 global-LRU reap and the W5 per-source quota — both built on the scan — seeing every occupied slot.
  */
 
 typedef struct {
     ngx_shmtx_sh_t          lock;           /* must be first — shmtx init req */
     ngx_uint_t              capacity;       /* usable slot count (brix_session_slots) */
+    ngx_uint_t              high_water;     /* 1 + highest slot index currently
+                                             * in_use (mutex-guarded).  Every
+                                             * scan stops here instead of
+                                             * walking all `capacity` slots:
+                                             * register and unregister each
+                                             * walked the FULL table under the
+                                             * cross-worker mutex on every
+                                             * login/disconnect, so an idle
+                                             * table cost the same as a full
+                                             * one and the default 1024 slots
+                                             * taxed every FTS-shaped
+                                             * connection twice.  unregister
+                                             * walks it back down over a freed
+                                             * top run, so it tracks the peak
+                                             * LIVE population, not the boot-
+                                             * time peak.  Mirrors the same
+                                             * mark on the handle table. */
     brix_session_entry_t  slots[];        /* session registry entries — `capacity` long */
 } brix_session_table_t;
 
@@ -174,8 +191,13 @@ ngx_int_t brix_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots);
 
 /* ---- Function: brix_session_register() ----
  * WHAT: Stores client session metadata in shared memory registry slot during login completion. Scans all slots finding first free entry — copies sessid[16], dn, vo_list, and token_auth flag into new slot setting e->in_use=1. Protected by zone-specific mutex ensuring thread-safe cross-worker access during concurrent registration attempts.
- * W5/P90-27.2: the registrant's per-source key is derived internally from (dn, token_auth); an identity already at BRIX_SESSION_PER_SOURCE_SOFT_CAP live slots recycles its OWN LRU slot (self-eviction, counted in brix_session_src_cap_evict_total) rather than consuming a free one. */
-void brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
+ * W5/P90-27.2: the registrant's per-source key is derived internally from (dn, token_auth); an identity already at BRIX_SESSION_PER_SOURCE_SOFT_CAP live slots recycles its OWN LRU slot (self-eviction, counted in brix_session_src_cap_evict_total) rather than consuming a free one.
+ * Round 15: returns the slot the session occupies (its own on a re-register,
+ * the newly filled one otherwise), or -1 when the registry was unavailable or
+ * the registration was rejected.  Callers keep it in
+ * ctx->login.session_slot_hint so the disconnect can clear that slot directly
+ * — see brix_session_unregister_hinted(). */
+int brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
     const char *dn, const char *vo_list, ngx_uint_t token_auth);
 
 /* ---- Function: brix_session_lookup() ----
@@ -208,11 +230,29 @@ int brix_session_pathid_bound(const u_char sessid[BRIX_SESSION_ID_LEN],
  * WHAT: Clears session entry during kXR_endsess or disconnect cleanup — scans all slots comparing sessid, memzeros matching entry clearing session metadata; additionally unpublishing all associated handles via brix_session_handle_unpublish_all(). Called by kXR_endsess handler and brix_on_disconnect() ensuring complete cross-worker cleanup regardless of which worker originally registered the session. */
 void brix_session_unregister(const u_char sessid[BRIX_SESSION_ID_LEN]);
 
+/* ---- Function: brix_session_unregister_hinted() ----
+ * WHAT: As brix_session_unregister() but clears the slot brix_session_register()
+ * reported at login (round 15), re-checking the sessid there under the lock.
+ * Removes the O(live sessions) scan every disconnect paid under the global
+ * session mutex — a cost that grew with concurrency instead of backing off,
+ * because the live prefix is longest exactly when every session is tearing
+ * down.  A hint made stale by the F4 reap or the W5 self-eviction matches
+ * nothing and clears nothing, which is correct (an evicted session has no entry
+ * left) and STRICTER than the scan, which would destroy a live re-registration
+ * of the same sessid made by a different connection.  slot_hint < 0 keeps the
+ * original scan. */
+void brix_session_unregister_hinted(const u_char sessid[BRIX_SESSION_ID_LEN],
+    int slot_hint);
+
 /* ---- Function: brix_session_handle_publish() ----
- * WHAT: Shares file handle metadata with other workers enabling bound stream secondary connections to read primary-published handles. Validates handle_index (0–255 range) and file state — searches handle table slots finding matching sessid+handle_index key or free slot; copies readable/writable/from_cache/is_regular/device/inode/cached_size/path metadata into entry setting e->in_use=1. Write-only handles rejected from publishing preventing bound stream misuse of write channels. */
+ * WHAT: Shares file handle metadata with other workers enabling bound stream secondary connections to read primary-published handles. Validates handle_index (0–255 range) and file state — searches handle table slots finding matching sessid+handle_index key or free slot; copies readable/writable/from_cache/is_regular/device/inode/cached_size/path metadata into entry setting e->in_use=1. Write-only handles rejected from publishing preventing bound stream misuse of write channels.
+ * Round 14: on a successful publish the chosen slot is recorded in
+ * file->shared_handle_slot_hint (and reset to -1 when nothing was published),
+ * which is what lets the teardown clear the entry in O(1) — see
+ * brix_session_handle_unpublish_hinted(). */
 void brix_session_handle_publish(
     const u_char sessid[BRIX_SESSION_ID_LEN],
-    int handle_index, const brix_file_t *file);
+    int handle_index, brix_file_t *file);
 
 /* ---- Function: brix_session_handle_lookup() ----
  * WHAT: Retrieves published handle metadata for bound stream read requests — searches slots by sessid+handle_index key matching returning copy of entry if found. Called by bound stream secondary connections to access primary-published handles when those handles were opened by a different worker process. Returns 1 on success with out populated, 0 indicating no published handle found for requested combination. */
@@ -234,6 +274,19 @@ int brix_session_handle_lookup_hint(
  * WHAT: Removes individual handle entry from shared table during kXR_close — searches slots by sessid+handle_index key matching, memzeros entry clearing all metadata preventing bound stream access to closed primary handles. Called after every file close operation ensuring no stale published references remain. */
 void brix_session_handle_unpublish(
     const u_char sessid[BRIX_SESSION_ID_LEN], int handle_index);
+
+/* ---- Function: brix_session_handle_unpublish_hinted() ----
+ * WHAT: As brix_session_handle_unpublish() but takes the publish-time slot from
+ * brix_file_t.shared_handle_slot_hint (round 14).  A published entry only ever
+ * lives at the slot publish wrote it to (entries are cleared in place, never
+ * relocated), so the hint is authoritative: a hinted slot whose full key still
+ * matches IS the entry and is cleared, and a hinted slot whose key does not
+ * match proves the entry is already gone — no scan can find one.  slot_hint < 0
+ * keeps the original full scan.  Removes the wasted full-prefix scan every open
+ * handle paid at disconnect, where brix_session_unregister() has already
+ * cleared the session's entries before brix_close_all_files() runs. */
+void brix_session_handle_unpublish_hinted(
+    const u_char sessid[BRIX_SESSION_ID_LEN], int handle_index, int slot_hint);
 
 /* ---- Function: brix_session_handle_unpublish_all() ----
  * WHAT: Removes all handles associated with specific sessid during session termination — scans all in_use entries comparing sessid, memzeros matching entries ensuring no stale handle references remain after session end. Called by kXR_endsess handler and brix_session_unregister() to ensure complete cross-worker cleanup of published handles regardless of which worker originally published each handle. */

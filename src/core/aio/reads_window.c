@@ -98,6 +98,9 @@ static ngx_int_t
 brix_window_emit_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
     ssize_t nread, size_t out_size, int io_errno)
 {
+    if (ctx->rd.win_readv) {
+        return brix_readv_window_emit(ctx, c, nread, io_errno);
+    }
     if (ctx->rd.win_pgread) {
         return brix_pgread_window_emit(ctx, c, nread, out_size, io_errno);
     }
@@ -127,6 +130,10 @@ read_window_sizes_at(ngx_flag_t pgread, off_t offset, size_t remaining,
 static void
 read_window_sizes(brix_ctx_t *ctx, size_t *want, size_t *scratch_need)
 {
+    if (ctx->rd.win_readv) {
+        brix_readv_window_sizes(ctx, want, scratch_need);
+        return;
+    }
     read_window_sizes_at(ctx->rd.win_pgread, ctx->rd.win_offset,
                            ctx->rd.win_remaining, want, scratch_need);
 }
@@ -213,7 +220,7 @@ read_window_post_aio(brix_ctx_t *ctx, ngx_connection_t *c,
     /* pgread computes fresh per-page CRC32c from the bytes it just
      * read (classic pgread AIO never binds CSI either); a stale
      * csi under the PGREAD op would be meaningless. */
-    t->csi = ctx->rd.win_pgread
+    t->csi = (ctx->rd.win_pgread || ctx->rd.win_readv)
              ? NULL : ctx->files[ctx->rd.win_idx].csi;
     t->obj = ctx->files[ctx->rd.win_idx].sd_obj;
     t->pg = ctx->rd.win_pgread;
@@ -274,6 +281,19 @@ brix_read_window_prefetch(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (nread <= 0 || (size_t) nread >= ctx->rd.win_remaining) {
         return 0;                 /* the window being emitted ends the train */
+    }
+    if (ctx->rd.win_readv) {
+        return 0;                 /* the next logical segment may use another
+                                   * handle; keep readv serial and bounded */
+    }
+    read_window_sizes_at(ctx->rd.win_pgread, ctx->rd.win_offset,
+                           ctx->rd.win_remaining, &want, &need);
+    if ((size_t) nread < want) {
+        return 0;                 /* short window = EOF: the emit ends the
+                                   * train (pgread must frame the partial
+                                   * page as FinalResult), so a read-ahead
+                                   * would outlive it and race the swapped
+                                   * scratch buffer */
     }
     if (rconf->common.thread_pool == NULL
         || ctx->files[ctx->rd.win_idx].sd_obj.driver != NULL)
@@ -418,7 +438,7 @@ read_window_inline_step(brix_ctx_t *ctx, ngx_connection_t *c,
      * handles through their storage object. */
     if (ctx->rd.win_pgread) {
         job.op = BRIX_VFS_IO_PGREAD;
-    } else {
+    } else if (!ctx->rd.win_readv) {
         job.csi = ctx->files[ctx->rd.win_idx].csi;
     }
     brix_vfs_job_set_obj(&job, &ctx->files[ctx->rd.win_idx].sd_obj);
@@ -430,6 +450,43 @@ read_window_inline_step(brix_ctx_t *ctx, ngx_connection_t *c,
         return NGX_DONE;
     }
     return NGX_OK;
+}
+
+static u_char *
+read_window_data_target(brix_ctx_t *ctx, u_char *scratch)
+{
+    if (ctx->rd.win_pgread) {
+        return scratch + sizeof(ServerStatusResponse_pgRead);
+    }
+    if (ctx->rd.win_readv) {
+        return brix_readv_window_payload(ctx, scratch);
+    }
+    return scratch;
+}
+
+/* Try the page-cache-resident pgread path. NGX_DECLINED means the caller must
+ * post/read normally; NGX_OK means one inline frame completed; NGX_DONE means
+ * the pump must return because the frame parked or the emit failed. */
+static ngx_int_t
+read_window_try_warm(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *rconf, u_char *datap, size_t want)
+{
+    ssize_t nread;
+    size_t  out_size;
+
+    if (!ctx->rd.win_pgread
+        || !brix_pgread_window_try_warm(ctx, rconf, datap, want,
+                                          &nread, &out_size))
+    {
+        return NGX_DECLINED;
+    }
+    if (brix_read_window_emit_step(ctx, c, rconf, nread, out_size, 0)
+        == NGX_ERROR)
+    {
+        brix_read_window_park_or_resume(ctx, c);
+        return NGX_DONE;
+    }
+    return ctx->state == XRD_ST_SENDING ? NGX_DONE : NGX_OK;
 }
 
 /*
@@ -448,7 +505,7 @@ brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
         size_t   scratch_need;
         u_char  *databuf;
         u_char  *datap;
-        ssize_t  nread;
+        ngx_int_t warm_rc;
 
         if (!ctx->rd.win_active) {
             brix_aio_resume(c);
@@ -483,32 +540,18 @@ brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
         }
         brix_budget_sync(ctx);
 
-        /* pgread: the encoded window lands after the 32-byte frame headroom
-         * so emit can stamp the status header ahead of it in place. */
-        datap = ctx->rd.win_pgread
-                ? databuf + sizeof(ServerStatusResponse_pgRead) : databuf;
+        datap = read_window_data_target(ctx, databuf);
 
         /* Warm inline window (pgread only): a page-cache-resident window is
          * read + encoded + CRCed right here on the event loop, skipping the
          * thread-pool round-trip (pure handoff latency for this self-
          * serialized train).  A cold window falls through to the post. */
-        if (ctx->rd.win_pgread) {
-            size_t warm_osz;
-
-            if (brix_pgread_window_try_warm(ctx, rconf, datap, want,
-                                              &nread, &warm_osz))
-            {
-                if (brix_read_window_emit_step(ctx, c, rconf, nread,
-                                                 warm_osz, 0) == NGX_ERROR)
-                {
-                    brix_read_window_park_or_resume(ctx, c);
-                    return;
-                }
-                if (ctx->state == XRD_ST_SENDING) {
-                    return;   /* send.c resumes the pump on drain */
-                }
-                continue;     /* sync send complete → next window */
-            }
+        warm_rc = read_window_try_warm(ctx, c, rconf, datap, want);
+        if (warm_rc == NGX_DONE) {
+            return;
+        }
+        if (warm_rc == NGX_OK) {
+            continue;
         }
 
         if (read_window_post_aio(ctx, c, rconf, datap, want,

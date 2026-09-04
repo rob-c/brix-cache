@@ -186,7 +186,8 @@ oci_manifest_commit(ngx_http_request_t *r, const oci_manifest_ctx_t *m,
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    if (brix_oci_store_put_text(path, (const char *) body, len, log) != NGX_OK)
+    if (brix_oci_store_publish_bytes(&m->st, path, body, len,
+                                     BRIX_VFS_DOMAIN_REGISTRY, log) != NGX_OK)
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }

@@ -329,7 +329,7 @@ brix_recv_after_header(ngx_stream_session_t *s, ngx_connection_t *c,
     BRIX_SRV_METRIC_INC(ctx, request_frames_total);
     BRIX_SRV_METRIC_ADD(ctx, request_payload_bytes_total, ctx->recv.cur_dlen);
 
-    ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    ngx_log_debug6(NGX_LOG_DEBUG_STREAM, c->log, 0,
                   "brix: req sid=[%02xd%02xd] reqid=%04xd dlen=%uz"
                   " avail=%d ready=%d",
                   (int) ctx->recv.cur_streamid[0],

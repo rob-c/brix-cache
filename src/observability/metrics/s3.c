@@ -104,25 +104,12 @@ brix_export_s3_metrics(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
         brix_s3_auth_names, BRIX_S3_NAUTH_RESULTS,
         shm->s3.auth_total);
 
-    mw_printf(mw,
-        "# DEPRECATED: use brix_io_bytes_written{proto=\"s3\"} "
-            "for protocol-neutral write throughput.\n"
-        "# HELP brix_s3_bytes_rx_total "
-            "Bytes accepted into successful S3-compatible PUT writes.\n"
-        "# TYPE brix_s3_bytes_rx_total counter\n"
-        "brix_s3_bytes_rx_total %lu\n",
-        (unsigned long) ngx_atomic_fetch_add(
-            &shm->s3.bytes_rx_total, 0));
-
-    mw_printf(mw,
-        "# DEPRECATED: use brix_io_bytes_read{proto=\"s3\"} "
-            "for protocol-neutral read throughput.\n"
-        "# HELP brix_s3_bytes_tx_total "
-            "Bytes emitted by S3-compatible GET, LIST, and XML error responses.\n"
-        "# TYPE brix_s3_bytes_tx_total counter\n"
-        "brix_s3_bytes_tx_total %lu\n",
-        (unsigned long) ngx_atomic_fetch_add(
-            &shm->s3.bytes_tx_total, 0));
+    /* Phase 112 removed the scalar brix_s3_bytes_{rx,tx}_total pair that was
+     * exposed here: brix_io_bytes_written{proto="s3"} and
+     * brix_io_bytes_read{proto="s3"} carry the same two numbers, folded from
+     * these very SHM counters. shm->s3.bytes_{rx,tx}_total are STILL
+     * incremented at the callsites and STILL read — by that fold and by the
+     * dashboard JSON — so nothing about the accounting changed. */
 
     mw_emit_scalar(mw,
         "brix_s3_bytes_rx_ipv4_total",

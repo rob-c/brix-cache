@@ -79,6 +79,7 @@ read_serve_windowed(brix_ctx_t *ctx, ngx_connection_t *c,
      */
     ctx->rd.win_active = 1;
     ctx->rd.win_pgread = 0;   /* plain kXR_read stream (oksofar chunks) */
+    ctx->rd.win_readv = 0;
     ctx->rd.win_prefetch = 0; /* round-12: fresh train — no read-ahead state */
     ctx->rd.win_ready = 0;
     ctx->rd.win_fd = io->fd;

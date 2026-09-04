@@ -1,6 +1,6 @@
 # Phase 49 — Client + FUSE code-sharing consolidation
 
-**Status:** IN PROGRESS (authored 2026-06-21, verified against the current `client/` tree).
+**Status:** IMPLEMENTED AND VERIFIED (closed 2026-09-04).
 - **W0 DONE + tested** — `lib/cli_cksum.c` (xrdcrc32c/xrdcrc64/xrdadler32 now ~6-line
   shims); `xrootd_crypto_init` folded into `xrdc_connect`/`xrdc_connect_no_login` via
   `pthread_once`; `XRDC_EXIT_{USAGE,IO,AUTH}` constants in `xrdc.h`; dead
@@ -62,12 +62,25 @@
   thin wrappers (zero call-site churn). Verified: `..`-path put + `ls -h` (human
   size) + `dd bs=256k` against the harness, native-tools/frontend 23 green,
   clean-room intact.
-- **Remaining (lower value / higher churn):** export the `copy.c` pump
-  (`xrdc_file_pump`/`drain_to_fd`/`slurp`) — xrdfs hand-rolls the remote read loop
-  ~9× (cat/head/tail/wc/grep/dd); `lib/walk.c` (one remote-tree walker). **W3
-  PENDING** (move xrdcp recursive WebDAV/S3 + web→web relay into copy.c — reorg, not
-  dup). `xrdfs` `report_err` sweep DONE 2026-07-27 (see W1 bullet above).
-  `strv` SKIPPED (single consumer, no dup).
+- **W2 stream/walk surface DONE + tested (2026-09-04).** Public
+  `brix_rfile_pump`, `brix_rfile_drain_to_fd`, `brix_rfile_slurp` and
+  `brix_tree_walk` live under `client/lib/`. `xrdfs` content, range, grep, dd,
+  wc and tree commands delegate to them; `xrdcktree` also consumes the shared
+  walker. The C unit and pytest wrapper pass.
+- **W3 recursive web engine DONE + tested (2026-09-04).** Recursive WebDAV/S3
+  download, local-to-web upload and private web-to-web relay now live in
+  `lib/xfer/copy_web_recursive*.c` and `copy_web_relay.c`, reached from
+  `brix_copy`. `xrdcp` owns only source expansion, CLI retry/batch policy and
+  dispatch; it no longer links an application-specific recursive-upload object.
+  The library owns per-leaf retry through `brix_copy_opts.retry_count`, hostile
+  relative-path rejection, credential selection, collection creation and temp
+  cleanup. Acceptance: client build and native size/CCN/build-coverage guards
+  green; the ownership guard plus complete self-hosted WebDAV/S3 transfer file
+  passed **21/21**, including recursive up/down, cross-protocol relay, traversal
+  refusal and failed-relay cleanup.
+- **Deliberate exclusions:** `strv` remains a single-consumer helper and the
+  full single FUSE core remains rejected for the reasons above. Neither is
+  duplicated product logic, so moving it would add churn without sharing.
 
 > SIDE FIX (pre-existing bug, found + fixed during this work): `xrdcp` to a refused
 > endpoint looped `connect→ECONNREFUSED→sleep 50ms→retry` for the full 60s
@@ -104,8 +117,9 @@ through one Makefile rule (plus FUSE/preload variants with the same libs + fuse3
   (`http.c`, `s3.c`, `weblist.c`, `webfile.c`), checksums (`checksum.c`), zip
   (`zip.c`), fattr (`fattr.c`), the connection pool (`pool.c`).
 
-No app re-rolls protocol/auth/TLS/copy. **The remaining duplication is purely
-app-level plumbing plus the two near-identical FUSE drivers.**
+No app re-rolls protocol/auth/TLS/copy. The remaining app-level code is policy
+and presentation: argument parsing, source expansion, batch/journal decisions,
+progress, and the intentionally different FUSE front ends.
 
 **Dead artifact:** `client/libxrdclient.a` is superseded by `libxrdc.a` — no
 Makefile rule builds it; only a stale comment references it. Delete it.

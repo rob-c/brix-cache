@@ -72,11 +72,18 @@ brix_vfs_xattr_read_at(brix_vfs_ctx_t *ctx, const char *path,
         brix_sd_ucred_t store;
         brix_sd_cred_t  cred;
         int             use_cred = 0, cred_err = 0;
+        char            physical[PATH_MAX];
 
         /* Zero before the gate: it fills only the active credential kind;
          * an unzeroed cred hands a garbage inactive pointer to the driver
          * cred slot (bearer PASSTHROUGH would leave x509_proxy dangling). */
         ngx_memzero(&cred, sizeof(cred));
+
+        if (brix_path_resolved_to_pfn(ctx, path, physical,
+                                      sizeof(physical)) != NGX_OK)
+        {
+            return -1;
+        }
 
         if (brix_vfs_cred_gate_active(ctx)) {
             if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
@@ -92,17 +99,16 @@ brix_vfs_xattr_read_at(brix_vfs_ctx_t *ctx, const char *path,
              * driver's getxattr/listxattr_cred slot (decorators have only
              * plain relays). */
             brix_sd_instance_t *leaf = brix_vfs_ns_leaf(ctx->sd);
-            const char         *rel = brix_vfs_export_relative(ctx, path);
             brix_sd_cred_t     *cp = use_cred ? &cred : NULL;
 
             if (name != NULL) {
                 n = (drv->getxattr != NULL)
-                    ? brix_sd_getxattr_maybe_cred(leaf, rel, name, buf,
+                    ? brix_sd_getxattr_maybe_cred(leaf, physical, name, buf,
                                                   bufsz, cp)
                     : (errno = ENOTSUP, (ssize_t) -1);
             } else {
                 n = (drv->listxattr != NULL)
-                    ? brix_sd_listxattr_maybe_cred(leaf, rel, buf, bufsz,
+                    ? brix_sd_listxattr_maybe_cred(leaf, physical, buf, bufsz,
                                                    cp)
                     : (errno = ENOTSUP, (ssize_t) -1);
             }
@@ -130,6 +136,9 @@ brix_vfs_xattr_read(brix_vfs_ctx_t *ctx, const char *name, void *buf,
     ssize_t     n;
 
     if (brix_vfs_require_confined(ctx) != NGX_OK) {
+        return brix_vfs_xattr_observe_count(ctx, path, -1, start);
+    }
+    if (brix_vfs_require_authorized_lookup(ctx) != NGX_OK) {
         return brix_vfs_xattr_observe_count(ctx, path, -1, start);
     }
 
@@ -261,7 +270,7 @@ brix_vfs_xattr_mutate_driver(brix_vfs_ctx_t *ctx, const char *path,
     ngx_msec_t start)
 {
     brix_sd_instance_t *leaf;
-    const char         *rel;
+    char                rel[PATH_MAX];
     brix_sd_cred_t     *cp;
     brix_sd_ucred_t     store;
     brix_sd_cred_t      cred;
@@ -273,11 +282,14 @@ brix_vfs_xattr_mutate_driver(brix_vfs_ctx_t *ctx, const char *path,
     {
         return NGX_ERROR;
     }
+    if (brix_path_resolved_to_pfn(ctx, path, rel, sizeof(rel)) != NGX_OK) {
+        brix_sd_ucred_wipe(&store);
+        return NGX_ERROR;
+    }
 
     /* Dispatch on the leaf so *_maybe_cred finds the leaf driver's
      * setxattr/removexattr_cred slot (decorators have only plain relays). */
     leaf = brix_vfs_ns_leaf(ctx->sd);
-    rel  = brix_vfs_export_relative(ctx, path);
     cp   = use_cred ? &cred : NULL;
 
     if (m->is_set) {
@@ -331,7 +343,7 @@ brix_vfs_xattr_mutate(brix_vfs_ctx_t *ctx, int is_set, const char *name,
      * helper answers ENOTSUP for a backend without CAP_XATTR_WRITE and EACCES
      * for a refused credential, and either arriving before EROFS would tell a
      * caller something about a backend it is not allowed to touch. */
-    if (brix_vfs_require_mutation(ctx, BRIX_VFS_MUTATE_XATTR) != NGX_OK) {
+    if (brix_vfs_gate_mutation(ctx, BRIX_VFS_MUTATE_XATTR) != NGX_OK) {
         return brix_vfs_xattr_observe_mut(ctx, path, -1, 0, start);
     }
 
@@ -407,7 +419,12 @@ brix_vfs_fgetxattr(const brix_vfs_ctx_t *ctx, int fd, const char *name,
     void *buf, size_t bufsz)
 {
     uint64_t start = brix_vfs_now_ns();
-    ssize_t  n = fgetxattr(fd, name, buf, bufsz);
+    ssize_t  n;
+
+    if (ctx != NULL && brix_vfs_require_authorized_lookup(ctx) != NGX_OK) {
+        return brix_vfs_xattr_observe_count(ctx, NULL, -1, start);
+    }
+    n = fgetxattr(fd, name, buf, bufsz);
 
     return brix_vfs_xattr_observe_count(ctx, NULL, n, start);
 }
@@ -417,7 +434,12 @@ brix_vfs_flistxattr(const brix_vfs_ctx_t *ctx, int fd, void *buf,
     size_t bufsz)
 {
     uint64_t start = brix_vfs_now_ns();
-    ssize_t  n = flistxattr(fd, buf, bufsz);
+    ssize_t  n;
+
+    if (ctx != NULL && brix_vfs_require_authorized_lookup(ctx) != NGX_OK) {
+        return brix_vfs_xattr_observe_count(ctx, NULL, -1, start);
+    }
+    n = flistxattr(fd, buf, bufsz);
 
     return brix_vfs_xattr_observe_count(ctx, NULL, n, start);
 }
@@ -470,9 +492,10 @@ brix_vfs_fsetxattr(const brix_vfs_ctx_t *ctx, int fd, const char *name,
         return NGX_ERROR;
     }
 
-    return brix_vfs_fsetxattr_carried(ctx->mutation_policy,
-                                      brix_vfs_metrics_proto(ctx), fd, name,
-                                      value, len, flags);
+    if (brix_vfs_gate_mutation(ctx, BRIX_VFS_MUTATE_XATTR) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    return fsetxattr(fd, name, value, len, flags) == 0 ? NGX_OK : NGX_ERROR;
 }
 
 ngx_int_t
@@ -483,7 +506,8 @@ brix_vfs_fremovexattr(const brix_vfs_ctx_t *ctx, int fd, const char *name)
         return NGX_ERROR;
     }
 
-    return brix_vfs_fremovexattr_carried(ctx->mutation_policy,
-                                         brix_vfs_metrics_proto(ctx), fd,
-                                         name);
+    if (brix_vfs_gate_mutation(ctx, BRIX_VFS_MUTATE_XATTR) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    return fremovexattr(fd, name) == 0 ? NGX_OK : NGX_ERROR;
 }

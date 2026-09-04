@@ -340,6 +340,7 @@ brix_vfs_delete_many_via_driver(brix_vfs_ctx_t *ctx,
     brix_sd_ucred_t      store;
     brix_sd_cred_t       cred;
     const char          **logical;
+    char                (*physical)[PATH_MAX];
     size_t                i, removed = 0;
     ngx_int_t             rc;
     int                   saved, use_cred = 0, cred_err = 0;
@@ -357,13 +358,26 @@ brix_vfs_delete_many_via_driver(brix_vfs_ctx_t *ctx,
     }
 
     logical = malloc(n * sizeof(*logical));
-    if (logical == NULL) {
+    physical = malloc(n * sizeof(*physical));
+    if (logical == NULL || physical == NULL) {
         brix_sd_ucred_wipe(&store);
+        free(logical);
+        free(physical);
         errno = ENOMEM;
         return NGX_ERROR;
     }
     for (i = 0; i < n; i++) {
-        logical[i] = brix_vfs_export_relative_root(paths[i], ctx->root_canon);
+        if (brix_path_resolved_to_pfn(ctx, paths[i], physical[i],
+                                      sizeof(physical[i])) != NGX_OK)
+        {
+            saved = errno;
+            brix_sd_ucred_wipe(&store);
+            free(logical);
+            free(physical);
+            errno = saved;
+            return NGX_ERROR;
+        }
+        logical[i] = physical[i];
     }
 
     rc = delete_many_dispatch(leaf, logical, n, errs, done,
@@ -382,6 +396,7 @@ brix_vfs_delete_many_via_driver(brix_vfs_ctx_t *ctx,
     brix_metric_vfs_bulk_delete(brix_sd_backend_name(leaf), removed);
 
     free(logical);
+    free(physical);
     errno = saved;
     return rc;
 }
@@ -426,7 +441,7 @@ brix_vfs_delete_many(brix_vfs_ctx_t *ctx, const char *const *paths, size_t n,
     start  = brix_vfs_now_ns();
     anchor = brix_vfs_ctx_path(ctx);
 
-    if (brix_vfs_require_confined_mutation(ctx,
+    if (brix_vfs_gate_confined(ctx,
             BRIX_VFS_MUTATE_REMOVE) != NGX_OK)
     {
         saved = errno;

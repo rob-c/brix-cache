@@ -61,20 +61,6 @@ brix_merge_srv_gsi_acc(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_str_value(conf->gsi_ciphers, prev->gsi_ciphers, "");
     ngx_conf_merge_str_value(conf->pwd_file, prev->pwd_file, "");
 
-    /* XrdAcc engine: default native, audit off, refresh off, 12h gid cache. */
-    ngx_conf_merge_uint_value(conf->acc.format, prev->acc.format,
-                              BRIX_AUTHDB_FORMAT_NATIVE);
-    ngx_conf_merge_uint_value(conf->acc.audit, prev->acc.audit,
-                              BRIX_AUTHDB_AUDIT_NONE);
-    ngx_conf_merge_value(conf->acc.refresh, prev->acc.refresh, 0);
-    ngx_conf_merge_value(conf->acc.gidlifetime, prev->acc.gidlifetime, 43200);
-    ngx_conf_merge_value(conf->acc.pgo, prev->acc.pgo, 0);
-    ngx_conf_merge_value(conf->acc.resolve_hosts, prev->acc.resolve_hosts, 0);
-    ngx_conf_merge_value(conf->acc.encoding, prev->acc.encoding, 0);
-    ngx_conf_merge_str_value(conf->acc.nisdomain, prev->acc.nisdomain, "");
-    ngx_conf_merge_str_value(conf->acc.spacechar, prev->acc.spacechar, "");
-    ngx_conf_merge_str_value(conf->acc.gidretran, prev->acc.gidretran, "");
-
     /*
      * The native authdb engine matches by DN/VO, so it needs an authenticating
      * scheme — but ANY of them will do: sss/krb5/pwd/host/unix all stamp
@@ -84,8 +70,8 @@ brix_merge_srv_gsi_acc(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
      * authorizes anonymous `u *` rules.  Validated here, where both directives
      * have settled.
      */
-    if (conf->authdb.len > 0
-        && conf->acc.format == BRIX_AUTHDB_FORMAT_NATIVE
+    if (conf->common.acc.authdb.len > 0
+        && conf->common.acc.format == BRIX_AUTHDB_FORMAT_NATIVE
         && conf->auth == BRIX_AUTH_NONE)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
@@ -115,15 +101,10 @@ brix_merge_srv_x509(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     {
         return NGX_CONF_ERROR;
     }
-    ngx_conf_merge_str_value(conf->certificate,     prev->certificate,     "");
     /* §5.10: root:// TLS cipher list; empty = OpenSSL defaults (default). */
     ngx_conf_merge_str_value(conf->tls_ciphers,     prev->tls_ciphers,     "");
     /* §5.10: root:// TLSv1.3 cipher-suite list; empty = OpenSSL defaults. */
     ngx_conf_merge_str_value(conf->tls_ciphersuites, prev->tls_ciphersuites, "");
-    ngx_conf_merge_str_value(conf->certificate_key, prev->certificate_key, "");
-    ngx_conf_merge_str_value(conf->trusted_ca,      prev->trusted_ca,      "");
-    ngx_conf_merge_str_value(conf->vomsdir,         prev->vomsdir,         "");
-    ngx_conf_merge_str_value(conf->voms_cert_dir,   prev->voms_cert_dir,   "");
     ngx_conf_merge_str_value(conf->crl,             prev->crl,             "");
     ngx_conf_merge_value(conf->crl_reload,    prev->crl_reload,      0);
     ngx_conf_merge_uint_value(conf->signing_policy_mode,
@@ -148,21 +129,6 @@ static char *
 brix_merge_srv_tokens(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
-    ngx_conf_merge_str_value(conf->token_jwks,      prev->token_jwks,      "");
-    ngx_conf_merge_msec_value(conf->token_jwks_refresh_interval,
-                              prev->token_jwks_refresh_interval,
-                              NGX_CONF_UNSET_MSEC);
-    ngx_conf_merge_str_value(conf->token_issuer,    prev->token_issuer,    "");
-    ngx_conf_merge_str_value(conf->token_audience,  prev->token_audience,  "");
-    ngx_conf_merge_sec_value(conf->token_clock_skew, prev->token_clock_skew,
-                             BRIX_TOKEN_CLOCK_SKEW_SECS);
-    if (conf->token_clock_skew < 0 || conf->token_clock_skew > 300) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_token_clock_skew is capped at 300s (security clamp against "
-            "unit confusion); got %T", conf->token_clock_skew);
-        return NGX_CONF_ERROR;
-    }
-    ngx_conf_merge_str_value(conf->token_config,    prev->token_config,    "");
     ngx_conf_merge_ptr_value(conf->token_registry,  prev->token_registry,  NULL);
     ngx_conf_merge_str_value(conf->throttle.zone_name,
                              prev->throttle.zone_name, "");
@@ -186,26 +152,21 @@ brix_merge_srv_tokens(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         }
     }
 
-    ngx_conf_merge_str_value(conf->token_macaroon_secret,
-                             prev->token_macaroon_secret,     "");
-    ngx_conf_merge_str_value(conf->token_macaroon_secret_old,
-                             prev->token_macaroon_secret_old, "");
-
     /* F3/P90-28.1: the macaroon root-secret hex lives in conf memory for the
      * process lifetime — keep its pages out of core dumps and off swap.
      * Best-effort, never fatal (per-request binary copies are stack + F1-
      * cleansed; this guards the only long-lived form of the key). */
-    if (conf->token_macaroon_secret.len > 0
-        && brix_secret_page_guard(conf->token_macaroon_secret.data,
-                                  conf->token_macaroon_secret.len) != 0)
+    if (conf->common.token_macaroon_secret.len > 0
+        && brix_secret_page_guard(conf->common.token_macaroon_secret.data,
+                         conf->common.token_macaroon_secret.len) != 0)
     {
         ngx_conf_log_error(NGX_LOG_WARN, cf, ngx_errno,
             "brix: could not fully page-guard the macaroon secret "
             "(madvise/mlock); continuing unguarded");
     }
-    if (conf->token_macaroon_secret_old.len > 0
-        && brix_secret_page_guard(conf->token_macaroon_secret_old.data,
-                                  conf->token_macaroon_secret_old.len) != 0)
+    if (conf->common.token_macaroon_secret_old.len > 0
+        && brix_secret_page_guard(conf->common.token_macaroon_secret_old.data,
+                         conf->common.token_macaroon_secret_old.len) != 0)
     {
         ngx_conf_log_error(NGX_LOG_WARN, cf, ngx_errno,
             "brix: could not fully page-guard the old macaroon secret "
@@ -302,4 +263,3 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
 
     return NGX_CONF_OK;
 }
-

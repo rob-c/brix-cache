@@ -2,7 +2,7 @@
 Prometheus metrics tests for the S3-compatible protocol layer.
 
 Covers brix_s3_requests_total, brix_s3_responses_total,
-brix_s3_bytes_rx/tx_total, per-IP-version byte counters,
+canonical protocol byte totals, per-IP-version byte counters,
 brix_s3_list_contents_total / list_common_prefixes_total / list_truncated_total,
 and brix_s3_auth_total.
 
@@ -129,7 +129,8 @@ class TestS3RequestCounters:
         after = _fetch()
         assert _delta(self.before, after, "brix_s3_requests_total",
                       {"method": "PUT"}) >= 1
-        delta_rx = _delta(self.before, after, "brix_s3_bytes_rx_total")
+        delta_rx = _delta(self.before, after, "brix_io_bytes_written",
+                          {"proto": "s3"})
         assert delta_rx >= len(payload), f"bytes_rx delta {delta_rx} < payload {len(payload)}"
 
     def test_delete_increments_requests(self):

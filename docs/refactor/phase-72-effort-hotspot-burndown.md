@@ -1,8 +1,8 @@
 # Phase 72 — Effort-Hotspot Burndown (top-50 lizard + CodeChecker files)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
-> (recommended) or superpowers:executing-plans to implement this plan task-by-task.
-> Steps use checkbox (`- [ ]`) syntax for tracking.
+**Record layout:** the Phase-73 parameter cleanup and Phase-74 analyzer sweep are
+embedded follow-up records near the end of this file. They are not references to
+missing standalone phase documents.
 
 **Goal:** Drive the 50 highest fix-effort files (measured 2026-07-09 by lizard complexity
 debt + severity-weighted CodeChecker findings) down to zero analyzer HIGH/MEDIUM findings

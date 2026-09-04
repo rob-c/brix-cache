@@ -48,25 +48,23 @@ brix_tpc_outbound_scope   # same
 
 ## R6 — colliding stems that are DIFFERENT mechanisms (not drift).
 brix_webdav_secretkey   # redirect-CGI HMAC key (webdav redirect family); brix_s3_secret_key is the AWS SigV4 bucket credential — same stem, unrelated concepts
-## R7 (phase-106 W1-a) — the seven pre-phase-106 variable names, kept in their
+## R7 (phase-106 W1-a) — the pre-phase-106 variable names, kept in their
 ## unprefixed spelling ALONGSIDE a brix_-prefixed twin that resolves to the same
 ## handler.  A hard rename was rejected because a stale variable in a
 ## log_format is a startup ABORT on a config the admin may not control, not a
 ## parse error they are already editing.  Deprecated: prefer the brix_ spelling.
+##
+## phase-112 removed the three *_cache members of this group (and their
+## brix_-prefixed twins).  They were the only ones whose fact had a cross-plane
+## home — $brix_cache_status — so keeping them would have been keeping a fourth
+## spelling of one value.  class/origin are plane-SPECIFIC facts with no
+## uniform twin, so they stay.
 cvmfs_class   # phase-106 W1-a: deprecated alias of $brix_cvmfs_class
-cvmfs_cache   # phase-106 W1-a: deprecated alias of $brix_cvmfs_cache
 cvmfs_origin  # phase-106 W1-a: deprecated alias of $brix_cvmfs_origin
 oci_class     # phase-106 W1-a: deprecated alias of $brix_oci_class
-oci_cache     # phase-106 W1-a: deprecated alias of $brix_oci_cache
 rpm_class     # phase-106 W1-a: deprecated alias of $brix_rpm_class
-rpm_cache     # phase-106 W1-a: deprecated alias of $brix_rpm_cache
-## phase-110 W5.4: deprecated stream variable aliases, superseded by the
-## uniform $brix_* names. The `removal:` annotation is the self-deleting pin
-## (R14): once phase-112 is marked IMPLEMENTED these MUST be gone.
-brix_session_dn         # removal: phase-112 — deprecated alias of brix_dn
-brix_session_vo         # removal: phase-112 — deprecated alias of brix_vo
-brix_session_user       # removal: phase-112 — deprecated alias of brix_sub
-brix_session_auth       # removal: phase-112 — deprecated alias of brix_auth_method
-brix_session_tls        # removal: phase-112 — deprecated alias of brix_tls
-brix_session_bytes_out  # removal: phase-112 — deprecated alias of brix_bytes_served
-brix_session_bytes_in   # removal: phase-112 — deprecated alias of brix_bytes_received
+## phase-110 W5.4 registered seven deprecated stream variable aliases here with
+## a `removal: phase-112` annotation — the R14 self-deleting pin.  phase-112 is
+## implemented and the aliases are gone from
+## src/protocols/root/stream/stream_variables.c, so their rows are gone too.
+## R14 fires if a `removal:` row ever outlives its phase again.

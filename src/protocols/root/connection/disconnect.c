@@ -319,7 +319,11 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
      * (§1.2 — a dead data path is no longer a valid target).
      */
     if (ctx->login.auth_done && !ctx->is_bound) {
-        brix_session_unregister(ctx->login.sessid);
+        /* Round 15: clear the registry slot login recorded, rather than
+         * scanning the live prefix under the global session mutex — the scan
+         * is longest exactly when every session is disconnecting at once. */
+        brix_session_unregister_hinted(ctx->login.sessid,
+                                       ctx->login.session_slot_hint);
     } else if (ctx->is_bound && ctx->pathid > 0) {
         brix_session_pathid_unbind(ctx->bound_sessid, (unsigned) ctx->pathid);
     }

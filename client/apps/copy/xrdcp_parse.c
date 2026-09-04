@@ -168,9 +168,15 @@ xrdcp_parse_retry_option(const char *a, xrdcp_opts_t *o, int argc,
             o->retries = 0;
             o->copt->no_retry = 1;
         }
+        o->copt->retry_count = o->retries;
         return 1;
     }
-    if (strcmp(a, "--no-retry") == 0) { o->copt->no_retry = 1; return 1; }
+    if (strcmp(a, "--no-retry") == 0) {
+        o->retries = 0;
+        o->copt->retry_count = 0;
+        o->copt->no_retry = 1;
+        return 1;
+    }
     if ((strcmp(a, "-j") == 0 || strcmp(a, "--jobs") == 0)
         && *i + 1 < (size_t) argc) {
         o->jobs = atoi(argv[++(*i)]);

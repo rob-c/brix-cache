@@ -185,16 +185,21 @@ brix_pgread_window_emit(brix_ctx_t *ctx, ngx_connection_t *c,
     ctx->files[ctx->rd.win_idx].bytes_read += got;
     ctx->totals.bytes += got;
 
-    if (got < ctx->rd.win_remaining) {
+    /* A short window is EOF and MUST end the train here: pgread framing
+     * allows a partial page only in the FINAL frame, so emitting the short
+     * window as kXR_PartialResult (and EOF as a later empty final) makes
+     * the client reject the tail page as corrupt.  Only a full window with
+     * bytes still owed continues the train. */
+    if (got == brix_pgread_window_want((off_t) cur, ctx->rd.win_remaining)
+        && got < ctx->rd.win_remaining)
+    {
         ctx->rd.win_remaining -= got;
         ctx->rd.win_offset += (off_t) got;
     } else {
         ctx->rd.win_remaining = 0;
     }
 
-    /* Last planned window, or EOF (a zero-byte window under-fills the
-     * request; a short window's next read returns 0), ends the train. */
-    resptype = (ctx->rd.win_remaining == 0 || got == 0)
+    resptype = ctx->rd.win_remaining == 0
                ? (u_char) kXR_FinalResult : (u_char) kXR_PartialResult;
 
     brix_build_pgread_status_sid(ctx->rd.win_streamid, cur,
@@ -248,6 +253,7 @@ brix_pgread_serve_windowed(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ctx->rd.win_active = 1;
     ctx->rd.win_pgread = 1;
+    ctx->rd.win_readv = 0;
     ctx->rd.win_prefetch = 0;   /* round-12: a fresh train starts with no
                                  * read-ahead in flight or stashed (the recv
                                  * defer barrier guarantees quiescence) */

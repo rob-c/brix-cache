@@ -2,15 +2,15 @@
 #
 # WHAT: Build the brix module (objs/nginx) + client with gcov instrumentation,
 #       run the test suite against that instrumented binary, and emit an lcov
-#       line/branch-coverage report for src/ and client/ — with an OPTIONAL
-#       enforced floor (COVERAGE_MIN).
+#       line/branch-coverage report for src/ and client/ and enforce the line
+#       floor selected from the reviewed fast-tier baseline (COVERAGE_MIN).
 #
 # WHY:  QUALITY_ROADMAP §2.3.3/§3.4 called for coverage tracking; it was the one
 #       genuinely-open quality-gate item (there was no gcov lane at all, so the
 #       85%/90% targets were unmeasured). This stands the lane up. It ships
-#       REPORT-ONLY by default: per the hyper-hardening B-1 lesson, a numeric
-#       gate must not be flipped to blocking before a reviewed baseline exists —
-#       run it, read the number, THEN set COVERAGE_MIN in CI.
+#       The CI lane sets COVERAGE_MIN=67 after the 2026-09-03 instrumented
+#       fast-tier baseline measured 68.9%. Local callers may omit the variable
+#       when they only need a report, but a failing test command always fails.
 #
 # HOW:  1. operator_build build_coverage → ./configure --with-cc-opt='--coverage
 #          -O0 -g' + make (nginx + client). Instrumented objects drop .gcno now,
@@ -19,15 +19,17 @@
 #          paths through src/ execute and populate .gcda.
 #       3. lcov --capture over the nginx build dir + client, restrict to src/ +
 #          client/, strip system headers, print the total line rate, genhtml.
-#       4. If COVERAGE_MIN is set and the total line rate is below it, exit 1.
+#       4. Fail when the suite failed or the total line rate is below an enabled
+#          COVERAGE_MIN floor. Counter capture still runs after a suite failure
+#          so CI retains the diagnostic report.
 #
 # USAGE:
 #   tools/ci/coverage.py                       # build + fast-tier run + report
 #   COVERAGE_TEST_CMD='pytest tests/test_root_basic.py' tools/ci/coverage.py
 #   COVERAGE_MIN=85 tools/ci/coverage.py       # also enforce an 85% line floor
 #
-# Requires: lcov (geninfo/genhtml), gcov. Skips cleanly (exit 0) if absent so the
-#           lane never hard-fails on a missing tool — it reports SKIP instead.
+# Requires: lcov (geninfo/genhtml), gcov. The generic local runner skips when
+#           absent; the workflow installs both before invoking it.
 
 import os
 import re
@@ -96,8 +98,8 @@ def _collect(root: str, nginx_src: str, out_dir: str, test_cmd: str) -> int:
     print(f"          $COVERAGE_TEST_CMD = {test_cmd}")
     suite_rc = subprocess.run(test_cmd, shell=True, cwd=f"{root}/tests").returncode
     if suite_rc != 0:
-        print(f"coverage: WARNING — test command exited {suite_rc}; "
-              "coverage reflects whatever ran")
+        print(f"coverage: FAIL — test command exited {suite_rc}; "
+              "capturing partial counters for diagnostics", file=sys.stderr)
 
     print("coverage: 3/4 capturing counters with lcov…")
     raw = f"{out_dir}/coverage.raw.info"
@@ -123,7 +125,8 @@ def _collect(root: str, nginx_src: str, out_dir: str, test_cmd: str) -> int:
     pct = _line_rate(summary)
     print(f"coverage: total line coverage = {pct or 'unknown'}%  "
           f"(html: {out_dir}/html/index.html)")
-    return _enforce_floor(pct, os.environ.get("COVERAGE_MIN"))
+    return _coverage_verdict(
+        suite_rc, pct, os.environ.get("COVERAGE_MIN"))
 
 
 def _coverage_summary(info: str) -> str:
@@ -161,6 +164,14 @@ def _enforce_floor(pct: str, coverage_min) -> int:
         return 1
     print(f"coverage: OK — line coverage {pct}% >= floor {coverage_min}%")
     return 0
+
+
+def _coverage_verdict(suite_rc: int, pct: str, coverage_min) -> int:
+    """Combine suite correctness with the optional coverage ratchet."""
+    floor_rc = _enforce_floor(pct, coverage_min)
+    if suite_rc != 0:
+        return suite_rc
+    return floor_rc
 
 
 if __name__ == "__main__":

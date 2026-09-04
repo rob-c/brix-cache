@@ -26,6 +26,7 @@
 
 #include "auth/token/issuer_registry.h"    /* registry push authn (D4)         */
 #include "core/compat/alloc_guard.h"
+#include "core/compat/tmp_path.h"           /* brix_tmp_reap_register (C10 orphans) */
 #include "core/config/http_common.h"       /* unified brix_* directive adoption */
 #include "fs/cache/verify.h"
 #include "oci/url.h"
@@ -537,6 +538,18 @@ ngx_http_brix_oci_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     if (conf->registry) {
         brix_oci_gc_register((const char *) conf->common.root_canon,
                              conf->gc_interval, conf->gc_grace);
+        /* C10: the service-publish verb stages every object through a
+         * "<final>.xrd-tmp.<pid>.<rand>" temp (brix_staged_open →
+         * brix_make_tmp_path). A crash between stage and rename orphans one
+         * under the store tree; register the canonical root so worker-0's
+         * brix_tmp_reap_all() nftw-walks it and removes dead-owner orphans.
+         * (The flat-.commit reaper brix_stage_dir_register sweeps does NOT
+         * see these scattered temps — this recursive one is the right sweep;
+         * the tag lister additionally skips them (oci_store.c tag_list) so an
+         * orphan never surfaces as a tag in the window before the next
+         * restart's reap; the referrers lister is already immune via its exact
+         * sha256-hexlen entry gate.) */
+        brix_tmp_reap_register((const char *) conf->common.root_canon);
     }
 
     if (conf->mirror && oci_bind_token_zone(cf, conf) != NGX_CONF_OK) {

@@ -26,6 +26,7 @@
  */
 #include "vfs_internal.h"
 #include "vfs_policy.h"
+#include "vfs_backend_registry.h"
 
 /* The metrics layer mirrors the operation vocabulary as a plain count so it
  * keeps no dependency on the fs layer; if a value is appended here the mirror
@@ -69,7 +70,7 @@ brix_vfs_mutation_op_name(brix_vfs_mutation_op_t op)
     static const char *names[BRIX_VFS_MUTATE_OP_COUNT] = {
         "open", "write", "truncate", "sync", "mkdir", "remove",
         "rename", "copy", "setattr", "xattr", "publish", "stage",
-        "evict", "lock", "dedup",
+        "evict", "lock", "dedup", "credential",
     };
 
     return ((ngx_uint_t) op < BRIX_VFS_MUTATE_OP_COUNT)
@@ -240,6 +241,7 @@ brix_vfs_export_op_ctx_init(brix_vfs_export_op_ctx_t *opctx, ngx_log_t *log,
     ngx_memzero(opctx, sizeof(*opctx));
     opctx->log = log;
     opctx->root_canon = root_canon;
+    opctx->n2n = brix_vfs_backend_n2n(root_canon);
     opctx->mutation_policy = (policy == BRIX_VFS_MUTATION_ALLOWED)
         ? BRIX_VFS_MUTATION_ALLOWED : BRIX_VFS_MUTATION_READ_ONLY;
     opctx->proto = proto;
@@ -273,6 +275,7 @@ brix_vfs_export_op_ctx_from(brix_vfs_export_op_ctx_t *opctx,
 
     brix_vfs_export_op_ctx_init(opctx, ctx->log, ctx->root_canon,
         ctx->mutation_policy, brix_vfs_metrics_proto(ctx));
+    opctx->n2n = ctx->n2n;
 }
 
 /* ---- Decide a mutation from an operation context ----

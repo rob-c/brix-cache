@@ -36,6 +36,7 @@
 #include <ngx_core.h>
 
 #include "observability/metrics/unified.h"   /* brix_proto_t, metric recorder */
+#include "fs/path/site_n2n.h"               /* delayed-work name mapping */
 
 /* vfs.h defines the struct; the kernel only needs the name, and declaring the
  * typedef here (guarded) lets this header stand alone in a unit test. */
@@ -72,6 +73,7 @@ typedef enum {
     BRIX_VFS_MUTATE_EVICT,      /* drop an online copy (cache or nearline)   */
     BRIX_VFS_MUTATE_LOCK,       /* acquire/refresh/release a resource lock   */
     BRIX_VFS_MUTATE_DEDUP,      /* CAS alias publish and alias reap          */
+    BRIX_VFS_MUTATE_CREDENTIAL, /* credential materialization (phase-108 C11) */
     BRIX_VFS_MUTATE_OP_COUNT    /* never a real operation                    */
 } brix_vfs_mutation_op_t;
 
@@ -173,6 +175,7 @@ ngx_int_t brix_vfs_require_unlocked_many(brix_vfs_ctx_t *ctx,
 typedef struct {
     ngx_log_t                  *log;
     const char                 *root_canon;
+    const brix_n2n_cfg_t       *n2n;
     brix_vfs_mutation_policy_t  mutation_policy;
     brix_proto_t                proto;
 } brix_vfs_export_op_ctx_t;

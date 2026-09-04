@@ -197,8 +197,8 @@ def test_dav_primed_object_hits_from_s3(mx):
     cx.settle()
     after = cx.mfetch(mx.metrics)
     assert st == 200 and body == payload
-    assert s.delta("brix_cache_hits_total", S3, after) == 1
-    assert s.delta("brix_cache_misses_total", S3, after) == 0
+    assert s.cache_delta(S3["proto"], "HIT", after) == 1
+    assert s.cache_delta(S3["proto"], "MISS", after) == 0
     assert s.delta("brix_io_bytes_read", S3, after) == 750
 
 
@@ -214,8 +214,8 @@ def test_s3_primed_object_hits_from_dav(mx):
     cx.settle()
     after = cx.mfetch(mx.metrics)
     assert st == 200 and body == payload
-    assert s.delta("brix_cache_hits_total", IO, after) == 1
-    assert s.delta("brix_cache_misses_total", IO, after) == 0
+    assert s.cache_delta(IO["proto"], "HIT", after) == 1
+    assert s.cache_delta(IO["proto"], "MISS", after) == 0
     assert s.delta("brix_io_bytes_read", IO, after) == 850
 
 
@@ -279,5 +279,5 @@ def test_stream_stat_five_op_linearity(mx):
     assert s.delta("brix_io_ops_total",
                    {"proto": "stream", "op": "stat", "status": "ok"},
                    after) == 5
-    assert s.delta("brix_io_latency_usec_count",
+    assert s.delta("brix_io_latency_seconds_count",
                    {"proto": "stream", "op": "stat"}, after) == 5

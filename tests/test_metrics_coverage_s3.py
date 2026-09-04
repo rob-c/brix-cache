@@ -16,7 +16,7 @@ import pytest
 requests = pytest.importorskip("requests")
 
 from settings import NGINX_S3_PORT, HOST          # noqa: E402
-from metrics_helpers import Snapshot, fetch, scalar  # noqa: E402
+from metrics_helpers import Snapshot, fetch, value  # noqa: E402
 
 S3 = f"http://{HOST}:{NGINX_S3_PORT}"
 BUCKET = "testbucket"
@@ -115,8 +115,9 @@ class TestS3ByteCounters:
         r = requests.put(_obj("cov_s3_bytes.bin"), data=payload, timeout=10)
         assert r.status_code in (200, 201)
         after = fetch()
-        d = scalar(after, "brix_s3_bytes_rx_total") - max(
-            0, scalar(before, "brix_s3_bytes_rx_total"))
+        labels = {"proto": "s3"}
+        d = value(after, "brix_io_bytes_written", labels) - max(
+            0, value(before, "brix_io_bytes_written", labels))
         assert d >= len(payload), f"s3 bytes_rx delta {d} < {len(payload)}"
 
     def test_get_increments_bytes_tx(self):
@@ -126,6 +127,7 @@ class TestS3ByteCounters:
         r = requests.get(_obj("cov_s3_bytes_tx.bin"), timeout=10)
         assert r.status_code == 200
         after = fetch()
-        d = scalar(after, "brix_s3_bytes_tx_total") - max(
-            0, scalar(before, "brix_s3_bytes_tx_total"))
+        labels = {"proto": "s3"}
+        d = value(after, "brix_io_bytes_read", labels) - max(
+            0, value(before, "brix_io_bytes_read", labels))
         assert d >= len(payload), f"s3 bytes_tx delta {d} < {len(payload)}"

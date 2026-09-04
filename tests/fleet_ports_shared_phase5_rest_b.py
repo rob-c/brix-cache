@@ -468,4 +468,55 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
                                 "OFF_PORT": 30949,
                                 "RO_PORT": 30950,
                                 "METRICS_PORT": 30951}},
+    # Ultra-parallel breaking-point storms (test_ultra_parallel_breaking_point.py,
+    # xdist_group("lc-ultra-parallel"), slow tier): FTS-shaped
+    # connect+login+stat+open+read+close job ladders driven to breaking point.
+    # ONE port: every test starts its own arm (plain / concurrency-capped)
+    # sequentially inside the serial group, so the port is reused, never
+    # contended.  The official-xrootd comparison leg is not a lifecycle spec —
+    # it draws from the mock range like the other stock daemons.
+    "lc-ultra-parallel": {"port": 30952},
+    # §1.4 cross-worker kXR_bind migration (test_bind_migration.py,
+    # xdist_group("lc-bind-migration")): a dedicated 2-worker reuseport
+    # instance — the shared fleet is 1-worker and cannot scatter binds.
+    # Migrated from an inline self-managed config (registry-lint offender).
+    #   METRICS_PORT  brix_io_offload_total witness
+    "lc-bind-migration": {"port": 30953,
+                          "extra": {"METRICS_PORT": 30954}},
+    # phase-105 W4.3 HTTP JWKS refresh parity
+    # (test_http_jwks_refresh.py, xdist_group("lc-http-jwks-refresh")): one
+    # worker owns a WebDAV and an S3 bearer front over distinct protocol-owned
+    # key arrays.  Both watch the same atomically replaced JWKS file, which is
+    # the cross-plane contract under test.
+    "lc-http-jwks-refresh": {"port": 30955,
+                             "extra": {"S3_PORT": 30956}},
+    # Phase-81 final ordinary-fixture migration.  Each family owns one
+    # idempotent instance at a time and is serialized by its matching
+    # xdist_group; offload also owns its metrics listener.
+    "lc-admin-socket": {"port": 30957},
+    "lc-checksum-default": {"port": 30958},
+    "lc-frm-dirlist": {"port": 30959},
+    "lc-locate-prefname": {"port": 30960},
+    "lc-login-fullurl": {"port": 30961},
+    "lc-mirage-backend": {"port": 30962},
+    "lc-offload-metric": {"port": 30963,
+                           "extra": {"METRICS_PORT": 30964}},
+    "lc-oss-quota": {"port": 30965},
+    "lc-oss-quota-enforce": {"port": 30966},
+    "lc-qconfig-sitename": {"port": 30967},
+    "lc-s3-native-authz": {"port": 30968},
+    # Phase-91 outbound FTP/GSIFTP storage-driver conformance.  The Python
+    # origin is a separately owned proc so a wedged protocol peer cannot wedge
+    # pytest; the nginx instance exposes writable and read-only WebDAV fronts.
+    "lc-gsiftp-backend-origin": {"port": 30969},
+    "lc-gsiftp-backend": {"port": 30970,
+                           "extra": {"RO_PORT": 30971}},
+    "lc-gsiftp-voms-backend": {
+        "port": 30972,
+        "extra": {
+            "PLAIN_PORT": 30973,
+            "CMS_PORT": 30974,
+            "ORIGIN_PORT": 30975,
+        },
+    },
 })

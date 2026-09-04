@@ -271,7 +271,11 @@ def run_cred_mint(base: Path) -> list[tuple[bool, str]]:
     obj = find_obj("cred_mint.o")
     if obj is None:
         return [result(True, "SKIP build cred_mint.o first")]
-    siblings = [str(s) for s in (find_obj("cred_mint_cert.o"),) if s]
+    # cred_mint.o publishes through brix_cred_write (phase-108 C11): link the
+    # real gate + engine objects; the harness stubs only brix_vfs_domain_claim.
+    siblings = [str(s) for s in (find_obj("cred_mint_cert.o"),
+                                 find_obj("cred_write.o"),
+                                 find_obj("cred_stage.o")) if s]
     ok, message = compile_and_run(
         base / "test_cred_mint",
         [

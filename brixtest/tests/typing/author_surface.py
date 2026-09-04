@@ -6,6 +6,7 @@ from brixtest import (
     Run,
     Server,
     Service,
+    binary,
     case,
     endpoint,
     execution,
@@ -42,9 +43,17 @@ def test_typed_author_surface(run: Run) -> None:
 
 
 native_output: OutputExpectation = expect_output("PASS", excludes=("FAIL",))
+native_source = text_artifact(
+    "native-source", "int main(void) { return 0; }\n", filename="native.c",
+)
+native_compiler = binary("native-compiler", "/usr/bin/cc")
 test_typed_native = native_test(
     "typed-native",
-    sources=("native.c",),
+    sources=(native_source.ref(),),
+    resources=(native_source, native_compiler),
+    compiler=native_compiler,
+    defines={"MATRIX_VALUE": param("matrix_value")},
+    compile_args=("-Wall", param("optimization")),
     stdout=native_output,
     observe=(),
     keep="never",

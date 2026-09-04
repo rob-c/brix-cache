@@ -60,6 +60,7 @@
  */
 #include "sd_ceph.h"
 #include "sd_ceph_compat.h"   /* pure striper-layout helpers (catalog enumeration) */
+#include "fs/path/site_n2n.h" /* brix_n2n_canonicalize — the shared canonicalizer */
 
 #include <errno.h>
 #include <string.h>
@@ -68,164 +69,57 @@
  * Pure LFN -> object-key mapping (always compiled; no librados, no nginx) *
  * ===================================================================== */
 
-/* sd_ceph_seg_t — one path segment carved out of an LFN during normalization:
- * the pointer into the source string and its length (not NUL-terminated). */
-typedef struct {
-    const char *start;
-    size_t      len;
-} sd_ceph_seg_t;
-
-/* sd_ceph_next_seg — advance a cursor to the next non-empty path segment.
- *
- * WHAT: From `*cursor`, skip the run of '/' separators, then capture the next
- *       run of non-'/' bytes into `*seg`. Returns 1 when a segment was found
- *       (and advances `*cursor` past it), or 0 at end of string.
- *
- * WHY:  Isolates the pointer-walking tokenizer from the segment-classification
- *       logic in sd_ceph_normalize, so that function reads as a flat loop over
- *       already-carved segments instead of interleaving scan and decision.
- *
- * HOW:  1. Skip leading '/' separators. 2. If at end, report no segment.
- *       3. Mark the segment start, walk to the next '/' or NUL, record the
- *          length, and leave the cursor at the delimiter. */
-static int
-sd_ceph_next_seg(const char **cursor, sd_ceph_seg_t *seg)
-{
-    const char *p = *cursor;
-
-    while (*p == '/') {               /* skip run of slashes */
-        p++;
-    }
-    if (*p == '\0') {
-        *cursor = p;
-        return 0;
-    }
-
-    seg->start = p;
-    while (*p != '\0' && *p != '/') {
-        p++;
-    }
-    seg->len = (size_t) (p - seg->start);
-    *cursor  = p;
-    return 1;
-}
-
-/* sd_ceph_norm_pop — remove the last component from the canonical buffer for a
- * ".." segment. Returns the new write cursor, or (size_t)-1 for an escape above
- * the root (nothing to pop) so the caller can fail the normalization. */
-static size_t
-sd_ceph_norm_pop(char *out, size_t w)
-{
-    if (w == 0) {
-        return (size_t) -1;           /* escape above the root */
-    }
-    while (w > 0 && out[w - 1] != '/') {
-        w--;                          /* back over the last component */
-    }
-    if (w > 0) {
-        w--;                          /* drop its leading '/' */
-    }
-    out[w] = '\0';
-    return w;
-}
-
-/* sd_ceph_norm_append — append one ordinary segment (as "/<seg>") to the
- * canonical buffer at write cursor `w`. Returns the new cursor, or (size_t)-1
- * when the segment would not fit within `cap` (caller sets ENAMETOOLONG). */
-static size_t
-sd_ceph_norm_append(char *out, size_t cap, size_t w, const sd_ceph_seg_t *seg)
-{
-    if (w + 1 + seg->len + 1 > cap) {
-        return (size_t) -1;
-    }
-    out[w++] = '/';
-    memcpy(out + w, seg->start, seg->len);
-    w += seg->len;
-    out[w] = '\0';
-    return w;
-}
-
-/* sd_ceph_seg_is_dot / sd_ceph_seg_is_dotdot — classify a carved segment as the
- * "." (self) or ".." (parent) special components. */
-static int
-sd_ceph_seg_is_dot(const sd_ceph_seg_t *seg)
-{
-    return seg->len == 1 && seg->start[0] == '.';
-}
-
-static int
-sd_ceph_seg_is_dotdot(const sd_ceph_seg_t *seg)
-{
-    return seg->len == 2 && seg->start[0] == '.' && seg->start[1] == '.';
-}
-
-/* sd_ceph_normalize — see sd_ceph.h. Builds the canonical path in `out` by
- * walking segments: skip empties and ".", pop on "..", append otherwise. A ".."
- * with nothing to pop is an escape above the root and is rejected. */
+/* sd_ceph_normalize — see sd_ceph.h. The RADOS key map's canonicalizer is now
+ * the single shared one in site_n2n.c (brix_n2n_canonicalize): it folds empty
+ * "//" segments and "." components and REJECTS any ".." (phase-108 C13 — the
+ * driver no longer resolves ".." by popping; a confined path never carries one,
+ * and one that arrives some other way is refused, not silently rewritten).
+ * errno is set by the shared canonicalizer (EINVAL / ENAMETOOLONG). */
 int
 sd_ceph_normalize(const char *lfn, char *out, size_t cap)
 {
-    const char   *cursor = lfn;
-    sd_ceph_seg_t seg = {0};
-    size_t        w = 0;
+    return brix_n2n_canonicalize(lfn, out, cap);
+}
 
-    if (lfn == NULL || out == NULL || cap < 2) {
-        errno = EINVAL;
+/* sd_ceph_prefix_cfg — build the driver's CEPHFS_PATH translation cfg from a
+ * `key_prefix`. A RADOS object name is that prefix followed by the canonicalized
+ * LFN (the pool is bound at the ioctx, not emitted in the name), which is exactly
+ * the shared CEPHFS_PATH scheme. Shared by the forward key composition
+ * (sd_ceph_key) and the reverse listing recovery (sd_ceph_enumerate_io) so both
+ * directions read one definition. Returns 0, or -1/ENAMETOOLONG when the prefix
+ * would not fit the scheme's field (composing it would silently address a
+ * DIFFERENT object — fail closed). */
+int
+sd_ceph_prefix_cfg(const char *key_prefix, brix_n2n_cfg_t *cfg)
+{
+    size_t plen = (key_prefix != NULL) ? strlen(key_prefix) : 0;
+
+    if (plen >= sizeof(cfg->prefix)) {
+        errno = ENAMETOOLONG;
         return -1;
     }
-    out[0] = '\0';
-
-    while (sd_ceph_next_seg(&cursor, &seg)) {
-        if (sd_ceph_seg_is_dot(&seg)) {
-            continue;                 /* "." — no-op */
-        }
-        if (sd_ceph_seg_is_dotdot(&seg)) {
-            w = sd_ceph_norm_pop(out, w);
-            if (w == (size_t) -1) {
-                errno = EINVAL;       /* escape above the root */
-                return -1;
-            }
-            continue;
-        }
-        w = sd_ceph_norm_append(out, cap, w, &seg);
-        if (w == (size_t) -1) {
-            errno = ENAMETOOLONG;
-            return -1;
-        }
-    }
-
-    if (w == 0) {                     /* everything collapsed -> bare root */
-        out[0] = '/';
-        out[1] = '\0';
+    memset(cfg, 0, sizeof(*cfg));       /* zero pool/prefix; unused for this scheme */
+    cfg->scheme = BRIX_N2N_CEPHFS_PATH;
+    if (plen > 0) {
+        memcpy(cfg->prefix, key_prefix, plen + 1);   /* incl. NUL */
     }
     return 0;
 }
 
-/* sd_ceph_key — prefix + sd_ceph_normalize(lfn). See sd_ceph.h. */
+/* sd_ceph_key — the object key is `key_prefix` followed by the canonicalized
+ * LFN. This is exactly the shared translation's CEPHFS_PATH scheme (prefix +
+ * canonical path), so the body delegates to brix_n2n_lfn2pfn rather than carry a
+ * second copy of the compose-and-bound logic (phase-108 C13). The 14 call sites,
+ * their `oid` buffers, and their error handling are untouched. See sd_ceph.h. */
 int
 sd_ceph_key(const char *key_prefix, const char *lfn, char *out, size_t cap)
 {
-    char   norm[1024];
-    size_t plen = (key_prefix != NULL) ? strlen(key_prefix) : 0;
-    size_t nlen;
+    brix_n2n_cfg_t cfg;
 
-    if (sd_ceph_normalize(lfn, norm, sizeof(norm)) != 0) {
-        return -1;
+    if (sd_ceph_prefix_cfg(key_prefix, &cfg) != 0) {
+        return -1;                                   /* errno set (ENAMETOOLONG) */
     }
-    nlen = strlen(norm);
-
-    if (plen + nlen + 1 > cap) {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    if (plen > 0) {
-        /* phase74-fp: prefix copy is intentionally unterminated — the next
-         * memcpy appends norm with its NUL (nlen + 1), and the cap check above
-         * guarantees room for plen + nlen + 1. */
-        memcpy(out, key_prefix, plen);  /* NOLINT(bugprone-not-null-terminated-result) */
-    }
-    memcpy(out + plen, norm, nlen + 1);
-    return 0;
+    return brix_n2n_lfn2pfn(&cfg, lfn, out, cap);
 }
 
 /* sd_ceph_ino — FNV-1a/64 over the object id. See sd_ceph.h. */

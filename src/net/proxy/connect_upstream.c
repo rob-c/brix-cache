@@ -388,7 +388,7 @@ pc_arm_events(brix_proxy_ctx_t *proxy, ngx_connection_t *client_conn,
 {
     ngx_int_t rc;
 
-    ngx_log_debug(NGX_LOG_DEBUG_STREAM, client_conn->log, 0,
+    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, client_conn->log, 0,
                   "xrootd proxy: connect() to %s:%d",
                   tgt->host->data, (int) tgt->port);
 
@@ -494,4 +494,3 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
  *      (async connect + optional TLS via pc_start_tls). GSI-delegated connects
  *      hand off to brix_proxy_gsi_connect_async before the socket phases.
  */
-

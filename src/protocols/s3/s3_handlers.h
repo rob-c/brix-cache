@@ -50,7 +50,7 @@ ngx_int_t s3_handle_get_bucket_location(ngx_http_request_t *r,
  * pooled from entries->pool at their true length.  Directory sentinels are
  * omitted; symlinks are never listed or traversed.  Returns entries->nelts.
  */
-int s3_walk(ngx_log_t *log, const char *root, const char *dir_path,
+int s3_walk(const brix_vfs_ctx_t *vfs_scope, const char *dir_path,
     const char *key_prefix, const char *filter_prefix, const char *delimiter,
     ngx_array_t *entries, int max_entries);
 /* qsort(3) comparator: lexicographic strcmp on s3_entry_t.key (a char *). */
@@ -61,8 +61,7 @@ int entry_cmp(const void *a, const void *b);
  * NGX_OK (filled) or NGX_DECLINED (entry vanished or is no longer a regular
  * file — the caller skips it, matching the eager walker's stat-failure skip).
  */
-ngx_int_t s3_entry_fill_stat(ngx_pool_t *pool, ngx_log_t *log,
-    const char *root, s3_entry_t *e);
+ngx_int_t s3_entry_fill_stat(const brix_vfs_ctx_t *vfs_scope, s3_entry_t *e);
 
 /* list_common.c — building blocks shared verbatim by the V1/V2 list emitters
  * (they differ only in pagination param + a few element names). */

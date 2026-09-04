@@ -1,5 +1,14 @@
 # Phase 19 — HTTP/3 & QUIC Support
 
+**Status:** DORMANT DESIGN / PHASE-111 DECISION CLOSED (2026-09-03). The
+configured nginx build has no HTTP/3 module, the host curl has no HTTP/3
+backend, and no operator deployment or client population requiring this front
+door has been identified. The existing HTTP/1.1 and HTTP/2 surfaces remain the
+production contract. Reopen as a new implementation phase only with all three
+prerequisites: a supported nginx/QUIC toolchain, an interoperable client lane,
+and a named deployment use case. This document is retained as design input,
+not current repository backlog.
+
 **Scope**: Add HTTP/3 (RFC 9114) over QUIC (RFC 9000) to the WebDAV and S3 endpoints,
 enabling TLS 1.3-secured, UDP-multiplexed data transfer for WLCG and HEP clients.
 

@@ -21,6 +21,7 @@
 
 #include "core/config/credential_block.h"
 #include "fs/backend/remote/sd_remote.h"
+#include "fs/tier/tier.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -52,6 +53,10 @@ brix_sd_instance_t *
 brix_sd_instance_create(ngx_log_t *log, const char *name, void *conf, int *err)
 { (void) log; (void) name; (void) conf; (void) err; return NULL; }
 
+brix_sd_instance_t *
+brix_tier_build_gsiftp(const brix_tier_cfg_t *tier, ngx_log_t *log)
+{ (void) tier; (void) log; return NULL; }
+
 #define STUB_SD(name) \
     void *name(void *a, void *b) { (void) a; (void) b; return NULL; }
 STUB_SD(brix_sd_http_create)
@@ -62,7 +67,16 @@ STUB_SD(brix_sd_xroot_create_origin)
 void *brix_s3_origin_curl_transport(void) { return NULL; }
 ngx_int_t brix_credential_bearer(const brix_credential_t *c, char *o, size_t n,
     ngx_log_t *l) { (void) c; (void) o; (void) n; (void) l; return NGX_ERROR; }
-void brix_imp_worker_runtime_ids(void *a, void *b) { (void) a; (void) b; }
+ngx_int_t
+brix_imp_worker_runtime_ids(ngx_uid_t conf_uid, ngx_gid_t conf_gid,
+    uid_t *runtime_uid, gid_t *runtime_gid)
+{
+    (void) conf_uid;
+    (void) conf_gid;
+    (void) runtime_uid;
+    (void) runtime_gid;
+    return NGX_OK;
+}
 
 static ngx_str_t S(char *s) { ngx_str_t v; v.data = (u_char *) s; v.len = strlen(s); return v; }
 

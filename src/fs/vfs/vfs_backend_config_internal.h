@@ -74,6 +74,10 @@ ngx_int_t vfs_parse_tape_origin(ngx_conf_t *cf, const char *root_canon,
 ngx_int_t vfs_parse_http_origin_list(ngx_conf_t *cf, const char *root_canon,
     const ngx_str_t *sb);
 
+/* ftp / gsiftp origin → vfs_backend_config_gsiftp.c */
+ngx_int_t vfs_parse_gsiftp_origin(ngx_conf_t *cf, const char *root_canon,
+    const ngx_str_t *sb);
+
 /* s3 / root(s):// or local driver → vfs_backend_config_s3.c */
 ngx_int_t vfs_parse_s3_origin(ngx_conf_t *cf, const char *root_canon,
     const ngx_str_t *sb);

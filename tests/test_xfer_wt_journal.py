@@ -10,14 +10,17 @@ and the stage engine must leave a `kind=FLUSH, state=FAILED` record in the durab
 journal ($BRIX_STAGE_JOURNAL_DIR). We parse the on-disk brix_sreq_t record
 directly (layout pinned by stage_engine.h).
 
+The fixture explicitly disables cross-protocol lock enforcement because strict
+mode must contact the authoritative origin to prove that no foreign lock exists.
+Offline write acceptance and strict remote lock proof are mutually exclusive;
+the dedicated Phase-107 suite covers the latter.
+
 This behaviour is confined to a write-back tier by the async flush mode: a plain
 export with no stage tier journals nothing. The restart replay that re-drives such
 a record is exercised by test_xfer_wt_replay.py.
 """
 import os
-import shutil
 import struct
-import subprocess
 import time
 
 import pytest
@@ -27,6 +30,7 @@ from official_interop_lib import worker_reachable
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
 from fleet_lifecycle_ports import lifecycle_ports_for
+from _test_xfer_wt_wire import write_file
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-xfer-wt-journal")]
@@ -34,8 +38,6 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
 # Placeholder until the fixture reassigns from ep.port; default to the ledger
 # port (lc-xfer-wt-journal) so import-time URLs match the live bind.
 PORT = int(os.environ.get("TEST_XFER_WTJ_PORT") or lifecycle_ports_for("lc-xfer-wt-journal")[0])
-XRDCP = shutil.which("xrdcp")
-
 # brix_sreq_t on-disk layout (src/fs/xfer/stage_engine.h).  Little-endian, natural
 # alignment; the `6x` pads open_options (uint16) up to the 8-byte size_hint.  The C
 # struct rounds its total size up to an 8-byte multiple (trailing pad); unpack_from
@@ -105,9 +107,6 @@ def wtj_server(lifecycle, tmp_path):
     global PORT
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not found")
-    if XRDCP is None:
-        pytest.skip("xrdcp not available")
-
     data = tmp_path / "data"; data.mkdir()
     stage = tmp_path / "stage"; stage.mkdir()
     journal = tmp_path / "journal"; journal.mkdir()
@@ -136,16 +135,9 @@ def wtj_server(lifecycle, tmp_path):
 
 
 def test_failed_async_flush_leaves_journal_record(wtj_server, tmp_path):
-    src = tmp_path / "payload.bin"
-    src.write_bytes(b"durable-write-through-" + b"q" * 500)
-
     name = "wtj_durable.bin"
-    r = subprocess.run(
-        [XRDCP, "-f", str(src), f"root://{HOST}:{PORT}//{name}"],
-        capture_output=True, timeout=30)
-    assert r.returncode == 0, \
-        f"stage write should succeed (async flush is deferred): " \
-        f"{r.stderr.decode(errors='replace')}"
+    payload = b"durable-write-through-" + b"q" * 500
+    write_file(HOST, PORT, f"/{name}", payload)
 
     # The background flush to the dead origin fails; the engine marks the durable
     # record FAILED (state, not just left QUEUED). Poll for it.

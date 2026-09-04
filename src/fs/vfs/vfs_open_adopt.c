@@ -62,6 +62,10 @@ brix_vfs_ctx_init(brix_vfs_ctx_t *vctx, ngx_pool_t *pool, ngx_log_t *log,
      * every VFS op on this ctx routes through the driver without each handler
      * threading the instance. Per-worker, lazily created on first use. */
     vctx->sd = brix_vfs_backend_resolve(root_canon, log);
+    /* phase-108 A.4: bind the export's resolved name translation from the same
+     * registry entry (borrowed, worker-lifetime). NULL ⇒ IDENTITY — the generic
+     * brix_path_lfn_to_pfn / _pfn_to_lfn stage reads this. */
+    vctx->n2n = brix_vfs_backend_n2n(root_canon);
     vctx->cache_root_canon = cache_root_canon;
     vctx->cache_enabled =
         (cache_root_canon != NULL && cache_root_canon[0] != '\0') ? 1 : 0;
@@ -72,6 +76,23 @@ brix_vfs_ctx_init(brix_vfs_ctx_t *vctx, ngx_pool_t *pool, ngx_log_t *log,
         vctx->resolved.resolved.len = ngx_strlen(resolved_path);
         vctx->resolved.is_confined = 1;
     }
+}
+
+ngx_int_t
+brix_vfs_ctx_derive_path(brix_vfs_ctx_t *vctx,
+    const brix_vfs_ctx_t *parent, const char *resolved_path)
+{
+    if (vctx == NULL || parent == NULL || resolved_path == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+
+    *vctx = *parent;
+    ngx_memzero(&vctx->resolved, sizeof(vctx->resolved));
+    vctx->resolved.resolved.data = (u_char *) resolved_path;
+    vctx->resolved.resolved.len = ngx_strlen(resolved_path);
+    vctx->resolved.is_confined = 1;
+    return NGX_OK;
 }
 
 /* Copy a struct stat into the protocol-neutral brix_vfs_stat_t (zeroes the
@@ -168,6 +189,11 @@ brix_vfs_adopt_fd(brix_vfs_ctx_t *ctx, const char *path, ngx_fd_t fd,
     fh->log = ctx->log;
     fh->ctx = ctx;
     fh->mutation_policy = ctx->mutation_policy;
+    fh->metrics_proto = ctx->metrics_proto;
+    fh->authz = ctx->authz;
+    fh->identity = ctx->identity;
+    fh->io_monitor = ctx->io_monitor;
+    fh->root_canon = ctx->root_canon;
     fh->size = st.size;
     fh->mtime = st.mtime;
     fh->ctime = st.ctime;
@@ -278,6 +304,11 @@ brix_vfs_adopt_obj(brix_vfs_ctx_t *ctx, const char *path,
     fh->log = ctx->log;
     fh->ctx = ctx;
     fh->mutation_policy = ctx->mutation_policy;
+    fh->metrics_proto = ctx->metrics_proto;
+    fh->authz = ctx->authz;
+    fh->identity = ctx->identity;
+    fh->io_monitor = ctx->io_monitor;
+    fh->root_canon = ctx->root_canon;
     fh->size = st.size;
     fh->mtime = st.mtime;
     fh->ctime = st.ctime;
@@ -285,6 +316,13 @@ brix_vfs_adopt_obj(brix_vfs_ctx_t *ctx, const char *path,
     fh->mode = st.mode;
     fh->from_cache = 0;
     fh->is_tls = ctx->is_tls;
+    /* Object-backed opens are data operations too.  Cache hits and native
+     * object backends enter through adopt_obj rather than adopt_fd; recording
+     * the open here keeps the request/session monitor independent of which
+     * storage driver supplied the handle. */
+    brix_io_monitor_record_op(ctx->io_monitor,
+        writable ? BRIX_METRIC_OP_WRITE : BRIX_METRIC_OP_READ,
+        path, BRIX_ERR_NONE);
     fh->stat_current = writable ? 0 : 1;
     fh->memfd = NGX_INVALID_FILE;
 

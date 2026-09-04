@@ -46,6 +46,18 @@ typedef struct {
     EVP_PKEY  *pkey;            /* RSA or EC public key */
 } brix_jwks_key_t;
 
+/* One independently refreshed JWKS key set.  The path value is borrowed from
+ * finalized nginx configuration; keys/count point at the protocol-owned array
+ * validators already read.  The scheduler copies this descriptor into the
+ * worker cycle before arming its timer, so callers may build it on the stack. */
+typedef struct {
+    ngx_str_t          path;
+    brix_jwks_key_t   *keys;
+    int               *key_count;
+    time_t             mtime;
+    ngx_msec_t         interval;
+} brix_jwks_refresh_spec_t;
+
 /* A parsed scope entry from the "scope" claim. */
 #ifndef BRIX_TOKEN_SCOPE_T_DEFINED
 #define BRIX_TOKEN_SCOPE_T_DEFINED
@@ -99,6 +111,11 @@ void brix_jwks_free(brix_jwks_key_t *keys, int count);
  */
 ngx_int_t brix_jwks_register_cleanup(ngx_pool_t *pool,
                                        brix_jwks_key_t *keys, int *count);
+
+/* Arm a per-worker mtime-poll timer for one protocol-owned key set.  Disabled
+ * specs (empty path, zero/unset interval) are successful no-ops. */
+ngx_int_t brix_token_jwks_schedule(ngx_cycle_t *cycle,
+    const brix_jwks_refresh_spec_t *spec);
 
 /* Operation class for registry authorization — selects the scope/path
  * direction the strategy ladder enforces. */

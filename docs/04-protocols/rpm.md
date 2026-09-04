@@ -144,7 +144,12 @@ class: `repomd` is *expected* to miss on every TTL expiry, and averaging it
 with the package hit rate hides both.
 
 The same verdict is on every access-log line through `$rpm_class` and
-`$rpm_cache`.
+`$brix_cache_status` — the cross-plane `HIT`/`MISS`/`NEGHIT`/`-`
+vocabulary that replaced the plane-local `$rpm_cache` in phase 112.
+`local` reads as `HIT` (served without touching the upstream); `refused`
+and `error` are not cache dispositions and read as `-`, so a hit rate
+computed from the log is never silently wrong — read those two off the
+`outcome` label instead.
 
 ---
 

@@ -38,6 +38,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _load(relpath: str, name: str):
     """Import a tools/utils script by path (those trees have no package init)."""
+    if not (ROOT / relpath).exists():
+        # The two split_large_* dev tools were only ever untracked
+        # working-tree files (no commit in history contains them); a fresh
+        # checkout cannot audit a tool it does not have.
+        pytest.skip(f"{relpath} is not present in this checkout "
+                    f"(untracked dev tool, never committed)")
     spec = importlib.util.spec_from_file_location(name, ROOT / relpath)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -65,6 +71,13 @@ def test_coverage_enforce_floor():
     assert cov._enforce_floor("87.3", "85") == 0        # above floor
     assert cov._enforce_floor("80.0", "85") == 1        # below floor
     assert cov._enforce_floor("", "85") == 1            # floor set, unparsable rate
+
+
+def test_coverage_verdict_requires_a_green_suite():
+    cov = _load("tools/ci/coverage.py", "cov_verdict")
+    assert cov._coverage_verdict(0, "68.9", "67") == 0
+    assert cov._coverage_verdict(0, "66.9", "67") == 1
+    assert cov._coverage_verdict(7, "99.9", "67") == 7
 
 
 def test_coverage_preflight_skip():

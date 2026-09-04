@@ -26,18 +26,12 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
 # exact label keys every sample of the family must carry ([] = unlabelled).
 FAMILY_SCHEMA = {
     "brix_connections_total": ["port", "auth"],
-    "brix_bytes_rx_total": ["port", "auth"],
-    "brix_bytes_tx_total": ["port", "auth"],
-    "brix_bytes_root_rx_total": ["port", "auth"],
-    "brix_bytes_root_tx_total": ["port", "auth"],
     "brix_wire_bytes_rx_total": ["port", "auth"],
     "brix_wire_bytes_tx_total": ["port", "auth"],
     "brix_requests_total": ["port", "auth", "op", "status"],
     "brix_io_bytes_read": ["proto"],
     "brix_io_bytes_written": ["proto"],
     "brix_io_ops_total": ["proto", "op", "status"],
-    "brix_cache_hits_total": ["proto"],
-    "brix_cache_misses_total": ["proto"],
     "brix_cache_requests_total": ["proto", "cache_status"],
     "brix_cache_bytes_evicted_total": ["proto"],
     "brix_cache_watermark_purges_total": [],
@@ -51,16 +45,12 @@ FAMILY_SCHEMA = {
     "brix_webdav_requests_total": ["method"],
     "brix_webdav_responses_total": ["method", "status_class"],
     "brix_webdav_auth_total": ["result"],
-    "brix_webdav_bytes_rx_total": [],
-    "brix_webdav_bytes_tx_total": [],
     "brix_webdav_range_requests_total": ["result"],
     "brix_webdav_put_bodies_total": ["mode"],
     "brix_webdav_propfind_depth_total": ["depth"],
     "brix_s3_requests_total": ["method"],
     "brix_s3_responses_total": ["method", "status_class"],
     "brix_s3_auth_total": ["result"],
-    "brix_s3_bytes_rx_total": [],
-    "brix_s3_bytes_tx_total": [],
     "brix_s3_range_requests_total": ["result"],
     "brix_s3_put_bodies_total": ["mode"],
     "brix_s3_events_total": ["event"],
@@ -130,17 +120,21 @@ def test_cache_requests_carries_the_neghit_series(mx):
 
 
 def test_latency_family_is_in_seconds(mx):
-    """(phase-110 W11) The canonical latency histogram is brix_io_latency_seconds
-    (the uniform latency unit — Prometheus `_seconds`), emitted alongside the
-    DEPRECATED brix_io_latency_usec for the removal window. So every latency
-    histogram (io + cvmfs + frm) carries the `_seconds` suffix."""
+    """(phase-110 W11, phase-112 W4) The ONLY I/O latency histogram is
+    brix_io_latency_seconds — the uniform latency unit, Prometheus
+    `_seconds`. Phase 112 removed the µs-unit twin that shipped beside it
+    for the deprecation window, so every latency histogram the exporter
+    renders (io + cvmfs + frm) now carries the `_seconds` suffix and NO
+    series states a duration in another unit."""
     st, body, _ = cx.http_request(mx.metrics)
     assert st == 200
     text = body.decode(errors="replace") if isinstance(body, bytes) else body
     assert "brix_io_latency_seconds_bucket{" in text, "no seconds histogram"
     assert "brix_io_latency_seconds_count{" in text
-    # deprecated µs family still present for the window.
-    assert "brix_io_latency_usec_bucket{" in text
+    # (security-neg for the vocabulary) the µs twin is gone, not renamed:
+    # a second spelling of one fact is what phase 112 exists to delete.
+    assert "brix_io_latency_usec" not in text, (
+        "the deprecated µs latency family is still exported")
     # the seconds `le` values are fractional (µs bounds / 1e6): a bucket <= 1s.
     assert 'le="0.001000"' in text or 'le="0.005000"' in text, (
         "seconds histogram le values are not scaled to seconds")
@@ -273,7 +267,7 @@ def _histogram(scrape, family, sub):
 def test_latency_histogram_consistent(scrape, proto, op):
     """Buckets are cumulative (non-decreasing in le) and +Inf == _count."""
     sub = {"proto": proto, "op": op}
-    rows = _histogram(scrape, "brix_io_latency_usec", sub)
+    rows = _histogram(scrape, "brix_io_latency_seconds", sub)
     buckets = rows.get("_bucket", [])
     counts = rows.get("_count", [])
     assert buckets and counts, f"histogram series missing for {sub}"
@@ -291,8 +285,8 @@ def test_latency_histogram_consistent(scrape, proto, op):
 
 # -- monotonicity across traffic ---------------------------------------------
 
-MONOTONIC = ["brix_io_ops_total", "brix_requests_total", "brix_bytes_tx_total",
-             "brix_cache_hits_total", "brix_cache_misses_total",
+MONOTONIC = ["brix_io_ops_total", "brix_requests_total",
+             "brix_io_bytes_read", "brix_io_bytes_written",
              "brix_cache_requests_total",
              "brix_webdav_requests_total", "brix_s3_requests_total",
              "brix_auth_total", "brix_connections_total",

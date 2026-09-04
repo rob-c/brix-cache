@@ -99,7 +99,7 @@ def test_tpc_pull_count_only_no_latency_row(mx):
     assert st == 201
     assert s.delta("brix_io_ops_total", {**DAV, "op": "tpc", "status": "ok"},
                    after) == 1
-    assert s.delta_or_absent("brix_io_latency_usec_count",
+    assert s.delta_or_absent("brix_io_latency_seconds_count",
                              {**DAV, "op": "tpc"}, after) == 0
 
 
@@ -189,7 +189,7 @@ def test_webdav_local_copy_books_ok(mx):
     assert (mx.local_data / dst).read_bytes() == payload
     assert s.delta("brix_io_ops_total", {**DAV, "op": "copy", "status": "ok"},
                    after) == 1
-    assert s.delta("brix_io_latency_usec_count", {**DAV, "op": "copy"},
+    assert s.delta("brix_io_latency_seconds_count", {**DAV, "op": "copy"},
                    after) == 1
     assert s.delta_or_absent("brix_io_ops_total",
                              {**DAV, "op": "copy", "status": "other"},
@@ -311,7 +311,7 @@ def test_webdav_proppatch_books_xattr(mx):
                    after) == 3
     assert s.delta("brix_io_ops_total", {**DAV, "op": "stat", "status": "ok"},
                    after) == 1
-    assert s.delta("brix_io_latency_usec_count", {**DAV, "op": "xattr"},
+    assert s.delta("brix_io_latency_seconds_count", {**DAV, "op": "xattr"},
                    after) == 3
 
 
@@ -447,9 +447,9 @@ def test_stream_range_read_books_exact_window(mx):
 
 def test_webdav_over_remote_origin_miss_then_hit(mx):
     """The one HTTP plane whose storage is a root:// origin rather than the
-    local posix tree: first GET misses and fills, second hits — so
-    brix_cache_hits{proto="webdav"} is measured against a real remote
-    origin instead of a local-file fast path."""
+    local posix tree: first GET misses and fills, second hits — so the
+    webdav cache dispositions are measured against a real remote origin
+    instead of a local-file fast path."""
     n = cx.unique_name("davorigin")
     payload = mx.seed_origin(n, 800)
 

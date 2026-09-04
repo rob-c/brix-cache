@@ -1,31 +1,7 @@
-"""The $brix_* HTTP variable surface (phase-106 W1).
+"""Runtime, config-error and exposure contracts for ``$brix_*`` variables.
 
-Variables are how an operator's existing nginx knowledge reaches brix state:
-`log_format`, `map`, `if`, `add_header`, `split_clients` and `limit_req_zone`
-all consume variables and none of them can be taught about brix any other way.
-Before this phase the entire surface was `$brix_protocol`,
-`$brix_delegated_cred` and three unprefixed per-plane names — there was no way
-to log whether a request was a cache hit.
-
-Registration is owned by the COMMON http module
-(`src/core/config/http_common.c` preconfiguration, via
-`src/core/http/http_variables.c`), NOT by a protocol module.  That ownership is
-the property under test: one `log_format` must work regardless of which
-protocol serves the location, and a variable's existence must not depend on
-which protocol module happens to be loaded.
-
-  * success   — a log_format built from the new variables parses, serves a
-                request, and writes a line whose fields carry the documented
-                vocabulary (not the empty string, and not a stale default)
-  * error     — an unknown $brix_* name is rejected by nginx's OWN
-                "unknown ... variable" error at config time, not silently
-                accepted and not a brix-specific message
-  * security  — no registered brix variable exposes credential material; the
-                registered set is checked against the credential-name denylist
-                that phase-106 W8 R10 will enforce in CI
-
-Run:
-    PYTHONPATH=tests pytest tests/test_brix_http_variables.py -v
+Registration belongs to the common HTTP module so the same variables work in
+nginx log and routing directives independently of the protocol handler.
 """
 
 from __future__ import annotations
@@ -122,13 +98,7 @@ def _log_lines(inst):
 
 
 def _wait_for_log_lines(inst, min_count, timeout=10.0):
-    """Poll the access log until it holds at least ``min_count`` non-empty
-    lines, or ``timeout`` elapses.  nginx writes the access-log line in the LOG
-    phase, which runs AFTER the client has received the response and closed the
-    connection — so under load that write can lag the client read by tens of
-    milliseconds and a single read races it (observed intermittently only in
-    the full parallel suite, never solo).  On timeout the current lines are
-    returned so the caller's own assertion still fires with its real message."""
+    """Wait for nginx's post-response LOG phase without hiding timeout state."""
     deadline = time.monotonic() + timeout
     lines = _log_lines(inst)
     while len(lines) < min_count and time.monotonic() < deadline:
@@ -138,13 +108,7 @@ def _wait_for_log_lines(inst, min_count, timeout=10.0):
 
 
 def test_log_format_over_brix_variables_writes_every_field(node):
-    """(success) One log_format built from the new variables serves a request
-    and writes each field with its documented vocabulary.
-
-    The assertion is deliberately on the FIELDS rather than on one value: a
-    handler that silently reported the empty string would still produce a
-    parseable line, and that is exactly the failure this must catch.
-    """
+    """A variable-based log format writes every documented field."""
     import http.client
 
     before = len(_log_lines(node))
@@ -315,6 +279,77 @@ def test_op_path_status_describe_the_brix_operation(node):
     assert re.match(r"^\d+\.\d{3}$", fields.get("dur", "")), last  # $request_time shape
     assert fields.get("user") == NONE, last           # anonymous → unmapped
     assert fields.get("recv") == NONE, last           # a GET receives no body
+
+
+def test_monitor_is_per_request_not_per_connection(node):
+    """(security-neg, phase-110 W1/W4 / Appendix-B R-3) The I/O monitor is
+    per-REQUEST (r->pool), never per-connection. Two requests on ONE keepalive
+    connection must each log their OWN op/path/status — a served GET and a 404 —
+    with no bleed of the first request's facts into the second. If the monitor
+    were pinned to the connection, the second line would inherit the first's
+    path/op and every reused-connection log would be corrupt."""
+    import http.client
+
+    before = len(_log_lines(node))
+    conn = http.client.HTTPConnection(node.host, node.port, timeout=30)
+    absent = "/absent-%s.txt" % os.getpid()
+    try:
+        conn.request("GET", "/probe.txt")
+        conn.getresponse().read()
+        # Same connection, second request — keepalive reuse is the point.
+        conn.request("GET", absent)
+        r2 = conn.getresponse()
+        r2.read()
+    finally:
+        conn.close()
+    assert r2.status == 404, r2.status
+
+    lines = _wait_for_log_lines(node, before + 2)
+    assert len(lines) >= before + 2, "both requests were not logged"
+    served = dict(re.findall(r"(\w+)=(\S+)", lines[-2]))
+    missed = dict(re.findall(r"(\w+)=(\S+)", lines[-1]))
+    # The served GET's facts.
+    assert served.get("op") == "read", lines[-2]
+    assert served.get("path", "").endswith("/probe.txt"), lines[-2]
+    assert served.get("st") == "ok", lines[-2]
+    # The 404 on the SAME connection carries its OWN facts — never the first
+    # request's path or ok-status leaking through a connection-scoped monitor.
+    assert missed.get("st") == "not_found", lines[-1]
+    assert not missed.get("path", "").endswith("/probe.txt"), (
+        f"the second request inherited the first request's path — the monitor "
+        f"is per-connection, not per-request:\n{lines[-2]}\n{lines[-1]}")
+
+
+def test_brix_path_never_leaks_outside_the_export_on_a_traversal(node):
+    """(security-neg, phase-110 W4 / Appendix-B R-2 — Severe) $brix_path is
+    loggable, so a `..`-traversal probe must NEVER put a string from outside the
+    export into it: the source is the *confined* resolved path, never the raw
+    client URL. A `GET /../../../../etc/passwd` is refused, and the logged
+    `path=` field is either the sentinel or a path confined to the export — it
+    contains neither `/etc/` nor `passwd`. This is the runtime half of R-2's
+    mitigation (the userinfo half is test_brix_origin_strips_userinfo); without
+    it a resolver regression could log the escaped target and ship it off-box."""
+    import http.client
+
+    before = len(_log_lines(node))
+    conn = http.client.HTTPConnection(node.host, node.port, timeout=30)
+    try:
+        conn.request("GET", "/../../../../etc/passwd")
+        resp = conn.getresponse()
+        resp.read()
+    finally:
+        conn.close()
+    # The escape is refused (nginx may 400 the request line, or brix 403/404 the
+    # confined path); what matters is that no successful enumeration occurred.
+    assert resp.status in (400, 403, 404), resp.status
+
+    lines = _wait_for_log_lines(node, before + 1)
+    fields = dict(re.findall(r"(\w+)=(\S+)", lines[-1]))
+    path = fields.get("path", NONE)
+    assert "/etc/" not in path and "passwd" not in path, (
+        f"$brix_path leaked a traversal target outside the export: {lines[-1]}")
+    assert ".." not in path, (
+        f"$brix_path carried an unresolved escape sequence: {lines[-1]}")
 
 
 def test_readonly_refusal_logs_status_forbidden(node):

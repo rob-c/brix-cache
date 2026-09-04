@@ -59,6 +59,7 @@ pytestmark = pytest.mark.xdist_group("cvmfs_srv_shared")
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, request, srv_instance
+from metrics_helpers import value as metric_value
 
 REPO = "test.cern.ch"
 from settings import HOST
@@ -127,6 +128,22 @@ def _probe(srv, method, path):
     before = len(_reject_lines(srv))
     status, hdrs, body = request(HOST, srv.nginx_port, method, path)
     return status, _reject_lines(srv)[before:], hdrs, body
+
+
+def test_vfs_authz_backstop_observe_is_clean(srv):
+    """A real CVMFS lookup reaches the VFS with a deliberately bound rule set."""
+    path = f"/cvmfs/{REPO}/.cvmfspublished"
+    status, _, _ = request(HOST, srv.nginx_port, "GET", path)
+    assert status == 200
+    status, _, body = request(HOST, srv.nginx_port, "GET", "/metrics")
+    assert status == 200
+    text = body.decode()
+    labels = {"proto": "cvmfs"}
+    assert metric_value(text, "brix_vfs_authz_backstop_total",
+                        {**labels, "result": "no_rules"}) > 0
+    for result in ("edge_missing", "unbound"):
+        assert metric_value(text, "brix_vfs_authz_backstop_total",
+                            {**labels, "result": result}) == 0
 
 
 def _gate_case(srv, path, status, rejects_per_req):

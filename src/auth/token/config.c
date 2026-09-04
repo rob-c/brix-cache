@@ -30,15 +30,15 @@ brix_token_configure_registry(ngx_conf_t *cf,
 
     /* Multi-issuer registry (phase-59 W1): when brix_token_config is set it
      * supersedes the single-issuer token_jwks/_issuer/_audience directives. */
-    if (xcf->token_issuer.len || xcf->token_audience.len
-        || xcf->token_jwks.len)
+    if (xcf->common.token_issuer.len || xcf->common.token_audience.len
+        || xcf->common.token_jwks.len)
     {
         ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
             "brix_token_config supersedes brix_token_issuer/"
             "_audience/_jwks (single-issuer directives ignored)");
     }
     if (brix_token_registry_build(cf,
-            (const char *) xcf->token_config.data,
+            (const char *) xcf->common.token_config.data,
             BRIX_AUTHZ_CAPABILITY, &reg) != NGX_OK)
     {
         return NGX_ERROR;
@@ -67,8 +67,8 @@ static ngx_int_t
 brix_token_require_single_issuer_fields(ngx_conf_t *cf,
     ngx_stream_brix_srv_conf_t *xcf)
 {
-    if (xcf->token_jwks.len == 0 || xcf->token_issuer.len == 0
-        || xcf->token_audience.len == 0)
+    if (xcf->common.token_jwks.len == 0 || xcf->common.token_issuer.len == 0
+        || xcf->common.token_audience.len == 0)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_auth token/both requires "
@@ -111,7 +111,7 @@ brix_token_load_and_register_jwks(ngx_conf_t *cf,
     struct stat  st;
 
     if (brix_validate_path(cf, "brix_token_jwks",
-                             &xcf->token_jwks,
+                             &xcf->common.token_jwks,
                              BRIX_PATH_REGULAR_FILE, R_OK)
         != NGX_OK)
     {
@@ -119,13 +119,13 @@ brix_token_load_and_register_jwks(ngx_conf_t *cf,
     }
 
     xcf->jwks_key_count = brix_jwks_load(
-        cf->log, (const char *) xcf->token_jwks.data,
+        cf->log, (const char *) xcf->common.token_jwks.data,
         xcf->jwks_keys, BRIX_MAX_JWKS_KEYS);
 
     if (xcf->jwks_key_count < 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix: failed to load JWKS from \"%s\"",
-            xcf->token_jwks.data);
+            xcf->common.token_jwks.data);
         return NGX_ERROR;
     }
 
@@ -137,7 +137,7 @@ brix_token_load_and_register_jwks(ngx_conf_t *cf,
     }
 
     /* Record mtime so the refresh timer can detect changes */
-    if (stat((const char *) xcf->token_jwks.data, &st) == 0) {
+    if (stat((const char *) xcf->common.token_jwks.data, &st) == 0) {
         xcf->jwks_mtime = st.st_mtime;
     }
 
@@ -161,8 +161,8 @@ brix_token_log_summary(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
         "brix: token auth configured - jwks=%s issuer=%s "
         "audience=%s keys=%d",
-        xcf->token_jwks.data, xcf->token_issuer.data,
-        xcf->token_audience.data, xcf->jwks_key_count);
+        xcf->common.token_jwks.data, xcf->common.token_issuer.data,
+        xcf->common.token_audience.data, xcf->jwks_key_count);
 }
 
 /* ---- Validate and materialise token/JWT auth configuration ----
@@ -202,7 +202,7 @@ brix_configure_token_auth(ngx_conf_t *cf,
     }
 
     /* Multi-issuer registry (phase-59 W1) supersedes single-issuer directives. */
-    if (xcf->token_config.len > 0) {
+    if (xcf->common.token_config.len > 0) {
         return brix_token_configure_registry(cf, xcf);
     }
 

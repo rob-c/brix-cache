@@ -176,6 +176,7 @@ s3_delete_execute(s3_del_ctx_t *dc, s3_del_item_t *items, size_t count)
         brix_http_request_is_tls(r),
         (s3ctx != NULL) ? s3ctx->identity : NULL,
         dc->cf->common.root_canon);
+    s3_vfs_bind_deleg(r, dc->cf, &vctx);
 
     rc = brix_vfs_delete_many(&vctx, fs, m, errs, &done);
     if (rc != NGX_OK && errno == EROFS) {

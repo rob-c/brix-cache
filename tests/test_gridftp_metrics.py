@@ -60,8 +60,8 @@ class _Gateway:
         self.harness = harness
         self.port = endpoint.port
         self.ro_port = endpoint.extra_ports["RO_PORT"]
-        self.metrics_url = (f"http://{SERVER_HOST}:"
-                            f"{endpoint.extra_ports['HTTP_PORT']}/metrics")
+        self.http_port = endpoint.extra_ports["HTTP_PORT"]
+        self.metrics_url = f"http://{SERVER_HOST}:{self.http_port}/metrics"
         self.export = endpoint.data_root
         self.ro_export = str(ro_root)
 
@@ -112,12 +112,17 @@ def _bytes(text, direction, proto="gridftp"):
 
 
 def _latency_count(text, proto, op):
-    return _series(text, "brix_io_latency_usec_count", proto=proto, op=op)
+    return _series(text, "brix_io_latency_seconds_count", proto=proto, op=op)
 
 
 def _auth(text, method, status, proto="gridftp"):
     return _series(text, "brix_auth_total", proto=proto, method=method,
                    status=status)
+
+
+def _backstop(text, result, proto="gridftp"):
+    return _series(text, "brix_vfs_authz_backstop_total", proto=proto,
+                   result=result)
 
 
 def _connect(gw, port=None):
@@ -204,6 +209,21 @@ def test_namespace_ops_are_booked_by_the_vfs_under_gridftp(gw):
     assert (_ops(after, "stream", "dirlist", "ok")
             - _ops(before, "stream", "dirlist", "ok")) == 0, \
         "gsiftp namespace ops must not be attributed to root://"
+
+
+def test_vfs_authz_backstop_observe_is_clean(gw):
+    """A live namespace operation is bound and never disagrees with the edge."""
+    _seed(gw, "authz-backstop.bin", b"bound")
+    before = gw.scrape()
+    ftp = _connect(gw)
+    try:
+        assert ftp.size("authz-backstop.bin") == 5
+    finally:
+        ftp.quit()
+    after = gw.scrape()
+    assert _backstop(after, "no_rules") > _backstop(before, "no_rules")
+    for result in ("edge_missing", "unbound"):
+        assert _backstop(after, result) == 0
 
 
 def test_cleartext_login_books_an_auth_row(gw):

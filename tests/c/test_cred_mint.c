@@ -19,6 +19,7 @@
 #include <openssl/x509.h>
 
 #include "fs/backend/cred_mint.h"
+#include "fs/vfs/vfs_policy_domain.h"
 
 /* Link stub: cred_mint.c calls ngx_log_error() (a macro around
  * ngx_log_error_core) for diagnostics; the full nginx logging subsystem is
@@ -30,6 +31,20 @@ ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
     const char *fmt, ...)
 {
     (void) level; (void) log; (void) err; (void) fmt;
+}
+
+/* Link stub: mint_write_pem() publishes through brix_cred_write (phase-108
+ * C11), whose real cred_write.o is linked here so the engine + audit path is
+ * the production one. Only the storage-domain claim is stubbed out — the
+ * policy-domain registry lives in nginx module wiring that a standalone unit
+ * cannot carry. Always granting keeps this unit about minting mechanics; the
+ * claim's own deny/metric behavior is pinned by the vfs policy units. */
+ngx_int_t
+brix_vfs_domain_claim(ngx_log_t *log, brix_vfs_domain_t domain,
+    brix_vfs_mutation_op_t op)
+{
+    (void) log; (void) domain; (void) op;
+    return NGX_OK;
 }
 
 /* Mint a throwaway self-signed CA (cert+key) via the openssl CLI. */
@@ -210,10 +225,12 @@ main(void)
         assert(access(carol_path, F_OK) != 0);
     }
 
-    /* No stray temp files left behind after any of the above. */
+    /* No stray temp files left behind after any of the above.  The engine's
+     * unpublished temp is dot-prefixed ("<dir>/.<name>.<8hex>"), so any
+     * dotted *.pem.* residue is a reaping failure. */
     {
         char cmd[1400];
-        snprintf(cmd, sizeof(cmd), "ls %s/.mint-* >/dev/null 2>&1", dir);
+        snprintf(cmd, sizeof(cmd), "ls %s/.*.pem.* >/dev/null 2>&1", dir);
         assert(system(cmd) != 0);
     }
 

@@ -367,3 +367,38 @@ def test_vfs_mutation_gate_guard_honours_the_ownership_marker() -> None:
     finally:
         _GATE_PROBE.unlink()
     assert rc == 0, f"guard ignored a valid ownership marker:\n{out}"
+
+
+# --- VFS authorization-backstop guard: construction-site negative -----------
+_AUTHZ_PROBE = CI.parents[1] / "src" / "protocols" / "_vfs_authz_probe.c"
+
+
+def test_authz_backstop_guard_catches_an_unbound_context() -> None:
+    _AUTHZ_PROBE.write_text(
+        "void probe(brix_vfs_ctx_t *v) {\n"
+        "  brix_vfs_ctx_init(v, 0, 0, BRIX_PROTO_ROOT, \"/x\", 0,\n"
+        "    BRIX_VFS_MUTATION_READ_ONLY, 0, 0, \"/x/a\");\n"
+        "  (void) brix_vfs_stat(v, 0);\n"
+        "}\n"
+    )
+    try:
+        rc, out = _run("check_authz_backstop")
+    finally:
+        _AUTHZ_PROBE.unlink()
+    assert rc != 0, f"guard missed an unbound VFS context:\n{out}"
+    assert "_vfs_authz_probe" in out and "not authorization-bound" in out
+
+
+def test_authz_backstop_guard_accepts_explicit_no_rule_plane() -> None:
+    _AUTHZ_PROBE.write_text(
+        "void probe(brix_vfs_ctx_t *v) {\n"
+        "  brix_vfs_ctx_init(v, 0, 0, BRIX_PROTO_ROOT, \"/x\", 0,\n"
+        "    BRIX_VFS_MUTATION_READ_ONLY, 0, 0, \"/x/a\");\n"
+        "  brix_vfs_ctx_bind_no_authz_rules(v, BRIX_AUTHZ_BACKSTOP_OBSERVE);\n"
+        "}\n"
+    )
+    try:
+        rc, out = _run("check_authz_backstop")
+    finally:
+        _AUTHZ_PROBE.unlink()
+    assert rc == 0, f"guard rejected an explicit alternative auth plane:\n{out}"

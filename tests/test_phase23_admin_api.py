@@ -107,6 +107,27 @@ def test_proxy_pool_api_present():
         assert fn in admin, fn
 
 
+def test_proxy_pool_remove_refuses_in_flight_backend():
+    pool = _read("src/protocols/webdav/proxy_pool.c")
+    header = _read("src/protocols/webdav/proxy_pool.h")
+    admin = _read("src/observability/dashboard/api_admin_proxy.c")
+
+    assert "e->in_flight != 0" in pool
+    assert "BRIX_PROXY_REMOVE_BUSY" in pool
+    assert "BRIX_PROXY_REMOVE_BUSY" in header
+    assert "NGX_HTTP_CONFLICT" in admin
+    assert 'admin_send_error(r, NGX_HTTP_CONFLICT, "in_flight")' in admin
+
+
+def test_proxy_pool_remove_clears_only_quiescent_slot():
+    pool = _read("src/protocols/webdav/proxy_pool.c")
+    busy = pool.index("if (e->in_flight != 0)")
+    clear = pool.index("ngx_memzero(e, sizeof(*e));", busy)
+    removed = pool.index("BRIX_PROXY_REMOVE_REMOVED", clear)
+
+    assert busy < clear < removed
+
+
 def test_directives_registered():
     d = _read("src/observability/dashboard/module.c")
     for name in ("brix_admin_allow", "brix_admin_secret",

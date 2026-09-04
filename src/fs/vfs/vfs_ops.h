@@ -107,7 +107,7 @@ int brix_vfs_rmdir_path(ngx_log_t *log, const char *root_canon,
  * existing FINAL component only when it is a directory (else -1/EEXIST).
  * NGX_DECLINED for a default POSIX export (caller uses its own confined/
  * group-policy mkpath); 0 on success; -1/errno on failure. */
-int brix_vfs_backend_mkpath(const char *root_canon, const char *logical,
+int brix_vfs_backend_mkpath(const char *root_canon, const char *physical,
     mode_t mode, ngx_log_t *log);
 /* 1 iff `logical` already exists as a DIRECTORY in the leaf driver's namespace
  * (credential-scoped when cred != NULL). Fails closed: no stat slot, or a stat

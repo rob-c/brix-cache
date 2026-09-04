@@ -493,7 +493,17 @@ SETTINGS_OFFSET, SETTINGS_WIDTH = 0, 178
 # per-slot detail in fleet_specs). Offsets below re-sum (2026-08-16 rule).
 # 2026-09-02 (phase-109 merge): +3 more for lc-walk-offload (PORT +
 # ORIGIN_PORT + LOCAL_PORT), 967 -> 970; both waves landed concurrently.
-LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 970
+# 2026-09-02: +2 for lc-bind-migration (2-worker reuseport bind-migration
+# subject + METRICS_PORT, test_bind_migration.py registry-lint migration),
+# 971 -> 973.  Earlier same day: +1 for lc-ultra-parallel (FTS-shaped breaking-point storms,
+# test_ultra_parallel_breaking_point.py), 970 -> 971. Offsets below re-sum.
+# 2026-09-03: +2 for the phase-105 HTTP JWKS-refresh parity worker
+# (WebDAV PORT + S3_PORT), 973 -> 975. Offsets below re-sum.
+# 2026-09-04: +12 for the Phase-81 ordinary-fixture close-out (eleven
+# registry instances, with one extra metrics listener), 975 -> 987; Phase-91
+# adds a process-owned FTP origin plus writable/read-only gateway listeners,
+# 987 -> 990; Phase-91's VOMS carry lab adds four more owned listeners.
+LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 994
 # 2026-08-09: 137 -> 140 for the three audit-fix lifecycle subjects
 # (test_audit_fixes_2026_08_09.py: only-if-cached, cold-purge, signing).
 # Every offset below shifts by the same 3 — the ladder is packed, so a width
@@ -568,38 +578,6 @@ LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 970
 # 2026-08-27: 1105 -> 1106, the running sum again, for the one
 # lc-pblock-quota-qspace slot above (927 -> 928).
 # 2026-08-31: 1106 -> 1111, the running sum, for the five phase-106 slots.
-LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1148, 142
-# 2026-08-19: 205 -> 211 for the six-port root_readonly_gateway block (origin +
-# read-only gateway + allow_write-override gateway + writable control +
-# data-substreams gateway + read_only_public gateway).  The config-time
-# role-conflict check needs no port: it listens on a unix socket, because
-# `nginx -t` opens the listening sockets and a TCP port would race the lane.
-CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1290, 211
-CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1501, 83
-HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1584, 23
-PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1607, 2
-# CVMFS conformance mock-Stratum-1 + nginx port blocks (cvmfs/conformance_common.py
-# PORT_BLOCKS): 26 files x a 20-port block.  Anchored into the ladder so every
-# port stays within TEST_PORT_START+2000 and a second suite on a different
-# TEST_PORT_START draws a disjoint range (replaces the old absolute 13100+ tiling).
-# 27 file blocks x 20 ports = 540, plus a 48-port matrix sub-range for the
-# concurrent fuse-trust mock origins (see conformance_common.matrix_port).
-CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1609, 588
-# Differential-interop per-file fixed ports (official_interop_lib.worker_port):
-# one slot per distinct conformance base (65 today), anchored here so they stay
-# in the contiguous ladder within TEST_PORT_START+3000 instead of the old
-# absolute 30000-49925 per-worker band.  The owning module is pinned to one xdist
-# worker (conftest auto-xdist_group), so a fixed port per file suffices.
-# 2026-08-26: 61 -> 65 — four conformance bases were registered in
-# _INTEROP_BASES without the matching width bump (caught by
-# test_fleet_ports.py: worker slots 12216-12219 fell past PORT_LAST).
-INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2197, 65
-# 2026-08-31 (phase-106): shared lane +5 for the five nginx-integration nodes;
-# every lane below shifts by 5. Packed ladder — an intentional compatibility
-# event, per the note above.
-# 2026-09-01/02 (phase-107): shared lane +34, PORT_COUNT 2225 -> 2259. The C7
-# +8 first landed width-only — the shared/exclusive overlap the 2026-08-16
-# band check exists for; every lane re-summed 2026-09-02.
-# 2026-09-02 (phase-109 merge): shared lane +3 for lc-walk-offload,
-# PORT_COUNT 2259 -> 2262 (running sum re-applied across both waves).
-PORT_COUNT = 2262
+LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1172, 142
+
+_load_port_ladder_ext(globals(), __file__, "port_ladder_offsets_tail.py")

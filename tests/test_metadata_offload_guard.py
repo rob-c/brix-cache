@@ -96,6 +96,32 @@ def test_gate_declines_under_impersonation():
         "the impersonation decline must be the gate's first check")
 
 
+def test_gate_offloads_local_exchange_mode():
+    """(security-neg / W3) The whole of W3: a LOCAL backend normally stays
+    inline, but EXCHANGE-mode delegation mints an RFC-8693 token through a
+    BLOCKING POST inside the walk's cred gate even on local storage — the exact
+    event-loop stall phase-106 R-7 traced. So the local-backend decline MUST
+    carry an EXCHANGE exception (`backend_delegation != BRIX_CRED_EXCHANGE`),
+    routing a local EXCHANGE-mode metadata walk onto the thread anyway. Without
+    this arm the token exchange silently returns to the event loop and R-7
+    reopens with no other test catching it — the gate would still 'work', it
+    would just block the worker on every cold token mint."""
+    text = _strip_comments((WEBDAV / "walk_offload.c").read_text())
+    gate = text[text.find("webdav_walk_offload_wanted"):]
+    gate = gate[:gate.find("\n}")]
+    assert "BRIX_CRED_EXCHANGE" in gate, (
+        "walk_offload's gate no longer references BRIX_CRED_EXCHANGE — a local "
+        "EXCHANGE-mode walk would stay inline and mint its RFC-8693 token on "
+        "the event loop (phase-109 W3 / phase-106 R-7 reopened)")
+    # The EXCHANGE check must be part of the LOCAL-backend decline, i.e. paired
+    # with the is_remote test so that !remote AND !exchange is what declines —
+    # EXCHANGE overrides the local fast-path and offloads.
+    decline = gate[gate.find("is_remote"):]
+    assert "BRIX_CRED_EXCHANGE" in decline[:decline.find("return 0")], (
+        "the EXCHANGE exception is not inside the local-backend decline — a "
+        "local EXCHANGE walk must escape the inline fast-path and offload")
+
+
 # The LOCK path files and the offload seams that must NOT appear in them while
 # the conflict walk still mutates (reaps expired locks) inline.
 _LOCK_FILES = ("lock.c", "lock_check.c")

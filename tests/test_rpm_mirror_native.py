@@ -408,14 +408,29 @@ def _wait_for_hit(base, suffix, method="GET", timeout=15.0):
 
 
 def _wait_for_cached(mirror: Mirror, rel, timeout=15.0):
-    """The store is written by the warm fill's own thread, so a file that is
-    on its way is a `.xrd-tmp` part and not the object yet."""
+    """Wait until both the object and its cache-admission record are visible.
+
+    The staged rename publishes the data file immediately before the COMPLETE
+    cinfo record.  Seeing only the filename is therefore one instruction too
+    early: a concurrent reader correctly treats that state as a miss.  Wait for
+    the xattr (or sidecar fallback) so the assertion observes an admitted hit.
+    """
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if rel in cache_files(mirror.cache):
+        if _cache_entry_admitted(mirror.cache / rel):
             return True
         time.sleep(0.05)
-    return rel in cache_files(mirror.cache)
+    return _cache_entry_admitted(mirror.cache / rel)
+
+
+def _cache_entry_admitted(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    try:
+        os.getxattr(path, "user.xrd.cinfo")
+        return True
+    except OSError:
+        return Path(f"{path}.cinfo").is_file()
 
 
 def test_prefetch_is_off_until_it_is_asked_for(mirror: Mirror, origin):

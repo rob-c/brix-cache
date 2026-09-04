@@ -21,16 +21,13 @@ xmeta_sidecar_key(const char *key, char *out, size_t cap)
 }
 
 /* "the value cannot ride in an xattr here" — fall back, don't fail.
- * EINVAL belongs in this set FOR THIS CALL SITE: the save passes flags=0 and
- * a well-formed name/value, so a driver's EINVAL can only be a carrier-shape
- * refusal — sd_remote maps xattrs onto x-amz-meta-* HTTP headers and rejects
- * the binary xmeta blob's NUL/CR/LF bytes with EINVAL (an injection defence,
- * not a caller error). The sidecar carries any bytes, so ride it instead. */
+ * EINVAL is deliberately excluded: it reports a malformed call, not a carrier
+ * capacity/representation limit. Remote drivers must translate an unrepresentable
+ * value to ENOTSUP/E2BIG so the sidecar fallback cannot hide a caller bug. */
 static int
 xmeta_xattr_unfit(int err)
 {
     return err == E2BIG || err == ERANGE || err == ENOSPC || err == ENOTSUP
-           || err == EINVAL
 #ifdef EOPNOTSUPP
            /* phase74-fp: ENOTSUP == EOPNOTSUPP on Linux so the operands are
             * equivalent HERE, but POSIX allows them to differ — the second

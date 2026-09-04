@@ -15,8 +15,10 @@ so the assertions are hermetic and independent of the real tree's current state:
                     so a rule cannot be silenced by a bare name.
 """
 import os
+import re
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -24,11 +26,23 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHECKER = os.path.join(ROOT, "tools", "ci", "check_directive_registry.py")
 
 
+def _fixture_docs(src_dir):
+    names = set()
+    for source in Path(src_dir).rglob("*"):
+        if source.suffix in (".c", ".h"):
+            names.update(re.findall(r'\bbrix_[a-z0-9_]+', source.read_text()))
+    docs = Path(src_dir) / ".fixture-directives.md"
+    docs.write_text("\n".join(sorted(names)))
+    return docs
+
+
 def _run(src_dir, *, allowlist=None, docs=None, fail=False):
     env = dict(os.environ)
     env["BRIX_REGISTRY_SRC"] = str(src_dir)
     env["BRIX_REGISTRY_ALLOWLIST"] = str(allowlist) if allowlist else os.devnull
-    env["BRIX_REGISTRY_DOCS"] = str(docs) if docs else os.devnull
+    if docs is None:
+        docs = _fixture_docs(src_dir)
+    env["BRIX_REGISTRY_DOCS"] = str(docs)
     argv = [sys.executable, CHECKER] + (["--fail"] if fail else [])
     return subprocess.run(argv, capture_output=True, text=True, env=env, timeout=60)
 
@@ -129,9 +143,21 @@ def test_macro_expansion_counted(tmp_path):
     assert "brix_demo_knob" in r.stdout, r.stdout
 
 
+def test_undocumented_directive_fails_r3_in_fail_mode(tmp_path):
+    """W6: an unlisted registration is a gating documentation defect."""
+    src = _write_at(tmp_path, "core/config/http_common.c",
+                    _cmd("brix_undocumented",
+                         "NGX_HTTP_LOC_CONF | NGX_CONF_FLAG"))
+    docs = tmp_path / "empty-directives.md"
+    docs.write_text("# no registered names\n")
+    result = _run(src, docs=docs, fail=True)
+    assert result.returncode == 1
+    assert "[R3]" in result.stdout and "brix_undocumented" in result.stdout
+
+
 def test_real_tree_no_r1(tmp_path):
     """The real src/ tree must have ZERO R1 same-plane duplicates (the invariant
-    W1 restored). Uses the checked-in allowlist; R2/R3/R4 stay WARN here."""
+    W1 restored). Uses the checked-in allowlist and generated reference."""
     r = subprocess.run([sys.executable, CHECKER], capture_output=True, text=True,
                        timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -187,8 +213,7 @@ def test_r6_near_miss_stems_fail(tmp_path):
 
 
 def test_real_tree_gates_clean_under_fail():
-    """phase-105 W5.4: the real tree passes --fail (R1/R2/R4/R5/R6 all clean
-    with the checked-in allowlist; R3 is WARN-scoped until W6)."""
+    """Phase-105 W6: the real tree passes every directive registry gate."""
     r = subprocess.run([sys.executable, CHECKER, "--fail"],
                        capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -373,6 +398,21 @@ def test_r12_detector_flags_a_missing_name_function(tmp_path):
     assert any("brix_metric_cache_status_name" in msg for _, _, msg in findings)
 
 
+def test_r12_detector_accepts_a_split_logical_surface(tmp_path, monkeypatch):
+    """(success) Required vocabulary calls may live in cohesive sibling TUs."""
+    cdr = _load_checker()
+    rule_globals = cdr._rule_r12.__globals__
+    monkeypatch.setitem(rule_globals, "ROOT", str(tmp_path))
+    first = tmp_path / "first.c"
+    second = tmp_path / "second.c"
+    first.write_text(
+        "brix_metric_cache_status_name(s); brix_metric_auth_method_name(a);\n")
+    second.write_text("brix_metric_op_name(o); brix_metric_err_name(e);\n")
+    findings = rule_globals["_vocab_findings_for_group"](
+        ("first.c", "second.c"))
+    assert findings == []
+
+
 def test_r13_detector_flags_a_missing_json_key(tmp_path):
     """(error) The cross-surface pin fires when a canonical JSON key is absent
     — i.e. a fact whose JSON key does not match its $brix_ variable name."""
@@ -441,8 +481,10 @@ def test_r14_dormant_while_removal_phase_is_only_planned(tmp_path):
 
 
 def test_r14_passes_on_the_real_tree():
-    """(success) phase-112 does not exist yet, so every $brix_session_* alias is
-    within its window and the real tree is clean under --fail."""
+    """(success) The pin is satisfied on the real tree from both sides of its
+    trigger: while phase-112 was PLANNED every $brix_session_* alias was inside
+    its window, and phase-112 W2 deleted all seven registrations, so once that
+    doc flips to IMPLEMENTED there is nothing left for R14 to find."""
     env = dict(os.environ)
     for k in ("BRIX_REGISTRY_SRC", "BRIX_REGISTRY_ALLOWLIST",
               "BRIX_REGISTRY_DOCS", "BRIX_REGISTRY_REFACTOR_DOCS"):
@@ -451,3 +493,76 @@ def test_r14_passes_on_the_real_tree():
                        capture_output=True, text=True, env=env, timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "[R14]" not in r.stdout, r.stdout
+
+
+def _r15_fixture(tmp_path, monkeypatch, cdr, *, record, status):
+    """Point R15 at a fixture access_log.c and a fixture phase-112 doc.
+
+    `record` is the JSON body the fake emitter contains; `status` is the
+    removal doc's Status line (None writes no doc at all)."""
+    import directive_registry_w5 as w5
+
+    src = tmp_path / os.path.dirname(cdr._R13_JSON_SOURCE)
+    src.mkdir(parents=True)
+    (tmp_path / cdr._R13_JSON_SOURCE).write_text(f'log("{record}");\n')
+    monkeypatch.setitem(w5.__dict__, "ROOT", str(tmp_path))
+
+    docs = tmp_path / "refactor"
+    docs.mkdir()
+    if status is not None:
+        (docs / "phase-112-cleanup.md").write_text(f"# 112\n**Status:** {status}\n")
+    monkeypatch.setitem(w5.__dict__, "_REFACTOR_DOCS", str(docs))
+    return cdr._rule_r15()
+
+
+# The pre-phase-110 record: each of the four facts spelled twice.
+_R15_LEGACY_RECORD = (r'{\"bytes_served\":%d,\"bytes\":%d,'
+                      r'\"backend_time_us\":%d,\"latency_us\":%d,'
+                      r'\"cache_status\":\"%s\",\"from_cache\":%s,'
+                      r'\"sub\":\"%s\",\"subject\":\"%s\"}')
+# What phase-112 leaves behind: one spelling per fact.
+_R15_CANONICAL_RECORD = (r'{\"bytes_served\":%d,\"backend_time_us\":%d,'
+                         r'\"cache_status\":\"%s\",\"sub\":\"%s\"}')
+
+
+@pytest.mark.parametrize("status", [None, "PLANNED"],
+                         ids=["unwritten", "planned"])
+def test_r15_dormant_until_the_removal_phase_lands(tmp_path, monkeypatch, status):
+    """(security-neg / non-vacuity) A deprecated key inside its window is NOT a
+    finding: with no phase-112 doc, or one still PLANNED, R15 stays silent so it
+    can never shorten a deprecation window it does not own."""
+    cdr = _load_checker()
+    assert _r15_fixture(tmp_path, monkeypatch, cdr,
+                        record=_R15_LEGACY_RECORD, status=status) == []
+
+
+def test_r15_fires_for_every_key_left_behind(tmp_path, monkeypatch):
+    """(error) Once phase-112 is IMPLEMENTED, each surviving deprecated key is
+    its own finding naming the exact spelling to delete."""
+    cdr = _load_checker()
+    findings = _r15_fixture(tmp_path, monkeypatch, cdr,
+                            record=_R15_LEGACY_RECORD, status="IMPLEMENTED")
+    assert [f[0] for f in findings] == ["R15"] * 4, findings
+    for key in cdr._R15_REMOVED_JSON_KEYS:
+        assert any(key in msg for _, _, msg in findings), (key, findings)
+
+
+def test_r15_silent_on_the_canonical_record(tmp_path, monkeypatch):
+    """(success) The post-removal record trips nothing — and specifically
+    \\"bytes\\": does not match inside \\"bytes_served\\":, nor \\"sub\\": inside
+    a \\"subject\\": that is no longer there."""
+    cdr = _load_checker()
+    assert _r15_fixture(tmp_path, monkeypatch, cdr,
+                        record=_R15_CANONICAL_RECORD, status="IMPLEMENTED") == []
+
+
+def test_r15_holds_on_the_real_emitter():
+    """(success) The shipped access_log.c carries exactly one spelling per fact:
+    R13's canonical keys are present and none of R15's deprecated ones are."""
+    cdr = _load_checker()
+    text = open(os.path.join(cdr.ROOT, cdr._R13_JSON_SOURCE),
+                errors="replace").read()
+    assert cdr._missing_tokens(cdr._R13_JSON_SOURCE,
+                               cdr._R13_REQUIRED_JSON_KEYS) == []
+    left = [k for k in cdr._R15_REMOVED_JSON_KEYS if k in text]
+    assert left == [], left

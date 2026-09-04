@@ -82,7 +82,8 @@ static ngx_int_t
 vfs_dir_open_driver(brix_vfs_ctx_t *ctx, brix_vfs_dir_t *dh,
     const brix_sd_driver_t *drv, const char *path, int *err_out)
 {
-    const char       *logical = brix_vfs_export_relative(ctx, path);
+    char              physical[PATH_MAX];
+    char              canonical[PATH_MAX];
     brix_sd_ucred_t   store;
     brix_sd_cred_t    cred;
     int               use_cred = 0, cred_err = 0;
@@ -92,6 +93,19 @@ vfs_dir_open_driver(brix_vfs_ctx_t *ctx, brix_vfs_dir_t *dh,
      * unzeroed cred hands a garbage inactive pointer to the driver's cred
      * slot (bearer PASSTHROUGH would leave x509_proxy dangling). */
     ngx_memzero(&cred, sizeof(cred));
+
+    if (brix_path_resolved_to_pfn(ctx, path, physical, sizeof(physical))
+        != NGX_OK)
+    {
+        *err_out = errno;
+        return NGX_ERROR;
+    }
+    if (brix_path_pfn_to_lfn(ctx, physical, canonical, sizeof(canonical))
+        != NGX_OK)
+    {
+        *err_out = errno;
+        return NGX_ERROR;
+    }
 
     if (brix_vfs_cred_gate_active(ctx)) {
         if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
@@ -108,7 +122,7 @@ vfs_dir_open_driver(brix_vfs_ctx_t *ctx, brix_vfs_dir_t *dh,
     }
     dh->sd_dir = (drv->opendir != NULL)
         ? brix_sd_opendir_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
-              logical, &err, use_cred ? &cred : NULL)
+              physical, &err, use_cred ? &cred : NULL)
         : NULL;
     brix_sd_ucred_wipe(&store);   /* secret consumed by opendir; erase (A-4/T4) */
     if (dh->sd_dir == NULL) {
@@ -118,7 +132,17 @@ vfs_dir_open_driver(brix_vfs_ctx_t *ctx, brix_vfs_dir_t *dh,
 
     dh->sd  = ctx->sd;
     dh->drv = drv;
-    dh->sd_logical = brix_vfs_copy_path(ctx->pool, logical);
+    dh->ctx = ctx;
+    dh->sd_logical = brix_vfs_copy_path(ctx->pool, canonical);
+    dh->sd_physical = brix_vfs_copy_path(ctx->pool, physical);
+    if (dh->sd_logical == NULL || dh->sd_physical == NULL) {
+        if (drv->closedir != NULL) {
+            (void) drv->closedir(dh->sd_dir);
+        }
+        dh->sd_dir = NULL;
+        *err_out = errno;
+        return NGX_ERROR;
+    }
     dh->pool = ctx->pool;
     dh->log = ctx->log;
     return NGX_OK;
@@ -173,6 +197,10 @@ brix_vfs_opendir_impl(brix_vfs_ctx_t *ctx, int *err_out, int observe)
 
     if (err_out != NULL) {
         *err_out = 0;
+    }
+
+    if (brix_vfs_require_authorized_lookup(ctx) != NGX_OK) {
+        return vfs_opendir_fail(ctx, errno, observe, start, err_out);
     }
 
     if (vfs_dir_route(ctx, &drv, &err) != NGX_OK) {

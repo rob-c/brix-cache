@@ -193,8 +193,11 @@ brix_vbr_build_ceph(brix_vfs_backend_entry_t *e, ngx_log_t *log)
     ngx_memzero(&conf, sizeof(conf));
     conf.pool       = e->ceph_pool;
     conf.conf_file  = (e->ceph_conf[0] != '\0') ? e->ceph_conf : NULL;
-    conf.key_prefix = (e->ceph_key_prefix[0] != '\0') ? e->ceph_key_prefix
-                                                      : NULL;
+    /* The path-layer N2N stage has already applied the registry entry's
+     * ceph_key_prefix before a VFS operation reaches this instance. Keeping a
+     * second prefix here would address "prefix/prefix/path". Directly-created
+     * sd_ceph instances (units/tools) retain their configured driver prefix. */
+    conf.key_prefix = NULL;
 
     inst = brix_sd_instance_create(log, e->backend,
                                      &conf, &sderr);
@@ -426,6 +429,7 @@ static const brix_vbr_source_desc_t  brix_vbr_source_table[] = {
     { "tape",     brix_vbr_build_tape },
     { "http",     brix_vbr_build_http },
     { "s3",       brix_vbr_build_s3 },
+    { "gsiftp",   brix_vbr_build_gsiftp },
 };
 
 /* Build the entry's RAW source driver instance (no decorators, no memoization). The

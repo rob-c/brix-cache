@@ -51,7 +51,8 @@ ngx_int_t brix_vfs_rename(brix_vfs_ctx_t *ctx,
  * NGX_OK, or NGX_ERROR with errno set (EEXIST/ENOTEMPTY/EACCES/ENOTDIR/ENOENT
  * from the namespace status). */
 ngx_int_t brix_vfs_rename_path(brix_sd_instance_t *sd, ngx_log_t *log,
-    const char *root_canon, const char *src, const char *dst,
+    const char *root_canon, const brix_n2n_cfg_t *n2n,
+    const char *src, const char *dst,
     unsigned overwrite, int *was_dir_out);
 /* Atomically exchange the resolved ctx path with the already-resolved name
  * `other` (phase-107 C6): renameat2(RENAME_EXCHANGE) on posix, one catalogue

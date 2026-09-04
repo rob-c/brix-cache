@@ -59,10 +59,10 @@ protocol.
 | `$brix_user` | local account, or `-` | The **mapped local account** the request runs as under impersonation (the grid-mapfile / mapping-policy result) — WHAT the storage saw, distinct from `$brix_sub` (WHO the client is). An account name, never a credential. |
 | `$brix_duration` | seconds | Wall time of the request, byte-identical to nginx's `$request_time`. It exists only so one `log_format` serves both planes: nginx spells this fact `$request_time` on HTTP and `$session_time` on `root://`. |
 | `$brix_delegated_cred` | path, or empty | The verified client's delegated-credential path, for handing to `proxy_ssl_certificate`. Empty when there is none. **This is credential material** — do not log it or forward it anywhere it is not needed. |
-| `$brix_cvmfs_class`, `$brix_cvmfs_cache`, `$brix_cvmfs_origin` | cvmfs plane | Repository class, cache disposition and fill origin. `$brix_cvmfs_cache` uses the older cvmfs spelling (`hit`/`fill`/`neg`); prefer `$brix_cache_status` for new configs. |
-| `$brix_oci_class`, `$brix_oci_cache` | oci plane | Request class and cache disposition. |
-| `$brix_rpm_class`, `$brix_rpm_cache` | rpm plane | Request class and cache disposition. |
-| `$cvmfs_*`, `$oci_*`, `$rpm_*` | — | **Deprecated aliases** of the seven `$brix_*` names above, resolving to the same handlers. Kept because removing a variable turns a stale `log_format` into a startup abort; prefer the `brix_` spelling. |
+| `$brix_cvmfs_class`, `$brix_cvmfs_origin` | cvmfs plane | Repository class and fill origin. The cache disposition is `$brix_cache_status`, not a plane-local name — phase 112 removed `$brix_cvmfs_cache` and its `hit`/`fill`/`neg` spelling of the same fact. |
+| `$brix_oci_class` | oci plane | Request class. Cache disposition: `$brix_cache_status`. |
+| `$brix_rpm_class` | rpm plane | Request class. Cache disposition: `$brix_cache_status`. |
+| `$cvmfs_class`, `$cvmfs_origin`, `$oci_class`, `$rpm_class` | — | **Deprecated aliases** of the four `$brix_*` names above, resolving to the same handlers. Kept because removing a variable turns a stale `log_format` into a startup abort; prefer the `brix_` spelling. |
 
 ### Stream (`root://`) variables
 
@@ -112,28 +112,18 @@ exception and exists for credential forwarding.
 
 ### Deprecated names
 
-Each still works and resolves to the same value; prefer the replacement, which
-means the same thing on every plane and every monitoring surface. Removal is
-scheduled for phase 112.
+Four unprefixed plane aliases still resolve, to the same handlers as their
+`$brix_`-prefixed twins: `$cvmfs_class`, `$cvmfs_origin`, `$oci_class`,
+`$rpm_class`. Prefer the `brix_` spelling — it is the one that means the same
+thing on every plane and every monitoring surface.
 
-| Deprecated | Use instead |
-|------------|-------------|
-| `$brix_session_dn` | `$brix_dn` |
-| `$brix_session_vo` | `$brix_vo` |
-| `$brix_session_auth` | `$brix_auth_method` |
-| `$brix_session_tls` | `$brix_tls` |
-| `$brix_session_user` | `$brix_sub` (it published the subject); see `$brix_user` for the mapped account |
-| `$brix_session_bytes_out` | `$brix_bytes_served` |
-| `$brix_session_bytes_in` | `$brix_bytes_received` |
-| `$brix_cvmfs_cache`, `$brix_oci_cache`, `$brix_rpm_cache`, `$cvmfs_*`, `$oci_*`, `$rpm_*` | `$brix_cache_status` (and the `$brix_`-prefixed class/origin twins) |
-| JSON access-log key `from_cache` | `cache_status` |
-| JSON access-log key `subject` | `sub` |
-| JSON access-log keys `bytes` / `latency_us` | `bytes_served` / `backend_time_us` |
-| metric `brix_cache_hits_total` / `brix_cache_misses_total` | `brix_cache_requests_total{cache_status="HIT"\|"MISS"}` |
-
-The JSON access log and the Prometheus export emit **both** the old and new
-spellings during the deprecation window, so no existing parser or dashboard
-breaks while you migrate.
+Nothing else here is a second spelling. The `$brix_session_*` aliases, the
+plane-local `$*_cache` variables, the duplicated JSON access-log keys and the
+per-outcome cache counters were **removed** in phase 112; the single migration
+table that maps each one onto its canonical name lives in the release note
+([CHANGELOG.md](../../CHANGELOG.md)), under *Breaking*. A config, log parser
+or dashboard still naming one of them must be migrated before upgrading — a
+stale `log_format` is a startup abort, not a silent empty field.
 
 
 ## Gating a location brix does not serve

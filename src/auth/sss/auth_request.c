@@ -299,7 +299,9 @@ sss_reply(brix_ctx_t *ctx, ngx_connection_t *c,
 
     sss_track_metrics(ctx);
 
-    brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 0);
+    ctx->login.session_slot_hint =
+        brix_session_register(ctx->login.sessid, ctx->login.dn,
+                              ctx->login.vo_list, 0);
 
     {
         char safe_user[256], safe_group[256];

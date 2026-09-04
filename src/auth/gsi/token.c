@@ -180,11 +180,11 @@ tokenauth_fill_va(brix_token_validate_args_t *va, ngx_connection_t *c,
     va->token_len         = st->token_len;
     va->keys              = conf->jwks_keys;
     va->key_count         = conf->jwks_key_count;
-    va->expected_issuer   = (const char *) conf->token_issuer.data;
-    va->expected_audience = (const char *) conf->token_audience.data;
+    va->expected_issuer   = (const char *) conf->common.token_issuer.data;
+    va->expected_audience = (const char *) conf->common.token_audience.data;
     va->macaroon_secret   = st->secret_len > 0 ? st->secret : NULL;
     va->secret_len        = st->secret_len;
-    va->clock_skew        = (int) conf->token_clock_skew;
+    va->clock_skew        = (int) conf->common.token_clock_skew;
     va->claims            = &st->claims;
 }
 
@@ -249,7 +249,7 @@ tokenauth_verify_or_cache(ngx_connection_t *c,
         ra.reg             = conf->token_registry;
         ra.macaroon_secret = st->secret_len > 0 ? st->secret : NULL;
         ra.secret_len      = st->secret_len;
-        ra.clock_skew      = (int) conf->token_clock_skew;
+        ra.clock_skew      = (int) conf->common.token_clock_skew;
         ra.claims          = &st->claims;
 
         return brix_token_validate_registry_authn(&ra, &st->reg_issuer);
@@ -287,8 +287,8 @@ tokenauth_grace_retry(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
     int                         rc;
 
     old_slen = brix_macaroon_secret_parse(
-        (const char *) conf->token_macaroon_secret_old.data,
-        conf->token_macaroon_secret_old.len,
+        (const char *) conf->common.token_macaroon_secret_old.data,
+        conf->common.token_macaroon_secret_old.len,
         old_secret, sizeof(old_secret));
 
     if (old_slen <= 0) {
@@ -337,10 +337,10 @@ tokenauth_validate(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
     ssize_t     slen = 0;
     int         rc;
 
-    if (conf->token_macaroon_secret.len) {
+    if (conf->common.token_macaroon_secret.len) {
         slen = brix_macaroon_secret_parse(
-            (const char *) conf->token_macaroon_secret.data,
-            conf->token_macaroon_secret.len, secret, sizeof(secret));
+            (const char *) conf->common.token_macaroon_secret.data,
+            conf->common.token_macaroon_secret.len, secret, sizeof(secret));
     }
 
     st->secret     = secret;
@@ -350,7 +350,7 @@ tokenauth_validate(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
 
     /* Grace-period fallback: if the primary secret rejected a macaroon token
      * and an old secret is configured, try validating with the old key. */
-    if (rc != 0 && !via_registry && conf->token_macaroon_secret_old.len) {
+    if (rc != 0 && !via_registry && conf->common.token_macaroon_secret_old.len) {
         rc = tokenauth_grace_retry(c, conf, st, rc);
     }
 
@@ -486,7 +486,9 @@ tokenauth_bind_session(brix_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 1);
+    ctx->login.session_slot_hint =
+        brix_session_register(ctx->login.sessid, ctx->login.dn,
+                              ctx->login.vo_list, 1);
 
     ctx->token.scope_count = claims->scope_count;
     for (i = 0; i < claims->scope_count && i < BRIX_MAX_TOKEN_SCOPES; i++) {

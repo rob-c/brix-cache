@@ -201,7 +201,7 @@ frozen label vocabulary as `stream`, `webdav`, `s3` and `cvmfs`
 | `brix_io_ops_total{proto="gridftp",op="read"\|"write",status=…}` | RETR / STOR / APPE at transfer completion, plus transfers refused before a data channel ever opened |
 | `brix_io_ops_total{proto="gridftp",op="stat"\|"mkdir"\|"delete"\|"rename"\|"dirlist",…}` | the VFS observer — SIZE/MDTM/MLST, MKD, DELE/RMD, RNFR+RNTO, LIST/NLST/MLSD are metered inside `brix_vfs_*`, never a second time by the protocol |
 | `brix_io_bytes_read{proto="gridftp"}` / `brix_io_bytes_written{proto="gridftp"}` | payload bytes per transfer, MODE E committed blocks included |
-| `brix_io_latency_usec_bucket{proto="gridftp",op=…,le=…}` | measured from the verb, so it includes the PASV accept or active connect, not just the byte pump |
+| `brix_io_latency_seconds_bucket{proto="gridftp",op=…,le=…}` | measured from the verb, so it includes the PASV accept or active connect, not just the byte pump |
 | `brix_auth_total{proto="gridftp",method="gsi"\|"none",status="ok"\|"fail"}` | the ADAT/GSSAPI handshake terminals, and `none` for a cleartext login |
 
 Useful queries:

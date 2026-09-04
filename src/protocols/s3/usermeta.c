@@ -47,6 +47,7 @@ s3_user_meta_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
         cf->common.root_canon, cf->common.cache_root_canon,
         brix_vfs_policy_from_write_enable(cf->common.allow_write),
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
+    s3_vfs_bind_deleg(r, cf, vctx);
 }
 
 /* Read the stored metadata blob into out (NUL-terminated). Returns length, 0 if

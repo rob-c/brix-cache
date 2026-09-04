@@ -11,6 +11,18 @@ class TestThePerChunkSignatureChain:
     s3_sigv4_finish() retained the signing material for it
     (auth_sigv4_verify.c:327)."""
 
+    def test_vfs_authz_backstop_observe_is_clean(self, s3flags):
+        response = _signed_get(s3flags.port, f"/{VERIFY[ON]}/{SEED}")
+        assert response.status_code == 200
+        text = _metrics(s3flags.port)
+        safe = ('brix_vfs_authz_backstop_total'
+                '{proto="s3",result="no_rules"}')
+        assert _metric(text, safe) > 0
+        for result in ("edge_missing", "unbound"):
+            unsafe = ('brix_vfs_authz_backstop_total'
+                      f'{{proto="s3",result="{result}"}}')
+            assert _metric(text, unsafe) == 0
+
     def test_on_refuses_a_forged_chunk_signature(self, s3flags):
         key = f"forged-{uuid.uuid4().hex}.txt"
         response = _streaming_put(s3flags.port, VERIFY[ON], key,

@@ -66,6 +66,10 @@ gftp_reply_scan(const char *buf, size_t len, gftp_reply_t *out)
         return -1;
     }
 
+    if (len < 4) {
+        return 0;
+    }
+
     if (buf[3] != ' ' && buf[3] != '-') {
         return -1;
     }

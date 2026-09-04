@@ -427,8 +427,8 @@ sd_xroot_origin_build_ca_store(sd_xroot_inst_state *is,
      * upgrade (brix_cache_origin_tls_upgrade → origin_tls_load_verify) verifies
      * the origin's TLS cert against THIS store (CAfile or hashed CApath) instead
      * of falling back to the system CAs. Same backing buffer as ca_dir. */
-    synth->trusted_ca.data = (u_char *) is->ca_dir;
-    synth->trusted_ca.len  = ngx_strlen(is->ca_dir);
+    synth->common.trusted_ca.data = (u_char *) is->ca_dir;
+    synth->common.trusted_ca.len  = ngx_strlen(is->ca_dir);
 
     is_dir = (stat(is->ca_dir, &ca_st) == 0 && S_ISDIR(ca_st.st_mode));
     synth->gsi_store = brix_build_ca_store(log,

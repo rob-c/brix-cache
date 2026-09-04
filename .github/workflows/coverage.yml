@@ -1,16 +1,12 @@
 # gcov/lcov line-coverage report for src/ and client/ (QUALITY_ROADMAP §2.3/§3.4).
 #
-# REPORT-ONLY (continue-on-error) by design. Per the hyper-hardening B-1 lesson,
-# a numeric gate must not be flipped to blocking before a reviewed baseline
-# exists: this lane builds the gcov-instrumented module, runs the fast fleet tier
-# against it, and publishes the lcov html + total line rate as an artifact. Once
-# the number is observed to be stable on the runner, set COVERAGE_MIN (below) to
-# a floor a few points under it and drop continue-on-error to make it enforcing —
-# the same graduation path fanalyzer.yml/codechecker.yml document.
+# Blocking line-coverage ratchet. The 67% floor is 1.9 points below the reviewed
+# 2026-09-03 instrumented fast-tier baseline of 68.9%; increase it only after a
+# new reproducible observation. The report is still uploaded on every failure.
 #
 # The fast tier boots the test fleet (self-provisioned PKI); a meaningful figure
-# needs that to run. If the fleet cannot boot on the runner the job still uploads
-# whatever counters accumulated rather than failing the build.
+# needs that to run. A failed fleet or test command is a failed coverage job;
+# partial counters remain available through the always-run artifact step.
 name: coverage
 on:
   workflow_dispatch:
@@ -30,7 +26,6 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     timeout-minutes: 180
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - name: Install build + coverage deps
@@ -48,8 +43,9 @@ jobs:
         env:
           NGINX_SRC: /tmp/nginx-1.28.3
           PYTHONPATH: tests
-          # COVERAGE_MIN: 85   # ← uncomment to enforce a floor once a baseline is set
+          COVERAGE_MIN: 67
         run: |
+          set -o pipefail
           export PATH="$HOME/.local/bin:$PATH"
           tools/ci/coverage.py 2>&1 | tee /tmp/coverage-report.txt
       - name: Upload coverage report

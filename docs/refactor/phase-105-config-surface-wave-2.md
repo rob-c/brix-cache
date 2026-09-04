@@ -1,5 +1,9 @@
 # Phase 105 — config-surface wave 2: finish the ownership thesis, kill the drift R2 cannot see
 
+**Status:** COMPLETE (2026-09-03). W1–W8 and the W9 implementation are
+complete. The attach-probe cleanup hardening described in the final addendum
+is complete (Phase 111 B111-010).
+
 Source: post-phase-101 directive-surface survey of 2026-08-10, run against the
 working tree (`main` @ a3f1e500 + local edits) with
 `tools/ci/check_directive_registry.py` plus a strict command-entry census
@@ -39,12 +43,12 @@ residual classes structurally impossible.
 | W1 | Rate-limit/zones family: webdav-owned bare names, enforcement absent on s3/cvmfs (live W1-class silent no-op on a DoS-protection knob) | ✅ **DONE 2026-08-10** — all 7 registrations → http_common; fields → preamble; s3 gate + s3 bearer token-cache + cvmfs gate landed; shaping engine rules-source decoupled; `tests/test_rate_limit_s3.py` (4) + phase-20/25 suites green. See the implementation log. | M |
 | W2 | Remaining 18 webdav-owned bare HTTP names — per-name disposition | ✅ **DONE 2026-08-10 (session 2)** — class (ii): credential block, delegation_endpoint, client_ca_store relocated; class (i): the 8 mirror settings → preamble + http_common (offset-based setters, merges → shared_merge); class (iii): trusted_ca pair + tcp_congestion (reader-trace verdict: shared file-serve engine → MOVE) + verify_depth → preamble; `brix_http_query_token`/`brix_http_secretkey` → `brix_webdav_*`; `brix_backend_ca_dir` LEDGERED (deviation, logged); `client_certificate_folder` ledgered. R5 allowlist carries the keeps. | M–L |
 | W3 | Cross-plane spelling drift: `maxdelay`, TPC outbound-token quartet, XrdAcc tuner prefixes, `brix_stream_mirror_url`, verify-depth pair (semantics RESOLVED — see W3.5) | ✅ **DONE 2026-08-10 (clusters 1–4)** — maxdelay de-prefixed + preamble-homed; TPC quartet renamed (name-only); stream tuners → `brix_acc_*`, selector → `brix_authdb_engine` (W3.3-c) with the duplicate enum tables deduped to one definition; `brix_mirror_url` unified. Cluster 5 (verify-depth) rides the W2 x509 commit as planned. | S–M |
-| W4 | Close Table 1 | **MOSTLY DONE 2026-08-10 (session 2)** — introspect quad → bare `brix_token_introspect_*` on http_common (+sec_slot ttl; the GLOBAL introspection handler now reads honestly-shared settings); macaroon pair decided (b): ledgered + Table-1 correction row; TPC-tuner near-miss VERIFIED (curl `--max-time` vs registry lifetimes — distinct, ledger stands). REMAINING: W4.3 jwks-refresh HTTP parity (rides the JWKS fixture work; refresh.c is stream-conf-typed). | S–M |
+| W4 | Close Table 1 | ✅ **DONE 2026-09-03** — introspect quad → bare `brix_token_introspect_*` on http_common (+sec_slot ttl; the GLOBAL introspection handler now reads honestly-shared settings); macaroon pair decided (b): ledgered + Table-1 correction row; TPC-tuner near-miss VERIFIED; W4.3 exposes one generic refresh specification and gives WebDAV/S3 the same timer worker and last-known-good semantics as stream. | S–M |
 | W5 | Checker hardening | ✅ **DONE 2026-08-10 (session 2)** — R5 (bare⇒common-owner, HTTP plane, feature-family/toggle aware) + R6 (normalized-stem near-miss; found `brix_s3_secret_key`≈`brix_webdav_secretkey` on its own — allowlisted as distinct mechanisms) + fixtures (10/10) + CI lane flipped to `--fail` (R1/R2/R4/R5/R6 gate; R3 WARN until W6). Real tree passes `--fail`. | S |
-| W6 | R3 closure via docs-from-source (phase-101 W9.4, no longer optional at 322 findings) | OPEN (OP-DECIDE carried over) | M |
-| W7 | Field-home convergence: stream token/x509/TPC/acc flat fields → preamble; gridftp embeds preamble; delete the W3 adopt shims | OPEN (gate — runnable GSI fleet — now OPEN per 101-W3 stage 3) | L |
+| W6 | R3 closure via docs-from-source (phase-101 W9.4, no longer optional at 322 findings) | ✅ **DONE 2026-09-03** — the source registry generates and checks the committed directive tables; R3 is armed in fail mode and the real tree has zero gating findings. | M |
+| W7 | Field-home convergence: stream token/x509/TPC/acc flat fields → preamble; gridftp embeds preamble; delete the W3 adopt shims | ✅ **DONE 2026-09-03** — all fields have one shared home, GridFTP embeds the preamble, the adopt shims are gone, and the full self-contained GSI plus isolated authdb acceptance lanes pass. | L |
 | W8 | Small leftovers | ✅ **DONE 2026-08-10** — skew sec_slot + shared clamp; wt-stage renamed; typedef landed; flag-setter audit CLOSED (session 2): `brix_conf_set_wt_enable` → stock flag_slot (was a pure hand-parse); cms/ftp enable wrappers KEEP (they delegate to the stock slot, then arm handlers — HELPERS-conformant). | S |
-| W9 | Cache-grammar convergence study | ✅ **DONE 2026-08-10 (session 2)** — matrix + findings + OP recommendation written into this file (bottom): roles are real architecture (keep), the legacy/tier dual path is the debt, target = `brix_cache_store` single-entry with `cache_root` as posix sugar, gated on the cache suite. | M |
+| W9 | Cache-grammar convergence | ✅ **DONE 2026-09-03** — `brix_cache_store` is the one runtime entry; HTTP `brix_cache_root` validates under its public name and lowers to `posix:<canonical-root>` before tier registration. Ambiguous dual configuration is rejected. State and write-staging roles remain distinct. | M |
 
 Standing rules — identical to phase 101, restated because they bind every
 workstream here: no git write commands without explicit OP approval
@@ -719,7 +723,7 @@ fragment headers and X-macro expansions (the tooling that undercounts by
 - A registered name with no prose stub is a GENERATOR ERROR — new
   directives fail CI until someone writes the two sentences (this is the
   R3 failure mode, moved to the only place it can't drift).
-- A `make docs-directives` target regenerates; a guard in the CI lane
+- A CMake `docs-directives` target regenerates; a guard in the CI lane
   diffs committed tables vs regenerated (the `check_config_coverage.py`
   pattern: drift fails loudly).
 - OP-DECIDE carried from 101-W9.4: adopt per-section after reviewing
@@ -779,14 +783,14 @@ finalizes against its OWN root — that invariant survives the move).
 
 ### Steps — three commits, each gated on the GSI suites
 
-- [ ] (a) **gridftp embeds the preamble**: add `common` to the ftp srv
+- [x] (a) **gridftp embeds the preamble**: add `common` to the ftp srv
   conf + `ngx_http_brix_shared_init` in create; rebase every reader
   (`grep -rn '\->export\|\->allow_write\|\->storage_\|\->verify_write'
   src/protocols/gridftp` — the 101-W3 enumeration, re-run); its adopt
   collapses to `brix_stream_common_adopt()` alone; `root_canon` stays
   (per-plane derived value, the 101 finalize-copy rule). Fix the stale
   header comments. ABI-dirty.
-- [ ] (b) **root x509 → preamble**: `certificate`/`_key`/`trusted_ca`/
+- [x] (b) **root x509 → preamble**: `certificate`/`_key`/`trusted_ca`/
   `vomsdir`/`voms_cert_dir` move from `xcf` (and from stream_common's own
   conf) into the preamble; the GSI postconfig that builds
   `gsi_cert`/`gsi_key`/the X509_STORE rebases to `common.*` paths — the
@@ -795,7 +799,7 @@ finalizes against its OWN root — that invariant survives the move).
   handshake: full gridftp 173 + root:// GSI + `test_authdb.py` 9/9 (the
   adopted-cert handshake pin) per commit — no config-parse-only
   verification (101-W3 blocker-2 rule, still binding).
-- [ ] (c) **stream token/TPC/acc + vo_rules → preamble**: flat fields
+- [x] (c) **stream token/TPC/acc + vo_rules → preamble**: flat fields
   relocate; the 101-W4 dual-macro variants collapse to one signature
   where offsets now agree; `_adopt_vo_rules` deletes into the shared
   pattern; `auth_gate.c` reads `common.acc.*`. ABI-dirty; token +
@@ -821,6 +825,16 @@ refuses STOR before credential evaluation through the new field homes.
 `grep -rn 'brix_stream_common_adopt_gsi\|brix_stream_common_adopt_vo_rules' src/`
 returns nothing; gridftp conf embeds the preamble; one `acc` home per
 binary; all suites green.
+
+Acceptance recorded 2026-09-03: an ABI-clean configured `-Werror` build
+completed; `tests/test_gsi_handshake.py` plus its WebDAV/root continuation
+passed 77/77; the complete GridFTP family passed 123 tests with 41
+dependency skips; and `tests/test_authdb.py` passed 9/9 against a separately
+provisioned `TEST_ROOT=/tmp/phase111-authdb`, `TEST_PORT_START=32000` lane.
+The consolidation exposed an absolute-vs-export-relative checksum open; the
+shared POSIX VFS seam now normalizes the name before the rootfd driver/openat2
+call, its regression contract is pinned in
+`test_vfs_consolidation_parity.py`, and the three live Qcksum policies pass.
 
 ---
 
@@ -1146,7 +1160,11 @@ WARN-scoped pending W6. `check_config_coverage` OK; doc guards OK.
    stream-only; unified `brix_acc_audit`/`_refresh` parse on HTTP); port
    ladder LIFECYCLE_SHARED 554→558 for the two new rate-limit subjects.
 
-### Deferred out of this pass (unchanged plan)
+### Historical deferred list after implementation session 1
+
+This list was accurate only before session 2. The later implementation log and
+the top status supersede it; W2, W3.5, W4.1/W4.2/W4.4, W5.2–4, W8 and the W9
+study subsequently landed.
 
 - W1 live s3 bearer-cache test (needs a JWKS+JWT HTTP fixture; the cache
   path is the same engine webdav's live tests pin) — ride the W4.3 jwks
@@ -1209,14 +1227,22 @@ This is the decision-input matrix the phase called for — no directive changed.
 
 ### Recommendation to OP
 
-Target end-state: **`brix_cache_store` as the single entry** with
-`brix_cache_root` becoming its posix shorthand (option-A revisited), gated
-on the cache integration suite proving byte-exact read-through parity plus
-the lazy-HTTP-root and readiness semantics on the tier path. The state-root
-and wt-staging surfaces stay as-is (distinct roles). Sizing: M–L, one
-focused phase, prerequisite = runnable cache suite
-(`test_cmd_cache_pblock_posix.py` family). Do NOT fold the stream
-admission family in the same phase — separate wave via the tier macro.
+Implemented end-state: **`brix_cache_store` is the single runtime entry** and
+HTTP `brix_cache_root` is its POSIX shorthand (option-A revisited). The
+shorthand is canonicalized and checked outside the export, lowered before
+tier registration, and then removed from the legacy VFS-open path so one
+request cannot consult two cache engines. Configuring both forms fails
+closed. The state-root and write-staging surfaces stay distinct. The stream
+admission family remains outside this convergence wave.
+
+Acceptance evidence (2026-09-03): the configured `-Werror` nginx build
+passes; `tests/test_cache_root_unification.py` passes 7/7 (inherited HTTP
+success, explicit dual-config error, and inside-export security negative);
+and an isolated `http-cache` registry lane passes
+`tests/test_http_cache_hit.py` 8/8. That live lane proves first-read fill,
+second-read byte-exact hit, miss fallback, corrupt-uncommitted-entry fallback,
+checksum parity, automatic cache-directory use, and traversal confinement on
+the lowered tier path.
 
 ---
 
@@ -1267,11 +1293,9 @@ Key deviations/verdicts written back:
    mid-session were stale-fleet artifacts, to be re-verified after the
    restart).
 
-Remaining open in the phase: **W4.3** (jwks-refresh HTTP parity — rides the
-JWKS fixture; `auth/token/refresh.c` is stream-conf-typed today), **W6**
-(docs-from-source; R3=~320 stays WARN until then), **W7** (field-home
-convergence; gate open, GSI suites per commit), and the W9 follow-on
-execution phase per the study's recommendation.
+No implementation work remains in this phase. W4.3, W6, W7 and the W9
+cache-grammar follow-on landed on 2026-09-03; their acceptance evidence is
+recorded in the owning sections above.
 
 ### Addendum — fleet-forensics find (2026-08-11, during final verification)
 
@@ -1290,8 +1314,14 @@ in the memory): reap ancient masters by worker-ppid, one `start-all`
 members. After recovery the FULL phase-105 battery is
 **190 passed / 1 skipped / 0 failed**, including the live mirror-to-shadow
 writes, rate-limit-on-S3, and the WLCG bearer conformance suite on the
-current binary. Hardening the attach probe to refuse-the-wipe when any
-catalogue master is alive is left as an ops follow-up (out of this phase's
-scope). In passing, three files still carrying phase-101-retired token
+current binary. Phase 111 B111-010 completed the attach-probe hardening.
+Recovery intersects the configured port's listening socket inode from
+`/proc/net/tcp{,6}` with processes proven to reference the exact `TEST_ROOT`;
+an argv match by itself is not enough. A proven listener attaches without
+lifecycle ownership even when its manifest/ready marker is stale. An unproven
+listener becomes a hard, non-destructive collision and is never reaped or
+cleaned. Success, absent-socket and foreign-socket cases are pinned by
+`tests/test_fleet_listener_ownership.py`, with the conftest decision cases in
+`tests/test_conftest_fleet_lifecycle.py`. In passing, three files still carrying phase-101-retired token
 spellings were swept (`cmdscripts/tpc_fwd_live.py`,
 `cmdscripts/fwd_matrix_live_part3.py`, `tests/nginx.perf.conf`).

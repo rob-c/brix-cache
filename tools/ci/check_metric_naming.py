@@ -39,26 +39,19 @@ REFACTOR_DOCS = os.environ.get("BRIX_METRIC_REFACTOR_DOCS") or \
 # Deprecated metric families: name -> removal phase (the self-deleting pin, M2).
 # A family listed here is expected to still be emitted UNTIL its phase lands.
 DEPRECATED_METRICS = {
-    # phase-110 W11: the µs latency histogram, superseded by
-    # brix_io_latency_seconds. Both emit for the window.
-    "brix_io_latency_usec": "phase-112",
-    # phase-110 W9: the per-plane / per-server byte counters, superseded by the
-    # uniform brix_io_bytes_read/written{proto}. These already carry a
-    # "# DEPRECATED: use brix_io_bytes_*{proto=...}" note in the exporter
-    # (webdav.c / s3.c / stream_family.c); registering them here adds the M2
-    # self-deleting pin so they are removed when phase-112 lands. NB: the
-    # genuinely DIFFERENT byte families are NOT here — brix_cvmfs_bytes_served
-    # (client egress by cache disposition), brix_storage_io_bytes_* (per driver),
-    # brix_vo_bytes_* (per VO) and brix_tpc_bytes_total measure other facts, not
-    # the storage-I/O total, so they are complementary, not duplicates.
-    "brix_webdav_bytes_rx_total": "phase-112",
-    "brix_webdav_bytes_tx_total": "phase-112",
-    "brix_s3_bytes_rx_total": "phase-112",
-    "brix_s3_bytes_tx_total": "phase-112",
-    "brix_bytes_tx_total": "phase-112",
-    "brix_bytes_rx_total": "phase-112",
-    "brix_bytes_root_tx_total": "phase-112",
-    "brix_bytes_root_rx_total": "phase-112",
+    # EMPTY, and that is the correct state: phase 112 removed every family this
+    # registry held (the µs latency histogram brix_io_latency_usec and the eight
+    # per-plane/per-server byte counters that duplicated
+    # brix_io_bytes_read/written{proto}), so M2 has nothing left to pin. A new
+    # entry belongs here ONLY while a family is deliberately emitted alongside
+    # its replacement, and it must name the phase that will delete it — that
+    # phase's doc going IMPLEMENTED is what makes M2 fire.
+    #
+    # NB for whoever adds the next one: the genuinely DIFFERENT byte families
+    # are not deprecations — brix_cvmfs_bytes_served (client egress by cache
+    # disposition), brix_storage_io_bytes_* (per driver), brix_vo_bytes_* (per
+    # VO) and brix_tpc_bytes_total measure other facts, not the storage-I/O
+    # total, so they are complementary rather than duplicates.
 }
 
 # Latency histograms are exempt from the `_seconds` rule only if deprecated.
@@ -69,7 +62,12 @@ _LATENCY_STEMS = ("latency", "duration")
 
 _HELP_RE = re.compile(r"#\s*HELP\s+(brix_[a-z0-9_]+)\b")
 _TYPE_RE = re.compile(r"#\s*TYPE\s+(brix_[a-z0-9_]+)\s+(\w+)")
-_IMPLEMENTED_RE = re.compile(r"\*\*Status:\*\*\s*IMPLEMENTED", re.IGNORECASE)
+# ANCHORED at line start, and character-for-character the twin of the copy in
+# directive_registry_w5.py (R14/R15 key off the same sentence). Unanchored it
+# also matched a doc that merely QUOTES the trigger while explaining the pin,
+# so a still-PLANNED doc documenting the mechanism would arm it immediately.
+_IMPLEMENTED_RE = re.compile(r"^\*\*Status:\*\*\s*IMPLEMENTED",
+                             re.IGNORECASE | re.MULTILINE)
 
 
 def _metric_types():

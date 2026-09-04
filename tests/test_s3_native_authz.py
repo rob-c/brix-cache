@@ -13,29 +13,23 @@ Run:  PYTHONPATH=. python3 -m pytest test_s3_native_authz.py -p no:xdist -q
 """
 
 import os
-import socket
-import subprocess
-import time
 import urllib.request
 import urllib.error
 
 import pytest
 
-from settings import NGINX_BIN
-from ephemeral_port import free_port
+from settings import BIND_HOST, NGINX_BIN
+from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.skipif(
-    not os.path.exists(NGINX_BIN),
-    reason="nginx binary (set NGINX_BIN) not available",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not os.path.exists(NGINX_BIN),
+        reason="nginx binary (set NGINX_BIN) not available"),
+    pytest.mark.uses_lifecycle_harness,
+    pytest.mark.xdist_group("lc-s3-native-authz"),
+]
 
-
-def _free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", free_port()))  # net-literal-allow: loopback mock shim; leased mock-range port (never kernel-assigned)
-    p = s.getsockname()[1]
-    s.close()
-    return p
+_SERVER = "lc-s3-native-authz"
 
 
 def _http_code(url):
@@ -49,7 +43,7 @@ def _http_code(url):
 
 
 @pytest.fixture()
-def s3_authdb_server(tmp_path):
+def s3_authdb_server(lifecycle, tmp_path):
     data = tmp_path / "data"
     for sub in ("grant", "private", "host"):
         (data / sub).mkdir(parents=True)
@@ -59,40 +53,14 @@ def s3_authdb_server(tmp_path):
     # is covered by NO rule -> default-deny.
     authdb.write_text("u * /grant rl\np 127.0.0.1 /host r\np ::1 /host r\n")  # net-literal-allow: loopback literal is the subject under test
 
-    port = _free_port()
-    (tmp_path / "logs").mkdir()
-    conf = tmp_path / "nginx.conf"
-    conf.write_text(
-        f"worker_processes 1; daemon off; error_log {tmp_path}/logs/e.log info;\n"
-        f"pid {tmp_path}/logs/p.pid;\n"
-        "events { worker_connections 64; }\n"
-        "http {\n"
-        f"  access_log off; client_body_temp_path {tmp_path}/logs/cbt;\n"
-        f"  server {{ listen 127.0.0.1:{port};\n"  # net-literal-allow: loopback literal is the subject under test
-        "    location / { brix_s3 on; brix_s3_bucket b;\n"
-        f"      brix_storage_backend posix:{data};\n"
-        f"      brix_authdb {authdb}; }}\n"
-        "  }\n"
-        "}\n")
-
-    proc = subprocess.Popen([NGINX_BIN, "-c", str(conf), "-p", str(tmp_path)],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    # wait for the listener
-    for _ in range(50):
-        try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.2):  # net-literal-allow: probes the loopback mock shim
-                break
-        except OSError:
-            time.sleep(0.1)
-    else:
-        proc.terminate()
-        pytest.skip("s3 test server did not come up")
-    yield f"http://127.0.0.1:{port}/b"  # net-literal-allow: URL targets the loopback mock shim
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name=_SERVER,
+        template="nginx_lc_s3_native_authz.conf",
+        data_root=str(data),
+        protocol="s3",
+        template_values={"BIND_HOST": BIND_HOST, "AUTHDB": str(authdb)},
+        reason="native authdb ACL enforcement on the S3 plane"))
+    yield f"http://{BIND_HOST}:{endpoint.port}/b"
 
 
 def test_authdb_grants_rule_covered_path(s3_authdb_server):

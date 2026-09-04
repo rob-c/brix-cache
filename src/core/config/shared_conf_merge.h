@@ -75,6 +75,9 @@ brix_shared_merge_backend(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev,
     ngx_http_brix_shared_conf_t *conf)
 {
     ngx_conf_merge_str_value(conf->storage_backend, prev->storage_backend, "");
+    ngx_conf_merge_str_value(conf->n2n_scheme, prev->n2n_scheme, "");
+    ngx_conf_merge_str_value(conf->n2n_pool, prev->n2n_pool, "");
+    ngx_conf_merge_str_value(conf->n2n_prefix, prev->n2n_prefix, "");
     ngx_conf_merge_str_value(conf->storage_credential, prev->storage_credential,
                              "");
     /* Defaults to a RAM-backed (tmpfs) store so delegated keys never touch
@@ -228,6 +231,8 @@ brix_shared_merge_authx(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev,
     ngx_conf_merge_value(conf->durable_publish, prev->durable_publish, 1);   /* phase-107 C3 */
     ngx_conf_merge_uint_value(conf->lock_enforcement, prev->lock_enforcement,
                               0 /* strict — phase-107 C7, fails toward enforcement */);
+    ngx_conf_merge_uint_value(conf->authz_backstop, prev->authz_backstop,
+                              1 /* observe — phase-108 C12 rollout */);
     ngx_conf_merge_str_value(conf->crl, prev->crl, "");  /* W4 */
     ngx_conf_merge_uint_value(conf->signing_policy_mode, prev->signing_policy_mode,
                               BRIX_SP_MODE_ON);
@@ -235,6 +240,8 @@ brix_shared_merge_authx(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev,
     ngx_conf_merge_str_value(conf->vomsdir, prev->vomsdir, "");  /* W4 */
     ngx_conf_merge_str_value(conf->voms_cert_dir, prev->voms_cert_dir, "");  /* W4 */
     ngx_conf_merge_str_value(conf->token_jwks, prev->token_jwks, "");  /* W4 */
+    ngx_conf_merge_msec_value(conf->token_jwks_refresh_interval,
+                              prev->token_jwks_refresh_interval, 0);
     ngx_conf_merge_str_value(conf->token_issuer, prev->token_issuer, "");
     ngx_conf_merge_str_value(conf->token_audience, prev->token_audience, "");
     ngx_conf_merge_str_value(conf->token_config, prev->token_config, "");  /* W4 */
@@ -321,6 +328,23 @@ brix_shared_merge_net(ngx_http_brix_shared_conf_t *prev,
                          prev->tpc_require_source_size, 0);
     ngx_conf_merge_str_value(conf->tpc_verify_checksum,
                              prev->tpc_verify_checksum, "");  /* W4: "" = off */
+    ngx_conf_merge_value(conf->tpc_outbound_tls,
+                         prev->tpc_outbound_tls, 0);
+    ngx_conf_merge_value(conf->tpc_outbound_passthrough,
+                         prev->tpc_outbound_passthrough, 1);
+    ngx_conf_merge_str_value(conf->tpc_outbound_bearer_file,
+                             prev->tpc_outbound_bearer_file, "");
+    ngx_conf_merge_str_value(conf->tpc_outbound_token_endpoint,
+                             prev->tpc_outbound_token_endpoint, "");
+    ngx_conf_merge_str_value(conf->tpc_outbound_client_id,
+                             prev->tpc_outbound_client_id, "");
+    ngx_conf_merge_str_value(conf->tpc_outbound_client_secret,
+                             prev->tpc_outbound_client_secret, "");
+    ngx_conf_merge_str_value(conf->tpc_outbound_scope,
+                             prev->tpc_outbound_scope, "storage.read");
+    ngx_conf_merge_str_value(conf->certificate, prev->certificate, "");
+    ngx_conf_merge_str_value(conf->certificate_key,
+                             prev->certificate_key, "");
 }
 
 /*

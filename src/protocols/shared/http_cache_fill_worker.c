@@ -32,6 +32,7 @@ brix_http_cache_fill_thread(void *data, ngx_log_t *log)
 {
     brix_http_cache_fill_ctx_t *t = data;
     brix_fill_retry_t           rs;
+    brix_sd_cred_t              cred;
     unsigned                      n_eps;
     char                          kbuf[256];
 
@@ -39,16 +40,18 @@ brix_http_cache_fill_thread(void *data, ngx_log_t *log)
                 brix_sd_cache_source_instance(t->inst));
     brix_fill_retry_init(&rs, t->client_hold, t->max_life, &t->waiters_n,
                            n_eps);
+    brix_http_fill_cred_view(&t->cred, &cred);
     for ( ;; ) {
         errno = 0;
         t->attempts++;
-        /* HTTP cache fill uses the export's service credential only — no
-         * per-user delegation is carried on this path (NULL cred). phase-92:
+        /* The entry seam resolved and detached the request credential before
+         * any origin contact. phase-92:
          * opt into store-then-evict passthrough (allow_pt=1) so a remote object
          * the admission policy declines but that fits the passthrough spool cap
          * is filled, served to every coalesced waiter as a transient hit, and
          * evicted by brix_http_cache_fill_done once all fds are open. */
-        t->result = brix_sd_cache_fill_key_ex(t->inst, t->key, NULL, 1,
+        t->result = brix_sd_cache_fill_key_ex(t->inst, t->key,
+                                              t->cred.use_cred ? &cred : NULL, 1,
                                               &t->passthrough);
         t->err = errno;
         switch (brix_fill_classify(t->result, t->err, &rs)) {
@@ -251,6 +254,7 @@ brix_http_cache_fill_done(ngx_event_t *ev)
             "un-admissible object then dropped it from the cache", t->key);
     }
 
+    brix_http_fill_cred_wipe(&t->cred);
     free(t->task);           /* the calloc'd task+ctx block (task is first) */
 }
 

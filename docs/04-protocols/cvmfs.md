@@ -375,7 +375,7 @@ worker keeps a 512-slot direct-mapped memo (`gate.c`): FNV-1a-64 of the
 full URI → `(hash, until)` slot, TTL `brix_cvmfs_negative_ttl` (default
 10 s). Population happens in the request-finalization observer — every
 serve path that ends 404 feeds it, whatever produced the status. A memo
-hit answers 404 locally (`$cvmfs_cache = neg`,
+hit answers 404 locally (`$brix_cache_status = NEGHIT`,
 `brix_cvmfs_negative_hits_total`). Slot collisions merely overwrite
 (one extra origin round-trip); false positives would need a full 64-bit
 collision and would self-heal in `negative_ttl` seconds anyway. 404 is a
@@ -923,7 +923,7 @@ inside the same process-wide metrics zone as `stream`, `webdav`, `s3` and
 hit/miss, credential gate) grew a `cvmfs` label with zero new plumbing, and the
 live dashboard's transfer table tags cvmfs requests. Which of those rows carry
 data is a deliberate split — the namespace ops come from the VFS observer and
-the cache disposition from `brix_cache_hits_total`/`_misses_total{proto="cvmfs"}`,
+the cache disposition from `brix_cache_requests_total{proto="cvmfs",cache_status}`,
 while the served-bytes split stays authoritative in `brix_cvmfs_bytes_served_total`
 rather than being duplicated into a unified `op="read"` row (see the single-owner
 rule in
@@ -931,15 +931,18 @@ rule in
 
 ### Access log variables
 
-Registered at preconfiguration: `$cvmfs_class` (`cas|manifest|geo|reject|-`),
-`$cvmfs_cache` (`hit|fill|stale|neg|-`), `$cvmfs_origin` (`host:port` that
-answered the most recent fill; display-only, racy-by-design under
-concurrent fills). Suggested format:
+Registered at preconfiguration: `$cvmfs_class` (`cas|manifest|geo|reject|-`)
+and `$cvmfs_origin` (`host:port` that answered the most recent fill;
+display-only, racy-by-design under concurrent fills). The cache
+disposition is the cross-plane `$brix_cache_status`
+(`HIT|MISS|NEGHIT|-`): phase 112 removed the plane-local `$cvmfs_cache`
+spelling of the same fact, whose `hit`/`fill`/`neg` words map onto
+`HIT`/`MISS`/`NEGHIT` one-for-one. Suggested format:
 
 ```nginx
 log_format cvmfs '$remote_addr [$time_local] "$request" $status '
-                 '$body_bytes_sent class=$cvmfs_class cache=$cvmfs_cache '
-                 'origin=$cvmfs_origin';
+                 '$body_bytes_sent class=$cvmfs_class '
+                 'cache=$brix_cache_status origin=$cvmfs_origin';
 ```
 
 ### Per-request trace logging (file queried + upstream requests)
@@ -1069,8 +1072,8 @@ run_cvmfs_classify: 15 checks OK
   ok   metrics: cas requests counted (49)
   ok   metrics: proto=cvmfs on module-wide families
   ok   metrics: fill bytes counted
-  ok   access log: cold read logged as class=cas cache=fill
-  ok   access log: warm read logged as cache=hit
+  ok   access log: cold read logged as class=cas cache=MISS
+  ok   access log: warm read logged as cache=HIT
   ok   healthz: cvmfs_origins present
 === run_cvmfs_verify.sh ===
   ok   corrupt fill → 502, not admitted

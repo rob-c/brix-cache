@@ -130,7 +130,9 @@ brix_handle_host_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                                  "identity allocation failed");
     }
 
-    brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 0);
+    ctx->login.session_slot_hint =
+        brix_session_register(ctx->login.sessid, ctx->login.dn,
+                              ctx->login.vo_list, 0);
 
     brix_sanitize_log_string(host, safe_host, sizeof(safe_host));
     ngx_log_error(NGX_LOG_INFO, c->log, 0,

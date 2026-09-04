@@ -90,6 +90,7 @@ brix_vfs_mkdir_parent_path(brix_vfs_ctx_t *ctx, const char *path)
 {
     char       *parent;
     char       *slash;
+    char        physical[PATH_MAX];
     ngx_int_t   rc;
 
     if (ctx->root_canon == NULL || path == NULL) {
@@ -108,9 +109,13 @@ brix_vfs_mkdir_parent_path(brix_vfs_ctx_t *ctx, const char *path)
 
     *slash = '\0';
 
-    rc = brix_vfs_backend_mkpath(ctx->root_canon,
-             brix_vfs_export_relative_root(parent, ctx->root_canon),
-             0755, ctx->log);
+    if (brix_path_resolved_to_pfn(ctx, parent, physical, sizeof(physical))
+        != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    rc = brix_vfs_backend_mkpath(ctx->root_canon, physical, 0755, ctx->log);
     if (rc != NGX_DECLINED) {
         return (rc == 0) ? NGX_OK : NGX_ERROR;
     }
@@ -164,9 +169,11 @@ brix_vfs_open_precheck(brix_vfs_ctx_t *ctx, ngx_uint_t flags, const char *path)
         return NGX_ERROR;
     }
 
-    if ((flags & BRIX_VFS_O_WRITE)
-        && brix_vfs_require_mutation(ctx, BRIX_VFS_MUTATE_OPEN) != NGX_OK)
-    {
+    if (flags & BRIX_VFS_O_WRITE) {
+        if (brix_vfs_gate_mutation(ctx, BRIX_VFS_MUTATE_OPEN) != NGX_OK) {
+            return NGX_ERROR;
+        }
+    } else if (brix_vfs_require_authorized_read(ctx) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -268,11 +275,18 @@ brix_vfs_open_via_driver(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
     int              use_cred = 0;
     unsigned         cache_outcome;
     uint64_t         cache_evicted;
+    char             physical[PATH_MAX];
 
     if (ctx->sd == NULL || ctx->sd->driver == brix_sd_default_driver()
         || ctx->sd->driver->open == NULL)
     {
         return NGX_DECLINED;
+    }
+    if (brix_path_resolved_to_pfn(ctx, path, physical, sizeof(physical))
+        != NGX_OK)
+    {
+        brix_vfs_open_set_err(err_out, errno);
+        return NGX_ERROR;
     }
 
     ngx_memzero(&ucred, sizeof(ucred));
@@ -282,8 +296,7 @@ brix_vfs_open_via_driver(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
         return NGX_ERROR;
     }
 
-    o = brix_sd_open_maybe_cred(ctx->sd,
-                                brix_vfs_export_relative(ctx, path),
+    o = brix_sd_open_maybe_cred(ctx->sd, physical,
                                 brix_vfs_to_sd_flags(flags), 0644,
                                 use_cred ? &ucred : NULL, &sderr);
     /* The origin session (if any) has consumed the per-user secret; erase the
@@ -354,7 +367,8 @@ static ngx_fd_t
 brix_vfs_open_confined_fd(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
     const char *path, int *err_out)
 {
-    int oflags = brix_vfs_open_flags(flags);
+    const char *logical = brix_vfs_export_relative(ctx, path);
+    int         oflags = brix_vfs_open_flags(flags);
 
     if (ctx->rootfd >= 0) {
         /*
@@ -374,7 +388,7 @@ brix_vfs_open_confined_fd(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
             brix_sd_obj_t *o;
             int            sderr = 0;
 
-            o = ctx->sd->driver->open(ctx->sd, path,
+            o = ctx->sd->driver->open(ctx->sd, logical,
                                       brix_vfs_to_sd_flags(flags), 0644,
                                       &sderr);
             if (o == NULL) {
@@ -384,7 +398,7 @@ brix_vfs_open_confined_fd(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
             }
             return o->fd;
         }
-        return brix_open_beneath(ctx->rootfd, path, oflags, 0644);
+        return brix_open_beneath(ctx->rootfd, logical, oflags, 0644);
     }
 
     if (ctx->root_canon != NULL) {

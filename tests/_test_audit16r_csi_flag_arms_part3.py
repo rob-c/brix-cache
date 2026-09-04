@@ -77,7 +77,9 @@ class TestTheMismatchErrorCode:
         the engine".  A handle with a CSI engine is excluded from zero-copy by
         the gate itself, so every verifying read really does run through the
         buffered path that §D measures."""
-        assert "&& ctx->files[idx].csi == NULL" in _squashed(READ_SENDFILE_C)
+        body = _squashed(READ_SENDFILE_C)
+        assert "ctx->files[io->idx].csi != NULL" in body
+        assert "return NGX_INVALID_FILE;" in body
 
 
 def _csi_mismatch_accesses():

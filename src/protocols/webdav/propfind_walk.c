@@ -28,9 +28,8 @@ static void
 propfind_dir_ctx(ngx_http_request_t *r, const char *root_canon,
     const char *dir_path, brix_vfs_ctx_t *vctx)
 {
-    int is_tls = brix_http_request_is_tls(r);
-    brix_vfs_ctx_init(vctx, propfind_pool(r), r->connection->log, BRIX_PROTO_WEBDAV,
-        root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL, dir_path);
+    (void) root_canon;
+    webdav_vfs_ctx_build(r, dir_path, vctx);
 }
 
 

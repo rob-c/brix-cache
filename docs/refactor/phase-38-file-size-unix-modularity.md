@@ -1,6 +1,11 @@
 # Phase 38 — File-Size Discipline / Unix-Style Modularity
 
-**Status:** PLAN ONLY (no code yet) · **Authored:** 2026-06-14 · **Revised:** 2026-06-26 (scope extended to `shared/` + `client/`; inventory re-measured on *logical* LoC) · **Owner:** OP (Rob)
+**Status:** IMPLEMENTED, THEN REGRESSED · **Authored:** 2026-06-14 · **Current
+reconciliation:** 2026-09-02. The 600-line gates and original burndown landed,
+but the current tree again has five native and five Python offenders. Exact
+files and close commands are B111-002/B111-003 in
+`phase-111-repository-work-burndown.md`. The historical execution record below
+remains accurate for its landing date. · **Owner:** OP (Rob)
 
 > *"Write programs that do one thing and do it well."* This phase operationalizes
 > a principle the project **already states but does not enforce**:
@@ -2854,4 +2859,3 @@ int watch_write_prom_atomic(const char *path, const watch_sample *samples, int n
 void watch_sleep(int seconds);
 #endif
 ```
-

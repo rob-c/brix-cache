@@ -25,6 +25,11 @@ from settings import (
     SERVER_HOST,
 )
 
+# Every case mutates the main fleet's shared export and the autouse fixture
+# deliberately sweeps the common ``_fstest_`` namespace.  Keep the module on
+# one xdist worker so one case cannot erase another case's in-flight fixture.
+pytestmark = pytest.mark.xdist_group("fs-ops-shared-data")
+
 def _phase_cleanup_1_next(full):
     if os.path.isdir(full):
         # remove tree

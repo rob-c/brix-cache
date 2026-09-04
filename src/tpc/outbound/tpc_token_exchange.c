@@ -47,7 +47,7 @@ static int
 tpc_rfc8693_read_subject(brix_tpc_pull_t *t, char *subject_token,
                          size_t subject_token_sz)
 {
-    if (brix_token_read_file(&t->conf->tpc_outbound_bearer_file,
+    if (brix_token_read_file(&t->conf->common.tpc_outbound_bearer_file,
                                (u_char *) subject_token, subject_token_sz,
                                NULL, NULL, "TPC token")
         != NGX_OK)
@@ -161,7 +161,7 @@ tpc_rfc8693_build_argv(brix_tpc_pull_t *t, char **curl_argv,
     /* W3 — end-of-options terminator so the endpoint URL can never be parsed
      * as a curl option even if a misconfigured endpoint begins with '-'. */
     curl_argv[argc++] = "--";
-    curl_argv[argc++] = (char *) t->conf->tpc_outbound_token_endpoint.data;
+    curl_argv[argc++] = (char *) t->conf->common.tpc_outbound_token_endpoint.data;
     curl_argv[argc++] = NULL;
 }
 
@@ -249,10 +249,10 @@ tpc_token_rfc8693(brix_tpc_pull_t *t, char *token_out, size_t token_out_sz)
     body_arg[0] = '@';
     ngx_memcpy(body_arg + 1, body_file, body_len + 1);
 
-    if (t->conf->tpc_outbound_client_id.len > 0
-        && t->conf->tpc_outbound_client_secret.len > 0) {
-        client_id_len = t->conf->tpc_outbound_client_id.len;
-        client_secret_len = t->conf->tpc_outbound_client_secret.len;
+    if (t->conf->common.tpc_outbound_client_id.len > 0
+        && t->conf->common.tpc_outbound_client_secret.len > 0) {
+        client_id_len = t->conf->common.tpc_outbound_client_id.len;
+        client_secret_len = t->conf->common.tpc_outbound_client_secret.len;
         if (client_secret_len > NGX_MAX_PATH - 2
             || client_id_len > NGX_MAX_PATH - client_secret_len - 2) {
             unlink(body_file);  /* vfs-seam-allow: DOMAIN_CREDENTIAL — staged credential temp, not export storage */
@@ -270,11 +270,11 @@ tpc_token_rfc8693(brix_tpc_pull_t *t, char *token_out, size_t token_out_sz)
             t->xrd_error = kXR_IOError;
             return -1;
         }
-        ngx_memcpy(basic_auth, t->conf->tpc_outbound_client_id.data,
+        ngx_memcpy(basic_auth, t->conf->common.tpc_outbound_client_id.data,
                    client_id_len);
         basic_auth[client_id_len] = ':';
         ngx_memcpy(basic_auth + client_id_len + 1,
-                   t->conf->tpc_outbound_client_secret.data,
+                   t->conf->common.tpc_outbound_client_secret.data,
                    client_secret_len);
         basic_auth[auth_len] = '\0';
     }

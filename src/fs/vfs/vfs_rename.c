@@ -32,7 +32,8 @@
  * optional was_dir flag; see vfs.h. */
 ngx_int_t
 brix_vfs_rename_path(brix_sd_instance_t *sd, ngx_log_t *log,
-    const char *root_canon, const char *src, const char *dst,
+    const char *root_canon, const brix_n2n_cfg_t *n2n,
+    const char *src, const char *dst,
     unsigned overwrite, int *was_dir_out)
 {
     brix_ns_result_t res;
@@ -42,9 +43,18 @@ brix_vfs_rename_path(brix_sd_instance_t *sd, ngx_log_t *log,
     if (sd != NULL && sd->driver != brix_sd_default_driver()
         && sd->driver->rename != NULL)
     {
-        const char *s = brix_vfs_export_relative_root(src, root_canon);
-        const char *d = brix_vfs_export_relative_root(dst, root_canon);
-        ngx_int_t   rc = sd->driver->rename(sd, s, d, overwrite ? 0 : 1);
+        char      s[PATH_MAX];
+        char      d[PATH_MAX];
+        ngx_int_t rc;
+
+        if (brix_path_export_to_pfn(root_canon, n2n, src, s, sizeof(s))
+                != NGX_OK
+            || brix_path_export_to_pfn(root_canon, n2n, dst, d, sizeof(d))
+                != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+        rc = sd->driver->rename(sd, s, d, overwrite ? 0 : 1);
 
         if (was_dir_out != NULL) {
             brix_sd_stat_t st;
@@ -83,7 +93,7 @@ static ngx_int_t
 brix_vfs_two_key_gate(brix_vfs_ctx_t *ctx, const brix_path_result_t *second,
     const char *path, uint64_t start, const brix_sd_driver_t *drv,
     brix_sd_ucred_t *store, brix_sd_cred_t *cred, int *use_cred,
-    const char **a_key, const char **b_key)
+    char a_key[PATH_MAX], char b_key[PATH_MAX])
 {
     int cred_err = 0;
     int saved_errno;
@@ -105,9 +115,17 @@ brix_vfs_two_key_gate(brix_vfs_ctx_t *ctx, const brix_path_result_t *second,
                                 NGX_ERROR, saved_errno, start);
         return NGX_ERROR;
     }
-    *a_key = brix_vfs_export_relative(ctx, path);
-    *b_key = brix_vfs_export_relative(ctx,
-                                      (const char *) second->resolved.data);
+    if (brix_path_resolved_to_pfn(ctx, path, a_key, PATH_MAX) != NGX_OK
+        || brix_path_resolved_to_pfn(ctx,
+               (const char *) second->resolved.data, b_key, PATH_MAX) != NGX_OK)
+    {
+        saved_errno = errno;
+        brix_sd_ucred_wipe(store);
+        brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,
+                                NGX_ERROR, saved_errno, start);
+        errno = saved_errno;
+        return NGX_ERROR;
+    }
     return NGX_OK;
 }
 
@@ -126,11 +144,11 @@ brix_vfs_rename_driver(brix_vfs_ctx_t *ctx, const brix_path_result_t *dst,
     ngx_int_t rc;
     int use_cred = 0;
     int saved_errno;
-    const char *src_key;
-    const char *dst_key;
+    char src_key[PATH_MAX];
+    char dst_key[PATH_MAX];
 
     if (brix_vfs_two_key_gate(ctx, dst, path, start, drv, &store, &cred,
-                              &use_cred, &src_key, &dst_key) != NGX_OK)
+                              &use_cred, src_key, dst_key) != NGX_OK)
     {
         return NGX_ERROR;
     }
@@ -197,6 +215,15 @@ brix_vfs_two_name_entry(brix_vfs_ctx_t *ctx, const brix_path_result_t *second,
         errno = EINVAL;
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,
                                   NGX_ERROR, EINVAL, start);
+        return NGX_ERROR;
+    }
+    if (brix_vfs_require_authorized_target(ctx,
+            (const char *) second->resolved.data,
+            BRIX_VFS_MUTATE_RENAME) != NGX_OK)
+    {
+        saved_errno = errno;
+        brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,
+                                  NGX_ERROR, saved_errno, start);
         return NGX_ERROR;
     }
 
@@ -302,11 +329,11 @@ brix_vfs_exchange_driver(brix_vfs_ctx_t *ctx, const brix_path_result_t *other,
     ngx_int_t rc;
     int use_cred = 0;
     int saved_errno;
-    const char *a_key;
-    const char *b_key;
+    char a_key[PATH_MAX];
+    char b_key[PATH_MAX];
 
     if (brix_vfs_two_key_gate(ctx, other, path, start, drv, &store, &cred,
-                              &use_cred, &a_key, &b_key) != NGX_OK)
+                              &use_cred, a_key, b_key) != NGX_OK)
     {
         return NGX_ERROR;
     }

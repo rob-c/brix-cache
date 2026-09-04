@@ -56,7 +56,7 @@ def test_phase6_unified_metrics_observability_is_wired():
         ["brix_auth_total", "brix_tpc_transfers_total"],
     )
     _assert_markers(
-        "src/fs/vfs/vfs_internal.h",
+        "src/fs/vfs/vfs_observe_internal.h",
         ["brix_metric_op_done(", "brix_access_log_emit("],
     )
     # The metadata ops carry the observe hook directly; data-plane read/write are
@@ -71,7 +71,7 @@ def test_phase6_unified_metrics_observability_is_wired():
         _assert_markers(relpath, ["brix_vfs_observe_"])
     _assert_markers(
         "src/fs/vfs/vfs_open.c",
-        ["brix_metric_cache_result("],
+        ["brix_vfs_observe_cache_result("],
     )
     _assert_markers(
         "src/protocols/webdav/metrics.c",

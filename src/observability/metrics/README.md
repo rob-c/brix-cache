@@ -44,7 +44,7 @@ per-user views are made safe with bounded LRU tables and FNV-1a hashing
 ## Label schema
 
 The unified families (`brix_io_*`, `brix_auth_total`, `brix_tpc_*`,
-`brix_cache_hits_total`/`_misses_total`/`_bytes_evicted_total`, `brix_cred_*`)
+`brix_cache_requests_total`/`brix_cache_bytes_evicted_total`, `brix_cred_*`)
 carry a `proto` label. **Every protocol plane is in the zone** — the value set is
 generated from the single X-macro declaration in `core/types/proto_list.h`, so it
 cannot drift from the enum:
@@ -72,8 +72,8 @@ The remaining label keys, and their closed value sets:
 | `status` | I/O and TPC: `ok`, `not_found`, `forbidden`, `io_error`, `other`. Auth: `ok`, `fail`. Legacy per-server families: `ok`, `error` |
 | `method` | `none`, `gsi`, `token`, `sss`, `s3key`, `unix`, `krb5`, `host`, `pwd` |
 | `direction` | `pull`, `push` |
-| `le` | the eight fixed microsecond bounds in `brix_latency_bounds[]` plus `+Inf` |
-| `port`, `auth` | server configuration, legacy per-listener families only |
+| `le` | eight fixed bounds exported in seconds plus `+Inf` (stored internally as microseconds) |
+| `port`, `auth` | server configuration on the remaining listener-scoped families |
 
 **INVARIANT #8 is a security boundary, not a style rule.** Never add a label
 whose value space is unbounded or derived from client input — paths, DNs, token
@@ -111,6 +111,7 @@ deliberately-invalid example or a metric a design doc has only proposed.
 | File | Responsibility |
 |---|---|
 | `metrics.h` | The shared-memory ABI. Defines `ngx_brix_metrics_t` (root SHM object) and its sub-structs (`ngx_brix_srv_metrics_t` per-listener, `ngx_brix_webdav_metrics_t`, `ngx_brix_s3_metrics_t`, `ngx_brix_proxy_metrics_t` + per-upstream slice, `ngx_brix_unified_metrics_t`, VO/user tracking tables), all `BRIX_OP_*` / `BRIX_WEBDAV_*` / `BRIX_S3_*` slot constants, cache-line alignment macro, and `extern ngx_brix_shm_zone`. Included by both modules. |
+| `metrics_unified_layout.h` | Fixed shared-memory layout of the protocol-neutral counters embedded by `metrics.h`; separated so the unified ABI remains reviewable. |
 | `unified.h` | Protocol-neutral enums (`brix_proto_t`, `brix_metric_op_t`, `brix_err_class_t`, auth/TPC slots, latency-bucket count) and the public `brix_metric_*` write API used cross-protocol. |
 | `metrics_internal.h` | Module-private types: location config (`ngx_http_brix_metrics_loc_conf_t`), the `metrics_writer_t` buffer-chain writer, and every cross-file exporter/writer prototype. |
 | `metrics_macros.h` | The increment macros (`BRIX_ATOMIC_INC/DEC/ADD`, `BRIX_SRV_/WEBDAV_/S3_/PROXY_METRIC_INC/ADD`, per-upstream `BRIX_PROXY_UP_*`) plus the `brix_metrics_shared()` accessor with its `NULL`/sentinel-`1` guard. |
@@ -262,11 +263,10 @@ path-confinement rejections feed `path_depth_violations_total` from
   `brix_srv_shm_zone == NULL`. Its `server=` label is the one place a
   host:port string appears — acceptable because cluster membership is bounded and
   operator-controlled.
-- **Legacy counters are deprecated, not removed.** `stream.c`/`webdav.c`/`s3.c`
-  still emit `brix_bytes_*`/`brix_webdav_bytes_*`/`brix_s3_bytes_*` with a
-  `# DEPRECATED:` comment pointing at the unified `brix_io_bytes_*{proto=...}`
-  family; `unified.c` folds the legacy values into the unified output so dashboards
-  can migrate without double-counting confusion.
+- **Byte exposition has one owner.** Existing stream/WebDAV/S3 wire-ledger
+  counters remain internal accounting inputs, folded once into
+  `brix_io_bytes_{read,written}{proto}`. Phase 112 removed their duplicate
+  Prometheus family names; adding a second exposition is a compatibility bug.
 - **VO/user LRU wrap reuses slot 0.** When a tracking table fills,
   `tracking.c` increments `overflow_total`/`evictions_total` and recycles slot 0
   rather than failing — counts after overflow are approximate by construction.

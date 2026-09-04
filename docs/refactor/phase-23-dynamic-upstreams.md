@@ -1,6 +1,9 @@
 # Phase 23 — Dynamic Upstreams
 
-**Status:** ✅ Implemented (one security item pending — see status section)  
+**Status:** ✅ IMPLEMENTED / CLOSED (reconciled 2026-09-03). Admin-API rate
+limiting landed on 2026-07-20. DELETE now atomically refuses a proxy backend
+while `in_flight > 0`, preserves the live slot, and returns 409; there is no
+unsafe force-remove mode.
 **Depends on:** Phase 22 (health checks) recommended but not required  
 **Touches:** `src/observability/dashboard/`, `src/net/manager/`, `src/protocols/webdav/`  
 **Net LoC:** +~920 new, ~60 modified
@@ -12,8 +15,8 @@
 Audited against the code under `src/`. **Both surfaces shipped**: the REST admin
 write API (`/xrootd/api/v1/admin/...`) for the stream cluster registry and a
 dynamic SHM-backed WebDAV proxy backend pool with drain support. The two new
-source files exist and are registered. The main gap vs. the plan is the admin-API
-**rate limiting** (Security Design), which is not implemented.
+source files exist and are registered. The original rate-limit gap is closed;
+the remaining question is active-backend DELETE behavior.
 
 | Step | Capability | Status | Evidence / divergence |
 |------|-----------|--------|-----------------------|
@@ -35,7 +38,7 @@ source files exist and are registered. The main gap vs. the plan is the admin-AP
 3. **Step G** exposes proxy-pool state through the admin/snapshot path, not a
    distinct unauthenticated read endpoint.
 
-### Pending / not done
+### Closure record
 
 - **Admin-API rate limiting (Security Design):** ✅ **implemented (2026-07-20).**
   `brix_admin_dispatch()` now runs a per-source-IP leaky-bucket gate between auth
@@ -49,10 +52,15 @@ source files exist and are registered. The main gap vs. the plan is the admin-AP
   `brix_admin_rate_limit off | <writes/min> [<reads/min>]` (0 = unlimited for
   that class). Tests: `tests/test_admin_rate_limit.py` (5). See § Rate limiting
   below for the full record.
-- **Force-remove semantics:** the drain → poll-`in_flight` → DELETE workflow is
-  supported, but verify whether `DELETE` of a backend with `in_flight > 0` hard-fails
-  (409) or removes regardless — the `xrootd_proxy_pool_in_flight()` helper exists for
-  the handler to enforce this.
+- **Active-backend deletion (2026-09-03):** `brix_proxy_pool_remove()` returns a
+  typed `NOT_FOUND` / `REMOVED` / `BUSY` result. It tests the atomic
+  `in_flight` counter and clears a quiescent slot while holding the same SHM
+  mutex used by selection, so a new reservation cannot race the decision.
+  `admin_proxy_one()` maps `BUSY` to `409 Conflict` with `error=in_flight` and
+  an audit result of `in_flight`. The source-contract regressions cover the
+  busy/security leg and the quiescent-success ordering; the live degraded
+  surface continues to cover not-found because the retired reverse-proxy
+  enabler intentionally does not create the pool zone.
 
 ---
 

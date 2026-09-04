@@ -1,6 +1,8 @@
 # Phase 47 — Operability & packaging: make nginx-xrootd easy to install, run, and operate
 
-**Status:** IMPLEMENTED 2026-06-21 (W1–W5; W6 deferred as designed).
+**Status:** IMPLEMENTED 2026-06-21. W1–W5 and the formerly deferred W6a–W6c
+all landed; the chronological implementation notes below supersede the old W6
+deferral wording.
 
 ## Implementation notes (what actually shipped)
 

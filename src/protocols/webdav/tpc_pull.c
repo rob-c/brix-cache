@@ -48,16 +48,10 @@ static ngx_int_t
 webdav_tpc_probe(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf, const char *path, struct stat *sb)
 {
-    ngx_http_brix_webdav_req_ctx_t *rx =
-        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     brix_vfs_ctx_t   vctx;
     brix_vfs_stat_t  vst;
-    int                is_tls = brix_http_request_is_tls(r);
 
-    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
-        conf->common.root_canon, conf->common.cache_root_canon,
-        brix_vfs_policy_from_write_enable(conf->common.allow_write),
-        is_tls, (rx != NULL) ? rx->identity : NULL, path);
+    webdav_vfs_ctx_build(r, path, &vctx);
     if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_OK) {
         return NGX_DECLINED;
     }

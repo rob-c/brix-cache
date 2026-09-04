@@ -1,6 +1,14 @@
 # Phase 58 — XRootD parity batch (hyper-detailed design record)
 
-**Status:** plan / spec — **implementation in progress** (see §0.IMPL)
+**Status:** HISTORICAL DESIGN / IMPLEMENTED FOR THE SUPPORTED SURFACE
+(reconciled 2026-09-03). Later phases closed the CNS multi-worker inventory and
+cinfo partial-read path. Phase 111 closed the two optional tails: root/TPC close
+does not synchronously rescan large objects and no consumer requires an async
+checksum-on-ingest job; Qcksum and the HTTP XrdDig surface already provide the
+supported digest/diagnostic contracts, so a second root:// XrdDig/dirlist wire
+surface is not justified. Reopen either only with a named consumer and its own
+protocol/latency acceptance phase. The §0.IMPL table is chronological, not the
+current queue.
 **Date:** 2026-06-26
 **Owner decisions:** resolved — see §Z (ADR log). CNS **is in scope**; SSI **is in
 scope**, validated by interop against a real XRootD instance/cluster built from

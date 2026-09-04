@@ -142,7 +142,7 @@ brix_statx_path_authorized(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
 {
     if (brix_authz_check(ctx, c, conf, reqpath_buf, full_path, "STATX",
                            BRIX_AUTH_LOOKUP, BRIX_AOP_ANY) != NGX_OK
-        || brix_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
+        || brix_check_vo_acl_identity(c->log, full_path, conf->common.vo_rules,
                                         ctx->identity) != NGX_OK
         || brix_check_token_scope(ctx, reqpath_buf, 0) != NGX_OK)
     {
@@ -163,8 +163,9 @@ brix_statx_path_authorized(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
  *        inline block) reports NEARLINE/OFFLINE.  Returns the packed byte.
  */
 static u_char
-brix_statx_compute_flag(ngx_stream_brix_srv_conf_t *conf,
-    ngx_connection_t *c, const char *full_path, const struct stat *st)
+brix_statx_compute_flag(brix_ctx_t *ctx,
+    ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
+    const char *full_path, const struct stat *st)
 {
     u_char              flag;
     brix_vfs_ctx_t      rvc;
@@ -179,9 +180,10 @@ brix_statx_compute_flag(ngx_stream_brix_srv_conf_t *conf,
     brix_vfs_ctx_init(&rvc, c->pool, c->log, BRIX_PROTO_ROOT,
         conf->common.root_canon, NULL,
         brix_vfs_policy_from_write_enable(conf->common.allow_write),
-        0 /* is_tls */, NULL, full_path);
+        0 /* is_tls */, ctx->identity, full_path);
     /* Persistent per-worker confinement rootfd (op_vfs_ctx pattern). */
     rvc.rootfd = conf->rootfd;
+    brix_root_vfs_bind_session(ctx, conf, &rvc);
     if (brix_vfs_residency(&rvc, &res, NULL) == NGX_OK
         && (res == BRIX_SD_RES_NEARLINE || res == BRIX_SD_RES_OFFLINE))
     {
@@ -213,8 +215,8 @@ brix_statx_compute_flag(ngx_stream_brix_srv_conf_t *conf,
  * directories. The result is projected into struct stat for the flag byte.
  * Returns 0 with *st filled, or -1 with errno set. */
 static int
-brix_statx_vfs_stat(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
-    const char *full_path, struct stat *st)
+brix_statx_vfs_stat(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
+    ngx_connection_t *c, const char *full_path, struct stat *st)
 {
     brix_vfs_ctx_t  vctx;
     brix_vfs_stat_t vst;
@@ -222,9 +224,10 @@ brix_statx_vfs_stat(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
         conf->common.root_canon, NULL,
         brix_vfs_policy_from_write_enable(conf->common.allow_write),
-        0 /* is_tls */, NULL, full_path);
+        0 /* is_tls */, ctx->identity, full_path);
     /* Persistent per-worker confinement rootfd (op_vfs_ctx pattern). */
     vctx.rootfd = conf->rootfd;
+    brix_root_vfs_bind_session(ctx, conf, &vctx);
     if (brix_vfs_statf(&vctx, &vst) != NGX_OK) {
         return -1;
     }
@@ -267,14 +270,14 @@ brix_statx_process_path(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
                           kXR_NotAuthorized, "permission denied");
     }
 
-    if (brix_statx_vfs_stat(conf, c, full_path, &st) != 0
+    if (brix_statx_vfs_stat(ctx, conf, c, full_path, &st) != 0
         && !brix_statx_symlink_fallback_stat(ctx, conf, c, full_path, &st))
     {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_STATX, "STATX", reqpath_buf, "-",
                           brix_kxr_from_errno(errno), strerror(errno));
     }
 
-    *rsp->ptr++ = brix_statx_compute_flag(conf, c, full_path, &st);
+    *rsp->ptr++ = brix_statx_compute_flag(ctx, conf, c, full_path, &st);
     return NGX_DONE;
 }
 

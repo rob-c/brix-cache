@@ -71,7 +71,7 @@ def _assert_put_io_metrics(snapshot, after, labels, size):
         after) == 1
     assert snapshot.delta("brix_io_bytes_written", labels, after) == size
     assert snapshot.delta(
-        "brix_io_latency_usec_count", {**labels, "op": "write"}, after) == 1
+        "brix_io_latency_seconds_count", {**labels, "op": "write"}, after) == 1
 
 
 def _assert_put_protocol_metrics(snapshot, after):
@@ -106,7 +106,7 @@ def test_anon_get_counts_once(mx):
                    {"method": "GET", "status_class": "2xx"}, after) == 1
     assert s.delta("brix_s3_range_requests_total", {"result": "full"},
                    after) == 1
-    assert s.delta("brix_io_latency_usec_count", {**io, "op": "read"},
+    assert s.delta("brix_io_latency_seconds_count", {**io, "op": "read"},
                    after) == 1
 
 
@@ -132,15 +132,15 @@ def test_get_miss_then_hit(mx):
     cx.settle()
     mid = cx.mfetch(mx.metrics)
     assert st == 200
-    assert s.delta("brix_cache_misses_total", {"proto": "s3"}, mid) == 1
-    assert s.delta("brix_cache_hits_total", {"proto": "s3"}, mid) == 0
+    assert s.cache_delta("s3", "MISS", mid) == 1
+    assert s.cache_delta("s3", "HIT", mid) == 0
     s2 = snap(mx)
     st2, body2, _ = mx.s3_request("s3", name)
     cx.settle()
     after = cx.mfetch(mx.metrics)
     assert st2 == 200 and body2 == payload
-    assert s2.delta("brix_cache_hits_total", {"proto": "s3"}, after) == 1
-    assert s2.delta("brix_cache_misses_total", {"proto": "s3"}, after) == 0
+    assert s2.cache_delta("s3", "HIT", after) == 1
+    assert s2.cache_delta("s3", "MISS", after) == 0
 
 
 def test_get_absent_nosuchkey(mx):

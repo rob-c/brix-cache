@@ -279,7 +279,7 @@ BRIX_S3_METRIC_ADD(list_common_prefixes_total, (size_t) prefixes);
 
 ### What goes wrong
 
-The unified `brix_io_ops_total` / `brix_io_bytes_*` / `brix_io_latency_usec` families
+The unified `brix_io_ops_total` / `brix_io_bytes_*` / `brix_io_latency_seconds` families
 can be fed from three places: the protocol response path (`*_metrics_response` →
 `brix_metric_op_done`), the VFS observer (`brix_vfs_observe_ctx_op`), and the
 scrape-time fold of per-protocol wire ledgers. When two of them fire for the same
@@ -323,7 +323,7 @@ missing from it books nothing, which is Pattern 13, not an omission here.
 | webdav/s3 READ + WRITE ops & latency | protocol `*_metrics_response` (one per request, full-request latency) |
 | stream READ + WRITE ops | wire-ledger fold (no latency observations) |
 | gridftp READ + WRITE ops, latency & `io_bytes_*` | `brix_ftp_ev_metric_xfer()` at transfer completion (`src/protocols/gridftp/ev/ftp_ev_metrics.c`) — the gateway has no wire ledger to fold, so it books its own bytes |
-| cvmfs data plane | the dedicated `brix_cvmfs_bytes_served_total` family + `brix_cache_hits_total`/`_misses_total{proto="cvmfs"}`. By design cvmfs books **no** unified `op="read"` row — the cache-disposition split is the authoritative view of what it served |
+| cvmfs data plane | the dedicated `brix_cvmfs_bytes_served_total` family + `brix_cache_requests_total{proto="cvmfs",cache_status}`. By design cvmfs books **no** unified `op="read"` row — the cache-disposition split is the authoritative view of what it served |
 | namespace ops (all protocols) | VFS observer (per-call latency) |
 | `op="tpc"` (webdav + stream) | `brix_tpc_metric_book()` in `src/tpc/common/metrics.c` — count-only, no latency |
 | webdav/s3 `io_bytes_*` | per-protocol rx/tx ledger fold |
@@ -580,7 +580,7 @@ transports already reach (native root:// and WebDAV COPY). Count-only is not a
 shortcut: a TPC's clock lives in the TPC registry across a detached thread, so
 there is no request-scoped duration to file, and filing `0` would falsify the
 lowest latency bucket. The row is deliberately absent from
-`brix_io_latency_usec_*`.
+`brix_io_latency_seconds_*`.
 
 **Test.** `tests/test_cachemx_ops_grid.py::test_tpc_pull_books_unified_op_and_exact_bytes`
 (op row + byte-exact `brix_tpc_bytes_total` from one real pull leg) and

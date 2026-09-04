@@ -44,7 +44,7 @@ and `contrib/grafana-dashboard.json`.
 
 | Symptom | Check | Where / fix |
 |---|---|---|
-| High latency under load | `histogram_quantile(0.95, ...brix_io_latency_usec_bucket...)` | See [capacity-planning](capacity-planning.md): worker count, thread pool, FD limit |
+| High latency under load | `histogram_quantile(0.95, ...brix_io_latency_seconds_bucket...)` | See [capacity-planning](capacity-planning.md): worker count, thread pool, FD limit |
 | Requests being throttled | `rate(brix_rate_limit_throttled_total[5m])` | A VO/issuer/IP/DN rate-limit zone is active; raise the limit or confirm it's intended |
 | Memory growth on big transfers | `brix_xfer_heap_bytes`, `brix_budget_waits_total` | Windowed read/write keeps resident memory bounded; waits mean the byte budget is the throttle |
 | Slow first byte on tape-backed files | `brix_frm_in_flight`, file residency | File is `OFFLINE`/staging from tape; the client gets a wait/`kXR_offline`. See FRM docs |

@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 import fleet_declares
+from brix_suite.harness.xdist_groups import materialize_xdist_group
 from server_launcher import LifecycleHarness, RegistryLauncher
 from server_registry import fleet_ready_for_test_root, manifest_owns_test_root
 from server_registry import (
@@ -450,6 +451,7 @@ def _force_xdist_group(item, group):
     xdist already appended from a module's own (stale) mark.
     """
     item.add_marker(pytest.mark.xdist_group(group), append=False)
+    item._brix_xdist_group_override = group
     base = item.nodeid.split("@", 1)[0]
     item._nodeid = f"{base}@{group}"
 
@@ -681,6 +683,10 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         name = os.path.basename(str(item.fspath))
         _mark_collection_item(item, name)
+        _pin_cvmfs_conformance_family(item, name)
+        _pin_resilience_family(item)
+        _pin_lifecycle_family(item, name)
+        materialize_xdist_group(item)
         target = cms_items if name == "test_cms.py" else other_items
         target.append(item)
     if cms_items:

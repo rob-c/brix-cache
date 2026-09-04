@@ -244,7 +244,13 @@ brix_free_fhandle(brix_ctx_t *ctx, int handle_index)
            ? ctx->session->connection->log : NULL;
 
     if (!ctx->is_bound && file->fd >= 0) {
-        brix_session_handle_unpublish(ctx->login.sessid, handle_index);
+        /* Round 14: clear at the publish-time slot.  At disconnect this runs
+         * after brix_session_unregister() has already cleared the session's
+         * entries, so the un-hinted form scanned the whole live prefix under
+         * the cross-worker mutex to find nothing — a cost that grew with
+         * concurrency rather than backing off. */
+        brix_session_handle_unpublish_hinted(ctx->login.sessid, handle_index,
+                                             file->shared_handle_slot_hint);
     }
 
     /* phase-92: return this handle's XrdBwm bandwidth reservation to the budget.

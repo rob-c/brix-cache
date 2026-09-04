@@ -1,5 +1,12 @@
 # Phase-104 — OCI & RPM distribution: registry mirror, local repos, container → Stratum-0 ingest
 
+**Status:** IMPLEMENTED / CLOSED (Phase-111 reconciliation, 2026-09-03).
+D0–D14 and D15.1–D15.13 are implemented. The containerd snapshotter is a Go
+plugin loaded by containerd, deliberately outside this repository and gated on
+node-side demand; it is not BriX implementation backlog. The in-tree eStargz
+read/write formats and Range surface are complete. The full evidence ledger is
+in the Status section.
+
 **Goal:** grow a general **software-distribution plane** on top of the stacks
 phases 84–96 built. Three capabilities, one phase:
 

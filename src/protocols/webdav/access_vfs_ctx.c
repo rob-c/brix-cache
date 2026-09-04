@@ -24,6 +24,7 @@
 #include "protocols/shared/deleg_wire.h"    /* §5.2 aud gate + §5.4 exchange */
 #include "protocols/webdav/locks/request.h" /* webdav_lock_token_header (C7) */
 #include "fs/backend/sd.h"  /* enum brix_cred_mode / BRIX_CRED_SELECT */
+#include "protocols/shared/vfs_authz_bind.h"
 
 /* ---- webdav_vfs_bind_deleg -------------------------------------------------
  *
@@ -53,6 +54,8 @@ webdav_vfs_bind_deleg(ngx_http_request_t *r,
     ngx_http_brix_webdav_req_ctx_t *rctx;
     const ngx_str_t                *bearer;
 
+    brix_http_vfs_bind_authz(r, &conf->common, conf->common.authdb_rules,
+                             conf->common.vo_rules, vctx);
     if (conf->common.backend_delegation == BRIX_CRED_SELECT) {
         return;
     }
@@ -112,6 +115,8 @@ webdav_vfs_ctx_build(ngx_http_request_t *r, const char *path,
      * the only protocol with a way to present a lock token — every other
      * plane's mutations stay "foreign" to a held lock. */
     vctx->lock_token = webdav_lock_token_header(r);
+    brix_http_vfs_bind_authz(r, &conf->common, conf->common.authdb_rules,
+                             conf->common.vo_rules, vctx);
 }
 
 static void

@@ -26,14 +26,7 @@
       0,
       NULL },
 
-    /* brix_certificate / brix_certificate_key / brix_trusted_ca -> owned by
-     * ngx_stream_brix_common_module (phase-101 W3 stage 3): the x509 GSI-trust
-     * names are shared with the gridftp gateway, so a single stream owner
-     * registers them.  This server adopts the values into its own
-     * certificate / certificate_key / trusted_ca fields via
-     * brix_stream_common_adopt_gsi() at merge (server_conf.c), BEFORE the GSI
-     * SSL_CTX + trust-store are built in postconfiguration — every reader
-     * (tls_config.c, the auth/gsi builders) is unchanged. */
+    /* Shared stream-common owns certificate, key and CA directives. */
 
     /* GSI signed-DH policy: off (default) | auto | require.  Consulted only
      * when brix_auth=gsi; selects the RSA-signed-DH wire variant (phase-48). */
@@ -86,11 +79,7 @@
       offsetof(ngx_stream_brix_srv_conf_t, gsi_ciphers),
       NULL },
 
-    /* brix_vomsdir / brix_voms_cert_dir -> owned by
-     * ngx_stream_brix_common_module (phase-101 W3 stage 3); adopted into this
-     * server's vomsdir / voms_cert_dir fields at merge via
-     * brix_stream_common_adopt_gsi().  Readers (policy.c, auth/gsi/auth_cert.c)
-     * unchanged. */
+    /* Shared stream-common owns VOMS trust-directory directives. */
 
     /* PEM file or directory containing CRLs for certificate revocation checking. */
     { ngx_string("brix_crl"),
@@ -128,10 +117,7 @@
       offsetof(ngx_stream_brix_srv_conf_t, crl_mode),
       brix_crl_modes },
 
-    /* brix_require_vo -> owned by ngx_stream_brix_common_module (phase-101 W3
-     * stage 3b); this server deep-copies the parsed rules into its own vo_rules
-     * via brix_stream_common_adopt_vo_rules() at merge and finalizes them in
-     * brix_config_finalize_policy against its own export root — unchanged. */
+    /* Shared stream-common owns and parses brix_require_vo rules. */
 
     { ngx_string("brix_authdb"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -145,70 +131,70 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_enum_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, acc.format),
+      offsetof(ngx_stream_brix_srv_conf_t, common.acc.format),
       brix_acc_format_modes },
 
     { ngx_string("brix_acc_audit"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_enum_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, acc.audit),
+      offsetof(ngx_stream_brix_srv_conf_t, common.acc.audit),
       brix_acc_audit_modes },
 
     { ngx_string("brix_acc_refresh"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_num_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, acc.refresh),
+      offsetof(ngx_stream_brix_srv_conf_t, common.acc.refresh),
       NULL },
 
     { ngx_string("brix_acc_gidlifetime"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_num_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, acc.gidlifetime),
+      offsetof(ngx_stream_brix_srv_conf_t, common.acc.gidlifetime),
       NULL },
 
     { ngx_string("brix_acc_pgo"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, acc.pgo),
+      offsetof(ngx_stream_brix_srv_conf_t, common.acc.pgo),
       NULL },
 
     { ngx_string("brix_acc_nisdomain"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, acc.nisdomain),
+      offsetof(ngx_stream_brix_srv_conf_t, common.acc.nisdomain),
       NULL },
 
     { ngx_string("brix_acc_resolve_hosts"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, acc.resolve_hosts),
+      offsetof(ngx_stream_brix_srv_conf_t, common.acc.resolve_hosts),
       NULL },
 
     { ngx_string("brix_acc_spacechar"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, acc.spacechar),
+      offsetof(ngx_stream_brix_srv_conf_t, common.acc.spacechar),
       NULL },
 
     { ngx_string("brix_acc_encoding"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, acc.encoding),
+      offsetof(ngx_stream_brix_srv_conf_t, common.acc.encoding),
       NULL },
 
     { ngx_string("brix_acc_gidretran"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, acc.gidretran),
+      offsetof(ngx_stream_brix_srv_conf_t, common.acc.gidretran),
       NULL },
 
     { ngx_string("brix_inherit_parent_group"),
@@ -223,7 +209,7 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, token_jwks),
+      offsetof(ngx_stream_brix_srv_conf_t, common.token_jwks),
       NULL },
 
     /* Millisecond interval for mtime-poll JWKS hot refresh (0 = disabled). */
@@ -231,35 +217,35 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_msec_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, token_jwks_refresh_interval),
+      offsetof(ngx_stream_brix_srv_conf_t, common.token_jwks_refresh_interval),
       NULL },
 
     { ngx_string("brix_token_clock_skew"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_sec_slot,   /* phase-105 W8: suffixes legal; 300s clamp holds */
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, token_clock_skew),
+      offsetof(ngx_stream_brix_srv_conf_t, common.token_clock_skew),
       NULL },
 
     { ngx_string("brix_token_issuer"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, token_issuer),
+      offsetof(ngx_stream_brix_srv_conf_t, common.token_issuer),
       NULL },
 
     { ngx_string("brix_token_audience"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, token_audience),
+      offsetof(ngx_stream_brix_srv_conf_t, common.token_audience),
       NULL },
 
     { ngx_string("brix_token_config"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, token_config),
+      offsetof(ngx_stream_brix_srv_conf_t, common.token_config),
       NULL },
 
     { ngx_string("brix_throttle_zone"),
@@ -337,14 +323,14 @@
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, token_macaroon_secret),
+      offsetof(ngx_stream_brix_srv_conf_t, common.token_macaroon_secret),
       NULL },
 
     { ngx_string("brix_macaroon_secret_old"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, token_macaroon_secret_old),
+      offsetof(ngx_stream_brix_srv_conf_t, common.token_macaroon_secret_old),
       NULL },
 
     /* XRootD Simple Shared Secret keytab (generated by xrdsssadmin-brix). */

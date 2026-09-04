@@ -87,6 +87,11 @@ brix_open_probe(ngx_log_t *log, const char *root, const char *abs,
     }
     if (ctx != NULL && conf != NULL && pool != NULL) {
         brix_root_vfs_bind_session(ctx, conf, &vctx);
+    } else {
+        /* A NULL session denotes the worker-local upload scratch namespace,
+         * not an export access. State that exemption explicitly so ENFORCE
+         * never mistakes an accidentally unbound export context for it. */
+        brix_vfs_ctx_bind_no_authz_rules(&vctx, BRIX_AUTHZ_BACKSTOP_OFF);
     }
     return brix_vfs_probe(&vctx, nofollow, vst) == NGX_OK;
 }

@@ -120,7 +120,9 @@ Then watch it work:
   discarded and retried rather than preserved for forensics); set
   `brix_cvmfs_quarantine_dir` if you want the evidence kept.
 - Logs: `docker exec cvmfs-demo ls /var/log/nginx-xrootd/` —
-  `cvmfs_access.log` uses the `$cvmfs_class`/`$cvmfs_cache`/`$cvmfs_origin`
-  identity format, `error.log` carries `cvmfs-reject:` lines,
+  `cvmfs_access.log` uses the
+  `$cvmfs_class`/`$brix_cache_status`/`$cvmfs_origin` identity format
+  (the disposition reads `HIT`/`MISS`/`NEGHIT`/`-`, the one cross-plane
+  vocabulary), `error.log` carries `cvmfs-reject:` lines,
   `guard-audit.log` feeds the guard jails.
 - Protocol reference: [docs/04-protocols/cvmfs.md](../../../docs/04-protocols/cvmfs.md).

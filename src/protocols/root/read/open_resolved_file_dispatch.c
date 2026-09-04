@@ -140,10 +140,7 @@ brix_open_build_cred_ctx(brix_open_args_t *a, brix_sd_instance_t *sd_inst,
 	ngx_connection_t           *c    = a->c;
 	ngx_stream_brix_srv_conf_t *conf = a->conf;
 
-	brix_vfs_ctx_init(cred_vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-	    conf->common.root_canon, NULL,
-	    brix_vfs_policy_from_write_enable(conf->common.allow_write),
-	    0 /* is_tls */, ctx->identity, a->resolved);
+	brix_root_vfs_ctx_init(ctx, c, conf, cred_vctx, a->resolved);
 	brix_vfs_ctx_bind_backend_cred(cred_vctx,
 	    &conf->common.storage_credential_dir,
 	    conf->common.storage_credential_fallback);
@@ -154,7 +151,6 @@ brix_open_build_cred_ctx(brix_open_args_t *a, brix_sd_instance_t *sd_inst,
 	    &conf->common.storage_credential_mint_ca_cert,
 	    &conf->common.storage_credential_mint_ca_key,
 	    conf->common.storage_credential_mint_ttl);
-	brix_root_vfs_bind_session(ctx, conf, cred_vctx);
 	cred_vctx->sd = sd_inst;
 	/* Phase-107 C5: hand the client's oss.asize declaration to the VFS — the
 	 * object plane reserves after a create/trunc open, the staged plane
@@ -269,10 +265,7 @@ brix_open_dispatch_open(brix_open_args_t *a)
 	{
 		brix_vfs_ctx_t lock_vctx;
 
-		brix_vfs_ctx_init(&lock_vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-		    a->conf->common.root_canon, NULL,
-		    brix_vfs_policy_from_write_enable(a->conf->common.allow_write),
-		    0 /* is_tls */, ctx->identity, resolved);
+		brix_root_vfs_ctx_init(ctx, c, a->conf, &lock_vctx, resolved);
 		if (brix_vfs_require_unlocked(&lock_vctx, BRIX_VFS_MUTATE_OPEN)
 		    != NGX_OK) {
 			return brix_open_map_open_error(ctx, c, resolved, errno,

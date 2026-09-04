@@ -38,10 +38,6 @@ void
 brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
-    ngx_conf_merge_value(conf->tpc_allow_local,   prev->tpc_allow_local,   0);
-    ngx_conf_merge_value(conf->tpc_allow_private, prev->tpc_allow_private, 1);
-    ngx_conf_merge_value(conf->tpc_source_guard,  prev->tpc_source_guard,  0);
-    ngx_conf_merge_ptr_value(conf->tpc_source_allow, prev->tpc_source_allow, NULL);
     ngx_conf_merge_value(conf->ssi_enable,        prev->ssi_enable,        0);
     ngx_conf_merge_value(conf->ssi_cta_enable,    prev->ssi_cta_enable,    0);
     /* defaults mirror BRIX_SSI_MAX_INFLIGHT (8) and the 1 MiB req/resp caps. */
@@ -54,7 +50,6 @@ brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
     if (conf->cns_mode == BRIX_CNS_COLLECT) {
         brix_cns_set_collect(1);   /* §6: this node maintains the CNS inventory */
     }
-    ngx_conf_merge_value(conf->tpc_outbound_tls,  prev->tpc_outbound_tls,  0);
     ngx_conf_merge_value(conf->tpc_delegate,      prev->tpc_delegate,      0);
     /* Phase-70/opportunistic: passthrough of the client's own inbound bearer JWT
      * to the TPC source is ON by default so token-authenticated pulls forward the
@@ -64,8 +59,6 @@ brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
      * delegation / static bearer file / anonymous exactly as before this default
      * flip — never a new denial. Only an explicit client tpc.token_mode=passthrough
      * stays STRICT/fail-closed. Operators can still set the directive to `off`. */
-    ngx_conf_merge_value(conf->tpc_outbound_passthrough,
-                         prev->tpc_outbound_passthrough, 1);
     ngx_conf_merge_msec_value(conf->tpc_key_ttl_ms, prev->tpc_key_ttl_ms,
                               BRIX_TPC_KEY_TTL_MS);
     /* Phase 51 (B2): default native-TPC absolute wall-clock cap to a generous
@@ -78,8 +71,6 @@ brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
     /* Hostile-network completion/integrity gates for the native TPC pull, both
      * default off (a size mismatch always fails regardless; these only govern the
      * "no size" and "verify content checksum" postures). */
-    ngx_conf_merge_value(conf->tpc_require_source_size,
-                         prev->tpc_require_source_size, 0);
     /* tpc_verify_checksum merge -> ngx_http_brix_shared_merge
      * (common.tpc_verify_checksum, str "" = off) — phase-101 W4. */
     ngx_conf_merge_value(conf->tpc_transfer_max_age,
@@ -90,16 +81,6 @@ brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
     if (conf->tpc_transfer_max_age > 0) {
         brix_tpc_registry_set_max_age((time_t) conf->tpc_transfer_max_age);
     }
-    ngx_conf_merge_str_value(conf->tpc_outbound_bearer_file,
-                             prev->tpc_outbound_bearer_file, "");
-    ngx_conf_merge_str_value(conf->tpc_outbound_token_endpoint,
-                             prev->tpc_outbound_token_endpoint, "");
-    ngx_conf_merge_str_value(conf->tpc_outbound_client_id,
-                             prev->tpc_outbound_client_id, "");
-    ngx_conf_merge_str_value(conf->tpc_outbound_client_secret,
-                             prev->tpc_outbound_client_secret, "");
-    ngx_conf_merge_str_value(conf->tpc_outbound_scope,
-                             prev->tpc_outbound_scope, "storage.read");
 }
 
 /*
@@ -449,16 +430,8 @@ static char *
 brix_merge_srv_rules(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
-    ngx_array_t *child_vo_rules;
     ngx_array_t *child_group_rules;
     ngx_array_t *child_manager_map;
-
-    child_vo_rules = conf->vo_rules;
-    conf->vo_rules = brix_merge_arrays(cf, prev->vo_rules, child_vo_rules,
-                                         sizeof(brix_vo_rule_t));
-    if (conf->vo_rules == NULL && (prev->vo_rules != NULL || child_vo_rules != NULL)) {
-        return NGX_CONF_ERROR;
-    }
 
     child_group_rules = conf->group_rules;
     conf->group_rules = brix_merge_arrays(cf, prev->group_rules,

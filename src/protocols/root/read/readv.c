@@ -47,6 +47,85 @@ typedef struct {
     unsigned                      pathid;   /* §1.1 response-offload channel (req body[15]) */
 } brix_readv_req_t;
 
+static ngx_int_t
+brix_readv_current_size(brix_ctx_t *ctx, int handle_index, off_t *size_out)
+{
+    brix_file_t *file = &ctx->files[handle_index];
+
+    if (!file->writable) {
+        *size_out = file->cached_size;
+        return NGX_OK;
+    }
+    if (file->sd_obj.driver != NULL) {
+        brix_sd_stat_t snap;
+
+        if (file->sd_obj.driver->fstat == NULL
+            || file->sd_obj.driver->fstat(&file->sd_obj, &snap) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+        *size_out = snap.size;
+        return NGX_OK;
+    }
+
+    {
+        struct stat st;
+
+        if (fstat(file->fd, &st) != 0) {
+            return NGX_ERROR;
+        }
+        *size_out = st.st_size;
+    }
+    return NGX_OK;
+}
+
+/* Reject every impossible extent before streaming any body bytes.  VectorRead
+ * has all-or-error semantics: once the outer dlen is sent, a later framed error
+ * would be consumed as data and corrupt the session. */
+static ngx_flag_t
+brix_readv_validate_extent(brix_ctx_t *ctx, ngx_connection_t *c,
+    int handle_index, int64_t offset, size_t length, ngx_int_t *rc_out)
+{
+    off_t file_size;
+
+    if (offset < 0 || brix_readv_current_size(ctx, handle_index, &file_size)
+                      != NGX_OK
+        || file_size < 0 || (uint64_t) offset > (uint64_t) file_size
+        || length > (size_t) ((uint64_t) file_size - (uint64_t) offset))
+    {
+        BRIX_OP_ERR(ctx, BRIX_OP_READV);
+        *rc_out = brix_send_error(ctx, c, kXR_IOError,
+                                    "readv range is outside file extent");
+        return 0;
+    }
+    return 1;
+}
+
+static ngx_flag_t
+brix_readv_validate_extents(brix_ctx_t *ctx, ngx_connection_t *c,
+    brix_readv_req_t *req, ngx_int_t *rc_out)
+{
+    size_t segment_index;
+
+    for (segment_index = 0; segment_index < req->segment_count;
+         segment_index++)
+    {
+        readahead_list *segment = &req->wire_segments[segment_index];
+        int handle_index = (int) (unsigned char) segment->fhandle[0];
+        int64_t offset = (int64_t) be64toh((uint64_t) segment->offset);
+        size_t length = (size_t) ntohl((uint32_t) segment->rlen);
+
+        if (length > req->readv_seg_max) {
+            length = req->readv_seg_max;
+        }
+        if (!brix_readv_validate_extent(ctx, c, handle_index, offset,
+                                          length, rc_out)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 /* ---- Validate handles and compute the response upper bound ----
  *
  * WHAT: First pass over the wire segments: validates every file handle and
@@ -102,7 +181,7 @@ brix_readv_validate_and_size(brix_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    return 1;
+    return brix_readv_validate_extents(ctx, c, req, rc_out);
 }
 
 /* ---- Build the response wire body and the segment descriptor array ----
@@ -186,157 +265,6 @@ brix_readv_build_descriptors(brix_ctx_t *ctx, brix_readv_req_t *req)
             response_cursor + BRIX_READV_SEGSIZE;
 
         response_cursor += BRIX_READV_SEGSIZE + read_length;
-    }
-}
-
-/* ---- Try to offload the readv I/O onto the AIO thread pool ----
- *
- * WHAT: When a thread pool is configured, populates the reusable readv AIO task
- *   and posts it.  Returns 1 if the task was posted (the caller must return
- *   NGX_OK immediately); returns 0 to fall back to synchronous execution.  On an
- *   allocation failure it frees the descriptors + response buffer and returns 1
- *   with *rc_out = NGX_ERROR.
- *
- * WHY: The async offload is an optional fast path; separating it lets the
- *   orchestrator read as "post; else run synchronously" and keeps the task-setup
- *   fields in one place.
- *
- * HOW:
- *   1. No thread pool → return 0 (sync path).
- *   2. Reuse ctx->rd.readv_aio_task, allocating it on first use (free + return
- *      on OOM); otherwise reset its completion state.
- *   3. Fill the task context (connection, ctx, segments, buffer, stream id),
- *      bind the thread/done callbacks, and post it.
- *   4. Return 1 only when brix_aio_post_task reports it was actually posted.
- */
-static ngx_flag_t
-brix_readv_try_post_async(brix_ctx_t *ctx, ngx_connection_t *c,
-    brix_readv_req_t *req, ngx_int_t *rc_out)
-{
-    ngx_thread_task_t  *task;
-    brix_readv_aio_t *t;
-    ngx_flag_t          posted;
-
-    if (req->rconf->common.thread_pool == NULL) {
-        return 0;
-    }
-
-    task = ctx->rd.readv_aio_task;
-    if (task == NULL) {
-        task = ngx_thread_task_alloc(c->pool, sizeof(brix_readv_aio_t));
-        if (task == NULL) {
-            ngx_free(req->segment_descs);
-            brix_release_read_buffer(ctx, c, req->response_buffer);
-            *rc_out = NGX_ERROR;
-            return 1;
-        }
-        ctx->rd.readv_aio_task = task;
-    } else {
-        task->next = NULL;
-        task->event.complete = 0;
-    }
-
-    t = task->ctx;
-    t->c = c;
-    t->ctx = ctx;
-    t->segment_count = req->segment_count;
-    t->segments = req->segment_descs;
-    t->response_buffer = req->response_buffer;
-    t->bytes_read_total = 0;
-    t->response_bytes = 0;
-    t->io_error = 0;
-    t->streamid[0] = ctx->recv.cur_streamid[0];
-    t->streamid[1] = ctx->recv.cur_streamid[1];
-    t->start_ns = brix_phase_now_ns();  /* phase-56 D-2 */
-
-    brix_task_bind(task, brix_readv_aio_thread, brix_readv_aio_done);
-
-    (void) brix_aio_post_task(ctx, c, req->rconf->common.thread_pool, task,
-                                "brix: thread_task_post failed, falling back to sync readv",
-                                &posted);
-    if (posted) {
-        *rc_out = NGX_OK;
-        return 1;
-    }
-
-    return 0;
-}
-
-/* ---- Run the readv I/O synchronously and send the assembled response ----
- *
- * WHAT: Executes the vectored read through the VFS I/O seam, updates per-handle
- *   and total byte counters, emits the access-log line, and queues the chunked
- *   response chain.  Returns the status to propagate to the dispatcher; on I/O
- *   error emits the READV error triplet with kXR_IOError.
- *
- * WHY: This is the fallback path (no thread pool, or post declined); isolating
- *   it keeps the orchestrator flat and puts all response-side side effects
- *   (byte accounting, logging, framing, send) behind one named step.
- *
- * HOW:
- *   1. Build a BRIX_VFS_IO_READV job over the descriptors and execute it.
- *   2. On I/O error free the buffers and send the kXR_IOError triplet.
- *   3. Add each segment's read_length to its handle's counter, then free descs.
- *   4. Log access when enabled, bump metrics/total bytes.
- *   5. Build the chunked chain and queue it, releasing the buffer on failure or
- *      when the connection is no longer sending.
- */
-static ngx_int_t
-brix_readv_execute_sync(brix_ctx_t *ctx, ngx_connection_t *c,
-    brix_readv_req_t *req)
-{
-    size_t         bytes_read_total = 0;
-    size_t         response_bytes;
-    size_t         segment_index;
-    ngx_chain_t   *rsp_chain;
-    char           error_message[128];
-    brix_vfs_job_t job;
-
-    if (brix_readv_run_job(req, &job, error_message, sizeof(error_message)) != 0) {
-        ngx_free(req->segment_descs);
-        brix_release_read_buffer(ctx, c, req->response_buffer);
-        BRIX_OP_ERR(ctx, BRIX_OP_READV);
-        return brix_send_error(ctx, c, kXR_IOError,
-                                 error_message[0] ? error_message
-                                                   : "readv I/O error");
-    }
-
-    bytes_read_total = (size_t) job.nio;
-    response_bytes = job.out_size;
-
-    for (segment_index = 0; segment_index < req->segment_count;
-         segment_index++)
-    {
-        ctx->files[req->segment_descs[segment_index].handle_index].bytes_read +=
-            req->segment_descs[segment_index].read_length;
-    }
-    ngx_free(req->segment_descs);
-
-    if (req->rconf->access_log_fd != NGX_INVALID_FILE) {
-        char detail[64];
-
-        snprintf(detail, sizeof(detail), "%zu_segs", req->segment_count);
-        brix_log_access(ctx, c, "READV", "-", detail, 1, 0, NULL,
-                          bytes_read_total);
-    }
-    BRIX_OP_OK(ctx, BRIX_OP_READV);
-    ctx->totals.bytes += bytes_read_total;
-
-    rsp_chain = brix_build_chunked_chain(ctx, c, req->response_buffer,
-                                           response_bytes);
-    if (rsp_chain == NULL) {
-        brix_release_read_buffer(ctx, c, req->response_buffer);
-        return NGX_ERROR;
-    }
-
-    {
-        ngx_int_t rc = brix_queue_response_chain(ctx, c, rsp_chain,
-                                                   req->response_buffer);
-
-        if (rc != NGX_OK || ctx->state != XRD_ST_SENDING) {
-            brix_release_read_buffer(ctx, c, req->response_buffer);
-        }
-        return rc;
     }
 }
 
@@ -523,49 +451,10 @@ brix_handle_readv(brix_ctx_t *ctx, ngx_connection_t *c)
     brix_prefetch_readv_segments(ctx, c, req.wire_segments, req.segment_count,
                                    req.readv_seg_max);
 
-    /*
-     * Phase 31 W4: kXR_readv assembles its whole response (up to
-     * BRIX_MAX_READV_TOTAL = 256 MiB) in rd.read_scratch.  Admit it against the
-     * SHM-global transfer budget so a burst of large readv requests cannot blow
-     * the memory cap; over budget, defer with kXR_wait and let the client
-     * re-issue.  (readv is not yet windowed like kXR_read — a single large readv
-     * still allocates its full response; the budget bounds the aggregate.)
-     */
-    if (!brix_budget_admit(ctx, req.rconf->memory_budget,
-                             req.max_response_bytes)) {
-        /* §1.10 fsoverload stall: configurable budget-overload backoff. */
-        return brix_fsoverload_backoff(ctx, c, req.rconf);
-    }
-
-    req.response_buffer = BRIX_GET_SCRATCH(ctx, c, rd.read_scratch,
-                                             rd.read_scratch_size,
-                                             req.max_response_bytes);
-    if (req.response_buffer == NULL) {
-        return NGX_ERROR;
-    }
-
-    /* Charge the assembled-response footprint to the budget promptly. */
-    brix_budget_sync(ctx);
-
-    req.segment_descs = brix_alloc_array(c->log, req.segment_count,
-                                           sizeof(brix_readv_seg_desc_t));
-    if (req.segment_descs == NULL) {
-        brix_release_read_buffer(ctx, c, req.response_buffer);
-        return NGX_ERROR;
-    }
-
-    /*
-     * Build the final wire body up front.  The descriptor payload pointers are
-     * the exact places where preadv() will land each segment's bytes.
-     */
-    brix_readv_build_descriptors(ctx, &req);
-
-    /* Prefer the AIO offload; on a successful post the response completes in the
-     * done callback and we return its status directly. */
-    if (brix_readv_try_post_async(ctx, c, &req, &rc)) {
-        return rc;
-    }
-
-    /* No thread pool, or the post declined — read synchronously and reply. */
-    return brix_readv_execute_sync(ctx, c, &req);
+    /* The primary response is one protocol body produced through a bounded
+     * scratch window.  Segment headers remain byte-exact, which stock XrdCl
+     * requires when matching returned ranges to its destination buffers. */
+    return brix_readv_serve_windowed(ctx, c, req.rconf, req.wire_segments,
+                                      req.segment_count,
+                                      req.max_response_bytes);
 }

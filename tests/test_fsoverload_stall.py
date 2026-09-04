@@ -7,9 +7,16 @@ the value is still clamped by brix_max_delay at the emission choke point.
 
 The budget defers cross-connection (a connection never counts its own charge),
 so the test uses TWO connections on one worker sharing the SHM budget: reader A
-issues a large read and leaves it undrained (its ~window scratch stays charged
-above the 256k budget), then reader B's read is deferred — and B's kXR_wait
-carries the configured seconds.
+issues a large kXR_pgread and leaves it undrained (its ~window scratch stays
+charged above the 256k budget), then reader B's small buffered read is deferred
+— and B's kXR_wait carries the configured seconds.
+
+Reader A must use kXR_pgread, not kXR_read: a large cleartext kXR_read of a
+regular file is served zero-copy by sendfile and holds NO heap, so it can never
+charge the memory budget. pgread's per-page CRC32c forces the memory path.
+Reader B stays a plain kXR_read but below BRIX_READ_SENDFILE_MIN (32k), so it
+takes the buffered memory path — the one that consults brix_budget_admit — and
+its served response is a single kXR_ok frame the drain logic already handles.
 
 Coverage (the change-class trio):
   * success      — brix_fsoverload_stall 7: B's overload kXR_wait says 7.
@@ -36,6 +43,7 @@ pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-fsoverload")]
 
 kXR_protocol, kXR_login, kXR_open, kXR_read = 3006, 3007, 3010, 3013
+kXR_pgread = 3030
 kXR_ok, kXR_oksofar, kXR_error, kXR_wait = 0, 4000, 4003, 4005
 kXR_redirect = 4004
 kXR_open_read = 0x0200          # kXR_open read mode... resolved below via retstat-free open
@@ -121,6 +129,17 @@ def _read_req(sock, streamid, fh, offset, rlen):
     _send(sock, streamid, kXR_read, body=body)
 
 
+def _pgread_req(sock, streamid, fh, offset, rlen):
+    # Same 16-byte body layout as kXR_read (fhandle[4] offset[8] rlen[4]).
+    body = fh + struct.pack("!q", offset) + struct.pack("!i", rlen)
+    _send(sock, streamid, kXR_pgread, body=body)
+
+
+# Reader B's probe: below BRIX_READ_SENDFILE_MIN (32k) so it takes the buffered
+# memory path (which admits against the budget) and is served as one kXR_ok.
+B_READ = 16 * 1024
+
+
 def _overload_wait_seconds(port):
     """Hold a big undrained read on A, then observe B's overload kXR_wait."""
     a = _login(port)
@@ -129,14 +148,21 @@ def _overload_wait_seconds(port):
         fa = _open_read(a, "/big.bin")
         fb = _open_read(b, "/big.bin")
 
-        # Reader A: request the whole file but DO NOT drain it — the server
-        # allocates a windowed scratch (> the 256k budget) that stays charged
-        # while A's shrunk socket buffer is full.
-        _read_req(a, b"\x00\x02", fa, 0, BIG)
+        # Reader A: pgread the whole file but DO NOT drain it — pgread cannot
+        # sendfile (per-page CRC32c is computed in heap), so the server holds a
+        # windowed scratch (> the 256k budget) that stays charged while A's
+        # shrunk socket buffer is full.
+        _pgread_req(a, b"\x00\x02", fa, 0, BIG)
         # Pull just the first frame header so the server has started serving
-        # and the scratch is charged; leave the rest buffered.
+        # and the scratch is charged; leave the rest buffered.  A itself must
+        # be ADMITTED (anti-starvation): B's idle connection pins a few framing
+        # bytes, and if that residue counted as pressure a want > budget read
+        # would loop on kXR_wait forever.
         first = _recv_exact(a, 8)
         assert first is not None, "reader A got no response"
+        a_status = struct.unpack("!H", first[2:4])[0]
+        assert a_status not in (kXR_wait, kXR_redirect), (
+            f"budget starved reader A (status {a_status}) — admission slack broken")
 
         # Reader B: a read now must be deferred by the budget (A's charge is
         # the cross-connection `others`). Retry briefly in case A's first
@@ -144,7 +170,7 @@ def _overload_wait_seconds(port):
         import time
         deadline = time.time() + 8
         while time.time() < deadline:
-            _read_req(b, b"\x00\x03", fb, 0, 4 * 1024 * 1024)
+            _read_req(b, b"\x00\x03", fb, 0, B_READ)
             status, body = _resp(b)
             if status == kXR_wait:
                 assert len(body) >= 4
@@ -172,14 +198,17 @@ def _overload_response(port, reader_b_ability=0x04):
     try:
         fa = _open_read(a, "/big.bin")
         fb = _open_read(b, "/big.bin")
-        _read_req(a, b"\x00\x02", fa, 0, BIG)
+        _pgread_req(a, b"\x00\x02", fa, 0, BIG)
         first = _recv_exact(a, 8)
         assert first is not None, "reader A got no response"
+        a_status = struct.unpack("!H", first[2:4])[0]
+        assert a_status not in (kXR_wait, kXR_redirect), (
+            f"budget starved reader A (status {a_status}) — admission slack broken")
 
         import time
         deadline = time.time() + 8
         while time.time() < deadline:
-            _read_req(b, b"\x00\x03", fb, 0, 4 * 1024 * 1024)
+            _read_req(b, b"\x00\x03", fb, 0, B_READ)
             status, body = _resp(b)
             if status in (kXR_wait, kXR_redirect):
                 return status, body

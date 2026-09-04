@@ -1,10 +1,12 @@
 # Phase 78 — Effort-Hotspot Burndown, Wave 4 (top-100)
 
-> **For agentic workers:** decomposition-only refactor. Each task takes ONE file to
-> `lizard -C 15 -L 100 -a 5 -w` clean (or documented frozen-signature param residuals),
-> with **zero behavior change**. Run in bounded parallel waves (12–15 files), full
-> module/client build after each wave (the build is the only cross-file oracle). Steps use
-> checkbox (`- [ ]`) syntax.
+**Status:** SUPERSEDED / CLOSED by the later Phase-79 and Phase-103 absolute
+gates. The unchecked recipe below is historical prioritization, not a live
+backlog. Native CCN currently passes at <=15; present Python/size regressions
+are listed in Phase 111.
+
+Each historical task targeted one file at a time, with zero behavior change and
+the full module/client build as its cross-file oracle.
 
 **Goal:** Drive the 100 highest-effort files below the complexity gate (CCN ≤15, function
 NLOC ≤100, params ≤5) and triage the single live analyzer finding — without changing any

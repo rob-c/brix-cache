@@ -126,7 +126,7 @@ brix_write_route_special(brix_ctx_t *ctx, ngx_connection_t *c,
 	if (ctx->files[idx].wrts_enabled &&
 	    brix_wrts_is_replay(&ctx->files[idx], w->offset, (uint32_t) w->wlen))
 	{
-		ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
+		ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
 		    "brix: write recovery replay skip offset=%L len=%uz",
 		    w->offset, w->wlen);
 		BRIX_OP_OK(ctx, BRIX_OP_WRITE);
@@ -279,8 +279,8 @@ brix_write_require_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
  * conservative, like stock's XrdOssSpace lag). A probe FAILURE never blocks
  * writes (fail-open: quota is a policy cap, not an integrity gate). */
 static ngx_flag_t
-write_over_quota(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
-    size_t len)
+write_over_quota(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, size_t len)
 {
 	static ngx_stream_brix_srv_conf_t *cached_conf;
 	static ngx_msec_t                    cached_at;
@@ -292,7 +292,7 @@ write_over_quota(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
 	{
 		used = cached_used;
 	} else {
-		if (brix_query_space_probe(c, conf, &total, &freeb, &used) != NGX_OK) {
+		if (brix_query_space_probe(ctx, c, conf, &total, &freeb, &used) != NGX_OK) {
 			return 0;
 		}
 		cached_conf = conf;
@@ -333,7 +333,7 @@ brix_write_within_maxsize(brix_ctx_t *ctx, ngx_connection_t *c,
 	/* §3.3: the ENFORCED space quota (opt-in; brix_oss_quota alone stays
 	 * advertisement-only). Same refusal code stock uses for over-quota. */
 	if (conf->oss_quota_enforce == 1 && conf->oss_quota >= 0
-	    && write_over_quota(c, conf, len))
+	    && write_over_quota(ctx, c, conf, len))
 	{
 		brix_log_access(ctx, c, op, ctx->files[idx].path, "-", 0,
 						  kXR_overQuota, "export usage exceeds brix_oss_quota", 0);

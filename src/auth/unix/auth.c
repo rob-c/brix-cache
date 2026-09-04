@@ -299,8 +299,9 @@ brix_unix_finalize(brix_ctx_t *ctx, ngx_connection_t *c,
     char safe_user[BRIX_SSS_USER_MAX * 4];
     char safe_group[BRIX_SSS_GROUP_MAX * 4];
 
-    brix_session_register(ctx->login.sessid, ctx->login.dn,
-                            ctx->login.vo_list, 0);
+    ctx->login.session_slot_hint =
+        brix_session_register(ctx->login.sessid, ctx->login.dn,
+                                ctx->login.vo_list, 0);
     brix_unix_track_identity(ctx);
 
     brix_sanitize_log_string(names->user, safe_user, sizeof(safe_user));

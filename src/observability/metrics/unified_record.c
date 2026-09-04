@@ -82,7 +82,7 @@ brix_metric_op_done(brix_proto_t proto, brix_metric_op_t op,
  *       filing a 0 µs sample would pile fake weight into the lowest latency
  *       bucket of a family whose other rows are real. Booking the op without a
  *       latency sample keeps `brix_io_ops_total{op="tpc"}` truthful and leaves
- *       `brix_io_latency_usec{op="tpc"}` honestly empty — exactly the split the
+ *       `brix_io_latency_seconds{op="tpc"}` honestly empty — exactly the split the
  *       stream READ/WRITE rows already use (ops from the wire-ledger fold, no
  *       latency).
  * HOW:  Same validation and SHM resolution as brix_metric_op_done, one atomic.

@@ -53,12 +53,6 @@ copy_one_with_retry(const char *src, const char *dst, const brix_copy_opts *o,
                     const brix_opts *co, int retries, brix_status *st)
 {
     int attempt = 0;
-    /* web->web has no direct wire path — stage through a local temp. Each relay
-     * leg is web<->local (never web->web), so it re-enters here on the normal
-     * path with no recursion. */
-    if (both_web(src, dst)) {
-        return relay_web_to_web(src, dst, o, co, retries, st);
-    }
     for (;;) {
         brix_status_clear(st);
         if (brix_copy(src, dst, o, co, st) == 0) {
@@ -379,62 +373,6 @@ transfer_one(const char *src, const char *dst, const brix_copy_opts *o,
                         "source %s\n", src);
     }
     return 0;
-}
-
-
-/* Relay a web->web copy (e.g. davs://a/f -> s3://b/k) by staging through a private
- * local temp file: download src into it, then upload it to dst. The wire has no
- * direct web->web op and brix_http_upload needs a seekable/sized body, so a temp
- * is the only correct path. The temp is created 0600 via mkstemp in $TMPDIR and
- * unlinked on every return. Note the download leg rewrites the temp via its own
- * temp+rename (which lands 0644), so we re-tighten it to 0600 before the upload
- * leg, keeping the staged bytes private during the (longer) upload window. Each
- * leg is web<->local, so cancellation is only as prompt as a single web transfer
- * (a timeout/EINTR boundary), not instantaneous. */
-int
-relay_web_to_web(const char *src, const char *dst, const brix_copy_opts *o,
-                 const brix_opts *co, int retries, brix_status *st)
-{
-    const char    *tmpdir = getenv("TMPDIR");
-    char           tmpl[XRDC_PATH_MAX];
-    brix_copy_opts leg;
-    int            fd, rc;
-
-    if (tmpdir == NULL || tmpdir[0] == '\0') { tmpdir = "/tmp"; }
-    if ((size_t) snprintf(tmpl, sizeof(tmpl), "%s/xrdcp-w2w-XXXXXX", tmpdir)
-            >= sizeof(tmpl)) {
-        brix_status_set(st, XRDC_EUSAGE, 0, "web->web: temp path too long");
-        return -1;
-    }
-    fd = mkstemp(tmpl);
-    if (fd < 0) {
-        brix_status_set(st, XRDC_ESOCK, errno,
-                        "web->web: mkstemp in %s: %s", tmpdir, strerror(errno));
-        return -1;
-    }
-    close(fd);   /* the download leg reopens by path */
-
-    if (!o->silent) {
-        fprintf(stderr, "xrdcp: %s -> %s (web->web via local temp)\n", src, dst);
-    }
-    /* Leg 1: download src -> our private temp. Force-overwrite the empty mkstemp
-     * file (it is ours) and never recurse. */
-    leg = *o;
-    leg.force = 1;
-    leg.recursive = 0;
-    rc = copy_one_with_retry(src, tmpl, &leg, co, retries, st);
-    if (rc == 0) {
-        /* The download's temp+rename left the staged file group/other-readable;
-         * re-tighten before the upload so the bytes aren't world-readable in a
-         * shared /tmp for the whole upload. */
-        (void) chmod(tmpl, S_IRUSR | S_IWUSR);
-        /* Leg 2: upload temp -> dst, honouring the user's real force/posc/creds. */
-        leg = *o;
-        leg.recursive = 0;
-        rc = copy_one_with_retry(tmpl, dst, &leg, co, retries, st);
-    }
-    (void) unlink(tmpl);
-    return rc;
 }
 
 

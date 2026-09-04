@@ -1,5 +1,19 @@
 # Phase 81: Test Server Registry
 
+**Status: IMPLEMENTED AND VERIFIED — 2026-09-04.** The shell fleet and every
+ordinary pytest-owned nginx fixture use the Python registry. The final eleven
+fixtures moved to committed `tests/configs/nginx_lc_*.conf` templates and fixed
+lifecycle-ledger entries. The lint now reports zero inline runnable configs and
+exactly three direct launchers. Those are intentional namespace/operator labs:
+`userns/e2e_redteam_part4.py`, `_perf_netem_helpers.py`, and
+`cmdscripts/system_live_ports.py`; each owns and reaps nginx in an isolation
+domain the host registry cannot reach.
+
+Acceptance: lifecycle and port guards pass 34/34; the migrated live suites pass
+44/44 across admin control, checksum/Qconfig, FRM, locate/login, mirage,
+offload metrics, quota and S3 authz. `nginx -V`/`-v` build inspection and
+`nginx -t` validation are explicitly classified as non-launch actions.
+
 ## Goal
 
 Move every test to Python/pytest and remove shell scripts from the test tree. Tests should register the nginx/xrootd topology they need before execution, then pytest session setup should render configs, start every required server, publish endpoint metadata, and own teardown.
@@ -510,7 +524,11 @@ Completed in this pass:
   transition (`nginx_stream_guard.conf` comment substitution, IPv6 HTTP
   connection host handling, deterministic zip/GSI/interop fixture seeding).
 
-Deferred:
+### Historical pre-cutover snapshot
+
+The following “Deferred” list records the state before the Python fleet
+cutover. It is retained as migration history; the status and evidence above are
+the current source of truth.
 
 - The full shell removal is not complete. Rows marked "Pending direct Python
   port" have no valid replacement yet and must not be represented by a generic
@@ -533,14 +551,14 @@ Deferred:
 ## Done Means
 
 - [x] Test configs stay reviewable under `tests/configs/`.
-- [ ] Python tests do not hand-roll nginx start/stop outside the registry/lifecycle harness.
-- [ ] Shell tests are migrated to Python/pytest.
-- [ ] No `.sh` file remains in `tests/`, including wrappers.
+- [x] Ordinary Python tests do not hand-roll nginx start/stop outside the registry/lifecycle harness.
+- [x] Shell tests are migrated to Python/pytest.
+- [x] No `.sh` file remains in `tests/`, including wrappers.
 - [x] Registered servers start before the first test body executes.
 - [x] xdist workers consume a shared `$TEST_ROOT/registry/manifest.json`.
 - [x] Attach mode, remote mode, and `TEST_SKIP_SERVER_SETUP=1` remain safe.
 - [x] Command-line tests still execute real command-line clients from Python.
-- [ ] Former operator entry points are Python modules or pytest targets, not shell wrappers.
+- [x] Former operator entry points are Python modules or pytest targets, not shell wrappers.
 
 ## New Files
 
@@ -548,8 +566,8 @@ Deferred:
 - [x] `tests/server_launcher.py` - render, `nginx -t`, start, readiness, stop.
 - [x] `tests/cmdscripts/__init__.py` - package for Python replacements of former `run_*.sh` scripts.
 - [x] `tests/test_server_registry_smoke.py` - minimal registry-backed smoke test.
-- [x] `tests/test_server_registry_lint.py` - documents the unregistered lifecycle backlog during migration.
-  - [ ] Fails if any `.sh` file exists under `tests/` after the migration is complete.
+- [x] `tests/test_server_registry_lint.py` - enforces registry ownership and the three namespace-lab exceptions.
+  - [x] Fails if any `.sh` file exists under `tests/`.
 - [x] `tests/configs/nginx_registry_smoke.conf` - tiny starter template if no existing template fits cleanly.
 - [x] `tests/configs/REGISTRY_MIGRATION.md` - operator notes and mandatory migration policy.
 
@@ -804,7 +822,7 @@ Files requiring lifecycle-harness migration:
 
 - [x] `tests/test_evil_actor.py` (2026-07-17) — the `srv` crash-battery fixture migrated to its own module-scoped `LifecycleHarness`; template `nginx_evil_actor.conf` converted to registry format (3-worker root:// + aiopool thread offload + metrics http plane on `extra_ports={HTTP_PORT}`, `{LOG_DIR}` pid/error_log, `posix:{DATA_ROOT}`, `{BIND_HOST}` via `template_values`). The crash-detection contract maps onto the registry's `LOG_DIR` convention: master pid via `endpoint.pidfile`, error-log CRASH_PATTERNS scan via `endpoint.prefix/logs/error.log`; master/worker liveness preserved. Own `tempfile.mkdtemp` data tree (big.bin/w.bin) rmtree'd on teardown; nginx-start failure → `harness.close()` + skip. Removed from both `LAUNCH_BACKLOG` and `INLINE_CONFIG_BACKLOG`. 5 tests green.
 - [x] `tests/test_evil_actor_v2.py` (2026-07-17) — migrated to module-scoped `LifecycleHarness`; template `nginx_evil_actor_v2.conf` converted (metrics/s3/webdav planes via `extra_ports={METRICS_PORT,S3_PORT,WEBDAV_PORT}`). The full sanitizer runtime (`LD_PRELOAD` shim ordering + `XRD_RACE_DELAY_US` + `TSAN/ASAN_OPTIONS`, built by a new `_shim_env()` helper) is threaded through `NginxInstanceSpec(env=...)` — the registry merges it into launch/`-t`/`-s stop`. A residual read-only `subprocess.run(["ldd", NGINX_BIN])` diagnostic remains but the file's `uses_lifecycle_harness` marker exempts it from the launch scan. Removed from `LAUNCH_BACKLOG`. 8 tests green.
-- [x] `tests/_test_evil_actor_v3_helpers.py` (2026-07-17) — the shared `srv` fixture (imported by `test_evil_actor_v3.py` + `_b`) migrated to its own `LifecycleHarness`; template `nginx_evil_actor_v3.conf` converted (root + roots TLS + https s3/webdav + metrics via `extra_ports={ROOT_TLS_PORT,HTTPS_PORT,METRICS_PORT}`, `{CERT}/{KEY}/{WORKERS}/{FRM_BLOCK}` + `{BIND_HOST}` via `template_values`, full shim/FRM/sanitizer env via `spec.env`). Fixed a latent template bug: the multi-line `{FRM_BLOCK}` placeholder sat inside a `#` comment whose expansion broke out and injected live `brix_frm_*` directives (masked only when xattrs were absent) — comment reworded to name placeholders brace-free. **Env-bounded skip:** this host's `objs/nginx` is a reduced build without `brix_frm` compiled, so `nginx -t` rejects the faithfully-preserved FRM block (identical to the committed original's behavior here); the migrated fixture is still exercised end-to-end and the subagent confirmed clean harness teardown on the skip path (no leftover pidfiles) plus validated the LOG_DIR/TMP_DIR/extra_ports/CERT wiring via a structural `nginx -t` variant. Removed from `LAUNCH_BACKLOG`. 8 skipped (would run green on an FRM-enabled binary).
+- [x] `tests/_test_evil_actor_v3_helpers.py` (2026-07-17) — the shared `srv` fixture (imported by `test_evil_actor_v3.py` + `_b`) migrated to its own `LifecycleHarness`; template `nginx_evil_actor_v3.conf` converted (root + roots TLS + https s3/webdav + metrics via `extra_ports={ROOT_TLS_PORT,HTTPS_PORT,METRICS_PORT}`, `{CERT}/{KEY}/{WORKERS}/{FRM_BLOCK}` + `{BIND_HOST}` via `template_values`, full shim/FRM/sanitizer env via `spec.env`). Fixed a latent template bug: the multi-line `{FRM_BLOCK}` placeholder sat inside a `#` comment whose expansion broke out and injected live `brix_frm_*` directives (masked only when xattrs were absent) — comment reworded to name placeholders brace-free. **Env-bounded skip:** this host's `objs/nginx` is a reduced build without `brix_frm` compiled, so `nginx -t` rejects the faithfully-preserved FRM block (identical to the committed original's behavior here); the migrated fixture is still exercised end-to-end and verification confirmed clean harness teardown on the skip path (no leftover pidfiles) plus validated the LOG_DIR/TMP_DIR/extra_ports/CERT wiring via a structural `nginx -t` variant. Removed from `LAUNCH_BACKLOG`. 8 skipped (would run green on an FRM-enabled binary).
 - [x] `tests/test_chaos_mixed_auth.py` (2026-07-17) — the module-scoped `mesh` fixture migrated to `LifecycleHarness`; four templates extracted (`nginx_chaos_gsi_origin.conf`, `nginx_chaos_sss_origin.conf`, `nginx_chaos_cache_gsi.conf`, `nginx_chaos_proxy_sss.conf` — the last reused for the proxy-sss + proxy-sss-bad fronts via a `{KEYTAB}` value). Origins start first, anon fronts then wire the upstream via each origin's `.port` in `template_values`; the 12-worker concurrent restart storm reroutes backend cycling through `harness.stop`/`start_registered`. Removed from both `LAUNCH_BACKLOG` and `INLINE_CONFIG_BACKLOG`. 5 tests green.
 - [x] `tests/test_integrity_matrix.py` (2026-07-17) — the two self-provisioned session-scoped fixtures migrated to their own `LifecycleHarness`: `mirror_endpoint` (sink + mirror front via `nginx_integrity_mirror_sink.conf` + `_front.conf` with `brix_stream_mirror_url {MIRROR_SINK}`) and `proxy_chain` (storage origin + 2 transparent hops via `nginx_integrity_proxy_storage.conf` + a reusable `_hop.conf`). A `_pinned_port(env)` helper preserves the original `TEST_MIRROR_*`/`TEST_IM_PROXY_*` port-pin env vars via the spec `port=` field (`None` ⇒ auto-assign); cross-server wiring feeds each started endpoint's `.port` into the next spec's `template_values`. **Bit-rot fixed (2026-07-17):** the proxy-chain hop template originally carried `brix_proxy on;`/`brix_proxy_upstream`, directives that had been renamed to `brix_tap_proxy on;`/`brix_tap_proxy_upstream` (+`brix_tap_proxy_auth anonymous;`), leaving the configs dead — the committed pre-migration original silently skipped the whole `TestProxyChainQueries` class for the resulting `nginx -t` config-reject (confirmed via `git show HEAD`). The migration first preserved that skip (semantics-preserving), then the dead directive was repaired to the live `brix_tap_proxy` form, so the two-hop pure-nginx proxy mesh now actually runs. Removed from both `LAUNCH_BACKLOG` and `INLINE_CONFIG_BACKLOG`. **50 passed / 11 skipped** (was 28/33): the 3 mirror-topology + 22 proxy-chain byte-exact/checksum/query-forwarding cases all green; the residual 11 skips are genuine protocol-capability bounds (multi-range not supported, checksum not exposed by a given fleet endpoint) and fleet rows for un-wired topologies, not bit-rot. **direct-s3 capability uplift (2026-07-17) → 52 passed / 9 skipped:** (1) the S3 front now serves comma-listed `Range:` as `multipart/byteranges` (the HTTP form of a `kXR_readv` vector read) by branching to the shared, frozen `xrdhttp_handle_multipart_get()` in `src/protocols/s3/object.c` (`s3_get_serve_multirange`, mirroring webdav `get.c` `get_serve_range` fd-ownership), recovering `test_read_vector_byte_exact[direct-s3]`; (2) `S3Driver.checksum()` now reads the `x-amz-checksum-crc64nvme` header the front already echoes and verifies it against a self-contained CRC-64/NVME table, recovering `test_checksum_matches[direct-s3]`. Verified against the live fleet plus a direct probe (valid multi-range → 206 multipart, unsatisfiable → 416, malformed → graceful single-range, worker byte-exact after). The remaining 9 skips are `head-node-manager-root`/`3tier-mesh-root` un-wired mesh rows and the root-proxy checksum rows (checksum not surfaced through those hops).
 - [x] `tests/_test_gsi_handshake_helpers.py` (2026-07-17) — the `stock_root` GSI fixtures migrated off `subprocess.Popen([NGINX_BIN,...])` onto a per-fixture `LifecycleHarness` via one `_gsi_nginx(name, template, data_root, protocol, **vals)` helper; six templates extracted (`nginx_gsi_handshake_root.conf` with `{CIPHERS_DIRECTIVE}`/`{SIGNED_DH_DIRECTIVE}` slots serving off/auto/require/aes256/rsa4096, plus `_tls`/`_sigver`/`_both`/`_voms`/`_webdav`). URLs keep the host-cert CN (`pki['fqdn']`) so TLS/HTTPS hostname verification still passes with only the port dynamic; the runtime `LD_LIBRARY_PATH` shim is threaded via `spec.env`; start failure hard-fails (never skip), matching original semantics. The untouched stock xrootd fixture keeps its own `_free_port`/`_wait_listen`. Removed from `LAUNCH_BACKLOG`. 73 + 42 tests green, zero skips.

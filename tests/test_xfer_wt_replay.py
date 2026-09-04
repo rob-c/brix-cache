@@ -11,11 +11,13 @@ complete and the record would be unlinked).
 Single self-contained instance, restarted in-test; no live origin needed. The
 record is parsed straight from the journal (brix_sreq_t layout, stage_engine.h).
 This is confined to a write-back tier by the async flush mode.
+
+The fixture disables strict cross-protocol lock enforcement: strict mode must
+reach the authoritative origin to prove that a mutation is unlocked, whereas
+this test deliberately keeps that origin offline.
 """
 import os
-import shutil
 import struct
-import subprocess
 import time
 
 import pytest
@@ -25,6 +27,7 @@ from official_interop_lib import worker_reachable
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
 from fleet_lifecycle_ports import lifecycle_ports_for
+from _test_xfer_wt_wire import write_file
 
 # Bucket-2 lifecycle subject: one fixed-port `lc-xfer-wt-replay` instance the
 # test restart()s; xdist_group serialises it so the fixed exclusive-band port
@@ -40,11 +43,7 @@ def _guard_test_durable_flush_replayed_after_restart_1():
         pytest.skip("nginx binary not found")
 
 def _guard_test_durable_flush_replayed_after_restart_2():
-    if XRDCP is None:
-        pytest.skip("xrdcp not available")
-
-def _check_test_durable_flush_replayed_after_restart_1(r):
-    assert r.returncode == 0, r.stderr.decode(errors="replace")
+    return None
 
 def _check_test_durable_flush_replayed_after_restart_2(rec):
     assert rec is not None and rec[0] == BRIX_SREQ_FAILED, \
@@ -63,8 +62,6 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
 # the server fixture re-binds this module global to the started endpoint's port.
 PORT = int(os.environ.get("TEST_XFER_WTR_PORT")
            or lifecycle_ports_for("lc-xfer-wt-replay")[0])
-XRDCP = shutil.which("xrdcp")
-
 # brix_sreq_t on-disk layout (src/fs/xfer/stage_engine.h) — see test_xfer_wt_journal.
 SREQ_FMT = "<40s i i 16s 1024s 16s 1024s 1024s H 6x Q Q q q q I i 128s 512s 1024s B"
 F_KIND, F_STATE, F_SRC_KEY, F_DST_KEY = 1, 2, 4, 6
@@ -128,8 +125,7 @@ def test_durable_flush_replayed_after_restart(lifecycle, tmp_path):
     # trees (pytest tmp parents are root-0700 — untraversable otherwise).
     worker_reachable(data, stage, journal)
     name = "wtr_recover.bin"
-    src = tmp_path / "payload.bin"
-    src.write_bytes(b"replay-me-" + b"r" * 400)
+    payload = b"replay-me-" + b"r" * 400
 
     spec = NginxInstanceSpec(
         name="lc-xfer-wt-replay",
@@ -148,10 +144,7 @@ def test_durable_flush_replayed_after_restart(lifecycle, tmp_path):
     PORT = ep.port
 
     # --- run 1: write, let the async flush fail against the dead origin ---
-    r = subprocess.run(
-        [XRDCP, "-f", str(src), f"root://{HOST}:{ep.port}//{name}"],
-        capture_output=True, timeout=30)
-    _check_test_durable_flush_replayed_after_restart_1(r)
+    write_file(HOST, ep.port, f"/{name}", payload)
     rec = _poll_failed(journal, name)
     _check_test_durable_flush_replayed_after_restart_2(rec)
     attempts_before = rec[1]

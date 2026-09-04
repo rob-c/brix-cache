@@ -451,7 +451,14 @@ sd_ceph_enumerate_io(sd_ceph_state_t *st, rados_ioctx_t io, int want_stat,
 {
     rados_list_ctx_t  lc;
     const char       *oid;
-    size_t            plen = (st->key_prefix != NULL) ? strlen(st->key_prefix) : 0;
+    brix_n2n_cfg_t    cfg;
+
+    /* The reverse of sd_ceph_key: recover each object's logical path by stripping
+     * the CEPHFS_PATH prefix through the SAME shared translation the forward key
+     * composition uses (phase-108 A.4). Built once for the whole listing. */
+    if (sd_ceph_prefix_cfg(st->key_prefix, &cfg) != 0) {
+        return NGX_ERROR;              /* prefix too long — errno set */
+    }
 
     if (sd_ceph_set_errno(rados_nobjects_list_open(io, &lc))) {
         return NGX_ERROR;
@@ -459,6 +466,7 @@ sd_ceph_enumerate_io(sd_ceph_state_t *st, rados_ioctx_t io, int want_stat,
 
     while (rados_nobjects_list_next(lc, &oid, NULL, NULL) == 0) {
         char                    pfn[1024];
+        char                    lfn[1024];
         const char             *key_name;
         brix_sd_catalog_ent_t ent;
         uint64_t                size = 0;
@@ -478,11 +486,12 @@ sd_ceph_enumerate_io(sd_ceph_state_t *st, rados_ioctx_t io, int want_stat,
 
         ngx_memzero(&ent, sizeof(ent));
         ent.key  = key_name;
-        ent.path = (plen == 0)
-                   ? key_name
-                   : (strncmp(key_name, st->key_prefix, plen) == 0
-                          ? key_name + plen     /* recovered logical path */
-                          : NULL);              /* outside prefix → orphan candidate */
+        /* brix_n2n_pfn2lfn recovers the logical path (CEPHFS_PATH: verify+strip
+         * the prefix) or fails when the object is outside the prefix — exactly the
+         * previous "key_name + plen" / NULL orphan split, now via site_n2n. */
+        ent.path = (brix_n2n_pfn2lfn(&cfg, key_name, lfn, sizeof(lfn)) == 0)
+                   ? lfn               /* recovered logical path */
+                   : NULL;             /* outside prefix → orphan candidate */
         if (want_stat && rados_stat(io, oid, &size, &mtime) == 0) {
             ent.have_stat = 1;
             ent.size  = (off_t) size;

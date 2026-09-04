@@ -37,9 +37,7 @@ brix_vfs_truncate(brix_vfs_file_t *fh, off_t length)
     /* phase-105: the endpoint gate, from the policy the handle copied at open
      * and BEFORE the capability question — a read-only export answers EROFS
      * whatever the backend can do (Appendix I.5 precedence). */
-    if (brix_vfs_require_carried_mutation(fh->mutation_policy,
-            brix_vfs_metrics_proto(fh->ctx), BRIX_VFS_MUTATE_TRUNCATE)
-        != NGX_OK)
+    if (brix_vfs_gate_file_mutation(fh, BRIX_VFS_MUTATE_TRUNCATE) != NGX_OK)
     {
         return NGX_ERROR;
     }
@@ -85,12 +83,65 @@ brix_vfs_truncate(brix_vfs_file_t *fh, off_t length)
  *       open(O_WRITE)+ftruncate+close fallback, which is also why the gate cannot
  *       just be the decorator's forwarder returning ENOTSUP.
  *       Unmetered like brix_vfs_truncate — the kXR_truncate handler logs access. */
+/* vfs_truncate_driver_path -- execute the native path-truncate branch.
+ *
+ * WHAT: Applies the lock and credential gates, translates the confined path,
+ *       invokes the leaf truncate slot and invalidates a stale cache entry.
+ * WHY:  The driver branch is independently coherent and keeping it outside the
+ *       public router bounds the latter's control-flow complexity.
+ * HOW:  Gate lock, acquire a credential when configured, derive the PFN, call
+ *       the cred-aware slot, wipe the credential, then evict on success. */
+static ngx_int_t
+vfs_truncate_driver_path(brix_vfs_ctx_t *ctx, brix_sd_instance_t *leaf,
+    const char *path, off_t length)
+{
+    brix_sd_ucred_t  store;
+    brix_sd_cred_t   cred;
+    ngx_int_t        rc;
+    int              use_cred = 0, cred_err = 0, saved_errno;
+    char             key[PATH_MAX];
+
+    if (brix_vfs_require_unlocked(ctx, BRIX_VFS_MUTATE_TRUNCATE) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    ngx_memzero(&store, sizeof(store));
+    ngx_memzero(&cred, sizeof(cred));
+    if (brix_vfs_cred_gate_active(ctx)
+        && brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err) != NGX_OK)
+    {
+        errno = cred_err ? cred_err : EACCES;
+        return NGX_ERROR;
+    }
+    if (brix_path_resolved_to_pfn(ctx, path, key, sizeof(key)) != NGX_OK) {
+        brix_sd_ucred_wipe(&store);
+        return NGX_ERROR;
+    }
+    rc = brix_sd_truncate_path_maybe_cred(leaf, key, length,
+             use_cred ? &cred : NULL);
+    saved_errno = errno;
+    brix_sd_ucred_wipe(&store);
+    if (rc == NGX_OK) {
+        brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx),
+                                  brix_sd_cache_evict(ctx->sd, key));
+    }
+    errno = saved_errno;
+    return rc;
+}
+
+/* brix_vfs_truncate_path -- resize the resolved path by its best backend verb.
+ *
+ * WHAT: Uses path-native truncate when available, otherwise a confined
+ *       write-open/ftruncate/close. Returns NGX_OK or NGX_ERROR with errno.
+ * WHY:  Remote drivers avoid a whole-file staging round trip while drivers
+ *       without a path slot retain the uniform handle fallback.
+ * HOW:  Validate and gate, select the leaf capability, then dispatch either
+ *       vfs_truncate_driver_path or the VFS handle sequence. */
 ngx_int_t
 brix_vfs_truncate_path(brix_vfs_ctx_t *ctx, off_t length)
 {
-    brix_sd_instance_t       *leaf;
-    const brix_sd_driver_t   *leaf_drv;
-    const char               *path;
+    brix_sd_instance_t     *leaf;
+    const brix_sd_driver_t *leaf_drv;
+    const char             *path;
 
     if (length < 0) {
         errno = EINVAL;
@@ -110,53 +161,7 @@ brix_vfs_truncate_path(brix_vfs_ctx_t *ctx, off_t length)
         && (leaf_drv->truncate_path != NULL
             || leaf_drv->truncate_path_cred != NULL))
     {
-        brix_sd_ucred_t     store;
-        brix_sd_cred_t      cred;
-        ngx_int_t           rc;
-        int                 use_cred = 0, cred_err = 0, saved_errno;
-        const char           *key;
-
-        /* phase-107 C7: lock gate on the path-native branch ONLY — the
-         * open+ftruncate fallback below reaches brix_vfs_open, whose own gate
-         * already covers it, and gating both routes would double-book the
-         * advisory refusal metric (the same reason W8 excluded the staged
-         * route at root open dispatch). EROFS still precedes EBUSY: the
-         * confined-mutation gate ran above, before any lock read. */
-        if (brix_vfs_require_unlocked(ctx, BRIX_VFS_MUTATE_TRUNCATE)
-            != NGX_OK)
-        {
-            return NGX_ERROR;
-        }
-
-        /* Zero before the gate: it fills only the active credential kind; an
-         * unzeroed cred hands a garbage inactive pointer to the driver's slot. */
-        ngx_memzero(&cred, sizeof(cred));
-
-        if (brix_vfs_cred_gate_active(ctx)) {
-            if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
-                != NGX_OK)
-            {
-                errno = cred_err ? cred_err : EACCES;
-                return NGX_ERROR;
-            }
-        }
-
-        key = brix_vfs_export_relative(ctx, path);
-        rc = brix_sd_truncate_path_maybe_cred(leaf, key, length,
-                 use_cred ? &cred : NULL);
-        saved_errno = errno;
-        brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
-        if (rc == NGX_OK) {
-            /* The origin object is now a different length. The leaf dispatch
-             * skipped the cache decorator, so the store still holds the old
-             * full-length copy and would serve it — drop it, exactly as
-             * vfs_unlink/vfs_rename compensate for the same bypass. No-op when
-             * ctx->sd is not a cache. */
-            brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx),
-                                      brix_sd_cache_evict(ctx->sd, key));
-        }
-        errno = saved_errno;
-        return rc;
+        return vfs_truncate_driver_path(ctx, leaf, path, length);
     }
 
     /* Fallback: no path-native truncate — open a write handle, resize, close. */
@@ -202,8 +207,7 @@ brix_vfs_sync(brix_vfs_file_t *fh)
 
     /* phase-105: a durability barrier is only ever owed for bytes this endpoint
      * was allowed to write, so it is gated with them (never EACCES). */
-    if (brix_vfs_require_carried_mutation(fh->mutation_policy,
-            brix_vfs_metrics_proto(fh->ctx), BRIX_VFS_MUTATE_SYNC) != NGX_OK)
+    if (brix_vfs_gate_file_mutation(fh, BRIX_VFS_MUTATE_SYNC) != NGX_OK)
     {
         return NGX_ERROR;
     }

@@ -95,24 +95,19 @@ typedef struct {
  *       already closed).
  */
 static ngx_int_t
-zip_http_open_archive(ngx_http_request_t *r, const char *root_canon,
+zip_http_open_archive(ngx_http_request_t *r,
+    const brix_vfs_ctx_t *vfs_scope,
     const char *archive_full, brix_vfs_file_t **fhp, off_t *sizep)
 {
     struct stat        ast;
     brix_vfs_ctx_t   vctx;
     brix_vfs_file_t *fh;
     int                vfs_err = 0;
-    int                is_tls = brix_http_request_is_tls(r);
-    /* triage (review-finding fixes, 2026-07-08): this IS a remote-capable
-     * data-plane read (brix_vfs_open below can reach a driver backend), so it
-     * belongs on the per-user-credential list in principle. Left NULL/unbound:
-     * brix_zip_http_serve() takes only `ngx_http_request_t *r` — it has no
-     * identity parameter, and both call sites (src/protocols/s3/object.c,
-     * src/protocols/webdav/get.c) are HTTP-plane and outside this task's
-     * touched-file scope, so threading identity here would require a public
-     * signature change reaching two more files. Deferred, not a same-file fix. */
-    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
-        root_canon, NULL, BRIX_VFS_MUTATION_READ_ONLY, is_tls, NULL, archive_full);
+    if (vfs_scope == NULL
+        || brix_vfs_ctx_derive_path(&vctx, vfs_scope, archive_full) != NGX_OK)
+    {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);
     if (fh == NULL) {
         errno = vfs_err;
@@ -307,8 +302,9 @@ zip_http_set_headers(ngx_http_request_t *r, const zip_http_span_t *sp)
 }
 
 ngx_int_t
-brix_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
-    size_t cd_max, const char *archive_full, const char *member)
+brix_zip_http_serve(ngx_http_request_t *r,
+    const brix_vfs_ctx_t *vfs_scope, size_t cd_max,
+    const char *archive_full, const char *member)
 {
     brix_zip_member_t  m;
     zip_http_span_t      sp;
@@ -317,7 +313,7 @@ brix_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
     brix_vfs_file_t   *fh = NULL;
     off_t                archive_size = 0;
 
-    rc = zip_http_open_archive(r, root_canon, archive_full, &fh,
+    rc = zip_http_open_archive(r, vfs_scope, archive_full, &fh,
                                &archive_size);
     if (rc != NGX_OK) {
         return rc;

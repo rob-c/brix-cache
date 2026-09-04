@@ -40,6 +40,8 @@ from _test_data_substreams_parallel_helpers import (
     _recv_exact,
 )
 
+pytestmark = pytest.mark.xdist_group("pgread-primary-shared-data")
+
 # Hand-validation overrides: point the suite at a bespoke server (e.g. the
 # bench fleet) without touching the shared fleet.
 HOST = os.environ.get("BRIX_PGSTREAM_HOST", SERVER_HOST)
@@ -126,19 +128,18 @@ def _assert_train_shape(frames):
 def _reassemble_train(frames, base_offset):
     """Concatenate a train's decoded pages, asserting contiguous offsets and
     (for partial frames) window cuts on the absolute 4 KiB page grid.  A
-    short-at-EOF window is a legal off-grid Partial — it is recognized by the
-    zero-byte Final frame that follows it."""
+    partial page is legal ONLY in the Final frame (XProtocol pgread framing):
+    the stock client rejects a short page mid-train as corrupt, so a Partial
+    frame ending off the grid is a wire bug even when an empty Final
+    follows."""
     out = b""
-    for i, (resptype, pgr_off, pages) in enumerate(frames):
+    for resptype, pgr_off, pages in frames:
         assert pgr_off == base_offset + len(out), (
             f"frame offset {pgr_off} != running offset {base_offset + len(out)}")
         decoded = _decode_pages(pages, first_offset=pgr_off)
-        eof_short = (i + 1 < len(frames)
-                     and frames[i + 1][0] == kXR_FinalResult
-                     and not frames[i + 1][2])
-        if resptype == kXR_PartialResult and not eof_short:
+        if resptype == kXR_PartialResult:
             assert (pgr_off + len(decoded)) % PG_PAGESZ == 0, \
-                "window cut off the page grid"
+                "partial frame ended off the page grid"
         out += decoded
     return out
 
@@ -249,6 +250,26 @@ class TestPgreadPrimaryStream:
         out = _reassemble_train(frames, offset)
         assert out == CONTENT[offset:], "EOF train differs from the file tail"
         assert len(out) == tail, f"expected {tail} tail bytes, got {len(out)}"
+
+    @pytest.mark.skipif(not _CRC32C_OK, reason="local CRC32c self-test failed")
+    def test_eof_short_window_is_final_not_partial(self, open_handle):
+        """success/EOF regression: a windowed pgread whose FIRST window comes
+        up short (the file tail is smaller than the window) must arrive as
+        ONE kXR_FinalResult frame carrying the partial last page — never as
+        kXR_PartialResult + an empty Final.  A short page is only legal in
+        the final frame; the stock client flags the mid-train shape as a
+        corrupted page and its retry silently truncates the tail (xrdfs cat
+        returned size-4 bytes for every unaligned file)."""
+        primary, fh = open_handle
+        offset = FILE_SIZE - 11                   # unaligned 11-byte tail
+        _send_pgread(primary, fh, offset, 4 * 1024 * 1024, b"\x00\x58")
+        frames = _drain_train(primary, b"\x00\x58")
+        assert len(frames) == 1, (
+            f"EOF-short window must be a single Final frame, got "
+            f"{len(frames)} frames (resptypes {[f[0] for f in frames]})")
+        assert frames[0][0] == kXR_FinalResult
+        decoded = _decode_pages(frames[0][2], first_offset=offset)
+        assert decoded == CONTENT[-11:], "EOF tail bytes differ"
 
     def test_bogus_fhandle_yields_error_no_desync(self, open_handle):
         """error: a large pgread on an invalid file handle is refused with

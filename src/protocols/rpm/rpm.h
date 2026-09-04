@@ -59,7 +59,8 @@ typedef struct {
     brix_rpm_req_t             req;                    /* classifier output  */
     char                       key[BRIX_RPM_KEY_MAX];  /* == the request URI */
     size_t                     key_len;
-    brix_rpm_outcome_metric_e  disp;                   /* $rpm_cache         */
+    brix_rpm_outcome_metric_e  disp;                   /* metric outcome +   *
+                                                        * $brix_cache_status */
     unsigned                   classified:1;
     unsigned                   counted:1;              /* observer ran       */
 } ngx_http_brix_rpm_ctx_t;
