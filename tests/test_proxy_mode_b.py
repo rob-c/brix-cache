@@ -131,6 +131,21 @@ class TestProxyOpenWriteClose:
 # TestProxyHandleTranslation
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _reads_summary(reads):
+    """Every handle's own verdict, for a failure message that can be acted on."""
+    return ", ".join(f"{name}: fh={fh.hex()} status={st} data={data!r}"
+                     for name, (fh, st, data) in reads.items())
+
+
+def _assert_reads_match(reads, expected):
+    """Each handle read back its OWN file."""
+    seen = _reads_summary(reads)
+    for name, (_fh, status, data) in reads.items():
+        assert status == kXR_ok, f"{name}: read status {status} — all: {seen}"
+        assert data == expected[name], (
+            f"{name}: expected {expected[name]!r}, got {data!r} — all: {seen}")
+
+
 class TestProxyHandleTranslation:
     """File handle translation: client gets local handles, proxy maps to upstream."""
 
@@ -243,11 +258,15 @@ class TestProxyHandleTranslation:
                 assert s == kXR_ok, f"open {fname} failed"
                 handles[fname] = _fh(b)
 
+            # Read every handle BEFORE asserting.  The subject is handle
+            # TRANSLATION, so which other handles were healthy at the same
+            # moment is the whole diagnosis — a lone "got b''" cannot say
+            # whether one handle was mistranslated or the session was gone.
+            reads = {}
             for fname, fh in handles.items():
-                s, data = _read(sock, fh, 0, 16)
-                assert s == kXR_ok
-                assert data == expected[fname], \
-                    f"{fname}: expected {expected[fname]!r}, got {data!r}"
+                reads[fname] = (fh,) + _read(sock, fh, 0, 16)
+
+            _assert_reads_match(reads, expected)
 
             for fh in handles.values():
                 _close(sock, fh)

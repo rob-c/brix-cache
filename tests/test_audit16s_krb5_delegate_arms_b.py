@@ -28,13 +28,45 @@ class _Session:
             self.proc.kill()
 
 
+# How long to wait for a capture to appear.  `_Session.stat()` only WRITES a
+# command to an interactive xrdfs — it does not read the reply — so the
+# subprocess spawn, the TCP connect and the whole Kerberos handshake all still
+# lie ahead of the first poll, against a server that itself started moments
+# ago.  The original 4s (80 x 0.05) budget covered that on an idle box and
+# nothing else: under load the capture lands after the poll has given up, and
+# the file the server did write is never seen.  Measured against the server's
+# own log, the handshake completed ~10s after the instance came up, so the
+# budget is now 30s — this bounds a WAIT, and a healthy run still returns on
+# the first tick after the capture.
+_CAPTURE_TIMEOUT = 30.0
+_CAPTURE_TICK = 0.05
+
+
+def _wait_for_auth(planes, port, timeout=_CAPTURE_TIMEOUT):
+    """Block until the server logs a completed krb5 auth on `port`.
+
+    An absence assertion needs the same evidence a presence one does: that the
+    session actually got as far as authenticating.  Without it a security-neg
+    case is answered before the handshake it is judging has even happened.
+    """
+    needle = f"server: 0.0.0.0:{port}"
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        for line in planes.errlog().splitlines():
+            if "krb5 auth OK" in line and needle in line:
+                return True
+        time.sleep(_CAPTURE_TICK)
+    return False
+
+
 def _capture_while_open(port, ccache, directory=DEFAULT_CAPTURE_DIR):
     """Open a session, wait for its capture file, return (path, session)."""
     before = set(_captures(directory))
     session = _Session(port, ccache)
     session.stat()
-    for _ in range(80):
-        time.sleep(0.05)
+    deadline = time.monotonic() + _CAPTURE_TIMEOUT
+    while time.monotonic() < deadline:
+        time.sleep(_CAPTURE_TICK)
         new = set(_captures(directory)) - before
         if new:
             return new.pop(), session
@@ -103,8 +135,14 @@ class TestWhereTheCapturedTicketLands:
         before = set(_captures())
         session = _Session(planes.off, planes.forwardable)
         session.stat()
-        time.sleep(1.0)
         try:
+            # Wait for the handshake to COMPLETE before judging it.  A flat
+            # 1s sleep answered this case long before the ~10s Kerberos
+            # handshake finished, so it passed whatever the off arm did — a
+            # security-negative that had stopped testing anything.
+            assert _wait_for_auth(planes, planes.off), (
+                "the off plane never authenticated, so this case proved "
+                f"nothing:\n{planes.errlog()}")
             assert set(_captures()) - before == set(), (
                 "the off arm wrote a ccache into the staging dir")
         finally:
