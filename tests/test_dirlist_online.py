@@ -35,7 +35,7 @@ from pathlib import Path
 import pytest
 
 from settings import NGINX_BIN
-from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec, pblock_worker_own
+from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_start, pblock_worker_own
 
 pytestmark = [pytest.mark.timeout(150), pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-dirlist-online")]
@@ -170,7 +170,7 @@ def lab(lifecycle, tmp_path):
     if not XRDCP.exists() or not XRDFS.exists():
         pytest.skip("client binaries (xrdcp/xrdfs) not built")
 
-    ep = lifecycle.start(pblock_lab_spec("lc-dirlist-online", "?nearline=1"))
+    ep = pblock_lab_start(lifecycle, "lc-dirlist-online", "?nearline=1")
     time.sleep(1)
     hub = f"root://{ep.host}:{ep.port}/"
 

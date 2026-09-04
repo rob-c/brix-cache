@@ -32,7 +32,7 @@ import time
 import pytest
 
 from cmdscripts.live_common import LiveRun, random_file, sha256
-from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec
+from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_start
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-pblock-dedup")]
@@ -103,7 +103,7 @@ def test_dedup_identical_puts_share_blob(lifecycle, fsck: Path) -> None:
     untouched; the refcount ledger passes --verify-refs throughout."""
     _need_bins()
     with LiveRun("pblock_dd_ok", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-dd-ok", "?dedup=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-dd-ok", "?dedup=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         root = Path(ep.data_root)
@@ -176,7 +176,7 @@ def test_dedup_cow_break_on_overwrite(lifecycle, fsck: Path) -> None:
     in the C unit; native TPC over the wire is a separate open bug.)"""
     _need_bins()
     with LiveRun("pblock_dd_cow", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-dd-cow", "?dedup=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-dd-cow", "?dedup=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         root = Path(ep.data_root)
@@ -227,7 +227,7 @@ def test_dedup_forged_hash_cannot_alias_and_gate_off(lifecycle, fsck: Path) -> N
 
     # --- forged-hash rejection (gate on) --------------------------------------
     with LiveRun("pblock_dd_sec", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-dd-sec", "?dedup=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-dd-sec", "?dedup=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         root = Path(ep.data_root)
@@ -298,7 +298,7 @@ def test_dedup_forged_hash_cannot_alias_and_gate_off(lifecycle, fsck: Path) -> N
 
     # --- gate off: identical PUTs stay distinct -------------------------------
     with LiveRun("pblock_dd_off", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-dd-off", ""))  # gate OFF
+        ep = pblock_lab_start(lifecycle, "lc-pblock-dd-off", "")  # gate OFF
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         host = f"root://{ep.host}:{ep.port}"

@@ -19,7 +19,7 @@ import time
 import pytest
 
 from cmdscripts.live_common import LiveRun, random_file
-from cmdscripts.pblock_live import XRDCP, pblock_lab_spec
+from cmdscripts.pblock_live import XRDCP, pblock_lab_start
 
 def _expression_1(rows):
     return (
@@ -97,7 +97,7 @@ def test_audit_records_op_sequence(lifecycle) -> None:
     per-handle byte totals rather than logging per-I/O."""
     _need_bins()
     with LiveRun("pblock_audit", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-audit", "?audit=1", workers=2))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-audit", "?audit=1", workers=2)
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         hub = f"root://{ep.host}:{ep.port}/"
@@ -137,7 +137,7 @@ def test_audit_is_best_effort(lifecycle) -> None:
     succeeds and the data path is unaffected."""
     _need_bins()
     with LiveRun("pblock_audit_be", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-audit-be", "?audit=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-audit-be", "?audit=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         hub = f"root://{ep.host}:{ep.port}/"
@@ -175,7 +175,7 @@ def test_audit_attribution_matches_owner(lifecycle) -> None:
     the catalog identity through rather than a hardcoded constant."""
     _need_bins()
     with LiveRun("pblock_audit_attr", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-audit-attr", "?audit=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-audit-attr", "?audit=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         hub = f"root://{ep.host}:{ep.port}/"

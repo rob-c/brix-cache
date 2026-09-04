@@ -23,7 +23,7 @@ import time
 import pytest
 
 from cmdscripts.live_common import LiveRun, REPO_ROOT, random_file, sha256
-from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec
+from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_start
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-pblock-csi")]
@@ -105,7 +105,7 @@ def test_csi_clean_roundtrip_and_survives_rename(lifecycle, fsck: Path) -> None:
     the blob), the CRCs survive a rename and the renamed object verifies clean."""
     _need_bins()
     with LiveRun("pblock_csi_ok", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-csi-ok", "?csi=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-csi-ok", "?csi=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         host = f"root://{ep.host}:{ep.port}"
@@ -155,7 +155,7 @@ def test_csi_flipped_block_fails_closed(lifecycle, fsck: Path) -> None:
     whose blocks are untouched still reads clean (per-block, not blanket)."""
     _need_bins()
     with LiveRun("pblock_csi_flip", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-csi-flip", "?csi=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-csi-flip", "?csi=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         data = Path(ep.data_root)
@@ -222,7 +222,7 @@ def test_csi_tag_tamper_fails_closed(lifecycle) -> None:
     serve them')."""
     _need_bins()
     with LiveRun("pblock_csi_tag", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-csi-tag", "?csi=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-csi-tag", "?csi=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         hub = f"root://{ep.host}:{ep.port}/"

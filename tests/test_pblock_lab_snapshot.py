@@ -37,7 +37,7 @@ import time
 import pytest
 
 from cmdscripts.live_common import LiveRun, random_file, sha256
-from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec
+from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_start
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-pblock-snapshot")]
@@ -93,7 +93,7 @@ def test_snapshot_take_restore_roundtrip(lifecycle, fsck: Path) -> None:
     the restored export is consistent under fsck throughout."""
     _need_bins()
     with LiveRun("pblock_snap_ok", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-snap-ok", "?snap=1", workers=1))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-snap-ok", "?snap=1", workers=1)
         catalog = Path(ep.data_root) / "catalog.db"
         root = Path(ep.data_root)
         host = f"root://{ep.host}:{ep.port}"
@@ -170,7 +170,7 @@ def test_snapshot_hostile_name_refused(lifecycle, fsck: Path) -> None:
     legitimate snapshot/restore still round-trips byte-identical afterwards."""
     _need_bins()
     with LiveRun("pblock_snap_sec", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-snap-sec", "?snap=1", workers=1))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-snap-sec", "?snap=1", workers=1)
         root = Path(ep.data_root)
         host = f"root://{ep.host}:{ep.port}"
         src = run.root / "src.bin"
@@ -209,7 +209,7 @@ def test_snapshot_gate_off_inert(lifecycle) -> None:
     plain production driver."""
     _need_bins()
     with LiveRun("pblock_snap_off", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-snap-off", "", workers=1))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-snap-off", "", workers=1)
         catalog = Path(ep.data_root) / "catalog.db"
         host = f"root://{ep.host}:{ep.port}"
         src = run.root / "src.bin"

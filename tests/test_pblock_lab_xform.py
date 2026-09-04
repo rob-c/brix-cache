@@ -42,7 +42,7 @@ import pytest
 
 from cmdscripts.live_common import LiveFailure, LiveRun, sha256
 from cmdscripts.pblock_live import (
-    pblock_lab_spec,
+    pblock_lab_start,
     pblock_worker_own,
     pblock_worker_readable,
 )
@@ -89,9 +89,9 @@ def test_xform_crypt_roundtrip(lifecycle) -> None:
     with LiveRun("pblock_xform_crypt", None) as run:
         keyfile = run.write(run.root / "xform.key", "phase-83 lab crypt key\n")
         pblock_worker_readable(keyfile)
-        ep = lifecycle.start(pblock_lab_spec(
-            "lc-pblock-xform-crypt", f"?xform=crypt:{keyfile}",
-            workers=1, webdav=True))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-xform-crypt",
+                              f"?xform=crypt:{keyfile}",
+                              workers=1, webdav=True)
         data_root = Path(ep.data_root)
         url = f"http://{ep.host}:{ep.port}"
 
@@ -124,8 +124,8 @@ def test_xform_zstd_compresses(lifecycle) -> None:
     logical size the catalog still reports."""
     _need_bins()
     with LiveRun("pblock_xform_zstd", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-xform-zstd", "?xform=zstd",
-                                             workers=1, webdav=True))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-xform-zstd", "?xform=zstd",
+                              workers=1, webdav=True)
         data_root = Path(ep.data_root)
         url = f"http://{ep.host}:{ep.port}"
 
@@ -176,7 +176,7 @@ def test_xform_config_errors_and_mismatch(lifecycle) -> None:
         with LiveRun(name, None) as run:
             src = run.root / "p.bin"
             src.write_bytes(b"x" * 4096)
-            ep = lifecycle.start(pblock_lab_spec(name, tail, workers=1, webdav=True))
+            ep = pblock_lab_start(lifecycle, name, tail, workers=1, webdav=True)
             time.sleep(1)
             url = f"http://{ep.host}:{ep.port}"
             run.curl_status(f"{url}/p", "-T", str(src))   # triggers lazy build
@@ -200,8 +200,8 @@ def test_xform_config_errors_and_mismatch(lifecycle) -> None:
     with LiveRun("pblock_xform_shift", None) as run:
         keyfile = run.write(run.root / "k", "another key\n")
         pblock_worker_readable(keyfile)
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-xform-shift", "?xform=zstd",
-                                             workers=1, webdav=True))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-xform-shift", "?xform=zstd",
+                              workers=1, webdav=True)
         url = f"http://{ep.host}:{ep.port}"
         payload = b"\x00" * 400_000
         src = run.root / "z.bin"

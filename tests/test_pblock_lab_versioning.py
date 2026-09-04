@@ -48,7 +48,7 @@ import time
 import pytest
 
 from cmdscripts.live_common import LiveRun, random_file, sha256
-from cmdscripts.pblock_live import XRDCP, pblock_lab_spec
+from cmdscripts.pblock_live import XRDCP, pblock_lab_start
 
 def _check_test_versioning_trash_roundtrip_1(run, v3, url):
     assert run.curl_bytes(f"{url}/f") == v3.read_bytes(), "live /f not v3"
@@ -113,8 +113,8 @@ def test_versioning_trash_roundtrip(lifecycle, fsck: Path) -> None:
     export stays ref-consistent at every offline checkpoint."""
     _need_bins()
     with LiveRun("pblock_ver_ok", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-ver-ok", "?versions=2&trash=1",
-                                             workers=1, webdav=True))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-ver-ok", "?versions=2&trash=1",
+                                             workers=1, webdav=True)
         root = Path(ep.data_root)
         url = f"http://{ep.host}:{ep.port}"
 
@@ -205,8 +205,8 @@ def test_versioning_hostile_undelete_refused(lifecycle, fsck: Path) -> None:
     round-trips byte-identical, proving the trash table was never harmed."""
     _need_bins()
     with LiveRun("pblock_ver_sec", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-ver-sec", "?versions=2&trash=1",
-                                             workers=1, webdav=True))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-ver-sec", "?versions=2&trash=1",
+                                             workers=1, webdav=True)
         root = Path(ep.data_root)
         url = f"http://{ep.host}:{ep.port}"
         keep = run.root / "keep.bin"
@@ -253,8 +253,8 @@ def test_versioning_gate_off_inert(lifecycle) -> None:
     the `versions` or `trash` tables."""
     _need_bins()
     with LiveRun("pblock_ver_off", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-ver-off", "",
-                                             workers=1, webdav=True))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-ver-off", "",
+                                             workers=1, webdav=True)
         catalog = Path(ep.data_root) / "catalog.db"
         url = f"http://{ep.host}:{ep.port}"
         a, b = run.root / "a", run.root / "b"

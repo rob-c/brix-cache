@@ -54,7 +54,7 @@ from _test_conf_pgio_helpers import (
     pgread_bytes,
     pgwrite,
 )
-from cmdscripts.pblock_live import pblock_lab_spec, pblock_worker_readable
+from cmdscripts.pblock_live import pblock_lab_start, pblock_worker_readable
 from _xrdcl_proxy import real_bindings_available
 from server_launcher import LifecycleHarness, NginxInstanceSpec
 from settings import BIND_HOST, HOST
@@ -157,7 +157,7 @@ def pblock_srv():
     _need_nginx()
     harness = LifecycleHarness()
     try:
-        ep = harness.start(pblock_lab_spec(PBLOCK_SPEC, ""))
+        ep = pblock_lab_start(harness, PBLOCK_SPEC, "")
         _upload(f"root://{HOST}:{ep.port}/{SRC_NAME}", PB_DATA)
         yield ep
     finally:

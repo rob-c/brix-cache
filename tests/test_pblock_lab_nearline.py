@@ -24,7 +24,7 @@ import time
 import pytest
 
 from cmdscripts.live_common import LiveRun, random_file, sha256
-from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec, pblock_worker_own
+from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_start, pblock_worker_own
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-pblock-nearline")]
@@ -89,7 +89,7 @@ def test_nearline_recall_serves_after_latency(lifecycle) -> None:
     next GET is immediate."""
     _need_bins()
     with LiveRun("pblock_nl_ok", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-nl-ok", "?nearline=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-nl-ok", "?nearline=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         hub = f"root://{ep.host}:{ep.port}/"
@@ -127,7 +127,7 @@ def test_nearline_failed_recall_classifies_lost(lifecycle) -> None:
     immediately — the client re-prepares or gives up, it never spins."""
     _need_bins()
     with LiveRun("pblock_nl_fail", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-nl-fail", "?nearline=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-nl-fail", "?nearline=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         hub = f"root://{ep.host}:{ep.port}/"
@@ -164,7 +164,7 @@ def test_nearline_stat_never_recalls_and_gate_off_inert(lifecycle) -> None:
     the data plane."""
     _need_bins()
     with LiveRun("pblock_nl_sec", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-nl-sec", "?nearline=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-nl-sec", "?nearline=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         host = f"root://{ep.host}:{ep.port}"
@@ -183,7 +183,7 @@ def test_nearline_stat_never_recalls_and_gate_off_inert(lifecycle) -> None:
         assert _residency(catalog, "/f.bin") == 2, "stat advanced the recall"
 
     with LiveRun("pblock_nl_off", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-nl-off", ""))  # no ?nearline tail: gate OFF
+        ep = pblock_lab_start(lifecycle, "lc-pblock-nl-off", "")  # no ?nearline tail: gate OFF
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         hub = f"root://{ep.host}:{ep.port}/"

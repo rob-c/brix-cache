@@ -27,7 +27,7 @@ import time
 import pytest
 
 from cmdscripts.live_common import LiveRun, REPO_ROOT, random_file, sha256
-from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec
+from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_start
 
 def _check_test_quota_rollup_tracks_workload_and_statvfs_1(run, a, hub):
     assert run.call([XRDCP, "-f", a, f"{hub}a.bin"],
@@ -185,7 +185,7 @@ def test_quota_rollup_tracks_workload_and_statvfs(lifecycle, fsck: Path) -> None
     disk); and the offline oracle finds no divergence."""
     _need_bins()
     with LiveRun("pblock_quota_ok", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-quota-ok", "?quota=100m"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-quota-ok", "?quota=100m")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         host = f"root://{ep.host}:{ep.port}"
@@ -228,7 +228,7 @@ def test_quota_exceeded_put_fails_and_rolls_back(lifecycle, fsck: Path) -> None:
     (the abort path leaked nothing into the accounting)."""
     _need_bins()
     with LiveRun("pblock_quota_full", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-quota-full", "?quota=3m"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-quota-full", "?quota=3m")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         hub = f"root://{ep.host}:{ep.port}/"
@@ -274,7 +274,7 @@ def test_quota_uid_limit_binds_only_its_uid(lifecycle) -> None:
     _need_bins()
     with LiveRun("pblock_quota_uid", None) as run:
         # Large (non-binding) export quota: arming is what enables per-uid rows.
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-quota-uid", "?quota=1g"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-quota-uid", "?quota=1g")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         hub = f"root://{ep.host}:{ep.port}/"
@@ -375,8 +375,8 @@ def test_qspace_and_fsinfo_report_quota_not_disk(lifecycle) -> None:
     (security-neg)."""
     _need_bins()
     with LiveRun("pblock_quota_qspace", None) as run:
-        ep = lifecycle.start(
-            pblock_lab_spec("lc-pblock-quota-qspace", "?quota=100m"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-quota-qspace",
+                              "?quota=100m")
         time.sleep(1)
         host = f"root://{ep.host}:{ep.port}"
         src = run.root / "src.bin"

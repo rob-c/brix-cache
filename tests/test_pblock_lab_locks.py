@@ -29,7 +29,7 @@ import time
 import pytest
 
 from cmdscripts.live_common import LiveRun, random_file, sha256
-from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec, pblock_worker_own
+from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_start, pblock_worker_own
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-pblock-locks")]
@@ -88,7 +88,7 @@ def test_locks_whole_file_and_range_write_exclusion(lifecycle) -> None:
     open but denies the overlapping write through the open-time snapshot."""
     _need_bins()
     with LiveRun("pblock_lk_ok", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-lk-ok", "?locks=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-lk-ok", "?locks=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         host = f"root://{ep.host}:{ep.port}"
@@ -133,7 +133,7 @@ def test_locks_expiry_frees_the_path(lifecycle) -> None:
     passes — a crashed client can never wedge the export."""
     _need_bins()
     with LiveRun("pblock_lk_exp", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-lk-exp", "?locks=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-lk-exp", "?locks=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         host = f"root://{ep.host}:{ep.port}"
@@ -169,7 +169,7 @@ def test_locks_no_bypass_and_gate_off_inert(lifecycle) -> None:
     identical rows are inert (enforcement cannot be armed via sqlite alone)."""
     _need_bins()
     with LiveRun("pblock_lk_sec", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-lk-sec", "?locks=1"))
+        ep = pblock_lab_start(lifecycle, "lc-pblock-lk-sec", "?locks=1")
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         host = f"root://{ep.host}:{ep.port}"
@@ -197,7 +197,7 @@ def test_locks_no_bypass_and_gate_off_inert(lifecycle) -> None:
         assert sha256(got) == sha256(src)
 
     with LiveRun("pblock_lk_off", None) as run:
-        ep = lifecycle.start(pblock_lab_spec("lc-pblock-lk-off", ""))  # no ?locks tail: gate OFF
+        ep = pblock_lab_start(lifecycle, "lc-pblock-lk-off", "")  # no ?locks tail: gate OFF
         time.sleep(1)
         catalog = Path(ep.data_root) / "catalog.db"
         host = f"root://{ep.host}:{ep.port}"
