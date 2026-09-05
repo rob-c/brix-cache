@@ -49,7 +49,7 @@ def _wait_for_auth(planes, port, timeout=_CAPTURE_TIMEOUT):
     session actually got as far as authenticating.  Without it a security-neg
     case is answered before the handshake it is judging has even happened.
     """
-    needle = f"server: 0.0.0.0:{port}"
+    needle = f"server: 0.0.0.0:{port}"  # net-literal-allow: matches the server-logged bind address in error.log, not a dial target
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         for line in planes.errlog().splitlines():

@@ -97,6 +97,13 @@ def test_get_with_usermeta_roundtrips_and_books_ok_xattr():
     assert _op_ok(snap, "xattr") >= 1
 
 
+# brix_io_ops_total{op="xattr",status="ok"} is a process-global counter on the
+# shared S3 instance, and every served GET probes the object's xattrs — so in
+# the parallel lane a concurrent worker's GET lands in this delta and the ==0
+# floor cannot hold (observed under load). The serial lane has no other writer,
+# where ==0 is exactly the "failed request booked nothing" guard intended. The
+# >= sibling cells above stay in the parallel lane.
+@pytest.mark.serial
 def test_get_tagging_missing_object_books_no_ok_xattr():
     """?tagging on a missing object fails before any xattr probe: 404 and no
     op="xattr",status="ok" advance (real failures must stay visible — only the
@@ -108,6 +115,11 @@ def test_get_tagging_missing_object_books_no_ok_xattr():
     assert _op_ok(snap, "xattr", after=after) == 0
 
 
+# Same process-global-counter contamination as the xattr negative above: in the
+# parallel lane a concurrent CopyObject books op="copy",status="ok" into this
+# delta. Serial lane = sole writer, so ==0 is the intended "failed copy booked
+# nothing" guard.
+@pytest.mark.serial
 def test_copy_missing_source_books_no_ok_copy():
     """A CopyObject whose source does not exist must 404 and must NOT book an
     op="copy",status="ok" (the confined copy fails before any data move)."""
