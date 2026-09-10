@@ -32,16 +32,27 @@ typedef struct {
     char          owner[64];
     uint64_t      id;
     int           in_use;
-    void         *queue;   /* owning queue (for journaling transitions); opaque */
 } cta_req_t;
 
+/*
+ * The queue lives in SHARED MEMORY (src/protocols/ssi/svc_cta/cta_shm.c), so
+ * it must contain nothing process-local. It used to hold a `void *journal`
+ * (a FILE*) and each entry a `void *queue` back-pointer; both are meaningless
+ * to a second process. The journal is an fd opened once in the master before
+ * fork, which every worker therefore inherits, and the queue is passed to
+ * cta_queue_transition() explicitly.
+ */
 typedef struct {
     cta_req_t slots[CTA_QUEUE_MAX];
     uint64_t  next_id;
-    void     *journal;   /* open FILE* for append, or NULL (opaque) */
+    int       journal_fd;   /* O_APPEND fd shared by every worker, or -1 */
 } brix_cta_queue_t;
 
-/* Allocate a queue (malloc; free with cta_queue_destroy). NULL on OOM. */
+/* Initialise a queue IN PLACE (for the SHM slab allocation). */
+void cta_queue_init(brix_cta_queue_t *q);
+
+/* Allocate a queue (malloc; free with cta_queue_destroy). NULL on OOM.
+ * Kept for the standalone unit suites, which own their queue. */
 brix_cta_queue_t *cta_queue_create(void);
 void cta_queue_destroy(brix_cta_queue_t *q);
 
@@ -54,7 +65,8 @@ cta_req_t *cta_queue_submit(brix_cta_queue_t *q, const cta_request_t *r,
 cta_req_t *cta_queue_find(brix_cta_queue_t *q, uint64_t id);
 
 /* Attempt a state transition. Returns 0 if legal (state updated), -1 otherwise. */
-int cta_queue_transition(cta_req_t *e, cta_state_t to);
+int cta_queue_transition(brix_cta_queue_t *q, cta_req_t *e,
+                         cta_state_t to);
 
 /* Cancel the entry `id` on behalf of `requester`. Returns 0 on success,
  * CTA_QUEUE_EACCES if requester is neither owner nor admin, CTA_QUEUE_ENOENT if

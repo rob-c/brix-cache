@@ -30,6 +30,7 @@
 #include <string.h>
 #include "core/compat/alloc_guard.h"
 #include "core/compat/cstr.h"
+#include "net/dns/dns.h"   /* brix_dns_backend_prepare (phase-116) */
 
 /*
  * Parse "host[:port]" from addr_copy into *host_out / *port_out.
@@ -51,7 +52,7 @@ proxy_parse_host_port(ngx_conf_t *cf, ngx_str_t *value,
 
         if (rb == NULL || *(rb + 1) != ':') {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix_proxy_upstream: invalid address \"%V\"", value);
+                "brix_tap_proxy_upstream: invalid address \"%V\"", value);
             return NGX_CONF_ERROR;
         }
         hostlen = (size_t)(rb - addr_copy - 1);
@@ -85,7 +86,7 @@ proxy_parse_host_port(ngx_conf_t *cf, ngx_str_t *value,
 
     if (*endp != '\0' || pnum <= 0 || pnum > 65535) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_proxy_upstream: invalid port in \"%V\"", value);
+            "brix_tap_proxy_upstream: invalid port in \"%V\"", value);
         return NGX_CONF_ERROR;
     }
     *port_out = (uint16_t) pnum;
@@ -139,7 +140,7 @@ proxy_parse_upstream_auth(ngx_conf_t *cf, ngx_str_t *auth_arg,
             size_t klen = auth_arg->len - 4;
             if (klen >= BRIX_SSS_NAME_MAX) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "brix_proxy_upstream: sss key name too long");
+                    "brix_tap_proxy_upstream: sss key name too long");
                 return NGX_CONF_ERROR;
             }
             ngx_memcpy(entry->sss_keyname, auth_arg->data + 4, klen);
@@ -149,7 +150,7 @@ proxy_parse_upstream_auth(ngx_conf_t *cf, ngx_str_t *auth_arg,
     }
 
     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-        "brix_proxy_upstream: invalid auth policy \"%V\"; "
+        "brix_tap_proxy_upstream: invalid auth policy \"%V\"; "
         "use anonymous, forward, sss, or sss:<keyname>", auth_arg);
     return NGX_CONF_ERROR;
 }
@@ -227,11 +228,14 @@ brix_conf_set_proxy_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
         conf->proxy.port = (ngx_int_t) port;
     }
 
-    return NGX_CONF_OK;
+    /* phase-116: the upstream name is resolved at connect time by
+     * brix_dns_resolve(); no DNS target is registered for it, so the backend has
+     * to be prepared here or the lookup fails when no brix_resolver is declared. */
+    return brix_dns_backend_prepare(cf);
 }
 
 /*
- * brix_proxy_auth anonymous|forward|sss
+  * brix_tap_proxy_auth anonymous|forward|sss
  *
  * "anonymous" — upstream login uses no credentials (default).
  * "forward"   — forward the client's WLCG bearer token to upstream on kXR_authmore.
@@ -266,13 +270,13 @@ brix_conf_set_proxy_auth(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
     }
 
     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-        "brix_proxy_auth: invalid value \"%V\"; "
+        "brix_tap_proxy_auth: invalid value \"%V\"; "
         "use anonymous, forward, sss, or gsi", &value[1]);
     return NGX_CONF_ERROR;
 }
 
 /*
- * brix_proxy_login_user anonymous|passthrough|fixed:<name>
+ * brix_tap_proxy_login_user anonymous|passthrough|fixed:<name>
  *
  * Controls the username placed in the upstream kXR_login frame:
  *
@@ -305,7 +309,7 @@ brix_conf_set_proxy_login_user(ngx_conf_t *cf, ngx_command_t *cmd,
         size_t nlen = value[1].len - 6;
         if (nlen == 0 || nlen > 8) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix_proxy_login_user: fixed name must be 1-8 characters");
+                "brix_tap_proxy_login_user: fixed name must be 1-8 characters");
             return NGX_CONF_ERROR;
         }
         conf->proxy.login_user = BRIX_PROXY_LOGIN_FIXED;
@@ -314,7 +318,7 @@ brix_conf_set_proxy_login_user(ngx_conf_t *cf, ngx_command_t *cmd,
 
     } else {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_proxy_login_user: invalid value \"%V\"; "
+            "brix_tap_proxy_login_user: invalid value \"%V\"; "
             "use anonymous, passthrough, or fixed:<name>", &value[1]);
         return NGX_CONF_ERROR;
     }
@@ -323,7 +327,43 @@ brix_conf_set_proxy_login_user(ngx_conf_t *cf, ngx_command_t *cmd,
 }
 
 /*
- * brix_proxy_path_rewrite "/strip-prefix" "/add-prefix"
+ * brix_tap_proxy_sss_identity keytab|client
+ *
+ * Which identity the upstream SSS credential carries (release-2.0 F9):
+ *
+ *   keytab   — the keytab key's user, the 1.x NAME-only wire (default)
+ *   client   — the authenticated front-side client's full sss entity
+ *              (name, VO, role, groups, endorsements, proxied credential);
+ *              an unauthenticated front session is refused, never downgraded
+ */
+char *
+brix_conf_set_proxy_sss_identity(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf_ptr)
+{
+    ngx_stream_brix_srv_conf_t *conf = conf_ptr;
+    ngx_str_t                    *value;
+
+    (void) cmd;
+
+    value = cf->args->elts;
+
+    if (ngx_strcmp(value[1].data, "keytab") == 0) {
+        conf->proxy.sss_identity = BRIX_PROXY_SSS_IDENT_KEYTAB;
+        return NGX_CONF_OK;
+    }
+    if (ngx_strcmp(value[1].data, "client") == 0) {
+        conf->proxy.sss_identity = BRIX_PROXY_SSS_IDENT_CLIENT;
+        return NGX_CONF_OK;
+    }
+
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        "brix_tap_proxy_sss_identity: invalid value \"%V\"; "
+        "use keytab or client", &value[1]);
+    return NGX_CONF_ERROR;
+}
+
+/*
+ * brix_tap_proxy_path_rewrite "/strip-prefix" "/add-prefix"
  *
  * Strip the leading prefix from every outbound path-bearing opcode and
  * prepend add-prefix.  If a path does not start with strip-prefix it is

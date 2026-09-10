@@ -69,15 +69,20 @@ brix_http_mirror_proxy(ngx_http_request_t *r,
     ngx_http_upstream_t               *u;
     brix_mirror_target_t            *t;
     struct sockaddr                   *sa;
+    struct sockaddr_storage            tss;
+    socklen_t                          tlen;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    if (conf->common.mirror.targets == NULL
-        || ctx->mirror_target_idx >= conf->common.mirror.targets->nelts)
-    {
+    t = brix_mirror_target_at(&conf->common.mirror, ctx->mirror_target_idx);
+    if (t == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    t = (brix_mirror_target_t *) conf->common.mirror.targets->elts
-      + ctx->mirror_target_idx;
+
+    if (brix_mirror_target_addr(t, &tss, &tlen) != NGX_OK) {
+        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                      "brix mirror: %V not yet resolved; skipping", &t->host);
+        return NGX_HTTP_BAD_GATEWAY;       /* phase-116: unresolved target */
+    }
 
     if (ngx_http_upstream_create(r) != NGX_OK) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -93,14 +98,14 @@ brix_http_mirror_proxy(ngx_http_request_t *r,
     u->abort_request    = mirror_abort_request;
     u->finalize_request = mirror_finalize_request;
 
-    sa = ngx_palloc(r->pool, t->socklen);
+    sa = ngx_palloc(r->pool, tlen);
     u->resolved = ngx_pcalloc(r->pool, sizeof(ngx_http_upstream_resolved_t));
     if (sa == NULL || u->resolved == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    ngx_memcpy(sa, &t->sockaddr, t->socklen);
+    ngx_memcpy(sa, &tss, tlen);
     u->resolved->sockaddr = sa;
-    u->resolved->socklen  = t->socklen;
+    u->resolved->socklen  = tlen;
     u->resolved->naddrs   = 1;
     u->resolved->host     = t->host;
     u->resolved->port     = t->port;

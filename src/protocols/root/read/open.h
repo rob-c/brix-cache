@@ -21,6 +21,7 @@
  */
 
 #include "core/ngx_brix_module.h"
+#include "fs/backend/sd.h"          /* brix_sd_open_hints_t (2.0 F5) */
 
 /*
  * kXR_open dispatch entry point. Parses ClientOpenRequest from ctx->recv.hdr_buf,
@@ -74,6 +75,12 @@ typedef struct {
      * designated initializer leaves it 0. Carried onto the VFS ctx so the open
      * paths can reserve (object plane) or forward it (staged plane). */
     off_t        declared_size;
+    /* 2.0 F5 (upstream pfc.urlcgi): the per-open cache hints the client sent
+     * as CGI (`pfc.blocksize=<bytes>`, `pfc.prefetch=<blocks>`), all-zero when
+     * none. Read opens only — a write open and every cache-served read-open
+     * caller's designated initializer leave it zero. Carried onto the VFS ctx
+     * so the object-plane open hands it to the driver's open_hinted slot. */
+    brix_sd_open_hints_t cache_hints;
 } brix_open_request_t;
 ngx_int_t brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf, const brix_open_request_t *req);
 /*

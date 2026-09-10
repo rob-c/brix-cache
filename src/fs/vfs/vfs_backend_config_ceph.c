@@ -20,6 +20,7 @@
  *       static builder for its driver.
  */
 #include "vfs_backend_config_internal.h"
+#include "fs/backend/frm/sd_frm.h"      /* brix_sd_frm_parse_query (tape ?arc=) */
 
 #include <string.h>
 
@@ -137,7 +138,7 @@ brix_vfs_backend_config_cephfs_ro(const char *root_canon,
  * stack requires a cache tier in front (G8, enforced at config time). */
 static void
 brix_vfs_backend_config_tape(const char *root_canon, const char *adapter,
-    const char *base)
+    const char *base, unsigned arc_depth)
 {
     brix_vfs_backend_entry_t *e;
 
@@ -153,6 +154,28 @@ brix_vfs_backend_config_tape(const char *root_canon, const char *adapter,
     e->inst = NULL;
     VFS_BE_STR(e, origin_host, adapter ? adapter : "");   /* the MSS adapter name */
     VFS_BE_STR(e, origin_path, base);                     /* the MSS base path */
+    e->tape_arc_depth = arc_depth;                        /* W3.1 ?arc=<depth> */
+}
+
+/* Split the optional "?query" off a tape:// base (in place) and validate it
+ * with the driver's grammar. NGX_OK with *depth filled, NGX_ERROR logged. */
+static ngx_int_t
+vfs_tape_query(ngx_conf_t *cf, char *base, unsigned *depth)
+{
+    char               *q = strchr(base, '?');
+    brix_sd_frm_opts_t  opts;
+
+    if (q != NULL) {
+        *q++ = '\0';
+    }
+    if (brix_sd_frm_parse_query(q, &opts) != 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_storage_backend: tape:// query \"%s\" is not \"arc=<1..8>\"",
+            q);
+        return NGX_ERROR;
+    }
+    *depth = opts.arc_depth;
+    return NGX_OK;
 }
 
 /* Split "cephfsro:<meta>+<data>[@conf][?query]" into its four component buffers
@@ -354,9 +377,10 @@ vfs_parse_tape_origin(ngx_conf_t *cf, const char *root_canon,
         }
 
         if (rest != NULL) {
-            char   adapter[64] = "";
-            char   base[1024]  = "";
-            size_t i, slash = restn;
+            char     adapter[64] = "";
+            char     base[1024]  = "";
+            size_t   i, slash = restn;
+            unsigned depth = 0;
 
             for (i = 0; i < restn; i++) {
                 if (rest[i] == '/') { slash = i; break; }
@@ -369,13 +393,16 @@ vfs_parse_tape_origin(ngx_conf_t *cf, const char *root_canon,
                 ngx_memcpy(base, rest + slash, restn - slash);  /* keeps leading '/' */
                 base[restn - slash] = '\0';
             }
+            if (vfs_tape_query(cf, base, &depth) != NGX_OK) {
+                return NGX_ERROR;
+            }
             if (base[0] != '/') {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                     "brix_storage_backend: tape://|frm:// needs "
-                    "\"//<adapter>/<base-path>\"");
+                    "\"//<adapter>/<base-path>[?arc=<depth>]\"");
                 return NGX_ERROR;
             }
-            brix_vfs_backend_config_tape(root_canon, adapter, base);
+            brix_vfs_backend_config_tape(root_canon, adapter, base, depth);
             return NGX_OK;
         }
     }

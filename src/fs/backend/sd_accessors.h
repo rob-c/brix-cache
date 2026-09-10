@@ -45,4 +45,37 @@ ngx_int_t brix_sd_supports(const brix_sd_instance_t *inst,
 /* The instance's accepted-credential-kind bitmap (0 when inst/driver is NULL). */
 uint32_t brix_sd_cred_accept(const brix_sd_instance_t *inst);
 
+/* brix_sd_query_origin_digest — ask an OPEN object's driver for the digest a
+ * verifying cache fill can compare its bytes against, in the algorithm
+ * `pref` names (brix_cache_verify_digest).  This is the non-root:// half of
+ * checksum-on-fill: root:// carries kXR_Qcksum in band, every other origin has
+ * to be asked, and only the operator can say which algorithm to ask for (an
+ * HTTP origin answers exactly one Want-Digest token).
+ *
+ * Best-effort by contract: with no preference, no driver slot, or any
+ * DECLINED/ERROR answer, alg/hex come back EMPTY and the caller's verify policy
+ * decides — best-effort publishes unverified, require refuses.  Never fails a
+ * fill by itself. */
+static inline void
+brix_sd_query_origin_digest(brix_sd_obj_t *obj, const char *pref,
+    char *alg, size_t algsz, char *hex, size_t hexsz)
+{
+    if (algsz) { alg[0] = '\0'; }
+    if (hexsz) { hex[0] = '\0'; }
+
+    if (obj == NULL || obj->driver == NULL
+        || obj->driver->query_checksum == NULL
+        || pref == NULL || pref[0] == '\0')
+    {
+        return;
+    }
+
+    if (obj->driver->query_checksum(obj, pref, hex, hexsz) != NGX_OK) {
+        if (hexsz) { hex[0] = '\0'; }
+        return;
+    }
+
+    ngx_cpystrn((u_char *) alg, (u_char *) pref, algsz);
+}
+
 #endif /* BRIX_SD_ACCESSORS_H */

@@ -25,6 +25,18 @@
       offsetof(ngx_stream_brix_srv_conf_t, cms.role),
       brix_cms_roles },
 
+    /* Phase-115 W2.1: how this manager answers a client once a data server has
+     * been selected (registry hit or CMS wake).  redirect (default) is the
+     * stock kXR_redirect; proxy pins the session to the selected server and
+     * relays every later opcode through the transparent proxy, so clients never
+     * need a route to the data servers (NAT / firewall / stable endpoint). */
+    { ngx_string("brix_cms_response"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, cms.response),
+      brix_cms_response_modes },
+
     /* Phase-61 W7: on a registry miss, relay a parent manager's kYR_state
      * down to this tier's own data nodes and echo the first kYR_have back up
      * (multi-tier recursion).  Off by default — single-tier meshes keep the
@@ -203,6 +215,24 @@
       offsetof(ngx_stream_brix_srv_conf_t, cms.min_free_mb),
       NULL },
 
+    /* §2.4 (cms.space, manager half): honour the floors nodes advertise
+     * when picking a WRITE target, and the free space a blocked node must
+     * regain before it is eligible again.  Enforcement is off by default;
+     * the hwm is inert without it. */
+    { ngx_string("brix_cms_space_enforce"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, cms.space_enforce),
+      NULL },
+
+    { ngx_string("brix_cms_space_hwm"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, cms.space_hwm_mb),
+      NULL },
+
     { ngx_string("brix_cms_interval"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_sec_slot,
@@ -364,6 +394,17 @@
       0,
       NULL },
 
+    /* phase-115 W1.4: strip/add a path prefix on every path-bearing opcode the
+     * proxy forwards (forward_request.c -> proxy_rewrite_path). The rebrand
+     * rename 32698a676 dropped this registration while the setter and the
+     * runtime survived; the documented name is the brix_tap_proxy_* one. */
+    { ngx_string("brix_tap_proxy_path_rewrite"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
+      brix_conf_set_proxy_path_rewrite,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
     { ngx_string("brix_tap_proxy_audit_log"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
@@ -520,9 +561,10 @@
 
     /* §2.18: the server's site name — the human-readable node/site identity a
      * client reads via `kXR_Qconfig sitename` (monitoring, federation labelling;
-     * the stock all.sitename analog) and, once the Pelican advertiser is wired,
-     * the registry name it publishes. Stored in the advertise.sitename slot it
-     * shares with that federation feature. Unset ⇒ Qconfig echoes the key,
+     * the stock all.sitename analog) and the registry name the Pelican
+     * advertiser publishes as /caches/<sitename> (2.0: the brix_cache_advertise*
+     * family is registered, so that consumer is live).  Stored in the
+     * advertise.sitename slot it shares with that federation feature. Unset ⇒ Qconfig echoes the key,
      * exactly as before. */
     { ngx_string("brix_sitename"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -538,4 +580,18 @@
       ngx_conf_set_num_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, auth_maxfail),
+      NULL },
+
+    /* §2.x: brix_cms_admin_socket <path> — the CMS runtime admin unix socket
+     * (cmsd admin-interface analog): nodes/drain/undrain/forget/reset against
+     * the SHM node registry, reaching the same helpers as the HTTP admin API
+     * so a manager that runs no dashboard still has cluster control. Shares
+     * §1.16's transport and its security model: node-global (parse-time
+     * static, last one wins), chmod 0600 — filesystem permission IS the
+     * privilege boundary. */
+    { ngx_string("brix_cms_admin_socket"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      brix_conf_set_cms_admin_socket,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
       NULL },

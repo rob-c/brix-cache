@@ -31,6 +31,9 @@
 #include "core/compat/net_target.h"        /* brix_net_target_parse (host split) */
 #include "net/guard/guard.h"               /* guard_audit_format / GUARD_R_TPCEGRESS */
 #include "tpc/common/egress_guard.h"       /* brix_tpc_source_guard_check */
+#include "tpc/common/identity_matrix.h"    /* 2.0 F18 ofs.tpc identity matrix */
+#include "protocols/root/path/op_path.h"   /* brix_op_path_forbidden_component */
+#include "net/dns/dns.h"                   /* brix_dns_reverse_cached (PTR) */
 #include "core/compat/staged_file.h"
 #include "observability/dashboard/dashboard_tracking.h"
 #include "observability/sesslog/sesslog_ngx.h"
@@ -94,6 +97,84 @@ webdav_tpc_note_client_copy_xfer(ngx_http_request_t *r, off_t bytes,
  * Returns NGX_OK if permitted, else NGX_HTTP_FORBIDDEN (and bumps the bad-request
  * metric).  This is the access-control gate before any data movement starts.
  */
+/*
+ * 2.0 F18 — the ofs.tpc identity matrix on the HTTP plane.
+ *
+ * The party is always BRIX_TPC_PARTY_CLIENT: an HTTP-TPC COPY is issued by the
+ * client to us with the client's own credential, whichever leg we then run.
+ * (`brix_tpc_require dest <auth>` therefore constrains only the native plane's
+ * server-to-server legs, which is exactly stock's meaning.)
+ *
+ * The path evaluated is r->uri — our LOCAL logical path, the one thing
+ * `brix_tpc_restrict` can confine.  The remote endpoint stays governed by the
+ * host plane (brix_tpc_source_guard_check et al), which runs unchanged; this
+ * gate only narrows.
+ *
+ * Returns NGX_OK when permitted (or unconfigured), NGX_HTTP_FORBIDDEN when a
+ * rule refuses.  Refusal text is the directive name, never the subject
+ * (INVARIANT 8).
+ */
+static ngx_int_t
+webdav_tpc_matrix_gate(ngx_http_request_t *r)
+{
+    ngx_http_brix_webdav_loc_conf_t *conf;
+    brix_tpc_matrix_conf_t            mc;
+    brix_tpc_subject_t                subj;
+    brix_tpc_matrix_verdict_t         v;
+    char                              path[BRIX_MAX_PATH + 1];
+    char                              host[NGX_MAXHOSTNAMELEN];
+    const char                       *peer_host;
+
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    if (conf == NULL) {
+        return NGX_OK;
+    }
+
+    mc.allow         = conf->common.tpc_allow_identity;
+    mc.require_rules = conf->common.tpc_require;
+    mc.paths         = conf->common.tpc_restrict;
+    mc.oids          = conf->common.tpc_oids;
+
+    if (!brix_tpc_matrix_configured(&mc)) {
+        return NGX_OK;   /* a no-op for every operator who never adopts it */
+    }
+
+    if (r->uri.len == 0 || r->uri.len >= sizeof(path)) {
+        return NGX_HTTP_FORBIDDEN;
+    }
+    ngx_memcpy(path, r->uri.data, r->uri.len);
+    path[r->uri.len] = '\0';
+
+    /* INVARIANT 4: match the same string the resolver will accept.  nginx has
+     * already normalised the URI, but a rule that confines a path must never
+     * depend on that being true of every future caller. */
+    if (brix_op_path_forbidden_component(path)) {
+        return NGX_HTTP_FORBIDDEN;
+    }
+
+    peer_host = NULL;
+    if (brix_tpc_matrix_needs_hostname(mc.allow)
+        && brix_dns_reverse_cached(r->connection->sockaddr,
+                                   r->connection->socklen,
+                                   host, sizeof(host)) == NGX_OK)
+    {
+        peer_host = host;
+    }
+
+    brix_tpc_matrix_subject_from_identity(webdav_tpc_request_identity(r),
+                                          peer_host, &subj);
+
+    v = brix_tpc_matrix_check(&mc, BRIX_TPC_PARTY_CLIENT, &subj, path);
+    if (v != BRIX_TPC_MATRIX_OK) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "brix webdav tpc refused: %s",
+                      brix_tpc_matrix_verdict_text(v));
+        return NGX_HTTP_FORBIDDEN;
+    }
+
+    return NGX_OK;
+}
+
 ngx_int_t
 webdav_tpc_authorize(ngx_http_request_t *r, const ngx_str_t *src_path,
     const ngx_str_t *dst_path)
@@ -102,6 +183,14 @@ webdav_tpc_authorize(ngx_http_request_t *r, const ngx_str_t *src_path,
                                dst_path, r->connection->log)
         != NGX_OK)
     {
+        BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_BAD_REQUEST]);
+        return NGX_HTTP_FORBIDDEN;
+    }
+
+    /* 2.0 F18: the inner identity matrix runs after the existing authz check
+     * and before any data movement — both callers dial only once this
+     * returns NGX_OK. */
+    if (webdav_tpc_matrix_gate(r) != NGX_OK) {
         BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_BAD_REQUEST]);
         return NGX_HTTP_FORBIDDEN;
     }

@@ -183,7 +183,7 @@ brix_proxy_relay_wait_exhausted(brix_proxy_ctx_t *proxy, uint16_t status)
     if (proxy->fwd_reqid == kXR_open && local_fh >= 0
         && local_fh < BRIX_MAX_FILES)
     {
-        proxy->fh_map[local_fh].upstream_fh = BRIX_PROXY_FH_FREE;
+        proxy->fh_map[local_fh].fh_state = BRIX_PROXY_FH_FREE;
     }
     if (proxy->wait_retry_req != NULL) {
         ngx_free(proxy->wait_retry_req);
@@ -218,12 +218,44 @@ brix_proxy_free_wait_retry(brix_proxy_ctx_t *proxy)
     }
 }
 
+/* proxy_relay_open_local_fh — replace the upstream's fhandle in an open
+ * response with this session's local handle (phase-115 W2.6).
+ *
+ * WHAT: Writes local_fh into body[0] and clears the rest of the fhandle, but
+ *       only over bytes the upstream actually sent.
+ * WHY:  resp_body is ngx_alloc(dlen + 1).  A kXR_ok open answering with fewer
+ *       than four body bytes made the old unconditional four-byte fill write
+ *       past that allocation — a heap write whose length the UPSTREAM chooses.
+ *       Such a body also carries no usable handle, so the slot is released and
+ *       every later request naming it is refused by proxy_translate_fh()
+ *       rather than translated against a zero-padded guess.
+ * HOW:  Clamp the fill to dlen; release the slot when dlen < 4.
+ */
+static void
+proxy_relay_open_local_fh(brix_proxy_ctx_t *proxy, int local_fh,
+    u_char *body, uint32_t dlen)
+{
+    size_t  n = (dlen < 4) ? (size_t) dlen : 4;
+    size_t  i;
+
+    if (body == NULL || n == 0) {
+        proxy->fh_map[local_fh].fh_state = BRIX_PROXY_FH_FREE;
+        return;
+    }
+    body[0] = (u_char) (unsigned int) local_fh;
+    for (i = 1; i < n; i++) {
+        body[i] = 0;
+    }
+    if (dlen < 4) {
+        proxy->fh_map[local_fh].fh_state = BRIX_PROXY_FH_FREE;
+    }
+}
+
 static void
 brix_proxy_relay_open_status(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
     uint16_t status, u_char *body, uint32_t dlen)
 {
     int local_fh;
-    int upstream_fh;
 
     if (proxy->fwd_reqid != kXR_open) {
         return;
@@ -231,23 +263,17 @@ brix_proxy_relay_open_status(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
 
     local_fh = proxy->fwd_local_fh;
     if (status == kXR_ok) {
-        upstream_fh = (body != NULL && dlen >= 1) ? (int) (unsigned char) body[0] : 0;
         if (local_fh >= 0 && local_fh < BRIX_MAX_FILES) {
-            proxy->fh_map[local_fh].upstream_fh = upstream_fh;
+            brix_proxy_fh_bind(&proxy->fh_map[local_fh], body, dlen);
             proxy->fh_map[local_fh].open_msec = ngx_current_msec;
-            if (body != NULL) {
-                body[0] = (u_char) (unsigned int) local_fh;
-                body[1] = 0;
-                body[2] = 0;
-                body[3] = 0;
-            }
+            proxy_relay_open_local_fh(proxy, local_fh, body, dlen);
         }
         brix_proxy_free_wait_retry(proxy);
         BRIX_PROXY_METRIC_INC(ctx, opens_total);
         BRIX_PROXY_UP_INC(proxy, opens_total);
     } else if (status == kXR_error) {
         if (local_fh >= 0 && local_fh < BRIX_MAX_FILES) {
-            proxy->fh_map[local_fh].upstream_fh = BRIX_PROXY_FH_FREE;
+            proxy->fh_map[local_fh].fh_state = BRIX_PROXY_FH_FREE;
         }
         brix_proxy_free_wait_retry(proxy);
         BRIX_PROXY_METRIC_INC(ctx, open_errors);
@@ -302,7 +328,7 @@ brix_proxy_relay_close_status(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
     }
     if (local_fh >= 0 && local_fh < BRIX_MAX_FILES) {
         proxy_write_audit(proxy, local_fh);
-        proxy->fh_map[local_fh].upstream_fh = BRIX_PROXY_FH_FREE;
+        proxy->fh_map[local_fh].fh_state = BRIX_PROXY_FH_FREE;
     }
     BRIX_PROXY_METRIC_INC(ctx, closes_total);
     BRIX_PROXY_UP_INC(proxy, closes_total);

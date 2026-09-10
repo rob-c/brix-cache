@@ -123,7 +123,8 @@ locate_try_loc_cache(locate_ctx_t *lc, ngx_int_t *out_rc)
         brix_log_access(ctx, c, "LOCATE", lc->reqpath, "loc-cache",
                           1, 0, NULL, 0);
         BRIX_OP_OK(ctx, BRIX_OP_LOCATE);
-        *out_rc = brix_send_redirect(ctx, c, redir_host, redir_port);
+        *out_rc = brix_cms_answer_selected(ctx, c, lc->conf, redir_host,
+                                           redir_port);
         return 1;
     }
 
@@ -138,7 +139,8 @@ locate_try_loc_cache(locate_ctx_t *lc, ngx_int_t *out_rc)
         brix_log_access(ctx, c, "LOCATE", lc->reqpath,
                           "stage-select", 1, 0, NULL, 0);
         BRIX_OP_OK(ctx, BRIX_OP_LOCATE);
-        *out_rc = brix_send_redirect(ctx, c, redir_host, redir_port);
+        *out_rc = brix_cms_answer_selected(ctx, c, lc->conf, redir_host,
+                                           redir_port);
         return 1;
     }
 
@@ -185,6 +187,42 @@ locate_fanout_state(locate_ctx_t *lc, uint32_t streamid)
     }
 
     return sent;
+}
+
+
+/*
+ * locate_coalesced — §2.15: is a kYR_state wave for this path already flying?
+ *
+ * WHAT: Returns 1 when this locate has been attached to an in-flight wave for
+ *       the same path (so the caller must park without probing), 0 when it
+ *       must fan out itself.
+ * WHY:  A popular missing file drew one full fan-out per client — N clients
+ *       asked the same N nodes the same question inside one window, and every
+ *       node paid N stats for one answer.  Stock cmsd merges them; this does
+ *       the same with the pending table's existing probe_path as the key.
+ * HOW:  Ask the pending table for any OTHER live entry on this worker probing
+ *       the same path (brix_pending_find_probe).  Off unless brix_cms_coalesce
+ *       is on, and never for a kXR_refresh locate — refresh means "observe the
+ *       cluster now", and an answer that predates this request would not.
+ */
+static int
+locate_coalesced(locate_ctx_t *lc, uint32_t streamid)
+{
+    uint32_t  leader;
+
+    if (!lc->conf->caps.cms_coalesce || lc->refresh) {
+        return 0;
+    }
+
+    if (brix_pending_find_probe(lc->reqpath, streamid, &leader, 1) == 0) {
+        return 0;
+    }
+
+    BRIX_RESIL_METRIC_INC(cms_locate_coalesced_total);
+    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, lc->c->log, 0,
+                   "brix: W3 locate: coalesced onto in-flight wave sid=%uD "
+                   "for %s", leader, lc->reqpath);
+    return 1;
 }
 
 
@@ -259,8 +297,20 @@ locate_try_dynamic(locate_ctx_t *lc, ngx_int_t *out_rc)
     }
 
     /* §2.6: remember what this fan-out asked, so a window that expires with
-     * no kYR_have can record a negative location entry. */
+     * no kYR_have can record a negative location entry.  §2.15 also keys
+     * coalescing off this field, so it must be set before the check below. */
     brix_pending_set_path(streamid, ngx_pid, lc->reqpath);
+
+    /* §2.15: a wave for this exact path is already in flight on this worker —
+     * ride it instead of asking the same nodes the same question again.  The
+     * first kYR_have wakes this entry too (cms/coalesce_wake.c). */
+    if (locate_coalesced(lc, streamid)) {
+        ctx->cms_wait_streamid = streamid;
+        ctx->state = XRD_ST_WAITING_CMS;
+        ngx_add_timer(c->read, conf->caps.cms_locate_window);
+        *out_rc = NGX_AGAIN;
+        return 1;
+    }
 
     sent = locate_fanout_state(lc, streamid);
     if (sent == 0) {
@@ -364,7 +414,8 @@ locate_try_redir_cache(locate_ctx_t *lc, ngx_int_t *out_rc)
     brix_log_access(lc->ctx, lc->c, "LOCATE", lc->reqpath, "redir-cache",
                       1, 0, NULL, 0);
     BRIX_OP_OK(lc->ctx, BRIX_OP_LOCATE);
-    *out_rc = brix_send_redirect(lc->ctx, lc->c, redir_host, redir_port);
+    *out_rc = brix_cms_answer_selected(lc->ctx, lc->c, lc->conf, redir_host,
+                                       redir_port);
     return 1;
 }
 
@@ -395,7 +446,8 @@ locate_try_stage_select(locate_ctx_t *lc, ngx_int_t *out_rc)
     brix_log_access(lc->ctx, lc->c, "LOCATE", lc->reqpath, "stage-select",
                       1, 0, NULL, 0);
     BRIX_OP_OK(lc->ctx, BRIX_OP_LOCATE);
-    *out_rc = brix_send_redirect(lc->ctx, lc->c, redir_host, redir_port);
+    *out_rc = brix_cms_answer_selected(lc->ctx, lc->c, lc->conf, redir_host,
+                                       redir_port);
     return 1;
 }
 
@@ -428,7 +480,8 @@ locate_try_registry(locate_ctx_t *lc, ngx_int_t *out_rc)
     brix_log_access(lc->ctx, lc->c, "LOCATE", lc->reqpath, "registry",
                       1, 0, NULL, 0);
     BRIX_OP_OK(lc->ctx, BRIX_OP_LOCATE);
-    *out_rc = brix_send_redirect(lc->ctx, lc->c, redir_host, redir_port);
+    *out_rc = brix_cms_answer_selected(lc->ctx, lc->c, lc->conf, redir_host,
+                                       redir_port);
     return 1;
 }
 

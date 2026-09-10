@@ -210,15 +210,20 @@ gsi_cert_capture_dn(brix_ctx_t *ctx, ngx_connection_t *c,
  *       (only when VOMS support is built in and both directories are
  *       configured) and never fails the login.
  *
- * HOW:  Runs brix_extract_voms_info into ctx->login.{primary_vo,vo_list};
- *       on success logs the (sanitized) membership list at INFO.
+ * HOW:  Runs brix_extract_voms_fqans into
+ *       ctx->login.{primary_vo,vo_list,fqan_list}; on success logs the
+ *       (sanitized) VO-NAME membership list at INFO — never the FQAN list,
+ *       which carries '/' and '=' and exists only to be handed to
+ *       brix_identity_set_vos_fqans (2.0 F20).
  */
 static void
 gsi_cert_extract_voms(brix_ctx_t *ctx, ngx_connection_t *c,
                       ngx_stream_brix_srv_conf_t *conf,
                       X509 *leaf, STACK_OF(X509) *chain)
 {
-    ngx_int_t voms_rc;
+    ngx_int_t        voms_rc;
+    brix_voms_in_t   in;
+    brix_voms_out_t  out;
 
     if (!brix_voms_available()
         || conf->common.vomsdir.len == 0 || conf->common.voms_cert_dir.len == 0)
@@ -226,11 +231,19 @@ gsi_cert_extract_voms(brix_ctx_t *ctx, ngx_connection_t *c,
         return;
     }
 
-    voms_rc = brix_extract_voms_info(
-        c->log, leaf, chain,
-        &conf->common.vomsdir, &conf->common.voms_cert_dir,
-        ctx->login.primary_vo, sizeof(ctx->login.primary_vo),
-        ctx->login.vo_list, sizeof(ctx->login.vo_list));
+    in.leaf = leaf;
+    in.chain = chain;
+
+    ngx_memzero(&out, sizeof(out));
+    out.primary_vo = ctx->login.primary_vo;
+    out.primary_vo_sz = sizeof(ctx->login.primary_vo);
+    out.vo_list = ctx->login.vo_list;
+    out.vo_list_sz = sizeof(ctx->login.vo_list);
+    out.fqan_list = ctx->login.fqan_list;
+    out.fqan_list_sz = sizeof(ctx->login.fqan_list);
+
+    voms_rc = brix_extract_voms_fqans(
+        c->log, &in, &conf->common.vomsdir, &conf->common.voms_cert_dir, &out);
 
     if (voms_rc == NGX_OK) {
         char vo_log[256];
@@ -294,7 +307,7 @@ gsi_auth_step_cert(brix_ctx_t *ctx, ngx_connection_t *c,
     if (conf->ocsp.enable) {
         X509 *issuer = (sk_X509_num(chain) > 1)
                        ? sk_X509_value(chain, 1) : NULL;
-        if (brix_ocsp_check_cert(c->log, leaf, issuer,
+        if (brix_ocsp_check_cert(c->log, conf->common.dns.policy, leaf, issuer,
                                    (int)conf->ocsp.soft_fail,
                                    (int)conf->ocsp.require_nonce) != 0)
         {

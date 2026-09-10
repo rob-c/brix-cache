@@ -19,6 +19,7 @@
 #include "sd_cache.h"
 #include "sd_cache_internal.h"    /* sd_cache_inst_state + SD_CACHE_ST/SRC */
 #include "sd_cache_policy.h"      /* admission + repo-metrics (split out) */
+#include "sd_cache_follow.h"       /* §4.5 serve-while-filling follower    */
 #include "protocols/cvmfs/classify.h"   /* phase-68 manifest-TTL stamping */
 #include "observability/metrics/metrics.h"        /* phase-68 T16 counters */
 #include "observability/metrics/metrics_macros.h"
@@ -41,6 +42,7 @@ typedef struct {
     int                    sd_flags;
     mode_t                 mode;
     const brix_sd_cred_t  *cred;      /* NULL = service-credential path */
+    const brix_sd_open_hints_t *hints; /* 2.0 F5 pfc.* hints; NULL = none */
 } sd_cache_open_req_t;
 
 /* Serve a COMPLETE cached object for `path`, if one exists.
@@ -153,14 +155,15 @@ cache_open_recall_parked(sd_cache_inst_state *st, brix_sd_instance_t *src,
  *       read, section 16). */
 static brix_sd_obj_t *
 cache_open_miss_serve(brix_sd_instance_t *inst, sd_cache_inst_state *st,
-    const char *path, const brix_sd_cred_t *cred, int *err_out)
+    const char *path, const sd_cache_open_req_t *rq, int *err_out)
 {
     brix_sd_obj_t *obj;
 
     if (st->policy.slice_size > 0
         && st->cstore.meta_mode == BRIX_CMETA_LOCAL)
     {
-        obj = sd_cache_partial_open(inst, st, path, cred, err_out);
+        obj = sd_cache_partial_open(inst, st, path, rq->cred, rq->hints,
+                                    err_out);
         if (obj != NULL) {
             ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
                 "sd_cache: partial-serve \"%s\"", path);
@@ -169,7 +172,17 @@ cache_open_miss_serve(brix_sd_instance_t *inst, sd_cache_inst_state *st,
         /* partial open failed - fall through to a whole-file fill / source read */
     }
 
-    if (sd_cache_fill(st, path, cred, 0, NULL) == NGX_OK) {
+    /* Section 4.5 serve-while-filling: follow another reader's in-flight fill
+     * (its staged bytes below the frontier) rather than serialising behind it;
+     * NULL means no fill is in flight and we run our own below. */
+    obj = sd_cache_follow_open(st, path, err_out);
+    if (obj != NULL) {
+        ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
+            "sd_cache: following in-flight fill of \"%s\"", path);
+        return obj;
+    }
+
+    if (sd_cache_fill(st, path, rq->cred, 0, NULL) == NGX_OK) {
         obj = brix_cstore_serve_open(&st->cstore, path, err_out);
         if (obj != NULL) {
             ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
@@ -193,6 +206,22 @@ cache_open_miss_serve(brix_sd_instance_t *inst, sd_cache_inst_state *st,
  *       (cache_open_miss_serve, cred threaded through to the source open).
  *       Failed or declined → degrade to the source.  rq->cred may be NULL
  *       (service-credential path). */
+/* The MISS-that-cannot-be-filled answer: open the source with the caller's
+ * own flags/cred and stamp the outcome MISS (the cache was consulted and could
+ * not serve) so the metrics and $brix_cache_status say what happened. */
+static brix_sd_obj_t *
+cache_open_source_miss(brix_sd_instance_t *src, const char *path,
+    const sd_cache_open_req_t *rq, int *err_out)
+{
+    brix_sd_obj_t *obj = brix_sd_open_maybe_cred(src, path, rq->sd_flags,
+                                                 rq->mode, rq->cred, err_out);
+
+    if (obj != NULL) {
+        obj->cache_outcome = BRIX_SD_CACHE_OUTCOME_MISS;
+    }
+    return obj;
+}
+
 static brix_sd_obj_t *
 sd_cache_open_common(brix_sd_instance_t *inst, const char *path,
     const sd_cache_open_req_t *rq, int *err_out)
@@ -257,8 +286,19 @@ sd_cache_open_common(brix_sd_instance_t *inst, const char *path,
         return NULL;
     }
 
+    /* The offloaded fill of this object was already refused by the STORE
+     * (ENOSPC: it can never fit) and the HTTP plane re-entered the request to
+     * serve it from the source (2.0, brix_io_monitor_t.fill_refused). A second
+     * fill here would be refused the same way after one more origin round
+     * trip, so go straight to the source. Deliberately AFTER the cache-only
+     * and admission checks above: the hint never turns an only_if_cached
+     * ENOENT into a source read and never changes what the path filter admits. */
+    if (rq->sd_flags & BRIX_SD_O_NOFILL) {
+        return cache_open_source_miss(src, path, rq, err_out);
+    }
+
     /* MISS: partial-serve (slice mode) or fill from the source + serve. */
-    obj = cache_open_miss_serve(inst, st, path, rq->cred, err_out);
+    obj = cache_open_miss_serve(inst, st, path, rq, err_out);
     if (obj != NULL) {
         obj->cache_outcome = BRIX_SD_CACHE_OUTCOME_MISS;
         return obj;
@@ -266,12 +306,7 @@ sd_cache_open_common(brix_sd_instance_t *inst, const char *path,
 
     /* Declined or failed: serve from the source (a sick cache never fails a read,
      * section 16).  Still a MISS — the cache was consulted and could not serve. */
-    obj = brix_sd_open_maybe_cred(src, path, rq->sd_flags, rq->mode,
-                                  rq->cred, err_out);
-    if (obj != NULL) {
-        obj->cache_outcome = BRIX_SD_CACHE_OUTCOME_MISS;
-    }
-    return obj;
+    return cache_open_source_miss(src, path, rq, err_out);
 }
 
 /* Plain open slot (service credential / no per-user cred). */
@@ -279,7 +314,7 @@ static brix_sd_obj_t *
 sd_cache_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     mode_t mode, int *err_out)
 {
-    sd_cache_open_req_t rq = { sd_flags, mode, NULL };
+    sd_cache_open_req_t rq = { sd_flags, mode, NULL, NULL };
 
     return sd_cache_open_common(inst, path, &rq, err_out);
 }
@@ -299,7 +334,23 @@ static brix_sd_obj_t *
 sd_cache_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags,
     mode_t mode, const brix_sd_cred_t *cred, int *err_out)
 {
-    sd_cache_open_req_t rq = { sd_flags, mode, cred };
+    sd_cache_open_req_t rq = { sd_flags, mode, cred, NULL };
+
+    return sd_cache_open_common(inst, path, &rq, err_out);
+}
+
+/* 2.0 F5 hinted open slot (upstream pfc.urlcgi): the client's pfc.blocksize /
+ * pfc.prefetch hints ride the request into the slice partial open, where the
+ * brix_cache_urlcgi clamps decide whether they apply. Everything else — hit,
+ * only_if_cached, admission, passthrough, source fallback — is the same path
+ * as the two slots above; a hint never changes WHAT is served, only the slice
+ * geometry a NEW partial object is created with and this handle's runway. */
+static brix_sd_obj_t *
+sd_cache_open_hinted(brix_sd_instance_t *inst, const char *path, int sd_flags,
+    mode_t mode, const brix_sd_cred_t *cred,
+    const brix_sd_open_hints_t *hints, int *err_out)
+{
+    sd_cache_open_req_t rq = { sd_flags, mode, cred, hints };
 
     return sd_cache_open_common(inst, path, &rq, err_out);
 }
@@ -350,6 +401,7 @@ static const brix_sd_driver_t brix_sd_cache_driver = {
                  | BRIX_SD_CAP_DIRS | BRIX_SD_CAP_DIRS_WRITE,
     .open             = sd_cache_open,
     .open_cred        = sd_cache_open_cred,
+    .open_hinted      = sd_cache_open_hinted,
     .close            = sd_cache_close,
     .pread            = sd_cache_pread,
     .read_advise      = sd_cache_read_advise,
@@ -466,8 +518,9 @@ brix_sd_cache_destroy(brix_sd_instance_t *inst)
 }
 
 /* The identity predicate lives here because the driver vtable is static to
- * this TU; the caller-driven evict/cached-bytes probes and the SP2 async-fill
- * offload trio it gates live in sd_cache_maint.c. */
+ * this TU; the caller-driven evict/cached-bytes probes, the SP2 async-fill
+ * offload trio and the tier-attachment setters it gates live in
+ * sd_cache_maint.c. */
 int
 brix_sd_cache_instance_is(const brix_sd_instance_t *inst)
 {
@@ -500,90 +553,4 @@ void *
 brix_sd_cache_cstore(const brix_sd_instance_t *inst)
 {
     return brix_sd_cache_instance_is(inst) ? &SD_CACHE_ST(inst)->cstore : NULL;
-}
-
-/* Attach/detach the OPTIONAL cold store tier (phase-85 F7). `cold` is BORROWED
- * (registry-owned, worker lifetime) so brix_sd_cache_destroy never frees it.
- * No-op for a non-cache instance. With a cold tier set, sd_cache_fill tries a
- * verified promote from it before the origin, and brix_sd_cache_demote (the
- * eviction seam) copies victims into it. */
-void
-brix_sd_cache_set_cold(brix_sd_instance_t *inst, brix_sd_instance_t *cold)
-{
-    if (brix_sd_cache_instance_is(inst)) {
-        SD_CACHE_ST(inst)->cold = cold;
-    }
-}
-
-/* Attach/detach the sibling-mesh ring (phase-85 F8). The member instances are
- * BORROWED (registry-owned, worker lifetime) so brix_sd_cache_destroy never
- * frees them. No-op for a non-cache instance; n == 0 (or an out-of-range self)
- * detaches. With a ring set, sd_cache_fill tries one verified fill from the
- * key's rendezvous-owning sibling before the origin. */
-void
-brix_sd_cache_set_peers(brix_sd_instance_t *inst,
-    const brix_sd_cache_peer_t *peers, int n, int self)
-{
-    sd_cache_inst_state *st;
-    int                  i;
-
-    if (!brix_sd_cache_instance_is(inst)) {
-        return;
-    }
-    st = SD_CACHE_ST(inst);
-    if (peers == NULL || n <= 0 || n > BRIX_SD_CACHE_MAX_PEERS
-        || self < 0 || self >= n)
-    {
-        st->n_peers = 0;
-        return;
-    }
-    for (i = 0; i < n; i++) {
-        st->peers[i] = peers[i];
-    }
-    st->n_peers   = n;
-    st->peer_self = self;
-}
-
-/* Publish a swarm-built ring (phase-87 G12). Event loop only; the barrier
- * orders the ring's contents before the pointer store so a worker-thread
- * fill that loads the new pointer sees a fully built ring. */
-void
-brix_sd_cache_ring_swap(brix_sd_instance_t *inst,
-    const brix_sd_cache_ring_t *ring)
-{
-    sd_cache_inst_state *st;
-
-    if (!brix_sd_cache_instance_is(inst)) {
-        return;
-    }
-    if (ring != NULL
-        && (ring->n <= 0 || ring->n > BRIX_SD_CACHE_MAX_PEERS
-            || ring->self < 0 || ring->self >= ring->n))
-    {
-        return;
-    }
-    st = SD_CACHE_ST(inst);
-    ngx_memory_barrier();
-    st->dyn_ring = ring;
-}
-
-int
-brix_sd_cache_get_peers(const brix_sd_instance_t *inst,
-    brix_sd_cache_peer_t *out, int *self)
-{
-    const sd_cache_inst_state *st;
-    int                        i;
-
-    if (!brix_sd_cache_instance_is(inst) || out == NULL || self == NULL) {
-        return 0;
-    }
-    st = SD_CACHE_ST(inst);
-    if (st->n_peers <= 0) {
-        return 0;
-    }
-    for (i = 0; i < st->n_peers; i++) {
-        out[i] = st->peers[i];
-    }
-    *self = st->peer_self;
-    return st->n_peers;
 }

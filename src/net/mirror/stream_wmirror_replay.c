@@ -25,7 +25,6 @@
 #include "mirror.h"
 #include "stream_mirror_io.h"
 
-#include <netdb.h>
 #include <sys/socket.h>
 #include <endian.h>
 
@@ -231,12 +230,14 @@ wmir_launch(ngx_stream_brix_srv_conf_t *conf, brix_wmirror_file_t *f)
     ngx_pool_t              *pool;
     brix_wmirror_replay_t *r;
     u_char                  *frame;
+    struct sockaddr_storage  tss;
+    socklen_t                tlen;
 
     if (conf->mirror.targets == NULL || conf->mirror.targets->nelts == 0) {
         return;
     }
     t = (brix_mirror_target_t *) conf->mirror.targets->elts;   /* first target */
-    if (t->socklen == 0) { return; }
+    if (brix_mirror_target_addr(t, &tss, &tlen) != NGX_OK) { return; }
 
     pool = ngx_create_pool(2048, ngx_cycle->log);
     if (pool == NULL) { return; }
@@ -246,8 +247,8 @@ wmir_launch(ngx_stream_brix_srv_conf_t *conf, brix_wmirror_file_t *f)
     r->log         = ngx_cycle->log;     /* outlives the client connection */
     r->log_diverge = conf->mirror.log_diverge ? 1 : 0;
     r->port        = t->port;
-    r->socklen     = t->socklen;
-    ngx_memcpy(&r->sockaddr, &t->sockaddr, t->socklen);
+    r->socklen     = tlen;
+    ngx_memcpy(&r->sockaddr, &tss, tlen);
     ngx_cpystrn((u_char *) r->host,
                 t->host.data ? t->host.data : (u_char *) "?", sizeof(r->host));
 

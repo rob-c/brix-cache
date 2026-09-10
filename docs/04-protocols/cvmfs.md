@@ -76,8 +76,9 @@ new wire syntax — exactly as the S3 plane is REST-over-HTTP.
 ## 2. Traffic classification — the protocol grammar
 
 Every request is classified by the pure-C classifier
-(`src/protocols/cvmfs/classify.c`, standalone-testable with plain gcc —
-`tests/run_cvmfs_classify.sh`). The grammar, exactly as implemented:
+(`shared/cvmfs/grammar/classify.c`, standalone-testable with plain gcc —
+`tests/cmdscripts/cvmfs_classify.py`, driven by
+`tests/test_cvmfs_classify.py`). The grammar, exactly as implemented:
 
 ```
 path      := "/cvmfs/" repo "/" rel
@@ -334,7 +335,8 @@ server never writes. **Full unprivileged deployment cookbook:
 ### 4.1 CAS objects — verify-on-fill (`brix_cache_verify cvmfs-cas`)
 
 A CVMFS object's name is the SHA-1 of its **raw served bytes** (pinned by
-the spike in `tests/cvmfs/spike_cas_hash.sh` against a real Stratum-1 —
+the `spike-cas-hash` scenario of `tests/cmdscripts/cvmfs_matrix.py`
+against a real Stratum-1 —
 the transfer encoding, not the decompressed payload). So the cache needs
 no origin-advertised digest: the URL itself is the checksum.
 
@@ -612,7 +614,8 @@ All wire-derived keys are passed through `brix_sanitize_log_string`
 before logging (control bytes become `\xNN`), so a crafted request path
 cannot forge a log record.
 
-Regression coverage: `tests/run_cvmfs_selectlog.sh` (config-time table +
+Regression coverage: the `selectlog` scenario of
+`tests/cmdscripts/cvmfs_live_ext.py` (config-time table +
 live failover switch + both-down deadline + CRLF-injection negative).
 
 ---
@@ -623,7 +626,8 @@ The CVMFS client keeps per-proxy failure bookkeeping. A proxy that
 *breaks connections* gets skipped — the client falls to the next proxy
 group, then DIRECT, after which **every worker node hammers the WAN
 individually** and the cache has made things worse than no cache. So the
-contract is absolute (T20, proven by `tests/run_cvmfs_holdopen.sh`):
+contract is absolute (T20, proven by the `holdopen` scenario of
+`tests/cmdscripts/cvmfs_live_ext.py`):
 
 - **A TCP close/reset is NEVER used as an error signal.** Every
   client-visible failure is a well-formed HTTP response with a
@@ -663,7 +667,8 @@ coalesce: any number of concurrent waiters ride ONE origin fetch
 Kernel keepalive makes the *cache* the side that detects dead peers,
 while middleboxes see steady probes and keep NAT/conntrack state alive.
 The canonical listener block (each line proven on the wire by
-`tests/run_cvmfs_keepalive.sh`, including getsockopt-level assertions):
+the `keepalive` scenario of `tests/cmdscripts/cvmfs_live.py`, including
+getsockopt-level assertions):
 
 ```nginx
     # so_keepalive=idle:intvl:cnt → SO_KEEPALIVE + TCP_KEEPIDLE/KEEPINTVL/KEEPCNT
@@ -789,7 +794,8 @@ locations with `brix_scvmfs on`:
    in `brix_scvmfs_requests_total`.
 
 Experimental status is structural: own directives (`brix_scvmfs*`), own
-suite (`tests/run_scvmfs.sh`), excluded from the acceptance gate and the
+suite (the `scvmfs` scenario of `tests/cmdscripts/brixcvmfs_live.py`),
+excluded from the acceptance gate and the
 pilot; it can slip or be cut without touching the `cvmfs://` deliverable.
 
 ### 8.1 Verifying proxy (phase-85 F1): `brix_cvmfs_verify_manifest`
@@ -1034,25 +1040,37 @@ many clients: that is `CVMFS_TIMEOUT` set shorter than the fill latency.
 
 ### 11.1 Test suites (all self-contained; mock Stratum-1 + fault injection)
 
-| Suite | Proves |
+| Suite (pytest entry point → scenario) | Proves |
 |---|---|
-| `tests/run_cvmfs_classify.sh` | classifier grammar incl. adversarial shapes (standalone gcc, no nginx) |
-| `tests/run_cvmfs_reverse.sh` | cold fill / warm hit byte-exact, stampede coalescing = 1 origin fetch, gate rejects, `/metrics` counters |
-| `tests/run_cvmfs_verify.sh` | injected corruption ⇒ 0 corrupt admissions, quarantine populated, verify metric |
-| `tests/run_cvmfs_failover.sh` | one origin stalled ⇒ transparent failover, no client-visible error |
-| `tests/run_cvmfs_manifest.sh` | manifest TTL / revalidate on bump / bounded stale-if-error |
-| `tests/run_cvmfs_proxy.sh` | absolute-form proxy mode, per-upstream cache isolation, allowlist security-neg |
-| `tests/run_cvmfs_select.sh` | static order / geo coords / rtt probe each drive the fill's endpoint choice |
-| `tests/run_cvmfs_holdopen.sh` | hold+retry to deadline, 504-keepalive (connection provably reused), detached fill completes, retry hits |
-| `tests/run_cvmfs_keepalive.sh` | SO_KEEPALIVE/KEEPIDLE/KEEPINTVL/KEEPCNT on the wire, connection survives error answers, neg-control listener |
-| `tests/run_scvmfs.sh` | TLS-only enforcement, bearer authz gate, cvmfs-parity through the preamble |
+| `tests/test_cvmfs_classify.py` | classifier grammar incl. adversarial shapes (standalone gcc, no nginx) |
+| `tests/test_cvmfs_live_ext.py` → `reverse` | cold fill / warm hit byte-exact, stampede coalescing = 1 origin fetch, gate rejects, `/metrics` counters |
+| `tests/test_cmd_cvmfs_verify.py` | injected corruption ⇒ 0 corrupt admissions, quarantine populated, verify metric |
+| `tests/test_cmd_cvmfs_live.py` → `failover` | one origin stalled ⇒ transparent failover, no client-visible error |
+| `tests/test_cmd_cvmfs_live.py` → `manifest` | manifest TTL / revalidate on bump / bounded stale-if-error |
+| `tests/test_cvmfs_live_ext.py` → `proxy` | absolute-form proxy mode, per-upstream cache isolation, allowlist security-neg |
+| `tests/test_cvmfs_live_ext.py` → `select` | static order / geo coords / rtt probe each drive the fill's endpoint choice |
+| `tests/test_cvmfs_live_ext.py` → `holdopen` | hold+retry to deadline, 504-keepalive (connection provably reused), detached fill completes, retry hits |
+| `tests/test_cmd_cvmfs_live.py` → `keepalive` | SO_KEEPALIVE/KEEPIDLE/KEEPINTVL/KEEPCNT on the wire, connection survives error answers, neg-control listener |
+| `tests/test_cmd_brixcvmfs_live.py` → `scvmfs` | TLS-only enforcement, bearer authz gate, cvmfs-parity through the preamble |
 | `tests/test_cvmfs_mock.py` / `test_cvmfs_harness.py` | the lab itself (CAS layout, fault modes, metrics math) |
 | `tests/test_fail2ban_regex.py` | the fail2ban filters match the real log shapes (committed samples) |
-| `tests/cvmfs/run_matrix.sh` (root) | the full netem comparison matrix below |
+| `tests/test_cvmfs_matrix.py` → `matrix` (root) | the full netem comparison matrix below |
+
+The live scenarios are opt-in (`@pytest.mark.optin`) because each starts a
+real nginx against a mock Stratum-1; the scenario bodies live in
+`tests/cmdscripts/cvmfs_live.py`, `cvmfs_live_ext.py`, `cvmfs_verify.py`,
+`brixcvmfs_live.py` and `cvmfs_matrix.py`, and can also be driven directly,
+e.g. `PYTHONPATH=tests python3 -m cmdscripts.cvmfs_live_ext holdopen`.
 
 ### 11.2 Fresh run (2026-07-02, tree at `61adfc9`, all suites serial)
 
-Verbatim output — every check, no elisions:
+Verbatim output — every check, no elisions. This transcript predates the
+bash-fleet dissolution, so its `=== run_cvmfs_*.sh ===` banners are the
+*then*-current script names; §11.1 above maps each to the Python scenario that
+replaced it, check for check. (The classifier has since grown from 15 to 18
+checks — `tests/cmdscripts/cvmfs_classify.py` prints the current count.)
+
+<!-- doc-paths:off -->
 
 ```
 === run_cvmfs_classify.sh ===
@@ -1120,7 +1138,9 @@ run_cvmfs_classify: 15 checks OK
 18 passed, 4 skipped        (skips: fail2ban binary not on the dev box)
 ```
 
-All ten shell suites exited 0. Highlights worth reading twice:
+<!-- doc-paths:on -->
+
+All ten suites exited 0. Highlights worth reading twice:
 `stampede: exactly 1 origin fetch` (coalescing), `corrupt fill → 502, not
 admitted` + `corrupt part quarantined` (verify-on-fill), `both-down → held
 then clean 504` and `504-keepalive + same-socket retry` (never-drop),
@@ -1140,7 +1160,7 @@ failure mode), while this module admitted **zero** corrupt bytes
 (`conn_failures=0`) — every bad fill became a well-formed 502 with the
 part quarantined, and the client's own retry semantics did the rest.
 The full netem profile sweep (`loss/reorder/jitter/site`) is one root
-command: `sudo tests/cvmfs/run_matrix.sh`.
+command: `sudo -E env PYTHONPATH=tests python3 -m cmdscripts.cvmfs_matrix matrix`.
 
 ### 11.4 Live demo
 

@@ -106,9 +106,29 @@ Permit cleartext if the server offers no TLS (root:// only).
 .B \-\-noverifyhost
 Skip TLS hostname verification (certificate chain validation stays on).
 .TP
+.BR \-A ", " \-\-allow\-http
+Accepted for stock-\fBxrdcp\fR compatibility.  \fBhttp\fR/\fBdavs\fR URLs need
+no opt-in here, so the flag has nothing to enable.
+.TP
 .BI \-\-auth " PROTO"
 Force an authentication protocol: \fBgsi\fR | \fBztn\fR | \fBkrb5\fR |
 \fBsss\fR | \fBunix\fR.
+.TP
+.BI \-\-sss\-vorg " VO"
+sss: assert a virtual organisation in the credential.
+.TP
+.BI \-\-sss\-role " ROLE"
+sss: assert a role inside that VO.
+.TP
+.BI \-\-sss\-endorse " TEXT"
+sss: opaque endorsements blob.
+.TP
+.BI \-\-sss\-creds\-file " PATH"
+sss: forward the credential held in \fIPATH\fR (the server keeps it only under
+\fBbrix_sss_getcreds on\fR).
+.TP
+.B \-\-sss\-sndlid
+sss: let the server name the login id (two-round form).
 .TP
 .BI \-\-proxy " PATH"
 Use \fIPATH\fR as the X.509 proxy certificate, overriding \fBX509_USER_PROXY\fR.

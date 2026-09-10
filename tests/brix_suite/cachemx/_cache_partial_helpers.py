@@ -190,8 +190,11 @@ def _make_local_node(base, lifecycle, backend, options):
 def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=None,
                     max_object=None, deny_prefix=None, include_regex=None,
                     origin_backend="posix", allow_write=False,
-                    prefetch=None, prefetch_window=None):
-    """Start a registry-managed cache node backed by xroot, HTTP, or local IO."""
+                    prefetch=None, prefetch_window=None, urlcgi=None):
+    """Start a registry-managed cache node backed by xroot, HTTP, or local IO.
+
+    `urlcgi` is the argument string of a brix_cache_urlcgi line (2.0 F5, the
+    per-open pfc.blocksize / pfc.prefetch clamp), e.g. "blocksize 1m 4m"."""
     options = {
         "slice_size": slice_size,
         "max_size": (max_file_size if backend in {"xroot", "http"}
@@ -201,7 +204,8 @@ def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=N
         "origin_backend": origin_backend,
         "allow_write": allow_write,
         "prefetch_lines": (_optline("brix_cache_prefetch", prefetch)
-                           + _optline("brix_cache_prefetch_window", prefetch_window)),
+                           + _optline("brix_cache_prefetch_window", prefetch_window)
+                           + _optline("brix_cache_urlcgi", urlcgi)),
     }
     builders = {"xroot": _make_xroot_node, "http": _make_http_node}
     builder = builders.get(backend, _make_local_node)

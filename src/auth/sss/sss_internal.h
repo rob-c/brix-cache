@@ -13,14 +13,24 @@
 
 /*
  * brix_sss_identity_t — decoded identity fields from an SSS cleartext
- * payload.  Populated by brix_sss_parse_identity().
+ * payload.  Populated by brix_sss_parse_identity().  The v1 fields (name,
+ * grps, host, ip) are joined by the v2 entity breadth of
+ * release-2.0-readiness F9: vorg, role, endorsements and a proxied
+ * credential blob.  Every cap is the shared wire constant from
+ * protocols/root/protocol/sss.h so the producers (proxy arm, native client)
+ * and this parser agree on what fits.
  */
 typedef struct {
-    char name[256];
-    char grps[512];
-    char host[256];
-    char ip[128];
-    int  id_count;
+    char    name[BRIX_SSS_ENT_NAME_MAX];
+    char    vorg[BRIX_SSS_ENT_VORG_MAX];   /* v2 VORG 0x02 */
+    char    role[BRIX_SSS_ENT_ROLE_MAX];   /* v2 ROLE 0x03 */
+    char    grps[BRIX_SSS_ENT_GRPS_MAX];
+    char    endo[BRIX_SSS_ENT_ENDO_MAX];   /* v2 ENDO 0x05 endorsements */
+    char    host[256];
+    char    ip[128];
+    u_char  creds[BRIX_SSS_ENT_CREDS_MAX]; /* v2 CRED 0x06 proxied credential, raw */
+    size_t  creds_len;                     /* 0 = no CRED field */
+    int     id_count;
 } brix_sss_identity_t;
 
 /* ---- auth_crypto_helpers.c ---------------------------------------- */

@@ -69,8 +69,8 @@ Returns `kXR_Unsupported`.
 
 ### Upstream-declared but unimplemented request codes
 
-The upstream XRootD protocol header (`src/XProtocol/XProtocol.hh` in a reference
-`xrootd` tree) declares several request codes that are reserved, historical
+The upstream XRootD protocol header — `XProtocol/XProtocol.hh` inside a checkout
+of the *upstream* `xrootd` project, not a path in this repository — declares several request codes that are reserved, historical
 aliases, or protocol-only entries and do not have active server-side handlers
 in the reference `xrootd` source. For completeness, these are listed here to
 avoid confusion when comparing protocol definitions:
@@ -97,7 +97,7 @@ treated as supported opcodes by this module.
 | GSI / x509 proxy certificates | ✅ | Full DH key exchange, RFC 3820 proxy chain, VOMS attribute extraction |
 | JWT / WLCG bearer tokens (`ztn`) | ✅ | JWKS validation, scope and group parsing |
 | Mixed (`both`) | ✅ | Accepts either GSI or token on the same listener |
-| SSS (Simple Shared Secrets) | ✅ | `brix_auth sss` + `brix_sss_keytab`; keytab uses the standard XRootD BF32-encrypted format; identity fields (user, group, name) extracted and logged |
+| SSS (Simple Shared Secrets) | ✅ | `brix_auth sss` + `brix_sss_keytab`; keytab uses the standard XRootD BF32-encrypted format; the full entity (user, group, name, VO, role, groups, endorsements, proxied credential) is parsed under the keytab's trust policy and logged, `brix_sss_getcreds on` keeps a proxied credential, `brix_tap_proxy_sss_identity client` forwards the client's entity upstream, and the two-round `SNDLID` form is supported |
 | krb5 | ✅ | Optional build-time Kerberos 5 support in `src/auth/krb5`; availability depends on build dependencies/configuration. |
 | pwd | ✅ | `brix_auth pwd` + `brix_pwd_file`; 2-round DH-bootstrapped password handshake (`src/auth/pwd/`). Legacy; run under TLS. Wire-equivalent, not the `xrdpwdadmin` admin ecosystem. |
 | host | ✅ | `brix_auth host` + `brix_host_allow`; reverse-DNS allowlist (`src/auth/host/`). Legacy; fail-closed, trusted-network only. |
@@ -215,7 +215,18 @@ Full WebDAV over HTTPS is implemented as a separate nginx HTTP module.
 Operations: OPTIONS, GET, HEAD, PUT, DELETE, MKCOL, PROPFIND, COPY (RFC 4918 §9.8 server-side and HTTP-TPC pull/push), MOVE, LOCK, UNLOCK. Authentication accepts proxy certificates and bearer tokens.
 Configurable CORS headers are supported for browser-based WebDAV clients.
 
-**Upstream proxy mode** (`brix_webdav_proxy on`): all WebDAV requests — after auth — are forwarded to a backend HTTP or HTTPS server instead of serving from the local filesystem. Supports `http://` and `https://` backends. Three auth bridging policies (`anonymous`, `forward`, `token`). `COPY`/`MOVE` `Destination:` headers are rewritten to the upstream base. Implemented in `src/protocols/webdav/proxy.c`.
+**Upstream proxy mode — removed.** The dedicated WebDAV reverse-proxy
+directives (`brix_webdav_proxy*`) forwarded authenticated WebDAV requests to an
+HTTP/HTTPS backend instead of serving from the local filesystem. They were
+retired after the relay path to stock XrdHttp backends proved unstable (a
+load-dependent heap corruption in the upstream response parse), and the now-dead
+transport code was deleted on 2026-07-20 so the defect cannot be resurrected:
+`brix_webdav_proxy` is now rejected as an unknown directive. The still-present
+`brix_webdav_proxy_certs` is GSI *proxy-certificate* acceptance, unrelated to
+proxying. To put a TLS/auth perimeter in front of storage, serve WebDAV directly
+at the edge (`brix_webdav on` + `brix_export`, optionally `brix_storage_backend`
+for a remote origin); for plain relaying without BriX semantics, nginx's stock
+`proxy_pass` works.
 
 See [webdav.md](../04-protocols/webdav-overview.md) for details.
 
@@ -256,18 +267,18 @@ analysis.
 
 | Gap | Affected site types | Workaround |
 |---|---|---|
-| **Full XrdFrm/MSS/tape-driver ecosystem** — FRM queue and Tape REST gateway support exist, but this is not the complete upstream XrdFrm/MSS stack | Sites with tape backends where FTS or physics frameworks depend on exact stage, migrate, purge, space, and recall semantics | Run site-specific prepare/qprep/cancel/evict tests against the real tape backend; keep official XRootD where full MSS behavior is required |
+| **Full XrdFrm/MSS/tape-driver ecosystem** — 2.0 closed the operator-visible half: the durable FRM queue is relocatable (`brix_frm_queue_path`, **F1**), the stage program is site-supplied with upstream's argument and message conventions (`brix_frm_stagecmd` / `brix_frm_stagemsg`, **F1**/**F2**), purge runs a policy — with an external decision program when configured (`brix_frm_purge_policy` / `brix_frm_purge_polprog`, **F4**) — and archival exports carry the OssArc seal (`tape://<adapter>/<base>?arc=<depth>`, **F3**). MSS drivers load either as a program (`exec`, `hpss`, `cta`) or in process (`lib`, against `sd_frm_lib_abi.h`). What is still not reproduced is upstream's complete migrate/recall daemon set and its plugin ABI surface | Sites with tape backends where FTS or physics frameworks depend on exact stage, migrate, purge, space, and recall semantics | Run site-specific prepare/qprep/cancel/evict tests against the real tape backend; keep official XRootD where full MSS behavior is required |
 
 ### Soft gaps — reduce feature parity but do not block disk-only POSIX deployments
 
 | Gap | Notes |
 |---|---|
-| **Native root:// TPC outbound auth polish** — After `kXR_authmore`, the pull client can complete **ztn** (JWT file via `brix_tpc_outbound_bearer_file`) or **GSI** (same PEM as `brix_certificate` / `brix_certificate_key`, with optional server verification via `brix_trusted_ca`). Native TPC source-side `kXR_gotoTLS` and multi-hop delegation beyond this exchange are not implemented. Transparent upstream/proxy connections have their own `kXR_gotoTLS` path; cache/write-through origins keep the separate direct-origin limitations documented in `src/fs/cache/README.md`. |
-| **Remote storage backends** — no full PSS, PFC, HDFS, EOS, CASTOR, Ceph, Zip, or upstream OSS-plugin abstraction | By design: module primarily serves confined local POSIX storage; FRM/Tape REST integration is a control-plane bridge, not the full upstream storage plugin ecosystem |
+| **Native root:// TPC outbound auth polish** — After `kXR_authmore`, the pull client can complete **ztn** (JWT file via `brix_tpc_outbound_bearer_file`) or **GSI** (same PEM as `brix_certificate` / `brix_certificate_key`, with optional server verification via `brix_trusted_ca`). Source-side `kXR_gotoTLS` **is** implemented (`src/tpc/outbound/tls.c`, driven from `bootstrap.c`), and 2.0 **F7** added multi-hop delegation on the pull leg — a `kXR_redirect` from the source is followed, with a hop budget (`brix_tpc_max_hops`) — plus multi-stream pull (`brix_tpc_streams`). 2.0 **F16** added the **push** direction and multi-stream on it: with `brix_tpc_push on` both legs carry `tpc.stage=push`, the *source* dials the destination and writes (rendezvous key registered by the client's destination open, consumed by the source's), and the same `brix_tpc_streams` cap bounds its outbound sub-streams — so an egress-only site can originate a native copy. Transparent upstream/proxy connections have their own `kXR_gotoTLS` path; cache/write-through origins keep the separate direct-origin limitations documented in `src/fs/cache/README.md`. |
+| **Remote storage backends** — partial. 2.0 ships a proxying store URL (`forward://root[,roots] permit=…`, **F5**) and honours a client's per-open cache hints (`brix_cache_urlcgi`, XrdPfc `pfc.urlcgi` parity, **F5**), plus S3/HTTP/Ceph/CephFS storage drivers. There is no XrdPss persona or reproxy support, no HDFS/EOS/CASTOR/Zip driver, and no upstream OSS-plugin ABI | The module still primarily serves confined local POSIX storage; FRM/Tape REST integration is a control-plane bridge, not the full upstream storage plugin ecosystem |
 | **Hierarchical CMS gateway/proxy mode** — stream `kYR_select` / `kYR_try` sub-manager redirects are implemented and covered by three-tier tests; a select-then-proxy gateway mode is not implemented | Use standard XRootD client redirects for multi-tier deployments |
 | **~~HTTP-TPC OAuth2/OIDC delegation~~ — implemented in `src/protocols/webdav/tpc_cred.c`** | ✅ Implemented — `oidc-agent` UNIX-socket delegation and RFC 8693 token exchange are both supported. Configure with `brix_tpc_outbound_token_endpoint`. See `src/protocols/webdav/tpc_cred.c` and `tests/test_webdav_tpc_cred.py`. |
 | **Full XrdAcc / VO authorization database semantics** | Module supports VOMS extraction, `brix_require_vo`, authdb, ACLs, and token-scope checks; it does not reproduce every upstream `XrdAcc` privilege/plugin behavior |
-| **Native root:// TPC credential edge cases** | Basic source/destination rendezvous works; TLS-upgraded origins, multihop delegation, and site-specific credential forwarding still need deployment validation |
+| **Native root:// TPC credential edge cases** | Basic source/destination rendezvous works, and TLS-upgraded sources plus multihop delegation are implemented (2.0 **F7**); site-specific credential forwarding across a redirect chain still needs deployment validation, and the identity matrix `ofs.tpc` expresses (`allow dn\|group\|host\|vo`, `require`, `restrict`) is register item **F18** |
 
 ### Intentionally not implemented
 
@@ -275,4 +286,4 @@ analysis.
 |---|---|
 | `kXR_gpfile` (opcode 3005) | Deprecated since protocol v3; no known live client uses; returns `kXR_Unsupported` |
 | `host` / `pwd` authentication | Legacy modes with no modern deployments |
-| PSS / full PFC / full XrdFrm storage layers | Remote storage backends are out of scope for a POSIX-backed module; FRM queue/Tape REST support is intentionally narrower than upstream XrdFrm/MSS |
+| The upstream OSS/PSS **plugin ABI** — persona and reproxy, loadable `XrdOss`/`XrdPss` shared objects | Hosting upstream's C++ plugin objects is out of scope for this module. The capabilities themselves are reached through native equivalents instead: see the proxying store URL and cache-hint rows above, and the MSS `lib` adapter for in-process tape drivers |

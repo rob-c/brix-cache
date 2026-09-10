@@ -28,6 +28,7 @@
 #include <string.h>
 
 #include "auth/token/exchange.h"
+#include "net/dns/curl_pin.h"
 
 /* Pool allocation backed by malloc — exchange.c only ever ngx_pnalloc()s small
  * transient strings (endpoint cstr, form body); the process exits right after. */
@@ -43,6 +44,19 @@ ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
     const char *fmt, ...)
 {
     (void) level; (void) log; (void) err; (void) fmt;
+}
+
+/* phase-116: exchange.c pins the endpoint through the DNS driver before the
+ * POST.  The endpoint here is a closed loopback literal, for which the real
+ * pin is a no-op, so the stub reports "nothing to pin" and the transfer fails
+ * on connect as before. */
+ngx_int_t
+brix_dns_curl_pin(CURL *curl, const brix_dns_policy_t *policy,
+    const char *url, struct curl_slist **resolve_out, char *err, size_t errsz)
+{
+    (void) curl; (void) policy; (void) url; (void) err; (void) errsz;
+    *resolve_out = NULL;
+    return NGX_OK;
 }
 
 static int failures;

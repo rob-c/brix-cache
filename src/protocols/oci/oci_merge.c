@@ -382,6 +382,8 @@ oci_build_upstream(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf)
     up->port     = url.port;
     up->tls      = url.tls;
     up->insecure = conf->insecure;
+    up->tctx.ca_path = NULL;
+    up->tctx.dns = conf->common.dns.policy;
     if (conf->auth_realms != NULL) {
         /* Copied by value: the fill thread reads the allowlist on every
          * dance, and it reads it off the upstream it already holds. */

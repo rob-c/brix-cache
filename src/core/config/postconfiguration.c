@@ -4,6 +4,7 @@
 #include "net/cms/reqid_map.h"
 #include "net/cms/cns.h"
 #include "fs/xfer/stage_waiter.h"
+#include "protocols/ssi/svc_cta/cta_shm.h"
 #include "core/negcache/negcache.h"
 #include "auth/impersonate/lifecycle.h"
 #include "core/aio/uring.h"
@@ -253,6 +254,67 @@ postconf_stage_waiter(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
     return NGX_OK;
 }
 
+/*
+ * One SHM zone means ONE journal for the whole worker set, so when two enabled
+ * server blocks name different `brix_ssi_cta_journal` paths only one of them
+ * can be opened. The FIRST non-empty path wins and the ignored one is named in
+ * a config-time WARN.
+ *
+ * Not silent, because an operator would otherwise believe a second block's
+ * requests were being journalled somewhere they are not; and not fatal,
+ * because refusing the config would take down deployments that have run this
+ * way (with a private per-worker journal each) until now.
+ */
+static void
+cta_journal_pick(ngx_conf_t *cf, ngx_str_t *chosen, ngx_str_t *cand)
+{
+    if (cand->len == 0) {
+        return;
+    }
+    if (chosen->len == 0) {
+        *chosen = *cand;
+        return;
+    }
+    if (chosen->len == cand->len
+        && ngx_strncmp(chosen->data, cand->data, cand->len) == 0)
+    {
+        return;
+    }
+    ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        "brix: brix_ssi_cta_journal \"%V\" is ignored — the CTA queue is one "
+        "shared zone with one journal, and \"%V\" was declared first",
+        cand, chosen);
+}
+
+/*
+ * W8.6: bind the cross-worker CTA request queue. One zone for every enabled
+ * `brix_ssi_service cta` block, registered here so the journal is replayed
+ * once in the master before fork rather than once per worker — which is what
+ * used to leave every worker with the same next_id and colliding request ids.
+ */
+static ngx_int_t
+postconf_cta_queue(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
+    ngx_stream_core_srv_conf_t **cscfp)
+{
+    ngx_stream_brix_srv_conf_t  *xcf;
+    ngx_uint_t                   i = 0;
+    ngx_str_t                    journal = ngx_null_string;
+    int                          any_cta = 0;
+
+    while ((xcf = postconf_next_enabled(cmcf, cscfp, &i)) != NULL) {
+        if (!xcf->ssi_cta_enable) {
+            continue;
+        }
+        any_cta = 1;
+        cta_journal_pick(cf, &journal, &xcf->ssi_cta_journal);
+    }
+
+    if (!any_cta) {
+        return NGX_OK;
+    }
+    return brix_cta_shm_configure(cf, &journal);
+}
+
 #if (BRIX_HAVE_LIBURING)
 /*
  * Phase 44 SB-W5b: register the cross-worker kill-switch SHM zone when any
@@ -428,6 +490,10 @@ ngx_stream_brix_postconfiguration(ngx_conf_t *cf)
     brix_phase_mark(&pt, "registries");   /* metrics/dashboard/session/srv/tpc SHM */
 
     if (postconf_stage_waiter(cf, cmcf, cscfp) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    if (postconf_cta_queue(cf, cmcf, cscfp) != NGX_OK) {
         return NGX_ERROR;
     }
 

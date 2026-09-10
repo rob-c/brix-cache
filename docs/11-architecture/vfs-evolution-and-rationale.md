@@ -315,7 +315,7 @@ became `src->driver->pread → dst->driver->pwrite`, generic over both ends.
 ### Era 6 — sharing the mechanism with the clients
 
 The clients (`xrdcp`, `xrdfs`, `xrootdfs`) had a *second* VFS
-(`xrdc_vfs_*`) with its own POSIX/block/S3 backends and its own EINTR
+(`brix_vfs_*`) with its own POSIX/block/S3 backends and its own EINTR
 loops. The 2026-06-27 layering design collapsed the stacks onto one shared,
 ngx-free core on a single observation: **open is policy (not shared — the
 server's confined open vs the client's unconfined URL open must never
@@ -564,7 +564,7 @@ transport error. The server injects libcurl *from the cache layer* so
 This is what lets one S3/HTTP implementation serve the module, the
 cache-fill worker, and `xrdcp` byte-for-byte. The related boundary
 decision: a fully in-process `root://` GSI/token *client* was deliberately
-NOT built (that auth logic lives in `libxrdc`, which `src/` cannot link) —
+NOT built (that auth logic lives in `libbrix`, which `src/` cannot link) —
 authenticated root:// fills initially delegated to the proven native
 client via exec, then moved in-process only when `sd_xroot` earned the
 auth matrix.

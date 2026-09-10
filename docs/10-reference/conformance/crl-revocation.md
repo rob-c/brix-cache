@@ -46,7 +46,7 @@ XRootD's analogue is `-crl:<level>` with `crlIgnore/crlTry/crlUse/crlRequire =
   `.rN` extension (`<hash>.r0`, `<hash>.r1`), the de-facto grid layout.
 - **Ours:** `pki_load_crls()` scans the configured `brix_crl` path; for a
   directory it accepts `*.pem` and `*.r0`..`*.r9`
-  (`src/auth/crypto/pki_build.c:105-113`), adding each with
+  (`pki_crl_name_matches`, `src/auth/crypto/pki_build.c:68`), adding each with
   `X509_STORE_add_crl()` (`pki_build.c:47`). The count feeds the mode gate.
 - **XRootD v6.1.0:** `GetCRL()` builds `<CAdir>/<caroot><crlext>` with
   `crlext` defaulting to `.r0` (`XrdSecgsi/XrdSecProtocolgsi.cc:143`,
@@ -55,6 +55,45 @@ XRootD's analogue is `-crl:<level>` with `crlIgnore/crlTry/crlUse/crlRequire =
 - **Verdict:** Conformant. Both read the same `<hash>.rN` grid layout. Pinned
   transitively by every `CRL-*` row (the oracle scans `.r0`/`.r1` exactly as a
   real `/etc/grid-security/certificates` deployment).
+
+### An unreadable CRL is a load failure, not an empty directory (IGTF)
+
+- **Requirement:** IGTF's "require" posture is about the *availability* of
+  revocation data. A deployment must not silently move from checking
+  revocation to not checking it; whatever the mode, the operator's intent is
+  read from the configuration, never from the filesystem's mood.
+- **Ours:** the loader distinguishes three outcomes for a `brix_crl` path.
+  *Opened and yielded no CRL* is 0 — an empty-but-readable CRL directory, hash
+  symlinks, a stray `.pem` that is a certificate — and the mode then decides
+  what an empty feed means. *Present but unreadable* is -1: a per-entry `fopen`
+  failure inside a CRL **directory** aborts the whole load
+  (`pki_load_crls_from_dirent` → `pki_load_crls_from_dir`,
+  `src/auth/crypto/pki_build.c:106`/`:139`), the store is not built, and the
+  server refuses to start — with an `[emerg]` naming both the
+  `brix_trusted_ca` and the `brix_crl` path on the `root://` plane
+  (`src/auth/gsi/config.c:340`) and the WebDAV plane's own on the http one
+  (`src/protocols/webdav/config_merge.c:371`). Naming the same file *directly*
+  was always refused, by the config-time `access(R_OK)` check
+  (`brix_conf_check_path`, `src/core/config/helpers.c:57`). On a **reload** the
+  failed rebuild is `BRIX_DIAG_CRIT` and the last-good store is kept
+  (`src/core/config/process_timers.c:85`), so a running server never loses
+  revocation to a permissions change.
+- **Why it is stated as a rule:** until 2026-09-09 the per-entry failure was
+  mapped to 0. Because `try` arms the CRL flags only when `crl_count > 0`, a
+  `chmod 000` on the only CRL in a CRL directory disarmed revocation for the
+  whole server — reported in the log, enforced nowhere. See the 2.0 register,
+  item **F22**.
+- **XRootD v6.1.0:** `GetCRL()` opens one `<CAdir>/<caroot><crlext>` per CA and
+  treats an open failure as "no CRL for this CA", which at the default
+  `crlTry`(1) is tolerated (`XrdSecgsi/XrdSecProtocolgsi.cc:4649`).
+- **Verdict:** deliberate divergence, and strictly narrowing. Stock cannot tell
+  "this CA publishes no CRL" from "I may not read this CA's CRL"; BriX can, and
+  refuses the second at configuration time in every mode. A site that wants the
+  stock reading removes the unreadable file — an explicit act — rather than
+  discovering the difference after an audit.
+- **Pinned by:** `tests/test_release20_tlsca_residuals.py` (seven cases: both
+  spellings refused on both planes, `try`/`off`/default all unable to soften
+  it, and a readable directory unaffected).
 
 ### Enforcement modes: off / try / require vs XRootD crl 0-3 (IGTF, WLCG)
 

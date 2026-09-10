@@ -127,9 +127,10 @@ brix_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     u.url.len      = url.len  - scheme_len;
     u.uri_part     = 1;
     u.default_port = default_port;
-    if (ngx_parse_url(cf->pool, &u) != NGX_OK || u.naddrs == 0) {
+    u.no_resolve   = 1;              /* phase-116: parse only, resolve at runtime */
+    if (ngx_parse_url(cf->pool, &u) != NGX_OK || u.host.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_mirror_url: cannot resolve \"%V\"%s%s", &url,
+            "brix_mirror_url: cannot parse \"%V\"%s%s", &url,
             u.err ? ": " : "", u.err ? u.err : "");
         return NGX_CONF_ERROR;
     }
@@ -162,9 +163,11 @@ brix_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         t->url_base.len  = base;
     }
 
-    if (u.addrs[0].socklen > sizeof(t->sockaddr)) { return NGX_CONF_ERROR; }
-    ngx_memcpy(&t->sockaddr, u.addrs[0].sockaddr, u.addrs[0].socklen);
-    t->socklen = u.addrs[0].socklen;
+    /* `conf` is the module conf whose member 0 is the shared preamble. */
+    t->dns = brix_dns_target_register(cf, "brix_mirror_url", &u.host, u.port,
+                                      BRIX_AF_AUTO, SOCK_STREAM,
+                                      &((brix_shared_conf_t *) conf)->dns);
+    if (t->dns == NULL) { return NGX_CONF_ERROR; }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
         "brix: WebDAV mirror target %V (ssl=%d)", &t->url_base, (int) ssl);

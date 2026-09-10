@@ -527,6 +527,84 @@ def test_metric_names_guard_leaves_c_symbols_and_directives_alone(tmp_path) -> N
     assert _messages(root) == []
 
 
+#: A prefix-composed exporter, shaped exactly like src/net/dns/metrics.c: the
+#: format string holds only the suffix, and the call sites supply the prefixes.
+_PROBE_COMPOSED = r"""
+static void
+probe_emit_cache(metrics_writer_t *mw, const char *prefix, ngx_uint_t hits)
+{
+    mw_printf(mw, "# HELP %s_hits_total Positive cache hits.\n"
+                  "# TYPE %s_hits_total counter\n%s_hits_total %lu\n",
+              prefix, prefix, prefix, (unsigned long) hits);
+}
+
+void
+probe_emit_caches(metrics_writer_t *mw)
+{
+    probe_emit_cache(mw, "brix_probe_cache", hits);
+    probe_emit_cache(mw, "brix_probe_reverse_cache", hits);
+}
+"""
+
+#: A brix_-prefixed literal in an unrelated file. It is a log tag, not a metric
+#: prefix, and nothing in its own file composes a family name.
+_PROBE_FARAWAY = r"""
+static const char *probe_tag = "brix_probe_unrelated";
+"""
+
+
+def _composed_tree(tmp_path: Path, page: str) -> Path:
+    """`_names_tree` plus a prefix-composed exporter and an unrelated file."""
+    root = _names_tree(tmp_path, page)
+    net = root / "src/net"
+    net.mkdir(parents=True)
+    (net / "probe_cache.c").write_text(_PROBE_COMPOSED)
+    (net / "probe_tag.c").write_text(_PROBE_FARAWAY)
+    return root
+
+
+def test_metric_names_extractor_resolves_a_prefix_composed_family() -> None:
+    """Shape 5, against the live tree: the two DNS caches name no family whole.
+
+    src/net/dns/metrics.c emits eight families through `"%s_hits_total"`-style
+    formats under two prefixes. A literal scan of the C sees none of them, so
+    every one of these eight reads as invented and the docs cannot cite them —
+    which is how six honest references came back red on 2026-09-08."""
+    families = _NAMES.exposition(_REPO)
+    for prefix in ("brix_dns_cache", "brix_dns_reverse_cache"):
+        for suffix in ("_entries", "_hits_total", "_misses_total",
+                       "_negative_hits_total"):
+            assert families[prefix + suffix] == set(), prefix + suffix
+
+
+def test_metric_names_guard_still_catches_an_invented_composed_suffix(tmp_path) -> None:
+    """Composition widens the ground truth by suffix, not by wishful thinking.
+
+    `_hits_total` is a format the file really renders; `_evictions_total` is
+    not, so it stays unknown under both prefixes."""
+    root = _composed_tree(
+        tmp_path,
+        "`brix_probe_cache_hits_total` and `brix_probe_reverse_cache_hits_total`\n"
+        "are real; `brix_probe_cache_evictions_total` is not.\n",
+    )
+    assert _messages(root) == [
+        "unknown metric family brix_probe_cache_evictions_total"
+    ]
+
+
+def test_a_composed_prefix_never_leaks_out_of_its_own_file(tmp_path) -> None:
+    """File-scoped pairing is what keeps the cross product honest.
+
+    Every brix_-prefixed literal in src/ — log tags, directive spellings, SHM
+    zone names — would otherwise pair with every composed suffix anywhere in
+    the tree, blessing hundreds of families no exporter emits."""
+    root = _composed_tree(
+        tmp_path, "Watch `brix_probe_unrelated_hits_total` for cache pressure.\n"
+    )
+    assert _messages(root) == [
+        "unknown metric family brix_probe_unrelated_hits_total"
+    ]
+
 # --- lint_loc logical-LoC metric: phase-103 W0 metric fixes -------------------
 # The green tier-report proves the live tree conforms; these pin the two metric
 # corrections W0 landed so neither can silently regress: G9 (a Python `#`

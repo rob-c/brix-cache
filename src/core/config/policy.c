@@ -37,7 +37,8 @@ brix_conf_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     if (brix_parse_authdb(cf, &xcf->common.acc.authdb,
-                          xcf->authdb_rules) != NGX_OK)
+                          xcf->authdb_rules,
+                          &xcf->common.acc.authdb_defect) != NGX_OK)
     {
         return NGX_CONF_ERROR;
     }
@@ -104,16 +105,9 @@ brix_vo_rules_append(ngx_conf_t *cf, ngx_str_t *value, ngx_array_t **slot)
     return brix_copy_conf_string(cf, &value[2], &rule->vo);
 }
 
-/* `brix_require_vo <path> <vo>` on the STREAM (root) plane — appends to the
- * per-server vo_rules.  Returns NGX_CONF_OK / NGX_CONF_ERROR. */
-char *
-brix_conf_set_require_vo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    ngx_stream_brix_srv_conf_t *xcf = conf;
-
-    (void) cmd;
-    return brix_vo_rules_append(cf, cf->args->elts, &xcf->common.vo_rules);
-}
+/* The STREAM (root) plane registers brix_require_vo through
+ * brix_stream_common_set_require_vo (core/config/stream_common.c) — the same
+ * brix_vo_rules_append kernel, reached from the stream common table. */
 
 /* `brix_tpc_verify_checksum on|off|<alg>` on EVERY plane (phase-101 W4): unify the
  * native-TPC boolean grammar and the webdav <alg> grammar into one.  Normalizes to
@@ -180,6 +174,21 @@ brix_http_conf_set_require_vo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return brix_vo_rules_append(cf, cf->args->elts, &sc->vo_rules);
 }
 
+/* `brix_cache_verify_digest <alg>` on the HTTP planes — the shared preamble is
+ * member 0 of the common-module conf, so the cast is valid; the value is adopted
+ * into every HTTP protocol conf by brix_shared_adopt_unified().  Returns
+ * NGX_CONF_OK / NGX_CONF_ERROR / "is duplicate". */
+char *
+brix_http_conf_set_cache_verify_digest(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf)
+{
+    ngx_http_brix_shared_conf_t *sc = conf;
+
+    (void) cmd;
+    return brix_cache_verify_digest_parse(cf, (ngx_str_t *) cf->args->elts + 1,
+                                          &sc->cache_verify_digest);
+}
+
 /* `brix_authdb <file>` on the HTTP planes (phase-101 W5.2) — parse the native
  * u/g/p/h READ-ACL file into common.authdb_rules (member 0 of the common-module
  * conf), adopted into every HTTP protocol and ENFORCED in the webdav/s3/cvmfs
@@ -200,7 +209,8 @@ brix_http_conf_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return NGX_CONF_ERROR;
         }
     }
-    if (brix_parse_authdb(cf, &value[1], sc->authdb_rules) != NGX_OK) {
+    if (brix_parse_authdb(cf, &value[1], sc->authdb_rules,
+                          &sc->acc.authdb_defect) != NGX_OK) {
         return NGX_CONF_ERROR;
     }
     return NGX_CONF_OK;

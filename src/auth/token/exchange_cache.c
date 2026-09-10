@@ -19,8 +19,7 @@
  *       cached. Tokens are secrets: nothing from a slot is ever logged.
  */
 #include "exchange_cache.h"
-#include "b64url.h"
-#include "json.h"
+#include "token.h"   /* brix_token_peek_exp: the shared exp-claim reader */
 #include "core/compat/crypto.h"   /* brix_sha256 */
 
 /* A minted token larger than this is served uncached rather than truncated. */
@@ -132,35 +131,6 @@ brix_tx_cache_lookup(brix_tx_cache_t *cache, const ngx_str_t *subject,
     return 1;
 }
 
-/* ---- tx_cache_minted_exp ---------------------------------------------------
- *
- * WHAT: Read the `exp` claim out of the freshly-minted compact JWS; 0 when the
- *       token cannot be parsed or carries no positive exp.
- *
- * WHY:  The cache must never outlive the credential itself — `exp` is the
- *       issuer's own bound and the base the 5-minute clamp tightens. */
-static time_t
-tx_cache_minted_exp(const ngx_str_t *minted)
-{
-    xrdjwt_seg  seg[3];
-    u_char      payload[8192];
-    ssize_t     plen;
-    int64_t     exp = 0;
-
-    if (xrdjwt_split((const char *) minted->data, minted->len, seg) != 0) {
-        return 0;
-    }
-    plen = b64url_decode(seg[1].p, seg[1].n, payload, sizeof(payload));
-    if (plen <= 0) {
-        return 0;
-    }
-    if (json_get_int64((const char *) payload, (size_t) plen, "exp", &exp) != 0
-        || exp <= 0) {
-        return 0;
-    }
-    return (time_t) exp;
-}
-
 void
 brix_tx_cache_store(brix_tx_cache_t *cache, const ngx_str_t *subject,
     const ngx_str_t *aud, const ngx_str_t *minted, time_t now)
@@ -175,8 +145,9 @@ brix_tx_cache_store(brix_tx_cache_t *cache, const ngx_str_t *subject,
         return;
     }
 
-    exp = tx_cache_minted_exp(minted);
-    if (exp <= now) {
+    if (brix_token_peek_exp((const char *) minted->data, minted->len, &exp) != 0
+        || exp <= now)
+    {
         return;   /* unparseable or already expired — never cache blind */
     }
 

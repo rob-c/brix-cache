@@ -6,7 +6,7 @@ Protocol-conformance + security tests for the WebDAV namespace/lock surface
 the Destination header and in custom headers).  The suite runs against a
 dedicated, write-enabled HTTP WebDAV nginx (brix_webdav on +
 brix_allow_write on + brix_webdav_auth none) pre-started by
-manage_test_servers.sh start-all (the "webdav-dellock" instance, serving
+python3 -m cmdscripts.manage_test_servers start-all (the "webdav-dellock" instance, serving
 WEBDAV_DELLOCK_DATA_ROOT), so it never touches the shared test fleet and skips
 cleanly when that instance is down.  The server and this test share the local
 filesystem, so the fixture seeds any needed files into the data root and reads
@@ -36,7 +36,7 @@ from settings import HOST, WEBDAV_DELLOCK_DATA_ROOT, WEBDAV_DELLOCK_PORT
 
 # ---------------------------------------------------------------------------
 # The write-enabled, no-auth HTTP WebDAV server is now a dedicated instance
-# pre-started by manage_test_servers.sh start-all ("webdav-dellock" on port
+# pre-started by python3 -m cmdscripts.manage_test_servers start-all ("webdav-dellock" on port
 # 13210, serving data-webdav-dellock); the webdav_server fixture just connects
 # to it.  Override via TEST_WDAV_DELLOCK_PORT if it ever clashes locally.
 # This file only ever CONNECTS to that pre-started instance (it never binds),
@@ -67,7 +67,7 @@ def _reachable(host, port, timeout=3.0):
 @pytest.fixture(scope="module", autouse=True)
 def webdav_server():
     """Connect to the dedicated WRITABLE HTTP WebDAV nginx pre-started by
-    manage_test_servers.sh start-all (the "webdav-dellock" instance,
+    python3 -m cmdscripts.manage_test_servers start-all (the "webdav-dellock" instance,
     brix_allow_write on + brix_webdav_auth none, serving
     WEBDAV_DELLOCK_DATA_ROOT).  Skips cleanly if that instance is not running.
     The server and this test share the local filesystem, so files seeded into
@@ -80,7 +80,7 @@ def webdav_server():
     if not _reachable(H, WEBDAV_PORT, 3):
         pytest.skip(
             f"dedicated webdav-dellock nginx not reachable on {H}:{WEBDAV_PORT} "
-            f"— run tests/manage_test_servers.sh start-all")
+            f"— run python3 -m cmdscripts.manage_test_servers start-all")
 
     _DATA = data
     yield {"port": WEBDAV_PORT, "data": data}

@@ -29,6 +29,7 @@
 #include "core/config/shared_conf.h"
 #include "core/shm/kv.h"
 #include "fs/backend/sd.h"
+#include "fs/backend/s3/sd_s3_transport.h"   /* brix_s3_tctx_t */
 #include "observability/metrics/metrics_oci.h"
 #include "oci/url.h"
 
@@ -76,6 +77,9 @@ typedef struct {
     brix_oci_realm_list_t realms;           /* brix_oci_upstream_auth_realm  */
     brix_kv_t  *tokens;                     /* token cache zone, or NULL     */
     ngx_log_t  *log;                        /* cycle log for the fill thread */
+    brix_s3_tctx_t tctx;                    /* phase-116: every upstream request
+                                             * resolves under the location's DNS
+                                             * policy (ca_path NULL = system CA) */
 } brix_oci_upstream_t;
 
 typedef struct {

@@ -2,6 +2,33 @@
 
 This document outlines the remaining feature gaps between the `nginx-xrootd` module and a canonical XRootD implementation suitable for WLCG Tier-2 disk-only and tape-backed sites.
 
+> **Status (2026-09-09 — 2.0).** This is the 2026-06 snapshot, kept for its file-level
+> analysis rather than as the open register. Two of its headline rows have since closed:
+> **Lock Persistence** (WebDAV locks live in extended attributes and survive `nginx -s
+> reload`; `brix_webdav_lock_startup_sweep` opts back into the old ephemeral semantics)
+> and **multi-hop delegation on the native TPC pull leg** (2.0 **F7**). For what 2.0
+> ships, what it deliberately does not, and what is still open, use the 2.0 register,
+> [`release-2.0-readiness.md`](../10-reference/release-2.0-readiness.md) — its parity
+> rows supersede any ⚠️/❌ below. Axis (e) of that register closed **F1–F20** (the
+> thirteen accepted-only `brix_frm_*` knobs and the durable stage journal,
+> `stagemsg`/StageEvents, the OssArc dataset seal, the per-space purge-policy grammar
+> with an external policy program, `pfc.urlcgi` + PSS forwarding, the RAM-tier metric
+> rows, native `root://` TPC **multihop** delegation and multi-stream *pull*, the site
+> checksum plugin loader, the sss v2 endorsement/proxied-credential wave, the
+> health-check family, `brix_mirror_exclude_opcodes` read/readv, the four metric
+> wishlist categories, native `root://` TPC **push** with multi-stream on it, the
+> `cms.fsxeq` operator program for forwarded namespace ops, and the `ofs.tpc` identity
+> matrix layered inside the host-plane TPC confinement, and the `xrd.tlsca` CRL-scope
+> and verification-log residuals — whose lab also found and fixed **F22**, a CRL a
+> worker could not read silently disarming revocation — and the native authdb residual
+> grammar: the compound `u g p a v l` selector set, positional VOMS vorg+role pairing,
+> and the `x` stage privilege) and, with **F21** — full per-user POSIX identity across the VFS seam, whose audit
+> found the posix plane already impersonating at the `beneath`/`confined_canon` seam
+> and closed the one un-brokered verb, `RENAME_EXCHANGE` — landed on 2026-09-10,
+> leaves nothing open: axis (e) is closed in full at F1–F22. A row below that names a closed item is stale by
+> construction; this file is kept as a historical snapshot and is no longer maintained
+> row by row.
+
 ## Summary of Feature Gaps
 
 | Feature | Gap | Effort Estimate | Priority |
@@ -9,7 +36,7 @@ This document outlines the remaining feature gaps between the `nginx-xrootd` mod
 | **Tape Backend Dispatch** | Lack of recall trigger and staging status tracking. | 2–3 weeks | High |
 | **Outbound TLS Auth** | Origin connections cannot handle `kXR_authmore` / `kXR_gotoTLS`. | 1–2 weeks | High |
 | **Multi-hop GSI Delegation**| Complex proxy-delegation chains in TPC are not supported. | 1–2 weeks | Medium |
-| **Lock Persistence** | Locks are lost on `nginx -s reload`. | 1 week | Medium |
+| **Lock Persistence** | ~~Locks are lost on `nginx -s reload`.~~ **Landed** — xattr-backed locks survive reload. | — | Done |
 | **Third-party Macaroons** | Cannot validate tokens requiring external discharge (VID). | 1 week | Medium |
 | **Parallel Write Streams** | Bound handle sharing is read-only. | 1–2 weeks | Low |
 

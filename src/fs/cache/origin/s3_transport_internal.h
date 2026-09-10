@@ -36,13 +36,15 @@ typedef struct {
  *       dozen-plus arguments straight through to one shared body; collapsing
  *       them into a file-local descriptor keeps the shared body and its extracted
  *       helpers at one argument instead of fourteen, with no behavior change.
- * HOW:  `tctx` is the transport's OPTIONAL context — a NUL-terminated CA
- *       file-or-dir PATH (the operator's trusted CA for origin TLS), or NULL for
- *       libcurl's system bundle; applied via s3o_apply_ca(). `client_cert_pem`
+ * HOW:  `tctx` is the transport's OPTIONAL context — a brix_s3_tctx_t whose
+ *       ca_path (the operator's trusted CA for origin TLS, NULL = libcurl's
+ *       system bundle) is applied via s3o_apply_ca() and whose dns policy
+ *       pins the endpoint resolve (phase-116); NULL means both defaults.
+ *       `client_cert_pem`
  *       is NULL for the plain slot; on a `tls` request a non-empty path is
  *       presented as the mutual-TLS client cert (cert chain + key in one PEM). */
 typedef struct {
-    void        *tctx;             /* operator CA path (via s3o_apply_ca), or NULL */
+    void        *tctx;             /* brix_s3_tctx_t (CA path + DNS policy), or NULL */
     const char  *host;
     int          port;
     int          tls;
@@ -93,9 +95,13 @@ struct curl_slist *s3o_build_headers(const s3o_request_t *req);
 
 /* Set every per-request curl option for `req` on `curl` (defined in
  * s3_transport_setup.c). `r` binds the response-capture callbacks; `slist` is
- * the caller-owned header list. */
-void s3o_configure(CURL *curl, const s3o_request_t *req, s3o_resp_t *r,
-                   struct curl_slist *slist);
+ * the caller-owned header list. Resolves the endpoint host through the brix
+ * DNS driver and pins it on the handle: *resolve receives the CURLOPT_RESOLVE
+ * list the caller frees after the transfer. Returns 0, or -1 (errbuf filled,
+ * nothing performed) when the host does not resolve. */
+int s3o_configure(CURL *curl, const s3o_request_t *req, s3o_resp_t *r,
+                  struct curl_slist *slist, struct curl_slist **resolve,
+                  char *errbuf, size_t errcap);
 
 /* Emit one upstream-request trace line (defined in s3_transport_setup.c). */
 void s3o_trace(const s3o_trace_t *t);

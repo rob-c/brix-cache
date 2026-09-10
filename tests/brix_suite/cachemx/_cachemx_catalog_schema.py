@@ -8,7 +8,7 @@ C emitters and verified whenever rows do materialize.
 """
 
 LABEL_KEYS = {
-    'brix_acc_dns_breaker_open_total': (),
+    'brix_acc_dns_pending_fallback_total': (),
     'brix_acc_nss_breaker_open_total': (),
     'brix_auth_l1_hits_total': (),
     'brix_auth_l1_misses_total': (),
@@ -34,10 +34,20 @@ LABEL_KEYS = {
     'brix_cache_watermark_evicted_bytes_total': (),
     'brix_cache_watermark_evicted_files_total': (),
     'brix_cache_watermark_purges_total': (),
+    'brix_cluster_hc_blacklist_total': (),
+    'brix_cluster_hc_fail_total': (),
+    'brix_cluster_hc_pass_total': (),
+    'brix_cluster_hc_probes_total': (),
+    'brix_cluster_server_blacklisted': ('server',),
+    'brix_cluster_server_disconnect_total': ('server',),
+    'brix_cluster_server_free_megabytes': ('server',),
+    'brix_cluster_server_last_seen_seconds': ('server',),
+    'brix_cluster_server_utilization_percent': ('server',),
     'brix_cluster_servers_registered': (),
     'brix_cms_cap_rejections_total': (),
     'brix_cms_frame_yields_total': (),
     'brix_cms_idle_closes_total': (),
+    'brix_cms_locate_coalesced_total': (),
     'brix_cms_login_timeouts_total': (),
     'brix_cms_logins_total': (),
     'brix_cms_connect_failures_total': (),
@@ -76,6 +86,20 @@ LABEL_KEYS = {
     'brix_cvmfs_upstream_origin_bytes_total': ('upstream',),
     'brix_cvmfs_upstream_requests_total': ('upstream',),
     'brix_cvmfs_verify_failures_total': (),
+    'brix_dns_bridge_requests_total': (),
+    'brix_dns_bridge_timeouts_total': (),
+    'brix_dns_cache_entries': (),
+    'brix_dns_cache_hits_total': (),
+    'brix_dns_cache_misses_total': (),
+    'brix_dns_cache_negative_hits_total': (),
+    'brix_dns_failures_total': (),
+    'brix_dns_lookups_total': ('result',),
+    'brix_dns_resolutions_total': (),
+    'brix_dns_reverse_cache_entries': (),
+    'brix_dns_reverse_cache_hits_total': (),
+    'brix_dns_reverse_cache_misses_total': (),
+    'brix_dns_reverse_cache_negative_hits_total': (),
+    'brix_dns_targets': ('state',),
     'brix_frm_asynresp_total': (),
     'brix_frm_cmsd_have_total': (),
     'brix_frm_dedup_hits_total': (),
@@ -233,6 +257,14 @@ LABEL_KEYS = {
 
 CONDITIONAL = frozenset({
     'brix_cache_bytes',
+    # per-server cluster families are emitted (HELP and all) only while a data
+    # server is registered; the matrix stack runs no CMS members, so they are
+    # pinned here for their shape but absent from HELP/CATALOG, which are exact.
+    'brix_cluster_server_blacklisted',
+    'brix_cluster_server_disconnect_total',
+    'brix_cluster_server_free_megabytes',
+    'brix_cluster_server_last_seen_seconds',
+    'brix_cluster_server_utilization_percent',
     # zero-suppressed families: the exporter skips v==0 rows, and the label
     # matrix stack drives no offloaded reads or slow ops.
     'brix_io_offload_total',

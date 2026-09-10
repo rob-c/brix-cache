@@ -19,9 +19,9 @@
 #include "brix_fault_priv.h"
 #include "brix_fault_oracle.h"
 #include "core/version.h"
+#include "net/resolve.h"
 #include <arpa/inet.h>
 #include <getopt.h>
-#include <netdb.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -412,19 +412,18 @@ int
 fp_setup_bind(const char *bind_str, int insecure,
     struct sockaddr_storage *bind_ss, socklen_t *bind_len)
 {
-    struct addrinfo hints, *bres = NULL;
+    brix_resolve_addr a;
 
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family   = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags    = AI_PASSIVE | AI_NUMERICHOST;
-    if (getaddrinfo(bind_str, "0", &hints, &bres) != 0 || bres == NULL) {
+    /* a literal only (NUMERIC): the bind address never goes to DNS */
+    if (brix_resolve(bind_str, 0, AF_UNSPEC, SOCK_STREAM,
+                     BRIX_RESOLVE_PASSIVE | BRIX_RESOLVE_NUMERIC, &a, 1, NULL)
+        <= 0)
+    {
         fprintf(stderr, "brix-fault-proxy: invalid --bind address '%s'\n", bind_str);
         return FP_USAGE;
     }
-    *bind_len = bres->ai_addrlen;
-    memcpy(bind_ss, bres->ai_addr, bres->ai_addrlen);
-    freeaddrinfo(bres);
+    *bind_len = a.len;
+    memcpy(bind_ss, &a.ss, a.len);
 
     /* Fail closed on a non-loopback bind unless the operator opts in. */
     if (!sa_is_loopback((struct sockaddr *) bind_ss) && !insecure) {

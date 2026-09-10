@@ -38,6 +38,7 @@ import re
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import sys
 import time
 
@@ -415,8 +416,7 @@ def _native_tools():
     once if needed), so the native-client cases never skip — and never relink
     mid-run, which would briefly hide the binary from os.path.exists()."""
     if not (os.path.exists(NATIVE_XRDFS) and os.path.exists(NATIVE_XRDCP)):
-        subprocess.run(["make", "-C", os.path.join(REPO, "client"),
-                        "xrdfs", "xrdcp"], capture_output=True)
+        client_make(os.path.join(REPO, "client"), "xrdfs", "xrdcp", capture_output=True)
     yield
 
 

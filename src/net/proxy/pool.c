@@ -2,13 +2,14 @@
  * WHAT: Upstream connection pooling with health-aware selection, fail detection,
  *       and idle-timeout keepalive management. Maintains a worker-local queue of
  *       authenticated upstream connections that can be reused by subsequent client
- *       sessions matching auth type and bearer token hash.
+ *       sessions of the same server block that would present the same identity.
  *
  * WHY:  Transparent proxy authentication (GSI/TLS) is expensive — reusing an already-
  *       authenticated connection avoids repeating handshake for every new client. Health
  *       tracking detects upstream failures and marks servers DOWN after BRIX_PROXY_MAX_FAILS,
- *       skipping them in pool selection until the fail timeout expires. Bearer token hashing
- *       ensures forwarded-token connections reuse only sessions authenticated with matching tokens.
+ *       skipping them in pool selection until the fail timeout expires. An identity digest
+ *       (proxy_pool_ident) ensures a connection that carries a client's own identity upstream
+ *       is only ever handed back to a session carrying the same one.
  *       Keepalive timers prevent stale pooled connections from accumulating unread kXR_ok frames
  *       from previous pings (re-arm without ping to avoid buffer contamination).
  *
@@ -16,7 +17,7 @@
  *       reuses existing if count >= configured upstreams. up_mark_failed/up_mark_ok increment
  *       fail counters or reset them and log state transitions. pool_init creates the ngx_queue.
  *       pool_get performs random-start round-robin across upstreams, skipping DOWN servers within
- *       fail timeout, then scans pool for matching idx/auth_type/token_hash — returns connection
+ *       fail timeout, then scans pool for matching conf/idx/ident_hash — returns connection
  *       on match, NULL otherwise. pool_put ejects oldest when pool full, allocates pooled_conn_t,
  *       detaches conn from proxy ctx, sets keepalive timer, inserts head of queue.
  */
@@ -248,6 +249,81 @@ brix_proxy_pool_shutdown(void)
 
 /* pool management */
 
+/* proxy_pool_ident_entity — fold a forwarded SSS entity into `md5`.
+ * Every field the credential would carry, each NUL-terminated so no two field
+ * splits can hash alike, then the raw proxied credential blob. */
+static void
+proxy_pool_ident_entity(MD5_CTX *md5, const brix_sss_entity_t *ent)
+{
+    const char  *fields[5];
+    const char  *s;
+    ngx_uint_t   i;
+
+    fields[0] = ent->name;
+    fields[1] = ent->vorg;
+    fields[2] = ent->role;
+    fields[3] = ent->grps;
+    fields[4] = ent->endo;
+
+    for (i = 0; i < 5; i++) {
+        s = (fields[i] != NULL) ? fields[i] : "";
+        MD5_Update(md5, s, ngx_strlen(s) + 1);
+    }
+    if (ent->creds != NULL && ent->creds_len > 0) {
+        MD5_Update(md5, ent->creds, ent->creds_len);
+    }
+}
+
+/*
+ * proxy_pool_ident — digest the CLIENT identity this session would present on
+ * its upstream leg, into out[16].
+ *
+ * WHY: an upstream connection is not anonymous plumbing.  Forwarded-token mode
+ *      logs in with the client's own bearer token; `brix_tap_proxy_sss_identity
+ *      client` (2.0 F9) forwards the client's whole SSS entity; login
+ *      passthrough copies the client's login name into kXR_login.  Handing such
+ *      a connection to a different client authorizes one person's requests as
+ *      another at the origin -- and an anonymous session as a named one, which
+ *      is exactly the laundering F9's refusal exists to prevent.  GSI-as-user is
+ *      kept out of the pool outright (connect_upstream_select.c) for the same
+ *      reason; everything else is separated here.
+ * HOW: each identity input is tagged and folded in, so a login name cannot hash
+ *      like a token with the same bytes.  A leg that carries no client-specific
+ *      identity at all (anonymous or keytab auth, fixed or anonymous login)
+ *      digests to the same constant and stays freely reusable.
+ */
+static void
+proxy_pool_ident(brix_proxy_ctx_t *proxy, ngx_stream_brix_srv_conf_t *conf,
+    u_char out[16])
+{
+    brix_sss_entity_t   ent;
+    MD5_CTX             md5;
+    brix_ctx_t         *ctx = proxy->client_ctx;
+
+    MD5_Init(&md5);
+
+    if (ctx != NULL && conf->proxy.login_user == BRIX_PROXY_LOGIN_PASSTHROUGH) {
+        MD5_Update(&md5, "L", 1);
+        MD5_Update(&md5, ctx->login.user, ngx_strlen(ctx->login.user));
+    }
+
+    if (ctx != NULL && conf->proxy.auth == BRIX_PROXY_AUTH_FORWARD) {
+        MD5_Update(&md5, "T", 1);
+        MD5_Update(&md5, ctx->bearer_token, ngx_strlen(ctx->bearer_token));
+    }
+
+    if (conf->proxy.auth == BRIX_PROXY_AUTH_SSS
+        && conf->proxy.sss_identity == BRIX_PROXY_SSS_IDENT_CLIENT)
+    {
+        MD5_Update(&md5, "E", 1);
+        if (brix_proxy_sss_client_entity(proxy, &ent) == NGX_OK) {
+            proxy_pool_ident_entity(&md5, &ent);
+        }
+    }
+
+    MD5_Final(out, &md5);
+}
+
 /* brix_proxy_pool_init — initialize the worker-local idle-connection queue and
  * zero the pool counter (once at startup, before any get/put). */
 void
@@ -259,9 +335,9 @@ brix_proxy_pool_init(void)
 
 /* brix_proxy_pool_get — pick an authenticated pooled upstream via health-aware
  * random-start round-robin (skipping DOWN servers within the fail timeout), matched
- * by upstream index, auth type (GSI/TLS/forwarded-token), and — in forwarded-token
- * mode — bearer-token MD5. Sets *idx_out; returns the connection, or NULL when the
- * caller must open a new one. */
+ * by server block, upstream index within that block's list, and the identity digest
+ * of the upstream leg (proxy_pool_ident). Sets *idx_out; returns the connection, or
+ * NULL when the caller must open a new one. */
 
 ngx_connection_t *
 brix_proxy_pool_get(brix_proxy_ctx_t *proxy,
@@ -270,8 +346,7 @@ brix_proxy_pool_get(brix_proxy_ctx_t *proxy,
 {
     ngx_queue_t                *q;
     brix_proxy_pooled_conn_t *pc;
-    ngx_uint_t                  auth_type = conf->proxy.auth;
-    u_char                      thash[16];
+    u_char                      ident[16];
     ngx_uint_t                  tries, n_upstreams, start_idx;
 
     brix_proxy_up_status_init(conf);
@@ -280,18 +355,16 @@ brix_proxy_pool_get(brix_proxy_ctx_t *proxy,
     n_upstreams = (conf->proxy.upstreams != NULL) ? conf->proxy.upstreams->nelts : 1;
     start_idx   = (ngx_uint_t) ngx_random() % n_upstreams;
 
-    /* Skip redirect for pool check for now; pooling is for primary upstreams. */
-    if (proxy->redirect_host.len > 0) {
+    /* Skip redirect for pool check for now; pooling is for primary upstreams.
+     * A CMS-pinned session (phase-115 W2.1) targets one selected server that
+     * is not in the configured list either. */
+    if (proxy->redirect_host.len > 0 || proxy->pinned_host.len > 0) {
         return NULL;
     }
 
-    /* Bearer token hash for matching authenticated connections. */
-    if (auth_type == BRIX_PROXY_AUTH_FORWARD && proxy->client_ctx->bearer_token[0]) {
-        MD5((const u_char *) proxy->client_ctx->bearer_token,
-            ngx_strlen(proxy->client_ctx->bearer_token), thash);
-    } else {
-        ngx_memzero(thash, 16);
-    }
+    /* Who this session would be upstream — only a connection that already is
+     * that principal may be adopted. */
+    proxy_pool_ident(proxy, conf, ident);
 
     for (tries = 0; tries < n_upstreams; tries++) {
         ngx_uint_t idx = (start_idx + tries) % n_upstreams;
@@ -310,10 +383,8 @@ brix_proxy_pool_get(brix_proxy_ctx_t *proxy,
         {
             pc = ngx_queue_data(q, brix_proxy_pooled_conn_t, queue);
 
-            if (pc->upstream_idx == idx && pc->auth_type == auth_type) {
-                if (auth_type != BRIX_PROXY_AUTH_FORWARD
-                    || ngx_memcmp(pc->token_hash, thash, 16) == 0)
-                {
+            if (pc->conf == conf && pc->upstream_idx == idx) {
+                if (ngx_memcmp(pc->ident_hash, ident, 16) == 0) {
                     ngx_connection_t *c = pc->conn;
                     ngx_queue_remove(q);
                     proxy_pool_count--;
@@ -362,8 +433,9 @@ brix_proxy_pool_put(brix_proxy_ctx_t *proxy)
         return;
     }
 
-    /* Don't pool redirected connections (too transient). */
-    if (proxy->redirect_host.len > 0) {
+    /* Don't pool redirected connections (too transient) or CMS-pinned ones
+     * (phase-115 W2.1: the target is per-session, not a configured upstream). */
+    if (proxy->redirect_host.len > 0 || proxy->pinned_host.len > 0) {
         return;
     }
 
@@ -384,18 +456,13 @@ brix_proxy_pool_put(brix_proxy_ctx_t *proxy)
     }
 
     pc->conn         = proxy->conn;
+    pc->conf         = conf;
     pc->upstream_idx = (proxy->upstream_idx < 0) ? 0 : (ngx_uint_t) proxy->upstream_idx;
-    pc->auth_type    = conf->proxy.auth;
     pc->idle_since         = ngx_time();
     pc->keepalive_interval = (conf->proxy.keepalive_interval > 0)
                              ? conf->proxy.keepalive_interval : 15000;
 
-    if (pc->auth_type == BRIX_PROXY_AUTH_FORWARD && proxy->client_ctx->bearer_token[0]) {
-        MD5((const u_char *) proxy->client_ctx->bearer_token,
-            ngx_strlen(proxy->client_ctx->bearer_token), pc->token_hash);
-    } else {
-        ngx_memzero(pc->token_hash, 16);
-    }
+    proxy_pool_ident(proxy, conf, pc->ident_hash);
 
     /* Detach connection from the client session. */
     proxy->conn = NULL;

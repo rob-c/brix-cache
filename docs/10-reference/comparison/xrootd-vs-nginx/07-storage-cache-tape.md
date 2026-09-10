@@ -88,7 +88,12 @@ cache, and tape are independent, separately deployable, separately configured.
 ## In BriX-Cache
 
 This module collapses the same responsibilities into a single nginx worker
-process with a **unified VFS** and **no plugin ABI**:
+process with a **unified VFS** and **no general plugin ABI** — storage drivers,
+cache tiers and FRM adapters are in-tree and selected by configuration, not
+dlopened. The two exceptions are deliberate and narrow: `brix_checksum_plugin`
+loads a site checksum algorithm (`src/core/compat/checksum_plugin_abi.h`) and
+the FRM `lib` MSS adapter loads a tape driver (`sd_frm_lib_abi.h`), both against
+plain-C ABIs of this project's own, not upstream's C++ ones:
 
 - **`src/fs/` — the VFS.** One protocol-agnostic API (`brix_vfs_*`) that every
   front end (`root://` stream, WebDAV/HTTP, the S3 subset, CMS data I/O) funnels
@@ -290,7 +295,7 @@ This module's `src/fs/cache/` is a practical caching gateway with **two halves**
 (`src/fs/cache/README.md`):
 
 - **Read-through (XCache).** On a read open of a not-yet-local file, a thread-pool
-  worker connects to `brix_cache_origin`, speaks the XRootD wire protocol as an
+  worker connects to the export's `brix_storage_backend root://` origin, speaks the XRootD wire protocol as an
   **anonymous native client** (handshake → `kXR_protocol` → `kXR_login` →
   `kXR_open` with `kXR_retstat` to learn the size → `kXR_read` loop honouring
   `kXR_oksofar`), writes into a `.part` file, `fsync`s, and atomically
@@ -303,9 +308,35 @@ This module's `src/fs/cache/` is a practical caching gateway with **two halves**
     random reads fetch only the touched ~128 KiB windows; missing slices get a
     `kXR_wait` retry). This is the analogue of PFC's block mode, but it is
     request-driven fetch, **not prefetch** — there is no read-ahead prefetcher.
+  - **Serve-while-filling** (`brix_cache_serve_while_filling <time>`, off by
+    default) closes the whole-file half of PFC's serve-while-filling. Slice mode
+    always served partial content; whole-file mode used to be strictly
+    foreground, so every concurrent reader of a cold object serialised behind one
+    fill and paid the full transfer before its first byte. With the knob set, a
+    second reader FOLLOWS the in-flight fill — it reads the staged bytes below
+    the fill frontier and gets `kXR_wait` at it, so it streams at the origin's
+    pace. Coordination is a marker file under the cache store (no SHM, no IPC),
+    so it holds across workers and processes; the value doubles as a no-progress
+    deadline so a filler that dies cannot hang its followers. Bounded on purpose:
+    a local `posix:` store only, `brix_cache_verify off` only (staged bytes are
+    provisional under any verify mode), and never over sendfile — the file is
+    still growing.
   - **GSI-origin fill** is supported (TLS handshake with CA verify + SNI in
-    `origin_connection.c`; `brix_cache_origin_tls`/`_cadir`). Anonymous login is
-    used; an origin that demands `kXR_authmore` is rejected.
+    `origin_connection.c`). TLS comes from a `roots://` `brix_storage_backend`
+    URL and the CA from `brix_storage_credential`'s `ca_dir` — the
+    `brix_cache_origin_tls` / `_cadir` directives named here were retired in
+    phase-64 §14. An origin that demands `kXR_authmore` is answered from the
+    export's `brix_credential` (bearer over `ztn`, X.509 proxy over `gsi`, SSS,
+    or a delegated krb5 TGT); with no credential the login is anonymous and such
+    an origin is rejected.
+  - **Per-page origin verification** (`verify_pages` on the `root://`
+    `brix_storage_backend` line) issues fills and reads as `kXR_pgread` and
+    checks each 4 KiB page's CRC32c as it arrives (`cache/origin_pgread.c`).
+    This is the read-side analogue of what `XrdOssCsi` provides on the storage
+    side, and it covers what `brix_cache_verify` cannot: that check hashes a
+    COMPLETED fill against a whole-file digest, so ranged/slice reads and
+    digest-less origins go unverified. The bare token fails closed against an
+    origin that cannot page-read; `=best-effort` falls back to `kXR_read`.
 - **Write-through.** With write-through enabled, locally-written files are mirrored
   back to `brix_wt_origin` (or the cache origin) at `kXR_sync`/`kXR_close`,
   **sync or async** (`brix_wt_mode`). The decision (allow/deny prefixes, size
@@ -420,12 +451,60 @@ defining invariant is **file = truth, SHM = cache**:
   over the *same* durable queue, so FTS/gfal2 HTTP tape control and native
   `kXR_prepare` share one queue. This is an **nginx+** feature — not a core
   XRootD daemon surface in the reviewed source.
-- **Parity follow-ups (F1–F6):** manager registration of a now-resident path on
-  stage completion (cmsd "Have"); a residency-oracle command
-  (`brix_frm_residency_cmd`) consulted before copying; recalled-file checksum
-  verification; and a per-DN admission cap (`brix_frm_max_per_source`). (The
-  former migrate/purge watermark monitor scaffold was removed with the phase-64
+- **Parity follow-ups (F1–F6), not implemented:** manager registration of a
+  now-resident path on stage completion (cmsd "Have"); a residency-oracle
+  command; recalled-file checksum verification; a per-DN admission cap. The
+  directives once reserved for them left the grammar in 2.0 (ADR-3b) and are
+  refused as `unknown directive` — see the
+  [2.0 readiness register](../../release-2.0-readiness.md) §(c.1). (The former
+  migrate/purge watermark monitor scaffold was removed with the phase-64
   dissolution.)
+- **Tape-buffer purge engine** (phase-115 W3.2, 2026-09-05): the online buffer
+  of a `tape://` tier is reaped LRU by `src/fs/backend/frm/sd_frm_purge.c` under
+  `brix_frm_purge_watermark <hi> <lo>` (filesystem occupancy) and/or
+  `brix_frm_purge_max_bytes <size>` (bytes the buffer owns), every
+  `brix_frm_purge_interval`. Only copies the MSS adapter confirms `on_tape`, not
+  pinned by a live stage request, and older than 30 s are released — the stock
+  `frm_purged` analogue, minus the separate daemon.
+- **Tape dataset archiver** (phase-115 W3.1, 2026-09-06): `tape://<adapter>/<base>?arc=<depth>`
+  (alias `frm://`, same query on `brix_stage_store`/`brix_cache_store` tape
+  URLs) wraps the MSS adapter in `src/fs/backend/frm/sd_frm_arc.c`. The first
+  `<depth>` path components name a dataset; its members stay online (unmigrated)
+  until the `.brix-dataset-complete` marker is written, then reach tape as ONE
+  stored ZIP (`<dataset>.brixarc.zip`, readable by `unzip`) with a sidecar
+  index (`<base>/.arcidx/<dataset>.idx`) so stat/dirlist need no recall and a
+  member read recalls only itself. A sealed dataset is immutable (new member
+  → `kXR_NotAuthorized`, marker again → `kXR_ItExists`). The seal itself is
+  the `arcAdmin` backup-queue half (2.0 F3): the marker's commit queues an
+  `archive` record in the durable stage journal (`brix_frm_queue_path`) and
+  the engine composes and ships the archive off the event loop with the
+  flush retry / replay / dead-letter discipline; without `brix_frm on` the
+  seal runs inline in the commit.
+- **Write-path corrections found while building the archiver** (phase-115 W3.1
+  burndown, 2026-09-06). The `sd_frm` residency verdict was inverted against
+  the adapter's; the recall path built a stage request nothing consumed and
+  never delivered the cross-worker async waiter; `kXR_wait` retries duplicated
+  the durable record; the driver advertised a `CAP_RANDOM_WRITE` it lacks;
+  `brix_stage_store` was inert without `brix_stage on`; the tier and backend
+  parsers spelled the `tape://` query differently; the ABSENT publish
+  precondition was checked against the writer's own buffer instead of the
+  adapter's `on_tape`, so a key that reached tape mid-upload was overwritten;
+  and `close`/`sync`/`open` flattened driver errors to `kXR_IOError` rather
+  than mapping `errno`. Security: `brix_vfs_staged_abort` never reached the
+  driver's `staged_abort`, so a refused or disconnected writer's truncated
+  object stayed live on tape. All pinned by
+  `tests/test_phase115_tape_recall_gate.py`.
+- **Space groups** (phase-115 W3.3, 2026-09-06): `brix_oss_space <group>
+  <prefix> [quota=<size>|quota=-1]` gives an export-relative prefix its own
+  name, usage figure and quota — longest prefix wins at a component boundary,
+  the export root remains the default group (`brix_oss_cgroup`), `quota=-1`
+  is accounting-only and exempts the subtree from the export-wide quota, and
+  usage is a confined VFS walk cached 5 s per worker with every admitted write
+  charged against the cached figure. `kXR_Qspace` reports the owning group or
+  the one named by `?oss.cgroup=`; a create-open naming a group that does not
+  own its path is `kXR_ArgInvalid` before the file exists. This is the
+  `oss.space` name/usage/quota half — not partitions, `alloc` policy, `.anew`
+  or relocation.
 
 **The honest maturity statement.** Per `src/fs/xfer/README.md` and the source-verified
 comparison: this is **intentionally narrower than the complete upstream
@@ -433,18 +512,22 @@ XrdFrm/MSS daemon ecosystem.** Concretely:
 
 - It is **one in-process subsystem**, not the `frm_xfrd` / `frm_xfragent` /
   `frm_purged` / `frm_admin` four-daemon split.
-- **Migration (disk→tape) is not implemented in-process.** The migrate/purge
-  engine is delegated to the MSS backend / operator policy (the old
-  `migrate_purge.c` monitor-only scaffold was deleted in the phase-64
-  dissolution). There is **no automatic disk→tape
-  migration scan** and **no built-in purge GC** equivalent to `frm_purged`. The
-  source-verified comparison rates "Migrate/purge policy engine" as
-  **Missing/Partial** and flags it as "a serious reviewer item for tape sites
-  requiring disk-to-tape migration or watermark GC inside this process."
-- **The MSS driver abstraction is a command, not a library.** Recall runs the
-  operator's `brix_frm_stagecmd` / `copycmd` (and `brix_frm_residency_cmd`
-  oracle) through the `sd_frm` exec adapter; there is no linked MSS/ARC plugin
-  and no `frm_admin`-style tooling.
+- **Migration (disk→tape) is not implemented in-process.** Migration is
+  delegated to the MSS backend / operator policy (the old `migrate_purge.c`
+  monitor-only scaffold was deleted in the phase-64 dissolution). There is
+  **no automatic disk→tape migration scan**. The purge half of that scaffold
+  came back as the phase-115 W3.2 purge engine above (2026-09-05); the
+  source-verified comparison rates "Migrate policy engine" as **Missing** and
+  flags it as "a serious reviewer item for tape sites requiring disk-to-tape
+  migration inside this process."
+- **The MSS driver abstraction is a command or a dlopen'd library, configured
+  by directive or environment.** Recall runs the program named by
+  `brix_frm_stagecmd` (2.0 F1; each invocation bounded by
+  `brix_frm_copy_timeout`) or, when the directive is unset, by
+  `BRIX_FRM_STAGECMD` (`BRIX_FRM_HPSS_STAGECMD` / `BRIX_FRM_CTA_STAGECMD` per
+  dialect), or loads `BRIX_FRM_LIB` / `BRIX_FRM_{HPSS,CTA}_LIB` through the
+  `sd_frm` adapter (`src/fs/backend/frm/sd_frm_adapter.c`). There is no
+  linked MSS/ARC plugin contract and no `frm_admin`-style tooling.
   Auditable and simple, but **not drop-in for sites depending on upstream MSS
   plugins or FRM operational workflows.**
 - Monitoring is **Prometheus**, not UDP stage/migr/purge streams
@@ -468,7 +551,7 @@ such here.
 | Export base path | `oss.localroot <path>` (string prefix) | `brix_export <dir>` (kernel-confined export root) |
 | Confinement | none from `localroot`; symlinks followed | `openat2(RESOLVE_BENEATH)` per syscall (`src/fs/path/beneath.c`) |
 | LFN→PFN mapping | `oss.namelib <lib>` (N2N plugin) | none (lexical path only) |
-| Named spaces / partitions | `oss.space <name> <path> ...` | none |
+| Named spaces / partitions | `oss.space <name> <path> ...` | `brix_oss_space <group> <prefix> [quota=<size>\|quota=-1]` — a named group over an export-relative prefix (longest wins), per-group usage/quota/`kXR_overQuota`; no separate partitions (phase-115 W3.3) |
 | Alternate backend (Ceph/PSS/CSI) | `ofs.osslib <lib>` (plugin ABI) | **none — POSIX only** |
 
 ### Configuring the cache (XCache role)
@@ -476,11 +559,13 @@ such here.
 | Concern | Official XRootD | BriX-Cache |
 |---|---|---|
 | Cache plugin / enable | `pfc.osslib`, cache plugin load | `brix_cache on` |
-| Cache disk tree | OSS data space | `brix_cache_export <dir>` |
-| Remote origin | `pss.origin root://host:port` | `brix_cache_origin root://host:port` (+ `_tls`, `_cadir`, `_proxy`, `_client`) |
-| Fetch granularity | `pfc.blocksize`, block vs full-file | whole-file or `brix_cache_slice` (slice mode) |
-| Prefetch | `pfc.prefetch <N>` | none (request-driven fill only) |
+| Cache disk tree | OSS data space | `brix_cache_store posix:<dir>` + `brix_cache_export <prefix>` |
+| Cache in memory | `pfc.ram <size>` (a RAM block pool in front of the disk tree) | `brix_cache_store ram:<size>` — the store IS memory, per worker, hard cap, self-evicting (no watermark directives apply) |
+| Remote origin | `pss.origin root://host:port` | `brix_storage_backend root://host:port` (`roots://` for TLS; `brix_storage_credential` for the origin identity) |
+| Fetch granularity | `pfc.blocksize`, block vs full-file | whole-file or `brix_cache_slice_size` (slice mode); a client's `pfc.blocksize=` open hint sets a new object's block size inside `brix_cache_urlcgi blocksize <min> <max>` |
+| Prefetch | `pfc.prefetch <N>` | `brix_cache_prefetch <jobs>` + `brix_cache_prefetch_window <size>` (background successor-block fill); per-open `pfc.prefetch=` inside `brix_cache_urlcgi prefetch <min> <max>` |
 | Purge / watermark | `pfc.diskusage <lwm> <hwm> ...` | `brix_cache_eviction_threshold` (ppm), two-pass LRU |
+| Purge for a memory store | `pfc.ram` is bounded by its own pool | the `ram:` cap is the policy: reserved at fill-open, LRU-evicting, skipping open objects; the filesystem reaper declines (no cache root to lock in) |
 | Admission filter | `pfc.decisionlib` (plugin) | `brix_cache_max_file_size`, `brix_cache_include_regex` |
 | Write-through | `pfc.writethrough on` | `brix_write_through on`, `brix_wt_mode sync\|async`, `brix_wt_origin`, `brix_wt_{allow,deny}_prefix` |
 | Fill lock timeout | (internal) | `brix_cache_lock_timeout` |
@@ -490,13 +575,15 @@ such here.
 | Concern | Official XRootD | BriX-Cache |
 |---|---|---|
 | Enable | run `frm_xfrd`/`frm_purged` daemons | `brix_frm on` |
-| Durable queue file | poscq/req file (internal paths) | `brix_frm_queue_path <abs>` (durable, required) |
-| MSS copy command | `copycmd in\|out <prog>` | `brix_frm_stagecmd` / `brix_frm_copycmd` (falls back to `brix_prepare_command`) |
-| Concurrency | `copymax`, per-queue boss threads | `brix_frm_max_inflight`, `brix_frm_copymax`, `brix_frm_max_per_source` |
-| Migration policy | `migr.idlehold`, `migr.waittime` (auto scan) | `brix_frm_migrate_copycmd` + `migrate_purge.c` scaffold (monitor-only) |
-| Purge policy | `frm_purged`, `purge.policy {*\|sname} ...` | `brix_frm_purge_watermark`, `brix_frm_purge_interval` (scaffold) |
+| Durable queue file | poscq/req file (internal paths) | `brix_frm_queue_path <dir>` — one `<reqid>.req` record per staged flush/recall, replayed at worker start and by the `brix_frm_fail_backoff` sweep, dead-lettered after `brix_frm_fail_retries` (2.0 F1); the live request registry is shared memory (`brix_frm_max_inflight` slots) |
+| MSS copy command | `copycmd in\|out <prog>` | `brix_frm_stagecmd <program>` run as `<program> <verb> <key> <online>` with a `brix_frm_copy_timeout` deadline; `BRIX_FRM_STAGECMD` / `BRIX_FRM_{HPSS,CTA}_STAGECMD` (or `BRIX_FRM_*_LIB`) remain the environment fallback |
+| Stage event notification | `oss.stagemsg` / `XRDOFSEVENTS` events file for an external stager | `brix_frm_stagemsg <file>` — one `%`-escaped `<utc> <source> <event> <reqid> <key> [k=v…]` line per engine / prepare-registry / MSS transition (`queued`, `started`, `done`, `failed`, `deadletter`, `recall-begin`, `recall-online`, …), append-only, created `0600`, best-effort (2.0 F2) |
+| Concurrency | `copymax`, per-queue boss threads | `brix_frm_copymax` (engine in-flight bound, default 8) over `brix_frm_max_inflight` registry slots; no per-source fairness |
+| Migration policy | `migr.idlehold`, `migr.waittime` (auto scan) | **not implemented** — the reserved directive left the grammar in 2.0 |
+| Purge policy | `frm_purged`, `purge.policy {*\|sname} ...` | `brix_frm_purge_watermark <hi> <lo>` / `brix_frm_purge_max_bytes <size>` / `brix_frm_purge_interval <time>` — LRU release of on-tape, unpinned, cold online copies (phase-115 W3.2); `brix_frm_purge_policy {*\|<group>} <hi> <lo> [hold <time>] [polprog]` + `brix_frm_purge_polprog <program>` — per-`brix_oss_space` rules (sizes or `%` of the quota, hold) and the external policy program, fail-closed (2.0 F4) |
+| Dataset aggregation | `XrdOssArc` (`ossarc.*`, `arcAdmin` backup queue) | `tape://<adapter>/<base>?arc=<depth>` — marker-sealed stored ZIP per dataset + sidecar index (phase-115 W3.1); the seal is an `archive` record in the durable stage journal (2.0 F3) |
 | Async recall | (daemon-driven) | `brix_frm_async_recall on` (`kXR_waitresp` + `kXR_attn`) |
-| Residency oracle | (OSS/MSS) | `brix_frm_residency_cmd` |
+| Residency oracle | (OSS/MSS) | **not implemented** — the adapter's `exists` verb is the residency check; the reserved oracle directive left the grammar in 2.0 |
 | HTTP tape control | n/a (core) | `brix_webdav_tape_rest on` (WLCG Tape REST) |
 | POSC | `ofs.persist [auto\|manual\|off] [hold <sec>]` | `kXR_posc` wire flag (stage-temp + atomic rename; no hold window) |
 
@@ -523,23 +610,24 @@ such here.
 | POSIX local serving | `XrdOss`/`XrdOfs` POSIX backend | `src/fs/` VFS + confined `src/fs/path/` | **Parity** | Intentionally strongest as a POSIX data server/gateway. |
 | Namespace confinement | `oss.localroot` string prefix (symlinks followed) | `openat2(RESOLVE_BENEATH)` kernel-enforced | **nginx+ (stronger)** | Kernel refuses escape (`EXDEV`); not a chroot vs prefix tradeoff. |
 | **Pluggable OSS backend ABI** | `ofs.osslib` loads Ceph/PSS/CSI/custom | **none** | **Missing (honest gap)** | No plugin ABI; POSIX only. Sites needing `XrdCeph`/`XrdPss`/`XrdOssCsi` cannot use this for that role. |
-| Named storage spaces / partitions | `oss.space`, per-space usage/quota | none | **Missing** | One export tree; cache tree is separate but not a space-token system. |
+| Named storage spaces / partitions | `oss.space`, per-space usage/quota | `brix_oss_space` prefix-owned groups with per-group usage, quota and `kXR_Qspace` report (phase-115 W3.3) | **Partial** | Groups are prefixes of the one export tree, not partitions; no `alloc` policy, `.anew` or relocation. |
 | LFN→PFN mapping (N2N) | `oss.namelib` | none | **Missing** | Lexical path only. |
 | POSC clean-close persist | `ofs.persist` + atomic visibility | stage-temp + `fsync`+`rename` | **Parity** | Both atomic on clean close. |
 | POSC disconnect handling | **hold `<sec>`** then remove; reconnect window | **remove partial immediately** | **Divergence (documented xfail)** | Defensible "successful-close" reading; no resume window. |
 | POSC durable queue + restart recovery | poscq file, replayed on restart | in-process per-handle only | **Missing** | No cross-restart POSC replay. |
 | Read-through cache (XCache role) | `XrdPfc` block cache + `XrdPss` origin | `src/fs/cache/` whole-file + slice fill via native client | **Partial** | Practical cache; PFC has far broader policy/snapshot/resource machinery. |
-| Cache prefetch / read-ahead | `pfc.prefetch` | none | **Missing** | Fill is request-driven only. |
+| Cache prefetch / read-ahead | `pfc.prefetch`, per-open `pfc.urlcgi` | `brix_cache_prefetch` / `brix_cache_prefetch_window`, per-open `brix_cache_urlcgi` | **Present** | Background WILLNEED fill of successor blocks; the client's per-open block size / runway hints are clamped into operator bounds (2.0 F5). |
 | Per-block presence metadata | `cinfo` block bitmap + access history | `.meta` (mtime/size/etag) per file/slice | **Partial** | Coarser staleness model; no per-block bitmap. |
-| Cache purge policy engine | watermark + quota + cold-file + snapshots | two-pass LRU on `statvfs` occupancy | **Partial** | Works; far less policy surface than PFC. |
+| Cache purge policy engine | watermark + quota + cold-file + snapshots | LRU on `statvfs` occupancy + owned-bytes cap, per-space rules with hold, external policy program (2.0 F4) | **Full** | Per-space `purge.policy` + polprog landed 2026-09-08; no snapshot-driven policy. |
 | Cache admit decision plugin (`.so`) | `pfc.decisionlib` | in-process fn only | **Partial** | Policy fn pluggable in-process; no loadable plugin. |
 | Write-through cache | `pfc.writethrough` | `brix_write_through` sync/async + prefix policy | **Parity / nginx+** | Cross-protocol, identity-agnostic edge writes. |
-| Proxy storage (remote origin as backend) | `XrdPss` OSS plugin | (no PSS-style storage backend; proxy/cache patterns instead) | **Missing** | See proxy/cache comparison pages for the bridge approach. |
+| Proxy storage (remote origin as backend) | `XrdPss` OSS plugin (`pss.origin`, forwarding mode `pss.origin = *` + `pss.permit`) | `brix_storage_backend root://host:port` (fixed origin, read + write-through) and, since 2.0 F5, `brix_storage_backend forward://root[,roots] permit=<host\|.suffix>…` (the client names the origin inside the path; protocol list + mandatory host permit list) | **Present** | `src/fs/backend/xroot/sd_xroot*.c`; persona / reproxy / origin connection pool are not implemented. |
 | Tape stage-in (recall) queue | `XrdFrm` durable req file + daemons | `src/fs/xfer/` durable file=truth+SHM queue | **Partial** | Real durable queue; not the daemon ecosystem. |
 | `kXR_prepare`/`kXR_QPrep` staging | `do_Prepare` + full FRM | `src/protocols/root/query/prepare.c` + `src/fs/xfer/` durable reqids | **Partial** | Real reqids + restart durability; legacy `"0"` only with FRM off. |
 | Async recall delivery | daemon-driven | `kXR_waitresp` + `kXR_attn(asynresp)` (`stage_waiter.c`) | **Parity-ish** | In-process, no IPC; opt-in. |
 | Disk→tape migration (auto) | `frm_xfrd`/`XrdFrmMigrate` scan + `copycmd out` | **none in-process** (scaffold removed in phase-64) | **Missing** | No automatic migration scan; delegated to MSS/operator. |
-| Disk purge GC daemon | `frm_purged` watermark/hold/policy | none in-process | **Missing** | No in-process purge engine. |
+| Disk purge GC daemon | `frm_purged` watermark/hold/policy | `sd_frm_purge.c` worker-0 LRU pass: `brix_frm_purge_watermark` / `_max_bytes` / `_interval` (phase-115 W3.2) | **Partial** | In-process since 2026-09-05; no hold/policy grammar, no separate daemon. |
+| Dataset aggregation (OssArc) | `XrdOssArc`: dataset → one archive on tape + `arcAdmin` backup queue | `sd_frm_arc.c` decorator via `tape://…?arc=<depth>`: marker-sealed stored ZIP + sidecar index (phase-115 W3.1) | **Yes** | In-process since 2026-09-06; the seal is queued through the durable stage engine since 2026-09-08 (2.0 F3): retried on `brix_frm_fail_backoff`, replayed after a restart, dead-lettered at `brix_frm_fail_retries`. |
 | MSS driver | OSS/MSS plugin + `copycmd` | `stagecmd`/`copycmd`/`residency_cmd` (commands only) | **Partial** | Simpler, auditable; not drop-in for MSS plugins. |
 | Admin tooling | `frm_admin` interactive client | Prometheus + dashboard + HTTP Tape REST | **Divergence** | Different operational model. |
 | WLCG HTTP Tape REST | not a core daemon surface | `src/protocols/webdav/tape_rest.c` on same queue | **nginx+** | FTS/gfal2-friendly HTTP tape ops. |
@@ -549,8 +637,9 @@ such here.
 server and caching gateway with a real durable tape stage-in queue and a WLCG
 Tape REST gateway** — but it has **no pluggable OSS backend ABI** (no Ceph/PSS/CSI),
 **no named storage spaces**, **no cache prefetch or full PFC policy machinery**,
-and **no automatic disk→tape migration or in-process purge GC** (those are
-monitor-only scaffolds delegated to operator commands). Do not claim full
+and **no automatic disk→tape migration** (delegated to the MSS / operator;
+in-process purge GC landed 2026-09-05 with a narrower grammar than
+`frm_purged`). Do not claim full
 `XrdOss`-plugin, `XrdPfc`, `XrdPss`, or `XrdFrm` parity.
 
 ---

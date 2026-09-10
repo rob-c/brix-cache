@@ -26,6 +26,9 @@
 #include "core/compat/log_diag.h"
 
 #include <openssl/x509v3.h>   /* EXFLAG_PROXY, X509_get_extension_flags */
+#include <openssl/bio.h>      /* brix_gsi_verify_peer_leaf: PEM in memory */
+#include <openssl/err.h>
+#include <openssl/pem.h>
 
 #include <string.h>
 
@@ -193,6 +196,78 @@ brix_gsi_extract_eec_dn(X509_STORE_CTX *vctx, brix_gsi_verify_result_t *res)
 }
 
 /*
+ * WHAT: the verification log's rejection half — one line naming the depth at
+ *       which OpenSSL stopped and the subject DN of the certificate that
+ *       failed there.
+ * WHY:  the module's own rejection line names the ERROR ("expired", "unable to
+ *       get local issuer certificate") but not WHICH certificate produced it.
+ *       On a four-deep grid proxy chain that is the difference between "renew
+ *       your proxy" and "this CA is not in our trust store".  Stock XRootD
+ *       exposes the same thing behind `xrd.tlsca ... verifylog`.
+ * HOW:  DNs only, via the shared canonicaliser.  Never the certificate bytes,
+ *       never a key — the error log is frequently more widely readable than
+ *       the trust material itself.
+ */
+static void
+brix_gsi_verify_log_failure(X509_STORE_CTX *vctx, ngx_log_t *log,
+                            const char *verr_str)
+{
+    X509 *cur;
+    char  dn[1024];
+
+    if (brix_store_verify_log(vctx) == BRIX_TLS_VERIFY_LOG_OFF) {
+        return;
+    }
+
+    cur = X509_STORE_CTX_get_current_cert(vctx);
+    if (cur == NULL) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "brix: tls verify log: chain rejected at depth %d: %s "
+            "(no certificate in context)",
+            X509_STORE_CTX_get_error_depth(vctx), verr_str);
+        return;
+    }
+
+    brix_x509_oneline(X509_get_subject_name(cur), dn, sizeof(dn));
+    ngx_log_error(NGX_LOG_WARN, log, 0,
+        "brix: tls verify log: chain rejected at depth %d: %s "
+        "(subject \"%s\")",
+        X509_STORE_CTX_get_error_depth(vctx), verr_str, dn);
+}
+
+/*
+ * WHAT: the verification log's acceptance half — one line per certificate in
+ *       an ACCEPTED chain, leaf (depth 0) upward.
+ * WHY:  "which CA did this chain actually come through?" is unanswerable from
+ *       a successful auth otherwise; a mis-hashed CA directory that admits a
+ *       chain through the wrong anchor looks identical to a correct one.  Only
+ *       at BRIX_TLS_VERIFY_LOG_ALL, because it is one line per depth per
+ *       authentication.
+ * HOW:  subject DNs only, same canonicaliser, same no-bytes rule as above.
+ */
+static void
+brix_gsi_verify_log_chain(X509_STORE_CTX *vctx, ngx_log_t *log)
+{
+    STACK_OF(X509) *chain;
+    int             n, i;
+    char            dn[1024];
+
+    if (brix_store_verify_log(vctx) != BRIX_TLS_VERIFY_LOG_ALL) {
+        return;
+    }
+
+    chain = X509_STORE_CTX_get0_chain(vctx);   /* borrowed; do not free */
+    n = chain ? sk_X509_num(chain) : 0;
+    for (i = 0; i < n; i++) {
+        brix_x509_oneline(X509_get_subject_name(sk_X509_value(chain, i)),
+                          dn, sizeof(dn));
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: tls verify log: chain accepted, depth %d subject \"%s\"",
+            i, dn);
+    }
+}
+
+/*
  * WHAT: Verify an x.509 proxy certificate chain against a CA trust store.
  *
  * HOW (step by step):
@@ -265,9 +340,12 @@ brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
             "issuer certificate\": add the issuing CA to the trust store and "
             "reload",
             verr_str);
+        brix_gsi_verify_log_failure(vctx, log, verr_str);
         X509_STORE_CTX_free(vctx);
         return NGX_ERROR;
     }
+
+    brix_gsi_verify_log_chain(vctx, log);
 
     if (brix_gsi_enforce_signing_policy(vctx, log) != NGX_OK
         || brix_gsi_enforce_proxy_monotonicity(vctx, log) != NGX_OK
@@ -292,4 +370,46 @@ brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
     X509_STORE_CTX_free(vctx);
 
     return NGX_OK;
+}
+
+/*
+ * brix_gsi_verify_peer_leaf — see gsi_verify.h.
+ *
+ * WHAT: parse one PEM certificate from memory and run X509_verify_cert against
+ *   `store` with proxies allowed; tri-state verdict (1 / 0 / -1).
+ * WHY: the three outbound GSI clients carried this block verbatim; the cache
+ *   origin and TPC copies differed only in what they did with an unparseable
+ *   leaf, which is why the verdict is tri-state rather than boolean.
+ * HOW: BIO_new_mem_buf → PEM_read_bio_X509 → X509_STORE_CTX_{new,init,
+ *   set_flags} → X509_verify_cert; every handle freed on every exit.
+ */
+int
+brix_gsi_verify_peer_leaf(X509_STORE *store, const uint8_t *pem, size_t len)
+{
+    BIO            *mbio;
+    X509           *leaf;
+    X509_STORE_CTX *sctx;
+    int             verdict = -1;
+
+    mbio = BIO_new_mem_buf(pem, (int) len);
+    leaf = (mbio != NULL) ? PEM_read_bio_X509(mbio, NULL, NULL, NULL) : NULL;
+    if (mbio != NULL) {
+        BIO_free(mbio);
+    }
+    if (leaf == NULL) {
+        ERR_clear_error();
+        return -1;
+    }
+
+    sctx = X509_STORE_CTX_new();
+    if (sctx != NULL && X509_STORE_CTX_init(sctx, store, leaf, NULL) == 1) {
+        X509_STORE_CTX_set_flags(sctx, X509_V_FLAG_ALLOW_PROXY_CERTS);
+        verdict = (X509_verify_cert(sctx) == 1) ? 1 : 0;
+    }
+    if (sctx != NULL) {
+        X509_STORE_CTX_free(sctx);
+    }
+    X509_free(leaf);
+    ERR_clear_error();
+    return verdict;
 }

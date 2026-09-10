@@ -87,6 +87,13 @@ ngx_int_t brix_dispatch_require_auth(brix_ctx_t *ctx,
  * brix_dispatch_require_write — reject if the server is configured read-only
  * (conf->common.allow_write == 0).  Returns BRIX_DISPATCH_CONTINUE if writes are
  * permitted.
+ *
+ * One exemption, F16: the arm-or-fire kXR_sync of a native TPC PUSH handle
+ * passes on a read-only export, because a push source writes nothing locally —
+ * it reads its own file and streams it to a remote destination that does the
+ * writing behind its own gate.  Auth and the bound-stream refusal still apply,
+ * and every other opcode (and a kXR_sync on any other handle) still meets
+ * kXR_fsReadOnly.  See brix_write_gate_tpc_push_sync in policy.c.
  */
 ngx_int_t brix_dispatch_require_write(brix_ctx_t *ctx,
     ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf);

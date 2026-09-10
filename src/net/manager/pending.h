@@ -74,6 +74,20 @@ void brix_pending_remove(uint32_t streamid, ngx_pid_t worker_pid);
  * timeout can never poison the negative location cache. */
 void brix_pending_set_path(uint32_t streamid, ngx_pid_t worker_pid,
     const char *path);
+
+/*
+ * §2.15 — collect the streamids of this worker's LIVE pending entries whose
+ * probe_path is exactly `path`, skipping `exclude_sid` (pass 0 to skip
+ * nothing — a generated streamid always has the high bit set, so 0 can never
+ * name a real entry).  Returns how many were written to out[] (capped at
+ * max); expired slots are ignored, not reaped, so this stays a pure read.
+ *
+ * Two callers, one scan: the locate path asks "is a wave for this path
+ * already in flight?" (max 1), and the kYR_have ingest asks "who else was
+ * waiting on the wave I just answered?" (max = the fan-out cap).
+ */
+ngx_uint_t brix_pending_find_probe(const char *path, uint32_t exclude_sid,
+    uint32_t *out, ngx_uint_t max);
 int  brix_pending_take_path(uint32_t streamid, ngx_pid_t worker_pid,
     char *buf, size_t bufsz);
 

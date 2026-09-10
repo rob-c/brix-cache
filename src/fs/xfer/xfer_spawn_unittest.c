@@ -6,13 +6,17 @@
  *
  * Exit 0 = all checks pass. Verifies exit-code propagation (0/N), exec failure
  * (127), kill-by-signal (128), env passthrough, and the reparent invariant
- * (no child is left for THIS process to reap — waitpid must report ECHILD).
+ * (no child is left for THIS process to reap — waitpid must report ECHILD),
+ * and descriptor hygiene (no inherited fd reaches the command, including
+ * one above the 1023 bound the pre-2.0 close loop stopped at).
  */
 
 #include "xfer_spawn.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
+#include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -60,6 +64,30 @@ main(void)
         const char *argv[] = { "sh", "-c", "exit 0", NULL };
         check("PATH search (bare name)",
               brix_xfer_run_reparented(argv, NULL), 0);
+    }
+
+    /* Descriptor hygiene: an fd held by the caller -- one below and one
+     * above the pre-2.0 close loop's 1023 bound -- must not exist in the
+     * command. The high one needs a soft RLIMIT_NOFILE above 1500; raise it
+     * towards the hard limit, and report (not fail) when that is refused. */
+    {
+        struct rlimit rl;
+        int           dn = open("/dev/null", O_RDONLY);
+
+        check("fd 500 held by the caller", dup2(dn, 500), 500);
+        check_sh("fd 500 not inherited", "test ! -e /proc/$$/fd/500", 0);
+        if (getrlimit(RLIMIT_NOFILE, &rl) == 0 && rl.rlim_max >= 2048) {
+            rl.rlim_cur = rl.rlim_max < 4096 ? rl.rlim_max : 4096;
+            check("raise RLIMIT_NOFILE", setrlimit(RLIMIT_NOFILE, &rl), 0);
+            check("fd 1500 held by the caller", dup2(dn, 1500), 1500);
+            check_sh("fd 1500 (above the old 1023 bound) not inherited",
+                     "test ! -e /proc/$$/fd/1500", 0);
+            close(1500);
+        } else {
+            printf("skip fd 1500 check: RLIMIT_NOFILE hard limit too low\n");
+        }
+        close(500);
+        close(dn);
     }
 
     /* Reparent invariant: after a run, this process must have NO reapable child

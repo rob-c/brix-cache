@@ -1,5 +1,32 @@
 # Missing High-Level Functionality Tests
 
+> **Status (2026-09-09 — 2.0).** This is a wishlist, not a register of failures: none of
+> the 14 proposed test files (38 tests) named below exists under `tests/`, and the
+> file-count and metric-name claims describe the 2026-06 suite. Several scenarios are
+> now covered by differently named suites (see the register's axis (b)); the rest are
+> dispositioned there. For what 2.0 ships, what it deliberately does not, and what is
+> still open, use the 2.0 register,
+> [`release-2.0-readiness.md`](../10-reference/release-2.0-readiness.md) — its parity
+> rows supersede any ⚠️/❌ below. Axis (e) of that register closed **F1–F20** (the
+> thirteen accepted-only `brix_frm_*` knobs and the durable stage journal,
+> `stagemsg`/StageEvents, the OssArc dataset seal, the per-space purge-policy grammar
+> with an external policy program, `pfc.urlcgi` + PSS forwarding, the RAM-tier metric
+> rows, native `root://` TPC **multihop** delegation and multi-stream *pull*, the site
+> checksum plugin loader, the sss v2 endorsement/proxied-credential wave, the
+> health-check family, `brix_mirror_exclude_opcodes` read/readv, the four metric
+> wishlist categories, native `root://` TPC **push** with multi-stream on it, the
+> `cms.fsxeq` operator program for forwarded namespace ops, and the `ofs.tpc` identity
+> matrix layered inside the host-plane TPC confinement, and the `xrd.tlsca` CRL-scope
+> and verification-log residuals — whose lab also found and fixed **F22**, a CRL a
+> worker could not read silently disarming revocation — and the native authdb residual
+> grammar: the compound `u g p a v l` selector set, positional VOMS vorg+role pairing,
+> and the `x` stage privilege) and, with **F21** — full per-user POSIX identity across the VFS seam, whose audit
+> found the posix plane already impersonating at the `beneath`/`confined_canon` seam
+> and closed the one un-brokered verb, `RENAME_EXCHANGE` — landed on 2026-09-10,
+> leaves nothing open: axis (e) is closed in full at F1–F22. A row below that names a closed item is stale by
+> construction; this file is kept as a historical snapshot and is no longer maintained
+> row by row.
+
 ## Overview
 
 This document identifies high-level functional tests that should logically exist but are not currently present in the test suite. These focus on end-to-end scenarios combining multiple subsystems — Prometheus metrics validation through actual xrdcp copy operations, cross-protocol integration, full-stack TLS + auth + data transfer, and operational monitoring patterns that real HEP sites exercise daily.
@@ -115,9 +142,9 @@ These tests validate CMS heartbeat, cluster registry, and multi-tier topology me
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 18 | `test_e2e_cms_heartbeat_metrics` | Start manager mode with multiple servers → scrape `/metrics` → verify `brix_cluster_server_last_seen_seconds{server="X"}` tracks the heartbeat interval, `brix_cluster_servers_registered` matches the active server count, and `brix_cms_logins_total` counts each manager login | CMS tested (`test_cms.py`) but no test validates CMS-specific metrics over time |
-| 19 | `test_e2e_manager_cluster_metrics` | Multi-tier manager topology (3 tiers) → scrape `/metrics` → verify per-server counters, cluster-wide totals, redirect events counted correctly, server registration/unregistration tracked in metrics | Manager mode tested (`test_manager_mode.py`) but no test validates cluster-level metrics aggregation |
-| 20 | `test_e2e_cms_reconnect_metrics` | CMS server disconnects and reconnects → scrape `/metrics` → verify `brix_cluster_server_disconnect_total{server}` increments on disconnect, `brix_cms_logins_total` increments on reconnect, and `brix_cluster_servers_registered` settles back to the active server count | CMS reconnect tested but no test validates metrics during reconnect events |
+| 18 | `test_e2e_cms_heartbeat_metrics` | Start manager mode with multiple servers → scrape `/metrics` → verify `brix_cluster_server_last_seen_seconds{server="X"}` tracks the heartbeat interval, `brix_cluster_servers_registered` matches the active server count, and `brix_cms_logins_total` counts each manager login | **Covered 2026-09-07** by `tests/test_release20_cms_metrics.py` (2.0 readiness F12) |
+| 19 | `test_e2e_manager_cluster_metrics` | Multi-tier manager topology (3 tiers) → scrape `/metrics` → verify per-server counters, cluster-wide totals, redirect events counted correctly, server registration/unregistration tracked in metrics | **Covered 2026-09-07** by `tests/test_release20_cms_metrics.py` (2.0 readiness F12) |
+| 20 | `test_e2e_cms_reconnect_metrics` | CMS server disconnects and reconnects → scrape `/metrics` → verify `brix_cluster_server_disconnect_total{server}` increments on disconnect, `brix_cms_logins_total` increments on reconnect, and `brix_cluster_servers_registered` settles back to the active server count | **Covered 2026-09-07** by `tests/test_release20_cms_metrics.py` (2.0 readiness F12) |
 
 ### Category 7: Session Lifecycle + Metrics Validation
 
@@ -145,8 +172,8 @@ These tests validate the HTTPS dashboard API (`/brix/api/v1/`) against actual Pr
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 27 | `test_e2e_dashboard_api_metrics_cross_validation` | Run operations through nginx → scrape `/metrics` AND scrape `/brix/api/v1/snapshot` → verify dashboard JSON values match Prometheus counter values (transfers count, auth events, bytes transferred) | Dashboard API tested (`test_dashboard.py`) for schema correctness but no test cross-validates against actual Prometheus counters |
-| 28 | `test_e2e_dashboard_api_realtime_update` | Run operations through nginx → scrape `/brix/api/v1/snapshot` before and after → verify snapshot values increment correctly (active transfers count, auth event counts, bytes transferred) | Dashboard tested for static schema but no test validates realtime updates during active operations |
+| 27 | `test_e2e_dashboard_api_metrics_cross_validation` | Run operations through nginx → scrape `/metrics` AND scrape `/brix/api/v1/snapshot` → verify dashboard JSON values match Prometheus counter values (transfers count, auth events, bytes transferred) | **Covered 2026-09-07** by `tests/test_release20_dashboard_cross_validation.py` (2.0 readiness F13) |
+| 28 | `test_e2e_dashboard_api_realtime_update` | Run operations through nginx → scrape `/brix/api/v1/snapshot` before and after → verify snapshot values increment correctly (active transfers count, auth event counts, bytes transferred) | **Covered 2026-09-07** by `tests/test_release20_dashboard_cross_validation.py` (2.0 readiness F13) |
 
 ### Category 10: Metrics Label Cardinality + Scale Validation
 
@@ -154,8 +181,8 @@ These tests validate that metric labels remain low-cardinality under scale (no p
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 29 | `test_metrics_label_cardinality_at_scale` | Run 1000+ operations with unique paths → scrape `/metrics` → verify number of distinct label combinations stays bounded (proto, op, status, method — no path labels), total time series count < threshold | Metrics tested for basic correctness but no test validates cardinality under scale |
-| 30 | `test_metrics_persistence_across_restart` | Run operations → scrape metrics → restart nginx server → run more operations → scrape metrics again → verify counters persist (not reset to zero) or increment correctly after restart | No test validates metric persistence across server lifecycle events |
+| 29 | `test_metrics_label_cardinality_at_scale` | Run 1000+ operations with unique paths → scrape `/metrics` → verify number of distinct label combinations stays bounded (proto, op, status, method — no path labels), total time series count < threshold | **Covered 2026-09-07** by `tests/test_release20_metrics_cardinality.py` (2.0 readiness F14) |
+| 30 | `test_metrics_persistence_across_restart` | Run operations → scrape metrics → restart nginx server → run more operations → scrape metrics again → verify counters persist (not reset to zero) or increment correctly after restart | **Covered 2026-09-07** by `tests/test_release20_metrics_cardinality.py` (2.0 readiness F14) |
 
 ### Category 11: Cross-Backend Metrics Conformance
 
@@ -190,8 +217,8 @@ These tests validate access control and VO-specific metrics.
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 37 | `test_e2e_vo_acl_metrics_validation` | Atlas proxy cert → stat/read/write on Atlas paths, CMS proxy cert → same paths → scrape `/metrics` → verify `brix_auth_total{method="gsi",status="ok"}` per VO, access denied counters for cross-VO operations (Atlas reading CMS-only path) | VO ACL tested (`test_vo_acl.py`) but no test validates metrics during VO-specific access control |
-| 38 | `test_e2e_authdb_metrics_validation` | AuthDB public/private paths → xrdcp read both types → scrape `/metrics` → verify auth_total increments for private path auth, anon counters for public path reads, error counters for unauthorized private path access | AuthDB tested (`test_authdb.py`) but no test validates metrics during authDB-gated operations |
+| 37 | `test_e2e_vo_acl_metrics_validation` | Atlas proxy cert → stat/read/write on Atlas paths, CMS proxy cert → same paths → scrape `/metrics` → verify `brix_auth_total{method="gsi",status="ok"}` per VO, access denied counters for cross-VO operations (Atlas reading CMS-only path) | **Covered 2026-09-07** by `tests/test_release20_vo_acl_metrics.py` (2.0 readiness F15) |
+| 38 | `test_e2e_authdb_metrics_validation` | AuthDB public/private paths → xrdcp read both types → scrape `/metrics` → verify auth_total increments for private path auth, anon counters for public path reads, error counters for unauthorized private path access | **Covered 2026-09-07** by `tests/test_release20_vo_acl_metrics.py` (2.0 readiness F15) |
 
 ---
 
@@ -221,7 +248,7 @@ Each missing test should follow the standard pattern of **success + error + secu
 ## Implementation Notes
 
 ### Required Infrastructure
-- All tests require `tests/manage_test_servers.sh start` (nginx + ref xrootd servers running)
+- All tests require `python3 -m cmdscripts.manage_test_servers start-all` (nginx + ref xrootd servers running)
 - Metrics endpoint accessible at port 9100 (`/metrics`)
 - Dashboard API accessible at configured dashboard port (`/brix/api/v1/snapshot`)
 - xrdcp binary available on test system path

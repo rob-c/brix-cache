@@ -56,6 +56,7 @@
 #include "fs/backend/sd.h"                    /* BRIX_SD_ADV_WILLNEED (read-ahead) */
 #include "core/config/http_common.h"          /* common.tcp_congestion (phase-105 W2) */
 #include "protocols/root/connection/netopt.h"      /* brix_apply_tcp_congestion */
+#include "file_serve_internal.h"
 
 #include <unistd.h>
 
@@ -96,115 +97,6 @@ typedef struct {
     ngx_uint_t                    from_cache;
     const char                   *cache_path;
 } serve_ctx_t;
-
-/* brix_serve_memory_backed — stream [start, start+len) of `fh` to the client by
- * reading through the storage driver into pool buffers and pushing them through
- * nginx's output filter. Used when the backend exposes no single sendfile fd —
- * an object/block backend (e.g. pblock) whose bytes span multiple block files,
- * which brix_http_send_file_range (a single in_file buffer) cannot serve. The
- * bytes still flow proto -> VFS -> driver, just memory-backed instead of
- * zero-copy. The driver preads run on the event loop; a thread-pool/AIO streaming
- * variant for very large objects is a follow-up. Returns the output-filter rc or
- * NGX_ERROR. The caller still owns closing `fh`. */
-#define BRIX_SERVE_MEM_CHUNK  (256 * 1024)
-
-/* Read-ahead for the memory-backed loop: after each chunk, hint the next
- * WINDOW bytes off the read cursor via the driver's read_advise slot
- * (WILLNEED) — on a slice partial-cache handle that queues a background block
- * fill ahead of the foreground preads. The driver keeps a per-handle rolling
- * frontier, so the repeated per-chunk hints cost one bitmap peek and
- * speculation stays a continuous runway bounded by ITS prefetch window (and
- * the object size) — the hint is deliberately NOT clamped to the request
- * range, so a client walking a file in sequential range GETs gets successor
- * blocks warmed beyond each request. Ignored entirely unless
- * brix_cache_prefetch is on. Requests below ADV_MIN never speculate — a small
- * metadata GET must not amplify origin traffic. The first hint fires only
- * after the first chunk completes, so the block the foreground is filling
- * right now is present and gets skipped, never fetched twice. */
-#define BRIX_SERVE_MEM_ADV_WINDOW     (8 * 1024 * 1024)
-#define BRIX_SERVE_MEM_ADV_MIN        (1024 * 1024)
-
-/* Close the response body with a bare last_buf (HEAD or an empty range). */
-static ngx_int_t
-brix_serve_send_empty_body(ngx_http_request_t *r)
-{
-    ngx_buf_t   *b = ngx_calloc_buf(r->pool);
-    ngx_chain_t  out;
-
-    if (b == NULL) {
-        return NGX_ERROR;
-    }
-    b->last_buf = 1;
-    out.buf  = b;
-    out.next = NULL;
-    return ngx_http_output_filter(r, &out);
-}
-
-static ngx_int_t
-brix_serve_memory_backed(ngx_http_request_t *r, brix_vfs_file_t *fh,
-    off_t start, off_t len)
-{
-    off_t     done = 0;
-    ngx_int_t hrc;
-
-    /* The response headers were set (set_file_headers) but not yet sent — the
-     * sendfile path sends them inside send_file_range; do the same here. */
-    hrc = ngx_http_send_header(r);
-    if (hrc == NGX_ERROR || hrc > NGX_OK) {
-        return hrc;
-    }
-
-    if (r->header_only || len <= 0) {
-        return brix_serve_send_empty_body(r);
-    }
-
-    while (done < len) {
-        size_t       want = (size_t) (len - done);
-        u_char      *buf;
-        ssize_t      n;
-        ngx_buf_t   *b;
-        ngx_chain_t  out;
-        ngx_int_t    rc;
-
-        if (want > BRIX_SERVE_MEM_CHUNK) {
-            want = BRIX_SERVE_MEM_CHUNK;
-        }
-        buf = ngx_palloc(r->pool, want);
-        if (buf == NULL) {
-            return NGX_ERROR;
-        }
-        n = brix_vfs_file_pread(fh, buf, want, start + done);
-        if (n <= 0) {
-            return n < 0 ? NGX_ERROR : NGX_OK;   /* error / unexpected EOF */
-        }
-
-        b = ngx_calloc_buf(r->pool);
-        if (b == NULL) {
-            return NGX_ERROR;
-        }
-        b->pos      = buf;
-        b->last     = buf + n;
-        b->memory   = 1;
-        b->flush    = 1;
-        b->last_buf = (done + n >= len) ? 1 : 0;
-        out.buf  = b;
-        out.next = NULL;
-
-        rc = ngx_http_output_filter(r, &out);
-        if (rc == NGX_ERROR || rc > NGX_HTTP_SPECIAL_RESPONSE) {
-            return rc;
-        }
-        done += n;
-
-        if (len >= BRIX_SERVE_MEM_ADV_MIN) {
-            (void) brix_vfs_file_read_advise(fh, start + done,
-                                             BRIX_SERVE_MEM_ADV_WINDOW,
-                                             BRIX_SD_ADV_WILLNEED);
-        }
-    }
-
-    return NGX_OK;
-}
 
 /*
  * serve_apply_tcp_congestion — select the configured TCP congestion control on
@@ -381,7 +273,11 @@ serve_try_compressed(const serve_ctx_t *sc, ngx_uint_t range_present,
  *       served by the single-in_file sendfile buffer; this path drives the driver
  *       preads instead. Splitting it keeps the orchestrator flat.
  * HOW:  sc->from_cache/cache_path are captured by the orchestrator before fh is
- *       released. Returns the send rc; HEAD requests skip accounting.
+ *       released. Returns the send rc; HEAD requests skip accounting.  A send
+ *       that failed BEFORE the header went out returns a terminal HTTP status
+ *       (>= NGX_HTTP_SPECIAL_RESPONSE) rather than NGX_ERROR, and must be
+ *       treated exactly like NGX_ERROR here: no byte reached the client, so
+ *       booking send_len as delivered would ledger a body that never moved.
  */
 static ngx_int_t
 serve_send_memory_backed(const serve_ctx_t *sc)
@@ -392,7 +288,7 @@ serve_send_memory_backed(const serve_ctx_t *sc)
 
     rc = brix_serve_memory_backed(r, fh, sc->range_start, sc->send_len);
     brix_vfs_close(fh, r->connection->log);
-    if (rc == NGX_ERROR) {
+    if (rc == NGX_ERROR || rc >= NGX_HTTP_SPECIAL_RESPONSE) {
         brix_dashboard_http_error(r,
             "serve_file_ranged: memory-backed send failed");
         brix_dashboard_http_finish(r);
@@ -543,7 +439,12 @@ brix_http_serve_file_ranged(ngx_http_request_t *r,
      * serve path is zero-copy (sendfile for cleartext), so it requires a backend
      * that can back it. A non-sendfile backend returns NGX_INVALID_FILE here and
      * fails closed rather than dup'ing a bogus descriptor. */
-    fd            = brix_vfs_file_sendfile_fd(fh);
+    /* Asked for the WINDOW, not for the object: a fd-less CAP_MEMFILE backend
+     * materialises its memfd by reading the whole file through the driver, so
+     * asking whole-object here made every ranged read of a remote object fetch
+     * that object.  A HEAD reads nothing and says so with -1. */
+    fd            = brix_vfs_file_sendfile_fd_window(fh, sc.range_start,
+                        r->header_only ? (off_t) -1 : sc.send_len);
     sc.from_cache = brix_vfs_file_from_cache(fh);
     sc.cache_path = brix_vfs_file_path(fh);
 

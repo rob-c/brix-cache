@@ -184,7 +184,9 @@ and never will — see [Monitoring](../08-metrics-monitoring/monitoring-guide.md
 - Paged reads and writes with per-page CRC32c integrity (`kXR_pgread`, `kXR_pgwrite`) — the default mode used by xrdcp v5
 - Scatter-gather vector reads and writes (`kXR_readv`, `kXR_writev`)
 - Extended file attributes (`kXR_fattr`: get / set / del / list)
-- Checksum queries: adler32, md5, sha1, sha256 (`kXR_query` `kXR_Qcksum`)
+- Checksum queries: adler32, crc32, crc32c, crc64, crc64nvme, zcrc32, md5, sha1,
+  sha256, sha512 (`kXR_query` `kXR_Qcksum`), plus any site algorithm loaded with
+  `brix_checksum_plugin`
 - File location with static manager-map redirect (`kXR_locate`)
 - Parallel data streams via `kXR_bind` (secondary connections, pathid assignment)
 - Request signing envelope (`kXR_sigver`, XrdSecProtect secver-0: session-cipher-encrypted SHA-256)
@@ -194,7 +196,7 @@ and never will — see [Monitoring](../08-metrics-monitoring/monitoring-guide.md
 - Anonymous access, GSI/x509 proxy certificate authentication, SSS, and JWT/WLCG bearer-token authentication
 - VO-style path ACLs from VOMS proxy attributes or token `wlcg.groups`
 - In-protocol TLS upgrade (`kXR_wantTLS`) and `roots://` stream-SSL
-- Transparent XRootD proxy: lazy upstream connect, file-handle translation, opaque opcode relay, optional upstream TLS (`brix_proxy_upstream_tls`), bearer-token auth bridging (`brix_proxy_auth forward`), per-handle JSON audit log (`brix_proxy_audit_log`), and Prometheus proxy counters
+- Transparent XRootD proxy: lazy upstream connect, file-handle translation, opaque opcode relay, optional upstream TLS (`brix_tap_proxy_upstream_tls`), bearer-token auth bridging (`brix_tap_proxy_auth forward`), per-handle JSON audit log (`brix_proxy_audit_log`), and Prometheus proxy counters
 - WebDAV over HTTPS (`davs://`) including HTTP TPC and WebDAV upstream proxy mode
 - S3-compatible HTTP endpoint for GET, HEAD, PUT, DELETE, and ListObjectsV2
 - CMS manager heartbeat (registration, ping/pong, space and load reporting)

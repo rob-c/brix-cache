@@ -29,6 +29,8 @@
 #include "fs/cache/cstore.h"
 #include "fs/backend/http/sd_http.h"    /* per-upstream fill attribution     */
 #include "fs/backend/xroot/sd_xroot.h"  /* brix_sd_xroot_query_checksum      */
+#include "fs/backend/xroot/sd_xroot_fwd.h" /* brix_sd_xroot_serves           */
+#include "fs/backend/sd_accessors.h"  /* brix_sd_query_origin_digest        */
 #include "fs/path/path.h"               /* brix_sanitize_log_string          */
 #include "net/guard/guard.h"            /* signal=cvmfs_tamper audit line    */
 #include "core/compat/checksum.h"       /* brix_checksum_hex_name_fd         */
@@ -127,6 +129,43 @@ sd_cache_guard_tamper(sd_cache_inst_state *st, brix_sd_instance_t *actor,
         ngx_log_error(NGX_LOG_WARN, st->log, 0, "%s", line);
     }
 }
+
+/* cache_fill_capture_origin_digest — the ORIGIN half of the digest compare.
+ *
+ * WHAT: While the source object is still open, record what the origin says the
+ *       content digest is, into fs->origin_alg / fs->origin_hex.
+ *
+ * WHY:  cache_fill_verify below compares the staged bytes against exactly this
+ *       pair. The query needs a live object, so it has to happen in the pump
+ *       phase, before the release — but it is verify logic, and it lives here
+ *       with the compare that consumes it.
+ *
+ * HOW:  An xroot:// source answers in band (kXR_Qcksum) and picks the
+ *       algorithm itself. Every other origin has to be ASKED, in the one
+ *       algorithm brix_cache_verify_digest names (an HTTP origin turns that
+ *       into a single Want-Digest HEAD; an object store reads its stored
+ *       checksum). Unset ⇒ no origin digest, and the policy decides on that.
+ *       Skipped entirely unless best-effort/require is in force, so an
+ *       off/cvmfs-cas fill pays no round-trip. */
+void
+cache_fill_capture_origin_digest(sd_cache_inst_state *st,
+    sd_cache_fill_state_t *fs)
+{
+    if (st->policy.verify != BRIX_CACHE_VERIFY_BESTEFFORT
+        && st->policy.verify != BRIX_CACHE_VERIFY_REQUIRE)
+    {
+        return;
+    }
+    if (brix_sd_xroot_serves(fs->src)) {
+        brix_sd_xroot_query_checksum(fs->so, fs->origin_alg,
+            sizeof(fs->origin_alg), fs->origin_hex, sizeof(fs->origin_hex));
+        return;
+    }
+    brix_sd_query_origin_digest(fs->so, st->policy.verify_digest,
+        fs->origin_alg, sizeof(fs->origin_alg),
+        fs->origin_hex, sizeof(fs->origin_hex));
+}
+
 
 /* Reject a staged fill whose bytes failed integrity verification: account the
  * wasted WAN cost + failure metrics, emit the cache's tamper signal, quarantine

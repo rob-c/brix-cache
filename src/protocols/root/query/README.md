@@ -48,7 +48,7 @@ nginx-xrootd does not embed the `XrdOfs` plugin layer.
 | `space.c` | `kXR_Qspace` (`brix_query_space`, `oss.*` key/value capacity report) and `kXR_QFSinfo` (`brix_query_fsinfo`, compact `wVal freeMB util sVal freeMB util` form used by client redirect logic), both via `brix_fs_usage_stat` / `statvfs`. |
 | `config.c` | `kXR_Qconfig` (`brix_query_config`) — best-effort capability query; answers `chksum`, `readv`, `tpc`, `tpcdlg`; unknown keys as `key=0`; `tpc` emits a bare digit for `XrdCl` compatibility. Empty query → `send_ok(NULL, 0)`. |
 | `metadata.c` | `kXR_QStats` (`brix_query_stats`, XML server stats), `kXR_Qxattr` (`brix_query_xattr`, `oss.*` attrs + `user.U.*` xattrs — its stat goes through `brix_vfs_probe` and its list/get through the VFS xattr seam, never raw `stat`/`listxattr`), `kXR_QFinfo` (`brix_query_finfo`, placeholder `"0"`), and the `Qvisa`/`Qopaque`/`Qopaquf`/`Qopaqug` FSctl/fctl hooks that validate then return reference-compatible "unsupported". |
-| `prepare.c` | `kXR_prepare` (`brix_handle_prepare`) staging-hint handler and `kXR_QPrep` (`brix_query_prep_status`) per-path availability query. FRM-off mode returns legacy `A <path>` / `M <path>` lines and request id `"0"`; FRM-enabled mode delegates durable queue state and request ids to `../frm/`. Includes the `..`/`.` pre-check `brix_prepare_has_forbidden_component`. |
+| `prepare.c` | `kXR_prepare` (`brix_handle_prepare`) staging-hint handler and `kXR_QPrep` (`brix_query_prep_status`) per-path availability query. FRM-off mode returns legacy `A <path>` / `M <path>` lines and request id `"0"`; FRM-enabled mode delegates durable queue state and request ids to `../frm/`. Includes the `..`/`.` pre-check `brix_prepare_has_forbidden_component`. **2.0 F20:** a bare prepare only browses the namespace and needs READ, but the `kXR_stage` / `kXR_evict` arms drive a real recall or drop an online copy, so they additionally require the native authdb's `x` privilege (`BRIX_AUTH_STAGE`) — both bits together, never either-or. |
 | `prepare_cmd.c` | `brix_prepare_invoke_command` — fire-and-forget **double-fork** + `execv` of the configured `brix_prepare_command` with confined, auth-checked absolute paths; closes all inherited fds ≥ 3 in the grandchild. |
 | `set.c` | `kXR_set` (`brix_handle_set`) — accepts advisory hints; parses/logs `appid` `"cms.space <total> <free>"` capacity reports and `clttl` TTL hints; always replies `kXR_ok`. (Includes `src/core/ngx_brix_module.h` directly, not `query_internal.h`.) |
 | `util.c` | Standalone file/fd checksum helpers (`brix_query_adler32_{fd,file}`, `brix_query_crc32_{fd,file}`, `brix_query_digest_{fd,file}`) wrapping `../compat/checksum`; the `_file` variants use `brix_open_confined` + `brix_sanitize_log_string`. |
@@ -59,7 +59,7 @@ nginx-xrootd does not embed the `XrdOfs` plugin layer.
 |---|---|
 | `checksum_qcksum_internal.h` | Shared internal seam for the kXR_Qcksum decomposition — the per-request scope struct, the default-algorithm macros, and the prototypes for the helpers that cross the checksum_qcksum.c / checksum_qcksum_path.c split. |
 | `checksum_qcksum_path.c` | kXR_Qcksum path variant — algorithm selection, the full security chain (algo select + path extract + manager bounce + beneath canon + auth gate), the confined VFS open (or cache-origin redirect), and the async-offload /. |
-| `prepare_check.c` | brix_prepare_check_path() validates ONE newline-separated path from the prepare payload: length/extract/forbidden-component pre-checks, confined stat, and the three prepare authorization tiers. |
+| `prepare_check.c` | brix_prepare_check_path() validates ONE newline-separated path from the prepare payload: length/extract/forbidden-component pre-checks, confined stat, and the three prepare authorization tiers (`prepare_path_authz` is where the 2.0 F20 `READ|STAGE` requirement for the stage/evict arms is set). |
 | `prepare_internal.h` | helpers shared across the kXR_prepare / kXR_QPrep translation units (prepare.c, prepare_qprep.c). |
 | `prepare_qprep.c` | answers "is each of these paths resident?" for paths named in a prior kXR_prepare (or inline in the query). |
 
@@ -123,9 +123,9 @@ subsystem the handlers call out to:
   (`../../../net/manager/README.md`) yields `BRIX_RETURN_REDIR`; a registry miss triggers
   an async `kYR_locate` to the parent via `../../../net/cms/README.md`
   (`ngx_brix_cms_send_locate`, `brix_pending_insert`, `XRD_ST_WAITING_CMS`,
-  returning `NGX_AGAIN`). On a data server, a read-through cache miss (`ENOENT`
-  with `cache_origin_host` set) redirects to the origin instead of returning
-  not-found.
+  returning `NGX_AGAIN`). On a data server with `brix_cache on`, a read-through cache
+  miss (`ENOENT`) redirects to the export's registered `root://` storage
+  backend instead of returning not-found.
 - **Filesystem capacity** (`space.c`) is read via `brix_fs_usage_stat`
   (`src/core/compat/fs_usage.h`).
 - **Responses** are framed by `../response/README.md`: `brix_send_ok`,

@@ -120,7 +120,8 @@ brix_srv_hc_fail(const char *host, uint16_t port, uint32_t threshold,
 /* WHAT
  * Builds a kXR_locate response body listing all non-blacklisted servers whose
  * exported path set covers the requested path.  Entries are space-separated
- * "S<r|w>host:port" strings, NUL-terminated.
+ * "<type><r|w>host:port" strings, NUL-terminated, where <type> is the §2.18
+ * letter srv_locate_type_char() derives from the node's role and freshness.
  *
  * WHY
  * Returning the full set of matching servers lets the client pick based on
@@ -130,10 +131,48 @@ brix_srv_hc_fail(const char *host, uint16_t port, uint32_t threshold,
  *
  * HOW
  * Locks mutex → scans all in_use, non-blacklisted, path-matching slots →
- * appends "Sr<host>:<port>" (or "Sw" for writes) to buf with space separator.
+ * appends "<type>r<host>:<port>" (or "<type>w" for writes) to buf with a space
+ * separator.
  * Stops early if the next entry would overflow bufsz.  Returns bytes written
  * (not counting NUL); 0 if no servers match.
  */
+/*
+ * srv_locate_type_char — §2.18: the locate entry TYPE letter for one slot.
+ *
+ * WHAT: 'S' for a data server, 'M' for a subordinate manager or supervisor,
+ *       lowercased ('s'/'m') when the node has missed its heartbeats past
+ *       brix_manager_stale_after.
+ * WHY:  XrdCl's LocationInfo carries four types (ServerOnline/ServerPending/
+ *       ManagerOnline/ManagerPending) and brix emitted 'S' for every entry —
+ *       so a client was told to fetch DATA from a supervisor it should have
+ *       re-located through, and a node that had stopped heartbeating looked
+ *       exactly as live as one that had not.  BriX's own client already reads
+ *       all four letters and skips managers when picking replica sources
+ *       (client/lib/xfer/copy_xcp_sources.c), so the mislabel was actively
+ *       wrong for our own copy path, not merely imprecise.
+ * HOW:  Roles "M" (manager) and "R" (supervisor) are managers; "S" and "PS"
+ *       are data servers.  Staleness reuses the phase-39 threshold with the
+ *       same signed msec diff registry_select.c uses, so the two agree on
+ *       what stale means; with brix_manager_stale_after unset (0, the
+ *       default) nothing is ever lowercased and the emit is byte-identical
+ *       to the pre-§2.18 one for data servers.
+ */
+static char
+srv_locate_type_char(const brix_srv_entry_t *e)
+{
+    char  type = (e->role[0] == 'M' || e->role[0] == 'R') ? 'M' : 'S';
+
+    if (brix_srv_stale_after_ms > 0
+        && (ngx_msec_int_t) (ngx_current_msec - e->last_seen)
+           > (ngx_msec_int_t) brix_srv_stale_after_ms)
+    {
+        type = (char) ngx_tolower(type);
+    }
+
+    return type;
+}
+
+
 int
 brix_srv_locate_all(const char *path, int for_write,
     char *buf, size_t bufsz)
@@ -173,8 +212,9 @@ brix_srv_locate_all(const char *path, int for_write,
         /* Bracket IPv6 literals so "Sr[::1]:1094" (not the unparseable
          * "Sr::1:1094") — the host is stored canonically bare; bracket on emit. */
         brix_format_host_port(e->host, e->port, hostport, sizeof(hostport));
-        entry_len = snprintf(entry, sizeof(entry), "%sS%c%s",
+        entry_len = snprintf(entry, sizeof(entry), "%s%c%c%s",
                              first ? "" : " ",
+                             srv_locate_type_char(e),
                              for_write ? 'w' : 'r',
                              hostport);
         if (entry_len <= 0 || written + entry_len + 1 >= (int) bufsz) {
@@ -371,6 +411,8 @@ brix_srv_snapshot(brix_srv_snapshot_entry_t *out, ngx_uint_t max_entries,
                     sizeof(out[n].vnid));
         out[n].stage            = e->stage;
         out[n].load_pct         = e->load_pct;
+        out[n].min_free_mb      = e->min_free_mb;
+        out[n].space_blocked    = e->space_blocked;
         ngx_cpystrn((u_char *) out[n].role,
                     (u_char *) (e->role[0] ? e->role : "S"),
                     sizeof(out[n].role));

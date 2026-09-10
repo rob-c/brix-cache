@@ -63,9 +63,11 @@ brix_vfs_open_flags(ngx_uint_t flags)
 
 /* Map the VFS open flags to the backend-neutral SD open flags the driver open
  * slot consumes (the driver maps them to O_* itself). 1:1 with the O_* mapping
- * above, so a driver-routed open is byte-identical to the legacy beneath open. */
+ * above, so a driver-routed open is byte-identical to the legacy beneath open;
+ * the one ctx-carried bit is the cache decorator's no-fill hint (2.0), which
+ * has no O_* twin and which every non-cache driver ignores. */
 static int
-brix_vfs_to_sd_flags(ngx_uint_t flags)
+brix_vfs_to_sd_flags(const brix_vfs_ctx_t *ctx, ngx_uint_t flags)
 {
     int sd = 0;
 
@@ -75,6 +77,7 @@ brix_vfs_to_sd_flags(ngx_uint_t flags)
     if (flags & BRIX_VFS_O_EXCL)   { sd |= BRIX_SD_O_EXCL; }
     if (flags & BRIX_VFS_O_TRUNC)  { sd |= BRIX_SD_O_TRUNC; }
     if (flags & BRIX_VFS_O_APPEND) { sd |= BRIX_SD_O_APPEND; }
+    if (ctx->cache_no_fill)        { sd |= BRIX_SD_O_NOFILL; }
 
     return sd;
 }
@@ -296,9 +299,10 @@ brix_vfs_open_via_driver(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
         return NGX_ERROR;
     }
 
-    o = brix_sd_open_maybe_cred(ctx->sd, physical,
-                                brix_vfs_to_sd_flags(flags), 0644,
-                                use_cred ? &ucred : NULL, &sderr);
+    o = brix_sd_open_hinted_maybe_cred(ctx->sd, physical,
+                                       brix_vfs_to_sd_flags(ctx, flags), 0644,
+                                       use_cred ? &ucred : NULL,
+                                       &ctx->open_hints, &sderr);
     /* The origin session (if any) has consumed the per-user secret; erase the
      * worker-stack copy now so it does not outlive the open (A-4 / T4). */
     brix_sd_ucred_wipe(&ustore);
@@ -389,7 +393,7 @@ brix_vfs_open_confined_fd(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
             int            sderr = 0;
 
             o = ctx->sd->driver->open(ctx->sd, logical,
-                                      brix_vfs_to_sd_flags(flags), 0644,
+                                      brix_vfs_to_sd_flags(ctx, flags), 0644,
                                       &sderr);
             if (o == NULL) {
                 brix_vfs_open_set_err(err_out, sderr);

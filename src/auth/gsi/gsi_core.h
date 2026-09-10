@@ -131,6 +131,18 @@ uint8_t *brix_gsi_build_certreq(const char *cryptomod, uint32_t version,
                                   const uint8_t *rtag, size_t rtaglen,
                                   size_t *outlen);
 
+/* Standard server-side-client round 1 in one call (phase 115 W2.4; shared by the
+ * cache origin, the TPC destination and the transparent upstream): parse the
+ * server's advertised gsi `parms` ("v:...,c:...,ca:..."), default the crypto
+ * module to "ssl", force version 10600 (signed-DH — the round-2 kernel
+ * auto-detects the server's actual variant), clnt_opts 0x80 (stock client,
+ * delegation off), and mint a fresh 8-byte rtag into rtag_out.  malloc'd
+ * certreq (*outlen set) or NULL on RNG/build failure. */
+#define BRIX_GSI_RTAG_LEN  8
+uint8_t *brix_gsi_build_certreq_from_parms(const char *parms,
+                                             uint8_t rtag_out[BRIX_GSI_RTAG_LEN],
+                                             size_t *outlen);
+
 /* Build the round-2 kXGC_cert response to a server's kXGS_cert, the single shared
  * XrdSecgsi client/dest round-2 (both DH variants: signed-DH via kXRS_cipher when
  * the server sends one, else unsigned kXRS_puk). Agrees the AES session key, signs

@@ -187,6 +187,23 @@
       offsetof(ngx_stream_brix_srv_conf_t, upstream_token_file),
       NULL },
 
+    /* Phase 115 W2.4: GSI credential for the transparent-upstream connector.
+     * Chosen when the upstream's login advert lists `gsi`; the key defaults
+     * to the proxy PEM itself. */
+    { ngx_string("brix_upstream_x509_proxy"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, upstream_x509_proxy),
+      NULL },
+
+    { ngx_string("brix_upstream_x509_key"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, upstream_x509_key),
+      NULL },
+
     /* kXR_prepare / kXR_stage tape-backend dispatch hook */
     { ngx_string("brix_prepare_command"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -223,25 +240,17 @@
       offsetof(ngx_stream_brix_srv_conf_t, frm.max_inflight),
       NULL },
 
-    { ngx_string("brix_frm_max_per_source"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, frm.max_per_source),
-      NULL },
-
     { ngx_string("brix_frm_stagecmd"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, frm.stagecmd),
       NULL },
-
-    { ngx_string("brix_frm_copycmd"),
+    { ngx_string("brix_frm_stagemsg"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, frm.copycmd),
+      offsetof(ngx_stream_brix_srv_conf_t, frm.stagemsg),
       NULL },
 
     { ngx_string("brix_frm_copymax"),
@@ -256,13 +265,6 @@
       ngx_conf_set_msec_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, frm.stage_ttl),
-      NULL },
-
-    { ngx_string("brix_frm_xfrhold"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, frm.xfrhold_ms),
       NULL },
 
     { ngx_string("brix_frm_stage_wait"),
@@ -293,13 +295,6 @@
       offsetof(ngx_stream_brix_srv_conf_t, frm.fail_retries),
       NULL },
 
-    { ngx_string("brix_frm_residency_cmd"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, frm.residency_cmd),
-      NULL },
-
     { ngx_string("brix_frm_copy_timeout"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_msec_slot,
@@ -307,32 +302,11 @@
       offsetof(ngx_stream_brix_srv_conf_t, frm.copy_timeout),
       NULL },
 
-    { ngx_string("brix_frm_stage_dir"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, frm.stage_dir),
-      NULL },
-
-    { ngx_string("brix_frm_force_scratch"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, frm.force_scratch),
-      NULL },
-
     { ngx_string("brix_frm_control_dir"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, frm.control_dir),
-      NULL },
-
-    { ngx_string("brix_frm_migrate_copycmd"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, frm.migrate_copycmd),
       NULL },
 
     /* two ratios (high low); custom setter validates low <= high and stores ppm */
@@ -348,4 +322,29 @@
       ngx_conf_set_msec_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, frm.purge_interval_ms),
+      NULL },
+
+    /* phase-115 W3.2: owned-bytes cap arm of the tape-buffer purge engine */
+    { ngx_string("brix_frm_purge_max_bytes"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_off_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.purge_max_bytes),
+      NULL },
+
+    /* 2.0 F4: per-space purge rules + the external policy program.
+     * brix_frm_purge_policy {*|<group>} <hi> <lo> [hold <time>] [polprog] */
+    { ngx_string("brix_frm_purge_policy"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE3 | NGX_CONF_TAKE4 | NGX_CONF_TAKE5
+          | NGX_CONF_TAKE6,
+      brix_frm_set_purge_policy,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm),
+      NULL },
+
+    { ngx_string("brix_frm_purge_polprog"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.purge_polprog),
       NULL },

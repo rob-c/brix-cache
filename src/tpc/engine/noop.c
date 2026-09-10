@@ -94,14 +94,12 @@ brix_tpc_key_remove(const char *key)
 /* WHAT: Stub source-policy gate — denies every source (-1) and writes
  *       "native TPC is disabled at build time" into err_msg via ngx_cpystrn. */
 int
-brix_tpc_check_src_policy(const char *src_host, uint16_t src_port,
-    ngx_flag_t allow_local, ngx_flag_t allow_private,
-    char *err_msg, size_t err_msg_sz)
+brix_tpc_check_src_policy(const ngx_stream_brix_srv_conf_t *conf,
+    const char *src_host, uint16_t src_port, char *err_msg, size_t err_msg_sz)
 {
+    (void) conf;
     (void) src_host;
     (void) src_port;
-    (void) allow_local;
-    (void) allow_private;
 
     if (err_msg != NULL && err_msg_sz > 0) {
         ngx_cpystrn((u_char *) err_msg,

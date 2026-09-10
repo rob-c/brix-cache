@@ -474,6 +474,13 @@ brix_open_finalize_handle(brix_open_args_t *a)
 	/* Evaluate + cache the write-through policy on the handle (split out). */
 	brix_open_decide_writethrough(a);
 
+	/* F16: an open that brix_open_handle_tpc identified as the SOURCE of a
+	 * native push parked its intent (remote destination, remote path, key,
+	 * stream count) rather than reimplementing resolution/authz/open here.
+	 * The handle now exists and has passed every gate, so stamp it — the two
+	 * kXR_syncs that follow arm and fire the transfer. No-op otherwise. */
+	brix_tpc_push_apply_pending(a->ctx, &a->ctx->files[a->idx]);
+
 	return NGX_DECLINED;
 }
 

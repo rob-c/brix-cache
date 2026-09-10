@@ -16,6 +16,7 @@ import os
 import shutil
 import stat
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -57,8 +58,7 @@ for _k in ("X509_USER_PROXY", "X509_CERT_DIR", "X509_USER_CERT", "X509_USER_KEY"
 @pytest.fixture(scope="module")
 def built():
     _guard_built_1()
-    proc = subprocess.run(["make", "-C", os.path.join(REPO, "client")],
-                          capture_output=True, text=True, timeout=180)
+    proc = client_make(os.path.join(REPO, "client"), capture_output=True, text=True, timeout=180)
     _guard_built_2(proc)
     _guard_built_3()
     return XRDGSIPROXY

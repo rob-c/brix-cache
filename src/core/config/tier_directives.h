@@ -4,7 +4,7 @@
  * stage_flush,cache_max_object,cache_evict_at,cache_evict_to,
  * cache_index_cache,cache_meta,cache_slice_size,cache_global_cas,
  * cache_passthrough,cache_passthrough_max,cache_prefetch,
- * cache_prefetch_window,cache_only_if_cached,vfs_spill_path,vfs_spill_max,
+ * cache_prefetch_window,cache_urlcgi,cache_only_if_cached,vfs_spill_path,vfs_spill_max,
  * durable_publish,lock_enforcement}).
  *
  * WHAT: BRIX_TIER_DIRECTIVES(pfx, conf_t, ctx, conf_off) expands to the 21
@@ -175,6 +175,15 @@ static ngx_conf_enum_t  brix_tier_cache_meta_enum[] = {
       conf_off,                                                               \
       offsetof(conf_t, common.cache_prefetch_window),                         \
       NULL },                                                                 \
+    { ngx_string(pfx "cache_urlcgi"),   /* [blocksize ignore|<min> <max>]     \
+                                         * [prefetch ignore|<min> <max>]: arm \
+                                         * the per-open pfc.* client hints    \
+                                         * (2.0 F5, upstream pfc.urlcgi) */   \
+      (ctx) | NGX_CONF_1MORE,                                                 \
+      brix_conf_set_cache_urlcgi,                                             \
+      conf_off,                                                               \
+      offsetof(conf_t, common.cache_urlcgi),                                  \
+      NULL },                                                                 \
     { ngx_string(pfx "cache_uvkeep"),   /* <time>: age out a never-verified   \
                                          * cache entry past this age so the    \
                                          * next open revalidates (0 = off) */  \
@@ -183,6 +192,15 @@ static ngx_conf_enum_t  brix_tier_cache_meta_enum[] = {
       conf_off,                                                                \
       offsetof(conf_t, common.cache_uvkeep),                                  \
       NULL },                                                                 \
+    { ngx_string(pfx "cache_serve_while_filling"), /* <time>: follow an       \
+                                          * in-flight whole-file fill instead   \
+                                          * of waiting for it; the value is the \
+                                          * no-progress deadline (0 = off) */   \
+      (ctx) | NGX_CONF_TAKE1,                                                   \
+      ngx_conf_set_sec_slot,                                                    \
+      conf_off,                                                                 \
+      offsetof(conf_t, common.cache_serve_while_filling),                       \
+      NULL },                                                                   \
     { ngx_string(pfx "cache_only_if_cached"), /* on|off: a read MISS returns  \
                                                * ENOENT instead of filling    \
                                                * from the origin */           \

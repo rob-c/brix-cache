@@ -50,6 +50,47 @@ typedef enum {
                                        the third self-addressing grammar        */
 } brix_cache_verify_mode_e;
 
+/* brix_cache_verify_effective — read the configured policy the ONE way the
+ * standalone (brix_cache + brix_cache_export) fill spine may read it.  brix_cache_verify
+ * writes common.cache_verify_mode, which stays NGX_CONF_UNSET_UINT until an
+ * operator sets it; this cache has always defaulted to best-effort, so an
+ * unset value keeps that default while an explicit `off`/`require` is now
+ * honoured (before 2.0 the spine read a field no directive could write, so
+ * every standalone cache verified best-effort whatever the config said).
+ * The composed tier stack maps the same field in
+ * runtime_server_backend_cache.c, where unset means off. */
+static ngx_inline brix_cache_verify_mode_e
+brix_cache_verify_effective(ngx_uint_t mode)
+{
+    return (mode == NGX_CONF_UNSET_UINT)
+         ? BRIX_CACHE_VERIFY_BESTEFFORT
+         : (brix_cache_verify_mode_e) mode;
+}
+
+/*
+ * Phase-115 W4.3 — PER-PAGE origin verification, the second integrity axis.
+ *
+ * brix_cache_verify (above) checks a COMPLETED fill against the origin's
+ * advertised whole-file digest.  That leaves two holes: a partial/slice fill
+ * has no whole file to hash, and an origin that cannot answer kXR_Qcksum has
+ * no digest to compare against.  Per-page verification closes both by asking
+ * for the bytes with kXR_pgread, whose reply carries a CRC32c for every 4 KiB
+ * page, and checking each page BEFORE it is written (origin_pgread.c).
+ *
+ * It is armed per ORIGIN, not per cache — `verify_pages` on the root:// store
+ * line — because it is a property of the link to that origin and of what that
+ * origin can do, not of the store the bytes land in.
+ *
+ * BESTEFFORT falls back to kXR_read when the origin cannot do page reads;
+ * REQUIRE fails the read instead, so "require" cannot be silently downgraded
+ * by an origin that simply declines the request.
+ */
+typedef enum {
+    BRIX_PGVERIFY_OFF = 0,      /* plain kXR_read (default)                  */
+    BRIX_PGVERIFY_BESTEFFORT,   /* pgread when the origin can; else kXR_read */
+    BRIX_PGVERIFY_REQUIRE       /* pgread or fail — never an unverified byte */
+} brix_pgverify_mode_e;
+
 /* 1 iff `mode` is a SELF-ADDRESSING scheme: the cache key itself names the
  * expected digest, so the fill needs no origin-advertised checksum at all.
  * The three such modes share one dispatcher, one fail-closed policy and one

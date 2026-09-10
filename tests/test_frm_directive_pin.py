@@ -3,9 +3,15 @@
 The src/frm dissolution (phase-64) retired the FRM subsystem but 21
 ``brix_frm_*`` directives survived in
 src/protocols/root/stream/directives_net.h, contra the phase-64 §13c-step-4
-plan.  ADR-3 (docs/refactor/phase-89-design-backlog-burndown.md §D.1) records
-the ratify-vs-migrate decision as PENDING OP confirmation; until it is taken,
-operator configs in the field depend on this exact grammar.
+plan.  ADR-3 (docs/refactor/phase-89-design-backlog-burndown.md §D.1) RATIFIED
+"retain" on 2026-07-27, so operator configs in the field depend on this exact
+grammar.  Phase-115 W3.2 (2026-09-05) added a 22nd, ``brix_frm_purge_max_bytes``,
+and gave the purge pair an engine.  Nine of the 22 drive behaviour (brix_frm,
+_max_inflight, _stage_ttl, _stage_wait, _async_recall, _control_dir, and the
+purge trio _purge_watermark / _purge_interval / _purge_max_bytes — see
+tests/test_phase115_tape_purge.py); the other thirteen are accepted and read by
+nothing (docs/10-reference/release-2.0-readiness.md §(c.1)) — this pin keeps
+them PARSING, it does not claim they do anything.
 
 This pin freezes the contract with no server start (``nginx -t`` only):
   * success — every surviving directive parses with a representative value;
@@ -14,8 +20,8 @@ This pin freezes the contract with no server start (``nginx -t`` only):
     inventory ("unknown directive") is rejected, so a silent-accept regression
     (e.g. a wildcard handler swallowing typo'd knobs) cannot creep in.
 
-If ADR-3 lands as "migrate to brix_stage_*", update this file in the SAME
-change that removes the directives — a red pin here is the tripwire that the
+If ADR-3 is ever reopened as "migrate to brix_stage_*" (or the thirteen inert
+names are removed), update this file in the SAME change that removes the directives — a red pin here is the tripwire that the
 config-compat break is deliberate.
 """
 
@@ -27,29 +33,27 @@ from settings import BIND_HOST, NGINX_BIN
 
 # The pinned inventory — must match directives_net.h exactly.  A directive
 # added or removed there without touching this list is the drift this test
-# exists to catch (grep 'ngx_string("brix_frm' to regenerate).
+# exists to catch (grep 'ngx_string("brix_frm' to regenerate).  Fifteen names
+# since 2.0 F1 (ADR-3b, 2026-09-08): the seven copy/migration/scratch knobs of
+# the dissolved in-process engine left the grammar; their `unknown directive`
+# refusal is pinned by tests/test_release20_directive_surface.py.
 FRM_DIRECTIVES = """\
 brix_frm on;
 brix_frm_queue_path {root}/frm.queue;
 brix_frm_max_inflight 4;
-brix_frm_max_per_source 2;
-brix_frm_stagecmd "/bin/true %s";
-brix_frm_copycmd "/bin/true %s %s";
+brix_frm_stagecmd /bin/true;
+brix_frm_stagemsg {root}/frm.events;
 brix_frm_copymax 3;
 brix_frm_stage_ttl 30s;
-brix_frm_xfrhold 5s;
 brix_frm_stage_wait 10;
 brix_frm_async_recall on;
 brix_frm_fail_backoff 2s;
 brix_frm_fail_retries 3;
-brix_frm_residency_cmd "/bin/true %s";
 brix_frm_copy_timeout 60s;
-brix_frm_stage_dir {root}/frm-stage;
-brix_frm_force_scratch off;
 brix_frm_control_dir {root}/frm-ctl;
-brix_frm_migrate_copycmd "/bin/true %s %s";
 brix_frm_purge_watermark 0.90 0.80;
 brix_frm_purge_interval 5m;
+brix_frm_purge_max_bytes 10g;
 """
 
 

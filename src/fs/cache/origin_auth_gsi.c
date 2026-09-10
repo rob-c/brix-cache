@@ -3,7 +3,9 @@
  *
  * Split out of origin_auth.c: the two-round XrdSecgsi handshake a cache node
  * performs against its upstream origin (certreq → server cert → verify → cert
- * response → final), plus its proxy-credential loading helpers.  Keeping the GSI
+ * response → final).  Credential loading lives in auth/gsi/cred_load.c and the
+ * peer-leaf verifier in auth/crypto/gsi_verify.c, both shared with the TPC
+ * destination and the transparent upstream (phase 115 W2.4).  Keeping the GSI
  * handshake in its own file leaves origin_auth.c focused on the single-round ztn
  * and sss exchanges, and lets the security-sensitive X.509 verification path be
  * reviewed on its own.
@@ -18,94 +20,21 @@
 #include "protocols/root/protocol/bootstrap_pack.h"   /* shared handshake/login packers */
 #include "protocols/root/protocol/frame_hdr.h"        /* xrd_error_body_decode */
 #include "auth/gsi/gsi_core.h"              /* shared XrdSecgsi handshake kernel */
+#include "auth/gsi/cred_load.h"             /* shared proxy PEM / key loaders */
+#include "auth/crypto/gsi_verify.h"         /* brix_gsi_verify_peer_leaf */
 #include "protocols/root/protocol/gsi.h"              /* kXRS_x509 bucket id */
 #include "auth/sss/sss_keytab_kernel.h"     /* §14 SSS keytab line grammar */
 #include <stdio.h>                        /* fdopen/fgets for the keytab reader */
 #include <endian.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <openssl/bio.h>
-#include <openssl/pem.h>
 #include <openssl/x509.h>
-#include <openssl/x509_vfy.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
 #include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
-
-/* Load the proxy cert chain as one contiguous PEM blob (certs only). The proxy is an
- * operator-configured path (trusted, like the server's own cert/key); opened
- * O_NOFOLLOW so a planted symlink cannot redirect it. malloc'd, *outlen set; NULL on
- * failure. Mirrors client/lib/sec/sec_gsi.c load_proxy_pem. */
-static uint8_t *
-cache_origin_load_proxy_pem(const char *path, size_t *outlen)
-{
-    int      fd;
-    BIO     *in, *out;
-    X509    *cert;
-    BUF_MEM *bm;
-    uint8_t *buf = NULL;
-    int      n = 0;
-
-    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: DOMAIN_CONFIG — config-domain X.509 proxy PEM (not export storage) */
-    if (fd < 0) {
-        return NULL;
-    }
-    in = BIO_new_fd(fd, BIO_CLOSE);
-    if (in == NULL) {
-        close(fd);
-        return NULL;
-    }
-    out = BIO_new(BIO_s_mem());
-    if (out == NULL) {
-        BIO_free(in);
-        return NULL;
-    }
-    while ((cert = PEM_read_bio_X509(in, NULL, NULL, NULL)) != NULL) {
-        PEM_write_bio_X509(out, cert);
-        X509_free(cert);
-        n++;
-    }
-    ERR_clear_error();                          /* benign PEM EOF on the loop end */
-    BIO_free(in);
-
-    if (n > 0) {
-        BIO_get_mem_ptr(out, &bm);
-        buf = malloc(bm->length);
-        if (buf != NULL) {
-            ngx_memcpy(buf, bm->data, bm->length);
-            *outlen = bm->length;
-        }
-    }
-    BIO_free(out);
-    return buf;
-}
-
-/* Load the proxy RSA private key (the proxy PEM holds the key + the chain). */
-static EVP_PKEY *
-cache_origin_load_proxy_key(const char *path)
-{
-    int       fd;
-    BIO      *in;
-    EVP_PKEY *k = NULL;
-
-    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: DOMAIN_CONFIG — config-domain X.509 proxy key (not export storage) */
-    if (fd < 0) {
-        return NULL;
-    }
-    in = BIO_new_fd(fd, BIO_CLOSE);
-    if (in == NULL) {
-        close(fd);
-        return NULL;
-    }
-    k = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
-    BIO_free(in);
-    return k;
-}
 
 /* originauth_gsi_certreq — round 1 of the origin GSI handshake: build a
  * kXGC_certreq from the origin's advertised gsi parms and send it as a kXR_auth.
@@ -114,33 +43,20 @@ cache_origin_load_proxy_key(const char *path)
  *       and write it to the origin connector stream.
  * WHY : isolates the pure request construction (parse + build) with its single
  *       side effect (the socket send) at the tail — the orchestrator stays flat.
- * HOW : mirrors sec_gsi.c: default crypto "ssl", forced version 10600 (signed-DH),
- *       an 8-byte client rtag, PoP flag 0x80. Byte-frozen vs the pre-split code.
+ * HOW : brix_gsi_build_certreq_from_parms (shared with TPC and the transparent
+ *       upstream: crypto "ssl" default, version 10600, 8-byte rtag, opts 0x80).
  * Returns 0 on a sent certreq, -1 (t error set) on RNG/build/write failure. */
 static int
 originauth_gsi_certreq(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     const char *gsi_parms)
 {
-    uint32_t  version = 0;
-    char      crypto[16] = { 0 };
-    char      ca[256]    = { 0 };
-    uint8_t   client_rtag[8] = { 0 };
-    uint8_t  *certreq = NULL;
+    uint8_t   client_rtag[BRIX_GSI_RTAG_LEN];
+    uint8_t  *certreq;
     size_t    certreq_len = 0;
     int       rc;
 
-    brix_gsi_parse_parms(gsi_parms, &version, crypto, sizeof(crypto),
-                           ca, sizeof(ca));
-    if (crypto[0] == '\0') {
-        ngx_memcpy(crypto, "ssl", 4);
-    }
-    version = 10600;                            /* signed-DH default, as sec_gsi.c */
-    if (!brix_gsi_rand(client_rtag, sizeof(client_rtag))) {
-        brix_cache_set_error(t, kXR_ServerError, 0, "cache origin gsi RNG failed");
-        return -1;
-    }
-    certreq = brix_gsi_build_certreq(crypto, version, ca, 0x80u, client_rtag,
-                                       sizeof(client_rtag), &certreq_len);
+    certreq = brix_gsi_build_certreq_from_parms(gsi_parms, client_rtag,
+                                                  &certreq_len);
     if (certreq == NULL) {
         brix_cache_set_error(t, kXR_ServerError, 0,
                                "cache origin gsi certreq build failed");
@@ -197,8 +113,8 @@ originauth_gsi_read_cert(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
  *       server cert in the kXGS_cert body AND verify it against that store.
  * WHY : the shared secret must not be agreed with an unverified peer; this is the
  *       security checkpoint. No store = operator opted out (unauthenticated origin).
- * HOW : find the kXRS_x509 bucket, parse the PEM, run X509_verify_cert with
- *       ALLOW_PROXY_CERTS. Verdict byte-frozen vs the pre-split code.
+ * HOW : find the kXRS_x509 bucket, then brix_gsi_verify_peer_leaf (shared with
+ *       the TPC destination and the transparent upstream). Verdict unchanged.
  * Returns 0 when verification passes (or is skipped), -1 (t error set) on failure.
  * Never frees `body` — the caller owns it. */
 static int
@@ -207,10 +123,6 @@ originauth_gsi_verify_srv_cert(brix_cache_fill_t *t, const u_char *body,
 {
     const uint8_t  *srv_pem = NULL;
     size_t          srv_pem_len = 0;
-    BIO            *mbio;
-    X509           *srv;
-    X509_STORE_CTX *sctx;
-    int             ok = 0;
 
     if (t->conf->gsi_store == NULL) {
         return 0;
@@ -223,22 +135,11 @@ originauth_gsi_verify_srv_cert(brix_cache_fill_t *t, const u_char *body,
             "cache origin gsi: server presented no certificate to verify");
         return -1;
     }
-    mbio = BIO_new_mem_buf(srv_pem, (int) srv_pem_len);
-    srv  = (mbio != NULL) ? PEM_read_bio_X509(mbio, NULL, NULL, NULL) : NULL;
-    if (mbio != NULL) { BIO_free(mbio); }
-    if (srv != NULL) {
-        sctx = X509_STORE_CTX_new();
-        if (sctx != NULL
-            && X509_STORE_CTX_init(sctx, t->conf->gsi_store, srv, NULL) == 1)
-        {
-            X509_STORE_CTX_set_flags(sctx, X509_V_FLAG_ALLOW_PROXY_CERTS);
-            ok = (X509_verify_cert(sctx) == 1);
-        }
-        if (sctx != NULL) { X509_STORE_CTX_free(sctx); }
-        X509_free(srv);
-    }
-    ERR_clear_error();
-    if (!ok) {
+    /* Unparseable (-1) and failed (0) both fail closed here: the cache origin
+     * is a credentialed peer, so "could not evaluate" is not "verified". */
+    if (brix_gsi_verify_peer_leaf(t->conf->gsi_store, srv_pem, srv_pem_len)
+        != 1)
+    {
         brix_cache_set_error(t, kXR_NotAuthorized, 0,
             "cache origin gsi: server certificate verification failed");
         return -1;
@@ -261,7 +162,7 @@ typedef struct {
  *       configured key file (cache_origin_x509_key) or the same proxy PEM.
  * WHY : a plain host cert/key pair then works without hand-concatenation into a
  *       proxy; both are loaded together so the caller frees them as a pair.
- * HOW : cache_origin_load_proxy_pem + cache_origin_load_proxy_key; on any failure
+ * HOW : brix_gsi_cred_load_pem + brix_gsi_cred_load_key; on any failure
  *       both are freed here and the struct is zeroed.
  * Returns 0 with cred fields owned by the caller, -1 (t error set). */
 static int
@@ -270,8 +171,8 @@ originauth_gsi_load_credential(brix_cache_fill_t *t, const char *proxy_path,
 {
     ngx_memzero(cred, sizeof(*cred));
 
-    cred->pem = cache_origin_load_proxy_pem(proxy_path, &cred->pem_len);
-    cred->key = cache_origin_load_proxy_key(
+    cred->pem = brix_gsi_cred_load_pem(proxy_path, &cred->pem_len);
+    cred->key = brix_gsi_cred_load_key(
         (t->conf != NULL && t->conf->cache_origin_x509_key.len > 0)
             ? (const char *) t->conf->cache_origin_x509_key.data
             : proxy_path);

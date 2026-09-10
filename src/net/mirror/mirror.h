@@ -17,7 +17,7 @@
  *
  * HOW: brix_mirror_conf_t is embedded in both the WebDAV location conf and
  * the stream server conf.  Targets are resolved at configuration time into
- * brix_mirror_target_t (host/port/ssl + a pre-resolved sockaddr).  Sampling
+ * brix_mirror_target_t (host/port/ssl + a runtime-resolved DNS target).  Sampling
  * is a per-request PRNG draw — sufficient for HEP traffic volumes, no reservoir
  * sampler needed.
  */
@@ -26,6 +26,7 @@
 
 #include <ngx_config.h>
 #include <ngx_core.h>
+#include "net/dns/dns.h"     /* brix_dns_target_t (phase-116) */
 
 #define BRIX_MIRROR_MAX_TARGETS  4   /* up to 4 shadow backends per context */
 
@@ -98,15 +99,15 @@
 
 /* Every mirrorable opcode.  This is the DEFAULT mask when mirroring is enabled
  * but no brix_mirror_opcodes is given: mirror everything, and let the operator
- * de-select with brix_mirror_exclude_opcodes.  read/readv stay in the set but
- * are skipped at replay time as non-self-contained (see
- * brix_mirror_request_replayable); query/Qcksum replays with graceful
- * "unsupported" handling. */
+ * de-select with brix_mirror_exclude_opcodes.  read/readv are NOT in the set:
+ * they address a handle only the primary session holds, so the one-shot
+ * replay never carried them, and since 2.0 the parser refuses the names
+ * outright (brix_mirror_opcode_is_unreplayable) — the bits stay defined only
+ * so brix_mirror_opcode_bit() can map the wire opcode to "never eligible".
+ * query/Qcksum replays with graceful "unsupported" handling. */
 #define BRIX_MIRROR_OP_ALL      (BRIX_MIRROR_OP_STAT    \
                                   | BRIX_MIRROR_OP_LOCATE  \
                                   | BRIX_MIRROR_OP_OPEN    \
-                                  | BRIX_MIRROR_OP_READ    \
-                                  | BRIX_MIRROR_OP_READV   \
                                   | BRIX_MIRROR_OP_DIRLIST \
                                   | BRIX_MIRROR_OP_STATX   \
                                   | BRIX_MIRROR_OP_QUERY)
@@ -118,9 +119,18 @@ typedef struct {
     uint16_t                 port;
     ngx_uint_t               ssl;       /* 1 = TLS (https / future stream TLS) */
     ngx_str_t                url_base;  /* "scheme://host[:port]" (HTTP only) */
-    struct sockaddr_storage  sockaddr;  /* pre-resolved at config time */
-    socklen_t                socklen;
+    brix_dns_target_t       *dns;       /* phase-116: runtime-resolved target */
 } brix_mirror_target_t;
+
+/* Current address of a mirror target (round-robin over its answer set).
+ * NGX_DECLINED while the hostname is unresolved — callers skip the mirror
+ * for this request, exactly as they did for a config-time miss. */
+static ngx_inline ngx_int_t
+brix_mirror_target_addr(brix_mirror_target_t *t, struct sockaddr_storage *sa,
+    socklen_t *len)
+{
+    return brix_dns_target_next(t->dns, sa, len);
+}
 
 /* Shared mirror configuration block (embedded in both surfaces' conf). */
 typedef struct {
@@ -141,6 +151,16 @@ typedef struct {
                                 * shadow MUST NOT share the primary's backing store
                                 * (replayed writes would corrupt it). */
 } brix_mirror_conf_t;
+
+/* The shadow target at `idx` of a mirror block, NULL when out of range. */
+static ngx_inline brix_mirror_target_t *
+brix_mirror_target_at(const brix_mirror_conf_t *m, ngx_uint_t idx)
+{
+    if (m->targets == NULL || idx >= m->targets->nelts) {
+        return NULL;
+    }
+    return (brix_mirror_target_t *) m->targets->elts + idx;
+}
 
 /*
  * Seed every mirror knob with its UNSET sentinel so the stock ngx_conf_set_*

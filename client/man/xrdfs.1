@@ -29,6 +29,25 @@ Force a specific authentication protocol (root:// only).
 .BR \-\-token " \fITOK\fR" ", " \-T " \fITOK\fR"
 Bearer token for http(s)/WebDAV authentication (or \fB$BEARER_TOKEN\fR).
 .TP
+.BI \-\-sss\-vorg " VO"
+sss: assert \fIVO\fR as the credential's virtual organisation.  Kept only when
+the server's matched keytab key defers to the credential
+(\fBanybody\fR/\fBallusers\fR); a key that pins the identity drops it.
+.TP
+.BI \-\-sss\-role " ROLE"
+sss: assert a role inside that VO.
+.TP
+.BI \-\-sss\-endorse " TEXT"
+sss: opaque endorsements blob.
+.TP
+.BI \-\-sss\-creds\-file " PATH"
+sss: forward the credential held in \fIPATH\fR.  The server keeps it only under
+\fBbrix_sss_getcreds on\fR and drops it otherwise.
+.TP
+.B \-\-sss\-sndlid
+sss: send the identity-less form first and let the server name the login id,
+then mint the real credential under that name.
+.TP
 .B \-\-version
 Print version and exit.
 .SH COMMANDS

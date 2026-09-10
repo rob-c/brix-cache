@@ -207,9 +207,9 @@ http {
             brix_webdav_auth    optional;
             brix_allow_write on;
 
-            brix_webdav_token_jwks     /tmp/xrd-test/tokens/jwks.json;
-            brix_webdav_token_issuer   "https://test.example.com";
-            brix_webdav_token_audience "nginx-xrootd";
+            brix_token_jwks     /tmp/xrd-test/tokens/jwks.json;
+            brix_token_issuer   "https://test.example.com";
+            brix_token_audience "nginx-xrootd";
         }
     }
 

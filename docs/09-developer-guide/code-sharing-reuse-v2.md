@@ -741,7 +741,7 @@ PYTHONPATH=tests pytest tests/test_s3_status_codes.py tests/test_webdav_spooled_
 
 # Phase 3 complete
 PYTHONPATH=tests pytest tests/ -v --tb=short
-tests/manage_test_servers.sh restart && PYTHONPATH=tests pytest tests/ -v
+python3 -m cmdscripts.manage_test_servers restart && PYTHONPATH=tests pytest tests/ -v
 ```
 
 ---

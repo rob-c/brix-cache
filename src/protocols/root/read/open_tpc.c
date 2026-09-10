@@ -2,6 +2,8 @@
 #include "protocols/root/path/op_path.h"
 #include "net/manager/registry.h"
 #include "fs/vfs/vfs_secgate.h"   /* brix_tls_require tpc capability gate */
+#include "tpc/common/identity_matrix.h"  /* 2.0 F18 ofs.tpc identity matrix */
+#include "auth/protbind/protbind.h"      /* peer hostname for `allow ... host` */
 
 #include <string.h>
 
@@ -17,6 +19,18 @@
  *   TPC source (destination connects TO us): read open with tpc.key=<token>
  *     (+ optional tpc.dst=/tpc.org= for the two-step rendezvous).  Register the
  *     first form and consume the second before serving bytes.
+ *
+ *   F16 push (tpc.stage=push, a BriX dialect stock xrootd has no equivalent of;
+ *   both legs carry the stage so a stock peer never mistakes one for a pull):
+ *     push SOURCE — read open + tpc.key + tpc.dst=<destination host[:port]> +
+ *       tpc.dlfn=<remote path>.  We will DIAL that destination and write to it,
+ *       so this leg carries the egress posture; the role is only parked here
+ *       (brix_tpc_prepare_push) and the ordinary read-open then resolves,
+ *       authorizes and opens the local file exactly as any other read.
+ *     push TARGET — write open + tpc.key, no tpc.src.  Leg 1 (from the client,
+ *       no tpc.org) registers the key and creates the file; leg 3 (from the
+ *       pushing source, tpc.org set) consumes the key.  Both fall through to
+ *       the ordinary write-open.
  *
  * Must act BEFORE the normal path-resolution/open logic, so it runs first from
  * brix_handle_open.  Bodies are moved verbatim; the early-returns are unchanged.
@@ -184,10 +198,210 @@ tpc_handle_source(brix_ctx_t *ctx, ngx_connection_t *c,
 	return NGX_DECLINED;
 }
 
+/*
+ * F16 push TARGET role (write open, tpc.stage=push, a key and no tpc.src): the
+ * mirror of tpc_handle_source for the other direction.  Leg 1 arrives from the
+ * initiating client with no tpc.org and REGISTERS the key; leg 3 arrives from
+ * the pushing source with tpc.org and CONSUMES it (single-use — a replayed key
+ * is refused).  Neither leg dials anything, so both return NGX_DECLINED and the
+ * ordinary write-open creates (leg 1) or reopens (leg 3) the file.
+ */
+static ngx_int_t
+tpc_handle_push_target(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc)
+{
+	ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+	               "brix: TPC push target open key=%s org=%s",
+	               tpc->key, tpc->has_org ? tpc->org : "-");
+
+	if (!conf->tpc_push) {
+		BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", "-",
+		                  "tpc-push", kXR_Unsupported,
+		                  "native TPC push is disabled (brix_tpc_push off)");
+	}
+
+	if (!tpc->has_org) {
+		brix_tpc_key_register(tpc->key, conf->tpc_key_ttl_ms);
+		return NGX_DECLINED;
+	}
+
+	if (!brix_tpc_key_consume(tpc->key)) {
+		BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", "-",
+		                  "tpc-push", kXR_NotAuthorized,
+		                  "TPC authorization missing or expired");
+	}
+
+	return NGX_DECLINED;
+}
+
+/*
+ * tpc_open_roles_t — which of the four native-TPC roles this open is playing.
+ * At most one is ever set; the struct exists so the classification, the TLS
+ * gate and the dispatch can be three flat steps instead of one branchy
+ * function (CCN contract, coding-standards §2).
+ */
+typedef struct {
+	int dest;       /* destination of a PULL: creates the file, dials the source */
+	int source;     /* source of a PULL: registers/consumes the rendezvous key  */
+	int push_src;   /* source of a PUSH: dials the destination and writes (F16) */
+	int push_dst;   /* destination of a PUSH: leg 1 registers, leg 3 consumes   */
+} tpc_open_roles_t;
+
+/*
+ * WHAT: hand the open to the one handler its role names.
+ * WHY: the order is a security order, not a stylistic one — the destination
+ * roles are decided before the source roles so an open that somehow carried
+ * both key-consuming and key-presenting opaque can only ever consume, and the
+ * push roles are decided before the pull's generic source test (which
+ * tpc_open_is_source already excludes a push from) so a stage=push read-open
+ * can never fall through to the pull's key registration.
+ * HOW: first match wins; NGX_DECLINED means "not a TPC open after all", which
+ * the caller treats as an ordinary open.
+ */
+static ngx_int_t
+tpc_open_dispatch_role(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc,
+    const tpc_open_roles_t *roles, uint16_t options, uint16_t mode_bits)
+{
+	if (roles->dest) {
+		return tpc_handle_dest(ctx, c, conf, tpc, options, mode_bits);
+	}
+	if (roles->push_dst) {
+		return tpc_handle_push_target(ctx, c, conf, tpc);
+	}
+	if (roles->push_src) {
+		return brix_tpc_prepare_push(ctx, c, conf, tpc);
+	}
+	if (roles->source) {
+		return tpc_handle_source(ctx, c, conf, tpc);
+	}
+	return NGX_DECLINED;
+}
+
+/*
+ * 2.0 F18 — the ofs.tpc identity matrix, evaluated at this one choke point.
+ *
+ * WHY HERE: brix_open_handle_tpc() is the only place that has parsed the tpc.*
+ * opaque and knows the role, and it runs before tpc_open_dispatch_role() —
+ * therefore before brix_tpc_prepare_pull()/_prepare_push() ever dial.  Like
+ * F5's `permit=`, the whole verdict precedes any outbound connection.
+ *
+ * WHY IT CAN ONLY NARROW: the host plane (brix_tpc_source_guard/_allow,
+ * brix_tpc_allow_local/_private) remains the OUTER gate and is untouched; this
+ * matrix is an inner one that runs in addition to it.  A rule here can refuse
+ * a transfer the host plane would have allowed; it can never admit one the
+ * host plane denies, because the host plane's own checks still run afterwards
+ * inside the role handlers.
+ */
+
+/*
+ * Which party's credential is on this leg.  A native TPC leg carrying tpc.org
+ * was opened by the peer SERVER and therefore presents the SERVER's
+ * credential — that is the destination party.  A leg without tpc.org was
+ * opened by the initiating CLIENT.  This is the wire fact that makes
+ * `brix_tpc_require dest <auth>` unsatisfiable by a client credential.
+ */
+static int
+tpc_matrix_party(const brix_tpc_params_t *tpc)
+{
+	return tpc->has_org ? BRIX_TPC_PARTY_DEST : BRIX_TPC_PARTY_CLIENT;
+}
+
+/*
+ * Fill `mc` from the server conf.  Kept separate so the gate below reads as
+ * the security order it is (subject, path, verdict) with no conf plumbing.
+ */
+static void
+tpc_matrix_conf_from(const ngx_stream_brix_srv_conf_t *conf,
+    brix_tpc_matrix_conf_t *mc)
+{
+	mc->allow         = conf->common.tpc_allow_identity;
+	mc->require_rules = conf->common.tpc_require;
+	mc->paths         = conf->common.tpc_restrict;
+	mc->oids          = conf->common.tpc_oids;
+}
+
+/*
+ * The logical path this open names, as the matrix must see it.
+ *
+ * INVARIANT 4: `brix_tpc_restrict` is specified against the resolved path.
+ * brix_extract_path() strips the CGI opaque but does NOT clean traversal, so a
+ * raw "." or ".." component would let /export/../etc slip past a
+ * `restrict /export` rule and then be resolved elsewhere.  Rather than
+ * duplicate the resolver here, we reject exactly what the resolver rejects
+ * (brix_op_path_forbidden_component, which brix_path_resolve_beneath also
+ * calls) — after which the extracted string is byte-identical to what the
+ * resolver will produce, and prefix-matching it is sound.
+ *
+ * Returns 0 when no usable path could be produced; the caller then denies.
+ */
+static int
+tpc_matrix_path(brix_ctx_t *ctx, ngx_connection_t *c, char *buf, size_t buflen)
+{
+	if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
+	                       buf, buflen, 1)) {
+		return 0;
+	}
+	return !brix_op_path_forbidden_component(buf);
+}
+
+/*
+ * The gate.  NGX_DECLINED means "not configured, or permitted" — carry on to
+ * the role dispatch; anything else is a response already sent and must be
+ * returned to the client untouched.  The polarity is deliberate: every refusal
+ * here leaves through BRIX_RETURN_ERR, whose last act is
+ * `return brix_send_error(...)` = NGX_OK, so NGX_OK cannot also mean permitted
+ * without making the two indistinguishable at the call site.
+ *
+ * Refusal texts come from brix_tpc_matrix_verdict_text() and are FIXED strings
+ * naming the directive that refused — never the DN, VO, host or path that did
+ * not match (INVARIANT 8: these reach the access log and the error path, and a
+ * subject-derived string is unbounded cardinality).
+ */
+static ngx_int_t
+tpc_matrix_gate(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc,
+    int is_write)
+{
+	brix_tpc_matrix_conf_t     mc;
+	brix_tpc_subject_t         subj;
+	brix_tpc_matrix_verdict_t  v;
+	char                       path[PATH_MAX];
+	const char                *peer_host;
+	int                        op;
+
+	tpc_matrix_conf_from(conf, &mc);
+	if (!brix_tpc_matrix_configured(&mc)) {
+		/* a no-op for every operator who never adopts it */
+		return NGX_DECLINED;
+	}
+
+	op = is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD;
+
+	if (!tpc_matrix_path(ctx, c, path, sizeof(path))) {
+		BRIX_RETURN_ERR(ctx, c, op, "OPEN", "-", "tpc-matrix",
+		                kXR_ArgInvalid, "invalid TPC path");
+	}
+
+	peer_host = brix_protbind_peer_host_cached(ctx, c);
+	brix_tpc_matrix_subject_from_identity(ctx->identity, peer_host, &subj);
+
+	v = brix_tpc_matrix_check(&mc, tpc_matrix_party(tpc), &subj, path);
+	if (v != BRIX_TPC_MATRIX_OK) {
+		BRIX_RETURN_ERR(ctx, c, op, "OPEN", "-", "tpc-matrix",
+		                kXR_NotAuthorized,
+		                brix_tpc_matrix_verdict_text(v));
+	}
+	return NGX_DECLINED;
+}
+
 /* Role predicates over the parsed tpc.* opaque keys: a WRITE open naming a
  * source host is the destination leg; a READ open carrying any of key/dst/org
  * is the source leg (registration or consume — tpc_handle_source splits them).
- * A non-TPC open matches neither and falls through to the normal open path. */
+ * The two F16 push roles are recognised by tpc.stage=push and take precedence:
+ * a push read-open would otherwise read as an ordinary source registration, and
+ * a push write-open (no tpc.src) matches no pull role at all.
+ * A non-TPC open matches none of them and falls through to the normal path. */
 static int
 tpc_open_is_dest(int is_write, const brix_tpc_params_t *tpc)
 {
@@ -195,9 +409,24 @@ tpc_open_is_dest(int is_write, const brix_tpc_params_t *tpc)
 }
 
 static int
+tpc_open_is_push_source(int is_write, const brix_tpc_params_t *tpc)
+{
+	return !is_write && brix_tpc_stage_is_push(tpc)
+	       && tpc->has_dst && tpc->dst_host[0] != '\0';
+}
+
+static int
+tpc_open_is_push_target(int is_write, const brix_tpc_params_t *tpc)
+{
+	return is_write && brix_tpc_stage_is_push(tpc)
+	       && tpc->has_key && tpc->key[0] != '\0' && !tpc->has_src;
+}
+
+static int
 tpc_open_is_source(int is_write, const brix_tpc_params_t *tpc)
 {
-	return !is_write && (tpc->has_key || tpc->has_dst || tpc->has_org);
+	return !is_write && !tpc_open_is_push_source(is_write, tpc)
+	       && (tpc->has_key || tpc->has_dst || tpc->has_org);
 }
 
 ngx_int_t
@@ -207,7 +436,8 @@ brix_open_handle_tpc(brix_ctx_t *ctx, ngx_connection_t *c,
 {
 	char                 opaque[BRIX_MAX_PATH + 1];
 	brix_tpc_params_t  tpc;
-	int                  is_dest, is_source;
+	tpc_open_roles_t     roles;
+	ngx_int_t            rc;
 
 	if (!(ctx->recv.payload != NULL && ctx->recv.cur_dlen > 0
 	      && open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen,
@@ -217,16 +447,21 @@ brix_open_handle_tpc(brix_ctx_t *ctx, ngx_connection_t *c,
 		return NGX_DECLINED;
 	}
 
-	is_dest   = tpc_open_is_dest(is_write, &tpc);
-	is_source = tpc_open_is_source(is_write, &tpc);
+	roles.dest     = tpc_open_is_dest(is_write, &tpc);
+	roles.push_src = tpc_open_is_push_source(is_write, &tpc);
+	roles.push_dst = tpc_open_is_push_target(is_write, &tpc);
+	roles.source   = tpc_open_is_source(is_write, &tpc);
+
+	if (!(roles.dest || roles.source || roles.push_src || roles.push_dst)) {
+		return NGX_DECLINED;
+	}
 
 	/* Per-capability TLS gate (brix_tls_require tpc): a TPC-role open —
-	 * either role, either leg — on a cleartext connection is refused at
-	 * this single choke point, where the tpc.* opaque keys are parsed. */
-	if ((is_dest || is_source)
-	    && brix_tls_gate_refused(conf->common.tls_require, BRIX_TLSREQ_TPC,
-	                             c->ssl != NULL
-	                             && c->ssl->connection != NULL))
+	 * any role, any leg, pull or push — on a cleartext connection is
+	 * refused at this single choke point, where the tpc.* opaque keys are
+	 * parsed. */
+	if (brix_tls_gate_refused(conf->common.tls_require, BRIX_TLSREQ_TPC,
+	                          c->ssl != NULL && c->ssl->connection != NULL))
 	{
 		BRIX_RETURN_ERR(ctx, c,
 		                  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
@@ -234,13 +469,19 @@ brix_open_handle_tpc(brix_ctx_t *ctx, ngx_connection_t *c,
 		                  "server security policy requires TLS for TPC");
 	}
 
-	if (is_dest) {
-		return tpc_handle_dest(ctx, c, conf, &tpc, options, mode_bits);
+	/* 2.0 F18 identity matrix — inner gate, before any dial.
+	 *
+	 * NGX_DECLINED, not NGX_OK, is this gate's "carry on": BRIX_RETURN_ERR
+	 * ends in `return brix_send_error(...)`, which answers NGX_OK once the
+	 * refusal is on the wire.  A gate that reported permission as NGX_OK
+	 * would therefore be indistinguishable from one that had just refused
+	 * — the refusal would be logged and sent, and the pull would run
+	 * anyway.  It did, until the security negative caught it. */
+	rc = tpc_matrix_gate(ctx, c, conf, &tpc, is_write);
+	if (rc != NGX_DECLINED) {
+		return rc;
 	}
 
-	if (is_source) {
-		return tpc_handle_source(ctx, c, conf, &tpc);
-	}
-
-	return NGX_DECLINED;
+	return tpc_open_dispatch_role(ctx, c, conf, &tpc, &roles,
+	                              options, mode_bits);
 }

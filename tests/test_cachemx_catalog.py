@@ -32,7 +32,7 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
 # The complete catalogue, calibrated live (220 families).  A drift in either
 # direction fails test_catalogue_complete_no_drift with the offending names.
 CATALOG = {
-    "brix_acc_dns_breaker_open_total": "counter",
+    "brix_acc_dns_pending_fallback_total": "counter",
     "brix_acc_nss_breaker_open_total": "counter",
     "brix_auth_l1_hits_total": "counter",
     "brix_auth_l1_misses_total": "counter",
@@ -252,7 +252,26 @@ CATALOG = {
     "brix_wt_stage_throttled_total": "counter",
     "brix_wt_stage_usage_ratio": "gauge",
     "brix_xfer_heap_bytes": "gauge",
-    "brix_xfer_heap_high_water_bytes": "gauge",
+    "brix_xfer_heap_high_water_bytes": "gauge",    'brix_cluster_hc_blacklist_total': 'counter',
+    'brix_cluster_hc_fail_total': 'counter',
+    'brix_cluster_hc_pass_total': 'counter',
+    'brix_cluster_hc_probes_total': 'counter',
+    'brix_cms_locate_coalesced_total': 'counter',
+    'brix_dns_bridge_requests_total': 'counter',
+    'brix_dns_bridge_timeouts_total': 'counter',
+    'brix_dns_cache_entries': 'gauge',
+    'brix_dns_cache_hits_total': 'counter',
+    'brix_dns_cache_misses_total': 'counter',
+    'brix_dns_cache_negative_hits_total': 'counter',
+    'brix_dns_failures_total': 'counter',
+    'brix_dns_lookups_total': 'counter',
+    'brix_dns_resolutions_total': 'counter',
+    'brix_dns_reverse_cache_entries': 'gauge',
+    'brix_dns_reverse_cache_hits_total': 'counter',
+    'brix_dns_reverse_cache_misses_total': 'counter',
+    'brix_dns_reverse_cache_negative_hits_total': 'counter',
+    'brix_dns_targets': 'gauge',
+
 }
 
 # The _total-suffixed gauges, calibrated live: a point-in-time session census

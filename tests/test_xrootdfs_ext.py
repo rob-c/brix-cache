@@ -21,6 +21,7 @@ import shutil
 import socket
 import stat as statmod
 import subprocess
+from brix_suite.client_build import client_make
 import time
 
 import pytest
@@ -66,8 +67,7 @@ def _port_up(host, port):
 def built():
     _guard_built_1()
     _guard_built_2()
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrootdfs"],
-                          capture_output=True, text=True, timeout=240)
+    proc = client_make(CLIENT_DIR, "xrootdfs", capture_output=True, text=True, timeout=240)
     _guard_built_3(proc)
     _guard_built_4()
     return True

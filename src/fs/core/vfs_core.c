@@ -122,24 +122,43 @@ xvfs_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
     return (obj->driver->fstat(obj, out) == 0) ? 0 : -1;
 }
 
-int
-xvfs_drain(brix_sd_obj_t *src, brix_sd_obj_t *dst, void *buf, size_t bufsz,
-           off_t *total)
+/* How much of `buf` the next step of `win` may use: the rest of a bounded
+ * window, or the whole buffer when the window runs to EOF. */
+static size_t
+xvfs_window_step(const xvfs_window_t *win, size_t bufsz, off_t off)
 {
-    off_t off = 0;
+    off_t left;
 
-    if (buf == NULL || bufsz == 0) {
+    if (win->len < 0) {
+        return bufsz;
+    }
+    left = win->off + win->len - off;
+    return (left < (off_t) bufsz) ? (size_t) left : bufsz;
+}
+
+int
+xvfs_drain_window(brix_sd_obj_t *src, brix_sd_obj_t *dst, void *buf,
+                  size_t bufsz, xvfs_window_t *win)
+{
+    off_t off;
+
+    if (buf == NULL || bufsz == 0 || win == NULL || win->off < 0) {
         errno = EINVAL;
         return -1;
     }
 
-    for ( ;; ) {
-        ssize_t r = xvfs_pread_once(src, buf, bufsz, off);
+    for (off = win->off; win->len < 0 || off < win->off + win->len; ) {
+        size_t  want = xvfs_window_step(win, bufsz, off);
+        ssize_t r    = xvfs_pread_once(src, buf, want, off);
 
         if (r < 0) {
             return -1;                       /* read error (errno set by driver) */
         }
         if (r == 0) {
+            if (win->len >= 0) {
+                errno = EIO;                 /* the window was not all there */
+                return -1;
+            }
             break;                           /* EOF — whole object copied */
         }
         if (xvfs_pwrite_full(dst, buf, (size_t) r, off, NULL, NULL) != 0) {
@@ -148,8 +167,21 @@ xvfs_drain(brix_sd_obj_t *src, brix_sd_obj_t *dst, void *buf, size_t bufsz,
         off += r;
     }
 
+    win->end = off;
+    return 0;
+}
+
+int
+xvfs_drain(brix_sd_obj_t *src, brix_sd_obj_t *dst, void *buf, size_t bufsz,
+           off_t *total)
+{
+    xvfs_window_t win = { 0, -1, 0 };
+
+    if (xvfs_drain_window(src, dst, buf, bufsz, &win) != 0) {
+        return -1;
+    }
     if (total != NULL) {
-        *total = off;
+        *total = win.end;
     }
     return 0;
 }

@@ -1,6 +1,6 @@
 #include "core/ngx_brix_module.h"
 #include "protocols/root/session/registry.h"
-#include "auth/authz/acc/acc.h"          /* brix_acc_resolve_peer (breaker-bounded) */
+#include "auth/authz/acc/acc.h"          /* brix_acc_resolve_peer (phase-116 cache probe) */
 
 #include <string.h>
 #include <sys/socket.h>
@@ -25,9 +25,11 @@
  *
  * HOW:  Downstream of kXR_login, inside the kXR_auth dispatcher (../gsi/auth.c)
  *       once it matched the "host" credtype.  Reverse-resolve via
- *       brix_acc_resolve_peer() (the same getnameinfo path used by XrdAcc host
- *       rules, now circuit-breaker-bounded), match host_match(), set the identity
- *       + register + metrics, return kXR_ok — else kXR_NotAuthorized.
+ *       brix_acc_resolve_peer() (the phase-116 reverse cache the accept path
+ *       filled off the event loop, shared with XrdAcc host rules; an answer
+ *       that is still pending DENIES rather than blocks), match host_match(),
+ *       set the identity + register + metrics, return kXR_ok — else
+ *       kXR_NotAuthorized.
  */
 
 /*
@@ -84,8 +86,9 @@ ngx_int_t
 brix_handle_host_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
-    char  host[256];
-    char  safe_host[256 * 4];
+    char       host[BRIX_DNS_REVERSE_NAME_LEN];
+    char       safe_host[BRIX_DNS_REVERSE_NAME_LEN * 4];
+    ngx_int_t  rc;
 
     /* The credential merely tags the protocol; the identity is the socket's. */
     if (ctx->recv.payload == NULL || ctx->recv.cur_dlen < 4
@@ -96,14 +99,16 @@ brix_handle_host_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                           kXR_NotAuthorized, "malformed host credential");
     }
 
-    if (c->sockaddr == NULL
-        || brix_acc_resolve_peer(c->sockaddr, c->socklen,
-                                   host, sizeof(host)) == NULL)
-    {
+    rc = brix_acc_resolve_peer(conf->common.dns.policy, c->sockaddr,
+                               c->socklen, host, sizeof(host));
+    if (rc != NGX_OK) {
+        /* fail closed: a pending answer is not an identity either */
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_HOST, 0);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "host",
                           kXR_NotAuthorized,
-                          "host auth: peer reverse-DNS failed");
+                          rc == NGX_AGAIN
+                              ? "host auth: peer reverse-DNS not yet resolved"
+                              : "host auth: peer has no PTR record");
     }
 
     if (!brix_host_allowed(conf, host)) {

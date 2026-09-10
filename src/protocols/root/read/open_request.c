@@ -18,6 +18,8 @@
 #include "fs/vfs/vfs_internal.h"         /* brix_vfs_export_relative_root */
 #include "fs/backend/sd.h"           /* driver stat for read existence check */
 #include "fs/backend/cache/sd_cache.h" /* slow-tier miss offload probe (SP2) */
+#include "protocols/root/path/opaque_validate.h" /* brix_opaque_value (W3.3) */
+#include "core/config/space_group_conf.h"        /* brix_oss_space_* (W3.3) */
 
 #include <string.h>
 #include <unistd.h>
@@ -341,6 +343,35 @@ brix_open_declared_asize(brix_ctx_t *ctx)
 	return (off_t) brix_opaque_asize(opq);
 }
 
+/* 2.0 F5 (upstream pfc.urlcgi): the per-open cache hints, read leniently from
+ * the raw opaque ("?pfc.blocksize=N&pfc.prefetch=M") on a READ open, after the
+ * opaque guard has passed (strict mode already rejected a malformed value as
+ * BAD_TYPE; the lenient tier drops it here). Zero for a write open: the hints
+ * describe how a cache slices and speculates a served object, nothing else.
+ * Whether they apply at all is the cache's brix_cache_urlcgi decision. */
+static brix_sd_open_hints_t
+brix_open_cache_hints(brix_ctx_t *ctx, ngx_flag_t is_write)
+{
+	brix_sd_open_hints_t h = { 0, 0, 0 };
+	char                 opq[BRIX_MAX_PATH + 1];
+	long long            v;
+
+	if (is_write || ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0
+	    || !open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen,
+	                            opq, sizeof(opq)))
+	{
+		return h;
+	}
+	if (brix_opaque_uint(opq, "pfc.blocksize", &v) && v > 0) {
+		h.block_size = (size_t) v;
+	}
+	if (brix_opaque_uint(opq, "pfc.prefetch", &v)) {
+		h.prefetch_blocks = (size_t) v;
+		h.prefetch_set    = 1;
+	}
+	return h;
+}
+
 /*
  *
  * WHAT: Protocol-level entry point for kXR_open. Parses ClientOpenRequest from wire,
@@ -364,6 +395,50 @@ brix_open_declared_asize(brix_ctx_t *ctx)
  *      → static map prefix redirect → read resolve (cache-aware or realpath) → write resolver →
  *      authdb/VO ACL/token scope gates → reject directories → delegate to brix_open_resolved_file().
  */
+
+/*
+ * brix_open_cgroup_check — phase-115 W3.3: `?oss.cgroup=<name>` on a WRITE open
+ * names the space group the file is created in. Stock allocates the file in
+ * that group; here the path IS the allocation, so the named group must be
+ * the one whose prefix owns the path (or the export-wide default group,
+ * brix_oss_cgroup, for a path no prefix owns). A mismatch or an unknown group
+ * is refused with kXR_ArgInvalid rather than silently re-homed — the caller's
+ * accounting intent and the server's placement must agree. Read opens ignore
+ * the key (stock does too). No table declared = nothing to check.
+ */
+static ngx_int_t
+brix_open_cgroup_check(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *clean_path, int is_write)
+{
+	char              opq[BRIX_MAX_PATH + 1];
+	const char       *val;
+	size_t            vlen;
+	brix_oss_space_t *named, *owner;
+	int               known;
+	char              msg[192];
+
+	if (!is_write || conf->oss_spaces == NULL
+	    || !open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen,
+	                            opq, sizeof(opq))
+	    || !brix_opaque_value(opq, "oss.cgroup", &val, &vlen))
+	{
+		return NGX_DECLINED;
+	}
+	named = brix_oss_space_by_name(conf->oss_spaces, (const u_char *) val, vlen);
+	known = (named != NULL)
+	        || (vlen == conf->oss_cgroup.len
+	            && ngx_memcmp(val, conf->oss_cgroup.data, vlen) == 0);
+	owner = brix_oss_space_for_path(conf->oss_spaces, clean_path,
+	                                strlen(clean_path));
+	if (known && owner == named) {   /* NULL == NULL: the default group by name */
+		return NGX_DECLINED;
+	}
+	snprintf(msg, sizeof(msg), "%s space group \"%.*s\"",
+	         known ? "path is not in" : "unknown", (int) vlen, val);
+	brix_log_access(ctx, c, "OPEN", clean_path, "-", 0, kXR_ArgInvalid, msg, 0);
+	BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
+	return brix_send_error(ctx, c, kXR_ArgInvalid, msg);
+}
 
 ngx_int_t
 brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -442,6 +517,12 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 		return rc;
 	}
 
+	/* Phase-115 W3.3: a create-open that names a space group must land in it. */
+	rc = brix_open_cgroup_check(ctx, c, conf, clean_path, is_write);
+	if (rc != NGX_DECLINED) {
+		return rc;
+	}
+
 	/* SciTags packet marking begins on the first local data open. */
 	brix_open_begin_pmark(ctx, c, conf, is_write, clean_path);
 
@@ -461,6 +542,7 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 		.is_write  = is_write,
 		.codec     = open_negotiate_compress_codec(ctx, conf, is_write),
 		.declared_size = is_write ? brix_open_declared_asize(ctx) : 0,
+		.cache_hints   = brix_open_cache_hints(ctx, is_write),
 	};
 	return brix_open_resolved_file(ctx, c, conf, &oreq);
 }

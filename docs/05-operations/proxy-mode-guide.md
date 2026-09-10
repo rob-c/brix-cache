@@ -53,13 +53,13 @@ stream {
         brix_root on;
         brix_auth none;          # client auth: anonymous
 
-        brix_proxy on;
-        brix_proxy_upstream xrootd.example.org:1094;
+        brix_tap_proxy on;
+        brix_tap_proxy_upstream xrootd.example.org:1094;
     }
 }
 ```
 
-That is the complete config. The `brix_proxy_upstream` directive accepts
+That is the complete config. The `brix_tap_proxy_upstream` directive accepts
 `host`, `host:port`, or an IPv6 literal `[::1]:1094`. Default port is 1094 if
 omitted.
 
@@ -78,16 +78,16 @@ stream {
         brix_auth token;
         brix_token_jwks   /etc/brix/jwks.json;
 
-        brix_proxy on;
-        brix_proxy_upstream storage.internal:1094;
+        brix_tap_proxy on;
+        brix_tap_proxy_upstream storage.internal:1094;
     }
 }
 ```
 
 > **Note:** The outbound connection to the upstream is plain TCP by default.
-> Enable `brix_proxy_upstream_tls on` for an encrypted upstream connection,
-> with optional CA verification (`brix_proxy_upstream_tls_ca`) and SNI
-> override (`brix_proxy_upstream_tls_name`).
+> Enable `brix_tap_proxy_upstream_tls on` for an encrypted upstream connection,
+> with optional CA verification (`brix_tap_proxy_upstream_tls_ca`) and SNI
+> override (`brix_tap_proxy_upstream_tls_name`).
 
 ### Testing with xrdcp
 
@@ -221,17 +221,18 @@ they can be reused immediately.
 
 | Directive | Context | Default | Description |
 |---|---|---|---|
-| `brix_proxy on\|off` | `server` | `off` | Enable proxy mode for this server block. Requires `brix_root on`. |
-| `brix_proxy_upstream host[:port] [auth]` | `server` | — | Upstream XRootD server. Port defaults to 1094. Accepts hostnames, IPv4, and IPv6 literals. May appear multiple times; connections are distributed round-robin. Optional `auth` argument overrides the server-level `brix_proxy_auth` for this upstream only: `anonymous`, `forward`, `sss`, or `sss:<keyname>`. Required when `brix_proxy on`. |
-| `brix_proxy_upstream_tls on\|off` | `server` | `off` | Wrap the outbound upstream connection in TLS. |
-| `brix_proxy_upstream_tls_ca <path>` | `server` | — | PEM CA bundle to verify the upstream TLS certificate. Enables `SSL_VERIFY_PEER`. |
-| `brix_proxy_upstream_tls_name <host>` | `server` | — | SNI hostname sent during the TLS handshake; defaults to the `brix_proxy_upstream` hostname. |
-| `brix_proxy_auth anonymous\|forward\|sss` | `server` | `anonymous` | Upstream auth: `anonymous` sends no credentials; `forward` replays a bearer token received from the client; `sss` generates an SSS credential from the first `brix_sss_key` entry. |
+| `brix_tap_proxy on\|off` | `server` | `off` | Enable proxy mode for this server block. Requires `brix_root on`. |
+| `brix_tap_proxy_upstream host[:port] [auth]` | `server` | — | Upstream XRootD server. Port defaults to 1094. Accepts hostnames, IPv4, and IPv6 literals. May appear multiple times; connections are distributed round-robin. Optional `auth` argument overrides the server-level `brix_tap_proxy_auth` for this upstream only: `anonymous`, `forward`, `sss`, or `sss:<keyname>`. Required when `brix_tap_proxy on`. |
+| `brix_tap_proxy_upstream_tls on\|off` | `server` | `off` | Wrap the outbound upstream connection in TLS. |
+| `brix_tap_proxy_upstream_tls_ca <path>` | `server` | — | PEM CA bundle to verify the upstream TLS certificate. Enables `SSL_VERIFY_PEER`. |
+| `brix_tap_proxy_upstream_tls_name <host>` | `server` | — | SNI hostname sent during the TLS handshake; defaults to the `brix_tap_proxy_upstream` hostname. |
+| `brix_tap_proxy_auth anonymous\|forward\|sss` | `server` | `anonymous` | Upstream auth: `anonymous` sends no credentials; `forward` replays a bearer token received from the client; `sss` generates an SSS credential from the first `brix_sss_key` entry. |
+| `brix_tap_proxy_sss_identity keytab\|client` | `server` | `keytab` | Whose identity the SSS credential carries upstream. `keytab` — the 1.x behaviour — sends the local keytab key's own user, so every client reaches the upstream as one service account. `client` mints the authenticated front-side client's full entity instead (name, VO, role, groups, endorsements, and the proxied credential when `brix_sss_getcreds` kept one) and refuses to open the upstream connection at all when the front-side session is not authenticated. Only meaningful with `brix_tap_proxy_auth sss` (2.0 F9). |
 | `brix_proxy_audit_log <path>\|off` | `server` | `off` | Write one JSON line per closed or abandoned upstream file handle. |
 | `brix_proxy_reconnect_attempts <n>` | `server` | `0` | How many times to reconnect to the upstream (and redo bootstrap) when the connection drops while idle with no open handles. |
 | `brix_proxy_connect_timeout <ms>` | `server` | `10000` | Milliseconds allowed for the upstream TCP connect to complete. `0` disables the timer. |
 | `brix_proxy_read_timeout <ms>` | `server` | `60000` | Milliseconds of silence from the upstream before the connection is aborted. `0` disables the timer. |
-| `brix_proxy_path_rewrite <strip> <add>` | `server` | — | Rewrite paths on kXR_open and all path-based requests: strip the leading `strip` prefix (no-op if path does not start with it) then prepend `add`. Example: `brix_proxy_path_rewrite /brix /data` maps `/brix/file.root` → `/data/file.root`. |
+| `brix_tap_proxy_path_rewrite <strip> <add>` | `server` | — | Rewrite paths on kXR_open and all path-based requests: strip the leading `strip` prefix (no-op if path does not start with it) then prepend `add`. Example: `brix_tap_proxy_path_rewrite /brix /data` maps `/brix/file.root` → `/data/file.root`. |
 | `brix_proxy_keepalive_interval <time>` | `server` | `15s` | kXR_ping interval for idle pooled upstream connections. Accepts nginx time values (`15s`, `1m`, etc.). Set to `0` to disable keepalives on pooled connections. |
 
 All directives live inside a `stream { server { } }` block. They are not
@@ -264,24 +265,24 @@ valid inside `http { }`.
 | ✅ Request saved during bootstrap | If a client request arrives before bootstrap completes, it is saved and replayed |
 | ✅ Upstream error relay | kXR_error body forwarded verbatim with client stream-ID |
 | ✅ Graceful upstream-unavailable handling | kXR_IOError returned to client; connection remains usable for session opcodes |
-| ✅ Upstream TLS | `brix_proxy_upstream_tls on` + optional CA verification and SNI override |
-| ✅ Auth bridging: token forward + SSS credential generation | `brix_proxy_auth forward` replays bearer token; `sss` builds SSS credential from configured key |
+| ✅ Upstream TLS | `brix_tap_proxy_upstream_tls on` + optional CA verification and SNI override |
+| ✅ Auth bridging: token forward + SSS credential generation | `brix_tap_proxy_auth forward` replays bearer token; `sss` builds SSS credential from configured key — as the keytab account by default, or as the front-side client's own entity with `brix_tap_proxy_sss_identity client` (2.0 F9) |
 | ✅ JSON audit log per close | `brix_proxy_audit_log`; one JSON line with user, path, bytes, duration |
 | ✅ Metrics collection hooks | `proxy_*` counters on the `/metrics` endpoint |
 | ✅ kXR_bind / secondary data channels | Bound secondaries get their own upstream connection; lazy-open resolves unresolved file handles including multi-handle kXR_readv |
 | ✅ Upstream reconnect on idle drop | `brix_proxy_reconnect_attempts` redoes bootstrap transparently |
-| ✅ Multiple upstream endpoints with round-robin | Multiple `brix_proxy_upstream` lines; connections are distributed evenly |
+| ✅ Multiple upstream endpoints with round-robin | Multiple `brix_tap_proxy_upstream` lines; connections are distributed evenly |
 | ✅ Connect and read timeouts | `brix_proxy_connect_timeout`, `brix_proxy_read_timeout` |
-| ✅ Path rewriting | `brix_proxy_path_rewrite <strip> <add>` applied to kXR_open and all path-based requests |
+| ✅ Path rewriting | `brix_tap_proxy_path_rewrite <strip> <add>` applied to kXR_open and all path-based requests |
 | ✅ kXR_endsess forwarding | Fire-and-forget endsess to upstream before local cleanup |
-| ✅ Per-upstream credential isolation | Optional auth policy on each `brix_proxy_upstream` line overrides server-level `brix_proxy_auth`; supports per-upstream SSS key selection |
+| ✅ Per-upstream credential isolation | Optional auth policy on each `brix_tap_proxy_upstream` line overrides server-level `brix_tap_proxy_auth`; supports per-upstream SSS key selection |
 | ✅ Path-op audit log | `brix_proxy_audit_log` emits a JSON record for rm, mkdir, rmdir, mv, chmod, and path-based truncate when the response arrives; includes op, path(s), status, and login username |
 | ✅ kXR_wait transparent retry for kXR_open | Upstream kXR_wait responses on open are absorbed; the open is re-issued after the requested delay (capped at 30 s); up to 5 retries before propagating the wait to the client |
 | ✅ Proxy reconnect/path-op/wait metrics | `brix_proxy_reconnects_total`, `brix_proxy_path_ops_total`, `brix_proxy_path_op_errors_total`, `brix_proxy_wait_responses_total` on the `/metrics` endpoint |
-| ✅ Per-upstream metric labels | All proxy Prometheus counters emit both an aggregate `{port,auth}` row and per-upstream `{port,auth,upstream="host:port"}` rows when multiple `brix_proxy_upstream` lines are configured; covers connects, errors, opens, reads, writes, closes, and more |
+| ✅ Per-upstream metric labels | All proxy Prometheus counters emit both an aggregate `{port,auth}` row and per-upstream `{port,auth,upstream="host:port"}` rows when multiple `brix_tap_proxy_upstream` lines are configured; covers connects, errors, opens, reads, writes, closes, and more |
 | ✅ Upstream connection pooling | Bootstrapped upstream connections are returned to a worker-local pool on client disconnect and reused by subsequent sessions; `kXR_ping` keepalives detect stale connections; pool size capped at 32, idle timeout 60 s |
 | ✅ Upstream health tracking and failover | Per-upstream failure counter; after 3 consecutive connect failures an upstream is marked DOWN and skipped for 10 s; automatically re-enabled on next successful bootstrap |
-| ✅ Login username passthrough | `brix_proxy_login_user passthrough` copies the client's authenticated username into the upstream `kXR_login` frame (max 8 chars); `fixed:<name>` sends a literal name; default `anonymous` sends "xrd" |
+| ✅ Login username passthrough | `brix_tap_proxy_login_user passthrough` copies the client's authenticated username into the upstream `kXR_login` frame (max 8 chars); `fixed:<name>` sends a literal name; default `anonymous` sends "xrd" |
 | ✅ kXR_redirect follow-through | Upstream redirects are followed transparently (up to 3 hops); the proxy reconnects to the redirected server and replays the in-flight request so clients behind NAT are not exposed to data-server addresses |
 | ✅ kXR_wait absorption for non-open ops | kXR_wait transparent retry covers kXR_stat, kXR_locate, kXR_prepare, and all other non-open ops in addition to kXR_open; same timer and 5-retry cap |
 | ✅ Configurable upstream keepalive interval | `brix_proxy_keepalive_interval` sets the kXR_ping cadence for pooled idle connections (default 15 s); `0` disables pings |
@@ -298,13 +299,13 @@ by operational impact.
 | Feature | Current behaviour | What is needed |
 |---|---|---|
 | **kXR_waitresp / kXR_attn** | `kXR_waitresp` (4006) is forwarded to the client; the async completion arrives as an unsolicited `kXR_attn` (4001) on the upstream connection, which the proxy has no handler for. | Add an unsolicited-frame path in the upstream read handler that matches `kXR_attn` bodies to pending `kXR_waitresp` stream IDs and relays them to the correct client. |
-| **kXR_prepare path rewriting** | `kXR_prepare` bodies contain a NUL-separated list of paths; the proxy's `proxy_rewrite_path()` treats the whole payload as a single path. | Parse the prepare body properly and apply `brix_proxy_path_rewrite` to each path entry when it is configured. |
+| **kXR_prepare path rewriting** | `kXR_prepare` bodies contain a NUL-separated list of paths; the proxy's `proxy_rewrite_path()` treats the whole payload as a single path. | Parse the prepare body properly and apply `brix_tap_proxy_path_rewrite` to each path entry when it is configured. |
 
 #### Auth and identity
 
 | Feature | Current behaviour | What is needed |
 |---|---|---|
-| **GSI credential bridging** | A GSI-authenticated client cannot be bridged to a GSI-speaking upstream. The proxy holds no service certificate for upstream presentation. | Add `brix_proxy_auth gsi` mode: present a configured service cert to the upstream `kXR_auth` challenge; requires `brix_proxy_upstream_cert` / `brix_proxy_upstream_key` directives. |
+| **GSI credential bridging** | A GSI-authenticated client cannot be bridged to a GSI-speaking upstream. The proxy holds no service certificate for upstream presentation. | Add `brix_tap_proxy_auth gsi` mode: present a configured service cert to the upstream `kXR_auth` challenge; would require new directives (proposed names `brix_proxy_upstream_cert` / `brix_proxy_upstream_key`; neither exists in 2.0). |
 | **IAM token exchange (GSI → token)** | No token exchange is implemented. | For sites where the upstream speaks token auth: call a configured IAM `/token` endpoint with the client's GSI DN to obtain a short-lived bearer token, then use the existing `BRIX_PROXY_AUTH_FORWARD` path. |
 
 ---

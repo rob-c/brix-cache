@@ -80,6 +80,24 @@ typedef struct {
     int64_t size;
 } brix_sd_mirage_conf_t;
 
+/* The in-memory cache store (sd_ram.c, phase-115 W4.2): a per-worker heap of
+ * objects in front of the disk cache, selected by `brix_cache_store ram:<size>`.
+ * It has no persistence and no cross-worker sharing by construction — an
+ * N-worker server holds up to N copies and N x <size> bytes, exactly like the
+ * two stock caches it mirrors, which are per-process for the same reason.
+ * NOT usable as brix_storage_backend: the only copy of every byte would die
+ * with the worker, so the tier parser refuses it in the backend role. */
+extern const brix_sd_driver_t brix_sd_ram_driver;
+
+/* driver_conf for brix_sd_ram_driver.init(): the store's hard byte cap, from
+ * `ram:<size>`. A HARD cap, not a watermark: staged_open reserves the declared
+ * size and refuses ENOSPC over it, which is why two concurrent fills cannot
+ * both be told there is room for the same bytes. Zero is rejected at init —
+ * an unbounded RAM store is an OOM, not a configuration. */
+typedef struct {
+    uint64_t capacity;
+} brix_sd_ram_conf_t;
+
 /* The driver used for an export that selects no explicit backend (today: POSIX).
  * Lets the VFS resolve "the default backend" without naming a concrete driver. */
 const brix_sd_driver_t *brix_sd_default_driver(void);

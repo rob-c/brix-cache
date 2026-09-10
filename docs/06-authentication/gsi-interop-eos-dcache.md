@@ -21,8 +21,8 @@ byte-level details, each fixed and now guarded:
 
 | # | Symptom | Root cause | Fix |
 |---|---------|-----------|-----|
-| 1 | `TLS verify failed: unable to get local issuer certificate` | client loaded only the system CA bundle, not the grid IGTF CAs | CA-dir resolver: `--ca-dir` → `$X509_CERT_DIR` → `/etc/grid-security/certificates` → system (`client/lib/conn.c`) |
-| 2 | dCache NPE `StringBucket.getContent() … digestBucket is null` | client never emitted the `kXRS_md_alg` bucket | always emit `kXRS_md_alg` (`client/lib/sec/sec_gsi.c`) |
+| 1 | `TLS verify failed: unable to get local issuer certificate` | client loaded only the system CA bundle, not the grid IGTF CAs | CA-dir resolver: `--ca-dir` → `$X509_CERT_DIR` → `/etc/grid-security/certificates` → system (`client/lib/net/conn.c`) |
+| 2 | dCache NPE `StringBucket.getContent() … digestBucket is null` | client never emitted the `kXRS_md_alg` bucket | always emit `kXRS_md_alg` (`client/lib/auth/sec/sec_gsi.c`) |
 | 3 | `all sender digests are unsupported: [sha256]` | hardcoded `sha256`; dCache offers only `sha1:md5` | negotiate the digest from the server's offered list (prefer `sha256`, else its first token) |
 | 4 | `Could not decrypt encrypted client message` (dCache) | IV prepended but the `cipher_alg` was bare; dCache reads `ivlen=0` and mis-aligns | advertise the IV length via the `kXRS_cipher_alg` **`name#ivlen`** suffix when `use_iv` |
 | 5 | `readerIndex exceeds writerIndex` (dCache parse overrun) | encrypted bucket list lacked the terminator | append the `kXRS_none` terminator to the inner buffer |
@@ -62,10 +62,10 @@ checks the result against the origin's own `adler32`. ✅ both pass.
 Config sketch:
 
 ```nginx
-brix_cache on;
-brix_cache_origin root://eoslhcb.cern.ch;       # or the dCache endpoint
-# brix_cache_origin_client /path/to/xrdcp;       # default: xrdcp
-# the fork/exec inherits $X509_USER_PROXY / $X509_CERT_DIR
+brix_storage_backend roots://eoslhcb.cern.ch:1094;   # or the dCache endpoint
+brix_cache_store     posix:/var/cache/brix;
+brix_cache_export    /;
+brix_storage_credential eos;      # a named brix_credential (x509_proxy + ca_dir)
 ```
 
 ---
@@ -99,7 +99,7 @@ destination; the guard test is gated on `TEST_TPC_DEST_ENDPOINT`.
 
 | Path | GSI implementation | EOS | dCache |
 |---|---|---|---|
-| native client read | `client/lib/sec/sec_gsi.c` | ✅ live | ✅ live |
+| native client read | `client/lib/auth/sec/sec_gsi.c` | ✅ live | ✅ live |
 | **xcache origin** | execs native `xrdcp` (`src/fs/cache/fetch.c`) | ✅ live (fetch + integrity) | ✅ live (fetch + integrity) |
 | **TPC outbound** | `src/tpc/gsi_outbound_*.c` | ✅ live (stock-XRootD-class) | ✅ dialect correct (md_alg/cipher_alg) — live needs a TPC-authorized dest |
 

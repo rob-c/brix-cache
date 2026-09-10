@@ -30,7 +30,7 @@ is provisioned by a self-contained fixture because the standard fleet has no
 mirror server.
 
 Run:
-    tests/manage_test_servers.sh start          # bring up the fleet subset
+    python3 -m cmdscripts.manage_test_servers start-all          # bring up the fleet subset
     PYTHONPATH=tests pytest tests/test_integrity_matrix.py -v
 """
 

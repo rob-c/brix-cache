@@ -19,6 +19,7 @@ Run (serial):
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -50,8 +51,7 @@ XRDDIAG = os.path.join(CLIENT_DIR, "bin", "xrddiag")
 @pytest.fixture
 def fixture(lifecycle, tmp_path_factory):
     _guard_fixture_1()
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrddiag"],
-                          capture_output=True, text=True, timeout=180)
+    proc = client_make(CLIENT_DIR, "xrddiag", capture_output=True, text=True, timeout=180)
     _guard_fixture_2(proc)
     _guard_fixture_3()
 

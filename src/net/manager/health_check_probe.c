@@ -16,7 +16,6 @@
 #include "core/compat/log_diag.h"
 #include "health_check_internal.h"
 
-#include <netdb.h>
 #include <sys/socket.h>
 
 /* Built by src/upstream/bootstrap.c; pure wire framing, no client context. */

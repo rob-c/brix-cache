@@ -87,63 +87,34 @@ brix_upstream_parse_host_port(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf,
     return NGX_OK;
 }
 
-/* ---- Pre-resolve the upstream host at configuration time ----
+/*
+ * brix_upstream_preresolve — register the redirector as a runtime DNS target.
  *
- * WHAT: Attempts to resolve xcf->upstream_host:xcf->upstream_port once during
- *   config parsing and, on success, caches a copy of the first resolved
- *   ngx_addr_t (sockaddr bytes, socklen, name) in xcf->upstream_addr. Resolution
- *   or allocation failure is non-fatal: it leaves xcf->upstream_addr NULL and
- *   emits a warn-level message. Returns nothing.
- *
- * WHY: Resolving the upstream once at startup keeps request handlers off
- *   getaddrinfo() on the event-loop thread; start.c falls back to a per-request
- *   lookup only when upstream_addr is NULL, so a failed pre-resolve must degrade
- *   gracefully rather than abort startup.
- *
- * HOW:
- *   1. Format "host:port" into a stack buffer and populate an ngx_url_t.
- *   2. Call ngx_parse_url(); require success with at least one non-NULL address.
- *   3. Allocate an ngx_addr_t and a copy of the first sockaddr from cf->pool;
- *      copy sockaddr bytes, socklen, and name, then publish it as upstream_addr.
- *   4. If upstream_addr remains NULL (parse or allocation failed), log a
- *      warn-level "could not pre-resolve" notice.
+ * WHAT: Hands "host:port" to the phase-116 target registry and publishes the
+ *   registry-owned ngx_addr_t as xcf->upstream_addr.  An IP literal is final
+ *   at once; a hostname stays socklen == 0 until the worker resolves it.
+ * WHY: A redirector whose name does not resolve at `nginx -t` must not stop
+ *   the server (I-DNS-1), and the answer must follow the visible resolv.conf
+ *   for the process lifetime — including after the redirector moves.
+ * HOW: brix_dns_target_register(); start.c reads the target round-robin via
+ *   brix_dns_target_next() and never touches libc DNS on the event loop.
  */
-static void
+static ngx_int_t
 brix_upstream_preresolve(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
-    ngx_url_t   url;
-    ngx_addr_t *addr;
-    char        hostport[NGX_SOCKADDR_STRLEN + 8];
+    ngx_str_t  host;
 
-    ngx_memzero(&url, sizeof(url));
-    snprintf(hostport, sizeof(hostport), "%s:%d",
-             (char *) xcf->upstream_host.data, (int) xcf->upstream_port);
-    url.url.data = (u_char *) hostport;
-    url.url.len  = strlen(hostport);
-    url.default_port = (in_port_t) xcf->upstream_port;
-
-    if (ngx_parse_url(cf->pool, &url) == NGX_OK
-        && url.naddrs > 0 && url.addrs != NULL)
-    {
-        addr = ngx_pcalloc(cf->pool, sizeof(ngx_addr_t));
-        if (addr != NULL) {
-            addr->sockaddr = ngx_pnalloc(cf->pool, url.addrs[0].socklen);
-            if (addr->sockaddr != NULL) {
-                ngx_memcpy(addr->sockaddr, url.addrs[0].sockaddr,
-                           url.addrs[0].socklen);
-                addr->socklen = url.addrs[0].socklen;
-                addr->name    = url.addrs[0].name;
-                xcf->upstream_addr = addr;
-            }
-        }
+    host.data = xcf->upstream_host.data;
+    host.len = ngx_strlen(xcf->upstream_host.data);
+    xcf->upstream_dns = brix_dns_target_register(cf, "brix_upstream", &host,
+                                                 (in_port_t) xcf->upstream_port,
+                                                 BRIX_AF_AUTO, SOCK_STREAM,
+                                                 &xcf->common.dns);
+    if (xcf->upstream_dns == NULL) {
+        return NGX_ERROR;
     }
-
-    if (xcf->upstream_addr == NULL) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-            "brix: upstream redirector: could not pre-resolve \"%s\""
-            " — will resolve per-request (event-loop may block)",
-            (char *) xcf->upstream_host.data);
-    }
+    xcf->upstream_addr = &xcf->upstream_dns->addr;
+    return NGX_OK;
 }
 
 /* ---- brix_upstream directive setter ----
@@ -192,13 +163,11 @@ brix_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
     xcf->upstream_port = (uint16_t) pnum;
 
-    /*
-     * Resolve the upstream hostname once at configuration time so that
-     * request handlers never call getaddrinfo() on the event-loop thread.
-     * Resolution failure is non-fatal: start.c falls back to per-request
-     * getaddrinfo() when upstream_addr is NULL.
-     */
-    brix_upstream_preresolve(cf, xcf);
+    /* phase-116: register the redirector as a runtime DNS target; request
+     * handlers never call getaddrinfo() on the event-loop thread. */
+    if (brix_upstream_preresolve(cf, xcf) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
         "brix: upstream redirector: %s:%d",

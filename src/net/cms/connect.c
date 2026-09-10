@@ -285,6 +285,19 @@ ngx_brix_cms_disconnect(ngx_brix_cms_ctx_t *ctx)
          * funnels through this teardown exactly once.
          */
         BRIX_RESIL_METRIC_INC(cms_connect_failures_total);
+
+        /*
+         * phase-116: the runtime DNS target needs the same fact, for the same
+         * reason it is counted here.  Noting the failure only where
+         * ngx_event_connect_peer() fails covered the one surface a refused
+         * loopback dial never takes, so a dead member of a multi-address
+         * record stayed published and every reconnect went straight back to
+         * it.  A retargeted dial is excluded: that address came from a
+         * kYR_try, not from this target's answer set.
+         */
+        if (!ctx->retargeted && !ngx_exiting) {
+            brix_dns_target_note_failure(ctx->mgr_dns);
+        }
     }
 
     ctx->connection = NULL;
@@ -434,6 +447,14 @@ ngx_brix_cms_connect(ngx_brix_cms_ctx_t *ctx)
 
     ctx->connect_attempts++;
 
+    if (ctx->mgr_addr->socklen == 0) {          /* phase-116: not resolved yet */
+        ngx_log_error(NGX_LOG_INFO, ctx->cycle->log, 0,
+            "xrootd[cms]: cluster manager %V not yet resolved; retrying",
+            &ctx->mgr_name);
+        ngx_brix_cms_schedule_retry(ctx);
+        return;
+    }
+
     ngx_memzero(&ctx->peer, sizeof(ctx->peer));
     ctx->peer.sockaddr = ctx->mgr_addr->sockaddr;
     ctx->peer.socklen = ctx->mgr_addr->socklen;
@@ -453,6 +474,7 @@ ngx_brix_cms_connect(ngx_brix_cms_ctx_t *ctx)
             "cluster until it connects",
             &ctx->mgr_name);
         BRIX_RESIL_METRIC_INC(cms_connect_failures_total);
+        brix_dns_target_note_failure(ctx->mgr_dns);   /* re-resolve early */
         ngx_brix_cms_schedule_retry(ctx);
         return;
     }

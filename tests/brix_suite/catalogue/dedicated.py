@@ -155,6 +155,10 @@ def dedicated_specs() -> list[NginxInstanceSpec]:
              env={"CMS_PORT": str(S.CLUSTER_CMS_PORT), "CMS_PATHS": "/"},
              requires=("cluster-redir",)),
         _ded("http-cache", "nginx_http_cache.conf", S.NGINX_HTTP_CACHE_PORT),
+        # Phase-115 W4.2: the same read-through shape over a RAM cache
+        # store.  The cap is deliberately tiny (1m) so a handful of small
+        # objects can fill it and drive eviction inside one test.
+        _ded("ram-cache", "nginx_ram_cache.conf", S.NGINX_RAM_CACHE_PORT),
         _ded("webdav-voms", "nginx_webdav_voms.conf", S.NGINX_WEBDAV_VOMS_PORT),
         # --- CMS heartbeat pair -----------------------------------------------
         _ded("cms-test-mgr", "nginx_cluster_redir.conf", S.CMS_TEST_REDIR_PORT,

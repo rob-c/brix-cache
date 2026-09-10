@@ -94,6 +94,10 @@ def test_detector_is_not_vacuous():
 @pytest.mark.parametrize("relpath,needle", [
     ("src/auth/token/exchange.c", "CURLOPT_TIMEOUT"),
     ("src/protocols/webdav/tpc_verify.c", "CURLOPT_TIMEOUT"),
+    # phase-116 amendment 14: the pinned transfer loop performs on a handle it
+    # did not create, once per redirect hop, so it owns the bound itself
+    # (tests/test_phase116_curl_pin_budget.py drives it against a black hole).
+    ("src/net/dns/curl_pin.c", "CURLOPT_TIMEOUT_MS"),
 ])
 def test_named_audit_sites_stay_bounded(relpath, needle):
     """(security-neg, named regression) The two sites the W5 audit called out

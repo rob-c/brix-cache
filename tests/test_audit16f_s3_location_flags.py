@@ -514,7 +514,7 @@ def test_the_flags_are_location_only(tmp_path, anchor, name, slot):
 
 
 # --------------------------------------------------------------------------- #
-# §H — brix_backend_passthrough_persist, the last both-arms-unwritten name     #
+# §H — brix_backend_passthrough_persist, removed in 2.0                         #
 # --------------------------------------------------------------------------- #
 
 PASSTHROUGH = "brix_backend_passthrough_persist"
@@ -523,18 +523,18 @@ PASSTHROUGH = "brix_backend_passthrough_persist"
 @_needs_nginx
 @pytest.mark.parametrize("value", ["on", "off"])
 @pytest.mark.parametrize("slot", ["knobs", "srv", "http"])
-def test_the_passthrough_flag_parses_in_every_http_context(tmp_path, anchor,
-                                                           value, slot):
-    """The seventh and last of the both-arms-unwritten directives, and the only
-    one that cannot be closed above parse level: it is BRIX_HTTP_ALL_CONF, it
-    merges to 0 (shared_conf.h:428), and it has no reader anywhere in src/,
-    client/ or shared/ — DEFECT CANDIDATE #35, pinned by
-    test_audit15j_zero_coverage_stragglers.py.  Writing the value is therefore
-    the whole of what can be asserted; what it does is nothing, in all six
-    placements."""
+def test_the_passthrough_flag_is_refused_in_every_http_context(tmp_path, anchor,
+                                                               value, slot):
+    """The seventh and last of the both-arms-unwritten directives was the one
+    that could never be closed above parse level: BRIX_HTTP_ALL_CONF, merged to
+    0, and no reader anywhere in src/, client/ or shared/ — DEFECT CANDIDATE
+    #35.  2.0 resolved it by removal, so the six placements that used to be the
+    whole of what could be asserted now each have to FAIL, with the message an
+    operator upgrading a 1.x configuration needs to see."""
     result = _parse(tmp_path, anchor, **{slot: f"{PASSTHROUGH} {value};"})
-    assert result.returncode == 0, \
-        f"{PASSTHROUGH} {value} was refused in the {slot} context:\n{result.stderr}"
+    assert result.returncode != 0, \
+        f"{PASSTHROUGH} {value} still parses in the {slot} context (removed in 2.0)"
+    assert f'unknown directive "{PASSTHROUGH}"' in result.stderr, result.stderr
 
 
 # --------------------------------------------------------------------------- #

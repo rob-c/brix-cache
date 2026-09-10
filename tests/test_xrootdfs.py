@@ -25,6 +25,7 @@ import shutil
 import socket
 import stat
 import subprocess
+from brix_suite.client_build import client_make
 import time
 
 import pytest
@@ -89,8 +90,7 @@ def built():
     # Build the preload .so always; the selected FUSE driver when fuse3 is present.
     targets = ["libbrixposix_preload.so"]
     _guard_built_2(targets)
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, *targets],
-                          capture_output=True, text=True, timeout=180)
+    proc = client_make(CLIENT_DIR, *targets, capture_output=True, text=True, timeout=180)
     _guard_built_3(proc)
     _guard_built_4()
     _guard_built_5()

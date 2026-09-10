@@ -96,7 +96,8 @@ oci_tags_leg(oci_tags_task_t *t, const char *hdrs,
     t->filters[0] = '\0';
     challenge[0]  = '\0';
 
-    if (tr->request(NULL, t->up->host, t->up->port, t->up->tls, "GET", t->path,
+    if (tr->request(&t->up->tctx, t->up->host, t->up->port, t->up->tls, "GET",
+                    t->path,
                     hdrs, NULL, 0, OCI_TAGS_TIMEOUT_MS, &resp,
                     errbuf, sizeof(errbuf)) != 0)
     {

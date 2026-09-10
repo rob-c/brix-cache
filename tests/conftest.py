@@ -143,6 +143,7 @@ from brix_suite.harness.fixtures import (  # noqa: F401  (re-exported)
     lifecycle,
     matrix_node,
     pytest_generate_tests,
+    pytest_runtest_makereport,
     ref_brix_gsi,
     ref_brix_gsi_shared,
     ref_xrootd,

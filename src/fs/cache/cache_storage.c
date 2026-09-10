@@ -318,9 +318,9 @@ cache_build_wt_stage(ngx_pool_t *pool, ngx_log_t *log,
     brix_sd_instance_t *store;
     brix_sd_instance_t *origin;
 
-    if (!conf->wt.enable
-        || (conf->wt.origin_host.len == 0 && conf->cache_origin_host.len == 0))
-    {
+    /* 2.0: the cache_origin_host arm of this test was dead with the retired
+     * brix_cache_origin directive — a write-back stage needs brix_wt_origin. */
+    if (!conf->wt.enable || conf->wt.origin_host.len == 0) {
         return;
     }
 

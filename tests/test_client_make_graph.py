@@ -29,6 +29,7 @@ import pathlib
 import re
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -55,11 +56,7 @@ def _dry_run(goal: str) -> subprocess.CompletedProcess:
     """
     if shutil.which("make") is None:
         pytest.skip("no make")
-    return subprocess.run(
-        ["make", "-n", "-B", "-C", str(CLIENT), "MAKE=true", f"PROTO_LIB={ABSENT}", goal],
-        capture_output=True,
-        text=True,
-    )
+    return client_make(str(CLIENT), "-n", "-B", "MAKE=true", f"PROTO_LIB={ABSENT}", goal, capture_output=True, text=True)
 
 
 @pytest.mark.parametrize("goal", ["libbrixposix_preload.so", "lib"])

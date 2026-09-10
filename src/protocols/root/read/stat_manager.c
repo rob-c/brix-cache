@@ -105,7 +105,8 @@ stat_manager_route(brix_ctx_t *ctx, ngx_connection_t *c,
             brix_log_access(ctx, c, "STAT", reqpath, "registry",
                               1, kXR_ok, NULL, 0);
             BRIX_OP_OK(ctx, BRIX_OP_STAT);
-            *rc = brix_send_redirect(ctx, c, redir_host, redir_port);
+            *rc = brix_cms_answer_selected(ctx, c, conf, redir_host,
+                                           redir_port);
             return 0;
         }
     }

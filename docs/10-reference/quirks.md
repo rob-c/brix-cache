@@ -181,8 +181,8 @@ The module has separate implementations with different limits:
 - on the source, read-opens with `tpc.dst` + `tpc.key` register the rendezvous key;
   read-opens with `tpc.org` + `tpc.key` consume it before serving bytes
 - the outbound pull client can complete ztn or GSI after `kXR_authmore` when
-  configured; TLS-upgraded origins and multihop delegation remain deployment
-  validation points
+  configured; TLS-upgraded origins, redirect following (`brix_tpc_max_hops`) and
+  multi-stream pulls (`brix_tpc_streams`) are built in
 - WebDAV HTTP-TPC is handled in a dedicated helper path
 
 The WebDAV TPC implementation is intentionally pragmatic:
@@ -349,8 +349,8 @@ Across both the stream and WebDAV code, a repeated design choice is:
 
 Examples:
 
-- native root TPC has destination-pull and source rendezvous paths, while TLS
-  upgrade and multihop delegation remain narrower than upstream
+- native root TPC has destination-pull and source rendezvous paths with TLS
+  upgrade, redirect following and multi-stream pulls; there is no native push
 - WebDAV TPC is implemented separately and uses helper/subprocess paths for the
   most complex HTTP/OAuth2 interactions
 - token authorization is checked at protocol-appropriate points rather than in
@@ -588,11 +588,17 @@ The endpoint-diagnostic verbs (`certinfo`, `clockskew`, `whoami`, `caps`, and th
   not return the mapped username, so `whoami` reports the negotiated auth protocol
   (`chosen_auth`), the server's offered `&P=` sec list, and your local token subject /
   proxy DN — which is what you need to debug "I have a token but get 403".
-- **`caps` `=0` is ambiguous.** This module answers `chksum`/`readv`/`tpc`/`tpcdlg`/
-  `xrdfs.ext` meaningfully and echoes `<key>=0` for any *other* probed key, so
-  `version=0`/`role=0`/`sitename=0` against this module means "not answered" rather than
-  a real zero; against stock XRootD those keys return real values. Role is taken from the
-  protocol `server_flags`, not from Qconfig.
+- **`caps` `=0` is ambiguous.** This module answers the capability and limit keys
+  (`chksum`, `readv`, `readv_ior_max`, `readv_iov_max`, `tpc`, `tpcdlg`, `cmpread`,
+  `cmpwrite`, `xrdfs.ext`, `brix.substreams`, `bind_max`, `pio_max`, `fattr`,
+  `window`) and the deployment-identity keys (`version`, `role`, `sitename`), and
+  echoes `<key>=0` for anything else, so a `=0` means "not a key this build knows"
+  rather than a real zero. The one exception is a public gateway: under
+  [`brix_read_only_public`](../03-configuration/directives.md#brix_read_only_public-onoff)
+  the three identity keys are withheld and echo `=0` exactly like an unknown key —
+  deliberately indistinguishable, so probing cannot tell a restricted server from an
+  old one. Role is also carried in the protocol `server_flags`, which a withheld
+  `role` does not affect.
 - **`doctor` makes two connections per endpoint.** One authenticated (liveness, auth,
   TLS posture, caps) and one no-login insecure probe (server cert) — so it can show cert
   expiry even when the main session is cleartext or the cert is untrusted. `doctor --json`

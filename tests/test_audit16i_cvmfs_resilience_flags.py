@@ -116,9 +116,6 @@ class TestTheBundleEndpoint:
 # B. brix_cvmfs_dict                                                           #
 # --------------------------------------------------------------------------- #
 
-DICT_CURRENT = ".cvmfs-dict/current"
-DICT_DISABLED = "dict endpoint disabled (brix_cvmfs_dict off)"
-
 
 class TestTheSharedDictionaryEndpoint:
     """The dictionary endpoint is GET-only, so unlike §A both arms speak the
@@ -181,16 +178,6 @@ class TestTheSharedDictionaryEndpoint:
 # --------------------------------------------------------------------------- #
 # C. brix_cvmfs_delta                                                          #
 # --------------------------------------------------------------------------- #
-
-DELTA_BASE_HEADER = "X-Brix-Delta-Base"
-
-
-def _delta_probe(endpoint):
-    """Fill both revisions, then ask for the newer one naming the older as the
-    base — the exact exchange a CVMFS client makes on a catalogue update."""
-    _warm(endpoint, REPO_A, [_cas_rel(REV_N), _cas_rel(REV_N1)])
-    return _fetch(endpoint, REPO_A, _cas_rel(REV_N1),
-                  headers={DELTA_BASE_HEADER: hashlib.sha1(REV_N).hexdigest()})
 
 
 class TestTheDeltaEncoding:
@@ -259,15 +246,6 @@ class TestTheDeltaEncoding:
 # --------------------------------------------------------------------------- #
 # D. brix_cvmfs_scrub                                                          #
 # --------------------------------------------------------------------------- #
-
-SCRUB_SUPPORT = ("brix_cvmfs_scrub_interval 1;", "brix_cvmfs_scrub_rate 4;")
-SCRUB_PASS = "scrub pass"
-
-
-def _corrupt(path):
-    """Overwrite a cached object in place, keeping its size — the scrub's whole
-    job is to notice that the bytes no longer hash to the name."""
-    path.write_bytes(b"\x00" * path.stat().st_size)
 
 
 class TestTheCacheScrub:
@@ -342,36 +320,6 @@ class TestTheCacheScrub:
 # E. brix_cvmfs_learn                                                          #
 # --------------------------------------------------------------------------- #
 
-LEARN_SUPPORT = ("brix_cvmfs_scrub on;", "brix_cvmfs_scrub_interval 1;",
-                 "brix_cvmfs_scrub_rate 4;")
-LEARN_LINE = "cvmfs-learn"
-
-
-def _train_then_evict(endpoint, tmp_path, first, second):
-    """Teach the successor model that `second` follows `first`, then take
-    `second` out of the cache.
-
-    The training rounds go down keep-alive connections because the model is
-    connection-keyed, and the eviction goes through the scrub (corrupt the
-    cached copy and let the verifier drop it) because that is the one way to
-    empty a slot without also telling the cache the object was wanted.
-    """
-    _warm(endpoint, REPO_A, [first, second])
-    for _ in range(2):
-        conn = _session(endpoint)
-        try:
-            for rel in (first, second):
-                status, _ = _session_get(conn, REPO_A, rel)
-                assert status == 200, f"{rel}: {status}\n{_errlog(endpoint)}"
-        finally:
-            conn.close()
-    resident = _resident(tmp_path, REPO_A, second)
-    assert resident is not None, f"nothing was cached\n{_errlog(endpoint)}"
-    _corrupt(resident)
-    assert _await_gone(resident), (
-        f"the scrub never evicted the successor\n{_errlog(endpoint)}")
-    return resident
-
 
 class TestThePrefetchLearner:
     """A read of A must pull B in behind it once the model has seen the pair —
@@ -444,35 +392,6 @@ class TestThePrefetchLearner:
 # --------------------------------------------------------------------------- #
 # F. brix_cvmfs_swarm                                                          #
 # --------------------------------------------------------------------------- #
-
-ROSTER = ".swarm/roster"
-NOT_CVMFS = "path is not a CVMFS traffic shape"
-
-
-def _swarm_support():
-    """The seed ring.  Written on every arm, including the closed ones: the
-    directive parses with the flag off (§K) and leaving it out would make the
-    reading "no peers" rather than "swarm off".
-
-    The ring names this node (the ledger's own port, which the lifecycle harness
-    has already rebased to the real one) and one member that is not listening,
-    because a roster of one live node cannot show a ring that was seeded from
-    the directive rather than from the listener it happens to be on.
-    """
-    return (f"brix_cache_peers self={HOST}:{PORT} {HOST}:{DEAD_PORT};",
-            "brix_cvmfs_swarm_interval 1;")
-
-
-def _roster(endpoint, timeout=30):
-    """The roster is a reserved name directly under the cvmfs prefix, not under
-    a repository, so it does not go through `_fetch`."""
-    url = f"http://{HOST}:{endpoint.port}/cvmfs/{ROSTER}"
-    try:
-        return requests.get(url, timeout=timeout)
-    except requests.RequestException as exc:
-        raise AssertionError(
-            f"the listener did not answer the roster on port {endpoint.port}: "
-            f"{exc!r}\n{_errlog(endpoint)}") from exc
 
 
 class TestTheSwarmRoster:
@@ -549,10 +468,6 @@ class TestTheSwarmRoster:
 
 # Bounds so the closed arm's failure lands inside a test rather than inside the
 # default 25s client hold and 300s fill lifetime.  Written on every arm.
-UNIFIED_SUPPORT = (f"brix_cvmfs_upstream_allow {HOST};",
-                   "brix_cvmfs_origin_connect_timeout 1;",
-                   "brix_cvmfs_client_hold 4;",
-                   "brix_cvmfs_fill_max_life 8;")
 
 
 class TestTheUnifiedOriginProxy:
@@ -621,8 +536,6 @@ class TestTheUnifiedOriginProxy:
 # H. brix_scvmfs                                                               #
 # --------------------------------------------------------------------------- #
 
-SCVMFS_SUPPORT = ("brix_scvmfs_authz none;",)
-
 
 class TestTheSecureCvmfsLayer:
     """Secure-CVMFS is a LAYER on cvmfs whose preamble requires TLS.  On a
@@ -661,13 +574,4 @@ class TestTheSecureCvmfsLayer:
 # I. What a child location can take back — DEFECT CANDIDATE #80                #
 # --------------------------------------------------------------------------- #
 
-# One probe per flag, each returning a value that differs between "the server's
-# `on` reached this location" and "the location's `off` won".  The support lines
-# ride at server level with the `on`, so the location writes exactly one word.
-INHERIT_SUPPORT = {
-    "brix_cvmfs_scrub": SCRUB_SUPPORT,
-    "brix_cvmfs_learn": LEARN_SUPPORT,
-    "brix_cvmfs_swarm": None,          # filled in at call time — needs the port
-    "brix_cvmfs_unified_origin": UNIFIED_SUPPORT,
-}
 

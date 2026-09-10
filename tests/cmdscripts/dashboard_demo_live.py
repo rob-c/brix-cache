@@ -12,7 +12,7 @@ xrdcp; here the pacing loop feeds/reads the xrdcp pipe directly), so the wire
 rate is smooth and the portal never shows a full-speed burst.
 
 Stop the live traffic:  kill -- -$(cat /tmp/xrd-dash-demo.pid)
-Stop the gateway:       tests/manage_test_servers.sh stop
+Stop the gateway:       python3 -m cmdscripts.manage_test_servers stop-all
 """
 
 from __future__ import annotations
@@ -354,7 +354,7 @@ def _demo_announcement(settings, generator_pid):
   Stream-group leader pid: {generator_pid}
 
   Stop the live traffic:   kill -- -{generator_pid}    (or: kill -- -$(cat {GEN_PIDFILE}))
-  Stop the gateway:        tests/manage_test_servers.sh stop
+  Stop the gateway:        python3 -m cmdscripts.manage_test_servers stop-all
 ============================================================================
 """)
 

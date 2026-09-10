@@ -1,5 +1,6 @@
 #include "sss_internal.h"
 #include "core/compat/sss_bf.h"   /* brix_sss_build_credential — shared with the client */
+#include "core/compat/sss_entity.h"   /* brix_sss_build_entity_credential — v2 entity (F9) */
 
 #include <openssl/rand.h>
 #include <string.h>
@@ -47,6 +48,36 @@ brix_sss_build_proxy_credential(const brix_sss_key_t *key,
     if (brix_sss_build_credential(key->key, key->key_len, (uint64_t) key->id,
                                     username, nonce, gen_time,
                                     buf, buf_max, out_len) != 0)
+    {
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/*
+ * brix_sss_build_proxy_entity_credential — the v2 entity form of the above
+ * (release-2.0-readiness F9): same RNG/clock edge, the byte assembly in the
+ * shared sss_entity kernel so the proxy and the native client mint the
+ * identical wire.  Fails closed when any entity field is over its cap.
+ */
+ngx_int_t
+brix_sss_build_proxy_entity_credential(const brix_sss_key_t *key,
+    const brix_sss_entity_t *ent, u_char *buf, size_t buf_max, size_t *out_len)
+{
+    u_char   nonce[32];
+    uint32_t gen_time;
+
+    if (key == NULL || ent == NULL) {
+        return NGX_ERROR;
+    }
+    if (RAND_bytes(nonce, sizeof(nonce)) != 1) {
+        return NGX_ERROR;
+    }
+    gen_time = (uint32_t) (ngx_time() - BRIX_SSS_BASE_TIME);
+
+    if (brix_sss_build_entity_credential(key->key, key->key_len,
+                                           (uint64_t) key->id, ent, nonce,
+                                           gen_time, buf, buf_max, out_len) != 0)
     {
         return NGX_ERROR;
     }

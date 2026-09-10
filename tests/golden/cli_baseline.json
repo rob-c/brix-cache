@@ -344,7 +344,7 @@
   "noarg:xrootdfs": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "46ef7defc6e37eea83668e3aa5288f2fe768e7e6519070935ffc3e3df28a8890"
+    "stderr_sha": "e4a11bb703b167886f37ace4f8920a1ca922b31c5f7f4dda837d1264b70cb1b5"
   },
   "fleet:xrdcp_missing": {
     "exit": 54,

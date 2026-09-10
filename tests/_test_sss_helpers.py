@@ -21,8 +21,10 @@ than reconstructed from the spec:
   body              BF32(cleartext + CRC32-IEEE(cleartext), big-endian CRC)
   cleartext         32-byte nonce | gen_time (4B BE, epoch BRIX_SSS_BASE_TIME)
                     | 3 reserved | option byte | identity TLVs
-  NAME TLV          type=0x01 | 0x00 | len | value NUL-terminated (len counts
-                    the NUL)
+  identity TLV      type | len (2 bytes, big-endian) | value
+  packed string     NUL-terminated, the NUL counted in the length — NAME,
+                    VORG, ROLE, GRPS and ENDO all use this form; CRED is
+                    raw bytes and LGID (server → client) is packed
 
 BF32 is Blowfish-CFB64 with an all-zero IV and no padding — a stream mode, so
 the ciphertext is the same length as the plaintext.
@@ -49,9 +51,23 @@ SSS_DATA_HDR_LEN = 40
 SSS_BASE_TIME = 1222183880
 SSS_ENC_BF32 = ord("0")
 SSS_OPT_USEDATA = 0x00
+SSS_OPT_SNDLID = 0x01
+
+# The identity tags.  NAME/GRPS/HOST are the 1.x set; VORG, ROLE, ENDO and
+# CRED are what F9 taught the parser, and LGID is the one the server sends
+# back inside a kXR_authmore challenge.
 SSS_TYPE_NAME = 0x01
+SSS_TYPE_VORG = 0x02
+SSS_TYPE_ROLE = 0x03
+SSS_TYPE_GRPS = 0x04
+SSS_TYPE_ENDO = 0x05
+SSS_TYPE_CRED = 0x06
+SSS_TYPE_RAND = 0x07
+SSS_TYPE_LGID = 0x10
+SSS_TYPE_HOST = 0x20
 
 KXR_AUTH = 3000
+KXR_AUTHMORE = 4002
 
 
 def sss_write_keytab(path, key, key_id=1, user="anybody", group="anygroup",
@@ -72,14 +88,49 @@ def sss_write_keytab(path, key, key_id=1, user="anybody", group="anygroup",
     return path
 
 
+def sss_tlv(tag, value):
+    """One identity TLV: 1-byte tag, 2-byte big-endian length, value."""
+    return struct.pack(">BH", tag, len(value)) + value
+
+
+def sss_packed(text):
+    """A packed string field: NUL-terminated, the NUL counted in the length."""
+    return text.encode() + b"\x00"
+
+
+def _sss_clear(nonce, gen_time, opt, username, tlvs, trailer):
+    """The pre-encryption cleartext: the 40-byte data header, then the TLVs.
+
+    Split out of sss_credential so the minter stays one decision per
+    keyword: this is where the wire SHAPE lives, that is where the
+    defaults and the tamper switch live.
+    """
+    clear = bytearray(SSS_DATA_HDR_LEN)
+    clear[0:32] = nonce
+    clear[32:36] = struct.pack(">I", gen_time & 0xFFFFFFFF)
+    clear[39] = opt
+
+    if username is not None:
+        clear += sss_tlv(SSS_TYPE_NAME, sss_packed(username))
+    for tag, value in tlvs:
+        clear += sss_tlv(tag, value)
+    return bytes(clear) + trailer
+
+
 def sss_credential(key, key_id=1, username="xrd", gen_time=None, nonce=None,
-                   opt=SSS_OPT_USEDATA, corrupt_crc=False):
+                   opt=SSS_OPT_USEDATA, corrupt_crc=False, tlvs=(),
+                   trailer=b""):
     """Mint one SSS credential.
 
     ``gen_time`` is seconds since BRIX_SSS_BASE_TIME; pass an explicit value to
     drive the freshness check.  ``corrupt_crc`` flips a bit of the integrity
     trailer *before* encryption, which is how a tamper negative is expressed
     without also breaking the framing the server checks first.
+
+    ``tlvs`` is [(tag, value)] appended after NAME, which is how a v2 entity
+    is put on the wire; ``username=None`` omits NAME entirely.  ``trailer``
+    is appended raw, inside the CRC and the cipher, so a malformed-TLV
+    negative can hand the parser a shape sss_tlv() cannot express.
     """
     if gen_time is None:
         import time
@@ -87,13 +138,7 @@ def sss_credential(key, key_id=1, username="xrd", gen_time=None, nonce=None,
     if nonce is None:
         nonce = os.urandom(32)
 
-    clear = bytearray(SSS_DATA_HDR_LEN)
-    clear[0:32] = nonce
-    clear[32:36] = struct.pack(">I", gen_time & 0xFFFFFFFF)
-    clear[39] = opt
-
-    value = username.encode() + b"\x00"
-    clear += bytes([SSS_TYPE_NAME, 0, len(value)]) + value
+    clear = _sss_clear(nonce, gen_time, opt, username, tlvs, trailer)
 
     crc = zlib.crc32(bytes(clear)) & 0xFFFFFFFF
     if corrupt_crc:
@@ -112,3 +157,33 @@ def sss_auth_frame(cred):
     """The kXR_auth request carrying an SSS credential (credtype "sss\\0")."""
     return (struct.pack(">BBH", 0, 1, KXR_AUTH) + b"\x00" * 12 + b"sss\x00"
             + struct.pack(">I", len(cred)) + cred)
+
+
+def sss_decrypt(key, blob):
+    """The cleartext inside an SSS blob: header stripped, CRC32 verified.
+
+    The mirror of the minter, and the only way to read what the SERVER put
+    on the wire — the kXR_authmore challenge is a full SSS blob under the
+    same key.  The framing checks are brix_sss_challenge_lgid()'s
+    (src/core/compat/sss_entity.c), so a test fails here for exactly the
+    reasons the native client would refuse the same bytes.
+    """
+    assert blob[:4] == b"sss\x00" and blob[7] == SSS_ENC_BF32, blob[:8].hex()
+    dec = Cipher(Blowfish(key), CFB(b"\x00" * 8)).decryptor()
+    body = blob[SSS_HDR_LEN + blob[6]:]
+    plain = dec.update(body) + dec.finalize()
+    clear = plain[:-4]
+    assert struct.unpack(">I", plain[-4:])[0] == zlib.crc32(clear) & 0xFFFFFFFF
+    return clear
+
+
+def sss_identity_tlvs(clear):
+    """[(tag, value)] parsed out of a decrypted credential, in wire order."""
+    out = []
+    pos = SSS_DATA_HDR_LEN
+    while pos + 3 <= len(clear):
+        tag, length = struct.unpack(">BH", clear[pos:pos + 3])
+        pos += 3
+        out.append((tag, clear[pos:pos + length]))
+        pos += length
+    return out

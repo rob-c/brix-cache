@@ -14,6 +14,7 @@ longer resolves to tests/).
 """
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -246,3 +247,58 @@ def ref_brix_gsi_shared(test_env):
         "port": REF_BRIX_GSI_SHARED_PORT,
         "data_dir": test_env["data_dir"],
     }
+
+
+# ---------------------------------------------------------------------------
+# Failure-time capture of lifecycle instance logs (history §21(g)).
+#
+# A harness that tears its servers down must capture their logs into the
+# failure artifact at the moment of failure.  Run 39 of the fail-fast race
+# hunt halted on a lifecycle test whose only evidence — the instance's
+# error.log — was gone by the time anyone looked: ``lifecycle`` teardown
+# removes the prefix.  The makereport hook runs BEFORE fixture teardown, so
+# the tail is still there to read.
+
+ERROR_LOG_TAIL_LINES = 40
+_ERROR_LOG_TAIL_BYTES = 64 * 1024
+
+
+def _tail_lines(path: Path, lines: int) -> list[str]:
+    """Last ``lines`` lines of ``path``, reading at most the final 64 KiB —
+    a multi-megabyte log costs a failing test one bounded read, not a full
+    parse.  Bytes are decoded leniently: a crash tail is worth more than
+    strict UTF-8."""
+    with path.open("rb") as fh:
+        fh.seek(0, os.SEEK_END)
+        fh.seek(max(0, fh.tell() - _ERROR_LOG_TAIL_BYTES))
+        data = fh.read()
+    return data.decode("utf-8", errors="replace").splitlines()[-lines:]
+
+
+def error_log_sections(paths: dict[str, Path],
+                       lines: int = ERROR_LOG_TAIL_LINES) -> list[tuple[str, str]]:
+    """Report sections for a failed lifecycle test: one per instance whose
+    error.log can be read.  A missing or unreadable log is skipped — the
+    capture must never turn one red into two."""
+    sections: list[tuple[str, str]] = []
+    for name, path in paths.items():
+        try:
+            tail = _tail_lines(path, lines)
+        except OSError:
+            continue
+        sections.append((f"lifecycle error.log tail [{name}]", "\n".join(tail)))
+    return sections
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Append each lifecycle instance's error.log tail to a failed call
+    report, while the prefixes still exist (teardown runs after this)."""
+    outcome = yield
+    report = outcome.get_result()
+    if report.when != "call" or not report.failed:
+        return
+    harness = getattr(item, "funcargs", {}).get("lifecycle")
+    if not isinstance(harness, LifecycleHarness):
+        return
+    report.sections.extend(error_log_sections(harness.error_log_paths()))

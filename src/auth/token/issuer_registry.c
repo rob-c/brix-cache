@@ -388,7 +388,7 @@ brix_token_registry_build(ngx_conf_t *cf, const char *cfg_path,
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "brix_token: loaded %d issuer(s) from %s", reg->count, cfg_path);
+        "brix_token_config: loaded %d issuer(s) from %s", reg->count, cfg_path);
     *out = reg;
     return NGX_OK;
 }

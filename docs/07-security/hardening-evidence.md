@@ -56,19 +56,21 @@ failure mode, fix it, write it down, pin it with a regression test.*
   stall defaults, `src/protocols/cvmfs/module.c`), retried against fresh
   connections (force-primary policy), and — when everything upstream fails —
   answered from cache with stale-if-error. A client storm coalesces into a
-  single upstream fill. (`tests/run_cvmfs_resilience.sh`)
+  single upstream fill. (the `resilience` scenario of
+  `tests/cmdscripts/cvmfs_live_ext.py`, driven by
+  `tests/test_cvmfs_live_ext.py`)
 
 ## 3. Proof by torture
 
 - Full suite **~8,700 tests**; the slow lane — **~1,770 tests** — exists
   specifically to hurt the software: resilience, chaos, fault injection
   (`tests/README.md`).
-- A TCP fault-injection proxy (`tests/c/fault_proxy.c`) resets connections
+- A TCP fault-injection proxy (`client/apps/diag/brix_fault_proxy.c`) resets connections
   mid-read and injects stalls and latency while suites assert **byte-exact**
   results and **zero EIO** surfaced to applications
   (`tests/test_xrootdfs_resilience.py`).
-- A `netem` network-emulation lab degrades whole links
-  (`tests/cvmfs/netem_lab.sh`).
+- A `netem` network-emulation lab degrades whole links (the `netem-lab`
+  scenario of `tests/cmdscripts/cvmfs_matrix.py`).
 - Conformance is cross-checked, not assumed: the same tests run against
   BriX-Cache and the reference XRootD implementation
   (`TEST_CROSS_BACKEND`).

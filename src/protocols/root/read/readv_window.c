@@ -142,6 +142,20 @@ brix_readv_window_emit(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_readv_window_sizes(ctx, &want, &prefix);
     prefix -= want;
 
+    /* §4.5 serve-while-filling: EAGAIN is the in-flight fill's frontier, not a
+     * fault. A readv body advertises its full length in the outer header, so
+     * once that header is out the train CANNOT be shortened or waited on — the
+     * started case keeps the existing abort. Before it, kXR_wait and the client
+     * re-issues the whole readv. */
+    if (nread < 0 && io_errno == EAGAIN && !ctx->rd.win_readv_started) {
+        ctx->rd.win_active = 0;
+        ctx->rd.win_readv = 0;
+        ctx->rd.win_readv_wire = NULL;
+        ctx->state = XRD_ST_REQ_HEADER;
+        ctx->recv.hdr_pos = 0;
+        return brix_read_io_error(ctx, c, io_errno);
+    }
+
     if (nread < 0 || (size_t) nread != want) {
         const char *message = nread < 0 && io_errno != 0
                               ? strerror(io_errno) : "readv past EOF";
@@ -216,6 +230,7 @@ brix_readv_serve_windowed(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     ctx->rd.win_active = 1;
+    ctx->rd.win_sent = 0;    /* §4.5: nothing promised on the wire yet */
     ctx->rd.win_pgread = 0;
     ctx->rd.win_readv = 1;
     ctx->rd.win_readv_started = 0;

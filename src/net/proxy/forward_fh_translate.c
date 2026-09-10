@@ -55,7 +55,7 @@ check_bound_secondary_lazy_open(brix_proxy_ctx_t *proxy,
     if (local_fh < 0 || local_fh >= BRIX_MAX_FILES) {
         return NGX_DECLINED;
     }
-    if (proxy->fh_map[local_fh].upstream_fh != BRIX_PROXY_FH_FREE) {
+    if (proxy->fh_map[local_fh].fh_state != BRIX_PROXY_FH_FREE) {
         return NGX_DECLINED;
     }
 
@@ -146,7 +146,7 @@ translate_ckpxeq_sub_request(brix_proxy_ctx_t *proxy,
  *       whose fhandle must also be translated, and if that sub-request is writev,
  *       every write_list descriptor fhandle needs translation too.
  *
- * HOW:  Extract local_fh from req[4]. For bound-secondary reads, check if upstream_fh
+ * HOW:  Extract local_fh from req[4]. For bound-secondary reads, check if the slot
  *       is still free; if so, transfer req to lazy_open and return NGX_DONE (caller
  *       exits immediately). Otherwise translate body[0]. For kXR_ckpXeq, delegate to
  *       the nested sub-request translator.
@@ -195,7 +195,7 @@ brix_proxy_fh_translate_single(brix_proxy_ctx_t *proxy,
  *       them sequentially before dispatching the request.
  *
  * HOW:  Iterate the descriptor array, extract fh from each entry. If the handle
- *       is in range, unopened (upstream_fh == FREE), and not yet seen, add it
+ *       is in range, unopened (fh_state == FREE), and not yet seen, add it
  *       to pending[] and mark seen[].
  */
 static int
@@ -215,7 +215,7 @@ collect_unopened_readv_handles(brix_proxy_ctx_t *proxy,
     while (pos + 16 <= cur_dlen) {
         int fh = (int)(unsigned char) payload[pos];
         if (fh >= 0 && fh < BRIX_MAX_FILES
-            && proxy->fh_map[fh].upstream_fh == BRIX_PROXY_FH_FREE
+            && proxy->fh_map[fh].fh_state == BRIX_PROXY_FH_FREE
             && !seen[fh])
         {
             seen[fh] = 1;

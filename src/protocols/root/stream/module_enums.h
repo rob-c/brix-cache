@@ -19,6 +19,7 @@ extern ngx_conf_enum_t brix_acc_format_modes[];
 extern ngx_conf_enum_t brix_acc_audit_modes[];
 extern ngx_conf_enum_t brix_hc_types[];
 extern ngx_conf_enum_t brix_cms_roles[];
+extern ngx_conf_enum_t brix_cms_response_modes[];
 extern ngx_conf_enum_t brix_security_levels[];
 extern ngx_conf_enum_t brix_min_sec_levels[];
 extern ngx_conf_enum_t brix_signed_dh_modes[];
@@ -27,5 +28,7 @@ extern ngx_conf_enum_t brix_cache_verify_modes[];
 extern ngx_conf_enum_t brix_seccomp_modes[];
 extern ngx_conf_enum_t brix_signing_policy_modes[];
 extern ngx_conf_enum_t brix_crl_modes[];
+extern ngx_conf_enum_t brix_crl_scopes[];        /* 2.0 F19 */
+extern ngx_conf_enum_t brix_tls_verify_logs[];   /* 2.0 F19 */
 
 #endif /* BRIX_STREAM_MODULE_ENUMS_H */

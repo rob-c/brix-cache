@@ -38,10 +38,10 @@ All build-clean (`-Werror`), fleet-restarted to load the new binary, and test-ga
 | `brix_vfs_ctx_init()` (`fs/vfs_open.c`, decl `fs/vfs.h`) | Duplicated `brix_vfs_ctx_t` HTTP-defaults setup | `webdav/get.c`, `s3/object.c` | 62 (webdav+s3 GET) |
 | `brix_build_pgread_chain()` (`aio/buffers.c`, decl `aio/aio.h`) | Byte-identical kXR_pgread `[status hdr][page data]` chain build across the **sync** and **AIO** transfer paths | `read/pgread.c`, `aio/reads.c` | 104 (readv/pgread security + integrity + conformance) |
 | `brix_connect_fd_deadline()` + `brix_apply_socket_io_timeouts()` (new `connection/netconnect.h`) | The "non-blocking connect + `poll()` deadline (SO_SNDTIMEO can't bound `connect(2)`) + SO_RCVTIMEO/SNDTIMEO" hardening, copied across 3 outbound connectors | `tpc/connect.c`, `cache/origin_connection.c`, `crypto/ocsp.c` (I/O-timeout only) | 47 (TPC + cache + ipv6-tpc) |
-| `brix_resolve_connect_socket()` (`connection/netconnect.h`) | The `getaddrinfo → iterate families → first non-blocking socket` preamble for the two **event-driven** connectors | `proxy/connect_upstream.c`, `upstream/start.c` | 91 (proxy mode + upstream redirect + topology) |
+| `brix_dns_resolve()` (`net/dns/dns.h`, phase-116) | The async `resolve → iterate answers → first non-blocking socket` preamble for the two **event-driven** connectors (the proxy resolves per connect, the root:// upstream through a registered `brix_dns_target_t`); the former header-only `getaddrinfo` helper is gone | `proxy/connect_upstream.c`, `upstream/start.c` | 91 (proxy mode + upstream redirect + topology) |
 | `brix_task_bind()` adoption (existing helper, `aio/aio.h`) | 8 hand-written `task->handler/event.handler/event.data` binding blocks | `s3/put.c` (×2), `webdav/put.c|copy.c|move.c`, `s3/multipart_complete_body.c`, `webdav/tpc_thread.c|tpc_marker.c` | 100 (S3 PUT/multipart + WebDAV PUT/COPY/MOVE + TPC) |
 
-**Design principles applied:** preserve exact wire **and** log output (e.g. `brix_resolve_connect_socket` returns a status enum so each caller keeps its own distinct "cannot resolve" vs "no usable address" message); header-only helpers where there's no new `.c` (so the `config` source list / `./configure` is untouched — the `netopt.h` precedent); keep protocol-specific tails (commit/checksum/finalize) behind the shared core.
+**Design principles applied:** preserve exact wire **and** log output (e.g. the proxy's resolve completion keeps its own distinct "cannot resolve" vs "no usable address" message); header-only helpers where there's no new `.c` (so the `config` source list / `./configure` is untouched — the `netopt.h` precedent); keep protocol-specific tails (commit/checksum/finalize) behind the shared core.
 
 ---
 
@@ -52,7 +52,7 @@ All build-clean (`-Werror`), fleet-restarted to load the new binary, and test-ga
 | # | Question | Verdict | Evidence / notes |
 |---|---|---|---|
 | Q1 | Shared retry/backoff/reconnect primitive? | ➖ | Only CMS does exponential **time** backoff (`cms/connect.c`); manager (`registry.c`) and proxy use fail-**count** thresholds — different models, no dup. Client-side backoff+jitter lives in `client/` (out of `src/`). |
-| Q2 | Outbound resolve → SSRF → connect loop shareable? | ⚙️ | Blocking connectors (TPC, cache) share `netconnect.h`; event-driven (proxy, upstream) share `brix_resolve_connect_socket`. SSRF gate (`net_target`) correctly applies only to user-supplied TPC hosts. |
+| Q2 | Outbound resolve → SSRF → connect loop shareable? | ⚙️ | Blocking connectors (TPC, cache) share `netconnect.h` for the connect/timeout dance and `brix_dns_resolve_sync()` for the resolve; event-driven (proxy, upstream) resolve through `brix_dns_resolve()` / `brix_dns_target_next()` (phase-116). SSRF gate (`net_target`) correctly applies only to user-supplied TPC hosts. |
 | Q24 | Outbound handshake/login bootstrap builder? | ⚠️ | `brix_upstream_build_bootstrap` shared by upstream + mirror×2 + health_check; `proxy`/`tpc` keep own variants by design (username passthrough / GSI). |
 | Q34 | SSRF / net-target policy shared? | ✅ | `compat/net_target.c` (`check_addr`/`check_dns`/`check_dns_pin`). |
 | Q47 | Liveness/readiness probes shared? | ➖ | HTTP healthz vs CMS ping vs TCP connect-probe — different probe types. |
@@ -244,7 +244,7 @@ When adding a feature, prefer these existing shared surfaces over growing a para
 | Confined open/read/write/stat/opendir | `fs/vfs.h` (`brix_vfs_*`); HTTP-ctx defaults via `brix_vfs_ctx_init` |
 | Range GET (parse + headers + send) | `shared/file_serve.c` `brix_http_serve_file_ranged` |
 | Outbound connect (blocking thread) | `connection/netconnect.h` `brix_connect_fd_deadline` + `brix_apply_socket_io_timeouts` |
-| Outbound connect (event-driven) | `connection/netconnect.h` `brix_resolve_connect_socket` |
+| Outbound connect (event-driven) | `net/dns/dns.h` `brix_dns_resolve` (proxy) / `brix_dns_target_next` (upstream) |
 | Dead-peer socket hardening (inbound) | `connection/netopt.h` `brix_apply_tcp_deadpeer_opts` |
 | Thread-pool offload | `brix_task_bind` + `brix_aio_post_task` (`aio/aio.h`, `aio/resume.c`) |
 | Staged temp + atomic commit | `compat/staged_file.c` `brix_staged_open/commit/abort` |

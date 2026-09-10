@@ -7,6 +7,7 @@ and the bad-actor guard.
 
 | Dir | What |
 |---|---|
+| [dns/](dns/) | runtime DNS: resolv.conf policy, async resolver driver, target registry (phase 116) |
 | [cms/](cms/) | CMS protocol client: manager heartbeat, registration, kYR messaging |
 | [manager/](manager/) | manager-mode registry + client redirection |
 | [upstream/](upstream/) | upstream XRootD session handling for proxy mode (redirect/wait/waitresp) |

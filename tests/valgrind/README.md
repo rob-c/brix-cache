@@ -25,7 +25,7 @@ The test PKI + token fixtures must already exist (the harness does not regenerat
 certs/JWKS). Create them once with any pytest session or:
 
 ```bash
-tests/manage_test_servers.sh start-all
+python3 -m cmdscripts.manage_test_servers start-all
 ```
 
 ## Running
@@ -70,6 +70,6 @@ For the most faithful coverage (real generated configs, all planes), run the
 whole managed fleet under valgrind via `VALGRIND=1`:
 
 ```bash
-VALGRIND=1 tests/manage_test_servers.sh restart
+VALGRIND=1 python3 -m cmdscripts.manage_test_servers restart
 # drive tests, then stop; reports land in $TEST_ROOT/valgrind/vg.<pid>.log
 ```

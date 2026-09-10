@@ -287,6 +287,7 @@ brix_readv_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
     u_char           *buf;
     brix_vfs_job_t    job;
     char              error_message[128];
+    int               job_errno;
     size_t            segment_index;
 
     sec_ctx = brix_read_offload_secondary(ctx, c, req->pathid, &sec_c);
@@ -318,11 +319,19 @@ brix_readv_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
     req->response_buffer = buf + XRD_RESPONSE_HDR_LEN;
     brix_readv_build_descriptors(ctx, req);
 
-    if (brix_readv_run_job(req, &job, error_message, sizeof(error_message)) != 0) {
+    job_errno = brix_readv_run_job(req, &job, error_message,
+                                   sizeof(error_message));
+    if (job_errno != 0) {
         /* I/O failure: nothing has touched the secondary wire yet, so the error
          * rides the PRIMARY control stream exactly like the normal path. */
         ngx_free(req->segment_descs);
         brix_release_read_buffer(sec_ctx, sec_c, buf);
+        if (job_errno == EAGAIN) {
+            /* §4.5: a segment landed at an in-flight fill's frontier — a
+             * retry, not a fault, so it is not counted as an I/O error. */
+            *rc = brix_read_io_error(ctx, c, job_errno);
+            return 1;
+        }
         BRIX_OP_ERR(ctx, BRIX_OP_READV);
         *rc = brix_send_error(ctx, c, kXR_IOError,
                                 error_message[0] ? error_message

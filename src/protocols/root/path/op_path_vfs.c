@@ -13,10 +13,10 @@
  *       borrowed view into `url` — handling the "roots://" scheme, bracketed IPv6
  *       ([::1]:port), and an optional trailing "/path". Empty view when absent.
  *
- * WHY:  §5.7 krb5 EXCHANGE. The modern brix_storage_backend grammar parses the
- *       driver host lazily in the sd_xroot factory, so conf->cache_origin_host is
- *       empty on a plain root:// export; the delegated-TGT origin SPN derivation
- *       (brix_krb5_deleg_origin_spn) needs the host, recovered from the URL here.
+ * WHY:  §5.7 krb5 EXCHANGE. The brix_storage_backend grammar parses the driver
+ *       host lazily in the sd_xroot factory, so no config field carries it; the
+ *       delegated-TGT origin SPN derivation (brix_krb5_deleg_origin_spn) needs
+ *       the host, recovered from the URL here.
  *       The derived SPN is only a fallback — the origin's advertised "&P=krb5,<spn>"
  *       wins at auth time — but a non-empty host is required for the bind to run.
  *
@@ -182,18 +182,15 @@ brix_root_vfs_bind_session(brix_ctx_t *ctx,
     {
         ngx_str_t  cc;
         ngx_str_t  spn;
-        ngx_str_t  origin_host = conf->cache_origin_host;
-
-        /* The modern "brix_storage_backend root://host:port" grammar parses the
-         * origin host lazily in the driver factory (sd_xroot), so on a plain
-         * root:// export conf->cache_origin_host is empty here — only the legacy
-         * tier grammar fills it. Recover the host from the backend URL so the
-         * delegated-TGT origin SPN can still be derived; without it the krb5
-         * EXCHANGE bind would silently no-op and the origin leg would fall back
-         * to the (absent) service credential. */
-        if (origin_host.len == 0) {
-            origin_host = op_path_backend_host(&conf->common.storage_backend);
-        }
+        /* The "brix_storage_backend root://host:port" grammar parses the origin
+         * host lazily in the driver factory (sd_xroot), so the host is recovered
+         * from the backend URL here.  Without it the krb5 EXCHANGE bind would
+         * silently no-op and the origin leg would fall back to the (absent)
+         * service credential.  (Before 2.0 this preferred conf->cache_origin_host,
+         * written only by the retired brix_cache_origin directive — always empty,
+         * so the URL was always the real source.) */
+        ngx_str_t  origin_host =
+            op_path_backend_host(&conf->common.storage_backend);
 
         cc.data = (u_char *) ctx->krb5.ccache;
         cc.len  = ngx_strlen(ctx->krb5.ccache);

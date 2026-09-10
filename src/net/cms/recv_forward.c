@@ -29,6 +29,7 @@
 #include "fs/vfs/vfs.h"   /* confined open/unlink via the VFS seam */
 #include "fs/vfs/vfs_backend_registry.h"   /* non-POSIX backend driver routing */
 #include "node_ops.h"               /* Plane B forwarded-op planner */
+#include "node_fsxeq.h"             /* §2.19 cms.fsxeq operator program */
 #include "rrdata.h"                 /* Pup decode of forwarded payloads */
 #include "fs/path/beneath.h"
 
@@ -205,6 +206,23 @@ cms_forward_exec(ngx_brix_cms_ctx_t *ctx, brix_sd_instance_t *sd,
             "read-only export", (ngx_uint_t) code, plan->path);
         return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
                                          strerror(errno));
+    }
+
+    /* §2.19: an operator program configured for this op REPLACES both legs
+     * (stock cms.fsxeq semantics). It runs after the read-only gate — a
+     * read-only export refuses the op before any program is forked, so a
+     * program can never be used to write through a posture that forbids it —
+     * and before the leg choice, because the program is the leg. taken=1 means
+     * the dispatcher owns the op: it has either posted the run (whose thread
+     * replies later) or already answered a refusal. */
+    {
+        int        taken = 0;
+        ngx_int_t  frc;
+
+        frc = brix_cms_fsxeq_dispatch(ctx, code, streamid, plan, &taken);
+        if (taken) {
+            return frc;
+        }
     }
 
     if (sd != NULL) {

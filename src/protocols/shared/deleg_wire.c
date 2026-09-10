@@ -39,6 +39,7 @@ deleg_wire_stamp_sts(brix_vfs_ctx_t *vctx, ngx_http_brix_shared_conf_t *cc)
                    ? (int) cc->backend_sts_ttl : 3600;
     cf->flavor   = (cc->backend_sts_flavor != NGX_CONF_UNSET_UINT)
                    ? (int) cc->backend_sts_flavor : BRIX_STS_FLAVOR_AWS;
+    cf->dns      = cc->dns.policy;       /* phase-116: pin the endpoint host */
 
     brix_vfs_deleg_set_sts(vctx,
         (enum brix_cred_mode) cc->backend_delegation, cf);
@@ -91,5 +92,5 @@ brix_proto_deleg_stamp_conf(brix_vfs_ctx_t *vctx,
     }
     brix_vfs_deleg_set_exchange(vctx, &cc->backend_tx_endpoint,
         &cc->backend_tx_client_id, &cc->backend_tx_client_secret,
-        aud, &cc->backend_tx_cache);
+        aud, &cc->backend_tx_cache, cc->dns.policy);
 }

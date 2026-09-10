@@ -289,6 +289,21 @@
       offsetof(ngx_stream_brix_srv_conf_t, oss_quota_enforce),
       NULL },
 
+    /* Phase-115 W3.3: brix_oss_space <group> <prefix> [quota=<size>|quota=-1]
+     * — a named space group owning one export-relative prefix (repeatable;
+     * longest prefix wins). With brix_oss_quota_enforce on, the group's quota
+     * governs every write under its prefix and brix_oss_quota then governs
+     * only paths outside every group; quota=-1/absent = accounting only.
+     * kXR_Qspace reports the group its path (or ?oss.cgroup=<name>) selects;
+     * a create-open naming a group that does not own the path is refused
+     * (kXR_ArgInvalid). Setter: core/config/space_group_conf.c. */
+    { ngx_string("brix_oss_space"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE23,
+      brix_conf_set_oss_space,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
     /* §1.16: brix_admin_socket <path> — the runtime admin unix socket
      * (XrdXrootdAdmin analog): list/disc/msg live sessions. Node-global
      * (parse-time static, last one wins), served by worker 0; the socket file

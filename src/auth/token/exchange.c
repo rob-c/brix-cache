@@ -25,6 +25,8 @@
 
 #include <curl/curl.h>
 
+#include "net/dns/curl_pin.h"            /* brix_dns_curl_pin (phase-116) */
+
 #if BRIX_HAVE_JANSSON
 #include <jansson.h>
 #endif
@@ -266,6 +268,8 @@ brix_tx_parse_response(ngx_pool_t *pool, const u_char *doc, size_t len,
  * WHAT: run the token-exchange HTTP POST and return the raw JSON reply.
  * HOW:  in-process libcurl, HTTPS-only, form POST, optional HTTP Basic client
  *       auth, bounded response sink. Fails on transport error or HTTP >= 400.
+ *       The endpoint host is pinned through the phase-116 DNS driver
+ *       (cf->dns) so libcurl never resolves.
  */
 static ngx_int_t
 brix_tx_http_post(ngx_pool_t *pool, const char *endpoint, const ngx_str_t *body,
@@ -274,6 +278,8 @@ brix_tx_http_post(ngx_pool_t *pool, const char *endpoint, const ngx_str_t *body,
     CURL              *curl;
     CURLcode           res;
     struct curl_slist *hdrs = NULL;
+    struct curl_slist *resolve = NULL;
+    char               reason[BRIX_DNS_ERROR_LEN];
     long               code = 0;
     ngx_int_t          rc = NGX_ERROR;
 
@@ -321,6 +327,16 @@ brix_tx_http_post(ngx_pool_t *pool, const char *endpoint, const ngx_str_t *body,
         curl_easy_setopt(curl, CURLOPT_PASSWORD, csec);
     }
 
+    if (brix_dns_curl_pin(curl, cf->dns, endpoint, &resolve, reason,
+                          sizeof(reason)) != NGX_OK)
+    {
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+            "token-exchange: cannot resolve endpoint: %s", reason);
+        curl_slist_free_all(hdrs);
+        curl_easy_cleanup(curl);
+        return NGX_ERROR;
+    }
+
     res = curl_easy_perform(curl);
     if (res == CURLE_OK) {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
@@ -331,6 +347,7 @@ brix_tx_http_post(ngx_pool_t *pool, const char *endpoint, const ngx_str_t *body,
             curl_easy_strerror(res), code);
     }
 
+    curl_slist_free_all(resolve);
     curl_slist_free_all(hdrs);
     curl_easy_cleanup(curl);
     return rc;

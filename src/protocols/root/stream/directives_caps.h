@@ -56,6 +56,14 @@
       offsetof(ngx_stream_brix_srv_conf_t, caps.cms_state_fanout),
       NULL },
 
+    /* §2.15: coalesce concurrent locates for the same path onto one wave. */
+    { ngx_string("brix_cms_coalesce"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, caps.cms_coalesce),
+      NULL },
+
     { ngx_string("brix_recover_writes"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,

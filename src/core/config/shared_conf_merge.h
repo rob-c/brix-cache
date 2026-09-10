@@ -75,6 +75,9 @@ brix_shared_merge_backend(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev,
     ngx_http_brix_shared_conf_t *conf)
 {
     ngx_conf_merge_str_value(conf->storage_backend, prev->storage_backend, "");
+    if (conf->storage_backend_args == NULL) {   /* NULL-inherit, as cache_store_args */
+        conf->storage_backend_args = prev->storage_backend_args;
+    }
     ngx_conf_merge_str_value(conf->n2n_scheme, prev->n2n_scheme, "");
     ngx_conf_merge_str_value(conf->n2n_pool, prev->n2n_pool, "");
     ngx_conf_merge_str_value(conf->n2n_prefix, prev->n2n_prefix, "");
@@ -123,8 +126,6 @@ brix_shared_merge_backend(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev,
                               prev->backend_sts_flavor, 0);
     ngx_conf_merge_value(conf->backend_krb5_forwardable,
                          prev->backend_krb5_forwardable, 0);
-    ngx_conf_merge_value(conf->backend_passthrough_persist,
-                         prev->backend_passthrough_persist, 0);
     ngx_conf_merge_str_value(conf->backend_sss_keytab,
                              prev->backend_sss_keytab, "");
     ngx_conf_merge_size_value(conf->pblock_block_size, prev->pblock_block_size,
@@ -188,10 +189,13 @@ brix_shared_merge_tier(ngx_http_brix_shared_conf_t *prev,
     ngx_conf_merge_value(conf->cache_prefetch, prev->cache_prefetch, 0);
     ngx_conf_merge_size_value(conf->cache_prefetch_window,
                               prev->cache_prefetch_window, 8 * 1024 * 1024);
+    brix_cache_urlcgi_conf_merge(&conf->cache_urlcgi, &prev->cache_urlcgi);
     /* 0 == BRIX_CACHE_VERIFY_OFF (fs/cache/verify.h; not included here — it
      * drags stream-typed cache internals into every HTTP module conf). */
     ngx_conf_merge_uint_value(conf->cache_verify_mode, prev->cache_verify_mode,
                               0);
+    ngx_conf_merge_str_value(conf->cache_verify_digest,
+                             prev->cache_verify_digest, "");
     ngx_conf_merge_value(conf->cache_global_cas, prev->cache_global_cas, 0);
     ngx_conf_merge_value(conf->cache_passthrough, prev->cache_passthrough, 0);
     ngx_conf_merge_off_value(conf->cache_passthrough_max,
@@ -203,6 +207,10 @@ brix_shared_merge_tier(ngx_http_brix_shared_conf_t *prev,
     /* §4.3 pfc.uvkeep: 0 = off (a never-verified entry is trusted until its
      * normal TTL); a positive value bounds that trust window. */
     ngx_conf_merge_sec_value(conf->cache_uvkeep, prev->cache_uvkeep, 0);
+    /* §4.5 serve-while-filling: 0 = off (a whole-file fill blocks its readers
+     * until it commits, the pre-phase-115 behaviour). */
+    ngx_conf_merge_sec_value(conf->cache_serve_while_filling,
+                             prev->cache_serve_while_filling, 0);
 }
 
 /* authorization + x509 + token family (XrdAcc, ZIP, pwd, macaroon, CRL/
@@ -214,6 +222,14 @@ brix_shared_merge_authx(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev,
     /* XrdAcc engine settings (phase-101 W2): merge the 11 settings fields +
      * apply defaults. The per-worker tables/timer tail is untouched. */
     brix_acc_http_merge_conf(&conf->acc, &prev->acc);
+
+    /* 2.0 F20: same deferred refusal as the stream plane — the native grammar
+     * refuses a line it cannot parse, but only once `brix_acc_format` is final. */
+    if (brix_authdb_defect_refuse(cf, conf->acc.format,
+                                  &conf->acc.authdb_defect) != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
 
     /* ZIP member serving (phase-101 W4) — same defaults both planes had. */
     ngx_conf_merge_value(conf->zip_access, prev->zip_access, 0);
@@ -237,6 +253,15 @@ brix_shared_merge_authx(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev,
     ngx_conf_merge_uint_value(conf->signing_policy_mode, prev->signing_policy_mode,
                               BRIX_SP_MODE_ON);
     ngx_conf_merge_uint_value(conf->crl_mode, prev->crl_mode, BRIX_CRL_MODE_TRY);
+    /* 2.0 F19: default to the WIDEST revocation reach.  `last` is an opt-in
+     * narrowing for a deployment whose upstream CAs publish no usable CRL for
+     * their own issuers — never something an unconfigured server falls into. */
+    ngx_conf_merge_uint_value(conf->crl_scope, prev->crl_scope,
+                              BRIX_CRL_SCOPE_ALL);
+    /* 2.0 F19: silent by default — the verification log is a diagnostic an
+     * operator turns on, not a stream every server writes by default. */
+    ngx_conf_merge_uint_value(conf->tls_verify_log, prev->tls_verify_log,
+                              BRIX_TLS_VERIFY_LOG_OFF);
     ngx_conf_merge_str_value(conf->vomsdir, prev->vomsdir, "");  /* W4 */
     ngx_conf_merge_str_value(conf->voms_cert_dir, prev->voms_cert_dir, "");  /* W4 */
     ngx_conf_merge_str_value(conf->token_jwks, prev->token_jwks, "");  /* W4 */
@@ -324,6 +349,20 @@ brix_shared_merge_net(ngx_http_brix_shared_conf_t *prev,
     if (conf->tpc_source_allow == NULL) {  /* W4: NULL-inherit like protbind */
         conf->tpc_source_allow = prev->tpc_source_allow;
     }
+    /* 2.0 F18 identity matrix: each rule array is inherited WHOLE (all-or-none,
+     * like protbind) so a server block that writes one rule does not silently
+     * union the parent's — a partially-inherited allowlist is the classic way a
+     * narrowing control turns into a widening one.  `oids` is default-deny. */
+    if (conf->tpc_allow_identity == NULL) {
+        conf->tpc_allow_identity = prev->tpc_allow_identity;
+    }
+    if (conf->tpc_require == NULL) {
+        conf->tpc_require = prev->tpc_require;
+    }
+    if (conf->tpc_restrict == NULL) {
+        conf->tpc_restrict = prev->tpc_restrict;
+    }
+    ngx_conf_merge_value(conf->tpc_oids, prev->tpc_oids, 0);
     ngx_conf_merge_value(conf->tpc_require_source_size,
                          prev->tpc_require_source_size, 0);
     ngx_conf_merge_str_value(conf->tpc_verify_checksum,
@@ -342,6 +381,10 @@ brix_shared_merge_net(ngx_http_brix_shared_conf_t *prev,
                              prev->tpc_outbound_client_secret, "");
     ngx_conf_merge_str_value(conf->tpc_outbound_scope,
                              prev->tpc_outbound_scope, "storage.read");
+    ngx_conf_merge_sec_value(conf->tpc_outbound_renew_lead,
+                             prev->tpc_outbound_renew_lead, 0);
+    ngx_conf_merge_value(conf->tpc_outbound_renew_strict,
+                         prev->tpc_outbound_renew_strict, 0);
     ngx_conf_merge_str_value(conf->certificate, prev->certificate, "");
     ngx_conf_merge_str_value(conf->certificate_key,
                              prev->certificate_key, "");

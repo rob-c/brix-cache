@@ -392,71 +392,31 @@ brix_conf_set_cache_include_regex(ngx_conf_t *cf, ngx_command_t *cmd,
     return NGX_CONF_OK;
 }
 
-/* brix_conf_set_cache_verify — parse off|best-effort|require into cache_verify,
- * the checksum-on-fill policy: off trusts the transfer; best-effort (default)
- * verifies when a digest is available and fails closed on mismatch; require makes
- * a usable digest mandatory. Exact match; anything else is rejected. */
+/* brix_cache_verify_digest_parse — shared kernel for the plane wrappers below:
+ * validate one algorithm name and store its canonical (lowercase) spelling in
+ * `out`. brix_checksum_parse() rejects an unknown name, so a typo fails at
+ * nginx -t instead of silently asking an origin for a digest it never emits.
+ * Returns NGX_CONF_OK / NGX_CONF_ERROR / "is duplicate". */
 char *
-brix_conf_set_cache_verify(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_cache_verify_digest_parse(ngx_conf_t *cf, ngx_str_t *value, ngx_str_t *out)
 {
-    ngx_stream_brix_srv_conf_t *xcf = conf;
-    ngx_str_t                    *value;
+    brix_checksum_alg_t  alg;
+    char                 norm[32];
 
-    value = cf->args->elts;
-    (void) cmd;
-
-    if (xcf->cache_verify != NGX_CONF_UNSET_UINT) {
+    if (out->len > 0) {
         return "is duplicate";
     }
 
-    if (ngx_strcmp(value[1].data, "off") == 0) {
-        xcf->cache_verify = BRIX_CACHE_VERIFY_OFF;
-    } else if (ngx_strcmp(value[1].data, "best-effort") == 0) {
-        xcf->cache_verify = BRIX_CACHE_VERIFY_BESTEFFORT;
-    } else if (ngx_strcmp(value[1].data, "require") == 0) {
-        xcf->cache_verify = BRIX_CACHE_VERIFY_REQUIRE;
-    } else {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cache_verify: invalid value \"%V\", must be "
-            "off, best-effort, or require", &value[1]);
-        return NGX_CONF_ERROR;
-    }
-
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "brix: cache checksum-on-fill: %V", &value[1]);
-    return NGX_CONF_OK;
-}
-
-/* brix_conf_set_cache_verify_digest — parse the preferred digest name (e.g.
- * crc32c) into cache_verify_digest: the Want-Digest preference for HTTP/Pelican
- * origins, advisory for root:// (the origin reports its own default).
- * brix_checksum_parse() rejects unknown names; the lowercase form is stored. */
-char *
-brix_conf_set_cache_verify_digest(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf)
-{
-    ngx_stream_brix_srv_conf_t *xcf = conf;
-    ngx_str_t                    *value;
-    brix_checksum_alg_t         alg;
-    char                          norm[32];
-
-    value = cf->args->elts;
-    (void) cmd;
-
-    if (xcf->cache_verify_digest.len > 0) {
-        return "is duplicate";
-    }
-
-    if (brix_checksum_parse((const char *) value[1].data, value[1].len,
-                              &alg, norm, sizeof(norm)) != NGX_OK)
+    if (brix_checksum_parse((const char *) value->data, value->len,
+                            &alg, norm, sizeof(norm)) != NGX_OK)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cache_verify_digest: unknown algorithm \"%V\"", &value[1]);
+            "brix_cache_verify_digest: unknown algorithm \"%V\"", value);
         return NGX_CONF_ERROR;
     }
 
-    if (brix_pstrdupz(cf->pool, &xcf->cache_verify_digest,
-                        (u_char *) norm, ngx_strlen(norm)) != NGX_OK)
+    if (brix_pstrdupz(cf->pool, out, (u_char *) norm,
+                      ngx_strlen(norm)) != NGX_OK)
     {
         return NGX_CONF_ERROR;
     }
@@ -464,6 +424,21 @@ brix_conf_set_cache_verify_digest(ngx_conf_t *cf, ngx_command_t *cmd,
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
         "brix: cache verify preferred digest: %s", norm);
     return NGX_CONF_OK;
+}
+
+/* `brix_cache_verify_digest <alg>` on the STREAM (root) plane — the digest a
+ * NON-xroot origin is asked for during a verifying fill (root:// carries its own
+ * kXR_Qcksum in band). Writes common.cache_verify_digest, which the fill spines
+ * read through brix_cache_verify_digest_pref(). */
+char *
+brix_conf_set_cache_verify_digest(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf)
+{
+    ngx_stream_brix_srv_conf_t *xcf = conf;
+
+    (void) cmd;
+    return brix_cache_verify_digest_parse(cf, (ngx_str_t *) cf->args->elts + 1,
+                                          &xcf->common.cache_verify_digest);
 }
 
 /* brix_conf_set_cache_advertise_ns — brix_cache_advertise_namespace <prefix>
@@ -556,4 +531,57 @@ brix_conf_set_cache_allow_prefix(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     (void) cmd;
     return brix_conf_push_prefix(cf, &xcf->cache_allow_prefixes,
                                    "brix_cache_allow_prefix");
+}
+
+/* brix_conf_set_cache_advertise_federation — brix_cache_advertise_federation
+ * <host[:port]>: the federation's discovery authority.  The advertiser reads
+ * https://<host>:<port>/.well-known/pelican-configuration to learn the
+ * Director it registers with, so this is the one value that says WHICH
+ * federation this cache joins.
+ *
+ * WHY a directive of its own: before 2.0 the advertiser read this endpoint from
+ * the retired brix_cache_origin host, which no directive could write — so
+ * brix_cache_pelican_schedule_advertise() returned early on every start and the
+ * whole brix_cache_advertise* family was inert even once registered.
+ *
+ * The name is PARSED here and resolved at runtime (I-DNS-1: no_resolve, and the
+ * transfer itself goes out through the pinned-curl seam), so a federation that
+ * is down at `nginx -t` is not a config error. */
+char *
+brix_conf_set_cache_advertise_federation(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf)
+{
+    ngx_stream_brix_srv_conf_t *xcf = conf;
+    ngx_str_t                    *value;
+    ngx_url_t                     url;
+
+    value = cf->args->elts;
+    (void) cmd;
+
+    if (xcf->advertise.federation.len > 0) {
+        return "is duplicate";
+    }
+
+    ngx_memzero(&url, sizeof(url));
+    url.url          = value[1];
+    url.default_port = 443;
+    url.no_resolve   = 1;
+
+    if (ngx_parse_url(cf->pool, &url) != NGX_OK
+        || url.host.len == 0 || url.port == 0 || url.uri.len > 0)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_advertise_federation: expected host[:port] "
+            "(no scheme, no path) in \"%V\"%s%s", &value[1],
+            url.err ? ": " : "", url.err ? url.err : "");
+        return NGX_CONF_ERROR;
+    }
+
+    if (brix_pstrdupz(cf->pool, &xcf->advertise.federation,
+                        url.host.data, url.host.len) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
+    xcf->advertise.federation_port = url.port;
+
+    return NGX_CONF_OK;
 }

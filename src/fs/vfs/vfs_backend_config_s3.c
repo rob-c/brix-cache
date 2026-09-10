@@ -261,7 +261,7 @@ vfs_config_local_backend(ngx_conf_t *cf, const char *root_canon,
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix_storage_backend \"%V\": unrecognized backend scheme "
                 "(known: posix, pblock, pblock://, mirage:, block:, "
-                "root://, roots://, root+tape://, roots+tape://, "
+                "root://, roots://, root+tape://, roots+tape://, forward://, "
                 "tape://, frm://, ftp://, gsiftp://, http(s)://, s3://, "
                 "ceph:, rados:, cephfsro:)", sb);
             return NGX_ERROR;
@@ -302,6 +302,14 @@ vfs_parse_xroot_or_driver_origin(ngx_conf_t *cf, const char *root_canon,
     int     is_roots = 0;
     int     is_nearline = 0;
     size_t  s;
+    ngx_int_t rc;
+
+    /* 2.0 F5: forward://<protocols> names no origin of its own — claim the
+     * export for the forwarding driver before the fixed-origin table looks. */
+    rc = vfs_parse_forward_origin(cf, root_canon, sb, family);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
 
     for (s = 0; s < sizeof(vfs_xroot_scheme_table)
                     / sizeof(vfs_xroot_scheme_table[0]); s++)

@@ -41,6 +41,7 @@ import os
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import threading
 import time
 
@@ -97,8 +98,7 @@ def _md5(b):
 def built():
     _guard_built_1()
     _guard_built_2()
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, os.path.basename(XROOTDFS)],
-                          capture_output=True, text=True, timeout=300)
+    proc = client_make(CLIENT_DIR, os.path.basename(XROOTDFS), capture_output=True, text=True, timeout=300)
     _guard_built_3(proc)
     _guard_built_4()
     return True

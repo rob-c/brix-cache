@@ -14,16 +14,35 @@
 
 #include "cta_queue.h"
 
-/* Progress sink: the executor calls alert(ctx, msg) at each lifecycle step. */
+/*
+ * Progress sink: the executor calls alert(ctx, msg) at each lifecycle step, in
+ * the queue `q`, transitioning through `transition`.
+ *
+ * The queue rides HERE, and not on cta_req_t, because the queue lives in shared
+ * memory (cta_shm.c): an entry may hold no pointer into one process's address
+ * space. It rides here, and not as a fourth executor parameter, because every
+ * executor already receives the sink. `q` is first so that the old two-field
+ * positional initialisers fail to compile rather than silently leaving it NULL.
+ *
+ * `transition` is the seam that keeps the zone lock OFF the executor run: the
+ * nginx build supplies brix_cta_shm_transition, which takes the lock for one
+ * transition and drops it, so a production executor blocking on tape does not
+ * hold the whole worker set out of the queue. NULL means "call the queue
+ * directly", which is what the standalone unit suites want.
+ */
 typedef struct {
+    brix_cta_queue_t *q;
+    int (*transition)(brix_cta_queue_t *q, cta_req_t *e, cta_state_t to);
     void (*alert)(void *ctx, const char *msg);
     void  *ctx;
 } cta_progress_t;
 
+/* Every entry takes the same (entry, progress) pair — cancel included, so that
+ * it too reaches the queue it must transition. */
 typedef struct {
     int (*archive)(cta_req_t *e, cta_progress_t *p);   /* 0 ok, -1 failed */
     int (*retrieve)(cta_req_t *e, cta_progress_t *p);
-    int (*cancel)(cta_req_t *e);
+    int (*cancel)(cta_req_t *e, cta_progress_t *p);
 } cta_exec_vtbl_t;
 
 /* The simulated executor: deterministic state transitions + progress alerts, no

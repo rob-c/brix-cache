@@ -8,7 +8,7 @@ nginx — a single worker over an isolated, writable data root
 (`brix_allow_write on;`) with a deliberately tight per-IP
 `brix_rate_limit_zone` / `brix_rate_limit_rule` so the throttle path can be
 driven deterministically.  The instance is started once by
-`manage_test_servers.sh start-all` (config `tests/configs/nginx_xrdhttp_digest.conf`,
+`python3 -m cmdscripts.manage_test_servers start-all` (config `tests/configs/nginx_xrdhttp_digest.conf`,
 port `XRDHTTP_DIGEST_PORT`); the suite seeds its fixture file into the data root
 and connects, rather than spawning its own server.  It then proves the documented
 HTTP behaviour of src/protocols/webdav (get.c, methods_basic.c, xrdhttp.c,
@@ -81,7 +81,7 @@ pytestmark = [
 
 
 # ---------------------------------------------------------------------------
-# Dedicated fleet instance: started by manage_test_servers.sh start-all from
+# Dedicated fleet instance: started by python3 -m cmdscripts.manage_test_servers start-all from
 # tests/configs/nginx_xrdhttp_digest.conf over the isolated data-xrdhttp-digest
 # root.  The suite connects to it and seeds its fixture file — it never spawns
 # its own nginx.
@@ -186,7 +186,7 @@ def server():
     if not _reachable(HTTP_PORT):
         pytest.skip(
             f"xrdhttp-digest dedicated instance not running on {HTTP_PORT} "
-            "(start it with manage_test_servers.sh start-all)")
+            "(start it with python3 -m cmdscripts.manage_test_servers start-all)")
 
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(os.path.join(DATA_DIR, DATA_NAME), "wb") as fh:

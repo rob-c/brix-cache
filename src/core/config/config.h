@@ -32,13 +32,13 @@ ngx_int_t brix_validate_path(ngx_conf_t *cf, const char *label,
     const ngx_str_t *path, brix_path_kind_t kind, int access_mode);
 
 /*
- * brix_conf_parse_addr — resolve a host:port directive argument into a
- * pool-allocated ngx_addr_t (first resolved address; an explicit port is
- * required).  `directive` names the caller in the emerg message.  Returns
- * NULL on resolve or allocation failure (resolve failure is logged).
+ * brix_conf_parse_addr — parse a host:port directive argument and register it
+ * as a runtime DNS target (phase-116).  Returns the registry-owned
+ * ngx_addr_t (socklen == 0 until resolved; an explicit port is required) or
+ * NULL on a parse/allocation failure.  `dns` is the scope's brix_dns_conf_t.
  */
 ngx_addr_t *brix_conf_parse_addr(ngx_conf_t *cf, ngx_str_t *spec,
-    const char *directive);
+    const char *directive, const brix_dns_conf_t *dns);
 
 /*
  * brix_conf_upstream_directive — whole-directive worker for the one-argument
@@ -46,7 +46,7 @@ ngx_addr_t *brix_conf_parse_addr(ngx_conf_t *cf, ngx_str_t *spec,
  * the raw spec in *name, resolve into *slot, log the configured target.
  */
 char *brix_conf_upstream_directive(ngx_conf_t *cf, ngx_command_t *cmd,
-    ngx_str_t *name, ngx_addr_t **slot);
+    ngx_str_t *name, ngx_addr_t **slot, const brix_dns_conf_t *dns);
 
 /*
  * brix_copy_conf_string — duplicate a C string from an ngx_str_t source

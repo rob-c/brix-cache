@@ -37,13 +37,34 @@
 #include <limits.h>
 #include <openssl/ssl.h>
 
-/* WHAT: Resolve the pull's TLS session, or NULL when the leg is still cleartext.
+/* WHAT: Resolve the TLS session that owns `fd` — a bound sub-stream's own
+ *       session (F7) or the primary's — or NULL when that leg is cleartext.
  *       t may be NULL on the pre-session legs (connect/bootstrap probes). */
 
 static SSL *
-tpc_session_ssl(brix_tpc_pull_t *t)
+tpc_session_ssl(brix_tpc_pull_t *t, int fd)
 {
-    return (t != NULL) ? (SSL *) t->tls : NULL;
+    int i;
+
+    if (t == NULL) {
+        return NULL;
+    }
+    for (i = 0; i < t->nsub; i++) {
+        if (t->sub[i].fd == fd) {
+            return (SSL *) t->sub[i].tls;
+        }
+    }
+    return (SSL *) t->tls;
+}
+
+/* WHAT: bytes OpenSSL already pulled off `fd` and holds decrypted; 0 when the
+ *       socket is cleartext. The multi-stream poll() loop cannot see these. */
+int
+tpc_io_pending(brix_tpc_pull_t *t, int fd)
+{
+    SSL *ssl = tpc_session_ssl(t, fd);
+
+    return (ssl != NULL) ? SSL_pending(ssl) : 0;
 }
 /* WHAT: Send all bytes from buf over fd — continues on EINTR, returns -1 on any other failure. Returns 0 on full write success. Caller: thread.c, bootstrap.c, source.c (wire I/O pipeline). */
 
@@ -53,7 +74,8 @@ tpc_send_all(brix_tpc_pull_t *t, int fd, const void *buf, size_t len)
     /* The loop lives in io_xfer.c so send and recv cannot drift apart; the
      * const is dropped only to reach it, and the send direction never writes
      * through the pointer. */
-    return brix_tpc_xfer_all(tpc_session_ssl(t), fd, (void *) (uintptr_t) buf,
+    return brix_tpc_xfer_all(tpc_session_ssl(t, fd), fd,
+                             (void *) (uintptr_t) buf,
                              len, BRIX_TPC_XFER_SEND);
 }
 /* WHAT: Receive exactly len bytes into buf over fd — continues on EINTR, returns -1 on any other failure. Returns 0 on full read success. Caller: tpc_recv_response (header + payload), thread.c (wire I/O pipeline). */
@@ -61,7 +83,7 @@ tpc_send_all(brix_tpc_pull_t *t, int fd, const void *buf, size_t len)
 static int
 tpc_recv_exact(brix_tpc_pull_t *t, int fd, void *buf, size_t len)
 {
-    return brix_tpc_xfer_all(tpc_session_ssl(t), fd, buf, len,
+    return brix_tpc_xfer_all(tpc_session_ssl(t, fd), fd, buf, len,
                              BRIX_TPC_XFER_RECV);
 }
 
@@ -83,8 +105,8 @@ tpc_recv_exact(brix_tpc_pull_t *t, int fd, void *buf, size_t len)
  *      null-terminates the buffer, sets output pointers, and returns 0 on success.
  *      Caller must free(*body) after use. Returns -1 on any I/O or allocation error. */
 int
-tpc_recv_response(brix_tpc_pull_t *t, int fd, uint16_t *status,
-                  u_char **body, uint32_t *dlen)
+tpc_recv_response_sid(brix_tpc_pull_t *t, int fd, u_char streamid[2],
+                      uint16_t *status, u_char **body, uint32_t *dlen)
 {
     ServerResponseHdr hdr;
     u_char           *response_body;
@@ -93,6 +115,10 @@ tpc_recv_response(brix_tpc_pull_t *t, int fd, uint16_t *status,
         return -1;
     }
 
+    if (streamid != NULL) {
+        streamid[0] = hdr.streamid[0];
+        streamid[1] = hdr.streamid[1];
+    }
     *status = ntohs(hdr.status);
     *dlen   = (uint32_t) ntohl(hdr.dlen);
     *body   = NULL;
@@ -118,5 +144,12 @@ tpc_recv_response(brix_tpc_pull_t *t, int fd, uint16_t *status,
     response_body[*dlen] = '\0';
     *body = response_body;
     return 0;
+}
+
+int
+tpc_recv_response(brix_tpc_pull_t *t, int fd, uint16_t *status,
+                  u_char **body, uint32_t *dlen)
+{
+    return tpc_recv_response_sid(t, fd, NULL, status, body, dlen);
 }
 

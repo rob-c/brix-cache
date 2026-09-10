@@ -7,10 +7,14 @@
  */
 
 #include "sd_frm_mss.h"
+#include "core/compat/subprocess.h"   /* shared SIGCHLD-safe reparented runner */
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <poll.h>
+#include <signal.h>
 #include <spawn.h>
 #include <sys/syscall.h>
 #include <stdio.h>
@@ -33,19 +37,109 @@
 
 typedef struct {
     frm_mss_head_t  head;            /* base + invoke — the shared-op seam */
-    char            stagecmd[PATH_MAX];  /* $BRIX_FRM_STAGECMD */
+    char            stagecmd[PATH_MAX];  /* brix_frm_stagecmd / $BRIX_FRM_STAGECMD */
+    ngx_msec_t      timeout_ms;      /* brix_frm_copy_timeout (0 = none)    */
     ngx_log_t      *log;
 } exec_ctx_t;
 
+/* ===================== spawn hygiene (2.0, 2026-09-08) =====================
+ * The one program this adapter still spawns directly -- the `dread` listing in
+ * exec_list, whose stdout must be STREAMED (see its own note) -- is an operator
+ * binary executed from a worker. A bare posix_spawn hands it every descriptor the worker
+ * holds (the listen sockets, which nginx opens without CLOEXEC, live client
+ * connections, the epoll fd, the logs) and leaves it in the worker's process
+ * group. Two consequences a release cannot ship: a child of the program keeps
+ * the server's ports bound after a deadline kill or a restart, and the
+ * program can reach client traffic. exec_spawn therefore closes every fd above
+ * stderr in the child (after the caller's own dup2 actions) and starts it in a
+ * new session, so pid == pgid and the deadline kill reaches the whole group.
+ * glibc 2.34 has closefrom as a spawn action; older glibc gets one addclose
+ * per descriptor the worker holds right now (the same set, via /proc). */
+#if defined(__GLIBC__) && __GLIBC_PREREQ(2, 34)
+static int
+exec_fa_close_inherited(posix_spawn_file_actions_t *fa)
+{
+    return posix_spawn_file_actions_addclosefrom_np(fa, 3);
+}
+#else
+static int
+exec_fa_close_inherited(posix_spawn_file_actions_t *fa)
+{
+    DIR           *d = opendir("/proc/self/fd");
+    struct dirent *e;
+    int            fd, rc = 0;
+
+    if (d == NULL) {
+        return errno;
+    }
+    while (rc == 0 && (e = readdir(d)) != NULL) {
+        fd = atoi(e->d_name);          /* "." and ".." read as 0: skipped */
+        if (fd >= 3 && fd != dirfd(d)) {
+            rc = posix_spawn_file_actions_addclose(fa, fd);
+        }
+    }
+    closedir(d);
+    return rc;                         /* a closed-by-then fd is ignored */
+}
+#endif
+
+/* posix_spawn with the hygiene above, for the streaming `dread` path only —
+ * every status-dependent verb goes through brix_subprocess_run instead (see
+ * exec_run). `fa` may carry the caller's dup2/close actions (NULL = none).
+ * 0 ok / -1 with errno. */
+int
+frm_exec_spawn(pid_t *pid, const char *prog, char *const argv[],
+    posix_spawn_file_actions_t *fa)
+{
+    posix_spawn_file_actions_t  own;
+    posix_spawnattr_t           attr;
+    int                         rc;
+
+    if (fa == NULL) {
+        posix_spawn_file_actions_init(&own);
+        fa = &own;
+    }
+    rc = exec_fa_close_inherited(fa);
+    if (rc == 0) {
+        posix_spawnattr_init(&attr);
+#ifdef POSIX_SPAWN_SETSID
+        rc = posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSID);
+#endif
+        if (rc == 0) {
+            rc = posix_spawn(pid, prog, fa, &attr, argv, environ);
+        }
+        posix_spawnattr_destroy(&attr);
+    }
+    if (fa == &own) {
+        posix_spawn_file_actions_destroy(&own);
+    }
+    if (rc != 0) {
+        errno = rc;
+        return -1;
+    }
+    return 0;
+}
+
 /* Run "<stagecmd> <verb> <key> <online>"; returns the child's exit code (0 ok), or
- * -1 on spawn/wait failure. No shell - argv is passed directly (no injection). */
+ * -1 on spawn/wait failure. No shell - argv is passed directly (no injection).
+ *
+ * The run goes through brix_subprocess_run (2.0, 2026-09-09), NOT a child of
+ * this worker: nginx's signal handler calls ngx_process_get_status() for
+ * SIGCHLD in workers too, so waitpid(-1, WNOHANG) there reaps ANY direct child
+ * before the feature's own wait reaches it — the adapter then saw ECHILD, lost
+ * the status and reported every verb as failed (the first live run of the
+ * rebuilt 2.0 binary: "unknown process NNNN exited with code 0" next to
+ * "stage command failed"). The shared runner puts the command under a
+ * double-forked agent the worker never had as a child, and that agent enforces
+ * the brix_frm_copy_timeout deadline and the SIGKILL of the whole process
+ * group. Spawn hygiene (closefrom(3) + its own session) is the runner's. */
 static int
 exec_run(const exec_ctx_t *c, const char *verb, const char *key,
     const char *online)
 {
-    char  *argv[5];
-    pid_t  pid;
-    int    status;
+    char                  *argv[5];
+    brix_subprocess_req_t  req;
+    int                    exit_code = -1;
 
     argv[0] = (char *) c->stagecmd;
     argv[1] = (char *) verb;
@@ -53,15 +147,21 @@ exec_run(const exec_ctx_t *c, const char *verb, const char *key,
     argv[3] = (char *) online;
     argv[4] = NULL;
 
-    if (posix_spawn(&pid, c->stagecmd, NULL, NULL, argv, environ) != 0) {
+    req.argv       = argv;
+    req.out        = NULL;                    /* the verbs report by exit code */
+    req.outsz      = 0;
+    req.timeout_ms = (unsigned) c->timeout_ms;
+
+    if (brix_subprocess_run(&req, NULL, &exit_code) != 0) {
+        if (errno == ETIMEDOUT) {
+            ngx_log_error(NGX_LOG_ERR, c->log, 0,
+                "xrootd frm: stage command \"%s %s %s\" exceeded "
+                "brix_frm_copy_timeout (%M ms) and was killed",
+                c->stagecmd, verb, key, c->timeout_ms);
+        }
         return -1;
     }
-    while (waitpid(pid, &status, 0) < 0) {
-        if (errno != EINTR) {
-            return -1;
-        }
-    }
-    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    return exit_code;
 }
 
 /* The exec adapter's frm_mss_invoke_fn: every MSS verb is one child run of the
@@ -138,7 +238,7 @@ exec_list(void *mss, const char *key,
     posix_spawn_file_actions_addclose(&fa, pfd[0]);
     posix_spawn_file_actions_addclose(&fa, pfd[1]);
 
-    if (posix_spawn(&pid, c->stagecmd, &fa, NULL, argv, environ) != 0) {
+    if (frm_exec_spawn(&pid, c->stagecmd, argv, &fa) != 0) {
         posix_spawn_file_actions_destroy(&fa);
         close(pfd[0]);
         close(pfd[1]);
@@ -162,11 +262,15 @@ exec_list(void *mss, const char *key,
 
     while (waitpid(pid, &status, 0) < 0) {
         if (errno == ECHILD) {
-            /* In a worker, nginx's SIGCHLD handler reaps children — and unlike
-             * exec_run (which waits immediately and wins that race), draining
-             * the pipe to EOF gives the handler time to reap first. The exit
-             * status is lost, but the pipe reached EOF and the dread contract
-             * prints entries only on success — accept what was read. */
+            /* nginx's SIGCHLD handler reaps children in workers too, and this
+             * is the ONE adapter path that still spawns one directly: `dread`
+             * streams an unbounded listing through the pipe while the program
+             * runs, which the fixed-buffer capture in brix_subprocess_run
+             * cannot do without silently truncating a large directory. The
+             * stolen status is survivable HERE and nowhere else: the pipe
+             * reached EOF and the dread contract prints entries only on
+             * success, so what was read is the answer. Every verb whose result
+             * IS the exit status runs under the reparented agent (exec_run). */
             return 0;
         }
         if (errno != EINTR) {
@@ -231,6 +335,7 @@ const brix_mss_adapter_t brix_mss_exec_adapter = {
     .recall_poll   = frm_mss_recall_poll,
     .migrate       = frm_mss_migrate,
     .purge         = frm_mss_purge,
+    .on_tape       = frm_mss_on_tape,        /* phase-115 W3.2 */
     .exchange      = frm_mss_exchange,       /* phase-107 C6 */
     .list          = exec_list,
     .mkpath        = exec_mkpath,
@@ -244,7 +349,8 @@ const brix_mss_adapter_t brix_mss_exec_adapter = {
 
 /* brix_mss_exec_create — the exec/HSM adapter context (online buffer + stagecmd). */
 void *
-brix_mss_exec_create(const char *location, const char *stagecmd, ngx_log_t *log)
+brix_mss_exec_create(const char *location, const char *stagecmd,
+    ngx_msec_t timeout_ms, ngx_log_t *log)
 {
     exec_ctx_t *ec = calloc(1, sizeof(*ec));
 
@@ -255,6 +361,7 @@ brix_mss_exec_create(const char *location, const char *stagecmd, ngx_log_t *log)
                 sizeof(ec->head.base));
     ec->head.invoke = exec_invoke;
     ngx_cpystrn((u_char *) ec->stagecmd, (u_char *) stagecmd, sizeof(ec->stagecmd));
+    ec->timeout_ms = timeout_ms;
     ec->log = log;
     return ec;
 }

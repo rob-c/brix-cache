@@ -2,9 +2,10 @@
  * store_policy.h — signing_policy table + X509_STORE ex_data binding.
  *
  * WHAT: Builds a per-CA-directory table of parsed signing_policy files and
- *       attaches it (with the operator's signing_policy + CRL modes) to an
- *       X509_STORE, so the shared verifier and every store-rebuild path
- *       inherit enforcement from a single place.
+ *       attaches it (with the operator's whole brix_trust_policy_t — signing
+ *       policy, CRL mode, CRL scope, verification-log level) to an X509_STORE,
+ *       so the shared verifier and every store-rebuild path inherit
+ *       enforcement from a single place.
  * WHY:  The verifier (brix_gsi_verify_chain) must decide "may this CA sign
  *       this subject?" without threading extra parameters through every
  *       caller.  Binding the table to the store lets the decision travel with
@@ -27,7 +28,81 @@
 #define BRIX_CRL_MODE_TRY     1   /* check where a CRL exists; missing = ok */
 #define BRIX_CRL_MODE_REQUIRE 2   /* missing/expired/unverifiable CRL = reject */
 
+/*
+ * CRL SCOPE — how far up the chain the revocation check reaches.  This is
+ * XRootD's `xrd.tlsca ... crlcheck all|last` residual.
+ *
+ *   ALL  (default)  every certificate in the chain must be covered by a CRL
+ *                   its issuer published, and none of them may be listed on it.
+ *   LAST            only the CREDENTIAL'S OWN end-entity certificate is held to
+ *                   that; a revocation verdict on an issuer ABOVE it (a missing,
+ *                   stale or unverifiable CA CRL — or a revoked intermediate) is
+ *                   tolerated.
+ *
+ * IT IS NOT IMPLEMENTED BY DROPPING X509_V_FLAG_CRL_CHECK_ALL, and that is a
+ * security property, not an implementation detail.  OpenSSL's plain CRL_CHECK
+ * checks depth 0 only, AND OpenSSL skips proxy certificates when it walks for
+ * revocation — so on a GSI proxy chain (proxy at depth 0, the EEC at depth 1)
+ * plain CRL_CHECK checks NOTHING AT ALL.  Measured on OpenSSL 3.0.18 with
+ * `openssl verify -allow_proxy_certs`: `-crl_check` accepts a proxy whose EEC
+ * the CA has revoked; `-crl_check_all` refuses it at depth 1.  A `last` built
+ * on the flag would therefore have been indistinguishable from `off` for every
+ * grid login — a revoked user would only have to wrap their credential in a
+ * proxy.
+ *
+ * So brix keeps CRL_CHECK|CRL_CHECK_ALL armed under BOTH values and narrows
+ * the scope in the verify callback instead: under LAST a revocation-class
+ * verdict counts only at the end-entity depth (the shallowest NON-proxy
+ * certificate in the chain), and is tolerated at every other depth.  A revoked
+ * end-entity certificate is therefore refused under BOTH values, which is the
+ * invariant this knob is not allowed to break.  What LAST actually buys is the
+ * deployment whose upstream CAs publish no usable CRL for their own issuers.
+ * Non-revocation verdicts (expiry, signature, untrusted issuer) are untouched
+ * at every depth under both values.
+ */
+#define BRIX_CRL_SCOPE_ALL   0    /* every certificate in the chain (default) */
+#define BRIX_CRL_SCOPE_LAST  1    /* the end-entity certificate only */
+
+/*
+ * VERIFICATION LOG — the `xrd.tlsca ... verifylog` residual.  OFF is silent
+ * (brix's historical behaviour: only the module's own one-line rejection).
+ * FAILURE adds, on a rejected chain, the depth at which OpenSSL stopped and
+ * the subject DN of the certificate that failed.  ALL additionally records the
+ * subject DN of every certificate in an ACCEPTED chain.
+ *
+ * DNs ONLY.  The log never emits key material, a PEM body, or any certificate
+ * bytes — an operator diagnosing "which CA did this chain actually come
+ * through?" needs names, and the error log is not a place to widen what an
+ * attacker who can read it learns (see the security negative in
+ * tests/test_release20_tlsca_residuals.py).
+ */
+#define BRIX_TLS_VERIFY_LOG_OFF     0
+#define BRIX_TLS_VERIFY_LOG_FAILURE 1
+#define BRIX_TLS_VERIFY_LOG_ALL     2
+
 typedef struct brix_sp_table_s brix_sp_table_t;
+
+/*
+ * WHAT: the complete trust-enforcement policy that travels with an X509_STORE.
+ * WHY:  the store is built in one place (config parse, or a CRL-reload timer)
+ *       and consulted in another (a verify callback, brix_gsi_verify_chain)
+ *       that has no config object.  Passing the four knobs as one value keeps
+ *       the store builders' signatures stable as knobs are added, and — more
+ *       importantly — makes it impossible to add a knob that reaches
+ *       brix_store_configure but never reaches the ex_data the verifier reads.
+ * HOW:  initialise with BRIX_TRUST_POLICY_INIT (everything off / widest scope)
+ *       and set the fields the caller actually configures.
+ */
+typedef struct {
+    brix_sp_mode_t  sp_mode;     /* BRIX_SP_MODE_*        */
+    int             crl_mode;    /* BRIX_CRL_MODE_*       */
+    int             crl_scope;   /* BRIX_CRL_SCOPE_*      */
+    int             verify_log;  /* BRIX_TLS_VERIFY_LOG_* */
+} brix_trust_policy_t;
+
+#define BRIX_TRUST_POLICY_INIT                                                \
+    { BRIX_SP_MODE_OFF, BRIX_CRL_MODE_OFF, BRIX_CRL_SCOPE_ALL,                \
+      BRIX_TLS_VERIFY_LOG_OFF }
 
 /* Logging callback: level is one of the BRIX_SP_LOG_* values below. */
 #define BRIX_SP_LOG_WARN  1
@@ -63,7 +138,7 @@ int brix_sp_table_check(const brix_sp_table_t *t, brix_sp_mode_t mode,
  * (in which case the caller retains ownership of table).
  */
 int brix_store_policy_attach(X509_STORE *store, brix_sp_table_t *table,
-                             brix_sp_mode_t sp_mode, int crl_mode);
+                             const brix_trust_policy_t *pol);
 
 /*
  * WHAT: apply the full production trust-store configuration to a store that has
@@ -80,13 +155,15 @@ int brix_store_policy_attach(X509_STORE *store, brix_sp_table_t *table,
  */
 int brix_store_configure(X509_STORE *store, const char *cadir,
                          unsigned long extra_flags, int crl_count,
-                         brix_sp_mode_t sp_mode, int crl_mode,
+                         const brix_trust_policy_t *pol,
                          void *log, brix_sp_log_fn log_fn);
 
 /* Fetch what was attached, resolved from a verification context's store. */
 brix_sp_table_t *brix_store_policy_table(X509_STORE_CTX *ctx);
 brix_sp_mode_t   brix_store_policy_mode(X509_STORE_CTX *ctx);
 int              brix_store_crl_mode(X509_STORE_CTX *ctx);
+int              brix_store_crl_scope(X509_STORE_CTX *ctx);
+int              brix_store_verify_log(X509_STORE_CTX *ctx);
 
 /*
  * Shared DN canonicaliser — OpenSSL oneline slash form into buf.  Used on

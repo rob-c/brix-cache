@@ -28,6 +28,7 @@ import os
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import time
 
 import pytest
@@ -78,8 +79,7 @@ def _ctl(ns, port, cmd):
 
 @pytest.fixture(scope="module")
 def bfp():
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "brix-fault-proxy"],
-                          capture_output=True, text=True, timeout=120)
+    proc = client_make(CLIENT_DIR, "brix-fault-proxy", capture_output=True, text=True, timeout=120)
     if proc.returncode != 0 or not os.path.exists(BFP):
         pytest.skip(f"brix-fault-proxy build failed:\n{proc.stdout}\n{proc.stderr}")
     return BFP

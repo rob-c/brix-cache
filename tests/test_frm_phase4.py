@@ -5,9 +5,10 @@ Phase 35 / Phase 4 — optional parity (F1-F6).
 
 Covers the parity directives + scaffolding that don't need a full recall to
 observe:
-  S  the Phase-4 directives (brix_frm_max_per_source [F4], brix_frm_purge_*
-     [F6], brix_frm_migrate_copycmd [F6], brix_frm_residency_cmd [F3]) are
-     accepted by the config parser and the server starts.
+  S  the surviving Phase-4 directives (brix_frm_purge_* [F6]) are accepted
+     by the config parser and the server starts; the max_per_source /
+     residency_cmd / migrate_copycmd knobs left the grammar in 2.0 (ADR-3b)
+     and are pinned as `unknown directive` by the release-2.0 surface test.
   S  the F6 Category-2 purge-watermark monitor arms (a NOTICE in the log) and is
      an explicit SCAFFOLD ("no files are purged").
   S  /metrics exports the new parity counters (migrate/purge/cmsd_have).
@@ -70,9 +71,9 @@ def srv(lifecycle, tmp_path):
 
 
 def test_phase4_directives_accepted_and_started(srv):
-    # If we got here the fixture started the server, so nginx -t accepted all the
-    # Phase-4 directives (max_per_source, residency_cmd, migrate_copycmd,
-    # purge_watermark, purge_interval).
+    # If we got here the fixture started the server, so nginx -t accepted the
+    # surviving Phase-4 directives (purge_watermark, purge_interval); the three
+    # removed in 2.0 sit in the template as comments.
     assert os.path.exists(srv.logfile)
 
 

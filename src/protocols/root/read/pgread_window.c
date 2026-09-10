@@ -164,6 +164,22 @@ brix_pgread_window_emit(brix_ctx_t *ctx, ngx_connection_t *c,
     size_t   got;
     u_char   resptype;
 
+    /* §4.5 serve-while-filling: EAGAIN is the in-flight fill's frontier.
+     * Nothing framed yet -> kXR_wait; otherwise the train has promised bytes,
+     * so end it as an EMPTY final frame (the short-window rule below already
+     * terminates a train that way at EOF) and let the client re-pgread. */
+    if (nread < 0 && io_errno == EAGAIN) {
+        if (!ctx->rd.win_sent) {
+            ctx->rd.win_active = 0;
+            ctx->state = XRD_ST_REQ_HEADER;
+            ctx->recv.hdr_pos = 0;
+            brix_release_read_buffer(ctx, c, frame);
+            return brix_read_io_error(ctx, c, io_errno);
+        }
+        nread    = 0;
+        out_size = 0;
+    }
+
     if (nread < 0) {
         brix_read_io_failure_log(c->log, "pgread-windowed", ctx->rd.win_fd,
                                    ctx->rd.win_offset, ctx->rd.win_remaining,
@@ -213,6 +229,7 @@ brix_pgread_window_emit(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ctx->state = XRD_ST_REQ_HEADER;
     ctx->recv.hdr_pos = 0;
+    ctx->rd.win_sent = 1;    /* §4.5: bytes promised — no kXR_wait past here */
 
     if (brix_queue_response_base(ctx, c, frame,
                                    sizeof(ServerStatusResponse_pgRead)
@@ -252,6 +269,7 @@ brix_pgread_serve_windowed(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     ctx->rd.win_active = 1;
+    ctx->rd.win_sent = 0;    /* §4.5: nothing promised on the wire yet */
     ctx->rd.win_pgread = 1;
     ctx->rd.win_readv = 0;
     ctx->rd.win_prefetch = 0;   /* round-12: a fresh train starts with no

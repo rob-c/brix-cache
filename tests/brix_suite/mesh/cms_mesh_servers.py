@@ -2,7 +2,7 @@
 """
 Bring the CMS-mesh interop topologies up (or down) for the test harness.
 
-manage_test_servers.sh start-all invokes `cms_mesh_servers.py start`, which
+python3 -m cmdscripts.manage_test_servers start-all invokes `cms_mesh_servers.py start`, which
 launches every real xrootd/cmsd + nginx instance the mesh tests need on the
 fixed ports in cms_mesh_lib.PORTS (daemons detach via -b / nginx pid file, so
 this process exits once they are up).  `stop` tears them all down.

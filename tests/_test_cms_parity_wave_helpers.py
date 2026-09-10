@@ -91,15 +91,21 @@ def _cms_frame(streamid, code, modifier=0, payload=b""):
     return struct.pack(">IBBH", streamid, code, modifier, len(payload)) + payload
 
 
-def _login_payload(dport, mode=MODE_SERVER, paths=b"r /", util=7, free_mb=5000):
-    """Minimal well-formed CmsLoginData (see cms_srv_parse_login)."""
+def _login_payload(dport, mode=MODE_SERVER, paths=b"r /", util=7, free_mb=5000,
+                   min_free=100):
+    """Minimal well-formed CmsLoginData (see cms_srv_parse_login).
+
+    ``min_free`` is the mSpace field — the node's advertised free-space policy
+    floor (``brix_cms_min_free``).  Default 100 matches the shipped default, so
+    every caller that does not pass it sees the pre-§2.4 payload byte for byte.
+    """
     p = b""
     p += bytes([CMS_PT_SHORT]) + struct.pack(">H", CMS_LOGIN_VERSION)
     p += bytes([CMS_PT_INT]) + struct.pack(">I", mode)
     p += bytes([CMS_PT_INT]) + struct.pack(">I", 0)          # holdtime
     p += bytes([CMS_PT_INT]) + struct.pack(">I", 100)        # tSpace
     p += bytes([CMS_PT_INT]) + struct.pack(">I", free_mb)    # fSpace
-    p += bytes([CMS_PT_INT]) + struct.pack(">I", 100)        # mSpace
+    p += bytes([CMS_PT_INT]) + struct.pack(">I", min_free)   # mSpace
     p += bytes([CMS_PT_SHORT]) + struct.pack(">H", 1)        # fsNum
     p += bytes([CMS_PT_SHORT]) + struct.pack(">H", util)     # fsUtil
     p += bytes([CMS_PT_SHORT]) + struct.pack(">H", dport)    # dPort
@@ -127,7 +133,7 @@ class FakeNode:
     """
 
     def __init__(self, cms_port, dport, mode=MODE_SERVER, paths=b"r /",
-                 util=7, free_mb=5000):
+                 util=7, free_mb=5000, min_free=100):
         self.dport = dport
         self.frames = []           # [(code, modifier, payload)]
         self.closed = False
@@ -135,7 +141,7 @@ class FakeNode:
         self.sock.settimeout(0.2)
         self.sock.sendall(_cms_frame(0, CMS_RR_LOGIN, 0,
                                      _login_payload(dport, mode, paths,
-                                                    util, free_mb)))
+                                                    util, free_mb, min_free)))
         self._stop = False
         self._thread = threading.Thread(target=self._reader, daemon=True)
         self._thread.start()

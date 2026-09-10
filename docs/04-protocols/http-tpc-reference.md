@@ -51,8 +51,9 @@ Two transports carry this in BriX-Cache:
   integration, multi‑stream transfers, and richer auth/delegation wiring.
 - Key remaining gaps in BriX-Cache vs official xrootd: upstream-style
   in-server TPC integration, richer timeout/retry semantics, production TPC
-  monitoring hooks, more configurable SSRF policy, and native root TPC edge
-  cases such as TLS-upgraded origins and multihop delegation.
+  monitoring hooks and more configurable SSRF policy (native root TPC pulls
+  now follow redirects and run multi-stream: `brix_tpc_max_hops`,
+  `brix_tpc_streams`).
 
 ## Where to read the implementations
 
@@ -107,8 +108,9 @@ TPC deeply into its HTTP stack and avoids external helpers.
 
 - BriX-Cache:
   - native TPC supports the source/destination rendezvous key flow and can
-    complete ztn or GSI after `kXR_authmore` when configured. TLS-upgraded
-    origins and multihop delegation remain narrower than upstream.
+    complete ztn or GSI after `kXR_authmore` when configured, follows source
+    redirects up to `brix_tpc_max_hops`, and pulls over up to `brix_tpc_streams`
+    bound sub-streams when the client sends `tpc.str`.
   - WebDAV TPC collects `TransferHeader*`, can use configured cert/key/CA
     material, and supports `Credential: oidc-agent` and
     `Credential: token-exchange` via `src/protocols/webdav/tpc_cred.c` and
@@ -165,6 +167,58 @@ silently dropping the rest — an allowlist footgun this codebase has hit before
 official xrootd uses libcurl socket callbacks to reject local/private addresses
 by configuration (`allow_private` / `allow_local`); it has no equivalent of the
 Layer-2 naming allowlist.
+
+**Layer 3 — identity matrix (default-off, opt-in; 2.0 F18).** Layers 1 and 2 ask
+*which host* a leg may talk to. Layer 3 asks *who is asking, how they proved it,
+and which local paths they may touch* — the stock `ofs.tpc` grammar, in BriX
+spelling. It sits INSIDE the host plane: a matrix rule can only narrow what
+Layers 1–2 already permitted, never widen it.
+
+| BriX | stock `ofs.tpc` | what it decides |
+|---|---|---|
+| `brix_tpc_allow_identity <dn\|group\|host\|vo> <pattern>` | `allow dn/group/host/vo` | whose credential may open a TPC leg |
+| `brix_tpc_require <all\|client\|dest> <auth>[,<auth>…]` | `require {all\|client\|dest} <auth>` | which authentication method a party must have used |
+| `brix_tpc_restrict <path>` | `restrict <path>` | which local paths a leg may touch |
+| `brix_tpc_oids on\|off` | `oids` | whether object-id paths are usable in a TPC leg |
+
+Four facts an operator has to know before adopting it:
+
+1. **Stage order is a security order** — `oids` → `allow` → `require` →
+   `restrict`, evaluated in that order at one choke point per plane
+   (`tpc_matrix_gate()` in `src/protocols/root/read/open_tpc.c`, covering all
+   four native roles before any dial; `webdav_tpc_matrix_gate()` in
+   `src/protocols/webdav/tpc.c`). The verdict core is the pure
+   `brix_tpc_matrix_check()` in `src/tpc/common/identity_matrix.c`, shared so the
+   two planes can never disagree — the same arrangement as the Layer-2 guard.
+2. **Every stage is default-PERMIT when unconfigured and fail-CLOSED once
+   configured.** A site that never writes these directives sees no behaviour
+   change at all; a site that writes one rule has *denied everything that rule
+   does not name*, including an anonymous or unauthenticated subject. `oids` is
+   the one exception: it is default-DENY, matching stock.
+3. **The party is read off the wire, not asserted.** A native TPC leg carrying
+   `tpc.org` was opened by the peer SERVER and presents the *server's*
+   credential (party `dest`); a leg without `tpc.org` was opened by the
+   initiating CLIENT (party `client`). `require dest gsi` is therefore not
+   satisfiable by a client credential — which is exactly the point of the
+   distinction. On the WebDAV plane the requester is always the client party.
+4. **`restrict` is narrower than stock.** The prefix match is
+   component-aware, so `/data` admits `/data/x` but never `/database`. It runs
+   on the same cleaned logical path an `open()` would use — traversal is already
+   refused before the matrix sees it. **On the WebDAV plane that path is the
+   request URI**, so a prefix written on a `location` must include the location's
+   own prefix: under `location /restrict/`, the rule that confines a COPY to
+   `/restrict/allowed/…` is `brix_tpc_restrict /restrict/allowed`, not
+   `brix_tpc_restrict /allowed`. A prefix that omits it matches nothing and — the
+   stage being fail-closed — refuses every COPY on that location.
+
+Both callers of the HTTP gate are covered: a COPY *pull* (`Source:`) and a COPY
+*push* (`Destination:` + `Credential:`) both pass through
+`webdav_tpc_authorize()`, so the same rule governs the object arriving and the
+object leaving.
+
+Refusals name the directive that denied the leg and nothing else — no DN, VO,
+group, host or path is echoed back — and account through the existing TPC
+error paths rather than a new metric family.
 
 ### 5) Concurrency & I/O model
 
@@ -274,7 +328,8 @@ note and an estimated effort (Small / Medium / Large).
      `Credential: token-exchange` support exist. Continue hardening explicit
      policy checks, logging, and failure modes.
    - For native `root://` pulls, expand tests around ztn/GSI after
-     `kXR_authmore`, TLS-upgraded origins, and multihop delegation.
+     `kXR_authmore` against production sources (TLS upgrade, multihop and
+     multi-stream are covered by `tests/test_release20_tpc_*.py`).
 
 4) Make SSRF policy configurable (Small)
    - Add nginx directives to permit/deny private or local IPs per-site.
@@ -298,29 +353,45 @@ note and an estimated effort (Small / Medium / Large).
 Estimated order: 1 → 2 → 3 → 5 → 6 → 4 → 7, but you may reorder based on
 priority (e.g., implement SSRF configurability early for safety).
 
-## Suggested nginx config directives
+## Configuration directives (as implemented)
 
-Add a small set of `brix_webdav_tpc_*` directives to make behavior tunable:
+The `brix_webdav_tpc_*` family is registered in
+`src/protocols/webdav/directives_tpc.h`; every name below is real and listed in
+[`directives.md`](../03-configuration/directives.md). (An earlier draft of this
+section proposed `brix_webdav_tpc_enable`, `brix_webdav_tpc_block_size`,
+`brix_webdav_tpc_cacert` and `brix_webdav_tpc_source_guard/_source_allow`; none
+of those spellings exists — use the names here.)
 
-- `brix_webdav_tpc_enable on|off` — enable internal HTTP TPC.
-- `brix_webdav_tpc_block_size <bytes>` — block size for multi-stream pulls.
+- `brix_webdav_tpc on|off` — enable HTTP TPC (COPY with `Source:`/`Destination:`).
 - `brix_webdav_tpc_max_streams <N>` — cap streams per transfer.
-- `brix_webdav_tpc_marker_interval <sec>` — perf marker interval.
+- `brix_webdav_tpc_marker_interval <sec>` — perf-marker interval.
 - `brix_webdav_tpc_xfr <N>` — explicit concurrent-transfer cap (the `ofs.tpc
   xfr` analog): a new `COPY` beyond `N` in-flight transfers is refused with
   `503`. Counts live in-use registry slots (an abandoned transfer is reaped
   first, so it never permanently counts). `0` (default) = bound only by the
   compile-time registry slot ceiling.
-- `brix_webdav_tpc_allow_local on|off` — control loopback/link-local.
-- `brix_webdav_tpc_allow_private on|off` — allow RFC1918 private ranges.
-- `brix_webdav_tpc_source_guard on|off` + `brix_webdav_tpc_source_allow <host> […]`
-  — source-host naming allowlist (SSRF Layer 2; see §4). **Implemented.**
-- `brix_webdav_tpc_cacert <path>` / `brix_webdav_tpc_cert` / `tpc_key` — CA/cred options.
-- `brix_webdav_tpc_require_source_size on|off` +
-  `brix_webdav_tpc_verify_checksum <alg>` — pull completion gate (size +
-  RFC-3230 digest; see §8). No `XrdHttpTpc` equivalent. **Implemented.**
-
-These map directly to the knobs used in the official `XrdHttpTpc` module.
+- `brix_webdav_tpc_timeout <time>`, `brix_webdav_tpc_low_speed_bytes <n>` /
+  `brix_webdav_tpc_low_speed_secs <n>` — overall and stall timeouts on the
+  pull leg.
+- `brix_webdav_tpc_curl <path>` — the curl binary the pull leg execs.
+- `brix_tpc_allow_local on|off` / `brix_tpc_allow_private on|off` — loopback,
+  link-local and RFC1918 source ranges (SSRF Layer 1).
+- `brix_tpc_source_guard on|off` + `brix_tpc_source_allow <host> […]` — source-host
+  naming allowlist (SSRF Layer 2; see §4), shared with native root:// TPC.
+- `brix_tpc_allow_identity <dn|group|host|vo> <pattern>` (repeatable),
+  `brix_tpc_require <all|client|dest> <auth>[,<auth>…]`,
+  `brix_tpc_restrict <path>` (repeatable) and `brix_tpc_oids on|off` — the
+  `ofs.tpc` identity matrix (Layer 3; see §4), also shared with native
+  root:// TPC. All four are unset by default and each is fail-closed once
+  written; `brix_tpc_oids` is default-deny.
+- `brix_webdav_tpc_cafile <path>` / `brix_webdav_tpc_cadir <dir>` /
+  `brix_webdav_tpc_cert` / `brix_webdav_tpc_key` — CA and credential material
+  for the source connection.
+- `brix_webdav_tpc_credential_forward on|off` — forward the requester's
+  per-user proxy or bearer to the source (default on, opportunistic).
+- `brix_tpc_require_source_size on|off` + `brix_tpc_verify_checksum <alg>` —
+  pull completion gate (size + RFC-3230 digest; see §8), unified with the
+  stream-plane spellings in phase 101. No `XrdHttpTpc` equivalent.
 
 ## Tests to validate parity
 

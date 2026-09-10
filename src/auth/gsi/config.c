@@ -22,6 +22,10 @@ brix_rebuild_gsi_store(ngx_stream_brix_srv_conf_t *xcf, ngx_log_t *log,
     int         crl_count = 0;
     struct stat ca_st;
     int         ca_is_dir;
+    /* One value carries every trust knob onto the store's ex_data, so the
+     * verifier (brix_gsi_verify_chain) and the CRL verify callback read the
+     * operator's settings back with no config object in hand. */
+    brix_trust_policy_t pol = BRIX_TRUST_POLICY_INIT;
 
     /* brix_trusted_ca may name a single CA bundle file OR a hashed CA
      * directory (e.g. /etc/grid-security/certificates).  A directory is loaded
@@ -29,6 +33,11 @@ brix_rebuild_gsi_store(ngx_stream_brix_srv_conf_t *xcf, ngx_log_t *log,
      * chains (any CA under the dir), which a single-file bundle cannot cover. */
     ca_is_dir = (stat((char *) xcf->common.trusted_ca.data, &ca_st) == 0
                  && S_ISDIR(ca_st.st_mode));
+
+    pol.sp_mode    = (brix_sp_mode_t) xcf->signing_policy_mode;
+    pol.crl_mode   = (int) xcf->crl_mode;
+    pol.crl_scope  = (int) xcf->crl_scope;
+    pol.verify_log = (int) xcf->tls_verify_log;
 
     store = brix_build_ca_store_cached(cache_scope, log,
                                    ca_is_dir ? (char *) xcf->common.trusted_ca.data
@@ -38,9 +47,7 @@ brix_rebuild_gsi_store(ngx_stream_brix_srv_conf_t *xcf, ngx_log_t *log,
                                    xcf->crl.len > 0
                                        ? (char *) xcf->crl.data : NULL,
                                    X509_V_FLAG_ALLOW_PROXY_CERTS,
-                                   &crl_count,
-                                   (brix_sp_mode_t) xcf->signing_policy_mode,
-                                   (int) xcf->crl_mode);
+                                   &crl_count, &pol);
     if (store == NULL) {
         return NGX_ERROR;
     }
@@ -323,6 +330,16 @@ brix_gsi_build_trust_store(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     uint64_t t0 = brix_phase_now_ns();
 
     if (brix_rebuild_gsi_store(xcf, cf->log, cf->cycle) != NGX_OK) {
+        /* The store build already said WHICH input it could not use, at
+         * NGX_LOG_ERR into the error log.  `nginx -t` prints only [emerg] to
+         * the terminal, so without this line an operator sees a bare "test
+         * failed" and has to go looking.  2.0 F22 made an unreadable CRL
+         * inside a CRL DIRECTORY reach here rather than fail open, which is
+         * exactly the case where an operator needs to be pointed at the log. */
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix: cannot build the GSI trust store from trusted_ca \"%V\" "
+            "(CRL path \"%V\") - see the preceding brix_pki errors in the "
+            "error log", &xcf->common.trusted_ca, &xcf->crl);
         return NGX_ERROR;
     }
 

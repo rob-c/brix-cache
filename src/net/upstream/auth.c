@@ -1,25 +1,24 @@
-/* File: auth.c — Outbound bearer-token (ztn) authentication for upstream redirector
- * WHAT: Sends a kXR_auth request frame containing the configured WLCG JWT token to an upstream XRootD redirector server when it advertises "ztn" credential type. Token file read synchronously from disk via brix_token_read_file() (small local file < 64 KiB, refreshed externally by SciTokens daemon or Kubernetes projected-volume refresher — microseconds latency, no event loop stall). Wire frame assembly: ClientAuthRequest header (24 B) with streamid echoing client's ID + kXR_auth requestid + zeroes reserved + "ztn\0" credtype + dlen = 4+token_len big-endian; payload "ztn\0" repeated per XRootD convention + raw JWT bytes. Frame allocated from c->pool via ngx_palloc, flushed to upstream via brix_upstream_flush(). State set to bs_phase=XRD_UP_BS_AUTH with read event armed after flush completes (partial write arms write event then read; full write arms read immediately). Response accumulator reset for kXR_auth reply reception (rhdr_pos=0, resp_dlen=0, resp_body=NULL, resp_body_pos=0). Max token size UPSTREAM_BEARER_MAX 65536 bytes.
+/* File: auth.c — outbound kXR_auth framing for the transparent upstream connector
+ * WHAT: brix_upstream_send_auth_frame() serialises one ClientAuthRequest (24-byte
+ *   header echoing the client's stream ID, `credtype` in the 4-byte slot, dlen =
+ *   payload length) followed by the caller's payload into a pool buffer, sets
+ *   bs_phase = XRD_UP_BS_AUTH, resets the response accumulator and flushes.
+ *   brix_upstream_send_token_auth() is the ztn (WLCG JWT) producer on top of it:
+ *   it reads brix_upstream_token_file synchronously via brix_token_read_file()
+ *   (small local file < 64 KiB, refreshed externally) and sends "ztn\0" + JWT.
+ *   The gsi producers live in auth_gsi.c and use the same framer.
  *
- * WHY: Upstream redirectors may require their own authentication separate from client auth. When a remote XRootD server responds kXR_login with kXR_authmore + "ztn" credential type, nginx must authenticate itself using the configured upstream token file (different from client-facing tokens). Synchronous read avoids async complexity for small local files. Echoing client streamid maintains request correlation end-to-end. Repeating "ztn\0" in payload follows XRootD wire convention where credtype appears both in header dlen field and payload start. Pool allocation ensures lifecycle tied to connection cleanup. State tracking (XRD_UP_BS_AUTH) enables upstream event handler to know which reply phase is expected. Response accumulator reset prevents stale data from previous phases contaminating the auth reply parsing.
+ * WHY: an upstream redirector may require its own authentication separate from
+ *   the client's.  ztn is one round; GSI is two (kXGC_certreq, kXGC_cert) and both
+ *   must frame identically — one framer keeps the stream-ID echo, the credtype
+ *   slot and the accumulator reset in a single place.  Echoing the client's
+ *   stream ID keeps request correlation end-to-end; XRD_UP_BS_AUTH tells the
+ *   bootstrap dispatcher which reply phase to expect.
  *
- * HOW: Includes upstream_internal.h + token/file.h → defines UPSTREAM_BEARER_MAX 65536 (line 21) → function brix_upstream_send_token_auth(up, conf) (lines 31-113): reads token file via brix_token_read_file() returning NGX_OK/NGX_ERROR (lines 43-48) → computes cred_len=4+token_len and frame_len=sizeof(ClientAuthRequest)+cred_len (line 64-65) → allocates frame from pool via ngx_palloc (line 67) → fills header: streamid[0/1] from up->req_streamid, requestid=kXR_auth htons, reserved zeroes, credtype="ztn\0" ngx_memcpy, dlen=cred_len htonl (lines 72-78) → fills payload: "ztn\0" at offset 0 + token_buf at offset 4 (lines 80-82) → sets wbuf/wbuf_len/wbuf_pos/bs_phase=XRD_UP_BS_AUTH for flush (lines 84-87) → resets response accumulator rhdr_pos/resp_dlen/resp_body/resp_body_pos to zero (lines 90-93) → debug log token size (lines 95-97) → flush via brix_upstream_flush() returning NGX_ERROR on failure (line 99) → if partial write arms write event with ngx_handle_write_event(up->conn->write,0) then returns NGX_OK; if full write arms read event with ngx_handle_read_event(up->conn->read,0) and returns result (lines 103-112). */
-
-/*
- * auth.c — outbound bearer-token (ztn) authentication for the upstream redirector.
- *
- * When a remote XRootD server responds to kXR_login with kXR_authmore and
- * advertises the "ztn" (WLCG JWT) credential type, this file reads the
- * configured token file and sends a kXR_auth frame containing the token.
- *
- * Token file is read synchronously — it is a small, local file (< 64 KiB)
- * and is refreshed externally (e.g. by a SciTokens credential cache daemon or
- * a Kubernetes projected-volume token refresher).  The read completes in
- * microseconds and does not meaningfully stall the event loop.
- *
- * Credential format on the wire (kXR_auth request):
- *   Header (24 bytes): streamid[2] + requestid[2] + reserved[12] + credtype[4] + dlen[4]
- *   Payload  (dlen bytes): credtype[4]="ztn\0" + raw JWT bytes
+ * HOW: BRIX_PALLOC_OR_RETURN(frame) → header fill (xrdw_auth_req_pack for the
+ *   credtype slot) → payload copy → wbuf/bs_phase/accumulator → brix_upstream_flush;
+ *   a partial write arms the write event (the write handler arms the read when
+ *   drained), a full write arms the read event directly.
  */
 
 #include "upstream_internal.h"
@@ -29,49 +28,30 @@
 #define UPSTREAM_BEARER_MAX  65536   /* max token file size (bytes) */
 
 /*
- * brix_upstream_send_token_auth — read the configured token file and send
- * a kXR_auth "ztn" frame to the upstream server.
+ * brix_upstream_send_auth_frame — frame `payload` as a kXR_auth request and flush.
  *
- * Sets bs_phase = XRD_UP_BS_AUTH and arms the read event.
- * Returns NGX_OK on success (may be NGX_AGAIN if write did not complete).
- * Returns NGX_ERROR on any failure; caller must call brix_upstream_abort().
+ * Wire layout:
+ *   [ClientAuthRequest header (24 B)]
+ *     streamid[2]   — echo client's stream ID
+ *     requestid[2]  — kXR_auth
+ *     reserved[12]  — zeroes
+ *     credtype[4]   — e.g. "ztn\0" / "gsi\0"
+ *     dlen[4]       — plen (big-endian)
+ *   [Payload (plen bytes)]  — protocol-specific (ztn: "ztn\0" + JWT; gsi: bucket
+ *                             stream from the XrdSecgsi kernel)
+ *
+ * Returns NGX_OK (sent, or partial with events armed) or NGX_ERROR (caller aborts).
  */
 ngx_int_t
-brix_upstream_send_token_auth(brix_upstream_t *up,
-    ngx_stream_brix_srv_conf_t *conf)
+brix_upstream_send_auth_frame(brix_upstream_t *up, const char credtype[4],
+    const u_char *payload, size_t plen)
 {
-    u_char              token_buf[UPSTREAM_BEARER_MAX];
-    size_t              token_len;
-    size_t              cred_len;
     size_t              frame_len;
     u_char             *frame;
     ClientAuthRequest  *hdr;
-    u_char             *payload;
+    xrdw_auth_req_t     b;
 
-    if (brix_token_read_file(&conf->upstream_token_file, token_buf,
-                               sizeof(token_buf), &token_len, up->conn->log,
-                               "brix: upstream") != NGX_OK)
-    {
-        return NGX_ERROR;
-    }
-
-    /*
-     * Assemble the kXR_auth request:
-     *
-     *   [ClientAuthRequest header (24 B)]
-     *     streamid[2]   — echo client's stream ID
-     *     requestid[2]  — kXR_auth
-     *     reserved[12]  — zeroes
-     *     credtype[4]   — "ztn\0"
-     *     dlen[4]       — 4 + token_len (big-endian)
-     *
-     *   [Payload (cred_len = 4 + token_len bytes)]
-     *     credtype[4]   — "ztn\0"  (repeated in payload per XRootD convention)
-     *     token bytes   — raw JWT string
-     */
-    cred_len  = 4 + token_len;
-    frame_len = sizeof(ClientAuthRequest) + cred_len;
-
+    frame_len = sizeof(ClientAuthRequest) + plen;
     BRIX_PALLOC_OR_RETURN(frame, up->conn->pool, frame_len, NGX_ERROR);
 
     hdr = (ClientAuthRequest *)(void *) frame;
@@ -79,16 +59,13 @@ brix_upstream_send_token_auth(brix_upstream_t *up,
     hdr->streamid[0] = up->req_streamid[0];
     hdr->streamid[1] = up->req_streamid[1];
     hdr->requestid   = htons(kXR_auth);
-    {
-        xrdw_auth_req_t b;
-        ngx_memcpy(b.credtype, "ztn\x00", 4);
-        xrdw_auth_req_pack(&b, ((ClientRequestHdr *) (void *) frame)->body);
-    }
-    hdr->dlen = htonl((kXR_int32) cred_len);
+    ngx_memcpy(b.credtype, credtype, 4);
+    xrdw_auth_req_pack(&b, ((ClientRequestHdr *) (void *) frame)->body);
+    hdr->dlen = htonl((kXR_int32) plen);
 
-    payload = frame + sizeof(ClientAuthRequest);
-    ngx_memcpy(payload,     "ztn\x00", 4);
-    ngx_memcpy(payload + 4, token_buf, token_len);
+    if (plen > 0) {
+        ngx_memcpy(frame + sizeof(ClientAuthRequest), payload, plen);
+    }
 
     up->wbuf      = frame;
     up->wbuf_len  = frame_len;
@@ -101,10 +78,9 @@ brix_upstream_send_token_auth(brix_upstream_t *up,
     up->resp_body     = NULL;
     up->resp_body_pos = 0;
 
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, up->conn->log, 0,
-                   "brix: upstream sending ztn token auth (%uz bytes); "
-                   "frame_len=%uz",
-                   token_len, frame_len);
+    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, up->conn->log, 0,
+                   "brix: upstream sending kXR_auth %*s (%uz payload bytes)",
+                   (size_t) 3, credtype, plen);
 
     if (brix_upstream_flush(up) == NGX_ERROR) {
         return NGX_ERROR;
@@ -118,6 +94,31 @@ brix_upstream_send_token_auth(brix_upstream_t *up,
         return NGX_OK;
     }
 
-    /* All bytes written; arm read event to wait for kXR_auth response. */
+    /* All bytes written; arm read event to wait for the kXR_auth response. */
     return ngx_handle_read_event(up->conn->read, 0);
+}
+
+/*
+ * brix_upstream_send_token_auth — read the configured token file and send it
+ * as a kXR_auth "ztn" frame ("ztn\0" repeated at the payload start per the
+ * XRootD convention, then the raw JWT bytes).
+ *
+ * Returns NGX_ERROR on token-read failure (already logged) or the framer's result.
+ */
+ngx_int_t
+brix_upstream_send_token_auth(brix_upstream_t *up,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    u_char  cred[4 + UPSTREAM_BEARER_MAX];
+    size_t  token_len;
+
+    if (brix_token_read_file(&conf->upstream_token_file, cred + 4,
+                               UPSTREAM_BEARER_MAX, &token_len, up->conn->log,
+                               "brix: upstream") != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+    ngx_memcpy(cred, "ztn\x00", 4);
+
+    return brix_upstream_send_auth_frame(up, "ztn", cred, 4 + token_len);
 }

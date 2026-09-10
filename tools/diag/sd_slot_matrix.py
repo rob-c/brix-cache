@@ -58,8 +58,8 @@ for m in re.finditer(r'\(\s*\*\s*([a-z0-9_]+)\s*\)\s*\(', h[i:j]):
     s = m.group(1)
     if s not in seen: seen.add(s); slots.append(s)
 order = ["posix","pblock","block","mirage","ceph","cephfs_ro","frm","http",
-         "remote","xroot","gsiftp","cache","stage"]
-short = {"cephfs_ro":"cfs-ro","mirage":"mir"}
+         "remote","xroot","xroot_fwd","gsiftp","cache","stage"]
+short = {"cephfs_ro":"cfs-ro","mirage":"mir","xroot_fwd":"x-fwd"}
 
 CRED = [s for s in slots if s.endswith("_cred")]
 V = {}
@@ -172,6 +172,21 @@ put("xroot", "unlink_many unlink_many_cred", "np")
 put("xroot", "exchange exchange_cred", "np")
 put("xroot", "staged_path", "path")
 put("xroot", "enumerate", "ns")
+# 2.0 F5 forward:// (xroot_fwd): every object is an sd_xroot object of a
+# client-named child origin, so the slot set mirrors xroot's — minus the two
+# verbs that need ONE origin to ask (space, enumerate).
+put("xroot_fwd", "init cleanup", "nil")
+put("xroot_fwd", "copy_range reserve", "sup")
+put("xroot_fwd", "preadv2 read_sendfile_fd read_advise sync_publish", "np")
+put("xroot_fwd", "unlink_many unlink_many_cred exchange exchange_cred", "np")
+put("xroot_fwd", "staged_path", "path")
+put("xroot_fwd", "space enumerate", "fwd")
+# 2.0 F5 open_hinted: the per-open cache-geometry hints are consumed by the
+# cache decorator (and relayed by stage / xroot_fwd); a leaf has no per-object
+# geometry to tune, and brix_sd_open_hinted_maybe_cred falls back to its open.
+for d_ in ("posix", "pblock", "block", "mirage", "ceph", "cephfs_ro", "frm",
+           "http", "remote", "xroot", "gsiftp"):
+    put(d_, "open_hinted", "hint")
 
 # GridFTP has a complete portable RFC 959/RFC 3659 namespace and staged byte
 # plane.  Random in-place writes, xattrs, truncate, recall and authoritative
@@ -179,7 +194,7 @@ put("xroot", "enumerate", "ns")
 # durability are already exact through RETR -> staged STOR -> RNFR/RNTO; a
 # second vtable fast path would only remove round trips.
 put("gsiftp", "init cleanup", "nil")
-put("gsiftp", "pwrite copy_range fsync reserve server_copy sync_publish", "sup")
+put("gsiftp", "pwrite copy_range fsync reserve sync_publish", "sup")
 put("gsiftp", "preadv2", "seam")
 put("gsiftp", "read_sendfile_fd ftruncate read_advise setattr truncate_path "
               "getxattr listxattr setxattr removexattr recall residency "
@@ -187,7 +202,6 @@ put("gsiftp", "read_sendfile_fd ftruncate read_advise setattr truncate_path "
 put("gsiftp", "unlink_many exchange unlink_many_cred exchange_cred "
               "setattr_cred truncate_path_cred getxattr_cred listxattr_cred "
               "setxattr_cred removexattr_cred", "np")
-put("gsiftp", "server_copy_cred", "sup")
 put("gsiftp", "staged_path", "path")
 put("gsiftp", "evict evict_cred", "nil")
 put("gsiftp", "enumerate", "ns")
@@ -222,8 +236,27 @@ for s_ in CRED: V[("mirage", s_)] = "syn"
 # reaps the alias — dedup_gc NULL is the contract, not an omission (sd.h).
 put("pblock", "dedup_gc", "refc")
 for d_ in ("block", "mirage", "ceph", "cephfs_ro", "frm", "http", "remote",
-           "xroot", "gsiftp", "cache", "stage"):
+           "xroot", "xroot_fwd", "gsiftp", "cache", "stage"):
     put(d_, "dedup_publish dedup_gc", "cas")
+
+# 2.0 F21: `id` is only meaningful where the PLAIN twin exists.  It reads "no
+# assumable per-user identity at this backend, so no _cred twin", and the
+# refusal it describes lives in sd_cred_forward.h's deny branch — which is
+# gated on `driver-><op> != NULL`.  On a cell whose base op the driver does not
+# implement, NEITHER branch can ever run: there is no operation here to scope to
+# anybody, and stamping `id` on it invents a per-user gap that does not exist.
+# Such a cell inherits the base op's own verdict, which is the honest answer.
+# ceph/cephfs_ro/http already hand-tracked this pair by pair (`evict evict_cred`,
+# `unlink_many unlink_many_cred`, `exchange exchange_cred`); the blanket
+# `for s in CRED` loops on posix/block/frm did not, so four posix cells claimed a
+# per-user gap on ops posix has never had.  This makes the rule uniform.
+for _d in order:
+    for _s in CRED:
+        if V.get((_d, _s)) != "id":
+            continue
+        _base = _s[:-len("_cred")]
+        if _base not in drv[_d] and (_d, _base) in V:
+            V[(_d, _s)] = V[(_d, _base)]
 
 miss = [(d, s) for d in order for s in slots if s not in drv[d] and (d, s) not in V]
 extra = [(d, s) for (d, s) in V if s in drv[d]]

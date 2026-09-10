@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include "auth/s3/sts_internal.h"   /* sts_req_t, sts_creds_buf_t, seam fns */
+#include "net/dns/curl_pin.h"       /* brix_dns_curl_pin: link stub below */
 #include "core/compat/crypto.h"     /* brix_crypto_init: prefetch the EVP_MD */
 
 /* ---- nginx surface stubs -------------------------------------------------- */
@@ -48,6 +49,18 @@ ngx_alloc(size_t size, ngx_log_t *log)
 {
     (void) log;
     return malloc(size);
+}
+
+/* phase-116: sts_http.o pins the endpoint through the DNS driver; the
+ * transports are never performed here (parser + signer only), so the stub
+ * merely satisfies the link. */
+ngx_int_t
+brix_dns_curl_pin(CURL *curl, const brix_dns_policy_t *policy,
+    const char *url, struct curl_slist **resolve_out, char *err, size_t errsz)
+{
+    (void) curl; (void) policy; (void) url; (void) err; (void) errsz;
+    *resolve_out = NULL;
+    return NGX_OK;
 }
 
 volatile ngx_cycle_t  *ngx_cycle;   /* ngx_string.o references it; unused here */

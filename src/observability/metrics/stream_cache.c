@@ -1,5 +1,8 @@
 #include "metrics_internal.h"
 #include "core/compat/fs_usage.h"
+#include "core/ngx_brix_module.h"      /* ngx_stream_brix_module, srv conf */
+#include "fs/cache/cache_storage.h"    /* brix_cache_storage_cstore */
+#include "fs/cache/cstore.h"           /* brix_cstore_freespace (VFS truth) */
 
 /*
  * WHAT: Prometheus HTTP exporter for read-through cache metrics — filesystem occupancy, eviction counters,
@@ -42,6 +45,98 @@ brix_cache_statvfs(const char *root, uint64_t *total, uint64_t *used,
 }
 
 /*
+ * WHAT: Find the cache store of the stream server that owns metrics slot @slot.
+ * WHY:  The SHM slot carries only the legacy `brix_cache_root` path.  A
+ *       driver-backed store (`brix_cache_store ram:` above all) leaves that
+ *       path empty, so statvfs(2) has nothing to stat and, until 2.0, the
+ *       occupancy and bytes families emitted no row for it at all.  The store
+ *       itself knows its capacity: ask it through the VFS-truth freespace slot.
+ * HOW:  Same server walk config.c performs at parse time, matched on
+ *       `metrics_slot`.  The cstore is the per-worker object
+ *       brix_cache_storage_init built at worker start, so a RAM tier reports
+ *       the scraped worker's own heap — the only truth a per-worker store has.
+ */
+static brix_cstore_t *
+stream_cache_slot_cstore(ngx_uint_t slot)
+{
+    ngx_stream_core_main_conf_t  *cmcf;
+    ngx_stream_core_srv_conf_t  **cscfp;
+    ngx_stream_brix_srv_conf_t   *xcf;
+    ngx_uint_t                    i;
+
+    cmcf = ngx_stream_cycle_get_module_main_conf((ngx_cycle_t *) ngx_cycle,
+                                                 ngx_stream_core_module);
+    if (cmcf == NULL) {
+        return NULL;
+    }
+    cscfp = cmcf->servers.elts;
+    for (i = 0; i < cmcf->servers.nelts; i++) {
+        xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
+                                                  ngx_stream_brix_module);
+        if (xcf != NULL && xcf->metrics_slot == (ngx_int_t) slot) {
+            return brix_cache_storage_cstore(xcf);
+        }
+    }
+    return NULL;
+}
+
+/*
+ * WHAT: total/used/available/ppm for a slot from its cache store's own
+ *       capacity report (brix_cstore_freespace → driver `space` slot).
+ * WHY:  Second source for the statvfs-shaped families when the slot has no
+ *       stattable root; keeps the row shape identical so dashboards need no
+ *       per-store special case.
+ * HOW:  NGX_ERROR when no store is wired, the driver has no capacity notion
+ *       (NGX_DECLINED from the seam) or it reports zero capacity — the caller
+ *       then skips the row exactly as it does for an unmountable root.
+ */
+static ngx_int_t
+stream_cache_store_space(ngx_uint_t slot, uint64_t *total, uint64_t *used,
+    uint64_t *available, ngx_uint_t *occupancy_ppm)
+{
+    brix_cstore_t *cs = stream_cache_slot_cstore(slot);
+    uint64_t       cap = 0, avail = 0;
+
+    if (cs == NULL || brix_cstore_freespace(cs, &cap, &avail) != NGX_OK
+        || cap == 0)
+    {
+        return NGX_ERROR;
+    }
+    *total = cap;
+    *available = avail > cap ? cap : avail;
+    *used = cap - *available;
+    *occupancy_ppm = (ngx_uint_t) ((*used * 1000000ULL) / cap);
+    return NGX_OK;
+}
+
+/*
+ * WHAT: One slot's cache usage: the physical cache store's own capacity
+ *       report FIRST, a statvfs of the legacy `brix_cache_export` root second.
+ * WHY:  The store is where the bytes are — a posix store answers with the
+ *       filesystem of ITS directory, a RAM store with its cap — while the
+ *       legacy root is a directory `brix_cache on` still requires even when
+ *       the store is memory, so measuring the root first reported the wrong
+ *       filesystem for a RAM tier (2.0 readiness F6).  Both answer in the same
+ *       four numbers.
+ */
+static ngx_int_t
+stream_cache_usage(ngx_uint_t slot, const ngx_brix_srv_metrics_t *srv,
+    uint64_t *total, uint64_t *used, uint64_t *available,
+    ngx_uint_t *occupancy_ppm)
+{
+    if (stream_cache_store_space(slot, total, used, available,
+                                 occupancy_ppm) == NGX_OK)
+    {
+        return NGX_OK;
+    }
+    if (srv->cache_root[0] == '\0') {
+        return NGX_ERROR;
+    }
+    return brix_cache_statvfs(srv->cache_root, total, used, available,
+                              occupancy_ppm);
+}
+
+/*
  * WHAT: Render one server slot's numeric port into a NUL-terminated C string.
  * WHY:  Every labelled row uses the "%s" port label, but ngx_snprintf does not
  *       NUL-terminate; the "%Z" verb appends the trailing '\0' so the buffer is a
@@ -71,8 +166,10 @@ typedef enum {
  *       one parametrised worker keeps a single copy of the fan-out loop.
  * HOW:  Emits the family's HELP/TYPE header, then per cache-enabled active
  *       server: the THRESHOLD family renders the SHM-stored ppm config value
- *       directly, while the statvfs-backed families skip roots that cannot be
- *       statted (missing/unmounted) and render ppm/1e6 (the 0..1 gauge ratio
+ *       directly, while the usage-backed families take stream_cache_usage()
+ *       (statvfs of the root, else the store's own capacity report — how a
+ *       `brix_cache_store ram:` tier gets a truthful row) and skip a slot that
+ *       answers neither; rows render ppm/1e6 (the 0..1 gauge ratio
  *       convention) or the state-labelled bytes triple.
  */
 static void
@@ -81,13 +178,15 @@ stream_cache_emit_fs_family(metrics_writer_t *mw, ngx_brix_metrics_t *shm,
 {
     static const char *const fam_header[] = {
         "# HELP brix_cache_occupancy_ratio "
-            "Filesystem occupancy ratio for brix_cache_export.\n"
+            "Cache store occupancy ratio for brix_cache_export"
+            " (the cache store's own capacity, or the legacy root's filesystem).\n"
         "# TYPE brix_cache_occupancy_ratio gauge\n",
         "# HELP brix_cache_eviction_threshold_ratio "
             "Configured cache eviction high-water occupancy ratio.\n"
         "# TYPE brix_cache_eviction_threshold_ratio gauge\n",
         "# HELP brix_cache_bytes "
-            "Cache filesystem bytes by state.\n"
+            "Cache store bytes by state (the cache store's own capacity,"
+            " or the legacy root's filesystem).\n"
         "# TYPE brix_cache_bytes gauge\n",
     };
     ngx_brix_srv_metrics_t *srv;
@@ -102,8 +201,8 @@ stream_cache_emit_fs_family(metrics_writer_t *mw, ngx_brix_metrics_t *shm,
         srv = &shm->servers[i];
         if (!srv->in_use || !srv->cache_enabled) { continue; }
         if (fam != STREAM_CACHE_FAM_THRESHOLD
-            && brix_cache_statvfs(srv->cache_root, &total, &used,
-                                    &available, &occupancy_ppm) != NGX_OK)
+            && stream_cache_usage(i, srv, &total, &used, &available,
+                                  &occupancy_ppm) != NGX_OK)
         {
             continue;
         }

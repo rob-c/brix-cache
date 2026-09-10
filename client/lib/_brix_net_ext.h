@@ -154,6 +154,9 @@ void brix_capture_meta(struct brix_capture *cap, const char *key, const char *va
  * registered so no child byte can reach the parent's wire stream. */
 void brix_forksafe_register(brix_conn *c);
 void brix_forksafe_unregister(brix_conn *c);
+/* §7.7 registry occupancy: *live slots in use, *overflow conns that did not
+ * fit and are therefore NOT neutered in a child. Either pointer may be NULL. */
+void brix_forksafe_stats(int *live, int *overflow);
 
 void brix_capture_frame(struct brix_capture *cap, int dir, uint16_t sid, int code,
                         int is_request, const void *hdr, uint32_t hdrlen,

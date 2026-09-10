@@ -134,6 +134,91 @@ def test_flat_spelling_is_the_package_object(flat, dotted):
     assert _import(flat) is _import(dotted), f"{flat} and {dotted} are two objects"
 
 
+#: Files allowed to name the worker: its shim, the package hosting it, and
+#: the pre-move archives.  Everything else reaches it through a child process.
+_WORKER_NAMES = {"_xrdcl_worker", "brix_suite.clients.xrdcl.worker"}
+_WORKER_HOSTS = ("_xrdcl_worker.py", "brix_suite/clients/xrdcl/", "brix_suite/_legacy/")
+
+
+def _imported_names(node) -> set:
+    """Dotted names an import statement binds; empty for any other node."""
+    if isinstance(node, ast.Import):
+        return {a.name for a in node.names}
+    if isinstance(node, ast.ImportFrom) and node.module:
+        return {node.module, *(f"{node.module}.{a.name}" for a in node.names)}
+    return set()
+
+
+def _worker_import_lines(path: pathlib.Path) -> list:
+    """Line numbers of every import statement in *path* naming the worker."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    return [node.lineno for node in ast.walk(tree)
+            if _imported_names(node) & _WORKER_NAMES]
+
+
+def _in_process_worker_imports(root: pathlib.Path) -> list:
+    """``(file, line)`` of every import statement naming the worker, any depth."""
+    hits = []
+    for path in sorted(root.rglob("*.py")):
+        rel = path.relative_to(root).as_posix()
+        if rel.startswith(_WORKER_HOSTS):
+            continue
+        hits.extend((rel, line) for line in _worker_import_lines(path))
+    return hits
+
+
+def test_no_suite_module_imports_the_worker_in_process():
+    """Importing the worker inside pytest breaks the importing process.
+
+    Its prologue strips every ``sys.path`` entry carrying the shadow
+    ``XRootD`` package -- ``tests/`` itself -- so every later FIRST import of
+    a ``tests/`` module in that xdist worker raises ``ModuleNotFoundError``,
+    and then it imports the real bindings into pytest.  Run rhB49 found the
+    one such import (``test_maintainability_tools.py``) 170 modules before
+    ``_xrdcl_proxy_part2`` was first needed on the same worker.
+    """
+    assert _in_process_worker_imports(TESTS) == []
+
+
+def test_the_census_sees_an_import_inside_a_function(tmp_path):
+    (tmp_path / "test_x.py").write_text(
+        "def test_x():\n    import _xrdcl_worker as w\n    assert w\n")
+    (tmp_path / "test_y.py").write_text(
+        "from brix_suite.clients.xrdcl.worker import _encode_response\n")
+    (tmp_path / "test_z.py").write_text("import brix_suite.clients.xrdcl as x\n")
+    legacy = tmp_path / "brix_suite" / "_legacy"
+    legacy.mkdir(parents=True)
+    (legacy / "old_flat.py").write_text("import _xrdcl_worker\n")
+    assert _in_process_worker_imports(tmp_path) == [("test_x.py", 2), ("test_y.py", 1)]
+
+
+_POLLUTION_PROBE = """
+import sys, _xrdcl_worker
+print(%r in sys.path)
+try:
+    import _xrdcl_proxy_part2
+except ModuleNotFoundError as exc:
+    print(exc.name)
+else:
+    print("imported")
+"""
+
+
+def test_importing_the_worker_removes_tests_from_sys_path():
+    """The reason for the census, demonstrated where it is harmless.
+
+    This is rhB49's failing direction verbatim, in a child: import the worker
+    first, then make a fresh top-level import from tests/ in the same
+    interpreter.  The second import must fail -- if it ever succeeds the
+    strip is gone and the census above has lost its reason.
+    """
+    proc = _child(_POLLUTION_PROBE % str(TESTS))
+    if proc.returncode != 0:
+        pytest.skip("no real XRootD bindings on this host: %s"
+                    % proc.stderr.strip().splitlines()[-1:])
+    assert proc.stdout.split() == ["False", "_xrdcl_proxy_part2"], proc.stdout
+
+
 def test_the_worker_spelling_resolves_without_importing_it_here():
     """The worker's shim maps to the package — checked out of process.
 

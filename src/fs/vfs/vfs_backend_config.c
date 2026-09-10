@@ -259,6 +259,19 @@ vfs_parse_block_origin(const char *root_canon, const ngx_str_t *sb,
 }
 
 void
+brix_vfs_backend_set_dns(const char *root_canon, struct brix_dns_policy_s *dns)
+{
+    brix_vfs_backend_entry_t *e;
+
+    /* a local export has no entry: nothing there resolves a name */
+    e = (root_canon != NULL && root_canon[0] != '\0')
+        ? brix_vfs_backend_entry_find(root_canon) : NULL;
+    if (e != NULL) {
+        e->dns = dns;               /* instances are rebuilt per cycle */
+    }
+}
+
+void
 brix_vfs_backend_set_credential(const char *root_canon,
     const brix_vfs_backend_cred_t *cred)
 {

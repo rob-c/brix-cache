@@ -116,6 +116,23 @@ tier_build_block(const brix_tier_cfg_t *t, ngx_log_t *log)
     return brix_sd_instance_create(log, "block", &conf, &err);
 }
 
+/* WHAT: build the per-worker RAM cache store from a tier cfg (phase-115 W4.2).
+ * WHY:  a memory tier in front of the disk cache — the hottest objects served
+ *       without a syscall, at the cost of holding them per worker.
+ * HOW:  the cfg carries no path, only the ram:<size> cap the parser validated;
+ *       the driver's init refuses a zero cap, so a mis-wired caller cannot
+ *       create an unbounded store. */
+static brix_sd_instance_t *
+tier_build_ram(const brix_tier_cfg_t *t, ngx_log_t *log)
+{
+    brix_sd_ram_conf_t conf;
+    int                err = 0;
+
+    ngx_memzero(&conf, sizeof(conf));
+    conf.capacity = t->capacity;
+    return brix_sd_instance_create(log, "ram", &conf, &err);
+}
+
 /* WHAT: hand a pblock store's master-created state to the runtime worker ids.
  * WHY:  the config-time validation build (root master) CREATES the store root,
  *       data dir and catalog.db (+ WAL/SHM sidecars) root-owned; the always-on
@@ -226,6 +243,7 @@ tier_build_xroot(const brix_tier_cfg_t *t, ngx_log_t *log)
         .port       = t->port,
         .tls        = t->tls,
         .af_policy  = BRIX_AF_AUTO,
+        .dns        = t->dns,
         .bearer     = (bearer[0] != '\0') ? bearer : NULL,
         .x509_proxy = (proxy[0] != '\0') ? proxy : NULL,
         .x509_key   = (key[0] != '\0') ? key : NULL,
@@ -234,6 +252,10 @@ tier_build_xroot(const brix_tier_cfg_t *t, ngx_log_t *log)
         /* `nearline` on the store line: the origin fronts tape, so reads recall
          * (kXR_prepare/kXR_stage) instead of blocking a worker on the mount. */
         .nearline   = t->nearline ? 1 : 0,
+        /* phase-115 W4.3: `verify_pages` on the store line rides with the
+         * endpoint, not with the tier that composes over it — it describes the
+         * LINK to this origin, so every reader of the instance inherits it. */
+        .verify_pages = (int) t->verify_pages,
     };
     return brix_sd_xroot_create_origin(&cfg, log);
 }
@@ -264,6 +286,7 @@ tier_build_http(const brix_tier_cfg_t *t, ngx_log_t *log)
     /* §14/C-3: verify the https origin against the credential's ca_dir (file
      * or hashed dir); "" system bundle (public-CA origin). */
     cfg.ca_path      = (cadir[0] != '\0') ? cadir : NULL;
+    cfg.dns          = t->dns;
     return brix_sd_http_create(&cfg, log);
 }
 
@@ -329,6 +352,7 @@ tier_build_s3(const brix_tier_cfg_t *t, ngx_log_t *log)
 
     cfg.timeout_ms = BRIX_SD_HTTP_DEFAULT_TIMEOUT_MS;
     cfg.transport  = &brix_s3_origin_curl_transport;
+    cfg.dns        = t->dns;
     /* `nearline` on the store line: the bucket is archive-backed, so residency
      * reads the storage class and recall issues RestoreObject — the S3 spelling
      * of what root+tape:// declares for an xroot origin (tier_build_xroot). */
@@ -365,11 +389,18 @@ tier_build_ceph(const brix_tier_cfg_t *t, ngx_log_t *log)
 /* WHAT: build a tape/frm (nearline MSS) backend from a tier cfg.
  * WHY:  a nearline source recalled through the FRM adapter.
  * HOW:  the authority host selects the MSS adapter ("" = stub); the path is
- *       the adapter's MSS base. */
+ *       the adapter's MSS base; t->opts is the validated "?arc=<depth>" query
+ *       (phase-115 W3.1) — tier_config already refused anything else. */
 static brix_sd_instance_t *
 tier_build_tape(const brix_tier_cfg_t *t, ngx_log_t *log)
 {
-    return brix_sd_frm_create(t->host, t->path, log);
+    brix_sd_frm_opts_t opts;
+
+    if (brix_sd_frm_parse_query(t->opts, &opts) != 0) {
+        errno = EINVAL;
+        return NULL;
+    }
+    return brix_sd_frm_create_opts(t->host, t->path, &opts, log);
 }
 
 brix_sd_instance_t *
@@ -384,6 +415,9 @@ brix_tier_build(const brix_tier_cfg_t *t, ngx_log_t *log)
     }
     if (ngx_strcmp(t->driver, "block") == 0) {
         return tier_build_block(t, log);
+    }
+    if (ngx_strcmp(t->driver, "ram") == 0) {
+        return tier_build_ram(t, log);
     }
     if (ngx_strcmp(t->driver, "pblock") == 0) {
         return tier_build_pblock(t, log);

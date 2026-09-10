@@ -131,8 +131,9 @@ char *brix_protbind_conf(ngx_conf_t *cf, ngx_command_t *cmd,
 struct brix_ctx_s;
 
 /* Reverse-resolved peer hostname for ANY host-template policy (protbind rules,
- * XrdAcc `h` records), resolved at most once per connection and cached on the
- * session context; NULL when the peer has no PTR record. */
+ * XrdAcc `h` records), probed from the phase-116 reverse cache and copied at
+ * most once per connection onto the session context; NULL when the peer has no
+ * PTR record or the answer is still pending (retried on the next call). */
 const char *brix_protbind_peer_host_cached(struct brix_ctx_s *ctx,
     ngx_connection_t *c);
 

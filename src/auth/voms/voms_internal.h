@@ -2,6 +2,7 @@
 #define BRIX_VOMS_INTERNAL_H
 
 #include "core/ngx_brix_module.h"
+#include "auth/voms/voms_io.h"
 
 #include <openssl/x509.h>
 
@@ -122,13 +123,14 @@ typedef struct {
  * error_message). brix_voms_loaded is the availability flag read by ACL code
  * in path/acl.c to conditionally enable VO checks. brix_collect_voms_vos() is
  * the public function for converting VOMS API result structs into comma-separated
- * VO list strings — called internally by extract.c after VOMS_Retrieve(). */
+ * VO list strings — called internally by extract.c after VOMS_Retrieve().  Since
+ * 2.0 F20 it also fills out->fqan_list with the RAW FQANs (see voms_io.h): the
+ * VO-name views are '/'-free by design, so they cannot carry a role. */
 
 extern brix_voms_api_t brix_voms_api;
 extern ngx_flag_t        brix_voms_loaded;
 
 ngx_int_t brix_collect_voms_vos(struct voms_data *vd,
-    char *primary_vo, size_t primary_vo_sz,
-    char *vo_list, size_t vo_list_sz);
+    const brix_voms_out_t *out);
 
 #endif /* BRIX_VOMS_INTERNAL_H */

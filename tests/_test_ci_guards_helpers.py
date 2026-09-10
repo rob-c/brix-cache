@@ -69,6 +69,7 @@ _FAST = [
     "check_ports_doc",
     "check_template_refs",
     "check_vfs_seam",
+    "check_dns_seam",
     "check_vfs_mutation_gate",
     "check_authz_backstop",
     "check_vfs_identity_branch",
@@ -96,6 +97,18 @@ _FAST = [
     # absolute-zero gate and auto-joined the pre-push glob; this hand-maintained
     # list follows it here (same slow-member/timeout-headroom rule as above).
     "check_duplication",
+    # 2.0 readiness wave (2026-09-05): check_example_configs.py joined the
+    # pre-push glob the moment it existed; this list follows it here.
+    "check_example_configs",
+    # Race-hunt run 33 (2026-09-07): a suite imported a fixture from an
+    # exec-composed continuation shard and hit NameError at fixture setup;
+    # guard #13 pins that what is taken from a composed shard never reaches a
+    # name only its parent binds.
+    "check_shard_direct_imports",
+    # Race-hunt run 34 (2026-09-07): a new suite's manager name had no
+    # lifecycle-ledger row and the fleet raised at its first start, 9,133 tests
+    # in; guard #14 judges every spec that reaches the harness statically.
+    "check_lifecycle_spec_ledger",
 ]
 
 def _load_check_file_size():

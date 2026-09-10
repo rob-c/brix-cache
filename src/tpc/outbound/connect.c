@@ -1,125 +1,146 @@
-/* File: connect.c — DNS resolution and TCP connect to TPC source server
- * WHAT: Resolves the remote XRootD origin host via getaddrinfo, validates each candidate address against SSRF policy rules (allow_local/allow_private), creates a blocking socket with configurable receive/send timeouts, then performs non-blocking connect followed by poll-based wait for connection completion. Also provides brix_tpc_check_src_policy as an SSRF preflight wrapper that resolves host+port without creating the socket — used before kXR_open destination file creation to validate source addresses early.
+/* File: connect.c — source-host resolution and TCP connect for a native TPC pull
+ * WHAT: tpc_connect() resolves the remote root:// origin through the brix DNS
+ * driver (brix_dns_resolve_sync: IP literal → per-worker cache → the event
+ * loop's nginx resolver via the bridge → libc, all off the event loop),
+ * re-checks every candidate address against the SSRF policy (I-DNS-3), and
+ * dials the first that connects within TPC_CONNECT_TIMEOUT_SEC with the I/O
+ * timeouts and SciTags flow label applied.  brix_tpc_check_src_policy() is the
+ * event-loop preflight the kXR_open destination gate runs: a verdict from an IP
+ * literal or the cache, or "unknown" so the open can park on an async resolve.
  *
- * WHY: Native TPC pull requires nginx to establish a TCP connection to the remote root:// origin server before it can send handshake frames and read the file. DNS resolution must iterate over all addrinfo candidates (IPv4/IPv6) because some may be unreachable; SSRF policy validation prevents connecting to localhost or private ranges when configured to reject them. Non-blocking connect with poll-based wait avoids blocking the nginx event loop while still respecting configurable timeout limits. The preflight check enables early source address validation before allocating destination file resources.
+ * WHY: Native TPC pull requires nginx to establish a TCP connection to the remote
+ * origin before it can send handshake frames and read the file.  The resolution
+ * must iterate over every answered address (IPv4/IPv6) because some may be
+ * unreachable; the per-address policy check prevents connecting to loopback or
+ * private ranges when configured to reject them, and repeating it on the thread
+ * closes the rebinding window between preflight and connect.  Nothing here may
+ * block the worker: the preflight never resolves, the connect runs in the pool.
  *
- * HOW: getaddrinfo(src_host, port_str, hints SOCK_STREAM+AF_UNSPEC) → iterate addrinfo candidates → brix_net_target_check_addr with SSRF policy → socket(family,socktype,proto) → setsockopt SO_RCVTIMEO/SO_SNDTIMEO → fcntl O_NONBLOCK → connect() → if EINPROGRESS then poll POLLOUT with TPC_CONNECT_TIMEOUT_SEC → getsockopt SO_ERROR to verify zero → restore original flags. Returns connected fd or -1 on failure. Preflight: brix_net_target_check_dns resolves host+port without creating socket, returns 0/-1.
+ * HOW: preflight = brix_net_target_check_cached (0 permitted / -1 refused /
+ * 1 no cached answer).  Connect = brix_dns_resolve_sync → for each address:
+ * brix_net_target_check_addr → socket(family, SOCK_STREAM) → SO_RCVTIMEO/
+ * SO_SNDTIMEO → flow label → brix_connect_fd_deadline.  Returns the connected
+ * fd or -1 with t->err_msg set.
  * */
 
 #include "tpc/engine/tpc_internal.h"
 #include "core/compat/net_target.h"
+#include "net/dns/dns.h"
 #include "observability/pmark/pmark.h"
 #include "protocols/root/connection/netconnect.h"   /* shared outbound connect/I/O hardening */
 
-
-#include <netdb.h>
 #include <sys/socket.h>
-#include <sys/time.h>
-#include <netinet/in.h>
-#include <poll.h>
-#include <fcntl.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <errno.h>
 
-/* WHAT: DNS resolve + TCP connect to TPC origin — getaddrinfo → SSRF policy check per candidate → socket with SO_RCVTIMEO/SO_SNDTIMEO → non-blocking connect via poll. Returns connected fd or -1. */
 
-int
-tpc_connect(brix_tpc_pull_t *t)
+/* Dial one candidate: socket → timeouts → flow label → deadline connect.
+ * Returns the connected fd, or -1 with the socket closed. */
+static int
+tpc_connect_candidate(const brix_tpc_pull_t *t, struct sockaddr *sa,
+    socklen_t salen)
 {
-    struct addrinfo  hints, *res, *rp;
-    char             port_str[16];
-    int              fd = -1;
-    uint16_t         src_port;
+    int  fd;
 
-    src_port = t->src_port ? t->src_port : 1094;
-    snprintf(port_str, sizeof(port_str), "%u", (unsigned) src_port);
-
-    ngx_memzero(&hints, sizeof(hints));
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family   = AF_UNSPEC;
-
-    if (getaddrinfo(t->src_host, port_str, &hints, &res) != 0) {
-        snprintf(t->err_msg, sizeof(t->err_msg),
-                 "TPC DNS resolution failed for %s", t->src_host);
+    fd = socket(sa->sa_family, SOCK_STREAM, 0);
+    if (fd < 0) {
         return -1;
     }
 
-    for (rp = res; rp != NULL; rp = rp->ai_next) {
-        brix_net_target_policy_t  policy;
-        char                        ssrf_err[128];
+    brix_apply_socket_io_timeouts(fd, TPC_IO_TIMEOUT_SEC);
 
-        ngx_memzero(&policy, sizeof(policy));
-        policy.allow_local   = t->conf->common.tpc_allow_local;
-        policy.allow_private = t->conf->common.tpc_allow_private;
+    /*
+     * SciTags (phase-34): stamp the IPv6 flow label on the OUTBOUND pull
+     * socket before connecting (codes resolved on the event loop in
+     * start_pull).  No-op on IPv4 / when not marked; fail-open.
+     */
+    if (t->pmark_exp != 0) {
+        (void) brix_pmark_flowlabel_apply_addr(fd, sa, salen, t->pmark_exp,
+                                               t->pmark_act, ngx_cycle->log);
+    }
 
-        if (brix_net_target_check_addr(rp->ai_addr, &policy,
-                                         ssrf_err, sizeof(ssrf_err))
+    if (brix_connect_fd_deadline(fd, sa, salen,
+                                 TPC_CONNECT_TIMEOUT_SEC * 1000) == 0)
+    {
+        return fd;
+    }
+
+    close(fd);
+    return -1;
+}
+
+
+/* WHAT: resolve + policy-check + TCP connect to the TPC origin (thread-pool
+ * task).  Returns the connected fd or -1 with t->err_msg set. */
+int
+tpc_connect(brix_tpc_pull_t *t)
+{
+    brix_dns_addr_t           addrs[BRIX_DNS_MAX_ADDRS];
+    brix_net_target_policy_t  policy;
+    char                      reason[BRIX_DNS_ERROR_LEN];
+    ngx_uint_t                n, i;
+    uint16_t                  src_port;
+
+    src_port = t->src_port ? t->src_port : 1094;
+
+    ngx_memzero(&policy, sizeof(policy));
+    policy.allow_local   = t->conf->common.tpc_allow_local;
+    policy.allow_private = t->conf->common.tpc_allow_private;
+    policy.dns           = t->conf->common.dns.policy;
+
+    n = brix_dns_resolve_sync(policy.dns, t->src_host, src_port, BRIX_AF_AUTO,
+                              SOCK_STREAM, addrs, BRIX_DNS_MAX_ADDRS, reason,
+                              sizeof(reason));
+    if (n == 0) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC DNS resolution failed for %s: %s", t->src_host, reason);
+        return -1;
+    }
+
+    for (i = 0; i < n; i++) {
+        struct sockaddr  *sa = (struct sockaddr *) &addrs[i].ss;
+        char              ssrf_err[128];
+        int               fd;
+
+        /* I-DNS-3: the address actually dialled is the one checked. */
+        if (brix_net_target_check_addr(sa, &policy, ssrf_err, sizeof(ssrf_err))
             != NGX_OK)
         {
             snprintf(t->err_msg, sizeof(t->err_msg),
                      "TPC source host %s: %s", t->src_host, ssrf_err);
-            freeaddrinfo(res);
             return -1;
         }
 
-        fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-        if (fd < 0) {
-            continue;
+        fd = tpc_connect_candidate(t, sa, addrs[i].len);
+        if (fd >= 0) {
+            return fd;
         }
-
-        brix_apply_socket_io_timeouts(fd, TPC_IO_TIMEOUT_SEC);
-
-        /*
-         * SciTags (phase-34): stamp the IPv6 flow label on the OUTBOUND pull
-         * socket before connecting (codes resolved on the event loop in
-         * start_pull).  No-op on IPv4 / when not marked; fail-open.
-         */
-        if (t->pmark_exp != 0) {
-            (void) brix_pmark_flowlabel_apply_addr(fd, rp->ai_addr,
-                rp->ai_addrlen, t->pmark_exp, t->pmark_act, ngx_cycle->log);
-        }
-
-        if (brix_connect_fd_deadline(fd, rp->ai_addr, rp->ai_addrlen,
-                                       TPC_CONNECT_TIMEOUT_SEC * 1000) == 0)
-        {
-            break;
-        }
-
-        close(fd);
-        fd = -1;
-    }
-    freeaddrinfo(res);
-
-    if (fd < 0) {
-        snprintf(t->err_msg, sizeof(t->err_msg),
-                 "TPC connect to %s failed", t->src_host);
-        return -1;
     }
 
-    return fd;
+    snprintf(t->err_msg, sizeof(t->err_msg), "TPC connect to %s failed",
+             t->src_host);
+    return -1;
 }
 
+
 /*
- * SSRF preflight for kXR_open TPC destination path: validate the resolved
- * source addresses before creating the local destination file or returning an
- * open handle. Uses the same prohibited-address rules as tpc_connect() for
- * the first candidate addrinfo entry (matching that connect path).
- */
-/* WHAT: SSRF preflight — resolve host+port via brix_net_target_check_dns without creating socket, validate against allow_local/allow_private policy. Used before kXR_open destination file creation. */
-/*
- * brix_tpc_check_src_policy — SSRF preflight wrapper for native root:// TPC.
+ * brix_tpc_check_src_policy — event-loop SSRF preflight for native root:// TPC.
  *
- * Thin wrapper over brix_net_target_check_dns() that accepts the bare
- * host+port form used by the native TPC handshake, rather than a full URL.
+ * Bare host+port form of brix_net_target_check_cached(): the verdict comes
+ * from an IP literal or the per-worker DNS cache and nothing is resolved
+ * here.  Returns 0 when every cached address is permitted, -1 with err_msg
+ * when the host is missing, definitively unknown or resolves to a prohibited
+ * range, and 1 when no answer is cached yet (the caller parks the open on an
+ * async resolve — launch_dns.c).
  */
 int
-brix_tpc_check_src_policy(const char *src_host, uint16_t src_port,
-    ngx_flag_t allow_local, ngx_flag_t allow_private,
-    char *err_msg, size_t err_msg_sz)
+brix_tpc_check_src_policy(const ngx_stream_brix_srv_conf_t *conf,
+    const char *src_host, uint16_t src_port, char *err_msg, size_t err_msg_sz)
 {
     brix_net_target_t         target;
     brix_net_target_policy_t  policy;
+    ngx_int_t                 rc;
 
     if (src_host == NULL || src_host[0] == '\0') {
         snprintf(err_msg, err_msg_sz, "TPC source host missing");
@@ -133,15 +154,13 @@ brix_tpc_check_src_policy(const char *src_host, uint16_t src_port,
     target.has_port  = 1;
 
     ngx_memzero(&policy, sizeof(policy));
-    policy.allow_local   = allow_local;
-    policy.allow_private = allow_private;
+    policy.allow_local   = conf->common.tpc_allow_local;
+    policy.allow_private = conf->common.tpc_allow_private;
+    policy.dns           = conf->common.dns.policy;
 
-    if (brix_net_target_check_dns(&target, &policy,
-                                    err_msg, err_msg_sz) != NGX_OK)
-    {
-        return -1;
+    rc = brix_net_target_check_cached(&target, &policy, err_msg, err_msg_sz);
+    if (rc == NGX_OK) {
+        return 0;
     }
-
-    return 0;
+    return rc == NGX_DECLINED ? 1 : -1;
 }
-

@@ -33,51 +33,11 @@ typedef struct {
 static int
 parse_redirect(const uint8_t *body, uint32_t blen, redir_tgt_t *t)
 {
-    const char *field, *qmark;
-    uint32_t    flen, hlen;
-    if (blen < 5) {
-        return -1;
-    }
-    t->port = (int) xrd_get_u32_be(body);
-
-    /* The host field runs from body+4 to the first NUL/CR/LF (or end of body). We
-     * scan it IN PLACE and split host vs opaque straight into their own buffers, so
-     * a long capability opaque (EOS cap.sym/cap.msg, often >256B) is NOT truncated
-     * by the host buffer — the bug that made the DS reject the capability. */
-    field = (const char *) body + 4;
-    flen  = blen - 4;
-    {
-        const char *nl = memchr(field, '\0', flen);
-        if (nl == NULL) { nl = memchr(field, '\r', flen); }
-        if (nl == NULL) { nl = memchr(field, '\n', flen); }
-        if (nl != NULL) {
-            flen = (uint32_t) (nl - field);
-        }
-    }
-
-    qmark = memchr(field, '?', flen);
-    hlen  = qmark != NULL ? (uint32_t) (qmark - field) : flen;
-    if (hlen >= sizeof(t->host)) {
-        hlen = (uint32_t) sizeof(t->host) - 1;
-    }
-    memcpy(t->host, field, hlen);
-    t->host[hlen] = '\0';
-
-    t->opaque[0] = '\0';
-    if (qmark != NULL) {
-        const char *o   = qmark + 1;
-        uint32_t    olen = (uint32_t) (field + flen - o);
-        while (olen > 0 && (*o == '&' || *o == '?')) {   /* EOS sends "?&cap.sym=" */
-            o++;
-            olen--;
-        }
-        if (olen >= sizeof(t->opaque)) {
-            olen = (uint32_t) sizeof(t->opaque) - 1;
-        }
-        memcpy(t->opaque, o, olen);
-        t->opaque[olen] = '\0';
-    }
-    return 0;
+    /* One decoder for every kXR_redirect consumer (the server's TPC pull
+     * follows the same bodies, F7): host and opaque land in their own
+     * bounded buffers so a long capability never truncates the host. */
+    return xrd_redirect_body_decode(body, blen, t->host, sizeof(t->host),
+                                    &t->port, t->opaque, sizeof(t->opaque));
 }
 
 static int

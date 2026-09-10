@@ -107,13 +107,10 @@
      * content checksum and compare against the digest the origin advertised
      * (kXR_Qcksum for root://, a Digest header for HTTP/Pelican). A mismatch
      * discards the part so a corrupted transfer never becomes a cache entry. */
-    ngx_uint_t  cache_verify;          /* [brix_cache_verify off|best-effort|require]
-                                          brix_cache_verify_mode_e; default
-                                          best-effort. 0=off, 1=best-effort, 2=require. */
-    ngx_str_t   cache_verify_digest;   /* [brix_cache_verify_digest crc32c]
-                                          preferred algorithm to request from an
-                                          HTTP origin (Want-Digest); empty = take
-                                          whatever the origin reports. */
+    /* The policy and the preferred origin digest live in the SHARED preamble
+     * (common.cache_verify_mode / common.cache_verify_digest) so both fill
+     * spines and both planes read one field.  Until 2.0 a stream-only pair of
+     * fields sat here that no directive could write. */
 
     /* §14: the legacy cache_slice_size field is deleted — slice/partial caching
      * is common.cache_slice_size (brix_cache_slice_size, tier grammar). */
@@ -254,13 +251,6 @@
                                        byte-size (on-demand du) instead of the
                                        dir inode size. Off (default) = inode
                                        size, byte-identical. */
-    ngx_flag_t  pss_dca;             /* [brix_pss_dca on] §4.9 direct cache
-                                       access: hand a cache-resident file to a
-                                       kXR_lclfile-capable client as a redirect
-                                       to its local path, so a co-located client
-                                       reads it straight off the shared FS. Off
-                                       (default) + only lclfile clients ever see
-                                       it ⇒ zero effect on everyone else. */
     ngx_flag_t  oss_quota_enforce;    /* [brix_oss_quota_enforce on] §3.3: refuse a
                                          write whose growth would push the export's
                                          usage (the same probe Qspace advertises:

@@ -154,7 +154,7 @@ http {
             brix_export /data;
             
             # Path to CA certificates for verification
-            brix_webdav_cadir /etc/grid-security/certificates;
+            brix_trusted_ca_dir /etc/grid-security/certificates;
             
             # Require proxy certificate (stronger than host cert)
             brix_webdav_proxy_certs on;

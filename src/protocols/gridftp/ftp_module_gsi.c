@@ -160,12 +160,19 @@ brix_ftp_build_gsi(ngx_conf_t *cf, ngx_stream_brix_ftp_srv_conf_t *conf)
 
     ca_is_dir = (stat(ca_raw, &stbuf) == 0 && S_ISDIR(stbuf.st_mode)); /* vfs-seam-allow: DOMAIN_CONFIG — trust-anchor path (CApath dir vs CAfile bundle), not export storage */
 
-    conf->ca_store = brix_build_ca_store_cached(cf->cycle, cf->log,
-        ca_is_dir ? ca_raw : NULL,          /* CApath (hashed dir) */
-        ca_is_dir ? NULL : ca_raw,          /* or CAfile bundle    */
-        NULL,                                /* no CRL for the POC  */
-        X509_V_FLAG_ALLOW_PROXY_CERTS,       /* RFC 3820 proxies    */
-        NULL, BRIX_SP_MODE_OFF, BRIX_CRL_MODE_OFF);
+    /* The gsiftp POC leg carries no CRL and no signing_policy of its own:
+     * BRIX_TRUST_POLICY_INIT is exactly "every enforcement knob off, widest
+     * CRL scope", which is what this path has always configured. */
+    {
+        brix_trust_policy_t pol = BRIX_TRUST_POLICY_INIT;
+
+        conf->ca_store = brix_build_ca_store_cached(cf->cycle, cf->log,
+            ca_is_dir ? ca_raw : NULL,          /* CApath (hashed dir) */
+            ca_is_dir ? NULL : ca_raw,          /* or CAfile bundle    */
+            NULL,                                /* no CRL for the POC  */
+            X509_V_FLAG_ALLOW_PROXY_CERTS,       /* RFC 3820 proxies    */
+            NULL, &pol);
+    }
     if (conf->ca_store == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_gridftp_gsi: cannot build CA trust store from %s", ca_raw);

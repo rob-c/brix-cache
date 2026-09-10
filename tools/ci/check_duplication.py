@@ -19,6 +19,12 @@
 #
 #         * lizard is run once over all three trees combined (cross-tree clones)
 #           and once per tree (window segmentation differs; the union is kept);
+#         * a block whose members ALL overlap each other is one region reported
+#           as sliding windows of ITSELF, not a clone: there is no second site
+#           and nothing to extract, so it is exempt before anything else is
+#           asked of it. (This is NOT the forbidden move of relaxing the row
+#           grammar to make a clone look declarative — it is the precondition
+#           for the word "duplicate" to mean anything: two distinct sites.);
 #         * each block's members are normalised (comments/preprocessor stripped,
 #           continuation lines joined into logical rows);
 #         * a block whose members are all C/C++ declarative data — initializer
@@ -223,6 +229,28 @@ def _overlapping(m1: str, m2: str) -> bool:
     return p1 == p2 and a1 <= b2 and a2 <= b1
 
 
+def _one_region(members: list[str]) -> bool:
+    """True when EVERY pair of members overlaps, i.e. the block covers a single
+    contiguous region of one file.
+
+    lizard's sliding window reports a self-similar run of rows as several
+    overlapping windows of itself, and how many windows — and how wide — depends
+    on the whole corpus, not on the file: adding an unrelated file elsewhere in
+    the tree re-segments it. When a 2-line window pair grows into a 3-line one
+    that happens to straddle a block opener, the row grammar stops calling it
+    declarative and the guard reports "cloned logic" about five lines that were
+    never copied from anywhere (client/lib/auth/cred/credinfo.c:86-90,
+    surfaced 2026-09-07 by adding client/lib/protocols/ssi/ to the corpus).
+
+    _overlapping already states the reasoning — "two members covering the same
+    lines share text because they ARE the same text, which is not evidence of a
+    clone" — but only _max_row_share consulted it, which the declarative test
+    can short-circuit. Asking it FIRST is what makes the verdict depend on the
+    code rather than on lizard's segmentation of the corpus around it.
+    """
+    return all(_overlapping(a, b) for a, b in combinations(members, 2))
+
+
 def _pair_share(a: set[str], b: set[str]) -> float | None:
     """Identical-content-row fraction for one disjoint pair; None when either
     side is pure scaffolding (no content rows -> no evidence either way)."""
@@ -264,9 +292,12 @@ def _all_declarative(rowsets: list[list[str]]) -> bool:
 
 
 def classify(key: str, cache: dict) -> str | None:
-    """None when the block is exempt (declarative C data with different
-    content); otherwise a short reason string for the FAIL report."""
+    """None when the block is exempt (one region seen through overlapping
+    windows, or declarative C data with different content); otherwise a short
+    reason string for the FAIL report."""
     members = key.split("+")
+    if _one_region(members):
+        return None
     if not _all_c_members(members):
         return "cloned non-C code"
     rowsets = [_join_rows(_clean_lines(_snippet(m, cache))) for m in members]

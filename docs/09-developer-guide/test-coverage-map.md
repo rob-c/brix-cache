@@ -21,7 +21,7 @@ PYTHONPATH=tests pytest tests/ -k "gsi" -v --tb=short
 PYTHONPATH=tests pytest tests/ -v --tb=short
 ```
 
-Tests need a running server. Start it with `tests/manage_test_servers.sh start`. Logs land in `/tmp/xrd-test/logs/`.
+Tests need a running server. Start it with `python3 -m cmdscripts.manage_test_servers start-all`. Logs land in `/tmp/xrd-test/logs/`.
 
 ---
 
@@ -509,7 +509,7 @@ SigV4 authentication for presigned URLs (`src/protocols/s3/auth.c`).
 
 ### `test_proxy_mode.py`
 
-Transparent proxy (`brix_proxy on`): the module connects to an upstream xrootd server and translates handles between client and upstream.
+Transparent proxy (`brix_tap_proxy on`): the module connects to an upstream xrootd server and translates handles between client and upstream.
 
 - **Bootstrap** (`TestProxyBootstrap`) — lazy connect: ping handled before upstream touch, first FS op triggers connect, endsess clean, multiple independent proxy connections.
 - **Stat / Dirlist / Read / Write** — forwarding for all basic ops, error propagation.

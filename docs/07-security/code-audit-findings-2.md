@@ -11,6 +11,15 @@ could not be confirmed by direct code reading are marked `[NEEDS VERIFICATION]`.
 
 **Status:** All actionable findings fixed (2026-05-20).
 
+> **Reading note (2026-09-09).** This is a **closed** audit record: every path and
+> `file.c:line` below names the tree *as it was audited*, and phases 66/67/69
+> moved nearly every source file since. Do not follow a path from here — find the
+> code by symbol (`rg`) or through the OP→FILE tables in
+> [`agent-guide-extended.md`](../09-developer-guide/agent-guide-extended.md). The
+> findings and their resolutions are what this page is for.
+
+<!-- doc-paths:off -->
+
 ---
 
 ## Summary Table
@@ -692,3 +701,5 @@ All changes compile cleanly against nginx 1.28.3 and pass the full `tests/test_s
 ---
 
 *Second-pass audit: BriX-Cache main branch, 2026-05-20.*
+
+<!-- doc-paths:on -->

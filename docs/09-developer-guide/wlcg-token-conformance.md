@@ -162,7 +162,7 @@ through the VO/ACL subsystem, not these families.
 # Layer 1 (fast, no fleet)
 tests/run_token_conformance.sh
 
-# Layer 2 (needs the fleet: tests/manage_test_servers.sh start-all)
+# Layer 2 (needs the fleet: python3 -m cmdscripts.manage_test_servers start-all)
 PYTHONPATH=tests pytest tests/test_wlcg_token_conformance_*.py -v
 
 # Layer 3 (opt-in)

@@ -41,11 +41,12 @@ and ACL enforcement of that identity happen later in [`../path/`](../../fs/path/
 |---|---|
 | `auth_request.c` | `brix_handle_sss_auth()` — the `kXR_auth` `"sss"` handler. Parses the outer packet, looks up the key by id, decrypts the cleartext, verifies CRC32 + timestamp, parses the identity TLV, applies key policy (`anyuser`/`anygroup`/`usrgroup`/...), sets `ctx->dn`/`vo_list`/`primary_vo`/`identity`, registers the session, emits metrics, and replies `kXR_ok` (or `kXR_authmore` for the interactive SNDLID form). |
 | `auth_crypto_helpers.c` | Shared crypto + wire primitives: big-endian read/write (`brix_sss_read_be32`/`be64`, `write_be32`), software `brix_sss_crc32` (poly `0xedb88320`), `brix_sss_bf32_crypt` (Blowfish-CFB64 via OpenSSL EVP, zero IV, no padding, OpenSSL-3 legacy-provider load), key lookup (`brix_sss_find_key`/`find_key_arr`), and the transport-independent verifier `brix_sss_verify_blob` used by CMS. |
-| `auth_identity_challenge.c` | Identity TLV parsing and the challenge/failure responses: `brix_sss_parse_identity` (bounds-checked TAG-LEN-VALUE stream → name/grps/host/ip), `brix_sss_copy_packed_string` (overflow-safe field extraction), `brix_sss_auth_failed` (sends `kXR_NotAuthorized`), and `brix_sss_send_authmore` (encrypts a fresh `nobody` LGID challenge for the local-id round-trip). |
-| `auth_proxy_credential.c` | `brix_sss_build_proxy_credential()` — builds an outbound `kXR_auth` `"sss"` credential when *this* server acts as an SSS client to an upstream (proxy mode): random nonce + gen-time + NAME TLV → CRC32 → BF32 encrypt → outer header with 8-byte BE key-id. |
+| `auth_identity_challenge.c` | Identity TLV parsing and the challenge/failure responses: `brix_sss_parse_identity` (bounds-checked TAG-LEN-VALUE stream → name/vorg/role/grps/endorsements/proxied-creds/host/ip via one table-driven field store), `brix_sss_copy_packed_string` (overflow-safe field extraction), `brix_sss_auth_failed` (sends `kXR_NotAuthorized`), and `brix_sss_send_authmore` (encrypts a fresh `nobody` LGID challenge for the local-id round-trip). |
+| `auth_proxy_credential.c` | `brix_sss_build_proxy_credential()` — builds an outbound `kXR_auth` `"sss"` credential when *this* server acts as an SSS client to an upstream (proxy mode): random nonce + gen-time + NAME TLV → CRC32 → BF32 encrypt → outer header with 8-byte BE key-id. `brix_sss_build_proxy_entity_credential()` is the same mint for a full entity (name + vorg + role + groups + endorsements + proxied credential), used when `brix_tap_proxy_sss_identity client` forwards the *client's* identity instead of the keytab's. |
 | `config.c` | Startup keytab loader/validator: `brix_sss_load_keytab()` (shared by stream + CMS) opens the keytab `O_NOFOLLOW`/`O_CLOEXEC`, checks permissions via the shared `sss_keytab_mode_ok()`, parses each `N:/k:/u:/g:/n:/e:` line via the shared `sss_keytab_parse_line()` into a neutral entry, copies it into `brix_sss_key_t`, sets policy `opts`, and skips expired entries; `brix_configure_sss_auth()` wires it into the per-server config when `auth == BRIX_AUTH_SSS`. |
 | `sss_keytab_kernel.c` | Shared, ngx-free keytab text grammar (`sss_keytab_parse_line` line tokeniser/validator + `sss_keytab_mode_ok` permission check). Linked into both the module and the native client (`client/lib/auth/sss/sss_keytab.c`) via libxrdproto, so a client-minted keytab is parsed by the server under identical rules. Hex decode reuses the shared `src/core/compat/hex.c` codec. |
 | `sss_internal.h` | Cross-file contract: wire-length constants (`BRIX_SSS_HDR_LEN` 16, `BRIX_SSS_DATA_HDR_LEN` 40), `BRIX_SSS_BASE_TIME` epoch, enc/option/TLV-type codes, the `brix_sss_identity_t` decoded-identity struct, and all shared prototypes. |
+| `src/core/compat/sss_entity.c` | ngx-free credential *mint* shared with the native client through libxrdproto: `brix_sss_build_entity_credential()` writes the full entity TLV stream (or the identity-less SNDLID form), `brix_sss_challenge_lgid()` decrypts a server `kXR_authmore` challenge back to the login id it names. One implementation, so client and server produce identical bytes. |
 | `README.md` | This document. |
 
 > Note: this subsystem was reorganized — the historical `auth.c` / `key_parse.c`
@@ -68,9 +69,13 @@ and ACL enforcement of that identity happen later in [`../path/`](../../fs/path/
   `user[BRIX_SSS_USER_MAX]` / `group[BRIX_SSS_GROUP_MAX]` strings. Lives in
   `conf->sss_keys` (an `ngx_array_t`).
 - **`brix_sss_identity_t`** (`sss_internal.h`) — the identity decoded from a
-  credential's TLV body: `name[256]`, `grps[512]` (comma-separated), `host[256]`,
-  `ip[128]`, and `id_count` (count of non-random fields; the parser fails if it
-  is zero).
+  credential's TLV body: `name[256]`, `vorg[256]`, `role[256]`, `grps[512]`
+  (comma-separated), `endo[1024]` (endorsements), `creds[4096]` + `creds_len`
+  (a proxied credential, forwarded verbatim), `host[256]`, `ip[128]`, and
+  `id_count` (count of non-random fields; the parser fails if it is zero).
+  Every string field is fail-closed: a value that does not fit its buffer
+  fails the whole parse rather than arriving truncated, because a truncated
+  VO or role is a *different* authorization claim, not a shorter one.
 - **Wire layout** — outer packet: 4-byte magic `"sss\0"`, 1-byte version, spare,
   `kn_size` (named-key length, must be 8-aligned or 0), enc type
   (`BRIX_SSS_ENC_BF32` = `'0'` at offset 7), 8-byte BE key-id at offset 8,
@@ -85,8 +90,14 @@ and ACL enforcement of that identity happen later in [`../path/`](../../fs/path/
   `+`). These are set from sentinel keytab values (`anybody`, `allusers`,
   `anygroup`, `usrgroup`). **Distinct from** the *on-the-wire* option byte values
   `BRIX_SSS_OPT_USEDATA` `0x00` / `SNDLID` `0x01` declared in `sss_internal.h`.
-- **TLV field types** (`sss_internal.h`): `NAME` `0x01`, `GRPS` `0x04`, `RAND`
-  `0x07`, `LGID` `0x10`, `HOST` `0x20`.
+- **TLV field types** (`src/protocols/root/protocol/sss.h`): `NAME` `0x01`,
+  `VORG` `0x02`, `ROLE` `0x03`, `GRPS` `0x04`, `ENDO` `0x05`, `CRED` `0x06`,
+  `RAND` `0x07`, `LGID` `0x10`, `HOST` `0x20`. The four v2 entity tags fill the
+  gaps the v1 parser left between `NAME` and `RAND` — the `XrdSecEntity` field
+  order (name, vorg, role, grps, endorsements, creds) anchored by the two
+  v1-known tags, inferred clean-room and cross-checked on the wire by
+  `tests/test_release20_sss_entity.py`. Receiver caps live beside them as
+  `BRIX_SSS_ENT_*_MAX`.
 
 ## Control & data flow
 
@@ -113,7 +124,11 @@ and ACL enforcement of that identity happen later in [`../path/`](../../fs/path/
 **Outbound (proxy mode):** [`../proxy/`](../../net/proxy/) (`src/net/proxy/events_bootstrap.c`) calls
 `brix_sss_build_proxy_credential()` to encrypt a credential with the local
 keytab key (selected via `conf->sss_keyname`, or the first key when empty), then
-sends it as a `kXR_auth` to the upstream.
+sends it as a `kXR_auth` to the upstream. With `brix_tap_proxy_sss_identity
+client` it instead mints `brix_sss_build_proxy_entity_credential()` carrying the
+*client's* identity (name/vorg/role/groups/endorsements/proxied credential) — and
+refuses to connect at all when the client is not authenticated, so the upstream
+can never be told about an identity this hop did not verify.
 
 **CMS peer auth:** [`../cms/`](../../net/cms/) (`src/net/cms/server_auth.c:72`) calls
 `brix_sss_verify_blob(ctx->conf->sss_keys, CMS_SSS_LIFETIME, ...)` to validate a
@@ -174,9 +189,14 @@ aborts nginx start (fail-closed).
   ([`src/core/types/config.h`](../../core/types/config.h)) if it needs new state; keep unknown
   fields ignored for keytab compatibility but fail-closed on malformed *required*
   fields (`N:` id, `k:` key).
-- **Add a new identity TLV type:** add the constant to `sss_internal.h` and a
-  `case` in `brix_sss_parse_identity()` (`auth_identity_challenge.c`); remember
-  non-`RAND` fields must increment `id_count` to count as a valid identity.
+- **Add a new identity TLV type:** add the constant (and its receiver cap) to
+  `src/protocols/root/protocol/sss.h`; for a string field add one row to the
+  `sss_string_fields[]` table in `auth_identity_challenge.c` (tag, struct
+  offset, cap) — no new `case` is needed — and mint it from
+  `sss_entity_tlvs()` in `src/core/compat/sss_entity.c` so both ends move
+  together. Remember non-`RAND` fields must increment `id_count` to count as a
+  valid identity, and that an over-cap value must fail the parse, never
+  truncate.
 - **Add a new key policy option:** define `BRIX_SSS_OPT_*` in
   [`src/core/types/tunables.h`](../../core/types/tunables.h), set it from a sentinel
   user/group/name value in `brix_sss_parse_key_line()`, and apply it where

@@ -20,7 +20,7 @@ CONFORMANCE_NGINX_URL pointed at the topology front; a green subprocess proves
 that topology preserves full wire conformance.
 
 Run:
-    tests/manage_test_servers.sh start        # need anon (DATA_ROOT) + ref daemon
+    python3 -m cmdscripts.manage_test_servers start-all        # need anon (DATA_ROOT) + ref daemon
     PYTHONPATH=tests pytest tests/test_conformance_topologies.py -v
 """
 

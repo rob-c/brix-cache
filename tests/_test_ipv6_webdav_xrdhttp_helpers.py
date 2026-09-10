@@ -3,7 +3,7 @@
 Exercises the WebDAV method surface (GET/HEAD/PUT + Range + Want-Digest, DELETE,
 MKCOL, MOVE/COPY, PROPFIND depth 0/1, LOCK/UNLOCK, OPTIONS) against the dedicated
 "ipv6-webdav" nginx instance bound to the IPv6 loopback ``[::1]`` and pre-started
-by ``manage_test_servers.sh start-all``
+by ``python3 -m cmdscripts.manage_test_servers start-all``
 (``start_dedicated_nginx "ipv6-webdav" "nginx_ipv6_webdav.conf" "${IPV6_WEBDAV_PORT}"``),
 serving ``IPV6_WEBDAV_DATA_ROOT`` as an anonymous, writable WebDAV root
 (``tests/configs/nginx_ipv6_webdav.conf``: ``listen [::1]:{PORT};`` +
@@ -100,7 +100,7 @@ def _ipv6_webdav(requires_ipv6_loopback):
     if not reachable6(IPV6_WEBDAV_PORT):
         pytest.skip(
             f"dedicated ipv6-webdav nginx not reachable on [{HOST6}]:{IPV6_WEBDAV_PORT} — "
-            f"run tests/manage_test_servers.sh start-all"
+            f"run python3 -m cmdscripts.manage_test_servers start-all"
         )
 
 

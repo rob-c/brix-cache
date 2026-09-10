@@ -60,6 +60,32 @@ brix_sd_open_maybe_cred(brix_sd_instance_t *inst, const char *path,
     return inst->driver->open(inst, path, sd_flags, mode, err_out);
 }
 
+/* 2.0 F5: true when `h` carries no hint at all (NULL or all-zero). */
+static ngx_inline int
+brix_sd_open_hints_empty(const brix_sd_open_hints_t *h)
+{
+    return h == NULL || (h->block_size == 0 && !h->prefetch_set);
+}
+
+/* 2.0 F5: open with per-open cache hints. Routes to the driver's open_hinted
+ * slot only when there is a hint to deliver AND the credential contract holds
+ * (no cred, or a driver that also implements open_cred); otherwise the hints
+ * are dropped — they are advisory — and the open takes the ordinary
+ * cred-forwarding path above, deny semantics included. */
+static ngx_inline brix_sd_obj_t *
+brix_sd_open_hinted_maybe_cred(brix_sd_instance_t *inst, const char *path,
+    int sd_flags, mode_t mode, const brix_sd_cred_t *cred,
+    const brix_sd_open_hints_t *hints, int *err_out)
+{
+    if (!brix_sd_open_hints_empty(hints) && inst->driver->open_hinted != NULL
+        && (cred == NULL || inst->driver->open_cred != NULL))
+    {
+        return inst->driver->open_hinted(inst, path, sd_flags, mode, cred,
+                                         hints, err_out);
+    }
+    return brix_sd_open_maybe_cred(inst, path, sd_flags, mode, cred, err_out);
+}
+
 static ngx_inline brix_sd_staged_t *
 brix_sd_staged_open_maybe_cred(brix_sd_instance_t *inst, const char *final_path,
     mode_t mode, off_t declared_size, const brix_sd_cred_t *cred, int *err_out)

@@ -87,7 +87,7 @@ brix_ftp_finalize_vo_rules(ngx_conf_t *cf,
     root.len  = ngx_strlen(conf->common.root_canon);
     if (brix_finalize_vo_rules(cf->log, &root, conf->common.vo_rules) != NGX_OK) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_gridftp_require_vo: cannot finalize VO rules for "
+            "brix_require_vo: cannot finalize VO rules for "
             "export \"%s\"", conf->common.root_canon);
         return NGX_CONF_ERROR;
     }
@@ -111,6 +111,13 @@ brix_ftp_merge_storage(ngx_conf_t *cf, ngx_stream_brix_ftp_srv_conf_t *conf)
     {
         return NGX_CONF_ERROR;
     }
+    if (brix_vfs_backend_store_params(cf, conf->common.root_canon,
+            &conf->common.storage_backend,
+            conf->common.storage_backend_args) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    brix_vfs_backend_set_dns(conf->common.root_canon, conf->common.dns.policy);
     /* Default: forward the client's delegated proxy (PASSTHROUGH). A named
      * brix_credential block's `mode` may override this inside install below;
      * the request-time bind (ftp_ev_path.c) additionally no-ops on backends

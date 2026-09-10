@@ -18,7 +18,7 @@ broker can genuinely `setfsuid()` to mapped users **with zero real privilege**.
 
 A local `pytest.ini` + empty `conftest.py` make `pytest tests/userns/` resolve
 its rootdir here, so the parent `tests/conftest.py` (which runs
-`manage_test_servers.sh start-all`) is **not** loaded.
+`python3 -m cmdscripts.manage_test_servers start-all`) is **not** loaded.
 
 ## Requirements
 

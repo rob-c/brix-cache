@@ -28,7 +28,6 @@
  */
 #include "stream_mirror.h"
 
-#include <netdb.h>
 #include <sys/socket.h>
 
 #include "stream_mirror_internal.h"
@@ -42,6 +41,20 @@ static void brix_mir_write_handler(ngx_event_t *wev);
 static void brix_mir_read_handler(ngx_event_t *rev);
 static void brix_mir_timeout_handler(ngx_event_t *ev);
 static void brix_mir_finish(brix_stream_mirror_t *mir, int sent);
+
+/* WHAT: the shadow socket never came up (connect error, or the deadline
+ *       expired while still connecting).
+ * WHY:  phase-116 W5.2 — an address that stops accepting must cost one
+ *       mirror, not every mirror until the TTL expires: the registry
+ *       rotates to its next answer and re-resolves the name early.
+ * HOW:  brix_dns_target_note_failure is a no-op for a literal, unarmed or
+ *       in-flight target, so a literal brix_mirror_url is unaffected. */
+static void
+brix_mir_unreachable(brix_stream_mirror_t *mir)
+{
+    brix_dns_target_note_failure(mir->dns);
+    brix_mir_finish(mir, 0);
+}
 
 
 /* write side */
@@ -106,7 +119,7 @@ brix_mir_write_handler(ngx_event_t *wev)
             ngx_log_debug2(NGX_LOG_DEBUG_STREAM, mir->log, 0,
                            "xrootd mirror: %s:%d connect failed",
                            mir->host, (int) mir->port);
-            brix_mir_finish(mir, 0);
+            brix_mir_unreachable(mir);
             return;
         }
         mir->connecting = 0;
@@ -261,6 +274,10 @@ brix_mir_timeout_handler(ngx_event_t *ev)
 
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, mir->log, 0,
                    "xrootd mirror: %s:%d timed out", mir->host, (int) mir->port);
+    if (mir->connecting) {
+        brix_mir_unreachable(mir);
+        return;
+    }
     brix_mir_finish(mir, 0);
 }
 
@@ -332,7 +349,7 @@ brix_mir_start(brix_stream_mirror_t *mir, ngx_msec_t timeout_ms)
     rc = connect(fd, (struct sockaddr *) &mir->sockaddr, mir->socklen);
 
     if (rc == -1 && ngx_socket_errno != NGX_EINPROGRESS) {
-        brix_mir_finish(mir, 0);
+        brix_mir_unreachable(mir);
         return;
     }
     if (ngx_handle_write_event(c->write, 0) != NGX_OK) {

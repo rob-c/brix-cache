@@ -3974,6 +3974,31 @@ and the ephemeral floor. Read the range rather than assuming it; it is tunable
 per host. `tests/test_ci_ts3_settings_live_lane.py` derives its base this way
 and is the worked example.
 
+**Enforced 2026-09-07: the rule is now an import-time refusal, and the reason
+it had to be is instructive.** The check already existed — the band lint at
+`tests/test_fleet_ports.py:291-308` reads the same sysctl with the same
+conservative default and asserts no fixed-port band ends at or above the floor,
+and it is base-relative, so it scores zero offenders at base 10000 and all
+seven bands at base 42000. It still did not save a lane run at 42000, for two
+compounding reasons. First, a lint fires only for a lane that *collects* the
+suite holding it, and no phase-116 lane collects `test_fleet_ports.py` — the
+same shape as a `slow` marker hiding a gate. Second, and decisively, running
+that suite at the bad base never reaches its own assertion: `conftest` wedges
+bringing the fleet up on the illegal ports, so the check cannot fire for the
+one case it exists to reject. A test cannot guard the thing that breaks the
+test runner. `port_ladder.py` therefore refuses at import — before any server
+starts, for every lane regardless of selection —
+via `read_ephemeral_range(path)` (a broken, absent or nonsensical sysctl reads
+as *unknown* and refuses nothing, so a container still collects) and the pure
+`check_lane_clears_ephemeral_range(port_start, port_count, ephemeral_range)`.
+Only `PORT_FIRST..PORT_LAST` is judged: the mock window is a *reservation*
+drawn bottom-up by `free_port`, so refusing on it would be a false positive —
+at base 20000 it would take ~10,000 simultaneous leases to reach the floor.
+Pinned by `tests/test_port_ladder_ephemeral_guard.py` (16), whose numbers are
+all derived from `PORT_COUNT`: the ledger was repacked from 2393 to 2395 to
+2418 inside one hour on 2026-09-07, so every literal in this area rots. The
+band lint stays — it judges each band, the refusal judges the lane.
+
 TS-4 additionally: the 3× boot/stop soak (§11 TS-4). Timing numbers are
 recorded per phase in Appendix E on landing.
 

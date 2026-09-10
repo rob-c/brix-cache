@@ -40,18 +40,90 @@ brix_sss_copy_packed_string(char *dst, size_t dst_len,
  *
  * Known field types:
  *   BRIX_SSS_TYPE_NAME (0x01) — username
+ *   BRIX_SSS_TYPE_VORG (0x02) — virtual organisation      (v2 entity, F9)
+ *   BRIX_SSS_TYPE_ROLE (0x03) — VO role                   (v2 entity, F9)
  *   BRIX_SSS_TYPE_GRPS (0x04) — comma-separated groups
+ *   BRIX_SSS_TYPE_ENDO (0x05) — endorsements              (v2 entity, F9)
+ *   BRIX_SSS_TYPE_CRED (0x06) — proxied credential, raw   (v2 entity, F9)
  *   BRIX_SSS_TYPE_RAND (0x07) — random nonce (not counted for id_count)
  *   BRIX_SSS_TYPE_LGID (0x10) — local group ID
  *   BRIX_SSS_TYPE_HOST (0x20) — source hostname or [IP] literal
  *
  * This parser is security-sensitive: every length check must be explicit and
  * complete before advancing cursor.  A wrong check can turn a malformed
- * credential into an out-of-bounds read.
+ * credential into an out-of-bounds read.  Entity strings are never
+ * truncated into a different identity: a string at or over its cap, or a
+ * CRED blob over BRIX_SSS_ENT_CREDS_MAX, fails the whole parse.
  *
  * Returns: NGX_OK if at least one non-random field was found, NGX_ERROR if
- *   the block is empty or truncated.
+ *   the block is empty, truncated, or carries an over-cap field.
  */
+/* One packed-string entity field: wire tag → its slot in brix_sss_identity_t.
+ * The table IS the field list; add a v2 string field here, nowhere else. */
+typedef struct {
+    uint8_t  type;
+    size_t   off;
+    size_t   cap;
+} sss_string_field_t;
+
+static const sss_string_field_t  sss_string_fields[] = {
+    { BRIX_SSS_TYPE_NAME, offsetof(brix_sss_identity_t, name), BRIX_SSS_ENT_NAME_MAX },
+    { BRIX_SSS_TYPE_VORG, offsetof(brix_sss_identity_t, vorg), BRIX_SSS_ENT_VORG_MAX },
+    { BRIX_SSS_TYPE_ROLE, offsetof(brix_sss_identity_t, role), BRIX_SSS_ENT_ROLE_MAX },
+    { BRIX_SSS_TYPE_GRPS, offsetof(brix_sss_identity_t, grps), BRIX_SSS_ENT_GRPS_MAX },
+    { BRIX_SSS_TYPE_ENDO, offsetof(brix_sss_identity_t, endo), BRIX_SSS_ENT_ENDO_MAX },
+};
+
+/*
+ * sss_store_field — file one bounds-checked TLV into the identity.
+ *
+ * WHAT: table lookup for the packed-string fields, the HOST/[IP] split, and
+ * the raw CRED copy; unknown tags are ignored.
+ * WHY: the v2 fields must land by cap, not by truncation — a NAME or DN cut
+ * at 255 bytes is a different principal, a cut credential is garbage that
+ * still looks like one.  Refusing here makes the whole parse fail closed.
+ * HOW: returns NGX_ERROR for a string whose character count (NUL excluded)
+ * reaches its cap or a CRED over BRIX_SSS_ENT_CREDS_MAX; NGX_OK otherwise.
+ */
+static ngx_int_t
+sss_store_field(brix_sss_identity_t *id, uint8_t type,
+    const u_char *value, size_t len)
+{
+    size_t  i, chars;
+
+    chars = (len > 0 && value[len - 1] == '\0') ? len - 1 : len;
+
+    for (i = 0; i < sizeof(sss_string_fields) / sizeof(sss_string_fields[0]); i++) {
+        if (sss_string_fields[i].type != type) {
+            continue;
+        }
+        if (chars >= sss_string_fields[i].cap) {
+            return NGX_ERROR;
+        }
+        brix_sss_copy_packed_string((char *) id + sss_string_fields[i].off,
+                                      sss_string_fields[i].cap, value, len);
+        return NGX_OK;
+    }
+
+    if (type == BRIX_SSS_TYPE_HOST) {
+        if (len > 0 && value[0] == '[') {
+            brix_sss_copy_packed_string(id->ip, sizeof(id->ip), value, len);
+        } else {
+            brix_sss_copy_packed_string(id->host, sizeof(id->host), value, len);
+        }
+        return NGX_OK;
+    }
+
+    if (type == BRIX_SSS_TYPE_CRED) {
+        if (len > sizeof(id->creds)) {
+            return NGX_ERROR;
+        }
+        ngx_memcpy(id->creds, value, len);
+        id->creds_len = len;
+    }
+    return NGX_OK;
+}
+
 ngx_int_t
 brix_sss_parse_identity(const u_char *data, size_t len,
     brix_sss_identity_t *id)
@@ -92,29 +164,8 @@ brix_sss_parse_identity(const u_char *data, size_t len,
             id->id_count++;
         }
 
-        switch (field_type) {
-        case BRIX_SSS_TYPE_NAME:
-            brix_sss_copy_packed_string(id->name, sizeof(id->name),
-                                          field_value, field_len);
-            break;
-
-        case BRIX_SSS_TYPE_GRPS:
-            brix_sss_copy_packed_string(id->grps, sizeof(id->grps),
-                                          field_value, field_len);
-            break;
-
-        case BRIX_SSS_TYPE_HOST:
-            if (field_len > 0 && field_value[0] == '[') {
-                brix_sss_copy_packed_string(id->ip, sizeof(id->ip),
-                                              field_value, field_len);
-            } else {
-                brix_sss_copy_packed_string(id->host, sizeof(id->host),
-                                              field_value, field_len);
-            }
-            break;
-
-        default:
-            break;
+        if (sss_store_field(id, field_type, field_value, field_len) != NGX_OK) {
+            return NGX_ERROR;
         }
 
         cursor += field_len;

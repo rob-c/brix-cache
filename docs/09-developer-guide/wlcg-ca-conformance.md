@@ -8,7 +8,7 @@ directive semantics and how to run the conformance suite.
 
 ## Trust model as implemented
 
-`brix_trusted_ca` (root://) / `brix_webdav_cadir` (davs://) point at a hashed CA
+`brix_trusted_ca` (root://) / `brix_trusted_ca_dir` (davs://) point at a hashed CA
 directory — the `/etc/grid-security/certificates` layout: `<hash>.0` CA certs,
 `<hash>.r0` CRLs, `<hash>.signing_policy` EACL files. OpenSSL looks CAs up by the
 **new** (SHA-1 canonical) subject hash; the legacy MD5 hash alone is not
@@ -74,7 +74,7 @@ Default **`try`**.
 > **Migration note.** `try` is a deliberate change from the earlier implicit
 > rule ("any CRL loaded ⇒ required for all CAs"). Sites that want the old
 > effective strictness should set `brix_crl_mode require`. A CRL path
-> (`brix_crl` / `brix_webdav_crl`) must be configured for `require` to have
+> (`brix_crl` / `brix_crl`) must be configured for `require` to have
 > anything to check.
 
 ## Running the suite

@@ -17,21 +17,33 @@
 #include <stdio.h>
 #include "fs/backend/sd.h"
 
-/* sd_registry.o (which carries the accessors under test) references these driver
- * struct symbols in its static registration table. We link only sd_registry.o,
- * so provide minimal stub definitions to satisfy the linker; the accessors under
- * test operate only on the synthetic drivers below, never on these. */
-const brix_sd_driver_t brix_sd_posix_driver;
-const brix_sd_driver_t brix_sd_block_driver;
-const brix_sd_driver_t brix_sd_pblock_driver;
-const brix_sd_driver_t brix_sd_mirage_driver;
-/* When sd_registry.o is built with BRIX_HAVE_CEPH (ceph-devel present on the
- * build host), its registration table also references the two ceph drivers.
- * Stub them unconditionally: harmless where sd_registry.o has no ceph refs,
- * required where it does — and avoids dragging librados/libcephfs into a pure
- * capability-logic unit test. */
-const brix_sd_driver_t brix_sd_ceph_driver;
-const brix_sd_driver_t brix_sd_cephfs_ro_driver;
+/* sd_registry.o (which carries the accessors under test) references every
+ * BACKEND driver struct in its registration table, and that table is GENERATED
+ * from core/types/fs_list.h.  We link only sd_registry.o, so stub the same set
+ * from the same row list: a BACKEND row added there (posix, block, mirage, ram,
+ * ...) is stubbed here on the next compile, never hand-listed (the hand list
+ * this replaced went stale on the ram row and broke the unit).  The accessors
+ * under test operate only on the synthetic drivers below, never on these.
+ *
+ * Both library gates are forced on for the list: sd_registry.o may have been
+ * built with -DBRIX_HAVE_SQLITE=1 / -DBRIX_HAVE_CEPH=1 on the configure's
+ * CFLAGS, invisible to this compile, and a stub for a symbol nothing references
+ * is harmless — while a missing one is a link failure and would drag sqlite or
+ * librados into a pure capability-logic unit. */
+#undef BRIX_HAVE_CEPH
+#define BRIX_HAVE_CEPH 1
+#undef BRIX_HAVE_SQLITE
+#define BRIX_HAVE_SQLITE 1
+#include "core/types/fs_list.h"
+#define BRIX_FS_ROW_BACKEND(ID, sym, name)   const brix_sd_driver_t brix_sd_##sym##_driver;
+#define BRIX_FS_ROW_ORIGIN(ID, sym, name)
+#define BRIX_FS_ROW_DECORATOR(ID, sym, name)
+#define BRIX_FS_ROW_NEARLINE(ID, sym, name)
+BRIX_FS_DRIVER_LIST(BRIX_FS_ROW)
+#undef BRIX_FS_ROW_BACKEND
+#undef BRIX_FS_ROW_ORIGIN
+#undef BRIX_FS_ROW_DECORATOR
+#undef BRIX_FS_ROW_NEARLINE
 
 /* sd_registry's instance-create path (unreached by this test) pulls these two
  * nginx pool symbols; stub them so the object links standalone. */

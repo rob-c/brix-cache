@@ -182,6 +182,34 @@ brix_server_set_wt_credential(ngx_conf_t *cf,
     return NGX_OK;
 }
 
+/* The export's storage backend: driver, its parameters, the DNS policy a
+ * remote driver resolves under (phase-116: the server's own brix_resolver,
+ * never libc) and the n2n rewrite.  Split out of brix_server_setup_export()
+ * to keep that function inside the complexity contract.
+ */
+static ngx_int_t
+brix_server_setup_backend(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
+{
+    if (brix_vfs_backend_config_str(cf, xcf->common.root_canon,
+            &xcf->common.storage_backend, xcf->common.pblock_block_size,
+            (int) xcf->cache_origin_family) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+    if (brix_vfs_backend_store_params(cf, xcf->common.root_canon,
+            &xcf->common.storage_backend,
+            xcf->common.storage_backend_args) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+    brix_vfs_backend_set_dns(xcf->common.root_canon, xcf->common.dns.policy);
+    return brix_vfs_backend_config_n2n(cf, xcf->common.root_canon,
+                                       &xcf->common.n2n_scheme,
+                                       &xcf->common.n2n_pool,
+                                       &xcf->common.n2n_prefix);
+}
+
+
 static ngx_int_t
 brix_server_setup_export(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
@@ -202,16 +230,7 @@ brix_server_setup_export(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         return NGX_ERROR;
     }
     brix_tmp_reap_register(xcf->common.root_canon);
-    if (brix_vfs_backend_config_str(cf, xcf->common.root_canon,
-            &xcf->common.storage_backend, xcf->common.pblock_block_size,
-            (int) xcf->cache_origin_family) != NGX_OK)
-    {
-        return NGX_ERROR;
-    }
-    if (brix_vfs_backend_config_n2n(cf, xcf->common.root_canon,
-            &xcf->common.n2n_scheme, &xcf->common.n2n_pool,
-            &xcf->common.n2n_prefix) != NGX_OK)
-    {
+    if (brix_server_setup_backend(cf, xcf) != NGX_OK) {
         return NGX_ERROR;
     }
     if (brix_server_set_storage_credential(cf, xcf) != NGX_OK
@@ -364,11 +383,12 @@ brix_server_validate_cache(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     if (brix_server_validate_cache_watermarks(cf, xcf) != NGX_OK) {
         return NGX_ERROR;
     }
+    /* The origin is the export's storage backend — the retired brix_cache_origin
+     * string this line used to print was always empty. */
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "brix: cache enabled root=%V origin=%V tls=%s "
+        "brix: cache enabled root=%V origin=%V "
         "lock_timeout=%ds eviction_threshold=0.%06ui",
-        &xcf->cache_root, &xcf->cache_origin,
-        xcf->cache_origin_tls ? "on" : "off",
+        &xcf->cache_root, &xcf->common.storage_backend,
         (int) xcf->cache_lock_timeout,
         xcf->cache_eviction_threshold);
     return NGX_OK;

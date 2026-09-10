@@ -21,7 +21,7 @@ Permutation 4: "Space & Quota Relay"
     Verify kYR_space relaying and space-aware redirection.
     Uses: CLUSTER_SLOTS_REDIR_PORT and its data-server pool
 
-All tests use pre-launched servers from manage_test_servers.sh.
+All tests use pre-launched servers from cmdscripts/manage_test_servers.py.
 Run:
     pytest tests/test_e2e_cluster_matrix.py -v
 """

@@ -1,5 +1,20 @@
 # Live Transfer Monitor — Implementation Plan
 
+> **Status (2026-09-09 — 2.0). DELIVERED; this page is the design record, not a
+> task list.** The transfer monitor ships as part of the HTTPS dashboard
+> (`src/observability/dashboard/`, whose
+> [README](../../src/observability/dashboard/README.md) is the current
+> implementation map), covered by `tests/test_dashboard.py`,
+> `tests/test_dashboard_files.py`, `tests/test_dashboard_config_anon.py` and
+> `tests/test_release20_dashboard_cross_validation.py`. **The file paths below
+> are the ones this plan *proposed*; several landed elsewhere** — do not follow a
+> path from here, use the dashboard README and the OP→FILE tables in
+> [`agent-guide-extended.md`](../09-developer-guide/agent-guide-extended.md).
+> For operating the dashboard, see the
+> [monitoring guide](../08-metrics-monitoring/monitoring-guide.md).
+
+<!-- doc-paths:off -->
+
 A self-contained admin dashboard served by the module itself. A site operator opens a browser, logs in with a configured password, and sees every active transfer in real time: who, what file, which protocol, how fast, and totals across the whole server's lifetime.
 
 ---
@@ -581,3 +596,5 @@ This runs at most every 2 seconds (the polling interval), touches only in-use sl
 3. **WebDAV identity depth:** The WebDAV path uses `webdav_verify_proxy_cert()` to extract the DN. For token-auth WebDAV, the `sub` claim would be the right identity string. Both code paths need to surface a string into the transfer slot.
 
 4. **TPC identity:** During WebDAV TPC the "identity" is the service certificate performing the copy, not the end user who triggered it. Should the slot show the service DN or omit identity for TPC slots?
+
+<!-- doc-paths:on -->

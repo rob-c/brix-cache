@@ -175,6 +175,56 @@ opts_parse_valued(brix_opts *o, int argc, char **argv, int *i)
     return 0;
 }
 
+/*
+ * brix_opts_parse_sss_arg — consume one --sss-* identity flag at argv[*i].
+ *
+ * WHAT: --sss-vorg/--sss-role/--sss-endorse/--sss-creds-file each take a
+ *       value; --sss-sndlid is a toggle.  Returns 1 when the arg was
+ *       consumed (advancing *i past any value), 0 otherwise.
+ * WHY:  The sss v2 entity fields are their own family — they only mean
+ *       anything together, and grouping them keeps both this helper and
+ *       opts_parse_valued() under the complexity gate.  It is exported
+ *       rather than static because xrdfs walks argv with its own ladder
+ *       (it never calls brix_opts_parse_arg), and the ONE thing worse
+ *       than a tool missing these flags is two tools disagreeing about
+ *       what they mean.
+ * HOW:  Same `*i + 1 < argc` guard as the other value flags, so a trailing
+ *       flag with no value falls through rather than reading past argv.
+ *       Nothing is validated here: an over-long value is refused at mint
+ *       time by the bounded setters, which is also where the server's own
+ *       caps live, so the two ends fail the same way.
+ */
+int
+brix_opts_parse_sss_arg(brix_opts *o, int argc, char **argv, int *i)
+{
+    const char *a = argv[*i];
+
+    if (strcmp(a, "--sss-sndlid") == 0) {
+        o->sss_sndlid = 1;
+        return 1;
+    }
+    if (*i + 1 >= argc) {
+        return 0;
+    }
+    if (strcmp(a, "--sss-vorg") == 0) {
+        o->sss_vorg = argv[++(*i)];
+        return 1;
+    }
+    if (strcmp(a, "--sss-role") == 0) {
+        o->sss_role = argv[++(*i)];
+        return 1;
+    }
+    if (strcmp(a, "--sss-endorse") == 0) {
+        o->sss_endorse = argv[++(*i)];
+        return 1;
+    }
+    if (strcmp(a, "--sss-creds-file") == 0) {
+        o->sss_creds_file = argv[++(*i)];
+        return 1;
+    }
+    return 0;
+}
+
 int
 brix_opts_parse_arg(brix_opts *o, int argc, char **argv, int *i)
 {
@@ -182,7 +232,8 @@ brix_opts_parse_arg(brix_opts *o, int argc, char **argv, int *i)
 
     /*
      * Universal flags first (--version exits, --help returns 2), then the
-     * value-less boolean toggles, then the flags that consume a value.  Each
+     * value-less boolean toggles, then the flags that consume a value, then the
+     * --sss-* identity family.  Each
      * helper returns 1 when it consumed the arg; 0 means "not mine", so the
      * whole function returns 0 and the caller handles the arg itself.
      */
@@ -194,6 +245,9 @@ brix_opts_parse_arg(brix_opts *o, int argc, char **argv, int *i)
         return 1;
     }
     if (opts_parse_valued(o, argc, argv, i)) {
+        return 1;
+    }
+    if (brix_opts_parse_sss_arg(o, argc, argv, i)) {
         return 1;
     }
     return 0;

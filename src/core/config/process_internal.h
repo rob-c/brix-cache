@@ -55,6 +55,12 @@ ngx_msec_t brix_cache_reap_delay(ngx_msec_t dflt);
  * competes with the worker's crypto/cache bring-up on a cold start. */
 #define BRIX_CSI_SCRUB_FIRST_MS      30000
 
+/* Phase-115 W3.2 tape-buffer purge engine: first tick after worker start
+ * (honours $BRIX_CACHE_REAP_FIRST_MS like the cache reapers) and the youngest
+ * online copy a pass may release (a recall that just landed must be readable). */
+#define BRIX_FRM_PURGE_FIRST_MS      5000
+#define BRIX_FRM_PURGE_MIN_AGE_S     30
+
 /* Maintenance-timer callbacks defined in process_timers.c but armed from a
  * server's init ladder in process_server_init.c (via ngx_event_t->handler). */
 void brix_crl_reload_handler(ngx_event_t *ev);
@@ -77,5 +83,20 @@ void brix_init_tpc_registry_reap_timer(ngx_cycle_t *cycle);
  * NGX_OK, or NGX_ERROR to abort worker startup. */
 ngx_int_t brix_init_one_server(ngx_cycle_t *cycle,
     ngx_stream_brix_srv_conf_t *xcf);
+
+/* Phase-115 W3.2: arm the worker-0 tape-buffer purge timer for a server whose
+ * export chain has a tape:// tier and at least one purge arm configured
+ * (process_frm_purge.c). NGX_OK (incl. the not-configured no-op) / NGX_ERROR. */
+ngx_int_t brix_init_server_frm_purge_timer(ngx_cycle_t *cycle,
+    ngx_stream_brix_srv_conf_t *xcf);
+
+/* 2.0 F1 (process_stage_retry.c): apply the brix_frm_* engine snapshot —
+ * creates brix_frm_queue_path, installs copymax/fail_retries — and return the
+ * journal dir to init the engine with (NULL = no `brix_frm on` server
+ * published, or the dir is unusable: fall back to $BRIX_STAGE_JOURNAL_DIR). */
+const char *brix_stage_engine_conf_apply(ngx_cycle_t *cycle);
+/* 2.0 F1: arm the worker-0 brix_frm_fail_backoff retry sweep (no-op unless a
+ * `brix_frm on` server published and the journal is durable). */
+ngx_int_t brix_init_stage_retry_timer(ngx_cycle_t *cycle);
 
 #endif /* BRIX_PROCESS_INTERNAL_H */

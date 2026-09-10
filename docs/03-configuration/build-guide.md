@@ -257,7 +257,7 @@ mkdir -p /tmp/xrd-test/tokens
 
 ### 6.2 Generate the test PKI
 
-See [docs/test-pki.md](../06-authentication/test-pki-setup.md) for a complete walkthrough of creating the CA, server cert, user cert, proxy certs, and VOMS infrastructure from scratch.
+See [Test PKI setup](../06-authentication/test-pki-setup.md) for a complete walkthrough of creating the CA, server cert, user cert, proxy certs, and VOMS infrastructure from scratch.
 
 If you just want to get running quickly, the test fixtures in `tests/test_vo_acl.py` auto-generate VOMS signing certs and proxies on first run. But the CA, server cert, and user cert must exist first.
 
@@ -280,7 +280,7 @@ cd /path/to/nginx-xrootd
 python3 utils/make_token.py init /tmp/xrd-test/tokens
 ```
 
-This writes `/tmp/xrd-test/tokens/signing_key.pem` and `/tmp/xrd-test/tokens/jwks.json`. See [docs/test-tokens.md](../06-authentication/test-token-generation.md) for the full walkthrough.
+This writes `/tmp/xrd-test/tokens/signing_key.pem` and `/tmp/xrd-test/tokens/jwks.json`. See [Test token generation](../06-authentication/test-token-generation.md) for the full walkthrough.
 
 ### 6.5 Write the test nginx.conf
 
@@ -359,12 +359,12 @@ http {
         location / {
             brix_webdav         on;
             brix_export    /tmp/xrd-test/data;
-            brix_webdav_cadir   /tmp/xrd-test/pki/ca;
+            brix_trusted_ca_dir   /tmp/xrd-test/pki/ca;
             brix_webdav_auth    optional;
             brix_allow_write on;
-            brix_webdav_token_jwks     /tmp/xrd-test/tokens/jwks.json;
-            brix_webdav_token_issuer   "https://test.example.com";
-            brix_webdav_token_audience "nginx-xrootd";
+            brix_token_jwks     /tmp/xrd-test/tokens/jwks.json;
+            brix_token_issuer   "https://test.example.com";
+            brix_token_audience "nginx-xrootd";
         }
     }
 }
@@ -382,8 +382,8 @@ Or use the repository helper (also manages the reference `xrootd` server on
 port 11096 used by conformance tests):
 
 ```bash
-cd /path/to/nginx-xrootd
-tests/manage_test_servers.sh start
+cd /path/to/nginx-xrootd/tests
+python3 -m cmdscripts.manage_test_servers start-all
 ```
 
 Quick smoke test:
@@ -553,7 +553,7 @@ mkdir -p ~/rpmbuild/{SOURCES,SPECS,RPMS,SRPMS,BUILD,BUILDROOT}
 The spec expects a `nginx-xrootd-<version>.tar.gz` archive in `~/rpmbuild/SOURCES/`:
 
 ```bash
-VERSION=0.1.0
+VERSION=2.0.0
 git -C /path/to/nginx-xrootd archive \
     --format=tar.gz \
     --prefix=nginx-xrootd-${VERSION}/ \
@@ -564,7 +564,7 @@ git -C /path/to/nginx-xrootd archive \
 Or, to build from a released tag:
 
 ```bash
-VERSION=0.1.0
+VERSION=2.0.0
 spectool -g -R packaging/rpm/nginx-mod-brix-cache.spec
 ```
 
@@ -576,14 +576,14 @@ spectool -g -R packaging/rpm/nginx-mod-brix-cache.spec
 cp packaging/rpm/nginx-mod-brix-cache.spec ~/rpmbuild/SPECS/
 
 rpmbuild -bb \
-    --define "version_override 0.1.0" \
+    --define "version_override 2.0.0" \
     ~/rpmbuild/SPECS/nginx-mod-brix-cache.spec
 ```
 
 The finished RPM lands in `~/rpmbuild/RPMS/x86_64/`:
 
 ```
-~/rpmbuild/RPMS/x86_64/nginx-mod-brix-cache-0.1.0-1.el9.x86_64.rpm
+~/rpmbuild/RPMS/x86_64/nginx-mod-brix-cache-2.0.0-1.el9.x86_64.rpm
 ```
 
 You can also build directly from the working tree without a tarball by using
@@ -592,7 +592,7 @@ You can also build directly from the working tree without a tarball by using
 ```bash
 rpmbuild -bb --build-in-place \
     --define "_builddir $(pwd)" \
-    --define "version_override 0.1.0" \
+    --define "version_override 2.0.0" \
     packaging/rpm/nginx-mod-brix-cache.spec
 ```
 
@@ -671,7 +671,7 @@ To rebuild after a nginx update:
 
 ```bash
 sudo dnf update nginx nginx-mod-devel
-rpmbuild -bb --define "version_override 0.1.0" ~/rpmbuild/SPECS/nginx-mod-brix-cache.spec
+rpmbuild -bb --define "version_override 2.0.0" ~/rpmbuild/SPECS/nginx-mod-brix-cache.spec
 sudo dnf install ~/rpmbuild/RPMS/x86_64/nginx-mod-brix-cache-*.rpm
 ```
 
@@ -710,9 +710,11 @@ fd-leak / still-reachable smoke with valgrind (catches what LSan misses):
 valgrind --leak-check=full --track-fds=yes objs/nginx -t -c <conf>
 ```
 
-**Known benign finding:** UBSan reports `src/core/ngx_string.c:84 … null pointer
-passed as argument 2` — this is nginx **core** (`ngx_memcpy(dst, NULL, 0)`), not
-the module, and build governance forbids editing nginx core. Suppress it with a
+**Known benign finding:** UBSan reports `core/ngx_string.c:84 … null pointer
+passed as argument 2` — the path is relative to the **nginx source tree**
+(`$NGINX_SRC/src/core/ngx_string.c`), not to this repository. It is nginx
+**core** (`ngx_memcpy(dst, NULL, 0)`), not the module, and build governance
+forbids editing nginx core. Suppress it with a
 `-fsanitize-ignorelist` entry or `UBSAN_OPTIONS=...` rather than patching core.
 
 After triaging, **reconfigure without the sanitizer flags** to restore the
@@ -732,16 +734,16 @@ clang -O1 -g -fsanitize=fuzzer,address,undefined -I ../../src/shared \
 
 ### Running the test suite under the sanitizer (`SANITIZE=1`)
 
-`tests/manage_test_servers.sh` honours `SANITIZE=1`: it exports
+The fleet manager (`tests/cmdscripts/manage_test_servers.py`) honours `SANITIZE=1`: it exports
 `ASAN_OPTIONS`/`UBSAN_OPTIONS`/`LSAN_OPTIONS` (with `tests/lsan.supp`) so every
 nginx the fleet launches inherits them, writing per-pid logs to
 `$TEST_ROOT/sanitize/asan.<pid>`. Workflow:
 
 ```bash
 make -j$(nproc)                                  # the ASAN binary at objs/nginx
-SANITIZE=1 SKIP_XRDFS_CHECK=1 tests/manage_test_servers.sh start-all
+(cd tests && SANITIZE=1 SKIP_XRDFS_CHECK=1 python3 -m cmdscripts.manage_test_servers start-all)
 PYTHONPATH=tests pytest tests/ -q                # exercise the paths
-SANITIZE=1 tests/manage_test_servers.sh stop     # each process leak-checks at exit
+(cd tests && SANITIZE=1 python3 -m cmdscripts.manage_test_servers stop-all)      # each process leak-checks at exit
 grep -rE 'in (brix_|ngx_.*xrootd)|/src/' "$TEST_ROOT"/sanitize/asan.* | grep -v src/core/
 ```
 

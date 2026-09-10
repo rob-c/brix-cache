@@ -240,7 +240,8 @@ cvmfs_merge_cache(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
     } else if (conf->cvmfs.origin_select == BRIX_CVMFS_SELECT_RTT) {
         brix_cvmfs_rtt_register(conf->common.root_canon,
                                   conf->cvmfs.rtt_interval,
-                                  &conf->common.thread_pool_name);
+                                  &conf->common.thread_pool_name,
+                                  conf->common.dns.policy);
     }
 
     return cvmfs_merge_services(cf, conf);
@@ -280,7 +281,8 @@ cvmfs_merge_services(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
         }
         brix_cvmfs_swarm_register(conf->common.root_canon,
                                     conf->cvmfs.swarm_interval,
-                                    &conf->common.thread_pool_name);
+                                    &conf->common.thread_pool_name,
+                                    conf->common.dns.policy);
     }
 
     /* WARN (not NOTICE — config-parse NOTICE is dropped at cf->log ERR

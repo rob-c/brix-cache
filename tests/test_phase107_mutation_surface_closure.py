@@ -35,10 +35,12 @@ assertion in the tree holds:
                     delete window and its capability bit are singular, with no
                     capability sharing a bit with another
   * security     — the policy kernel answers EROFS and never EACCES; every one
-                    of the eighteen `_maybe_cred` forwarding wrappers refuses a
+                    of the nineteen `_maybe_cred` forwarding wrappers refuses a
                     deny-mode credential rather than silently running the
                     operation as the export (the confused-deputy class the slot
-                    wave found three times); the precondition evaluator fails
+                    wave found three times) — itself, or through a declared
+                    tail call to a wrapper that does, which is checked to still
+                    BE that tail call; the precondition evaluator fails
                     closed on a kind nobody taught it; and the three enums that
                     decide refusals all read "safest" at zero, so a zeroed
                     struct or a forgotten field cannot open a surface
@@ -623,30 +625,9 @@ def test_the_policy_kernel_answers_erofs_and_never_eaccess():
         "endpoint is EROFS on every plane")
 
 
-def test_every_credential_forwarding_wrapper_refuses_deny_mode():
-    """The confused-deputy class the storage-driver slot wave found three
-    times, generalised.  Each `*_maybe_cred` wrapper routes to a `_cred` twin
-    when the caller has a credential; when the driver has no twin, a credential
-    carrying `fallback_deny` must make the wrapper REFUSE (EACCES) rather than
-    fall through to the plain slot, which would run the operation as the export
-    identity — precisely the escalation the flag exists to prevent.  C4 added
-    `unlink_many` to this set, where the blast radius is a whole batch.  A new
-    wrapper added without the clause is invisible until someone audits it."""
-    header = _text("fs/backend/sd_cred_forward.h")
-    wrappers = re.findall(
-        r"\n(brix_sd_\w+_maybe_cred)\(.*?\n\{(.*?)\n\}\n", header, re.S)
-    assert len(wrappers) >= 18, (
-        f"expected at least the eighteen forwarding wrappers, "
-        f"found {len(wrappers)}")
 
-    for name, body in wrappers:
-        assert "fallback_deny" in body and "EACCES" in body, (
-            f"{name} falls back to the plain slot for a deny-mode credential "
-            "— the operation would run as the export identity")
-
-    names = [name for name, _ in wrappers]
-    assert "brix_sd_unlink_many_maybe_cred" in names, \
-        "C4's batch slot must be inside the forwarding rule, not beside it"
+# The credential-forwarding confused-deputy audit lives in its own module,
+# `test_phase107_cred_forward_audit.py` (600-line cap, 2026-09-09).
 
 
 def test_the_precondition_evaluator_fails_closed_on_an_untaught_kind():
@@ -686,3 +667,4 @@ def test_the_vocabulary_metric_mirror_keeps_its_compile_time_equality_check():
         r"_Static_assert\(\s*\(int\)\s*BRIX_VFS_MUTATE_OP_COUNT\s*"
         r"==\s*BRIX_VFS_MUTATE_OP_METRIC_COUNT", body), \
         "the enum/metric-mirror equality check is gone"
+

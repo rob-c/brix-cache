@@ -351,7 +351,7 @@ the mapping. The mapping is a first-class, long-standing feature.
 ### BriX-Cache: optional per-request broker, privilege-dropped, off by default
 
 This module's impersonation (`src/auth/impersonate/`, phase 40) is **off by default**
-and strictly opt-in (`brix_impersonation off|single|map`). `off` and `single`
+and strictly opt-in (`brix_idmap off|single|map`). `off` and `single`
 add no privilege and need no root; only `map` is privileged. Its design is
 notably defensive:
 
@@ -365,7 +365,7 @@ notably defensive:
   `broker.c:206-250`). Crucially it drops `CAP_DAC_OVERRIDE` /
   `CAP_DAC_READ_SEARCH` / `CAP_FOWNER` / `CAP_CHOWN` — whose presence would let a
   root broker bypass the impersonated user's DAC and make impersonation
-  meaningless. With `brix_impersonation_broker_user` it further drops its real
+  meaningless. With `brix_idmap_broker_user` it further drops its real
   uid/gid to a non-root service account, keeping only those two caps
   (`imp_drop_to_service_user`, verified to "stick" via `getresuid`/`getresgid`,
   `broker.c:137-204`).

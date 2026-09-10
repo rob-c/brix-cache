@@ -10,6 +10,7 @@ import os
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import threading
 import time
 
@@ -101,8 +102,7 @@ def built():
         pytest.skip("FUSE unavailable (/dev/fuse or fusermount3 missing)")
     if not _port_up(SERVER_HOST, NGINX_HTTP_WEBDAV_PORT):
         pytest.skip("WebDAV server not running (start the test fleet first)")
-    r = subprocess.run(["make", "-C", CLIENT_DIR, "xrootdfs"],
-                       capture_output=True, text=True)
+    r = client_make(CLIENT_DIR, "xrootdfs", capture_output=True, text=True)
     if r.returncode != 0 or not os.path.exists(XROOTDFS):
         pytest.skip(f"xrootdfs build failed:\n{r.stdout}\n{r.stderr}")
 
@@ -127,6 +127,19 @@ def _mount(endpoint, mnt, max_conns):
     pytest.skip("xrootdfs web mount did not come up")
 
 
+def _stat_surviving(mnt, names):
+    """One getattr per listed name; an entry another worker removed between
+    the listing and the stat is not counted (the export is shared)."""
+    done = 0
+    for name in names:
+        try:
+            os.stat(os.path.join(mnt, name))
+            done += 1
+        except FileNotFoundError:
+            continue
+    return done
+
+
 def test_stat_many_reuses_connections(built, forwarder, tmp_path):
     """ls -l of N files opens <= max_conns upstream connections, not ~N."""
     mnt = str(tmp_path / "mnt")
@@ -138,12 +151,13 @@ def test_stat_many_reuses_connections(built, forwarder, tmp_path):
         if not entries:
             pytest.skip("WebDAV export is empty; seed it first")
         before = forwarder.accepts
-        for name in entries:
-            os.stat(os.path.join(mnt, name))     # one getattr each
+        stats = _stat_surviving(mnt, entries)
+        if not stats:
+            pytest.skip("every listed entry vanished under us (shared export)")
         opened = forwarder.accepts - before
         # keep-alive + pool: at most max_conns NEW upstream conns for 20 stats.
         assert opened <= max_conns, (
-            f"{opened} upstream conns for {len(entries)} stats "
+            f"{opened} upstream conns for {stats} stats "
             f"(expected <= {max_conns}); metadata path is not reusing")
     finally:
         subprocess.run(["fusermount3", "-u", mnt], capture_output=True)

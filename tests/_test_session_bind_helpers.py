@@ -44,7 +44,9 @@ kXR_protocol  = 3006
 kXR_login     = 3007
 kXR_open      = 3010
 kXR_read      = 3013
-kXR_write     = 3017
+kXR_write     = 3019   # 3017 is kXR_stat; the old value stat'ed the handle and wrote nothing
+kXR_stat      = 3017
+kXR_wait      = 4005   # body: uint32 seconds + text; retry the same request after them
 kXR_close     = 3003
 kXR_bind      = 3024
 kXR_ArgInvalid = 3000    # §1.1 read pathid validation: unbound path ID
@@ -123,6 +125,20 @@ def _open_read(sock, streamid, path):
     assert status == kXR_ok, f"open failed: status={status}"
     assert len(body) >= 4, "open response did not include fhandle"
     return body[:4]
+
+
+def _open_waiting(sock, streamid, path, flags, mode=0o644, timeout=30.0):
+    """kXR_open that honours kXR_wait: a residency gate parks a nearline open
+    with the seconds to wait; retry until served, refused, or ``timeout``."""
+    body = struct.pack(">HH", mode, flags) + b"\x00" * 12
+    payload = path.encode() + b"\x00"
+    deadline = time.time() + timeout
+    while True:
+        status, reply = _send_req(sock, streamid, kXR_open, body=body, payload=payload)
+        if status != kXR_wait or time.time() >= deadline:
+            return status, reply
+        secs = struct.unpack(">i", reply[:4])[0] if len(reply) >= 4 else 1
+        time.sleep(min(max(secs, 0), 2))
 
 
 def _read_handle(sock, streamid, fhandle, length, offset=0):

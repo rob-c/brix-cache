@@ -3,12 +3,15 @@
  *
  * WHAT: The non-driver entrypoints callers use to introspect and maintain a
  *       composed cache decorator from outside its own vtable: the
- *       caller-driven evict + cached-size probe (eviction accounting) and the
+ *       caller-driven evict + cached-size probe (eviction accounting), the
  *       SP2 async-fill offload trio (fill_needs_offload / fill_key /
- *       fill_key_ex).
+ *       fill_key_ex) and the registry-driven tier attachment (cold store,
+ *       sibling ring, swarm ring swap).
  *
  * WHY:  Split from sd_cache.c for the file-size cap when the eviction
- *       accounting probes landed. These functions share no open-path state —
+ *       accounting probes landed; the tier setters followed in 2.0 when the
+ *       NOFILL source-miss branch grew the open tree. They share no open-path
+ *       state —
  *       each re-enters through the public instance handle — so they isolate
  *       cleanly from the interposed read-open decision tree that sd_cache.c
  *       owns.
@@ -196,4 +199,91 @@ brix_sd_cache_fill_key_ex(brix_sd_instance_t *inst, const char *key,
         return NGX_ERROR;
     }
     return sd_cache_fill(SD_CACHE_ST(inst), key, cred, allow_pt, out_pt);
+}
+
+
+/* Attach/detach the OPTIONAL cold store tier (phase-85 F7). `cold` is BORROWED
+ * (registry-owned, worker lifetime) so brix_sd_cache_destroy never frees it.
+ * No-op for a non-cache instance. With a cold tier set, sd_cache_fill tries a
+ * verified promote from it before the origin, and brix_sd_cache_demote (the
+ * eviction seam) copies victims into it. */
+void
+brix_sd_cache_set_cold(brix_sd_instance_t *inst, brix_sd_instance_t *cold)
+{
+    if (brix_sd_cache_instance_is(inst)) {
+        SD_CACHE_ST(inst)->cold = cold;
+    }
+}
+
+/* Attach/detach the sibling-mesh ring (phase-85 F8). The member instances are
+ * BORROWED (registry-owned, worker lifetime) so brix_sd_cache_destroy never
+ * frees them. No-op for a non-cache instance; n == 0 (or an out-of-range self)
+ * detaches. With a ring set, sd_cache_fill tries one verified fill from the
+ * key's rendezvous-owning sibling before the origin. */
+void
+brix_sd_cache_set_peers(brix_sd_instance_t *inst,
+    const brix_sd_cache_peer_t *peers, int n, int self)
+{
+    sd_cache_inst_state *st;
+    int                  i;
+
+    if (!brix_sd_cache_instance_is(inst)) {
+        return;
+    }
+    st = SD_CACHE_ST(inst);
+    if (peers == NULL || n <= 0 || n > BRIX_SD_CACHE_MAX_PEERS
+        || self < 0 || self >= n)
+    {
+        st->n_peers = 0;
+        return;
+    }
+    for (i = 0; i < n; i++) {
+        st->peers[i] = peers[i];
+    }
+    st->n_peers   = n;
+    st->peer_self = self;
+}
+
+/* Publish a swarm-built ring (phase-87 G12). Event loop only; the barrier
+ * orders the ring's contents before the pointer store so a worker-thread
+ * fill that loads the new pointer sees a fully built ring. */
+void
+brix_sd_cache_ring_swap(brix_sd_instance_t *inst,
+    const brix_sd_cache_ring_t *ring)
+{
+    sd_cache_inst_state *st;
+
+    if (!brix_sd_cache_instance_is(inst)) {
+        return;
+    }
+    if (ring != NULL
+        && (ring->n <= 0 || ring->n > BRIX_SD_CACHE_MAX_PEERS
+            || ring->self < 0 || ring->self >= ring->n))
+    {
+        return;
+    }
+    st = SD_CACHE_ST(inst);
+    ngx_memory_barrier();
+    st->dyn_ring = ring;
+}
+
+int
+brix_sd_cache_get_peers(const brix_sd_instance_t *inst,
+    brix_sd_cache_peer_t *out, int *self)
+{
+    const sd_cache_inst_state *st;
+    int                        i;
+
+    if (!brix_sd_cache_instance_is(inst) || out == NULL || self == NULL) {
+        return 0;
+    }
+    st = SD_CACHE_ST(inst);
+    if (st->n_peers <= 0) {
+        return 0;
+    }
+    for (i = 0; i < st->n_peers; i++) {
+        out[i] = st->peers[i];
+    }
+    *self = st->peer_self;
+    return st->n_peers;
 }

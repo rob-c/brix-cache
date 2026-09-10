@@ -19,6 +19,7 @@ import os
 import pathlib
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -41,8 +42,7 @@ XRDDIAG = os.path.join(CLIENT_DIR, "bin", "xrddiag")
 
 def _build(*targets):
     _require_compiler()
-    r = subprocess.run(["make", "-C", CLIENT_DIR, *targets],
-                       capture_output=True, text=True, timeout=240)
+    r = client_make(CLIENT_DIR, *targets, capture_output=True, text=True, timeout=240)
     _require_targets(targets, r)
     _require_nginx()
 

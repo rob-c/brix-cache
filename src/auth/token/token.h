@@ -138,6 +138,16 @@ int brix_token_peek_iss(const char *token, size_t token_len,
                           char *out, size_t outsz);
 
 /*
+ * Extract the "exp" claim WITHOUT verifying the signature. Two callers need
+ * a token's own lifetime for a decision that authorises nothing: the exchange
+ * cache (never cache past the credential's own bound) and TPC outbound
+ * renewal (decide when to ask the issuer for another one). Returns 0 and sets
+ * *out to a positive epoch second on success; -1 when the token is not a
+ * compact JWS, the payload does not decode, or `exp` is absent or <= 0.
+ */
+int brix_token_peek_exp(const char *token, size_t token_len, time_t *out);
+
+/*
  * brix_token_validate_args_t — caller-supplied state for brix_token_validate().
  *
  * WHAT: Bundles the validator's inputs (log sink, raw token bytes, trusted

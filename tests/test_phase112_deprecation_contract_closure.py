@@ -141,13 +141,19 @@ def _emitted_deprecation_notices():
 
 
 def _changelog_breaking():
-    """The `### Breaking` block of the `## Unreleased` section, or ""."""
+    """The `### Breaking` block of the newest release section, or "".
+
+    Phase 112 landed under `## Unreleased`; the 2.0 readiness audit
+    (2026-09-05) renamed that heading to `## v2.0.0` when it cut the release.
+    The obligation follows the removal into whichever section ships it, so
+    the pin reads the first `## ` section — Unreleased while one exists, the
+    newest version once it is cut — instead of a heading spelling."""
     text = (ROOT / "CHANGELOG.md").read_text()
-    unreleased = re.search(r"\n## Unreleased\n(.*?)(?=\n## )", text, re.S)
-    if unreleased is None:
+    newest = re.search(r"\n## [^\n]+\n(.*?)(?=\n## |\Z)", text, re.S)
+    if newest is None:
         return ""
     block = re.search(r"\n### Breaking\n(.*?)(?=\n### |\Z)",
-                      unreleased.group(1), re.S)
+                      newest.group(1), re.S)
     return block.group(1) if block else ""
 
 
@@ -343,7 +349,7 @@ def test_the_release_note_carries_the_migration_the_unserved_window_owes():
     happen."""
     breaking = _changelog_breaking()
     assert breaking, (
-        "CHANGELOG.md has no `### Breaking` block under `## Unreleased` — the "
+        "CHANGELOG.md has no `### Breaking` block in its newest section — the "
         "only mitigation phase 112 offered for the unserved window is missing")
     for surface in ("brix_session_dn", "$brix_cache_status", "from_cache",
                     "latency_us", "brix_io_bytes_read",

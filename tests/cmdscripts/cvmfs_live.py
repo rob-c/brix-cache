@@ -12,7 +12,14 @@ import sys
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
+from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST
+
+# One three-port block, reused by each scenario in turn: every consumer of
+# this module runs under the `cmd-cvmfs_live` xdist_group, so no two
+# scenarios hold the block at once.  Absolute ports here would ignore
+# TEST_PORT_START and break per-lane isolation.
+PORT_A, PORT_B, PORT_C = cmdscript_ports("cvmfs_live", 3)
 
 
 def _phase_keepalive_1(connections):
@@ -20,15 +27,26 @@ def _phase_keepalive_1(connections):
         connection.close()
 
 
+def _drain(client) -> int:
+    """Read one response to completion and return its status.
+
+    Every response on a keepalive socket MUST be drained: `http.client` refuses
+    the next `getresponse()` with `ResponseNotReady` while an unread response is
+    still bound to the connection, so skipping the read turns a *server-side*
+    keepalive assertion into a *client-side* protocol error — the exact way this
+    scenario's socket-reuse check silently stopped testing anything.
+    """
+    response = client.getresponse()
+    response.read()
+    return response.status
+
+
 def _expression_1(durable, client):
-    return (
-        durable and client.getresponse().status in (403, 405)
-    )
+    return durable and _drain(client) in (403, 405)
+
 
 def _expression_2(durable, client):
-    return (
-        durable and client.getresponse().status == 200
-    )
+    return durable and _drain(client) == 200
 
 
 def _check_keepalive_1(objects):
@@ -74,7 +92,7 @@ def _checks(checks: list[tuple[bool, str]]) -> int:
 
 
 def minimal(nginx: Path | None = None) -> int:
-    mock_port, cache_port = 12871, 12872
+    mock_port, cache_port = PORT_A, PORT_B
     with LiveRun("cvmfs_min", nginx) as run:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         _mock(run, mock_port, 6, 7)
@@ -119,7 +137,7 @@ def minimal(nginx: Path | None = None) -> int:
 
 
 def manifest(nginx: Path | None = None) -> int:
-    mock_port, cache_port, ttl = 12861, 12862, 4
+    mock_port, cache_port, ttl = PORT_A, PORT_B, 4
     with LiveRun("cvmfs_man", nginx) as run:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         mock = _mock(run, mock_port, 2, 1)
@@ -149,7 +167,7 @@ def manifest(nginx: Path | None = None) -> int:
 
 
 def connection_reuse(nginx: Path | None = None) -> int:
-    mock_port, cache_port = 12895, 12896
+    mock_port, cache_port = PORT_A, PORT_B
     with LiveRun("cvmfs_reuse", nginx) as run:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         _mock(run, mock_port, 8, 31, keepalive=True)
@@ -176,7 +194,7 @@ def connection_reuse(nginx: Path | None = None) -> int:
 
 
 def failover(nginx: Path | None = None) -> int:
-    first_port, second_port, cache_port = 12851, 12852, 12853
+    first_port, second_port, cache_port = PORT_A, PORT_B, PORT_C
     with LiveRun("cvmfs_fo", nginx) as run:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         first = _mock(run, first_port, 6, 5)
@@ -211,7 +229,7 @@ def failover(nginx: Path | None = None) -> int:
 
 
 def shared_cache(nginx: Path | None = None) -> int:
-    first_port, second_port, proxy_port = 12881, 12882, 12883
+    first_port, second_port, proxy_port = PORT_A, PORT_B, PORT_C
     with LiveRun("cvmfs_shared", nginx) as run:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         _mock(run, first_port, 4, 77)
@@ -257,7 +275,7 @@ def shared_cache(nginx: Path | None = None) -> int:
 
 
 def keepalive(nginx: Path | None = None) -> int:
-    mock_port, keepalive_port, control_port = 12896, 12897, 12898
+    mock_port, keepalive_port, control_port = PORT_A, PORT_B, PORT_C
     with LiveRun("cvmfs_ka", nginx) as run:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         _mock(run, mock_port, 4, 44)
@@ -300,7 +318,7 @@ http {{
         try:
             for _ in range(200):
                 client.request("GET", obj)
-                if client.getresponse().status != 200:
+                if _drain(client) != 200:
                     durable = False
                     break
             client.request("GET", "/etc/passwd")

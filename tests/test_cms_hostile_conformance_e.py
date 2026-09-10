@@ -1,11 +1,11 @@
 from split_continuation import reexport as _reexport
 def _phase_test_per_ip_connection_cap_bounds_concurrency_1(s):
+    """1 when the socket was admitted (its PING drew a PONG), else 0."""
     try:
         s.sendall(_build_frame(_SID | 0x0F, CMS_RR_PING, 0))
-        if _recv_code(s, CMS_RR_PONG, timeout=2) is not None:
-            admitted += 1
+        return int(_recv_code(s, CMS_RR_PONG, timeout=2) is not None)
     except OSError:
-        pass
+        return 0
 
 
 def _check_test_per_ip_connection_cap_bounds_concurrency_1(hardened_server):
@@ -252,7 +252,7 @@ class TestServerLegResilienceLimits:
             time.sleep(0.6)   # let the worker accept all + apply the cap
             admitted = 0
             for s in socks:
-                _phase_test_per_ip_connection_cap_bounds_concurrency_1(s)
+                admitted += _phase_test_per_ip_connection_cap_bounds_concurrency_1(s)
             def _assert_test_per_ip_connection_cap_bounds_concurrency_1():
                 assert 1 <= admitted <= 8, \
                     f"per-IP cap not enforced: {admitted} conns serviced (cap 8)"

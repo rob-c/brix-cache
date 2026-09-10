@@ -78,6 +78,7 @@ read_serve_windowed(brix_ctx_t *ctx, ngx_connection_t *c,
      * before this stream finishes draining.
      */
     ctx->rd.win_active = 1;
+    ctx->rd.win_sent = 0;    /* §4.5: nothing promised on the wire yet */
     ctx->rd.win_pgread = 0;   /* plain kXR_read stream (oksofar chunks) */
     ctx->rd.win_readv = 0;
     ctx->rd.win_prefetch = 0; /* round-12: fresh train — no read-ahead state */
@@ -363,6 +364,12 @@ read_finish_buffered(brix_ctx_t *ctx, ngx_connection_t *c,
     int          idx = io->idx;
 
     if (nread < 0) {
+        if (errno == EAGAIN) {
+            /* §4.5: the read caught up with an in-flight fill's frontier. A
+             * retry, not a failure — no failure log, no BRIX_OP_ERR. */
+            brix_release_read_buffer(ctx, c, databuf);
+            return brix_read_io_error(ctx, c, errno);
+        }
         brix_read_io_failure_log(c->log, "buffered", io->fd,
                                    (off_t) io->offset, io->rlen, errno);
         brix_release_read_buffer(ctx, c, databuf);

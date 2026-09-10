@@ -24,7 +24,8 @@
 #include "server_recv_internal.h"
 #include "rrdata.h"                       /* Pup decode + statfs reply encode */
 #include "net/manager/registry.h"          /* aggregate space for statfs reply */
-#include "net/manager/loc_cache.h"         /* W3: dynamic file-location cache */
+#include "net/manager/loc_cache.h"
+#include "coalesce_wake.h"         /* W3: dynamic file-location cache */
 #include "recv_internal.h"                 /* W3: pending-locate client wake */
 #include "cns.h"                          /* §6 CNS inventory + event codec */
 #include "fanout.h"                       /* W8: fold forwarded-op kYR_error */
@@ -488,8 +489,10 @@ cms_srv_frame_have(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     }
 
     brix_loc_cache_insert(path, ctx->host, ctx->port);
-    (void) brix_cms_wake_pending_session(ctx->c->log, streamid,
-                                           ctx->host, ctx->port);
+    /* Wakes the echoed streamid and, under §2.15, every client coalesced
+     * onto the same wave (cms/coalesce_wake.c). */
+    (void) brix_cms_wake_locate_answer(ctx->c->log, path, streamid,
+                                       ctx->host, ctx->port);
     brix_cms_log_action_hp(ctx->c->log, "have", ctx->host,
                            (int) ctx->port, "in", path, 1,
                            "node holds path -> location cached, client woken");

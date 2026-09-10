@@ -40,6 +40,9 @@ jobs:
       - name: vfs seam — no new storage-plane bypasses
         if: '!cancelled()'
         run: tools/ci/check_vfs_seam.py
+      - name: dns seam — one resolver path, no bypasses (phase-116)
+        if: '!cancelled()'
+        run: tools/ci/check_dns_seam.py
       - name: vfs mutation gate — no ungated export mutation (phase-105)
         if: '!cancelled()'
         run: tools/ci/check_vfs_mutation_gate.py
@@ -118,6 +121,9 @@ jobs:
       - name: "directive registry — config-surface drift (phase-105 W6: R1-R15 gate)"
         if: '!cancelled()'
         run: tools/ci/check_directive_registry.py --fail
+      - name: "example configs — every documented brix_* directive is registered (phase-115 W1.3)"
+        if: '!cancelled()'
+        run: tools/ci/check_example_configs.py
       - name: todo/fixme ratchet (no new deferred-work markers)
         if: '!cancelled()'
         run: tools/ci/check_todo_fixme.py
@@ -166,6 +172,12 @@ jobs:
       - name: shard name collisions — one composed module, one namespace
         if: '!cancelled()'
         run: tools/ci/check_shard_name_collisions.py
+      - name: shard direct imports — a composed shard is never imported as a module
+        if: '!cancelled()'
+        run: tools/ci/check_shard_direct_imports.py
+      - name: lifecycle spec ledger — a spec that reaches the harness names a ledger row
+        if: '!cancelled()'
+        run: tools/ci/check_lifecycle_spec_ledger.py
       # Guards the guards: every ratchet above compares the tree against a frozen
       # backlog, so appending to the backlog is the one way to turn any of them
       # green while making the code worse. Backlogs may shrink, never grow.

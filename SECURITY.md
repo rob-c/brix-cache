@@ -53,8 +53,8 @@ minor series receives backports.
 
 | Version | Supported |
 |---|---|
-| 1.5.x | ✅ security fixes |
-| 1.4.x and earlier | ❌ upgrade |
+| 2.0.x | ✅ security fixes |
+| 1.5.x and earlier | ❌ upgrade |
 | `main` | ✅ fixed at HEAD |
 
 Distribution packages (`nginx-mod-brix-cache`) inherit the support status of

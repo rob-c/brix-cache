@@ -139,14 +139,16 @@ int ocsp_tls_handshake(ngx_log_t *log, ocsp_conn_t *conn,
  * fixed BIO-then-CTX order (ssl is owned by the BIO chain, never freed here). */
 void ocsp_conn_free(ocsp_conn_t *c);
 
-/* Defined in ocsp_request.c — build the OCSP request (id + nonce), POST it to
- * the responder at url, and return the parsed response (caller frees via
- * OCSP_RESPONSE_free()).  Returns NULL on any network or protocol error.
+/* Defined in ocsp_request.c — build the OCSP request (id + nonce), resolve the
+ * responder host through the phase-116 driver under `dns`, POST the request
+ * and return the parsed response (caller frees via OCSP_RESPONSE_free()).
+ * Returns NULL on any resolution, network or protocol error.
  * On success *req_out receives the request that carries the anti-replay nonce
  * (caller frees via OCSP_REQUEST_free()) so check_ocsp_response() can match the
  * nonce; on any failure *req_out is set NULL and the request is freed here. */
-OCSP_RESPONSE *do_ocsp_request(ngx_log_t *log, const char *url,
-    X509 *leaf, X509 *issuer, OCSP_CERTID *id, OCSP_REQUEST **req_out);
+OCSP_RESPONSE *do_ocsp_request(ngx_log_t *log, const brix_dns_policy_t *dns,
+    const char *url, X509 *leaf, X509 *issuer, OCSP_CERTID *id,
+    OCSP_REQUEST **req_out);
 
 /* Defined in ocsp_request.c — verify an OCSP response (status / signature vs
  * store / nonce vs req_for_nonce) and return the cert status: 0 GOOD, -1 REVOKED

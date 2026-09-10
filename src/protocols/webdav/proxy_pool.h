@@ -24,6 +24,7 @@ typedef enum {
     BRIX_PROXY_BE_ACTIVE   = 0,
     BRIX_PROXY_BE_DRAINING,   /* no new selects; in-flight requests finish */
     BRIX_PROXY_BE_DEAD,       /* health-check failure; no new selects */
+    BRIX_PROXY_BE_RESOLVING,  /* phase-116: address not yet known; no selects */
 } brix_proxy_be_state_e;
 
 typedef enum {
@@ -44,7 +45,7 @@ typedef struct {
     ngx_msec_t               drained_at;
     ngx_atomic_t             in_flight;     /* active upstream connections */
     struct sockaddr_storage  sockaddr;
-    socklen_t                socklen;
+    socklen_t                socklen;       /* 0 while RESOLVING */
     char                     url_base[512]; /* scheme://host[:port] */
 } brix_proxy_be_entry_t;
 

@@ -30,6 +30,13 @@
 > | `brix_frm_stagecmd` / `_copycmd` / `_copymax` | exec MSS adapter (`sd_frm_exec.c`) |
 > | `brix_frm_stage_ttl` / `_xfrhold` / `_stage_wait` | engine park/reap timing (`open_request.c`) |
 >
+> **Amended 2026-09-08 (ADR-3b, 2.0 readiness F1):** the table above named
+> owners that never read the fields. Six knobs now do (`queue_path`,
+> `stagecmd`, `copymax`, `fail_retries`, `fail_backoff`, `copy_timeout`) and
+> seven were removed (`copycmd`, `migrate_copycmd`, `residency_cmd`,
+> `xfrhold`, `max_per_source`, `stage_dir`, `force_scratch`); the pin test
+> holds 15 names. See phase-89 §D.1 and the 2.0 readiness register §(c.1).
+>
 > The remaining long tail (HPSS/CTA native MSS adapters — infra-blocked;
 > object-store eviction scan; serve off-load beyond `xroot`; the §21 open
 > questions) is tracked in `phase-89-design-backlog-burndown.md` §D. The

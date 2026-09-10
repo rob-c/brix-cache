@@ -196,6 +196,10 @@ cms_srv_complete_login(brix_cms_srv_ctx_t *ctx)
         brix_srv_set_vnid(ctx->host, ctx->port, ctx->vnid);
     }
     brix_srv_set_role(ctx->host, ctx->port, ctx->node_role);
+    /* §2.4: the floor the node advertised in mSpace.  Recorded even when the
+     * manager is not enforcing — the gate is a selection-time decision, so a
+     * config reload can start honouring floors already on file. */
+    brix_srv_set_min_free(ctx->host, ctx->port, ctx->min_free_mb);
     ctx->logged_in = 1;
     cms_srv_log_registration(ctx);
 

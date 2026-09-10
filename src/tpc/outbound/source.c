@@ -19,11 +19,15 @@
 int
 tpc_pull_from_source(brix_tpc_pull_t *t, int fd)
 {
-    u_char fhandle[XRD_FHANDLE_LEN];
-    int    rc;
+    u_char     fhandle[XRD_FHANDLE_LEN];
+    ngx_log_t *log = (t->c != NULL) ? t->c->log : ngx_cycle->log;
+    int        rc;
 
-    if (tpc_open_source(t, fd, fhandle) != 0) {
-        return -1;
+    /* F7: TPC_PULL_REDIRECT means "no handle here, re-run the leg against
+     * t->redir_*" — nothing to stream or close on this socket. */
+    rc = tpc_open_source(t, fd, fhandle);
+    if (rc != 0) {
+        return rc;
     }
 
     /*
@@ -38,7 +42,11 @@ tpc_pull_from_source(brix_tpc_pull_t *t, int fd)
         return -1;
     }
 
-    rc = tpc_stream_to_dst(t, fd, fhandle);
+    /* F7 multi-stream: bind the requested secondaries to this session; any
+     * shortfall degrades to fewer streams (down to the primary alone). */
+    (void) tpc_substreams_open(t, log);
+    rc = (t->nsub > 0) ? tpc_stream_to_dst_multi(t, fd, fhandle)
+                       : tpc_stream_to_dst(t, fd, fhandle);
 
     /*
      * Opt-in post-copy integrity: only on a fully-streamed, size-verified file do
@@ -53,6 +61,7 @@ tpc_pull_from_source(brix_tpc_pull_t *t, int fd)
         }
     }
 
+    tpc_substreams_close(t);
     tpc_close_source(t, fd, fhandle);
     return rc;
 }

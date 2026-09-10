@@ -165,7 +165,7 @@ See `tests/test_security_redteam.py` for the config-level negative-path regressi
 `brix_cms_server_sss_keytab` manager refuses a real cmsd data node that does not present a
 valid sss credential (the node connects but is never admitted to the registry, so a locate
 returns no redirect). That topology is built and gated by the standard mesh lifecycle
-(`manage_test_servers.sh start-all` → `cms_mesh_servers.py`), so it runs with the rest of the
+(`python3 -m cmdscripts.manage_test_servers start-all` → `cms_mesh_servers.py`), so it runs with the rest of the
 suite. Build and run per `CLAUDE.md` BUILD & TEST.
 
 > The *positive* direction (a real cmsd presenting a valid sss credential and registering) is

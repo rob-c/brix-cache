@@ -4,7 +4,7 @@
 # build-rpm-container.sh and the builder Dockerfiles derive version_override
 # from it automatically; the literal fallback below is only for a bare
 # rpmbuild invocation and must be kept in sync with ident.h.
-%global upstream_version %{?version_override}%{!?version_override:1.5.0}
+%global upstream_version %{?version_override}%{!?version_override:2.0.0}
 
 # --- phase-42 optional compression codecs (gzip/deflate via zlib are always on) ---
 # Each non-zlib codec is compile-gated by ./configure's pkg-config probe and
@@ -819,6 +819,19 @@ fi
 %endif
 
 %changelog
+* Sat Sep 05 2026 Rob Currie <rob.currie@ed.ac.uk> - 2.0.0-1
+- Version 2.0.0 — the first release distributed as RPM and Debian packages.
+  Full release notes in CHANGELOG.md; packaging-relevant highlights only below.
+- Breaking config change on upgrade: brix_pss_dca and
+  brix_backend_passthrough_persist are removed and now fail nginx -t as
+  unknown directives; delete the lines.  Fifteen brix_frm_* knobs remain
+  accepted for grammar compatibility but drive nothing (documented in
+  docs/10-reference/release-2.0-readiness.md).
+- Breaking observability change: the compatibility metric families and
+  $brix_session_* / $*_cache log variables are removed (phase 112); update
+  log_format and Prometheus queries before deploying.
+- No new subpackages, no new runtime dependencies.
+
 * Wed Aug 26 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.5.0-1
 - Version 1.5.0.  Full release notes in CHANGELOG.md; packaging-relevant
   highlights only below.

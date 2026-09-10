@@ -34,7 +34,7 @@
  *       rewriting, and capture the path for audit logging.
  * WHY:  The fh slot must be reserved before any error-free path so the open
  *       response can bind to it; path rewrite must precede audit capture.
- * HOW:  Allocates a local fh (255 sentinel = awaiting open response), rewrites
+ * HOW:  Allocates a local fh (marked PENDING = awaiting open response), rewrites
  *       the payload path if configured, then copies the (post-rewrite) path
  *       into the slot's audit buffer. Returns NGX_OK, or NGX_ABORT/NGX_ERROR
  *       via proxy_reject_request() (req freed, error sent to the client).
@@ -51,7 +51,7 @@ brix_proxy_forward_open(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
                                     "proxy: no free file handles");
     }
     /* Mark slot as pending (non-free but no upstream handle yet) */
-    proxy->fh_map[local_fh].upstream_fh = 255; /* sentinel: awaiting open response */
+    proxy->fh_map[local_fh].fh_state = BRIX_PROXY_FH_PENDING;
     proxy->fwd_local_fh = local_fh;
 
     /* Apply path rewriting before capturing path for audit */

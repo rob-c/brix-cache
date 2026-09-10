@@ -15,6 +15,7 @@ clientconf_env``.
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -50,8 +51,7 @@ def _build_our_clients():
         return True
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         return False
-    proc = subprocess.run(["make", "-C", os.path.join(repo, "client")],
-                          capture_output=True, text=True, timeout=300)
+    proc = client_make(os.path.join(repo, "client"), capture_output=True, text=True, timeout=300)
     return proc.returncode == 0
 
 

@@ -186,7 +186,7 @@ When `brix_manager_mode on` is set, the redirect lookup sequence is:
 The `kXR_isManager` capability flag is set in the `kXR_protocol` response so
 clients know this server can issue redirects.
 
-Key files: `src/protocols/root/read/locate.c`, `src/protocols/root/read/open.c`, `src/protocols/root/session/protocol.c`.
+Key files: `src/protocols/root/read/locate.c`, `src/protocols/root/read/open_request.c`, `src/protocols/root/session/protocol.c`.
 
 ### M4 — Sub-manager / hierarchical mode (partial)
 
@@ -218,7 +218,7 @@ module calls `brix_srv_register()` after each successful cache fill and
 exact current contents of the cache, and clients are redirected to the cache
 for files it holds.
 
-Key files: `src/fs/cache/thread.c`, `src/fs/cache/evict.c`.
+Key files: `src/fs/cache/thread.c`, `src/fs/cache/evict_policy.c`.
 
 ---
 
@@ -414,7 +414,7 @@ arm `ngx_add_timer(c->read, conf->cms_locate_timeout)`, and return
 `NGX_AGAIN`. On failure of either send or insert the code falls through to
 the static-map / `kXR_notFound` path unchanged.
 
-The same pattern was applied to the registry-miss path in `src/protocols/root/read/open.c`.
+The same pattern was applied to the registry-miss path in `src/protocols/root/read/open_request.c`.
 
 In `src/protocols/root/connection/recv.c`:
 - Added `#include "../manager/pending.h"`
@@ -428,7 +428,7 @@ In `src/protocols/root/connection/recv.c`:
   states.
 
 Files changed: `src/core/types/state.h`, `src/core/types/context.h`,
-`src/protocols/root/connection/recv.c`, `src/protocols/root/read/locate.c`, `src/protocols/root/read/open.c`.
+`src/protocols/root/connection/recv.c`, `src/protocols/root/read/locate.c`, `src/protocols/root/read/open_request.c`.
 
 ---
 
@@ -497,6 +497,14 @@ Maximum number of data server entries in the shared-memory registry. Default
 How long to hold a client `kXR_locate` or `kXR_open` open while waiting for a
 `kYR_select` response from the parent manager. Default `5s`. If the parent does
 not respond within this window the client receives `kXR_wait` and may retry.
+
+`brix_cms_response redirect|proxy`
+
+How a manager answers a client whose path a registered data server holds.
+`redirect` (default) sends `kXR_redirect` to the selected node. `proxy` pins the
+client's session to the selected node and relays its requests through the
+gateway (select-then-proxy — see "Proxy/gateway integration" below); a
+`kXR_locate` is then answered with the gateway's own address. Phase 115 W2.1.
 
 ### Three-tier example
 
@@ -628,7 +636,7 @@ redirects to that server.
 | `src/net/manager/pending.h` | New: `brix_pending_locate_t`, `brix_pending_table_t`, API declarations | ✅ Step 3 done |
 | `src/net/manager/pending.c` | New: shm zone init, insert/lookup/remove with lock, lazy expiry reaping | ✅ Step 3 done |
 | `src/protocols/root/read/locate.c` | CMS-suspend path when no registry match | ✅ Step 5 done |
-| `src/protocols/root/read/open.c` | Same | ✅ Step 5 done |
+| `src/protocols/root/read/open_request.c` | Same | ✅ Step 5 done |
 | `src/core/config/config.h` | Updated `brix_srv_configure_registry` declaration; added `brix_pending_configure` declaration | ✅ Steps 1b, 3 done |
 | `src/core/config/server_conf.c` | `registry_slots` UNSET + default-128 merge; `cms_locate_timeout` UNSET_MSEC + 5000 ms merge | ✅ Steps 1b, 3 done |
 | `src/protocols/root/connection/recv.c` | Added `XRD_ST_WAITING_CMS` loop guard and timedout handler | ✅ Step 5 done |
@@ -718,6 +726,11 @@ only test that exercises the full `kYR_locate` → suspend → `kYR_select` → 
 
 ## Proxy/gateway integration
 
+**Status: IMPLEMENTED (Phase 115 W2.1–W2.3, 2026-09-05).** Directive
+`brix_cms_response redirect|proxy`; tests in
+`tests/test_phase115_cms_select_proxy.py`. The design below is kept as written,
+followed by what was actually built and where it deviates.
+
 The pending-locate infrastructure built for M6 has a natural extension that
 enables a more powerful deployment mode: instead of *redirecting* a client to
 a CMS-selected backend, nginx *proxies* the request on the client's behalf.
@@ -739,30 +752,30 @@ This matters in two common scenarios:
 Client               Gateway (nginx-xrootd)              Backend
   │                        │                                │
   │── kXR_open /data ─────►│                                │
-  │                        │  1. local registry miss        │
-  │                        │  2. kYR_locate → parent CMS    │
-  │                        │  (XRD_ST_WAITING_CMS)          │
-  │                        │◄─ kYR_select host:port ────────│ (CMS channel)
+  │                        │  1. registry / loc-cache hit,  │
+  │                        │     or kYR_state → kYR_have    │
+  │                        │     (XRD_ST_WAITING_CMS)       │
   │                        │                                │
-  │                        │  3. instead of kXR_redirect:   │
-  │                        │     enter proxy mode to        │
-  │                        │     the CMS-selected host:port │
+  │                        │  2. instead of kXR_redirect:   │
+  │                        │     pin the session to the     │
+  │                        │     selected host:port         │
   │                        │── handshake + kXR_login ──────►│
   │                        │── kXR_open /data ─────────────►│
   │◄─ ok (fh=N) ───────────│◄─ ok (upstream fh) ────────────│
-  │                        │  fh_map[N] = upstream_fh       │
+  │                        │  fh_map[N] = upstream fh       │
   │── kXR_read fh=N ──────►│── kXR_read fh=upstream ───────►│
   │◄─ data ────────────────│◄─ data ─────────────────────────│
 ```
 
-The critical observation is that steps 1–2 are already implemented and tested.
-The pivot point is step 3: instead of calling `brix_send_redirect()` in
-`cms_wake_pending_session()`, call a new `brix_proxy_cms_selected()` that
-bootstraps an upstream proxy connection to the CMS-nominated host:port.
+Every place that used to hand a selected `host:port` to `brix_send_redirect()`
+now goes through one chokepoint, `brix_cms_answer_selected()`
+(`src/net/proxy/cms_select.c`): in `redirect` mode it is the old redirect; in
+`proxy` mode it parks the in-flight request and dispatches it through the
+data-plane proxy (`src/net/proxy/`) to the selected node.
 
-### What needs to be built
+### What was built
 
-#### G1 — Policy directive: `brix_cms_response redirect|proxy`
+#### G1 — `brix_cms_response redirect|proxy` — DONE
 
 ```nginx
 stream {
@@ -770,91 +783,83 @@ stream {
         listen 1094;
         brix_root on;
         brix_manager_mode on;
-        brix_cms_manager parent.example.org:1213;
-        brix_cms_response proxy;   # NEW: proxy instead of redirect
+        brix_cms_server on;            # data servers register here
+        brix_cms_response proxy;       # relay instead of redirect
     }
 }
 ```
 
-Default `redirect` preserves current behaviour. `proxy` switches the wake
-action in `cms_wake_pending_session()` from `brix_send_redirect()` to
+`redirect` (default) is the stock behaviour and is untouched. `proxy` switches
+every selection site — kXR_open, kXR_stat, kXR_dirlist, kXR_query checksum,
+the write-side sites, and the kYR_have wake in `src/net/cms/recv_frame.c` — to
+the chokepoint. Enum in `src/protocols/root/stream/module_enums.c`, directive in
+`src/protocols/root/stream/directives_cms.h`, field `cms.response` in
+`src/core/types/conf_structs.h`, merge in
+`src/core/config/server_conf_merge_cluster.c`. A bogus value fails `nginx -t`
+with the enum's `invalid value` message.
+
+#### G2 — Select-then-proxy relay — DONE, on `src/net/proxy/` not `src/net/upstream/`
+
+The design named `src/net/upstream/start.c`; that subsystem is the one-shot
+redirector relay. The data-plane tap proxy (`src/net/proxy/`) already owned the
+bootstrap state machine, the `fh_map` translation, the saved-request replay and
+the `kXR_oksofar` streaming relay, so the entry point is
+`brix_proxy_dispatch_to(ctx, c, conf, host, port)` there, not a new
 `brix_proxy_cms_selected()`.
 
-**File:** `src/core/config/config.h` + `src/core/config/server_conf.c` + directive entry
-in `src/protocols/root/stream/module.c`.
+Behaviour that the tests pin:
 
-#### G2 — `brix_proxy_cms_selected()` in `src/net/upstream/start.c`
+- **One upstream per session.** The selected `host:port` is *pinned* on the
+  session (`pinned_host`/`pinned_port`, fixed buffer, no allocation) and
+  `pc_select_endpoint()` honours it ahead of the pool. A pinned session never
+  borrows from or returns to the shared connection pool.
+- **Re-pin when idle.** A later selection naming a different node re-pins the
+  session — drop the upstream, fresh bootstrap, request parked and replayed —
+  but only while the session is idle with no file handle open. A session that is
+  mid-request or has files open keeps its upstream (INFO log
+  `keeps its upstream (busy or files open)`) and the request rides to the pinned
+  node, which answers for itself. An unpinned plain `brix_tap_proxy` session is
+  adopted by the first selection.
+- **kXR_locate is answered as the gateway itself** (`brix_locate_answer_self()`
+  in `src/protocols/root/read/locate.c`), on both the registry-hit path and the
+  kYR_have wake. Forwarding a locate would leak the data server's address and the
+  client would bypass the gateway on its next open.
+- **Dead node is an error, not a hang.** A connect failure answers
+  `kXR_IOError proxy: upstream connect failed`, clears the session's proxy
+  context and counts against `BRIX_PROXY_MAX_CONN_FAILS`; the session stays
+  usable and the next selection works. A node dying mid-transfer surfaces as
+  `kXR_error` or EOF within the client's timeout.
 
-When `cms_response == PROXY` the wake function, rather than redirecting,
-allocates an upstream context (`brix_upstream_ctx_t`) and initiates a TCP
-connect to the CMS-selected host:port. This is exactly what
-`brix_upstream_start()` does today for the static `brix_upstream`
-directive, with two differences:
+#### G3 — Auth bridging — DONE by reuse
 
-- The target host:port comes from the `kYR_select` payload rather than static
-  config.
-- The in-flight `kXR_open` / `kXR_locate` request is already buffered in the
-  connection (saved by `XRD_ST_WAITING_CMS`); it must be replayed once
-  bootstrap completes, just as the existing proxy mode replays a request saved
-  during bootstrap.
+No new directive. The proxy leg opens only for an authenticated session (the
+dispatch gate requires `login.auth_done`), and the upstream login identity and
+credential follow the existing `brix_tap_proxy_auth` / `brix_proxy_login_user`
+surface (`anonymous`, `forward`, `sss`, `gsi`). The security negative: on a
+`brix_auth unix` gateway an open before kXR_auth never produces a connection to
+the node; a node that registers `w /path` for a read-only data server sees the
+proxied create refused **by the data server**, with nothing created on either
+export — bridging carries the identity, not a gateway super-credential.
 
-The file-handle translation table (`fh_map[16]`) and the `kXR_oksofar`
-streaming relay from `src/net/upstream/response.c` apply unchanged.
+#### G4 — CMS-driven upstream pool — DONE as registry selection
 
-**Files:** `src/net/upstream/start.c` (new path in `brix_proxy_cms_selected`),
-`src/net/upstream/bootstrap.c` (reuse), `src/net/cms/recv.c` (call site change when
-`cms_response == PROXY`).
+No separate pool object. The "pool" is the CMS registry itself: nodes enter on
+kYR_login (`server_recv_parse.c`), leave on disconnect
+(`server_recv_lifecycle.c`), and `brix_srv_select*` applies health/blacklist
+state; the chokepoint receives the selected node and the per-session pin/re-pin
+above replaces round-robin. Load-aware ordering (`kYR_load` `util_pct` /
+`free_mb`) remains as the registry already ranks it; no new metric was added.
 
-#### G3 — Auth bridging for CMS-selected upstreams
+### Status of G1–G4
 
-When `brix_cms_response proxy` is set, the upstream auth mode is controlled
-by the existing `brix_proxy_auth` directive:
-
-- `anonymous` (default) — anonymous login to the backend. Sufficient when the
-  backend grants access by path ACL or trusts the gateway's IP.
-- `forward` — replay the client's bearer token as-is. Works when both
-  gateway and backend trust the same WLCG issuer.
-- `sss` — generate an SSS credential from a shared key. Works for gateways
-  serving xrootd daemons at the same site.
-- `gsi` (future, tracked in proxy-mode-guide.md §Still needed) — present
-  a service certificate. Required when the backend enforces GSI.
-
-No new directives needed for G3; it reuses the existing proxy-auth enum.
-
-#### G4 — CMS-driven upstream pool (optional, larger scope)
-
-A further extension replaces the static `brix_proxy_upstream host:port` list
-with a pool populated dynamically from CMS registrations. When the gateway also
-runs `brix_cms_server on`, data servers that register with it are added to
-the proxy upstream pool. Load-aware selection (lowest `util_pct` / highest
-`free_mb` from `kYR_load` frames) replaces the current round-robin.
-
-This gives a single nginx instance the ability to:
-- Accept client connections.
-- Accept data-server CMS registrations.
-- Route and proxy client requests to the least-loaded registered server.
-- Report aggregate capacity upward to a parent manager via its own CMS
-  outbound connection.
-
-In effect, the gateway becomes a **transparent aggregating proxy** rather than
-a redirector — clients see a stable endpoint, backend topology changes are
-invisible, and load balancing is CMS-driven.
-
-**Approximate scope:** `src/net/upstream/pool.c` (new CMS-backed pool implementation
-replacing `upstream_ctx->round_robin_idx`), `src/net/cms/server_handler.c` (call
-`brix_pool_register()` on `kYR_login`, `brix_pool_update_load()` on
-`kYR_load`, `brix_pool_unregister()` on disconnect / `kYR_gone`).
-
-### Implementation sequencing for G1–G4
-
-| Step | What | Depends on | Estimated effort |
+| Step | What | Status | Tests |
 |---|---|---|---|
-| G1 | `brix_cms_response` directive | — | 1 day |
-| G2 | `brix_proxy_cms_selected()` — redirect pivot | G1 | 2–3 days |
-| G3 | Auth bridging reuse | G2 (uses existing proxy-auth enum) | — (already works) |
-| G4 | CMS-driven pool | G2, existing `brix_cms_server` | 3–5 days |
+| G1 | `brix_cms_response` directive | done | `test_bogus_response_mode_is_rejected_at_parse`, `test_redirect_mode_still_redirects_to_the_selected_node` |
+| G2 | select-then-proxy relay | done | `test_proxy_mode_serves_data_server_bytes_without_redirect`, `test_locate_through_a_proxying_gateway_names_the_gateway`, `test_idle_session_repins_to_the_newly_selected_node`, `test_session_with_an_open_file_keeps_its_node`, `test_dead_selected_node_is_an_error_not_a_hang`, `test_data_server_dying_mid_transfer_is_a_clean_error` |
+| G3 | auth bridging by reuse | done | `test_unauthenticated_open_never_reaches_the_data_node`, `test_write_open_is_refused_by_the_read_only_data_server` |
+| G4 | CMS-driven selection feeding the relay | done | the re-pin and dead-node tests above (registry-driven target changes) |
 
-G1+G2 are a self-contained unit that makes the select-then-proxy topology
-work end-to-end. G4 is an independent quality improvement that can follow
-later. G3 requires no new code beyond what GSI credential bridging already
-needs (tracked separately in proxy-mode-guide.md).
+Lab configs: `tests/configs/nginx_p115_cms_gateway.conf` (manager + CMS server,
+`{RESPONSE}` slot) and `tests/configs/nginx_p115_cms_dataserver.conf`
+(read-only data server); a compose demonstration is the `cms-cluster` stack
+under `deploy/compose/`.

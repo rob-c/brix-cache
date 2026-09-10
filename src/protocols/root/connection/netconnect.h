@@ -11,8 +11,9 @@
  *                                           poll(POLLOUT) + getsockopt(SO_ERROR).
  *
  * WHY: native TPC (src/tpc/outbound/connect.c), the read-through cache origin fill
- *   (src/cache/origin_connection.c) and OCSP fetching (src/crypto/ocsp.c) each
- *   grew their OWN copy of the same hardening dance, with the same Linux caveat:
+ *   (src/fs/cache/origin_connection.c) and OCSP fetching (src/auth/crypto/
+ *   ocsp_transport.c) each grew their OWN copy of the same hardening dance, with
+ *   the same Linux caveat:
  *   SO_SNDTIMEO does not reliably bound connect(2), so an unreachable/black-holed
  *   peer must be bounded with a non-blocking connect + poll() deadline or it stalls
  *   the worker thread for a full TCP retransmit window (~2 min). Factoring the
@@ -24,91 +25,20 @@
  *   Every setsockopt is best-effort/non-fatal; the connect helper restores the
  *   fd's original blocking mode on success and sets errno to the SO_ERROR cause on
  *   a connect-time failure. OpenSSL/BIO connectors keep their own connect path but
- *   can still share the I/O-timeout helper.
+ *   can still share the I/O-timeout helper.  Name resolution is NOT here: every
+ *   connector resolves through src/net/dns (brix_dns_resolve() on the event loop,
+ *   brix_dns_resolve_sync() on a worker thread — phase-116), so this header knows
+ *   only sockaddrs.
  */
 
 #include <ngx_core.h>
 #include <ngx_event.h>
 
-#include "core/compat/af_policy.h"
-
 #include <errno.h>
 #include <fcntl.h>
-#include <netdb.h>
 #include <poll.h>
-#include <stdio.h>
 #include <sys/socket.h>
 #include <sys/time.h>
-
-/* Outcome of brix_resolve_connect_socket(), so the caller can emit its own
- * (protocol-specific) log message for each failure mode. */
-typedef enum {
-    BRIX_RESOLVE_OK = 0,
-    BRIX_RESOLVE_ERR_DNS,     /* getaddrinfo() failed for host:port */
-    BRIX_RESOLVE_ERR_SOCKET   /* no resolved family yielded a usable socket */
-} brix_resolve_status_t;
-
-/*
- * Resolve host:port (SOCK_STREAM) and create the first non-blocking socket whose
- * address family succeeds; copy that sockaddr into *addr_out / *addrlen_out.
- * af_policy constrains getaddrinfo's family — BRIX_AF_AUTO (AF_UNSPEC) tries all,
- * BRIX_AF_INET / _INET6 force IPv4 / IPv6 only. Returns the connected-ready
- * socket fd (caller owns it) with
- * *status_out = BRIX_RESOLVE_OK, or NGX_INVALID_FILE with *status_out set to
- * the failure reason (DNS vs no-usable-socket) so the caller logs its own
- * message. Does no logging itself and leaves no fd open on failure.
- *
- * Shared by the event-driven outbound connectors (proxy upstream, root://
- * upstream) which then wrap the fd in an nginx connection and connect() under
- * the event loop — so this helper deliberately stops at a non-blocking socket
- * + chosen address and does NOT call connect().
- */
-static ngx_inline int
-brix_resolve_connect_socket(const char *host, unsigned port,
-    brix_af_policy_t af_policy,
-    struct sockaddr_storage *addr_out, socklen_t *addrlen_out,
-    brix_resolve_status_t *status_out)
-{
-    struct addrinfo  hints;
-    struct addrinfo *res;
-    struct addrinfo *rp;
-    char             port_str[16];
-    int              fd = (int) NGX_INVALID_FILE;
-
-    ngx_memzero(&hints, sizeof(hints));
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family   = (int) af_policy;   /* AUTO==AF_UNSPEC keeps legacy behaviour */
-    snprintf(port_str, sizeof(port_str), "%u", port);
-
-    if (getaddrinfo(host, port_str, &hints, &res) != 0) {
-        *status_out = BRIX_RESOLVE_ERR_DNS;
-        return (int) NGX_INVALID_FILE;
-    }
-
-    for (rp = res; rp != NULL; rp = rp->ai_next) {
-        fd = ngx_socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-        if (fd == (int) NGX_INVALID_FILE) {
-            continue;
-        }
-        if (ngx_nonblocking(fd) == NGX_ERROR) {
-            ngx_close_socket(fd);
-            fd = (int) NGX_INVALID_FILE;
-            continue;
-        }
-        ngx_memcpy(addr_out, rp->ai_addr, rp->ai_addrlen);
-        *addrlen_out = rp->ai_addrlen;
-        break;
-    }
-    freeaddrinfo(res);
-
-    if (fd == (int) NGX_INVALID_FILE) {
-        *status_out = BRIX_RESOLVE_ERR_SOCKET;
-        return (int) NGX_INVALID_FILE;
-    }
-
-    *status_out = BRIX_RESOLVE_OK;
-    return fd;
-}
 
 /*
  * Apply SO_RCVTIMEO/SO_SNDTIMEO (timeout_secs seconds) to fd. Best-effort: a

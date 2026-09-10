@@ -36,57 +36,6 @@ extern char **environ;
 
 /* ===================== the sd_frm driver ===================== */
 
-/* Bounded synchronous recall: ensure `key` is online in the MSS buffer. Returns 0
- * (online), or -1 (errno: ENOENT absent, EAGAIN still in-flight, EIO error). A
- * genuinely slow MSS would return EAGAIN and the cache tier would park the open on
- * the stage_engine waiter (the deferred async path); the stub completes at once.
- *
- * `*recalled` (when non-NULL) is set to 1 iff a tape->cache recall was actually
- * initiated on this call (a real nearline miss-fill), so the caller can book the
- * one unified `kind=tape` ledger line only for genuine recalls — never for an
- * already-online cache hit (residency ONLINE) or an absent object. */
-static int
-frm_ensure_online(sd_frm_state *st, const char *key, int *recalled)
-{
-    off_t  sz = 0;
-    time_t mt = 0;
-    int    res = st->mss->residency(st->mss_ctx, key, &sz, &mt);
-
-    if (recalled != NULL) { *recalled = 0; }
-    if (res == BRIX_RESIDENCY_ONLINE) {
-        return 0;
-    }
-    if (res == BRIX_RESIDENCY_ABSENT) {
-        errno = ENOENT;
-        return -1;
-    }
-    if (recalled != NULL) { *recalled = 1; }
-    if (st->mss->recall_begin(st->mss_ctx, key) != 0) {
-        errno = EIO;
-        return -1;
-    }
-    /* One poll: a synchronous adapter (begin copied) is online now; an async MSS is
-     * still staging, so return EAGAIN and let the HTTP plane answer 202 (the open
-     * "parks" via client retry, §9.2). A later retry re-polls and completes. */
-    {
-        int p = st->mss->recall_poll(st->mss_ctx, key);
-
-        if (p == 1) {
-            return 0;
-        }
-        if (p < 0) {
-            errno = EIO;
-            return -1;
-        }
-    }
-    errno = EAGAIN;
-    return -1;
-}
-
-/* Fail an open: book ONE terminal tape-recall error line when this open really
- * did trigger a recall (the caller filters EAGAIN, which is not terminal — the
- * open parks and the client retries, §9.2 — so it is never double-counted),
- * publish errno to the caller, and return the NULL the driver contract wants. */
 static brix_sd_obj_t *
 sd_frm_open_fail(const char *path, int book, int e, int *err_out, ngx_log_t *log)
 {
@@ -235,7 +184,13 @@ sd_frm_stat(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out)
 /* Residency (the VFS residency seam, phase-64 §9) — classify `key` via the MSS
  * adapter WITHOUT initiating a recall, mapping the adapter's residency model onto
  * the SD residency enum the protocol handlers consume. ABSENT ⇒ LOST (errno ENOENT
- * so the seam can surface a missing object); ONLINE/NEARLINE/OFFLINE pass through. */
+ * so the seam can surface a missing object).
+ *
+ * The two enums spell "offline" differently (phase-115 W3.1 finding): the
+ * ADAPTER's OFFLINE is "on tape; a recall will fault it in" = the SD's NEARLINE
+ * (stageable), while the SD's OFFLINE is the terminal "not retrievable now" the
+ * open gate refuses with kXR_FSError "recall failed". Passing it through made
+ * every tape-resident object under `brix_frm on` unreadable. */
 static ngx_int_t
 sd_frm_residency(brix_sd_instance_t *inst, const char *key,
                  brix_sd_residency_t *out)
@@ -247,8 +202,8 @@ sd_frm_residency(brix_sd_instance_t *inst, const char *key,
 
     switch (res) {
     case BRIX_RESIDENCY_ONLINE:   *out = BRIX_SD_RES_ONLINE;   break;
-    case BRIX_RESIDENCY_NEARLINE: *out = BRIX_SD_RES_NEARLINE; break;
-    case BRIX_RESIDENCY_OFFLINE:  *out = BRIX_SD_RES_OFFLINE;  break;
+    case BRIX_RESIDENCY_NEARLINE:                /* a recall is in flight */
+    case BRIX_RESIDENCY_OFFLINE:  *out = BRIX_SD_RES_NEARLINE; break;
     default:                        errno = ENOENT; return NGX_ERROR;  /* ABSENT */
     }
     return NGX_OK;
@@ -291,68 +246,6 @@ sd_frm_evict(brix_sd_instance_t *inst, const char *path, uint64_t *bytes_out)
         *bytes_out = (uint64_t) (sz > 0 ? sz : 0);
     }
     return NGX_OK;
-}
-
-static ngx_int_t
-sd_frm_recall_common(brix_sd_instance_t *inst, const char *key,
-    char reqid_out[40], const char *principal)
-{
-    sd_frm_state *st  = SD_FRM_ST(inst);
-    ngx_log_t    *log = (ngx_cycle != NULL) ? ngx_cycle->log : NULL;
-    int           recalled = 0;
-
-    if (reqid_out != NULL) {
-        reqid_out[0] = '\0';         /* synchronous recall: no parking handle */
-    }
-    if (frm_ensure_online(st, key, &recalled) == 0) {
-        /* The cache-fill path (sd_cache) drives every nearline miss through this
-         * verb, so a genuine tape->cache recall books its one unified ledger
-         * line here (kind=tape, dir=in) — the sync counterpart to the async
-         * stage_engine RECALL emit (finding #12). Byte count = the now-online
-         * object size. An already-online object (recalled==0) is a plain fill. */
-        if (recalled) {
-            off_t  sz = 0;
-            time_t mt = 0;
-
-            (void) st->mss->residency(st->mss_ctx, key, &sz, &mt);
-            brix_xfer_finish(BRIX_XFER_TAPE, "in", key, principal,
-                (size_t) (sz > 0 ? sz : 0), BRIX_XFER_OK, 0, log);
-        }
-        return NGX_OK;               /* online now - the cache tier does a normal fill */
-    }
-    {
-        int e = errno;
-
-        /* Terminal recall failure books a kind=tape/error line; EAGAIN (async
-         * still in flight) is non-terminal and must not be recorded. */
-        if (recalled && e != EAGAIN) {
-            brix_xfer_finish(BRIX_XFER_TAPE, "in", key, principal, 0,
-                BRIX_XFER_SRC_ERR, e, log);
-        }
-        return (e == EAGAIN) ? NGX_AGAIN : NGX_ERROR;
-    }
-}
-
-static ngx_int_t
-sd_frm_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
-{
-    return sd_frm_recall_common(inst, key, reqid_out, NULL);
-}
-
-/* recall_cred (phase-107 C2) — SAME recall, attributed. The MSS adapter has no
- * per-user execution leg (every verb runs as the service — the reason evict has
- * no twin), but the tape LEDGER does: this twin books the kind=tape line under
- * the requesting principal instead of anonymously, so a per-user kXR_prepare
- * on an frm export is auditable to who asked for the tape mount. The recall is
- * SYNCHRONOUS (no parking handle), so borrowing the cred for the call's
- * duration retains nothing — the copy rule in sd.h binds only a driver whose
- * recall outlives the call. */
-static ngx_int_t
-sd_frm_recall_cred(brix_sd_instance_t *inst, const char *key,
-    const brix_sd_cred_t *cred, char reqid_out[40])
-{
-    return sd_frm_recall_common(inst, key, reqid_out,
-                                cred != NULL ? cred->principal : NULL);
 }
 
 /* §3.7 pure-tape enumeration: the dir cursor snapshots the MSS listing at
@@ -463,8 +356,11 @@ sd_frm_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
 
 static const brix_sd_driver_t brix_sd_frm_driver = {
     .name = "frm",
+    /* No CAP_RANDOM_WRITE (phase-115 W3.1): no pwrite slot, sd_frm_open refuses
+     * write-opens EROFS; the ONLY write path is staged_open/write/commit. The
+     * cap made the VFS writer pick the in-place route ("read-only export"). */
     .caps = BRIX_SD_CAP_NEARLINE | BRIX_SD_CAP_RANGE_READ
-          | BRIX_SD_CAP_RANDOM_WRITE | BRIX_SD_CAP_FD | BRIX_SD_CAP_DIRS
+          | BRIX_SD_CAP_FD | BRIX_SD_CAP_DIRS
           | BRIX_SD_CAP_DIRS_WRITE    /* §3.7 rcreate: mkdir via mss->mkpath */
           /* C6: every kind advisory via the MSS residency probe (atomic=0) */
           | BRIX_SD_CAP_PRECOND,
@@ -504,15 +400,13 @@ static const brix_sd_driver_t brix_sd_frm_driver = {
  * adapter choices are delegated to helpers so this stays a linear early-return
  * sequence below the complexity cap.
  *
- * HOW:
- *   1. Reject an empty `location` with EINVAL.
- *   2. Allocate inst + state; on failure free both and return ENOMEM.
- *   3. Try the exec adapter; on hard failure free both and return NULL.
- *   4. If no adapter is set yet, fall back to the stub; on failure free and return.
- *   5. Publish the driver and state onto the instance and return it.
+ * HOW: reject an empty `location` (EINVAL); allocate inst + state (ENOMEM);
+ * select lib -> exec -> stub, then wrap in the W3.1 archiver when `opts` asks
+ * (any hard failure frees both and returns NULL); publish driver + state.
  */
 brix_sd_instance_t *
-brix_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
+brix_sd_frm_create_opts(const char *adapter, const char *location,
+    const brix_sd_frm_opts_t *opts, ngx_log_t *log)
 {
     brix_sd_instance_t *inst;
     sd_frm_state         *st;
@@ -530,6 +424,8 @@ brix_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
         return NULL;
     }
     st->log = log;
+    ngx_cpystrn((u_char *) st->location, (u_char *) location,
+                sizeof(st->location));
 
     /* Adapter precedence: library-native (dlopen) → exec (stagecmd) → stub. The
      * lib select never hard-fails (an absent vendor .so degrades gracefully), so
@@ -543,8 +439,9 @@ brix_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
         free(st);
         return NULL;
     }
-    if (st->mss == NULL
-        && frm_select_stub_adapter(st, adapter, location, log) != 0)
+    if ((st->mss == NULL
+         && frm_select_stub_adapter(st, adapter, location, log) != 0)
+        || frm_select_arc_decorator(st, opts, log) != 0)
     {
         free(inst);
         free(st);
@@ -561,6 +458,32 @@ brix_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
     inst->state  = st;
     inst->domain = BRIX_VFS_DOMAIN_EXPORT;   /* strict default (C9) */
     return inst;
+}
+
+brix_sd_instance_t *
+brix_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
+{
+    return brix_sd_frm_create_opts(adapter, location, NULL, log);
+}
+
+int
+brix_sd_frm_instance_is(const brix_sd_instance_t *inst)
+{
+    return inst != NULL && inst->driver == &brix_sd_frm_driver;
+}
+
+void
+brix_sd_frm_set_export_root(brix_sd_instance_t *inst, const char *root)
+{
+    sd_frm_state *st;
+
+    if (!brix_sd_frm_instance_is(inst)) {
+        return;
+    }
+    st = SD_FRM_ST(inst);
+    ngx_cpystrn((u_char *) st->export_root,
+                (u_char *) ((root != NULL) ? root : ""),
+                sizeof(st->export_root));
 }
 
 void

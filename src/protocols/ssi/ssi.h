@@ -25,9 +25,8 @@
 #include "core/types/context.h"
 #include "ssi_service.h"
 #include "ssi_req.h"        /* brix_ssi_req_t (nginx-free data type) */
+#include "ssi_rrinfo.h"     /* BRIX_SSI_PREFIX + the RRInfo codec (shared with client/) */
 
-#define BRIX_SSI_PREFIX     "/.ssi/"
-#define BRIX_SSI_PREFIX_LEN (sizeof(BRIX_SSI_PREFIX) - 1)
 #define BRIX_SSI_REQ_MAX    (1u << 20)   /* 1 MiB cap on a unary request */
 #define BRIX_SSI_RESP_MAX   (1u << 20)   /* 1 MiB cap on a response */
 #define BRIX_SSI_META_MAX   4096         /* metadata cap */

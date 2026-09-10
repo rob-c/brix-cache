@@ -63,7 +63,7 @@ Directives:
 - `brix_wt_mode sync|async` chooses close behavior. `kXR_sync` is always
   synchronous.
 - `brix_wt_origin host:port` sets the write-back data server. If omitted,
-  the read-through `brix_cache_origin` is used when configured.
+  the read-through origin (`brix_storage_backend root://…`) is used when configured.
 - `brix_wt_allow_prefix` and `brix_wt_deny_prefix` are repeatable prefix
   filters. Deny entries win over allow entries.
 

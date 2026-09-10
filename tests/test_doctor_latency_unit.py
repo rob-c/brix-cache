@@ -46,6 +46,7 @@ def latency_bin(tmp_path_factory):
         [cc, "-std=c11", "-Wall", "-Wextra", "-Werror",
          "-Ilib", "-I../src", "-I../shared", "-DXRDPROTO_NO_NGX",
          os.path.join("apps", "diag", "diag_doctor_latency_unittest.c"),
+         os.path.join("lib", "net", "resolve.c"),   # phase-116: the one DNS seam
          "-o", out],
         cwd=CLIENT, capture_output=True, text=True)
     _guard_latency_bin_3(r)

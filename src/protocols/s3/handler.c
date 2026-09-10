@@ -93,15 +93,18 @@ s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     ngx_memcpy(host, r->connection->addr_text.data, n);
     host[n] = '\0';
 
-    /* Opt-in reverse DNS for `h <host>`/`h .domain` rules (per request). */
+    /* Opt-in reverse DNS for `h <host>`/`h .domain` rules: a cache probe —
+     * the PREACCESS wait (core/http/http_peer_name.c) fetched the answer. */
     if (cf->common.acc.resolve_hosts) {
-        char        hbuf[256];
-        const char *h = brix_acc_resolve_peer(r->connection->sockaddr,
-                                                r->connection->socklen,
-                                                hbuf, sizeof(hbuf));
-        if (h != NULL) {
-            n = ngx_min(ngx_strlen(h), sizeof(host) - 1);
-            ngx_memcpy(host, h, n);
+        char  hbuf[BRIX_DNS_REVERSE_NAME_LEN];
+
+        if (brix_acc_resolve_peer(cf->common.dns.policy,
+                                  r->connection->sockaddr,
+                                  r->connection->socklen,
+                                  hbuf, sizeof(hbuf)) == NGX_OK)
+        {
+            n = ngx_min(ngx_strlen(hbuf), sizeof(host) - 1);
+            ngx_memcpy(host, hbuf, n);
             host[n] = '\0';
         }
     }

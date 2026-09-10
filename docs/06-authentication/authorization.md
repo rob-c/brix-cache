@@ -67,7 +67,7 @@ Stream GSI path:
                    if found → reject with kXR_NotAuthorized
 
 WebDAV HTTPS path:
-  On startup:  load CRL PEM from brix_webdav_crl directive
+  On startup:  load CRL PEM from brix_crl directive
                same signature check
 
   Per-request: after webdav_verify_proxy_cert() would succeed:
@@ -162,4 +162,4 @@ subsequent file traffic.
 | Proxy decryption produces garbage | DH padding not disabled | `EVP_PKEY_CTX_set_dh_pad(ctx, 0)` is required |
 | WebDAV returns 403 for valid proxy | Proxy rejected because `ssl_verify_client on` | Change to `ssl_verify_client optional_no_ca` — nginx's own verification does not accept RFC 3820 proxies |
 | `"cannot verify VOMS signature"` | vomsdir LSC DNs don't match VOMS signing cert | `openssl x509 -in vomscert.pem -noout -subject -nameopt compat` must match the LSC file exactly |
-| CRL checks always pass even for revoked certs | CRL not loaded or path wrong | Check `brix_crl` / `brix_webdav_crl` directives; verify the CRL's issuer matches the CA |
+| CRL checks always pass even for revoked certs | CRL not loaded or path wrong | Check `brix_crl` / `brix_crl` directives; verify the CRL's issuer matches the CA |

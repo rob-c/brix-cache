@@ -214,6 +214,12 @@ tpc_bootstrap_login(brix_tpc_pull_t *t, int fd)
     if (status == kXR_ok || status == kXR_authmore) {
         int frc = 0;
 
+        /* F7: the leading BRIX_SESSION_ID_LEN bytes are the session id a
+         * kXR_bind sub-stream must present to join this session. */
+        if (body != NULL && dlen >= BRIX_SESSION_ID_LEN) {
+            ngx_memcpy(t->sessid, body, BRIX_SESSION_ID_LEN);
+            t->sessid_known = 1;
+        }
         if (dlen > BRIX_SESSION_ID_LEN) {
             frc = tpc_outbound_finish_login(t, fd, body, dlen);
         }
@@ -233,14 +239,29 @@ tpc_bootstrap_login(brix_tpc_pull_t *t, int fd)
 /* WHAT: Bootstrap anonymous XRootD session on remote TPC origin — execute handshake → protocol version negotiation → login pipeline. */
 
 int
-tpc_bootstrap(brix_tpc_pull_t *t, int fd)
+tpc_bootstrap_transport(brix_tpc_pull_t *t, int fd)
 {
     if (tpc_bootstrap_handshake(t, fd) != 0) {
         return -1;
     }
-    if (tpc_bootstrap_protocol(t, fd) != 0) {
+    return tpc_bootstrap_protocol(t, fd);
+}
+
+int
+tpc_bootstrap(brix_tpc_pull_t *t, int fd)
+{
+    if (tpc_bootstrap_transport(t, fd) != 0) {
         return -1;
     }
-    return tpc_bootstrap_login(t, fd);
+    if (tpc_bootstrap_login(t, fd) != 0) {
+        return -1;
+    }
+
+    /* W8.2: record the lifetime of whatever credential this session ended up
+     * presenting — fetched by tpc_fetch_delegated_token(), forwarded from the
+     * client, or read from the bearer file inside the ztn leg — so the stream
+     * loop can decide when it needs renewing. */
+    tpc_cred_note_expiry(t);
+    return 0;
 }
 

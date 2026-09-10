@@ -141,9 +141,6 @@ SINGLE_RANGES = [
 ]
 
 
-@pytest.mark.parametrize("spec", [s[1] for s in SINGLE_RANGES],
-                         ids=[s[0] for s in SINGLE_RANGES])
-
 def _last_modified(srv, path):
     st, hdrs, _ = GET(srv, path)
     assert st == 200 and "last-modified" in hdrs

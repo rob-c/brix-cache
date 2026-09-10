@@ -47,7 +47,7 @@ def _reachable(host, port, timeout=1.0):
 @pytest.fixture(scope="module")
 def readonly_http():
     """Connect to the dedicated READ-ONLY HTTP nginx pre-started by
-    manage_test_servers.sh start-all (the "readonly-http" instance: a WebDAV
+    python3 -m cmdscripts.manage_test_servers start-all (the "readonly-http" instance: a WebDAV
     server on READONLY_HTTP_DAV_PORT and an S3 server on READONLY_HTTP_S3_PORT,
     both with allow_write omitted so writes default off, serving
     READONLY_HTTP_DATA_ROOT).  Skips cleanly if that instance is not running.
@@ -68,7 +68,7 @@ def readonly_http():
             "dedicated read-only HTTP nginx not reachable on "
             f"{SERVER_HOST}:{READONLY_HTTP_DAV_PORT}/"
             f"{READONLY_HTTP_S3_PORT} — run "
-            "tests/manage_test_servers.sh start-all")
+            "python3 -m cmdscripts.manage_test_servers start-all")
 
     return {"data": data,
             "dav_port": READONLY_HTTP_DAV_PORT,

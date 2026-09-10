@@ -127,9 +127,15 @@
 #define kXR_collapseRedir 0x00002000u  /* server caches recent redirect targets;
                                           subsequent identical requests skip CMS.
                                           Set when brix_collapse_redir is on. */
-#define kXR_ecRedir       0x00004000u  /* redirect to erasure-coded storage shards;
-                                          out of scope — requires EC storage backend;
-                                          defined for completeness, never set. */
+#define kXR_ecRedir       0x00004000u  /* redirect to erasure-coded storage shards.
+                                          Defined for completeness, NEVER SET, and
+                                          not merely for want of an EC backend: the
+                                          bit promises the client a shard layout it
+                                          must reassemble itself, so a server whose
+                                          EC were internal must still leave it clear.
+                                          It belongs to the client-side design — see
+                                          docs/refactor/phase-117-erasure-coding-design-spike.md
+                                          (spike closed NO-GO). */
 #define kXR_supposc       0x00100000u  /* server supports persist-on-successful-close
                                           (kXR_posc open flag); always set. */
 #define kXR_suppgrw       0x00200000u  /* server supports kXR_pgread and kXR_pgwrite

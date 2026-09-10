@@ -24,6 +24,7 @@ Run:
 import os
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import sys
 
 import pytest
@@ -77,11 +78,7 @@ def _build():
     out = b""
     need = [NETFB, SHIM, WAIT41]
     if not all(os.path.exists(p) for p in need):
-        r = subprocess.run(
-            ["make", "netfb", "gai-shim", "wait41-brix"],
-            cwd=CLIENT_DIR, env=_base_env(),
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300,
-        )
+        r = client_make(CLIENT_DIR, "netfb", "gai-shim", "wait41-brix", env=_base_env(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
         out = r.stdout
     if not all(os.path.exists(p) for p in need):
         pytest.skip("client test binaries not built (run `make -C client netfb "

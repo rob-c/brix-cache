@@ -42,7 +42,7 @@ brix_proxy_lazy_open_failed(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
 
     brix_proxy_lazy_release_body(proxy);
     if (local_fh >= 0 && local_fh < BRIX_MAX_FILES) {
-        proxy->fh_map[local_fh].upstream_fh = BRIX_PROXY_FH_FREE;
+        proxy->fh_map[local_fh].fh_state = BRIX_PROXY_FH_FREE;
     }
 
     proxy->state = XRD_PX_IDLE;
@@ -55,12 +55,9 @@ brix_proxy_lazy_open_failed(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
 static void
 brix_proxy_lazy_record_open(brix_proxy_ctx_t *proxy, int local_fh)
 {
-    int upstream_fh;
-
-    upstream_fh = (proxy->resp_body != NULL && proxy->resp_dlen >= 1)
-                  ? (int)(unsigned char) proxy->resp_body[0] : 0;
     if (local_fh >= 0 && local_fh < BRIX_MAX_FILES) {
-        proxy->fh_map[local_fh].upstream_fh = upstream_fh;
+        brix_proxy_fh_bind(&proxy->fh_map[local_fh], proxy->resp_body,
+                           proxy->resp_dlen);
         proxy->fh_map[local_fh].open_msec = ngx_current_msec;
     }
 }
@@ -100,9 +97,10 @@ brix_proxy_translate_saved_readv(brix_proxy_ctx_t *proxy, u_char *rreq,
     while (pos + 16 <= pdlen) {
         int cfh = (int)(unsigned char) pl[pos];
         if (cfh >= 0 && cfh < BRIX_MAX_FILES
-            && proxy->fh_map[cfh].upstream_fh >= 0)
+            && proxy->fh_map[cfh].fh_state == BRIX_PROXY_FH_BOUND)
         {
-            pl[pos] = (u_char)(unsigned int) proxy->fh_map[cfh].upstream_fh;
+            /* the readv element's fhandle is 4 bytes, not 1 */
+            brix_proxy_fh_put(&proxy->fh_map[cfh], &pl[pos]);
         }
         pos += 16;
     }
@@ -114,14 +112,13 @@ brix_proxy_translate_saved_read(brix_proxy_ctx_t *proxy, u_char *rreq,
     size_t rlen, int local_fh)
 {
     uint16_t saved_rid;
-    int upstream_fh;
 
     saved_rid = ntohs(((ClientRequestHdr *)(void *) rreq)->requestid);
     if (saved_rid == kXR_read || saved_rid == kXR_pgread) {
-        upstream_fh = (local_fh >= 0 && local_fh < BRIX_MAX_FILES)
-                      ? proxy->fh_map[local_fh].upstream_fh : -1;
-        if (upstream_fh >= 0) {
-            rreq[4] = (u_char)(unsigned int) upstream_fh;
+        if (local_fh >= 0 && local_fh < BRIX_MAX_FILES
+            && proxy->fh_map[local_fh].fh_state == BRIX_PROXY_FH_BOUND)
+        {
+            brix_proxy_fh_put(&proxy->fh_map[local_fh], rreq + 4);
         }
         return local_fh;
     }

@@ -103,7 +103,7 @@ registry.
 | `src/net/cms/server_handler.c` | nginx stream handler: allocates `brix_cms_server_ctx_t`, wires read handler. Mirrors `src/protocols/root/connection/handler.c`. |
 | `src/net/cms/server_recv.c` | Frame reader: accumulates 8-byte header + payload, dispatches on `rrCode`. Mirrors `src/net/cms/recv.c`. |
 | `src/net/cms/server_send.c` | `cms_server_send_ping()` and `cms_server_send_status()`. Reuses `src/net/cms/wire.c` helpers. |
-| `src/net/cms/server_timer.c` | Per-worker timer: pings each active CMS connection every `cms_server_interval` seconds (default 60); marks stale connections for disconnect. |
+| `src/net/cms/server_handler.c` | Per-worker timer: pings each active CMS connection every `cms_server_interval` seconds (default 60); marks stale connections for disconnect. |
 | `src/net/cms/server_module.c` | nginx stream module glue. Directive: `brix_cms_server on;`. |
 
 **CMS opcodes handled**:
@@ -141,7 +141,7 @@ if (conf->manager_mode && !is_wildcard) {
 /* static manager_map fallback follows unchanged */
 ```
 
-**Changes to `src/protocols/root/read/open.c`**: same registry-then-fallback pattern before
+**Changes to `src/protocols/root/read/open_request.c`**: same registry-then-fallback pattern before
 the local open path.
 
 **Changes to `src/protocols/root/session/protocol.c`**: set `kXR_isManager` flag when
@@ -171,7 +171,7 @@ After a cache fill completes (`src/fs/cache/thread.c`), if `manager_mode` is on,
 call `brix_srv_register(self_host, self_port, cached_path, ...)` so the
 registry reflects this cache node as a valid source for the file.
 
-When a file is evicted (`src/fs/cache/evict.c`), call `brix_srv_unregister_path()`
+When a file is evicted (`src/fs/cache/evict_policy.c`), call `brix_srv_unregister_path()`
 (a new single-path variant of unregister) to remove only that path from the
 cache node's entry.
 
@@ -232,9 +232,9 @@ admin undrain), and `brix_cms_vnid` (login virtual-network id).
 |---|---|---|
 | M1 registry | `src/net/manager/registry.h`, `registry.c` | `src/core/config/postconfiguration.c`, `config` |
 | M2 CMS server | `src/net/cms/server_handler.c`, `server_recv.c`, `server_send.c`, `server_timer.c`, `server_module.c` | `config` |
-| M3 dynamic redirect | — | `src/protocols/root/read/locate.c`, `src/protocols/root/read/open.c`, `src/protocols/root/session/protocol.c`, `src/core/types/config.h`, `src/protocols/root/stream/module.c`, `src/core/config/server_conf.c` |
+| M3 dynamic redirect | — | `src/protocols/root/read/locate.c`, `src/protocols/root/read/open_request.c`, `src/protocols/root/session/protocol.c`, `src/core/types/config.h`, `src/protocols/root/stream/module.c`, `src/core/config/server_conf.c` |
 | M4 sub-manager | — | `src/net/cms/send.c` |
-| M5 cache integration | — | `src/fs/cache/thread.c`, `src/fs/cache/evict.c`, `src/net/manager/registry.c` |
+| M5 cache integration | — | `src/fs/cache/thread.c`, `src/fs/cache/evict_policy.c`, `src/net/manager/registry.c` |
 
 ---
 
@@ -253,20 +253,28 @@ admin undrain), and `brix_cms_vnid` (login virtual-network id).
 
 ## Verification
 
+The two-tier cluster is a standing pair of *dedicated* fleet servers, declared
+in `tests/brix_suite/catalogue/dedicated.py` as `cluster-redir`
+(`tests/configs/nginx_cluster_redir.conf` — `brix_manager_mode on` plus a
+`brix_cms_server` listener) and `cluster-ds`
+(`tests/configs/nginx_cluster_ds.conf` — `brix_root on`, registering into the
+redirector via `brix_cms_manager`). The configs are templates: `{PORT}`,
+`{CMS_PORT}` and friends are filled from the lane's port ladder, so start them
+through the fleet rather than by hand — a literal `nginx -c` on the template
+will not parse.
+
 ```bash
 # Two-tier smoke test
 
-# 1. Start redirector
-nginx -c tests/nginx-redirector.conf    # brix_manager_mode on :1094, cms :1213
+# 1. Bring up the fleet (starts cluster-redir, then cluster-ds against it)
+cd tests && python3 -m cmdscripts.manage_test_servers start-all
 
-# 2. Start data server (CMS client connects to redirector on startup)
-nginx -c tests/nginx-dataserver.conf    # brix_root on :1095, cms_manager redirector:1213
+# 2. Client hits redirector — should receive kXR_redirect to the data server
+#    (the redirector's port is $CLUSTER_REDIR_PORT for the running lane)
+client/bin/xrdcp root://localhost:${CLUSTER_REDIR_PORT}//data/file.txt /tmp/out.txt
 
-# 3. Client hits redirector — should receive kXR_redirect to data server
-xrdcp root://localhost:1094//data/file.txt /tmp/out.txt
-
-# 4. Full test suite
-pytest tests/test_manager_mode.py tests/test_conformance.py -x -q
+# 3. The suites that assert the redirect end to end
+PYTHONPATH=tests pytest tests/test_manager_mode.py tests/test_conformance.py -x -q
 ```
 
 For a three-tier test (M4): run three nginx instances — meta-manager, sub-manager,

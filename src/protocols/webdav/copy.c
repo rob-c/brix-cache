@@ -205,11 +205,12 @@ webdav_copy_resolve_pair(ngx_http_request_t *r,
         return rc;
     }
 
-    /* Reject copy-onto-self: same (dev, ino) means source and destination are
-     * the same file, which would corrupt/truncate it. RFC 4918 §9.8.5 -> 403. */
+    /* Reject copy-onto-self: copying a file onto itself would corrupt/truncate
+     * it. RFC 4918 §9.8.5 -> 403.  The predicate is shared with MOVE and knows
+     * that a remote namespace has no inodes to compare. */
     if (req->dst_existed
-        && req->src_sb.st_ino == req->dst_sb.st_ino
-        && req->src_sb.st_dev == req->dst_sb.st_dev)
+        && brix_webdav_same_object(req->src_path, req->dst_path,
+                                   &req->src_sb, &req->dst_sb))
     {
         return NGX_HTTP_FORBIDDEN;
     }

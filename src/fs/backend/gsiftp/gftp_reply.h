@@ -32,6 +32,15 @@ typedef struct {
     int          multiline;    /* nonzero if a `ddd-` continuation was consumed */
     const char  *text;         /* final line's text (after "ddd " / "ddd-")     */
     size_t       text_len;     /* its length, excluding the CR/LF terminator    */
+    /* The CONTINUATION lines of a multiline reply: everything between the end
+     * of the `ddd-` opening line and the start of the `ddd ` terminator, CRLFs
+     * included, empty for a single-line reply.  RFC 959 §4.2 gives them no
+     * structure, so the scanner still steps over them — but a reply whose
+     * PAYLOAD is the continuation (RFC 2389 FEAT, whose final line is a bare
+     * "End") is unreadable without them, and before phase-115 W5.2 they were
+     * dropped on the floor.  Points into the caller's buffer, like `text`. */
+    const char  *body;
+    size_t       body_len;
 } gftp_reply_t;
 
 /*

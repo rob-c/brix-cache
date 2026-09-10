@@ -27,6 +27,7 @@
 #include "net/cms/cns.h"               /* §6 CNS mode enum */
 #include "tpc/engine/key_registry.h"
 #include "tpc/common/registry.h"   /* Phase 39 (WS5): registry reaper max-age */
+#include "tpc/outbound/stream_plan.h" /* F7: TPC_STREAMS_MAX */
 #include "protocols/root/session/registry.h"   /* BRIX_SESSION_REGISTRY_SLOTS default */
 #include "net/manager/health_check.h" /* BRIX_HC_TYPE_PING default */
 #include "net/manager/registry.h"     /* Phase 89 (W4): load-weight setter */
@@ -34,8 +35,8 @@
 
 /* Third-party copy (TPC): local/private allowances, key TTL, transfer caps and
  * the abandoned-slot reaper age, and the outbound OAuth2/bearer credentials. */
-void
-brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
+char *
+brix_merge_srv_tpc(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
     ngx_conf_merge_value(conf->ssi_enable,        prev->ssi_enable,        0);
@@ -51,6 +52,7 @@ brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
         brix_cns_set_collect(1);   /* §6: this node maintains the CNS inventory */
     }
     ngx_conf_merge_value(conf->tpc_delegate,      prev->tpc_delegate,      0);
+    ngx_conf_merge_value(conf->tpc_push,          prev->tpc_push,          0);
     /* Phase-70/opportunistic: passthrough of the client's own inbound bearer JWT
      * to the TPC source is ON by default so token-authenticated pulls forward the
      * end-user identity without any per-server opt-in. The default path is
@@ -68,6 +70,23 @@ brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
      * the absolute backstop, large enough never to clip a real transfer. */
     ngx_conf_merge_uint_value(conf->tpc_max_transfer_secs,
                               prev->tpc_max_transfer_secs, 86400);
+    /* F7: multihop hop budget and the multi-stream cap. Both are range-checked
+     * here (not in a setter) so a block that only inherits still fails loud. */
+    ngx_conf_merge_uint_value(conf->tpc_max_hops, prev->tpc_max_hops,
+                              TPC_HOPS_DEFAULT);
+    ngx_conf_merge_uint_value(conf->tpc_streams,  prev->tpc_streams, 1);
+    if (conf->tpc_max_hops > BRIX_TPC_HOPS_MAX) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "brix_tpc_max_hops must be between 0 and %d",
+                           BRIX_TPC_HOPS_MAX);
+        return NGX_CONF_ERROR;
+    }
+    if (conf->tpc_streams < 1 || conf->tpc_streams > TPC_STREAMS_MAX) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "brix_tpc_streams must be between 1 and %d",
+                           TPC_STREAMS_MAX);
+        return NGX_CONF_ERROR;
+    }
     /* Hostile-network completion/integrity gates for the native TPC pull, both
      * default off (a size mismatch always fails regardless; these only govern the
      * "no size" and "verify content checksum" postures). */
@@ -81,6 +100,7 @@ brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
     if (conf->tpc_transfer_max_age > 0) {
         brix_tpc_registry_set_max_age((time_t) conf->tpc_transfer_max_age);
     }
+    return NGX_CONF_OK;
 }
 
 /*
@@ -212,6 +232,11 @@ brix_merge_srv_cms_selection(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_uint_value(conf->cms.role, prev->cms.role,
                               BRIX_CMS_ROLE_AUTO);
 
+    /* Phase-115 W2.1: selection answer — redirect keeps the stock wire
+     * behaviour; proxy is opt-in per server block. */
+    ngx_conf_merge_uint_value(conf->cms.response, prev->cms.response,
+                              BRIX_CMS_RESPONSE_REDIRECT);
+
     /* Phase-61 W7: multi-tier kYR_state recursion (off = registry-only). */
     ngx_conf_merge_value(conf->cms.state_relay, prev->cms.state_relay, 0);
 
@@ -250,6 +275,18 @@ brix_merge_srv_cms_selection(ngx_stream_brix_srv_conf_t *conf,
         sched.fuzz    = (ngx_uint_t) conf->cms.sched_fuzz;
         sched.maxload = (ngx_uint_t) conf->cms.sched_maxload;
         brix_srv_set_sched(&sched);
+    }
+
+    /* §2.4 (cms.space, manager half): process-wide set-once like the sched
+     * vector — the registry is one table.  Installed only when enforcement is
+     * on, so a stray hwm on an unenforcing block cannot latch anything. */
+    ngx_conf_merge_value(conf->cms.space_enforce, prev->cms.space_enforce, 0);
+    ngx_conf_merge_value(conf->cms.space_hwm_mb,  prev->cms.space_hwm_mb,  0);
+    if (conf->cms.space_enforce) {
+        brix_srv_space_t space;
+        space.enforce = 1;
+        space.hwm_mb  = (ngx_uint_t) conf->cms.space_hwm_mb;
+        brix_srv_set_space(&space);
     }
 
     /* §2.5: stage-aware selection (off = legacy least-utilised pick). */
@@ -298,6 +335,22 @@ brix_merge_srv_cms_feeds(ngx_stream_brix_srv_conf_t *conf,
     if (conf->cms.altds.len == 0 && prev->cms.altds.len > 0) {
         conf->cms.altds = prev->cms.altds;
     }
+
+    /* §2.19 (cms.fsxeq): inherit each unclaimed op slot from the parent, so a
+     * stream-level program covers every server that does not name its own.
+     * A slot the child claimed wins outright — merging two programs for one op
+     * has no meaning. */
+    {
+        ngx_uint_t  i;
+
+        for (i = 0; i < BRIX_CMS_FSXEQ_OPS; i++) {
+            if (conf->cms.fsxeq[i] == NULL) {
+                conf->cms.fsxeq[i] = prev->cms.fsxeq[i];
+            }
+        }
+    }
+    ngx_conf_merge_msec_value(conf->cms.fsxeq_timeout,
+                              prev->cms.fsxeq_timeout, 10000);
 }
 
 
@@ -416,6 +469,7 @@ brix_merge_srv_cluster_addrs(ngx_stream_brix_srv_conf_t *conf,
         conf->upstream_host = prev->upstream_host;
         conf->upstream_port = prev->upstream_port;
         conf->upstream_addr = prev->upstream_addr;
+        conf->upstream_dns = prev->upstream_dns;
     }
 }
 

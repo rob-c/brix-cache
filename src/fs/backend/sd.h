@@ -79,7 +79,20 @@ typedef enum {
      * semantics for it. The bit is the static claim; pre->atomic is the
      * per-call truth (on `http` the property is a runtime fact about the
      * origin, probed once and recorded, not a compile-time fact). */
-    BRIX_SD_CAP_PRECOND       = 1u << 18
+    BRIX_SD_CAP_PRECOND       = 1u << 18,
+    /* The driver talks a BLOCKING multi-round-trip socket protocol of its own:
+     * open and read pump a raw fd the nginx event loop knows nothing about, so
+     * they cannot run on the un-pumped loop.  The HTTP serve path consults this
+     * to decide whether the whole open+read must move to the thread pool
+     * (protocols/shared/http_serve_offload.c).
+     *
+     * It is a CAPABILITY rather than a list of driver names because the list is
+     * exactly the thing that rots: it held "xroot" alone while `gsiftp` — the
+     * second blocking-socket driver, added later — served every byte on the
+     * loop, wedging the worker for the length of an FTP conversation.  A driver
+     * that owns a socket now declares that itself, and the serve path never has
+     * to be taught a new name. */
+    BRIX_SD_CAP_BLOCKING_WIRE = 1u << 19
 } brix_sd_cap_t;
 
 /* Per-open credential types — brix_sd_cred_kind_t, enum brix_cred_mode,
@@ -98,6 +111,13 @@ typedef enum {
 #define BRIX_SD_O_APPEND   0x20
 #define BRIX_SD_O_DIR      0x40
 #define BRIX_SD_O_NOFOLLOW 0x80   /* refuse a symlink at the final component */
+/* Read-open hint for the cache decorator (sd_cache): on a MISS open the source
+ * directly and start no fill — the store already refused this object (ENOSPC
+ * from the offloaded fill, brix_fill_store_refused). Every other driver
+ * ignores it. It propagates through a tiered stack: nothing below fills either
+ * on this read, so the event loop never inherits the stall the offload
+ * existed to avoid. */
+#define BRIX_SD_O_NOFILL   0x100
 
 /* ---- read-advise hints ----------------------------------------------------
  * Backend-neutral access-pattern advice for the optional read_advise slot.
@@ -107,6 +127,17 @@ typedef enum {
 #define BRIX_SD_ADV_SEQUENTIAL 0
 #define BRIX_SD_ADV_WILLNEED   1
 #define BRIX_SD_ADV_RANDOM     2
+
+/* 2.0 F5 (upstream pfc.urlcgi): the per-open cache hints a client may carry on
+ * an open — root:// opaque `pfc.blocksize=<bytes>` / `pfc.prefetch=<blocks>`.
+ * Advisory: only a cache decorator whose brix_cache_urlcgi policy arms the
+ * matching clamp consumes them; every other driver ignores them, and an
+ * already-cached object keeps its own geometry regardless. All-zero = none. */
+typedef struct {
+    size_t    block_size;       /* requested slice size, bytes (0 = no hint)  */
+    size_t    prefetch_blocks;  /* requested prefetch runway, in blocks       */
+    unsigned  prefetch_set:1;   /* prefetch_blocks carries a hint (0 is legal) */
+} brix_sd_open_hints_t;
 
 typedef struct brix_sd_driver_s   brix_sd_driver_t;
 typedef struct brix_sd_instance_s brix_sd_instance_t;
@@ -459,6 +490,17 @@ struct brix_sd_driver_s {
     brix_sd_obj_t    *(*open_cred)(brix_sd_instance_t *inst, const char *path,
                                     int sd_flags, mode_t mode,
                                     const brix_sd_cred_t *cred, int *err_out);
+    /* 2.0 F5: open carrying brix_sd_open_hints_t (OPTIONAL). NULL on every
+     * driver with no per-object geometry to tune; a decorator relays it to its
+     * source (sd_stage), the cache decorator consumes it. `cred` may be NULL
+     * (the plain-slot identity) and MUST otherwise be honoured exactly as
+     * open_cred honours it — brix_sd_open_hinted_maybe_cred only routes here
+     * when that holds. */
+    brix_sd_obj_t    *(*open_hinted)(brix_sd_instance_t *inst,
+                                      const char *path, int sd_flags,
+                                      mode_t mode, const brix_sd_cred_t *cred,
+                                      const brix_sd_open_hints_t *hints,
+                                      int *err_out);
     brix_sd_staged_t *(*staged_open_cred)(brix_sd_instance_t *inst,
                                            const char *final_path, mode_t mode,
                                            off_t declared_size,

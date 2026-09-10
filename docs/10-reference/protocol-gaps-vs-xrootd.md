@@ -1,5 +1,28 @@
 # XRootD Protocol Gap Analysis — BriX-Cache vs upstream xrootd
 
+> **Status (2026-09-09 — 2.0).** An opcode/plugin-level comparison against xrootd 5.2.0,
+> maintained by phase work rather than as a release register. For what 2.0 ships, what
+> it deliberately does not, and what is still open, use the 2.0 register,
+> [`release-2.0-readiness.md`](release-2.0-readiness.md) — its parity rows supersede any
+> ⚠️/❌ below. Axis (e) of that register closed **F1–F20** (the thirteen accepted-only
+> `brix_frm_*` knobs and the durable stage journal, `stagemsg`/StageEvents, the OssArc
+> dataset seal, the per-space purge-policy grammar with an external policy program,
+> `pfc.urlcgi` + PSS forwarding, the RAM-tier metric rows, native `root://` TPC
+> **multihop** delegation and multi-stream *pull*, the site checksum plugin loader, the
+> sss v2 endorsement/proxied-credential wave, the health-check family,
+> `brix_mirror_exclude_opcodes` read/readv, the four metric wishlist categories, native
+> `root://` TPC **push** with multi-stream on it, the `cms.fsxeq` operator program for
+> forwarded namespace ops, and the `ofs.tpc` identity matrix layered inside the
+> host-plane TPC confinement, and the `xrd.tlsca` CRL-scope and verification-log
+> residuals — whose lab also found and fixed **F22**, a CRL a worker could not read
+> silently disarming revocation — and the native authdb residual grammar: the compound
+> `u g p a v l` selector set, positional VOMS vorg+role pairing, and the `x` stage
+> privilege) and, with **F21** — full per-user POSIX identity across the VFS seam, whose audit
+> found the posix plane already impersonating at the `beneath`/`confined_canon` seam
+> and closed the one un-brokered verb, `RENAME_EXCHANGE` — landed on 2026-09-10,
+> leaves nothing open: axis (e) is closed in full at F1–F22. A row below that names a closed item is stale by construction; this file is
+> kept as a historical snapshot and is no longer maintained row by row.
+
 > **Scope**: Comparison of BriX-Cache (`src/`) against reference xrootd server (`/tmp/brix-src/src/`, v5.2.0 protocol surface). Covers all protocol opcodes, security plugins, server modules, capability flags, and optional features.
 >
 > **Legend**: ✅ implemented · ⚠️ partial · ❌ not implemented · N/A not applicable · 📋 out of scope
@@ -103,9 +126,10 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 |---------|----------------|--------|-------|
 | In-protocol TLS upgrade | `kXR_ableTLS`/`kXR_gotoTLS` | ✅ | |
 | TLS at login | `kXR_tlsLogin` | ✅ | |
-| TLS for data channel | `kXR_tlsData` | ⚠️ | Negotiated but not independently enforced |
-| TLS for full session | `kXR_tlsSess` | ⚠️ | Follows login TLS |
+| TLS for data channel | `kXR_tlsData` | ✅ | Enforced independently via `brix_tls_require data` (see `brix_tls_require none|[all|login|session|data|tpc|-<cap>]`) |
+| TLS for full session | `kXR_tlsSess` | ✅ | Enforced independently via `brix_tls_require session` |
 | TLS for TPC | `kXR_tlsTPC` | ✅ | |
+| TPC identity matrix | `ofs.tpc allow/require/restrict/oids` | ✅ | `brix_tpc_allow_identity <dn\|group\|host\|vo> <pattern>`, `brix_tpc_require <all\|client\|dest> <auth>[,…]`, `brix_tpc_restrict <path>`, `brix_tpc_oids on\|off` (2.0 F18). One shared verdict core (`src/tpc/common/identity_matrix.c`) at one choke point per plane, evaluated oids → allow → require → restrict; unconfigured = no-op, configured = fail-closed (`oids` alone is default-deny). The party is read off the wire — a leg carrying `tpc.org` is the peer SERVER (`dest`), one without it the initiating CLIENT — so `require dest` cannot be met by a client credential. `restrict` is stricter than stock: component-boundary match, so `/data` never admits `/database`. Layered INSIDE the host-plane `brix_tpc_source_guard` allowlist, so a rule can only narrow |
 | GPF TLS | `kXR_tlsGPF`/`kXR_tlsGPFA` | ❌ | Grouped parallel fetch over TLS |
 | Request signing | `kXR_sigver` | ✅ | secver-0 envelope (stock XrdSecProtect) |
 | Security levels | none/compatible/standard/intense/pedantic | ✅ | All five implemented |
@@ -118,8 +142,8 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 |------|---------|--------|
 | `kXR_isServer` | Data-serving node | ✅ |
 | `kXR_isManager` | Redirector node | ✅ |
-| `kXR_attrProxy` | Proxy mode | ⚠️ |
-| `kXR_attrCache` | Cache-capable | ⚠️ |
+| `kXR_attrProxy` | Proxy mode | ✅ (advertised when `brix_tap_proxy` is on; `session/protocol.c`) |
+| `kXR_attrCache` | Cache-capable | ✅ (advertised when a cache tier is configured; `session/protocol.c`) |
 | `kXR_attrMeta` | Metadata-only (`brix_metadata_only on`) | ✅ |
 | `kXR_attrVirtRdr` | Virtual redirector (`brix_virtual_redirector on`) | ✅ |
 | `kXR_attrSuper` | Supervisor role (`brix_supervisor on`) | ✅ |
@@ -170,6 +194,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | Staging forward (`kYR_prepadd`/`prepdel`) | ✅ | Manager forwards stage requests to data nodes → stage-request registry, reqid correlation in SHM sidecar (phase-89 W2) |
 | rm/rmdir fan-out | ✅ | `brix_cms_fanout` forwards to all path-holders, aggregates within `brix_cms_fanout_window` (phase-89 W8) |
 | File-driven blacklist | ✅ | `brix_cms_blacklist_file` polled like cms.blacklist; file wins over admin undrain (phase-89 W6′) |
+| Operator program per namespace op (`cms.fsxeq`) | ✅ | `brix_cms_fsxeq <op>... <prog> [<arg>...]` REPLACES the built-in leg for `chmod mkdir mkpath mv rm rmdir trunc`; stock argument append (op name not injected), physical path, `brix_cms_fsxeq_timeout` process-group kill, run on a thread-pool task, path gated lexically before the fork (2.0 F17) |
 | CMS admin interface | ❌ | No admin socket |
 | Colocation hint | ✅ | `kXR_prefname` parsed; `kXR_locate` returns all matching servers — client selects by network locality |
 | Lateral 307 redirect | ✅ | `kXR_locate` returns `kXR_ok` with full server list via `brix_srv_locate_all()`; no redirect chaining needed |
@@ -210,30 +235,30 @@ paths where required.
 | `XrdNet` | Networking | `src/protocols/root/connection/` |
 | `XrdOfs` | Object file system | `src/fs/` |
 | `XrdOss` | Object storage | `src/fs/` (POSIX-backed) |
-| `XrdPss` | Parallel storage | ❌ Full upstream PSS is out of scope |
+| `XrdPss` | Parallel storage | Partial: `brix_storage_backend root://host:port` (fixed origin) and `forward://root[,roots] permit=…` (the client names the origin inside the path, 2.0 F5); not the loadable `pss` plugin stack |
 | `XrdFss` | File system | `src/fs/` (POSIX) |
+| `XrdOssCsi` | Checksummed storage integrity (per-granule CRCs beside the data) | `src/fs/backend/csi_{tagstore,verify,scrub}.c` (phase-59) + the `brix_csi*` directives |
 
 ### Not implemented (out of scope — remote storage)
 
 | Module | Description | Reason |
 |--------|-------------|--------|
-| `XrdOssArc` | Tape/archive integration | Partial via FRM/Tape REST gateway; not the full upstream archive backend |
-| `XrdOssCsi` | Erasure coding | No storage layer |
+| `XrdOssArc` | Tape/archive integration | Partial: dataset seal via `tape://<adapter>/<base>?arc=<depth>` (marker-sealed stored ZIP + sidecar index) queued through the durable stage journal (2.0 F3), plus the FRM/Tape REST gateway; not the full upstream archive backend |
 | `XrdOssStats` | OSS statistics | Prometheus covers monitoring |
-| `XrdOssSpace` | Space management | Basic `statvfs` implemented |
+| `XrdOssSpace` | Space management | `brix_oss_space` groups with quotas and `brix_oss_quota_enforce`, per-group purge rules (`brix_frm_purge_policy`, 2.0 F4) over `statvfs` occupancy; not the upstream space-token model |
 | `XrdOssTrace` | Tracing | Debug via nginx logs |
 | `XrdOssReloc` | File relocation | `kXR_mv` for same-filesystem |
 | `XrdOssAt` | Archive transfer | POSIX-backed only |
-| `XrdOssMSS` | Mass storage | Partial control-plane integration only; no in-process MSS driver stack |
+| `XrdOssMSS` | Mass storage | Adapter dialects `exec` / `hpss` / `cta` (a program named by `brix_frm_stagecmd`, killed at `brix_frm_copy_timeout`), `lib` (a shared object dlopened against `sd_frm_lib_abi.h`) and `stub`; not the upstream MSS plugin ABI |
 | `XrdOssMio` | Memory-backed I/O | TLS memory buffers suffice |
 | `XrdCeph` | Ceph storage | Striper-interop `sd_ceph` driver (`src/fs/backend/rados/`, phase-60/89): reads stock on-RADOS data, dir listing, rename, xattr, staged commit; read-only `cephfsro` for CephFS pools |
-| `XrdFrm` | Distributed replication / file residency | Partial FRM queue and Tape REST gateway; not full upstream XrdFrm daemon ecosystem |
-| `XrdPfc` | Policy file cache | Partial: read-through, slice cache, eviction, and write-through helpers; not full upstream PFC |
+| `XrdFrm` | Distributed replication / file residency | Durable stage journal replayed at restart, retry/backoff/dead-letter, external event feed and per-space purge policy (2.0 F1-F4) plus the Tape REST gateway; not the `frm_admin`/`frm_xfrd`/`frm_purged` daemon ecosystem, and automatic disk→tape migration is still absent |
+| `XrdPfc` | Policy file cache | Partial: read-through, slice cache, eviction, write-through helpers and the `pfc.urlcgi` per-open hints (`brix_cache_urlcgi`, 2.0 F5); not the full upstream PFC policy engine or its cinfo file-state database |
 | `XrdBwm` | Bandwidth management | Built-in identity-aware bandwidth limits exist; not upstream XrdBwm plugin parity |
 | `XrdThrottle` | Rate limiting | Built-in request-rate/concurrency limits exist; not upstream XrdThrottle plugin parity |
 | `XrdZip` | ZIP archive serving | Nice-to-have |
 | `XrdDig` | Diagnostics | Nice-to-have |
-| `XrdEc` | Event data catalog | Nice-to-have |
+| `XrdEc` | Erasure coding (client-side Reed-Solomon striping) | Not implemented; see `docs/refactor/phase-117-erasure-coding-design-spike.md` for the design spike and its NO-GO verdict. `kXR_ecRedir` stays unset by design. |
 | `XrdRmc` | Replica management | Nice-to-have |
 | `XrdFrc` | File replica catalog | Nice-to-have |
 | `XrdSsi` | Storage server interface | Nice-to-have |

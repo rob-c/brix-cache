@@ -109,6 +109,13 @@ brix_fuse_op_dirlist(brix_conn *c, void *ctx, brix_status *st)
 }
 
 int
+brix_fuse_op_dirlist_all(brix_conn *c, void *ctx, brix_status *st)
+{
+    return brix_dirlist_all(c, FUSE_CTX(dir)->path, 1, FUSE_CTX(dir)->ents,
+                            FUSE_CTX(dir)->n, st);
+}
+
+int
 brix_fuse_op_mkdir(brix_conn *c, void *ctx, brix_status *st)
 {
     return brix_mkdir(c, FUSE_CTX(mkdir)->path, FUSE_CTX(mkdir)->mode, 0, st);

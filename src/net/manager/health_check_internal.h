@@ -43,6 +43,8 @@ typedef enum {
     XRD_HC_PROBE,
 } brix_hc_phase_t;
 
+#include "net/dns/dns.h"   /* brix_dns_req_t (phase-116) */
+
 /*
  * Per-probe state.  Allocated from its own pool (hc->pool, also used as
  * conn->pool) so the entire probe — ctx, connection, scratch buffers — is freed
@@ -53,6 +55,7 @@ typedef struct {
     ngx_pool_t        *pool;          /* owns this ctx + conn->pool */
     ngx_connection_t  *conn;
     ngx_log_t         *log;
+    brix_dns_req_t     dns;           /* phase-116: async target resolution */
     brix_hc_phase_t  phase;
     unsigned           connecting:1;  /* until TCP connect confirmed */
     unsigned           tls:1;         /* probe upgraded to TLS (Step F) */

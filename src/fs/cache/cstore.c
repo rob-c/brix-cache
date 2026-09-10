@@ -517,6 +517,44 @@ brix_cstore_local_root(const brix_cstore_t *cs)
 
 /* ---- freespace ------------------------------------------------------------ */
 
+/* Capacity of a store with no local directory to statvfs(2), from the driver's
+ * own `space` slot.
+ *
+ * WHY (phase-115 W4.2): this used to be a flat NGX_DECLINED, on which
+ * brix_cache_usage_measure falls back to a raw statvfs of the LOGICAL cache
+ * root — a directory that has nothing to do with a non-local store's capacity,
+ * so occupancy for such a store was either wrong or unmeasurable. A store that
+ * knows its own numbers should answer with them.
+ *
+ * What this does NOT do is arm the watermark reaper for such a store: that pass
+ * still needs a physical state root to take its lock file in (paths.c
+ * brix_cache_state_root returns NULL for a non-local store, and the reaper
+ * correctly declines). A store with a hard cap therefore has to bound itself —
+ * which is why sd_ram carries its own LRU rather than relying on this number.
+ * Still NGX_DECLINED when the driver implements no `space` slot: that is a
+ * genuine "capacity unknown", never a zero. */
+static ngx_int_t
+cstore_freespace_driver(brix_cstore_t *cs, uint64_t *total, uint64_t *avail)
+{
+    brix_sd_instance_t *st = cs->store;
+    brix_sd_space_t     sp;
+
+    if (st == NULL || st->driver == NULL || st->driver->space == NULL) {
+        return NGX_DECLINED;                    /* capacity unknown (SP2) */
+    }
+    ngx_memzero(&sp, sizeof(sp));
+    if (st->driver->space(st, &sp) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (total != NULL) {
+        *total = sp.total_bytes;
+    }
+    if (avail != NULL) {
+        *avail = sp.free_bytes;
+    }
+    return NGX_OK;
+}
+
 ngx_int_t
 brix_cstore_freespace(brix_cstore_t *cs, uint64_t *total, uint64_t *avail)
 {
@@ -527,7 +565,7 @@ brix_cstore_freespace(brix_cstore_t *cs, uint64_t *total, uint64_t *avail)
         return NGX_ERROR;
     }
     if (cs->meta_mode != BRIX_CMETA_LOCAL || cs->local_root[0] == '\0') {
-        return NGX_DECLINED;                    /* non-local store: statf slot, SP2 */
+        return cstore_freespace_driver(cs, total, avail);
     }
     if (statvfs(cs->local_root, &vfs) != 0) {
         return NGX_ERROR;

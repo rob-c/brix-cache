@@ -18,7 +18,6 @@ nginx_frm_async.conf
 nginx_frm_owner.conf
 nginx_frm_phase1_http.conf
 nginx_frm_phase4.conf
-nginx_frm_staging.conf
 nginx_guard_arc.conf
 nginx_guard_endpoints.conf
 nginx_memsafety_stream.conf

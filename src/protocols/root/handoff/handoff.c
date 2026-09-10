@@ -39,7 +39,8 @@ brix_conf_set_http_handoff(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     return brix_conf_upstream_directive(cf, cmd,
         &((ngx_stream_brix_srv_conf_t *) conf)->http_handoff_name,
-        &((ngx_stream_brix_srv_conf_t *) conf)->http_handoff_addr);
+        &((ngx_stream_brix_srv_conf_t *) conf)->http_handoff_addr,
+        &((ngx_stream_brix_srv_conf_t *) conf)->common.dns);
 }
 
 
@@ -281,6 +282,12 @@ brix_http_handoff_start(ngx_stream_session_t *s, ngx_connection_t *c,
     ctx->state   = XRD_ST_PROXY;          /* recv loop would yield anyway */
     ctx->handoff = h;
 
+    if (conf->http_handoff_addr->socklen == 0) {   /* phase-116: unresolved */
+        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+                      "xrootd handoff: %V not yet resolved",
+                      &conf->http_handoff_name);
+        return NGX_ERROR;
+    }
     h->peer.sockaddr  = conf->http_handoff_addr->sockaddr;
     h->peer.socklen   = conf->http_handoff_addr->socklen;
     h->peer.name      = &conf->http_handoff_name;

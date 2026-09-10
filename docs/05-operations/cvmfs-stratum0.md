@@ -431,6 +431,7 @@ use — not a self-report.
 
 ### 4.1 The loop
 
+<!-- doc-paths:off -->  <!-- paths below are inside the CVMFS repository being published, not this repo -->
 ```sh
 REPO=~/stratum0/cvmfs/sw.example.org
 
@@ -448,6 +449,7 @@ ln -s tools/hello.sh $UPPER/run-me
 brixcvmfs repo publish $REPO
 # → published revision 2
 ```
+<!-- doc-paths:on -->
 
 The staging tree is a plain directory. Anything you can create with ordinary
 tools — `cp`, `rsync`, `tar -x`, a build system's `make install DESTDIR=$UPPER`
@@ -492,6 +494,7 @@ brixcvmfs repo abort $REPO      # discard everything staged
 The staging tree is an overlay over the published revision: it can add and
 replace, and it deletes through whiteout markers.
 
+<!-- doc-paths:off -->  <!-- paths below are inside the CVMFS repository being published, not this repo -->
 ```
    PUBLISHED rev 2                 .brixtxn/upper                  RESULT rev 3
    +---------------------+         +---------------------+         +---------------------+
@@ -503,6 +506,7 @@ replace, and it deletes through whiteout markers.
    +---------------------+         +---------------------+         +---------------------+
         untouched files are not re-read, not re-hashed, not re-stored
 ```
+<!-- doc-paths:on -->
 
 ```sh
 touch $UPPER/data/samples/.brix.wh.a.dat      # deletes data/samples/a.dat
@@ -846,11 +850,13 @@ The mount daemonizes; add `-f` to keep it in the foreground, and
 `-o auto_unmount` if you want it to clean up when the process dies. Unmount with
 `fusermount3 -u ~/sw`.
 
+<!-- doc-paths:off -->  <!-- paths below are inside the mounted CVMFS repository, not this repo -->
 ```sh
 cat ~/sw/README.md            # → # quickstart repo
 ~/sw/tools/hello.sh           # → hello from stratum-0
 ls -l ~/sw/run-me             # → run-me -> tools/hello.sh
 ```
+<!-- doc-paths:on -->
 
 | Variable | Meaning |
 |---|---|

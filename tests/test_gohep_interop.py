@@ -24,6 +24,8 @@ Run:
 """
 
 import os
+import pathlib
+import re
 import shutil
 import socket
 import struct
@@ -288,12 +290,57 @@ def test_sigver_no_ack_tripwire():
         "covered request's response")
 
 
+def _calls_in_dir(subdir, symbol):
+    """WHAT: the .c files under `subdir` that contain a real CALL to `symbol`.
+
+    WHY: a tripwire keyed to one filename does not survive a refactor. This one
+    named `read/stat.c`, the call moved to `read/stat_manager.c` in 9ab5c3f5,
+    and the tripwire went on passing for nothing until the file was deleted —
+    at which point it fails for the wrong reason. The op's directory is the
+    stable unit: the guarantee is that the stat path consults the map, not that
+    a particular file does.
+
+    HOW: block and line comments are stripped first, so a README-style mention
+    or a commented-out call cannot satisfy the check; what is left must contain
+    `symbol(`."""
+    hits = []
+    for path in sorted((pathlib.Path(REPO) / subdir).glob("*.c")):
+        body = re.sub(r"/\*.*?\*/", " ", path.read_text(encoding="utf-8"),
+                      flags=re.S)
+        body = re.sub(r"//[^\n]*", " ", body)
+        if symbol + "(" in body:
+            hits.append(path.name)
+    return hits
+
+
 def test_static_map_redirect_tripwire():
-    """Bug #2: stat and dirlist must consult the static manager_map."""
-    assert "brix_find_manager_map" in _read("src/protocols/root/read/stat.c"), (
-        "stat no longer consults the static manager_map (bug #2)")
-    assert "brix_find_manager_map" in _read("src/protocols/root/dirlist/handler.c"), (
+    """Bug #2: the stat and dirlist paths must consult the static manager_map.
+
+    Asserted against each op's directory rather than a single file: the call
+    legitimately moved out of `read/stat.c` into `read/stat_manager.c`, which
+    is a refactor, not the regression this tripwire exists to catch."""
+    assert _calls_in_dir("src/protocols/root/read", "brix_find_manager_map"), (
+        "the stat path no longer consults the static manager_map (bug #2)")
+    assert _calls_in_dir("src/protocols/root/dirlist", "brix_find_manager_map"), (
         "dirlist no longer consults the static manager_map (bug #2)")
+
+
+def test_static_map_tripwire_ignores_a_mention_in_a_comment(tmp_path):
+    """SECURITY-NEGATIVE for the tripwire itself: a source-scanning guard that
+    matches a bare substring can be satisfied by a comment, a README line, or a
+    call someone commented out — it would then certify a redirect path that no
+    longer exists. Only a real call may count."""
+    (tmp_path / "decoy.c").write_text(
+        "/* brix_find_manager_map(path, conf->manager_map); */\n"
+        "// brix_find_manager_map(path, conf->manager_map);\n"
+        "void f(void) { return; }\n", encoding="utf-8")
+    assert _calls_in_dir(tmp_path, "brix_find_manager_map") == [], (
+        "a commented-out call satisfied the tripwire")
+
+    (tmp_path / "real.c").write_text(
+        "void f(void) { brix_find_manager_map(p, m); }\n", encoding="utf-8")
+    assert _calls_in_dir(tmp_path, "brix_find_manager_map") == ["real.c"], (
+        "the tripwire missed a real call")
 
 
 def test_root_prefix_match_tripwire():

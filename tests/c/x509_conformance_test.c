@@ -144,8 +144,14 @@ test_store_attach(void)
                                              NULL, NULL);
     X509_STORE_CTX *ctx = X509_STORE_CTX_new();
 
-    CHECK(brix_store_policy_attach(store, t, BRIX_SP_MODE_REQUIRE,
-                                   BRIX_CRL_MODE_TRY) == 1,
+    brix_trust_policy_t pol = BRIX_TRUST_POLICY_INIT;
+
+    pol.sp_mode    = BRIX_SP_MODE_REQUIRE;
+    pol.crl_mode   = BRIX_CRL_MODE_TRY;
+    pol.crl_scope  = BRIX_CRL_SCOPE_LAST;
+    pol.verify_log = BRIX_TLS_VERIFY_LOG_ALL;
+
+    CHECK(brix_store_policy_attach(store, t, &pol) == 1,
           "SP-C09 attach table to store");
     X509_STORE_CTX_init(ctx, store, NULL, NULL);
     CHECK(brix_store_policy_mode(ctx) == BRIX_SP_MODE_REQUIRE,
@@ -154,6 +160,27 @@ test_store_attach(void)
           "SP-C11 crl_mode round-trips via ex_data");
     CHECK(brix_store_policy_table(ctx) == t,
           "SP-C12 table pointer round-trips");
+    /* F19: the scope and verification-log knobs must survive the same ex_data
+     * trip.  A knob that reaches brix_store_configure but not the store is a
+     * knob the verifier can never honour. */
+    CHECK(brix_store_crl_scope(ctx) == BRIX_CRL_SCOPE_LAST,
+          "SP-C13 crl_scope round-trips via ex_data");
+    CHECK(brix_store_verify_log(ctx) == BRIX_TLS_VERIFY_LOG_ALL,
+          "SP-C14 verify_log round-trips via ex_data");
+    /* A store with nothing attached must answer the safe default, never a
+     * stale or uninitialised value. */
+    {
+        X509_STORE     *bare  = X509_STORE_new();
+        X509_STORE_CTX *bctx  = X509_STORE_CTX_new();
+
+        X509_STORE_CTX_init(bctx, bare, NULL, NULL);
+        CHECK(brix_store_crl_scope(bctx) == BRIX_CRL_SCOPE_ALL,
+              "SP-C15 unattached store defaults to the widest CRL scope");
+        CHECK(brix_store_verify_log(bctx) == BRIX_TLS_VERIFY_LOG_OFF,
+              "SP-C16 unattached store defaults to a silent verification log");
+        X509_STORE_CTX_free(bctx);
+        X509_STORE_free(bare);
+    }
 
     X509_STORE_CTX_free(ctx);
     X509_STORE_free(store);   /* frees the attached table via ex_data free cb */
@@ -167,17 +194,66 @@ test_store_configure(void)
     printf("store configure (shared helper):\n");
     X509_STORE *store = X509_STORE_new();
     /* require + no cadir (bundle) must fail. */
-    CHECK(brix_store_configure(store, NULL, 0, 0,
-              BRIX_SP_MODE_REQUIRE, BRIX_CRL_MODE_OFF, NULL, NULL) == -1,
+    brix_trust_policy_t pol = BRIX_TRUST_POLICY_INIT;
+
+    pol.sp_mode = BRIX_SP_MODE_REQUIRE;
+    CHECK(brix_store_configure(store, NULL, 0, 0, &pol, NULL, NULL) == -1,
           "SC-01 require+bundle rejected");
     X509_STORE_free(store);
 
     store = X509_STORE_new();
     X509_STORE_load_path(store, path_of("sp_in_namespace", "ca"));
+    pol.sp_mode  = BRIX_SP_MODE_ON;
+    pol.crl_mode = BRIX_CRL_MODE_TRY;
     CHECK(brix_store_configure(store, path_of("sp_in_namespace", "ca"),
-              X509_V_FLAG_ALLOW_PROXY_CERTS, 0,
-              BRIX_SP_MODE_ON, BRIX_CRL_MODE_TRY, NULL, NULL) == 0,
+              X509_V_FLAG_ALLOW_PROXY_CERTS, 0, &pol, NULL, NULL) == 0,
           "SC-02 configure ok on a real CA dir");
+    X509_STORE_free(store);
+
+    /* F19 SC-03/04/05: crl_scope must NOT be implemented by dropping
+     * X509_V_FLAG_CRL_CHECK_ALL.  OpenSSL's plain CRL_CHECK checks depth 0
+     * only AND skips proxy certificates in check_revocation, so on a GSI
+     * proxy chain (proxy at depth 0, EEC at depth 1) it checks nothing at
+     * all — `last` would silently equal `off` and a revoked user could mint
+     * a proxy and log in.  Measured on OpenSSL 3.0.18 with `openssl verify
+     * -allow_proxy_certs`: -crl_check accepts a proxy whose EEC the CA has
+     * revoked; -crl_check_all refuses it at depth 1.  brix therefore arms the
+     * SAME flags under both scopes and narrows `last` inside the verify
+     * callback (brix_crl_out_of_scope).  These three assertions exist to make
+     * a future "optimisation" back to the flag fail loudly here.  REQUIRE arms
+     * the CRL flags regardless of crl_count, so both arms are observable on
+     * the store itself. */
+    store = X509_STORE_new();
+    X509_STORE_load_path(store, path_of("sp_in_namespace", "ca"));
+    pol.sp_mode   = BRIX_SP_MODE_OFF;
+    pol.crl_mode  = BRIX_CRL_MODE_REQUIRE;
+    pol.crl_scope = BRIX_CRL_SCOPE_ALL;
+    brix_store_configure(store, path_of("sp_in_namespace", "ca"), 0, 0, &pol,
+                         NULL, NULL);
+    {
+        unsigned long want = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
+
+        CHECK((X509_VERIFY_PARAM_get_flags(X509_STORE_get0_param(store))
+               & want) == want,
+              "SC-03 scope all sets CRL_CHECK|CRL_CHECK_ALL");
+    }
+    X509_STORE_free(store);
+
+    store = X509_STORE_new();
+    X509_STORE_load_path(store, path_of("sp_in_namespace", "ca"));
+    pol.crl_scope = BRIX_CRL_SCOPE_LAST;
+    brix_store_configure(store, path_of("sp_in_namespace", "ca"), 0, 0, &pol,
+                         NULL, NULL);
+    {
+        unsigned long f =
+            X509_VERIFY_PARAM_get_flags(X509_STORE_get0_param(store));
+
+        CHECK((f & X509_V_FLAG_CRL_CHECK) != 0,
+              "SC-04 scope last still sets CRL_CHECK");
+        CHECK((f & X509_V_FLAG_CRL_CHECK_ALL) != 0,
+              "SC-05 scope last KEEPS CRL_CHECK_ALL (proxy chains would "
+              "otherwise go unchecked); the narrowing is in the callback");
+    }
     X509_STORE_free(store);
 }
 

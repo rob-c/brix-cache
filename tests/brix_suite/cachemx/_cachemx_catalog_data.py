@@ -5,8 +5,9 @@ regenerate the same way after intentionally changing exporter text.
 """
 
 HELP = {
-    'brix_acc_dns_breaker_open_total':
-        'Times the XrdAcc reverse-DNS circuit breaker tripped open.',
+    'brix_acc_dns_pending_fallback_total':
+        'Times an XrdAcc host-rule decision fell back to the numeric peer '
+        'because the reverse-DNS answer was still pending.',
     'brix_acc_nss_breaker_open_total':
         'Times the XrdAcc NSS group-lookup circuit breaker tripped open.',
     'brix_auth_l1_hits_total':
@@ -26,7 +27,7 @@ HELP = {
     'brix_bytes_tx_ipv6_total':
         'Bytes sent to IPv6 clients (stream layer).',
     'brix_cache_bytes':
-        'Cache filesystem bytes by state.',
+        "Cache store bytes by state (the cache store's own capacity, or the legacy root's filesystem).",
     'brix_cache_bytes_evicted_total':
         'Cache bytes evicted, by protocol.',
     'brix_cache_dirty_reaped_total':
@@ -40,7 +41,7 @@ HELP = {
     'brix_cache_evictions_total':
         'Files evicted from brix_cache_export.',
     'brix_cache_occupancy_ratio':
-        'Filesystem occupancy ratio for brix_cache_export.',
+        "Cache store occupancy ratio for brix_cache_export (the cache store's own capacity, or the legacy root's filesystem).",
     'brix_cache_prefetch_blocks_total':
         'Cache blocks filled by background prefetch.',
     'brix_cache_prefetch_failures_total':
@@ -58,6 +59,14 @@ HELP = {
         'Files reaped by the watermark reaper.',
     'brix_cache_watermark_purges_total':
         'Watermark reaper purge runs that reclaimed space.',
+    'brix_cluster_hc_blacklist_total':
+        'Servers blacklisted by health checking.',
+    'brix_cluster_hc_fail_total':
+        'Health-check probes that failed or timed out.',
+    'brix_cluster_hc_pass_total':
+        'Health-check probes that passed.',
+    'brix_cluster_hc_probes_total':
+        'Active health-check probes started.',
     'brix_cluster_servers_registered':
         'Number of data servers currently in the cluster registry.',
     'brix_cms_cap_rejections_total':
@@ -66,6 +75,8 @@ HELP = {
         'CMS read loops that yielded the worker after the per-wakeup frame cap.',
     'brix_cms_idle_closes_total':
         'CMS server connections reaped by the post-login idle watchdog.',
+    'brix_cms_locate_coalesced_total':
+        'Locates parked on a kYR_state wave already in flight for the same path.',
     'brix_cms_login_timeouts_total':
         'CMS server connections closed for not completing LOGIN before the deadline.',
     'brix_cms_logins_total':
@@ -142,6 +153,34 @@ HELP = {
         'origin fill attempts per upstream Stratum-1',
     'brix_cvmfs_verify_failures_total':
         'CAS verify mismatches (fill quarantined, never admitted)',
+    'brix_dns_bridge_requests_total':
+        'Blocking resolutions handed to the event loop by a thread-pool caller (this worker).',
+    'brix_dns_bridge_timeouts_total':
+        'Bridge crossings that timed out waiting for the event loop and fell back to libc.',
+    'brix_dns_cache_entries':
+        'Live entries in the per-worker forward-DNS cache.',
+    'brix_dns_cache_hits_total':
+        'Positive forward-DNS cache hits.',
+    'brix_dns_cache_misses_total':
+        'forward-DNS cache misses (a query followed).',
+    'brix_dns_cache_negative_hits_total':
+        'Negative forward-DNS cache hits (no query sent).',
+    'brix_dns_failures_total':
+        'Failed runtime resolution attempts of registered targets (this worker).',
+    'brix_dns_lookups_total':
+        'Completed runtime DNS queries by outcome (this worker; cache hits excluded).',
+    'brix_dns_resolutions_total':
+        'Successful runtime resolutions of registered targets (this worker).',
+    'brix_dns_reverse_cache_entries':
+        'Live entries in the per-worker reverse-DNS cache.',
+    'brix_dns_reverse_cache_hits_total':
+        'Positive reverse-DNS cache hits.',
+    'brix_dns_reverse_cache_misses_total':
+        'reverse-DNS cache misses (a query followed).',
+    'brix_dns_reverse_cache_negative_hits_total':
+        'Negative reverse-DNS cache hits (no query sent).',
+    'brix_dns_targets':
+        "Runtime-DNS targets registered from the configuration, by state (this worker's view).",
     'brix_frm_asynresp_total':
         'Async stage completions delivered via kXR_attn(asynresp).',
     'brix_frm_cmsd_have_total':
@@ -155,7 +194,11 @@ HELP = {
     'brix_frm_migrate_total':
         'Category-2 migrate-out attempts (scaffolding).',
     'brix_frm_purge_total':
-        'Category-2 purge decisions logged (scaffolding).',
+        # phase-115 W3.2 turned the scaffolding counter into the tape purge
+        # engine's real one; frm_metrics.c:84 is the emitter this pins.  Its
+        # sibling brix_frm_migrate_total is still scaffolding and still says so.
+        'Online-buffer copies released by the tape purge engine '
+        '(phase-115 W3.2).',
     'brix_frm_reject_inflight_total':
         'Stage requests refused because the queue was at max_inflight.',
     'brix_frm_requests_total':

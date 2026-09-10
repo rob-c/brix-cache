@@ -30,7 +30,7 @@ See also: [JWT](#jwt), [WLCG Token](#wlcg-token)
 
 A list of X.509 certificates that have been **revoked before their natural expiration date**. When BriX-Cache verifies a proxy certificate, it checks the CRL to ensure the issuing CA hasn't revoked any intermediate certificates in the chain. A revoked cert means "this certificate is no longer trustworthy" — common reasons include private key compromise or administrative policy changes.
 
-**Where you'll encounter it:** `brix_crl` directive for native XRootD layer; `brix_webdav_cadir` with CRL files for WebDAV layer. See [PKI Configuration](../06-authentication/pki-config.md) for setup details.
+**Where you'll encounter it:** `brix_crl` directive for native XRootD layer; `brix_trusted_ca_dir` with CRL files for WebDAV layer. See [PKI Configuration](../06-authentication/pki-config.md) for setup details.
 
 See also: [X.509 Certificate](#x509-certificate), [GSI](#gsi-grid-security-infrastructure)
 

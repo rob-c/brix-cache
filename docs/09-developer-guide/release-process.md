@@ -9,7 +9,7 @@ makes the tree inconsistent until the rest of this page is done.
 `src/core/ident.h`:
 
 ```c
-#define BRIX_SERVER_VERSION_BARE  "1.4.0"
+#define BRIX_SERVER_VERSION_BARE  "2.0.0"
 #define BRIX_SERVER_VERSION       "v" BRIX_SERVER_VERSION_BARE
 ```
 

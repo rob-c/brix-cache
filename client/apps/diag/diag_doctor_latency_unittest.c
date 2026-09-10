@@ -13,7 +13,7 @@
  * (probed=1, ok=0) deterministically; output is captured to a memstream.
  */
 #ifndef _GNU_SOURCE
-#define _GNU_SOURCE   /* open_memstream, getaddrinfo */
+#define _GNU_SOURCE   /* open_memstream, clock_gettime */
 #endif
 #include <stdio.h>
 #include <stdlib.h>

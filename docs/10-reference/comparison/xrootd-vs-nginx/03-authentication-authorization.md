@@ -209,7 +209,7 @@ protocol ≥ 10400.
   (`src/auth/crypto/ocsp.c`): AIA-derived responder, `brix_ocsp_check_cert()`
   (REVOKED is always fatal), stapling cache, and a hardened
   `BRIX_OCSP_TIMEOUT_SECS = 5` connect deadline, wired from `gsi/auth.c`
-  behind `brix_ocsp_enable`. **This is a module-only addition relative to
+  behind `brix_ocsp`. **This is a module-only addition relative to
   upstream GSI.**
 
 **Interop.** Module GSI is explicitly cross-checked against **EOS**
@@ -298,7 +298,17 @@ scopes.
   (`auth_proxy_credential.c`, used by `src/net/proxy/`) presents an SSS credential
   to a backend (`credtype "sss\0"`), with `brix_sss_upstream_needed()` loading
   keys even when the front-end auth is not SSS (project memory: "Chaos mixed
-  x509/SSS auth + SSS proxy bugs"). Directive: `brix_sss_keytab`.
+  x509/SSS auth + SSS proxy bugs"). Directives: `brix_sss_keytab`,
+  `brix_sss_getcreds`, `brix_tap_proxy_sss_identity`.
+- *Entity breadth (2.0 F9):* the v2 fields `vorg`, `role`, `grps`,
+  `endorsements` and a proxied `creds` blob are parsed from the same TLV
+  stream (`src/protocols/root/protocol/sss.h` holds the tag numbers and the
+  receiver caps), then filtered by the keytab: a pinning key drops the
+  client-asserted attributes, and the credential blob needs
+  `brix_sss_getcreds on`. Minting is shared with the client through one
+  kernel (`src/core/compat/sss_entity.c`), so both ends produce identical
+  bytes; `client/lib/auth/sss/sss_id.h` is the `XrdSecsssID` per-connection
+  registry, with an exact-match lookup that fails closed.
 
 ### Kerberos 5
 
@@ -412,18 +422,39 @@ scopes.
 
 **Module — dual engine.** `brix_authdb_engine` selects:
 
-- **`native`** (`src/auth/authz/authdb.c`, default, `root://` only): records
-  `[u|g|p|a] <id> <path> <privs>` (`u`ser/`g`roup/`p`=host-CIDR/`a`ll — **no
-  principal kind**); 6 privilege bits (`r`ead, `l`ookup, `w`/`a`→update,
-  `d`elete, `m`kdir, `k`→admin); **longest-prefix selection** with
+- **`native`** (`src/auth/authz/authdb.c` + `authdb_grammar.c`, default,
+  `root://` only): records `<selectors> <id> <path> <privs>`. Since **2.0 F20**
+  field 1 is a SET of 1-6 **distinct, AND-ed** selectors drawn from
+  `u g p a v l` — `u`ser DN / `g`roup (the VO-name list) / `p`=host-CIDR /
+  `a`ll (which may not be combined with anything) / `v`=VOMS vorg / `l`=VOMS
+  role — so a compound rule is strictly **narrower** than any of its selectors
+  alone (**still no principal kind**). A compound rule's id splits on `|` into
+  exactly one component per selector; a **single-selector rule takes its id
+  verbatim**, because a DN is full of punctuation. `v` and `l` together are
+  matched as a **positional pair** over the index-aligned VOMS attribute CSVs
+  (the same tuple discipline `acc/entity.c` uses), so a credential holding
+  cms/Role=NULL *and* atlas/Role=production does not satisfy
+  `vl cms|production`. 7 privilege bits (`r`ead → also lookup, `l`ookup,
+  `w`/`a`→update, `d`elete, `m`kdir, `k`→admin, and since 2.0 F20
+  `x`→**stage/recall**, demanded by `kXR_prepare -s`/`-e` and the VFS
+  STAGE/EVICT mutations); **longest-prefix selection** with
   privilege-sufficiency folded in (a shorter sufficient rule beats a longer
-  insufficient one). Host `p` rules are **IP/CIDR string match — no reverse-DNS**
-  in the native engine. Directive `brix_authdb`.
+  insufficient one) — there is no explicit deny record, a denial is the absence
+  of a sufficient rule. Host `p` rules are **IP/CIDR string match — no
+  reverse-DNS** in the native engine. **Refusal, not narrowing:** an unknown
+  selector or privilege letter, a repeated selector, a wrong id arity or an
+  empty id component refuses the LINE at `nginx -t` (naming file, line and
+  byte) rather than silently dropping a character. Because the same file is
+  read by both engines' parsers before `brix_authdb_engine` has settled, the
+  first defect is recorded and raised at **merge** time, and only for the
+  native engine — an XrdAcc-format file is untouched, and the message points
+  the operator at `brix_authdb_engine xrdacc`. Directive `brix_authdb`.
 - **`xrdacc`** (`src/auth/authz/acc/`): a **faithful XrdAcc port** with a generational
   table swap on mtime hot-reload (`config.c`, single-threaded-worker
   pointer-swap, per-worker COW). Grammar matches stock: record types
-  `= x s g h n o r t u`; selectors `g h o r u` (**no `v`, no `l`; role is `r`**);
-  privilege letters `a d i k l n r w` (**no `x` letter**); `r` does **not** imply
+  `= x s g h n o r t u`; selectors `g h o r u` (**role is `r` here, not `l`**);
+  privilege letters `a d i k l n r w` (**no `x` letter — the native engine's
+  stage privilege has no XrdAcc counterpart**); `r` does **not** imply
   `l` (deliberate divergence from some stock builds). create-vs-update via a
   numeric `need[]` table (`AOP_CREATE=3→INSERT|READ|WRITE`,
   `AOP_UPDATE=12→READ|WRITE`, `EXCL_CREATE=13`), matching XRootD's enum values
@@ -579,7 +610,7 @@ stream {
     brix_gsi_ciphers     aes-128-cbc:aes-256-cbc;
     brix_crl             /etc/grid-security/certificates;
     brix_crl_reload      300;
-    brix_ocsp_enable     on;              # module-only OCSP
+    brix_ocsp     on;              # module-only OCSP
     brix_vomsdir         /etc/grid-security/vomsdir;
 
     # tokens
@@ -617,9 +648,9 @@ http {
       brix_webdav on;
       brix_webdav_auth         required;  # none|optional|required
       brix_webdav_proxy_certs  on;
-      brix_webdav_cadir        /etc/grid-security/certificates;
-      brix_webdav_token_jwks   /etc/brix/jwks.json;
-      brix_webdav_token_issuer https://issuer.example/;
+      brix_trusted_ca_dir        /etc/grid-security/certificates;
+      brix_token_jwks   /etc/brix/jwks.json;
+      brix_token_issuer https://issuer.example/;
       brix_authdb              /etc/brix/authdb;   # shared engine
       brix_authdb_engine       xrdacc;
     }

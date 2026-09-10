@@ -170,6 +170,30 @@ typedef struct brix_vfs_backend_cred_s {
 void brix_vfs_backend_set_credential(const char *root_canon,
     const brix_vfs_backend_cred_t *cred);
 
+/* phase-115 W5.1 — carry the trailing params of the export's
+ * `brix_storage_backend` line (verify_pages, mode=, prot=, credential=,
+ * block_size=) onto its registry entry.  Call straight after
+ * brix_vfs_backend_config_str for the same root; `args` may be NULL or empty,
+ * which is the no-op fast path.
+ *
+ * The params are validated through the SAME vocabulary the cache/stage store
+ * lines use (brix_tier_parse_backend_params), so one spelling works on every
+ * store directive, and an unknown or misapplied param is an operator error
+ * ([emerg], failing nginx -t) rather than a silently-ignored token.  Returns
+ * NGX_OK (params absent, stamped, or the root is a local export with no
+ * entry) or NGX_ERROR after the parser has emitted the diagnostic. */
+ngx_int_t brix_vfs_backend_store_params(ngx_conf_t *cf, const char *root_canon,
+    ngx_str_t *url, ngx_array_t *args);
+
+/* Stamp (at config time, after brix_vfs_backend_config_str) the resolver
+ * policy every remote driver of the export rooted at `root_canon` resolves
+ * its origin under (phase-116).  NULL = no brix_resolver in scope: the
+ * drivers fall through to libc, which still follows resolv.conf.  A root
+ * without a registry entry (a local export) is ignored. */
+struct brix_dns_policy_s;
+void brix_vfs_backend_set_dns(const char *root_canon,
+    struct brix_dns_policy_s *dns);
+
 /* Mark (at config time) whether the export rooted at `root_canon` stages uploads
  * locally and PROMOTES them to a remote backend on commit (write-back), vs.
  * streaming straight through (Mode A passthrough). Only meaningful for a remote

@@ -101,7 +101,8 @@ class LiveRun(AbstractContextManager["LiveRun"]):
         # "bind() ... Address already in use". Live-cmd ports (11600-11999) are a
         # dedicated range disjoint from the standing fleet (<=~11251), so reaping
         # whatever holds this exact port cannot touch a fleet server.
-        _reap_port(port)
+        for listen_port in config_listen_ports(config) or [port]:
+            _reap_port(listen_port)
         cmd = [self.nginx, "-p", prefix, "-c", config]
         # Root harness: worker de-escalation is ALWAYS-ON and fail-closed
         # (brix_imp_worker_deescalate) — a root-launched worker is forced to a

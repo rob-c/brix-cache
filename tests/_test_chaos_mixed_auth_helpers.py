@@ -44,6 +44,7 @@ import random
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import sys
 import threading
 import time
@@ -201,10 +202,7 @@ def _mesh_preflight():
     _skip_unless(os.path.isfile(_VOMS_FAKE), "utils/voms_proxy_fake.py missing")
     _skip_unless(os.access(NGINX_BIN, os.X_OK),
                  f"nginx binary not executable: {NGINX_BIN}")
-    result = subprocess.run(
-        ["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin-brix"],
-        capture_output=True, text=True, timeout=240,
-    )
+    result = client_make(CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin-brix", capture_output=True, text=True, timeout=240)
     if _client_build_failed(result):
         pytest.skip(f"native client build failed:\n{result.stdout}\n{result.stderr}")
     _ensure_mesh_pki()

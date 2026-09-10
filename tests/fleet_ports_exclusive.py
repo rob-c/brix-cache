@@ -304,4 +304,155 @@ LIFECYCLE_EXCLUSIVE_PORTS: dict[str, dict] = {
     # reaper evicts back down to it (its own cache/export state, serialised by
     # xdist_group("lc-cache-maxbytes")).
     "lc-cache-maxbytes": {"port": 31244},
+    # §4.5 serve-while-filling — plants an in-flight-fill marker under its own
+    # cache store and reads through it; the -verify twin is the security
+    # negative that proves a verifying export refuses to follow one.  Both
+    # mutate their own cache/export state (xdist_group("lc-cache-swf")).
+    "lc-cache-swf": {"port": 31245},
+    "lc-cache-swf-verify": {"port": 31246},
+    # 2.0 readiness axis (e) — metrics labs (docs/10-reference/release-2.0-
+    # readiness.md F6/F10/F12–F15).  Every one of these scrapes a /metrics
+    # listener that only its own instance feeds, and F12/F13/F14 stop, restart
+    # or reload the subject mid-test, so each family takes an exclusive row
+    # and its own xdist_group.
+    # F10 — the health-check probe family: a manager probing one DS.
+    "lc-r20-hc-metrics": {"port": 31247,
+                          "extra": {"CMS_PORT": 31248, "DS_PORT": 31249,
+                                    "METRICS_PORT": 31250}},
+    # F12 — three-tier CMS aggregation + disconnect/reconnect: a meta-manager,
+    # a sub-manager that registers upward, and one leaf data server.
+    "lc-r20-cms-meta": {"port": 31251,
+                        "extra": {"CMS_PORT": 31252, "METRICS_PORT": 31253}},
+    "lc-r20-cms-sub": {"port": 31254,
+                       "extra": {"CMS_PORT": 31255, "SELF_REGISTER_PORT": 31256,
+                                 "METRICS_PORT": 31257}},
+    "lc-r20-cms-leaf": {"port": 31258, "extra": {"METRICS_PORT": 31259}},
+    # F6 — `brix_cache_store ram:` on a root:// export (2.0 tier grammar): the
+    # cache families appear for the slot and the occupancy/bytes rows come from
+    # the store's own capacity, not from a statvfs of a root it has not.
+    "lc-r20-ram-metrics": {"port": 31260, "extra": {"METRICS_PORT": 31261}},
+    # F14 — label cardinality under a 1000-unique-path burst + reload persistence.
+    "lc-r20-stream-metrics": {"port": 31262, "extra": {"METRICS_PORT": 31263}},
+    # F13 — dashboard snapshot totals cross-checked against /metrics sums.
+    "lc-r20-dash-xval": {"port": 31264, "extra": {"STREAM_PORT": 31265}},
+    # F15 — per-VO auth_total + cross-VO denial counters; authdb-gated twin.
+    "lc-r20-vo-metrics": {"port": 31266, "extra": {"METRICS_PORT": 31267}},
+    "lc-r20-authdb-metrics": {"port": 31268, "extra": {"METRICS_PORT": 31269}},
+    # F6 — the posix origin the RAM-cached export above reads through; a bare
+    # root:// listener with no /metrics of its own.
+    "lc-r20-ram-origin": {"port": 31270},
+    # F8 — site checksum plugin (`brix_checksum_plugin`): root:// listener for
+    # kXR_query cks/Qconfig plus a WebDAV listener for Want-Digest.
+    "lc-r20-cks-plugin": {"port": 31271, "extra": {"HTTP_PORT": 31272}},
+    # F1 — the six wired brix_frm_* engine knobs (ADR-3b): one root:// listener
+    # serving the exec-adapter legs and the dead-origin journal leg in turn.
+    "lc-r20-frm-knobs": {"port": 31273},
+    # F2 -- brix_frm_stagemsg StageEvents feed lab (test_release20_frm_stagemsg.py).
+    "lc-r20-frm-stagemsg": {"port": 31274},
+    # F3 -- OssArc backup queue lab (test_release20_arc_backup_queue.py).
+    "lc-r20-arc-seal": {"port": 31275},
+    # F4 -- per-space purge policy + polprog lab (test_release20_purge_policy.py).
+    "lc-r20-purge-policy": {"port": 31276},
+    # F7 -- native TPC multihop lab (test_release20_tpc_multihop.py): the default
+    # destination, the max_hops-0 and allowlisted destinations, the posix source
+    # and the /metrics face that counts refused hops.
+    "lc-r20-tpc-multihop": {"port": 31277,
+                            "extra": {"SRC_PORT": 31278, "NOHOP_PORT": 31279,
+                                      "GUARD_PORT": 31280, "METRICS_PORT": 31281}},
+    # F7 -- native TPC multi-stream lab (test_release20_tpc_streams.py): the
+    # four-stream destination, the single-stream cap control, the posix source
+    # and the same data behind a source that refuses kXR_bind.
+    "lc-r20-tpc-streams": {"port": 31282,
+                           "extra": {"SRC_PORT": 31283, "ONE_PORT": 31284,
+                                     "NOBIND_PORT": 31285}},
+    # F9 -- SSS v2 entity lab (test_release20_sss_entity.py): the any-keytab
+    # face, the face whose keytab pins the identity, and the face with
+    # brix_sss_getcreds left off.
+    "lc-r20-sss-entity": {"port": 31286,
+                          "extra": {"PINNED_PORT": 31287, "NOCREDS_PORT": 31288}},
+    # F9 -- SSS identity-forwarding lab (test_release20_sss_proxied.py): the
+    # two proxy fronts (client and keytab modes), the front that forwards
+    # without authenticating, and the origin all three speak to.
+    "lc-r20-sss-proxied": {"port": 31289,
+                           "extra": {"KEYTAB_PORT": 31290, "ANON_PORT": 31291,
+                                     "ORIGIN_PORT": 31292}},
+    # F5 -- forwarding-proxy lab (test_release20_forward_proxy.py): the posix
+    # origin and the forward:// proxy in front of it.  Six labs share these two
+    # slots; see _lab() for why one name each is enough.
+    "lc-r20-fwd-origin": {"port": 31293},
+    "lc-r20-fwd-proxy": {"port": 31294},
+    # F5 -- pfc.* opaque-schema face (test_release20_cache_urlcgi.py): one
+    # instance re-rendered per leg with STRICT on/off.
+    "lc-r20-urlcgi-opaque": {"port": 31295},
+    # F16 -- native TPC push lab (test_release20_tpc_push.py): the four-stream
+    # push source, the single-stream cap control, the face with the dialect off,
+    # the push destination and the source whose egress allowlist names an
+    # unrelated host.
+    "lc-r20-tpc-push": {"port": 31296,
+                        "extra": {"ONE_PORT": 31297, "OFF_PORT": 31298,
+                                  "DST_PORT": 31299, "GUARD_PORT": 31300}},
+    # F17 -- cms.fsxeq operator program (test_release20_cms_fsxeq.py).  Four
+    # data nodes, each dialling its own Python CMS manager peer, because the
+    # planes differ in configuration and not in traffic: every op named, only
+    # mkdir named, a failing/hanging program, no thread pool, and a read-only
+    # export.  Each is a mutation subject -- the built-in leg it replaces
+    # creates and removes directories under the node's own export.
+    "lc-r20-fsxeq-all": {"port": 31301},
+    "lc-r20-fsxeq-one": {"port": 31302},
+    "lc-r20-fsxeq-bad": {"port": 31303},
+    "lc-r20-fsxeq-nopool": {"port": 31304},
+    "lc-r20-fsxeq-ro": {"port": 31305},
+    # F18 -- the TPC identity matrix (test_release20_tpc_identity_matrix.py).
+    # One unconfigured source + one unconfigured destination (the control pull),
+    # then one destination per stage that must fail closed (allow / require /
+    # restrict), a SOURCE carrying `require dest` so the destination's own leg
+    # is the one refused, and a destination whose host-plane egress guard denies
+    # while its matrix permits everything -- the proof a matrix rule can only
+    # narrow.  Each is a mutation subject: a pull creates files under its export.
+    "lc-r20-tpcmx": {"port": 31306,
+                     "extra": {"DST_PORT": 31307, "ALLOW_PORT": 31308,
+                               "REQ_PORT": 31309, "PATH_PORT": 31310,
+                               "DESTREQ_PORT": 31311, "GUARD_PORT": 31312}},
+
+    # F18 second gate site -- the same identity matrix on the WebDAV plane
+    # (test_release20_tpc_matrix_webdav.py).  One HTTP listener is enough: the
+    # arms are `location` blocks, not servers, because all four directives are
+    # BRIX_HTTP_ALL_CONF|NGX_HTTP_LOC_CONF_OFFSET and a COPY selects its arm by
+    # request path.  Still a mutation subject -- the permitted arms create
+    # temporaries under their export roots before the source dial fails.
+    "lc-r20-tpcmx-dav": {"port": 31313, "extra": {"MOCK_PORT": 31314}},
+
+    # F19 -- the xrd.tlsca residuals (test_release20_tlsca_residuals.py):
+    # `brix_crl_scope all|last` and `brix_tls_verify_log off|failure|all`.
+    # Seven listeners on ONE instance over ONE hashed CA directory, because
+    # every arm's whole observable is a GSI login verdict plus what the error
+    # log says about it: scope `all`, scope `last`, the scope directive absent
+    # (the merge default), verify_log `all`, verify_log `failure`, a plane whose
+    # CRL directory holds a MALFORMED CRL under `require`, and a plane that
+    # reads the same good CRL directory under `try`.  The malformed one needs
+    # its own brix_crl path, which is the only reason it is not a
+    # `location`-style variation of the first five.
+    #
+    # It is in the EXCLUSIVE band rather than the shared one because the
+    # verify_log arms assert on the instance's error.log: a second concurrent
+    # driver's handshakes would interleave into the same file and the log
+    # assertions would read another test's chain.
+    "lc-r20-tlsca": {"port": 31315,
+                     "extra": {"LAST_PORT": 31316, "DEF_PORT": 31317,
+                               "VLOG_PORT": 31318, "VFAIL_PORT": 31319,
+                               "BADCRL_PORT": 31320, "TRY_PORT": 31321}},
+
+    # F20 -- the native-authdb grammar residuals
+    # (test_release20_authdb_residuals.py): compound `v`/`l` identity selectors
+    # and the `x` (stage/recall) privilege, over GSI + VOMS.  ONE root://
+    # listener plus its own /metrics face, because every arm's observable is a
+    # verdict on the same export from a differently-attributed proxy -- and one
+    # arm asserts that the raw FQAN CSV the 2.0 F20 identity now carries never
+    # reaches a metric label (INVARIANT 8).
+    #
+    # EXCLUSIVE rather than shared: the `x` arms drive kXR_prepare's kXR_stage /
+    # kXR_evict, which are typed export mutations (the listener carries
+    # `brix_allow_write on`), so it is a mutation subject by the ledger's own
+    # rule.
+    "lc-r20-authdb-f20": {"port": 31322, "extra": {"METRICS_PORT": 31323}},
 }

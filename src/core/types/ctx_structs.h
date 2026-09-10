@@ -204,6 +204,15 @@ typedef struct {
                                  * brix_gsi_complete_auth. */
     char       primary_vo[128]; /* first VO from the VOMS attribute cert */
     char       vo_list[512];    /* space-separated list of all VOs */
+    char       fqan_list[512];  /* 2.0 F20: the RAW VOMS FQANs, comma-separated
+                                 * ("/atlas/Role=production/Capability=NULL").
+                                 * The ONLY carrier of a VOMS role — vo_list is
+                                 * '/'-free by design (brix_vo_token_is_safe) so
+                                 * that it is safe as a metric label and a log
+                                 * field, which also makes it incapable of
+                                 * holding one.  Read exactly once, by
+                                 * brix_identity_set_vos_fqans(); never logged,
+                                 * never a label value (INVARIANT 8). */
     char       peer_ip[64];     /* remote peer address for authdb HOST ('p') rules */
     const char *acc_host;       /* XrdAcc reverse-DNS host cache (points into c->pool) */
     unsigned    acc_host_done:1;
@@ -344,6 +353,12 @@ typedef struct {
                                       * grid, the worker runs the in-place
                                       * encode+CRC, and emit frames kXR_status
                                       * partial/final (pgread_window.c) */
+    unsigned   win_sent:1;           /* §4.5: at least one frame of THIS train
+                                      * is already on the wire, so the request
+                                      * has promised bytes and can no longer be
+                                      * answered with kXR_wait — a serve-while-
+                                      * filling EAGAIN must terminate the train
+                                      * as a short read instead (reads_window.c) */
     unsigned   win_readv:1;          /* windowed kXR_readv body stream */
     unsigned   win_readv_started:1;  /* outer response header was sent */
     unsigned   win_readv_seg_started:1; /* current segment header was sent */

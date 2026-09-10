@@ -11,9 +11,12 @@
 #include "proxy_pool.h"
 #include "core/compat/host_format.h"  /* brix_format_host[_port] — IPv6 bracketing */
 #include "core/compat/shm_slots.h"    /* slab-safe SHM table alloc (preserves slab header) */
+#include "net/dns/dns.h"              /* async backend resolution (phase-116) */
 
 static ngx_shm_zone_t *brix_proxy_pool_zone;
 static ngx_shmtx_t     brix_proxy_pool_mutex;
+
+static int proxy_pool_set_state(uint32_t id, brix_proxy_be_state_e state);
 
 extern ngx_module_t ngx_http_brix_webdav_module;
 
@@ -85,6 +88,16 @@ brix_proxy_pool_configure(ngx_conf_t *cf)
         return NGX_OK;                   /* idempotent: shared across locations */
     }
 
+    /* phase-116: every backend added to this pool is resolved asynchronously by
+     * brix_dns_resolve() (see proxy_pool_start_resolve below) on a name no
+     * brix_dns_target_register() ever saw, so the pool has to bring its own
+     * backend — otherwise an operator who enables the pool without declaring a
+     * brix_resolver gets "no resolver and no thread pool available" and every
+     * backend they add lands DEAD. */
+    if (brix_dns_backend_prepare(cf) != NGX_CONF_OK) {
+        return NGX_ERROR;
+    }
+
     size = brix_shm_zone_size(
                sizeof(brix_proxy_be_table_t)
                + (size_t) BRIX_PROXY_POOL_SLOTS
@@ -101,17 +114,18 @@ brix_proxy_pool_configure(ngx_conf_t *cf)
 }
 
 /*
- * Resolve a configured "http(s)://host[:port][/uri]" backend URL into a ready-to-
- * use entry: parse the scheme (sets ssl + default port), DNS/parse the authority
- * into a sockaddr, and precompute the two display strings stored per backend —
- * `host` ("host" or "host:port" for the Host: header) and `url_base`
- * ("scheme://host[:port]" for rewriting the request line / Destination).  Only
- * the first resolved address is used.  Returns NGX_ERROR on a bad scheme, parse
- * failure, or an address too large for the fixed sockaddr field.
+ * Parse a configured "http(s)://host[:port][/uri]" backend URL into an entry:
+ * the scheme (sets ssl + default port), the authority (port + the two display
+ * strings — `host` ("host" or "host:port" for the Host: header) and
+ * `url_base` ("scheme://host[:port]" for rewriting the request line /
+ * Destination)).  No name resolution happens here (phase-116): the entry is
+ * born with socklen == 0 and the bare hostname is copied to *hostz for the
+ * async resolution that follows.  Returns NGX_ERROR on a bad scheme or a
+ * parse failure.
  */
 static ngx_int_t
-proxy_pool_resolve(const char *url, ngx_pool_t *pool, ngx_log_t *log,
-    brix_proxy_be_entry_t *out)
+proxy_pool_parse(const char *url, ngx_pool_t *pool, ngx_log_t *log,
+    brix_proxy_be_entry_t *out, char *hostz, size_t hostz_sz)
 {
     ngx_url_t   u;
     ngx_str_t   us;
@@ -135,40 +149,33 @@ proxy_pool_resolve(const char *url, ngx_pool_t *pool, ngx_log_t *log,
     u.url.data     = us.data + scheme_len;
     u.url.len      = us.len  - scheme_len;
     u.uri_part     = 1;
+    u.no_resolve   = 1;
     u.default_port = default_port;
 
-    if (ngx_parse_url(pool, &u) != NGX_OK || u.naddrs == 0) {
+    if (ngx_parse_url(pool, &u) != NGX_OK || u.host.len == 0) {
         if (u.err) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
                           "brix_proxy_pool: \"%s\" in url \"%s\"", u.err, url);
         }
         return NGX_ERROR;
     }
-    if (u.socklen > sizeof(out->sockaddr)) {
-        return NGX_ERROR;
-    }
 
     ngx_memzero(out, sizeof(*out));
-    ngx_memcpy(&out->sockaddr, u.addrs[0].sockaddr, u.addrs[0].socklen);
-    out->socklen = u.addrs[0].socklen;
-    out->port    = u.port;
-    out->ssl     = ssl;
+    out->port = u.port;
+    out->ssl  = ssl;
 
     /* host[:port] for the Host: header — omit the port when it is the scheme
      * default so the Host header matches what a normal client would send.
      * ngx_parse_url strips the brackets off "[::1]", so u.host arrives as a bare
      * IPv6 literal and must be re-bracketed on emit ("[::1]" not "::1"). */
-    {
-        char hostz[256];
-        n = ngx_min(u.host.len, sizeof(hostz) - 1);
-        ngx_memcpy(hostz, u.host.data, n);
-        hostz[n] = '\0';
-        if (u.port == default_port) {
-            brix_format_host(hostz, out->host, sizeof(out->host));
-        } else {
-            brix_format_host_port(hostz, (uint16_t) u.port,
-                                    out->host, sizeof(out->host));
-        }
+    n = ngx_min(u.host.len, hostz_sz - 1);
+    ngx_memcpy(hostz, u.host.data, n);
+    hostz[n] = '\0';
+    if (u.port == default_port) {
+        brix_format_host(hostz, out->host, sizeof(out->host));
+    } else {
+        brix_format_host_port(hostz, (uint16_t) u.port,
+                                out->host, sizeof(out->host));
     }
     /* scheme://host[:port] for the request line / Destination rewrite. */
     ngx_snprintf((u_char *) out->url_base, sizeof(out->url_base), "%*s%s%Z",
@@ -177,28 +184,134 @@ proxy_pool_resolve(const char *url, ngx_pool_t *pool, ngx_log_t *log,
 }
 
 /*
+ * One in-flight backend resolution.  Owns a tiny pool that the completion
+ * handler destroys as its last act (the driver never touches the request
+ * after invoking the handler).
+ */
+typedef struct {
+    brix_dns_req_t  req;
+    ngx_pool_t     *pool;
+    uint32_t        id;
+    u_char          name[256];
+} proxy_pool_dns_t;
+
+/*
+ * Resolution landed for backend `id`: publish the address and promote the
+ * slot RESOLVING -> ACTIVE (a slot the operator drained/removed meanwhile
+ * keeps its state; a removed slot is simply gone).  A failed resolution
+ * leaves the slot DEAD so the admin GET shows why it never took traffic.
+ */
+static void
+proxy_pool_resolved(brix_dns_req_t *req)
+{
+    proxy_pool_dns_t       *d = req->data;
+    brix_proxy_be_table_t  *tbl;
+    brix_proxy_be_entry_t  *e;
+    ngx_uint_t              i;
+    int                     ok = (req->rc == NGX_OK && req->naddrs > 0
+                                  && req->addrs[0].len <= sizeof(e->sockaddr));
+
+    if (!ok) {
+        ngx_log_error(NGX_LOG_WARN, req->log, 0,
+                      "brix_proxy_pool: backend id=%uD \"%s\" cannot be "
+                      "resolved: %s — marked dead", d->id, d->name,
+                      req->error ? req->error : "unknown");
+    }
+
+    tbl = pool_table();
+    if (tbl != NULL) {
+        ngx_shmtx_lock(&brix_proxy_pool_mutex);
+        for (i = 0; i < tbl->capacity; i++) {
+            e = &tbl->slots[i];
+            if (!e->in_use || e->id != d->id) {
+                continue;
+            }
+            if (ok) {
+                ngx_memcpy(&e->sockaddr, &req->addrs[0].ss, req->addrs[0].len);
+                e->socklen = req->addrs[0].len;
+                if (e->state == BRIX_PROXY_BE_RESOLVING) {
+                    e->state = BRIX_PROXY_BE_ACTIVE;
+                }
+            } else if (e->state == BRIX_PROXY_BE_RESOLVING) {
+                e->state = BRIX_PROXY_BE_DEAD;
+            }
+            break;
+        }
+        ngx_shmtx_unlock(&brix_proxy_pool_mutex);
+    }
+
+    ngx_destroy_pool(d->pool);
+}
+
+/*
+ * Kick off the async resolution for a freshly added slot.  The request's own
+ * pool is released by proxy_pool_resolved(); if the resolution cannot even be
+ * started the slot is marked DEAD here and the pool released.
+ */
+static void
+proxy_pool_start_resolve(uint32_t id, const char *hostz, in_port_t port,
+    ngx_log_t *log)
+{
+    ngx_pool_t        *pool;
+    proxy_pool_dns_t  *d;
+
+    pool = ngx_create_pool(512, log);
+    d = pool ? ngx_pcalloc(pool, sizeof(proxy_pool_dns_t)) : NULL;
+    if (d == NULL) {
+        if (pool) { ngx_destroy_pool(pool); }
+        (void) proxy_pool_set_state(id, BRIX_PROXY_BE_DEAD);
+        return;
+    }
+    d->pool = pool;
+    d->id = id;
+    ngx_cpystrn(d->name, (u_char *) hostz, sizeof(d->name));
+    d->req.name.data = d->name;
+    d->req.name.len = ngx_strlen(d->name);
+    d->req.port = port;
+    d->req.af = BRIX_AF_AUTO;
+    d->req.socktype = SOCK_STREAM;
+    d->req.log = log;
+    d->req.handler = proxy_pool_resolved;
+    d->req.data = d;
+
+    if (brix_dns_resolve(&d->req) != NGX_OK) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "brix_proxy_pool: backend id=%uD \"%s\": cannot start "
+                      "resolution: %s — marked dead", id, hostz,
+                      d->req.error ? d->req.error : "unknown");
+        ngx_destroy_pool(pool);
+        (void) proxy_pool_set_state(id, BRIX_PROXY_BE_DEAD);
+    }
+}
+
+/*
  * Add a backend to the pool at runtime (admin REST API).
- * Returns NGX_DECLINED if the pool is not enabled/ready, NGX_ERROR on resolve
+ * Returns NGX_DECLINED if the pool is not enabled/ready, NGX_ERROR on a parse
  * failure or when the pool is full, NGX_OK with *id_out set on success.
- * DNS resolution is done BEFORE taking the lock so no blocking I/O happens in the
- * critical section; the locked region is a pure O(n) free-slot scan + slot fill.
+ * The slot is published RESOLVING (never selected) and promoted to ACTIVE by
+ * the async resolution started AFTER the lock is released — no I/O ever runs
+ * inside the critical section, and a dead DNS name costs the operator one
+ * "dead" backend, never a stalled worker.
  */
 ngx_int_t
 brix_proxy_pool_add(const char *url, ngx_uint_t weight, ngx_pool_t *pool,
     ngx_log_t *log, uint32_t *id_out)
 {
     brix_proxy_be_table_t *tbl;
-    brix_proxy_be_entry_t  resolved;
+    brix_proxy_be_entry_t  parsed;
     brix_proxy_be_entry_t *e;
     ngx_uint_t               i, free_slot;
     ngx_int_t                rc = NGX_ERROR;
+    uint32_t                 id = 0;
+    char                     hostz[256];
 
     tbl = pool_table();
     if (tbl == NULL) {
         return NGX_DECLINED;
     }
-    /* Resolve outside the lock (getaddrinfo may block). */
-    if (proxy_pool_resolve(url, pool, log, &resolved) != NGX_OK) {
+    if (proxy_pool_parse(url, pool, log, &parsed, hostz, sizeof(hostz))
+        != NGX_OK)
+    {
         return NGX_ERROR;
     }
     if (weight == 0) {
@@ -216,31 +329,38 @@ brix_proxy_pool_add(const char *url, ngx_uint_t weight, ngx_pool_t *pool,
     }
     if (free_slot < tbl->capacity) {
         e = &tbl->slots[free_slot];
-        ngx_memcpy(&e->sockaddr, &resolved.sockaddr, sizeof(e->sockaddr));
-        e->socklen = resolved.socklen;
-        e->port    = resolved.port;
-        e->ssl     = resolved.ssl;
-        ngx_memcpy(e->host, resolved.host, sizeof(e->host));
-        ngx_memcpy(e->url_base, resolved.url_base, sizeof(e->url_base));
+        ngx_memzero(&e->sockaddr, sizeof(e->sockaddr));
+        e->socklen = 0;
+        e->port    = parsed.port;
+        e->ssl     = parsed.ssl;
+        ngx_memcpy(e->host, parsed.host, sizeof(e->host));
+        ngx_memcpy(e->url_base, parsed.url_base, sizeof(e->url_base));
         e->weight    = weight;
-        e->state     = BRIX_PROXY_BE_ACTIVE;
+        e->state     = BRIX_PROXY_BE_RESOLVING;
         e->added_at  = ngx_current_msec;
         e->drained_at = 0;
         e->in_flight = 0;
         e->id        = tbl->next_id++;   /* ids are monotonic, never reused */
         e->in_use    = 1;
-        if (id_out) { *id_out = e->id; }
+        id = e->id;
+        if (id_out) { *id_out = id; }
         rc = NGX_OK;
     }
 
     ngx_shmtx_unlock(&brix_proxy_pool_mutex);
+
+    if (rc == NGX_OK) {
+        proxy_pool_start_resolve(id, hostz, parsed.port, log);
+    }
     return rc;
 }
 
 /*
  * Shared implementation for drain/undrain: find the slot with this id and set
  * its state. Drain stamps drained_at so callers can age out idle draining
- * backends. Returns 1 if a matching backend was found, 0 otherwise.
+ * backends.  An undrain of a slot whose address has not landed yet goes back
+ * to RESOLVING, never ACTIVE (a select must never hand out socklen == 0).
+ * Returns 1 if a matching backend was found, 0 otherwise.
  */
 static int
 proxy_pool_set_state(uint32_t id, brix_proxy_be_state_e state)
@@ -260,7 +380,8 @@ proxy_pool_set_state(uint32_t id, brix_proxy_be_state_e state)
         if (!e->in_use || e->id != id) {
             continue;
         }
-        e->state = state;
+        e->state = (state == BRIX_PROXY_BE_ACTIVE && e->socklen == 0)
+                   ? BRIX_PROXY_BE_RESOLVING : state;
         e->drained_at = (state == BRIX_PROXY_BE_DRAINING)
                         ? ngx_current_msec : 0;
         found = 1;

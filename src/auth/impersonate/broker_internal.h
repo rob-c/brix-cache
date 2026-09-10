@@ -32,6 +32,9 @@ extern gid_t  imp_base_gid;
 extern gid_t  imp_base_groups[BRIX_IDMAP_MAXGROUPS];
 extern int    imp_base_ngroups;
 extern uid_t  imp_self_uid;
+#ifndef RENAME_EXCHANGE
+#define RENAME_EXCHANGE (1u << 1)
+#endif
 #ifndef RENAME_NOREPLACE
 #define RENAME_NOREPLACE (1u << 0)
 #endif
@@ -75,6 +78,7 @@ int imp_xattr_open(int rootfd, const char *rel);
 int imp_xattr_name_ok(const char *name);
 size_t imp_xattr_filter_user(char *list, size_t len);
 int imp_do_rename(int sfd, const char *sbase, int dfd, const char *dbase, int noreplace);
+int imp_do_exchange(int sfd, const char *sbase, int dfd, const char *dbase);
 int imp_do_op(imp_op_ctx_t *c);
 
 /* broker.c */

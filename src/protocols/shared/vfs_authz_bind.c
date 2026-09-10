@@ -23,8 +23,7 @@ brix_http_vfs_bind_authz(ngx_http_request_t *r,
     ngx_array_t *authdb_rules, ngx_array_t *vo_rules,
     brix_vfs_ctx_t *vctx)
 {
-    char        peer[256];
-    const char *resolved;
+    char        peer[BRIX_DNS_REVERSE_NAME_LEN];
     size_t      len;
 
     if (r == NULL || common == NULL || vctx == NULL) {
@@ -34,15 +33,15 @@ brix_http_vfs_bind_authz(ngx_http_request_t *r,
     len = ngx_min(r->connection->addr_text.len, sizeof(peer) - 1);
     ngx_memcpy(peer, r->connection->addr_text.data, len);
     peer[len] = '\0';
-    if (common->acc.resolve_hosts) {
-        resolved = brix_acc_resolve_peer(r->connection->sockaddr,
-                                         r->connection->socklen,
-                                         peer, sizeof(peer));
-        if (resolved == NULL) {
-            len = ngx_min(r->connection->addr_text.len, sizeof(peer) - 1);
-            ngx_memcpy(peer, r->connection->addr_text.data, len);
-            peer[len] = '\0';
-        }
+    if (common->acc.resolve_hosts
+        && brix_acc_resolve_peer(common->dns.policy, r->connection->sockaddr,
+                                 r->connection->socklen,
+                                 peer, sizeof(peer)) != NGX_OK)
+    {
+        /* no PTR, or still pending: the numeric peer decides */
+        len = ngx_min(r->connection->addr_text.len, sizeof(peer) - 1);
+        ngx_memcpy(peer, r->connection->addr_text.data, len);
+        peer[len] = '\0';
     }
 
     brix_vfs_ctx_bind_authz(vctx, authdb_rules, vo_rules,

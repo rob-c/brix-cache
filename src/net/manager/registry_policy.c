@@ -19,6 +19,8 @@
 
 brix_srv_sched_t  brix_srv_sched;        /* §2.3: all-zero = engine off */
 
+brix_srv_space_t  brix_srv_space;        /* §2.4: enforce=0 = gate off */
+
 ngx_uint_t    brix_srv_delay_servers;    /* §2.2: SUPCount floor, 0 = off */
 
 
@@ -41,6 +43,19 @@ brix_srv_set_sched(const brix_srv_sched_t *sched)
             field[i] = 100;
         }
     }
+}
+
+
+/* §2.4 — install the write-eligibility policy (config time, before fork).
+ * A NULL space clears the gate back to "never block". */
+void
+brix_srv_set_space(const brix_srv_space_t *space)
+{
+    if (space == NULL) {
+        ngx_memzero(&brix_srv_space, sizeof(brix_srv_space));
+        return;
+    }
+    brix_srv_space = *space;
 }
 
 

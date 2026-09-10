@@ -157,7 +157,7 @@ All three modes run inside a single nginx instance. Details: [Deployment Modes](
 |----------|-------------|
 | [WebDAV Overview](04-protocols/webdav-overview.md) | WebDAV operations, LOCK/UNLOCK, x509 and bearer token setup |
 | [XRootD Client Interaction](04-protocols/xrootd-client-interaction.md) | How `xrdcp`, `xrdfs`, and Python clients interact with the server |
-| [Native Client Tools](04-protocols/native-client-tools.md) | Clean-room `xrdcp`, `xrdfs`, diagnostics, checksum tools, FUSE mounts, POSIX preload, and `libxrdc` |
+| [Native Client Tools](04-protocols/native-client-tools.md) | Clean-room `xrdcp`, `xrdfs`, diagnostics, checksum tools, FUSE mounts, POSIX preload, and `libbrix` |
 | [HTTP TPC Reference](04-protocols/http-tpc-reference.md) | Third-party copy comparison between HTTP-TPC and native XRootD TPC |
 | [CMS Cluster Protocol (`cms://`)](04-protocols/cms-protocol.md) | The cmsd↔cmsd management wire protocol — framing, manager↔server↔client negotiation, and cmsd-compliance gotchas |
 | [gsiftp:// GSI Data Channel](04-protocols/gsiftp-data-channel-security.md) | GridFTP DCAU/`PROT P` data-channel security deep dive (delegated-credential presentation, chain-completion + unexpected-EOF gotchas) with ASCII diagrams and a `root://` comparison |
@@ -237,7 +237,8 @@ graph TD
 | Document | Description |
 |----------|-------------|
 | [Monitoring Guide](08-metrics-monitoring/monitoring-guide.md) | Prometheus counters, access log format, what to watch for |
-| [Live Transfer Monitor](05-operations/live-transfer-monitor.md) | The real-time active-transfer view in the HTTPS dashboard |
+| [Metric Family Index](08-metrics-monitoring/metrics-overview.md#complete-family-index) | Every exported family, its type and its HELP text — the completeness index |
+| [Live Transfer Monitor](05-operations/live-transfer-monitor.md) | Design record for the real-time active-transfer view in the HTTPS dashboard (delivered) |
 | [Dashboard Feature Ideas](08-metrics-monitoring/dashboard-feature-ideas.md) | Useful future additions for the HTTPS monitoring dashboard |
 
 ---
@@ -308,6 +309,7 @@ Contributing code? Start here. Everything you need to navigate the source tree, 
 | [Design Rationale](10-reference/design-rationale.md) | Why BriX-Cache exists, comparison with official xrootd |
 | [Gaps vs Official XRootD](10-reference/gaps-vs-xrootd.md) | Features in official xrootd not yet implemented |
 | [Protocol Gap Analysis](10-reference/protocol-gaps-vs-xrootd.md) | Per-opcode/plugin gap comparison against reference xrootd v5.2 |
+| [Release 2.0 Readiness Register](10-reference/release-2.0-readiness.md) | Authoritative 2.0 register: not present, untested, incomplete, undocumented — and what was fixed |
 | [XRootD Feature Matrix](10-reference/xrootd-feature-matrix.md) | Cross-reference of every XRootD feature, plugin, and interop surface |
 | [Feature Gaps](10-reference/feature-gaps.md) | Incomplete features and corner cases across the three protocols |
 | [BriX-Cache vs Canonical xrootd](10-reference/comparison-nginx-xrootd-vs-canonical.md) | Detailed behavioural comparison with the reference daemon |
@@ -373,6 +375,19 @@ Full migration details: [MIGRATION-NOTICE.md](MIGRATION-NOTICE.md)
 
 ## Recent Changes
 
+- **September 2026 — 2.0:** The release register
+  [`release-2.0-readiness.md`](10-reference/release-2.0-readiness.md) is the
+  single source of truth for what 2.0 ships, what it deliberately does not, and
+  what is still open. Its axis (e) closed fifteen feature gaps — the durable FRM
+  stage journal and its site stage program, `stagemsg`/StageEvents, the OssArc
+  dataset seal, the per-space purge policy, `pfc.urlcgi` cache hints and
+  `forward://` PSS forwarding, RAM-tier metrics, native `root://` TPC multihop
+  and multi-stream *pull*, site checksum plugins, the sss v2 endorsement wave,
+  the health-check family, `brix_mirror_exclude_opcodes`, four metric
+  categories, and native `root://` TPC **push** with multi-stream on it — and
+  leaves five open (F17–F21). Every comparison and gap page
+  under [Deep Reference](#-deep-reference) carries the same banner; its rows supersede
+  any older ⚠️/❌ elsewhere in the tree.
 - **May 2026 — Documentation restructuring:** Removed numbered sections in favor of topic-based categories. Added Mermaid diagrams for deployment mode selection and authentication decisions. Improved cross-linking throughout. Newcomers should start at [I Want a Working Server](#-i-want-a-working-server---start-here).
 - **May 2026 — Documentation improvements:** Added [Architecture Overview](11-architecture/overview.md) with Mermaid diagrams for visual learners and request lifecycle diagrams for all three protocols. Enhanced [Glossary](10-reference/glossary.md) with A-Z quick lookup, missing terms (Manager Mode, Cluster Mode, JWKS, HTTP-TPC vs native TPC), and fixed all broken cross-references.
 - **May 2026 — Documentation cleanup:** Merged duplicate docs (`quick-install.md` → `getting-started-full.md`, deleted `xrootd-background.md`). Removed orphaned stub files from `optimizations/` and `testing/`. Archived planning documents to `_archive/`.

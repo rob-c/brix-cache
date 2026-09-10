@@ -27,6 +27,7 @@ import os
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import tempfile
 import time
 
@@ -131,8 +132,7 @@ def xrootd_krb5(tmp_path):
     seclib = _find_seclib()
     _guard_xrootd_krb5_3(seclib)
     _guard_xrootd_krb5_4()
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp"],
-                          capture_output=True, text=True, timeout=180)
+    proc = client_make(CLIENT_DIR, "xrdfs", "xrdcp", capture_output=True, text=True, timeout=180)
     _guard_xrootd_krb5_5(proc)
     _guard_xrootd_krb5_6()
     _guard_xrootd_krb5_7()

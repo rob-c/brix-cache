@@ -14,6 +14,19 @@ int brix_stat(brix_conn *c, const char *path, brix_statinfo *out, brix_status *s
 int brix_lstat(brix_conn *c, const char *path, brix_statinfo *out, brix_status *st);
 int brix_dirlist(brix_conn *c, const char *path, int want_stat,
                  brix_dirent **ents, size_t *count, brix_status *st);
+/* ---- fs/dirfanout.c ---- */
+/* Cluster-wide dirlist: the union over every data server a CMS manager names
+ * for `path`, deduplicated by name.  A manager REDIRECTS a plain kXR_dirlist to
+ * one registered node, so brix_dirlist against a manager enumerates one node's
+ * view; this is the client-side fan-out that makes the cluster's view visible
+ * (stock's XrdFfsPosix_readdirall).  Falls back to a plain brix_dirlist when
+ * the endpoint answers no locate or names no data server — a standalone server
+ * IS the whole cluster.  A node that reports "not found" contributes nothing;
+ * ANY other per-node failure fails the call rather than returning a listing the
+ * caller cannot tell apart from a complete one.  *ents is malloc'd for free().
+ */
+int brix_dirlist_all(brix_conn *c, const char *path, int want_stat,
+                     brix_dirent **ents, size_t *count, brix_status *st);
 
 /* ---- ops_file.c ---- */
 typedef struct {
@@ -260,6 +273,11 @@ void brix_cred_store_free(struct brix_cred_store *s);
  * <p>), advancing *i past any value. Returns 1 if it recognised the flag (caller
  * should `continue`), 0 if not (caller handles its own flags). */
 int  brix_opts_parse_arg(brix_opts *o, int argc, char **argv, int *i);
+/* Consume one --sss-* identity flag at argv[*i] (--sss-vorg/--sss-role/
+ * --sss-endorse/--sss-creds-file <v>, --sss-sndlid), advancing *i past any
+ * value. Already called by brix_opts_parse_arg; exported for xrdfs, which
+ * walks argv with its own ladder and must not grow a second copy. */
+int  brix_opts_parse_sss_arg(brix_opts *o, int argc, char **argv, int *i);
 /* Strict CLI parse for the --io-uring mode string.
  * Accepts "on" / "off" / "auto" and returns XRDC_IO_URING_{ON,OFF,AUTO}.
  * NULL, empty, or any other value returns -1 — the caller must print a usage

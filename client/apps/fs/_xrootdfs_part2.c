@@ -170,6 +170,13 @@ aio_root_mount(int fuse_argc, char **fuse_argv, size_t fuse_argv_cap,
         return brix_shellcode(&st);
     }
 
+    if (xfs_ident_init() != 0) {
+        brix_mgr_destroy(g_mgr);
+        brix_pool_destroy(g_pool);
+        xfs_daemon_ready(2);
+        return 2;
+    }
+
     aio_probe_ext(&st);
 
     fprintf(stderr,
@@ -182,6 +189,7 @@ aio_root_mount(int fuse_argc, char **fuse_argv, size_t fuse_argv_cap,
     /* Success is signalled from xfs_init() once the mount is live. */
     rc = fuse_main(fuse_argc, fuse_argv, &xfs_ops, NULL);
 
+    xfs_ident_shutdown();
     brix_mgr_destroy(g_mgr);
     brix_pool_destroy(g_pool);
     return rc;

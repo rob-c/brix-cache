@@ -199,7 +199,7 @@ mechanism in `src/tpc/`), which is covered in the `root://` / clustering compari
 | Performance markers | `XrdHttpTpc::PMarkManager`; periodic chunked `Perf Marker` blocks | `src/protocols/webdav/tpc_marker.c`; same `Perf Marker` wire block (`Timestamp:`/`Stripe Index:`/`Stripe Bytes Transferred:`/`Total Stripe Count:`/`End`), 202 + chunked body, 200 ms poll, interval set by `brix_webdav_tpc_marker_interval` (default 0 = off) |
 | Credential / delegation | `Credential:` header (`none` only in reviewed source); `TransferHeaderN` forwarding (e.g. `TransferHeaderAuthorization`); `tpcForwardCreds` for redirects | `Credential:` modes `none`, `oidc-agent`, `token-exchange` (`src/protocols/webdav/tpc_cred.c`, `tpc_cred_parse.c`); injects `Authorization: Bearer <tok>` into the transfer |
 | OAuth2 token exchange | not in reviewed source | RFC 8693 exchange against `brix_tpc_outbound_token_endpoint` using the request's bearer as subject token (`src/protocols/webdav/tpc_cred.c`) |
-| SSRF / DNS-pinning | not in reviewed source | `tpc_curl_secure()` forces `SSL_VERIFYPEER=1`/`VERIFYHOST=2`, resolves+pins the target IP via `CURLOPT_RESOLVE` (`brix_net_target_check_dns_pin()`) to close the TOCTOU window; policy gated by `brix_webdav_tpc_allow_local`/`_allow_private` |
+| SSRF / DNS-pinning | not in reviewed source | `tpc_curl_secure()` forces `SSL_VERIFYPEER=1`/`VERIFYHOST=2`, resolves+pins the target IP via `CURLOPT_RESOLVE` (`brix_net_target_check_dns_pin()`) to close the TOCTOU window; policy gated by `brix_tpc_allow_local`/`_allow_private` |
 | Stall protection | curl timeouts | 30 s connect timeout, TCP keepalive, low-speed detector (`brix_webdav_tpc_low_speed_bytes`/`_secs`, default 1024 B/s for 60 s) |
 
 So the two are at parity on the core HTTP-TPC mechanics (pull/push, libcurl, multistream,
@@ -218,7 +218,7 @@ The full HTTP-TPC tuning surface is in `src/protocols/webdav/tpc_config.c`:
 | `brix_webdav_tpc_marker_interval` | 0 (off) | Performance-marker poll interval (ms) |
 | `brix_webdav_tpc_timeout` | 0 (no limit) | Overall transfer timeout (s) |
 | `brix_webdav_tpc_low_speed_bytes` / `_secs` | 1024 / 60 | Stall detector floor / window |
-| `brix_webdav_tpc_allow_local` / `_allow_private` | 0 / 1 | SSRF policy for loopback / RFC 1918 targets |
+| `brix_tpc_allow_local` / `_allow_private` | 0 / 1 | SSRF policy for loopback / RFC 1918 targets |
 | `brix_webdav_tpc_cert` / `_key` / `_cafile` / `_cadir` | inherit | Client X.509 material for the remote leg |
 | `brix_tpc_outbound_token_endpoint` / `_client_id` / `_client_secret` / `_token_scope` | "" / "" / "" / `storage.read` | RFC 8693 token-exchange parameters |
 | `brix_webdav_tpc_require_source_size` | off | Pull completion gate: refuse a source that declares no `Content-Length` |
@@ -328,7 +328,7 @@ because BriX-Cache reuses nginx's TLS engine and certificate model rather than X
 | Concern | Official XrdHttp | BriX-Cache |
 |---|---|---|
 | TLS termination | XrdTls; `http.cert`/`http.key`/`http.cadir`/`http.httpsmode {off\|manual\|auto}` (`XrdHttpProtocol.cc`) | nginx `listen … ssl;` + `ssl_certificate`/`ssl_certificate_key`, plus module client-cert directives |
-| X.509 / GSI client cert | chain extraction in `XrdHttpSecurity.cc` (`EECname()`/`EEChash()` → `SecEntity`) | `src/protocols/webdav/auth_cert.c`, `pki.c`; `brix_webdav_cadir`/`cafile`/`crl`/`verify_depth` |
+| X.509 / GSI client cert | chain extraction in `XrdHttpSecurity.cc` (`EECname()`/`EEChash()` → `SecEntity`) | `src/protocols/webdav/auth_cert.c`, `pki.c`; `brix_trusted_ca_dir`/`cafile`/`crl`/`verify_depth` |
 | VOMS proxy | `http.secxtractor libXrdHttpVOMS.so` plugin (`XrdHttpSecXtractor.hh`) | proxy-cert support enabled by `brix_webdav_proxy_certs` (sets `X509_V_FLAG_ALLOW_PROXY_CERTS` on the SSL ctx in `postconfig.c`); verified by `webdav_verify_proxy_cert()` |
 | Grid-mapfile | `http.gridmap` → `dn2user()` (`XrdHttpSecurity.cc`) | DN/issuer mapping through the auth/ACC stack |
 | Bearer / token | `http.secretkey` token-hash check; HTTPS→HTTP+token redirect (`http.selfhttps2http`) | `webdav_verify_bearer_token()` + `brix_token_check_scope()` (HELPERS); macaroon issuance at `/.oauth2/token` (`macaroon_endpoint.c`) |
@@ -366,7 +366,7 @@ server {
         brix_export         /data/export;
         brix_allow_write  on;          # PUT/DELETE/MKCOL/MOVE/COPY/LOCK
         brix_webdav_auth         required;
-        brix_webdav_cadir        /etc/grid-security/certificates;
+        brix_trusted_ca_dir        /etc/grid-security/certificates;
         brix_webdav_proxy_certs  on;          # accept VOMS/GSI proxy chains
         brix_webdav_tpc          on;          # HTTP third-party-copy
         brix_webdav_tpc_max_streams       4;

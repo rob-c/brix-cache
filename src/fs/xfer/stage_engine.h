@@ -9,7 +9,7 @@
  *       a nearline (tape) backend (RECALL), a write-stage flush / tape migrate
  *       (FLUSH), a client-body upload into the stage store (UPLOAD), and an S3
  *       multipart assembly (MULTIPART). One queue, one waiter, one byte mover, one
- *       audit ledger - for all four kinds.
+ *       audit ledger - for all five kinds.
  *
  * WHY:  Before phase-64 the same "move bytes from A to B durably, possibly async,
  *       and wake a parked open when done" logic was re-implemented five times
@@ -88,14 +88,18 @@ typedef struct {
     char    bearer[4096];
 } brix_stage_cred_t;
 
-/* The four async-staging kinds (Appendix I). Values are stable wire identities so
- * a durable request record (SP4) survives a restart; they line up 1:1 with the
- * legacy frm_xfer_kind_t the engine subsumes. */
+/* The async-staging kinds (Appendix I). Values are stable wire identities so
+ * a durable request record (SP4) survives a restart; the first four line up
+ * 1:1 with the legacy frm_xfer_kind_t the engine subsumes. ARCHIVE (2.0 F3)
+ * moves no bytes of its own: src == dst == the tape tier, dst_key = a dataset
+ * completion marker, and the mover drives brix_sd_frm_seal (compose + ship
+ * the dataset archive) under the same journal/retry/dead-letter discipline. */
 typedef enum {
     BRIX_STAGE_RECALL    = 0,   /* nearline backend -> cache store   (data in)  */
     BRIX_STAGE_FLUSH     = 1,   /* stage store -> backend            (data out) */
     BRIX_STAGE_UPLOAD    = 2,   /* client body -> stage store        (data in)  */
-    BRIX_STAGE_MULTIPART = 3    /* S3 part(s) -> stage store         (data in)  */
+    BRIX_STAGE_MULTIPART = 3,   /* S3 part(s) -> stage store         (data in)  */
+    BRIX_STAGE_ARCHIVE   = 4    /* tape tier: seal a dataset archive (data out) */
 } brix_stage_kind_t;
 
 /* Durable request lifecycle (Appendix I). SP1 only ever transits QUEUED->DONE /
@@ -256,6 +260,33 @@ void brix_stage_engine_init(const char *journal_dir);
  */
 #define BRIX_STAGE_DENY_MAX_ATTEMPTS 5
 #define BRIX_STAGE_DENY_MAX_AGE_SEC  (24 * 3600)
+
+/* 2.0 F1 (ADR-3b): the engine's runtime limits. `max_inflight` bounds the
+ * thread-offloaded movers per worker (brix_frm_copymax, default
+ * BRIX_STAGE_MAX_INFLIGHT_DEFAULT); `max_attempts` is the attempt count at
+ * which a still-failing record — permanently denied OR transiently failing —
+ * is dead-lettered (brix_frm_fail_retries, default
+ * BRIX_STAGE_DENY_MAX_ATTEMPTS). 0 keeps the current value. */
+#define BRIX_STAGE_MAX_INFLIGHT_DEFAULT 8
+void brix_stage_engine_set_limits(ngx_uint_t max_inflight,
+    ngx_uint_t max_attempts);
+ngx_uint_t brix_stage_engine_max_inflight(void);
+ngx_uint_t brix_stage_engine_max_attempts(void);
+/* The durable journal directory in force ("" = in-memory). */
+const char *brix_stage_engine_journal_dir(void);
+/* 2.0 F3: is the caller on this worker's event loop? brix_stage_submit's
+ * queue is the loop's; a mover thread (a FLUSH landing in the tape tier)
+ * that needs a deferred seal must run it inline instead. Always 1 without
+ * NGX_THREADS, and before brix_stage_engine_init. */
+int brix_stage_on_loop(void);
+
+/* 2.0 F1: the brix_frm_fail_backoff retry sweep. Re-drives every FAILED
+ * journal record whose last failure is at least `min_age_sec` old through the
+ * same path as the restart reconcile (a record that fails again has its
+ * attempts bumped and is dead-lettered at the attempt cap). QUEUED/INFLIGHT
+ * records belong to live movers and are never touched. Returns the number of
+ * records re-driven. */
+ngx_uint_t brix_stage_retry_sweep(ngx_uint_t min_age_sec, ngx_log_t *log);
 
 /*
  * Evaluate the dead-letter cap for a permanently denied flush.

@@ -7,6 +7,7 @@
 #include "fs/cache/origin/s3_transport.h"               /* server libcurl S3 transport */
 #include "fs/backend/remote/sd_remote.h"    /* read-only S3 remote-origin driver */
 #include "fs/backend/xroot/sd_xroot.h"      /* read-only root:// remote-origin driver */
+#include "fs/backend/xroot/sd_xroot_fwd.h"  /* brix_sd_xroot_serves: root:// or forward:// */
 #include "fs/backend/http/sd_http.h"        /* read-only HTTP(S) remote-origin driver */
 
 
@@ -58,7 +59,8 @@ brix_cache_commit_staged(brix_cache_fill_t *t, brix_sd_instance_t *inst,
     }
     t->file_size = (uint64_t) sst.size;
 
-    if (t->conf->cache_verify != BRIX_CACHE_VERIFY_OFF
+    if (brix_cache_verify_effective(t->conf->common.cache_verify_mode)
+            != BRIX_CACHE_VERIFY_OFF
         && t->origin_cks_alg[0] != '\0')
     {
         brix_checksum_alg_t alg;
@@ -293,14 +295,24 @@ brix_cache_fill_body(brix_cache_fill_t *t, brix_sd_instance_t *source,
     }
     free(buf);
 
-    /* Checksum-on-fill is the xroot source's kXR_Qcksum; other sources (http) offer
-     * no in-band digest here, so the verify policy decides on the local bytes. */
-    if (conf->cache_verify != BRIX_CACHE_VERIFY_OFF
-        && ngx_strcmp(brix_sd_backend_name(source), "xroot") == 0)
+    /* Checksum-on-fill: root:// answers kXR_Qcksum in band; every other source
+     * is ASKED for the algorithm brix_cache_verify_digest names (the driver's
+     * query_checksum slot — an HTTP origin turns it into one Want-Digest HEAD).
+     * With no preference configured a non-xroot fill has no origin digest, and
+     * the verify policy decides on that (require refuses to publish). */
+    if (brix_cache_verify_effective(conf->common.cache_verify_mode)
+            != BRIX_CACHE_VERIFY_OFF)
     {
-        brix_sd_xroot_query_checksum(src, t->origin_cks_alg,
-            sizeof(t->origin_cks_alg), t->origin_cks_hex,
-            sizeof(t->origin_cks_hex));
+        if (brix_sd_xroot_serves(source)) {
+            brix_sd_xroot_query_checksum(src, t->origin_cks_alg,
+                sizeof(t->origin_cks_alg), t->origin_cks_hex,
+                sizeof(t->origin_cks_hex));
+        } else {
+            brix_sd_query_origin_digest(src,
+                (const char *) conf->common.cache_verify_digest.data,
+                t->origin_cks_alg, sizeof(t->origin_cks_alg),
+                t->origin_cks_hex, sizeof(t->origin_cks_hex));
+        }
     }
 
     brix_cache_src_close(source, src);

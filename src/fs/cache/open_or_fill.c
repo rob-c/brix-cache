@@ -3,6 +3,7 @@
 #include "fs/vfs/vfs_backend_registry.h"   /* C-1: resolve the source backend */
 #include "fs/vfs/vfs_internal.h"           /* export-relative key for the composed fill */
 #include "fs/backend/cache/sd_cache.h" /* composed-cache fill seam (SP2) */
+#include "fs/backend/xroot/sd_xroot_fwd.h" /* brix_sd_xroot_serves: root:// or forward:// */
 #include "core/compat/error_mapping.h"      /* errno → kXR for the fill result */
 #include "protocols/root/connection/shutdown_hold.h" /* active fill lifetime */
 
@@ -65,16 +66,18 @@ brix_cache_open_or_fill(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_cpystrn((u_char *) t->cache_path, (u_char *) cache_path,
                 sizeof(t->cache_path));
 
-    /* C-1 (phase-63): when no separate brix_cache_origin is configured but the
-     * export's PRIMARY storage is a remote SOURCE backend (xroot://), the cache
-     * fills FROM that registered backend. Resolve it HERE (main thread) so the
-     * registry's lazy per-worker build never races on the async fill worker. */
-    if (conf->cache_origin_host.len == 0) {
+    /* C-1 (phase-63): the cache fills FROM the export's PRIMARY storage backend
+     * when that backend is a remote SOURCE (xroot:// or http://).  Resolve it
+     * HERE (main thread) so the registry's lazy per-worker build never races on
+     * the async fill worker.  (Before 2.0 this was skipped when a
+     * brix_cache_origin was configured; that directive was retired in phase-64
+     * §14, so the registered backend is now the only source.) */
+    {
         brix_sd_instance_t *src =
             brix_vfs_backend_resolve(conf->common.root_canon, c->log);
 
         if (src != NULL
-            && (ngx_strcmp(brix_sd_backend_name(src), "xroot") == 0
+            && (brix_sd_xroot_serves(src)
                 || ngx_strcmp(brix_sd_backend_name(src), "http") == 0))
         {
             t->source_inst = src;

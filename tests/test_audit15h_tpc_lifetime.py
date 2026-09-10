@@ -66,6 +66,7 @@ import signal
 import socket
 import struct
 import subprocess
+from brix_suite.client_build import client_make
 import time
 import urllib.request
 
@@ -108,8 +109,7 @@ SRC_LFN = "/src.bin"
 
 @pytest.fixture(scope="module")
 def _proxy_built():
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "brix-fault-proxy"],
-                          capture_output=True, text=True, timeout=240)
+    proc = client_make(CLIENT_DIR, "brix-fault-proxy", capture_output=True, text=True, timeout=240)
     if proc.returncode != 0 or not os.path.exists(BFP):
         pytest.skip(f"brix-fault-proxy build failed:\n{proc.stdout}\n{proc.stderr}")
     return BFP

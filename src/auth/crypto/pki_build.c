@@ -87,8 +87,20 @@ pki_crl_name_matches(const char *name)
  *       scan loop so the loop body is a single call and the loop's CCN drops.
  * HOW:  join dir+name, skip anything that is not a stat-able regular file, then
  *       delegate to pki_load_crls_from_file.  Returns CRLs added (>=0); a
- *       non-regular or over-long entry contributes 0 (silently skipped, exactly
- *       as before).
+ *       non-regular or over-long entry contributes 0 (silently skipped).
+ *
+ * AN UNREADABLE ENTRY IS -1, NOT 0, AND THAT IS THE WHOLE POINT (2.0 F22).
+ * It used to collapse to 0, which meant a CRL the worker could not open cost
+ * the directory that CRL and nothing else.  Under `brix_crl_mode try` the
+ * armed-flags predicate is `crl_count > 0` (store_policy_store.c), so a
+ * `chmod 000` on the only CRL in a CRL directory disarmed revocation checking
+ * for the whole server -- no reload, no config edit, and every revoked
+ * credential accepted from then on.  A CRL that is PRESENT and unreadable is a
+ * broken revocation feed, not an absent one, so it now fails the load the same
+ * way `brix_crl <file>` naming that same file already did: the server refuses
+ * to start, and the hot-reload timer keeps the last-good store and shouts.
+ * A file that OPENS and yields no CRL still contributes 0 -- a hash link or a
+ * stray *.pem in a CA directory must not stop a server.
  */
 static int
 pki_load_crls_from_dirent(X509_STORE *store, const char *dir_path,
@@ -108,7 +120,10 @@ pki_load_crls_from_dirent(X509_STORE *store, const char *dir_path,
     }
 
     n = pki_load_crls_from_file(store, fpath, log);
-    return (n > 0) ? n : 0;
+    if (n < 0) {
+        return -1;              /* present but unreadable: propagate, see above */
+    }
+    return n;
 }
 
 /*
@@ -117,7 +132,8 @@ pki_load_crls_from_dirent(X509_STORE *store, const char *dir_path,
  *       dispatch so each function keeps one job and a low CCN.
  * HOW:  opendir + readdir loop; delegate matching to pki_crl_name_matches and
  *       per-entry loading to pki_load_crls_from_dirent.  Returns total CRLs
- *       added, or -1 if the directory cannot be opened.
+ *       added, or -1 if the directory cannot be opened OR if a matching entry
+ *       inside it cannot be read (2.0 F22 -- a broken feed is not an empty one).
  */
 static int
 pki_load_crls_from_dir(X509_STORE *store, const char *path, ngx_log_t *log)
@@ -125,6 +141,7 @@ pki_load_crls_from_dir(X509_STORE *store, const char *path, ngx_log_t *log)
     DIR           *dir;
     struct dirent *ent;
     int            total;
+    int            n;
 
     dir = opendir(path);
     if (dir == NULL) {
@@ -138,7 +155,12 @@ pki_load_crls_from_dir(X509_STORE *store, const char *path, ngx_log_t *log)
         if (!pki_crl_name_matches(ent->d_name)) {
             continue;
         }
-        total += pki_load_crls_from_dirent(store, path, ent->d_name, log);
+        n = pki_load_crls_from_dirent(store, path, ent->d_name, log);
+        if (n < 0) {
+            closedir(dir);
+            return -1;
+        }
+        total += n;
     }
 
     closedir(dir);
@@ -194,8 +216,7 @@ brix_build_ca_store(ngx_log_t *log,
                        const char *crl_path,
                        unsigned long extra_flags,
                        int *crl_count_out,
-                       brix_sp_mode_t sp_mode,
-                       int crl_mode)
+                       const brix_trust_policy_t *pol)
 {
     X509_STORE *store;
 
@@ -246,7 +267,7 @@ brix_build_ca_store(ngx_log_t *log,
          * identically to this production path.
          */
         if (brix_store_configure(store, cadir, extra_flags, crl_count,
-                                 sp_mode, crl_mode, log, brix_pki_sp_log) != 0)
+                                 pol, log, brix_pki_sp_log) != 0)
         {
             X509_STORE_free(store);
             return NULL;
@@ -277,16 +298,23 @@ static brix_ca_store_cache_ent_t brix_ca_store_cache[BRIX_CA_STORE_CACHE_MAX];
  * WHY:  the key is INPUTS-ONLY (no scope/cycle) so a store built in the
  *       config-load process is reused by the master it forks into; isolating
  *       the format string keeps the one canonical spelling in one place.
- * HOW:  ngx_snprintf the CA/CRL paths + flags + modes into caller-owned buf.
+ *       EVERY field of brix_trust_policy_t belongs in the key: the policy is
+ *       copied onto the store's ex_data, so two server blocks that differ ONLY
+ *       in (say) brix_crl_scope would otherwise share one memoised store and
+ *       the second block would silently inherit the first block's scope.  A
+ *       new policy knob that is not added here is a knob the memo can mask.
+ * HOW:  ngx_snprintf the CA/CRL paths + flags + the whole policy into
+ *       caller-owned buf.
  */
 static void
 brix_ca_store_cache_key(char *buf, size_t buflen, const char *cadir,
     const char *cafile, const char *crl_path, unsigned long extra_flags,
-    brix_sp_mode_t sp_mode, int crl_mode)
+    const brix_trust_policy_t *pol)
 {
-    ngx_snprintf((u_char *) buf, buflen, "%s|%s|%s|%ul|%d|%d%Z",
+    ngx_snprintf((u_char *) buf, buflen, "%s|%s|%s|%ul|%d|%d|%d|%d%Z",
         cadir ? cadir : "", cafile ? cafile : "", crl_path ? crl_path : "",
-        extra_flags, (int) sp_mode, crl_mode);
+        extra_flags, (int) pol->sp_mode, pol->crl_mode, pol->crl_scope,
+        pol->verify_log);
 }
 
 /*
@@ -366,7 +394,7 @@ X509_STORE *
 brix_build_ca_store_cached(void *scope, ngx_log_t *log,
     const char *cadir, const char *cafile, const char *crl_path,
     unsigned long extra_flags, int *crl_count_out,
-    brix_sp_mode_t sp_mode, int crl_mode)
+    const brix_trust_policy_t *pol)
 {
     char        key[768];
     int         free_slot = -1;
@@ -375,11 +403,11 @@ brix_build_ca_store_cached(void *scope, ngx_log_t *log,
 
     if (scope == NULL) {                      /* caching disabled (CRL reload) */
         return brix_build_ca_store(log, cadir, cafile, crl_path, extra_flags,
-                                     crl_count_out, sp_mode, crl_mode);
+                                     crl_count_out, pol);
     }
 
     brix_ca_store_cache_key(key, sizeof(key), cadir, cafile, crl_path,
-                            extra_flags, sp_mode, crl_mode);
+                            extra_flags, pol);
 
     store = brix_ca_store_cache_get(key, log, cadir, cafile, crl_count_out,
                                     &free_slot);
@@ -388,7 +416,7 @@ brix_build_ca_store_cached(void *scope, ngx_log_t *log,
     }
 
     store = brix_build_ca_store(log, cadir, cafile, crl_path, extra_flags,
-                                 &crl_count, sp_mode, crl_mode);
+                                 &crl_count, pol);
     if (store == NULL) {
         return NULL;
     }

@@ -22,6 +22,7 @@ import shutil
 import socket
 import struct
 import subprocess
+from brix_suite.client_build import client_make
 import threading
 
 import pytest
@@ -136,8 +137,7 @@ def _run_mock(scenario):
     if not os.path.exists(XRDFS):
         if shutil.which("cc") is None and shutil.which("gcc") is None:
             pytest.skip("no C compiler / xrdfs not built")
-        subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs"],
-                       capture_output=True, text=True, timeout=240)
+        client_make(CLIENT_DIR, "xrdfs", capture_output=True, text=True, timeout=240)
     if not os.path.exists(XRDFS):
         pytest.skip("xrdfs build failed")
     port = _free_port()

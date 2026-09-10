@@ -13,35 +13,28 @@
 #include "cta_pb.h"
 #include "cta_queue.h"
 #include "cta_exec.h"
+#include "cta_shm.h"
 #include <stdio.h>
 #include <string.h>
 
-/* Per-worker singletons (long-lived; created lazily) + config. */
-static brix_cta_queue_t *g_cta_queue;
-static char                g_cta_journal[1024];
-static int                 g_cta_use_prod;
+/* Per-worker executor selection (see cta_service.h and DEFECT CANDIDATE #63 in
+ * tests/test_audit15aa_default_tokens.py — the executor still aliases across
+ * server blocks; W8.6 moved the QUEUE, not the executor, off this global). */
+static int  g_cta_use_prod;
 
 void
 brix_ssi_cta_configure(const char *journal_path, int use_prod_executor)
 {
+    /*
+     * The journal is no longer opened here. It belongs to the shared queue,
+     * which is one SHM zone opened in the master before fork (cta_shm.c), so
+     * the path is taken from the config at postconfiguration time and this
+     * argument is accepted and ignored. The parameter stays because the open
+     * path still carries it and because dropping it would silently change the
+     * ssi.c call site that DEFECT CANDIDATE #63 pins.
+     */
+    (void) journal_path;
     g_cta_use_prod = use_prod_executor;
-    if (journal_path != NULL && journal_path[0] != '\0') {
-        snprintf(g_cta_journal, sizeof(g_cta_journal), "%s", journal_path);
-    } else {
-        g_cta_journal[0] = '\0';
-    }
-}
-
-static brix_cta_queue_t *
-cta_queue(void)
-{
-    if (g_cta_queue == NULL) {
-        g_cta_queue = cta_queue_create();
-        if (g_cta_queue != NULL && g_cta_journal[0] != '\0') {
-            cta_queue_open_journal(g_cta_queue, g_cta_journal);
-        }
-    }
-    return g_cta_queue;
 }
 
 /* Executor selection — the simulated backend by default; config selects the
@@ -93,7 +86,7 @@ brix_ssi_cta_process(const unsigned char *req, size_t req_len,
         if (creq.op == CTA_OP_QUERY) {
             char msg[64];
             snprintf(msg, sizeof(msg), "%d active request(s)",
-                     cta_queue_active_count(cta_queue()));
+                     brix_cta_shm_active_count());
             cta_respond(r, CTA_RSP_SUCCESS, msg, 0);
             return 0;
         }
@@ -101,7 +94,14 @@ brix_ssi_cta_process(const unsigned char *req, size_t req_len,
             cta_respond(r, CTA_RSP_ERR_USER, "unsupported workflow event", 0);
             return 0;
         }
-        e = cta_queue_submit(cta_queue(), &creq, creq.owner_user);
+        if (brix_cta_shm_queue() == NULL) {
+            /* No zone: refuse. Falling back to a private per-worker queue is
+             * exactly the defect W8.6 removes — it would hand out ids that
+             * collide with another worker's. */
+            cta_respond(r, CTA_RSP_ERR_CTA, "CTA queue unavailable", 0);
+            return 0;
+        }
+        e = brix_cta_shm_submit(&creq, creq.owner_user);
         if (e == NULL) {
             cta_respond(r, CTA_RSP_ERR_CTA, "request queue full", 0);
             return 0;
@@ -117,7 +117,11 @@ brix_ssi_cta_process(const unsigned char *req, size_t req_len,
 
     /* ---- completion phase ---- */
     {
-        cta_progress_t prog = { cta_prog_alert, r };
+        /* The executor transitions through brix_cta_shm_transition, which takes
+         * the zone lock once per transition — never for the length of an
+         * archive or retrieve. */
+        cta_progress_t prog = { brix_cta_shm_queue(), brix_cta_shm_transition,
+                                cta_prog_alert, r };
         int rc = cta_exec_run(cta_exec_vtbl(), e, &prog);
         cta_respond(r, rc == 0 ? CTA_RSP_SUCCESS : CTA_RSP_ERR_CTA,
                     rc == 0 ? "request completed" : "request failed",

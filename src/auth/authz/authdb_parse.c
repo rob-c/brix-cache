@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 
 #include "fs/path/path_internal.h"
+#include "authdb_grammar.h"
 
 /* Postconfig finalization of the authdb rule array: resolve/validate each rule's
  * path against the export root. */
@@ -61,43 +62,6 @@ brix_authdb_rules_finalize_copy(ngx_conf_t *cf, const ngx_str_t *root,
     *out = copy;
     return NGX_OK;
 }
-/* Parse an XrdAcc privilege string (e.g. "rwld") into an BRIX_PRIV_* bitmask. */
-static uint32_t
-brix_parse_privs(const char *p, size_t len)
-{
-    uint32_t privs = 0;
-    size_t   i;
-
-    /* Each privilege char maps to one or more BRIX_AUTH_* bits; OR-accumulate
-     * across the whole string. 'r' implies 'l' (you cannot read what you cannot
-     * look up), and 'a' (append) is folded into UPDATE since the FS-level write
-     * permission is identical. Unknown chars are silently ignored. */
-    for (i = 0; i < len; i++) {
-        switch (p[i]) {
-        case 'r': privs |= BRIX_AUTH_READ | BRIX_AUTH_LOOKUP;   break;
-        case 'l': privs |= BRIX_AUTH_LOOKUP; break;
-        case 'w': privs |= BRIX_AUTH_UPDATE; break;
-        case 'a': privs |= BRIX_AUTH_UPDATE; break; /* append is update */
-        case 'd': privs |= BRIX_AUTH_DELETE; break;
-        case 'm': privs |= BRIX_AUTH_MKDIR;  break;
-        case 'k': privs |= BRIX_AUTH_ADMIN;  break;
-        default: break;
-        }
-    }
-
-    return privs;
-}
-/* One tokenized authdb line: the four field slices [start,end) carved out of the
- * source buffer. `valid` is 0 for a blank/comment/truncated line the caller must
- * skip (no rule to push). Slices point into the caller's buffer — no ownership. */
-typedef struct {
-    ngx_flag_t  valid;
-    u_char     *type_p;
-    u_char     *id_p,    *id_end;
-    u_char     *path_p,  *path_end;
-    u_char     *privs_p, *privs_end;
-} adb_line_t;
-
 /* WHAT: read a full authdb file into a heap buffer, enforcing the size policy.
  * WHY:  isolates the file/stat/read/limit I/O so the parser proper is pure over
  *       an in-memory buffer. On the empty-file fast path returns NGX_OK with
@@ -242,12 +206,17 @@ adb_tokenize_line(u_char **cursor, u_char *end, adb_line_t *out)
         return;                         /* out->valid stays 0 */
     }
 
-    /* Format: [u|g|p|a] <id> <path> <privs>. Field 1 (type): only type_p[0] is
-     * read later; the rest of the token (if any) is scanned over but ignored.
-     * Fields 1-3 must be followed by another field, so a 0 return rejects the
-     * line. Field 4 (privs) is last, so its scan return is not required. */
+    /* Format: <selectors> <id> <path> <privs>.  Field 1 carries one or more
+     * identity selectors from `u g p a v l` (2.0 F20 — before that only its
+     * lead byte was read and the rest silently discarded, which turned a
+     * two-selector rule into a one-selector rule matching MORE subjects).
+     * Fields 1-3 must be followed by another field, so a 0 return marks the
+     * line malformed.  Field 4 (privs) is last, so its scan return is not
+     * required and an empty privilege field is legal. */
     p = line_start;
+    out->malformed = 1;
     if (!adb_scan_field(&p, line_end, &out->type_p)) return;
+    out->type_end = p;
 
     if (!adb_scan_field(&p, line_end, &out->id_p)) return;
     out->id_end = p;
@@ -258,58 +227,32 @@ adb_tokenize_line(u_char **cursor, u_char *end, adb_line_t *out)
     (void) adb_scan_field(&p, line_end, &out->privs_p);
     out->privs_end = p;
 
+    out->malformed = 0;
     out->valid = 1;
 }
 
-/* WHAT: push one parsed line as a rule into `rules`, copying id/path into the
- *       config pool. Returns NGX_OK, or NGX_ERROR on allocation failure.
- * WHY:  isolates the array-push + pool ownership from the tokenizer so both are
- *       independently testable and the loop body stays flat.
- * HOW:  ngx_array_push, then set type from field-1's lead byte only, copy id and
- *       path into cf->pool (NUL-terminated — the source buffer is freed at
- *       function exit so rules must own their strings), parse privs, and zero
- *       resolved[] (filled later by brix_finalize_authdb_rules — deferred
- *       realpath). */
-static ngx_int_t
-adb_append(ngx_conf_t *cf, ngx_array_t *rules, const adb_line_t *line)
-{
-    brix_authdb_rule_t *rule = ngx_array_push(rules);
-
-    if (rule == NULL) {
-        return NGX_ERROR;
-    }
-
-    /* Rule type is the first byte of field 1 only (e.g. 'u','g','p','a'); a
-     * multi-char first token is effectively truncated to its lead char. */
-    rule->type = (brix_auth_type_t) line->type_p[0];
-
-    rule->id.len = line->id_end - line->id_p;
-    rule->id.data = ngx_palloc(cf->pool, rule->id.len + 1);
-    ngx_memcpy(rule->id.data, line->id_p, rule->id.len);
-    rule->id.data[rule->id.len] = '\0';
-
-    rule->path.len = line->path_end - line->path_p;
-    rule->path.data = ngx_palloc(cf->pool, rule->path.len + 1);
-    ngx_memcpy(rule->path.data, line->path_p, rule->path.len);
-    rule->path.data[rule->path.len] = '\0';
-
-    rule->privs = brix_parse_privs((const char *) line->privs_p,
-                                    line->privs_end - line->privs_p);
-
-    ngx_memzero(rule->resolved, sizeof(rule->resolved));
-    return NGX_OK;
-}
-
-/* Parse the authdb file into `rules`: one rule per line (path + identity matcher
- * + privileges).  Returns NGX_CONF_OK / NGX_CONF_ERROR. */
+/*
+ * Parse the authdb file into `rules`: one rule per line (identity selectors +
+ * path + privileges).  Returns NGX_OK / NGX_ERROR.
+ *
+ * `defect` (optional) is the deferral slot described on adb_parse_ctx_t: when
+ * given, a GRAMMAR defect skips its line, records the first message, and lets
+ * the parse finish with NGX_OK — the caller must then hand the message to
+ * brix_authdb_defect_refuse() at merge time, where the engine is final.  When
+ * NULL a grammar defect is logged and returns NGX_ERROR immediately.  I/O
+ * failures (unreadable, oversized, out of memory) are always NGX_ERROR.
+ */
 ngx_int_t
-brix_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
+brix_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules,
+                  ngx_str_t *defect)
 {
-    u_char      *buf = NULL;
-    u_char      *p;
-    u_char      *end;
-    size_t       buf_len = 0;
-    adb_line_t   line;
+    u_char           *buf = NULL;
+    u_char           *p;
+    u_char           *end;
+    size_t            buf_len = 0;
+    adb_line_t        line;
+    adb_parse_ctx_t   pc;
+    ngx_int_t         rc;
 
     (void) ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_brix_module);
 
@@ -320,16 +263,37 @@ brix_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
         return NGX_OK;                 /* empty file: no rules */
     }
 
+    ngx_memzero(&pc, sizeof(pc));
+    pc.cf = cf;
+    pc.filename = filename;
+    pc.defect = defect;
+
     /* Line loop: p is the running cursor over the whole buffer. adb_tokenize_line
      * carves one line and advances p past its EOL; a valid line is appended. */
     p = buf;
     end = buf + buf_len;
     while (p < end) {
         adb_tokenize_line(&p, end, &line);
+        pc.lineno++;
+
         if (!line.valid) {
+            /* A blank or comment line is nothing; a line that carried content
+             * but did not tokenize into four fields used to be dropped without
+             * a word, which is exactly the "mystery rule that is not there"
+             * class F20 exists to close. */
+            if (line.malformed
+                && brix_adb_reject(&pc, "expected `<selectors> <id> <path> "
+                                   "<privs>`") != NGX_OK
+                && defect == NULL)
+            {
+                ngx_free(buf);
+                return NGX_ERROR;
+            }
             continue;
         }
-        if (adb_append(cf, rules, &line) != NGX_OK) {
+
+        rc = brix_adb_append(&pc, rules, &line);
+        if (rc == NGX_ERROR || (rc == NGX_DECLINED && defect == NULL)) {
             ngx_free(buf);
             return NGX_ERROR;
         }
@@ -338,3 +302,4 @@ brix_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
     ngx_free(buf);
     return NGX_OK;
 }
+

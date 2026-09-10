@@ -1,4 +1,5 @@
 #include "proxy_internal.h"
+#include "core/compat/cstr.h"        /* brix_cbuf_copy: pinned host copy */
 #include "protocols/root/session/registry.h"
 
 /*
@@ -94,7 +95,7 @@ brix_proxy_pending_lazy_fh(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
     }
 
     if (check_fh >= 0 && check_fh < BRIX_MAX_FILES
-        && proxy->fh_map[check_fh].upstream_fh == BRIX_PROXY_FH_FREE)
+        && proxy->fh_map[check_fh].fh_state == BRIX_PROXY_FH_FREE)
     {
         return check_fh;
     }
@@ -194,66 +195,222 @@ brix_proxy_dispatch_pending(brix_proxy_ctx_t *proxy)
     return brix_proxy_pending_flush(proxy, req, len);
 }
 
-/* main dispatch entry point */
-ngx_int_t
-brix_proxy_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
-                      ngx_stream_brix_srv_conf_t *conf)
+/* proxy_pin_target — record the CMS-selected data server a session is pinned
+ * to (phase-115 W2.1) in the proxy's fixed pin buffer.  NGX_ERROR only when
+ * the registry handed us a host longer than the buffer (never, by registry.h). */
+static ngx_int_t
+proxy_pin_target(brix_proxy_ctx_t *proxy, const char *host, uint16_t port)
+{
+    size_t  len = ngx_strlen(host);
+
+    if (brix_cbuf_copy((char *) proxy->pinned_buf, sizeof(proxy->pinned_buf),
+                       host, len) == NULL)
+    {
+        return NGX_ERROR;
+    }
+    proxy->pinned_host.data = proxy->pinned_buf;
+    proxy->pinned_host.len  = len;
+    proxy->pinned_port      = port;
+    return NGX_OK;
+}
+
+/* True when host:port is not the server this session is pinned to (an unpinned
+ * brix_tap_proxy session counts as "elsewhere": a CMS selection adopts it). */
+static int
+proxy_pinned_elsewhere(const brix_proxy_ctx_t *proxy, const char *host,
+    uint16_t port)
+{
+    size_t  len = ngx_strlen(host);
+
+    return proxy->pinned_host.len != len
+           || proxy->pinned_port != port
+           || ngx_memcmp(proxy->pinned_host.data, host, len) != 0;
+}
+
+static int
+proxy_has_open_handles(const brix_proxy_ctx_t *proxy)
+{
+    int  i;
+
+    for (i = 0; i < BRIX_MAX_FILES; i++) {
+        if (proxy->fh_map[i].fh_state == BRIX_PROXY_FH_BOUND) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* brix_proxy_session_may_reselect — may this session be moved to another data
+ * server right now?  (phase-115 W2.1)
+ *
+ * WHAT: True when the pinned upstream is quiescent — bootstrapped to
+ *       XRD_PX_IDLE with no file handle open.
+ * WHY:  The forwarding gate in handshake/dispatch.c must let a *selection-
+ *       pinned* session fall through to the manager for path-carrying opcodes,
+ *       so a later selection can name a different node; but only while nothing
+ *       is riding the current upstream.  One upstream per session is the
+ *       invariant: with a handle open (or a request in flight) the session
+ *       stays where it is and the request rides the pinned node, even when
+ *       that node does not hold the path.
+ * HOW:  state == XRD_PX_IDLE and proxy_has_open_handles() == 0.  The 255
+ *       open-pending sentinel counts as "not open" on purpose: a pending open
+ *       always leaves state != XRD_PX_IDLE, so the first clause covers it.
+ */
+int
+brix_proxy_session_may_reselect(const brix_proxy_ctx_t *proxy)
+{
+    return proxy != NULL
+           && proxy->state == XRD_PX_IDLE
+           && !proxy_has_open_handles(proxy);
+}
+
+/* proxy_repin_idle — the CMS selected a data server other than the one this
+ * session is pinned to (phase-115 W2.1).
+ *
+ * WHAT: If the pinned upstream is idle with no open handles, drop it, pin the
+ *       new target and start a fresh connect; the caller's save-or-forward tail
+ *       then parks the request until that bootstrap completes.  Otherwise the
+ *       request rides the pinned upstream unchanged.
+ * WHY:  A proxy session carries one upstream connection and one fh_map; a
+ *       session with files open on server A cannot also be on server B.  The
+ *       idle case is the common one (a client opening files one after another
+ *       across the cluster) and costs one reconnect, exactly like the
+ *       redirect follow-through.
+ * HOW:  Returns NGX_OK to continue dispatch (re-pinned or kept), NGX_DECLINED
+ *       after answering the client with *sent_rc (connect failure; the proxy
+ *       ctx is gone, the next request starts over). */
+static ngx_int_t
+proxy_repin_idle(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *host, uint16_t port,
+    ngx_int_t *sent_rc)
+{
+    brix_proxy_ctx_t *proxy = ctx->proxy;
+
+    if (!proxy_pinned_elsewhere(proxy, host, port)) {
+        return NGX_OK;
+    }
+    if (proxy->state != XRD_PX_IDLE || proxy_has_open_handles(proxy)) {
+        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                      "brix: cms select: session pinned to %V:%ud keeps its "
+                      "upstream (busy or files open); %s:%ud not adopted",
+                      &proxy->pinned_host, (unsigned) proxy->pinned_port,
+                      host, (unsigned) port);
+        return NGX_OK;
+    }
+    if (proxy_pin_target(proxy, host, port) != NGX_OK) {
+        *sent_rc = brix_send_error(ctx, c, kXR_ArgInvalid,
+                                   "proxy: selected host too long");
+        return NGX_DECLINED;
+    }
+    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                  "brix: cms select: re-pinning idle session to %s:%ud",
+                  host, (unsigned) port);
+    brix_proxy_reset_upstream(proxy);
+
+    if (brix_proxy_connect(proxy, c, conf) != NGX_OK) {
+        ctx->proxy = NULL;
+        ctx->proxy_fail_count++;
+        *sent_rc = brix_send_error(ctx, c, kXR_IOError,
+                                   "proxy: upstream connect failed");
+        return NGX_DECLINED;
+    }
+    return NGX_OK;
+}
+
+/* proxy_lazy_init — create ctx->proxy and start the upstream connect on the
+ * first forwarded opcode.  Returns NGX_OK with ctx->proxy set (bootstrap may
+ * still be in flight), or NGX_DECLINED after answering the client itself with
+ * *sent_rc = the brix_send_error result the caller must return. */
+static ngx_int_t
+proxy_lazy_init(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *host, uint16_t port,
+    ngx_int_t *sent_rc)
 {
     brix_proxy_ctx_t *proxy;
     int                 i;
 
-    /* lazy initialisation: connect to upstream on first dispatch */    if (ctx->proxy == NULL) {
+    /*
+     * Loop guard: a permanently-rejecting upstream (bad credential, all
+     * upstreams down) would otherwise make every re-dispatch allocate a
+     * fresh proxy ctx on c->pool and reconnect, spinning the worker at
+     * event-loop rate and growing the connection pool without bound.  Once
+     * this connection has burned through its failure budget, stop retrying
+     * and return a hard error instead of spawning another proxy.
+     */
+    if (ctx->proxy_fail_count >= BRIX_PROXY_MAX_CONN_FAILS) {
+        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+                      "xrootd proxy: %ui consecutive upstream failures on "
+                      "this connection — failing request, not retrying",
+                      ctx->proxy_fail_count);
+        *sent_rc = brix_send_error(ctx, c, kXR_IOError,
+                                   "proxy: upstream unavailable");
+        return NGX_DECLINED;
+    }
 
-        /*
-         * Loop guard: a permanently-rejecting upstream (bad credential, all
-         * upstreams down) would otherwise make every re-dispatch allocate a
-         * fresh proxy ctx on c->pool and reconnect, spinning the worker at
-         * event-loop rate and growing the connection pool without bound.  Once
-         * this connection has burned through its failure budget, stop retrying
-         * and return a hard error instead of spawning another proxy.
-         */
-        if (ctx->proxy_fail_count >= BRIX_PROXY_MAX_CONN_FAILS) {
-            ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                          "xrootd proxy: %ui consecutive upstream failures on "
-                          "this connection — failing request, not retrying",
-                          ctx->proxy_fail_count);
-            return brix_send_error(ctx, c, kXR_IOError,
-                                     "proxy: upstream unavailable");
-        }
+    proxy = ngx_pcalloc(c->pool, sizeof(brix_proxy_ctx_t));
+    if (proxy == NULL) {
+        *sent_rc = brix_send_error(ctx, c, kXR_IOError,
+                                   "proxy: out of memory");
+        return NGX_DECLINED;
+    }
+    for (i = 0; i < BRIX_MAX_FILES; i++) {
+        proxy->fh_map[i].fh_state = BRIX_PROXY_FH_FREE;
+    }
+    proxy->client_ctx     = ctx;
+    proxy->client_conn    = c;
+    proxy->conf           = conf;
+    brix_proxy_tap_init(proxy, c);
+    proxy->fwd_local_fh   = -1;
+    proxy->saved_local_fh = -1;
+    proxy->reconnect_left = (int) conf->proxy.reconnect_attempts;
+    proxy->splice_pipe[0] = -1;
+    proxy->splice_pipe[1] = -1;
 
-        proxy = ngx_pcalloc(c->pool, sizeof(brix_proxy_ctx_t));
-        if (proxy == NULL) {
-            return brix_send_error(ctx, c, kXR_IOError,
-                                     "proxy: out of memory");
-        }
-        for (i = 0; i < BRIX_MAX_FILES; i++) {
-            proxy->fh_map[i].upstream_fh = BRIX_PROXY_FH_FREE;
-        }
-        proxy->client_ctx     = ctx;
-        proxy->client_conn    = c;
-        proxy->conf           = conf;
-        brix_proxy_tap_init(proxy, c);
-        proxy->fwd_local_fh   = -1;
-        proxy->saved_local_fh = -1;
-        proxy->reconnect_left = (int) conf->proxy.reconnect_attempts;
-        proxy->splice_pipe[0] = -1;
-        proxy->splice_pipe[1] = -1;
-        ctx->proxy            = proxy;
+    if (host != NULL && proxy_pin_target(proxy, host, port) != NGX_OK) {
+        *sent_rc = brix_send_error(ctx, c, kXR_ArgInvalid,
+                                   "proxy: selected host too long");
+        return NGX_DECLINED;
+    }
+    ctx->proxy = proxy;
 
-        if (brix_proxy_connect(proxy, c, conf) != NGX_OK) {
-            ctx->proxy = NULL;
-            /* Count synchronous connect/selection failures too (e.g. all
-             * upstreams down) so they are bounded by the same per-connection
-             * budget as async bootstrap aborts. */
-            ctx->proxy_fail_count++;
-            return brix_send_error(ctx, c, kXR_IOError,
-                                     "proxy: upstream connect failed");
+    if (brix_proxy_connect(proxy, c, conf) != NGX_OK) {
+        ctx->proxy = NULL;
+        /* Count synchronous connect/selection failures too (e.g. all
+         * upstreams down) so they are bounded by the same per-connection
+         * budget as async bootstrap aborts. */
+        ctx->proxy_fail_count++;
+        *sent_rc = brix_send_error(ctx, c, kXR_IOError,
+                                   "proxy: upstream connect failed");
+        return NGX_DECLINED;
+    }
+    return NGX_OK;
+}
+
+/* main dispatch entry point — see proxy.h; host == NULL means the configured
+ * upstream, otherwise the session is pinned to host:port (CMS selection). */
+ngx_int_t
+brix_proxy_dispatch_to(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *host, uint16_t port)
+{
+    brix_proxy_ctx_t *proxy;
+    ngx_int_t           sent_rc;
+
+    /* lazy initialisation: connect to upstream on first dispatch; a later
+     * CMS selection naming another server re-pins the session when idle */
+    if (ctx->proxy == NULL) {
+        if (proxy_lazy_init(ctx, c, conf, host, port, &sent_rc) != NGX_OK) {
+            return sent_rc;
         }
+    } else if (host != NULL
+               && proxy_repin_idle(ctx, c, conf, host, port, &sent_rc) != NGX_OK)
+    {
+        return sent_rc;
     }
 
     proxy = ctx->proxy;
 
-    /* if bootstrap is still in progress, save this request */    if (proxy->state != XRD_PX_IDLE) {
+    /* if bootstrap is still in progress, save this request */
+    if (proxy->state != XRD_PX_IDLE) {
         size_t total = XRD_REQUEST_HDR_LEN + ctx->recv.cur_dlen;
         u_char *saved;
 
@@ -279,7 +436,7 @@ brix_proxy_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
                 return brix_send_error(ctx, c, kXR_IOError,
                                          "proxy: no free file handles");
             }
-            proxy->fh_map[local_fh].upstream_fh = 255;  /* pending */
+            proxy->fh_map[local_fh].fh_state = BRIX_PROXY_FH_PENDING;
             proxy->saved_local_fh                = local_fh;
         } else {
             proxy->saved_local_fh = -1;
@@ -290,5 +447,13 @@ brix_proxy_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
         return NGX_OK;
     }
 
-    /* upstream is ready: forward the request now */    return brix_proxy_forward_request(proxy, ctx, c);
+    /* upstream is ready: forward the request now */
+    return brix_proxy_forward_request(proxy, ctx, c);
+}
+
+ngx_int_t
+brix_proxy_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
+                      ngx_stream_brix_srv_conf_t *conf)
+{
+    return brix_proxy_dispatch_to(ctx, c, conf, NULL, 0);
 }

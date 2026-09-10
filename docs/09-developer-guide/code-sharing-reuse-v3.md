@@ -279,7 +279,7 @@ Test fixtures are shared across ALL protocol tests (`tests/conftest.py`):
 | **LOCAL/REMOTE modes** | All protocols | LOCAL=default: regenerates PKI, seeds data, starts/stops servers automatically; REMOTE=TEST_SERVER_HOST=<host>: skips local lifecycle |
 | **PKI generation** | Stream + WebDAV | Certificate and key generation for GSI auth (all protocol tests share same PKI) |
 | **Server port definitions** | All protocols | NGINX_ANON_PORT, NGINX_GSI_PORT, NGINX_TLS_PORT, NGINX_TOKEN_PORT, NGINX_S3_PORT, NGINX_WEBDAV_PORT, PROXY_STD, REF_BRIX_PORT, TEST_XRDHTTP_HTTPS_PORT etc. |
-| **Server lifecycle** | All protocols | `manage_test_servers.sh start|restart|stop` — single command starts all protocol servers |
+| **Server lifecycle** | All protocols | `python3 -m cmdscripts.manage_test_servers start-all|restart|stop` — single command starts all protocol servers |
 
 ### Shared Mental Model
 
@@ -739,7 +739,7 @@ cross-cutting concerns.
 
 #### T7: LOCAL/REMOTE Mode + Fixture Hierarchy in `docs/09-developer-guide/testing-runbook.md` (1 h)
 
-**Goal:** Add a "Test environment modes" section explaining LOCAL vs REMOTE, the shared conftest.py fixture hierarchy, the port allocation table, and when to use `manage_test_servers.sh` vs pytest-direct.
+**Goal:** Add a "Test environment modes" section explaining LOCAL vs REMOTE, the shared conftest.py fixture hierarchy, the port allocation table, and when to use `cmdscripts/manage_test_servers.py` vs pytest-direct.
 
 **Blocked by:** T5 (metrics port definitions), Phase 0 read of `testing-runbook.md`.
 
@@ -759,13 +759,13 @@ All tests support two mutually exclusive modes controlled by environment variabl
 
 | Mode | Trigger | Behavior |
 |---|---|---|
-| **LOCAL** (default) | `TEST_SERVER_HOST` not set | Regenerates PKI, seeds test data, starts all servers automatically via `manage_test_servers.sh start`; stops them after the session |
+| **LOCAL** (default) | `TEST_SERVER_HOST` not set | Regenerates PKI, seeds test data, starts all servers automatically via `python3 -m cmdscripts.manage_test_servers start-all`; stops them after the session |
 | **REMOTE** | `export TEST_SERVER_HOST=<host>` | Skips local server lifecycle; connects to a running server on the given host; PKI and data must already be in place |
 
 **LOCAL mode entry point:**
 ```bash
 # Start once manually (needed if running test subsets):
-tests/manage_test_servers.sh start
+python3 -m cmdscripts.manage_test_servers start-all
 
 # Or let pytest do it:
 PYTHONPATH=tests pytest tests/ -v
@@ -778,7 +778,7 @@ PYTHONPATH=tests pytest tests/ -v
 | Fixture | Scope | Description |
 |---|---|---|
 | `pki` | session | Generates CA, proxy cert, VOMS proxy, JWKS keypair into `tests/pki/` — runs once per pytest session |
-| `servers` | session | Calls `manage_test_servers.sh start` in LOCAL mode; no-op in REMOTE mode |
+| `servers` | session | Calls `python3 -m cmdscripts.manage_test_servers start-all` in LOCAL mode; no-op in REMOTE mode |
 | `nginx_anon_port` | session | Port for unauthenticated XRootD (default 11094) |
 | `nginx_gsi_port` | session | Port for GSI-authenticated XRootD (default 11095) |
 | `nginx_tls_port` | session | Port for TLS XRootD (default 11096) |

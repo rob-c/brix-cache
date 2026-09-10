@@ -54,6 +54,7 @@ tpc_marker_thread_func(void *data, ngx_log_t *log)
         net_policy.allow_local        = tt->conf->common.tpc_allow_local;
         net_policy.allow_private      = tt->conf->common.tpc_allow_private;
         net_policy.default_https_port = 443;
+        net_policy.dns                = tt->conf->common.dns.policy;
 
         if (brix_net_target_parse(NULL, &url_str, &net_target,
                                     ssrf_err, sizeof(ssrf_err)) != NGX_OK

@@ -5,6 +5,8 @@
 #include "observability/sesslog/sesslog_ngx.h"
 #include "core/aio/uring.h"   /* orphan in-flight uring ops on pool teardown */
 #include "protocols/root/session/offload_registry.h"  /* §1.16 admin conn map */
+#include "protocols/root/connection/peer_name.h"      /* phase-116 accept-time PTR wait */
+#include "fs/cache/cache_storage.h"   /* brix_cache_storage_cstore: tier == cache */
 
 #if (BRIX_HAVE_LIBURING)
 /*
@@ -334,7 +336,12 @@ conn_register_metrics(ngx_stream_session_t *s, ngx_connection_t *c,
 
     ctx->metrics = srv;
 
-    srv->cache_enabled = mconf->cache ? 1 : 0;
+    /* A cache is `brix_cache on` (legacy cache mode) OR a composed cache tier
+     * (`brix_cache_store`, the 2.0 grammar, which needs no flag). Keying this on
+     * the flag alone left every tier-configured export without occupancy rows
+     * (2.0 readiness F6). */
+    srv->cache_enabled = (mconf->cache
+                          || brix_cache_storage_cstore(mconf) != NULL) ? 1 : 0;
     srv->cache_eviction_threshold = mconf->cache_eviction_threshold;
     if (mconf->cache && mconf->cache_root.len < sizeof(srv->cache_root)) {
         ngx_memcpy(srv->cache_root, mconf->cache_root.data,
@@ -487,7 +494,9 @@ conn_pump(ngx_connection_t *c)
 /*
  * WHAT: Per-connection entry point for the root:// stream protocol.
  * WHY : The front door: build the connection context, apply per-server config,
- *       branch to the transparent relay if configured, then start the protocol.
+ *       branch to the transparent relay if configured, wait for the peer's
+ *       reverse-DNS name when this listener consults it (peer_name.c), then
+ *       start the protocol.
  * HOW : Flat early-return sequence of focused helpers — any helper that has
  *       already finalized the session signals it via a non-OK / NGX_DONE return,
  *       and this orchestrator returns immediately.  Byte-exact framing and
@@ -513,6 +522,9 @@ ngx_stream_brix_handler(ngx_stream_session_t *s)
     }
 
     conn_begin_session(s, c, ctx);
+    if (brix_conn_peer_name_wait(s, c, conn_pump) == NGX_AGAIN) {
+        return;                    /* the PTR answer pumps (phase-116) */
+    }
     conn_pump(c);
 }
 

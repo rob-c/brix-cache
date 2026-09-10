@@ -163,6 +163,12 @@ _FROZEN_NGINX: dict[str, Path] = {}
 # colliding with (and ETXTBSY-ing against) this process's real frozen binary.
 _FREEZE_ROOT = Path("/tmp")
 
+# Published by a multi-lane runner that froze the binary for the WHOLE run, so
+# a single lane's teardown knows the copy is not its own to remove.  Its value
+# is the frozen path, which lets a nested run tell an outer owner's marker from
+# one it published itself.
+SUITE_OWNS_FROZEN_NGINX = "TEST_SUITE_OWNS_FROZEN_NGINX"
+
 
 def _session_freeze_dir() -> Path:
     """The one freeze directory shared by every process of a test session.
@@ -447,6 +453,40 @@ def _reap_port(port: int) -> None:
         if not pids_on_port(port):
             return
         time.sleep(0.1)
+
+
+# Generated configs put a whole `server { listen ...; }` on one line, so the
+# directive cannot be anchored to the start of a line.
+_LISTEN = re.compile(r"\blisten\s+([^\s;]+)")
+
+
+def config_listen_ports(config: Path) -> list[int]:
+    """Every TCP port a generated nginx config binds, in declaration order.
+
+    ``start_nginx`` is told ONE port (the one the caller polls for readiness),
+    but a config with several ``server`` blocks binds several.  Reaping only the
+    polled port leaves a leaked squatter on the others, and nginx then dies with
+    "still could not bind()" — invisible while every scenario owned distinct
+    absolute ports, immediate once scenarios share a ladder block.
+    """
+    try:
+        text = config.read_text(errors="replace")
+    except OSError:
+        return []
+    seen: dict[int, None] = {}
+    for match in _LISTEN.finditer(text):
+        port = _listen_port(match.group(1))
+        if port is not None:
+            seen.setdefault(port, None)
+    return list(seen)
+
+
+def _listen_port(address: str) -> "int | None":
+    """Port of one `listen` address: `1.2.3.4:80`, `[::1]:80`, `*:80` or `80`."""
+    if address.startswith("unix:"):
+        return None
+    tail = address.rsplit(":", 1)[-1]
+    return int(tail) if tail.isdigit() else None
 
 
 def _nginx_error_detail(prefix: Path) -> str:

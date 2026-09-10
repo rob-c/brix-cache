@@ -22,6 +22,7 @@ Run:
 import os
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import sys
 import time
 
@@ -59,11 +60,7 @@ def _build():
     # entries vary by environment; if it fails and the binaries are absent, skip.
     out = b""
     if not (os.path.exists(NETTMO) and os.path.exists(WAIT41)):
-        r = subprocess.run(
-            ["make", "nettmo", "wait41-brix"],
-            cwd=CLIENT_DIR, env=_run_env(),
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300,
-        )
+        r = client_make(CLIENT_DIR, "nettmo", "wait41-brix", env=_run_env(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
         out = r.stdout
     if not (os.path.exists(NETTMO) and os.path.exists(WAIT41)):
         pytest.skip("client test binaries not built (run `make -C client nettmo "

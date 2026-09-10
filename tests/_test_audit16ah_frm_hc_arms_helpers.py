@@ -55,11 +55,15 @@
 #         field that does not matter.
 #   #129  `brix_frm_queue_path` is that field.  It is the ONE frm string the
 #         load-time check requires and the ONE it validates for absoluteness
-#         (tape_stage_conf.c:78-88) — and no code outside its own merge ever
-#         reads it.  Nothing opens it, creates it, or writes to it.  Under
-#         `brix_frm off` even the validation is skipped, so a relative queue path
-#         passes `nginx -t` on the config with staging disabled and fails on the
-#         one-word change that enables it.
+#         (tape_stage_conf.c).  When this audit was written no code outside its
+#         own merge read it; since 2.0 F1 (ADR-3b, 2026-09-08) it is the stage
+#         engine's durable journal directory — worker 0 creates it and the
+#         write-through flush/recall engine keeps its <reqid>.req records there
+#         — but the kXR_stage prepare registry this file measures still journals
+#         into the CONTROL dir, never the queue path.  Under `brix_frm off` the
+#         validation is skipped (the line only warns "is ignored"), so a relative
+#         queue path passes `nginx -t` on the config with staging disabled and
+#         fails on the one-word change that enables it.
 #   #130  The stage registry is a PROCESS singleton (stage_request_registry.c:407).
 #         A server block with `brix_frm on` and no control dir of its own is
 #         therefore silently joined to whatever journal another server block in
@@ -98,6 +102,7 @@ from config_parse import nginx_t
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS, PARSE_PLACEHOLDER_PORT
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from official_interop_lib import worker_reachable
 from settings import BIND_HOST, HOST, NGINX_BIN
 
 def _guard_fleet_1():
@@ -314,6 +319,9 @@ def fleet(tmp_path_factory):
     }
     for directory in dirs.values():
         directory.mkdir(parents=True)
+    # 2.0 F1: worker 0 creates the stage journal under the queue path, and a
+    # root fleet's de-escalated worker must be able to reach it.
+    worker_reachable(dirs["plain_queue"], dirs["reg_queue"])
     # One export subtree per face, each with the same seed file: the journal
     # records the LFN, so two faces sharing an export would write byte-identical
     # records and no measurement could say which of them enqueued one.

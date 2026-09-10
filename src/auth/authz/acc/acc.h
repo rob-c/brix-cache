@@ -175,12 +175,17 @@ void brix_acc_audit(ngx_log_t *log, ngx_uint_t level, int granted,
 
 /*
  * resolve.c — reverse-DNS the peer for `h <host>`/`h .domain` rule matching
- * (XrdAccAccess::Resolve).  Returns `buf` (the FQDN) on success, NULL on
- * failure (no PTR record / bad address) so the caller falls back to the IP.
- * Opt-in via brix_acc_resolve_hosts; the caller caches per connection.
+ * (XrdAccAccess::Resolve).  A never-blocking probe of the phase-116 reverse
+ * cache: NGX_OK = `buf` holds the FQDN; NGX_DECLINED = no PTR record (or not
+ * an IP peer) so the caller keeps the numeric address; NGX_AGAIN = not known
+ * yet — a background fill was started under `policy` and the numeric fallback
+ * was counted (brix_acc_dns_pending_fallback_total).  The stream accept path
+ * and the HTTP PREACCESS phase wait for the answer first, so a decision
+ * normally sees OK or DECLINED.  Opt-in via brix_acc_resolve_hosts.
  */
-const char *brix_acc_resolve_peer(struct sockaddr *sa, socklen_t salen,
-    char *buf, size_t buflen);
+struct brix_dns_policy_s;
+ngx_int_t brix_acc_resolve_peer(const struct brix_dns_policy_s *policy,
+    const struct sockaddr *sa, socklen_t salen, char *buf, size_t buflen);
 
 /*
  * brix_acc_http_t — the XrdAcc engine settings + per-worker state shared by
@@ -199,6 +204,12 @@ typedef struct {
     ngx_uint_t   format;        /* [brix_authdb_engine (stream) | brix_acc_format (HTTP)] native|xrdacc */
     ngx_uint_t   audit;         /* [brix_acc_audit] */
     ngx_str_t    authdb;        /* [brix_authdb <path>] */
+    /* 2.0 F20: the first native-grammar defect found while parsing `authdb`,
+     * already rendered as an operator message ("brix_authdb "<f>" line N: ...").
+     * The directive cannot refuse it there — `format` has not settled yet and
+     * the same file is also parsed by the xrdacc engine — so the merge calls
+     * brix_authdb_defect_refuse() once `format` is final.  Empty = clean. */
+    ngx_str_t    authdb_defect;
     ngx_int_t    refresh;       /* [brix_acc_refresh] secs; 0=off */
     ngx_int_t    gidlifetime;   /* [brix_acc_gidlifetime] */
     ngx_flag_t   pgo;           /* [brix_acc_pgo] primary group only */
@@ -228,6 +239,16 @@ ngx_int_t brix_acc_http_authorize(ngx_pool_t *pool, ngx_log_t *log,
 /* config.c (RB1) — default-init / merge an HTTP acc block (loc-conf helpers). */
 void brix_acc_http_init_conf(brix_acc_http_t *acc);
 void brix_acc_http_merge_conf(brix_acc_http_t *conf, brix_acc_http_t *prev);
+
+/*
+ * 2.0 F20: turn a deferred native-grammar defect (see `authdb_defect` above)
+ * into an `nginx -t` failure — but only when `format` is the native engine, an
+ * XrdAcc-format authdb being legitimately unparseable by the native grammar.
+ * Called from the two merge sites once `format` is final; NGX_CONF_OK when the
+ * file was clean or the xrdacc engine owns it.  Defined in authdb_grammar.c.
+ */
+char *brix_authdb_defect_refuse(ngx_conf_t *cf, ngx_uint_t format,
+    const ngx_str_t *defect);
 
 /* Shared directive enum tables for `brix_authdb_engine` / `_audit`. */
 extern ngx_conf_enum_t  brix_acc_format_modes[];

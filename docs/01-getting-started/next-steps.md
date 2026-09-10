@@ -1,5 +1,14 @@
 # Next steps: contributor experience and code structure
 
+> **Status (2026-09-09 — 2.0).** Historical record: every phase on this page is
+> **✓ DONE**, and it is kept for the reasoning, not as a task list. It names files at
+> their *pre-reorganisation* paths (phases 66/67/69 moved nearly every source file), so
+> do not follow a path from here — use the OP→FILE tables in
+> [`agent-guide-extended.md`](../09-developer-guide/agent-guide-extended.md) instead. For
+> what the project ships today, see the [2.0 register](../10-reference/release-2.0-readiness.md).
+
+<!-- doc-paths:off -->
+
 The XRootD data-server opcode set is implemented and the module is functionally complete for WLCG-style POSIX data-server deployments. This page maps the next wave of work: making the codebase easier for contributors to read, navigate, extend, and debug.
 
 Items are ordered by risk and payoff. **Start with Phase 1 — documentation
@@ -297,3 +306,5 @@ diff /etc/hostname /tmp/out.txt
 
 For documentation-only changes (Phase 1), only the build check is required.
 For source moves (Phases 2–4), all three checks are required.
+
+<!-- doc-paths:on -->

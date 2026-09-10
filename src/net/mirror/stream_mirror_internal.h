@@ -47,6 +47,7 @@ typedef struct {
     ngx_log_t         *log;
     brix_mir_phase_t phase;
     unsigned           connecting:1;
+    brix_dns_target_t *dns;           /* registry target of this shadow */
 
     /* Response accumulator (mirrors the health-check probe). */
     u_char    rhdr[XRD_RESPONSE_HDR_LEN];

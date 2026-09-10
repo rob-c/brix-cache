@@ -65,6 +65,7 @@ admin_proxy_backend_json(const brix_proxy_be_snapshot_t *e)
     switch (e->state) {
     case BRIX_PROXY_BE_DRAINING: state = "draining"; break;
     case BRIX_PROXY_BE_DEAD:     state = "dead";     break;
+    case BRIX_PROXY_BE_RESOLVING: state = "resolving"; break;
     default:                       state = "active";   break;
     }
     json_object_set_new(o, "id",        json_integer(e->id));

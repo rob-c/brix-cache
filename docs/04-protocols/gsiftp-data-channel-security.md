@@ -4,7 +4,9 @@
 > up to full GSI security (DCAU + `PROT P`), proven with the real
 > `globus-url-copy` client. Companion to the plan in
 > [../refactor/phase-82-gridftp-gateway.md](../refactor/phase-82-gridftp-gateway.md).
-> Code: `src/protocols/gridftp/ftp_handler.c`, `src/auth/gssapi/gsi_mech.{c,h}`.
+> Code: `src/protocols/gridftp/` (module + directives in `ftp_module.c`, the
+> non-blocking command/data engine under `src/protocols/gridftp/ev/`, data-channel
+> security in `ftp_dc_sec.c`), `src/auth/gssapi/gsi_mech.c` and `gsi_mech.h`.
 > Tests: `tests/test_gridftp_gsiftp.py` (7/7 green, incl. `-dcpriv` GET+PUT).
 >
 > The last section compares this design head-to-head with the `root://`

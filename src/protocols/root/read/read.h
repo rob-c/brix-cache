@@ -47,6 +47,24 @@ ngx_int_t brix_read_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t brix_fsoverload_backoff(brix_ctx_t *ctx, ngx_connection_t *c,
                                     ngx_stream_brix_srv_conf_t *rconf);
 
+/* ---- Function: brix_read_io_error() ----
+ * The shared terminal response for a read-side I/O errno (§4.5). EAGAIN is NOT
+ * a failure on this path: it is the serve-while-filling follower saying "the
+ * bytes you asked for have not been pumped yet" (sd_cache_follow.c), so it
+ * becomes kXR_wait(BRIX_FILL_WAIT_SECS) and the client retries the same read.
+ * Every other errno keeps today's kXR_IOError + strerror() triplet.
+ *
+ * Called from every read/readv/pgread serve strategy that holds a driver errno,
+ * so a followed object behaves identically whichever strategy the config picks.
+ * Returns the send's rc; `sid` selects the streamid (0 = the current request's).
+ */
+ngx_int_t brix_read_io_error(brix_ctx_t *ctx, ngx_connection_t *c, int err);
+
+/* kXR_wait seconds for a read that caught up with an in-flight fill's frontier.
+ * Short on purpose: the frontier moves at the origin's pace, so a long stall
+ * would idle a client that could already have been served. */
+#define BRIX_FILL_WAIT_SECS  1
+
 /* ---- Function: brix_handle_readv() ----
  * Handles kXR_readv opcode — multi-segment scatter-gather read returning interleaved data chunks.
  * Validates segment list (count <= BRIX_READV_MAX_SEGS), validates each handle, caps per-segment rlen,

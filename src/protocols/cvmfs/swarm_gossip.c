@@ -19,8 +19,8 @@
 #include "core/aio/aio.h"                  /* brix_task_bind */
 #include "fs/tier/tier.h"                  /* brix_tier_build */
 #include "fs/vfs/vfs_backend_registry.h"
+#include "net/dns/dns.h"                   /* brix_dns_resolve_sync (phase-116) */
 
-#include <netdb.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -34,9 +34,10 @@ static void
 cvmfs_swarm_thread(void *data, ngx_log_t *log)
 {
     cvmfs_swarm_ctx_t *sw = data;
-    struct addrinfo    hints, *res = NULL, *ai;
+    brix_dns_addr_t    addrs[BRIX_DNS_MAX_ADDRS];
     struct timeval     tv = { CVMFS_SWARM_IO_TIMEOUT_S, 0 };
-    char               portstr[8], req[512];
+    char               req[512], reason[BRIX_DNS_ERROR_LEN];
+    ngx_uint_t         i, naddrs;
     int                fd = -1, n;
     ssize_t            got;
     size_t             off = 0;
@@ -46,27 +47,24 @@ cvmfs_swarm_thread(void *data, ngx_log_t *log)
     sw->probe_ok = 0;
     sw->resp_len = 0;
 
-    ngx_memzero(&hints, sizeof(hints));
-    hints.ai_family   = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    (void) snprintf(portstr, sizeof(portstr), "%d", sw->probe_port);
-    if (getaddrinfo(sw->probe_host, portstr, &hints, &res) != 0) {
-        return;
-    }
-    for (ai = res; ai != NULL; ai = ai->ai_next) {
-        fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+    /* phase-116: the export's resolver policy, never getaddrinfo() */
+    naddrs = brix_dns_resolve_sync(sw->reg->dns, sw->probe_host,
+                                   (in_port_t) sw->probe_port, BRIX_AF_AUTO,
+                                   SOCK_STREAM, addrs, BRIX_DNS_MAX_ADDRS,
+                                   reason, sizeof(reason));
+    for (i = 0; i < naddrs; i++) {
+        fd = socket(addrs[i].ss.ss_family, SOCK_STREAM, 0);
         if (fd < 0) {
             continue;
         }
         (void) setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
         (void) setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-        if (connect(fd, ai->ai_addr, ai->ai_addrlen) == 0) {
+        if (connect(fd, (struct sockaddr *) &addrs[i].ss, addrs[i].len) == 0) {
             break;
         }
         close(fd);
         fd = -1;
     }
-    freeaddrinfo(res);
     if (fd < 0) {
         return;
     }

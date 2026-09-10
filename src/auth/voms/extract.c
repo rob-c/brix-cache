@@ -3,23 +3,10 @@
 #include <limits.h>
 
 /*
- * WHAT: Caller-owned output destinations for extracted VO membership — the
- * primary VO name and the comma-separated VO/FQAN list, each with its buffer
- * size.
- *
- * WHY: Bundling the four output parameters into one struct keeps the internal
- * helpers within the ≤5-parameter limit without changing the frozen public
- * signature of brix_extract_voms_info().
- *
- * HOW: Populated once in the entry point from its parameters and passed by
- * pointer to the reset and retrieve/collect helpers.
+ * The caller-owned output bundle (primary_vo / vo_list / fqan_list) now lives in
+ * auth/voms/voms_io.h, so the HTTP side can name the same type without pulling
+ * in the stream umbrella header.  voms_internal.h includes it.
  */
-typedef struct {
-    char   *primary_vo;
-    size_t  primary_vo_sz;
-    char   *vo_list;
-    size_t  vo_list_sz;
-} brix_voms_out_t;
 
 /*
  * WHAT: Public entry point for extracting VOMS virtual organisation membership
@@ -98,12 +85,13 @@ brix_voms_path_to_buf(const ngx_str_t *src, char *dst)
 }
 
 /*
- * WHAT: Reset the caller's primary-VO and VO-list output buffers to empty.
+ * WHAT: Reset every requested output buffer to empty.
  *
  * WHY: Callers expect well-defined (empty) output even when no VOMS data is
  * found. Keeping this together documents the output contract in one place.
  *
- * HOW: Terminate each buffer at offset 0 when present and non-zero-sized.
+ * HOW: Terminate each buffer at offset 0 when present and non-zero-sized.  The
+ * 2.0 F20 fqan_list is optional — an older caller leaves it NULL.
  */
 static void
 brix_voms_reset_outputs(const brix_voms_out_t *out)
@@ -113,6 +101,9 @@ brix_voms_reset_outputs(const brix_voms_out_t *out)
     }
     if (out->vo_list != NULL && out->vo_list_sz > 0) {
         out->vo_list[0] = '\0';
+    }
+    if (out->fqan_list != NULL && out->fqan_list_sz > 0) {
+        out->fqan_list[0] = '\0';
     }
 }
 
@@ -190,27 +181,34 @@ brix_voms_retrieve_and_collect(ngx_log_t *log, X509 *leaf,
         return NGX_DECLINED;
     }
 
-    return brix_collect_voms_vos(vd, out->primary_vo, out->primary_vo_sz,
-                                   out->vo_list, out->vo_list_sz);
+    return brix_collect_voms_vos(vd, out);
 }
 
+/*
+ * WHAT: brix_extract_voms_fqans — the full-fidelity entry point: everything
+ *       brix_extract_voms_info() produces, plus the raw-FQAN CSV.
+ * WHY:  2.0 F20 — the VO-name views cannot carry a VOMS role (their safety
+ *       predicate rejects '/'), so an identity built from them alone has an
+ *       empty acc_role_csv and the authdb `l` selector / XrdAcc `role` template
+ *       can never match.  Callers that build an identity want this form;
+ *       callers that only gate on VO membership can keep the older one.
+ * HOW:  identical pipeline; `out` simply carries one more destination.  The
+ *       chain input is bundled through brix_voms_in_t so the signature stays
+ *       within the five-parameter limit.
+ */
 ngx_int_t
-brix_extract_voms_info(ngx_log_t *log, X509 *leaf, STACK_OF(X509) *chain,
+brix_extract_voms_fqans(ngx_log_t *log, const brix_voms_in_t *in,
     const ngx_str_t *vomsdir, const ngx_str_t *cert_dir,
-    char *primary_vo, size_t primary_vo_sz, char *vo_list, size_t vo_list_sz)
+    const brix_voms_out_t *out)
 {
     struct voms_data *vd;
+    X509            *leaf = in->leaf;
+    STACK_OF(X509)  *chain = in->chain;
     STACK_OF(X509)  *voms_chain = NULL;
     char             vomsdir_buf[PATH_MAX];
     char             cert_dir_buf[PATH_MAX];
     int              chain_ok = 0;
     ngx_int_t        rc;
-    brix_voms_out_t  out;
-
-    out.primary_vo = primary_vo;
-    out.primary_vo_sz = primary_vo_sz;
-    out.vo_list = vo_list;
-    out.vo_list_sz = vo_list_sz;
 
     rc = brix_voms_precheck(leaf, vomsdir, cert_dir, sizeof(vomsdir_buf));
     if (rc != NGX_OK) {
@@ -219,7 +217,7 @@ brix_extract_voms_info(ngx_log_t *log, X509 *leaf, STACK_OF(X509) *chain,
 
     brix_voms_path_to_buf(vomsdir, vomsdir_buf);
     brix_voms_path_to_buf(cert_dir, cert_dir_buf);
-    brix_voms_reset_outputs(&out);
+    brix_voms_reset_outputs(out);
 
     vd = brix_voms_api.init(vomsdir_buf, cert_dir_buf);
     if (vd == NULL) {
@@ -232,11 +230,37 @@ brix_extract_voms_info(ngx_log_t *log, X509 *leaf, STACK_OF(X509) *chain,
         return NGX_ERROR;
     }
 
-    rc = brix_voms_retrieve_and_collect(log, leaf, voms_chain, vd, &out);
+    rc = brix_voms_retrieve_and_collect(log, leaf, voms_chain, vd, out);
 
     if (voms_chain != NULL) {
         sk_X509_free(voms_chain);
     }
     brix_voms_api.destroy(vd);
     return rc;
+}
+
+/*
+ * brix_extract_voms_info — the pre-2.0 signature, kept for the callers that
+ * only need VO membership (cvmfs secure_x509.c and anything gating on
+ * brix_require_vo).  Delegates to brix_extract_voms_fqans with no FQAN sink,
+ * which the collector reads as "this caller does not want the raw FQANs".
+ */
+ngx_int_t
+brix_extract_voms_info(ngx_log_t *log, X509 *leaf, STACK_OF(X509) *chain,
+    const ngx_str_t *vomsdir, const ngx_str_t *cert_dir,
+    char *primary_vo, size_t primary_vo_sz, char *vo_list, size_t vo_list_sz)
+{
+    brix_voms_in_t   in;
+    brix_voms_out_t  out;
+
+    in.leaf = leaf;
+    in.chain = chain;
+
+    ngx_memzero(&out, sizeof(out));
+    out.primary_vo = primary_vo;
+    out.primary_vo_sz = primary_vo_sz;
+    out.vo_list = vo_list;
+    out.vo_list_sz = vo_list_sz;
+
+    return brix_extract_voms_fqans(log, &in, vomsdir, cert_dir, &out);
 }

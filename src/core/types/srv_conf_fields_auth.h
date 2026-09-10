@@ -59,6 +59,18 @@
                                      <hash>.signing_policy file is present) */
     ngx_uint_t  crl_mode;         /* [brix_crl_mode off|try|require]
                                      BRIX_CRL_MODE_*; default TRY */
+    ngx_uint_t  crl_scope;        /* [brix_crl_scope all|last] BRIX_CRL_SCOPE_*;
+                                     default ALL.  `last` checks only the
+                                     certificate's own issuer's CRL (stock
+                                     xrd.tlsca `crlcheck last`); it narrows the
+                                     REACH of revocation, never its strictness —
+                                     a revoked leaf is refused under both. */
+    ngx_uint_t  tls_verify_log;   /* [brix_tls_verify_log off|failure|all]
+                                     BRIX_TLS_VERIFY_LOG_*; default OFF.  Adds
+                                     per-certificate subject DNs (never key
+                                     material, never PEM) to the error log for
+                                     a rejected chain (failure) or every chain
+                                     (all). */
 
     /* ---- VO access-control lists ---- */
     ngx_array_t  *authdb_rules; /* brix_authdb_rule_t[] parsed from authdb (native) */
@@ -192,6 +204,8 @@
     /* ---- Simple Shared Secret settings (used when auth = sss) ---- */
     ngx_str_t    sss_keytab;    /* [brix_sss_keytab /etc/xrootd/sss.keytab] */
     time_t       sss_lifetime;  /* credential lifetime in seconds; default 13 */
+    ngx_flag_t   sss_getcreds;  /* [brix_sss_getcreds on|off] keep a v2 proxied
+                                   CRED field; off (default) drops it (F9) */
     ngx_array_t *sss_keys;      /* brix_sss_key_t[] parsed from sss_keytab */
 
     /* ---- Kerberos 5 settings (used when auth = krb5) ---- */
@@ -209,6 +223,13 @@
                                        of exact hostnames or ".suffix" domain
                                        suffixes; the reverse-resolved peer host
                                        must match one.  NULL/empty = deny all. */
+
+    /* ---- Space groups (phase-115 W3.3; stock oss.space / oss.cgroup) ---- */
+    ngx_array_t *oss_spaces;        /* [brix_oss_space <group> <prefix> [quota=]]
+                                       brix_oss_space_t[] (core/config/
+                                       space_group_conf.h); NULL = none declared,
+                                       the export is one group (brix_oss_cgroup +
+                                       brix_oss_quota). Longest prefix owns a path. */
 
     /* ---- Pwd auth settings (used when auth = pwd) — Phase 52 WS-B ---- */
     ngx_int_t    auth_maxfail;      /* [brix_auth_maxfail <n>] §5.7: failed auth

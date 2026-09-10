@@ -27,7 +27,7 @@ everything below and are the single most common source of confusion:
    turned into a distinct local login that owns the bytes on disk.
 
    > **Optional (phase 40):** impersonation *can* be enabled with
-   > `brix_impersonation map` (off by default), which runs each open/metadata
+   > `brix_idmap map` (off by default), which runs each open/metadata
    > op as the mapped local user via a privileged broker — so files are owned by,
    > and kernel DAC is enforced for, the real user. This is a deliberate
    > security-posture change (the master runs as root) and is documented
@@ -416,6 +416,37 @@ brix_sss_keytab  /etc/brix/sss.keytab;
 defer to the user/group inside the presented credential. Change the mapping by
 editing the keytab and reloading nginx.
 
+**What else the credential may assert (2.0).** Besides the user and group, an
+SSS credential can carry a VO (`vorg`), a role, a group list, an endorsements
+blob and a proxied credential — the full `XrdSecEntity` breadth. BriX parses
+all of them and then applies the keytab's policy:
+
+- a key that **pins** the identity (`u:`/`g:`, no `anybody`/`allusers`) drops
+  the client-asserted VO, role and endorsements, logging
+  `SSS entity fields dropped: keytab pins the identity` — so a `u:svccms g:cms`
+  key stays exactly as forceful as §6.4 describes and the holder cannot
+  decorate itself with a VO you never granted;
+- a key that **defers** (`anybody`/`allusers`) lets them through, where they
+  land in the connection's VO/role attributes and are visible to the authz
+  engine like any VOMS FQAN;
+- a proxied credential is dropped unless `brix_sss_getcreds on` is set.
+
+The accept line records the outcome:
+`brix: SSS auth OK user="svccms" group="cms" vorg="cms" role="production" endo=0 creds=0`.
+
+On the client side `xrdfs`/`xrdcp` assert the fields with `--sss-vorg VO`,
+`--sss-role ROLE`, `--sss-endorse TEXT` and `--sss-creds-file PATH`, and
+`--sss-sndlid` uses the two-round form in which the *server* names the login
+id. A multiplexing front end — a FUSE mount under `allow_other`, a gateway, a
+batch mover — instead registers one entity per login id through the
+per-connection identity registry (`client/lib/auth/sss/sss_id.h`, the
+`XrdSecsssID` contract): lookup is exact and a miss is a hard authentication
+failure, never a silent fallback to the process identity, because that fallback
+is precisely how one user's request gets presented under another user's name.
+
+To forward the *client's* identity from a tap proxy rather than the proxy's own
+keytab account, see `brix_tap_proxy_sss_identity client`.
+
 ### 6.5 Give a GSI/VOMS DN local-UNIX-group membership
 
 Because `getpwnam(DN)` fails (§3.1), a raw DN never picks up `/etc/group`. Two
@@ -595,6 +626,8 @@ u *         /data  rl                 # everyone else: read
 | `brix_acc_audit` (HTTP: `brix_acc_audit`) | stream srv / HTTP loc | `none`\|`deny`\|`grant`\|`all` | log authz decisions |
 | `brix_require_vo` | srv | `<path> <vo>` | tier-2 VO requirement on a prefix |
 | `brix_sss_keytab` | srv | `<path>` | SSS credential → fixed UNIX user/group |
+| `brix_sss_getcreds` | srv | `on`\|`off` | keep a proxied credential carried inside an SSS credential (default off) |
+| `brix_tap_proxy_sss_identity` | srv | `keytab`\|`client` | which identity the tap proxy presents upstream |
 | `brix_inherit_parent_group` | srv | `<path>` | created files/dirs inherit parent group + setgid |
 | `brix_acc_gidlifetime` | srv / loc | `<secs>` | OS-group cache TTL (default 43200) |
 | `brix_acc_pgo` | srv / loc | `on`\|`off` | resolve primary group only |

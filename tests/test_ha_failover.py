@@ -19,9 +19,9 @@ Requirements:
 
 These tests are SKIPPED when HAProxy is not detected on HA_HAPROXY_PORT.
 They require the ha-failover server group to be started:
-    manage_test_servers.sh start-ha
+    cmdscripts/manage_test_servers.py start-ha
 
-To add this group, configure in manage_test_servers.sh:
+To add this group, configure in cmdscripts/manage_test_servers.py:
     - haproxy with round-robin to HA_NGINX1_PORT and HA_NGINX2_PORT
     - two nginx instances each serving DATA_ROOT
 
@@ -66,7 +66,7 @@ from settings import (
 from server_launcher import launch_fleet_nginx
 
 # The HA group is a standing fleet (haproxy + two fixed-port nginx, brought up by
-# `manage_test_servers.sh start-ha`), not a per-test harness; the only nginx the
+# `cmdscripts/manage_test_servers.py start-ha`), not a per-test harness; the only nginx the
 # test starts itself is the restart of the member it kills, routed through the
 # registry's fleet-relaunch seam.  The marker keeps this out of the direct-launch
 # lint scope.
@@ -98,7 +98,7 @@ def ha_cluster():
         if not _wait_port(SERVER_HOST, port, timeout=10.0):
             pytest.skip(
                 f"HA cluster not available ({label} on port {port}). "
-                "Run: manage_test_servers.sh start-ha"
+                "Run: cmdscripts/manage_test_servers.py start-ha"
             )
     return {
         "haproxy_port": HA_HAPROXY_PORT,

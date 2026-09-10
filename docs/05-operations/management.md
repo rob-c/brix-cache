@@ -81,11 +81,14 @@ status, _ = fs.chmod("/store/mc/file.root", AccessMode.UR | AccessMode.UW | Acce
 
 #### Checksum (`QueryCode.CHECKSUM`)
 
-Returns a checksum for a file. The server supports multiple algorithms; the
-default is `adler32` (8 hex digits). You can explicitly request `crc32c`,
-`md5`, `sha1` or `sha256` by prefixing the path with the algorithm token using
-either `"<alg>:<path>"` or `"<alg> <path>"` (for example
-`sha256:/store/mc/sample.root`).
+Returns a checksum for a file. The default is `adler32` (8 hex digits), or
+whatever `brix_checksum_default` names. Ten algorithms are built in — `adler32`,
+`crc32`, `crc32c`, `crc64`, `crc64nvme`, `zcrc32`, `md5`, `sha1`, `sha256`,
+`sha512` — and any algorithm a site registers with `brix_checksum_plugin` is
+requestable by its own name here too. Ask for one by prefixing the path with the
+algorithm token using either `"<alg>:<path>"` or `"<alg> <path>"` (for example
+`sha256:/store/mc/sample.root`). The same names are what Qconfig `chksum`
+advertises, so a client can negotiate rather than guess.
 
 ```bash
 xrdfs localhost:1094 query checksum /store/mc/sample.root
@@ -233,6 +236,20 @@ queued/staging/failed/available states for known requests, and `kXR_cancel`
 removes matching queued work. `kXR_evict` is accepted as a backend-delegated
 operation; deployments that require exact tape purge or MSS behavior must test
 against their storage manager.
+
+2.0 made the queue and its stage program site-configurable, matching upstream's
+`frm.xfr` conventions:
+
+| Directive | What it controls |
+|---|---|
+| `brix_frm_queue_path <dir>` | Where the durable queue lives. Default is under the module's state directory; point it at shared storage when several workers must see one queue |
+| `brix_frm_stagecmd <program> [args…]` | The stage program invoked per request, with upstream's argument convention |
+| `brix_frm_stagemsg <template>` | The message string handed to that program, expanded with the request's own fields |
+| `brix_frm_purge_policy <spec>` | Purge policy for space reclamation |
+| `brix_frm_purge_polprog <program>` | An external decision program consulted per candidate when the built-in policy is not enough |
+
+See [directives.md](../03-configuration/directives.md) for each one's exact
+grammar, default, and context.
 
 With FRM disabled, the legacy local-storage behavior remains: `kXR_prepare`
 performs path validation/existence checks, may invoke `prepare_command` as a

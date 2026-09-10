@@ -216,14 +216,14 @@ so the deviation is a conscious decision, not an oversight.
 
 ```bash
 # Layer 1 — C unit (fast, no fleet)
-tests/run_token_conformance.sh
+PYTHONPATH=tests pytest tests/test_cmd_token_conformance.py -v
 
 # Layer 2 — live-fleet wire (needs the fleet)
-tests/manage_test_servers.sh start-all
+(cd tests && python3 -m cmdscripts.manage_test_servers start-all)
 PYTHONPATH=tests pytest tests/test_wlcg_token_conformance_*.py -v
 
 # Layer 3 — differential vs stock XRootD (opt-in)
-TEST_TOKEN_DIFF=1 tests/run_token_differential.sh
+TEST_TOKEN_DIFF=1 PYTHONPATH=tests pytest tests/test_cmd_token_differential.py -v
 ```
 
 **Operational note:** any rebuild that runs `start-all` desyncs the dedicated

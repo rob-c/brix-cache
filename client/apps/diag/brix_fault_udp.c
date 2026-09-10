@@ -19,10 +19,10 @@
 #endif
 
 #include "brix_fault_proxy_state.h"
+#include "net/resolve.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
-#include <netdb.h>
 #include <poll.h>
 #include <stdlib.h>
 #include <string.h>
@@ -72,20 +72,15 @@ udp_elapsed_ms(const struct timespec *t0)
 static int
 udp_dial(const char *host, int port)
 {
-    char portstr[16];
-    snprintf(portstr, sizeof(portstr), "%d", port);
-    struct addrinfo hints = { 0 }, *res = NULL;
-    hints.ai_family   = AF_UNSPEC;
-    hints.ai_socktype = SOCK_DGRAM;
-    if (getaddrinfo(host, portstr, &hints, &res) != 0 || !res) {
+    brix_resolve_addr a;
+    if (brix_resolve(host, port, AF_UNSPEC, SOCK_DGRAM, 0, &a, 1, NULL) <= 0) {
         return -1;
     }
-    int fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if (fd >= 0 && connect(fd, res->ai_addr, res->ai_addrlen) != 0) {
+    int fd = socket(a.family, a.socktype, a.protocol);
+    if (fd >= 0 && connect(fd, (struct sockaddr *) &a.ss, a.len) != 0) {
         close(fd);
         fd = -1;
     }
-    freeaddrinfo(res);
     return fd;
 }
 

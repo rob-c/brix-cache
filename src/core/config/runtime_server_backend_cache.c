@@ -215,6 +215,9 @@ brix_tier_fill_cache_policy(ngx_http_brix_shared_conf_t *common,
                       ? 0 : (ngx_uint_t) common->cache_prefetch;
     pol.prefetch_window = (common->cache_prefetch_window == NGX_CONF_UNSET_SIZE)
                         ? 8 * 1024 * 1024 : common->cache_prefetch_window;
+    /* 2.0 F5 brix_cache_urlcgi: an unmerged sentinel means ignored, like the
+     * merged default. */
+    pol.urlcgi = brix_cache_urlcgi_conf_effective(&common->cache_urlcgi);
     /* Cache-only serving (audit §4.4): a miss must NOT reach the origin. */
     pol.only_if_cached  = (common->cache_only_if_cached == 1);
     /* phase-68 digest-verification mode — the posix-store constraint it
@@ -222,8 +225,20 @@ brix_tier_fill_cache_policy(ngx_http_brix_shared_conf_t *common,
     pol.verify = (common->cache_verify_mode == NGX_CONF_UNSET_UINT)
                ? BRIX_CACHE_VERIFY_OFF
                : (brix_cache_verify_mode_e) common->cache_verify_mode;
+    /* 2.0: the digest a non-xroot origin is asked for (empty when unset). */
+    if (common->cache_verify_digest.len > 0
+        && common->cache_verify_digest.len < sizeof(pol.verify_digest))
+    {
+        ngx_cpystrn((u_char *) pol.verify_digest,
+                    common->cache_verify_digest.data,
+                    common->cache_verify_digest.len + 1);
+    }
     pol.cvmfs_manifest_ttl = common->cache_manifest_ttl;
     pol.cvmfs_offline_ttl  = common->cache_offline_ttl;
+    /* §4.5 serve-while-filling: unset/negative → 0 (off). */
+    pol.serve_while_filling = (common->cache_serve_while_filling == NGX_CONF_UNSET
+                               || common->cache_serve_while_filling < 0)
+                            ? 0 : common->cache_serve_while_filling;
     /* §4.3 uvkeep: unset/negative → 0 (off). */
     pol.uvkeep = (common->cache_uvkeep == NGX_CONF_UNSET
                   || common->cache_uvkeep < 0)
@@ -352,6 +367,7 @@ brix_tier_register_cache_store(ngx_conf_t *cf,
     {
         return NGX_ERROR;                      /* [emerg] already logged */
     }
+    cfg.dns = common->dns.policy;              /* phase-116 origin resolver */
     brix_tier_fill_cache_policy(common, &pol);
     sdrv = brix_sd_driver_find(cfg.driver);
 
@@ -380,6 +396,24 @@ brix_tier_register_cache_store(ngx_conf_t *cf,
         {
             return NGX_ERROR;                  /* [emerg] already logged */
         }
+        /* Phase-115 W4.2: a `ram:` store is legal as the HOT cache only.
+         * The cold tier exists to hold what the hot tier demotes — bytes the
+         * operator wants OFF the fast store and off the origin.  Backing it
+         * with per-worker memory inverts that: the demotion target would be
+         * costlier and more volatile than the tier demoting into it, and a
+         * reload would drop the demoted copy while the hot store on disk
+         * survived.  The tier parse cannot tell hot from cold (both come in
+         * as BRIX_TIER_CACHE), so the refusal belongs here, where the cold
+         * store is already checked against its hot tier.  capacity != 0 is
+         * the ram driver's signature — no other store sets it. */
+        if (ccfg.capacity != 0) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_cache_cold_store: a ram: store is only valid as the hot "
+                "cache store (brix_cache_store) — a memory cold tier is "
+                "costlier and more volatile than the tier demoting into it");
+            return NGX_ERROR;
+        }
+        ccfg.dns = common->dns.policy;
         brix_vfs_backend_config_cache_cold_store(common->root_canon, &ccfg);
     }
 

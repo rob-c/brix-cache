@@ -47,7 +47,8 @@ distinct from the inline transparent-forwarding *proxy mode* (`src/net/proxy/`,
 | `start.c` | `brix_upstream_start()` — allocate the upstream context, save the client's opcode/streamid/path/options, resolve the address (pre-resolved `upstream_addr` fast path vs. per-request `getaddrinfo()` fallback), create a non-blocking socket + `ngx_connection_t`, build the bootstrap byte buffer, and issue `connect()`. |
 | `bootstrap.c` | The bootstrap state machine. `brix_upstream_build_bootstrap()` lays the handshake (12 zeros + version words) + `ClientProtocolRequest` + `ClientLoginRequest` into one buffer; `brix_upstream_handle_bootstrap_response()` drives `HANDSHAKE → PROTOCOL → [TLS] → LOGIN → [AUTH] → DONE`, detecting `kXR_gotoTLS` and `kXR_authmore`. `brix_upstream_build_login()` rebuilds a fresh login for the post-TLS resend. |
 | `tls.c` | `(NGX_SSL)` outbound TLS upgrade. `brix_upstream_start_tls()` wraps the live TCP connection in SSL (client mode), sets SNI (override directive wins, else host), and starts the handshake; `brix_upstream_tls_handshake_done()` is the `ssl->handler` callback that restores the normal read/write handlers and resends `kXR_login` over the encrypted channel. |
-| `auth.c` | `brix_upstream_send_token_auth()` — when the server answers login with `kXR_authmore`/"ztn", synchronously read the configured WLCG/JWT token file and emit a `kXR_auth` frame (`"ztn\0"` credtype in both header and payload), advancing to `XRD_UP_BS_AUTH`. |
+| `auth.c` | `brix_upstream_send_auth_frame()` — the one `kXR_auth` framer (client streamid echo, 4-byte credtype slot, payload), advancing to `XRD_UP_BS_AUTH`; `brix_upstream_send_token_auth()` reads the configured WLCG/JWT token file synchronously and sends it as `"ztn\0"` + JWT. |
+| `auth_gsi.c` | Phase 115 W2.4: the two client-side GSI rounds — `brix_upstream_send_gsi_certreq()` (signed-DH `kXGC_certreq` from the advert parms via the shared `gsi_core` wrapper) and `brix_upstream_gsi_respond()` (verify the server's `kXRS_x509` leaf against `conf->gsi_store` with `brix_gsi_verify_peer_leaf`, load `brix_upstream_x509_proxy`/`_key` via `auth/gsi/cred_load`, build the `kXGC_cert` answer with `brix_gsi_build_cert_response`). Byte-identical on the wire to the cache origin and the TPC destination. |
 | `request.c` | Outbound request serialization + write flushing. `brix_upstream_send_request()` builds the wire frame for `kXR_locate`/`kXR_open`/`kXR_stat` from the saved client request and moves to `XRD_UP_REQUEST`; `brix_upstream_flush()` is the shared non-blocking write-drain helper (NGX_OK / NGX_AGAIN / NGX_ERROR) used by every send site. |
 | `events.c` | The three event-loop callbacks: `brix_upstream_write_handler()` (detects TCP connect completion via `SO_ERROR`, drains partial writes), `brix_upstream_read_handler()` (accumulates a `ServerResponseHdr` + bounded body, then dispatches to bootstrap vs. forward), and `brix_upstream_wait_timer_handler()` (re-sends the request when a `kXR_wait` timer expires). |
 | `response.c` | `brix_upstream_forward_response()` — translate the backend reply for the client: rewrap with a fresh header carrying the *client's* streamid, then handle `kXR_redirect` / `kXR_ok` / `kXR_error` (terminal), `kXR_wait` (schedule retry), and `kXR_waitresp` (go async, tell client to wait). |
@@ -60,7 +61,7 @@ distinct from the inline transparent-forwarding *proxy mode* (`src/net/proxy/`,
 - **`brix_up_bs_t`** — ordered bootstrap phases: `HANDSHAKE → PROTOCOL → TLS → LOGIN → AUTH → DONE`. Each phase consumes one server response; reaching `DONE` triggers `brix_upstream_send_request()`.
 - **`brix_up_state_t`** — coarse connection state used by the read handler to choose its dispatch: `CONNECTING` (awaiting `SO_ERROR`), `BOOTSTRAP` (responses → state machine), `REQUEST` (response → `forward_response`), `ASYNC` (post-`kXR_waitresp`, also → `forward_response`).
 - **`BRIX_UP_WAIT_MAX`** (60) — ceiling clamped onto any `kXR_wait` seconds value, bounding the retry timer.
-- **Config fields** (in `ngx_stream_brix_srv_conf_t`, `src/core/types/config.h`): `upstream_host`/`upstream_port`/`upstream_addr` (address), `upstream_tls`/`upstream_tls_ca`/`upstream_tls_name`/`upstream_tls_ctx` (outbound TLS, ctx built at postconfiguration in `src/core/config/runtime_server.c`), and `upstream_token_file` (ztn credential).
+- **Config fields** (in `ngx_stream_brix_srv_conf_t`, `src/core/types/config.h`): `upstream_host`/`upstream_port`/`upstream_addr` (address), `upstream_tls`/`upstream_tls_ca`/`upstream_tls_name`/`upstream_tls_ctx` (outbound TLS, ctx built at postconfiguration in `src/core/config/runtime_server.c`), `upstream_token_file` (ztn credential), and `upstream_x509_proxy`/`upstream_x509_key` (gsi credential; the key defaults to the proxy PEM).
 
 ## Control & data flow
 
@@ -122,10 +123,23 @@ socket or timer.
   SSL), the query aborts (`bootstrap.c:142-161`). The plaintext `kXR_login`
   pre-sent in the bootstrap buffer is intentionally discarded by the server on
   upgrade and re-sent over TLS from the handshake callback.
-- **Auth is single-round and fail-closed.** A second `kXR_authmore` aborts
-  (`authmore_count` guard, `bootstrap.c:181`); `kXR_authmore` with no
-  `upstream_token_file` configured aborts; only the "ztn" (WLCG/JWT) credential
-  type is supported.
+- **Auth is bounded and fail-closed.** `kXR_authmore` rounds are capped by
+  `XRD_OBA_MAX_ROUNDS` (`authmore_count`); GSI is exactly two rounds
+  (`gsi_round`). The credential is chosen from the server's `&P=` advert — which
+  a real brix/stock server carries in its **`kXR_ok` login body after the 16-byte
+  session id**, not only in a `kXR_authmore` (`brix_upstream_login_advert`, phase
+  115 W2.4; the pre-W2.4 code treated every `kXR_ok` as logged-in and the relayed
+  request was then refused). `gsi` needs `brix_upstream_x509_proxy`, `ztn` needs
+  `brix_upstream_token_file`; an advert naming one of them with no matching
+  credential aborts with both directive names; an advert naming neither
+  (unix/host/krb5/sss only) proceeds unauthenticated and lets the upstream judge.
+  While `bs_phase == XRD_UP_BS_AUTH` the body cap is `XRD_UP_AUTH_BODY_MAX`
+  (64 KiB) because a `kXGS_cert` carries the server's X.509 chain; every other
+  phase keeps `BRIX_MAX_PATH + 256`.
+- **GSI server verification** uses `conf->gsi_store` (built from
+  `brix_trusted_ca` even when the server itself does not authenticate clients
+  with GSI); with no store the leaf is *not* verified and a WARN is logged per
+  handshake — the same opt-out the cache origin offers.
 - **`cleanup()` must be idempotent and back-pointer-safe.** It null-checks every
   resource and clears `client_ctx->upstream`, because it is invoked both on the
   normal terminal paths and from the disconnect handler while the query may still
@@ -146,12 +160,15 @@ socket or timer.
 - **Handle a new upstream response status**: add a `case` to
   `brix_upstream_forward_response()` in `response.c`, deciding terminal
   (cleanup + queue + resume) vs. waiting (re-arm read + post synthetic event).
-- **Add an outbound auth mechanism** (beyond ztn): branch in `auth.c` /
-  `bootstrap.c`'s `XRD_UP_BS_LOGIN` handler on the advertised credtype and add a
-  config field + directive (the address directive parser lives here in
-  `directives.c`; the `brix_upstream_tls*` / `brix_upstream_token_file`
-  directives are registered in `src/protocols/root/stream/module.c` and merged in
-  `../config/`, with the SSL context built in `src/core/config/runtime_server.c`).
+- **Add an outbound auth mechanism** (beyond ztn/gsi): add a producer that calls
+  `brix_upstream_send_auth_frame()` (see `auth_gsi.c` for a multi-round one),
+  branch on the advert in `brix_upstream_begin_auth()` (`bootstrap.c`) and judge
+  the replies in `brix_upstream_bs_auth()`; add a config field + directive (the
+  address directive parser lives here in `directives.c`; the `brix_upstream_tls*`
+  / `brix_upstream_token_file` / `brix_upstream_x509_*` directives are registered
+  in `src/protocols/root/stream/directives_net.h` and merged in
+  `src/core/config/server_conf_merge_proxy_net.c`, with the SSL context built in
+  `src/core/config/runtime_server.c`).
 
 ## See also
 

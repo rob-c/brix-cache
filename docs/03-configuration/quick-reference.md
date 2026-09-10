@@ -12,25 +12,31 @@ The most-used directives on one page. Start here when you know what you want to 
 | `brix_export <path>` | `server` | `/` | Recommended |
 | `brix_allow_write on\|off` | `server` | `off` | No |
 | `brix_auth none\|gsi\|token\|both` | `server` | `none` | No |
-| `brix_frm on\|off` | `server` | `off` | Enable the FRM durable tape-staging queue behind `kXR_prepare`/`kXR_QPrep` (`src/fs/xfer/` stage engine) |
-| `brix_frm_queue_path <abs-path>` | `server` | — | Required when `brix_frm on`; absolute path to the durable queue file (the `.lock` sidecar lives beside it). The crash-safe source of truth. |
-| `brix_frm_max_inflight <N>` | `server` | `64` | Admission cap on live (queued + staging) requests |
-| `brix_frm_stagecmd <cmd>` | `server` | inherits `brix_prepare_command` | Stage-in command (Phase 1 worker); Phase 0 records durably + the legacy command stages |
-| `brix_frm_stage_ttl <time>` | `server` | `600s` | Hard expiry for a queue record (reaped by the worker-0 timer) |
+| `brix_checksum_default <algo>` | `server` | `adler32` | The `xrootd.chksum` default analog: the algorithm a `kXR_Qcksum` without a selection computes and the head of the `query config chksum` list; a built-in or a plugin name |
+| `brix_checksum_plugin <name> <path.so> [parms]` | `stream` main / `http` main | — | Site checksum algorithm from a shared object (the `xrootd.chksum` plugin analog, ABI in `src/core/compat/checksum_plugin_abi.h`); absolute non-writable path, self-tested at `nginx -t`, at most 8; usable everywhere a built-in name is |
+| `brix_frm on\|off` | `server` | `off` | Enable the shared-memory stage request registry behind `kXR_prepare`/`kXR_QPrep` and the nearline-open recall path (`tape://` adapter, `src/fs/backend/frm/`) |
+| `brix_frm_max_inflight <N>` | `server` | `64` | Capacity of the stage request registry |
+| `brix_frm_stage_ttl <time>` | `server` | `600s` | Expiry of a parked nearline open / prepare record |
+| `brix_frm_stage_wait <s>` / `brix_frm_async_recall on\|off` / `brix_frm_control_dir <path>` | `server` | `30` / `off` / unset | `kXR_wait` interval, `kXR_waitresp` parking, registry control directory |
+| `brix_frm_purge_watermark <hi> <lo>` / `brix_frm_purge_max_bytes <size>` / `brix_frm_purge_interval <time>` | `server` | unset / `0` / `5m` | Tape-buffer purge engine (phase-115 W3.2): LRU release of migrated, unpinned, cold online copies on filesystem occupancy and/or owned-bytes cap, worker 0, one pass per interval |
+| `brix_frm_purge_policy {*\|<group>} <hi> <lo> [hold <time>] [polprog]` / `brix_frm_purge_polprog <program>` | `server` | none / none | Per-`brix_oss_space` purge rules (2.0 F4): a group's own owned-bytes arm (sizes or `%` of its quota), a longer hold, and an external policy program that picks which of the group's eligible copies go; `*` covers ungrouped keys and groups without a rule; a rule alone arms the engine |
+| `brix_frm_queue_path <path>` / `brix_frm_stagecmd <program>` | `server` | required by `brix_frm on` / unset | Durable stage journal directory (`<reqid>.req` records, `deadletter/`, worker mkdir 0700; replaces the env-only `BRIX_STAGE_JOURNAL_DIR`) / the `tape://exec` MSS adapter program, run as `<program> <verb> <key> <online>`; beats `BRIX_FRM_STAGECMD` (2.0 F1, ADR-3b) |
+| `brix_frm_copymax <n>` / `brix_frm_fail_retries <n>` / `brix_frm_fail_backoff <time>` / `brix_frm_copy_timeout <time>` | `server` | `8` / `5` / `60s` / `0` | Stage-engine in-flight bound / dead-letter attempt cap / worker-0 retry sweep period (floor `1s`) re-driving FAILED journal records / `stagecmd` child deadline (`SIGKILL` + `ETIMEDOUT`, `0` = none). Process-wide: every `brix_frm on` server must publish the same values |
+| `brix_frm_stagemsg <file>` | `server` | unset | StageEvents notification feed (the `oss.stagemsg` / `XRDOFSEVENTS` analogue, 2.0 F2): one `%`-escaped `<utc> <source> <event> <reqid> <key> [k=v…]` line per stage-engine / prepare-registry / MSS transition, created `0600`, refused at load if group- or world-writable, best-effort (an unwritable file logs once, never fails a stage, re-opens on the next transition). Process-wide like the other engine knobs |
 
-> Additional Phase 1–4 FRM directives (`brix_frm_copycmd/copymax/xfrhold/fail_backoff/fail_retries/residency_cmd/copy_timeout/migrate_copycmd/purge_watermark/purge_interval`) are accepted now and activate with their phase. See [`src/fs/xfer/README.md`](../../src/fs/xfer/README.md) and [`docs/refactor/phase-35-frm-tape-staging.md`](../refactor/phase-35-frm-tape-staging.md).
 
-| `brix_proxy on\|off` | `server` | `off` | Enable transparent XRootD proxy mode |
-| `brix_proxy_upstream host[:port] [auth]` | `server` | — | Required when `brix_proxy on`; may appear multiple times for round-robin load balancing. Optional `auth` arg (`anonymous`, `forward`, `sss`, `sss:<keyname>`) overrides server-level `brix_proxy_auth` for this upstream |
-| `brix_proxy_upstream_tls on\|off` | `server` | `off` | Wrap outbound upstream TCP in TLS |
-| `brix_proxy_upstream_tls_ca <path>` | `server` | — | PEM CA bundle to verify upstream TLS certificate (enables `SSL_VERIFY_PEER`) |
-| `brix_proxy_upstream_tls_name <host>` | `server` | — | SNI hostname for upstream TLS; defaults to `brix_proxy_upstream` host |
-| `brix_proxy_auth anonymous\|forward\|sss` | `server` | `anonymous` | Auth bridging: `forward` replays bearer token; `sss` builds an SSS credential from the first configured `brix_sss_key` |
+| `brix_tap_proxy on\|off` | `server` | `off` | Enable transparent XRootD proxy mode |
+| `brix_tap_proxy_upstream host[:port] [auth]` | `server` | — | Required when `brix_tap_proxy on`; may appear multiple times for round-robin load balancing. Optional `auth` arg (`anonymous`, `forward`, `sss`, `sss:<keyname>`) overrides server-level `brix_tap_proxy_auth` for this upstream |
+| `brix_tap_proxy_upstream_tls on\|off` | `server` | `off` | Wrap outbound upstream TCP in TLS |
+| `brix_tap_proxy_upstream_tls_ca <path>` | `server` | — | PEM CA bundle to verify upstream TLS certificate (enables `SSL_VERIFY_PEER`) |
+| `brix_tap_proxy_upstream_tls_name <host>` | `server` | — | SNI hostname for upstream TLS; defaults to `brix_tap_proxy_upstream` host |
+| `brix_tap_proxy_auth anonymous\|forward\|sss` | `server` | `anonymous` | Auth bridging: `forward` replays bearer token; `sss` builds an SSS credential from the first configured `brix_sss_key` |
+| `brix_tap_proxy_sss_identity keytab\|client` | `server` | `keytab` | Whose identity the tap proxy presents upstream in the SSS credential; `client` mints the front-side client's entity and refuses an unauthenticated session (2.0 F9) |
 | `brix_proxy_audit_log <path>\|off` | `server` | `off` | One JSON line per closed/abandoned upstream file handle |
 | `brix_proxy_reconnect_attempts <n>` | `server` | `0` | Reconnect budget per client session when upstream drops while idle with no open handles |
 | `brix_proxy_connect_timeout <ms>` | `server` | `10000` | Milliseconds allowed for TCP connect to upstream; 0 = no limit |
 | `brix_proxy_read_timeout <ms>` | `server` | `60000` | Milliseconds allowed between upstream response bytes; 0 = no limit |
-| `brix_proxy_path_rewrite <strip> <add>` | `server` | — | Strip leading prefix from open/path requests then prepend `add` (e.g. `brix_proxy_path_rewrite /brix /data`) |
+| `brix_tap_proxy_path_rewrite <strip> <add>` | `server` | — | Strip leading prefix from open/path requests then prepend `add` (e.g. `brix_tap_proxy_path_rewrite /brix /data`) |
 | `brix_tls on\|off` | `server` | `off` | No |
 | `brix_tls_require none\|[all\|login\|session\|data\|tpc\|-<cap>]...` | `server` + HTTP planes | `none` | No |
 | `brix_ztn_cleartext on\|off` | `server` | `off` | No |
@@ -41,6 +47,8 @@ The most-used directives on one page. Start here when you know what you want to 
 | `brix_crl_reload <seconds>` | `server` | `0` | No |
 | `brix_signing_policy on\|off\|require` | `server` | `on` | No — enforce `<hash>.signing_policy` namespace ([WLCG CA conformance](../09-developer-guide/wlcg-ca-conformance.md)) |
 | `brix_crl_mode off\|try\|require` | `server` | `try` | No — CRL strictness; `require` restores "CRL required for all CAs" |
+| `brix_crl_scope all\|last` | `server` | `all` | No — how far up the chain revocation is enforced (XRootD `xrd.tlsca crlcheck`). `last` checks the credential's own end-entity certificate only; a **revoked** certificate is still refused under either value |
+| `brix_tls_verify_log off\|failure\|all` | `server` | `off` | No — what the server writes about a chain it just verified (XRootD `xrd.tlsca verifylog`): nothing, rejections only, or every certificate in every chain |
 | `brix_vomsdir <path>` | `server` | — | If `require_vo` |
 | `brix_voms_cert_dir <path>` | `server` | — | If `require_vo` |
 | `brix_require_vo <path> <vo>` | `server` | — | No |
@@ -48,6 +56,7 @@ The most-used directives on one page. Start here when you know what you want to 
 | `brix_token_jwks <path>` | `server` | — | If `auth token` or `auth both` |
 | `brix_token_issuer <string>` | `server` | — | If token JWKS is configured |
 | `brix_token_audience <string>` | `server` | — | If token JWKS is configured |
+| `brix_sss_getcreds on\|off` | `server` | `off` | Keep the proxied credential an SSS client carries in its entity `CRED` field, for a downstream hop that must replay it; `off` wipes the blob (2.0 F9) |
 | `brix_access_log <path>\|off` | `server`, HTTP `main/server/location` | `off` | No |
 | `brix_session_log on\|off` | `server`, HTTP `main/server/location` | `on` | No |
 | `brix_thread_pool <name>` | `server` | `default` | No |
@@ -59,10 +68,21 @@ The most-used directives on one page. Start here when you know what you want to 
 | `brix_upstream host:port` | `server` | — | No |
 | `brix_cache on\|off` | `server` | `off` | No |
 | `brix_cache_export <path>` | `server` | — | If `brix_cache on` |
-| `brix_cache_origin host:port` | `server` | — | If `brix_cache on` |
-| `brix_cache_origin_tls on\|off` | `server` | `off` | No |
+| `brix_storage_backend root://host:port` | `server` | — | Cache origin (`roots://` for TLS); with `brix_cache_store posix:<dir>` + `brix_cache_export` |
+| `brix_storage_backend tape://<adapter>/<base>[?arc=<1..8>]` | `server` | — | Nearline (tape/MSS) export through the `src/fs/backend/frm/` adapter (`stub`, `exec`/`hpss`/`cta`, `lib`); `?arc=<depth>` turns on the dataset archiver (phase-115 W3.1): one stored ZIP per sealed dataset, member-indexed recall. Same URL form on the tier store directives |
 | `brix_cache_lock_timeout <time>` | `server` | `300s` | No |
+| `brix_cache_verify off\|best-effort\|require` | `server` | `best-effort` | Checksum-on-fill: hash the staged `.part` against the origin's advertised digest before publishing. `require` refuses to publish an unverifiable fill. A composed `brix_storage_backend cache:…` tier defaults to `off` instead (2.0: both values are honoured on the standalone spine — before 2.0 it read an unwritable field) |
+| `brix_cache_verify_digest <algo>` | `server`, `http\|server\|location` | unset | The algorithm a NON-`root://` origin is asked for (HTTP/Pelican `Want-Digest`, an object store's stored checksum). Any name this build can compute, including a `brix_checksum_plugin` one; unknown names fail `nginx -t`. An `xroot://` origin answers in band and ignores it (2.0) |
+| `brix_cache_advertise on\|off` + `_federation <host[:port]>` `_key <pem>` `_data_url <url>` `_web_url <url>` `_issuer <url>` `_interval <time>` `_namespace <prefix>` | `server` | `off`, `60s` | Publish this cache to a Pelican federation Director (signed `OriginAdvertiseV2`, ES256 JWT, per-worker timer). The Director is discovered from `https://<federation>/.well-known/pelican-configuration`, so **nothing is advertised until `_federation` is set**. Site label comes from `brix_sitename`; interval clamps up to the federation minimum 60s; the registry key handshake is an out-of-band operator step (2.0: the family is registered, and `_federation` is the new name that lets it arm at all) |
 | `brix_cache_eviction_threshold <ratio\|percent>` | `server` | `0.9` | No |
+| `brix_cache_urlcgi [blocksize {ignore\|<min> <max>}] [prefetch {ignore\|<min> <max>}]` | `server`, `http\|server\|location` | absent — both hints ignored | Accept a client's per-open `pfc.blocksize=` / `pfc.prefetch=` hints, clamped into these bounds (XrdPfc `pfc.urlcgi` parity, 2.0 F5) |
+| `brix_tpc_max_hops <n>` | `server` | `4` (range `0`–`16`) | How many `kXR_redirect` answers a native TPC pull follows from its source; each hop re-checks `brix_tpc_source_guard` (2.0 F7) |
+| `brix_tpc_streams <n>` | `server` | `1` (range `1`–`15`) | Cap on the parallel source connections a native TPC pull may use when the client sends `tpc.str=<n>` (2.0 F7) |
+| `brix_tpc_push on\|off` | `server` | `off` | Opt into the BriX native-TPC **push** dialect (`tpc.stage=push`, 2.0 F16): the SOURCE dials the destination and writes, instead of the destination dialling in and reading — the copy an egress-only site can still take part in. One flag arms both roles on the listener (a source may originate a push, and a destination may accept one). The source's destination is bounded by the same `brix_tpc_source_guard` allowlist as a pull, `tpc.str=<n>` is clamped by `brix_tpc_streams`, and the source export stays **read-only** — the two arm/fire `kXR_sync`s are the only write-table opcodes it exempts |
+| `brix_tpc_allow_identity <dn\|group\|host\|vo> <pattern>` | `server`, `http\|server\|location` | unset — every identity allowed | `ofs.tpc allow` parity (2.0 F18). Repeatable; the selectors WITHIN one directive AND together, the directives OR. Patterns are `*`-globs (`host` reuses the one `brix_tpc_source_allow` host spelling, so a leading `.` is a domain suffix). Once ANY rule exists the stage is fail-CLOSED: a TPC leg whose credential matches no rule is refused. It only narrows — a rule can never widen the `brix_tpc_source_guard` host allowlist |
+| `brix_tpc_require <all\|client\|dest> <auth>[,<auth>...]` | `server`, `http\|server\|location` | unset — no protocol demanded | `ofs.tpc require` parity (2.0 F18). Demand that the named party authenticated with one of these methods (`gsi`, `krb5`, `sss`, `unix`, `ztn`, …; `none` is not an authentication method and is refused at `nginx -t`). The party is read off the wire: a native leg carrying `tpc.org` was opened by the peer SERVER (`dest`), one without it by the initiating CLIENT (`client`) — so `require dest` is not satisfiable by a client credential. `all` demands it of both |
+| `brix_tpc_restrict <path>` | `server`, `http\|server\|location` | unset — every path allowed | `ofs.tpc restrict` parity (2.0 F18). Repeatable prefix allowlist for the LOCAL path a TPC leg may touch. NARROWER than stock: the match is component-aware, so `/data` admits `/data/x` but never `/database`. Checked after the resolver's traversal rules, on the same cleaned logical path an `open()` would use. On an HTTP `location` the path checked is the request URI, so the prefix must include the location prefix (`location /restrict/` + `brix_tpc_restrict /restrict/allowed`); a prefix that omits it matches nothing and refuses every COPY there |
+| `brix_tpc_oids on\|off` | `server`, `http\|server\|location` | `off` | `ofs.tpc oids` parity (2.0 F18). The one stage that is default-DENY: `*...`-style object-id paths are refused in a TPC leg unless this is `on` |
 | `brix_cms_manager host:port [...]` | `server` | — | Up to 15 endpoints (multi-arg/repeatable); node logs into all, locates rotate + fail over |
 | `brix_cms_paths <string>` | `server` | `brix_export` | No |
 | `brix_cms_interval <time>` | `server` | `30s` | No |
@@ -76,7 +96,11 @@ The most-used directives on one page. Start here when you know what you want to 
 | `brix_cms_affinity on\|off` | `server` | `off` | Pin repeat selections of a path to one fresh-tier server (drained/blacklisted never sticky) (phase-89) |
 | `brix_cms_locate_multi on\|off` | `server` | `off` | `kXR_locate` answers `kXR_ok` with the full live server set instead of one redirect (phase-89) |
 | `brix_cms_fanout on\|off` | `server` | `off` | Fan `kXR_rm`/`kXR_rmdir` out to every holder instead of redirecting (phase-89) |
+| `brix_oss_cgroup <name>` / `brix_oss_quota <size>` / `brix_oss_quota_enforce on\|off` | `server` | `default` / `-1` / `off` | Export-wide default space group as advertised by `kXR_Qspace`; with enforce on, writes past the quota are refused `kXR_overQuota` |
+| `brix_oss_space <group> <prefix> [quota=<size>\|quota=-1]` | `server` (repeatable) | none | Named space group owning one export-relative prefix (longest wins): per-group usage/quota in `kXR_Qspace`, per-group `kXR_overQuota` under `brix_oss_quota_enforce on`, `?oss.cgroup=` must agree with the owning prefix (phase-115 W3.3) |
 | `brix_cms_fanout_window <time>` | `server` | `500ms` | Fan-out reply-aggregation deadline; msec slot — write `600ms`, a bare number parses as seconds |
+| `brix_cms_fsxeq <op>... <program> [<arg>...]` | `server` (repeatable, one program per op) | none | Stock `cms.fsxeq` (2.0 F17): an operator program **replaces** the built-in filesystem leg for the forwarded namespace ops it names (`chmod mkdir mkpath mv rm rmdir trunc`). The op's own arguments are appended to your command line (`<mode>`/`<size>` then physical `<path>`; `mv` gets both paths); the op name is **not** injected. Exit 0 = success, answered silently like stock; anything else fails the op `kYR_error`. Runs on a `thread_pool` — with none configured every named op fails closed. A `..` path is refused before the fork, `brix_allow_write off` refuses before it, and a group- or world-writable program is refused at `nginx -t` |
+| `brix_cms_fsxeq_timeout <time>` | `server` | `10s` | Wall-clock budget for one `brix_cms_fsxeq` run; at expiry the program's whole process group is `SIGKILL`ed and the op fails `fsxeq program timed out` |
 
 ---
 
@@ -105,40 +129,37 @@ The WebDAV module (`ngx_http_brix_webdav_module`) handles `davs://` clients in n
 | `brix_webdav on\|off` | `location` | `off` | Activates WebDAV handler |
 | `brix_export <path>` | `location` | `/` | Filesystem root for clients |
 | `brix_webdav_auth none\|optional\|required` | `location` | `optional` | Proxy-cert or bearer-token auth policy |
-| `brix_webdav_cadir <path>` | `location` | — | Hashed CA directory |
-| `brix_webdav_cafile <path>` | `location` | — | Single CA PEM file |
-| `brix_webdav_crl <path>` | `location` | — | PEM CRL file for proxy-cert revocation checks |
-| `brix_webdav_signing_policy on\|off\|require` | `location` | `on` | Enforce `<hash>.signing_policy` namespace ([WLCG CA conformance](../09-developer-guide/wlcg-ca-conformance.md)) |
-| `brix_webdav_crl_mode off\|try\|require` | `location` | `try` | CRL strictness |
+| `brix_trusted_ca_dir <path>` | `location` | — | Hashed CA directory |
+| `brix_trusted_ca <path>` | `location` | — | Single CA PEM file |
+| `brix_crl <path>` | `location` | — | PEM CRL file for proxy-cert revocation checks |
+| `brix_signing_policy on\|off\|require` | `location` | `on` | Enforce `<hash>.signing_policy` namespace ([WLCG CA conformance](../09-developer-guide/wlcg-ca-conformance.md)) — the phase-101 unified spelling; `brix_webdav_signing_policy` is gone |
+| `brix_crl_mode off\|try\|require` | `location` | `try` | CRL strictness — the phase-101 unified spelling; `brix_webdav_crl_mode` is gone |
+| `brix_crl_scope all\|last` | `location` | `all` | Revocation reach, exactly as on the `root://` plane above |
+| `brix_tls_verify_log off\|failure\|all` | `location` | `off` | Chain-verification log, exactly as on the `root://` plane above |
 | `brix_allow_write on\|off` | `location` | `off` | Enable PUT/DELETE/MKCOL and TPC COPY writes |
 | `brix_webdav_tpc on\|off` | `location` | `off` | Enable HTTP-TPC COPY pull support |
 | `brix_webdav_tpc_curl <path>` | `location` | `/usr/bin/curl` | External curl helper for TPC pulls |
 | `brix_webdav_tpc_cert <path>` | `location` | — | X.509 cert/proxy used for outbound TPC source fetches |
 | `brix_webdav_tpc_key <path>` | `location` | `brix_webdav_tpc_cert` | Private key used with the TPC cert |
-| `brix_webdav_tpc_cadir <path>` | `location` | `brix_webdav_cadir` | CA directory for outbound source TLS verification |
-| `brix_webdav_tpc_cafile <path>` | `location` | `brix_webdav_cafile` | CA bundle for outbound source TLS verification |
+| `brix_webdav_tpc_cadir <path>` | `location` | `brix_trusted_ca_dir` | CA directory for outbound source TLS verification |
+| `brix_webdav_tpc_cafile <path>` | `location` | `brix_trusted_ca` | CA bundle for outbound source TLS verification |
 | `brix_webdav_tpc_timeout <seconds>` | `location` | `0` | Optional curl max-time for TPC pulls |
 | `brix_tpc_outbound_token_endpoint <url>` | `location` | — | OAuth2/OIDC token endpoint URL for RFC 8693 token-exchange delegation |
 | `brix_tpc_outbound_client_id <string>` | `location` | — | OAuth2 client ID (optional, for confidential clients) |
 | `brix_tpc_outbound_client_secret <string>` | `location` | — | OAuth2 client secret (optional, for confidential clients) |
 | `brix_tpc_outbound_scope <string>` | `location` | `storage.read` | Scope string requested during token exchange |
 | `brix_webdav_proxy_certs on\|off` | `server` or `location` (HTTP) | `off` | Accept RFC 3820 proxy certs |
-| `brix_webdav_verify_depth <n>` | `location` | `10` | Proxy chain depth limit |
-| `brix_webdav_token_jwks <path>` | `location` | — | JWKS for Bearer tokens |
-| `brix_webdav_token_issuer <string>` | `location` | — | Expected token issuer |
-| `brix_webdav_token_audience <string>` | `location` | — | Expected token audience |
+| `brix_verify_depth <n>` | `location` | `10` | Proxy chain depth limit |
+| `brix_token_jwks <path>` | `location` | — | JWKS for Bearer tokens |
+| `brix_token_issuer <string>` | `location` | — | Expected token issuer |
+| `brix_token_audience <string>` | `location` | — | Expected token audience |
 | `brix_thread_pool <name>` | `location` | `default` | nginx thread pool for async WebDAV file I/O |
 | `brix_webdav_cors_origin <origin\|*>` | `location` | — | Enable CORS for one exact origin; repeat for more origins |
 | `brix_webdav_cors_credentials on\|off` | `location` | `off` | Add credentialed CORS response headers |
 | `brix_webdav_cors_max_age <seconds>` | `location` | `86400` | CORS preflight cache duration |
 | `brix_webdav_lock_timeout <seconds>` | `location` | `600` | Maximum WebDAV lock duration |
 | `brix_webdav_lock_startup_sweep on\|off` | `main`/`server`/`location` | `off` | Clear persisted lock xattrs under the export root at startup (ephemeral locks) |
-| `brix_webdav_proxy on\|off` | `location` | `off` | Forward all WebDAV requests (after auth) to an upstream HTTP/HTTPS server |
-| `brix_webdav_proxy_upstream <url>` | `location` | — | Required when proxy on; `http://` or `https://` base URL of the backend |
-| `brix_webdav_proxy_auth anonymous\|forward\|token <val>` | `location` | `anonymous` | Auth forwarding policy: strip Authorization / pass through / replace with static Bearer token |
-| `brix_webdav_proxy_connect_timeout <time>` | `location` | — | TCP connect timeout to upstream |
-| `brix_webdav_proxy_send_timeout <time>` | `location` | — | Idle send timeout to upstream |
-| `brix_webdav_proxy_read_timeout <time>` | `location` | — | Idle read timeout from upstream |
+| `brix_storage_backend http(s)://<url>` | `location` | — | WebDAV perimeter proxy: forward requests (after auth) to an upstream HTTP(S) WebDAV server |
 
 ---
 
@@ -196,9 +217,11 @@ here exactly as they do to WebDAV/S3. Only cvmfs-specific knobs are listed below
 |---|---|---|---|
 | `brix_cvmfs on\|off` | `location` | `off` | Activate cvmfs handler (one protocol per location) |
 | `brix_cache_store posix:<path>` | `location` | required | Local XFS cache directory |
+| `brix_cache_store ram:<size>` | `location` | — | Per-worker in-memory cache store: hard byte cap, LRU eviction that skips open objects; refused as a stage / backend / cold-store tier; `brix_cache_occupancy_ratio` / `brix_cache_bytes` come from the store's own cap, per worker (F6, 2.0) |
 | `brix_cache_verify off\|cvmfs-cas` | `location` | **`cvmfs-cas`** | Verify fills against SHA-1 CAS address (cvmfs default; quarantines corrupt objects) |
 | `brix_cache_evict_at <pct>` | `location` | `90` | Eviction trigger. Wired on the `root://` stream read cache (seeds the watermark LRU reaper; explicit `brix_cache_high/low_watermark` win); not yet wired on the cvmfs plane (bounded by `brix_cache_max_object` + DELETE/overwrite eviction) |
 | `brix_cache_evict_to <pct>` | `location` | `80` | Eviction target (hysteresis partner; must be < `evict_at`). Same plane caveat |
+| `brix_cache_serve_while_filling <time>` | `location` | `0` | Follow another reader's in-flight whole-file fill (`kXR_wait` at the fill frontier; `<time>` = no-progress deadline); needs a `posix:` store and `brix_cache_verify off` |
 | `brix_cvmfs_upstream_allow <host> …` | `location` | required | Stratum-1 hostname(s) the cache may fetch from |
 | `brix_cvmfs_manifest_ttl <sec>` | `location` | `61` | Manifest revalidation interval |
 | `brix_cvmfs_negative_ttl <sec>` | `location` | `10` | Missing-object answer cache lifetime |

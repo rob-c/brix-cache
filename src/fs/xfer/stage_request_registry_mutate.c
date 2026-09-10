@@ -22,6 +22,7 @@
 #include "stage_request_registry_internal.h"
 
 #include "observability/metrics/metrics.h"   /* FRM tape-stage counters (phase-35) */
+#include "fs/xfer/stage_events.h"           /* 2.0 F2 StageEvents feed */
 
 #include <time.h>
 
@@ -186,6 +187,29 @@ srq_rec_populate_from_view(srq_rec_t *rec,
     }
 }
 
+/* 2.0 F2: one StageEvents line per registry transition.  Called on a stack
+ * copy of the record -- after the lock is dropped where the record survives,
+ * under it where the slot is about to be zeroed. */
+static void
+srq_note(const char *event, const srq_rec_t *rec)
+{
+    brix_stage_events_emit("prepare", event, rec->reqid, rec->lfn,
+                           "principal", rec->requester_dn, NULL);
+}
+
+static const char *
+srq_event_name(uint8_t disk_status)
+{
+    switch (disk_status) {
+    case SRQ_ST_QUEUED:    return "queued";
+    case SRQ_ST_STAGING:   return "staging";
+    case SRQ_ST_ONLINE:    return "online";
+    case SRQ_ST_FAILED:    return "failed";
+    case SRQ_ST_CANCELLED: return "cancelled";
+    }
+    return "freed";
+}
+
 ngx_int_t
 brix_stage_request_add(brix_stage_registry_t *reg,
     const brix_stage_request_view_t *view, char *reqid_out,
@@ -231,6 +255,7 @@ brix_stage_request_add(brix_stage_registry_t *reg,
     /* Admission: one stage request entered the FRM durable queue (QUEUED). */
     BRIX_FRM_METRIC_INC(requests_total);
     BRIX_FRM_METRIC_INC(in_flight);
+    srq_note("queued", &rec);
 
     ngx_cpystrn((u_char *) reqid_out, (u_char *) rec.reqid, reqid_out_sz);
     return NGX_OK;
@@ -286,6 +311,7 @@ brix_stage_request_set_status(brix_stage_registry_t *reg,
             BRIX_FRM_METRIC_INC(stage_fail_total[BRIX_FRM_FAIL_OTHER]);
         }
     }
+    srq_note(srq_event_name(new_status), &rec);
     return NGX_OK;
 }
 
@@ -311,6 +337,7 @@ brix_stage_request_delete(brix_stage_registry_t *reg, const char *reqid,
         return NGX_OK;                  /* already gone — idempotent */
     }
     was_inflight = srq_status_counts_inflight(rec.status);
+    srq_note("deleted", &rec);              /* before the slot is zeroed */
     ngx_memzero(&rec, sizeof(rec));
     rec.status = SRQ_ST_FREE;
     if (srq_rec_write(reg, off, &rec, log) != NGX_OK) {
@@ -366,6 +393,7 @@ brix_stage_request_reap_expired(brix_stage_registry_t *reg, time_t now,
         }
         {
             ngx_uint_t was_inflight = srq_status_counts_inflight(rec.status);
+            srq_note("expired", &rec);
             ngx_memzero(&rec, sizeof(rec));
             rec.status = SRQ_ST_FREE;
             if (srq_rec_write(reg, off, &rec, log) == NGX_OK) {

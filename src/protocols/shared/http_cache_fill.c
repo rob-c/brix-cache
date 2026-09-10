@@ -30,6 +30,8 @@
 #include "fs/backend/http/sd_http.h"    /* sd_http_n_endpoints (verify budget) */
 #include "fs/cache/fill_retry.h"        /* T20 classification + backoff */
 #include "fs/vfs/vfs_internal.h"       /* backend credential gate */
+#include "core/http/http_variables.h"  /* brix_http_monitor_peek (re-entry) */
+#include "observability/metrics/io_monitor.h"   /* fill_refused */
 #include "core/aio/aio.h"                      /* brix_task_bind */
 #include "fs/path/path.h"        /* brix_sanitize_log_string (wire keys) */
 #include "observability/sesslog/sesslog_ngx.h"
@@ -195,10 +197,28 @@ brix_http_cache_fill_if_needed(ngx_http_request_t *r,
     ngx_thread_pool_t            *pool;
     u_char                       *block;
     brix_http_fill_cred_t         cred;
+    const brix_io_monitor_t      *m;
 
-    if (inst == NULL || key == NULL || reenter == NULL || common == NULL
-        || !brix_sd_cache_fill_needs_offload(inst, key))
-    {
+    if (inst == NULL || key == NULL || reenter == NULL || common == NULL) {
+        return NGX_DECLINED;
+    }
+
+    m = brix_http_monitor_peek(r);
+    if (m != NULL && m->fill_refused) {
+        /* 2.0: this request is the store-refusal re-entry (done() marked it
+         * before calling reenter). The object is still a miss, so the offload
+         * test below would say "fill again" and the request would loop for
+         * ever between a fill the store refuses and a handler that asks for
+         * it. Decline, and carry the hint onto the caller's ctx so its inline
+         * open reads the source with no fill (a plane that passes no ctx
+         * builds one that brix_http_monitor_bind marks the same way). */
+        if (vctx != NULL) {
+            vctx->cache_no_fill = 1;
+        }
+        return NGX_DECLINED;
+    }
+
+    if (!brix_sd_cache_fill_needs_offload(inst, key)) {
         return NGX_DECLINED;                 /* serve inline (hit / local / none) */
     }
 

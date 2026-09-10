@@ -21,7 +21,7 @@ peer-addressing paths of the IPv6 stream instance (``ipv6-stream`` on
       carries NO raw IPv6 address in any label; label cardinality is bounded to
       the enumerable low-cardinality axes (port/auth/op/status/method/...).
 
-Harness contract (do NOT edit settings.py / manage_test_servers.sh here):
+Harness contract (do NOT edit settings.py / cmdscripts/manage_test_servers.py here):
   * ``ipv6-mgr`` is pre-started by ``start_all_dedicated`` from
     ``nginx_ipv6_mgr.conf``.  That config (owned by the cms-redirect agent) MUST:
       - listen ``[::1]:{PORT}`` (stream manager) + ``listen [::1]:11242;`` (CMS)

@@ -63,7 +63,7 @@ Understanding dual-stack support requires tracing IP addresses through three lay
 | `src/net/cms/config.c` | CMS manager address parsing | Uses `ngx_parse_url()` which handles IPv6 literals via nginx's internal resolver |
 | `src/net/upstream/directives.c` | `brix_upstream host:port` parsing | Lines 24–54: checks for `[` prefix, extracts IPv6 address between brackets |
 | `src/core/config/manager_map.c` | `brix_manager_map prefix host:port` parsing | Lines 49–77: same bracket-aware IPv6 parsing |
-| `src/fs/cache/directives.c` | `brix_cache_origin host:port` parsing | Lines 62–90: same bracket-aware IPv6 parsing, handles `root://` and `roots://` prefixes |
+| `src/fs/cache/directives.c` | cache-origin (`brix_storage_backend root://host:port`, formerly `brix_cache_origin`) parsing | Lines 62–90: same bracket-aware IPv6 parsing, handles `root://` and `roots://` prefixes |
 | `src/protocols/root/connection/handler.c` (lines 93–106) | Port extraction from `c->local_sockaddr` | Lines 93–106: checks `sa_family` and casts to correct type for `AF_INET` and `AF_INET6` |
 | `src/tpc/engine/launch.c` (lines 82–86) | Client address for TPC logging | `getnameinfo()` with `NI_NAMEREQD` — dual-stack safe |
 | `src/observability/accesslog/access_log.c` | Access log client IP | Uses `c->addr_text` — nginx's pre-formatted address string which includes brackets for IPv6 |
@@ -96,7 +96,7 @@ IPv4-only anti-pattern. It is now `src/net/proxy/connect_upstream.c`, which reso
 via `getaddrinfo(AF_UNSPEC)`, iterates addrinfo entries, and stores the endpoint
 in a `struct sockaddr_storage`.
 
-**Status**: Transparent proxy mode (`brix_proxy on`) connects to IPv6 upstream
+**Status**: Transparent proxy mode (`brix_tap_proxy on`) connects to IPv6 upstream
 XRootD daemons.
 
 ### 3.3 P1 failures — IPv4-only address formatting in responses
@@ -178,7 +178,7 @@ like `[2001:db8::1]:1094`, this finds the colon inside the brackets (the second 
 in `db8::1`), not the port separator after `]`. The resulting host string would be
 garbled and the port extraction would fail.
 
-**Impact**: `brix_proxy_upstream [::1]:1094;` config directive fails to parse.
+**Impact**: `brix_tap_proxy_upstream [::1]:1094;` config directive fails to parse.
 
 **Note**: This is inconsistent with `upstream/directives.c`, `config/manager_map.c`,
 and `cache/directives.c` which all correctly handle bracketed IPv6.
@@ -320,9 +320,9 @@ doesn't use `inet_ntop()`.
 
 | Test | Description | Expected |
 |------|-------------|----------|
-| `test_proxy_ipv4_upstream` | `brix_proxy_upstream 192.168.1.1:1094;` | Bootstrap succeeds |
-| `test_proxy_ipv6_upstream` | `brix_proxy_upstream [::1]:1094;` | Bootstrap succeeds |
-| `test_proxy_ipv6_config_parse` | `brix_proxy_upstream [2001:db8::1]:1094;` | Config parses correctly (currently fails) |
+| `test_proxy_ipv4_upstream` | `brix_tap_proxy_upstream 192.168.1.1:1094;` | Bootstrap succeeds |
+| `test_proxy_ipv6_upstream` | `brix_tap_proxy_upstream [::1]:1094;` | Bootstrap succeeds |
+| `test_proxy_ipv6_config_parse` | `brix_tap_proxy_upstream [2001:db8::1]:1094;` | Config parses correctly (currently fails) |
 | `test_proxy_dual_upstream` | Upstream resolves to both A and AAAA | Tries both address families |
 
 #### 5.1.3 kXR_locate response (`src/protocols/root/read/locate.c`)
@@ -391,7 +391,7 @@ doesn't use `inet_ntop()`.
 |------|-------------|
 | `test_cache_origin_ipv6` | Cache fill from IPv6 origin — verify data integrity |
 | `test_cache_origin_ipv6_tls` | TLS cache fill from IPv6 origin |
-| `test_cache_origin_ipv6_config` | `brix_cache_origin [::1]:1094;` — config parses correctly |
+| `test_cache_origin_ipv6_config` | `brix_storage_backend root://[::1]:1094;` — config parses correctly |
 
 #### 5.2.5 WebDAV HTTP-TPC with IPv6
 
@@ -410,9 +410,9 @@ doesn't use `inet_ntop()`.
 | `test_listen_unspecified_freebsd` | `listen port;` on FreeBSD — verify IPv4-only (need explicit `0.0.0.0`) |
 | `test_upstream_directive_ipv6` | `brix_upstream [::1]:1094;` — parses correctly |
 | `test_manager_map_directive_ipv6` | `brix_manager_map /prefix [::1]:1094;` — parses correctly |
-| `test_cache_origin_directive_ipv6` | `brix_cache_origin [::1]:1094;` — parses correctly |
-| `test_cache_origin_directive_ipv6_tls` | `brix_cache_origin roots://[::1]:1094;` — enables TLS + parses IPv6 |
-| `test_proxy_upstream_directive_ipv6` | `brix_proxy_upstream [::1]:1094;` — parses correctly (currently fails) |
+| `test_cache_origin_directive_ipv6` | `brix_storage_backend root://[::1]:1094;` — parses correctly |
+| `test_cache_origin_directive_ipv6_tls` | `brix_storage_backend roots://[::1]:1094;` — enables TLS + parses IPv6 |
+| `test_proxy_upstream_directive_ipv6` | `brix_tap_proxy_upstream [::1]:1094;` — parses correctly (currently fails) |
 | `test_cms_manager_ipv6` | `brix_cms_manager [::1]:port;` — CMS heartbeat connects |
 
 ### 5.4 Negative tests
@@ -426,8 +426,8 @@ doesn't use `inet_ntop()`.
 | `test_proxy_ipv6_connect_timeout` | Proxy to IPv6-only backend — verify error path, not crash |
 | `test_stats_ipv6_zero_port` | Verify stats port is never zero for IPv6 listener |
 | `test_inet_ntoa_race` | Stress test with many concurrent IPv6 connections — no log corruption |
-| `test_proxy_config_invalid_ipv6` | `brix_proxy_upstream [::1];` (no port) — should fail config validation |
-| `test_proxy_config_malformed_ipv6` | `brix_proxy_upstream [::1:1094;` (missing `]`) — should fail config validation |
+| `test_proxy_config_invalid_ipv6` | `brix_tap_proxy_upstream [::1];` (no port) — should fail config validation |
+| `test_proxy_config_malformed_ipv6` | `brix_tap_proxy_upstream [::1:1094;` (missing `]`) — should fail config validation |
 
 ### 5.5 Cross-backend conformance
 
@@ -624,7 +624,7 @@ if (addr_copy[0] == '[') {
     char *rb = strchr(addr_copy, ']');
     if (rb == NULL || *(rb + 1) != ':') {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_proxy_upstream: invalid address \"%V\"", &value[1]);
+            "brix_tap_proxy_upstream: invalid address \"%V\"", &value[1]);
         return NGX_CONF_ERROR;
     }
     size_t hostlen = (size_t)(rb - addr_copy - 1);

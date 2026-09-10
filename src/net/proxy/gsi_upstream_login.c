@@ -34,6 +34,7 @@ typedef struct {
     int        family;
     char       deleg_path[256];      /* 0600 temp holding the delegated proxy   */
     X509_STORE *gsi_store;           /* borrowed from conf (verify upstream cert) */
+    brix_dns_policy_t *dns;          /* borrowed from conf: resolve under its policy */
     ngx_log_t *log;
 
     /* back-references for the completion handler (main thread) */
@@ -77,6 +78,7 @@ proxy_gsi_login_thread(void *data, ngx_log_t *log)
     synth->cache_origin_x509_proxy.data = (u_char *) g->deleg_path;
     synth->cache_origin_x509_proxy.len  = ngx_strlen(g->deleg_path);
     synth->gsi_store                = g->gsi_store;       /* borrowed; do not free */
+    synth->common.dns.policy        = g->dns;             /* phase-116: one DNS path */
     t->conf = synth;
 
     if (brix_cache_origin_connect(t, &oc) == 0
@@ -218,6 +220,7 @@ brix_proxy_gsi_connect_async(brix_proxy_ctx_t *proxy,
     g->port        = port;
     g->family      = BRIX_AF_AUTO;
     g->gsi_store   = conf->gsi_store;   /* the proxy server's CA store (borrowed) */
+    g->dns         = conf->common.dns.policy;
     g->log         = c->log;
     g->proxy       = proxy;
     g->client_conn = c;

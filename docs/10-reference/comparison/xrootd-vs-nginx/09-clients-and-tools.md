@@ -6,7 +6,7 @@ This document compares the **official XRootD client tooling** (the `XrdCl` C++
 library, the `xrdcp` / `xrdfs` apps, the `XrdClHttp` plugin, the `XrdFfs`
 `xrootdfs` FUSE driver, and the `pyxrootd` Python bindings) against the
 **BriX-Cache native client suite**: a clean-room, pure-C set of tools built on
-`libxrdc` and the project's shared `libxrdproto`, with **no dependency on
+`libbrix` and the project's shared `libxrdproto`, with **no dependency on
 `libXrdCl` / `libXrdSec*`**.
 
 Every claim below is grounded in source. The official side cites
@@ -34,7 +34,7 @@ set). Concretely it covers:
 - the copy tool (`xrdcp`),
 - the filesystem/namespace tool (`xrdfs`),
 - the FUSE driver (`xrootdfs`),
-- the embeddable client library (`libXrdCl` vs. `libxrdc`),
+- the embeddable client library (`libXrdCl` vs. `libbrix`),
 - the resilience/UX behaviours the native suite layers on top, and
 - interop in both directions (our clients vs. stock/EOS/dCache servers; stock
   clients vs. our server).
@@ -90,8 +90,8 @@ a separate, synchronous, single-transport codepath.
 The native suite is a **clean-room, pure-C** reimplementation built directly on
 the project's own wire vocabulary.
 
-- **`libxrdc`** (`client/lib/`) — the connection/session + metadata/file/transfer
-  layer. Header `client/lib/xrdc.h` documents the whole API. It is built on
+- **`libbrix`** (`client/lib/`) — the connection/session + metadata/file/transfer
+  layer. Header `client/lib/brix.h` documents the whole API. It is built on
   `shared/xrdproto/libxrdproto.a` (the ngx-free protocol core shared
   server↔client) and links only OpenSSL, optionally `krb5`
   (`client/lib/sec/sec_krb5.c`, compile-gated `BRIX_HAVE_KRB5`) and `liburing`
@@ -224,7 +224,7 @@ different names (`upload`/`download`/`dd` and `df`/`statvfs`).
 
 | Aspect | Official `XrdFfs` xrootdfs | Native `client/apps/xrootdfs.c` |
 |---|---|---|
-| Library base | `XrdPosixXrootd` POSIX shim (not `XrdCl`) | `libxrdc` async core (`aio.c` / `aio_mgr.c`) + `libfuse3` |
+| Library base | `XrdPosixXrootd` POSIX shim (not `XrdCl`) | `libbrix` async core (`aio.c` / `aio_mgr.c`) + `libfuse3` |
 | Concurrency | synchronous + own `pthread` worker pool (`XrdFfsQueue`); may need FUSE `-s` | async, multi-in-flight transport over a connection pool; pipelining hides RTT |
 | Transport | `root://` only (rewrites `xroot://`→`root://`) | `root://` **and** read-only `http/https/dav/davs` via `webfile.c` (PROPFIND + ranged GET) |
 | Resilience | reconnect on drop (POSIX layer) | transparent reconnect + **handle reopen + offset resume** mid-transfer (never re-truncates); kXR_ping heartbeat; per-request adaptive deadlines |
@@ -245,22 +245,22 @@ wifi from a laptop abroad" — its stated design goal.
 
 ---
 
-## libxrdc vs libXrdCl
+## libbrix vs libXrdCl
 
 What an **embedder** gets:
 
-| Concern | `libXrdCl` (official) | `libxrdc` (native) |
+| Concern | `libXrdCl` (official) | `libbrix` (native) |
 |---|---|---|
-| Language / ABI | C++ classes (`XrdCl::File`, `XrdCl::FileSystem`, `XrdCl::CopyProcess`) | C structs + functions (`xrdc_conn`, `xrdc_file`, `xrdc_copy`, `xrdc_pool`) — `client/lib/xrdc.h` |
+| Language / ABI | C++ classes (`XrdCl::File`, `XrdCl::FileSystem`, `XrdCl::CopyProcess`) | C structs + functions (`brix_conn`, `brix_file`, `brix_copy_opts`, `brix_cpool`) — `client/lib/brix.h` |
 | Dependencies | `libXrdCl`, `libXrdSec*`, `libXrdUtils`, davix (HTTP) | OpenSSL; optional `krb5`, `liburing`; built on `libxrdproto` |
-| Concurrency model | async event loop (`PostMaster` + `JobManager` callbacks) | blocking sockets + `poll(2)`; one in-flight per `xrdc_conn`; an async manager (`xrdc_mgr`/`xrdc_mfile`, `aio.h`) for pipelined file I/O; a thread-safe `xrdc_pool` for concurrent callers |
-| File API | `Open/Read/Write/PgRead/PgWrite/VectorRead/Sync/Close`, checkpoints | `xrdc_file_{open_read,open_write,open_update,read,write,readv,writev,pgread,pgwrite,sync,close}`; resilient `xrdc_rfile`/`xrdc_mfile` variants |
+| Concurrency model | async event loop (`PostMaster` + `JobManager` callbacks) | blocking sockets + `poll(2)`; one in-flight per `brix_conn`; an async manager (`brix_mgr`/`brix_mfile`, `aio.h`) for pipelined file I/O; a thread-safe `brix_cpool` for concurrent callers |
+| File API | `Open/Read/Write/PgRead/PgWrite/VectorRead/Sync/Close`, checkpoints | `brix_file_{open_read,open_write,open_update,read,write,readv,writev,pgread,pgwrite,sync,close}`; resilient `brix_rfile`/`brix_mfile` variants |
 | FS API | `Stat/DirList/MkDir/Rm/RmDir/Mv/ChMod/Truncate/Locate/Query/Prepare` | `xrdc_{stat,lstat,dirlist,mkdir,rm,rmdir,mv,chmod,truncate,locate,query,prepare,statvfs,setattr,symlink,link,readlink,fattr_*}` |
-| Copy | `CopyProcess` jobs | `xrdc_copy()` (one call drives root/web/s3, TPC, compression, cksum, progress) |
+| Copy | `CopyProcess` jobs | `brix_copy_opts()` (one call drives root/web/s3, TPC, compression, cksum, progress) |
 | Transports | root:// core + HTTP via plugin | root:// + web (HTTP/WebDAV/S3) first-class in `http.c`/`s3.c`/`webfile.c` |
 | Auth | `XrdSec*` plugins (gsi/krb5/sss/unix/ztn/pwd/…) | `client/lib/sec/`: `sec_gsi.c`, `sec_krb5.c`, `sec_sss.c`, `sec_token.c` (ZTN), `sec_unix.c`, `sec_host.c`, `sec_pwd.c` |
-| Status model | `XRootDStatus` objects | `xrdc_status` (kXR code + errno + message) with `xrdc_status_retryable` / `xrdc_kxr_to_errno` |
-| Diagnostics | logging env vars | wire-trace, per-opcode timing, `.xrdcap` capture/replay, netdiag, `explain` (`xrdc.h` §15) |
+| Status model | `XRootDStatus` objects | `brix_status` (kXR code + errno + message) with `brix_status_retryable` / `brix_kxr_to_errno` |
+| Diagnostics | logging env vars | wire-trace, per-opcode timing, `.xrdcap` capture/replay, netdiag, `explain` (`brix.h` §15) |
 
 The native library trades the official async-everywhere model and plugin
 ecosystem for a small, dependency-light C surface that is easy to static-link and
@@ -273,16 +273,16 @@ embed (it is what the FUSE driver and every native app sit on).
 These are nginx-forward behaviours the native suite layers on top — most have no
 direct stock equivalent. All are grounded in `client/lib/`:
 
-- **Auth pre-flight diagnostics** (`credinfo.c`, `xrdc_cred_diagnose` /
-  `xrdc_cred_hint_for_status`): before a transfer, locally inspect the bearer
+- **Auth pre-flight diagnostics** (`credinfo.c`, `brix_cred_diagnose` /
+  `brix_cred_hint_for_status`): before a transfer, locally inspect the bearer
   token / GSI proxy (no network, no signature verify) and print a specific hint
   ("token expired 3m ago", "scope grants read only") instead of a bare
   "permission denied".
 - **Atomic / cancellable transfers** (`copy.c`,
-  `xrdc_copy_install_signal_handlers`): SIGINT/SIGTERM drops the partial
+  `brix_copy_install_signal_handlers`): SIGINT/SIGTERM drops the partial
   destination rather than leaving a corrupt file.
 - **`--auto-refresh` credentials** (`credrefresh.c`,
-  `xrdc_cred_autorefresh`): proactively reacquire a stale bearer token via
+  `brix_cred_autorefresh`): proactively reacquire a stale bearer token via
   `oidc-agent` and/or a GSI proxy before transferring.
 - **IPv6→IPv4 sticky auto-downgrade** (`netpref.c`): on a dual-stack host, once a
   broken IPv6 path is observed the whole session demotes to IPv4-only (logged
@@ -292,12 +292,12 @@ direct stock equivalent. All are grounded in `client/lib/`:
   (`XRDC_IO_TIMEOUT_MS`), with exponential-plus-jitter backoff so a black-holed
   handshake fails fast.
 - **Fast-fail on permanent errors** (`status.c`, the `XRDC_E*` sentinels in
-  `xrdc.h`): resolve failures (`XRDC_ERESOLVE`), redirect loops
+  `brix.h`): resolve failures (`XRDC_ERESOLVE`), redirect loops
   (`XRDC_EREDIRECT`), integrity failures (`XRDC_EINTEGRITY`), and unsupported
   features (`XRDC_EUNSUPPORTED`) are classified non-retryable, so the resilient
   loop does not burn its stall window retrying something that cannot succeed.
-- **Synchronous-tool resilience** (`resilient.c`, `xrdc_with_resilience` /
-  `xrdc_rfile`): brings the FUSE driver's reconnect+reopen+offset-resume to the
+- **Synchronous-tool resilience** (`resilient.c`, `brix_with_resilience` /
+  `brix_rfile`): brings the FUSE driver's reconnect+reopen+offset-resume to the
   one-shot CLI flows (e.g. `xrdfs cat` rides out a mid-stream sever), gated by an
   idempotency class and disabled by `--no-retry`.
 
@@ -325,7 +325,7 @@ tools during this session. Some are fixed; the rest are documented for parity.
   source directory name (the web/s3 recursive walkers copy
   `dstdir/<rel-under-source>`, dropping the source dir component).
 - **`xrdfs ls <file>` errors.** Listing a path that is a file (not a directory)
-  returns an error from `xrdc_dirlist` rather than printing the single entry the
+  returns an error from `brix_dirlist` rather than printing the single entry the
   way stock `ls` does.
 - **`xrdcp --cksum` soft-pass when unverifiable.** When the server cannot supply
   the requested checksum, the transfer can pass silently instead of failing — the
@@ -344,7 +344,7 @@ tools during this session. Some are fixed; the rest are documented for parity.
 | `xrdcp` | Core transfer flags at parity (force/recursive/posc/streams/cksum/tpc/zip/stdio); native adds multi-protocol (davs/http/s3), inline compression, `--sync`, manifests, cred auto-refresh, wire diagnostics. Gaps: `--sources`, `--xrate`, `--rm-bad-cksum`, `--continue`, SOCKS `--proxy`, `--posc` long flag; plus the conformance bugs above. |
 | `xrdfs` | **Superset** of the stock subcommand set, with both chmod mode forms and a large POSIX-style toolbox; only `cache` is genuinely absent; `cp`/`spaceinfo` exist under other names. Output-format edge cases (`ls <file>`, `xattr` framing) remain. |
 | `xrootdfs` (FUSE) | Functional parity on the op set, **ahead** on async transport, mid-transfer resume, and an alternate HTTP/WebDAV transport; behind on maturity. |
-| `libxrdc` vs `libXrdCl` | Different shape: small dependency-light C library vs. large async C++ stack. Native is easier to static-link/embed; official is more featureful and the wire reference. |
+| `libbrix` vs `libXrdCl` | Different shape: small dependency-light C library vs. large async C++ stack. Native is easier to static-link/embed; official is more featureful and the wire reference. |
 | Interop | Native clients interoperate with **real EOS** (GSI x509 proxy, cap-opaque host split, `Qcksum`), and aim at stock-xrootd / dCache; stock `xrdcp`/`xrdfs`/`pyxrootd` interoperate with the BriX-Cache server (the conformance suite drives both directions). |
 
 ---
@@ -361,7 +361,7 @@ tools during this session. Some are fixed; the rest are documented for parity.
 - `python/PyXRootDModule.cc` + `python/libs/client/` — `pyxrootd` bindings.
 
 **BriX-Cache (`client/` + `shared/`):**
-- `client/lib/xrdc.h` — the `libxrdc` public API (conn/file/fs/copy/pool/auth/diagnostics).
+- `client/lib/brix.h` — the `libbrix` public API (conn/file/fs/copy/pool/auth/diagnostics).
 - `client/apps/xrdcp.c` — copy tool (multi-protocol, batch/glob/manifest, web→web relay, parallel jobs).
 - `client/apps/xrdfs.c` — filesystem tool + REPL (`parse_chmod_mode`, the subcommand table, the power-tool handlers).
 - `client/apps/xrootdfs.c`, `client/apps/xrootdfs_legacy.c` — async/resilient + legacy FUSE drivers; op set in `fuse_operations`.

@@ -82,7 +82,7 @@ capability model and nginx's I/O pattern.
 
 ### 3.1 Impersonate broker capability model (prerequisite reading)
 
-The impersonate feature (`brix_impersonation map;` in nginx.conf) lets the
+The impersonate feature (`brix_idmap map;` in nginx.conf) lets the
 gateway perform file I/O as the requesting user's OS identity.  The broker is a
 privileged helper forked at startup and accessed by workers over a UNIX socket.
 
@@ -114,7 +114,7 @@ CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_NET_BIND_SERVICE
 lists it in `kill_caps[]` and drops it from the bounding set at startup.
 Including it here would be inconsistent with how the broker actually operates.
 
-**Tightening when impersonation is disabled:** if `brix_impersonation` is set
+**Tightening when impersonation is disabled:** if `brix_idmap` is set
 to `off` or the module is built without the impersonate component, remove the
 first two capabilities:
 

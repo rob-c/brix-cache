@@ -9,7 +9,7 @@ Nginx correctly escalates queries to a higher-level "meta-manager" when a path
 is not found locally, then relays the WAN-scoped redirect back to the client.
 
 The test reuses the three-tier cluster topology already started by
-manage_test_servers.sh:
+cmdscripts/manage_test_servers.py:
     CLUSTER_3T_META_PORT  — xrootd meta-manager (the "regional" redirector)
     CLUSTER_3T_SUB_PORT   — nginx sub-manager (the "local" manager)
     CLUSTER_3T_LEAF_PORT  — leaf data node (the "remote" data server)

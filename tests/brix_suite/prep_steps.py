@@ -44,6 +44,7 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -204,10 +205,58 @@ def _generator_stamps() -> dict:
             for p in _GENERATOR_SOURCES}
 
 
+def _is_usable(path: Path) -> bool:
+    """True only if the artifact has CONTENT, not merely a name.
+
+    An existence check is not enough after a hard crash.  A kernel panic leaves
+    ext4 holding the rename but not the data, so a file written the safe way
+    (temp + chmod + os.replace, `make_token.py init_keys`) comes back at zero
+    length with its final name and mode.  Observed 2026-09-07: the 13:10 panic
+    left TEST_ROOT/tokens/signing_key{,_2,_ec}.pem all 0 bytes, mode 0400; /tmp
+    survives the reboot, so the 14:39 session inherited them, `SigningKeyStep`
+    saw the name and skipped regeneration, and every `make_token.py gen` in that
+    run died with "Unable to load PEM file ... MalformedFraming".
+
+    Deliberately a size test and not a parse: this predicate answers "did the
+    generator get to run", across a heterogeneous sentinel set (PEM, JWT, cfg),
+    and widening it into content validation would make every fake artifact a
+    test writes have to be a real one.  The signing key, whose unusability is
+    silent and session-wide, gets the stronger `_is_loadable_pem` instead.
+
+    S_ISREG because a directory stats non-empty: a `signing_key.pem/` standing
+    where the key belongs must not read as a usable key.
+    """
+    try:
+        info = path.stat()
+    except OSError:
+        return False
+    return stat.S_ISREG(info.st_mode) and info.st_size > 0
+
+
+def _is_loadable_pem(path: Path) -> bool:
+    """`_is_usable`, plus the END armour that makes a PEM parseable.
+
+    Truncation is not always to zero — a body that lost only its tail still
+    fails `load_pem_private_key` — and for the signing key the cost of being
+    wrong is the whole session's token auth, silently.  Cheap enough to be
+    strict about exactly here.
+    """
+    if not _is_usable(path):
+        return False
+    try:
+        return b"-----END" in path.read_bytes()[-2048:]
+    except OSError:
+        return False
+
+
 def _missing_sentinels(pki_dir: Path, tokens_dir: Path) -> list:
     """Artifacts whose absence proves generation (or a restore) went wrong —
     one per tolerated generator, so a warn-and-continue failure upstream can
-    never be snapshotted or accepted as a valid restore."""
+    never be snapshotted or accepted as a valid restore.
+
+    Unusable counts as missing: a zero-length survivor of a panic would
+    otherwise be snapshotted as a good restore and poison later sessions too.
+    """
     expected = (
         pki_dir / "ca" / "ca.pem",            # pki_helpers.blitz_test_pki
         pki_dir / "user" / "proxy_std.pem",   # make_proxy.py
@@ -215,7 +264,7 @@ def _missing_sentinels(pki_dir: Path, tokens_dir: Path) -> list:
         tokens_dir / "upstream.jwt",          # make_token.py gen
         tokens_dir / "scitokens.cfg",         # tokenforge.py fleet-artifacts
     )
-    return [p for p in expected if not p.exists()]
+    return [p for p in expected if not _is_usable(p)]
 
 
 def _force_rmtree(path: Path) -> None:
@@ -399,7 +448,7 @@ class SigningKeyStep(PrepStep):
     name = "signing-key"
 
     def build(self, artifacts=None) -> None:
-        if (self.paths.tokens_dir / "signing_key.pem").exists():
+        if _is_loadable_pem(self.paths.tokens_dir / "signing_key.pem"):
             return
         _make_token(str(self.paths.tokens_dir), "init",
                     str(self.paths.tokens_dir), env=self.paths.env)

@@ -8,11 +8,11 @@ client library, not on upstream `libXrdCl`, `libXrdSec*`, `XrdFfs`, or
 ```text
    CLI tools            FUSE / POSIX            ← user-facing
    xrdcp xrdfs xrddiag  xrootdfs (async+legacy)
-   xrdgsiproxy …        libxrdposix_preload.so
+   xrdgsiproxy …        libbrixposix_preload.so
         └─────────┬───────────┘
                   ▼
-        ┌───────────────────────┐   clean-room C API (client/lib/xrdc.h)
-        │      libxrdc           │   connect · auth · I/O · TPC · checksums
+        ┌───────────────────────┐   clean-room C API (client/lib/brix.h)
+        │      libbrix           │   connect · auth · I/O · TPC · checksums
         │  auth: unix·ztn·sss·   │   resilience · IPv6→v4 downgrade · pools
         │        gsi·(krb5)      │
         └──────────┬────────────┘
@@ -31,9 +31,9 @@ client library, not on upstream `libXrdCl`, `libXrdSec*`, `XrdFfs`, or
 This page is source-verified against:
 
 - `client/Makefile`
-- `client/lib/xrdc.h`
+- `client/lib/brix.h`
 - `client/apps/*.c`
-- `client/preload/xrdposix_preload.c`
+- `client/preload/brixposix_preload.c`
 - `client/man/xrootdfs.1`
 - `docs/09-developer-guide/fuse-async-resilient-driver.md`
 
@@ -50,9 +50,9 @@ make -C client
 
 The Makefile builds:
 
-- `libxrdc.a` and `libxrdc.so.0.1.0`, plus `libxrdc.pc`
+- `libbrix.a` and `libbrix.so.0.1.0`, plus `libbrix.pc`
 - protocol/client command-line tools in `client/`
-- `libxrdposix_preload.so`
+- `libbrixposix_preload.so`
 - optional FUSE binary `xrootdfs` (with a `--legacy` synchronous mode) when `fuse3` is available
 
 Install the library, headers, pkg-config file, binaries, and man pages with:
@@ -70,7 +70,7 @@ optional libfuse3.
 
 | Topic | In-tree native clients | Upstream XRootD clients |
 |---|---|---|
-| Core library | `libxrdc`, clean-room C API | `libXrdCl` C++ API |
+| Core library | `libbrix`, clean-room C API | `libXrdCl` C++ API |
 | Security plugins | In-tree auth code for unix, token/ztn, SSS, GSI, optional Kerberos | `libXrdSec*` plugin stack |
 | Protocol vocabulary | Shared project headers and helpers | Upstream XRootD implementation |
 | Diagnostics | Wire trace, timing, capture/replay, remote-doctor | Upstream tooling varies by install |
@@ -85,7 +85,7 @@ client runtime into a deployment.
 
 | Tool | Purpose | Source-verified behavior |
 |---|---|---|
-| `xrdcp` | Copy local, `root://`, `roots://`, WebDAV/HTTP, and S3 paths | Supports `-f`, `-r`, `-P`, `--from`, `--retry`, `-j/--jobs`, `--sync`, `--tls`, `--notlsok`, `--noverifyhost`, `--auth`, `--pgrw`, `--cksum`, `-S/--streams`, `--tpc`, `--token`, S3 SigV4 flags, `--wire-trace`, and `--timing`. |
+| `xrdcp` | Copy local, `root://`, `roots://`, WebDAV/HTTP, and S3 paths | Supports `-f`, `-r`, `-P`, `--from`, `--retry`, `-j/--jobs`, `--sync`, `--tls`, `--notlsok`, `--noverifyhost`, `--auth`, `--pgrw`, `--cksum`, `-S/--streams`, `--tpc`, `--token`, S3 SigV4 flags, `--wire-trace`, `--timing`, and the `--sss-vorg`/`--sss-role`/`--sss-endorse`/`--sss-creds-file`/`--sss-sndlid` identity family. |
 | `xrdfs` | Metadata, namespace, query, and simple file operations | One-shot command mode or interactive shell. Commands include `stat`, `ls`, `du`, `tree`, `find`, `mkdir`, `rm`, `rmdir`, `mv`, `chmod`, `truncate`, `cat`, `tail`, `readv`, `writev`, `locate`, `query`, `statvfs`, `prepare`, and `explain`. |
 | `xrddiag` | Diagnostics and comparison harness | Subcommands include `check`, `bench`, `topology`, `status`, `compare`, `probe-robustness`, `replay`, `srr`, `tape`, and `remote-doctor`. |
 | `xrdadler32` | Adler32 checksums | Local files are streamed through zlib; `root://` paths use server `kXR_Qcksum`. |
@@ -101,7 +101,7 @@ client runtime into a deployment.
 | `xrdgsiproxy` | Create, inspect, destroy RFC 3820 X.509 proxies | Local OpenSSL implementation: `init`, `info`, and `destroy`. |
 | `xrdsssadmin-brix` | Manage SSS keytabs | Creates/lists/deletes shared-secret entries with mode-0600 keytab writes. |
 | `xrootdfs` | Network-resilient FUSE filesystem | Async/pipelined mount over `root://` or http(s)/WebDAV with reconnect, retry, heartbeat, and open-file resumption. A `--legacy` flag selects a simple synchronous fallback mode (root:// only). |
-| `libxrdposix_preload.so` | LD_PRELOAD read path for legacy POSIX tools | Maps paths under `$BRIX_VMP` to a `root://` export through `libxrdc`; first cut is read-oriented. |
+| `libbrixposix_preload.so` | LD_PRELOAD read path for legacy POSIX tools | Maps paths under `$BRIX_VMP` to a `root://` export through `libbrix`; first cut is read-oriented. |
 | `brix-fault-proxy` | Root-free TCP fault-injection proxy | Relays a TCP stream to an upstream and injects per-direction latency, jitter, partial writes, bandwidth caps, resets, **payload corruption**, duplication, deterministic mid-transfer truncation, connection black-holes, and outages — set at startup or live over an (unauthenticated, loopback-by-default) control port, with live traffic/fault counters. Standalone; no `libXrdCl`/`libbrix`. See [Network Resilience](#network-resilience). |
 
 Test and development binaries also exist under `client/tests` or the build
@@ -198,7 +198,7 @@ Important implemented features:
 
 Reviewer attention: older Phase 37 text says `http(s)://`, `dav(s)://`, and
 `s3://` copy were declined for the initial native client. That is now stale; the
-current `xrdcp` usage text and `client/lib/xrdc.h` expose those web/S3 paths.
+current `xrdcp` usage text and `client/lib/brix.h` expose those web/S3 paths.
 
 ## `xrdfs`
 
@@ -295,7 +295,7 @@ The native client library supports these auth paths in source:
 | Anonymous | No credential required when the server allows it. |
 | Token / `ztn` | Discovered from `BEARER_TOKEN`, `BEARER_TOKEN_FILE`, `$XDG_RUNTIME_DIR`, or `/tmp/bt_u<uid>`; `xrdcp` also accepts `--token` for WebDAV/HTTP. |
 | GSI | Uses X.509 proxy/cert material and `$X509_USER_PROXY` / `$X509_CERT_DIR`; `xrdgsiproxy` can create and inspect proxies. |
-| SSS | Uses SSS keytabs managed by `xrdsssadmin-brix`. |
+| SSS | Uses SSS keytabs managed by `xrdsssadmin-brix` (`$XrdSecSSSKT`). `--sss-vorg`, `--sss-role`, `--sss-endorse` and `--sss-creds-file` add the v2 entity fields to the credential; `--sss-sndlid` lets the server name the login id. A process that speaks for many users registers one entity per login id instead (`client/lib/auth/sss/sss_id.h`); a lookup miss fails the authentication rather than falling back to the process identity. |
 | Kerberos | Optional compile-time support when Kerberos development libraries are present. |
 
 The client library also includes credential diagnostics. It can explain JWT
@@ -305,7 +305,7 @@ error.
 
 ## IPv6 To IPv4 Auto-Downgrade
 
-Every native tool that connects through `libxrdc` (`xrdcp`, `xrdfs`, `xrddiag`,
+Every native tool that connects through `libbrix` (`xrdcp`, `xrdfs`, `xrddiag`,
 `wait41-brix`, the `xrootdfs` mount, the preload shim — all of them)
 automatically downgrades to IPv4 on a dual-stack host whose IPv6 path is broken
 but whose IPv4 backend works. This keeps a FUSE mount serving silently through a
@@ -359,12 +359,18 @@ resets, or hangs connections half-open. Several layers cooperate:
   than a small fixed count. This is what rides out sustained packet loss, where a
   large transfer is frequently severed mid-flight and must simply be re-attempted
   many times. Server-throttle (`kXR_wait`/overload) still uses the slower
-  exponential backoff. Verified against an **official `xrootd` server** through an
-  in-repo fault proxy (`tests/test_official_brix_resilience.py`): byte-exact
-  through latency, tiny segmentation, single + repeated mid-transfer drops, a
-  multi-second outage, and sustained packet loss up to ~12% (beyond which a
+  exponential backoff. Verified against an **official `xrootd` server** through the
+  in-repo fault proxy by the dedicated harness in `tests/resilience/` (servers +
+  proxy in `tests/resilience/servers.py`; smoke test
+  `tests/resilience/test_loss_sweep_gsi.py`; the standalone sweeps
+  `run_loss_sweep.py` / `run_mount_sweep.py` / `run_xrdcp_loss.py`, collected by
+  `tests/resilience/test_sweep_runners.py`): byte-exact through latency, tiny
+  segmentation, single + repeated mid-transfer drops, a multi-second outage, and
+  sustained packet loss up to ~12% — the recorded curves are
+  `tests/resilience/results-packet-loss-mount-2026-06-23.md` and
+  `tests/resilience/results-xrdcp-loss-comparison-2026-06-23.md`. Beyond ~12% a
   multi-round-trip link is effectively dead; raise `--max-stall` to extend
-  patience).
+  patience.
 - **Liveness probes.** TCP keepalive plus an application-level `kXR_ping`
   heartbeat (`--keepalive`, default 15s) detect a silently-dead peer; the
   reconnect window is bounded by `--max-stall` (default 60s).
@@ -437,7 +443,7 @@ network. Full reference: `brix-fault-proxy --help` and `man brix-fault-proxy`.
 ## Environment Variables
 
 Variables marked **(EXPANDED)** are extensions specific to this project's native
-clients (`libxrdc`). They do **not** exist in — and have no effect on — a vanilla
+clients (`libbrix`). They do **not** exist in — and have no effect on — a vanilla
 upstream XRootD client; do not rely on them outside this project. Every other
 variable below follows the standard XRootD / Grid / cloud-ecosystem convention
 and behaves the same as upstream.
@@ -513,18 +519,18 @@ For implementation detail and tests, see
 
 ## POSIX Preload Shim
 
-`libxrdposix_preload.so` lets legacy POSIX-read tools access a remote export
+`libbrixposix_preload.so` lets legacy POSIX-read tools access a remote export
 without linking a client library:
 
 ```bash
-LD_PRELOAD=/path/to/libxrdposix_preload.so \
+LD_PRELOAD=/path/to/libbrixposix_preload.so \
 BRIX_VMP=/xrd=root://store.example:1094/ \
 cat /xrd/data/file.root
 ```
 
 The shim interposes open/read/pread/lseek/close, stat-family calls, and access.
 Paths under the local prefix from `$BRIX_VMP` are rewritten to the remote
-logical path and served through a lazily connected `libxrdc` session. Other paths
+logical path and served through a lazily connected `libbrix` session. Other paths
 fall through to libc.
 
 Reviewer attention: the source comments call this a first-cut read path. Writes
@@ -533,12 +539,12 @@ routing are not part of the current preload surface.
 
 ## Public C Library
 
-External C consumers can use `libxrdc` through `client/lib/xrdc.h`.
+External C consumers can use `libbrix` through `client/lib/brix.h`.
 
-A minimal stat example exists at `client/examples/xrdc_stat_demo.c`:
+A minimal stat example exists at `client/examples/brix_stat_demo.c`:
 
 ```bash
-cc client/examples/xrdc_stat_demo.c $(pkg-config --cflags --libs libxrdc) -o demo
+cc client/examples/brix_stat_demo.c $(pkg-config --cflags --libs libbrix) -o demo
 ./demo root://store.example:1094 /data/file.root
 ```
 
@@ -572,5 +578,5 @@ that reviewers should keep in mind:
 | UDP monitoring | Intentionally absent. Diagnostics use client traces/captures and server `/metrics`, not the upstream binary UDP monitoring stream. |
 | FUSE sync driver resilience | `xrootdfs --legacy` is synchronous and does not resume an in-flight transfer after a connection drop; the default `xrootdfs` (no `--legacy`) does. |
 | POSIX preload | Read-oriented first cut; writes/fopen/mmap are not implemented as remote operations. |
-| Native root TPC | ztn/GSI outbound auth exists, but TLS-upgraded source origins and multihop delegation remain caveats requiring site validation. |
+| Native root TPC | The tools drive the stock dialect (destination pulls) with ztn/GSI outbound auth, and `-S N` becomes `tpc.str=N` so a 2.0 destination pulls multi-stream. TLS-upgraded source origins and a source `kXR_redirect` are both handled on the pull leg (2.0 F7, bounded by `brix_tpc_max_hops`). What remains site-specific is credential forwarding against a foreign source. |
 | Vendor POSIX extensions | `setattr`, symlink/readlink, and hardlink operations are emitted only when a server advertises `xrdfs.ext`; stock servers will not see those opcodes. |

@@ -20,8 +20,8 @@
 #include "brix_fault_proxy_state.h"
 #include "brix_fault_proxy_mods.h"
 #include "brix_fault_toxic.h"
+#include "net/resolve.h"
 #include <errno.h>
-#include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <stdlib.h>
@@ -33,29 +33,21 @@
 int
 dial(const char *host, int port)
 {
-    struct addrinfo hints, *res = NULL, *ai;
-    char            portstr[16];
-    int             fd = -1;
+    brix_resolve_addr addrs[BRIX_RESOLVE_MAX];
+    int n = brix_resolve(host, port, AF_UNSPEC, SOCK_STREAM, 0, addrs,
+                         BRIX_RESOLVE_MAX, NULL);
+    int fd = -1;
 
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family   = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    snprintf(portstr, sizeof(portstr), "%d", port);
-    if (getaddrinfo(host, portstr, &hints, &res) != 0) {
-        return -1;
-    }
-    for (ai = res; ai != NULL; ai = ai->ai_next) {
-        fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+    for (int i = 0; i < n && fd < 0; i++) {
+        fd = socket(addrs[i].family, addrs[i].socktype, addrs[i].protocol);
         if (fd < 0) {
             continue;
         }
-        if (connect(fd, ai->ai_addr, ai->ai_addrlen) == 0) {
-            break;
+        if (connect(fd, (struct sockaddr *) &addrs[i].ss, addrs[i].len) != 0) {
+            close(fd);
+            fd = -1;
         }
-        close(fd);
-        fd = -1;
     }
-    freeaddrinfo(res);
     return fd;
 }
 

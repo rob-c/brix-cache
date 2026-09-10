@@ -169,6 +169,12 @@ brix_imp_rename_noreplace(const char *src, const char *dst)
 }
 
 int
+brix_imp_rename_exchange(const char *src, const char *dst)
+{
+    return imp_call_status(IMP_OP_RENAME_EXCHANGE, src, dst, 0, 0);
+}
+
+int
 brix_imp_link(const char *src, const char *dst)
 {
     return imp_call_status(IMP_OP_LINK, src, dst, 0, 0);

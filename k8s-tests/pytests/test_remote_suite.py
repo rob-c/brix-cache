@@ -79,6 +79,40 @@ def test_gridftp_scenario_dry_run_wires_interop_matrix(monkeypatch):
         "tests/test_gridftp_interop.py"))
 
 
+def test_gridftp_outbound_scenario_wires_four_store_line_fronts(monkeypatch):
+    """phase-115 W5.5: brix as a CLIENT of a real door.
+
+    The inverse lane of `gridftp`. It must enable the `outbound` role, pass the
+    operator's door through to the store lines, and point the runner at all
+    four fronts — one per store-line shape, which is the only way a difference
+    between them is attributable to the parameters rather than to the door.
+    """
+    monkeypatch.setenv("XRD_LAB_DRY_RUN", "1")
+    monkeypatch.setenv("BRIX_OUTBOUND_DOOR", "door.example.org")
+    from labtools import lab_suite
+    lines = " ".join(lab_suite.run("gridftp-outbound", []))
+    assert all(t in lines for t in (
+        "charts/gridftp-interop", "brix-gridftp", "outbound.enabled=true",
+        "outbound.role.outbound.host=door.example.org",
+        "TEST_OUTBOUND_HOST=gf-outbound",
+        "tests/test_gridftp_outbound_interop.py"))
+
+
+def test_gridftp_outbound_without_a_door_refuses_rather_than_skips(monkeypatch):
+    """THE thing this lane must not do: deploy against nothing and exit 0.
+
+    A placeholder host would install, skip every cell for want of a reachable
+    door, and report success — indistinguishable from a lane that ran. The
+    refusal has to name what is missing, because the operator has to supply it.
+    """
+    monkeypatch.setenv("XRD_LAB_DRY_RUN", "1")
+    monkeypatch.delenv("BRIX_OUTBOUND_DOOR", raising=False)
+    from labtools import lab_suite
+    with pytest.raises(SystemExit) as refusal:
+        lab_suite.run("gridftp-outbound", [])
+    assert "BRIX_OUTBOUND_DOOR" in str(refusal.value)
+
+
 def test_gridftp_scenario_takes_an_explicit_selection(monkeypatch):
     """An explicit test selection overrides the gridftp default suite."""
     monkeypatch.setenv("XRD_LAB_DRY_RUN", "1")

@@ -3,7 +3,8 @@
  * Phase-38 split of broker.c; behavior-identical.
  *
  * Holds the confined-syscall primitives (imp_openat2 / imp_open_parent /
- * imp_fill_stat / imp_do_rename / imp_xattr_*), the fd-based op handlers
+ * imp_fill_stat / imp_do_rename / imp_do_exchange / imp_xattr_*), the fd-based
+ * op handlers
  * (open / stat / lstat / truncate / getxattr / listxattr / setxattr /
  * removexattr), and the opcode dispatch table + entry point (imp_do_op).
  * The parent-relative namespace-mutation handlers (mkdir / unlink / rmdir /
@@ -163,6 +164,38 @@ imp_xattr_filter_user(char *list, size_t len)
     return out;
 }
 
+
+
+/*
+ * renameat2(RENAME_EXCHANGE) as the mapped user: an atomic two-name swap, with
+ * no instant at which either name is missing (2.0 F21).
+ *
+ * WHY a separate primitive rather than a third mode of imp_do_rename: the two
+ * flags have OPPOSITE degradation policies, and folding them would make the
+ * wrong one easy to reach.  NOREPLACE degrades to a plain renameat on an old
+ * kernel because its only failure mode is under-claiming exclusivity; EXCHANGE
+ * must NOT, because the only emulation is two renames and that is precisely the
+ * window the caller asked to avoid (sd.h exchange contract, phase-107 §3.5).
+ *
+ * HOW: raw SYS_renameat2 — no glibc wrapper predates 2.28 — and a kernel or
+ * filesystem without the flag (ENOSYS/EINVAL) is reported as ENOTSUP, the same
+ * answer the non-impersonated arm in fs/path/beneath.c gives, so a caller cannot
+ * tell the two apart and no caller needs an impersonation-specific branch.
+ * Returns 0 on success, -1 with errno set.
+ */
+int
+imp_do_exchange(int sfd, const char *sbase, int dfd, const char *dbase)
+{
+    /* phase72-fp: sfd/sbase ARE the first (source) pair — order is correct */
+    if (syscall(SYS_renameat2, sfd, sbase, dfd, dbase,   /* NOLINT(readability-suspicious-call-argument) */
+                (unsigned int) RENAME_EXCHANGE) == 0) {
+        return 0;
+    }
+    if (errno == ENOSYS || errno == EINVAL) {
+        errno = ENOTSUP;
+    }
+    return -1;
+}
 
 
 /*
@@ -403,6 +436,7 @@ static const struct {
     { IMP_OP_CHOWN,            imp_op_chown       },
     { IMP_OP_RENAME,           imp_op_rename_link },
     { IMP_OP_RENAME_NOREPLACE, imp_op_rename_link },
+    { IMP_OP_RENAME_EXCHANGE,  imp_op_rename_link },
     { IMP_OP_LINK,             imp_op_rename_link },
     { IMP_OP_SETATTR,          imp_op_setattr     },
     { IMP_OP_SYMLINK,          imp_op_symlink     },

@@ -186,10 +186,23 @@ typedef struct {
     int        tpc_done;         /* pull completed successfully */
     char       tpc_key[128];     /* shared TPC rendezvous key */
     char       tpc_org[256];     /* origin identity sent to source as tpc.org */
-    char       tpc_src_host[256];
+    int        tpc_org_unresolved; /* tpc_org holds the numeric fallback: the
+                                    * client PTR was pending at open (origin_id.c) */
+    /*
+     * F16 push. When tpc_push is set this handle is the SOURCE of a push
+     * (tpc.stage=push): it was opened for READ, and the tpc_src_* triple below
+     * names the remote DESTINATION this server will dial and write to. The
+     * triple is reused rather than duplicated so there is exactly one "remote
+     * peer" address on a TPC handle, and exactly one place the egress guard
+     * has to cover; tpc_push is the only bit that says which way bytes move.
+     */
+    int        tpc_push;         /* 1 = source side of an F16 push */
+
+    char       tpc_src_host[256];/* remote peer: source (pull) or dest (push) */
     uint16_t   tpc_src_port;     /* 0 means default XRootD port */
-    char       tpc_src_path[PATH_MAX];
+    char       tpc_src_path[PATH_MAX]; /* remote path at that peer */
     char       tpc_token_mode[32]; /* OAuth2/OIDC delegation mode for source auth */
+    int        tpc_streams;     /* parallel source read streams (F7), >= 1 */
     uint64_t   tpc_transfer_id; /* shared TPC registry entry, 0 if not tracked */
 
     /* ---- write-through state (mirrors XrdPfcFile::m_dirtyOffset, m_bytesWritten) ----

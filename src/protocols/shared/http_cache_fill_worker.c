@@ -11,6 +11,8 @@
 #include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_* */
 #include "fs/backend/http/sd_http.h"    /* sd_http_n_endpoints (verify budget) */
 #include "fs/cache/fill_retry.h"        /* T20 classification + backoff */
+#include "core/http/http_variables.h"  /* brix_http_monitor_get (re-entry mark) */
+#include "observability/metrics/io_monitor.h"   /* fill_refused */
 #include "core/aio/aio.h"                      /* brix_task_bind */
 #include "fs/path/path.h"        /* brix_sanitize_log_string (wire keys) */
 #include "observability/sesslog/sesslog_ngx.h"
@@ -92,6 +94,28 @@ brix_http_cache_fill_thread(void *data, ngx_log_t *log)
 }
 
 /* Resolve one waiter with the fill outcome (event loop). */
+/* The STORE refused the object (ENOSPC), not the origin: the same read opened
+ * inline degrades to a source read (sd_cache_open_common), so give the parked
+ * waiter that answer too. Mark the request first: the re-entered handler then
+ * declines a second offload (brix_http_cache_fill_if_needed) and opens with
+ * BRIX_SD_O_NOFILL, so the object is served from the source and never cached.
+ * Event loop: the mark lives on r->pool. */
+static ngx_int_t
+brix_http_fill_reenter_from_source(const brix_http_cache_fill_ctx_t *t,
+    brix_http_fill_waiter_t *w)
+{
+    brix_io_monitor_t *m = brix_http_monitor_get(w->r);
+
+    if (m == NULL) {
+        ngx_log_error(NGX_LOG_ERR, w->r->connection->log, 0,
+            "xrootd-fill: key=\"%s\" cannot mark the store-refused re-entry "
+            "(no memory) - 502", t->key);
+        return NGX_HTTP_BAD_GATEWAY;
+    }
+    m->fill_refused = 1;
+    return w->reenter(w->r, w->reenter_data);
+}
+
 static void
 brix_http_fill_resolve_waiter(brix_http_cache_fill_ctx_t *t,
     brix_http_fill_waiter_t *w)
@@ -109,6 +133,8 @@ brix_http_fill_resolve_waiter(brix_http_cache_fill_ctx_t *t,
             "or a size-unknown origin) - returning 502",
             t->key);
         rc = NGX_HTTP_BAD_GATEWAY;
+    } else if (brix_fill_store_refused(t->err)) {
+        rc = brix_http_fill_reenter_from_source(t, w);
     } else if (t->err == ENOENT || t->err == ENOTDIR) {
         /* The origin's definitive answer: the object does not exist. */
         rc = NGX_HTTP_NOT_FOUND;
@@ -151,7 +177,8 @@ brix_http_fill_resolve_waiter(brix_http_cache_fill_ctx_t *t,
 /* ONE outcome line per fill — the anchor every other event (retry /
  * hold-expired / client-gone) correlates with via the key. Level and verdict
  * follow the outcome: a detached success is NOTICE (nobody was left to serve),
- * a definitive 404 is INFO, deadline exhaustion is WARN, anything else ERR. */
+ * a definitive 404 is INFO, a store refusal NOTICE (served, not cached),
+ * deadline exhaustion is WARN, anything else ERR. */
 static void
 brix_http_fill_log_outcome(const brix_http_cache_fill_ctx_t *t,
     const ngx_event_t *ev)
@@ -176,6 +203,15 @@ brix_http_fill_log_outcome(const brix_http_cache_fill_ctx_t *t,
         ngx_log_error(NGX_LOG_INFO, ev->log, 0,
             "xrootd-fill: event=not-found key=\"%s\" attempts=%ud "
             "elapsed_ms=%M waiters=%d — the origin's definitive 404",
+            k, t->attempts, elapsed, waiters);
+        return;
+    }
+    if (brix_fill_store_refused(t->err)) {
+        ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+            "xrootd-fill: event=store-refused key=\"%s\" attempts=%ud "
+            "elapsed_ms=%M waiters=%d verdict=\"the cache store cannot hold "
+            "this object; every waiter re-entered to read it from the source, "
+            "nothing cached\"",
             k, t->attempts, elapsed, waiters);
         return;
     }

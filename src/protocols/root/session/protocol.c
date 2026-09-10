@@ -84,8 +84,10 @@ protocol_role_flags(const ngx_stream_brix_srv_conf_t *conf)
         | (conf->caps.metadata_only ? kXR_attrMeta : 0)
         | ((conf->proxy.enable > 0 || conf->proxy.upstreams != NULL)
                ? kXR_attrProxy : 0)
-        | ((conf->cache_root.len > 0 || conf->cache_origin_host.len > 0)
-               ? kXR_attrCache : 0);
+        /* A read-through cache is `brix_cache on` + brix_cache_export, which is
+         * what fills cache_root; the second arm this test used to carry read the
+         * retired brix_cache_origin host and could never be true. */
+        | (conf->cache_root.len > 0 ? kXR_attrCache : 0);
 }
 
 /* WHAT: the kXR_tls* requirement bits the brix_tls_require mask advertises.

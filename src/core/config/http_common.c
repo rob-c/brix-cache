@@ -9,6 +9,7 @@
 #include "auth/s3/sts.h"                   /* BRIX_STS_FLAVOR_* (phase-70 §5.5) */
 #include "core/config/config.h"            /* brix_conf_set_backend_sss_keytab */
 #include "fs/vfs/vfs_secgate.h"            /* brix_conf_set_tls_require */
+#include "core/compat/checksum_plugin.h"    /* brix_checksum_plugin_directive */
 #include "core/config/credential_block.h"  /* brix_conf_credential_block (phase-105 W2) */
 #include "core/shm/kv.h"                   /* brix_kv_zone_directive (phase-105 W1) */
 #include "core/shm/rate_limit.h"           /* brix_rate_limit_directive */
@@ -16,6 +17,9 @@
 #include "net/ratelimit/ratelimit.h"       /* brix_rl_{zone,rule,bw,conc}_directive */
 #include "net/mirror/http_mirror.h"        /* brix_http_mirror_set_{url,methods} (phase-105 W2) */
 #include "core/http/http_variables.h"   /* brix_http_add_variables (phase-106 W1) */
+#include "core/http/http_peer_name.h"   /* PREACCESS reverse-DNS wait (phase-116) */
+#include "auth/protbind/protbind.h" /* brix_protbind_needs_hostname (phase-116) */
+#include "net/dns/dns.h"                /* brix_dns_backend_prepare (phase-116) */
 
 #include <stdio.h>
 #include <openssl/pem.h>
@@ -37,6 +41,19 @@ static ngx_conf_enum_t  brix_http_crl_modes[] = {
     { ngx_string("off"),     BRIX_CRL_MODE_OFF     },
     { ngx_string("try"),     BRIX_CRL_MODE_TRY     },
     { ngx_string("require"), BRIX_CRL_MODE_REQUIRE },
+    { ngx_null_string, 0 }
+};
+/* 2.0 F19 — value sets mirror the stream plane's brix_crl_scopes /
+ * brix_tls_verify_logs exactly, so one spelling means one thing on both. */
+static ngx_conf_enum_t  brix_http_crl_scopes[] = {
+    { ngx_string("all"),  BRIX_CRL_SCOPE_ALL  },
+    { ngx_string("last"), BRIX_CRL_SCOPE_LAST },
+    { ngx_null_string, 0 }
+};
+static ngx_conf_enum_t  brix_http_tls_verify_logs[] = {
+    { ngx_string("off"),     BRIX_TLS_VERIFY_LOG_OFF     },
+    { ngx_string("failure"), BRIX_TLS_VERIFY_LOG_FAILURE },
+    { ngx_string("all"),     BRIX_TLS_VERIFY_LOG_ALL     },
     { ngx_null_string, 0 }
 };
 
@@ -120,7 +137,7 @@ brix_http_common_preconfiguration(ngx_conf_t *cf)
 
 static ngx_http_module_t  brix_http_common_module_ctx = {
     brix_http_common_preconfiguration,   /* preconfiguration */
-    NULL,                                /* postconfiguration */
+    brix_http_peer_name_postconfiguration, /* postconfiguration (phase-116) */
     brix_http_common_create_main_conf, NULL,
     NULL, NULL,                          /* create/merge srv conf */
     brix_http_common_create_loc_conf,
@@ -176,8 +193,14 @@ brix_http_common_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_http_brix_common_conf_t  *prev = parent;
     ngx_http_brix_common_conf_t  *conf = child;
 
-    (void) cf;
     brix_shared_adopt_unified(&conf->common, &prev->common);
+    /* phase-116: a location that consults the peer's hostname needs a reverse
+     * backend even with no brix_resolver in the configuration. */
+    if (conf->common.acc.resolve_hosts > 0
+        || brix_protbind_needs_hostname(conf->common.protbind))
+    {
+        return brix_dns_backend_prepare(cf);
+    }
     return NGX_CONF_OK;
 }
 
@@ -193,7 +216,12 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
                           const ngx_http_brix_shared_conf_t *src)
 {
     BRIX_ADOPT_STR(root);
+    brix_dns_conf_adopt(&dst->dns, &src->dns);   /* phase-116 */
     BRIX_ADOPT_STR(storage_backend);
+    /* phase-115 W5.1: the store line's trailing params travel WITH the url —
+     * a protocol that adopted the backend but not its params would run the
+     * export with a silently different data-channel/verification policy. */
+    BRIX_ADOPT_PTR(storage_backend_args);
     BRIX_ADOPT_STR(n2n_scheme);
     BRIX_ADOPT_STR(n2n_pool);
     BRIX_ADOPT_STR(n2n_prefix);
@@ -214,7 +242,6 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_STR(backend_sts_region);
     BRIX_ADOPT_VAL(backend_sts_ttl, NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(backend_krb5_forwardable, NGX_CONF_UNSET);
-    BRIX_ADOPT_VAL(backend_passthrough_persist, NGX_CONF_UNSET);
     BRIX_ADOPT_STR(thread_pool_name);
     BRIX_ADOPT_STR(access_log);
     BRIX_ADOPT_STR(cache_store);
@@ -246,12 +273,15 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_VAL(cache_slice_size,  (size_t) NGX_CONF_UNSET_SIZE);
     BRIX_ADOPT_VAL(cache_prefetch,    NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(cache_prefetch_window, (size_t) NGX_CONF_UNSET_SIZE);
+    brix_cache_urlcgi_conf_adopt(&dst->cache_urlcgi, &src->cache_urlcgi);
     BRIX_ADOPT_VAL(cache_verify_mode, NGX_CONF_UNSET_UINT);
+    BRIX_ADOPT_STR(cache_verify_digest);
     BRIX_ADOPT_VAL(cache_global_cas,  NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(cache_passthrough, NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(cache_passthrough_max, NGX_CONF_UNSET);      /* off_t */
     BRIX_ADOPT_VAL(cache_only_if_cached, NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(cache_uvkeep,      NGX_CONF_UNSET);          /* time_t */
+    BRIX_ADOPT_VAL(cache_serve_while_filling, NGX_CONF_UNSET);   /* time_t */
 
     /* phase-101 W2: kTLS + trusted cache-store endpoint (were dual-conf pokes). */
     BRIX_ADOPT_VAL(ktls,                 NGX_CONF_UNSET);
@@ -269,6 +299,7 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_VAL(acc.resolve_hosts, NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(acc.encoding,      NGX_CONF_UNSET);
     BRIX_ADOPT_STR(acc.authdb);
+    BRIX_ADOPT_STR(acc.authdb_defect);
     BRIX_ADOPT_STR(acc.nisdomain);
     BRIX_ADOPT_STR(acc.spacechar);
     BRIX_ADOPT_STR(acc.gidretran);
@@ -341,6 +372,9 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_STR(crl);
     BRIX_ADOPT_VAL(signing_policy_mode, NGX_CONF_UNSET_UINT);
     BRIX_ADOPT_VAL(crl_mode,            NGX_CONF_UNSET_UINT);
+    /* 2.0 F19: xrd.tlsca residuals — CRL reach + verification-log level. */
+    BRIX_ADOPT_VAL(crl_scope,           NGX_CONF_UNSET_UINT);
+    BRIX_ADOPT_VAL(tls_verify_log,      NGX_CONF_UNSET_UINT);
     /* phase-101 W4: VOMS trust dirs (was brix_webdav_vomsdir/_voms_cert_dir). */
     BRIX_ADOPT_STR(vomsdir);
     BRIX_ADOPT_STR(voms_cert_dir);
@@ -351,10 +385,16 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_VAL(tpc_allow_private,      NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(tpc_source_guard,       NGX_CONF_UNSET);
     BRIX_ADOPT_PTR(tpc_source_allow);
+    BRIX_ADOPT_PTR(tpc_allow_identity);      /* 2.0 F18 identity matrix */
+    BRIX_ADOPT_PTR(tpc_require);
+    BRIX_ADOPT_PTR(tpc_restrict);
+    BRIX_ADOPT_VAL(tpc_oids,                NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(tpc_require_source_size, NGX_CONF_UNSET);
     BRIX_ADOPT_STR(tpc_verify_checksum);
     BRIX_ADOPT_VAL(tpc_outbound_tls, NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(tpc_outbound_passthrough, NGX_CONF_UNSET);
+    BRIX_ADOPT_VAL(tpc_outbound_renew_lead, NGX_CONF_UNSET);
+    BRIX_ADOPT_VAL(tpc_outbound_renew_strict, NGX_CONF_UNSET);
     BRIX_ADOPT_STR(tpc_outbound_bearer_file);
     BRIX_ADOPT_STR(tpc_outbound_token_endpoint);
     BRIX_ADOPT_STR(tpc_outbound_client_id);
@@ -450,6 +490,9 @@ brix_http_common_init_process(ngx_cycle_t *cycle)
     brix_jwks_refresh_spec_t          *specs;
     ngx_uint_t                         i;
 
+    if (brix_dns_targets_init_worker(cycle) != NGX_OK) {   /* phase-116 */
+        return NGX_ERROR;
+    }
     mcf = ngx_http_cycle_get_module_main_conf(cycle,
                                                ngx_http_brix_common_module);
     if (mcf == NULL || mcf->jwks_refresh_specs == NULL) {

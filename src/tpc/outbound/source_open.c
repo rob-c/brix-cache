@@ -305,6 +305,13 @@ tpc_open_build_opaque(brix_tpc_pull_t *t, char *opaque, size_t opaque_sz,
     } else if (t->tpc_key[0] != '\0') {
         n = (size_t) snprintf(opaque, opaque_sz, "?tpc.key=%s", t->tpc_key);
     }
+    /* F7 multihop: replay the capability opaque (cap.sym/cap.msg) the last
+     * redirect handed us — the data server cannot authorize the open without
+     * it and would bounce us straight back to the manager. */
+    if (n < opaque_sz && t->redir_opaque[0] != '\0') {
+        n += (size_t) snprintf(opaque + n, opaque_sz - n, "%s%s",
+                               (n == 0) ? "?" : "&", t->redir_opaque);
+    }
     if (n >= opaque_sz) {
         snprintf(t->err_msg, sizeof(t->err_msg), "TPC source opaque too long");
         t->xrd_error = kXR_ArgTooLong;
@@ -337,10 +344,12 @@ typedef struct {
  */
 static int
 tpc_open_build_request(brix_tpc_pull_t *t, tpc_open_buf_t *dst,
-                       const char *opaque, size_t opqlen)
+                       const tpc_open_spec_t *spec)
 {
     ClientOpenRequest *opreq;
-    size_t             pathlen = strlen(t->src_path);
+    const char        *opaque  = spec->opaque;
+    size_t             opqlen  = spec->opqlen;
+    size_t             pathlen = strlen(spec->path);
     size_t             len     = sizeof(ClientOpenRequest) + pathlen + opqlen;
 
     if (len > dst->cap) {
@@ -361,13 +370,13 @@ tpc_open_build_request(brix_tpc_pull_t *t, tpc_open_buf_t *dst,
     opreq->streamid[1] = 2;
     opreq->requestid   = htons(kXR_open);
     {
-        xrdw_open_req_t b = { .options = kXR_open_read };
+        xrdw_open_req_t b = { .options = spec->options };
         xrdw_open_req_pack(&b, ((ClientRequestHdr *) dst->buf)->body);
     }
     opreq->dlen        = htonl((kXR_int32)(pathlen + opqlen));
 
     /* Append payload right after the header: path first, then "?tpc..." opaque. */
-    ngx_memcpy(dst->buf + sizeof(ClientOpenRequest), t->src_path, pathlen);
+    ngx_memcpy(dst->buf + sizeof(ClientOpenRequest), spec->path, pathlen);
     if (opqlen > 0) {
         ngx_memcpy(dst->buf + sizeof(ClientOpenRequest) + pathlen,
                    opaque, opqlen);
@@ -389,6 +398,14 @@ static int
 tpc_open_extract_fhandle(brix_tpc_pull_t *t, tpc_open_reply_t *reply,
                          u_char fhandle[XRD_FHANDLE_LEN])
 {
+    /* F7 multihop: a manager/redirector answers the open with the data
+     * server to use. Record it and let thread.c decide whether to follow. */
+    if (reply->status == kXR_redirect) {
+        int rc = tpc_redirect_note(t, reply->body, reply->dlen);
+
+        free(reply->body);
+        return (rc == 0) ? TPC_PULL_REDIRECT : -1;
+    }
     if (reply->status != kXR_ok || reply->body == NULL
         || reply->dlen < XRD_FHANDLE_LEN)
     {
@@ -424,25 +441,31 @@ tpc_open_extract_fhandle(brix_tpc_pull_t *t, tpc_open_reply_t *reply,
 }
 
 /*
- * tpc_open_source — Phase 1: build and send the kXR_open for the remote source,
- * resolve the (possibly asynchronous) reply, and extract the origin fhandle.
- * Returns 0 with `fhandle` filled, or -1 with t->err_msg / t->xrd_error set. On
- * failure the caller has no origin handle to close.
+ * tpc_open_remote — WHAT: send ONE kXR_open described by `spec` on an already
+ * bootstrapped outbound socket, resolve its (possibly asynchronous) reply and
+ * extract the remote fhandle.
+ * WHY: both TPC directions perform the identical open dance — the same async
+ * kXR_wait / kXR_waitresp / kXR_attn resolution, the same redirect capture, the
+ * same fhandle extraction, the same negotiate-then-restore SO_RCVTIMEO window.
+ * Only the path, the opaque and the open options differ. Factoring the dance out
+ * means the F16 push cannot drift from the pull's hard-won async handling, and
+ * a fix to either applies to both.
+ * HOW: frame from spec → send → tighten the receive timeout for the negotiation
+ * → tpc_open_resolve → restore → extract. Returns 0 with `fhandle` filled, or -1
+ * with t->err_msg / t->xrd_error set; on failure the caller has no remote handle
+ * to close.
  */
 int
-tpc_open_source(brix_tpc_pull_t *t, int fd, u_char fhandle[XRD_FHANDLE_LEN])
+tpc_open_remote(brix_tpc_pull_t *t, int fd, const tpc_open_spec_t *spec,
+                u_char fhandle[XRD_FHANDLE_LEN])
 {
-    u_char            open_buf[sizeof(ClientOpenRequest) + PATH_MAX + 512];
-    char              opaque[512];
-    size_t            opqlen = 0;
+    u_char            open_buf[sizeof(ClientOpenRequest) + PATH_MAX + 512
+                               + TPC_REDIR_OPAQUE_LEN];
     tpc_open_buf_t    ob = { .buf = open_buf, .cap = sizeof(open_buf), .len = 0 };
     tpc_open_ctx_t    oc;
     tpc_open_reply_t  reply = { 0 };
 
-    if (tpc_open_build_opaque(t, opaque, sizeof(opaque), &opqlen) != 0) {
-        return -1;
-    }
-    if (tpc_open_build_request(t, &ob, opaque, opqlen) != 0) {
+    if (tpc_open_build_request(t, &ob, spec) != 0) {
         return -1;
     }
 
@@ -475,4 +498,30 @@ tpc_open_source(brix_tpc_pull_t *t, int fd, u_char fhandle[XRD_FHANDLE_LEN])
     tpc_set_rcvtimeo(fd, TPC_IO_TIMEOUT_SEC);
 
     return tpc_open_extract_fhandle(t, &reply, fhandle);
+}
+
+/*
+ * tpc_open_source — Phase 1 of a PULL: open t->src_path on the remote source
+ * for reading, carrying the tpc.key/tpc.org rendezvous opaque (or none, under
+ * delegation). A thin spec over tpc_open_remote; every behaviour it had before
+ * the F16 split lives there now. Returns 0 with `fhandle` filled, or -1 with
+ * t->err_msg / t->xrd_error set.
+ */
+int
+tpc_open_source(brix_tpc_pull_t *t, int fd, u_char fhandle[XRD_FHANDLE_LEN])
+{
+    char             opaque[512 + TPC_REDIR_OPAQUE_LEN];
+    size_t           opqlen = 0;
+    tpc_open_spec_t  spec;
+
+    if (tpc_open_build_opaque(t, opaque, sizeof(opaque), &opqlen) != 0) {
+        return -1;
+    }
+
+    spec.path    = t->src_path;
+    spec.opaque  = opaque;
+    spec.opqlen  = opqlen;
+    spec.options = kXR_open_read;
+
+    return tpc_open_remote(t, fd, &spec, fhandle);
 }

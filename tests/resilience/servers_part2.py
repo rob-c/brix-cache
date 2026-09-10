@@ -7,7 +7,7 @@ WHAT: launch and tear down a dedicated nginx (root://+GSI) and a dedicated
       with its own data root, plus the in-repo TCP fault proxy
       (client/bin/brix-fault-proxy) spliced in front of either one.
 
-WHY:  the shared manage_test_servers.sh fleet squats 11094-12126, is flaky to
+WHY:  the shared cmdscripts/manage_test_servers.py fleet squats 11094-12126, is flaky to
       bring up, and must not be perturbed by loss sweeps.  Resilience runs need
       isolated, reproducible endpoints that never collide with the main suite,
       living in their own subfolder.

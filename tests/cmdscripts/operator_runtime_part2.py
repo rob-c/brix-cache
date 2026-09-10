@@ -73,9 +73,16 @@ def _suite_parser():
     return parser
 
 
-def _capture_suite_nginx() -> bool:
-    """Pin every suite consumer to one immutable nginx executable."""
-    from cmdscripts.live_common import freeze_nginx  # noqa: PLC0415
+def _capture_suite_nginx() -> Path | None:
+    """Pin every suite consumer to one immutable nginx executable.
+
+    Publishes the ownership marker only when no OUTER run already holds one:
+    a lane may call run_suite() in-process (the operator_runtime meta-tests do),
+    and that nested run must defer to the runner that owns the live freeze
+    rather than re-label it as its own.
+    """
+    from cmdscripts.live_common import (  # noqa: PLC0415
+        SUITE_OWNS_FROZEN_NGINX, freeze_nginx)
 
     source = Path(os.environ["TEST_NGINX_BIN"])
     frozen = freeze_nginx(source)
@@ -84,12 +91,40 @@ def _capture_suite_nginx() -> bool:
             f"ERROR: could not capture immutable suite nginx binary: {source}",
             file=sys.stderr,
         )
-        return False
-    os.environ.update({
-        "TEST_NGINX_BIN": str(frozen),
-        "NGINX_BIN": str(frozen),
-    })
-    return True
+        return None
+    os.environ.update({"TEST_NGINX_BIN": str(frozen), "NGINX_BIN": str(frozen)})
+    os.environ.setdefault(SUITE_OWNS_FROZEN_NGINX, str(frozen))
+    return frozen
+
+
+def _release_suite_nginx(frozen: Path) -> None:
+    """Drop the ONE binary this run froze, once its last lane has finished.
+
+    The freeze spans EVERY lane, so the runner — not any one lane — owns it:
+    without the marker, lane 1's pytest_sessionfinish
+    (conftest_part5._remove_test_root) removes the freeze while the path is
+    still in the environment every later lane inherits, freeze_nginx() then
+    takes its `not src.exists()` branch with nothing to validate and hands the
+    dead path back, and every server in lanes 2..N fails to exec with ENOENT.
+
+    The removal is surgical for the mirror-image reason: a nested in-process
+    run_suite() freezes a throwaway binary into the SAME session directory, so
+    removing the DIRECTORY (or an outer runner's marker) would strand the live
+    run exactly as above.  Take only what this run froze, and clear the marker
+    only when this run is the one that published it.
+    """
+    from cmdscripts.live_common import SUITE_OWNS_FROZEN_NGINX  # noqa: PLC0415
+
+    try:
+        frozen.unlink()
+    except OSError:
+        pass
+    try:
+        frozen.parent.rmdir()
+    except OSError:
+        pass
+    if os.environ.get(SUITE_OWNS_FROZEN_NGINX) == str(frozen):
+        del os.environ[SUITE_OWNS_FROZEN_NGINX]
 
 
 def _suite_prepare_environment(ns):
@@ -105,9 +140,12 @@ def _suite_prepare_environment(ns):
         return None
     test_root = Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test")).expanduser().resolve()
     os.environ["TEST_ROOT"] = str(test_root)
-    if not _prepare_test_root(test_root) or not _capture_suite_nginx():
+    if not _prepare_test_root(test_root):
         return None
-    return test_root
+    frozen = _capture_suite_nginx()
+    if frozen is None:
+        return None
+    return test_root, frozen
 
 
 def _suite_arguments(ns):
@@ -232,9 +270,10 @@ def _report_sentinel_abort(abort):
 
 def run_suite(argv: list[str]) -> int:
     ns = _suite_parser().parse_args(argv)
-    test_root = _suite_prepare_environment(ns)
-    if test_root is None:
+    prepared = _suite_prepare_environment(ns)
+    if prepared is None:
         return 2
+    test_root, frozen = prepared
     teardown_test_fleet(test_root)
     clear_sentinel_marker(test_root)
     arguments = _suite_arguments(ns)
@@ -246,6 +285,7 @@ def run_suite(argv: list[str]) -> int:
         return 1
     finally:
         teardown_test_fleet(test_root)
+        _release_suite_nginx(frozen)
 
 
 def _openssl(argv: list[str]) -> subprocess.CompletedProcess:

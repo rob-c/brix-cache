@@ -21,6 +21,8 @@
 
 #include <limits.h>
 
+struct brix_dns_policy_s;   /* net/dns/dns.h: the export's brix_resolver policy */
+
 /* One registered export. `inst` is per-worker (copy-on-write after fork): the
  * master leaves it NULL at config time; each worker fills its own on first use. */
 typedef struct {
@@ -32,6 +34,8 @@ typedef struct {
     int                   origin_tls;
     int                   origin_family;       /* brix_af_policy_t for origin connect */
     char                  origin_path[1024];  /* http: URL base path ("" / "/sub") */
+    unsigned              tape_arc_depth;     /* tape://...?arc=<depth> (phase-115
+                                              * W3.1 dataset archiver); 0 = off */
     /* phase-68 T11: additional ranked http endpoints (endpoint 0 is
      * origin_host/port/tls/path above; these are the remaining pipe-separated
      * failover origins in configured order). */
@@ -71,6 +75,21 @@ typedef struct {
                                             * is archive-backed (GLACIER /
                                             * DEEP_ARCHIVE), which arms the same
                                             * cap over RestoreObject. */
+    /* phase-115: the trailing params of the export's brix_storage_backend line,
+     * stamped by brix_vfs_backend_set_store_params after the URL is registered.
+     * They describe the LINK to this origin, so every reader of the built
+     * instance inherits them (the same rule tier_build.c applies one layer up). */
+    int                   origin_verify_pages; /* W4.3 `verify_pages[=…]`:
+                                            * brix_pgverify_mode_e — 0 off, 1
+                                            * best-effort, 2 require. */
+    int                   origin_ftp_mode_e;   /* W5.1 `mode=e`: GFD.020 extended
+                                            * block mode on the data channel. */
+    int                   origin_ftp_prot_p;   /* W5.1 `prot=p`: TLS + DCAU A on
+                                            * the data channel, peer DN pinned
+                                            * to the control channel's. */
+    int                   origin_ftp_streams;  /* W5.3 `streams=<n>`: the ceiling
+                                            * on data connections one read may
+                                            * open via SPAS. 0/1 = never ask. */
     int                   origin_restore_days; /* s3 "?restore_days=N": how long a
                                             * RestoreObject copy stays readable.
                                             * 0 leaves the driver's default. */
@@ -140,6 +159,18 @@ typedef struct {
      * enforcement, and the table holds entries only for exports that relaxed
      * the default (advisory=1 / off=2). */
     unsigned             lock_enforcement:2;
+    /* 2.0 F5 forward:// (xroot_fwd): the schemes a client may name in a
+     * forwarded key and the origin-host permit list (space-separated exact
+     * hosts / .suffixes) every client-named origin is checked against,
+     * fail-closed.  Untouched (zero) on every fixed-origin entry. */
+    unsigned             origin_fwd_allow_root:1;
+    unsigned             origin_fwd_allow_roots:1;
+    char                 origin_fwd_permit[512];
+    /* phase-116: the export's resolver policy (brix_resolver), stamped at
+     * config time by brix_vfs_backend_set_dns() and handed to every remote
+     * driver this entry builds, so origin connects resolve through the one
+     * brix DNS path.  NULL = no brix_resolver in scope (libc, resolv.conf). */
+    struct brix_dns_policy_s *dns;
     brix_sd_instance_t *inst;          /* lazily built per worker, or NULL */
     const void          *inst_cycle;   /* the ngx_cycle `inst` was built under —
                                         * identity only, never dereferenced. A

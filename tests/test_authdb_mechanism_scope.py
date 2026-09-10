@@ -33,6 +33,7 @@ import hashlib
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 from pathlib import Path
 
 import pytest
@@ -146,9 +147,7 @@ def harness():
 def client_built():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler to build the native client")
-    proc = subprocess.run(
-        ["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin-brix"],
-        capture_output=True, text=True, timeout=300)
+    proc = client_make(CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin-brix", capture_output=True, text=True, timeout=300)
     if proc.returncode != 0 or not os.path.exists(XRDCP):
         pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
 

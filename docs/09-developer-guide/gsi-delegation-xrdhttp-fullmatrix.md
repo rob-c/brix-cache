@@ -30,7 +30,7 @@ Reusable drivers + configs: `/root/dev/brixbench/gsi_xrdhttp_deleg/`.
   (`/tmp/brix-nginx-session-*/nginx`; `proxy_ssl_certificate` takes a **variable** only
   on ≥1.21.4 — system nginx 1.20.1 can't and errors trying to `fopen("$brix_delegated_cred")`).
   `user bob;`, front-leg `ssl_verify_client on` + `brix_webdav_proxy_certs on` +
-  `brix_client_certificate_folder`/`brix_ssl_client_capath` (hashed CA dir);
+  `brix_client_certificate_folder`/`brix_client_certificate_folder` (hashed CA dir);
   delegation endpoint `/.well-known/brix-delegation`; back leg
   `proxy_pass https://127.0.0.1:21210` with `proxy_ssl_certificate $brix_delegated_cred`.
 - **Delegation upload**: authenticate the PUT with the **EEC** (`usercert.pem`+`userkey.pem`),

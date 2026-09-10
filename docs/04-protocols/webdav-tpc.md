@@ -146,7 +146,7 @@ delegation, which are still narrower than the full upstream rendezvous surface.
 
 With the official XRootD client, the `davs://` URL scheme requires the
 `XrdClHttp` plugin (`libXrdClHttp-5.so`), which ships with full xrootd builds but
-may be absent from client-only packages. The in-tree `client/xrdcp` has a direct
+may be absent from client-only packages. The in-tree `client/bin/xrdcp` has a direct
 WebDAV/HTTP path and does not use this plugin:
 
 ```bash
@@ -163,7 +163,7 @@ X509_USER_PROXY=/path/to/proxy_cert.pem \
   xrdcp --allow-http davs://host:8443//file.txt /local/copy.txt
 
 # Same endpoint with the in-tree native client
-client/xrdcp /local/file.txt davs://host:8443//file.txt
+client/bin/xrdcp /local/file.txt davs://host:8443//file.txt
 ```
 
 Set `X509_CERT_DIR` to your CA hash directory if the proxy's issuer CA is not in the system default location.

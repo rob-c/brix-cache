@@ -169,9 +169,11 @@ ngx_int_t sts_build_post(const sts_req_t *req, sts_post_t *pd);
 /*
  * sts_http_get — GET the signed STS URL and capture the response body into
  * `resp`, returning the HTTP status in *http_status. NGX_OK / NGX_ERROR.
+ * Both transports pin the endpoint host through the phase-116 DNS driver
+ * (`dns`, the export's policy; NULL: libc) — libcurl never resolves.
  */
-ngx_int_t sts_http_get(const char *url, sts_resp_t *resp, long *http_status,
-    ngx_log_t *log);
+ngx_int_t sts_http_get(const struct brix_dns_policy_s *dns, const char *url,
+    sts_resp_t *resp, long *http_status, ngx_log_t *log);
 
 /*
  * sts_http_post — POST the MinIO-dialect AssumeRole request (`pd`) to `url` with
@@ -179,8 +181,9 @@ ngx_int_t sts_http_get(const char *url, sts_resp_t *resp, long *http_status,
  * HTTP status in *http_status. `host` is the SigV4 authority (Host header, must
  * match the signed value). NGX_OK / NGX_ERROR.
  */
-ngx_int_t sts_http_post(const char *url, const char *host, const sts_post_t *pd,
-    sts_resp_t *resp, long *http_status, ngx_log_t *log);
+ngx_int_t sts_http_post(const struct brix_dns_policy_s *dns, const char *url,
+    const char *host, const sts_post_t *pd, sts_resp_t *resp,
+    long *http_status, ngx_log_t *log);
 
 /*
  * sts_parse_response — extract AccessKeyId / SecretAccessKey / SessionToken from

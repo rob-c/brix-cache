@@ -2,6 +2,27 @@
 
 > Part of the [XRootD vs BriX-Cache comparison set](./README.md).
 
+> **Status (2026-09-09 — 2.0).** For what 2.0 ships, what it deliberately does not, and
+> what is still open, the 2.0 register
+> [`release-2.0-readiness.md`](../../release-2.0-readiness.md) is the source of truth —
+> its parity rows supersede any ⚠️/❌ here. Axis (e) of that register closed **F1–F20**
+> (the thirteen accepted-only `brix_frm_*` knobs and the durable stage journal,
+> `stagemsg`/StageEvents, the OssArc dataset seal, the per-space purge-policy grammar
+> with an external policy program, `pfc.urlcgi` + PSS forwarding, the RAM-tier metric
+> rows, native `root://` TPC **multihop** delegation and multi-stream *pull*, the site
+> checksum plugin loader, the sss v2 endorsement/proxied-credential wave, the
+> health-check family, `brix_mirror_exclude_opcodes` read/readv, the four metric
+> wishlist categories, native `root://` TPC **push** with multi-stream on it, the
+> `cms.fsxeq` operator program for forwarded namespace ops, and the `ofs.tpc` identity
+> matrix layered inside the host-plane TPC confinement, and the `xrd.tlsca` CRL-scope
+> and verification-log residuals — whose lab also found and fixed **F22**, a CRL a
+> worker could not read silently disarming revocation — and the native authdb residual
+> grammar: the compound `u g p a v l` selector set, positional VOMS vorg+role pairing,
+> and the `x` stage privilege) and, with **F21** — full per-user POSIX identity across the VFS seam, whose audit
+> found the posix plane already impersonating at the `beneath`/`confined_canon` seam
+> and closed the one un-brokered verb, `RENAME_EXCHANGE` — landed on 2026-09-10,
+> leaves nothing open: axis (e) is closed in full at F1–F22.
+
 This is the honest accounting document of the comparison set. It states three
 things plainly, each grounded in source on both sides:
 
@@ -108,8 +129,13 @@ exists here.
   snapshot, resource monitoring).
 - **Here:** `src/fs/cache/` provides a practical read-through/slice cache with
   eviction and write-through helpers and advertises `kXR_attrCache`; `src/net/proxy/`
-  + `src/net/upstream/` provide protocol-bridge proxying. This is **not** a
-  full PSS/PFC replacement.
+  + `src/net/upstream/` provide protocol-bridge proxying; since 2.0 F5 the
+  PSS storage roles exist as storage backends — a fixed remote origin
+  (`brix_storage_backend root://host:port`) and the forwarding mode
+  (`brix_storage_backend forward://root[,roots] permit=…`, the client names
+  the origin inside the path) — plus the per-open `pfc.urlcgi` hints
+  (`brix_cache_urlcgi`). This is still **not** a full PFC policy-engine
+  replacement.
 - **Why it matters / impact:** sites depending on XCache purge/snapshot/policy
   internals or PSS remote-fill-as-storage need explicit review. Do not assume
   XCache drop-in parity.
@@ -249,12 +275,18 @@ exists here.
   `XrdCks/` plugin framework for site-specific checksum algorithms.
 - **Here:** `src/auth/token/` validates WLCG/JWT + path scopes;
   `src/core/compat/checksum.c` + `src/core/compat/crc64.c` cover adler32, crc32, crc32c,
-  md5, sha1, sha256, CRC-64/XZ, CRC-64/NVME. No general checksum **plugin
-  framework**.
-- **Why it matters / impact:** sites using advanced SciTokens issuer config or a
-  site-specific checksum plugin beyond the built-in set need review.
-- **Alternative:** partial — the common algorithms and WLCG-token cases are
-  covered directly; uncommon plugins are not.
+  zcrc32, md5, sha1, sha256, sha512, CRC-64/XZ, CRC-64/NVME. Since 2.0 there **is**
+  a checksum plugin framework: `brix_checksum_plugin <name> <path.so> [parms]`
+  loads a site algorithm against a plain-C ABI
+  (`src/core/compat/checksum_plugin_abi.h`) and it is usable wherever a built-in
+  name is — Qcksum, `brix_checksum_default`, Qconfig `chksum`, WebDAV
+  `Want-Digest`.
+- **Why it matters / impact:** sites using advanced SciTokens issuer config need
+  review. A site checksum plugin no longer does — but an existing `XrdCks`
+  plugin binary is not loadable as-is and needs a thin port to the BriX ABI
+  (`contrib/checksum-plugins/`).
+- **Alternative:** the SciTokens half stays partial; the checksum half is
+  closed.
 
 ### `XrdOssCsi` checksum/tagstore
 
@@ -299,7 +331,7 @@ beyond "same protocol, different daemon." Each is source-grounded.
 | **Leaky-bucket rate / bandwidth / concurrency limiting** | `src/net/ratelimit/`, `src/observability/metrics/ratelimit.c` | Identity-aware (VO, issuer, DN hash, IP, volume prefix) request-rate, bandwidth, and concurrency shaping across **both** stream and HTTP surfaces — broader and more uniform than per-plugin `XrdThrottle`/`XrdBwm`. |
 | **REST admin + live dashboard** | `src/observability/dashboard/` (`api_admin.c`, `api.c`) | HTTP-inspectable transfer/cluster/cache/rate-limit/config state; admin write API with auth/cookie/HMAC paths; config download with fail-closed redaction. |
 | **WLCG Storage Resource Reporting (SRR)** | `src/protocols/srr/` (`builder.c`, `handler.c`, `module.c`) | First-class HTTP/JSON SRR endpoint for site accounting/discovery; no core upstream server equivalent in the reviewed tree. |
-| **Resilient pure-C native client suite + FUSE** | `client/apps/` (`xrdcp`, `xrdfs`, `xrddiag`, `xrdmapc`, `xrdprep`, `xrdgsiproxy`, `xrdadler32`, `xrdcrc32c`, `xrdcrc64`, `xrdsssadmin-brix`, …), `client/lib/`, `xrootdfs*` FUSE | A clean-room `libxrdc`-based client + FUSE driver with connect-vs-IO timeouts, fast-fail on permanent errors, IPv6→IPv4 auto-downgrade, atomic/cancellable transfers. Independent of `libXrdCl`. (Server-replacement scope aside, this is a genuine module-family extra.) |
+| **Resilient pure-C native client suite + FUSE** | `client/apps/` (`xrdcp`, `xrdfs`, `xrddiag`, `xrdmapc`, `xrdprep`, `xrdgsiproxy`, `xrdadler32`, `xrdcrc32c`, `xrdcrc64`, `xrdsssadmin-brix`, …), `client/lib/`, `xrootdfs*` FUSE | A clean-room `libbrix`-based client + FUSE driver with connect-vs-IO timeouts, fast-fail on permanent errors, IPv6→IPv4 auto-downgrade, atomic/cancellable transfers. Independent of `libXrdCl`. (Server-replacement scope aside, this is a genuine module-family extra.) |
 | **HTTP-based SciTags packet marking** | `src/observability/pmark/` (`firefly.c`, `flowlabel.c`, `scitag.c`, `mapping.c`) | Firefly UDP + IPv6 flow-label packet marking integrated with WebDAV/TPC; an HTTP-native marking path rather than a separate daemon. (Upstream also has `XrdNetPMark`; the surfaces differ.) |
 | **Unified multi-protocol namespace under nginx** | shared `src/fs/path/` + `src/protocols/root/read/` + `src/protocols/webdav/` + `src/protocols/s3/` | One export serves `root://`, `davs://`/XrdHttp, and S3 with **common confinement and policy rules** and one set of nginx operational tooling (certs, reload, logging, reverse proxy). |
 | **WebDAV beyond upstream XrdHttp's method set** | `src/protocols/webdav/lock.c`, `dead_props.c`, `search.c`, `acl.c`, `methods_basic.c` | `LOCK`/`UNLOCK`, `PROPPATCH` + dead-property storage (xattrs), `SEARCH` (RFC 5323), `ACL` discovery — needed by desktop WebDAV clients that treat `501` as fatal. Not found as server methods in the reviewed XrdHttp source. |
@@ -384,11 +416,11 @@ diverges; "deferred" means a known divergence not yet closed.
 | `kXR_query` Qconfig empty-payload | Specific empty-payload form | May differ for empty/edge payloads | **Deferred** | Low |
 | `query config fattr` / `query config version` | Returns specific values | Not all config keys reproduced | **Deferred** | Low |
 | `kXR_mv` arg1len==0 autosplit | Reference autosplits a single space-joined arg | Not fully matched for the degenerate arg1len==0 form | **Deferred** | Low |
-| `kXR_Qopaque`/`Qopaquf`/`Qopaqug` (FSctl) | Plugin-dispatched custom FSctl/FSinfo | Reference-compatible "unsupported" when no plugin; no plugin hooks | **By-design** (no plugin framework) | Low |
+| `kXR_Qopaque`/`Qopaquf`/`Qopaqug` (FSctl) | Plugin-dispatched custom FSctl/FSinfo | Reference-compatible "unsupported" when no plugin; no plugin hooks | **By-design** (no FSctl plugin hooks; 2.0 does load site checksum plugins and `lib` MSS adapters, just not FSctl handlers) | Low |
 | Proxy async `kXR_attn` relay (unsolicited) | Full unsolicited upstream `kXR_attn` dispatch | `kXR_waitresp` forwarded; complete unsolicited-attention path not verified | **Deferred** (serious proxy-mode item) | Med |
 | Proxy `kXR_prepare` path-list rewrite | Per-entry path-list rewrite | Whole-payload rewrite flagged in proxy docs | **Deferred** (serious for path-map proxy) | Med |
-| Native TPC TLS-upgraded origins / multihop delegation | Broad upstream TPC paths | Basic rendezvous + SHM key registry; TLS-upgrade/multihop/site-credential edges need validation | **Deferred** | Med |
-| `kXR_tlsData` / `kXR_tlsSess` independent enforcement | Independently negotiated/enforced | Negotiated but follows login TLS (not independently enforced) | **Deferred** | Low |
+| Native TPC TLS-upgraded origins / multihop delegation | Broad upstream TPC paths | Rendezvous + SHM key registry, TLS upgrade, redirect following (`brix_tpc_max_hops`) and multi-stream pulls (`brix_tpc_streams`) shipped in 2.0; site-credential edges still need validation | **Closed (2.0 F7)** | Med |
+| `kXR_tlsData` / `kXR_tlsSess` independent enforcement | Independently negotiated/enforced | Independently enforced: `brix_tls_require session data` sets each bit in the `kXR_protocol` reply (`src/protocols/root/session/protocol.c`) and the VFS security gate refuses the matching operations (`src/fs/vfs/vfs_secgate.c`) | **Closed** | Low |
 | `recoverWrts` semantics | Client honors; server semantics depend on write-recovery support | Per-handle idempotent write replay; review before advertising broadly | **Partial** | Low |
 | Client `xrdcp` `--posc` / `-r` (recursive) / `ls` / `--cksum` gaps | Stock client feature breadth | Native client covers core copy/ls/stat/cksum; some flags/recursive modes are narrower | **Deferred** (client-side) | Low |
 
@@ -414,8 +446,8 @@ There is no single drop-in answer. The honest per-profile verdict:
 |---|---|---|
 | **Pure POSIX data server** (`root://` + `davs://`, local/parallel-FS storage, GSI/token/SSS/krb5/pwd/host auth, Prometheus monitoring) | **Strong drop-in candidate.** Full active opcode set through `kXR_clone`, paged I/O, POSC, vector I/O, fattr, confined paths, conformance-tested against stock. | Loses UDP XrdMon (by design); complex `XrdAcc` files need translation; no N2N plugin. |
 | **Redirector / manager** | **Viable for two/three-tier static + practical CMS** (manager registration, locate, redirect, blacklist, per-server metrics, multi-tier tested). | Full CMS admin socket/tooling, virtual node IDs, and some battle-tested CMS semantics are absent; complex production clusters need explicit conformance testing. |
-| **XCache / proxy cache** | **Partial — not a drop-in for PFC-dependent sites.** Read-through/slice cache + eviction + write-through + proxy bridge exist. | No full `XrdPfc` purge/snapshot/policy engine; no `XrdPss` remote-fill-as-storage; proxy unsolicited-`kXR_attn` and per-entry prepare rewrite are deferred. |
-| **WebDAV / HTTP(S) gateway** | **Strong, often ahead of upstream.** XrdHttp dialect, range/multipart, HTTP-TPC (hardened), plus `LOCK`/`PROPPATCH`/`SEARCH`/`ACL` beyond upstream's method set. | Native-TPC TLS-upgrade/multihop edges deferred; checksum-plugin breadth limited to the built-in set. |
+| **XCache / proxy cache** | **Partial — not a drop-in for PFC-dependent sites.** Read-through/slice cache + eviction + write-through + proxy bridge exist. | No full `XrdPfc` purge/snapshot/policy engine (`XrdPss` remote-origin-as-storage, fixed and forwarding, landed as 2.0 F5); proxy unsolicited-`kXR_attn` and per-entry prepare rewrite are deferred. |
+| **WebDAV / HTTP(S) gateway** | **Strong, often ahead of upstream.** XrdHttp dialect, range/multipart, HTTP-TPC (hardened), plus `LOCK`/`PROPPATCH`/`SEARCH`/`ACL` beyond upstream's method set. | Native-TPC TLS upgrade, multihop and multi-stream landed in 2.0 (F7); checksum breadth is the built-in set plus site plugins (`brix_checksum_plugin`). |
 | **S3 gateway** | **Module-exclusive capability** (no upstream S3 *server*). SigV4, multipart, presigned, POST Object, conditional ops, CRC64NVME. | Path-style focused; virtual-hosted buckets and dynamic STS stores out of scope; S3 SigV4 must never share logic with WLCG tokens (invariant). |
 | **Tape / MSS front end** | **Functional gateway, not a drop-in FRM.** Durable stage queue + WLCG Tape REST + `prepare`/`QPrep` (durable reqids with `brix_frm on`). | No full `XrdFrm` daemon ecosystem, in-process migrate/purge (scaffold only), MSS driver plugins, or `XrdOssArc`. Validate `prepare`/`cancel`/`evict`/recall against the real storage manager. |
 | **EC / Ceph / non-POSIX backend** | **Not a drop-in.** | No `XrdEc`, no `XrdCeph`, no OSS plugin ABI — hard blockers. |

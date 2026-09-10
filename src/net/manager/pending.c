@@ -189,6 +189,59 @@ brix_pending_set_path(uint32_t streamid, ngx_pid_t worker_pid,
 }
 
 /*
+ * brix_pending_find_probe — §2.15: who is already probing this path?
+ *
+ * WHAT: Writes up to `max` streamids of this worker's live pending entries
+ *       carrying probe_path == path (contract in pending.h).
+ * WHY:  Request coalescing needs both halves of the same question — the
+ *       locate path needs ONE match to decide not to re-probe, and the
+ *       kYR_have ingest needs ALL the others to wake them from one answer.
+ * HOW:  One locked linear scan of the fixed slot array with an exact string
+ *       compare.  Only this worker's entries are eligible: the wake resolves
+ *       conn_fd in the caller's own process (per-worker design), so a match
+ *       from another worker would be unwakeable and coalescing onto it would
+ *       strand the client for the whole window.
+ */
+ngx_uint_t
+brix_pending_find_probe(const char *path, uint32_t exclude_sid,
+    uint32_t *out, ngx_uint_t max)
+{
+    brix_pending_table_t   *tbl;
+    brix_pending_locate_t  *slot;
+    ngx_uint_t                i, n = 0;
+
+    if (path == NULL || path[0] == '\0' || out == NULL || max == 0) {
+        return 0;
+    }
+
+    tbl = pending_table();
+    if (tbl == NULL) {
+        return 0;
+    }
+
+    ngx_shmtx_lock(&brix_pending_mutex);
+
+    for (i = 0; i < BRIX_PENDING_LOCATE_SLOTS && n < max; i++) {
+        slot = &tbl->slots[i];
+
+        if (!slot->in_use
+            || slot->worker_pid != ngx_pid
+            || slot->streamid == exclude_sid
+            || brix_shm_slot_expired(ngx_current_msec, slot->expires)
+            || ngx_strcmp(slot->probe_path, path) != 0)
+        {
+            continue;
+        }
+
+        out[n++] = slot->streamid;
+    }
+
+    ngx_shmtx_unlock(&brix_pending_mutex);
+    return n;
+}
+
+
+/*
  * brix_pending_take_path — §2.6: read back the probed path at window expiry.
  *
  * WHAT: Copies the entry's probe_path into buf; returns 1 when the entry

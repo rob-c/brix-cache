@@ -394,11 +394,14 @@ typedef struct {
     ngx_atomic_t  cms_logins_total;             /* A3: client LOGIN frames sent upward */
     ngx_atomic_t  cms_connect_failures_total;   /* A3: upward dial never became a live link */
     ngx_atomic_t  cms_registered_links;         /* A3: GAUGE — upward links currently logged in */
+    ngx_atomic_t  cms_locate_coalesced_total;   /* §2.15: locates parked on a kYR_state
+                                                 * wave already in flight for the path */
     ngx_atomic_t  ocsp_timeouts_total;          /* E1: OCSP fetch hit the socket deadline */
     ngx_atomic_t  auth_l1_hits_total;           /* E2: auth-gate verdict served from L1 */
     ngx_atomic_t  auth_l1_misses_total;         /* E2: auth-gate L1 miss (fell to L2/eval) */
     ngx_atomic_t  acc_nss_breaker_open_total;   /* E3: NSS group-lookup breaker tripped open */
-    ngx_atomic_t  acc_dns_breaker_open_total;   /* E3: reverse-DNS breaker tripped open */
+    ngx_atomic_t  acc_dns_pending_fallback_total; /* phase-116: a host-rule decision used the
+                                                  * numeric peer while its PTR was still pending */
 
     ngx_brix_vo_global_t    vo_global;
     ngx_brix_user_global_t  user_tracking;

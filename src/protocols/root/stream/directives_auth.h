@@ -117,6 +117,27 @@
       offsetof(ngx_stream_brix_srv_conf_t, crl_mode),
       brix_crl_modes },
 
+    /* CRL reach: all (default) | last.  The stock `xrd.tlsca ... crlcheck
+     * all|last` residual.  "all" requires a CRL for every issuer in the chain;
+     * "last" checks only the certificate's own issuer.  This narrows the REACH
+     * of revocation, never its strictness — a revoked leaf is refused under
+     * both, because the leaf is precisely what "last" still checks. */
+    { ngx_string("brix_crl_scope"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, crl_scope),
+      brix_crl_scopes },
+
+    /* Certificate-verification diagnostics: off (default) | failure | all.
+     * Emits subject DNs only — never key material, never certificate bytes. */
+    { ngx_string("brix_tls_verify_log"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, tls_verify_log),
+      brix_tls_verify_logs },
+
     /* Shared stream-common owns and parses brix_require_vo rules. */
 
     { ngx_string("brix_authdb"),
@@ -339,6 +360,26 @@
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, sss_keytab),
+      NULL },
+
+    /* Keep a v2 proxied credential (CRED TLV) presented inside an SSS
+     * credential; off (default) drops it at the parser.  release-2.0 F9. */
+    { ngx_string("brix_sss_getcreds"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, sss_getcreds),
+      NULL },
+
+    /* Which identity the tap proxy presents in its upstream SSS credential:
+     * the keytab key's user (default) or the authenticated front-side
+     * client's full entity (name, VO, role, groups, endorsements, proxied
+     * credential).  release-2.0 F9. */
+    { ngx_string("brix_tap_proxy_sss_identity"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      brix_conf_set_proxy_sss_identity,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
       NULL },
 
     /* Kerberos 5 service principal and optional keytab for XrdSeckrb5. */

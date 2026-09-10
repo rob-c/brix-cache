@@ -711,8 +711,8 @@ http {
         location / {
             brix_webdav         on;
             brix_export    /tmp/xrd-test/data;
-            brix_webdav_cafile  /tmp/xrd-test/pki/ca/ca.pem;
-            brix_webdav_crl     /tmp/xrd-test/pki/ca/test-user.crl.pem;
+            brix_trusted_ca  /tmp/xrd-test/pki/ca/ca.pem;
+            brix_crl     /tmp/xrd-test/pki/ca/test-user.crl.pem;
             brix_webdav_auth    required;
         }
     }

@@ -22,7 +22,7 @@ Scenario 3: "Pure Nginx"
     Uses: PROXY_PURE_NGINX_PROXY_PORT → PROXY_NGINX_PORT
     (Skipped if the pure-nginx-proxy server is not pre-launched.)
 
-All tests use pre-launched servers from manage_test_servers.sh.
+All tests use pre-launched servers from cmdscripts/manage_test_servers.py.
 Run:
     pytest tests/test_e2e_proxy_matrix.py -v
 """
@@ -132,7 +132,7 @@ def _xrdcp_put(src: str, dst_url: str, extra_env: dict | None = None,
 def proxy_env():
     """Wait for the nginx proxy + xrootd upstream (Scenario 1).
 
-    Requires manage_test_servers.sh to have started both servers.
+    Requires cmdscripts/manage_test_servers.py to have started both servers.
     """
     if not _wait_port(SERVER_HOST, PROXY_NGINX_PORT, timeout=15.0):
         pytest.skip(f"nginx proxy not running on port {PROXY_NGINX_PORT}")

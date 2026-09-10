@@ -1,5 +1,26 @@
 [← Comparison overview](../design-rationale.md)
 
+> **Status (2026-09-09 — 2.0).** For what 2.0 ships, what it deliberately does not, and
+> what is still open, the 2.0 register
+> [`release-2.0-readiness.md`](../release-2.0-readiness.md) is the source of truth — its
+> parity rows supersede any ⚠️/❌ here. Axis (e) of that register closed **F1–F20** (the
+> thirteen accepted-only `brix_frm_*` knobs and the durable stage journal,
+> `stagemsg`/StageEvents, the OssArc dataset seal, the per-space purge-policy grammar
+> with an external policy program, `pfc.urlcgi` + PSS forwarding, the RAM-tier metric
+> rows, native `root://` TPC **multihop** delegation and multi-stream *pull*, the site
+> checksum plugin loader, the sss v2 endorsement/proxied-credential wave, the
+> health-check family, `brix_mirror_exclude_opcodes` read/readv, the four metric
+> wishlist categories, native `root://` TPC **push** with multi-stream on it, the
+> `cms.fsxeq` operator program for forwarded namespace ops, and the `ofs.tpc` identity
+> matrix layered inside the host-plane TPC confinement, and the `xrd.tlsca` CRL-scope
+> and verification-log residuals — whose lab also found and fixed **F22**, a CRL a
+> worker could not read silently disarming revocation — and the native authdb residual
+> grammar: the compound `u g p a v l` selector set, positional VOMS vorg+role pairing,
+> and the `x` stage privilege) and, with **F21** — full per-user POSIX identity across the VFS seam, whose audit
+> found the posix plane already impersonating at the `beneath`/`confined_canon` seam
+> and closed the one un-brokered verb, `RENAME_EXCHANGE` — landed on 2026-09-10,
+> leaves nothing open: axis (e) is closed in full at F1–F22.
+
 ## Detailed design comparison
 
 Side-by-side on the decisions that matter most to operators: deployment model, dependency surface, auth, observability, and operational overhead.
@@ -106,8 +127,14 @@ For native `root://` TPC: the module implements destination pull with
 `tpc.src=` / `tpc.key=`, source-side rendezvous (`tpc.dst` + `tpc.key` register,
 `tpc.org` + `tpc.key` consume), manager redirect with `?tpc.key=`, and a
 shared-memory key registry (`brix_tpc_key_ttl`). The embedded pull client can
-complete ztn or GSI after `kXR_authmore` when configured, but TLS-upgraded
-origins and multihop delegation still need deployment validation; see
+complete ztn or GSI after `kXR_authmore` when configured, upgrades the pull
+leg to TLS, follows a source `kXR_redirect` within `brix_tpc_max_hops` and pulls
+`brix_tpc_streams` substreams when the client asks for them (2.0 F7). The
+**push** direction ships too (2.0 F16): with `brix_tpc_push on`, both legs carry
+`tpc.stage=push`, the *source* dials the destination and writes, and the same
+`brix_tpc_streams` cap bounds its outbound sub-streams — the copy an egress-only
+site can still originate. What still needs deployment validation is site
+credential forwarding. See
 [`operation-status.md`](../../05-operations/operation-status.md).
 
 > **Verdict:** Both FTS WebDAV pull and push modes are supported.
@@ -142,7 +169,7 @@ Raw file descriptors are not shared across worker processes; paths are.
 | SSS (shared-secret) | Supported |
 | Macaroon tokens | Supported — HMAC-SHA256 signature chaining and caveat validation |
 | krb5 | Supported when optional Kerberos support is built and configured |
-| `host` / `pwd` | **Not supported** |
+| `host` / `pwd` | Supported — `brix_auth host` (client-address allowlist, `src/auth/host/`) and `brix_auth pwd` (password, `src/auth/pwd/`; HTTP Basic on the WebDAV side) |
 
 > **Verdict:** Sites using GSI + WLCG JWT + Macaroon tokens are all supported.
 > krb5 sites must confirm that their build includes the optional krb5 module.

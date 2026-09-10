@@ -100,6 +100,26 @@ MODULES = [
 #: The files that actually moved, each against its archive.
 MOVED = [name for name, _ in MODULES]
 
+#: Bodies that changed AFTER the move, on purpose.  The verbatim check reads
+#: this table so that later, deliberate work on a moved module is not mistaken
+#: for a botched move — and so that the table itself cannot rot: an entry whose
+#: body no longer differs from the archive fails the same test as an unlisted
+#: change.  ``added``/``changed`` are the qualified names ``body_hashes`` uses.
+POST_MOVE = {
+    "cms_mesh_lib": {
+        # `make -C client xrdsssadmin-brix` now goes through client_make()
+        "changed": {"_ensure_sssadmin"},
+        "added": set(),
+    },
+    "wlcg_fleet": {
+        # a stale registration under the same fleet name is released before
+        # a new instance is built (test_wlcg_fleet_name_idempotency, 09-07)
+        "changed": {"WlcgInstance", "WlcgInstance.__init__"},
+        "added": {"_release_stale"},
+    },
+}
+_NO_AMENDMENT = {"changed": frozenset(), "added": frozenset()}
+
 #: The two orchestrators, and the spec name each answers to.
 ORCHESTRATORS = [("cms_mesh_servers", "cms-mesh"),
                  ("hybrid_mesh_servers", "hybrid-mesh")]
@@ -170,16 +190,40 @@ def test_every_flat_spelling_is_the_package_object(flat, canonical):
     assert name == "brix_suite.mesh." + canonical
 
 
+def _undeclared(observed, declared):
+    """Names on exactly one side: drift the table does not name, or a table
+    row the module no longer bears."""
+    return sorted(set(observed) ^ set(declared))
+
+
+def _verbatim_drift(before, after, amendment):
+    """What differs between an archive and its moved module, minus the
+    amendments the table declares — and the declared amendments that no
+    longer hold.  Empty means the module is verbatim-plus-table."""
+    changed = {k for k in before if k in after and before[k] != after[k]}
+    found = {"lost": sorted(set(before) - set(after)),
+             "added": _undeclared(set(after) - set(before), amendment["added"]),
+             "changed": _undeclared(changed, amendment["changed"])}
+    return {kind: names for kind, names in found.items() if names}
+
+
 @pytest.mark.parametrize("name", MOVED)
 def test_the_move_was_verbatim(name):
-    """Every def/class body must hash identically to its archive."""
+    """Every def/class body must hash identically to its archive, except the
+    bodies POST_MOVE declares — which must in turn still differ."""
     before = _bodies(LEGACY / (name + "_flat.py"))
     after = _bodies(MESH / (name + ".py"))
-    assert sorted(before) == sorted(after), (
-        "%s: definitions differ: added %s, lost %s"
-        % (name, sorted(set(after) - set(before)), sorted(set(before) - set(after))))
-    changed = [k for k in before if before[k] != after[k]]
-    assert not changed, "%s: bodies changed in a verbatim move: %s" % (name, changed)
+    problems = _verbatim_drift(before, after, POST_MOVE.get(name, _NO_AMENDMENT))
+    assert problems == {}, (
+        "%s: drift beyond the POST_MOVE table (a listed name = the entry is "
+        "stale, an unlisted one = an undeclared change): %s" % (name, problems))
+
+
+def test_the_amendment_table_names_only_moved_modules():
+    """A POST_MOVE row for a module that is not in MOVED is never read."""
+    assert set(POST_MOVE) <= set(MOVED), sorted(set(POST_MOVE) - set(MOVED))
+    empty = [n for n, a in POST_MOVE.items() if not (a["added"] or a["changed"])]
+    assert not empty, "amendment rows that amend nothing: %s" % empty
 
 
 def test_the_shards_still_compose_into_one_namespace():
@@ -312,6 +356,15 @@ def test_the_module_spelling_needs_the_path_the_spec_supplies(module):
     assert "No module named" in out.stderr
 
 
+def test_an_undeclared_post_move_change_is_reported(tmp_path):
+    """A body that drifted without a POST_MOVE row must surface by name."""
+    (tmp_path / "a.py").write_text("def f():\n    return 1\ndef g():\n    return 2\n")
+    (tmp_path / "b.py").write_text("def f():\n    return 1\ndef g():\n    return 3\ndef h():\n    return 4\n")
+    problems = _verbatim_drift(_bodies(tmp_path / "a.py"), _bodies(tmp_path / "b.py"),
+                               _NO_AMENDMENT)
+    assert problems == {"added": ["h"], "changed": ["g"]}
+
+
 def test_a_missing_template_names_the_directory_it_looked_in():
     """``render`` on an absent template must fail with the suite's own path."""
     out = _child(
@@ -351,6 +404,17 @@ def test_the_old_hop_would_have_named_a_real_but_wrong_directory(module, expr, a
     assert exists == "True", "the demonstration is stale: %s is gone" % old
     assert not live.startswith(old + os.sep) and live != old, (
         "%s.%s still comes from the __file__ hop: %s" % (module, attr, live))
+
+
+def test_a_stale_amendment_row_cannot_hide_a_reverted_body(tmp_path):
+    """The table is exact in both directions: a row that declares a change the
+    module no longer carries fails, so a revert cannot ride on an old waiver
+    — and a lost definition is never an amendment at all."""
+    (tmp_path / "a.py").write_text("def f():\n    return 1\ndef g():\n    return 2\n")
+    (tmp_path / "b.py").write_text("def f():\n    return 1\n")
+    problems = _verbatim_drift(_bodies(tmp_path / "a.py"), _bodies(tmp_path / "b.py"),
+                               {"changed": {"f"}, "added": set()})
+    assert problems == {"lost": ["g"], "changed": ["f"]}
 
 
 def test_no_module_reaches_a_name_it_never_binds():

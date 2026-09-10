@@ -13,6 +13,7 @@ import hashlib
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -35,7 +36,7 @@ def _md5(p):
 def _client_built():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
-    subprocess.run(["make", "-C", CLIENT_DIR, "xrdcp"], capture_output=True, text=True, timeout=240)
+    client_make(CLIENT_DIR, "xrdcp", capture_output=True, text=True, timeout=240)
     if not os.path.exists(XRDCP):
         pytest.skip("xrdcp build failed")
 

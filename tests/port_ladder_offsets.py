@@ -3,7 +3,10 @@
 # Exec'd into port_ladder's namespace by split_continuation.load, so every
 # `from port_ladder import <CATEGORY>_OFFSET` keeps resolving.
 
-SETTINGS_OFFSET, SETTINGS_WIDTH = 0, 178
+# 2026-09-06: 178 -> 179 for NGINX_RAM_CACHE_PORT (18459), the phase-115
+# W4.2 dedicated RAM-cache-store role.  Every offset below and in the tail
+# file shifts by +1 with it, PORT_COUNT 2325 -> 2326.
+SETTINGS_OFFSET, SETTINGS_WIDTH = 0, 179
 # 2026-08-09: 523 -> 531 for the CMS parity wave + HTTP redirect lifecycle
 # subjects (test_cms_parity_wave.py: lc-cms-parity-mgr(+CMS_PORT)/-node;
 # test_webdav_redirect_ds.py: lc-webdav-redirect-mgr(+HTTP+CMS)/-ds(+HTTP)).
@@ -503,81 +506,64 @@ SETTINGS_OFFSET, SETTINGS_WIDTH = 0, 178
 # registry instances, with one extra metrics listener), 975 -> 987; Phase-91
 # adds a process-owned FTP origin plus writable/read-only gateway listeners,
 # 987 -> 990; Phase-91's VOMS carry lab adds four more owned listeners.
-LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 994
-# 2026-08-09: 137 -> 140 for the three audit-fix lifecycle subjects
-# (test_audit_fixes_2026_08_09.py: only-if-cached, cold-purge, signing).
-# Every offset below shifts by the same 3 — the ladder is packed, so a width
-# change is an intentional compatibility event (see the note above).
-# 2026-08-16: repacked against LIFECYCLE_SHARED_WIDTH.  The audit tranches grew
-# the shared lane by 145 slots (534 -> 679) but only carried 103 of that through
-# to the lanes below, so the shared lane had been overlapping this one by 42
-# since it passed 637 — caught by test_fleet_ports.py's band check.  Every
-# offset from here down is now recomputed as a running sum of the widths above
-# it (815 -> 857 and so on); that sum, not a hand-carried delta, is the rule.
-# 2026-08-17 (16th tranche): repacked again as that running sum, 925 -> 934, for
-# the tranche's nine shared slots (747 -> 756).  The two width bumps above landed
-# without it and the shared lane overlapped this one by 9 for exactly as long as
-# it took test_fleet_ports.py's band check to say so — which is the reason the
-# rule is a running sum and not a delta anyone carries by hand.
-# 2026-08-17 (16th tranche, 7th file): 943 -> 944, the running sum again, for the
-# pmark slot above (765 -> 766).
-# 2026-08-17 (16th tranche, 8th file): 944 -> 946, the running sum again, for the
-# two shared-http-flag slots above (766 -> 768).
-# 2026-08-17 (16th tranche, 9th file): 946 -> 949, the running sum again, for the
-# three CVMFS resilience-flag slots above (768 -> 771).
-# 2026-08-17 (16th tranche, 10th file): 949 -> 959, the running sum again, for the
-# ten node-capability-flag slots above (771 -> 781).
-# 2026-08-17 (16th tranche, 14th file): 959 -> 960, the running sum again, for the
-# one location-scoped-WebDAV-flag slot above (781 -> 782).  Files 11-13 of the
-# tranche added none: two reused this file's own vhost trick and the third reused
-# test_stream_guard.py's three relay slots outright.
-# 2026-08-17 (16th tranche, 15th file): 960 -> 961, the running sum again, for the
-# one MAIN|SRV|LOC-WebDAV-flag slot above (782 -> 783).
-# 2026-08-17 (16th tranche, 16th file): 961 -> 964, the running sum again, for the
-# three proxy-cert TLS-listener slots above (783 -> 786).
-# 2026-08-17 (16th tranche, 17th file): 964 -> 968, the running sum again, for the
-# four acc-engine slots above (786 -> 790).
-# 2026-08-17 (16th tranche, 18th file): 968 -> 972, the running sum again, for the
-# four CSI integrity-flag slots above (790 -> 794).
-# 2026-08-17 (16th tranche, 19th file): 972 -> 975, the running sum again, for the
-# three krb5-delegation-arm slots above (794 -> 797).
-# 2026-08-18 (16th tranche, 20th file): 975 -> 979, the running sum again, for the
-# four inline-compression-arm slots above (797 -> 801).
-# 2026-08-18 (16th tranche, 21st file): 981 -> 988, the running sum again, for the
-# seven OCSP-nonce slots above (803 -> 810).
-# 2026-08-18 (16th tranche, 22nd file): 988 -> 994, the running sum again, for the
-# six TPC-guard-off-arm slots above (810 -> 816).
-# 2026-08-18 (16th tranche, 23rd file): 994 -> 996, the running sum again, for the
-# two WebDAV-egress-off-arm slots above (816 -> 818).
-# 2026-08-18 (16th tranche, 24th file): 996 -> 1008, the running sum again, for
-# the twelve stream-security-off-arm slots above (818 -> 830).
-# 2026-08-18 (16th tranche, 25th file): 1008 -> 1019, the running sum again, for
-# the eleven live upstream-TLS-verify slots above (830 -> 841).
-# 2026-08-18 (16th tranche, 26th file): 1019 -> 1022, the running sum again, for
-# the three live WebDAV-mirror slots above (841 -> 844).
-# 2026-08-18 (16th tranche, 27th file): 1022 -> 1026, the running sum again, for
-# the four redirect-to-dataserver slots above (844 -> 848).
-# 2026-08-19 (16th tranche, 28th file): 1026 -> 1027, the running sum again, for
-# the single dashboard-arm slot above (848 -> 849).
-# 2026-08-19 (16th tranche, 29th file): 1027 -> 1035, the running sum again, for
-# the eight manager-mode slots above (849 -> 857).
-# 2026-08-19 (16th tranche, 30th file): 1035 -> 1036, the running sum again, for
-# the single inert-config-surface slot above (857 -> 858).
-# 2026-08-19 (16th tranche, 32nd file): 1036 -> 1044, the running sum again, for
-# the eight gridftp-gate slots above (858 -> 866).
-# 2026-08-19 (16th tranche, 33rd file): 1044 -> 1051, the running sum again, for
-# the seven OCI-security slots above (866 -> 873).
-# 2026-08-19 (16th tranche, 34th file): 1051 -> 1059, the running sum again, for
-# the eight httpguard-arm slots above (873 -> 881).
-# 2026-08-19 (16th tranche, 35th file): 1059 -> 1071, the running sum again, for
-# the twelve FRM/health-check slots above (881 -> 893).
-# 2026-08-19 (16th tranche, 36th file): 1071 -> 1076, the running sum again, for
-# the five GridFTP write-gate slots above (893 -> 898).
-# 2026-08-19 (16th tranche, 37th file): 1076 -> 1081, the running sum again,
-# for the five cache-store-endpoint slots above (898 -> 903).
-# 2026-08-27: 1105 -> 1106, the running sum again, for the one
-# lc-pblock-quota-qspace slot above (927 -> 928).
-# 2026-08-31: 1106 -> 1111, the running sum, for the five phase-106 slots.
-LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1172, 142
+# 2026-09-05: +7 for the phase-115 W2.1 CMS select-then-proxy lab (three
+# gateway PORT+CMS_PORT pairs and one data server), 994 -> 1001.
+# 2026-09-05: +8 for the phase-115 W2.4 transparent-upstream GSI lab (one GSI
+# upstream, six credential-variant fronts, one mock-aimed front), 1001 -> 1009;
+# +4 for its cache-origin GSI half (one origin, three credential-variant read
+# caches), 1009 -> 1013.
+# 2026-09-05: +4 for the phase-115 W3.2 tape-buffer purge engine lab (cap,
+# idle, no-tier and lock-contention subjects), 1013 -> 1017.
+# 2026-09-06: +2 for the phase-115 W3.1 tape dataset archiver lab (the ?arc=1
+# subject and its purge-interplay twin), 1017 -> 1019.
+# 2026-09-06: +6 for the phase-116 runtime-DNS lab (three stub-nameserver
+# subjects, each an http PORT + root ROOT_PORT pair), 1019 -> 1025.
+# 2026-09-06: +2 for the phase-115 W3.1 recall-gate and W3.3 space-group
+# labs, 1025 -> 1027.
+# 2026-09-06: +2 for the phase-116 W5.2 mirror-failure lab (one http PORT +
+# root ROOT_PORT pair), 1027 -> 1029.
+# 2026-09-07: +11 for the phase-115 W5.1 GridFTP data-channel labs — the
+# MODE E lab (two Python origins, one nginx with three fronts) and the
+# PROT P lab (one nginx with two stream GridFTP origins and four fronts),
+# 1029 -> 1040.
+# 2026-09-07: +5 — four for the phase-115 W5.2 ERET lab (two Python origins,
+# one nginx with two fronts) and one for phase-116's lc-p116-dns-bridge,
+# 1040 -> 1045.
+# 2026-09-07: +3 for the phase-115 W7.2a per-caller sss identity lab — one
+# instance per keytab shape (anybody / fixed user / `+` name suffix), because
+# a keytab is read at config-parse time and cannot be varied on a live
+# server, 1057 -> 1060.
+# 2026-09-07: +19 for three families that reached `lifecycle.start()` with no
+# ledger row at all — 12 phase-115 W4.3 verify_pages nodes, three two-faced
+# phase-115 CMS managers (2 slots each), and the phase-115 W2.4 server-level-CA
+# cache.  An unledgered spec raises RuntimeError rather than falling back to an
+# ephemeral port, so these suites were green only under TEST_SKIP_SERVER_SETUP=1
+# and halted the first fleet lane that reached them, 1060 -> 1079.
+# 2026-09-07: +8 for the phase-115 W8.2 mid-transfer credential-renewal
+# lab — one token-demanding source, five outbound-credential shapes and
+# the minting IdP's MOCK_PORT.  Each renewal knob is a config-parse-time
+# server value, so the arms are instances rather than reconfigurations,
+# 1080 -> 1088.
+# 2026-09-07: +4 for the phase-115 W8.3 CMS admin-socket lab — a manager
+# carrying both admin sockets (its CMS listener is the second slot) and
+# two data servers, because a one-node registry cannot show that drain
+# leaves the other node alone, 1088 -> 1092.
+# 2026-09-07: +1 for the phase-115 W8.6 native-SSI-client lab — one root://
+# server with `brix_ssi on;` and no `brix_ssi_service` line, driven through
+# all seven built-in services by client/bin/ssi_client_smoke, 1092 -> 1093.
+# 2026-09-07: +1 for the phase-115 W8.6 cross-worker CTA queue lab — one
+# two-worker instance, because a per-process queue never collides with
+# itself and the defect is only visible across workers, 1093 -> 1094.
+# 2026-09-07: +2 for the phase-115 W4.3 §5 refusal-SHAPE rows.  A per-page
+# CRC32c failure is found after the response headers are committed, so the
+# refusal reaches the client as a connection abort; these two instances pin
+# that the delivered prefix carries no corrupt byte and that the abort is
+# never downgraded to a silently short 200, 1094 -> 1096.
+# 2026-09-07: +2 for the phase-115 W5.2 FEAT-decoy lab — an origin that
+# advertises rows CONTAINING "ERET"/"SPAS" without advertising either, and
+# one front over it.  It cannot reuse the W5.2 plain origin: that one
+# advertises nothing, which proves the driver is quiet with nothing to see,
+# while this one proves the FEAT probe reads a whole TOKEN, 1096 -> 1098.
+LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 179, 1098
 
 _load_port_ladder_ext(globals(), __file__, "port_ladder_offsets_tail.py")

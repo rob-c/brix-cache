@@ -12,6 +12,7 @@
 #include "protocols/root/path/op_path.h"
 #include "protocols/root/write/write.h"
 #include "observability/sesslog/sesslog_ngx.h"
+#include "observability/metrics/metrics_macros.h" /* BRIX_SRV_METRIC_INC (F7) */
 
 #include <string.h>
 #include <unistd.h>
@@ -52,7 +53,8 @@ tpc_done_account(brix_tpc_pull_t *t, int ok, ngx_log_t *log)
                                       ok ? BRIX_TPC_STATE_DONE
                                          : BRIX_TPC_STATE_ERROR, log);
     brix_tpc_metric_transfer(BRIX_TPC_PROTO_STREAM,
-                               BRIX_TPC_DIR_PULL,
+                               t->is_push ? BRIX_TPC_DIR_PUSH
+                                          : BRIX_TPC_DIR_PULL,
                                ok ? BRIX_TPC_METRIC_SUCCESS
                                   : BRIX_TPC_METRIC_ERROR,
                                t->bytes_written, log);
@@ -82,6 +84,31 @@ tpc_dst_opctx(const brix_tpc_pull_t *t, ngx_log_t *log,
         BRIX_PROTO_ROOT);
 }
 
+/* WHAT: remove the local file a FAILED transfer left behind — and refuse to do
+ *       so when this task is an F16 push.
+ * WHY: for a pull, t->dst_path is the destination this server created, so a
+ *      truncated object must be unlinked or a failed copy silently publishes a
+ *      short file. For a PUSH the very same field names the operator's SOURCE
+ *      file — pre-existing, read-only to us, and the only copy. Unlinking it
+ *      because a remote destination hung up would destroy data the transfer was
+ *      merely reading. This helper is the single place that decision is made,
+ *      so no future failure path can reintroduce the hazard by reaching for
+ *      brix_vfs_export_unlink directly.
+ * HOW: early-return on t->is_push; otherwise the gated (phase-105 export
+ *      authority) unlink the pull paths already used. */
+static void
+tpc_done_remove_partial(const brix_tpc_pull_t *t, ngx_log_t *log)
+{
+    brix_vfs_export_op_ctx_t opctx;
+
+    if (t->is_push) {
+        return;                 /* dst_path is the SOURCE file — never remove */
+    }
+
+    tpc_dst_opctx(t, log, &opctx);
+    (void) brix_vfs_export_unlink(&opctx, t->dst_path);
+}
+
 static void
 tpc_done_teardown_dst(brix_tpc_pull_t *t, brix_ctx_t *ctx, int idx,
                       ngx_log_t *log)
@@ -101,10 +128,7 @@ tpc_done_teardown_dst(brix_tpc_pull_t *t, brix_ctx_t *ctx, int idx,
         close(t->dst_fd);
     }
     if (remove_final) {
-        brix_vfs_export_op_ctx_t opctx;
-
-        tpc_dst_opctx(t, log, &opctx);
-        (void) brix_vfs_export_unlink(&opctx, t->dst_path);
+        tpc_done_remove_partial(t, log);
     }
     if (ctx != NULL && ctx->files != NULL && idx >= 0 && idx < BRIX_MAX_FILES) {
         ctx->files[idx].fd = -1;
@@ -196,6 +220,17 @@ tpc_done_refresh_stat(brix_tpc_pull_t *t, brix_ctx_t *ctx,
  *      unlink, then registry/metric accounting and the error response + aio resume.
  *      c is never NULL here: brix_tpc_pull_done gates the no-connection case before
  *      dispatching to any reply helper. */
+/* WHAT: F7 — a redirect hop the egress guard refused is an egress refusal
+ *       like any other (launch_prepare.c's preflight); it is counted here, on
+ *       the event thread, because the pull thread never touches ctx. */
+static void
+tpc_done_count_refused_hop(const brix_tpc_pull_t *t, brix_ctx_t *ctx)
+{
+    if (t->redirect_refused) {
+        BRIX_SRV_METRIC_INC(ctx, tpc_egress_refused_total);
+    }
+}
+
 static void
 tpc_done_sync_fail(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
                    int idx)
@@ -208,6 +243,7 @@ tpc_done_sync_fail(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
            ? &ctx->files[idx] : NULL;
 
     tpc_sess_finish_pull(t, 0, BRIX_SESS_END_ERROR);
+    tpc_done_count_refused_hop(t, ctx);
 
     /* Failed copy: discard the half-written destination. If the slot is
      * still valid, free it (which also closes the fd); otherwise close
@@ -220,27 +256,21 @@ tpc_done_sync_fail(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
         file->tpc_transfer_id = 0;
         brix_free_fhandle(ctx, idx);
         if (!had_writer) {
-            brix_vfs_export_op_ctx_t opctx;
-
-            tpc_dst_opctx(t, c->log, &opctx);
-            (void) brix_vfs_export_unlink(&opctx, t->dst_path);
+            tpc_done_remove_partial(t, c->log);
         }
     } else {
         if (t->dst_writer == NULL && t->dst_fd >= 0) {
             close(t->dst_fd);
         }
         if (t->dst_writer == NULL) {
-            brix_vfs_export_op_ctx_t opctx;
-
-            tpc_dst_opctx(t, c->log, &opctx);
-            (void) brix_vfs_export_unlink(&opctx, t->dst_path);
+            tpc_done_remove_partial(t, c->log);
         }
     }
 
     tpc_done_account(t, 0, c->log);
 
-    brix_log_access(ctx, c, "TPC-PULL", t->dst_path, "error",
-                      0, (uint16_t) err,
+    brix_log_access(ctx, c, t->is_push ? "TPC-PUSH" : "TPC-PULL",
+                      t->dst_path, "error", 0, (uint16_t) err,
                       t->err_msg[0] ? t->err_msg : "TPC pull failed",
                       0);
     BRIX_OP_ERR(ctx, BRIX_OP_SYNC);
@@ -292,7 +322,8 @@ tpc_done_reply_sync(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
         (void) tpc_done_refresh_stat(t, ctx, c, idx);
     }
 
-    brix_log_access(ctx, c, "TPC-PULL", t->dst_path, "ok",
+    brix_log_access(ctx, c, t->is_push ? "TPC-PUSH" : "TPC-PULL",
+                      t->dst_path, "ok",
                       1, 0, NULL, t->bytes_written);
     BRIX_OP_OK(ctx, BRIX_OP_SYNC);
     tpc_done_account(t, 1, c->log);
@@ -414,6 +445,7 @@ tpc_done_reply_open(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
         int err = t->xrd_error ? t->xrd_error : kXR_ServerError;
 
         tpc_sess_finish_pull(t, 0, BRIX_SESS_END_ERROR);
+        tpc_done_count_refused_hop(t, ctx);
 
         /* Failed copy: close+unlink the partial destination and release the
          * fhandle slot before replying with the error to the OPEN. (c is never
@@ -422,7 +454,8 @@ tpc_done_reply_open(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
 
         tpc_done_account(t, 0, c->log);
 
-        brix_log_access(ctx, c, "TPC-PULL", t->dst_path, "error",
+        brix_log_access(ctx, c, t->is_push ? "TPC-PUSH" : "TPC-PULL",
+                          t->dst_path, "error",
                           0, (uint16_t) err,
                           t->err_msg[0] ? t->err_msg : "TPC pull failed", 0);
         BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
@@ -440,7 +473,8 @@ tpc_done_reply_open(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
     (void) tpc_done_refresh_stat(t, ctx, c, idx);
 
     tpc_sess_finish_pull(t, 1, BRIX_SESS_END_SERVER);
-    brix_log_access(ctx, c, "TPC-PULL", t->dst_path, "ok", 1, 0, NULL, 0);
+    brix_log_access(ctx, c, t->is_push ? "TPC-PUSH" : "TPC-PULL",
+                      t->dst_path, "ok", 1, 0, NULL, 0);
     BRIX_OP_OK(ctx, BRIX_OP_OPEN_WR);
     if (ctx->files != NULL && idx >= 0 && idx < BRIX_MAX_FILES) {
         ctx->files[idx].tpc_transfer_id = 0;

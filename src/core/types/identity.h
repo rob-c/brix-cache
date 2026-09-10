@@ -39,14 +39,26 @@ typedef struct {
     ngx_str_t    vo_csv;        /* comma-separated VO/group list */
 
     /*
-     * XrdAcc-engine attribute views, derived from vo_csv by parsing each VOMS
-     * FQAN / token group into (vorg, role, group).  The three CSVs are kept
-     * index-aligned (empty fields preserved) so the engine can pair them
-     * positionally.  Populated by brix_identity_set_vos_csv().
+     * XrdAcc-engine attribute views, derived by parsing each VOMS FQAN / token
+     * group into (vorg, role, group).  The three CSVs are kept index-aligned
+     * (empty fields preserved) so the engine can pair them positionally.
+     *
+     * 2.0 F20: they are derived from the FQAN CSV when the caller has one
+     * (brix_identity_set_vos_fqans), NOT from vo_csv — a VO-name list is
+     * '/'-free by construction, so deriving from it always yielded an empty
+     * role and left the authdb `l` selector and the XrdAcc `role` template
+     * dead.  brix_identity_set_vos_csv() keeps the old vo_csv derivation for
+     * token identities, whose `groups` claim already carries the group paths.
      */
     ngx_str_t    acc_vorg_csv;  /* VO names      (e.g. "cms,atlas") */
     ngx_str_t    acc_role_csv;  /* VOMS/token roles (Role=...) */
     ngx_str_t    acc_group_csv; /* group paths   (e.g. "/cms,/atlas") */
+
+    /* sss v2 entity breadth (release-2.0-readiness F9): the endorsements
+     * string and the raw proxied credential the keytab policy let through
+     * (creds is only ever non-empty under brix_sss_getcreds on). */
+    ngx_str_t    endorsements;
+    ngx_str_t    creds;
 
     ngx_str_t    scope_raw;     /* raw OAuth scope claim */
     int          token_scope_count;
@@ -57,6 +69,12 @@ typedef struct {
 
     ngx_uint_t   auth_method;   /* BRIX_AUTHN_* bitmask */
     unsigned     is_authenticated:1;
+    /* The VO / role above were ASSERTED by the peer (an sss v2 entity's VORG /
+     * ROLE TLV), not derived from the group CSV.  identity_attrs.c reads a bare
+     * group name as a VO of the same name, which is right for the local xrdacc
+     * engine but must never be forwarded as a claim: see the proxy's entity
+     * builder (src/net/proxy/events_bootstrap_auth.c). */
+    unsigned     acc_attrs_asserted:1;
     unsigned     is_admin:1;
     unsigned     has_write_scope:1;
     unsigned     has_read_scope:1;
@@ -127,6 +145,20 @@ ngx_int_t brix_identity_set_vos_csv(brix_identity_t *id,
     ngx_pool_t *pool, const char *vo_csv);
 
 /*
+ * As brix_identity_set_vos_csv, but derive the acc_* attribute views from
+ * `fqan_csv` (the raw VOMS FQANs, e.g. "/atlas/Role=production/Capability=NULL")
+ * instead of from `vo_csv`.  `vo_csv` still becomes id->vo_csv and id->vo_list
+ * verbatim, so `brix_require_vo`, the `g` authdb selector, $brix_vo and every
+ * metric label keep the exact values they had.
+ *
+ * 2.0 F20: this is the only way an identity acquires a VOMS role — a VO name
+ * cannot contain one.  A NULL or empty `fqan_csv` falls back to `vo_csv`, which
+ * is precisely brix_identity_set_vos_csv.  NGX_OK / NGX_ERROR (NULL id or OOM).
+ */
+ngx_int_t brix_identity_set_vos_fqans(brix_identity_t *id,
+    ngx_pool_t *pool, const char *vo_csv, const char *fqan_csv);
+
+/*
  * Strip leading/trailing ASCII spaces/tabs from the [*tok, *tok+*tl) slice in
  * place; an all-blank slice collapses to length 0.  The single trim rule for
  * attribute-CSV fields, shared with the xrdacc entity builder.
@@ -150,10 +182,33 @@ const char *brix_identity_subject_cstr(const brix_identity_t *id);
 /* VO/group CSV as a borrowed C string; "" if unset (never NULL). */
 const char *brix_identity_vo_csv_cstr(const brix_identity_t *id);
 
+/*
+ * Auth-method label for policy and audit: the strongest BRIX_AUTHN_* bit set on
+ * `id`, as one of GSI / TOKEN / SSS / S3KEY / KRB5 / UNIX / NONE.  Borrowed,
+ * never NULL; a NULL identity reports "NONE".  This is the exact spelling the
+ * TPC identity matrix's `brix_tpc_require <party> <auth>` matches against
+ * (case-insensitively), so the two can never drift.
+ */
+const char *brix_identity_auth_label(const brix_identity_t *id);
+
 /* XrdAcc attribute views (derived from the FQANs); "" if unset (never NULL). */
 const char *brix_identity_acc_vorg_cstr(const brix_identity_t *id);
 const char *brix_identity_acc_role_cstr(const brix_identity_t *id);
 const char *brix_identity_acc_group_cstr(const brix_identity_t *id);
+
+/*
+ * Record the sss v2 entity fields (release-2.0-readiness F9).  A non-empty
+ * vorg / role replaces the attribute view derived from the group CSV, a
+ * non-empty endo lands in id->endorsements, and creds (creds_len bytes; NULL
+ * or 0 = none) is copied into id->creds.  Empty strings leave the existing
+ * views alone.  NGX_OK / NGX_ERROR (NULL id or pool, OOM).
+ */
+ngx_int_t brix_identity_set_sss_entity(brix_identity_t *id, ngx_pool_t *pool,
+    const char *vorg, const char *role, const char *endo,
+    const u_char *creds, size_t creds_len);
+const char *brix_identity_endorsements_cstr(const brix_identity_t *id);
+/* Raw proxied credential bytes (NULL when none); *len receives the length. */
+const u_char *brix_identity_creds(const brix_identity_t *id, size_t *len);
 
 /*
  * Authorise `logical_path` against the cached token scopes for read or (when

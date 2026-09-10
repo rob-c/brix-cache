@@ -14,6 +14,7 @@ Run (serial, manual fleet):
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -107,8 +108,7 @@ def installed(tmp_path_factory):
     if shutil.which("pkg-config") is None:
         pytest.skip("pkg-config not available")
     prefix = str(tmp_path_factory.mktemp("brix-prefix"))
-    proc = subprocess.run(["make", "-C", CLIENT, "install", f"PREFIX={prefix}"],
-                          capture_output=True, text=True, timeout=240)
+    proc = client_make(CLIENT, "install", f"PREFIX={prefix}", capture_output=True, text=True, timeout=240)
     if proc.returncode != 0:
         pytest.skip(f"libbrix install failed:\n{proc.stdout}\n{proc.stderr}")
     return prefix

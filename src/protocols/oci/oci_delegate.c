@@ -268,7 +268,7 @@ oci_deleg_leg(brix_oci_upstream_t *up, const char *method, const char *path,
     {
         return -1;
     }
-    if (tr->request(NULL, up->host, up->port, up->tls, method, full, hdrs,
+    if (tr->request(&up->tctx, up->host, up->port, up->tls, method, full, hdrs,
                     NULL, 0, OCI_DELEG_TIMEOUT_MS, &resp,
                     errbuf, sizeof(errbuf)) != 0)
     {

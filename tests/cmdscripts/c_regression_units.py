@@ -458,5 +458,8 @@ def staged_contract_tiers(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[
     )
 
 from split_continuation import load as _load_continuations
+# The dns shard must precede part3: part3's RUNNERS table names its two
+# functions, and a continuation is exec'd into this namespace in order.
 _load_continuations(globals(), __file__, "c_regression_units_part2.py",
+                    "c_regression_units_dns.py",
                     "c_regression_units_part3.py")

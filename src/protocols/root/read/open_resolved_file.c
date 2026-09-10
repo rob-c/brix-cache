@@ -251,6 +251,7 @@ brix_open_args_init(brix_open_args_t *a, brix_ctx_t *ctx,
 	a->is_write = req->is_write;
 	a->codec = req->codec;
 	a->declared_size = req->is_write ? req->declared_size : 0;
+	a->cache_hints = req->cache_hints;
 	a->fd = -1;
 	a->st = st;
 	a->use_posc = req->is_write && (req->options & kXR_posc);

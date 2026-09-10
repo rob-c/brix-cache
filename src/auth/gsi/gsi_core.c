@@ -141,6 +141,11 @@ brix_gsi_build_certreq(const char *cryptomod, uint32_t version,
     brix_gbuf_bucket(&outer, (uint32_t) kXRS_cryptomod,
                        cryptomod, strlen(cryptomod));
     brix_gbuf_bucket(&outer, (uint32_t) kXRS_version, &ver_be, 4);
+    /* A server advert without "ca:" yields NULL/"" here; XrdSecgsi accepts an
+     * empty issuer-hash bucket, and a NULL must never reach strlen(). */
+    if (issuer_hash == NULL) {
+        issuer_hash = "";
+    }
     brix_gbuf_bucket(&outer, (uint32_t) kXRS_issuer_hash,
                        issuer_hash, strlen(issuer_hash));
     brix_gbuf_bucket(&outer, (uint32_t) kXRS_clnt_opts, &opts_be, 4);
@@ -155,6 +160,29 @@ brix_gsi_build_certreq(const char *cryptomod, uint32_t version,
     brix_gbuf_free(&inner);
     brix_gbuf_free(&outer);
     return result;
+}
+
+uint8_t *
+brix_gsi_build_certreq_from_parms(const char *parms,
+                                    uint8_t rtag_out[BRIX_GSI_RTAG_LEN],
+                                    size_t *outlen)
+{
+    uint32_t  version = 0;
+    char      crypto[64] = { 0 };
+    char      ca[256]    = { 0 };
+
+    if (parms != NULL) {
+        brix_gsi_parse_parms(parms, &version, crypto, sizeof(crypto),
+                               ca, sizeof(ca));
+    }
+    if (crypto[0] == '\0') {
+        memcpy(crypto, "ssl", 4);
+    }
+    if (!brix_gsi_rand(rtag_out, BRIX_GSI_RTAG_LEN)) {
+        return NULL;
+    }
+    return brix_gsi_build_certreq(crypto, 10600u, ca, 0x80u, rtag_out,
+                                    BRIX_GSI_RTAG_LEN, outlen);
 }
 
 

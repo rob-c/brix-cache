@@ -1,7 +1,7 @@
 /*
  * sock.c — blocking TCP with poll(2) deadlines.
  *
- * WHAT: connect-with-timeout (happy-path v4/v6 via getaddrinfo) plus full-read /
+ * WHAT: connect-with-timeout (happy-path v4/v6 via brix_resolve()) plus full-read /
  *       full-write helpers that bound each syscall with poll(2).
  * WHY:  The client is deliberately synchronous (no nginx event loop, no XrdCl
  *       PostMaster); poll gives us per-operation timeouts without going async.
@@ -12,11 +12,11 @@
 #include "brix.h"
 #include "net/proxy_env.h"
 #include "net/proxy_connect.h"
+#include "net/resolve.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <netdb.h>
 #include <unistd.h>
 #include <poll.h>
 #include <fcntl.h>
@@ -80,9 +80,9 @@ brix_sock_tune(int fd)
  * timeout_ms bounds the EINPROGRESS settle.
  */
 static int
-connect_one(const struct addrinfo *ai, int timeout_ms)
+connect_one(const brix_resolve_addr *a, int timeout_ms)
 {
-    int fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+    int fd = socket(a->family, a->socktype, a->protocol);
     if (fd < 0) {
         return -1;
     }
@@ -92,7 +92,7 @@ connect_one(const struct addrinfo *ai, int timeout_ms)
     }
 
     /* connect()==0 means it settled immediately; only EINPROGRESS needs poll. */
-    if (connect(fd, ai->ai_addr, ai->ai_addrlen) != 0) {
+    if (connect(fd, (const struct sockaddr *) &a->ss, a->len) != 0) {
         if (errno != EINPROGRESS) {
             close(fd);
             return -1;
@@ -160,58 +160,49 @@ static int
 connect_resolved(const char *host, int port, int timeout_ms, int family,
                  brix_status *st)
 {
-    struct addrinfo  hints, *res = NULL, *ai;
-    char             portstr[16];
-    int              gai;
-    int              v6_failed = 0;   /* an IPv6 candidate failed this resolve */
-    int              last_errno = 0;  /* real errno of the last failed candidate */
+    brix_resolve_addr  addrs[BRIX_RESOLVE_MAX];
+    brix_resolve_err   rerr;
+    int                n, i;
+    int                v6_failed = 0;   /* an IPv6 candidate failed this resolve */
+    int                last_errno = 0;  /* real errno of the last failed candidate */
 
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family   = family;
-    hints.ai_socktype = SOCK_STREAM;
-    /* AI_NUMERICSERV: the port is always a decimal string, so tell the resolver
-     * never to consult /etc/services (saves an NSS lookup on every connect).
-     * AI_ADDRCONFIG: only return an address family the host actually has
+    /* ADDRCONFIG: only return an address family the host actually has
      * configured, so a v4-only box is not handed a AAAA candidate it would burn
      * a full connect attempt failing on before falling back to IPv4. */
-    hints.ai_flags    = AI_NUMERICSERV | AI_ADDRCONFIG;
-    snprintf(portstr, sizeof(portstr), "%d", port);
-
-    gai = getaddrinfo(host, portstr, &hints, &res);
-    if (gai != 0) {
+    n = brix_resolve(host, port, family, SOCK_STREAM, BRIX_RESOLVE_ADDRCONFIG,
+                     addrs, BRIX_RESOLVE_MAX, &rerr);
+    if (n <= 0) {
         /* EAI_AGAIN is a transient resolver hiccup (keep it retryable as a
          * transport fault); every other failure means the name has no address
          * and never will on a retry, so mark it permanent (XRDC_ERESOLVE) and
          * let the resilient loop fail fast instead of spinning the stall window
          * on a dead endpoint. */
-        int code = (gai == EAI_AGAIN) ? XRDC_ESOCK : XRDC_ERESOLVE;
-        brix_status_set(st, code, 0, "resolve %s:%d: %s",
-                        host, port, gai_strerror(gai));
+        int code = rerr.transient ? XRDC_ESOCK : XRDC_ERESOLVE;
+        brix_status_set(st, code, 0, "resolve %s:%d: %s", host, port,
+                        rerr.text != NULL ? rerr.text : "invalid target");
         return -1;
     }
 
-    for (ai = res; ai != NULL; ai = ai->ai_next) {
+    for (i = 0; i < n; i++) {
         /* Bound a non-final attempt so a dead family yields promptly; the last
          * candidate keeps the full budget (see XRDC_CONNECT_ATTEMPT_MS). */
         int attempt_ms =
-            (ai->ai_next != NULL && timeout_ms > XRDC_CONNECT_ATTEMPT_MS)
+            (i + 1 < n && timeout_ms > XRDC_CONNECT_ATTEMPT_MS)
             ? XRDC_CONNECT_ATTEMPT_MS : timeout_ms;
-        int fd = connect_one(ai, attempt_ms);
+        int fd = connect_one(&addrs[i], attempt_ms);
 
         if (fd >= 0) {
-            if (ai->ai_family == AF_INET && v6_failed) {
+            if (addrs[i].family == AF_INET && v6_failed) {
                 brix_netpref_demote_ipv6(host);
             }
-            freeaddrinfo(res);
             return fd;
         }
-        last_errno = errno;   /* capture before the next attempt / freeaddrinfo clobbers it */
-        if (ai->ai_family == AF_INET6) {
+        last_errno = errno;   /* capture before the next attempt clobbers it */
+        if (addrs[i].family == AF_INET6) {
             v6_failed = 1;
         }
     }
 
-    freeaddrinfo(res);
     brix_status_set(st, XRDC_ESOCK, last_errno, "connect %s:%d failed", host, port);
     return -1;
 }

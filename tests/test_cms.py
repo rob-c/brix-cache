@@ -27,7 +27,7 @@ This test suite exercises:
     connectivity has been verified.
 
 The CMS manager is a real nginx instance (nginx_cluster_redir.conf at
-CMS_TEST_CMS_PORT) started by ``manage_test_servers.sh start-all``.  The
+CMS_TEST_CMS_PORT) started by ``python3 -m cmdscripts.manage_test_servers start-all``.  The
 cms-test nginx (CMS_TEST_NGINX_PORT) connects to it with brix_cms_interval 2
 and retries automatically on disconnect.
 
@@ -140,7 +140,7 @@ def cms_nginx():
 
     The cms-test-mgr nginx at CMS_TEST_CMS_PORT acts as the real CMS server.
     The cms-test nginx (CMS_TEST_NGINX_PORT) connects to it with
-    brix_cms_interval 2.  Both are started by manage_test_servers.sh
+    brix_cms_interval 2.  Both are started by python3 -m cmdscripts.manage_test_servers
     start-all, so the connection should be established by test time.
     """
     deadline = time.time() + 30
@@ -151,7 +151,7 @@ def cms_nginx():
     else:
         pytest.skip(
             f"cms-test nginx did not connect to CMS manager at port "
-            f"{CMS_TEST_CMS_PORT} within 30s — run manage_test_servers.sh start-all"
+            f"{CMS_TEST_CMS_PORT} within 30s — run python3 -m cmdscripts.manage_test_servers start-all"
         )
 
     yield {

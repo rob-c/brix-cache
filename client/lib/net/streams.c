@@ -18,6 +18,7 @@
  *       secondary that won't bind is skipped, never failing the copy.
  */
 #include "brix.h"
+#include "_brix_net_ext.h"
 
 #include <string.h>
 #include <unistd.h>
@@ -72,6 +73,9 @@ brix_streams_close(brix_streamset *ss)
     for (i = 0; i < ss->n; i++) {
         /* A bound stream owns no session of its own — close it quietly, no
          * kXR_endsess (that belongs to the primary). */
+        brix_forksafe_unregister(&ss->sec[i]);   /* §7.7: before the fd goes,
+                                                  * and before the streamset
+                                                  * is reused or freed */
         brix_tls_free(&ss->sec[i]);
         if (ss->sec[i].io.fd >= 0) {
             close(ss->sec[i].io.fd);

@@ -291,46 +291,39 @@ parse_http_hostport(const char *s, char *host, size_t hsz, int *port)
 
 /*
  * Resolve host ONCE to a numeric IP and classify whether it is loopback. The
- * probe then connects to this SAME numeric IP (getaddrinfo on a literal address
- * is deterministic), so a DNS-rebind / localhost.attacker.com cannot slip a
- * non-loopback target past the gate between the check and the connect. 0 / -1.
+ * probe then connects to this SAME numeric IP (brix_resolve() on a literal
+ * address is deterministic), so a DNS-rebind / localhost.attacker.com cannot
+ * slip a non-loopback target past the gate between the check and the connect.
+ * 0 / -1.
  */
 int
 resolve_once(const char *host, int port, char *ip, size_t ipsz, int *is_loop,
              brix_status *st)
 {
-    struct addrinfo  hints, *res = NULL;
-    char             portstr[16];
-    int              gai;
+    brix_resolve_addr  a;
+    brix_resolve_err   rerr;
 
-    memset(&hints, 0, sizeof(hints));
     /* Honor a session-wide IPv6→IPv4 demotion (netpref.c) for consistency with
      * every other connect path: AF_UNSPEC normally, AF_INET once this process
      * has fallen back to IPv4-only. */
-    hints.ai_family   = brix_netpref_family();
-    hints.ai_socktype = SOCK_STREAM;
-    snprintf(portstr, sizeof(portstr), "%d", port);
-
-    gai = getaddrinfo(host, portstr, &hints, &res);
-    if (gai != 0 || res == NULL) {
+    if (brix_resolve(host, port, brix_netpref_family(), SOCK_STREAM, 0,
+                     &a, 1, &rerr) <= 0)
+    {
         brix_status_set(st, XRDC_ESOCK, 0, "resolve %s: %s", host,
-                        gai_strerror(gai));
+                        rerr.text != NULL ? rerr.text : "invalid target");
         return -1;
     }
     *is_loop = 0;
-    if (res->ai_family == AF_INET) {
-        struct sockaddr_in *s4 = (struct sockaddr_in *) res->ai_addr;
+    if (a.family == AF_INET) {
+        struct sockaddr_in *s4 = (struct sockaddr_in *) &a.ss;
         *is_loop = ((ntohl(s4->sin_addr.s_addr) >> 24) == 127);   /* 127.0.0.0/8 */
-    } else if (res->ai_family == AF_INET6) {
-        struct sockaddr_in6 *s6 = (struct sockaddr_in6 *) res->ai_addr;
+    } else if (a.family == AF_INET6) {
+        struct sockaddr_in6 *s6 = (struct sockaddr_in6 *) &a.ss;
         *is_loop = IN6_IS_ADDR_LOOPBACK(&s6->sin6_addr);
     }
-    getnameinfo(res->ai_addr, res->ai_addrlen, ip, (socklen_t) ipsz, NULL, 0,
-                NI_NUMERICHOST);
-    freeaddrinfo(res);
+    brix_resolve_ntop((struct sockaddr *) &a.ss, a.len, ip, ipsz);
     return 0;
 }
-
 
 /* Connect a fresh session to the (numeric) probe target, with a bounded per-probe
  * deadline so a wedged/abusive exchange can never hang the auditor. 0 / -1. */

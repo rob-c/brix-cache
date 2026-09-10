@@ -28,7 +28,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include <netdb.h>
 #include "core/compat/alloc_guard.h"
 #include "core/compat/cstr.h"
 
@@ -185,8 +184,10 @@ tpc_register_stream_transfer(ngx_connection_t *c, brix_file_t *file)
  * and the field set (and behaviour) unchanged.
  * HOW: memzero t → set connection/ctx/conf refs, streamid, dst_fd, reply_kind,
  * src_port, transfer_id scalars → cpystrn src_host/src_path/tpc_key/tpc_org/
- * token_mode/dst_path from the file's stored fields. The caller sets
- * t->fhandle_idx (the slot index it already holds) after this returns. */
+ * token_mode/dst_path from the file's stored fields → snapshot the peer
+ * address + login identity for the thread-side tpc.org rebuild (origin_id.c).
+ * The caller sets t->fhandle_idx (the slot index it already holds) after this
+ * returns. */
 static void
 tpc_populate_pull_task(brix_tpc_pull_t *t, brix_ctx_t *ctx,
     ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
@@ -204,6 +205,9 @@ tpc_populate_pull_task(brix_tpc_pull_t *t, brix_ctx_t *ctx,
     t->reply_kind = BRIX_TPC_REPLY_SYNC;
     t->src_port = file->tpc_src_port;
     t->transfer_id = file->tpc_transfer_id;
+    t->tpc_org_unresolved = file->tpc_org_unresolved ? 1 : 0;
+    t->streams_requested  = file->tpc_streams > 0 ? file->tpc_streams : 1;
+    brix_tpc_origin_snapshot_peer(t, ctx, c);
 
     ngx_cpystrn((u_char *) t->src_host, (u_char *) file->tpc_src_host,
                 sizeof(t->src_host));

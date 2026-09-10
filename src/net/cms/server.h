@@ -47,6 +47,9 @@ typedef struct {
     char               vnid[64];                     /* login envCGI vnid= (may be "") */
     uint32_t           free_mb;
     uint32_t           util_pct;
+    uint32_t           min_free_mb;                  /* §2.4: the node's own
+                                                        mSpace policy floor (MB)
+                                                        from LOGIN; 0 = none */
     const char        *role_type;                    /* this manager's XrdCmsRole::Type
                                                         for stats: "R" when the process
                                                         is a supervisor, else "M" */

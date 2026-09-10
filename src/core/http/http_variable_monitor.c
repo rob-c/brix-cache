@@ -21,8 +21,9 @@
  */
 
 /* Get-or-create the request's monitor. MUST be first called on the event loop
- * (it allocates on r->pool). NULL only on allocation failure. */
-static brix_io_monitor_t *
+ * (it allocates on r->pool). NULL only on allocation failure.  Exported for the
+ * phase-116 PREACCESS reverse-DNS wait, which parks its "waited once" flag here. */
+brix_io_monitor_t *
 brix_http_monitor_get(ngx_http_request_t *r)
 {
     brix_io_monitor_t *m = ngx_http_get_module_ctx(r, ngx_http_brix_common_module);
@@ -76,6 +77,10 @@ brix_http_monitor_bind(ngx_http_request_t *r, brix_vfs_ctx_t *vctx)
     /* Idempotent: create once, then every data-plane ctx of the request shares
      * the same accumulator so bytes/latency sum across its ops. */
     vctx->io_monitor = brix_http_monitor_get(r);
+    /* 2.0: carry the fill worker's store-refusal mark onto this ctx, so the
+     * open that follows reads the source instead of trying to fill again. */
+    vctx->cache_no_fill = (vctx->io_monitor != NULL
+                           && vctx->io_monitor->fill_refused);
     /* W7: attach the client address for the JSON access log's `remote`, from
      * this same event-loop bind (r->pool alloc is safe here). */
     if (vctx->peer == NULL) {
@@ -86,8 +91,8 @@ brix_http_monitor_bind(ngx_http_request_t *r, brix_vfs_ctx_t *vctx)
 
 /* Peek without creating — for the log-phase handlers, which must not allocate
  * and must tolerate a request that never bound a monitor (served with no brix
- * data op, or by another module). */
-static brix_io_monitor_t *
+ * data op, or by another module), and for the fill offload's re-entry test. */
+brix_io_monitor_t *
 brix_http_monitor_peek(ngx_http_request_t *r)
 {
     return ngx_http_get_module_ctx(r, ngx_http_brix_common_module);

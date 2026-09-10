@@ -678,6 +678,14 @@ def _pin_lifecycle_family(item, filename):
 
 def pytest_collection_modifyitems(config, items):
     """Apply suite scheduling, skip, declaration, and sampling policies."""
+    try:
+        _modify_collected_items(config, items)
+    except pytest.UsageError as exc:
+        _publish_worker_usage_error(config, exc)
+        raise
+
+
+def _modify_collected_items(config, items):
     cms_items = []
     other_items = []
     for item in items:

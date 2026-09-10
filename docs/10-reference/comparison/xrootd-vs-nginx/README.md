@@ -1,5 +1,26 @@
 # XRootD vs BriX-Cache — the comparison set
 
+> **Status (2026-09-09 — 2.0).** For what 2.0 ships, what it deliberately does not, and
+> what is still open, the 2.0 register
+> [`release-2.0-readiness.md`](../../release-2.0-readiness.md) is the source of truth —
+> its parity rows supersede any ⚠️/❌ here. Axis (e) of that register closed **F1–F20**
+> (the thirteen accepted-only `brix_frm_*` knobs and the durable stage journal,
+> `stagemsg`/StageEvents, the OssArc dataset seal, the per-space purge-policy grammar
+> with an external policy program, `pfc.urlcgi` + PSS forwarding, the RAM-tier metric
+> rows, native `root://` TPC **multihop** delegation and multi-stream *pull*, the site
+> checksum plugin loader, the sss v2 endorsement/proxied-credential wave, the
+> health-check family, `brix_mirror_exclude_opcodes` read/readv, the four metric
+> wishlist categories, native `root://` TPC **push** with multi-stream on it, the
+> `cms.fsxeq` operator program for forwarded namespace ops, and the `ofs.tpc` identity
+> matrix layered inside the host-plane TPC confinement, and the `xrd.tlsca` CRL-scope
+> and verification-log residuals — whose lab also found and fixed **F22**, a CRL a
+> worker could not read silently disarming revocation — and the native authdb residual
+> grammar: the compound `u g p a v l` selector set, positional VOMS vorg+role pairing,
+> and the `x` stage privilege) and, with **F21** — full per-user POSIX identity across the VFS seam, whose audit
+> found the posix plane already impersonating at the `beneath`/`confined_canon` seam
+> and closed the one un-brokered verb, `RENAME_EXCHANGE` — landed on 2026-09-10,
+> leaves nothing open: axis (e) is closed in full at F1–F22.
+
 A hyper-detailed, **source-grounded** comparison of **official XRootD** (the C++
 daemon + plugin ecosystem) against **this BriX-Cache module** (a C nginx
 stream/http module), covering both **codebase internals** (how each feature is
@@ -43,7 +64,7 @@ Every claim in this set is tied to source on **both** sides:
 | 06 | [Clustering, redirection & TPC](./06-clustering-redirection-tpc.md) | CMS/cmsd, manager/redirector + locate, native root:// TPC, proxy mode, traffic mirroring |
 | 07 | [Storage, cache & tape](./07-storage-cache-tape.md) | OSS/localroot + the plugin-ABI gap, POSC, xcache (read/write-through), FRM tape staging + WLCG Tape REST |
 | 08 | [Operations & observability](./08-operations-observability.md) | config model, **pull-HTTP Prometheus vs push-UDP XrdMon**, SciTags, SRR, logging, health, packaging, rate-limit policy |
-| 09 | [Clients & tools](./09-clients-and-tools.md) | the native pure-C `xrdcp`/`xrdfs`/`xrootdfs`/`libxrdc` suite vs `XrdCl` + apps; parity tables; known client gaps |
+| 09 | [Clients & tools](./09-clients-and-tools.md) | the native pure-C `xrdcp`/`xrdfs`/`xrootdfs`/`libbrix` suite vs `XrdCl` + apps; parity tables; known client gaps |
 | 10 | [Security & hardening](./10-security-and-hardening.md) | kernel `RESOLVE_BENEATH` confinement, fail-closed auth, framing robustness, impersonation, OCSP/CRL, build hardening |
 | 11 | [Gaps, divergences & extras](./11-gaps-divergences-and-extras.md) | the candid ledger: official-only gaps, nginx-only extras, the full conformance divergence table, drop-in assessment |
 
@@ -67,7 +88,7 @@ trees; see each doc's *Source references*.
 | write / pgwrite / sync | ✓ | ✓ (pgwrite CSE-retransmit ◑ — hard-fail instead) | [04](./04-data-plane-and-performance.md) |
 | Async I/O backend | ✓ threads | ✓ thread-pool **+ io_uring** | [04](./04-data-plane-and-performance.md) |
 | Write pipelining | ✓ | ✓ | [04](./04-data-plane-and-performance.md) |
-| Checksums (adler32/crc32/crc32c/crc64/md5/sha*) | ✓ (plugins; **no crc64 compute**) | ✓ in-tree (incl. crc64 XZ + NVME) | [04](./04-data-plane-and-performance.md) |
+| Checksums (adler32/crc32/crc32c/crc64/md5/sha*) | ✓ (plugins; **no crc64 compute**) | ✓ ten in-tree (incl. crc64 XZ + NVME) **+ site plugin loader** (`brix_checksum_plugin`) | [04](./04-data-plane-and-performance.md) |
 | Inline compression (gzip/xz/zstd/brotli/bz2/lz4) | ✗ | ➕ | [04](./04-data-plane-and-performance.md) |
 
 ### Authentication & authorization

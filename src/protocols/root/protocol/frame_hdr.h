@@ -74,6 +74,35 @@ xrd_put_u64_be(void *p, uint64_t v)
     memcpy((uint8_t *) p + 4, &lo, 4);
 }
 
+/* ---- client-request frame prologue ---- */
+/*
+ * Every ClientRequest arm opens with the same four bytes — `kXR_char
+ * streamid[2]` then a big-endian `kXR_unt16 requestid` — before the arm's own
+ * fields begin.  xrd_creq_begin stamps exactly that prologue: zero the whole
+ * struct, tag the request slot in streamid[1], write the opcode.
+ *
+ * WHY: every outbound request site (the cache origin's auth/read/pgread/write
+ * legs, the TPC source and push legs) opened with the identical declare +
+ * memzero + streamid + requestid lines.  That is a clone by shape — which is
+ * what tools/ci/check_duplication.py reports — but the reason to share it is
+ * that a site which forgets the zeroing ships uninitialised stack into a wire
+ * frame, and nothing on the wire says so.  The per-op fields stay at the call
+ * site: they are the half that legitimately differs.
+ *
+ * The prologue is layout-identical across every arm, so a void* + size is
+ * enough and no arm-specific type has to be named here.  streamid[0] stays 0:
+ * callers that need a two-byte tag write it themselves after this call.
+ */
+static inline void
+xrd_creq_begin(void *req, size_t reqsz, uint8_t stream_slot, uint16_t requestid)
+{
+    uint8_t *p = (uint8_t *) req;
+
+    memset(req, 0, reqsz);
+    p[1] = stream_slot;
+    xrd_put_u16_be(p + 2, requestid);
+}
+
 /*
  * ServerResponseHeader = streamid[2] + status[2 BE] + dlen[4 BE] (8 bytes).
  * streamid is an opaque 2-byte token echoed back; we read it big-endian so it
@@ -121,6 +150,86 @@ xrd_error_body_decode(const uint8_t *body, uint32_t dlen, int *errnum,
     if (errnum != NULL) { *errnum = (int) xrd_get_u32_be(body); }
     if (msg != NULL)    { *msg    = (const char *) (body + 4); }
     if (msglen != NULL) { *msglen = (size_t) (dlen - 4); }
+    return 0;
+}
+
+/*
+ * kXR_redirect body = [int32 BE port][host bytes, may end in NUL/CR/LF]. The
+ * host field may carry a "?<opaque>" tail: a redirector (notably EOS/cmsd)
+ * appends the open CAPABILITY (cap.sym/cap.msg) that the open MUST replay to the
+ * chosen data server, else the DS cannot authorize it and bounces the open back
+ * (an endless manager<->DS redirect loop). The host and opaque are split into
+ * their own bounded, NUL-terminated buffers so a long capability opaque (often
+ * >256 B) never truncates the connectable host. Leading '&'/'?' on the opaque
+ * are dropped (EOS sends "?&cap.sym="). `opaque` may be NULL (opaque_sz 0) when
+ * the caller does not replay capabilities. Returns 0 on success, -1 when the
+ * body is too short to hold the port or host/port out-params are missing. An
+ * EMPTY decoded host is left to the caller to judge. Shared by the native
+ * client's redirect follower and the destination's TPC multihop pull (F7).
+ */
+/* Host-field length: up to the first NUL, CR or LF, else the whole body. */
+static inline size_t
+xrd_redirect_field_len(const char *field, size_t flen)
+{
+    const char *end = memchr(field, '\0', flen);
+
+    if (end == NULL) { end = memchr(field, '\r', flen); }
+    if (end == NULL) { end = memchr(field, '\n', flen); }
+    return (end != NULL) ? (size_t) (end - field) : flen;
+}
+
+/* Copy at most dst_sz-1 bytes of src into dst, always NUL-terminating. */
+static inline void
+xrd_copy_clipped(char *dst, size_t dst_sz, const char *src, size_t len)
+{
+    if (len >= dst_sz) {
+        len = dst_sz - 1;
+    }
+    memcpy(dst, src, len);
+    dst[len] = '\0';
+}
+
+/* The capability opaque after '?', with the leading '&'/'?' padding some
+ * redirectors emit ("?&cap.sym=") dropped before it is clipped in. */
+static inline void
+xrd_redirect_opaque_copy(char *opaque, size_t opaque_sz, const char *o,
+                         size_t olen)
+{
+    while (olen > 0 && (*o == '&' || *o == '?')) {
+        o++;
+        olen--;
+    }
+    xrd_copy_clipped(opaque, opaque_sz, o, olen);
+}
+
+static inline int
+xrd_redirect_body_decode(const uint8_t *body, uint32_t dlen, char *host,
+                         size_t host_sz, int *port, char *opaque,
+                         size_t opaque_sz)
+{
+    const char *field, *qmark;
+    size_t      flen, hlen;
+
+    if (body == NULL || dlen < 5 || host == NULL || host_sz == 0
+        || port == NULL)
+    {
+        return -1;
+    }
+    *port = (int) xrd_get_u32_be(body);
+
+    field = (const char *) body + 4;
+    flen  = xrd_redirect_field_len(field, (size_t) dlen - 4);
+    qmark = memchr(field, '?', flen);
+    hlen  = (qmark != NULL) ? (size_t) (qmark - field) : flen;
+    xrd_copy_clipped(host, host_sz, field, hlen);
+
+    if (opaque != NULL && opaque_sz > 0) {
+        opaque[0] = '\0';
+        if (qmark != NULL) {
+            xrd_redirect_opaque_copy(opaque, opaque_sz, qmark + 1,
+                                     (size_t) (field + flen - (qmark + 1)));
+        }
+    }
     return 0;
 }
 

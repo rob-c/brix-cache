@@ -28,6 +28,7 @@ import re
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import time
 
 import pytest
@@ -89,8 +90,7 @@ def _have_ipv6_loopback():
 def doctor():
     """Build xrddiag once; skip cleanly without a compiler / nginx."""
     _guard_doctor_1()
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrddiag"],
-                          capture_output=True, text=True, timeout=180)
+    proc = client_make(CLIENT_DIR, "xrddiag", capture_output=True, text=True, timeout=180)
     _guard_doctor_2(proc)
     _guard_doctor_3()
     return XRDDIAG
@@ -180,8 +180,7 @@ def _authsuite_diag(blob):
 @pytest.fixture
 def sss_server(lifecycle, doctor, tmp_path_factory):
     """An auth-REQUIRED (SSS) server — used to prove anonymous access is denied."""
-    if subprocess.run(["make", "-C", CLIENT_DIR, "xrdsssadmin-brix"],
-                      capture_output=True).returncode != 0 or not os.path.exists(_SSSADMIN):
+    if client_make(CLIENT_DIR, "xrdsssadmin-brix", capture_output=True).returncode != 0 or not os.path.exists(_SSSADMIN):
         pytest.skip("xrdsssadmin build failed")
     root = tmp_path_factory.mktemp("rd_sss")
     data = root / "data"

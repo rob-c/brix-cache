@@ -2,7 +2,7 @@
 Real XRootD <-> nginx-xrootd CMS mesh interoperability tests.
 
 The mesh topologies (real xrootd+cmsd and nginx-xrootd instances wired together
-via the CMS protocol) are brought up by the test harness — manage_test_servers.sh
+via the CMS protocol) are brought up by the test harness — python3 -m cmdscripts.manage_test_servers
 start-all -> cms_mesh_servers.py — on the fixed ports in cms_mesh_lib.PORTS.
 These tests only *connect* to those ports and skip if a topology is not up; they
 do not launch any daemons themselves.  All daemon lifecycle and config building
@@ -40,11 +40,11 @@ pytestmark = [
 
 def _require(*pairs):
     """Skip unless every (label, port) is listening — i.e. the harness brought
-    that topology up (manage_test_servers.sh start-all)."""
+    that topology up (python3 -m cmdscripts.manage_test_servers start-all)."""
     for label, port in pairs:
         if not port_open(port):
             pytest.skip(f"{label} (:{port}) not up — run "
-                        "manage_test_servers.sh start-all")
+                        "python3 -m cmdscripts.manage_test_servers start-all")
 
 
 def _require_stock_xrdhttp_answers(port, path="/h.txt"):

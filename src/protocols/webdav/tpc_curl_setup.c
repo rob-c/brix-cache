@@ -18,8 +18,8 @@
  *      TLS SNI/cert validation still uses the original hostname, so pinning
  *      does not weaken certificate checking.
  *
- * Runs in the TPC thread pool, so the blocking getaddrinfo() inside
- * check_dns_pin is safe here.  Returns 0 with *resolve_out set (caller frees
+ * Runs in the TPC thread pool, so the blocking resolve inside
+ * check_dns_pin (brix_dns_resolve_sync) is safe here.  Returns 0 with *resolve_out set (caller frees
  * the slist after the transfer) on success; -1 when the host is prohibited or
  * unresolvable — the transfer MUST abort.
  */
@@ -50,6 +50,7 @@ tpc_curl_secure(CURL *curl, ngx_http_brix_webdav_loc_conf_t *conf,
     pol.allow_local        = conf->common.tpc_allow_local;
     pol.allow_private      = conf->common.tpc_allow_private;
     pol.default_https_port = 443;
+    pol.dns = conf->common.dns.policy;
 
     if (brix_net_target_parse(NULL, &url_str, &tgt, err, sizeof(err)) != NGX_OK
         || brix_net_target_check_dns_pin(&tgt, &pol, pin_ip, sizeof(pin_ip),

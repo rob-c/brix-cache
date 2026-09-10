@@ -40,7 +40,7 @@ Client-facing GSI server:
 - `brix_trusted_ca <certdir>`
 - `brix_crl <certdir>`
 - `brix_crl_mode try|off|require`
-- (DN→uid mapping would be `brix_gridmap` + `brix_impersonation map`, not used here — GSI auth alone doesn't need it.)
+- (DN→uid mapping would be `brix_idmap_gridmap` + `brix_idmap map`, not used here — GSI auth alone doesn't need it.)
 
 BriX→origin GSI client:
 - `brix_storage_backend root://127.0.0.1:21195;`

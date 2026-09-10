@@ -6,7 +6,7 @@ no `-n` it runs *serially* and takes 20min+. Use the runner below.
 ## Scope: native only
 
 `tests/` is for native (non-container) deployments — tests run directly against a
-locally built/managed fleet (`manage_test_servers.sh`), optionally pointed at a
+locally built/managed fleet (`cmdscripts/manage_test_servers.py`), optionally pointed at a
 remote host via env vars (`TEST_SERVER_HOST` etc.), but never requiring a
 container runtime or orchestrator themselves. `tests/ceph/` is the one exception
 (it builds/runs some CephFS pieces in-container via `Dockerfile.build`).

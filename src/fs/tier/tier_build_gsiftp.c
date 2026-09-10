@@ -32,6 +32,14 @@ brix_tier_build_gsiftp(const brix_tier_cfg_t *tier, ngx_log_t *log)
             .x509_proxy = proxy[0] != '\0' ? proxy : NULL,
             .ca_dir = ca_dir[0] != '\0' ? ca_dir : NULL,
             .timeout_ms = 30000,
+            .dns = tier->dns,
+            /* phase-115 W5.1: the store line's data-channel policy, carried as
+             * a typed request the session negotiates once and never relaxes. */
+            .mode = tier->ftp_mode_e ? GFTP_DMODE_E : GFTP_DMODE_S,
+            .prot = tier->ftp_prot_p ? GFTP_DPROT_P : GFTP_DPROT_C,
+            /* phase-115 W5.3: a CEILING, not a demand — an origin that
+             * will not stripe still serves the bytes over one link. */
+            .streams = tier->ftp_streams,
         };
 
         return brix_sd_gsiftp_create(&cfg, log);

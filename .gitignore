@@ -100,6 +100,11 @@ tools/diag/*
 # round's claim, and every BriX-vs-official ratio in them is only reproducible
 # with the interleaved A/B driver that lives here.
 !tools/diag/storm_ab_bench.py
+# lock_scan.py is exempted for the same reason: docs/03-configuration/directives.md
+# tells an operator to run it BEFORE switching an export to
+# `brix_lock_enforcement strict`, so a clone without it cannot follow the
+# documented upgrade procedure.
+!tools/diag/lock_scan.py
 .aider*
 
 .rpmbuild/

@@ -24,6 +24,7 @@
  */
 
 #include "ocsp_internal.h"
+#include "net/dns/dns.h"                  /* brix_dns_resolve_sync (phase-116) */
 
 #include <openssl/ocsp.h>
 #include <openssl/x509.h>
@@ -79,9 +80,58 @@ ocsp_build_request(OCSP_CERTID *id)
  * The caller must call OCSP_RESPONSE_free() on the returned pointer.
  * Returns NULL on any network or protocol error.
  */
-/* HOW: Parses the OCSP URL via parse_ocsp_url() into an ocsp_url_t. Builds the OCSP_REQUEST (id + nonce) via ocsp_build_request(). Opens the responder BIO via ocsp_open_bio() (plain TCP or verifying TLS with SNI). Bounds the connect (ocsp_connect_bio) and, for HTTPS, the handshake+verify (ocsp_tls_handshake) under BRIX_OCSP_TIMEOUT_SECS. Sends the request and reads the reply through an OCSP_REQ_CTX whose response length is capped at OCSP_MAX_RESPONSE_BYTES (A-6/T2 — an untrusted responder must not stream an unbounded body), then tears down the connection (cbio then ssl_ctx) and the request. Returns NULL on any network/protocol failure or if the reply exceeds the cap. */
+/* WHAT: resolve the responder host through the brix DNS driver and open +
+ *       connect a BIO to the first candidate that answers.
+ * WHY:  BIO_set_conn_hostname() with a name would run getaddrinfo() on the
+ *       event loop (I-DNS-1) — a second resolver with its own idea of
+ *       resolv.conf.  The BIO only ever sees a numeric "ip:port" now, so
+ *       OpenSSL's resolver is never entered; the TLS leg still verifies the
+ *       NAME (ocsp_open_bio sets SNI + SSL_set1_host from u->host).
+ * HOW:  brix_dns_resolve_sync(): literal → per-worker cache → libc (the
+ *       nginx-resolver bridge declines on the loop thread, which is where this
+ *       blocking exchange runs by design).  Each candidate is formatted with
+ *       ngx_sock_ntop() ("[v6]:port") and tried in answer order under the
+ *       E1 connect deadline.  On success *conn is open + connected and
+ *       hostport holds the numeric peer. */
+static int
+ocsp_connect_responder(ngx_log_t *log, const ocsp_url_t *u,
+    const brix_dns_policy_t *dns, ocsp_conn_t *conn, char *hostport,
+    size_t hostport_sz)
+{
+    brix_dns_addr_t  addrs[BRIX_DNS_MAX_ADDRS];
+    char             reason[BRIX_DNS_ERROR_LEN];
+    ngx_uint_t       i, n;
+    size_t           len;
+
+    n = brix_dns_resolve_sync(dns, u->host, (in_port_t) u->port, BRIX_AF_AUTO,
+                              SOCK_STREAM, addrs, BRIX_DNS_MAX_ADDRS, reason,
+                              sizeof(reason));
+    if (n == 0) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "brix_ocsp: cannot resolve responder host \"%s\": %s",
+                      u->host, reason);
+        return -1;
+    }
+    for (i = 0; i < n; i++) {
+        len = ngx_sock_ntop((struct sockaddr *) &addrs[i].ss, addrs[i].len,
+                            (u_char *) hostport, hostport_sz - 1, 1);
+        hostport[len] = '\0';
+        if (len == 0 || ocsp_open_bio(log, u, hostport, conn) != 0) {
+            continue;
+        }
+        /* E1: bound the connect with a deadline (a black-holed responder must
+         * not freeze the worker for the kernel TCP timeout). */
+        if (ocsp_connect_bio(log, conn, hostport) == 0) {
+            return 0;
+        }
+        ocsp_conn_free(conn);
+    }
+    return -1;
+}
+
+/* HOW: Parses the OCSP URL via parse_ocsp_url() into an ocsp_url_t. Builds the OCSP_REQUEST (id + nonce) via ocsp_build_request(). Resolves the responder through the phase-116 DNS driver and opens + connects the BIO per candidate via ocsp_connect_responder() (ocsp_open_bio: plain TCP or verifying TLS with SNI; ocsp_connect_bio: deadline-bounded). Bounds, for HTTPS, the handshake+verify (ocsp_tls_handshake) under BRIX_OCSP_TIMEOUT_SECS. Sends the request and reads the reply through an OCSP_REQ_CTX whose response length is capped at OCSP_MAX_RESPONSE_BYTES (A-6/T2 — an untrusted responder must not stream an unbounded body), then tears down the connection (cbio then ssl_ctx) and the request. Returns NULL on any network/protocol failure or if the reply exceeds the cap. */
 OCSP_RESPONSE *
-do_ocsp_request(ngx_log_t *log, const char *url,
+do_ocsp_request(ngx_log_t *log, const brix_dns_policy_t *dns, const char *url,
     X509 *leaf, X509 *issuer, OCSP_CERTID *id, OCSP_REQUEST **req_out)
 {
     ocsp_url_t     u;
@@ -105,18 +155,11 @@ do_ocsp_request(ngx_log_t *log, const char *url,
         return NULL;
     }
 
-    /* Construct "host:port" for BIO */
-    snprintf(hostport, sizeof(hostport), "%s:%d", u.host, u.port);
-
-    if (ocsp_open_bio(log, &u, hostport, &conn) != 0) {
-        OCSP_REQUEST_free(req);
-        return NULL;
-    }
-
-    /* E1: bound the connect with a deadline (a black-holed responder must not
-     * freeze the worker for the kernel TCP timeout). */
-    if (ocsp_connect_bio(log, &conn, hostport) != 0) {
-        ocsp_conn_free(&conn);
+    /* phase-116: resolve through the brix driver and connect to the first
+     * answering candidate; hostport becomes the numeric peer ("[v6]:port"). */
+    if (ocsp_connect_responder(log, &u, dns, &conn, hostport,
+                               sizeof(hostport)) != 0)
+    {
         OCSP_REQUEST_free(req);
         return NULL;
     }

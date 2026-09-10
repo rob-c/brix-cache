@@ -11,6 +11,7 @@
 #include "net/mirror/stream_wmirror.h"
 #include "protocols/root/write/wrts_journal.h"
 #include "core/compat/tmp_path.h"
+#include "core/compat/error_mapping.h"   /* brix_kxr_from_errno: open-error default arm */
 #include "fs/cache/writethrough_metrics.h"
 #include "fs/cache/cache_storage.h"   /* driver-backed read-cache serve + key helper */
 #include "net/manager/registry.h"
@@ -197,8 +198,14 @@ brix_open_resolved_via_driver(brix_open_args_t *a, brix_vfs_ctx_t *vctx,
         return NGX_ERROR;
     }
 
-    obj = brix_sd_open_maybe_cred(sd, logical, sd_flags, a->create_mode,
-        use_cred ? &ucred : NULL, &oerr);
+    /* 2.0 F5: carry the open's pfc.* cache hints into the driver's open_hinted
+     * slot (brix_open_build_cred_ctx put them on the vctx). The helper falls
+     * back to the plain cred open when there is no hint or the driver has no
+     * hinted slot, so every other export behaves exactly as before — without
+     * this the root:// data plane was the one open path that dropped them,
+     * while the davs/S3 brix_vfs_open path already delivered them. */
+    obj = brix_sd_open_hinted_maybe_cred(sd, logical, sd_flags, a->create_mode,
+        use_cred ? &ucred : NULL, &vctx->open_hints, &oerr);
     /* Secret consumed by the origin open; erase the stack copy (A-4/T4). */
     brix_sd_ucred_wipe(&ustore);
     if (obj == NULL) {
@@ -275,6 +282,14 @@ brix_open_error_details(int err, int *kxr, const char **message)
         *kxr = kXR_NotAuthorized;
         *message = "permission denied";
         break;
+    case EPERM:
+        /* The storage refuses the mutation on its own terms — a sealed tape
+         * dataset, an immutable object.  The shared translator already says
+         * NotAuthorized; falling to the IOError default reported "Operation
+         * not permitted" as an I/O fault (phase-115 W3.1). */
+        *kxr = kXR_NotAuthorized;
+        *message = "operation not permitted";
+        break;
     case EROFS:
         /* phase-105: the endpoint refuses writes. Distinct from EACCES on
          * purpose — the client's credential is irrelevant, so the reply must
@@ -300,7 +315,11 @@ brix_open_error_details(int err, int *kxr, const char **message)
         *message = "insufficient space for the declared file size";
         break;
     default:
-        *kxr = kXR_IOError;
+        /* The shared translator, as the header promises: EINVAL (a reserved
+         * key, a special file) is ArgInvalid, ENOTSUP is Unsupported, and only
+         * a genuine fault stays IOError.  The old blanket IOError told a client
+         * to retry an OPEN whose arguments can never succeed (phase-115 W3.1). */
+        *kxr = brix_kxr_from_errno(err);
         *message = strerror(err);
         break;
     }

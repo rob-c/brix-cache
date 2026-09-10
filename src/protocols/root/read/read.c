@@ -52,6 +52,31 @@ brix_fsoverload_backoff(brix_ctx_t *ctx, ngx_connection_t *c,
     return brix_send_wait(ctx, c, (uint32_t) rconf->fsoverload_stall);
 }
 
+/*
+ * brix_read_io_error — EAGAIN means "not filled yet", not "broken" (§4.5).
+ *
+ * WHAT: turns a read-side driver errno into the client-facing terminal frame.
+ * WHY:  the serve-while-filling follower (fs/backend/cache/sd_cache_follow.c)
+ *       answers a read AT the fill frontier with EAGAIN. Reported as
+ *       kXR_IOError that would fail a perfectly healthy read; as kXR_wait the
+ *       client simply retries and streams at the origin's pace.
+ * HOW:  one funnel so every serve strategy (buffered, offload, AIO, windowed,
+ *       readv, pgread, compressed) behaves the same. kXR_wait stays clamped by
+ *       brix_max_delay at brix_send_wait's own emission choke point.
+ */
+ngx_int_t
+brix_read_io_error(brix_ctx_t *ctx, ngx_connection_t *c, int err)
+{
+    if (err == EAGAIN || err == EWOULDBLOCK) {
+        return brix_send_wait(ctx, c, BRIX_FILL_WAIT_SECS);
+    }
+    /* A negative I/O return with errno 0 is a driver that failed without
+     * setting one; EIO is the honest generic rather than strerror(0)'s
+     * "Success", which would read as a contradiction on the wire. */
+    return brix_send_error(ctx, c, kXR_IOError,
+                             strerror(err != 0 ? err : EIO));
+}
+
 /* Codec-vs-protocol drift guard: the wire codec (shared libxrdproto, deliberately
  * XProtocol-free) hard-codes the request body as XRDW_BODY_LEN bytes. This is the
  * one translation unit that sees both that constant and the real XProtocol
@@ -211,10 +236,16 @@ brix_read_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
         if (job.io_errno != 0) {
             errno = job.io_errno;
         }
+        if (errno == EAGAIN) {
+            /* §4.5: at an in-flight fill's frontier — a retry, not a failure,
+             * so it is neither logged nor counted as an I/O error. */
+            *rc = brix_read_io_error(ctx, c, errno);
+            return 1;
+        }
         brix_read_io_failure_log(c->log, "offload", io->fd,
                                    (off_t) io->offset, total, errno);
         BRIX_OP_ERR(ctx, BRIX_OP_READ);
-        *rc = brix_send_error(ctx, c, kXR_IOError, strerror(errno));
+        *rc = brix_read_io_error(ctx, c, errno);
         return 1;
     }
 

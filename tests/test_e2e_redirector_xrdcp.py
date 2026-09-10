@@ -9,7 +9,7 @@ The nginx manager instance at CLUSTER_REDIR_PORT receives client connections,
 issues kXR_redirect responses pointing at CLUSTER_DS_PORT (a real xrootd data
 server), and xrdcp automatically follows those redirects.
 
-All tests use the pre-launched cluster (manage_test_servers.sh start-all).
+All tests use the pre-launched cluster (python3 -m cmdscripts.manage_test_servers start-all).
 
 Run:
     pytest tests/test_e2e_redirector_xrdcp.py -v
@@ -89,7 +89,7 @@ pytestmark = pytest.mark.e2e
 
 
 # ---------------------------------------------------------------------------
-# Fixture: wait for cluster ports (pre-launched by manage_test_servers.sh)
+# Fixture: wait for cluster ports (pre-launched by cmdscripts/manage_test_servers.py)
 # ---------------------------------------------------------------------------
 
 def _wait_port(host: str, port: int, timeout: float = 20.0):

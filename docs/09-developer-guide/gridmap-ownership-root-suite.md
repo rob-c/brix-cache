@@ -1,12 +1,12 @@
 # Host-Root Grid-Mapfile Impersonation Ownership Suite
 
-A privileged, real-root test suite that proves `brix_impersonation map` lands backend
+A privileged, real-root test suite that proves `brix_idmap map` lands backend
 files owned by the **real local UNIX account** an authenticated identity maps to through a
 real grid-mapfile — with kernel DAC actually enforcing per-identity separation.
 
 ## Context
 
-`brix_impersonation map` (`src/auth/impersonate/`) makes the nginx **master run as root**
+`brix_idmap map` (`src/auth/impersonate/`) makes the nginx **master run as root**
 and spawn a double-forked privileged broker that `setfsuid()`/`setfsgid()`s per request to
 the local account an authenticated identity resolves to, so backend files land owned by
 that real UNIX user. Kernel DAC is the enforcer: the broker holds only
@@ -18,7 +18,7 @@ Before this suite, nothing launched the real nginx binary **as host root** with 
 - `tests/userns/` proves ownership WITHOUT real root (unprivileged user namespace; drives
   the broker C directly / launches nginx in-ns; maps token `sub` via `getpwnam` — no gridmap).
 - The multi-user conformance fleet (`tests/mu_authz_lib/`, `nginx_mu_*` / `multiuser/*_noimp.conf`)
-  runs `brix_impersonation off` and only checks authz verdicts; `test_mu_impersonation_e2e.py`
+  runs `brix_idmap off` and only checks authz verdicts; `test_mu_impersonation_e2e.py`
   targets a `ROOT_CACHE` port the fleet never starts, so it is effectively inert.
 
 This suite fills that gap. Added 2026-07-19.
@@ -61,8 +61,8 @@ as the mapped user) need to reach it.
   principal.
 
 Both configs place the impersonation directives in the `stream {}` block
-(`brix_impersonation map`, `brix_impersonation_socket`, `brix_impersonation_export`,
-`brix_gridmap`, `brix_idmap_min_uid 1000`, optional `brix_idmap_default_user`).
+(`brix_idmap map`, `brix_idmap_socket`, `brix_idmap_export`,
+`brix_idmap_gridmap`, `brix_idmap_min_uid 1000`, optional `brix_idmap_default_user`).
 
 Run privileged:
 
@@ -82,7 +82,7 @@ Launch/teardown helpers live in `tests/server_launcher.py`: `LifecycleHarness`,
 Two non-obvious integration gotchas that cost real debugging:
 
 1. **Launch — the broker holds the launcher's stderr pipe open.**
-   `brix_impersonation map` double-forks the privileged broker during `init_module`
+   `brix_idmap map` double-forks the privileged broker during `init_module`
    (before nginx daemonizes), so it inherits and holds the launcher's stderr pipe open
    forever. `harness.start()` (which uses `capture_output=True` and waits for EOF) HANGS.
    Fix: render + validate via `harness.register` / `launcher.render_nginx` /

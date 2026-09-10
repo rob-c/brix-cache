@@ -18,8 +18,8 @@
 
 #include "brix_fault_proxy_state.h"
 #include "brix_fault_proxy_mods.h"
+#include "net/resolve.h"
 #include <errno.h>
-#include <netdb.h>
 #include <netinet/tcp.h>
 #include <stdlib.h>
 #include <string.h>
@@ -318,16 +318,16 @@ relay_pump(int cfd, int ufd, unsigned epoch, unsigned seed,
 void
 sa_to_hostport(const struct sockaddr *sa, socklen_t sl, char *out, size_t cap)
 {
-    char host[INET6_ADDRSTRLEN] = "", serv[16] = "";
-    if (getnameinfo(sa, sl, host, sizeof(host), serv, sizeof(serv),
-                    NI_NUMERICHOST | NI_NUMERICSERV) != 0) {
+    char host[BRIX_RESOLVE_NTOP_LEN];
+    int  port = brix_resolve_port(sa, sl);
+    if (brix_resolve_ntop(sa, sl, host, sizeof(host))[0] == '\0' || port < 0) {
         out[0] = '\0';
         return;
     }
     if (sa->sa_family == AF_INET6) {
-        snprintf(out, cap, "[%s]:%s", host, serv);
+        snprintf(out, cap, "[%s]:%d", host, port);
     } else {
-        snprintf(out, cap, "%s:%s", host, serv);
+        snprintf(out, cap, "%s:%d", host, port);
     }
 }
 

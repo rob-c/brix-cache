@@ -29,6 +29,29 @@ typedef struct {
     void *opaque;
 } brix_s3_resp_t;
 
+/* brix_s3_tctx_t — the OPTIONAL typed per-instance context a consumer hands
+ * the injected transport on every request (the `tctx` argument below).
+ *
+ * WHAT: the operator's trusted-CA file-or-dir path for origin TLS (NULL = the
+ *       transport's system bundle) and the DNS policy the endpoint host
+ *       resolves under (NULL = no brix_resolver in scope).
+ * WHY:  phase-116: the server's libcurl transport must resolve the endpoint
+ *       through the one brix DNS path (literal, per-worker cache, the
+ *       export's nginx resolver, then libc) instead of libcurl's own
+ *       resolver, so it needs the policy on every request; typing the context
+ *       replaces the bare CA-path string it used to smuggle through `tctx`.
+ * HOW:  built by the driver (sd_http, sd_remote) or the direct consumer
+ *       (cvmfs geo passthrough, OCI upstream) on storage that outlives every
+ *       request it is passed with; a transport reads it, never writes or
+ *       frees it.  A test/fake transport is free to ignore it.  Declared here,
+ *       ngx-free, so the drivers stay independent of the server transport. */
+struct brix_dns_policy_s;
+
+typedef struct {
+    const char                      *ca_path;
+    const struct brix_dns_policy_s  *dns;
+} brix_s3_tctx_t;
+
 typedef struct brix_s3_transport_s {
     /* Perform one HTTP request. `path_and_query` is the already-encoded
      * "/key?canon-query" (or "/key"); `headers` is the pre-built header block

@@ -46,7 +46,7 @@ overrides on `brix_proxy_upstream`.
 | `proxy.h` | Public API: `brix_proxy_dispatch()` (the dispatcher entry point), `brix_proxy_cleanup()`, and the four `brix_conf_set_proxy_*` directive handlers. Opaque `brix_proxy_ctx_t`. |
 | `proxy_internal.h` | Internal contract: `brix_proxy_ctx_t` state struct, `brix_proxy_fh_entry_t` handle map, state-machine enums (`brix_proxy_up_state_t`, `brix_proxy_bs_t`), pool/health structs, constants, and all cross-file prototypes grouped by source file. |
 | `forward_relay_dispatch.c` | `brix_proxy_dispatch()` — lazy-init the proxy ctx + connect on first opcode; queue requests in `saved_req` while bootstrapping; forward when IDLE. `brix_proxy_dispatch_pending()` flushes the queued request after bootstrap (with bound-secondary lazy-open check). Compiled standalone. |
-| `connect_upstream.c` | `brix_proxy_connect()` — endpoint selection (redirect > pool > atomic round-robin across *healthy* upstreams > single host), `getaddrinfo` (tries each resolved address), non-blocking socket + async `connect()`, connect-timeout armed on the *write* timer, optional TLS start, and the 68-byte bootstrap frame builder (hello + `kXR_protocol` + `kXR_login`, with a unique virtual PID per connection and a login username resolved from `proxy_login_user`). TLS handshake-done callback. |
+| `connect_upstream.c` | `brix_proxy_connect()` — endpoint selection (redirect > pool > atomic round-robin across *healthy* upstreams > single host), an asynchronous `brix_dns_resolve()` under the block's `brix_resolver` policy — never `getaddrinfo` on the event loop (phase-116) — trying each answer in turn, non-blocking socket + async `connect()`, connect-timeout armed on the *write* timer, optional TLS start, and the 68-byte bootstrap frame builder (hello + `kXR_protocol` + `kXR_login`, with a unique virtual PID per connection and a login username resolved from `proxy_login_user`). TLS handshake-done callback. |
 | `connect_lifecycle.c` | `brix_proxy_flush()` (drain `wbuf` to socket), `brix_proxy_abort()` (error handling with idle-reconnect budget), `brix_proxy_cleanup()` (audit abandoned handles, free buffers/timers/splice pipe, pool-return or close upstream — null `conn->data` first to prevent UAF). |
 | `events_write.c` | `brix_proxy_write_handler()` — first write validates `SO_ERROR` after connect, starts TLS if configured, transitions to BOOTSTRAP; subsequent writes flush `wbuf` and arm the read event. |
 | `events_read.c` | `brix_proxy_read_handler()` — edge-triggered drain loop: accumulate 8-byte response header + body (with `kXR_status` two-phase page-data expansion), relay `kXR_attn` frames out-of-band, then route to bootstrap handler or client relay by `proxy->state`. Manages read timeouts. |
@@ -86,7 +86,9 @@ overrides on `brix_proxy_upstream`.
   `kXR_wait` retry copy, `kXR_redirect` follow-through state, the
   lazy-open pending-fh queue, the file-handle map, and the `splice` pipe state.
 - **`brix_proxy_fh_entry_t`** — one slot of the `fh_map[BRIX_MAX_FILES]`
-  handle-translation table: `upstream_fh` (`-1` = free, `255` = open pending),
+  handle-translation table: the upstream's raw 4-byte `upstream_fh` plus an
+  explicit `fh_state` (`FREE` / `PENDING` / `BOUND` — the state is NOT encoded
+  inside the handle value, because the value is opaque; phase-115 W2.6),
   the open path, open timestamp, and bytes read/written (for the close audit).
 - **`brix_proxy_up_state_t`** — upstream socket phase:
   `CONNECTING → TLS_HANDSHAKE → BOOTSTRAP → IDLE → FORWARDING`.
@@ -112,8 +114,9 @@ function never returns `BRIX_DISPATCH_CONTINUE`.
 **First opcode (lazy connect).** `brix_proxy_dispatch()` allocates the proxy
 ctx (`fh_map` all free), calls `brix_proxy_connect()`, and parks the client in
 `XRD_ST_PROXY`. Connect tries the pool first (`pool.c`); a pooled hit skips
-bootstrap and dispatches immediately. Otherwise it resolves DNS, starts an async
-`connect()`, optionally TLS, and queues the 68-byte bootstrap frame. The
+bootstrap and dispatches immediately. Otherwise it resolves the host through
+the brix DNS driver (asynchronously; the dial resumes in the resolve handler),
+starts an async `connect()`, optionally TLS, and queues the 68-byte bootstrap frame. The
 upstream `write`/`read` handlers (`events_write.c` / `events_read.c`) drive
 bootstrap through `events_bootstrap.c`, which may inject a `kXR_auth` frame
 (bearer/SSS/file token). On `BS_DONE` the state goes IDLE, the reconnect budget
@@ -189,8 +192,8 @@ response (with the client's original streamid) and resumes the client read loop
   spurious-IDLE abort (`events_read.c:268`).
 - **Idle-only reconnect recovery.** `brix_proxy_abort()` transparently
   reconnects (re-bootstrapping) instead of failing the client *only* when the
-  upstream dropped while `XRD_PX_IDLE` **and** no handle is open (`upstream_fh`
-  neither free nor the `255` pending sentinel), drawing from a per-connection
+  upstream dropped while `XRD_PX_IDLE` **and** no handle is open (no slot in
+  `fh_state == BRIX_PROXY_FH_BOUND`), drawing from a per-connection
   `reconnect_left` budget that is reset on every successful bootstrap. A drop
   mid-transfer (or with files open) is a hard abort → `kXR_IOError` to the client.
 - **Login PID uniqueness.** Each upstream `kXR_login` mixes a monotonic counter

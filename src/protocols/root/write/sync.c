@@ -3,9 +3,49 @@
  */
 
 #include "core/ngx_brix_module.h"
+#include "core/compat/error_mapping.h"   /* brix_kxr_from_errno */
 #include "fs/cache/cache_internal.h"
 #include "wrts_journal.h"
 #include "pgw_fob.h"                 /* kXR_pgwrite CSE close/sync commit gate */
+
+/*
+ * brix_sync_tpc_arm_or_fire — the two-kXR_sync contract shared by BOTH native
+ * TPC roles.
+ *
+ * WHAT: the first sync on a TPC handle ARMS it and answers kXR_ok; the second
+ * FIRES the transfer and parks the connection until the worker finishes.
+ * WHY: xrdcp's native TPC dialect sends sync twice — once to confirm the
+ * rendezvous is set up, once to start the copy — and the F16 push must honour
+ * exactly the same contract as the pull, or a client would have to know which
+ * direction it asked for before it could drive the handshake. One helper means
+ * one arm/fire semantic, not two that can drift.
+ * HOW: tpc_armed is the only state; which start_* runs is decided by tpc_push
+ * (source of a push) versus tpc_destination (destination of a pull). The two
+ * bits are mutually exclusive by construction — open_tpc.c dispatches exactly
+ * one role per open — and tpc_push is tested first so a future handle that
+ * somehow carried both would still never pull into a file it is streaming out.
+ */
+static ngx_int_t
+brix_sync_tpc_arm_or_fire(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
+{
+	ngx_stream_brix_srv_conf_t *conf;
+
+	if (!ctx->files[idx].tpc_armed) {
+		ctx->files[idx].tpc_armed = 1;
+		BRIX_RETURN_OK(ctx, c, BRIX_OP_SYNC, "SYNC",
+						 ctx->files[idx].path,
+						 ctx->files[idx].tpc_push ? "tpc-push-arm" : "tpc-arm",
+						 0);
+	}
+
+	conf = ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_brix_module);
+
+	if (ctx->files[idx].tpc_push) {
+		return brix_tpc_start_push(ctx, c, conf, idx);
+	}
+
+	return brix_tpc_start_pull(ctx, c, conf, idx);
+}
 
 /*
  * brix_handle_sync — sync an open file by handle through the VFS core.
@@ -32,16 +72,10 @@ brix_handle_sync(brix_ctx_t *ctx, ngx_connection_t *c)
 	ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
 				   "brix: kXR_sync handle=%d", idx);
 
-	if (ctx->files[idx].tpc_destination && !ctx->files[idx].tpc_done) {
-		if (!ctx->files[idx].tpc_armed) {
-			ctx->files[idx].tpc_armed = 1;
-			BRIX_RETURN_OK(ctx, c, BRIX_OP_SYNC, "SYNC",
-							 ctx->files[idx].path, "tpc-arm", 0);
-		}
-
-		return brix_tpc_start_pull(ctx, c, ngx_stream_get_module_srv_conf(
-									 ctx->session, ngx_stream_brix_module),
-									 idx);
+	if ((ctx->files[idx].tpc_destination || ctx->files[idx].tpc_push)
+	    && !ctx->files[idx].tpc_done)
+	{
+		return brix_sync_tpc_arm_or_fire(ctx, c, idx);
 	}
 
 	/* Whole-object staged-commit adapter (phase-70): a staged write handle has no
@@ -67,9 +101,11 @@ brix_handle_sync(brix_ctx_t *ctx, ngx_connection_t *c)
 		}
 
 		if (brix_staged_commit_handle(ctx, idx, &cerr) != NGX_OK) {
+			/* The commit's errno picks the code (EEXIST = ItExists for a
+			 * refused kXR_new; EROFS = fsReadOnly), phase-115 W3.1. */
 			BRIX_RETURN_ERR(ctx, c, BRIX_OP_SYNC, "SYNC",
 							  ctx->files[idx].path, "-",
-							  kXR_IOError, strerror(cerr));
+							  brix_kxr_from_errno(cerr), strerror(cerr));
 		}
 		BRIX_RETURN_OK(ctx, c, BRIX_OP_SYNC, "SYNC",
 						 ctx->files[idx].path, "-", 0);

@@ -221,7 +221,7 @@ def _wait_authdb(env):
 def authdb_nginx(authdb_setup):
     """Use the pre-started dedicated authdb nginx instance.
 
-    The dedicated instance is launched by manage_test_servers.sh start-all at
+    The dedicated instance is launched by python3 -m cmdscripts.manage_test_servers start-all at
     port AUTHDB_PORT=11114 with nginx_authdb.conf.  authdb_setup already wrote
     the authdb rules file to {DATA_DIR}/authdb; we SIGHUP nginx so it reloads.
     """

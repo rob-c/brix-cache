@@ -43,9 +43,7 @@ cache_origin_send_kxr_auth(brix_cache_origin_conn_t *oc, const char credtype[4],
 {
     ClientAuthRequest req;
 
-    ngx_memzero(&req, sizeof(req));
-    req.streamid[1] = 1;                         /* the connector stream */
-    req.requestid   = htons(kXR_auth);
+    xrd_creq_begin(&req, sizeof(req), 1, kXR_auth);   /* connector stream */
     ngx_memcpy(req.credtype, credtype, 4);
     req.dlen        = htonl((kXR_int32) plen);
 

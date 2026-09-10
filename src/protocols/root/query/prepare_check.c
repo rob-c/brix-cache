@@ -74,10 +74,22 @@ brix_prepare_check_fail(brix_ctx_t *ctx, ngx_connection_t *c,
  */
 static ngx_int_t
 prepare_path_authz(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *conf, const char *pathbuf, const char *full_path)
+    const prepare_scan_t *sc, const char *pathbuf, const char *full_path)
 {
+    ngx_stream_brix_srv_conf_t *conf = sc->conf;
+    uint32_t                    level = BRIX_AUTH_READ;
+
+    /* 2.0 F20: a bare kXR_prepare only browses the namespace, so READ is the
+     * whole requirement.  The kXR_stage / kXR_evict arms actually drive a tape
+     * or nearline recall (or drop an online copy) on the operator's storage, so
+     * they additionally demand the `x` privilege — the native authdb's new
+     * BRIX_AUTH_STAGE bit.  Both bits are required together, never either-or. */
+    if (sc->do_stage || sc->do_evict) {
+        level |= BRIX_AUTH_STAGE;
+    }
+
     if (brix_authz_check(ctx, c, conf, pathbuf, full_path, "PREPARE",
-                           BRIX_AUTH_READ, BRIX_AOP_STAGE) != NGX_OK) {
+                           level, BRIX_AOP_STAGE) != NGX_OK) {
         return brix_prepare_check_fail(ctx, c, full_path, kXR_NotAuthorized,
                                          "not authorized");
     }
@@ -116,12 +128,13 @@ prepare_stat_error(brix_ctx_t *ctx, ngx_connection_t *c,
 
 ngx_int_t
 brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *conf, const u_char *line, size_t line_len,
-    ngx_flag_t noerrs, ngx_uint_t *missing,
+    prepare_scan_t *sc, const u_char *line, size_t line_len,
     char *out_resolved)   /* PATH_MAX buffer filled with absolute path on
                              auth-pass paths; '\0' if path cannot be resolved.
                              Pass NULL when staging collection is not needed. */
 {
+    ngx_stream_brix_srv_conf_t *conf = sc->conf;
+    ngx_flag_t                  noerrs = (sc->options & kXR_noerrs) != 0;
     char         pathbuf[BRIX_MAX_PATH + 1];
     char         full_path[PATH_MAX];
     struct stat  st;
@@ -149,7 +162,7 @@ brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
     /*
      * CONTRACT: the same "file is absent" condition (ENOENT/ENOTDIR from the
      * confined stat) has two outcomes selected by the kXR_noerrs flag:
-     *   - noerrs set  → not an error. The path is counted in *missing and the
+     *   - noerrs set  → not an error. The path is counted in sc->missing and the
      *     request still succeeds, so a client can prepare/stage files that do
      *     not exist on disk yet (tape nearline recall, not-yet-cached objects).
      *   - noerrs clear → kXR_NotFound, failing the request on the first miss.
@@ -157,7 +170,7 @@ brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
      */
     if (brix_stat_beneath(conf->rootfd, pathbuf, &st) != 0) {
         if ((errno == ENOENT || errno == ENOTDIR) && noerrs) {
-            (*missing)++;
+            sc->missing++;
             /* SECURITY: authorization is a property of the IDENTITY + LOGICAL
              * PATH, not of on-disk existence. A prepare/stage of a not-yet-
              * materialised object (tape nearline recall, not-yet-cached) must
@@ -168,7 +181,7 @@ brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
              * the existing-file branch below (verdict parity between "exists" and
              * "absent"); only then supply the staging path. */
             {
-                ngx_int_t arc = prepare_path_authz(ctx, c, conf, pathbuf,
+                ngx_int_t arc = prepare_path_authz(ctx, c, sc, pathbuf,
                                                      full_path);
                 if (arc != NGX_OK) {
                     return arc;
@@ -186,7 +199,7 @@ brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     {
-        ngx_int_t arc = prepare_path_authz(ctx, c, conf, pathbuf, full_path);
+        ngx_int_t arc = prepare_path_authz(ctx, c, sc, pathbuf, full_path);
         if (arc != NGX_OK) {
             return arc;
         }
@@ -200,7 +213,7 @@ brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (S_ISDIR(st.st_mode)) {
         if (noerrs) {
-            (*missing)++;
+            sc->missing++;
             return NGX_OK;
         }
         return brix_prepare_check_fail(ctx, c, pathbuf, kXR_isDirectory,

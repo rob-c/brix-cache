@@ -179,8 +179,14 @@ brix_upstream_parse_header_and_alloc(brix_upstream_t *up,
     }
 
     /* Cap untrusted body size to bound allocation — the largest legitimate
-     * upstream payload here is a path plus protocol slack. */
-    if (up->resp_dlen > BRIX_MAX_PATH + 256) {
+     * upstream payload here is a path plus protocol slack, except during the
+     * kXR_auth exchange where a GSI kXGS_cert carries the server's X.509 chain
+     * and DH parameters (phase 115 W2.4: XRD_UP_AUTH_BODY_MAX). */
+    if (up->resp_dlen > ((up->state == XRD_UP_BOOTSTRAP
+                          && up->bs_phase == XRD_UP_BS_AUTH)
+                         ? (uint32_t) XRD_UP_AUTH_BODY_MAX
+                         : (uint32_t) (BRIX_MAX_PATH + 256)))
+    {
         brix_upstream_abort(up, "upstream response body too large");
         return NGX_ERROR;
     }

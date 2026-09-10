@@ -76,7 +76,8 @@ brix_cms_client_conn_by_fd(int fd)
 /* brix_cms_wake_pending_session — wake the suspended XRootD client waiting on
  * a pending locate: look up the pending entry by streamid+pid, resolve its
  * saved fd to the live connection (same worker, per-worker design), set
- * XRD_ST_REQ_HEADER, brix_send_redirect to the resolved server, and resume
+ * XRD_ST_REQ_HEADER, answer with the resolved server (kXR_redirect, or the
+ * proxy pin under brix_cms_response proxy — brix_cms_answer_selected), and resume
  * reading.  Exported (recv_internal.h) because two ingest paths converge on it:
  * kYR_select/kYR_try from a parent manager (this file) and — Phase-89 W3 —
  * kYR_have from a child node (server_recv_frame.c, state fan-out wake). */
@@ -89,6 +90,7 @@ brix_cms_wake_pending_session(ngx_log_t *log, uint32_t streamid,
     ngx_connection_t         *client_conn;
     ngx_stream_session_t     *session;
     brix_ctx_t             *xrd_ctx;
+    ngx_stream_brix_srv_conf_t  *conf;
     int                       conn_fd;
     ngx_atomic_uint_t         conn_number;
     u_char                    client_streamid[2];
@@ -144,17 +146,25 @@ brix_cms_wake_pending_session(ngx_log_t *log, uint32_t streamid,
         return NGX_OK;
     }
 
+    /* Phase-115 W2.1: the answer is the server block's brix_cms_response —
+     * kXR_redirect (stock) or proxy the parked request to the selected node. */
+    conf = ngx_stream_get_module_srv_conf(session, ngx_stream_brix_module);
+
     ngx_log_error(NGX_LOG_INFO, log, 0,
-                  "brix: CMS select: redirecting client fd=%d to %s:%ud",
+                  "brix: CMS select: %s client fd=%d to %s:%ud",
+                  conf->cms.response == BRIX_CMS_RESPONSE_PROXY
+                      ? "proxying" : "redirecting",
                   conn_fd, host, (unsigned) port);
 
     ngx_del_timer(client_conn->read);
     xrd_ctx->state = XRD_ST_REQ_HEADER;
     xrd_ctx->recv.cur_streamid[0] = client_streamid[0];
     xrd_ctx->recv.cur_streamid[1] = client_streamid[1];
-    if (brix_send_redirect(xrd_ctx, client_conn, host, port) == NGX_ERROR) {
+    if (brix_cms_answer_selected(xrd_ctx, client_conn, conf, host, port)
+        == NGX_ERROR)
+    {
         ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "brix: CMS select: failed to queue redirect for fd=%d",
+                      "brix: CMS select: failed to answer fd=%d",
                       conn_fd);
         return NGX_ERROR;
     }

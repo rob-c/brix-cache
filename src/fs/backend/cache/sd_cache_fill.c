@@ -26,15 +26,15 @@
 #include "sd_cache.h"
 #include "sd_cache_internal.h"    /* sd_cache_inst_state + SD_CACHE_ST/SRC */
 #include "sd_cache_policy.h"      /* admission + repo-metrics (split out) */
-#include "sd_cache_fill_internal.h"     /* sd_cache_fill_state_t + SD_CACHE_CHUNK
-                                         * + cache_fill_verify (split out)     */
+#include "sd_cache_fill_internal.h"  /* sd_cache_fill_state_t + SD_CACHE_CHUNK
+                                       * + cache_fill_verify (split out)     */
+#include "sd_cache_follow.h"          /* §4.5 serve-while-filling marker     */
 #include "protocols/cvmfs/classify.h"   /* phase-68 manifest-TTL stamping */
 #include "observability/metrics/metrics.h"        /* phase-68 T16 counters */
 #include "observability/metrics/metrics_macros.h"
 #include "fs/cache/cstore.h"
 #include "fs/cache/gcas.h"              /* phase-87 G13 post-commit publish  */
 #include "fs/backend/http/sd_http.h"    /* per-upstream fill attribution     */
-#include "fs/backend/xroot/sd_xroot.h"  /* brix_sd_xroot_query_checksum      */
 #include "fs/path/path.h"               /* brix_sanitize_log_string          */
 #include "net/guard/guard.h"            /* signal=cvmfs_tamper audit line    */
 #include "core/compat/checksum.h"       /* brix_checksum_hex_name_fd         */
@@ -296,19 +296,9 @@ cache_fill_pump(sd_cache_inst_state *st, const char *key,
     }
     free(fs->buf);
     fs->buf = NULL;
-    /* Capture the origin's advertised content digest BEFORE releasing the source
-     * object — the query needs a live, open object. Only the xroot source offers
-     * an in-band digest (kXR_Qcksum); other backends (http/s3/posix) leave alg/hex
-     * empty and the verify phase decides best-effort/require on that. Skipped
-     * entirely unless a digest-verify policy is in force, so an OFF/CVMFS-CAS fill
-     * pays no round-trip. Mirrors the fetch.c commit-then-verify pattern. */
-    if ((st->policy.verify == BRIX_CACHE_VERIFY_BESTEFFORT
-         || st->policy.verify == BRIX_CACHE_VERIFY_REQUIRE)
-        && ngx_strcmp(brix_sd_backend_name(fs->src), "xroot") == 0)
-    {
-        brix_sd_xroot_query_checksum(fs->so, fs->origin_alg,
-            sizeof(fs->origin_alg), fs->origin_hex, sizeof(fs->origin_hex));
-    }
+    /* Ask the origin for its advertised digest BEFORE releasing the source
+     * object — the query needs a live, open one (sd_cache_fill_verify.c). */
+    cache_fill_capture_origin_digest(st, fs);
     brix_sd_obj_release(fs->so);
     fs->so = NULL;
     return NGX_OK;
@@ -433,22 +423,31 @@ sd_cache_fill_attempt(sd_cache_inst_state *st, const char *key,
         return rc;                      /* NGX_DECLINED or NGX_ERROR */
     }
 
+    /* §4.5: from here the staged object exists, so a concurrent reader may
+     * FOLLOW this fill instead of waiting for it (sd_cache_follow.c decides
+     * whether the policy and the staged plane allow that). */
+    sd_cache_follow_arm(st, key, fs.staged, fs.so->snap.size);
+
     rc = cache_fill_pump(st, key, &fs);
+    if (rc == NGX_OK && cache_fill_verify(st, key, &fs) != NGX_OK) {
+        rc = NGX_ERROR;
+    }
+    if (rc == NGX_OK) {
+        rc = cache_fill_commit(st, key, &fs);
+        if (rc == NGX_OK && fs.passthrough && out_pt != NULL) {
+            *out_pt = 1;        /* phase-92: serve-then-evict — caller drops key */
+        }
+    }
+    /* Withdraw AFTER a successful commit renamed the staged file into place, so
+     * a follower that finds the marker gone is holding the committed object; and
+     * with aborted=1 on ANY non-OK rc (NGX_DONE = the fill failed and a stale
+     * copy was served in its place), so the staged file is unlinked first and a
+     * follower fails EIO rather than reading a short object as a clean EOF. */
+    sd_cache_follow_withdraw(st, key, rc != NGX_OK);
     if (rc == NGX_DONE) {
         return NGX_OK;                  /* bounded stale-if-error (phase-68) */
     }
-    if (rc != NGX_OK) {
-        return NGX_ERROR;
-    }
-
-    if (cache_fill_verify(st, key, &fs) != NGX_OK) {
-        return NGX_ERROR;
-    }
-    rc = cache_fill_commit(st, key, &fs);
-    if (rc == NGX_OK && fs.passthrough && out_pt != NULL) {
-        *out_pt = 1;            /* phase-92: serve-then-evict — caller drops key */
-    }
-    return rc;
+    return (rc == NGX_OK) ? NGX_OK : NGX_ERROR;
 }
 
 /* Rendezvous (highest-random-weight) owner of `key` over the peer ring:

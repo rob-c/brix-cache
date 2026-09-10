@@ -55,7 +55,7 @@ The per-protocol config duplication for storage and namespace directives has bee
 
 **Layer 1 — Shared config preamble struct** (`src/core/config/shared_conf.h`): All three protocol config structs embed `ngx_http_brix_shared_conf_t` at the top, providing shared `enable`/`root`/`root_canon`/`allow_write`/`thread_pool` fields with unified init and merge helpers (`ngx_http_brix_shared_init()`, `ngx_http_brix_shared_merge()`). This reduces merge boilerplate across all three layers.
 
-**Layer 2 — Unified HTTP common module** (`src/core/config/http_common.c`, `ngx_http_brix_common_module`): All brix HTTP storage and namespace directives (`brix_export`, `brix_storage_backend`, `brix_storage_credential`, `brix_allow_write`, `brix_read_only`, `brix_compress`, `brix_thread_pool`, `brix_cache_verify`, and the full `brix_cache_*` / `brix_stage*` tier family) are registered once by this module and inherited http→server→location by all brix HTTP locations. The old per-protocol spellings (`brix_webdav_root`, `brix_s3_root`, `brix_webdav_allow_write`, etc.) are gone.
+**Layer 2 — Unified HTTP common module** (`src/core/config/http_common.c`, `ngx_http_brix_common_module`): All brix HTTP storage and namespace directives (`brix_export`, `brix_storage_backend`, `brix_storage_credential`, `brix_allow_write`, `brix_read_only`, `brix_compress`, `brix_thread_pool`, `brix_cache_verify`, and the full `brix_cache_*` / `brix_stage*` tier family) are registered once by this module and inherited http→server→location by all brix HTTP locations. The old per-protocol spellings (`brix_webdav_root`, `brix_s3_root`, `brix_allow_write`, etc.) are gone.
 
 The remaining per-protocol config is genuinely protocol-specific: WebDAV TPC/auth/CORS, S3 bucket/SigV4, cvmfs upstream/manifest tuning.
 
@@ -165,7 +165,13 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 
 ### 2. `ngx_http_limit_req_module` — rate limiting across protocols
 
-**Current:** No rate limiting anywhere. All three protocols accept unlimited concurrent requests.
+**Status (2026-09-05): landed.** `brix_rate_limit`, `brix_rate_limit_zone`,
+`brix_rate_limit_rule`, `brix_bandwidth_limit`, `brix_concurrency_limit` and
+`brix_admin_rate_limit` implement this across the protocols (reference:
+[deployment reference](../10-reference/comparison/deployment-reference.md)).
+The original analysis is kept below.
+
+**Current (2026-06):** No rate limiting anywhere. All three protocols accept unlimited concurrent requests.
 
 **Nginx built-in:** `limit_req_zone` and `limit_req` directives provide request-rate limiting with shared-memory zones, configurable burst/delay parameters. Works at http/server/location level.
 
@@ -197,7 +203,7 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 
 ### 6. `upstream` blocks with health checks — backend reliability (proxy mode)
 
-**Current:** Proxy mode upstream is a single address string (`brix_proxy_upstream`). No health checking, no failover.
+**Current:** Proxy mode upstream is a single address string (`brix_tap_proxy_upstream`). No health checking, no failover.
 
 **Nginx built-in:** `upstream` block with multiple servers, `max_fails`, `fail_timeout`, `backup` servers. Built-in passive health checks (mark server down after N failures). Active health checks via third-party module or custom.
 
@@ -245,7 +251,13 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 
 ### 3. `libcurl` — shared library vs. external curl process spawning
 
-**Current:** WebDAV HTTP-TPC (`src/protocols/webdav/tpc_curl.c`) spawns an **external `curl(1)` process** via fork+pipe+waitpid for COPY transfers with Source/Credential headers. ~80 lines of subprocess boilerplate per transfer.
+**Status (2026-09-05): landed.** `src/protocols/webdav/tpc_curl.c`,
+`tpc_curl_setup.c` and `tpc_curl_multi.c` drive libcurl in-process
+(`curl_easy_*` for single-stream pulls, `curl_multi_*` for the parallel
+Range-based pull); no subprocess is spawned. The original analysis is kept
+below.
+
+**Current (2026-06):** WebDAV HTTP-TPC (`src/protocols/webdav/tpc_curl.c`) spawns an **external `curl(1)` process** via fork+pipe+waitpid for COPY transfers with Source/Credential headers. ~80 lines of subprocess boilerplate per transfer.
 
 **AlmaLinux 8/9 package:** `libcurl` (libcurl-devel) — already present on AlmaLinux as a dependency, but not used directly in the module. API: `curl_easy_init()`, `curl_easy_setopt()`, `curl_easy_perform()`.
 
@@ -288,7 +300,7 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 |----------|---------|--------|--------|-------|
 | **P0** | `libcrc32c` | ARM64 portability + cleaner CRC32c impl | Medium | Configure-time detection, software fallback. |
 | **P1** | `libjose` | JWT validation code reduction (~200 lines) | Medium | Replace json.c/b64url.c minimal scanner. JWKS stays Jansson. |
-| **P2** | `libcurl` inline TPC | No subprocess overhead for HTTP-TPC COPY | Medium | Same Source/Credential headers, no fork/waitpid. |
+| ~~P2~~ | `libcurl` inline TPC | **Landed** — `tpc_curl*.c` use libcurl in-process | — | Same Source/Credential headers, no fork/waitpid. |
 | **P3** | `libxml2` DOM building | PROPFIND/Lock XML construction simplification | Low | libxml2 already present on AlmaLinux. Optional linkage. |
 
 ---

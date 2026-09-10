@@ -76,6 +76,7 @@ store_for_group(const group_cfg_t *g, int allow_proxy)
     size_t          index = (size_t) (g - GROUPS);
     oracle_store_t *cached = &STORES[index][allow_proxy ? 1 : 0];
     int             crl_count = 0;
+    brix_trust_policy_t pol = BRIX_TRUST_POLICY_INIT;
 
     if (cached->configured) {
         return cached->store;
@@ -96,8 +97,10 @@ store_for_group(const group_cfg_t *g, int allow_proxy)
             crl_count = load_crls(cached->store, cadir);
         }
     }
+    pol.sp_mode  = g->sp_mode;
+    pol.crl_mode = g->crl_mode;
     if (brix_store_configure(cached->store, g->use_bundle ? NULL : cadir,
-            flags, crl_count, g->sp_mode, g->crl_mode, NULL, NULL) != 0) {
+            flags, crl_count, &pol, NULL, NULL) != 0) {
         X509_STORE_free(cached->store);
         cached->store = NULL;
     }

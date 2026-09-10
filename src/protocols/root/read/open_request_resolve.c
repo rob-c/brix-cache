@@ -17,7 +17,9 @@
 #include "fs/vfs/vfs_internal.h"         /* brix_vfs_export_relative_root */
 #include "fs/backend/sd.h"           /* driver stat for read existence check */
 #include "fs/backend/cache/sd_cache.h" /* slow-tier miss offload probe (SP2) */
+#include "fs/backend/xroot/sd_xroot_fwd.h" /* 2.0 F5: forwarding-key admission */
 
+#include <errno.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -131,10 +133,52 @@ brix_open_read_probe(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
 }
 
 /*
+ * Drive the recall a NEARLINE read-open parks on (phase-115 W3.1). The FRM
+ * refactor left the former frm_stage_kick as a comment: the gate recorded a
+ * stage request that nothing serviced, so every tape-resident open under
+ * `brix_frm on` waited until its TTL. Returns NGX_DECLINED when the object is
+ * online now (a synchronous MSS adapter recalled inside the call — the open
+ * proceeds without parking), NGX_AGAIN when the recall is in flight (the caller
+ * records the request and parks the client), or the rc of the error reply it
+ * sent: ENOENT = not on tape either → kXR_NotFound; EACCES = an authz rule
+ * denies this principal the stage → kXR_NotAuthorized (a read must not become
+ * a tape mount the operator forbade); any other adapter failure → kXR_FSError.
+ * EROFS (a read-only export: the VFS recall carries the export mutation policy,
+ * and a recall is not a client mutation of a read-only export) and ENOTSUP (no
+ * recall slot in the chain) DECLINE: the cache tier's fill-time recall, which
+ * is a read, decides — exactly what happens with `brix_frm off`.
+ */
+static ngx_int_t
+brix_open_gate_recall(brix_ctx_t *ctx, ngx_connection_t *c,
+    brix_vfs_ctx_t *rvc, const char *clean_path)
+{
+	ngx_int_t rc = brix_vfs_recall(rvc, NULL);
+	int       e  = errno;
+
+	if (rc == NGX_AGAIN) {
+		return NGX_AGAIN;
+	}
+	if (rc == NGX_OK || e == EROFS || e == ENOTSUP) {
+		return NGX_DECLINED;
+	}
+	if (e == ENOENT) {
+		BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path, "rd",
+		                  kXR_NotFound, "file not found");
+	}
+	if (e == EACCES) {
+		BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path, "rd",
+		                  kXR_NotAuthorized, "stage not authorized");
+	}
+	BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path, "rd",
+	                  kXR_FSError, "file is offline (recall failed)");
+}
+
+/*
  * Phase 35 residency gate for a read open of a nearline/offline file (backend
  * model via the VFS seam, so a tape:// export classifies with no FRM xattr).
  * Runs AFTER auth so an unauthorized caller never learns residency.  NEARLINE
- * recalls and parks the client (kXR_wait, or kXR_waitresp under async_recall);
+ * recalls (brix_open_gate_recall) and, only when the recall is still in flight,
+ * parks the client (kXR_wait, or kXR_waitresp under async_recall);
  * OFFLINE/LOST errors out; NGX_DECLINED when resident or FRM disabled.
  */
 static ngx_int_t
@@ -144,6 +188,7 @@ brix_open_residency_gate(brix_ctx_t *ctx, ngx_connection_t *c,
 {
 	brix_vfs_ctx_t      _rvc;
 	brix_sd_residency_t _res;
+	ngx_int_t           rc;
 
 	if (!(conf->frm.enable && brix_stage_registry_singleton() != NULL)) {
 		return NGX_DECLINED;
@@ -163,7 +208,15 @@ brix_open_residency_gate(brix_ctx_t *ctx, ngx_connection_t *c,
 		                  "file is offline (recall failed)");
 	}
 
-	if (_res == BRIX_SD_RES_NEARLINE) {
+	if (_res != BRIX_SD_RES_NEARLINE) {
+		return NGX_DECLINED;
+	}
+	rc = brix_open_gate_recall(ctx, c, &_rvc, clean_path);
+	if (rc != NGX_AGAIN) {
+		return rc;                     /* online now, or the error reply's rc */
+	}
+
+	{
 		brix_stage_request_view_t _v;
 		char           _rq[BRIX_STAGE_REQID_LEN];
 		ngx_memzero(&_v, sizeof(_v));
@@ -174,7 +227,6 @@ brix_open_residency_gate(brix_ctx_t *ctx, ngx_connection_t *c,
 		(void) brix_stage_request_add(
 		           brix_stage_registry_singleton(),
 		           &_v, _rq, sizeof(_rq), c->log);
-		/* recall driving (former frm_stage_kick) → engine step */
 
 		/* When async recall is on, park the open with kXR_waitresp and wake it in
 		 * place via kXR_attn(asynresp) on completion.  Falls back to the kXR_wait
@@ -196,9 +248,41 @@ brix_open_residency_gate(brix_ctx_t *ctx, ngx_connection_t *c,
 		                  1, kXR_wait, NULL, 0);
 		return brix_send_wait(ctx, c, conf->frm.stage_wait);
 	}
+}
 
+/*
+ * The forwarding-export admission verdict for a client-named key, as a reply.
+ *
+ * NGX_DECLINED on every non-forwarding export and on an admitted key (the
+ * caller proceeds to the existence probe).  A scheme outside the export's
+ * protocol list is the client's error — kXR_Unsupported, the same code the
+ * relay slots raise — and a host outside the permit list is the security
+ * refusal, kXR_NotAuthorized, decided before any resolve or dial.  A key that
+ * names no origin at all DECLINES: it is an ordinary path on an export that
+ * serves none, which the probe below answers as kXR_NotFound.
+ */
+static ngx_int_t
+brix_open_forward_admit(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *clean_path,
+    const char *full_path)
+{
+	brix_sd_instance_t *sd =
+	    brix_vfs_backend_resolve(conf->common.root_canon, c->log);
+	int                 verdict = brix_sd_xroot_fwd_admit_key(sd,
+	    brix_vfs_export_relative_root(full_path, conf->common.root_canon));
+
+	if (verdict == ENOTSUP) {
+		BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path, "rd",
+		                  kXR_Unsupported,
+		                  "origin scheme not served by this export");
+	}
+	if (verdict == EACCES) {
+		BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path, "rd",
+		                  kXR_NotAuthorized, "origin not permitted");
+	}
 	return NGX_DECLINED;
 }
+
 
 /*
  * Read-open resolution: cache-aware read returns directly; otherwise build the
@@ -230,6 +314,19 @@ brix_open_read_resolve(brix_ctx_t *ctx, ngx_connection_t *c,
 						  clean_path, full_path, conf,
 						  BRIX_AUTH_READ, 0) != NGX_OK) {
 		return ctx->write_rc;
+	}
+
+	/* 2.0 F5: on a forwarding export the key NAMES the origin, and an
+	 * inadmissible one must be reported as what it is.  The probe below
+	 * reports every driver-stat failure as a miss, so without this the
+	 * permit refusal and the closed protocol list both reached the client as
+	 * kXR_NotFound.  A no-op on every other export. */
+	{
+		ngx_int_t admit_rc = brix_open_forward_admit(ctx, c, conf,
+		                                             clean_path, full_path);
+		if (admit_rc != NGX_DECLINED) {
+			return admit_rc;
+		}
 	}
 
 	{

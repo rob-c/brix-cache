@@ -124,6 +124,13 @@ CORRUPT_PCT = 0.5             # per-byte flip probability, in percent
 # a coin toss for the wrong reason.
 CORRUPT_PAYLOAD_PCT = 0.0005
 
+# The rate for the "repair cannot launder a hostile stream" negative: 500 ppm
+# puts flips in every 4 KiB page, so no bounded number of page re-reads can
+# yield a clean one. Tests that assert a CLEAN rc must not use this rate — it
+# damages the handshake ~14% of the time — but a test that asserts refusal is
+# satisfied by either road.
+CORRUPT_HEAVY_PCT = 0.05
+
 
 def _why_skip():
     if not os.path.isfile(servers.NGINX_BIN):
@@ -323,6 +330,26 @@ def test_expired_token_is_refused(token_leg, issuer):
 # matters because the first is the case an operator is most likely to be in     #
 # (neither option is on by default) and least likely to notice.                 #
 # --------------------------------------------------------------------------- #
+def _corrupt_run(leg, extra=(), pct=CORRUPT_PAYLOAD_PCT):
+    """WHAT: arm the down-path corruption lever, run one transfer, and return
+    `(rc, exact, size, flips)` — the client's outcome plus the number of bytes
+    the proxy actually flipped during that transfer.
+
+    WHY: an exit code alone cannot separate a defence that worked from a fault
+    that never fired, and both read as green. `flips` is the proxy's own
+    counter, so a vacuous run says so in its own words instead of passing
+    quietly. It also lets a failure message quantify the damage the client was
+    asked to survive.
+
+    HOW: the proxy's `corrupt_total` counter is cumulative over the module's
+    shared instance, so it is sampled before arming and differenced after the
+    transfer; nothing else crosses the proxy in between."""
+    before = leg.fp.counters()["corrupt_total"]
+    leg.fp.set_corrupt(pct, "down")
+    rc, exact, size = leg.run(extra=extra)
+    return rc, exact, size, leg.fp.counters()["corrupt_total"] - before
+
+
 def test_a_plain_cleartext_read_delivers_corruption_silently(token_leg):
     """THE EXPOSURE, stated as a measurement rather than a worry: over cleartext
     root:// a length-preserving bit flip arrives as a full-length file with a
@@ -335,24 +362,53 @@ def test_a_plain_cleartext_read_delivers_corruption_silently(token_leg):
     braces on top of a transport that was already safe. Contrast
     `test_tls_never_delivers_corrupted_bytes` above: TLS turns this same fault
     into a hard failure."""
-    token_leg.fp.set_corrupt(CORRUPT_PAYLOAD_PCT, "down")
-    rc, exact, size = token_leg.run()
-    assert rc == 0, f"expected a clean return over cleartext, got rc={rc}"
-    assert size == SIZE, f"expected a full-length file, got {size} bytes"
-    assert not exact, ("the proxy did not corrupt anything — the rate is too "
+    rc, exact, size, flips = _corrupt_run(token_leg)
+    assert flips > 0, ("the proxy did not corrupt anything — the rate is too "
                        "low for this object size, so the tests below would be "
                        "passing vacuously")
+    assert rc == 0, f"expected a clean return over cleartext, got rc={rc}"
+    assert size == SIZE, f"expected a full-length file, got {size} bytes"
+    assert not exact, f"{flips} byte(s) were flipped but the digest still matches"
 
 
 def test_pgrw_catches_corruption_that_a_plain_read_delivers(token_leg):
     """First defence: `--pgrw` (kXR_pgread, per-page CRC32c, INVARIANT 1). The
     CRC is computed at the server over the page it read and checked by the
     client after the wire, so a flip anywhere in between is caught — and caught
-    at the page it landed on, not at the end of a 4 MiB transfer. Nothing is
-    left behind."""
-    token_leg.fp.set_corrupt(CORRUPT_PAYLOAD_PCT, "down")
-    rc, exact, size = token_leg.run(extra=("--pgrw",))
-    assert rc != 0, "pgread accepted a page whose CRC32c could not match"
+    at the page it landed on, not at the end of a 4 MiB transfer.
+
+    The property asserted is INTEGRITY, not failure. Catching a page is not the
+    same as abandoning the transfer: the client may re-request the one page
+    whose CRC32c did not match, and at this rate (~2% of pages carry a flip) a
+    re-read usually comes back clean, so a repaired transfer can finish with a
+    clean rc and a byte-exact file. Asserting `rc != 0` made that legitimate
+    outcome a failure, and the test flaked roughly once in seven runs on exactly
+    it. What must never happen — and what is asserted here — is a clean rc over
+    bytes that are wrong. See `test_pgrw_cannot_repair_wholesale_corruption`
+    for the other side: repair must not scale to a stream that is mostly
+    damage."""
+    rc, exact, size, flips = _corrupt_run(token_leg, ("--pgrw",))
+    assert rc != 0 or exact, (
+        f"pgread returned success over corrupted bytes: the proxy flipped "
+        f"{flips} byte(s), {size} landed, and the digest does not match")
+    assert rc == 0 or size == 0, f"failed but left {size} bytes behind (rc={rc})"
+
+
+def test_pgrw_cannot_repair_wholesale_corruption(token_leg):
+    """The security-negative for the repair path above: page-level re-reads are
+    a recovery from a sparse fault, never a laundering of a hostile stream. At
+    500 ppm every page carries flips, so no bounded number of re-reads can
+    produce a clean one — the transfer must fail and leave nothing behind.
+
+    A flip landing in the handshake rather than the payload also fails the
+    transfer, which is why this rate is safe here and not in the tests that
+    assert a clean rc: both roads lead to the refusal being asserted."""
+    rc, exact, size, flips = _corrupt_run(token_leg, ("--pgrw",),
+                                          pct=CORRUPT_HEAVY_PCT)
+    assert flips > 0, "the proxy flipped nothing at 500 ppm — lever not armed"
+    assert rc != 0, (
+        f"pgread repaired its way through {flips} flipped byte(s) and reported "
+        f"success (exact={exact}, {size} bytes)")
     assert not exact and size == 0, f"left {size} bytes behind (rc={rc})"
 
 
@@ -363,7 +419,9 @@ def test_verify_catches_corruption_that_a_plain_read_delivers(token_leg):
     whole-file digest rather than a per-page one — but it needs no protocol
     support beyond a checksum query, so it is the option that also covers the
     planes where pgread is not in play."""
-    token_leg.fp.set_corrupt(CORRUPT_PAYLOAD_PCT, "down")
-    rc, exact, size = token_leg.run(extra=("--verify",))
-    assert rc != 0, "the post-transfer checksum comparison passed on bad data"
+    rc, exact, size, flips = _corrupt_run(token_leg, ("--verify",))
+    assert flips > 0, ("the proxy flipped nothing — the comparison was never "
+                       "given anything to catch")
+    assert rc != 0, ("the post-transfer checksum comparison passed on data the "
+                     f"proxy corrupted in {flips} byte(s)")
     assert not exact and size == 0, f"left {size} bytes behind (rc={rc})"

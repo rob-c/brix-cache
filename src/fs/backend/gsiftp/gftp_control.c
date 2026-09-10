@@ -4,10 +4,10 @@
 #include "gftp_gsi.h"
 #include "gftp_reply.h"
 #include "protocols/root/connection/netconnect.h"
+#include "net/dns/dns.h"          /* brix_dns_resolve_sync: the one DNS path */
 
 #include <arpa/inet.h>
 #include <errno.h>
-#include <netdb.h>
 #include <poll.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -104,11 +104,24 @@ gftp_store_reply(gftp_session_t *session, const gftp_reply_t *reply)
     if (n >= sizeof(session->text)) {
         n = sizeof(session->text) - 1;
     }
+    size_t body = reply->body_len;
+
     session->code = reply->code;
     if (n != 0) {
         memcpy(session->text, reply->text, n);
     }
     session->text[n] = '\0';
+
+    /* Keep the continuation lines too — see gftp_session_t::cont. */
+    session->cont_truncated = 0;
+    if (body >= sizeof(session->cont)) {
+        body = sizeof(session->cont) - 1;
+        session->cont_truncated = 1;
+    }
+    if (body != 0) {
+        memcpy(session->cont, reply->body, body);
+    }
+    session->cont[body] = '\0';
 }
 
 static int
@@ -281,36 +294,35 @@ gftp_expect(gftp_session_t *session, int low, int high, const char *fmt, ...)
 }
 
 static int
-gftp_connect(gftp_session_t *session, const char *host, int port)
+gftp_connect(gftp_session_t *session, const gftp_session_cfg_t *cfg)
 {
-    struct addrinfo  hints;
-    struct addrinfo *result;
-    struct addrinfo *candidate;
-    char             service[16];
+    brix_dns_addr_t  addrs[BRIX_DNS_MAX_ADDRS];
+    char             reason[BRIX_DNS_ERROR_LEN];
+    ngx_uint_t       n, i;
     int              fd = -1;
 
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family = AF_UNSPEC;
-    (void) snprintf(service, sizeof(service), "%d", port);
-    if (getaddrinfo(host, service, &hints, &result) != 0) {
-        gftp_set_error(session, EHOSTUNREACH, "cannot resolve GridFTP origin");
+    /* phase-116: the origin resolves through the one brix DNS path under the
+     * export's policy (never getaddrinfo here); every answer is tried. */
+    n = brix_dns_resolve_sync(cfg->dns, cfg->host, (in_port_t) cfg->port,
+                              BRIX_AF_AUTO, SOCK_STREAM, addrs,
+                              BRIX_DNS_MAX_ADDRS, reason, sizeof(reason));
+    if (n == 0) {
+        gftp_set_error(session, EHOSTUNREACH,
+                       "cannot resolve GridFTP origin: %s", reason);
         return -1;
     }
-    for (candidate = result; candidate != NULL; candidate = candidate->ai_next) {
-        fd = socket(candidate->ai_family, candidate->ai_socktype,
-                    candidate->ai_protocol);
+    for (i = 0; i < n; i++) {
+        fd = socket(addrs[i].ss.ss_family, SOCK_STREAM, 0);
         if (fd < 0) {
             continue;
         }
-        if (brix_connect_fd_deadline(fd, candidate->ai_addr,
-                candidate->ai_addrlen, session->timeout_ms) == 0) {
+        if (brix_connect_fd_deadline(fd, (struct sockaddr *) &addrs[i].ss,
+                addrs[i].len, session->timeout_ms) == 0) {
             break;
         }
         close(fd);
         fd = -1;
     }
-    freeaddrinfo(result);
     if (fd < 0) {
         gftp_set_error(session, ECONNREFUSED, "cannot connect to GridFTP origin");
     }
@@ -344,7 +356,15 @@ gftp_session_open(gftp_session_t *session, const gftp_session_cfg_t *cfg)
     memset(session, 0, sizeof(*session));
     session->fd = -1;
     session->timeout_ms = cfg->timeout_ms > 0 ? cfg->timeout_ms : 30000;
-    session->fd = gftp_connect(session, cfg->host, cfg->port);
+    /* The data-channel policy is the STORE LINE's, carried on the session so
+     * every transfer in it reads the same answer; proxy_path/ca_dir are borrowed
+     * for a PROT P data channel to re-present (they outlive the session). */
+    session->want_mode  = cfg->mode;
+    session->want_prot  = cfg->prot;
+    session->want_streams = cfg->streams > 0 ? cfg->streams : 1;
+    session->proxy_path = cfg->proxy_path;
+    session->ca_dir     = cfg->ca_dir;
+    session->fd = gftp_connect(session, cfg);
     if (session->fd < 0) {
         return -1;
     }

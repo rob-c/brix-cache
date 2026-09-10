@@ -28,6 +28,10 @@ typedef struct {
     char                          x509_key[1024];   /* §14/C-3 GSI key ("" = in proxy) */
     char                          ca_dir[1024];     /* §14/C-3 GSI origin-cert CA */
     char                          sss_keytab[1024]; /* §14 SSS shared-secret keytab */
+    int  verify_pages;     /* phase-115 W4.3: brix_pgverify_mode_e — 0 off,
+                            * 1 best-effort, 2 require.  Set once from the
+                            * store line; every object opened on this instance
+                            * reads the origin under it. */
 } sd_xroot_inst_state;
 
 /* errno for a completed fill task (sd_xroot.c), shared by both paths. */
@@ -49,6 +53,15 @@ typedef struct {
     brix_cache_fill_t        *t;
     int                         file_open;   /* 1 once kXR_open succeeded */
     int                         is_write;    /* 1 = opened for write (open_write) */
+    int                         pgread_off;  /* phase-115 W4.3: 1 once THIS origin
+                                              * has answered "I cannot page-read",
+                                              * so a best-effort object asks once
+                                              * per open instead of once per 1 MiB
+                                              * chunk.  Per-OBJECT, not per
+                                              * instance: the verdict belongs to
+                                              * the connection it was learned on,
+                                              * and one instance serves many
+                                              * concurrent objects with no lock. */
 } sd_xroot_obj_state;
 
 /* Inputs to a single origin file open. Bundling the seven loose arguments into a

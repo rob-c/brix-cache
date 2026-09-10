@@ -37,6 +37,7 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cachemx")]
 
 SIZES = (5000, 7000, 9000)
+EVICT_THRESHOLD = "0.99"   # on-fill trigger the gauge below must render
 
 
 def statvfs_used_pct(path: str) -> int:
@@ -95,7 +96,7 @@ def ev(tmp_path_factory):
             template_values={"BIND_HOST": BIND_HOST,
                              "CACHE_DIR": str(cache_dir),
                              "HIGH_WM": str(high), "LOW_WM": str(low),
-                             "EVICT_THRESHOLD": "0.99"},
+                             "EVICT_THRESHOLD": EVICT_THRESHOLD},
             reason="cachemx conformance: watermark reaper accounting"))
         metrics = f"http://{HOST}:{ep.extra_ports['METRICS_PORT']}/metrics"
         for i, size in enumerate(SIZES):
@@ -176,15 +177,32 @@ def test_usage_ratio_sample_renders(ev):
     _check_test_usage_ratio_sample_renders_2(val)
 
 
-def test_eviction_threshold_gauge_absent(ev):
-    """brix_cache_eviction_threshold_ratio belongs to the per-server policy
-    engine, not the watermark reaper: an instance configured with watermark
-    trimming (and an on-fill threshold) still exports NO sample — calibrated
-    live; a scraper must treat the gauge as policy-engine-only."""
+def _threshold_rows(text):
+    return [l for l in text.splitlines()
+            if l.startswith("brix_cache_eviction_threshold_ratio{")]
+
+
+def test_eviction_threshold_gauge_renders_the_on_fill_trigger(ev):
+    """brix_cache_eviction_threshold_ratio is the on-fill trigger this
+    instance configured (EVICT_THRESHOLD), keyed {port, auth} — not the
+    reaper's high watermark, which the fixture keeps at or below 98%.
+    Until 2.0 readiness F6 a `brix_cache_store` tier without `brix_cache on`
+    exported no per-server cache row at all; the pin this replaces had
+    calibrated that absence as 'policy-engine-only'."""
     text = ev.after or cx.mfetch(ev.metrics)
-    rows = [l for l in text.splitlines()
-            if l.startswith("brix_cache_eviction_threshold_ratio ")]
-    assert rows == []
+    rows = _threshold_rows(text)
+    assert len(rows) == 1, rows
+    labels, value = rows[0].rsplit(" ", 1)
+    assert labels == ("brix_cache_eviction_threshold_ratio"
+                      f'{{port="{ev.ep.port}",auth="anon"}}')
+    assert float(value) == pytest.approx(float(EVICT_THRESHOLD))
+
+
+def test_exposition_never_names_the_cache_directory(ev):
+    """Security/cardinality arm: the store's filesystem path is config, not
+    a label or a HELP string — no exposition line carries it."""
+    text = ev.after or cx.mfetch(ev.metrics)
+    assert str(ev.cache_dir) not in text
 
 
 def test_purge_counters_stable_after_settle(ev):

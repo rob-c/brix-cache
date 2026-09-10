@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 import zlib
 
 import pytest
@@ -53,8 +54,7 @@ def _crc32c(data):
 @pytest.fixture(scope="module")
 def tools():
     _guard_tools_1()
-    proc = subprocess.run(["make", "-C", os.path.join(REPO, "client")],
-                          capture_output=True, text=True, timeout=180)
+    proc = client_make(os.path.join(REPO, "client"), capture_output=True, text=True, timeout=180)
     paths = {t: os.path.join(REPO, "client", "bin", t) for t in TOOLS}
     if proc.returncode != 0 or not all(os.path.exists(p) for p in paths.values()):
         pytest.skip(f"tool build failed:\n{proc.stdout}\n{proc.stderr}")
@@ -165,8 +165,7 @@ MPXSTATS = os.path.join(REPO, "client", "bin", "mpxstats-brix")
 def mpxstats_bin():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
-    proc = subprocess.run(["make", "-C", os.path.join(REPO, "client"), "mpxstats-brix"],
-                          capture_output=True, text=True, timeout=180)
+    proc = client_make(os.path.join(REPO, "client"), "mpxstats-brix", capture_output=True, text=True, timeout=180)
     if proc.returncode != 0 or not os.path.exists(MPXSTATS):
         pytest.skip(f"mpxstats build failed:\n{proc.stdout}\n{proc.stderr}")
     return MPXSTATS

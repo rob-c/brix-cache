@@ -80,6 +80,7 @@
 #include "observability/metrics/metrics.h"
 #include "observability/dashboard/dashboard.h"
 #include "auth/token/token.h"
+#include "auth/voms/voms_io.h"   /* brix_voms_in_t / brix_voms_out_t */
 
 #include <ngx_thread_pool.h>
 
@@ -158,9 +159,9 @@ ngx_int_t brix_check_pki_consistency_stream(ngx_log_t *log,
  * NGX_CONF_OK / NGX_CONF_ERROR, appending to the relevant array or scalar in
  * the per-server config. Run once at startup; not thread-safe by design. */
 
-/* "require_vo <prefix> <vo>": append a path-prefix VO-membership ACL rule. */
-char *brix_conf_set_require_vo(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf);
+/* "brix_require_vo <prefix> <vo>" on the stream planes is owned by a file-local
+ * setter in src/core/config/stream_common.c; only the shared parser below and
+ * the HTTP twin are cross-TU. */
 /* Shared VO-ACL rule parser (phase-101 W3): append one parsed brix_vo_rule_t to
  * *slot (lazily created).  Reused by the stream_common owner so a bare
  * brix_require_vo parses identically wherever it is registered. */
@@ -190,6 +191,20 @@ char *brix_http_conf_set_protbind(ngx_conf_t *cf, ngx_command_t *cmd,
  * integrity grammar, one setter for every plane (common is member 0). policy.c. */
 char *brix_conf_set_tpc_verify_checksum(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
+/* 2.0 F18 — the TPC identity matrix's three list directives, one setter each
+ * for every plane (common is member 0 of both plane confs, exactly as
+ * brix_conf_set_tpc_verify_checksum above).  Bodies in
+ * src/tpc/common/identity_matrix_conf.c; the grammar and the evaluation order
+ * live in src/tpc/common/identity_matrix.h.
+ *   brix_tpc_allow_identity dn|group|host|vo <pattern> ...
+ *   brix_tpc_require all|client|dest <auth>
+ *   brix_tpc_restrict <path> ...
+ * ("brix_tpc_oids on|off" is a plain flag slot and needs no setter.) */
+char *brix_tpc_conf_allow_identity(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+char *brix_tpc_conf_require(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+char *brix_tpc_conf_restrict(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+
 /* "inherit_parent_group <prefix>": append a rule taking group ownership from
  * the parent directory rather than file metadata under that prefix. */
 char *brix_conf_set_inherit_parent_group(ngx_conf_t *cf, ngx_command_t *cmd,
@@ -212,6 +227,12 @@ char *brix_conf_set_cms_sched(ngx_conf_t *cf, ngx_command_t *cmd,
 /* "brix_cms_altds <port> [monitor on|off]": §2.12 advertise a co-located
  * foreign data server's port as this node's data port. */
 char *brix_conf_set_cms_altds(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+/* "brix_cms_fsxeq <op>... <program> [<arg>...]": §2.19 run an operator
+ * program in place of the built-in POSIX leg for one or more forwarded
+ * namespace ops (stock cms.fsxeq grammar; ops chmod mkdir mkpath mv rm rmdir
+ * trunc, one program per op). */
+char *brix_conf_set_cms_fsxeq(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 /* "brix_upstream <host:port>": parse the proxy upstream address
  * (supports [v6]:port and host:port). */
@@ -238,18 +259,27 @@ char *brix_conf_set_cache_max_file_size(ngx_conf_t *cf,
  * matching paths are cached. */
 char *brix_conf_set_cache_include_regex(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
-/* "brix_cache_verify off|best-effort|require": checksum-on-fill policy —
- * verify a completed fill against the origin's advertised checksum before
- * publishing it (src/cache/verify.h). */
-char *brix_conf_set_cache_verify(ngx_conf_t *cf,
-    ngx_command_t *cmd, void *conf);
-/* "brix_cache_verify_digest <alg>": preferred checksum algorithm to request
- * from an HTTP/Pelican origin (Want-Digest); advisory for root://. */
+/* "brix_cache_verify off|best-effort|require" is an enum slot writing
+ * common.cache_verify_mode (registered in the per-plane tables); it needs no
+ * handler here. */
+/* "brix_cache_verify_digest <alg>": the checksum algorithm a NON-xroot origin
+ * is asked for during a verifying fill (HTTP/Pelican Want-Digest, an object
+ * store's stored checksum); root:// carries kXR_Qcksum in band. One validating
+ * kernel, one wrapper per plane. */
+char *brix_cache_verify_digest_parse(ngx_conf_t *cf, ngx_str_t *value,
+    ngx_str_t *out);
 char *brix_conf_set_cache_verify_digest(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf);
+char *brix_http_conf_set_cache_verify_digest(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 /* "brix_cache_advertise_namespace <prefix>" (repeatable): a federation
  * namespace this cache advertises to the Pelican Director. */
 char *brix_conf_set_cache_advertise_ns(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf);
+/* "brix_cache_advertise_federation <host[:port]>": the federation discovery
+ * authority the advertiser reads .well-known/pelican-configuration from — the
+ * value that arms the advertiser at all. */
+char *brix_conf_set_cache_advertise_federation(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 /* "brix_posc_persist <auto|manual|off> [hold <time>]": ofs.persist analog —
  * governs the boot-time reaper of crash-orphaned POSC upload temps (§1.9). */
@@ -461,6 +491,14 @@ ngx_int_t  brix_extract_voms_info(ngx_log_t *log, X509 *leaf,
     const ngx_str_t *cert_dir, char *primary_vo, size_t primary_vo_sz,
     char *vo_list, size_t vo_list_sz);
 
+/* 2.0 F20: the same extraction plus the RAW FQAN CSV (out->fqan_list).  The VO
+ * views are '/'-free by design so they cannot carry "Role=..."; an identity
+ * built from them alone has no acc_role_csv and the authdb `l` selector matches
+ * nothing.  See auth/voms/voms_io.h and brix_identity_set_vos_fqans(). */
+ngx_int_t  brix_extract_voms_fqans(ngx_log_t *log, const brix_voms_in_t *in,
+    const ngx_str_t *vomsdir, const ngx_str_t *cert_dir,
+    const brix_voms_out_t *out);
+
 /* aio/ — AIO response chain builders and thread-pool callbacks */
 #include "core/aio/aio.h"
 
@@ -471,6 +509,14 @@ ngx_int_t  brix_extract_voms_info(ngx_log_t *log, X509 *leaf,
  * NGX_OK / NGX_ERROR (missing key or crypto failure). */
 ngx_int_t brix_sss_build_proxy_credential(const brix_sss_key_t *key,
     const char *username, u_char *buf, size_t buf_max, size_t *out_len);
+/* Same, for a full sss v2 entity (name, vorg, role, grps, endorsements,
+ * proxied creds) — release-2.0 F9.  buf_max should be
+ * BRIX_SSS_ENTITY_BLOB_MAX; NGX_ERROR when a field is over its cap (the
+ * kernel never truncates an identity), the key is missing, or crypto fails. */
+#include "core/compat/sss_entity.h"
+ngx_int_t brix_sss_build_proxy_entity_credential(const brix_sss_key_t *key,
+    const brix_sss_entity_t *ent, u_char *buf, size_t buf_max,
+    size_t *out_len);
 
 /* unix/krb5 stream authentication plugins */
 /* kXR_auth "unix" handler: client-asserted (unverified) user/group name.

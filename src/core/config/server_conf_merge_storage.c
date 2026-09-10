@@ -52,7 +52,6 @@ brix_merge_srv_zip_stage(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_off_value(conf->oss_maxsize, prev->oss_maxsize, 0);
     /* oss.cgroup space-group name reported by kXR_Qspace; default "default". */
     ngx_conf_merge_str_value(conf->oss_cgroup, prev->oss_cgroup, "default");
-    ngx_conf_merge_value(conf->pss_dca, prev->pss_dca, 0);   /* §4.9 */
     ngx_conf_merge_value(conf->dirstats, prev->dirstats, 0);   /* §4.8 */
     /* brix_checksum_default: the algo a Qcksum with no explicit selection uses;
      * empty ⇒ adler32 is applied at the use sites (never breaks on a bad value). */
@@ -222,12 +221,9 @@ brix_merge_srv_iouring_advertise(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_value(conf->io_uring_restrict, prev->io_uring_restrict, 1);
 
 
-    /* Checksum-on-fill: default best-effort (verify when a digest is available,
-     * fail-closed on mismatch). Operators opt down to off or up to require. */
-    ngx_conf_merge_uint_value(conf->cache_verify, prev->cache_verify,
-                              BRIX_CACHE_VERIFY_BESTEFFORT);
-    ngx_conf_merge_str_value(conf->cache_verify_digest,
-                             prev->cache_verify_digest, "");
+    /* Checksum-on-fill is merged with the rest of the shared preamble
+     * (common.cache_verify_mode / common.cache_verify_digest); the standalone
+     * (brix_cache) spine reads it through brix_cache_verify_effective(). */
 
     /* Pelican cache advertisement (default off; interval clamped to the
      * federation minimum of 60s = MinFedTokenTickerRate). */
@@ -243,6 +239,12 @@ brix_merge_srv_iouring_advertise(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_str_value(conf->advertise.web_url, prev->advertise.web_url, "");
     ngx_conf_merge_str_value(conf->advertise.sitename, prev->advertise.sitename, "");
     ngx_conf_merge_str_value(conf->advertise.issuer_url, prev->advertise.issuer_url, "");
+    /* The federation discovery authority: no default host — an unset federation
+     * leaves the advertiser disarmed; the port defaults to HTTPS. */
+    ngx_conf_merge_str_value(conf->advertise.federation,
+                             prev->advertise.federation, "");
+    ngx_conf_merge_uint_value(conf->advertise.federation_port,
+                              prev->advertise.federation_port, 443);
     if (conf->advertise.ns == NULL) {
         conf->advertise.ns = prev->advertise.ns;
     }

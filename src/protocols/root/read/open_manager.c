@@ -75,14 +75,14 @@ open_dyn_try_stage(brix_ctx_t *ctx, ngx_connection_t *c,
 	loc = brix_loc_cache_lookup2(clean_path, redir_host,
 	                               sizeof(redir_host), &redir_port);
 	if (loc == BRIX_LOC_HIT) {
-		BRIX_RETURN_REDIR(ctx, c, op, "OPEN", clean_path,
-		                    "loc-cache", redir_host, redir_port);
+		BRIX_RETURN_SELECTED(ctx, c, conf, op, "OPEN", clean_path,
+		                       "loc-cache", redir_host, redir_port);
 	}
 	if (loc == BRIX_LOC_NEG
 	    && brix_srv_select_stage(clean_path, redir_host,
 	                               sizeof(redir_host), &redir_port)) {
-		BRIX_RETURN_REDIR(ctx, c, op, "OPEN", clean_path,
-		                    "stage-select", redir_host, redir_port);
+		BRIX_RETURN_SELECTED(ctx, c, conf, op, "OPEN", clean_path,
+		                       "stage-select", redir_host, redir_port);
 	}
 
 	return NGX_DECLINED;
@@ -117,9 +117,9 @@ open_dyn_try_registry(brix_ctx_t *ctx, ngx_connection_t *c,
 		brix_redir_cache_insert(clean_path, redir_host, redir_port,
 		                          conf->caps.collapse_redir_ttl);
 	}
-	BRIX_RETURN_REDIR(ctx, c, op,
-	                    "OPEN", clean_path, "registry",
-	                    redir_host, redir_port);
+	BRIX_RETURN_SELECTED(ctx, c, conf, op,
+	                       "OPEN", clean_path, "registry",
+	                       redir_host, redir_port);
 }
 
 /*
@@ -164,9 +164,9 @@ brix_open_manager_dynamic(brix_ctx_t *ctx, ngx_connection_t *c,
 	if (!is_write && conf->caps.collapse_redir
 	    && brix_redir_cache_lookup(clean_path, redir_host,
 	                                 sizeof(redir_host), &redir_port)) {
-		BRIX_RETURN_REDIR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
-		                    clean_path, "redir-cache",
-		                    redir_host, redir_port);
+		BRIX_RETURN_SELECTED(ctx, c, conf, BRIX_OP_OPEN_RD, "OPEN",
+		                       clean_path, "redir-cache",
+		                       redir_host, redir_port);
 	}
 
 	crc = open_dyn_try_stage(ctx, c, conf, is_write, clean_path, op);

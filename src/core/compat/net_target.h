@@ -9,7 +9,7 @@
  *   brix_net_target_parse()     — split URL into scheme/host/port/path
  *   brix_net_target_check_dns() — resolve host and reject prohibited addrs
  *
- * check_dns() calls getaddrinfo(), which blocks.  It MUST be called only
+ * check_dns() resolves synchronously (brix_dns_resolve_sync), which blocks.  It MUST be called only
  * from a background thread (ngx_thread_pool_run or equivalent), never from
  * the nginx event-loop worker.
  */
@@ -45,6 +45,8 @@ typedef struct {
  *                         and IPv6 ULA (fc00::/7)
  * default_https_port:  port substituted when URL has no port and scheme=https
  * default_root_port:   port substituted when URL has no port and scheme=root
+ * dns:                 brix DNS policy the checkers resolve through (the
+ *                      export/server `brix_resolver`); NULL = worker default
  */
 typedef struct {
     ngx_flag_t require_https;
@@ -53,6 +55,9 @@ typedef struct {
     ngx_flag_t allow_private;
     uint16_t   default_https_port;
     uint16_t   default_root_port;
+    const struct brix_dns_policy_s *dns; /* resolver policy for the DNS
+                                          * checkers; NULL = worker default
+                                          * (phase-116) */
 } brix_net_target_policy_t;
 
 /*
@@ -86,12 +91,40 @@ ngx_int_t brix_net_target_check_addr(const struct sockaddr *sa,
 /*
  * brix_net_target_check_dns — resolve host and verify against policy.
  *
- * Calls getaddrinfo(3) on target->host (BLOCKING — call from thread only).
- * Rejects the target if any resolved address is in a prohibited range under
- * the given policy.  Returns NGX_OK when all addresses are permitted.
- * On rejection writes a NUL-terminated message into err[0..errsz).
+ * Resolves target->host through brix_dns_resolve_sync() (BLOCKING — call
+ * from a thread-pool task only: literal -> per-worker cache -> the event
+ * loop's resolver via the bridge -> libc).  Rejects the target if any
+ * resolved address is in a prohibited range under the given policy.
+ * Returns NGX_OK when all addresses are permitted.  On rejection writes a
+ * NUL-terminated message into err[0..errsz).
  */
 ngx_int_t brix_net_target_check_dns(
+    const brix_net_target_t *target,
+    const brix_net_target_policy_t *policy,
+    char *err, size_t errsz);
+
+struct brix_dns_addr_s;
+
+/*
+ * brix_net_target_check_addrs — apply the address policy to every resolved
+ * candidate of `host` (I-DNS-3).  NGX_OK when all pass; NGX_ERROR with the
+ * check_dns wording ("host X resolves to a prohibited address (...)")
+ * otherwise.  No DNS, no blocking: any context.
+ */
+ngx_int_t brix_net_target_check_addrs(const struct brix_dns_addr_s *addrs,
+    ngx_uint_t n, const brix_net_target_policy_t *policy, const char *host,
+    char *err, size_t errsz);
+
+/*
+ * brix_net_target_check_cached — the event-loop flavour of check_dns.
+ *
+ * Never blocks and starts nothing: answers from an IP literal or the
+ * per-worker DNS cache.  NGX_OK = every cached address passes policy;
+ * NGX_ERROR = a cached address is prohibited or the name is definitively
+ * unknown (err filled); NGX_DECLINED = no answer cached — the caller decides
+ * how to wait (the native TPC open parks on an async brix_dns_resolve).
+ */
+ngx_int_t brix_net_target_check_cached(
     const brix_net_target_t *target,
     const brix_net_target_policy_t *policy,
     char *err, size_t errsz);
@@ -104,7 +137,8 @@ ngx_int_t brix_net_target_check_dns(
  * then pins out_ip into the transfer agent (e.g. curl CURLOPT_RESOLVE) so the
  * connection target cannot differ from the address that passed policy.  Same
  * BLOCKING/thread-only contract as check_dns().  Returns NGX_OK with out_ip
- * filled, NGX_ERROR otherwise (err filled).
+ * filled, NGX_ERROR otherwise (err filled).  Every address comes from the
+ * brix DNS driver (policy->dns), so `brix_resolver` governs this path too.
  */
 ngx_int_t brix_net_target_check_dns_pin(
     const brix_net_target_t *target,

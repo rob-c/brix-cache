@@ -18,6 +18,7 @@ import contextlib
 import os
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -57,8 +58,7 @@ def _port_up(host, port):
 
 @pytest.fixture(scope="module")
 def xrdfs(): # noqa: D401
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs"],
-                          capture_output=True, text=True, timeout=240)
+    proc = client_make(CLIENT_DIR, "xrdfs", capture_output=True, text=True, timeout=240)
     if proc.returncode != 0 or not os.path.exists(XRDFS):
         pytest.skip(f"xrdfs build failed:\n{proc.stdout}\n{proc.stderr}")
     if not _port_up(SERVER_HOST, NGINX_HTTP_WEBDAV_PORT):

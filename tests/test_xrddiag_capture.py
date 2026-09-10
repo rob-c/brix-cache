@@ -15,6 +15,7 @@ Run (serial):
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -34,8 +35,7 @@ XRDDIAG = os.path.join(CLIENT_DIR, "bin", "xrddiag")
 def _client_built():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler to build the native client")
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrddiag"],
-                          capture_output=True, text=True, timeout=180)
+    proc = client_make(CLIENT_DIR, "xrdfs", "xrddiag", capture_output=True, text=True, timeout=180)
     if proc.returncode != 0 or not os.path.exists(XRDDIAG):
         pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
 

@@ -277,6 +277,7 @@ brix_tier_register_stage_store(ngx_conf_t *cf,
     if (brix_tier_parse_store(&parse, &common->stage_store,
             common->stage_store_args, BRIX_TIER_STAGE) != NGX_OK)
         return NGX_ERROR;
+    cfg.dns = common->dns.policy;              /* phase-116 origin resolver */
     ngx_memzero(&policy, sizeof(policy));
     policy.enabled = 1;
     policy.flush_mode = common->stage_flush_async ? BRIX_WT_MODE_ASYNC

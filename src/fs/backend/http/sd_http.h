@@ -57,7 +57,9 @@ typedef struct {
     int                          tls;         /* 1 = https */
     const char                  *base_path;   /* URL path prefix ("" or "/sub") */
     const brix_s3_transport_t *transport;   /* injected HTTP transport */
-    void                        *tctx;        /* transport context (NULL for curl) */
+    void                        *tctx;        /* explicit transport context; NULL =
+                                                 the driver builds a brix_s3_tctx_t
+                                                 from ca_path + dns (curl) */
     int                          timeout_ms;
     const char                  *bearer_token; /* §14: Authorization: Bearer, or NULL */
     const char                  *ca_path;      /* §14/C-3: operator trusted-CA file or
@@ -66,6 +68,9 @@ typedef struct {
                                     and handed to the curl transport as its tctx so
                                     the https backend leg verifies a site/test-CA
                                     origin (phase-70). Ignored when tctx is set. */
+    const struct brix_dns_policy_s *dns;      /* phase-116: the export's resolver
+                                                 policy for the endpoint hosts; NULL
+                                                 = libc. Ignored when tctx is set. */
     const brix_sd_http_ep_cfg_t *extra;      /* endpoints 1.. (may be NULL)   */
     int                            n_extra;    /* count of `extra` entries      */
     void                         (*failover_note)(void);  /* T16: called when a

@@ -63,7 +63,7 @@ tests/c/run_mu_unit.sh                              # idmap collapse guards (no 
 > `ports.MU.ROOT_CACHE`/`ROOT_DIRECT`, but the phase-81 registry rewrite
 > (`89d38fd4`) and the earlier config-template overhaul (`66efecd0`, which deleted
 > `configs/multiuser/root_cache.conf`/`root_direct.conf` — the only templates with
-> `brix_impersonation map`) left `mu_authz_lib/fleet.py`'s `_SERVERS` starting only
+> `brix_idmap map`) left `mu_authz_lib/fleet.py`'s `_SERVERS` starting only
 > `*_noimp.conf` servers. Those two impersonation-ON ports are never bound, so the
 > e2e writes to a dead port (it fails under `sudo`, or false-passes on the
 > collapse case where both measurements fail identically). Real

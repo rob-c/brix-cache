@@ -52,6 +52,15 @@ ngx_int_t brix_http_add_variables(ngx_conf_t *cf);
 struct brix_vfs_ctx_s;
 void brix_http_monitor_bind(ngx_http_request_t *r, struct brix_vfs_ctx_s *vctx);
 
+/* Get-or-create the request's I/O monitor (the common module's request ctx).
+ * Event loop only — it allocates on r->pool.  NULL only on allocation failure. */
+struct brix_io_monitor_s;
+struct brix_io_monitor_s *brix_http_monitor_get(ngx_http_request_t *r);
+
+/* Peek at the request's I/O monitor without creating one: NULL when the
+ * request never bound one. Safe off the event loop's allocation rules. */
+struct brix_io_monitor_s *brix_http_monitor_peek(ngx_http_request_t *r);
+
 /*
  * Record the client-facing served-byte count for $brix_bytes_served. Call from
  * the serve-metrics site with brix_http_serve_result_t.bytes_sent — the serve

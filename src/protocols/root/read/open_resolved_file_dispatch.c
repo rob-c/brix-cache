@@ -156,6 +156,8 @@ brix_open_build_cred_ctx(brix_open_args_t *a, brix_sd_instance_t *sd_inst,
 	 * object plane reserves after a create/trunc open, the staged plane
 	 * forwards it as staged_open's declared_size. */
 	cred_vctx->declared_size = a->declared_size;
+	/* 2.0 F5: and the pfc.* cache hints, for the driver's open_hinted slot. */
+	cred_vctx->open_hints = a->cache_hints;
 }
 
 /* WHAT: Report whether a WRITE open must use the whole-object staged-commit

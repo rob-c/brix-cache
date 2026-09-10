@@ -18,6 +18,7 @@
 #include "cvmfs/dict/dict.h"
 #include "net/proxy_env.h"
 #include "brixcvmfs_split.h"
+#include "brixcvmfs_curl_pin.h"
 
 #include <pthread.h>
 #include <stdio.h>
@@ -140,6 +141,21 @@ static size_t curl_hdr_cb(char *ptr, size_t sz, size_t nm, void *ud) {
     return n;
 }
 
+/* Per-hop reset for the pinned redirect walk: a 3xx hop may have written a
+ * body (libcurl hands FOLLOWLOCATION-less redirects to the sink) and coding
+ * headers — rewind both so only the final hop's bytes count. */
+typedef struct {
+    curl_sink_t    *sink;
+    size_t          start;
+    brix_hdrwatch_t *hw;
+} get_range_hop_t;
+
+static void get_range_hop(void *ud) {
+    get_range_hop_t *h = ud;
+    h->sink->len = h->start;
+    if (h->hw != NULL) memset(h->hw, 0, sizeof(*h->hw));
+}
+
 /* One GET of `url`, RESUMING from `*got` bytes already in `out` (HTTP Range).
  * Appends new bytes and updates *got. Returns the CURLcode. If a resume request
  * comes back 200 (server ignored Range), the freshly re-sent from-0 bytes are
@@ -162,7 +178,6 @@ static CURLcode http_get_range(CURL **slot, const char *proxy, const char *url,
         snprintf(line, sizeof(line), "X-Brix-Dict: %s", dict_id);
         req_hdrs = curl_slist_append(NULL, line);
     }
-    curl_easy_setopt(c, CURLOPT_URL, url);
     curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, curl_write_cb);
     curl_easy_setopt(c, CURLOPT_WRITEDATA, &sink);
     /* set-or-clear EVERY call: pooled-handle hygiene */
@@ -172,20 +187,23 @@ static CURLcode http_get_range(CURL **slot, const char *proxy, const char *url,
     curl_easy_setopt(c, CURLOPT_CONNECTTIMEOUT, g_tcfg.connect_timeout_s);
     curl_easy_setopt(c, CURLOPT_LOW_SPEED_LIMIT, g_tcfg.low_speed_bytes);
     curl_easy_setopt(c, CURLOPT_LOW_SPEED_TIME, g_tcfg.low_speed_time_s);
-    curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(c, CURLOPT_FAILONERROR, 1L);         /* HTTP >=400 → error */
     curl_easy_setopt(c, CURLOPT_TCP_KEEPALIVE, 1L);
     /* Confine the transport to HTTP(S) for BOTH the first request and every
      * redirect it follows. A poisoned mirror or a DPI middlebox can answer any
      * request with a 3xx to file:///etc/passwd, an internal metadata IP
-     * (169.254.169.254), scp://, gopher://, … — FOLLOWLOCATION would chase it.
+     * (169.254.169.254), scp://, gopher://, … — a blind follow would chase it.
      * The CAS layer hash-verifies content so a wrong body is caught, but that is
      * no help if the redirect makes libcurl read a LOCAL file or poke an
      * internal service in the first place: confine the scheme up front and cap
-     * the chain so a redirect loop can't wedge the mount either. The *_STR opts
-     * exist only from 7.85 (and the bitmask form is deprecated there), so gate
-     * on the header version — an enum option name is not #ifdef-able — keeping
-     * alma8-era libcurl portability. */
+     * the chain so a redirect loop can't wedge the mount either. Redirects are
+     * walked by hand in cvmfs_curl_perform_pinned() (phase-116: every hop's
+     * host resolved through brix_resolve(), never by libcurl), so each hop is a
+     * fresh CURLOPT_URL under this same PROTOCOLS filter — REDIR_PROTOCOLS is
+     * kept as a belt-and-braces restatement. The *_STR opts exist only from
+     * 7.85 (and the bitmask form is deprecated there), so gate on the header
+     * version — an enum option name is not #ifdef-able — keeping alma8-era
+     * libcurl portability. */
 #if CURL_AT_LEAST_VERSION(7, 85, 0)
     curl_easy_setopt(c, CURLOPT_PROTOCOLS_STR, "http,https");
     curl_easy_setopt(c, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
@@ -193,7 +211,6 @@ static CURLcode http_get_range(CURL **slot, const char *proxy, const char *url,
     curl_easy_setopt(c, CURLOPT_PROTOCOLS, (long)(CURLPROTO_HTTP | CURLPROTO_HTTPS));
     curl_easy_setopt(c, CURLOPT_REDIR_PROTOCOLS, (long)(CURLPROTO_HTTP | CURLPROTO_HTTPS));
 #endif
-    curl_easy_setopt(c, CURLOPT_MAXREDIRS, 4L);
     /* TLS is defence-in-depth here (CVMFS content self-authenticates), but when
      * a user asks for -o tls we must fail CLOSED against a MITM / intercepting
      * DPI proxy rather than silently accept a forged cert. This restates
@@ -209,16 +226,20 @@ static CURLcode http_get_range(CURL **slot, const char *proxy, const char *url,
     char sch[8], thost[256]; int tport;
     url_host(url, sch, sizeof(sch), thost, sizeof(thost), &tport);
     brix_proxy_t px;
+    const char *via = "";
     if (brix_proxy_resolve(sch, thost, tport, &px)) {
-        curl_easy_setopt(c, CURLOPT_PROXY, px.url);
+        via = px.url;
         brix_proxy_report(&px, thost, tport);
     } else if (proxy != NULL && strcmp(proxy, "DIRECT") != 0) {
-        curl_easy_setopt(c, CURLOPT_PROXY, proxy);
-    } else {
-        curl_easy_setopt(c, CURLOPT_PROXY, "");
+        via = proxy;
     }
+    curl_easy_setopt(c, CURLOPT_PROXY, via);
 
-    CURLcode rc = curl_easy_perform(c);
+    /* phase-116: target + proxy hosts pinned through brix_resolve(); every
+     * redirect hop re-pinned (BRIXCVMFS_MAX_REDIRECTS caps the chain). */
+    get_range_hop_t     hop  = { &sink, start, hw };
+    cvmfs_curl_transfer xfer = { via, BRIXCVMFS_MAX_REDIRECTS, get_range_hop, &hop };
+    CURLcode rc = cvmfs_curl_perform_pinned(c, &xfer, url);
     if (req_hdrs != NULL) {
         curl_easy_setopt(c, CURLOPT_HTTPHEADER, NULL);   /* before the free */
         curl_slist_free_all(req_hdrs);
@@ -457,7 +478,6 @@ int bundle_http_post(const char *proxy, const char *host,
         char url[1024];
         snprintf(url, sizeof(url), "%s/.cvmfs-bundle", host);
         curl_sink_t sink = { out, outcap, 0 };
-        curl_easy_setopt(c, CURLOPT_URL, url);
         curl_easy_setopt(c, CURLOPT_POST, 1L);
         curl_easy_setopt(c, CURLOPT_POSTFIELDS, body);
         curl_easy_setopt(c, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t) body_len);
@@ -466,7 +486,6 @@ int bundle_http_post(const char *proxy, const char *host,
         curl_easy_setopt(c, CURLOPT_CONNECTTIMEOUT, g_tcfg.connect_timeout_s);
         curl_easy_setopt(c, CURLOPT_LOW_SPEED_LIMIT, g_tcfg.low_speed_bytes);
         curl_easy_setopt(c, CURLOPT_LOW_SPEED_TIME, g_tcfg.low_speed_time_s);
-        curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 0L);   /* no redirected POSTs */
         curl_easy_setopt(c, CURLOPT_FAILONERROR, 1L);
 #if CURL_AT_LEAST_VERSION(7, 85, 0)
         curl_easy_setopt(c, CURLOPT_PROTOCOLS_STR, "http,https");
@@ -481,14 +500,16 @@ int bundle_http_post(const char *proxy, const char *host,
         char sch[8], thost[256]; int tport;
         url_host(url, sch, sizeof(sch), thost, sizeof(thost), &tport);
         brix_proxy_t px;
+        const char *via = "";
         if (brix_proxy_resolve(sch, thost, tport, &px))
-            curl_easy_setopt(c, CURLOPT_PROXY, px.url);
+            via = px.url;
         else if (proxy != NULL && strcmp(proxy, "DIRECT") != 0)
-            curl_easy_setopt(c, CURLOPT_PROXY, proxy);
-        else
-            curl_easy_setopt(c, CURLOPT_PROXY, "");
+            via = proxy;
+        curl_easy_setopt(c, CURLOPT_PROXY, via);
 
-        CURLcode rc = curl_easy_perform(c);
+        /* pinned like the GET; max_redirects 0 = no redirected POSTs */
+        cvmfs_curl_transfer xfer = { via, 0, NULL, NULL };
+        CURLcode rc = cvmfs_curl_perform_pinned(c, &xfer, url);
         curl_easy_setopt(c, CURLOPT_POSTFIELDS, NULL);   /* body ptr dies with us */
         curl_easy_setopt(c, CURLOPT_HTTPGET, 1L);        /* back to GET for the pool */
         if (rc == CURLE_OK) { *outlen = sink.len; ret = 0; }

@@ -44,9 +44,19 @@
 cvmfs_swarm_reg_t  cvmfs_swarm_regs[CVMFS_SWARM_MAX_EXPORTS];
 ngx_uint_t         cvmfs_swarm_regs_n;
 
+/* phase-116: a config parse starts from an empty table.  The reg now carries
+ * the export's resolver policy (a pointer into that cycle's pool), so an
+ * export removed on reload must not survive here with a dangling policy —
+ * and must not keep probing either. */
+void
+brix_cvmfs_swarm_regs_reset(void)
+{
+    cvmfs_swarm_regs_n = 0;
+}
+
 void
 brix_cvmfs_swarm_register(const char *root_canon, time_t interval,
-    const ngx_str_t *pool_name)
+    const ngx_str_t *pool_name, const struct brix_dns_policy_s *dns)
 {
     ngx_uint_t         i;
     cvmfs_swarm_reg_t *reg = NULL;
@@ -68,6 +78,7 @@ brix_cvmfs_swarm_register(const char *root_canon, time_t interval,
     ngx_cpystrn((u_char *) reg->root, (u_char *) root_canon,
                 sizeof(reg->root));
     reg->interval = (interval > 0) ? interval : 3;
+    reg->dns = dns;
     reg->pool[0] = '\0';
     if (pool_name != NULL && pool_name->len > 0
         && pool_name->len < sizeof(reg->pool))

@@ -19,7 +19,6 @@
  */
 #include <errno.h>
 #include <fcntl.h>
-#include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,6 +28,7 @@
 #include <unistd.h>
 
 #include "brix_fault_proxy_mods.h"
+#include "net/resolve.h"
 
 #define CTL_OK       0   /* reply was ok / status */
 #define CTL_USAGE    2   /* malformed ctl invocation */
@@ -100,34 +100,33 @@ ctl_dial(const char *hostport)
         return -1;
     }
     size_t hlen = (size_t) (colon - hostport);
-    char   host[256];
+    char   host[256], *end = NULL;
     if (hlen >= sizeof host) {
         return -1;
     }
     memcpy(host, hostport, hlen);
     host[hlen] = '\0';
-
-    struct addrinfo hints, *res, *ai;
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family   = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    if (getaddrinfo(host, colon + 1, &hints, &res) != 0) {
+    long port = strtol(colon + 1, &end, 10);
+    if (end == colon + 1 || *end != '\0' || port <= 0 || port > 65535) {
         return -1;
     }
 
+    brix_resolve_addr addrs[BRIX_RESOLVE_MAX];
+    int n = brix_resolve(host, (int) port, AF_UNSPEC, SOCK_STREAM, 0,
+                         addrs, BRIX_RESOLVE_MAX, NULL);
     int fd = -1;
-    for (ai = res; ai != NULL; ai = ai->ai_next) {
-        fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+    for (int i = 0; i < n && fd < 0; i++) {
+        fd = socket(addrs[i].family, addrs[i].socktype, addrs[i].protocol);
         if (fd < 0) {
             continue;
         }
-        if (ctl_connect_timeout(fd, ai->ai_addr, ai->ai_addrlen, 3000) == 0) {
-            break;
+        if (ctl_connect_timeout(fd, (struct sockaddr *) &addrs[i].ss,
+                                addrs[i].len, 3000) != 0)
+        {
+            close(fd);
+            fd = -1;
         }
-        close(fd);
-        fd = -1;
     }
-    freeaddrinfo(res);
     return fd;
 }
 

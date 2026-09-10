@@ -26,7 +26,7 @@ def test_checked_in_storage_driver_matrix_matches_source():
 def test_matrix_includes_the_function_local_gsiftp_driver():
     text = DOC.read_text()
     assert "| gsiftp |" in text
-    assert "63 slots x 13 drivers = 819 cells" in text
+    assert "64 slots x 14 drivers = 896 cells" in text
 
 
 def test_storage_driver_matrix_check_rejects_stale_content(tmp_path):

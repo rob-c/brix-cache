@@ -1,5 +1,15 @@
 # BriX-Cache Code-Level Security Audit
 
+> **Reading note (2026-09-09).** This is a **closed** audit record: every path and
+> `file.c:line` below names the tree *as it was audited*, and phases 66/67/69
+> moved nearly every source file since. Do not follow a path from here — find the
+> code by symbol (`rg`) or through the OP→FILE tables in
+> [`agent-guide-extended.md`](../09-developer-guide/agent-guide-extended.md). The
+> findings and their resolutions are what this page is for.
+
+<!-- doc-paths:off -->
+
+
 **Scope:** Full-codebase review targeting authentication bypass, SSRF, resource exhaustion,
 path escape, and timing-side-channel attacks.
 
@@ -732,3 +742,5 @@ used; all are now done.
 ---
 
 *Code review and implementation: BriX-Cache main branch, 2026-05-20.*
+
+<!-- doc-paths:on -->

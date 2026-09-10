@@ -62,6 +62,17 @@ typedef struct stage_pending_s {
  * and remove a completed one.
  */
 extern char stage_journal_dir[1024];
+extern ngx_uint_t stage_max_inflight;      /* brix_frm_copymax (2.0 F1)      */
+extern ngx_uint_t stage_max_attempts;      /* brix_frm_fail_retries (2.0 F1) */
+
+/* Read + decode one journal record by path. 0 ok / -1 (unreadable or corrupt). */
+int stage_journal_load(const char *path, brix_sreq_t *rec);
+
+/* 2.0 F1: bump a transiently-failing record's attempts, re-persist it FAILED
+ * and, at the attempt cap, dead-letter it with a loud tombstone. Returns 1
+ * when dead-lettered (stop re-driving), 0 when kept for a later retry. */
+int stage_retry_terminal(const char *journal_dir, brix_sreq_t *rec,
+    int last_errno, ngx_log_t *log);
 
 void stage_reqid_mint(char out[40]);
 void stage_journal_write(const stage_pending_t *p);
@@ -79,9 +90,11 @@ void stage_journal_remove(const char *reqid);
  *
  * stage_journal_mark_failed reads the on-disk record by reqid (the scheduler
  * completion path has only the reqid); stage_journal_bump_failed operates on a
- * record the caller already holds (the reconcile path) and ALSO increments
- * attempts, so a restart replay that re-drives a still-dead origin records the
- * re-drive by a higher attempt count.
+ * record the caller already holds (the reconcile path). BOTH increment attempts
+ * (2.0, 2026-09-09): every failed drive is an attempt, so the count a `replayed`
+ * event publishes — and the one brix_frm_fail_retries caps — includes the first
+ * one. A record that never failed (a crash replay of a QUEUED record) still
+ * reports 0.
  */
 void stage_journal_mark_failed(const char *journal_dir, const char *reqid,
     int last_errno);

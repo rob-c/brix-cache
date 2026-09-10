@@ -7,7 +7,7 @@ WHAT: launch and tear down a dedicated nginx (root://+GSI) and a dedicated
       with its own data root, plus the in-repo TCP fault proxy
       (client/bin/brix-fault-proxy) spliced in front of either one.
 
-WHY:  the shared manage_test_servers.sh fleet squats 11094-12126, is flaky to
+WHY:  the shared cmdscripts/manage_test_servers.py fleet squats 11094-12126, is flaky to
       bring up, and must not be perturbed by loss sweeps.  Resilience runs need
       isolated, reproducible endpoints that never collide with the main suite,
       living in their own subfolder.
@@ -21,6 +21,7 @@ Nothing here touches the main suite's ports, data, or PKI.
 """
 import getpass
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -128,6 +129,32 @@ class FaultProxy:
 
     def clear(self):
         return self.ctl("clear")
+
+    def counters(self):
+        """WHAT: the proxy's own Prometheus counters as a dict of int, keyed by
+        the bare metric name (`corrupt_total`, `severs_total`, `conns_total`,
+        …) plus `bytes_down`/`bytes_up` for the two labelled byte counters.
+
+        WHY: a fault test that only reads the client's exit code cannot tell a
+        defence that worked from a fault that never fired. `corrupt_total` is
+        the proxy saying how many bytes it actually flipped, so an assertion can
+        name the difference instead of guessing at it — and a run where the
+        lever drew zero flips is reported as vacuous rather than as a defect.
+
+        HOW: one `metrics` control command; each `name value` line is taken,
+        the `{dir="up"}` label folded into the key, and the value parsed as an
+        int. Lines that are not a bare `name value` pair (HELP/TYPE) are
+        skipped."""
+        out = {}
+        for line in self.ctl("metrics").splitlines():
+            m = re.match(r"^brix_fault_proxy_(\w+)(?:\{dir=\"(\w+)\"\})?\s+(\d+)$",
+                         line.strip())
+            if not m:
+                continue
+            name, direction, value = m.group(1), m.group(2), int(m.group(3))
+            key = f"bytes_{direction}" if direction else name
+            out[key] = value
+        return out
 
     def set_jitter(self, ms):
         return self.ctl(f"jitter {int(ms)}") if ms > 0 else self.ctl("clear")

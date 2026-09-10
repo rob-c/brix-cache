@@ -122,17 +122,84 @@ brix_vfs_file_pwrite(brix_vfs_file_t *fh, const void *buf, size_t len, off_t off
  *       a uniform seekable fd for the sendfile / file-backed serve path.
  * WHY:  Removes the last backend-identity branch in the serve path: callers stop
  *       special-casing "no fd → build a memory buffer myself" and use one fd path.
- * HOW:  memfd_create + a pread→write loop through the driver's worker-safe pread
- *       slot; the fd is owned by the handle and closed in brix_vfs_close. Returns
- *       the cached fd on repeat calls. NGX_INVALID_FILE on any failure (the caller
- *       then falls back to its legacy memory-backed path — no behaviour change). */
+ * HOW:  memfd_create, sized with ftruncate and filled through one mmap of
+ *       itself, so the driver's worker-safe pread slot is asked for the whole
+ *       remaining span at once rather than in 64 KiB steps (see
+ *       brix_vfs_memfile_fill). The fd is owned by the handle and closed in
+ *       brix_vfs_close. Returns the cached fd on repeat calls.
+ *       NGX_INVALID_FILE on any failure (the caller then falls back to its
+ *       legacy memory-backed path — no behaviour change). */
+
+/* Fill `map` (the whole object, already sized) from the driver.
+ *
+ * The span asked for is always ALL THAT IS LEFT, never a fixed chunk, and that
+ * is the point rather than a detail.  The previous loop read 64 KiB at a time
+ * through a stack buffer, and on a driver whose pread opens a session per call
+ * — gsiftp does, one USER/PASS/TYPE/REST/RETR per read — materialising a
+ * 300 kB object cost FIVE logins and five transfers where one would do.
+ * Asking for the remainder lets a conforming driver answer in a single call
+ * and still lets a short-reading one finish; the memfd is mapped rather than
+ * written through a buffer because it already holds the whole object, so the
+ * mapping costs no memory the materialisation was not paying anyway. */
+static int
+brix_vfs_memfile_fill(brix_sd_obj_t *obj, u_char *map, off_t size)
+{
+    off_t off;
+
+    for (off = 0; off < size; /* advanced below */) {
+        ssize_t n = obj->driver->pread(obj, map + off,
+                                       (size_t) (size - off), off);
+
+        if (n <= 0) {
+            return NGX_ERROR;
+        }
+        off += n;
+    }
+    return NGX_OK;
+}
+
+
+/* The memfd sized and filled, or NGX_INVALID_FILE with the fd already closed. */
+static ngx_fd_t
+brix_vfs_memfile_build(brix_sd_obj_t *obj, off_t size)
+{
+    ngx_fd_t  fd;
+    void     *map;
+    int       filled;
+
+    fd = (ngx_fd_t) memfd_create("brix-vfs-memfile", MFD_CLOEXEC);
+    if (fd == NGX_INVALID_FILE) {
+        return NGX_INVALID_FILE;
+    }
+    if (size == 0) {
+        return fd;                     /* an empty object needs no transfer */
+    }
+    if (ftruncate(fd, size) != 0) {
+        (void) ngx_close_file(fd);
+        return NGX_INVALID_FILE;
+    }
+
+    map = mmap(NULL, (size_t) size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (map == MAP_FAILED) {
+        (void) ngx_close_file(fd);
+        return NGX_INVALID_FILE;
+    }
+    filled = brix_vfs_memfile_fill(obj, map, size);
+    (void) munmap(map, (size_t) size);
+
+    if (filled != NGX_OK || lseek(fd, 0, SEEK_SET) == (off_t) -1) {
+        (void) ngx_close_file(fd);
+        return NGX_INVALID_FILE;
+    }
+    return fd;
+}
+
+
 static ngx_fd_t
 brix_vfs_memfile_materialize(brix_vfs_file_t *fh)
 {
     brix_sd_obj_t obj;
     ngx_fd_t      fd;
-    off_t         off;
-    u_char        buf[65536];
 
     if (fh->memfd != NGX_INVALID_FILE) {
         return fh->memfd;              /* already materialised */
@@ -145,28 +212,8 @@ brix_vfs_memfile_materialize(brix_vfs_file_t *fh)
         return NGX_INVALID_FILE;
     }
 
-    fd = (ngx_fd_t) memfd_create("brix-vfs-memfile", MFD_CLOEXEC);
+    fd = brix_vfs_memfile_build(&obj, fh->size);
     if (fd == NGX_INVALID_FILE) {
-        return NGX_INVALID_FILE;
-    }
-
-    for (off = 0; off < fh->size; /* advanced below */) {
-        size_t  want = (size_t) ngx_min((off_t) sizeof(buf), fh->size - off);
-        ssize_t n = obj.driver->pread(&obj, buf, want, off);
-
-        if (n <= 0) {
-            (void) ngx_close_file(fd);
-            return NGX_INVALID_FILE;
-        }
-        if (write(fd, buf, (size_t) n) != n) {
-            (void) ngx_close_file(fd);
-            return NGX_INVALID_FILE;
-        }
-        off += n;
-    }
-
-    if (lseek(fd, 0, SEEK_SET) == (off_t) -1) {
-        (void) ngx_close_file(fd);
         return NGX_INVALID_FILE;
     }
 
@@ -184,6 +231,42 @@ brix_vfs_memfile_materialize(brix_vfs_file_t *fh)
 ngx_fd_t
 brix_vfs_file_sendfile_fd(const brix_vfs_file_t *fh)
 {
+    return brix_vfs_file_sendfile_fd_window(fh, 0,
+                                            fh != NULL ? fh->size : 0);
+}
+
+/* brix_vfs_file_sendfile_fd_window — the sendfile fd for the window a caller is
+ * ABOUT TO SEND, rather than for the whole object.
+ *
+ * WHAT: identical to brix_vfs_file_sendfile_fd() for any backend that owns a
+ *       real kernel fd; for a fd-less CAP_MEMFILE backend it materialises the
+ *       memfd ONLY when [off, off+len) is the whole object.
+ * WHY:  materialisation preads the ENTIRE object through the driver.  On a
+ *       remote backend (gsiftp, http, xroot, s3, ceph) that is a network
+ *       transfer of the whole file, and it was being paid for every ranged
+ *       read: a 256-byte Range on a 384 kB file fetched all 384 kB in six
+ *       round trips, and the same request against a 10 GB object would have
+ *       fetched 10 GB.  Nothing was wrong with the response — the right bytes
+ *       came back with the right Content-Range — so the cost was invisible from
+ *       outside, and it silently cancelled every bounded-retrieve extension the
+ *       drivers negotiate (GridFTP ERET P, HTTP Range, xroot kXR_read), which
+ *       were all correctly asking the origin for a window and then being handed
+ *       a whole-object request by the layer above.
+ * HOW:  probe the backend first and unchanged — a driver that owns an fd is
+ *       indifferent to the window, and narrowing what it is asked would change
+ *       which offsets sd_block / sd_pblock accept.  Only the materialisation
+ *       fallback is gated: a strict sub-window declines and the caller falls
+ *       back to its memory-backed path, which reads exactly the window it
+ *       needs.  A caller that will read NOTHING (a HEAD) passes len < 0, which
+ *       can never equal a size and so never materialises.
+ *
+ *       Declining costs nothing here: the memfd is a full COPY of an object the
+ *       backend cannot sendfile, so the "zero-copy" path had already paid for
+ *       the whole object once before sending a byte. */
+ngx_fd_t
+brix_vfs_file_sendfile_fd_window(const brix_vfs_file_t *fh, off_t off,
+    off_t len)
+{
     ngx_fd_t fd;
 
     if (fh == NULL) {
@@ -192,6 +275,9 @@ brix_vfs_file_sendfile_fd(const brix_vfs_file_t *fh)
     fd = brix_vfs_handle_sendfile_fd(fh, 0, (size_t) fh->size, 1);
     if (fd != NGX_INVALID_FILE) {
         return fd;
+    }
+    if (off != 0 || len != fh->size) {
+        return NGX_INVALID_FILE;
     }
     /* fh is const by contract, but the memfd cache is an internal materialisation
      * that does not change the observable file — safe to fill lazily here. */

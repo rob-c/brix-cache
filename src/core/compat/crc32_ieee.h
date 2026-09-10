@@ -18,4 +18,9 @@
 
 uint32_t brix_crc32_ieee(const uint8_t *buf, size_t len);
 
+/* Running form for streamed input (phase-115 W3.1 zip writer/reader): start
+ * with `crc` = 0, feed each chunk, and the last return value IS the CRC-32 of
+ * the concatenation — identical to brix_crc32_ieee() over the whole buffer. */
+uint32_t brix_crc32_ieee_update(uint32_t crc, const uint8_t *buf, size_t len);
+
 #endif /* BRIX_COMPAT_CRC32_IEEE_H */

@@ -23,6 +23,7 @@ import os
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import time
 from pathlib import Path
 
@@ -46,8 +47,7 @@ def _require_xrdcp():
     """Build the resilient client; skip cleanly when it (or nginx) is absent."""
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
-    subprocess.run(["make", "-C", CLIENT_DIR, "xrdcp"],
-                   capture_output=True, text=True, timeout=240)
+    client_make(CLIENT_DIR, "xrdcp", capture_output=True, text=True, timeout=240)
     if not os.path.exists(XRDCP):
         pytest.skip("xrdcp build failed")
     if not os.access(NGINX_BIN, os.X_OK):

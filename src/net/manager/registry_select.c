@@ -194,6 +194,16 @@ srv_sel_state_consider(srv_sel_state_t *st, int idx, const brix_srv_entry_t *e,
         return;
     }
 
+    /* §2.4: a WRITE candidate latched below its advertised free-space floor
+     * joins the same last-resort tier — placing new bytes on a node that said
+     * it is nearly full is the thing the floor exists to stop, but refusing
+     * the write outright when every node is low would be worse than landing
+     * it on the roomiest of them.  Reads never consult the latch. */
+    if (st->for_write && brix_srv_space.enforce && e->space_blocked) {
+        srv_sel_tier_offer(&st->over, idx, metric, st->for_write);
+        return;
+    }
+
     /* §2.3: a node over the cms.sched maxload ceiling drops below every
      * cooler node (incl. stale ones) but still beats shipping to a peer or a
      * blacklisted node — graceful degradation, not a refusal. */

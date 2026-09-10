@@ -127,7 +127,8 @@ brix_dirlist_check_redirect(brix_ctx_t *ctx, ngx_connection_t *c,
             brix_log_access(ctx, c, "DIRLIST", walk->reqpath, "registry",
                               1, kXR_ok, NULL, 0);
             BRIX_OP_OK(ctx, BRIX_OP_DIRLIST);
-            *rc = brix_send_redirect(ctx, c, redir_host, redir_port);
+            *rc = brix_cms_answer_selected(ctx, c, conf, redir_host,
+                                           redir_port);
             return 0;
         }
         BRIX_OP_ERR(ctx, BRIX_OP_DIRLIST);

@@ -132,15 +132,25 @@ def test_suite_binary_args_propagate_to_all_helper_names(monkeypatch, tmp_path: 
     xrootd = _executable(tmp_path / "custom-xrootd")
     monkeypatch.setattr(operator_runtime, "teardown_test_fleet", lambda root: None)
     monkeypatch.setattr(operator_runtime, "_existing", lambda paths: [])
-    monkeypatch.setattr(operator_runtime, "_pytest_lane", lambda *args, **kw: True)
+    # Sample the environment a LANE sees: run_suite() releases the frozen copy
+    # in its `finally`, so the artefact is deliberately gone by the time the
+    # call returns (tests/test_phase115_suite_freeze_ownership.py).
+    seen = {}
+
+    def _lane(*args, **kw):
+        path = Path(operator_runtime.os.environ["TEST_NGINX_BIN"])
+        seen.update(path=path, body=path.read_bytes(),
+                    nginx_bin=operator_runtime.os.environ["NGINX_BIN"])
+        return True
+
+    monkeypatch.setattr(operator_runtime, "_pytest_lane", _lane)
 
     assert operator_runtime.run_suite([
         "--fast", "--nginx-bin", str(nginx), "--xrootd-bin", str(xrootd),
     ]) == 0
-    frozen = Path(operator_runtime.os.environ["TEST_NGINX_BIN"])
-    assert frozen != nginx
-    assert frozen.read_bytes() == nginx.read_bytes()
-    assert operator_runtime.os.environ["NGINX_BIN"] == str(frozen)
+    assert seen["path"] != nginx
+    assert seen["body"] == nginx.read_bytes()
+    assert seen["nginx_bin"] == str(seen["path"])
     for name in ("TEST_BRIX_BIN", "BRIX_BIN", "XROOTD_BIN", "REF_BIN"):
         assert operator_runtime.os.environ[name] == str(xrootd)
 

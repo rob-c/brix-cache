@@ -26,6 +26,18 @@ typedef enum {
     BRIX_FILL_DEFINITIVE    /* 404/403: the origin's answer — never retry  */
 } brix_fill_class_e;
 
+/* A STORE refusal: the cache cannot hold the object (over its whole capacity,
+ * or a full disk beneath a posix store) and the staged open / store write said
+ * so with ENOSPC. Never the origin's answer, so the origin is not retried; the
+ * HTTP plane re-enters every waiter to read the object from the source with no
+ * fill (sd_cache's BRIX_SD_O_NOFILL). One predicate, shared by the classifier
+ * and the fill worker's waiter resolution, so the two can never disagree. */
+static ngx_inline int
+brix_fill_store_refused(int err)
+{
+    return err == ENOSPC;
+}
+
 typedef struct {
     ngx_msec_t    backoff_ms;     /* next delay, starts 250, caps 8000      */
     time_t        start;          /* first-attempt wall clock               */
@@ -43,9 +55,10 @@ void brix_fill_retry_init(brix_fill_retry_t *rs, time_t client_hold,
  * its rate limit (retrying spends the quota that is already exhausted) and
  * ENOKEY an unanswerable auth challenge; ENODATA is a verify=require policy
  * refusal (no usable origin digest / unsupported algorithm — the next attempt
- * gets the same answer); EBADMSG is a digest MISMATCH (retried while
- * verify_budget lasts — corruption is often path-local); everything else
- * transient. */
+ * gets the same answer); ENOSPC is the STORE's own refusal (definitive — the
+ * waiters degrade to a source read, brix_fill_store_refused); EBADMSG is a
+ * digest MISMATCH (retried while verify_budget lasts — corruption is often
+ * path-local); everything else transient. */
 brix_fill_class_e brix_fill_classify(ngx_int_t fill_rc, int err,
     brix_fill_retry_t *rs);
 

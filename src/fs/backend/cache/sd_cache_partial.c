@@ -222,12 +222,16 @@ partial_capture_cred(sd_cache_partial_t *p, const brix_sd_cred_t *cred)
  *       starts all-absent.
  *
  * WHY:  Re-opening a partially-filled object must not forget which blocks are
- *       already present — but a stale bitmap (size or block-size changed)
- *       would serve wrong bytes, so geometry mismatch discards it.
+ *       already present — but a stale bitmap (the object's size changed)
+ *       would serve wrong bytes, so a size mismatch discards it.
  *
- * HOW:  brix_cache_cinfo_load from the cache path; adopt only when the bitmap
- *       length, recorded size, and block size all match; otherwise free the
- *       loaded bitmap and calloc a zeroed one (NULL for an empty object). */
+ * HOW:  brix_cache_cinfo_load from the cache path. A same-size object keeps
+ *       the geometry its cinfo records (2.0 F5: the slice granule is fixed at
+ *       an object's first fill, as upstream's cinfo does — so a later policy
+ *       change or a differently-hinted open never re-slices it, and two
+ *       handles can never race two geometries onto one object); adopt the
+ *       bitmap when its length then matches, otherwise free the loaded bitmap
+ *       and calloc a zeroed one (NULL for an empty object). */
 static void
 partial_adopt_bitmap(sd_cache_partial_t *p, const char *cpath)
 {
@@ -236,14 +240,77 @@ partial_adopt_bitmap(sd_cache_partial_t *p, const char *cpath)
     size_t              bl = 0;
 
     if (brix_cache_cinfo_load(cpath, &hdr, &bm, &bl) == NGX_OK
-        && bl == p->bitmap_len && hdr.size == (uint64_t) p->size
-        && hdr.block_size == p->block_size)
+        && hdr.size == (uint64_t) p->size && hdr.block_size > 0)
     {
-        p->bitmap = bm;
-        return;
+        if (hdr.block_size != p->block_size) {
+            p->block_size = hdr.block_size;
+            p->nblocks    = brix_cache_cinfo_nblocks((uint64_t) p->size,
+                                                     hdr.block_size);
+            p->bitmap_len = brix_cache_cinfo_bitmap_len(p->nblocks);
+        }
+        if (bl == p->bitmap_len) {
+            p->bitmap = bm;
+            return;
+        }
     }
     free(bm);
     p->bitmap = (p->bitmap_len > 0) ? calloc(1, p->bitmap_len) : NULL;
+}
+
+/* The slice size a NEW partial object is created with (2.0 F5, upstream
+ * pfc.urlcgi blocksize): the policy's brix_cache_slice_size unless
+ * brix_cache_urlcgi arms the clamp and the open carries pfc.blocksize — then
+ * the hint clamped to [min, max] and rounded down to the 1 MiB granule the
+ * slice engine requires (min is such a multiple itself, so the result never
+ * drops below it). partial_adopt_bitmap still lets an existing object's own
+ * geometry win over this. */
+static uint32_t
+partial_block_size(const sd_cache_inst_state *st,
+    const brix_sd_open_hints_t *hints)
+{
+    const brix_cache_urlcgi_conf_t *u = &st->policy.urlcgi;
+    size_t                          bs;
+
+    if (hints == NULL || hints->block_size == 0 || u->bs_max == 0) {
+        return (uint32_t) st->policy.slice_size;
+    }
+    bs = hints->block_size;
+    if (bs < u->bs_min) {
+        bs = u->bs_min;
+    }
+    if (bs > u->bs_max) {
+        bs = u->bs_max;
+    }
+    bs -= bs % BRIX_CACHE_SLICE_GRANULE;
+    return (uint32_t) bs;
+}
+
+/* This handle's prefetch runway (2.0 F5, upstream pfc.urlcgi prefetch): the
+ * policy window unless brix_cache_urlcgi arms the clamp and the open carries
+ * pfc.prefetch — then the hint (blocks) clamped to [min, max] and scaled by
+ * the object's FINAL block size; a clamped 0 switches speculation off for
+ * this handle only. Runs after partial_adopt_bitmap so an adopted geometry
+ * scales the runway too. */
+static void
+partial_apply_prefetch_hint(sd_cache_partial_t *p,
+    const sd_cache_inst_state *st, const brix_sd_open_hints_t *hints)
+{
+    const brix_cache_urlcgi_conf_t *u = &st->policy.urlcgi;
+    ngx_uint_t                      n;
+
+    p->prefetch_window = st->policy.prefetch_window;
+    if (hints == NULL || !hints->prefetch_set || u->pf_max == 0) {
+        return;
+    }
+    n = (ngx_uint_t) hints->prefetch_blocks;
+    if (n < u->pf_min) {
+        n = u->pf_min;
+    }
+    if (n > u->pf_max) {
+        n = u->pf_max;
+    }
+    p->prefetch_off    = (n == 0);
+    p->prefetch_window = (size_t) n * p->block_size;
 }
 
 /* Open a partial-serve object for `key` (slice mode).
@@ -262,7 +329,8 @@ partial_adopt_bitmap(sd_cache_partial_t *p, const char *cpath)
  *       Returns the new object, or NULL with *err_out set on failure. */
 brix_sd_obj_t *
 sd_cache_partial_open(brix_sd_instance_t *inst, sd_cache_inst_state *st,
-    const char *key, const brix_sd_cred_t *cred, int *err_out)
+    const char *key, const brix_sd_cred_t *cred,
+    const brix_sd_open_hints_t *hints, int *err_out)
 {
     brix_sd_instance_t *src = st->source;
     brix_sd_stat_t      snap;
@@ -278,7 +346,7 @@ sd_cache_partial_open(brix_sd_instance_t *inst, sd_cache_inst_state *st,
         if (err_out != NULL) { *err_out = ENOENT; }
         return NULL;
     }
-    bs = (uint32_t) st->policy.slice_size;
+    bs = partial_block_size(st, hints);
     /* Force owner rw ONLY (0600): the partial object is re-opened O_RDWR for every
      * incremental block fill (a read-only 0444 source would EACCES the second open
      * and silently fall back to a whole-file fill, §6.5). SECURITY: no group/other
@@ -315,6 +383,7 @@ sd_cache_partial_open(brix_sd_instance_t *inst, sd_cache_inst_state *st,
 
     partial_capture_cred(p, cred);
     partial_adopt_bitmap(p, cpath);
+    partial_apply_prefetch_hint(p, st, hints);
 
     o->driver     = inst->driver;       /* our pread/close/fstat range-fill */
     o->inst       = inst;

@@ -23,7 +23,8 @@
     /* ---- upstream redirector ---- */
     ngx_str_t   upstream_host;  /* [brix_upstream host:port] — hostname/IP */
     uint16_t    upstream_port;  /* TCP port of the upstream redirector */
-    ngx_addr_t *upstream_addr;  /* pre-resolved at config time; avoids per-request getaddrinfo */
+    ngx_addr_t *upstream_addr;  /* registry-owned (phase-116): socklen 0 until resolved */
+    struct brix_dns_target_s *upstream_dns; /* runtime DNS target behind upstream_addr */
 
     /* Upstream redirector outbound TLS (for kXR_gotoTLS mid-stream upgrade). */
     ngx_flag_t  upstream_tls;      /* [brix_upstream_tls on|off] — accept kXR_gotoTLS */
@@ -40,6 +41,13 @@
                                         Path to a file containing a WLCG bearer token
                                         (JWT).  Read synchronously when kXR_authmore
                                         is received; file may be refreshed externally. */
+    ngx_str_t   upstream_x509_proxy; /* [brix_upstream_x509_proxy /path/proxy.pem]
+                                        X.509 proxy (or EEC) chain the upstream
+                                        connector presents when the upstream
+                                        advertises `gsi` (phase 115 W2.4). */
+    ngx_str_t   upstream_x509_key;   /* [brix_upstream_x509_key /path/key.pem]
+                                        Separate private key; defaults to the
+                                        proxy PEM (which carries its own key). */
 
     /* ---- TPC root-specific controls (shared policy lives in common) ---- */
     ngx_flag_t  ssi_enable;         /* [brix_ssi on|off] — §7 XrdSsi
@@ -64,9 +72,28 @@
                                        (no per-frame syscall).  Bounds a slow-drip
                                        remote that keeps resetting the per-recv
                                        SO_RCVTIMEO idle timer.  0 = no cap. */
+    ngx_uint_t  tpc_max_hops;       /* [brix_tpc_max_hops 4] — F7: kXR_redirect
+                                       hops the native pull follows from the
+                                       client-named source (0 = refuse any;
+                                       ceiling BRIX_TPC_HOPS_MAX). */
+    ngx_uint_t  tpc_streams;        /* [brix_tpc_streams 1] — F7: cap on the
+                                       parallel kXR_bind read streams one pull
+                                       may open toward its source (the client's
+                                       tpc.str is clamped to it). */
     /* tpc_verify_checksum moved to the shared preamble (common.tpc_verify_checksum)
      * in phase-101 W4 — unified on|off|<alg> grammar across planes; the native path
      * reads it as a boolean gate (kXR_Qcksum negotiates its own algorithm). */
+    ngx_flag_t  tpc_push;           /* [brix_tpc_push on|off] — F16: operator
+                                       opt-in for the BriX native root:// PUSH
+                                       dialect (tpc.stage=push).  Off by default:
+                                       with it off this server neither accepts a
+                                       push-target write-open nor originates a
+                                       push, and every push-tagged open is
+                                       refused kXR_Unsupported.  Governs BOTH
+                                       roles because a push makes the SOURCE dial
+                                       out — the egress posture an operator opts
+                                       into — and makes the DESTINATION accept
+                                       bytes from a server rather than a client. */
     ngx_flag_t  tpc_delegate;       /* [brix_tpc_delegate on|off] — phase-57 §F6:
                                        X.509 proxy delegation. When on, the inbound
                                        GSI login captures the client's delegated
@@ -89,17 +116,30 @@
     /*
      * ---- read-through cache ----
      *
-     * On a cache miss (kXR_open for a path not in cache_root), the worker
-     * connects to cache_origin, downloads the file, writes it to cache_root
-     * under the same relative path, and then serves the cached copy.
-     * A lock file prevents multiple workers from filling the same path.
+     * On a cache miss (kXR_open for a path not in the cache store), the worker
+     * connects to the export's registered root:// storage backend, downloads the
+     * file, writes it to the store under the same relative path, and then serves
+     * the cached copy. A lock file prevents multiple workers from filling the
+     * same path.
      */
     ngx_flag_t  cache;              /* [brix_cache on|off] */
-    ngx_str_t   cache_root;         /* [brix_cache_root /srv/xrd-cache] */
-    ngx_str_t   cache_origin;       /* [brix_cache_origin host:port] — raw directive */
-    ngx_str_t   cache_origin_host;  /* parsed hostname / IP */
-    uint16_t    cache_origin_port;  /* parsed TCP port */
-    ngx_flag_t  cache_origin_tls;   /* [brix_cache_origin_tls on] — TLS to origin */
+    ngx_str_t   cache_root;         /* [brix_cache_export /srv/xrd-cache] */
+
+    /*
+     * SYNTHETIC-CONF ONLY (§14, phase-64) — the four fields below are written by
+     * NO directive. brix_cache_origin{,_tls} were retired with the legacy origin
+     * config model; the endpoint now comes from brix_storage_backend. They stay
+     * because sd_xroot (and gsi_upstream_login) build a synthetic srv_conf as the
+     * parameter block for the in-process origin wire client, which reads them off
+     * t->conf. Never gate a runtime feature on them: outside a synthetic conf they
+     * are always empty/zero, which silently disarms whatever reads them (2.0
+     * closed six such sites — see release-2.0-readiness.md §(c.4)). To learn a
+     * backend's endpoint from a real conf, use brix_sd_xroot_endpoint().
+     */
+    ngx_str_t   cache_origin;       /* unused; kept for struct-shape stability */
+    ngx_str_t   cache_origin_host;  /* synthetic: origin hostname / IP */
+    uint16_t    cache_origin_port;  /* synthetic: origin TCP port */
+    ngx_flag_t  cache_origin_tls;   /* synthetic: roots:// backend ⇒ TLS to origin */
     ngx_uint_t  cache_origin_family; /* [brix_cache_origin_family auto|inet|inet6]
                                         brix_af_policy_t for the origin connect;
                                         default BRIX_AF_AUTO (AF_UNSPEC). */

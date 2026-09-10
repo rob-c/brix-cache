@@ -255,10 +255,13 @@ access_protbind_set(ngx_http_request_t *r,
     ngx_memcpy(peer_ip, r->connection->addr_text.data, n);
     peer_ip[n] = '\0';
 
-    if (brix_protbind_needs_hostname(conf->common.protbind)) {
-        peer_host = brix_acc_resolve_peer(r->connection->sockaddr,
-                                          r->connection->socklen,
-                                          host_buf, sizeof(host_buf));
+    if (brix_protbind_needs_hostname(conf->common.protbind)
+        && brix_acc_resolve_peer(conf->common.dns.policy,
+                                 r->connection->sockaddr,
+                                 r->connection->socklen,
+                                 host_buf, sizeof(host_buf)) == NGX_OK)
+    {
+        peer_host = host_buf;
     }
 
     brix_protbind_resolve(conf->common.protbind, &base, peer_host, peer_ip, out);

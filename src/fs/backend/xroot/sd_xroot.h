@@ -39,6 +39,8 @@
 #include "fs/backend/sd.h"
 #include "core/compat/af_policy.h"   /* BRIX_AF_* for create_origin af_policy */
 
+struct brix_dns_policy_s;           /* net/dns/dns.h */
+
 /* Build a remote root:// instance bound to `conf` (an ngx_stream_brix_srv_conf_t*,
  * read for cache_origin_host/port/tls/ssl_ctx). Returns a malloc-owned instance
  * whose ->driver is the remote root:// driver, or NULL (errno set). Destroy
@@ -76,10 +78,19 @@ typedef struct {
     const char *x509_key;    /* §14/C-3 separate GSI private key path */
     const char *ca_dir;      /* CA file or hashed dir verifying the origin cert */
     const char *sss_keytab;  /* §14 SSS shared-secret keytab path */
+    int         verify_pages; /* phase-115 W4.3: per-page origin verification —
+                              * 0 off | 1 best-effort | 2 require
+                              * (brix_pgverify_mode_e).  Non-zero reads the
+                              * origin with kXR_pgread and checks every 4 KiB
+                              * page's CRC32c before the bytes are used; under
+                              * `require` an origin that cannot page-read fails
+                              * the read instead of silently degrading. */
     int         nearline;    /* non-zero: the origin fronts tape/an MSS — arms
                               * CAP_NEARLINE so reads recall via kXR_prepare
                               * (kXR_stage) instead of blocking, and commits the
                               * tier to requiring a cache in front (§9.4) */
+    struct brix_dns_policy_s *dns;   /* phase-116: the export's resolver policy the
+                              * synthetic conf carries; NULL = libc */
 } brix_sd_xroot_origin_cfg_t;
 
 /* Build a remote root:// instance from the EXPLICIT origin params in `cfg`,
@@ -101,5 +112,14 @@ void brix_sd_xroot_destroy(brix_sd_instance_t *inst);
  * returned by this driver's ->open. */
 void brix_sd_xroot_query_checksum(brix_sd_obj_t *obj,
     char *alg, size_t algsz, char *hex, size_t hexsz);
+
+/* The origin host:port this instance dials, for the one caller that must NAME
+ * the origin to a client rather than read through it (the read cache's
+ * admission-decline redirect).  Returns 0 with host and port filled; -1 for an
+ * instance that is not a plain root:// origin (a forward:// instance's endpoint
+ * is named by the client per open, so it has none to publish).  *host points at
+ * instance-owned storage and is valid for the instance's lifetime. */
+int brix_sd_xroot_endpoint(const brix_sd_instance_t *inst, const char **host,
+    uint16_t *port);
 
 #endif /* BRIX_SD_XROOT_H */

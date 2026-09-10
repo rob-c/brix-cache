@@ -496,8 +496,6 @@ def gftp_parse(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
 
 
 CLIENT = REPO_ROOT / "client"
-
-
 def cvmfs_url_rewrite(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
     # The CVMFS mirror URL builders (client/apps/fs/brixcvmfs_transport.c), unit-
     # tested by including the TU and stubbing its ten project externals — no
@@ -604,6 +602,10 @@ RUNNERS = {
     "tpc_progress_total": tpc_progress_total,
     "tpc_xfr_cap": tpc_xfr_cap,
     "tier_s3_creds": tier_s3_creds,
+    "dns_resolv_conf": dns_resolv_conf,
+    "client_resolve": client_resolve,
+    "dns_curl_pin_budget": dns_curl_pin_budget,
+    "dns_curl_pin_budget_default": dns_curl_pin_budget_default,
 }
 
 

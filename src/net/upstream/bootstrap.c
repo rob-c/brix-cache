@@ -1,5 +1,6 @@
 #include "upstream_internal.h"
 #include "protocols/root/protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
+#include "protocols/root/protocol/sec_protocol.h"    /* "&P=" advert parser */
 
 /*
  * WHAT: XRootD upstream bootstrap sequence — handshake, protocol negotiation, TLS upgrade detection,
@@ -69,7 +70,8 @@ brix_upstream_build_login(ClientLoginRequest *req)
 }
 
 /*
- * brix_upstream_continue_auth — respond to a kXR_authmore challenge during the
+ * brix_upstream_begin_auth — answer an auth demand (kXR_authmore, or a gsi/ztn
+ * advert in a kXR_ok login reply) during the
  * outbound bootstrap (cache-fill origin), bounded by XRD_OBA_MAX_ROUNDS.
  *
  * WHAT: increments the per-connection authmore counter, aborts once it reaches the
@@ -80,14 +82,18 @@ brix_upstream_build_login(ClientLoginRequest *req)
  *   continuation and duplicated the LOGIN/AUTH handling. One bounded helper closes
  *   the hostile-loop security case and is the single seam a future GSI cache-fill
  *   continuation hooks into.
- * HOW: bound check → counter++ → require brix_upstream_token_file → delegate to
- *   brix_upstream_send_token_auth (which arms the next read in XRD_UP_BS_AUTH).
- *   Every failure path routes through brix_upstream_abort.
+ * HOW: bound check → counter++ → read the "&P=" advert → gsi (certreq via
+ *   auth_gsi.c) when advertised and brix_upstream_x509_proxy is set, else ztn
+ *   (brix_upstream_send_token_auth) when brix_upstream_token_file is set; both arm
+ *   the next read in XRD_UP_BS_AUTH.  Every failure path routes through
+ *   brix_upstream_abort, naming the directive that would have satisfied the advert.
  */
 static void
-brix_upstream_continue_auth(brix_upstream_t *up)
+brix_upstream_begin_auth(brix_upstream_t *up, const char *seclist)
 {
     ngx_stream_brix_srv_conf_t *conf;
+    char                        gsi_parms[512];
+    int                         offers_gsi, offers_ztn;
 
     if (up->authmore_count >= XRD_OBA_MAX_ROUNDS) {
         brix_upstream_abort(up,
@@ -99,14 +105,45 @@ brix_upstream_continue_auth(brix_upstream_t *up)
     conf = ngx_stream_get_module_srv_conf(
         up->client_ctx->session, ngx_stream_brix_module);
 
-    if (conf->upstream_token_file.len == 0) {
-        brix_upstream_abort(up,
-            "upstream requires auth; set brix_upstream_token_file");
+    offers_gsi = brix_sec_proto_advertised(seclist, "gsi", gsi_parms,
+                                             sizeof(gsi_parms));
+    offers_ztn = brix_sec_proto_advertised(seclist, "ztn", NULL, 0);
+
+    if (offers_gsi && conf->upstream_x509_proxy.len > 0) {
+        if (brix_upstream_send_gsi_certreq(up, gsi_parms) != NGX_OK) {
+            brix_upstream_abort(up, "upstream: gsi certreq exchange failed");
+        }
         return;
     }
-    if (brix_upstream_send_token_auth(up, conf) != NGX_OK) {
-        brix_upstream_abort(up, "upstream: token auth exchange failed");
+    /* ztn when advertised — or when the advert names nothing we recognise
+     * (a bare kXR_authmore from a minimal origin): the pre-W2.4 behaviour. */
+    if (conf->upstream_token_file.len > 0 && (offers_ztn || !offers_gsi)) {
+        if (brix_upstream_send_token_auth(up, conf) != NGX_OK) {
+            brix_upstream_abort(up, "upstream: token auth exchange failed");
+        }
+        return;
     }
+    brix_upstream_abort(up, "upstream requires auth; set "
+                            "brix_upstream_token_file (ztn) or "
+                            "brix_upstream_x509_proxy (gsi) to match its advert");
+}
+
+/*
+ * brix_upstream_login_advert — the "&P=" security advert carried after the
+ * 16-byte session id in an authenticated server's kXR_ok login reply; NULL when
+ * the reply carries none (anonymous server, or a stub's bare session id).
+ * up->resp_body is NUL-terminated at resp_dlen by the frame reader.
+ */
+static const char *
+brix_upstream_login_advert(brix_upstream_t *up)
+{
+    const char *advert;
+
+    if (up->resp_body == NULL || up->resp_dlen <= BRIX_SESSION_ID_LEN) {
+        return NULL;
+    }
+    advert = (const char *) up->resp_body + BRIX_SESSION_ID_LEN;
+    return (ngx_strstr(advert, "&P=") != NULL) ? advert : NULL;
 }
 
 /*
@@ -213,21 +250,39 @@ brix_upstream_bs_protocol(brix_upstream_t *up)
  * brix_upstream_bs_login — phase 3, evaluate the login response.
  *
  * WHAT: a kXR_authmore status continues the bounded credential exchange; a
- *   non-ok status is fatal; kXR_ok advances to the done phase.
- * WHY: the origin's sec layer may demand a token round before granting login;
- *   only a clean kXR_ok means the session is ready to carry client requests.
- * HOW: authmore → brix_upstream_continue_auth (defer) → status gate → set
- *   XRD_UP_BS_DONE → NGX_OK.
+ *   non-ok status is fatal; kXR_ok with a gsi/ztn advert starts the exchange;
+ *   any other kXR_ok advances to the done phase.
+ * WHY: the origin's sec layer may demand a credential before it serves the
+ *   relayed request; a stub says so with kXR_authmore, a real server with the
+ *   advert in its kXR_ok body (the pre-W2.4 code was blind to the latter).
+ * HOW: authmore → brix_upstream_begin_auth (defer) → status gate → advert scan →
+ *   begin_auth (defer) or set XRD_UP_BS_DONE → NGX_OK.
  */
 static ngx_int_t
 brix_upstream_bs_login(brix_upstream_t *up)
 {
+    const char *advert;
+
     if (up->resp_status == kXR_authmore) {
-        brix_upstream_continue_auth(up);
+        brix_upstream_begin_auth(up,
+            (up->resp_body != NULL) ? (const char *) up->resp_body : "");
         return NGX_DONE;  /* resume after write + read cycle */
     }
     if (up->resp_status != kXR_ok) {
         brix_upstream_abort(up, "upstream: login failed");
+        return NGX_DONE;
+    }
+    /* Phase 115 W2.4: a real (brix or stock) server that requires auth still
+     * answers kXR_ok — with its "&P=" advert after the session id — and refuses
+     * the first unauthenticated request afterwards.  Start the credential
+     * exchange now when the advert names a protocol this connector speaks;
+     * an advert of only unix/host/krb5/sss is left to the upstream to judge. */
+    advert = brix_upstream_login_advert(up);
+    if (advert != NULL
+        && (brix_sec_proto_advertised(advert, "gsi", NULL, 0)
+            || brix_sec_proto_advertised(advert, "ztn", NULL, 0)))
+    {
+        brix_upstream_begin_auth(up, advert);
         return NGX_DONE;
     }
     up->bs_phase = XRD_UP_BS_DONE;
@@ -235,22 +290,58 @@ brix_upstream_bs_login(brix_upstream_t *up)
 }
 
 /*
- * brix_upstream_bs_auth — phase 4, evaluate the kXR_auth response after a ztn
- * token credential was sent.
+ * brix_upstream_bs_auth / brix_upstream_bs_auth_gsi — phase 4, evaluate the
+ * kXR_auth response after a credential frame was sent.
  *
- * WHAT: kXR_ok → authenticated, advance to done; kXR_authmore → the origin wants
- *   another bounded round (XRD_OBA_MAX_ROUNDS) rather than an outright failure;
- *   anything else → reject.
- * WHY: multi-round token exchanges are legitimate but must stay bounded so a
- *   hostile/misconfigured origin cannot loop us forever.
- * HOW: authmore → brix_upstream_continue_auth (defer) → status gate → set
- *   XRD_UP_BS_DONE → NGX_OK.
+ * WHAT: ztn: kXR_ok → authenticated, advance to done; kXR_authmore → the origin
+ *   wants another bounded round (XRD_OBA_MAX_ROUNDS); anything else → reject.
+ *   gsi (up->gsi_round set by auth_gsi.c): round 1 must answer kXR_authmore with
+ *   a kXGS_cert body (≥ 16 bytes) → brix_upstream_gsi_respond; round 2 must
+ *   answer kXR_ok → done; anything else → reject with the round's reason.
+ * WHY: multi-round exchanges are legitimate but must stay bounded so a hostile
+ *   or misconfigured origin cannot loop us forever; the gsi rounds are fixed at
+ *   two, so a stray kXR_authmore after round 2 is a rejection, not a retry.
+ * HOW: gsi_round dispatch → status gate → respond (defer) or set XRD_UP_BS_DONE
+ *   → NGX_OK.
  */
+static ngx_int_t
+brix_upstream_bs_auth_gsi(brix_upstream_t *up)
+{
+    ngx_stream_brix_srv_conf_t *conf;
+
+    if (up->gsi_round == 1) {
+        if (up->resp_status != kXR_authmore || up->resp_body == NULL
+            || up->resp_dlen < 16)
+        {
+            brix_upstream_abort(up, (up->resp_status == kXR_error)
+                ? "upstream: gsi certreq rejected by server"
+                : "upstream: gsi expected kXGS_cert");
+            return NGX_DONE;
+        }
+        conf = ngx_stream_get_module_srv_conf(
+            up->client_ctx->session, ngx_stream_brix_module);
+        if (brix_upstream_gsi_respond(up, conf) != NGX_OK) {
+            brix_upstream_abort(up, "upstream: gsi credential exchange failed");
+        }
+        return NGX_DONE;
+    }
+    if (up->resp_status != kXR_ok) {
+        brix_upstream_abort(up, "upstream: gsi auth rejected by server");
+        return NGX_DONE;
+    }
+    up->bs_phase = XRD_UP_BS_DONE;
+    return NGX_OK;
+}
+
 static ngx_int_t
 brix_upstream_bs_auth(brix_upstream_t *up)
 {
+    if (up->gsi_round > 0) {
+        return brix_upstream_bs_auth_gsi(up);
+    }
     if (up->resp_status == kXR_authmore) {
-        brix_upstream_continue_auth(up);
+        brix_upstream_begin_auth(up,
+            (up->resp_body != NULL) ? (const char *) up->resp_body : "");
         return NGX_DONE;
     }
     if (up->resp_status != kXR_ok) {

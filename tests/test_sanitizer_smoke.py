@@ -11,8 +11,8 @@ Lane workflow (run by CI, not inside this test):
     tests/build_sanitizer.sh
 
     # 2. Start the fleet under ASan instrumentation (ASAN_OPTIONS log_path set
-    #    by manage_test_servers.sh when SANITIZE=1)
-    SANITIZE=1 tests/manage_test_servers.sh restart
+    #    by cmdscripts/manage_test_servers.py when SANITIZE=1)
+    SANITIZE=1 python3 -m cmdscripts.manage_test_servers restart
 
     # 3. Run this test — conftest.py attaches to the running fleet without
     #    restarting it (_external_fleet_attached() returns True)
@@ -21,7 +21,7 @@ Lane workflow (run by CI, not inside this test):
         pytest tests/test_sanitizer_smoke.py -v
 
     # 4. Stop the fleet; LSan fires at process exit and writes asan.<pid> files
-    SANITIZE=1 tests/manage_test_servers.sh stop
+    SANITIZE=1 python3 -m cmdscripts.manage_test_servers stop-all
     ls "${SANITIZE_LOG_DIR:-/tmp/xrd-test/sanitize}/asan.*"
 
 ASan heap-error and UBSan reports are written immediately when detected (not only
@@ -45,8 +45,8 @@ pytestmark = pytest.mark.skipif(
     reason="sanitizer lane only — set BRIX_SANITIZER_LANE=1",
 )
 
-# Must match the log_path written by manage_test_servers.sh when SANITIZE=1.
-# manage_test_servers.sh: log_path=${SANITIZE_LOG_DIR}/asan  → files are asan.<pid>
+# Must match the log_path written by cmdscripts/manage_test_servers.py when SANITIZE=1.
+# cmdscripts/manage_test_servers.py: log_path=${SANITIZE_LOG_DIR}/asan  → files are asan.<pid>
 SANITIZE_LOG_DIR = os.environ.get("SANITIZE_LOG_DIR", os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "sanitize"))
 
 _ANON_BASE = f"root://{HOST}:{NGINX_ANON_PORT}"

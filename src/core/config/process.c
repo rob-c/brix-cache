@@ -28,7 +28,9 @@
 #include "core/seccomp/seccomp.h"          /* D-3 per-worker syscall filter */
 #include "observability/sesslog/sesslog_ngx.h"
 #include "protocols/root/session/admin_socket.h"
+#include "net/cms/cms_admin.h"
 #include "protocols/root/session/bind_migrate.h" /* §1.4 cross-worker bind */  /* §1.16 admin unix socket */
+#include "core/compat/checksum_plugin.h" /* brix_cks_plugins_init_worker */
 
 #if defined(__SANITIZE_ADDRESS__)   /* Phase 27 W6: explicit LSan check at exit */
 #include <sanitizer/lsan_interface.h>
@@ -46,26 +48,38 @@
  * write never reaches the backend and the partials leak disk forever.
  *
  * HOW:
- *   1. Init the stage engine with the opt-in $BRIX_STAGE_JOURNAL_DIR
- *      (unset = in-memory, no recovery).
- *   2. On worker 0: replay any journalled staged FLUSH (brix_stage_reconcile).
+ *   1. Init the stage engine with brix_frm_queue_path (2.0 F1, when a
+ *      `brix_frm on` server published), else the opt-in
+ *      $BRIX_STAGE_JOURNAL_DIR (unset = in-memory, no recovery).
+ *   2. On worker 0: replay any journalled staged FLUSH (brix_stage_reconcile)
+ *      and arm the brix_frm_fail_backoff retry sweep.
  *   3. On worker 0: reap orphaned non-staged direct-write temporaries — the
  *      broken write is discarded; the client retries (§11.3).
  */
 static void
 brix_init_stage_engine_worker(ngx_cycle_t *cycle)
 {
-    /* phase-64 SP4: durable stage journal + restart reconcile. The journal dir is
-     * opt-in via $BRIX_STAGE_JOURNAL_DIR (unset = in-memory, no recovery). On a
+    const char *journal_dir;
+
+    /* phase-64 SP4: durable stage journal + restart reconcile. 2.0 F1: the
+     * brix_frm_queue_path directive owns the journal dir (and copymax /
+     * fail_retries the engine limits); $BRIX_STAGE_JOURNAL_DIR is the fallback
+     * when no server enables brix_frm (unset = in-memory, no recovery). On a
      * restart worker 0 replays any staged FLUSH left in flight by a crash so the
      * write reaches the backend (only staged writes are recoverable - a non-staged
      * direct write's partial is reaped, not replayed; §11.3). */
-    brix_stage_engine_init(getenv("BRIX_STAGE_JOURNAL_DIR"));
+    journal_dir = brix_stage_engine_conf_apply(cycle);
+    brix_stage_engine_init(journal_dir != NULL ? journal_dir
+                                               : getenv("BRIX_STAGE_JOURNAL_DIR"));
     /* Durable async backend-op queue shares the same journal root (a private
      * backend/ subdir); init it right after so it inherits the same opt-in dir. */
     brix_baq_init();
     if (ngx_worker == 0) {
         brix_stage_reconcile(NULL);
+        if (brix_init_stage_retry_timer(cycle) != NGX_OK) {
+            ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
+                "brix: stage retry sweep not armed (out of memory)");
+        }
         /* Replay any backend mutation (unlink/rmdir/rename/mkdir) a crash stranded
          * between "journalled" and "flushed" — the client was told to wait for it,
          * so it must reach the backend rather than vanish. Idempotent. */
@@ -215,6 +229,17 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
      * when the queue is empty. */
     brix_init_stage_sched_timer(cycle);
 
+    /* phase-116: arm this worker's runtime DNS resolution of every registered
+     * target (idempotent; the http common init_process calls it too so an
+     * http-only worker resolves as well). Before the stream early-return. */
+    if (brix_dns_targets_init_worker(cycle) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    /* 2.0 F8: a checksum-plugin registry left by a previous cycle (the new
+     * configuration declares none) must not answer in this worker. */
+    brix_cks_plugins_init_worker(cycle);
+
     /* Shed ALL worker capabilities + set NO_NEW_PRIVS in EVERY worker, BEFORE the
      * stream-config early-return below, so HTTP-only (WebDAV/S3) workers are
      * hardened too — not just stream/root:// workers or `map` mode. A worker never
@@ -239,9 +264,13 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
 
     brix_warn_openat2_unavailable(cycle);
 
-    /* §1.16: the runtime admin unix socket (no-op unless brix_admin_socket is
-     * configured; worker 0 only — see session/admin_socket.h). */
+    /* §1.16 / §2.x: the two runtime admin unix sockets (each a no-op unless
+     * its directive is configured). EVERY worker serves its own socket —
+     * worker 0 at <path>, worker n at "<path>.<n>"; the session socket's
+     * scope is therefore per-worker while the CMS socket's registry is SHM
+     * and so node-wide. See session/admin_socket.h and net/cms/cms_admin.h. */
     brix_admin_socket_init(cycle);
+    brix_cms_admin_socket_init(cycle);
 
     /* §1.4: arm this worker's bind-migration channel read end (no-op when
      * migration is disabled — single worker, or channel creation failed). */

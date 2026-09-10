@@ -12,7 +12,8 @@ cancel / query); the service queues it, runs an executor that drives the lifecyc
 |---|---|
 | `pb_wire.{c,h}` | Generic protobuf wire primitives — varint, tag (`field<<3 \| wiretype`), length-delimited, fixed32/64 skip. Bounds-checked readers (untrusted input → `-1` on overrun), buffer-overflow-safe writers. |
 | `cta_pb.{c,h}` | Message codec: decode `cta.xrd.Request` (→ op + path + archive-id + owner + instance), encode `cta.xrd.Response` and the `cta.xrd.StreamResponse` header. |
-| `cta_queue.{c,h}` | Per-worker request-queue state machine + owner/admin-gated cancel + optional restart journal. |
+| `cta_queue.{c,h}` | Request-queue state machine + owner/admin-gated cancel + optional restart journal. Pure C: no nginx, no locking, no process-local pointers — it is laid out in shared memory. |
+| `cta_shm.{c,h}` | The queue's shared-memory home: one zone for the whole worker set, the zone lock, and the locked wrappers. The only file here that includes nginx headers. |
 | `cta_exec.{c,h}` | Pluggable executor vtable (archive/retrieve/cancel) — a simulated test backend and a production (tier/frm) seam. |
 | `cta_service.{c,h}` | The `brix_ssi_process_fn` glue (registered as `cta` in `provider.c`). |
 
@@ -61,12 +62,50 @@ The queue records each request's owner; `cta_queue_cancel` permits cancel only b
 the owner or an admin (`CTA_QUEUE_EACCES` otherwise). The owner identity comes from
 the request's `Client.user.username`.
 
+### The queue is cross-worker (phase 115 W8.6)
+
+`cta_shm.c` holds ONE `brix_cta_queue_t` in a shared-memory zone for the whole
+worker set, allocated with `brix_shm_table_alloc()` (INVARIANT 10) and registered
+once from `postconf_cta_queue()` in `src/core/config/postconfiguration.c` when any
+enabled server block carries `brix_ssi_service cta`.
+
+This retires the former "cross-worker SHM queue is deferred" ADR, which was not
+merely an optimisation left on the table. Every worker replayed the same journal
+and set `next_id` to the same value, then allocated from its own private copy — so
+**two workers handed out the same request id**, and a `query` or `cancel` for id 7
+acted on whichever worker's request the connection happened to reach.
+
+When the zone is absent the service answers `CTA_RSP_ERR_CTA` "CTA queue
+unavailable". It never falls back to a private queue: that fallback *is* the
+defect.
+
+The locking lives in `cta_shm.c`, not `cta_queue.c`, so the queue stays pure C and
+`cta_queue_unittest.c` still builds with `gcc -Isrc` and no nginx. The executor
+transitions through `cta_progress_t::transition` (bound to
+`brix_cta_shm_transition`), which takes the zone lock for one transition and drops
+it — never for the length of an archive or retrieve.
+
 ### Journal (restart recovery)
 
 `cta_queue_open_journal(q, path)` replays a tab-delimited journal of
-`id\top\tstate\towner\tpath` records (latest state per id wins) and keeps the file
-open so submit/transition calls append. Per-worker only; the config directive that
-supplies the path lands in Phase 6. ADR: cross-worker SHM queue is deferred.
+`id\top\tstate\towner\tpath` records (latest state per id wins), then holds an
+`O_APPEND` fd so submit/transition calls append.
+
+Both replay and the open happen **once, in the master, during zone init — before
+fork**, so every worker inherits one open file description with one shared append
+offset and one journal serves the whole set. That is also why `journal_append()`
+emits each record with a single `write(2)`: one atomic append per record is what
+makes the sharing safe. One zone means one journal, so if two enabled server blocks
+name different `brix_ssi_cta_journal` paths the first non-empty one wins and the
+ignored path is named in a config-time WARN.
+
+The two text fields are **escaped** (`\\`, `\t`, `\n`, `\r`) on the way out and
+unescaped on replay. Written raw, a request path — up to 1023 wire-chosen bytes of
+`Notification.file.lpath` — containing a newline would append a second record of
+the submitter's choosing, including its `owner` field, which is the principal
+`cta_queue_cancel()` gates on. A record whose escaped form will not fit is not
+written at all, and an over-long line is discarded whole on replay rather than
+re-split into a forged one.
 
 ## External contract — the pinned field table
 

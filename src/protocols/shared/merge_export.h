@@ -44,4 +44,12 @@ char *brix_http_merge_export_anchor(ngx_conf_t *cf,
     ngx_http_brix_shared_conf_t *common, const char *directive_name,
     ngx_flag_t allow_write);
 
+/* Attach the named brix_credential (§14) to the location's registered storage
+ * backend.  No credential configured is success, not a no-op error: an
+ * anonymous backend is a legitimate configuration.  Shared because S3 and
+ * WebDAV had byte-identical copies of it — and because the diagnostic must
+ * name brix_storage_credential, the directive that is actually registered. */
+char *brix_http_attach_storage_credential(ngx_conf_t *cf,
+    ngx_http_brix_shared_conf_t *common);
+
 #endif /* BRIX_MERGE_EXPORT_H */

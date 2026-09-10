@@ -16,7 +16,7 @@ in-tree native client suite, including its direct WebDAV/HTTP path, see
 With the official XRootD client, `xrdcp --allow-http davs://host:8443/path` is
 handled by the `XrdClHttp` plugin, which speaks WebDAV (HTTP methods OPTIONS, GET
 with Range, HEAD, PUT, DELETE, MKCOL, PROPFIND) over TLS. The in-tree
-`client/xrdcp` has its own WebDAV/HTTP helper path and accepts `davs://`,
+`client/bin/xrdcp` has its own WebDAV/HTTP helper path and accepts `davs://`,
 `dav://`, `https://`, and `http://` URLs directly. Authentication can come from
 RFC 3820 proxy certificates or from an `Authorization: Bearer <JWT>` header.
 
@@ -94,7 +94,7 @@ http {
         location / {
             brix_webdav         on;
             brix_export    /data;
-            brix_webdav_cadir   /etc/grid-security/certificates;
+            brix_trusted_ca_dir   /etc/grid-security/certificates;
             brix_webdav_auth    optional;    # or: none | required
             brix_allow_write on;
 
@@ -110,9 +110,9 @@ http {
             brix_tpc_outbound_scope      storage.read;
 
             # Optional bearer-token auth
-            brix_webdav_token_jwks     /etc/tokens/jwks.json;
-            brix_webdav_token_issuer   "https://idp.example.com";
-            brix_webdav_token_audience "my-storage";
+            brix_token_jwks     /etc/tokens/jwks.json;
+            brix_token_issuer   "https://idp.example.com";
+            brix_token_audience "my-storage";
 
             # Optional browser/CORS access
             brix_webdav_cors_origin https://monitoring.example.com;

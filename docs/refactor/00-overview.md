@@ -62,6 +62,12 @@ green. Exact names and acceptance commands live in Phase 111.
   from Phase 109.
 - [Phase 114](phase-114-credential-artifact-lifecycle.md) owns credential TTL/reaping; old Phase-108 text pointing that work
   at Phase 109 was incorrect.
+- [Phase 115](phase-115-deployment-surface-and-remaining-feature-bodies.md) is the open work-todo register for
+  the deployment surface (image, compose stacks, CI-validated examples, stale docs) and the eight remaining
+  feature bodies; an item leaves it only by landing with tests or by delegation to a numbered phase.
+- [Phase 116](phase-116-runtime-dns-resolv-conf.md) owns runtime DNS: a `resolv.conf`-seeded resolver with
+  search/`ndots` semantics, start-safe hostnames in every brix directive, one cached re-resolving lookup path
+  (forward and reverse) for `src/`, `client/` and `shared/`, guarded by `tools/ci/check_dns_seam.py`.
 - Duplicate numbers 4, 37, 52, 64, 100, 103, 104 and 105 are intentional.
   Always reference the full filename, not the number alone.
 
@@ -86,6 +92,8 @@ green. Exact names and acceptance commands live in Phase 111.
 | Monitoring compatibility | `phase-112-observability-compatibility-removal.md` | release-window gated removal |
 | LOCK offload | `phase-113-webdav-lock-mutation-offload.md` | decision/measurement gated |
 | Credential lifecycle | `phase-114-credential-artifact-lifecycle.md` | deferred Phase-108 stretch |
+| Deployment surface + remaining bodies | `phase-115-deployment-surface-and-remaining-feature-bodies.md` | PLANNED / OPEN, nine items W1–W9, none started |
+| Runtime DNS from `resolv.conf` | `phase-116-runtime-dns-resolv-conf.md` | IMPLEMENTED 2026-09-06, W1–W6 closed; W5.4 (SRV) and W6 option A recorded as non-goals |
 | Optional hardening | `seccomp-exec-broker-plan.md` | Option B unimplemented |
 
 ## Historical material

@@ -54,15 +54,28 @@ ev_fmt_facts(char *out, size_t outsz, const brix_vfs_stat_t *st)
 }
 
 
+/*
+ * CWD only succeeds into a directory that exists.  RFC 959 requires the 550
+ * for a missing target, and clients build on it: curl --ftp-create-dirs and
+ * globus-url-copy -cd issue MKD only after CWD fails, so a CWD that accepted
+ * any confined name made every STOR into a fresh subdirectory 550 after the
+ * bytes had already been sent (found by the deploy/compose gridftp smoke).
+ */
 ngx_int_t
 brix_ftp_ev_cmd_cwd(ftp_ev_t *fc, const char *arg)
 {
-    char        abs[PATH_MAX];
-    char        logical[PATH_MAX];
-    size_t      rlen;
-    const char *tail;
+    char             abs[PATH_MAX];
+    char             logical[PATH_MAX];
+    size_t           rlen;
+    const char      *tail;
+    brix_vfs_ctx_t   vctx;
+    brix_vfs_stat_t  st;
 
     if (brix_ftp_ev_resolve(fc, arg, abs, sizeof(abs)) != 0) {
+        return brix_ftp_ev_reply(fc, "550 No such directory\r\n");
+    }
+    brix_ftp_ev_vfs_ctx(fc, abs, &vctx);
+    if (brix_vfs_stat(&vctx, &st) != NGX_OK || !st.is_directory) {
         return brix_ftp_ev_reply(fc, "550 No such directory\r\n");
     }
     /* Re-derive the logical form for display / future joins by stripping the

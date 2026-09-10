@@ -76,6 +76,14 @@ BRIXCVMFS_CORE = [
 # (rw/rw_ext + autofs frontends are added per-binary via no_main_frontends.)
 BRIXCVMFS_APP_SPLIT = [
     "client/apps/fs/brixcvmfs_transport.c",
+    # phase-116: the transport's libcurl calls are address-pinned, and the pin
+    # helper is its own TU in BRIXCVMFS_SPLIT — omitting it here links every
+    # live scenario against an undefined cvmfs_curl_perform_pinned.
+    "client/apps/fs/brixcvmfs_curl_pin.c",
+    # phase-116: the pin resolves every name through the client DNS seam, so a site
+    # that compiles it links brix_resolve()/brix_netpref_family() too.
+    "client/lib/net/resolve.c",
+    "client/lib/net/netpref.c",
     "client/apps/fs/brixcvmfs_prefetch.c",
     "client/apps/fs/brixcvmfs_ops.c",
     "client/apps/fs/brixcvmfs_mount.c",

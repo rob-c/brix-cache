@@ -143,7 +143,7 @@ stream {
   }
 }
 ```
-`configs/tls.conf` = gsi.conf with the tls listen port (same directives). `configs/webdav.conf` = the WebDAV `http{}` server block from nginx_shared.conf (ssl_certificate → host cert; `brix_webdav_token_jwks /etc/brix/jwks/jwks.json`; `brix_webdav_cafile /etc/grid-security/certificates/ca.pem`). `configs/s3.conf` = the S3 server block. `configs/metrics.conf`:
+`configs/tls.conf` = gsi.conf with the tls listen port (same directives). `configs/webdav.conf` = the WebDAV `http{}` server block from nginx_shared.conf (ssl_certificate → host cert; `brix_token_jwks /etc/brix/jwks/jwks.json`; `brix_trusted_ca /etc/grid-security/certificates/ca.pem`). `configs/s3.conf` = the S3 server block. `configs/metrics.conf`:
 ```nginx
 worker_processes 1;
 events { worker_connections 256; }

@@ -13,3 +13,11 @@ dependencies:
     repository: file://../topology-role
     alias: gridftp
     condition: gridftp.enabled
+  # phase-115 W5.5: the same role chart in the OTHER direction — brix as a
+  # CLIENT of a real Globus/dCache door.  Off by default, because there is no
+  # such door to ship: the operator names one in values (see `outbound` there).
+  - name: topology-role
+    version: 0.1.0
+    repository: file://../topology-role
+    alias: outbound
+    condition: outbound.enabled

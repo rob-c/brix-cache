@@ -27,6 +27,8 @@
 #include <ngx_core.h>
 #include <openssl/x509.h>
 
+#include "auth/voms/voms_io.h"
+
 /*
  * brix_extract_voms_info — extract VOMS VO/FQAN attributes from an X.509
  * proxy certificate after the GSI chain has been verified.
@@ -51,5 +53,23 @@ ngx_int_t brix_extract_voms_info(ngx_log_t *log, X509 *leaf,
     STACK_OF(X509) *chain, const ngx_str_t *vomsdir, const ngx_str_t *cert_dir,
     char *primary_vo, size_t primary_vo_sz,
     char *vo_list, size_t vo_list_sz);
+
+/*
+ * brix_extract_voms_fqans — the same extraction, with the RAW FQAN CSV added
+ * (out->fqan_list; see voms_io.h).
+ *
+ * 2.0 F20: an identity must be built from the FQANs, not from the VO names.
+ * brix_vo_token_is_safe() rejects '/' so that a VO name is safe as a metric
+ * label and a log field — which also means the VO views can never carry
+ * "Role=production", leaving brix_identity_derive_attrs with an empty
+ * acc_role_csv and the authdb `l` selector (and the XrdAcc `role` template)
+ * matching nothing at all.  Callers that populate a brix_identity_t use this
+ * form and hand the FQAN CSV to brix_identity_set_vos_fqans().
+ *
+ * Returns NGX_OK / NGX_DECLINED / NGX_ERROR exactly as above.
+ */
+ngx_int_t brix_extract_voms_fqans(ngx_log_t *log, const brix_voms_in_t *in,
+    const ngx_str_t *vomsdir, const ngx_str_t *cert_dir,
+    const brix_voms_out_t *out);
 
 #endif /* BRIX_VOMS_HTTP_H */

@@ -32,6 +32,11 @@
 #         4. a bare "brix_…" literal inside the exposition tree (descriptor
 #            tables and name-by-variable macros), minus the config directives
 #            declared with ngx_string(), which share the brix_ prefix
+#         5. `# HELP %s_<suffix>` — a family whose name is composed at runtime
+#            from a prefix argument, as src/net/dns/metrics.c does for the two
+#            DNS caches. Every bare "brix_…" literal in that same file is taken
+#            as a candidate prefix, so the file's own call sites supply the
+#            names the format string withholds
 #       Families whose rows are emitted through a "%s{…}" or "{…}" template
 #       inherit the union of that file's templates: permissive on purpose — the
 #       guard only ever fails on a label no exporter in the declaring file
@@ -112,6 +117,8 @@ _TYPE = re.compile(r"#\s*TYPE\s+(" + _NAME + r")\s+([a-z]+)")
 _ROW = re.compile(r"(" + _NAME + r")\{([^}]*)\}")
 _TEMPLATE = re.compile(r"(?:^|%s)(?:_(bucket|sum|count))?\{([^}]*)\}")
 _BARE = re.compile(r"^" + _NAME + r"$")
+_COMPOSED = re.compile(r"#\s*(?:HELP|TYPE)\s+%s(_[a-z0-9_]+)\b")
+_COMPOSED_TYPE = re.compile(r"#\s*TYPE\s+%s(_[a-z0-9_]+)\s+([a-z]+)")
 _EMITTED_KEY = re.compile(r'([a-z_]+)=\\"')
 _DIRECTIVE = re.compile(r'ngx_string\("(brix_[a-z0-9_]+)"\)')
 _EMIT_CALL = re.compile(r"\bmw_emit_(labeled|scalar)\s*\(")
@@ -221,6 +228,7 @@ def _scan_exposition_file(path, expo_dir, directive_names, state):
     for literal, _offset in literals_:
         _scan_literal(literal, key, expo_dir in path.parents, directive_names, state)
     _record_emit_calls(text, literals_, key, state)
+    _scan_composed(literals_, key, directive_names, state)
 
 
 def _scan_literal(literal, key, in_exposition, directive_names, state):
@@ -239,6 +247,36 @@ def _scan_base_literal(literal, key, state):
         name = match.group(1)
         families.setdefault(name, set()).update(_EMITTED_KEY.findall(match.group(2)))
         home.setdefault(name, key)
+
+
+def _composed_suffixes(literals_):
+    """Suffixes of `# HELP %s_…` / `# TYPE %s_…` — the half of a composed name
+    the format string spells out."""
+    return {suffix for literal, _ in literals_ for suffix in _COMPOSED.findall(literal)}
+
+
+def _composed_kinds(literals_):
+    return {suffix: kind for literal, _ in literals_
+            for suffix, kind in _COMPOSED_TYPE.findall(literal)}
+
+
+def _scan_composed(literals_, key, directive_names, state):
+    """Shape 5: names a file builds from a prefix argument at emission time.
+
+    The format string holds only the suffix, so the family never appears whole
+    in the source. Pair each `%s_<suffix>` with every bare "brix_…" literal in
+    the same file: those literals are the prefixes its own call sites pass, and
+    scoping the pairing to one file keeps the cross product honest.
+    """
+    families, kinds, home, _templates = state
+    suffixes = _composed_suffixes(literals_)
+    typed = _composed_kinds(literals_)
+    prefixes = [lit for lit, _ in literals_
+                if _BARE.match(lit) and lit not in directive_names]
+    for prefix in prefixes:
+        for suffix in suffixes:
+            _declare_family(prefix + suffix, key, families, home)
+            kinds.setdefault(prefix + suffix, typed.get(suffix, ""))
 
 
 def _declare_family(name, key, families, home):

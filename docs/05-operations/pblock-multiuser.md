@@ -14,10 +14,10 @@ already-configured group works immediately, no config reload.
 
 ## 1. The three moving parts
 
-1. **`brix_gridmap`** — maps the authenticated **DN** (GSI proxy) to a **local
+1. **`brix_idmap_gridmap`** — maps the authenticated **DN** (GSI proxy) to a **local
    username**. Resolved worker-side at login whenever a gridmap is configured,
    independent of whether the privileged impersonation broker is running
-   (P80.21) — mapping alone does not require `brix_impersonation map`.
+   (P80.21) — mapping alone does not require `brix_idmap map`.
 2. **Local accounts + groups** — the local username's **unix group
    membership** (`getgrouplist`) supplies the `g`-rule groups.
 3. **`brix_authdb` `g`-rules** — the group→path→permission matrix, evaluated on
@@ -30,7 +30,7 @@ already-configured group works immediately, no config reload.
 stream {
     # DN -> local username. One line per principal:
     #   "/DC=org/DC=example/OU=People/CN=Alice Example" alice
-    brix_gridmap        /etc/grid-security/grid-mapfile;
+    brix_idmap_gridmap        /etc/grid-security/grid-mapfile;
     brix_idmap_min_uid  1000;                 # reserved-id floor (chown guard)
 
     server {

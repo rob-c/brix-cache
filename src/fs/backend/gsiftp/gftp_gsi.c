@@ -1,5 +1,6 @@
 /* OpenSSL GSI initiator for AUTH GSSAPI/ADAT control-channel security. */
 #include "gftp_gsi.h"
+#include "gftp_gsi_internal.h"
 #include "auth/gsi/proxy_req.h"
 #include <openssl/err.h>
 #include <openssl/pem.h>
@@ -22,18 +23,10 @@ enum {
     GFTP_GSI_FAILED
 };
 
-struct gftp_gsi_s {
-    SSL_CTX  *ctx;
-    SSL      *ssl;
-    BIO      *rbio;
-    BIO      *wbio;
-    EVP_PKEY *key;
-    uint8_t  *pem;
-    size_t    pem_len;
-    int       state;
-};
+/* struct gftp_gsi_s lives in gftp_gsi_internal.h — the PROT P data channel
+ * builds the same context from the same proxy (phase-115 W5.1). */
 
-static int
+int
 gftp_ssl_error(gftp_session_t *session, const char *action)
 {
     unsigned long code = ERR_get_error();
@@ -194,7 +187,7 @@ gftp_gsi_load_key(gftp_gsi_t *gsi, const char *path,
     return 0;
 }
 
-static int
+int
 gftp_gsi_setup(gftp_gsi_t *gsi, const char *path, const char *ca_dir,
     gftp_session_t *session)
 {
@@ -479,6 +472,29 @@ gftp_gsi_unwrap(gftp_gsi_t *gsi, const void *input, size_t input_len,
     }
     return 0;
 }
+
+/* Copy the control-channel peer's subject DN into `buf`.  The GSI handshake ran
+ * over the memory BIO pair, so the peer certificate is on the SSL like any other
+ * TLS session; the DN is what a PROT P data channel is pinned against, and an
+ * empty result means "no identity" — which gftp_dc_tls_pin refuses. */
+int
+gftp_gsi_peer_dn(gftp_gsi_t *gsi, char *buf, size_t cap)
+{
+    X509 *peer;
+
+    buf[0] = '\0';
+    if (gsi == NULL || gsi->ssl == NULL) {
+        return -1;
+    }
+    peer = SSL_get_peer_certificate(gsi->ssl);          /* +1 ref */
+    if (peer == NULL) {
+        return -1;
+    }
+    X509_NAME_oneline(X509_get_subject_name(peer), buf, (int) cap);
+    X509_free(peer);
+    return (buf[0] != '\0') ? 0 : -1;
+}
+
 
 void
 gftp_gsi_free(gftp_gsi_t *gsi)

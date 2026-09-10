@@ -415,6 +415,10 @@ Support `.json`/`.tsv`/scripts are covered in §8.
   `phase-112-observability-compatibility-removal.md`;
   `phase-113-webdav-lock-mutation-offload.md`;
   `phase-114-credential-artifact-lifecycle.md`;
+  `phase-115-deployment-surface-and-remaining-feature-bodies.md`;
+  `phase-116-runtime-dns-resolv-conf.md`;
+  `phase-117-erasure-coding-design-spike.md`;
+  `phase-118-security-assessment-toolkit.md`;
   `testsuite-surface-inventory.md` (generated).
 
 ## 8. Non-Markdown support artifacts

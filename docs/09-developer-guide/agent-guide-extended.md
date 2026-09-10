@@ -86,6 +86,59 @@ See [phase-105](../refactor/phase-105-vfs-read-only-mutation-gate.md),
 
 ---
 
+## INVARIANT 13 — one DNS path (phase 116, full text)
+
+**Every name is resolved at RUNTIME, through one path, and a name that does not
+resolve never stops the server starting.** A blocking libc lookup costs the
+resolver timeout wherever it runs: on the event loop the worker goes dark, at
+configuration time nginx refuses to start, in a client the tool hangs.
+
+- **The path.** Server: `brix_dns_resolve()` (async, event loop),
+  `brix_dns_resolve_sync()` (thread pool only), `brix_dns_bridge_resolve()`
+  when a blocking caller needs the loop's resolver, `brix_dns_lookup_cached()` /
+  `brix_dns_cache_probe()` for a non-blocking peek, `brix_dns_parse_literal()`
+  when the peer is numeric by protocol. Reverse: `brix_dns_reverse_cached()`
+  on the loop, `brix_dns_reverse_sync()` in a thread, warmed by
+  `brix_dns_reverse_prefetch()`. Client: `brix_resolve()`
+  (`client/lib/net/resolve.c`). All of it takes a `brix_dns_policy_t` — the
+  block's `brix_resolver` — never a global.
+- **The seams — three files, and only three.** Forward
+  `src/net/dns/resolve_thread.c`, reverse `src/net/dns/reverse.c`, client
+  `client/lib/net/resolve.c`. Nowhere else under `src/`, `client/`, `shared/`
+  may call `getaddrinfo`, `getaddrinfo_a`, `gethostbyname`,
+  `gethostbyname2`, `gethostbyaddr` (with or without the `_r` suffix),
+  `res_query`, `res_nquery`, `res_search`, `res_nsearch`, `getnameinfo`,
+  or include `<netdb.h>`.
+  `ngx_inet_resolve_host()` is banned outright — it is the config-time blocking
+  resolve this invariant exists to kill.
+- **The hidden resolvers count too.** `ngx_parse_url()` ⇒ the same file sets
+  `no_resolve = 1` and resolves through the driver afterwards. `CURLOPT_URL` ⇒
+  the transfer is address-pinned (`brix_dns_curl_pin` /
+  `brix_dns_curl_perform_pinned` / `tpc_curl_secure` /
+  `cvmfs_curl_perform_pinned`) so libcurl gets `CURLOPT_RESOLVE` instead of
+  resolving; `CURLOPT_FOLLOWLOCATION` is banned because each redirect hop would
+  resolve behind the pin — the pin helpers walk redirects themselves.
+  `BIO_new_connect` / `BIO_set_conn_hostname` live only in the OCSP transport,
+  whose hostport is numeric because it was pinned upstream.
+- **Startup never depends on DNS.** A name that cannot be resolved registers a
+  target (`brix_dns_target_register()`), the configuration loads, and the
+  target is retried on the `brix_dns_retry` backoff (default `1s 30s`) until it
+  answers; consumers get `NGX_DECLINED`/`resolving` in the meantime, never a
+  fatal. `brix_resolver auto` seeds the file-derived resolver into unset nginx
+  resolver slots only — an explicit `resolver` always wins.
+- **Answers are cached, bounded, per worker.** Forward cache keyed
+  `(name, af)` with port-less addresses, reverse cache keyed by address; both
+  capped by `brix_dns_cache_max` (default 4096) with LRU eviction, a negative
+  TTL, and a pending marker so one miss starts one fill.
+- **Guard `tools/ci/check_dns_seam.py`** — no waiver marker, no backlog file, no
+  grandfathered site; a new call site is a regression. `--root` scans a copy
+  (the guard's own negatives damage a `tmp_path` tree, never the real one).
+
+See [phase-116](../refactor/phase-116-runtime-dns-resolv-conf.md),
+[src/net/dns/README.md](../../src/net/dns/README.md).
+
+---
+
 ## BUILD GOVERNANCE (full text)
 
 **The module build is governed by two things — and only two** (the client CLIs are
@@ -393,7 +446,7 @@ TEST_CROSS_BACKEND=nginx pytest tests/<test-file>.py -v # cross-backend (nginx v
 **Logs:** `/tmp/xrd-test/logs/` — `error.log`, `brix_access*.log`, `http_webdav_access.log`, `s3_access.log`
 
 **`tests/test_ci_guards.py` — always run it with `-m "not slow"`** (that is what the
-PR gate does; `run_suite.sh --pr` deselects the same three). Its slow tier is nightly
+PR gate does; `operator_runtime suite --pr` deselects the same three). Its slow tier is nightly
 and *mutates the shared build tree*: `test_ci_coverage_runner_green` drives
 `tools/ci/coverage.py` → `operator_build build_coverage`, which re-runs `./configure
 --with-cc-opt='--coverage -O0 -g'` in `/tmp/nginx-1.28.3` and `make clean`s `client/`,

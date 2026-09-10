@@ -210,7 +210,7 @@ def _selected_tests_do_not_need_server(config) -> bool:
         "test_loss_sweep_gsi.py",
         "test_tools_resilience.py",
         "test_net_resilience.py",
-        "test_official_brix_resilience.py",
+        "test_official_xrootd_resilience.py",
         "test_phase0_guardrails.py",
         "test_phase1_commodity_libraries.py",
         "test_plan6_guardrails.py",

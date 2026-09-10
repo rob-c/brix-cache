@@ -206,6 +206,14 @@
       0,
       0,
       NULL },
+    { ngx_string("brix_checksum_plugin"),  /* http main: <name> <path.so> [parms];
+                                            * the process-wide registry the
+                                            * stream table also fills (2.0 F8) */
+      NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE23,
+      brix_checksum_plugin_directive,
+      0,
+      0,
+      NULL },
     { ngx_string("brix_token_cache"),      /* zone=<name> */
       BRIX_HTTP_ALL_CONF | NGX_CONF_TAKE1,
       brix_token_cache_directive,
@@ -249,10 +257,42 @@
      * brix_cache_meta, brix_cache_slice_size, brix_cache_global_cas,
      * brix_cache_passthrough, brix_cache_passthrough_max, brix_cache_prefetch,
      * brix_cache_prefetch_window, brix_cache_uvkeep,
+     * brix_cache_serve_while_filling,
      * brix_cache_only_if_cached, brix_vfs_spill_path, brix_vfs_spill_max,
      * brix_durable_publish, brix_lock_enforcement, brix_authz_backstop. */
     BRIX_TIER_DIRECTIVES("brix_", ngx_http_brix_common_conf_t,
                          BRIX_HTTP_ALL_CONF, NGX_HTTP_LOC_CONF_OFFSET),
+
+    /* phase-116: runtime DNS. brix_resolver seeds this scope's nginx resolver
+     * from resolv.conf (fills, never overrides an explicit `resolver`) and
+     * drives every brix target's runtime (re)resolution. */
+    { ngx_string("brix_resolver"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_1MORE,
+      brix_conf_set_resolver,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("brix_dns_retry"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE2,
+      brix_conf_set_dns_retry,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("brix_dns_cache_max"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      brix_conf_set_dns_cache_max,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("brix_dns_status_zone"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.dns.status_zone),
+      NULL },
 
     /* Durable async backend-op queue (brix_backend_async[_batch|_wait]) — shared
      * with the root:// stream plane, adopted into each http protocol's `common`. */

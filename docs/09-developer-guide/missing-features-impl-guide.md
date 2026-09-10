@@ -1,5 +1,29 @@
 # Missing Features — Historical Implementation Guide
 
+> **Status (2026-09-09 — 2.0).** A historical implementation guide, snapshot updated
+> 2026-09-06. For what 2.0 ships, what it deliberately does not, and what is still open,
+> use the 2.0 register,
+> [`release-2.0-readiness.md`](../10-reference/release-2.0-readiness.md) — its parity
+> rows supersede any ⚠️/❌ below. Axis (e) of that register closed **F1–F20** (the
+> thirteen accepted-only `brix_frm_*` knobs and the durable stage journal,
+> `stagemsg`/StageEvents, the OssArc dataset seal, the per-space purge-policy grammar
+> with an external policy program, `pfc.urlcgi` + PSS forwarding, the RAM-tier metric
+> rows, native `root://` TPC **multihop** delegation and multi-stream *pull*, the site
+> checksum plugin loader, the sss v2 endorsement/proxied-credential wave, the
+> health-check family, `brix_mirror_exclude_opcodes` read/readv, the four metric
+> wishlist categories, native `root://` TPC **push** with multi-stream on it, the
+> `cms.fsxeq` operator program for forwarded namespace ops, and the `ofs.tpc` identity
+> matrix layered inside the host-plane TPC confinement, and the `xrd.tlsca` CRL-scope
+> and verification-log residuals — whose lab also found and fixed **F22**, a CRL a
+> worker could not read silently disarming revocation — and the native authdb residual
+> grammar: the compound `u g p a v l` selector set, positional VOMS vorg+role pairing,
+> and the `x` stage privilege) and, with **F21** — full per-user POSIX identity across the VFS seam, whose audit
+> found the posix plane already impersonating at the `beneath`/`confined_canon` seam
+> and closed the one un-brokered verb, `RENAME_EXCHANGE` — landed on 2026-09-10,
+> leaves nothing open: axis (e) is closed in full at F1–F22. A row below that names a closed item is stale by
+> construction; this file is kept as a historical snapshot and is no longer maintained
+> row by row.
+
 Historical implementation guide for gaps that were tracked while moving this
 module toward drop-in XRootD server coverage. For current reviewer-facing gaps,
 prefer [`../10-reference/gaps-vs-xrootd.md`](../10-reference/gaps-vs-xrootd.md)
@@ -8,12 +32,12 @@ and [`../10-reference/source-verified-xrootd-comparison.md`](../10-reference/sou
 Items below preserve the implementation notes for completed work and remaining
 edge cases.
 
-## Implementation Snapshot (updated 2026-06-14)
+## Implementation Snapshot (updated 2026-09-06)
 
 | Item | Status | Notes |
 |---|---|---|
-| 1. Outbound upstream auth | ✅ Partial complete | Transparent upstream bootstrap supports TLS upgrade and ztn token `kXR_authmore`; cache/write-through origin supports optional TLS but still uses anonymous login and fails on `kXR_authmore`. Transparent-upstream GSI and credentialed cache-origin auth remain. Native TPC outbound ztn/GSI is implemented separately in `src/tpc/gsi/gsi_outbound_*`. |
-| 2. Prepare/stage tape dispatch | ✅ Implemented / partial parity | FRM durable queue, real request IDs, cancel/QPrep state, and Tape REST gateway exist; full upstream XrdFrm/MSS parity remains site-specific. Legacy `brix_prepare_command` fallback remains for FRM-off mode. |
+| 1. Outbound upstream auth | ✅ Complete (phase 115 W2.4, 2026-09-05) | Transparent upstream bootstrap supports TLS upgrade, ztn token auth and GSI (`brix_upstream_x509_proxy` / `brix_upstream_x509_key`), choosing the credential from the server's login advert; the cache/write-through origin authenticates with the `brix_credential` named by `brix_storage_credential` (x509 proxy, bearer, sss, krb5). All three outbound GSI clients (upstream, cache origin, native TPC `src/tpc/gsi/gsi_outbound_*`) share the kernels in `src/auth/gsi/` and `src/auth/crypto/gsi_verify.c`. |
+| 2. Prepare/stage tape dispatch | ✅ Implemented / partial parity | FRM durable queue, real request IDs, cancel/QPrep state, and Tape REST gateway exist; full upstream XrdFrm/MSS parity remains site-specific. Legacy `brix_prepare_command` fallback remains for FRM-off mode. Phase-115 added the dataset archiver (W3.1, `?arc=<depth>` → one stored ZIP per dataset) and the online-buffer purge engine (W3.2); the W3.1 write-path burndown fixed an inverted residency verdict, an undelivered async waiter, a duplicated stage record on `kXR_wait` retry, a false `CAP_RANDOM_WRITE`, a buffer-local ABSENT precondition and a staged abort that never reached the driver. Disk→tape migration policy is still delegated to the MSS backend. |
 | 3. JWKS hot refresh | ✅ Implemented | File mtime polling via `brix_token_jwks_refresh_interval`. |
 | 4. PROPFIND `Depth: infinity` | ✅ Implemented | Recursive walk with a 10,000-entry cap. |
 | 5. CMS escalation tests | ✅ Implemented | `kYR_try` and true three-tier escalation coverage. |
@@ -31,9 +55,9 @@ edge cases.
 
 ## 1. Outbound upstream authentication (`kXR_authmore` + `kXR_gotoTLS`)
 
-**Status:** ✅ IMPLEMENTED for transparent-upstream TLS + ztn auth; native TPC
-ztn/GSI is implemented separately; transparent-upstream GSI and credentialed
-cache-origin auth remain follow-ups.
+**Status:** ✅ IMPLEMENTED — transparent-upstream TLS, ztn and GSI auth
+(phase 115 W2.4); credentialed cache-origin auth (x509 proxy / bearer / sss /
+krb5); native TPC ztn/GSI through its own outbound path.
 **Impact:** Important for transparent upstream redirector and cache-origin access.
 Native TPC is no longer blocked on this path because it has its own credentialed
 outbound implementation in `src/tpc/`.
@@ -144,13 +168,24 @@ supported and triggers an abort.
 - `test_upstream_gotorls_no_tls_configured_aborts` — `kXR_gotoTLS` but
   `brix_upstream_tls` is off → `kXR_error` to client (security negative).
 
-### Phase 3 — Transparent-upstream / cache-origin credentialed auth
+### Phase 3 — Transparent-upstream / cache-origin credentialed auth ✅ IMPLEMENTED
 
-Still open for transparent-upstream GSI and for credentialed cache/write-through
-origin bootstrap. Native TPC already uses `src/tpc/gsi/gsi_outbound_certreq.c`,
-`gsi_outbound_common.c`, and `gsi_outbound_exchange.c` for the DH + X.509
-exchange. A future upstream/cache implementation should reuse or extract those
-helpers instead of reimplementing GSI.
+Landed 2026-09-05 (phase 115 W2.4, `docs/refactor/phase-115-deployment-surface-and-remaining-feature-bodies.md`).
+
+- Transparent upstream: `src/net/upstream/auth_gsi.c` runs the two-round
+  XrdSecgsi exchange (certreq → kXGS_cert verify → cert response) with the
+  credential from `brix_upstream_x509_proxy` (+ optional
+  `brix_upstream_x509_key`); `src/net/upstream/bootstrap.c` picks gsi or ztn
+  from the `&P=` advert in the kXR_ok login reply (real servers never answer
+  kXR_authmore at login — the earlier connector was blind to that advert).
+- Cache / write-through origin: `src/fs/cache/origin_auth_gsi.c` (gsi) and
+  `origin_auth.c` (ztn, sss, krb5), credential from the `brix_credential`
+  block named by `brix_storage_credential`.
+- Shared kernels, so no GSI client reimplements another: `src/auth/gsi/cred_load.c`
+  (PEM + key loaders), `brix_gsi_verify_peer_leaf` (`src/auth/crypto/gsi_verify.c`,
+  1 / 0 / -1 so credentialed peers fail closed), `brix_gsi_build_certreq_from_parms`
+  and `brix_gsi_build_cert_response` (`src/auth/gsi/gsi_core.c`). Native TPC
+  (`src/tpc/gsi/gsi_outbound_*`) uses the same three.
 
 ### Tests (for Phase 1 & 2 — ✅ WRITTEN)
 
@@ -162,11 +197,16 @@ Phase 1 and 2 tests are in `tests/test_a_upstream_redirect.py::TestUpstreamAuth`
 - `test_upstream_gotorls_no_tls_configured_aborts` — `kXR_gotoTLS` set but
   `brix_upstream_tls` is off → `kXR_error` (security negative).
 
-Remaining tests to add (Phase 3 and cache integration):
-- `tests/test_cache.py` — `test_cache_fill_from_tls_upstream`: nginx cache node
-  with `brix_upstream_tls on` fetching from a TLS-only origin.
-- Security negative: mock that issues `kXR_authmore` requesting GSI when no
-  credential configured → nginx aborts without crashing.
+Phase 3 tests:
+- `tests/test_phase115_upstream_gsi.py` — a real GSI-only upstream behind
+  credential-variant fronts (proxy, cert+key, no credential, rogue trust
+  anchor, untrusted proxy, no trust anchor) plus a scripted mock upstream for
+  the advert parser, the abort paths and the auth-phase body cap.
+- `tests/test_phase115_cache_origin_gsi.py` — cache fill through a GSI-only
+  origin (byte-exact, persisted), credential-less fail-closed, rogue trust
+  anchor refused before the proxy is presented.
+- `tests/test_krb5_cache_origin_e2e.py` — the krb5 origin leg with a captured
+  delegated TGT.
 
 ---
 
@@ -175,7 +215,20 @@ Remaining tests to add (Phase 3 and cache integration):
 **Status:** ✅ IMPLEMENTED for the module's FRM/Tape REST design; partial versus
 the full upstream XrdFrm/MSS ecosystem.
 **Impact:** Tape-backed sites must validate real stage/cancel/evict/purge/recall
-semantics against their storage manager.
+semantics against their storage manager. Since phase-115 W3.2 (2026-09-05) the
+online buffer behind a `tape://` tier is reaped by the module itself
+(`src/fs/backend/frm/sd_frm_purge.c`: `brix_frm_purge_watermark` /
+`brix_frm_purge_max_bytes` / `brix_frm_purge_interval`, worker-0 timer in
+`src/core/config/process_frm_purge.c`); a site no longer needs a cron over
+`<base>/.online`.
+Since phase-115 W3.1 (2026-09-06) a `tape://` tier can also aggregate:
+`tape://<adapter>/<base>?arc=<depth>` wraps the adapter in the dataset archiver
+(`src/fs/backend/frm/sd_frm_arc.c`) — the first `<depth>` path components form a
+dataset whose members stay online until its `.brix-dataset-complete` marker is
+written, then reach tape as ONE stored ZIP (`<ds>.brixarc.zip`, `unzip`-readable)
+with a sidecar index for recall-free stat/dirlist and member-granular recall;
+the OssArc "backup queue" half is not built — sealing is synchronous in the
+marker's staged commit.
 
 ### Problem
 
@@ -738,7 +791,7 @@ base and delta CRLs during chain verification.
 
 **Status:** ✅ IMPLEMENTED — AIA responder queries and TLS stapling callback  
 **Implemented in:** `src/auth/crypto/ocsp.c`, `src/auth/crypto/ocsp.h`, `src/auth/gsi/auth.c`, `src/protocols/root/session/tls_config.c`  
-**New directives:** `brix_ocsp_enable`, `brix_ocsp_soft_fail`, `brix_ocsp_stapling`  
+**New directives:** `brix_ocsp`, `brix_ocsp_soft_fail`, `brix_ocsp_stapling`  
 **Tests:** `tests/test_ocsp.py` (18/18 passing)
 
 CRL-based revocation checking requires downloading and refreshing CRL files.
@@ -752,7 +805,7 @@ Two sub-features were implemented:
    extension via `X509_get1_ocsp()`, builds a nonce-protected `OCSP_REQUEST`,
    POSTs it to the CA's responder via `BIO_new_connect()`, verifies the
    response signature, and rejects the cert if status is `REVOKED`. Controlled
-   by `brix_ocsp_enable on/off` (default `off`) and `brix_ocsp_soft_fail
+   by `brix_ocsp on/off` (default `off`) and `brix_ocsp_soft_fail
    on/off` (default `on` — network errors do not block auth).
 
 2. **OCSP stapling** (server side): `brix_ocsp_staple_fetch()` fetches a DER

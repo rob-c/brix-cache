@@ -146,7 +146,7 @@ brix_kv_configure(ngx_conf_t *cf, brix_kv_t *kv, ngx_str_t *name,
 
     if (brix_kv_nzones >= BRIX_KV_MAX_ZONES) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "too many brix_kv zones (max %d)",
+                           "too many brix_kv_zone zones (max %d)",
                            BRIX_KV_MAX_ZONES);
         return NGX_ERROR;
     }

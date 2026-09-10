@@ -19,6 +19,8 @@ and `contrib/grafana-dashboard.json`.
 | Worker won't start: `libbz2.so.1.0: cannot open shared object file` | bzip2 SONAME on the host | The binary needs `libbz2.so.1.0`; some distros only ship `libbz2.so.1`. Install `bzip2-libs`, or symlink `libbz2.so.1.0 → libbz2.so.1`. See [upgrade-procedure](upgrade-procedure.md) |
 | `nginx -t`: *path "..." must be a regular file* / *directory* | A cert/CA directive points at the wrong kind of node | `brix_*_cafile` wants a **file** (CA bundle); `brix_*_cadir` wants a **directory** |
 | `stream` block rejected | `stream{}` placed inside `http{}` (e.g. dropped into `conf.d/`) | `stream{}` is **top-level** in `nginx.conf`; only HTTP server blocks belong in `conf.d/`. See `contrib/brix-cache.conf.example` |
+| `nginx -t`: *cannot build the GSI trust store from trusted_ca "..." (CRL path "...")*, or *brix_webdav: failed to build cached CA store* — preceded by *brix_pki: cannot open CRL file "..."* | Read permission on **every** CRL under the `brix_crl` path, for the worker user | One CRL the worker cannot read fails the whole load: `chmod a+r` it (or remove it if it is stale junk). A CRL that is *present but unreadable* is refused in every `brix_crl_mode`, on purpose — the alternative was a silently disarmed revocation check. See [certificate-rotation](certificate-rotation.md) |
+| `nginx -t`: *brix_crl path "..." failed permission check* | The same thing, with `brix_crl` naming the CRL **file** directly | Identical cause and fix; only the message differs, because this one is caught by the config-time path check |
 
 ## Auth failures
 
@@ -26,7 +28,7 @@ and `contrib/grafana-dashboard.json`.
 |---|---|---|
 | All tokens rejected after a key roll | JWKS file actually updated on disk + reload interval | JWKS is hot-reloaded by mtime poll (`brix_token_jwks_refresh_interval`); no nginx reload needed. See [certificate-rotation](certificate-rotation.md) |
 | Tokens rejected: audience/issuer mismatch | `brix_token_audience` / `brix_token_issuer` vs. the token's `aud`/`iss` | Audience may be an array in the token — both single and array `aud` are accepted |
-| x509 / proxy cert rejected | CA dir + CRL freshness | `brix_webdav_cadir` / `brix_trusted_ca`; refresh CRLs (`brix_crl_reload`). See [certificate-rotation](certificate-rotation.md) |
+| x509 / proxy cert rejected | CA dir + CRL freshness | `brix_trusted_ca_dir` / `brix_trusted_ca`; refresh CRLs (`brix_crl_reload`). See [certificate-rotation](certificate-rotation.md) |
 | Auth-rejection spike in metrics | `rate(brix_webdav_auth_total{result="rejected"}[5m])`, same for `brix_s3_auth_total` | Expired token/CRL, JWKS misconfig, or abuse — correlate with source IP in the access log |
 | S3 `SignatureDoesNotMatch` | Clock skew, region, or `brix_s3_bucket` mismatch | SigV4 is time-sensitive; check host clock and the client's region/endpoint |
 
@@ -77,7 +79,7 @@ config file and line of the block it came from:
 ```
 xrootd: WebDAV (davs://) endpoint ready — export "/srv/data" (read-write), auth: optional (anonymous allowed) in nginx.conf:25
 xrootd:   credentials accepted: x509/GSI-proxy bearer-token
-xrootd:   NOTE: x509/GSI is accepted but no CRL is configured — REVOKED certificates will be ACCEPTED (set brix_webdav_crl)
+xrootd:   NOTE: x509/GSI is accepted but no CRL is configured — REVOKED certificates will be ACCEPTED (set brix_crl)
 ```
 
 It also calls out valid-but-risky settings so they aren't discovered the hard

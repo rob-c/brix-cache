@@ -35,7 +35,7 @@ char *brix_merge_srv_storage(ngx_conf_t *cf,
 
 /* Third-party copy (TPC) area: local/private allowances, key TTL, transfer
  * caps + abandoned-slot reaper age, SSI/CNS, and the outbound credentials. */
-void brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
+char *brix_merge_srv_tpc(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev);
 
 /* Cluster & sessions area: manager/redirector mode, write recovery + staged

@@ -44,7 +44,7 @@ Attackers may attempt to bypass scope checks or exploit weak signature verificat
 | Priority | Feature | Target |
 |---|---|---|
 | **Critical** | `openat(2)` transition | `src/fs/path/` |
-| **High** | Fuzzing framework | `tests/fuzzing/` |
+| **High** | Fuzzing framework | `tests/fuzz/` — **DELIVERED**: 14 libFuzzer harnesses + seeded corpora, driven by `tests/test_cmd_fuzz_all.py`, `tests/test_fuzz_carved_parsers.py`, `tests/test_fuzz_binary_conformance.py`, `tests/test_fuzz_http_conformance.py`; corpus write-back guarded by `tests/test_ci_fuzz_corpus_writeback.py` |
 | **High** | Walk depth/count limits | `src/protocols/root/query/` |
 | **Medium** | State-machine enforcement | `src/protocols/root/handshake/` |
 | **Medium** | Rate-limiting by ID | `src/core/config/` |

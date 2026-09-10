@@ -247,9 +247,7 @@ prepare_scan_paths(brix_ctx_t *ctx, ngx_connection_t *c, prepare_scan_t *sc)
             out_resolved = NULL;
         }
 
-        rc = brix_prepare_check_path(ctx, c, sc->conf, line, line_len,
-                                       (sc->options & kXR_noerrs) != 0,
-                                       &sc->missing, out_resolved);
+        rc = brix_prepare_check_path(ctx, c, sc, line, line_len, out_resolved);
         if (rc != NGX_OK) {
             return rc;   /* NGX_DONE (response sent) or a hard error */
         }

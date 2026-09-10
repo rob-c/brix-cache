@@ -4,7 +4,7 @@ tests/test_frm_phase4_engines.py
 Phase 35 / Phase 4 engines — F3 (residency-cmd oracle) + F5 (checksum-on-stage),
 end-to-end through the stage agent.
 
-F3: with brix_frm_residency_cmd set, the stage agent consults the oracle BEFORE
+F3: with a residency oracle installed, the stage agent consults it BEFORE
     copying. Oracle exit 0 = "already resident" → the copycmd is skipped and the
     open is served from disk (proven: the served bytes are the on-disk content and
     the fake-MSS audit log records no copy).

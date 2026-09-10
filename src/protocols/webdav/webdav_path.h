@@ -50,4 +50,30 @@ char *webdav_escape_xml_text(ngx_pool_t *pool, const char *src);
  * NGX_ERROR on allocation failure. */
 ngx_int_t webdav_add_cors_headers(ngx_http_request_t *r);
 
+
+/* 1 iff `dst_path` names the same object as `src_path`, so a COPY/MOVE onto it
+ * must be refused (RFC 4918 §9.8.5 / §9.9.4 -> 403).  Call it only when the
+ * destination exists; both stats come from webdav_{copy,move}_probe.
+ *
+ * Path equality is the arm that always holds.  (dev,ino) equality additionally
+ * catches a hardlink reached under a second name — but only where the backend
+ * HAS inodes, and a REMOTE namespace has none: gsiftp, http, s3 and xroot never
+ * fill brix_vfs_stat_t.ino/.dev, so every path on such an export stats as
+ * (0,0).  An inode-only guard therefore read "source and destination are the
+ * same file" for EVERY destination that already existed, and answered 403 to
+ * every ordinary overwrite on every remote-backed export.  The inode arm is
+ * consulted only when the backend supplied an identity to compare. */
+static ngx_inline int
+brix_webdav_same_object(const char *src_path, const char *dst_path,
+    const struct stat *src_sb, const struct stat *dst_sb)
+{
+    if (ngx_strcmp(src_path, dst_path) == 0) {
+        return 1;
+    }
+    if (src_sb->st_ino == 0 && src_sb->st_dev == 0) {
+        return 0;                          /* no backend identity to compare */
+    }
+    return src_sb->st_ino == dst_sb->st_ino && src_sb->st_dev == dst_sb->st_dev;
+}
+
 #endif /* NGX_HTTP_BRIX_WEBDAV_PATH_H */

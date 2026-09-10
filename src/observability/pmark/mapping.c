@@ -20,10 +20,10 @@
 
 #include "pmark.h"
 #include "core/compat/cstr.h"
+#include "net/dns/dns.h"       /* async collector resolution (phase-116) */
 
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netdb.h>
 #include <string.h>
 
 
@@ -104,27 +104,35 @@ pmark_extract_role(const char *vo_csv, char *out, size_t outlen)
 }
 
 
-/* Resolve a "host[:port]" string to a sockaddr (default port 10514). */
-static ngx_int_t
-pmark_resolve_dest(ngx_str_t *spec, brix_pmark_dest_t *dst, ngx_log_t *log)
-{
-    char             host[256];
-    char             port[16];
-    u_char          *colon, *end;
-    size_t           hlen;
-    struct addrinfo  hints, *res;
-    int              rc;
+/* One in-flight firefly collector resolution (phase-116: async, never
+ * getaddrinfo on the event loop).  Lives in the worker's cycle pool for the
+ * worker's lifetime, like the dest_sa array it feeds. */
+typedef struct {
+    brix_dns_req_t      req;
+    brix_pmark_conf_t  *pm;
+    ngx_str_t           spec;
+    u_char              host[256];
+} pmark_dns_t;
 
-    if (spec->len == 0 || spec->len >= sizeof(host)) {
+
+/* Split "host[:port]" (default port 10514).  For a bracketed IPv6 literal
+ * "[::1]:port" the colon after ']' is the separator; otherwise the last
+ * colon is.  Returns NGX_ERROR on an over-long or malformed spec. */
+static ngx_int_t
+pmark_split_dest(ngx_str_t *spec, u_char *host, size_t hostsz,
+    in_port_t *port)
+{
+    u_char     *colon, *end, *rb;
+    size_t      hlen;
+    ngx_int_t   n;
+
+    if (spec->len == 0 || spec->len >= hostsz) {
         return NGX_ERROR;
     }
     end = spec->data + spec->len;
-
-    /* Split host[:port].  For a bracketed IPv6 literal "[::1]:port" the colon
-     * after ']' is the separator; otherwise the single/last colon is. */
     colon = ngx_strlchr(spec->data, end, ':');
     if (spec->data[0] == '[') {
-        u_char *rb = ngx_strlchr(spec->data, end, ']');
+        rb = ngx_strlchr(spec->data, end, ']');
         colon = (rb && rb + 1 < end && rb[1] == ':') ? rb + 1 : NULL;
         hlen = rb ? (size_t) (rb - spec->data - 1) : spec->len;
         ngx_memcpy(host, spec->data + 1, hlen);
@@ -135,33 +143,76 @@ pmark_resolve_dest(ngx_str_t *spec, brix_pmark_dest_t *dst, ngx_log_t *log)
     host[hlen] = '\0';
 
     if (colon && colon + 1 < end) {
-        size_t plen = (size_t) (end - (colon + 1));
-        if (plen >= sizeof(port)) {
+        n = ngx_atoi(colon + 1, (size_t) (end - (colon + 1)));
+        if (n <= 0 || n > 65535) {
             return NGX_ERROR;
         }
-        ngx_memcpy(port, colon + 1, plen);
-        port[plen] = '\0';
+        *port = (in_port_t) n;
     } else {
-        ngx_snprintf((u_char *) port, sizeof(port), "%d%Z", BRIX_PMARK_FF_PORT);
+        *port = BRIX_PMARK_FF_PORT;
     }
+    return NGX_OK;
+}
 
-    ngx_memzero(&hints, sizeof(hints));
-    hints.ai_family   = AF_UNSPEC;
-    hints.ai_socktype = SOCK_DGRAM;
 
-    rc = getaddrinfo(host, port, &hints, &res);
-    if (rc != 0 || res == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-            "pmark: cannot resolve firefly dest \"%V\": %s",
-            spec, gai_strerror(rc));
+/* Resolution landed: append the collector (first answer) to dest_sa. */
+static void
+pmark_dest_resolved(brix_dns_req_t *req)
+{
+    pmark_dns_t        *d = req->data;
+    brix_pmark_dest_t  *dst;
+
+    if (req->rc != NGX_OK || req->naddrs == 0) {
+        ngx_log_error(NGX_LOG_WARN, req->log, 0,
+            "pmark: cannot resolve firefly dest \"%V\": %s", &d->spec,
+            req->error ? req->error : "unknown");
+        return;
+    }
+    dst = ngx_array_push(d->pm->dest_sa);
+    if (dst == NULL) {
+        return;
+    }
+    ngx_memzero(dst, sizeof(*dst));
+    ngx_memcpy(&dst->ss, &req->addrs[0].ss, req->addrs[0].len);
+    dst->len    = req->addrs[0].len;
+    dst->family = dst->ss.ss_family;
+}
+
+
+/* Start resolving one "host[:port]" collector spec (UDP).  A literal lands
+ * synchronously; a hostname lands from the driver later — fireflies for a
+ * collector that is still resolving are dropped, never blocked on. */
+static ngx_int_t
+pmark_resolve_dest(ngx_str_t *spec, brix_pmark_conf_t *pm, ngx_pool_t *pool,
+    ngx_log_t *log)
+{
+    pmark_dns_t  *d;
+    in_port_t     port;
+
+    d = ngx_pcalloc(pool, sizeof(pmark_dns_t));
+    if (d == NULL) {
         return NGX_ERROR;
     }
-
-    ngx_memzero(dst, sizeof(*dst));
-    ngx_memcpy(&dst->ss, res->ai_addr, res->ai_addrlen);
-    dst->len    = res->ai_addrlen;
-    dst->family = res->ai_family;
-    freeaddrinfo(res);
+    if (pmark_split_dest(spec, d->host, sizeof(d->host), &port) != NGX_OK) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "pmark: malformed firefly dest \"%V\"", spec);
+        return NGX_OK;
+    }
+    d->pm = pm;
+    d->spec = *spec;
+    d->req.name.data = d->host;
+    d->req.name.len = ngx_strlen(d->host);
+    d->req.port = port;
+    d->req.af = BRIX_AF_AUTO;
+    d->req.socktype = SOCK_DGRAM;
+    d->req.log = log;
+    d->req.handler = pmark_dest_resolved;
+    d->req.data = d;
+    if (brix_dns_resolve(&d->req) != NGX_OK) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "pmark: cannot start resolving firefly dest \"%V\": %s", spec,
+            d->req.error ? d->req.error : "unknown");
+    }
     return NGX_OK;
 }
 
@@ -269,10 +320,10 @@ pmark_resolve_act_rules(brix_pmark_conf_t *pm, ngx_array_t *defs,
 }
 
 
-/* Resolve firefly collector "host[:port]" specs to sockaddrs.  Unresolvable
- * specs are skipped (pmark_resolve_dest already WARNs); "origin" is handled
- * per-flow against the client peer, not here.  NGX_ERROR only on allocation
- * failure. */
+/* Start resolving the firefly collector "host[:port]" specs (phase-116:
+ * async; each answer is appended to dest_sa when it lands).  Unresolvable
+ * specs are skipped with a WARN; "origin" is handled per-flow against the
+ * client peer, not here.  NGX_ERROR only on allocation failure. */
 static ngx_int_t
 pmark_resolve_dests(brix_pmark_conf_t *pm, ngx_pool_t *pool, ngx_log_t *log)
 {
@@ -291,18 +342,13 @@ pmark_resolve_dests(brix_pmark_conf_t *pm, ngx_pool_t *pool, ngx_log_t *log)
         return NGX_ERROR;
     }
     for (i = 0; i < pm->firefly_dest->nelts; i++) {
-        brix_pmark_dest_t d;
         if (spec[i].len == 6
             && ngx_strncmp(spec[i].data, "origin", 6) == 0)
         {
             continue;
         }
-        if (pmark_resolve_dest(&spec[i], &d, log) == NGX_OK) {
-            brix_pmark_dest_t *dst = ngx_array_push(pm->dest_sa);
-            if (dst == NULL) {
-                return NGX_ERROR;
-            }
-            *dst = d;
+        if (pmark_resolve_dest(&spec[i], pm, pool, log) != NGX_OK) {
+            return NGX_ERROR;
         }
     }
     return NGX_OK;

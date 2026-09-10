@@ -49,6 +49,15 @@ brix_fill_classify(ngx_int_t fill_rc, int err, brix_fill_retry_t *rs)
          * the client hangs. Definitive: the client gets a terminal error. */
         return BRIX_FILL_DEFINITIVE;
     }
+    if (brix_fill_store_refused(err)) {
+        /* The STORE cannot hold the object (sd_ram_staged_open: capacity <
+         * declared size; a full posix store). Retrying asks the same store
+         * for the same room while every waiter hangs, then reports a 504 that
+         * blames an origin which answered fine. Definitive: the waiters are
+         * re-entered to read the object from the source (a sick cache never
+         * fails a read, section 16). */
+        return BRIX_FILL_DEFINITIVE;
+    }
     if (err == EBADMSG) {
         /* digest MISMATCH: corruption is often path-local — try each
          * remaining endpoint once, then give up definitively (502 — the

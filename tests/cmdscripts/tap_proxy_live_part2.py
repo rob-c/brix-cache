@@ -152,6 +152,13 @@ def _proxy_build_specs(run, fuse_cflags, fuse_libs):
                      *fuse_cflags, "-o", str(brixcvmfs),
                      "client/apps/fs/brixcvmfs.c",
                      "client/apps/fs/brixcvmfs_transport.c",
+                     # phase-116: the transport calls the libcurl address
+                     # pin, which is its own TU in BRIXCVMFS_SPLIT.
+                     "client/apps/fs/brixcvmfs_curl_pin.c",
+                     # phase-116: the pin resolves every name through the client DNS seam, so a site
+                     # that compiles it links brix_resolve()/brix_netpref_family() too.
+                     "client/lib/net/resolve.c",
+                     "client/lib/net/netpref.c",
                      "client/apps/fs/brixcvmfs_prefetch.c",
                      "client/apps/fs/brixcvmfs_ops.c",
                      "client/apps/fs/brixcvmfs_mount.c", *CVMFS_CORE,

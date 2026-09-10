@@ -80,4 +80,25 @@ ngx_int_t brix_gsi_verify_chain(ngx_log_t         *log,
                                    brix_gsi_verify_result_t *res,
                                    int                client_purpose);
 
+/*
+ * brix_gsi_verify_peer_leaf — verify one PEM-encoded peer certificate (the
+ * server cert a GSI kXGS_cert carries in its kXRS_x509 bucket) against `store`.
+ *
+ * The server acts as a GSI client on three outbound paths (cache-fill origin,
+ * TPC destination, transparent upstream) and each must refuse to agree a
+ * session secret with an unverified peer.  RFC 3820 proxies are accepted
+ * (X509_V_FLAG_ALLOW_PROXY_CERTS) — an origin may present a delegated proxy.
+ *
+ * Returns  1 when the PEM parses and X509_verify_cert accepts the chain,
+ *          0 when the certificate parsed but verification FAILED,
+ *         -1 when no verdict could be reached (unparseable PEM, or the store
+ *            context could not be created/initialised).
+ * Never logs and never touches `store`'s ownership; callers decide what each
+ * verdict means for them (the cache origin and the upstream fail closed on
+ * anything but 1; the TPC destination treats -1 as "no certificate offered").
+ * OpenSSL's error queue is cleared on return.
+ */
+int brix_gsi_verify_peer_leaf(X509_STORE *store, const uint8_t *pem,
+                              size_t len);
+
 #endif /* BRIX_CRYPTO_GSI_VERIFY_H */

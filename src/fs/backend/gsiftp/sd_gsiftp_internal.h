@@ -16,6 +16,10 @@ typedef struct {
     char x509_proxy[PATH_MAX];
     char ca_dir[PATH_MAX];
     int  timeout_ms;
+    const struct brix_dns_policy_s *dns;   /* phase-116: origin resolver policy */
+    gftp_dmode_t mode;                     /* phase-115 W5.1: MODE S | MODE E  */
+    gftp_dprot_t prot;                     /* phase-115 W5.1: PROT C | PROT P  */
+    unsigned     streams;                  /* phase-115 W5.3: SPAS ceiling, 0/1 */
 } sd_gsiftp_state;
 
 typedef struct {
@@ -61,6 +65,10 @@ ngx_int_t sd_gsiftp_rename(brix_sd_instance_t *inst, const char *src,
     const char *dst, int noreplace);
 ngx_int_t sd_gsiftp_rename_cred(brix_sd_instance_t *inst, const char *src,
     const char *dst, int noreplace, const brix_sd_cred_t *cred);
+ngx_int_t sd_gsiftp_server_copy(brix_sd_instance_t *inst, const char *src,
+    const char *dst, off_t *bytes_out);
+ngx_int_t sd_gsiftp_server_copy_cred(brix_sd_instance_t *inst, const char *src,
+    const char *dst, off_t *bytes_out, const brix_sd_cred_t *cred);
 brix_sd_dir_t *sd_gsiftp_opendir(brix_sd_instance_t *inst, const char *path,
     int *err_out);
 brix_sd_dir_t *sd_gsiftp_opendir_cred(brix_sd_instance_t *inst,
@@ -77,6 +85,7 @@ ssize_t sd_gsiftp_staged_write(brix_sd_staged_t *st, const void *buf,
     size_t len, off_t off);
 ngx_int_t sd_gsiftp_staged_commit(brix_sd_staged_t *st,
     brix_sd_precond_t *pre);
+int sd_gsiftp_temp_path(const char *final_path, char out[GSIFTP_PATH_CAP]);
 void sd_gsiftp_staged_abort(brix_sd_staged_t *st);
 
 #endif /* BRIX_SD_GSIFTP_INTERNAL_H */

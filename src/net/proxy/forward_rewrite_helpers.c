@@ -282,8 +282,14 @@ proxy_reject_request(brix_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /*
- * Translate a 1-byte local file handle in buf[offset] to the upstream handle.
- * Returns 0 on success, -1 if the local handle is invalid.
+ * Translate the local file handle named by buf[offset] into the upstream's own
+ * 4-byte fhandle, written over buf[offset..offset+3].
+ *
+ * brix's own open response hands the client a 1-byte local index followed by
+ * three zero bytes, so buf[offset] alone identifies the slot on the way in;
+ * what goes back out is the upstream's handle in full.  A slot that is merely
+ * PENDING has no upstream handle yet and is refused rather than translated to
+ * a sentinel.  Returns 0 on success, -1 if the local handle is invalid.
  */
 int
 proxy_translate_fh(brix_proxy_ctx_t *proxy, u_char *buf, size_t offset)
@@ -291,11 +297,11 @@ proxy_translate_fh(brix_proxy_ctx_t *proxy, u_char *buf, size_t offset)
     int local_fh = (int)(unsigned char) buf[offset];
 
     if (local_fh < 0 || local_fh >= BRIX_MAX_FILES
-        || proxy->fh_map[local_fh].upstream_fh == BRIX_PROXY_FH_FREE)
+        || proxy->fh_map[local_fh].fh_state != BRIX_PROXY_FH_BOUND)
     {
         return -1;
     }
-    buf[offset] = (u_char)(unsigned int) proxy->fh_map[local_fh].upstream_fh;
+    brix_proxy_fh_put(&proxy->fh_map[local_fh], buf + offset);
     return 0;
 }
 

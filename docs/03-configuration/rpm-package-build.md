@@ -33,16 +33,16 @@ The only requirement is a working container engine.
 
 ```bash
 # AlmaLinux 9 (default)
-packaging/rpm/build-rpm-container.sh -v 0.1.0
+packaging/rpm/build-rpm-container.sh -v 2.0.0
 
 # AlmaLinux 8
-packaging/rpm/build-rpm-container.sh -d alma8 -v 0.1.0
+packaging/rpm/build-rpm-container.sh -d alma8 -v 2.0.0
 
 # AlmaLinux 10
-packaging/rpm/build-rpm-container.sh -d alma10 -v 0.1.0
+packaging/rpm/build-rpm-container.sh -d alma10 -v 2.0.0
 
 # AlmaLinux 11 (once almalinux:11 is published)
-packaging/rpm/build-rpm-container.sh -d alma11 -v 0.1.0
+packaging/rpm/build-rpm-container.sh -d alma11 -v 2.0.0
 ```
 
 Built RPMs appear in `dist/`.  The module package installs the nginx dynamic
@@ -51,11 +51,11 @@ own RPMs so sites can install only what they need.
 
 ```
 dist/
-  nginx-mod-brix-cache-0.1.0-7.el9.x86_64.rpm
-  brix-cache-client-0.1.0-7.el9.x86_64.rpm
-  brix-cache-tests-0.1.0-7.el9.noarch.rpm
-  brix-tools-0.1.0-7.el9.x86_64.rpm
-  nginx-mod-brix-cache-0.1.0-7.el9.src.rpm
+  nginx-mod-brix-cache-2.0.0-1.el9.x86_64.rpm
+  brix-cache-client-2.0.0-1.el9.x86_64.rpm
+  brix-cache-tests-2.0.0-1.el9.noarch.rpm
+  brix-tools-2.0.0-1.el9.x86_64.rpm
+  nginx-mod-brix-cache-2.0.0-1.el9.src.rpm
 ```
 
 ---
@@ -83,15 +83,15 @@ sudo dnf install -y https://linuxsoft.cern.ch/wlcg/el9/x86_64/wlcg-repo-1.0.0-1.
 ### 2.2 Install the RPM
 
 ```bash
-sudo dnf install -y dist/nginx-mod-brix-cache-0.1.0-7.el9.x86_64.rpm \
-    dist/brix-cache-client-0.1.0-7.el9.x86_64.rpm
+sudo dnf install -y dist/nginx-mod-brix-cache-2.0.0-1.el9.x86_64.rpm \
+    dist/brix-cache-client-2.0.0-1.el9.x86_64.rpm
 ```
 
 Install the compiled XrdCeph/CephFS migration tools on hosts that will run
 operator migrations:
 
 ```bash
-sudo dnf install -y dist/brix-tools-0.1.0-7.el9.x86_64.rpm
+sudo dnf install -y dist/brix-tools-2.0.0-1.el9.x86_64.rpm
 ```
 
 This pulls in `nginx-mod-stream`, `openssl-libs`, `voms-libs`, and `curl`
@@ -435,11 +435,11 @@ The module logs GSI errors at `[error]` level and diagnostic notices at
 
 | Goal | Where to look |
 |---|---|
-| TLS-encrypted `root://` (protect file data in transit) | [docs/tls.md](tls-config.md) — `brix_tls on` or `roots://` |
+| TLS-encrypted `root://` (protect file data in transit) | [TLS configuration](tls-config.md) — `brix_tls on` or `roots://` |
 | WebDAV (`davs://`) over HTTPS | [WebDAV overview](../04-protocols/webdav-overview.md) |
-| Token (JWT/WLCG bearer) authentication | [docs/authentication.md](../06-authentication/auth-overview.md) §Token |
-| VO / FQAN ACLs with VOMS | [docs/authentication.md](../06-authentication/auth-overview.md) §VOMS, `brix_require_vo` |
-| S3-compatible endpoint | [docs/configuration/directives.md](directives.md) `brix_s3` |
-| Prometheus metrics | [docs/metrics-and-logging.md](../08-metrics-monitoring/monitoring-guide.md) |
-| CRL checking | [docs/configuration/directives.md](directives.md) `brix_crl` |
+| Token (JWT/WLCG bearer) authentication | [Authentication overview](../06-authentication/auth-overview.md) §Token |
+| VO / FQAN ACLs with VOMS | [Authentication overview](../06-authentication/auth-overview.md) §VOMS, `brix_require_vo` |
+| S3-compatible endpoint | [Directive reference](directives.md) `brix_s3` |
+| Prometheus metrics | [Monitoring guide](../08-metrics-monitoring/monitoring-guide.md) |
+| CRL checking | [Directive reference](directives.md) `brix_crl` |
 | Production PKI (real IGTF/grid CA) | [PKI setup](../06-authentication/test-pki-setup.md) |

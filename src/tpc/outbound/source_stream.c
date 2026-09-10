@@ -48,9 +48,7 @@ tpc_stream_send_read(brix_tpc_pull_t *t, int fd, const u_char *fhandle,
 {
     ClientReadRequest rdreq;
 
-    ngx_memzero(&rdreq, sizeof(rdreq));
-    rdreq.streamid[1] = 3;
-    rdreq.requestid   = htons(kXR_read);
+    xrd_creq_begin(&rdreq, sizeof(rdreq), 3, kXR_read);
     ngx_memcpy(rdreq.fhandle, fhandle, XRD_FHANDLE_LEN);
     rdreq.offset = (kXR_int64) htobe64(offset);
     rdreq.rlen   = htonl((kXR_int32) TPC_CHUNK_SIZE);
@@ -72,7 +70,7 @@ tpc_stream_send_read(brix_tpc_pull_t *t, int fd, const u_char *fhandle,
  * the frame is a valid data frame (caller writes its body), -1 on failure with
  * t->err_msg / t->xrd_error set. `body` is NOT freed here (the caller owns it).
  */
-static int
+int
 tpc_stream_classify_frame(brix_tpc_pull_t *t, uint16_t status,
                           const u_char *body, uint32_t dlen, uint64_t offset)
 {
@@ -110,7 +108,7 @@ tpc_stream_classify_frame(brix_tpc_pull_t *t, uint16_t status,
  * and emit a progress sample. Returns 0 on success, -1 with t->err_msg /
  * t->xrd_error set on overflow or a short/failed write.
  */
-static int
+int
 tpc_stream_write_frame(brix_tpc_pull_t *t, uint64_t offset,
                        size_t *got_this_req, u_char *body, uint32_t dlen)
 {
@@ -260,22 +258,41 @@ tpc_stream_sync_dst(brix_tpc_pull_t *t)
  * (current behaviour). The per-recv idle timeout still applies.
  */
 int
+tpc_stream_check_deadline(brix_tpc_pull_t *t, time_t pull_start,
+                          uint64_t offset)
+{
+    time_t pull_max = (t->conf != NULL)
+                      ? (time_t) t->conf->tpc_max_transfer_secs : 0;
+
+    if (pull_max > 0 && (time(NULL) - pull_start) > pull_max) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC pull exceeded brix_tpc_max_transfer_secs (%lds) "
+                 "at offset %llu", (long) pull_max,
+                 (unsigned long long) offset);
+        t->xrd_error = kXR_IOError;
+        return -1;
+    }
+    return 0;
+}
+
+int
 tpc_stream_to_dst(brix_tpc_pull_t *t, int fd, const u_char *fhandle)
 {
     uint64_t  offset     = 0;
     time_t    pull_start = time(NULL);
-    time_t    pull_max   = (t->conf != NULL)
-                           ? (time_t) t->conf->tpc_max_transfer_secs : 0;
 
     for (;;) {
         size_t got_this_req = 0;
 
-        if (pull_max > 0 && (time(NULL) - pull_start) > pull_max) {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC pull exceeded brix_tpc_max_transfer_secs (%lds) "
-                     "at offset %llu", (long) pull_max,
-                     (unsigned long long) offset);
-            t->xrd_error = kXR_IOError;
+        if (tpc_stream_check_deadline(t, pull_start, offset) != 0) {
+            return -1;
+        }
+
+        /* W8.2: the socket is quiet at exactly this point — the previous
+         * window is fully drained and the next kXR_read has not been sent —
+         * so it is the only place in the loop where an unrelated
+         * request/response pair (a renewal kXR_auth) can be carried. */
+        if (tpc_cred_renew_if_due(t, fd) != 0) {
             return -1;
         }
 
@@ -296,7 +313,12 @@ tpc_stream_to_dst(brix_tpc_pull_t *t, int fd, const u_char *fhandle)
         }
         offset += got_this_req;
     }
+    return tpc_stream_finish(t);
+}
 
+int
+tpc_stream_finish(brix_tpc_pull_t *t)
+{
     /*
      * Completion gate (hostile-network truncation fix): the loop's only in-band
      * EOF signal is a zero-byte read reply, which a truncating middlebox or a

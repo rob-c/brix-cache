@@ -1,0 +1,42 @@
+services:
+  pki:
+    image: ${BRIX_IMAGE:-ghcr.io/rob-c/brix-cache:latest}
+    command: ["brix-pki-init"]
+    environment:
+      OUT: /etc/brix/pki
+      HOSTS: "localhost brix server origin manager ds1 ds2 gateway backend proxy cache"
+    volumes:
+      - pki:/etc/brix/pki
+  server:
+    image: ${BRIX_IMAGE:-ghcr.io/rob-c/brix-cache:latest}
+    depends_on:
+      pki:
+        condition: service_completed_successfully
+    volumes:
+      - pki:/etc/brix/pki:ro
+      - ./nginx.conf:/etc/brix/nginx.conf:ro
+      - data:/data
+    ports:
+      - "9000:9000"
+      - "8443:8443"
+      - "9100:9100"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9100/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  client:
+    image: ${BRIX_IMAGE:-ghcr.io/rob-c/brix-cache:latest}
+    profiles: ["smoke"]
+    depends_on:
+      server:
+        condition: service_healthy
+    command: ["sh", "/smoke.sh"]
+    environment:
+      BRIX_HOST: server
+    volumes:
+      - pki:/etc/brix/pki:ro
+      - ./smoke.sh:/smoke.sh:ro
+volumes:
+  pki: {}
+  data: {}

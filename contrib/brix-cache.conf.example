@@ -53,7 +53,7 @@
 #      left off instead of restarting at byte 0, and a concurrent reader never sees
 #      a half-written object.  Disable per server/location with:
 #        * root:// (stream{}):  brix_upload_resume off;
-#        * davs:// (this file):  brix_webdav_upload_resume off;
+#        * davs:// (this file):  brix_upload_resume off;
 #      The native client resumes automatically (root:// reopen-in-place; davs://
 #      Content-Range PUT); other clients resume davs:// via Content-Range PUT + the
 #      X-Upload-Offset reported on a 409.
@@ -63,7 +63,7 @@
 #      high-performance caching device (e.g. NVMe/tmpfs) in front of slower storage
 #      (e.g. a CephFS POSIX mount), point it elsewhere:
 #        * root:// (stream{}):  brix_stage_dir       /mnt/fastcache/xrd-stage;
-#        * davs:// (this file):  brix_webdav_stage_dir /mnt/fastcache/xrd-stage;
+#        * davs:// (this file):  brix_stage_dir /mnt/fastcache/xrd-stage;
 #      Writes then land on the fast device; the close (root://) / final chunk
 #      (davs://) BLOCKS until commit copies the completed object to the storage and
 #      atomically renames it into place (cross-device commit), then drops the cache
@@ -181,26 +181,26 @@ server {
         dav_methods        DELETE MKCOL;
 
         brix_webdav      on;
-        brix_webdav_root /var/lib/nginx-xrootd/data;
+        brix_storage_backend posix:/var/lib/nginx-xrootd/data;
 
         # Authentication: `optional` accepts anonymous + authenticated; use
         # `required` to reject unauthenticated requests.
         brix_webdav_auth        optional;
-        brix_webdav_allow_write on;
+        brix_allow_write on;
 
         # Resumable uploads are ON by default (note 6).  Optionally stage on a
         # fast caching device in front of the storage (note 7); commit copies to
         # the storage mount.  Uncomment to enable, or disable resume entirely.
-        #brix_webdav_stage_dir     /mnt/fastcache/xrd-stage;
-        #brix_webdav_upload_resume off;
+        #brix_stage_dir     /mnt/fastcache/xrd-stage;
+        #brix_upload_resume off;
 
         # x509 / VOMS proxy validation against the IGTF CA dir.
-        brix_webdav_cadir /etc/grid-security/certificates;
+        brix_trusted_ca_dir /etc/grid-security/certificates;
 
         # WLCG bearer-token (JWT) validation — JWKS is hot-reloaded on mtime.
-        brix_webdav_token_jwks     /etc/nginx-xrootd/jwks.json;
-        brix_webdav_token_issuer   "https://wlcg.example.org/";
-        brix_webdav_token_audience "https://storage.example.org";
+        brix_token_jwks     /etc/nginx-xrootd/jwks.json;
+        brix_token_issuer   "https://wlcg.example.org/";
+        brix_token_audience "https://storage.example.org";
 
         # Third-party copy (TPC) — WebDAV COPY with delegated credentials.
         # tpc_cafile is a CA *bundle file* used to verify the remote TPC peer
@@ -224,9 +224,9 @@ server {
 
     location / {
         brix_s3            on;
-        brix_s3_root       /var/lib/nginx-xrootd/data;
+        brix_storage_backend       posix:/var/lib/nginx-xrootd/data;
         brix_s3_bucket     mybucket;
-        brix_s3_allow_write on;
+        brix_allow_write on;
         brix_s3_max_keys   1000;
         # SigV4 access/secret keys are configured per your credential source;
         # see docs/04-protocols/ for the S3 auth model.
@@ -265,12 +265,12 @@ server {
 #     #      hook.  If you use NONE of these, opt into the strict anti-shell posture
 #     #      by KILLing execve (ptrace/process_vm_* are always killed regardless):
 #     #brix_seccomp_allow_exec off;
-#     #   4. If you enable per-request UNIX impersonation (`brix_impersonation map`,
+#     #   4. If you enable per-request UNIX impersonation (`brix_idmap map`,
 #     #      docs/06-authentication/impersonation.md), point the privileged broker
 #     #      at the dedicated non-root account the RPM created, so nothing runs as
 #     #      root after startup:
-#     #brix_impersonation             map;
-#     #brix_impersonation_broker_user brix-broker;
+#     #brix_idmap             map;
+#     #brix_idmap_broker_user brix-broker;
 #
 #     # root:// with WLCG token auth (modern default).
 #     server {

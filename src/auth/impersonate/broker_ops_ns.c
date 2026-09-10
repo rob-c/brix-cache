@@ -148,9 +148,12 @@ imp_op_chown(const imp_op_ctx_t *c)
 
 
 /*
- * imp_op_rename_link — IMP_OP_RENAME / IMP_OP_RENAME_NOREPLACE / IMP_OP_LINK:
- * two-path ops.  HOW: confine BOTH parents via imp_open_parent, then linkat or
- * imp_do_rename (which handles the RENAME_NOREPLACE renameat2 fallback).
+ * imp_op_rename_link — IMP_OP_RENAME / IMP_OP_RENAME_NOREPLACE /
+ * IMP_OP_RENAME_EXCHANGE / IMP_OP_LINK: two-path ops.  HOW: confine BOTH parents
+ * via imp_open_parent, then linkat, imp_do_exchange (RENAME_EXCHANGE, never
+ * emulated) or imp_do_rename (which handles the RENAME_NOREPLACE renameat2
+ * fallback).  Both parents are opened before either syscall runs, so an
+ * unresolvable second path refuses the whole op having touched nothing.
  */
 int
 imp_op_rename_link(const imp_op_ctx_t *c)
@@ -171,6 +174,8 @@ imp_op_rename_link(const imp_op_ctx_t *c)
     }
     if (c->req->op == IMP_OP_LINK) {
         rc = linkat(pfd, base, pfd2, base2, 0) == 0 ? 0 : -errno;
+    } else if (c->req->op == IMP_OP_RENAME_EXCHANGE) {
+        rc = imp_do_exchange(pfd, base, pfd2, base2) == 0 ? 0 : -errno;
     } else {
         rc = imp_do_rename(pfd, base, pfd2, base2,
                            c->req->op == IMP_OP_RENAME_NOREPLACE) == 0

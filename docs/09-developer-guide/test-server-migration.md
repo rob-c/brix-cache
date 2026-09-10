@@ -1,7 +1,7 @@
 # Test-Server Migration: self-provisioned → pre-started dedicated instances
 
 **Goal.** As many test files as possible should use servers that are **started once**
-by `tests/manage_test_servers.sh start-all` (before the suite), managed separately, and
+by `python3 -m cmdscripts.manage_test_servers start-all` (before the suite), managed separately, and
 **torn down only when the whole suite finishes** — rather than each test spinning up and
 tearing down its own nginx/brix. We favour *many dedicated pre-started instances* over
 per-test setup/teardown. (Each migrated test still gets its **own** dedicated instance, so
@@ -20,7 +20,7 @@ A self-contained fixture that did `subprocess` → `nginx -c <own conf>` … `-s
 1. **Config** — `tests/configs/nginx_<name>.conf` using the placeholders
    `substitute_config()` fills: `{PORT}` `{DATA_DIR}` `{LOG_DIR}` `{TMP_DIR}` `{S3_PORT}`
    `{CA_CERT}` `{SERVER_CERT}` `{SERVER_KEY}` `{JWKS_FILE}` … (model on `nginx_readonly.conf`).
-2. **Register** in `start_all_dedicated()` (`manage_test_servers.sh`):
+2. **Register** in `start_all_dedicated()` (`cmdscripts/manage_test_servers.py`):
    `start_dedicated_nginx "<name>" "nginx_<name>.conf" "${<NAME>_PORT:-NNNN}"`.
    A second listen port (e.g. read-only WebDAV+S3 in one instance) is passed by env-prefixing
    the line, e.g. `NGINX_S3_PORT="${READONLY_HTTP_S3_PORT:-11217}" start_dedicated_nginx ...`.
@@ -29,7 +29,7 @@ A self-contained fixture that did `subprocess` → `nginx -c <own conf>` … `-s
 4. **Fixture rewrite** — delete the spawn/teardown helpers (+ now-unused `subprocess`/`NGINX_BIN`
    imports) and replace with: compute `data_dir = <NAME>_DATA_ROOT`, `os.makedirs(exist_ok=True)`,
    **seed any required files into it**, `socket` reachability check → `pytest.skip(... run
-   manage_test_servers.sh start-all)` if down, then `return`/`yield` the *same dict shape* the
+   python3 -m cmdscripts.manage_test_servers start-all)` if down, then `return`/`yield` the *same dict shape* the
    tests already consume. Change **no** test function or assertion. (Mirror `test_vo_acl.py::vo_nginx`.)
 
 **Key contract.** `start_dedicated_nginx "<name>"` serves `DATA_DIR = ${TEST_ROOT}/data-<name>`.

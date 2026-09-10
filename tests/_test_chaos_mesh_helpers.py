@@ -74,7 +74,7 @@ RELOAD_AFTER_BYTES = 1 * 1024 * 1024
 
 @pytest.fixture(scope="module")
 def chaos_mesh():
-    """Wait for the dedicated Chaos Mesh fleet started by manage_test_servers.sh."""
+    """Wait for the dedicated Chaos Mesh fleet started by cmdscripts/manage_test_servers.py."""
     ports = (
         CHAOS_TIER1_PORT,
         CHAOS_TIER2_PORT,

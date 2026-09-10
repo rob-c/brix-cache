@@ -35,6 +35,7 @@ Coverage (success · error · security-negative):
                 destination file behind
 """
 
+import functools
 import os
 import re
 import shutil
@@ -44,7 +45,7 @@ import time
 
 import pytest
 
-from settings import (BIND_HOST, CA_DIR, HOST, NGINX_BIN, SERVER_CERT,
+from settings import (BIND_HOST, CA_CERT, CA_DIR, HOST, NGINX_BIN, SERVER_CERT,
                       SERVER_KEY, TOKENS_DIR, XRDCP_BIN, url_host)
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
@@ -57,9 +58,45 @@ def _guard_node_2():
     if shutil.which(XRDCP_BIN) is None and not os.path.isabs(XRDCP_BIN):
         pytest.skip("xrdcp not found")
 
+ZTN_CLEARTEXT_REFUSAL = "disallowed for non-TLS connections"
+
+
+def _tls_pki_fault():
+    """WHAT: None when the harness host cert currently verifies against the
+    harness CA, else a one-line description of what is wrong with it.
+
+    WHY: every copy in this module authenticates with ztn, and XrdCl refuses to
+    put a ztn credential on a cleartext connection. So a PKI that exists but no
+    longer verifies does not fail as a PKI problem — it fails as four separate
+    `Auth failed: No protocols left to try` copies, which read like a token or
+    TPC defect and cost an investigation each. The two ways this happens in
+    practice are a CA regenerated underneath a server that kept its old cert,
+    and a host clock that stepped past one end of the cert's validity window.
+
+    HOW: one `openssl verify`. Its own diagnosis already separates the two
+    cases — a window fault says "expired" or "not yet valid" — so the message
+    is classified rather than re-derived; a second `-checkend` pass would be
+    dead code, because verify rejects an out-of-window cert before any such
+    check could see it."""
+    proof = subprocess.run(["openssl", "verify", "-CAfile", CA_CERT,
+                            SERVER_CERT], stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, timeout=30)
+    if proof.returncode == 0:
+        return None
+    detail = " ".join(proof.stdout.decode(errors="replace").split())
+    if "expired" in detail or "not yet valid" in detail:
+        return ("host cert is outside its validity window as of now — check "
+                f"whether the host clock stepped: {detail}")
+    return f"host cert does not verify against {CA_CERT}: {detail}"
+
+
 def _guard_node_3():
     if not (os.path.exists(SERVER_CERT) and os.path.isdir(CA_DIR)):
         pytest.skip("harness PKI missing; TLS is mandatory for a ztn client")
+    fault = _tls_pki_fault()
+    if fault is not None:
+        pytest.fail("the in-protocol TLS leg cannot come up, so every ztn "
+                    f"login below would fail as an auth error instead: {fault}")
 
 def _guard_node_4(issuer):
     if not (os.path.exists(issuer.key_path)
@@ -110,10 +147,24 @@ def _anon_env(token_file=None):
 
 
 def _xrdcp_tpc(src, dst, token_file=None, timeout=60):
-    return subprocess.run(
+    """One `xrdcp --tpc only`, with a ztn-over-cleartext refusal explained.
+
+    XrdCl reports a broken TLS leg as `security protocol 'ztn' disallowed for
+    non-TLS connections` — a message about the credential, not about the cause.
+    Every assertion in this module already prints stderr, so the PKI diagnosis
+    is appended to stderr here rather than repeated at each call site: a
+    failure names why TLS was unavailable, in the same place it says the copy
+    failed."""
+    result = subprocess.run(
         [XRDCP_BIN, "-f", "-s", "--tpc", "only", src, dst],
         env=_anon_env(token_file), stdout=subprocess.PIPE,
         stderr=subprocess.PIPE, timeout=timeout)
+    if result.returncode != 0 and ZTN_CLEARTEXT_REFUSAL in result.stderr.decode(
+            errors="replace"):
+        fault = _tls_pki_fault() or ("the harness PKI is intact, so the server "
+                                     "did not offer TLS on this connection")
+        result.stderr += f"\n[harness] TLS unavailable: {fault}\n".encode()
+    return result
 
 
 def _name(prefix):
@@ -363,3 +414,90 @@ def test_read_only_token_cannot_write_at_the_destination(node):
         "a read-only token must not be allowed to create the destination file"
     assert not _dest_path(node, "dst", dst_name).exists(), \
         "a read-only token created a destination file"
+
+
+# --------------------------------------------------------------------------- #
+# the harness diagnosis itself
+#
+# `_tls_pki_fault` and the stderr annotation in `_xrdcp_tpc` exist because a
+# broken TLS leg reaches the operator as an auth error about ztn. A diagnosis
+# that is wrong, or that attaches itself to unrelated failures, is worse than
+# none: it sends the next reader after the wrong thing. So it is tested in all
+# three directions — silent when healthy, specific when broken, and inert on a
+# failure it does not explain.
+# --------------------------------------------------------------------------- #
+
+def _decoy_pki(tmp_path, leaf_days):
+    """A self-signed CA and one leaf it issued, valid for `leaf_days` days.
+
+    `leaf_days=0` yields a cert whose validity window has already closed, which
+    is how the clock-step case is reproduced without touching the host clock.
+    Returns `(ca_pem, leaf_pem)` as strings."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    ca_pem, ca_key = tmp_path / "ca.pem", tmp_path / "ca.key"
+    leaf_pem, leaf_key = tmp_path / "leaf.pem", tmp_path / "leaf.key"
+    csr = tmp_path / "leaf.csr"
+    run = functools.partial(subprocess.run, check=True, timeout=60,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+         "-keyout", str(ca_key), "-out", str(ca_pem), "-days", "3650",
+         "-subj", "/CN=decoy-ca"])
+    run(["openssl", "req", "-newkey", "rsa:2048", "-nodes",
+         "-keyout", str(leaf_key), "-out", str(csr), "-subj", "/CN=decoy-host"])
+    run(["openssl", "x509", "-req", "-in", str(csr), "-CA", str(ca_pem),
+         "-CAkey", str(ca_key), "-set_serial", "1", "-days", str(leaf_days),
+         "-out", str(leaf_pem)])
+    return str(ca_pem), str(leaf_pem)
+
+
+def test_tls_pki_fault_is_silent_on_a_healthy_harness_pki(node):
+    """SUCCESS: with the fleet's own PKI in place the check says nothing, so it
+    can never turn a healthy run into a spurious failure."""
+    assert _tls_pki_fault() is None, (
+        "the harness PKI verified well enough for the copies above to pass, "
+        "but the precondition check calls it broken")
+
+
+def test_tls_pki_fault_names_a_chain_break(monkeypatch, tmp_path):
+    """ERROR: a cert the CA did not issue — the shape left behind when a CA is
+    regenerated under a server that kept its old cert — is reported as a chain
+    failure, naming the CA file it was checked against."""
+    _, orphan = _decoy_pki(tmp_path, leaf_days=3650)
+    other_ca, _ = _decoy_pki(tmp_path / "other", leaf_days=3650)
+    monkeypatch.setattr(sys.modules[__name__], "CA_CERT", other_ca)
+    monkeypatch.setattr(sys.modules[__name__], "SERVER_CERT", orphan)
+
+    fault = _tls_pki_fault()
+    assert fault is not None, "an unrelated CA verified the cert"
+    assert "does not verify" in fault and other_ca in fault, fault
+    assert "validity window" not in fault, f"misreported as a clock fault: {fault}"
+
+
+def test_tls_pki_fault_names_the_clock_when_the_window_is_wrong(monkeypatch,
+                                                                tmp_path):
+    """ERROR: an out-of-window cert is the host-clock case, and it must be said
+    so. `openssl verify` reports it as a verification failure like any other, so
+    an unclassified message would send the reader to look for a CA mismatch
+    that is not there."""
+    ca, expired = _decoy_pki(tmp_path, leaf_days=0)
+    monkeypatch.setattr(sys.modules[__name__], "CA_CERT", ca)
+    monkeypatch.setattr(sys.modules[__name__], "SERVER_CERT", expired)
+
+    fault = _tls_pki_fault()
+    assert fault is not None, "an expired cert verified"
+    assert "validity window" in fault and "clock" in fault, fault
+
+
+def test_the_tls_diagnosis_stays_off_an_unrelated_failure(node):
+    """SECURITY-NEGATIVE: the annotation must fire only on the ztn-cleartext
+    refusal. A copy that fails for any other reason — here a source object that
+    does not exist — must carry no PKI verdict, or a real TPC or authorization
+    defect would be dressed up as a harness problem and go unfixed."""
+    result = _copy(node, "dst", "no_such_source_object.dat",
+                   _name("tpc_tok_neg_dst"), node["client_token"])
+    stderr = result.stderr.decode(errors="replace")
+
+    assert result.returncode != 0, "a copy of a missing source reported success"
+    assert ZTN_CLEARTEXT_REFUSAL not in stderr, stderr
+    assert "[harness] TLS unavailable" not in stderr, (
+        f"a missing-source failure was blamed on the TLS leg: {stderr}")

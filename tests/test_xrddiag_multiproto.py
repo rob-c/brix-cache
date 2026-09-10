@@ -29,6 +29,7 @@ import os
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -40,8 +41,7 @@ def _guard_servers_1():
         pytest.skip("no C compiler")
 
 def _guard_servers_2():
-    if subprocess.run(["make", "-C", CLIENT_DIR, "xrddiag"],
-                      capture_output=True, text=True, timeout=180).returncode != 0 \
+    if client_make(CLIENT_DIR, "xrddiag", capture_output=True, text=True, timeout=180).returncode != 0 \
             or not os.path.exists(XRDDIAG):
         pytest.skip("xrddiag build failed")
 

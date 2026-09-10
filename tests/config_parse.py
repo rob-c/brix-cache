@@ -17,7 +17,7 @@ import json
 
 from config_templates import render_config_to_path
 from cmdscripts.live_common import inject_nginx_load_modules
-from settings import NGINX_BIN
+from brix_suite.nginx_tools import _nginx_bin
 
 
 def nginx_t(template, root, **template_values):
@@ -31,6 +31,20 @@ def nginx_t(template, root, **template_values):
     root = Path(root)
     config = root / "conf" / "nginx.conf"
     render_config_to_path(template, config, strict=False, **template_values)
+    return nginx_t_text(config.read_text(encoding="utf-8"), root)
+
+
+def nginx_t_text(text, root):
+    """Run ``nginx -t`` over ``text`` written verbatim under ``root``.
+
+    The rendering-free half of :func:`nginx_t`, for a test that builds the
+    config body itself (a template-corpus hygiene probe has to construct the
+    shape it forbids, which by definition cannot live in ``tests/configs``).
+    """
+    root = Path(root)
+    config = root / "conf" / "nginx.conf"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(text, encoding="utf-8")
     # Distribution nginx builds default their pid file to /run/nginx.pid even
     # for `nginx -t`.  Tests run as an ordinary user, so make the otherwise
     # irrelevant parse-time PID path part of the throwaway test prefix.
@@ -41,8 +55,12 @@ def nginx_t(template, root, **template_values):
             encoding="utf-8",
         )
     inject_nginx_load_modules(config)
+    # The frozen per-session copy, exactly as the launcher execs: the shared
+    # build tree's objs/nginx is relinked by any concurrent `make`, and an exec
+    # inside that window fails with EACCES (seen as a -x halt on a pure parse
+    # test while a sibling session rebuilt).
     return subprocess.run(
-        [str(NGINX_BIN), "-t", "-p", str(root), "-c", "conf/nginx.conf"],
+        [_nginx_bin(), "-t", "-p", str(root), "-c", "conf/nginx.conf"],
         capture_output=True,
         text=True,
         timeout=30,

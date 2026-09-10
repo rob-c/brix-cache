@@ -203,37 +203,6 @@ webdav_finalize_authz_rules(ngx_conf_t *cf,
 }
 
 static char *
-webdav_set_storage_credential(ngx_conf_t *cf,
-    ngx_http_brix_webdav_loc_conf_t *conf)
-{
-    char                     cred_z[256];
-    char                     bearer[4096];
-    const brix_credential_t *cred;
-    brix_vfs_backend_cred_t  bcred;
-
-    if (conf->common.storage_credential.len == 0) {
-        return NGX_CONF_OK;
-    }
-    ngx_cpystrn((u_char *) cred_z, conf->common.storage_credential.data,
-                ngx_min(conf->common.storage_credential.len + 1,
-                        sizeof(cred_z)));
-    cred = brix_credential_lookup(cred_z);
-    if (cred == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_webdav_storage_credential: no brix_credential \"%V\"",
-            &conf->common.storage_credential);
-        return NGX_CONF_ERROR;
-    }
-    if (brix_credential_to_backend_cred(cred, bearer, sizeof(bearer),
-                                          &bcred, cf->log) != NGX_OK)
-    {
-        return NGX_CONF_ERROR;
-    }
-    brix_vfs_backend_set_credential(conf->common.root_canon, &bcred);
-    return NGX_CONF_OK;
-}
-
-static char *
 webdav_configure_storage_backend(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *conf)
 {
@@ -245,7 +214,7 @@ webdav_configure_storage_backend(ngx_conf_t *cf,
     if (conf->common.storage_staging) {
         brix_vfs_backend_set_staging(conf->common.root_canon, 1);
     }
-    return webdav_set_storage_credential(cf, conf);
+    return brix_http_attach_storage_credential(cf, &conf->common);
 }
 
 static char *

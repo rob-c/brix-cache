@@ -236,7 +236,8 @@ The exercise is now a committed, repeatable harness under **`tests/valgrind/`**
 - `valgrind.supp` — native-format suppressions for benign nginx-core/library
   residuals only (never module frames).
 
-A `VALGRIND=1` mode in `tests/manage_test_servers.sh` can additionally run the
+A `VALGRIND=1` mode in the fleet manager (`tests/cmdscripts/manage_test_servers.py`)
+can additionally run the
 whole generated fleet under Memcheck. Regression guards are in
 `tests/test_valgrind_regression.py` (static markers that fail if either fix is
 reverted, plus an opt-in `RUN_VALGRIND=1` end-to-end run).

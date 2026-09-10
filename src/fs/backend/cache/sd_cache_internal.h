@@ -128,6 +128,12 @@ typedef struct {
      * as a continuous runway bounded by policy.prefetch_window ahead of the
      * cursor — never re-posted, never compounding. Event-loop only. */
     uint64_t              prefetch_next_blk;
+    /* 2.0 F5: this handle's prefetch runway — policy.prefetch_window, or the
+     * clamped pfc.prefetch hint scaled by block_size (brix_cache_urlcgi).
+     * prefetch_off marks a clamped hint of 0 blocks: no speculation for this
+     * handle (a window of 0 still means "unbounded", as it does in policy). */
+    size_t                prefetch_window;
+    unsigned              prefetch_off:1;
     ngx_log_t            *log;
     char                  key[1024];
     char                  cache_path[PATH_MAX];   /* for cinfo record_block      */
@@ -145,7 +151,7 @@ typedef struct {
  * from the source. Returns the new object or NULL with *err_out set. */
 brix_sd_obj_t *sd_cache_partial_open(brix_sd_instance_t *inst,
     sd_cache_inst_state *st, const char *key, const brix_sd_cred_t *cred,
-    int *err_out);
+    const brix_sd_open_hints_t *hints, int *err_out);
 
 /* Fetch block `blk` from the source into the cache object + mark it present.
  * Safe off the event loop (pure driver pread/pwrite + cinfo record — the same

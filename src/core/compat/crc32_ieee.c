@@ -11,10 +11,9 @@
 #define BRIX_CRC32_IEEE_POLY  0xedb88320u
 
 uint32_t
-brix_crc32_ieee(const uint8_t *buf, size_t len)
+brix_crc32_ieee_update(uint32_t crc, const uint8_t *buf, size_t len)
 {
-    uint32_t crc = 0xffffffffu;
-
+    crc ^= 0xffffffffu;          /* un-finalise the running value (0 -> init) */
     while (len--) {
         int i;
         crc ^= *buf++;
@@ -23,4 +22,10 @@ brix_crc32_ieee(const uint8_t *buf, size_t len)
         }
     }
     return crc ^ 0xffffffffu;
+}
+
+uint32_t
+brix_crc32_ieee(const uint8_t *buf, size_t len)
+{
+    return brix_crc32_ieee_update(0, buf, len);
 }

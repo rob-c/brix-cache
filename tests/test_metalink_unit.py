@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -29,11 +30,7 @@ DRIVER = os.path.join(CLIENT_DIR, "bin", "metalink_unit")
 def _build() -> None:
     if shutil.which("gcc") is None and shutil.which("cc") is None:
         pytest.skip("no C compiler")
-    proc = subprocess.run(
-        ["make", "-C", CLIENT_DIR, "metalink-unit"],
-        capture_output=True,
-        text=True,
-    )
+    proc = client_make(CLIENT_DIR, "metalink-unit", capture_output=True, text=True)
     if proc.returncode != 0:
         pytest.skip(f"metalink_unit build failed:\n{proc.stdout}\n{proc.stderr}")
 

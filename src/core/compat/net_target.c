@@ -17,7 +17,6 @@
 #include "net_target_internal.h"
 #include "cstr.h"
 
-#include <netdb.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -169,7 +168,7 @@ brix_net_target_check_addr(const struct sockaddr *sa,
  * WHAT: returns 1 only if every byte is [A-Za-z0-9.:-] (the chars legal in a
  *       hostname or IPv4/IPv6 literal); 0 otherwise or for empty input.
  * WHY:  rejects shell/whitespace/control bytes and embedded URL trickery
- *       before the host is ever passed to getaddrinfo or a child process.
+ *       before the host is ever passed to the DNS driver or a child process.
  */
 int
 brix_net_host_chars_valid(const char *host, size_t len)

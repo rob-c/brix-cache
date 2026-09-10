@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import json
 import os
 import socket
 import struct
@@ -353,38 +354,79 @@ def test_make_token_every_kind(tmp_path):
 # _xrdcl_worker._encode_response — Pattern-D dispatch registry (§4.3, CCN 39→11)#
 # --------------------------------------------------------------------------- #
 
+#: Runs in a CHILD interpreter -- see the test's docstring for why.
+_ENCODE_PROBE = """
+import json, sys
+import _xrdcl_worker as w
+
+
+class XRootDStatus:
+    ok, error, fatal, code, status, errno, message, shellcode = (
+        True, False, False, 0, 0, 0, "ok", 0)
+
+
+class StatInfoVFS:
+    nodes_rw = nodes_staging = free_rw = util_rw = free_staging = util_staging = 3
+
+
+class Weird:
+    pub = 7
+    _priv = 9
+
+    def method(self):
+        return 1
+
+
+json.dump({
+    "none": w._encode_response(None),
+    "scalars": [w._encode_response("cms"), w._encode_response(42)],
+    "containers": ["__tuple__" in w._encode_response(("a", 1)),
+                   "__list__" in w._encode_response(["a"]),
+                   "__dict__" in w._encode_response({"k": 1})],
+    "status_ok": w._encode_response(XRootDStatus())["__status__"]["ok"],
+    "vfs_type": w._encode_response(StatInfoVFS())["__type__"],
+    "scraped": w._encode_response(Weird()),
+}, sys.stdout)
+"""
+
+
 def test_encode_response_dispatch_and_recursion():
-    pytest.importorskip("XRootD")
-    import _xrdcl_worker as w
+    """``_encode_response`` is exercised in a child interpreter, never here.
+
+    ``import _xrdcl_worker`` runs the worker's prologue: it drops every
+    ``sys.path`` entry that carries the shadow ``XRootD`` package -- which is
+    ``tests/`` itself -- and then imports the real bindings.  Inside pytest
+    that leaves the xdist worker unable to import any ``tests/`` module it has
+    not already cached (run rhB49: the TS-5 clients pin died with
+    ``No module named '_xrdcl_proxy_part2'`` 170 modules later, on the one
+    worker that had run this file first) and pulls libXrdCl's poller threads
+    into the interpreter the isolation layer exists to keep them out of.
+    """
+    from brix_suite.clients import xrdcl
+    if not xrdcl.real_bindings_available():
+        pytest.skip("no interpreter with real XRootD bindings on this host")
+    env = dict(os.environ, PYTHONPATH=str(ROOT / "tests"))
+    proc = subprocess.run([xrdcl._worker_python(), "-c", _ENCODE_PROBE],
+                          capture_output=True, text=True, timeout=90, env=env,
+                          cwd=str(ROOT / "tests"))
+    assert proc.returncode == 0, proc.stderr
+    _assert_encode_shapes(json.loads(proc.stdout))
+
+
+def _assert_encode_shapes(seen):
     # container recursion (the prologue that must precede any tname dispatch)
-    assert w._encode_response(None) is None
-    assert w._encode_response("cms") == "cms" and w._encode_response(42) == 42
-    assert "__tuple__" in w._encode_response(("a", 1))
-    assert "__list__" in w._encode_response(["a"])
-    assert "__dict__" in w._encode_response({"k": 1})
-
+    assert seen["none"] is None
+    assert seen["scalars"] == ["cms", 42]
+    assert seen["containers"] == [True, True, True]
     # tname dispatch: a class named like an XrdCl type routes to its encoder
-    class XRootDStatus:
-        ok, error, fatal, code, status, errno, message, shellcode = (
-            True, False, False, 0, 0, 0, "ok", 0)
-
-    class StatInfoVFS:
-        nodes_rw = nodes_staging = free_rw = util_rw = free_staging = util_staging = 3
-
-    assert w._encode_response(XRootDStatus())["__status__"]["ok"] is True
-    assert w._encode_response(StatInfoVFS())["__type__"] == "StatInfoVFS"
-
+    assert seen["status_ok"] is True
+    assert seen["vfs_type"] == "StatInfoVFS"
     # unknown type -> scrape fallback, dropping private + callable attributes
-    class Weird:
-        pub = 7
-        _priv = 9
-
-        def method(self):
-            return 1
-
-    scraped = w._encode_response(Weird())
-    assert scraped["__type__"] == "Weird" and scraped["pub"] == 7
-    assert "_priv" not in scraped and "method" not in scraped
+    scraped = seen["scraped"]
+    assert scraped["__type__"] == "Weird"
+    assert scraped["pub"] == 7
+    assert "_priv" not in scraped
+    assert "method" not in scraped
 
 
 # --------------------------------------------------------------------------- #

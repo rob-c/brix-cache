@@ -17,9 +17,107 @@ what changed for a user of the server.
 
 ---
 
-## Unreleased
+## v2.0.0 — 2026-09-05
+
+The first release distributed as `.rpm` and `.deb` packages. What a user may
+expect and what is actually present, tested, complete and documented is
+audited in the [2.0 readiness register](docs/10-reference/release-2.0-readiness.md);
+every registered directive now has user-facing prose in
+[`docs/03-configuration/directives.md`](docs/03-configuration/directives.md),
+and `tests/test_release20_directive_surface.py` together with
+`tests/test_release20_surface_pins.py` (which snapshots the whole 2.0 directive
+surface in `tests/golden/release20_directive_surface.tsv`) and
+`tests/test_release20_ledger_pins.py` (which holds the prose half — the gap
+ledger, the quick reference, the operator trees and the status banners) keep the
+register, the registry and the prose in step.
 
 ### Breaking
+
+- **A native `brix_authdb` line the grammar cannot parse now refuses the
+  configuration.** Before 2.0 field 1 was read as its first byte and unknown
+  privilege letters were dropped, so a mistyped line was accepted as some
+  *other* rule — often a wider one (`gu atlas|alice /data rl` became
+  `g atlas /data rl`, granting the whole VO). The native engine now refuses the
+  line at `nginx -t`, naming the file, the line number and the offending byte,
+  for: a selector outside `u g p a v l`, a privilege letter outside
+  `r l w a d m k x`, a repeated selector, `a` combined with another selector, a
+  compound id whose component count does not equal the selector count, and an
+  empty id component. Check any authdb that was written against the old parser
+  before upgrading; a line that "worked" may have been enforcing something other
+  than what it said. **This applies to the native engine only** — a file read
+  under `brix_authdb_engine xrdacc` is parsed by the XrdAcc grammar exactly as
+  before, and the refusal message points there.
+
+- **Staging now requires the `x` privilege in the native authdb.** `kXR_prepare`
+  with `kXR_stage` or `kXR_evict` (`xrdfs prepare -s` / `-e`) and the VFS
+  stage/evict mutations previously fell inside the update-privilege range, so an
+  authdb granting `w` implicitly granted the right to drive a tape or nearline
+  recall — and to drop an online copy. They now require `x`, together with `r`,
+  and `w` alone no longer grants either. Add `x` to any rule whose subjects are
+  meant to stage: `u alice /data rlwx`. A *bare* prepare, which only browses the
+  namespace, still needs only `r`. Unchanged under `brix_authdb_engine xrdacc`,
+  where staging has always been `AOP_Stage`.
+
+- **VOMS roles now actually reach authorization.** The identity's VOMS attribute
+  views were derived from VO *names*, which cannot contain a `/` (they are metric
+  labels and log fields), so the derived role list was always empty. Any rule or
+  template that matched on a role therefore matched **nothing**, silently: the
+  XrdAcc `r <role>` selector, an XrdAcc `g /vo` group path, and — for
+  configurations built against a pre-release 2.0 tree — the native `l` selector.
+  Those rules now match the credential the operator meant, which can turn a
+  previously ineffective grant into a real one. Audit any authdb carrying a role
+  or group-path selector before upgrading. VO *names* are untouched:
+  `$brix_vo`, `brix_require_vo`, the native `g` selector and every metric label
+  keep exactly the values they had.
+
+- **`brix_mirror_opcodes` and `brix_mirror_exclude_opcodes` refuse `read` and
+  `readv`.** A read addresses an open handle that only the primary session
+  holds, so the one-shot shadow replay never carried it — the names were
+  accepted and then silently skipped, and `all` expanded to them, so a mask
+  meant less than it said. Both directives now refuse the two names at
+  `nginx -t` with that reason, and `all` no longer includes them. Delete them
+  from a mask that still lists them; nothing else changes. Pinned by
+  `tests/test_release20_mirror_opcode_refusal.py`.
+
+- **`brix_pss_dca` has been removed.** The directive was registered in
+  1.4/1.5 but had no consumer: no code path ever issued the kXR_lclfile
+  redirect it described, so `on` and `off` behaved identically. A
+  configuration that still carries it is now refused at `nginx -t` with
+  `unknown directive "brix_pss_dca"`; delete the line. Direct cache access is
+  listed as not implemented in the
+  [2.0 readiness register](docs/10-reference/release-2.0-readiness.md).
+
+- **`brix_backend_passthrough_persist` has been removed.** Reserved by
+  phase-70 §5.1 to let a captured full-proxy credential be spilled into the
+  async stage for later replay, the flag parsed, merged and adopted but was
+  never read (DEFECT CANDIDATE #35 of the 2026-08-15 coverage audit): `on`
+  and `off` behaved identically. A configuration that still carries it is
+  refused at `nginx -t` with `unknown directive
+  "brix_backend_passthrough_persist"`; delete the line.
+
+- **Seven `brix_frm_*` directives are removed.** `brix_frm_copycmd`,
+  `brix_frm_migrate_copycmd`, `brix_frm_residency_cmd`, `brix_frm_xfrhold`,
+  `brix_frm_max_per_source`, `brix_frm_stage_dir` and
+  `brix_frm_force_scratch` configured the in-process FRM engine dissolved in
+  phase 64 and had been parsed and read by nothing since; no surviving
+  subsystem could honestly own them (phase-89 ADR-3b, 2026-09-08,
+  superseding ADR-3's "retain the grammar"). A configuration that still
+  carries one is refused at `nginx -t` with `unknown directive
+  "brix_frm_copycmd"` (and likewise for the other six); delete the line. The
+  copy runner is the `tape://exec` adapter's `brix_frm_stagecmd`, the PUT
+  stage directory is `brix_stage_dir`, scratch policy is
+  `brix_zip_force_scratch`. The other six formerly inert names were wired
+  (see Added / Changed).
+- **`brix_frm_stagecmd` no longer inherits `brix_prepare_command`** at merge
+  time, and the value is checked: it must be an absolute program path and,
+  when the file exists at load, must not be group- or world-writable
+  (`[emerg] … refusing to run a program anyone else can rewrite`). Every
+  `brix_frm on` server must publish the same `brix_frm_queue_path`,
+  `brix_frm_stagecmd`, `brix_frm_copymax`, `brix_frm_fail_retries`,
+  `brix_frm_fail_backoff` and `brix_frm_copy_timeout` — the stage engine is
+  process-wide and a disagreeing server is refused at `nginx -t`
+  (`… differs from the value another brix_frm server published (…): the
+  stage engine is process-wide`).
 
 - **Observability compatibility aliases have been removed.** Update nginx
   `log_format` variables, JSON ingest mappings and Prometheus queries before
@@ -41,1225 +139,1047 @@ what changed for a user of the server.
   `port`/`auth` breakdown. See
   [Phase 112](docs/refactor/phase-112-observability-compatibility-removal.md).
 
-## v1.5.0 — 2026-08-26
-
-### Security
-
-- **Per-host authentication policy (`brix_protbind` / `brix_webdav_protbind`) —
-  stock `sec.protbind` parity, plus a true multi-protocol security token.**
-  A new frontend-agnostic engine (`src/auth/protbind/`) parses
-  `<host-template> [none | [only] <protocol>...]` once and resolves it once, so
-  the `root://` stream server and the HTTP/WebDAV location block accept the
-  same grammar and reach the same decision for the same peer. Host templates
-  follow XRootD's `XrdOucNList` rules (at most one `*`, case-insensitive,
-  matched against reverse DNS with an IP-literal fallback); rules are ordered
-  and first-match-wins, so `*` goes last. Reverse DNS is skipped entirely when
-  every template is `*` — the dominant configuration — and is otherwise
-  resolved once per connection and cached.
-
-  The resolved set is now the single source of truth for all three stages that
-  previously re-derived their own answer from `brix_auth`: the `kXR_protocol`
-  capability reply, the `kXR_login` security token — which can now advertise an
-  **arbitrary ordered set** of `&P=` blocks rather than only the pre-baked
-  `both` (ztn+gsi) composition — and the `kXR_auth` credential-type gate, which
-  re-checks membership because a client may offer any credtype regardless of
-  what was advertised. On the HTTP side the same set orders the GSI / bearer /
-  Basic sources and, importantly, restricts which `WWW-Authenticate` challenges
-  are offered, so a peer bound to `only pwd` is never invited to present a
-  bearer token.
-
-  A configuration with no `brix_protbind` line is unchanged byte-for-byte:
-  the base set reproduces the previous `brix_auth` semantics exactly, and both
-  orderings are pinned as regression assertions in `tests/c/protbind_test.c`.
-  Naming a protocol in a rule now also pulls that protocol into startup
-  validation, so a rule referencing a scheme whose keys, certificate or
-  principal are absent is an `[emerg]` at config time instead of a failure on
-  the first handshake.
-  (`src/auth/protbind/{match,policy,config,peer}.c`,
-  `src/protocols/root/session/{protocol,login}.c`,
-  `src/protocols/webdav/access_auth.c`; `tests/c/protbind_test.c`,
-  `tests/test_protbind_parse.py`.)
-
-- **Per-capability TLS gating (`brix_tls_require`) — stock `xrootd.tls`
-  parity as a generic VFS feature.** One 4-bit mask
-  (`none | [all|login|session|data|tpc|-<cap>]...`, parsed/enforced in
-  `src/fs/vfs/vfs_secgate.c`) now gates cleartext requests on every plane:
-  the `root://` stream pre-dispatch refuses masked opcodes with
-  `kXR_TLSRequired` (handshake opcodes stay exempt so the in-protocol TLS
-  upgrade always works), the native-TPC open choke point and both WebDAV
-  `COPY` TPC legs enforce the `tpc` bit, and the WebDAV/S3 dispatchers map
-  refusals to `403`. The enforced mask is advertised to clients as
-  `kXR_tlsLogin/tlsSess/tlsData/tlsTPC` bits in the `kXR_protocol` reply
-  (mask `none` leaves the flags word byte-identical to before). Finer-grained
-  than the `brix_min_sec_level` floor: `data` alone leaves cleartext
-  metadata untouched. Covered by `tests/test_tls_require.py` (13 wire +
-  parse cases).
-- **Cleartext `ztn` (bearer-token) authentication is now refused by
-  default, matching stock XRootD.** A bearer token on a cleartext
-  connection is replayable by any on-path observer; stock `XrdSecztn`
-  refuses to offer it there. BriX now drops `ztn` from the cleartext
-  `kXR_login` sec token (refusing the login with `kXR_TLSRequired` when no
-  other protocol remains) and rejects a cleartext `kXR_auth` carrying a
-  `ztn` credential even if a client volunteers one. The new
-  `brix_ztn_cleartext on` stream directive opts a listener back in for lab
-  rigs that drive the raw wire without TLS (the bundled test fleet configs
-  are opted in; production listeners should never be).
-
-- **Two S3 endpoints in one server no longer share a signing key.** The
-  worker-local SigV4 signing-key cache was keyed on date + region only, not on
-  the secret it came from. One worker verifies for every `brix_s3` block in the
-  configuration, so whichever block signed first captured the single cache slot,
-  and for the rest of the calendar day another block would **accept a request
-  forged with the first block's secret** (an access key id is an identifier, not
-  a secret) and **reject its own legitimate credential**, because the cache-hit
-  path never re-derives. The cache is now keyed on date + region + a SHA-256 of
-  the secret (a digest, so no key material sits in the static). Deployments with
-  a single `brix_s3` block were never affected; anything re-exporting a bucket
-  through a co-hosted gateway was. Pinned by `tests/test_s3_nested_gateway.py`,
-  which fails in both directions against the old code.
-
-- **HTTP-TPC pulls can now be verified before they are committed**: a WebDAV
-  `COPY` pull committed whatever curl produced, because its only in-band
-  "the whole file arrived" signal is "curl stopped without an error" — which a
-  chunked source that dies mid-body, a truncating middlebox and a corrupting one
-  all produce. The native `root://` plane has refused those since Phase 58; the
-  HTTP plane had no completion gate at all. Two new directives close it, named and
-  behaving like the native pair so there is one contract to reason about:
-  `brix_webdav_tpc_require_source_size on|off` and
-  `brix_webdav_tpc_verify_checksum <alg>`. When either is on, one HEAD re-probes
-  the source before the staged temp is published — carrying `Want-Digest: <alg>`
-  when a checksum algorithm is configured — and the declared `Content-Length` is
-  compared against the bytes on disk, then the returned RFC-3230 `Digest` is
-  recomputed over the temp. A declared length that disagrees always refuses; a
-  source that declares *no* length refuses only under `require_source_size`; the
-  checksum half is fail-closed (absent, unparseable, uncomputable or mismatching
-  all refuse). Refusals are `502` and the staged temp is aborted, so nothing is
-  published. Both halves default off, so an existing deployment sees no new
-  refusal, and the algorithm name is validated at config parse time — a typo is
-  `[emerg]`, never a silently disabled gate. All three pull tiers (202-marker,
-  thread-pool, synchronous) pass through it exactly once; push is unaffected.
-  See [docs/04-protocols/http-tpc-reference.md](docs/04-protocols/http-tpc-reference.md) §8.
-
-- **WebDAV TPC push now faces the source-host egress allowlist**: a COPY *pull*
-  had its `Source` authority vetted against `brix_webdav_tpc_source_allow`, but a
-  COPY *push* returned into the push handler before that guard, so the
-  `Destination` authority it dialled was subject only to the Layer-1
-  address-range/DNS preflight. Push and pull now share the same naming verdict,
-  the same 403, and the same `signal=tpc_egress` audit line.
-
-- **A hostile manager could forge lines into `error.log` through a CMS existence
-  probe.** The `kYR_state` payload is a raw namespace path, and its validator
-  bounds the length, requires a leading `/` and rejects `..` — but accepts every
-  other byte, CR and LF included. That path then reached five log sites as a bare
-  `%s`, so a manager (or anything that had taken one over) could embed a newline
-  and write whole synthetic records — including fake `cmsd-action` audit lines,
-  which is exactly the record an operator would trust when reconstructing who
-  asked for what. The probe path is now rendered through
-  `brix_sanitize_log_string()` at every log site on both the sub-manager and the
-  data-node arm; the wire reply and the `openat2`-confined stat keep the real
-  bytes, so nothing about resolution changes. Pinned by
-  `test_state_probe_path_is_escaped_in_the_error_log`, which pushes a probe
-  carrying `\n cmsd-action …` and asserts the escaped `\x0A` appears while no
-  `error.log` line *begins* with `cmsd-action`.
-
-- **`b64url_decode` overran an exactly-sized output buffer by up to two bytes.**
-  OpenSSL's `EVP_DecodeUpdate` writes three bytes for every four base64
-  characters and subtracts the padding from the *reported* count only, so a
-  padded token wrote past the length the decoder returns — while the capacity
-  check explicitly admitted a caller who sized `out_max` to exactly that length.
-  Every bearer token decodes through this function before any authentication
-  runs. The decode now lands in the decoder's own buffer and only the bytes that
-  are really there are copied out, so the advertised contract ("`out_max` ≥ the
-  decoded length") is the one that holds. The over-write is real on OpenSSL
-  3.0.x (what the CI runner links, and what had been reddening the `fuzz_b64url`
-  lane on nearly every push) and absent on 3.5, which is why it never reproduced
-  on an EL9 dev box — the fix does not depend on which one is linked. `tests/unit/test_b64url.c` pins each
-  padding width with a canary past `out_max`, so a plain non-sanitizer run
-  catches a regression.
-
-- **The curl feature gates were all dead, and a guard now keeps them alive.**
-  `CURLOPT_*`/`CURLINFO_*` are enum constants, not macros, so every
-  `#ifdef CURLOPT_…` in the tree evaluated false and silently deleted the branch
-  it guarded — that is what disabled the TPC progress callback, the pmark socket
-  callbacks and S3 connection-age recycling, and what left the deprecated
-  `CURLOPT_PROTOCOLS` on the live path where the ASan lane failed the build on
-  `-Werror=deprecated-declarations`. All sites now gate on
-  `CURL_AT_LEAST_VERSION(maj, min, patch)`, which re-enables those features, and
-  `tools/ci/check_curl_enum_ifdef.py` (wired into `guards.yml`, tested in
-  `tests/test_ci_guards.py`) fails the build if the pattern comes back.
-
-- **A fuzz crash in CI is now reproducible.** The runner left libFuzzer's
-  `crash-<sha1>` input in the runner's working directory, where nothing collected
-  it, and excerpted only the *tail* of the output — discarding the sanitizer's
-  diagnosis, which is printed first. A `fuzz_b64url` failure on 2026-08-05 was
-  therefore un-triageable from its own log. `cmdscripts.fuzz_all` now directs
-  reproducers to `tests/fuzz/artifacts/<target>/`, names them in the failure
-  line, and keeps both ends of the output; `fuzz.yml` uploads that directory as
-  the `fuzz-reproducers` artifact on failure.
-
-### Fixed
-
-- **`kXR_sigver` request signing now speaks stock XrdSecProtect secver-0 —
-  signed stock clients verify instead of being rejected.** The previous scheme
-  was self-invented (HMAC-SHA256 keyed by SHA-256 of the DH secret), so at
-  `brix_security_level intense` every signed request from a stock `xrdcp`
-  failed verification. The shared `gsi_core` kernels
-  (`brix_gsi_sigver_{hash,sign,verify}`) now implement the reference scheme:
-  plain SHA-256 over `seqno_be(8) || request header(24) || payload` (payload
-  excluded for `kXR_write`/`kXR_pgwrite` unless `kXR_secOData` was negotiated),
-  encrypted with the negotiated GSI session cipher, fresh IV prepended for
-  signed-DH peers. One source compiles into both the server verifier and the
-  native client signer, and the native client now also parses the server's
-  `ServerResponseReqs_Protocol` signing trailer correctly (it previously read a
-  fictitious layout and never signed at all). Covered by a new C unit test
-  (`client/tests/c/sigver_kernel_unit.c`: roundtrip in both IV modes, nodata
-  exclusion, and tamper negatives) plus live signed-stock and signed-native
-  suites; the strict level-3 policy (everything non-exempt, including
-  `kXR_dirlist`) is deliberately kept and its unsigned-op refusals re-proven.
-
-- **`xrdcp --streams` against a stock server hung forever instead of copying.**
-  The Phase-94 pumps fan complete `kXR_read`/`kXR_write` request frames across
-  `kXR_bind` secondaries — a BriX extension. A stock server treats a bound path
-  as a `pathid`-directed data channel and never answers a request frame that
-  arrives there, so the first fanned write waited for a response that could
-  never come. BriX now advertises the capability via `kXR_Qconfig`
-  (`brix.substreams=rw`; an unknown key is merely echoed, per the `do_Qconf`
-  convention), and `brix_streams_open()` probes it after binding, tearing the
-  secondaries down again and running primary-only when the marker is absent.
-  Substream fan-out against BriX itself is unchanged, at the cost of one RTT
-  when streams are requested.
-
-- **A header edit could leave a client object stale, and the build only said so
-  in a warning nobody reads.** `client/Makefile` gave six objects two recipes
-  each. make does not treat that as an error: it keeps the last recipe, drops
-  the first, and prints `overriding recipe for target`. For the five brixcvmfs
-  split objects both copies were identical, so it cost only noise — but
-  `apps/fs/brixautofs_ext.o` was covered both by the `$(BRIXAUTOFS_OBJS)` rule,
-  which depends on `apps/fs/brixautofs.h`, and by a standalone rule below it
-  that does not. The standalone one won, so editing that header rebuilt
-  `brixautofs.o` and not `brixautofs_ext.o`, linking a stale object against a
-  changed struct until someone ran `make clean`. Both duplicates are gone
-  (`BRIXCVMFS_SPLIT` is now a link list, not a second rule), and the new
-  `tools/ci/check_make_recipes.py` guard fails the `guards` lane on any target
-  that regrows a second recipe — it asks `make --dry-run` rather than parsing
-  Makefiles itself, costs ~0.3s across all three, and skips where make is absent.
-
-- **A WebDAV auth test asserted a status the RFC forbids.** The GSI fixture
-  endpoint carries a JWKS as well as a CA dir, so it is bearer-protected and
-  owes an uncredentialled request `401` + `WWW-Authenticate: Bearer` (RFC 6750
-  §3) — `403` is reserved for `insufficient_scope` on a *valid* token, and is
-  what a cert-only export still returns. The server had it right; the test
-  still expected the pre-bearer `403`. It now asserts the 401 **and** the
-  challenge header, so the RFC obligation is covered rather than just the code.
-
-- **A clustered rename left the manager's namespace permanently wrong.** Data
-  servers report namespace mutations up the CMS link so the manager can answer
-  `kXR_stat` from its Composite Cluster Name Space inventory instead of
-  redirecting — but `kXR_mv` emitted no event at all, on either the inline or
-  the `brix_backend_async` durable-queue path. The manager therefore kept
-  serving the pre-rename path (with the pre-rename size) and never learned the
-  new one, for the life of the entry. A rename now emits one **two-path**
-  `MV` event which the manager applies **subtree-aware**: every recorded child
-  of a renamed directory moves with it. That is why it is a single event rather
-  than a `DEL` + `ADD` pair — a pair strands the children at a path that no
-  longer exists, and is not safe against out-of-order arrival. Interop is
-  preserved in both directions: the CNS frame code is private to BriX peers, so
-  a manager built before this change ignores the added payload and then treats
-  the unknown op as a no-op. Covered end-to-end (file, directory subtree, and
-  the async waker) in `tests/test_cns.py`, plus the inventory contract in the
-  standalone `cns_inventory` unit test.
-- **A path-based `kXR_truncate` left a stale size in the manager inventory.**
-  It is the only size change in the protocol with no `kXR_close` behind it — the
-  handle form is followed by a close, which already emits the authoritative
-  record — so it was the one mutation whose new size never reached the manager.
-  It now re-emits with the size observed on the object itself (through the VFS
-  seam, so it is also correct over a non-POSIX backend), rather than trusting the
-  length in the request.
-
-- **Every `stub-upstream-*` test ran against a dead upstream.** None of the
-  seven fronts declared `requires=("upstream-stubs",)`, and under the zero-boot
-  gate a `registry_server` marker starts only the dependency closure — so the
-  stub process never came up, and nginx answered each locate with `kXR_error`
-  because it could not reach its backend. That failure is indistinguishable
-  from "the proxy correctly forwarded an upstream error", which is how it went
-  unnoticed; `test_locate_wait_then_redirect` was failing outright (`4003 !=
-  4004`). All seven specs now name the stub process.
-- **`brix_io_ops_total{op="tpc"}` had no booking owner and exported a permanent
-  zero.** The label value was declared in the unified op enum and scraped
-  cleanly, so it read as a working metric that measured nothing — third-party
-  copies were invisible in the unified ledger even though the protocol-specific
-  `brix_tpc_transfers_total` counted them. `brix_tpc_metric_book()` now also
-  calls the new `brix_metric_op_count(proto, op, err)` — the count-only sibling
-  of `brix_metric_op_done()`, for operations that have no single meaningful
-  latency (a TPC transfer's duration is the remote leg's, not this server's).
-  Recorded as Pattern 13 in `docs/08-metrics-monitoring/metrics-bug-patterns.md`,
-  the inverse of the single-owner rule: a row with *no* owner rather than two.
-
-- **Server-side COPY could not succeed on any export with an explicit
-  `brix_storage_backend`.** `sd_posix_server_copy()` passed the vtable's
-  root-relative keys to `brix_ns_local_copy()`, which strips `root_canon` off
-  *absolute* paths and treats a non-match as a cross-root copy — so every copy
-  failed `EXDEV`, surfacing as WebDAV `COPY` → 403 and S3 `CopyObject` → 500.
-  A plain export was unaffected: its driver is NULL, so the copy took the VFS
-  namespace branch instead. This is the same calling-convention bug fixed in
-  `sd_posix_rename` one day earlier, in the sibling slot that fix did not check;
-  `brix_io_ops_total{op="copy"}` had a structurally impossible 100% error rate on
-  driver-backed exports for as long as the row existed.
-
-- **A WebDAV GET that triggered a cache fill was missing from the response
-  ledger.** Such a request parks with `NGX_DONE` and is re-entered by the fill
-  worker, which called the raw GET handler rather than the metrics-wrapped
-  dispatch tail — so the one request that actually paid for an origin fetch never
-  booked `brix_webdav_responses_total` or `brix_io_ops_total{op="read"}`, while
-  its bytes still landed via the scrape-time ledger fold (ops and bytes disagreed
-  by exactly one per cold object). A fill that ended 404/403/502 never re-entered
-  at all and booked nothing; that tail now has an `on_fail` hook. Only exports
-  that offload fills (remote-backed) were affected — a local posix export serves
-  inline and was always counted correctly.
-
-- **`rmdir` of a regular FILE on an HTTP origin deleted the file** and reported
-  success. WebDAV has one DELETE method for both kinds of resource, so the
-  `sd_http` unlink slot discarded the `is_dir` the VFS passes it. A type probe
-  (PROPFIND `Depth: 0`) now runs before anything is issued: an `rmdir` of a
-  non-collection is refused `ENOTDIR`, exactly as the POSIX backend refuses it,
-  and nothing reaches the origin.
-
-- **A populated collection could be removed by a non-recursive delete.** The VFS
-  calls the driver's unlink slot non-recursively (recursive deletes are walked by
-  `brix_vfs_driver_rmtree`), but a WebDAV DELETE of a collection is recursive per
-  RFC 4918 §9.6 — so against a spec-conforming origin an `xrdfs rmdir` of a
-  non-empty collection would have erased the whole subtree, where POSIX refuses
-  `ENOTEMPTY`. Against an origin that refuses it (409) the client was told the
-  removal **succeeded** while the data survived, because the shared status map
-  read that 409 as `ENOENT` and the root layer treats a missing rmdir target as
-  idempotent success. The delete slot now gates on an emptiness probe and maps a
-  DELETE 409 to `ENOTEMPTY`; an empty collection is still removable by both `rm`
-  and `rmdir`, matching `brix_ns_delete`.
-
-- **Deleting a path that does not exist on an HTTP origin looked like a real
-  deletion**: the unlink slot counted 404 as success ("idempotent"), so `rm` of a
-  missing object returned OK where every other backend returns `kXR_NotFound`.
-  404 is now `ENOENT` — and reachable only as a lost race, since the gate has
-  already established the entry existed.
-
-- **`stat` of an HTTP origin reported EVERY path as a regular file**: a HEAD of a
-  collection and a HEAD of an empty object are the same `200` with
-  `Content-Length: 0`, so a directory stat'd as a zero-byte file — `xrdfs stat`
-  showed no `isDir`, and any caller branching on the type took the file branch.
-  A zero-sized stat now resolves the ambiguity with one PROPFIND `Depth: 0`
-  (the same probe the delete gate uses) and stamps `S_IFDIR` for a collection.
-  A non-zero size is unambiguous and costs no extra round trip, so plain HTTP and
-  CVMFS origins keep their flat-object view unchanged.
-
-- **`mkdir -p` over an existing regular FILE reported success** — on the POSIX
-  path and through every driver mkpath walk. The walks tolerate `EEXIST` so an
-  already-present prefix is benign, but at the FINAL component that tolerance
-  decided the whole operation: a client was told a directory existed where its
-  own data was, and the next write into that "directory" failed `ENOTDIR` with no
-  explanation. An `EEXIST` at the leaf is now benign only over a directory
-  (`brix_mkdir_existed` on the POSIX side, `brix_vfs_backend_leaf_isdir` on the
-  driver side, both failing closed when the type cannot be established) —
-  the same conflict coreutils `mkdir -p` reports.
-
-- **A write-stage tier made every write to a subdirectory impossible**: with
-  `brix_stage` configured, a create-open of any nested key failed
-  `kXR_NotFound` (3011). The stage store is a private spool, so the chain the
-  client built with `mkdir`/`kXR_mkpath` exists in the export and (at flush) on
-  the origin, but never in the spool the write-back leg opens — flat keys worked,
-  everything else did not. The tier now builds the key's parent chain in the
-  store before opening it; the staged whole-object leg was unaffected because the
-  POSIX store's `staged_open` already mkpaths its own parents.
-
-- **`kXR_fattr` list answered `kXR_FSError` for a backend that simply has no
-  extended attributes**: `fattr_list()` degrades to an empty list only when the
-  underlying call reports `ENOTSUP`/`EOPNOTSUPP`, but the storage seam reports a
-  leaf driver with no `listxattr` slot as `ENOSYS`
-  (`brix_sd_listxattr_maybe_cred`). An export whose http origin sits under the
-  default write-stage tier therefore failed a plain attribute listing, while the
-  same origin used directly returned the documented empty list. `ENOSYS` is now
-  accepted alongside the other two.
-- **`brix_upload_resume` (and with it `brix_stage_dir`) was disabled for every
-  plain `brix_export` on the root:// plane**: the P80.2 resume divert had been
-  widened to fire whenever `brix_vfs_backend_resolve()` returned an instance, but
-  since phase-68 every plain export registers a **default-POSIX** backend row, so
-  the resolve is never NULL and the divert cleared `use_resume` unconditionally.
-  Uploads still landed byte-exact, but unstaged — writes touched the final path
-  mid-transfer and an interrupted upload could not be resumed. The divert now
-  keys on the driver being something other than `brix_sd_default_driver()`, the
-  same discriminator `brix_commit_staged()` uses, so driver-backed exports keep
-  taking the whole-object staged seam while local POSIX storage — the case the
-  resume skeleton exists for — keeps its staging.
-- **A failed staged commit on the `stage` and `frm` backends freed the handle
-  the caller was then required to abort**: the storage-driver contract is that
-  `staged_commit` consumes (frees) the heap handle **only on success** — every
-  caller (`stage_engine`, `cstb_pump_and_commit`, the cache fetch path) calls
-  `staged_abort` after a commit that failed. `sd_stage`'s synchronous write-back
-  freed both allocations even when the inline flush failed, and it left
-  `ss->inner` dangling after the inner store commit had already consumed it;
-  `sd_frm` freed both when `mss->migrate()` failed. In each case the mandatory
-  abort re-entered released memory — a use-after-free plus a double free, and in
-  the frm case a second purge of the online buffer. Only successful commits free
-  now, and `sd_stage`'s abort skips an inner handle that was already consumed.
-  This is the same family as the earlier posix double-free; the remaining
-  drivers were surveyed and are conformant (`ceph` is pool-allocated and frees
-  nothing by design).
-
-- **`brix_cache_meta sidecar` never produced a sidecar on an xattr-capable
-  store**: `brix_xmeta_save()` prefers the `user.xrd.cinfo` xattr whenever the
-  store driver has `setxattr`, and the cache called it unconditionally — so an
-  explicitly configured sidecar mode silently degraded to the xattr carrier, and
-  a store that could hold only sidecars kept none of the metadata it was told to
-  write. The mode is a request, not a hint: `brix_cstore_cinfo_store()` now
-  routes `BRIX_CMETA_SIDECAR` through a new `brix_xmeta_save_sidecar()`.
-
-- **A `root://` store could not hold a cache sidecar at all**: with the above
-  fixed, the `<key>.cinfo` open came back `kXR_NotFound` (3011). Every reserved
-  name is answered as absent on the root plane so a client can neither read nor
-  create one — but unlike the HTTP planes, the root plane had no trusted-store
-  exception, so `brix_cache_store root://…` with sidecar metadata failed every
-  cinfo store and refilled on every read. See `brix_cache_store_endpoint` under
-  *Added*.
-
-- **`root://` token auth was unusable from a stock XRootD client**: the
-  `kXR_login` security block advertised `&P=ztn,v:10000`, a parameter form
-  borrowed from the GSI dialect. `XrdSecProtocolztn` parses its parameters as
-  `<expiry>:<maxtsz>:` — minimum acceptable token lifetime, then maximum
-  accepted token size, each closed by a colon and the size required positive —
-  so every stock `XrdCl` aborted the login with *"Secztn: Malformed client
-  parameters"* and fell through to "No protocols left to try". The server now
-  advertises `&P=ztn,0:4096:` (the reference server's own default `-maxsz`), in
-  the token-only block and in the `brix_auth both` block alike. The bug survived
-  because every pre-existing `ztn` test drove the credential exchange by hand
-  rather than through a real client; `test_token_auth.py` now pins the grammar,
-  and `test_tpc_token_auth.py` exercises it end-to-end with `xrdcp`.
-
-- **S3: a key ending in `/` is a folder marker**: the server had no folder-marker
-  path on either side, so BriX talking to its own S3 origin could neither create
-  nor see a directory. `PUT "dir/"` fell into the object-write path and its
-  atomic publish tried to rename the staged temp *onto* the directory its own
-  parent-prefix mkdir had just created (`EINVAL` → 500, directory left behind);
-  over `root://` that surfaced as `xrdfs mkdir` → EIO. `HEAD "dir/"` answered 404
-  `NoSuchKey` like every other directory path, so a folder that existed stat'd as
-  absent and a rename into it was refused with "invalid destination path". A
-  marker `PUT` now creates the directory and is idempotent (a marker carrying a
-  body is refused 400 `InvalidRequest` rather than silently dropped), and `HEAD`
-  of the marker form reports it with zero length. Keys *without* the trailing
-  slash that merely resolve to a directory remain 404 `NoSuchKey`.
-- **Metrics accuracy — HTTP upload double-count**: WebDAV/S3 PUT booked the
-  unified WRITE row twice (once at the VFS staged commit, once at the protocol
-  response), doubling `brix_io_ops_total{op="write"}`, `brix_io_bytes_written`
-  and the write-latency histogram for every HTTP upload. The staged commit now
-  books only the per-backend `brix_storage_io_bytes_*` totals and the access-log
-  line; the unified WRITE row is owned solely by the protocol response path.
-- **Metrics accuracy — PROPFIND responses uncounted**: PROPFIND-with-body
-  finalized through a bare `ngx_http_finalize_request`, so
-  `brix_webdav_responses_total{method="PROPFIND"}` never moved. The async body
-  handler now finalizes via the metrics-aware wrapper, matching
-  PUT/PROPPATCH/SEARCH.
-- **WebDAV MOVE always failed with 500 (EXDEV)**: `sd_posix_rename` forwarded the
-  vtable's export-relative keys straight to `brix_ns_rename()`, whose contract
-  demands absolute paths under `root_canon` — every rename, even within one
-  directory, was refused as a cross-root move. The driver now builds the
-  absolute paths exactly as `sd_posix_mkdir`/`unlink` already did.
-- **MOVE metrics folded into `method="OTHER"`**: the WebDAV metric enum had no
-  MOVE slot, so `brix_webdav_requests_total`/`_responses_total` booked every
-  MOVE as OTHER. MOVE is now a first-class method label (new enum slot, string
-  table, and operation-table row; OTHER shifted to the last slot).
-- **Metrics exposition — unquoted `hash` label**: `brix_user_sessions_total`
-  emitted its label value unquoted (`{hash=a1b2c3d4}`), which strict Prometheus
-  text-format parsers reject. The value is now quoted; a board-wide
-  label-residue test keeps every hand-formatted row honest.
-- **WebDAV malformed `Range`: wire status and accounting disagreed**: the GET
-  path left the core nginx range filter enabled (`allow_ranges = 1`) on top of
-  the module's own range handling. A malformed/backwards `Range` was correctly
-  ignored by the module (RFC 9110 §14.2 — full 200 served and ledgered), then
-  the core filter re-parsed the same header and rewrote the response to a 416
-  error page — booking a full-object read for a response the client never got.
-  The serve path now owns range semantics end-to-end (`allow_ranges = 0`,
-  explicit `Accept-Ranges: bytes`).
-- **A GridFTP `MLST` fact line could carry uninitialised stack bytes.** The
-  event-engine formatter checked `gmtime_r()` but used `strftime()`'s result
-  unconditionally, and `strftime()` leaves its buffer *indeterminate* when it
-  returns 0 — so a timestamp `gmtime_r` accepts but the format cannot render
-  (a year beyond four digits) put whatever was on the stack into `modify=`.
-  The buffer is re-cleared on that arm, so the fact degrades to a valueless
-  `modify=` rather than leaking. `tests/test_gridftp_engine_event.py` pins the
-  fact's shape at the filesystem's own mtime ceiling (ext4 clamps to 2446, which
-  is the closest a real on-disk mtime gets to the arm), asserts `MLST` and
-  `MDTM` agree, and adds a security-negative test that every byte of a fact line
-  is printable ASCII.
-
-### Removed
-
-- **`brix_throttle_max_active_connections` (breaking config change).** The
-  directive parsed and merged cleanly but had zero readers, so it never capped
-  anything — a config that set it got no protection while reading as though it
-  did. It is now gone; a config that still names it fails `nginx -t` with
-  "unknown directive". **Action:** delete the line. The per-user cap that *is*
-  enforced is `brix_throttle_max_open_files`, charged on `kXR_open` and released
-  on close/disconnect, and it is unchanged. Reintroducing a connection cap
-  requires landing the login admission point in the same change as the counter.
-
-- **Dead throttle engines and the dormant HTTP redirect path.** Three
-  fully-implemented subsystems with no call site anywhere in the tree were
-  deleted rather than left to imply behaviour they never had (parity audit
-  §9.2; plan and rationale in
-  [`docs/refactor/phase-95-audit-deadcode-burndown.md`](docs/refactor/phase-95-audit-deadcode-burndown.md)):
-  the XrdThrottle `userconfig` INI matcher
-  (`brix_throttle_userconfig_load`/`_match` and its rule tables), the IO-load
-  concurrency metric (`brix_throttle_charge_io`/`brix_throttle_ioload_over`,
-  together with the `io_time_us`/`io_window` fields in the SHM node they were
-  the only readers of), and the XrdHttp redirect dialect
-  (`xrdhttp_send_redirect` plus the `X-Xrootd-Redir-Host`/`-Port` emitters —
-  HTTP clients were never redirected by it; the `root://` plane's own
-  redirector is untouched). Also removed: `brix_protbind_proto_name`, whose
-  only caller was its own unit test — every `&P=` block spells its protocol
-  name inline with that protocol's parameters.
-
-  `tests/test_deadcode_removed.py` pins the removals: it fails if any of these
-  symbols returns as code rather than as a comment, and separately asserts that
-  the surviving open-files cap still has its charge point and both release
-  points, so a later cleanup cannot silently disarm it.
-
-### Changed
-
-- **Agent-memory knowledge folded into the repo docs.** Everything durable that
-  had accumulated only in the agent memory store was relocated into the docs it
-  belongs to, and the memories themselves reduced to pointers. New or extended
-  material: harness/fleet gotchas and wire-stub traps
-  (`history-testing-and-incidents.md` §1.3); hermetic C-unit link rules, the
-  `-DBRIX_HAVE_*` harness-ABI trap, the unbalanced-quote-in-`config` silent
-  source drop, nginx's wiped worker environment, and the private-build-tree
-  recipe for a box shared by concurrent sessions
-  (`history-build-infra-and-decisions.md` §1/§5); fault-injection rate regimes
-  and the sticky-lever trap (`hostile-network-lessons.md`); the pblock
-  versioning reachability rule (`phase-83-pblock-lab-features.md`); the Ceph
-  live-lab runbook (`phase-60-ceph-rados-backend.md`); the `-brix` tool
-  naming policy with `xrdsssadmin-brix`'s non-stock CLI
-  (`native-client-tools.md`); the fleet signing-key-desync signature — every
-  token accept-case red while every reject-case passes — added to the
-  testing field-guide table; and the standing Python-replaces-bash tooling
-  policy written down as `history-build-infra-and-decisions.md` Part 2 §7. A
-  second pass emptied the index file itself: `logged_in` is set when the CMS
-  login is *sent*, not acknowledged, so nothing may assert cluster membership on
-  it (`cms-protocol.md` §8 item 11); `brix_sanitize_log_string` emits **uppercase**
-  hex, which is a test-assertion trap (`comparison-nginx-xrootd-vs-canonical.md`
-  §4.10); and through the phase-97 CMS/CNS work every red was a concurrent
-  session's `TEST_ROOT` wipe or fixed-port contention and none was a code defect,
-  so on a shared box a red is re-run solo before the diff is read
-  (`history-testing-and-incidents.md` §1.3). The memory store went from 672 KB
-  across 350 files to 128 KB across 243 (19%): each surviving entry is
-  frontmatter plus one line — the doc pointer, the commit/date/file archaeology,
-  and its cross-links — and only the operating rules keep imperative text, each
-  carrying a doc reference for the why. A final pass deleted the 107 memories
-  whose whole body had become a bare pointer at the history tree, which every
-  session is already told to read: a pointer at a pointer carries nothing, so
-  their one-line summaries were folded into `development-history.md` as the
-  **Appendix — the folded memory index**, a slug → *what happened* lookup grouped
-  by owning document, for when an old note or commit message names one of them.
-- **Two red CI guards re-greened, neither of which was reporting real debt.**
-  `check_doc_links` failed on a single untracked link *target*
-  (`docs/05-operations/cvmfs-stratum0.md`, written during the Stratum-0 work and
-  never added) — the guard treats an untracked target as dead because it
-  resolves locally and 404s in every fresh clone. `check_duplication` reported 10
-  new duplicated blocks in `src/` files that had not been edited; the ratchet
-  keys a grandfathered block on its exact line spans, so an edit *above* a
-  duplicated block, or lizard regrouping which spans it clusters, resurfaces that
-  block as "new". All 10 were classified as churn before regenerating, and the
-  regenerated backlog confirms it: 10 entries added (exactly the 10 failures) and
-  7 dropped for duplication that has since been factored out. See
-  [docs/09-developer-guide/ci-guards-burndown-2026-07-21.md](docs/09-developer-guide/ci-guards-burndown-2026-07-21.md)
-  §"Follow-on: 2026-08-05".
-
-- **`brix_authdb` (native format) now works behind every authenticating scheme**:
-  the config-time gate whitelisted `gsi`, `token` and both, so a server using
-  `sss`, `krb5`, `pwd`, `host` or `unix` was refused at startup — those five
-  mechanisms could authenticate a user but could not authorize one, on any path.
-  They all stamp `ctx->login.dn` exactly as gsi/token do (`pwd`/`sss` fill the VO
-  list too), so `u`/`g`/`p` rules bind behind them unchanged. The gate now
-  refuses exactly one configuration, an anonymous server (`brix_auth none`), and
-  `brix_authdb_format xrdacc` stays exempt even there because it authorizes
-  anonymous `u *` rules. See
-  [docs/06-authentication/identity-mapping.md](docs/06-authentication/identity-mapping.md)
-  §4.2 for which scheme feeds which rule type.
-
 ### Added
 
-- **Background block prefetch for the slice cache** (`brix_cache_prefetch`,
-  `brix_cache_prefetch_window`), closing the highest-value cache gap in the
-  2026-08-04 XRootD parity audit (XrdPfc `pfc.prefetch`). A sequential read of
-  a slice-cached object now WILLNEED-hints the storage driver, and the cache
-  decorator fills the absent successor blocks on a worker thread — a rolling
-  runway that stays up to `prefetch_window` ahead of the reader (default 8 MiB)
-  with at most `prefetch` jobs in flight (default 0 = off). Implemented as a
-  **generic VFS feature** on the driver `read_advise` slot: both the `root://`
-  sequential-read engine (with XrdPfc disable-on-random parity) and the HTTP
-  memory-backed serve loop (WebDAV/S3 range GETs ≥ 1 MiB) issue the hints, so
-  any protocol plane over `brix_cache_store` + `brix_cache_slice_size` gets
-  speculative fills. Jobs reuse the credential captured at open, skip
-  foreground-filled blocks, and report as `brix_cache_prefetch_jobs_total` /
-  `_blocks_total` / `_failures_total` on `/metrics`. Covered by
-  `tests/test_vfs_prefetch.py` (parse/validate, window cap, disable-on-random,
-  default-off security negative, background-failure resilience, offline
-  serving of a prefetch-completed object, HTTP successor-block warming).
+- **The native `brix_authdb` grammar: `v`/`l` identity selectors, compound
+  selector sets, and the `x` (stage) privilege.** Field 1 of a native authdb
+  line was documented as one letter from `u g p a` and was implemented as
+  `line->type_p[0]` — the *first byte* of whatever was written there, with the
+  rest discarded. `ug alice|atlas /data rl` was therefore accepted as
+  `u alice|atlas`, a rule matching a DN nobody holds, and `gu atlas|alice`
+  became `g atlas`, a rule matching **every** member of the VO. Field 4 dropped
+  any letter it did not know, so one typo turned `rlwd` into a weaker grant
+  silently. Both are gone. Field 1 is now a **set of one to six distinct
+  selectors** drawn from `u g p a v l`, all of which must match — a compound
+  rule is strictly *narrower* than any of its selectors alone — where `v` is the
+  VOMS virtual organisation and `l` the VOMS role, both new. A compound rule's
+  id splits on `|` into exactly one non-empty component per selector,
+  positionally; a **single-selector rule still takes its id verbatim**, because
+  a DN is full of punctuation and splitting one would break every deployed file.
+  `v` and `l` together are resolved as a **positional pair** over the credential's
+  index-aligned VOMS attribute lists, so a proxy holding `/cms/Role=NULL` *and*
+  `/atlas/Role=production` does **not** satisfy `vl cms|production` — the
+  cross-product an independent match would have granted. The privilege alphabet
+  gained **`x`**, the stage/recall privilege: `xrdfs prepare -s`/`-e` and the VFS
+  stage/evict mutations now require it. Anything the grammar cannot parse —
+  an unknown selector or privilege letter, a repeated selector, `a` combined
+  with another selector, a wrong id arity, an empty id component — **refuses the
+  whole configuration** at `nginx -t`, naming the file, the line and the
+  offending byte, rather than silently handing out a rule the operator never
+  wrote. XrdAcc-format files are untouched: `brix_authdb` is read by both
+  engines' parsers before `brix_authdb_engine` has settled, so a native-grammar
+  defect is recorded and only raised at merge time, and only when the native
+  engine is the one selected — the message says as much and names
+  `brix_authdb_engine xrdacc`. Two further defects surfaced while building it,
+  both fixed here: the VOMS **role never reached authorization at all** (the
+  identity was derived from VO *names*, which are `/`-free by design, so the
+  role list was always empty and both the `l` selector and the XrdAcc `role`
+  template were dead code — there is now a dedicated raw-FQAN channel, leaving
+  `$brix_vo`, `brix_require_vo`, the `g` selector and every metric label
+  byte-identical), and the `v`/`l` cross-product above. Pinned by
+  `tests/test_release20_authdb_residuals.py` (21 cases over a GSI+VOMS lab and
+  `nginx -t` arms on both planes, including a genuine two-AC multi-VO proxy for
+  the cross-tuple negative and an INVARIANT-8 arm proving the raw FQAN never
+  reaches a metric label or a log field). *(2.0 F20)*
 
-- **Multi-manager redundancy: `brix_cms_manager` now takes up to 15 endpoints**
-  (multiple arguments and/or repeated directives; the stock `all.manager`
-  `MaxMan` cap), closing the highest-impact operational gap in the 2026-08-04
-  XRootD parity audit. The node opens one heartbeat link **per manager** and
-  logs into **all of them concurrently** — stock cmsd semantics, where a
-  redundant manager set is only redundant if every manager knows the node.
-  Registry-miss lookups (`kXR_locate`, manager-mode open/stat/query) rotate
-  round-robin over the logged-in links (stock `ClientMan` rotation) and fail
-  over to the survivors when a manager drops, falling back to the legacy
-  single-manager error path only when every link is down. CNS namespace events
-  fan out to **every** live link, so each redundant manager keeps a complete
-  inventory. Each link gets a disjoint streamid lane (seed = manager index,
-  stride = manager count), so concurrent replies can never collide in the
-  worker-keyed pending table. A duplicate endpoint (same resolved address) is
-  rejected at parse time — stock managers 30 s-blacklist a second login from
-  the same node identity, so a duplicate would break membership, not add
-  redundancy. Single-manager configurations are unchanged. Covered end-to-end
-  (concurrent login, rotation, failover, CNS fan-out, rogue unsolicited
-  `kYR_select`, parse negatives) in `tests/test_cms_multi_manager.py`.
+- **`brix_crl_scope all|last` and `brix_tls_verify_log off|failure|all` — the
+  `xrd.tlsca` residuals.** Stock XRootD's `xrd.tlsca` carries two knobs BriX had
+  no spelling for: `crlcheck all|last`, which chooses how far up the chain
+  revocation is enforced, and `verifylog off|failure|all`, which chooses what
+  the server says about a chain it just verified. Both now exist under those
+  names on **both** planes — the `root://` stream server and the WebDAV http
+  location, server and `http{}` — with the same value tables on each, so a line
+  copied between two server blocks means the same thing in both.
+  `brix_crl_scope` defaults to `all` (the strict value, unchanged behaviour) and
+  `brix_tls_verify_log` to `off`.
 
-- **Fault injection now reaches the two legs that have no client on them, and
-  the sss login.** `tests/resilience/` could only ever damage one connection —
-  the one between the client and the server. Two legs that carry real grid
-  traffic had never had a single fault injected: a `root://` front fetching from
-  a remote `http://` origin, and the native third-party-copy pull, where the
-  *destination* dials the source. Those are the legs where a short read is most
-  likely to be committed as a complete file, because the client sees a clean 0
-  either way. `test_server_leg_faults.py` (12 tests) covers both;
-  `test_sss_leg_sweep.py` (7) adds the last login mechanism with no fault
-  coverage. The origin leg is then driven a second time through `s3://` rather
-  than `http://` — sd_s3 and sd_http share no fetch code, and they do not behave
-  the same. `test_server_leg_faults.py` is 18 tests; directory total: 90 passed,
-  3 skipped.
+  **`last` is not `X509_V_FLAG_CRL_CHECK`, and that is a security property, not
+  an implementation detail.** OpenSSL's `check_cert` returns early for any
+  certificate carrying `EXFLAG_PROXY`, so on a GSI login — proxy at depth 0, the
+  user's end-entity certificate at depth 1 — plain `CRL_CHECK` checks *nothing
+  at all*. Measured on OpenSSL 3.0.18 with `openssl verify -allow_proxy_certs`
+  against a CA that had revoked the EEC: `-crl_check_all` refuses it
+  (`error 23 at 1 depth ... certificate revoked`), `-crl_check` alone answers
+  `OK`. A flag-based `last` would therefore have been indistinguishable from
+  `brix_crl_mode off` for every proxy login, and a revoked user need only have
+  wrapped their credential in a proxy. BriX keeps
+  `CRL_CHECK|CRL_CHECK_ALL|USE_DELTAS` armed under **both** scope values and
+  narrows `last` inside the verify callback instead
+  (`brix_crl_out_of_scope`/`brix_chain_eec_depth`,
+  `src/auth/crypto/store_policy_store.c`), tolerating a CRL-class verdict at any
+  depth *other* than the end entity's — where the end entity is the shallowest
+  non-proxy certificate in the chain, not depth 0. A revoked certificate is
+  refused under every scope value, which is the invariant this knob is not
+  allowed to break.
 
-  The measurements are worth stating, because two of them contradict what the
-  tests were first written to assert:
+  Both values are carried from config parse to the callback on a
+  `brix_trust_policy_t` attached to the `X509_STORE`'s ex_data, and **every**
+  field of that policy is part of the store's memoisation key: two server blocks
+  that differ only in `brix_crl_scope` or `brix_tls_verify_log` no longer share
+  one cached store. `brix_tls_verify_log failure` logs one `[warn]` line per
+  rejected chain (depth, reason, subject) and `all` adds one `[notice]` per
+  accepted certificate; neither ever prints key material or a PEM chain, which
+  matters because the error log is world-readable. Pinned by
+  `tests/test_release20_tlsca_residuals.py` (74 cases over a lab with two
+  three-level hierarchies — a third level is required, because on root→EEC the
+  end entity and the root share one CRL and no scope value is distinguishable —
+  plus `SC-03/04/05` and `SP-C13..C16` in `tests/c/x509_conformance_test.c` for
+  the store-flag half). *(2.0 F19)*
 
-  - **A severed upstream fetch is refused; a corrupted one is not.** Truncation
-    is visible to the front, which fails the read (rc 54, nothing delivered). A
-    length-preserving bit flip is visible to nothing, so it is relayed to the
-    client as a full-length file under rc 0. The same holds for the TPC pull leg
-    with `brix_tpc_verify_checksum` off — the documented stock-parity default,
-    now also pinned on the raw-transport path.
-  - **`--pgrw` cannot protect the origin leg**, by construction: the per-page
-    CRC32c is computed by the *front*, over bytes it has already read from the
-    origin. An upstream flip is faithfully CRC'd and delivered. `--verify`, an
-    end-to-end checksum, does catch it — and is the only client option that
-    does. `--cksum <alg>` with no `:source` suffix merely prints a digest
-    (`copy_cksum_verify.c`), which is documented but reads like a check, so it
-    is now pinned as a security-negative test.
-  - **`--verify` is fail-open when the checksum *query* fails — and the query
-    crosses the same damaged leg.** Over 20 corrupted fetches from an `s3://`
-    origin, 19 were refused on a checksum mismatch; on the twentieth the
-    server's re-read died, and the client printed `checksum computation failed`
-    and **exited 0, keeping the corrupted file**. That is deliberate policy
-    (`download_reconcile_cksum`: an unverifiable query is a hiccup, not a
-    transfer failure) and defensible in isolation, but the two events are
-    correlated rather than independent — the damage `--verify` exists to catch
-    is the damage that disables it. The `http://` leg refused 20/20 only because
-    sd_http fetches in one GET where sd_s3 issues many ranged ones, giving far
-    more response headers for a flip to land in; the policy is the same on both.
-    A strict mode for `--verify` is the obvious follow-up and is not implemented.
-  - On the client leg the contrast is sharper still: over cleartext `root://` a
-    plain read delivers corruption silently, while `--pgrw` and `--verify` each
-    refuse it. Three tests in `test_tls_token_leg_sweep.py` pin that trio.
+- **`brix_tpc_allow_identity`, `brix_tpc_require`, `brix_tpc_restrict`,
+  `brix_tpc_oids` — the stock `ofs.tpc` identity matrix.** BriX has confined
+  third-party copy by *host* since 1.x (`brix_tpc_source_guard` +
+  `brix_tpc_source_allow`, plus the address-range gate). Stock XRootD also
+  confines it by *identity*: `ofs.tpc allow dn|group|host|vo`,
+  `require {all|client|dest} <auth>`, `restrict <path>` and `oids`. A site
+  migrating a working `ofs.tpc` block had nowhere to put any of it. All four now
+  exist on both planes — native `root://` and WebDAV `COPY` — over one pure
+  verdict core (`src/tpc/common/identity_matrix.c`) reached from one choke point
+  each: `tpc_matrix_gate()` in `src/protocols/root/read/open_tpc.c`, which
+  covers all four native roles (`dest`, `source`, `push_src`, `push_dst`) and
+  runs **before any dial**, and `webdav_tpc_matrix_gate()` in
+  `src/protocols/webdav/tpc.c`. Four properties are load-bearing. **(1) The
+  stage order is a security order** — `oids` → `allow` → `require` →
+  `restrict`, so a path rule can never rescue an identity the allow stage
+  already refused. **(2) Every stage is default-PERMIT while unconfigured and
+  fail-CLOSED once configured**: a site that never writes these directives sees
+  no behaviour change whatsoever, and a site that writes one rule has denied
+  everything that rule does not name — an unauthenticated subject included.
+  `oids` is the single exception and is default-DENY, as in stock. **(3) The
+  party is read off the wire rather than asserted**: a native leg carrying
+  `tpc.org` was opened by the peer SERVER and presents the server's credential
+  (`dest`), one without it by the initiating CLIENT (`client`), so
+  `require dest gsi` is genuinely not satisfiable by a client credential.
+  **(4) `restrict` is stricter than stock** — the prefix match is
+  component-aware, so `/data` admits `/data/x` but never `/database`, and it
+  runs on the same cleaned logical path `open()` would use, after the resolver's
+  traversal rules. The matrix is a policy layer *inside* the existing host-plane
+  confinement: a rule can only narrow what the host allowlist already permitted,
+  never widen it. `allow ... host` reuses the one host-pattern spelling the
+  egress guard already owns and, like the other three hostname consumers, waits
+  for the peer PTR so a rule is never evaluated against a name that has not
+  landed. Refusals name the directive and nothing else — no DN, VO, group, host
+  or path is echoed back — and account through the existing TPC error paths
+  rather than a new metric family. Pinned by
+  `tests/test_tpc_identity_matrix_unit.py` (20 C cases over the pure core,
+  compiled `-Werror` with no nginx),
+  `tests/test_release20_tpc_identity_matrix.py` (35 live wiring, ordering,
+  party-mapping, grammar and refusal-hygiene cases on the native plane) and
+  `tests/test_release20_tpc_matrix_webdav.py` (11 on the WebDAV plane, driving
+  both callers of `webdav_tpc_authorize()` — a pull and a push, each refused and
+  permitted — against a TLS mock source that records whether the outbound socket
+  was ever opened). Note for operators writing `brix_tpc_restrict` on an HTTP
+  location: the path the stage evaluates is the request URI, so the prefix must
+  include the `location` prefix. *(2.0 F18)*
 
-  **Known issue, deliberately not asserted:** `xrdcp --pgrw` against a
-  *corrupted* `http://` origin leg stalls for ~180 s (3x the 60 s per-request
-  timeout) before failing with a misleading `FileNotOpen`, after which the same
-  object returns `NotFound` instantly even though the origin is unreachable
-  rather than empty. Both want a fix in the `sd_http` retry/health path; a test
-  that waits out a 180 s stall would hang CI, and pinning the second would pin a
-  bug as a contract. Reproducer in the module docstring. The `s3://` leg narrows
-  the diagnosis: the identical fault through sd_s3 returns in 0.1 s, so the
-  stall is not a property of pgread, of remote backends, or of corruption in
-  general — and that 0.1 s path is what finally makes "`--pgrw` cannot protect
-  the origin leg" an assertion rather than a claim in a comment.
+- **`brix_cms_fsxeq <op>... <program> [<arg>...]` — an operator program in
+  place of a forwarded namespace op (stock `cms.fsxeq`).** A CMS manager
+  forwards `chmod`, `mkdir`, `mkpath`, `mv`, `rm`, `rmdir` and `trunc` down to
+  the data node that holds the file, and BriX has always answered them with the
+  local filesystem. A site whose namespace does not live there — a database, an
+  archive workflow, a tape front-end — had no way in. This registers the stock
+  directive: named ops are answered by the operator's program **instead of** the
+  built-in leg, ops left unnamed keep it, and the op's own arguments are
+  *appended* to the configured command line the way `XrdOucProg::Run()` appends
+  them (`<mode>` four octal digits or `<size>` decimal, then the **physical**
+  path; `mv` gets both paths). The op name is deliberately **not** injected —
+  stock disambiguates a shared program with a literal argument on each line, and
+  so does this. Exit 0 is success and answers the manager the way the built-in
+  leg does, *silently*; a non-zero exit, an unrunnable program and one still
+  running at `brix_cms_fsxeq_timeout` (default `10s`, whole process group
+  `SIGKILL`ed) each fail the op with the byte-shape-identical `kYR_error` a
+  stock cmsd sends. The run is an nginx thread-pool task, so a wedged program
+  costs one pool slot and one forwarded op rather than the worker's event loop —
+  and a configuration with a program but no `thread_pool` fails every named op
+  **closed** rather than falling back to the leg the operator replaced. Three
+  things it does not relax: the built-in leg's `openat2`/`RESOLVE_BENEATH`
+  confinement has no equivalent for an external program, so a forwarded path is
+  gated lexically **before the fork** (absolute, bounded, no `..` anywhere —
+  both paths for `mv`) and a failing one is answered `fsxeq path denied` with
+  the program never run; `brix_allow_write off` refuses the op before anything
+  is forked; and a group- or world-writable program is refused at `nginx -t`,
+  like `brix_frm_stagecmd`. The program is handed exactly the op's arguments —
+  no worker listen socket, client connection, epoll instance or export-root
+  descriptor, and no credential material in its argv or environment. Pinned by
+  `tests/test_release20_cms_fsxeq.py` (18 tests). *(2.0 F17)*
 
-- **The manager's namespace inventory now covers WebDAV, S3 and gridftp writes,
-  not just `root://`.** A data server reports its namespace mutations up the CMS
-  link so the manager can answer `kXR_stat` from its Composite Cluster Name Space
-  inventory instead of redirecting — but only the `root://` plane ever reported.
-  A site that also accepted writes over WebDAV, S3 or gridftp — which is most of
-  them — therefore built a manager inventory that silently tracked a fraction of
-  its own namespace. Every plane now reports: WebDAV PUT/DELETE/MKCOL/MOVE/COPY,
-  S3 PutObject/POST-upload/CompleteMultipartUpload/CopyObject/DeleteObject(s),
-  and gridftp STOR/DELE/MKD/RMD/RNFR+RNTO, all against the same logical paths the
-  `root://` plane uses, so one object has one entry however it was written.
+- **`brix_tpc_push on|off` — native `root://` third-party copy in the PUSH
+  direction (`tpc.stage=push`).** Stock native TPC is destination-side pull
+  only: the destination dials the source and reads, so a site whose storage may
+  make only *outbound* connections — an egress-only firewall, a NAT with no
+  inbound port — cannot be the source of a native copy at all. This adds the
+  mirrored leg as an explicit BriX dialect: both legs carry `tpc.stage=push`, so
+  a stock peer never mistakes one for a pull. The client registers a rendezvous
+  key at the destination with a write-open (`?tpc.key=K&tpc.stage=push`, which
+  creates the file and dials nothing), then read-opens the source with
+  `?tpc.key=K&tpc.dst=<host[:port]>&tpc.dlfn=</dst/path>&tpc.stage=push`; the
+  two `kXR_sync`s that arm and fire a pull arm and fire the push unchanged, and
+  the source's own write-open at the destination **consumes** the key
+  (single-use, `kXR_open_updt` only). `tpc.str=<n>` opens parallel outbound
+  sub-streams, clamped by `brix_tpc_streams`. One flag arms both roles on a
+  listener; with it off (the default) either leg is refused `kXR_Unsupported` at
+  the open, before path resolution and the write gate. The destination the
+  source dials is bounded by the same `brix_tpc_source_guard` allowlist and the
+  same two-stage SSRF policy as a pull source, refused at the open with
+  `signal=tpc_egress` and zero sockets dialled. The failure-path unlink that
+  removes a half-written *destination* file on a pull is suppressed on a push,
+  where the same field names the operator's own source file. Pinned by
+  `tests/test_release20_tpc_push.py` (15 tests). *(2.0 F16)*
 
-  There is **nothing new to configure**: a node that already declares
-  `brix_cns emit` on its `stream{}` server picks this up. The emitting server
-  block is resolved from the cycle at emit time rather than cached, so no new
-  directive and no new global were needed. Where several managers are configured,
-  a mutation goes to **all** of them rather than being round-robined like a
-  locate — each manager keeps its own inventory, so rotating mutations would have
-  left every manager but one permanently missing the object.
+- **A push source stays a read-only export.** `kXR_sync` is routed through the
+  write dispatch table — correctly, since a sync normally flushes bytes this
+  server wrote — so the two syncs that arm and fire a push met "this is a
+  read-only server" on exactly the export a push is for. `brix_allow_write` is
+  no longer a prerequisite for exporting data by push: `brix_dispatch_require_write`
+  now exempts the `allow_write` clause for a `kXR_sync` on a handle that already
+  carries the push bit and whose transfer has not finished
+  (`brix_write_gate_tpc_push_sync`). Nothing else is relaxed — authentication
+  and the bound-stream refusal still apply, and a `kXR_sync` on any other
+  handle, a sync after the push completes, and every other write opcode still
+  answer `kXR_fsReadOnly`. Three security-negatives in
+  `tests/test_release20_tpc_push.py` pin each of those. *(2.0 F16)*
 
-  Every report is made on the success path (a refused mutation can neither seed a
-  phantom entry nor evict a live one) and on the event loop; the offloaded paths
-  — threaded PUT, collection MOVE, collection COPY, the durable-queue DELETE
-  waker, multipart assembly — report from their event-loop completions, never
-  from the pool thread that did the work. Covered per plane, success + error +
-  traversal-negative, in `tests/test_cns_http.py`, which publishes one export
-  over all four planes at once and asserts they converge on one inventory.
+- **`brix_cache_advertise_federation <host[:port]>` names the federation whose
+  Director this cache advertises to.** The Pelican advertiser discovers the
+  Director from `https://<federation>/.well-known/pelican-configuration`, and
+  before 2.0 it read that authority from the host of the `brix_cache_origin`
+  family retired in phase-64 — a field no directive can write. Registering the
+  rest of the family (below) therefore still advertised nothing: the per-worker
+  scheduler declined on every start. The new directive takes an **authority
+  only** — a scheme, a path, or a port outside 1-65535 is a parse error — and
+  defaults to port 443. The name is resolved when an advertisement is sent, not
+  at `nginx -t` (INVARIANT 13), so a federation that is briefly unresolvable
+  does not block start-up. Pinned by `tests/test_release20_never_armed.py`.
 
-  Known limit, unchanged from before: the CMS link is worker-0 only, so a
-  mutation handled by another worker still reports nothing. The manager falls
-  through to locate for anything it does not hold, so this bounds inventory
-  coverage rather than correctness.
+- **`brix_cache_verify_digest <algorithm>` names the digest a non-`root://`
+  origin is asked for.** `brix_cache_verify` compares a completed fill against
+  the origin's advertised digest, but only an `xroot://` origin volunteers one
+  (`kXR_Qcksum`): an HTTP/Pelican origin has to be asked with `Want-Digest`,
+  and an object store has to be asked for its stored checksum. The setter, the
+  config field and its merge existed before 2.0 and **no `ngx_command_t`
+  registered them**, so the knob was an unknown directive on both planes and
+  every non-xroot fill verified against nothing. It is now registered on
+  `stream server` and on `http|server|location`, validated against the
+  algorithms this build can compute (`brix_checksum_plugin` names included) at
+  `nginx -t`, and read by both fill spines — the standalone one through the
+  shared preamble, the composed tier through the cache policy it carries by
+  value. Pinned by `tests/test_release20_registered_nowhere.py`.
 
-- **A node now reports whether it is still in the federation.**
-  `brix_cms_registered_links` is a gauge of upward CMS links currently logged in
-  — `0` means this site has fallen out of the cluster and its redirector has
-  stopped sending it clients, which previously could only be established from
-  the manager. Alongside it, `brix_cms_logins_total` counts joins (rising while
-  the gauge stays at zero means the link is flapping, not down) and
-  `brix_cms_connect_failures_total` counts dials torn down before LOGIN ever
-  went out. The counters are decremented and incremented from the single link
-  teardown path, because a refused dial does not necessarily surface at
-  `connect()`: on loopback, and wherever the peer resets rather than drops, it
-  arrives on the read side as `recv()` returning `ECONNREFUSED`.
+- **The Pelican federation advertiser is configurable.**
+  `brix_cache_advertise on|off`, `_key`, `_data_url`, `_web_url`, `_issuer`,
+  `_interval` and `_namespace` are registered on `stream server`. The
+  advertiser itself — the per-worker timer, the ES256 advertise JWT and the
+  `OriginAdvertiseV2` document POSTed to the Director's `registerCache`
+  endpoint — shipped earlier with **no directive registering any of its seven
+  knobs**, so the feature could not be switched on from a configuration file at
+  all. The site label comes from the existing `brix_sitename` (registry prefix
+  `/caches/<sitename>`), the interval clamps up to the federation minimum of
+  60s, and the registry key handshake remains an out-of-band operator step.
+  Documented in
+  [`docs/03-configuration/directives.md`](docs/03-configuration/directives.md);
+  pinned by `tests/test_release20_registered_nowhere.py`.
 
-- **The federation join is now tested across a link that is being abused.**
-  Every existing CMS test spoke to its peer over a clean loopback socket, but a
-  real AAA site reaches its redirector over a WAN. `tests/test_cms_aaa_join_noise.py`
-  puts a `brix-fault-proxy` in between and drives 13 cases — joining through
-  latency and jitter, reassembling a LOGIN that was segmented and reordered,
-  losing the redirector to silence, refusal, accept-then-close and a mid-stream
-  sever, rejoining when the link heals, and surviving a corrupting, oversized-
-  framing, storming redirector — while a 200-connection storm and 150 abort
-  cycles run against the data plane. Every case asserts the node keeps serving
-  data and no worker dies: a broken federation leg must never take a site's
-  storage offline. The suite needs no privileges, no `netem` and no network.
+- **The `brix_frm_*` engine knobs drive the stage engine (2.0 F1, ADR-3b).**
+  `brix_frm_queue_path` is the durable stage journal directory: worker 0
+  creates it (mode 0700), every staged write-through flush and recall is
+  persisted there as a `<reqid>.req` record, replayed at worker start, and
+  moved to `deadletter/` once `brix_frm_fail_retries` (default 5) attempts —
+  permanent denies and transient re-drives alike — are exhausted. It replaces
+  the env-only `BRIX_STAGE_JOURNAL_DIR`, which stays a fallback for servers
+  without `brix_frm on`. `brix_frm_fail_backoff` (default 60s, floor 1s) arms a
+  worker-0 sweep that re-drives `FAILED` records without waiting for a
+  restart. `brix_frm_stagecmd <program>` names the `tape://exec` MSS adapter
+  program (run as `<program> <verb> <key> <online>`) and takes precedence over
+  `BRIX_FRM_STAGECMD`; `brix_frm_copy_timeout` (default 0 = none) kills a
+  program still running at the deadline (`SIGKILL` to its whole process
+  group, `ETIMEDOUT`, one `[error]` line); `brix_frm_copymax` (default 8)
+  bounds the engine's in-flight transfers. Every program the adapter runs
+  now leads its own session with only fds 0–2 open — a worker's listen
+  sockets (not `CLOEXEC` in nginx) and client connections never reach an
+  operator program, and no child of a killed program can keep the
+  server's ports bound. Documented under "Tape / FRM" in `directives.md`,
+  the quick reference and the storage/tape comparison; pinned by
+  `tests/test_release20_frm_knobs.py` (21 tests).
+- **StageEvents notification feed (`brix_frm_stagemsg <file>`, 2.0 F2).** The
+  `oss.stagemsg` / `XRDOFSEVENTS` analogue: every worker appends one
+  `<utc> <source> <event> <reqid> <key> [name=value …]` line per stage
+  transition — the durable engine (`queued`, `started`, `done`, `failed`,
+  `deadletter`, `replayed`, `dropped`), the `kXR_prepare` / Tape REST registry
+  (`queued`, `staging`, `online`, `failed`, `cancelled`, `deleted`, `expired`)
+  and the `tape://` MSS adapter (`recall-begin`, `recall-online`,
+  `recall-failed`, `migrate-done`, `migrate-failed`) — so an external stager
+  or tape monitor tails one file. Keys and values are `%`-escaped, the file is
+  created `0600`, an existing group- or world-writable one is refused at
+  `nginx -t`, and the feed is best-effort: an unwritable file logs one
+  `[error]`, never fails a stage, and is re-opened on the next transition.
+  Documented under "Tape / FRM" in `directives.md`, the quick reference and
+  the storage/tape comparison; pinned by
+  `tests/test_release20_frm_stagemsg.py` (12 tests).
+- **OssArc backup queue (2.0 F3).** Behind `tape://…?arc=<depth>` the
+  dataset seal no longer runs inside the client's close: the completion
+  marker's commit freezes the dataset and queues an `archive` record in the
+  durable stage journal (`brix_frm_queue_path`), and the engine composes and
+  ships the stored ZIP, sidecar and marker off the event loop with the flush
+  discipline — `brix_frm_fail_backoff` re-drive, restart replay,
+  `brix_frm_fail_retries` dead-letter (`deadletter/<reqid>.req`, move it
+  back to re-queue; delete the marker's online copy to withdraw). The MSS
+  adapter vtable gains `seal(key)` and `migrate()` may answer
+  `BRIX_MSS_MIGRATE_DEFERRED`; the feed gains `frm seal-done` /
+  `seal-failed` and `engine … kind=archive`. Without `brix_frm on` the seal
+  runs inline as before. Pinned by `tests/test_release20_arc_backup_queue.py`
+  (10 tests).
 
-- **A BriX cluster manager is now tested against a stock one, side by side.**
-  The suite already proved a BriX data node registers with a real `cmsd` manager
-  and vice versa, but nothing asked whether the two *managers* give a client the
-  same answers for the same namespace — the last open cross-implementation item
-  in the coverage audit. `tests/test_cms_cross_impl_parity.py` seeds identical
-  content into two meshes that differ in exactly one variable, who runs the
-  manager, and asserts locate, `stat` size, byte-exact read, directory listing,
-  an absent path and a traversal attempt all agree. A divergence is a failure,
-  not a skip.
+- **Per-space purge policy + policy program (2.0 F4).** The tape-buffer
+  purge engine gains `frm_purged`'s `purge.policy` surface:
+  `brix_frm_purge_policy {*|<group>} <hi> <lo> [hold <time>] [polprog]`
+  gives every `brix_oss_space` group its own owned-bytes arm (sizes or `%`
+  of the group's quota) and hold, `*` covering ungrouped keys and groups
+  without a rule; `brix_frm_purge_polprog <program>` runs an operator
+  program once per pass under the `brix_frm_copy_timeout` deadline
+  (`<program> <candidates> <decision>`: one `<group> <touched> <size> <key>`
+  line per eligible copy in, one approved key per line out) that chooses
+  among — never beyond — its candidates, fail-closed for its groups. Rules
+  and program are checked against the server's space table at merge time;
+  a rule alone arms the engine. Pinned by
+  `tests/test_release20_purge_policy.py` (13 tests).
 
-- **`xrdcp` speaks GridFTP: `gsiftp://` and `ftp://` sources and destinations.**
-  The native client could reach `root://`, WebDAV/HTTP and S3 endpoints but not
-  the GridFTP servers that still front a large share of WLCG storage, so any
-  transfer against one needed the Globus toolkit alongside it. The new
-  clean-room engine under `client/lib/protocols/ftp/` runs the RFC 959 control
-  dialogue, RFC 2228 `AUTH GSSAPI`/`ADAT` security (TLS-in-base64 tokens with an
-  RFC 3820 proxy and the mandatory delegation round), transparent protected
-  command wrapping, and an `EPSV`-then-`PASV` passive data channel; the copy
-  driver (`client/lib/xfer/copy_gsiftp.c`) moves bytes through the same VFS
-  staged-commit path as every other scheme, so a failed transfer never leaves a
-  partial destination. Two rules are enforced client-side rather than trusted to
-  the server: a `gsiftp://` endpoint is **never** downgraded to an anonymous
-  login when the proxy is missing or unusable (the copy fails instead), and the
-  passive reply is screened before the client dials it — a privileged data port
-  is always refused, and an address that is not the control peer is refused
-  unless `BRIX_GSIFTP_ALLOW_OFFPEER=1`, which keeps a hostile server from using
-  the client as an FTP-bounce relay. Third-party (`gsiftp://`→`gsiftp://`) and
-  recursive GridFTP copies are refused up front as usage errors; the server's
-  TPC surface owns those. This also puts the Phase-91 reply/MLSx parser kernels
-  (`src/fs/backend/gsiftp/gftp_reply.c`, `gftp_mlsx.c`) into a real consumer for
-  the first time — they were built and unit-tested but unwired.
-- **An ordinary test run now compares against stock XRootD.** Cross-implementation
-  parity was reachable but never reached: `TEST_CROSS_BACKEND` is a process-wide
-  switch that six modules bind at import time, so covering both sides needed two
-  `pytest` invocations, and nothing in `tests/`, `Makefile` or `.github/` ever
-  set it — a default run only ever drove the nginx side. Both servers were up the
-  whole time (`main` and `ref-anon` are always-on fleet members exporting the
-  same data root), so `tests/test_cross_backend_parity.py` resolves the backend
-  per *test* instead and compares them in one process: same seeded file, both
-  servers, byte-exact read plus identical `stat` size, an absent path erroring
-  rather than answering an empty body, and a traversal escaping neither export.
-  An implementation difference is now a failure, not an absence.
-- **Dead test config templates can no longer accumulate.** 49 files under
-  `tests/configs/` are named by nothing in the repo — several of them
-  pre-lifecycle duplicates whose live `nginx_lc_*` twin sits beside them
-  (`nginx_native_sss.conf` and `nginx_pwd_auth.conf` are dead; their `_lc_`
-  twins are used). A dead template is worse than a missing one: it reads as
-  coverage that exists, so the next author copies it. `tools/ci/check_template_refs.py`
-  freezes that set and fails on any new one, and equally on a frozen entry that
-  has since been wired up or deleted, so the count can only fall. `--regen` is
-  shrink-only — it refuses and exits 1 rather than blessing a new entry. The
-  existing 49 are ratcheted, not deleted: a template can be named at runtime by
-  an f-string, which no static scan sees, so the backlog is an allowlist rather
-  than a delete-list.
-- **The upstream proxy's redirect and error forwarding is now checked byte for
-  byte.** `tests/upstream_protocol_stubs.py` gained the two handlers it never
-  had — a plain `kXR_redirect` on 13120 and a fixed `kXR_error` on 13123 — so
-  the `stub-upstream-redirect` and `stub-upstream-error` fleet fronts, declared
-  since the migration, finally have a backend. The real-backend tests beside
-  them can only assert the response *kind*, because a live xrootd picks its own
-  redirect target and its own error code; the stub emits bytes this repo chose,
-  so the new tests assert the redirect host and port and the error code and
-  message all survive the proxy unaltered. Two security negatives come with
-  them: a forwarded redirect must never point at the front or at the private
-  backend (redirect loop, topology disclosure), and forwarded error text must
-  never have the upstream endpoint appended to it.
-- **The test suite has a combinatorial parametrization layer.** Coverage used to
-  grow linearly with author effort: 299 hand-written `NginxInstanceSpec(...)`
-  literals across 212 modules, one module and one config template per
-  (protocol × auth × tls × backend) cell, and zero `pytest_generate_tests` /
-  `indirect=True` anywhere — so a new backend or auth mechanism was tested
-  against whatever someone remembered to write, and the matrix re-sparsified with
-  every addition. A test now carries `@pytest.mark.matrix(protocols=[...],
-  auths=[...], tls=[...], backends=[...])` and takes the `matrix_node` fixture;
-  `tests/matrix_layer.py` renders the cell into one of two generic templates,
-  stands it up through the registry lifecycle harness, and hides the
-  per-protocol client behind `seed()` / `read()`, so one test body runs against
-  every cell. `tests/test_matrix_layer.py` is the demonstrator and the
-  regression test: four bodies, 28 reachable cells, 63 passing cases in 15 s.
-  Unreachable combinations are parametrized too and skip with the product reason
-  that makes them impossible (S3 authenticates with SigV4, never a bearer; XrdCl
-  refuses to put a token on a cleartext wire; WebDAV GSI means a client
-  certificate, which means TLS), because "this cell is empty" and "this cell
-  cannot exist" had been indistinguishable from outside.
+- **Per-open cache hints `pfc.blocksize` / `pfc.prefetch` (2.0 F5, XrdPfc
+  `pfc.urlcgi` parity).** `brix_cache_urlcgi [blocksize {ignore|<min> <max>}]
+  [prefetch {ignore|<min> <max>}]` (http + stream) arms, per clause, the
+  hints an XRootD client appends to its open: a new slice-cache object's
+  block size (clamped into the bounds, rounded to the 1m granule; an
+  existing object's recorded geometry always wins, whole-file exports
+  ignore it) and a per-handle prefetch runway in blocks (a clamped 0
+  switches speculation off for that handle; the engine must be on). Absent
+  = both ignored, so no behaviour changes for a deployment that does not
+  set it. The opaque schema recognises the `pfc.` namespace and types both
+  keys as unsigned integers under `brix_opaque_strict` (`kXR_ArgInvalid`
+  otherwise); lenient mode drops a malformed value. Plumbing: an open-hint
+  carrier on the VFS context (`brix_sd_open_hints_t`), a new optional
+  storage-driver slot `open_hinted` (cache + stage decorators implement
+  it; every other driver is reached through the plain open), and the
+  partial-object open in `sd_cache_partial.c` doing the clamp. Pinned by
+  `tests/test_release20_cache_urlcgi.py` (24 tests: grammar accept ×4 /
+  reject ×8 / duplicate; strict typing ×3 + lenient parity; live clamp
+  ×7 and runway ×4).
+- **Forwarding proxy — client-named root:// origins (2.0 F5, XrdPss
+  forwarding mode `pss.origin = *` + `pss.permit`).**
+  `brix_storage_backend forward://root[,roots] permit=<host|.suffix>…`
+  makes an export a proxy for whichever origin the client names inside
+  the path it opens (`/root://host:port//file`). The new `xroot_fwd`
+  driver parses the key (ngx-free `sd_xroot_fwd_key.c`), admits it
+  against the protocol list (outside → `kXR_Unsupported`) and the
+  mandatory permit list (outside → `kXR_NotAuthorized` before any
+  resolve or dial; the match rule is the TPC egress guard's, so a
+  forwarded open and a TPC pull agree on what `.example.org` permits),
+  then relays every slot to one ordinary root:// child per distinct
+  origin — `verify_pages`, `nearline`, `credential=` and the cache /
+  stage decorators apply per origin; `rename` / `server_copy` refuse a
+  cross-origin pair (`EXDEV`). A key naming no origin is
+  `kXR_NotFound`. Fail-closed grammar: a `forward://` line without
+  `permit=` is refused at `nginx -t` (an empty list would be an open
+  relay), `permit=` is refused on any non-forward line, and
+  `forward://` is refused on every store tier. Census: `xroot_fwd`
+  joins fs_list.h and the machine-checked slot matrix (64 slots × 14
+  drivers). Pinned by `tests/test_release20_forward_proxy.py` (19
+  tests) and `tests/test_sd_xroot_fwd_key.py`.
+- **Site checksum plugins (`brix_checksum_plugin <name> <path.so> [parms]`).**
+  The `xrootd.chksum` plugin analog: a shared object exporting `brix_cks_plugin`
+  against the plain-C ABI in `src/core/compat/checksum_plugin_abi.h` (name,
+  digest length, state size, `init`/`update`/`final`) is loaded at
+  configuration time from the stream or http main context into one
+  process-wide registry (at most 8, rebuilt on reload). The path must be
+  absolute, a regular file and not group/world-writable; the object is
+  self-tested with its `parms`, and every malformed registration is refused at
+  `nginx -t` with a message naming the cause. A registered name works wherever
+  a built-in does — `kXR_Qcksum`, `brix_checksum_default`, the
+  `query config chksum` list (built-ins first, then plugins) and WebDAV
+  `Want-Digest` — with the host walking the object and hex-encoding the digest.
+  `contrib/checksum-plugins/` carries an FNV-1a 64 example and the build
+  recipe. `tests/test_release20_checksum_plugin.py` (26).
+- **Native root:// TPC follows source redirects and pulls multi-stream (2.0
+  F7, `ofs.tpc` multihop + `streams` parity).** A `kXR_redirect` from the TPC
+  source no longer ends the pull: the destination decodes the target with the
+  shared `xrd_redirect_body_decode`, passes it through the same
+  `brix_tpc_source_guard` / `brix_tpc_source_allow` check as the host the
+  client named (a refused hop is `kXR_NotAuthorized` and counts on
+  `brix_stream_tpc_egress_refused_total`), logs `TPC hop N: from -> to`, and
+  re-bootstraps on the target — up to `brix_tpc_max_hops` (default 4, `0`
+  never follows, max 16). A malformed body or a hop back to the same host
+  fails the pull. `brix_tpc_streams <1..15>` (default 1) caps the client's
+  `tpc.str=<n>`: the destination binds `n-1` extra source connections with
+  `kXR_bind` and pulls rounds of one 1 MiB read per stream; an unparseable
+  hint, a source that refuses `kXR_bind` or one that returns no session id
+  all degrade to the single-stream loop with a log line. BriX's own
+  `xrdcp -S <n>` now sends the hint (stock XrdCl 5.9 does not).
+  `tests/test_release20_tpc_multihop.py` (12),
+  `tests/test_release20_tpc_streams.py` (15),
+  `tests/test_release20_tpc_unit.py` (4).
 
-- **The fault sweeps now cover TLS, tokens and the download direction.**
-  `tests/resilience/` was root:// + GSI + cleartext only, so two claims the
-  server makes had never been tested: that TLS turns an in-flight bit flip into
-  a hard failure, and that a login damaged mid-handshake fails closed instead of
-  leaving a session that reads data. `test_tls_token_leg_sweep.py` (10 tests, new
-  `NginxTlsAnon` / `NginxTokenRoot` harness classes and their configs) measures
-  both legs under truncation and corruption, and pins that a sever **mid
-  transfer** is transparently recovered byte-exact — on the token leg that means
-  the ztn login is re-run on the reconnect. `test_download_loss_sweep.py` (14
-  tests) adds the missing download direction on the WebDAV and S3 planes, where
-  HTTP fault coverage had been upload-corruption only: loss and truncation are
-  always surfaced as a client-side failure, never a silent short 200, and a
-  truncation point armed past a Range request leaves that request alone. The two
-  modules together document the contrast — the same length-preserving flip that
-  TLS refuses outright is delivered with a clean 200 in cleartext, and on the S3
-  plane nothing downstream can detect it, because the ETag is nginx's weak
-  mtime+size tag rather than the object MD5 an AWS client would verify against
-  (recorded as a known exposure and pinned by test, not changed here: making the
-  ETag a digest alters an externally-visible identifier).
-  `test_sweep_runners.py` (16 tests) finally collects the four standalone
-  `run_*.py` sweeps, which nothing had imported since they were written — one of
-  them, `run_http_reorder.py`, had been dead for as long as the registry has
-  enforced fixed ports, aborting at startup because its lifecycle spec was never
-  added to `fleet_lifecycle_ports.py`. `run_mount_sweep.py` is import- and
-  argument-checked but deliberately not executed; a wedged FUSE mount takes the
-  fleet with it.
+- **SSS credentials carry a full identity, not just a name.** The v2
+  entity fields — VO, role, group list, endorsements and a proxied
+  credential — are parsed from the credential alongside the user and
+  group, each with a hard receiver cap (256/256/256/512/1024/4096 bytes)
+  that refuses an over-long value rather than truncating it. The keytab
+  decides what is believed: a key that pins the identity drops the
+  client-asserted VO, role and endorsements (one INFO line), and a proxied
+  credential is dropped unless the new **`brix_sss_getcreds on`** keeps
+  it. The accept line gained `vorg=`, `role=`, `endo=` and `creds=` after
+  the unchanged `user=`/`group=` prefix. **`brix_tap_proxy_sss_identity
+  keytab|client`** (default `keytab`, the 1.x wire) makes the tap proxy
+  present the authenticated client's own entity upstream instead of the
+  keytab account, and refuses the upstream connection outright when the
+  front-side session is not authenticated. The native client gained
+  `--sss-vorg`, `--sss-role`, `--sss-endorse`, `--sss-creds-file` and
+  `--sss-sndlid` (the two-round form where the server names the login id),
+  plus a per-connection identity registry for processes that speak for
+  many users (`client/lib/auth/sss/sss_id.h`, the `XrdSecsssID` contract),
+  whose lookup fails closed on a miss. Client and server mint the entity
+  through one shared kernel, so the two ends cannot drift.
+  `tests/test_release20_sss_entity.py` (18),
+  `tests/test_release20_sss_proxied.py` (9),
+  `tests/test_release20_sss_unit.py` (6).
 
-- **The two write cells that were configured for writing and only ever read are
-  now driven.** An S3 REST front over a native `root://` origin had its bucket
-  addressed with `requests.get` alone, despite its token carrying
-  `storage.modify:/`, so the `sd_xroot` create-open / write / close / unlink
-  slots reached from the S3 handler had never run; the gsiftp gateway over the
-  same origin set `brix_gridftp_allow_write on` and only ever issued RETR. New
-  `tests/test_s3_xroot_mutations.py` (15 tests, `configs/nginx_lc_s3_xroot.conf`)
-  drives PUT / HEAD / ListObjects / DELETE — including a 3 MiB multi-chunk body,
-  a truncating overwrite, and a listing that follows both the write and the
-  delete — while `tests/test_gridftp_delegate_xrootd.py` grows from 3 to 8 with a
-  300 KiB delegated STOR. Both suites read their verdict off the **upstream**
-  export rather than reading back through the front, and both give the front its
-  own empty export so that "the bytes left the front" is a filesystem fact; the
-  gridftp case additionally asserts a fresh upstream login, proving the write leg
-  re-delegates. Four traversal spellings (`../`, `a/../../`, `%2e%2e%2f`,
-  `..%2F`) are refused with nothing written above or inside either export, sent
-  raw over `http.client` because `requests` collapses `..` client-side. Both
-  cells behaved correctly once driven — what was missing was the driving.
+- **Cache occupancy rows from the store itself.** `brix_cache_occupancy_ratio`
+  and `brix_cache_bytes` now come from the cache store's own capacity report
+  (`brix_cstore_freespace`) first — for `brix_cache_store ram:<size>` that is
+  the configured cap as `total` and resident bytes plus in-flight fill
+  reservations as `used`, per worker — and from a `statvfs` of the legacy
+  `brix_cache_export` root only as the fallback. The HELP text names both
+  sources. `tests/test_release20_ram_cache_metrics.py`.
 
-- **Cache passthrough is now tested on every plane that has it, and pinned off
-  on the one that does not.** `brix_cache_passthrough` (store-then-evict: serve
-  an object the admission policy declined, under a separate spool cap, then drop
-  the key) was covered on WebDAV GET only. The `allow_pt = 1` opt-in is set in
-  exactly one place — the shared HTTP cache-fill worker — which WebDAV, S3 *and*
-  cvmfs all route through, so all three inherit it; the comment in
-  `sd_cache_fill.c` claimed cvmfs never opts in, which had been untrue since the
-  cvmfs handler moved onto the shared worker. `tests/test_cache_passthrough_planes.py`
-  (21 cases, new `lc-cache-passthrough` instance) runs an S3 and a cvmfs plane
-  with passthrough on, a byte-identical control with it off, and the `root://`
-  stream plane with the directive configured but `allow_pt = 0`. Three objects
-  sized against the two caps give the whole contract: under the caching cap →
-  cached; between the caps → served but *not* retained on the ON planes and 502
-  on the OFF controls; over the spool cap → 502 even with passthrough on. The
-  stream plane's row is the negative — it serves the over-the-spool-cap object
-  that every gated plane refuses, which is what proves it never entered the
-  gate, and its store still holds only what admission accepted.
+- **2.0 metrics suites** for the areas the readiness register found untested:
+  `tests/test_release20_cms_metrics.py` (three-tier manager tree — ownership,
+  drop and re-register, tier isolation), `tests/test_release20_dashboard_cross_validation.py`
+  (the snapshot API equals the `/metrics` sums once connections close, moves in
+  real time, and needs the cookie `/metrics` never does),
+  `tests/test_release20_metrics_cardinality.py` (a 1000-unique-path storm adds
+  no series, counters survive a reload, a label-shaped path cannot inject a
+  series) and `tests/test_release20_vo_acl_metrics.py` (VO and authdb
+  verdicts are operation errors, never authentication failures, and no label
+  carries a path or a DN). The manager-side cluster and health-check families
+  are documented in `metrics-overview.md`, reset semantics included.
 
-- **INVARIANT 2 is now a behavioural test, not a source grep.** The rule that
-  the cleartext file-backed/sendfile response and the memory-backed one must
-  never be mixed was asserted only by grepping the sources for `b->in_file = 1`
-  and `send_fd = dup(fd)` — which pins the shape of the code, not the bytes on
-  the wire. `tests/test_tls_sendfile_matrix.py` (66 cases, new `lc-tls-sendfile`
-  instance) drives both branches over both transports: pblock is the vehicle
-  because one backend takes both, lending its block-0 fd only for a range that
-  starts at offset 0 and fits in one block and declining anything that spans
-  blocks, with a posix export of identical bytes as the always-sendfile control.
-  Covers whole-object GET, HEAD, six range windows chosen to land on named
-  branches, suffix and open-ended ranges, 416, EOF clamping (which sendfile gets
-  for free and the memory-backed path must do deliberately), and traversal.
+- **Runtime DNS from `resolv.conf`, and a server that starts with DNS down**
+  (phase-116). `brix_resolver auto [path=…] [valid=] [min_ttl=] [max_ttl=]
+  [negative_ttl=] [ipv4=] [ipv6=] [search=]` reads the resolver the host
+  actually has — nameservers (with the BriX `ip:port` extension), `search`/
+  `domain`, and `options ndots/timeout/attempts`, plus `LOCALDOMAIN` and
+  `RES_OPTIONS` — and fills every unset nginx resolver slot (http/server/
+  location, stream, and each upstream) without overriding an explicit
+  `resolver`. Every name BriX itself resolves — CMS managers, upstreams and
+  proxy pools, TPC and cache origins, GridFTP control channels, CVMFS origin
+  probes and swarm peers, PMark mapping, health checks — now goes through one
+  runtime path with a bounded per-worker cache (`brix_dns_cache_max`, default
+  4096) and exponential re-resolve backoff (`brix_dns_retry`, default `1s
+  30s`), so a name that does not resolve at startup no longer refuses the
+  configuration: the target enters `resolving`, the server starts, and it is
+  picked up when DNS recovers. Reverse (PTR) lookups behind `host` auth,
+  XrdAcc `h` rules, `brix_protbind` templates and TPC origin ids run off the
+  same cache instead of blocking the event loop, and `brix_dns_status_zone`
+  publishes per-target state. The one-DNS-path rule is enforced by
+  `tools/ci/check_dns_seam.py` — no waiver marker, no backlog.
+  See [Phase 116](docs/refactor/phase-116-runtime-dns-resolv-conf.md).
+- **Serve-while-filling for the whole-file cache** (phase-115 W4.1).
+  `brix_cache_serve_while_filling <time>` (default `0` = off) lets a read whose
+  whole-file fill is already in flight FOLLOW that fill instead of waiting for
+  it to finish: the reader streams the bytes already pumped and is told to
+  retry (`kXR_wait`) at the fill frontier, so a second client of a cold object
+  starts at the origin's pace rather than paying the whole transfer first. Block
+  (slice) mode already served partial content; this closes the whole-file half.
+  Requires a local `posix:` cache store and `brix_cache_verify off` — under any
+  verify mode the staged bytes are provisional and are never followed. A fill
+  that aborts fails the follower closed (`kXR_IOError`) rather than passing a
+  truncated object off as complete, and a filler that dies is bounded by the
+  directive's value as a no-progress deadline.
+  See [Phase 115](docs/refactor/phase-115-deployment-surface-and-remaining-feature-bodies.md) W4.1.
+- **In-memory cache store** (phase-115 W4.2). `brix_cache_store ram:<size>`
+  puts the hot cache in memory rather than on a filesystem; the whole location
+  is the byte cap and there is no path. **The size is per worker** — `ram:8g`
+  across 16 workers is up to 128 GiB resident — and the resolved capacity is
+  logged at NOTICE with `PER WORKER` spelled out at startup. The cap is hard,
+  reserved at fill-open, and the store evicts its own coldest entries to stay
+  under it; the filesystem reaper directives (`brix_cache_eviction_threshold`,
+  `brix_cache_max_bytes`, `brix_cache_reap_interval`) do not apply, because they
+  take a lock file in a cache root a memory store does not have. An object that
+  cannot fit is served straight from the source instead of failing the read.
+  `ram:` is refused at `nginx -t` in every other role — `brix_stage_store`
+  (a staged write would be ACKed and then lost on restart),
+  `brix_storage_backend` (it would be the only copy of every byte), and
+  `brix_cache_cold_store` (the demotion target must not be more volatile than
+  the tier demoting into it) — as is `ram:0`. Its occupancy rows come from the store's own capacity
+  (see "Cache occupancy rows from the store itself" above).
+  See [Phase 115](docs/refactor/phase-115-deployment-surface-and-remaining-feature-bodies.md) W4.2.
+- **Per-page verification of origin reads** (phase-115 W4.3). The store-line
+  parameter `verify_pages[=require|best-effort]` on a `root://` /
+  `roots://` `brix_storage_backend` issues every origin read as `kXR_pgread`
+  and recomputes the CRC32c of each 4 KiB page before a byte of it reaches the
+  cache or the client; a mismatched page fails the read with the offset logged
+  and commits nothing. This closes the half of the integrity story
+  `brix_cache_verify` cannot reach — that check hashes a COMPLETED fill against
+  a whole-file digest, so it is blind to ranged/partial reads and to
+  digest-less origins — and over cleartext `root://` it is the only integrity
+  BriX has. The bare token means `require`: an origin that cannot page-read is
+  refused (`kXR_Unsupported`) rather than quietly serving unverified bytes;
+  `=best-effort` is the explicit opt-in that falls back to plain `kXR_read`
+  after one warning, for a federation of mixed-vintage origins. Corruption is
+  refused under both spellings. Origin support is taken from the `kXR_protocol`
+  reply (`kXR_suppgrw`) and remembered on the connection, so a pre-5.x origin
+  costs no wasted round trip; an origin that advertises the capability and then
+  refuses is handled once per object, and a refusal arriving mid-train — after
+  pages were already accepted — is a protocol error, not a fallback. The
+  parameter is refused at `nginx -t` on a cache/stage/cold tier, on any
+  non-`root://` driver, and for any other value.
+  See [Phase 115](docs/refactor/phase-115-deployment-surface-and-remaining-feature-bodies.md) W4.3.
+- **Tape dataset archiver** (phase-115 W3.1). `tape://<adapter>/<base>?arc=<depth>`
+  (also on tier store URLs) seals every dataset — the first `<depth>` path
+  components — into one stored ZIP archive on tape (`<ds>.brixarc.zip`,
+  readable by `unzip`) once its completion marker `.brix-dataset-complete` is
+  written; members stay in the online buffer until then, reads of a sealed
+  member recall the archive and extract that member only, stat/dirlist answer
+  from a sidecar index (`<base>/.arcidx/<ds>.idx`), a sealed dataset is
+  immutable, and archive member names are validated so an archive can never
+  write outside its dataset. Works over the stub, exec and lib MSS adapters.
+  See [Phase 115](docs/refactor/phase-115-deployment-surface-and-remaining-feature-bodies.md) W3.1.
+- **Tape-buffer purge engine** (phase-115 W3.2). The online buffer behind a
+  `tape://` tier now has an eviction policy: one LRU pass per
+  `brix_frm_purge_interval` on worker 0 releases online copies whose MSS
+  adapter confirms a durable tape copy (new `on_tape` adapter slot), driven by
+  the filesystem watermark pair `brix_frm_purge_watermark` (accepted-only since
+  phase 64, now live) and the new owned-bytes cap `brix_frm_purge_max_bytes`.
+  Copies younger than 30 s, copies pinned by an in-flight prepare(stage), and
+  symlinks are never released; passes serialise on `<online>/.brix-purge.lock`;
+  the pair on an export without a `tape://` tier warns and never arms. Books
+  `brix_frm_purge_total` and `brix_vfs_evict_bytes_total{driver="frm"}`.
+  See [Phase 115](docs/refactor/phase-115-deployment-surface-and-remaining-feature-bodies.md) W3.2.
+- **Space groups** (phase-115 W3.3). `brix_oss_space <group> <prefix>
+  [quota=<size>|quota=-1]` names a storage group over an export-relative prefix
+  (longest prefix wins, at a component boundary only). Each group carries its
+  own usage and quota: `kXR_Qspace` reports the group owning the queried path
+  or the one named by `?oss.cgroup=<name>`, and — under
+  `brix_oss_quota_enforce on` — a write past a group's quota is refused with
+  `kXR_overQuota` while the export-wide `brix_oss_quota` from here on governs
+  only ungrouped paths. `quota=-1` is the unlimited sentinel (accounting only).
+  A create/write `kXR_open` that names a group other than the one owning its
+  path is refused with `kXR_ArgInvalid` before the file is created.
+  See [Phase 115](docs/refactor/phase-115-deployment-surface-and-remaining-feature-bodies.md) W3.3.
+- **GridFTP extended block mode and a protected data channel** (phase-115 W5.1).
+  A `ftp://` / `gsiftp://` `brix_storage_backend` takes two new store-line
+  parameters. `mode=e` negotiates GridFTP MODE E (GFD.020 §5): the data channel
+  carries self-describing blocks with absolute offsets instead of an opaque
+  byte stream, which is what makes an offset-addressed, restartable transfer —
+  and every partial read verifiable — possible at all. `prot=p` negotiates a
+  TLS-protected data channel (RFC 2228 `PBSZ`/`PROT`) whose peer leaf DN is
+  pinned to the identity already authenticated on the control channel. Both are
+  requirements, never preferences: an origin that answers `504` to `MODE E` or
+  `534` to `PROT P` fails the transfer rather than silently serving it in
+  stream mode or in cleartext, because an operator who asked for the property
+  and got neither it nor a diagnostic is worse off than one whose transfer
+  failed. `prot=p` on a plain `ftp://` backend is refused at `nginx -t`: an
+  anonymous origin never authenticates a control identity, so there is nothing
+  to pin the data peer to and the encryption would be to whoever answered.
+  See [Phase 115](docs/refactor/phase-115-deployment-surface-and-remaining-feature-bodies.md) W5.1.
+- **Bounded GridFTP retrieves (`ERET`)** (phase-115 W5.2). A ranged read of a
+  MODE E origin now issues `ERET P <offset> <length> <path>` (GFD.020 §5.3)
+  instead of `REST`+`RETR`. RFC 959 can only say "start here" — the transfer
+  then runs to EOF — so every ranged read left the origin pushing a tail
+  nobody drained; `ERET` carries the window and the origin stops at its end.
+  There is nothing to configure: the capability is discovered with a `FEAT`
+  probe issued lazily, from the retrieve path only, and remembered for the
+  session. It is sent **only** under `mode=e`, and that is a security rule
+  rather than a limitation — a door that ignores the window and answers with
+  the file from offset 0 sends genuine bytes that are simply the wrong part,
+  and only MODE E's per-block absolute offsets let the driver refuse them
+  instead of returning the head of the file under a `Content-Range` that lies.
+  An origin that advertises `ERET` and then refuses it (a real dCache/Globus
+  shape) downgrades to the POSITIONED `REST`+`RETR` path — never to a bare
+  `RETR` that would restart at zero — and is not asked again on that session;
+  a `550` is passed through as the file being unavailable, not the extension.
+  `ESTO` is deliberately not implemented: this driver publishes writes as one
+  whole-file `STOR` plus a rename and has no partial-write caller, so the
+  command would ship unreachable.
+  See [Phase 115](docs/refactor/phase-115-deployment-surface-and-remaining-feature-bodies.md) W5.2.
+- **Striped GridFTP reads (`SPAS`)** (phase-115 W5.3). A new store-line
+  parameter, `brix_storage_backend gsiftp://… mode=e streams=<n>`, lets one
+  read open up to `n` parallel data connections using GFD.020 §5.1 striped
+  passive mode (`1`–`16`, default `1` = never ask). Unlike `mode=` and `prot=`,
+  which are requirements, `streams=` is a **ceiling and it degrades**: it says
+  how fast the same, identically framed, identically verified bytes arrive, so
+  an origin that does not advertise `SPAS`, refuses it, answers with more
+  stripes than the ceiling, or returns an unparsable or truncated reply is
+  served over the single connection with identical bytes, and the refusal is
+  remembered for the session. `streams=<n>` above 1 requires `mode=e` — a
+  striped transfer is reassembled from blocks carrying their own offsets, and
+  stream mode has none — and the check runs on the whole store line, so word
+  order cannot change the verdict.
 
-- **CVMFS Stratum-0 publishing (phase-96)**: BriX can now *author* CVMFS
-  repositories, not just cache them — a deliberate, documented reversal of the
-  phase-85/87 "the proxy stays a cache" non-goal
-  ([docs/refactor/phase-96-cvmfs-stratum0-publishing.md](docs/refactor/phase-96-cvmfs-stratum0-publishing.md)).
-  Publishing lives entirely on the **tool surface** (`brixcvmfs repo
-  mkfs|info|resign|transaction|abort|publish|fsck|gc|tag`): shared writers for
-  signed manifests/whitelists (the official client's two distinct RSA
-  conventions), SQLite catalogs (including the undocumented official-client
-  conventions an oracle lane pins), CAS objects with chunking and
-  `.cvmfsdirtab` nested-catalog splits, plus `.cvmfsreflog`, ref-driven GC and
-  a tag/history database with rollback. Published repos mount in the
-  **official cvmfs client** (oracle-verified) and in brixMount.
-  On the serve side, `brix_cvmfs_stratum0_root <dir>` turns a location into
-  the master copy: a strict `brix_export` alias that EMERGs at `nginx -t` when
-  combined with any cache-fill grammar, answers the `.cvmfs_master_replica`
-  probe (synthesized, directive-gated — a cache node cannot advertise itself
-  as a replication source), and feeds stock Stratum-1 `add-replica` over plain
-  HTTP GET. Gating the repo behind scvmfs (bearer/x509/VOMS) is proven pure
-  configuration — the credential wall covers manifest, CAS, GeoAPI and the
-  marker, with no anonymous manifest leak
-  (`tests/test_cvmfs_stratum0_serve.py`,
-  `tests/test_cvmfs_stratum0_scvmfs.py`; cookbook in
-  [docs/05-operations/cvmfs-stratum0.md](docs/05-operations/cvmfs-stratum0.md),
-  serve contract in
-  [docs/04-protocols/cvmfs.md](docs/04-protocols/cvmfs.md) §3.6). The
-  remote-ingest gateway (S15) stays deferred.
+  **Every stripe address must be the control channel's own pinned peer.** A
+  `SPAS` reply is the one place in this protocol where an origin hands the
+  driver a list of addresses; elsewhere the advertised PASV address is
+  discarded and the pinned numeric control peer dialled instead. Following a
+  foreign stripe would let an origin drive connections to arbitrary hosts
+  inside the operator's network — an FTP bounce with egress rules as the only
+  remaining control — so a single foreign stripe abandons the whole striped
+  attempt before any socket is opened. The consequence is that a genuinely
+  multi-host striped door is read over one connection: a throughput ceiling,
+  never a wrong answer. `SPOR` is deliberately not implemented — it would
+  require this driver to listen, and it never binds.
+  See [Phase 115](docs/refactor/phase-115-deployment-surface-and-remaining-feature-bodies.md) W5.3.
+- **Same-origin `COPY` on GridFTP-backed exports** (phase-115 W5.4). A WebDAV
+  `COPY` between two paths of one `ftp://`/`gsiftp://` export is now served by
+  the gateway instead of being refused. Previously the driver's server-copy
+  slot was empty, which is not a slow path but an absent one: every such `COPY`
+  answered `ENOTSUP`, and a client that wanted one had to `GET` the object and
+  `PUT` it back, carrying the bytes twice across its own link. FTP has no
+  server-side copy verb, so this is a gateway relay rather than origin-side
+  zero-copy — the bytes still move, but only on the gateway↔origin link, and
+  over one control session (FTP is sequential on the control channel, so the
+  store leg reuses the session the retrieve leg just finished with).
 
-- **The Stratum-0 release-manager surface is now something you can install and
-  read about.** `brixcvmfs` ships as an `argv[0]` personality of `brixMount`
-  (a symlink, not a second binary): it self-IDs, prints its own usage, and
-  dispatches `repo …` without a type keyword, while no other program name gains
-  that surface. It has a man page (`client/man/brixcvmfs.1`), and
-  [docs/05-operations/cvmfs-stratum0.md](docs/05-operations/cvmfs-stratum0.md)
-  is the unprivileged end-to-end cookbook — keys and where to keep them,
-  publishing custom files (modes, symlinks, whiteout deletes, chunking with CAS
-  dedup, `.cvmfsdirtab` nesting), the serve block with its four `nginx -t`
-  refusals, both client mount paths, private repos, the maintenance cron, the
-  three-party integrity model and a troubleshooting table.
-  `tests/test_cvmfs_stratum0_quickstart.py` (14 tests) drives the *shipped*
-  binary through that exact sequence, so a drift between what is documented and
-  what is installed fails a lane rather than a deployment.
+  The destination appears whole or not at all: the copy stores to a random
+  temporary name and promotes it with `RNFR`/`RNTO`, so a failure renames
+  nothing, leaves the previous object intact and removes its own temporary.
+  A transfer that delivers fewer bytes than the source's own reported size is
+  refused rather than published — a bounded read that stops early is not an
+  error the origin reports. Copying a path onto itself is refused outright: it
+  would work, and it would rewrite a healthy object for no gain while putting
+  the only copy at risk. Under `brix_read_only on` the copy is refused by the
+  export's typed mutation policy before a single FTP command is written.
 
-- **`brixcvmfs repo fsck --data`**: the payload rot sweep. `fsck` verified
-  catalogs and counters but never the bytes they point at, so a flipped or
-  deleted CAS object stayed invisible to the publisher until a client hit it
-  (and got `EIO`). `--data` additionally checks the certificate and every
-  referenced whole-file object and file chunk for presence and CAS identity,
-  reporting `object <hash> of <path> fails CAS verification` / `… missing`. It
-  verifies the stored form without inflating, and stays opt-in because it is
-  linear in repository size: plain `fsck` after every publish, `--data` from
-  cron.
+  **GridFTP-over-SSH (`sshftp://`) remains unimplemented and the scheme is not
+  accepted.** It requires the control transport to terminate on the storage
+  host, i.e. a child process per session, and nginx workers may not fork. An
+  `ssh -L` sidecar is not a substitute: the data channel dials the control
+  channel's pinned peer, which through a tunnel is `127.0.0.1` rather than the
+  origin.
+  See [Phase 115](docs/refactor/phase-115-deployment-surface-and-remaining-feature-bodies.md) W5.4.
+- **A lab lane that points brix at a real GridFTP door** (phase-115 W5.5). The
+  new `xrd-lab test gridftp-outbound` scenario deploys four WebDAV fronts whose
+  storage plane is an operator-supplied Globus or dCache endpoint, differing
+  only in the store line (nothing, `mode=e`, `mode=e prot=p`,
+  `mode=e streams=n`), and runs the round-trip, ranged-read, same-origin `COPY`
+  and striping assertions across all four. Every other GridFTP test in this
+  repository drives an in-tree Python origin written from the same reading of
+  GFD.020 as the driver it tests, so a shared misreading would pass both sides;
+  this lane is the only one where the reference implementation is the thing
+  under test.
 
-- **Documentation for `brix_webdav_upload_resume` and `brix_webdav_stage_dir`**
-  in [docs/04-protocols/webdav-directives.md](docs/04-protocols/webdav-directives.md):
-  the resumable `Content-Range` PUT contract (200 + `X-Upload-Offset` per chunk,
-  201 on the last, append-only 409 with the honest offset) and what happens when
-  the stage dir lands on a different filesystem than the export — the commit
-  copies to a temp beside the destination and renames that into place, with a
-  durable pending-commit marker so an interrupted move is finished by the reaper.
-  Both directives shipped without an entry. Behaviour is now covered by
-  `tests/test_stage_cross_device_commit.py`, which stages on tmpfs so the
-  cross-device path is genuinely taken.
+  It is **disabled by default and ships no door and no credential** — both are
+  the operator's, deliberately, since minting our own would authenticate brix
+  to a CA the real door has never heard of. Enabling it without naming a door
+  fails loudly instead of defaulting to a placeholder: a lane that cannot
+  connect skips every cell and exits 0, which is indistinguishable from one
+  that passed. Against a cleartext `ftp://` door the `prot=p` front is not
+  rendered, because `prot=p` pins the data channel to a control-channel
+  identity that an anonymous door does not have.
+  See [Phase 115](docs/refactor/phase-115-deployment-surface-and-remaining-feature-bodies.md) W5.5.
 
-- **Per-driver staged-commit contract units**: `tests/c/test_staged_contract_tiers.c`
-  drives `sd_stage` and `sd_frm` under ASan (commit success, commit failure
-  followed by the mandatory abort, a security-negative proving a failed inner
-  commit never publishes, and the async submit path), and
-  `tests/c/test_staged_contract_origin.c` pins the already-conformant
-  `sd_http`, `sd_xroot` and `sd_cache` forwarders — including a 403 mapping to
-  `EACCES` and an abort that does not re-PUT. Both link the real driver objects,
-  so the pre-fix sources fail them.
-  The C-unit harness also learned to link against the coverage-instrumented
-  build tree and to keep its own `.gcda` out of that tree; with a handful of
-  stale object lists repaired, `test_c_regression_units.py` is green end to end.
+### Documentation
 
-- **`brix_cache_store_endpoint` on the `root://` plane** (default `off`): marks a
-  stream server as the trusted remote cache-STORE surface, where the internal
-  sidecar names a cache node writes beside its objects (`<key>.cinfo`,
-  `<key>.meta`) are legitimate `kXR_open`/`kXR_stat`/`kXR_statx` targets. The
-  WebDAV and S3 planes have carried the directive since the cache-store work;
-  the root plane is now symmetric, which is what makes `brix_cache_store
-  root://…` usable with `brix_cache_meta sidecar`. Directory listings still skip
-  internal names and every client-facing export keeps answering `kXR_NotFound`,
-  so the default remains deny. This also un-wedged the live
-  `xroot-cachestore-serve` scenario, whose warm hit had been answering 404: its
-  `root://` store was an ordinary export, so the node's cinfo store failed and
-  every read refilled from a source the scenario had just hidden.
+- **Every exported metric family is now documented.** Twenty-three families were
+  named in no user-facing page at all — the whole runtime-DNS cache group
+  (`brix_dns_cache_*`, `brix_dns_reverse_cache_*`), the storage-export gauges
+  (`brix_storage_backend_info`, `brix_storage_bytes_used`/`_available`,
+  `brix_storage_occupancy_ratio`), the watermark reaper trio
+  (`brix_cache_watermark_*`), `brix_cache_usage_ratio`, the write-through
+  staging gauges (`brix_wt_dirty_handles`, `brix_wt_flush_pending`,
+  `brix_wt_stage_usage_ratio`), `brix_mirror_errors_total`,
+  `brix_stream_io_uring_active` and the rate-limit zone-health pair
+  (`brix_rate_limit_eviction_total`, `brix_rate_limit_zone_full_errors_total`).
+  [Metrics Overview](docs/08-metrics-monitoring/metrics-overview.md) gains a
+  **Complete Family Index**: all 240 families in 40 groups with their Prometheus
+  type and exact `# HELP` text, generated from the calibrated catalogue the
+  conformance suite pins against a live scrape. A family added, renamed or
+  retyped without a row there now fails
+  `tests/test_release20_surface_pins.py::test_the_family_reference_covers_every_exported_family`,
+  and a doc that pastes a stale `# HELP` line into a sample scrape fails
+  `::test_every_help_line_quoted_in_the_docs_matches_the_exporter` — the sample
+  in metrics-overview.md had carried the pre-2.0 "Filesystem occupancy ratio"
+  wording for `brix_cache_occupancy_ratio` and `brix_cache_bytes`, and its prose
+  still had the store/`statvfs` precedence backwards.
 
-- **Namespace mutations are now compared across backends, not just exercised**
-  (`tests/test_ns_mutation_gateways.py`, 37 tests,
-  `tests/configs/nginx_lc_ns_gateways.conf`): mkdir, rmdir, rm, mv, `mkdir -p`,
-  dirlist and xattr run three ways inside ONE nginx — a POSIX **control** plane
-  and the `http://` and `root://` origin-gateway planes — and every case asserts
-  the three answers agree. A driver that answers a mutation wrongly still answers
-  it consistently, so no single-plane test could see the six defects this found
-  (listed under Fixed above); the control plane is what makes "wrong" definable.
-  Alongside the agreement cases it pins the stock semantics the control encodes:
-  `rm` removes an EMPTY directory, a POPULATED one is never removed
-  non-recursively by either spelling, `mkdir -p` over a regular file is
-  `kXR_ItExists` with the bytes intact, and a traversal key mutates nothing on
-  either gateway.
+- **The checksum surface is stated correctly everywhere.** The comparison set
+  and the operator guide said "nine built-ins" and listed six requestable
+  algorithms; the server has ten and answers every one of them by name, plus any
+  `brix_checksum_plugin`. The candid gap ledger still claimed "No general
+  checksum **plugin framework**", which 2.0 F8 closed. Counts and lists are now
+  pinned against the built-in table by
+  `tests/test_release20_checksum_plugin.py::test_the_comparison_docs_count_the_builtins_they_promise`
+  and `::test_the_docs_that_enumerate_the_builtins_enumerate_all_of_them`.
 
-- **Paged I/O and vector reads are now tested off posix**
-  (`tests/test_pgio_nonposix.py`, 20 tests, `tests/configs/nginx_block_dev.conf`):
-  every pgread/pgwrite/readv suite bound to a `posix:` export, so the two other
-  drivers carrying their own `.preadv`/`.preadv2` slots had never seen a paged
-  or vectored request even though both server engines route through the driver
-  seam. A `pblock://` export now proves the page split, bytes and per-page
-  CRC32c across a 1 MiB block boundary (where the driver stitches two stored
-  blocks into one logical page), the pgwrite round-trip at an unaligned
-  boundary-crossing offset, corrupt-page detection, and that a read-only handle
-  cannot become a write channel; a `block:<device>` export proves the
-  fixed-extent window reports *extent-relative* page offsets, refuses a readv or
-  pgwrite that runs past the extent end (a fixed extent cannot grow), never
-  scribbles outside the written range, and exposes only the extent indices — an
-  out-of-range index, a non-numeric name and a path escape all fail to open. The
-  device is a regular file, so the plane needs no loop device and no privilege.
+- **`quirks.md` no longer misreads its own table.** The Qconfig `caps` bullet
+  presented `version`/`role`/`sitename` as keys the server does not answer; they
+  are answered, and the `0` is `brix_qconfig_table`'s `public_safe` column, which
+  withholds exactly those three under `brix_read_only_public` (where they fall
+  through to the unknown-key echo, indistinguishable on the wire from an unknown
+  key). The bullet now names all 17 answered keys and states the exception,
+  pinned prose-to-table by two tests in `tests/test_release20_surface_pins.py`.
 
-- **The five orphaned live scenarios now run in CI**
-  (`tests/test_cmd_{http_store_writable,tier_matrix_drivers,cvmfs_verify,remote_backend,tier_remote}.py`,
-  19 tests): the sd_http write path, the stage-store driver matrix
-  (posix/pblock/xroot/rados), the CVMFS fill-verification plane including the
-  documented `verify off` gap, the remote pass-through backend (serve offload,
-  metadata forwarding, stream + staged writes, stage-journal reconcile) and the
-  remote cache tier (stage, evict/refill, xattr + sidecar metadata, sparse slice
-  fills). The scripts existed but nothing collected them.
+- **The metric-name guard can see a family composed at runtime.**
+  `tools/ci/check_metric_names.py` proves every `brix_*` family the docs cite
+  against the C exporters, and it recognised four emission shapes — none of
+  which matches a name built from a prefix argument. `src/net/dns/metrics.c`
+  renders all eight DNS cache families through `"# HELP %s_hits_total …"` under
+  two prefixes its own call sites pass, so documenting them made six honest
+  references fail as "unknown metric family". A fifth shape now pairs a
+  `%s_<suffix>` HELP/TYPE format with every bare `brix_…` literal in the same
+  file; the scoping to one file is what keeps the pairing honest, and three
+  tests in `tests/test_ci_guards.py` pin the resolution, the still-caught
+  invented suffix, and the log tag in another file that must compose nothing.
 
-- **Native `root://` TPC × WLCG token auth** (`tests/test_tpc_token_auth.py`, 9
-  tests, `tests/configs/nginx_tpc_token.conf`): the token column of the TPC
-  matrix was empty — no config anywhere used `brix_auth token` with a
-  third-party copy, so the destination's outbound `ztn` credential paths had
-  never run. One nginx now serves a read-only token-authenticated source plus
-  three destinations differing only in how the pull leg is credentialed
-  (inbound-token passthrough, static `brix_tpc_outbound_bearer_file`, and no
-  credential at all), and the source's access log is asserted to name the
-  *client's* subject for a passthrough pull and the *gateway's* for a
-  bearer-file pull — proving which credential crossed the leg, not merely that
-  bytes arrived.
+- **The gap ledger caught up with axis (e).** The comparison and gap pages are
+  what a site reads to decide whether BriX can replace its XRootD deployment,
+  and their rows predated the feature work: PSS was "❌ Full upstream PSS is out
+  of scope" after F5 shipped `forward://root[,roots] permit=…`; the PFC row said
+  nothing about `brix_cache_urlcgi`; `XrdOssMSS` claimed "no in-process MSS
+  driver stack" beside a `lib` adapter that dlopens against `sd_frm_lib_abi.h`;
+  `XrdOssSpace` was "basic `statvfs`" after `brix_oss_space` and
+  `brix_frm_purge_policy`; `XrdFrm` was "partial FRM queue" after F1–F4; the
+  client guide still called native-TPC multihop delegation a caveat after F7
+  closed it under `brix_tpc_max_hops`; and `kXR_tlsData`/`kXR_tlsSess` were
+  "not independently enforced" though `brix_tls_require session data` sets each
+  bit and `src/fs/vfs/vfs_secgate.c` refuses the matching operations. Every row
+  now states what ships and what is still open (native TPC **push** is F16).
+  Three pins in `tests/test_release20_surface_pins.py` keep the ledger honest in
+  both directions: each shipped handle is a live registration, each is named
+  somewhere in the comparison set, and no table row dispositions one as
+  No/❌/Missing in its verdict cell.
 
-- **Prometheus conformance suite** (`tests/test_cachemx_*.py`, 2070 tests in
-  24 files): exposition-format conformance plus exact per-request query-count
-  and byte accounting for every protocol/auth plane — root:// (anon/GSI/token/
-  SSS), WebDAV (plain, TLS+token, TLS+cert), S3 (anonymous, SigV4 incl. all
-  failure modes), cache trim/eviction, and cmsd redirection — plus a full
-  196-family catalogue type pin with per-family HELP-text and label-key schema
-  snapshots (incl. a strict label-residue format check), the MOVE/rename error
-  ladder, namespace-method and Range edges (re-proven per authenticated
-  plane), per-flow byte-accuracy ladders from 1 B to the 1 MiB chunked regime,
-  repetition linearity, multi-op lifecycle/cross-dialect sequences,
-  auth-result edge rows, hashed user-session identity pins, and cross-plane
-  ledger-isolation/conservation pins. A per-family grid layer parametrizes
-  structural conformance across the full catalogue against live two-scrape
-  windows (exposition ordering, duplicate-series rejection, finite sample
-  values, counter monotonicity, per-key label-value grammars, histogram
-  bucket/`+Inf`/`_sum` invariants), and three credential-route grids add
-  byte-exact GET/PUT accounting per auth route and size, per-plane wire
-  ok/error splits (incl. pins for the stock-parity idempotent
-  mkdir-over-existing and rmdir-of-absent arms), and N-op linearity per
-  credential route. Documented accounting
-  ownership invariants in
-  [docs/08-metrics-monitoring/metrics-overview.md](docs/08-metrics-monitoring/metrics-overview.md)
-  and new bug patterns (6–12) in
-  [docs/08-metrics-monitoring/metrics-bug-patterns.md](docs/08-metrics-monitoring/metrics-bug-patterns.md).
+- **The operator-facing pages caught up too.** The gap ledger is what a site
+  reads before adopting; the quick reference and the operations guide are what
+  it reads afterwards, and five 2.0 directives never reached them —
+  `brix_cache_urlcgi`, `brix_tpc_max_hops`, `brix_tpc_streams`,
+  `brix_sss_getcreds` and `brix_tap_proxy_sss_identity` were fully written up in
+  `directives.md` and invisible on the one page an operator opens first.
+  `operation-status.md` still listed "PSS / full PFC / full XrdFrm storage
+  layers" under **Intentionally not implemented**; that row is now scoped to the
+  upstream **plugin ABI** — persona, reproxy and loadable `XrdOss`/`XrdPss`
+  objects — because the capabilities themselves ship, and the FRM hard-blocker
+  and remote-storage rows now name F1–F5 and the `exec`/`hpss`/`cta`/`lib` MSS
+  adapters. `management.md` §Prepare gained a table of the five 2.0 FRM knobs.
+  `tests/test_release20_ledger_pins.py::test_the_quick_reference_lists_every_directive_2_0_shipped`
+  fails if a future closed gap ships without a row there. A companion pin,
+  `::test_every_shipped_capability_is_reachable_from_the_operator_docs`, fails
+  when a shipped handle is named only in the comparison ledger and nowhere the
+  people running the software would look — which is how the proxy guide came to
+  have no `brix_tap_proxy_sss_identity` row, the proxy-model concept page came to
+  call the CVMFS listener "the only forward proxy in the tree" after
+  `forward://` shipped a second one, and README's WebDAV line still said
+  "HTTP-TPC COPY pull" four months after push landed.
 
-- **The CMS 4-tier topology suite runs through the server registry**
-  (`tests/test_cms_tier_topology.py`): it was the last pytest module embedding a
-  runnable nginx config heredoc and launching the binary itself — with its own
-  feature-probe launch, its own ephemeral-port grabber and its own teardown. The
-  six-node tree is now a committed template (`tests/configs/nginx_cms_tier.conf`)
-  driven by `LifecycleHarness` on the fixed `lc-cms-tier` port block, which
-  empties the registry lint's inline-config backlog and removes the last
-  migratable direct launcher. The two remaining direct launchers are
-  standalone labs the registry cannot own (an in-namespace-root privilege
-  battery, an operator-invoked perf harness); `_perf_netem_helpers.py` — whose
-  nginx lives inside an `unshare -n` network namespace, unreachable from the
-  host the registry probes — joins them as a documented entry rather than a
-  silent guard failure.
+- **F-numbers are checked cross-references now.** The register numbers each
+  closed gap and the user docs cite those numbers, but nothing verified a
+  citation landed on the right row: the checksum plugin loader (F8) was cited as
+  **F11** — `brix_mirror_exclude_opcodes` — in four places, including the pin
+  that was supposed to keep the ledger honest. Two tests in
+  `tests/test_release20_surface_pins.py` now fail on a handle cited under a
+  register item whose row never names it, and on a `2.0 F<n>` citation with no
+  row at all. The same sweep found the source-verified comparison still listing
+  "the checksum plugin framework" among the missing upstream ecosystems, the
+  data-plane comparison enumerating nine built-ins with no `sha512` and no
+  loader, and two pages stating "no plugin ABI" flatly — true of upstream's C++
+  `XrdOss`/`XrdPss`/`XrdCks` objects, which BriX genuinely cannot load, but not
+  of the two plain-C ABIs it deliberately exposes
+  (`src/core/compat/checksum_plugin_abi.h` and the FRM `lib` adapter's
+  `sd_frm_lib_abi.h`).
 
----
+- **One status banner, checked against the register.** Nine gap and comparison
+  pages now open with the same statement of what 2.0 closed and what is still
+  open; three of them — including the twelve-page `xrootd-vs-nginx` set's own
+  candid gap ledger, the most detailed parity document in the tree — carried
+  none, so a reader could work through it with nothing saying the rows predate
+  the feature work. `docs/index.md` gained a 2.0 entry pointing at the register.
+  `tests/test_release20_ledger_pins.py::test_every_gap_ledger_opens_with_the_register_banner`
+  compares each banner's open-item list against the register's own OPEN rows, so
+  a banner that keeps naming F16 after F16 ships is a red rather than a lie a
+  reader is expected to detect.
 
-## v1.4.0 — 2026-08-03
+- **The WebDAV perimeter reverse proxy is documented as removed.** The
+  transport was deleted on 2026-07-20 after a load-dependent heap corruption in
+  the upstream response parse, but three pages still described it as
+  implemented, one of them naming the deleted `src/protocols/webdav/proxy.c`.
+  [operation-status.md](docs/05-operations/operation-status.md) and
+  [forward-vs-reverse-proxy.md](docs/02-concepts/forward-vs-reverse-proxy.md)
+  (§2 and §3.4) now say so, name the replacement (serve WebDAV at the edge, or
+  nginx's stock `proxy_pass`), and call out the three survivors whose names
+  invite confusion: `brix_webdav_proxy_certs` is GSI proxy-*certificate*
+  acceptance, `src/protocols/webdav/proxy_pool.c` is the SHM backend registry
+  behind the dashboard admin API, and `brix_backend_ca_dir` configures the
+  stock proxy module. A configuration carrying `brix_webdav_proxy` is refused
+  at `nginx -t` as an unknown directive.
 
-Storage, auth and cache feature wave, a diagnostic advisor, and a repository
-hygiene pass that closed several guards which had stopped enforcing anything.
+- **A fabricated test citation was removed from the client resilience
+  claims.** [native-client-tools.md](docs/04-protocols/native-client-tools.md)
+  offered a `test_official_brix_resilience.py` under `tests/` as proof of
+  reconnect and backoff against an official `xrootd` server; no such file has
+  ever existed, and it is deliberately not spelled out here as a path — writing
+  it as one would re-plant exactly the citation being corrected. The name came
+  from `tests/test_official_xrootd_resilience.py`, whose docstring the 2026-07
+  symbol rebrand renamed while leaving the file alone; the module had been
+  misnaming itself ever since, and five downstream citations copied it —
+  including a remote-suite runner that asked pytest for a path that does not
+  exist. All six are corrected.
+  The behaviour is real and the evidence is now the harness that produced it —
+  `tests/resilience/` (servers and fault proxy in `servers.py`, smoke test
+  `test_loss_sweep_gsi.py`, four standalone sweeps collected by
+  `test_sweep_runners.py`) together with the recorded curves
+  `results-packet-loss-mount-2026-06-23.md` and
+  `results-xrdcp-loss-comparison-2026-06-23.md`, byte-exact to roughly 12%
+  packet loss. `tests/test_test_module_self_reference.py` now makes a module
+  that names a different file in its own docstring title, or a `tests/` README
+  that cites a `test_*.py` which resolves nowhere, a test failure.
 
-### Added
+- **The fuzzing framework is no longer listed as outstanding work.**
+  [hardening-strategy.md](docs/07-security/hardening-strategy.md) carried it as
+  a **High** priority to-do; `tests/fuzz/` ships 14 libFuzzer harnesses with
+  seeded corpora, driven by `tests/test_cmd_fuzz_all.py`,
+  `tests/test_fuzz_carved_parsers.py`, `tests/test_fuzz_binary_conformance.py`
+  and `tests/test_fuzz_http_conformance.py`, with corpus write-back guarded by
+  `tests/test_ci_fuzz_corpus_writeback.py`.
 
-- **Client io_uring `O_DIRECT` tier** (`--io-uring-direct`): aligned slab
-  allocation with a buffered short-tail fallback for the unaligned remainder.
-- **HTTP cache-fill remote passthrough** (`brix_cache_passthrough`,
-  `brix_cache_passthrough_max`): store-then-evict for objects that should not
-  occupy the cache permanently. HTTP plane only — the `root://` stream plane
-  does not passthrough.
-- **CVMFS proxy authorization** (`brix_scvmfs_authz x509|voms`): end-entity DN
-  authorization with an allow-glob (`brix_scvmfs_x509_dn`), plus a VOMS mode
-  (`brix_scvmfs_voms`, `brix_scvmfs_vomsdir`, `brix_scvmfs_voms_cert_dir`).
-- **`block:<device>` server plane**: exports a block device as a fixed-extent
-  namespace `/0`…`/N-1`.
-- **Full S3 namespace mutation** for the remote storage driver, via `path/`
-  marker objects, with capability parity for directory writes.
-- **WebDAV origin mutation** for the HTTP storage driver: `MKCOL` (`.mkdir`)
-  and `MOVE` (`.rename`), advertising `CAP_DIRS_WRITE | CAP_HARD_RENAME`.
-- **GridFTP VO ACL gate** (`brix_gridftp_require_vo`): fail-closed VO check on
-  every verb at path resolution.
-- **Bandwidth reservation** wired into `root://` read-open
-  (`brix_throttle_bandwidth_zone`, `brix_throttle_bandwidth_budget`).
-- **`xrddiag` remote advisor**: `--config-audit` scrapes `Qconfig`/`Qspace` and
-  applies value rules; `--all-servers` fans out across the fleet and diffs;
-  `--cap-threshold` tunes the capacity findings.
-- **`xrddiag` mesh map**: `--map` with `--map-format ascii|dot|mermaid`,
-  classifying nodes from the CMS plane (`kXR_locate`) so redirectors, data
-  servers and read-only holders are distinguished — including endpoints that
-  cannot be connected to directly.
-- **`xrddiag` latency**: `--latency` / `--latency-count` measure bi-directional
-  RTT over both the xrootd (`kXR_stat`) and CMS (`kXR_locate`) planes.
+- **Test-fleet commands name the entry point that exists.** The bash fleet was
+  dissolved in phase-81, but `manage_test_servers.sh` survived as a *name* in
+  89 places across 54 Python modules, configs and READMEs — none of them an
+  exec, every one instructing a reader to run a script the tree does not
+  contain. All 75 affected files now say `python3 -m
+  cmdscripts.manage_test_servers start-all|stop-all|restart|status|start-dedicated`,
+  run from `tests/`. Six historical narratives and the successor module's own
+  "retired predecessor" line keep the old name deliberately, because there it
+  is the record.
 
-### Changed
+- **`docs/05-operations/remote-host-test-suite.md` installs 2.0.0.** Five
+  copy-pasteable commands still named `1.1.1-20.el9` packages.
+  `tests/test_doc_release_hygiene.py` now fails any user-facing page that
+  quotes a package version or `Release:` other than the ones `src/core/ident.h`
+  and `packaging/rpm/nginx-mod-brix-cache.spec` carry — scoped to the packages
+  that spec actually builds, so a third party's correctly-versioned RPM is left
+  alone — and any page that names a pre-rebrand client artifact (`libxrdc*`,
+  `-lxrdc`, `xrdc.h`, `libxrdposix_preload`) while leaving the five names that
+  really did survive the rebrand (`xrdcp`, `xrdfs`, `.xrdcap`,
+  `XRDC_ERESOLVE`, `XRDC_CONNECT_TIMEOUT_MS`) untouched.
 
-- **brix-fault-proxy** unified onto the upstream v1.3.0 core and decomposed
-  from a 2814-line monolith into seven translation units behind a shared state
-  header; below-TCP and MITM fault levers retained.
-- **Python dependencies** split into required / optional / dev / cluster-lab
-  files, each entry bounded on both sides. `requirements.txt` previously named
-  three packages against a suite that imports fifteen.
-- **Repository governance**: added `SECURITY.md`, `CODEOWNERS`, Dependabot
-  configuration, and issue/PR templates.
+- **`tools/diag/lock_scan.py` ships in the package again.** The
+  [directives reference](docs/03-configuration/directives.md) tells an operator
+  to run this pre-upgrade lock inventory *before* switching an export to
+  `brix_lock_enforcement strict`, and the tool was matched by a `.gitignore`
+  rule — so it was missing from every fresh clone and the documented upgrade
+  procedure could not be followed. It is now exempted and tracked. Being
+  ignored had also kept it outside every quality gate and every test:
+  `tests/test_lock_scan_tool.py` gives it its first coverage — the three
+  documented exit statuses (0 no live locks, 1 found, 2 usage/IO error), the
+  decode contract including the rule that a legacy v1 record is treated as
+  already expired, and two security properties an operator relies on, namely
+  that a lock **token** is never printed (it is a bearer secret, and this
+  tool's output goes into tickets and scrollback) and that an expired record is
+  counted but never listed.
+
+- **The documentation path guard now covers the documentation.**
+  `tools/ci/check_doc_paths.py` proved that every path named in a doc exists
+  and is tracked, but scanned only `CLAUDE.md`, `README.md` and
+  `docs/index.md` — so the eight user-facing trees were unpoliced, which is how
+  a deleted transport and a file that never existed could sit in them for
+  months. It now scans those three strictly plus `docs/01-getting-started`
+  through `docs/08-metrics-monitoring`, where a token must first look like a
+  path (trailing slash, two or more slashes, or a known suffix) so English
+  prose is not mistaken for one. It also expands brace lists and exempts build
+  products (`client/bin/`, `client/lib/libbrix*`, `objs/`). `docs/09`-`11` stay
+  out of scope on purpose: in developer history and refactor records, naming a
+  deleted path *is* the content. `tests/test_doc_path_guard_reach.py` pins the
+  scope and all three filters with 29 tests, including a security-negative
+  proving the build-product exemption does not reach sources — a prefix one
+  segment shorter would silence the entire `client/` tree.
+
+- **The impersonation guide now tells an operator what enabling `brix_idmap
+  map` costs, and what it does not.** `docs/06-authentication/impersonation.md`
+  lists the namespace mutations the broker performs as the mapped user; the
+  atomic two-name swap was missing from that list because it was missing from
+  the broker, so turning per-user identity on silently withdrew a capability the
+  same export had with impersonation off. The bullet now names `exchange`
+  (`renameat2(RENAME_EXCHANGE)`), states that it is **never** emulated with two
+  renames on any kernel — a caller that asked for atomicity is answered
+  `ENOTSUP` rather than handed the window it was trying to close — and
+  deliberately contrasts that with the exclusive-rename arm, which *does* fall
+  back to a plain rename, because under-claiming exclusivity is survivable and
+  losing atomicity is not. It also records the one deliberate exception: the
+  content-addressed `.gcas/` dedup farm stays the worker identity.
+
+- **The storage-driver slot matrix described the POSIX per-user identity plane
+  incorrectly.** Its `id` verdict read "no assumable per-user identity at this
+  backend … deny mode refuses and allow mode runs as the export identity". On
+  `posix` the second half was false: the per-user identity is real, it is simply
+  not a credential threaded through the storage vtable — it is the calling
+  thread's own `setfsuid`/`setfsgid`, installed by the impersonation broker one
+  layer below the driver at the confined-path seam, so under `brix_idmap map`
+  every namespace syscall the driver issues is already performed as the mapped
+  user on that user's own DAC. Operators reading the matrix to decide whether a
+  local export supports per-user identity were being told the opposite of the
+  truth. The legend, the per-driver reading and §5 are rewritten, and the
+  generator now applies one further rule uniformly: a `_cred` cell whose plain
+  twin the driver does not implement can never be `id`, because the refusal that
+  verdict describes is only reachable when the plain slot exists. Four `posix`
+  cells (plus cells on `block` and `frm`) moved off `id` onto their base
+  verdicts, and `posix`'s slot count is corrected from 36 to 37.
+
+- **Two deliberate identity decisions are now stated in the source rather than
+  inferable from it.** `sd_posix_dedup.c`'s content-addressed hardlink farm runs
+  as the export identity on purpose — its names are content-derived, no client
+  can address them, and one inode is shared by every publisher of the same
+  bytes, so `st_nlink` (the refcount) would be unmaintainable if each publish
+  ran as a different user. And `brix_opendir_beneath()` carries no impersonation
+  branch on purpose: its single caller checks first and asks the broker for an
+  `O_DIRECTORY` fd, so there is no "opendir" broker verb to add.
 
 ### Fixed
+- **`brix_idmap map` silently disabled atomic two-name swaps.** Every confined
+  filesystem operation is performed as the mapped user by the privileged
+  impersonation broker — except `exchange`, which had no broker verb and so
+  answered `ENOTSUP` for as long as impersonation was active. An export
+  therefore ran its whole namespace as the mapped user apart from this one
+  operation, and any tier that publishes by swapping two names lost the
+  capability the moment per-user identity was switched on: a capability
+  regression caused by *enabling* security. The broker now implements
+  `renameat2(RENAME_EXCHANGE)` and the confined seam routes to it. **The swap is
+  never emulated with two renames**, on any kernel: the only emulation opens
+  exactly the window — an instant in which one of the two names does not
+  resolve — that a caller asking for an atomic swap asked to avoid, so a kernel
+  or filesystem without the flag answers `ENOTSUP`, identical to the
+  non-impersonated answer. This is deliberately the opposite of the
+  `RENAME_NOREPLACE` arm's policy, which does degrade to a plain rename, because
+  under-claiming exclusivity is survivable and losing atomicity is not. The wire
+  op was appended, so the worker/broker protocol version is unchanged.
+  `tests/test_release20_posix_cred_plane.py` (24).
 
-- **`urlencode` NUL passthrough** in the percent-codec (a `strchr(set, 0)`
-  footgun) — found by a 2946-case non-UTF-8 byte-input suite over the real
-  codec, opaque-validation and reserved-name kernels.
-- **41 orphaned client sources** were never built: `make -C client` was red on
-  `main`. Now wired into `client/Makefile` and enforced by a new guard.
-- **The pre-push hook enforced no guards at all** — it globbed for shell
-  guards long after the fleet became Python, so it both skipped every check and
-  blocked every push on the unmatched pattern.
-- **`check_gridftp_interop_image.py`** was committed without its executable
-  bit, so CI could not run it.
-- **A VFS seam bypass** in the io_uring `O_DIRECT` unaligned tail, and 13 files
-  over the 600-line cap, both of which had reddened the tree's own guards.
-- An optional test dependency (`zstandard`) was imported at module scope,
-  making it mandatory for anyone collecting the test suite.
+- **An unreadable CRL inside a CRL *directory* silently disarmed revocation
+  checking.** `brix_crl` may name a CRL file or a directory of them. Naming a
+  file the worker cannot read has always been refused at `nginx -t`; naming its
+  *parent directory* was accepted, because the config-time `access(R_OK)` test
+  is asked about the directory and never about its contents. The loader then
+  mapped the failed `fopen` to "0 CRLs here", and under `brix_crl_mode try` the
+  flags are armed only when at least one CRL loaded — so a `chmod 000` on the
+  only CRL in a CRL directory moved a server from refusing a revoked
+  certificate to accepting one, with no reload and no configuration change. It
+  was reported in the startup log (three lines, one saying outright that
+  revoked certificates are still accepted), but a warning is not a gate. A CRL
+  that is *present but unreadable* is now a hard load failure on both planes:
+  the `root://` server refuses to start with an `[emerg]` naming both the
+  `brix_trusted_ca` and the `brix_crl` path, and the WebDAV plane refuses with
+  its own. A directory that opens cleanly and yields no CRL is unchanged — hash
+  symlinks and stray `.pem` files must not stop a server, and `require` versus
+  `try` still decides what an empty feed means. On a reload the failure keeps
+  the last-good store rather than clearing it, so a running server never loses
+  revocation to a permissions change. Pinned by seven tests in
+  `tests/test_release20_tlsca_residuals.py`, including that neither `try` nor
+  `off` nor the default can talk the loader out of the refusal. *(2.0 F22)*
 
-### Security
+- **`brix_checksum_default sha512` advertised `adler32`.** `sha512` is a
+  built-in on every checksum surface — Qcksum, `?cks.type=`, Want-Digest,
+  `brix_checksum_default` — but was missing from the `query config chksum`
+  list clients negotiate from, and the check deciding whether a configured
+  default was answerable walked that same short list. So `sha512`, and the
+  documented alias spelling `crc64xz`, were dropped from the advertisement
+  entirely: computable, configured, and invisible, with every client falling
+  back to `adler32`. The list now carries all ten built-ins, and the default
+  gate asks `brix_checksum_parse()` — the resolver the Qcksum path itself uses
+  — so the two surfaces cannot disagree again. An unanswerable default is
+  still dropped rather than echoed. Pinned by six tests in
+  `tests/test_release20_checksum_plugin.py`, including a set-equality guard
+  between the built-in table and the advertised list.
 
-- New coordinated disclosure policy in
-  [`SECURITY.md`](SECURITY.md): private reporting routes, response targets, and
-  an explicit scope.
-- Dependency bounds are now two-sided, so a new major of a crypto or HTTP
-  dependency cannot enter CI unreviewed.
+- **Six features were registered, configurable — and permanently disarmed.**
+  Each read `cache_origin_host` / `cache_origin_port`, orphaned when the
+  `brix_cache_origin` directives were retired in phase-64 §14 and surviving only
+  as the parameter block of the *synthetic* server conf `sd_xroot` hands to the
+  in-process origin wire client. On a real server conf both are empty forever,
+  so every gate reading them was constant-false and `nginx -t` had nothing to
+  complain about. Fixed: (1) the Pelican advertiser now arms on
+  `brix_cache_advertise_federation` (above); (2) an object the cache admission
+  policy declines — too large to cache — is redirected to the export's
+  registered `root://` backend instead of answering `kXR_Unsupported`; (3) a
+  `kXR_Qcksum`-by-path cache miss redirects to that backend instead of answering
+  "not found"; (4) the fill spine always resolves the registered backend, the
+  skip-if-origin-configured branch around it having been unreachable; (5) the
+  `kXR_attrCache` login advert and (6) the write-back stage builder each lose a
+  constant-false second arm. The start-up NOTICE now prints
+  `brix_storage_backend` rather than the always-empty retired string, and the
+  origin TLS refusal points at a `roots://` backend URL rather than at
+  `brix_cache_origin_tls`, retired two phases ago. The four orphaned fields are
+  documented in `srv_conf_fields_net.h` as synthetic-conf-only, with
+  `brix_sd_xroot_endpoint()` as the supported way to learn a backend's endpoint,
+  and a tree-wide guard holds them to the five files that legitimately touch
+  them. Pinned by `tests/test_release20_never_armed.py` (28 tests).
 
----
+- **`brix_cache_verify off` and `require` now have effect on the standalone
+  cache.** The directive wrote the shared preamble's mode field while the
+  standalone (`brix_cache` + `brix_cache_export`) fill spine read a *different*,
+  stream-only field that no directive could write: every standalone cache
+  verified best-effort whatever the configuration said, so `off` never saved
+  the checksum round-trip and `require` never gained its teeth there. Both
+  spines now read the one field through `brix_cache_verify_effective()`, which
+  keeps the documented standalone default (best-effort) for an unset value
+  while honouring an explicit setting; the composed tier's own documented
+  default (`off` when unset) is unchanged. The dead duplicates are removed from
+  the stream server config. Pinned by
+  `tests/test_release20_registered_nowhere.py`.
 
-## v1.3.0 — 2026-07-24
+- **Nine `nginx -t` diagnostics named directives that do not exist.** A config
+  error that tells an operator to set `brix_proxy_upstream`,
+  `brix_proxy_auth`, `brix_proxy_login_user`, `brix_gridftp_require_vo`,
+  `brix_kv`, `brix_s3_storage_credential`, `brix_webdav_storage_credential`,
+  `brix_webdav_crl` or `brix_token` sends them to a name the server then
+  refuses as unknown. Every message now names its registered spelling
+  (`brix_tap_proxy_*`, `brix_require_vo`, `brix_kv_zone`,
+  `brix_storage_credential`, `brix_crl`, `brix_token_config`), and a tree-wide
+  pin keeps every `brix_*` token in a config-time diagnostic a real directive.
 
-### Added
+- **External programs no longer inherit worker descriptors.** The exec MSS
+  adapter's stage command and the F4 policy program spawn in their own
+  session with fds 0–2 only (`POSIX_SPAWN_SETSID` + closefrom), and a
+  `brix_frm_copy_timeout` kill takes the whole process group; the mover
+  runner (`brix_xfer_run_reparented`) closes every inherited fd with
+  `close_range` instead of stopping at 1023. Before, a stage program's
+  surviving child could keep the server's listen socket bound after a
+  deadline kill or restart, and a busy worker leaked client connections to
+  `xrdcp`. Pinned by `test_release20_frm_knobs.py` (×3),
+  `test_release20_purge_policy.py` (×1) and `xfer_spawn_unittest.c` (×2).
 
-- **CMS auto-role clustering**: a node derives its cluster role (manager /
-  sub-manager / leaf) from its configuration and can act as a sub-manager of a
-  stock upstream `cmsd` rather than only ever being a leaf. Includes
-  control-plane action logging and a four-tier topology test.
-- **brix-fault-proxy below-TCP and MITM fault levers.**
-
-### Fixed
-
-- **Per-worker SID collision** that made a stock `cmsd` reject workers 2..N as
-  "already logged in" (with a 30s blacklist), so only `worker_processes 1`
-  registered cleanly.
-
----
-
-## v1.1.1 — 2026-07-07
-
-Packaging-focused release; shipped as RPM revisions `-1` through `-25`.
-
-### Added
-
-- **Source-derived versioning**: the RPM version is `sed`ed out of
-  `src/core/ident.h` by the build scripts, making the header the single source
-  of truth.
-- **SELinux support** for enforcing hosts: a targeted-policy subpackage
-  (`brix_port_t` on 1094/1095/9001/9100, data-plane labels, impersonation-broker
-  rules), plus a verification suite (`tests/test_selinux_rpm.py`).
-- **CVMFS packaging**: `brix-cvmfs-automount` (native `brixMount autofs`
-  umbrella, `/sbin/mount.cvmfs`, autofs program map) and `brix-cvmfs-config`
-  (vendored upstream domain configs and master keys).
-- **Co-installable compat subpackages** (`brix-cache-client-compat`,
-  `brix-tools-compat`): the same binaries under a `brix-` prefix so a host can
-  carry both stock `xrootd-client` and the BriX tools. One name-agnostic
-  compile serves both — every tool derives its identity from `argv[0]`.
-- **Standalone FUSE subpackages** (`brix-xrootdfs-fuse`, `brix-cvmfs-fuse`) so
-  a mount tier can deploy without the full CLI suite.
-
-### Changed
-
-- `io_uring`, `zstd` and `lz4` default ON; Ceph became a stated contract.
-- `packaging/` rebranded `nginx-xrootd` → `brix-cache` for everything that is
-  not an upgrade-path compatibility name.
-- Client binaries colliding with stock XRootD packages renamed
-  (`mpxstats` → `mpxstats-brix`, `wait41` → `wait41-brix`, …).
-
-### Fixed
-
-- **CVMFS whitelist/manifest body-binding**: the signed hash line covers the
-  body up to but *excluding* the `--\n` separator (verified against live
-  stratum-1 artifacts). The verifier previously included it and rejected every
-  genuine repository with trust/catalog error -5.
-- Container builds.
-
----
-
-## v1.0.8 — 2026-07-03 — BriX namespace rebrand
-
-Renamed the project's own code namespace to BriX; upstream XRootD / `root://`
-protocol references are preserved throughout.
-
-- **Code:** server `xrootd_`→`brix_`, `XROOTD_`→`BRIX_`, `ngx_xrootd*`→`ngx_brix*`
-  (incl. `ngx_xrootd_{module,fattr}.h`→`ngx_brix_*`); client `xrdc_`→`brix_`.
-- **Breaking:** nginx config directives (`xrootd_*`→`brix_*`), Prometheus metric
-  names (`xrootd_*`→`brix_*`), dashboard routes (`/xrootd`→`/brix`), env vars
-  (`XROOTD_*`→`BRIX_*`), access-log filenames (`xrootd_access*.log`→
-  `brix_access*.log`), and operator log-line prefixes (`xrootd:`→`brix:`).
-- **Client:** `libxrdc.{a,so,pc}`→`libbrix.*` (SONAME `libbrix.so.0`),
-  `libxrdposix_preload.so`→`libbrixposix_preload.so`, pkg-config `-lbrix`.
-- **Preserved:** upstream XRootD/`root://` protocol refs (`kXR_*`, `XrdCl`,
-  `XrdHttp`), tool binaries (`xrdcp`/`xrdfs`/`xrdcinfo`/`xrdckverify`/`xrdcrc32c`/
-  `xrdcrc64`/`xrootdfs`), the nginx module identity `nginx-xrootd`, and the
-  on-disk cache sentinels (`.ngx-xrootd-*`).
-- Operator migration map: [docs/refactor/brix-rename-migration.md](docs/refactor/brix-rename-migration.md).
-
-See the plan and rationale in
-[docs/refactor/2026-07-03-brix-symbol-rebrand.md](docs/refactor/2026-07-03-brix-symbol-rebrand.md).
-
----
-
-## v1.0.7 — 2026-07-03
-
-Rebrand to BriX-Cache; CVMFS proxy resilience to upstream flakiness, plus
-traffic visibility for it.
-
-## v1.0.5 — 2026-07-02
-
-Phase-67 source layout, gnuBall identity, `writev`/`ckpXeq` stock framing, and
-an audit-hardening sweep.
-
-> The 1.0.x line existed in the source only. Packaging went straight from
-> `0.1.0-9` to `1.1.1-1`, so no RPM was ever labelled 1.0.x.
-
----
-
-## v0.1.0 — 2026-04-21 → 2026-06-15
-
-The pre-1.0 line, shipped as nine RPM revisions (`0.1.0-1` … `0.1.0-9`) under
-the original `nginx-xrootd` package name. Per-revision detail is in the spec's
-`%changelog`; the arc was:
-
-- `-1` initial nginx dynamic module package;
-- `-2` SRR, XrdHttp filter and dashboard modules;
-- `-3` the native client tools (`xrdcp`/`xrdfs`/… plus the `xrootdfs` FUSE
-  driver and the `LD_PRELOAD` shim) and the pytest suite, both as subpackages;
-  RPM optflags threaded through the client build (PIE/RELRO/BIND_NOW);
-- `-4` … `-9` module load ordering, external library linkage, and packaging
-  fixes.
+- **The FRM operator programs no longer lose their exit status to nginx.** The
+  master's signal handler calls `ngx_process_get_status()` for SIGCHLD in
+  workers too, so `waitpid(-1, WNOHANG)` there reaped any direct child of a
+  worker before the feature's own wait reached it: the exec MSS adapter's stage
+  command and the F4 purge policy program both saw `ECHILD` and reported every
+  verb as failed (`unknown process NNNN exited with code 0` beside `stage
+  command failed`). Both now run through the shared reparented runner
+  (`brix_subprocess_run`), whose double-forked agent the worker never has as a
+  child and which owns the deadline, the process-group kill and the spawn
+  hygiene; the streaming `dread` listing remains the only direct child.
+- **A failed tape seal is retried instead of dropped.** An MSS verb that failed
+  without setting an errno of its own left whatever errno the runner had last
+  set, and a stale `ENOENT` reads as "the marker was withdrawn" — which dropped
+  a journaled `archive` record that owed a retry and a dead-letter. Every verb
+  now reports a deterministic `EIO` when it has no reason of its own.
+- **`attempts` counts the first failed drive.** The completion path persisted a
+  FAILED stage record without bumping it, so a record the `brix_frm_fail_backoff`
+  sweep rescued published `attempts=0` — indistinguishable from a crash replay
+  that never ran, and one drive short of the `brix_frm_fail_retries` cap. A
+  record that never failed still reports 0.
+- **A pooled upstream connection is never handed to another identity.** The
+  stream proxy's worker-local upstream pool matched on `(upstream_idx,
+  auth_type)`, but `upstream_idx` indexes a per-server-block list and, under
+  `brix_tap_proxy_sss_identity client`, GSI-as-user or `brix_proxy_login_user
+  passthrough`, the upstream leg carries the client's own identity — so a
+  connection could be reused across server blocks and across users, including
+  serving an anonymous session over a named client's authenticated origin
+  session. The pool now keys on the owning server block plus a digest of the
+  forwarded identity itself (passthrough login name, bearer token, minted sss
+  entity).
+- **A forwarding refusal no longer marks the origin down.** Refusing to forward
+  an unauthenticated session is our own decision, taken before the origin sees a
+  byte, but the abort was charged to upstream health: three anonymous attempts
+  against a `client`-mode front blackholed a healthy origin worker-wide for
+  `BRIX_PROXY_FAIL_TIMEOUT`.
+- **Only an asserted VO and role are forwarded.** The attribute view derives a
+  VO from a bare group name (right for the local xrdacc engine), so a v1
+  NAME-only client reached the origin as `vorg="nogroup"` — a claim it never
+  made. The sss entity now forwards a VO/role only when the peer asserted one;
+  `GRPS` still travels verbatim, so the origin derives the same view it always
+  did.

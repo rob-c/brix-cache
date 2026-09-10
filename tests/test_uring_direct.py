@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -27,11 +28,7 @@ DRIVER = os.path.join(CLIENT_DIR, "bin", "uring_direct_unit")
 def _build() -> None:
     if shutil.which("gcc") is None and shutil.which("cc") is None:
         pytest.skip("no C compiler")
-    proc = subprocess.run(
-        ["make", "-C", CLIENT_DIR, "uring-direct-unit"],
-        capture_output=True,
-        text=True,
-    )
+    proc = client_make(CLIENT_DIR, "uring-direct-unit", capture_output=True, text=True)
     if proc.returncode != 0:
         pytest.skip(f"uring_direct_unit build failed:\n{proc.stdout}\n{proc.stderr}")
 

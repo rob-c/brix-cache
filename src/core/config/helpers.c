@@ -82,40 +82,37 @@ brix_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src, ngx_str_t *dst)
     return NGX_CONF_OK;
 }
 
-/* Resolve a host:port directive argument into a pool-allocated ngx_addr_t
- * (first resolved address; the port must be explicit — no default).  Shared
- * by the handoff/relay upstream directives.  Returns NULL on failure; a
- * resolve failure is logged with the directive's name. */
+/* Parse a host:port directive argument and register it as a runtime DNS
+ * target (phase-116).  Returns the registry-owned ngx_addr_t: for an IP
+ * literal it is complete at once, for a hostname `socklen` stays 0 until the
+ * worker's first successful resolution — the dial sites treat that as a
+ * transient "peer unreachable".  A hostname that does not resolve at
+ * `nginx -t` is therefore NOT a config error (I-DNS-1).  The port must be
+ * explicit — no default. */
 ngx_addr_t *
-brix_conf_parse_addr(ngx_conf_t *cf, ngx_str_t *spec, const char *directive)
+brix_conf_parse_addr(ngx_conf_t *cf, ngx_str_t *spec, const char *directive,
+    const brix_dns_conf_t *dns)
 {
-    ngx_url_t    url;
-    ngx_addr_t  *addr;
+    ngx_url_t           url;
+    brix_dns_target_t  *t;
 
     ngx_memzero(&url, sizeof(url));
     url.url = *spec;
     url.default_port = 0;
+    url.no_resolve = 1;
 
     if (ngx_parse_url(cf->pool, &url) != NGX_OK || url.no_port
-        || url.naddrs == 0 || url.addrs == NULL)
+        || url.port == 0 || url.host.len == 0)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "%s: could not resolve host:port in \"%V\"", directive, spec);
+            "%s: expected host:port in \"%V\"%s%s", directive, spec,
+            url.err ? ": " : "", url.err ? url.err : "");
         return NULL;
     }
 
-    addr = ngx_pcalloc(cf->pool, sizeof(ngx_addr_t));
-    if (addr == NULL) {
-        return NULL;
-    }
-    addr->sockaddr = ngx_pnalloc(cf->pool, url.addrs[0].socklen);
-    if (addr->sockaddr == NULL) {
-        return NULL;
-    }
-    ngx_memcpy(addr->sockaddr, url.addrs[0].sockaddr, url.addrs[0].socklen);
-    addr->socklen = url.addrs[0].socklen;
-    addr->name = url.addrs[0].name;
-    return addr;
+    t = brix_dns_target_register(cf, directive, &url.host, url.port,
+                                 BRIX_AF_AUTO, SOCK_STREAM, dns);
+    return t != NULL ? &t->addr : NULL;
 }
 
 /* Whole-directive worker behind the single-argument upstream directives
@@ -125,7 +122,7 @@ brix_conf_parse_addr(ngx_conf_t *cf, ngx_str_t *spec, const char *directive)
  * name (cmd->name) labels both messages. */
 char *
 brix_conf_upstream_directive(ngx_conf_t *cf, ngx_command_t *cmd,
-    ngx_str_t *name, ngx_addr_t **slot)
+    ngx_str_t *name, ngx_addr_t **slot, const brix_dns_conf_t *dns)
 {
     ngx_str_t *value = cf->args->elts;
 
@@ -134,7 +131,8 @@ brix_conf_upstream_directive(ngx_conf_t *cf, ngx_command_t *cmd,
     }
 
     *name = value[1];
-    *slot = brix_conf_parse_addr(cf, &value[1], (const char *) cmd->name.data);
+    *slot = brix_conf_parse_addr(cf, &value[1], (const char *) cmd->name.data,
+                                 dns);
     if (*slot == NULL) {
         return NGX_CONF_ERROR;
     }

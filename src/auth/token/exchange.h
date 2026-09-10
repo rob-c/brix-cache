@@ -17,16 +17,21 @@
 
 #include <ngx_core.h>
 
+struct brix_dns_policy_s;
+
 /*
  * Static configuration for a token-exchange endpoint.
  *   endpoint      — absolute https:// URL of the OAuth2 token endpoint.
  *   client_id     — OAuth2 client id (empty => no client authentication).
  *   client_secret — OAuth2 client secret (paired with client_id).
+ *   dns           — the export's phase-116 resolver policy for the endpoint
+ *                   host (NULL: libc, which still follows resolv.conf).
  */
 typedef struct {
     ngx_str_t endpoint;
     ngx_str_t client_id;
     ngx_str_t client_secret;
+    const struct brix_dns_policy_s *dns;
 } brix_token_exchange_conf_t;
 
 /*

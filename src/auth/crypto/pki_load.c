@@ -11,6 +11,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <openssl/err.h>
 #include <openssl/pem.h>
 #include <stdio.h>
 #include <string.h>
@@ -75,6 +76,26 @@ brix_pki_is_regular_file(const char *path)
 }
 
 /*
+ * PEM_read_X509 / PEM_read_X509_CRL signal end-of-input by failing with
+ * PEM_R_NO_START_LINE, which stays on the thread's OpenSSL error queue and
+ * later surfaces on every unrelated handshake as "ignoring stale global SSL
+ * error (PEM routines::no start line)".  A Grid CA directory also holds
+ * helper files (<hash>.signing_policy, .namespaces, .crl_url) that end the
+ * same way after zero entries.  Drain exactly that expected terminator.
+ */
+static void
+brix_pki_drain_pem_eof(void)
+{
+    unsigned long err = ERR_peek_last_error();
+
+    if (err != 0 && ERR_GET_LIB(err) == ERR_LIB_PEM
+        && ERR_GET_REASON(err) == PEM_R_NO_START_LINE)
+    {
+        ERR_clear_error();
+    }
+}
+
+/*
  * Read PEM-format certificates from a single file and add them to the cert stack.
  * Each certificate in the file is loaded one at a time until no more are found.
  */
@@ -109,6 +130,7 @@ brix_pki_load_certs_from_file(STACK_OF(X509) *certs, const char *path,
         loaded++;
     }
 
+    brix_pki_drain_pem_eof();
     (void) fclose(fp); /* phase74-fp: read-only stream, close failure cannot lose data */
     return loaded;
 }
@@ -147,6 +169,7 @@ brix_pki_load_crls_from_file(STACK_OF(X509_CRL) *crls, const char *path,
         loaded++;
     }
 
+    brix_pki_drain_pem_eof();
     (void) fclose(fp); /* phase74-fp: read-only stream, close failure cannot lose data */
     return loaded;
 }

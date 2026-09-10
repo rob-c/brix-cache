@@ -70,4 +70,12 @@ typedef struct {
 ngx_int_t cache_fill_verify(sd_cache_inst_state *st, const char *key,
     sd_cache_fill_state_t *fs);
 
+/* cache_fill_capture_origin_digest — record the origin's advertised content
+ * digest into fs->origin_alg/origin_hex while the source object is still open.
+ * A no-op unless a digest-verify policy is in force, so an off/cvmfs-cas fill
+ * pays no round-trip. Defined in sd_cache_fill_verify.c beside the compare
+ * that consumes it; called from the pump phase in sd_cache_fill.c. */
+void cache_fill_capture_origin_digest(sd_cache_inst_state *st,
+    sd_cache_fill_state_t *fs);
+
 #endif /* BRIX_FS_BACKEND_CACHE_SD_CACHE_FILL_INTERNAL_H */

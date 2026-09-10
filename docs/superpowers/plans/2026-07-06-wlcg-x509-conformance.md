@@ -572,7 +572,7 @@ git commit -m "test(x509): fixture forge — hostile PKI scenario trees + manife
 **Interfaces:**
 - Produces: `class WlcgInstance` (thin wrapper over the `test_reload.py` Instance pattern) with:
   - `__init__(self, prefix, ca_dir, *, signing_policy="on", crl="", crl_mode="try")`
-  - `render()` → nginx.conf string with a stream `server` (root:// GSI on an ephemeral port) and an http `server` (davs:// on an ephemeral port), both pointing `brix_trusted_ca`/`brix_webdav_cadir` at `ca_dir` and setting the two mode directives.
+  - `render()` → nginx.conf string with a stream `server` (root:// GSI on an ephemeral port) and an http `server` (davs:// on an ephemeral port), both pointing `brix_trusted_ca`/`brix_trusted_ca_dir` at `ca_dir` and setting the two mode directives.
   - `start()`, `reload(**opts)` (SIGHUP), `stop()`.
   - `root_port`, `davs_port` attributes.
   - `attempt_root(cred_pem) -> (ok: bool, detail: str)` — run `xrdcp`/`xrdfs` with the credential, return accept/reject.

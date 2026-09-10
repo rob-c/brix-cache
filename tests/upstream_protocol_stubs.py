@@ -2,7 +2,7 @@
 """
 Persistent XRootD protocol stub backends for upstream-redirect tests.
 
-Started once by manage_test_servers.sh start-all; stays up for the entire
+Started once by python3 -m cmdscripts.manage_test_servers start-all; stays up for the entire
 test session.  Each thread handles one fixed protocol scenario:
 
   13120  redirect  — login ok; locate → kXR_redirect stub.example.org:1194

@@ -142,6 +142,7 @@ brix_acc_http_merge_conf(brix_acc_http_t *conf, brix_acc_http_t *prev)
     ngx_conf_merge_uint_value(conf->audit, prev->audit,
                               BRIX_AUTHDB_AUDIT_NONE);
     ngx_conf_merge_str_value(conf->authdb, prev->authdb, "");
+    ngx_conf_merge_str_value(conf->authdb_defect, prev->authdb_defect, "");
     ngx_conf_merge_value(conf->refresh, prev->refresh, 0);
     ngx_conf_merge_value(conf->gidlifetime, prev->gidlifetime, 43200);
     ngx_conf_merge_value(conf->pgo, prev->pgo, 0);

@@ -235,6 +235,13 @@ brix_bind(brix_conn *sec, const brix_conn *primary, brix_status *st)
         }
     }
     free(body);   /* reply body = 1-byte pathid (server bookkeeping) */
+    /* §7.7: a bound substream is a SECOND live socket to the same server, and
+     * the high-throughput read path is made of them.  Unregistered, a forked
+     * child would inherit each one un-neutered and its first brix_send would
+     * interleave frames into the parent's data stream — the exact corruption
+     * the primary conn is protected from.  Registered only here, on the far
+     * side of kXR_bind: the two failure paths above close the fd themselves. */
+    brix_forksafe_register(sec);
     return 0;
 }
 

@@ -114,6 +114,14 @@ self-evident from `tests/README.md`:
   `X509_USER_PROXY` env export. Anonymous tests pass, GSI tests fail "No
   protocols left to try" unless those vars are exported manually from
   `tests/settings.py`'s CA_DIR/PROXY_STD.
+- **A live suite run without `TEST_SKIP_SERVER_SETUP=1` starts the WHOLE fleet
+  in that lane** — ~70 nginx masters plus the cms/hybrid meshes and the KDC —
+  before the first test, which is how a four-file phase-115 run got killed for
+  memory on 2026-09-07 next to two peer sessions. The light recipes: a
+  `uses_lifecycle_harness` suite runs standalone under `TEST_SKIP_SERVER_SETUP=1`
+  (it starts its own instances); a `registry_server("<name>")` suite needs only
+  `manage_test_servers start-dedicated <name>` in the same `TEST_ROOT`, then
+  `stop-all` for that lane when done.
 - **`start-all` returning exit 1 is not always fatal** — GSI/shared reference
   readiness probes can intermittently "fail" on pure timing even when the
   server is actually up; re-running once warm usually clears it. One
@@ -1191,6 +1199,15 @@ substring rule where they should):
    `error.log` to the assertion itself. Teardown will have erased it by the time
    anyone reads the report, and "who sent the signal" is in that log and nowhere
    else.
+4. **The rule survives the reaper (2026-09-07).** `fleet_orphans.owns` fixed the
+   harness, not the habit. Closing the phase-116 lane by hand, I scanned `/proc`
+   for any cmdline containing `/tmp/xrd-p116` or `test_phase116` and killed the
+   one match — a single `kill`, not a `pkill -f`, and still wrong: the match was
+   peer 25's *watcher* shell, whose whole job was waiting for that root to
+   disappear, so it was guaranteed to contain the string. Anything watching your
+   lane names your lane. Even a one-shot manual teardown decides ownership from
+   `/proc/<pid>/cwd`, an fd under `TEST_ROOT`, or `environ`, never from the
+   cmdline text.
 
 ## 11. Collection/init hyper-optimization — four costs that scale with the suite, not the run (2026-08-17)
 
@@ -1496,6 +1513,28 @@ success — and because a green CI run with thirteen collected and zero executed
 is indistinguishable from a real pass in any dashboard. Reproducing it wants a
 full untruncated log and a loaded host; the fix, if it is one, is in a
 pre-TS-4 conftest that TS-7 is the first phase allowed to touch.
+
+**Measured 2026-09-07 — the fleet-boot hypothesis above is wrong.** Every way
+this harness can abandon a session was reproduced against pytest 9.0.3 and
+xdist 3.8.0 in a two-test scratch project, and none of them is silent or green:
+the `pytest.UsageError` that `_start_all_resilient` raises after two failed
+start-alls exits **4** and prints its own `ERROR: start-all failed twice` line;
+the same error raised inside an xdist worker exits **3**; raised from the
+controller's `pytest_xdist_node_collection_finished` it exits **4**;
+`pytest.exit()` and `session.shouldstop` (the sentinel's mechanism) both exit
+**2** behind a `!!!!` banner; a worker that dies silently after collecting is
+respawned and its items are reported `FAILED`, exit **1**. A bound fleet port
+therefore cannot produce the signature — it produces a loud red that names the
+port.
+
+The only construct that reproduces the signature exactly — `collected N items`,
+`no tests ran`, **exit 0**, nothing else printed — is a `pytest_runtestloop`
+implementation that returns `True` without dispatching anything. Nothing under
+`tests/` implements that hook; xdist's own `DSession` does, and it returns
+`True` whenever its loop reaches `session_finished` with nothing scheduled. The
+search therefore moves off the conftest fleet boot and onto the controller's
+`DSession.loop_once` / `session_finished` path. Still open: no reproduction of
+that state yet — every deliberate way of killing workers reports loudly.
 
 **Coda (2026-08-20) — a guard-only selection is still a fleet run.** Verifying
 the CI guards locally reads as the cheapest thing in the suite: every row in
@@ -2137,3 +2176,1107 @@ negatives (briefly "proving" a symbol existed nowhere) — **grep with absolute
 paths during archaeology**; and a background pytest task's output file held
 only the tail of the failure list — re-run the shortlist in the foreground
 before concluding.
+
+## 24. The fail-fast race hunt: one real race — an unpinned fixed-port lifecycle subject (2026-09-05)
+
+The standing ask: drive the fast Python tier fail-fast (`-x`) ten times over,
+halt on the first red, fix real defects, recompile, repeat — to shake out rare
+races. Most halts were the harness, not the code. Three are worth keeping:
+the canonical fast selection is `-m "(not slow and not serial) and not
+suite_job"` — the `and not suite_job` clause the operator adds
+(`cmdscripts/operator_runtime_part2.py`, `_suite_marker`) is MANDATORY, and
+without it the lizard/duplication CI guards and the pblock live perf benchmark
+run and halt `-x` on CPU noise the real fast tier never executes; a
+26-day-stale `/tmp/x509up_u1000` that `test_shutdown_resume`'s xrdcp fell back
+to under chaos-reconnect (clear any old `/tmp/x509up_u<uid>` before a hunt);
+and `-n4` on a 20-thread host stalls shared-fleet HTTP past the 15 s cachemx
+client timeout — `-n3` is the completable setting.
+
+The first clean-config run (17,398 passed, 90% of the tier) then halted on a
+genuine race:
+
+**`test_rate_limit_s3.py::test_http_scope_limit_sheds_webdav_too` —
+`ConnectionRefused` on the module's own WebDAV port.** The module's
+`shared_limit_server` fixture is function-scoped and starts the ledger subject
+`lc-p105-rl-s3`, which keeps its STABLE name and fixed ports (so every worker
+shares one prefix, pidfile and listen set); the module declared no
+`xdist_group`, so under `--dist loadgroup` its two tests went to two workers.
+Both started the subject; the loser's nginx failed bind(), `_launch_nginx`
+saw `_master_owns_prefix` and **silently adopted the winner's master**
+(readiness passed against the winner's listener); the winner's test finished,
+its `close()` killed the master through the shared pidfile, and the loser woke
+from its 3 s refill sleep to a dead port. A second face of the same defect:
+`nginx -t` `RegistryCommandFailure` when the other worker re-rendered the
+shared prefix mid-check. Isolated `-n3` reproduction: 5 red in 6; after the
+fix 0 in 6, all four tests on one worker.
+
+Fix: the sibling pattern — `pytestmark = [uses_lifecycle_harness,
+xdist_group("lc-p105-rl")]` with a comment naming the race. Of the 12 modules
+that resolve ledger ports through `lifecycle_ports_for`, this was the only
+ungrouped one.
+
+Guard: rule 2 in `tests/test_suite_parallel_hygiene.py` — a lifecycle-ledger
+subject started by MORE THAN ONE test of a module must be pinned (`xdist_group`
+or `serial`), matched as `pytest.mark.<x>` in the AST. The first draft's text
+search accepted a *comment* that mentioned xdist_group as a pin — the fix's
+own comment would have satisfied it. The scan follows `reexport(globals(), …)`
+so a split module whose pin lives in its helper (`test_cms_parity_wave`) is not
+flagged — a plain-text census had exactly that blind spot. Whole-tree exposure
+after the fix: zero; the eight gridftp/xrdcp modules that start one subject
+from several tests are all `serial`, which the conftest pins.
+
+The one other timing-dependent behaviour seen across the hunt is benign:
+`test_audit15c`'s dead-token-endpoint pull can report the generic "TPC pull
+failed" instead of "token exchange failed" under load; it fails closed
+(`kXR_error`) either way — only the diagnostic message varies.
+
+### 24.1 The parse-only path that skipped the frozen binary (run 4)
+
+Run 4 halted at 3,479 passed on a pure `nginx -t` test
+(`test_audit16g_pmark_flags_b`) with `PermissionError: [Errno 13]
+… objs/nginx`. The log's mtime and the binary's mtime were seconds apart: the
+sibling session's `make` was relinking `objs/nginx` at that instant, and the
+linker's output is not executable until the link completes. This is the storm
+class §19 already closed for servers — `freeze_nginx` copies the binary once
+per session and every launcher spawn execs the frozen copy — but
+`config_parse.nginx_t` still exec'd `settings.NGINX_BIN` directly, the one
+remaining live-path exec in the suite. Fix: route it through
+`brix_suite.nginx_tools._nginx_bin()` like the launcher. The other
+`NGINX_BIN` references in tests are `os.access` skip-guards, not execs.
+
+**Rules: a fixed-port lifecycle subject is a shared-prefix singleton — every
+module that starts one from several tests pins them to one worker; a guard
+that looks for a marker reads the AST, never the text; and nothing execs
+`NGINX_BIN` directly — every exec goes through the frozen copy.**
+
+### 24.2 The one-strike startup gate (run 15)
+
+Run 15 never dispatched: `full-fleet startup is unstable; listener(s) went
+down before test dispatch: cms-mesh:<a_mgr>`. The label is topology A's front
+door — a **stock** `xrootd` 5.9.6 manager, not brix — and the gate
+(`brix_suite/harness/sentinel.py::_require_fleet_startup_stability`) had
+declared it dead on ONE failed 1 s connect out of a 5 s sweep.
+
+What the isolation showed. Seven mesh starts alone (five on the live binary,
+two on the HEAD-only A/B build) kept all 18 manager front doors up for 12 s
+after `wait_managers_up`, so the death did not reproduce; the registry was
+gone by then so the a-mgr log was not recoverable. The one deterministic fact
+the hunt did establish is a **`cmsd` segfault on every mesh start**, ~8 s after
+the managers listen (`dmesg`: `error 14`, `ip == fault address` — a jump to an
+unmapped page inside a thread), identical on both binaries, so a stock
+`cmsd` artefact rather than anything the brix data node sends; the managers
+survive it. That crash lands squarely inside the 5 s stability window of a
+fleet that has just booted 200+ daemons.
+
+The fix is to the gate, not the mesh: a label a sweep reports down is
+re-probed once with a 3 s budget (`_confirm_missing`) and the run halts only
+if that probe fails too. A listener that is really gone refuses the second
+probe immediately, so a true death still halts the run in the same second; a
+single missed connect no longer discards a 35-minute run.
+
+**Rule: a gate that fails a whole run on a liveness probe confirms the
+negative — one missed connect under a start spike is a measurement, not a
+death.**
+
+### 24.3 The silent worker exit — a worker-side `UsageError` xdist cannot report (runs 24–26)
+
+Run 24 died 138 s in with a controller `INTERNALERROR` from
+`xdist/dsession.py:217` (`worker_workerfinished: assert not crashitem`): gw0
+had finished its session with the first test of the `lc-cms-hostile` unit
+still pending, an exit status that was neither 2 nor 3, `shouldfail` and
+`shouldstop` unset, and not one line of output from the worker. Run 25
+(execnet debug on, the controller under `strace -e trace=close,dup2,dup3`)
+died at the same point with a different face — `OSError: cannot send to
+<Channel id=3 closed>` from `worker_collectionfinish → schedule()` — and the
+execnet trace showed two workers each sending exactly one message after their
+collection and then a `CHANNEL_CLOSE_ERROR` carrying a 5,963-byte traceback: a
+real exception escaping the worker's channel code, not a dead pipe. The first
+draft of this section blamed a dead execnet receiver thread; that reading did
+not survive run 25.
+
+The mechanism is pytest's, and reproduces on demand: a two-worker smoke suite
+whose conftest raises `pytest.UsageError` on gw0 from `pytest_collection_finish`
+gives run 24's assertion verbatim. `wrap_session` catches every exception from
+the session body except `UsageError`, which it re-raises after setting exit
+status 4; its `finally` still runs `pytest_sessionfinish`, where xdist's worker
+sends `workerfinished` with that status; the re-raised error then escapes the
+channel exec as `CHANNEL_CLOSE_ERROR`, which nothing prints. On the controller
+`worker_workerfinished` special-cases only exit 2 — any other status with a
+unit already assigned trips the assertion (run 24), and a `schedule()` that
+reaches the closed channel first fails on the send (run 25). The message is
+lost twice over: xdist prints a remote error only on `errordown`, which this
+path never reaches, and the worker's execnet debug file lands under `$TMPDIR`,
+which the suite pins inside the lane the teardown wipes.
+
+Run 26 ran with a hunt tracer (`-p rh_trace`, scratchpad only): worker-side
+wrappers on `pytest_collection_finish` and `pytest_runtestloop` logging any
+escaping exception, plus a controller patch of
+`WorkerController.process_from_remote` logging every remote error and
+`workerfinished` payload — to a file outside `$TMPDIR`. (Its first version
+compared against a non-existent `ENDMARK` attribute, raised inside execnet's
+receiver thread and manufactured exactly the channel death it was looking for;
+a tracer on that thread must never raise.) It named the window rather than the
+raiser: all three workers *returned normally* from `pytest_collection_finish`
+(30 s inside it — the fleet wait) and reported exit 4 without ever entering
+`pytest_runtestloop`. That is the `perform_collect` shape: an exception raised
+in `pytest_collection_modifyitems` sits in flight while the `finally` runs
+`pytest_collection_finish`, fleet wait included, and only then propagates. The
+raiser was the suite's own server-declaration gate
+(`_enforce_server_declarations`, run from `pytest_collection_modifyitems`),
+refusing two tests in a peer session's uncommitted `test_phase115_ram_tier.py`
+(written 00:43, between runs 23 and 24) that used the `ram-cache` server
+without `@pytest.mark.registry_server`. `pytest --collect-only` without `-n`
+printed the report and exit 4 in 16 s; under `-n` the controller never
+collects, so only the workers meet the gate — and `--deselect`ing the module
+could not help, because the gate runs before pytest's own deselection. Three
+runs and their fleet boots went to an error whose text existed the whole time.
+
+The fix is in the conftest. A worker whose `pytest_collection_modifyitems`
+raises `UsageError` first publishes the message to
+`REGISTRY_ROOT/.xdist-collection-error`, keyed by the xdist `testrunuid` so a
+file left by an earlier session on the same `TEST_ROOT` is ignored; the
+controller's `pytest_xdist_node_collection_finished` (already `tryfirst`, so it
+runs before xdist schedules anything) re-raises that message as its own
+`UsageError` before it boots the fleet; and a worker that finds its run's
+marker skips the fleet wait. Pinned by three tests in
+`test_conftest_fleet_lifecycle.py` and by an end-to-end run: `-n2
+--first-percent 150` (the other `UsageError` raiser in the same hook) now
+prints `ERROR: --first-percent must be greater than 0 and at most 100` and
+exits 4 in under a minute with no server started, where before it was the
+`assert not crashitem`. Seen in runs 24, 25 and 26 of the fail-fast series.
+
+**Rule: an xdist `assert not crashitem` or `cannot send to <Channel closed>`
+with no worker output is a worker-side `UsageError` raised at collection time
+— `pytest --collect-only` without `-n` prints it, and the conftest now forwards
+it to the controller.**
+
+### 24.4 `nginx -t` binds — a positive parse test on port 1 (run 27)
+
+Run 27 was the first to get past collection after 24.3 and halted at 46 %
+(8,049 passed) on a new phase-115 config-parse test that rendered its front
+with `PORT=1, UP_PORT=2` and asserted `nginx -t` returned 0. `-t` does not
+stop at the parser: `ngx_init_cycle` opens every `listen` socket before it
+reports "test is successful", so as an ordinary user with
+`net.ipv4.ip_unprivileged_port_start = 1024` the syntax line is followed by
+`bind() to 127.0.0.1:1 failed (13: Permission denied)` and exit 1. The
+negative tests in the same file pass only because their parse error fires
+before the bind. Deterministic (2/2 in isolation), foreign, and present in a
+second phase-115 parse test the run had not reached. Fixed by the owning
+session with `free_port()` for the rendered ports.
+
+**Rule: a parse test that expects `nginx -t` to SUCCEED must render
+unprivileged, free ports; `PORT=1` is only safe on the negative side, and
+only when the expected error precedes the bind.**
+
+### 24.5 A new `docs/refactor/*.md` written mid-run reddens every lane (run 28)
+
+Run 28 halted at 45 % (7,876 passed) inside a phase-116 non-regression
+wrapper that re-runs pinned static suites in a subprocess: the phase-111
+register-integrity suite reported a refactor document that no §7 group
+classified. The document was a phase-115 design spike created at 03:38 —
+seventeen minutes after the run started — by a sibling session. Nothing was
+wrong with the test or the register; the partition check reads the directory
+at collection time of the subprocess, so a file that lands while any lane is
+live reddens that lane, not only the writer's. The owner registered the file
+within a minute and the direct suite (`pytest --noconftest -q -x
+tests/test_phase111_register_integrity.py`, 0.2 s) names the culprit
+outright.
+
+**Rule: a live-tree partition guard is a foreign-edit detector — before
+saving a new `docs/refactor/*.md` on a shared box, register it and run the
+0.2 s guard; when a `-x` lane halts on one, check the file's mtime against
+the run's start before looking for a race.**
+
+### 24.6 A relink of the multicall client binary is `EACCES` for every CLI test (run 29)
+
+Run 29 halted at 41 % (7,305 passed) with `PermissionError: [Errno 13]` on
+`client/bin/brixoci`. That name is a symlink to the multicall `brixMount`,
+and the whole `client/` tree was relinked by a sibling session at the same
+second the test exec'd it. The linker writes its output without the execute
+bit and sets it only at the end, so an `exec` inside that window is
+`EACCES` — not `ETXTBSY`, which is what a rewrite of a running binary gives.
+Every CLI-driving test (xrdcp, xrdfs, brixoci, brixcvmfs, brix-fault-proxy)
+shares that one file, so a client relink during a run is a guaranteed halt
+somewhere, and the test it lands on is arbitrary.
+
+**Rule: on a `-x` halt with `Permission denied` or `Text file busy` on a
+`client/bin/` path, compare the target's mtime with the failure time before
+anything else; a match is a foreign build, and the suite's freeze protocol
+covers `make` in `client/` as much as it covers the nginx relink.**
+
+### 24.7 A halt that reproduces 6/6 in isolation is a defect, and the sleep next to it was a different race (run 30)
+
+Run 30 halted at 48 % (8,518 passed) on the phase-115 CMS select/proxy
+suite: a client whose idle session should have been re-pinned to a newly
+selected data server got `kXR_error 4003` from the old one. The suite's
+`_settle()` was a fixed `time.sleep(0.4)` covering two data-node logins on
+one manager, which looked like the classic registration race. It was not:
+the single test failed six times out of six on a quiet lane, and a
+deterministic failure is never a race. The owner then found the cause in
+the server: once a session is pinned, the root dispatcher short-circuits
+every later opcode to the pinned upstream before the manager ever sees the
+open, so the re-pin path is reachable only from the CMS wake path and never
+from the client's own request. The suite was right and the implementation
+was incomplete.
+
+The sleep was still a latent race — under `-n3` load two logins are not
+reliably processed in 400 ms — and it was replaced by a readiness signal:
+the manager arms its ping timer only after `brix_srv_register`, so the first
+frame it sends the scripted node proves the node is in the registry
+(`_CmsNode.wait_ready`, pinned by `tests/test_cms_node_readiness.py`).
+
+**Rule: before hunting a race behind a `-x` halt, run the single test alone
+on a clean lane several times. Six identical failures is a defect for its
+owner, and any fixed sleep found on the way is a separate finding that must
+be replaced by a wait on the event it was guessing at, not widened.**
+
+### 24.8 A fixture that imports from a continuation shard fails at setup, not at collection (run 33)
+
+Run 33 halted at 52 % (9,289 passed — the furthest yet) with
+`NameError: name '_have' is not defined` at the top of a `pki` fixture. The
+fixture lives in `tests/_test_gsi_handshake_helpers_b.py`, a continuation
+shard that `split_continuation.reexport` compiles into
+`_test_gsi_handshake_helpers.py`'s globals; `_have` is defined only in that
+parent. A new suite had written
+`from _test_gsi_handshake_helpers_b import pki` — importing the shard as a
+module, so every function in it bound the shard's own module dict, and the
+first call raised. The isolation rule from §24.7 settled it in two runs: a
+NameError is deterministic, not a race.
+
+What made it worth a guard is the shape. The import succeeds, so
+`--collect-only` is green; the failure waits for the first call, which under
+a module-scoped fixture is one test in one worker, 9,000 tests into a run.
+Guard #10 (`check_shard_entrypoints.py`) censuses the `load`, `load_numbered`
+and inline-exec compositions but not `reexport` — the spelling ~300 test
+modules use — and nothing anywhere forbade importing a shard directly. The
+naive rule ("never import a composed shard") is wrong both ways: three suites
+legitimately pull self-sufficient helpers out of `conftest_part2/3`, and the
+two §10.2 `load_test_part*` shims import their moved shard only to hand it
+their `sys.modules` name. Guard #13 (`tools/ci/check_shard_direct_imports.py`,
+pinned by `tests/test_ci_shard_direct_import_guard.py`) therefore judges the
+closure: what the importer takes from the shard must not reach, through the
+shard's own definitions, a name the shard resolves at module scope but never
+binds. `pki` reached six such names; `_gsi_nginx` from the same shard reaches
+none and may be imported.
+
+**Rule: a composed shard is not a module. Take names from the parent that
+composes it. A guard for an import-time defect must judge what the import
+reaches, not the file's name — and it must be cheap enough to run before the
+launch, because the halt it prevents arrives an hour in.**
+
+### 24.9 A lifecycle spec name is a ledger key, and the fleet was the first to check it (run 34)
+
+Run 34 halted at 52 % (9,133 passed, 22 minutes in) with
+`RuntimeError: lifecycle spec 'lc-p115-cms-space-mgr' has no fixed port` from
+`LifecycleHarness.register`. A new CMS suite started its manager through
+`_mgr(lifecycle, MGR, ...)` in `_test_cms_parity_wave_helpers.py`, whose
+`name=` is the caller's second argument, and the name had no row on the
+lifecycle ledger. Isolation reproduced it 1/1 — deterministic, not a race
+(§24.7). Two sibling suites shared the gap, and a fourth name (`pbgm-gsi`, in
+a root-only suite) had been latent since Phase 5 removed the dynamic-port
+fallback: it would raise the moment anyone ran that suite as root.
+
+The shape is Phase 5's. A spec's *name* is the key to its port, and the lookup
+happens once — at the first start, in the fleet, at fixture setup.
+`--collect-only` is green because a name is a string until the harness asks
+the ledger about it. `test_fleet_ports.py` proves the ledger consistent with
+itself; nothing proved the consumers consistent with the ledger, so the fleet
+was the first place to find out, and the most expensive.
+
+Guard #14 (`tools/ci/check_lifecycle_spec_ledger.py`, pinned by
+`tests/test_ci_lifecycle_spec_ledger_guard.py`) judges statically what
+`register` judges at runtime: every `NginxInstanceSpec` that reaches
+`.start()`/`.register()` without `port=` must resolve through
+`lifecycle_ports_for`. The first draft judged the wrong thing. It took every
+wrapper's second argument as a name, and `test_audit15f_cluster_tuning.py`'s
+`_mgr(lifecycle, reason, ...)` — name fixed inside — turned eight reason
+strings into eight findings, while registry unit tests that build specs and
+never start them added five more. The landed rule follows the data flow
+instead: a wrapper is a function whose started spec takes `name=` from one of
+its own parameters; callers are judged at that slot, positional or keyword,
+through module-level constants, one wrapper feeding another; a name the guard
+cannot read (an f-string, a call) is left alone rather than guessed. `port=`,
+a spec never started and a start inside `pytest.raises` are not its business.
+On the real tree it judges 518 names through 48 wrappers; its first run
+reported exactly the four that were missing.
+
+The same run showed §24.6 from the inside. A concurrent partial
+`make -C client` had left `libbrix.a` newer than `client/bin/*`; fourteen
+minutes in, the first of the 66 test files that run `make -C client` relinked
+every binary while other workers were exec'ing them. `make -C client -q`
+(exit 0 means nothing to do) joined the pre-flight next to the `-t` check.
+
+**Rule: when a runtime lookup is keyed on a literal in the tests, a static
+gate can perform the same lookup before launch — but it must judge the values
+that reach the lookup, not every string in the same position. A guard that
+guesses has false positives, and false positives are how a guard gets
+deselected.**
+
+Coda (run 35). The four rows landed and run 35 halted at 51 % (8,983 passed)
+on the *next* static gate: `test_no_unpinned_fixed_port_lifecycle_subjects`
+(§24, the rule from run 1) now saw `pbgm-gsi` on the ledger, counted six
+starters in `test_pblock_group_multiuser.py`, and found no
+`xdist_group`/`serial` mark. The module is `privileged`, which
+`conftest_part3._needs_serial` folds into the serial group at collection —
+a runtime pin the detector could not see, and one no other privileged module
+had exposed because none of them starts a ledger subject. The detector now
+mirrors the conftest (`RUNTIME_SERIAL_MARKS`), and a drift test reads
+`_needs_serial` so a mark dropped there drops here. The pre-flight lesson is
+the sharper one: a ledger change was accepted on the ledger's own suites and
+the guard, not on every static gate that reads the ledger. The static gates
+over the tests tree are one family; before a launch, run the family: the
+`_FAST` guard scripts, the hygiene/fleet-ports/port-ladder/register/guard-test
+modules, and a `--collect-only` of the tier under the run's own deselects. Two
+things the family taught on its first flight (run 36's pre-flight). A guard
+red is only a fail-fast halt if a *fast-tier* test runs it on the real tree —
+`test_ci_guards.py::test_ci_guard_green` is `suite_job`, so a `_FAST` guard
+red (here `check_client_flags_doc` on a phase-115 doc line naming an unbuilt
+flag) is a CI red, not a run red; read the marker before deselecting. And
+`test_all_fixed_bands_sit_below_the_ephemeral_port_floor` rebases its bands on
+`TEST_PORT_START`: a side check at 40000 (chosen to stay clear of a live lane
+at 20000) puts the top bands above the 32768 floor and reds for that reason
+alone. Run the static family at the lane's own start, when the lane is free.
+
+### 24.10 A static audit pins the tree it can see, and that tree includes everyone's uncommitted src (run 36)
+
+Run 36 was the deepest fail-fast pass of the series (9,725 passed, 55 %,
+23 min) and halted on
+`test_audit15i_tier_macro_surface.py::test_the_generated_inventory_is_the_expected_size`:
+`assert 24 == 23`. The audit pins the `BRIX_TIER_DIRECTIVES` inventory to the
+byte — 23 tier suffixes, 26 generated names, and the exact literal/macro-only
+split — and a peer's uncommitted phase-115 row (`cache_serve_while_filling`,
+`src/core/config/tier_directives.h`, written the previous afternoon) had moved
+all three. Not a race: 2 failed / 8 passed standalone, deterministic, and
+*latent for nineteen hours* — the module schedules at about 55 % of the tier
+and every run since the row landed had halted earlier, on something else. The
+fix is the pin's owner's (counts, docstring numbers, the declared-too set),
+routed with the assertion text.
+
+The lesson is about the pre-flight, again. §24.9's family (guards, ledger
+gates, collect-only) checks the *tests* tree; it cannot see a src change that
+a static audit counts. The `requires_local_server` marker does not name the
+fleet-free subset either (it marks tests that write to the server filesystem —
+19,731 of the tier carry it, so `not requires_local_server` deselects almost
+nothing). The subset that can fly before the fleet is the one no marker names:
+modules that touch no port, socket, client binary or subprocess. A
+collection-time classifier over module text (including every shard a module
+re-exports) is the cheap approximation; its false-red rate on a no-fleet run
+decides whether it earns a place in the pre-flight. Rule: **a peer's
+uncommitted src is part of the tree the static audits pin; the audits that
+read src/ must fly, without a fleet, before the fleet is paid for.**
+
+### 24.11 A pin suite can hide inside another test, and a directive is not landed until a user can read about it (run 37)
+
+Run 37 halted at 45 % (7,978 passed, 16 min) on
+`test_phase116_recent_phases_nonregression.py::test_pin_suite_still_passes[test_release20_directive_surface.py]`.
+The phase-116 non-regression module is a meta-test: it re-runs the pin
+suites (the phase 107/108/111/112/113/114 closures, the release-2.0 directive
+surface and, since 2026-09-07, its surface-pins sibling, the ladder-shape
+audits) as `--noconftest` subprocesses so that a
+collection error or a skip-as-pass in one cannot hide behind another. The
+inner red was
+`test_release20_directive_surface.py::test_every_registered_directive_is_documented_for_users`:
+three directives from the same peer's uncommitted phase-115 rows
+(`brix_cms_admin_socket`, `brix_tpc_outbound_renew_lead`,
+`brix_tpc_outbound_renew_strict`) were registered in `src/` and present in
+the generated `directives.md` table, but named in no prose anywhere under
+`docs/`. Deterministic (35 passed / 1 failed standalone), not a race, the
+owner's to write.
+
+Two things the pre-flight learned. First, the fast-tier gate set is not the
+union of `_FAST` and the modules that name a guard: a meta-test can carry a
+whole pin suite that no marker, no guard script and no module name reveals,
+so the pre-flight now runs the meta-test itself (eleven suites plus three
+guards, about two minutes, no fleet). Second, the tree a pin reads is wider
+than `src/` and `tests/`: this pin is a *docs/* pin, and the foreign-edit
+detector's roots (src, client, shared, tests, tools/ci, docs/refactor) did not
+include `docs/03-configuration`. Rule: **a new directive lands in three places
+at once — the registry, the generated table, and a sentence a user can read —
+and a pre-flight that only reads the first two will pay a fleet to discover
+the third.**
+
+**Coda (run 40).** The class returned in a third shape: run 40 halted at
+48 % (8,623 passed) on
+`test_phase115_cta_journal.py::TestJournalGrammarIsEnforced::test_without_unescaping_a_legal_path_comes_back_mangled`,
+a gcc-and-run pin that builds a neutered copy of `cta_queue_unittest.c` and
+expects a named check to fire. The defence fired; the peer's helper
+extraction the same morning had renamed the variable the check names
+(`nasty` → `req_path`), so the pin's needle was stale. Deterministic, the
+owner's, fixed in minutes. The pre-flight now runs, fleet-less, every
+fast-tier module that names a changed `src/` `client/` `shared/` source by
+basename (for that morning's edits: seven modules, about fifteen seconds —
+the owner's own blast-radius grep chose the same seven). Rule: **a changed
+C source's pins are found by grepping its basename through the fast tier,
+and they fly before the fleet is paid for.**
+
+### 24.12 A halt's evidence lives in the lane, and the lane is the first thing cleaned (runs 38–39)
+
+Run 38 never produced a result: a Claude Code harness restart at 11:12:20
+took the detached (`setsid nohup … & disown`) pytest with it at 13 %. A run
+that must outlive the operator's session needs a supervisor that is not the
+session.
+
+Run 39 halted at 32 % (5,923 passed, 11 min) on
+`test_phase116_dns_cache_and_seam.py::test_dashboard_dns_snapshot_lists_targets`:
+the first `GET /snapshot` after `lifecycle.start()` got a clean EOF
+(`RemoteDisconnected`) from the phase-116 DNS instance at ports 21199/21200,
+no response bytes at all. Thirty-three isolated reruns (plain, under four CPU
+hogs, and with two concurrent `/snapshot` hammers at ~18k requests per run)
+and the phase owner's thirty-two never reproduced it; the dashboard request
+path has no accept-then-close route (a NULL builder answers 507, a send
+failure 500), seccomp is opt-in and no fleet spec arms it, and the DNS
+registry is mutated only on the event loop. The one artefact that could have
+decided crash-vs-close — the instance's `logs/error.log`, where a
+`worker process exited on signal` line or an abrupt exit would show — was
+gone: the run script's cleanup removed the lane's `TEST_ROOT` before anyone
+read it, and the `lifecycle` fixture's teardown had already removed the
+prefix inside it. The halt is filed unresolved for lack of evidence, not for
+lack of trying.
+
+The §21(g) rule ("a harness that tears down its servers must capture their
+logs into the failure artifact at the moment of failure") was written for the
+CMS harness and never generalised. It is now generic:
+`brix_suite/harness/fixtures.py` carries a `pytest_runtest_makereport`
+hookwrapper (re-exported through `tests/conftest.py`) that, for a failed
+`call` report whose item used the `lifecycle` fixture, appends the tail of
+every started instance's `error.log` as a report section — the hook runs
+before fixture teardown, so the prefixes still exist.
+`LifecycleHarness.error_log_paths()` names them; `error_log_sections()` reads
+at most the last 64 KiB of each, decodes leniently, and skips a missing or
+unreadable log rather than turning one red into two
+(`tests/test_lifecycle_failure_log_capture.py`, 9 tests). The run script's own
+post-`EXIT` tar of `registry/*/logs/error.log` turned out to be worthless:
+run 40's came back empty, because the suite's `pytest_sessionfinish` →
+`_remove_test_root()` (`conftest_part5.py`) wipes the whole `TEST_ROOT`
+before the script's next line runs. `TEST_REGISTRY_KEEP_LOGS=1` had been a
+settings field since the registry refactor with no consumer; it now has one:
+with the knob set, the wipe first moves every instance's `logs/` to
+`<TEST_ROOT>.logs/<instance>/logs` (`brix_suite/harness/log_preserve.py`,
+`tests/test_registry_keep_logs.py`, 4 tests), and the race-hunt lane runs
+with it set.
+
+Two self-inflicted repro artefacts are worth a line so nobody chases them
+again: at base 40000 the "foreign fleet" holding 400xx was my own serial
+reruns' conftest fleets overlapping (no `TEST_SKIP_SERVER_SETUP=1`); at base
+33000 a `bind() 34202 EADDRINUSE` (1 of 3 runs) was the lane's own sink/stub
+ephemeral picks landing on its fixed ports, because 33000 sits inside
+`ip_local_port_range` (32768–60999). A lane base must keep its whole
+18,774-port window below 32768 or above the ephemeral range. Rule: **never
+clean a halted lane before its instance logs are in the artifact, and never
+trust a halt whose lane is already gone — the log is the only witness to a
+worker that died, and a repro that cannot see it is a repro of nothing.**
+
+### 24.13 A config-time red is deterministic by construction (run 41)
+
+Run 41 was the first lane whose evidence survived it: 391 instance log
+directories moved to `<TEST_ROOT>.logs/` by the §24.12 consumer and tarred
+into the artifact. It halted at 49 % (8,730 passed, 17 min) on a fixture
+`ERROR` in `test_phase115_tpc_cred_renew.py` — all nine tests share the
+`renewlab` fixture — whose source instance failed `nginx -t`:
+
+```
+nginx: [emerg] brix_token_clock_skew is capped at 300s (security clamp
+against unit confusion); got 3600 in …/lc-p115-renew-src/conf/nginx.conf:33
+```
+
+The test was created that morning and asks for a 3,600 s skew so that one
+token is accepted by the source and already expired to the destination's
+`brix_token_peek_exp`. The [0,300] clamp in
+`src/core/config/shared_conf_merge.h` is identical in `HEAD` and the working
+tree, so no binary built from this tree has ever accepted the file's config:
+the test had not been run against its own tree before it was left in it. The
+construction survives the clamp unchanged — `STALE_TTL` is −60 s, inside a
+300 s skew and past expiry — so the fix is the number, not the design; it
+belongs to the phase owner and was handed over with the traceback.
+
+Attribution took one grep, and that is the point. A red at `nginx -t` has no
+timing in it: config parsing runs before any process, socket, or credential
+exists, so it cannot be a race, a poisoned tree, or a foreign fleet, whatever
+else the host was doing. A `-x` lane that halts there has paid seventeen
+minutes to learn what a `nginx -t` against the rendered template would have
+said in a second. Two consequences: the first 49 % of run 41 is a partial
+pass, not a clean bill for the rest of the tier, and is reported as such;
+and the lane deselects the file until the owner's fix lands, the same way as
+the other twenty-three foreign deterministic reds, because a `-x` hunt for
+rare races cannot afford to re-halt on a red that is neither rare nor a race.
+Rule: **a fixture `ERROR` at config test is attributed from the emerg line,
+never reproduced; and a new lifecycle test file is not in the tree until its
+author has watched its own instances pass `nginx -t` on the binary the tree
+builds.**
+
+
+### 24.14 A hand evaluation of a shared tree is only as good as the mtimes captured in the same command (run 42 pre-flight)
+
+The rhB42 pre-flight at 17:00 on 09-07 redded the composed ladder gates:
+`test_port_ladder.py:73` "port 21274 is assigned to BOTH lifecycle-shared[1094]
+and lifecycle-exclusive[0]" and `test_fleet_ports.py:287` "bands overlap".
+Two lifecycle-shared rows had been added at 15:54 without re-summing the tail
+file, so every offset from lifecycle-exclusive onward was two short. Three
+sessions then evaluated the same tree and reached three answers:
+
+- the author first denied the edit, then traced it to their own ledger rows and
+  repacked `tests/port_ladder_offsets_tail.py` at 17:07:13 (PORT_COUNT 2391→2393);
+- a second session, scanning during that write, read a TORN mix — the repacked
+  lifecycle-exclusive and cmdscripts offsets next to the pre-repack interop
+  offset — that looked internally contiguous, concluded "already fine", and asked
+  for the repack to stop;
+- this session had the assertion text of the composed gates, which cannot come
+  from a shard read (importing `port_ladder_offsets.py` directly raises at its
+  exec-composed tail and leaves pre-tail values), and re-ran the gates: 87/87 at
+  17:09.
+
+Rules that fell out of it, all three now applied by the pre-flight:
+
+1. the gate is the verdict; a predicate evaluated by hand or by a direct shard
+   import is evidence of nothing;
+2. a value read from a file another session is writing is dated by the mtime
+   captured in the same command, or it is not dated at all;
+3. a pre-flight red is attributed from the assertion text and the owner's own
+   ledger, and it is re-run — never argued down from a snapshot.
+
+Two more things surfaced in the same pre-flight. `make -C client -q` was red
+because a foreign run had relinked `client/libbrix.a` at 16:04:38 inside a lane
+(no session claimed it; the twelve `client/bin/*` stayed at 10:24). With no
+`.o` newer than the archive it is a link-only fix, which is what the pre-flight
+now checks before anyone rebuilds. And `test_server_registry_lint.py`'s argv0
+pattern matched a closed list of three spellings, so a module that named the
+binary as `_nginx_bin()` or `_NGINX` was never READ by the launcher guard — a
+guard's silence about a file it never opened is indistinguishable from a pass.
+The owner widened the pattern and pinned both directions (three rows).
+
+### 24.15 A signal mask is per thread, and the worker's reaper answers a signal the thread-pool caller never sees (run 42)
+
+Run 42 halted at 50 % (8,952 passed, 18 min) on
+`test_audit15c_tpc_token_exchange.py::test_dead_endpoint_fails_closed`: the
+pull against a destination whose token-exchange endpoint is `127.0.0.1:1`
+answered kXR_AuthFailed with the generic `TPC pull failed` where the test
+pins `token exchange failed (curl exit 7)`. Five earlier lanes had passed it.
+The lane's own logs (the §24.12 consumer) held the evidence in the dead
+instance's error.log, four lines apart: curl's stderr `(7) Failed to connect
+to 127.0.0.1 port 1`, then the WORKER logging `signal 17 (SIGCHLD) received
+from 851102` and `unknown process 851102 exited with code 7`. nginx's
+`ngx_process_get_status()` had reaped the exchange's curl child.
+
+`brix_subprocess_capture()` blocked SIGCHLD with `sigprocmask()` around
+fork+waitpid precisely to stop that. But the token exchange runs on the TPC
+pull thread (an nginx thread-pool task), and a signal mask is a property of
+a thread, not a process: a process-directed SIGCHLD is delivered to any
+thread that has it unblocked, and the worker's main thread, parked in
+`epoll_wait`, always does. Its handler ran `waitpid(-1, WNOHANG)`, took the
+status, and the helper's own `waitpid(pid)` came back ECHILD — which the
+retry loop `while (waitpid(...) < 0 && errno == EINTR)` did not distinguish
+from success. `status` kept its initial 0, `WIFEXITED(0)` is true, and the
+helper reported "curl exited 0 with an empty body". The exchange then failed
+at the token parse, whose message stays in the log, and the client got the
+generic text. Fail-closed, wrong diagnosis — and the same stolen status
+would read a FAILED `oidc-token` as the successful fetch of an empty token.
+The window is the interval between the child's exit and the pool thread's
+return from its final `read()`: a standalone reproduction with a reaper
+thread of nginx's shape lost 32 of 300 runs; the lane lost about one
+exchange in six, and only the dead-endpoint test can tell exit 7 from 0.
+
+Fix (`src/core/compat/subprocess.c`): the command now runs under the
+double-forked reparented agent the tree already uses for external commands
+(`xfer_spawn.c`, `xfer_mover_agent.c`, `lifecycle_broker.c`). The
+intermediate exits at once; the agent — never nginx's child — forks the
+command with its stdout on the capture pipe, waits for it, and relays the
+raw wait status over a socketpair; the caller drains the pipe, then reads
+the status, and a status it did not receive is a failure, never a 0. The
+agent also drops every inherited descriptor except its result socket,
+because a fork of a multithreaded process carries the other threads' pipe
+ends and would have withheld a concurrent caller's EOF until its own
+command finished. The only process the worker can still reap is the
+intermediate, whose status nobody needs (an `unknown process N exited with
+code 0` notice, not a lost result). Pinned by
+`src/core/compat/subprocess_unittest.c` (300 runs under a hostile reaper
+thread, every one must report exit 7; then no reapable child) driven by
+`tests/test_subprocess_capture.py`, and by the audit15c test itself.
+
+Two siblings keep the old shape with the same unchecked `waitpid()` —
+`src/tpc/outbound/tpc_token.c` (oidc-agent, on the pull thread) and
+`src/protocols/webdav/tpc_cred_oidc.c`. Their env-bearing exec (OIDC_SOCK; an
+empty envp for the helper binary) does not fit the helper's signature, so
+migrating them means an envp parameter first; until then a stolen status
+can only mislabel a failed fetch, not admit a token the source never issued.
+Rule: **blocking a signal around a fork protects the calling thread only; a
+child whose exit status matters must not be a child of a process that has a
+reaper, so run it under an agent and treat "no status" as failure.**
+
+### 24.16 Eighty-five unlocked `make` calls over one shared tree (census, not a halt)
+
+**Evidence.** The run 42 pre-flight (§24.14) found the client tree not
+make-clean at 16:04:38: three fresh `.o`, a fresh `libbrix.a`, twelve untouched
+binaries — the footprint a killed default-target `make -C client` leaves for the
+next session. A census of the suite explained how such a make gets started
+inside a test at all: 85 call sites in 77 modules ran
+`subprocess.run(["make", "-C", CLIENT_DIR, …])` themselves (rebuild a FUSE
+binary, relink a preload shim, `make -n -B` a dry-run, `make xrd` before an
+xrdcp case), and not one of them held a lock. GNU make has no cross-process
+lock of its own. Two xdist workers reaching two of those sites on a tree with
+one stale object both compile it and both re-archive `libbrix.a`; the second
+archive or link reads a half-written input, and the failure lands in whichever
+test happened to link second — a red with no relation to what it tests.
+
+**Why it never redded in 42 lanes.** Every lane refused to launch until
+`make -C client -q` was clean (the pre-flight's tree gate), so every in-lane
+make was a no-op that touched nothing; the race needs one stale object, and the
+gate removed it before the lane began. That gate is a lane convenience, not a
+property of the suite: a peer's edit landing mid-lane, or any run launched
+without it, arms the race for every one of the 85 sites.
+
+**Fix.** One door: `tests/brix_suite/client_build.py` exposes
+`client_make(client_dir, *targets, **run_kwargs)`, the same argv under a
+blocking `flock` on `/tmp/brix-client-make-<sha1(realpath)[:12]>.lock` — outside
+the tree (a `make clean` must not unlink the inode everyone else is blocked on),
+keyed by realpath (two spellings of the directory share one lock), in `/tmp`
+rather than the lane's `TMPDIR` (two lanes on one tree is exactly the case).
+The keyword arguments reach `subprocess.run` unchanged, so a non-zero exit and a
+`TimeoutExpired` arrive as they did and the lock is released on every path. A
+mechanical rewrite moved all 85 sites (the `-C` form and the `cwd=` form; flags
+before `-C` preserved). `tests/test_client_make_serialized.py` pins it: two
+callers of one tree trace `start,end,start,end` (success); a failing recipe's
+exit code and stderr reach the caller, a timeout releases the lock (error); and
+no module in the suite runs a bare `subprocess.run(["make"…` any more, with the
+detector proven non-vacuous on a synthetic offender (security-negative, the one
+that keeps the race closed).
+
+Rule: **a build tool with no lock of its own must not be invoked from a test at
+all except through a door that holds one — and the lock lives outside the tree
+it protects.**
+
+### 24.17 A hand-written stub list for a generated table (run 43)
+
+Run 43 (binary 2415d36d, 23 deselects) halted at 56 % — 9,952 passed, the
+deepest fail-fast lane yet — on
+`tests/test_c_object_units.py::test_c_object_unit[vfs_caps]`:
+
+```
+/usr/bin/ld: objs/addon/backend/sd_registry.o: in function `brix_sd_driver_find':
+src/fs/backend/sd_registry.c:77: undefined reference to `brix_sd_ram_driver'
+```
+
+Deterministic, not a race: the unit reproduced in isolation through the same
+runner (`cmdscripts.c_object_units.run_one`), and no earlier lane in the
+series had reached the C-object family since the `ram` row landed (runs 36
+and 42 halted at 55 % and 50 %, just short of it).  A halt that only appears
+past the previous best depth is the fail-fast loop working as intended: every
+green prefix retires a band of the suite, and the next halt is the first red
+in the band the loop had never seen.
+
+**Cause.** `sd_registry.c` generates its driver table from the central row
+list in `core/types/fs_list.h` (`BRIX_FS_DRIVER_LIST(BRIX_FS_ROW)`), so the
+object references every BACKEND row's `brix_sd_<sym>_driver` struct.
+`tests/c/test_vfs_caps.c` links only `sd_registry.o` and satisfied those
+references with a *hand-written* list of six tentative definitions (posix,
+block, pblock, mirage, ceph, cephfs_ro).  Phase 115's W4 added the `ram`
+BACKEND row to the list; the table grew, the hand list did not.  Nothing
+tied the two together, so the tree's own guards (config coverage, driver
+conformance, the row-list census) all stayed green while the unit became
+unlinkable.
+
+**Fix.** The unit now expands the same row list for its stubs:
+
+```c
+#undef BRIX_HAVE_CEPH
+#define BRIX_HAVE_CEPH 1          /* force both library gates on: a stub for a  */
+#undef BRIX_HAVE_SQLITE           /* symbol nothing references is harmless, a  */
+#define BRIX_HAVE_SQLITE 1        /* missing one is a link failure             */
+#include "core/types/fs_list.h"
+#define BRIX_FS_ROW_BACKEND(ID, sym, name)   const brix_sd_driver_t brix_sd_##sym##_driver;
+#define BRIX_FS_ROW_ORIGIN(ID, sym, name)
+#define BRIX_FS_ROW_DECORATOR(ID, sym, name)
+#define BRIX_FS_ROW_NEARLINE(ID, sym, name)
+BRIX_FS_DRIVER_LIST(BRIX_FS_ROW)
+```
+
+The gates are forced on because the configure passes `-DBRIX_HAVE_SQLITE=1`
+(and `-DBRIX_HAVE_CEPH=1` where librados is present) on CFLAGS, which the
+unit's own compile never sees; the previous hand list already stubbed ceph
+unconditionally for the same reason.  `fs_list.h` is a pure macro header
+that nothing on the unit's include path pulls in first, so the forced gates
+reach only the row list.
+
+**Pins** (`tests/test_c_object_units_stubs.py`, fleet-less, 0.45 s):
+every spec that links `sd_registry.o` expands `BRIX_FS_DRIVER_LIST(BRIX_FS_ROW)`
+and hand-lists no driver stub; the detector fires on the old shape; and every
+`brix_sd_*_driver` that `nm -u sd_registry.o` reports is a BACKEND row of
+`fs_list.h` (skips when the object is not built) — so a driver reached by the
+registry outside the row list is named by the pin before the compile fails.
+
+Rule: **a stub list for a generated table is generated from the same list.**
+A test that hand-mirrors an X-macro expansion is a second copy of the truth
+with no guard between the two, and it goes stale on the first row nobody
+remembered it for.
+
+### 24.18 A move-verification pin that outlived the move (run 44)
+
+**Evidence.** rhB44 (binary 6b449683, 2026-09-07 19:29–19:54) halted at 10,220
+passed on two reds in `tests/test_ci_ts4_catalogue_merge.py`:
+`test_the_topic_split_lost_no_specs` (`127 == 126`) and
+`test_the_move_was_verbatim_apart_from_three_named_deviations`
+(`dedicated_specs` diverged from the `_legacy/` flat archive). A fleet-less run
+of the module showed four reds, not two: the literal `126` lived in four probes
+and `-x` had simply stopped after the first two workers reached it.
+
+**Cause.** Phase-115 W4.2 added the `ram-cache` dedicated spec to
+`tests/brix_suite/catalogue/dedicated.py` on 2026-09-06 23:12 — the first
+content edit to any moved catalogue definition since the TS-4 merge landed on
+08-18. The module pinned the catalogue's size at the move as a literal in four
+places and byte-diffed the living package against the archive with a
+hard-coded three-name deviation set. Both are correct the day a move lands and
+wrong on the first legitimate edit after it; no lane had reached the module in
+the eleven days between, so it read as a mid-lane edit until the mtimes said
+otherwise (and a peer was wrongly told the halt was theirs for ten minutes).
+
+**Fix.** One `SPECS_AT_THE_MOVE = 126` floor; every probe reads the live count
+from `_all_specs()` and asserts partition identity (`sum(topics) == all`) plus
+`all >= floor`, so a lost spec still reds and growth does not. The deviation
+set became a module-level `DEVIATIONS` ledger with one comment per entry
+(`dedicated_specs`, phase-115 W4.2, is the fourth); the test is renamed
+`…apart_from_the_named_deviations` so the count never drifts into its name.
+A new pin, `test_a_named_deviation_still_exists_on_both_sides`, closes the hole
+the ledger opened: `package.get(name) != text` is also true when the name is
+gone, so deleting `register_full_fleet` from the package would have stayed
+green. It counts `from … import` bindings as present (`_TESTS_DIR` is an
+import in the package, an assignment in the archive). Module 15/15 fleet-less,
+quality gate green.
+
+**Rule.** *A pin written to verify a move must say what happens after the
+move.* Either it compares against a fossil with a growing, commented ledger of
+post-move deviations (this file now), or it retires with the move. A literal
+count of a living table is neither.
+
+### 24.19 A calibrated absence that was a defect (run 45)
+
+**Evidence.** Run 45 (binary e22a06a3) halted at 6% on
+`tests/test_cachemx_exposition.py::test_unset_threshold_family_has_no_samples`:
+`brix_cache_eviction_threshold_ratio{port="20662",auth="anon"} 0.999999` had
+appeared. The pin's docstring said "a matrix with no eviction threshold
+configured exports NO sample row". `tests/configs/nginx_lc_cachemx.conf` sets
+`brix_cache_eviction_threshold 99.9999%` on every stream plane. The twin in
+`tests/test_cachemx_trim_evict.py::test_eviction_threshold_gauge_absent` asserted
+the same absence for an instance that sets the threshold to `0.99` explicitly,
+and explained it as the gauge being "policy-engine-only — calibrated live".
+
+**Cause.** Until 2.0 readiness F6 the metrics slot's `cache_enabled` was keyed
+on `brix_cache on` alone, so a `brix_cache_store` tier (the 2.0 grammar, no flag)
+was not counted as a cache and exported no per-server cache row of any family.
+Both pins were written against that output and pinned the absence as a
+property of the threshold. The F6 fix in
+`src/protocols/root/connection/handler.c` (a composed tier is a cache) made the
+row appear with exactly the configured value. The server was right; the pins
+had fossilised a defect and dressed it in a rationale.
+
+**Fix.** Both pins replaced by the truthful contract, verified live on
+e22a06a3 (exposition + trim_evict 102/102): a stream plane that has accepted a
+connection renders its configured trigger as ppm/1e6; every row lies inside
+(0, 1) and equals the plane's ppm, never the 0.9 merge default; rows carry
+exactly `{auth, port}` with the auth word from the fixed mode table; the evict
+instance's single row is its `EVICT_THRESHOLD`, not the reaper's high
+watermark; the cache directory path never appears in the exposition.
+
+**Rule.** *"Calibrated live" is an observation, not a contract.* A pin that
+asserts an absence must name the configuration that makes the thing absent
+and check that the configuration is really in force (here: grep the template
+the fixture renders). An absence that the config does not explain is a defect
+being pinned; give it a docstring that says so, or fix the defect first.
+
+### 24.20 A census that reddened on a foreign new file, and a VM that died mid-drain (run 46)
+
+**Evidence.** Run 46 (binary e22a06a3, 26 deselects) halted at 20:58 on
+2026-09-07 with 5,818 passed, on
+`test_phase116_dns_cache_and_seam.py::test_every_tracked_c_file_is_scanned_or_is_test_code`.
+The lane never printed its traceback: at 21:00 the WSL2 VM took its fifth
+machine-check panic of the day (`Machine check: Processor context corrupt`,
+CPU 11, bank 0) during the xdist drain, and rebooted at 23:53. No `EXIT=`
+line, no lane-log tarball, every peer session restarted.
+
+**Cause.** Reproduced without a lane: the census's one stray was
+`contrib/checksum-plugins/brix_cks_fnv1a64.c`, a site checksum plugin a peer
+tracked at 20:06 (before run 46 launched; runs 44 and 45 halted earlier in
+the order). `contrib/` was outside the DNS-seam guard's `SCAN_DIRS`, and a
+checksum plugin is a shared object the worker `dlopen()`s, so a resolver in
+one would run inside the server process unseen. Not a race — the census did
+exactly what amendment 15 built it for.
+
+**Fix.** The guard walks `contrib/` (2,456 → 2,457 files, still green); the
+suffix census names contrib's `.example`/`.json`/`.yml` non-source; three
+pins (planted `getaddrinfo` under the plugin tree, bare `<netdb.h>` there,
+live proof the shipped plugins are in the file set); phase-116 amendment 17.
+
+**Rule.** A whole-repo census red on a file you did not write is still
+yours to judge: the census asks "is this shipped code?", and the answer
+belongs in the guard, not in a deselect.
+
+
+### 24.21 A peer's tests-only repair that landed between collection and execution (run 47)
+
+**Evidence.** Run 47 was the first lane on the merged binary 37b058b0
+(2026-09-08 02:54: a phase-115 serve-offload window, a directive-registry
+move, and the 2.0 `brix_frm_*` directive purge, relinked after two
+pre-flight refusals showed the tree had drifted from e22a06a3). It launched
+at 03:01:46 and halted at 03:10:02 with 5,319 passed (29%) on
+`test_audit16ah_frm_hc_arms.py::TestTheQueuePathIsNeverOpened::test_no_queue_file_is_ever_created`:
+`assert ['noctrl.q'] == []`. The same module, run alone on the same binary
+from a private port base, was 66/66.
+
+**Cause.** The directive purge made the worker create the frm journal on
+its own, which turned two "the queue path is never created" pins into
+fossils, and the module's registry fleet carried three `brix_frm on` blocks
+with three queue paths that the new process-wide agreement check refuses.
+The peer who owned the purge repaired the module and its conf tests-only at
+03:04:56 and 03:05:23. The lane had collected the module at 03:01:46: pytest
+imports test code once, at collection, while conf templates, golden files
+and helpers are read when the test runs. The lane therefore executed the
+old pin against the new conf. Not a race, and not the peer's fault: this
+session had told peers that `tests/` edits were fine while a lane ran.
+
+**Fix.** No repository change beyond the peer's repair. The pre-flight's
+static gates gained `test_fleet_port_uniqueness.py` (the post-halt sweep found it red on
+four phase-115 files that `bind((H, 0))`; that census reads every
+`tests/*.py` at runtime and would have been the next halt).
+
+**Rule.** The freeze a lane needs covers `tests/` as well as `src/`: a test
+module a running lane has selected must not change between the lane's
+collection and its execution, and neither may anything that module reads at
+runtime. The window for a peer's tests-only repair is between one lane's
+`EXIT=` post and the next lane's launch post.
+
+### 24.22 A flat-file edit that left the package copy behind (run 48)
+
+**Evidence.** Run 48 launched at 03:20:07 on the same binary 37b058b0 and
+halted at 03:43:57 with 10,366 passed (57%, the deepest lane by count) on
+`test_ci_ts4_launcher_and_deploy.py::test_every_moved_body_is_byte_identical[server_launcher_part3.py-harness.py]`.
+The pin reported one function present in the flat file and absent from the
+package module.
+
+**Cause.** This session's own §24.12 change (2026-09-07 12:36) added
+`error_log_paths()` to `tests/server_launcher_part3.py` so the suite's
+failure-report hook can read every registered instance's `error.log` before
+teardown removes it. The TS-4 move keeps the flat launcher files and
+`tests/brix_suite/launcher/` byte-identical through that pin, and the method
+went into the flat file only. Latent 15 h across ten lanes because the pin
+lives at 57% of the fast tier and no lane before run 48 had reached it.
+Runtime was never affected: the hook calls the method on the runtime class,
+which is composed from the flat files, so every failure report since §24.12
+carried its sections. Only the package copy diverged.
+
+**Fix.** The method was ported verbatim into
+`tests/brix_suite/launcher/harness.py`; the move pin, the capture tests, and
+the duplication, quality, shim and shard guards are green. The pre-flight's
+static gates gained `test_ci_ts4_launcher_and_deploy.py`.
+
+**Rule.** After touching a TS-4 flat file, run
+`test_ci_ts4_launcher_and_deploy.py` before launching a lane. The
+pre-flight's changed-source pins key on `.c`/`.h` basenames and do not see a
+Python move-pin; a static pin that a lane reaches late belongs in the
+pre-flight's static gates, where it costs seconds instead of a 24-minute
+lane.
+
+### 24.23 An in-process import of the worker strips `tests/` from the importing interpreter (run 49)
+
+**Evidence.** rhB49 (launched 03:59:20 on 2026-09-08, binary cf481268) halted at
+04:23:14 at 58 % — 10,438 passed, the deepest lane to date — on
+`tests/test_ci_ts5_clients_move.py::test_flat_spelling_is_the_package_object[_xrdcl_proxy_part2-brix_suite.clients.xrdcl]`
+with `ModuleNotFoundError: No module named '_xrdcl_proxy_part2'`. Worker gw2 had
+run `test_maintainability_tools.py` as its 100th module and the TS-5 pin as its
+271st. The `tests/` directory mtime (03:51:44, before launch) rules out a
+transient tree mutation; the ordered pair reproduces the error deterministically
+at `-n0`, and either module alone or the reverse order is green.
+
+**Cause.** `tests/test_maintainability_tools.py:358` did `import _xrdcl_worker`
+in-process. The worker's prologue `_strip_shadow_paths()` removes every
+`sys.path` entry carrying `XRootD/_SHADOW_MARKER` — which is `tests/` itself —
+before importing the real bindings. From then on every *first* top-level import
+from `tests/` in that xdist worker fails, while modules already cached keep
+working: that is why 170 modules passed in between. `_xrdcl_proxy_part2` is
+imported by nobody else, so the TS-5 pin — reached by a lane for the first time
+ever — was the first fresh import to die. An order-dependent per-worker
+pollution, not a race and not foreign.
+
+**Fix.** The encoder test now runs its probe in the worker's own interpreter
+(`xrdcl._worker_python()` child, JSON result), never importing the worker inside
+pytest. `test_ci_ts5_clients_move.py` gained a census
+(`_in_process_worker_imports`: AST, any depth, the worker's own hosts excluded)
+pinning that no suite module imports the worker in-process — red on the pre-fix
+tree at exactly `('test_maintainability_tools.py', 358)` — a self-test proving
+the census sees a function-level import, and a child-process reproduction of the
+failing direction (import the worker, then a fresh `tests/` import must raise
+`ModuleNotFoundError`). That reproduction lives in a child interpreter on
+purpose: run in-process it would poison whichever xdist worker drew it, i.e. it
+would be a second instance of the very defect it guards. The pre-flight's
+static gates gained the TS-5 pin.
+
+**Rule.** The worker is reached only through a child process — never
+`import _xrdcl_worker` or `brix_suite.clients.xrdcl.worker` inside pytest. A
+`sys.path` pollution is a per-worker, order-dependent halt that lands on
+whichever fresh import comes first, far from its cause; and a static pin that a
+lane reaches only at 58 % belongs in the pre-flight, where it runs in seconds.
+
+### 24.24 Attributing a peer's full tier from the lane: extraction closures, split fossils, a cross-worker vanish, and a catalogue a `# HELP` grep cannot see (between runs 49 and 50)
+
+**Evidence.** The phase-115 owner's full tier (finished 05:31 on 2026-09-08,
+binary cf481268, rc=1) left some forty reds. Every red in a module the `-x` lane
+owns or would reach before run 50 was re-run alone at base 24000 on the same
+binary (`validate50.log`: 27 failed / 1,130 passed before repair) and attributed
+by mechanism. None was a server defect; seven test-side mechanisms, one of them
+a real race.
+
+**Findings.**
+1. *Extraction closures* (`test_wlcg_token_conformance_runtime.py`,
+   `test_cms_hostile_conformance_e.py`): a complexity-guard extraction hoisted a
+   body that read enclosing names (`futures`, the executor, the probe; the
+   `admitted` counter and its socket) into a module-level function, so the
+   probe fan-out raised `NameError` and the admission counter never moved. The
+   helpers now take that state as arguments and return the value.
+2. *Split fossils, twice.* `_test_cvmfs_conformance_srv_http_helpers.py` ended
+   with the `SINGLE_RANGES` parametrize decorator, which had come to decorate
+   `_last_modified` instead of `test_single_range`. In `test_audit16i_…` the
+   `_b` shard re-executes only the helpers file (`reexport`) and never the
+   parent module's globals: first five support tables, then twelve more
+   module-level helpers, raised `NameError` in the shard alone. Every
+   module-level name a shard needs now lives in the helpers file; the parent is
+   docstring + `reexport` + test classes.
+3. *Unsequenced `errno`* (`test_preload_dir_stdio.py` driver):
+   `printf("%d %d", dirfd(d), errno)` evaluates its arguments in an unspecified
+   order, so the printed `errno` was pre- or post-call at the compiler's whim.
+   `errno = 0; int fd = dirfd(d);` then print.
+4. *Cross-worker vanish* (`test_xrootdfs_web_conn_reuse.py`, the one real race):
+   list a shared export, then stat every entry; another xdist worker removed an
+   entry in between and the stat raised `FileNotFoundError`. `_stat_surviving`
+   counts the entries that still exist and skips only when every one vanished.
+5. *Stale pins*: the IPv6 label-set pin lacked the `state` label the cache
+   store's bytes gauge grew; the TS-5 verbatim-move pin had no room for
+   post-move amendments (`_ensure_sssadmin`, `WlcgInstance`, `_release_stale`)
+   and now carries a declared amendment ledger with a success, a reported
+   undeclared change, and a stale-row-cannot-hide-a-revert negative; eleven
+   phase-116 literals needed `net-literal-allow` markers within the literal's
+   own lines.
+6. *Catalogue drift* (`_cachemx_catalog_{data,schema}.py`,
+   `test_cachemx_catalog.py`): 24 families and two HELP texts had moved.
+   Two traps inside it. The five `brix_cluster_server_*` families emit HELP only
+   while a data server is registered, so they belong in `CONDITIONAL` and
+   `LABEL_KEYS` and must stay out of the exact-equality HELP and CATALOG maps.
+   `brix_cms_locate_coalesced_total` is written by the table-driven
+   `mw_emit_scalar`, which a grep for `# HELP` literals never sees: the live
+   scrape is the oracle, the grep only a hint.
+7. *Host geometry.* The 24000 validation ran while the peer's isolation run
+   held base 12000; a base reserves B+1..B+18807, so 24000 sat inside it and
+   both results were suspect until re-run. Then the F3 relink "launch" at
+   10:38 never ran (the script lacked its execute bit and `nohup` refused it)
+   and I reported it as launched; corrected with the F3 owner.
+
+**Rule.** A peer's tier is attributed the same way a halt is: one module alone
+on the same binary, then the mechanism. An extraction must carry its closure
+as arguments; a shard sees only its helpers file; `errno` is read in its own
+statement; a shared-export listing is stale the moment it returns; a catalogue
+pin is checked against the scrape, not a grep; and nothing binds at any base
+without a posted window, because every base overlaps every other.
+
+## 25. A comment that ate a `deny` rule — the line-carrying placeholder class (2026-09-09)
+
+Found while re-verifying release register row 1 on a freshly built binary: the
+2.0 SSS validation template grew a comment explaining its own access-control
+slot, and fifteen grammar tests in the file went red at `nginx -t` with
+`unknown directive ")"` on line 3 — a line the template does not contain.
+
+**The mechanism.** A `{PLACEHOLDER}` that opens its line in a
+`tests/configs/*.conf` template carries a whole line: the caller supplies the
+indentation, and for block slots the trailing newline. `#` comments are
+interpolated like any other text, so a comment that names such a slot receives
+the substituted value:
+
+* *With* a trailing newline, the comment ends on the value's first line and
+  nginx parses the leftover prose as a directive. Loud, immediate, and the
+  error blames a line number that exists only after substitution — which is why
+  the first read of the template found nothing.
+* *Without* one, the entire substituted line is swallowed by the comment. The
+  directive is simply gone and `nginx -t` reports `syntax is ok`. A subject
+  whose only access control arrives through a `{DENY_LINES}` or `{SSS_LINES}`
+  slot comes up open, and every test in the file passes.
+
+The second half is the reason this is recorded as a class and not a typo: the
+suite's own security negatives are the tests most likely to be written this way,
+and the failure mode is a green run.
+
+**The sweep.** The first rule tried — "the placeholder is alone on its stripped
+line" — returned zero hits on the very template that had just failed, because
+its shape is `{SSS_LINES}    }`: the slot closes a block on the same line. The
+rule that holds is *line-leading* (`^[ \t]*\{NAME\}`), validated by dumping
+every distinct tail that follows such a placeholder across the corpus. Scanning
+all 647 templates then found **fourteen** instances across eleven files
+(`nginx_audit16g_pmark.conf`, `nginx_audit16p_proxy_certs.conf`, the two
+`nginx_cms_parity_*`, `nginx_gridftp_allo_ev.conf`,
+`nginx_gridftp_gsiftp_ev_xrd.conf`, `nginx_lc_frm_exec_seccomp.conf`,
+`nginx_worker_deescalate_root.conf`, `nginx_proxy_protocol_edges.conf`, and two
+more deliberately not named here — they sit in
+`tools/ci/template_refs_backlog.txt`, and a mention in this narrative would
+count as a reference to the ratchet and shrink the backlog without anything
+actually using them) — all latent, each one waiting for its slot to be filled
+non-empty. Every comment was de-braced; the convention is that comments name a
+slot **without** braces.
+
+**The pin.** `tests/config_templates.py` gained
+`line_carrying_placeholders()` and `comment_swallowed_placeholders()`;
+`tests/test_config_template_hygiene.py` (4 tests) holds the corpus at zero
+violations, checks the scanner names the line and the placeholder it would
+swallow (and stays quiet on a brace-free mention, a mid-directive placeholder,
+and `${request_time}`), and reproduces **both** halves through real `nginx -t`
+runs — asserting for the silent half that the parse returns 0 and exactly one
+`deny` line survives. `tests/config_parse.py::nginx_t_text` was split out of
+`nginx_t()` so a test can parse hand-built config text.
+
+**Rule.** A template comment describes a slot by name, never by placeholder.
+An `nginx -t` that says `syntax is ok` proves the grammar parsed, not that the
+directives you wrote are in the parse tree — when a test's whole premise is a
+directive arriving through a slot, assert the directive is *active*, not that
+the config loads.
+
+## 26. Three defects behind one green scenario runner — `cvmfs_live` (2026-09-09)
+
+Found while sweeping the last of the bash-fleet residue out of the harness. The
+six `cmdscripts/cvmfs_live.py` scenarios ran green, and all three of the
+following were true at the same time.
+
+**Absolute ports.** Every scenario hard-coded its ports — `12871/12872`,
+`12861/12862`, `12895/12896`, `12851-12853`, `12881-12883`, `12896-12898`.
+Absolute ports ignore `TEST_PORT_START`, so two lanes on one host collide, and
+the last two blocks *overlap each other* (`12896` is both `connection_reuse`'s
+cache port and `keepalive`'s mock port) — harmless only because the module runs
+its scenarios one at a time. All six now draw one three-port block from
+`fleet_ports.cmdscript_ports("cvmfs_live", 3)` and reuse it in turn, which is
+sound because every consumer runs under the `cmd-cvmfs_live` xdist group.
+
+**An undrained response, and a keepalive check that stopped testing.** The
+socket-reuse scenario issued 200 requests on one connection and read the status
+of each without reading its **body**. `http.client` binds an unread response to
+the connection and refuses the next `getresponse()` with `ResponseNotReady`, so
+from request two onward the scenario was failing on a *client-side* protocol
+error rather than on anything the server did. The assertion "this socket was
+reused" could no longer fail for the reason it was written to detect. A
+`_drain()` helper now reads each response to completion and returns its status.
+
+**Reaping one port of a config that binds three.** `start_nginx` is told the
+single port the caller polls for readiness, and the teardown reaper cleared only
+that one. A generated config with several `server` blocks leaks squatters on the
+rest, and the next start dies with `still could not bind()`. This was invisible
+while every scenario owned distinct absolute ports and became immediate the
+moment they shared a ladder block — the port fix *created* the exposure, which
+is the ordinary shape of this class. `live_common.config_listen_ports()` now
+parses every `listen` directive out of the generated config (one line may carry
+a whole `server { listen ...; }`, so the directive cannot be anchored to the
+start of a line; `unix:` sockets are skipped) and the runtime reaps all of them.
+
+**The pins.** `tests/test_cmd_cvmfs_live.py` gained the scenario-set pin and an
+unknown-scenario rejection, a monkeypatched failure that must not be reported
+green, `test_drain_permits_a_second_request_on_one_socket` and
+`test_undrained_response_breaks_the_socket` against a real stdlib keepalive
+server — the second is the security-negative shape: it proves the failure mode
+is still reachable, so a future refactor that drops the drain reddens instead of
+silently un-testing the scenario — and `test_multi_listen_config_reaps_every_port`,
+which asserts a three-`server` config yields all three ports in declaration
+order.
+
+**Rule.** A port literal in a harness module is a lane collision waiting for a
+second lane; draw from the ladder. And a check that "the connection was reused"
+is only a check while the connection is still usable — read the body.

@@ -174,6 +174,7 @@ nginx proxy in front.
 | 18444 / 18445 | WEBDAV_AUTH_CACHE_MANUAL_PORT / WEBDAV_AUTH_CACHE_NGINX_PORT | davs | auth-cache behavior |
 | 18457 | NGINX_HTTP_CACHE_PORT | http | HTTP read-through cache |
 | 18458 | NGINX_WEBDAV_VOMS_PORT | davs | VOMS attribute extraction |
+| 18459 | NGINX_RAM_CACHE_PORT | http | phase-115 W4.2 `ram:` cache tier (tmpfs-backed store line) |
 | 12980 | OPEN_FLAGS_LIFECYCLE_NGINX_PORT | root | open-flags lifecycle (migrated dedicated) |
 | 13210 | WEBDAV_DELLOCK_PORT | davs | DELETE/lock security (migrated dedicated) |
 | 22014 | WEBDAV_UNLOCK_OWNERSHIP_PORT | davs | LOCK/UNLOCK xattr-backed locks |

@@ -129,7 +129,15 @@ brix_opaque_illegal_byte(const char *opaque, unsigned char *bad)
  * bare "xrd" cannot masquerade as the "xrd." namespace). "xrdcl." is listed
  * separately because it does not share the "xrd." prefix (no dot after "xrd"). */
 static const char *const BRIX_OPAQUE_NAMESPACES[] = {
-    "oss.", "tpc.", "xrd.", "xrdcl.", "cms.", "scitag.", NULL
+    "oss.", "tpc.", "xrd.", "xrdcl.", "cms.", "scitag.", "pfc.", NULL
+};
+
+/* Typed keys: brix assigns each an unsigned-integer type. oss.asize is the
+ * client's declared final size (phase-107 C5); pfc.blocksize / pfc.prefetch
+ * are the per-open cache hints (2.0 F5, upstream pfc.urlcgi). A typed key is
+ * by definition recognized, so it also satisfies the namespace rule. */
+static const char *const BRIX_OPAQUE_UINT_KEYS[] = {
+    "oss.asize", "pfc.blocksize", "pfc.prefetch", NULL
 };
 
 /* Whole keys a stock client sends without a namespace. */
@@ -233,9 +241,10 @@ brix_opaque_check_segment(const char *seg, size_t seg_len, char *keybuf,
     val     = seg + key_len + (key_len < seg_len ? 1 : 0);
     val_len = seg_len - key_len - (key_len < seg_len ? 1 : 0);
 
-    /* Typed keys: brix assigns oss.asize an unsigned-integer type. A typed key
-     * is by definition recognized, so this also satisfies the namespace rule. */
-    if (brix_opaque_key_eq(seg, key_len, "oss.asize")) {
+    for (i = 0; BRIX_OPAQUE_UINT_KEYS[i] != NULL; i++) {
+        if (!brix_opaque_key_eq(seg, key_len, BRIX_OPAQUE_UINT_KEYS[i])) {
+            continue;
+        }
         if (!brix_opaque_is_uint(val, val_len)) {
             brix_opaque_copy_key(seg, key_len, keybuf, keybuf_len);
             return BRIX_OPAQUE_SCHEMA_BAD_TYPE;
@@ -311,8 +320,9 @@ brix_opaque_schema_check(const char *opaque, char *keybuf, size_t keybuf_len)
     return BRIX_OPAQUE_SCHEMA_OK;
 }
 
-long long
-brix_opaque_asize(const char *opaque)
+int
+brix_opaque_value(const char *opaque, const char *key, const char **val,
+    size_t *val_len)
 {
     const char *seg;
 
@@ -332,29 +342,46 @@ brix_opaque_asize(const char *opaque)
         }
         key_len = brix_opaque_key_len(seg, seg_len);
 
-        if (brix_opaque_key_eq(seg, key_len, "oss.asize")
-            && key_len < seg_len)
-        {
-            const char *val     = seg + key_len + 1;
-            size_t      val_len = seg_len - key_len - 1;
-            long long   v       = 0;
-            size_t      i;
-
-            if (!brix_opaque_is_uint(val, val_len)) {
-                return 0;                    /* malformed hint: dropped */
-            }
-            for (i = 0; i < val_len; i++) {
-                int d = val[i] - '0';
-
-                if (v > (LLONG_MAX - d) / 10) {
-                    return LLONG_MAX;        /* unsatisfiable, never wrapped */
-                }
-                v = v * 10 + d;
-            }
-            return v;
+        if (key_len < seg_len && brix_opaque_key_eq(seg, key_len, key)) {
+            *val     = seg + key_len + 1;    /* a bare "key" (no '=') is skipped */
+            *val_len = seg_len - key_len - 1;
+            return 1;
         }
 
         seg += seg_len + (seg[seg_len] == '&' ? 1 : 0);
     }
     return 0;
+}
+
+int
+brix_opaque_uint(const char *opaque, const char *key, long long *out)
+{
+    const char *val;
+    size_t      val_len, i;
+    long long   v = 0;
+
+    if (!brix_opaque_value(opaque, key, &val, &val_len)
+        || !brix_opaque_is_uint(val, val_len))
+    {
+        return 0;                            /* absent or malformed hint: dropped */
+    }
+    for (i = 0; i < val_len; i++) {
+        int d = val[i] - '0';
+
+        if (v > (LLONG_MAX - d) / 10) {
+            v = LLONG_MAX;                   /* unsatisfiable, never wrapped */
+            break;
+        }
+        v = v * 10 + d;
+    }
+    *out = v;
+    return 1;
+}
+
+long long
+brix_opaque_asize(const char *opaque)
+{
+    long long v;
+
+    return brix_opaque_uint(opaque, "oss.asize", &v) ? v : 0;
 }

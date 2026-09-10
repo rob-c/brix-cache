@@ -14,7 +14,7 @@
 
 - Inherits every constraint from the #0 plan's Global Constraints (pinned k8s version, no external registry / `pullPolicy: Never`, `brix-<profile>` namespaces + PodSecurity labels, `set -euo pipefail` + shellcheck-clean shell, cross-cutting policy only in `brix-common`).
 - **The bootstrap Job is the sole producer of auth material.** Authorities and fleet servers are pure consumers of its Secrets/ConfigMaps. A redeploy re-runs the Job idempotently.
-- **Servers consume dynamic material by file, refreshed over HTTP.** `brix_crl`/`brix_webdav_crl` and `brix_token_jwks` point at a file on an `emptyDir`; a sidecar curls the authority HTTP endpoint into that file on an interval. Never bake CRL/JWKS into an image.
+- **Servers consume dynamic material by file, refreshed over HTTP.** `brix_crl`/`brix_crl` and `brix_token_jwks` point at a file on an `emptyDir`; a sidecar curls the authority HTTP endpoint into that file on an interval. Never bake CRL/JWKS into an image.
 - **Realm/issuer/audience constants are fixed and single-sourced** in values: realm `NGINX.TEST`, service principal `xrootd/<svc-dns>@NGINX.TEST`, token issuer `https://test.example.com`, audience `nginx-xrootd` (these match `tests/kdc_helpers.py` and `tests/configs/nginx_shared.conf`).
 
 ## Provisioning entry points (verified in-repo)

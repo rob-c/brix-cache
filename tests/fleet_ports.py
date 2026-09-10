@@ -310,6 +310,7 @@ CMDSCRIPTS_PORTS = {
     "credential_xroot_gsi_writeback": (29080, 3),
     "credential_xroot_ztn": (29083, 3),
     "cvmfs_driver_units": (29086, 2),
+    "cvmfs_live": (29233, 3),
     "cvmfs_live_ext": (29088, 38),
     "cvmfs_matrix": (29126, 6),
     "cvmfs_verify": (29231, 2),

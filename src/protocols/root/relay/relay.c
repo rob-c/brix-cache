@@ -58,7 +58,8 @@ brix_conf_set_transparent_proxy(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     return brix_conf_upstream_directive(cf, cmd,
         &((ngx_stream_brix_srv_conf_t *) conf)->relay_name,
-        &((ngx_stream_brix_srv_conf_t *) conf)->relay_addr);
+        &((ngx_stream_brix_srv_conf_t *) conf)->relay_addr,
+        &((ngx_stream_brix_srv_conf_t *) conf)->common.dns);
 }
 
 
@@ -342,6 +343,11 @@ brix_relay_start(ngx_stream_session_t *s, ngx_connection_t *c, void *srv_conf)
     ctx->state = XRD_ST_PROXY;
     ctx->relay = r;
 
+    if (conf->relay_addr->socklen == 0) {   /* phase-116: unresolved */
+        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+                      "xrootd relay: %V not yet resolved", &conf->relay_name);
+        return NGX_ERROR;
+    }
     r->peer.sockaddr  = conf->relay_addr->sockaddr;
     r->peer.socklen   = conf->relay_addr->socklen;
     r->peer.name      = &conf->relay_name;

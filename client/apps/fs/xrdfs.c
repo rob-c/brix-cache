@@ -264,6 +264,10 @@ usage_fp(FILE *out, const char *prog)
         "    --tls --notlsok --noverifyhost   in-protocol TLS controls\n"
         "    --auth <gsi|ztn|krb5|sss|unix>   force an auth protocol (root://)\n"
         "    --token TOK | -T TOK             bearer token for http(s)/WebDAV ($BEARER_TOKEN)\n"
+        "    --sss-vorg VO --sss-role ROLE    sss: assert a VO and a role\n"
+        "    --sss-endorse TEXT               sss: endorsements blob\n"
+        "    --sss-creds-file PATH            sss: forward a proxied credential\n"
+        "    --sss-sndlid                     sss: let the server name the login id\n"
         "    --version                         print version and exit\n"
         "  http(s)/WebDAV endpoints support read-only metadata: ls, stat\n"
         "  commands (root://):\n"
@@ -372,6 +376,10 @@ opt_apply_flag(int argc, char **argv, brix_opts *opts, xrdfs_optscan *sc)
     if (strncmp(a, "--wire-trace=", 13) == 0) { opts->wire_trace = atoi(a + 13); sc->argi++; return 1; }
     if (strcmp(a, "--timing") == 0)          { opts->timing = 1; sc->argi++; return 1; }
     if (strcmp(a, "--redirect-trace") == 0)  { opts->redir_trace = 1; sc->argi++; return 1; }
+    if (brix_opts_parse_sss_arg(opts, argc, argv, &sc->argi)) {
+        sc->argi++;                 /* the helper advanced over the VALUE only */
+        return 1;
+    }
     return 0;
 }
 

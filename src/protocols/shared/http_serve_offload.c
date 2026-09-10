@@ -8,6 +8,7 @@
 #include "fs/vfs/vfs.h"                           /* brix_vfs_adopt_fd / _ctx_t */
 #include "fs/vfs/vfs_internal.h"       /* brix_vfs_backend_cred (per-user cred gate) */
 #include "fs/core/vfs_core.h"                 /* xvfs_drain (shared copy verb) */
+#include "serve_offload_fill.h"       /* fetch the window, not the object */
 #include "fs/backend/cache/sd_cache.h"        /* cache store accessor */
 #include "fs/backend/stage/sd_stage.h"        /* stage source accessor */
 #include "fs/backend/ucred.h"      /* BRIX_UCRED_*_MAX (cred buffer sizing) */
@@ -41,6 +42,8 @@ typedef struct {
     char                          fs_path[PATH_MAX]; /* logical path for headers    */
     char                          op_name[24];
     char                          identity[128];
+    size_t                        range_len;         /* 0 = no usable Range     */
+    u_char                        range_hdr[128];    /* raw header, copied      */
     /* Per-user backend credential (phase-2 follow-up), detached-copied at
      * submit (see brix_stage_cred_t in fs/xfer/stage_engine.h for the same
      * pattern/rationale): the worker thread outlives the request pool
@@ -81,9 +84,17 @@ typedef struct {
 
 /* 1 iff serving `inst` reads from a socket-wire backend (one that cannot pump its
  * blocking socket on the un-pumped event loop). A cache serves from its STORE; a
- * stage decorator serves from its SOURCE; a bare driver answers by name. Today the
- * only such driver is "xroot"; in-process (rados) and curl (s3/http) block-but-
- * complete on-loop and are served inline. */
+ * stage decorator serves from its SOURCE; a bare driver answers with its own
+ * BRIX_SD_CAP_BLOCKING_WIRE. In-process (rados) and curl (s3/http) block-but-
+ * complete on-loop and are served inline, and say so by not advertising the bit.
+ *
+ * The bit replaces a hard-coded `name == "xroot"`, which was true when xroot was
+ * the only socket driver and quietly wrong afterwards: `gsiftp` speaks a whole
+ * FTP conversation — connect, USER/PASS, PASV, RETR, drain — per read, and with
+ * the name check in place it ran all of it on the event loop.  A worker serving
+ * one gsiftp GET answered nothing else until the transfer finished, and where the
+ * origin was reachable only through that same worker the request could not
+ * complete at all: the loop it was blocking was the loop the origin needed. */
 static int
 serve_is_remote_socket(const brix_sd_instance_t *inst)
 {
@@ -96,8 +107,8 @@ serve_is_remote_socket(const brix_sd_instance_t *inst)
     if (brix_sd_stage_instance_is(inst)) {
         return serve_is_remote_socket(brix_sd_stage_source_instance(inst));
     }
-    return (inst->driver != NULL && inst->driver->name != NULL
-            && ngx_strcmp(inst->driver->name, "xroot") == 0) ? 1 : 0;
+    return (inst->driver != NULL
+            && (inst->driver->caps & BRIX_SD_CAP_BLOCKING_WIRE)) ? 1 : 0;
 }
 
 /* Open an anonymous, auto-cleaned temp file for the materialised object. Prefers
@@ -187,36 +198,19 @@ serve_offload_thread_open(const serve_offload_ctx *t, int *err)
  *       temp fd; sets t->mtime / t->size / t->mret.
  * WHY:  Keeps the byte-pump (buffer alloc, fstat, drain) out of the thread
  *       orchestrator so the open and copy phases read as one line each.
- * HOW:  fstat for a fresh mtime snapshot, malloc the chunk, xvfs_drain owns the
- *       chunked pread->pwrite + EINTR loop; the caller still owns obj close.
+ * HOW:  delegate to brix_serve_offload_fill, which owns the window decision and
+ *       the copy; the caller still owns obj close.
  */
 static void
 serve_offload_thread_materialise(serve_offload_ctx *t, brix_sd_obj_t *obj)
 {
-    brix_sd_obj_t   dst;            /* worker-owned scratch, driver-routed */
-    brix_sd_stat_t  snap;
-    u_char         *buf;
-    off_t           off = 0;
+    brix_serve_offload_fill_t  got;
 
-    snap = obj->snap;
-    if (obj->driver->fstat != NULL) {
-        (void) obj->driver->fstat(obj, &snap);
-    }
-    t->mtime = snap.mtime;
-
-    buf = malloc(BRIX_SERVE_OFFLOAD_CHUNK);
-    if (buf == NULL) {
-        t->mret = ENOMEM;
-        return;
-    }
-    /* Read from the (possibly remote/object) source obj, write to the POSIX-
-     * wrapped temp. xvfs_drain owns the chunked pread->pwrite + EINTR loop. */
-    brix_sd_posix_wrap(&dst, t->tmp_fd);
-    t->mret = (xvfs_drain(obj, &dst, buf, BRIX_SERVE_OFFLOAD_CHUNK, &off) == 0)
-              ? 0 : (errno ? errno : EIO);
-    free(buf);
+    t->mret = brix_serve_offload_fill(obj, t->tmp_fd,
+                  t->range_len ? t->range_hdr : NULL, t->range_len, &got);
+    t->mtime = got.mtime;
     if (t->mret == 0) {
-        t->size = off;
+        t->size = got.size;
     }
 }
 
@@ -484,6 +478,17 @@ serve_offload_fill_ctx(serve_offload_ctx *t, ngx_http_request_t *r,
     ngx_cpystrn((u_char *) t->identity,
                 (u_char *) (opts->identity ? opts->identity : ""),
                 sizeof(t->identity));
+
+    /* The thread may not touch r, so the Range travels as bytes.  One that does
+     * not fit is left absent: the whole object is fetched, which is only ever
+     * the slow answer, never the wrong one. */
+    t->range_len = 0;
+    if (r->headers_in.range != NULL
+        && r->headers_in.range->value.len <= sizeof(t->range_hdr))
+    {
+        t->range_len = r->headers_in.range->value.len;
+        ngx_memcpy(t->range_hdr, r->headers_in.range->value.data, t->range_len);
+    }
 }
 
 ngx_int_t

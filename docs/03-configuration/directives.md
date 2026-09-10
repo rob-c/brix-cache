@@ -25,7 +25,7 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_acc_refresh` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
 | `brix_acc_resolve_hosts` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
 | `brix_acc_spacechar` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
-| `brix_access_log` | http | `<value>` | `src/core/config/http_directives_core.h` |
+| `brix_access_log` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
 | `brix_admin_allow` | http | `<value>...` | `src/observability/dashboard/module.c` |
 | `brix_admin_proxy_allow` | http | `<value>...` | `src/observability/dashboard/module.c` |
 | `brix_admin_rate_limit` | http | `<value>` | `src/observability/dashboard/module.c` |
@@ -33,6 +33,7 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_admin_secret` | http | `<value>` | `src/observability/dashboard/module.c` |
 | `brix_admin_socket` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
 | `brix_allow_write` | http, stream | `on|off` | `src/core/config/http_directives_core.h`<br>`src/core/config/stream_common.c` |
+| `brix_auth` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
 | `brix_auth_cache` | stream | `<value>` | `src/protocols/root/stream/directives_zones.h` |
 | `brix_auth_maxfail` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_authdb` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
@@ -44,7 +45,6 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_backend_ca_dir` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
 | `brix_backend_delegation` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
 | `brix_backend_krb5_forwardable` | http, stream | `on|off` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
-| `brix_backend_passthrough_persist` | http | `on|off` | `src/core/config/http_directives_core.h` |
 | `brix_backend_s3_sts_access_key` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
 | `brix_backend_s3_sts_endpoint` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
 | `brix_backend_s3_sts_flavor` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
@@ -59,6 +59,14 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_backend_token_exchange_endpoint` | http | `<value>` | `src/core/config/http_directives_core.h` |
 | `brix_bandwidth_limit` | http, stream | `<value> <value>...` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_net.h` |
 | `brix_cache` | stream | `on|off` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_advertise` | stream | `on|off` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_advertise_data_url` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_advertise_federation` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_advertise_interval` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_advertise_issuer` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_advertise_key` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_advertise_namespace` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_advertise_web_url` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
 | `brix_cache_allow_prefix` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
 | `brix_cache_cold_max_age` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
 | `brix_cache_cold_store` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
@@ -87,24 +95,30 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_cache_prefetch_window` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
 | `brix_cache_reap_interval` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
 | `brix_cache_root` | http | `<value>` | `src/core/config/http_directives_core.h` |
+| `brix_cache_serve_while_filling` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
 | `brix_cache_slice_size` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
 | `brix_cache_state_root` | stream | `<value>` | `src/protocols/root/stream/directives_cache.h` |
 | `brix_cache_store` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
 | `brix_cache_store_endpoint` | http, stream | `on|off` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/module.c` |
+| `brix_cache_urlcgi` | http, stream | `<value>...` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
 | `brix_cache_uvkeep` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
 | `brix_cache_verify` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/directives_cache.h` |
+| `brix_cache_verify_digest` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/directives_cache.h` |
 | `brix_certificate` | stream | `<value>` | `src/core/config/stream_common.c` |
 | `brix_certificate_key` | stream | `<value>` | `src/core/config/stream_common.c` |
 | `brix_checksum_default` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
+| `brix_checksum_plugin` | http, stream | `<value> <value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
 | `brix_chkpnt_maxsz` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
 | `brix_ckscan_depth` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_ckscan_max_files` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_client_ca_store` | http | `<value>` | `src/core/config/http_directives_ops.h` |
 | `brix_client_certificate_folder` | http | `<value>` | `src/protocols/webdav/module_commands.c` |
+| `brix_cms_admin_socket` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_affinity` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_altds` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_altds_interval` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_blacklist_file` | stream | `<value>` | `src/net/cms/server_module.c` |
+| `brix_cms_coalesce` | stream | `on|off` | `src/protocols/root/stream/directives_caps.h` |
 | `brix_cms_connect_retry` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_delay_hold` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_delay_servers` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
@@ -112,6 +126,8 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_cms_emptylife` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_fanout` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_fanout_window` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_fsxeq` | stream | `<value> <value>...` | `src/protocols/root/stream/directives_cms_fsxeq.h` |
+| `brix_cms_fsxeq_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_cms_fsxeq.h` |
 | `brix_cms_fxhold` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_initial_delay` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_interval` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
@@ -125,6 +141,7 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_cms_perf_interval` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_perf_pgm` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_read_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_response` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_role` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_sched` | stream | `<value>...` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_send_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
@@ -139,6 +156,8 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_cms_server_sss_keytab` | stream | `<value>` | `src/net/cms/server_module.c` |
 | `brix_cms_server_tcp_keepalive` | stream | `on|off` | `src/net/cms/server_module.c` |
 | `brix_cms_server_tcp_user_timeout` | stream | `<value>` | `src/net/cms/server_module.c` |
+| `brix_cms_space_enforce` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_cms_space_hwm` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_stage_select` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_cms_state_fanout` | stream | `<value>` | `src/protocols/root/stream/directives_caps.h` |
 | `brix_cms_state_relay` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
@@ -155,6 +174,7 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_crl` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
 | `brix_crl_mode` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
 | `brix_crl_reload` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_crl_scope` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
 | `brix_csi` | stream | `on|off` | `src/protocols/root/stream/directives_auth.h` |
 | `brix_csi_block` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
 | `brix_csi_require` | stream | `on|off` | `src/protocols/root/stream/directives_auth.h` |
@@ -217,6 +237,9 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_data_substreams` | stream | `on|off` | `src/protocols/root/stream/module.c` |
 | `brix_delegation_endpoint` | http | `on|off` | `src/core/config/http_directives_ops.h` |
 | `brix_dirstats` | stream | `on|off` | `src/protocols/root/stream/directives_cache.h` |
+| `brix_dns_cache_max` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/core/config/stream_common.c` |
+| `brix_dns_retry` | http, stream | `<value> <value>` | `src/core/config/http_directives_ops.h`<br>`src/core/config/stream_common.c` |
+| `brix_dns_status_zone` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/core/config/stream_common.c` |
 | `brix_durable_commit` | stream | `on|off` | `src/core/config/stream_common.c` |
 | `brix_durable_publish` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
 | `brix_export` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/core/config/stream_common.c` |
@@ -224,23 +247,20 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_frm_async_recall` | stream | `on|off` | `src/protocols/root/stream/directives_net.h` |
 | `brix_frm_control_dir` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_frm_copy_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
-| `brix_frm_copycmd` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_frm_copymax` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_frm_fail_backoff` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_frm_fail_retries` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
-| `brix_frm_force_scratch` | stream | `on|off` | `src/protocols/root/stream/directives_net.h` |
 | `brix_frm_max_inflight` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
-| `brix_frm_max_per_source` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
-| `brix_frm_migrate_copycmd` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_frm_purge_interval` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_purge_max_bytes` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_purge_policy` | stream | `<value> <value> <value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_purge_polprog` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_frm_purge_watermark` | stream | `<value> <value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_frm_queue_path` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
-| `brix_frm_residency_cmd` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
-| `brix_frm_stage_dir` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_frm_stage_ttl` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_frm_stage_wait` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_frm_stagecmd` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
-| `brix_frm_xfrhold` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_frm_stagemsg` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_fsoverload_redirect` | stream | `<value> <value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_fsoverload_stall` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_gridftp` | stream | `on|off` | `src/protocols/gridftp/ftp_module.c` |
@@ -350,6 +370,7 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_oss_maxsize` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
 | `brix_oss_quota` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
 | `brix_oss_quota_enforce` | stream | `on|off` | `src/protocols/root/stream/directives_security.h` |
+| `brix_oss_space` | stream | `<value> <value>` | `src/protocols/root/stream/directives_security.h` |
 | `brix_pblock_block_size` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/module.c` |
 | `brix_pipeline_depth` | stream | `<value>` | `src/protocols/root/stream/module.c` |
 | `brix_pmark` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_pmark.h` |
@@ -368,7 +389,6 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_posc_persist` | stream | `<value>` | `src/protocols/root/stream/directives_writethrough.h` |
 | `brix_prepare_command` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_protbind` | http, stream | `<value> <value>...` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
-| `brix_pss_dca` | stream | `on|off` | `src/protocols/root/stream/directives_cache.h` |
 | `brix_pwd_file` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
 | `brix_rate_limit` | http, stream | `<value> <value>...` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_zones.h` |
 | `brix_rate_limit_rule` | http, stream | `<value> <value>...` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_net.h` |
@@ -383,6 +403,8 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_registry_slots` | stream | `<value>` | `src/protocols/root/stream/directives_caps.h` |
 | `brix_require_pgwrite` | stream | `on|off` | `src/protocols/root/stream/directives_tpc.h` |
 | `brix_require_vo` | http, stream | `<value> <value>` | `src/core/config/http_directives_auth.h`<br>`src/core/config/stream_common.c` |
+| `brix_resolver` | http, stream | `<value>...` | `src/core/config/http_directives_ops.h`<br>`src/core/config/stream_common.c` |
+| `brix_root` | stream | `on|off` | `src/protocols/root/stream/module.c` |
 | `brix_rpm_metadata_ttl` | http | `<value>` | `src/protocols/rpm/rpm_module.c` |
 | `brix_rpm_mirror` | http | `<value>` | `src/protocols/rpm/rpm_module.c` |
 | `brix_rpm_mirror_insecure` | http | `on|off` | `src/protocols/rpm/rpm_module.c` |
@@ -402,8 +424,10 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_scvmfs` | http | `on|off` | `src/protocols/cvmfs/directives_core.h` |
 | `brix_scvmfs_authz` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
 | `brix_scvmfs_token_issuers` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_scvmfs_voms` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
 | `brix_scvmfs_voms_cert_dir` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
 | `brix_scvmfs_vomsdir` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
+| `brix_scvmfs_x509_dn` | http | `<value>` | `src/protocols/cvmfs/directives_core.h` |
 | `brix_seccomp` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/directives_security.h` |
 | `brix_seccomp_allow_exec` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/directives_security.h` |
 | `brix_security_level` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
@@ -429,6 +453,7 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_ssi_request_max` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
 | `brix_ssi_response_max` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
 | `brix_ssi_service` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_sss_getcreds` | stream | `on|off` | `src/protocols/root/stream/directives_auth.h` |
 | `brix_sss_keytab` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
 | `brix_stage` | http, stream | `on|off` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
 | `brix_stage_dir` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_caps.h` |
@@ -446,6 +471,8 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_tap_proxy_audit_log` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_tap_proxy_auth` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_tap_proxy_login_user` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_tap_proxy_path_rewrite` | stream | `<value> <value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_tap_proxy_sss_identity` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
 | `brix_tap_proxy_upstream` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_tap_proxy_upstream_tls` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_tap_proxy_upstream_tls_ca` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
@@ -454,7 +481,7 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_tcp_congestion` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_cms.h` |
 | `brix_tcp_keepalive` | stream | `on|off` | `src/protocols/root/stream/directives_cms.h` |
 | `brix_tcp_user_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
-| `brix_thread_pool` | http | `<value>` | `src/core/config/http_directives_core.h` |
+| `brix_thread_pool` | http, stream | `<value>` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/directives_cms.h` |
 | `brix_throttle_bandwidth_budget` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
 | `brix_throttle_bandwidth_zone` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
 | `brix_throttle_max_open_files` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
@@ -464,6 +491,7 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_tls_ciphersuites` | stream | `<value>` | `src/protocols/root/stream/directives_security.h` |
 | `brix_tls_require` | http, stream | `<value>...` | `src/core/config/http_directives_core.h`<br>`src/protocols/root/stream/directives_security.h` |
 | `brix_tls_reuse` | stream | `on|off` | `src/protocols/root/stream/directives_security.h` |
+| `brix_tls_verify_log` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
 | `brix_token_audience` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
 | `brix_token_cache` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_zones.h` |
 | `brix_token_clock_skew` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
@@ -475,21 +503,30 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_token_issuer` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
 | `brix_token_jwks` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
 | `brix_token_jwks_refresh_interval` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
+| `brix_tpc_allow_identity` | http, stream | `<value> <value>...` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
 | `brix_tpc_allow_local` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
 | `brix_tpc_allow_private` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
 | `brix_tpc_delegate` | stream | `on|off` | `src/protocols/root/stream/directives_tpc.h` |
 | `brix_tpc_key_ttl` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_max_hops` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
 | `brix_tpc_max_transfer_secs` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_oids` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
 | `brix_tpc_outbound_bearer_file` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
 | `brix_tpc_outbound_client_id` | http, stream | `<value>` | `src/protocols/root/stream/directives_tpc.h`<br>`src/protocols/webdav/directives_tpc.h` |
 | `brix_tpc_outbound_client_secret` | http, stream | `<value>` | `src/protocols/root/stream/directives_tpc.h`<br>`src/protocols/webdav/directives_tpc.h` |
 | `brix_tpc_outbound_passthrough` | stream | `on|off` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_outbound_renew_lead` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_outbound_renew_strict` | stream | `on|off` | `src/protocols/root/stream/directives_tpc.h` |
 | `brix_tpc_outbound_scope` | http, stream | `<value>` | `src/protocols/root/stream/directives_tpc.h`<br>`src/protocols/webdav/directives_tpc.h` |
 | `brix_tpc_outbound_tls` | stream | `on|off` | `src/protocols/root/stream/directives_tpc.h` |
 | `brix_tpc_outbound_token_endpoint` | http, stream | `<value>` | `src/protocols/root/stream/directives_tpc.h`<br>`src/protocols/webdav/directives_tpc.h` |
+| `brix_tpc_push` | stream | `on|off` | `src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_require` | http, stream | `<value> <value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
 | `brix_tpc_require_source_size` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_restrict` | http, stream | `<value>...` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
 | `brix_tpc_source_allow` | http, stream | `<value>...` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
 | `brix_tpc_source_guard` | http, stream | `on|off` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
+| `brix_tpc_streams` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
 | `brix_tpc_transfer_max_age` | stream | `<value>` | `src/protocols/root/stream/directives_tpc.h` |
 | `brix_tpc_verify_checksum` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_tpc.h` |
 | `brix_transparent_proxy` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
@@ -503,6 +540,8 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_upstream_tls_name` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_upstream_tls_verify` | stream | `on|off` | `src/protocols/root/stream/directives_net.h` |
 | `brix_upstream_token_file` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_upstream_x509_key` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
+| `brix_upstream_x509_proxy` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_verify_depth` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_auth.h` |
 | `brix_verify_write` | http, stream | `on|off` | `src/core/config/http_directives_core.h`<br>`src/core/config/stream_common.c` |
 | `brix_vfs_spill_max` | http, stream | `<value>` | `src/core/config/http_directives_ops.h`<br>`src/protocols/root/stream/directives_tier.h` |
@@ -594,7 +633,7 @@ Three rules cover all four protocols (`brix_root`, `brix_webdav`, `brix_s3`, `br
   `brix_cache_store`, `brix_cache_root`, `brix_cache_verify`, `brix_cache_max_object`,
   `brix_cache_evict_at`, `brix_cache_evict_to`, `brix_cache_index_cache`, `brix_cache_meta`,
   `brix_cache_slice_size`, `brix_cache_prefetch`, `brix_cache_prefetch_window`,
-  `brix_cache_only_if_cached`, `brix_cache_uvkeep`, `brix_cache_max_bytes`,
+  `brix_cache_urlcgi`, `brix_cache_only_if_cached`, `brix_cache_uvkeep`, `brix_cache_max_bytes`,
   `brix_stage`, `brix_stage_store`, `brix_stage_flush`, `brix_thread_pool`.
 - **Bare `brix_*` cross-protocol directives** — one spelling that works identically on
   every plane (registered once by the common owner and adopted into each protocol conf).
@@ -610,6 +649,8 @@ Three rules cover all four protocols (`brix_root`, `brix_webdav`, `brix_s3`, `br
   `brix_signing_policy`, `brix_vomsdir`, `brix_voms_cert_dir`. HTTP-TPC SSRF policy:
   `brix_tpc_allow_local`, `brix_tpc_allow_private`, `brix_tpc_source_guard`,
   `brix_tpc_source_allow`, `brix_tpc_require_source_size`, `brix_tpc_verify_checksum`.
+  Native root:// pull shape (2.0 F7): `brix_tpc_max_hops`, `brix_tpc_streams`;
+  the push dialect (2.0 F16): `brix_tpc_push`.
   Per-request identity (phase-101 W6): the `brix_idmap*` family.
 
 The only remaining per-protocol directive families are behavior specific to one protocol
@@ -650,15 +691,148 @@ FTP command.
 `ftp://` performs anonymous login. `gsiftp://` requires an X.509 proxy selected
 from `brix_storage_credential` or the existing per-user backend-credential
 machinery. A VOMS proxy is forwarded as the same certificate chain, preserving
-its attributes. The v1 data plane uses passive MODE S and `PROT C`/`DCAU N`;
+its attributes. The default data plane uses passive MODE S and `PROT C`/`DCAU N`;
 EPSV/PASV ports are always connected on the established control peer, so a
-malicious PASV address cannot redirect BriX. MODE E, PROT P, Kerberos,
-username/password and session pooling are not enabled by this URL.
+malicious PASV address cannot redirect BriX. Kerberos, username/password and
+session pooling are not enabled by this URL.
 
-Available operations are range/full read, stat/list, MKCOL, MOVE, DELETE and
-whole-object staged PUT with origin-side temporary-name promotion. A typed
-read-only export rejects mutations in the VFS before any FTP command reaches
-the origin.
+#### Data-channel parameters
+
+Three trailing parameters select the data channel. The first two are
+**requirements**: an origin that cannot honour one fails the transfer rather
+than moving the bytes under weaker terms. The third is a **ceiling**, and does
+degrade — see below.
+
+| Parameter | Effect | An origin that refuses |
+| --- | --- | --- |
+| `mode=e` | GFD.020 §3.4 extended block mode — offset-addressed blocks instead of "the close is the end" | `504`; the read or write fails, and is **not** retried in stream mode |
+| `prot=p` | TLS on the data socket (`DCAU A` + `PROT P`), presenting the control channel's proxy, with the data peer's leaf DN pinned to the control identity | `534`; the transfer fails, never downgraded to cleartext |
+| `streams=<n>` | ceiling on the data connections one read may open with GFD.020 §5.1 `SPAS` striping; `1`–`16`, default `1` (never ask). Requires `mode=e` | any refusal, and the same bytes arrive over one connection |
+
+```nginx
+brix_storage_backend gsiftp://grid.example.org/store mode=e prot=p streams=4;
+```
+
+`prot=p` is rejected at `nginx -t` on an `ftp://` origin. The protection's value
+is the DN pin, and an anonymous control channel authenticates no identity to pin
+to — an unpinned TLS data channel is encrypted to whoever answered the PASV
+address, which is not what the parameter promises.
+
+`streams=<n>` above `1` requires `mode=e` and is rejected at `nginx -t`
+without it: a striped transfer is reassembled from blocks that carry their own
+offsets, and stream mode has none. The check runs on the whole store line, so
+`streams=4 mode=e` and `mode=e streams=4` behave identically.
+
+Unlike its two neighbours, `streams=` **degrades**, because it is a statement
+about speed rather than about what the bytes are. An origin that does not
+advertise `SPAS`, refuses it, answers with more stripes than the ceiling, or
+returns a reply that will not parse is served over the single connection, with
+identical bytes. One refusal is not negotiable: **every stripe address must be
+the control channel's own peer.** A `SPAS` reply is the only place in this
+protocol where an origin hands the driver a list of addresses, and following
+one elsewhere would make the storage backend dial arbitrary hosts inside your
+network on the origin's instruction. A single foreign stripe abandons the whole
+striped attempt before any socket is opened. A genuinely multi-host striped
+door is therefore read over one connection — a speed limit, not a failure.
+`SPOR` (the client offering the addresses) is not implemented: the driver never
+listens.
+
+**`ERET` is used automatically, and is not a parameter.** With `mode=e`, a
+bounded read asks the origin for its window with `ERET P <offset> <length>`
+(GFD.020 §5.3) when the origin advertises `ERET` in `FEAT`, instead of `REST`
+followed by a transfer that runs to EOF. An origin that advertises it and then
+refuses it is served from the positioned `REST`+`RETR` path. It is deliberately
+never sent outside `mode=e`: a door that ignored the window and answered with
+the whole file from offset 0 would be undetectable in stream mode, whereas an
+extended block carries the absolute offset that gives it away.
+
+Available operations are range/full read, stat/list, MKCOL, MOVE, DELETE,
+whole-object staged PUT with origin-side temporary-name promotion, and
+same-origin `COPY`. A typed read-only export rejects mutations in the VFS
+before any FTP command reaches the origin.
+
+**`COPY` between two paths of one export is served by the gateway**, not by the
+client. FTP has no server-side copy verb, so the bytes still move — but only on
+the gateway↔origin link, over one control session: the source is sized, read
+into a local scratch file, stored under a random temporary name and promoted
+with `RNFR`/`RNTO`. The destination therefore appears whole or not at all; a
+failed copy renames nothing and removes its own temporary. A transfer shorter
+than the size the origin itself reported is refused rather than published,
+because a bounded read that stops early is not an error the origin reports.
+Copying a path onto itself is refused: it would work, and it would rewrite a
+healthy object for no gain.
+
+**`sshftp://` is not a supported scheme.** GridFTP-over-SSH requires the
+control transport to terminate on the storage host, which means a child process
+per session; nginx workers may not fork. An `ssh -L` tunnel is not a
+substitute, because the data channel connects to the control channel's own
+peer — which through a tunnel is `127.0.0.1`, not the origin.
+
+---
+
+### `brix_storage_backend forward://<protocols> permit=<host|.suffix>…` — forwarding proxy (client-named origins)
+
+**Roles:** `brix_storage_backend` only (an export origin; refused on every
+`brix_cache_store` / `brix_stage_store` / `brix_cold_store` line) ·
+**Driver:** `xroot_fwd` · **Since:** 2.0 (F5, XrdPss forwarding mode:
+`pss.origin = *` + `pss.permit`)
+
+A fixed `root://host:port` origin makes the export a proxy for **one**
+server. A `forward://` origin makes it a proxy for whichever server the
+client names *inside the path it opens*, the XrdPss forwarding convention:
+
+```text
+xrdcp root://proxy.example.org//root://origin.example.org:1094//data/f.bin .
+xrdcp root://proxy.example.org//roots://tape.example.org//data/f.bin .
+```
+
+The key `/root://origin.example.org:1094//data/f.bin` is split into
+`{scheme, host, port (default 1094), remote path}`; one origin child (the
+ordinary `root://` driver, so `verify_pages`, `nearline`, `credential=`,
+the `_cred` identity plane and the cache/stage decorators all apply per
+origin) is created on first use for each distinct admitted `host:port` and
+reused after that. Every namespace and data verb is relayed to that child;
+`rename` and `server_copy` refuse `EXDEV` (`kXR_NotAuthorized`) unless both
+keys land on the same origin — an origin cannot move a file it does not
+hold.
+
+Two operator gates decide what the proxy will dial on a client's say-so.
+Both are mandatory:
+
+- `forward://<protocols>` — a comma list of `root` and/or `roots`, in any
+  order: the schemes a client may name. A key whose scheme is outside the
+  list is `kXR_Unsupported`; an empty list, an unknown scheme or a dangling
+  comma is a configuration error.
+- `permit=<host|.suffix>` — repeatable; the hosts the proxy may dial. An
+  entry is an exact host or a leading-dot domain suffix (`.example.org`
+  permits hosts *under* that domain and nothing that merely contains it).
+  The match rule is the TPC source-egress guard's, so a forwarded open and
+  a TPC pull agree on what `.example.org` permits. A host outside the list
+  is `kXR_NotAuthorized` **before any resolve or connect** and is logged as
+  a refusal. A `forward://` line with **no** `permit=` is refused at
+  `nginx -t`: an empty list would relay to any origin a client names.
+
+A key that names no origin (`/data/f.bin` on a forwarding export) is
+`kXR_NotFound` — there is no default origin to fall back to. `permit=` is
+accepted only on a `forward://` backend line; on a fixed `root://` origin
+or on any store tier it is a configuration error, so a permit list is never
+written where nothing honours it.
+
+```nginx
+# Forward root:// and roots:// to any host under two site domains.
+brix_storage_backend forward://root,roots permit=.example.org permit=.cern.ch;
+
+# One named origin only, every page verified as it arrives.
+brix_storage_backend forward://root permit=origin.example.org verify_pages=require;
+```
+
+Pinned by `tests/test_release20_forward_proxy.py` (grammar accept/reject,
+a byte-exact forwarded read and stat, the three refusals — unsupported
+scheme, no origin named, host outside the permit list answered without a
+dial — the anchored suffix rule, a permitted-but-dead origin failing
+promptly, and the fs_list / build / slot-matrix census) and by
+`tests/test_sd_xroot_fwd_key.py` (the key parser and the permit verdict as
+a standalone C unit suite).
 
 ---
 
@@ -1021,12 +1195,11 @@ brix_auth gsi;
 
 ---
 
-### `brix_authdb <path>` — native u/g/p authorization
+### `brix_authdb <path>` — native identity authorization
 
 **Context:** stream `server{}` (`brix_root`) · HTTP `location` (`brix_webdav`)
 
-Path to a native `u/g/p/a` authorization-rule file (per-DN/VO/host-CIDR ACLs,
-6 privilege bits, longest-prefix match). On the stream (`root://`) plane this is
+Path to a native authorization-rule file. On the stream (`root://`) plane this is
 the engine entry; the runtime engine is chosen by `brix_authdb_engine`
 (`native` default / `xrdacc`). On the **HTTP** plane bare `brix_authdb` is the
 **native** engine, enforced by the WebDAV access phase for READ methods — reach
@@ -1042,6 +1215,88 @@ brix_authdb_engine xrdacc;           # stream-only tuner spelling
 # HTTP (WebDAV): bare name = native u/g/p engine
 location /dav/ { brix_webdav on; brix_authdb /etc/brix/authdb; }
 ```
+
+#### File grammar
+
+One rule per line, four whitespace-separated fields; `#` starts a comment and
+blank lines are ignored:
+
+```
+<selectors> <id> <path-prefix> <privileges>
+```
+
+**Field 1 — identity selectors.** A *set* of one to six **distinct** letters,
+all of which must match (they are AND-ed, so a compound rule is always
+**narrower** than any of its selectors alone):
+
+| Letter | Matches | Compared against |
+|---|---|---|
+| `u` | the authenticated user | GSI DN / SSS user; `*` = any |
+| `g` | VO / group membership | the VO-name list (`$brix_vo`); `*` matches even an empty list |
+| `p` | the peer address | IP or CIDR string match — **no reverse DNS** in this engine |
+| `a` | any identity | takes the id `*`; **may not be combined** with another selector |
+| `v` | the VOMS virtual organisation | the vorg CSV derived from the credential's FQANs; `*` = any non-empty |
+| `l` | the VOMS role | the role CSV derived from the same FQANs; `*` = any non-empty |
+
+**Field 2 — the id.** A rule with **one** selector takes its id **verbatim** —
+a DN is full of punctuation, so nothing is split. A rule with **two or more**
+selectors splits its id on `|` into exactly one non-empty component per
+selector, positionally: `ug atlasuser|atlas /data rl` means DN `atlasuser`
+**and** VO `atlas`.
+
+`v` and `l` together are matched as a **positional pair**: the vorg and the role
+must come from the *same* FQAN. A proxy holding `/cms/Role=NULL` **and**
+`/atlas/Role=production` therefore does **not** satisfy `vl cms|production`,
+which is what an independent match of the two lists would have granted.
+
+**Field 3 — the path prefix.** Longest matching prefix wins among the rules that
+carry *enough* privileges; a later rule of equal length overrides an earlier one.
+
+**Field 4 — privileges.** One or more of:
+
+| Letter | Grants |
+|---|---|
+| `r` | read (implies lookup) |
+| `l` | lookup / stat |
+| `w`, `a` | update (write; `a` = append, same FS permission) |
+| `d` | delete |
+| `m` | mkdir |
+| `k` | admin |
+| `x` | **stage/recall** — `xrdfs prepare -s` / `-e`, and the VFS stage/evict mutations |
+
+There is **no deny record**: a request is denied when no rule with sufficient
+privileges matches its path. `x` is its own privilege — granting `w` does *not*
+grant staging.
+
+```
+# a single-selector rule takes its id verbatim
+u /DC=org/DC=example/OU=People/CN=Alice   /data/alice   rlwd
+g atlas                                    /data/atlas   rl
+p 10.1.0.0/16                              /scratch      rlw
+a *                                        /public       rl
+
+# compound rules: one '|'-separated id component per selector, AND-ed
+ug alice|atlas                             /data/joint   rl
+vl atlas|production                        /data/prod    rlx
+```
+
+#### Unparseable lines are refused, not narrowed
+
+An unknown selector or privilege letter, a repeated selector, `a` combined with
+another selector, a wrong number of id components or an empty one all **refuse
+the whole configuration** at `nginx -t`, naming the file, the line number and
+the offending byte:
+
+```
+brix_authdb "/etc/brix/authdb" line 7: unknown privilege letter 'z' (the native
+authdb engine refuses a line it cannot parse rather than silently dropping part
+of it; use `brix_authdb_engine xrdacc` for XrdAcc-format files)
+```
+
+Dropping the character instead would hand out a rule the operator never wrote —
+usually a **wider** one. An XrdAcc-format file is unaffected: the same file is
+read by both engines' parsers, so a native-grammar defect is only raised once
+the engine has settled on `native`.
 
 ---
 
@@ -1067,7 +1322,7 @@ location /s3/ { brix_s3 on; brix_s3_bucket b;
 
 ---
 
-### `brix_gsi_verify_depth <n>`
+### `brix_verify_depth <n>`
 
 **Default:** `0` (unlimited)
 
@@ -1080,7 +1335,7 @@ server without the directive. Use it to bound absurdly deep proxy/intermediate
 chains on a GSI listener.
 
 ```nginx
-brix_gsi_verify_depth 4;
+brix_verify_depth 4;
 ```
 
 ---
@@ -1124,10 +1379,39 @@ brix_protbind *.farm.local only unix;        # on-site: unix only
 brix_protbind * gsi ztn;                     # everyone else: GSI, then tokens
 ```
 
-See [`brix_webdav_protbind`](#brix_webdav_protbind-host-template-none--only-protocol)
+See [`brix_protbind`](#brix_protbind-host-template-none--only-protocol)
 for the HTTP/WebDAV face of the same policy.
 
 ---
+
+### `brix_sss_getcreds on|off`
+
+**Default:** `off`
+
+Keeps the proxied credential an SSS client may carry inside its credential (the
+`CRED` field of the entity). With `off` the parser wipes the blob and the
+session's credential stays empty, which is what an endpoint that only needs a
+name, a VO and a role wants. Turn it on where something downstream actually
+replays the forwarded credential — a gateway hop, a proxy that must present the
+user's own token upstream. The blob is opaque to the server: it is never
+logged, never parsed, and only its length appears on the accept line.
+
+The keytab still decides how much of the rest is believed. A key that pins the
+identity (no `anybody`/`allusers` option) drops the client-asserted VO, role and
+endorsements before they reach any authorization decision, logging
+`SSS entity fields dropped: keytab pins the identity`; a key that defers lets
+them through into the connection's VO/role attributes. Every field has a hard
+receiver cap (name/VO/role 256, groups 512, endorsements 1024, credential
+4096 bytes) and an over-cap value fails the credential — nothing is truncated.
+
+```nginx
+brix_auth         sss;
+brix_sss_keytab   /etc/brix/sss.keytab;
+brix_sss_getcreds on;      # keep a forwarded credential for the next hop
+```
+
+Accepted credentials log one line:
+`brix: SSS auth OK user="…" group="…" vorg="…" role="…" endo=<n> creds=<n>`.
 
 ### `brix_tls on|off`
 
@@ -1343,6 +1627,13 @@ brix_certificate_key /etc/grid-security/hostkey.pem;
 ### `brix_trusted_ca <path>`
 
 Path to a PEM file containing the CA certificate (or bundle of CA certificates) that the server trusts for verifying client proxy certificates. Required when `brix_auth gsi` or `brix_auth both`.
+
+It also anchors some outbound legs — the native TPC source's TLS handshake and the Pelican origin — but **not** the `root://` storage backend. That leg (`brix_storage_backend root://…`) is built on a synthetic server config that inherits nothing from this directive: its trust store comes only from `ca_dir` inside the `brix_credential` block named by `brix_storage_credential`. With no `ca_dir` there, the origin's certificate is not verified at all (a silent operator opt-out) and the `root://` TLS upgrade falls back to the system CA bundle. Put the anchor in the credential block:
+
+```nginx
+brix_credential origin { x509_proxy /run/proxy.pem; ca_dir /etc/grid-security/certificates; }
+brix_storage_credential origin;
+```
 
 See [pki.md](../06-authentication/pki-config.md) for CA bundle layout and hash symlink setup.
 
@@ -1669,8 +1960,11 @@ The space-group name the `kXR_Qspace` report advertises as `oss.cgroup` — the
 label accounting tools key on. A single-partition site can name its group here;
 the value is emitted verbatim into the `&`-joined `oss.*` report, so the name
 may not contain a CGI-structural byte (`&`, `=`, space, or a control char) — a
-name that does is refused at config parse. Multi-partition `oss.space` groups
-and create-time CGI selection are not implemented.
+name that does is refused at config parse. This directive names the **default**
+group — the one that owns every path no `brix_oss_space` prefix claims. For a
+multi-partition site, declare the partitions with
+[`brix_oss_space`](#brix_oss_space-group-prefix-quotasize-quota-1), which also
+implements the create-time `?oss.cgroup=<name>` selector on write opens.
 
 ```nginx
 brix_oss_cgroup atlas-datadisk;
@@ -1688,10 +1982,12 @@ The space quota the `kXR_Qspace` report advertises as `oss.quota` — the number
 value; unset, the report keeps the stock `-1` (unlimited). Accepts the usual size
 suffixes (`k`/`m`/`g`); a malformed or negative value is refused at config parse.
 
-This is **advertisement only** — BriX does not itself enforce the quota (there is
-no write-time rejection when usage crosses it). Real per-space quota enforcement
-is part of the larger multi-partition `oss.space` groups feature, not yet
-implemented.
+On its own this is **advertisement only** — the value is reported but nothing
+rejects a write that crosses it. Set
+[`brix_oss_quota_enforce on`](#brix_oss_quota_enforce-onoff) to make it
+load-bearing for the default group, and declare
+[`brix_oss_space`](#brix_oss_space-group-prefix-quotasize-quota-1) groups to
+give individual path prefixes their own enforced quotas.
 
 ```nginx
 brix_oss_quota 500g;
@@ -1714,6 +2010,49 @@ never blocks writes. Off (the default), the quota stays advertisement-only.
 ```nginx
 brix_oss_quota 500g;
 brix_oss_quota_enforce on;
+```
+
+---
+
+### `brix_oss_space <group> <prefix> [quota=<size>|quota=-1]`
+
+**Context:** stream server, repeatable. **Default:** no groups — the whole
+export is the one default group named by `brix_oss_cgroup` and capped by
+`brix_oss_quota`.
+
+Phase-115 W3.3 (2026-09-06, setter `src/core/config/space_group_conf.c`).
+Declares a named space group that owns one export-relative path prefix; the
+longest matching prefix wins, so nested groups nest naturally. A group's
+usage is the sum of the regular files below its prefix (a confined VFS
+walk, cached for 5 s per worker and bumped by every admitted write) and its
+`quota=` is the cap; `quota=-1` or no `quota=` means accounting only.
+
+- With `brix_oss_quota_enforce on`, the group's quota governs every
+  `kXR_write`/`writev`/`pgwrite` under its prefix (`kXR_overQuota` when the
+  write would push the group past it), and `brix_oss_quota` then governs
+  only paths outside every group.
+- `kXR_Qspace` reports the group that owns the queried path, or the one a
+  `?oss.cgroup=<name>` selector names, as `oss.cgroup` with the group's own
+  used/quota/headroom; an unknown name is the caller's error
+  (`kXR_ArgInvalid`, "unknown space group").
+- A write open carrying `?oss.cgroup=<name>` must name the group whose
+  prefix owns the path (or the default group for a path no prefix owns);
+  a mismatch or unknown name is refused `kXR_ArgInvalid` rather than
+  silently re-homed. Read opens ignore the key.
+
+`nginx -t` refuses an empty or CGI-unsafe group name (`&`, `=`, space,
+control bytes), a prefix that is not an absolute export-relative path or
+carries an empty or dot segment or a trailing slash (the bare `/` is
+refused: that is the default group), a `quota=` that is not a
+non-negative size or `-1`, a group declared twice, and a prefix that
+already belongs to another group.
+
+```nginx
+brix_oss_cgroup default;
+brix_oss_quota 500g;
+brix_oss_quota_enforce on;
+brix_oss_space atlas-datadisk /atlas/datadisk quota=200g;
+brix_oss_space atlas-scratch  /atlas/scratch  quota=-1;
 ```
 
 ---
@@ -1744,14 +2083,71 @@ The checksum algorithm used when a `kXR_Qcksum` request selects none of its own
 advertised **first** in the `xrdfs query config chksum` list — the entry clients
 take as this server's preference when intersecting checksum preference lists.
 The `xrootd.chksum` default analog: WLCG sites typically prefer `crc32c`, cloud
-deployments `sha256`. Must be one of
-`adler32`/`crc32`/`crc32c`/`crc64`/`crc64nvme`/`md5`/`sha1`/`sha256`; an
-unrecognized value degrades to `adler32` at use rather than failing checksums. An
-explicit per-request algorithm always overrides it.
+deployments `sha256`. Must be one of the built-ins
+`adler32`/`crc32`/`crc32c`/`crc64`/`crc64nvme`/`md5`/`sha1`/`sha256`/`sha512`
+or a name registered by [`brix_checksum_plugin`](#brix_checksum_plugin-name-path-parms);
+alias spellings (`crc64xz` for `crc64`, `zcrc32` for `crc32`) are accepted and
+advertised as written. An unrecognized value degrades to `adler32` at use
+rather than failing checksums, and is dropped from the advertised list
+entirely — the server never offers a name it cannot answer, so a typo costs
+you your preference, never a client's transfer. An explicit per-request
+algorithm always overrides it.
 
 ```nginx
 brix_checksum_default crc32c;
 ```
+
+---
+
+### `brix_checksum_plugin <name> <path> [parms]`
+
+**Context:** `stream` main level or `http` main level (one process-wide
+registry, filled by either table) · **Default:** none · **Since:** 2.0
+
+Registers a site checksum algorithm from a shared object, the
+`xrootd.chksum <name> <path> [parms]` plugin analog. Once registered the name
+behaves exactly like a built-in everywhere an algorithm is named: a
+`kXR_Qcksum` with `<name>:` or `?cks.type=<name>`, `brix_checksum_default <name>`,
+the `xrdfs query config chksum` list (built-ins first, then plugins, the
+configured default at the head), and WebDAV `Want-Digest: <name>` →
+`Digest: <name>=<hex>`. No per-protocol configuration is involved.
+
+`<path>` must be an **absolute** path to a **regular file** that is **not
+group- or world-writable**. It is `dlopen`ed at configuration time
+(`RTLD_NOW | RTLD_LOCAL`), must export one symbol `brix_cks_plugin` of type
+`brix_cks_plugin_t` (see `src/core/compat/checksum_plugin_abi.h`, a plain C99
+header with no server dependency), and is put through a self-test — `init`
+with the `parms` string, an empty `update`, `final` — before the configuration
+is accepted. `parms` is optional, at most 255 bytes, and is passed verbatim to
+every `init`; a plugin that rejects it fails the self-test. `nginx -t` refuses
+every malformed registration with a message naming the cause: relative or
+missing path, not a regular file, writable, `dlopen` failure, no
+`brix_cks_plugin` symbol, ABI version other than `1`, a plugin `name` that
+differs from the directive's, a digest longer than 64 bytes, a state larger
+than 4096 bytes, a missing `init`/`update`/`final`, a failed self-test, a name
+that is not 1..15 lowercase letters or digits, a name that collides with a
+built-in (`crc32` and `crc32c` included) or with an earlier plugin, and a
+ninth plugin. A reload rebuilds the registry from the new configuration and
+closes the previous objects.
+
+The host owns everything but the arithmetic: it walks the object (any storage
+backend, the same reader the built-ins use), calls `update` per chunk on a
+per-request stack state, and hex-encodes the digest itself (INVARIANT 9 —
+encode at the edge; a plugin never sees the wire). One worker process calls
+one plugin's `update` sequence at a time per request, so a plugin needs no
+locking but must keep all state inside the `state` block it is handed.
+
+```nginx
+stream {
+    brix_checksum_plugin fnv1a64 /usr/lib64/brix/brix_cks_fnv1a64.so;
+    brix_checksum_plugin sitehash /usr/lib64/brix/brix_cks_site.so "seed=42";
+    server { ... brix_checksum_default fnv1a64; }
+}
+```
+
+`contrib/checksum-plugins/` carries a worked example (FNV-1a 64, with a
+`basis=<16 hex>` parm), the build recipe (`cc -shared -fPIC`) and the ABI
+contract; `contrib/checksum-plugins/README.md`.
 
 ---
 
@@ -1842,6 +2238,90 @@ brix_max_delay 3s;   # poll every 3 s during a tape recall, not every 10 s
 ```
 
 ---
+
+### `brix_resolver auto|off [path=<file>] [valid=<time>] [min_ttl=<time>] [max_ttl=<time>] [negative_ttl=<time>] [ipv4=on|off] [ipv6=on|off] [search=on|off]`
+
+**Context:** http, server, location, stream, stream server. **Default:** `off`.
+
+Runtime DNS (phase 116). `auto` reads the `resolv.conf` visible to the server
+(`path=`, default `/etc/resolv.conf`) at configuration-parse time, seeds the
+enclosing block's core `resolver` slot with its nameservers when the operator
+wrote no explicit `resolver`, and switches every BriX hostname directive in the
+block to runtime resolution: `brix_cms_manager`, `brix_upstream`,
+`brix_mirror_url`, `brix_http_handoff` and `brix_transparent_proxy` accept a
+name that does not resolve at start-up, the server starts, and the worker
+resolves the name from its event loop, re-resolving on TTL expiry. `search=on`
+(default) applies the file's `search`/`domain` list and `ndots`. `valid=` pins a
+TTL (whole seconds; nginx's resolver has no sub-second unit), `min_ttl`/`max_ttl`
+clamp the answer's TTL, `negative_ttl` caches NXDOMAIN. With `off` hostnames are
+resolved once at parse time as stock nginx does. Write an explicit `resolver`
+*before* `brix_resolver auto` in the same block, never after it.
+
+`path=` must be **absolute**: a relative name would be read against the process
+working directory, which differs between `nginx -t` and the master, so the
+directive is refused at parse time. The file is re-read on every configuration
+load, so a reload picks up a rewritten `resolv.conf` (a container's DNS moving
+under the process) without a restart.
+
+What is honoured from the file:
+
+| Line | Honoured | Notes |
+|---|---|---|
+| `nameserver <ip>` | yes, first 3 | IPv4/IPv6 **literals only** — a name here is ignored, exactly as glibc ignores it. BriX also accepts the `ip:port` / `[v6]:port` form (an extension; glibc has no port syntax) so a test or a sidecar resolver on a non-53 port can be pointed at |
+| `search a b …` / `domain a` | yes, first 6 | the **last** such line wins (glibc); a trailing dot is dropped |
+| `options ndots:N` | yes | clamped to 15 |
+| `options timeout:N` | yes | clamped to 30 s (`0` → 1, as glibc does) |
+| `options attempts:N` | yes | clamped to 5 |
+| `options rotate` | parsed, **no-op** | accepted so a stock file is not rejected; nginx's resolver already round-robins its nameserver list |
+| any other keyword/option | ignored | unknown tokens never fail the parse |
+| `$LOCALDOMAIN`, `$RES_OPTIONS` | yes | applied over the file, as glibc does |
+
+A file that cannot be read, or whose `nameserver` lines are **all** unparseable,
+is not fatal: BriX logs a warning and falls back to resolution through the libc
+resolver on the thread pool — the server still starts, and names still resolve.
+That fallback is the whole point of the phase: **no hostname, and no broken DNS,
+may keep the server from starting.**
+
+Observability (the `dns` panel of the dashboard snapshot carries the same rows
+with the resolver's error text):
+
+* `brix_dns_targets{state="resolving|resolved|failed"}`
+* `brix_dns_resolutions_total`, `brix_dns_failures_total`
+* `brix_dns_lookups_total{result="ok|nxdomain|timeout|error"}`
+* `brix_dns_cache_{entries,hits_total,misses_total,negative_hits_total}`
+* `brix_dns_reverse_cache_{entries,hits_total,misses_total,negative_hits_total}`
+* `brix_dns_bridge_{requests_total,timeouts_total}` — blocking resolutions
+  that crossed from a thread pool into the worker's own resolver, and how
+  many of those crossings timed out and fell back to libc
+
+### `brix_dns_retry <initial> <max>`
+
+**Context:** http, server, location, stream, stream server. **Default:** `1s 30s`.
+
+Exponential back-off between failed runtime resolutions of a registered target:
+the first retry after `<initial>`, doubling up to `<max>`.
+
+A target whose address is *resolved but unreachable* is re-resolved out of band,
+independent of this back-off: when a mirror, CMS or proxy connect fails, the
+registry rotates to the next answer for that name and re-resolves it within
+~0.5 s instead of waiting out the TTL. IP literals are never re-resolved.
+
+### `brix_dns_cache_max <n>`
+
+**Context:** http, server, location, stream, stream server. **Default:** `4096`.
+
+Upper bound on entries in the per-worker positive/negative answer cache; the
+least recently used entry is evicted first. The reverse (PTR) cache uses the
+same bound.
+
+### `brix_dns_status_zone <name>`
+
+**Context:** http, server, location, stream, stream server. **Default:** none.
+
+Label reported in the dashboard `dns` panel for targets registered in this
+block, so one snapshot can be read per edge/site. The Prometheus gauge
+`brix_dns_targets{state="resolving|resolved|failed"}` never carries this label
+(low-cardinality rule).
 
 ### `brix_ztn_maxsz <size>`
 
@@ -2032,9 +2512,29 @@ Configures an upstream XRootD redirector to forward requests to when no local `b
 
 Used together with `brix_manager_map` to build a two-tier topology: static prefix rules handle known paths, and the catch-all upstream handles anything else.
 
+When the upstream demands authentication, its `kXR_login` reply carries a security advert (`&P=gsi,…&P=ztn,…`) and the connector answers with the credential that matches it: `brix_upstream_x509_proxy` when the advert offers `gsi`, otherwise `brix_upstream_token_file` when it offers `ztn` (or names nothing the connector recognises); with neither configured the connection is aborted with `upstream requires auth; set brix_upstream_token_file (ztn) or brix_upstream_x509_proxy (gsi) to match its advert`. On the GSI path the upstream's server certificate is verified against `brix_trusted_ca` when that is set; without `brix_trusted_ca` the front logs `brix: upstream gsi: no brix_trusted_ca configured; upstream server certificate not verified` once per handshake and proceeds — the same opt-out the cache origin has.
+
 ```nginx
 brix_upstream redirector.example.org:1094;
 ```
+
+#### `brix_upstream_token_file <path>`
+
+**Context:** stream server. **Default:** unset.
+
+File holding the bearer token the transparent upstream connector presents as a `ztn` credential when the upstream's login advert offers `ztn` (or offers nothing the connector recognises). Read synchronously at each authenticated bootstrap, so a rotated token is picked up without a reload. Registered in `src/protocols/root/stream/directives_net.h`; consumed in `src/net/upstream/auth.c` and `src/net/upstream/bootstrap.c`.
+
+#### `brix_upstream_x509_proxy <path>`
+
+**Context:** stream server. **Default:** unset.
+
+X.509 proxy (or plain certificate) PEM the transparent upstream connector presents when the upstream's login advert offers `gsi`. Preferred over `brix_upstream_token_file` whenever both are set and the advert offers `gsi`; the two-round `XrdSecgsi` client handshake is the same kernel the cache origin and the TPC destination use. Registered in `src/protocols/root/stream/directives_net.h`, merged in `src/core/config/server_conf_merge_proxy_net.c`, consumed in `src/net/upstream/auth_gsi.c` (phase-115 W2.4).
+
+#### `brix_upstream_x509_key <path>`
+
+**Context:** stream server. **Default:** the `brix_upstream_x509_proxy` file itself (a proxy carries its private key concatenated, the usual case).
+
+Separate private-key file for a plain-certificate credential given to `brix_upstream_x509_proxy`. Ignored unless `brix_upstream_x509_proxy` is set.
 
 ---
 
@@ -2042,17 +2542,17 @@ brix_upstream redirector.example.org:1094;
 
 **Default:** `off`
 
-Enables read-through cache mode for native `root://` opens. In this mode, read opens are served from `brix_cache_export`. If the requested file is missing, nginx fetches the whole file from `brix_cache_origin` into a temporary part file, atomically renames it into place, and then opens the cached copy for the client.
+Enables read-through cache mode for native `root://` opens. In this mode, read opens are served from `brix_cache_export`. If the requested file is missing, nginx fetches the whole file from the export's `brix_storage_backend root://…` origin into a temporary part file, atomically renames it into place, and then opens the cached copy for the client.
 
 Cache mode is currently direct-mode and defaults to read-only:
 - A working nginx thread pool is required.
-- The origin fetch is anonymous; authenticated origin fetches are not implemented.
-- The origin should be a data server. Redirect-following is not implemented for cache fills.
-- By default files are cached as whole files. Set `brix_cache_slice` to enable fixed-size partial/range slice caching.
+- The origin fetch is anonymous **unless the export carries a credential**: attach one with `brix_storage_credential <name>` (defined by `brix_credential`) and the in-process origin login presents it — a bearer token over `ztn`, an X.509 proxy over `gsi`, an SSS keytab, or a delegated krb5 TGT, whichever the origin's login advert offers. (Before 2.0 this said authenticated origin fetches were not implemented; that stopped being true in phase-64 §14.)
+- The origin must be a **data server**: a `kXR_redirect` from the origin fails the fill with `kXR_Unsupported` rather than being followed. Point `brix_storage_backend` at the data server, not at a manager/redirector.
+- By default files are cached as whole files. Set `brix_cache_slice_size` to enable fixed-size partial/range slice caching.
 - Cache eviction is best-effort and runs during cache fills when filesystem occupancy is above `brix_cache_eviction_threshold`.
 - **Write-through mode** (optional): When enabled via `brix_write_through on`, dirty write handles are mirrored to an origin data server on `kXR_sync` or `kXR_close`.
 
-### `brix_cache_slice <size>|off`
+### `brix_cache_slice_size <size>|off`
 
 **Default:** `off`
 
@@ -2063,7 +2563,7 @@ ready slices without fetching the whole origin object. The size must be `off`/`0
 or a positive multiple of 1 MiB.
 
 ```nginx
-brix_cache_slice 128m;
+brix_cache_slice_size 128m;
 ```
 
 ### `brix_cache_prefetch <n>` / `brix_cache_prefetch_window <size>`
@@ -2102,6 +2602,59 @@ brix_cache_slice_size  1m;
 brix_cache_prefetch    4;
 brix_cache_prefetch_window 16m;
 ```
+
+### `brix_cache_urlcgi [blocksize {ignore|<min> <max>}] [prefetch {ignore|<min> <max>}]`
+
+**Default:** absent — both hints ignored
+
+Per-open cache hints for the **unified slice cache** (XrdPfc `pfc.urlcgi`
+parity, 2.0 F5). An XRootD client may append `pfc.blocksize=<bytes>` and/or
+`pfc.prefetch=<blocks>` to the path it opens, exactly as it would against
+an XrdPfc proxy. By default the server ignores both. Each clause of this
+directive *arms* one hint and bounds it — the client's value is clamped
+into `[min, max]`, never refused, so a client can tune the cache for its
+access pattern but cannot dictate a geometry the operator did not allow.
+
+- `blocksize <min> <max>` — a **new** slice-cache object opened with
+  `pfc.blocksize=` gets that block size, clamped into the bounds and
+  rounded down to the 1 MiB slice granule; without a hint the object gets
+  `brix_cache_slice_size`. Both bounds are positive multiples of `1m`,
+  `min <= max`. An object the cache already holds keeps the geometry its
+  cinfo records — a later hinted open adopts it, so two handles never race
+  two block maps over one file. A whole-file export (no
+  `brix_cache_slice_size`) ignores the hint: it cannot switch an export
+  into slice mode.
+- `prefetch <min> <max>` — a handle opened with `pfc.prefetch=` gets its own
+  speculation runway of that many blocks (× the object's block size),
+  clamped into the bounds, in place of `brix_cache_prefetch_window` for
+  that handle only; `max` is at least 1, `min` may be 0, and a clamped 0
+  switches speculation off for the handle. The engine itself must be on
+  (`brix_cache_prefetch > 0`); the hint never starts it.
+- `ignore` names a clause explicitly ignored. Naming the directive without
+  a clause leaves that clause ignored in this block (it is not inherited
+  from the enclosing block); an absent directive inherits the enclosing
+  block's, and each clause inherits as a `min max` pair.
+
+The hints ride the `root://` open opaque only (`kXR_open`, read opens; a
+write open drops them; an HTTP query string does not carry them). Under
+`brix_opaque_strict on` both keys are typed unsigned integers — `pfc.blocksize=abc`
+or a negative count is refused pre-handler with `kXR_ArgInvalid`; with
+strict off a malformed value is simply dropped, so stock clients that
+append junk keep working. The `pfc.` namespace is recognized by the schema
+either way.
+
+```nginx
+brix_cache_store       posix:/var/cache/brix;
+brix_cache_slice_size  1m;
+brix_cache_prefetch    4;
+brix_cache_prefetch_window 16m;
+brix_cache_urlcgi      blocksize 1m 16m prefetch 0 32;
+```
+
+Pinned by `tests/test_release20_cache_urlcgi.py` (grammar, strict-schema
+typing, and the live clamp: honoured, clamped at `max`, raised to `min`,
+rounded, ignored when unarmed, existing geometry wins, whole-file mode
+untouched, runway narrowed / switched off / clamped / ignored).
 
 ### `brix_cache_only_if_cached on|off`
 
@@ -2161,6 +2714,45 @@ brix_cache_uvkeep 30m;   # re-check a never-verified entry at least every 30 min
 ```nginx
 brix_cache_store          posix:/var/cache/brix;
 brix_cache_only_if_cached on;
+```
+
+### `brix_cache_serve_while_filling <time>`
+
+**Default:** `0` (off — a reader waits for the whole-file fill to commit)
+
+Let a reader that arrives during another reader's **whole-file fill** follow that
+fill instead of serialising behind it (XrdPfc serve-while-filling parity). The
+follower reads the staged, not-yet-committed bytes up to the **fill frontier**;
+a read at the frontier is answered `kXR_wait`, so the client streams at the
+origin's pace rather than paying the whole object's transfer time before its
+first byte. `<time>` is the **no-progress deadline**: if the frontier has not
+advanced for that long the follower gives up (the filler died without cleaning
+up) rather than waiting forever.
+
+Slice mode (`brix_cache_slice_size`) already serves partial content on demand
+and is unaffected — this knob is the whole-file equivalent.
+
+Bounds worth knowing before enabling it:
+
+- It applies only to a **local** cache store (`posix:`); a remote store has no
+  staged file for a follower to open.
+- It applies only when **`brix_cache_verify` is `off`**. Under any verifying
+  mode the staged bytes are provisional — the digest or signature check runs at
+  commit and may still reject them — so following them would mean serving bytes
+  that were never verified.
+- A followed object is never sent with `sendfile`: the file is still growing, so
+  the follower is served from memory-backed buffers only.
+- If the fill **aborts**, every follower's next read fails `kXR_IOError`; the
+  staged file is unlinked before the coordination marker is, so a follower can
+  never mistake a truncated fill for a clean end of file.
+- A large read already streaming when it reaches the frontier ends **short**
+  (a normal `kXR_read` outcome) and the client re-reads from there; only a read
+  that has not yet put bytes on the wire receives `kXR_wait`.
+
+```nginx
+brix_cache_store               posix:/var/cache/brix;
+brix_cache_serve_while_filling 30s;   # follow an in-flight fill; give up after
+                                      # 30s with no frontier progress
 ```
 
 ### `brix_cache_cold_max_age <time>`
@@ -2228,6 +2820,63 @@ brix_cache_store     posix:/var/cache/brix;   # shares the mount with other data
 brix_cache_max_bytes 200g;                    # keep our footprint under 200 GiB
 ```
 
+### `brix_cache_store ram:<size>` — the in-memory cache store
+
+**Since:** Phase 115
+
+A cache store URL of the form `ram:<size>` puts the hot cache in memory instead
+of on a filesystem. The whole location is the byte cap — there is no path:
+
+```nginx
+brix_cache_store ram:2g;    # 2 GiB of cache, per worker
+```
+
+**The size is PER WORKER.** The store is a per-worker heap object table, matching
+how the stock in-memory caches it mirrors are scoped, so `ram:8g` on a server
+with 16 workers is up to 128 GiB of resident memory. nginx logs the resolved
+capacity at NOTICE on startup with `PER WORKER` spelled out; check it there
+before sizing.
+
+The cap is HARD, not a watermark. A fill reserves its declared size when it
+opens, so two concurrent fills cannot both be told there is room for the same
+bytes, and the store evicts its own coldest entries (LRU, skipping objects a
+client currently has open) to make room. The shared eviction reaper —
+`brix_cache_eviction_threshold`, `brix_cache_max_bytes`, `brix_cache_reap_interval`
+— does not apply: those take a lock file inside a physical cache root, which a
+memory store does not have. There is nothing to configure; the cap *is* the
+policy.
+
+When the store cannot fit an object at all (it is larger than the whole cap, or
+every resident object is currently open), the fill is refused and the read is
+served straight from the source. A full memory cache is a slower server, never a
+failing one.
+
+`ram:` is accepted **only** as `brix_cache_store`, the hot cache:
+
+| Directive | `ram:<size>` | Why |
+|---|---|---|
+| `brix_cache_store` | accepted | losing the store costs a refill and nothing else |
+| `brix_stage_store` | refused at config time | a staged write would be ACKed to the client and then lost on restart |
+| `brix_storage_backend` | refused at config time | it would be the only copy of every byte |
+| `brix_cache_cold_store` | refused at config time | the demotion target must not be costlier and more volatile than the tier demoting into it |
+
+A size of `0`, or one nginx's size grammar cannot parse, is refused: an
+unbounded memory store is an out-of-memory kill, not a configuration.
+
+**Observability:** every export with a `brix_cache_store` counts as a cache
+for `/metrics` (since 2.0; before, only `brix_cache on` did and the tier grammar
+emitted no cache rows at all). `brix_cache_occupancy_ratio` and
+`brix_cache_bytes` are rendered from the store's own capacity report
+(`brix_cstore_freespace`) — for `ram:` that is the configured size as `total`
+and resident bytes plus in-flight fill reservations as `used` — and fall back
+to a `statvfs` of the legacy `brix_cache_export` root only when the store has
+no report of its own. The store is per worker, so the row describes the worker
+that served the scrape, and the rows appear once the export has accepted its
+first TCP connection (the slot is published at accept time, before any
+handshake). `brix_cache_eviction_threshold_ratio` still reports
+`brix_cache_eviction_threshold`, which is the legacy reaper's setting, not the
+`ram:` LRU's. Pinned by `tests/test_release20_ram_cache_metrics.py`.
+
 ### `brix_write_through on|off`
 
 **Default:** `off`
@@ -2250,9 +2899,9 @@ stream {
         listen 1094;
         brix_root on;
         brix_export /data;                # namespace used for ACL matching
-        brix_cache on;
-        brix_cache_export /var/cache/brix;
-        brix_cache_origin origin.example.org:1094;
+        brix_storage_backend root://origin.example.org:1094;
+        brix_cache_store     posix:/var/cache/brix;
+        brix_cache_export    /;
         brix_cache_eviction_threshold 0.9;
         brix_thread_pool brix_cache_io;
 
@@ -2276,8 +2925,12 @@ always flush synchronously.
 
 ### `brix_wt_origin <host:port>`
 
-Sets the WT origin data server. If omitted, write-through uses
-`brix_cache_origin` when that origin is configured.
+Sets the WT origin data server. **Required** for write-through: with no
+`brix_wt_origin` the write-back stage is not built and `brix_wt_mode` has no
+effect. (Before 2.0 this said write-through fell back to `brix_cache_origin` —
+that family was retired in phase-64 and the fallback read a field no directive
+could write, so it never fired.) The value is a bare `host:port`; a write-through
+leg to a TLS origin is not supported in 2.0.
 
 ### `brix_wt_allow_prefix <path>` / `brix_wt_deny_prefix <path>`
 
@@ -2297,29 +2950,17 @@ brix_cache_export /var/cache/brix;
 
 ---
 
-### `brix_cache_origin host:port`
+### Cache origin — `brix_storage_backend root://host:port`
 
-Origin data server used for cache misses. The value may be plain `host:port`, `root://host:port`, or `roots://host:port`. `roots://` enables direct TLS for the outbound origin connection.
+The legacy `brix_cache_origin*` family is retired (phase-64 §14). A cache's source is the export's `brix_storage_backend` (`root://` or `roots://` for TLS from the first byte), its identity a named `brix_credential` attached with `brix_storage_credential`, and the physical cache is `brix_cache_store`.
 
 ```nginx
-brix_cache_origin root://origin.example.org:1094;
-brix_cache_origin roots://origin.example.org:1095;
+brix_storage_backend roots://origin.example.org:1095;
+brix_cache_store     posix:/var/cache/brix;
+brix_cache_export    /;
 ```
 
 When outbound TLS is enabled, nginx verifies the origin certificate using `brix_trusted_ca` if configured, otherwise OpenSSL's default trust paths.
-
----
-
-### `brix_cache_origin_tls on|off`
-
-**Default:** `off` unless `brix_cache_origin` uses `roots://`
-
-Enables TLS from the first byte on the outbound cache-origin connection. This is useful when you prefer a separate `roots://` origin listener instead of cleartext `root://`.
-
-```nginx
-brix_cache_origin origin.example.org:1095;
-brix_cache_origin_tls on;
-```
 
 ---
 
@@ -2368,6 +3009,104 @@ stream {
 ```
 
 The switch lifts the reserved-name guard for `kXR_open`/`kXR_stat`/`kXR_statx` **only**. Directory listings still skip internal names (a cache addresses its sidecars by exact name, so nothing needs them enumerated), and export confinement is untouched. Leave it `off` on every client-facing export.
+
+---
+
+### `brix_cache_verify off|best-effort|require`
+
+**Default:** `best-effort` on a standalone `brix_cache` read-through cache; `off` on a composed `brix_storage_backend cache:…` tier.
+
+Checksum-on-fill integrity for the read-through cache. A completed fill is hashed in its `.part` staging file — **before** the atomic rename that publishes it — and compared to the digest the origin advertised. A mismatch discards the part, so a truncated or corrupted transfer never becomes a served cache entry; a match records the verified digest in the entry's `.cinfo`.
+
+| Value | Meaning |
+|---|---|
+| `off` | Never verify. |
+| `best-effort` | Verify whenever the origin supplies a digest this build can compute; publish flagged *unverified* when it cannot. Never publishes a proven-bad file. |
+| `require` | A usable digest is mandatory — a fill whose origin advertises none fails instead of publishing. |
+
+The HTTP planes (`http|server|location`) accept `off` plus the three **self-verifying** grammars, where the cache key itself names the digest and no origin round-trip is needed: `cvmfs-cas` (the CVMFS object name is a SHA-1), `oci-digest` (an OCI blob key names a SHA-256) and `rpm-repodata` (createrepo names each metadata file `<checksum>-<name>`). `best-effort`/`require` are stream-plane (`root://`) values.
+
+```nginx
+stream {
+    server {
+        listen 1094;
+        brix_root on;
+        brix_cache on;
+        brix_cache_export /var/cache/brix;
+        brix_storage_backend root://origin.example.org:1094;
+        brix_cache_verify require;          # publish nothing we cannot prove
+    }
+}
+```
+
+The two defaults differ on purpose and are load-bearing: a standalone cache has verified best-effort since the feature shipped, and 2.0 keeps that; a composed tier treats an unset policy as `off` so adding a cache decorator to a chain never silently adds origin checksum round-trips. Set the directive explicitly whenever the distinction matters.
+
+> **2.0 fix.** Before 2.0 the standalone spine read an internal field that no directive could write, so `brix_cache_verify off` and `brix_cache_verify require` parsed but did nothing there — every standalone cache verified best-effort whatever the configuration said. Both values are now honoured on both spines.
+
+---
+
+### `brix_cache_verify_digest <algorithm>`
+
+**Default:** unset — the origin picks.
+
+Names the checksum algorithm a **non-`root://`** origin is asked for when `brix_cache_verify` is armed. An `xroot://` origin is asked with `kXR_Qcksum` and answers with whatever it holds, so this directive does not apply to it; an HTTP/Pelican origin is asked with `Want-Digest`, and an object store is asked for a stored checksum, and both need to be told *which* digest to return.
+
+The value must be an algorithm this build can compute locally — the same names `brix_checksum_default` accepts (`adler32`, `crc32`, `crc32c`, `md5`, `sha1`, `sha256`, `sha512`, `crc64`, `crc64nvme`, plus any name added by `brix_checksum_plugin`). An unknown name fails `nginx -t`; the directive may appear once per scope. Valid on `stream server` and on `http|server|location`.
+
+```nginx
+brix_cache_verify        best-effort;
+brix_cache_verify_digest sha256;        # ask the HTTPS origin for Want-Digest: sha-256
+```
+
+With `brix_cache_verify require` and no digest the origin can produce, the fill fails rather than publishing — naming an algorithm the origin does not support is therefore a fail-closed configuration, not a silent downgrade.
+
+---
+
+### Pelican federation cache advertisement — `brix_cache_advertise*`
+
+A cache node can publish itself to a [Pelican](https://pelicanplatform.org/) federation Director so the Director redirects clients to it. Each advertisement is a signed `OriginAdvertiseV2` document POSTed to the Director's `/api/v1.0/director/registerCache`, carrying a short-lived ES256 JWT (`scope: pelican.advertise`) signed with the cache's own key. A per-worker timer re-advertises on the configured cadence; the Director expires ads that stop arriving.
+
+The Director's address is not configured directly: the advertiser fetches `https://<federation>/.well-known/pelican-configuration` from the authority named by `brix_cache_advertise_federation` and POSTs to the Director that document names. **Without a federation the advertiser never arms** — see the 2.0 note at the end of this section.
+
+The cache's **public key must already be registered with the federation registry** — that handshake is an out-of-band operator step and is not performed by this module.
+
+```nginx
+stream {
+    server {
+        listen 1094;
+        brix_root on;
+        brix_cache on;
+        brix_cache_export /var/cache/brix;
+        brix_storage_backend https://origin.example.org;
+
+        brix_sitename                    ral-cache-01;
+        brix_cache_advertise             on;
+        brix_cache_advertise_federation  osg-htc.org;
+        brix_cache_advertise_key         /etc/brix/pelican-ec-p256.pem;
+        brix_cache_advertise_data_url    https://cache01.example.org:8443;
+        brix_cache_advertise_web_url     https://cache01.example.org;
+        brix_cache_advertise_issuer      https://issuer.example.org;
+        brix_cache_advertise_interval    60s;
+        brix_cache_advertise_namespace   /cms;
+        brix_cache_advertise_namespace   /atlas;
+    }
+}
+```
+
+| Directive | Default | Meaning |
+|---|---|---|
+| `brix_cache_advertise on\|off` | `off` | Arm the per-worker advertisement timer. A no-op unless a signing key and a data URL are also configured. |
+| `brix_cache_advertise_federation <host[:port]>` | unset | The federation's discovery authority, e.g. `osg-htc.org`. An **authority only** — a scheme or a path is a parse error — fetched as `https://<host>:<port>/.well-known/pelican-configuration` to find the Director. Port defaults to 443. Unset, nothing is ever advertised. The name is resolved at advertise time, not at parse time, so a federation that is briefly unresolvable does not block start-up. |
+| `brix_cache_advertise_key <path>` | unset | PEM EC (P-256) private key that signs the advertise JWT. Loaded once per worker at start-up; a key that fails to load disables advertising with a logged error, it does not stop the server. |
+| `brix_cache_advertise_data_url <url>` | unset | The public URL clients are redirected to for data. Required. |
+| `brix_cache_advertise_web_url <url>` | unset | The node's public web/UI URL, published for operators. |
+| `brix_cache_advertise_issuer <url>` | unset | Token issuer advertised to the federation. |
+| `brix_cache_advertise_interval <time>` | `60s` | Re-advertisement period. Clamped **up** to the federation minimum of 60s. |
+| `brix_cache_advertise_namespace <prefix>` | none | A namespace prefix this cache serves. Repeatable; an advertisement with no namespace advertises none. |
+
+The site name comes from the existing [`brix_sitename`](#brix_sitename-name) — the same label `xrdfs query config sitename` answers with — and becomes the registry prefix `/caches/<sitename>`. Unset, the advertisement falls back to `nginx-xrootd-cache`.
+
+> **2.0 fix (two layers).** The advertiser, its timer and its document builders shipped before 2.0, but no `ngx_command_t` registered seven of the directives above: every one was an “unknown directive”, so the feature could not be turned on from a configuration file at all. Registering them exposed the second layer — the scheduler read its federation authority from the host of the long-retired `brix_cache_origin`, a field no directive could write, so the advertiser was still permanently disarmed. `brix_cache_advertise_federation` is the eighth name, added in 2.0 to close that. Both layers are pinned by `tests/test_release20_registered_nowhere.py` and `tests/test_release20_never_armed.py`.
 
 ---
 
@@ -2448,6 +3187,21 @@ to the static registry chain. `0` = static prefix selection only.
 
 Cap on how many node connections one dynamic-locate window probes.
 
+#### `brix_cms_coalesce on|off`
+
+**Default:** `off`
+
+Request coalescing for dynamic locate. Without it, N clients that miss on the
+*same* path inside one `brix_cms_locate_window` each open their own window and
+each fan `kYR_state` out to the same nodes — N identical probe storms for one
+answer. With it on, a locate whose path already has a window in flight **on this
+worker** parks without probing, and the single `kYR_have` that settles the
+leader redirects every follower to the same target. A `kXR_refresh` locate never
+coalesces: refresh exists precisely to bypass a cached or in-flight answer.
+Coalescing is per worker, because waking a parked session resolves its
+connection in the waker's own process. Counted by
+`brix_cms_locate_coalesced_total`.
+
 #### `brix_cms_affinity on|off`
 
 **Default:** `off`
@@ -2460,9 +3214,18 @@ path land on the same node. A drained or blacklisted host is never sticky.
 
 **Default:** `off`
 
-`kXR_locate` answers `kXR_ok` with the full live `S<r|w>host:port` server set
-(lateral redirect) instead of a single `kXR_redirect`. An empty set falls
+`kXR_locate` answers `kXR_ok` with the full live `<type><r|w>host:port` server
+set (lateral redirect) instead of a single `kXR_redirect`. An empty set falls
 through to the single-server path unchanged.
+
+`<type>` is `S` for a data server and `M` for a manager or supervisor (registry
+role `M`/`R`), lowercased to `s`/`m` when `brix_manager_stale_after` is set and
+the entry has not been heard from inside that window — the stock
+`kXR_locate` vocabulary, where lowercase means "known but not currently
+confirmed". Every entry used to be published as `S` regardless of role, which
+told a client to open data against a manager; brix's own `xcp` source selector
+(`client/lib/xfer/copy_xcp_sources.c`) skips `M`/`m` entries, so it was the
+first thing the mislabel broke.
 
 #### `brix_cms_fanout on|off` / `brix_cms_fanout_window <time>`
 
@@ -2577,6 +3340,84 @@ advertisable). With `monitor`, a periodic non-blocking loopback probe of the
 port drives `kYR_status` suspend/resume on every manager link when the foreign DS
 dies or returns.
 
+#### `brix_cms_fsxeq <op>... <program> [<arg>...]` / `brix_cms_fsxeq_timeout <time>`
+
+**Defaults:** no program (the built-in leg runs) / `10s`
+
+Run an operator program **in place of** a namespace operation a CMS manager
+forwards down to this data node (stock `cms.fsxeq`). `<op>` is one or more of
+`chmod`, `mkdir`, `mkpath`, `mv`, `rm`, `rmdir`, `trunc`; `<program>` must be an
+absolute path. This is how a site whose namespace does not live in the local
+filesystem — a database, an archive workflow, a tape front-end — takes over the
+ops a manager forwards, instead of having them applied with `chmod(2)` and
+friends.
+
+The program **replaces** the built-in leg: it is not a hook that runs beside it,
+and nothing else touches the filesystem for that op. Ops you do not name keep
+the built-in leg, so a line may cover exactly the operations your namespace owns.
+
+Arguments follow stock `XrdOucProg`: the op's own arguments are **appended** to
+the command line you configured, and the op name is **not** injected.
+
+| op | appended arguments |
+| --- | --- |
+| `chmod`, `mkdir`, `mkpath` | `<mode>` (four octal digits) `<path>` |
+| `trunc` | `<size>` (decimal bytes) `<path>` |
+| `mv` | `<path>` `<path2>` |
+| `rm`, `rmdir` | `<path>` |
+
+`<path>` is the **physical** path (the export root joined to the forwarded
+name), not the LFN. Pointing several ops at one program is normal — stock
+disambiguates by baking a literal argument into each line:
+
+```nginx
+thread_pool default threads=4 max_queue=256;
+
+stream {
+    server {
+        # ...
+        brix_cms_fsxeq mkdir mkpath /usr/local/libexec/ns-tool create;
+        brix_cms_fsxeq rm rmdir     /usr/local/libexec/ns-tool remove;
+        brix_cms_fsxeq_timeout 30s;
+    }
+}
+```
+
+Exit `0` is success and the node answers the manager the way the built-in leg
+would — **silently**. Any other exit, a program that cannot be executed, and a
+program still running at `brix_cms_fsxeq_timeout` all fail the op with the same
+`kYR_error` shape stock cmsd uses, carrying `fsxeq program exited <n>`,
+`fsxeq program could not be run` or `fsxeq program timed out`. A timed-out
+program's whole process group is `SIGKILL`ed.
+
+The run happens on an nginx **thread pool**, so a slow or wedged program costs
+one pool slot and one forwarded op — never the worker's event loop. A
+configuration with a program but **no `thread_pool` directive** has nowhere to
+post the run, and every configured op is refused (`fsxeq program not runnable`)
+rather than quietly falling back to the leg you replaced.
+
+What the feature does **not** relax:
+
+- **Confinement.** The built-in leg runs under `openat2`/`RESOLVE_BENEATH` on
+  the export root, so a hostile manager's `..` never escapes; an external
+  program has no such floor. A forwarded path is therefore gated **before the
+  fork** — absolute, bounded, and free of `..` anywhere — and a path that fails
+  is answered `fsxeq path denied` with the program never run. For `mv`, both
+  paths are gated.
+- **The read-only posture.** `brix_allow_write off` refuses the forwarded op
+  with `Read-only file system` *before* anything is forked, so a program can
+  never be the way a forbidden posture gets written through.
+- **Program ownership.** A program that is group- or world-writable is refused
+  at `nginx -t`, like `brix_frm_stagecmd` — it runs with the worker's
+  credentials, so anyone who can rewrite it inherits them.
+- **What the program is handed.** Exactly the arguments above: no worker listen
+  socket, client connection, epoll instance or export root descriptor, and no
+  credential material in its argv or environment.
+
+Each op may name exactly one program; a second line for the same op is refused
+at `nginx -t`. A `brix_cms_fsxeq` at `stream` level is inherited by every server
+that does not claim that op itself.
+
 #### `brix_cms_min_free <MB>`
 
 **Default:** `100`
@@ -2588,6 +3429,36 @@ static policy figure, not a live measurement (the live free space rides the
 `fSpace` field / periodic `kYR_load` heartbeat). Was a hardcoded 100 MB; the
 default is unchanged, so existing meshes see no difference. Absolute megabytes
 only — the stock percentage form (`min 2%`) is not accepted.
+
+#### `brix_cms_space_enforce on|off` / `brix_cms_space_hwm <MB>` *(manager)*
+
+**Defaults:** `off` / `0` (= each node's own advertised floor)
+
+The manager-side half of `cms.space`. Every node already advertises its
+`brix_cms_min_free` floor in the **mSpace** field of its `kYR_login`; the
+manager parsed that field and discarded it, so the floor was enforced nowhere
+and a node could be selected for writes all the way to `ENOSPC`. With
+`brix_cms_space_enforce on` the manager remembers each node's advertised floor
+and stops offering that node for **writes** once its live `fSpace` (from the
+`kYR_load` heartbeat) drops below it.
+
+Degradation, not refusal: a space-blocked node falls to the same last-resort
+tier as an over-`maxload` node (§2.3), so a mesh where *every* node is below its
+floor still selects — badly, and visibly — rather than answering "no servers".
+Reads and the `brix_cms_stage_select` staging selector ignore the block
+entirely: a full disk is a reason not to write to a node, never a reason to stop
+reading the data it already holds.
+
+The block is sticky with hysteresis. It latches when free space falls below the
+floor and clears only at `brix_cms_space_hwm`, which is clamped **up** to the
+node's own floor — so a hwm below the floor cannot make a node oscillate in and
+out of the write set on every heartbeat. `0` means "clear at the floor" (latch
+still applies: recovery must reach the floor, not merely approach it).
+
+A node's advertised floor is scoped to itself. An absurd mSpace can only remove
+its own advertiser from write selection; there is no field by which one node can
+raise the bar for another. Per-entry state is visible in the dashboard snapshot
+as `min_free_mb` and `space_blocked`.
 
 #### `brix_cms_whitelist_file <path>` *(CMS-server block)*
 
@@ -2784,36 +3655,36 @@ listener forwards `root://` client requests to one or more upstream XRootD data
 servers or redirectors. All proxy directives are `server`-context (stream
 `server {}` block). Defaults below match `src/protocols/root/stream/module.c`.
 
-### `brix_proxy on|off`
+### `brix_tap_proxy on|off`
 
 **Default:** `off`
 
 Enables transparent XRootD proxy mode for this stream server. Requires at least
-one `brix_proxy_upstream`.
+one `brix_tap_proxy_upstream`.
 
-### `brix_proxy_upstream host[:port] [auth]`
+### `brix_tap_proxy_upstream host[:port] [auth]`
 
 Upstream XRootD data server or redirector. May appear multiple times for
 round-robin load balancing. The optional second argument overrides
-`brix_proxy_auth` for this upstream only.
+`brix_tap_proxy_auth` for this upstream only.
 
-### `brix_proxy_upstream_tls on|off`
+### `brix_tap_proxy_upstream_tls on|off`
 
 **Default:** `off`
 
 Wraps the outbound upstream connection in TLS from the first byte.
 
-### `brix_proxy_upstream_tls_ca <path>`
+### `brix_tap_proxy_upstream_tls_ca <path>`
 
 PEM CA bundle used to verify the upstream TLS certificate (enables peer
 verification).
 
-### `brix_proxy_upstream_tls_name <host>`
+### `brix_tap_proxy_upstream_tls_name <host>`
 
 SNI hostname presented on the upstream TLS connection. Defaults to the
-`brix_proxy_upstream` host.
+`brix_tap_proxy_upstream` host.
 
-### `brix_proxy_auth <mode>`
+### `brix_tap_proxy_auth <mode>`
 
 **Default:** `anonymous`
 
@@ -2821,9 +3692,34 @@ Auth bridging mode for upstream connections (for example `anonymous`, `forward`,
 or `sss`). `forward` replays the client bearer token; `sss` builds an SSS
 credential from the configured key.
 
-### `brix_proxy_login_user <string>`
+### `brix_tap_proxy_login_user <string>`
 
 Overrides the username placed in the upstream `kXR_login` frame.
+
+### `brix_tap_proxy_sss_identity keytab|client`
+
+**Default:** `keytab`
+
+Chooses whose identity the tap proxy puts in the SSS credential it presents to
+its upstream. `keytab` — the 1.x behaviour — sends the local keytab key's own
+user, so every client reaches the upstream as one service account. `client`
+mints the authenticated front-side client's full entity instead: name, VO,
+role, groups, endorsements, and the proxied credential when
+`brix_sss_getcreds` kept one.
+
+`client` refuses to open the upstream connection at all when the front-side
+session is not authenticated, so the upstream is never told about an identity
+this hop did not verify — the refusal is per attempt, not one-shot, and no
+bytes reach the origin. The upstream's own keytab still decides whether to
+believe the forwarded VO and role, exactly as it does for a direct client.
+
+```nginx
+brix_tap_proxy              on;
+brix_tap_proxy_upstream     se.example.org:1094;
+brix_tap_proxy_auth         sss;
+brix_sss_keytab             /etc/brix/sss.keytab;
+brix_tap_proxy_sss_identity client;
+```
 
 ### `brix_proxy_audit_log <path>|off`
 
@@ -2855,10 +3751,10 @@ Milliseconds allowed between upstream response bytes. `0` disables the limit.
 
 Idle keepalive interval for upstream connections.
 
-### `brix_proxy_path_rewrite <strip> <add>`
+### `brix_tap_proxy_path_rewrite <strip> <add>`
 
 Strips a leading prefix from open/path requests, then prepends `add` (for
-example `brix_proxy_path_rewrite /brix /data`).
+example `brix_tap_proxy_path_rewrite /brix /data`).
 
 ---
 
@@ -3017,6 +3913,78 @@ plain HTTP) unless it is an absolute path made only of unreserved URL bytes, so 
 typo cannot end up spliced into a request line. The `root://` equivalent is a
 scheme rather than an option: `root+tape://` / `roots+tape://`.
 
+### Store-line parameters
+
+Everything **after the URL** on a tier line (`brix_storage_backend`,
+`brix_cache_store`, `brix_cache_stage_store`, `brix_cache_cold_store`) is a
+space-separated parameter, parsed by `src/fs/tier/tier_config_args.c`. They are
+not query options: a query option belongs to the URL and travels with it, a
+parameter says what BriX should do with the store the URL names. An
+unrecognised token is refused (`[emerg] … unknown store param "…"`) rather than
+ignored, so a misspelled parameter fails `nginx -t` instead of leaving a
+deployment believing it configured something.
+
+| Parameter | Roles | Effect |
+|---|---|---|
+| `credential=<name>` | any | Bind the store to a declared `brix_credential` block. An undeclared name is refused. |
+| `block_size=<size>` | any | Origin read/fetch stride in nginx size syntax (`1m`, `512k`). |
+| `nearline` | backend | The origin fronts tape/an MSS: reads recall asynchronously instead of blocking. Refused on a cache/stage/cold tier — that tier **is** the recall target. |
+| `verify_pages[=require\|best-effort]` | backend, `root://` and `forward://` only | Verify every 4 KiB page arriving from the origin against its CRC32c (below). |
+| `permit=<host\|.suffix>` | backend, `forward://` only | Repeatable. The hosts a forwarding proxy may dial on a client's say-so: an exact host or a leading-dot domain suffix (the TPC egress guard's match rule). Mandatory on a `forward://` line; refused anywhere else. |
+
+#### `verify_pages` — per-page origin verification
+
+**Roles:** `brix_storage_backend` only · **Schemes:** `root://`, `roots://`, `forward://` (applied to every admitted origin) ·
+**Default:** off (plain `kXR_read`)
+
+With `verify_pages` a `root://` origin read is issued as **`kXR_pgread`**
+instead of `kXR_read`: the origin returns each 4 KiB page prefixed by its
+CRC32c, and BriX recomputes and compares every page before a byte of it reaches
+the cache or the client. A page that does not match is a hard failure — the
+read is refused, nothing partial is committed, and the mismatch is logged with
+the file offset.
+
+```nginx
+brix_storage_backend root://origin.example.org:1094//data verify_pages;
+brix_storage_backend root://legacy.example.org:1094//data verify_pages=best-effort;
+```
+
+This closes the half of the integrity story that `brix_cache_verify` cannot
+reach. `brix_cache_verify` hashes a **completed fill** against a whole-file
+digest, so it is blind to a partial or ranged read (there is no whole file to
+hash) and to an origin that publishes no digest at all. `verify_pages` verifies
+the bytes **as they arrive**, per page, with no digest and no complete file
+required. Over cleartext `root://` this is the only integrity BriX has: TCP's
+16-bit checksum is a corruption hint, not a guarantee.
+
+**The bare token means `require`.** An operator who writes `verify_pages` is
+asking for verified bytes, so an origin that cannot deliver them must say so:
+
+| Spelling | Origin speaks `kXR_pgread` | Origin does not (pre-5.x, or refuses) |
+|---|---|---|
+| `verify_pages` / `verify_pages=require` | every page verified | read refused, `kXR_Unsupported`, `[error] refusing to read from origin … unverified` |
+| `verify_pages=best-effort` | every page verified | one `[warn]`, then falls back to unverified `kXR_read` |
+
+`best-effort` is the explicit opt-in for a federation of mixed-vintage origins.
+Corruption is refused under **both** spellings — `best-effort` relaxes what
+happens when an origin *cannot* verify, never what happens when a page *fails*
+verification.
+
+Support is read from the origin's `kXR_protocol` reply (`kXR_suppgrw`) and
+remembered on the connection, so a pre-5.x origin costs no wasted round trip.
+An origin that advertises the capability and then refuses the request is
+handled once per object and, under `require`, still fails closed. A refusal
+that arrives **mid-train** — after pages have already been accepted — is
+treated as a protocol error, not as a fallback opportunity.
+
+Refused at parse time (all of these fail `nginx -t`): the parameter on a
+cache/stage/cold tier (it verifies bytes *arriving from* an origin), on a
+non-`root://` driver (no per-page checksum exists on the wire), and any value
+other than `require` or `best-effort`.
+
+Implemented in `src/fs/cache/origin_pgread.c` (the wire kernel) and dispatched
+in `src/fs/backend/xroot/sd_xroot_io.c`; phase-115 W4.3.
+
 ## Network / TCP tuning directives
 
 Per-connection socket options applied once at accept on the `root://` stream
@@ -3130,3 +4098,895 @@ Stream-plane spellings unified in the same wave: `brix_authdb_engine`
 `brix_wt_stage_root`/`_backend`/`_block_size` (were `brix_cache_wt_stage_*`),
 and the HTTP TPC outbound-token quartet now spelled
 `brix_tpc_outbound_{token_endpoint,client_id,client_secret,scope}`.
+
+---
+
+## Release 2.0 — directives that had no prose before 2.0
+
+Every directive below was registered and consumed (or, where stated,
+accepted for compatibility only) but appeared nowhere outside the generated
+registry table until the 2.0 readiness audit
+([register](../10-reference/release-2.0-readiness.md)). The entries are
+grouped by family; each states context, default and what the knob drives.
+No 2.0 directive is accepted without effect: the last such set, thirteen
+`brix_frm_*` knobs, was wired or removed by the audit's F1 (ADR-3b,
+2026-09-08). A future knob that parses but drives nothing must carry the
+label "Accepted, no effect" in its own section and be declared in the
+register — that is what `tests/test_release20_surface_pins.py` enforces.
+
+### Stream connection limits and timeouts (phase 39)
+
+#### `brix_handshake_timeout <time>`
+
+**Context:** stream server. **Default:** `0` (off). Deadline for a client to
+complete the initial handshake + protocol/login exchange after connecting; a
+connection still unauthenticated when it expires is closed. Guards the
+per-connection state a slow-loris client would otherwise pin.
+
+#### `brix_send_timeout <time>`
+
+**Context:** stream server. **Default:** `0` (off). Deadline for the client to
+drain a pending response write; a client that stops reading for longer than
+this is disconnected. Complements `brix_read_timeout`.
+
+#### `brix_tcp_user_timeout <time>`
+
+**Context:** stream server. **Default:** `0` (kernel default). Sets
+`TCP_USER_TIMEOUT` on the accepted socket: how long transmitted data may
+remain unacknowledged before the kernel aborts the connection. Makes a
+half-dead peer fail in a bounded time instead of at the kernel's retransmit
+ceiling.
+
+#### `brix_tcp_keepalive on|off`
+
+**Context:** stream server. **Default:** `off`. Enables `SO_KEEPALIVE` on
+accepted client sockets so idle-but-alive sessions survive middlebox timeouts
+and dead peers are detected.
+
+#### `brix_max_connections <n>`
+
+**Context:** stream server. **Default:** `0` (unlimited). Cap on concurrent
+client connections per worker for this server block; a connection beyond the
+cap is refused at accept time. (The CMS control plane has its own
+`brix_cms_server_max_connections`, default 4096.)
+
+#### `brix_manager_stale_after <time>`
+
+**Context:** stream server (manager role). **Default:** `0` (off).
+Process-wide staleness threshold for data-server registrations held by a
+manager: a data server that has not refreshed within this window is treated
+as gone for selection. Set on the manager, not on data servers.
+
+#### `brix_redir_cache_slots <n>`
+
+**Context:** stream server. **Default:** compile-time
+`BRIX_REDIR_CACHE_SLOTS`. Size of the shared redirect cache that remembers
+which data server answered a path so a repeat `open` skips the CMS round
+trip. Larger sites with many hot paths raise it; the slot count is fixed at
+start-up.
+
+### Backend health checks (phase 22)
+
+Active probing of the data servers a manager or proxy forwards to. All six
+live in `src/protocols/root/stream/directives_net.h`.
+
+#### `brix_health_check on|off`
+
+**Context:** stream server. **Default:** `off`. Enable the periodic probe
+loop for this server's upstream/data-server set.
+
+#### `brix_health_check_interval <time>` / `brix_health_check_timeout <time>`
+
+**Defaults:** `30s` / `5s`. How often each target is probed and how long one
+probe may take before it counts as a failure.
+
+#### `brix_health_check_threshold <n>` / `brix_health_check_blacklist <time>`
+
+**Defaults:** `3` / `60s`. Consecutive failures before a target is removed
+from selection, and how long it stays removed before the next probe may
+readmit it.
+
+#### `brix_health_check_type ping|stat`
+
+**Default:** `ping`. `ping` performs the protocol handshake only; `stat`
+additionally issues a `kXR_stat` of the export root so a server whose
+storage is unmounted is also marked down.
+
+### Backend async queue
+
+Applies to the write path of remote storage backends (root://, davs://, s3://).
+
+#### `brix_backend_async on|off`
+
+**Context:** stream server; http, server, location. **Default:** `off`.
+Queue backend writes instead of issuing each one synchronously in the request
+thread; a queued batch is flushed by the backend worker.
+
+#### `brix_backend_async_batch <n>` / `brix_backend_async_wait <time>`
+
+**Defaults:** `64` (minimum 1) / `200ms`. Maximum operations per flushed
+batch, and how long a partial batch waits for more work before it is flushed
+anyway.
+
+### Backend credential material
+
+#### `brix_backend_s3_sts_role <arn>` / `brix_backend_s3_sts_access_key <key>` / `brix_backend_s3_sts_secret_key <key>` / `brix_backend_s3_sts_region <region>`
+
+**Context:** stream server; http, server, location. **Default:** unset.
+Together with the already documented `brix_backend_s3_sts_endpoint` and
+`brix_backend_s3_sts_ttl`, configure AWS STS `AssumeRole`: the access/secret
+pair authenticates the `AssumeRole` call, `role` names the role to assume
+per mapped user, `region` selects the signing region. The temporary
+credentials returned are used for the S3 backend on that user's behalf and
+refreshed before `ttl` expires. Secret material belongs in a root-only
+include file.
+
+#### `brix_backend_token_exchange_client_id <id>` / `brix_backend_token_exchange_client_secret <secret>`
+
+**Context:** stream server; http, server, location. **Default:** unset.
+Client credentials for the RFC 8693 token exchange named by
+`brix_backend_token_exchange_endpoint`: the inbound bearer is exchanged for
+one the backend accepts before the backend request is issued.
+
+#### `brix_backend_token_audience_ok <aud> [aud …]`
+
+**Context:** stream server; http, server, location. **Default:** unset
+(no audience check on the delegated token). Audience values the exchanged
+or forwarded backend token is allowed to carry; a token whose `aud` matches
+none of them is not sent to the backend (`src/protocols/shared/deleg_wire.c`).
+
+### Read cache admission, families, peers and tiers
+
+#### `brix_cache_allow_prefix <path>` / `brix_cache_deny_prefix <path>`
+
+**Context:** stream server; http, server, location. **Default:** none (admit
+everything the size/regex rules admit). Path-prefix admission for the
+read-through cache. When any `allow_prefix` is set only objects under one of
+the prefixes are cached; `deny_prefix` excludes a subtree even when a wider
+prefix admits it. Denied objects are still served, uncached.
+
+#### `brix_cache_origin_family auto|inet|inet6`
+
+**Context:** stream server; http, server, location. **Default:** `auto`.
+Address family the cache uses for origin fills: `auto` follows the
+resolver's answer order, `inet`/`inet6` forces IPv4 or IPv6 (a dual-stack
+origin whose IPv6 path is broken is the usual reason).
+
+#### `brix_cache_peers <host:port> [host:port …] self=<host:port>`
+
+**Context:** http, server, location. **Default:** none. Phase-85 sibling
+cache mesh: at least two members, exactly one of them tagged `self=`. On a
+miss the cache asks its siblings before the origin, so a site with several
+caches fills each object from the origin once.
+
+#### `brix_cache_cold_store <url>`
+
+**Context:** stream server; http, server, location. **Default:** none.
+Second, slower cache tier behind `brix_cache_store` (which is required —
+the configuration is refused otherwise). Objects evicted from the hot tier
+are demoted here rather than deleted, and a hot miss checks the cold tier
+before the origin.
+
+#### `brix_cache_passthrough on|off` / `brix_cache_passthrough_max <size>`
+
+**Context:** stream server; http, server, location. **Defaults:** `off` /
+`0` (= `brix_cache_max_object`). Phase 92: when an object is declined by
+admission but several HTTP clients are already waiting on the same fill,
+`on` spools it once so the coalesced waiters are served a transient hit,
+then evicts it immediately. `_max` caps the spool size for such a fill.
+
+### Cluster (CMS) and namespace
+
+#### `brix_cms_state_relay on|off`
+
+**Context:** stream server. **Default:** `off`. Phase-61 W7 multi-tier
+clustering: a mid-tier manager relays `kYR_state` notifications it receives
+from its data servers up to its own manager, so a top-level redirector
+learns of file arrivals two tiers down. Leave off in a flat cluster.
+
+#### `brix_cns off|emit|collect`
+
+**Context:** stream server. **Default:** `off`. Composite Name Space
+inventory: `emit` makes a data server announce namespace changes to its
+manager; `collect` makes a manager gather them so a `kXR_stat`/`dirlist`
+against the manager can answer from inventory. A cluster typically runs
+`emit` on data servers and `collect` on the manager.
+
+#### `brix_cms_admin_socket <path>`
+
+**Context:** stream server (CMS manager or data server). **Default:** none.
+The CMS runtime admin socket — the stock `cmsd` admin-interface analog. A
+unix-domain line server at `<path>` accepting `nodes`, `drain <host> <port>`,
+`undrain <host> <port>`, `forget <host> <port>` and `reset`, so a manager that
+runs no dashboard still has cluster control. It reaches the same registry
+helpers as the HTTP admin API, and because the node registry lives in shared
+memory the effect is **node-wide**, not per-worker (contrast
+`brix_admin_socket`, which administers `root://` sessions and is therefore
+per-worker).
+
+`nodes` lists one line per registered node as
+`<host>:<port> role=… free_mb=… util_pct=… state=…`, where state is one of
+`up`, `drained` or `space-blocked`. A drain survives the node's heartbeats —
+a load update never re-creates or un-blacklists an entry — so only a fresh
+`kYR_login` from that node clears it. `forget` on an unregistered node answers
+`ok`, not an error; `undrain` on one answers `err not-found`.
+
+**Security:** the socket is chmod 0600 and carries no in-band authentication —
+filesystem permission on the path *is* the privilege boundary, exactly as with
+stock's `adminpath`. Place it somewhere only the operator can open. Worker 0
+serves `<path>` and worker *n* serves `<path>.<n>`, so the path must be short
+enough for `sun_path` (107 bytes) with that suffix. The directive is node-global
+(parse-time static, last one wins).
+
+### CMS manager response mode
+
+#### `brix_cms_response redirect|proxy`
+
+**Context:** stream server (CMS manager). **Default:** `redirect`. How a CMS
+manager answers a client whose path a registered data server holds.
+`redirect` issues the stock `kXR_redirect` to the selected node. `proxy` pins
+the client's session to the selected node and relays its requests through the
+manager (select-then-proxy); `kXR_locate` is then answered with the manager's
+own address, so clients that cannot reach data servers directly still work.
+Registered in `src/protocols/root/stream/directives_cms.h` (phase-115 W2.1).
+
+### Dashboard
+
+#### `brix_dashboard_vfs_browse on|off`
+
+**Context:** location (dashboard). **Default:** `off`. Enables the read-only
+VFS export browser under `/api/v1/vfs*` (census, listing, download through
+`brix_vfs_*`). It requires the dashboard's admin authentication; with `off`
+those routes answer 404.
+
+### Tape / FRM
+
+Twenty-two `brix_frm_*` directives are registered in
+`src/protocols/root/stream/directives_net.h`; **nine drive behaviour and
+thirteen are accepted, no effect in 2.0.** The in-process FRM engine the
+thirteen configured (durable queue file, copy runners, fail/back-off policy,
+migration) was dissolved in phase 64; the purge pair regained an engine in
+phase-115 W3.2 (below); tape recall now goes through
+the `tape://` VFS adapter (`src/fs/backend/frm/`), whose stage command and
+library dialects are configured by the `BRIX_FRM_STAGECMD`,
+`BRIX_FRM_{HPSS,CTA}_STAGECMD`, `BRIX_FRM_LIB` and `BRIX_FRM_{HPSS,CTA}_LIB`
+environment variables (see `k8s-tests/remote-suite/tests/test_frm_scratch.py`
+and `src/fs/backend/frm/sd_frm_adapter.c`), and the stage request registry
+lives in shared memory. The thirteen names stay registered on purpose
+(phase-89 ADR-3, ratified 2026-07-27: grammar retained so existing
+configurations load; pinned by `tests/test_frm_directive_pin.py`), and they
+are listed in the [2.0 readiness register](../10-reference/release-2.0-readiness.md).
+
+#### `brix_frm on|off`
+
+**Context:** stream server. **Default:** `off`. Enables the stage request
+registry behind `kXR_prepare` / `kXR_query prepare` and the nearline-open
+recall path; with `off` a nearline open is served from the backend as-is.
+
+#### `brix_frm_max_inflight <n>`
+
+**Context:** stream server. **Default:** `64`. Capacity of the shared-memory
+stage request registry (`postconfiguration.c`); a `kXR_prepare` beyond it is
+refused.
+
+#### `brix_frm_stage_ttl <time>`
+
+**Context:** stream server. **Default:** `600s`. How long a parked nearline
+open (and its `kXR_prepare` record) stays live before it is reaped
+(`open_request_resolve.c`, `prepare_recall.c`).
+
+#### `brix_frm_stage_wait <seconds>`
+
+**Context:** stream server. **Default:** `30`. The `kXR_wait` interval
+returned to a client whose `open` triggered a stage-in: the client retries
+after this many seconds while the recall runs.
+
+#### `brix_frm_async_recall on|off`
+
+**Context:** stream server. **Default:** `off`. Park the nearline open with
+`kXR_waitresp` and complete it in place through `kXR_attn(asynresp)` when the
+recall lands, instead of the `kXR_wait` retry loop.
+
+#### `brix_frm_control_dir <path>`
+
+**Context:** stream server. **Default:** unset. Directory the stage registry
+publishes its control state into when `brix_frm on`; read at worker start
+(`process_server_init.c`).
+
+#### Nearline export — `brix_storage_backend tape://<adapter>/<base>[?arc=<depth>]`
+
+`tape://<adapter>/<base-path>` (alias `frm://`) selects the MSS adapter
+(`stub` = the built-in local-directory simulation used by the tests; `exec`
+/ `hpss` / `cta` drive `BRIX_FRM_*_STAGECMD`; `lib` / `libhpss` / `libcta`
+`dlopen` `BRIX_FRM_*_LIB`) and the online buffer's base path, which must be
+absolute (`[emerg] brix_storage_backend: tape://|frm:// needs
+"//<adapter>/<base-path>[?arc=<depth>]"`). The same URL form is accepted by
+the tier store directives (`brix_cache_store`, `brix_cache_cold_store`,
+`brix_stage_store`).
+
+**Dataset archiver (phase-115 W3.1, 2026-09-06).** `?arc=<depth>`, depth
+`1..8`, wraps the selected adapter in `src/fs/backend/frm/sd_frm_arc.c`: a
+*dataset* is the first `<depth>` path components of a key, and its members
+stay in the online buffer (per-key migration deferred) until the completion
+marker `.brix-dataset-complete` is written into the dataset. Sealing packs
+every regular file below the dataset into one stored (uncompressed) ZIP,
+`<dataset>.brixarc.zip`, migrates it to tape, writes the member index to the
+sidecar `<base>/.arcidx/<dataset>.idx` and migrates the marker; the archive
+is a plain ZIP readable by `unzip` or Python `zipfile`. Sealing is
+synchronous inside the marker's staged commit — there is no background
+backup queue. Afterwards a member read recalls the archive and extracts that
+member only; `stat` and directory listings answer from the sidecar with no
+recall. A sealed dataset is immutable: a new member is refused with `EPERM`
+(`kXR_NotAuthorized`), republishing the marker with `EEXIST` (`kXR_ItExists`),
+and `*.brixarc.zip` is a reserved key (`EINVAL`, `kXR_ArgInvalid`). Member
+names are validated on extract — `..`, absolute paths and control bytes are
+skipped, never created, and counted in `brix: tape archive "…": skipped N
+unsafe member name(s)`. Any other query is refused at `nginx -t`:
+`brix_storage_backend: tape:// query "<q>" is not "arc=<1..8>"` on the
+export, `tape store opts "?<q>": expected "arc=<1..8>"` on a tier store.
+Pinned by `tests/test_phase115_tape_arc.py`.
+
+#### Tape-buffer purge engine
+
+Phase-115 W3.2 (2026-09-05) gave the `tape://` tier's online buffer
+(`<base>/.online`) an in-process LRU reaper,
+`src/fs/backend/frm/sd_frm_purge.c`, paced by a worker-0 timer in
+`src/core/config/process_frm_purge.c`. It arms when the export's driver chain
+carries a `tape://` tier and at least one of the two arms below is
+configured; with the directives set but no tape tier in the chain the worker
+logs `brix: brix_frm_purge_* configured but export "…" has no tape:// tier;
+purge engine not armed` and nothing runs. Each pass takes a non-blocking
+`flock` on `<online>/.brix-purge.lock` (a concurrent pass, or an operator's
+manual run, makes it skip with an INFO line), walks the buffer without
+following symlinks, and releases the coldest copies first until every armed
+target is met. Only copies whose MSS adapter reports a durable tape copy are
+released — the tape side is never touched — and copies younger than 30 s,
+copies pinned by an in-flight `prepare`/stage request, and symlinks are
+skipped. Releases count in `brix_frm_purge_total` and
+`brix_vfs_evict_bytes_total{driver="frm"}`. Pinned by
+`tests/test_phase115_tape_purge.py`.
+
+2.0 F4 (2026-09-08) added `frm_purged`'s per-space policy surface on top of
+the two export-wide arms: `brix_frm_purge_policy` gives a `brix_oss_space`
+group its own owned-bytes arm, hold and, with `brix_frm_purge_polprog`, an
+external program that chooses which of the group's eligible copies go. A
+rule alone arms the engine. Pinned by `tests/test_release20_purge_policy.py`.
+
+#### `brix_frm_purge_watermark <hi> <lo>`
+
+**Context:** stream server. **Default:** unset (filesystem arm off).
+
+Filesystem-occupancy arm. `hi` and `lo` are fractions (`0.90`) or
+percentages (`90%`) with `0 < hi < 1` and `lo ≤ hi`; a `lo` above `hi` is
+refused at `nginx -t`. When a pass finds the online buffer's filesystem above
+`hi`, it releases cold copies until occupancy is back down to `lo`.
+
+#### `brix_frm_purge_max_bytes <size>`
+
+**Context:** stream server. **Default:** `0` (cap arm off).
+
+Owned-bytes cap arm: when the bytes the online buffer owns exceed the cap,
+the pass releases cold copies down to it. Independent of filesystem
+occupancy; either arm on its own arms the engine.
+
+#### `brix_frm_purge_interval <time>`
+
+**Context:** stream server. **Default:** `5m`.
+
+Re-arm interval between passes; values under `1s` are raised to `1s`. The
+first pass runs 5 s after the worker starts.
+
+#### `brix_frm_purge_policy {*|<group>} <hi> <lo> [hold <time>] [polprog]`
+
+**Context:** stream server. **Default:** none (2.0 F4, 2026-09-08).
+
+One rule per `brix_oss_space` group, or `*` for every key whose group has no
+rule of its own and for keys under no group at all (a nested group is its own
+space: a key of a group without a rule never inherits an enclosing group's
+rule). A rule is an owned-bytes arm of the group alone: when the bytes the
+group holds in the online buffer exceed `<hi>`, the pass releases the group's
+coldest eligible copies until they are under `<lo>`. Thresholds are sizes
+(`2g`, `500m`) or, for a named group with a positive `quota=`, percentages of
+that quota (`90%` `70%`); both must be of one kind and `<lo>` may not exceed
+`<hi>`. `hold <time>` keeps copies touched more recently than that (the
+engine's 30 s floor applies when it is shorter or absent). `polprog` marks the
+group's releases as needing the approval of `brix_frm_purge_polprog`, which
+must then be configured. The export-wide arms (`brix_frm_purge_watermark`,
+`brix_frm_purge_max_bytes`) still reach into every group; a rule alone arms
+the engine. Every group named must be a `brix_oss_space` of the same server
+and may carry one rule; the merge refuses anything else. The pass logs one
+`tape purge "…" policy "<group>": owned A -> B bytes (hi=… lo=… hold=… s[,
+polprog]), released N file(s), M bytes` line per rule and one `policy pass:
+rules=… held=… unapproved=… polprog=idle|ok|failed approved=… ignored=…`
+line per pass. The `frm_purged` analog is `purge.policy {*|sname} min max
+[hold] [polprog]`.
+
+#### `brix_frm_purge_polprog <program>`
+
+**Context:** stream server. **Default:** none (2.0 F4, 2026-09-08).
+
+The external policy program the purge engine runs once per pass whenever a
+`polprog` rule's group is under pressure (its own arm or an export-wide one):
+`<program> <candidates-file> <decision-file>`, no shell, with the worker's
+credentials, under the `brix_frm_copy_timeout` deadline (30 s when that is
+unset; a hung program is SIGKILLed). The candidates file lists every online
+copy of every `polprog` group, one `<group> <touched-epoch> <size> <key>` line
+each, `<key>` being the export path of the copy (leading `/`). The program
+must create the decision file with one key per line naming the copies that
+may go (empty = none); the engine then releases, in LRU order and within the
+group's need, only the candidates it named. It chooses among eligible copies
+and can never add one: a line naming anything that is not one of its
+candidates (another group's key, a traversal, an absolute path, a symlink, an
+unmigrated copy) is counted as `ignored` and never touched. Any failure —
+cannot spawn, non-zero exit, deadline, no decision file — is fail-closed: the
+`polprog` groups release nothing this pass and the error log says why
+(`policy program "…" failed (<why>); its groups release nothing this pass`);
+rules without `polprog` still release. Both files live under the online root
+as `.brix-purge.candidates` / `.brix-purge.decision` and are removed after the
+run; every `.brix-purge.*` name under the buffer is reserved for the engine.
+The program must be an absolute path and, like `brix_frm_stagecmd`, may not
+be group- or world-writable. Setting it without any `polprog` rule is a
+warning: the program never runs. Pinned by
+`tests/test_release20_purge_policy.py`.
+
+#### `brix_frm_queue_path <path>`
+
+**Context:** stream server. **Default:** none — `brix_frm on` refuses to
+load without it (`[emerg] brix_frm on requires brix_frm_queue_path`) and the
+path must be absolute. The durable stage journal (2.0 F1): every staged
+write-through flush and recall request is persisted here as a `<reqid>.req`
+record, replayed on worker start and swept by `brix_frm_fail_backoff`;
+records that exhaust `brix_frm_fail_retries` move to `<path>/deadletter/`.
+Worker 0 creates the directory (mode 0700) at start; when that fails the
+worker logs `brix_frm_queue_path "<path>": mkdir failed; the stage journal
+is in-memory only (no restart recovery)` and keeps serving. Before 2.0 the
+journal directory came only from the `BRIX_STAGE_JOURNAL_DIR` environment
+variable, which is still honoured on servers without `brix_frm on`.
+
+**OssArc backup queue (2.0 F3).** Behind `tape://<adapter>/<base>?arc=<depth>`
+the dataset seal is an `archive` journal record, not part of the client's
+close: the `.brix-dataset-complete` marker's commit freezes the dataset
+(members refused `kXR_NotAuthorized`, a second marker `kXR_ItExists`) and
+queues the seal, which the engine runs off the event loop — compose the
+stored ZIP, ship it, write the sidecar, migrate the marker — with the same
+`brix_frm_fail_backoff` re-drive, restart replay and `brix_frm_fail_retries`
+dead-letter discipline as a flush. Members stay readable from the online
+buffer throughout. A dead-lettered seal is recovered by moving
+`deadletter/<reqid>.req` back into the journal directory and reloading or
+restarting, or withdrawn by deleting the marker's online copy
+(`<base>/.online/<dataset>/.brix-dataset-complete`), after which the next
+re-drive drops the record (`reason=not-online`) and the dataset accepts
+members again. A replayed record is refused unless its export still
+resolves to that tape tier and its key is a completion marker
+(`not-anchored` / `no-tape-tier` / `not-a-marker`), so a crafted record can
+never seal anything. Without `brix_frm on` there is no journal and the seal
+runs inline in the marker's commit, as before 2.0.
+
+#### `brix_frm_stagecmd <program>`
+
+**Context:** stream server. **Default:** none. The program the `tape://exec`
+MSS adapter runs as `<program> <verb> <key> <online-buffer>` for the `recall`,
+`migrate`, `exists`, `purge`, `rcreate` and `dread` verbs. It must be an absolute path and, when
+it exists at load time, must not be group- or world-writable (`[emerg] …
+is group- or world-writable; refusing to run a program anyone else can
+rewrite`). The directive takes precedence over `BRIX_FRM_STAGECMD` and the
+per-dialect `BRIX_FRM_{HPSS,CTA}_STAGECMD` variables, which stay the fallback
+when it is unset; it no longer inherits `brix_prepare_command`. The program
+runs in a session of its own with only standard input, output and error
+open: no worker descriptor (listen socket, client connection, log) reaches
+it, and a `brix_frm_copy_timeout` kill takes its whole process group.
+
+#### `brix_frm_copymax <n>`
+
+**Context:** stream server. **Default:** `8`. Upper bound on stage-engine
+transfers dispatched to the thread pool at once; further requests wait in
+the scheduler queue. Must be at least 1.
+
+#### `brix_frm_fail_retries <n>`
+
+**Context:** stream server. **Default:** `5`. Attempts a journal record may
+accumulate — a permanent deny from the origin, or a transient failure
+re-driven by the retry sweep or a restart replay — before it is dead-lettered
+to `<queue_path>/deadletter/<reqid>.req` with its stage copy retained for
+operator recovery (`[error] … DEAD-LETTERED (reqid=… attempts=…)`). Must be
+at least 1.
+
+#### `brix_frm_fail_backoff <time>`
+
+**Context:** stream server. **Default:** `60s`; values under `1s` are raised
+to `1s`. Period of worker 0's retry sweep, which re-drives every `FAILED`
+journal record older than the backoff without waiting for a restart
+(`[notice] stage retry sweep armed (…)` at start, one `retry sweep - …`
+summary per pass that re-drove something). Armed only when a `brix_frm on`
+server publishes a `brix_frm_queue_path`; an environment-only journal keeps
+its restart-only replay.
+
+#### `brix_frm_copy_timeout <time>`
+
+**Context:** stream server. **Default:** `0` (no deadline). Wall-clock limit
+for one `brix_frm_stagecmd` invocation (`recall`, `migrate`, `exists`, `purge`, `rcreate`): a
+child still running at the deadline is killed with `SIGKILL` — its whole
+process group, so a shebang script's children die with it — the operation
+fails with `ETIMEDOUT`, and the worker logs `stage command "<program> <verb>
+<key>" exceeded brix_frm_copy_timeout (<n> ms) and was killed`. Directory
+listing (`dread`) is not subject to the deadline.
+
+#### `brix_frm_stagemsg <file>`
+
+**Context:** stream server. **Default:** none (no feed). The StageEvents
+notification file — the analogue of xrootd's `oss.stagemsg` /
+`XRDOFSEVENTS` hand-off to an external stager (2.0 F2). Every worker opens
+it once at start (created `0600`, append-only) and writes one line per
+stage transition, so a site hook, tape monitor or external stager tails one
+file instead of parsing `error.log` or the journal directory:
+
+```
+<utc-iso8601> <source> <event> <reqid|-> <key|-> [name=value ...]
+```
+
+The key and every value are `%`-escaped as a URI (space, `%`, `#`, `?`,
+`"`, control and non-ASCII bytes), so a line always splits on spaces and a
+pair on its first `=`. Sources and events:
+
+| Source | Events | Pairs |
+|---|---|---|
+| `engine` — the durable stage engine (`brix_frm_queue_path`) | `queued`, `started`, `done`, `failed`, `deadletter`, `replayed`, `dropped` | `kind=` (`flush`, `recall`, `upload`, `multipart`, `archive`), `errno=`, `attempts=`, `reason=` (`denied`, `unreachable`, `corrupt`, `not-a-flush`; for an `archive` record `not-anchored`, `no-tape-tier`, `not-a-marker`, `not-online`, `no-archiver`) |
+| `prepare` — the `kXR_prepare` / Tape REST request registry (`brix_frm_control_dir`) | `queued`, `staging`, `online`, `failed`, `cancelled`, `deleted`, `expired` | `principal=` (the requester DN, `-` when anonymous) |
+| `frm` — the `tape://` MSS adapter (no request id) | `recall-begin`, `recall-online`, `recall-failed`, `migrate-done`, `migrate-failed`, `seal-done`, `seal-failed` | `errno=` |
+
+The path must be absolute and, if the file already exists at load time, it
+must be a regular file that is not group- or world-writable (`[emerg]
+brix_frm_stagemsg "<file>" is group- or world-writable; refusing to feed a
+file anyone else can append to` — a feed anyone can append to is a forged
+tape-event stream for whatever tails it). The feed is best-effort: a failed
+open or write logs one `[error] brix_frm_stagemsg "<file>": open failed;
+stage notifications are off in this worker until the file is writable again
+(staging itself is unaffected)` and the next transition re-opens the file,
+so repairing the directory needs no reload. Nothing in the file is a
+credential: keys, principals, kinds and numbers only. An asynchronous MSS
+whose recall completes on a later poll reports that completion through the
+`prepare online` line of the request that asked for it, not through a second
+`frm` line. Start-up announces the feed with `[notice] stage engine:
+StageEvents feed "<file>"`. Pinned by `tests/test_release20_frm_stagemsg.py`.
+
+The seven knobs configure one process-wide stage engine: every `brix_frm on`
+server must publish the same values, and a second server that disagrees is
+refused at load (`[emerg] brix_frm_copymax 5 differs from the value another
+brix_frm server published (4): the stage engine is process-wide`). Any of
+them on a server without `brix_frm on` is accepted with `[warn] … is
+ignored: brix_frm is off in this server`. Seven further names of the
+in-process engine dissolved in phase 64 left the grammar in 2.0 and are
+refused as `unknown directive`; the
+[2.0 readiness register](../10-reference/release-2.0-readiness.md) §(c.1)
+lists them. Pinned by `tests/test_release20_frm_knobs.py` and
+`tests/test_release20_frm_stagemsg.py`.
+
+### HTTP guard and stream relay guard
+
+The HTTP knobs are described with examples in
+[`src/net/httpguard/README.md`](../../src/net/httpguard/README.md).
+
+#### `brix_guard_default_signatures on|off`
+
+**Context:** http, server, location. **Default:** `on`. Whether the built-in
+junk-scanner signature set (`.php`, `.asp`, `wp-`, `.git`, `.env`, …) is
+applied when `brix_guard on`.
+
+#### `brix_guard_signature <substring>`
+
+**Context:** http, server, location. Repeatable. Extra blocklist substring
+matched against the request line in addition to the default set.
+
+#### `brix_guard_valid_prefix <prefix>` / `brix_guard_valid_method <method> [method …]`
+
+**Context:** http, server, location. **Default:** taken from
+`brix_guard_profile`. Narrow the legitimate namespace and the allowed HTTP
+methods; a request outside either is bounced with `brix_guard_bounce_status`
+and audited to `brix_guard_audit_log`.
+
+#### `brix_guard_stream on|off`
+
+**Context:** stream server. **Default:** `off`. The `root://` equivalent of
+the HTTP guard for the stream relay sink: a connection that does not present
+a valid XRootD handshake within the relay is dropped
+(`src/protocols/root/relay/relay_guard.c`).
+
+### Kerberos and packet marking
+
+#### `brix_krb5_delegate on|off`
+
+**Context:** stream server; http, server, location. **Default:** `off`.
+Phase-70 §5.7: accept a forwardable TGT from a krb5-authenticated client and
+use it for the backend connection made on that client's behalf. Requires a
+build with Kerberos support.
+
+#### `brix_pmark_domain any|local|remote`
+
+**Context:** stream server; http, server, location. **Default:** `any`.
+Which address class receives SciTag packet marking: `local` marks only
+traffic to site-local peers, `remote` only off-site, `any` both.
+
+#### `brix_pmark_firefly_origin on|off`
+
+**Context:** stream server; http, server, location. **Default:** `off`.
+Also send the flow-lifecycle firefly UDP report to the client's origin
+address, in addition to the collector named by `brix_pmark_firefly_dest`.
+
+### SSI (Scalable Service Interface)
+
+Opt-in request/response service on the stream plane; the CTA (CERN Tape
+Archive) bridge is its first service.
+
+#### `brix_ssi_service <name>`
+
+**Context:** stream server. **Default:** none (SSI disabled). Names the
+service handled by `kXR_ssi` requests on this server; `cta` enables the
+tape-archive bridge.
+
+#### `brix_ssi_max_inflight <n>` / `brix_ssi_request_max <size>` / `brix_ssi_response_max <size>`
+
+**Defaults:** `8` / `1m` / `1m`. Concurrent SSI requests per session and
+the largest request and response body the server will buffer.
+
+#### `brix_ssi_cta_journal <path>` / `brix_ssi_cta_executor test|prod`
+
+**Defaults:** none / `test`. Where the CTA bridge journals accepted requests
+(so a restart can replay them), and whether the request is handed to the
+production executor or to the in-tree test executor that only records it.
+
+### Throttling and bandwidth reservation
+
+#### `brix_throttle_zone <name>`
+
+**Context:** stream server. **Default:** none. Binds the server's
+`brix_throttle_*` limits to a declared rate-limit zone so the counters are
+shared across workers; the name must be declared with `brix_rate_limit_zone`
+or the configuration is refused.
+
+#### `brix_throttle_bandwidth_zone <name>` / `brix_throttle_bandwidth_budget <size>`
+
+**Context:** stream server. **Default:** off. Phase-92 XrdBwm-style read
+reservation: a read reserves its size against the per-zone budget and is
+answered `kXR_Overloaded` when the budget is exhausted, instead of queuing
+until the link saturates.
+
+### Third-party copy
+
+#### `brix_tpc_outbound_passthrough on|off`
+
+**Context:** stream server; http, server, location. **Default:** `on`.
+Forward the inbound bearer token to the TPC source when the client presented
+one and no `brix_tpc_outbound_*` exchange is configured. Turn off when the
+source must never see the client's own credential.
+
+#### `brix_tpc_outbound_tls on|off`
+
+**Context:** stream server; http, server, location. **Default:** `off`.
+Phase-57 §F5: require TLS on the outbound `root://` source connection of a
+native TPC pull (`roots://`), refusing a source that cannot upgrade.
+
+#### `brix_tpc_outbound_renew_lead <time>`
+
+**Context:** stream server. **Default:** `0` (renewal disabled). Renew the
+delegated credential this long before it expires, on the live outbound
+connection, so a long copy can outlive the token that launched it. A copy that
+would otherwise die mid-stream when its bearer aged out instead re-mints and
+continues.
+
+Only the **issuer-facing** token modes can act on this — `oidc-agent` and
+RFC 8693 token exchange (`brix_tpc_outbound_token_endpoint`) — because renewal
+means asking an issuer for a fresh credential. A credential merely *forwarded*
+from the client (`brix_tpc_outbound_passthrough`) cannot be re-minted by this
+server, and configuring a lead time does not change that.
+
+Set the lead comfortably longer than one mint round-trip; `0` keeps the
+pre-renewal behaviour, where a copy simply runs on the credential it started
+with.
+
+#### `brix_tpc_outbound_renew_strict on|off`
+
+**Context:** stream server. **Default:** `off`. Fail a pull whose delegated
+credential has genuinely expired and could not be renewed, instead of streaming
+on with it.
+
+It is off by default so that turning renewal on with
+`brix_tpc_outbound_renew_lead` can never introduce a denial by itself: a site
+that enables renewal gets the benefit without a new failure mode. Turn it on
+where an expired credential must stop the transfer rather than be tolerated.
+
+Note the one case this flag does **not** govern: a mint that fails against an
+*already-expired* credential is fatal either way, because there is nothing left
+to renew from.
+
+#### `brix_tpc_max_hops <n>`
+
+**Context:** stream server. **Default:** `4`. **Range:** `0`–`16`. How many
+`kXR_redirect` answers a native TPC pull follows from its source before giving
+up. Each hop re-bootstraps on the redirect target (handshake, protocol, login
+and the same ztn/GSI/token leg as the first source), passes the target through
+`brix_tpc_source_guard` / `brix_tpc_source_allow` exactly as the host the
+client named, and is logged as `TPC hop N: from -> to for <lfn>`. `0` refuses
+the first redirect (`kXR_NotAuthorized`, "brix_tpc_max_hops is 0"). A redirect
+back to the host being read, or one with a malformed body, fails the pull
+regardless of the budget. A hop the allowlist refuses counts on
+`brix_stream_tpc_egress_refused_total`.
+
+#### `brix_tpc_streams <n>`
+
+**Context:** stream server. **Default:** `1`. **Range:** `1`–`15`. Upper bound
+on the number of parallel source connections a native TPC pull may use when
+the client asks for them with `tpc.str=<n>` in the destination open (the
+`ofs.tpc streams` analogue; BriX's `xrdcp -S <n>` sends the key, stock XrdCl
+5.9 does not). The destination opens `min(n, brix_tpc_streams) - 1` extra
+connections to the source, binds each to the primary session with `kXR_bind`,
+and reads the file as rounds of one 1 MiB read per stream. With the default of
+`1`, for a hint that does not parse, for a source that refuses `kXR_bind`, or
+for one that returned no session id, the pull is the ordinary single-stream
+loop — the degradation is logged, never an error.
+
+#### `brix_tpc_push on|off`
+
+**Context:** stream server. **Default:** `off`. Opt this listener into the
+BriX native-TPC **push** dialect (`tpc.stage=push`). Stock native TPC is
+destination-side *pull* only — the destination dials the source and reads — so
+a site whose storage may make only **outbound** connections cannot be the source
+of a native copy at all. A push inverts who dials: the source connects to the
+destination and writes.
+
+One flag arms both roles on the listener, because an operator opts into both
+postures at once: a source may originate a push, and a destination may accept
+bytes from a server rather than a client. Three legs, all carrying
+`tpc.stage=push` so a stock peer never mistakes one for a pull:
+
+1. **client → destination** — write-open `<dst-lfn>?tpc.key=K&tpc.stage=push`.
+   Registers `K` in the rendezvous registry and **creates** the file. Nothing is
+   dialled.
+2. **client → source** — read-open
+   `<src-lfn>?tpc.key=K&tpc.dst=<host[:port]>&tpc.dlfn=</dst/path>&tpc.stage=push`
+   (optionally `&tpc.str=<n>`). The two `kXR_sync`s that arm and fire a pull arm
+   and fire the push.
+3. **source → destination** — write-open
+   `</dst/path>?tpc.key=K&tpc.org=<client>&tpc.stage=push`. **Consumes** `K`
+   (single-use) and writes; `kXR_open_updt` only, so a push can only write where
+   a client already registered a key.
+
+With the flag off, either leg is refused `kXR_Unsupported` at the open — before
+path resolution, authorization and the write gate — so the answer names the
+posture, not the path.
+
+What the dialect does **not** relax:
+
+- The destination the source is told to dial goes through the same
+  `brix_tpc_source_guard` / `brix_tpc_source_allow` allowlist and the same
+  `brix_tpc_allow_local` / `brix_tpc_allow_private` SSRF policy as a pull
+  source, including the per-resolved-address recheck at connect. A refused
+  destination is refused at the **open**, with `signal=tpc_egress` in the guard
+  audit and no socket dialled; it counts on
+  `brix_stream_tpc_egress_refused_total`.
+- `tpc.str=<n>` is clamped by `brix_tpc_streams`, exactly as on a pull.
+- **The source export stays read-only.** A push source writes nothing locally —
+  it reads its own file and streams it out. The two arm/fire `kXR_sync`s are the
+  only thing exempted from `brix_allow_write`; a `kXR_sync` on any other handle,
+  a sync after the transfer finishes, and every other write opcode still answer
+  `kXR_fsReadOnly`. Turning this on therefore grants a client no mutation
+  privilege on the export.
+- A failed push never removes the source file. (The failure-path unlink that
+  removes a half-written *destination* copy on a pull is suppressed on a push,
+  where the same path names the operator's own data.)
+
+The destination still needs `brix_allow_write on`: it is the side that writes.
+
+#### `brix_webdav_tpc_credential_forward on|off`
+
+**Context:** http, server, location. **Default:** `on`. Present the
+requester's per-user proxy certificate or bearer to the HTTP-TPC source.
+Opportunistic: when no per-user credential is available the configured
+`brix_webdav_tpc_cert`/`_key` are used.
+
+### WebDAV
+
+#### `brix_webdav_checksum_on_write <alg>[,<alg>]`
+
+**Context:** http, server, location. **Default:** none. Compute and persist
+the named checksums as the body of a `PUT` streams in (§8.3), so a later
+`Want-Digest` or `RFC-3230` query is answered from the stored value without
+re-reading the file.
+
+#### `brix_webdav_checksum_xattr_format text|xrdcks`
+
+**Context:** http, server, location. **Default:** `text`. Layout of the
+persisted checksum extended attribute: plain text, or the binary `XrdCks`
+record an xrootd data server writes, for a namespace shared with stock
+xrootd.
+
+#### `brix_webdav_dig_export <name> <dir>` / `brix_webdav_dig_auth <file>`
+
+**Context:** http, server, location. **Default:** none. The xrootd
+`/dig/` diagnostic namespace: `dig_export` publishes `<dir>` (resolved with
+`realpath` at configuration time) under the name; `dig_auth` names a
+principal→export allow-file and is fail-closed — with the export configured
+but no allow-file, or a principal absent from it, the request is refused.
+
+#### `brix_webdav_header2cgi <Header> <cgikey>`
+
+**Context:** http, server, location. **Default:** none. Repeatable. Copies
+the value of the named request header into the opaque CGI string under
+`cgikey` before authorization, the `XrdHttp` `header2cgi` behaviour; the
+usual use is `authz` so a proxy that carries the token in a custom header
+still authorizes.
+
+#### `brix_webdav_revoke_cache zone=<name>`
+
+**Context:** http, server, location. **Default:** none. Shared-memory zone
+(declared with `brix_kv_zone`) in which token-introspection verdicts are
+cached across workers, so a revoked token is refused everywhere once the
+introspection endpoint has said so and unrevoked tokens are not
+re-introspected on every request.
+
+### Write-back (write-through stage)
+
+#### `brix_wt_credential <name>`
+
+**Context:** stream server; http, server, location. **Default:** `""`
+(anonymous). Name of a `brix_credential` the write-back flusher presents to
+the backend when replaying staged writes.
+
+#### `brix_wt_stage_high_watermark <ratio|percent>` / `brix_wt_stage_low_watermark <ratio|percent>`
+
+**Defaults:** `0` (off) / high − 5 % (or half of high). Occupancy of the
+write-back stage area at which new writes are shed: between low and high
+the client is told to wait (`kXR_wait` / `503`), at or above high it is
+refused (`kXR_Overloaded` / `429`). Accepts `0.9` or `90%`.
+
+### ZIP archive member access
+
+#### `brix_zip_stage_dir <path>` / `brix_zip_force_scratch on|off` / `brix_zip_stage_max_bytes <size>`
+
+**Context:** stream server. **Defaults:** unset / `off` / `512m`. Where a
+compressed ZIP member is extracted before it is served, whether extraction
+is forced through scratch even when the member is stored uncompressed, and
+the largest member that will be staged (a larger one is refused).
+
+### Miscellaneous stream-plane knobs
+
+#### `brix_auth_maxfail <n>`
+
+**Context:** stream server. **Default:** `0` = built-in `10`. Number of
+failed authentication attempts a session may make before it is disconnected
+(brute-force and GSI CPU-amplification guard, §5.7).
+
+#### `brix_dirstats on|off`
+
+**Context:** stream server. **Default:** `off`. A `kXR_stat` of a directory
+reports the recursive byte size of its subtree (an on-demand `du` through
+the VFS walk) instead of the directory inode size, matching xrootd's
+`dirstats`.
+
+#### `brix_durable_commit on|off`
+
+**Context:** stream server (adopted by the http plane). **Default:** `on`.
+Whether a staged write is `fsync`ed before it is published at its final
+path. `off` skips the pre-publish data sync — faster on battery-backed
+storage, at the cost of a torn file if the host loses power between publish
+and the next writeback.
+
+#### `brix_oci_delegate_realm <name>`
+
+**Context:** location (OCI registry). **Default:** `brix-oci`. The realm
+string carried in the `WWW-Authenticate` challenge the OCI mirror issues
+when a pull must be delegated to the client's own registry credential.
+
+#### `brix_mirror_exclude_opcodes <op> [op …]`
+
+**Context:** stream server. **Default:** none. When a stream mirror target
+is configured without `brix_mirror_opcodes`, every request is replayed to
+the shadow server; this de-selects the named opcodes from that set (write
+opcodes additionally require `brix_mirror_writes on`). Ignored when
+`brix_mirror_opcodes` lists opcodes explicitly.
+
+**Vocabulary** (both directives): `all stat locate open dirlist statx query
+mkdir rm rmdir mv truncate chmod write`. `read` and `readv` are **refused at
+`nginx -t`** since 2.0: a read addresses an open handle that only the primary
+session holds, so the one-shot mirror can never replay it, and before 2.0 the
+names were accepted and then silently skipped — `all` no longer expands to
+them either. Delete them from a mask that still lists them.

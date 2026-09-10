@@ -2,8 +2,9 @@
 
 A faithful in-C re-implementation of XRootD's **XrdAcc** authorization framework,
 selectable at runtime with `brix_authdb_engine xrdacc;`. It runs **alongside**
-the original 6-bit, root://-only `native` engine (`src/auth/authz/authdb.c`), which
-stays the default so existing deployments are unaffected.
+the root://-only `native` engine (`src/auth/authz/authdb.c` +
+`authdb_grammar.c`), which stays the default so existing deployments are
+unaffected.
 
 When enabled, `xrdacc` authorizes **all three protocols** (root://, WebDAV, S3)
 through one `brix_acc_access(tables, entity, path, op)` call, reproducing stock
@@ -13,13 +14,14 @@ XRootD `authdb` semantics bit-for-bit.
 
 | Capability | `native` | `xrdacc` |
 |---|---|---|
-| Privilege model | 6 custom bits (`r/l/w/a/d/m/k`) | 9-bit XrdAcc model (`a/d/i/k/l/n/r/w`) + composites |
+| Privilege model | 7 custom bits (`r/l/w/a/d/m/k/x`; `x` = stage/recall, 2.0 F20) | 9-bit XrdAcc model (`a/d/i/k/l/n/r/w`) + composites |
 | Negative privileges (`-`) | no | yes (`pprivs & ~nprivs`) |
-| Identity record types | `u/g/p/a` | `u/g/h/o/r/n/s/t/x/=` |
+| Identity record types | `u/g/p/a/v/l`, up to six AND-ed per line (2.0 F20) | `u/g/h/o/r/n/s/t/x/=` |
 | Accumulation | single longest-prefix rule | additive across every matching identity |
 | Templates (`@=`), exclusive (`x`), compound (`=`/`s`) | no | yes |
-| Roles, orgs, netgroups, Unix groups | VO-only | full (incl. OS `/etc/group` + NIS) |
+| Roles, orgs, netgroups, Unix groups | VO name (`g`), VOMS vorg (`v`) and VOMS role (`l`) — `v`+`l` matched as a positional pair; no netgroups, no OS groups | full (incl. OS `/etc/group` + NIS) |
 | Hot-reload (`authrefresh`), audit sink | no | yes |
+| Unparseable line | **refused at `nginx -t`**, naming file/line/byte (2.0 F20) | skipped, as stock XrdAcc does |
 | Protocol coverage | root:// only | root:// + WebDAV + S3 |
 
 ## Files
@@ -35,7 +37,7 @@ XRootD `authdb` semantics bit-for-bit.
 | `access.c` | `XrdAccAccess::Access()` | the decision engine |
 | `groups.c` | `XrdAccGroups.cc` | Unix/NIS group resolution + cache + gidretran |
 | `audit.c` | `XrdAccAudit.cc` | grant/deny audit logging |
-| `resolve.c` | `XrdAccAccess::Resolve` | reverse-DNS peer for `h <host>`/`.domain` rules |
+| `resolve.c` | `XrdAccAccess::Resolve` | never-blocking probe of the phase-116 reverse cache for the peer's FQDN (`h <host>`/`.domain` rules); the lookup itself runs off the loop at accept (stream) / PREACCESS (HTTP), and a still-pending answer counts `brix_acc_dns_pending_fallback_total` |
 | `config.c` | `XrdAccConfig.cc` | directives + per-worker build (stream + HTTP hot-reload) |
 | `privs.c` / `privs.h` | `XrdAccPrivs.hh` | `brix_acc_op_t` enum, per-op required-privilege bits (`brix_acc_op_needs`/`brix_acc_test`), op names |
 
@@ -47,3 +49,12 @@ operation→privilege table are kept identical to `XrdAccPrivs.hh` /
 
 > **Letter note:** in `native`, `a` = append-privilege; in `xrdacc`, `a` = *all*
 > privileges (the engines use separate, non-shared parsers — no ambiguity).
+> Likewise the VOMS **role** is `l` in `native` and `r` in `xrdacc`, and the
+> `native`-only `x` (stage/recall) privilege has no XrdAcc counterpart.
+>
+> **One file, two parsers.** `brix_authdb` is parsed by BOTH engines' parsers,
+> because the directive runs before `brix_authdb_engine` has settled. The native
+> grammar refuses lines it cannot parse, so its first defect is *recorded* and
+> only turned into an `nginx -t` failure at merge time, when the engine is final
+> — an XrdAcc authfile therefore never trips the native grammar's refusals
+> (`brix_authdb_defect_refuse`, `../authdb_grammar.c`).

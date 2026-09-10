@@ -350,6 +350,12 @@ NGINX_HTTP_CACHE_PORT = int(os.environ.get("TEST_NGINX_HTTP_CACHE_PORT", "18457"
 # WebDAV with VOMS extraction configured (port 18458)
 NGINX_WEBDAV_VOMS_PORT = int(os.environ.get("TEST_NGINX_WEBDAV_VOMS_PORT", "18458"))
 
+# Phase-115 W4.2: HTTP WebDAV over a RAM cache store (port 18459).  A dedicated
+# fixed-port role rather than a lifecycle-ladder slot: the ladder's exclusive
+# lane is a running sum and every widening shifts the tail after it, so a
+# self-contained instance that mutates nothing shared belongs here instead.
+NGINX_RAM_CACHE_PORT = int(os.environ.get("TEST_NGINX_RAM_CACHE_PORT", "18459"))
+
 # CMS heartbeat test: dedicated nginx (12500) connecting to real CMS manager (12399/12400)
 CMS_TEST_NGINX_PORT = int(os.environ.get("TEST_CMS_TEST_NGINX_PORT", "12500"))
 CMS_TEST_CMS_PORT = int(os.environ.get("TEST_CMS_TEST_CMS_PORT", "12400"))
@@ -482,7 +488,7 @@ HA_NGINX2_PORT = int(os.environ.get("TEST_HA_NGINX2_PORT", "11212"))
 # ---------------------------------------------------------------------------
 # Migration: pre-started dedicated instances
 # Tests that used to spawn their own nginx now connect to a dedicated instance
-# launched once by manage_test_servers.sh start-all (via start_dedicated_nginx).
+# launched once by python3 -m cmdscripts.manage_test_servers start-all (via start_dedicated_nginx).
 # Each serves ${TEST_ROOT}/data-<name>; the test skips cleanly if it is not up.
 # ---------------------------------------------------------------------------
 OPEN_FLAGS_LIFECYCLE_NGINX_PORT = int(

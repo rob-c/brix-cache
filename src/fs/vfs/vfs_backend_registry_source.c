@@ -7,6 +7,7 @@
  */
 #include "vfs_backend_internal.h"
 #include "fs/backend/xroot/sd_xroot.h"   /* remote root:// backend (brix_sd_xroot_create) */
+#include "fs/backend/xroot/sd_xroot_fwd.h" /* 2.0 F5 forward:// (client-named origins) */
 #include "fs/backend/http/sd_http.h"     /* HTTP source backend (brix_sd_http_create) */
 #include "fs/backend/remote/sd_remote.h" /* read-only S3 source backend (brix_sd_remote_create) */
 #include "fs/backend/rados/sd_ceph.h"    /* Ceph/RADOS backend (BRIX_HAVE_CEPH) */
@@ -143,17 +144,19 @@ brix_vbr_build_block(brix_vfs_backend_entry_t *e, ngx_log_t *log)
     return inst;
 }
 
-/* Remote root:// backend: the in-process origin wire client (read + write +
- * staged_open, auth via ztn/gsi). */
-static brix_sd_instance_t *
-brix_vbr_build_xroot(brix_vfs_backend_entry_t *e, ngx_log_t *log)
+/* The origin template a registry entry describes — shared by the fixed
+ * root:// builder and the 2.0 F5 forwarding builder, whose per-origin children
+ * are cut from this same template with the client-named authority. */
+static void
+brix_vbr_xroot_origin_cfg(const brix_vfs_backend_entry_t *e,
+    brix_sd_xroot_origin_cfg_t *out)
 {
-    brix_sd_instance_t *inst;
     brix_sd_xroot_origin_cfg_t cfg = {
         .host       = e->origin_host,
         .port       = e->origin_port,
         .tls        = e->origin_tls,
         .af_policy  = e->origin_family,
+        .dns        = e->dns,
         .bearer     = (e->origin_token[0] != '\0') ? e->origin_token : NULL,
         .x509_proxy = (e->origin_x509_proxy[0] != '\0')
             ? e->origin_x509_proxy : NULL,
@@ -165,8 +168,26 @@ brix_vbr_build_xroot(brix_vfs_backend_entry_t *e, ngx_log_t *log)
         /* root+tape://: arm CAP_NEARLINE so reads recall through
          * kXR_prepare(kXR_stage) instead of blocking on the tape mount. */
         .nearline   = e->origin_nearline,
+        /* phase-115 W4.3: `verify_pages` on the store line.  Before W5.1 the
+         * token could not be written at all (brix_storage_backend was TAKE1)
+         * and this field was never set, so the promise was unkeepable on the
+         * live backend path — the tier path set it, but no backend is built
+         * through the tier composer. */
+        .verify_pages = e->origin_verify_pages,
     };
 
+    *out = cfg;
+}
+
+/* Remote root:// backend: the in-process origin wire client (read + write +
+ * staged_open, auth via ztn/gsi). */
+static brix_sd_instance_t *
+brix_vbr_build_xroot(brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    brix_sd_instance_t         *inst;
+    brix_sd_xroot_origin_cfg_t  cfg;
+
+    brix_vbr_xroot_origin_cfg(e, &cfg);
     inst = brix_sd_xroot_create_origin(&cfg, log);
     if (inst == NULL) {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
@@ -176,6 +197,33 @@ brix_vbr_build_xroot(brix_vfs_backend_entry_t *e, ngx_log_t *log)
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
             "brix: remote root:// storage backend ready at \"%s\"",
             e->root_canon);
+    }
+    return inst;
+}
+
+/* 2.0 F5 forward://: no fixed origin — the client names one per key, and the
+ * driver admits it only against the entry's permit list and protocol set. */
+static brix_sd_instance_t *
+brix_vbr_build_xroot_fwd(brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    brix_sd_instance_t       *inst;
+    brix_sd_xroot_fwd_cfg_t   cfg;
+
+    ngx_memzero(&cfg, sizeof(cfg));
+    brix_vbr_xroot_origin_cfg(e, &cfg.origin);
+    cfg.permit      = e->origin_fwd_permit;
+    cfg.allow_root  = e->origin_fwd_allow_root;
+    cfg.allow_roots = e->origin_fwd_allow_roots;
+
+    inst = brix_sd_xroot_fwd_create(&cfg, log);
+    if (inst == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+            "brix: forwarding root:// backend init failed for export \"%s\"",
+            e->root_canon);
+    } else {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: forwarding root:// storage backend ready at \"%s\" "
+            "(permit: %s)", e->root_canon, e->origin_fwd_permit);
     }
     return inst;
 }
@@ -251,20 +299,24 @@ static brix_sd_instance_t *
 brix_vbr_build_tape(brix_vfs_backend_entry_t *e, ngx_log_t *log)
 {
     brix_sd_instance_t *inst;
+    brix_sd_frm_opts_t  opts;
 
-    inst = brix_sd_frm_create(
+    ngx_memzero(&opts, sizeof(opts));
+    opts.arc_depth = e->tape_arc_depth;                 /* W3.1 ?arc=<depth> */
+    inst = brix_sd_frm_create_opts(
         (e->origin_host[0] != '\0') ? e->origin_host : NULL,
-        e->origin_path, log);
+        e->origin_path, &opts, log);
     if (inst == NULL) {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
             "brix: tape (frm) backend init failed for export \"%s\"",
             e->root_canon);
     } else {
+        brix_sd_frm_set_export_root(inst, e->root_canon);  /* 2.0 F3 anchor */
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
             "brix: nearline (tape) storage backend ready at \"%s\" "
-            "(adapter=%s base=%s)", e->root_canon,
+            "(adapter=%s base=%s arc=%ud)", e->root_canon,
             (e->origin_host[0] != '\0') ? e->origin_host : "stub",
-            e->origin_path);
+            e->origin_path, e->tape_arc_depth);
     }
     return inst;
 }
@@ -290,6 +342,7 @@ brix_vbr_build_http(brix_vfs_backend_entry_t *e, ngx_log_t *log)
     /* §14/C-3: verify the https origin against the operator-configured CA
      * (file or hashed dir); "" ⇒ system bundle (public-CA origin). */
     cfg.ca_path      = (e->origin_ca_dir[0] != '\0') ? e->origin_ca_dir : NULL;
+    cfg.dns          = e->dns;
     cfg.put_checksum  = e->origin_put_checksum;   /* #12 origin-enforced PUT integrity */
     /* "?tape_api=/api/v1": the origin fronts an HSM and speaks the WLCG Tape
      * REST API there, so the driver arms CAP_NEARLINE and answers residency /
@@ -343,6 +396,7 @@ brix_vbr_build_s3(brix_vfs_backend_entry_t *e, ngx_log_t *log)
                 sizeof(cfg.bucket));
     cfg.timeout_ms = BRIX_SD_HTTP_DEFAULT_TIMEOUT_MS;
     cfg.transport  = &brix_s3_origin_curl_transport;
+    cfg.dns        = e->dns;
     /* §14: SigV4 credentials from the attached brix_credential (s3_* fields);
      * empty ⇒ anonymous (public bucket). Region defaults to us-east-1. */
     ngx_cpystrn((u_char *) cfg.access_key,
@@ -422,6 +476,7 @@ static const brix_vbr_source_desc_t  brix_vbr_source_table[] = {
     { "mirage",   brix_vbr_build_mirage },
     { "block",    brix_vbr_build_block },
     { "xroot",    brix_vbr_build_xroot },
+    { "xroot_fwd", brix_vbr_build_xroot_fwd },
 #if BRIX_HAVE_CEPH
     { "ceph",     brix_vbr_build_ceph },
     { "cephfsro", brix_vbr_build_cephfsro },

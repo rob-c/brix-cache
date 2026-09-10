@@ -80,8 +80,9 @@ brix_gsi_complete_auth(brix_ctx_t *ctx, ngx_connection_t *c,
 
         if (brix_identity_set_dn(ctx->identity, c->pool, auth_dn,
                                    BRIX_AUTHN_GSI) != NGX_OK
-            || brix_identity_set_vos_csv(ctx->identity, c->pool,
-                                           ctx->login.vo_list) != NGX_OK)
+            || brix_identity_set_vos_fqans(ctx->identity, c->pool,
+                                             ctx->login.vo_list,
+                                             ctx->login.fqan_list) != NGX_OK)
         {
             return brix_send_error(ctx, c, kXR_NoMemory,
                                      "identity allocation failed");

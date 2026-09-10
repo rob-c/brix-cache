@@ -75,7 +75,8 @@ brix_vfs_authz_level_for_op(brix_vfs_mutation_op_t op, int *also_delete)
     }
 
     if (op <= BRIX_VFS_MUTATE_SYNC
-        || (op >= BRIX_VFS_MUTATE_SETATTR && op <= BRIX_VFS_MUTATE_LOCK))
+        || (op >= BRIX_VFS_MUTATE_SETATTR && op <= BRIX_VFS_MUTATE_PUBLISH)
+        || op == BRIX_VFS_MUTATE_LOCK)
     {
         return BRIX_AUTH_UPDATE;
     }
@@ -83,6 +84,13 @@ brix_vfs_authz_level_for_op(brix_vfs_mutation_op_t op, int *also_delete)
     switch (op) {
     case BRIX_VFS_MUTATE_MKDIR:
         return BRIX_AUTH_MKDIR;
+    case BRIX_VFS_MUTATE_STAGE:
+    case BRIX_VFS_MUTATE_EVICT:
+        /* 2.0 F20: driving a tape/nearline recall or dropping an online copy is
+         * its own privilege (`x`), not a byte-write.  Before 2.0 both landed in
+         * the BRIX_AUTH_UPDATE range above, so an authdb that granted `w`
+         * implicitly granted staging; it must now name `x`. */
+        return BRIX_AUTH_STAGE;
     case BRIX_VFS_MUTATE_REMOVE:
         return BRIX_AUTH_DELETE;
     case BRIX_VFS_MUTATE_RENAME:

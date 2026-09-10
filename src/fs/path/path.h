@@ -110,9 +110,15 @@ typedef struct {
 ngx_int_t brix_check_authdb_identity(ngx_log_t *log,
     const brix_authdb_query_t *query);
 
-/* Parse an XRootD authdb file into rules. */
+/* Parse an XRootD authdb file into rules.  `defect` (may be NULL) receives the
+ * first native-grammar defect as a ready-to-log message and lets the parse
+ * finish; NULL makes a grammar defect fatal on the spot.  See
+ * brix_authdb_defect_refuse(). */
 ngx_int_t brix_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename,
-    ngx_array_t *rules);
+    ngx_array_t *rules, ngx_str_t *defect);
+
+/* The deferred-defect refusal that pairs with `defect` above is declared beside
+ * the field it reads, in src/auth/authz/acc/acc.h (brix_authdb_defect_refuse). */
 
 /* Apply parent-directory group ownership policy (chown GID). */
 

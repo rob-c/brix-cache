@@ -2719,8 +2719,12 @@ precondition unit fail.
   marked `slow`; a gate named after a slow family gets deselected from the PR
   tier and the run still says green, which is how a gate goes dark.
 - **Closure (as built).** `tests/test_phase107_mutation_surface_closure.py`
-  (18 tests, hermetic, `xdist_group("phase107-closure")`) pins the facts the
-  completion work itself discovered, one assertion each, grouped
+  (17 tests, hermetic, `xdist_group("phase107-closure")`) plus its 2026-09-09
+  shard `tests/test_phase107_cred_forward_audit.py` (3: the credential-
+  forwarding confused-deputy audit, amended for the 2.0 F5 hinted-open wrapper
+  that answers deny-mode by a declared tail call, with negatives for an
+  undeclared wrapper and for a delegation that stops delegating — split out
+  under the 600-line cap) pin the facts the completion work itself discovered, one assertion each, grouped
   compatibility / feature / security: the C6 evaluator's private copy of the
   ETag grammar must stay equal to `brix_http_etag_str`'s and its buffer no
   narrower than the 48 bytes `etag.h` documents; all seven evaluator callsites
@@ -3021,7 +3025,8 @@ Five drifts, two of them real coverage gaps:
   flag-slot row), so the same wrong promise cannot be written for
   `brix_authz_backstop` either.
 - **The discoveries are pinned.** `tests/test_phase107_mutation_surface_closure.py`
-  (§9.3) carries all eighteen, one assertion each. Six of the newest were
+  (§9.3) and its shard `tests/test_phase107_cred_forward_audit.py` carry all
+  eighteen, one assertion each (20 tests since the 2026-09-09 F5 amendment). Six of the newest were
   themselves mutation-checked against a copied tree, including the case that
   motivated the positional-label pin: a *correct* mid-enum insertion passes
   every test, so the mutant that matters is the realistic mistake — insert

@@ -54,7 +54,7 @@ With `optional`, an invalid bearer token is declined and the request may still p
 
 ---
 
-### `brix_webdav_cadir <path>`
+### `brix_trusted_ca_dir <path>`
 
 **Context:** `location`
 
@@ -64,15 +64,15 @@ See [pki.md](../06-authentication/pki-config.md) for CA bundle layout, hash syml
 
 ---
 
-### `brix_webdav_cafile <path>`
+### `brix_trusted_ca <path>`
 
 **Context:** `location`
 
-Alternative to `brix_webdav_cadir`: a single PEM file containing one or more CA certificates.
+Alternative to `brix_trusted_ca_dir`: a single PEM file containing one or more CA certificates.
 
 ---
 
-### `brix_webdav_crl <path>`
+### `brix_crl <path>`
 
 **Context:** `location`
 
@@ -124,7 +124,7 @@ PEM private key used with `brix_webdav_tpc_cert`.
 
 ### `brix_webdav_tpc_cadir <path>`
 
-**Context:** `location` · **Default:** `brix_webdav_cadir`
+**Context:** `location` · **Default:** `brix_trusted_ca_dir`
 
 CA directory passed to `curl --capath` when verifying the source HTTPS endpoint.
 
@@ -132,7 +132,7 @@ CA directory passed to `curl --capath` when verifying the source HTTPS endpoint.
 
 ### `brix_webdav_tpc_cafile <path>`
 
-**Context:** `location` · **Default:** `brix_webdav_cafile`
+**Context:** `location` · **Default:** `brix_trusted_ca`
 
 CA bundle passed to `curl --cacert` when verifying the source HTTPS endpoint.
 
@@ -184,7 +184,7 @@ OAuth2 scope to request in the token grant. Common values: `storage.read`, `stor
 
 Sets `X509_V_FLAG_ALLOW_PROXY_CERTS` on the `SSL_CTX` for this server in postconfiguration. Without this, nginx's TLS layer rejects RFC 3820 proxy certificates with error 40 (`proxy certificates not allowed`) even when `ssl_verify_client optional_no_ca` is set.
 
-### `brix_ssl_client_capath <dir>`
+### `brix_client_certificate_folder <dir>`
 
 **Context:** `server` (HTTP) · **Default:** unset
 
@@ -209,7 +209,7 @@ server {
     ssl_certificate         /etc/grid-security/hostcert.pem;
     ssl_certificate_key     /etc/grid-security/hostkey.pem;
     ssl_client_certificate  /etc/grid-security/certificates/aaa4b7c8.0;  # any one CA file
-    brix_ssl_client_capath  /etc/grid-security/certificates;             # the real trust
+    brix_client_certificate_folder  /etc/grid-security/certificates;             # the real trust
     ssl_verify_client       on;
     brix_webdav_proxy_certs on;
 }
@@ -249,7 +249,7 @@ Constraints (all violations are **fatal** at `nginx -t`):
   and are rejected.
 
 The picked file serves both stock roles: trust anchor and advertised-CA list
-entry. Combine with `brix_ssl_client_capath` (above) to trust the **whole**
+entry. Combine with `brix_client_certificate_folder` (above) to trust the **whole**
 directory while the picked file feeds the advertised list:
 
 ```nginx
@@ -258,7 +258,7 @@ server {
     ssl_certificate                /etc/grid-security/hostcert.pem;
     ssl_certificate_key            /etc/grid-security/hostkey.pem;
     brix_client_certificate_folder /etc/grid-security/certificates;  # replaces ssl_client_certificate
-    brix_ssl_client_capath         /etc/grid-security/certificates;  # trust every IGTF CA
+    brix_client_certificate_folder         /etc/grid-security/certificates;  # trust every IGTF CA
     ssl_verify_client              on;
     brix_webdav_proxy_certs        on;
 }
@@ -266,11 +266,11 @@ server {
 
 ---
 
-### `brix_proxy_ssl_capath <dir>`
+### `brix_backend_ca_dir <dir>`
 
 **Context:** `location` (HTTP) · **Default:** unset
 
-The back-leg counterpart of `brix_ssl_client_capath`: makes
+The back-leg counterpart of `brix_client_certificate_folder`: makes
 `proxy_ssl_verify on` consume an OpenSSL **hashed CA directory** instead of
 the file-only `proxy_ssl_trusted_certificate`. At parse time it seeds the
 stock `proxy_ssl_trusted_certificate` with one `<hash>.N` file from the
@@ -294,7 +294,7 @@ Constraints (all violations are **fatal** at `nginx -t`):
 location /arc/ {
     proxy_pass                https://ce.example.org:443;
     proxy_ssl_verify          on;
-    brix_proxy_ssl_capath     /etc/grid-security/certificates;  # replaces proxy_ssl_trusted_certificate
+    brix_backend_ca_dir     /etc/grid-security/certificates;  # replaces proxy_ssl_trusted_certificate
     proxy_ssl_certificate     $brix_delegated_cred;
     proxy_ssl_certificate_key $brix_delegated_cred;
 }
@@ -343,7 +343,7 @@ Maximum depth for proxy-certificate chain verification.
 
 ---
 
-### `brix_webdav_token_jwks <path>`
+### `brix_token_jwks <path>`
 
 **Context:** `location`
 
@@ -351,7 +351,7 @@ Path to a JWKS file containing public keys trusted for JWT/WLCG bearer-token val
 
 ---
 
-### `brix_webdav_token_issuer <string>`
+### `brix_token_issuer <string>`
 
 **Context:** `location`
 
@@ -359,7 +359,7 @@ Expected JWT `iss` claim.
 
 ---
 
-### `brix_webdav_token_audience <string>`
+### `brix_token_audience <string>`
 
 **Context:** `location`
 
@@ -487,7 +487,7 @@ location / {
 
 ---
 
-### `brix_webdav_upload_resume on|off`
+### `brix_upload_resume on|off`
 
 **Context:** `location` · **Default:** `on`
 
@@ -513,13 +513,13 @@ location / {
     brix_webdav on;
     brix_export /data;
     brix_allow_write on;
-    brix_webdav_upload_resume on;   # the default; shown for clarity
+    brix_upload_resume on;   # the default; shown for clarity
 }
 ```
 
 ---
 
-### `brix_webdav_stage_dir <path>`
+### `brix_stage_dir <path>`
 
 **Context:** `location` · **Default:** unset (partial lives beside the destination)
 
@@ -541,8 +541,8 @@ location / {
     brix_webdav on;
     brix_export /data;                        # bulk storage
     brix_allow_write on;
-    brix_webdav_upload_resume on;
-    brix_webdav_stage_dir /srv/fast/staging;  # NVMe; commit copies across
+    brix_upload_resume on;
+    brix_stage_dir /srv/fast/staging;  # NVMe; commit copies across
 }
 ```
 

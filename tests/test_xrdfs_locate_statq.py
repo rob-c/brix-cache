@@ -24,6 +24,7 @@ Run (against a started fleet):
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 import time
 
 import pytest
@@ -42,8 +43,7 @@ URL = None  # set in _built (needs the fleet port)
 def built():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
-    subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs"],
-                   capture_output=True, text=True, timeout=240)
+    client_make(CLIENT_DIR, "xrdfs", capture_output=True, text=True, timeout=240)
     if not os.path.exists(XRDFS):
         pytest.skip("xrdfs build failed")
 

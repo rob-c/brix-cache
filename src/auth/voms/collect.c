@@ -68,6 +68,58 @@ brix_append_vo_token(char *primary_vo, size_t primary_vo_sz,
 }
 
 /*
+ * WHAT: brix_append_fqan_token() — deduplicate and append ONE raw VOMS FQAN to
+ *       the comma-separated `fqan_list` buffer.  No return value: the FQAN CSV
+ *       is an enrichment, never a precondition for login.
+ * WHY:  2.0 F20 — brix_identity_derive_attrs recovers (vorg, role, group) from
+ *       an FQAN, but the VO-name list it used to be handed is '/'-free by
+ *       construction (brix_vo_token_is_safe), so the role was always empty and
+ *       the authdb `l` selector and the XrdAcc `role` template could never
+ *       match anything.  The FQANs need their own channel.
+ * HOW:  refuse a token the FQAN predicate rejects, skip a duplicate, and append
+ *       ",<fqan>" when it fits.  A full buffer silently stops enriching rather
+ *       than failing the handshake: the VO-name authorization the deployment
+ *       already relied on must keep working.  Never feeds primary_vo — that
+ *       value reaches metric labels and log fields (INVARIANT 8).
+ */
+static void
+brix_append_fqan_token(char *fqan_list, size_t fqan_list_sz, const char *fqan)
+{
+    size_t list_len;
+    size_t fqan_len;
+
+    if (fqan_list == NULL || fqan_list_sz == 0 || fqan == NULL) {
+        return;
+    }
+
+    fqan_len = strlen(fqan);
+    if (!brix_fqan_token_is_safe(fqan, fqan_len)) {
+        return;
+    }
+    if (brix_vo_list_contains(fqan_list, fqan)) {
+        return;
+    }
+
+    list_len = strlen(fqan_list);
+
+    if (list_len == 0) {
+        if (fqan_len + 1 > fqan_list_sz) {
+            return;
+        }
+        ngx_cpystrn((u_char *) fqan_list, (u_char *) fqan, fqan_list_sz);
+        return;
+    }
+
+    if (list_len + 1 + fqan_len + 1 > fqan_list_sz) {
+        return;
+    }
+
+    fqan_list[list_len++] = ',';
+    ngx_memcpy(fqan_list + list_len, fqan, fqan_len);
+    fqan_list[list_len + fqan_len] = '\0';
+}
+
+/*
  *
  * WHAT: brix_fqan_to_vo() — extracts the VO name from a Fully-Qualified Attribute
  * Name (FQAN). FQAN format: "/VO/Role=X/Capability=Y" — the VO is the first path
@@ -116,9 +168,7 @@ brix_fqan_to_vo(const char *fqan, char *vo, size_t vo_sz)
  * and vo_list_sz are sufficient (typically 256 bytes). */
 
 ngx_int_t
-brix_collect_voms_vos(struct voms_data *vd,
-    char *primary_vo, size_t primary_vo_sz,
-    char *vo_list, size_t vo_list_sz)
+brix_collect_voms_vos(struct voms_data *vd, const brix_voms_out_t *out)
 {
     struct voms_entry **entry;
 
@@ -131,8 +181,8 @@ brix_collect_voms_vos(struct voms_data *vd,
         char   derived_vo[128];
 
         if ((*entry)->voname != NULL && (*entry)->voname[0] != '\0') {
-            if (!brix_append_vo_token(primary_vo, primary_vo_sz,
-                                        vo_list, vo_list_sz,
+            if (!brix_append_vo_token(out->primary_vo, out->primary_vo_sz,
+                                        out->vo_list, out->vo_list_sz,
                                         (*entry)->voname)) {
                 return NGX_ERROR;
             }
@@ -143,17 +193,25 @@ brix_collect_voms_vos(struct voms_data *vd,
         }
 
         for (fqan = (*entry)->fqan; *fqan != NULL; fqan++) {
+            /* 2.0 F20: the RAW FQAN first — it is the only carrier of the
+             * VOMS role, and the VO-name views below deliberately cannot hold
+             * one.  Best-effort: an FQAN that does not fit, or that carries a
+             * byte the predicate refuses, is dropped without failing a login
+             * that VO-name authorization would still have allowed. */
+            brix_append_fqan_token(out->fqan_list, out->fqan_list_sz, *fqan);
+
             if (!brix_fqan_to_vo(*fqan, derived_vo, sizeof(derived_vo))) {
                 continue;
             }
 
-            if (!brix_append_vo_token(primary_vo, primary_vo_sz,
-                                        vo_list, vo_list_sz,
+            if (!brix_append_vo_token(out->primary_vo, out->primary_vo_sz,
+                                        out->vo_list, out->vo_list_sz,
                                         derived_vo)) {
                 return NGX_ERROR;
             }
         }
     }
 
-    return (vo_list != NULL && vo_list[0] != '\0') ? NGX_OK : NGX_DECLINED;
+    return (out->vo_list != NULL && out->vo_list[0] != '\0')
+           ? NGX_OK : NGX_DECLINED;
 }

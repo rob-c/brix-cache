@@ -190,11 +190,13 @@ fhandle_reset_slot(brix_file_t *file)
     file->posc_final_path = NULL;
     file->is_resume       = 0;
     file->tpc_destination = 0;
+    file->tpc_push        = 0;   /* F16: the push-source role dies with the slot */
     file->tpc_armed       = 0;
     file->tpc_started     = 0;
     file->tpc_done        = 0;
     file->tpc_key[0]      = '\0';
     file->tpc_org[0]      = '\0';
+    file->tpc_org_unresolved = 0;
     file->tpc_src_host[0] = '\0';
     file->tpc_src_port    = 0;
     file->tpc_src_path[0] = '\0';

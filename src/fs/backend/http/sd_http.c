@@ -177,13 +177,15 @@ static void
 sd_http_init_tctx(sd_http_inst_state *is, const brix_sd_http_cfg_t *cfg)
 {
     if (cfg->tctx != NULL) {
-        is->tctx = cfg->tctx;
-    } else if (cfg->ca_path != NULL && cfg->ca_path[0] != '\0') {
-        snprintf(is->ca_path, sizeof(is->ca_path), "%s", cfg->ca_path);
-        is->tctx = is->ca_path;
-    } else {
-        is->tctx = NULL;
+        is->tctx = cfg->tctx;               /* an injected transport's own */
+        return;
     }
+    if (cfg->ca_path != NULL && cfg->ca_path[0] != '\0') {
+        snprintf(is->ca_path, sizeof(is->ca_path), "%s", cfg->ca_path);
+    }
+    is->tctx_own.ca_path = (is->ca_path[0] != '\0') ? is->ca_path : NULL;
+    is->tctx_own.dns = cfg->dns;
+    is->tctx = &is->tctx_own;
 }
 
 brix_sd_instance_t *

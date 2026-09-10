@@ -8,7 +8,8 @@ Two instances on the stock nginx_lc_ssi.conf template:
 
   * journal — cta service with an explicit `executor test` and a journal
     path; an archive submit must succeed AND leave a non-empty journal
-    (cta_service.c opens the journal lazily on the first request)
+    (cta_shm.c opens the journal once at postconfiguration time, in the
+    master before fork, so every worker appends to the one shared fd)
   * caps — request_max 32 / response_max 16; the caps are enforced at
     ssi_dispatch.c (append > request cap → kXR_error "SSI request too large";
     response append > cap → the queued response errors), with an in-cap echo

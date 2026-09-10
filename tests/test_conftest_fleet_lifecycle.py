@@ -3,9 +3,9 @@ tests/test_conftest_fleet_lifecycle.py
 
 Unit coverage for the conftest "own only the fleet we started" guard.
 
-Background: in LOCAL mode the session teardown runs `manage_test_servers.sh
+Background: in LOCAL mode the session teardown runs `python3 -m cmdscripts.manage_test_servers
 stop-all` then `rmtree(TEST_ROOT)`.  When an operator keeps a fleet up out of
-band (`tests/manage_test_servers.sh start-all`) and runs a single test file for
+band (`python3 -m cmdscripts.manage_test_servers start-all`) and runs a single test file for
 a quick iteration, that teardown would tear the whole fleet down and wipe
 /tmp/xrd-test -- orphaning every still-running server's export-root fd, so the
 next manual `xrdcp`/TPC hangs.  `conftest._external_fleet_attached()` closes that
@@ -454,6 +454,74 @@ def test_xdist_controller_boots_after_every_worker_collected(
     assert collection_finish_env == [["full-spec"]]
     assert captured == [True]
     assert config._nginx_xrootd_selected_registry_specs == ["full-spec"]
+
+
+def _worker_config(testrunuid, numprocesses=2):
+    config = _Config(numprocesses=numprocesses)
+    config.workerinput = {"workerid": "gw1", "testrunuid": testrunuid}
+    return config
+
+
+def _controller_node(testrunuid, numprocesses=2):
+    return types.SimpleNamespace(
+        config=_Config(numprocesses=numprocesses),
+        gateway=types.SimpleNamespace(id="gw0"),
+        workerinput={"workerid": "gw0", "testrunuid": testrunuid},
+    )
+
+
+@pytest.fixture
+def worker_usage_error_env(collection_finish_env, monkeypatch, tmp_path):
+    monkeypatch.setattr(conftest, "_xdist_collected_nodes", set())
+    monkeypatch.setattr(conftest, "_xdist_fleet_started", False)
+    monkeypatch.setattr(conftest, "REGISTRY_ROOT", str(tmp_path / "registry"))
+    monkeypatch.setattr(conftest, "_capture_fleet_baseline", lambda: None)
+    return collection_finish_env
+
+
+def test_worker_usage_error_aborts_the_controller_before_the_fleet_boots(
+    worker_usage_error_env,
+):
+    """A collection-time UsageError on a worker must surface verbatim on the
+    controller (xdist itself loses it: `assert not crashitem`, no message) and
+    must do so before the controller spends a fleet boot on a doomed run."""
+    conftest._publish_worker_usage_error(
+        _worker_config("run-1"), pytest.UsageError("gate: undeclared ram-cache"))
+
+    with pytest.raises(pytest.UsageError, match="gate: undeclared ram-cache"):
+        conftest.pytest_xdist_node_collection_finished(
+            _controller_node("run-1", numprocesses=1), [])
+    assert worker_usage_error_env == []
+
+
+def test_worker_usage_error_marker_from_another_run_is_ignored(
+    worker_usage_error_env,
+):
+    """A marker left by an earlier session on the same TEST_ROOT carries that
+    run's id and must not abort this one."""
+    conftest._publish_worker_usage_error(
+        _worker_config("run-0"), pytest.UsageError("stale"))
+
+    conftest.pytest_xdist_node_collection_finished(
+        _controller_node("run-1", numprocesses=1), [])
+    assert worker_usage_error_env == [["full-spec"]]
+
+
+def test_controller_never_publishes_and_a_failed_worker_never_waits(
+    worker_usage_error_env, monkeypatch,
+):
+    """The marker is a worker-only artefact, and a worker of a run that already
+    published one skips the fleet wait its controller will never satisfy."""
+    conftest._publish_worker_usage_error(_Config(), pytest.UsageError("no"))
+    assert conftest._read_worker_usage_error("run-1") is None
+
+    conftest._publish_worker_usage_error(
+        _worker_config("run-1"), pytest.UsageError("gate"))
+    monkeypatch.setattr(conftest, "_chdir_scratch", lambda: None)
+    monkeypatch.setattr(conftest, "_wait_for_xdist_fleet",
+                        lambda: pytest.fail("waited for a fleet that never boots"))
+    conftest._finish_worker_collection(
+        _Session(_worker_config("run-1"), items=[object()]))
 
 
 def test_xdist_fleet_wait_timeout_defaults_to_fifteen_minutes(monkeypatch):

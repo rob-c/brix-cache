@@ -197,6 +197,7 @@
 struct ngx_brix_cms_ctx_s {
     ngx_cycle_t                    *cycle;       /* nginx cycle (for pool, log) */
     ngx_stream_brix_srv_conf_t   *conf;        /* server block configuration */
+    brix_dns_target_t              *mgr_dns;     /* phase-116 runtime target */
     ngx_addr_t                     *mgr_addr;    /* THIS link's manager address
                                                     (one ctx per redundant manager) */
     ngx_str_t                       mgr_name;    /* its raw host:port (NUL-terminated

@@ -22,6 +22,7 @@ from pathlib import Path
 
 import pytest
 
+from brix_suite.harness.log_preserve import preserve_registry_logs
 from server_launcher import LifecycleHarness, RegistryLauncher
 from server_registry import fleet_ready_for_test_root, get_server, read_manifest
 from settings import (
@@ -47,6 +48,7 @@ from settings import (
     REF_BRIX_GSI_PORT,
     REF_BRIX_GSI_SHARED_PORT,
     REF_BRIX_PORT,
+    REGISTRY_KEEP_LOGS,
     REGISTRY_ROOT,
     REMOTE_SERVER,
     SERVER_HOST,
@@ -132,6 +134,9 @@ def pytest_xdist_node_collection_finished(node, ids):
     del ids
     global _xdist_fleet_started
     config = node.config
+    message = _read_worker_usage_error(_node_testrunuid(node))
+    if message is not None:
+        raise pytest.UsageError(message)
     if _skip_xdist_fleet_start(config):
         return
     _xdist_collected_nodes.add(node.gateway.id)
@@ -178,6 +183,45 @@ def _start_xdist_fleet():
     return specs, stable_path
 
 
+def _worker_collection_error_path() -> Path:
+    return Path(REGISTRY_ROOT) / ".xdist-collection-error"
+
+
+def _node_testrunuid(node):
+    return (getattr(node, "workerinput", None) or {}).get("testrunuid")
+
+
+def _publish_worker_usage_error(config, exc) -> None:
+    """Leave a worker's collection-time UsageError where the controller reads it.
+
+    xdist drops a worker's UsageError: pytest re-raises it only after the
+    worker has already reported ``collectionfinish``, so the controller sees
+    an ``assert not crashitem`` (or a closed channel) and never the message.
+    The marker is keyed by the xdist run id so a file left by an earlier
+    session on the same TEST_ROOT is never mistaken for this run's failure."""
+    workerinput = getattr(config, "workerinput", None)
+    if workerinput is None:
+        return
+    path = _worker_collection_error_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"{workerinput.get('testrunuid', '')}\n{exc}", encoding="utf-8")
+
+
+def _read_worker_usage_error(testrunuid):
+    """Return the UsageError message a worker of this run published, if any."""
+    if not testrunuid:
+        return None
+    try:
+        head, _, message = _worker_collection_error_path().read_text(
+            encoding="utf-8").partition("\n")
+    except OSError:
+        return None
+    if head != str(testrunuid):
+        return None
+    return message
+
+
 def pytest_collection_finish(session):
     """Start the complete session fleet once collection has settled.
 
@@ -206,6 +250,11 @@ def _finish_worker_collection(session) -> None:
         os.environ.get("TEST_SKIP_SERVER_SETUP") == "1",
         not session.items,
     )):
+        return
+    # A worker of this run already failed collection with a UsageError (its own
+    # is still propagating through pytest's ``finally``): the controller aborts
+    # on that marker, so waiting for a fleet it will never boot is pointless.
+    if _read_worker_usage_error(_node_testrunuid(session.config)) is not None:
         return
     _chdir_scratch()
     _wait_for_xdist_fleet()
@@ -322,18 +371,44 @@ def _report_orphans(session, survivors) -> None:
         pass
 
 
+def _release_lane_frozen_nginx() -> None:
+    """Drop this lane's immutable executable copies, unless a runner owns them.
+
+    A multi-lane runner (operator_runtime ``_capture_suite_nginx``) freezes the
+    binary ONCE for the whole run and publishes that path in the environment
+    every lane inherits.  Removing it at the end of the first lane strands every
+    later lane on a path that no longer exists — ``freeze_nginx()`` takes its
+    ``not src.exists()`` branch, has nothing to validate, and returns the dead
+    path, so every server exec fails ENOENT.  The owner clears it after its last
+    lane instead (``run_suite``).
+    """
+    try:
+        from cmdscripts.live_common import (  # noqa: PLC0415
+            SUITE_OWNS_FROZEN_NGINX, cleanup_frozen_nginx)
+        if os.environ.get(SUITE_OWNS_FROZEN_NGINX):
+            return
+        cleanup_frozen_nginx()
+    except OSError:
+        pass
+
+
 def _remove_test_root() -> None:
-    """Remove the session scratch tree and its immutable executable copies."""
+    """Remove the session scratch tree and its immutable executable copies.
+
+    With TEST_REGISTRY_KEEP_LOGS=1 the instance logs move aside first, to
+    ``<TEST_ROOT>.logs/<instance>/logs`` — a halted run's only evidence lives
+    there (history §21(g)).
+    """
     try:
         os.chdir(_ORIG_CWD)
     except OSError:
         pass
+    if REGISTRY_KEEP_LOGS:
+        kept = preserve_registry_logs(Path(REGISTRY_ROOT), Path(f"{TEST_ROOT}.logs"))
+        if kept:
+            sys.stderr.write(f"registry logs preserved under {TEST_ROOT}.logs: {' '.join(kept)}\n")
     shutil.rmtree(TEST_ROOT, ignore_errors=True)
-    try:
-        from cmdscripts.live_common import cleanup_frozen_nginx  # noqa: PLC0415
-        cleanup_frozen_nginx()
-    except OSError:
-        pass
+    _release_lane_frozen_nginx()
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config):

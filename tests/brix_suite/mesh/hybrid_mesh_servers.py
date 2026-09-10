@@ -2,7 +2,7 @@
 """
 Bring the hybrid two-tier cross-backend mesh up (or down) for the test harness.
 
-manage_test_servers.sh start-all invokes `hybrid_mesh_servers.py start`, which
+python3 -m cmdscripts.manage_test_servers start-all invokes `hybrid_mesh_servers.py start`, which
 launches all 7 nodes (a-g) on the dedicated band in hybrid_mesh_lib.PORTS
 (daemons detach via -b / nginx pid file, so this process exits once they are up).
 `stop` tears them all down.

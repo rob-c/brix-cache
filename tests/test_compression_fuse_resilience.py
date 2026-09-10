@@ -26,6 +26,7 @@ import os
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import threading
 import time
 
@@ -104,11 +105,9 @@ def _compressible(n):
 def built():
     _guard_built_1()
     _guard_built_2()
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrootdfs"],
-                          capture_output=True, text=True, timeout=240)
+    proc = client_make(CLIENT_DIR, "xrootdfs", capture_output=True, text=True, timeout=240)
     _guard_built_3(proc)
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "brix-fault-proxy"],
-                          capture_output=True, text=True, timeout=60)
+    proc = client_make(CLIENT_DIR, "brix-fault-proxy", capture_output=True, text=True, timeout=60)
     _guard_built_4(proc)
     _guard_built_5()
     return True

@@ -80,6 +80,31 @@ typedef struct {
     struct brix_cred_store *cred; /* optional pre-built credential store; NULL =
                                    * per-handler env/default discovery (today's
                                    * behaviour; C2 will thread this through auth). */
+    /* ---- sss identity (W7.2) ---- */
+    const char *sss_user;     /* NAME TLV to PROPOSE in an sss credential; NULL =
+                               * this process's own login name.  A multi-user
+                               * front end (the FUSE driver under allow_other)
+                               * sets it per caller so each request carries the
+                               * calling user, not the mount owner.  It is only
+                               * a proposal: a keytab key with a fixed `user=`
+                               * ignores it outright, and only an
+                               * `anybody`/`allusers` key honours it, so this can
+                               * never widen what the operator's keytab grants. */
+    /* ---- sss v2 entity (release-2.0 F9) ---- */
+    const char *sss_vorg;     /* VORG TLV: the VO this request acts for. */
+    const char *sss_role;     /* ROLE TLV: the role inside that VO. */
+    const char *sss_endorse;  /* ENDO TLV: opaque endorsements blob. */
+    const char *sss_creds_file; /* CRED TLV: a proxied credential read from
+                               * this file at mint time (never cached). */
+    int         sss_sndlid;   /* 1 ⇒ send the SNDLID form first and let the
+                               * server name the login id (kXR_authmore). */
+    /* Per-connection identity registry (client/lib/auth/sss/sss_id.h).  A
+     * multiplexing front end registers one identity per caller and sets
+     * sss_lid to the caller's key; the sss module then mints THAT identity
+     * and fails closed when the key is not registered.  NULL = single
+     * identity, taken from the fields above. */
+    struct brix_sss_id_registry *sss_id;
+    const char *sss_lid;      /* registry key; NULL/"" = the default slot. */
 } brix_opts;
 /* Default reconnect+retry patience window when resilience is on but unspecified. */
 #define XRDC_DEFAULT_MAX_STALL_MS 30000
@@ -123,14 +148,28 @@ typedef struct {
     size_t   gsi_deleg_keylen;
     char     gsi_deleg_cipher[24];
     int      gsi_deleg_use_iv;
-    /* --- TPC coordinator open (third-party copy) --- */
-    int      tpc_coord_defer;    /* 1 = a kXR_waitresp on this conn means "rendezvous
-                                  * registered, final reply deferred"; brix_recv
-                                  * surfaces it to the caller instead of blocking for
-                                  * the async reply (which only arrives AFTER the
-                                  * orchestrator opens the dest + triggers the pull —
-                                  * blocking here would deadlock the rendezvous). */
-    /* --- redirect / reconnect (M5) --- */
+    /* --- deferred-reply protocols (TPC coordinator open, SSI submit) --- */
+    int      defer_surfaces;     /* 1 = a kXR_waitresp on this conn is SURFACED to the
+                                  * caller (as status kXR_waitresp, empty body) instead
+                                  * of brix_recv blocking for the async reply.
+                                  *
+                                  * TPC coordinator open NEEDS it: the source registers
+                                  * the rendezvous and defers its open reply until the
+                                  * copy completes, but the copy only starts once the
+                                  * orchestrator opens the dest and triggers the pull --
+                                  * blocking here would deadlock the rendezvous.
+                                  *
+                                  * SSI submit needs it for a different reason: a
+                                  * deferring service answers kXR_waitresp and then
+                                  * pushes a SEQUENCE of attn(asynresp) frames (alerts,
+                                  * then the response). Blocking would consume the first
+                                  * one inside brix_recv, where the caller can neither
+                                  * see its RRInfoAttn tag nor tell an alert from the
+                                  * terminal reply. See client/lib/protocols/ssi/.
+                                  *
+                                  * Named for the behaviour, not for TPC: two unrelated
+                                  * protocols want the same one thing, and a second flag
+                                  * meaning the same would only grow frame.c an `||`. */    /* --- redirect / reconnect (M5) --- */
     brix_opts opts;             /* copy of the connect opts, replayed on reconnect */
     int       want_tls;         /* derived at connect; re-applied on reconnect */
     int       tls_strict;       /* roots:// — never downgrade to cleartext */
@@ -193,8 +232,8 @@ int brix_write_full(brix_io *io, const void *buf, size_t n, brix_status *st);
 void brix_io_stall_arm(brix_io *io);
 void brix_io_stall_disarm(brix_io *io);
 /* ---- netpref.c — process-wide IPv6→IPv4 auto-downgrade (dual-stack hosts) ---- */
-/* getaddrinfo family hint: AF_UNSPEC normally, AF_INET once the session has
- * demoted to IPv4-only after observing a broken IPv6 path. */
+/* brix_resolve() family hint: AF_UNSPEC normally, AF_INET once the session
+ * has demoted to IPv4-only after observing a broken IPv6 path. */
 int  brix_netpref_family(void);
 /* 1 if this process has demoted to IPv4-only. */
 int  brix_netpref_demoted(void);

@@ -1,6 +1,7 @@
 #include "ftp_dc_sec.h"
 
 #include "auth/crypto/gsi_verify.h"
+#include "ftp_dc_dn.h"       /* the shared data-channel DN pin */
 
 #include <openssl/pem.h>
 #include <openssl/evp.h>
@@ -124,43 +125,10 @@ brix_ftp_dc_apply_policy(SSL *ssl)
 }
 
 
-/* GSI identity match: does the peer's leaf DN name the same subject as the
- * control-channel DN?  In GSI a proxy's subject is exactly the delegator's
- * subject plus one `/CN=<value>` component per delegation step, so the peer DN
- * matches when it either equals the control DN (a plain client transfer, where
- * the data peer presents the same proxy) or extends it by one or more trailing
- * `/CN=` proxy components (a gsiftp<->gsiftp TPC leg, where the other server
- * presents a proxy further delegated from the control identity).  The chain has
- * already been PKIX-verified as a well-formed RFC 3820 proxy chain, so any such
- * extension is a genuine sub-proxy — the prefix cannot be forged without the
- * control identity's key.  Returns 1 on match, 0 otherwise. */
-static int
-brix_ftp_dc_dn_matches(const char *peer, const u_char *base, size_t blen)
-{
-    size_t plen = ngx_strlen(peer);
-    const char *p;
-
-    if (blen == 0 || plen < blen || ngx_strncmp(peer, base, blen) != 0) {
-        return 0;
-    }
-    if (plen == blen) {
-        return 1;                                  /* exact identity */
-    }
-    if (peer[blen] != '/') {
-        return 0;                                  /* prefix not at an RDN boundary */
-    }
-    /* Every trailing RDN past the control DN must be a `CN=` proxy component. */
-    for (p = peer + blen; *p == '/'; ) {
-        p++;
-        if (ngx_strncmp(p, "CN=", 3) != 0) {
-            return 0;
-        }
-        while (*p != '\0' && *p != '/') {
-            p++;
-        }
-    }
-    return *p == '\0';
-}
+/* The DN pin itself is the shared header-only predicate in ftp_dc_dn.h —
+ * the outbound gsiftp driver (fs/backend/gsiftp/gftp_dc_tls.c) applies the
+ * identical test in the connect role, and a security predicate must not exist
+ * twice (phase-115 W5.1). */
 
 
 ngx_int_t

@@ -21,6 +21,14 @@ Only then does it `DISPATCH_WR(handler)` into one of the functions declared in
 [`write.h`](write.h). This enforces invariant #5 (fail-closed write authority,
 checked globally before any per-path token scope).
 
+The one exemption is F16: the two `kXR_sync`s that arm and fire a native TPC
+**push** pass the `allow_write` clause on a read-only export, because a push
+*source* writes nothing locally — it reads its own file and streams it to the
+remote destination, which does the writing behind its own gate. The exemption is
+keyed on the opcode (`kXR_sync`) *and* on the handle already carrying the
+`tpc_push` bit *and* on the transfer not being finished; everything else still
+meets `kXR_fsReadOnly`.
+
 The data-carrying opcodes (`write`/`pgwrite`/`writev`) follow a uniform AIO
 fork: when a thread pool is configured they detach the received payload from
 `ctx->payload_buf` and post a `pwrite(2)` task to
@@ -161,7 +169,9 @@ Calls outward to sibling subsystems:
 - **Fail-closed write authority.** The dispatcher's
   `brix_dispatch_require_write()` runs before *every* handler and rejects with
   `kXR_NotAuthorized` unless authenticated **and** `conf->common.allow_write` is
-  set — checked globally, ahead of per-path token scope (invariant #5).
+  set — checked globally, ahead of per-path token scope (invariant #5). The sole
+  exemption is the F16 push arm/fire `kXR_sync` described above; it relaxes only
+  the `allow_write` clause, never authentication or the bound-stream refusal.
 - **Kernel confinement is mandatory.** Path-based ops never call a raw
   `open`/`rename`/`mkdir` on a client path: they go through
   `brix_resolve_op_path` / `brix_path_resolve_beneath` (RESOLVE_BENEATH) and

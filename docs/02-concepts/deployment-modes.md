@@ -1,6 +1,6 @@
 # Deployment Modes
 
-There are three ways to run BriX-Cache, and they solve three different problems. Pick the one that matches where BriX-Cache sits in your stack — you can always combine modes later.
+BriX-Cache has six deployment modes — the mode table in the [README](../../README.md) lists all of them. This page details the three **core** modes, which solve three different problems: standalone server, XRootD proxy, and WebDAV proxy. The three **gateway** modes layer on top of them and have their own guides: the [GridFTP gateway](../05-operations/gridftp.md), the [httpg proxy for ARC-CE](../05-operations/arc-ce-httpg-front-proxy.md), and the [CVMFS site cache](../04-protocols/cvmfs.md). Pick the one that matches where BriX-Cache sits in your stack — you can always combine modes later.
 
 ---
 
@@ -125,6 +125,9 @@ stream {
         
         # Auth options at the edge:
         brix_auth token;                  # JWT tokens instead of GSI
+        brix_token_jwks     /etc/brix/wlcg-jwks.json;
+        brix_token_issuer   https://wlcg.cloud.cnaf.infn.it/;
+        brix_token_audience https://storage.example.org;
     }
 }
 ```
@@ -193,7 +196,7 @@ http {
 
             # Auth enforcement at the perimeter (needs a CA to validate against):
             brix_webdav_auth required;             # Require valid token/cert
-            brix_webdav_cafile /etc/ssl/ca.pem;    # CA bundle for client certs
+            brix_trusted_ca /etc/ssl/ca.pem;    # CA bundle for client certs
         }
     }
 }
@@ -214,7 +217,7 @@ also works in front of any WebDAV backend.
 
 ## Can I Run Multiple Modes Together?
 
-**Yes.** A single nginx process can run all three modes simultaneously:
+**Yes.** A single nginx process can run every mode simultaneously — the example below combines the three core modes:
 
 ```nginx
 # Stream block — Mode 1 (standalone) + Mode 2 (proxy)
@@ -240,8 +243,11 @@ http {
     # WebDAV served directly at the edge
     server {
         listen 8443 ssl;
+        ssl_certificate     /etc/brix/pki/hostcert.pem;
+        ssl_certificate_key /etc/brix/pki/hostkey.pem;
         location / {
             brix_webdav on;
+            brix_webdav_auth none;            # public read; see Mode 3 for auth
             brix_export /data/local-store;
         }
     }
@@ -251,7 +257,11 @@ http {
         listen 9000;
         location / {
             brix_s3 on;
-            brix_export /data/s3-bucket;
+            brix_export        /data/s3-bucket;
+            brix_s3_bucket     data;
+            brix_s3_region     us-east-1;
+            brix_s3_access_key AKIAEXAMPLE;
+            brix_s3_secret_key CHANGE-ME;
         }
     }
 }

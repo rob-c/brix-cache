@@ -196,6 +196,20 @@ SPECS: dict[str, CUnitSpec] = {
             "-ldl",  # dlsym(RTLD_NEXT) for the fsync-ordering interposer
         ),
     ),
+    "tpc_cred_renew": CUnitSpec(
+        "tpc_cred_renew",
+        "test_tpc_cred_renew",
+        (
+            "-O",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-I",
+            "src",
+            "tests/c/test_tpc_cred_renew.c",
+            "src/tpc/common/cred_renew.c",
+        ),
+    ),
     "sesslog": CUnitSpec(
         "sesslog",
         "brix_sesslog_ut",

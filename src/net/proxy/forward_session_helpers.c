@@ -17,10 +17,10 @@
  *       local_fh slot is out of range. brix_proxy_wait_handler() fires on timer expiry,
  *       restores fwd_reqid/streamid/fh from saved retry data, resets response state,
  *       flushes the saved request to upstream, and arms read event.
- *       brix_proxy_alloc_local_fh() scans fh_map for a free slot (upstream_fh == FREE)
+ *       brix_proxy_alloc_local_fh() scans fh_map for a free slot (fh_state == FREE)
  *       returning the index or -1 if exhausted. brix_proxy_lazy_open() looks up the
  *       canonical path from shared session handle registry, builds a synthetic anonymous
- *       kXR_open with streamid[1]=0xfe, marks the slot pending (255), saves read_req for
+ *       kXR_open with streamid[1]=0xfe, marks the slot PENDING, saves read_req for
  *       later dispatch by relay_to_client after open response arrives, and flushes.
  */
 
@@ -129,7 +129,7 @@ brix_proxy_wait_handler(ngx_event_t *ev)
     /* else: write handler will complete the send */
 }
 
-/* brix_proxy_alloc_local_fh — return the first free slot (upstream_fh == FREE) in
+/* brix_proxy_alloc_local_fh — return the first free slot (fh_state == FREE) in
  * the proxy fh_map (its own file-handle namespace), or -1 if all are occupied. */
 int
 brix_proxy_alloc_local_fh(brix_proxy_ctx_t *proxy)
@@ -137,7 +137,7 @@ brix_proxy_alloc_local_fh(brix_proxy_ctx_t *proxy)
     int i;
 
     for (i = 0; i < BRIX_MAX_FILES; i++) {
-        if (proxy->fh_map[i].upstream_fh == BRIX_PROXY_FH_FREE) {
+        if (proxy->fh_map[i].fh_state == BRIX_PROXY_FH_FREE) {
             return i;
         }
     }
@@ -200,7 +200,7 @@ brix_proxy_lazy_open(brix_proxy_ctx_t *proxy,
     ngx_memcpy(frame + sizeof(*oreq), he.path, pathlen);
 
     /* Mark the slot pending while we wait for the open response */
-    proxy->fh_map[local_fh].upstream_fh = 255;
+    proxy->fh_map[local_fh].fh_state = BRIX_PROXY_FH_PENDING;
 
     /* Save the kXR_read so relay_to_client can dispatch it after open */
     proxy->saved_req        = read_req;

@@ -401,8 +401,10 @@ brix_pgread_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
         /* I/O failure: the secondary wire is untouched, so the error rides the
          * PRIMARY control stream exactly like the normal path. */
         brix_release_read_buffer(sec_ctx, sec_c, buf);
-        BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
-        *rc = brix_send_error(ctx, c, kXR_IOError, strerror(io_errno));
+        if (io_errno != EAGAIN) {          /* §4.5: EAGAIN is a wait, not a fault */
+            BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
+        }
+        *rc = brix_read_io_error(ctx, c, io_errno);
         return 1;
     }
 
@@ -547,6 +549,12 @@ brix_handle_pgread(brix_ctx_t *ctx, ngx_connection_t *c)
     if (!warm_hit) {
         int io_errno = brix_pgread_sync_fill(ctx, &run);
 
+        if (io_errno == EAGAIN) {
+            /* §4.5: caught up with an in-flight fill's frontier — the client
+             * retries this pgread; no failure log, no BRIX_OP_ERR. */
+            brix_release_read_buffer(ctx, c, run.scratch);
+            return brix_read_io_error(ctx, c, io_errno);
+        }
         if (io_errno != 0) {
             brix_release_read_buffer(ctx, c, run.scratch);
             BRIX_RETURN_ERR(ctx, c, BRIX_OP_PGREAD, "PGREAD",

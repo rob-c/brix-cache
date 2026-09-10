@@ -250,7 +250,7 @@ static const brix_sd_driver_t brix_sd_xroot_driver = {
                  | BRIX_SD_CAP_XATTR_WRITE
                  | BRIX_SD_CAP_HARD_RENAME | BRIX_SD_CAP_SERVER_COPY
                  | BRIX_SD_CAP_DIRS | BRIX_SD_CAP_DIRS_WRITE
-                 | BRIX_SD_CAP_MEMFILE,
+                 | BRIX_SD_CAP_MEMFILE | BRIX_SD_CAP_BLOCKING_WIRE,
     .cred_accept = BRIX_SD_CRED_BEARER | BRIX_SD_CRED_PROXY_PEM
                  | BRIX_SD_CRED_SSS | BRIX_SD_CRED_GSS_KRB5,
     .open          = sd_xroot_open,
@@ -324,6 +324,40 @@ brix_sd_xroot_query_checksum(brix_sd_obj_t *obj, char *alg, size_t algsz,
         .alg = alg, .alg_sz = algsz, .hex = hex, .hex_sz = hexsz,
     };
     (void) brix_cache_origin_query_checksum(st->t, &st->oc, &out);
+}
+
+/* brix_sd_xroot_endpoint — the origin host:port this instance dials.
+ *
+ * WHAT: fills *host (instance-owned, NUL-terminated) and *port for a plain
+ *       root:// instance; returns -1 for anything else.
+ * WHY:  one caller must NAME the origin to a client instead of reading through
+ *       it — the read cache's admission decline (fs/cache/thread.c) redirects an
+ *       object it refuses to cache straight at the origin.  Before 2.0 that
+ *       redirect read the retired brix_cache_origin host, which no directive
+ *       could write, so a declined open always answered kXR_Unsupported.
+ * HOW:  a forward:// instance is deliberately refused: its endpoint is named by
+ *       the client per open, so the instance has no single one to publish.
+ */
+int
+brix_sd_xroot_endpoint(const brix_sd_instance_t *inst, const char **host,
+    uint16_t *port)
+{
+    const sd_xroot_inst_state *is;
+
+    if (inst == NULL || inst->state == NULL
+        || inst->driver != &brix_sd_xroot_driver)
+    {
+        return -1;
+    }
+    is = inst->state;
+    if (is->conf == NULL || is->conf->cache_origin_host.len == 0
+        || is->conf->cache_origin_port == 0)
+    {
+        return -1;
+    }
+    *host = (const char *) is->conf->cache_origin_host.data;
+    *port = (uint16_t) is->conf->cache_origin_port;
+    return 0;
 }
 
 brix_sd_instance_t *
@@ -431,10 +465,18 @@ sd_xroot_origin_build_ca_store(sd_xroot_inst_state *is,
     synth->common.trusted_ca.len  = ngx_strlen(is->ca_dir);
 
     is_dir = (stat(is->ca_dir, &ca_st) == 0 && S_ISDIR(ca_st.st_mode));
-    synth->gsi_store = brix_build_ca_store(log,
-        is_dir ? is->ca_dir : NULL, is_dir ? NULL : is->ca_dir, NULL,
-        X509_V_FLAG_ALLOW_PROXY_CERTS, &crl_count,
-        BRIX_SP_MODE_OFF, BRIX_CRL_MODE_TRY);
+    {
+        /* Origin-verification store: no signing_policy (the origin's CA set is
+         * whatever the operator pointed at), CRL "try" as before, and the
+         * default widest CRL scope.  Not operator-tunable — this store is
+         * synthesised for one backend origin, not declared in a server block. */
+        brix_trust_policy_t pol = BRIX_TRUST_POLICY_INIT;
+
+        pol.crl_mode = BRIX_CRL_MODE_TRY;
+        synth->gsi_store = brix_build_ca_store(log,
+            is_dir ? is->ca_dir : NULL, is_dir ? NULL : is->ca_dir, NULL,
+            X509_V_FLAG_ALLOW_PROXY_CERTS, &crl_count, &pol);
+    }
     if (synth->gsi_store == NULL) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
             "brix: gsi origin CA store build failed for \"%s\" — GSI to this "
@@ -472,12 +514,14 @@ brix_sd_xroot_create_origin(const brix_sd_xroot_origin_cfg_t *cfg,
     synth->cache_origin_port      = (uint16_t) cfg->port;
     synth->cache_origin_tls       = cfg->tls ? 1 : 0;
     synth->cache_origin_family    = (ngx_uint_t) cfg->af_policy;
+    synth->common.dns.policy      = cfg->dns;
 
     /* Credentials + CA store: each stores bytes on the instance so synth's
      * ngx_str_t members reference storage valid for the instance lifetime. */
     sd_xroot_origin_apply_creds(is, synth, cfg);
     sd_xroot_origin_build_ca_store(is, synth, cfg->ca_dir, log);
 
+    is->verify_pages = cfg->verify_pages;
     is->conf     = synth;
     is->synth    = synth;                       /* owned: free on destroy */
     inst->driver = &brix_sd_xroot_driver;

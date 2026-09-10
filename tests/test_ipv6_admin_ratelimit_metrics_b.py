@@ -84,6 +84,7 @@ def test_metrics_ipv6_label_cardinality_bounded():
         "result",        # ok/error/...
         "server",        # cluster-membership identity (host:port) — see above
         "source",        # cvmfs bytes-served source: hit/fill
+        "state",         # cache store capacity: total/used/available (bounded)
         "status",        # protocol/HTTP status code
         "status_class",  # 2xx/4xx/5xx aggregate
         "surface",       # request surface (api/data/admin/...)

@@ -423,8 +423,8 @@ stream {
         brix_thread_pool default;
     }
 }
-&#32;
-# /etc/brix/scitags.json
+</code></pre>
+<pre><code class="language-json"># /etc/brix/scitags.json
 &#32;
 {
   "modified": "2026-06-22",
@@ -568,7 +568,7 @@ sec.protbind * only gsi
 ## 7. root:// GSI Fileserver With Explicit User Mapping
 
 Both examples authenticate clients with GSI and use a grid-mapfile, but the files
-mean different things. BriX-Cache uses `brix_gridmap` for optional
+mean different things. BriX-Cache uses `brix_idmap_gridmap` for optional
 per-request UNIX impersonation; its authdb still matches the GSI DN. Vanilla
 XRootD's GSI grid-mapfile maps the client DN to the local name that `acc.authdb`
 then authorizes.
@@ -598,13 +598,13 @@ events {
 stream {
     # Process-global broker settings. These can be placed in stream{}
     # because the broker is shared by the nginx instance.
-    brix_impersonation map;
-    brix_impersonation_socket /run/brix/impersonate.sock;
-    brix_impersonation_export /srv/brix/export;
-    brix_impersonation_broker_user xrootd-broker;
+    brix_idmap map;
+    brix_idmap_socket /run/brix/impersonate.sock;
+    brix_idmap_export /srv/brix/export;
+    brix_idmap_broker_user xrootd-broker;
 &#32;
     # DN to local account mapping used only by the impersonation broker.
-    brix_gridmap /etc/grid-security/grid-mapfile;
+    brix_idmap_gridmap /etc/grid-security/grid-mapfile;
 &#32;
     # Fail closed for unmapped DNs by omitting brix_idmap_default_user.
     brix_idmap_min_uid 1000;
@@ -845,7 +845,7 @@ http {
             brix_webdav_auth required;
 &#32;
             # CA directory used by the module for proxy-chain verification.
-            brix_webdav_cadir /etc/grid-security/certificates;
+            brix_trusted_ca_dir /etc/grid-security/certificates;
 &#32;
             # Allow writes only after authentication succeeds.
             brix_allow_write on;
@@ -915,11 +915,11 @@ stream {
     # Global broker settings used by HTTP/WebDAV filesystem opens too.
     # Omit this block if the deployment only needs DN-based authdb
     # authorization and not per-user UNIX ownership.
-    brix_impersonation map;
-    brix_impersonation_socket /run/brix/impersonate.sock;
-    brix_impersonation_export /srv/brix/export;
-    brix_impersonation_broker_user xrootd-broker;
-    brix_gridmap /etc/grid-security/grid-mapfile;
+    brix_idmap map;
+    brix_idmap_socket /run/brix/impersonate.sock;
+    brix_idmap_export /srv/brix/export;
+    brix_idmap_broker_user xrootd-broker;
+    brix_idmap_gridmap /etc/grid-security/grid-mapfile;
     brix_idmap_min_uid 1000;
 }
 &#32;
@@ -943,7 +943,7 @@ http {
             brix_webdav on;
             brix_export /srv/brix/export;
             brix_webdav_auth required;
-            brix_webdav_cadir /etc/grid-security/certificates;
+            brix_trusted_ca_dir /etc/grid-security/certificates;
             brix_allow_write on;
 &#32;
             # WebDAV authorization still matches the authenticated DN.
@@ -1052,22 +1052,17 @@ stream {
         # Cache mode is read-only; writes must stay disabled.
         brix_allow_write off;
 &#32;
-        # Namespace root used for path handling. In cache mode, hits are
-        # served from brix_cache_export below.
-        brix_export /srv/brix/cache;
+        # Client namespace root. Hits are served from brix_cache_store below,
+        # which must live OUTSIDE every export root.
+        brix_export /srv/brix/export;
 &#32;
         # Enable read-through cache fills.
-        brix_cache on;
-        brix_cache_export /srv/brix/cache;
+        brix_cache_store posix:/srv/brix/cache;
+        brix_cache_export /;
 &#32;
         # Origin data server. Use roots:// here if the origin requires TLS.
-        brix_cache_origin root://origin.example.org:1094;
+        brix_storage_backend root://origin.example.org:1094;
 &#32;
-        # Service proxy used only for outbound origin fetches.
-        # The file must be created and renewed outside nginx.
-        brix_cache_origin_proxy /run/brix/cache-fetcher.proxy;
-        brix_cache_origin_cadir /etc/grid-security/certificates;
-        brix_cache_origin_client /usr/bin/xrdcp;
 &#32;
         # Operational cache policy.
         brix_cache_lock_timeout 300s;
@@ -1165,20 +1160,17 @@ stream {
         # Cache mode is read-only; writes must stay disabled.
         brix_allow_write off;
 &#32;
-        brix_export /srv/brix/cache;
+        brix_export /srv/brix/export;
 &#32;
         # Enable read-through cache fills.
-        brix_cache on;
-        brix_cache_export /srv/brix/cache;
+        brix_cache_store posix:/srv/brix/cache;
+        brix_cache_export /;
 &#32;
         # Origin data server. Use roots:// if the origin requires TLS.
-        brix_cache_origin root://origin.example.org:1094;
+        brix_storage_backend root://origin.example.org:1094;
 &#32;
         # Service proxy for authenticated origin fetches.
         # Managed and renewed outside nginx.
-        brix_cache_origin_proxy /run/brix/cache-fetcher.proxy;
-        brix_cache_origin_cadir /etc/grid-security/certificates;
-        brix_cache_origin_client /usr/bin/xrdcp;
 &#32;
         brix_cache_lock_timeout 300s;
         brix_cache_eviction_threshold 90%;
@@ -1277,20 +1269,15 @@ stream {
 &#32;
         # XCache is client read-only. Cache fills write internally.
         brix_allow_write off;
-        brix_export /srv/brix/cache;
+        brix_export /srv/brix/export;
 &#32;
         # Read-through cache storage.
-        brix_cache on;
-        brix_cache_export /srv/brix/cache;
+        brix_cache_store posix:/srv/brix/cache;
+        brix_cache_export /;
 &#32;
         # CERN EOS root:// door. Replace eoslhcb.cern.ch and /eos/lhcb
         # policy below with the experiment's EOS endpoint and namespace.
-        brix_cache_origin root://eoslhcb.cern.ch:1094;
-&#32;
-        # Service proxy used only for cache-to-EOS fetches.
-        brix_cache_origin_proxy /run/brix/eos-cache-fetcher.proxy;
-        brix_cache_origin_cadir /etc/grid-security/certificates;
-        brix_cache_origin_client /usr/bin/xrdcp;
+        brix_storage_backend root://eoslhcb.cern.ch:1094;
 &#32;
         # Operational cache policy.
         brix_cache_lock_timeout 300s;
@@ -1300,8 +1287,8 @@ stream {
         brix_thread_pool brix_cache_io;
     }
 }
-&#32;
-# /etc/brix/cache-authdb
+</code></pre>
+<pre><code class="language-text"># /etc/brix/cache-authdb
 &#32;
 # Alice may read the experiment namespace.
 u /DC=org/DC=example/CN=Alice Example /eos/lhcb rl
@@ -1633,10 +1620,10 @@ http {
             # Accept either a verified proxy cert or an anonymous request
             # that carries a valid bearer token.
             brix_webdav_auth optional;
-            brix_webdav_cadir /etc/grid-security/certificates;
-            brix_webdav_token_jwks /etc/tokens/storage-jwks.json;
-            brix_webdav_token_issuer https://idp.example.com;
-            brix_webdav_token_audience my-storage;
+            brix_trusted_ca_dir /etc/grid-security/certificates;
+            brix_token_jwks /etc/tokens/storage-jwks.json;
+            brix_token_issuer https://idp.example.com;
+            brix_token_audience my-storage;
 &#32;
             # Enable HTTP-TPC COPY Source:/Destination: handling.
             brix_webdav_tpc on;
@@ -1656,8 +1643,8 @@ http {
 &#32;
             # Block loopback/link-local SSRF. RFC1918 peers are allowed
             # because many HEP transfer nodes sit on private fabrics.
-            brix_webdav_tpc_allow_local off;
-            brix_webdav_tpc_allow_private on;
+            brix_tpc_allow_local off;
+            brix_tpc_allow_private on;
 &#32;
             brix_thread_pool tpc_io;
         }
@@ -1731,7 +1718,7 @@ stream {
         brix_tap_proxy on;
 &#32;
         # Client-facing token authentication and scope enforcement.
-        brix_tap_proxy_auth token;
+        brix_tap_proxy_auth anonymous;
         brix_auth token;
         brix_token_jwks /etc/tokens/storage-jwks.json;
         brix_token_issuer https://idp.example.com;
@@ -1739,7 +1726,7 @@ stream {
 &#32;
         # Backend is an internal anonymous XRootD data server.
         brix_tap_proxy_upstream legacy-origin.internal.example.org:1094;
-        brix_tap_proxy_login_user edge-token-gateway;
+        brix_tap_proxy_login_user fixed:edgegw;
 &#32;
         # Audit the security-domain bridge.
         brix_tap_proxy_audit_log /var/log/nginx/root_proxy_audit.json;
@@ -1819,7 +1806,7 @@ http {
 &#32;
             # Authenticate clients at the edge.
             brix_webdav_auth required;
-            brix_webdav_cadir /etc/grid-security/certificates;
+            brix_trusted_ca_dir /etc/grid-security/certificates;
 &#32;
             # NOTE: the dedicated WebDAV reverse-proxy directives
             # (brix_webdav_proxy*) were removed. The edge serves WebDAV
@@ -1926,7 +1913,7 @@ http {
             brix_webdav on;
             brix_export /srv/brix/export;
             brix_webdav_auth required;
-            brix_webdav_cadir /etc/grid-security/certificates;
+            brix_trusted_ca_dir /etc/grid-security/certificates;
 &#32;
             brix_rate_limit_rule zone=http_limits key=vo rate=500r/s burst=800;
             brix_bandwidth_limit zone=http_limits key=volume:/store/tape rate=50m/s burst=200m;
@@ -2000,7 +1987,7 @@ stream {
         # Shadow read-path operations to a separate validation server.
         # Do not point the shadow at the same writable storage root.
         brix_mirror_url shadow-xrd.example.org:21094;
-        brix_mirror_opcodes protocol login stat locate open dirlist;
+        brix_mirror_opcodes stat locate open dirlist;
         brix_mirror_sample 10;
         brix_mirror_strip_auth on;
         brix_mirror_log_diverge on;
@@ -2067,7 +2054,7 @@ http {
             brix_webdav on;
             brix_export /srv/brix/export;
             brix_webdav_auth optional;
-            brix_webdav_cadir /etc/grid-security/certificates;
+            brix_trusted_ca_dir /etc/grid-security/certificates;
 &#32;
             # Mirror only safe read/list methods while validating the shadow.
             brix_mirror_url https://shadow-dav.example.org:8443;
@@ -2143,21 +2130,19 @@ stream {
         brix_certificate_key /etc/grid-security/hostkey.pem;
         brix_trusted_ca      /etc/grid-security/certificates;
 &#32;
-        # Durable file-residency manager queue.
+        # Tape recall: stage request registry + nearline-open parking.
+        # queue_path is the durable stage journal (one <reqid>.req per staged
+        # flush/recall, replayed at start, deadletter/ after fail_retries);
+        # the stager is brix_frm_stagecmd (or the BRIX_FRM_STAGECMD /
+        # BRIX_FRM_*_LIB environment fallback) and the brix_frm_purge_* trio
+        # drives the tape-buffer purge engine — 2.0 F1, see
+        # docs/10-reference/release-2.0-readiness.md.
         brix_frm on;
         brix_frm_queue_path /var/spool/nginx-xrootd/frm.queue;
         brix_frm_max_inflight 64;
-        brix_frm_max_per_source 4;
-        brix_frm_stagecmd /usr/local/libexec/brix-stage-in;
-        brix_frm_residency_cmd /usr/local/libexec/brix-residency;
         brix_frm_stage_ttl 600s;
-        brix_frm_xfrhold 30s;
-        brix_frm_fail_backoff 60s;
-        brix_frm_fail_retries 3;
-&#32;
-        # Optional disk purge hooks for tape-backed cache space.
-        brix_frm_purge_watermark 95% 85%;
-        brix_frm_purge_interval 300s;
+        brix_frm_stage_wait 30;
+        brix_frm_async_recall on;
 &#32;
         brix_thread_pool tape_io;
     }
@@ -2173,7 +2158,7 @@ http {
             brix_webdav on;
             brix_export /srv/brix/export;
             brix_webdav_auth required;
-            brix_webdav_cadir /etc/grid-security/certificates;
+            brix_trusted_ca_dir /etc/grid-security/certificates;
 &#32;
             # Expose the HTTP Tape REST facade on the same namespace.
             brix_webdav_tape_rest on;
@@ -2249,9 +2234,9 @@ stream {
         brix_allow_write on;
 &#32;
         # Read-through fills for cold files.
-        brix_cache on;
-        brix_cache_export /srv/brix/cache;
-        brix_cache_origin root://origin.example.org:1094;
+        brix_cache_store posix:/srv/brix/cache;
+        brix_cache_export /;
+        brix_storage_backend root://origin.example.org:1094;
         brix_cache_lock_timeout 300s;
         brix_cache_eviction_threshold 90%;
 &#32;
@@ -2344,7 +2329,7 @@ http {
             brix_webdav on;
             brix_export /srv/brix/export;
             brix_webdav_auth optional;
-            brix_webdav_cadir /etc/grid-security/certificates;
+            brix_trusted_ca_dir /etc/grid-security/certificates;
             brix_allow_write on;
 &#32;
             # Explicit browser origins. Avoid "*" when credentials are used.

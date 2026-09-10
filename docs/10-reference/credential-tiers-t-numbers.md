@@ -221,7 +221,7 @@ Handler: `src/protocols/webdav/delegation.c` (T8 sections). Enabled by
 `brix_delegation_endpoint on` inside a location that also has `brix_webdav
 on`, **`brix_allow_write on`** (a read-only export 403s the PUT before
 delegation dispatch — empirically rediscovered every time), `brix_webdav_auth
-required`, `brix_webdav_cafile` (or `brix_webdav_cadir` for a hashed CA
+required`, `brix_trusted_ca` (or `brix_trusted_ca_dir` for a hashed CA
 directory), and `brix_storage_credential_dir`.
 
 Two properties discovered the hard way, now encoded as security-negative

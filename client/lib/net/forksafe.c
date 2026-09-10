@@ -82,16 +82,48 @@ forksafe_child(void)
         c->io.ssl  = NULL;   /* abandoned: SSL_free would send close_notify */
         c->diag.cap = NULL;  /* abandoned: fclose would flush shared buffers */
         c->forked  = 1;
+        g_fs_reg[i] = NULL;  /* a neutered conn needs no second neutering, and
+                              * a child that re-dials should not inherit slots
+                              * it can never release */
     }
+    g_fs_overflow = 0;
 }
 
 /* ---- Registry maintenance (conn.c calls these) ---- */
+
+/* Insert `c`, or keep the slot it already has (g_fs_mx held). -1 on overflow.
+ *
+ * Registration MUST be idempotent. brix_connect_setup memsets the conn, so
+ * re-dialling an already-registered object — which is exactly what an
+ * embedder does in a forked child, brix_conn_usable having gone false — is a
+ * register with no intervening unregister. A blind append would take a second
+ * slot per cycle: the table fills, g_fs_overflow starts counting, and from
+ * then on new connections are never neutered in a child, which is the stream
+ * corruption this file exists to prevent, arriving silently. The surplus
+ * entries also outlive the single unregister brix_close performs, leaving
+ * pointers into a conn the caller may free.
+ */
+static int
+forksafe_slot_for(brix_conn *c)
+{
+    int i, free_slot = -1;
+
+    for (i = 0; i < BRIX_FORKSAFE_MAX; i++) {
+        if (g_fs_reg[i] == c) {
+            return i;
+        }
+        if (g_fs_reg[i] == NULL && free_slot < 0) {
+            free_slot = i;
+        }
+    }
+    return free_slot;
+}
 
 void
 brix_forksafe_register(brix_conn *c)
 {
     static int installed = 0;
-    int        i;
+    int        slot;
 
     pthread_mutex_lock(&g_fs_mx);
     if (!installed) {   /* install the atfork trio exactly once per process */
@@ -99,14 +131,12 @@ brix_forksafe_register(brix_conn *c)
                               forksafe_child);
         installed = 1;
     }
-    for (i = 0; i < BRIX_FORKSAFE_MAX; i++) {
-        if (g_fs_reg[i] == NULL) {
-            g_fs_reg[i] = c;
-            pthread_mutex_unlock(&g_fs_mx);
-            return;
-        }
+    slot = forksafe_slot_for(c);
+    if (slot < 0) {
+        g_fs_overflow++;   /* unregistered ⇒ un-neutered; see brix_forksafe_stats */
+    } else {
+        g_fs_reg[slot] = c;
     }
-    g_fs_overflow++;   /* unregistered ⇒ un-neutered; capacity is generous */
     pthread_mutex_unlock(&g_fs_mx);
 }
 
@@ -118,9 +148,31 @@ brix_forksafe_unregister(brix_conn *c)
     pthread_mutex_lock(&g_fs_mx);
     for (i = 0; i < BRIX_FORKSAFE_MAX; i++) {
         if (g_fs_reg[i] == c) {
-            g_fs_reg[i] = NULL;
-            break;
+            g_fs_reg[i] = NULL;   /* every slot, not the first: an entry left
+                                   * behind points into memory the caller is
+                                   * about to reuse or free */
         }
+    }
+    pthread_mutex_unlock(&g_fs_mx);
+}
+
+/* Registry occupancy + the overflow count, for the fork-safety guard and for
+ * an embedder that wants to know its connection count outgrew the table —
+ * past which point fork safety is off for the excess and nothing says so. */
+void
+brix_forksafe_stats(int *live, int *overflow)
+{
+    int i, n = 0;
+
+    pthread_mutex_lock(&g_fs_mx);
+    for (i = 0; i < BRIX_FORKSAFE_MAX; i++) {
+        n += (g_fs_reg[i] != NULL) ? 1 : 0;
+    }
+    if (live != NULL) {
+        *live = n;
+    }
+    if (overflow != NULL) {
+        *overflow = g_fs_overflow;
     }
     pthread_mutex_unlock(&g_fs_mx);
 }

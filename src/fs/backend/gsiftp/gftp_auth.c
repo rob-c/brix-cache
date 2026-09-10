@@ -173,19 +173,53 @@ gftp_gsi_login(gftp_session_t *session, const gftp_session_cfg_t *cfg)
     return gftp_user_pass(session, ":globus-mapping:", "dummy");
 }
 
+/* Set the data-channel protection level the store line asked for.
+ *
+ * PROT C is best-effort: an origin that does not implement RFC 2228 policy
+ * commands still transfers, exactly as before phase-115.  PROT P is NOT: the
+ * whole point of asking for it is that the bytes are protected and the data peer
+ * proves the control channel's identity, so every step is checked and a refusal
+ * fails the session rather than quietly leaving the leg in the clear.  This is
+ * the W5.1 security negative in code form. */
+static int
+gftp_data_policy(gftp_session_t *session)
+{
+    if (session->want_prot != GFTP_DPROT_P) {
+        (void) gftp_command(session, "PBSZ 0");
+        (void) gftp_command(session, "PROT C");
+        (void) gftp_command(session, "DCAU N");
+        session->prot = GFTP_DPROT_C;
+        return 0;
+    }
+    /* The pin needs an identity; without one a protected channel would verify a
+     * chain and then compare it against nothing. */
+    if (gftp_gsi_peer_dn(session->gsi, session->peer_dn,
+                         sizeof(session->peer_dn)) != 0) {
+        gftp_set_error(session, EACCES,
+            "GridFTP origin presented no identity to pin PROT P against");
+        return -1;
+    }
+    if (gftp_expect(session, 200, 299, "PBSZ 0") != 0
+        || gftp_expect(session, 200, 299, "DCAU A") != 0
+        || gftp_expect(session, 200, 299, "PROT P") != 0)
+    {
+        gftp_set_error(session, EACCES,
+            "GridFTP origin refused the requested PROT P data channel");
+        return -1;
+    }
+    session->prot = GFTP_DPROT_P;
+    return 0;
+}
+
+
 int
 gftp_authenticate(gftp_session_t *session, const gftp_session_cfg_t *cfg)
 {
     if (cfg->require_gsi) {
-        if (gftp_gsi_login(session, cfg) != 0) {
+        if (gftp_gsi_login(session, cfg) != 0
+            || gftp_data_policy(session) != 0) {
             return -1;
         }
-        /* The data leg remains clear but is bound to the authenticated control
-         * peer. A PROT-P engine can replace these policy commands later without
-         * changing the storage-driver API. */
-        (void) gftp_command(session, "PBSZ 0");
-        (void) gftp_command(session, "PROT C");
-        (void) gftp_command(session, "DCAU N");
     } else if (gftp_user_pass(session, "anonymous", "brix@") != 0) {
         return -1;
     }

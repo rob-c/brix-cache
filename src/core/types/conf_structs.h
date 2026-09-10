@@ -82,147 +82,9 @@ typedef struct {
     brix_wt_decision_cfg_t   decision;       /* decision callback + config block (postconfig) */
 } brix_wt_conf_t;
 
-/* Explicit CMS cluster role for the upward (node->manager) leg, Phase-61 W7:
- * Pander-parity login Mode bits + the inbound valid-ops table for frames from
- * the parent.  AUTO keeps the legacy derivation (server, or server|manager
- * when manager_mode) with the permissive dispatch table. */
-#define BRIX_CMS_ROLE_AUTO        0
-#define BRIX_CMS_ROLE_SERVER      1   /* kYR_server (0x8) */
-#define BRIX_CMS_ROLE_MANAGER     2   /* kYR_manager (0x2), manVOps inbound */
-#define BRIX_CMS_ROLE_SUPERVISOR  3   /* kYR_manager|kYR_server (0xA), supVOps */
-#define BRIX_CMS_ROLE_PEER        4   /* §2.17: kYR_peer — overflow cluster
-                                         consulted only on a local miss */
-#define BRIX_CMS_ROLE_PROXY       5   /* §2.17: kYR_proxy|kYR_server — proxy
-                                         data server (selectable normally) */
-
-/* One configured CMS manager endpoint (an entry of brix_cms_conf_t.managers).
- * The raw string is NUL-terminated (brix_copy_conf_string) so log/action sites
- * can borrow it as a C string. */
-typedef struct {
-    ngx_str_t    raw;    /* directive text, e.g. "127.0.0.1:1213" */
-    ngx_addr_t  *addr;   /* resolved address (first A record) */
-} brix_cms_manager_ent_t;
-
-/* Redundant-manager cap — stock cmsd client parity (XrdCmsFinder.hh MaxMan). */
-#define NGX_BRIX_CMS_MAX_MANAGERS  15
-
-/* CMS manager heartbeat + client-side network-fault resilience.  Grouped as one
- * sub-struct so the per-server config block stays navigable; every field is
- * reached as conf->cms.<field>.  (The advertised listen_port stays a top-level
- * field — it is not CMS-specific.) */
-typedef struct {
-    ngx_msec_t          locate_timeout;   /* [brix_cms_locate_timeout 5s] */
-    ngx_str_t           manager;          /* first manager's raw host:port (role/gate logs) */
-    ngx_addr_t         *addr;             /* first manager's resolved address — the
-                                             "has upstream" gate everywhere */
-    ngx_array_t        *managers;         /* brix_cms_manager_ent_t[] — ALL managers from
-                                             [brix_cms_manager h:p ...] (repeatable);
-                                             NULL when the directive is absent */
-    ngx_str_t           paths;            /* [brix_cms_paths /data] — exported path list */
-    time_t              interval;         /* [brix_cms_interval 60] — heartbeat period */
-    ngx_brix_cms_ctx_t **ctxs;            /* runtime: one heartbeat ctx per manager (heap;
-                                             worker 0 only — NULL elsewhere) */
-    ngx_uint_t          nctxs;            /* runtime: live ctx count; the "CMS client
-                                             started on this worker" gate */
-    ngx_uint_t          rr;               /* runtime: round-robin cursor for locate
-                                             rotation across logged-in managers */
-    ngx_uint_t          suspended;        /* set by kYR_status suspend; cleared by resume */
-    ngx_msec_t          read_timeout;     /* [brix_cms_read_timeout] manager inactivity
-                                             deadline; unset => max(3*interval, 90s). 0=off */
-    ngx_msec_t          send_timeout;     /* [brix_cms_send_timeout] heartbeat send-stall
-                                             deadline; unset => 10s. 0=off */
-    ngx_flag_t          tcp_keepalive;    /* [brix_cms_tcp_keepalive on] SO_KEEPALIVE +
-                                             tight probes on the manager socket */
-    ngx_msec_t          tcp_user_timeout; /* [brix_cms_tcp_user_timeout] TCP_USER_TIMEOUT
-                                             (ms); unset => read-timeout backstop. 0=off */
-    ngx_msec_t          initial_delay;    /* [brix_cms_initial_delay] delay before the
-                                             first connect; unset => 0 (loopback) / 10ms */
-    ngx_msec_t          connect_retry;    /* [brix_cms_connect_retry] retry interval while
-                                             the manager is not yet listening */
-    ngx_str_t           vnid;             /* [brix_cms_vnid <id>] Phase-89 W9: virtual
-                                             network id advertised in LOGIN envCGI
-                                             ("vnid=<id>"); empty => envCGI stays empty */
-    ngx_int_t           load_weight;      /* [brix_cms_load_weight 0-100] Phase-89 W4:
-                                             manager-side selection weight for the
-                                             heartbeat machine load; 0 = space/util
-                                             only (byte-identical legacy scoring) */
-    ngx_flag_t          affinity;         /* [brix_cms_affinity on] Phase-89 W5: pin
-                                             repeated selections of a path to ONE
-                                             eligible (fresh, non-blacklisted)
-                                             server; drained hosts never sticky */
-    ngx_flag_t          locate_multi;     /* [brix_cms_locate_multi on] Phase-89 W5:
-                                             answer kXR_locate with the FULL live
-                                             server set (kXR_ok, lateral redirect)
-                                             instead of a single kXR_redirect */
-    ngx_flag_t          fanout;           /* [brix_cms_fanout on] Phase-89 W8:
-                                             fan a client kXR_rm/kXR_rmdir out to
-                                             EVERY holder node (this worker's CMS
-                                             conns) instead of redirecting to one */
-    ngx_msec_t          fanout_window;    /* [brix_cms_fanout_window] W8 reply
-                                             window: no kYR_error from any node
-                                             within it => kXR_ok; unset => 500ms */
-    ngx_uint_t          role;             /* [brix_cms_role auto|server|manager|
-                                             supervisor] Phase-61 W7: BRIX_CMS_ROLE_*
-                                             — explicit Pander login Mode + inbound
-                                             valid-ops parity; auto = legacy */
-    ngx_flag_t          state_relay;      /* [brix_cms_state_relay on] Phase-61 W7:
-                                             on a registry miss, relay a parent
-                                             manager's kYR_state down to this
-                                             tier's own nodes and echo the first
-                                             kYR_have up (multi-tier recursion);
-                                             off = registry-only legacy */
-    ngx_int_t           delay_servers;    /* [brix_cms_delay_servers <n>] §2.2:
-                                             SUPCount floor — hold selects until
-                                             >= n data servers registered; 0=off */
-    ngx_int_t           delay_hold;       /* [brix_cms_delay_hold <secs>] §2.2:
-                                             kXR_wait seconds while below the
-                                             floor; default 5 */
-    ngx_int_t           sched_cpu;        /* [brix_cms_sched cpu N io N runq N
-                                             mem N pag N space N fuzz N
-                                             maxload N] §2.3 component weights;
-                                             all UNSET/0 = legacy scoring */
-    ngx_int_t           sched_io;
-    ngx_int_t           sched_runq;
-    ngx_int_t           sched_mem;
-    ngx_int_t           sched_pag;
-    ngx_int_t           sched_space;
-    ngx_int_t           sched_fuzz;
-    ngx_int_t           sched_maxload;
-    ngx_flag_t          stage_select;     /* [brix_cms_stage_select on] §2.5:
-                                             reads of a file no node holds go to
-                                             the roomiest stage-capable node */
-    ngx_msec_t          fxhold;           /* [brix_cms_fxhold <time>] §2.6: loc
-                                             cache positive TTL (unset = 30s
-                                             legacy; stock default is 8h) */
-    ngx_msec_t          emptylife;        /* [brix_cms_emptylife <time>] §2.6:
-                                             negative location-cache TTL; 0=off */
-    ngx_flag_t          dfs;              /* [brix_cms_dfs on] §2.8: shared-FS
-                                             cluster — skip the per-file state
-                                             fan-out; select purely by load */
-    ngx_str_t           perf_pgm;         /* [brix_cms_perf_pgm <cmd>] §2.11:
-                                             external load-feed program; its
-                                             stdout lines "cpu net xeq mem pag"
-                                             override the /proc meter */
-    ngx_msec_t          perf_int;         /* [brix_cms_perf_interval <time>]
-                                             §2.11: freshness window (a line
-                                             older than 2x this falls back to
-                                             /proc); default 30s */
-    ngx_str_t           altds;            /* [brix_cms_altds <port> [monitor]]
-                                             §2.12: advertise a co-located
-                                             foreign data server's port as this
-                                             node's data port */
-    ngx_int_t           altds_port;       /* parsed from the directive; 0=off */
-    ngx_flag_t          altds_monitor;    /* liveness-probe the altds and drive
-                                             kYR_status suspend/resume */
-    ngx_msec_t          altds_interval;   /* probe cadence; default 10s */
-    ngx_int_t           min_free_mb;      /* [brix_cms_min_free <MB>] §2.4: the
-                                             mSpace policy floor advertised in the
-                                             kYR_login payload — the free space
-                                             (MB) below which the manager should
-                                             stop selecting this node for writes.
-                                             Default 100 (byte-identical to the
-                                             prior hardcoded constant). */
-} brix_cms_conf_t;
+/* The CMS clustering group (roles, manager endpoints, fsxeq programs and
+ * brix_cms_conf_t) lives in its own fragment — see its header comment. */
+#include "conf_structs_cms.h"
 
 /* Active upstream health-check settings (Phase 22, off by default).  Grouped as
  * one sub-struct so the per-server config block stays navigable; every field is
@@ -259,6 +121,11 @@ typedef struct {
                                        0 (default) = off — prefix selection only. */
     ngx_uint_t  cms_state_fanout;   /* [brix_cms_state_fanout <n>] W3: max nodes probed per
                                        locate miss. Default 8. */
+    ngx_flag_t  cms_coalesce;       /* [brix_cms_coalesce on|off] §2.15: park a locate on
+                                       a kYR_state wave already in flight for the SAME path
+                                       instead of firing a duplicate fan-out. Off by
+                                       default — it changes how many probes the cluster
+                                       sees, so it is opted into, not assumed. */
 } brix_node_caps_conf_t;
 
 /* Transparent proxy mode: terminate root:// and forward opcodes to an upstream.
@@ -272,6 +139,8 @@ typedef struct {
 #define BRIX_PROXY_LOGIN_ANONYMOUS   0   /* default: "xrd" */
 #define BRIX_PROXY_LOGIN_PASSTHROUGH 1   /* copy client's authenticated username */
 #define BRIX_PROXY_LOGIN_FIXED       2   /* literal name from proxy.login_user_name */
+#define BRIX_PROXY_SSS_IDENT_KEYTAB  0   /* default: the keytab key's user (v1 wire) */
+#define BRIX_PROXY_SSS_IDENT_CLIENT  1   /* forward the authenticated client's entity */
 typedef struct {
     ngx_flag_t   enable;             /* [brix_proxy on|off] */
     ngx_str_t    host;               /* [brix_proxy_upstream host] */
@@ -283,6 +152,7 @@ typedef struct {
     ngx_uint_t   auth;               /* [brix_proxy_auth ...] — BRIX_PROXY_AUTH_* */
     ngx_uint_t   login_user;         /* [brix_proxy_login_user ...] — BRIX_PROXY_LOGIN_* */
     char         login_user_name[9]; /* NUL-terminated, max 8 chars (kXR_login limit) */
+    ngx_uint_t   sss_identity;       /* [brix_tap_proxy_sss_identity keytab|client] */
     ngx_str_t    audit_log;          /* [brix_proxy_audit_log <path>|off] */
     ngx_fd_t     audit_log_fd;       /* opened fd; NGX_INVALID_FILE if off */
     ngx_open_file_t *audit_log_file; /* nginx-managed handle */
@@ -292,7 +162,7 @@ typedef struct {
                                       * nginx -t refuses upstream_tls without a CA unless off */
     ngx_uint_t   reconnect_attempts; /* [brix_proxy_reconnect_attempts N] */
     ngx_array_t *upstreams;          /* brix_proxy_upstream_t[]; may be NULL */
-    ngx_str_t    path_strip;         /* [brix_proxy_path_rewrite strip add] */
+    ngx_str_t    path_strip;         /* [brix_tap_proxy_path_rewrite strip add] */
     ngx_str_t    path_add;
     ngx_msec_t   connect_timeout;    /* [brix_proxy_connect_timeout 10s] */
     ngx_msec_t   read_timeout;       /* [brix_proxy_read_timeout 60s] */
@@ -338,6 +208,15 @@ typedef struct {
     ngx_str_t    web_url;      /* [..._web_url https://cache:8444] */
     ngx_str_t    sitename;     /* [..._sitename MyCache] → registry-prefix /caches/<name> */
     ngx_str_t    issuer_url;   /* [..._issuer <url>] advertise token iss */
+    ngx_str_t    federation;   /* [..._federation <host[:port]>] the federation's
+                                * discovery authority — the advertiser reads
+                                * https://<federation>/.well-known/pelican-
+                                * configuration to find the Director it POSTs to.
+                                * Unset = the advertiser never arms (before 2.0
+                                * this was read from the retired brix_cache_origin
+                                * host, which no directive could write, so the
+                                * whole family was inert). */
+    ngx_uint_t   federation_port; /* [..._federation host:PORT] default 443 */
     ngx_msec_t   interval;     /* [..._interval 60s] re-advertise period (>=60s) */
     ngx_array_t *ns;           /* ngx_str_t[] namespace prefixes advertised */
     void        *key_pkey;     /* loaded EVP_PKEY* (init_process) */
@@ -418,6 +297,7 @@ brix_cms_conf_init(brix_cms_conf_t *c)
     c->fanout           = NGX_CONF_UNSET;
     c->fanout_window    = NGX_CONF_UNSET_MSEC;
     c->role             = NGX_CONF_UNSET_UINT;
+    c->response         = NGX_CONF_UNSET_UINT;
     c->state_relay      = NGX_CONF_UNSET;
     c->delay_servers    = NGX_CONF_UNSET;
     c->delay_hold       = NGX_CONF_UNSET;
@@ -438,6 +318,9 @@ brix_cms_conf_init(brix_cms_conf_t *c)
     c->altds_monitor    = NGX_CONF_UNSET;
     c->altds_interval   = NGX_CONF_UNSET_MSEC;
     c->min_free_mb      = NGX_CONF_UNSET;
+    c->space_enforce    = NGX_CONF_UNSET;
+    c->space_hwm_mb     = NGX_CONF_UNSET;
+    c->fsxeq_timeout    = NGX_CONF_UNSET_MSEC;
 }
 
 static ngx_inline void
@@ -462,6 +345,7 @@ brix_node_caps_conf_init(brix_node_caps_conf_t *c)
     c->recover_writes     = NGX_CONF_UNSET;
     c->cms_locate_window  = NGX_CONF_UNSET_MSEC;
     c->cms_state_fanout   = NGX_CONF_UNSET_UINT;
+    c->cms_coalesce       = NGX_CONF_UNSET;
 }
 
 static ngx_inline void
@@ -474,6 +358,7 @@ brix_proxy_conf_init(brix_proxy_conf_t *c)
     c->auth               = NGX_CONF_UNSET_UINT;
     c->login_user         = NGX_CONF_UNSET_UINT;
     c->login_user_name[0] = '\0';
+    c->sss_identity       = NGX_CONF_UNSET_UINT;
     c->audit_log_fd       = NGX_INVALID_FILE;
     c->reconnect_attempts = NGX_CONF_UNSET_UINT;
     c->connect_timeout    = NGX_CONF_UNSET_MSEC;
@@ -528,6 +413,7 @@ brix_node_caps_conf_merge(brix_node_caps_conf_t *c, brix_node_caps_conf_t *p)
     ngx_conf_merge_value(c->recover_writes,     p->recover_writes,     0);
     ngx_conf_merge_msec_value(c->cms_locate_window, p->cms_locate_window, 0);
     ngx_conf_merge_uint_value(c->cms_state_fanout,  p->cms_state_fanout,  8);
+    ngx_conf_merge_value(c->cms_coalesce,       p->cms_coalesce,       0);
 }
 
 static ngx_inline void

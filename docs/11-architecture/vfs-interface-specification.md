@@ -141,10 +141,10 @@ The dual-build topology — the same `.c` files compiling into both worlds:
                                 enforced by check-ngx-free.sh)
                               → linked by xrdcp / xrdfs / xrootdfs
    server:  module ─▶ vfs_server (src/fs/vfs/) ─▶ verb core ─▶ backend
-   client:  xrdc_vfs shell (client/lib/) ──────▶ verb core ─▶ backend
+   client:  brix_vfs shell (client/lib/) ──────▶ verb core ─▶ backend
 ```
 
-The client keeps its own handle shell (`xrdc_vfs_file` + per-backend
+The client keeps its own handle shell (`brix_vfs_file` + per-backend
 `commit`/`abort`, URL routing, io_uring, credential store) because those are
 client-only concerns; the *mechanism* underneath is shared. See
 [`vfs-shared-architecture.md`](../09-developer-guide/vfs-shared-architecture.md) §4/§8.

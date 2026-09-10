@@ -7,6 +7,7 @@
 
 #include "merge_export.h"
 
+#include "core/config/credential_block.h"
 #include "core/config/http_rootfd.h"
 #include "core/config/root_prepare.h"
 #include "fs/vfs/vfs_backend_registry.h"
@@ -23,12 +24,51 @@ brix_http_register_storage_backend(ngx_conf_t *cf,
     {
         return NGX_CONF_ERROR;
     }
+    if (brix_vfs_backend_store_params(cf, common->root_canon,
+                                      &common->storage_backend,
+                                      common->storage_backend_args) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    brix_vfs_backend_set_dns(common->root_canon, common->dns.policy);
     if (brix_vfs_backend_config_n2n(cf, common->root_canon,
                                     &common->n2n_scheme, &common->n2n_pool,
                                     &common->n2n_prefix) != NGX_OK)
     {
         return NGX_CONF_ERROR;
     }
+    return NGX_CONF_OK;
+}
+
+
+char *
+brix_http_attach_storage_credential(ngx_conf_t *cf,
+    ngx_http_brix_shared_conf_t *common)
+{
+    char                     cred_z[256];
+    char                     bearer[4096];
+    const brix_credential_t *cred;
+    brix_vfs_backend_cred_t  bcred;
+
+    if (common->storage_credential.len == 0) {
+        return NGX_CONF_OK;
+    }
+    ngx_cpystrn((u_char *) cred_z, common->storage_credential.data,
+                ngx_min(common->storage_credential.len + 1, sizeof(cred_z)));
+    cred = brix_credential_lookup(cred_z);
+    if (cred == NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_storage_credential: no brix_credential \"%V\"",
+            &common->storage_credential);
+        return NGX_CONF_ERROR;
+    }
+    if (brix_credential_to_backend_cred(cred, bearer, sizeof(bearer),
+                                          &bcred, cf->log) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    brix_vfs_backend_set_credential(common->root_canon, &bcred);
+
     return NGX_CONF_OK;
 }
 

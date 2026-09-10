@@ -1,97 +1,49 @@
 /*
- * resolve.c — reverse-DNS peer resolution for XrdAcc host rules.
+ * resolve.c — reverse-DNS the peer for `h <host>` / `h .domain` rule matching
+ * (XrdAccAccess::Resolve).
  *
- * WHAT: brix_acc_resolve_peer() reverse-resolves a peer socket address to a
- *   hostname via getnameinfo(NI_NAMEREQD) so authdb `h <host>` (exact) and
- *   `h .domain` (suffix) records can match.  Writes the FQDN into `buf` and
- *   returns it on success; returns NULL on failure so the caller can fall back
- *   to the numeric peer IP.
- *
- * WHY: XrdAcc (XrdAccAccess::Resolve) matches host/domain records against the
- *   client's resolved hostname, not its IP.  Without a reverse lookup those
- *   records never fire.  Resolution is opt-in (brix_acc_resolve_hosts) and
- *   cached once per connection by the caller, which bounds the blocking-DNS
- *   cost and the DoS surface — the same cost-control XrdAcc gets by resolving
- *   only when a host looks like a raw IP literal and the authdb has host rules.
- *
- * HOW: a single getnameinfo() with NI_NAMEREQD — no numeric fallback, because
- *   we want NULL (not the IP) when there is no PTR record, so the caller can
- *   distinguish "unresolved" from "resolved to a name".  This file owns the
- *   only <netdb.h> dependency; callers pass a plain stack buffer.
+ * WHAT: A never-blocking probe of the phase-116 reverse-DNS cache for the
+ *       peer's FQDN.  NGX_OK fills `buf` with the name; NGX_DECLINED means the
+ *       address has no PTR record (or is not an IP address at all) so the
+ *       caller keeps the numeric peer; NGX_AGAIN means the answer is not known
+ *       yet — a background fill has been started so the next probe can answer.
+ * WHY:  Every caller sits on the event loop (XrdAcc host rules, protbind host
+ *       templates, `host` authentication), where the old getnameinfo() stalled
+ *       the whole worker — the Phase 51 circuit breaker only bounded how often.
+ *       Phase 116 moved the lookup off the loop: the stream accept path
+ *       (connection/peer_name.c) and the HTTP PREACCESS phase
+ *       (core/http/http_peer_name.c) wait for the answer before any rule runs,
+ *       so by the time a decision is made this probe is a cache hit.  The
+ *       AGAIN arm stays for callers reached without a wait (a hot reload that
+ *       enabled the policy mid-session, an eviction between accept and the
+ *       decision): they fall back to the numeric peer, and the fallback is
+ *       counted so an operator can see it happening.
+ * HOW:  brix_dns_reverse_cached() → on NGX_AGAIN, brix_dns_reverse_prefetch()
+ *       under the server's DNS policy + BRIX_RESIL_METRIC_INC.  No state of
+ *       its own: the cache in src/net/dns owns TTLs, negative answers and the
+ *       in-flight markers, and it answers NGX_DECLINED for a non-IP peer.
  */
-
 #include "acc.h"
+#include "net/dns/dns.h"
 #include "observability/metrics/metrics.h"          /* ngx_brix_metrics_t */
-#include "observability/metrics/metrics_macros.h"   /* Phase 51 (E6): breaker counter */
-#include <netdb.h>
+#include "observability/metrics/metrics_macros.h"   /* BRIX_RESIL_METRIC_INC */
+
 #include <sys/socket.h>
-#include <time.h>
 
-/*
- * Phase 51 (E3): circuit-breaker around the blocking reverse-DNS lookup so a slow
- * or down resolver cannot block the event loop on every new connection's first
- * resolve.  After N consecutive slow lookups the breaker opens for a cooldown,
- * during which we fail fast to NULL (caller falls back to the numeric IP — host
- * rules simply don't fire, the conservative degraded behaviour).  Per-worker,
- * event-loop only → lock-free.
- */
-#define ACC_DNS_SLOW_MS        2000
-#define ACC_DNS_TRIP_COUNT     5
-#define ACC_DNS_COOLDOWN_SECS  10
-
-static struct {
-    int     consecutive_slow;
-    time_t  open_until;
-} acc_dns_breaker;
-
-static int64_t
-acc_dns_monotonic_ms(void)
+ngx_int_t
+brix_acc_resolve_peer(const brix_dns_policy_t *policy,
+    const struct sockaddr *sa, socklen_t salen, char *buf, size_t buflen)
 {
-    struct timespec ts;
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
-        return 0;
-    }
-    return (int64_t) ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
-}
-
-const char *
-brix_acc_resolve_peer(struct sockaddr *sa, socklen_t salen,
-                        char *buf, size_t buflen)
-{
-    time_t   now;
-    int64_t  t0, elapsed;
-    int      rc;
+    ngx_int_t  rc;
 
     if (sa == NULL || buf == NULL || buflen == 0) {
-        return NULL;
+        return NGX_DECLINED;
     }
 
-    now = time(NULL);
-    if (acc_dns_breaker.open_until > now) {
-        return NULL;            /* breaker open — skip the (slow) resolver */
+    rc = brix_dns_reverse_cached(sa, salen, buf, buflen);
+    if (rc == NGX_AGAIN) {
+        brix_dns_reverse_prefetch(policy, sa, salen);
+        BRIX_RESIL_METRIC_INC(acc_dns_pending_fallback_total);
     }
-
-    t0 = acc_dns_monotonic_ms();
-    rc = getnameinfo(sa, salen, buf, (socklen_t) buflen, NULL, 0, NI_NAMEREQD);
-    elapsed = acc_dns_monotonic_ms() - t0;
-
-    if (elapsed >= ACC_DNS_SLOW_MS) {
-        if (++acc_dns_breaker.consecutive_slow >= ACC_DNS_TRIP_COUNT) {
-            acc_dns_breaker.open_until = now + ACC_DNS_COOLDOWN_SECS;
-            acc_dns_breaker.consecutive_slow = 0;
-            BRIX_RESIL_METRIC_INC(acc_dns_breaker_open_total);
-            ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
-                          "brix_acc: reverse DNS slow (%L ms) — opening "
-                          "circuit breaker for %ds (host rules fall back to IP)",
-                          (long long) elapsed, ACC_DNS_COOLDOWN_SECS);
-        }
-    } else {
-        acc_dns_breaker.consecutive_slow = 0;
-    }
-
-    if (rc != 0) {
-        return NULL;
-    }
-
-    return buf;
+    return rc;
 }

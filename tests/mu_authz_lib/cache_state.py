@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 from . import ports
 
@@ -17,8 +18,7 @@ XRDCINFO = os.path.join(_REPO, "client", "bin", "xrdcinfo")
 
 def _ensure_tool() -> None:
     if not os.path.exists(XRDCINFO):
-        subprocess.run(["make", "-C", os.path.join(_REPO, "client"), "xrdcinfo"],
-                       check=True, capture_output=True)
+        client_make(os.path.join(_REPO, "client"), "xrdcinfo", check=True, capture_output=True)
 
 
 def cache_is_resident(rel_path: str) -> dict:

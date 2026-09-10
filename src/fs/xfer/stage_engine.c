@@ -19,6 +19,7 @@
 #include "stage_engine_internal.h"
 #include "xfer.h"   /* brix_xfer_finish + the kind/result vocabulary (ledger) */
 #include "fs/backend/ucred.h"            /* brix_sd_ucred_resolve (cred re-check)  */
+#include "fs/backend/frm/sd_frm.h"       /* brix_sd_frm_seal (kind archive, F3)    */
 
 #include <errno.h>
 #include <stdlib.h>
@@ -40,6 +41,7 @@ stage_kind_to_xfer(brix_stage_kind_t kind)
     case BRIX_STAGE_FLUSH:     return BRIX_XFER_WT;     /* stage -> backend     */
     case BRIX_STAGE_UPLOAD:    return BRIX_XFER_STAGE;  /* body -> stage store  */
     case BRIX_STAGE_MULTIPART: return BRIX_XFER_STAGE;  /* part -> stage store  */
+    case BRIX_STAGE_ARCHIVE:   return BRIX_XFER_TAPE;   /* dataset seal (F3)    */
     }
     return BRIX_XFER_STAGE;
 }
@@ -48,7 +50,7 @@ stage_kind_to_xfer(brix_stage_kind_t kind)
 static const char *
 stage_kind_dir(brix_stage_kind_t kind)
 {
-    return (kind == BRIX_STAGE_FLUSH) ? "out" : "in";
+    return (kind == BRIX_STAGE_FLUSH || kind == BRIX_STAGE_ARCHIVE) ? "out" : "in";
 }
 
 const char *
@@ -59,6 +61,7 @@ brix_stage_kind_str(brix_stage_kind_t kind)
     case BRIX_STAGE_FLUSH:     return "flush";
     case BRIX_STAGE_UPLOAD:    return "upload";
     case BRIX_STAGE_MULTIPART: return "multipart";
+    case BRIX_STAGE_ARCHIVE:   return "archive";
     }
     return "stage";
 }
@@ -359,6 +362,28 @@ stage_select_cred(const brix_stage_cred_t *cred, brix_stage_kind_t kind,
     return BRIX_XFER_OK;
 }
 
+/* 2.0 F3: an ARCHIVE request moves no bytes of its own -- it drives the tape
+ * tier's deferred dataset seal (brix_sd_frm_seal: compose + ship the archive)
+ * off the event loop, with the same journal, retry and dead-letter discipline
+ * as a flush. No credential: the seal publishes what the tier already holds. */
+static brix_xfer_result_t
+stage_engine_seal(brix_sd_instance_t *dst, const char *dst_key, ngx_log_t *log)
+{
+    brix_xfer_result_t res = BRIX_XFER_OK;
+    int                oerr = 0;
+
+    errno = 0;
+    if (brix_sd_frm_seal(dst, dst_key) != NGX_OK) {
+        oerr = errno ? errno : EIO;
+        res  = BRIX_XFER_DST_ERR;
+    }
+    brix_xfer_finish(BRIX_XFER_TAPE, "out", dst_key, NULL, 0, res, oerr, log);
+    if (oerr != 0) {
+        errno = oerr;
+    }
+    return res;
+}
+
 brix_xfer_result_t
 stage_engine_run(brix_stage_kind_t kind, brix_sd_instance_t *src,
     const char *src_key, brix_sd_instance_t *dst, const char *dst_key,
@@ -375,6 +400,10 @@ stage_engine_run(brix_stage_kind_t kind, brix_sd_instance_t *src,
      * through the stage_engine_move below, and so the resolved secret can be
      * cleansed after the flush consumes it (A-4/T4). */
     brix_sd_ucred_t       ru;
+
+    if (kind == BRIX_STAGE_ARCHIVE) {
+        return stage_engine_seal(dst, dst_key, log);
+    }
 
     ngx_memzero(&ru, sizeof(ru));
 

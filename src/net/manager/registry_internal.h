@@ -17,11 +17,15 @@ extern ngx_msec_t    brix_srv_stale_after_ms;
 extern ngx_uint_t    brix_srv_load_weight;   /* Phase 89 W4: 0-100, 0 = off */
 extern ngx_uint_t    brix_srv_affinity;      /* Phase 89 W5: path-sticky, 0 = off */
 extern brix_srv_sched_t brix_srv_sched;      /* §2.3: all-zero = engine off */
+extern brix_srv_space_t brix_srv_space;      /* §2.4: enforce=0 = gate off */
 extern ngx_uint_t    brix_srv_delay_servers; /* §2.2: SUPCount floor, 0 = off */
 
 
 /* registry.c */
 brix_srv_table_t * srv_table(void);
+/* §2.4: re-latch one entry's write-block from its current free_mb; caller
+ * MUST hold brix_srv_mutex.  Shared by the three space-update points. */
+void srv_space_reeval_locked(brix_srv_entry_t *e);
 /* Locate the in-use entry for host:port; caller MUST hold brix_srv_mutex.
  * NULL when unknown (or the zone is absent). */
 brix_srv_entry_t * srv_find_locked(const char *host, uint16_t port);

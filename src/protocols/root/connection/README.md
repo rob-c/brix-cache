@@ -46,6 +46,7 @@ not through this directory.
 | File | Responsibility |
 |------|----------------|
 | `handler.c` | `ngx_stream_brix_handler()` — per-connection entry point: alloc `brix_ctx_t`, init identity, free all fd slots, mint session ID, bind metrics slot (auth label, port, proxy-upstream labels, `connections_active++`), arm read/write handlers, fire first recv. |
+| `peer_name.c` / `peer_name.h` | `brix_conn_peer_name_wait()` — phase-116 accept-time reverse-DNS wait: when the listener consults the peer hostname (`brix_acc_resolve_hosts`, a protbind host template, `brix_auth host`) the PTR is looked up off the event loop before the first recv is armed, so every later `brix_acc_resolve_peer()` probe is a cache hit. |
 | `recv.c` | The read-event state machine. Frames hello/header/payload, enforces the per-opcode payload cap **before allocation** (`brix_max_payload_for_request`), grows the reusable heap payload buffer (`brix_ensure_payload_buffer`), calls `brix_dispatch()`, and manages all suspend-state transitions, the Phase 29 read-pipelining/drain-barrier logic, and timeout handling (CMS-wait retry vs. disconnect). |
 | `handler.h` | Prototypes for the three event entry points: `ngx_stream_brix_handler`, `ngx_stream_brix_recv`, `ngx_stream_brix_send`. |
 | `send.c` | `ngx_stream_brix_send()` — write-event handler. Calls `brix_flush_pending()`; on full drain either pumps the next read window (`brix_read_window_pump`), starts a pending TLS upgrade, or returns to `REQ_HEADER` and re-enters recv. Disconnect on write timeout. |
@@ -71,7 +72,7 @@ not through this directory.
 | `disconnect_internal.h` | Cross-declares the reporting helpers that brix_on_disconnect() (disconnect.c) calls but which now live in disconnect_report.c. |
 | `disconnect_report.c` | The reporting half of connection teardown — finalizes the session metrics (connections_active, rx/tx byte totals) and emits the access-log records (a kXR_Cancelled line per still-open handle and the session-level through. |
 | `fd_table_teardown.c` | handle-slot teardown machinery for the root:// per- connection file-handle table. |
-| `netconnect.h` | two header-only helpers used by every subsystem that opens an outbound TCP connection from a worker thread (not the event loop): - brix_apply_socket_io_timeouts() — SO_RCVTIMEO + SO_SNDTIMEO on a fd. |
+| `netconnect.h` | two header-only helpers used by every subsystem that opens an outbound TCP connection from a worker thread (not the event loop): brix_apply_socket_io_timeouts() — SO_RCVTIMEO + SO_SNDTIMEO on a fd — and brix_connect_fd_deadline(); name resolution lives in `src/net/dns` (phase-116). |
 | `netopt.h` | one header-only helper that applies SO_KEEPALIVE (with tight TCP_KEEPIDLE/INTVL/CNT probes) and TCP_USER_TIMEOUT to a socket fd. |
 | `recv_frame.c` / `.h` | the READ side of the recv framing loop (see recv_frame.h): deferred-request drain, fresh-request housekeeping, non-XRootD handoff, and reading/accumulating the next PDU unit. |
 | `recv_frame_bounds.c` / `.h` | per-opcode payload size limit, checked BEFORE any allocation so an oversized dlen is rejected without allocating. |

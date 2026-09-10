@@ -66,11 +66,24 @@ extern int        g_max_stall;
 extern brix_mgr  *g_mgr;
 extern brix_opts  g_opts;
 extern brix_pool *g_pool;
+
+/* ---- per-caller sss identity (W7.2, xrootdfs_identity.c) ---------------- */
+extern int g_sss_ident;       /* --sss-identity: one connection set per caller */
+extern int g_ident_max;       /* --max-identities: distinct uids this mount serves */
+extern int g_ident_conns;     /* --identity-conns: per-identity meta pool width */
+extern int g_ident_streams;   /* --identity-streams: per-identity data streams */
+
+int  xfs_ident_init(void);
+/* 0 with the pool/mgr out-params set, or -EMFILE (no slot) / -EACCES (the
+ * identity would not connect).  Never falls back to the mount owner's. */
+int  xfs_ident_get(brix_pool **pool, brix_mgr **mgr);
+void xfs_ident_shutdown(void);
 extern struct brix_cpool *g_web_pool;   /* Phase-86: pooled WebDAV metadata (web mounts) */
 extern size_t     g_readahead;
 extern int        g_streams;
 extern brix_url   g_url;
 extern int          g_web;
+extern int          g_dir_fanout;  /* --cluster-readdir: union every holder's listing */
 extern const char  *g_web_ca;
 extern const char  *g_web_proxy;
 extern int          g_web_verify;

@@ -48,3 +48,69 @@ gridftp:
     auth:
       caBundle: gridftp-ca-bundle
       hostCertSecret: gridftp-pki
+
+# ---- phase-115 W5.5: the outbound lane -------------------------------------
+#
+# Everything above is brix as a GridFTP DOOR.  This is brix as a CLIENT of one:
+# the storage plane of four WebDAV fronts is a REAL Globus or dCache endpoint,
+# so W5.1-W5.4 (MODE E, PROT P, SPAS striping, ERET, same-origin COPY) are
+# exercised against a server nobody in this repository wrote.  The in-repo
+# suites all drive brix_suite/servers/ftp_origin_server.py, which was written
+# from the same reading of GFD.020 as the driver it tests — a shared
+# misreading would pass both.
+#
+# DISABLED BY DEFAULT, and it cannot be otherwise: a real door is not
+# redistributable and its trust anchors are the operator's, not ours.  Enabling
+# it without naming a door is refused loudly rather than skipped quietly (see
+# the check in templates/../configs/gridftp_outbound.conf's consumers and
+# k8s-tests/remote-suite/tests/test_gridftp_outbound_interop.py), because a
+# lane that silently degrades to "no tests ran" is worse than a red one.
+#
+#   helm upgrade --install gf charts/gridftp-interop -n brix-gridftp \
+#     --set outbound.enabled=true \
+#     --set outbound.role.outbound.host=door.example.org \
+#     --set outbound.role.outbound.basePath=/pnfs/example.org/brix-interop \
+#     --set outbound.role.outbound.proxySecret=my-grid-proxy
+outbound:
+  enabled: false
+  role:
+    name: outbound
+    configKey: gridftp_outbound
+    ports:
+      - { name: plain,   port: 8081 }   # no data-channel parameters
+      - { name: mode-e,  port: 8082 }   # mode=e
+      - { name: prot-p,  port: 8083 }   # mode=e prot=p   (gsiftp doors only)
+      - { name: streams, port: 8084 }   # mode=e streams=n
+    data: { root: /data/xrootd }
+    outbound:
+      # The door under test.  `gsiftp` exercises the GSI control channel and is
+      # the only scheme for which the prot-p front is rendered — prot=p on an
+      # anonymous ftp:// origin is refused at `nginx -t`, which would take the
+      # whole lane down rather than fail one cell.
+      scheme: gsiftp
+      host: ""                          # REQUIRED; empty means "no door named"
+      port: 2811
+      basePath: /brix-interop
+      # SPAS ceiling for the streams front.  A door that declines to stripe is
+      # served over one connection and the cell still passes: streams= says how
+      # FAST identical bytes arrive, not what they are.
+      streams: 4
+      # Where the operator's proxy and trust anchors LAND in the pod.  Both
+      # come from the role chart's existing auth plumbing below rather than
+      # from new mounts here: `extraSecret` is dereferenced into a plain
+      # emptyDir by an init container, which an X.509 proxy needs — the
+      # credential loader opens it O_NOFOLLOW and a Secret's ..data/ symlink
+      # farm is refused.
+      proxyPath: /etc/brix/extra/user_proxy.pem
+      caDir: /etc/grid-security/certificates
+    # The operator's own credential and trust anchors — NOT the pki-bootstrap
+    # Job's.  Minting our own here would test brix against a CA the real door
+    # has never heard of, which is a test of this chart and not of the door.
+    #
+    #   kubectl -n brix-gridftp create secret generic outbound-proxy \
+    #       --from-file=user_proxy.pem=$X509_USER_PROXY
+    #   kubectl -n brix-gridftp create configmap outbound-ca \
+    #       --from-file=/etc/grid-security/certificates
+    auth:
+      extraSecret: outbound-proxy
+      caBundle: outbound-ca

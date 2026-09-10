@@ -8,8 +8,8 @@
  *       table they share.
  * WHY:  split out (phase-79 file-size cap) from the request-path code in
  *       stream_mirror.c / stream_mirror_launch.c so each file stays under the
- *       500-line cap.  This file runs ONLY at configuration time (getaddrinfo,
- *       token parsing) and shares nothing with the event-loop engine beyond the
+ *       500-line cap.  This file runs ONLY at configuration time (target
+ *       registration, token parsing) and shares nothing with the event-loop engine beyond the
  *       public conf struct — so it needs neither stream_mirror_internal.h nor the
  *       shadow-connection primitives.
  * HOW:  the setters are declared in stream_mirror.h and registered in the stream
@@ -22,9 +22,9 @@
 
 /* directive setters */
 /*
- * brix_mirror_url host:port — append one shadow target, resolved at
- * configuration time so request handlers never call getaddrinfo on the event
- * loop.  Up to BRIX_MIRROR_MAX_TARGETS may be configured.
+ * brix_mirror_url host:port — append one shadow target, registered with the
+ * phase-116 DNS registry (parsed now, resolved at runtime; a dead name never
+ * blocks startup).  Up to BRIX_MIRROR_MAX_TARGETS may be configured.
  */
 char *
 brix_stream_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
@@ -65,9 +65,10 @@ brix_stream_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_memzero(&u, sizeof(ngx_url_t));
     u.url          = hostport;
     u.default_port = 1094;
-    if (ngx_parse_url(cf->pool, &u) != NGX_OK || u.naddrs == 0) {
+    u.no_resolve   = 1;              /* phase-116: parse only, resolve at runtime */
+    if (ngx_parse_url(cf->pool, &u) != NGX_OK || u.host.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_mirror_url: cannot resolve \"%V\"%s%s", &hostport,
+            "brix_mirror_url: cannot parse \"%V\"%s%s", &hostport,
             u.err ? ": " : "", u.err ? u.err : "");
         return NGX_CONF_ERROR;
     }
@@ -80,11 +81,12 @@ brix_stream_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     t->url  = hostport;
     t->host = u.host;
     t->port = u.port;
-    if (u.addrs[0].socklen > sizeof(t->sockaddr)) {
+    t->dns = brix_dns_target_register(cf, "brix_mirror_url", &u.host, u.port,
+                                      BRIX_AF_AUTO, SOCK_STREAM,
+                                      &xcf->common.dns);
+    if (t->dns == NULL) {
         return NGX_CONF_ERROR;
     }
-    ngx_memcpy(&t->sockaddr, u.addrs[0].sockaddr, u.addrs[0].socklen);
-    t->socklen = u.addrs[0].socklen;
 
     /* keep the host:port colon split out of the host label for logging */
     colon = ngx_strlchr(hostport.data, hostport.data + hostport.len, ':');
@@ -117,8 +119,6 @@ static const brix_mirror_opcode_name_t  brix_mirror_opcode_names[] = {
     { "stat",     BRIX_MIRROR_OP_STAT     },
     { "locate",   BRIX_MIRROR_OP_LOCATE   },
     { "open",     BRIX_MIRROR_OP_OPEN     },
-    { "read",     BRIX_MIRROR_OP_READ     },
-    { "readv",    BRIX_MIRROR_OP_READV    },
     { "dirlist",  BRIX_MIRROR_OP_DIRLIST  },
     { "statx",    BRIX_MIRROR_OP_STATX    },
     { "query",    BRIX_MIRROR_OP_QUERY    },
@@ -140,6 +140,34 @@ static const brix_mirror_opcode_name_t  brix_mirror_opcode_names[] = {
  * WHY:  isolates the table scan so the parse loop stays a flat data walk.
  * HOW:  linear scan of brix_mirror_opcode_names (small, config-time only).
  */
+/*
+ * Opcode names the mirror can never honour.
+ *
+ * WHAT: "read"/"readv" address an open handle that exists only on the primary
+ *       session; a fresh one-shot shadow session has no such handle, so the
+ *       replay engine (brix_mirror_request_replayable) has always dropped
+ *       them.  Until 2.0 the parser accepted the names and the mask silently
+ *       meant less than the operator wrote.
+ * WHY:  a directive's vocabulary must mean what it says at `nginx -t`.
+ * HOW:  looked up before the accepted table so the refusal names the reason.
+ */
+static const char *const  brix_mirror_opcode_unreplayable[] = {
+    "read", "readv", NULL,
+};
+
+static int
+brix_mirror_opcode_is_unreplayable(const u_char *name)
+{
+    const char *const *e;
+
+    for (e = brix_mirror_opcode_unreplayable; *e != NULL; e++) {
+        if (ngx_strcmp(name, *e) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static ngx_uint_t
 brix_mirror_opcode_name_bit(const u_char *name)
 {
@@ -168,10 +196,19 @@ brix_mirror_parse_opcode_args(ngx_conf_t *cf, const char *directive,
         ngx_str_t  *v   = &value[i];
         ngx_uint_t  bit = brix_mirror_opcode_name_bit(v->data);
 
+        if (brix_mirror_opcode_is_unreplayable(v->data)) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "%s: \"%V\" addresses an open handle that only the primary"
+                " session holds, so the one-shot mirror can never replay it"
+                " — remove it (reads are never mirrored; the mask must mean"
+                " what it says)",
+                directive, v);
+            return NGX_CONF_ERROR;
+        }
         if (bit == 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "%s: unknown opcode \"%V\" (expected one of"
-                " all stat locate open read readv dirlist statx query"
+                " all stat locate open dirlist statx query"
                 " mkdir rm rmdir mv truncate chmod write)",
                 directive, v);
             return NGX_CONF_ERROR;
@@ -197,7 +234,7 @@ brix_stream_mirror_set_opcodes(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 /*
- * brix_mirror_exclude_opcodes read query ...  — DE-SELECT opcodes from the
+ * brix_mirror_exclude_opcodes stat query ...  — DE-SELECT opcodes from the
  * mirrored set.  Mirroring defaults to ALL ops, so this is the normal way to
  * turn specific ops off without listing everything you want to keep.
  */

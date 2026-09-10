@@ -40,11 +40,14 @@ import os
 import re
 import socket
 import struct
+import sys
+import time
 
 import pytest
 
 from _test_audit16y_helpers import (REDIRECT_HOST, REDIRECT_PORT,
                                     GotoTlsUpstream, mint_cert)
+from ephemeral_port import free_port
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
@@ -111,13 +114,83 @@ def uptls(tmp_path_factory):
                              "GOOD_CA": good_cert, "OTHER_CA": other_cert},
             reason="audit-16y the never-written armed arm of "
                    "brix_upstream_tls_verify, driven against a gotoTLS peer"))
-        yield {"endpoint": endpoint, "stubs": stubs,
-               "ports": dict(_EXTRA, PORT=endpoint.port),
-               "log_dir": os.path.join(endpoint.prefix, "logs")}
+        state = {"endpoint": endpoint, "stubs": stubs,
+                 "ports": dict(_EXTRA, PORT=endpoint.port),
+                 "log_dir": os.path.join(endpoint.prefix, "logs")}
+        _wait_for_leg(state)
+        # Refusals logged while the name was still unresolved belong to the
+        # gate, not to any plane's trust decision, so the tests below count
+        # only the ones that appear after it.
+        state["unresolved_at_gate"] = _errlog(state).count(_UNRESOLVED)
+        yield state
     finally:
         harness.close()
         for stub in stubs.values():
             stub.close()
+
+
+#: How long the outbound leg may take to become dialable after the listener
+#: binds.  Phase-116 resolves `brix_upstream` names asynchronously:
+#: `dns_target_arm()` schedules the first lookup 1-200 ms after worker init
+#: (`DNS_FIRST_JITTER_MS`) and hands it to the thread pool, so the answer lands
+#: some way after `readiness="tcp"` has already returned.
+_LEG_READY_TIMEOUT = 20.0
+
+#: What `brix_upstream_start()` logs for a name with no answer yet.
+_UNRESOLVED = 'cannot resolve "'
+
+
+def _wait_for_leg(state):
+    """WHAT: block until the armed default plane's outbound leg really dials the
+    `good` stub and completes its TLS handshake, and fail loudly if it never
+    does within `_LEG_READY_TIMEOUT`.
+
+    WHY: `readiness="tcp"` proves the listener is bound, not that the upstream
+    name has an answer.  Seven of the eight planes spell the upstream as a DNS
+    name, and phase-116 resolves those off the event loop; between the bind and
+    the answer every one of them refuses the session with "cannot resolve"
+    before a socket is dialled.  Five of this module's assertions are absences
+    ("no login reached the peer", "nothing was forwarded"), and an undialled
+    leg satisfies every one of them — the module would report green over a leg
+    that never left the process.  The gate is what makes those absences mean
+    something.
+
+    HOW: drive the export-missing path through the armed default plane until
+    the stub records `tls-established`, which nothing but a resolved name, a
+    dialled socket and a verified peer can produce.  The stub is reset on the
+    way out so the first real test still sees a clean slate.
+    """
+    good = state["stubs"]["good"]
+    deadline = time.monotonic() + _LEG_READY_TIMEOUT
+    attempts, kinds, last = 0, [], "none"
+    while time.monotonic() < deadline:
+        attempts += 1
+        good.reset()
+        # A leg that is not ready yet refuses or drops the session outright, so
+        # a transport error here is a "not yet", not a failure to report: the
+        # whole purpose of this gate is to absorb that window rather than let
+        # it error out 36 tests at setup.
+        try:
+            sock = _session(state["ports"]["PORT"])
+            try:
+                _open(sock, MISSING)
+            finally:
+                sock.close()
+        except (ConnectionError, OSError) as exc:
+            last = f"{type(exc).__name__}: {exc}"
+            time.sleep(0.2)
+            continue
+        kinds = good.wait_for_terminal()
+        last = str(kinds)
+        if "tls-established" in kinds:
+            good.reset()
+            return
+        time.sleep(0.2)
+    pytest.fail(
+        f"the outbound leg never became dialable in {_LEG_READY_TIMEOUT}s over "
+        f"{attempts} attempt(s); the last one ended {last}. Every absence "
+        f"assertion in this module would have passed vacuously. Tail of "
+        f"error.log:\n" + "\n".join(_errlog(state).splitlines()[-25:]))
 
 
 def _drive(uptls, plane, stub, path=MISSING):
@@ -211,6 +284,10 @@ class TestAnUnsignedPeerIsRefused:
 
     def test_no_login_reached_the_untrusted_peer(self, uptls):
         _, _, kinds = _drive(uptls, "EVIL_PORT", "evil")
+        # A positive witness first: an undialled leg satisfies every
+        # absence below, so the absences only mean something once the
+        # peer has been reached and refused.
+        assert "tls-refused" in kinds, f"the leg never reached the peer: {kinds}"
         assert "tls-login" not in kinds
         assert "forwarded-request" not in kinds
 
@@ -224,7 +301,11 @@ class TestAnUnsignedPeerIsRefused:
         """Security-negative: the sensitive work — re-login and then the client's
         own request — must not happen on an unauthenticated channel."""
         upstream = uptls["stubs"]["evil"]
-        _drive(uptls, "EVIL_PORT", "evil")
+        _, _, kinds = _drive(uptls, "EVIL_PORT", "evil")
+        # A positive witness first: an undialled leg satisfies every
+        # absence below, so the absences only mean something once the
+        # peer has been reached and refused.
+        assert "tls-refused" in kinds, f"the leg never reached the peer: {kinds}"
         assert upstream.details("forwarded-request") == []
         assert upstream.details("tls-login") == []
 
@@ -241,6 +322,10 @@ class TestTheHostnamePin:
 
     def test_the_wrong_host_peer_sees_no_login(self, uptls):
         _, _, kinds = _drive(uptls, "HOSTPIN_PORT", "other")
+        # A positive witness first: an undialled leg satisfies every
+        # absence below, so the absences only mean something once the
+        # peer has been reached and refused.
+        assert "tls-refused" in kinds, f"the leg never reached the peer: {kinds}"
         assert "tls-login" not in kinds
 
     def test_an_unpinned_plane_falls_back_to_the_upstream_spelling(self, uptls):
@@ -294,6 +379,10 @@ class TestTheDocumentedOptOut:
 
     def test_the_opted_out_plane_still_fails_closed(self, uptls):
         _, _, kinds = _drive(uptls, "NOCA_OFF_PORT", "evil")
+        # A positive witness first: an undialled leg satisfies every
+        # absence below, so the absences only mean something once the
+        # peer has been reached and refused.
+        assert "tls-established" in kinds, f"the leg never handshook: {kinds}"
         assert "tls-login" not in kinds
         assert "forwarded-request" not in kinds
 
@@ -379,3 +468,77 @@ class TestEightPlanesOneWorker:
         for name in ("STUB_GOOD_PORT", "STUB_EVIL_PORT", "STUB_OTHER_PORT"):
             with socket.create_connection((HOST, _EXTRA[name]), timeout=5):
                 pass
+
+
+# --------------------------------------------------------------------------- #
+# The leg has to be dialable before any of the above is a trust decision.
+# Phase-116 moved `brix_upstream` onto the async DNS seam (`directives.c`
+# registers the target, `start.c` reads it through `brix_dns_target_next()`),
+# and seven of the eight planes spell their upstream as a name.  Between the
+# listener binding and the first answer landing, those planes refuse every
+# session with `cannot resolve` before a socket is dialled — which is exactly
+# what most of this module asserts the *absence* of.
+# --------------------------------------------------------------------------- #
+class TestTheLegIsActuallyDialed:
+    def test_the_leg_is_dialable_once_the_gate_has_passed(self, uptls):
+        """Success: the fixture's readiness gate is what this module stands on,
+        so it gets an assertion of its own rather than only being relied on."""
+        _, _, kinds = _drive(uptls, "PORT", "good")
+        assert "tls-established" in kinds, f"the gate passed but the leg is dead: {kinds}"
+        assert "tls-login" in kinds
+
+    def test_no_plane_is_judged_while_the_upstream_is_unresolved(self, uptls):
+        """Error: every `cannot resolve` belongs to the gate's own warm-up.  A
+        new one means a plane was judged on a leg that never dialled, and every
+        absence assertion in this module was vacuous for that run."""
+        after = _errlog(uptls).count(_UNRESOLVED)
+        assert after == uptls["unresolved_at_gate"], (
+            f"{after - uptls['unresolved_at_gate']} session(s) were refused "
+            f"with an unresolved upstream after the readiness gate passed")
+
+    def test_an_absence_alone_cannot_tell_a_refusal_from_an_undialled_leg(self, uptls):
+        """Security-negative: this is the shape the module was reporting green
+        in.  A path served from the export never starts a leg, so it satisfies
+        every absence the refused peer does — no login, nothing forwarded.  The
+        two are separable only by the positive witness, which is why the four
+        refusal tests above now demand one."""
+        _, _, served = _drive(uptls, "PORT", "good", path=LOCAL)
+        _, _, refused = _drive(uptls, "EVIL_PORT", "evil")
+        for kinds in (served, refused):
+            assert "tls-login" not in kinds
+            assert "forwarded-request" not in kinds
+        assert served == [], f"a served path must not start a leg: {served}"
+        assert "tls-refused" in refused, (
+            "the refusal is indistinguishable from never having dialled")
+
+    def test_the_address_literal_plane_never_waited_on_a_name(self, uptls):
+        """The one plane the race cannot reach: an address literal is final at
+        registration, so its verdict was never in question — and it is still
+        the #104 refusal, not a resolve failure."""
+        _drive(uptls, "IP_PIN_PORT", "good")
+        log = _errlog(uptls)
+        assert "certificate verify failed" in log
+        assert f'{_UNRESOLVED}{HOST}"' not in log, \
+            "the literal plane went through the resolver"
+
+    def test_the_gate_absorbs_a_transport_error_but_still_refuses_to_pass(
+            self, uptls, monkeypatch):
+        """Error: the gate's own first live run errored all 36 tests at setup,
+        because a session closed by a leg that was not ready yet propagated out
+        of the retry loop instead of counting as "not yet".  A gate that cannot
+        survive the very window it exists to absorb is worse than no gate — it
+        converts a wait into 36 setup errors.  The other half matters just as
+        much: absorbing the error must not become a way to pass.  Pointed at a
+        port nothing listens on, the gate has to keep retrying and then fail
+        loudly, naming the attempts and the last transport error.
+        """
+        dead = dict(uptls)
+        dead["ports"] = dict(uptls["ports"], PORT=free_port())
+        monkeypatch.setattr(sys.modules[__name__], "_LEG_READY_TIMEOUT", 1.0)
+        with pytest.raises(pytest.fail.Exception) as caught:
+            _wait_for_leg(dead)
+        message = str(caught.value)
+        assert "never became dialable" in message
+        assert "attempt(s)" in message, "the gate must say how hard it tried"
+        assert "vacuously" in message, \
+            "the gate must say what a silent pass would have meant"

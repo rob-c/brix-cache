@@ -187,6 +187,13 @@ def _ensure_brixcvmfs(run: LiveRun) -> Path:
          # prefetch/ops/mount siblings) — none are archived, list all five.
          "client/apps/fs/brixcvmfs.c",
          "client/apps/fs/brixcvmfs_transport.c",
+         # phase-116: the transport links against the libcurl address pin,
+         # which lives in its own TU.
+         "client/apps/fs/brixcvmfs_curl_pin.c",
+         # phase-116: the pin resolves every name through the client DNS seam, so a site
+         # that compiles it links brix_resolve()/brix_netpref_family() too.
+         "client/lib/net/resolve.c",
+         "client/lib/net/netpref.c",
          "client/apps/fs/brixcvmfs_prefetch.c",
          "client/apps/fs/brixcvmfs_ops.c",
          "client/apps/fs/brixcvmfs_mount.c",

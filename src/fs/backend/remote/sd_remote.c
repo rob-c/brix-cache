@@ -465,6 +465,13 @@ brix_sd_remote_create(const brix_sd_remote_cfg_t *cfg, ngx_log_t *log)
         return NULL;
     }
     *copy = *cfg;
+    if (copy->tctx == NULL) {
+        /* phase-116: the curl transport resolves the endpoint under the
+         * export's policy; the context lives as long as the instance */
+        copy->tctx_own.ca_path = NULL;
+        copy->tctx_own.dns = cfg->dns;
+        copy->tctx = &copy->tctx_own;
+    }
 
     inst->driver = &brix_sd_remote_driver;
     inst->log    = log;

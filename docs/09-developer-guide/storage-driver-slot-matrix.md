@@ -2,7 +2,7 @@
 
 > **Audience:** anyone extending a storage backend, or deciding whether a feature
 > can be offered over a given export type.
-> **Scope:** the 63 function-pointer slots of `struct brix_sd_driver_s`
+> **Scope:** the 64 function-pointer slots of `struct brix_sd_driver_s`
 > (`src/fs/backend/sd.h`) against all 13 registered drivers.
 > **Companions:** [`storage-backend-drivers-deep-dive.md`](storage-backend-drivers-deep-dive.md)
 > (how each driver works), [`src/fs/backend/README.md`](../../src/fs/backend/README.md)
@@ -24,7 +24,7 @@ protocol cannot express the verb, or something above the driver already answers
 it correctly, or it is a real gap — and a real gap gets closed, not catalogued.
 §6 is the record of the last eleven.
 
-**Current state: 444 of 819 cells implemented, zero open gaps.** Every empty
+**Current state: 495 of 896 cells implemented, zero open gaps.** Every empty
 cell now carries a verdict, and the verdicts are machine-checked against the
 source. §6 records what each of the eleven former gaps landed as, and — where the
 protocol stops short of the whole verb — exactly where the ceiling is.
@@ -52,74 +52,75 @@ do that" is how a table like this becomes a fiction.
 ## 1. The matrix
 
 <!-- sd-slot-matrix:begin -->
-| op | posix | pblock | block | mir | ceph | cfs-ro | frm | http | remote | xroot | gsiftp | cache | stage |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `init` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | nil | nil | nil | nil | nil | nil | nil |
-| `cleanup` | ✅ | ✅ | nil | nil | ✅ | ✅ | nil | nil | nil | nil | nil | nil | nil |
-| `open` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `close` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `pread` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `pwrite` | ✅ | ✅ | ✅ | syn | ✅ | ro | tier | np | np | ✅ | sup | dec | ✅ |
-| `preadv` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | tier | ✅ | ✅ | ✅ | ✅ | dec | dec |
-| `preadv2` | ✅ | ✅ | ✅ | syn | ✅ | seam | tier | np | np | np | seam | dec | dec |
-| `copy_range` | ✅ | ✅ | seam | syn | seam | ro | tier | sup | sup | sup | sup | dec | dec |
-| `read_sendfile_fd` | ✅ | ✅ | ✅ | syn | ✅ | np | tier | np | np | np | np | ✅ | dec |
-| `ftruncate` | ✅ | ✅ | flat | syn | ✅ | ro | tier | np | np | ✅ | np | dec | ✅ |
-| `fsync` | ✅ | ✅ | ✅ | syn | ✅ | ro | tier | np | np | ✅ | sup | dec | ✅ |
-| `fstat` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `read_advise` | ✅ | ✅ | ✅ | syn | np | np | tier | np | np | np | np | ✅ | dec |
-| `reserve` | ✅ | ✅ | ✅ | syn | np | ro | sup | np | sup | sup | sup | ✅ | ✅ |
-| `stat` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `unlink` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `unlink_many` | np | ✅ | flat | syn | ✅ | ro | tier | np | ✅ | np | np | ✅ | ✅ |
-| `mkdir` | ✅ | ✅ | flat | syn | ✅ | ro | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `rename` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `server_copy` | ✅ | ✅ | flat | syn | np | ro | tier | ✅ | ✅ | ✅ | sup | ✅ | ✅ |
-| `setattr` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | np | ✅ | ✅ |
-| `truncate_path` | seam | seam | flat | syn | ✅ | ro | tier | np | np | ✅ | np | ✅ | ✅ |
-| `sync_publish` | ✅ | ✅ | flat | syn | np | ro | ✅ | np | np | np | sup | ✅ | ✅ |
-| `exchange` | ✅ | ✅ | flat | syn | np | ro | ✅ | np | np | np | np | ✅ | ✅ |
-| `opendir` | ✅ | ✅ | ✅ | syn | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `readdir` | ✅ | ✅ | ✅ | syn | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `closedir` | ✅ | ✅ | ✅ | syn | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `getxattr` | ✅ | ✅ | flat | syn | ✅ | ✅ | tier | ✅ | ✅ | ✅ | np | ✅ | ✅ |
-| `listxattr` | ✅ | ✅ | flat | syn | ✅ | ✅ | tier | ✅ | ✅ | ✅ | np | ✅ | ✅ |
-| `setxattr` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | np | ✅ | ✅ |
-| `removexattr` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | np | ✅ | ✅ |
-| `staged_open` | ✅ | ✅ | flat | syn | ✅ | ro | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `staged_write` | ✅ | ✅ | flat | syn | ✅ | ro | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `staged_commit` | ✅ | ✅ | flat | syn | ✅ | ro | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `staged_abort` | ✅ | ✅ | flat | syn | ✅ | ro | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `staged_path` | ✅ | ✅ | flat | syn | path | ro | path | path | path | path | path | path | path |
-| `dedup_publish` | ✅ | ✅ | cas | cas | cas | cas | cas | cas | cas | cas | cas | cas | cas |
-| `dedup_gc` | ✅ | refc | cas | cas | cas | cas | cas | cas | cas | cas | cas | cas | cas |
-| `recall` | np | ✅ | np | syn | np | np | ✅ | ✅ | ✅ | ✅ | np | walk | walk |
-| `residency` | np | ✅ | np | syn | np | np | ✅ | ✅ | ✅ | ✅ | np | walk | walk |
-| `recall_cred` | id | ✅ | id | syn | np | ro | ✅ | ✅ | ✅ | ✅ | np | walk | walk |
-| `evict` | nil | ✅ | flat | syn | nil | ro | ✅ | np | np | ✅ | nil | ✅ | ✅ |
-| `evict_cred` | id | ✅ | id | syn | nil | ro | id | np | np | ✅ | nil | ✅ | ✅ |
-| `space` | seam | ✅ | ✅ | syn | ✅ | ✅ | tier | ✅ | np | ✅ | np | ✅ | ✅ |
-| `query_checksum` | seam | seam | seam | syn | ✅ | seam | tier | ✅ | ✅ | ✅ | np | walk | walk |
-| `enumerate` | ns | ✅ | ns | syn | ✅ | ns | np | ns | ✅ | ns | ns | walk | walk |
-| `open_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `staged_open_cred` | id | ✅ | id | syn | scope | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `stat_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `unlink_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `unlink_many_cred` | id | ✅ | id | syn | ✅ | ro | id | np | ✅ | np | np | ✅ | ✅ |
-| `mkdir_cred` | id | ✅ | id | syn | scope | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `rename_cred` | id | ✅ | id | syn | scope | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `exchange_cred` | id | ✅ | id | syn | np | ro | id | np | np | np | np | ✅ | ✅ |
-| `setattr_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | np | ✅ | ✅ |
-| `truncate_path_cred` | id | seam | id | syn | ✅ | ro | id | np | np | ✅ | np | ✅ | ✅ |
-| `getxattr_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | np | ✅ | ✅ |
-| `listxattr_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | np | ✅ | ✅ |
-| `setxattr_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | np | ✅ | ✅ |
-| `removexattr_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | np | ✅ | ✅ |
-| `server_copy_cred` | id | ✅ | id | syn | np | ro | id | ✅ | ✅ | ✅ | sup | ✅ | ✅ |
-| `opendir_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **implemented** | **37** | **59** | **17** | **7** | **44** | **14** | **19** | **40** | **42** | **47** | **23** | **47** | **48** |
+| op | posix | pblock | block | mir | ceph | cfs-ro | frm | http | remote | xroot | x-fwd | gsiftp | cache | stage |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `init` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | nil | nil | nil | nil | nil | nil | nil | nil |
+| `cleanup` | ✅ | ✅ | nil | nil | ✅ | ✅ | nil | nil | nil | nil | nil | nil | nil | nil |
+| `open` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `close` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `pread` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `pwrite` | ✅ | ✅ | ✅ | syn | ✅ | ro | tier | np | np | ✅ | ✅ | sup | dec | ✅ |
+| `preadv` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | tier | ✅ | ✅ | ✅ | ✅ | ✅ | dec | dec |
+| `preadv2` | ✅ | ✅ | ✅ | syn | ✅ | seam | tier | np | np | np | np | seam | dec | dec |
+| `copy_range` | ✅ | ✅ | seam | syn | seam | ro | tier | sup | sup | sup | sup | sup | dec | dec |
+| `read_sendfile_fd` | ✅ | ✅ | ✅ | syn | ✅ | np | tier | np | np | np | np | np | ✅ | dec |
+| `ftruncate` | ✅ | ✅ | flat | syn | ✅ | ro | tier | np | np | ✅ | ✅ | np | dec | ✅ |
+| `fsync` | ✅ | ✅ | ✅ | syn | ✅ | ro | tier | np | np | ✅ | ✅ | sup | dec | ✅ |
+| `fstat` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `read_advise` | ✅ | ✅ | ✅ | syn | np | np | tier | np | np | np | np | np | ✅ | dec |
+| `reserve` | ✅ | ✅ | ✅ | syn | np | ro | sup | np | sup | sup | sup | sup | ✅ | ✅ |
+| `stat` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `unlink` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `unlink_many` | np | ✅ | flat | syn | ✅ | ro | tier | np | ✅ | np | np | np | ✅ | ✅ |
+| `mkdir` | ✅ | ✅ | flat | syn | ✅ | ro | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `rename` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `server_copy` | ✅ | ✅ | flat | syn | np | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `setattr` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | np | ✅ | ✅ |
+| `truncate_path` | seam | seam | flat | syn | ✅ | ro | tier | np | np | ✅ | ✅ | np | ✅ | ✅ |
+| `sync_publish` | ✅ | ✅ | flat | syn | np | ro | ✅ | np | np | np | np | sup | ✅ | ✅ |
+| `exchange` | ✅ | ✅ | flat | syn | np | ro | ✅ | np | np | np | np | np | ✅ | ✅ |
+| `opendir` | ✅ | ✅ | ✅ | syn | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `readdir` | ✅ | ✅ | ✅ | syn | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `closedir` | ✅ | ✅ | ✅ | syn | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `getxattr` | ✅ | ✅ | flat | syn | ✅ | ✅ | tier | ✅ | ✅ | ✅ | ✅ | np | ✅ | ✅ |
+| `listxattr` | ✅ | ✅ | flat | syn | ✅ | ✅ | tier | ✅ | ✅ | ✅ | ✅ | np | ✅ | ✅ |
+| `setxattr` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | np | ✅ | ✅ |
+| `removexattr` | ✅ | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | np | ✅ | ✅ |
+| `staged_open` | ✅ | ✅ | flat | syn | ✅ | ro | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `staged_write` | ✅ | ✅ | flat | syn | ✅ | ro | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `staged_commit` | ✅ | ✅ | flat | syn | ✅ | ro | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `staged_abort` | ✅ | ✅ | flat | syn | ✅ | ro | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `staged_path` | ✅ | ✅ | flat | syn | path | ro | path | path | path | path | path | path | path | path |
+| `dedup_publish` | ✅ | ✅ | cas | cas | cas | cas | cas | cas | cas | cas | cas | cas | cas | cas |
+| `dedup_gc` | ✅ | refc | cas | cas | cas | cas | cas | cas | cas | cas | cas | cas | cas | cas |
+| `recall` | np | ✅ | np | syn | np | np | ✅ | ✅ | ✅ | ✅ | ✅ | np | walk | walk |
+| `residency` | np | ✅ | np | syn | np | np | ✅ | ✅ | ✅ | ✅ | ✅ | np | walk | walk |
+| `recall_cred` | np | ✅ | np | syn | np | ro | ✅ | ✅ | ✅ | ✅ | ✅ | np | walk | walk |
+| `evict` | nil | ✅ | flat | syn | nil | ro | ✅ | np | np | ✅ | ✅ | nil | ✅ | ✅ |
+| `evict_cred` | nil | ✅ | flat | syn | nil | ro | id | np | np | ✅ | ✅ | nil | ✅ | ✅ |
+| `space` | seam | ✅ | ✅ | syn | ✅ | ✅ | tier | ✅ | np | ✅ | fwd | np | ✅ | ✅ |
+| `query_checksum` | seam | seam | seam | syn | ✅ | seam | tier | ✅ | ✅ | ✅ | ✅ | np | walk | walk |
+| `enumerate` | ns | ✅ | ns | syn | ✅ | ns | np | ns | ✅ | ns | fwd | ns | walk | walk |
+| `open_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `open_hinted` | hint | hint | hint | hint | hint | hint | hint | hint | hint | hint | ✅ | hint | ✅ | ✅ |
+| `staged_open_cred` | id | ✅ | flat | syn | scope | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `stat_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `unlink_cred` | id | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `unlink_many_cred` | np | ✅ | flat | syn | ✅ | ro | tier | np | ✅ | np | np | np | ✅ | ✅ |
+| `mkdir_cred` | id | ✅ | flat | syn | scope | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `rename_cred` | id | ✅ | flat | syn | scope | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `exchange_cred` | id | ✅ | flat | syn | np | ro | id | np | np | np | np | np | ✅ | ✅ |
+| `setattr_cred` | id | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | np | ✅ | ✅ |
+| `truncate_path_cred` | seam | seam | flat | syn | ✅ | ro | tier | np | np | ✅ | ✅ | np | ✅ | ✅ |
+| `getxattr_cred` | id | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | np | ✅ | ✅ |
+| `listxattr_cred` | id | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | np | ✅ | ✅ |
+| `setxattr_cred` | id | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | np | ✅ | ✅ |
+| `removexattr_cred` | id | ✅ | flat | syn | ✅ | ro | tier | ✅ | ✅ | ✅ | ✅ | np | ✅ | ✅ |
+| `server_copy_cred` | id | ✅ | flat | syn | np | ro | tier | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `opendir_cred` | id | ✅ | id | syn | ✅ | ro | id | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **implemented** | **37** | **59** | **17** | **7** | **44** | **14** | **19** | **40** | **42** | **47** | **47** | **25** | **48** | **49** |
 
-_63 slots x 13 drivers = 819 cells: 444 implemented, 0 open gaps (marked ⚠)._
+_64 slots x 14 drivers = 896 cells: 495 implemented, 0 open gaps (marked ⚠)._
 <!-- sd-slot-matrix:end -->
 
 ## 2. Legend
@@ -135,7 +136,7 @@ _63 slots x 13 drivers = 819 cells: 444 implemented, 0 open gaps (marked ⚠)._
 | `flat` | **flat fixed-extent device** (`block`): the export is N equal-size extents named `/0`…`/N-1`. No namespace to mutate, no xattrs to carry, no shrink, no staged commit. |
 | `ro` | **read-only driver by design** (`cephfs_ro`) — see §4. |
 | `tier` | **the composing registry requires a tier in front, and that tier owns the slot** (`frm`) — see §4. |
-| `id` | **no assumable per-user identity at this backend**, so no `_cred` twin. Deny mode refuses rather than silently running as the export — see §5. |
+| `id` | **no per-user identity assumable _at the driver_**, so no `_cred` twin. Deny mode refuses rather than silently running as the export. It is stamped **only where the plain twin exists** — a `_cred` cell whose base op the driver does not implement inherits the base op's own verdict, because `sd_cred_forward.h`'s deny branch is gated on `driver-><op> != NULL` and neither branch can reach a slot that is not there. And on `posix` it is a statement about *this plane only*: the per-user identity is real and lives one layer down, at the `beneath`/`confined_canon` seam — see §5. |
 | `scope` | the op **cannot be honestly scoped to the caller** with the state it threads; documented per-slot in the driver — see §4 (`ceph`). |
 | `dec` | **decorator byte plane**, deliberately outside the parity contract — see §3. |
 | `walk` | **the seam descends the decorator chain** (or the object carries its own driver), so a decorator slot here would shadow the real answer — see §3. |
@@ -144,14 +145,16 @@ _63 slots x 13 drivers = 819 cells: 444 implemented, 0 open gaps (marked ⚠)._
 | `cas` | **commit-time content dedup is a cache-STORE verb.** `src/fs/cache/gcas.c` calls `dedup_publish`/`dedup_gc` on `cs->store->driver` directly, never down a decorator chain, so only a driver configurable as `brix_cache_store` is ever asked. |
 | `refc` | **the alias has no separate lifetime to collect** (`pblock`): F10 refs fold byte-identical blobs and the refcount reaps the canonical, so a NULL `dedup_gc` is the contract in `sd.h`, not an omission. |
 | `path` | **no real local filesystem path exists to hand out.** `staged_path` is what lets the cache manifest hand a protocol handler an on-disk path for a staged object; only a true local filesystem has one. `sd_cache_manifest` enforces this at config time, so a non-POSIX staging tier is rejected at `nginx -t`, not at runtime. |
+| `hint` | **the hinted open reaches this driver as a plain `open`.** `open_hinted` carries the per-open `pfc.urlcgi` cache hints (2.0 F5); `cache` and `stage` apply them to their geometry and `x-fwd` relays them to the origin child it picks, every other driver has no geometry for them. |
+| `fwd` | **the forwarding driver relays to the origin a client named** (`xroot_fwd`, 2.0 F5): `space` and `enumerate` have no single origin to ask until a key names one, so the export-wide forms fall back to the generic answer. |
 
 ### The two counts that do not match
 
-`tools/ci/check_sd_driver_conformance.py` reports 38 ops for `posix` where this
-table says 36. Both are right: the conformance checker counts every field of the
+`tools/ci/check_sd_driver_conformance.py` reports 39 ops for `posix` where this
+table says 37. Both are right: the conformance checker counts every field of the
 struct initialiser, and `name`, `caps` and `cred_accept` are **data**, not
-function pointers. This table censuses the 61 *slots*. `posix` has 36 slots plus
-`name` and `caps`; `remote` has 42 plus all three.
+function pointers. This table censuses the 64 *slots*. `posix` has 37 slots plus
+`name` and `caps`; `remote` has 42 plus all three (45).
 
 ---
 
@@ -195,12 +198,25 @@ open + `ftruncate` fallback into `ENOSYS` over http/s3/posix.
 
 ## 4. Per-driver reading
 
-**`posix` (36).** The reference implementation, and the only driver with
-`staged_path`. Its six non-`_cred` blanks are all `seam` or `np`: `statvfs(2)` *is*
-the exact answer for `space` (the slot exists for backends whose logical space
-differs from the filesystem underneath — pblock quota, an origin's `oss.space`);
-`query_checksum` is answered from `user.XrdCks.*` by the layer above; a plain
-filesystem is never nearline.
+**`posix` (37).** The reference implementation, and the only driver with
+`staged_path`. Its nine non-`_cred` blanks are `seam` (3), `np` (3), `nil`, `ns`
+and `hint` — no gap among them: `statvfs(2)` *is* the exact answer for `space`
+(the slot exists for backends whose logical space differs from the filesystem
+underneath — pblock quota, an origin's `oss.space`); `query_checksum` is answered
+from `user.XrdCks.*` by the layer above; `truncate_path` is the exact
+open + `ftruncate` seam; a plain filesystem is never nearline, so `recall`,
+`residency` and `evict` have nothing to mean; the namespace *is* the catalog, so
+`enumerate` is a walk; and `open_hinted`'s `pfc.urlcgi` geometry hints reach a
+plain filesystem as an ordinary `open`.
+
+Every one of `posix`'s 14 `id` cells is a statement about the `_cred` plane and
+nothing else. `posix` **does** have a per-user identity — it is just not a
+credential threaded through the driver, it is the calling thread's own
+`setfsuid`/`setfsgid`, installed by the impersonation broker and applied one
+layer below the driver at the `beneath`/`confined_canon` seam
+(`src/fs/path/beneath.c`, `src/fs/path/resolve_confined_ops*.c`). Under
+`brix_idmap map` every namespace syscall `sd_posix` issues is already performed
+as the mapped user, on that user's own DAC. See §5.
 
 **`pblock` (57).** The most complete driver — POSIX parity over a SQLite catalog,
 including the nearline pair and its own `enumerate` (catalog rows vs. block
@@ -263,6 +279,18 @@ nearly everything: `kXR_Qspace`/`kXR_QFSinfo` for `space`, `kXR_Qcksum` for
 nearline pair over `kXR_prepare`. Its blanks are the vectored/advisory reads that
 the root:// wire has no verb for, plus `enumerate` (`ns`).
 
+**`xroot_fwd` (49).** The forwarding proxy (2.0 F5, `brix_storage_backend
+forward://… permit=…`): a client names the origin inside the key
+(`/root://host:port//file`), the driver admits it against the protocol list
+and the permit list, and relays every slot to one `xroot` child per distinct
+origin through the shared `_maybe_cred` forwarders — so its column is
+`xroot`'s (47 as well) with three cells moved: `space` and `enumerate` are
+`fwd` (no origin to ask until a key names one) and `open_hinted` is relayed
+so a per-open hint reaches the child. `init`/`cleanup` stay `nil` as for
+`xroot`: children are created on first use and torn down with the instance
+by `brix_sd_xroot_fwd_destroy`. The two-key verbs refuse a pair that lands
+on different origins with `EXDEV`.
+
 ---
 
 ## 5. The `_cred` plane, and why `id` is safe
@@ -276,10 +304,51 @@ is refused with `EACCES` before any I/O.
 
 That rule was written as defensive hardening when nothing had the shape. It is
 **live now**: `posix`, `block`, `frm` and `cephfs_ro` all carry plain slots with
-no `_cred` twin, which is what the `id` verdict means — a local or read-only
-backend has no per-user identity to assume. So an `id` cell is not an unguarded
-hole; it is a slot that deny mode refuses and allow mode runs as the export,
-which is the documented allow-mode contract.
+no `_cred` twin, which is what the `id` verdict means. So an `id` cell is not an
+unguarded hole; it is a slot that deny mode refuses outright and allow mode runs
+on the identity described below.
+
+**`id` is only stamped where the plain twin exists (2.0 F21).** The refusal the
+verdict describes lives in `sd_cred_forward.h`'s deny branch, and that branch is
+gated on `driver-><op> != NULL`. On a cell whose *base* op the driver does not
+implement, neither branch can ever run — there is no operation here to scope to
+anybody — so stamping `id` on it invents a per-user gap that does not exist.
+Such a cell inherits the base op's own verdict instead, which is the honest
+answer. `ceph`, `cephfs_ro` and `http` had always hand-tracked this pair by pair;
+the generator now applies the rule uniformly, which is what moved four `posix`
+cells (`recall_cred`, `evict_cred`, `unlink_many_cred`, `truncate_path_cred`) off
+`id` and onto their base verdicts.
+
+**On `posix`, `id` does NOT mean "runs as the export" (2.0 F21).** This is the
+correction most worth carrying: `posix` has a complete per-user identity story,
+it simply is not spelled as a credential threaded through the SD vtable. Under
+`brix_idmap map` the request's principal is installed worker-globally
+(`brix_imp_set_principal`), and every namespace syscall `sd_posix` issues goes
+through `src/fs/path/beneath.c` / `resolve_confined_ops*.c`, which delegate to
+the privileged broker; the broker maps the principal to UNIX credentials, applies
+them with `setfsuid`/`setfsgid`, and performs the syscall under `RESOLVE_BENEATH`
+confinement on **its own** rootfd. The mapped user's own DAC decides, and a
+principal with no mapping is refused (`IMP_STATUS_DENY`) rather than downgraded.
+
+The one op that used to break that promise was `exchange`: `brix_exchange_beneath`
+answered `ENOTSUP` whenever impersonation was active, because the broker had no
+`RENAME_EXCHANGE` verb. So an export ran its whole namespace as the mapped user
+*except* this single verb, and a tier that swapped two names silently lost the
+capability the moment `brix_idmap map` was switched on. 2.0 F21 added
+`IMP_OP_RENAME_EXCHANGE` / `brix_imp_rename_exchange()`, and — unlike the
+`RENAME_NOREPLACE` arm, which degrades to a plain `renameat` on an old kernel —
+it **never** degrades, because the only emulation is two renames and that window
+is precisely what the caller asked to avoid. A kernel or filesystem without the
+flag answers `ENOTSUP`, byte-identical to the non-impersonated arm, so no caller
+needs an impersonation-specific branch.
+
+One deliberate exception: `src/fs/backend/posix/sd_posix_dedup.c` stays the
+export identity on purpose. The GCAS hardlink farm is *server-owned* storage —
+its link/rename/unlink operate on the farm's own internal names, not on anything
+the client can address — so scoping them to a caller would be meaningless and
+would make the farm unmaintainable across users. That is a design decision, not a
+missed seam, and `tests/test_release20_posix_cred_plane.py` pins it so it is
+never "fixed" by mistake.
 
 Two lessons from closing the `_cred` asymmetries are worth carrying into any new
 driver:

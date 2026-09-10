@@ -26,6 +26,7 @@ Makefile `compat` target; if the client tree is not built the module skips.
 
 import os
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -56,10 +57,7 @@ def _ensure_compat_links():
     if not os.path.exists(os.path.join(_BIN, "xrdcp")):
         pytest.skip("client tools not built (run `make -C client`)")
     if not os.path.exists(os.path.join(_BIN, "brix-xrdcp")):
-        subprocess.run(
-            ["make", "-C", _CLIENT, "compat"],
-            check=True, capture_output=True, text=True, timeout=120,
-        )
+        client_make(_CLIENT, "compat", check=True, capture_output=True, text=True, timeout=120)
     if not os.path.exists(os.path.join(_BIN, "brix-xrdcp")):
         pytest.skip("`make -C client compat` did not produce brix- links")
 

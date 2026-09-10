@@ -32,6 +32,25 @@
 
 /* WHAT: blocking client TLS handshake over the pull fd; stores SSL on t->tls.
  * Returns 0 on success, -1 with t->err_msg / t->xrd_error set on failure. */
+/* WHAT: park a freshly negotiated (ssl, ctx) on the socket that owns it — a
+ *       bound sub-stream slot (F7) or the primary — so the I/O helpers route
+ *       every later frame on that fd through it. */
+static void
+tpc_tls_store(brix_tpc_pull_t *t, int fd, SSL *ssl, SSL_CTX *ctx)
+{
+    int i;
+
+    for (i = 0; i < t->nsub; i++) {
+        if (t->sub[i].fd == fd) {
+            t->sub[i].tls     = ssl;
+            t->sub[i].tls_ctx = ctx;
+            return;
+        }
+    }
+    t->tls     = ssl;
+    t->tls_ctx = ctx;
+}
+
 int
 tpc_start_tls(brix_tpc_pull_t *t, int fd)
 {
@@ -116,22 +135,44 @@ tpc_start_tls(brix_tpc_pull_t *t, int fd)
         return -1;
     }
 
-    t->tls     = ssl;
-    t->tls_ctx = ctx;
+    tpc_tls_store(t, fd, ssl, ctx);
     return 0;
 }
 
-/* WHAT: release the pull's TLS objects (NULL-safe); called from thread.c teardown. */
+/* WHAT: release one (tls, tls_ctx) pair in place; NULL-safe. */
+static void
+tpc_tls_release(void **tls, void **tls_ctx)
+{
+    if (*tls != NULL) {
+        (void) SSL_shutdown((SSL *) *tls);
+        SSL_free((SSL *) *tls);
+        *tls = NULL;
+    }
+    if (*tls_ctx != NULL) {
+        SSL_CTX_free((SSL_CTX *) *tls_ctx);
+        *tls_ctx = NULL;
+    }
+}
+
+/* WHAT: release the primary socket's TLS objects; called from thread.c. */
 void
 tpc_tls_teardown(brix_tpc_pull_t *t)
 {
-    if (t->tls != NULL) {
-        (void) SSL_shutdown((SSL *) t->tls);
-        SSL_free((SSL *) t->tls);
-        t->tls = NULL;
+    tpc_tls_release(&t->tls, &t->tls_ctx);
+}
+
+/* WHAT: release the TLS objects of the sub-stream that owns `fd` (F7), or the
+ *       primary's when fd is not a bound sub-stream. */
+void
+tpc_tls_teardown_fd(brix_tpc_pull_t *t, int fd)
+{
+    int i;
+
+    for (i = 0; i < t->nsub; i++) {
+        if (t->sub[i].fd == fd) {
+            tpc_tls_release(&t->sub[i].tls, &t->sub[i].tls_ctx);
+            return;
+        }
     }
-    if (t->tls_ctx != NULL) {
-        SSL_CTX_free((SSL_CTX *) t->tls_ctx);
-        t->tls_ctx = NULL;
-    }
+    tpc_tls_teardown(t);
 }

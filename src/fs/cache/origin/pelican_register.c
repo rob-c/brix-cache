@@ -24,12 +24,17 @@
 
 #include <ngx_thread_pool.h>
 #include <curl/curl.h>
+
+#include "net/dns/curl_pin.h"        /* brix_dns_curl_perform_pinned (phase-116) */
 #include <jansson.h>
 #include <openssl/rand.h>
 
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+
+/* Redirect hops a discovery/registration transfer follows, each re-pinned. */
+#define BRIX_PELICAN_MAX_REDIRECTS  3
 
 
 /* Reusable advertise task (one per worker; reused each tick under in_flight). */
@@ -244,6 +249,35 @@ brix_pelican_mem2_cb(char *ptr, size_t size, size_t nmemb, void *ud)
     return n;
 }
 
+/* WHAT: reset the discovery sink before each redirect hop.
+ * WHY:  brix_dns_curl_perform_pinned() re-issues the request per hop; a 3xx
+ *       body already written into the sink must not prefix the final one. */
+static void
+brix_pelican_mem2_rewind(void *data)
+{
+    ((brix_pelican_mem2_t *) data)->len = 0;
+}
+
+/* Describe one pinned transfer: every hop (the director may redirect) resolves
+ * through the cache export's phase-116 policy instead of libcurl's resolver. */
+static void
+brix_pelican_xfer_init(brix_dns_curl_transfer_t *x,
+    ngx_stream_brix_srv_conf_t *conf, const char *url,
+    brix_pelican_mem2_t *mem, char *reason, size_t sz)
+{
+    ngx_memzero(x, sizeof(*x));
+    x->policy = conf->common.dns.policy;
+    x->url = url;
+    x->max_redirects = BRIX_PELICAN_MAX_REDIRECTS;
+    /* one ceiling for the whole chain, not one per hop */
+    x->timeout_ms = (long) BRIX_CACHE_IO_TIMEOUT * 1000;
+    x->on_hop = (mem != NULL) ? brix_pelican_mem2_rewind : NULL;
+    x->hop_data = mem;
+    x->err = reason;
+    x->errsz = sz;
+    reason[0] = '\0';
+}
+
 static void
 brix_pelican_set_ca(ngx_stream_brix_srv_conf_t *conf, CURL *curl)
 {
@@ -261,7 +295,9 @@ brix_pelican_discover_cfg(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
 {
     CURL                 *curl;
     CURLcode              res;
-    brix_pelican_mem2_t mem;
+    brix_pelican_mem2_t   mem;
+    brix_dns_curl_transfer_t xfer;
+    char                  reason[BRIX_DNS_ERROR_LEN];
     char                  url[512];
     char                  doc[64 * 1024];
     json_t               *root, *ep;
@@ -272,8 +308,8 @@ brix_pelican_discover_cfg(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
 
     n = snprintf(url, sizeof(url),
                  "https://%s:%u/.well-known/pelican-configuration",
-                 (char *) conf->cache_origin_host.data,
-                 (unsigned) conf->cache_origin_port);
+                 (char *) conf->advertise.federation.data,
+                 (unsigned) conf->advertise.federation_port);
     if (n < 0 || (size_t) n >= sizeof(url)) {
         return NGX_ERROR;
     }
@@ -283,17 +319,16 @@ brix_pelican_discover_cfg(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
         return NGX_ERROR;
     }
     mem.buf = doc; mem.len = 0; mem.cap = sizeof(doc) - 1;
-    curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, brix_pelican_mem2_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &mem);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, (long) BRIX_CACHE_IO_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) BRIX_CACHE_IO_TIMEOUT);
     brix_pelican_set_ca(conf, curl);
 
-    res = curl_easy_perform(curl);
+    brix_pelican_xfer_init(&xfer, conf, url, &mem, reason, sizeof(reason));
+    res = brix_dns_curl_perform_pinned(curl, &xfer);
     if (res == CURLE_OK) {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
     }
@@ -302,7 +337,7 @@ brix_pelican_discover_cfg(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
     if (res != CURLE_OK || code < 200 || code >= 300) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
             "brix: pelican advertise: discovery failed (%s, http %ld)",
-            curl_easy_strerror(res), code);
+            reason[0] ? reason : curl_easy_strerror(res), code);
         return NGX_ERROR;
     }
 
@@ -330,6 +365,8 @@ brix_pelican_post(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
     CURL              *curl;
     CURLcode           res;
     struct curl_slist *hdrs = NULL;
+    brix_dns_curl_transfer_t xfer;
+    char               reason[BRIX_DNS_ERROR_LEN];
     char               url[640];
     char               authz[2200];
     long               code = 0;
@@ -352,17 +389,16 @@ brix_pelican_post(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
         hdrs = curl_slist_append(hdrs, authz);
     }
 
-    curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, (long) BRIX_CACHE_IO_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) BRIX_CACHE_IO_TIMEOUT);
     brix_pelican_set_ca(conf, curl);
 
-    res = curl_easy_perform(curl);
+    brix_pelican_xfer_init(&xfer, conf, url, NULL, reason, sizeof(reason));
+    res = brix_dns_curl_perform_pinned(curl, &xfer);
     if (res == CURLE_OK) {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
     }
@@ -374,7 +410,8 @@ brix_pelican_post(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
     if (res != CURLE_OK || code < 200 || code >= 300) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
             "brix: pelican advertise: registerCache POST failed "
-            "(%s, http %ld) to %s", curl_easy_strerror(res), code, url);
+            "(%s, http %ld) to %s", reason[0] ? reason : curl_easy_strerror(res),
+            code, url);
         return NGX_ERROR;
     }
     ngx_log_error(NGX_LOG_INFO, log, 0,
@@ -480,7 +517,7 @@ brix_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
     if (!conf->advertise.enable || conf->advertise.enable == NGX_CONF_UNSET
         || conf->advertise.key.len == 0
         || conf->advertise.data_url.len == 0
-        || conf->cache_origin_host.len == 0)
+        || conf->advertise.federation.len == 0)
     {
         return;
     }
@@ -522,7 +559,8 @@ brix_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
     ngx_add_timer(ev, 2000);
 
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-        "brix: pelican cache advertise started — federation=%s interval=%Mms "
-        "data-url=%V", conf->cache_origin_host.data,
+        "brix: pelican cache advertise started — federation=%s:%ui "
+        "interval=%Mms data-url=%V", conf->advertise.federation.data,
+        conf->advertise.federation_port,
         conf->advertise.interval, &conf->advertise.data_url);
 }

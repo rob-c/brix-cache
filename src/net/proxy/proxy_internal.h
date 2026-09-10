@@ -29,8 +29,20 @@
 /* Maximum upstream response body we will buffer (16 MiB — matches max write payload) */
 #define BRIX_PROXY_MAX_BODY  (16 * 1024 * 1024)
 
-/* Sentinel: fh_map slot is free */
-#define BRIX_PROXY_FH_FREE  (-1)
+/* Longest CMS-selected host a session can be pinned to (registry.h host[256]) */
+#define BRIX_PROXY_PIN_HOST_MAX  256
+
+/* fh_map slot lifecycle (phase-115 W2.6).
+ *
+ * The upstream's fhandle is four OPAQUE bytes: a server is free to issue
+ * {0xff,0,0,0} or any other bit pattern.  So the slot's STATE cannot be
+ * encoded inside its VALUE — the previous scheme, which kept only body[0] in
+ * an int and reserved -1 and 255 within it, could not tell a real handle of
+ * 0xff apart from its own "open pending" marker, and truncated every handle
+ * with a non-zero byte in 1..3.  State and value are separate fields now. */
+#define BRIX_PROXY_FH_FREE     0   /* slot unallocated                      */
+#define BRIX_PROXY_FH_PENDING  1   /* open forwarded, awaiting the response */
+#define BRIX_PROXY_FH_BOUND    2   /* upstream_fh holds the server's handle */
 
 /* Max path length stored per handle for audit logging. */
 #define BRIX_PROXY_PATH_MAX  512
@@ -60,7 +72,8 @@
  * Per-handle entry in the file handle map.
  */
 typedef struct {
-    int          upstream_fh;                   /* upstream handle; -1 = free */
+    u_char       upstream_fh[4];                /* raw handle; valid iff BOUND */
+    int          fh_state;                      /* BRIX_PROXY_FH_*            */
     char         path[BRIX_PROXY_PATH_MAX];   /* path supplied at open      */
     ngx_msec_t   open_msec;                     /* ngx_current_msec at open   */
     uint64_t     bytes_read;                    /* bytes relayed to client    */
@@ -90,9 +103,17 @@ typedef enum {
 typedef struct {
     ngx_queue_t        queue;
     ngx_connection_t  *conn;
+    /* The server block that opened and authenticated this connection.  A pooled
+     * connection is only ever handed back to a session of the SAME block: the
+     * upstream list, TLS settings, auth mechanism, login policy and SSS identity
+     * mode all live there, and upstream_idx indexes THAT block's list -- index 0
+     * of one server block is a different origin from index 0 of another. */
+    ngx_stream_brix_srv_conf_t *conf;
     ngx_uint_t         upstream_idx;
-    ngx_uint_t         auth_type;
-    u_char             token_hash[16];   /* MD5 of bearer token for pooling */
+    /* MD5 of the client identity presented on this upstream leg (see
+     * proxy_pool_ident): a connection carrying one client's token, forwarded SSS
+     * entity or passthrough login name is never reused for a different one. */
+    u_char             ident_hash[16];
     time_t             idle_since;
     ngx_msec_t         keepalive_interval; /* snapshot of conf->proxy.keepalive_interval */
     ngx_event_t        ping_ev;            /* kXR_ping keepalive timer */
@@ -114,6 +135,13 @@ struct brix_proxy_ctx_s {
     brix_proxy_up_state_t  state;
     brix_proxy_bs_t        bs_phase;
     int                      no_pool;
+    /* This session is being aborted by OUR OWN policy (the upstream was never
+     * asked and said nothing), so the abort must not be charged against the
+     * upstream's health.  Without it an anonymous client looping against a
+     * `brix_tap_proxy_sss_identity client` front -- whose forwarding refusal is
+     * exactly such a policy abort -- marks the origin DOWN after
+     * BRIX_PROXY_MAX_FAILS and blackholes every other session on the worker. */
+    int                      policy_refusal;
 
     /* server config — needed in connect/events without carrying it everywhere */
     ngx_stream_brix_srv_conf_t  *conf;
@@ -182,14 +210,24 @@ struct brix_proxy_ctx_s {
     uint16_t      redirect_port;
     int           redirect_count;     /* number of redirects followed so far    */
 
+    /* Phase-115 W2.1 (brix_cms_response proxy): the CMS-selected data server
+     * this session is pinned to.  pinned_host points into pinned_buf (a fixed
+     * copy, so re-pinning an idle session allocates nothing); consulted by
+     * pc_select_endpoint after a kXR_redirect follow-through and instead of
+     * the configured upstream list, and excludes the session from the shared
+     * connection pool.  Empty (len 0) on a plain brix_tap_proxy session. */
+    ngx_str_t     pinned_host;
+    uint16_t      pinned_port;
+    u_char        pinned_buf[BRIX_PROXY_PIN_HOST_MAX];
+
     /* Queue of local fhs still needing lazy-open for a multi-handle kXR_readv.
      * After each lazy-open completes, the next fh is dequeued and opened.
      * When empty, the saved readv is dispatched with all fhs resolved. */
     int       lazy_open_pending_fhs[BRIX_MAX_FILES];
     int       lazy_open_pending_count;
 
-    /* file handle translation: fh_map[local_idx].upstream_fh = upstream handle
-     * upstream_fh == BRIX_PROXY_FH_FREE (-1) means the slot is unallocated */
+    /* file handle translation: fh_map[local_idx] holds the upstream's raw
+     * 4-byte fhandle, valid only while fh_state == BRIX_PROXY_FH_BOUND */
     brix_proxy_fh_entry_t  fh_map[BRIX_MAX_FILES];
 
     /* zero-copy splice state (kXR_read / kXR_pgread without TLS) */
@@ -209,6 +247,16 @@ struct brix_proxy_ctx_s {
     brix_tap_ctx_t  tap;
     ngx_log_t         tap_log;
     int               tap_inited;
+
+    /* phase-116: the in-flight upstream resolve.  brix_proxy_connect() starts
+     * it through the async brix DNS driver under the server block's policy;
+     * the answer arrives inline (literal / cache hit) or later on the event
+     * loop, and cleanup/reset cancel it so the handler never outlives the
+     * session.  dns_rc carries an inline outcome back to the starter. */
+    brix_dns_req_t    dns_req;
+    ngx_int_t         dns_rc;
+    unsigned          dns_inflight:1;
+    unsigned          dns_inline:1;
 };
 
 /* Phase-4a tap: stable-log JSON audit sink + lazy per-connection init. */
@@ -228,18 +276,28 @@ ngx_int_t brix_proxy_gsi_connect_async(brix_proxy_ctx_t *proxy,
 
 /* connect.c */
 
-/* Select an upstream (redirect > pool > round-robin > single), resolve DNS, open a
- * non-blocking socket, start the async connect, and arm bootstrap. On a pool hit
- * dispatches/resumes immediately. Borrows proxy/client_conn/conf (not owned).
- * Returns NGX_OK once a connect is in flight or completed (TLS/bootstrap continue via
- * event callbacks); NGX_ERROR after calling brix_proxy_cleanup() on hard failure. */
+/* Select an upstream (redirect > pool > round-robin > single), resolve it through
+ * the async brix DNS driver, open a non-blocking socket, start the async connect,
+ * and arm bootstrap. On a pool hit dispatches/resumes immediately. Borrows
+ * proxy/client_conn/conf (not owned). Returns NGX_OK once a resolve or connect is
+ * in flight or completed (DNS/TLS/bootstrap continue via event callbacks — a
+ * later failure goes through brix_proxy_abort()); NGX_ERROR after calling
+ * brix_proxy_cleanup() on a hard failure that happened inline. */
 ngx_int_t brix_proxy_connect(brix_proxy_ctx_t *proxy,
     ngx_connection_t *client_conn,
     ngx_stream_brix_srv_conf_t *conf);
+/* Cancel an in-flight upstream resolve (no-op when none): its completion
+ * handler never runs afterwards. Called by cleanup, reset and a re-connect. */
+void      brix_proxy_cleanup_dns(brix_proxy_ctx_t *proxy);
 /* Handle an upstream error: log, mark the upstream failed. If idle with no open
  * handles and reconnect budget remains, transparently reconnect (client unaware);
  * otherwise tear the session down. reason is a borrowed static/log string. */
 void      brix_proxy_abort(brix_proxy_ctx_t *proxy, const char *reason);
+/* Drop the upstream connection (and any half-read response / saved request)
+ * and rewind the proxy to the start of the bootstrap state machine, keeping
+ * the proxy ctx, its fh_map and its client binding.  The caller then decides
+ * whether to brix_proxy_connect() again (idle reconnect, idle re-pin). */
+void      brix_proxy_reset_upstream(brix_proxy_ctx_t *proxy);
 /* Drain proxy->wbuf to the upstream socket via uconn->send (TLS or plain), advancing
  * wbuf_pos. NGX_OK when fully sent, NGX_AGAIN on partial send (caller re-arms write),
  * NGX_ERROR on socket error. Does not free the buffer. */
@@ -270,11 +328,41 @@ void brix_proxy_tls_handshake_done(ngx_connection_t *uconn);
  * count written. Defined in connect_upstream_bootstrap.c. */
 size_t brix_proxy_build_bootstrap(u_char *buf, const char *username);
 
+/*
+ * Chosen upstream target: host/port plus the resolved sockaddr that the
+ * async connect() will use.  Purely a value carrier passed between the
+ * endpoint-selection, resolve, and arm-events phases — it holds NO ngx_log_t
+ * pointer, so it is safe to stack-allocate per connect (see the stale-handler
+ * SIGSEGV postmortem: never park a c->log in a long-lived struct).
+ */
+typedef struct {
+    ngx_str_t               *host;      /* borrowed: conf / redirect / ups elt */
+    ngx_int_t                port;
+    struct sockaddr_storage  addr;
+    socklen_t                addrlen;
+    int                      fd;        /* resolved socket for this target */
+} brix_proxy_target_t;
+
+/* Choose the upstream endpoint: redirect > CMS pin > pooled connection >
+ * healthy round-robin member > single configured host. NGX_DECLINED = *tgt
+ * filled, go resolve/connect; NGX_OK = a pooled connection was adopted
+ * (connect complete); NGX_ERROR = every upstream is down. Defined in
+ * connect_upstream_select.c. */
+ngx_int_t brix_proxy_select_endpoint(brix_proxy_ctx_t *proxy,
+    ngx_connection_t *client_conn, ngx_stream_brix_srv_conf_t *conf,
+    brix_proxy_target_t *tgt);
+
 /* Worker-local health status array — defined in pool.c, used in connect.c */
 extern brix_proxy_up_status_t *proxy_up_status;
 
 /* Pool management */
 /* Init the worker-local idle-connection queue and counter. Call once at startup. */
+/* The front-side client's identity as an SSS entity to forward upstream
+ * (brix_tap_proxy_sss_identity client); NGX_DECLINED when the session has none.
+ * Defined in events_bootstrap_auth.c, digested by the pool. */
+ngx_int_t brix_proxy_sss_client_entity(const brix_proxy_ctx_t *proxy,
+    brix_sss_entity_t *ent);
+
 void brix_proxy_pool_init(void);
 
 /* Drain and free every idle pooled upstream connection (called at worker exit
@@ -369,8 +457,30 @@ ngx_int_t brix_proxy_fh_translate_vector(brix_proxy_ctx_t *proxy,
  * follow-through, upstream->local fhandle translation, path audit and oksofar streaming.
  * Consumes/frees resp_body as part of relaying. */
 void      brix_proxy_relay_to_client(brix_proxy_ctx_t *proxy);
-/* Return the index of the first free fh_map slot (upstream_fh == FREE), giving the proxy
+/* Return the index of the first free fh_map slot (fh_state == FREE), giving the proxy
  * its own local handle namespace; -1 if all BRIX_MAX_FILES slots are in use. */
+
+/* brix_proxy_fh_bind — record the upstream's fhandle from an open response
+ * body of dlen bytes.  A short body zero-pads rather than reading past it. */
+static ngx_inline void
+brix_proxy_fh_bind(brix_proxy_fh_entry_t *e, const u_char *body, size_t dlen)
+{
+    size_t  n = sizeof(e->upstream_fh);
+
+    ngx_memzero(e->upstream_fh, n);
+    if (body != NULL && dlen > 0) {
+        ngx_memcpy(e->upstream_fh, body, dlen < n ? dlen : n);
+    }
+    e->fh_state = BRIX_PROXY_FH_BOUND;
+}
+
+/* brix_proxy_fh_put — write a bound slot's upstream fhandle into a request. */
+static ngx_inline void
+brix_proxy_fh_put(const brix_proxy_fh_entry_t *e, u_char *dst)
+{
+    ngx_memcpy(dst, e->upstream_fh, sizeof(e->upstream_fh));
+}
+
 int       brix_proxy_alloc_local_fh(brix_proxy_ctx_t *proxy);
 /* Emit a JSON audit record for fh_map[local_fh]; safe to call on any slot. */
 void      proxy_write_audit(brix_proxy_ctx_t *proxy, int local_fh);

@@ -11,7 +11,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <netdb.h>
+#include "net/resolve.h"   /* phase-116: the client's one DNS path */
 #include <netinet/in.h>
 #include <signal.h>     
 #include <stdarg.h>

@@ -23,6 +23,44 @@ brix_srv_set_stale_after(ngx_msec_t ms)
 }
 
 
+/*
+ * srv_space_reeval_locked — §2.4: re-latch one entry's write-block.
+ *
+ * WHAT: Sets or clears e->space_blocked from the node's freshly reported
+ *       free_mb against the floor it advertised at login.
+ * WHY:  Without hysteresis a node hovering at its floor leaves and rejoins
+ *       the write set on every heartbeat, and each flap re-points clients at
+ *       a different server mid-campaign.  The block therefore LATCHES at the
+ *       floor and clears only at the high-water mark.
+ * HOW:  Called under brix_srv_mutex from every point that writes free_mb or
+ *       min_free_mb, so the latch follows each reported figure exactly once.
+ *       A node that advertised no floor is never blocked, and an hwm below
+ *       the node's own floor is clamped up to it — a mistyped high-water mark
+ *       must not reintroduce the flapping it exists to prevent.
+ */
+void
+srv_space_reeval_locked(brix_srv_entry_t *e)
+{
+    uint32_t  hwm;
+
+    if (e->min_free_mb == 0) {
+        e->space_blocked = 0;
+        return;
+    }
+
+    hwm = (brix_srv_space.hwm_mb > (ngx_uint_t) e->min_free_mb)
+          ? (uint32_t) brix_srv_space.hwm_mb : e->min_free_mb;
+
+    if (e->space_blocked) {
+        if (e->free_mb >= hwm) {
+            e->space_blocked = 0;
+        }
+    } else if (e->free_mb < e->min_free_mb) {
+        e->space_blocked = 1;
+    }
+}
+
+
 brix_srv_table_t *
 srv_table(void)
 {
@@ -194,6 +232,7 @@ brix_srv_register(const char *host, uint16_t port,
             e->last_seen        = ngx_current_msec;
             e->blacklisted_until = 0;
             e->error_count      = 0;
+            srv_space_reeval_locked(e);          /* §2.4 */
             found = 1;
             break;
         }
@@ -212,6 +251,7 @@ brix_srv_register(const char *host, uint16_t port,
         ngx_cpystrn((u_char *) e->role, (u_char *) "S",
                     sizeof(e->role));    /* until the login role is recorded */
         e->in_use    = 1;
+        srv_space_reeval_locked(e);      /* §2.4 (floor arrives with LOGIN) */
     } else if (!found) {
         /* Registry is full: log a warning and increment the Prometheus counter. */
         ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
@@ -260,6 +300,7 @@ brix_srv_update_load(const char *host, uint16_t port,
         e->free_mb   = free_mb;
         e->util_pct  = util_pct;
         e->last_seen = ngx_current_msec;
+        srv_space_reeval_locked(e);              /* §2.4 */
     }
     ngx_shmtx_unlock(&brix_srv_mutex);
 }
@@ -384,6 +425,27 @@ brix_srv_set_vnid(const char *host, uint16_t port, const char *vnid)
     if (e != NULL) {
         ngx_cpystrn((u_char *) e->vnid,
                     (u_char *) (vnid ? vnid : ""), sizeof(e->vnid));
+    }
+    ngx_shmtx_unlock(&brix_srv_mutex);
+}
+
+/* brix_srv_set_min_free — §2.4: record the free-space policy floor the node
+ * advertised in its LOGIN mSpace field (contract in registry.h), then latch
+ * the write-block against the free space already reported for it. */
+void
+brix_srv_set_min_free(const char *host, uint16_t port, uint32_t min_free_mb)
+{
+    brix_srv_entry_t *e;
+
+    if (srv_table() == NULL) {
+        return;
+    }
+
+    ngx_shmtx_lock(&brix_srv_mutex);
+    e = srv_find_locked(host, port);
+    if (e != NULL) {
+        e->min_free_mb = min_free_mb;
+        srv_space_reeval_locked(e);
     }
     ngx_shmtx_unlock(&brix_srv_mutex);
 }

@@ -23,16 +23,19 @@
 #include "net/mirror/stream_mirror.h" /* Phase 24: traffic mirror directives */
 #include "net/ratelimit/ratelimit.h"  /* Phase 25: advanced rate-limit directives */
 #include "core/negcache/negcache.h"   /* E-4: brix_negcache_backoff setter */
+#include "core/compat/checksum_plugin.h" /* brix_checksum_plugin (2.0 F8) */
 #include "core/config/config.h"       /* brix_conf_set_backend_sss_keytab */
 #include "auth/impersonate/lifecycle.h" /* Phase 40: impersonation directives */
 #include "net/cms/cns.h"               /* §6 CNS mode enum */
 #include "core/config/credential_block.h" /* §14 brix_credential block directive */
 #include "module_enums.h"   /* directive enum value tables */
+#include "net/cms/cms_admin.h"   /* brix_conf_set_cms_admin_socket */
 #include "auth/authz/acc/acc.h"   /* shared brix_acc_{format,audit}_modes tables */
 #include "core/seccomp/seccomp.h"   /* brix_conf_set_seccomp (brix_seccomp directive) */
 #include "fs/backend/sd.h"  /* BRIX_CRED_* (phase-70 §4) */
 #include "auth/s3/sts.h"    /* BRIX_STS_FLAVOR_* (phase-70 §5.5) */
 #include "core/config/tier_directives.h"   /* shared tier-grammar X-macro */
+#include "core/config/space_group_conf.h"  /* brix_oss_space (W3.3) setter + name rule */
 #include "fs/vfs/vfs_secgate.h"            /* brix_conf_set_tls_require */
 
 #include <stdio.h>
@@ -153,7 +156,6 @@ brix_conf_set_oss_cgroup(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_stream_brix_srv_conf_t *xcf = conf;
     ngx_str_t                  *value = cf->args->elts;
-    size_t                      i;
 
     (void) cmd;
 
@@ -162,15 +164,12 @@ brix_conf_set_oss_cgroup(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             "brix_oss_cgroup: the group name must not be empty");
         return NGX_CONF_ERROR;
     }
-    for (i = 0; i < value[1].len; i++) {
-        u_char ch = value[1].data[i];
-        if (ch == '&' || ch == '=' || ch == ' ' || ch < 0x20 || ch == 0x7f) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix_oss_cgroup: \"%V\" contains a byte that would break the "
-                "oss.* CGI report grammar (no & = space or control chars)",
-                &value[1]);
-            return NGX_CONF_ERROR;
-        }
+    if (!brix_oss_space_name_ok(&value[1])) {   /* one rule with brix_oss_space */
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_oss_cgroup: \"%V\" contains a byte that would break the "
+            "oss.* CGI report grammar (no & = space or control chars)",
+            &value[1]);
+        return NGX_CONF_ERROR;
     }
 
     xcf->oss_cgroup = value[1];
@@ -551,7 +550,8 @@ ngx_command_t ngx_stream_brix_commands[] = {
     /* ---- CMS clustering directives (split into directives_cms.h) ---- */
 #include "directives_cms.h"
 
-    /* (legacy brix_proxy_path_rewrite removed — see the note above) */
+    /* ---- CMS forwarded-namespace-op program (directives_cms_fsxeq.h) ---- */
+#include "directives_cms_fsxeq.h"
 
     /* OCSP certificate status checking and stapling. phase-101 W6: the feature
      * toggle is the bare feature name (Rule 1, no _enable) — the siblings

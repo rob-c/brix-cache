@@ -42,6 +42,8 @@ main(void)
     check(brix_fs_id_from_name("posix") >= 0, "posix registered");
     check(brix_fs_id_from_name("cache") >= 0, "cache decorator registered");
     check(brix_fs_id_from_name("xroot") >= 0, "xroot origin registered");
+    check(brix_fs_id_from_name("xroot_fwd") >= 0,
+          "xroot_fwd forwarding origin registered (2.0 F5)");
     check(brix_fs_id_from_name("frm") >= 0, "frm nearline registered");
     check(brix_fs_id_from_name("mirage") >= 0,
           "mirage synthetic backend registered (§3 row 14)");

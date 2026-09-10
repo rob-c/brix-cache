@@ -84,6 +84,8 @@ struct brix_fuse_ctx_link2 { const char *a; const char *b; };
 int brix_fuse_op_stat(brix_conn *c, void *ctx, brix_status *st);     /* ctx_stat: follow-stat */
 int brix_fuse_op_lstat(brix_conn *c, void *ctx, brix_status *st);    /* ctx_stat: no-follow */
 int brix_fuse_op_dirlist(brix_conn *c, void *ctx, brix_status *st);  /* ctx_dir */
+/* ctx_dir, but the union across the cluster (W7.2b) rather than one node. */
+int brix_fuse_op_dirlist_all(brix_conn *c, void *ctx, brix_status *st);
 int brix_fuse_op_mkdir(brix_conn *c, void *ctx, brix_status *st);    /* ctx_mkdir */
 int brix_fuse_op_rm(brix_conn *c, void *ctx, brix_status *st);       /* ctx = const char * path */
 int brix_fuse_op_rmdir(brix_conn *c, void *ctx, brix_status *st);    /* ctx = const char * path */

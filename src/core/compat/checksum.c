@@ -15,6 +15,7 @@
 
 #include "checksum.h"
 #include "checksum_core.h"   /* shared (ngx-free) fd→checksum compute kernels */
+#include "core/compat/checksum_plugin.h"   /* site plugins (2.0 F8) */
 #include "crc32c.h"
 #include "hex.h"
 
@@ -41,6 +42,10 @@ size_t brix_sanitize_log_string(const char *in, char *out, size_t outsz);
 const char *
 brix_checksum_name(brix_checksum_alg_t alg)
 {
+    if (brix_checksum_is_plugin(alg)) {
+        return brix_cks_plugin_name(alg);
+    }
+
     switch (alg) {
     case BRIX_CHECKSUM_ADLER32:
         return "adler32";
@@ -99,6 +104,14 @@ brix_checksum_is_u32(brix_checksum_alg_t alg)
            || alg == BRIX_CHECKSUM_CRC32
            || alg == BRIX_CHECKSUM_CRC32C
            || alg == BRIX_CHECKSUM_ZCRC32;
+}
+
+/* brix_checksum_is_plugin — a value in the site-plugin range (registered or
+ * not; name() answers NULL for an unregistered index). */
+ngx_flag_t
+brix_checksum_is_plugin(brix_checksum_alg_t alg)
+{
+    return ((ngx_int_t) alg >= BRIX_CHECKSUM_PLUGIN_BASE) ? 1 : 0;
 }
 
 /*
@@ -173,7 +186,9 @@ brix_checksum_lookup_alg(const char *lname, brix_checksum_alg_t *out)
         }
     }
 
-    return NGX_DECLINED;
+    /* Site plugins come after the built-ins so a plugin can never shadow one
+     * (registration refuses the collision anyway). */
+    return brix_cks_plugin_lookup(lname, out);
 }
 
 /*
@@ -342,6 +357,15 @@ ngx_int_t
 brix_checksum_hex_fd(brix_checksum_alg_t alg, int fd, const char *path,
     ngx_log_t *log, char *hex, size_t hexsz)
 {
+    if (brix_checksum_is_plugin(alg)) {
+        brix_sd_obj_t  obj;
+
+        /* A plugin only knows the driver-routed walk; a bare fd is the
+         * default export's POSIX object. */
+        brix_sd_posix_wrap(&obj, fd);
+        return brix_checksum_hex_obj(alg, &obj, path, log, hex, hexsz);
+    }
+
     if (brix_checksum_is_u32(alg)) {
         uint32_t value;
 
@@ -430,6 +454,23 @@ brix_checksum_hex_obj(brix_checksum_alg_t alg, brix_sd_obj_t *obj,
             return NGX_ERROR;
         }
         snprintf(hex, hexsz, "%016llx", (unsigned long long) value);
+        return NGX_OK;
+    }
+
+    if (brix_checksum_is_plugin(alg)) {
+        unsigned char digest[BRIX_CKS_PLUGIN_DIGEST_MAX];
+        size_t        digest_len;
+
+        /* The plugin hands back raw bytes; the host encodes at the edge
+         * (INVARIANT 9), so the wire form never depends on plugin code. */
+        if (hexsz < (BRIX_CKS_PLUGIN_DIGEST_MAX * 2 + 1)
+            || brix_cksum_plugin_obj(alg, obj, digest, &digest_len) != NGX_OK)
+        {
+            brix_checksum_log_read_error(log, errno,
+                                           brix_checksum_name(alg), path);
+            return NGX_ERROR;
+        }
+        brix_checksum_hex_encode(digest, (unsigned int) digest_len, hex);
         return NGX_OK;
     }
 

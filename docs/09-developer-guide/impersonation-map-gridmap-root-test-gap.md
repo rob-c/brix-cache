@@ -1,4 +1,4 @@
-# brix_impersonation map + gridmap: How It Works, and the Host-Root Ownership Test Gap
+# brix_idmap map + gridmap: How It Works, and the Host-Root Ownership Test Gap
 
 **Scope:** `src/auth/impersonate/` (`idmap.c`, `idmap_gridmap.c`, `idmap_denylist.c`,
 `broker.c`, `broker_creds.c`, `broker_ops.c`), directive registration in
@@ -8,7 +8,7 @@
 **Companion:** [`../06-authentication/impersonation.md`](../06-authentication/impersonation.md),
 [`../06-authentication/identity-mapping.md`](../06-authentication/identity-mapping.md).
 
-> **TL;DR.** `brix_impersonation map` runs the nginx master as root and hands per-request
+> **TL;DR.** `brix_idmap map` runs the nginx master as root and hands per-request
 > `setfsuid`/`setfsgid` to a double-forked privileged broker so backend files land owned by the
 > real UNIX user that an authenticated identity maps to. Ownership was already proven WITHOUT
 > real root (unprivileged user namespace, no gridmap) and authz verdicts were proven separately,
@@ -18,9 +18,9 @@
 
 ---
 
-## 1. What `brix_impersonation map` does
+## 1. What `brix_idmap map` does
 
-`brix_impersonation map` (`src/auth/impersonate/`) makes the nginx **master run as root** and
+`brix_idmap map` (`src/auth/impersonate/`) makes the nginx **master run as root** and
 spawns a double-forked, privileged **broker** that calls `setfsuid`/`setfsgid` per request to the
 local account an authenticated identity maps to, so backend files land owned by that real UNIX
 user. Enforcement is kernel DAC: the broker holds only **CAP_SETUID / CAP_SETGID** and never
@@ -64,10 +64,10 @@ The impersonation directives are registered in `src/protocols/root/stream/direct
 live in the **`stream {}`** block (one broker per nginx instance; the same broker also governs the
 `http{}` webdav/S3 servers):
 
-- `brix_impersonation` (`off | single | map`)
-- `brix_impersonation_socket`
-- `brix_impersonation_export`
-- `brix_gridmap`  — path to the DN→local-username grid-mapfile (`""` = none)
+- `brix_idmap` (`off | single | map`)
+- `brix_idmap_socket`
+- `brix_idmap_export`
+- `brix_idmap_gridmap`  — path to the DN→local-username grid-mapfile (`""` = none)
 - `brix_idmap_default_user`  — squash target (`""` = deny)
 - `brix_idmap_min_uid`  — reserved-id floor (default/hard 1000)
 
@@ -81,7 +81,7 @@ A `stream {}` block carrying **only** these directives and **no `server {}`** is
   unprivileged user namespace drives the broker C directly / launches nginx in-namespace and maps a
   token `sub` via `getpwnam` — **no gridmap** involved.
 - The multi-user (MU) conformance fleet (`tests/mu_authz_lib/`, the
-  `nginx_mu_*` / `multiuser/*_noimp.conf` configs) runs with `brix_impersonation off` and only
+  `nginx_mu_*` / `multiuser/*_noimp.conf` configs) runs with `brix_idmap off` and only
   checks authz **verdicts**. `test_mu_impersonation_e2e.py` targets a `ROOT_CACHE` port the fleet
   never starts, so it was effectively inert.
 

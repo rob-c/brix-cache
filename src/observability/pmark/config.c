@@ -20,6 +20,7 @@
 
 #include "pmark.h"
 #include "core/config/shared_conf.h"
+#include "net/dns/dns.h"   /* brix_dns_backend_prepare (phase-116) */
 
 
 void
@@ -102,7 +103,9 @@ brix_pmark_set_firefly_dest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     /* Stored verbatim as "host[:port]"; resolved to a sockaddr per worker at
      * init (defaults to port 10514 when no :port is given). */
     *dest = value[1];
-    return NGX_CONF_OK;
+    /* phase-116: that per-worker resolve is a brix_dns_resolve() on a name no
+     * DNS target ever saw, so it needs a backend even with no brix_resolver. */
+    return brix_dns_backend_prepare(cf);
 }
 
 

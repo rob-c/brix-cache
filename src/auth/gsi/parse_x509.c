@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "parse_x509_internal.h"
 #include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
+#include <openssl/err.h>
 
 /*
  * gsi_persist_session_cipher — stash the negotiated GSI session cipher on the
@@ -114,6 +115,7 @@ gsi_chain_from_plaintext(const u_char *plain, int plain_len, ngx_log_t *log)
     while ((cert = PEM_read_bio_X509(bio, NULL, NULL, NULL)) != NULL) {
         sk_X509_push(chain, cert);
     }
+    ERR_clear_error();   /* the terminating PEM_read failure is expected */
     BIO_free(bio);
 
     if (sk_X509_num(chain) == 0) {

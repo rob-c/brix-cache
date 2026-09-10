@@ -346,7 +346,12 @@ wire as `"<algname> <hexvalue>\0"`.
 
 BriX-Cache parses and computes a broader set in a single small C kernel per
 family (`brix_checksum_parse`, `src/core/compat/checksum.c:42-169`): **adler32,
-crc32, crc32c, crc64 (alias crc64xz), crc64nvme, zcrc32, md5, sha1, sha256**.
+crc32, crc32c, crc64 (alias crc64xz), crc64nvme, zcrc32, md5, sha1, sha256,
+sha512** — ten built-ins, every one of them answerable on the wire. 2.0 added
+the plugin slot upstream fills with `XrdCks`: `brix_checksum_plugin <name>
+<path.so> [parms]` loads a site algorithm from a shared object against the
+plain-C ABI in `src/core/compat/checksum_plugin_abi.h`, and a registered name is
+usable everywhere a built-in name is.
 The crc32c kernel is `src/core/compat/crc32c.c` (SSE4.2 + software, poly
 `0x82F63B78`). The CRC64 kernel is the single engine in `src/core/compat/crc64.c`,
 which builds one reflected 256-entry table per *variant* at constructor time:
@@ -458,7 +463,7 @@ What an operator turns, and what an end user observes:
 | Write/read pipeline depth | `brix_pipeline_depth` | 8 (clamp 1–64) | n/a |
 | Read compression | `brix_read_compress` | off | n/a |
 | Write compression | `brix_write_compress` | off | n/a |
-| Slice cache | `brix_cache_slice` | off | (PFC, separate) |
+| Slice cache | `brix_cache_slice_size` | off | (PFC, separate) |
 | Memory budget | `memory_budget` | 768 MiB | n/a (per-worker buffers) |
 | Async I/O (official) | — | — | `xrootd.async maxperlnk/maxsegs/minsz/...` |
 

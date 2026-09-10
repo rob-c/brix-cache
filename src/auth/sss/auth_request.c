@@ -231,6 +231,72 @@ sss_map_identity(const brix_sss_key_t *key, const brix_sss_identity_t *id,
 }
 
 /*
+ * sss_entity_policy — apply the keytab's trust policy to the v2 entity fields.
+ *
+ * WHAT: drops the client-asserted VORG/ROLE/ENDO when the matched key pins
+ * the identity (no ANYUSR/ALLUSR option), and drops a proxied CRED blob
+ * unless brix_sss_getcreds is on.
+ * WHY: the keytab decides how much of what the peer asserts is trusted.  A
+ * key that maps every holder to one fixed user must not let that holder
+ * decorate itself with a VO or role the operator never granted, and a
+ * proxied credential is only kept where an operator opted in
+ * (release-2.0-readiness F9).
+ * HOW: pure edit of `id` plus one INFO line per drop; the NAME/GRPS mapping
+ * stays with sss_map_identity.
+ */
+static void
+sss_entity_policy(const ngx_stream_brix_srv_conf_t *conf,
+    const brix_sss_key_t *key, brix_sss_identity_t *id, ngx_log_t *log)
+{
+    int  pinned = !(key->opts & (BRIX_SSS_OPT_ANYUSR | BRIX_SSS_OPT_ALLUSR));
+
+    if (pinned && (id->vorg[0] || id->role[0] || id->endo[0])) {
+        id->vorg[0] = '\0';
+        id->role[0] = '\0';
+        id->endo[0] = '\0';
+        ngx_log_error(NGX_LOG_INFO, log, 0,
+                      "brix: SSS entity fields dropped: keytab pins the identity");
+    }
+
+    if (id->creds_len > 0 && !conf->sss_getcreds) {
+        OPENSSL_cleanse(id->creds, id->creds_len);
+        id->creds_len = 0;
+        ngx_log_error(NGX_LOG_INFO, log, 0,
+                      "brix: SSS proxied credential dropped: "
+                      "brix_sss_getcreds is off");
+    }
+}
+
+/*
+ * sss_log_ok — the one INFO line per accepted credential.
+ *
+ * WHAT: user/group exactly as 1.x wrote them, then the v2 entity summary.
+ * WHY: phase-115 pins the `user=".." group=".."` prefix by regex; the
+ * suffix is append-only so nothing that parsed the old line breaks.
+ * HOW: every string passes brix_sanitize_log_string; endo/creds are logged
+ * as lengths only (an endorsement or credential is not log material).
+ */
+static void
+sss_log_ok(ngx_connection_t *c, const char *user, const char *group,
+    const brix_sss_identity_t *id)
+{
+    char safe_user[256], safe_group[256], safe_vorg[256], safe_role[256];
+
+    brix_sanitize_log_string(user, safe_user, sizeof(safe_user));
+    brix_sanitize_log_string(group[0] ? group : "-",
+                               safe_group, sizeof(safe_group));
+    brix_sanitize_log_string(id->vorg[0] ? id->vorg : "-",
+                               safe_vorg, sizeof(safe_vorg));
+    brix_sanitize_log_string(id->role[0] ? id->role : "-",
+                               safe_role, sizeof(safe_role));
+    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                  "brix: SSS auth OK user=\"%s\" group=\"%s\" "
+                  "vorg=\"%s\" role=\"%s\" endo=%uz creds=%uz",
+                  safe_user, safe_group, safe_vorg, safe_role,
+                  strlen(id->endo), id->creds_len);
+}
+
+/*
  * sss_track_metrics — record unique-user and VO activity at auth completion.
  *
  * WHAT: bumps the shared-memory unique-user set and the matching VO's
@@ -267,15 +333,15 @@ sss_track_metrics(brix_ctx_t *ctx)
 /*
  * sss_reply — commit the authenticated identity and send the success response.
  *
- * WHAT: stamps the login/identity state, registers the session, tracks
- * metrics, logs the OK line, and emits kXR_ok (or kXR_error on identity-alloc
- * failure).
+ * WHAT: stamps the login/identity state (including the v2 entity fields the
+ * policy kept), registers the session, tracks metrics, logs the OK line, and
+ * emits kXR_ok (or kXR_error on identity-alloc failure).
  * HOW: side-effecting orchestration edge; returns the wire result to the
  * caller unchanged.
  */
 static ngx_int_t
 sss_reply(brix_ctx_t *ctx, ngx_connection_t *c,
-    const char *user, const char *group)
+    const brix_sss_identity_t *id, const char *user, const char *group)
 {
     ctx->login.auth_done = 1;
     ctx->token.auth = 0;
@@ -290,7 +356,10 @@ sss_reply(brix_ctx_t *ctx, ngx_connection_t *c,
         if (brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
                                    BRIX_AUTHN_SSS) != NGX_OK
             || brix_identity_set_vos_csv(ctx->identity, c->pool,
-                                           ctx->login.vo_list) != NGX_OK)
+                                           ctx->login.vo_list) != NGX_OK
+            || brix_identity_set_sss_entity(ctx->identity, c->pool, id->vorg,
+                                              id->role, id->endo, id->creds,
+                                              id->creds_len) != NGX_OK)
         {
             return brix_send_error(ctx, c, kXR_NoMemory,
                                      "identity allocation failed");
@@ -303,15 +372,7 @@ sss_reply(brix_ctx_t *ctx, ngx_connection_t *c,
         brix_session_register(ctx->login.sessid, ctx->login.dn,
                               ctx->login.vo_list, 0);
 
-    {
-        char safe_user[256], safe_group[256];
-        brix_sanitize_log_string(user, safe_user, sizeof(safe_user));
-        brix_sanitize_log_string(group[0] ? group : "-",
-                                   safe_group, sizeof(safe_group));
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                      "brix: SSS auth OK user=\"%s\" group=\"%s\"",
-                      safe_user, safe_group);
-    }
+    sss_log_ok(c, user, group, id);
 
     BRIX_RETURN_OK(ctx, c, BRIX_OP_AUTH, "AUTH", "-", user, 0);
 }
@@ -338,11 +399,17 @@ brix_handle_sss_auth(brix_ctx_t *ctx, ngx_connection_t *c,
         return (rc == NGX_DECLINED || rc == NGX_DONE) ? cred.replied_rc : rc;
     }
 
+    sss_entity_policy(conf, cred.key, &cred.id, c->log);
     sss_map_identity(cred.key, &cred.id, &user, &group);
 
     /* Zero the decrypted credential buffer before it ages in the pool.
      * Prevents plaintext identity data from lingering across later requests. */
     OPENSSL_cleanse(cred.clear, cred.clear_span);
 
-    return sss_reply(ctx, c, user, group);
+    rc = sss_reply(ctx, c, &cred.id, user, group);
+
+    /* The decoded identity (incl. any proxied credential) lived on this
+     * stack frame; scrub it the same way as the cleartext buffer. */
+    OPENSSL_cleanse(&cred.id, sizeof(cred.id));
+    return rc;
 }

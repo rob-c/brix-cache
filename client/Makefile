@@ -115,19 +115,20 @@ LIB_SRCS   := \
   lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_engine_cqe.c lib/core/aio/aio_io.c lib/core/aio/aio_mfile.c lib/core/aio/aio_mgr.c lib/core/aio/aio_timeouts.c lib/core/aio/uring.c lib/core/aio/uring_stub.c \
   lib/core/config/xrdrc.c lib/core/config/envalias.c \
   lib/core/types/status.c lib/core/types/units.c \
-  lib/net/conn.c lib/net/conn_bootstrap.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/forksafe.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/tls_io.c lib/net/tls_certinfo.c lib/net/url.c lib/net/redir_registry.c \
+  lib/net/conn.c lib/net/conn_bootstrap.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/forksafe.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/tls_io.c lib/net/tls_certinfo.c lib/net/url.c lib/net/redir_registry.c lib/net/resolve.c \
   lib/ops/opdsl.c \
   ../shared/net/proxy_env.c ../shared/net/proxy_connect.c \
   lib/auth/auth.c lib/auth/sigver.c \
   lib/auth/cred/cred.c lib/auth/cred/cred_bearer.c lib/auth/cred/cred_krb5.c lib/auth/cred/cred_s3.c lib/auth/cred/cred_sss.c lib/auth/cred/cred_x509.c lib/auth/cred/credinfo.c lib/auth/cred/credrefresh.c \
   lib/auth/sec/sec_gsi.c lib/auth/sec/sec_host.c lib/auth/sec/sec_krb5.c lib/auth/sec/sec_pwd.c lib/auth/sec/sec_sss.c lib/auth/sec/sec_token.c lib/auth/sec/sec_unix.c \
   lib/auth/gsi/proxy.c \
-  lib/auth/sss/sss_keytab.c \
-  lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/overlay_copyup.c lib/fs/path.c lib/fs/rfile_stream.c lib/fs/rmtree.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c lib/fs/walk.c \
+  lib/auth/sss/sss_keytab.c lib/auth/sss/sss_id.c \
+  lib/fs/dirfanout.c lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/overlay_copyup.c lib/fs/path.c lib/fs/rfile_stream.c lib/fs/rmtree.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c lib/fs/walk.c \
   lib/fs/backend/s3/vfs_s3.c lib/fs/backend/s3/vfs_s3_http.c lib/fs/backend/s3/vfs_s3_io.c lib/fs/backend/s3/vfs_s3_transport.c \
   lib/protocols/root/frame.c lib/protocols/root/frame_roundtrip.c lib/protocols/root/ops_ext.c lib/protocols/root/ops_file.c lib/protocols/root/ops_file_pg.c lib/protocols/root/ops_file_rw.c lib/protocols/root/ops_fs.c lib/protocols/root/ops_meta.c \
   lib/protocols/http/http.c lib/protocols/http/http_download.c lib/protocols/http/http_req.c lib/protocols/http/http_upload.c lib/protocols/http/web_ka.c lib/protocols/http/webfile.c lib/protocols/http/webfile_io.c lib/protocols/http/weblist.c \
   lib/protocols/s3/s3.c \
+  lib/protocols/ssi/ssi_client.c \
   lib/protocols/ftp/ftp_ctl.c lib/protocols/ftp/ftp_data.c lib/protocols/ftp/ftp_gsi.c lib/protocols/ftp/ftp_gsi_cred.c lib/protocols/ftp/ftp_login.c lib/protocols/ftp/ftp_ops.c lib/protocols/ftp/ftp_screen.c \
   $(SRC)/fs/backend/gsiftp/gftp_reply.c $(SRC)/fs/backend/gsiftp/gftp_mlsx.c \
   lib/oci/ref.c lib/oci/reg_client.c lib/oci/reg_verbs.c lib/oci/reg_blob.c lib/oci/layout.c lib/oci/layout_index.c \
@@ -296,8 +297,12 @@ xrdprep_OBJS      := apps/prep/xrdprep.o
 # compiled against DIFFERENT layout vintages and crashes at runtime on member
 # offsets (2026-08-09: stale libbrixposix_preload.so segfaulted in
 # brix_conn.diag during login; a full PIC rebuild with identical flags fixed it).
-ALL_OBJS := $(LIB_OBJS) $(PIC_OBJS) preload/brixposix_preload.pic.o \
-            preload/brixposix_stat.pic.o \
+# One list, named once: the shim's TUs appear in ALL_OBJS (for dep tracking)
+# and again in the link rule, and a TU added to only one of them either links
+# without dep tracking or is dep-tracked and never linked.
+PRELOAD_OBJS := preload/brixposix_preload.pic.o preload/brixposix_stat.pic.o \
+                preload/brixposix_dir.pic.o preload/brixposix_stdio.pic.o
+ALL_OBJS := $(LIB_OBJS) $(PIC_OBJS) $(PRELOAD_OBJS) \
             $(foreach b,$(BINS),$($(b)_OBJS))
 DEPS     := $(ALL_OBJS:.o=.d)
 
@@ -400,7 +405,8 @@ apps/fs/xrootdfs_legacy.o: apps/fs/xrootdfs_legacy.c apps/fs/xrootdfs_drivers.h 
 apps/fs/xrootdfs_main.o: apps/fs/xrootdfs_main.c apps/fs/xrootdfs_drivers.h | proto
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 # Phase-38 split of the async driver: the siblings also need the fuse3 headers.
-XROOTDFS_SPLIT := apps/fs/xrootdfs_meta.o apps/fs/xrootdfs_io.o apps/fs/xrootdfs_xattr.o
+XROOTDFS_SPLIT := apps/fs/xrootdfs_meta.o apps/fs/xrootdfs_io.o apps/fs/xrootdfs_xattr.o \
+                  apps/fs/xrootdfs_identity.o
 $(XROOTDFS_SPLIT): apps/fs/%.o: apps/fs/%.c apps/fs/xrootdfs_internal.h | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -c $< -o $@
 # Phase-90..92 split of the unified xrootdfs front-end: xrootdfs_usage.c (shared
@@ -454,7 +460,8 @@ $(BRIX_CVMFS_OBJS): %.o: %.c
 # BRIXCVMFS_NO_MAIN because the brixMount umbrella owns main().
 BRIXCVMFS_OBJS := apps/fs/brixcvmfs.o apps/fs/brixcvmfs_rw.o apps/fs/brixcvmfs_rw_ext.o \
                   apps/fs/brixcvmfs_mount.o apps/fs/brixcvmfs_ops.o \
-                  apps/fs/brixcvmfs_prefetch.o apps/fs/brixcvmfs_transport.o
+                  apps/fs/brixcvmfs_prefetch.o apps/fs/brixcvmfs_transport.o \
+                  apps/fs/brixcvmfs_curl_pin.o
 $(BRIXCVMFS_OBJS): apps/fs/%.o: apps/fs/%.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
 # Phase-90..92 split of the brixcvmfs driver. Link-list only: every member is
@@ -464,7 +471,7 @@ $(BRIXCVMFS_OBJS): apps/fs/%.o: apps/fs/%.c | proto
 # triggering rebuilds.
 BRIXCVMFS_SPLIT := apps/fs/brixcvmfs_mount.o apps/fs/brixcvmfs_ops.o \
                    apps/fs/brixcvmfs_prefetch.o apps/fs/brixcvmfs_rw_ext.o \
-                   apps/fs/brixcvmfs_transport.o
+                   apps/fs/brixcvmfs_transport.o apps/fs/brixcvmfs_curl_pin.o
 # Phase-96 Stratum-0 repo CLI (`brixcvmfs repo`): pure tool surface, no FUSE.
 apps/fs/brixcvmfs_repo.o: apps/fs/brixcvmfs_repo.c | proto
 	$(CC) $(ALL_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
@@ -645,6 +652,14 @@ aio-waitresp: ../tests/c/aio_waitresp.c $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_waitresp.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_waitresp
 	@echo " + built $(BINDIR)/aio_waitresp (no libXrdCl/libXrdSec*)"
 
+# Native SSI request/response driver (tests/c/ssi_client_smoke.c) for the
+# phase-115 W8.6 pytest (tests/test_phase115_ssi_client.py). Exercises the SSI
+# plane with NO libXrdSsi anywhere in the link — the whole point of the client.
+.PHONY: ssi-client-smoke
+ssi-client-smoke: ../tests/c/ssi_client_smoke.c $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/ssi_client_smoke.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/ssi_client_smoke
+	@echo " + built $(BINDIR)/ssi_client_smoke (no libXrdCl/libXrdSsi/libXrdSec*)"
+
 # M3 file-handle resumption test — read/write survive a mid-transfer bounce.
 .PHONY: aio-mfile brix-fault-proxy
 aio-mfile: ../tests/c/aio_mfile.c $(CLIENT_LIB) | $(BINDIR)
@@ -655,7 +670,8 @@ aio-mfile: ../tests/c/aio_mfile.c $(CLIENT_LIB) | $(BINDIR)
 # the resilience suites and field debugging. A first-class shipped tool, but
 # STANDALONE (links no libbrix — pure pthread + sockets), so it gets its own rule
 # rather than riding the BIN_EXES pattern. Compiled with the house hardening
-# flags; pulls only lib/core/version.h for --version. Bare name `make
+# flags; pulls only lib/core/version.h for --version and compiles in
+# lib/net/resolve.c, the client's one DNS seam (phase-116), directly. Bare name `make
 # brix-fault-proxy` builds the artifact via the phony alias above.
 FAULT_PROXY_SRCS := apps/diag/brix_fault_proxy.c apps/diag/brix_fault_priv.c \
 	apps/diag/brix_fault_priv_exec.c apps/diag/brix_fault_priv_netem.c \
@@ -670,7 +686,8 @@ FAULT_PROXY_SRCS := apps/diag/brix_fault_proxy.c apps/diag/brix_fault_priv.c \
 	apps/diag/brix_fault_cmd_attack.c \
 	apps/diag/brix_fault_cmd_dpi.c apps/diag/brix_fault_cmd_json.c \
 	apps/diag/brix_fault_udp.c \
-	apps/diag/brix_fault_report.c apps/diag/brix_fault_cli.c
+	apps/diag/brix_fault_report.c apps/diag/brix_fault_cli.c \
+	lib/net/resolve.c
 FAULT_PROXY_HDRS := apps/diag/brix_fault_priv.h apps/diag/brix_fault_priv_internal.h \
 	apps/diag/brix_fault_ext.h \
 	apps/diag/brix_fault_buf.h apps/diag/brix_fault_tls.h \
@@ -696,14 +713,27 @@ gai-shim: ../tests/c/gai_shim.c | $(BINDIR)
 
 # Network-timeout + retry-backoff unit test (nettmo.c).
 .PHONY: nettmo
+# §7.7 fork-safety registry unit checks (no network; forks for real).
+.PHONY: dirfanout
+# W7.2b: the fan-out kernels are file-static, so this unit #includes the
+# implementation. The archive member is therefore never extracted (nothing is
+# left undefined for it to satisfy), which is why the plain link works.
+dirfanout: ../tests/c/dirfanout_test.c $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/dirfanout_test.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/dirfanout_test
+	@echo " + built $(BINDIR)/dirfanout_test"
+
+.PHONY: forksafe
+forksafe: ../tests/c/forksafe_test.c $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/forksafe_test.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/forksafe_test
+	@echo " + built $(BINDIR)/forksafe_test"
+
 nettmo: ../tests/c/nettmo_test.c $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/nettmo_test.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/nettmo_test
 	@echo " + built $(BINDIR)/nettmo_test"
 
 # §14.4 LD_PRELOAD POSIX shim — fold the PIC client + protocol kernels into a .so.
-$(PRELOAD_SO): preload/brixposix_preload.pic.o preload/brixposix_stat.pic.o $(PIC_OBJS) $(PROTO_LIB)
-	$(CC) -shared $(LDFLAGS) -o $@ preload/brixposix_preload.pic.o \
-	    preload/brixposix_stat.pic.o $(PIC_OBJS) \
+$(PRELOAD_SO): $(PRELOAD_OBJS) $(PIC_OBJS) $(PROTO_LIB)
+	$(CC) -shared $(LDFLAGS) -o $@ $(PRELOAD_OBJS) $(PIC_OBJS) \
 	    -Wl,--whole-archive $(PROTO_LIB) -Wl,--no-whole-archive $(LDLIBS) -ldl
 	@echo " + built $@ (no libXrdCl/libXrdSec*)"
 

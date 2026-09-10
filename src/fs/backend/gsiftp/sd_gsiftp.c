@@ -135,6 +135,10 @@ sd_gsiftp_session(gftp_session_t *session, const sd_gsiftp_state *state,
         .require_gsi = state->require_gsi,
         .proxy_path = proxy,
         .ca_dir = state->ca_dir[0] != '\0' ? state->ca_dir : NULL,
+        .dns = state->dns,
+        .mode = state->mode,
+        .prot = state->prot,
+        .streams = state->streams,
     };
 
     return gftp_session_open(session, &cfg);
@@ -147,7 +151,8 @@ sd_gsiftp_driver(void)
         .name = "gsiftp",
         .caps = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_MEMFILE
                 | BRIX_SD_CAP_DIRS | BRIX_SD_CAP_DIRS_WRITE
-                | BRIX_SD_CAP_HARD_RENAME,
+                | BRIX_SD_CAP_HARD_RENAME | BRIX_SD_CAP_SERVER_COPY
+                | BRIX_SD_CAP_BLOCKING_WIRE,
         .cred_accept = BRIX_SD_CRED_PROXY_PEM,
         .open = sd_gsiftp_open,
         .close = sd_gsiftp_close,
@@ -158,6 +163,7 @@ sd_gsiftp_driver(void)
         .unlink = sd_gsiftp_unlink,
         .mkdir = sd_gsiftp_mkdir,
         .rename = sd_gsiftp_rename,
+        .server_copy = sd_gsiftp_server_copy,
         .opendir = sd_gsiftp_opendir,
         .readdir = sd_gsiftp_readdir,
         .closedir = sd_gsiftp_closedir,
@@ -171,6 +177,7 @@ sd_gsiftp_driver(void)
         .unlink_cred = sd_gsiftp_unlink_cred,
         .mkdir_cred = sd_gsiftp_mkdir_cred,
         .rename_cred = sd_gsiftp_rename_cred,
+        .server_copy_cred = sd_gsiftp_server_copy_cred,
         .opendir_cred = sd_gsiftp_opendir_cred,
     };
 
@@ -209,6 +216,10 @@ sd_gsiftp_fill_state(sd_gsiftp_state *state,
     state->port = cfg->port;
     state->require_gsi = cfg->require_gsi != 0;
     state->timeout_ms = cfg->timeout_ms > 0 ? cfg->timeout_ms : 30000;
+    state->dns = cfg->dns;
+    state->mode = cfg->mode;
+    state->prot = cfg->prot;
+    state->streams = cfg->streams;
     return 0;
 }
 

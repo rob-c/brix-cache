@@ -84,6 +84,11 @@ ngx_int_t vfs_parse_s3_origin(ngx_conf_t *cf, const char *root_canon,
 ngx_int_t vfs_parse_xroot_or_driver_origin(ngx_conf_t *cf,
     const char *root_canon, const ngx_str_t *sb, size_t block_size, int family);
 
+/* forward://<protocols> (2.0 F5, vfs_backend_config_fwd.c): the client-named
+ * origin relay. NGX_DECLINED when `sb` is not a forward:// spec. */
+ngx_int_t vfs_parse_forward_origin(ngx_conf_t *cf, const char *root_canon,
+    const ngx_str_t *sb, int family);
+
 /* The shared head of every per-driver entry builder: get-or-create the export's
  * registry entry and stamp its backend name. NULL ⇒ registry full (the builder
  * gives up, matching get_or_create's contract). Defined in vfs_backend_config.c. */

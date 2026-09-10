@@ -204,9 +204,10 @@ class TestAnEnabledFrmWithNothingBehindIt:
         assert not _diagnostics(out), out
 
     def test_the_diagnostic_names_the_field_that_does_not_matter(self, tmp_path):
-        """Drop the queue path and the load fails, naming it.  Drop the control
-        dir — the field the registry is actually built from — and nothing is
-        said at all.  The two omissions are the wrong way round."""
+        """Drop the queue path and the load fails, naming it (since 2.0 F1 the
+        path IS the durable stage journal, so the demand is honest).  Drop the
+        control dir — the field the registry is built from — and nothing is
+        said at all: that omission is still the silent one."""
         rc, out = _parse(tmp_path, STREAM_KNOBS=_stream("brix_frm on;"))
 
         assert rc != 0, out
@@ -215,30 +216,48 @@ class TestAnEnabledFrmWithNothingBehindIt:
 
 
 # --------------------------------------------------------------------------- #
-# §F  #129 — the queue path is demanded, validated, and read by nothing        #
+# §F  #129 — the queue path is demanded, validated, and (2.0 F1) the journal   #
 # --------------------------------------------------------------------------- #
 
-class TestTheQueuePathIsNeverOpened:
-    """brix_frm_queue_path is the one frm string the load-time check requires
-    and the one it validates for absoluteness (tape_stage_conf.c:78-88).  Its
-    own header calls it "accepted"."""
+def _journal_records(journal):
+    """Every <reqid>.req the stage engine persisted under its journal directory
+    (it lays out backend/ and deadletter/ subtrees; a prepare writes neither)."""
+    assert journal.is_dir(), journal
+    assert set(p.name for p in journal.iterdir()) <= {"backend", "deadletter"}, \
+        sorted(p.name for p in journal.iterdir())
+    return sorted(str(p.relative_to(journal)) for p in journal.rglob("*.req"))
 
-    def test_no_queue_file_is_ever_created(self, fleet):
+
+class TestTheQueuePathIsTheStageEngineJournal:
+    """brix_frm_queue_path is the one frm string the load-time check requires
+    and the one it validates for absoluteness.  When this audit was written
+    nothing read it; since 2.0 F1 (ADR-3b) worker 0 creates it as the stage
+    engine's durable journal directory.  The kXR_stage prepare registry these
+    faces exercise still journals into the CONTROL dir, so the queue path
+    holds the directory and nothing else."""
+
+    def test_the_worker_creates_the_journal_and_prepare_never_writes_it(self, fleet):
         """Two faces in the registryless process name a queue path under this
-        directory and one of them has brix_frm ON.  Both have been through a
-        kXR_stage prepare by now, and the directory is still empty."""
+        directory and one of them (frmnoc) has brix_frm ON.  Both have been
+        through a kXR_stage prepare by now: frmnoc's journal directory exists,
+        frmoff's was never created (its line is ignored), and neither prepare
+        left a record in it."""
         fleet.stage_handle("frmnoc")
         fleet.stage_handle("frmoff")
 
-        assert sorted(p.name for p in fleet.dirs["plain_queue"].iterdir()) == []
+        assert sorted(p.name for p in fleet.dirs["plain_queue"].iterdir()) == ["noctrl.q"]
+        assert _journal_records(fleet.dirs["plain_queue"] / "noctrl.q") == []
+        assert 'stage engine: journal="%s"' % (fleet.dirs["plain_queue"] / "noctrl.q") \
+            in fleet.errlog("plain")
 
-    def test_not_even_in_the_process_that_has_a_registry(self, fleet):
-        """The registry face names a queue path too, and enqueues for real —
-        into the CONTROL dir's journal.  The queue path is untouched there as
-        well, so this is a property of the field and not of the process."""
+    def test_one_journal_per_process_beside_the_registry(self, fleet):
+        """The registry process has three `brix_frm on` blocks publishing the
+        one process-wide queue path; the prepare enqueues for real — into the
+        CONTROL dir's journal — and the stage-engine journal stays empty."""
         fleet.stage_handle("reg")
 
-        assert sorted(p.name for p in fleet.dirs["reg_queue"].iterdir()) == []
+        assert sorted(p.name for p in fleet.dirs["reg_queue"].iterdir()) == ["frm.q"]
+        assert _journal_records(fleet.dirs["reg_queue"] / "frm.q") == []
 
     def test_off_skips_the_validation_that_on_enforces(self, tmp_path):
         """The same shape file 33 found at #124, on a different module: the
@@ -253,6 +272,7 @@ class TestTheQueuePathIsNeverOpened:
                                STREAM_KNOBS=_stream("brix_frm on;", relative))
 
         assert rc_off == 0, out_off
+        assert "brix_frm_queue_path is ignored: brix_frm is off" in out_off, out_off
         assert rc_on != 0, out_on
         assert "must be an absolute path" in out_on, out_on
 
@@ -563,14 +583,19 @@ class TestTheCompanionKnobsAreAcceptedUnderEitherArm:
 
     def test_a_control_dir_under_off_is_accepted_unchecked(self, tmp_path):
         """The frmoff face, at parse time: a control dir that does not exist,
-        under a disabled brix_frm, is accepted without a word."""
+        under a disabled brix_frm, is accepted without a word.  The queue path
+        beside it is the one line that speaks — since 2.0 F1 it is a
+        process-wide engine knob and warns "is ignored" on an off server."""
         rc, out = _parse(tmp_path, STREAM_KNOBS=_stream(
             "brix_frm off;",
             "brix_frm_queue_path /var/tmp/audit16ah.q;",
             "brix_frm_control_dir /nonexistent/audit16ah;"))
 
         assert rc == 0, out
-        assert not _diagnostics(out), out
+        diagnostics = _diagnostics(out)
+        assert len(diagnostics) == 1, out
+        assert "brix_frm_queue_path is ignored: brix_frm is off" in diagnostics[0]
+        assert "brix_frm_control_dir" not in out, out
 
     def test_async_recall_is_accepted_with_no_owner(self, tmp_path):
         """The asyncnofrm face, at parse time.  Nothing relates the flag to

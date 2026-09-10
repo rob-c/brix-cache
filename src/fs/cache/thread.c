@@ -3,8 +3,39 @@
 #include "net/manager/registry.h"
 
 
+#include "fs/backend/xroot/sd_xroot.h"   /* brix_sd_xroot_endpoint */
+
 #include <netinet/in.h>
 #include <unistd.h>
+
+
+/* brix_cache_bypass_redirect — send the XrdPfc-style bypass redirect for an
+ * object the admission policy declined to cache: the client is told to fetch it
+ * straight from the origin instead of being refused.
+ *
+ * The origin is the export's registered root:// storage backend, resolved on the
+ * main thread by brix_cache_open_or_fill and carried on the task.  Before 2.0 the
+ * target was read from the retired brix_cache_origin host — no directive wrote
+ * that field, so every declined open answered kXR_Unsupported instead.
+ *
+ * Returns 0 when a redirect was sent, -1 when no origin can be named (an http://
+ * or local backend, or a forward:// instance whose endpoint the client names per
+ * open) — the caller then errors. */
+static int
+brix_cache_bypass_redirect(brix_cache_fill_t *t, brix_ctx_t *ctx,
+    ngx_connection_t *c)
+{
+    const char *host;
+    uint16_t    port;
+
+    if (t->source_inst != NULL
+        && brix_sd_xroot_endpoint(t->source_inst, &host, &port) == 0)
+    {
+        brix_send_redirect(ctx, c, host, port);
+        return 0;
+    }
+    return -1;
+}
 
 /* brix_cache_fill_thread — thread-pool worker running the full fill lifecycle:
  * ensure parent dir → evict if over threshold → acquire the per-file lock → skip if
@@ -90,11 +121,7 @@ brix_cache_fill_done(ngx_event_t *ev)
         brix_log_access(ctx, c, "OPEN", t->clean_path, "cache-bypass",
                           0, 0,
                           "cache admission rejected; redirecting to origin", 0);
-        if (t->conf->cache_origin_host.len > 0) {
-            brix_send_redirect(ctx, c,
-                                 (const char *) t->conf->cache_origin_host.data,
-                                 t->conf->cache_origin_port);
-        } else {
+        if (brix_cache_bypass_redirect(t, ctx, c) != 0) {
             BRIX_OP_ERR(ctx, BRIX_OP_OPEN_RD);
             brix_send_error(ctx, c, kXR_Unsupported,
                               "file too large to cache and no origin configured "

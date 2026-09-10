@@ -215,10 +215,10 @@ brix_pgread_offload_error_done(brix_pgread_aio_t *t, u_char *fbuf)
 
     if (t->nread < 0) {
         brix_release_read_buffer(t->sec_ctx, t->sec_c, fbuf);
-        BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
-        brix_send_error(ctx, t->c, kXR_IOError,
-                          t->io_errno ? strerror(t->io_errno)
-                                      : "async pgread error");
+        if (t->io_errno != EAGAIN) {     /* §4.5: EAGAIN is a wait, not a fault */
+            BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
+        }
+        (void) brix_read_io_error(ctx, t->c, t->io_errno);
         brix_aio_resume(t->c);
         return 1;
     }
@@ -421,9 +421,10 @@ brix_pgread_aio_done(ngx_event_t *ev)
 
     if (t->nread < 0) {
         brix_release_read_buffer(ctx, c, t->scratch);
-        BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
-        brix_send_error(ctx, c, kXR_IOError,
-                          t->io_errno ? strerror(t->io_errno) : "async pgread error");
+        if (t->io_errno != EAGAIN) {     /* §4.5: EAGAIN is a wait, not a fault */
+            BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
+        }
+        (void) brix_read_io_error(ctx, c, t->io_errno);
         brix_aio_resume(c);
         return;
     }

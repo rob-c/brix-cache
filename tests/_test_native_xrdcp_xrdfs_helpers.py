@@ -23,6 +23,7 @@ import os
 import re
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 import time
 
 import pytest
@@ -70,10 +71,7 @@ def native_xrdfs():
     """Build (if needed) and return the path to the native xrdfs binary."""
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler available to build the native client")
-    proc = subprocess.run(
-        ["make", "-C", os.path.join(REPO, "client")],
-        capture_output=True, text=True, timeout=180,
-    )
+    proc = client_make(os.path.join(REPO, "client"), capture_output=True, text=True, timeout=180)
     if proc.returncode != 0 or not os.path.exists(NATIVE_XRDFS):
         pytest.skip(f"native client build failed:\n{proc.stdout}\n{proc.stderr}")
     return NATIVE_XRDFS

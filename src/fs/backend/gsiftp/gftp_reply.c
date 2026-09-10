@@ -86,11 +86,15 @@ gftp_reply_scan(const char *buf, size_t len, gftp_reply_t *out)
         out->multiline = 0;
         out->text      = buf + text_start;
         out->text_len  = text_end - text_start;
+        out->body      = buf + (size_t) eol;
+        out->body_len  = 0;
         return eol;
     }
 
     /* Multiline: consume lines until one begins with the same three digits
-     * followed by a space (RFC 959 §4.2). Intermediate lines are ignored. */
+     * followed by a space (RFC 959 §4.2). Intermediate lines carry no reply
+     * structure, so they are stepped over here — but they ARE handed back
+     * whole as `body`, because a FEAT reply keeps its entire payload there. */
     line_start = (size_t) eol;
     for ( ;; ) {
         long next = line_end(buf, len, line_start);
@@ -107,6 +111,8 @@ gftp_reply_scan(const char *buf, size_t len, gftp_reply_t *out)
             out->multiline = 1;
             out->text      = buf + text_start;
             out->text_len  = text_end - text_start;
+            out->body      = buf + (size_t) eol;
+            out->body_len  = line_start - (size_t) eol;
             return next;
         }
         line_start = (size_t) next;

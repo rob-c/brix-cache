@@ -5,7 +5,7 @@ The module ships **two** authorization-database engines, selected per server by
 
 | Format | Engine | Use when |
 |---|---|---|
-| `native` (default) | `src/auth/authz/authdb.c` — `u/g/p/a` records, 6 privilege bits, single longest-prefix rule, root:// only | existing deployments; simple per-DN/VO/host-CIDR ACLs |
+| `native` (default) | `src/auth/authz/authdb.c` + `authdb_grammar.c` — up to six AND-ed `u/g/p/a/v/l` selectors per record, 7 privilege bits (`r l w a d m k x`), single longest-prefix rule, root:// only | existing deployments; per-DN/VO/host-CIDR ACLs, VOMS vorg+role pairs, the `x` stage privilege |
 | `xrdacc` | `src/auth/authz/acc/` — a faithful re-implementation of XRootD's **XrdAcc** | dropping in a stock XRootD `authdb`; full XrdAcc grammar + semantics |
 
 `native` is unchanged and remains the default, so existing configs are unaffected.
@@ -96,7 +96,10 @@ introduces **negative** (explicitly denied) privileges. The effective grant is
 
 > **Note:** unlike the `native` engine, `r` does **not** imply `l`. A stat needs
 > `l` (lookup); a directory listing and a read need `r`. `a` means *all*
-> privileges here (in `native`, `a` is the append/record-type letter).
+> privileges here (in `native`, `a` is the append/record-type letter). Two more
+> letters differ: the VOMS **role** selector is `r` here and `l` in `native`, and
+> `native`'s `x` (stage/recall) privilege has no XrdAcc counterpart — under
+> `xrdacc`, staging is `AOP_Stage`, granted only by `a`.
 
 Path templates substitute the connecting user's name at `@=`, e.g. a per-user
 home: `u = /home/@=/ rwi`.
@@ -136,9 +139,12 @@ x dev /devarea rwid
   `AOP_Update` and needs only **read + write** (`rw`) — faithful to `XrdOfs`,
   which keys Create off O_CREAT alone. `mv` needs `n`(rename) on the source and
   `i`(insert) on the destination.
-- **Staging.** `kXR_prepare`/QPrep (stage) and the WLCG Tape REST API use
-  `AOP_Stage` (privilege `0x180`, granted only by `a`), routed through the same
-  engine — not the native authdb.
+- **Staging.** Under `xrdacc`, `kXR_prepare`/QPrep (stage) and the WLCG Tape
+  REST API use `AOP_Stage` (privilege `0x180`, granted only by `a`), routed
+  through this engine. Under `native`, the same operations need the **`x`**
+  privilege since 2.0 (a bare prepare that only browses the namespace still
+  needs just `r`); before 2.0 they fell inside the update range, so `w`
+  implicitly granted staging.
 - **Fail-closed.** No matching rule, or a failed authdb load, denies.
 - **Hot reload.** `brix_acc_refresh` (stream) / `brix_acc_refresh` (HTTP)
   re-reads the file on mtime change and atomically swaps the per-worker tables —

@@ -1,10 +1,10 @@
 #include "cache_internal.h"
 #include "protocols/root/connection/netconnect.h"   /* shared outbound connect/I/O hardening */
 #include "core/compat/af_policy.h"        /* brix_af_policy_t origin family policy */
+#include "net/dns/dns.h"                  /* brix_dns_resolve_sync: the one DNS path */
 
 
 #include <fcntl.h>
-#include <netdb.h>
 #include <poll.h>
 #include <stdio.h>
 #include <sys/socket.h>
@@ -153,7 +153,8 @@ brix_cache_origin_tls_upgrade(brix_cache_fill_t *t,
     return 0;
 }
 
-/* brix_cache_origin_connect_addr — getaddrinfo, try each result with a
+/* brix_cache_origin_connect_addr — resolve through the phase-116 DNS driver
+ * (brix_dns_resolve_sync: never getaddrinfo here), try each answer with a
  * non-blocking poll-timeout connect (avoids the ~2min TCP retransmit stall), set
  * SO_RCVTIMEO/SO_SNDTIMEO. TLS is NOT engaged here for a root:// origin: a stock
  * XRootD `roots://` peer does the kXR_protocol exchange over CLEARTEXT and then
@@ -165,16 +166,13 @@ int
 brix_cache_origin_connect_addr(brix_cache_fill_t *t,
     brix_cache_origin_conn_t *oc, const ngx_str_t *host, uint16_t portnum)
 {
-    struct addrinfo  hints;
-    struct addrinfo *res, *rp;
-    char             port[16];
-    int              rc;
+    brix_dns_addr_t  addrs[BRIX_DNS_MAX_ADDRS];
+    char             reason[BRIX_DNS_ERROR_LEN];
+    ngx_uint_t       fam, n, i;
 
     oc->fd = -1;
     oc->ssl_ctx = NULL;
     oc->ssl = NULL;
-    res = NULL;
-    rc = -1;
 
     if (host == NULL || host->len == 0 || host->data == NULL
         || portnum == 0)
@@ -184,58 +182,56 @@ brix_cache_origin_connect_addr(brix_cache_fill_t *t,
         return -1;
     }
 
-    snprintf(port, sizeof(port), "%u", (unsigned) portnum);
-
-    ngx_memzero(&hints, sizeof(hints));
-    hints.ai_socktype = SOCK_STREAM;
-    {
-        ngx_uint_t fam = (t->conf != NULL)
-            ? t->conf->cache_origin_family : (ngx_uint_t) BRIX_AF_AUTO;
-        if (fam == NGX_CONF_UNSET_UINT) {
-            fam = (ngx_uint_t) BRIX_AF_AUTO;
-        }
-        hints.ai_family = (int) fam;   /* AUTO==AF_UNSPEC tries every family */
+    fam = (t->conf != NULL)
+          ? t->conf->cache_origin_family : (ngx_uint_t) BRIX_AF_AUTO;
+    if (fam == NGX_CONF_UNSET_UINT) {
+        fam = (ngx_uint_t) BRIX_AF_AUTO;     /* AUTO tries every family */
     }
 
-    if (getaddrinfo((char *) host->data, port, &hints, &res) != 0) {
+    /* phase-116: resolve through the one brix DNS path (literal, per-worker
+     * cache, the export's brix_resolver, then libc) under the export's
+     * policy; a registry-built origin carries the policy on its synthetic
+     * conf, an unconfigured one resolves the way libc reads resolv.conf. */
+    n = brix_dns_resolve_sync(t->conf != NULL ? t->conf->common.dns.policy
+                                              : NULL,
+                              (const char *) host->data, portnum,
+                              (brix_af_policy_t) fam, SOCK_STREAM, addrs,
+                              BRIX_DNS_MAX_ADDRS, reason, sizeof(reason));
+    if (n == 0) {
+        ngx_log_error(NGX_LOG_INFO, ngx_cycle->log, 0,
+                      "brix cache origin \"%V\": DNS resolution failed: %s",
+                      host, reason);
         brix_cache_set_error(t, kXR_ServerError, 0,
                                "cache origin DNS resolution failed");
         return -1;
     }
 
-    for (rp = res; rp != NULL; rp = rp->ai_next) {
-        int            fd;
+    for (i = 0; i < n; i++) {
+        int  fd;
 
-        fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        fd = socket(addrs[i].ss.ss_family, SOCK_STREAM, 0);
         if (fd < 0) {
             continue;
         }
 
         brix_apply_socket_io_timeouts(fd, BRIX_CACHE_IO_TIMEOUT);
 
-        if (brix_connect_fd_deadline(fd, rp->ai_addr, rp->ai_addrlen,
+        if (brix_connect_fd_deadline(fd, (struct sockaddr *) &addrs[i].ss,
+                                       addrs[i].len,
                                        BRIX_CACHE_IO_TIMEOUT * 1000) == 0)
         {
             oc->fd = fd;
-            rc = 0;
-            break;
+            /* TLS is deferred: the root:// bootstrap negotiates kXR_protocol
+             * over cleartext and upgrades on the origin's kXR_gotoTLS advert.
+             * See brix_cache_origin_tls_upgrade + brix_cache_origin_bootstrap. */
+            return 0;
         }
 
         close(fd);
     }
 
-    freeaddrinfo(res);
-
-    if (rc != 0) {
-        brix_cache_set_syserror(t, kXR_ServerError,
-                                  "cache origin connect failed");
-        return -1;
-    }
-
-    /* TLS is deferred: the root:// bootstrap negotiates kXR_protocol over
-     * cleartext and upgrades on the origin's kXR_gotoTLS advert. See
-     * brix_cache_origin_tls_upgrade + brix_cache_origin_bootstrap. */
-    return 0;
+    brix_cache_set_syserror(t, kXR_ServerError, "cache origin connect failed");
+    return -1;
 }
 
 /* brix_cache_origin_connect — thin wrapper: connect_addr using the configured

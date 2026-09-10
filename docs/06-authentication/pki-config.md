@@ -17,7 +17,7 @@ often bundled together in smaller systems:
 | Who is this user? | X.509 identity, DN, proxy certificate | GSI proxy chain or token `sub` |
 | Which collaboration are they in? | VO, VOMS, FQAN, WLCG group | `ctx->primary_vo`, `ctx->vo_list`, `brix_require_vo` |
 | Is this server trusted? | Host certificate | `brix_certificate`, `ssl_certificate` |
-| Which CAs are trusted? | IGTF/grid CA bundle, trust anchors | `brix_trusted_ca`, `brix_webdav_cadir` |
+| Which CAs are trusted? | IGTF/grid CA bundle, trust anchors | `brix_trusted_ca`, `brix_trusted_ca_dir` |
 | Has a cert been revoked? | CRL | `brix_crl`, WebDAV CA store CRLs |
 | Can this request read/write this path? | Authorization, ACL, storage scope | VO ACLs, token scopes, filesystem permissions |
 | Is the transport encrypted? | TLS, HTTPS, `roots://` | nginx SSL or XRootD TLS upgrade |

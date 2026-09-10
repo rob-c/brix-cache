@@ -25,6 +25,7 @@ import re
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -141,8 +142,7 @@ def eos_env():
     _guard_eos_env_2()
     host, port = _endpoint_host(ENDPOINT)
     _guard_eos_env_3(host, port)
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs"],
-                          capture_output=True, text=True, timeout=240)
+    proc = client_make(CLIENT_DIR, "xrdfs", capture_output=True, text=True, timeout=240)
     _guard_eos_env_4(proc)
     env = dict(os.environ)
     env["X509_USER_PROXY"] = PROXY

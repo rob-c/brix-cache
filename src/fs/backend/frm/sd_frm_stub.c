@@ -2,8 +2,10 @@
  * sd_frm_stub.c — the built-in "stub" MSS adapter: a local-directory tape
  * simulator (an online buffer dir + an offline "tape" dir, with residency,
  * recall, migrate and purge).  The default/fallback FRM back end and the one the
- * frm test suite drives.  Split out of sd_frm.c.  Also defines the two
- * filesystem helpers (frm_mkparents, stub_copyfile) the exec adapter reuses.
+ * frm test suite drives.  Split out of sd_frm.c.  Also defines the three
+ * filesystem helpers (frm_mkparents, stub_copyfile, frm_dirsync_parent) the
+ * exec/lib adapters reuse; their shared online-buffer vtable ops live in
+ * sd_frm_mss_ops.c (moved 2026-09-05 when this file hit the 600-line cap).
  */
 
 #include "sd_frm_mss.h"
@@ -237,6 +239,22 @@ stub_migrate(void *mss, const char *key)
     return stub_copyfile(online, tape, sb.st_mode & 0777);
 }
 
+/* Phase-115 W3.2: does the MSS hold a durable copy of `key`, independent of
+ * the online buffer? The stub's tape IS <base>/<key>. 1 / 0 (errno ENOENT). */
+static int
+stub_on_tape(void *mss, const char *key)
+{
+    stub_ctx_t *c = mss;
+    char        tape[PATH_MAX];
+    struct stat sb;
+
+    if (stub_path(c, key, 0 /* tape */, tape, sizeof(tape)) != 0) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    return (stat(tape, &sb) == 0 && S_ISREG(sb.st_mode)) ? 1 : 0;
+}
+
 static int
 stub_purge(void *mss, const char *key)
 {
@@ -280,7 +298,7 @@ stub_create_online(void *mss, const char *key, mode_t mode)
 /* Fsync the parent directory of `path` so its directory entry survives a
  * crash (phase-107 C3). The adapters hold plain absolute paths under their own
  * base — no export confinement applies here, the base IS the boundary. */
-static int
+int
 frm_dirsync_parent(const char *path)
 {
     char        parent[PATH_MAX];
@@ -415,6 +433,7 @@ const brix_mss_adapter_t brix_mss_stub_adapter = {
     .mkpath        = stub_mkpath,
     .migrate       = stub_migrate,
     .purge         = stub_purge,
+    .on_tape       = stub_on_tape,        /* phase-115 W3.2 purge engine */
     .open_online   = stub_open_online,
     .create_online = stub_create_online,
     .sync_publish  = stub_sync_publish,   /* phase-107 C3 */
@@ -444,156 +463,4 @@ brix_mss_stub_create(const char *location, ngx_log_t *log)
         sc->recall_delay_ms = 0;
     }
     return sc;
-}
-
-/* ============ shared online-buffer vtable ops (exec + lib adapters) ============
- *
- * WHAT: The whole brix_mss_adapter_t surface except destroy, implemented once
- *       against the frm_mss_head_t every real-HSM adapter context starts with.
- * WHY:  The exec and lib adapters were line-for-line clones that differed only
- *       in HOW an MSS verb runs (posix_spawn of the stage command vs a dlsym'd
- *       in-process call). That one difference is now the head's `invoke`
- *       callback; everything else — resolve <base>/.online/<key>, the local
- *       stat/access/open/unlink discipline, mkparents before a recall — is
- *       stated once here so the two transports cannot drift.
- * HOW:  Each op resolves the online path, does its local-buffer work, and
- *       calls the MSS only through head->invoke(verb, key, online).
- */
-
-int
-frm_online_path(const char *base, const char *key, char *out, size_t cap)
-{
-    int n = snprintf(out, cap, "%s/.online/%s", base,
-                     (key[0] == '/') ? key + 1 : key);
-
-    return (n > 0 && (size_t) n < cap) ? 0 : -1;
-}
-
-int
-frm_mss_residency(void *mss, const char *key, off_t *size_out, time_t *mtime_out)
-{
-    frm_mss_head_t *h = mss;
-    char            online[PATH_MAX];
-    struct stat     sb;
-
-    if (frm_online_path(h->base, key, online, sizeof(online)) == 0
-        && stat(online, &sb) == 0)
-    {
-        if (size_out)  { *size_out = sb.st_size; }
-        if (mtime_out) { *mtime_out = sb.st_mtime; }
-        return BRIX_RESIDENCY_ONLINE;
-    }
-    /* Ask the MSS: 0 = on tape (offline), non-zero = absent. The size is
-     * unknown until recalled; the cache fill restats the online buffer. */
-    if (h->invoke(mss, "exists", key, "") == 0) {
-        if (size_out)  { *size_out = 0; }
-        if (mtime_out) { *mtime_out = time(NULL); }
-        return BRIX_RESIDENCY_OFFLINE;
-    }
-    return BRIX_RESIDENCY_ABSENT;
-}
-
-/* The six path-resolving ops share one body: resolve <base>/.online/<key>,
- * then do the op's local-buffer work + MSS invoke. A resolve failure is
- * ENAMETOOLONG/-1 for every op except purge, which stays best-effort (it still
- * offers the MSS-side drop and reports success, matching the old adapters). */
-typedef enum {
-    MSS_OP_RECALL_BEGIN,
-    MSS_OP_RECALL_POLL,
-    MSS_OP_MIGRATE,
-    MSS_OP_PURGE,
-    MSS_OP_OPEN,
-    MSS_OP_CREATE,
-} mss_op_t;
-
-static int
-mss_online_op(void *mss, const char *key, mss_op_t op, mode_t mode)
-{
-    frm_mss_head_t *h = mss;
-    char            online[PATH_MAX];
-
-    if (frm_online_path(h->base, key, online, sizeof(online)) != 0) {
-        if (op == MSS_OP_PURGE) {
-            (void) h->invoke(mss, "purge", key, "");
-            return 0;
-        }
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-
-    switch (op) {
-    case MSS_OP_RECALL_BEGIN:
-        if (access(online, F_OK) == 0) {
-            return 0;                        /* already online */
-        }
-        frm_mkparents(online);               /* the MSS writes the online buffer */
-        return (h->invoke(mss, "recall", key, online) == 0) ? 0 : -1;
-    case MSS_OP_RECALL_POLL:
-        return (access(online, F_OK) == 0) ? 1 : 0;
-    case MSS_OP_MIGRATE:
-        return (h->invoke(mss, "migrate", key, online) == 0) ? 0 : -1;
-    case MSS_OP_PURGE:
-        (void) unlink(online);
-        (void) h->invoke(mss, "purge", key, "");   /* best-effort MSS-side drop */
-        return 0;
-    case MSS_OP_OPEN:
-        return open(online, O_RDONLY | O_CLOEXEC);
-    case MSS_OP_CREATE:
-        frm_mkparents(online);
-        return open(online, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC,
-                    mode ? mode : 0644);
-    }
-    return -1;
-}
-
-int
-frm_mss_recall_begin(void *mss, const char *key)
-{
-    return mss_online_op(mss, key, MSS_OP_RECALL_BEGIN, 0);
-}
-
-int
-frm_mss_recall_poll(void *mss, const char *key)
-{
-    return mss_online_op(mss, key, MSS_OP_RECALL_POLL, 0);
-}
-
-int
-frm_mss_migrate(void *mss, const char *key)
-{
-    return mss_online_op(mss, key, MSS_OP_MIGRATE, 0);
-}
-
-int
-frm_mss_purge(void *mss, const char *key)
-{
-    return mss_online_op(mss, key, MSS_OP_PURGE, 0);
-}
-
-int
-frm_mss_open_online(void *mss, const char *key)
-{
-    return mss_online_op(mss, key, MSS_OP_OPEN, 0);
-}
-
-int
-frm_mss_create_online(void *mss, const char *key, mode_t mode)
-{
-    return mss_online_op(mss, key, MSS_OP_CREATE, mode);
-}
-
-/* Phase-107 C3, shared-head form (exec/lib adapters): the only LOCAL artifact
- * of a publish is the online-buffer copy — flush its parent's entry. Tape-side
- * durability belongs to the real MSS behind `invoke`. */
-int
-frm_mss_sync_publish(void *mss, const char *key)
-{
-    frm_mss_head_t *h = mss;
-    char             online[PATH_MAX];
-
-    if (frm_online_path(h->base, key, online, sizeof(online)) != 0) {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    return frm_dirsync_parent(online);
 }

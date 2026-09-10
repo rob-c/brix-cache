@@ -53,6 +53,7 @@ typedef struct {
     const char *basic;             /* "user:pass" this leg presents, or
                                     * NULL for an anonymous mint         */
     int         send_basic;        /* 0 once a redirect crosses a host   */
+    void       *tctx;              /* the upstream's brix_s3_tctx_t (DNS)  */
 } oci_token_leg_t;
 
 /* Percent-encode `s` as a single query-parameter value. ngx_escape_uri does
@@ -157,7 +158,7 @@ oci_token_leg(const brix_oci_upstream_t *up, oci_token_leg_t *leg,
         oci_token_basic_header(leg->basic, hdrs, sizeof(hdrs));
     }
 
-    if (tr->request(NULL, leg->host, leg->port, leg->tls, "GET", leg->path,
+    if (tr->request(leg->tctx, leg->host, leg->port, leg->tls, "GET", leg->path,
                     hdrs[0] ? hdrs : NULL, NULL, 0, OCI_TOKEN_TIMEOUT_MS,
                     &resp, errbuf, sizeof(errbuf)) != 0)
     {
@@ -240,6 +241,7 @@ oci_token_leg_init(brix_oci_upstream_t *up, const brix_oci_challenge_t *ch,
     (void) snprintf(leg->host, sizeof(leg->host), "%s", realm.host);
     leg->port       = realm.port;
     leg->tls        = realm.tls;
+    leg->tctx       = &up->tctx;
     leg->basic      = basic;
     leg->send_basic = 1;
 

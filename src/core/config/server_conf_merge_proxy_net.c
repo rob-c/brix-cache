@@ -42,6 +42,10 @@ brix_merge_srv_proxy(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_str_value(conf->upstream_tls_name, prev->upstream_tls_name, "");
     ngx_conf_merge_str_value(conf->upstream_token_file,
                              prev->upstream_token_file, "");
+    ngx_conf_merge_str_value(conf->upstream_x509_proxy,
+                             prev->upstream_x509_proxy, "");
+    ngx_conf_merge_str_value(conf->upstream_x509_key,
+                             prev->upstream_x509_key, "");
 
     ngx_conf_merge_value(conf->relay_guard_enable, prev->relay_guard_enable, 0);
     ngx_conf_merge_value(conf->proxy.enable,       prev->proxy.enable,       0);
@@ -60,6 +64,8 @@ brix_merge_srv_proxy(ngx_stream_brix_srv_conf_t *conf,
                     (u_char *) prev->proxy.login_user_name,
                     sizeof(conf->proxy.login_user_name));
     }
+    ngx_conf_merge_uint_value(conf->proxy.sss_identity, prev->proxy.sss_identity,
+                              BRIX_PROXY_SSS_IDENT_KEYTAB);
     ngx_conf_merge_str_value(conf->proxy.audit_log,          prev->proxy.audit_log,          "");
     ngx_conf_merge_str_value(conf->proxy.upstream_tls_ca,    prev->proxy.upstream_tls_ca,    "");
     ngx_conf_merge_str_value(conf->proxy.upstream_tls_name,  prev->proxy.upstream_tls_name,  "");
@@ -76,13 +82,16 @@ brix_merge_srv_proxy(ngx_stream_brix_srv_conf_t *conf,
 
     BRIX_MERGE_PTR(conf, prev, proxy.upstreams);
     ngx_conf_merge_str_value(conf->proxy.host, prev->proxy.host, "");
-    BRIX_MERGE_HOSTPORT(conf, prev, cache_origin_host, cache_origin_port);
+    /* cache_origin_host/port are NOT merged: no directive writes them since
+     * brix_cache_origin was retired (phase-64 §14).  They survive only as the
+     * fields the sd_xroot factory fills on the SYNTHETIC conf it builds for a
+     * root:// origin instance, which never passes through a merge. */
 }
 
 /*
- * WHAT: merge the write-through group — enable/mode, origin host/port (falling
- *       back to the cache origin), the deny/allow prefix arrays, and rebuild the
- *       write-through decision struct from the merged inputs.
+ * WHAT: merge the write-through group — enable/mode, origin host/port, the
+ *       deny/allow prefix arrays, and rebuild the write-through decision struct
+ *       from the merged inputs.
  * WHY:  the decision struct references the just-merged prefix arrays, cache size
  *       cap, and include-regex, so it must rebuild after they settle.
  * HOW:  merge the wt scalars + prefix arrays (NULL result + non-empty parent/
@@ -97,11 +106,11 @@ brix_merge_srv_writethrough(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
 
     ngx_conf_merge_value(conf->wt.enable, prev->wt.enable, 0);
     BRIX_MERGE_ENUM(conf, prev, wt.mode, BRIX_WT_MODE_UNSET, BRIX_WT_MODE_SYNC);
+    /* 2.0: the fallback to cache_origin_host that used to stand here was dead —
+     * brix_cache_origin was retired in phase-64 §14, so no directive writes that
+     * field on a real server conf and the branch could never be taken.  A
+     * write-through server names its flush target with brix_wt_origin. */
     BRIX_MERGE_HOSTPORT(conf, prev, wt.origin_host, wt.origin_port);
-    if (conf->wt.origin_host.len == 0 && conf->cache_origin_host.len > 0) {
-        conf->wt.origin_host = conf->cache_origin_host;
-        conf->wt.origin_port = conf->cache_origin_port;
-    }
 
     child_wt_deny_prefixes = conf->wt.deny_prefixes;
     conf->wt.deny_prefixes = brix_merge_arrays(cf, prev->wt.deny_prefixes,

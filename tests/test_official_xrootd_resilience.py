@@ -1,5 +1,5 @@
 """
-test_official_brix_resilience.py — this repo's FUSE client vs a REAL XRootD
+test_official_xrootd_resilience.py — this repo's FUSE client vs a REAL XRootD
 server, through an on-the-wire fault injector.
 
 WHAT: Mounts THIS codebase's clean-room FUSE driver (client/xrootdfs, built on
@@ -22,13 +22,14 @@ HOW:  client  ->  brix-fault-proxy  ->  official xrootd
 Skips cleanly when the official `xrootd`, /dev/fuse, or fusermount3 is absent.
 
 Run:
-  PYTHONPATH=tests python3 -m pytest tests/test_official_brix_resilience.py -v
+  PYTHONPATH=tests python3 -m pytest tests/test_official_xrootd_resilience.py -v
 """
 import hashlib
 import os
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import sys
 import threading
 import time
@@ -167,8 +168,7 @@ def mount(server, tmp_path_factory):
     _guard_mount_2()
     # Build the FUSE driver + fault proxy (best-effort; skip if the link can't be
     # satisfied in this environment).
-    subprocess.run(["make", "xrootdfs", "brix-fault-proxy"], cwd=CLIENT_DIR, env=ENV,
-                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
+    client_make(CLIENT_DIR, "xrootdfs", "brix-fault-proxy", env=ENV, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
     _guard_mount_3()
 
     listen, ctlp = _free_port(), _free_port()

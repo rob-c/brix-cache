@@ -54,6 +54,9 @@ ngx_http_brix_metrics_handler(ngx_http_request_t *r)
     /* Phase 63 C-7: composed storage-stack info per export. */
     brix_storage_backend_metrics_emit(&mw);
 
+    /* Phase 116: runtime-DNS target registry (per-worker view). */
+    brix_dns_metrics_emit(&mw);
+
     mw_finish(&mw);
 
     r->headers_out.status           = NGX_HTTP_OK;

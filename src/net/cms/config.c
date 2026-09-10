@@ -1,5 +1,6 @@
 /* WHAT: Parses "brix_cms_manager host:port [host:port ...]" (repeatable) and */
-/*       stores every resolved address so the heartbeat client can log into ALL */
+/*       registers every endpoint as a runtime DNS target (phase-116) so the */
+/*       heartbeat client can log into ALL */
 /*       redundant CMS managers concurrently (stock ManList parity). */
 /* WHY:  The CMS heartbeat subsystem needs the full redundant manager set: each */
 /*       endpoint gets its own login + heartbeat link and locate requests rotate */
@@ -15,7 +16,7 @@ cms_manager_add(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf,
     ngx_str_t *value)
 {
     ngx_url_t                url;
-    ngx_addr_t              *addr;
+    brix_dns_target_t       *t;
     ngx_uint_t               i;
     brix_cms_manager_ent_t  *ent, *ents;
 
@@ -37,6 +38,7 @@ cms_manager_add(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf,
     ngx_memzero(&url, sizeof(url));
     url.url = ent->raw;
     url.default_port = 0;
+    url.no_resolve = 1;          /* phase-116: parse only, resolve at runtime */
 
     if (ngx_parse_url(cf->pool, &url) != NGX_OK) {
         if (url.err != NULL) {
@@ -46,49 +48,32 @@ cms_manager_add(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf,
         return NGX_CONF_ERROR;
     }
 
-    if (url.no_port) {
+    if (url.no_port || url.port == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cms_manager: missing port in \"%V\"", value);
+            "brix_cms_manager: missing or invalid port in \"%V\"", value);
         return NGX_CONF_ERROR;
     }
 
-    if (url.naddrs == 0 || url.addrs == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cms_manager: could not resolve \"%V\"", value);
+    t = brix_dns_target_register(cf, "brix_cms_manager", &url.host, url.port,
+                                 BRIX_AF_AUTO, SOCK_STREAM, &xcf->common.dns);
+    if (t == NULL) {
         return NGX_CONF_ERROR;
     }
 
-    if (ngx_inet_get_port(url.addrs[0].sockaddr) == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cms_manager: invalid port in \"%V\"", value);
-        return NGX_CONF_ERROR;
-    }
-
-    /* Reject the same resolved endpoint twice: a duplicate would double-login
-     * (a stock manager 30s-blacklists the second identity) and skew rotation. */
+    /* Reject the same endpoint twice (the registry hands back one target per
+     * host:port): a duplicate would double-login (a stock manager
+     * 30s-blacklists the second identity) and skew rotation. */
     ents = xcf->cms.managers->elts;
     for (i = 0; i + 1 < xcf->cms.managers->nelts; i++) {
-        if (ents[i].addr->socklen == url.addrs[0].socklen
-            && ngx_memcmp(ents[i].addr->sockaddr, url.addrs[0].sockaddr,
-                          url.addrs[0].socklen) == 0)
-        {
+        if (ents[i].dns == t) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix_cms_manager: duplicate manager \"%V\"", value);
             return NGX_CONF_ERROR;
         }
     }
 
-    BRIX_PCALLOC_OR_RETURN(addr, cf->pool, sizeof(ngx_addr_t), NGX_CONF_ERROR);
-
-    addr->sockaddr = ngx_pnalloc(cf->pool, url.addrs[0].socklen);
-    if (addr->sockaddr == NULL) {
-        return NGX_CONF_ERROR;
-    }
-
-    ngx_memcpy(addr->sockaddr, url.addrs[0].sockaddr, url.addrs[0].socklen);
-    addr->socklen = url.addrs[0].socklen;
-    addr->name = url.addrs[0].name;
-    ent->addr = addr;
+    ent->dns = t;
+    ent->addr = &t->addr;
 
     return NGX_CONF_OK;
 }

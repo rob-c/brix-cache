@@ -100,6 +100,9 @@ json_t * dashboard_build_v1_history(ngx_http_request_t *r, int64_t now_ms, const
 json_t * dashboard_build_v1_cluster(ngx_http_request_t *r, int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf, ngx_uint_t redact);
 json_t * dashboard_build_v1_cache(int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf, ngx_uint_t redact);
 
+/* api_snapshot_dns.c (phase-116): runtime-DNS target registry panel. */
+void dashboard_fill_dns(json_t *target);
+
 /* api_cvmfs.c */
 void dashboard_fill_cvmfs(json_t *target, ngx_uint_t redact);
 json_t * dashboard_build_v1_cvmfs(int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf, ngx_uint_t redact);

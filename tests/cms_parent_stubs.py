@@ -2,7 +2,7 @@
 """
 Persistent CMS parent stub daemons for manager_mode tests.
 
-Started once by manage_test_servers.sh start-all.  Three threads each serve
+Started once by python3 -m cmdscripts.manage_test_servers start-all.  Three threads each serve
 one CMS parent role, looping to accept successive nginx CMS connections:
 
   12601  select   — kYR_login accepted; kYR_locate → kYR_select pointing at

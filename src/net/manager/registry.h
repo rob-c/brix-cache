@@ -44,6 +44,13 @@ typedef struct {
      * "R" supervisor, "P" peer, "PS" proxy server. */
     char        role[4];
 
+    /* §2.4 (cms.space) — the free-space policy floor the node advertised in
+     * its LOGIN mSpace field (MB; 0 = it declared none), and the sticky
+     * write-block hysteresis latches from it.  Both are inert unless
+     * brix_srv_space.enforce is set. */
+    uint32_t    min_free_mb;
+    ngx_uint_t  space_blocked;
+
     /* §2.3 (cms.sched parity) — the five raw heartbeat theLoad bytes
      * (cpu, net/io, xeq/runq, mem, pag; each 0-100) so the manager can blend
      * them with per-component weights instead of only the max (load_pct). */
@@ -80,6 +87,8 @@ typedef struct {
     ngx_uint_t  stage;           /* Phase 89 W9: staging available */
     uint32_t    load_pct;        /* Phase 89 W4: heartbeat machine load 0-100 */
     char        role[4];         /* Phase 61 W7 / §2.17: "S"/"M"/"R"/"P"/"PS" */
+    uint32_t    min_free_mb;     /* §2.4: advertised free-space floor (MB) */
+    ngx_uint_t  space_blocked;   /* §2.4: 1 = latched out of the write set */
 } brix_srv_snapshot_entry_t;
 
 extern ngx_shm_zone_t *brix_srv_shm_zone;
@@ -185,6 +194,39 @@ typedef struct {
 void brix_srv_set_load_vector(const char *host, uint16_t port,
     const uint8_t load5[5]);
 void brix_srv_set_sched(const brix_srv_sched_t *sched);
+
+/*
+ * §2.4 — cms.space write eligibility.
+ *
+ * The `min` half of stock's cms.space is the floor a data server advertises
+ * in its LOGIN mSpace field (brix_cms_min_free on the node).  The manager
+ * stored nothing and enforced nothing, so the floor a node declared had no
+ * effect on where writes went.  This is the enforcement half.
+ *
+ * brix_srv_space_t / brix_srv_set_space(): enforce = honour that floor when
+ *   picking a WRITE target; hwm_mb = the free space a blocked node must
+ *   regain before it is eligible again (0 = its own floor — no hysteresis
+ *   band; a value below the node's floor is clamped up to it, so a mistyped
+ *   hwm can never make a node flap).  Set once at config time, before fork,
+ *   like brix_srv_set_sched.
+ * brix_srv_set_min_free(): record one node's advertised floor, from LOGIN.
+ *
+ * A blocked node is de-preferred, never refused: it falls to the same
+ * last-resort tier as a maxload-exceeded node (§2.3), so a cluster where
+ * every node is below its floor still places the write on the roomiest node
+ * instead of failing it.  Reads ignore the block entirely — a full disk still
+ * serves the bytes it already holds — and so does the §2.5 stage selector,
+ * which already ranks by free space and answers a demand-driven recall
+ * rather than steady-state placement.
+ */
+typedef struct {
+    ngx_uint_t  enforce;   /* 1 = honour the advertised floor for writes */
+    ngx_uint_t  hwm_mb;    /* re-eligibility high-water mark, 0 = floor  */
+} brix_srv_space_t;
+
+void brix_srv_set_space(const brix_srv_space_t *space);
+void brix_srv_set_min_free(const char *host, uint16_t port,
+    uint32_t min_free_mb);
 
 /*
  * §2.2 — cms.delay servers (SUPCount floor).
@@ -333,8 +375,16 @@ int brix_manager_tried_exhausted(const u_char *payload, size_t payload_len,
 
 /*
  * Build a kXR_locate response body listing all non-blacklisted servers that
- * export a prefix covering path.  Format is space-separated "S<r|w>host:port"
- * entries, NUL-terminated, as required by the XRootD locate wire format.
+ * export a prefix covering path.  Format is space-separated
+ * "<type><r|w>host:port" entries, NUL-terminated, as required by the XRootD
+ * locate wire format.
+ *
+ * §2.18 — <type> is one of XrdCl's four LocationTypes: 'S' a data server
+ * (roles "S"/"PS"), 'M' a subordinate manager or supervisor (roles "M"/"R")
+ * the client must re-locate through rather than read from, each lowercased
+ * ('s'/'m', "pending") when the node has missed its heartbeats past
+ * brix_manager_stale_after.  With that directive unset (the default) no entry
+ * is ever lowercased.
  *
  * Returns the number of bytes written (not counting the terminating NUL), or
  * 0 if no servers match or the buffer is too small to hold even one entry.

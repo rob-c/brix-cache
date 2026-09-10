@@ -5,7 +5,7 @@ kXR_waitresp, kXR_authmore / kXR_gotoTLS).
 Architecture
 ------------
 All tests connect to pre-started nginx instances that proxy to protocol stub
-backends started by manage_test_servers.sh via upstream_protocol_stubs.py.
+backends started by cmdscripts/manage_test_servers.py via upstream_protocol_stubs.py.
 No Python server objects are created inside tests.
 
   test_locate_redirected         nginx:11137 → cluster-redir:11160 (real XRootD)

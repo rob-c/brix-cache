@@ -66,6 +66,23 @@ def _fleet_primary_endpoints():
     return out
 
 
+def _confirm_missing(endpoints, missing):
+    """Re-probe the labels one sweep reported down, with a longer budget.
+
+    A single slow or refused connect is not a dead listener: a stock xrootd
+    front door under the fleet-wide start spike (200+ daemons booting, a cmsd
+    segfault per mesh start) can miss the sweep's 1 s connect budget once and
+    answer the next.  A listener that is really gone refuses this probe too,
+    so the gate still halts on a true death — it just no longer halts a whole
+    run on one missed probe.
+    """
+    targets = {f"{name}:{port}": (host, port) for name, host, port in endpoints}
+    return sorted(
+        label for label in missing
+        if not _check_server_reachable(*targets[label], timeout=3.0)
+    )
+
+
 def _require_fleet_startup_stability() -> None:
     """Require every primary fleet listener to stay reachable before dispatch."""
     endpoints = _fleet_primary_endpoints()
@@ -79,6 +96,8 @@ def _require_fleet_startup_stability() -> None:
     while True:
         live = _fleet_reachable_labels(endpoints)
         missing = sorted(expected - live)
+        if missing:
+            missing = _confirm_missing(endpoints, missing)
         if missing:
             raise pytest.UsageError(
                 "full-fleet startup is unstable; listener(s) went down before "

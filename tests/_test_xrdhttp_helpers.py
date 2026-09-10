@@ -12,7 +12,7 @@ xrdhttp_multipart.c / xrdhttp_stats.c:
   - Security: embedded NUL bytes in query params rejected, oversized values truncated
 
 Uses the pre-started nginx instance on NGINX_HTTP_WEBDAV_PORT (8080, anonymous,
-write-enabled).  Run after `tests/manage_test_servers.sh start`.
+write-enabled).  Run after `python3 -m cmdscripts.manage_test_servers start-all`.
 """
 
 import hashlib

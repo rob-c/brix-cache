@@ -165,7 +165,8 @@ brix_metrics_shared(void)
     } while (0)
 
 /* Phase 51 cross-protocol resilience counters — global, low-cardinality.  Safe
- * from any context (CMS recv/accept, auth gate, OCSP, XrdAcc breakers); a no-op
+ * from any context (CMS recv/accept, auth gate, OCSP, the XrdAcc NSS breaker
+ * and reverse-DNS pending fallback); a no-op
  * until the metrics SHM is mapped. */
 #define BRIX_RESIL_METRIC_INC(field)                                        \
     do {                                                                     \

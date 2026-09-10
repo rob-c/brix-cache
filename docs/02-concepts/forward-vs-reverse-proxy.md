@@ -117,10 +117,11 @@ storage. Squid-in-accelerator-mode, Varnish, and XCache are all this shape.
 | Terminating root:// proxy ("tap proxy") | `brix_tap_proxy`, `brix_tap_proxy_upstream`, `_auth`, `_login_user`, `_audit_log`, `_upstream_tls` | **Reverse** (terminating) | **Yes** (token/GSI/SSS/anon) | Operator config (upstream list, rr + health) | `src/net/proxy/` |
 | Transparent root:// relay + tap | `brix_transparent_proxy host:port` | **Transparent relay** (reverse topology, nothing terminated) | **No** — auth travels end-to-end | Operator config (single target) | `src/protocols/root/relay/`, `src/net/tap/` |
 | Single-port HTTP handoff | `brix_http_handoff host:port` | **Transparent relay** (local mux) | No (the WebDAV listener it splices to does its own auth) | Operator config (local WebDAV port) | `src/protocols/root/handoff/` |
-| WebDAV perimeter proxy | `webdav_proxy_handler` machinery (directives currently disabled; `brix_webdav_proxy_certs` that remains is GSI *auth*, not proxying) | **Reverse** (terminating, HTTP) | **Yes** (TLS + WLCG token / GSI) | Operator config (static/dynamic backend pool) | `src/protocols/webdav/proxy*.c` |
+| WebDAV perimeter proxy — **REMOVED 2026-07-20** | none; `brix_webdav_proxy*` is now an unknown directive (the surviving `brix_webdav_proxy_certs` is GSI *auth*, not proxying) | — (see §3.4 for the replacement) | — | — | transport deleted; only the SHM backend registry `src/protocols/webdav/proxy_pool.c` survives, reachable through the dashboard admin API |
 | Read-through cache (all protocols) | `brix_storage_backend <origin-url>` + `brix_cache_store <dir>` (unified — valid at all brix HTTP locations; set once at server or http level and inherited) | **Caching reverse proxy** | **Yes** (normal protocol auth) | Operator config (origin URL; root://, http(s)://, pelican://, S3) | `src/fs/cache/`, `src/fs/cache/origin/`, `src/fs/backend/xroot/` |
 | CVMFS site cache — reverse mode | `brix_cvmfs on` + `brix_storage_backend http://stratum1/cvmfs/<repo>` + `brix_cache_store` | **Caching reverse proxy** | N/A (CVMFS data is content-addressed + signed; anonymous GET) | Operator config (Stratum-1 set, failover) | `src/protocols/cvmfs/` |
-| CVMFS site cache — proxy mode (T14) | absolute-URI listener + `brix_cvmfs_upstream_allow`, `brix_cvmfs_upstream_max` | **FORWARD proxy** (allowlisted) — the only one in the tree | N/A (same CVMFS trust model) | **Client** (`CVMFS_HTTP_PROXY` absolute-URI), constrained by the allowlist | `src/protocols/cvmfs/` (phase-68 T14; ctx plumbing landed, request/upstream registry in progress) |
+| CVMFS site cache — proxy mode (T14) | absolute-URI listener + `brix_cvmfs_upstream_allow`, `brix_cvmfs_upstream_max` | **FORWARD proxy** (allowlisted) — one of two in the tree, alongside the `forward://` storage backend below | N/A (same CVMFS trust model) | **Client** (`CVMFS_HTTP_PROXY` absolute-URI), constrained by the allowlist | `src/protocols/cvmfs/` (phase-68 T14; ctx plumbing landed, request/upstream registry in progress) |
+| Client-named `root://` origin (PSS forwarding, 2.0 F5) | `brix_storage_backend forward://root[,roots] permit=<host\|.suffix>…` | **FORWARD proxy** (allowlisted) | **Yes** (normal protocol auth terminates here) | **Client** (names the origin *inside the path it opens*, the XrdPss forwarding convention `//root://origin//path`), constrained by `permit=` and by the scheme list — a line with no `permit=` is refused at config time | `src/fs/backend/xroot/` |
 | Traffic mirroring / shadow replay | `brix_mirror_url`, `brix_mirror_url`, `brix_mirror_*` | **Reverse-shaped fan-out**, out-of-band (fire-and-forget; client never sees the shadow) | Primary request's auth applies; credentials stripped/replaced toward the shadow | Operator config (≤4 shadow targets) | `src/net/mirror/` |
 | Third-party copy (TPC) | root:// native TPC, WebDAV `COPY` + `Source:`/`TransferHeader*` | **Forward-flavoured fetch** (server acts as a client toward a *client-named* source) | Yes (the TPC request itself) | **Client** (names the remote source/destination URL in the request) | `src/tpc/`, `src/protocols/webdav/tpc*.c` |
 | CMS redirection | `brix_cms_*` (manager/redirector role) | **Neither** — a redirect, not a proxy: data bypasses the manager entirely | Yes (login), but no data flows through | Manager picks a data server, tells the client to go there | `src/net/cms/`, `src/net/manager/` |
@@ -250,35 +251,36 @@ listener.
 Reverse-proxy topology (the client didn't ask for the WebDAV port), but like
 §3.2 it terminates nothing itself — the target listener owns auth.
 
-### 3.4 WebDAV perimeter reverse proxy
+### 3.4 WebDAV perimeter reverse proxy — removed
 
-`src/protocols/webdav/proxy*.c` (Mode 3, "WebDAV Perimeter Proxy").
-**Status:** the machinery (`webdav_proxy_handler`, backend pools, health) is
-in the tree, but the enabling directives were removed from the live command
-table in 2026-06 — the `brix_webdav_proxy_certs` directive that remains
-configures GSI client-cert *authentication*, not proxying.
+**Status: gone.** The dedicated WebDAV reverse-proxy terminated client HTTPS +
+WLCG token auth at the perimeter and relayed the WebDAV operation to an internal
+plain-HTTP backend, with three credential policies toward the backend
+(`anonymous` / `forward` / `token`) and a static or SHM backend pool. It was
+retired after the relay path to stock XrdHttp backends proved unstable — a
+load-dependent heap corruption in the upstream response parse. The directives
+were removed from the live command table in 2026-06, then the now-dead transport
+(`proxy.c`, `proxy_request.c`, `proxy_response.c`, `proxy_config.c`,
+`proxy_internal.h`, `webdav_proxy.h`) was **deleted on 2026-07-20** so the latent
+defect cannot be resurrected. `brix_webdav_proxy` and its siblings are rejected
+as unknown directives.
 
-A classic HTTP **terminating reverse proxy** built on nginx's native
-upstream API: nginx terminates client HTTPS + WLCG token auth at the
-perimeter, then relays the WebDAV operation to an internal backend, with
-three credential policies toward the backend — `anonymous` (strip
-`Authorization`; internal-trust), `forward` (pass the client's header
-unchanged), `token` (replace with a static site service-account bearer).
-Backends come from a config-time pool or a dynamic SHM pool with
-runtime add/remove/drain.
+What survives under those names is unrelated to proxying:
 
-```
-  ┌────────┐  HTTPS + Bearer <wlcg-token>  ┌──────────────────┐   plain HTTP (or https)  ┌──────────┐
-  │ davs://│ ────────────────────────────▶ │   nginx-xrootd   │ ───────────────────────▶ │ internal │
-  │ client │   TLS + token TERMINATED ──▶  │  perimeter proxy │   auth policy:           │ DAV/     │
-  │        │   here (perimeter)            │                  │   anonymous│forward│token │ XrdHttp  │
-  │        │ ◀──────────────────────────── │  backend pool    │ ◀─────────────────────── │ backend  │
-  └────────┘   response                    │  (static/SHM,    │   response               └──────────┘
-                                           │   health, pick)  │
-                                           └──────────────────┘
-  WHY: one TLS/token termination point for a whole farm of plain-HTTP
-  DAV backends — no per-backend certificates or token validation.
-```
+- `brix_webdav_proxy_certs` — accepts RFC 3820 GSI **proxy certificates** on the
+  client side (`postconfig.c`); see `docs/04-protocols/webdav-directives.md`.
+- `src/protocols/webdav/proxy_pool.c` — the Phase-23 shared-memory backend
+  registry, now reachable only through the dashboard admin API
+  (`src/observability/dashboard/api_admin_proxy.c`); it has no request path
+  behind it.
+- `src/protocols/webdav/postconfig_proxy_capath.c` — `brix_backend_ca_dir`,
+  which seeds the trust store of nginx's *stock* proxy module.
+
+**Replacement.** To put a TLS/auth perimeter in front of storage, serve WebDAV
+directly at the edge (`brix_webdav on` + `brix_export`, optionally
+`brix_storage_backend` for a remote origin) — the caching reverse proxy of §3.5,
+documented as Mode 3 in `docs/02-concepts/deployment-modes.md`. For plain HTTP
+relaying with no BriX semantics, nginx's stock `proxy_pass` works.
 
 ### 3.5 Read-through cache — the caching reverse proxy
 

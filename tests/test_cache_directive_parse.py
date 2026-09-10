@@ -56,6 +56,11 @@ ACCEPT = [
     ("brix_cache_max_bytes 256m;", True, None),
     ("brix_cache_max_bytes 2g;", True, None),
     ("brix_cache_max_bytes 1073741824;", True, None),
+    # §4.5 serve-while-filling: an ngx_conf_set_sec_slot no-progress deadline.
+    ("brix_cache_serve_while_filling 0;", True, None),        # 0 = off
+    ("brix_cache_serve_while_filling 30;", True, None),
+    ("brix_cache_serve_while_filling 30s;", True, None),
+    ("brix_cache_serve_while_filling 5m;", True, None),
 ]
 
 REJECT = [
@@ -71,6 +76,7 @@ REJECT = [
     ("brix_cache_include_regex [unclosed;", "invalid pattern"),
     ("brix_cache_uvkeep notatime;", "invalid value"),
     ("brix_cache_max_bytes banana;", "invalid value"),
+    ("brix_cache_serve_while_filling notatime;", "invalid value"),
 ]
 
 DUP = [
@@ -80,6 +86,7 @@ DUP = [
     "brix_cache_include_regex a; brix_cache_include_regex b;",
     "brix_cache_uvkeep 1h; brix_cache_uvkeep 2h;",
     "brix_cache_max_bytes 1m; brix_cache_max_bytes 2m;",
+    "brix_cache_serve_while_filling 10s; brix_cache_serve_while_filling 20s;",
 ]
 
 

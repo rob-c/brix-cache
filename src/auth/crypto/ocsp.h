@@ -24,6 +24,8 @@
  * brix_ocsp_check_cert — query the OCSP responder for leaf's status.
  *
  * @log:       nginx log context
+ * @dns:       the server's phase-116 resolver policy for the responder host
+ *             (NULL: libc, which still follows resolv.conf)
  * @leaf:      the client certificate to check (must not be NULL)
  * @issuer:    the issuer certificate (may be NULL for single-cert chains)
  * @soft_fail: if 1, treat network errors / unknown status as pass (return 0);
@@ -36,8 +38,8 @@
  * Returns 0 if the certificate is GOOD (or soft_fail allows the status),
  *         -1 if the certificate is REVOKED or the check definitively fails.
  */
-int brix_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer,
-    int soft_fail, int require_nonce);
+int brix_ocsp_check_cert(ngx_log_t *log, const brix_dns_policy_t *dns,
+    X509 *leaf, X509 *issuer, int soft_fail, int require_nonce);
 
 /*
  * brix_ocsp_staple_fetch — fetch and cache an OCSP staple for the server

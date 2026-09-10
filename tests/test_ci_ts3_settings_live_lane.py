@@ -45,8 +45,9 @@ waits and then runs its own complete cycle.  Making `serial` authoritative
 belongs in conftest, and conftest is off-limits until TS-7.
 
 **Lane choice is derived, never a literal.**  A lane reserves
-`port_ladder.TOTAL_PORT_COUNT` ports — 18505 today — of which only the
-first 178 are visible in `ss`.  Two lanes a few hundred apart therefore
+`port_ladder.TOTAL_PORT_COUNT` ports — read it, never quote it; the
+ledger is repacked often (2393 → 2395 → 2418 on 2026-09-07 alone) — of
+which only the first 178 are visible in `ss`.  Two lanes a few hundred apart therefore
 look like they coexist while their `free_port` pools overlap almost
 entirely, and the collision arrives later, out of a draw rather than out of
 a boot.  The first version of this proof was written for lane 15000, which
@@ -316,7 +317,7 @@ def test_a_session_in_this_root_attaches_without_touching_the_tree(lane):
 def test_the_proof_lane_clears_both_the_other_lane_and_the_kernel(lane):
     """The base is arithmetic over two constraints, not a number someone liked.
 
-    18505 ports are reserved and 178 are visible, so an overlapping base is
+    `TOTAL_PORT_COUNT` ports are reserved and 178 are visible, so an overlapping base is
     invisible until a `free_port` draw collides mid-suite; and a base inside
     `ip_local_port_range` collides with outbound sockets instead, which is
     invisible until `bind()` fails on a host where `ss` shows nothing.  Both

@@ -20,6 +20,18 @@
  *       corrupt; every path is best-effort and any failure leaves plain,
  *       correct per-name copies. gc: unlink the canonical at st_nlink <= 1.
  *       Both run on cache-fill worker threads: no pool access, inst->log only.
+ *
+ * IDENTITY: these link/rename/unlink calls are DELIBERATELY the export identity,
+ *       not the impersonated caller (2.0 F21).  Every other posix namespace op
+ *       goes through fs/path/beneath.c or *_confined_canon and is therefore
+ *       performed as the mapped user under `brix_idmap map`; the GCAS farm does
+ *       not, because it is SERVER-OWNED storage.  Its names ("/.gcas/<2hex>/...")
+ *       are content-derived, no client can address them, and one inode is shared
+ *       by every user who ever published those bytes -- so there is no single
+ *       caller to scope the farm to, and scoping it per-request would make the
+ *       refcount (st_nlink) unmaintainable the moment two users publish the same
+ *       object.  Do not "fix" this by routing it through the broker; the pin is
+ *       tests/test_release20_posix_cred_plane.py.
  */
 
 #include "fs/backend/sd.h"

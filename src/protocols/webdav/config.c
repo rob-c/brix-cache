@@ -123,6 +123,8 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->common.verify_depth = NGX_CONF_UNSET_UINT;
     conf->common.signing_policy_mode = NGX_CONF_UNSET_UINT;
     conf->common.crl_mode     = NGX_CONF_UNSET_UINT;
+    conf->common.crl_scope    = NGX_CONF_UNSET_UINT;      /* 2.0 F19 */
+    conf->common.tls_verify_log = NGX_CONF_UNSET_UINT;    /* 2.0 F19 */
     conf->auth         = NGX_CONF_UNSET_UINT;
     /* XrdAcc engine init moved into ngx_http_brix_shared_init (common.acc), W2. */
     conf->proxy_certs  = NGX_CONF_UNSET;
@@ -279,7 +281,7 @@ webdav_log_endpoint_warnings(ngx_conf_t *cf,
     if (has_x509 && conf->common.crl.len == 0) {
         ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
             "brix:   NOTE: x509/GSI is accepted but no CRL is configured — "
-            "REVOKED certificates will be ACCEPTED (set brix_webdav_crl)");
+            "REVOKED certificates will be ACCEPTED (set brix_crl)");
     }
     /* The "writes enabled but auth not required" case is surfaced (and, under
      * brix_strict_security, refused) by the E-1 gate in

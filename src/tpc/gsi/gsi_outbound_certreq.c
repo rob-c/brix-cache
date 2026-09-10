@@ -221,9 +221,9 @@ tpc_certreq_load_chain_key(brix_tpc_pull_t *t, ngx_stream_brix_srv_conf_t *conf,
  * the exact bytes the native client sends (via the shared gsi_core kernel) are
  * required. Advertising a pre-DHsigned version keeps the source on the simpler
  * UNSIGNED DH path that gsi_outbound_exchange.c implements.
- * HOW: brix_gsi_parse_parms picks the crypto module + CA chain (defaulting to
- * "ssl"); brix_gsi_rand fills the session rtag; brix_gsi_build_certreq allocates
- * the wire message (freed by tpc_outbound_gsi_finish via res->certreq);
+ * HOW: brix_gsi_build_certreq_from_parms (shared gsi_core wrapper: parms parse,
+ * "ssl" default, version 10600, fresh rtag into t->gsi_rtag) allocates the wire
+ * message (freed by tpc_outbound_gsi_finish via res->certreq);
  * tpc_send_kxr_auth frames + sends it as seq=3. Returns 0 on success, or -1 with
  * t->err_msg / t->xrd_error set on RNG / alloc / send failure.
  */
@@ -231,56 +231,22 @@ static int
 tpc_certreq_build_send(brix_tpc_pull_t *t, int fd,
     const u_char *login_body, uint32_t login_dlen, tpc_certreq_res_t *res)
 {
-    /* round 1: kXGC_certreq     * Build the GSI credential payload that opens the handshake. Layout (16B):
-     *   [0..3]   "gsi\0"                  4-byte protocol tag (NUL-padded)
-     *   [4..7]   kXGC_certreq (=1000)     opcode: client requests server cert
-     *   [8..11]  kXRS_none    (=0)        bucket type 0 = end-of-message marker
-     *   [12..15] 0                        that terminator bucket's length (0)
-     * All multi-byte fields are big-endian via tpc_put_u32. crlen = 4+4+8 so
-     * the second tpc_put_u32 below writes into bytes [12..15] of the buffer. */
     size_t   crlen = 0;
-    uint32_t version = 0;
-    char     crypto[64];
-    char     ca[256];
 
     /* Build a REAL certreq (the stock XrdSecgsi round-1: crypto module +
      * version + issuer-hash + client-opts + random rtag) via the shared
-     * gsi_core kernel — the exact bytes the native client sends.  A bare
-     * "gsi\0"+kXGC_certreq stub is rejected by the source with kXR_error.
-     *
-     * Parse the source's advertised gsi parms (v:/c:/ca:) from the login
-     * reply body ("<session id><&P=gsi,...>") so it picks the right crypto
-     * module + CA chain, exactly like client/lib/sec/sec_gsi.c. */
-    crypto[0] = '\0';
-    ca[0]     = '\0';
-    if (login_dlen > BRIX_SESSION_ID_LEN) {
-        brix_gsi_parse_parms(
-            (const char *) login_body + BRIX_SESSION_ID_LEN,
-            &version, crypto, sizeof(crypto), ca, sizeof(ca));
-    }
-    if (crypto[0] == '\0') {
-        ngx_memcpy(crypto, "ssl", 4);
-    }
-    /* Advertise the signed-DH generation (>= XrdSecgsiVersDHsigned=10400):
-     * the shared cert-response kernel (gsi_core_cresp.c) auto-detects whether
-     * the source answers with a signed kXRS_cipher or a plain kXRS_puk, so
-     * both variants work — same 10600 the origin-fill leg (origin_auth.c) and
-     * the native client (sec_gsi.c) already advertise. Signed DH lets the
-     * source bind its DH public under its RSA key instead of sending it bare. */
-    version = 10600;
-
-    if (!brix_gsi_rand(t->gsi_rtag, sizeof(t->gsi_rtag))) {
-        snprintf(t->err_msg, sizeof(t->err_msg), "TPC GSI RNG failed");
-        t->xrd_error = kXR_ServerError;
-        return -1;
-    }
-
-    /* clnt_opts 0x80 matches a stock client (delegated-proxy off). The buffer
-     * is malloc'd and freed by tpc_outbound_gsi_finish. */
-    res->certreq = brix_gsi_build_certreq(crypto, version,
-                                       ca[0] ? ca : NULL, 0x80u,
-                                       t->gsi_rtag, sizeof(t->gsi_rtag),
-                                       &crlen);
+     * gsi_core wrapper — the exact bytes the native client, the cache origin
+     * and the transparent upstream send.  A bare "gsi\0"+kXGC_certreq stub is
+     * rejected by the source with kXR_error.  The source's advertised gsi
+     * parms (v:/c:/ca:) come from the login reply body
+     * ("<session id><&P=gsi,...>"); the wrapper defaults crypto to "ssl" and
+     * advertises 10600 (signed-DH; the round-2 kernel auto-detects the
+     * variant the source actually answers with).  The buffer is malloc'd and
+     * freed by tpc_outbound_gsi_finish. */
+    res->certreq = brix_gsi_build_certreq_from_parms(
+        (login_dlen > BRIX_SESSION_ID_LEN)
+            ? (const char *) login_body + BRIX_SESSION_ID_LEN : NULL,
+        t->gsi_rtag, &crlen);
     if (res->certreq == NULL) {
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC GSI cannot build certreq");

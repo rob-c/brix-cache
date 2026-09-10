@@ -12,7 +12,7 @@ WHY: the nginx-xrootd krb5 acceptor (``src/auth/krb5/auth.c``) validates a clien
   throwaway one, fully isolated from any host ``/etc/krb5.conf`` (every krb5 tool
   is invoked with ``KRB5_CONFIG`` / ``KRB5_KDC_PROFILE`` pointing into TEST_ROOT).
 
-HOW: driven by ``manage_test_servers.sh`` as a tiny CLI — ``up`` (provision +
+HOW: driven by ``cmdscripts/manage_test_servers.py`` as a tiny CLI — ``up`` (provision +
   start KDC + kinit) and ``down`` (stop KDC).  Fail-open: ``up`` returns a
   non-zero exit only on an unexpected error; when the MIT KDC tooling is simply
   not installed it reports "skipped" and exits 0 so the rest of the suite keeps
@@ -353,7 +353,7 @@ def down():
 
 
 # ---------------------------------------------------------------------------
-# CLI entry point (driven by manage_test_servers.sh)
+# CLI entry point (driven by cmdscripts/manage_test_servers.py)
 # ---------------------------------------------------------------------------
 
 def main(argv):

@@ -20,6 +20,8 @@
 #include "auth/authz/acc/acc.h"   /* brix_acc_http_t (phase-101 W2: in the preamble) */
 #include "core/shm/rate_limit.h"  /* brix_rate_limit_conf_t + brix_kv_t (phase-105 W1) */
 #include "net/mirror/mirror.h"    /* brix_mirror_conf_t (phase-105 W2) */
+#include "net/dns/dns.h"          /* brix_dns_conf_t (phase-116 W1) */
+#include "core/config/cache_urlcgi_conf.h" /* brix_cache_urlcgi_conf_t (2.0 F5) */
 
 /*
  * ngx_http_brix_shared_conf_t — Common fields embedded at the top of every
@@ -43,6 +45,7 @@
 
 typedef struct {
 #include "shared_conf_fields.h"
+#include "shared_conf_fields_policy.h"
 } ngx_http_brix_shared_conf_t;
 
 /* phase-105 W8: the preamble is plane-neutral (embedded by the stream srv

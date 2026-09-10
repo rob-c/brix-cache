@@ -3,7 +3,8 @@
  *
  * WHAT: unit-tests the static URL helpers inside client/apps/fs/brixcvmfs_transport.c
  *       (to_https / transport_url) by including the translation unit directly and
- *       stubbing its ten project externals — nothing here touches the network.
+ *       stubbing its eleven project externals — nothing here touches the
+       network, and no transfer is ever performed.
  * WHY:  the TU built with two -Wformat-truncation warnings: to_https() rewrote
  *       http:// → https:// into a same-sized buffer and ignored snprintf's return.
  *       A truncated URL is a *different* URL: the TLS probe would GET an object
@@ -26,6 +27,7 @@
 #include "net/cpool.h"
 #include "net/proxy_env.h"
 #include "cvmfs/dict/dict.h"
+#include "apps/fs/brixcvmfs_curl_pin.h"
 
 brix_cpool *brix_cpool_create(const brix_cpool_vtbl *vt, void *ctx, int n, brix_status *st)
 { (void) vt; (void) ctx; (void) n; (void) st; return NULL; }
@@ -51,6 +53,15 @@ int cvmfs_dict_decompress(const unsigned char *dict, size_t dictlen,
                           unsigned char *out, size_t outcap, size_t *outlen)
 { (void) dict; (void) dictlen; (void) src; (void) srclen;
   (void) out; (void) outcap; (void) outlen; return -1; }
+
+/* phase-116: the transport performs every transfer through the libcurl
+ * address pin, which is a sibling TU (BRIXCVMFS_SPLIT). Including the
+ * transport here therefore pulls in a call to it; stubbing it keeps this
+ * unit what it claims to be — the URL builders, no curl handle, no
+ * network — instead of dragging the pin and its own externals in. */
+CURLcode cvmfs_curl_perform_pinned(CURL *c, const cvmfs_curl_transfer *t,
+                                   const char *url)
+{ (void) c; (void) t; (void) url; return CURLE_COULDNT_CONNECT; }
 
 #include "apps/fs/brixcvmfs_transport.c"
 

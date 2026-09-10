@@ -137,6 +137,20 @@ brix_identity_method_name(ngx_uint_t method)
 }
 
 /*
+ * Public flavour of the label above: the strongest auth method `id` carries.
+ * Exists so policy layers outside this file (the 2.0 F18 TPC identity matrix's
+ * `brix_tpc_require <party> <auth>`) match on exactly the string the audit log
+ * prints, instead of re-deriving their own name for the same bitmask.
+ */
+const char *
+brix_identity_auth_label(const brix_identity_t *id)
+{
+    return brix_identity_method_name(id != NULL ? id->auth_method
+                                                : BRIX_AUTHN_NONE);
+}
+
+
+/*
  * Allocate and zero-initialise a new identity on `pool`, seeding auth_method
  * to BRIX_AUTHN_NONE (unauthenticated until a setter records a credential).
  */
@@ -233,12 +247,21 @@ brix_identity_set_subject(brix_identity_t *id, ngx_pool_t *pool,
 /*
  * Store the VO/group membership both as the flat CSV compatibility view
  * (vo_csv) and as the structured vo_list array, keeping the two in sync; also
- * derive the xrdacc (vorg, role, group) attribute views.
+ * derive the xrdacc (vorg, role, group) attribute views from `fqan_csv`.
+ *
+ * 2.0 F20: the two inputs are deliberately separate.  `vo_csv` is the VO-NAME
+ * list — '/'-free, safe as a metric label and a log field, and the value
+ * `brix_require_vo` and the authdb `g` selector have always matched against.
+ * `fqan_csv` is the RAW FQAN list, the only carrier of "Role=...", and is read
+ * only here.  Deriving the attribute views from the VO names (which is what
+ * happened before 2.0) always produced an empty acc_role_csv.
  */
 ngx_int_t
-brix_identity_set_vos_csv(brix_identity_t *id, ngx_pool_t *pool,
-    const char *vo_csv)
+brix_identity_set_vos_fqans(brix_identity_t *id, ngx_pool_t *pool,
+    const char *vo_csv, const char *fqan_csv)
 {
+    const char *attr_src;
+
     if (id == NULL) {
         return NGX_ERROR;
     }
@@ -246,11 +269,24 @@ brix_identity_set_vos_csv(brix_identity_t *id, ngx_pool_t *pool,
     if (brix_identity_set_cstr(pool, &id->vo_csv, vo_csv) != NGX_OK) {
         return NGX_ERROR;
     }
-    if (brix_identity_derive_attrs(id, pool, vo_csv) != NGX_OK) {
+
+    attr_src = (fqan_csv != NULL && fqan_csv[0] != '\0') ? fqan_csv : vo_csv;
+    if (brix_identity_derive_attrs(id, pool, attr_src) != NGX_OK) {
         return NGX_ERROR;
     }
 
     return brix_identity_split_list(pool, &id->vo_list, vo_csv, ',');
+}
+
+/*
+ * The FQAN-less form: an identity whose membership arrives already shaped as
+ * group paths (a token's `groups` claim) has nothing else to derive from.
+ */
+ngx_int_t
+brix_identity_set_vos_csv(brix_identity_t *id, ngx_pool_t *pool,
+    const char *vo_csv)
+{
+    return brix_identity_set_vos_fqans(id, pool, vo_csv, NULL);
 }
 
 /*
@@ -357,6 +393,64 @@ brix_identity_acc_group_cstr(const brix_identity_t *id)
 {
     return (id != NULL && id->acc_group_csv.data != NULL)
            ? (const char *) id->acc_group_csv.data : "";
+}
+
+/* Overwrite `dst` only when `src` carries a value; NGX_OK when nothing to do. */
+static ngx_int_t
+identity_set_if_present(ngx_pool_t *pool, ngx_str_t *dst, const char *src)
+{
+    if (src == NULL || src[0] == '\0') {
+        return NGX_OK;
+    }
+    return brix_identity_set_cstr(pool, dst, src);
+}
+
+ngx_int_t
+brix_identity_set_sss_entity(brix_identity_t *id, ngx_pool_t *pool,
+    const char *vorg, const char *role, const char *endo,
+    const u_char *creds, size_t creds_len)
+{
+    if (id == NULL || pool == NULL) {
+        return NGX_ERROR;
+    }
+    if (identity_set_if_present(pool, &id->acc_vorg_csv, vorg) != NGX_OK
+        || identity_set_if_present(pool, &id->acc_role_csv, role) != NGX_OK
+        || identity_set_if_present(pool, &id->endorsements, endo) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+    if ((vorg != NULL && vorg[0] != '\0') || (role != NULL && role[0] != '\0')) {
+        id->acc_attrs_asserted = 1;
+    }
+
+    ngx_str_null(&id->creds);
+    if (creds != NULL && creds_len > 0) {
+        id->creds.data = ngx_pnalloc(pool, creds_len);
+        if (id->creds.data == NULL) {
+            return NGX_ERROR;
+        }
+        ngx_memcpy(id->creds.data, creds, creds_len);
+        id->creds.len = creds_len;
+    }
+    return NGX_OK;
+}
+
+const char *
+brix_identity_endorsements_cstr(const brix_identity_t *id)
+{
+    return (id != NULL && id->endorsements.data != NULL)
+           ? (const char *) id->endorsements.data : "";
+}
+
+const u_char *
+brix_identity_creds(const brix_identity_t *id, size_t *len)
+{
+    if (id == NULL || id->creds.data == NULL) {
+        *len = 0;
+        return NULL;
+    }
+    *len = id->creds.len;
+    return id->creds.data;
 }
 
 /*

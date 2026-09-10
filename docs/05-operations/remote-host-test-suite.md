@@ -24,7 +24,8 @@ you want a green/red release signal on that host.
 ## Background: why the fleet needs the module wired in
 
 The suite does not test a running production server. It stands up its **own**
-nginx fleet on fixed ports (`tests/manage_test_servers.sh start-all`), generated
+nginx fleet on fixed ports (`cd tests && python3 -m cmdscripts.manage_test_servers
+start-all`), generated
 from templates under `tests/configs/`, and drives that fleet with pytest.
 
 The single thing that determines whether the fleet can start is: **does the
@@ -58,7 +59,7 @@ From the build box (RPMs land in the `-o` directory of
 `packaging/rpm/build-rpm-container.sh`, e.g. `/tmp/rpms`):
 
 ```bash
-scp /tmp/rpms/*1.1.1-20*.rpm  you@REMOTE:/tmp/brix-rpms/
+scp /tmp/rpms/*2.0.0-1*.rpm  you@REMOTE:/tmp/brix-rpms/
 ```
 
 The relevant subpackages (ignore the `-debuginfo`/`-debugsource`/`.src.rpm`):
@@ -74,9 +75,9 @@ The relevant subpackages (ignore the `-debuginfo`/`-debugsource`/`.src.rpm`):
 
 ```bash
 sudo dnf install -y \
-  /tmp/brix-rpms/nginx-mod-brix-cache-1.1.1-20.el9.x86_64.rpm \
-  /tmp/brix-rpms/brix-cache-client-1.1.1-20.el9.x86_64.rpm \
-  /tmp/brix-rpms/brix-tools-1.1.1-20.el9.x86_64.rpm
+  /tmp/brix-rpms/nginx-mod-brix-cache-2.0.0-1.el9.x86_64.rpm \
+  /tmp/brix-rpms/brix-cache-client-2.0.0-1.el9.x86_64.rpm \
+  /tmp/brix-rpms/brix-tools-2.0.0-1.el9.x86_64.rpm
 ```
 
 `dnf` resolves the runtime deps (`nginx`, `openssl`, `libcurl`, `krb5-libs`, …)
@@ -159,32 +160,33 @@ The suite drives real clients against a real fleet, so the host needs:
 
 ### Runner cheat-sheet
 
-`tests/run_suite.sh` is the source of truth. It owns fleet lifecycle
+`cmdscripts.operator_runtime suite` is the source of truth. It owns fleet lifecycle
 (`TEST_OWN_FLEET=1`), runs a parallel bulk lane plus serial/dedicated lanes, and
 re-runs only the failures on a now-quiet box to filter load-correlated flakes.
+Run every command below from the repository root.
 See [tests/README.md](../../tests/README.md) for the full rationale.
 
 | Command | Runs | Time | Use when |
 |---|---|---|---|
-| `tests/run_suite.sh --fast` | Parallel `not slow and not serial` bulk | ~4 min | Fastest "did I break it" signal |
-| `tests/run_suite.sh --pr` | The `not slow` set (~6,990) + serial lane + one flake re-run | <5 min | PR gate |
-| `tests/run_suite.sh --nightly` | The deferred `slow` set (~1,770): resilience/chaos/perf/conformance/interop | ~8 min | Pre-release |
-| `tests/run_suite.sh` | Full 4-lane suite with the complete flake-rerun ladder | ~10–12 min | Authoritative release gate |
-| `PYTHONPATH=tests pytest tests/test_X.py -v` | One file/test | seconds | Focused debugging |
+| `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --fast` | Parallel `not slow and not serial` bulk | ~4 min | Fastest "did I break it" signal |
+| `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --pr` | The `not slow` set (~6,990) + serial lane + one flake re-run | <5 min | PR gate |
+| `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --nightly` | The deferred `slow` set (~1,770): resilience/chaos/perf/conformance/interop | ~8 min | Pre-release |
+| `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite` | Full 4-lane suite with the complete flake-rerun ladder | ~10–12 min | Authoritative release gate |
+| `PYTHONPATH=tests pytest tests/<one-file>.py -v` | One file/test | seconds | Focused debugging |
 
 `--pr` + `--nightly` together cover the same tests as the bare full run.
 
 ### Environment variables the harness reads
 
 Set these to point the fleet at the right binaries and paths (all have
-defaults in `tests/manage_test_servers.sh` / `tests/lib/`):
+defaults in `tests/cmdscripts/manage_test_servers.py` / `tests/lib/`):
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `NGINX_BIN` | `/tmp/nginx-1.28.3/objs/nginx` | The nginx binary the fleet launches — **the key knob** |
 | `TEST_ROOT` | `/tmp/xrd-test` | Fleet prefix: data, PKI, logs, pidfiles |
 | `REF_BIN` | `xrootd` | Reference XRootD for conformance/differential lanes |
-| `TEST_OWN_FLEET` | (set by `run_suite.sh`) | Force a clean own-fleet start; never attach to a stale fleet |
+| `TEST_OWN_FLEET` | (set by the suite runner) | Force a clean own-fleet start; never attach to a stale fleet |
 | `NGINX_CONF_PREGENERATED` | `0` | If `1`, the caller already wrote `conf/nginx.conf`; skip templating |
 
 ---
@@ -234,9 +236,9 @@ make -j"$(nproc)"          # produces objs/nginx == the default NGINX_BIN
 
 ```bash
 cd "$REPO"
-tests/run_suite.sh --fast        # ~4 min smoke
-tests/run_suite.sh --pr          # <5 min gate
-tests/run_suite.sh               # ~10–12 min authoritative full run
+PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --fast    # ~4 min smoke
+PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --pr      # <5 min gate
+PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite           # ~10–12 min authoritative full run
 ```
 
 If you built nginx somewhere else, export `NGINX_BIN=/that/path/objs/nginx`
@@ -253,7 +255,7 @@ fleet's top-level configs.
 **1. Install the tests package** (Part 1.2 first, then):
 
 ```bash
-sudo dnf install -y /tmp/brix-rpms/brix-cache-tests-1.1.1-20.el9.noarch.rpm
+sudo dnf install -y /tmp/brix-rpms/brix-cache-tests-2.0.0-1.el9.noarch.rpm
 ```
 
 It installs to `/usr/share/brix/` (`conftest.py`, `pytest.ini`,
@@ -293,7 +295,7 @@ injected `load_module` lines from the fleet config it is handed with `-c`:
 ```bash
 export NGINX_BIN=/usr/sbin/nginx      # the stock nginx the RPM's module targets
 export REF_BIN=xrootd                 # optional: reference XRootD for conformance lanes
-PYTHONPATH=tests tests/run_suite.sh --fast
+PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --fast
 ```
 
 **Scope caveat for a *full* Path B run:** the `events {`-guarded loop covers the
@@ -314,11 +316,11 @@ authoritative full run, **Path A is the reliable choice** — Path B is best for
 | `unknown directive "brix_root"` when the fleet starts | Module not in the fleet's nginx | Path A: rebuild with a non-empty `--add-module=$REPO`. Path B: run the §B.3 injection loop |
 | `nginx binary not found/executable: …` | `NGINX_BIN` points nowhere | Export `NGINX_BIN` to your `objs/nginx` (A) or `/usr/sbin/nginx` (B) |
 | Conformance/differential tests error, not skip | `REF_BIN` (`xrootd`) missing or wrong | Install the site XRootD RPM, or accept those lanes as skipped for a non-conformance check |
-| GSI tests fail `No protocols left to try` | Stale zombie fleet was attached to, PKI not regenerated | The runner sets `TEST_OWN_FLEET=1`; if you invoked pytest directly, run `tests/manage_test_servers.sh stop-all` then use `run_suite.sh` |
+| GSI tests fail `No protocols left to try` | Stale zombie fleet was attached to, PKI not regenerated | The runner sets `TEST_OWN_FLEET=1`; if you invoked pytest directly, run `python3 -m cmdscripts.manage_test_servers stop-all` from `tests/`, then use the runner |
 | `Connection refused` on a test port | Another process holds the fixed port, or the fleet did not start | `ss -tlnp | grep 11094`; see [test-fleet-ports.md](../10-reference/test-fleet-ports.md) |
 | Whole run aborts: "Different tests collected" / xdist workers crash | Box overloaded (`-n16` crashes workers; the shared fleet caps useful parallelism at `-n12`) | Let the box settle, re-run; the runner already caps at `-n12` |
-| `kXR_FileLocked` / 30 s hangs after a crashed run | Orphaned workers or a dead FUSE mount from a prior run | `tests/manage_test_servers.sh stop-all`; `pkill -9 nginx`; see [troubleshooting-runbook.md](troubleshooting-runbook.md) |
-| Manual/fleet dead right after a pytest run | A lane's teardown reaped the fleet | Re-start with `run_suite.sh` (own-fleet) or `manage_test_servers.sh start-all` |
+| `kXR_FileLocked` / 30 s hangs after a crashed run | Orphaned workers or a dead FUSE mount from a prior run | `python3 -m cmdscripts.manage_test_servers stop-all` (from `tests/`); `pkill -9 nginx`; see [troubleshooting-runbook.md](troubleshooting-runbook.md) |
+| Manual/fleet dead right after a pytest run | A lane's teardown reaped the fleet | Re-start with the suite runner (own-fleet) or `python3 -m cmdscripts.manage_test_servers start-all` |
 
 For the symptom-indexed master runbook (worker stalls, lock poisoning, dead
 FUSE mounts, configure-built-a-bare-nginx, port lookup), see

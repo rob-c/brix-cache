@@ -3,6 +3,8 @@ _reexport(globals(), "_test_cvmfs_conformance_srv_http_helpers")
 
 pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_srv_http")
 
+@pytest.mark.parametrize("spec", [s[1] for s in SINGLE_RANGES],
+                         ids=[s[0] for s in SINGLE_RANGES])
 def test_single_range(srv, big, spec):
     path, ref = big
     hdr, start, end = spec(len(ref))

@@ -232,6 +232,9 @@ typedef struct {
     size_t  bytes_read_total;
     size_t  response_bytes;
     int     io_error;
+    int     io_errno;     /* §4.5: the driver errno behind io_error, so the
+                           * completion can tell a serve-while-filling EAGAIN
+                           * (kXR_wait) from a real fault (kXR_IOError) */
     char    err_msg[64];
     uint64_t start_ns;    /* phase-56 D-2: stamped at post, read in done */
 } brix_readv_aio_t;

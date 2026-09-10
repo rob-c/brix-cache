@@ -49,7 +49,14 @@ typedef enum {
     BRIX_AUTH_GROUP = 'g',
     BRIX_AUTHDB_HOST = 'p',   /* authdb rule type; distinct from the
                                  * BRIX_AUTH_HOST auth-mode macro (tunables.h) */
-    BRIX_AUTH_ALL   = 'a'
+    BRIX_AUTH_ALL   = 'a',
+    /* 2.0 F20: the two VOMS-attribute selectors.  They exist ONLY in the native
+     * engine's field-1 alphabet (the xrdacc port spells the same two concepts
+     * `o` and `r`, and its grammar is frozen byte-for-byte against XrdAcc).
+     * `l` was chosen for the role selector because `r` is already the READ
+     * privilege letter in field 4 and reusing it across fields reads wrong. */
+    BRIX_AUTH_VORG  = 'v',    /* VOMS virtual organisation (identity acc_vorg) */
+    BRIX_AUTH_ROLE  = 'l'     /* VOMS role               (identity acc_role)  */
 } brix_auth_type_t;
 
 #define BRIX_AUTH_READ    0x01  /* 'r' */
@@ -58,16 +65,37 @@ typedef enum {
 #define BRIX_AUTH_DELETE  0x08  /* 'd' */
 #define BRIX_AUTH_MKDIR   0x10  /* 'm' */
 #define BRIX_AUTH_ADMIN   0x20  /* 'k' */
+#define BRIX_AUTH_STAGE   0x40  /* 'x' — drive a tape/nearline recall or evict */
+
+/* 2.0 F20: a native authdb rule may AND together up to this many identity
+ * selectors in field 1 (`u g p a v l`, each at most once).  Six is the size of
+ * the alphabet, so the cap can never reject a well-formed line. */
+#define BRIX_AUTHDB_MAX_SELECTORS  6
 
 /* The XrdAcc engine selector + audit constants live in src/acc/privs.h (pure,
  * shared by the stream / WebDAV / S3 modules); pulled in via the include below. */
 #include "auth/authz/acc/privs.h"
 
+/*
+ * One native-engine authdb rule.
+ *
+ * `nsel` selectors are AND-ed: the rule applies only to a subject that
+ * satisfies EVERY sel[i]/sel_id[i] pair.  A single-selector rule (the only
+ * shape that existed before 2.0 F20) takes its id verbatim, so a DN containing
+ * any character at all keeps working; a compound rule splits its id token on
+ * '|' into exactly `nsel` values, positionally aligned with the selectors.
+ *
+ * `type` / `id` are kept as the selector-0 alias so every reader that predates
+ * the compound form still sees what it saw before.
+ */
 typedef struct {
-    brix_auth_type_t type;
-    ngx_str_t          id;       /* user DN, VO name, or hostname */
+    brix_auth_type_t type;       /* == sel[0] */
+    ngx_str_t          id;       /* == sel_id[0]: user DN, VO name, hostname... */
     ngx_str_t          path;
     uint32_t           privs;    /* bitmask */
+    ngx_uint_t         nsel;     /* 1..BRIX_AUTHDB_MAX_SELECTORS */
+    brix_auth_type_t   sel[BRIX_AUTHDB_MAX_SELECTORS];
+    ngx_str_t          sel_id[BRIX_AUTHDB_MAX_SELECTORS];
     char               resolved[PATH_MAX];
 } brix_authdb_rule_t;
 

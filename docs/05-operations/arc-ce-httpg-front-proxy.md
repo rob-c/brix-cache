@@ -125,7 +125,7 @@ Design choices that make it fail closed rather than fail quiet:
 |---|---|
 | `ssl_verify_client on` (not `optional`) | anonymous/untrusted clients die at nginx — the ARC-CE's attack surface is only ever exposed to CA-verified grid identities |
 | `$brix_delegated_cred` is `""` on any miss | **no static fallback credential exists anywhere**; an un-delegated identity — or an expired proxy — cannot ride anyone else's credential (an empty `proxy_ssl_certificate` sends no client cert at all) |
-| `proxy_ssl_verify on` + `brix_proxy_ssl_capath` | the gateway refuses to hand user credentials to an impostor backend |
+| `proxy_ssl_verify on` + `brix_backend_ca_dir` | the gateway refuses to hand user credentials to an impostor backend |
 | `brix_guard` before `proxy_pass` | scanner junk never consumes an ARC connection |
 
 ## 4. Delegation: how a user's credential gets to the gateway
@@ -188,10 +188,10 @@ http {
         # Production hosts have no bundle file, only the IGTF hashed dir.
         # brix_client_certificate_folder auto-picks the hostcert issuer's
         # <hash>.0 file out of the dir (replaces ssl_client_certificate —
-        # must come AFTER ssl_certificate); brix_ssl_client_capath then
+        # must come AFTER ssl_certificate); brix_client_certificate_folder then
         # trusts the WHOLE hashed dir for client verification:
         brix_client_certificate_folder /etc/grid-security/certificates;
-        brix_ssl_client_capath         /etc/grid-security/certificates;
+        brix_client_certificate_folder         /etc/grid-security/certificates;
         ssl_verify_client      on;          # no cert / untrusted cert
         ssl_verify_depth       10;          #   -> rejected here, never proxied
         brix_webdav_proxy_certs on;         # accept RFC 3820 proxy chains
@@ -202,9 +202,9 @@ http {
             brix_webdav on;
             brix_export /var/lib/brix-arc/export;
             brix_allow_write on;            # REQUIRED: read-only 403s the PUT
-            # Hashed-dir form of brix_webdav_cafile — same trust source as
+            # Hashed-dir form of brix_trusted_ca — same trust source as
             # the TLS front leg, no bundle file needed:
-            brix_webdav_cadir /etc/grid-security/certificates;
+            brix_trusted_ca_dir /etc/grid-security/certificates;
             brix_webdav_auth required;
             # Optional: defaults to /dev/shm/brix-creds — a RAM-backed
             # (tmpfs) store created 0700 at config time, so delegated
@@ -231,7 +231,7 @@ http {
             proxy_ssl_certificate_key     $brix_delegated_cred;
             # Hashed-dir trust for the back leg (replaces the file-only
             # proxy_ssl_trusted_certificate — no bundle file needed):
-            brix_proxy_ssl_capath /etc/grid-security/certificates;
+            brix_backend_ca_dir /etc/grid-security/certificates;
             proxy_ssl_verify on;                # never leak creds to an
             proxy_ssl_name arc-ce.internal;     # impostor backend
             proxy_ssl_server_name on;
@@ -329,9 +329,9 @@ Render §5's config with front port 18443, backend port
 18444, and host cert/key from 6.4 — no per-user entries exist. The testbed
 has a single `$CA` file rather than an IGTF hashed dir: either build one
 (`mkdir certs && cp $CA certs/$(openssl x509 -subject_hash -noout -in $CA).0`)
-and point `brix_client_certificate_folder`, `brix_ssl_client_capath`,
-`brix_webdav_cadir`, and `brix_proxy_ssl_capath` at it, or replace those with
-`ssl_client_certificate $CA` / `brix_webdav_cafile $CA` /
+and point `brix_client_certificate_folder`, `brix_client_certificate_folder`,
+`brix_trusted_ca_dir`, and `brix_backend_ca_dir` at it, or replace those with
+`ssl_client_certificate $CA` / `brix_trusted_ca $CA` /
 `proxy_ssl_trusted_certificate $CA`. Then:
 
 ```bash
@@ -478,7 +478,7 @@ The three failure lanes, side by side:
 | delegation PUT → 403, nginx error page, no delegation log line | delegation location lacks `brix_allow_write on` (read-only export refuses the PUT before delegation dispatch) |
 | delegation PUT → 403 with a `GSI auth OK dn=".../CN=<serial>"` log line | upload was authenticated with the **proxy**; use the EEC cert/key (§4) |
 | arcsub OK but arcget/arcstat hit the backend directly or 404 | `proxy_set_header Host $http_host` missing — A-REX builds session hrefs from Host |
-| back leg 502/SSL errors | `proxy_ssl_name`/`brix_proxy_ssl_capath` don't match the ARC host cert (with the docker image: run it `--hostname localhost` and trust the regenerated test CA's hashed dir, **not** the IGTF one) |
+| back leg 502/SSL errors | `proxy_ssl_name`/`brix_backend_ca_dir` don't match the ARC host cert (with the docker image: run it `--hostname localhost` and trust the regenerated test CA's hashed dir, **not** the IGTF one) |
 | everything on the container 40x's after a while | the image's baked-in test CA was expired at first start and you skipped §6.2, or the regenerated certs expired — rerun `arcctl test-ca ...` |
 | authenticated user's ARC requests fail with no credential | that user never delegated, or the delegated proxy expired — check `creds/x5h-*.pem` exists and is fresh (an expired file is logged at `info` as `brix_delegated_cred: ... expired — re-delegation required`) |
 | `docker run -p` fails with a `/forwards/expose` 500 (WSL2) | transient WSL port-forward flake — pick another host port |

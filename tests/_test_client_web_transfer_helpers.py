@@ -17,6 +17,7 @@ import hashlib
 import os
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import threading
 import time
 from contextlib import contextmanager
@@ -76,8 +77,7 @@ def _client_built():
     import shutil
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
-    r = subprocess.run(["make", "-C", CLIENT_DIR, "xrdcp"],
-                       capture_output=True, text=True, timeout=240)
+    r = client_make(CLIENT_DIR, "xrdcp", capture_output=True, text=True, timeout=240)
     if not os.path.exists(XRDCP):
         pytest.skip(f"xrdcp build failed:\n{r.stdout}\n{r.stderr}")
 
@@ -196,7 +196,6 @@ def _build_vfs_s3_smoke():
     import shutil
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
-    r = subprocess.run(["make", "-C", CLIENT_DIR, "vfs-s3-smoke"],
-                       capture_output=True, text=True, timeout=300)
+    r = client_make(CLIENT_DIR, "vfs-s3-smoke", capture_output=True, text=True, timeout=300)
     if not os.path.exists(VFS_S3_SMOKE):
         pytest.skip(f"vfs-s3-smoke build failed:\n{r.stdout}\n{r.stderr}")

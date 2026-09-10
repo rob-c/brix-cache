@@ -68,7 +68,7 @@ void
 brix_vfs_deleg_set_exchange(brix_vfs_ctx_t *vctx,
     const ngx_str_t *endpoint, const ngx_str_t *client_id,
     const ngx_str_t *client_secret, const ngx_str_t *audience,
-    void **tx_cache_slot)
+    void **tx_cache_slot, const struct brix_dns_policy_s *dns)
 {
     brix_deleg_live_t *live;
 
@@ -91,6 +91,7 @@ brix_vfs_deleg_set_exchange(brix_vfs_ctx_t *vctx,
         live->tx_audience = *audience;
     }
     live->tx_cache_slot = tx_cache_slot;
+    live->tx.dns = dns;                  /* phase-116: pin the endpoint host */
 }
 
 /* ---- brix_vfs_deleg_set_ca_store -------------------------------------------

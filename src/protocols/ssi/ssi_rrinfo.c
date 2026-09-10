@@ -57,3 +57,19 @@ brix_ssi_attn_encode(char tag, unsigned char flags, uint16_t pfx_len,
         out[i] = 0;
     }
 }
+
+void
+brix_ssi_attn_decode(const unsigned char in[BRIX_SSI_ATTN_LEN],
+                       char *tag, unsigned char *flags,
+                       uint16_t *pfx_len, uint32_t *md_len)
+{
+    if (tag != NULL) { *tag = (char) in[0]; }
+    if (flags != NULL) { *flags = in[1]; }
+    if (pfx_len != NULL) {
+        *pfx_len = (uint16_t) (((uint16_t) in[2] << 8) | (uint16_t) in[3]);
+    }
+    if (md_len != NULL) {
+        *md_len = ((uint32_t) in[4] << 24) | ((uint32_t) in[5] << 16)
+                | ((uint32_t) in[6] << 8) | (uint32_t) in[7];
+    }
+}

@@ -144,8 +144,9 @@ origin_bs_handshake(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc)
  * WHY: a TLS-for-ztn origin answers the CLEARTEXT kXR_protocol request with a
  *   kXR_gotoTLS advert and expects the client to upgrade THIS fd to TLS before
  *   kXR_login/auth — an immediate SSL_connect at byte 0 (the old behaviour) never
- *   reaches this exchange, so the origin was unreachable. When brix_cache_origin_tls
- *   is set we advertise kXR_ableTLS so the origin knows it may request the upgrade.
+ *   reaches this exchange, so the origin was unreachable. When the backend URL is
+ *   roots:// (synthetic conf flag cache_origin_tls) we advertise kXR_ableTLS so the
+ *   origin knows it may request the upgrade.
  * HOW: send the protocol request on the connector streamid (advertising ableTLS
  *   when configured), inspect the reply flags, and:
  *     - gotoTLS + tls on  → brix_cache_origin_tls_upgrade (every later frame rides
@@ -185,10 +186,18 @@ origin_bs_protocol(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc)
     }
     free(fr.body);
 
+    /* Phase-115 W4.3: keep the advert. This reply is the ONLY place the origin
+     * states what it can do (kXR_suppgrw = it implements kXR_pgread/pgwrite),
+     * and it is read long after this frame is freed — the page-verified read
+     * path asks oc->srv_flags instead of discovering the answer by sending a
+     * request that a pre-5.x origin would answer with kXR_InvalidRequest. */
+    oc->srv_flags = flags;
+
     if (flags & kXR_gotoTLS) {
         if (!t->conf->cache_origin_tls) {
             brix_cache_set_error(t, kXR_TLSRequired, 0,
-                "cache origin requires TLS; enable brix_cache_origin_tls");
+                "cache origin requires TLS; use a roots:// URL in "
+                "brix_storage_backend");
             return -1;
         }
         /* In-place upgrade of the connected fd BEFORE kXR_login/auth: the origin

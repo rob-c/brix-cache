@@ -25,6 +25,7 @@
 
 #include "stage_engine.h"
 #include "stage_engine_internal.h"
+#include "stage_events.h"          /* 2.0 F2 StageEvents feed (brix_frm_stagemsg) */
 #include "xfer.h"                /* BRIX_XFER_* result vocabulary */
 #include "core/aio/aio.h"        /* brix_task_bind (mover thread-offload) */
 
@@ -89,6 +90,8 @@ brix_stage_submit(brix_stage_kind_t kind, brix_sd_instance_t *src,
     stage_pending_tail = p;
 
     stage_journal_write(p);
+    brix_stage_events_emit("engine", "queued", p->reqid, p->dst_key,
+                           "kind", brix_stage_kind_str(p->kind), NULL);
     snprintf(last_reqid, sizeof(last_reqid), "%s", p->reqid);
     return last_reqid;          /* non-empty = deferred; the caller may park on it */
 }
@@ -127,6 +130,8 @@ stage_complete(brix_stage_kind_t kind, brix_sd_instance_t *src,
             (void) src->driver->unlink(src, src_key, 0);
         }
         stage_journal_remove(reqid);
+        brix_stage_events_emit("engine", "done", reqid, dst_key,
+                               "kind", brix_stage_kind_str(kind), NULL);
         return;
     }
 
@@ -172,11 +177,11 @@ stage_complete(brix_stage_kind_t kind, brix_sd_instance_t *src,
 
 #if (NGX_THREADS)
 
-/* In-flight offloaded movers (per-worker), bounded so a burst never floods the
- * thread pool nor unbounds memory. The tick stops starting new ones at the cap and
- * resumes next tick as they drain. */
+/* In-flight offloaded movers (per-worker), bounded (stage_max_inflight =
+ * brix_frm_copymax, 2.0 F1) so a burst never floods the thread pool nor unbounds
+ * memory. The tick stops starting new ones at the cap and resumes next tick as
+ * they drain. */
 static ngx_uint_t stage_inflight;
-#define STAGE_MAX_INFLIGHT 8
 
 /* The off-loop mover task (lives on its own small pool, freed in the done event).
  * `cred` carries the owner identity so the flush thread can re-resolve the per-user
@@ -266,6 +271,7 @@ stage_flush_offload(const stage_pending_t *p, ngx_thread_pool_t *pool)
         return NGX_DECLINED;
     }
     stage_inflight++;
+    brix_stage_events_emit("engine", "started", p->reqid, p->dst_key, NULL);
     return NGX_OK;
 }
 
@@ -303,7 +309,7 @@ brix_stage_scheduler_tick(void)
          * (recovered by reconcile), so the on-disk record is dropped only in the
          * completion. */
         if (pool != NULL) {
-            if (stage_inflight >= STAGE_MAX_INFLIGHT) {
+            if (stage_inflight >= stage_max_inflight) {
                 break;                      /* let in-flight drain; resume next tick */
             }
             if (stage_flush_offload(p, pool) == NGX_OK) {
@@ -325,6 +331,8 @@ brix_stage_scheduler_tick(void)
         {
             const brix_stage_cred_t *credp =
                 (p->cred.key[0] != '\0') ? &p->cred : NULL;
+            brix_stage_events_emit("engine", "started", p->reqid, p->dst_key,
+                                   NULL);
             errno = 0;
             res = stage_engine_run(p->kind, p->src, p->src_key, p->dst,
                                    p->dst_key, credp);

@@ -8,7 +8,8 @@
  * WHAT: The prepare pipeline (split verbatim out of launch.c on 2026-07-14 for
  * file-size). tpc_refuse answers every refusal on this path;
  * tpc_prepare_check_preconditions is the security-load-bearing guard ladder
- * (thread pool → source host/path → source-name allowlist → SSRF range gate);
+ * (thread pool → source host/path → source-name allowlist → SSRF range gate,
+ * answered from the DNS cache or parked on an async resolve in launch_dns.c);
  * tpc_open_destination opens the destination through the identity-bound VFS,
  * random-write handle or staged writer; tpc_init_dst_file populates the
  * ctx->files[] slot; tpc_send_open_response builds the kXR_ok body (fhandle +
@@ -21,8 +22,9 @@
  * the event thread; execution runs in the pool, so nginx answers the client's
  * open immediately while the fetch proceeds.
  *
- * HOW: preconditions → brix_alloc_fhandle → tpc_open_destination →
- * tpc_init_dst_file → brix_set_fhandle_path → session publish → open response.
+ * HOW: preconditions → brix_tpc_prepare_pull_resolved (brix_alloc_fhandle →
+ * tpc_open_destination → tpc_init_dst_file → brix_set_fhandle_path → session
+ * publish → open response), the second half re-entered by launch_dns.c.
  * Any gate that refuses returns TPC_ANSWERED and the pipeline stops there.
  * */
 #include "protocols/root/session/registry.h"
@@ -34,9 +36,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include <netdb.h>
-#include <netinet/in.h>   /* sockaddr_in6 / in6_addr — IPv4-mapped tpc.org */
-#include <arpa/inet.h>    /* inet_ntop — XrdNetAddr-matching numeric literal */
 #include "core/compat/alloc_guard.h"
 #include "core/compat/cstr.h"
 #include "fs/path/path.h"                 /* brix_sanitize_log_string */
@@ -121,97 +120,6 @@ tpc_send_open_response(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     return brix_queue_response(ctx, c, buf, total);
 }
 
-/* WHAT: Construct origin ID string from ctx->login.user+ngx_pid+getnameinfo host via snprintf("%s.%u@host") — falls back to "xrd" for empty user, ngx_pid for zero pid, addr_text.len then "unknown" for unresolved host. Caller: brix_tpc_prepare_pull (origin ID storage step). */
-
-static void
-tpc_build_origin_id(brix_ctx_t *ctx, ngx_connection_t *c, char *dst,
-    size_t dst_size)
-{
-    char        host[NI_MAXHOST];
-    const char *user;
-    uint32_t    pid;
-
-    user = ctx->login.user[0] != '\0' ? ctx->login.user : "xrd";
-    pid = ctx->login.pid != 0 ? ctx->login.pid : (uint32_t) ngx_pid;
-
-    host[0] = '\0';
-
-    /* Present the client host EXACTLY as the XRootD TPC source stores it in the
-     * rendezvous grant (XrdOfsTPC::genOrg -> XrdNetAddr::Name): the source pairs
-     * the destination's tpc.org against the grant with a raw strcmp
-     * (XrdOfsTPCInfo::Match), so any textual divergence leaves the grant
-     * unredeemed until it TTL-expires — the destination's pull-open then hangs on
-     * kXR_waitresp and finally fails "[3012] TPC kXR_open recv failed". Every
-     * XRootD server is IPv6 dual-stack, so it sees an IPv4 client as the
-     * IPv4-MAPPED address ::ffff:a.b.c.d and reverse-resolves THAT (which fails
-     * for non-DNS hosts like loopback -> numeric bracketed literal). brix's TPC
-     * listener is IPv4-only, so a naive getnameinfo() on the bare IPv4 resolves
-     * 127.0.0.1 -> "localhost" while the grant holds "[::ffff:127.0.0.1]". Match
-     * the source: map an IPv4 peer into ::ffff:a.b.c.d, reverse-resolve the mapped
-     * form, and fall back to its bracketed numeric literal. */
-    if (c->sockaddr != NULL) {
-        struct sockaddr_in6  mapped;
-        struct sockaddr     *sa    = c->sockaddr;
-        socklen_t            salen = c->socklen;
-
-        if (c->sockaddr->sa_family == AF_INET) {
-            const struct sockaddr_in *s4 =
-                (const struct sockaddr_in *) c->sockaddr;
-
-            ngx_memzero(&mapped, sizeof(mapped));
-            mapped.sin6_family = AF_INET6;
-            mapped.sin6_port   = s4->sin_port;
-            mapped.sin6_addr.s6_addr[10] = 0xff;
-            mapped.sin6_addr.s6_addr[11] = 0xff;
-            ngx_memcpy(&mapped.sin6_addr.s6_addr[12], &s4->sin_addr, 4);
-            sa    = (struct sockaddr *) &mapped;
-            salen = (socklen_t) sizeof(mapped);
-        }
-
-        if (getnameinfo(sa, salen, host, sizeof(host), NULL, 0,
-                        NI_NAMEREQD) != 0) {
-            host[0] = '\0';
-        }
-
-        if (host[0] == '\0' && sa->sa_family == AF_INET6) {
-            char                       numeric[INET6_ADDRSTRLEN];
-            const struct sockaddr_in6 *s6 = (const struct sockaddr_in6 *) sa;
-
-            if (inet_ntop(AF_INET6, &s6->sin6_addr, numeric,
-                          sizeof(numeric)) != NULL) {
-                (void) snprintf(host, sizeof(host), "[%s]", numeric);
-            }
-        }
-    }
-
-    if (host[0] == '\0' && c->addr_text.len > 0) {
-        size_t host_len = c->addr_text.len;
-
-        if (host_len >= sizeof(host)) {
-            host_len = sizeof(host) - 1;
-        }
-        ngx_memcpy(host, c->addr_text.data, host_len);
-        host[host_len] = '\0';
-    }
-
-    if (host[0] == '\0') {
-        ngx_cpystrn((u_char *) host, (u_char *) "unknown", sizeof(host));
-    }
-
-    {
-        int prefix_len;
-
-        prefix_len = snprintf(dst, dst_size, "%s.%u@", user, (unsigned) pid);
-        if (prefix_len < 0 || (size_t) prefix_len >= dst_size) {
-            dst[0] = '\0';
-            return;
-        }
-
-        ngx_cpystrn((u_char *) dst + prefix_len, (u_char *) host,
-                    dst_size - (size_t) prefix_len);
-    }
-}
-
 /* WHAT: Populate a freshly-allocated ctx->files[] slot as a TPC destination:
  * base file metadata from the fstat result, the TPC destination flags, the
  * rendezvous key (echoed from tpc->key or freshly minted), the origin id, the
@@ -220,12 +128,14 @@ tpc_build_origin_id(brix_ctx_t *ctx, ngx_connection_t *c, char *dst,
  * dedicated helper keeps the orchestrator flat while the field assignment order
  * and values (and therefore behaviour) stay byte-for-byte identical.
  * HOW: set rw/cache/size/time scalars → tpc_destination=1 → echo-or-generate
- * tpc_key → tpc_build_origin_id → cpystrn src_host/src_path → store token_mode
+ * tpc_key → brix_tpc_origin_build (origin_id.c: cached PTR or numeric
+ * fallback, a pending PTR is finished on the pull thread) → cpystrn
+ * src_host/src_path → store token_mode
  * from tpc->token_mode when has_token_mode, else the opportunistic
  * "passthrough-opt" when conf->common.tpc_outbound_passthrough is enabled (default on),
  * else empty. The caller sets
- * file->fd before calling. Pure side-effect on *file (no I/O beyond the
- * origin-id host lookup already isolated in its own helper). */
+ * file->fd before calling. Pure side-effect on *file (no I/O: the origin-id
+ * PTR is answered from the cache or left to the pull thread). */
 static void
 tpc_init_dst_file(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, brix_file_t *file,
@@ -264,7 +174,9 @@ tpc_init_dst_file(brix_ctx_t *ctx, ngx_connection_t *c,
         brix_tpc_generate_key(file->tpc_key, sizeof(file->tpc_key));
     }
 
-    tpc_build_origin_id(ctx, c, file->tpc_org, sizeof(file->tpc_org));
+    file->tpc_org_unresolved = (int) brix_tpc_origin_build(ctx, c,
+                                   conf->common.dns.policy, file->tpc_org,
+                                   sizeof(file->tpc_org));
     ngx_cpystrn((u_char *) file->tpc_src_host, (u_char *) tpc->src_host,
                 sizeof(file->tpc_src_host));
     ngx_cpystrn((u_char *) file->tpc_src_path, (u_char *) tpc->src_path,
@@ -292,6 +204,11 @@ tpc_init_dst_file(brix_ctx_t *ctx, ngx_connection_t *c,
     } else {
         file->tpc_token_mode[0] = '\0';
     }
+
+    /* F7: the client's tpc.str wish, clamped by brix_tpc_streams (this
+     * destination's cap) and TPC_STREAMS_MAX — never trusted raw. */
+    file->tpc_streams = tpc_stream_plan_clamp(tpc->has_str ? tpc->str : NULL,
+                                              (int) conf->tpc_streams);
 }
 
 /* WHAT: Emit one fail2ban-parseable audit line for a TPC egress the source
@@ -347,15 +264,18 @@ tpc_egress_emit_signal(brix_ctx_t *ctx, ngx_connection_t *c, const char *host)
  *       reviewable.
  * HOW:  thread_pool NULL → kXR_ServerError; empty src host/path → kXR_ArgInvalid;
  *       brix_tpc_source_guard_check != 0 → kXR_NotAuthorized + guard signal;
- *       brix_tpc_check_src_policy != 0 → kXR_NotAuthorized. */
+ *       brix_tpc_check_src_policy < 0 → kXR_NotAuthorized, > 0 (no cached
+ *       answer) → brix_tpc_prepare_park_dns parks the open on an async resolve
+ *       and the verdict is delivered by launch_dns.c (TPC_ANSWERED here). */
 static ngx_int_t
 tpc_prepare_check_preconditions(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc,
-    const char *dst_path)
+    const char *dst_path, uint16_t options, uint16_t mode_bits)
 {
     char     policy_err[512];
     char     egress_err[512];
     uint16_t sport;
+    int      verdict;
 
     if (conf->common.thread_pool == NULL) {
         return brix_tpc_refuse(ctx, c, dst_path, kXR_ServerError,
@@ -388,17 +308,24 @@ tpc_prepare_check_preconditions(brix_ctx_t *ctx, ngx_connection_t *c,
 
     /*
      * Source policy gate (SSRF defence): before we ever connect outbound, the
-     * resolved source host/port is checked against the loopback/private-range
+     * source host's addresses are checked against the loopback/private-range
      * allow flags. A destination server must not be coercible into pulling from
-     * internal addresses unless the operator explicitly permits it.
+     * internal addresses unless the operator explicitly permits it.  The verdict
+     * is answered from an IP literal or the per-worker DNS cache; an unknown
+     * name parks this open on an async resolve (launch_dns.c) and the verdict is
+     * delivered when the answer arrives — the event loop never blocks on DNS
+     * (I-DNS-1), and the pull thread re-checks every candidate it actually
+     * dials (I-DNS-3).
      */
     sport = tpc->src_port ? tpc->src_port : 1094;
-    if (brix_tpc_check_src_policy(tpc->src_host, sport,
-            conf->common.tpc_allow_local, conf->common.tpc_allow_private,
-            policy_err, sizeof(policy_err))
-        != 0)
-    {
+    verdict = brix_tpc_check_src_policy(conf, tpc->src_host, sport,
+                                        policy_err, sizeof(policy_err));
+    if (verdict < 0) {
         return brix_tpc_refuse(ctx, c, dst_path, kXR_NotAuthorized, policy_err);
+    }
+    if (verdict > 0) {
+        return brix_tpc_prepare_park_dns(ctx, c, conf, tpc, dst_path, options,
+                                         mode_bits);
     }
 
     return NGX_OK;
@@ -410,19 +337,33 @@ brix_tpc_prepare_pull(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc,
     const char *dst_path, uint16_t options, uint16_t mode_bits)
 {
+    ngx_int_t  pre;
+
+    /* TPC_ANSWERED means the gate refused (or parked the open on DNS) and
+     * already said so on the wire; the wire contract spells "handled, nothing
+     * more to send" NGX_OK. Collapsing the two here — and only here — is what
+     * keeps a refusal from reading as consent one frame up while still ending
+     * the request. */
+    pre = tpc_prepare_check_preconditions(ctx, c, conf, tpc, dst_path, options,
+                                          mode_bits);
+    if (pre != NGX_OK) {
+        return pre == TPC_ANSWERED ? NGX_OK : pre;
+    }
+
+    return brix_tpc_prepare_pull_resolved(ctx, c, conf, tpc, dst_path, options,
+                                          mode_bits);
+}
+
+
+ngx_int_t
+brix_tpc_prepare_pull_resolved(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc,
+    const char *dst_path, uint16_t options, uint16_t mode_bits)
+{
     brix_file_t *file;
     struct stat    st;
     ngx_int_t      pre;
     int            idx;
-
-    /* TPC_ANSWERED means the gate refused and already said so on the wire; the
-     * wire contract spells "handled, nothing more to send" NGX_OK. Collapsing the
-     * two here — and only here — is what keeps a refusal from reading as consent
-     * one frame up while still ending the request. */
-    pre = tpc_prepare_check_preconditions(ctx, c, conf, tpc, dst_path);
-    if (pre != NGX_OK) {
-        return pre == TPC_ANSWERED ? NGX_OK : pre;
-    }
 
     idx = brix_alloc_fhandle(ctx);
     if (idx < 0) {

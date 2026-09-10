@@ -64,6 +64,8 @@ brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
     conf->gsi_signed_dh = NGX_CONF_UNSET_UINT;
     conf->signing_policy_mode = NGX_CONF_UNSET_UINT;
     conf->crl_mode     = NGX_CONF_UNSET_UINT;
+    conf->crl_scope    = NGX_CONF_UNSET_UINT;   /* 2.0 F19 */
+    conf->tls_verify_log = NGX_CONF_UNSET_UINT; /* 2.0 F19 */
     conf->gsi_max_inflight = NGX_CONF_UNSET;
     conf->gsi_verify_depth = NGX_CONF_UNSET;
     conf->tls_reuse        = NGX_CONF_UNSET;
@@ -85,6 +87,7 @@ brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
     conf->jwks_mtime                 = 0;
     conf->jwks_timer                  = NULL;
     conf->sss_lifetime      = NGX_CONF_UNSET;
+    conf->sss_getcreds      = NGX_CONF_UNSET;
     conf->sss_keys          = NULL;
     brix_krb5_conf_init(&conf->krb5);
     conf->unix_trust_remote = NGX_CONF_UNSET;
@@ -123,7 +126,6 @@ brix_create_srv_storage(ngx_stream_brix_srv_conf_t *conf)
     conf->oss_maxsize  = NGX_CONF_UNSET;
     conf->oss_quota    = NGX_CONF_UNSET;
     conf->oss_quota_enforce = NGX_CONF_UNSET;
-    conf->pss_dca      = NGX_CONF_UNSET;
     conf->dirstats     = NGX_CONF_UNSET;
     /* oss_cgroup left {0,NULL} → merged to "default" below. */
     conf->tls_ctx      = NULL;
@@ -158,10 +160,9 @@ brix_create_srv_storage(ngx_stream_brix_srv_conf_t *conf)
     conf->cache_wt_stage_rootfd    = -1;
     conf->cache_wt_store_rootfd    = -1;
     /* cache_state_root left zeroed (ngx_str_t {0,NULL}) by pcalloc */
-    conf->cache_verify             = NGX_CONF_UNSET_UINT;
-    /* cache_verify_digest left zeroed (ngx_str_t {0,NULL}) by pcalloc */
     conf->advertise.enable          = NGX_CONF_UNSET;
     conf->advertise.interval = NGX_CONF_UNSET_MSEC;
+    conf->advertise.federation_port = NGX_CONF_UNSET_UINT;
     conf->backend_async             = NGX_CONF_UNSET;
     conf->backend_async_batch       = NGX_CONF_UNSET_UINT;
     conf->backend_async_wait        = NGX_CONF_UNSET_MSEC;
@@ -208,8 +209,11 @@ brix_create_srv_cluster(ngx_stream_brix_srv_conf_t *conf)
     conf->cns_mode          = NGX_CONF_UNSET_UINT;
     conf->tpc_key_ttl_ms    = NGX_CONF_UNSET_MSEC;
     conf->tpc_max_transfer_secs = NGX_CONF_UNSET_UINT;
+    conf->tpc_max_hops          = NGX_CONF_UNSET_UINT;
+    conf->tpc_streams           = NGX_CONF_UNSET_UINT;
     /* tpc_verify_checksum now lives in common.* (phase-101 W4), init'd by the
      * shared preamble as a str ("" = off). */
+    conf->tpc_push          = NGX_CONF_UNSET;
     conf->tpc_delegate      = NGX_CONF_UNSET;
     conf->tpc_transfer_max_age  = NGX_CONF_UNSET;
 }
@@ -227,6 +231,7 @@ brix_create_srv_proxy_net(ngx_stream_brix_srv_conf_t *conf)
 {
     brix_proxy_conf_init(&conf->proxy);
     conf->upstream_addr = NULL;
+    conf->upstream_dns = NULL;
     conf->upstream_tls = NGX_CONF_UNSET;
     conf->upstream_ssl_verify = NGX_CONF_UNSET;
 #if (NGX_SSL)
@@ -238,6 +243,10 @@ brix_create_srv_proxy_net(ngx_stream_brix_srv_conf_t *conf)
     conf->upstream_tls_name.data = NULL;
     conf->upstream_token_file.len  = 0;
     conf->upstream_token_file.data = NULL;
+    conf->upstream_x509_proxy.len  = 0;
+    conf->upstream_x509_proxy.data = NULL;
+    conf->upstream_x509_key.len    = 0;
+    conf->upstream_x509_key.data   = NULL;
 
     conf->max_delay         = NGX_CONF_UNSET;
     conf->fsoverload_stall  = NGX_CONF_UNSET;
@@ -325,7 +334,9 @@ ngx_stream_brix_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     if (brix_merge_srv_storage(cf, conf, prev) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
-    brix_merge_srv_tpc(conf, prev);
+    if (brix_merge_srv_tpc(cf, conf, prev) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
     if (brix_merge_srv_cluster(cf, conf, prev) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }

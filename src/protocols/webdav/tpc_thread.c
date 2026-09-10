@@ -130,8 +130,8 @@ tpc_thread_record_size(tpc_thread_ctx_t *t)
 /*
  * WHAT: SSRF preflight for the remote URL; returns NGX_OK to proceed or
  *       NGX_ERROR after fully finalising the failure (status/registry/metric).
- * WHY:  getaddrinfo() blocks, so the resolve-and-vet must run on the worker
- *       thread before curl forks; a blocked address must be rejected exactly
+ * WHY:  the resolve-and-vet blocks (brix_dns_resolve_sync), so it must run
+ *       on the worker thread before curl forks; a blocked address must be rejected exactly
  *       once with a 403 and error bookkeeping.
  * HOW:  parses the URL under the conf-derived policy, checks DNS, and on
  *       failure sets t->http_status=403 and calls tpc_thread_fail().  A NULL
@@ -158,6 +158,7 @@ tpc_thread_ssrf_preflight(tpc_thread_ctx_t *t)
     net_policy.allow_local        = t->conf->common.tpc_allow_local;
     net_policy.allow_private      = t->conf->common.tpc_allow_private;
     net_policy.default_https_port = 443;
+    net_policy.dns                = t->conf->common.dns.policy;
 
     if (brix_net_target_parse(NULL, &url_str, &net_target,
                                 ssrf_err, sizeof(ssrf_err)) == NGX_OK

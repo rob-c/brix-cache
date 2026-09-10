@@ -306,7 +306,8 @@ def cmd_test(argv):
 def _scenario_lines(scenario, args):
     if scenario == "authorities":
         return scenario_authorities(args[0] if args else "gsi")
-    if scenario in ("suite", "remote-suite", "s3fwd", "s3gsi", "s3voms", "pbgsi", "gridftp"):
+    if scenario in ("suite", "remote-suite", "s3fwd", "s3gsi", "s3voms",
+                    "pbgsi", "gridftp", "gridftp-outbound"):
         from . import lab_suite
         return lab_suite.run(scenario, args)
     if scenario in ("ceph-docker", "ceph-rpmbuild"):

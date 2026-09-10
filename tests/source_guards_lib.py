@@ -193,12 +193,38 @@ def _stale_client_allowlist(root: Path) -> list[str]:
     ]
 
 
+# The hand-written rebuilds of the brixcvmfs split (tests/cmdscripts/*.py gcc
+# lines, tests/c/*.c that include a member) are checked by symbol, not by list:
+# phase-116 gave the transport a sibling TU for the libcurl address pin, and a
+# site that compiles the transport without it dies at link on
+# cvmfs_curl_perform_pinned. One implementation only — this twin delegates to
+# the CI guard rather than keeping a second copy of a link check that drifted
+# once already.
+def _load_ci_guard(stem: str):
+    """Import a tools/ci module by path — that tree has no ``__init__.py``."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(stem, ROOT / "tools/ci" / f"{stem}.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_CLIENT_BUILD_CI = _load_ci_guard("check_client_build_coverage")
+
+
+def _live_build_gaps(root: Path, makefile: str) -> list[str]:
+    """Link gaps in every hand-written rebuild of the split (CI guard verdict)."""
+    return _CLIENT_BUILD_CI._live_link_gaps(root, makefile)
+
+
 def client_build_coverage(root: Path = ROOT) -> tuple[bool, list[str]]:
     makefile = (root / "client/Makefile").read_text()
     allow = set(_CLIENT_ALLOWLIST)
     included = _included_client_sources(root)
     msgs = _unbuilt_client_sources(root, makefile, allow, included)
     msgs.extend(_stale_client_allowlist(root))
+    msgs.extend(_live_build_gaps(root, makefile))
 
     return (not msgs, msgs)
 

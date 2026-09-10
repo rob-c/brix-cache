@@ -31,6 +31,15 @@ from server_registry import NginxInstanceSpec
 
 HOST = "127.0.0.1"  # net-literal-allow: loopback literal is the subject under test
 
+# Fixed-port lifecycle subjects: `lc-p105-rl-s3` is started by a FUNCTION-scoped
+# fixture shared by two tests, so under xdist two workers otherwise launch it at
+# once on the same ledger ports and prefix.  The loser's nginx fails bind(), the
+# launcher adopts the winner's master, and the winner's close() then kills the
+# instance out from under the loser (ConnectionRefused after the refill sleep).
+# xdist_group pins every driver of both names to one worker.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-p105-rl")]
+
 _RL_PORT, _RL_EXTRA = lifecycle_ports_for("lc-p105-rl-s3")
 WEBDAV_PORT = _RL_PORT
 S3_PORT = _RL_EXTRA["S3_PORT"]

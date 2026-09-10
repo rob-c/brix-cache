@@ -29,6 +29,7 @@ Run (serial):
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -123,8 +124,7 @@ def _kinit_forwardable():
 @pytest.fixture()
 def deleg_server(lifecycle, tmp_path):
     _guard_deleg_server_1()
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs"],
-                          capture_output=True, text=True, timeout=180)
+    proc = client_make(CLIENT_DIR, "xrdfs", capture_output=True, text=True, timeout=180)
     _guard_deleg_server_2(proc)
     _guard_deleg_server_3()
     _guard_deleg_server_4()

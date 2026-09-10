@@ -50,7 +50,18 @@ webdav_build_ca_store(ngx_log_t *log,
         crl = crl_buf;
     }
 
-    return brix_build_ca_store(log, cadir, cafile, crl, 0, crl_count_out,
-                               (brix_sp_mode_t) conf->common.signing_policy_mode,
-                               (int) conf->common.crl_mode);
+    {
+        /* The whole trust policy travels with the store (see store_policy.h):
+         * signing policy, CRL strictness, CRL scope and the verification-log
+         * level are all read back off the store's ex_data by the verifier. */
+        brix_trust_policy_t pol = BRIX_TRUST_POLICY_INIT;
+
+        pol.sp_mode    = (brix_sp_mode_t) conf->common.signing_policy_mode;
+        pol.crl_mode   = (int) conf->common.crl_mode;
+        pol.crl_scope  = (int) conf->common.crl_scope;
+        pol.verify_log = (int) conf->common.tls_verify_log;
+
+        return brix_build_ca_store(log, cadir, cafile, crl, 0, crl_count_out,
+                                   &pol);
+    }
 }

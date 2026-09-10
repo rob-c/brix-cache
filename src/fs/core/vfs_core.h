@@ -70,6 +70,32 @@ int xvfs_drain(brix_sd_obj_t *src, brix_sd_obj_t *dst, void *buf,
                size_t bufsz, off_t *total);
 
 /*
+ * The byte window a windowed drain is to copy, and what it copied.
+ *
+ * `len` < 0 means "to EOF"; `end` is set on success to one past the last byte
+ * written, so a caller that asked to EOF learns the size it found.
+ */
+typedef struct {
+    off_t  off;     /* in:  first byte to copy                                */
+    off_t  len;     /* in:  bytes to copy, or -1 for "to EOF"                 */
+    off_t  end;     /* out: one past the last byte written                    */
+} xvfs_window_t;
+
+/*
+ * Windowed drain: as xvfs_drain, but copies only [win->off, win->off + win->len)
+ * and writes it into `dst` AT THE SAME OFFSET, so a sparse `dst` holds the
+ * window where the object has it.
+ *
+ * A bounded window that ends early is an ERROR (EIO), never a short copy: the
+ * caller asked for a specific range of a specific object, and a `dst` with a
+ * hole in the middle of that range is indistinguishable from one full of the
+ * object's real zero bytes.  Only an unbounded (len < 0) drain may stop at EOF.
+ * Returns 0 / -1 (errno; EINVAL on a NULL/zero buffer or a negative offset).
+ */
+int xvfs_drain_window(brix_sd_obj_t *src, brix_sd_obj_t *dst, void *buf,
+                      size_t bufsz, xvfs_window_t *win);
+
+/*
  * Materialize an already-open source fd into a LOCAL anonymous scratch fd under
  * `stage_dir`: mkstemp + immediate unlink (the bytes live only behind the fd),
  * copy src->scratch through the driver (xvfs_drain), then reopen the unlinked

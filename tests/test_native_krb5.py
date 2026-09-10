@@ -20,6 +20,7 @@ import hashlib
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -95,8 +96,7 @@ def _client_has_krb5():
 @pytest.fixture()
 def krb5_server(lifecycle, tmp_path):
     _guard_krb5_server_1()
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp"],
-                          capture_output=True, text=True, timeout=180)
+    proc = client_make(CLIENT_DIR, "xrdfs", "xrdcp", capture_output=True, text=True, timeout=180)
     _guard_krb5_server_2(proc)
     _guard_krb5_server_3()
     _guard_krb5_server_4()
@@ -167,8 +167,7 @@ def test_krb5_compiled_and_clean():
     """Always-runnable signal (no KDC): when built with -DBRIX_HAVE_KRB5 the
     client links libkrb5, still links NO libXrd*, and advertises --auth krb5."""
     if not os.path.exists(XRDFS):
-        proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs"],
-                              capture_output=True, text=True, timeout=180)
+        proc = client_make(CLIENT_DIR, "xrdfs", capture_output=True, text=True, timeout=180)
         if proc.returncode != 0 or not os.path.exists(XRDFS):
             pytest.skip("native client build failed")
     ldd = subprocess.run(["ldd", XRDFS], capture_output=True, text=True).stdout

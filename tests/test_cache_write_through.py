@@ -1,7 +1,7 @@
 """
 Cache and Write-Through server integration tests.
 
-Three dedicated pre-started servers (launched by manage_test_servers.sh):
+Three dedicated pre-started servers (launched by cmdscripts/manage_test_servers.py):
   cache-only   (CACHE_ONLY_PORT=11200): read-through cache, no WT
   wt-sync      (WT_SYNC_PORT=11201):   write-through, sync flush to origin
   wt-async     (WT_ASYNC_PORT=11202):  write-through, async flush to origin

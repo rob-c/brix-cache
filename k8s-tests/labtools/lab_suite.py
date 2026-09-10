@@ -46,6 +46,8 @@ def _special_scenario(scenario):
         "s3voms": (_s3voms, "tests/test_s3voms_multiuser.py"),
         "pbgsi": (_pbgsi, "tests/test_pbgsi_multiuser.py"),
         "gridftp": (_gridftp, "tests/test_gridftp_interop.py"),
+        "gridftp-outbound": (_gridftp_outbound,
+                             "tests/test_gridftp_outbound_interop.py"),
     }.get(scenario)
 
 
@@ -308,6 +310,83 @@ def _gridftp(sel):
           "--set", "clientPki.enabled=true", "--set", "clientPki.pkiSecret=gridftp-pki",
           "--set", "clientPki.jwksConfigMap=gridftp-jwks",
           "--set", "clientPki.caBundleConfigMap=gridftp-ca-bundle")
+    return _collect(ns, ["gf", "run"])
+
+
+def _outbound_door():
+    """The operator's door, or a refusal that names what is missing.
+
+    Refused rather than defaulted: a lane pointed at a placeholder host would
+    deploy, skip every cell for want of a reachable door, and exit 0 — which is
+    indistinguishable from a lane that ran and passed.  This is phase-115 W5.5's
+    stated condition, not an inconvenience to be worked around.
+    """
+    host = os.environ.get("BRIX_OUTBOUND_DOOR")
+    if not host:
+        raise SystemExit(
+            "gridftp-outbound needs a REAL Globus/dCache door; this repository "
+            "ships none and cannot.  Set BRIX_OUTBOUND_DOOR=<host>, optionally "
+            "BRIX_OUTBOUND_PORT (2811), BRIX_OUTBOUND_PATH (/brix-interop) and "
+            "BRIX_OUTBOUND_SCHEME (gsiftp), and create the outbound-proxy "
+            "Secret + outbound-ca ConfigMap from your own grid credential "
+            "(see charts/gridftp-interop/values.yaml).")
+    return (host,
+            os.environ.get("BRIX_OUTBOUND_PORT", "2811"),
+            os.environ.get("BRIX_OUTBOUND_PATH", "/brix-interop"),
+            os.environ.get("BRIX_OUTBOUND_SCHEME", "gsiftp"))
+
+
+# The four outbound fronts, keyed by the env-var suffix the remote suite reads.
+# The NUMBERS live in charts/gridftp-interop/values.yaml (outbound.role.ports)
+# — helm owns the listeners — so this is a duplicate by necessity: the runner
+# has to name the same ports to reach them.  It is a duplicate that is PINNED,
+# by pytests/test_gridftp_outbound_wiring.py, rather than trusted.
+_OUTBOUND_PORTS = {"PLAIN": 8081, "MODE_E": 8082, "PROT_P": 8083,
+                   "STREAMS": 8084}
+
+
+def _outbound_port_env():
+    """`--set` pairs exporting the four front ports to the test runner."""
+    return [arg for name, port in _OUTBOUND_PORTS.items()
+            for arg in ("--set", f"testRunner.env.TEST_OUTBOUND_{name}_PORT={port}")]
+
+
+def _gridftp_outbound(sel):
+    """brix as a CLIENT of somebody else's GridFTP door (phase-115 W5.5).
+
+    The inverse of `gridftp`: four WebDAV fronts whose storage plane is a REAL
+    Globus or dCache endpoint, differing only in the store line (plain, mode=e,
+    mode=e prot=p, mode=e streams=n), so W5.1-W5.4 are exercised against a
+    server nobody in this repository wrote.  The door and the credential are
+    the operator's — see _outbound_door.  Release "gf" -> Service gf-outbound.
+    """
+    ns = "brix-gridftp"
+    host, port, base, scheme = _outbound_door()
+    settings = ["outbound.enabled=true",
+                f"outbound.role.outbound.host={host}",
+                f"outbound.role.outbound.port={port}",
+                f"outbound.role.outbound.basePath={base}",
+                f"outbound.role.outbound.scheme={scheme}"]
+    if _dry():
+        return ["helm dependency build charts/gridftp-interop",
+                "helm upgrade --install gf charts/gridftp-interop -n "
+                + ns + " --set " + ",".join(settings),
+                f"helm upgrade --install run charts/test-runner -n {ns} "
+                f"TEST_OUTBOUND_HOST=gf-outbound -- pytest {sel}"]
+    subprocess.run(["kubectl", "create", "namespace", ns], capture_output=True)
+    _helm("dependency", "build", str(_CHARTS / "gridftp-interop"))
+    _helm("upgrade", "--install", "gf", str(_CHARTS / "gridftp-interop"), "-n", ns,
+          "--set", ",".join(settings), "--wait", "--timeout", "5m")
+    _helm("upgrade", "--install", "run", str(_CHARTS / "test-runner"), "-n", ns,
+          # plain brix-client: the reference grid stack is not needed here —
+          # the thing under test is brix's OWN GridFTP client, driven over HTTP.
+          "--set", "testRunner.tier=custom", "--set", f"testRunner.selection={sel}",
+          "--set", "testRunner.extraArgs=-p no:xdist -v",
+          "--set", "testRunner.env.TEST_OUTBOUND_HOST=gf-outbound",
+          *_outbound_port_env(),
+          "--set", "testRunner.env.PYTHONPATH=/opt/brix/tests",
+          "--set", "testRunner.env.TEST_SKIP_SERVER_SETUP=1",
+          "--set", "testRunner.env.TEST_ROOT=/tmp/tr")
     return _collect(ns, ["gf", "run"])
 
 

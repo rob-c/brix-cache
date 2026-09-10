@@ -138,11 +138,12 @@ stock clients — are made byte-identical to stock:
 ## 4. How interoperability is tested
 
 Seven complementary mechanisms, all driven from the standard test fleet
-(`tests/manage_test_servers.sh`), which co-hosts real reference XRootD servers.
+(`tests/cmdscripts/manage_test_servers.py`), which co-hosts real reference
+XRootD servers.
 
-**1. Cross-backend testing** (`tests/backend_matrix.py`,
-`run_cross_compatible_tests.sh`). The **same, unmodified** test source runs
-against both backends via `TEST_CROSS_BACKEND={nginx|xrootd}`; a fixture resolves
+**1. Cross-backend testing** (`tests/backend_matrix.py`, and per-test via
+`tests/test_cross_backend_parity.py`). The **same, unmodified** test source runs
+against both backends via `TEST_CROSS_BACKEND=nginx` / `TEST_CROSS_BACKEND=xrootd`; a fixture resolves
 the backend URL. Suites include `test_file_api.py`, `test_query.py`,
 `test_protocol_edge_cases.py`, `test_privilege_escalation.py` (root://) and
 `test_xrdhttp_webdav.py`, `test_xrdhttp_conformance.py` (davs:// vs `XrdHttp`).

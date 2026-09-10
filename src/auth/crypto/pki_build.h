@@ -12,7 +12,7 @@
 #include <openssl/x509.h>
 
 #include "auth/crypto/signing_policy.h"   /* brix_sp_mode_t */
-#include "auth/crypto/store_policy.h"     /* BRIX_CRL_MODE_* for callers */
+#include "auth/crypto/store_policy.h"     /* brix_trust_policy_t, BRIX_CRL_* */
 
 /*
  * brix_build_ca_store — build an X509_STORE for CA/CRL-based certificate
@@ -30,14 +30,23 @@
  *                 CA loading (e.g. X509_V_FLAG_ALLOW_PROXY_CERTS for GSI
  *                 proxy certificate chains).  Pass 0 for no extra flags.
  * @crl_count_out: if non-NULL, receives the total count of CRLs loaded.
- * @sp_mode:       signing_policy enforcement mode (BRIX_SP_MODE_*).  When a
- *                 cadir is given its <hash>.signing_policy files are compiled
- *                 and attached to the store.  BRIX_SP_MODE_REQUIRE with only a
- *                 cafile (no directory to search) is a configuration error and
- *                 returns NULL.
- * @crl_mode:      CRL strictness (BRIX_CRL_MODE_*).  Gates whether CRL verify
- *                 flags are set and whether a missing CRL is tolerated (TRY)
- *                 or fatal (REQUIRE).
+ * @pol:           the operator's whole trust policy, copied onto the store as
+ *                 ex_data so the verifier reads it back with no config object:
+ *                   .sp_mode    signing_policy enforcement (BRIX_SP_MODE_*).
+ *                               When a cadir is given its <hash>.signing_policy
+ *                               files are compiled and attached.  REQUIRE with
+ *                               only a cafile (no directory to search) is a
+ *                               configuration error and returns NULL.
+ *                   .crl_mode   CRL strictness (BRIX_CRL_MODE_*).  Gates whether
+ *                               CRL verify flags are set at all and whether a
+ *                               missing CRL is tolerated (TRY) or fatal
+ *                               (REQUIRE).
+ *                   .crl_scope  CRL reach (BRIX_CRL_SCOPE_*): the whole chain
+ *                               (ALL, default) or the certificate's own issuer
+ *                               (LAST).
+ *                   .verify_log verification-log level (BRIX_TLS_VERIFY_LOG_*),
+ *                               read by brix_gsi_verify_chain.
+ *                 Must not be NULL.
  *
  * Returns a new X509_STORE on success, NULL on failure.  On failure the store
  * has been freed and no cleanup is required by the caller.
@@ -48,8 +57,7 @@ X509_STORE *brix_build_ca_store(ngx_log_t *log,
     const char *crl_path,
     unsigned long extra_flags,
     int *crl_count_out,
-    brix_sp_mode_t sp_mode,
-    int crl_mode);
+    const brix_trust_policy_t *pol);
 
 /* brix_build_ca_store_cached — like brix_build_ca_store, but memoises the built
  * store within one config parse.  Loading the IGTF CA directory's hundreds of
@@ -67,7 +75,6 @@ X509_STORE *brix_build_ca_store_cached(void *scope, ngx_log_t *log,
     const char *crl_path,
     unsigned long extra_flags,
     int *crl_count_out,
-    brix_sp_mode_t sp_mode,
-    int crl_mode);
+    const brix_trust_policy_t *pol);
 
 #endif /* CRYPTO_PKI_BUILD_H */

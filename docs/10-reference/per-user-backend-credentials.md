@@ -785,7 +785,7 @@ http {
         location / {
             brix_webdav             on;
             brix_allow_write        on;
-            brix_auth_cert           on;
+            brix_webdav_auth           required;   # x509 client certificate
 
             brix_export              /data/f/export;
             brix_storage_backend     root://origin.site.example:1094;
@@ -835,7 +835,7 @@ rejects any other value on both the HTTP and stream directive tables.
 location / {
     brix_webdav               on;
     brix_allow_write          on;
-    brix_auth_cert             on;
+    brix_webdav_auth             required;   # x509 client certificate
 
     brix_export                /data/f/export;
     brix_storage_backend       root://origin.site.example:1094;
@@ -867,7 +867,7 @@ curl -s --cert alice_proxy.pem --key alice_proxy.pem \
 location / {
     brix_webdav               on;
     brix_allow_write          on;
-    brix_auth_token            on;    # e.g. bearer-only identities (S3/JWT)
+    brix_webdav_auth            required;    # e.g. bearer-only identities (S3/JWT)
 
     brix_export                /data/f/export;
     brix_storage_backend       root://origin.site.example:1094;

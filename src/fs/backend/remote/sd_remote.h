@@ -50,7 +50,12 @@ typedef struct {
                                                    * rejects a corrupted body (BadDigest).
                                                    * 0 = UNSIGNED-PAYLOAD (stock). */
     const brix_s3_transport_t *transport;        /* injected by the cache */
-    void                        *tctx;
+    void                        *tctx;           /* explicit transport context, or
+                                                  * NULL: the driver builds tctx_own */
+    const struct brix_dns_policy_s *dns;         /* phase-116: the export's resolver
+                                                  * policy for the endpoint; NULL=libc */
+    brix_s3_tctx_t               tctx_own;       /* instance-owned typed context the
+                                                  * curl transport reads (ca_path+dns) */
     int                          nearline;       /* the operator DECLARES this
                                     bucket archive-backed (GLACIER /
                                     DEEP_ARCHIVE / INTELLIGENT_TIERING with

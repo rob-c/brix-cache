@@ -27,5 +27,13 @@ ngx_int_t brix_handle_locate(brix_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t brix_cms_locate_park(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const char *path);
 
+/* Phase-115 W2.1: answer the current kXR_locate with this server's own
+ * "S<r|w><host>:<port>" location — what a data server says about a file it
+ * serves.  A gateway running brix_cms_response proxy uses this in place of
+ * forwarding the locate: the selected node's reply would name that node and
+ * the client would step around the gateway on its next open. */
+ngx_int_t brix_locate_answer_self(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
+
 #endif
 

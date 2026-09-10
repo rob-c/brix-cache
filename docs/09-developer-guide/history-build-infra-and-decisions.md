@@ -344,6 +344,16 @@ comments), run both the guard itself and `tests/test_source_guards.py`, then del
 shelling out to a subprocess, and use explicit codepoint ordering rather than relying on
 the ambient locale the way bash's `sort` does.
 
+**Deleting the script does not delete its name.** Phase-81 removed
+`tests/manage_test_servers.sh` and every `tests/run_*.sh` correctly, and the
+name went on living in prose: on 2026-09-09 a sweep found **89 references in 54
+Python modules** plus configs and READMEs, none of them an exec, every one
+telling a reader to run a file the tree does not contain. A port is not finished
+when the callers are rewired — it is finished when `grep -rn '<old-name>'`
+returns only the places where the old name *is* the record (historical
+narratives, and the successor's own "retired predecessor" line). Do that grep as
+the last step of the port, not as a discovery two months later.
+
 ## 8. Who Rob is and what this project is for
 
 Rob Currie is a HEP (High Energy Physics) systems engineer building **nginx-xrootd** (rebranded mid-project to **BriX**) — an nginx module serving the native XRootD `root://` binary protocol (stream module) alongside WebDAV over HTTPS (`davs://`), S3, and CVMFS, with the long-run direction of a WLCG-storage "swiss-army-knife" (native clients, FUSE mount, broad protocol/backend coverage) rather than a narrow gateway replacement. The original, still-live deployment driver: replacing a lightweight production XRootD gateway at a real HEP site backed by CephFS, where VO (Virtual Organization)-based access control via VOMS proxy certificates, group/GID inheritance under paths (CephFS doesn't reliably propagate setgid), Prometheus metrics visibility, comprehensive test coverage, and a better TCP stack than standalone XRootD were the explicit priorities from day one.
@@ -400,3 +410,104 @@ flavor.
 ---
 
 *This document synthesizes memory files spanning 2026-04-16 through 2026-07-15. Files skimmed as meta-indexes rather than transcribed in full: `archive_index_2026_07_13.md` and `INDEX-ARCHIVE.md` (both are superseded pointer-indexes of the memory system itself, not project substance — retained value was cross-checking that no build/refactor/rule item here was missing from the record). No memory file in the assigned set was empty or had literally nothing worth keeping; `code_reduction_opportunities.md` and `phase17_macro_collapse.md`/`phase27_status.md`/`phase47_operability_packaging.md` were lower-signal (superseded proposals or already covered by other landed-work entries) and are folded into single sentences above rather than given their own subsections.*
+
+## 10. Documentation rot has three shapes, and only one of them a link checker sees (2026-09-09)
+
+Sweeping the whole `docs/` tree against the 2.0 tree, after (d.1)-(d.5) of the
+[readiness register](../10-reference/release-2.0-readiness.md) had already
+verified that every directive and every metric family had prose, still turned up
+a second wave. The three shapes are worth naming because the defences differ.
+
+**1. A statement falsified by a deletion.** The WebDAV perimeter reverse proxy
+was deleted on 2026-07-20 after a load-dependent heap corruption; three pages
+still described it as implemented, one naming the deleted
+`src/protocols/webdav/proxy.c`. An operator following them wrote a config
+`nginx -t` rejects. `check_doc_links.py` was green throughout — nothing was
+*linked*, the paths were named in prose. This is what
+`tools/ci/check_doc_paths.py` exists for, and it was scanning three files.
+
+**2. A citation to something that never existed.** `native-client-tools.md`
+offered a `test_official_brix_resilience.py` under `tests/` as the evidence for
+reconnect and backoff against an official `xrootd` server. No such file has ever
+been in the tree — and it is written here without its directory on purpose, so
+this narrative does not become an instance of what it describes; the real harness is `tests/resilience/`. This is the worst of the
+three: it reads exactly like a verified claim, the underlying behaviour is
+genuinely correct, and nothing but resolving the path catches it. The register
+calls the same class NO-PHANTOM-EVIDENCE, and phase-111 already pins it for
+`docs/refactor/`; the user-facing trees had no equivalent until now.
+
+**And it was not invented in the doc — it was propagated.** The 2026-07-03 BriX
+symbol rebrand (`xrootd_` -> `brix_`) rewrote the *docstring* of
+`tests/test_official_xrootd_resilience.py`, including the line where the module
+names itself and the `Run:` command a reader copies, but not the filename. For
+two months the module misnamed itself, and every citation was copied faithfully
+out of that docstring: into `tests/resilience/README.md`, into the remote
+suite's `run_suite.sh` — which therefore handed pytest a path that does not
+exist — into its `no_server_files` allowlist, where an entry matching no file
+silently granted nothing, and finally into a user-facing protocol page as proof
+of a resilience claim. A mechanical rename that rewrites prose but not paths
+manufactures phantoms at a distance, and each copy looks more credible than the
+last. `tests/test_test_module_self_reference.py` (10) now pins both ends: a
+module's docstring title must name itself (298 modules follow that convention),
+and a `test_*.py` cited in any `tests/**/README.md` must resolve — with planted
+controls on both, and with the remote suite's runner and allowlist checked for
+the same disease.
+
+**3. A claim that under-states the tree.** `hardening-strategy.md` listed
+"Fuzzing framework" as an outstanding **High** priority while `tests/fuzz/`
+ships 14 libFuzzer harnesses. Under-claiming costs real work — the item gets
+scheduled twice — and tells a reviewer a surface is unfuzzed when it is not.
+
+**The defence, and what widening a prose-scanning guard actually costs.**
+`check_doc_paths.py` now scans `CLAUDE.md`, `README.md` and `docs/index.md`
+strictly, plus `docs/01-getting-started` through `docs/08-metrics-monitoring`
+non-strictly. Non-strict is the whole design: in prose, `client/server`,
+`shared/mounted` and `deploy/doc` are English, so a token must first look like a
+path (trailing slash, two or more slashes, or a known suffix) before its absence
+is a failure. Two more filters were forced by real content — brace lists
+(`src/net/cms/{connect,recv,send,wire}.c`, where the *suffix* must survive the
+expansion; the first draft dropped it and fabricated seven reports) and build
+products (`client/bin/`, `client/lib/libbrix*`, `objs/`), which are real files
+that are correctly untracked. `docs/09`-`11` stay out of scope deliberately:
+here, and in `docs/refactor/`, naming a deleted path *is* the content. Where a
+scoped page must name paths outside the repo — a CVMFS repository being
+published, an nginx source tree — the `<!-- doc-paths:off -->` fence carries a
+comment saying whose tree the paths belong to.
+
+`tests/test_doc_path_guard_reach.py` (29) pins the scope and every filter,
+including the security-negative that the build-product exemption does not reach
+sources: a prefix one segment shorter would silence the entire `client/` tree.
+
+**And a guard can be right about a path that should not be missing.** The one
+failure the widened guard reported was `docs/03-configuration/directives.md
+references untracked (gitignored?) path: tools/diag/lock_scan.py` — a *shipped
+operator tool*, which the directives page tells an operator to run before
+switching an export to `brix_lock_enforcement strict`, sitting under a
+`.gitignore` rule and therefore absent from every fresh clone. The documented
+upgrade procedure could not be followed.
+
+**Being gitignored is not one bug, it is a hole in every gate at once.** This is
+the same class as the 2026-07-07 *gitignore-casualty* finding, and the second
+half is the part worth re-learning: exempting the file in `.gitignore` promptly
+turned `check_python_quality` red with five violations in three of the tool's
+functions. They had always been there. A gitignored file is not in the tree the
+quality gate walks, is not in the tree `check_file_size` walks, and is not
+something any test imports — so "it passes CI" had never been a statement about
+it. The tool also had **zero coverage**, which is a poor position from which to
+decompose three functions, so `tests/test_lock_scan_tool.py` (16) was written
+first: the documented exit statuses, the decode contract including the
+legacy-v1-is-already-expired rule, and two security-negatives — a lock token is
+a bearer secret and is never printed, and an expired record is counted but never
+listed. Its first test asserts the tool is in `git ls-files`, so the original
+defect cannot come back silently.
+
+**Rule (restated from 2026-07-07, because it recurred).** Before adding a
+`.gitignore` pattern, ask what *documented* or *shipped* thing it might catch.
+After exempting one, run the guard set — the file is arriving in the tree's
+scope for the first time, and whatever it has been getting away with will
+surface at that moment, not at the commit.
+
+**Rule.** When a feature is deleted, grep the docs for its directive prefix and
+its source filenames in the same change that deletes it. When you cite a test
+file as evidence, open it. And a guard that scans three files is a guard whose
+*scope* needs a test, not just its logic.

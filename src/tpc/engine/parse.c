@@ -1,5 +1,5 @@
 /* File: parse.c — TPC opaque parameter parsing and source URL decomposition
- * WHAT: Six functions parse the TPC opaque query string from a kXR_open request into structured brix_tpc_params_t fields. tpc_parse_opaque (public entry) zero-initializes out → iterates key=value tokens via tpc_parse_token → validates at least one recognized key present → delegates src parsing to tpc_parse_src_fields; tpc_parse_token extracts key/value pairs from '&' delimited opaque string, matching only "tpc." prefixed keys (src/dst/key/lfn/org/stage/token_mode) and setting has_* flags; tpc_parse_src_fields calls tpc_parse_src_spec() for URL/host/port/path decomposition, clears all fields on failure to prevent partial-parse security bypass, then normalizes src_path via LFN if applicable; tpc_fill_src_path_from_lfn converts lfn into src_path with leading '/' normalization when src_path is empty and has_lfn=true; tpc_parse_src_spec decomposes root://host//path or xroot://host/path URLs (or bare host[:port]) into host/port/path, delegating the authority host:port split (IPv6 brackets + 1-65535 port validation) to the shared brix_split_host_port() that the native client (url.c) also uses; tpc_copy_src_path strips leading double-slashes and ensures single '/' prefix.
+ * WHAT: Six functions parse the TPC opaque query string from a kXR_open request into structured brix_tpc_params_t fields. tpc_parse_opaque (public entry) zero-initializes out → iterates key=value tokens via tpc_parse_token → validates at least one recognized key present → delegates src parsing to tpc_parse_src_fields; tpc_parse_token extracts key/value pairs from '&' delimited opaque string, matching only "tpc." prefixed keys (src/dst/key/lfn/dlfn/org/stage/token_mode/str) and setting has_* flags; tpc_parse_src_fields calls tpc_parse_src_spec() for URL/host/port/path decomposition, clears all fields on failure to prevent partial-parse security bypass, then normalizes src_path via LFN if applicable, and tpc_parse_dst_fields does the same for the F16 push destination (tpc.dst host:port + tpc.dlfn); tpc_fill_src_path_from_lfn converts lfn into src_path with leading '/' normalization when src_path is empty and has_lfn=true; tpc_parse_src_spec decomposes root://host//path or xroot://host/path URLs (or bare host[:port]) into host/port/path, delegating the authority host:port split (IPv6 brackets + 1-65535 port validation) to the shared brix_split_host_port() that the native client (url.c) also uses; tpc_copy_src_path strips leading double-slashes and ensures single '/' prefix.
  *
  * WHY: TPC (Third-Party Copy) requests carry source endpoint information in opaque query parameters appended to the kXR_open path field. Clients may send full URLs (root://host//path), bare host[:port] with lfn carrying the file name, or IPv6 addresses in bracket notation. Parsing must be robust against malformed inputs — partial parse failures must clear all fields to prevent security bypass where a partially-parsed source could reach downstream validation. LFN normalization ensures consistent path format regardless of client convention.
  *
@@ -162,23 +162,29 @@ tpc_copy_value(char *dst, size_t dst_size, const char *value_start,
  * HOW: Three cases → if src_path already populated or has_lfn=false, return immediately; if lfn starts with '/', copy directly via ngx_cpystrn; if relative (no leading '/'), prepend '/' then copy remaining characters into buffer with size guard. */
 
 static void
+tpc_fill_path_from_lfn(char *path, size_t path_size, const char *lfn,
+    int has_lfn)
+{
+    if (path[0] != '\0' || !has_lfn) {
+        return;
+    }
+
+    if (lfn[0] == '/') {
+        ngx_cpystrn((u_char *) path, (u_char *) lfn, path_size);
+        return;
+    }
+
+    if (strlen(lfn) + 1 < path_size) {
+        path[0] = '/';
+        ngx_cpystrn((u_char *) path + 1, (u_char *) lfn, path_size - 1);
+    }
+}
+
+static void
 tpc_fill_src_path_from_lfn(brix_tpc_params_t *out)
 {
-    if (out->src_path[0] != '\0' || !out->has_lfn) {
-        return;
-    }
-
-    if (out->lfn[0] == '/') {
-        ngx_cpystrn((u_char *) out->src_path, (u_char *) out->lfn,
-                    sizeof(out->src_path));
-        return;
-    }
-
-    if (strlen(out->lfn) + 1 < sizeof(out->src_path)) {
-        out->src_path[0] = '/';
-        ngx_cpystrn((u_char *) out->src_path + 1, (u_char *) out->lfn,
-                    sizeof(out->src_path) - 1);
-    }
+    tpc_fill_path_from_lfn(out->src_path, sizeof(out->src_path), out->lfn,
+                           out->has_lfn);
 }
 
 /* WHAT: Parses the Source field from a TPC request into src_host, src_port, and src_path components via tpc_parse_src_spec(). On failure, clears all three fields to prevent partial-parse security bypass. Then delegates path normalization to tpc_fill_src_path_from_lfn() for LFN-to-src_path conversion.
@@ -208,6 +214,44 @@ tpc_parse_src_fields(brix_tpc_params_t *out)
     }
 
     tpc_fill_src_path_from_lfn(out);
+}
+
+/* WHAT: Decompose tpc.dst into dst_host/dst_port/dst_path the same way
+ * tpc_parse_src_fields decomposes tpc.src, then let tpc.dlfn name the
+ * destination path when the endpoint carried none (F16: the client sends
+ * `tpc.dst=host:port` + `tpc.dlfn=/path`, the shape the pull leg already uses
+ * for its own source).
+ * WHY: a push must know WHICH host it is being asked to dial before any gate
+ * can judge it, and the raw tpc.dst is attacker-controlled; a partial parse
+ * clears every field so a half-decoded endpoint can never reach the guard.
+ * HOW: tpc_parse_src_spec into the dst_* triple, clear all three on failure,
+ * then tpc_fill_path_from_lfn(dlfn). */
+static void
+tpc_parse_dst_fields(brix_tpc_params_t *out)
+{
+    tpc_src_spec_out_t spec = {
+        .host      = out->dst_host,
+        .host_size = sizeof(out->dst_host),
+        .port      = &out->dst_port,
+        .path      = out->dst_path,
+        .path_size = sizeof(out->dst_path),
+    };
+
+    if (!out->has_dst) {
+        tpc_fill_path_from_lfn(out->dst_path, sizeof(out->dst_path),
+                               out->dlfn, out->has_dlfn);
+        return;
+    }
+
+    if (tpc_parse_src_spec(out->dst, &spec) != 0) {
+        out->dst_host[0] = '\0';
+        out->dst_path[0] = '\0';
+        out->dst_port = 0;
+        return;
+    }
+
+    tpc_fill_path_from_lfn(out->dst_path, sizeof(out->dst_path), out->dlfn,
+                           out->has_dlfn);
 }
 
 /* WHAT: One row of the recognised-tpc.*-key table — the bare key name (after
@@ -244,9 +288,11 @@ static const tpc_key_desc_t tpc_key_table[] = {
     TPC_KEY_ROW("dst",        dst),
     TPC_KEY_ROW("key",        key),
     TPC_KEY_ROW("lfn",        lfn),
+    TPC_KEY_ROW("dlfn",       dlfn),
     TPC_KEY_ROW("org",        org),
     TPC_KEY_ROW("stage",      stage),
     TPC_KEY_ROW("token_mode", token_mode),
+    TPC_KEY_ROW("str",        str),
 };
 
 #undef TPC_KEY_ROW
@@ -353,13 +399,26 @@ brix_tpc_parse_opaque(const char *opaque, brix_tpc_params_t *out)
     }
 
     found = (out->has_src || out->has_dst || out->has_key
-             || out->has_lfn || out->has_org || out->has_stage
-             || out->has_token_mode);
+             || out->has_lfn || out->has_dlfn || out->has_org
+             || out->has_stage || out->has_token_mode || out->has_str);
     if (!found) {
         return -1;
     }
 
     tpc_parse_src_fields(out);
+    tpc_parse_dst_fields(out);
 
     return 0;
+}
+
+/* WHAT: 1 when this opaque asks for the F16 push dialect (tpc.stage=push).
+ * WHY: both push legs travel over the same tpc.key rendezvous the pull uses,
+ * so the stage is the ONLY thing that tells a source "dial the destination and
+ * write" apart from "register a key and serve bytes". Reading it in one place
+ * keeps the two role ladders (open_tpc.c) honest about which dialect they are
+ * in. HOW: exact match on the parsed stage buffer; absent stage is not a push. */
+int
+brix_tpc_stage_is_push(const brix_tpc_params_t *tpc)
+{
+    return tpc != NULL && tpc->has_stage && strcmp(tpc->stage, "push") == 0;
 }

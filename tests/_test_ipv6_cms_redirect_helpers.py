@@ -22,7 +22,7 @@ emission sites are exercised here:
 HARNESS
 -------
 The "ipv6-mgr" dedicated instance (tests/configs/nginx_ipv6_mgr.conf) is
-pre-started by manage_test_servers.sh start_all_dedicated:
+pre-started by cmdscripts/manage_test_servers.py start_all_dedicated:
   * stream [::1]:IPV6_MGR_PORT      — manager mode (kXR_locate/open -> redirect)
   * stream [::1]:11242              — CMS server face (fixed)
   * http   [::1]:IPV6_MGR_HTTP_PORT — dashboard + admin API + /metrics

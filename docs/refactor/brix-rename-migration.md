@@ -48,7 +48,7 @@
 | `XROOTD_VMP` | `BRIX_VMP` |
 | `XROOTD_XFER_AUDIT_LOG` | `BRIX_XFER_AUDIT_LOG` |
 | `xrootd_acc_access` | `brix_acc_access` |
-| `xrootd_acc_dns_breaker_open_total` | `brix_acc_dns_breaker_open_total` |
+| `xrootd_acc_dns_breaker_open_total` | `brix_acc_dns_breaker_open_total` (phase-116: the breaker is gone; the counter is now `brix_acc_dns_pending_fallback_total`) |
 | `xrootd_acc_encoding` | `brix_acc_encoding` |
 | `xrootd_acc_gidlifetime` | `brix_acc_gidlifetime` |
 | `xrootd_acc_gidretran` | `brix_acc_gidretran` |

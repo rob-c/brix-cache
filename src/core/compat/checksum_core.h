@@ -73,4 +73,13 @@ int brix_cksum_u64_fd(int kind, int fd, uint64_t *out);
 int brix_cksum_digest_fd(int kind, int fd, unsigned char *out,
                            unsigned int *outlen);
 
+/* Public form of the shared pread drain for a caller that folds chunks into
+ * its own state (a site checksum plugin, core/compat/checksum_plugin.c): every
+ * byte of [start, start+len) reaches `fold` in file order, len < 0 = to EOF.
+ * NGX_OK, or NGX_ERROR on a read error or a failing fold. */
+typedef int (*brix_cksum_chunk_fn)(const unsigned char *buf, size_t n,
+                                   void *st);
+ngx_int_t brix_cksum_walk_obj(brix_sd_obj_t *obj, off_t start, off_t len,
+                              brix_cksum_chunk_fn fold, void *st);
+
 #endif /* BRIX_CHECKSUM_CORE_H */

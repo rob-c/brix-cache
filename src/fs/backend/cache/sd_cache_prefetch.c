@@ -107,7 +107,7 @@ sd_cache_prefetch_thread(void *data, ngx_log_t *log)
         credp = &rc;
     }
 
-    o = sd_cache_partial_open(j->inst, j->st, j->key, credp, &e);
+    o = sd_cache_partial_open(j->inst, j->st, j->key, credp, NULL, &e);
     if (o == NULL) {
         j->failed = 1;
         return;
@@ -184,7 +184,10 @@ sd_cache_prefetch_range(sd_cache_partial_t *p, sd_cache_inst_state *st,
     off_t     end;
     uint64_t  b0, b1;
 
-    if (p->block_size == 0 || off < 0 || len == 0 || off >= p->size) {
+    (void) st;                       /* the runway is per handle (2.0 F5) */
+    if (p->prefetch_off || p->block_size == 0 || off < 0 || len == 0
+        || off >= p->size)
+    {
         return 0;
     }
     end = ((off_t) len > p->size - off) ? p->size : off + (off_t) len;
@@ -192,8 +195,8 @@ sd_cache_prefetch_range(sd_cache_partial_t *p, sd_cache_inst_state *st,
     b0 = (uint64_t) off / p->block_size;
     b1 = (uint64_t) (end - 1) / p->block_size;
 
-    if (st->policy.prefetch_window > 0) {
-        uint64_t limit = ((uint64_t) off + st->policy.prefetch_window
+    if (p->prefetch_window > 0) {
+        uint64_t limit = ((uint64_t) off + p->prefetch_window
                           + p->block_size - 1) / p->block_size;
 
         if (limit == 0 || b0 >= limit) {

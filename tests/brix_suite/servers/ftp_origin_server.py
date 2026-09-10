@@ -1,8 +1,23 @@
-"""Small RFC-959 origin used to prove the outbound FTP storage driver.
+"""Small RFC-959 / GridFTP origin used to prove the outbound FTP storage driver.
 
 This is deliberately an origin, not a fake of the driver API: every test crosses
-real control and passive data sockets.  It implements only the portable MODE-S
-commands BriX consumes and confines every pathname beneath the supplied root.
+real control and passive data sockets.  It implements the portable MODE-S
+commands BriX consumes, GFD.020 MODE E extended block mode (phase-115 W5.1),
+and confines every pathname beneath the supplied root.
+
+Four switches exist ONLY so the driver's refusals and fallbacks can be proven,
+and each defaults to the permissive/conforming behaviour:
+
+  * `mode_e=False` — answer `MODE E` 504, so a `mode=e` store line meets an
+    origin that cannot do it and must fail rather than silently fall back;
+  * `data_tls=None` — `PROT P` is refused (534), so a `prot=p` store line
+    proves it never downgrades to a cleartext data channel;
+  * `eb_fault=` — emit a MODE E block stream a conforming sender never would
+    (see ftp_origin_mode_e.FAULTS);
+  * `eret=True` — advertise and implement `ERET P` (phase-115 W5.2).  Off by
+    default so the MODE E suites keep meeting the RFC 959 REST+RETR path they
+    were written against; the two ERET misbehaviours a driver has to survive are
+    addressed BY NAME instead (see ERET_FAULTS).
 """
 
 from __future__ import annotations
@@ -15,21 +30,34 @@ import socket
 import socketserver
 
 from ephemeral_port import free_port
+from brix_suite.servers import ftp_origin_mode_e as eb
+from brix_suite.servers import ftp_origin_retrieve
+from brix_suite.servers import ftp_origin_striped as spas
 from brix_suite.settings import HOST
+
+
+#: Re-exported from ftp_origin_retrieve, which owns the code that injects them.
+#: Kept here because `ftp_origin_server.ERET_FAULTS` is the name the W5.2 suite
+#: already imports, and a move is not a reason to break a caller.
+ERET_FAULTS = ftp_origin_retrieve.ERET_FAULTS
 
 
 class _RejectedPath(ValueError):
     pass
 
 
-class FtpOriginHandler(socketserver.StreamRequestHandler):
+class FtpOriginHandler(ftp_origin_retrieve.FtpOriginRetrieveMixin,
+                       socketserver.StreamRequestHandler):
     timeout = 15
 
     def setup(self):
         super().setup()
         self.data_listener = None
+        self.stripes = []
         self.rest_offset = 0
         self.rename_source = None
+        self.mode = "S"
+        self.prot = "C"
 
     def finish(self):
         self._close_data_listener()
@@ -50,6 +78,12 @@ class FtpOriginHandler(socketserver.StreamRequestHandler):
         if self.data_listener is not None:
             self.data_listener.close()
             self.data_listener = None
+        # A later EPSV/PASV/SPAS SUPERSEDES the previous advertisement, so any
+        # stripe listener nobody dialled is closed here rather than left to the
+        # connection's end.  A driver that falls back from SPAS to EPSV would
+        # otherwise leave n-1 sockets listening for the length of the session.
+        spas.close_listeners(self.stripes)
+        self.stripes = []
 
     def _open_data_listener(self) -> int:
         self._close_data_listener()
@@ -69,6 +103,11 @@ class FtpOriginHandler(socketserver.StreamRequestHandler):
         connection, _ = listener.accept()
         listener.close()
         connection.settimeout(self.timeout)
+        if self.prot == "P":
+            # PROT P is a straight TLS session on the data socket presenting the
+            # same credential as the control channel — never a second dialect.
+            connection = self.server.data_tls.wrap_socket(connection,
+                                                          server_side=True)
         return connection
 
     @staticmethod
@@ -112,10 +151,38 @@ class FtpOriginHandler(socketserver.StreamRequestHandler):
         self._reply(200 if arg.upper() == "I" else 504, "Type set")
 
     def _command_mode(self, arg: str) -> None:
-        self._reply(200 if arg.upper() == "S" else 504, "Mode set")
+        want = arg.upper()
+        if want == "S" or (want == "E" and self.server.mode_e):
+            self.mode = want
+            self._reply(200, "Mode set")
+            return
+        # An origin that cannot do MODE E must say so; the driver may not
+        # quietly transfer in MODE S after asking for E.
+        self._reply(504, "Mode not implemented")
 
     def _command_feat(self, _arg: str) -> None:
-        self.wfile.write(b"211-Features\r\n EPSV\r\n MLSD\r\n REST STREAM\r\n211 End\r\n")
+        """211 feature list.
+
+        The optional half is a table rather than a run of ifs because it is one
+        rule applied four times — "advertise it only if this origin was started
+        with it" — and a fifth feature should be a row, not a new branch.
+        """
+        lines = ["211-Features", " EPSV", " MLSD", " REST STREAM"]
+        optional = ((self.server.mode_e, [" MODE E"]),
+                    (self.server.eret, [" ERET"]),
+                    (self.server.spas, [" SPAS"]),
+                    (self.server.feat_decoy, FEAT_DECOY),
+                    (self.server.data_tls is not None, [" DCAU", " PROT"]))
+        for enabled, names in optional:
+            if enabled:
+                lines += names
+        lines.append("211 End")
+        # CRLF, per RFC 959 §4.2 — not a detail of this fixture.  A probe that
+        # only recognises a feature name followed by a space, a tab or a NUL
+        # matches nothing at all against a conforming door, and the fallback it
+        # then takes is silent; ftp_origin_feat_bytes() below exists so that
+        # this line cannot quietly become "\n" and re-hide it.
+        self.wfile.write(("\r\n".join(lines) + "\r\n").encode("ascii"))
         self.wfile.flush()
 
     def _command_epsv(self, _arg: str) -> None:
@@ -125,6 +192,23 @@ class FtpOriginHandler(socketserver.StreamRequestHandler):
     def _command_pasv(self, _arg: str) -> None:
         port = self._open_data_listener()
         self._reply(227, f"Entering Passive Mode (127,0,0,1,{port >> 8},{port & 255})")
+
+    def _command_spas(self, _arg: str) -> None:
+        """GFD.020 §5.1 striped passive: several listeners, one reply.
+
+        Refused when the origin was not started striped, because a door that
+        answers SPAS after leaving it out of FEAT is a different (and also
+        tested) shape from one that advertises it.
+        """
+        if not self.server.spas:
+            self._reply(502, "Command not implemented")
+            return
+        self._close_data_listener()
+        self.stripes = spas.open_listeners(self.server.bind_host,
+                                           self.server.spas, self.timeout)
+        self.wfile.write(spas.spas_reply(self.stripes,
+                                         self.server.spas_host))
+        self.wfile.flush()
 
     def _command_rest(self, arg: str) -> None:
         try:
@@ -188,21 +272,6 @@ class FtpOriginHandler(socketserver.StreamRequestHandler):
             return
         self._reply(226, "Listing complete")
 
-    def _command_retr(self, arg: str) -> None:
-        path = self._require_path(arg)
-        if path is None:
-            return
-        offset, self.rest_offset = self.rest_offset, 0
-        self._reply(150, "Opening data connection")
-        try:
-            with path.open("rb") as source, self._data_connection() as data:
-                source.seek(offset)
-                for chunk in iter(lambda: source.read(65536), b""):
-                    data.sendall(chunk)
-        except OSError:
-            self._reply(426, "Data connection failed")
-            return
-        self._reply(226, "Transfer complete")
 
     def _command_stor(self, arg: str) -> None:
         path = self._require_path(arg)
@@ -212,8 +281,11 @@ class FtpOriginHandler(socketserver.StreamRequestHandler):
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             with path.open("wb") as output, self._data_connection() as data:
-                for chunk in iter(lambda: data.recv(65536), b""):
-                    output.write(chunk)
+                if self.mode == "E":
+                    output.write(eb.recv_transfer(data))
+                else:
+                    for chunk in iter(lambda: data.recv(65536), b""):
+                        output.write(chunk)
         except OSError:
             self._reply(426, "Data connection failed")
             return
@@ -271,6 +343,28 @@ class FtpOriginHandler(socketserver.StreamRequestHandler):
             return
         self._reply(250, "Rename complete")
 
+    def _command_prot(self, arg: str) -> None:
+        want = (arg or "C").upper()
+        if want == "C":
+            self.prot = "C"
+            self._reply(200, "Protection level set")
+            return
+        if want == "P" and self.server.data_tls is not None:
+            self.prot = "P"
+            self._reply(200, "Protection level set")
+            return
+        # 534 is the RFC 2228 "request denied for policy reasons".  Refusing it
+        # here is the only way to prove the driver fails CLOSED rather than
+        # transferring in the clear after asking for protection.
+        self._reply(534, "Protection level not supported")
+
+    def _command_dcau(self, arg: str) -> None:
+        want = (arg or "N").upper()
+        if want == "N" or (want == "A" and self.server.data_tls is not None):
+            self._reply(200, "Data channel authentication set")
+            return
+        self._reply(504, "DCAU mode not supported")
+
     def _command_quit(self, _arg: str) -> None:
         self._reply(221, "Goodbye")
 
@@ -282,13 +376,14 @@ class FtpOriginHandler(socketserver.StreamRequestHandler):
             "PASV": self._command_pasv, "REST": self._command_rest,
             "SIZE": self._command_size, "MDTM": self._command_mdtm,
             "MLSD": self._command_mlsd, "RETR": self._command_retr,
+            "ERET": self._command_eret, "SPAS": self._command_spas,
             "STOR": self._command_stor, "MKD": self._command_mkd,
             "DELE": self._command_dele, "RMD": self._command_rmd,
             "RNFR": self._command_rnfr, "RNTO": self._command_rnto,
             "NOOP": lambda _arg: self._reply(200, "OK"),
             "PBSZ": lambda _arg: self._reply(200, "OK"),
-            "PROT": lambda _arg: self._reply(200, "OK"),
-            "DCAU": lambda _arg: self._reply(200, "OK"),
+            "PROT": self._command_prot,
+            "DCAU": self._command_dcau,
             "QUIT": self._command_quit,
         }
         self._reply(220, "BriX test FTP origin ready")
@@ -313,16 +408,82 @@ class FtpOriginHandler(socketserver.StreamRequestHandler):
                 return
 
 
+#: FEAT rows that CONTAIN a feature name without ADVERTISING it.
+#:
+#: RFC 2389 §3.2 makes a feature line a verb plus optional parameters, so the
+#: probe matches the leading TOKEN of a line and never a substring of the reply.
+#: These are the four ways that rule is broken by a probe written with strstr:
+#: a longer verb sharing the prefix, the name as an ARGUMENT of another verb,
+#: the same for the striped extension, and a vendor-prefixed spelling.  An
+#: origin started with `--feat-decoy` and WITHOUT `--eret`/`--spas` answers 502
+#: to both commands, so a driver that lit either bit on one of these rows is
+#: caught by the origin's own audit log and not merely by a slower transfer.
+FEAT_DECOY = (" ERETSTAT", " SITE ERET", " SPASV", " X-ERET")
+
+
 class FtpOriginServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
     def __init__(self, host: str, port: int, root: Path,
-                 audit_path: Path | None = None):
+                 audit_path: Path | None = None, **options):
         self.bind_host = host
         self.root = root
         self.audit_path = audit_path
+        self.mode_e = options.pop("mode_e", True)
+        self.data_tls = options.pop("data_tls", None)
+        self.eb_fault = options.pop("eb_fault", None)
+        self.eb_chunk = options.pop("eb_chunk", eb.CHUNK)
+        self.eret = options.pop("eret", False)
+        self.spas = options.pop("spas", 0)
+        self.feat_decoy = options.pop("feat_decoy", False)
+        self.spas_host = options.pop("spas_host", None) or host
+        if options:
+            raise TypeError(f"unknown options {sorted(options)}")
         super().__init__((host, port), FtpOriginHandler)
+
+
+def _data_tls_context(cert: Path | None, key: Path | None):
+    """A server-side TLS context for the PROT P data channel, or None.
+
+    Deliberately the SAME certificate the operator points the control channel
+    at: the driver pins the data peer's DN to the control channel's, so a
+    separate data certificate would (correctly) be refused, and a test origin
+    that used one could not prove the pin holds.
+    """
+    if cert is None:
+        return None
+    import ssl
+
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(str(cert), str(key) if key else None)
+    return context
+
+
+def ftp_origin_feat_bytes(host: str, port: int, timeout: float = 10.0) -> bytes:
+    """The RAW bytes of one origin's FEAT reply, terminators and all.
+
+    A census witness, not a convenience: the whole ERET/SPAS extension turned on
+    the probe recognising a name followed by a CR, and every functional test in
+    the suite reads the same right bytes whether the extension was negotiated or
+    silently skipped.  Returning the reply unparsed lets a test assert what is
+    actually on the wire, so the fixture cannot drift to bare LF and take the
+    coverage with it.
+    """
+    import socket
+
+    with socket.create_connection((host, port), timeout=timeout) as sock:
+        sock.settimeout(timeout)
+        reply = b""
+        sock.recv(4096)                      # 220 greeting
+        sock.sendall(b"FEAT\r\n")
+        while b"211 End" not in reply:
+            more = sock.recv(4096)
+            if not more:
+                break
+            reply += more
+        sock.sendall(b"QUIT\r\n")
+    return reply
 
 
 def main() -> int:
@@ -331,10 +492,38 @@ def main() -> int:
     parser.add_argument("root", type=Path)
     parser.add_argument("--host", default=HOST)
     parser.add_argument("--audit", type=Path)
+    parser.add_argument("--no-mode-e", action="store_true",
+                        help="answer MODE E 504 (an origin that cannot do it)")
+    parser.add_argument("--data-cert", type=Path,
+                        help="enable PROT P/DCAU A on the data channel")
+    parser.add_argument("--data-key", type=Path)
+    parser.add_argument("--eb-fault", choices=sorted(eb.FAULTS),
+                        help="emit a non-conforming MODE E block stream")
+    parser.add_argument("--eb-chunk", type=int, default=eb.CHUNK)
+    parser.add_argument("--eret", action="store_true",
+                        help="advertise and implement ERET P (phase-115 W5.2)")
+    parser.add_argument("--spas", type=int, default=0, metavar="N",
+                        help="advertise SPAS and stripe over N data "
+                             "connections (phase-115 W5.3)")
+    parser.add_argument("--feat-decoy", action="store_true",
+                        help="advertise look-alike feature rows (ERETSTAT, "
+                             "SITE ERET, ...) that must light no bit")
+    parser.add_argument("--spas-host", default=None, metavar="ADDR",
+                        help="advertise the stripes on ADDR instead of the "
+                             "bind host — the FTP-bounce negative")
     args = parser.parse_args()
     args.root.mkdir(parents=True, exist_ok=True)
     with FtpOriginServer(args.host, args.port, args.root,
-                         audit_path=args.audit) as server:
+                         audit_path=args.audit,
+                         mode_e=not args.no_mode_e,
+                         data_tls=_data_tls_context(args.data_cert,
+                                                    args.data_key),
+                         eb_fault=args.eb_fault,
+                         eb_chunk=args.eb_chunk,
+                         eret=args.eret,
+                         spas=args.spas,
+                         feat_decoy=args.feat_decoy,
+                         spas_host=args.spas_host) as server:
         server.serve_forever(poll_interval=0.1)
     return 0
 

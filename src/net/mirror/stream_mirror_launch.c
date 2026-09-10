@@ -20,7 +20,6 @@
  */
 #include "stream_mirror.h"
 
-#include <netdb.h>
 #include <sys/socket.h>
 
 #include "stream_mirror_internal.h"
@@ -219,11 +218,13 @@ brix_stream_mirror_launch_target(brix_ctx_t *ctx,
     brix_mirror_target_t *target, ngx_stream_brix_srv_conf_t *conf,
     int primary_ok)
 {
-    ngx_pool_t            *pool;
-    brix_stream_mirror_t  *mir;
+    ngx_pool_t               *pool;
+    brix_stream_mirror_t     *mir;
+    struct sockaddr_storage   tss;
+    socklen_t                 tlen;
 
-    if (target->socklen == 0) {
-        return;   /* unresolved target */
+    if (brix_mirror_target_addr(target, &tss, &tlen) != NGX_OK) {
+        return;   /* phase-116: unresolved target */
     }
 
     pool = ngx_create_pool(2048, ngx_cycle->log);
@@ -241,8 +242,9 @@ brix_stream_mirror_launch_target(brix_ctx_t *ctx,
     mir->primary_ok  = primary_ok;
     mir->log_diverge = conf->mirror.log_diverge;
     mir->port        = target->port;
-    mir->socklen     = target->socklen;
-    ngx_memcpy(&mir->sockaddr, &target->sockaddr, target->socklen);
+    mir->dns         = target->dns;
+    mir->socklen     = tlen;
+    ngx_memcpy(&mir->sockaddr, &tss, tlen);
     ngx_cpystrn((u_char *) mir->host,
                 target->host.data ? target->host.data
                                   : (u_char *) "?",

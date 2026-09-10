@@ -54,12 +54,14 @@ static ngx_command_t  brix_stream_common_commands[] = {
       offsetof(ngx_stream_brix_common_conf_t, common.root),
       NULL },
 
+    /* The http twin's comment applies verbatim (http_directives_core.h). */
     { ngx_string("brix_storage_backend"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1234,
+      brix_conf_set_store_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_common_conf_t, common.storage_backend),
-      NULL },
+      (void *) offsetof(ngx_stream_brix_common_conf_t,
+                        common.storage_backend_args) },
 
     /* phase-108 A.4: name-translation override (see the http twin). Validated at
      * nginx -t by brix_vfs_backend_config_n2n at merge. */
@@ -158,6 +160,38 @@ static ngx_command_t  brix_stream_common_commands[] = {
       0,
       NULL },
 
+    /* phase-116: runtime DNS (same setters as the http plane; `common` is
+     * member 0 so the setter casts conf to brix_shared_conf_t).  main|srv like
+     * the core `resolver` — the main-level value is adopted by every server
+     * through brix_shared_adopt_unified in the merge below. */
+    { ngx_string("brix_resolver"),
+      NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_1MORE,
+      brix_conf_set_resolver,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("brix_dns_retry"),
+      NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
+      brix_conf_set_dns_retry,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("brix_dns_cache_max"),
+      NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      brix_conf_set_dns_cache_max,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("brix_dns_status_zone"),
+      NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_common_conf_t, common.dns.status_zone),
+      NULL },
+
     ngx_null_command
 };
 
@@ -218,7 +252,8 @@ brix_stream_common_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 void
 brix_stream_common_adopt(ngx_conf_t *cf, brix_shared_conf_t *dst)
 {
-    ngx_stream_brix_common_conf_t  *scf;
+    ngx_stream_brix_common_conf_t  *scf, *mcf;
+    ngx_stream_conf_ctx_t          *main_ctx;
 
     /* During merge_srv_conf nginx sets cf->ctx to the current server's stream
      * ctx (ngx_stream.c), so this returns THIS server's stream_common srv conf,
@@ -227,6 +262,21 @@ brix_stream_common_adopt(ngx_conf_t *cf, brix_shared_conf_t *dst)
     scf = ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_brix_common_module);
     if (scf != NULL) {
         brix_shared_adopt_unified(dst, &scf->common);
+    }
+
+    /* phase-116: stream{}-level values (brix_resolver & co. are main|srv).
+     * This module is registered AFTER the protocol modules, so at the moment a
+     * protocol adopts, the server's srv conf has not yet inherited from the
+     * main level — read the stream{} conf directly (the same slot
+     * ngx_stream_cycle_get_module_main_conf walks) and let it fill whatever
+     * the server left unset. */
+    main_ctx = (ngx_stream_conf_ctx_t *)
+                   cf->cycle->conf_ctx[ngx_stream_module.index];
+    if (main_ctx != NULL) {
+        mcf = main_ctx->srv_conf[ngx_stream_brix_common_module.ctx_index];
+        if (mcf != NULL && mcf != scf) {
+            brix_shared_adopt_unified(dst, &mcf->common);
+        }
     }
 }
 

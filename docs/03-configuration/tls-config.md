@@ -259,7 +259,7 @@ http {
         location / {
             brix_webdav         on;
             brix_export    /data;
-            brix_webdav_cadir   /etc/grid-security/certificates;
+            brix_trusted_ca_dir   /etc/grid-security/certificates;
             brix_webdav_auth    required;
         }
     }
@@ -281,10 +281,10 @@ stack:
    - allows nginx's TLS layer to accept RFC 3820 proxy certs
 
 2. Manual x509 verification in the request handler
-   - uses a cached `X509_STORE` built from `brix_webdav_cadir`,
-     `brix_webdav_cafile`, and `brix_webdav_crl`
+   - uses a cached `X509_STORE` built from `brix_trusted_ca_dir`,
+     `brix_trusted_ca`, and `brix_crl`
    - applies `X509_V_FLAG_ALLOW_PROXY_CERTS`
-   - respects `brix_webdav_verify_depth`
+   - respects `brix_verify_depth`
 
 3. Fast path when nginx already verified the client cert
    - if nginx's own SSL trust inputs match the module's trust inputs, the

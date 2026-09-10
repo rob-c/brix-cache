@@ -328,7 +328,7 @@ sts_prepare(ngx_pool_t *pool, sts_req_t *req, char *url, size_t urlsz,
  *       transport failure or a non-200 status; NGX_OK leaves the body in `resp`.
  */
 static ngx_int_t
-sts_perform(ngx_pool_t *pool, const char *url, const char *rsn,
+sts_perform(ngx_pool_t *pool, const sts_req_t *req, const char *url,
     sts_resp_t *resp, ngx_log_t *log)
 {
     long http_status = 0;
@@ -340,13 +340,13 @@ sts_perform(ngx_pool_t *pool, const char *url, const char *rsn,
     resp->len = 0;
     resp->cap = BRIX_STS_RESP_MAX;
 
-    if (sts_http_get(url, resp, &http_status, log) != NGX_OK) {
+    if (sts_http_get(req->cf->dns, url, resp, &http_status, log) != NGX_OK) {
         return NGX_ERROR;
     }
     if (http_status != 200) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
             "brix_sts: STS AssumeRole for \"%s\" returned HTTP %l",
-            rsn, http_status);
+            req->rsn, http_status);
         return NGX_ERROR;
     }
     return NGX_OK;
@@ -381,11 +381,12 @@ sts_prepare_minio(ngx_pool_t *pool, sts_req_t *req, sts_post_t *pd,
  * send, and fail closed on transport error or non-200 (same log string). `url`
  * is the full STS endpoint (scheme+authority, e.g. "https://minio:9000") — the
  * action rides in the form body, so MinIO's STS lives at the endpoint root and
- * the URL carries no query string. `host` is the SigV4 authority (Host header).
+ * the URL carries no query string. `req->host` is the SigV4 authority (Host
+ * header); `req->cf->dns` pins the endpoint through the phase-116 driver.
  */
 static ngx_int_t
-sts_perform_post(ngx_pool_t *pool, const char *url, const char *host,
-    const sts_post_t *pd, const char *rsn, sts_resp_t *resp, ngx_log_t *log)
+sts_perform_post(ngx_pool_t *pool, const sts_req_t *req, const char *url,
+    const sts_post_t *pd, sts_resp_t *resp, ngx_log_t *log)
 {
     long http_status = 0;
 
@@ -396,13 +397,15 @@ sts_perform_post(ngx_pool_t *pool, const char *url, const char *host,
     resp->len = 0;
     resp->cap = BRIX_STS_RESP_MAX;
 
-    if (sts_http_post(url, host, pd, resp, &http_status, log) != NGX_OK) {
+    if (sts_http_post(req->cf->dns, url, req->host, pd, resp, &http_status,
+                      log) != NGX_OK)
+    {
         return NGX_ERROR;
     }
     if (http_status != 200) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
             "brix_sts: STS AssumeRole for \"%s\" returned HTTP %l",
-            rsn, http_status);
+            req->rsn, http_status);
         return NGX_ERROR;
     }
     return NGX_OK;
@@ -468,16 +471,14 @@ brix_s3_sts_assume(ngx_pool_t *pool, const brix_identity_t *id,
         /* MinIO serves STS at the endpoint root; the action is in the body, so
          * POST to the bare endpoint (NUL-terminate cf->endpoint for libcurl). */
         ngx_snprintf((u_char *) url, sizeof(url), "%V%Z", &cf->endpoint);
-        if (sts_perform_post(pool, url, req.host, &pd, req.rsn, &resp, log)
-            != NGX_OK)
-        {
+        if (sts_perform_post(pool, &req, url, &pd, &resp, log) != NGX_OK) {
             return NGX_ERROR;
         }
     } else {
         if (sts_prepare(pool, &req, url, sizeof(url), log) != NGX_OK) {
             return NGX_ERROR;
         }
-        if (sts_perform(pool, url, req.rsn, &resp, log) != NGX_OK) {
+        if (sts_perform(pool, &req, url, &resp, log) != NGX_OK) {
             return NGX_ERROR;
         }
     }

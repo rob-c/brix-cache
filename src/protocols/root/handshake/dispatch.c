@@ -27,6 +27,37 @@
  * full checklist.
  */
 
+/* dispatch_defer_to_manager — should this opcode bypass the forwarding gate so
+ * the CMS manager can (re-)select a data server for it?  (phase-115 W2.1)
+ *
+ * WHAT: True only for a SELECTION-pinned session (ctx->proxy set while
+ *       conf->proxy.enable is off) whose upstream is quiescent.
+ * WHY:  The pin is created by brix_cms_answer_selected() on the first
+ *       selection.  Short-circuiting every later opcode onto that upstream —
+ *       correct for a statically configured proxy — means the manager never
+ *       runs again, so a path held by a *different* data server is forwarded
+ *       verbatim to the wrong node, which answers kXR_error/3011.  Falling
+ *       through returns the request to the normal dispatchers, whose open /
+ *       stat / locate paths consult the registry and re-pin through
+ *       brix_proxy_dispatch_to().
+ * HOW:  conf->proxy.enable off, ctx->proxy set, and the proxy movable.  With a
+ *       file open (or a request in flight) the predicate is false and the
+ *       session keeps its node — the one-upstream-per-session invariant.  The
+ *       auth_done half of the gate is deliberately *not* part of this
+ *       predicate: falling through leads to the direct dispatchers, which
+ *       enforce their own require_auth gate, and an unauthenticated session
+ *       never reaches this point with a proxy anyway.
+ */
+static int
+dispatch_defer_to_manager(const ngx_stream_brix_srv_conf_t *conf,
+    const brix_ctx_t *ctx)
+{
+    if (conf->proxy.enable || ctx->proxy == NULL) {
+        return 0;
+    }
+    return brix_proxy_session_may_reselect(ctx->proxy);
+}
+
 ngx_int_t
 brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
@@ -90,8 +121,18 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
      * reach upstream resources.  Anonymous mode (auth=none) sets auth_done=1 at
      * login, so this remains a no-op gate there.  This mirrors the require_auth
      * gate enforced on the direct (non-proxy) read/write dispatchers.
+     *
+     * Phase-115 W2.1: a session that a manager already pinned to a CMS-selected
+     * data server (`brix_cms_response proxy`, ctx->proxy != NULL) rides that
+     * upstream for every later opcode, exactly like a configured proxy — EXCEPT
+     * while the pin is still movable, when the opcode is handed back to the
+     * manager so a selection can name a different node.  See
+     * dispatch_defer_to_manager() above for why an unconditional short-circuit
+     * makes the first selection permanent.
      */
-    if (conf->proxy.enable && ctx->login.auth_done) {
+    if ((conf->proxy.enable || ctx->proxy != NULL) && ctx->login.auth_done
+        && !dispatch_defer_to_manager(conf, ctx))
+    {
         return brix_proxy_dispatch(ctx, c, conf);
     }
 

@@ -28,6 +28,7 @@ Run:
 """
 import os
 import subprocess
+from brix_suite.client_build import client_make
 import uuid
 
 import pytest
@@ -48,8 +49,7 @@ XRD = os.path.join(CLIENT_DIR, "bin", "xrd")
 
 
 def _build():
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp", "xrd"],
-                          capture_output=True, text=True, timeout=300)
+    proc = client_make(CLIENT_DIR, "xrdfs", "xrdcp", "xrd", capture_output=True, text=True, timeout=300)
     if proc.returncode != 0 or not all(os.path.exists(b) for b in (XRDFS, XRDCP, XRD)):
         pytest.skip(f"client build failed:\n{proc.stdout}\n{proc.stderr}")
 

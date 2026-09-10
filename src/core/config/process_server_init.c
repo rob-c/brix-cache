@@ -528,6 +528,13 @@ brix_init_one_server(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
         return NGX_ERROR;
     }
 
+    /* Phase-115 W3.2: the tape-buffer purge engine — worker 0 only, armed
+     * when the chain carries a tape:// tier and brix_frm_purge_watermark /
+     * brix_frm_purge_max_bytes give it something to enforce. */
+    if (brix_init_server_frm_purge_timer(cycle, xcf) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
     /* Phase-59 W2b: arm the at-rest CSI scrub when brix_csi_scrub_interval is
      * set and a local export root resolves. Surfaces cold-data rot the hot read
      * path cannot see. */

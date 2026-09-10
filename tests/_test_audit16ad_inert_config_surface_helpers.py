@@ -13,17 +13,13 @@ WHY THIS FILE EXISTS
     load and nothing else.  Writing the missing arms is what this file was
     opened to do.  What the missing arms turned out to be worth is the finding.
 
-    A third directive rides along, for a different reason.
-    `brix_backend_passthrough_persist` is NOT an unwritten arm: tranche 16's
-    file 6 (test_audit16f_s3_location_flags.py §H) already writes both of its
-    arms in all three HTTP scopes, and its inertness is already DEFECT
-    CANDIDATE #35, pinned by test_audit15j_zero_coverage_stragglers.py.  What
-    #35 has never had is a running server: every cell that pins it asks
-    `nginx -t`, and a grep for the reader is not a measurement.  §C below is
-    the behavioural half — three live locations differing by that directive and
-    by nothing else — and §D adds the parse negatives (arity, bad value, three
-    illegal scopes) that file 6, which only ever writes well-formed arms, has
-    no cells for.
+    A third directive used to ride along: `brix_backend_passthrough_persist`,
+    DEFECT CANDIDATE #35 (pinned by test_audit15j_zero_coverage_stragglers.py),
+    measured live here in three passthrough arms until the 2.0 release REMOVED
+    the directive (docs/10-reference/release-2.0-readiness.md §(c.1)).  The
+    live arms are gone with it; §D keeps one negative — the name is now refused
+    as an `unknown directive` in every scope — so a 1.x configuration cannot
+    load with the line silently ignored.
 
 THE FINDING — DEFECT CANDIDATE #110
     Neither flag can have a second arm that means anything, because the whole
@@ -44,14 +40,13 @@ THE FINDING — DEFECT CANDIDATE #110
     allocation is the last event in the life of the cache.
 
     #110 is that family and only that family.  The same shape, one directive
-    wide, is already on the books as DEFECT CANDIDATE #35 —
-    brix_backend_passthrough_persist: command table (http_common.c:239), init
-    (shared_conf.h:100), merge (:428-429), adopt macro (:441), and no reader.
-    The five directives here earn a number of their own because they are a
-    different subject and because they go one step further than #35 does: #35's
-    flag is a field nothing consults, while this family reaches
-    ngx_open_file_cache_init() and takes a real allocation out of the config
-    pool before being forgotten.
+    wide, was on the books as DEFECT CANDIDATE #35 —
+    brix_backend_passthrough_persist: command table, init, merge, adopt macro,
+    and no reader — until 2.0 removed it.  The five directives here earn a
+    number of their own because they are a different subject and because they
+    go one step further than #35 did: #35's flag was a field nothing consulted,
+    while this family reaches ngx_open_file_cache_init() and takes a real
+    allocation out of the config pool before being forgotten.
 
 WHY IT IS WORTH A NUMBER RATHER THAN A SHRUG
     An inert directive is not merely useless; it answers.  `nginx -t` accepts
@@ -119,9 +114,9 @@ PORT = LIFECYCLE_SHARED_PORTS[NAME]["port"]
 # The four cache planes.  CACHE_NONE is the control: not one directive of the
 # family.  The two flag arms are the two the audit was opened for.
 CACHE_ARMS = ("cache-on", "cache-eoff", "cache-voff", "cache-none")
-# The three passthrough planes: `on`, `off`, and the merge default (0) written
-# by omitting the line.
-PP_ARMS = ("pp-on", "pp-off", "pp-abs")
+# The directive whose three passthrough planes this scaffold used to carry;
+# removed in 2.0, so the only cell left for it is the parse-tier refusal.
+REMOVED_FLAG = "brix_backend_passthrough_persist"
 # The read-only plane carrying the full cache configuration.
 RO = "cache-ro"
 
@@ -137,11 +132,11 @@ pytestmark = [pytest.mark.timeout(180),
 # --------------------------------------------------------------------------- #
 
 class _Planes:
-    """One listener, eight locations, one export — addressed by URI prefix.
+    """One listener, five locations, one export — addressed by URI prefix.
 
     The WebDAV resolver maps the full request URI under the export root, so
     `/cache-on/f.txt` is `<root>/cache-on/f.txt`: the planes are already
-    disjoint on disk without eight roots, and a cell that writes into one can
+    disjoint on disk without five roots, and a cell that writes into one can
     never be read by another.
     """
 
@@ -171,7 +166,7 @@ def planes(tmp_path_factory):
 
     root = tmp_path_factory.mktemp("audit16ad") / "export"
     root.mkdir()
-    for arm in CACHE_ARMS + PP_ARMS + (RO,):
+    for arm in CACHE_ARMS + (RO,):
         (root / arm).mkdir()
 
     harness = LifecycleHarness()
@@ -182,8 +177,8 @@ def planes(tmp_path_factory):
             data_root=str(root),
             template_values={"BIND_HOST": BIND_HOST},
             reason="audit-16ad the never-read configuration surface: the five "
-                   "brix_webdav_open_file_cache* directives and "
-                   "brix_backend_passthrough_persist, both arms of each flag."))
+                   "brix_webdav_open_file_cache* directives, both arms of "
+                   "each flag."))
         yield _Planes(instance, root)
     finally:
         harness.close()

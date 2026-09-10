@@ -109,3 +109,12 @@
       offsetof(ngx_stream_brix_srv_conf_t, checksum_default),
       NULL },
 
+    /* Site checksum plugin — main level only, one registry per process
+     * (2.0 readiness F8; the http table carries the same directive). */
+    { ngx_string("brix_checksum_plugin"),
+      NGX_STREAM_MAIN_CONF | NGX_CONF_TAKE23,
+      brix_checksum_plugin_directive,
+      0,
+      0,
+      NULL },
+

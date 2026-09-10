@@ -22,7 +22,7 @@ conftest.py: pytest_sessionstart()
     ├── pki_helpers.blitz_test_pki()       # rebuild full PKI from scratch
     │
     ▼
-tests/manage_test_servers.sh: start_all_dedicated (via start-all_dedicated)
+tests/cmdscripts/manage_test_servers.py: start_all_dedicated (via start-all_dedicated)
     │
     ├── substitute_config()                # write fresh nginx configs via sed
     ├── create tokens dir + init JWKS      # signing authority if-not-exists
@@ -39,7 +39,7 @@ pytest tests run...
     ▼
 conftest.py: pytest_sessionfinish()
     │
-    ├── manage_test_servers.sh stop-all  # kill nginx + ref servers
+    ├── python3 -m cmdscripts.manage_test_servers stop-all  # kill nginx + ref servers
     │
     ▼
 pytest session end
@@ -69,13 +69,13 @@ pytest session end
 | test.txt | Fresh content written each session | ✅ Yes |
 | random.bin | 200 bytes of fresh random data generated each session | ✅ Yes |
 
-### Configuration Templates — `manage_test_servers.sh::substitute_config()`
+### Configuration Templates — `cmdscripts/manage_test_servers.py::substitute_config()`
 
 | Artifact | Tool | Regenerated? |
 |----------|------|--------------|
 | All nginx.conf templates in tests/configs/ | sed substitution with port/dir variables | ✅ Yes (fresh per start) |
 
-### Server Lifecycle — `manage_test_servers.sh`
+### Server Lifecycle — `cmdscripts/manage_test_servers.py`
 
 | Artifact | Cleanup Action | Completeness? |
 |----------|----------------|---------------|
@@ -86,7 +86,7 @@ pytest session end
 
 ## What Is NOT Fully Regenerated Every Run (⚠️ Gaps)
 
-### Token Signing Authority — `manage_test_servers.sh::start_all_dedicated()`
+### Token Signing Authority — `cmdscripts/manage_test_servers.py::start_all_dedicated()`
 
 | Artifact | Current Behavior | Gap |
 |----------|------------------|-----|
@@ -124,7 +124,7 @@ pytest session end
 
 ---
 
-## Current Teardown — `conftest.py::pytest_sessionfinish()` + `manage_test_servers.sh stop-all`
+## Current Teardown — `conftest.py::pytest_sessionfinish()` + `python3 -m cmdscripts.manage_test_servers stop-all`
 
 ### What Is Cleaned Up (✅)
 
@@ -160,7 +160,7 @@ echo "Target: ${TEST_ROOT}"
 
 # Kill all remaining servers (belt and suspenders)
 echo "[1/4] Killing remaining servers..."
-tests/manage_test_servers.sh force-stop all || true
+tests/cmdscripts/manage_test_servers.py force-stop all || true
 
 # Remove all generated directories
 echo "[2/4] Removing data directories..."
@@ -181,7 +181,7 @@ echo "  Removed all .pid files"
 # Recreate clean directory structure (optional — leave empty or pre-create)
 echo ""
 echo "=== CLEAN ==="
-echo "Test root is now empty. Run 'tests/manage_test_servers.sh start-all' to rebuild."
+echo "Test root is now empty. Run 'python3 -m cmdscripts.manage_test_servers start-all' to rebuild."
 ```
 
 ### Integration Options
@@ -202,8 +202,8 @@ echo "Test root is now empty. Run 'tests/manage_test_servers.sh start-all' to re
 
 | Task | File | Details |
 |------|------|---------|
-| Add `make_token.py init --overwrite` in conftest or start_all_dedicated | `tests/conftest.py` or `tests/manage_test_servers.sh` | Ensure JWKS signing key is regenerated each session, not just if-not-exists |
-| Force upstream.jwt regeneration at session start | `tests/manage_test_servers.sh::start_all_dedicated()` | Replace the "if-not-exists" stub with fresh generation via `make_token.py gen --scope storage.read:/` |
+| Add `make_token.py init --overwrite` in conftest or start_all_dedicated | `tests/conftest.py` or `tests/cmdscripts/manage_test_servers.py` | Ensure JWKS signing key is regenerated each session, not just if-not-exists |
+| Force upstream.jwt regeneration at session start | `tests/cmdscripts/manage_test_servers.py::start_all_dedicated()` | Replace the "if-not-exists" stub with fresh generation via `make_token.py gen --scope storage.read:/` |
 
 ### Priority 2 — Teardown Data Cleanup
 
@@ -234,14 +234,14 @@ echo "Test root is now empty. Run 'tests/manage_test_servers.sh start-all' to re
 | File | Function | Role |
 |------|----------|------|
 | `utils/make_token.py::TokenIssuer` class | JWT token generation per-test | Used directly in test fixtures — generates tokens using persistent JWKS signing key |
-| `manage_test_servers.sh::start_all_dedicated()` | Token init (if-not-exists) | Creates TOKENS_DIR + calls make_token.py init only if jwks-refresh dir is needed |
+| `cmdscripts/manage_test_servers.py::start_all_dedicated()` | Token init (if-not-exists) | Creates TOKENS_DIR + calls make_token.py init only if jwks-refresh dir is needed |
 
 ### Test Data Setup Files
 
 | File | Function | Role |
 |------|----------|------|
 | `tests/conftest.py::pytest_sessionstart()` | Session lifecycle start | Wipes DATA_ROOT/PKI, generates test.txt/random.bin, calls blitz_test_pki, starts servers |
-| `tests/conftest.py::pytest_sessionfinish()` | Session lifecycle end | Calls manage_test_servers.sh stop-all — kills processes but does not wipe data dirs |
+| `tests/conftest.py::pytest_sessionfinish()` | Session lifecycle end | Calls python3 -m cmdscripts.manage_test_servers stop-all — kills processes but does not wipe data dirs |
 
 ### Existing Test Data Docs (for reference)
 
@@ -262,7 +262,7 @@ echo "Test root is now empty. Run 'tests/manage_test_servers.sh start-all' to re
 
 - PKI regeneration confirmed: conftest.py calls shutil.rmtree(PKI_DIR) then pki_helpers.blitz_test_pki() at session start.
 - Data regeneration confirmed: conftest.py wipes DATA_ROOT and generates test.txt + random.bin each session.
-- Token JWKS not fully regenerated: manage_test_servers.sh creates upstream.jwt only if-not-exists; make_token.py init called only when needed but does not overwrite existing keys.
+- Token JWKS not fully regenerated: cmdscripts/manage_test_servers.py creates upstream.jwt only if-not-exists; make_token.py init called only when needed but does not overwrite existing keys.
 - Teardown stops servers but not data: conftest.py::pytest_sessionfinish() calls stop-all which kills processes on ports + PID files, but no shutil.rmtree or rm -rf of data directories in teardown.
 
 ---

@@ -76,7 +76,7 @@ _EXPECTED_COUNTERS = [
     "brix_auth_l1_hits_total",
     "brix_auth_l1_misses_total",
     "brix_acc_nss_breaker_open_total",
-    "brix_acc_dns_breaker_open_total",
+    "brix_acc_dns_pending_fallback_total",
 ]
 
 

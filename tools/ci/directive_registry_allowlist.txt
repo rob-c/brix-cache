@@ -68,3 +68,17 @@ rpm_class     # phase-106 W1-a: deprecated alias of $brix_rpm_class
 ## implemented and the aliases are gone from
 ## src/protocols/root/stream/stream_variables.c, so their rows are gone too.
 ## R14 fires if a `removal:` row ever outlives its phase again.
+
+## R6 — plane-split twins that are one concept by design, not drift.
+brix_auth   # R6: stream-plane root:// auth mode; brix_webdav_auth is its http-plane twin (phase-115 W1.4: the comment-tolerant registry parser surfaced the pair)
+brix_webdav_auth   # R2: NOT a drifted twin of brix_auth — different value grammar (none|optional|required vs none|gsi|token|...) on a different plane; a unification is an OP rename decision, pinned by tests/test_phase115_example_configs.py
+
+## R4 — the brix_resolver seed writes the CORE resolver slot of its own enclosing scope (nginx has no hook for that), guarded by 'only when still empty' + a NOTICE.
+src/net/dns/directive.c:ngx_http_conf_get_module_loc_conf   # brix_resolver seeds clcf->resolver only when unset (dns_seed_core_slot); surfaced by the phase-115 comment-tolerant registry parser
+src/net/dns/directive.c:ngx_stream_conf_get_module_srv_conf   # same, stream plane
+
+## phase-116: brix_resolver seeds the enclosing core scope's nginx resolver
+## slot at PARSE time (init_main_conf of the upstream module reads it before
+## any merge hook runs) — fills only when the slot is NULL, never overrides.
+src/net/dns/directive.c:ngx_http_conf_get_module_loc_conf   # seed-if-NULL of clcf->resolver at parse time (phase-116 W1)
+src/net/dns/directive.c:ngx_stream_conf_get_module_srv_conf   # seed-if-NULL of cscf->resolver at parse time (phase-116 W1)

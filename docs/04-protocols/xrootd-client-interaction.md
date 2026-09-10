@@ -30,9 +30,9 @@ client build emits the exact same packet sequence.
 
 | URL | Client-side stack | Server-side module |
 |---|---|---|
-| `root://host//path` | Native XRootD client (`libXrdCl` or in-tree `libxrdc`) | nginx stream XRootD module |
+| `root://host//path` | Native XRootD client (`libXrdCl` or in-tree `libbrix`) | nginx stream XRootD module |
 | `davs://host/path` with official `xrdcp --allow-http` | XrdClHttp / libcurl | nginx HTTP WebDAV module |
-| `davs://host/path` with in-tree `client/xrdcp` | `libxrdc` HTTP/WebDAV helper path | nginx HTTP WebDAV module |
+| `davs://host/path` with in-tree `client/bin/xrdcp` | `libbrix` HTTP/WebDAV helper path | nginx HTTP WebDAV module |
 
 That distinction matters:
 
@@ -68,10 +68,10 @@ xrdcp source destination
                 v
             TLS -> HTTP/WebDAV method sequence -> close/keepalive
 
-        +-- URL contains davs:// and in-tree client/xrdcp is used
+        +-- URL contains davs:// and in-tree client/bin/xrdcp is used
                 |
                 v
-            libxrdc HTTP/WebDAV helper
+            libbrix HTTP/WebDAV helper
                 |
                 v
             TLS -> HTTP/WebDAV method sequence -> close/keepalive
@@ -105,12 +105,12 @@ Typical user commands:
 ```bash
 xrdcp --allow-http /tmp/local.root davs://host:8443/store/local.root
 xrdcp --allow-http davs://host:8443/store/remote.root /tmp/remote.root
-client/xrdcp /tmp/local.root davs://host:8443/store/local.root
+client/bin/xrdcp /tmp/local.root davs://host:8443/store/local.root
 ```
 
 For the official XRootD client, the `--allow-http` flag tells `xrdcp` to load the
 HTTP/WebDAV client plugin instead of using the native XRootD transport. The
-in-tree `client/xrdcp` has its own WebDAV/HTTP path and accepts `davs://`,
+in-tree `client/bin/xrdcp` has its own WebDAV/HTTP path and accepts `davs://`,
 `dav://`, `https://`, and `http://` URLs directly.
 
 Common auth inputs:

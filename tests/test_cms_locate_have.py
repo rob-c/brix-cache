@@ -74,6 +74,11 @@ class _CmsNode:
         self.state_paths = []          # every kYR_state path received
         self._lock = threading.Lock()
         self._closing = False
+        # Set on the first frame the manager sends us.  The manager arms its
+        # ping timer only in cms_srv_complete_login, after brix_srv_register,
+        # so any inbound frame proves the node is in the registry; a test that
+        # needs the node selectable waits on this instead of sleeping.
+        self.ready = threading.Event()
         self.sock = socket.create_connection((H, cms_port), timeout=8)
         self.sock.settimeout(0.25)
         self.sock.sendall(_build_frame(0, CMS_RR_LOGIN, 0,
@@ -99,6 +104,7 @@ class _CmsNode:
                 hdr = self._recv_exact(8)
                 if self._closing:
                     return
+                self.ready.set()
                 sid, code, _mod, dlen = struct.unpack(">IBBH", hdr)
                 payload = self._recv_exact(dlen) if dlen else b""
                 if code != CMS_RR_STATE:
@@ -122,6 +128,11 @@ class _CmsNode:
     def probes(self):
         with self._lock:
             return list(self.state_paths)
+
+    def wait_ready(self, timeout=8.0):
+        """True once the manager has spoken to us, i.e. once registration
+        completed; False when nothing arrived within ``timeout`` seconds."""
+        return self.ready.wait(timeout)
 
     def close(self):
         self._closing = True

@@ -269,6 +269,9 @@ brix_read_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (brix_compressed_extent(ctx, idx, offset, rlen, &file_size,
                                &data_total, &io_err) != NGX_OK) {
+        if (io_err == EAGAIN) {
+            return brix_read_io_error(ctx, c, io_err);   /* §4.5 fill frontier */
+        }
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
                           ctx->files[idx].path, "-",
                           kXR_IOError, strerror(io_err));
@@ -292,6 +295,9 @@ brix_read_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (brix_compressed_read_window(ctx, idx, offset, plain, data_total,
                                     &nread, &io_err) != NGX_OK) {
+        if (io_err == EAGAIN) {
+            return brix_read_io_error(ctx, c, io_err);   /* §4.5 fill frontier */
+        }
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
                           ctx->files[idx].path, "-",
                           kXR_IOError, strerror(io_err));

@@ -57,7 +57,7 @@ work:
 
 ## Operating modes
 
-One directive, `brix_impersonation off|single|map`, selects the posture:
+One directive, `brix_idmap off|single|map`, selects the posture:
 
 | Mode | Broker? | Root? | On-disk owner | When to use |
 |---|---|---|---|---|
@@ -81,11 +81,11 @@ stream {
         brix_export /export/data;
 
         # --- impersonation ---
-        brix_impersonation        map;
-        brix_impersonation_socket /run/brix/impersonate.sock;  # default shown
-        brix_impersonation_export /export/data;     # broker confinement root
+        brix_idmap        map;
+        brix_idmap_socket /run/brix/impersonate.sock;  # default shown
+        brix_idmap_export /export/data;     # broker confinement root
                                                       # (defaults to brix_export)
-        brix_gridmap              /etc/grid-security/grid-mapfile;  # DN -> user
+        brix_idmap_gridmap              /etc/grid-security/grid-mapfile;  # DN -> user
         brix_idmap_default_user   nobody;           # squash unmapped (else deny)
         brix_idmap_min_uid        1000;             # refuse uid < this (and 0)
         brix_idmap_cache_ttl      600;              # resolution cache seconds
@@ -100,15 +100,15 @@ sets the unprivileged worker account, e.g. `user xrootd;`.
 
 | Directive | Mode | Meaning |
 |---|---|---|
-| `brix_impersonation off\|single\|map` | all | the posture (default `off`) |
-| `brix_impersonation_user <name>` | `single` | the single account everything squashes to |
-| `brix_impersonation_socket <path>` | `map` | broker `AF_UNIX` socket (default `/var/run/brix/impersonate.sock`) |
-| `brix_impersonation_export <path>` | `map` | the broker's confinement root (defaults to the first data server's `brix_export`) |
-| `brix_gridmap <file>` | `map` | grid-mapfile: `"<DN>" localuser` lines (optional) |
+| `brix_idmap off\|single\|map` | all | the posture (default `off`) |
+| `brix_idmap_user <name>` | `single` | the single account everything squashes to |
+| `brix_idmap_socket <path>` | `map` | broker `AF_UNIX` socket (default `/var/run/brix/impersonate.sock`) |
+| `brix_idmap_export <path>` | `map` | the broker's confinement root (defaults to the first data server's `brix_export`) |
+| `brix_idmap_gridmap <file>` | `map` | grid-mapfile: `"<DN>" localuser` lines (optional) |
 | `brix_idmap_default_user <name>` | `map` | squash account for unmapped principals; **omit to deny** |
 | `brix_idmap_min_uid <N>` | `map` | reserved-uid floor; resolved uids below `N` (and uid 0) are denied (default 1000, hard-clamped to ≥1000) |
 | `brix_idmap_cache_ttl <secs>` | `map` | TTL of the principal→creds cache (default 600) |
-| `brix_impersonation_broker_user <name>` | `map` | a dedicated **non-root** account the broker drops to (keeping only `CAP_SETUID`/`CAP_SETGID`) — see *Running the broker as non-root* below |
+| `brix_idmap_broker_user <name>` | `map` | a dedicated **non-root** account the broker drops to (keeping only `CAP_SETUID`/`CAP_SETGID`) — see *Running the broker as non-root* below |
 | `brix_idmap_forbidden_users <csv>` | `map` | extra account **names** never allowed as a target (adds to the built-in list; the worker + broker accounts are always forbidden) |
 | `brix_idmap_forbidden_groups <csv>` | `map` | privileged group **names** (sudo/wheel/docker/…); a user who is a member of any — primary or supplementary — is denied even if the gid is ≥ the floor |
 
@@ -230,8 +230,8 @@ Run the nginx master as root (so it can open the export `rootfd` and spawn the
 broker), and set:
 
 ```nginx
-brix_impersonation            map;
-brix_impersonation_broker_user xrootd-broker;   # dedicated, non-root, non-worker
+brix_idmap            map;
+brix_idmap_broker_user xrootd-broker;   # dedicated, non-root, non-worker
 ```
 
 The broker then, after the master opens the export rootfd, drops its real/effective/
@@ -263,7 +263,7 @@ setcap 'cap_setuid,cap_setgid=ep' /usr/sbin/nginx
 ```
 
 Here the export `rootfd` must be openable by the `xrootd` account (so point
-`brix_impersonation_export` at a tree that account can traverse), and the broker
+`brix_idmap_export` at a tree that account can traverse), and the broker
 runs as `xrootd` holding just the two caps. The workers still drop them at startup.
 
 > **Honest caveat (important):** a process holding `CAP_SETUID` is **root-equivalent
@@ -278,7 +278,7 @@ runs as `xrootd` holding just the two caps. The workers still drop them at start
 ## Requirements & limitations
 
 - **Kernel ≥ 5.6** (the broker relies on `openat2`/`RESOLVE_BENEATH`).
-- **Single export root.** The broker confines to one `brix_impersonation_export`
+- **Single export root.** The broker confines to one `brix_idmap_export`
   root. Deployments with multiple distinct export roots per server block should
   set it explicitly; multi-root brokering is a follow-up.
 - **Directory listing confidentiality is enforced** across PROPFIND, WebDAV
@@ -316,6 +316,22 @@ runs as `xrootd` holding just the two caps. The workers still drop them at start
   and DAC-checked for, the mapped user — e.g. `chown` to a *different* owner
   correctly fails (the broker holds no `CAP_CHOWN`), while `chgrp` to a group the
   user belongs to succeeds.
+- **The atomic two-name swap is brokered, and is never faked.** `exchange`
+  (`renameat2(RENAME_EXCHANGE)`) swaps two names with no instant at which either
+  one is missing; the cache and stage tiers use it to publish. Until 2.0 it was
+  the one confined mutation with no broker verb, so it answered "not supported"
+  for as long as impersonation was on — an export lost the capability by
+  *enabling* per-user identity. It is now performed as the mapped user like every
+  other mutation. **It is never emulated with two renames**, on any kernel: the
+  only emulation opens exactly the window the caller asked to avoid, so a kernel
+  or filesystem without `RENAME_EXCHANGE` answers `ENOTSUP` instead — the same
+  answer you get with impersonation off, so nothing behaves differently because
+  the broker is in the path. (This is deliberately unlike the exclusive-rename
+  arm, which *does* fall back to a plain rename on an old kernel: under-claiming
+  exclusivity is survivable, losing atomicity is not.) One thing stays the worker
+  identity on purpose: the content-addressed dedup farm under `.gcas/`, whose
+  names no client can address and whose inodes are shared by every publisher of
+  the same bytes.
 - **S3 runs every op as the mapped user.** The S3 content handler brackets the
   whole post-auth dispatch with the principal (subject = the SigV4 access key), so
   the **synchronous** ops — `GetObject`, `HeadObject`, `DeleteObject`, `ListObjects`,

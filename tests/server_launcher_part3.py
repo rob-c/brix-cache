@@ -99,6 +99,22 @@ class LifecycleHarness:
     def endpoint(self, name: str):
         return endpoint_for(self._spec(name))
 
+    def error_log_paths(self) -> dict[str, Path]:
+        """``logs/error.log`` of every instance this harness registered.
+
+        Read them BEFORE ``close()``: the prefix is the only place an
+        instance's crash/close evidence lives, and teardown removes it.  A
+        name whose spec has already been unregistered is skipped.
+        """
+        paths: dict[str, Path] = {}
+        for name in self._names:
+            try:
+                prefix = Path(endpoint_for(self._spec(name)).prefix)
+            except KeyError:
+                continue
+            paths[name] = prefix / "logs" / "error.log"
+        return paths
+
     def spec(self, name: str) -> NginxInstanceSpec:
         return self._spec(name)
 

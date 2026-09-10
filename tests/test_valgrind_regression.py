@@ -140,7 +140,7 @@ def test_harness_reports_module_clean(tmp_path):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
     pki = Path(os.environ.get("PKI_DIR", os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "pki")))
     if not (pki / "ca" / "ca.pem").exists():
-        pytest.skip("test PKI fixtures missing; run manage_test_servers.sh start-all")
+        pytest.skip("test PKI fixtures missing; run python3 -m cmdscripts.manage_test_servers start-all")
 
     work = tmp_path / "vg"
     env = dict(os.environ, VG_WORK=str(work),

@@ -91,13 +91,13 @@ server {
         brix_webdav       on;
         brix_export  /data/store;
         brix_webdav_auth  required;
-        brix_webdav_cadir /etc/grid-security/certificates;
-        brix_webdav_crl   /etc/grid-security/certificates;
+        brix_trusted_ca_dir /etc/grid-security/certificates;
+        brix_crl   /etc/grid-security/certificates;
 
         # Bearer token (WLCG/SciTokens)
-        brix_webdav_token_jwks     /etc/brix/issuer.jwks;
-        brix_webdav_token_issuer   https://token.example.org;
-        brix_webdav_token_audience https://se.example.org;
+        brix_token_jwks     /etc/brix/issuer.jwks;
+        brix_token_issuer   https://token.example.org;
+        brix_token_audience https://se.example.org;
 
         brix_allow_write on;
     }
@@ -124,8 +124,8 @@ server {
         brix_export   /data/store;
         brix_webdav_auth   required;
         brix_webdav_proxy_certs on;           # accept RFC 3820 proxy certs
-        brix_webdav_cadir  /etc/grid-security/certificates;
-        brix_webdav_crl    /etc/grid-security/certificates;
+        brix_trusted_ca_dir  /etc/grid-security/certificates;
+        brix_crl    /etc/grid-security/certificates;
         brix_allow_write on;
     }
 }
@@ -140,14 +140,14 @@ server {
 ## Authentication
 
 Authentication is controlled by `brix_webdav_auth` and applies to every
-request that reaches the location block. `brix_webdav_protbind` may narrow or
+request that reaches the location block. `brix_protbind` may narrow or
 reorder the credential sources per peer.
 
 ```text
 Incoming request
       │
       ▼
-  Resolve the peer's protocol binding (brix_webdav_protbind,
+  Resolve the peer's protocol binding (brix_protbind,
   default gsi → ztn → pwd)
       │
       ▼
@@ -179,7 +179,7 @@ Default is `optional`.
 
 ### Per-host protocol binding
 
-`brix_webdav_protbind <host-template> [none | [only] <protocol>...]` is the
+`brix_protbind <host-template> [none | [only] <protocol>...]` is the
 HTTP face of the stream `brix_protbind` directive (XRootD's `sec.protbind`).
 Both frontends share one parser and one resolver, so the same stanza written in
 a `stream` server block and an `http` location block yields the same decision
@@ -190,9 +190,9 @@ location / {
     brix_webdav on;
     brix_webdav_auth required;
 
-    brix_webdav_protbind mon.example.org none;    # probes: anonymous
-    brix_webdav_protbind *.farm.local only pwd;   # on-site: Basic only
-    brix_webdav_protbind * gsi ztn;               # everyone else
+    brix_protbind mon.example.org none;    # probes: anonymous
+    brix_protbind *.farm.local only pwd;   # on-site: Basic only
+    brix_protbind * gsi ztn;               # everyone else
 }
 ```
 
@@ -206,8 +206,8 @@ header and vice versa. Full grammar and matching rules:
 ### GSI / X.509 proxy certificates
 
 The module validates the full RFC 3820 proxy chain using an OpenSSL X509_STORE
-built from `brix_webdav_cadir` / `brix_webdav_cafile` and checked against
-CRLs from `brix_webdav_crl`. The CA store is built once at startup and
+built from `brix_trusted_ca_dir` / `brix_trusted_ca` and checked against
+CRLs from `brix_crl`. The CA store is built once at startup and
 cached for the worker lifetime — no per-request disk I/O.
 
 Enable `brix_webdav_proxy_certs on` to accept VOMS proxy certificates.
@@ -215,13 +215,13 @@ Without it, only end-entity certificates are accepted.
 
 ### WLCG/SciTokens JWT bearer tokens
 
-Set `brix_webdav_token_jwks` to a local JWKS file (RS256). The module
+Set `brix_token_jwks` to a local JWKS file (RS256). The module
 validates signature, expiry, `iss`, and `aud` claims. Token scopes
 (`storage.read`, `storage.write`, `storage.create`) are enforced on write
 methods when the token path is present.
 
-All three of `brix_webdav_token_jwks`, `brix_webdav_token_issuer`, and
-`brix_webdav_token_audience` must be set together.
+All three of `brix_token_jwks`, `brix_token_issuer`, and
+`brix_token_audience` must be set together.
 
 > **Key rotation:** use `brix_webdav_macaroon_secret_old` to keep accepting
 > tokens signed by the previous key during a rotation window. Remove it once
@@ -287,7 +287,7 @@ location /dav/ {
     brix_webdav           on;
     brix_export      /data/store;
     brix_webdav_auth      required;
-    brix_webdav_cadir     /etc/grid-security/certificates;
+    brix_trusted_ca_dir     /etc/grid-security/certificates;
     brix_allow_write on;
     brix_webdav_tpc       on;
 
@@ -431,10 +431,10 @@ Context: `location`
 
 ---
 
-#### `brix_webdav_protbind`
+#### `brix_protbind`
 
 ```nginx
-brix_webdav_protbind <host-template> [none | [only] <protocol>...];
+brix_protbind <host-template> [none | [only] <protocol>...];
 ```
 
 Bind an ordered set of credential sources to a host template. May be repeated;
@@ -474,44 +474,44 @@ brix_webdav_proxy_certs on | off;
 
 Accept RFC 3820 proxy certificates (VOMS proxies). Default: `off`.
 
-When `on`, the module walks the proxy chain up to `brix_webdav_verify_depth`
+When `on`, the module walks the proxy chain up to `brix_verify_depth`
 levels deep. When `off`, only end-entity certificates are accepted.
 
 Context: `server`, `location`
 
 ---
 
-#### `brix_webdav_cadir`
+#### `brix_trusted_ca_dir`
 
 ```nginx
-brix_webdav_cadir /etc/grid-security/certificates;
+brix_trusted_ca_dir /etc/grid-security/certificates;
 ```
 
 Directory of trusted CA PEM files (hashed, as produced by `update-ca-trust` or
 `c_rehash`). Required when `brix_webdav_auth` is `optional` or `required`
-unless `brix_webdav_cafile` is set instead.
+unless `brix_trusted_ca` is set instead.
 
 Context: `location`
 
 ---
 
-#### `brix_webdav_cafile`
+#### `brix_trusted_ca`
 
 ```nginx
-brix_webdav_cafile /etc/pki/tls/certs/ca-bundle.crt;
+brix_trusted_ca /etc/pki/tls/certs/ca-bundle.crt;
 ```
 
 Single PEM file containing one or more trusted CA certificates. Alternative to
-`brix_webdav_cadir`; both can be set.
+`brix_trusted_ca_dir`; both can be set.
 
 Context: `location`
 
 ---
 
-#### `brix_webdav_crl`
+#### `brix_crl`
 
 ```nginx
-brix_webdav_crl /etc/grid-security/certificates;
+brix_crl /etc/grid-security/certificates;
 ```
 
 Path to CRL file(s). Accepts a directory (hashed CRL PEMs) or a single PEM
@@ -521,15 +521,15 @@ Context: `location`
 
 ---
 
-#### `brix_webdav_token_jwks`
+#### `brix_token_jwks`
 
 ```nginx
-brix_webdav_token_jwks /etc/brix/issuer.jwks;
+brix_token_jwks /etc/brix/issuer.jwks;
 ```
 
 Path to a local JWKS file (JSON, RS256 keys) used for bearer token signature
-verification. Must be set together with `brix_webdav_token_issuer` and
-`brix_webdav_token_audience`.
+verification. Must be set together with `brix_token_issuer` and
+`brix_token_audience`.
 
 The JWKS is loaded once at startup. To rotate keys, reload nginx.
 
@@ -537,10 +537,10 @@ Context: `location`
 
 ---
 
-#### `brix_webdav_token_issuer`
+#### `brix_token_issuer`
 
 ```nginx
-brix_webdav_token_issuer https://token.example.org;
+brix_token_issuer https://token.example.org;
 ```
 
 Required `iss` claim value. Tokens with a different issuer are rejected.
@@ -549,10 +549,10 @@ Context: `location`
 
 ---
 
-#### `brix_webdav_token_audience`
+#### `brix_token_audience`
 
 ```nginx
-brix_webdav_token_audience https://se.example.org;
+brix_token_audience https://se.example.org;
 ```
 
 Required `aud` claim value. Tokens with a different audience are rejected.
@@ -764,18 +764,18 @@ Context: `location`
 
 ## Troubleshooting
 
-### "auth optional/required needs brix_webdav_cadir or brix_webdav_cafile"
+### "auth optional/required needs brix_trusted_ca_dir or brix_trusted_ca"
 
 `brix_webdav_auth optional` and `required` both need a trust anchor to
-verify certificates. Set `brix_webdav_cadir` or `brix_webdav_cafile`.
+verify certificates. Set `brix_trusted_ca_dir` or `brix_trusted_ca`.
 If you only want bearer token auth and no certificate support, that is not
 supported directly — set a cadir that points at your issuer's CA.
 
 ### Token verification fails
 
-1. Check that `brix_webdav_token_issuer` matches the `iss` claim exactly
+1. Check that `brix_token_issuer` matches the `iss` claim exactly
    (trailing slashes matter).
-2. Check that `brix_webdav_token_audience` matches the `aud` claim.
+2. Check that `brix_token_audience` matches the `aud` claim.
 3. Verify the JWKS file is valid JSON and contains the correct public keys
    for your issuer. You can inspect it with `python3 -m json.tool`.
 4. Check the clock on the nginx host — JWT `exp` verification requires

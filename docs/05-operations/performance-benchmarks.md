@@ -79,9 +79,9 @@ Verify the module compiled in:
 
 ## Step 2 — Test PKI and token signing authority
 
-The benchmark uses the same PKI layout as the integration test suite. If you have already run `tests/manage_test_servers.sh start` at least once, the PKI at `/tmp/xrd-test/pki/` is ready and you can skip to Step 3.
+The benchmark uses the same PKI layout as the integration test suite. If you have already started the test fleet once (`cd tests && python3 -m cmdscripts.manage_test_servers start-all`), the PKI at `/tmp/xrd-test/pki/` is ready and you can skip to Step 3.
 
-Otherwise, follow [docs/test-pki.md](../06-authentication/test-pki-setup.md) to generate the CA, server certificate, and user proxy certificate, then:
+Otherwise, follow [Test PKI setup](../06-authentication/test-pki-setup.md) to generate the CA, server certificate, and user proxy certificate, then:
 
 ```bash
 # Token signing authority (needed for WebDAV+Bearer tests)
@@ -121,7 +121,14 @@ Both files must be under `/tmp/xrd-test/data/`. The xrootd perf config symlinks 
 
 ## Step 4 — Run the benchmark
 
-`tests/run_load_test.sh` starts servers, runs `load_test.py`, and stops servers on exit. The script accepts an optional target (`nginx`, `xrootd`, or `both`) and forwards remaining flags to `load_test.py`.
+Start the fleet, run the driver, stop the fleet. `tests/load_test.py` takes the target as
+`--target nginx|xrootd|both` and every other flag below:
+
+```bash
+cd tests && python3 -m cmdscripts.manage_test_servers start-all   # once, before a sweep
+# ... run the driver invocations below from the repository root ...
+cd tests && python3 -m cmdscripts.manage_test_servers stop-all    # once, after
+```
 
 ### root:// + GSI — BriX-Cache vs xrootd native
 
@@ -130,7 +137,7 @@ This is the primary comparison in the README table:
 ```bash
 source .venv/bin/activate
 
-bash tests/run_load_test.sh both \
+python3 tests/load_test.py --target both \
     --file load_1g.bin \
     --concurrency 1,8,32,128 \
     --suite root-gsi \
@@ -147,7 +154,7 @@ xrootd native serves HTTPS/WebDAV via the `XrdHttp` plugin (`libXrdHttp-5.so`), 
 ```bash
 source .venv/bin/activate
 
-bash tests/run_load_test.sh both \
+python3 tests/load_test.py --target both \
     --file load_1g.bin \
     --concurrency 1,8,32,128 \
     --suite webdav-gsi \
@@ -216,7 +223,7 @@ Thread limits are set generously (`maxt 256`) to match the maximum concurrency t
 
 ```bash
 # Higher concurrency sweep (no disk writes)
-bash tests/run_load_test.sh both \
+python3 tests/load_test.py --target both \
     --file load_1g.bin \
     --concurrency 1,8,32,64,128,200,500 \
     --suite root-gsi \
@@ -224,7 +231,7 @@ bash tests/run_load_test.sh both \
     --json /tmp/bench_extended.json
 
 # Smaller file, read + write
-bash tests/run_load_test.sh nginx \
+python3 tests/load_test.py --target nginx \
     --file load_100m.bin \
     --concurrency 1,8,32,128 \
     --mode both \

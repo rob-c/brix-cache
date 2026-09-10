@@ -40,7 +40,10 @@
 #include "fs/cache/verify.h"                /* brix_cache_verify_mode_e */
 #include "fs/cache/writethrough_decision.h" /* brix_wt_decision_fn */
 #include "core/config/credential_block.h"     /* brix_credential_t */
+#include "core/config/cache_urlcgi_conf.h"    /* brix_cache_urlcgi_conf_t (2.0 F5) */
 #include "core/types/config.h"                /* BRIX_WT_MODE_SYNC/_ASYNC */
+
+struct brix_dns_policy_s;   /* net/dns/dns.h: the export's brix_resolver policy */
 
 /* ---- tier role ------------------------------------------------------------ */
 
@@ -67,12 +70,30 @@ typedef struct {
     int                         tls;          /* roots:// / https → 1               */
     char                        path[1024];   /* dir | /sub | /bucket | /pool[/ns]  */
     const brix_credential_t  *credential;   /* §14; NULL = anonymous              */
+    struct brix_dns_policy_s   *dns;          /* phase-116 origin resolver; NULL=libc */
     size_t                      block_size;   /* pblock object block size (0 = def) */
+    uint64_t                    capacity;     /* ram:<size> hard byte cap (0 = n/a) */
     char                        opts[128];    /* pblock `?tail` static opts captured
                                                  off a cache-store URL (phase-88 W1;
                                                  "" = none) — persisted as the
                                                  <store>/pblock.opts sidecar by the
                                                  cache-tier registration */
+    char                        fwd_permit[512]; /* 2.0 F5: the `permit=` tokens
+                                                 of a forward:// backend line,
+                                                 space-joined ("" = none)    */
+    brix_pgverify_mode_e      verify_pages; /* phase-115 W4.3: `verify_pages`
+                                                 on a root:// store line — read
+                                                 the origin with kXR_pgread and
+                                                 check every page's CRC32c     */
+    unsigned                    ftp_streams;  /* phase-115 W5.3: `streams=<n>` —
+                                                 the CEILING on data connections
+                                                 one GridFTP read may open
+                                                 (0/1 = never ask for SPAS)   */
+    unsigned                    ftp_mode_e:1; /* phase-115 W5.1: `mode=e` on an
+                                                 ftp:///gsiftp:// store line —
+                                                 GFD.020 extended block mode  */
+    unsigned                    ftp_prot_p:1; /* phase-115 W5.1: `prot=p` — TLS
+                                                 on the data channel, DCAU A  */
     unsigned                    nearline:1;   /* tape:// — async-recall reads (§9)  */
     unsigned                    configured:1; /* a store URL was parsed for this tier */
 } brix_tier_cfg_t;
@@ -135,6 +156,11 @@ typedef struct {
     size_t                      prefetch_window; /* brix_cache_prefetch_window — max
                                                   bytes one WILLNEED hint may queue
                                                   for background fill            */
+    brix_cache_urlcgi_conf_t    urlcgi;          /* brix_cache_urlcgi (2.0 F5,
+                                                  upstream pfc.urlcgi): clamps for
+                                                  the per-open pfc.blocksize /
+                                                  pfc.prefetch client hints;
+                                                  *_max == 0 = hint ignored     */
     time_t                      uvkeep;          /* brix_cache_uvkeep — audit §4.3
                                                   (upstream pfc.uvkeep): a cached
                                                   entry whose contents were never
@@ -146,6 +172,29 @@ typedef struct {
                                                   Only ADDS revalidation; a verified
                                                   or still-fresh entry is unaffected.
                                                   0 = off (trust indefinitely). */
+    time_t                      serve_while_filling; /* brix_cache_serve_while_filling
+                                                  — audit §4.5: a reader of a key
+                                                  whose whole-file fill is in
+                                                  flight FOLLOWS the fill (reads
+                                                  the staged bytes up to the
+                                                  frontier, kXR_wait past it)
+                                                  instead of blocking until the
+                                                  fill commits.  The value is the
+                                                  no-progress deadline: if the
+                                                  frontier does not advance for
+                                                  this long the follower fails
+                                                  ETIMEDOUT rather than hanging
+                                                  on a dead filler.  0 = off. */
+    char                        verify_digest[16]; /* brix_cache_verify_digest —
+                                                  the algorithm a NON-xroot
+                                                  origin is ASKED for during a
+                                                  verifying fill (root:// answers
+                                                  kXR_Qcksum in band). Empty =
+                                                  ask for nothing, so such a fill
+                                                  has no origin digest and
+                                                  `require` refuses to publish.
+                                                  A canonical lowercase name,
+                                                  validated at nginx -t.        */
 } brix_cache_policy_t;
 
 /* ---- stage policy (§2.4) — the kept write-through decision, re-homed ------- */
@@ -206,6 +255,32 @@ typedef struct {
  * instance is built. */
 ngx_int_t brix_tier_parse_store(brix_tier_parse_t *p, ngx_str_t *url,
     ngx_array_t *args, brix_tier_role_t role);
+
+/* Parse ONLY the trailing params of a `brix_storage_backend` line into p->out,
+ * with role BACKEND (phase-115 W5.1).
+ *
+ * WHY a second entry point rather than brix_tier_parse_store: the BACKEND tier
+ * is not built through the tier composer — brix_vfs_backend_config_str parses
+ * its URL into the VFS backend registry, and that dispatcher accepts schemes
+ * the tier table does not carry (mirage:, cephfs-ro:, a bare driver name).
+ * Running the full store-URL parser over every backend line would newly refuse
+ * configurations that work today.  This entry resolves the scheme ONLY when
+ * params are present — a line with no params is untouched — so an operator pays
+ * the tier table's vocabulary exactly when they ask for one of its params.
+ *
+ * `args` may be NULL/empty: that is the no-params fast path and always NGX_OK
+ * with p->out zeroed.  Otherwise the scheme is resolved (driver + tls) and the
+ * params validated exactly as on a cache/stage line, so `verify_pages`,
+ * `mode=`, `prot=`, `credential=`, `block_size=` and `nearline` speak one
+ * vocabulary on every store directive.  NGX_ERROR (message in p->err, [emerg]
+ * through p->cf) on an unknown scheme or a refused param.
+ *
+ * An EMPTY `url` WITH params is the `posix:<path>` spelling that
+ * brix_storage_backend_posix_root has already folded into the export root: the
+ * driver is the default POSIX one, and it is named as such so the refusal
+ * points at the param rather than at a store line the operator can see. */
+ngx_int_t brix_tier_parse_backend_params(brix_tier_parse_t *p, ngx_str_t *url,
+    ngx_array_t *args);
 
 /* Report whether the driver bound for tier `t` satisfies its role's capability
  * contract (§2.2). `probe` is a built instance of the tier's driver. Returns

@@ -354,10 +354,19 @@ def run_aud_match(base: Path) -> list[tuple[bool, str]]:
 
 
 def run_exchange_cache(base: Path) -> list[tuple[bool, str]]:
+    """brix_tx_cache_* (exchange_cache.o).  token_peek.o is on the link line
+    because `brix_token_peek_exp` was promoted out of exchange_cache.c when TPC
+    outbound renewal became a second caller — the cache derives every entry's TTL
+    from the minted token's own `exp`, so the real definition has to be linked or
+    the exp-window assertions test nothing.  It lives in its own TU (not in
+    validate_registry.o, where it first landed) precisely so this unit stays
+    linkable: the registry object pulls in the issuer registry, the signature
+    pipeline, the scope parser and the subject mapfile, none of which the cache
+    touches."""
     return _run_token_unit(base, "exchange_cache",
                            "tests/c/exchange_cache_test.c",
-                           ["exchange_cache.o", "b64url.o", "json.o",
-                            "crypto.o"])
+                           ["exchange_cache.o", "token_peek.o",
+                            "b64url.o", "json.o", "crypto.o"])
 
 
 def run_exchange(base: Path) -> list[tuple[bool, str]]:

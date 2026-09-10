@@ -331,6 +331,31 @@ recv_after_waitresp(brix_conn *c, uint16_t want_sid, unsigned secs,
 }
 
 /*
+ * WHAT: pull the NEXT kXR_attn(asynresp) frame for want_sid and deliver its
+ *       inner status/body, exactly as the post-waitresp wait does.
+ * WHY:  a protocol whose deferred reply is a SEQUENCE of asynresp frames — SSI
+ *       pushes zero or more alerts before the terminal response — cannot use
+ *       brix_recv: that consumes exactly one frame and cannot report which kind
+ *       it was. Such a caller sets defer_surfaces so brix_recv hands back the
+ *       kXR_waitresp ack, then calls this once per frame and classifies each
+ *       itself. Exported rather than reimplemented so the envelope validation
+ *       (attn / actnum / 16-byte floor / stream match / inner kXR_error) exists
+ *       in ONE place for every deferred-reply protocol.
+ * HOW:  recv_after_waitresp with a zero advertised delay — the wait window is
+ *       then the conn's own timeout, which is what a caller polling a stream of
+ *       pushed frames wants (the server already spent its advertised delay
+ *       before the ack). 0 / -1 (st set); a re-armed kXR_waitresp is absorbed.
+ */
+int
+brix_recv_next_asynresp(brix_conn *c, uint16_t want_sid, brix_resp_out *out,
+                        brix_status *st)
+{
+    if (out->body != NULL) { *out->body = NULL; }
+    if (out->blen != NULL) { *out->blen = 0; }
+    return recv_after_waitresp(c, want_sid, 0, out, st);
+}
+
+/*
  * WHAT: §15 response-side diagnostics — wire trace, full-frame capture, and
  *       per-opcode RTT accumulation. Inert unless armed.
  * WHY:  pure observability side-band; hoisting it out of brix_recv leaves the
@@ -442,13 +467,19 @@ recv_dispatch(brix_conn *c, uint16_t want_sid, rx_frame_t *f, brix_resp_out *out
          * unsolicited kXR_attn(asynresp). Transparent to every caller... */
         unsigned secs = (f->dlen >= 4) ? xrd_get_u32_be(f->buf) : 0;
         free(f->buf);
-        /* ...EXCEPT a TPC coordinator open: the source registers the rendezvous key
-         * and defers its open reply until the copy completes — but that copy can only
-         * happen once the orchestrator opens the DESTINATION and triggers the pull.
-         * Blocking here for the deferred reply would deadlock (source waits for the
-         * pull; the pull waits for this call to return). Surface the deferral so the
-         * caller proceeds; the deferred reply is drained after the dest sync. */
-        if (c->tpc_coord_defer) {
+        /* ...EXCEPT on a conn that asked for the deferral itself (defer_surfaces,
+         * brix_net.h). Two protocols do, for two different reasons:
+         *   TPC coordinator open — the source registers the rendezvous key and holds
+         *     its open reply until the copy completes, but the copy only starts once
+         *     the orchestrator opens the DESTINATION and triggers the pull. Blocking
+         *     here would deadlock (source waits for the pull; the pull waits for this
+         *     call to return); the deferred reply is drained after the dest sync.
+         *   SSI submit — a deferring service answers kXR_waitresp and then pushes a
+         *     SEQUENCE of asynresp frames (alerts, then the response), which this
+         *     function cannot tell apart: it would consume the first one and hand back
+         *     an alert as if it were the reply. The SSI layer pulls them itself with
+         *     brix_recv_next_asynresp() and classifies each by its RRInfoAttn tag. */
+        if (c->defer_surfaces) {
             return resp_deliver(out, kXR_waitresp, NULL, 0);
         }
         return recv_after_waitresp(c, want_sid, secs, out, st);

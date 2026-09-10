@@ -38,17 +38,21 @@ Official XRootD's `XrdHttp` is fully aware of `cmsd` cluster states.
     escalation is implemented and tested. HTTP-layer hierarchical redirect/proxy
     parity is still pending.
 *   **Lateral Redirects:** Support for `307 Temporary Redirect` logic that accounts for XRootD's internal load-balancing and "tried hosts" lists.
-*   **Upstream Auth-More:** Transparent upstream bootstrap handles ztn token
-    auth; native TPC handles ztn/GSI through its own path. Transparent-upstream
-    GSI and credentialed cache/write-through origin auth remain open.
+*   **Upstream Auth-More:** Implemented. The transparent upstream bootstrap
+    reads the server's `&P=` login advert and authenticates with ztn
+    (`brix_upstream_token_file`) or GSI (`brix_upstream_x509_proxy`); the
+    cache/write-through origin authenticates with the credential named by
+    `brix_storage_credential`; native TPC handles ztn/GSI through its own
+    path (phase 115 W2.4, 2026-09-05).
 
 ## Phase 4: Protocol Edge Cases & Performance
 Fine-tuning the "look and feel" of the HTTP service to match `xrdcp davs://` expectations.
 
 *   **XRootD-Specific Headers:** Support the full set of `X-Xrootd-*` and `TransferHeader-*` metadata headers used for server-side hints (e.g., `oss.asize`, `xrdcl.requuid`).
-*   **Outbound `kXR_gotoTLS`:** Transparent upstream connections support
-    `kXR_gotoTLS`; native TPC source connections remain plain TCP and still need
-    TLS-upgrade support.
+*   **Outbound `kXR_gotoTLS`:** Implemented for both legs. Transparent
+    upstream connections upgrade in `src/net/upstream/tls.c`; native TPC
+    source connections upgrade in `src/tpc/outbound/tls.c` (phase-57 §F5,
+    pinned by `tests/test_audit15h_tpc_gsi_tls.py`).
 *   **Asynchronous Staging (`kXR_prepare`):** FRM durable queue and Tape REST
     gateway support are implemented. Full upstream XrdFrm/MSS semantics remain
     deployment-specific parity work.

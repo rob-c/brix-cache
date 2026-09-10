@@ -17,7 +17,7 @@ The exhaustive old→new move map is
 |---|---|
 | `core/aio/` | epoll/io_uring event loop, buffers, per-connection lifecycle (`aio*`, `uring`) |
 | `core/config/`, `core/types/` | rc-file parsing (`xrdrc`); status/kXR names + unit formatting |
-| `net/` | connection/socket/stream/pool/TLS transport, URL parse, timeouts, resilience |
+| `net/` | connection/socket/stream/pool/TLS transport, URL parse, timeouts, resilience; `resolve` is the client's one DNS seam (phase-116) |
 | `auth/` | auth driver + request signing; `cred/` credentials, `sec/` security protocols, `gsi/` X.509 proxy, `sss/` keytab |
 | `fs/` | client VFS (`vfs*`, `iobuf`, `path`, `glob`, `fattr`); `overlay` writable-union core for `brixMount cvmfs-rw` (classify/copy-up/whiteouts/CLI); `backend/s3/` S3 VFS backend |
 | `protocols/` | `root/` root:// ops + framing, `http/` HTTP client + webfile, `s3/` SigV4, `shared/` zip + checksums |

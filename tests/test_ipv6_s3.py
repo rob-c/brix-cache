@@ -2,7 +2,7 @@
 
 Exercises the S3 REST subset (PUT/GET/HEAD/list/delete/range/copy/multipart +
 CORS preflight) against the dedicated "ipv6-s3" nginx instance bound to the IPv6
-loopback ``[::1]`` and pre-started by ``manage_test_servers.sh start-all``
+loopback ``[::1]`` and pre-started by ``python3 -m cmdscripts.manage_test_servers start-all``
 (``start_dedicated_nginx "ipv6-s3" "nginx_ipv6_s3.conf" "${IPV6_S3_PORT}"``),
 serving ``IPV6_S3_DATA_ROOT`` as an anonymous, writable bucket.
 
@@ -117,7 +117,7 @@ def _ipv6_s3(requires_ipv6_loopback):
     if not reachable6(IPV6_S3_PORT):
         pytest.skip(
             f"dedicated ipv6-s3 nginx not reachable on [{HOST6}]:{IPV6_S3_PORT} — "
-            f"run tests/manage_test_servers.sh start-all"
+            f"run python3 -m cmdscripts.manage_test_servers start-all"
         )
 
 

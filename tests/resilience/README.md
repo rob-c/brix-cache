@@ -11,7 +11,7 @@ daemon — with the in-repo TCP fault proxy spliced in front.
 Everything here runs on a **dedicated high port block (13901 / 13902)** with its
 own data root and PKI under `/tmp/xrd-resilience`, completely **isolated from the
 main test suite** (which owns 11094–12126 under `/tmp/xrd-test`). It never calls
-`manage_test_servers.sh`; each server and the fault proxy is a context manager
+`cmdscripts/manage_test_servers.py`; each server and the fault proxy is a context manager
 that brings itself up and tears itself down.
 
 ## Files
@@ -61,7 +61,7 @@ PYTHONPATH=tests python3 -m pytest tests/resilience/test_loss_sweep_gsi.py -v
 ```
 
 Selecting the test file by name skips the main-suite fleet (the file is in
-`conftest.py`'s `no_server_files` allowlist, like `test_official_brix_resilience.py`).
+`conftest.py`'s `no_server_files` allowlist, like `test_official_xrootd_resilience.py`).
 
 ## What the fault proxy's loss models
 
@@ -141,4 +141,6 @@ wired into the high-level library ops, so every tool inherits it.
 
 The pre-change baseline (fail-fast) is reproducible with `--client-max-stall 0`.
 The FUSE driver (`client/bin/xrootdfs`) remains the reference; see
-`tests/test_xrootdfs_resilience.py` and `tests/test_official_brix_resilience.py`.
+`tests/test_xrootdfs_resilience.py`, the smoke test
+`tests/resilience/test_loss_sweep_gsi.py`, and the standalone sweeps in this
+directory collected by `tests/resilience/test_sweep_runners.py`.

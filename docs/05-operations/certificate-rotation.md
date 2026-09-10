@@ -9,8 +9,8 @@ for those three you usually do not even need `nginx -s reload`.
 
 | Credential | Directive | Mechanism |
 |---|---|---|
-| Token signing keys (JWKS) | `brix_token_jwks` / `brix_webdav_token_jwks`, interval `brix_token_jwks_refresh_interval` | A per-worker timer polls the JWKS file's mtime and reloads keys in place. Old keys are freed only **after** a successful reload, so in-flight token validations never see an empty key set. |
-| CRLs | `brix_crl` / `brix_webdav_crl`, reload via `brix_crl_reload` | The X509 store is rebuilt and swapped atomically; active TLS sessions are unaffected. |
+| Token signing keys (JWKS) | `brix_token_jwks` / `brix_token_jwks`, interval `brix_token_jwks_refresh_interval` | A per-worker timer polls the JWKS file's mtime and reloads keys in place. Old keys are freed only **after** a successful reload, so in-flight token validations never see an empty key set. |
+| CRLs | `brix_crl` / `brix_crl`, reload via `brix_crl_reload` | The X509 store is rebuilt and swapped atomically; active TLS sessions are unaffected. |
 | Authorization DB | `brix_authdb`, `brix_authdb_refresh` | The authz table is re-read and swapped on change. |
 
 **To roll a token key:** publish the new JWKS (containing both old and new keys
@@ -20,6 +20,18 @@ have expired, drop the old key from the JWKS.
 
 **To refresh CRLs:** update the CRL files in place (e.g. via `fetch-crl`), atomically.
 The store rebuild picks them up on the next reload tick / `brix_crl_reload` cadence.
+
+> **Every CRL under `brix_crl` must be readable by the worker.** A CRL file that
+> is present but unreadable is an error, not an absence — whether you name the
+> file directly or name the directory it sits in, and whatever `brix_crl_mode`
+> says. At startup the server **refuses to start**, naming both the
+> `brix_trusted_ca` and the `brix_crl` path; on a hot reload the rebuild fails
+> loudly and the **previous store is kept**, so a running gateway never loses
+> revocation checking because of a permissions change. (Before 2.0 the
+> directory form of this mistake silently disarmed revocation under
+> `brix_crl_mode try` — see the CHANGELOG entry for 2.0 F22.) An
+> empty-but-readable CRL directory is still just an empty feed, and it is
+> `brix_crl_mode` that decides whether that is tolerated.
 
 ## What needs `nginx -s reload` (the host cert/key)
 

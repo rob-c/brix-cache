@@ -181,13 +181,88 @@ Coverage: `tests/test_cms_aaa_join_noise.py` drives join, outage, rejoin and
 hostile-redirector cases across an impaired link and asserts on all three
 families.
 
+### Manager-side: `brix_cms_locate_coalesced_total`
+
+The three families above are emitted by a **node** about its link upward. This
+one is emitted by a **manager** about work it did not have to do.
+
+```
+brix_cms_locate_coalesced_total 812
+```
+
+| Metric | Type | Meaning |
+| --- | --- | --- |
+| `brix_cms_locate_coalesced_total` | counter | Dynamic-locate requests that rode a `kYR_state` window already in flight for the same path instead of opening one of their own. Requires `brix_cms_coalesce on`; stays at `0` otherwise. |
+
+Read it against the locate rate, not on its own. A high *ratio* is the feature
+working — a popular path being opened by many clients at once costs one probe
+wave rather than N. A ratio near zero under load means the arrivals are not
+actually colliding (distinct paths, or a `brix_cms_locate_window` too short for
+a second client to arrive inside it), so the directive is buying nothing.
+
+```promql
+# Probe waves saved, as a share of dynamic locates served.
+rate(brix_cms_locate_coalesced_total[5m])
+```
+
+Two things it deliberately does not count: a `kXR_refresh` locate, which must
+never coalesce because refresh exists to bypass an in-flight answer, and a
+collision across worker processes — parking is per worker, so on an N-worker
+manager the ceiling is per-worker collisions, not global ones.
+
+### Manager-side: the cluster registry and health-check families
+
+A **manager** (`brix_manager_mode on`) also exports what it knows about its
+members, from the shared-memory registry every worker reads. Emitted whenever
+the registry zone exists, member or not; a manager with no data server yet
+still exposes the count gauge and the four health-check counters.
+
+```
+brix_cluster_servers_registered 2
+brix_cluster_server_free_megabytes{server="ds1.example:1094"} 812000
+brix_cluster_server_utilization_percent{server="ds1.example:1094"} 37
+brix_cluster_server_last_seen_seconds{server="ds1.example:1094"} 1.4
+brix_cluster_server_blacklisted{server="ds1.example:1094"} 0
+brix_cluster_server_disconnect_total{server="ds1.example:1094"} 0
+brix_cluster_hc_probes_total 140
+brix_cluster_hc_pass_total 140
+brix_cluster_hc_fail_total 0
+brix_cluster_hc_blacklist_total 0
+```
+
+| Metric | Type | Meaning |
+| --- | --- | --- |
+| `brix_cluster_servers_registered` | gauge | Members in this manager's registry — its own tier only; a sub-manager's leaves are counted by the sub-manager, not by the meta above it. |
+| `brix_cluster_server_*{server="host:port"}` | gauge / counter | One row per member: reported free space and utilisation, seconds since its last heartbeat, whether it is blacklisted right now, and `disconnect_total` — the CMS link drops charged to it. |
+| `brix_cluster_hc_probes_total`, `_pass_total`, `_fail_total`, `_blacklist_total` | counter | Active health-check outcomes, **aggregate only** — no per-server label, by INVARIANT 8 (low-cardinality labels). Per-server health is on the dashboard snapshot API. |
+
+The `server` label is bounded by the registry's slot count, not by clients.
+
+**Reset semantics.** A member's CMS link dropping sets `blacklisted` to 1 and
+bumps `disconnect_total`; when the member registers again, `brix_srv_register`
+rebuilds its row ("clear any prior blacklist on reconnect") and both read 0.
+That is the counter reset Prometheus allows after a restart of the thing
+counted — `rate()` and `increase()` handle it — and a re-register is never
+charged as a second disconnect. A failure at one tier is never charged to the
+tier above: the meta's row for a sub-manager does not move when that
+sub-manager's leaf drops.
+
+Coverage: `tests/test_release20_cms_metrics.py` (three-tier tree: ownership,
+drop and re-register, tier isolation) and `tests/test_release20_health_metrics.py`
+(the hc family declared and moving, emitted before the first member, no
+per-server label).
+
 ---
 
 ## Cache Metrics
 
 ### `brix_cache_occupancy_ratio`
 
-Current `statvfs()` filesystem occupancy ratio for `brix_cache_export`.
+Current occupancy ratio, from the cache store's own capacity report
+(`brix_cstore_freespace`) first — for `brix_cache_store ram:<size>` that is the
+configured cap against resident bytes plus in-flight fill reservations, per
+worker — and from a `statvfs()` of the legacy `brix_cache_export` root only when
+the store has no report of its own.
 
 Labels: `port`, `auth`
 
@@ -207,7 +282,14 @@ brix_cache_eviction_threshold_ratio{port="1094",auth="anon"} 0.900000
 
 ### `brix_cache_bytes`
 
-Current cache filesystem bytes, split by state.
+Current cache bytes, split by state, from the cache store's own capacity
+report — a `ram:` store answers its configured cap (`total`), resident bytes
+plus in-flight fill reservations (`used`) and the remainder (`available`); a
+store with no report of its own falls back to the filesystem of the legacy
+`brix_cache_export` root. Every export with a `brix_cache_store` gets the row
+(since 2.0 — before, only `brix_cache on` did), from the export's first
+accepted TCP connection on (the slot is published at accept time, before any
+handshake — a readiness probe is enough).
 
 Labels: `port`, `auth`, `state`
 
@@ -741,13 +823,13 @@ brix_io_bytes_written{proto="stream"} 12582912
 # HELP brix_io_bytes_read Total bytes read from storage, by protocol.
 # TYPE brix_io_bytes_read counter
 brix_io_bytes_read{proto="stream"} 4194304
-# HELP brix_cache_occupancy_ratio Filesystem occupancy ratio for brix_cache_export.
+# HELP brix_cache_occupancy_ratio Cache store occupancy ratio for brix_cache_export (the cache store's own capacity, or the legacy root's filesystem).
 # TYPE brix_cache_occupancy_ratio gauge
 brix_cache_occupancy_ratio{port="1094",auth="anon"} 0.734218
 # HELP brix_cache_eviction_threshold_ratio Configured cache eviction high-water occupancy ratio.
 # TYPE brix_cache_eviction_threshold_ratio gauge
 brix_cache_eviction_threshold_ratio{port="1094",auth="anon"} 0.900000
-# HELP brix_cache_bytes Cache filesystem bytes by state.
+# HELP brix_cache_bytes Cache store bytes by state (the cache store's own capacity, or the legacy root's filesystem).
 # TYPE brix_cache_bytes gauge
 brix_cache_bytes{port="1094",auth="anon",state="total"} 214748364800
 brix_cache_bytes{port="1094",auth="anon",state="used"} 157672816640
@@ -769,6 +851,469 @@ brix_requests_total{port="1094",auth="anon",op="write",status="ok"} 18
 brix_requests_total{port="1094",auth="anon",op="close",status="ok"} 35
 ```
 
+---
+
+## Complete Family Index
+
+Every metric family this module can export — all 240 of them — with its
+Prometheus type and the exact `# HELP` text it emits. The sections above explain
+the families operators tune against (label vocabularies, ownership rules, worked
+examples); this index exists so that no exported family is undocumented, and so
+that a scrape can be read end to end without reaching for the source.
+
+The rows are the calibrated catalogue the conformance suite already pins against
+a live scrape — `tests/test_cachemx_catalog.py` for the type,
+`tests/test_cachemx_help_text.py` for the HELP text. A family added, renamed or
+retyped without a row here fails
+`tests/test_release20_surface_pins.py::test_the_family_reference_covers_every_exported_family`,
+so this index cannot silently fall behind the exporter.
+
+Reading the table: a family whose subsystem is not configured still emits its
+HELP/TYPE header and reads `0` rather than vanishing, so alerting rules need no
+`absent()` guard; every label vocabulary is a closed, low-cardinality set
+(INVARIANT #8) — no path, export name, user, token or size is ever a label
+value; and every latency family is in **seconds** (the microsecond aliases were
+removed in 2.0).
+
+### Access control (NSS/DNS helpers) — `brix_acc_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_acc_dns_pending_fallback_total` | counter | Times an XrdAcc host-rule decision fell back to the numeric peer because the reverse-DNS answer was still pending. |
+| `brix_acc_nss_breaker_open_total` | counter | Times the XrdAcc NSS group-lookup circuit breaker tripped open. |
+
+### Authentication — `brix_auth_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_auth_l1_hits_total` | counter | Auth-gate verdicts served from the per-worker L1 cache (no SHM lock). |
+| `brix_auth_l1_misses_total` | counter | Auth-gate L1 misses that fell through to the SHM L2 or full evaluation. |
+| `brix_auth_total` | counter | Authentication attempts by protocol, method, and status. |
+
+### Cache tier — `brix_cache_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_cache_bytes` | gauge | Cache store bytes by state (the cache store's own capacity, or the legacy root's filesystem). |
+| `brix_cache_bytes_evicted_total` | counter | Cache bytes evicted, by protocol. |
+| `brix_cache_dirty_reaped_total` | counter | Cache files reaped by the stale-dirty reaper, by reason (abandoned/incomplete = write-back discarded; completed = finished staging reclaimed). |
+| `brix_cache_evicted_bytes_total` | counter | Bytes reclaimed by cache eviction. |
+| `brix_cache_eviction_errors_total` | counter | Cache eviction maintenance errors. |
+| `brix_cache_eviction_threshold_ratio` | gauge | Configured cache eviction high-water occupancy ratio. |
+| `brix_cache_evictions_total` | counter | Files evicted from brix_cache_export. |
+| `brix_cache_occupancy_ratio` | gauge | Cache store occupancy ratio for brix_cache_export (the cache store's own capacity, or the legacy root's filesystem). |
+| `brix_cache_prefetch_blocks_total` | counter | Cache blocks filled by background prefetch. |
+| `brix_cache_prefetch_failures_total` | counter | Background cache prefetch jobs that failed. |
+| `brix_cache_prefetch_jobs_total` | counter | Background cache prefetch jobs posted. |
+| `brix_cache_requests_total` | counter | Cache lookups by protocol and disposition (HIT/MISS — the $brix_cache_status vocabulary). |
+| `brix_cache_usage_ratio` | gauge | Cache filesystem occupancy (0-1). |
+| `brix_cache_watermark_evicted_bytes_total` | counter | Bytes reaped by the watermark reaper. |
+| `brix_cache_watermark_evicted_files_total` | counter | Files reaped by the watermark reaper. |
+| `brix_cache_watermark_purges_total` | counter | Watermark reaper purge runs that reclaimed space. |
+
+### CernVM-FS plane — `brix_cvmfs_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_cvmfs_bytes_served_total` | counter | bytes served to clients by cache disposition |
+| `brix_cvmfs_fill_failures_total` | counter | fills that failed definitively |
+| `brix_cvmfs_fills_total` | counter | origin fills published to the cache |
+| `brix_cvmfs_negative_hits_total` | counter | 404s absorbed by the per-worker negative cache |
+| `brix_cvmfs_origin_bytes_total` | counter | bytes pulled from the Stratum-1 origins (WAN in) |
+| `brix_cvmfs_origin_failovers_total` | counter | read attempts that failed over to the next-ranked origin |
+| `brix_cvmfs_repo_bytes_served_total` | counter | bytes served per repository by cache disposition |
+| `brix_cvmfs_repo_cache_hits_total` | counter | requests served from the local store per repository |
+| `brix_cvmfs_repo_cache_misses_total` | counter | requests that needed an origin fill per repository |
+| `brix_cvmfs_repo_files_accessed_total` | counter | CAS objects served (hit or fill) per repository |
+| `brix_cvmfs_repo_fill_failures_total` | counter | fills that failed definitively per repository |
+| `brix_cvmfs_repo_fills_total` | counter | origin fills published per repository |
+| `brix_cvmfs_repo_negative_hits_total` | counter | 404s absorbed by the negative cache per repository |
+| `brix_cvmfs_repo_origin_bytes_total` | counter | bytes pulled from the Stratum-1 origins per repository (WAN in) |
+| `brix_cvmfs_repo_requests_total` | counter | requests per repository by traffic class |
+| `brix_cvmfs_repo_verify_failures_total` | counter | CAS verify mismatches per repository |
+| `brix_cvmfs_requests_total` | counter | CVMFS requests by traffic class |
+| `brix_cvmfs_upstream_failovers_total` | counter | fills served by a non-primary endpoint per upstream Stratum-1 |
+| `brix_cvmfs_upstream_fill_duration_seconds` | histogram | origin fill duration per upstream |
+| `brix_cvmfs_upstream_fill_failures_total` | counter | origin fill attempts that failed per upstream Stratum-1 |
+| `brix_cvmfs_upstream_fills_total` | counter | origin fills that published per upstream Stratum-1 |
+| `brix_cvmfs_upstream_origin_bytes_total` | counter | bytes pulled per upstream Stratum-1 (WAN in) |
+| `brix_cvmfs_upstream_requests_total` | counter | origin fill attempts per upstream Stratum-1 |
+| `brix_cvmfs_verify_failures_total` | counter | CAS verify mismatches (fill quarantined, never admitted) |
+
+### Cluster registry — `brix_cluster_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_cluster_hc_blacklist_total` | counter | Servers blacklisted by health checking. |
+| `brix_cluster_hc_fail_total` | counter | Health-check probes that failed or timed out. |
+| `brix_cluster_hc_pass_total` | counter | Health-check probes that passed. |
+| `brix_cluster_hc_probes_total` | counter | Active health-check probes started. |
+| `brix_cluster_servers_registered` | gauge | Number of data servers currently in the cluster registry. |
+
+### CMS / AAA federation — `brix_cms_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_cms_cap_rejections_total` | counter | CMS server connections refused by the global or per-IP admission cap. |
+| `brix_cms_connect_failures_total` | counter | Upward CMS dials that never became a logged-in link (refused/unreachable/deadline). |
+| `brix_cms_frame_yields_total` | counter | CMS read loops that yielded the worker after the per-wakeup frame cap. |
+| `brix_cms_idle_closes_total` | counter | CMS server connections reaped by the post-login idle watchdog. |
+| `brix_cms_locate_coalesced_total` | counter | Locates parked on a kYR_state wave already in flight for the same path. |
+| `brix_cms_login_timeouts_total` | counter | CMS server connections closed for not completing LOGIN before the deadline. |
+| `brix_cms_logins_total` | counter | CMS LOGIN frames this node sent to its upstream manager (federation joins). |
+| `brix_cms_read_timeouts_total` | counter | CMS client reconnects after the manager went silent past the read timeout. |
+| `brix_cms_registered_links` | gauge | Upward CMS links currently logged in (0 = this node is OUT of the cluster). |
+
+### Configuration — `brix_config_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_config_generation` | gauge | Config loads since master start (steps on each reload). |
+
+### Connections — `brix_connections_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_connections_active` | gauge | Currently open XRootD connections. |
+| `brix_connections_total` | counter | Total TCP connections accepted since process start. |
+
+### Credential selection and delegation — `brix_cred_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_cred_deleg_fail_total` | counter | Delegation-gate failures by protocol and reason (closed vocabulary). |
+| `brix_cred_deleg_total` | counter | Delegation-gate terminal outcomes, by protocol, configured delegation mode, and outcome. |
+| `brix_cred_select_deny_total` | counter | Request rejected at the credential gate (EACCES; fallback_deny=1), by protocol. |
+| `brix_cred_select_fallback_total` | counter | Service-credential fallback allowed (no/expired user cred or driver incapable; fallback_deny=0), by protocol. |
+| `brix_cred_select_user_total` | counter | Per-user backend credential selected and used, by protocol. |
+
+### CSI page tagstore — `brix_csi_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_csi_scrub_mismatch_total` | counter | At-rest data blocks whose on-disk bytes failed CRC32c re-verification during the background CSI scrub (brix_csi_scrub_interval). A rising value is silent storage rot; 0 unless a scrub is armed. |
+
+### Export registry — `brix_registry_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_registry_full_total` | counter | Server registrations dropped because the registry was at capacity. |
+
+### Forwarding proxy — `brix_proxy_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_proxy_abandoned_handles_total` | counter | Upstream file handles freed on client disconnect without an explicit close. |
+| `brix_proxy_closes_total` | counter | kXR_close requests forwarded to upstream. |
+| `brix_proxy_open_errors_total` | counter | kXR_open requests forwarded to upstream that failed. |
+| `brix_proxy_opens_total` | counter | kXR_open requests forwarded to upstream that succeeded. |
+| `brix_proxy_path_op_errors_total` | counter | Path-based mutation operations that received an error from upstream. |
+| `brix_proxy_path_ops_total` | counter | Path-based mutation operations (rm/mkdir/rmdir/mv/chmod/truncate) that succeeded. |
+| `brix_proxy_read_bytes_total` | counter | Bytes relayed from upstream to client via proxy. |
+| `brix_proxy_reads_total` | counter | kXR_read/pgread/readv requests forwarded to upstream. |
+| `brix_proxy_reconnects_total` | counter | Upstream reconnect attempts after idle connection drop. |
+| `brix_proxy_upstream_auth_errors_total` | counter | Upstream login or token authentication failures. |
+| `brix_proxy_upstream_connect_errors_total` | counter | Upstream TCP connect or TLS handshake failures. |
+| `brix_proxy_upstream_connects_total` | counter | Successful upstream TCP (or TLS) connects. |
+| `brix_proxy_wait_responses_total` | counter | kXR_wait responses from upstream that were absorbed and retried transparently. |
+| `brix_proxy_write_bytes_total` | counter | Bytes forwarded from client to upstream via proxy. |
+| `brix_proxy_writes_total` | counter | kXR_write/pgwrite/writev requests forwarded to upstream. |
+
+### FRM / tape staging — `brix_frm_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_frm_asynresp_total` | counter | Async stage completions delivered via kXR_attn(asynresp). |
+| `brix_frm_cmsd_have_total` | counter | Now-resident paths registered with the manager (cmsd Have). |
+| `brix_frm_dedup_hits_total` | counter | Stage opens collapsed onto an already in-flight recall. |
+| `brix_frm_evict_total` | counter | kXR_evict / Tape-REST release marks applied. |
+| `brix_frm_in_flight` | gauge | Stage requests currently QUEUED or STAGING. |
+| `brix_frm_migrate_total` | counter | Category-2 migrate-out attempts (scaffolding). |
+| `brix_frm_purge_total` | counter | Online-buffer copies released by the tape purge engine (phase-115 W3.2). |
+| `brix_frm_reject_inflight_total` | counter | Stage requests refused because the queue was at max_inflight. |
+| `brix_frm_requests_total` | counter | Tape stage requests admitted to the FRM durable queue. |
+| `brix_frm_stage_fail_total` | counter | Recalls that failed, by coarse reason. |
+| `brix_frm_stage_latency_seconds` | histogram | Tape recall latency in seconds. |
+| `brix_frm_stage_success_total` | counter | Recalls that completed and brought the file online. |
+| `brix_frm_waitresp_total` | counter | Async stalled opens parked with kXR_waitresp. |
+
+### Legacy byte ledgers — `brix_bytes_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_bytes_rx_ipv4_total` | counter | Bytes received from IPv4 clients (stream layer). |
+| `brix_bytes_rx_ipv6_total` | counter | Bytes received from IPv6 clients (stream layer). |
+| `brix_bytes_tx_ipv4_total` | counter | Bytes sent to IPv4 clients (stream layer). |
+| `brix_bytes_tx_ipv6_total` | counter | Bytes sent to IPv6 clients (stream layer). |
+
+### Native stream plane — `brix_stream_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_stream_connections_rejected_total` | counter | Connections refused at accept because the listener was at brix_max_connections. |
+| `brix_stream_handshake_timeouts_total` | counter | Connections dropped because the pre-auth handshake stalled past brix_handshake_timeout. |
+| `brix_stream_io_uring_active` | gauge | 1 if a worker fronting this listener has used the io_uring backend. |
+| `brix_stream_io_uring_fallback_total` | counter | Mapped disk ops that fell back to the thread pool because io_uring was full or runtime-disabled. |
+| `brix_stream_io_uring_ops_total` | counter | Mapped disk ops (read/write/single-group readv/writev) submitted via the io_uring backend. |
+| `brix_stream_oversized_payloads_total` | counter | Native XRootD requests rejected because their payload was too large. |
+| `brix_stream_read_pdu_timeouts_total` | counter | Connections dropped because an incomplete request PDU stalled past brix_read_timeout. |
+| `brix_stream_request_frames_total` | counter | Native XRootD request headers parsed by the stream module. |
+| `brix_stream_request_payload_bytes_total` | counter | Declared native XRootD request payload bytes parsed by the stream module. |
+| `brix_stream_response_frames_total` | counter | Native XRootD response send attempts. |
+| `brix_stream_response_write_errors_total` | counter | Native XRootD response send or send_chain failures. |
+| `brix_stream_response_write_stalls_total` | counter | Native XRootD response sends that had to wait for socket writability. |
+| `brix_stream_send_drain_timeouts_total` | counter | Connections dropped because the response drain stalled past brix_send_timeout. |
+| `brix_stream_tpc_egress_refused_total` | counter | TPC pulls refused because the requested source host was not on brix_tpc_source_allow (server-side request-forgery control). 0 unless brix_tpc_source_guard is on. |
+
+### Native wire counters — `brix_wire_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_wire_bytes_rx_total` | counter | Raw socket bytes received from native XRootD clients. |
+| `brix_wire_bytes_tx_total` | counter | Raw socket bytes sent to native XRootD clients. |
+
+### OCI registry mirror — `brix_oci_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_oci_delegate_total` | counter | delegated-pull authorization proofs by disposition (D16) |
+| `brix_oci_fill_bytes_total` | counter | bytes pulled from the upstream registry (WAN in) |
+| `brix_oci_requests_total` | counter | OCI distribution requests by surface, traffic class and outcome |
+| `brix_oci_token_fetch_total` | counter | upstream Bearer-token acquisitions by disposition |
+| `brix_oci_upstream_errors_total` | counter | upstream registry error responses by status bucket |
+| `brix_oci_verify_fail_total` | counter | fills whose bytes did not hash to the digest the request named (quarantined, never admitted) |
+
+### OCSP stapling — `brix_ocsp_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_ocsp_timeouts_total` | counter | OCSP fetches that hit the socket deadline (connect/handshake/read). |
+
+### Packet marking (SciTag) — `brix_pmark_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_pmark_firefly_dropped_total` | counter | Firefly UDP datagrams dropped on sendto error (fail-open). |
+| `brix_pmark_firefly_sent_total` | counter | Firefly UDP datagrams sent successfully. |
+| `brix_pmark_flowlabel_failed_total` | counter | IPv6 flow-label setsockopt refusals (kernel/permission; fail-open). |
+| `brix_pmark_flowlabel_set_total` | counter | IPv6 flow labels stamped on connections. |
+| `brix_pmark_flows_ended_total` | counter | SciTags flows that emitted an end firefly. |
+| `brix_pmark_flows_started_total` | counter | SciTags flows that mapped to (experiment,activity) and were marked. |
+| `brix_pmark_map_unresolved_total` | counter | Opens with packet marking enabled but no (experiment,activity) mapping. |
+
+### Path resolution — `brix_path_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_path_depth_violations_total` | counter | Requests rejected because path depth exceeded BRIX_MAX_WALK_DEPTH. Prevents CPU exhaustion from malicious symlink traversal chains or deep nesting. |
+
+### Per-user accounting — `brix_user_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_user_evictions_total` | counter | User identity slots evicted from the tracking table. |
+| `brix_user_sessions_total` | gauge | Sessions per tracked user identity. Sum across all entries equals total authenticated sessions. |
+
+### Per-VO accounting — `brix_vo_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_vo_bytes_rx_total` | counter | Bytes received from clients grouped by virtual organisation. VO names are truncated to 15 characters. |
+| `brix_vo_bytes_tx_total` | counter | Bytes sent to clients grouped by virtual organisation. VO names are truncated to 15 characters; the metric family has one entry per VO. |
+| `brix_vo_overflow_total` | counter | VO entries that exceeded the tracking limit and were evicted. |
+| `brix_vo_requests_total` | counter | Requests grouped by virtual organisation. VO names are truncated. |
+
+### Rate limiting — `brix_rate_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_rate_limit_eviction_total` | counter | LRU node evictions from rate-limit shared-memory zones. |
+| `brix_rate_limit_throttled_total` | counter | Requests throttled by the advanced rate limiter. |
+| `brix_rate_limit_zone_full_errors_total` | counter | Allocation failures in rate-limit shared-memory zones. |
+
+### Read budget — `brix_budget_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_budget_waits_total` | counter | Reads deferred with kXR_wait because they would exceed brix_memory_budget. |
+
+### Requests — `brix_requests_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_requests_total` | counter | XRootD requests completed, by operation and status. |
+
+### RPM mirror — `brix_rpm_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_rpm_prefetch_fail_total` | counter | warm repodata fills the origin did not serve (the client pays the miss it would have paid anyway) |
+| `brix_rpm_prefetch_total` | counter | repodata objects (primary, filelists) warmed into the cache after a new repomd.xml named them, before any client asked |
+| `brix_rpm_requests_total` | counter | RPM repository mirror requests by object class and outcome |
+| `brix_rpm_verify_fail_total` | counter | repodata fills whose bytes did not hash to the checksum their own name carries (quarantined, never admitted) |
+
+### Runtime DNS — `brix_dns_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_dns_bridge_requests_total` | counter | Blocking resolutions handed to the event loop by a thread-pool caller (this worker). |
+| `brix_dns_bridge_timeouts_total` | counter | Bridge crossings that timed out waiting for the event loop and fell back to libc. |
+| `brix_dns_cache_entries` | gauge | Live entries in the per-worker forward-DNS cache. |
+| `brix_dns_cache_hits_total` | counter | Positive forward-DNS cache hits. |
+| `brix_dns_cache_misses_total` | counter | forward-DNS cache misses (a query followed). |
+| `brix_dns_cache_negative_hits_total` | counter | Negative forward-DNS cache hits (no query sent). |
+| `brix_dns_failures_total` | counter | Failed runtime resolution attempts of registered targets (this worker). |
+| `brix_dns_lookups_total` | counter | Completed runtime DNS queries by outcome (this worker; cache hits excluded). |
+| `brix_dns_resolutions_total` | counter | Successful runtime resolutions of registered targets (this worker). |
+| `brix_dns_reverse_cache_entries` | gauge | Live entries in the per-worker reverse-DNS cache. |
+| `brix_dns_reverse_cache_hits_total` | counter | Positive reverse-DNS cache hits. |
+| `brix_dns_reverse_cache_misses_total` | counter | reverse-DNS cache misses (a query followed). |
+| `brix_dns_reverse_cache_negative_hits_total` | counter | Negative reverse-DNS cache hits (no query sent). |
+| `brix_dns_targets` | gauge | Runtime-DNS targets registered from the configuration, by state (this worker's view). |
+
+### S3 plane — `brix_s3_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_s3_auth_total` | counter | S3 SigV4 or anonymous authentication outcomes. |
+| `brix_s3_bytes_rx_ipv4_total` | counter | Bytes received from IPv4 clients via S3-compatible PUT. |
+| `brix_s3_bytes_rx_ipv6_total` | counter | Bytes received from IPv6 clients via S3-compatible PUT. |
+| `brix_s3_bytes_tx_ipv4_total` | counter | Bytes sent to IPv4 clients via S3-compatible GET. |
+| `brix_s3_bytes_tx_ipv6_total` | counter | Bytes sent to IPv6 clients via S3-compatible GET. |
+| `brix_s3_events_total` | counter | Low-cardinality S3-compatible endpoint diagnostic events. |
+| `brix_s3_list_common_prefixes_total` | counter | S3 ListObjectsV2 CommonPrefixes entries emitted. |
+| `brix_s3_list_contents_total` | counter | S3 ListObjectsV2 Contents entries emitted. |
+| `brix_s3_list_truncated_total` | counter | S3 ListObjectsV2 responses that returned a continuation token. |
+| `brix_s3_put_bodies_total` | counter | S3-compatible PUT body storage modes observed after successful writes. |
+| `brix_s3_range_requests_total` | counter | S3-compatible GET range handling outcomes. |
+| `brix_s3_requests_total` | counter | S3-compatible endpoint requests received, by operation. |
+| `brix_s3_responses_total` | counter | S3-compatible endpoint responses by operation and HTTP status class. |
+
+### Sessions — `brix_session_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_session_evict_total` | counter | Idle sessions reaped (LRU) to admit a new login under table pressure. |
+| `brix_session_registry_full_total` | counter | Logins rejected because the session table was full and nothing was reapable. |
+| `brix_session_src_cap_evict_total` | counter | Own-LRU sessions recycled because one identity hit the per-source soft cap. |
+
+### SSI plane — `brix_ssi_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_ssi_alerts_pushed_total` | counter | XrdSsi out-of-band alerts pushed to clients. |
+| `brix_ssi_attn_push_failures_total` | counter | XrdSsi kXR_attn pushes that failed to queue. |
+| `brix_ssi_errors_total` | counter | XrdSsi error responses. |
+| `brix_ssi_requests_total` | counter | XrdSsi requests dispatched. |
+
+### Storage backends and exports — `brix_storage_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_storage_backend_info` | gauge | Composed storage stack per export (source backend, origin, auth, stage); value always 1. |
+| `brix_storage_bytes_available` | gauge | Backend export filesystem bytes available. |
+| `brix_storage_bytes_total` | gauge | Backend export filesystem size in bytes (local backends). |
+| `brix_storage_bytes_used` | gauge | Backend export filesystem bytes used. |
+| `brix_storage_io_bytes_read` | counter | Bytes read by each storage backend driver. |
+| `brix_storage_io_bytes_written` | counter | Bytes written by each storage backend driver. |
+| `brix_storage_occupancy_ratio` | gauge | Backend export filesystem occupancy (0-1). |
+
+### Stratum cvmfs — `brix_scvmfs_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_scvmfs_requests_total` | counter | requests admitted by the scvmfs security preamble (EXPERIMENTAL) |
+
+### Third-party copy — `brix_tpc_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_tpc_bytes_total` | counter | Successful third-party-copy bytes. |
+| `brix_tpc_gsi_delegated_total` | counter | Outbound TPC GSI proxy-delegation credential-selection outcomes. |
+| `brix_tpc_transfers_total` | counter | Third-party-copy transfer outcomes. |
+
+### Traffic mirroring — `brix_mirror_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_mirror_divergence_total` | counter | Shadow status differed from the primary. |
+| `brix_mirror_dropped_total` | counter | Requests skipped by the mirror sampling/filter. |
+| `brix_mirror_errors_total` | counter | Mirror requests that failed to reach the shadow. |
+| `brix_mirror_requests_total` | counter | Mirror requests the shadow answered. |
+
+### Transfer engine — `brix_xfer_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_xfer_heap_bytes` | gauge | Bytes currently held in per-connection transfer scratch buffers. |
+| `brix_xfer_heap_high_water_bytes` | gauge | Peak transfer-heap bytes observed since start. |
+
+### Unified protocol-labeled I/O — `brix_io_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_io_bytes_read` | counter | Total bytes read from storage, by protocol. |
+| `brix_io_bytes_written` | counter | Total bytes written to storage, by protocol. |
+| `brix_io_latency_seconds` | histogram | I/O operation latency in seconds. |
+| `brix_io_offload_total` | counter | Read-family responses (read/readv/pgread) routed over a bound secondary data channel (pathid response offloading). |
+| `brix_io_ops_total` | counter | I/O operations completed, by protocol, operation, and status. |
+| `brix_io_slowop_threshold_usec` | gauge | Armed slow-op latency threshold in microseconds (0 = classifier disabled). |
+| `brix_io_slowop_total` | counter | Completed I/O ops whose latency met or exceeded brix_io_slowop_threshold_usec. |
+
+### Unique identities — `brix_unique_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_unique_users_current` | gauge | Currently tracked unique user identities (bounded LRU, max 1024). Users are identified by DN or token sub via FNV-1a hash. |
+| `brix_unique_users_total` | counter | Lifetime unique user identities seen since process start. Never decremented. |
+
+### VFS policy and lifecycle — `brix_vfs_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_vfs_authz_backstop_total` | counter | VFS authorization-backstop evaluations, by protocol and result (agree|edge_missing|no_rules|unbound). |
+| `brix_vfs_bulk_delete_batches_total` | counter | unlink_many batches flushed, by leaf driver. |
+| `brix_vfs_bulk_delete_keys_total` | counter | Keys removed via the batch delete path, by leaf driver. |
+| `brix_vfs_domain_mutation_total` | counter | Service-storage mutations passed by the typed domain assert, by storage domain and operation. |
+| `brix_vfs_evict_bytes_total` | counter | Bytes reclaimed by the VFS evict verb, by dispatching driver. |
+| `brix_vfs_lock_refused_total` | counter | Mutations arriving under a live foreign lock (refused in strict enforcement, warned through in advisory), by protocol. |
+| `brix_vfs_mutation_denied_total` | counter | Export mutations refused by the VFS read-only policy, by protocol and operation. |
+| `brix_vfs_precond_advisory_total` | counter | Precondition refusals decided non-atomically (check-then-act), by driver. |
+| `brix_vfs_precond_failed_total` | counter | Publish preconditions refused (412), by kind. |
+| `brix_vfs_recall_total` | counter | Nearline recall (prestage) outcomes, by result class. |
+| `brix_vfs_spill_active` | gauge | Writer spill scratches currently open. |
+| `brix_vfs_spill_bytes_total` | counter | Bytes absorbed into the writer's out-of-order spill scratch, by protocol. |
+| `brix_vfs_spill_refused_total` | counter | Reordered uploads the spill could not serve (no scratch, capacity, overlap, or coverage hole), by protocol. |
+
+### WebDAV plane — `brix_webdav_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_webdav_auth_total` | counter | WebDAV authentication outcomes. |
+| `brix_webdav_bytes_rx_ipv4_total` | counter | Bytes received from IPv4 clients via WebDAV PUT. |
+| `brix_webdav_bytes_rx_ipv6_total` | counter | Bytes received from IPv6 clients via WebDAV PUT. |
+| `brix_webdav_bytes_tx_ipv4_total` | counter | Bytes sent to IPv4 clients via WebDAV GET and PROPFIND. |
+| `brix_webdav_bytes_tx_ipv6_total` | counter | Bytes sent to IPv6 clients via WebDAV GET and PROPFIND. |
+| `brix_webdav_cors_total` | counter | WebDAV CORS request/header decisions. |
+| `brix_webdav_propfind_depth_total` | counter | WebDAV PROPFIND requests by Depth header bucket. |
+| `brix_webdav_propfind_entries_total` | counter | WebDAV PROPFIND response entries emitted. |
+| `brix_webdav_put_bodies_total` | counter | WebDAV PUT body storage modes. |
+| `brix_webdav_range_requests_total` | counter | WebDAV GET range handling outcomes. |
+| `brix_webdav_requests_total` | counter | WebDAV requests received, by HTTP/WebDAV method. |
+| `brix_webdav_responses_total` | counter | WebDAV responses by method and HTTP status class. |
+| `brix_webdav_tpc_cred_total` | counter | WebDAV HTTP-TPC OAuth2/OIDC credential delegation events. |
+| `brix_webdav_tpc_total` | counter | WebDAV HTTP-TPC COPY pull, push, and helper events. |
+
+### Write-through / write-back staging — `brix_wt_*`
+
+| Family | Type | Exported HELP |
+|---|---|---|
+| `brix_wt_dirty_handles` | gauge | Open write-through handles with unflushed dirty data. |
+| `brix_wt_flush_bytes_total` | counter | Bytes mirrored to origin by successful write-through flushes. |
+| `brix_wt_flush_pending` | gauge | Write-through flush tasks currently pending completion. |
+| `brix_wt_flushes_total` | counter | Write-through flush completions by result. |
+| `brix_wt_stage_throttled_total` | counter | Writes shed by staging backpressure, by action. |
+| `brix_wt_stage_usage_ratio` | gauge | Write-back staging filesystem occupancy (0-1). |
 ---
 
 ## Next Steps

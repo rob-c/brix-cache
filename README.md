@@ -414,8 +414,12 @@ http {
         ssl_certificate_key /etc/grid-security/hostkey.pem;
 
         location / {
-            brix_webdav_proxy on;
-            brix_webdav_proxy_upstream http://internal-dav.site.example:8080;
+            brix_webdav          on;
+            brix_webdav_auth     required;
+            brix_token_jwks      /etc/brix/wlcg-jwks.json;
+            brix_token_issuer    https://wlcg.cloud.cnaf.infn.it/;
+            brix_token_audience  https://storage.site.example;
+            brix_storage_backend http://internal-dav.site.example:8080;
         }
     }
 }
@@ -432,12 +436,12 @@ stream {
     server {
         listen 2811;
         brix_gridftp on;
-        brix_gridftp_export      /data;
-        brix_gridftp_allow_write on;
+        brix_export      /data;
+        brix_allow_write on;
         brix_gridftp_gsi         on;
-        brix_gridftp_certificate     /etc/grid-security/hostcert.pem;
-        brix_gridftp_certificate_key /etc/grid-security/hostkey.pem;
-        brix_gridftp_trusted_ca      /etc/grid-security/certificates;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/certificates;
     }
 }
 ```
@@ -471,20 +475,21 @@ http {
         ssl_certificate     /etc/grid-security/hostcert.pem;
         ssl_certificate_key /etc/grid-security/hostkey.pem;
         ssl_verify_client   on;                      # fail closed
-        brix_ssl_client_capath /etc/grid-security/certificates;
+        brix_client_certificate_folder /etc/grid-security/certificates;
         brix_webdav_proxy_certs on;                  # accept RFC 3820 proxies
         brix_storage_credential_dir /var/lib/brix/creds;
 
         location /.well-known/brix-delegation {      # users deposit a proxy
             brix_webdav on;
             brix_webdav_auth required;
+            brix_trusted_ca_dir /etc/grid-security/certificates;
             brix_delegation_endpoint on;
         }
         location / {
             proxy_pass https://arc-ce.site.example:443;
             proxy_ssl_certificate     $brix_delegated_cred;   # the caller's own
             proxy_ssl_certificate_key $brix_delegated_cred;
-            brix_proxy_ssl_capath     /etc/grid-security/certificates;
+            brix_backend_ca_dir     /etc/grid-security/certificates;
             proxy_ssl_verify on;
         }
     }
@@ -580,7 +585,7 @@ translation of a namespace another protocol wrote.
 The repository also ships a clean-room client suite in `client/`: `xrdcp`,
 `xrdfs`, diagnostics (`xrddiag`, capture/replay, remote-doctor), checksum
 tools, GSI/SSS helpers, the `xrootdfs` FUSE mount (with a `--legacy`
-synchronous mode), a POSIX preload shim, and the public C library `libxrdc`.
+synchronous mode), a POSIX preload shim, and the public C library `libbrix`.
 These clients are built on the same in-tree protocol vocabulary as the module
 and do not depend on upstream `libXrdCl` or `libXrdSec*`.
 
@@ -655,7 +660,7 @@ from the reference.
 - **Six deployment modes:** standalone server, transparent XRootD proxy, WebDAV perimeter proxy, GridFTP gateway, httpg forwarding proxy, CVMFS site cache — all in a single nginx binary
 - **32 XRootD 5.2 opcodes** fully implemented; see [Operation Status](docs/05-operations/operation-status.md)
 - **WebDAV:** OPTIONS, GET, HEAD, PUT, DELETE, MKCOL, PROPFIND, COPY, MOVE,
-  LOCK, UNLOCK, HTTP-TPC COPY pull
+  LOCK, UNLOCK, HTTP-TPC COPY — both pull (`Source:`) and push (`Destination:`)
 - **S3-compatible:** GET, HEAD, PUT, DELETE, ListObjectsV2, multipart upload
 - **GridFTP (`gsiftp://`) gateway:** RFC 959 verbs + RFC 2228 GSI control
   channel + RFC 3659 metadata (MLSD/MLST) + GFD.020 **MODE E** parallel streams
@@ -673,12 +678,15 @@ from the reference.
   and dashboard panel; experimental `scvmfs://` adds TLS + fail-closed authz
 - **Native client tools:** clean-room `xrdcp` (including `gsiftp://` / `ftp://`
   copies), `xrdfs`, `xrddiag`, checksum utilities, GSI/SSS helpers, FUSE mounts
-  (`xrootdfs`, `brixcvmfs`/`brixMount`), POSIX preload, and `libxrdc`
+  (`xrootdfs`, `brixcvmfs`/`brixMount`), POSIX preload, and `libbrix`
 - **Auth:** anonymous, GSI/x509 proxy certs with `kXR_sigver` signing,
   RFC 3820 proxy-certificate termination (httpg), VOMS VO attributes,
   WLCG/JWT bearer tokens (scope enforcement), S3 SigV4, SSS shared secret,
   host (reverse-DNS allowlist), password (XrdSecpwd DH-bootstrapped),
-  Kerberos 5
+  Kerberos 5. SSS carries the v2 endorsement fields, can present the
+  front-side client's own identity through a proxy
+  (`brix_tap_proxy_sss_identity client`), and can answer a client's
+  `getcreds` request (`brix_sss_getcreds on`)
 - **TLS:** in-protocol `root://` upgrade (`kXR_wantTLS`/`kXR_ableTLS`),
   `roots://` TLS-from-byte-one, HTTPS for WebDAV, httpg, S3 and `scvmfs://`,
   GSI TLS on the GridFTP control and data channels
@@ -691,6 +699,25 @@ from the reference.
   `root://`/`roots://` origin with per-file worker locks. (Optional write-through
   mirroring to origin is [implemented](docs/09-developer-guide/pfc-write-through-plan.md)
   on `kXR_sync`/`kXR_close`).
+- **Native `root://` TPC:** rendezvous with ztn or GSI outbound auth, a
+  TLS-upgraded source (`kXR_gotoTLS`), redirect following within
+  `brix_tpc_max_hops`, and multi-stream pull over `brix_tpc_streams`
+  connections when the client asks with `tpc.str=`. The **push** direction is
+  not in 2.0
+- **Tape / FRM:** a durable stage journal that survives restarts
+  (`brix_frm_queue_path`), a site stage program with upstream's argument and
+  message conventions (`brix_frm_stagecmd` / `brix_frm_stagemsg`), a purge
+  policy with an optional external decision program (`brix_frm_purge_policy` /
+  `brix_frm_purge_polprog`), the OssArc dataset seal
+  (`tape://<adapter>/<base>?arc=<depth>`), and MSS adapters that load either as
+  a program (`exec`, `hpss`, `cta`) or in process (`lib`)
+- **Proxy storage & cache hints:** a proxying store URL
+  (`forward://root[,roots] permit=…`) and per-open client cache hints clamped
+  into operator bounds (`brix_cache_urlcgi`, the `pfc.urlcgi` analog)
+- **Site checksum plugins:** register an algorithm from a shared object with
+  `brix_checksum_plugin` and it becomes usable everywhere a built-in name is —
+  Qcksum, `?cks.type=`, `Want-Digest`, `brix_checksum_default`, and the
+  `query config chksum` advertisement
 - **Async I/O:** nginx thread pool for all blocking paths (`read`, `pgread`,
   `readv`, `write`, `pgwrite`, WebDAV PUT); cleartext reads use nginx
   file-backed sendfile paths

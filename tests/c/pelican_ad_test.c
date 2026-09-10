@@ -29,6 +29,7 @@
 #include <stdio.h>
 
 #include "fs/cache/origin/pelican_register.h"
+#include "net/dns/curl_pin.h"
 #include "auth/token/jwt_sign.h"
 
 /* --- link stubs: symbols pelican_register.o references but the pure builders
@@ -75,6 +76,15 @@ ngx_thread_task_post(ngx_thread_pool_t *tp, ngx_thread_task_t *task)
 {
     (void) tp; (void) task;
     return NGX_ERROR;
+}
+
+/* phase-116: the discovery/registration transfers re-pin every hop through
+ * the DNS driver; neither transfer is entered here (pure builders only). */
+CURLcode
+brix_dns_curl_perform_pinned(CURL *curl, const brix_dns_curl_transfer_t *t)
+{
+    (void) curl; (void) t;
+    return CURLE_COULDNT_CONNECT;
 }
 
 /* JWT minters — declared in jwt_sign.h; the advertise-token path is not under

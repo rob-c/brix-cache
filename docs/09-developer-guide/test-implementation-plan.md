@@ -40,7 +40,7 @@ be done first since it validates the metric instrumentation fixes that Phases 2�
 ## Phase 1 — Stream metric additions
 
 **Target file:** `tests/test_metrics.py`
-**Prerequisites:** No new infrastructure. All ports already started by `manage_test_servers.sh`.
+**Prerequisites:** No new infrastructure. All ports already started by `cmdscripts/manage_test_servers.py`.
 **Total phase estimate:** 17.5 hours
 
 ### Section 1 — Prometheus label correctness
@@ -278,7 +278,7 @@ nginx-redirector → xrootd-data-server → xrdcp data transfer path.
 @pytest.fixture(scope="module")
 def redirector(tmp_path_factory):
     """Returns (redir_port, ds_port, data_root) from the pre-launched cluster."""
-    # Re-use constants from manage_test_servers.sh:
+    # Re-use constants from cmdscripts/manage_test_servers.py:
     # CLUSTER_REDIR_PORT=11130, CLUSTER_DS_PORT=11132
     redir_port = int(os.environ.get("CLUSTER_REDIR_PORT", 11130))
     ds_port    = int(os.environ.get("CLUSTER_DS_PORT",   11132))

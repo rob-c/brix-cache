@@ -13,6 +13,10 @@ int gftp_gsi_unwrap(gftp_gsi_t *gsi, const void *input, size_t input_len,
     uint8_t **output, size_t *output_len, gftp_session_t *session);
 void gftp_gsi_free(gftp_gsi_t *gsi);
 
+/* Copy the authenticated peer's subject DN into `buf` (cap bytes, always
+ * NUL-terminated).  Returns 0 when a DN was written, -1 otherwise. */
+int gftp_gsi_peer_dn(gftp_gsi_t *gsi, char *buf, size_t cap);
+
 char *gftp_base64_encode(const uint8_t *data, size_t len);
 uint8_t *gftp_base64_decode(const char *text, size_t *out_len);
 

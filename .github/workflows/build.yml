@@ -74,6 +74,14 @@ jobs:
       - name: Build the client + shared protocol core (make -j)
         run: make -j"$(nproc)" -C client
 
+      # Every shipped example config (compose stacks, *.conf.example, README and
+      # configuration-reference fences) must parse with the binary just built —
+      # phase-115 W1.3. Without the binary the guards lane only checks names.
+      - name: Example configs parse with `nginx -t`
+        env:
+          NGINX_SRC: /tmp/nginx-1.28.3
+        run: tools/ci/check_example_configs.py
+
       # A second `make` that recompiles anything means a rule is always out of
       # date (a phony masquerading as a file, a missing header dependency, a
       # recipe that rewrites its own target). That silently multiplies every

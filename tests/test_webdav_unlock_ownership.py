@@ -13,7 +13,7 @@ stealing another's lock) had no negative test:
   * (control) UNLOCK with the correct token       → 204
 
 Runs against the dedicated WebDAV HTTP server pre-started by
-manage_test_servers.sh start-all (the "webdav-unlock-ownership" instance, auth
+python3 -m cmdscripts.manage_test_servers start-all (the "webdav-unlock-ownership" instance, auth
 none + brix_allow_write on, serving WEBDAV_UNLOCK_OWNERSHIP_DATA_ROOT);
 the lock_server fixture just connects to it.  Locks are stored in user xattrs,
 so the data dir must support them (the fixture probes for this and skips if not).
@@ -57,7 +57,7 @@ def _reachable(host, port, timeout=3.0):
 @pytest.fixture(scope="module")
 def lock_server():
     """Connect to the dedicated WebDAV HTTP server pre-started by
-    manage_test_servers.sh start-all (the "webdav-unlock-ownership" instance,
+    python3 -m cmdscripts.manage_test_servers start-all (the "webdav-unlock-ownership" instance,
     auth none + brix_allow_write on, serving
     WEBDAV_UNLOCK_OWNERSHIP_DATA_ROOT).  Skips cleanly if that dedicated
     instance is not running.  The server and this test share the local
@@ -72,7 +72,7 @@ def lock_server():
     if not _reachable(HOST, PORT, 3):
         pytest.skip(
             f"dedicated webdav-unlock-ownership nginx not reachable on "
-            f"{HOST}:{PORT} — run tests/manage_test_servers.sh start-all")
+            f"{HOST}:{PORT} — run python3 -m cmdscripts.manage_test_servers start-all")
 
     # Verify the data fs supports user xattrs (locks live there).
     probe = os.path.join(data, ".xprobe")

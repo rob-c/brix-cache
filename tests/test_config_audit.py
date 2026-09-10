@@ -34,6 +34,7 @@ import json
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -71,8 +72,7 @@ for _k in ("X509_USER_PROXY", "X509_CERT_DIR", "BEARER_TOKEN", "BEARER_TOKEN_FIL
 def doctor():
     """Build xrddiag once; skip cleanly without a compiler / nginx."""
     _guard_doctor_1()
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrddiag"],
-                          capture_output=True, text=True, timeout=180)
+    proc = client_make(CLIENT_DIR, "xrddiag", capture_output=True, text=True, timeout=180)
     _guard_doctor_2(proc)
     _guard_doctor_3()
     return XRDDIAG

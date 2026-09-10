@@ -55,4 +55,25 @@ int brix_opaque_schema_check(const char *opaque, char *keybuf, size_t keybuf_len
  */
 long long brix_opaque_asize(const char *opaque);
 
+/*
+ * Read any typed unsigned-integer key (2.0 F5: the per-open cache hints
+ * `pfc.blocksize` / `pfc.prefetch`, upstream pfc.urlcgi) out of a
+ * NUL-terminated opaque with the same lenient contract as brix_opaque_asize:
+ * returns 1 and sets *out (LLONG_MAX on overflow) when the key is present with
+ * a well-formed unsigned value, 0 — *out untouched — when absent or malformed.
+ * The presence bit matters: `pfc.prefetch=0` is a real hint (speculation off
+ * for that handle), not the absence of one.
+ */
+int brix_opaque_uint(const char *opaque, const char *key, long long *out);
+
+/*
+ * Locate the value of `key` in a NUL-terminated opaque (leading '?' tolerated):
+ * *val / *val_len point INTO `opaque` (no copy, not NUL-terminated). Returns
+ * 1 when the key is present with a (possibly empty) "=value", 0 when absent
+ * or present without '='. Phase-115 W3.3: the kXR_open / kXR_Qspace
+ * `oss.cgroup=` space-group selector; brix_opaque_asize is built on it.
+ */
+int brix_opaque_value(const char *opaque, const char *key, const char **val,
+    size_t *val_len);
+
 #endif /* BRIX_OPAQUE_VALIDATE_H */

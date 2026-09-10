@@ -42,6 +42,7 @@ static inline void
 ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
 {
     conf->enable             = NGX_CONF_UNSET;
+    brix_dns_conf_init(&conf->dns);          /* phase-116 */
     conf->allow_write        = NGX_CONF_UNSET;
     conf->durable_commit     = NGX_CONF_UNSET;
     conf->verify_write       = NGX_CONF_UNSET;
@@ -65,6 +66,7 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->cache_passthrough_max = NGX_CONF_UNSET;
     conf->cache_only_if_cached = NGX_CONF_UNSET;
     conf->cache_uvkeep       = NGX_CONF_UNSET;
+    conf->cache_serve_while_filling = NGX_CONF_UNSET;
     conf->thread_pool_name.len  = 0;
     conf->thread_pool_name.data = NULL;
     conf->thread_pool        = NULL;
@@ -108,9 +110,9 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->backend_sts_ttl               = NGX_CONF_UNSET;
     conf->backend_sts_flavor            = NGX_CONF_UNSET_UINT;
     conf->backend_krb5_forwardable      = NGX_CONF_UNSET;
-    conf->backend_passthrough_persist   = NGX_CONF_UNSET;
     conf->backend_sss_keytab.len        = 0;
     conf->backend_sss_keytab.data       = NULL;
+    conf->storage_backend_args = NULL;
     conf->pblock_block_size  = NGX_CONF_UNSET_SIZE;
     conf->storage_instance   = NULL;   /* built per worker at init_process */
     conf->cache_store.len    = 0;
@@ -137,6 +139,7 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->cache_slice_size   = NGX_CONF_UNSET_SIZE;
     conf->cache_prefetch     = NGX_CONF_UNSET;
     conf->cache_prefetch_window = NGX_CONF_UNSET_SIZE;
+    brix_cache_urlcgi_conf_init(&conf->cache_urlcgi);     /* 2.0 F5 */
     conf->vfs_spill_max      = NGX_CONF_UNSET_SIZE;   /* phase-107 C1 */
     conf->durable_publish    = NGX_CONF_UNSET;        /* phase-107 C3 */
     conf->lock_enforcement   = NGX_CONF_UNSET_UINT;   /* phase-107 C7 */
@@ -150,6 +153,8 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->upload_resume    = NGX_CONF_UNSET;        /* phase-101 W4 */
     conf->signing_policy_mode = NGX_CONF_UNSET_UINT; /* phase-101 W4 */
     conf->crl_mode           = NGX_CONF_UNSET_UINT;  /* phase-101 W4 */
+    conf->crl_scope          = NGX_CONF_UNSET_UINT;  /* 2.0 F19 */
+    conf->tls_verify_log     = NGX_CONF_UNSET_UINT;  /* 2.0 F19 */
     conf->token_clock_skew   = NGX_CONF_UNSET;       /* phase-101 W4 */
     conf->token_jwks_refresh_interval = NGX_CONF_UNSET_MSEC; /* phase-105 W4.3 */
     conf->vo_rules           = NULL;  /* phase-101 W4: lazily created by the
@@ -163,9 +168,16 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->tpc_allow_private      = NGX_CONF_UNSET;
     conf->tpc_source_guard       = NGX_CONF_UNSET;
     conf->tpc_source_allow       = NULL;
+    conf->tpc_allow_identity     = NULL;  /* 2.0 F18: NULL-inherit at merge,
+                                           * like protbind / vo_rules */
+    conf->tpc_require            = NULL;
+    conf->tpc_restrict           = NULL;
+    conf->tpc_oids               = NGX_CONF_UNSET;
     conf->tpc_require_source_size = NGX_CONF_UNSET;
     conf->tpc_outbound_tls = NGX_CONF_UNSET;
     conf->tpc_outbound_passthrough = NGX_CONF_UNSET;
+    conf->tpc_outbound_renew_lead = NGX_CONF_UNSET;
+    conf->tpc_outbound_renew_strict = NGX_CONF_UNSET;
 
     /* phase-105 W2/W3/W3.5/W4.1 scalars.  Every field a stock ngx_conf_set_*
      * slot setter writes MUST start at its UNSET sentinel: pcalloc's 0 both
@@ -345,5 +357,10 @@ int brix_storage_backend_is_remote(const ngx_http_brix_shared_conf_t *common);
  * NGX_CONF_TAKE1234. Defined in config/runtime_server.c.
  */
 char *brix_conf_set_store_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+
+/* brix_conf_set_cache_urlcgi() — `brix_cache_urlcgi [blocksize ignore|<min> <max>]
+ * [prefetch ignore|<min> <max>]` (2.0 F5). Fills the brix_cache_urlcgi_conf_t at
+ * cmd->offset. Use with NGX_CONF_1MORE. Defined in config/cache_urlcgi_conf.c. */
+char *brix_conf_set_cache_urlcgi(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 #endif /* NGX_HTTP_BRIX_SHARED_CONF_H */

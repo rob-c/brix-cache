@@ -29,6 +29,7 @@ typedef struct {
     char                host[256];
     int                 port;
     int                 tls;
+    brix_s3_tctx_t      tctx;            /* phase-116: the export's DNS policy */
     int                 status;          /* HTTP status, or -1 transport fail */
     u_char             *body;            /* pool-allocated on the event loop */
     size_t              body_len;
@@ -47,7 +48,7 @@ cvmfs_pt_thread(void *data, ngx_log_t *log)
 
     (void) log;
     t->status = -1;
-    if (tr->request(NULL, t->host, t->port, t->tls, "GET", t->path, NULL,
+    if (tr->request(&t->tctx, t->host, t->port, t->tls, "GET", t->path, NULL,
                     NULL, 0, CVMFS_PT_TIMEOUT_MS, &resp,
                     errbuf, sizeof(errbuf)) != 0)
     {
@@ -154,6 +155,8 @@ brix_cvmfs_geo_passthrough(ngx_http_request_t *r,
     t->r = r;
     t->port = port;
     t->tls = tls;
+    t->tctx.ca_path = NULL;
+    t->tctx.dns = lcf->common.dns.policy;
     (void) ngx_cpystrn((u_char *) t->host, (u_char *) host, sizeof(t->host));
     t->body = ngx_palloc(r->pool, CVMFS_PT_RESP_MAX);
     if (t->body == NULL) {

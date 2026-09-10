@@ -689,7 +689,7 @@ stream {
         brix_token_issuer    https://test.example.com;
         brix_token_audience  nginx-xrootd;
 
-        brix_gridmap    {GRIDMAP};
+        brix_idmap_gridmap    {GRIDMAP};
         brix_authdb     {AUTHDB};
         brix_require_vo /cms cms;
         brix_impersonate on;
@@ -721,7 +721,7 @@ stream {
         brix_token_issuer    https://test.example.com;
         brix_token_audience  nginx-xrootd;
 
-        brix_gridmap    {GRIDMAP};
+        brix_idmap_gridmap    {GRIDMAP};
         brix_authdb     {AUTHDB};
         brix_require_vo /cms cms;
         brix_impersonate on;
@@ -1922,7 +1922,7 @@ git commit -m "test(mu): leak ledger terminal summary + conformance docs + orche
 **Type consistency:** `Verdict(decision, reason, tier)` and its equality (decision+tier) are used identically in Tasks 8, 9, 10, 14, 16, 17, 18. `Cell(proto, op, subject, path, filler, expect_tier)` consistent in Tasks 9, 10, 12, 14. `assert_cache_transparent(cell, cast)` signature consistent (Tasks 9, 10, 12). `measure`/`authoritative`/`leak_report` signatures consistent (Tasks 9, 14, 17). `fleet.url(proto, variant)` consistent everywhere.
 
 **Known implementation risks the executor must resolve at build time (not placeholders — verification steps):**
-1. Exact nginx directive spellings (`brix_storage_backend`/`brix_cache_store`/`brix_export`/`brix_gridmap`/`brix_authdb`/`brix_require_vo`/`brix_impersonate`/`brix_s3_access_key`) — copy from working reference configs and gate on `nginx -t` (Task 6 does this).
+1. Exact nginx directive spellings (`brix_storage_backend`/`brix_cache_store`/`brix_export`/`brix_idmap_gridmap`/`brix_authdb`/`brix_require_vo`/`brix_impersonate`/`brix_s3_access_key`) — copy from working reference configs and gate on `nginx -t` (Task 6 does this).
 2. `utils/make_proxy.py`/`voms_proxy_fake.py`/`make_token.py` exact CLI/method signatures — read before use (Task 2 flags fallback).
 3. Real `idmap.c`/`auth_gate.c` function names for the C units — read the cited line ranges (Tasks 15, 16).
 4. root:// token presentation for pyxrootd (`BEARER_TOKEN_FILE`+`XrdSecPROTOCOL=ztn`) — verify against a working token test; if pyxrootd can't present ztn, fall back to `xrdcp`/`xrdfs` CLI subprocess (the suite already uses this pattern).

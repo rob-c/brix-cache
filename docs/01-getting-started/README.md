@@ -2,7 +2,7 @@
 
 New to BriX-Cache? Start here.
 
-> **Navigation:** [← Back to docs/index](../index.md) | [Architecture Overview →](../11-architecture/overview.md)
+> **Navigation:** [← Back to the documentation index](../index.md) | [Architecture Overview →](../11-architecture/overview.md)
 
 | Document | Description |
 |---|---|
@@ -16,7 +16,7 @@ New to BriX-Cache? Start here.
 
 - **Need XRootD background?** → See [XRootD Basics](../02-concepts/xrootd-basics.md)
 - **Want a full installation guide?** → See [Getting Started (Full)](getting-started-full.md)
-- **Looking for advanced topics?** → See the numbered sections below
+- **Looking for advanced topics?** → Browse the numbered sections from the [documentation index](../index.md)
 
 ---
 

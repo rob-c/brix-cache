@@ -7,13 +7,13 @@ name appears anywhere in that corpus" (§Method step 2).  Nine tranches closed
 the 95 names the measurement returned on 08-15 — but the measurement itself
 decays, because the directive surface keeps growing.  Re-running §Method steps
 1+2 against the tree as it stands puts the surface at **555** names (524 on
-08-15) and returns **seven** with zero coverage of any kind, none of them on
+08-15) and returned **seven** with zero coverage of any kind, none of them on
 the audit's list and none of them in `docs/03-configuration/directives.md`:
 
     brix_backend_token_audience_ok              brix_idmap_cache_ttl
     brix_backend_token_exchange_client_id       brix_idmap_forbidden_users
     brix_backend_token_exchange_client_secret   brix_idmap_broker_user
-    brix_backend_passthrough_persist
+    brix_backend_passthrough_persist            (REMOVED in 2.0, see #35)
 
 §Method step 4 is the half that matters here — "the directive/config field has
 a runtime consumer (not dead config)".  Applied to these seven it fails twice,
@@ -44,13 +44,15 @@ is the one with no second declaration anywhere: it is unreachable on both
 planes.  test_no_unified_field_is_parsed_without_being_adopted is written as a
 class guard so a sixth omission is caught the day it is added.
 
-DEFECT CANDIDATE #35 (dead config) — `brix_backend_passthrough_persist` parses,
-merges, and adopts, and nothing ever reads it.  Every mention in `src/ shared/
-client/` is plumbing: the command entry, the struct field, the unset init, the
+DEFECT CANDIDATE #35 (dead config) — `brix_backend_passthrough_persist` parsed,
+merged, and adopted, and nothing ever read it.  Every mention in `src/ shared/
+client/` was plumbing: the command entry, the struct field, the unset init, the
 merge, and the BRIX_ADOPT_VAL line.  The documented behaviour ("permit spilling
 a captured full proxy into the async stage journal owner dir", phase-70 §5.1)
-is not implemented.  Same shape as the audit's existing #14
-(`brix_cache_wt_stage()` has no callers at all).
+was never implemented.  RESOLVED BY REMOVAL for 2.0 (CHANGELOG "Breaking",
+docs/10-reference/release-2.0-readiness.md §(c.1)): the name is now an
+`unknown directive` at `nginx -t`, and this file pins that it stays gone —
+no plumbing anywhere in `src/ shared/ client/`, not even the config layer.
 
 WHAT IS OBSERVABLE, AND WHAT IS NOT.  A missing adopt has no diagnostic — it is
 the absence of a copy — so the live half of #34 proves it the only way an
@@ -86,15 +88,6 @@ from server_registry import NginxInstanceSpec
 from settings import HOST, NGINX_BIN
 from utils.make_token import TokenIssuer
 
-def _check_test_the_passthrough_persist_flag_is_never_read_1(readers):
-    assert readers == [], (
-        f"{DEFECT35} It is now referenced at {readers}.")
-
-def _guard_test_the_passthrough_persist_flag_is_never_read_1(line, readers, rel, i):
-    if "backend_passthrough_persist" in line:
-        readers.append(f"{rel}:{i}")
-
-
 pytestmark = [pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15j-audgate")]
@@ -106,26 +99,27 @@ _needs_nginx = pytest.mark.skipif(
 
 WRONG_PLANE = "directive is not allowed here"
 
-# The seven, with the smallest value each accepts.  Grouped by the plane that
-# declares them: the backend four are BRIX_HTTP_ALL_CONF (http_common.c:61),
-# the impersonation three are NGX_STREAM_MAIN_CONF|NGX_STREAM_SRV_CONF
-# (directives_tier.h:70-90).
+# The six that survive into 2.0, with the smallest value each accepts.  Grouped
+# by the plane that declares them: the backend three are BRIX_HTTP_ALL_CONF
+# (http_directives_core.h), the impersonation three are
+# NGX_STREAM_MAIN_CONF|NGX_STREAM_SRV_CONF (directives_tier.h:70-90).  The
+# seventh, brix_backend_passthrough_persist, was removed in 2.0 (#35 below).
 HTTP_PLANE = {
     "brix_backend_token_audience_ok": "https://origin.example.test/",
     "brix_backend_token_exchange_client_id": "brix-gateway",
     "brix_backend_token_exchange_client_secret": "s3cr3t",
-    "brix_backend_passthrough_persist": "on",
 }
+REMOVED_FLAG = "brix_backend_passthrough_persist"   # gone in 2.0
 STREAM_PLANE = {
     "brix_idmap_cache_ttl": "300",
     "brix_idmap_forbidden_users": "root,daemon",
     "brix_idmap_broker_user": "brixbroker",
 }
-ALL_SEVEN = {**HTTP_PLANE, **STREAM_PLANE}
+ALL_SIX = {**HTTP_PLANE, **STREAM_PLANE}
 
 # TAKE1 in the source; the array directive is NGX_CONF_1MORE and is excluded
 # from the two-argument and duplicate rejections on purpose (see their tests).
-TAKE1 = [n for n in ALL_SEVEN if n != "brix_backend_token_audience_ok"]
+TAKE1 = [n for n in ALL_SIX if n != "brix_backend_token_audience_ok"]
 
 DEFECT34 = (
     "DEFECT CANDIDATE #34 has been FIXED: brix_backend_token_audience_ok now "
@@ -133,8 +127,9 @@ DEFECT34 = (
     "a bearer whose aud names neither the configured backend nor the WLCG "
     "any-endpoint wildcard, and say so in error.log.")
 DEFECT35 = (
-    "DEFECT CANDIDATE #35 has been FIXED: brix_backend_passthrough_persist now "
-    "has a runtime reader. Flip this expectation and test what it does.")
+    "DEFECT CANDIDATE #35 was resolved by REMOVING brix_backend_passthrough_persist "
+    "in 2.0; if the directive is being reintroduced it needs a runtime reader "
+    "and behavioural tests, not a bare registration.")
 
 # Front door and backend disagree on purpose: a token minted for THIS gateway
 # is exactly what the gate exists to stop being replayed onward.
@@ -178,7 +173,7 @@ def _line(name, value=None):
 
 
 @_needs_nginx
-@pytest.mark.parametrize("name,value", sorted(ALL_SEVEN.items()))
+@pytest.mark.parametrize("name,value", sorted(ALL_SIX.items()))
 def test_each_straggler_parses_on_the_plane_that_declares_it(
         tmp_path, name, value):
     """The control every rejection below is measured against."""
@@ -187,7 +182,7 @@ def test_each_straggler_parses_on_the_plane_that_declares_it(
 
 
 @_needs_nginx
-@pytest.mark.parametrize("name,value", sorted(ALL_SEVEN.items()))
+@pytest.mark.parametrize("name,value", sorted(ALL_SIX.items()))
 def test_each_straggler_is_refused_on_the_other_plane(tmp_path, name, value):
     """Plane exclusivity is a claim about the surface, and for the backend four
     it is the whole reason #34 bites: there is no stream-plane declaration to
@@ -199,7 +194,7 @@ def test_each_straggler_is_refused_on_the_other_plane(tmp_path, name, value):
 
 
 @_needs_nginx
-@pytest.mark.parametrize("name", sorted(ALL_SEVEN))
+@pytest.mark.parametrize("name", sorted(ALL_SIX))
 def test_no_straggler_accepts_zero_arguments(tmp_path, name):
     rc, out = _own(tmp_path, name, _line(name))
     assert rc != 0 and "invalid number of arguments" in out, \
@@ -209,7 +204,7 @@ def test_no_straggler_accepts_zero_arguments(tmp_path, name):
 @_needs_nginx
 @pytest.mark.parametrize("name", sorted(TAKE1))
 def test_the_take1_stragglers_refuse_a_second_argument(tmp_path, name):
-    rc, out = _own(tmp_path, name, _line(name, f"{ALL_SEVEN[name]} extra"))
+    rc, out = _own(tmp_path, name, _line(name, f"{ALL_SIX[name]} extra"))
     assert rc != 0 and "invalid number of arguments" in out, \
         f"{name} is documented TAKE1 but took two arguments (rc={rc}):\n{out}"
 
@@ -231,11 +226,14 @@ def test_the_audience_allow_list_takes_many_and_is_not_a_duplicate(tmp_path):
 
 
 @_needs_nginx
-def test_the_flag_straggler_refuses_a_non_flag_value(tmp_path):
-    rc, out = _http_t(tmp_path, _line("brix_backend_passthrough_persist",
-                                      "banana"))
-    assert rc != 0 and "invalid value" in out, \
-        f"a flag directive accepted a non-flag value (rc={rc}):\n{out}"
+@pytest.mark.parametrize("value", ["on", "off", "banana"])
+def test_the_removed_passthrough_flag_is_refused_as_unknown(tmp_path, value):
+    """Security-negative for the removal: a 1.x configuration that still
+    carries the flag must fail loudly at `nginx -t`, not load with the line
+    silently ignored — an operator has to see that the knob is gone."""
+    rc, out = _http_t(tmp_path, _line(REMOVED_FLAG, value))
+    assert rc != 0 and "unknown directive" in out, \
+        f"{DEFECT35} `{REMOVED_FLAG} {value}` parsed (rc={rc}):\n{out}"
 
 
 @_needs_nginx
@@ -261,7 +259,7 @@ def test_the_impersonation_knobs_are_process_global_not_per_server(
     struct-slot directive would be "directive is duplicate"; the invisible one
     is that two stream servers cannot hold different values.  If these ever
     become genuinely per-server, this test is the thing that notices."""
-    rc, out = _stream_t(tmp_path, _line(name, ALL_SEVEN[name]) * 2)
+    rc, out = _stream_t(tmp_path, _line(name, ALL_SIX[name]) * 2)
     assert rc == 0, (
         f"{name} is now duplicate-checked, which means it stopped writing a "
         f"process-global — re-read lifecycle.c and re-scope this test:\n{out}")
@@ -395,20 +393,17 @@ def test_the_audience_gate_still_has_a_real_consumer_waiting_for_it():
 # DEFECT #35 — dead config.                                                   #
 # --------------------------------------------------------------------------- #
 
-def test_the_passthrough_persist_flag_is_never_read(tmp_path):
-    """§Method step 4 applied to the flag: it parses (proven above), it merges,
-    it adopts — and no line outside the config layer looks at it."""
-    readers = []
-    for sub in ("src", "shared", "client"):
-        for path in ROOT.joinpath(sub).rglob("*.[ch]"):
-            rel = path.relative_to(ROOT).as_posix()
-            if rel.startswith("src/core/config/"):
-                continue           # declaration, struct, init, merge, adopt
-            for i, line in enumerate(
-                    path.read_text(encoding="utf-8",
-                                   errors="replace").splitlines(), 1):
-                _guard_test_the_passthrough_persist_flag_is_never_read_1(line, readers, rel, i)
-    _check_test_the_passthrough_persist_flag_is_never_read_1(readers)
+def test_the_passthrough_persist_flag_is_gone_from_the_tree():
+    """§Method step 4 turned into a removal pin: no line in `src/ shared/
+    client/` — the config layer included — names the flag any more."""
+    mentions = [
+        f"{path.relative_to(ROOT).as_posix()}:{i}"
+        for sub in ("src", "shared", "client")
+        for path in ROOT.joinpath(sub).rglob("*.[ch]")
+        for i, line in enumerate(
+            path.read_text(encoding="utf-8", errors="replace").splitlines(), 1)
+        if "backend_passthrough_persist" in line]
+    assert mentions == [], f"{DEFECT35} It is referenced at {mentions}."
 
 
 # --------------------------------------------------------------------------- #

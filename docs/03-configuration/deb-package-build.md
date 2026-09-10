@@ -27,16 +27,16 @@ Built packages appear in `dist/`:
 
 ```
 dist/
-  nginx-mod-brix-cache_1.4.0-1~noble1_amd64.deb
-  brix-cache-client_1.4.0-1~noble1_amd64.deb
-  brix-cache-client-compat_1.4.0-1~noble1_amd64.deb
-  brix-xrootdfs-fuse_1.4.0-1~noble1_amd64.deb
-  brix-cvmfs-fuse_1.4.0-1~noble1_amd64.deb
-  brix-cvmfs-automount_1.4.0-1~noble1_all.deb
-  brix-cvmfs-config_1.4.0-1~noble1_all.deb
-  brix-cache-tests_1.4.0-1~noble1_all.deb
-  brix-tools_1.4.0-1~noble1_amd64.deb
-  brix-tools-compat_1.4.0-1~noble1_amd64.deb
+  nginx-mod-brix-cache_2.0.0-1~noble1_amd64.deb
+  brix-cache-client_2.0.0-1~noble1_amd64.deb
+  brix-cache-client-compat_2.0.0-1~noble1_amd64.deb
+  brix-xrootdfs-fuse_2.0.0-1~noble1_amd64.deb
+  brix-cvmfs-fuse_2.0.0-1~noble1_amd64.deb
+  brix-cvmfs-automount_2.0.0-1~noble1_all.deb
+  brix-cvmfs-config_2.0.0-1~noble1_all.deb
+  brix-cache-tests_2.0.0-1~noble1_all.deb
+  brix-tools_2.0.0-1~noble1_amd64.deb
+  brix-tools-compat_2.0.0-1~noble1_amd64.deb
 ```
 
 **The module package is locked to the nginx version it was built against**

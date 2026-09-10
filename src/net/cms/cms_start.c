@@ -70,6 +70,7 @@ cms_ctx_create(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
     ctx->cycle = cycle;
     ctx->conf = conf;
     ctx->mgr_addr = ent->addr;
+    ctx->mgr_dns = ent->dns;
     ctx->mgr_name = ent->raw;
     ctx->backoff = ngx_min((ngx_msec_t) conf->cms.interval * 1000,
                            (ngx_msec_t) NGX_BRIX_CMS_BACKOFF_INITIAL);
@@ -85,7 +86,13 @@ cms_ctx_create(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
      * an explicit directive overrides the locality default.  The fast-retry interval
      * is floored so a misconfigured "0" can never become a busy connect-storm.
      */
-    ctx->is_loopback = cms_addr_is_loopback(ent->addr->sockaddr);
+    /* phase-116: the address may still be unresolved here; a "localhost"
+     * name is the only unresolved spelling that is known to be local. */
+    ctx->is_loopback = ent->addr->socklen != 0
+                       ? cms_addr_is_loopback(ent->addr->sockaddr)
+                       : (ent->raw.len >= 9
+                          && ngx_strncasecmp(ent->raw.data,
+                                             (u_char *) "localhost", 9) == 0);
 
     ctx->fast_retry = (conf->cms.connect_retry != NGX_CONF_UNSET_MSEC)
                       ? conf->cms.connect_retry

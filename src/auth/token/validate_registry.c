@@ -2,8 +2,6 @@
  * validate_registry.c — multi-issuer registry authN/authZ for WLCG bearer tokens.
  *
  * WHAT: The issuer-registry entry points that sit above brix_token_validate():
- * brix_token_peek_iss() reads the "iss" claim WITHOUT trusting the signature so
- * the registry can pick which issuer's keys to verify against;
  * brix_token_validate_registry_authn() does the authN half (peek → registry_find
  * → validate() with that issuer's keys → multi-audience accept);
  * brix_token_authz_strategy() runs the per-path authorization ladder
@@ -20,10 +18,12 @@
  * find → verify → strategy ordering and the capability/group/mapping semantics
  * are preserved exactly from the original single-file implementation.
  *
- * HOW: peek_iss splits + b64url-decodes the payload and reads "iss" (untrusted,
- * re-derived from verified claims afterwards). The authn half hands a single
- * declared audience to brix_token_validate() for correct string-or-array
- * membership and accepts multiple issuer/global audiences best-effort. The
+ * HOW: The untrusted "iss" read is brix_token_peek_iss() (token_peek.c — the
+ * peeks were moved there so a caller wanting nothing but a declared claim does
+ * not link the whole registry); its result is re-derived from verified claims
+ * afterwards. The authn half hands a single declared audience to
+ * brix_token_validate() for correct string-or-array membership and accepts
+ * multiple issuer/global audiences best-effort. The
  * strategy ladder short-circuits ALLOW on the first satisfied strategy bit.
  * token_sanitize_for_log() (validate.c, via validate_internal.h) guards every
  * untrusted value that reaches the error log.
@@ -33,39 +33,9 @@
 #include "validate_internal.h"
 #include "issuer_registry.h"
 #include "subject_map.h"
-#include "b64url.h"
-#include "json.h"
 #include "scopes.h"
 
 #include <string.h>
-
-/* brix_token_peek_iss — read the "iss" claim WITHOUT trusting the signature
- * (xrdjwt_split + b64url_decode + json_get_string): the registry must pick an
- * issuer, and thus its verification keys, before it can trust anything, so this
- * read is explicitly untrusted and re-derived from verified claims afterwards. */
-int
-brix_token_peek_iss(const char *token, size_t token_len,
-    char *out, size_t outsz)
-{
-    xrdjwt_seg  seg[3];
-    u_char      pay[4096];
-    ssize_t     n;
-
-    out[0] = '\0';
-
-    if (xrdjwt_split(token, token_len, seg) != 0) {
-        return -1;                              /* not a compact JWS */
-    }
-    n = b64url_decode(seg[1].p, seg[1].n, pay, sizeof(pay) - 1);
-    if (n < 0) {
-        return -1;
-    }
-    pay[n] = '\0';
-    if (json_get_string((char *) pay, (size_t) n, "iss", out, outsz) < 0) {
-        return -1;
-    }
-    return 0;
-}
 
 /* brix_token_validate_registry_authn — registry authN with no path gate: peek
  * iss → registry_find → validate() with THAT issuer's keys → multi-audience accept.

@@ -256,23 +256,40 @@ def test_the_same_directive_on_a_non_proxy_listener_refuses_every_write(cores):
 
 def test_the_proxy_diversion_runs_before_the_write_gate(cores):
     """Structural anchor for #46: in `brix_root_dispatch()` the proxy branch
-    returns, and the write gate lives in the dispatcher it never reaches."""
+    returns, and the write gate lives in the dispatcher it never reaches.
+
+    Phase-115 W2.1 widened the diversion from `conf->proxy.enable` alone to
+    `conf->proxy.enable || ctx->proxy != NULL`, so a session merely PINNED by a
+    CMS selection now takes the same branch a statically configured proxy does.
+    The anchor is re-derived on the widened site rather than relaxed to match
+    whatever is there: #46's reach grew with the condition, and both terms are
+    asserted so a later narrowing surfaces here instead of quietly shrinking
+    the finding.  The gate keeps the auth_done conjunct; the W2.1 escape hatch
+    (`dispatch_defer_to_manager`) sits inside the same `if`, which is why the
+    branch body — not the line after the needle — is what proves the return.
+    """
     dispatch = (REPO / "src" / "protocols" / "root" / "handshake"
                 / "dispatch.c").read_text()
     write = (REPO / "src" / "protocols" / "root" / "handshake"
              / "dispatch_write.c").read_text()
 
-    assert "conf->proxy.enable && ctx->login.auth_done" in dispatch, (
+    needle = "&& ctx->login.auth_done"
+    assert needle in dispatch, (
         "the proxy diversion moved; re-derive #46 from the new call site")
+    assert "(conf->proxy.enable || ctx->proxy != NULL) " + needle in dispatch, (
+        "the W2.1 diversion condition changed shape; re-derive #46 — its reach "
+        "is exactly the set of sessions this condition admits")
     assert "brix_dispatch_require_write" not in dispatch, (
         "the write gate now runs in dispatch.c — #46 may be fixed; check "
         "whether it runs before or after the proxy branch")
     assert "brix_dispatch_require_write" in write, (
         "the write gate moved out of dispatch_write.c")
 
-    branch = dispatch.split("conf->proxy.enable && ctx->login.auth_done")[1]
-    assert branch.split("\n")[1].strip().startswith("return brix_proxy_dispatch("), (
-        "the proxy branch no longer returns unconditionally: " + branch[:160])
+    branch = dispatch.split(needle)[1]
+    body = branch.split("{", 1)[1]
+    first = next(ln.strip() for ln in body.split("\n") if ln.strip())
+    assert first.startswith("return brix_proxy_dispatch("), (
+        "the proxy branch no longer returns unconditionally: " + branch[:200])
 
 
 def test_a_storage_backend_declared_on_the_proxy_is_never_read(cores):

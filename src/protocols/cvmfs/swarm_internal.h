@@ -31,10 +31,13 @@
 #define CVMFS_SWARM_ROSTER_TAIL  "/.swarm/roster"
 
 /* Config-time registration (per-process statics, scrub lifecycle). */
+struct brix_dns_policy_s;
+
 typedef struct {
     char    root[256];
     char    pool[64];
     time_t  interval;
+    const struct brix_dns_policy_s *dns;   /* phase-116: the export's resolver */
 } cvmfs_swarm_reg_t;
 
 typedef struct {

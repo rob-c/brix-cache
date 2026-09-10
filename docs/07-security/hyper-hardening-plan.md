@@ -94,7 +94,7 @@
 >   regression (no wedge/crash).
 > - **D-7 · Clone offset/length bounds** — LANDED. Negative/overflow guard in
 >   `root/read/clone.c` → `kXR_ArgInvalid`; `test_new_opcodes_b.py::TestClone` 4/4 green.
-> - **E-3 · Metric-label cardinality CI guard** — LANDED. `check_metric_cardinality.sh`
+> - **E-3 · Metric-label cardinality CI guard** — LANDED. `check_metric_cardinality.py`
 >   rejects any interpolated Prometheus label value outside a 26-name low-cardinality
 >   vocabulary (INVARIANT #8), wired into `guards.yml`; a path/user/DN/IP-valued label
 >   fails CI. `test_source_guards.py` real-tree pass + 3 injected fixtures green.
@@ -237,7 +237,7 @@ Deps / Rollback.
 - Reuse HELPERS (path/auth/metrics/framing) — never reimplement.
 - **No git write operations without explicit per-conversation approval.**
 - New storage-plane raw syscalls need `/* vfs-seam-allow: <reason> */` and must pass
-  `check_vfs_seam.sh` `[R68]`.
+  `check_vfs_seam.py` `[R68]`.
 - New `.c` files go in repo-root `./config`; re-`./configure` only on source-list /
   `--with-*` changes; validate with `objs/nginx -t`.
 
@@ -425,6 +425,15 @@ proxy/redirect suites unchanged.
 
 **Evidence:** `[R13]`.
 
+<!-- doc-paths:off -->
+
+> The remainder of A-2 is the **pre-removal analysis**, kept verbatim as the
+> record of what was found. Every file it names under
+> `src/protocols/webdav/proxy*` was deleted on 2026-07-20, and the test matrix
+> below was never written because the surface it would exercise no longer
+> exists — the removal negatives in `tests/test_release20_surface_pins.py`
+> replace it.
+
 **Location.** `src/protocols/webdav/proxy_response.c` (response/header parse) `[R13]`.
 
 **Current behaviour.** `xrootd_webdav_proxy` against a *stock* XrdHttp backend
@@ -460,8 +469,8 @@ act under ASan. **Remains blocked on B-2**; no guess-fix will be applied (a larg
 buffer or speculative bound would violate "must be *found*" and mask the real defect).
 
 **Fix (method, not guess — this one must be *found*).**
-1. Bring up the hybrid mesh under ASan (build `SANITIZE=1`, `manage_test_servers.sh
-   restart` `[R32]`); drive the WebDAV-proxy→XrdHttp path in a loop until ASan fires.
+1. Bring up the hybrid mesh under ASan (build `SANITIZE=1`,
+   `cmdscripts.manage_test_servers restart` `[R32]`); drive the WebDAV-proxy→XrdHttp path in a loop until ASan fires.
    **B-2 makes this routine.**
 2. From the ASan report, fix the bound or the lifetime — do **not** paper over it with
    a larger buffer.
@@ -478,6 +487,8 @@ response parsers.
 
 **Acceptance.** ASan-clean over ≥1000 mixed requests; `MEMORY.md`
 `hybrid_mesh_webdav_proxy_xrdhttp_crash` moves to *Fixed*.
+
+<!-- doc-paths:on -->
 
 **Effort breakdown.** Repro under ASan ~1d (once B-2 exists) · fix + regression ~1–2d.
 
@@ -626,7 +637,7 @@ secret-bearing memory.
 4. **Also cleanse the TPC body buffer** `[R22]` — `body_buf[4096]` holds the JWT
    `subject_token` and is not wiped after the file write (folds into A-5's work).
 
-**Test matrix** (`tests/test_ucred_zeroize.py` + a C unit if a harness exists):
+**Test matrix** (`tests/test_ucred_zeroization.py` + a C unit if a harness exists):
 - *success* — a resolved bearer/S3 credential is used by the backend exactly as today.
 - *error* — malformed `.s3` (missing secret line) → DECLINED, scratch cleansed.
 - *security-negative* — instrumented/valgrind assertion that the reader's scratch is
@@ -684,7 +695,7 @@ legacy `= /tmp` escape hatch for sites that need it.
 is unavailable, fall back to `$TMPDIR` under a freshly-`mkdir(…,0700)` per-worker
 subdir, never bare `/tmp`.
 
-**Test matrix** (`tests/test_tpc_cred_staging.py`, new; multiuser fleet):
+**Test matrix** (`tests/test_tpc_token_exchange_staging.py`; multiuser fleet):
 - *success* — TPC pull/push with credential forwarding works unchanged.
 - *error* — stage dir missing/unwritable → clean failure, **no `/tmp` fallback**.
 - *security-negative* — assert the stage path's parent dir mode is 0700 and no cred
@@ -896,7 +907,7 @@ scoped-compile logic ~0.5d.
 
 **Evidence:** `[R32][R33]`.
 
-**Current behaviour.** Runtime wiring exists — `manage_test_servers.sh` sets
+**Current behaviour.** Runtime wiring exists — the fleet manager `[R32]` sets
 `ASAN_OPTIONS`/`UBSAN_OPTIONS` and expects a `SANITIZE=1` build `[R32]`, plus a race
 harness `[R33]` — but **no CI job runs any of it**. (When this was written, the
 heap corruption A-2 sat open precisely because nothing exercised the code under
@@ -1142,7 +1153,7 @@ secondary-stream bind (`session/bind.c`, which inherits the primary's verified
 state only after the sessid is confirmed in the registry, deny returning early).
 The two historical instances (SSS deny→NULL-deref, funnelled to `NGX_DONE`; the
 proxy branch that gated on `logged_in`, an intermediate step) remain fixed.
-**Guard:** `tools/ci/check_auth_verdict_sentinel.sh` (wired into
+**Guard:** `tools/ci/check_auth_verdict_sentinel.py` (wired into
 `.github/workflows/guards.yml`) confines `login.auth_done = 1` to those nine
 sanctioned files — a new proxy/TPC/dispatch/op site that marks a session
 authenticated fails CI, forcing the assignment to live in an auth handler where
@@ -1511,12 +1522,12 @@ ever be added, this guard is the natural place to relax the check to "reject onl
 ## E-3 · Metric-label cardinality CI guard (invariant 8) — ✅ LANDED (2026-07-17)
 `LOW · M · GATE.` Invariant 8 (low-cardinality labels) is enforced only by review; a new
 metric family interpolating a path/user/DN/IP into a label would pass CI → memory
-blow-up / DoS. Add `check_metric_cardinality.sh` (analogous to `check_vfs_seam.sh`
+blow-up / DoS. Add `check_metric_cardinality.py` (analogous to `check_vfs_seam.py`
 `[R68]`) rejecting non-enum label values, wired into `guards.yml` `[R30]`. **Test:** a PR
 adding a path-valued label fails the guard.
 
 **Finding + fix (LANDED).** INVARIANT #8 was doc-and-review only. New guard
-`tools/ci/check_metric_cardinality.sh` greps every string-interpolated label token
+`tools/ci/check_metric_cardinality.py` greps every string-interpolated label token
 (`<name>=\"%…\"`) in `src/observability/metrics/*.c` and rejects any whose label NAME
 is not on a curated low-cardinality vocabulary (26 names, two justified classes: ENUM —
 fixed compile-time set; CONFIG-N — configured/observed resource names bounded by
@@ -1527,7 +1538,7 @@ one-off bounded gauge carries a per-line `/* metric-cardinality-allow: <reason> 
 marker (same escape-hatch shape as the VFS-seam guard). The vocabulary is curated, not a
 shrinking backlog — extending it is a deliberate reviewed act mirroring an enum edit in
 `unified.h`. The current tree passes clean (all 19 live interpolated labels are already
-bounded); reconcile with `check_metric_cardinality.sh --list`. Wired into `guards.yml`
+bounded); reconcile with `check_metric_cardinality.py --list`. Wired into `guards.yml`
 after the http-helper guard. Tests: `test_source_guards.py` — the guard runs green in the
 parametrized real-tree pass, plus three injected-fixture cases (approved label passes /
 path-valued label fails with "INVARIANT #8" / marker overrides).
@@ -1582,7 +1593,7 @@ metric-cardinality CI gates clean.
 `LOW · S · HYGIENE.` All discrete items done: CMake fallback aligned to `config`'s
 hardening set (`_FORTIFY_SOURCE=3` deliberately declined for GCC-8/11 toolchain
 portability), the CVMFS fixed-buffer `strcpy`s proven bounds-safe, and the two stale
-`history-*` findings reconciled. The `check_vfs_seam.sh` allowlist audit below is a
+`history-*` findings reconciled. The `check_vfs_seam.py` allowlist audit below is a
 standing practice (re-run whenever the allowlist grows), not a one-shot deliverable.
 - ~~**Align the CMake fallback build** with the production `config` flag set: the fallback
   optflags `[R63]` omit `_FORTIFY_SOURCE`, `-fstack-clash-protection`,
@@ -1604,7 +1615,7 @@ standing practice (re-run whenever the allowlist grows), not a one-shot delivera
   (`repo.c:26,33`, comment "bound proven above"), and `failover.c`'s `add_endpoint`
   helper does the same (`failover.c:19,22`). `grep strcpy shared/cvmfs/` is now empty —
   no fixed-buffer string copy remains in the CVMFS shared code.
-- **Audit `RAW_ALLOW`/`TIER3_ALLOW`** in `check_vfs_seam.sh` `[R68]` whenever it grows —
+- **Audit `RAW_ALLOW`/`TIER3_ALLOW`** in `check_vfs_seam.py` `[R68]` whenever it grows —
   the allowlist is the grep-based guard's blind spot (a raw syscall via function
   pointer/macro, or `lseek()+read()` instead of `pread()`, evades tier-1). Consider a
   complementary clang-tidy check.
@@ -1683,6 +1694,13 @@ holds the rest of the documentation to what the exporters actually export.
 Clickable `file:line`. Line numbers verified against the tree at authoring time; a
 future edit may shift them — search the symbol if a jump lands off by a few lines.
 
+This index is **frozen evidence**: it records where each finding was seen when
+the audit was written. Two rows (R13, R31) deliberately cite artifacts that have
+since been deleted — the deletion is itself the resolution — so the table is
+excluded from `tools/ci/check_doc_paths.py`.
+
+<!-- doc-paths:off -->
+
 | # | Location | What |
 |---|---|---|
 | R1 | src/net/upstream/tls.c:80 | Redirector leg proceeds on `handshaked` only (no verify) |
@@ -1697,7 +1715,7 @@ future edit may shift them — search the symbol if a jump lands off by a few li
 | R10 | src/tpc/outbound/tls.c:60 | Verifying TPC-outbound leg |
 | R11 | src/auth/crypto/ocsp_transport.c:215 | Verifying OCSP transport |
 | R12 | src/protocols/webdav/module_init.c:155 | WebDAV cert verify (`X509_V_OK`) |
-| R13 | src/protocols/webdav/proxy_response.c:1 | WebDAV-proxy heap corruption site |
+| R13 | src/protocols/webdav/proxy_response.c:1 | WebDAV-proxy heap corruption site — **file deleted 2026-07-20** with the retired transport (see A-2) |
 | R14 | src/protocols/s3/tagging.c:501 | `s3_handle_get_acl` canned ACL |
 | R15 | src/protocols/s3/tagging.c:503 | Comment: "gateway authorizes via XrdAcc/tokens" |
 | R16 | src/protocols/s3/handler_dispatch.c:246 | `?acl` dispatch |
@@ -1715,8 +1733,8 @@ future edit may shift them — search the symbol if a jump lands off by a few li
 | R28 | .github/workflows/fanalyzer.yml:16 | cron-only + `continue-on-error` |
 | R29 | .github/workflows/codechecker.yml:14 | cron-only + `continue-on-error` |
 | R30 | .github/workflows/guards.yml:13 | Blocking per-PR gate (invariant guards) |
-| R31 | tools/ci/fanalyzer_baseline.txt:1 | Analyzer ratchet baseline |
-| R32 | tests/manage_test_servers.sh:53 | `ASAN_OPTIONS`/`UBSAN_OPTIONS`, `SANITIZE=1` |
+| R31 | tools/ci/fanalyzer_baseline.txt:1 | Analyzer ratchet baseline — **file deleted**; the ratchet now runs from `tools/ci/run_fanalyzer.py` with no frozen baseline |
+| R32 | tests/cmdscripts/manage_test_servers.py:52 | `ASAN_OPTIONS`/`UBSAN_OPTIONS`, `SANITIZE=1` |
 | R33 | tests/race_shim.c:1 | TSan/ASan race harness |
 | R34 | tests/fuzz/fuzz_safe_size.c:1 | One of 3 existing libFuzzer targets |
 | R35 | tests/fuzz/README.md:1 | "real attack surface = wire parsers" |
@@ -1752,11 +1770,11 @@ future edit may shift them — search the symbol if a jump lands off by a few li
 | R65 | src/fs/path/beneath.c:94 | `do_openat2_resolve` confinement chokepoint |
 | R66 | src/fs/path/beneath.c:102 | `O_NONBLOCK` forced on data opens (FIFO-DoS defense) |
 | R67 | src/fs/path/beneath.c:64 | Requires kernel ≥ 5.6 (openat2) |
-| R68 | tools/ci/check_vfs_seam.sh:1 | VFS seam tier guards (zero backlog) |
+| R68 | tools/ci/check_vfs_seam.py:1 | VFS seam tier guards (zero backlog) |
 | R69 | src/auth/token/validate.c:161 | Issuer pinning (exp/nbf window nearby) |
 | R70 | src/auth/token/scopes.c:97 | `storage.modify` parsed |
 | R71 | src/auth/token/scopes.c:272 | `storage.modify` consulted as write-like |
-| R72 | tools/ci/check_metric_cardinality.sh:1 | Metric-label cardinality gate (INVARIANT #8, E-3) |
+| R72 | tools/ci/check_metric_cardinality.py:1 | Metric-label cardinality gate (INVARIANT #8, E-3) |
 | R73 | src/protocols/root/path/opaque_validate.c:68 | `brix_opaque_illegal_byte` CGI byte-hygiene gate (D-2), wired at `open_request.c` `brix_open_precheck` |
 | R74 | src/core/seccomp/seccomp_core.c:1 | `brix_seccomp_core_apply` per-worker seccomp allowlist (D-3); ngx wrapper `seccomp.c`, installed at tail of `process.c` `init_process` |
 | R75 | src/core/negcache/negcache_core.c:1 | `brix_negcache_core_note` per-principal missing-path throttle (E-4 Part 2); ngx/SHM wrapper `negcache.c` (`brix_negcache_backoff`), enforced at `read/stat.c` ENOENT + `read/locate.c` not-found |
@@ -1765,7 +1783,7 @@ future edit may shift them — search the symbol if a jump lands off by a few li
 | R78 | src/protocols/root/path/opaque_validate.c | `brix_opaque_schema_check` opt-in opaque schema tier (D-2 schema half); ABI `opaque_validate.h`, `brix_opaque_strict on\|off`, wired at `open_request.c` `brix_open_precheck` after byte-hygiene → `kXR_ArgInvalid` on `oss.asize` non-int or unknown-namespace key |
 | R79 | src/core/config/runtime_server.c:465 | A-1 fail-closed gate: `brix_server_setup_tls` refuses (`nginx -t` `emerg`) `upstream_tls` on with no CA on both legs unless `..._tls_verify off`; new flags `upstream_ssl_verify`/`proxy.upstream_ssl_verify` (default on) + new proxy `brix_tap_proxy_upstream_tls_ca`/`_name` directives; enforcement complements the already-landed R1–R12 crypto path |
 | R80 | src/auth/crypto/ocsp_request.c:213 | A-6 item 2: `check_ocsp_response` `require_nonce` gate denies a nonce-less response (`OCSP_check_nonce < 0` → free bresp + return -1) instead of warning; `do_ocsp_request` hands the request back via `OCSP_REQUEST **req_out` (was freed internally, nonce branch dead) so the nonce survives to verify; wired to `brix_ocsp_conf_t.require_nonce` + `brix_ocsp_require_nonce on\|off` (default **off** — opt-in, nonce-less CA responders common), threaded `auth.c → brix_ocsp_check_cert → ocsp_check_urls`; staple loop passes 0. `test_ocsp_require_nonce.py` 8 green |
-| R81 | tools/ci/check_auth_verdict_sentinel.sh | C-3: audit found no live `NGX_OK`-on-deny instance — authorization gates on the verdict `login.auth_done` (`handshake/policy.c` `logged_in && auth_done`; proxy branch `handshake/dispatch.c` on `auth_done`), and all 9 verdict setters sit on verified-success paths. Shipped a regression guard confining `login.auth_done = 1` to the 7 credential handlers + `session/login.c` + `session/bind.c`; wired into `guards.yml`. `test_source_guards.py` (real clean + sanctioned pass + rogue-proxy refuse) |
+| R81 | tools/ci/check_auth_verdict_sentinel.py | C-3: audit found no live `NGX_OK`-on-deny instance — authorization gates on the verdict `login.auth_done` (`handshake/policy.c` `logged_in && auth_done`; proxy branch `handshake/dispatch.c` on `auth_done`), and all 9 verdict setters sit on verified-success paths. Shipped a regression guard confining `login.auth_done = 1` to the 7 credential handlers + `session/login.c` + `session/bind.c`; wired into `guards.yml`. `test_source_guards.py` (real clean + sanctioned pass + rogue-proxy refuse) |
 
 ---
 
@@ -1814,7 +1832,7 @@ before the fix lands.
 | **A-4** secret not zeroized | CWE-226 Sensitive Info in Reused Resource | `AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:N/A:N` | **4.7 Med** | ✅ (`test_ucred_zeroization.py`) |
 | **A-5** cred temp file in `/tmp` | CWE-377 Insecure Temp File | `AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:N/A:N` | **4.7 Med** | ✅ (`test_cred_stage.c` + `test_tpc_token_exchange_staging.py`) |
 | **A-6** OCSP unbounded read | CWE-770 Alloc w/o Limits | `AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H` | **5.9 Med** | ✅ (`test_ocsp.py::TestOCSPResponseSizeCap`) |
-| **C-3** `NGX_OK`-on-deny bypass class | CWE-697 / CWE-288 | `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N` | **9.1 Crit** *(no live instance — audited 2026-07-18)* | ✅ `check_auth_verdict_sentinel.sh` |
+| **C-3** `NGX_OK`-on-deny bypass class | CWE-697 / CWE-288 | `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N` | **9.1 Crit** *(no live instance — audited 2026-07-18)* | ✅ `check_auth_verdict_sentinel.py` |
 | **D-2** opaque CGI bytes unvalidated | CWE-88 Argument Injection / CWE-93 CRLF Injection / CWE-117 Log Injection | `AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:N` | **5.4 Med** | ✅ byte-hygiene (`test_conf_openflags.py::test_open_opaque_injection_byte_rejected`) + schema (`test_opaque_strict.py`, `brix_opaque_strict`) |
 | **D-4** `kXR_bind` sessid predictable | CWE-330 Use of Insufficiently Random Values / CWE-200 | `AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N` | **4.8 Med** | ✅ (`test_conf_sessions.py::test_d4_sessid_unpredictable_csprng`) |
 | **D-5** JWKS `kid` not authoritative | CWE-347 Improper Cryptographic Signature Verification | `AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N` | **3.7 Low** | ✅ (`test_wlcg_token_conformance_edge.py::test_e09_unmatched_kid_single_key_reject`) |
@@ -1838,6 +1856,7 @@ plan (§7); the rest exist today.
 ### 12.1 A redirecting cache with an authenticated upstream (post A-1)
 
 ```nginx
+# check_example_configs: skip — proposed grammar, not implemented
 # SECURE — upstream peer is verified; a MITM cert fails the handshake.
 server {
     listen 1094 ssl;
@@ -1880,6 +1899,7 @@ dashboard, OCSP soft-fail, and — until A-1 — an unverified upstream TLS leg.
 ### 12.3 Host-ACL with a real proxy in front (close E-2)
 
 ```nginx
+# check_example_configs: skip — proposed grammar, not implemented
 # SECURE — host-ACL trusts c->sockaddr [R56]; only honor a forwarded address
 # from a trusted hop, else the ACL is spoofable.
 server {
@@ -1916,15 +1936,15 @@ ocsp_require_nonce      on;    # (new) a stripped nonce denies under hard-fail
 ## 13. Per-item verification & repro commands
 
 Copy-paste starting points. Fleet/log conventions per CLAUDE.md
-(`tests/manage_test_servers.sh`, logs in `/tmp/xrd-test/logs/`).
+(`tests/cmdscripts/manage_test_servers.py`, logs in `/tmp/xrd-test/logs/`).
 
 | Item | Command / method |
 |---|---|
 | **A-1** | `openssl s_server -cert wronghost.pem` as a fake origin; point `upstream_tls_ca` at a real CA → today the handshake completes (bug); after the fix it aborts. New: `PYTHONPATH=tests pytest tests/test_upstream_tls_verify.py -v` |
-| **A-2** | `SANITIZE=1 tests/manage_test_servers.sh restart` then loop the WebDAV-proxy→XrdHttp path; inspect `${SANITIZE_LOG_DIR}/asan.<pid>`. Note the harness runs `abort_on_error=0` (`manage_test_servers.sh:64`) — the **CI** lane (B-2) must set `abort_on_error=1` so a finding *fails* rather than logs |
+| **A-2** | `(cd tests && SANITIZE=1 python3 -m cmdscripts.manage_test_servers restart)` then loop the WebDAV-proxy→XrdHttp path; inspect `${SANITIZE_LOG_DIR}/asan.<pid>`. Note the harness runs `abort_on_error=0` (`cmdscripts/manage_test_servers.py:67`) — the **CI** lane (B-2) must set `abort_on_error=1` so a finding *fails* rather than logs |
 | **A-3** | `curl -s -o /dev/null -w '%{http_code}' "$S3/bucket/known-key?acl"` vs a missing key — a 200/404 split on an unreadable key is the oracle. New: `pytest tests/test_s3_acl_authz.py -v` |
 | **A-4** | `grep -c OPENSSL_cleanse src/fs/backend/ucred.c` must cover all three readers `[R17][R18][R19]`; valgrind/`--tool=memcheck` assertion that reader scratch is zero on return |
-| **A-5** | While a TPC transfer runs: `ls -la /tmp/tpc_token_body_* 2>/dev/null` must return nothing; `stat -c '%a' "$(dirname <stage-path>)"` must be `700`. New: `pytest tests/test_tpc_cred_staging.py -v` |
+| **A-5** | While a TPC transfer runs: `ls -la /tmp/tpc_token_body_* 2>/dev/null` must return nothing; `stat -c '%a' "$(dirname <stage-path>)"` must be `700`. New: `pytest tests/test_tpc_token_exchange_staging.py -v` |
 | **A-6** | Fake OCSP responder returning a 1 GiB body → worker memory must stay bounded; nonce-stripped replay → deny under hard-fail |
 | **B-1** | Open a throwaway PR with a deliberate NULL-deref → both analyzer gates go red; revert → green. Never hand-edit `[R31]` to silence |
 | **B-2** | ✅ LANDED 2026-07-30 — `tools/ci/asan.py` + `.github/workflows/asan.yml` build `-fsanitize=address,undefined`, boot the fleet, drive real root:// I/O, and go red on any ASan/UBSan/LSan finding via a post-run report scan (`detect_leaks=1`, third-party leaks curated out by `tests/lsan.supp`). The lane runs the fleet `abort_on_error=0` and lets the scan be the gate — cleaner than aborting a worker mid-test — so it would redden on the A-2 repro. Guard: `tests/test_ci_asan_lane.py` |
@@ -1935,7 +1955,7 @@ Copy-paste starting points. Fleet/log conventions per CLAUDE.md
 | **D-6** | Build a directory tree deeper than `max_depth`; `brix_vfs_copytree`/remove must prune cleanly (no stack overflow) — confirm both route through `vfs_walk_dir` `[R52]` |
 | **D-7** | Send `kXR_clone` with `src_offset=0xFFFFFFFFFFFFFFFF` → must return `kXR_ArgInvalid`, not round-trip to the kernel `[R49][R51]` |
 | **E-2** | `listen … proxy_protocol` + `brix_host_acl` without `set_real_ip_from` → `objs/nginx -t` must fail |
-| **E-3** | A PR adding a metric with a path/user/IP-valued label must fail the new `check_metric_cardinality.sh` (model on `check_vfs_seam.sh` `[R68]`) |
+| **E-3** | A PR adding a metric with a path/user/IP-valued label must fail the new `check_metric_cardinality.py` (model on `check_vfs_seam.py` `[R68]`) |
 | **E-5** | `diff <(hardening flags in config `[R60][R61]`) <(CMakeLists fallback `[R63][R64]`)` — the fallback must gain FORTIFY / stack-clash / cf-protection / noexecstack; audit the two unguarded `strcpy` sites (`shared/cvmfs/config/repo.c:26,32`, `shared/cvmfs/failover/failover.c:21`) `[R72][R73]` |
 
 ### New reference anchors used above
@@ -1944,3 +1964,5 @@ Copy-paste starting points. Fleet/log conventions per CLAUDE.md
 |---|---|---|
 | R72 | shared/cvmfs/config/repo.c:26 | Unguarded `strcpy` into fixed `server_urls` buffer |
 | R73 | shared/cvmfs/failover/failover.c:21 | Unguarded `strcpy` into fixed `url` buffer |
+
+<!-- doc-paths:on -->

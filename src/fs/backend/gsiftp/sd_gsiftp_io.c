@@ -8,17 +8,48 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The sink is POSITIONED (`offset` is relative to the transfer's start) because
+ * MODE E delivers absolute-offset blocks that may arrive out of order.  `cap`
+ * is the caller's buffer length: an origin that frames a block past the window
+ * it was asked for would otherwise write off the end of a read buffer, so the
+ * bound is re-checked here even though gftp_mode_e.c already refuses one. */
 typedef struct {
-    uint8_t *cursor;
+    uint8_t *base;
+    size_t   cap;
 } sd_gsiftp_sink;
 
+/* Surface the control-channel diagnosis the session already recorded.
+ *
+ * gftp_set_error() writes a specific, actionable sentence into session->error
+ * ("MODE E block at N is outside the requested window", "data channel timed
+ * out") and every caller discarded it, keeping only errno.  A gsiftp GET that
+ * refused a block reached the operator as a bare read error with no reason
+ * anywhere in the log, which is exactly how long a wire-level bug can hide.
+ * errno is what the VFS needs; the sentence is what a human needs. */
+static void
+sd_gsiftp_log_session_error(const brix_sd_instance_t *inst,
+    const gftp_session_t *session, const char *what)
+{
+    if (inst == NULL || inst->log == NULL || session->error[0] == '\0') {
+        return;
+    }
+    ngx_log_error(NGX_LOG_ERR, inst->log, 0,
+                  "gsiftp %s failed: %s", what, session->error);
+}
+
+
 static int
-sd_gsiftp_sink_copy(void *ctx, const uint8_t *data, size_t len)
+sd_gsiftp_sink_copy(void *ctx, off_t offset, const uint8_t *data, size_t len)
 {
     sd_gsiftp_sink *sink = ctx;
 
-    memcpy(sink->cursor, data, len);
-    sink->cursor += len;
+    if (offset < 0 || (uint64_t) offset > sink->cap
+        || len > sink->cap - (uint64_t) offset)
+    {
+        errno = EPROTO;
+        return -1;
+    }
+    memcpy(sink->base + offset, data, len);
     return 0;
 }
 
@@ -152,6 +183,9 @@ sd_gsiftp_stat_impl(brix_sd_instance_t *inst, const char *path,
     }
     rc = gftp_command(&session, "SIZE %s", remote);
     rc = sd_gsiftp_stat_finish(&session, remote, out, rc);
+    if (rc != NGX_OK) {
+        sd_gsiftp_log_session_error(inst, &session, "stat");
+    }
     gftp_session_close(&session);
     return rc;
 }
@@ -289,7 +323,7 @@ sd_gsiftp_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     sd_gsiftp_obj_state *obj_state = obj->state;
     sd_gsiftp_state     *state = obj->inst->state;
-    sd_gsiftp_sink       sink = { .cursor = buf };
+    sd_gsiftp_sink       sink = { .base = buf, .cap = 0 };
     gftp_session_t       session;
     size_t               received;
 
@@ -303,12 +337,15 @@ sd_gsiftp_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
     if (len > (size_t) (obj->snap.size - off)) {
         len = (size_t) (obj->snap.size - off);
     }
+    sink.cap = len;   /* after the clamp: the sink bound is the REAL buffer use */
     if (sd_gsiftp_session(&session, state,
             obj_state->proxy[0] != '\0' ? obj_state->proxy : NULL) != 0) {
+        sd_gsiftp_log_session_error(obj->inst, &session, "session open");
         return -1;
     }
     if (gftp_retrieve(&session, obj_state->path, off, len,
                        sd_gsiftp_sink_copy, &sink, &received) != 0) {
+        sd_gsiftp_log_session_error(obj->inst, &session, "retrieve");
         gftp_session_close(&session);
         return -1;
     }

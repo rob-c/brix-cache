@@ -213,6 +213,96 @@ proxy_bs_send_ztn(brix_proxy_ctx_t *proxy, const char *token,
     return proxy_bs_queue_auth_frame(proxy, frame, frame_len, errs);
 }
 
+/*
+ * brix_proxy_sss_client_entity — the front-side client's identity as an entity.
+ * WHAT: fills `ent` (pointers into the client's identity, no copies) from the
+ *       AUTHENTICATED front session: mapped user (or DN), VO, role, groups,
+ *       endorsements and the proxied credential the keytab policy kept.
+ * WHY:  brix_tap_proxy_sss_identity client forwards WHO connected, not what
+ *       the keytab says; an anonymous front session (auth none sets auth_done
+ *       too) has nobody to forward and must be refused, never downgraded to
+ *       the keytab user — that would launder an anonymous session upstream.
+ * HOW:  NGX_DECLINED when there is no identity, it is not authenticated, or
+ *       its DN is empty; NGX_OK with `ent` filled otherwise.  Not static: the
+ *       upstream connection pool digests the very same entity to decide who a
+ *       pooled connection may be handed back to (pool.c).
+ */
+ngx_int_t
+brix_proxy_sss_client_entity(const brix_proxy_ctx_t *proxy,
+    brix_sss_entity_t *ent)
+{
+    const brix_identity_t *id;
+    const char            *dn;
+
+    if (proxy->client_ctx == NULL || proxy->client_ctx->identity == NULL) {
+        return NGX_DECLINED;
+    }
+    id = proxy->client_ctx->identity;
+    dn = brix_identity_dn_cstr(id);
+    if (!id->is_authenticated || dn[0] == '\0') {
+        return NGX_DECLINED;
+    }
+
+    ngx_memzero(ent, sizeof(*ent));
+    ent->name  = (id->mapped_resolved && id->mapped_user[0] != '\0')
+                 ? id->mapped_user : dn;
+    /* VORG and ROLE travel only when the client ASSERTED them.  The attribute
+     * view they are read from is derived from the group CSV when nobody did
+     * (identity_attrs.c reads a bare group "nogroup" as a VO named "nogroup"),
+     * and forwarding that would manufacture a VO membership the client never
+     * claimed -- a v1 NAME-only credential must arrive v1-shaped.  Nothing is
+     * lost: GRPS goes on the wire verbatim and the origin derives exactly the
+     * same view from it. */
+    if (id->acc_attrs_asserted) {
+        ent->vorg = brix_identity_acc_vorg_cstr(id);
+        ent->role = brix_identity_acc_role_cstr(id);
+    }
+    ent->grps  = brix_identity_vo_csv_cstr(id);
+    ent->endo  = brix_identity_endorsements_cstr(id);
+    ent->creds = brix_identity_creds(id, &ent->creds_len);
+    return NGX_OK;
+}
+
+/*
+ * proxy_sss_mint — mint the upstream SSS credential body.
+ * WHAT: keytab mode (default) sends the key's user on the v1 NAME-only wire,
+ *       byte-for-byte what 1.x sent; client mode sends the forwarded entity.
+ * HOW:  NGX_OK with cred/cred_len filled, or NGX_ERROR after aborting the
+ *       proxy with the reason (refused forwarding, over-cap field, crypto).
+ */
+static ngx_int_t
+proxy_sss_mint(brix_proxy_ctx_t *proxy, const brix_sss_key_t *key,
+    u_char *cred, size_t cred_max, size_t *cred_len)
+{
+    brix_sss_entity_t  ent;
+
+    if (proxy->conf->proxy.sss_identity != BRIX_PROXY_SSS_IDENT_CLIENT) {
+        if (brix_sss_build_proxy_credential(key, key->user, cred, cred_max,
+                                            cred_len) != NGX_OK)
+        {
+            proxy_bs_auth_error(proxy, 1, "proxy: SSS credential build failed");
+            return NGX_ERROR;
+        }
+        return NGX_OK;
+    }
+
+    if (brix_proxy_sss_client_entity(proxy, &ent) != NGX_OK) {
+        /* Our decision, not the origin's: it never saw this session, so its
+         * health must not be charged for the refusal (see policy_refusal). */
+        proxy->policy_refusal = 1;
+        proxy_bs_auth_error(proxy, 1, "proxy: SSS identity forwarding refused: "
+                            "client is not authenticated");
+        return NGX_ERROR;
+    }
+    if (brix_sss_build_proxy_entity_credential(key, &ent, cred, cred_max,
+                                               cred_len) != NGX_OK)
+    {
+        proxy_bs_auth_error(proxy, 1, "proxy: SSS entity credential build failed");
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
 /* send an SSS kXR_auth credential to the upstream * WHAT: Build an SSS credential from `key`, wrap it in a kXR_auth request, and
  *       arm the write side; advance bs_phase to BS_AUTH.
  * WHY:  Used by BOTH the kXR_authmore path and the kXR_ok login-sec-hint path
@@ -228,25 +318,26 @@ proxy_send_sss_auth(brix_proxy_ctx_t *proxy, const brix_sss_key_t *key)
         "proxy: write arm for SSS failed",
         1
     };
-    u_char    cred[512];
-    size_t    cred_len;
+    size_t    cred_len = 0;
     u_char   *frame;
     size_t    frame_len;
     uint32_t  dlen_be;
 
-    if (brix_sss_build_proxy_credential(key, key->user,
-            cred, sizeof(cred), &cred_len) != NGX_OK)
-    {
-        proxy_bs_auth_error(proxy, 1, "proxy: SSS credential build failed");
-        return NGX_ERROR;
-    }
-
-    frame_len = XRD_REQUEST_HDR_LEN + cred_len;
-    frame = ngx_palloc(proxy->conn->pool, frame_len);
+    /* The credential is minted straight into the frame body: a forwarded
+     * entity can be up to BRIX_SSS_ENTITY_BLOB_MAX bytes (F9), the v1 wire
+     * a few dozen — one pool allocation sized for the larger. */
+    frame = ngx_palloc(proxy->conn->pool,
+                       XRD_REQUEST_HDR_LEN + BRIX_SSS_ENTITY_BLOB_MAX);
     if (frame == NULL) {
         proxy_bs_auth_error(proxy, 1, sss_errs.oom_msg);
         return NGX_ERROR;
     }
+    if (proxy_sss_mint(proxy, key, frame + XRD_REQUEST_HDR_LEN,
+                       BRIX_SSS_ENTITY_BLOB_MAX, &cred_len) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+    frame_len = XRD_REQUEST_HDR_LEN + cred_len;
 
     /* kXR_auth request header: reqid at [2:3], credtype "sss\0" at [16:19]
      * (the server routes on this field — leaving it zero yields "unknown
@@ -257,7 +348,6 @@ proxy_send_sss_auth(brix_proxy_ctx_t *proxy, const brix_sss_key_t *key)
     frame[16] = 's'; frame[17] = 's'; frame[18] = 's'; frame[19] = '\0';
     dlen_be = htonl((uint32_t) cred_len);
     ngx_memcpy(frame + 20, &dlen_be, 4);
-    ngx_memcpy(frame + XRD_REQUEST_HDR_LEN, cred, cred_len);
 
     return proxy_bs_queue_auth_frame(proxy, frame, frame_len, &sss_errs);
 }

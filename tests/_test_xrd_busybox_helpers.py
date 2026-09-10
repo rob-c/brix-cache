@@ -25,6 +25,7 @@ import shutil
 import signal
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import time
 
 import pytest
@@ -52,8 +53,7 @@ def _port_up(host, port):
 def _client_built():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
-    subprocess.run(["make", "-C", CLIENT_DIR, "xrd", "xrdfs", "xrdcp"],
-                   capture_output=True, text=True, timeout=240)
+    client_make(CLIENT_DIR, "xrd", "xrdfs", "xrdcp", capture_output=True, text=True, timeout=240)
     for b in ("xrd", "xrdfs"):
         if not os.path.exists(os.path.join(CLIENT_DIR, "bin", b)):
             pytest.skip(f"{b} build failed")

@@ -352,8 +352,10 @@ ngx_int_t brix_cvmfs_geo_answer(ngx_http_request_t *r,
 
 /* One timed nonblocking connect → RTT µs, or -1 on any failure. Shared between
  * the background origin RTT probe (origin_probe.c) and the on-demand geo
- * answer (geo_answer.c). */
-long brix_cvmfs_connect_rtt_us(const char *host, int port, int timeout_ms);
+ * answer (geo_answer.c). `dns` is the export's phase-116 resolver policy
+ * (NULL: libc, which still follows resolv.conf). */
+long brix_cvmfs_connect_rtt_us(const brix_dns_policy_t *dns, const char *host,
+    int port, int timeout_ms);
 
 /* Proxy-mode target extraction (T14): NGX_DECLINED = origin-form (reverse
  * mode), NGX_OK = allowed absolute-form authority (host/port filled), or a
@@ -477,7 +479,8 @@ ngx_int_t brix_cvmfs_delta_try_serve(ngx_http_request_t *r,
 /* T19 rtt mode: record (at config time) that the export at `root_canon` runs
  * the per-worker RTT probe; arm the probe timers at worker init. */
 void      brix_cvmfs_rtt_register(const char *root_canon, time_t interval,
-    const ngx_str_t *pool_name);
+    const ngx_str_t *pool_name, const brix_dns_policy_t *dns);
+void      brix_cvmfs_rtt_regs_reset(void);   /* per config parse (phase-116) */
 ngx_int_t brix_cvmfs_rtt_init_worker(ngx_cycle_t *cycle);
 
 /* Phase-87 G17 background scrub: record (at config time) that the export at
@@ -505,7 +508,8 @@ void      brix_cvmfs_learn_note(ngx_http_request_t *r,
  * gate intercepts pre-classification (GET <root>/.swarm/roster; NGX_DECLINED
  * for any other request). */
 void      brix_cvmfs_swarm_register(const char *root_canon, time_t interval,
-    const ngx_str_t *pool_name);
+    const ngx_str_t *pool_name, const struct brix_dns_policy_s *dns);
+void      brix_cvmfs_swarm_regs_reset(void); /* per config parse (phase-116) */
 ngx_int_t brix_cvmfs_swarm_init_worker(ngx_cycle_t *cycle);
 ngx_int_t brix_cvmfs_swarm_roster_serve(ngx_http_request_t *r,
     ngx_http_brix_cvmfs_loc_conf_t *lcf);

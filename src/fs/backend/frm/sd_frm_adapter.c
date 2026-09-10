@@ -16,6 +16,7 @@
 #include "sd_frm.h"
 #include "sd_frm_mss.h"     /* MSS adapters (stub/exec) split out */
 #include "sd_frm_internal.h" /* sd_frm_state + the frm_select_* contract */
+#include "sd_frm_arc.h"      /* phase-115 W3.1 dataset archiver decorator */
 #include "fs/xfer/xfer.h"
 
 #include <dlfcn.h>
@@ -131,9 +132,33 @@ frm_dialect_env(const char *adapter, const char *hpss_name,
 /* Resolve the stage command for an exec-family `adapter` (an `hsi`/`pftp`
  * HPSS stager, an `eos`/`cta-admin` CTA stager, or the generic
  * $BRIX_FRM_STAGECMD). */
+/* 2.0 F1: the configured exec program + deadline (brix_frm_stagecmd /
+ * brix_frm_copy_timeout), published by the config merge in the master and
+ * inherited by every worker. The directive wins over every BRIX_FRM_*STAGECMD
+ * variable; unset = the environment contract as before. */
+static char        frm_conf_stagecmd[PATH_MAX];
+static ngx_msec_t  frm_conf_copy_timeout_ms;
+
+void
+brix_sd_frm_set_exec_defaults(const char *stagecmd, ngx_msec_t copy_timeout_ms)
+{
+    if (stagecmd == NULL || stagecmd[0] == '\0'
+        || ngx_strlen(stagecmd) >= sizeof(frm_conf_stagecmd))
+    {
+        frm_conf_stagecmd[0] = '\0';
+    } else {
+        ngx_cpystrn((u_char *) frm_conf_stagecmd, (u_char *) stagecmd,
+                    sizeof(frm_conf_stagecmd));
+    }
+    frm_conf_copy_timeout_ms = copy_timeout_ms;
+}
+
 static const char *
 frm_exec_stagecmd(const char *adapter)
 {
+    if (frm_conf_stagecmd[0] != '\0') {
+        return frm_conf_stagecmd;
+    }
     return frm_dialect_env(adapter, "hpss", "BRIX_FRM_HPSS_STAGECMD",
                            "cta", "BRIX_FRM_CTA_STAGECMD",
                            "BRIX_FRM_STAGECMD");
@@ -239,19 +264,20 @@ frm_select_exec_adapter(sd_frm_state *st, const char *adapter,
     if (cmd == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
             "xrootd frm: the \"%s\" MSS adapter needs a stage command "
-            "($BRIX_FRM_STAGECMD, or the per-dialect override); "
-            "falling back to the built-in stub", adapter);
+            "(brix_frm_stagecmd, $BRIX_FRM_STAGECMD, or the per-dialect "
+            "override); falling back to the built-in stub", adapter);
         return 0;
     }
-    st->mss_ctx = brix_mss_exec_create(location, cmd, log);
+    st->mss_ctx = brix_mss_exec_create(location, cmd, frm_conf_copy_timeout_ms,
+                                       log);
     if (st->mss_ctx == NULL) {
         errno = ENOMEM;
         return -1;
     }
     st->mss = &brix_mss_exec_adapter;
     ngx_log_error(NGX_LOG_NOTICE, log, 0,
-        "xrootd frm: \"%s\" MSS adapter (stagecmd=%s, online buffer=%s)",
-        adapter, cmd, location);
+        "xrootd frm: \"%s\" MSS adapter (stagecmd=%s, copy_timeout=%M ms, "
+        "online buffer=%s)", adapter, cmd, frm_conf_copy_timeout_ms, location);
     return 0;
 }
 
@@ -293,5 +319,45 @@ frm_select_stub_adapter(sd_frm_state *st, const char *adapter,
         return -1;
     }
     st->mss = &brix_mss_stub_adapter;
+    return 0;
+}
+
+/* ---- Phase-115 W3.1: the dataset archiver decorator ----
+ *
+ * WHAT: when the store URL carried ?arc=<depth>, replace the bound adapter by
+ * brix_mss_arc_adapter wrapping it (ownership of the inner context passes to
+ * the wrapper). WHY: the archiver is dialect-neutral, so it decorates instead
+ * of forking every adapter. HOW: no-op without opts; on wrap failure destroy
+ * the inner adapter so the caller's cleanup is the same as any select failure.
+ */
+int
+frm_select_arc_decorator(sd_frm_state *st, const brix_sd_frm_opts_t *opts,
+    ngx_log_t *log)
+{
+    void *wrapped;
+
+    if (opts == NULL || opts->arc_depth == 0) {
+        return 0;
+    }
+    wrapped = brix_mss_arc_create(st->mss, st->mss_ctx, st->location,
+                                  opts->arc_depth, log);
+    if (wrapped == NULL) {
+        int e = errno;
+
+        if (st->mss->destroy != NULL) {
+            st->mss->destroy(st->mss_ctx);
+        }
+        st->mss = NULL;
+        st->mss_ctx = NULL;
+        errno = e;
+        return -1;
+    }
+    if (log != NULL) {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "xrootd frm: dataset archiver armed over the %s adapter "
+            "(depth=%ud, base=%s)", st->mss->name, opts->arc_depth, st->location);
+    }
+    st->mss = &brix_mss_arc_adapter;
+    st->mss_ctx = wrapped;
     return 0;
 }

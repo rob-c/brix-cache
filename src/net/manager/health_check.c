@@ -19,7 +19,6 @@
 #include "core/compat/log_diag.h"
 #include "health_check_internal.h"
 
-#include <netdb.h>
 #include <sys/socket.h>
 
 /* Built by src/upstream/bootstrap.c; pure wire framing, no client context. */
@@ -104,17 +103,14 @@ brix_hc_finish(brix_hc_ctx_t *hc, int passed)
 
 /*
  * Pre-connection failure cleanup for brix_hc_start(): the socket/connection
- * could not be set up before hc took ownership, so the resolver result (if any)
- * is freed here, the probe is reported as a real failure (configured
- * threshold/blacklist), and the probe pool is destroyed.
+ * could not be set up before hc took ownership, so the probe is reported as a
+ * real failure (configured threshold/blacklist) and the probe pool is
+ * destroyed.
  */
 static void
-brix_hc_pre_connect_fail(struct addrinfo *res, const char *host,
-    uint16_t port, ngx_stream_brix_srv_conf_t *conf, ngx_pool_t *pool)
+brix_hc_pre_connect_fail(const char *host, uint16_t port,
+    ngx_stream_brix_srv_conf_t *conf, ngx_pool_t *pool)
 {
-    if (res != NULL) {
-        freeaddrinfo(res);
-    }
     brix_srv_hc_fail(host, port, conf->hc.threshold, conf->hc.blacklist_ms);
     ngx_destroy_pool(pool);
 }
@@ -157,34 +153,6 @@ brix_hc_ctx_create(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
 }
 
 /*
- * Resolve host:port for brix_hc_start().  Returns the addrinfo list (owned by
- * the caller), or NULL after reporting a real probe failure (configured
- * threshold/blacklist) and destroying the probe pool.
- */
-static struct addrinfo *
-brix_hc_resolve(brix_hc_ctx_t *hc, const char *host, uint16_t port)
-{
-    struct addrinfo  hints, *res = NULL;
-    char             portstr[8];
-
-    ngx_memzero(&hints, sizeof(hints));
-    hints.ai_family   = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    (void) ngx_snprintf((u_char *) portstr, sizeof(portstr), "%d%Z",
-                        (int) port);
-    if (getaddrinfo(host, portstr, &hints, &res) != 0 || res == NULL) {
-        ngx_log_error(NGX_LOG_WARN, hc->log, 0,
-                      "brix: health check: cannot resolve %s:%d",
-                      host, (int) port);
-        brix_srv_hc_fail(host, port, hc->conf->hc.threshold,
-                           hc->conf->hc.blacklist_ms);
-        ngx_destroy_pool(hc->pool);
-        return NULL;
-    }
-    return res;
-}
-
-/*
  * Create the non-blocking probe socket and wire it into an nginx connection
  * for brix_hc_start().  Returns NGX_OK with hc->conn owning the fd, or
  * NGX_ERROR after full pre-connection cleanup (socket closed by hand,
@@ -192,8 +160,7 @@ brix_hc_resolve(brix_hc_ctx_t *hc, const char *host, uint16_t port)
  * pool).
  */
 static ngx_int_t
-brix_hc_open_conn(ngx_cycle_t *cycle, brix_hc_ctx_t *hc,
-    struct addrinfo *res, const char *host, uint16_t port)
+brix_hc_open_conn(brix_hc_ctx_t *hc, const struct sockaddr *sa)
 {
     ngx_connection_t  *c;
     ngx_socket_t       fd;
@@ -202,17 +169,17 @@ brix_hc_open_conn(ngx_cycle_t *cycle, brix_hc_ctx_t *hc,
      * closed by hand on error (the pool does not know about a bare fd).  These
      * pre-connection failures count as a real probe failure (they use the
      * configured threshold/blacklist). */
-    fd = ngx_socket(res->ai_family, SOCK_STREAM, 0);
+    fd = ngx_socket(sa->sa_family, SOCK_STREAM, 0);
     if (fd == (ngx_socket_t) -1 || ngx_nonblocking(fd) == -1) {
         if (fd != (ngx_socket_t) -1) { ngx_close_socket(fd); }
-        brix_hc_pre_connect_fail(res, host, port, hc->conf, hc->pool);
+        brix_hc_pre_connect_fail(hc->host, hc->port, hc->conf, hc->pool);
         return NGX_ERROR;
     }
 
-    c = ngx_get_connection(fd, cycle->log);
+    c = ngx_get_connection(fd, hc->log);
     if (c == NULL) {
         ngx_close_socket(fd);
-        brix_hc_pre_connect_fail(res, host, port, hc->conf, hc->pool);
+        brix_hc_pre_connect_fail(hc->host, hc->port, hc->conf, hc->pool);
         return NGX_ERROR;
     }
     /* From here the connection (and therefore the fd) is owned by hc->conn and
@@ -223,7 +190,7 @@ brix_hc_open_conn(ngx_cycle_t *cycle, brix_hc_ctx_t *hc,
     c->send          = ngx_send;
     c->read->handler  = brix_hc_read_handler;
     c->write->handler = brix_hc_write_handler;
-    c->read->log = c->write->log = cycle->log;
+    c->read->log = c->write->log = hc->log;
     hc->conn = c;
     return NGX_OK;
 }
@@ -270,19 +237,19 @@ brix_hc_queue_bootstrap(brix_hc_ctx_t *hc)
 
 /*
  * Kick off the connect() for brix_hc_start() and hand the probe to the event
- * loop.  Frees the resolver result; every failure path ends in
- * brix_hc_finish(), so the claim is always released.
+ * loop.  Every failure path ends in brix_hc_finish(), so the claim is always
+ * released.
  */
 static void
-brix_hc_begin_connect(brix_hc_ctx_t *hc, struct addrinfo *res)
+brix_hc_begin_connect(brix_hc_ctx_t *hc, const struct sockaddr *sa,
+    socklen_t salen)
 {
     int  rc;
 
     /* Non-blocking connect: rc == 0 means it completed immediately (typical for
      * localhost/loopback); EINPROGRESS means it is in flight; any other error
-     * is a hard failure.  Free the resolver result either way before branching. */
-    rc = connect(hc->conn->fd, res->ai_addr, res->ai_addrlen);
-    freeaddrinfo(res);
+     * is a hard failure. */
+    rc = connect(hc->conn->fd, sa, salen);
 
     if (rc == -1 && ngx_socket_errno != NGX_EINPROGRESS) {
         brix_hc_finish(hc, 0);
@@ -308,42 +275,43 @@ brix_hc_begin_connect(brix_hc_ctx_t *hc, struct addrinfo *res)
 }
 
 /*
- * Launch one probe against host:port (the slot was already claimed by
- * brix_srv_hc_claim()).  Sets up a non-blocking connection, queues the
- * pipelined bootstrap, arms the deadline timer, and starts connect().  Control
- * then returns to the event loop; the probe completes asynchronously in the
- * read/write handlers, always ending at brix_hc_finish().
+ * Continuation of brix_hc_start() once the target's address is known
+ * (phase-116: the resolution is async — a literal or cache hit lands
+ * synchronously, a hostname from the driver).  Sets up a non-blocking
+ * connection, queues the pipelined bootstrap, arms the deadline timer, and
+ * starts connect().  Control then returns to the event loop; the probe
+ * completes asynchronously in the read/write handlers, always ending at
+ * brix_hc_finish().
  *
  * Ownership note: every early-exit path here MUST release the claim — either
- * via brix_hc_finish() (once hc exists and reports a verdict) or via a direct
- * brix_srv_hc_fail() (before hc is usable).  The helpers above uphold this on
+ * via brix_hc_finish() (once hc reports a verdict) or via a direct
+ * brix_srv_hc_fail() (before hc is viable).  The helpers above uphold this on
  * their own failure paths.  Otherwise the slot stays hc_in_progress=1 forever
  * and is never probed again.
  */
 static void
-brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
-    const char *host, uint16_t port)
+brix_hc_resolved(brix_dns_req_t *req)
 {
-    brix_hc_ctx_t   *hc;
-    struct addrinfo   *res;
+    brix_hc_ctx_t          *hc = req->data;
+    const struct sockaddr  *sa;
+    socklen_t               salen;
 
-    hc = brix_hc_ctx_create(cycle, conf, host, port);
-    if (hc == NULL) {
+    if (req->rc != NGX_OK || req->naddrs == 0) {
+        ngx_log_error(NGX_LOG_WARN, hc->log, 0,
+                      "brix: health check: cannot resolve %s:%d: %s",
+                      hc->host, (int) hc->port,
+                      req->error ? req->error : "unknown");
+        brix_hc_pre_connect_fail(hc->host, hc->port, hc->conf, hc->pool);
         return;
     }
+    sa = (const struct sockaddr *) &req->addrs[0].ss;
+    salen = req->addrs[0].len;
 
-    /* Resolve target. */
-    res = brix_hc_resolve(hc, host, port);
-    if (res == NULL) {
-        return;
-    }
-
-    if (brix_hc_open_conn(cycle, hc, res, host, port) != NGX_OK) {
+    if (brix_hc_open_conn(hc, sa) != NGX_OK) {
         return;
     }
 
     if (brix_hc_queue_bootstrap(hc) != NGX_OK) {
-        freeaddrinfo(res);
         brix_hc_finish(hc, 0);
         return;
     }
@@ -351,12 +319,48 @@ brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
     /* Single deadline for the whole probe. */
     hc->tev.handler = brix_hc_timeout_handler;
     hc->tev.data    = hc;
-    hc->tev.log     = cycle->log;
-    ngx_add_timer(&hc->tev, conf->hc.timeout_ms);
+    hc->tev.log     = hc->log;
+    ngx_add_timer(&hc->tev, hc->conf->hc.timeout_ms);
 
     BRIX_HC_METRIC_INC(hc_probes_total);
 
-    brix_hc_begin_connect(hc, res);
+    brix_hc_begin_connect(hc, sa, salen);
+}
+
+/*
+ * Launch one probe against host:port (the slot was already claimed by
+ * brix_srv_hc_claim()): allocate the probe and start the async resolution;
+ * brix_hc_resolved() carries on.  A resolution that cannot even start counts
+ * as a real probe failure (the claim is released there).
+ */
+static void
+brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
+    const char *host, uint16_t port)
+{
+    brix_hc_ctx_t  *hc;
+
+    hc = brix_hc_ctx_create(cycle, conf, host, port);
+    if (hc == NULL) {
+        return;
+    }
+
+    hc->dns.name.data = (u_char *) hc->host;
+    hc->dns.name.len = ngx_strlen(hc->host);
+    hc->dns.port = port;
+    hc->dns.af = BRIX_AF_AUTO;
+    hc->dns.socktype = SOCK_STREAM;
+    hc->dns.policy = conf->common.dns.policy;
+    hc->dns.log = hc->log;
+    hc->dns.handler = brix_hc_resolved;
+    hc->dns.data = hc;
+
+    if (brix_dns_resolve(&hc->dns) != NGX_OK) {
+        ngx_log_error(NGX_LOG_WARN, hc->log, 0,
+                      "brix: health check: cannot resolve %s:%d: %s",
+                      host, (int) port,
+                      hc->dns.error ? hc->dns.error : "unknown");
+        brix_hc_pre_connect_fail(host, port, conf, hc->pool);
+    }
 }
 
 /*

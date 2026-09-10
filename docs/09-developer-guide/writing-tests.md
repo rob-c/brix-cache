@@ -136,6 +136,38 @@ def test_gsi_can_read_file(gsi_server):
     assert status.ok
 ```
 
+### A comment in a template never names a line-carrying placeholder
+
+A `{PLACEHOLDER}` that **opens** its line in a `tests/configs/*.conf` template —
+nothing but indentation before it — carries a whole line (or a whole block): the
+caller supplies the indentation, and for block slots the trailing newline too.
+Naming such a slot inside a `#` comment makes the comment interpolate it, and the
+result is one of two failures:
+
+* **The value ends with a newline.** The comment terminates on the value's first
+  line and nginx parses the remaining prose as a directive —
+  `unknown directive ")"`, and every test in the file goes red at `nginx -t`.
+* **The value does not end with a newline.** The whole substituted line is
+  swallowed by the comment. The directive silently disappears, and `nginx -t`
+  still reports `syntax is ok`. This is the dangerous half: a slot carrying
+  access control (`{DENY_LINES}`, `{SSS_LINES}`) vanishes and the server under
+  test is wide open while the suite stays green.
+
+So: **comments name these placeholders without braces.** Write `the SSS_LINES
+slot`, never `the {SSS_LINES} slot`.
+
+"Alone on its line" is too narrow a rule to check — `{SSS_LINES}    }` closes a
+block on the same line and is the same shape. The enforced rule is *line-leading*:
+
+| Helper / test | What it does |
+|---|---|
+| `tests/config_templates.py::line_carrying_placeholders` | Names every placeholder the template gives a whole line of its own (`^[ \t]*\{NAME\}`) |
+| `tests/config_templates.py::comment_swallowed_placeholders` | Returns `[(lineno, name), …]` for every `#` comment that names one |
+| `tests/test_config_template_hygiene.py` | Scans the whole `tests/configs/` corpus (must be empty) and reproduces **both** failure halves through real `nginx -t` runs, including the silent-swallow case where the parse succeeds and the `deny` rule is gone |
+
+Fourteen latent instances of this were found across eleven templates in one sweep
+(2026-09-09); see `history-testing-and-incidents.md` §25.
+
 ---
 
 ## Environment variables
@@ -291,6 +323,7 @@ pytest tests/test_throughput.py -v -p no:timeout
 | `tests/cmdscripts/manage_test_servers.py` | Pure-Python fleet CLI: `start-all`/`stop-all`/`restart`/`status`/`start-dedicated` |
 | `tests/configs/nginx_shared.conf` | Main nginx config template (all standard listeners) |
 | `tests/configs/` | Per-feature nginx config templates |
+| `tests/config_templates.py` | Template corpus helpers: placeholder census, line-carrying/comment-swallowed scans |
 | `utils/make_proxy.py` | RFC 3820 GSI proxy generation (Python, no openssl CLI) |
 | `utils/voms_proxy_fake.py` | VOMS proxy generation (pure Python, replaces `voms-proxy-fake`) |
 | `utils/make_token.py` | JWT/WLCG token signing authority (`TokenIssuer` class) |

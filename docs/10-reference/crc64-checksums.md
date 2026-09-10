@@ -46,7 +46,7 @@ handled at the protocol edge — never in the kernel.
 | Surface | How requested | How returned | Encoding |
 |---|---|---|---|
 | root:// (`kXR_query` Qcksum) | algo name `crc64` / `crc64nvme` | `"<algo> <hex>"` | 16 lowercase hex |
-| root:// `kXR_query` Qconfig `chksum` | — | advertises `adler32,crc32c,crc64,crc64nvme,md5,sha1,sha256` | — |
+| root:// `kXR_query` Qconfig `chksum` | — | advertises every built-in — `adler32,crc32,crc32c,crc64,crc64nvme,zcrc32,md5,sha1,sha256,sha512` — then each registered `brix_checksum_plugin`, with `brix_checksum_default` moved to the head | — |
 | root:// Qckscan (tree scan) | algo prefix | `"<algo> <hex>  <logical>"` lines | 16 lowercase hex |
 | WebDAV / XrdHttp | `Want-Digest: crc64` (or `?xrd.want.cksum=`) | `Digest: crc64=<hex>` | 16 lowercase hex |
 | S3 | `x-amz-checksum-crc64nvme` (PUT) | `x-amz-checksum-crc64nvme` + `x-amz-checksum-type: FULL_OBJECT` | **base64 of 8 big-endian bytes** |

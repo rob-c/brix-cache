@@ -1,5 +1,27 @@
 # Source-Verified XRootD Feature Comparison
 
+> **Status (2026-09-09 — 2.0).** A 2026-06-14 source-verified review. For what 2.0 ships,
+> what it deliberately does not, and what is still open, use the 2.0 register,
+> [`release-2.0-readiness.md`](release-2.0-readiness.md) — its parity rows supersede any
+> ⚠️/❌ below. Axis (e) of that register closed **F1–F20** (the thirteen accepted-only
+> `brix_frm_*` knobs and the durable stage journal, `stagemsg`/StageEvents, the OssArc
+> dataset seal, the per-space purge-policy grammar with an external policy program,
+> `pfc.urlcgi` + PSS forwarding, the RAM-tier metric rows, native `root://` TPC
+> **multihop** delegation and multi-stream *pull*, the site checksum plugin loader, the
+> sss v2 endorsement/proxied-credential wave, the health-check family,
+> `brix_mirror_exclude_opcodes` read/readv, the four metric wishlist categories, native
+> `root://` TPC **push** with multi-stream on it, the `cms.fsxeq` operator program for
+> forwarded namespace ops, and the `ofs.tpc` identity matrix layered inside the
+> host-plane TPC confinement, and the `xrd.tlsca` CRL-scope and verification-log
+> residuals — whose lab also found and fixed **F22**, a CRL a worker could not read
+> silently disarming revocation — and the native authdb residual grammar: the compound
+> `u g p a v l` selector set, positional VOMS vorg+role pairing, and the `x` stage
+> privilege) and, with **F21** — full per-user POSIX identity across the VFS seam, whose audit
+> found the posix plane already impersonating at the `beneath`/`confined_canon` seam
+> and closed the one un-brokered verb, `RENAME_EXCHANGE` — landed on 2026-09-10,
+> leaves nothing open: axis (e) is closed in full at F1–F22. A row below that names a closed item is stale by construction; this file is
+> kept as a historical snapshot and is no longer maintained row by row.
+
 Review date: 2026-06-14
 
 Scope:
@@ -48,7 +70,8 @@ upstream plugin ecosystems and site policy compatibility areas:
 - optional storage plugins and services such as `XrdCeph`, `XrdPss`, the full
   `XrdPfc`/XCache stack, `XrdOssCsi`, `XrdZip`, and the complete `XrdFrm`
   daemon/admin/migrate/purge ecosystem;
-- the checksum plugin framework beyond the built-in CRC64/CRC64NVME set;
+- FSctl plugin hooks (`kXR_Qopaque`/`Qopaquf`/`Qopaqug` answer the
+  reference-compatible "unsupported" response with no plugin loaded);
 - some advanced CMS/admin semantics and proxy-mode async edge cases;
 - UDP monitoring, which is intentionally not a product goal.
 
@@ -161,7 +184,7 @@ Source anchors:
 |---|---|---|---|---|
 | Anonymous mode | Core XRootD config/auth flow. | `brix_auth none`; login/session code. | Parity | Used heavily in tests and proxy/cache modes. |
 | GSI / x509 proxy cert auth | `XrdSecgsi`, `XrdVoms`. | `src/auth/gsi/`, `src/auth/voms/`, WebDAV cert auth in `src/protocols/webdav/auth_cert.c`. | Parity | Module supports proxy certs and optional VOMS/VO authorization. |
-| SSS | `XrdSecsss`. | `src/auth/sss/`; protocol advertises `sss`. | Parity | Standard encrypted keytab format support is documented and source-backed. |
+| SSS | `XrdSecsss`. | `src/auth/sss/`; protocol advertises `sss`. | Parity | Standard encrypted keytab format support is documented and source-backed. Since 2.0 the v2 entity (`vorg`, `role`, `grps`, `endorsements`, proxied `creds`) is parsed under the keytab's trust policy, with `brix_sss_getcreds`, `brix_tap_proxy_sss_identity` and the client-side `XrdSecsssID` registry. |
 | Unix auth | `XrdSecunix`. | `src/auth/unix/auth.c`; protocol advertises `unix` when configured. | Parity | Module is loopback-only by default unless `brix_unix_trust_remote on`. |
 | Kerberos 5 | `XrdSeckrb5`. | `src/auth/krb5/auth.c`, `src/auth/krb5/config.c`; optional Kerberos detection in `config`. | Parity | Existing docs that call this absent are stale. |
 | Bearer token / `ztn` | `XrdSecztn`; `XrdSciTokens`. | `src/auth/token/validate.c`, `src/auth/token/jwks.c`, `src/auth/token/scopes.c`; WebDAV bearer auth. | Partial | WLCG/JWT validation and path scopes exist. Upstream SciTokens has a broader helper/config/monitor model. |
@@ -225,7 +248,7 @@ Source anchors:
 | POSIX local filesystem serving | Core `XrdOss`/`XrdSfs` stack. | Local POSIX operations through confined path helpers, namespace ops, fd table, sendfile/mmap-style HTTP paths. | Parity | This module is intentionally strongest as a POSIX-backed data server/gateway. |
 | Path confinement and symlink escape defense | Upstream has its own namespace and auth mechanisms. | `src/fs/path/`, `src/core/compat/namespace_ops.c`, `ngx_http_brix_webdav_resolve_path()`, `brix_open_confined_canon()`. | nginx+ | All wire paths should resolve before syscall; this is a major auditability advantage. |
 | Read-through cache / XCache-style role | Upstream `XrdPfc`, `XrdRmc`, cache plugins. | `src/fs/cache/`, `src/open_cache.c`, protocol `kXR_attrCache`. | Partial | Practical cache mode exists. Upstream `XrdPfc` has much broader policy, purge, snapshot, and resource-monitoring machinery. |
-| Parallel Storage Service | `XrdPss` plugin. | No comparable PSS backend found. | Missing | Important for sites using remote federation/cache-fill as their storage layer. |
+| Parallel Storage Service | `XrdPss` plugin. | `src/fs/backend/xroot/sd_xroot.c` (fixed `root://` origin as the export's storage) and `sd_xroot_fwd*.c` (2.0 F5 forwarding mode: client-named origin + `permit=` host list). | Present (no persona / reproxy / connection pool) | Sites using remote federation/cache-fill as their storage layer are served by the two backend forms. |
 | Ceph/RADOS backend | `XrdCeph` plugin. | `src/fs/backend/rados/` — `sd_ceph` driver with libradosstriper stock-stripe-format interop, directory listing (stripe-collapse, synthetic dirs), copy+delete rename, xattr, staged commit; read-only `cephfsro` CephFS-rescue driver. Phase-60 closed by phase-89 §B (live-verified 2026-07-27). | Parity / Partial | Reads/writes stock-XrdCeph on-RADOS data byte-for-byte. Namelib (site lfn2pfn) rules and full plugin-config surface remain narrower. |
 | Checksum/tagstore storage | `XrdOssCsi` page checksum/tagstore implementation. | File-level checksum helpers and xattr-cached integrity; no comparable `XrdOssCsi` tagstore found. | Missing / Partial | Paged wire CRC exists; persistent checksum-index/tagstore parity does not. |
 | XrdFrm | Full `XrdFrm` static library plus `frm_admin`, `frm_purged`, `frm_xfrd`, `frm_xfragent`, migrate, purge, transfer queue. | `src/fs/xfer/` durable queue/engine + `src/fs/backend/frm/` residency/recall driver, metrics, Tape REST, async/wait paths (the former `src/frm/` subsystem, dissolved in phase-64). | Partial | This module has a serious tape gateway, not the whole upstream FRM daemon/admin ecosystem. |
@@ -234,7 +257,7 @@ Source anchors:
 | External tape/MSS driver abstraction | Upstream has MSS/ARC/Frm-style abstractions and daemon workflows. | Operator `copycmd`/`residency_cmd`; no linked tape library. | Partial | Simpler and auditable, but not drop-in for sites depending on upstream MSS plugins. |
 | Zip archive support | `XrdZip` source exists. | `src/protocols/root/zip/` — pure-C central-directory reader (`zip_dir.c`), `zip_member.c`, HTTP member serving (`zip_http.c`), wired into the build. | Partial | ZIP-member access over HTTP exists; not full upstream cross-protocol parity. |
 | Remanufactured memory cache | `XrdRmc` source exists. | No comparable `XrdRmc` implementation found. | Missing | Mostly a specialized upstream cache feature. |
-| Checksum plugin framework | Upstream `XrdCks` plugin mapping supports deployment-specific checksum modules. | `src/core/compat/checksum.c` supports common algorithms including adler32/crc32/crc32c/md5/sha1/sha256 plus CRC-64/XZ and CRC-64/NVME via `src/core/compat/crc64.c`. | Partial / nginx+ for CRC64 | Full plugin-framework parity is still narrower; CRC64 itself is implemented. |
+| Checksum plugin framework | Upstream `XrdCks` plugin mapping supports deployment-specific checksum modules. | Ten built-ins in `src/core/compat/checksum.c` (adler32/crc32/crc32c/zcrc32/md5/sha1/sha256/sha512 plus CRC-64/XZ and CRC-64/NVME via `src/core/compat/crc64.c`), and since 2.0 **F8** a site algorithm loaded from a shared object with `brix_checksum_plugin <name> <path.so> [parms]` against `src/core/compat/checksum_plugin_abi.h`. | Present / nginx+ for CRC64 | An `XrdCks` plugin binary is not loadable as-is; port it to the BriX ABI using `contrib/checksum-plugins/` as the template. |
 | Client libraries/tools | Upstream ships `XrdCl`, `XrdPosix`, FUSE/tooling. | Not applicable to server module. | Not replacement-scope | This module replaces server behavior, not the upstream client SDK ecosystem. |
 
 ## Cluster, Redirector, Proxy, and TPC
@@ -246,7 +269,7 @@ Source anchors:
 | Supervisor/meta manager role | Upstream flags/roles. | `brix_supervisor`, `kXR_attrSuper`, tests. | Parity / Partial | Flagging exists; ensure topology behavior matches target deployment before marketing full CMS parity. |
 | Virtual redirector | Upstream protocol clients understand `kXR_attrVirtRdr`. | `brix_virtual_redirector` and auto-detection for static manager maps. | nginx+ / Partial | Useful nginx-specific static map deployment mode. |
 | Collapse redirects | Upstream has client/server redirect mechanics. | `src/net/manager/redir_cache.c`; `kXR_collapseRedir` when configured. | nginx+ / Partial | Implemented as SHM redirect-target cache. |
-| Native TPC / clone | Upstream native TPC and clone behavior. | `src/tpc/`, `src/protocols/root/read/clone.c`. | Parity / Partial | Module has SHM key registry and clone; verify multi-hop/TLS/delegation edge cases per site. |
+| Native TPC / clone | Upstream native TPC and clone behavior. | `src/tpc/`, `src/protocols/root/read/clone.c`. | Parity / Partial | Module has SHM key registry, clone, redirect following (`brix_tpc_max_hops`), multi-stream pulls (`brix_tpc_streams`) and TLS upgrade; verify site credential-delegation edge cases per site. |
 | HTTP-TPC | `XrdHttpTpc`. | `src/protocols/webdav/tpc*.c`. | Parity / nginx+ | See HTTP table. |
 | Upstream proxy mode | Upstream has PSS/proxy/cache architectures. | `src/net/proxy/`, `src/net/upstream/`, `src/protocols/webdav/proxy.c`. | nginx+ / Partial | nginx offers protocol bridge and HTTP reverse proxy features; some upstream async edge cases remain flagged. |
 | Traffic mirroring / shadow validation | No comparable upstream server feature found. | `src/net/mirror/`, `src/net/mirror/stream_wmirror.c`, phase-24 tests/docs. | nginx+ | Strong migration feature: run shadow paths before cutover and track divergence. |
@@ -297,11 +320,11 @@ UDP monitoring.
 | Full `XrdAcc` compatibility | `/tmp/brix-src/src/XrdAcc` | `src/auth/authz/authdb.c` implements a narrower authdb. | Complex existing auth files may need translation. | Build a migration guide or converter rather than cloning all `XrdAcc`. |
 | Full SciTokens plugin semantics | `/tmp/brix-src/src/XrdSciTokens` | `src/auth/token/` validates WLCG/JWT and scopes. | Sites using advanced issuer/config/helper behavior need review. | Document supported claims/scopes precisely. |
 | Full `XrdFrm` daemon/admin ecosystem | `/tmp/brix-src/src/XrdFrm` | `src/fs/xfer/` + `src/fs/backend/frm/` plus Tape REST; no in-process migrate/purge. | Tape sites with upstream FRM operational workflows are not drop-in. | Present as functional tape gateway, not complete FRM clone. |
-| PSS backend | `/tmp/brix-src/src/XrdPss` | No comparable implementation found. | Sites using PSS for remote storage access need another architecture. | Use proxy/cache/gateway patterns where possible; do not claim parity. |
+| PSS backend | `/tmp/brix-src/src/XrdPss` | `src/fs/backend/xroot/sd_xroot.c` + `sd_xroot_fwd*.c` (2.0 F5). | Fixed-origin and forwarding (client-named origin, protocol list + `permit=` host allowlist) storage backends exist. | Persona, reproxy and an origin connection pool are not implemented; do not claim those. |
 | PFC/XCache full policy cache | `/tmp/brix-src/src/XrdPfc` | `src/fs/cache/` is narrower. | Sites relying on PFC purge/snapshot/policy internals need review. | Claim cache support, not full PFC parity. |
 | Ceph plugin | `/tmp/brix-src/src/XrdCeph` | `src/fs/backend/rados/` striper-interop `sd_ceph` driver + read-only `cephfsro` (phase-60/89). | Stock on-RADOS data readable byte-for-byte; site namelib (lfn2pfn) rules must be supplied before touching production pools. | Mostly closed; validate per-site namelib + pool config. |
 | XrdOssCsi tagstore/checksum store | `/tmp/brix-src/src/XrdOssCsi` | No comparable tagstore. | Persistent checksum/page-integrity workflows may differ. | Treat as storage-plugin gap. |
-| Checksum plugin framework breadth | `/tmp/brix-src/src/XrdCks`, `XrdVersionPlugin.hh` | Fixed local checksum set with CRC64/CRC64NVME included. | Compatibility gap only for uncommon site-specific checksum plugins. | Add plugins only if needed by site validation. |
+| Checksum plugin framework breadth | `/tmp/brix-src/src/XrdCks`, `XrdVersionPlugin.hh` | Ten built-ins plus `brix_checksum_plugin <name> <path.so> [parms]` (2.0): a site algorithm from a shared object against a plain-C ABI, `src/core/compat/checksum_plugin_abi.h`. | Closed as a feature gap; an XrdCks plugin binary is not loadable as-is and needs a port to the BriX ABI. | Port site plugins with `contrib/checksum-plugins/` as the template. |
 | ZIP virtual filesystem | `/tmp/brix-src/src/XrdZip` | **Partially implemented** — `src/protocols/root/zip/` (central-dir reader + HTTP member serving). | ZIP-member access over HTTP exists; full cross-protocol parity does not. | Mostly closed; validate breadth if a site needs full ZIP-member semantics. |
 | CMS admin/tooling completeness | `/tmp/brix-src/src/XrdCms` | `src/net/cms/`, `src/net/manager/` implement practical manager behavior; phase-89 closed the phase-61 opcode matrix (load meter, locate cache, staging forward, fan-out, blacklist file). | Multi-tier sub-manager chaining (W7) and upstream admin tooling still need conformance review. | Claim manager/redirector support; caveat only W7/multi-tier and admin tooling. |
 | Proxy async `kXR_waitresp`/`kXR_attn` relay | Upstream client/server supports async responses. | `src/net/upstream/response.c` forwards `kXR_waitresp`; no complete unsolicited upstream `kXR_attn` path was verified in this pass. | Could affect proxying to backends that park operations. | Keep as serious proxy-mode gap until source/test proves closure. |

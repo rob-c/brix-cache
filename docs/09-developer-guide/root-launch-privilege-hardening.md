@@ -114,7 +114,7 @@ silently disabling the peercred check (`broker_creds.c` consumes
 Default-allow (not an allowlist) so a forgotten broker syscall can't break it. It
 is called from `brix_imp_broker_drop_caps` after the cap-drop; best-effort (WARN +
 continue on load failure). The broker also WARNs when it runs as root (no
-`brix_impersonation_broker_user`). Broker `/proc`: `Seccomp=2`, `NoNewPrivs=1`,
+`brix_idmap_broker_user`). Broker `/proc`: `Seccomp=2`, `NoNewPrivs=1`,
 `CapEff=00..c0`.
 
 ---
@@ -236,7 +236,7 @@ pblock/single uid-drops fail closed.
   `#brix_seccomp_allow_exec off;` shown as the opt-in strict setting; example uses
   `user brix` + `brix_worker_user brix`. Compiled seccomp default remains OFF.
 - RPM `%pre` creates `brix-broker` (system user, nologin); conf example sets
-  `brix_impersonation_broker_user brix-broker`.
+  `brix_idmap_broker_user brix-broker`.
 - `packaging/brix-cache.service` adds mount-namespace hardening at the correct
   layer (a hardened worker lacks `CAP_SYS_ADMIN` to `unshare(2)`):
   `ProtectProc=invisible`, `ProtectHostname`, `ProtectClock`,

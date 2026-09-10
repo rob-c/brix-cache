@@ -27,6 +27,11 @@
  *       success or finalizes with 502 on a fill failure. A COMPLETE hit, a local
  *       source+store, a slice object, or a missing thread pool all return
  *       NGX_DECLINED so the caller proceeds with its normal inline path.
+ *       A STORE refusal (ENOSPC: the object can never fit the cache) also
+ *       re-enters, with the request marked (brix_io_monitor_t.fill_refused)
+ *       so the handler declines a second offload and opens the source with no
+ *       fill — the offloaded twin of the decorator's own inline degrade, which
+ *       is why an over-cap object is served, never 504'd, and never cached.
  */
 
 #include <ngx_config.h>

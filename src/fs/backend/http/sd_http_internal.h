@@ -40,7 +40,8 @@ typedef struct {
     sd_http_endpoint             eps[SD_HTTP_EP_MAX];
     int                          n_eps;
     const brix_s3_transport_t *transport;
-    void                        *tctx;
+    void                        *tctx;        /* what every request passes */
+    brix_s3_tctx_t               tctx_own;    /* built from cfg when no explicit tctx */
     int                          timeout_ms;
     void                       (*failover_note)(void);  /* T16 metric hook */
     void                       (*health_note)(const char *host, int port,

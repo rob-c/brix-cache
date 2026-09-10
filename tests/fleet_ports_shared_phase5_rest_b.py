@@ -232,8 +232,9 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
                                        "AUTO_PORT": 30868, "OVER_PORT": 30869,
                                        "HTTP_PORT": 30870}},
     # 16ad: the configuration surface that parses, merges, allocates and is
-    # then never read — the five brix_webdav_open_file_cache* directives and
-    # brix_backend_passthrough_persist.  ONE port for eight planes: every
+    # then never read — the five brix_webdav_open_file_cache* directives (the
+    # brix_backend_passthrough_persist arms it also carried were dropped when
+    # 2.0 removed the directive).  ONE port for five planes: every
     # subject is NGX_HTTP_LOC_CONF (or below), the WebDAV resolver already puts
     # each location's URI prefix on its own subtree of the one export, and an
     # arm that changes nothing needs a control beside it far more than it needs
@@ -520,3 +521,78 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
         },
     },
 })
+
+# Phase-115 W2.1 — brix_cms_response proxy (tests/test_phase115_cms_select_proxy.py):
+# three one-server gateways (each with its own CMS listener, because
+# brix_cms_server takes over a whole server block) and one plain data server
+# the gateways forward to.  Seven slots.
+LIFECYCLE_SHARED_PORTS_PHASE5.update({
+    "lc-p115-gw-proxy": {"port": 30976, "extra": {"CMS_PORT": 30977}},
+    "lc-p115-gw-redirect": {"port": 30978, "extra": {"CMS_PORT": 30979}},
+    "lc-p115-gw-unix": {"port": 30980, "extra": {"CMS_PORT": 30981}},
+    "lc-p115-ds": {"port": 30982},
+})
+
+# Phase-115 W2.4 — transparent-upstream GSI/ztn outbound credential
+# (tests/test_phase115_upstream_gsi.py): one real GSI upstream, six fronts that
+# differ only in the credential/trust lines they carry, and one front aimed at
+# the in-test mock upstream (whose own port is ephemeral).  Eight slots.
+LIFECYCLE_SHARED_PORTS_PHASE5.update({
+    "lc-p115-up-gsi": {"port": 30983},
+    "lc-p115-up-front-proxy": {"port": 30984},
+    "lc-p115-up-front-eec": {"port": 30985},
+    "lc-p115-up-front-nocred": {"port": 30986},
+    "lc-p115-up-front-rogueca": {"port": 30987},
+    "lc-p115-up-front-untrusted": {"port": 30988},
+    "lc-p115-up-front-noca": {"port": 30989},
+    "lc-p115-up-front-mock": {"port": 30990},
+})
+
+# Phase-115 W2.4, cache-origin half (tests/test_phase115_cache_origin_gsi.py):
+# one GSI-only origin plus three read caches that differ only in the credential
+# / trust anchor they carry (valid proxy + real CA, no credential, rogue CA).
+LIFECYCLE_SHARED_PORTS_PHASE5.update({
+    "lc-p115-co-origin": {"port": 30991},
+    "lc-p115-co-ok": {"port": 30992},
+    "lc-p115-co-nocred": {"port": 30993},
+    "lc-p115-co-rogue": {"port": 30994},
+})
+
+# Phase-115 W3.2 (tests/test_phase115_tape_purge.py): the tape-buffer purge
+# engine — owned-bytes cap subject, idle (armed, nothing to do) subject, a
+# posix export that configures the directives without a tape:// tier, and the
+# lock-contention subject whose first passes find the purge lock held.
+LIFECYCLE_SHARED_PORTS_PHASE5.update({
+    "lc-p115-purge-cap": {"port": 30995},
+    "lc-p115-purge-idle": {"port": 30996},
+    "lc-p115-purge-notier": {"port": 30997},
+    "lc-p115-purge-lock": {"port": 30998},
+})
+
+# Phase-115 W3.1 (tests/test_phase115_tape_arc.py): the tape dataset archiver
+# — the ``tape://...?arc=1`` subject that seals, recalls and refuses, and its
+# twin that runs the purge engine over sealed and unsealed members.
+LIFECYCLE_SHARED_PORTS_PHASE5.update({
+    "lc-p115-arc": {"port": 30999},
+    "lc-p115-arc-purge": {"port": 31000},
+})
+
+# Phase-116 (tests/test_phase116_*.py): runtime DNS from resolv.conf.  Four
+# subjects fed by a stub nameserver on an ephemeral port: the cms-manager +
+# metrics/dashboard node (also the search-order, cache, re-resolve and
+# start-safe suites), its reverse-DNS twin (brix_acc_resolve_hosts through the
+# policy resolver), the async brix_upstream dial and the W5.2 mirror whose
+# shadow address stops accepting.  PORT is the http side (/metrics,
+# dashboard); ROOT_PORT the root:// server under test.
+LIFECYCLE_SHARED_PORTS_PHASE5.update({
+    "lc-p116-dns": {"port": 31001, "extra": {"ROOT_PORT": 31002}},
+    "lc-p116-dns-rev": {"port": 31003, "extra": {"ROOT_PORT": 31004}},
+    "lc-p116-dns-upstream": {"port": 31005, "extra": {"ROOT_PORT": 31006}},
+    "lc-p116-dns-mirror": {"port": 31009, "extra": {"ROOT_PORT": 31012}},
+    # phase-115 W3.1 recall gate + W3.3 space groups (2026-09-06)
+    "lc-p115-recall": {"port": 31007},
+    "lc-p115-space": {"port": 31008},
+})
+
+from split_continuation import load as _load_fleet_ports_shared_phase5_rest_c
+_load_fleet_ports_shared_phase5_rest_c(globals(), __file__, "fleet_ports_shared_phase5_rest_c.py")

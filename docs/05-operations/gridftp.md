@@ -45,8 +45,8 @@ stream {
     server {
         listen 2810;
         brix_gridftp on;
-        brix_gridftp_export      /data/xrootd;
-        brix_gridftp_allow_write on;
+        brix_export      /data/xrootd;
+        brix_allow_write on;
     }
 }
 ```
@@ -58,7 +58,7 @@ $ python3 -c "import ftplib; f=ftplib.FTP(); f.connect('host',2810); f.login(); 
               print(f.retrlines('LIST'))"
 ```
 
-`brix_gridftp_allow_write off` (the default) makes the door read-only: STOR,
+`brix_allow_write off` (the default) makes the door read-only: STOR,
 APPE, DELE, MKD, RNFR/RNTO all return `550 Permission denied (read-only)`.
 
 ---
@@ -73,12 +73,12 @@ stream {
     server {
         listen 2811;
         brix_gridftp on;
-        brix_gridftp_export      /data/xrootd;
-        brix_gridftp_allow_write on;
+        brix_export      /data/xrootd;
+        brix_allow_write on;
         brix_gridftp_gsi         on;
-        brix_gridftp_certificate     /etc/grid-security/hostcert.pem;
-        brix_gridftp_certificate_key /etc/grid-security/hostkey.pem;
-        brix_gridftp_trusted_ca      /etc/grid-security/certificates;   # CApath dir or CAfile bundle
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/certificates;   # CApath dir or CAfile bundle
     }
 }
 ```
@@ -160,7 +160,7 @@ handshake, so the effective gate is the security layer, not the login verb.
 
 - **Any storage backend.** `brix_gridftp_storage_backend` selects what the export
   is backed by: `posix` (default, a real filesystem tree rooted at
-  `brix_gridftp_export`), `pblock` (block store; needs the SQLite build), `s3://…`
+  `brix_export`), `pblock` (block store; needs the SQLite build), `s3://…`
   (an object store, keys carried by `brix_gridftp_storage_credential`), or Ceph.
   STOR/RETR/LIST/CKSM travel `brix_vfs_*` → the storage driver, so the object-store
   path uses the same staged-write-then-verify writer as WebDAV/S3. `s3` and
@@ -266,3 +266,145 @@ dir into the image, points `TEST_GRIDFTP_*` at the host gateway via
 `--network=host`, and tears the gateway down on exit. Any missing prerequisite
 (podman, image, nginx build, PKI) self-skips (exit `77`). The image/runner/matrix
 contract is held by `tools/ci/check_gridftp_interop_image.py`.
+
+---
+
+## 9. The other direction — a remote GridFTP door as a storage backend
+
+Everything above is brix as a **door**: a client speaks gsiftp to brix. brix
+also speaks gsiftp **outbound**, as a client of somebody else's door, so a
+`root://`/WebDAV/S3 export can be backed by storage that only exposes GridFTP:
+
+```nginx
+brix_storage_backend gsiftp://grid.example.org/store mode=e prot=p streams=4;
+```
+
+The driver (`src/fs/backend/gsiftp/`) is the read/write path of a normal
+storage backend — `sd_gsiftp_pread` issues a **bounded** read per operation,
+and writes are staged locally and published by one whole-file `STOR` plus a
+rename. Three store-line parameters shape the data channel; all are documented
+in
+[directives.md](../03-configuration/directives.md#brix_storage_backend-ftpgsiftp--outbound-ftpgridftp-origin).
+
+| Parameter | Effect | Refusal |
+|---|---|---|
+| `mode=e` | negotiates GFD.020 extended block mode on the data channel | origin answers `504` → the transfer fails |
+| `prot=p` | RFC 2228 `PBSZ`/`PROT` TLS on the data channel, peer leaf DN pinned to the control identity | origin answers `534` → the transfer fails; `ftp://` + `prot=p` is refused at `nginx -t` |
+| `streams=<n>` | ceiling on the data connections one read may open with GFD.020 §5.1 `SPAS` striping (`1`–`16`, default `1`); needs `mode=e` | any refusal → the same bytes over one connection |
+
+Four properties are worth knowing before you read a packet capture:
+
+- **The first two parameters do not degrade; the third is meant to.** An
+  operator who asked for an offset-addressed channel, or for a protected one,
+  and silently got stream mode or cleartext would have neither the property nor
+  a way to notice. Both are requirements. `streams=` is different in kind: it
+  says how *fast* the same, identically framed, identically verified bytes
+  arrive, so every way of not striping still serves the file over the single
+  connection.
+- **`prot=p` needs an authenticated control channel.** The value of PROT P here
+  is the *pin* — the data peer's leaf DN must match the identity the control
+  channel already authenticated. An anonymous `ftp://` origin authenticates
+  nobody, so there is nothing to pin against and the combination is rejected at
+  configuration time rather than served encrypted-to-whoever-answered.
+- **`ERET` is automatic, and only under `mode=e`.** A ranged read of a MODE E
+  origin sends `ERET P <offset> <length> <path>` instead of `REST`+`RETR`, so
+  the origin stops at the end of the window instead of streaming to EOF behind
+  a driver that has already stopped reading. The capability comes from a lazy
+  `FEAT` probe (issued from the retrieve path only, once per session), so there
+  is nothing to configure and nothing to turn on. It is not sent in stream
+  mode on purpose: a door that ignores the window and replies with the file
+  from offset 0 sends genuine bytes that are simply the wrong part, and only
+  MODE E's per-block absolute offsets let the driver detect that instead of
+  handing back the head of the file under a `Content-Range` that lies. An
+  origin that advertises `ERET` and then refuses it falls back to the
+  *positioned* `REST`+`RETR` path and is not asked again on that session.
+  `ESTO` is deliberately not implemented — the write path has no partial-write
+  caller to emit it.
+- **Every `SPAS` stripe must be the control channel's own peer.** This is the
+  one place in the protocol where the origin hands the driver a *list of
+  addresses*; everywhere else the advertised PASV address is discarded and the
+  pinned numeric control peer is dialled instead, so a redirected data channel
+  is not expressible. Following a stripe elsewhere would make the storage
+  backend open connections to arbitrary hosts inside your network on the
+  origin's instruction — an FTP bounce with your egress rules as the only
+  remaining control. One foreign stripe abandons the whole striped attempt
+  before any socket is opened, and the read completes over one connection. The
+  practical consequence: a genuinely **multi-host** striped door (stripes on
+  different servers, which is what a large dCache or Globus deployment looks
+  like) is read over a single connection here. That is a throughput ceiling and
+  never a wrong answer. If you need multi-host striping, that is a design
+  conversation and not a configuration change. `SPOR` — the client offering
+  addresses for the server to dial — is not implemented at all, because it
+  would require this driver to listen, and it never binds.
+
+  In a capture, a striped read is `FEAT` → `SPAS` → several `229-` continuation
+  lines then `229 End` → *n* data connections → `RETR`. A refusal is
+  `SPAS` → 5xx (or an over-budget list) → `EPSV` → `RETR` on the same control
+  channel, and is not re-asked on that session.
+- **A `COPY` within one gsiftp export no longer travels through the client.**
+  FTP has no server-side copy verb, so the bytes still move — but only on the
+  gateway↔origin link, over ONE control session: `SIZE` the source, `RETR` it
+  into a local scratch file, `STOR` that to a random temp name, then
+  `RNFR`/`RNTO` onto the destination. Two consequences are worth knowing. The
+  destination appears whole or not at all, because a failed copy renames
+  nothing and deletes its own temp — storing straight onto the destination
+  would leave a good object half-replaced for the length of every transfer.
+  And a copy is refused, not truncated, if the origin sends fewer bytes than
+  the `SIZE` it just reported: a bounded read that stops early is not an error
+  the origin reports, so it is checked here. A copy of a path onto ITSELF is
+  refused outright (`EINVAL`) — it would work, and it would rewrite a healthy
+  object for no gain. Before this the slot was empty and every `COPY` on a
+  gsiftp export was `ENOTSUP`. Under `brix_read_only on` the copy is refused by
+  the export's mutation policy before a single FTP command is written.
+- **GridFTP-over-SSH (`sshftp://`) is not implemented and the scheme is not
+  accepted.** It needs the control transport to terminate on the storage host,
+  which means a per-session child process; nginx workers may not fork (see
+  `src/fs/xfer/xfer.h`). An `ssh -L` sidecar does not substitute, because the
+  data channel dials the *control channel's pinned peer* — which would be
+  `127.0.0.1`, not the storage host.
+
+### Testing brix against a real door
+
+Everything above is exercised in-tree against `ftp_origin_server.py`, a Python
+origin written from the same reading of GFD.020 as the driver it tests — so a
+shared misreading of the spec would pass both halves. The `gridftp-outbound`
+lab lane exists to close that gap: it deploys four WebDAV fronts whose storage
+plane is **your** Globus or dCache door, differing only in the store line
+(nothing, `mode=e`, `mode=e prot=p`, `mode=e streams=n`), and runs the same
+round-trip, ranged-read, `COPY` and striping assertions across all four.
+
+It is off by default and cannot be otherwise: no door and no grid credential
+ships with this repository. You supply both.
+
+```
+kubectl -n brix-gridftp create secret generic outbound-proxy \
+    --from-file=user_proxy.pem=$X509_USER_PROXY
+kubectl -n brix-gridftp create configmap outbound-ca \
+    --from-file=/etc/grid-security/certificates
+
+BRIX_OUTBOUND_DOOR=door.example.org \
+BRIX_OUTBOUND_PATH=/pnfs/example.org/brix-interop \
+    xrd-lab test gridftp-outbound
+```
+
+Without `BRIX_OUTBOUND_DOOR` the scenario refuses to deploy rather than
+defaulting to a placeholder host — a lane pointed at a host that does not
+answer skips every cell and exits 0, which looks exactly like a lane that
+passed. For a cleartext `ftp://` door (`BRIX_OUTBOUND_SCHEME=ftp`) the `prot=p`
+front is not rendered at all: `prot=p` needs a control-channel identity to pin
+the data channel's certificate against, and on an anonymous door there is none,
+so the front would fail `nginx -t` and take the other three with it.
+
+Exercised by `tests/test_phase115_gridftp_mode_e.py`,
+`tests/test_phase115_gridftp_prot_p.py`, `tests/test_phase115_gridftp_eret.py`,
+`tests/test_phase115_gridftp_eret_static.py`,
+`tests/test_phase115_gridftp_spas.py`,
+`tests/test_phase115_gridftp_spas_parse.py`,
+`tests/test_phase115_gridftp_spas_static.py`,
+`tests/test_phase115_gsiftp_server_copy.py` and
+`tests/test_phase115_gsiftp_server_copy_static.py`; the outbound lane by
+`k8s-tests/remote-suite/tests/test_gridftp_outbound_interop.py` (needs a real
+door) with its chart/runner wiring pinned locally by
+`k8s-tests/pytests/test_gridftp_outbound_wiring.py`; design record in
+[phase-115](../refactor/phase-115-deployment-surface-and-remaining-feature-bodies.md)
+W5.1/W5.2.

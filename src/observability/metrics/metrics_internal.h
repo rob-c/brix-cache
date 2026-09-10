@@ -90,6 +90,9 @@ void       brix_kv_metrics_emit(metrics_writer_t *mw);
  * Exports are config-fixed and few, so the export-root label is low-cardinality. */
 void       brix_storage_backend_metrics_emit(metrics_writer_t *mw);
 
+/* phase-116: runtime-DNS target registry gauge + counters (net/dns/metrics.c). */
+void       brix_dns_metrics_emit(metrics_writer_t *mw);
+
 /* Seal the chain: trim the tail buffer to the written length and mark it
  * last_buf, making mw->head a complete response body. Call exactly once after
  * all output; no further mw_printf/mw_emit_* afterwards. */
@@ -165,7 +168,8 @@ void  brix_export_pmark_metrics(metrics_writer_t *mw,
     ngx_brix_metrics_t *shm);
 
 /* stream.c — Phase 51 cross-protocol resilience counters (CMS timeouts/idle/cap/
- * yields, OCSP timeouts, auth-gate L1 hit/miss, NSS/DNS breaker trips). */
+ * yields, OCSP timeouts, auth-gate L1 hit/miss, NSS breaker trips, reverse-DNS
+ * pending fallbacks). */
 void  brix_export_resilience_metrics(metrics_writer_t *mw,
     ngx_brix_metrics_t *shm);
 

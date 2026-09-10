@@ -140,13 +140,14 @@ mirror_build_subrequest(ngx_http_request_t *r,
     ngx_uint_t  method;
     off_t       body_len = 0;
 
-    if (ctx == NULL || conf->common.mirror.targets == NULL
-        || ctx->mirror_target_idx >= conf->common.mirror.targets->nelts)
-    {
+    plan->t = NULL;
+    if (ctx != NULL) {
+        plan->t = brix_mirror_target_at(&conf->common.mirror,
+                                        ctx->mirror_target_idx);
+    }
+    if (plan->t == NULL) {
         return NGX_ERROR;
     }
-    plan->t    = (brix_mirror_target_t *) conf->common.mirror.targets->elts
-               + ctx->mirror_target_idx;
     plan->host = plan->t->host;
     method     = r->method;
     plan->has_body = brix_http_mirror_method_has_body(method);
@@ -427,6 +428,27 @@ mirror_abort_request(ngx_http_request_t *r)
     (void) r;
 }
 
+/* WHAT: no shadow response at all — connect refused/reset/timed out, or a
+ *       reply that never parsed.
+ * WHY:  phase-116 W5.2 — the registry rotates to its next answer and
+ *       re-resolves the name ahead of the TTL cadence instead of failing
+ *       every mirror until then.
+ * HOW:  the subrequest ctx carries the target index; note_failure is a
+ *       no-op for literal, unarmed or in-flight targets. */
+static void
+mirror_note_unreachable(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    ngx_http_brix_webdav_req_ctx_t *ctx;
+    brix_mirror_target_t           *t;
+
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+    t = (ctx != NULL)
+        ? brix_mirror_target_at(&conf->common.mirror, ctx->mirror_target_idx)
+        : NULL;
+    brix_dns_target_note_failure(t != NULL ? t->dns : NULL);
+}
+
 void
 mirror_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
 {
@@ -445,6 +467,7 @@ mirror_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
         ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "xrootd mirror: shadow request failed (rc=%i) uri=%V",
                        rc, &r->uri);
+        mirror_note_unreachable(r, conf);
     }
 
     if (parent != NULL && shadow_status != 0) {

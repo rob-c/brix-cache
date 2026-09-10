@@ -19,6 +19,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* The SSI resource namespace. Lives HERE, not in ssi.h, because ssi.h is
+ * ngx-coupled and the native client must build the same path without it —
+ * one definition rather than a literal copied across the seam. */
+#define BRIX_SSI_PREFIX     "/.ssi/"
+#define BRIX_SSI_PREFIX_LEN (sizeof(BRIX_SSI_PREFIX) - 1)
+
 /* XrdSsiRRInfo::Opc command codes. */
 #define BRIX_SSI_CMD_RXQ 0   /* request / response data exchange */
 #define BRIX_SSI_CMD_RWT 1   /* response wait */
@@ -55,5 +61,20 @@ void brix_ssi_rrinfo_encode(int cmd, uint32_t id, uint32_t size,
  */
 void brix_ssi_attn_encode(char tag, unsigned char flags, uint16_t pfx_len,
                             uint32_t md_len, unsigned char out[BRIX_SSI_ATTN_LEN]);
+
+/*
+ * Decode a 16-byte XrdSsiRRInfoAttn prefix — the exact inverse of
+ * brix_ssi_attn_encode. Always succeeds (the prefix is fixed-width); the caller
+ * validates `tag` semantically and must not trust `pfx_len`/`md_len` against its
+ * own buffer without checking them. Any out-param may be NULL to decline it.
+ *
+ * A reader needs this because the reply the server builds is
+ * [attn pfx_len][metadata md_len][data], and the data length is only recoverable
+ * as total - pfx_len - md_len: nothing on the wire states it. Decoding the
+ * prefix by hand at the read site is how the two halves get swapped.
+ */
+void brix_ssi_attn_decode(const unsigned char in[BRIX_SSI_ATTN_LEN],
+                            char *tag, unsigned char *flags,
+                            uint16_t *pfx_len, uint32_t *md_len);
 
 #endif /* BRIX_SSI_RRINFO_H */

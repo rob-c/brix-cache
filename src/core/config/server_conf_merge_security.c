@@ -25,6 +25,8 @@
 #include "fs/cache/verify.h"          /* brix_cache_verify_mode_e default */
 #include "net/ratelimit/ratelimit.h"   /* phase-59 W3a: throttle zone lookup */
 #include "protocols/root/protocol/flags.h"  /* kXR_ckpMinMax — chkpnt_maxsz floor */
+#include "auth/protbind/protbind.h"   /* brix_protbind_needs_hostname (phase-116) */
+#include "net/dns/dns.h"               /* brix_dns_backend_prepare (phase-116) */
 
 /*
  * WHAT: merge the GSI/pwd + XrdAcc engine group and validate the native-authdb
@@ -80,14 +82,18 @@ brix_merge_srv_gsi_acc(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         return NGX_CONF_ERROR;
     }
 
-    return NGX_CONF_OK;
+    /* 2.0 F20: a native authdb line the grammar could not parse is refused
+     * here, not at the directive — `format` only settles now, and an
+     * XrdAcc-format file is legitimately unparseable by the native grammar. */
+    return brix_authdb_defect_refuse(cf, conf->common.acc.format,
+                                     &conf->common.acc.authdb_defect);
 }
 
 /*
  * WHAT: merge the FRM prepare command + the X.509 material (cert/key/CA, VOMS)
  *       and CRL/signing-policy toggles, plus the access/session logging fields.
- * WHY:  brix_frm_conf_merge() depends on the merged prepare_command; grouping
- *       makes that ordering explicit and keeps the fallible FRM merge local.
+ * WHY:  the fallible FRM merge (2.0 F1: it publishes the process-wide engine
+ *       values and refuses a disagreement) stays local to one helper.
  * HOW:  merge prepare_command, delegate to brix_frm_conf_merge(), then inherit
  *       the X.509/CRL/log scalars child<-parent.
  */
@@ -96,9 +102,7 @@ brix_merge_srv_x509(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
     ngx_conf_merge_str_value(conf->prepare_command, prev->prepare_command, "");
-    if (brix_frm_conf_merge(cf, &conf->frm, &prev->frm, &conf->prepare_command)
-        != NGX_CONF_OK)
-    {
+    if (brix_frm_conf_merge(cf, &conf->frm, &prev->frm) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
     /* §5.10: root:// TLS cipher list; empty = OpenSSL defaults (default). */
@@ -110,6 +114,11 @@ brix_merge_srv_x509(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_uint_value(conf->signing_policy_mode,
                               prev->signing_policy_mode, BRIX_SP_MODE_ON);
     ngx_conf_merge_uint_value(conf->crl_mode, prev->crl_mode, BRIX_CRL_MODE_TRY);
+    /* 2.0 F19: same defaults as the http plane — widest CRL reach, silent log. */
+    ngx_conf_merge_uint_value(conf->crl_scope, prev->crl_scope,
+                              BRIX_CRL_SCOPE_ALL);
+    ngx_conf_merge_uint_value(conf->tls_verify_log, prev->tls_verify_log,
+                              BRIX_TLS_VERIFY_LOG_OFF);
     ngx_conf_merge_str_value(conf->access_log,      prev->access_log,      "");
     ngx_conf_merge_value(conf->session_log, prev->session_log, 1);
 
@@ -202,12 +211,16 @@ brix_merge_srv_authtail(ngx_stream_brix_srv_conf_t *conf,
     }
     ngx_conf_merge_str_value(conf->sss_keytab,      prev->sss_keytab,      "");
     ngx_conf_merge_value(conf->sss_lifetime,        prev->sss_lifetime,    13);
+    ngx_conf_merge_value(conf->sss_getcreds,        prev->sss_getcreds,    0);
     ngx_conf_merge_str_value(conf->krb5.principal,  prev->krb5.principal,  "");
     ngx_conf_merge_str_value(conf->krb5.keytab,     prev->krb5.keytab,     "");
     ngx_conf_merge_value(conf->krb5.ip_check,       prev->krb5.ip_check,   0);
     ngx_conf_merge_value(conf->krb5.delegate,       prev->krb5.delegate,   0);
     ngx_conf_merge_value(conf->unix_trust_remote,   prev->unix_trust_remote, 0);
     ngx_conf_merge_ptr_value(conf->host_allow,      prev->host_allow,      NULL);
+    if (conf->oss_spaces == NULL) {        /* phase-115 W3.3: inherit the table */
+        conf->oss_spaces = prev->oss_spaces;
+    }
     ngx_conf_merge_uint_value(conf->security_level, prev->security_level, 0);
     /* Off by default: fail-closed signing refuses every client whose auth
      * protocol cannot sign (all stock non-GSI clients), so it is opt-in. */
@@ -260,6 +273,23 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         return NGX_CONF_ERROR;
     }
     brix_merge_srv_authtail(conf, prev);
+    /* 2.0 F4: the purge rules name brix_oss_space groups; the table is
+     * inherited just above, so only now can a rule be checked against it. */
+    if (brix_frm_purge_policy_check(cf, conf->oss_spaces, &conf->frm)
+        != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+
+    /* phase-116: `h` rules, a protbind host template or `brix_auth host` all
+     * decide on the peer's PTR name — guarantee a reverse backend exists even
+     * when the configuration declares no brix_resolver. */
+    if (conf->auth == BRIX_AUTH_HOST
+        || conf->common.acc.resolve_hosts > 0
+        || brix_protbind_needs_hostname(conf->protbind))
+    {
+        return brix_dns_backend_prepare(cf);
+    }
 
     return NGX_CONF_OK;
 }

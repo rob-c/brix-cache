@@ -6,7 +6,7 @@
  *       ranks into the sd_http driver.
  * WHY:  on a Tier-2 with erratic routing, configured order and geography
  *       both lie; measured connect RTT is what the fills will actually feel.
- * HOW:  measurement is blocking (getaddrinfo + nonblocking connect + poll)
+ * HOW:  measurement is blocking (brix DNS resolve + nonblocking connect + poll)
  *       and therefore lives on a thread-pool worker, mirroring the cache
  *       fill I/O pattern; the event loop only re-arms the timer and writes
  *       ranks (relaxed atomics — see sd_http.h). Exports register at config
@@ -21,7 +21,8 @@
 #include "fs/backend/http/sd_http.h"
 #include "fs/vfs/vfs_backend_registry.h"
 
-#include <netdb.h>
+#include "net/dns/dns.h"                  /* brix_dns_resolve_sync (phase-116) */
+
 #include <poll.h>
 #include <time.h>
 
@@ -35,14 +36,26 @@ typedef struct {
     char    root[256];
     char    pool[64];
     time_t  interval;
+    const brix_dns_policy_t *dns;          /* phase-116: the export's resolver */
 } cvmfs_rtt_reg_t;
 
 static cvmfs_rtt_reg_t  cvmfs_rtt_regs[CVMFS_PROBE_MAX_EXPORTS];
 static ngx_uint_t       cvmfs_rtt_regs_n;
 
+/* phase-116: a config parse starts from an empty table.  The reg now carries
+ * the export's resolver policy (a pointer into that cycle's pool), so an
+ * export removed on reload must not survive here with a dangling policy —
+ * and must not keep probing either.  Called from the cvmfs module's
+ * preconfiguration hook, i.e. before any export registers. */
+void
+brix_cvmfs_rtt_regs_reset(void)
+{
+    cvmfs_rtt_regs_n = 0;
+}
+
 void
 brix_cvmfs_rtt_register(const char *root_canon, time_t interval,
-    const ngx_str_t *pool_name)
+    const ngx_str_t *pool_name, const brix_dns_policy_t *dns)
 {
     ngx_uint_t       i;
     cvmfs_rtt_reg_t *reg = NULL;
@@ -64,6 +77,7 @@ brix_cvmfs_rtt_register(const char *root_canon, time_t interval,
     ngx_cpystrn((u_char *) reg->root, (u_char *) root_canon,
                 sizeof(reg->root));
     reg->interval = (interval > 0) ? interval : 60;
+    reg->dns = dns;
     reg->pool[0] = '\0';
     if (pool_name != NULL && pool_name->len > 0
         && pool_name->len < sizeof(reg->pool))
@@ -96,31 +110,31 @@ typedef struct {
  * (refused, unreachable, timeout, resolution failure). Shared with the
  * on-demand geo-answer probe (geo_answer.c) — ONE connect-RTT implementation. */
 long
-brix_cvmfs_connect_rtt_us(const char *host, int port, int timeout_ms)
+brix_cvmfs_connect_rtt_us(const brix_dns_policy_t *dns, const char *host,
+    int port, int timeout_ms)
 {
-    struct addrinfo  hints, *ai = NULL;
+    brix_dns_addr_t  addr;
     struct pollfd    pfd;
     struct timespec  t0, t1;
-    char             svc[8];
+    char             reason[BRIX_DNS_ERROR_LEN];
     int              fd, soerr = 0;
     socklen_t        slen = sizeof(soerr);
     long             us = -1;
 
-    ngx_memzero(&hints, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_NUMERICSERV | AI_ADDRCONFIG;
-    snprintf(svc, sizeof(svc), "%d", port);
-    if (getaddrinfo(host, svc, &hints, &ai) != 0 || ai == NULL) {
+    /* phase-116: the export's resolver policy, first answer only — the probe
+     * times one connect, it does not walk candidates */
+    if (brix_dns_resolve_sync(dns, host, (in_port_t) port, BRIX_AF_AUTO,
+                              SOCK_STREAM, &addr, 1, reason, sizeof(reason))
+        == 0)
+    {
         return -1;
     }
-    fd = socket(ai->ai_family, SOCK_STREAM | SOCK_NONBLOCK, 0); /* vfs-seam-allow: NOT_STORAGE — probe socket, non-export resource */
+    fd = socket(addr.ss.ss_family, SOCK_STREAM | SOCK_NONBLOCK, 0); /* vfs-seam-allow: NOT_STORAGE — probe socket, non-export resource */
     if (fd < 0) {
-        freeaddrinfo(ai);
         return -1;
     }
     clock_gettime(CLOCK_MONOTONIC, &t0);
-    if (connect(fd, ai->ai_addr, ai->ai_addrlen) == 0) {
+    if (connect(fd, (struct sockaddr *) &addr.ss, addr.len) == 0) {
         clock_gettime(CLOCK_MONOTONIC, &t1);
         us = (t1.tv_sec - t0.tv_sec) * 1000000L
            + (t1.tv_nsec - t0.tv_nsec) / 1000L;
@@ -137,7 +151,6 @@ brix_cvmfs_connect_rtt_us(const char *host, int port, int timeout_ms)
         }
     }
     close(fd); /* vfs-seam-allow: NOT_STORAGE — probe socket, non-export resource */
-    freeaddrinfo(ai);
     return us;
 }
 
@@ -150,8 +163,8 @@ cvmfs_probe_thread(void *data, ngx_log_t *log)
 
     (void) log;
     for (i = 0; i < pc->n; i++) {
-        pc->sample_us[i] = brix_cvmfs_connect_rtt_us(pc->hosts[i],
-                                                pc->ports[i],
+        pc->sample_us[i] = brix_cvmfs_connect_rtt_us(pc->reg->dns,
+                                                pc->hosts[i], pc->ports[i],
                                                 CVMFS_PROBE_TIMEOUT_MS);
     }
 }

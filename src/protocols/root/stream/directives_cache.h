@@ -6,21 +6,12 @@
 #pragma once
     /* cache/proxy directives (merged into ngx_stream_brix_commands[]) */
     /* Read-through cache mode: serve from a local cache_root and fill misses. */
-    /* §4.9 pss.dca: redirect a cache-resident file to a kXR_lclfile-capable
-     * client's local path for direct off-FS reads. Default off. */
     /* §4.8: a directory stat returns its recursive subtree size (du). Off default. */
     { ngx_string("brix_dirstats"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, dirstats),
-      NULL },
-
-    { ngx_string("brix_pss_dca"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, pss_dca),
       NULL },
 
     { ngx_string("brix_cache"),
@@ -280,6 +271,84 @@
     { ngx_string("brix_cache_include_regex"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       brix_conf_set_cache_include_regex,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* The digest a NON-xroot origin is ASKED for when a verifying fill needs
+     * something to compare against (HTTP/Pelican Want-Digest, an object store's
+     * stored checksum). root:// answers kXR_Qcksum in band and ignores this.
+     * Unset = ask for nothing, which leaves best-effort with no digest on those
+     * origins (and `require` refusing to publish). */
+    { ngx_string("brix_cache_verify_digest"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      brix_conf_set_cache_verify_digest,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* ---- Pelican federation advertisement (fs/cache/origin/pelican_register.c).
+     * A cache periodically POSTs a signed OriginAdvertiseV2 to the federation
+     * Director so it is discoverable.  The sitename it advertises is the shared
+     * brix_sitename (one spelling, same advertise.sitename slot). */
+    { ngx_string("brix_cache_advertise"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, advertise.enable),
+      NULL },
+
+    /* WHICH federation this cache joins: the discovery authority the
+     * advertiser reads .well-known/pelican-configuration from.  Unset leaves
+     * the advertiser disarmed — before 2.0 there was no way to set it at all
+     * and the whole family was inert. */
+    { ngx_string("brix_cache_advertise_federation"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      brix_conf_set_cache_advertise_federation,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("brix_cache_advertise_key"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, advertise.key),
+      NULL },
+
+    { ngx_string("brix_cache_advertise_data_url"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, advertise.data_url),
+      NULL },
+
+    { ngx_string("brix_cache_advertise_web_url"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, advertise.web_url),
+      NULL },
+
+    { ngx_string("brix_cache_advertise_issuer"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, advertise.issuer_url),
+      NULL },
+
+    { ngx_string("brix_cache_advertise_interval"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, advertise.interval),
+      NULL },
+
+    /* Repeatable: each occurrence adds one advertised namespace prefix; with
+     * none configured the advertiser publishes "/" (the whole export). */
+    { ngx_string("brix_cache_advertise_namespace"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      brix_conf_set_cache_advertise_ns,
       NGX_STREAM_SRV_CONF_OFFSET,
       0,
       NULL },

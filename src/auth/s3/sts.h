@@ -38,6 +38,8 @@ enum brix_s3_sts_flavor {
     BRIX_STS_FLAVOR_MINIO = 1
 };
 
+struct brix_dns_policy_s;
+
 /*
  * Static, load-time-validated configuration for one STS exchange target.
  *   endpoint  — STS base URL, e.g. "https://minio.example:9000"
@@ -48,6 +50,8 @@ enum brix_s3_sts_flavor {
  *   svc_sk    — backend S3 service secret access key (never logged)
  *   ttl_secs  — requested credential lifetime in seconds (clamped 900..43200)
  *   flavor    — wire dialect (enum brix_s3_sts_flavor); AWS is the default
+ *   dns       — the export's phase-116 resolver policy for the endpoint host
+ *               (NULL: libc, which still follows resolv.conf)
  */
 typedef struct {
     ngx_str_t endpoint;
@@ -57,6 +61,7 @@ typedef struct {
     ngx_str_t svc_sk;
     int       ttl_secs;
     int       flavor;
+    const struct brix_dns_policy_s *dns;
 } brix_s3_sts_conf_t;
 
 /*

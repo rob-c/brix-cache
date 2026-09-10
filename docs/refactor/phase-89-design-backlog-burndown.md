@@ -641,6 +641,18 @@ operator-facing ownership already documented in
 optional `brix_stage_*` alias rename stays unscheduled (low priority, no
 correctness payoff).
 
+**SUPERSEDED IN PART — ADR-3b (2026-09-08, 2.0 readiness F1).** Retaining the
+grammar had left thirteen of the knobs parsed and read by nothing (the 2.0
+audit's (c.1) finding). ADR-3b keeps a `brix_frm_*` name only where a
+surviving subsystem honestly owns it: `queue_path` (durable stage journal),
+`stagecmd` + `copy_timeout` (exec MSS adapter), `copymax` (scheduler bound),
+`fail_retries` + `fail_backoff` (dead-letter cap + worker-0 retry sweep) were
+wired; `copycmd`, `migrate_copycmd`, `residency_cmd`, `xfrhold`,
+`max_per_source`, `stage_dir`, `force_scratch` left the grammar
+(`unknown directive`). The pin test now holds 15 names; the behaviour is
+pinned by `tests/test_release20_frm_knobs.py`. Register:
+`docs/10-reference/release-2.0-readiness.md` §(c.1) and axis (e) F1.
+
 ### D.2 Object-store eviction scan — **absorbed into §B.1**
 
 `cstore_scan` needs a walk over object stores with no `opendir`. B.1 gives
@@ -748,7 +760,8 @@ from the phase-88 "Design-only" line.
   the engine's frozen durable record (§C.0.1).
 - **ADR-3:** `brix_frm_*` directives — **RATIFIED as engine/adapter knobs
   2026-07-27** (§D.1a; phase-64 status block amended, pin test
-  `tests/test_frm_directive_pin.py` 3 green).
+  `tests/test_frm_directive_pin.py` 3 green). **ADR-3b (2026-09-08):**
+  superseded in part by 2.0 F1 — six knobs wired, seven removed (§D.1).
 - **ADR-4 (inherited):** phase-61 W7 multi-tier remains split into its own
   future phase; nothing here depends on it. *(Superseded 2026-07-27: the W7
   remainder landed directly at a much smaller scoped size — see the phase-61

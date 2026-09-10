@@ -11,8 +11,10 @@
  * missing port is an OPERATOR error ([emerg], fails nginx -t, Appendix F).
  * */
 #include "tier.h"
+#include "tier_internal.h"              /* tier_fail + tier_role_directive */
 #include "core/types/fs_list.h"
 #include "core/config/root_prepare.h"   /* brix_prepare_export_root */
+#include "fs/backend/frm/sd_frm.h"      /* brix_sd_frm_parse_query (tape ?arc=) */
 
 #include <limits.h>
 #include <stdarg.h>
@@ -37,12 +39,7 @@ static const struct {
 
 /* Format an operator-error message into err[errcap] and, when log_emerg, also emit
  * it as an [emerg] so nginx -t fails (Appendix F). Always returns NGX_ERROR. */
-static ngx_int_t
-tier_fail(ngx_conf_t *cf, int log_emerg, char *err, size_t errcap,
-    const char *fmt, ...)
-    __attribute__((format(printf, 5, 6)));
-
-static ngx_int_t
+ngx_int_t
 tier_fail(ngx_conf_t *cf, int log_emerg, char *err, size_t errcap,
     const char *fmt, ...)
 {
@@ -64,7 +61,7 @@ tier_fail(ngx_conf_t *cf, int log_emerg, char *err, size_t errcap,
 }
 
 /* The consuming directive name for a role (used in path-validation errors). */
-static const char *
+const char *
 tier_role_directive(brix_tier_role_t role)
 {
     switch (role) {
@@ -183,6 +180,39 @@ tier_parse_host_plain(brix_tier_parse_t *p, u_char *authority, size_t authlen)
  * WHY: "host://path" and "host//path" delimiter styles must land on ONE
  * canonical absolute path. HOW: collapse a leading "//" to one '/', bound the
  * length against out->path, copy + NUL-terminate. */
+/* Phase-115 W3.1: a tape://<adapter>/<base>?arc=<depth> store carries its
+ * query in out->opts (validated by the driver's own grammar so `nginx -t`
+ * refuses what the driver would refuse). Other remote schemes keep the query
+ * inside the path untouched — it is theirs to interpret. */
+static ngx_int_t
+tier_split_tape_query(brix_tier_parse_t *p, u_char *path, size_t *pathlen)
+{
+    brix_tier_cfg_t    *out = p->out;
+    u_char             *q;
+    size_t              qlen;
+    brix_sd_frm_opts_t  opts;
+
+    if (ngx_strcmp(out->driver, "tape") != 0 && ngx_strcmp(out->driver, "frm") != 0) {
+        return NGX_OK;
+    }
+    q = ngx_strlchr(path, path + *pathlen, '?');
+    if (q == NULL) {
+        return NGX_OK;
+    }
+    qlen = (size_t) ((path + *pathlen) - (q + 1));
+    if (qlen >= sizeof(out->opts)) {
+        return tier_fail(p->cf, 1, p->err, p->errcap, "store opts too long");
+    }
+    ngx_memcpy(out->opts, q + 1, qlen);
+    out->opts[qlen] = '\0';
+    if (brix_sd_frm_parse_query(out->opts, &opts) != 0) {
+        return tier_fail(p->cf, 1, p->err, p->errcap,
+            "tape store opts \"?%s\": expected \"arc=<1..8>\"", out->opts);
+    }
+    *pathlen = (size_t) (q - path);
+    return NGX_OK;
+}
+
 static ngx_int_t
 tier_copy_remote_path(brix_tier_parse_t *p, u_char *path, size_t pathlen)
 {
@@ -193,6 +223,9 @@ tier_copy_remote_path(brix_tier_parse_t *p, u_char *path, size_t pathlen)
     while (pathlen >= 2 && path[0] == '/' && path[1] == '/') {
         path++;
         pathlen--;
+    }
+    if (tier_split_tape_query(p, path, &pathlen) != NGX_OK) {
+        return NGX_ERROR;
     }
 
     if (pathlen >= sizeof(out->path)) {
@@ -244,82 +277,6 @@ tier_parse_authority(brix_tier_parse_t *p, u_char *loc, size_t loclen)
         return NGX_ERROR;
     }
     return tier_copy_remote_path(p, path, pathlen);
-}
-
-/* Parse the trailing "credential=<n>" / "block_size=<n>" / "nearline" params.
- *
- * `nearline` is a bare flag, not a key=value: it declares that the store this
- * line names fronts tape/an MSS, so reads must recall asynchronously rather than
- * block. It is accepted on ANY SCHEME — tier_validate's MISS_SLOT(recall)/
- * MISS_CAP(NEARLINE) turns `nearline` on a driver that cannot stage into a clean
- * startup error naming the missing slot, a better operator message than a scheme
- * table with no spelling for "this origin sits in front of tape" — but only in
- * the BACKEND role. A cache/stage/cold tier is by definition the ONLINE copy
- * that a recall lands in, so `nearline` there is always an operator mistake, and
- * nothing downstream reads t->nearline for those roles: accepting it silently
- * would leave the operator believing they had armed async recall. */
-static ngx_int_t
-tier_parse_args(ngx_conf_t *cf, ngx_array_t *args, brix_tier_cfg_t *out,
-    char *err, size_t errcap)
-{
-    ngx_str_t  *a;
-    ngx_uint_t  i;
-
-    if (args == NULL) {
-        return NGX_OK;
-    }
-    a = args->elts;
-    for (i = 0; i < args->nelts; i++) {
-        static const char cred[] = "credential=";
-        static const char blk[]  = "block_size=";
-
-        if (a[i].len > sizeof(cred) - 1
-            && ngx_strncmp(a[i].data, cred, sizeof(cred) - 1) == 0)
-        {
-            const brix_credential_t *c;
-            char   name[256];
-            size_t nl = a[i].len - (sizeof(cred) - 1);
-
-            if (nl == 0 || nl >= sizeof(name)) {
-                return tier_fail(cf, 1, err, errcap, "invalid credential name");
-            }
-            ngx_memcpy(name, a[i].data + sizeof(cred) - 1, nl);
-            name[nl] = '\0';
-            c = brix_credential_lookup(name);
-            if (c == NULL) {
-                return tier_fail(cf, 1, err, errcap,
-                    "no brix_credential \"%s\"", name);
-            }
-            out->credential = c;
-        } else if (a[i].len > sizeof(blk) - 1
-            && ngx_strncmp(a[i].data, blk, sizeof(blk) - 1) == 0)
-        {
-            ngx_str_t v;
-            ssize_t   sz;
-
-            v.len  = a[i].len - (sizeof(blk) - 1);
-            v.data = a[i].data + sizeof(blk) - 1;
-            sz = ngx_parse_size(&v);
-            if (sz == NGX_ERROR) {
-                return tier_fail(cf, 1, err, errcap, "invalid block_size");
-            }
-            out->block_size = (size_t) sz;
-        } else if (a[i].len == sizeof("nearline") - 1
-            && ngx_strncmp(a[i].data, "nearline", sizeof("nearline") - 1) == 0)
-        {
-            if (out->role != BRIX_TIER_BACKEND) {
-                return tier_fail(cf, 1, err, errcap,
-                    "\"nearline\" belongs on brix_storage_backend, not on %s "
-                    "(a cache/stage tier IS the recall target)",
-                    tier_role_directive(out->role));
-            }
-            out->nearline = 1;
-        } else {
-            return tier_fail(cf, 1, err, errcap,
-                "unknown store param \"%.*s\"", (int) a[i].len, a[i].data);
-        }
-    }
-    return NGX_OK;
 }
 
 /* Split "<scheme>:<location>" and resolve the scheme via tier_schemes.
@@ -430,6 +387,52 @@ tier_parse_local(brix_tier_parse_t *p, u_char *loc, size_t loclen)
     return NGX_OK;
 }
 
+/* Resolve a CAPACITY store location: "ram:<size>" carries a byte cap, not a
+ * place. WHY: the RAM store has no path and no authority — the whole location
+ * is how much memory the operator is lending it, and a cap is what makes the
+ * store safe to run at all. HOW: nginx size grammar (512m/1g), then two
+ * refusals that are policy, not parsing.
+ *
+ * SECURITY / DURABILITY: a RAM store is legal ONLY as the cache store. As the
+ * write stage it would acknowledge a client PUT into memory that no worker
+ * restart survives — silent data loss with a successful status on the wire —
+ * and as the backend it would be the only copy of every byte. The cache role
+ * is the one place where losing the store costs nothing but a refill.
+ *
+ * The COLD cache tier arrives here as BRIX_TIER_CACHE too and so passes this
+ * check; it is refused one layer up, in runtime_server_backend_cache.c, which
+ * is the only place that knows which of the two cache stores it is holding. */
+static ngx_int_t
+tier_parse_capacity(brix_tier_parse_t *p, u_char *loc, size_t loclen)
+{
+    brix_tier_cfg_t *out = p->out;
+    ngx_str_t        sz;
+    off_t            bytes;
+
+    if (out->role != BRIX_TIER_CACHE) {
+        return tier_fail(p->cf, 1, p->err, p->errcap,
+            "a ram: store is only valid as the cache store (%s cannot hold "
+            "the only copy of a byte across a worker restart)",
+            tier_role_directive(out->role));
+    }
+    sz.data = loc;
+    sz.len  = loclen;
+    /* ngx_parse_OFFSET, not ngx_parse_size: nginx's size parser understands
+     * only k/m — "1g" fails it — while the offset parser adds g/G and returns
+     * off_t.  A RAM cache is sized in GiB by every operator who has one, and a
+     * capacity is a byte count, not an allocation size, so the wider type is
+     * also the correct one.  (phase-115 W4.2: the first cut used
+     * ngx_parse_size and rejected the "1g" its own error text suggested.) */
+    bytes = ngx_parse_offset(&sz);
+    if (bytes == NGX_ERROR || bytes <= 0) {
+        return tier_fail(p->cf, 1, p->err, p->errcap,
+            "ram store size \"%.*s\" is not a valid size (e.g. 512m, 2g)",
+            (int) loclen, loc);
+    }
+    out->capacity = (uint64_t) bytes;
+    return NGX_OK;
+}
+
 /* Resolve a REMOTE store location: authority parse + port defaulting.
  * WHY: TCP-carrying schemes (xroot/http/s3) MUST end up with a port — either
  * explicit or the scheme default; port-less schemes (rados pools, tape MSS)
@@ -479,12 +482,23 @@ brix_tier_parse_store(brix_tier_parse_t *p, ngx_str_t *url, ngx_array_t *args,
     if (tier_split_scheme(p, url, &loc, &loclen) != NGX_OK) {
         return NGX_ERROR;
     }
+    /* 2.0 F5: forward:// is an EXPORT origin — a cache/stage/cold tier needs
+     * one fixed store to hold bytes in, and a client-named origin is not one. */
+    if (ngx_strcmp(out->driver, "xroot_fwd") == 0) {
+        return tier_fail(p->cf, 1, p->err, p->errcap,
+            "forward:// is a brix_storage_backend origin, not a %s store",
+            tier_role_directive(role));
+    }
 
     is_local = (ngx_strcmp(out->driver, "posix") == 0
                 || ngx_strcmp(out->driver, "block") == 0
                 || ngx_strcmp(out->driver, "pblock") == 0);
 
-    if (is_local) {
+    if (ngx_strcmp(out->driver, "ram") == 0) {
+        if (tier_parse_capacity(p, loc, loclen) != NGX_OK) {
+            return NGX_ERROR;
+        }
+    } else if (is_local) {
         if (tier_parse_local(p, loc, loclen) != NGX_OK) {
             return NGX_ERROR;
         }
@@ -497,5 +511,44 @@ brix_tier_parse_store(brix_tier_parse_t *p, ngx_str_t *url, ngx_array_t *args,
     }
 
     out->configured = 1;
+    return NGX_OK;
+}
+
+
+/* ---- public: the params of a brix_storage_backend line -------------------- */
+
+ngx_int_t
+brix_tier_parse_backend_params(brix_tier_parse_t *p, ngx_str_t *url,
+    ngx_array_t *args)
+{
+    u_char *loc = NULL;
+    size_t  loclen = 0;
+
+    if (p->out == NULL) {
+        return tier_fail(p->cf, 1, p->err, p->errcap, "no backend tier cfg");
+    }
+    ngx_memzero(p->out, sizeof(*p->out));
+    p->out->role = BRIX_TIER_BACKEND;
+
+    if (args == NULL || args->nelts == 0) {
+        return NGX_OK;       /* no params: the URL is not this parser's business */
+    }
+    /* An EMPTY url here is not a missing directive — args are non-empty, so the
+     * operator wrote one.  It is `brix_storage_backend posix:<path>`, which
+     * brix_storage_backend_posix_root has already folded into the export root
+     * and cleared: the export runs on the DEFAULT POSIX driver.  Naming that
+     * driver (rather than failing with "no store url") is what makes the
+     * refusal say the useful thing — "verify_pages needs a root:// origin",
+     * not a message about a line the operator can see is right there. */
+    if (url == NULL || url->len == 0) {
+        ngx_cpystrn((u_char *) p->out->driver, (u_char *) "posix",
+                    sizeof(p->out->driver));
+    } else if (tier_split_scheme(p, url, &loc, &loclen) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (tier_parse_args(p->cf, args, p->out, p->err, p->errcap) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    p->out->configured = 1;
     return NGX_OK;
 }

@@ -43,6 +43,7 @@
 #include "fs/cache/writethrough_metrics.h"
 #include "wrts_journal.h"
 #include "protocols/root/query/query_internal.h" /* §3.3 brix_query_space_probe */
+#include "write_space_group.h"                   /* phase-115 W3.3 per-group quota */
 
 /*
  * brix_write_desc_t — the decoded kXR_write request parameters, bundled so the
@@ -328,6 +329,18 @@ brix_write_within_maxsize(brix_ctx_t *ctx, ngx_connection_t *c,
 			    "write exceeds the configured maximum file size (brix_oss_maxsize)");
 			return 1;
 		}
+	}
+
+	/* Phase-115 W3.3: a path inside a declared space group (brix_oss_space)
+	 * is governed by THAT group's quota alone — the export-wide
+	 * brix_oss_quota below covers only paths outside every group. */
+	switch (brix_write_space_group_admit(ctx, c, conf, idx, len, op_id, op, rc)) {
+	case 1:
+		return 1;
+	case 0:
+		return 0;
+	default:
+		break;                             /* no group owns the path */
 	}
 
 	/* §3.3: the ENFORCED space quota (opt-in; brix_oss_quota alone stays

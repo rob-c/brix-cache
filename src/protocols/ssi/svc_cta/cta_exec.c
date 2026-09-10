@@ -18,20 +18,37 @@ emit(cta_progress_t *p, const char *msg)
     }
 }
 
+/*
+ * Move `e` to `to` through the sink. A sink with no queue means the caller
+ * handed the executor nowhere to work, which is not recoverable here: the
+ * executor fails rather than transitioning an entry it cannot journal.
+ */
+static int
+advance(cta_req_t *e, cta_progress_t *p, cta_state_t to)
+{
+    if (p == NULL || p->q == NULL) {
+        return -1;
+    }
+    if (p->transition != NULL) {
+        return p->transition(p->q, e, to);
+    }
+    return cta_queue_transition(p->q, e, to);
+}
+
 /* Advance through QUEUED → ACTIVE → COMPLETE, alerting at each step. */
 static int
 sim_lifecycle(cta_req_t *e, cta_progress_t *p, const char *queued_msg,
               const char *active_msg)
 {
-    if (cta_queue_transition(e, CTA_ST_QUEUED) != 0) {
+    if (advance(e, p, CTA_ST_QUEUED) != 0) {
         return -1;
     }
     emit(p, queued_msg);
-    if (cta_queue_transition(e, CTA_ST_ACTIVE) != 0) {
+    if (advance(e, p, CTA_ST_ACTIVE) != 0) {
         return -1;
     }
     emit(p, active_msg);
-    if (cta_queue_transition(e, CTA_ST_COMPLETE) != 0) {
+    if (advance(e, p, CTA_ST_COMPLETE) != 0) {
         return -1;
     }
     return 0;
@@ -50,9 +67,9 @@ test_retrieve(cta_req_t *e, cta_progress_t *p)
 }
 
 static int
-test_cancel(cta_req_t *e)
+test_cancel(cta_req_t *e, cta_progress_t *p)
 {
-    return cta_queue_transition(e, CTA_ST_CANCELED);
+    return advance(e, p, CTA_ST_CANCELED);
 }
 
 static const cta_exec_vtbl_t test_vtbl = {
@@ -107,7 +124,7 @@ cta_exec_run(const cta_exec_vtbl_t *vt, cta_req_t *e, cta_progress_t *p)
     case CTA_OP_RETRIEVE:
         return vt->retrieve(e, p);
     case CTA_OP_CANCEL:
-        return vt->cancel(e);
+        return vt->cancel(e, p);
     case CTA_OP_QUERY:
     case CTA_OP_UNKNOWN:
     default:

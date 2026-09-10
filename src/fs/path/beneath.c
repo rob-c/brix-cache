@@ -206,6 +206,18 @@ brix_opendir_beneath(int rootfd, const char *reqpath)
      * resolved relative to rootfd and so lands on a non-existent in-root path
      * (ENOENT) or is refused (EXDEV) rather than escaping the export root. The
      * legacy bare opendir() followed an outward link straight out of the root. */
+    /*
+     * IMPERSONATION: unlike every other helper in this file this one carries NO
+     * brix_imp_client_active() branch, and that is correct rather than an
+     * omission (2.0 F21).  It has exactly ONE caller —
+     * brix_opendir_confined_canon_at() — which tests brix_imp_client_active()
+     * itself and, when it is true, asks the broker for an
+     * O_RDONLY|O_DIRECTORY fd (IMP_OP_OPEN) and fdopendir()s that.  So this
+     * body IS the off-impersonation arm, reached only after that check.  There
+     * is therefore no broker "opendir" verb to add: a directory open is an
+     * open, and the mapped user's DAC has already decided by the time the fd
+     * comes back.  The pin is tests/test_release20_posix_cred_plane.py.
+     */
     fd = do_openat2_resolve(rootfd, brix_beneath_rel(reqpath),
                             O_RDONLY | O_DIRECTORY, 0,
                             RESOLVE_IN_ROOT | RESOLVE_NO_MAGICLINKS);
@@ -412,11 +424,7 @@ beneath_two_path(beneath_two_path_op_t op, int rootfd, const char *src,
         switch (op) {
         case BENEATH_2P_RENAME:      return brix_imp_rename(src, dst);
         case BENEATH_2P_RENAME_EXCL: return brix_imp_rename_noreplace(src, dst);
-        case BENEATH_2P_EXCHANGE:
-            /* No impersonation-broker exchange verb, and §3.5 forbids a
-             * two-rename emulation: refuse rather than fake atomicity. */
-            errno = ENOTSUP;
-            return -1;
+        case BENEATH_2P_EXCHANGE: return brix_imp_rename_exchange(src, dst);
         default:                     return brix_imp_link(src, dst);
         }
     }
@@ -484,9 +492,17 @@ brix_rename_beneath_excl(int rootfd, const char *src, const char *dst)
 /*
  * Atomic two-name exchange: renameat2(RENAME_EXCHANGE) on the final
  * components, confined under rootfd exactly like brix_rename_beneath().
- * Returns 0; or -1 with errno (ENOENT when either name is missing, ENOTSUP
- * when the kernel/filesystem has no RENAME_EXCHANGE or an impersonation
- * broker is active — never emulated with two renames).
+ * Returns 0; or -1 with errno (ENOENT when either name is missing, ENOTSUP when
+ * the kernel/filesystem has no RENAME_EXCHANGE — never emulated with two
+ * renames).
+ *
+ * 2.0 F21: under impersonation this is the broker's RENAME_EXCHANGE verb, not a
+ * refusal.  Until then `exchange` was the ONE confined mutation that answered
+ * ENOTSUP whenever `brix_idmap map` was active — every other beneath helper
+ * already delegated — so an export ran the whole namespace as the mapped user
+ * except this single op, and a tier that swapped two names silently lost the
+ * capability the moment impersonation was switched on.  The broker refuses the
+ * swap on the mapped user's own DAC, exactly as it refuses a rename.
  */
 int
 brix_exchange_beneath(int rootfd, const char *a, const char *b)

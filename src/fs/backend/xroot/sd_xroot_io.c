@@ -21,6 +21,7 @@
  */
 
 #include "sd_xroot_internal.h"    /* obj_state + origin_open_req_t + machinery */
+#include "fs/cache/verify.h"      /* brix_pgverify_mode_e — the store-line policy */
 
 #include <errno.h>
 #include <stdlib.h>
@@ -131,10 +132,66 @@ sd_xroot_close(brix_sd_obj_t *obj)
     return NGX_OK;
 }
 
+/* Read ONE sub-chunk from the origin under the instance's per-page verification
+ * policy (phase-115 W4.3).
+ *
+ * WHAT: dispatches the range to kXR_pgread (per-page CRC32c verified) or plain
+ *       kXR_read, and owns the ONE decision the wire kernel deliberately
+ *       refuses to make: what to do about an origin that cannot page-read.
+ * WHY:  only this layer knows whether the operator asked for `verify_pages`
+ *       (best-effort) or `verify_pages=require`.  Silently degrading a REQUIRE
+ *       to a plain read would hand back exactly the unverified bytes the
+ *       operator configured the store line to refuse — and an origin can
+ *       trigger that degrade at will simply by answering "unsupported".
+ * HOW:  BRIX_CACHE_PGREAD_UNSUPPORTED (no task error, nothing written) is the
+ *       fork: REQUIRE turns it into a hard kXR_Unsupported failure; best-effort
+ *       records the verdict on the OBJECT (st->pgread_off) and re-issues the
+ *       same range as a plain read, so the next 1 MiB stride does not ask
+ *       again.  Returns 0 / -1 (task error set, errno left to the caller). */
+static int
+xroot_read_range(sd_xroot_obj_state *st, const sd_xroot_inst_state *is,
+    brix_cache_sink_t *sink, brix_cache_read_range_t *rng)
+{
+    int rc;
+
+    if (is->verify_pages == BRIX_PGVERIFY_OFF || st->pgread_off) {
+        return brix_cache_origin_read_chunk(st->t, &st->oc, st->fhandle,
+                                              sink, rng);
+    }
+
+    rc = brix_cache_origin_pgread_chunk(st->t, &st->oc, st->fhandle, sink, rng);
+    if (rc != BRIX_CACHE_PGREAD_UNSUPPORTED) {
+        return rc;                    /* 0, or a real failure with t set */
+    }
+
+    if (is->verify_pages == BRIX_PGVERIFY_REQUIRE) {
+        /* Logged here as well as recorded on the task: the read path collapses
+         * every failure to errno, so this ERR line is the only place the
+         * operator learns that the refusal was a POLICY decision about THIS
+         * origin rather than an I/O fault on the file. */
+        brix_cache_set_error(st->t, kXR_Unsupported, 0,
+            "origin cannot page-read (kXR_pgread) and the store line says "
+            "verify_pages=require");
+        ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0,
+            "brix: refusing to read from origin %s unverified — it cannot "
+            "page-read (kXR_pgread) and the store line says "
+            "verify_pages=require", is->host);
+        return -1;
+    }
+
+    st->pgread_off = 1;
+    ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
+        "brix: origin %s cannot page-read (kXR_pgread); verify_pages is "
+        "best-effort, so this object falls back to unverified kXR_read",
+        is->host);
+    return brix_cache_origin_read_chunk(st->t, &st->oc, st->fhandle, sink, rng);
+}
+
 ssize_t
 sd_xroot_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     sd_xroot_obj_state       *st = obj->state;
+    sd_xroot_inst_state      *is = obj->inst->state;
     size_t                    done = 0;
 
     if (len == 0) {
@@ -166,9 +223,7 @@ sd_xroot_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
         rng.read_off = (uint64_t) off + done;
         rng.want     = want;
 
-        if (brix_cache_origin_read_chunk(st->t, &st->oc, st->fhandle, &sink,
-                                           &rng) != 0)
-        {
+        if (xroot_read_range(st, is, &sink, &rng) != 0) {
             errno = EIO;
             return -1;
         }

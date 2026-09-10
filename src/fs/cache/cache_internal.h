@@ -72,6 +72,13 @@ typedef struct {
     int      fd;          /* connected socket fd; -1 when not connected */
     SSL_CTX *ssl_ctx;     /* borrowed TLS context; owned by srv_conf (not freed here) */
     SSL     *ssl;         /* per-connection TLS state; freed by brix_cache_origin_close */
+    uint32_t srv_flags;   /* phase-115 W4.3: the capability bitmask the origin
+                           * advertised in its kXR_protocol reply (kXR_suppgrw,
+                           * kXR_isManager, ...), recorded by the bootstrap and
+                           * read by the page-verified read path.  0 until the
+                           * bootstrap has run — an unparsed reply leaves it 0,
+                           * which reads as "advertises nothing" and is the safe
+                           * side of every capability question. */
 } brix_cache_origin_conn_t;
 
 /*
@@ -489,6 +496,27 @@ typedef struct {
 } brix_cache_read_range_t;
 
 int brix_cache_origin_read_chunk(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
+    brix_cache_sink_t *sink, brix_cache_read_range_t *rng);
+
+/* Phase-115 W4.3 — the PAGE-VERIFIED sibling of brix_cache_origin_read_chunk:
+ * kXR_pgread of up to rng->want bytes at rng->read_off, verifying every 4 KiB
+ * page's CRC32c (xrdp_pg_decode, the shared framing kernel) before a byte
+ * reaches the sink.  Same range semantics as the plain read — rng->got is set
+ * to the bytes written and may be < want at EOF.
+ *
+ * Returns:
+ *    0  the whole reply was page-verified and written
+ *   -1  wire/CRC/sink failure (t error set; a CRC mismatch is kXR_ChkSumErr and
+ *       names the offending FILE offset)
+ *   -2  THE ORIGIN CANNOT DO PAGE READS — it did not advertise kXR_suppgrw, or
+ *       it answered the request with kXR_Unsupported/kXR_InvalidRequest.  No t
+ *       error is set and NOTHING was written to the sink: the caller decides
+ *       between falling back to brix_cache_origin_read_chunk (best-effort) and
+ *       failing the read (require).  A -2 is a property of the ORIGIN, never of
+ *       the bytes, so it can be memoised for the life of the connection. */
+#define BRIX_CACHE_PGREAD_UNSUPPORTED  (-2)
+int brix_cache_origin_pgread_chunk(brix_cache_fill_t *t,
     brix_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
     brix_cache_sink_t *sink, brix_cache_read_range_t *rng);
 /* kXR_write of len bytes from data at offset (write-through). Requires a kXR_ok

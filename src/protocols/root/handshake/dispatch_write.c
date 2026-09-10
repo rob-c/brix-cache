@@ -75,7 +75,7 @@ manager_redirect_mutation(brix_ctx_t *ctx, ngx_connection_t *c,
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "brix: manager redirect mutation \"%s\" -> %s",
                        path, host);
-        return brix_send_redirect(ctx, c, host, port);
+        return brix_cms_answer_selected(ctx, c, conf, host, port);
     }
 
     return brix_send_error(ctx, c, kXR_FSError,

@@ -2,8 +2,11 @@
 #include "core/compat/fs_usage.h"
 #include "protocols/root/protocol/qspace.h"   /* shared oss.* space-report grammar (emit side) */
 #include "fs/vfs/vfs.h"                        /* §4.6: driver-reported space seam */
+#include "protocols/root/path/opaque_validate.h" /* brix_opaque_value: ?oss.cgroup= */
+#include "protocols/root/write/write_space_group.h" /* phase-115 W3.3 group usage */
 
 #include <errno.h>
+#include <string.h>
 
 /*
  * kXR_Qspace (3015) and kXR_QFSinfo (3017): filesystem capacity reports.
@@ -99,12 +102,79 @@ brix_query_space_probe(brix_ctx_t *ctx, ngx_connection_t *c,
     return NGX_OK;
 }
 
+/*
+ * Phase-115 W3.3: which space group a Qspace report is about. The argument is
+ * "<path>[?<cgi>]"; a `?oss.cgroup=<name>` selector wins, else the group whose
+ * prefix owns the path, else NULL = the export-wide default group. An
+ * unknown selector is the caller's error (kXR_ArgInvalid, *rc set).
+ * `arg` must be NUL-terminated; it is split in place at the '?'.
+ */
+static brix_oss_space_t *
+qspace_select_group(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, char *arg, ngx_int_t *rc)
+{
+    char             *cgi = strchr(arg, '?');
+    const char       *val;
+    size_t            vlen;
+    brix_oss_space_t *g;
+
+    if (cgi != NULL) {
+        *cgi++ = '\0';
+    }
+    if (cgi == NULL || !brix_opaque_value(cgi, "oss.cgroup", &val, &vlen)) {
+        return brix_oss_space_for_path(conf->oss_spaces, arg, strlen(arg));
+    }
+    g = brix_oss_space_by_name(conf->oss_spaces, (const u_char *) val, vlen);
+    if (g != NULL) {
+        return g;
+    }
+    if (vlen == conf->oss_cgroup.len
+        && ngx_memcmp(val, conf->oss_cgroup.data, vlen) == 0)
+    {
+        return NULL;                        /* the default group by name */
+    }
+    brix_log_access(ctx, c, "QUERY", arg, "space", 0, kXR_ArgInvalid,
+                    "unknown space group", 0);
+    BRIX_OP_ERR(ctx, BRIX_OP_QUERY_SPACE);
+    *rc = brix_send_error(ctx, c, kXR_ArgInvalid, "unknown space group");
+    return NULL;
+}
+
+/* The group's own view: used = bytes under its prefix, quota = its cap,
+ * maxf = the smaller of the filesystem's free bytes and the quota headroom. */
+static void
+qspace_group_view(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
+    brix_oss_space_t *g, unsigned long long freeb, unsigned long long *used,
+    unsigned long long *maxf, long long *quota)
+{
+    unsigned long long gused = 0;
+
+    if (brix_space_group_usage(c->log, conf, g, &gused) != NGX_OK) {
+        gused = 0;                          /* unmeasurable: report empty */
+    }
+    *used  = gused;
+    *quota = (long long) g->quota;
+    *maxf  = freeb;
+    if (g->quota >= 0) {
+        unsigned long long room = ((unsigned long long) g->quota > gused)
+                                  ? (unsigned long long) g->quota - gused : 0;
+        if (room < freeb) {
+            *maxf = room;
+        }
+    }
+}
+
 ngx_int_t
 brix_query_space(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
     char               resp[256];
-    unsigned long long total, freeb, used;
+    char               arg[BRIX_MAX_PATH + 1];
+    unsigned long long total, freeb, used, maxf;
+    long long          quota;
+    const char        *cgroup;
+    brix_oss_space_t  *g;
+    ngx_int_t          rc = NGX_OK;
 
     /* The reference do_Qspace runs rpCheck() on the path argument first and
      * rejects a relative path — one that does not begin with '/', which
@@ -128,16 +198,28 @@ brix_query_space(brix_ctx_t *ctx, ngx_connection_t *c,
         return brix_send_error(ctx, c, kXR_IOError, "statvfs failed");
     }
 
-    /* oss.* grammar is shared with the client's parser (protocol/qspace.h);
-     * maxf == free (BriX enforces no hard quota). oss.cgroup carries the server's
-     * configured space-group name (brix_oss_cgroup; §3.2, default "default");
-     * oss.quota advertises brix_oss_quota (§3.1) — the site's configured space
-     * quota for accounting clients, or -1 (unlimited) when unset. Advertisement
-     * only: like oss.cgroup, BriX does not itself enforce it. */
-    brix_qspace_format(resp, sizeof(resp),
-                         (const char *) conf->oss_cgroup.data,
-                         total, freeb, freeb, used,
-                         (long long) conf->oss_quota);
+    /* oss.* grammar is shared with the client's parser (protocol/qspace.h).
+     * Export-wide report: oss.cgroup = brix_oss_cgroup (§3.2, default
+     * "default"), oss.quota = brix_oss_quota (§3.1; -1 = unlimited), maxf ==
+     * free. Phase-115 W3.3: when a declared space group owns the queried path
+     * (or ?oss.cgroup= names one) the report is THAT group's — its name, its
+     * quota, the bytes under its prefix, maxf capped by its headroom — so
+     * accounting clients see the cap the write gate will apply. */
+    ngx_cpystrn((u_char *) arg, ctx->recv.payload,
+                ngx_min(ctx->recv.cur_dlen, sizeof(arg) - 1) + 1);
+    g = qspace_select_group(ctx, c, conf, arg, &rc);
+    if (g == NULL && rc != NGX_OK) {
+        return rc;
+    }
+    cgroup = (const char *) conf->oss_cgroup.data;
+    maxf   = freeb;
+    quota  = (long long) conf->oss_quota;
+    if (g != NULL) {
+        cgroup = (const char *) g->name.data;
+        qspace_group_view(c, conf, g, freeb, &used, &maxf, &quota);
+    }
+    brix_qspace_format(resp, sizeof(resp), cgroup, total, freeb, maxf, used,
+                       quota);
 
     brix_log_access(ctx, c, "QUERY", (char *) conf->common.root.data,
                       "space", 1, 0, NULL, 0);

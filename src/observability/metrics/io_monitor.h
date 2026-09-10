@@ -79,6 +79,14 @@ typedef struct brix_io_monitor_s {
     unsigned            any:1;          /* at least one brix I/O op was observed */
     unsigned            have_op:1;
     unsigned            have_checksum:1;
+    unsigned            peer_name_waited:1; /* phase-116: the PREACCESS reverse-DNS wait ran */
+    /* 2.0: the cache STORE refused the offloaded fill of this request's object
+     * (ENOSPC, brix_fill_store_refused) and the fill worker re-entered the
+     * handler to serve it from the source. Read by
+     * brix_http_cache_fill_if_needed (never a second fill for this request)
+     * and copied onto the VFS ctx by brix_http_monitor_bind (the open hint
+     * BRIX_SD_O_NOFILL). Event-loop only, like every other field here. */
+    unsigned            fill_refused:1;
     char                path[BRIX_IO_MONITOR_PATH_MAX];
     char                checksum[BRIX_IO_MONITOR_CKSUM_MAX];
 } brix_io_monitor_t;

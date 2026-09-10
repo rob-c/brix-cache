@@ -39,6 +39,46 @@
       0,
       NULL },
 
+    /* ---- TPC identity matrix (2.0 F18): the INNER plane.  The host verdict
+     * above stays the outer gate; these can only narrow it.  BriX's spelling of
+     * XRootD `ofs.tpc allow|require|restrict|oids`. ---- */
+
+    /* Who may TPC: `dn|group|host|vo <pattern>` pairs, ANDed on a line, ORed
+     * across lines.  Any rule at all makes the stage fail-closed. */
+    { ngx_string("brix_tpc_allow_identity"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_2MORE,
+      brix_tpc_conf_allow_identity,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* How they must have authenticated: `all|client|dest <auth>`.  `dest` binds
+     * the leg the peer server opened (tpc.org), never the client's own. */
+    { ngx_string("brix_tpc_require"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
+      brix_tpc_conf_require,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* Where: absolute logical path prefixes a TPC may touch.  Repeatable and
+     * every argument on a line is appended. */
+    { ngx_string("brix_tpc_restrict"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_1MORE,
+      brix_tpc_conf_restrict,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* Permit '*'-prefixed object-id TPC paths (default: off, as in stock).
+     * BriX exports no object-id namespace, so `on` only lifts the refusal. */
+    { ngx_string("brix_tpc_oids"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_oids),
+      NULL },
+
     /* §7 unary XrdSsi request/response over /.ssi/<service> (default: off). */
     { ngx_string("brix_ssi"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
@@ -136,6 +176,34 @@
       offsetof(ngx_stream_brix_srv_conf_t, tpc_max_transfer_secs),
       NULL },
 
+    /* F7: kXR_redirect hops the native pull follows from the client-named
+     * source (0 = refuse any redirect; range-checked in the merge). */
+    { ngx_string("brix_tpc_max_hops"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, tpc_max_hops),
+      NULL },
+
+    /* F16: operator opt-in for the native root:// PUSH dialect
+     * (tpc.stage=push).  Off by default; governs both the source leg (which
+     * dials out) and the destination leg (which accepts a server's bytes). */
+    { ngx_string("brix_tpc_push"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, tpc_push),
+      NULL },
+
+    /* F7: cap on the parallel kXR_bind read streams one pull may open toward
+     * its source; the client's tpc.str wish is clamped to it (1 = off). */
+    { ngx_string("brix_tpc_streams"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, tpc_streams),
+      NULL },
+
     /* Hostile-network completion gate: refuse a native TPC pull whose source will
      * not declare a size (a size mismatch already always fails). Default off. */
     { ngx_string("brix_tpc_require_source_size"),
@@ -182,6 +250,29 @@
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, common.tpc_outbound_passthrough),
+      NULL },
+
+    /* W8.2: renew the delegated credential this long before it expires, on the
+     * live outbound connection, so a copy can outlive the token that launched
+     * it. 0 (default) disables renewal entirely — the pre-W8.2 behaviour. Only
+     * the issuer-facing token modes (oidc-agent, token-exchange) can act on it;
+     * a forwarded credential cannot be re-minted by this server. */
+    { ngx_string("brix_tpc_outbound_renew_lead"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_outbound_renew_lead),
+      NULL },
+
+    /* W8.2: fail a pull whose delegated credential has genuinely expired and
+     * could not be renewed, instead of streaming on with it. Off by default so
+     * enabling renewal never introduces a denial on its own; a mint that fails
+     * on an already-expired credential is fatal regardless. */
+    { ngx_string("brix_tpc_outbound_renew_strict"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_outbound_renew_strict),
       NULL },
 
     /* OAuth2/OIDC token endpoint for RFC 8693 token exchange on TPC pulls. */

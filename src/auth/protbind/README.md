@@ -60,10 +60,11 @@ into a prefix and a suffix that must *both* match, case-insensitively.
 Reverse DNS blocks the event loop, so it is paid for at most once per
 connection and only when some template could actually consult a name: a
 wildcard-only ruleset (`brix_protbind * ztn gsi`, the dominant configuration)
-never resolves at all. When a lookup is needed it goes through
-`brix_acc_resolve_peer()` — the circuit-breaker-bounded path XrdAcc `h <host>`
-rules already use — and lands in the one per-connection cache that both
-subsystems read, so a session using both features resolves once.
+never resolves at all. When a name is needed it comes from
+`brix_acc_resolve_peer()` — the never-blocking probe of the phase-116 reverse
+cache that the accept path fills off the event loop, shared with XrdAcc
+`h <host>` rules — and lands in the one per-connection cache that both
+subsystems read, so a session using both features copies it once.
 
 ## Files
 

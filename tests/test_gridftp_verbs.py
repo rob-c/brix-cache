@@ -10,6 +10,7 @@ same reply bytes — so this is the natural place to prove the command semantics
 Covered (each verb: a success path, plus an error and/or security-negative path):
   * SYST / STAT / MDTM / MLST          -- metadata over the control channel
   * MODE / STRU / ALLO                 -- transfer-parameter verbs (honest 504s)
+  * CWD / PWD                          -- existence-checked directory change (-cd flow)
   * SIZE / REST + resumed RETR         -- restart offset threaded into RETR
   * APPE                               -- append extends in place
   * RNFR / RNTO                        -- two-step rename (and RNTO-without-RNFR)
@@ -255,6 +256,51 @@ def test_mkd_trailing_slash_and_confinement(gateway, tmp_path):
         with pytest.raises(ftplib.error_perm):
             ftp.sendcmd("MKD ../../../../tmp/brix-mkd-escape/")
         assert not os.path.exists("/tmp/brix-mkd-escape")
+    finally:
+        ftp.quit()
+
+
+def test_cwd_requires_an_existing_directory(gateway, tmp_path):
+    """CWD must 550 on a missing target (RFC 959 §4.1.1).  curl --ftp-create-dirs
+    and globus-url-copy -cd send MKD only after CWD fails, so a CWD that accepted
+    any confined name made every STOR into a fresh subdirectory fail after the
+    bytes had been sent (found by the deploy/compose gridftp smoke).  A regular
+    file is not a directory either, a refusal leaves the working directory
+    unchanged, and a traversal target stays confined (security-negative)."""
+    ftp = _connect(gateway)
+    try:
+        assert ftp.pwd() == "/"
+
+        # error: the directory does not exist yet -> 550, cwd untouched.
+        with pytest.raises(ftplib.error_perm) as e:
+            ftp.cwd("cwd-fresh")
+        assert e.value.args[0].startswith("550"), e.value.args[0]
+        assert ftp.pwd() == "/"
+
+        # error: a regular file is not a directory.
+        _seed(gateway, "cwd-file.bin", b"x" * 16)
+        with pytest.raises(ftplib.error_perm):
+            ftp.cwd("cwd-file.bin")
+        assert ftp.pwd() == "/"
+
+        # success: the client's create-dirs flow -- MKD after the 550, CWD into
+        # it, and a relative STOR lands inside the new directory.
+        assert ftp.sendcmd("MKD cwd-fresh").startswith("257")
+        assert ftp.cwd("cwd-fresh").startswith("250")
+        assert ftp.pwd() == "/cwd-fresh"
+        payload = os.urandom(1024)
+        src = tmp_path / "cwd-in.bin"
+        src.write_bytes(payload)
+        with open(src, "rb") as fh:
+            ftp.storbinary("STOR obj.bin", fh)
+        with open(os.path.join(gateway.export, "cwd-fresh", "obj.bin"), "rb") as fh:
+            assert fh.read() == payload
+
+        # security-negative: /tmp exists on the host, but only the export is
+        # visible -- the traversal is refused and cwd stays where it was.
+        with pytest.raises(ftplib.error_perm):
+            ftp.cwd("../../../../tmp")
+        assert ftp.pwd() == "/cwd-fresh"
     finally:
         ftp.quit()
 

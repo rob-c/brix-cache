@@ -1,6 +1,8 @@
 #include "query_internal.h"
 #include "core/compat/codec_core.h"
 #include "core/ident.h"
+#include "core/compat/checksum_plugin.h"   /* chksum: registered site plugins */
+#include "core/compat/checksum.h"          /* chksum: the built-in name resolver */
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -192,53 +194,102 @@ brix_qconfig_emit_cmpwrite(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c
  * WHY: Reference do_Qconf returns the bare $XRDROLE (XrdOfsConfig exports it from the configured role).
  *      A standalone data server reports "server"; in manager/redirector mode it reports "manager".
  * HOW: Appends "manager" or "server" per conf->manager_mode + newline. */
-/* The built-in checksum list, in registration order.  Emitted for "chksum". */
-#define BRIX_QCONF_CHKSUM_LIST \
-    "adler32,crc32,crc32c,crc64,crc64nvme,zcrc32,md5,sha1,sha256"
+/* The built-in checksum list, in registration order (chksum). Site plugins
+ * (brix_checksum_plugin, 2.0 F8) follow it in registration order. */
+static const char *const  brix_qconf_chksum_algs[] = {
+    "adler32", "crc32", "crc32c", "crc64", "crc64nvme", "zcrc32",
+    "md5", "sha1", "sha256", "sha512", NULL,
+};
+
+static ngx_flag_t
+qconf_chksum_is_default(const char *name, const char *dflt, size_t dlen)
+{
+    return (dlen > 0 && ngx_strlen(name) == dlen
+            && ngx_strncmp(name, dflt, dlen) == 0) ? 1 : 0;
+}
+
+/* WHAT: Is the configured default a name THIS server can actually answer?
+ * WHY:  Only then may it lead the cslist. Asking brix_checksum_parse (not the
+ *       advertise array) is deliberate: parse is the same resolver Qcksum and
+ *       Want-Digest use, so it also accepts the documented ALIAS spellings
+ *       (crc64xz -> crc64). A default spelled as an alias is answerable, and
+ *       dropping it from the head would leave clients negotiating adler32
+ *       against a server whose operator asked for something else. Plugins are
+ *       resolved by parse too (ids from BRIX_CHECKSUM_PLUGIN_BASE), so the
+ *       registry needs no second walk here.
+ * HOW:  Empty default -> 0 (unset, not unknown); else parse it. */
+static ngx_flag_t
+qconf_chksum_default_known(const char *dflt, size_t dlen)
+{
+    brix_checksum_alg_t  alg;
+    char                 norm[32];
+
+    if (dlen == 0 || dflt == NULL) {
+        return 0;
+    }
+    return brix_checksum_parse(dflt, dlen, &alg, norm, sizeof(norm)) == NGX_OK
+           ? 1 : 0;
+}
+
+/* Append one name (comma-separated) unless it is the default already at the
+ * head. *first tracks whether a separator is due. */
+static ngx_flag_t
+qconf_chksum_append(char *resp, size_t resp_sz, size_t *pos, const char *name,
+    const char *dflt, size_t dlen, ngx_flag_t *first)
+{
+    if (qconf_chksum_is_default(name, dflt, dlen)) {
+        return 1;
+    }
+    if (!brix_qconfig_append(resp, resp_sz, pos, "%s%s", *first ? "" : ",",
+                             name))
+    {
+        return 0;
+    }
+    *first = 0;
+    return 1;
+}
 
 /* WHAT: Emits the checksum list for the "chksum" query key, LEADING with the
- *       operator's brix_checksum_default when one is configured.
+ *       operator's brix_checksum_default when one is configured, then the
+ *       built-ins, then every registered site plugin.
  * WHY: Stock do_Qconf answers chksum with the configured default first — WLCG
  *      clients pick the FIRST mutually-supported algorithm, so a deployment
  *      that sets brix_checksum_default crc32c must advertise it at the head
- *      or clients keep negotiating adler32.
- * HOW: Unset default (or the default already first) → the static list.  Else
- *      the default once, then every other algorithm in registration order. */
+ *      or clients keep negotiating adler32. A plugin the server can answer
+ *      but never advertises is a plugin no client will ask for.
+ * HOW: Unknown default → ignored (dlen = 0). Else the default once, then every
+ *      other name in registration order, built-ins before plugins. */
 static ngx_flag_t
 brix_qconfig_emit_chksum(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
-    static const char *const algs[] = {
-        "adler32", "crc32", "crc32c", "crc64", "crc64nvme", "zcrc32",
-        "md5", "sha1", "sha256", NULL,
-    };
-    const char *dflt = (const char *) conf->checksum_default.data;
-    size_t      dlen = conf->checksum_default.len;
-    int         i, known = 0;
+    const char  *dflt = (const char *) conf->checksum_default.data;
+    size_t       dlen = conf->checksum_default.len;
+    ngx_flag_t   first = 1;
+    ngx_uint_t   i;
 
     (void) c;
-    for (i = 0; dlen > 0 && algs[i] != NULL; i++) {
-        if (ngx_strlen(algs[i]) == dlen
-            && ngx_strncmp(algs[i], dflt, dlen) == 0)
+
+    if (!qconf_chksum_default_known(dflt, dlen)) {
+        dlen = 0;
+    }
+    if (dlen > 0) {
+        if (!brix_qconfig_append(resp, resp_sz, pos, "%.*s", (int) dlen, dflt)) {
+            return 0;
+        }
+        first = 0;
+    }
+    for (i = 0; brix_qconf_chksum_algs[i] != NULL; i++) {
+        if (!qconf_chksum_append(resp, resp_sz, pos, brix_qconf_chksum_algs[i],
+                                 dflt, dlen, &first))
         {
-            known = 1;
-            break;
+            return 0;
         }
     }
-    if (!known || ngx_strncmp("adler32", dflt, dlen) == 0) {
-        return brix_qconfig_append(resp, resp_sz, pos,
-                                   BRIX_QCONF_CHKSUM_LIST "\n");
-    }
-    if (!brix_qconfig_append(resp, resp_sz, pos, "%.*s", (int) dlen, dflt)) {
-        return 0;
-    }
-    for (i = 0; algs[i] != NULL; i++) {
-        if (ngx_strlen(algs[i]) == dlen
-            && ngx_strncmp(algs[i], dflt, dlen) == 0)
+    for (i = 0; i < brix_cks_plugin_count(); i++) {
+        if (!qconf_chksum_append(resp, resp_sz, pos, brix_cks_plugin_name_at(i),
+                                 dflt, dlen, &first))
         {
-            continue;
-        }
-        if (!brix_qconfig_append(resp, resp_sz, pos, ",%s", algs[i])) {
             return 0;
         }
     }

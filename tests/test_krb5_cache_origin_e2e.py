@@ -36,6 +36,7 @@ import os
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import tempfile
 import time
 
@@ -179,8 +180,7 @@ sec.protbind * krb5
 def _require_krb5_client():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler to build the native client")
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp"],
-                          capture_output=True, text=True, timeout=180)
+    proc = client_make(CLIENT_DIR, "xrdfs", "xrdcp", capture_output=True, text=True, timeout=180)
     if any((proc.returncode != 0, not os.path.exists(XRDFS))):
         pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
     if not _client_has_krb5():

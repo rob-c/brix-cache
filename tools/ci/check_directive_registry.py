@@ -71,10 +71,24 @@ def _walk_src(*suffixes):
                 path = os.path.join(dp, f)
                 yield path, open(path, errors="replace").read()
 
+
+_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
+
+
+def _uncommented(text):
+    """`text` with every /* … */ comment blanked to spaces (newlines kept, so
+    offsets and the macro-body backslash-newline test below are unchanged).
+    A commented-out entry merely *mentions* a registration; it is not one."""
+    return _BLOCK_COMMENT.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
+
 # One ngx_command_t entry: { ngx_string("name"), <ctx ...CONF...>, <setter>, ...
+# A `/* … */` comment may sit between the context flags and the setter
+# (brix_root, brix_auth do this) — it is skipped, never part of the match.
+_C_COMMENT = r'(?:/\*[^*]*\*+(?:[^/*][^*]*\*+)*/\s*)*'
 _ENTRY = re.compile(
-    r'\{\s*ngx_string\("([a-z0-9_]+)"\)\s*,\s*'
-    r'((?:[^,{}]|\n)*?(?:CONF|ALL_CONF)(?:[^,{}]|\n)*?)\s*,\s*([A-Za-z0-9_]+)\s*,',
+    r'\{\s*ngx_string\("([a-z0-9_]+)"\)\s*,\s*' + _C_COMMENT
+    + r'((?:[^,{}]|\n)*?(?:CONF|ALL_CONF)(?:[^,{}]|\n)*?)\s*,\s*'
+    + _C_COMMENT + r'([A-Za-z0-9_]+)\s*,',
     re.S)
 
 # A macro-body entry: keyed off the pfx argument ({ ngx_string(pfx "token") …)
@@ -126,7 +140,7 @@ def _macro_body_entries(text, dm):
     """[(token, ctx)] for one BRIX_*_DIRECTIVES definition matched at `dm` — its
     body runs to the next #define or the end of the file."""
     nxt = text.find("#define ", dm.end())
-    body = text[dm.start(): nxt if nxt > 0 else len(text)]
+    body = _uncommented(text[dm.start(): nxt if nxt > 0 else len(text)])
     return [(m.group(1), m.group(2).strip())
             for m in _MACRO_ENTRY.finditer(body)]
 
@@ -144,7 +158,7 @@ def _literal_regs(text, path):
     """[(name, plane, "literal", path)] for the { ngx_string("...") , ... }
     entries in one file; struct-initialiser false positives (offsetof) skipped."""
     return [(m.group(1), _plane(m.group(2), path), "literal", path)
-            for m in _ENTRY.finditer(text)
+            for m in _ENTRY.finditer(_uncommented(text))
             if "offsetof" not in m.group(3)
             and "\\\n" not in m.group(0)]   # macro-body lines (…\) are not
                                             # registrations — expanded per site

@@ -87,7 +87,13 @@ xfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
     } else {
         char pbuf[XRDC_PATH_MAX];
         struct brix_fuse_ctx_dir a = { srv_path(path, pbuf, sizeof(pbuf)), &ents, &n };
-        int rc = xfs_meta(brix_fuse_op_dirlist, &a, &st);
+        /* W7.2b: against a CMS manager a plain dirlist is answered by ONE
+         * redirected data server, so files whose only replica lives on another
+         * holder are invisible.  --cluster-readdir asks every holder and unions
+         * the answers; without it the single-node listing is kept verbatim (it
+         * is one round trip, and a non-clustered mount needs nothing more). */
+        int rc = xfs_meta(g_dir_fanout ? brix_fuse_op_dirlist_all
+                                       : brix_fuse_op_dirlist, &a, &st);
         if (rc != 0) {
             return rc;
         }

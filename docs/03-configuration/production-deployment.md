@@ -2,6 +2,15 @@
 
 Step-by-step instructions for deploying BriX-Cache in production — covering systemd service setup, resource limits, log rotation, and the Kubernetes testing pipeline.
 
+> **Kubernetes pipeline status (2026-09-05).** Steps 3–5 below describe the
+> *legacy* Kind pipeline built on `k8s-tests/server-helm/` and
+> `k8s-tests/test-infra-helm/`. Those charts stay in the tree and still
+> deploy, but they are frozen: new lab work targets the `k8s-tests/xrd-lab`
+> driver with the `k8s-tests/charts/brix-test-lab/` chart, documented in
+> [`k8s-tests/README.md`](../../k8s-tests/README.md). For a laptop-scale
+> demo without Kubernetes at all, use the compose stacks under
+> [`deploy/compose/`](../../deploy/compose/README.md).
+
 ## Prerequisites
 
 ### Software Requirements
@@ -9,7 +18,7 @@ Step-by-step instructions for deploying BriX-Cache in production — covering sy
 | Tool | Minimum Version | Purpose |
 |---|---|---|
 | Docker | 20.10+ | Build container images, Kind/minikube driver |
-| Helm | 3.12+ | Deploy Helm charts (server-helm, test-infra) |
+| Helm | 3.12+ | Deploy Helm charts (legacy `server-helm` / `test-infra-helm`, or `charts/brix-test-lab` via `xrd-lab`) |
 | kubectl | 1.28+ | Kubernetes CLI for cluster management |
 | minikube OR kind | Latest stable | Local K8s cluster runtime |
 

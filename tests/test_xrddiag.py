@@ -20,6 +20,7 @@ import os
 import socket
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 import time
 
 import pytest
@@ -80,8 +81,7 @@ _CLEAN_ENV.pop("X509_CERT_DIR", None)
 @pytest.fixture(scope="module")
 def xrddiag():
     _guard_xrddiag_1()
-    proc = subprocess.run(["make", "-C", os.path.join(REPO, "client"), "xrddiag"],
-                          capture_output=True, text=True, timeout=180)
+    proc = client_make(os.path.join(REPO, "client"), "xrddiag", capture_output=True, text=True, timeout=180)
     _guard_xrddiag_2(proc)
     # Every subcommand needs the anon server; skip cleanly when the fleet is down
     # (e.g. between harness restarts) rather than hard-failing.
@@ -253,8 +253,7 @@ def test_diag_flags_stderr_only(xrddiag):
 
 def _require_xrddiag():
     if not os.path.exists(NATIVE_XRDDIAG):
-        proc = subprocess.run(["make", "-C", os.path.join(REPO, "client"), "xrddiag"],
-                              capture_output=True, text=True, timeout=180)
+        proc = client_make(os.path.join(REPO, "client"), "xrddiag", capture_output=True, text=True, timeout=180)
         if proc.returncode != 0 or not os.path.exists(NATIVE_XRDDIAG):
             pytest.skip("xrddiag build failed")
 

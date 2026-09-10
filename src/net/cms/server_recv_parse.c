@@ -117,7 +117,7 @@ cms_srv_login_scalars(brix_cms_srv_ctx_t *ctx,
     /* holdtime */  (void) tlv_read_next(p, end);
     /* tSpace  */   (void) tlv_read_next(p, end);
     ctx->free_mb  = tlv_read_next(p, end);     /* fSpace  */
-    /* mSpace  */   (void) tlv_read_next(p, end);
+    ctx->min_free_mb = tlv_read_next(p, end);  /* mSpace (§2.4 floor) */
     /* fsNum   */   (void) tlv_read_next(p, end);
     ctx->util_pct = tlv_read_next(p, end);     /* fsUtil  */
     ctx->port     = (uint16_t) tlv_read_next(p, end); /* dPort */

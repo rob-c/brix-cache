@@ -313,6 +313,13 @@ int brix_imp_rename(const char *src, const char *dst);
 /* renameat2(RENAME_NOREPLACE) as the mapped user: atomic create-if-absent.
  * Returns -1 with errno==EEXIST when dst already exists. */
 int brix_imp_rename_noreplace(const char *src, const char *dst);
+/* renameat2(RENAME_EXCHANGE) as the mapped user: the atomic two-name swap, with
+ * no instant at which either name is missing (2.0 F21).  Returns -1 with
+ * errno==ENOTSUP where the kernel or filesystem has no RENAME_EXCHANGE — NEVER
+ * emulated with two renames, so this answer is identical to the one the
+ * non-impersonated brix_exchange_beneath() gives and callers need no
+ * impersonation-specific branch. */
+int brix_imp_rename_exchange(const char *src, const char *dst);
 int brix_imp_link(const char *src, const char *dst);
 int brix_imp_truncate(const char *reqpath, off_t length);
 int brix_imp_chmod(const char *reqpath, mode_t mode);

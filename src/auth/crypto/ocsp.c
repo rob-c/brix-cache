@@ -40,17 +40,19 @@
 /*
  * ocsp_query_t — the certificate identity for one OCSP query.
  *
- * WHAT: Bundles the leaf, its issuer, and the derived OCSP_CERTID that always
- * travel together from the AIA-URL loop down into do_ocsp_request().
+ * WHAT: Bundles the leaf, its issuer, the derived OCSP_CERTID and the resolver
+ * policy for the responder host (phase-116) that always travel together from
+ * the AIA-URL loop down into do_ocsp_request().
  * WHY: Keeps the URL-loop helpers at/under the 5-parameter budget by passing
  * one identity value instead of three loose pointers — no behaviour change; the
  * struct is a non-owning view (the caller still owns/free()s each member).
  * HOW: Stack-allocated in the public functions; passed by const pointer.
  */
 typedef struct {
-    X509         *leaf;
-    X509         *issuer;
-    OCSP_CERTID  *id;
+    X509                    *leaf;
+    X509                    *issuer;
+    OCSP_CERTID             *id;
+    const brix_dns_policy_t *dns;
 } ocsp_query_t;
 
 /*
@@ -94,7 +96,8 @@ ocsp_check_urls(ngx_log_t *log, STACK_OF(OPENSSL_STRING) *ocsp_urls,
         ngx_log_error(NGX_LOG_DEBUG, log, 0,
                       "brix_ocsp: querying responder \"%s\"", url);
 
-        resp = do_ocsp_request(log, url, q->leaf, q->issuer, q->id, &req);
+        resp = do_ocsp_request(log, q->dns, url, q->leaf, q->issuer, q->id,
+                               &req);
         if (resp == NULL) {
             /* Network error — try next URL */
             continue;
@@ -129,8 +132,8 @@ ocsp_check_urls(ngx_log_t *log, STACK_OF(OPENSSL_STRING) *ocsp_urls,
 
 /* HOW: Validates leaf and issuer are non-NULL (returns soft_fail result if either is missing). Extracts OCSP URLs from the certificate's AIA extension via X509_get1_ocsp(). Builds the OCSP certificate ID (SHA-1 hash of issuer fields) using OCSP_cert_to_id(). Delegates the per-URL query loop to ocsp_check_urls() (GOOD→0, REVOKED→-1 never overridden, UNKNOWN/network-error→soft_fail default). Frees ID and URL stack on exit. */
 int
-brix_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail,
-    int require_nonce)
+brix_ocsp_check_cert(ngx_log_t *log, const brix_dns_policy_t *dns, X509 *leaf,
+    X509 *issuer, int soft_fail, int require_nonce)
 {
     STACK_OF(OPENSSL_STRING) *ocsp_urls = NULL;
     OCSP_CERTID              *id        = NULL;
@@ -168,7 +171,7 @@ brix_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail,
     }
 
     {
-        ocsp_query_t q = { leaf, issuer, id };
+        ocsp_query_t q = { leaf, issuer, id, dns };
         result = ocsp_check_urls(log, ocsp_urls, &q, soft_fail, require_nonce);
     }
 
@@ -294,7 +297,8 @@ ocsp_fetch_staple_urls(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf,
         ngx_log_error(NGX_LOG_DEBUG, log, 0,
                       "brix_ocsp: fetching staple from \"%s\"", url);
 
-        resp = do_ocsp_request(log, url, q->leaf, q->issuer, q->id, &req);
+        resp = do_ocsp_request(log, q->dns, url, q->leaf, q->issuer, q->id,
+                               &req);
         if (resp == NULL) {
             continue;
         }
@@ -371,7 +375,7 @@ brix_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
     }
 
     {
-        ocsp_query_t q = { leaf, issuer, id };
+        ocsp_query_t q = { leaf, issuer, id, xcf->common.dns.policy };
         rc = ocsp_fetch_staple_urls(log, xcf, ocsp_urls, &q);
     }
 

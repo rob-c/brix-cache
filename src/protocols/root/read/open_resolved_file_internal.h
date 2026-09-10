@@ -68,6 +68,9 @@ typedef struct {
     /* phase-107 C5: the client-declared final size (oss.asize), 0 = none —
      * stamped onto the VFS ctx by the dispatch stage so the open can reserve. */
     off_t                       declared_size;
+    /* 2.0 F5: the client's pfc.blocksize / pfc.prefetch hints (read opens),
+     * stamped onto the VFS ctx by the dispatch stage beside declared_size. */
+    brix_sd_open_hints_t        cache_hints;
 
     /* Staging decision.  use_posc: kXR_posc write — stage to a random temp,
      * rename on clean close, unlink on non-clean close.  use_resume

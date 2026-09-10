@@ -185,57 +185,6 @@ class TestTheArmsAreTheSameLocationWrittenFourTimes:
 
 
 # --------------------------------------------------------------------------- #
-# C. brix_backend_passthrough_persist — DEFECT CANDIDATE #35, measured live    #
-# --------------------------------------------------------------------------- #
-
-class TestThePassthroughPersistArms:
-    """`on`, `off`, and absent.
-
-    The merge default is 0 (shared_conf.h:428-429), so `off` and absent are the
-    same location by construction and the third plane is what turns that into a
-    measurement.  All three agree because the flag has no reader — DEFECT
-    CANDIDATE #35, pinned at the parse tier by
-    test_audit15j_zero_coverage_stragglers.py and written in all three HTTP
-    scopes by tranche-16 file 6.  Neither of those starts a server; these cells
-    are the first that do, which is the difference between "no reader was
-    found" and "no reader answered".
-    """
-
-    def test_on_off_and_absent_answer_identically(self, planes):
-        prints = {arm: _fingerprint(planes, arm, "pp") for arm in PP_ARMS}
-        assert prints["pp-off"] == prints["pp-abs"], (
-            "off and absent must be the merge default twice")
-        assert prints["pp-on"] == prints["pp-abs"], (
-            "the on arm has no reader, so it cannot differ")
-
-    def test_the_flag_does_not_change_a_posix_backend_into_a_passthrough(
-            self, planes):
-        """The name says persistence across a passthrough; the export here is
-        posix and there is no upstream to pass through to.  If the flag were
-        read anywhere on this path, the most likely shape of the bug would be a
-        location that stopped resolving locally — so the cell that matters is
-        that the bytes still come off the disk they were written to."""
-        payload = b"16ad passthrough locality\n"
-        for arm in PP_ARMS:
-            name = "locality.bin"
-            planes.disk(arm, name).write_bytes(payload)
-            r = _get(arm, name)
-            assert r.status_code == 200, f"{arm}: {r.status_code} {r.text}"
-            assert r.content == payload, arm
-
-    def test_a_write_through_each_arm_lands_in_that_arms_subtree(self, planes):
-        """Three arms, one export root: the URI prefix is what separates them.
-        A flag that redirected a write elsewhere would show up here as a file in
-        the wrong directory rather than as a bad status code."""
-        for arm in PP_ARMS:
-            name = "landing.bin"
-            assert _put(arm, name, arm.encode()).status_code in (201, 204)
-            assert planes.disk(arm, name).read_bytes() == arm.encode()
-        for arm in PP_ARMS:
-            assert planes.disk(arm, "landing.bin").read_bytes() == arm.encode()
-
-
-# --------------------------------------------------------------------------- #
 # D. The parse tier                                                            #
 # --------------------------------------------------------------------------- #
 
@@ -272,19 +221,17 @@ def _diagnostics(out):
 
 
 FLAGS = ("brix_webdav_open_file_cache_errors",
-         "brix_webdav_open_file_cache_events",
-         "brix_backend_passthrough_persist")
+         "brix_webdav_open_file_cache_events")
 
 
 class TestTheFlagArmsParse:
-    """Both arms of all three flags, in both legal HTTP scopes, and refused in
+    """Both arms of both flags, in both legal HTTP scopes, and refused in
     every scope that is not one.
 
-    The well-formed passthrough cells overlap tranche-16 file 6 deliberately —
-    a third flag costs nothing once the scaffold is rendered, and having all
-    three answer the same question in the same place is what makes the "no
-    configuration of any of them is distinguishable" claim readable.  The
-    negatives are the part file 6 has no cells for.
+    A third flag, brix_backend_passthrough_persist, used to share these cells
+    (its well-formed arms overlapped tranche-16 file 6 deliberately).  2.0
+    removed it, so its one remaining cell is the last test of this class: the
+    name must be refused as unknown wherever it is written.
     """
 
     @pytest.mark.parametrize("flag", FLAGS)
@@ -296,9 +243,9 @@ class TestTheFlagArmsParse:
     @pytest.mark.parametrize("flag", FLAGS)
     @pytest.mark.parametrize("arm", ("on", "off"))
     def test_both_arms_are_accepted_in_a_server(self, tmp_path, flag, arm):
-        """All three are declared MAIN|SRV|LOC, so a server block is legal and
+        """Both are declared MAIN|SRV|LOC, so a server block is legal and
         the location below inherits.  That inheritance is real — it is the
-        merge at config_merge.c:153-156 and shared_conf.h:428 — which is what
+        merge at config_merge.c:153-156 — which is what
         makes an inert flag more than a typo: it is inherited, documented
         behaviour that does not exist."""
         rc, out = _parse(tmp_path, HTTP_KNOBS=f"        {flag} {arm};\n")
@@ -349,6 +296,22 @@ class TestTheFlagArmsParse:
         rc, out = _parse(tmp_path, **{slot: f"{indent}{flag} on;\n"})
         assert rc != 0, out
         assert any(f'"{flag}" directive is not allowed here' in ln
+                   for ln in _diagnostics(out)), _diagnostics(out)
+
+    @pytest.mark.parametrize("slot,indent", (("LOC_KNOBS", "            "),
+                                             ("HTTP_KNOBS", "        "),
+                                             ("KNOBS", "        ")))
+    @pytest.mark.parametrize("arm", ("on", "off"))
+    def test_the_removed_passthrough_flag_is_refused_as_unknown(
+            self, tmp_path, slot, indent, arm):
+        """Security-negative for the 2.0 removal (DEFECT #35): the name is no
+        longer known to any module, so a 1.x configuration that still carries
+        it is refused outright in every scope it used to be legal in — and in
+        the stream server, where it never was — rather than loading with the
+        line silently ignored."""
+        rc, out = _parse(tmp_path, **{slot: f"{indent}{REMOVED_FLAG} {arm};\n"})
+        assert rc != 0, out
+        assert any(f'unknown directive "{REMOVED_FLAG}"' in ln
                    for ln in _diagnostics(out)), _diagnostics(out)
 
 
@@ -596,10 +559,11 @@ class TestNothingIsLoggedAboutTheInertDirectives:
     """The last thing that could rescue an inert directive is a diagnostic.
 
     An operator who configured a cache and got a NOTICE saying the export does
-    not use one would find out at startup.  Eight locations, five of them
-    carrying the family and three carrying the passthrough flag, produce no
-    mention of either — which is what makes DEFECT CANDIDATE #110, and #35
-    beside it, a silent failure rather than a documented no-op.
+    not use one would find out at startup.  Five locations, four of them
+    carrying the family, produce no mention of it — which is what makes DEFECT
+    CANDIDATE #110 a silent failure rather than a documented no-op.  (#35,
+    the passthrough flag that used to be measured beside it, was removed in
+    2.0 and can no longer be logged about.)
     """
 
     def test_the_startup_log_never_names_the_cache_family(self, planes):
@@ -609,13 +573,8 @@ class TestNothingIsLoggedAboutTheInertDirectives:
                      if "open_file_cache" in ln]
         assert offenders == [], offenders
 
-    def test_the_startup_log_never_names_the_passthrough_flag(self, planes):
-        offenders = [ln for ln in planes.errlog().splitlines()
-                     if "passthrough_persist" in ln]
-        assert offenders == [], offenders
-
     def test_the_instance_started_clean(self, planes):
-        """No [emerg]/[alert]/[error] from the config load: the eight locations
+        """No [emerg]/[alert]/[error] from the config load: the five locations
         above are a configuration a real deployment could hold, and the claim
         that the directives are accepted means accepted without complaint.
 

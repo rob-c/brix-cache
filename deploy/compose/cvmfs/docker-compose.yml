@@ -1,0 +1,34 @@
+# cvmfs: the CVMFS site-cache image (deploy/cvmfs/docker) with its bundled mock
+# Stratum-1, so the stack is self-contained. Point ORIGINS at real Stratum-1s
+# and drop MOCK_STRATUM1 for production.
+services:
+  cache:
+    build:
+      context: ../../cvmfs/docker
+    environment:
+      MOCK_STRATUM1: "1"
+    ports:
+      - "3128:3128"   # forward proxy for CVMFS clients (CVMFS_HTTP_PROXY)
+      - "3129:3129"   # dashboard
+      - "3130:3130"   # /metrics + /healthz
+    volumes:
+      - cvmfs-cache:/var/cache/nginx-xrootd
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3130/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  client:
+    build:
+      context: ../../cvmfs/docker
+    profiles: ["smoke"]
+    depends_on:
+      cache:
+        condition: service_healthy
+    environment:
+      PROXY: http://cache:3128
+    entrypoint: ["/bin/sh", "/smoke.sh"]
+    volumes:
+      - ../../cvmfs/docker/smoke.sh:/smoke.sh:ro
+volumes:
+  cvmfs-cache: {}

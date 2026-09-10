@@ -129,7 +129,7 @@ tpc_read_bearer_token(brix_tpc_pull_t *t, u_char *buf, size_t buf_sz,
 /* WHAT: JWT bearer auth path — check delegated_token[0] != '\0' (OAuth2/OIDC exchange result) → strlen → malloc(4+token_len) → memcpy("ztn\x00") + token → tpc_send_kxr_auth(kXR_auth, seq=3) → recv_response checking status == kXR_ok → free(cred/body). Returns 0 or -1 with error code. Caller: tpc/thread.c (auth path dispatch based on login parameter block &P=ztn). */
 
 int
-tpc_outbound_ztn(brix_tpc_pull_t *t, int fd)
+tpc_outbound_ztn_seq(brix_tpc_pull_t *t, int fd, int seq)
 {
     u_char         *cred;
     uint32_t        cred_len;
@@ -178,12 +178,13 @@ tpc_outbound_ztn(brix_tpc_pull_t *t, int fd)
     ngx_memcpy(cred + 4, t->delegated_token, token_len);
 
     /*
-     * seq=3 is the handshake sequence following bootstrap (protocol=1, login=2),
-     * so this is the first authenticated request on the outbound socket. cred is
-     * a malloc()'d temporary owned here — free it on every exit path (the send
-     * helper copies what it needs into the header and writes the body inline).
+     * `seq` is the handshake sequence: 3 for the first authenticated request on
+     * a freshly bootstrapped socket (protocol=1, login=2), 4 for a mid-transfer
+     * renewal. cred is a malloc()'d temporary owned here — free it on every exit
+     * path (the send helper copies what it needs into the header and writes the
+     * body inline).
      */
-    if (tpc_send_kxr_auth(t, fd, 3, cred, cred_len) != 0) {
+    if (tpc_send_kxr_auth(t, fd, seq, cred, cred_len) != 0) {
         free(cred);
         return -1;
     }
@@ -209,6 +210,22 @@ tpc_outbound_ztn(brix_tpc_pull_t *t, int fd)
         return -1;
     }
 
+    /* W8.2: the source accepted this credential, so it is the one thing a
+     * mid-transfer renewal may replace. A pull that authenticated some other
+     * way — anonymously, or with a GSI proxy — has no ztn credential in play
+     * and must never be sent a renewal kXR_auth. */
+    t->cred_presented = 1;
     return 0;
+}
+
+/* WHAT: The original two-argument entry point — a ztn kXR_auth at handshake
+ * sequence 3. WHY: every existing caller (gsi_outbound_finish.c) means exactly
+ * that, the first authenticated request on a freshly bootstrapped outbound
+ * socket; only mid-transfer renewal (tpc/outbound/tpc_token_renew.c) needs a
+ * different sequence, and it says so explicitly. */
+int
+tpc_outbound_ztn(brix_tpc_pull_t *t, int fd)
+{
+    return tpc_outbound_ztn_seq(t, fd, 3);
 }
 

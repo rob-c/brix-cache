@@ -28,6 +28,24 @@ ngx_conf_enum_t brix_crl_modes[] = {
     { ngx_null_string,       0                       }
 };
 
+/* [brix_crl_scope all|last] (2.0 F19) — how far down the chain the revocation
+ * check reaches.  The stock xrd.tlsca spelling is `crlcheck all|last`; brix
+ * keeps the two value names verbatim so an operator porting a config does not
+ * have to translate them. */
+ngx_conf_enum_t brix_crl_scopes[] = {
+    { ngx_string("all"),  BRIX_CRL_SCOPE_ALL  },
+    { ngx_string("last"), BRIX_CRL_SCOPE_LAST },
+    { ngx_null_string,    0                   }
+};
+
+/* [brix_tls_verify_log off|failure|all] (2.0 F19) — verification diagnostics. */
+ngx_conf_enum_t brix_tls_verify_logs[] = {
+    { ngx_string("off"),     BRIX_TLS_VERIFY_LOG_OFF     },
+    { ngx_string("failure"), BRIX_TLS_VERIFY_LOG_FAILURE },
+    { ngx_string("all"),     BRIX_TLS_VERIFY_LOG_ALL     },
+    { ngx_null_string,       0                           }
+};
+
 /* §6 brix_cns mode values. */
 ngx_conf_enum_t brix_cns_modes[] = {
     { ngx_string("off"),     BRIX_CNS_OFF     },
@@ -73,6 +91,14 @@ ngx_conf_enum_t brix_cms_roles[] = {
     { ngx_string("peer"),       BRIX_CMS_ROLE_PEER       },  /* §2.17 */
     { ngx_string("proxy"),      BRIX_CMS_ROLE_PROXY      },  /* §2.17 */
     { ngx_null_string,          0                          }
+};
+
+/* Phase-115 W2.1 — `brix_cms_response`: how a manager answers a selected data
+ * server — the stock kXR_redirect, or proxy the session through the gateway. */
+ngx_conf_enum_t brix_cms_response_modes[] = {
+    { ngx_string("redirect"), BRIX_CMS_RESPONSE_REDIRECT },
+    { ngx_string("proxy"),    BRIX_CMS_RESPONSE_PROXY    },
+    { ngx_null_string,        0                          }
 };
 
 /* `brix_security_level` — kXR_sigver enforcement, none .. pedantic. */

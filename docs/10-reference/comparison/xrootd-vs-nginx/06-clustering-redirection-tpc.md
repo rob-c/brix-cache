@@ -385,7 +385,7 @@ only the completion callback (`done.c`) runs back on the event loop to frame the
 deferred response. Off-loop code uses `malloc`/`free` and raw socket syscalls —
 never `ngx_palloc` (not thread-safe there).
 
-### The native client (libxrdc) dialect
+### The native client (libbrix) dialect
 
 `client/lib/copy_remote.c::copy_tpc` (the `xrdcp --tpc` path of the native
 client) emits the **stock XrdOucTPC CGI dialect** in the stock XrdCl control
@@ -404,6 +404,59 @@ ignored by both sides). Regression matrix (all four server combinations plus a
 clean-failure guard): `tests/test_root_tpc.py::TestNativeClientRootTPC`.
 Delegation (`tpc.dlgon=1`, TPC-lite `tpc.scgi`) is NOT implemented in the
 native client.
+
+### The push dialect — `tpc.stage=push` (2.0 F16, BriX only)
+
+Stock native TPC is destination-side **pull** only: the destination dials the
+source and reads. A site whose storage may only make **outbound** connections —
+an egress-only firewall, a NAT with no inbound port, a worker-node cache — can
+therefore never be the source of a native copy. F16 adds the mirrored leg. It is
+a BriX dialect, not a stock one: **both** legs carry `tpc.stage=push`, so a
+stock peer that does not know the dialect never mistakes one for a pull.
+
+Three legs, in order:
+
+| Leg | From → to | Open | Effect |
+|---|---|---|---|
+| 1 | client → **destination** | write-open `<dst-lfn>?tpc.key=K&tpc.stage=push` | registers `K` in the SHM key registry and **creates** the file; nothing is dialled |
+| 2 | client → **source** | read-open `<src-lfn>?tpc.key=K&tpc.dst=<host[:port]>&tpc.dlfn=</dst/path>&tpc.stage=push[&tpc.str=N]` | parks the push intent behind an ordinary read-open; two `kXR_sync`s **arm** then **fire** the transfer |
+| 3 | source → **destination** | write-open `</dst/path>?tpc.key=K&tpc.org=<client>&tpc.stage=push` | **consumes** `K` (single-use) and writes; `kXR_open_updt` only, so a push can only write where a client already registered a key |
+
+`brix_tpc_push` (default `off`) arms both roles on a listener at once: a source
+may originate a push, and a destination may accept one. With it off, either leg
+is refused `kXR_Unsupported` at the open — before path resolution, authz and the
+write gate — so `brix_tpc_push off` is the answer a client sees, not a leak of
+whether the path exists.
+
+Security properties, all shared with the pull rather than re-implemented:
+
+- **Egress.** The destination the source is told to dial goes through the same
+  `brix_tpc_source_guard` / `brix_tpc_source_allow` allowlist and the same
+  `brix_tpc_allow_local` / `brix_tpc_allow_private` SSRF policy as a pull
+  source, including the per-resolved-address recheck at connect time
+  (INVARIANT 13, one DNS seam). A refused destination is refused at the **open**,
+  with `signal=tpc_egress` in the guard audit — no socket is dialled.
+- **Streams.** `tpc.str=<n>` is clamped by `brix_tpc_streams` exactly as on a
+  pull; the sub-streams are the source's own outbound connections.
+- **The source file is never removed.** `done.c` unlinks the partial file on a
+  failed *pull*, where it is the half-written destination copy. On a push that
+  same task field names the **operator's own file**, so the single
+  `tpc_done_remove_partial()` chokepoint returns early for a push. This is the
+  push's one genuine data-loss hazard and it is pinned by a test.
+- **The source export stays read-only.** A push source writes nothing locally —
+  it opens its own file for read and streams it out. The two arm/fire
+  `kXR_sync`s are the *only* thing exempted from the `brix_allow_write` gate
+  (`brix_write_gate_tpc_push_sync`, `src/protocols/root/handshake/policy.c`);
+  a `kXR_sync` on any other handle, a sync after the transfer has finished, and
+  every other write opcode still meet `kXR_fsReadOnly`. Turning on
+  `brix_tpc_push` therefore grants a client **no** mutation privilege on the
+  export.
+
+Coverage: `tests/test_release20_tpc_push.py` (15 tests — byte-exactness,
+four-stream fan-out counted at a splice in front of the destination, the
+stream-cap clamp, the unregistered key, both dialect-off refusals, key
+single-use, the egress refusal with zero dials, the three write-gate negatives,
+and the directive grammar).
 
 ### Outbound source auth (GSI / `ztn` / delegated tokens)
 
@@ -429,10 +482,11 @@ flagged as needing per-site verification.
 
 | Concern | Official `ofs.tpc` | BriX-Cache |
 |---|---|---|
-| Enable / key TTL | `ofs.tpc ttl <d>[ <m>]` | `brix_tpc_keys on`, `brix_tpc_key_ttl` |
+| Enable / key TTL | `ofs.tpc ttl <d>[ <m>]` | `brix_tpc_key_ttl` |
 | Concurrency | `ofs.tpc xfr`, `streams` | `brix_tpc_transfers`, `brix_tpc_max_transfer_secs`, `brix_tpc_transfer_max_age` |
 | Source restriction | `ofs.tpc allow {dn\|group\|host\|vo}`, `restrict <path>` | SSRF policy `brix_tpc_allow_local` / `brix_tpc_allow_private` (two-stage: event-thread preflight + per-resolved-address recheck at connect, closing the resolve/connect TOCTOU) |
 | Credential delegation | `ofs.tpc fcreds <auth> =<envar>`, `fcpath` | `brix_tpc_outbound_*` (OIDC/token-exchange + bearer file); GSI cert via `gsi_store` |
+| Direction | pull only (destination dials the source) | pull, **plus** the `tpc.stage=push` dialect behind `brix_tpc_push` (2.0 F16) so an egress-only source can originate the copy |
 | Confinement | OSS namespace | mandatory `brix_open_beneath(conf->rootfd, ...)` (`RESOLVE_BENEATH`); `launch.c` strips `root_canon` to pass the logical path |
 
 The module does **not** implement an external-program transfer model
@@ -459,7 +513,7 @@ byte forwarder.
 
 ### Module `src/net/proxy/` (transparent frame relay)
 
-`brix_proxy on` makes the node a **transparent reverse proxy** at the wire
+`brix_tap_proxy on` makes the node a **transparent reverse proxy** at the wire
 level. After local auth + TLS termination, `src/protocols/root/handshake/dispatch.c` calls
 `brix_proxy_dispatch()` for every post-login opcode (once
 `conf->proxy_enable && ctx->logged_in`), *before* any local read/write handler —
@@ -476,14 +530,14 @@ login, the client sees one endpoint.
 
 Capabilities (`src/net/proxy/`, memory: proxy enhancements / phase 2-3):
 
-- **Upstream credentialing** `brix_proxy_auth anonymous|forward|sss|sss:<keyname>`
-  and per-endpoint overrides on `brix_proxy_upstream host[:port] [auth]`:
+- **Upstream credentialing** `brix_tap_proxy_auth anonymous|forward|sss|sss:<keyname>`
+  and per-endpoint overrides on `brix_tap_proxy_upstream host[:port] [auth]`:
   anonymous; forward the client's WLCG bearer as a `ztn` credential; SSS keys
   (global or per-upstream, via `brix_sss_build_proxy_credential`); or a
   file-token bridge. Pool reuse is **credential-scoped** (index + auth type +
   bearer-token MD5), so a forwarded-token session never reuses another user's
   backend connection.
-- **Upstream TLS** `brix_proxy_upstream_tls on` with `_tls_ca` / `_tls_name`
+- **Upstream TLS** `brix_tap_proxy_upstream_tls on` with `_tls_ca` / `_tls_name`
   (SNI + optional cert verify).
 - **`kXR_bind` secondary proxying with lazy-open** — a bound secondary
   `read`/`pgread`/`readv` whose handle has no upstream mapping triggers a
@@ -497,9 +551,9 @@ Capabilities (`src/net/proxy/`, memory: proxy enhancements / phase 2-3):
 - **Idle-only reconnect recovery** (`brix_proxy_reconnect_attempts`): a drop
   while IDLE with no open handle re-bootstraps transparently; a drop mid-transfer
   is a hard `kXR_IOError`.
-- **Path rewriting** `brix_proxy_path_rewrite /strip /add`, multi-upstream
+- **Path rewriting** `brix_tap_proxy_path_rewrite /strip /add`, multi-upstream
   round-robin over healthy endpoints, a worker-local idle-connection pool
-  (`brix_proxy_pool`), `kXR_endsess` forwarding, and JSON audit logging of file
+  (`brix_proxy_pool` shm zone), `kXR_endsess` forwarding, and JSON audit logging of file
   and path-mutation ops (`brix_proxy_audit_log`).
 
 > Critical fix (memory: *proxy retry leak postmortem*): a proxy whose upstream
@@ -627,7 +681,7 @@ stream {
         brix_export /data/export;
         brix_listen_port 1095;       # advertised in the CMS login (must match)
         brix_cms_manager mgr.example.org:1094;
-        brix_tpc_keys on;            # enable native destination-pull TPC
+        brix_tpc_key_ttl 1h;         # native destination-pull TPC key lifetime
         brix_tpc_allow_private off;  # SSRF policy for the outbound pull
         # brix_tpc_outbound_bearer_file /etc/brix/tpc.token;  # source auth
     }
@@ -646,11 +700,10 @@ Transparent proxy and mirror are separate `server {}` modes:
 server {
     listen 1196;
     brix_root on;
-    brix_proxy on;
-    brix_proxy_upstream backend.example.org:1094 forward;  # forward client ztn
-    brix_proxy_upstream_tls on;
-    brix_proxy_auth forward;
-    brix_proxy_pool on;
+    brix_tap_proxy on;
+    brix_tap_proxy_upstream backend.example.org:1094 forward;  # forward client ztn
+    brix_tap_proxy_upstream_tls on;
+    brix_tap_proxy_auth forward;
 }
 
 # Shadow a new backend for migration validation (isolated namespace!):
@@ -683,7 +736,7 @@ server {
 | Redirector-confirm outbound client | `cmsd` mesh | `src/net/upstream/` (locate/open/stat only) | Different mechanism |
 | Native TPC key rendezvous | In-process mutex list (`XrdOfsTPCAuth.cc`) | **Cross-process SHM** registry (`key_registry.c`) | Parity + cross-worker, zero-copy |
 | TPC arm/flush handshake | Built-in/`pgm` driven | Two-phase via `kXR_sync` (`launch.c`/`sync.c`) | Parity |
-| TPC outbound source auth | `XrdSecgsi` + `fcreds` | hand-rolled GSI DH + `ztn` + OIDC/RFC8693 (`gsi_outbound_*`, `tpc_token.c`) | Parity (multi-hop/TLS edges not verified) |
+| TPC outbound source auth | `XrdSecgsi` + `fcreds` | hand-rolled GSI DH + `ztn` + OIDC/RFC8693 (`gsi_outbound_*`, `tpc_token.c`) | Parity (multi-hop via `brix_tpc_max_hops`, TLS upgrade via `brix_tpc_outbound_tls`, both tested in 2.0) |
 | External-program TPC (`ofs.tpc pgm`) | Yes | No (always in-process pull) | Missing (by design) |
 | Proxy storage model | XrdPss OSS re-client (`XrdPss/`) | Transparent wire frame relay (`src/net/proxy/`) | Different architecture |
 | Proxy upstream TLS / auth bridge / pool | XrdPss persona + XrdCl | `brix_proxy_*` (ztn/SSS/file, TLS, credential-scoped pool) | nginx+ for wire-relay form |

@@ -301,6 +301,12 @@ webdav_extract_and_set_voms_identity(ngx_http_request_t *r,
     STACK_OF(X509)  *chain;
     char             primary_vo[256] = "";
     char             vo_list[1024]   = "";
+    /* 2.0 F20: the raw FQANs travel in their OWN buffer — vo_list is '/'-free by
+     * construction so it can never carry "Role=...", and an identity built from
+     * it alone leaves acc_role_csv empty (dead `l` selector / XrdAcc role). */
+    char             fqan_list[1024] = "";
+    brix_voms_in_t   in;
+    brix_voms_out_t  out;
     ngx_int_t        rc = NGX_OK;
 
     if (conf->common.vomsdir.len == 0 || conf->common.voms_cert_dir.len == 0
@@ -315,13 +321,24 @@ webdav_extract_and_set_voms_identity(ngx_http_request_t *r,
     }
     chain = SSL_get_peer_cert_chain(ssl);   /* borrowed — do NOT free */
 
-    (void) brix_extract_voms_info(r->connection->log, leaf, chain,
-                                    &conf->common.vomsdir, &conf->common.voms_cert_dir,
-                                    primary_vo, sizeof(primary_vo),
-                                    vo_list, sizeof(vo_list));
+    in.leaf = leaf;
+    in.chain = chain;
+
+    ngx_memzero(&out, sizeof(out));
+    out.primary_vo = primary_vo;
+    out.primary_vo_sz = sizeof(primary_vo);
+    out.vo_list = vo_list;
+    out.vo_list_sz = sizeof(vo_list);
+    out.fqan_list = fqan_list;
+    out.fqan_list_sz = sizeof(fqan_list);
+
+    (void) brix_extract_voms_fqans(r->connection->log, &in,
+                                     &conf->common.vomsdir,
+                                     &conf->common.voms_cert_dir, &out);
 
     if (ctx->identity != NULL && vo_list[0] != '\0'
-        && brix_identity_set_vos_csv(ctx->identity, r->pool, vo_list) != NGX_OK)
+        && brix_identity_set_vos_fqans(ctx->identity, r->pool, vo_list,
+                                         fqan_list) != NGX_OK)
     {
         rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
     } else if (primary_vo[0] != '\0') {

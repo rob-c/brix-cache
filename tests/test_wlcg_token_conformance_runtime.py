@@ -50,9 +50,9 @@ def _expression_3(valid_tokens, invalid_tokens):
                 + [(tok, "reject") for tok in invalid_tokens]
     )
 
-def _expression_4(tasks, ex):
+def _expression_4(tasks, ex, probe):
     return (
-        [ex.submit(_probe, t) for t in tasks]
+        [ex.submit(probe, t) for t in tasks]
     )
 
 def _expression_5(futures):
@@ -174,7 +174,7 @@ def test_rt_02_concurrent_distinct_token_isolation():
         return expected, observed
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
-        futures = _expression_4(tasks, ex)
+        futures = _expression_4(tasks, ex, _probe)
         results = _expression_5(futures)
 
     mismatches = _expression_6(results)

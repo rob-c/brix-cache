@@ -29,7 +29,7 @@ int imp_op_mkdir(const imp_op_ctx_t *c);
 int imp_op_unlink(const imp_op_ctx_t *c);       /* UNLINK + RMDIR */
 int imp_op_chmod(const imp_op_ctx_t *c);
 int imp_op_chown(const imp_op_ctx_t *c);
-int imp_op_rename_link(const imp_op_ctx_t *c);  /* RENAME + RENAME_NOREPLACE + LINK */
+int imp_op_rename_link(const imp_op_ctx_t *c);  /* RENAME + _NOREPLACE + _EXCHANGE + LINK */
 int imp_op_setattr(const imp_op_ctx_t *c);
 int imp_op_symlink(const imp_op_ctx_t *c);
 int imp_op_readlink(const imp_op_ctx_t *c);

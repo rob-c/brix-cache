@@ -7,7 +7,7 @@ Policy (docs/refactor/phase-81-test-server-registry.md §"registry lint"):
   * No ``*.sh`` under ``tests/`` at all — the fleet is pure Python (the
     declarative ``fleet_specs`` catalogue launched by ``RegistryLauncher``).
   * Test code must not reach around the registry by shelling out to the
-    (now-deleted) ``manage_test_servers.sh`` / ``tests/lib/*.sh`` helpers.
+    (now-deleted) ``cmdscripts/manage_test_servers.py`` / ``tests/lib/*.sh`` helpers.
 
 The only direct launchers left are three explicit operator/namespace labs whose
 isolation model cannot be represented by the host registry.  The lint fails on
@@ -60,9 +60,22 @@ INFRA_ALLOW = {
 # a runnable inline-config server.  Config-syntax/negative tests that must assert
 # a directive is accepted or rejected at parse time legitimately feed a minimal
 # snippet to `nginx -t` and cannot be expressed as a committed runnable template.
+#
+# The binary reference is matched with an optional leading underscore and an
+# optional empty call, so `_NGINX`, `_nginx_bin()` and `lib.nginx_bin()` are seen
+# as well as the three bare names.  That is not tidiness: a closed list of exact
+# identifiers does not make a differently-named launcher CLEAN, it makes it
+# UNSEEN, and the guard's silence then reads as a pass.  Three files in the tree
+# spelled it otherwise, and one of them —
+# test_data_substreams_gateway.py, which starts two real gateway servers from a
+# module-level `_NGINX` — had never once been examined by this guard.  The other
+# direction costs a file its exemption for the same reason:
+# test_phase115_conf_unset_sentinel.py runs `nginx -t` and nothing else through
+# `_nginx_bin()`, and was flagged as an inline-config offender purely because
+# `_validation_only` could not see the `nginx -t` it was named for.
 _LAUNCH = re.compile(
     r"subprocess\.(?:run|Popen)\(\s*\[\s*(?:str\(\s*)?(?:[A-Za-z_]\w*\.)?"
-    r"(?:NGINX_BIN|NGINX|nginx_bin)\b([^\]]*)\]",
+    r"_?(?:NGINX_BIN|NGINX|nginx_bin)\b(?:\s*\(\s*\))?([^\]]*)\]",
     re.S,
 )
 _MARKER = "uses_lifecycle_harness"
@@ -98,6 +111,23 @@ LAUNCH_BACKLOG = frozenset({
     "userns/e2e_redteam_part4.py",
     "cmdscripts/system_live_ports.py",
     "_perf_netem_helpers.py",
+    # Both entries below surfaced only when the guard learned to read a binary
+    # reference spelled with a leading underscore or a call; each was an
+    # unflagged direct launcher for as long as it has existed.
+    #
+    # `test_data_substreams_gateway.py` is the fourth standalone-lab entry: a
+    # `requires_local_server` rig that boots two gateway servers from the SYSTEM
+    # nginx (`TEST_NGINX_BIN`, defaulting to /usr/sbin/nginx) rather than the
+    # build tree's, on fixed gateway/origin ports, and skips itself when that
+    # binary or xrdcp is absent.  It is a migration target, not a permanent
+    # exception — recorded here so the guard sees it, which it did not before.
+    "test_data_substreams_gateway.py",
+    # `test_phase115_example_configs.py` boots the SHIPPED compose stacks
+    # (deploy/compose/*/nginx*.conf) exactly as an operator would, which is the
+    # whole assertion: the deliverable under test is the committed config, not a
+    # tests/configs template the registry could render.  Ports are leased and
+    # remapped per run and every master is reaped by the stack's own `stop()`.
+    "test_phase115_example_configs.py",
 })
 
 
@@ -130,11 +160,18 @@ def _rel(path):
 
 
 def _argv_is_non_server_action(argv_tail):
-    """True when nginx exits after validation or version/build inspection."""
+    """True when nginx exits after validation, inspection, or signalling.
+
+    ``-s`` is signal mode: nginx reads the pidfile, sends `stop`/`quit`/`reload`
+    to a master that is ALREADY running, and exits.  It starts nothing, so it is
+    no more a launch than ``-t`` is — and the registry's own stop path is spelled
+    exactly that way (brix_suite/kinds.py), which is why the flag has to be
+    named here rather than the file exempted wholesale."""
     quoted_flags = {
         flag
         for quote in ('"', "'")
-        for flag in (f"{quote}-t{quote}", f"{quote}-v{quote}", f"{quote}-V{quote}")
+        for flag in (f"{quote}-t{quote}", f"{quote}-v{quote}",
+                     f"{quote}-V{quote}", f"{quote}-s{quote}")
     }
     return any(flag in argv_tail for flag in quoted_flags)
 
@@ -220,6 +257,66 @@ def test_non_server_nginx_actions_are_not_launchers():
     assert not _server_launches(source)
 
 
+def test_the_detector_sees_every_spelling_of_the_binary():
+    """(success) A launch is a launch whatever the module called the binary.
+
+    Each line below starts a server; the guard's job is to see all five.  The
+    old pattern accepted only the three bare names, so `_NGINX` and
+    `_nginx_bin()` were not judged clean — they were never read at all."""
+    spellings = (
+        'subprocess.Popen([NGINX_BIN, "-c", conf])',
+        'subprocess.run([str(nginx_bin), "-c", conf])',
+        'subprocess.Popen([settings.NGINX, "-c", conf])',
+        'subprocess.Popen([_NGINX, "-c", conf])',
+        'subprocess.run([_nginx_bin(), "-p", prefix, "-c", conf])',
+    )
+    unseen = [line for line in spellings if not _server_launches(line)]
+    assert unseen == [], (
+        "these argv0 spellings start a server and the guard cannot see them; "
+        f"an unseen launcher reads as a clean file: {unseen}")
+
+
+def test_the_extension_caught_a_launcher_that_had_never_been_seen():
+    """(error) The census that proves the widening was not cosmetic.
+
+    ``test_data_substreams_gateway.py`` boots two gateway servers from a
+    module-level ``_NGINX``.  Under the old pattern ``_direct_launchers()``
+    returned it in neither the offender set nor the backlog — the file was
+    invisible, and the guard's silence about it was indistinguishable from a
+    pass.  It is on the backlog now precisely so it is SEEN; if it is ever
+    migrated, ``test_launch_backlog_only_shrinks`` removes it.  Signal mode is
+    pinned in the same row: ``brix_suite/kinds.py`` became visible at the same
+    moment and must NOT be an offender, because ``-s quit`` stops a master
+    rather than starting one."""
+    launchers = _direct_launchers()
+    assert "test_data_substreams_gateway.py" in launchers, (
+        "the widened argv0 pattern no longer sees the `_NGINX` gateway rig; "
+        "the extension has regressed to its blind state")
+    assert "brix_suite/kinds.py" not in launchers, (
+        "`nginx -s quit` was counted as a launch — the registry's own stop "
+        "path is not a server start")
+    assert not _server_launches('subprocess.run([_nginx_bin(), "-s", "quit"])')
+
+
+def test_a_mentioned_binary_is_not_a_launch():
+    """(security-negative) Widening argv0 must not widen into argv.
+
+    The guard is anchored on argv0 for a reason: a client test that merely
+    NAMES an nginx constant inside an xrdcp/curl argv launches nothing, and
+    flagging it would push authors to silence the guard.  A leading underscore
+    or a call must not buy a match anywhere but the first element — nor may a
+    look-alike identifier that merely ends in one of the three names."""
+    innocent = (
+        'subprocess.run(["xrdcp", f"root://h:{NGINX_ANON_PORT}//x", dst])',
+        'subprocess.run(["curl", "-sv", NGINX_URL])',
+        'subprocess.run([XRDFS, str(nginx_bin), "stat", "/x"])',
+        'subprocess.Popen([MY_NGINX_WRAPPER, "-c", conf])',
+    )
+    flagged = [line for line in innocent if _server_launches(line)]
+    assert flagged == [], (
+        f"argv0 anchoring lost: these launch nothing yet were flagged {flagged}")
+
+
 def test_launch_backlog_only_shrinks():
     """Every backlog entry must still be a direct launcher.
 
@@ -235,7 +332,7 @@ def test_launch_backlog_only_shrinks():
 
 def test_no_test_code_sources_shell_helpers():
     """Test code must not reach around the registry by shelling out to the
-    deleted fleet shell helpers (manage_test_servers.sh / tests/lib/*.sh) —
+    deleted fleet shell helpers (cmdscripts/manage_test_servers.py / tests/lib/*.sh) —
     guards against reintroducing the bash fleet."""
     pattern = re.compile(
         r"""subprocess\.(?:run|Popen|call|check_call|check_output)\([^)]*"""

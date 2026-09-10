@@ -65,6 +65,10 @@ const char *brix_checksum_name(brix_checksum_alg_t alg);
  */
 
 ngx_flag_t brix_checksum_is_u32(brix_checksum_alg_t alg);
+
+/* Site plugin range (>= BRIX_CHECKSUM_PLUGIN_BASE in core/compat/checksum_plugin.h):
+ * neither u32 nor u64 nor an EVP digest; hex_fd/hex_obj dispatch to the plugin. */
+ngx_flag_t brix_checksum_is_plugin(brix_checksum_alg_t alg);
 /*
  * brix_checksum_is_u64 - check whether an algorithm produces a 64-bit result.
  *

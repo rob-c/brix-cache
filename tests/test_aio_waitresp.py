@@ -31,6 +31,7 @@ import shutil
 import socket
 import struct
 import subprocess
+from brix_suite.client_build import client_make
 import threading
 import tempfile
 import time
@@ -244,8 +245,7 @@ def _ensure_driver():
         return
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler / aio_waitresp not built")
-    subprocess.run(["make", "-C", CLIENT_DIR, "aio-waitresp"],
-                   capture_output=True, text=True, timeout=240)
+    client_make(CLIENT_DIR, "aio-waitresp", capture_output=True, text=True, timeout=240)
     if not os.path.exists(DRIVER):
         pytest.skip("aio_waitresp build failed")
 

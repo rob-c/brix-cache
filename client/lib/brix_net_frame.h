@@ -56,6 +56,15 @@ int brix_send_ext(brix_conn *c, void *hdr24, const brix_payload_ext *pl,
  * fault. */
 int brix_recv(brix_conn *c, uint16_t want_sid, brix_resp_out *out,
               brix_status *st);
+/* Pull the NEXT kXR_attn(asynresp) frame for want_sid and deliver its inner
+ * status/body (malloc'd, caller frees) — the same envelope validation brix_recv
+ * performs after a kXR_waitresp, exposed for a protocol whose deferred reply is
+ * a SEQUENCE of pushed frames rather than one. Such a caller sets
+ * c->defer_surfaces so brix_recv surfaces the ack, then calls this per frame and
+ * classifies each itself (SSI: alerts then the response, told apart only by the
+ * payload's leading RRInfoAttn tag). 0 / -1 (st set). */
+int brix_recv_next_asynresp(brix_conn *c, uint16_t want_sid, brix_resp_out *out,
+                            brix_status *st);
 
 /* Send a request and read its reply, transparently following kXR_redirect
  * (reconnect+replay, bounded by XRDC_REDIR_MAX + a visited-set loop guard) and

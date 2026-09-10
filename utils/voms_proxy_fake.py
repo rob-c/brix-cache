@@ -327,10 +327,11 @@ def _build_voms_ac(
     )
 
     # --- AttributeCertificate ::= SEQUENCE { tbs, sigAlg, sig } ---
-    ac = _der_seq(tbs_der + sig_alg + _der_bit_string(signature))
-
-    # VOMS wraps ACs in: SEQUENCE { SEQUENCE { ac } }
-    return _der_seq(_der_seq(ac))
+    # ONE AC.  The VOMS extension value is AC_SEQ ::= SEQUENCE { SEQUENCE OF AC },
+    # so the caller wraps whatever number of ACs the proxy carries — a real
+    # multi-VO proxy holds one AC per VO, and the 2.0 F20 authdb tests need
+    # exactly that shape to build a cross-tuple credential.
+    return _der_seq(tbs_der + sig_alg + _der_bit_string(signature))
 
 
 # ---------------------------------------------------------------------------
@@ -348,17 +349,69 @@ def _proxy_cert_info_der() -> bytes:
     return _der_seq(proxy_policy)
 
 
+def _ac_pairs(vo, fqan):
+    """Normalise the (vo, fqan) arguments into the AC list.
+
+    Both are either a single string (the historical single-VO call) or an
+    equal-length sequence.  They pair POSITIONALLY — pair i becomes AC i — which
+    is exactly the property the 2.0 F20 authdb tests rely on to build a
+    cross-tuple credential (see src/auth/authz/authdb.c::adb_pair_matches).
+    """
+    vos = [vo] if isinstance(vo, str) else list(vo)
+    fqans = [fqan] if isinstance(fqan, str) else list(fqan)
+    if len(vos) != len(fqans) or not vos:
+        raise ValueError("-voms and -fqan must be given the same number of times")
+    return list(zip(vos, fqans))
+
+
+def _write_proxy_atomically(out_path: str, combined: bytes) -> None:
+    """Write the proxy 0400, replacing any existing file.
+
+    Existing proxy files are intentionally mode 0400.  Replacing them via
+    O_TRUNC fails once the file is no longer owner-writable, so write a new file
+    in the same directory and atomically swap it into place instead.
+    """
+    out_dir = os.path.dirname(out_path) or '.'
+    os.makedirs(out_dir, exist_ok=True)
+
+    fd, tmp_path = tempfile.mkstemp(prefix='.voms-proxy-', dir=out_dir)
+    try:
+        try:
+            os.write(fd, combined)
+            os.fchmod(fd, 0o400)
+        finally:
+            os.close(fd)
+
+        os.replace(tmp_path, out_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except FileNotFoundError:
+            pass
+        raise
+
+
 def build_voms_proxy(
     user_cert_path: str,
     user_key_path: str,
     voms_cert_path: str,
     voms_key_path: str,
-    vo: str,
-    fqan: str,
+    vo,
+    fqan,
     uri: str,
     out_path: str,
     hours: int = 24,
 ):
+    """Write a VOMS proxy carrying one AC per (vo, fqan) pair.
+
+    `vo` and `fqan` are either two strings (the historical single-VO call) or
+    two equal-length sequences, which produce a genuine multi-VO proxy — the
+    only way to build a credential whose derived (vorg, role) tuples must be
+    paired POSITIONALLY rather than crossed (2.0 F20; see
+    src/auth/authz/authdb.c::adb_pair_matches).
+    """
+    pairs = _ac_pairs(vo, fqan)
+
     # Load credentials
     with open(user_cert_path, 'rb') as f:
         user_cert = x509.load_pem_x509_certificate(f.read())
@@ -387,11 +440,13 @@ def build_voms_proxy(
 
     now = datetime.datetime.now(datetime.timezone.utc)
 
-    # Build the VOMS Attribute Certificate
-    voms_ac_der = _build_voms_ac(
-        user_cert, voms_cert, voms_key,
-        vo, fqan, uri, hours,
+    # Build the VOMS Attribute Certificates — one per (vo, fqan) pair, wrapped
+    # in AC_SEQ ::= SEQUENCE { SEQUENCE OF AC } exactly as libvoms encodes it.
+    acs = b''.join(
+        _build_voms_ac(user_cert, voms_cert, voms_key, v, f, uri, hours)
+        for v, f in pairs
     )
+    voms_ac_der = _der_seq(_der_seq(acs))
 
     # Build proxy certificate
     builder = (
@@ -455,27 +510,7 @@ def build_voms_proxy(
 
     combined = proxy_cert_pem + proxy_key_pem + user_cert_pem
 
-    out_dir = os.path.dirname(out_path) or '.'
-    os.makedirs(out_dir, exist_ok=True)
-
-    # Existing proxy files are intentionally mode 0400. Replacing them via
-    # O_TRUNC fails once the file is no longer owner-writable, so write a new
-    # file in the same directory and atomically swap it into place instead.
-    fd, tmp_path = tempfile.mkstemp(prefix='.voms-proxy-', dir=out_dir)
-    try:
-        try:
-            os.write(fd, combined)
-            os.fchmod(fd, 0o400)
-        finally:
-            os.close(fd)
-
-        os.replace(tmp_path, out_path)
-    except Exception:
-        try:
-            os.unlink(tmp_path)
-        except FileNotFoundError:
-            pass
-        raise
+    _write_proxy_atomically(out_path, combined)
 
     not_after = now + datetime.timedelta(hours=hours)
     print(f"Your proxy is valid until {not_after.strftime('%c %Z')}")
@@ -494,8 +529,10 @@ def main():
     p.add_argument('-certdir',  required=False, help='Trusted CA directory (unused, accepted for compat)')
     p.add_argument('-hostcert', required=True, help='VOMS server certificate PEM')
     p.add_argument('-hostkey',  required=True, help='VOMS server private key PEM')
-    p.add_argument('-voms',     required=True, help='VO name')
-    p.add_argument('-fqan',     required=True, help='FQAN string (e.g. /cms/Role=NULL/Capability=NULL)')
+    p.add_argument('-voms',     required=True, action='append',
+                   help='VO name (repeatable; pairs positionally with -fqan)')
+    p.add_argument('-fqan',     required=True, action='append',
+                   help='FQAN string (e.g. /cms/Role=NULL/Capability=NULL); repeatable')
     p.add_argument('-uri',      required=True, help='VOMS server URI (hostname:port)')
     p.add_argument('-out',      required=True, help='Output proxy file path')
     p.add_argument('-hours',    type=int, default=24, help='Proxy validity in hours (default: 24)')

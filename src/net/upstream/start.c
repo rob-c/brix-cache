@@ -1,20 +1,18 @@
 #include "upstream_internal.h"
-#include "protocols/root/connection/netconnect.h"   /* shared outbound resolve/connect helper */
 
 /*
  * WHAT: Start an upstream XRootD connection — context allocation, DNS/TCP setup, bootstrap buffer build,
  *      and connect initiation for transparent proxy mode.
  * WHY: When a client connects in proxy mode, nginx must lazily open a backend XRootD server connection
  *      on the first post-login opcode. This file owns that startup sequence: allocating upstream context,
- *      resolving the upstream address (pre-configured or per-request DNS), creating a non-blocking socket,
+ *      taking the redirector's address from its runtime DNS target (phase-116), creating a non-blocking socket,
  *      arming event handlers, and building the initial handshake/protocol/login bootstrap bytes.
- * HOW: Two-path address resolution — fast path uses pre-resolved sockaddr from config (no DNS on event loop);
- *      fallback path calls getaddrinfo() per-request with warning logged at startup. Non-blocking socket +
+ * HOW: brix_dns_target_next() hands out the current answer round-robin (NGX_DECLINED while unresolved:
+ *      the request fails as "cannot resolve" and the registry keeps retrying). Non-blocking socket +
  *      ngx_get_connection + pool setup + read/write handler assignment + timer for kXR_wait retry. Bootstrap
  *      buffer contains handshake zeros, protocol request, and login request concatenated in wire order.
  */
 
-#include <netdb.h>
 #include <sys/socket.h>
 
 /*
@@ -83,56 +81,36 @@ brix_upstream_start_snapshot_request(brix_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /*
- * WHAT: Produce a connectable, non-blocking upstream socket and the sockaddr to
- *      connect it to. Returns the fd (>=0) and fills *addr and *addrlen on success;
- *      returns NGX_INVALID_FILE and sets *dns_failed on a hard DNS error.
- * WHY: Two address-resolution paths must be tried in a fixed order without touching
- *      the event loop when avoidable — config pre-resolution first, per-request DNS
- *      only as a fallback — and the caller distinguishes "cannot resolve" from
- *      "no usable address" for logging.
- * HOW: Fast path uses conf->upstream_addr (resolved at config time): open a socket
- *      of the address family, set non-blocking, and copy the sockaddr. Fallback path
- *      calls brix_resolve_connect_socket (blocking getaddrinfo, first family that
- *      yields a non-blocking socket wins) and reports BRIX_RESOLVE_ERR_DNS via
- *      *dns_failed. *addrlen stays 0 only on the failure paths.
+ * WHAT: Take the redirector's current address from its runtime DNS target and
+ *      open a non-blocking socket of that family; copies the sockaddr out.
+ * WHY: phase-116: no DNS ever runs on the event loop.  An unresolved target
+ *      (hostname not yet answered, or never answered) reports *dns_failed so
+ *      the caller distinguishes "cannot resolve" from "no usable socket".
+ * HOW: brix_dns_target_next() rotates through the answer set (NGX_DECLINED
+ *      while socklen == 0); *addrlen stays 0 only on the failure paths.
  */
 static int
 brix_upstream_start_resolve_socket(ngx_stream_brix_srv_conf_t *conf,
                                    struct sockaddr_storage *addr,
                                    socklen_t *addrlen, ngx_int_t *dns_failed)
 {
-    int fd;
+    int  fd;
 
     *dns_failed = 0;
+    *addrlen = 0;
 
-    if (conf->upstream_addr != NULL) {
-        /* fast path: address pre-resolved at config time — no DNS on event loop */
-        struct sockaddr *sa = conf->upstream_addr->sockaddr;
-
-        fd = ngx_socket(sa->sa_family, SOCK_STREAM, 0);
-        if (fd != (int) NGX_INVALID_FILE) {
-            if (ngx_nonblocking(fd) == NGX_ERROR) {
-                ngx_close_socket(fd);
-                fd = (int) NGX_INVALID_FILE;
-            } else {
-                ngx_memcpy(addr, sa, conf->upstream_addr->socklen);
-                *addrlen = conf->upstream_addr->socklen;
-            }
-        }
-        return fd;
+    if (brix_dns_target_next(conf->upstream_dns, addr, addrlen) != NGX_OK) {
+        *dns_failed = 1;
+        return (int) NGX_INVALID_FILE;
     }
 
-    /* fallback: resolve per-request (blocks event loop; logged as warning at startup).
-     * The first family yielding a non-blocking socket wins; a no-usable-socket
-     * result falls through to the shared `fd == INVALID` check in the caller. */
-    brix_resolve_status_t rstatus;
-
-    fd = brix_resolve_connect_socket((char *) conf->upstream_host.data,
-                                       (unsigned) conf->upstream_port,
-                                       BRIX_AF_AUTO,
-                                       addr, addrlen, &rstatus);
-    if (fd == (int) NGX_INVALID_FILE && rstatus == BRIX_RESOLVE_ERR_DNS) {
-        *dns_failed = 1;
+    fd = ngx_socket(((struct sockaddr *) addr)->sa_family, SOCK_STREAM, 0);
+    if (fd == (int) NGX_INVALID_FILE) {
+        return fd;
+    }
+    if (ngx_nonblocking(fd) == NGX_ERROR) {
+        ngx_close_socket(fd);
+        return (int) NGX_INVALID_FILE;
     }
     return fd;
 }

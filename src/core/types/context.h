@@ -435,6 +435,17 @@ typedef struct brix_ctx_s {
      */
     void       *relay;
 
+    /*
+     * F16 push intent park (src/tpc/engine/push_intent.c): a client read-open
+     * carrying `tpc.stage=push` names a REMOTE DESTINATION this server will
+     * later dial and write to.  The role is decided in brix_open_handle_tpc(),
+     * which runs BEFORE path resolution/authz/open, so the decision is parked
+     * here (c->pool-allocated, opaque brix_tpc_push_pending_t *) and stamped
+     * onto the handle by brix_open_finalize_handle() once the open succeeds.
+     * Cleared as soon as it is stamped, or when the open fails.
+     */
+    void       *tpc_push_pending;
+
 } brix_ctx_t;
 
 #endif /* BRIX_TYPES_CONTEXT_H */

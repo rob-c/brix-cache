@@ -38,10 +38,38 @@ CATALOGUE = TESTS / "brix_suite" / "catalogue"
 LEGACY = TESTS / "brix_suite" / "_legacy"
 
 #: The catalogue mutates ``brix_suite.registry._SPECS``.  Every probe therefore
-#: runs in a child process: a test that registered 126 specs into this session's
-#: registry would hand the next test a fleet it did not ask for.
+#: runs in a child process: a test that registered the whole fleet into this
+#: session's registry would hand the next test a fleet it did not ask for.
 _PREAMBLE = "import sys; sys.path.insert(0, %r); sys.path.insert(0, %r)\n" % (
     str(TESTS), str(SRC))
+
+
+#: The catalogue's size when it crossed the seam (TS-4, 2026-08-18).  A FLOOR,
+#: not the current count: the catalogue is the living fleet table and grows
+#: with every phase that adds a server (phase-115 W4.2 added ``ram-cache`` on
+#: 2026-09-06, and the first lane to reach this file afterwards halted on four
+#: copies of the literal 126).  A count below the floor is a lost spec; the
+#: live count is read from the catalogue inside each probe, so one fact has
+#: one home.
+SPECS_AT_THE_MOVE = 126
+
+#: Top-level definitions that are allowed to differ from the flat archive, with
+#: the reason each one stopped being verbatim.  The archive is a fossil of the
+#: move; the catalogue is live, so this ledger grows by one line per definition
+#: the tree edits after the move — never by editing the archive to match.
+DEVIATIONS = {
+    # was dirname(abspath(__file__)); after the move that names the package,
+    # not the flat tests/ tree (the TS-3 TESTS_DIR / TS-4 _caller_site class).
+    "_TESTS_DIR",
+    # imports _SPECS from the canonical registry, not via the server_registry shim.
+    "register_full_fleet",
+    # TS-5 servers-cluster: four stubs spawn python -m brix_suite.servers.* and
+    # carry the PYTHONPATH that -m needs, instead of a path under tests/lib/.
+    "support_specs",
+    # phase-115 W4.2 (2026-09-06): the read-through shape over a RAM cache
+    # store (`ram-cache`, nginx_ram_cache.conf) joined the dedicated fleet.
+    "dedicated_specs",
+}
 
 
 def _probe(code: str) -> str:
@@ -78,6 +106,24 @@ def _flat_defs() -> dict:
                  "fleet_values_flat.py"):
         merged.update(_toplevel_defs(LEGACY / name))
     return merged
+
+
+def _imported_names(path: pathlib.Path) -> set:
+    """Names one module binds by ``from … import``, as the module sees them."""
+    return {alias.asname or alias.name
+            for node in ast.parse(path.read_text()).body
+            if isinstance(node, ast.ImportFrom)
+            for alias in node.names}
+
+
+def _package_imported_names() -> set:
+    """Names the catalogue binds by import, not by definition.
+
+    ``_TESTS_DIR`` is the case: an assignment in the archive, an import from
+    ``brix_suite.settings`` in the package.  The definition scanner cannot see
+    it, so a presence check that ignored imports would call it deleted.
+    """
+    return set().union(*(_imported_names(p) for p in CATALOGUE.glob("*.py")))
 
 
 def _package_defs() -> dict:
@@ -118,28 +164,21 @@ def test_fleet_values_resolves_to_the_values_submodule():
     assert out == "True True"
 
 
-def test_the_move_was_verbatim_apart_from_three_named_deviations():
-    """Every moved definition is byte-identical, or is one of the three we own.
+def test_the_move_was_verbatim_apart_from_the_named_deviations():
+    """Every moved definition is byte-identical, or is in ``DEVIATIONS``.
 
-    ``_TESTS_DIR`` was ``dirname(abspath(__file__))``, which after the move
-    would name the catalogue package instead of the flat ``tests/`` tree — the
-    move-hazard class that also bit TS-3's ``TESTS_DIR`` and TS-4's
-    ``_caller_site``.  It is imported from ``brix_suite.settings`` now.
-    ``register_full_fleet`` imports ``_SPECS`` from the canonical registry
-    rather than through the ``server_registry`` shim.  ``support_specs`` gained
-    the TS-5 servers-cluster deviation: four stub specs spawn
-    ``python -m brix_suite.servers.*`` instead of naming a path under
-    ``tests/lib/``, and carry the ``PYTHONPATH`` that ``-m`` needs.
+    A post-move edit to the catalogue lands here first: the fix is one ledger
+    line naming the definition and why, not a mirror edit into ``_legacy/``
+    (the archive is inert by the test below and must stay a fossil).
     """
     flat, package = _flat_defs(), _package_defs()
-    deviations = {"_TESTS_DIR", "register_full_fleet", "support_specs"}
-
     changed = {name for name, text in flat.items()
                if package.get(name) != text}
-    assert changed == deviations, (
-        "verbatim-move violation: %s" % sorted(changed - deviations)
-        if changed - deviations else
-        "a known deviation stopped deviating: %s" % sorted(deviations - changed))
+    assert changed == DEVIATIONS, (
+        "verbatim-move violation, add a DEVIATIONS line or revert: %s"
+        % sorted(changed - DEVIATIONS)
+        if changed - DEVIATIONS else
+        "a known deviation stopped deviating: %s" % sorted(DEVIATIONS - changed))
     # The floor exists to catch the way this test could pass while proving
     # nothing: `_flat_defs()` returning an empty mapping makes `changed` empty
     # too.  Pin the archive's size, not the verbatim remainder — the remainder
@@ -155,7 +194,8 @@ def test_the_topic_split_lost_no_specs():
         " len(c.support_specs()), len(c.dedicated_specs()), len(c.ha_specs()),"
         " len(c._all_specs()))")
     parts = [int(n) for n in out.split()]
-    assert sum(parts[:-1]) == parts[-1] == 126
+    assert sum(parts[:-1]) == parts[-1]
+    assert parts[-1] >= SPECS_AT_THE_MOVE
 
 
 def test_every_catalogue_module_is_under_the_size_line():
@@ -168,6 +208,21 @@ def test_every_catalogue_module_is_under_the_size_line():
 
 # ---------------------------------------------------------------------------
 # error
+
+
+def test_a_named_deviation_still_exists_on_both_sides():
+    """The ledger excuses a changed definition, never a missing one.
+
+    ``package.get(name) != text`` is also true when ``name`` is absent from the
+    package, so deleting ``register_full_fleet`` from the catalogue would have
+    read as "still deviating" and the verbatim pin would have stayed green.
+    """
+    flat = _flat_defs()
+    package = set(_package_defs()) | _package_imported_names()
+    missing = {name: (name in flat, name in package)
+               for name in DEVIATIONS
+               if name not in flat or name not in package}
+    assert missing == {}, "stale DEVIATIONS entry (in archive, in package): %s" % missing
 
 
 def test_the_exec_mechanism_is_gone():
@@ -187,8 +242,11 @@ def test_registering_the_fleet_twice_is_a_no_op_not_an_error():
         "import fleet_specs\n"
         "from brix_suite.registry import registered_specs\n"
         "fleet_specs.register_full_fleet(); first = len(registered_specs())\n"
-        "fleet_specs.register_full_fleet(); print(first, len(registered_specs()))")
-    assert out == "126 126"
+        "fleet_specs.register_full_fleet(); second = len(registered_specs())\n"
+        "print(first, second, len(fleet_specs._all_specs()))")
+    first, second, catalogue = (int(n) for n in out.split())
+    assert first == second == catalogue
+    assert catalogue >= SPECS_AT_THE_MOVE
 
 
 def test_the_merged_fleet_declares_no_conflicting_ports():
@@ -235,8 +293,10 @@ def test_registering_through_one_flat_name_is_visible_through_the_other():
         "fleet_specs_part2.register_full_fleet()\n"
         "import fleet_specs, server_registry\n"
         "print(fleet_specs is fleet_specs_part2,"
-        " len(server_registry.registered_specs()))")
-    assert out == "True 126"
+        " len(server_registry.registered_specs()), len(fleet_specs._all_specs()))")
+    same, registered, catalogue = out.split()
+    assert same == "True"
+    assert int(registered) == int(catalogue) >= SPECS_AT_THE_MOVE
 
 
 def test_the_legacy_archives_are_inert():

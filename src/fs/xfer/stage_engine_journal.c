@@ -25,6 +25,7 @@
 #include "stage_engine.h"
 #include "stage_engine_internal.h"
 #include "xfer.h"   /* brix_xfer_finish + the kind/result vocabulary (ledger) */
+#include "stage_events.h"          /* 2.0 F2 StageEvents feed (brix_frm_stagemsg) */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -44,7 +45,60 @@
  * extraction of src/frm/ is the remaining SP4/SP5 migration. */
 
 char            stage_journal_dir[1024];     /* "" = in-memory only */
+ngx_uint_t      stage_max_inflight = BRIX_STAGE_MAX_INFLIGHT_DEFAULT;
+ngx_uint_t      stage_max_attempts = BRIX_STAGE_DENY_MAX_ATTEMPTS;
+
+void
+brix_stage_engine_set_limits(ngx_uint_t max_inflight, ngx_uint_t max_attempts)
+{
+    if (max_inflight > 0) {
+        stage_max_inflight = max_inflight;
+    }
+    if (max_attempts > 0) {
+        stage_max_attempts = max_attempts;
+    }
+}
+
+ngx_uint_t
+brix_stage_engine_max_inflight(void)
+{
+    return stage_max_inflight;
+}
+
+ngx_uint_t
+brix_stage_engine_max_attempts(void)
+{
+    return stage_max_attempts;
+}
+
+const char *
+brix_stage_engine_journal_dir(void)
+{
+    return stage_journal_dir;
+}
+
+int
+stage_journal_load(const char *path, brix_sreq_t *rec)
+{
+    char     rbuf[sizeof(brix_sreq_t)];
+    int      fd;
+    ssize_t  n;
+
+    fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        return -1;
+    }
+    n = read(fd, rbuf, sizeof(rbuf));
+    (void) close(fd);
+    if (n < 0 || brix_sreq_decode(rbuf, (size_t) n, rec) != NGX_OK) {
+        return -1;
+    }
+    return 0;
+}
 static uint64_t stage_reqid_seq;
+#if (NGX_THREADS)
+static ngx_tid_t stage_loop_tid;    /* the event loop's thread (2.0 F3) */
+#endif
 
 void
 brix_stage_engine_init(const char *journal_dir)
@@ -54,6 +108,19 @@ brix_stage_engine_init(const char *journal_dir)
     } else {
         stage_journal_dir[0] = '\0';
     }
+#if (NGX_THREADS)
+    stage_loop_tid = ngx_thread_tid();
+#endif
+}
+
+int
+brix_stage_on_loop(void)
+{
+#if (NGX_THREADS)
+    return stage_loop_tid == 0 || ngx_thread_tid() == stage_loop_tid;
+#else
+    return 1;
+#endif
 }
 
 /* Mint a per-worker-unique request id: pid-seconds-counter. */
@@ -177,10 +244,32 @@ static void
 stage_journal_persist_failed(const char *journal_dir, brix_sreq_t *rec,
     int last_errno)
 {
+    char num[24], att[24];
+
     rec->state       = BRIX_SREQ_FAILED;
     rec->last_errno  = last_errno;
     rec->finished_at = (int64_t) time(NULL);
     stage_journal_update_rec(journal_dir, rec);
+    brix_stage_events_emit("engine", "failed", rec->reqid, rec->dst_key,
+                           "errno",
+                           brix_stage_events_num(num, sizeof(num), last_errno),
+                           "attempts",
+                           brix_stage_events_num(att, sizeof(att),
+                                                 rec->attempts),
+                           NULL);
+}
+
+/* 2.0 F2: the dead-letter line names why the record left the retry loop. */
+static void
+stage_journal_note_deadletter(const brix_sreq_t *rec, const char *reason)
+{
+    char att[24];
+
+    brix_stage_events_emit("engine", "deadletter", rec->reqid, rec->dst_key,
+                           "attempts",
+                           brix_stage_events_num(att, sizeof(att),
+                                                 rec->attempts),
+                           "reason", reason, NULL);
 }
 
 void
@@ -210,7 +299,15 @@ stage_journal_mark_failed(const char *journal_dir, const char *reqid,
     if (brix_sreq_decode(rbuf, (size_t) n, &rec) != NGX_OK) {
         return;                          /* corrupt slot — leave it for reconcile */
     }
-    stage_journal_persist_failed(journal_dir, &rec, last_errno);
+    /* 2.0 (2026-09-09): count THIS drive. A failed first drive is an attempt —
+     * "attempts a journal record may accumulate ... a transient failure" is what
+     * brix_frm_fail_retries caps (directives.md) — and it is the only number the
+     * `replayed` event can report about a record the sweep just rescued. Before,
+     * the inline/thread completion path persisted FAILED without bumping, so a
+     * record that failed once and was re-driven successfully published
+     * attempts=0, indistinguishable from a crash replay that never ran at all
+     * (which stays 0: it recorded no failure). */
+    stage_journal_bump_failed(journal_dir, &rec, last_errno);
 }
 
 void
@@ -334,7 +431,7 @@ stage_deny_terminal(const char *journal_dir, const char *reqid,
     /* Check both caps: attempt count OR age triggers dead-letter. */
     age_sec = (int64_t) time(NULL) - rec->enqueued_at;
 
-    if (rec->attempts < BRIX_STAGE_DENY_MAX_ATTEMPTS
+    if (rec->attempts < stage_max_attempts
         && age_sec < (int64_t) BRIX_STAGE_DENY_MAX_AGE_SEC)
     {
         return 0;    /* below both caps — keep record in active journal for retry */
@@ -354,5 +451,25 @@ stage_deny_terminal(const char *journal_dir, const char *reqid,
         (long) age_sec);
 
     stage_journal_move_to_deadletter(journal_dir, reqid, log);
+    stage_journal_note_deadletter(rec, "denied");
+    return 1;
+}
+
+int
+stage_retry_terminal(const char *journal_dir, brix_sreq_t *rec,
+    int last_errno, ngx_log_t *log)
+{
+    stage_journal_bump_failed(journal_dir, rec, last_errno);
+    if (rec->attempts < stage_max_attempts) {
+        return 0;                  /* below brix_frm_fail_retries: keep FAILED */
+    }
+    ngx_log_error(NGX_LOG_ERR, log, 0,
+        "xrootd stage: flush DEAD-LETTERED (reqid=%s key=%s dst=\"%s\" "
+        "attempts=%uD errno=%d) - brix_frm_fail_retries reached while the "
+        "origin stays unreachable; stage copy retained in deadletter/ for "
+        "operator recovery",
+        rec->reqid, rec->src_key, rec->dst_key, rec->attempts, last_errno);
+    stage_journal_move_to_deadletter(journal_dir, rec->reqid, log);
+    stage_journal_note_deadletter(rec, "unreachable");
     return 1;
 }

@@ -164,6 +164,50 @@ brix_dispatch_require_auth(brix_ctx_t *ctx, ngx_connection_t *c)
     return BRIX_DISPATCH_CONTINUE;
 }
 
+/*
+ * brix_write_gate_tpc_push_sync — is this request the arm-or-fire kXR_sync of an
+ * F16 native TPC PUSH?
+ *
+ * WHAT: 1 only for kXR_sync naming an already-open handle that carries the
+ *       tpc_push bit and whose transfer has not finished; 0 for everything else.
+ * WHY:  kXR_sync belongs in the write table — a sync normally flushes bytes this
+ *       server wrote — but a push SOURCE writes nothing locally.  It opens its
+ *       own file for READ (the task's dst_fd is O_RDONLY, and done.c never
+ *       unlinks it), streams the bytes out, and the REMOTE destination does the
+ *       writing behind its own brix_allow_write.  Without this exemption the
+ *       two syncs that arm and fire the copy would meet "this is a read-only
+ *       server", so an operator could only export data by push if they first
+ *       made the export writable — handing every client a mutation privilege the
+ *       feature does not need.  Fixing the gate is the honest fix; widening the
+ *       export is not.
+ * HOW:  scoped as narrowly as the wire permits.  The opcode must be kXR_sync,
+ *       the handle must be in bounds and open, and it must already carry
+ *       tpc_push — a bit set only by brix_open_handle_tpc(), only on a listener
+ *       with `brix_tpc_push on`, and only after the destination passed the
+ *       egress allowlist and the cached SSRF verdict.  Auth and the bound-stream
+ *       refusal above are NOT relaxed; a kXR_sync on any other handle, and every
+ *       other write opcode, still meets the read-only refusal.
+ */
+static int
+brix_write_gate_tpc_push_sync(brix_ctx_t *ctx)
+{
+    xrdw_sync_req_t  req;
+    int              idx;
+
+    if (ctx->recv.cur_reqid != kXR_sync || ctx->files == NULL) {
+        return 0;
+    }
+
+    xrdw_sync_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
+    idx = (int) (unsigned char) req.fhandle[0];
+
+    if (idx < 0 || idx >= BRIX_MAX_FILES) {
+        return 0;
+    }
+
+    return ctx->files[idx].tpc_push && !ctx->files[idx].tpc_done;
+}
+
 ngx_int_t
 brix_dispatch_require_write(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
@@ -185,7 +229,9 @@ brix_dispatch_require_write(brix_ctx_t *ctx, ngx_connection_t *c,
                                  "handles");
     }
 
-    if (!conf->common.allow_write) {
+    /* F16: the push source arms and fires on a handle it opened for read, on an
+     * export that stays read-only.  Nothing else is exempted here. */
+    if (!conf->common.allow_write && !brix_write_gate_tpc_push_sync(ctx)) {
         return brix_send_error(ctx, c, kXR_fsReadOnly,
                                  "this is a read-only server");
     }

@@ -579,15 +579,22 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, brix_sd_precond_t *pre)
     return vfs_staged_commit_compat(st, pre, final_path, start);
 }
 
-/* Close the staged temp and, when `remove_tmp`, unlink it (the failure/cleanup
- * path). Idempotent; safe on a NULL handle. */
+/* Close the staged temp and, when `remove_tmp`, unlink it (failure/cleanup
+ * path). Idempotent; safe on a NULL handle. Driver-backed: an unconsumed driver
+ * handle is an unpublished object (only a successful commit NULLs it), so its
+ * abort runs regardless of `remove_tmp` — until phase-115 W3.1 only the POSIX
+ * temp was purged, and a refused or disconnected upload left the frm online
+ * buffer under the FINAL key: served as the object, shadowing tape. */
 void
 brix_vfs_staged_abort(brix_vfs_staged_t *st, unsigned remove_tmp)
 {
     if (st == NULL) {
         return;
     }
-
+    if (st->driver_staged != NULL && st->ctx->sd->driver->staged_abort != NULL) {
+        st->ctx->sd->driver->staged_abort(st->driver_staged);
+    }
+    st->driver_staged = NULL;
     brix_staged_abort(st->log, st->ctx->root_canon, &st->staged,
                         remove_tmp ? 1 : 0);
 }

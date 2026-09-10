@@ -193,7 +193,7 @@ brix_file_open_opaque(brix_conn *c, const char *path, const char *opaque,
      * no fhandle yet — the orchestrator never does I/O on this handle (the dest pulls
      * the bytes); it only keeps the connection open so the registration stays live,
      * then drains the deferred reply once the pull is triggered. Report success. */
-    if (c->tpc_coord_defer && status == kXR_waitresp) {
+    if (c->defer_surfaces && status == kXR_waitresp) {
         memset(f->fhandle, 0, XRD_FHANDLE_LEN);
         f->read_codec = 0;
         f->write_codec = 0;

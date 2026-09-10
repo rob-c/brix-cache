@@ -49,6 +49,9 @@ int frm_mss_purge(void *mss, const char *key);
 int frm_mss_open_online(void *mss, const char *key);
 int frm_mss_create_online(void *mss, const char *key, mode_t mode);
 int frm_mss_sync_publish(void *mss, const char *key);
+/* Phase-115 W3.2: 1 iff the MSS holds a durable copy of `key`, else 0 — the
+ * shared-head form asks the `exists` verb (defined in sd_frm_mss_ops.c). */
+int frm_mss_on_tape(void *mss, const char *key);
 /* phase-107 C6; defined in sd_frm_exec.c (sd_frm_stub.c is at the 600-line
  * cap) and shared by the exec and lib adapters; the stub leaves the slot NULL
  * (same precedent as the lib adapter's absent list/mkpath). */
@@ -59,10 +62,11 @@ int frm_online_path(const char *base, const char *key, char *out, size_t cap);
 
 /* Build an adapter context (the sd_frm_state mss_ctx).  Returns the opaque
  * context, or NULL with errno = ENOMEM.  `location` is the online-buffer / stub
- * tape root; `stagecmd` is the exec adapter's stage command. */
+ * tape root; `stagecmd` is the exec adapter's stage command and `timeout_ms`
+ * the per-invocation deadline (brix_frm_copy_timeout, 0 = none). */
 void *brix_mss_stub_create(const char *location, ngx_log_t *log);
 void *brix_mss_exec_create(const char *location, const char *stagecmd,
-          ngx_log_t *log);
+          ngx_msec_t timeout_ms, ngx_log_t *log);
 
 /* Build the library-native (dlopen) adapter context: opens `libpath` and binds
  * the HSM ABI (sd_frm_lib_abi.h).  Returns NULL when the library is absent or
@@ -74,5 +78,7 @@ void *brix_mss_lib_create(const char *location, const char *libpath,
 /* Filesystem helpers shared by both adapters (defined in sd_frm_stub.c). */
 void frm_mkparents(const char *path);
 int  stub_copyfile(const char *src, const char *dst, mode_t mode);
+/* fsync the parent directory of `path` (phase-107 C3 publish barrier). */
+int  frm_dirsync_parent(const char *path);
 
 #endif /* BRIX_FS_BACKEND_FRM_SD_FRM_MSS_H */

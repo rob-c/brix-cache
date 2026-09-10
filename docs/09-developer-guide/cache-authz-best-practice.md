@@ -97,7 +97,7 @@ evaluation, TTL-bounded so a revoked grant cannot outlive the window.
 2. **Key policy on the logical namespace path**, e.g. `g cms /cms rl`. A remote-origin cache
    node roots at `/`; confirm your rule paths match the wire path the node sees (check the
    access log — it prints the resolved path and the denial reason).
-3. **Turn on impersonation (`brix_impersonation map`) for multi-user nodes** so the actual file
+3. **Turn on impersonation (`brix_idmap map`) for multi-user nodes** so the actual file
    I/O runs as the mapped uid — defence in depth beneath the authorization gate. The gate
    decides *allow/deny*; impersonation ensures the bytes are read as the right kernel identity.
 4. **Do not put private data behind a cvmfs node.** cvmfs is a public content-distribution
@@ -134,7 +134,7 @@ evaluation, TTL-bounded so a revoked grant cannot outlive the window.
 
 The protocol gate (§2) governs the *served* path, but the on-disk cache/staging artifacts are a
 service-owned tree that aggregates many users' bytes. If those files are world/group-readable,
-a mapped low-privilege uid (under `brix_impersonation map`, users land on real system uids) can
+a mapped low-privilege uid (under `brix_idmap map`, users land on real system uids) can
 read another user's cached bytes — or the `.cinfo` residency bitmap, size, and mtime — by
 **direct filesystem access**, bypassing the gate entirely. This matters most on shared
 filesystems / login nodes.
@@ -158,7 +158,7 @@ are the *served* file's real perms and must **not** be forced to `0600`.
 
 The write-side analog of §4a: an upload is written to a **temp** file that is later atomically
 `rename`d onto the namespace object. Those temps were world-readable (`0644`), so under
-`brix_impersonation map` a peer mapped uid could read another user's **in-progress** upload by
+`brix_idmap map` a peer mapped uid could read another user's **in-progress** upload by
 direct FS access — most acute for the resumable-PUT partial, which persists across requests and
 restarts.
 
@@ -224,7 +224,7 @@ names from clients does not impede the cache/staging machinery.
 `brix_assert_dir_outside_export()` ([`src/core/config/export_guard.h`](../../src/core/config/export_guard.h))
 **rejects the config** (`nginx -t` and startup both fail) if a service tree that holds sidecars is
 at or beneath an export root — the effective cache/state tree and `brix_stage_dir` for root://,
-`brix_webdav_cache_root`/`brix_webdav_stage_dir` for WebDAV, `brix_s3_cache_root` for S3. Paths
+`brix_webdav_cache_root`/`brix_stage_dir` for WebDAV, `brix_s3_cache_root` for S3. Paths
 are canonicalized (realpath) before the at-or-beneath test. This is a deploy-blocking error, not
 a warning: an operator cannot ship a topology that depends on the runtime filter as its only line
 of defence. (A pure cache node advertising export `/` — the whole namespace mapped to a remote

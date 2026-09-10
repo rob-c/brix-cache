@@ -57,6 +57,7 @@ typedef struct {
     ngx_http_request_t *r;
     int                 n;
     time_t              ttl;
+    const brix_dns_policy_t *dns;      /* the export's resolver (phase-116)   */
     u_char             *body;          /* pool-allocated response buffer      */
     size_t              body_len;
     cvmfs_geo_entry_t   e[CVMFS_GEO_MAX_ENTRIES];
@@ -325,7 +326,7 @@ cvmfs_geo_thread(void *data, ngx_log_t *log)
         cvmfs_geo_entry_t *e = &t->e[i];
 
         if (e->valid && e->need_probe) {
-            e->sample_us = brix_cvmfs_connect_rtt_us(e->host, e->port,
+            e->sample_us = brix_cvmfs_connect_rtt_us(t->dns, e->host, e->port,
                                                        CVMFS_GEO_PROBE_TIMEOUT_MS);
         }
     }
@@ -430,6 +431,7 @@ brix_cvmfs_geo_answer(ngx_http_request_t *r,
     ngx_memzero(t, sizeof(*t));
     t->r = r;
     t->ttl = (lcf->cvmfs.geo_cache_ttl > 0) ? lcf->cvmfs.geo_cache_ttl : 60;
+    t->dns = lcf->common.dns.policy;
 
     max_probe = (lcf->cvmfs.geo_max_servers > 0) ? lcf->cvmfs.geo_max_servers
                                                  : 16;

@@ -195,13 +195,52 @@ def test_family_label_schema(scrape, family, keys):
             f"{family}: label keys {sorted(labels)} != schema {sorted(keys)}")
 
 
-def test_unset_threshold_family_has_no_samples(scrape):
-    """brix_cache_eviction_threshold_ratio: HELP/TYPE render, but a matrix
-    with no eviction threshold configured exports NO sample row (absent, not
-    0.0 — a scraper must be able to distinguish unset from zero)."""
+# Every stream plane of nginx_lc_cachemx.conf sets
+# `brix_cache_eviction_threshold 99.9999%`; a metrics slot publishes its
+# per-server cache rows after its first accepted connection.
+THRESHOLD_PPM = 999_999
+AUTH_LABEL_WORDS = {"anon", "gsi", "token", "sss", "unix", "krb5"}
+
+
+def _threshold_rows(text):
+    return [(labels, v) for name, labels, v in parse_samples(text)
+            if name == "brix_cache_eviction_threshold_ratio"]
+
+
+def test_threshold_family_renders_the_configured_ratio_per_stream_plane(mx, scrape):
+    """brix_cache_eviction_threshold_ratio: HELP/TYPE render, and a stream
+    plane that has accepted a connection exports its CONFIGURED trigger
+    (99.9999% -> 0.999999).  Until 2.0 readiness F6 a `brix_cache_store`
+    tier without `brix_cache on` was not counted as a cache and exported no
+    per-server cache row at all; the pin this replaces had calibrated that
+    absence as if the threshold were unset."""
     assert "# TYPE brix_cache_eviction_threshold_ratio gauge" in scrape
-    assert not [s for s in parse_samples(scrape)
-                if s[0] == "brix_cache_eviction_threshold_ratio"]
+    r = mx.xrdfs("none", "stat", "/")
+    assert r.returncode == 0, r.stderr
+    rows = {labels["port"]: v
+            for labels, v in _threshold_rows(cx.mfetch(mx.metrics))}
+    assert rows.get(str(mx.port("PORT"))) == pytest.approx(THRESHOLD_PPM / 1e6)
+
+
+def test_threshold_rows_show_the_plane_ppm_not_the_merge_default(mx):
+    """Error arm: every published row is the plane's own ppm inside (0, 1) —
+    never the 0.9 merge default of an unconfigured server, never a raw
+    ppm integer."""
+    rows = _threshold_rows(cx.mfetch(mx.metrics))
+    assert rows, "no stream plane has published a threshold row"
+    assert all(0.0 < v < 1.0 for _, v in rows), rows
+    assert all(v == pytest.approx(THRESHOLD_PPM / 1e6) for _, v in rows), rows
+
+
+def test_threshold_rows_carry_only_the_low_cardinality_labels(mx):
+    """Security/cardinality arm: the row is keyed by {auth, port} only —
+    the auth word comes from the fixed mode table, never a DN, a keytab or
+    the cache root path."""
+    for labels, _ in _threshold_rows(cx.mfetch(mx.metrics)):
+        assert set(labels) == {"auth", "port"}, labels
+        assert labels["auth"] in AUTH_LABEL_WORDS, labels
+        assert labels["port"].isdigit(), labels
+        assert "/" not in "".join(labels.values()), labels
 
 
 # -- value grammar -----------------------------------------------------------

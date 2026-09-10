@@ -38,6 +38,7 @@ brix_readv_aio_thread(void *data, ngx_log_t *log)
 
     t->bytes_read_total = 0;
     t->io_error = 0;
+    t->io_errno = 0;
     t->response_bytes = 0;
     t->err_msg[0] = '\0';
 
@@ -57,6 +58,7 @@ brix_readv_aio_thread(void *data, ngx_log_t *log)
 
     if (job.io_errno != 0) {
         t->io_error = 1;
+        t->io_errno = job.io_errno;
         if (t->err_msg[0] == '\0') {
             snprintf(t->err_msg, sizeof(t->err_msg), "readv I/O error");
         }
@@ -111,7 +113,11 @@ brix_readv_aio_done(ngx_event_t *ev)
         ngx_free(t->segments);
         brix_release_read_buffer(ctx, c, t->response_buffer);
         BRIX_OP_ERR(ctx, BRIX_OP_READV);
-        brix_send_error(ctx, c, kXR_IOError, t->err_msg);
+        if (t->io_errno == EAGAIN) {
+            (void) brix_read_io_error(ctx, c, t->io_errno);  /* §4.5 frontier */
+        } else {
+            brix_send_error(ctx, c, kXR_IOError, t->err_msg);
+        }
         brix_aio_resume(c);
         return;
     }

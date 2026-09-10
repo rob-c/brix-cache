@@ -38,12 +38,13 @@ caller (S3/WebDAV/root PUT · tape RECALL · WT close FLUSH · TPC COPY)
 | `xfer_spawn.c` | crash-safe synchronous reparented command runner | **Phase 4a ✓** |
 | `xfer_ledger.c` | unified audit line (one record per terminal transfer) | **Phase 2 ✓** |
 | `xfer_core.c` | terminal chokepoint (`brix_xfer_finish`); full envelope pending | **Phase 4b (chokepoint ✓)** |
-| `stage_engine.c` / `.h` | the one async-staging front door `brix_stage_submit()` — four kinds (RECALL / FLUSH / UPLOAD / MULTIPART), generic promote loop between two SD instances | **phase-64 ✓** |
+| `stage_engine.c` / `.h` | the one async-staging front door `brix_stage_submit()` — five kinds (RECALL / FLUSH / UPLOAD / MULTIPART / ARCHIVE — the 2.0 F3 dataset seal), generic promote loop between two SD instances | **phase-64 ✓** |
 | `stage_engine_journal.c` | the durable request journal (subsumes the FRM reqfile; kind-aware records survive restart) | **phase-64 ✓** |
 | `stage_engine_scheduler.c` | per-worker tick draining the queued FIFO through the mover (thread-pool offload when available) | **phase-64 ✓** |
 | `stage_engine_reconcile.c` | startup recovery: replays journalled FLUSH records, resets crashed INFLIGHT→QUEUED | **phase-64 ✓** |
 | `stage_request_registry.c` (+ `_mutate.c`, `_query.c`) | the SHM-backed durable request registry (request ids; QUEUED / INFLIGHT / DONE / FAILED / EXPIRED) | **phase-64 ✓** |
 | `stage_waiter.c` | parks a client open on an async stage request id and wakes it on completion | **phase-64 ✓** |
+| `stage_events.c` | the `brix_frm_stagemsg` StageEvents feed: one `%`-escaped `<utc> <source> <event> <reqid> <key> [k=v…]` line per engine / prepare-registry / MSS transition, best-effort (opened once per worker, re-opened lazily, never fails a stage) | **2.0 F2 ✓** |
 | `backend_async_queue.c` | durable write-behind queue for backend **namespace** mutations (`brix_backend_async`: unlink/rmdir/rename/mkdir coalesced + journalled) — deliberately separate from the byte-transfer engine | landed |
 | `xfer_resume_sweep.c` | worker-0 TTL sweep of abandoned `*.xrdresume.part` partials | landed |
 

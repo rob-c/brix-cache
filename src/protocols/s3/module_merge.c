@@ -166,52 +166,6 @@ s3_merge_token(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *prev,
 }
 
 /*
- * s3_export_attach_credential() — attach a named brix_credential's secrets to
- *   the export's source backend (§14).
- *
- * WHAT: When the export names a brix_credential, resolves it, derives its
- *   bearer token, and hands the bearer plus any x509/CA/S3/SSS secrets to the
- *   VFS backend registered for this export root.
- *
- * WHY: This is the densest sub-concern of the enabled-export build — a lookup,
- *   a bearer derivation, and a fully-populated backend-cred struct. Extracting
- *   it keeps the export orchestrator readable while preserving the exact
- *   deny/error diagnostics.
- *
- * HOW: Copies the credential name into a bounded buffer, looks it up
- *   (missing → NGX_LOG_EMERG + NGX_CONF_ERROR), maps it through the shared
- *   brix_credential_to_backend_cred() (P80.1 — the ONE mapper), then calls
- *   brix_vfs_backend_set_credential().
- */
-static char *
-s3_export_attach_credential(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *conf)
-{
-    char                     cred_z[256];
-    char                     bearer[4096];
-    const brix_credential_t *cred;
-    brix_vfs_backend_cred_t  bcred;
-
-    ngx_cpystrn((u_char *) cred_z, conf->common.storage_credential.data,
-                ngx_min(conf->common.storage_credential.len + 1,
-                        sizeof(cred_z)));
-    cred = brix_credential_lookup(cred_z);
-    if (cred == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_s3_storage_credential: no brix_credential \"%V\"",
-            &conf->common.storage_credential);
-        return NGX_CONF_ERROR;
-    }
-    if (brix_credential_to_backend_cred(cred, bearer, sizeof(bearer),
-                                          &bcred, cf->log) != NGX_OK)
-    {
-        return NGX_CONF_ERROR;
-    }
-    brix_vfs_backend_set_credential(conf->common.root_canon, &bcred);
-
-    return NGX_CONF_OK;
-}
-
-/*
  * s3_merge_export() — the enabled-export config build block.
  *
  * WHAT: For an S3-enabled location: pins the posix backend to the export tree,
@@ -283,7 +237,9 @@ s3_merge_export(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *conf)
 
     /* §14: attach the named brix_credential's bearer to the source backend. */
     if (conf->common.storage_credential.len > 0) {
-        if (s3_export_attach_credential(cf, conf) != NGX_CONF_OK) {
+        if (brix_http_attach_storage_credential(cf, &conf->common)
+            != NGX_CONF_OK)
+        {
             return NGX_CONF_ERROR;
         }
     }

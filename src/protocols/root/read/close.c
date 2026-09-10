@@ -35,6 +35,7 @@
 #include "net/ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
 #include "fs/cache/cache_internal.h"
 #include "core/compat/staged_file.h"
+#include "core/compat/error_mapping.h"   /* brix_kxr_from_errno */
 #include "fs/vfs/vfs.h"     /* brix_vfs_neg_stat_forget (phase-56 C-2)        */
 #include "fs/xfer/xfer.h"   /* unified transfer audit ledger (root:// STAGE) */
 #include "protocols/root/write/wrts_journal.h"
@@ -141,13 +142,17 @@ brix_close_pgw_gate(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
  * the handle so no partial object is published.
  * HOW: NGX_DECLINED = "nothing to commit, continue". On failure, abort the
  * session xfer, free the handle, stash the error-send's NGX_OK in *rc and return
- * NGX_DONE = "handled, stop".
+ * NGX_DONE = "handled, stop". The commit's errno picks the code through the
+ * shared translator (EEXIST = ItExists for a refused kXR_new, EROFS =
+ * fsReadOnly, ENOSPC = NoSpace) and rides in the text — a blanket IOError
+ * told a client whose create lost a race to retry (phase-115 W3.1).
  */
 static ngx_int_t
 brix_close_staged_commit(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     ngx_int_t *rc)
 {
-    int  cerr = 0;
+    int   cerr = 0;
+    char  emsg[96];
 
     if (ctx->files[idx].writer == NULL || ctx->files[idx].staged_committed) {
         return NGX_DECLINED;
@@ -158,7 +163,10 @@ brix_close_staged_commit(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     brix_close_finish_sess_xfer(ctx, idx, BRIX_SESS_XFER_ABORTED);
     brix_free_fhandle(ctx, idx);
     BRIX_OP_ERR(ctx, BRIX_OP_CLOSE);
-    *rc = brix_send_error(ctx, c, kXR_IOError, "staged commit failed");
+    snprintf(emsg, sizeof(emsg), "staged commit failed: %s",
+             strerror(cerr != 0 ? cerr : EIO));
+    *rc = brix_send_error(ctx, c, brix_kxr_from_errno(cerr != 0 ? cerr : EIO),
+                          emsg);
     return NGX_DONE;
 }
 

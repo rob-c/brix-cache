@@ -98,9 +98,12 @@ s3o_header_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
  *       the mutual-TLS options (in req->client_cert_pem), so both entry points
  *       share one body.
  * HOW:  Acquires this thread's persistent warm handle, builds the header list,
- *       configures every per-request option (s3o_configure), performs the
- *       transfer and emits the trace line. A per-request curl handle is reset
- *       between uses, so TLS/cert options do not leak into the next request. */
+ *       configures every per-request option (s3o_configure — which also pins
+ *       the endpoint's brix-resolved address and fails before any transfer
+ *       when the host does not resolve, phase-116), performs the transfer and
+ *       emits the trace line. A per-request curl handle is reset between uses,
+ *       so TLS/cert options and the address pin do not leak into the next
+ *       request. */
 static int
 s3o_request_impl(const s3o_request_t *req, brix_s3_resp_t *resp,
                  char *errbuf, size_t errcap)
@@ -108,6 +111,7 @@ s3o_request_impl(const s3o_request_t *req, brix_s3_resp_t *resp,
     CURL              *curl;
     CURLcode           res;
     struct curl_slist *slist = NULL;
+    struct curl_slist *resolve = NULL;
     s3o_resp_t        *r;
     long               status = 0;
     struct timespec    t0;
@@ -127,13 +131,22 @@ s3o_request_impl(const s3o_request_t *req, brix_s3_resp_t *resp,
         return -1;                   /* handle stays in TLS, reused next call */
     }
 
-    slist = s3o_build_headers(req);
-    s3o_configure(curl, req, r, slist);
-
     tr.method = req->method;
     tr.host   = req->host;
     tr.port   = req->port;
     tr.path   = req->path_and_query;
+
+    slist = s3o_build_headers(req);
+    if (s3o_configure(curl, req, r, slist, &resolve, errbuf, errcap) != 0) {
+        tr.status = -1;              /* the endpoint did not resolve: nothing
+                                        was performed (phase-116) */
+        tr.dur_ms = s3o_ms_since(&t0);
+        tr.err    = (errbuf != NULL && errcap > 0) ? errbuf : "DNS";
+        s3o_trace(&tr);
+        curl_slist_free_all(slist);
+        free(r);
+        return -1;
+    }
 
     res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
@@ -144,6 +157,7 @@ s3o_request_impl(const s3o_request_t *req, brix_s3_resp_t *resp,
         tr.dur_ms = s3o_ms_since(&t0);
         tr.err    = curl_easy_strerror(res);
         s3o_trace(&tr);
+        curl_slist_free_all(resolve);
         curl_slist_free_all(slist);
         free(r->body);
         free(r->hdrs);
@@ -153,6 +167,7 @@ s3o_request_impl(const s3o_request_t *req, brix_s3_resp_t *resp,
     }
 
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+    curl_slist_free_all(resolve);
     curl_slist_free_all(slist);
 
     resp->status = (int) status;

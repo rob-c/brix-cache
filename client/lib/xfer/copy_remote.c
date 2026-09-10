@@ -168,7 +168,7 @@ gen_tpc_key(char *out, size_t outsz)
  *   4. open SRC read with  tpc.key=K &tpc.dst=<dhost> &tpc.stage=copy
  *      → the source authorizes the upcoming pull (stock authQ / nginx SHM
  *      key registry). nginx defers this open's reply until the pull completes
- *      (tpc_coord_defer surfaces the kXR_waitresp); stock replies immediately.
+ *      (defer_surfaces surfaces the kXR_waitresp); stock replies immediately.
  *   5. kXR_sync DST — trigger the pull and await completion (the reply may be
  *      deferred via kXR_waitresp → kXR_attn(asynresp); brix_recv unwraps it).
  * The destination server connects to the source itself and pulls the bytes — no
@@ -345,17 +345,25 @@ static void
 tpc_build_dst_opaque(char *dst_opaque, size_t need, const tpc_params_t *p)
 {
     char asize[48];
+    char streams[24];
     int  dlgon = (p->o != NULL && p->o->tpc_mode == XRDC_TPC_DELEGATE) ? 1 : 0;
 
-    asize[0] = '\0';
+    asize[0]   = '\0';
+    streams[0] = '\0';
+    /* -S/--streams N on a TPC copy becomes tpc.str=N: the destination pulls
+     * with N parallel kXR_bind streams, clamped by its brix_tpc_streams. */
+    if (p->o != NULL && p->o->streams > 1) {
+        snprintf(streams, sizeof(streams), "&tpc.str=%d", p->o->streams);
+    }
     if (p->size >= 0) {
         snprintf(asize, sizeof(asize), "&oss.asize=%lld", (long long) p->size);
     }
     snprintf(dst_opaque, need,
              "tpc.key=%s&tpc.src=%s&tpc.lfn=%s&tpc.dlg=%s:%d&tpc.spr=root"
-             "&tpc.tpr=root&tpc.dlgon=%d%s&tpc.stage=copy%s%s",
+             "&tpc.tpr=root&tpc.dlgon=%d%s&tpc.stage=copy%s%s%s",
              p->key, p->src_hp, p->su->path, p->su->host, p->su->port, dlgon,
-             asize, p->tok ? "&tpc.token_mode=" : "", p->tok ? p->tok : "");
+             asize, p->tok ? "&tpc.token_mode=" : "", p->tok ? p->tok : "",
+             streams);
 }
 
 
@@ -368,7 +376,7 @@ tpc_build_dst_opaque(char *dst_opaque, size_t need, const tpc_params_t *p)
  * HOW:  Heap-size and build both opaques, connect+open the destination (cgiC2Dst)
  *       and sync it (setup/arm), then open the source (cgiC2Src, tpc.dst =
  *       dc.host, the puller endpoint the source will see). The source open runs
- *       with tpc_coord_defer=1 so brix_recv surfaces the kXR_waitresp deferral
+ *       with defer_surfaces=1 so brix_recv surfaces the kXR_waitresp deferral
  *       rather than blocking — the pull that satisfies it is only triggered by
  *       the verify-stage sync, so blocking here would deadlock the rendezvous.
  *       The source connection stays open so the registration remains live.
@@ -379,7 +387,7 @@ tpc_run_rendezvous(tpc_state_t *s, const tpc_params_t *p, brix_status *st)
     /* Heap-size the opaque strings to the actual host/path/key/token lengths. */
     size_t need = XRDC_HOSTPORT_MAX + strlen(p->su->host) + strlen(p->su->path)
                   + strlen(p->du->host) + strlen(p->du->path) + 40
-                  + (p->tok ? strlen(p->tok) : 0) + 192;
+                  + (p->tok ? strlen(p->tok) : 0) + 216;
 
     s->src_opaque = (char *) malloc(need);
     s->dst_opaque = (char *) malloc(need);
@@ -407,7 +415,7 @@ tpc_run_rendezvous(tpc_state_t *s, const tpc_params_t *p, brix_status *st)
     snprintf(s->src_opaque, need, "tpc.key=%s&tpc.dst=%s&tpc.stage=copy%s%s",
              p->key, s->dc.host,
              p->tok ? "&tpc.token_mode=" : "", p->tok ? p->tok : "");
-    s->sc.tpc_coord_defer = 1;
+    s->sc.defer_surfaces = 1;
     if (brix_file_open_opaque(&s->sc, p->su->path, s->src_opaque, 0, 0, 0,
                               &s->sf, st) != 0) {
         return tpc_state_teardown(s, -1, st);

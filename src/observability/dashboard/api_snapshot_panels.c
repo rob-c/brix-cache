@@ -387,6 +387,11 @@ dashboard_fill_cluster(json_t *target, ngx_pool_t *pool, int64_t now_ms,
         json_object_set_new(srv, "heartbeat_age_ms",  json_integer((json_int_t) age));
         json_object_set_new(srv, "stale",
             age > (int64_t) conf->cluster_stale_after_ms ? json_true() : json_false());
+        /* §2.4: the free-space floor the node advertised, and whether it is
+         * currently latched out of the write set by it. */
+        json_object_set_new(srv, "min_free_mb",       json_integer((json_int_t) entries[i].min_free_mb));
+        json_object_set_new(srv, "space_blocked",
+            entries[i].space_blocked ? json_true() : json_false());
         /* Phase 23: a non-zero blacklist means the server is drained/blacklisted. */
         json_object_set_new(srv, "draining",
             entries[i].blacklisted_until != 0 ? json_true() : json_false());

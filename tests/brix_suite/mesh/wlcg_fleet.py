@@ -20,11 +20,39 @@ from pathlib import Path
 
 import brix_suite.settings as settings
 from server_launcher import LifecycleHarness
-from brix_suite.registry import NginxInstanceSpec
+from brix_suite.registry import NginxInstanceSpec, registered_specs, unregister
 from brix_suite.settings import HOST
 
 _SERVER_CERT: Path | None = None
 _SERVER_KEY: Path | None = None
+
+
+def _release_stale(harness, name: str) -> None:
+    """Drop a registration a previous instance left behind, and stop its server.
+
+    WHAT: makes acquiring the fixed ``lc-wlcg`` name idempotent.
+
+    WHY: the name is claimed in ``WlcgInstance.__init__`` and released only in
+    ``stop()``.  Four suites share it, several construct an instance purely to
+    call ``configtest()`` and never start (so never stop) it, and any test body
+    that fails between the two leaves it held.  Every later construction in the
+    file then dies in ``register()`` with "server already registered" — one
+    lane-1 run lost 15 rows across three files that way, and not one of the 15
+    was the defect: the cascade buried whichever failure started it.  A test
+    harness must not convert one red into fifteen.
+
+    HOW: stop first, then unregister.  Unregistering a still-running server
+    would orphan the process holding the ledger port, which is the failure this
+    is meant to prevent, one layer down.  ``stop`` is best-effort because the
+    common case is a name held with nothing behind it.
+    """
+    if not any(spec.name == name for spec in registered_specs()):
+        return
+    try:
+        harness.launcher.stop(name)
+    except Exception:                       # noqa: BLE001 — nothing to serve
+        pass
+    unregister(name)
 
 
 def _ensure_server_cert(base: Path) -> tuple[Path, Path]:
@@ -95,6 +123,7 @@ class WlcgInstance:
         # Register up front so the port is reserved (for davs_port / attempt_davs)
         # and configtest() can render + `nginx -t` without ever starting.
         self._harness = LifecycleHarness()
+        _release_stale(self._harness, self._name)
         self._registered = self._harness.register(self._spec)
         self.davs_port = self._harness.endpoint(self._name).port
 

@@ -63,7 +63,7 @@ typedef struct {
 /*
  * webdav_move_probe — confined stat of `path` (follow, matching the prior
  * lstat nofollow=0) via the VFS probe, projected to the struct stat fields MOVE
- * reads (ino/dev for the self-move guard, mode for the dir branch). Non-metered.
+ * reads (ino/dev for brix_webdav_same_object, mode for the dir branch). Non-metered.
  * NGX_OK / NGX_DECLINED (errno kept).
  */
 static ngx_int_t
@@ -75,12 +75,11 @@ webdav_move_probe(ngx_http_request_t *r, const char *path, struct stat *sb)
         ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     brix_vfs_ctx_t   vctx;
     brix_vfs_stat_t  vst;
-    int                is_tls = brix_http_request_is_tls(r);
 
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
         conf->common.root_canon, conf->common.cache_root_canon,
         brix_vfs_policy_from_write_enable(conf->common.allow_write),
-        is_tls, (rx != NULL) ? rx->identity : NULL, path);
+        brix_http_request_is_tls(r), (rx != NULL) ? rx->identity : NULL, path);
     /* Bind the export's per-user backend credential policy so a remote-backed
      * export's probe (and the deny gate it enforces) sees the REQUESTING
      * USER's credential, not the shared service credential — this probe is
@@ -348,9 +347,8 @@ webdav_move_resolve_dest(ngx_http_request_t *r,
     }
 
     /* Extract path component from Destination URL, stripping scheme://authority. */
-    dest_path_start = dest_hdr->value.data;
-    dest_path_len   = dest_hdr->value.len;
-    rc = webdav_destination_extract_path(dest_path_start, dest_path_len,
+    rc = webdav_destination_extract_path(dest_hdr->value.data,
+                                         dest_hdr->value.len,
                                          &dest_path_start, &dest_path_len);
     if (rc != NGX_OK) {
         return rc;
@@ -561,9 +559,10 @@ webdav_handle_move(ngx_http_request_t *r)
         return NGX_HTTP_PRECONDITION_FAILED;
     }
 
-    /* Prevent moving a resource onto itself */
-    if (req.dst_existed && src_sb.st_ino == dst_sb.st_ino
-        && src_sb.st_dev == dst_sb.st_dev)
+    /* Prevent moving a resource onto itself — the same predicate COPY applies,
+     * including the reason an inode-only test cannot be it on a remote export. */
+    if (req.dst_existed
+        && brix_webdav_same_object(src_path, dst_path, &src_sb, &dst_sb))
     {
         return NGX_HTTP_FORBIDDEN;
     }

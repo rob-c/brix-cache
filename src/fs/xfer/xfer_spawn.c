@@ -19,7 +19,9 @@
 #include <errno.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
+#include <sys/syscall.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -72,9 +74,33 @@ xfer_write_exact(int fd, const void *buf, size_t len)
     }
 }
 
+/* Close every descriptor above stderr in the command's process: the worker's
+ * listen sockets (nginx opens them without CLOEXEC), client connections,
+ * epoll and logs must not reach an external program (2.0, 2026-09-08 --
+ * the loop this replaces stopped at 1023, below a worker's usual
+ * worker_rlimit_nofile, so a busy worker leaked connections). close_range
+ * (Linux 5.9) does it in one syscall; older kernels get a loop bounded by
+ * the descriptor limit, which the caller reads before forking. All
+ * async-signal-safe. */
+static void
+xfer_spawn_close_inherited(int fd_max)
+{
+    int f;
+
+#ifdef SYS_close_range
+    if (syscall(SYS_close_range, 3, ~0U, 0) == 0) {
+        return;
+    }
+#endif
+    for (f = 3; f < fd_max; f++) {
+        (void) close(f);
+    }
+}
+
 /* The agent body (runs reparented): fork the command, wait, report exit code. */
 static void
-xfer_spawn_agent(int result_fd, const char *const argv[], char *const envp[])
+xfer_spawn_agent(int result_fd, const char *const argv[], char *const envp[],
+    int fd_max)
 {
     pid_t child;
     int   status;
@@ -86,10 +112,7 @@ xfer_spawn_agent(int result_fd, const char *const argv[], char *const envp[])
         _exit(0);
     }
     if (child == 0) {
-        int f;
-        for (f = 3; f < 1024; f++) {
-            (void) close(f);     /* drop the socketpair + any inherited fds */
-        }
+        xfer_spawn_close_inherited(fd_max);   /* the socketpair + every worker fd */
         /* execvpe: PATH search when argv[0] has no '/', matching the prior
          * posix_spawnp; an absolute/relative path skips the search. */
         execvpe(argv[0], (char *const *) argv, envp ? envp : environ);
@@ -109,6 +132,8 @@ brix_xfer_run_reparented(const char *const argv[], char *const envp[])
     sigset_t block, prev;
     pid_t    inter;
     int      code = -1;
+    struct rlimit nofile;
+    int      fd_max = 1024;
 
     if (argv == NULL || argv[0] == NULL) {
         errno = EINVAL;
@@ -118,6 +143,11 @@ brix_xfer_run_reparented(const char *const argv[], char *const envp[])
         return -1;
     }
 
+    if (getrlimit(RLIMIT_NOFILE, &nofile) == 0 && nofile.rlim_cur != RLIM_INFINITY
+        && nofile.rlim_cur < (rlim_t) 1 << 20)
+    {
+        fd_max = (int) nofile.rlim_cur;   /* the loop fallback's bound */
+    }
     sigemptyset(&block);
     sigaddset(&block, SIGCHLD);
     sigprocmask(SIG_BLOCK, &block, &prev);
@@ -135,7 +165,7 @@ brix_xfer_run_reparented(const char *const argv[], char *const envp[])
         pid_t agent = fork();
         if (agent == 0) {
             close(sv[0]);
-            xfer_spawn_agent(sv[1], argv, envp);   /* never returns */
+            xfer_spawn_agent(sv[1], argv, envp, fd_max);   /* never returns */
             _exit(0);
         }
         _exit(0);                                  /* intermediate → reparent */

@@ -272,10 +272,9 @@ def _frm_block(paths):
         return ""
     return (
         "        brix_frm on; brix_frm_queue_path %s;\n"
-        "        brix_frm_copycmd %s; brix_frm_copymax 4;\n"
+        "        brix_frm_stagecmd %s; brix_frm_copymax 4;\n"
         "        brix_frm_async_recall on; brix_frm_stage_ttl 30s;\n"
-        "        brix_frm_xfrhold 50ms;\n"
-        "        brix_frm_max_inflight 64; brix_frm_max_per_source 16;\n"
+        "        brix_frm_max_inflight 64;\n"
         % (paths["queue"], paths["copycmd"])
     )
 

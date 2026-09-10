@@ -224,8 +224,8 @@ http {
     location / {
       brix_webdav on;
       brix_storage_backend posix:{{ .Values.role.data.root }};
-      brix_webdav_cafile /etc/grid-security/certificates/ca.pem;
-      brix_webdav_crl    /etc/brix/crl/crl.pem;
+      brix_trusted_ca /etc/grid-security/certificates/ca.pem;
+      brix_crl    /etc/brix/crl/crl.pem;
       brix_webdav_auth   required;
       brix_allow_write on;
     }

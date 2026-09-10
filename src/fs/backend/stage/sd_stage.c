@@ -134,6 +134,24 @@ sd_stage_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags,
                                     err_out);
 }
 
+/* 2.0 F5 hinted open: a write open is the decorator's own write-back object
+ * (a hint is meaningless there); a read open relays the hints to the source
+ * so a cache tier below the stage tier still sees pfc.blocksize/prefetch. */
+static brix_sd_obj_t *
+sd_stage_open_hinted(brix_sd_instance_t *inst, const char *path, int sd_flags,
+    mode_t mode, const brix_sd_cred_t *cred,
+    const brix_sd_open_hints_t *hints, int *err_out)
+{
+    sd_stage_inst_state *is = inst->state;
+
+    if (sd_flags & BRIX_SD_O_WRITE) {
+        return sd_stage_open_write(inst, is, path, sd_flags, mode, cred,
+                                    err_out);
+    }
+    return brix_sd_open_hinted_maybe_cred(is->source, path, sd_flags, mode,
+                                           cred, hints, err_out);
+}
+
 /* ---- namespace / xattr / dir forwarders (delegate to the source) ----------
  *
  * Each op appears twice: a plain slot and its credential-scoped twin, both
@@ -410,6 +428,7 @@ const brix_sd_driver_t brix_sd_stage_driver = {
                  | BRIX_SD_CAP_DIRS | BRIX_SD_CAP_DIRS_WRITE,
     .open        = sd_stage_open,
     .open_cred   = sd_stage_open_cred,
+    .open_hinted = sd_stage_open_hinted,
     /* write-back byte-I/O (only dispatched for objects opened for write — a read
      * open returns the source's own object with the source driver). */
     .pread       = sd_stage_wb_pread,

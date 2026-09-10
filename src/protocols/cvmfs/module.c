@@ -216,6 +216,11 @@ ngx_http_brix_cvmfs_preconfiguration(ngx_conf_t *cf)
 {
     ngx_http_variable_t *v, *nv;
 
+    /* phase-116: the probe registration tables restart with every config
+     * parse (see brix_cvmfs_rtt_regs_reset) */
+    brix_cvmfs_rtt_regs_reset();
+    brix_cvmfs_swarm_regs_reset();
+
     for (v = ngx_http_brix_cvmfs_vars; v->name.len; v++) {
         nv = ngx_http_add_variable(cf, &v->name, v->flags);
         if (nv == NULL) {

@@ -65,7 +65,7 @@ but only if the owner is *gone* — an orphaned live worker is not dead.
 ```bash
 pgrep -af nginx                    # anything running from a wiped prefix?
 pkill -9 nginx                     # NOT `pkill -f objs/nginx` — misses workers
-tests/manage_test_servers.sh stop-all && tests/manage_test_servers.sh start-all
+(cd tests && python3 -m cmdscripts.manage_test_servers stop-all && python3 -m cmdscripts.manage_test_servers start-all)
 ```
 
 Harness rule: teardown must `killpg()` the master from the *correct*
@@ -165,7 +165,7 @@ serves, which auth), then:
 
 ```bash
 ss -tlnp | grep <port>                     # is anything listening?
-tests/manage_test_servers.sh start-all     # bring the fleet up
+(cd tests && python3 -m cmdscripts.manage_test_servers start-all)   # bring the fleet up
 tail -50 /tmp/xrd-test/logs/error.log      # if it should be up but isn't
 ```
 

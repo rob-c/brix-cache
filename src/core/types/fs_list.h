@@ -65,7 +65,9 @@
     X(STAGE,     stage,     "stage",    DECORATOR) /* write-back stage     */ \
     X(REMOTE,    remote,    "remote",   DECORATOR) /* broker/impersonate   */ \
     X(FRM,       frm,       "frm",      NEARLINE)  /* HSM/MSS recall plane */ \
-    X(MIRAGE,    mirage,    "mirage",   BACKEND)   /* synthetic sizes-only */
+    X(MIRAGE,    mirage,    "mirage",   BACKEND)   /* synthetic sizes-only */ \
+    X(RAM,       ram,       "ram",      BACKEND)   /* per-worker RAM cache */ \
+    X(XROOT_FWD, xroot_fwd, "xroot_fwd", ORIGIN)   /* forward:// origins   */
 
 /* ---- drivers present only when ./configure found their library ---------- */
 #if BRIX_HAVE_CEPH
@@ -103,9 +105,13 @@
  * of an MSS: residency comes from kXR_stat's kXR_offline flag and the recall
  * from kXR_prepare(kXR_stage), so a read parks instead of blocking a worker for
  * the length of a tape mount. It is a distinct SCHEME rather than a trailing
- * flag because brix_storage_backend takes exactly one argument, and because the
- * declaration is a contract, not a hint: it commits the export to carrying a
- * cache tier as the recall target (§9.4, enforced at config time). */
+ * flag because the declaration is a contract, not a hint: it commits the export
+ * to carrying a cache tier as the recall target (§9.4, enforced at config
+ * time), and a scheme cannot be forgotten the way an optional word can.
+ * (It was ALSO, until phase-115 W5.1, the only place it could go —
+ * brix_storage_backend took exactly one argument.  It now takes the same
+ * trailing params as the cache/stage store lines, so that half of the reason
+ * is gone; the contract half is why the scheme stays.) */
 #define BRIX_FS_SCHEME_LIST(S)                                              \
     S("posix",  "posix",  0, 0)                                               \
     S("block",  "block",  0, 0)                                               \
@@ -124,7 +130,9 @@
     S("rados",  "rados",  0, 0)                                               \
     S("ceph",   "ceph",   0, 0)                                               \
     S("tape",   "tape",   0, 1)                                               \
-    S("frm",    "frm",    0, 1)
+    S("frm",    "frm",    0, 1)                                                \
+    S("ram",    "ram",    0, 0)                                               \
+    S("forward", "xroot_fwd", 0, 0)
 
 /* ---- backend identity enum (activates the reserved ID column) ------------
  * One id per census row, generated from the same gated lists — a build

@@ -201,7 +201,7 @@ def _error_code(body):
 H = SERVER_HOST
 
 # The writable stream server is now a dedicated instance pre-started by
-# manage_test_servers.sh start-all ("open-flags-lifecycle" on port 12980,
+# python3 -m cmdscripts.manage_test_servers start-all ("open-flags-lifecycle" on port 12980,
 # serving data-open-flags-lifecycle); the wr_stack fixture just connects to it.
 WR_NGINX_PORT = OPEN_FLAGS_LIFECYCLE_NGINX_PORT
 
@@ -215,7 +215,7 @@ def _reachable(host, port, timeout=1.0):
 
 
 # NOTE: the writable server is no longer spawned here — it is the pre-started
-# "open-flags-lifecycle" dedicated instance (see manage_test_servers.sh
+# "open-flags-lifecycle" dedicated instance (see cmdscripts/manage_test_servers.py
 # start-all). The former _writable_nginx_conf/_start_nginx/_stop_nginx/_wait_port
 # helpers were removed with that migration; wr_stack now just connects.
 
@@ -236,7 +236,7 @@ def anon():
 @pytest.fixture(scope="module")
 def wr_stack():
     """Connect to the dedicated WRITABLE nginx xrootd server pre-started by
-    manage_test_servers.sh start-all (the "open-flags-lifecycle" instance,
+    python3 -m cmdscripts.manage_test_servers start-all (the "open-flags-lifecycle" instance,
     brix_allow_write on, serving OPEN_FLAGS_LIFECYCLE_DATA_ROOT).  Used for
     create/truncate/append/mkpath/POSC/exhaustion cases.  Skips cleanly if that
     dedicated instance is not running.  The server and this test share the local
@@ -247,7 +247,7 @@ def wr_stack():
     if not _reachable(H, WR_NGINX_PORT, 3):
         pytest.skip(
             f"dedicated writable nginx not reachable on {H}:{WR_NGINX_PORT} — "
-            f"run tests/manage_test_servers.sh start-all")
+            f"run python3 -m cmdscripts.manage_test_servers start-all")
     return {"host": H, "port": WR_NGINX_PORT, "data_dir": data_dir}
 
 

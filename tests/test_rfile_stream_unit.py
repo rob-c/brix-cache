@@ -3,6 +3,7 @@
 from pathlib import Path
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -15,12 +16,7 @@ BINARY = CLIENT / "bin" / "rfile_stream_unit"
 def test_rfile_stream_unit():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
-    build = subprocess.run(
-        ["make", "-C", str(CLIENT), "rfile-stream-unit"],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+    build = client_make(str(CLIENT), "rfile-stream-unit", capture_output=True, text=True, timeout=120)
     assert build.returncode == 0, build.stdout + build.stderr
     run = subprocess.run([str(BINARY)], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, run.stdout + run.stderr

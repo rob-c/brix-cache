@@ -2,6 +2,7 @@
 #include "protocols/root/session/session.h"
 #include "protocols/root/protocol/gsi.h"
 #include "auth/gsi/gsi_core.h"   /* shared XrdSecgsi DH/cipher kernel (EOS-proven) */
+#include "auth/crypto/gsi_verify.h"   /* brix_gsi_verify_peer_leaf */
 
 #include <stdio.h>
 #include <ctype.h>
@@ -75,8 +76,8 @@ tpc_gsi_exchange_cleanup(int rc, u_char *body, BIO *chain_bio, u_char *payload)
  * WHY: We must not derive a shared secret with an unverified server when a store
  *   is present. GSI delegated proxies are legitimate here, so
  *   X509_V_FLAG_ALLOW_PROXY_CERTS is set — identical to the pre-refactor path.
- * HOW: BIO_new_mem_buf → PEM_read_bio_X509 → X509_STORE_CTX_{new,init,set_flags}
- *   → X509_verify_cert; every OpenSSL handle freed on every exit (no leak).
+ * HOW: brix_gsi_verify_peer_leaf (auth/crypto/gsi_verify.c, shared with the
+ *   cache origin and the transparent upstream) maps 1→0, 0→-1, -1→0.
  */
 static int
 tpc_gsi_verify_server_cert(brix_tpc_pull_t *t, const u_char *body, uint32_t dlen)
@@ -84,10 +85,6 @@ tpc_gsi_verify_server_cert(brix_tpc_pull_t *t, const u_char *body, uint32_t dlen
     ngx_stream_brix_srv_conf_t *conf = t->conf;
     const u_char   *srv_pem;
     size_t          srv_pem_len;
-    BIO            *mbio;
-    X509           *srv;
-    X509_STORE_CTX *sctx;
-    int             rc = 0;
 
     if (conf->gsi_store == NULL) {
         return 0;
@@ -98,31 +95,15 @@ tpc_gsi_verify_server_cert(brix_tpc_pull_t *t, const u_char *body, uint32_t dlen
     {
         return 0;
     }
-
-    mbio = BIO_new_mem_buf(srv_pem, (int) srv_pem_len);
-    srv = PEM_read_bio_X509(mbio, NULL, NULL, NULL);
-    BIO_free(mbio);
-    if (srv == NULL) {
-        return 0;
+    /* -1 (unparseable leaf / no store ctx) keeps the historical fall-through;
+     * only a parsed-and-rejected leaf (0) refuses the destination. */
+    if (brix_gsi_verify_peer_leaf(conf->gsi_store, srv_pem, srv_pem_len) == 0) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC GSI server certificate verification failed");
+        t->xrd_error = kXR_NotAuthorized;
+        return -1;
     }
-
-    sctx = X509_STORE_CTX_new();
-    if (sctx != NULL
-        && X509_STORE_CTX_init(sctx, conf->gsi_store, srv, NULL) == 1)
-    {
-        X509_STORE_CTX_set_flags(sctx, X509_V_FLAG_ALLOW_PROXY_CERTS);
-        if (X509_verify_cert(sctx) != 1) {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC GSI server certificate verification failed");
-            t->xrd_error = kXR_NotAuthorized;
-            rc = -1;
-        }
-    }
-    if (sctx != NULL) {
-        X509_STORE_CTX_free(sctx);
-    }
-    X509_free(srv);
-    return rc;
+    return 0;
 }
 
 /*

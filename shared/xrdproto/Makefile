@@ -88,7 +88,7 @@ LIB   := libxrdproto.a
 # the old strstr() hack.  The module keeps its jansson src/auth/token/json.c for the
 # security-critical JWKS path; this is the lightweight diagnostic core only.)
 NAMES := crc32c crc32c_hw crc64 crc32_ieee hex crypto error_mapping checksum_core uri \
-         host_format host_split kxr_names sigv4 pgio vendor_ext sss_bf fattr_codec \
+         host_format host_split kxr_names sigv4 pgio vendor_ext sss_bf sss_entity fattr_codec \
          subprocess json_min json_iter \
          codec_core codec_zlib codec_zstd codec_lzma codec_brotli codec_bzip2 \
          codec_lz4 cred_stage wverify
@@ -148,8 +148,15 @@ CODEC_OBJS  := $(BUILD)/wire_codec_meta.o $(BUILD)/wire_codec_file.o \
 # I/O over the SD driver, shared by the server data plane and the userland tools.
 FSCORE := $(REPO)/src/fs/core
 FSCORE_OBJS := $(BUILD)/vfs_core.o
+# XrdSsi control-word codec (src/protocols/ssi/ssi_rrinfo.c): the byte-exact
+# RRInfo / RRInfoAttn pack-unpack, plus the "/.ssi/" resource prefix. Pure C by
+# construction (see its header) — the SSI server plane and the native SSI client
+# (client/lib/protocols/ssi) both marshal through it, so the control word that
+# rides the kXR offset field cannot drift between the two.
+SSI := $(REPO)/src/protocols/ssi
+SSI_OBJS := $(BUILD)/ssi_rrinfo.o
 OBJS  := $(COMPAT_OBJS) $(GSI_OBJS) $(TOKEN_OBJS) $(BACKEND_OBJS) $(ZIP_OBJS) \
-         $(SSS_OBJS) $(CODEC_OBJS) $(FSCORE_OBJS)
+         $(SSS_OBJS) $(CODEC_OBJS) $(FSCORE_OBJS) $(SSI_OBJS)
 
 .PHONY: all check clean
 all: $(LIB)
@@ -229,6 +236,11 @@ $(BUILD)/wire_codec_%.o: $(PROTO_CODEC)/wire_codec_%.c | $(BUILD)
 # Shared VFS core lives under src/fs/core; explicit rule (its "../backend/sd.h"
 # resolves via the .c's own dir). Pure C — ngx-free fallback in sd.h.
 $(BUILD)/vfs_core.o: $(FSCORE)/vfs_core.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+
+# SSI control-word codec lives under src/protocols/ssi; explicit rule (it includes
+# only <stddef.h>/<stdint.h> plus its own header). Pure C — no nginx deps.
+$(BUILD)/ssi_rrinfo.o: $(SSI)/ssi_rrinfo.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
 $(BUILD):

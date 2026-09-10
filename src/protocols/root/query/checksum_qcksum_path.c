@@ -10,6 +10,8 @@
 #include "net/manager/pending.h"
 #include "net/cms/cms_internal.h"
 #include "protocols/root/read/locate.h"   /* brix_cms_locate_park */
+#include "fs/vfs/vfs_backend_registry.h" /* brix_vfs_backend_resolve */
+#include "fs/backend/xroot/sd_xroot.h"    /* brix_sd_xroot_endpoint */
 
 #include <ctype.h>
 #include <dirent.h>
@@ -218,7 +220,8 @@ brix_qcksum_manager_bounce(brix_qcksum_req_t *rq, ngx_int_t *out_rc)
         brix_log_access(ctx, c, "QUERY", pathbuf, "registry",
                           1, kXR_ok, NULL, 0);
         BRIX_OP_OK(ctx, BRIX_OP_QUERY_CKSUM);
-        *out_rc = brix_send_redirect(ctx, c, redir_host, redir_port);
+        *out_rc = brix_cms_answer_selected(ctx, c, conf, redir_host,
+                                           redir_port);
         return NGX_OK;
     }
 
@@ -338,22 +341,26 @@ brix_qcksum_open(brix_qcksum_req_t *rq, ngx_int_t *out_rc)
      * authoritative bytes — identical to anything we would later cache — so
      * redirect the metadata query there rather than returning "not found".
      */
-    if (errno == ENOENT && conf->cache_origin_host.len > 0) {
-        char   origin_host[256];
-        size_t hlen = conf->cache_origin_host.len < sizeof(origin_host)
-                      ? conf->cache_origin_host.len : sizeof(origin_host) - 1;
+    if (errno == ENOENT && conf->cache) {
+        const char *origin_host;
+        uint16_t    origin_port;
 
-        ngx_memcpy(origin_host, conf->cache_origin_host.data, hlen);
-        origin_host[hlen] = '\0';
-        /* Equivalent to BRIX_RETURN_REDIR but through the *out_rc out-param
-         * (the macro embeds its own `return`, which cannot leave a helper that
-         * signals failure by returning NULL). */
-        brix_log_access(ctx, c, "QUERY", pathbuf, "cache-origin",
-                          1, kXR_ok, NULL, 0);
-        BRIX_OP_OK(ctx, BRIX_OP_QUERY_CKSUM);
-        *out_rc = brix_send_redirect(ctx, c, origin_host,
-                                       conf->cache_origin_port);
-        return NULL;
+        /* The origin is the export's registered root:// storage backend.  Before
+         * 2.0 this read the retired brix_cache_origin host — no directive wrote
+         * it, so a cache-miss checksum query always answered "not found". */
+        if (brix_sd_xroot_endpoint(
+                brix_vfs_backend_resolve(conf->common.root_canon, c->log),
+                &origin_host, &origin_port) == 0)
+        {
+            /* Equivalent to BRIX_RETURN_REDIR but through the *out_rc out-param
+             * (the macro embeds its own `return`, which cannot leave a helper
+             * that signals failure by returning NULL). */
+            brix_log_access(ctx, c, "QUERY", pathbuf, "cache-origin",
+                              1, kXR_ok, NULL, 0);
+            BRIX_OP_OK(ctx, BRIX_OP_QUERY_CKSUM);
+            *out_rc = brix_send_redirect(ctx, c, origin_host, origin_port);
+            return NULL;
+        }
     }
     /* Equivalent to BRIX_RETURN_ERR via the *out_rc out-param. */
     {

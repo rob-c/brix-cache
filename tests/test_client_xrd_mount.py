@@ -17,6 +17,7 @@ Run:
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -29,8 +30,7 @@ XRD = os.path.join(CLIENT_DIR, "bin", "xrd")
 
 @pytest.fixture(scope="module")
 def built():
-    r = subprocess.run(["make", "-C", CLIENT_DIR, "xrd"],
-                       capture_output=True, text=True, timeout=180)
+    r = client_make(CLIENT_DIR, "xrd", capture_output=True, text=True, timeout=180)
     if r.returncode != 0 or not os.path.exists(XRD):
         pytest.skip(f"xrd build failed:\n{r.stdout}\n{r.stderr}")
     return XRD

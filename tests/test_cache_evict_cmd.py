@@ -28,6 +28,7 @@ Run:
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -50,8 +51,7 @@ PAYLOAD = b"evict-me " * 4096
 def _client_built():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
-    subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp"],
-                   capture_output=True, text=True, timeout=240)
+    client_make(CLIENT_DIR, "xrdfs", "xrdcp", capture_output=True, text=True, timeout=240)
     if not (os.path.exists(XRDFS) and os.path.exists(XRDCP)):
         pytest.skip("client build failed")
 

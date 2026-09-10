@@ -94,8 +94,17 @@ afh_open(const char *path, int writable, int force, struct fuse_file_info *fi)
         snprintf(opq, sizeof(opq), "xrootd.compress=%s", g_compress);
         opaque = opq;
     }
+    /* W7.2: the DATA plane carries the identity too.  Mapping only metadata
+     * would be theatre — the bytes are what the caller is being kept away
+     * from, and kXR_open is where the server decides. */
+    brix_mgr *mgr;
+    int       identrc = xfs_ident_get(NULL, &mgr);
+    if (identrc != 0) {
+        afh_free(h);
+        return identrc;
+    }
     char pbuf[XRDC_PATH_MAX];
-    h->mf = brix_mfile_open(brix_mgr_pick(g_mgr), srv_path(path, pbuf, sizeof(pbuf)),
+    h->mf = brix_mfile_open(brix_mgr_pick(mgr), srv_path(path, pbuf, sizeof(pbuf)),
                             writable, force, 0, opaque,
                             g_max_stall, g_max_retries, &st);
     if (h->mf == NULL) {

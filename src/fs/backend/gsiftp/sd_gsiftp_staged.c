@@ -174,7 +174,9 @@ sd_gsiftp_staged_write(brix_sd_staged_t *handle, const void *buf, size_t len,
     return (ssize_t) done;
 }
 
-static int
+/* Shared with the server-copy path (sd_gsiftp_copy.c): both publish through a
+ * random temp name, and two generators would be two chances to collide. */
+int
 sd_gsiftp_temp_path(const char *final_path, char out[GSIFTP_PATH_CAP])
 {
     unsigned char random[12];

@@ -24,7 +24,7 @@ the single-threaded loop via the shared fill-done path.
 |---|---|
 | `transport.h` | The parsed-origin-URL type + origin-digest type and `brix_cache_origin_url_parse()` (borrowed-view parse, copies nothing). Consumed by the checksum-on-fill integration (`../verify.h`); the historical per-scheme transport vtable it once declared is retired. |
 | `s3_transport.c` / `.h` (+ `s3_transport_setup.c`, `s3_transport_internal.h`) | The **server-side libcurl implementation of `brix_s3_transport_t`** (`src/fs/backend/s3/sd_s3_transport.h`) — one synchronous request + response accessors — injected into the shared `sd_s3` and `sd_http` drivers so the same driver code runs over the server's HTTP stack and the native clients'. `s3_transport_setup.c` carries the operator policy + per-thread curl-handle lifecycle. |
-| `pelican_register.c` / `.h` | Pelican-federation **publisher**: when `brix_cache_advertise on`, a per-worker timer POSTs a signed `OriginAdvertiseV2` (short-lived ES256 advertise JWT minted by `src/auth/token/jwt_sign.c`) to the Director's `registerCache` endpoint on a ≥60 s cadence so the Director redirects clients here. |
+| `pelican_register.c` / `.h` | Pelican-federation **publisher**: when `brix_cache_advertise on` **and** a `brix_cache_advertise_federation` authority is configured (the Director is discovered from that authority's `.well-known/pelican-configuration`; without it the timer never arms), a per-worker timer POSTs a signed `OriginAdvertiseV2` (short-lived ES256 advertise JWT minted by `src/auth/token/jwt_sign.c`) to the Director's `registerCache` endpoint on a ≥60 s cadence so the Director redirects clients here. |
 
 ## Invariants
 

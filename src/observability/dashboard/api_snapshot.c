@@ -418,7 +418,7 @@ dashboard_build_v1_snapshot(ngx_http_request_t *r,
     int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf,
     const brix_dashboard_totals_t *totals, ngx_uint_t redact)
 {
-    json_t *root, *history, *cache, *storage, *cluster, *cvmfs;
+    json_t *root, *history, *cache, *storage, *cluster, *cvmfs, *dns;
 
     root = dashboard_new_v1_anon_root(now_ms, conf, redact);
     if (!root) { return NULL; }
@@ -449,6 +449,12 @@ dashboard_build_v1_snapshot(ngx_http_request_t *r,
     if (cvmfs) {
         dashboard_fill_cvmfs(cvmfs, redact);
         json_object_set_new(root, "cvmfs", cvmfs);
+    }
+
+    dns = json_object();
+    if (dns) {
+        dashboard_fill_dns(dns);
+        json_object_set_new(root, "dns", dns);
     }
 
     json_object_set_new(root, "events", dashboard_build_events(r->pool, redact));

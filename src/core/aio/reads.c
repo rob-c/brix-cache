@@ -194,6 +194,16 @@ brix_read_window_prefetch_done(brix_read_aio_t *t, brix_ctx_t *ctx,
 static void
 brix_read_aio_failed(brix_read_aio_t *t, brix_ctx_t *ctx, ngx_connection_t *c)
 {
+    /* §4.5: EAGAIN is an in-flight fill's frontier, not a failure — answer
+     * kXR_wait and neither log nor count it as an I/O error. */
+    if (t->io_errno == EAGAIN) {
+        ctx->state = XRD_ST_REQ_HEADER;
+        ctx->recv.hdr_pos = 0;
+        brix_release_read_buffer(ctx, c, t->databuf);
+        (void) brix_read_io_error(ctx, c, t->io_errno);
+        brix_aio_resume(c);
+        return;
+    }
     brix_read_io_failure_log(c->log, "read-aio", t->fd, t->offset,
                                t->rlen, t->io_errno);
     ctx->state = XRD_ST_REQ_HEADER;

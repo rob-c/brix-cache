@@ -3,8 +3,8 @@
 How the test environment is wired: server startup, PKI fixtures, token fixtures, and the per-test nginx instance lifecycle.
 
 > **Just want to run the tests?** See [`tests/README.md`](../../tests/README.md).
-> TL;DR: `tests/run_suite.sh --fast` (~4min iteration check) or `tests/run_suite.sh`
-> (~20min full gate). Never bare `pytest tests/` — it runs serially (20min+).
+> TL;DR: `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --fast` (~4min iteration check) or
+> `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite` (~10–12min full gate). Never bare `pytest tests/` — it runs serially (20min+).
 
 [← Testing overview](testing-runbook.md)
 
@@ -356,6 +356,8 @@ def start_nginx_instance(
 ```
 
 `{PORT}`, `{LOG_DIR}`, `{TMP_DIR}`, `{DATA_DIR}`, `{SERVER_CERT}`, `{SERVER_KEY}`, `{CA_CERT}` are automatically substituted. Extra placeholders are passed via `template_kwargs`. Use `{{` and `}}` in your config template for literal nginx block braces.
+
+Substitution is plain text, `#` comments included: a placeholder that **opens** its line carries a whole line (or block), so naming it inside a comment either ends the comment early or swallows the directive silently while `nginx -t` still says OK. Comments name such a slot **without** braces — see [writing-tests.md](writing-tests.md) "A comment in a template never names a line-carrying placeholder", enforced corpus-wide by `tests/test_config_template_hygiene.py`.
 
 Each instance gets its own isolated directory under `/tmp/xrd-test/instances/nginx-<uuid>/`.
 

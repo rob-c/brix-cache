@@ -169,6 +169,18 @@ ck_pread_walk(brix_sd_obj_t *obj, off_t start, off_t len, ck_chunk_fn fold,
     return 0;
 }
 
+
+ngx_int_t
+brix_cksum_walk_obj(brix_sd_obj_t *obj, off_t start, off_t len,
+                    brix_cksum_chunk_fn fold, void *st)
+{
+    if (obj == NULL || obj->driver == NULL || start < 0) {
+        return NGX_ERROR;
+    }
+
+    return (ck_pread_walk(obj, start, len, fold, st) == 0) ? NGX_OK : NGX_ERROR;
+}
+
 /* u32_walk_t / u32_fold — ck_pread_walk state+fold for the u32 kernel: the
  * selected kind plus both accumulators (zlib uLong and CRC-32c). */
 typedef struct {

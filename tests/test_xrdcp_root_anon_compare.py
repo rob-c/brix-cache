@@ -4,9 +4,10 @@ endpoint of the local nginx-xrootd instance and an official xrootd reference
 server. The test ensures both servers serve identical bytes for the same
 on-disk file under `/tmp/xrd-test/data`.
 
-This test attempts to start nginx (via `tests/manage_test_servers.sh start nginx`)
-if it's not already responsive, and starts a short-lived reference xrootd
-instance on port 11096 for the duration of the test module.
+The nginx side is the pre-started fleet's anonymous `main` instance — this
+module starts nothing itself (`python3 -m cmdscripts.manage_test_servers
+start-all`, run from `tests/`, brings it up); it starts only a short-lived
+reference xrootd instance for the duration of the test module.
 """
 
 # --- Python 3.9 compat (EL9 system python) --------------------------------

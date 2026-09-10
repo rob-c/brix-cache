@@ -7,6 +7,7 @@ from pathlib import Path
 import os
 import shutil
 import subprocess
+from brix_suite.client_build import client_make
 import sys
 import time
 
@@ -137,7 +138,7 @@ http {{ client_body_temp_path {run.root}/tmp; server {{ listen {BIND_HOST}:8583;
 def sd_s3_meta(nginx: Path | None = None) -> int:
     smoke = REPO_ROOT / "client/bin/sd_s3_meta_smoke"
     if not smoke.exists():
-        built = subprocess.run(["make", "sd-s3-meta-smoke"], cwd=REPO_ROOT / "client", capture_output=True, text=True)
+        built = client_make(REPO_ROOT / "client", "sd-s3-meta-smoke", capture_output=True, text=True)
         if built.returncode:
             print("SKIP: sd_s3_meta_smoke harness is unavailable")
             return 0

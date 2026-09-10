@@ -10,7 +10,6 @@
 #include "net_target_internal.h"
 #include "cstr.h"
 
-#include <netdb.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <stdio.h>

@@ -21,14 +21,14 @@ hybrid_mesh_lib.py):
  d)xrd e)xrd f)nginx                  (data servers; f also S3 + WebDAV origin)
 
 These tests connect to the dedicated 11300-11330 band brought up by
-`tests/manage_test_servers.sh start-all` (via hybrid_mesh_servers.py).  They skip
+`python3 -m cmdscripts.manage_test_servers start-all` (via hybrid_mesh_servers.py).  They skip
 if the mesh is not up.  Each scenario records the components it traversed —
 proven by observable evidence (the entry port used, the data server that served
 the bytes via its content tag, HTTP status) — and a final test prints the
 component-usage matrix and asserts every node was exercised by some path.
 
 Run:
-    tests/manage_test_servers.sh start
+    python3 -m cmdscripts.manage_test_servers start-all
     PYTHONPATH=tests pytest tests/test_hybrid_mesh.py -v -s
 """
 
@@ -95,7 +95,7 @@ def _mesh_up():
 
 
 if not _mesh_up():
-    pytest.skip("hybrid mesh not up (run manage_test_servers.sh start)",
+    pytest.skip("hybrid mesh not up (run python3 -m cmdscripts.manage_test_servers start-all)",
                 allow_module_level=True)
 
 

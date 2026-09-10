@@ -423,6 +423,11 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/core/ident.h \
                         $ngx_addon_dir/src/auth/authz/acc/privs.h \
                         $ngx_addon_dir/src/auth/authz/acc/acc.h \
+                        $ngx_addon_dir/src/net/admin/admin_unix.h \
+                        $ngx_addon_dir/src/net/cms/cms_admin.h \
+                        $ngx_addon_dir/src/net/dns/dns.h \
+                        $ngx_addon_dir/src/net/dns/curl_pin.h \
+                        $ngx_addon_dir/src/net/dns/resolv_conf.h \
                         $ngx_addon_dir/src/net/mirror/mirror.h \
                         $ngx_addon_dir/src/net/mirror/stream_mirror.h \
                         $ngx_addon_dir/src/net/mirror/stream_mirror_io.h \
@@ -457,14 +462,17 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/tpc/engine/key_registry.h \
                         $ngx_addon_dir/src/tpc/common/auth.h \
                         $ngx_addon_dir/src/tpc/common/credential.h \
+                        $ngx_addon_dir/src/tpc/common/cred_renew.h \
                         $ngx_addon_dir/src/tpc/common/metrics.h \
                         $ngx_addon_dir/src/tpc/common/egress_guard.h \
+                        $ngx_addon_dir/src/tpc/common/identity_matrix.h \
                         $ngx_addon_dir/src/tpc/common/registry.h \
                         $ngx_addon_dir/src/tpc/common/transfer.h \
                         $ngx_addon_dir/src/fs/path/path_internal.h \
                         $ngx_addon_dir/src/fs/path/unified.h \
                         $ngx_addon_dir/src/core/types/identity.h \
                         $ngx_addon_dir/src/fs/vfs/vfs.h \
+$ngx_addon_dir/src/fs/vfs/vfs_deleg.h \
                         $ngx_addon_dir/src/fs/vfs/vfs_internal.h \
                         $ngx_addon_dir/src/fs/vfs/vfs_writer_internal.h \
                         $ngx_addon_dir/src/fs/vfs/vfs_policy.h \
@@ -472,12 +480,15 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/fs/vfs/vfs_secgate.h \
                         $ngx_addon_dir/src/fs/xfer/xfer.h \
                         $ngx_addon_dir/src/fs/xfer/stage_engine.h \
+                        $ngx_addon_dir/src/fs/xfer/stage_events.h \
                         $ngx_addon_dir/src/fs/xfer/backend_async_queue.h \
                         $ngx_addon_dir/src/fs/xfer/stage_request_registry.h \
                         $ngx_addon_dir/src/fs/xfer/stage_waiter.h \
                         $ngx_addon_dir/src/fs/tier/tier.h \
+                        $ngx_addon_dir/src/fs/tier/tier_internal.h \
                         $ngx_addon_dir/src/fs/backend/sd.h \
                         $ngx_addon_dir/src/fs/backend/sd_domain.h \
+                        $ngx_addon_dir/src/fs/backend/ram/sd_ram_internal.h \
                         $ngx_addon_dir/src/fs/backend/sd_ngx_compat.h \
                         $ngx_addon_dir/src/fs/backend/ucred.h \
                         $ngx_addon_dir/src/fs/backend/cred_mint.h \
@@ -485,14 +496,23 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/fs/backend/gsiftp/sd_gsiftp_internal.h \
                         $ngx_addon_dir/src/fs/backend/gsiftp/gftp_client.h \
                         $ngx_addon_dir/src/fs/backend/gsiftp/gftp_gsi.h \
+                        $ngx_addon_dir/src/fs/backend/gsiftp/gftp_gsi_internal.h \
+                        $ngx_addon_dir/src/fs/backend/gsiftp/gftp_dc.h \
+                        $ngx_addon_dir/src/fs/backend/gsiftp/gftp_mode_e.h \
+                        $ngx_addon_dir/src/fs/backend/gsiftp/gftp_feat.h \
+                        $ngx_addon_dir/src/fs/backend/gsiftp/gftp_spas.h \
                         $ngx_addon_dir/src/fs/backend/gsiftp/gftp_reply.h \
                         $ngx_addon_dir/src/fs/backend/gsiftp/gftp_mlsx.h \
                         $ngx_addon_dir/src/fs/backend/cache/sd_cache.h \
                  $ngx_addon_dir/src/fs/backend/cache/sd_cache_internal.h \
                  $ngx_addon_dir/src/fs/backend/cache/sd_cache_policy.h \
+                 $ngx_addon_dir/src/fs/backend/cache/sd_cache_follow.h \
                         $ngx_addon_dir/src/fs/backend/frm/sd_frm.h \
                  $ngx_addon_dir/src/fs/backend/frm/sd_frm_mss.h \
                  $ngx_addon_dir/src/fs/backend/frm/sd_frm_lib_abi.h \
+                 $ngx_addon_dir/src/fs/backend/frm/sd_frm_arc.h \
+                 $ngx_addon_dir/src/fs/backend/frm/sd_frm_purge_internal.h \
+                 $ngx_addon_dir/src/fs/backend/frm/frm_zip.h \
                         $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
                         $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_store.h \
@@ -511,6 +531,9 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_hist.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_xform.h \
                         $ngx_addon_dir/src/core/config/tape_stage_conf.h \
+                        $ngx_addon_dir/src/core/config/cache_urlcgi_conf.h \
+                        $ngx_addon_dir/src/core/config/space_group_conf.h \
+                        $ngx_addon_dir/src/protocols/root/write/write_space_group.h \
                         $ngx_addon_dir/src/fs/path/path.h \
                         $ngx_addon_dir/src/protocols/root/read/clone.h \
                         $ngx_addon_dir/src/protocols/root/read/close.h \
@@ -533,6 +556,7 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_queue.h \
                         $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_exec.h \
                         $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_service.h \
+                        $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_shm.h \
                         $ngx_addon_dir/src/net/cms/cns.h \
                         $ngx_addon_dir/src/net/cms/cns_inventory.h \
                         $ngx_addon_dir/src/net/cms/cns_emit.h \
@@ -576,6 +600,8 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/auth/krb5/carry.h \
                         $ngx_addon_dir/src/auth/krb5/apreq.h \
                         $ngx_addon_dir/src/core/compat/checksum.h \
+                        $ngx_addon_dir/src/core/compat/checksum_plugin.h \
+                        $ngx_addon_dir/src/core/compat/checksum_plugin_abi.h \
                         $ngx_addon_dir/src/core/compat/codec_core.h \
                         $ngx_addon_dir/src/core/compat/crc32c.h \
                         $ngx_addon_dir/src/core/compat/wverify.h \
@@ -593,6 +619,7 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/protocols/webdav/authz_endpoint.h \
                         $ngx_addon_dir/src/protocols/webdav/walk_offload.h \
                         $ngx_addon_dir/src/protocols/shared/file_serve.h \
+                        $ngx_addon_dir/src/protocols/shared/file_serve_internal.h \
                         $ngx_addon_dir/src/protocols/shared/http_cache_fill.h \
                         $ngx_addon_dir/src/protocols/shared/http_serve_offload.h \
                         $ngx_addon_dir/src/protocols/shared/merge_export.h \
@@ -657,6 +684,7 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/protocols/root/protocol/frame_hdr.h \
                         $ngx_addon_dir/src/auth/gsi/keypool.h \
                         $ngx_addon_dir/src/auth/gsi/gsi_core.h \
+                        $ngx_addon_dir/src/auth/gsi/cred_load.h \
                         $ngx_addon_dir/src/core/shm/kv.h \
                         $ngx_addon_dir/src/core/shm/rate_limit.h \
                         $ngx_addon_dir/src/auth/authz/auth_cache.h \
@@ -683,6 +711,7 @@ ngx_brix_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
                         $ngx_addon_dir/src/net/mirror/mirror.h \
                         $ngx_addon_dir/src/net/mirror/http_mirror.h \
                         $ngx_addon_dir/src/fs/vfs/vfs.h \
+$ngx_addon_dir/src/fs/vfs/vfs_deleg.h \
                         $ngx_addon_dir/src/fs/vfs/vfs_policy.h \
                         $ngx_addon_dir/src/fs/vfs/vfs_policy_domain.h \
                         $ngx_addon_dir/src/fs/backend/sd.h \
@@ -715,6 +744,7 @@ ngx_brix_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
                         $ngx_addon_dir/src/tpc/common/credential.h \
                         $ngx_addon_dir/src/tpc/common/metrics.h \
                         $ngx_addon_dir/src/tpc/common/egress_guard.h \
+                        $ngx_addon_dir/src/tpc/common/identity_matrix.h \
                         $ngx_addon_dir/src/tpc/common/registry.h \
                         $ngx_addon_dir/src/tpc/common/transfer.h \
                         $ngx_addon_dir/src/observability/metrics/unified.h \
@@ -757,6 +787,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/stream/module_definition.c \
     $ngx_addon_dir/src/core/compat/checksum.c \
     $ngx_addon_dir/src/core/compat/checksum_core.c \
+    $ngx_addon_dir/src/core/compat/checksum_plugin.c \
     $ngx_addon_dir/src/core/compat/wverify.c \
     $ngx_addon_dir/src/core/compat/cred_stage.c \
     $ngx_addon_dir/src/core/compat/cred_write.c \
@@ -786,12 +817,14 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/http/http_variables.c \
     $ngx_addon_dir/src/core/http/http_variable_identity.c \
     $ngx_addon_dir/src/core/http/http_variable_monitor.c \
+    $ngx_addon_dir/src/core/http/http_peer_name.c \
     $ngx_addon_dir/src/protocols/root/stream/stream_variables.c \
     $ngx_addon_dir/src/protocols/root/stream/stream_variable_values.c \
     $ngx_addon_dir/src/protocols/webdav/authz_endpoint.c \
     $ngx_addon_dir/src/protocols/webdav/walk_offload.c \
     $ngx_addon_dir/src/protocols/shared/protocol.c \
     $ngx_addon_dir/src/protocols/shared/file_serve.c \
+    $ngx_addon_dir/src/protocols/shared/file_serve_memory.c \
     $ngx_addon_dir/src/protocols/shared/guard_audit_http.c \
     $ngx_addon_dir/src/protocols/shared/http_cache_fill.c \
     $ngx_addon_dir/src/protocols/shared/http_cache_fill_registry.c \
@@ -800,6 +833,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/shared/vfs_authz_bind.c \
     $ngx_addon_dir/src/protocols/shared/mirror_common.c \
     $ngx_addon_dir/src/protocols/shared/http_serve_offload.c \
+    $ngx_addon_dir/src/protocols/shared/serve_offload_fill.c \
     $ngx_addon_dir/src/protocols/shared/backend_async_http.c \
     $ngx_addon_dir/src/protocols/shared/deleg_capture.c \
     $ngx_addon_dir/src/protocols/shared/deleg_wire.c \
@@ -841,6 +875,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/compat/pgio.c \
     $ngx_addon_dir/src/core/compat/vendor_ext.c \
     $ngx_addon_dir/src/core/compat/sss_bf.c \
+    $ngx_addon_dir/src/core/compat/sss_entity.c \
     $ngx_addon_dir/src/core/compat/fattr_codec.c \
     $ngx_addon_dir/src/core/compat/xml.c \
     $ngx_addon_dir/src/core/compat/log.c \
@@ -863,11 +898,13 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/vfs/vfs_backend_registry_source.c \
     $ngx_addon_dir/src/fs/vfs/vfs_backend_registry_gsiftp.c \
     $ngx_addon_dir/src/fs/vfs/vfs_backend_config.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_backend_store_params.c \
     $ngx_addon_dir/src/fs/vfs/vfs_backend_config_n2n.c \
     $ngx_addon_dir/src/fs/vfs/vfs_backend_config_ceph.c \
     $ngx_addon_dir/src/fs/vfs/vfs_backend_config_http.c \
     $ngx_addon_dir/src/fs/vfs/vfs_backend_config_s3.c \
     $ngx_addon_dir/src/fs/vfs/vfs_backend_config_gsiftp.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_backend_config_fwd.c \
     $ngx_addon_dir/src/fs/vfs/vfs_secgate.c \
     $ngx_addon_dir/src/fs/vfs/vfs_policy.c \
     $ngx_addon_dir/src/fs/vfs/vfs_authz.c \
@@ -905,6 +942,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/xfer/xfer_resume_sweep.c \
     $ngx_addon_dir/src/fs/xfer/stage_engine.c \
     $ngx_addon_dir/src/fs/xfer/stage_engine_journal.c \
+    $ngx_addon_dir/src/fs/xfer/stage_events.c \
     $ngx_addon_dir/src/fs/xfer/stage_engine_scheduler.c \
     $ngx_addon_dir/src/fs/xfer/stage_engine_reconcile.c \
     $ngx_addon_dir/src/fs/xfer/backend_async_queue.c \
@@ -913,6 +951,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/xfer/stage_request_registry_query.c \
     $ngx_addon_dir/src/fs/xfer/stage_waiter.c \
     $ngx_addon_dir/src/fs/tier/tier_config.c \
+    $ngx_addon_dir/src/fs/tier/tier_config_args.c \
     $ngx_addon_dir/src/fs/tier/tier_status.c \
     $ngx_addon_dir/src/fs/tier/tier_build.c \
     $ngx_addon_dir/src/fs/tier/tier_build_gsiftp.c \
@@ -925,6 +964,9 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/block/sd_block.c \
     $ngx_addon_dir/src/fs/backend/block/sd_block_ns.c \
     $ngx_addon_dir/src/fs/backend/mirage/sd_mirage.c \
+    $ngx_addon_dir/src/fs/backend/ram/sd_ram.c \
+    $ngx_addon_dir/src/fs/backend/ram/sd_ram_table.c \
+    $ngx_addon_dir/src/fs/backend/ram/sd_ram_staged.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_io.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_object.c \
@@ -998,7 +1040,12 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/xroot/sd_xroot_ns_cred.c \
     $ngx_addon_dir/src/fs/backend/xroot/sd_xroot_ns_dir.c \
     $ngx_addon_dir/src/fs/backend/xroot/sd_xroot_nearline.c \
+    $ngx_addon_dir/src/fs/backend/xroot/sd_xroot_fwd_key.c \
+    $ngx_addon_dir/src/fs/backend/xroot/sd_xroot_fwd.c \
+    $ngx_addon_dir/src/fs/backend/xroot/sd_xroot_fwd_obj.c \
+    $ngx_addon_dir/src/fs/backend/xroot/sd_xroot_fwd_ns.c \
     $ngx_addon_dir/src/fs/backend/gsiftp/sd_gsiftp.c \
+    $ngx_addon_dir/src/fs/backend/gsiftp/sd_gsiftp_copy.c \
     $ngx_addon_dir/src/fs/backend/gsiftp/sd_gsiftp_io.c \
     $ngx_addon_dir/src/fs/backend/gsiftp/sd_gsiftp_ns.c \
     $ngx_addon_dir/src/fs/backend/gsiftp/sd_gsiftp_staged.c \
@@ -1006,6 +1053,11 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/gsiftp/gftp_auth.c \
     $ngx_addon_dir/src/fs/backend/gsiftp/gftp_gsi.c \
     $ngx_addon_dir/src/fs/backend/gsiftp/gftp_data.c \
+    $ngx_addon_dir/src/fs/backend/gsiftp/gftp_dc.c \
+    $ngx_addon_dir/src/fs/backend/gsiftp/gftp_dc_tls.c \
+    $ngx_addon_dir/src/fs/backend/gsiftp/gftp_mode_e.c \
+    $ngx_addon_dir/src/fs/backend/gsiftp/gftp_feat.c \
+    $ngx_addon_dir/src/fs/backend/gsiftp/gftp_spas.c \
     $ngx_addon_dir/src/fs/backend/gsiftp/gftp_reply.c \
     $ngx_addon_dir/src/fs/backend/gsiftp/gftp_mlsx.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http.c \
@@ -1029,6 +1081,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/cache/sd_cache.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_maint.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_fill.c \
+    $ngx_addon_dir/src/fs/backend/cache/sd_cache_follow.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_fill_verify.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_fill_demote.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_manifest.c \
@@ -1037,11 +1090,19 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_forward.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_policy.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm.c \
+    $ngx_addon_dir/src/fs/backend/frm/sd_frm_recall.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm_adapter.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm_staged.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm_stub.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm_exec.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm_lib.c \
+    $ngx_addon_dir/src/fs/backend/frm/sd_frm_mss_ops.c \
+    $ngx_addon_dir/src/fs/backend/frm/sd_frm_purge.c \
+    $ngx_addon_dir/src/fs/backend/frm/sd_frm_purge_policy.c \
+    $ngx_addon_dir/src/fs/backend/frm/frm_zip.c \
+    $ngx_addon_dir/src/fs/backend/frm/sd_frm_arc.c \
+    $ngx_addon_dir/src/fs/backend/frm/sd_frm_arc_store.c \
+    $ngx_addon_dir/src/fs/backend/frm/sd_frm_arc_seal.c \
     $ngx_addon_dir/src/fs/backend/meta_advisory.c \
     $ngx_addon_dir/src/fs/backend/meta_advisory_sd.c \
     $ngx_addon_dir/src/fs/backend/sd_registry.c \
@@ -1065,7 +1126,22 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/config/runtime_server_backend.c \
     $ngx_addon_dir/src/core/config/runtime_server_backend_stage.c \
     $ngx_addon_dir/src/core/config/runtime_server_backend_cache.c \
+    $ngx_addon_dir/src/core/config/cache_urlcgi_conf.c \
     $ngx_addon_dir/src/net/cms/config.c \
+    $ngx_addon_dir/src/net/dns/resolv_conf.c \
+    $ngx_addon_dir/src/net/dns/resolver_build.c \
+    $ngx_addon_dir/src/net/dns/cache.c \
+    $ngx_addon_dir/src/net/dns/resolve_thread.c \
+    $ngx_addon_dir/src/net/admin/admin_unix.c \
+    $ngx_addon_dir/src/net/dns/resolve.c \
+    $ngx_addon_dir/src/net/dns/resolve_bridge.c \
+    $ngx_addon_dir/src/net/dns/curl_pin.c \
+    $ngx_addon_dir/src/net/dns/reverse_cache.c \
+    $ngx_addon_dir/src/net/dns/reverse.c \
+    $ngx_addon_dir/src/net/dns/prefetch.c \
+    $ngx_addon_dir/src/net/dns/directive.c \
+    $ngx_addon_dir/src/net/dns/targets.c \
+    $ngx_addon_dir/src/net/dns/metrics.c \
     $ngx_addon_dir/src/auth/gsi/config.c \
     $ngx_addon_dir/src/protocols/root/session/tls_config.c \
     $ngx_addon_dir/src/auth/token/config.c \
@@ -1096,6 +1172,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/negcache/negcache.c \
     $ngx_addon_dir/src/core/config/process_timers.c \
     $ngx_addon_dir/src/core/config/process_server_init.c \
+    $ngx_addon_dir/src/core/config/process_frm_purge.c \
+    $ngx_addon_dir/src/core/config/process_stage_retry.c \
     $ngx_addon_dir/src/core/config/postconfiguration.c \
     $ngx_addon_dir/src/core/config/postconfiguration_proxy_acl.c \
     $ngx_addon_dir/src/protocols/root/handshake/client_hello.c \
@@ -1133,21 +1211,28 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/mirror/stream_wmirror_state.c \
     $ngx_addon_dir/src/net/mirror/stream_mirror_io.c \
     $ngx_addon_dir/src/net/manager/redir_cache.c \
+    $ngx_addon_dir/src/net/cms/coalesce_wake.c \
     $ngx_addon_dir/src/net/manager/pending.c \
     $ngx_addon_dir/src/net/manager/loc_cache.c \
     $ngx_addon_dir/src/tpc/engine/key_registry.c \
     $ngx_addon_dir/src/tpc/common/credential.c \
+    $ngx_addon_dir/src/tpc/common/cred_renew.c \
     $ngx_addon_dir/src/tpc/common/auth.c \
     $ngx_addon_dir/src/tpc/common/registry.c \
     $ngx_addon_dir/src/tpc/common/progress.c \
     $ngx_addon_dir/src/tpc/common/metrics.c \
     $ngx_addon_dir/src/tpc/common/egress_guard.c \
+    $ngx_addon_dir/src/tpc/common/identity_matrix.c \
+    $ngx_addon_dir/src/tpc/common/identity_matrix_conf.c \
     $ngx_addon_dir/src/tpc/engine/parse.c \
     $ngx_addon_dir/src/tpc/outbound/io.c \
     $ngx_addon_dir/src/tpc/outbound/io_xfer.c \
     $ngx_addon_dir/src/tpc/outbound/tls.c \
     $ngx_addon_dir/src/tpc/outbound/connect.c \
     $ngx_addon_dir/src/tpc/outbound/bootstrap.c \
+    $ngx_addon_dir/src/tpc/outbound/redirect.c \
+    $ngx_addon_dir/src/tpc/outbound/substreams.c \
+    $ngx_addon_dir/src/tpc/outbound/tpc_token_renew.c \
     $ngx_addon_dir/src/tpc/gsi/gsi_outbound_common.c \
     $ngx_addon_dir/src/tpc/gsi/gsi_outbound_certreq.c \
     $ngx_addon_dir/src/tpc/gsi/gsi_outbound_finish.c \
@@ -1155,12 +1240,19 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/tpc/outbound/source.c \
     $ngx_addon_dir/src/tpc/outbound/source_open.c \
     $ngx_addon_dir/src/tpc/outbound/source_stream.c \
+    $ngx_addon_dir/src/tpc/outbound/stream_plan.c \
+    $ngx_addon_dir/src/tpc/outbound/source_stream_multi.c \
     $ngx_addon_dir/src/tpc/outbound/source_verify.c \
     $ngx_addon_dir/src/tpc/outbound/thread.c \
+    $ngx_addon_dir/src/tpc/outbound/push.c \
+    $ngx_addon_dir/src/tpc/outbound/push_stream.c \
     $ngx_addon_dir/src/tpc/engine/done.c \
     $ngx_addon_dir/src/tpc/engine/launch.c \
     $ngx_addon_dir/src/tpc/engine/launch_prepare.c \
+    $ngx_addon_dir/src/tpc/engine/launch_push.c \
     $ngx_addon_dir/src/tpc/engine/launch_dest.c \
+    $ngx_addon_dir/src/tpc/engine/launch_dns.c \
+    $ngx_addon_dir/src/tpc/engine/origin_id.c \
     $ngx_addon_dir/src/tpc/outbound/tpc_token.c \
     $ngx_addon_dir/src/tpc/outbound/tpc_token_exchange.c \
     $ngx_addon_dir/src/auth/token/jwks.c \
@@ -1171,6 +1263,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/token/validate.c \
     $ngx_addon_dir/src/auth/token/validate_sig.c \
     $ngx_addon_dir/src/auth/token/validate_registry.c \
+    $ngx_addon_dir/src/auth/token/token_peek.c \
     $ngx_addon_dir/src/auth/token/macaroon.c \
     $ngx_addon_dir/src/auth/token/macaroon_parse.c \
     $ngx_addon_dir/src/auth/token/macaroon_frame.c \
@@ -1214,6 +1307,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/authz/find_rule.c \
     $ngx_addon_dir/src/fs/path/canonical.c \
     $ngx_addon_dir/src/auth/authz/authdb.c \
+    $ngx_addon_dir/src/auth/authz/authdb_grammar.c \
     $ngx_addon_dir/src/auth/authz/authdb_parse.c \
     $ngx_addon_dir/src/auth/authz/auth_gate.c \
     $ngx_addon_dir/src/auth/authz/auth_gate_identity.c \
@@ -1292,6 +1386,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/cache/origin_connection.c \
     $ngx_addon_dir/src/fs/cache/origin_response.c \
     $ngx_addon_dir/src/fs/cache/origin_protocol.c \
+    $ngx_addon_dir/src/fs/cache/origin_pgread.c \
     $ngx_addon_dir/src/fs/cache/origin_protocol_bootstrap.c \
     $ngx_addon_dir/src/fs/cache/origin_auth.c \
     $ngx_addon_dir/src/fs/cache/origin_auth_gsi.c \
@@ -1322,6 +1417,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/cms/altds.c \
     $ngx_addon_dir/src/net/cms/blacklist_file.c \
     $ngx_addon_dir/src/net/cms/node_ops.c \
+    $ngx_addon_dir/src/net/cms/node_fsxeq.c \
     $ngx_addon_dir/src/net/cms/forward.c \
     $ngx_addon_dir/src/net/cms/fanout.c \
     $ngx_addon_dir/src/net/cms/state_relay.c \
@@ -1333,6 +1429,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/cms/recv_forward.c \
     $ngx_addon_dir/src/net/cms/recv_prepare.c \
     $ngx_addon_dir/src/net/cms/reqid_map.c \
+    $ngx_addon_dir/src/net/cms/cms_admin.c \
     $ngx_addon_dir/src/net/cms/cns.c \
     $ngx_addon_dir/src/net/cms/cns_inventory.c \
     $ngx_addon_dir/src/net/cms/cns_emit.c \
@@ -1363,6 +1460,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/voms/loader.c \
     $ngx_addon_dir/src/auth/voms/collect.c \
     $ngx_addon_dir/src/auth/voms/extract.c \
+    $ngx_addon_dir/src/auth/gsi/cred_load.c \
     $ngx_addon_dir/src/auth/gsi/gsi_core.c \
     $ngx_addon_dir/src/auth/gsi/gsi_core_cresp.c \
     $ngx_addon_dir/src/auth/gsi/gsi_core_cresp_util.c \
@@ -1423,17 +1521,23 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/query/prepare_qprep.c \
     $ngx_addon_dir/src/protocols/root/query/prepare_recall.c \
     $ngx_addon_dir/src/core/config/tape_stage_conf.c \
+    $ngx_addon_dir/src/core/config/cms_fsxeq_conf.c \
+    $ngx_addon_dir/src/core/config/frm_purge_policy_conf.c \
+    $ngx_addon_dir/src/core/config/space_group_conf.c \
+    $ngx_addon_dir/src/protocols/root/write/write_space_group.c \
     $ngx_addon_dir/src/protocols/root/query/set.c \
     $ngx_addon_dir/src/protocols/root/query/dispatch.c \
     $ngx_addon_dir/src/net/upstream/lifecycle.c \
     $ngx_addon_dir/src/net/upstream/bootstrap.c \
     $ngx_addon_dir/src/net/upstream/tls.c \
     $ngx_addon_dir/src/net/upstream/auth.c \
+    $ngx_addon_dir/src/net/upstream/auth_gsi.c \
     $ngx_addon_dir/src/net/upstream/request.c \
     $ngx_addon_dir/src/net/upstream/response.c \
     $ngx_addon_dir/src/net/upstream/events.c \
     $ngx_addon_dir/src/net/upstream/start.c \
     $ngx_addon_dir/src/net/proxy/connect_upstream.c \
+    $ngx_addon_dir/src/net/proxy/connect_upstream_select.c \
     $ngx_addon_dir/src/net/proxy/connect_upstream_bootstrap.c \
     $ngx_addon_dir/src/net/proxy/connect_upstream_tls.c \
     $ngx_addon_dir/src/net/proxy/connect_lifecycle.c \
@@ -1451,10 +1555,12 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/proxy/forward_relay_response.c \
     $ngx_addon_dir/src/net/proxy/forward_relay_response_lazy.c \
     $ngx_addon_dir/src/net/proxy/forward_relay_dispatch.c \
+    $ngx_addon_dir/src/net/proxy/cms_select.c \
     $ngx_addon_dir/src/net/proxy/pool.c \
     $ngx_addon_dir/src/net/proxy/directives.c \
     $ngx_addon_dir/src/protocols/root/handoff/handoff.c \
     $ngx_addon_dir/src/protocols/root/connection/handler.c \
+    $ngx_addon_dir/src/protocols/root/connection/peer_name.c \
     $ngx_addon_dir/src/protocols/root/connection/recv.c \
     $ngx_addon_dir/src/protocols/root/connection/recv_frame.c \
     $ngx_addon_dir/src/protocols/root/connection/recv_process.c \
@@ -1513,6 +1619,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_queue.c \
     $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_exec.c \
     $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_service.c \
+    $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_shm.c \
     $ngx_addon_dir/src/protocols/root/read/read.c \
     $ngx_addon_dir/src/protocols/root/read/read_sendfile.c \
     $ngx_addon_dir/src/protocols/root/read/read_buffered.c \
@@ -1894,6 +2001,7 @@ ngx_module_deps="$ngx_addon_dir/src/protocols/s3/s3.h \
                  $ngx_addon_dir/src/protocols/s3/aws_chunked.h \
                  $ngx_addon_dir/src/protocols/s3/tagging.h \
                  $ngx_addon_dir/src/fs/vfs/vfs.h \
+$ngx_addon_dir/src/fs/vfs/vfs_deleg.h \
                  $ngx_addon_dir/src/fs/vfs/vfs_policy.h \
                  $ngx_addon_dir/src/fs/vfs/vfs_policy_domain.h \
                  $ngx_addon_dir/src/fs/backend/sd.h \
@@ -2056,6 +2164,7 @@ ngx_module_srcs="$ngx_addon_dir/src/observability/dashboard/module.c \
                  $ngx_addon_dir/src/observability/dashboard/api_transfers.c \
                  $ngx_addon_dir/src/observability/dashboard/api_snapshot.c \
                  $ngx_addon_dir/src/observability/dashboard/api_snapshot_panels.c \
+                 $ngx_addon_dir/src/observability/dashboard/api_snapshot_dns.c \
                  $ngx_addon_dir/src/observability/dashboard/api_ratelimit.c \
                  $ngx_addon_dir/src/observability/dashboard/api_cvmfs.c \
                  $ngx_addon_dir/src/observability/dashboard/api_admin.c \
@@ -2094,6 +2203,7 @@ ngx_module_deps="$ngx_addon_dir/src/observability/dashboard/dashboard.h \
                  $ngx_addon_dir/src/observability/metrics/metrics_webdav.h \
                  $ngx_addon_dir/src/observability/metrics/metrics_s3.h \
                  $ngx_addon_dir/src/tpc/common/egress_guard.h \
+                 $ngx_addon_dir/src/tpc/common/identity_matrix.h \
                  $ngx_addon_dir/src/tpc/common/registry.h \
                  $ngx_addon_dir/src/tpc/common/transfer.h"
 # Dashboard module .so links: OpenSSL + libcrypt (session-cookie HMAC/crypt) +
@@ -2142,6 +2252,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/gridftp/ftp_module.c \
                  $ngx_addon_dir/src/auth/gssapi/gsi_mech.c"
 ngx_module_deps="$ngx_addon_dir/src/protocols/gridftp/ftp_gateway.h \
                  $ngx_addon_dir/src/protocols/gridftp/ftp_dc_sec.h \
+                 $ngx_addon_dir/src/protocols/gridftp/ftp_dc_dn.h \
                  $ngx_addon_dir/src/protocols/gridftp/ftp_eblock.h \
                  $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev.h \
                  $ngx_addon_dir/src/auth/gssapi/gsi_mech.h"

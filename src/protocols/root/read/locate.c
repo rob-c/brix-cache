@@ -375,3 +375,22 @@ brix_handle_locate(brix_ctx_t *ctx, ngx_connection_t *c,
 
     return brix_send_ok(ctx, c, loc_buf, (uint32_t) (loc_len + 1));
 }
+
+/* brix_locate_answer_self — see locate.h.  Reads kXR_prefname straight from
+ * the (possibly parked) request header: by the time the CMS chokepoint or a
+ * kYR_have wake reaches this the locate_ctx_t of brix_handle_locate is gone. */
+ngx_int_t
+brix_locate_answer_self(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    char      loc_buf[256];
+    int       loc_len;
+    uint16_t  options;
+
+    options = (uint16_t) ((ctx->recv.hdr_buf[4] << 8) | ctx->recv.hdr_buf[5]);
+    loc_len = locate_format_local(conf, c, (options & kXR_prefname) != 0,
+                                  loc_buf, sizeof(loc_buf));
+    BRIX_OP_OK(ctx, BRIX_OP_LOCATE);
+
+    return brix_send_ok(ctx, c, loc_buf, (uint32_t) (loc_len + 1));
+}

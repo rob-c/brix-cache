@@ -45,6 +45,9 @@ brix_opts  g_opts;
 int        g_max_conns = 8;       
 
 int          g_web = 0;
+/* W7.2b: --cluster-readdir. Set once before the FUSE loop forks, read-only
+ * thereafter, exactly like every other mount option here. */
+int          g_dir_fanout = 0;
 
 brix_weburl  g_weburl;
 
@@ -182,9 +185,16 @@ xfs_conn_healthy(const brix_status *st)
 int
 xfs_meta(brix_fuse_op_fn fn, void *ctx, brix_status *st)
 {
+    brix_pool *pool;
+    int        rc = xfs_ident_get(&pool, NULL);
+
+    if (rc != 0) {
+        brix_status_set(st, XRDC_EAUTH, 0, "no connections for this identity");
+        return rc;
+    }
     /* Deadline-bounded (g_max_stall) like the data plane — ride a lossy link out
      * for the patience window rather than giving up after a fixed count. */
-    return brix_fuse_run(g_pool, g_max_retries, g_max_stall, 0, fn, ctx, st);
+    return brix_fuse_run(pool, g_max_retries, g_max_stall, 0, fn, ctx, st);
 }
 
 
@@ -194,7 +204,14 @@ xfs_meta(brix_fuse_op_fn fn, void *ctx, brix_status *st)
 int
 xfs_meta_idem(brix_fuse_op_fn fn, void *ctx, int benign_errno, brix_status *st)
 {
-    return brix_fuse_run(g_pool, g_max_retries, g_max_stall, benign_errno,
+    brix_pool *pool;
+    int        rc = xfs_ident_get(&pool, NULL);
+
+    if (rc != 0) {
+        brix_status_set(st, XRDC_EAUTH, 0, "no connections for this identity");
+        return rc;
+    }
+    return brix_fuse_run(pool, g_max_retries, g_max_stall, benign_errno,
                          fn, ctx, st);
 }
 
@@ -259,6 +276,35 @@ aio_opt_novalue(const char *a)
     if (strcmp(a, "--lazy-streams") == 0) { g_lazy_streams = 1;     return 1; }
     if (strcmp(a, "--kernel-cache") == 0) { g_kernel_cache = 1;     return 1; }
     if (strcmp(a, "--xattr") == 0)        { g_xattr = 1;            return 1; }
+    if (strcmp(a, "--sss-identity") == 0) { g_sss_ident = 1;        return 1; }
+    if (strcmp(a, "--cluster-readdir") == 0) { g_dir_fanout = 1;     return 1; }
+    return 0;
+}
+
+
+/* WHAT: consume one --identity-* / --max-identities value option (W7.2).
+ * WHY:  a third small matcher rather than a third arm on the connection ladder,
+ *       which is already split in two to stay under the complexity gate.
+ * HOW:  as aio_opt_conn_value; floors keep a bad value from disabling the
+ *       identity plane rather than shrinking it. */
+static int
+aio_opt_ident_value(const char *a, char *v)
+{
+    if (strcmp(a, "--max-identities") == 0) {
+        g_ident_max = atoi(v);
+        if (g_ident_max < 1) { g_ident_max = 1; }
+        return 1;
+    }
+    if (strcmp(a, "--identity-conns") == 0) {
+        g_ident_conns = atoi(v);
+        if (g_ident_conns < 1) { g_ident_conns = 1; }
+        return 1;
+    }
+    if (strcmp(a, "--identity-streams") == 0) {
+        g_ident_streams = atoi(v);
+        if (g_ident_streams < 1) { g_ident_streams = 1; }
+        return 1;
+    }
     return 0;
 }
 
@@ -353,6 +399,7 @@ aio_parse_args(int argc, char **argv, char **fuse_argv, int *fuse_argc,
             if (aio_opt_novalue(a)) { continue; }
             if (i + 1 < argc && aio_opt_conn_value(a, argv[i + 1]))  { i++; continue; }
             if (i + 1 < argc && aio_opt_cache_value(a, argv[i + 1])) { i++; continue; }
+            if (i + 1 < argc && aio_opt_ident_value(a, argv[i + 1])) { i++; continue; }
             if (strcmp(a, "--version") == 0) {
                 printf("xrootdfs (BriX-Cache client) %s\n", brix_client_version());
                 return 0;

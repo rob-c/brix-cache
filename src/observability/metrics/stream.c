@@ -306,6 +306,9 @@ brix_export_resilience_metrics(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
     mw_emit_scalar(mw, "brix_cms_logins_total",
         "CMS LOGIN frames this node sent to its upstream manager (federation joins).",
         &shm->cms_logins_total);
+    mw_emit_scalar(mw, "brix_cms_locate_coalesced_total",
+        "Locates parked on a kYR_state wave already in flight for the same path.",
+        &shm->cms_locate_coalesced_total);
     mw_emit_scalar(mw, "brix_cms_connect_failures_total",
         "Upward CMS dials that never became a logged-in link (refused/unreachable/deadline).",
         &shm->cms_connect_failures_total);
@@ -329,7 +332,8 @@ brix_export_resilience_metrics(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
     mw_emit_scalar(mw, "brix_acc_nss_breaker_open_total",
         "Times the XrdAcc NSS group-lookup circuit breaker tripped open.",
         &shm->acc_nss_breaker_open_total);
-    mw_emit_scalar(mw, "brix_acc_dns_breaker_open_total",
-        "Times the XrdAcc reverse-DNS circuit breaker tripped open.",
-        &shm->acc_dns_breaker_open_total);
+    mw_emit_scalar(mw, "brix_acc_dns_pending_fallback_total",
+        "Times an XrdAcc host-rule decision fell back to the numeric peer "
+        "because the reverse-DNS answer was still pending.",
+        &shm->acc_dns_pending_fallback_total);
 }

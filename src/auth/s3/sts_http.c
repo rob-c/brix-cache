@@ -23,6 +23,8 @@
 
 #include <curl/curl.h>
 
+#include "net/dns/curl_pin.h"            /* brix_dns_curl_pin (phase-116) */
+
 #if (BRIX_HAVE_LIBXML2)
 #include <libxml/parser.h>
 #include <libxml/tree.h>
@@ -65,13 +67,15 @@ sts_write_cb(void *ptr, size_t size, size_t nmemb, void *userdata)
  * secrets). Mirrors the curl setup in webdav_tpc_run_curl_core().
  */
 ngx_int_t
-sts_http_get(const char *url, sts_resp_t *resp, long *http_status,
-    ngx_log_t *log)
+sts_http_get(const struct brix_dns_policy_s *dns, const char *url,
+    sts_resp_t *resp, long *http_status, ngx_log_t *log)
 {
-    CURL     *curl;
-    CURLcode  res;
-    char      errbuf[CURL_ERROR_SIZE];
-    ngx_int_t rc = NGX_ERROR;
+    CURL              *curl;
+    CURLcode           res;
+    struct curl_slist *resolve = NULL;
+    char               errbuf[CURL_ERROR_SIZE];
+    char               reason[BRIX_DNS_ERROR_LEN];
+    ngx_int_t          rc = NGX_ERROR;
 
     curl = curl_easy_init();
     if (curl == NULL) {
@@ -83,6 +87,14 @@ sts_http_get(const char *url, sts_resp_t *resp, long *http_status,
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_URL, url);
+    if (brix_dns_curl_pin(curl, dns, url, &resolve, reason, sizeof(reason))
+        != NGX_OK)
+    {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "brix_sts: cannot resolve STS endpoint: %s", reason);
+        curl_easy_cleanup(curl);
+        return NGX_ERROR;
+    }
 #if CURL_AT_LEAST_VERSION(7, 85, 0)
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
 #else
@@ -105,6 +117,7 @@ sts_http_get(const char *url, sts_resp_t *resp, long *http_status,
             errbuf[0] ? errbuf : curl_easy_strerror(res));
     }
 
+    curl_slist_free_all(resolve);
     curl_easy_cleanup(curl);
     return rc;
 }
@@ -121,13 +134,16 @@ sts_http_get(const char *url, sts_resp_t *resp, long *http_status,
  * secrets — the Authorization signature is a derived MAC, not a secret).
  */
 ngx_int_t
-sts_http_post(const char *url, const char *host, const sts_post_t *pd,
-    sts_resp_t *resp, long *http_status, ngx_log_t *log)
+sts_http_post(const struct brix_dns_policy_s *dns, const char *url,
+    const char *host, const sts_post_t *pd, sts_resp_t *resp,
+    long *http_status, ngx_log_t *log)
 {
     CURL              *curl;
     CURLcode           res;
     struct curl_slist *hdrs = NULL;
+    struct curl_slist *resolve = NULL;
     char               errbuf[CURL_ERROR_SIZE];
+    char               reason[BRIX_DNS_ERROR_LEN];
     char               line[1200];
     ngx_int_t          rc = NGX_ERROR;
 
@@ -161,6 +177,15 @@ sts_http_post(const char *url, const char *host, const sts_post_t *pd,
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_URL, url);
+    if (brix_dns_curl_pin(curl, dns, url, &resolve, reason, sizeof(reason))
+        != NGX_OK)
+    {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "brix_sts: cannot resolve STS endpoint: %s", reason);
+        curl_slist_free_all(hdrs);
+        curl_easy_cleanup(curl);
+        return NGX_ERROR;
+    }
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, pd->body);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long) ngx_strlen(pd->body));
@@ -187,6 +212,7 @@ sts_http_post(const char *url, const char *host, const sts_post_t *pd,
             errbuf[0] ? errbuf : curl_easy_strerror(res));
     }
 
+    curl_slist_free_all(resolve);
     curl_slist_free_all(hdrs);
     curl_easy_cleanup(curl);
     return rc;

@@ -38,6 +38,20 @@ ngx_int_t brix_send_error_sid(brix_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t brix_send_redirect(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *host, uint16_t port);
 
+/*
+ * Answer a client whose request has just been matched to a selected data
+ * server (registry hit, loc/redir cache, stage select, or a CMS kYR_select /
+ * kYR_have wake).  Under the default `brix_cms_response redirect` this IS
+ * brix_send_redirect; under `proxy` the session is pinned to host:port and the
+ * request relayed through the transparent proxy (phase-115 W2.1).  Every
+ * dynamic selection site goes through here so the policy lives in one place —
+ * implemented in src/net/proxy/cms_select.c.  Static `brix_manager_map`
+ * redirects and TPC / cache-origin redirects are NOT selections and keep
+ * calling brix_send_redirect directly.
+ */
+ngx_int_t brix_cms_answer_selected(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *host, uint16_t port);
+
 /* Send kXR_redirect with an appended ?tpc.key=<key> opaque qualifier. */
 ngx_int_t brix_send_redirect_tpc(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *host, uint16_t port, const char *tpc_key);

@@ -29,16 +29,20 @@
 
 /* Outbound bootstrap auth (phase-57 §F4/W1.4.a): bound the kXR_authmore exchange
  * so a hostile or misconfigured origin can never drive an unbounded auth loop.
- * Single-round ztn/token auth uses 1; the bound leaves headroom for a future
- * multi-round (GSI) continuation on the cache-fill path without another change. */
+ * Single-round ztn/token auth uses 1; two-round GSI (phase 115 W2.4) uses 2. */
 #define XRD_OBA_MAX_ROUNDS   8
+
+/* Largest kXR_auth reply body accepted while in XRD_UP_BS_AUTH: a kXGS_cert
+ * carries the upstream's full X.509 chain plus DH parameters, far beyond the
+ * BRIX_MAX_PATH-scaled cap the request/response phases use (phase 115 W2.4). */
+#define XRD_UP_AUTH_BODY_MAX   (64 * 1024)
 
 typedef enum {
     XRD_UP_BS_HANDSHAKE = 0,
     XRD_UP_BS_PROTOCOL,
     XRD_UP_BS_TLS,    /* waiting for outbound TLS handshake to complete (kXR_gotoTLS) */
     XRD_UP_BS_LOGIN,
-    XRD_UP_BS_AUTH,   /* waiting for kXR_auth (token/ztn) response */
+    XRD_UP_BS_AUTH,   /* waiting for a kXR_auth (ztn or gsi round) response */
     XRD_UP_BS_DONE,
 } brix_up_bs_t;
 
@@ -77,6 +81,7 @@ struct brix_upstream_s {
     uint16_t  req_open_mode;
 
     ngx_uint_t  authmore_count;  /* number of kXR_authmore exchanges so far */
+    ngx_uint_t  gsi_round;       /* 0 = not gsi; 1 = certreq sent; 2 = cert sent */
 };
 
 /* Tear down the upstream (frees timer + TCP conn, detaches client ctx) and send a
@@ -165,12 +170,33 @@ ngx_int_t brix_upstream_start_tls(brix_upstream_t *up,
     ngx_stream_brix_srv_conf_t *conf);
 #endif
 
-/* Read conf->upstream_token_file synchronously (cap 64 KiB) and send a kXR_auth "ztn"
- * frame to the upstream, echoing the client's stream ID; sets bs_phase = XRD_UP_BS_AUTH
- * and resets the response accumulator. Returns NGX_OK (frame sent or partial — write/read
- * events armed for completion) or NGX_ERROR on file-read/alloc/event-arm failure (caller
- * must abort). Frame is pool-allocated; the token is read into a stack buffer. */
+/* Frame one kXR_auth request (ClientAuthRequest header echoing the client's stream
+ * ID, `credtype` in the 4-byte slot, `payload` as the body) into a fresh pool buffer
+ * and flush it; sets bs_phase = XRD_UP_BS_AUTH and resets the response accumulator.
+ * Returns NGX_OK (fully sent or partial — write/read events armed) or NGX_ERROR on
+ * alloc/event-arm failure (caller must abort). `payload` is copied, not retained. */
+ngx_int_t brix_upstream_send_auth_frame(brix_upstream_t *up,
+    const char credtype[4], const u_char *payload, size_t plen);
+
+/* Read conf->upstream_token_file synchronously (cap 64 KiB) and send it as a kXR_auth
+ * "ztn" frame via brix_upstream_send_auth_frame. Returns its result, or NGX_ERROR on
+ * file-read failure (caller must abort). The token is read into a stack buffer. */
 ngx_int_t brix_upstream_send_token_auth(brix_upstream_t *up,
+    ngx_stream_brix_srv_conf_t *conf);
+
+/* GSI round 1 (phase 115 W2.4, auth_gsi.c): parse the upstream's `gsi` advert parms
+ * (borrowed, NUL-terminated "v:...,c:...,ca:..."), build a signed-DH kXGC_certreq
+ * with the shared XrdSecgsi kernel and send it via brix_upstream_send_auth_frame;
+ * sets up->gsi_round = 1. Returns the framer's result or NGX_ERROR (caller aborts). */
+ngx_int_t brix_upstream_send_gsi_certreq(brix_upstream_t *up,
+    const char *gsi_parms);
+
+/* GSI round 2: verify the kXGS_cert accumulated in up->resp_body against
+ * conf->gsi_store (skipped with a warning when no brix_trusted_ca is configured),
+ * load conf->upstream_x509_proxy (+ upstream_x509_key), build the kXGC_cert reply and
+ * send it; sets up->gsi_round = 2. Returns NGX_ERROR after logging the reason on any
+ * verification/credential/build failure (caller aborts). */
+ngx_int_t brix_upstream_gsi_respond(brix_upstream_t *up,
     ngx_stream_brix_srv_conf_t *conf);
 
 #endif

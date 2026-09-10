@@ -13,6 +13,49 @@
 #include "net/manager/registry.h"
 
 /*
+ * Phase 22 — aggregate health-check counters (no per-server labels, per
+ * INVARIANT 8: low-cardinality only; per-server HC state is on the dashboard
+ * snapshot API).  Emitted whenever the registry zone exists, member or not:
+ * the four are counters, and a counter that only appears once the first data
+ * server registers reads as a reset to every scraper (2.0 readiness F10).
+ */
+static void
+cluster_export_health_counters(metrics_writer_t *mw)
+{
+    /* These four counters live in the stream module's shared metrics zone
+     * (not the registry SHM walked above), so fetch that mapping separately;
+     * it is NULL until the metrics zone is initialised. */
+    ngx_brix_metrics_t *m = brix_metrics_shared();
+    if (m != NULL) {
+        mw_printf(mw,
+            "# HELP brix_cluster_hc_probes_total "
+                "Active health-check probes started.\n"
+            "# TYPE brix_cluster_hc_probes_total counter\n"
+            "brix_cluster_hc_probes_total %lu\n"
+            "# HELP brix_cluster_hc_pass_total "
+                "Health-check probes that passed.\n"
+            "# TYPE brix_cluster_hc_pass_total counter\n"
+            "brix_cluster_hc_pass_total %lu\n"
+            "# HELP brix_cluster_hc_fail_total "
+                "Health-check probes that failed or timed out.\n"
+            "# TYPE brix_cluster_hc_fail_total counter\n"
+            "brix_cluster_hc_fail_total %lu\n"
+            "# HELP brix_cluster_hc_blacklist_total "
+                "Servers blacklisted by health checking.\n"
+            "# TYPE brix_cluster_hc_blacklist_total counter\n"
+            "brix_cluster_hc_blacklist_total %lu\n",
+            /* fetch_add(&x, 0) is the lock-free idiom for an atomic READ of
+             * an ngx_atomic_t — adding zero leaves the value unchanged while
+             * returning a consistent snapshot without taking a lock. */
+            (unsigned long) ngx_atomic_fetch_add(&m->hc_probes_total, 0),
+            (unsigned long) ngx_atomic_fetch_add(&m->hc_pass_total, 0),
+            (unsigned long) ngx_atomic_fetch_add(&m->hc_fail_total, 0),
+            (unsigned long) ngx_atomic_fetch_add(&m->hc_blacklist_total, 0));
+    }
+}
+
+
+/*
  * WHAT: emit the per-server cluster gauges and aggregate health-check counters
  *       into the supplied metrics writer.
  * WHY: operators need live visibility into registry membership (which data
@@ -55,8 +98,10 @@ brix_export_cluster_metrics(metrics_writer_t *mw)
         "brix_cluster_servers_registered %u\n",
         (unsigned int) n);
 
-    /* Count gauge already emitted; with no occupied slots there are no
-     * per-server families to follow, so stop before the emit loops. */
+    cluster_export_health_counters(mw);
+
+    /* Count gauge and hc counters already emitted; with no occupied slots
+     * there are no per-server families to follow, so stop before the loops. */
     if (n == 0) {
         return;
     }
@@ -144,40 +189,4 @@ brix_export_cluster_metrics(metrics_writer_t *mw)
     }
 
 #undef CLUSTER_LABEL
-
-    /* Phase 22 — aggregate health-check counters (no per-server labels, per
-     * INVARIANT 8: low-cardinality only; per-server HC state is on the
-     * dashboard snapshot API). */
-    {
-        /* These four counters live in the stream module's shared metrics zone
-         * (not the registry SHM walked above), so fetch that mapping separately;
-         * it is NULL until the metrics zone is initialised. */
-        ngx_brix_metrics_t *m = brix_metrics_shared();
-        if (m != NULL) {
-            mw_printf(mw,
-                "# HELP brix_cluster_hc_probes_total "
-                    "Active health-check probes started.\n"
-                "# TYPE brix_cluster_hc_probes_total counter\n"
-                "brix_cluster_hc_probes_total %lu\n"
-                "# HELP brix_cluster_hc_pass_total "
-                    "Health-check probes that passed.\n"
-                "# TYPE brix_cluster_hc_pass_total counter\n"
-                "brix_cluster_hc_pass_total %lu\n"
-                "# HELP brix_cluster_hc_fail_total "
-                    "Health-check probes that failed or timed out.\n"
-                "# TYPE brix_cluster_hc_fail_total counter\n"
-                "brix_cluster_hc_fail_total %lu\n"
-                "# HELP brix_cluster_hc_blacklist_total "
-                    "Servers blacklisted by health checking.\n"
-                "# TYPE brix_cluster_hc_blacklist_total counter\n"
-                "brix_cluster_hc_blacklist_total %lu\n",
-                /* fetch_add(&x, 0) is the lock-free idiom for an atomic READ of
-                 * an ngx_atomic_t — adding zero leaves the value unchanged while
-                 * returning a consistent snapshot without taking a lock. */
-                (unsigned long) ngx_atomic_fetch_add(&m->hc_probes_total, 0),
-                (unsigned long) ngx_atomic_fetch_add(&m->hc_pass_total, 0),
-                (unsigned long) ngx_atomic_fetch_add(&m->hc_fail_total, 0),
-                (unsigned long) ngx_atomic_fetch_add(&m->hc_blacklist_total, 0));
-        }
-    }
 }

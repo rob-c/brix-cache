@@ -55,9 +55,9 @@ stream {
         listen 1094;
         brix_root on;
         brix_export /;
-        brix_cache on;
-        brix_cache_export /srv/xcache;
-        brix_cache_origin root://origin.example.org:1094;
+        brix_storage_backend root://origin.example.org:1094;   # the origin
+        brix_cache_store     posix:/srv/xcache;                # local cache tier
+        brix_cache_export    /;
         brix_cache_lock_timeout 300s;
         brix_cache_eviction_threshold 90%;
         brix_access_log /var/log/nginx/brix_cache.log;
@@ -256,20 +256,20 @@ http {
         location /atlas/ {
             brix_webdav on;
             brix_webdav_auth          required;
-            brix_webdav_cadir         /etc/grid-security/certificates;
-            brix_webdav_token_jwks    /etc/tokens/atlas.jwks;
-            brix_webdav_token_issuer  https://idp.atlas.cern.ch;
-            brix_webdav_token_audience https://se.example.org;
+            brix_trusted_ca_dir         /etc/grid-security/certificates;
+            brix_token_jwks    /etc/tokens/atlas.jwks;
+            brix_token_issuer  https://idp.atlas.cern.ch;
+            brix_token_audience https://se.example.org;
         }
 
         # CMS sub-tree: same storage root, different token issuer
         location /cms/ {
             brix_webdav on;
             brix_webdav_auth          required;
-            brix_webdav_cadir         /etc/grid-security/certificates;
-            brix_webdav_token_jwks    /etc/tokens/cms.jwks;
-            brix_webdav_token_issuer  https://idp.cms.cern.ch;
-            brix_webdav_token_audience https://se.example.org;
+            brix_trusted_ca_dir         /etc/grid-security/certificates;
+            brix_token_jwks    /etc/tokens/cms.jwks;
+            brix_token_issuer  https://idp.cms.cern.ch;
+            brix_token_audience https://se.example.org;
         }
     }
 
@@ -283,8 +283,8 @@ http {
 
 Both `location /atlas/` and `location /cms/` inherit `brix_export /data/store`,
 `brix_allow_write on`, and `brix_thread_pool webdav_io` from the enclosing `server {}`.
-Only the per-location authentication policy (`brix_webdav_token_jwks`, `brix_webdav_token_issuer`,
-`brix_webdav_token_audience`) differs between them.
+Only the per-location authentication policy (`brix_token_jwks`, `brix_token_issuer`,
+`brix_token_audience`) differs between them.
 
 Note: `brix_webdav` and `brix_s3` on the **same listen port** is a config error — each port
 may carry at most one brix protocol family. Use separate `server {}` blocks on distinct ports to
@@ -367,8 +367,10 @@ http {
             # brix_cvmfs_origin_coords cvmfs-stratum-one.cern.ch 46.23:6.05;
             # brix_cvmfs_origin_coords cvmfs-s1fnal.opensciencegrid.org 41.85:-88.31;
 
-            # --- non-default: eviction watermarks (parsed/validated; occupancy-based
-            #     eviction not yet wired — these are capacity-planning placeholders) ---
+            # --- non-default: eviction watermarks.  Wired on the root:// stream read
+            #     cache (they seed the watermark LRU reaper); on THIS cvmfs plane they
+            #     are still parsed/validated only — cvmfs eviction is bounded by
+            #     brix_cache_max_object plus DELETE/overwrite. ---
             # Defaults are evict_at=90 evict_to=80 (percent of volume).
             brix_cache_evict_at 85;          # default: 90
             brix_cache_evict_to 70;          # default: 80

@@ -32,6 +32,7 @@ import os
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 
 import pytest
 
@@ -73,8 +74,7 @@ def _closed_loopback_port():
 @pytest.fixture(scope="module")
 def doctor():
     _guard_doctor_1()
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrddiag"],
-                          capture_output=True, text=True, timeout=180)
+    proc = client_make(CLIENT_DIR, "xrddiag", capture_output=True, text=True, timeout=180)
     _guard_doctor_2(proc)
     _guard_doctor_3()
     return XRDDIAG

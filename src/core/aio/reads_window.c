@@ -40,6 +40,27 @@ brix_read_window_emit(brix_ctx_t *ctx, ngx_connection_t *c,
     uint16_t     status;
     size_t       got;
 
+    /* §4.5 serve-while-filling: EAGAIN means the train caught up with an
+     * in-flight fill's frontier, which is not a failure.
+     *   - nothing sent yet  -> kXR_wait; the client retries the whole read.
+     *   - a frame is out    -> the response has already promised bytes, so a
+     *                          kXR_wait would desynchronise the stream. Fall
+     *                          through as a ZERO-length window, which the
+     *                          short-read arm below terminates with kXR_ok;
+     *                          kXR_read is allowed to return fewer bytes than
+     *                          asked for and the client re-reads from there. */
+    if (nread < 0 && io_errno == EAGAIN) {
+        if (!ctx->rd.win_sent) {
+            ctx->rd.win_active = 0;
+            ctx->state = XRD_ST_REQ_HEADER;
+            ctx->recv.hdr_pos = 0;
+            brix_release_read_buffer(ctx, c, ctx->rd.read_scratch);
+            (void) brix_read_io_error(ctx, c, io_errno);
+            return NGX_ERROR;
+        }
+        nread = 0;
+    }
+
     if (nread < 0) {
         brix_read_io_failure_log(c->log, "windowed", ctx->rd.win_fd,
                                    ctx->rd.win_offset, ctx->rd.win_remaining,
@@ -81,6 +102,7 @@ brix_read_window_emit(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ctx->state = XRD_ST_REQ_HEADER;
     ctx->recv.hdr_pos = 0;
+    ctx->rd.win_sent = 1;    /* §4.5: bytes promised — no kXR_wait past here */
     brix_queue_response_chain(ctx, c, chain, ctx->rd.read_scratch);
     if (ctx->state != XRD_ST_SENDING) {
         brix_release_read_buffer(ctx, c, ctx->rd.read_scratch);  /* no-op slot */

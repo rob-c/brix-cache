@@ -15,12 +15,18 @@
       offsetof(ngx_http_brix_common_conf_t, common.root),
       NULL },
 
+    /* <store-url> [verify_pages][mode=][prot=][credential=][block_size=] —
+     * phase-115 W5.1 gave the backend line the same trailing-param grammar the
+     * cache/stage lines already had.  Before that it was TAKE1, which made
+     * W4.3's `verify_pages` unreachable: nginx -t refused the line for arity
+     * before any parser saw the token. */
     { ngx_string("brix_storage_backend"),
-      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1234,
+      brix_conf_set_store_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_common_conf_t, common.storage_backend),
-      NULL },
+      (void *) offsetof(ngx_http_brix_common_conf_t,
+                        common.storage_backend_args) },
 
     /* phase-108 A.4: explicit override of the export's logical→physical name
      * translation (default is derived from the backend origin). Validated at
@@ -203,13 +209,6 @@
       offsetof(ngx_http_brix_common_conf_t, common.backend_krb5_forwardable),
       NULL },
 
-    { ngx_string("brix_backend_passthrough_persist"),
-      BRIX_HTTP_ALL_CONF|NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_common_conf_t, common.backend_passthrough_persist),
-      NULL },
-
     /* Phase-70 §5.6 / P90-70.3: SSS identity-injection keytab — the delegation
      * gate re-issues an SSS credential asserting the CALLER's principal to the
      * origin, signed with this keytab (never the keytab's own principal).
@@ -304,6 +303,16 @@
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_common_conf_t, common.cache_verify_mode),
       &brix_http_cache_verify_enum },
+
+    /* The digest a NON-xroot origin is ASKED for when a verifying fill needs
+     * something to compare against (RFC-3230 Want-Digest on an HTTP/Pelican
+     * origin, an object store's stored checksum).  Unset = ask for nothing. */
+    { ngx_string("brix_cache_verify_digest"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      brix_http_conf_set_cache_verify_digest,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
 
     /* kTLS + trusted cache-store endpoint (phase-101 W2): both were hand-rolled
      * dual-conf-poking setters registered on webdav that wrote BOTH the webdav

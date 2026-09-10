@@ -31,6 +31,7 @@ import os
 import shutil
 import socket
 import subprocess
+from brix_suite.client_build import client_make
 import time
 
 import pytest
@@ -74,8 +75,7 @@ def _port_up(host, port):
 def built():
     if not _FUSE_OK:
         pytest.skip("FUSE unavailable (/dev/fuse or fusermount3 missing)")
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrootdfs"],
-                          capture_output=True, text=True, timeout=300)
+    proc = client_make(CLIENT_DIR, "xrootdfs", capture_output=True, text=True, timeout=300)
     if proc.returncode != 0 or not os.path.exists(XROOTDFS):
         pytest.skip(f"xrootdfs build failed:\n{proc.stdout}\n{proc.stderr}")
     return True

@@ -2,7 +2,7 @@
 Shared infrastructure for the real-XRootD <-> nginx-xrootd CMS mesh.
 
 This module owns the *daemon lifecycle* for every CMS-mesh topology so the
-topologies can be brought up once by the test harness (manage_test_servers.sh ->
+topologies can be brought up once by the test harness (cmdscripts/manage_test_servers.py ->
 cms_mesh_servers.py) instead of by each test.  The tests in
 test_cms_mesh_interop.py only connect to the fixed ports below and skip if a
 topology is not up.

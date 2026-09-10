@@ -66,6 +66,15 @@ def int_to_b64url(n: int) -> str:
 # TokenIssuer — manages a local signing authority
 # ---------------------------------------------------------------------------
 
+def _fsync_directory(path):
+    """Persist a directory entry so a completed rename survives a crash."""
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 class TokenIssuer:
     """Manages a local signing authority for WLCG JWT tokens."""
 
@@ -123,8 +132,18 @@ class TokenIssuer:
         try:
             with open(tmp_key_path, "wb") as f:
                 f.write(pem)
+                # Durability, not just atomicity.  os.replace() orders the
+                # rename against the data only once that data has reached the
+                # disk; without these two syncs a machine that dies moments
+                # later comes back with the final name, the 0400 mode, and
+                # nothing inside.  That is not hypothetical — the 2026-09-07
+                # 13:10 kernel panic left three signing keys under a live
+                # TEST_ROOT at zero length, and /tmp outlives the reboot.
+                f.flush()
+                os.fsync(f.fileno())
             os.chmod(tmp_key_path, 0o400)
             os.replace(tmp_key_path, self.key_path)
+            _fsync_directory(self.token_dir)
         finally:
             if os.path.exists(tmp_key_path):
                 os.unlink(tmp_key_path)

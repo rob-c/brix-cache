@@ -23,11 +23,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* Attached to the X509_STORE as a single ex_data blob. */
+/* Attached to the X509_STORE as a single ex_data blob: the compiled
+ * signing_policy table plus the operator's whole trust policy, so a verify
+ * callback (which sees only an X509_STORE_CTX) can read every knob. */
 typedef struct {
-    brix_sp_table_t *table;
-    brix_sp_mode_t   sp_mode;
-    int              crl_mode;
+    brix_sp_table_t     *table;
+    brix_trust_policy_t  pol;
 } brix_store_policy_t;
 
 /* -- store configuration (shared by production + oracle) ------------------ */
@@ -253,11 +254,102 @@ brix_crl_scope_is_spurious(X509_STORE_CTX *ctx)
 }
 
 /*
+ * WHAT: is this verdict a revocation-check verdict, as opposed to a verdict
+ *       about the certificate itself (expiry, signature, trust)?
+ * WHY:  BRIX_CRL_SCOPE_LAST narrows WHERE revocation is enforced; it must not
+ *       narrow anything else.  An expired CA or a broken signature stays fatal
+ *       at every depth under both scopes, so the two classes must be told
+ *       apart explicitly rather than by "whatever the callback saw".
+ * HOW:  a table, not a switch — the list is data, and a 13-arm switch would
+ *       eat the function's whole complexity budget for no benefit.
+ */
+static int
+brix_err_is_crl_class(int err)
+{
+    static const int crl_errs[] = {
+        X509_V_ERR_UNABLE_TO_GET_CRL,
+        X509_V_ERR_UNABLE_TO_GET_CRL_ISSUER,
+        X509_V_ERR_UNABLE_TO_DECRYPT_CRL_SIGNATURE,
+        X509_V_ERR_CRL_SIGNATURE_FAILURE,
+        X509_V_ERR_CRL_NOT_YET_VALID,
+        X509_V_ERR_CRL_HAS_EXPIRED,
+        X509_V_ERR_ERROR_IN_CRL_LAST_UPDATE_FIELD,
+        X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD,
+        X509_V_ERR_KEYUSAGE_NO_CRL_SIGN,
+        X509_V_ERR_UNHANDLED_CRITICAL_CRL_EXTENSION,
+        X509_V_ERR_DIFFERENT_CRL_SCOPE,
+        X509_V_ERR_CRL_PATH_VALIDATION_ERROR,
+        X509_V_ERR_CERT_REVOKED,
+    };
+    size_t i;
+
+    for (i = 0; i < sizeof(crl_errs) / sizeof(crl_errs[0]); i++) {
+        if (err == crl_errs[i]) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/*
+ * WHAT: the depth of the credential's own end-entity certificate.
+ * WHY:  "last" means the user's EEC, not "depth 0".  On a GSI login depth 0 is
+ *       a proxy (and there may be several stacked), so depth 0 is the wrong
+ *       anchor: pinning scope to it would let a revoked EEC in behind a proxy.
+ * HOW:  the shallowest certificate that is NOT a proxy.  A chain of nothing but
+ *       proxies (impossible for a validated chain, but cheap to be safe about)
+ *       and a chain OpenSSL has not built yet both fall back to depth 0, the
+ *       strictest answer.
+ */
+static int
+brix_chain_eec_depth(X509_STORE_CTX *ctx)
+{
+    STACK_OF(X509) *chain = X509_STORE_CTX_get0_chain(ctx);
+    int             i;
+
+    if (chain == NULL) {
+        return 0;
+    }
+    for (i = 0; i < sk_X509_num(chain); i++) {
+        if (brix_px_classify(sk_X509_value(chain, i)) == BRIX_PX_NONE) {
+            return i;
+        }
+    }
+    return 0;
+}
+
+/*
+ * WHAT: under BRIX_CRL_SCOPE_LAST, is this revocation verdict about a
+ *       certificate the operator asked us NOT to hold to a CRL?
+ * WHY:  `crlcheck last` exists for the site whose upstream CAs publish no
+ *       usable CRL for their own issuers.  It is a relaxation ABOVE the end
+ *       entity only: the EEC itself is still checked, so a revoked user is
+ *       refused under every scope value.  That invariant is the reason this
+ *       knob is safe to ship at all.
+ * HOW:  tolerate a CRL-class verdict at any depth other than the EEC's.
+ */
+static int
+brix_crl_out_of_scope(X509_STORE_CTX *ctx, int err)
+{
+    if (brix_store_crl_scope(ctx) != BRIX_CRL_SCOPE_LAST) {
+        return 0;
+    }
+    if (!brix_err_is_crl_class(err)) {
+        return 0;
+    }
+    return X509_STORE_CTX_get_error_depth(ctx) != brix_chain_eec_depth(ctx);
+}
+
+/*
  * WHAT: CRL verify callback installed for BRIX_CRL_MODE_TRY and _REQUIRE.
+ *       It carries BOTH residuals: the crl_mode strictness and the crl_scope
+ *       depth narrowing.
  * WHY:  "try" checks revocation where a CRL exists but tolerates a CA that has
  *       none; a stale (expired) CRL stays fatal (staleness is evidence).  Both
  *       modes also tolerate the spurious DIFFERENT_CRL_SCOPE described above so
  *       a non-revoked cert under a full CRL is admitted (as stock OpenSSL does).
+ *       Scope lives here rather than in the store flags because OpenSSL's plain
+ *       CRL_CHECK skips proxy certificates entirely (store_policy.h).
  * HOW:  downgrade UNABLE_TO_GET_CRL (try only) and provably-spurious
  *       DIFFERENT_CRL_SCOPE (both) to success; every other verdict
  *       (CRL_HAS_EXPIRED, CERT_REVOKED, ...) stands.
@@ -271,6 +363,13 @@ brix_crl_try_verify_cb(int ok, X509_STORE_CTX *ctx)
         return 1;
     }
     err = X509_STORE_CTX_get_error(ctx);
+    /* `crlcheck last`: the operator asked for revocation at the end entity
+     * only.  Checked FIRST so the relaxation is independent of crl_mode —
+     * "require last" is a real combination (a strict EEC check over CAs that
+     * publish nothing), not a contradiction. */
+    if (brix_crl_out_of_scope(ctx, err)) {
+        return 1;
+    }
     /* "try" tolerates a CA that publishes no CRL at all (genuine missing-CRL). */
     if (err == X509_V_ERR_UNABLE_TO_GET_CRL
         && brix_store_crl_mode(ctx) != BRIX_CRL_MODE_REQUIRE) {
@@ -296,12 +395,12 @@ brix_crl_try_verify_cb(int ok, X509_STORE_CTX *ctx)
 int
 brix_store_configure(X509_STORE *store, const char *cadir,
                      unsigned long extra_flags, int crl_count,
-                     brix_sp_mode_t sp_mode, int crl_mode,
+                     const brix_trust_policy_t *pol,
                      void *log, brix_sp_log_fn log_fn)
 {
     brix_sp_table_t *table;
 
-    if (store == NULL) {
+    if (store == NULL || pol == NULL) {
         return -1;
     }
 
@@ -312,19 +411,25 @@ brix_store_configure(X509_STORE *store, const char *cadir,
      * issuer on every store (webdav and GSI); the signature is still verified. */
     X509_STORE_set_check_issued(store, brix_sp_proxy_check_issued);
 
-    if (crl_mode == BRIX_CRL_MODE_REQUIRE
-        || (crl_mode == BRIX_CRL_MODE_TRY && crl_count > 0))
+    if (pol->crl_mode == BRIX_CRL_MODE_REQUIRE
+        || (pol->crl_mode == BRIX_CRL_MODE_TRY && crl_count > 0))
     {
+        /* CRL_CHECK_ALL is armed under BOTH scopes on purpose — see the
+         * CRL SCOPE block in store_policy.h.  `last` is narrowed in
+         * brix_crl_try_verify_cb, never by dropping this flag: without it
+         * OpenSSL checks depth 0 only and skips proxy certificates, so on a
+         * GSI proxy chain it would check nothing at all. */
         X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK
-            | X509_V_FLAG_CRL_CHECK_ALL | X509_V_FLAG_USE_DELTAS);
+                                    | X509_V_FLAG_CRL_CHECK_ALL
+                                    | X509_V_FLAG_USE_DELTAS);
         X509_STORE_set_get_crl(store, brix_failsafe_get_crl);
     }
-    if (crl_mode == BRIX_CRL_MODE_TRY
-        || crl_mode == BRIX_CRL_MODE_REQUIRE) {
+    if (pol->crl_mode == BRIX_CRL_MODE_TRY
+        || pol->crl_mode == BRIX_CRL_MODE_REQUIRE) {
         X509_STORE_set_verify_cb(store, brix_crl_try_verify_cb);
     }
 
-    if (cadir == NULL && sp_mode == BRIX_SP_MODE_REQUIRE) {
+    if (cadir == NULL && pol->sp_mode == BRIX_SP_MODE_REQUIRE) {
         sp_log(log, log_fn, BRIX_SP_LOG_WARN,
                "signing_policy: \"require\" needs a hashed CA directory, not a "
                "bundle file");
@@ -335,7 +440,7 @@ brix_store_configure(X509_STORE *store, const char *cadir,
     if (table == NULL) {
         return -1;
     }
-    if (!brix_store_policy_attach(store, table, sp_mode, crl_mode)) {
+    if (!brix_store_policy_attach(store, table, pol)) {
         brix_sp_table_free(table);
         return -1;
     }
@@ -375,12 +480,12 @@ sp_store_ex_index(void)
 
 int
 brix_store_policy_attach(X509_STORE *store, brix_sp_table_t *table,
-                         brix_sp_mode_t sp_mode, int crl_mode)
+                         const brix_trust_policy_t *pol)
 {
     brix_store_policy_t *sp;
     int                  idx = sp_store_ex_index();
 
-    if (store == NULL || idx < 0) {
+    if (store == NULL || pol == NULL || idx < 0) {
         return 0;
     }
     sp = calloc(1, sizeof(*sp));
@@ -388,8 +493,7 @@ brix_store_policy_attach(X509_STORE *store, brix_sp_table_t *table,
         return 0;
     }
     sp->table = table;
-    sp->sp_mode = sp_mode;
-    sp->crl_mode = crl_mode;
+    sp->pol   = *pol;   /* by value: the store outlives the caller's config */
 
     if (!X509_STORE_set_ex_data(store, idx, sp)) {
         free(sp);
@@ -425,12 +529,26 @@ brix_sp_mode_t
 brix_store_policy_mode(X509_STORE_CTX *ctx)
 {
     brix_store_policy_t *sp = sp_from_ctx(ctx);
-    return sp ? sp->sp_mode : BRIX_SP_MODE_OFF;
+    return sp ? sp->pol.sp_mode : BRIX_SP_MODE_OFF;
 }
 
 int
 brix_store_crl_mode(X509_STORE_CTX *ctx)
 {
     brix_store_policy_t *sp = sp_from_ctx(ctx);
-    return sp ? sp->crl_mode : BRIX_CRL_MODE_OFF;
+    return sp ? sp->pol.crl_mode : BRIX_CRL_MODE_OFF;
+}
+
+int
+brix_store_crl_scope(X509_STORE_CTX *ctx)
+{
+    brix_store_policy_t *sp = sp_from_ctx(ctx);
+    return sp ? sp->pol.crl_scope : BRIX_CRL_SCOPE_ALL;
+}
+
+int
+brix_store_verify_log(X509_STORE_CTX *ctx)
+{
+    brix_store_policy_t *sp = sp_from_ctx(ctx);
+    return sp ? sp->pol.verify_log : BRIX_TLS_VERIFY_LOG_OFF;
 }

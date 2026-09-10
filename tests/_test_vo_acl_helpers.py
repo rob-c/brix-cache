@@ -194,6 +194,31 @@ def _make_voms_proxy(vo: str, fqan: str, out: str):
     )
 
 
+def _make_voms_proxy_multi(pairs, out: str):
+    """Create a fake proxy carrying ONE VOMS AC per (vo, fqan) pair.
+
+    A real multi-VO proxy has this shape, and it is the only credential that
+    can distinguish "the vorg CSV contains cms AND the role CSV contains
+    production" from "some ONE FQAN is cms with role production" — the
+    cross-tuple widening 2.0 F20 closed (src/auth/authz/authdb.c).
+    """
+    argv = list(VOMS_PROXY_FAKE)
+    for vo, fqan in pairs:
+        argv += ["-voms", vo, "-fqan", fqan]
+    subprocess.run(
+        argv + [
+         "-cert",     USER_CERT,
+         "-key",      USER_KEY,
+         "-certdir",  CA_DIR,
+         "-hostcert", VOMS_CERT,
+         "-hostkey",  VOMS_KEY,
+         "-uri",      "voms.test.local:15000",
+         "-out",      out,
+         "-hours",    "24"],
+        check=True, capture_output=True,
+    )
+
+
 def _proxy_is_valid(path: str) -> bool:
     """Return True if the proxy file exists and is not yet expired."""
     if not os.path.exists(path):

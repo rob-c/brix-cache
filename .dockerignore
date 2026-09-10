@@ -23,6 +23,8 @@
 !requirements.txt
 !deploy/cvmfs
 !deploy/fail2ban
+!deploy/docker
+!deploy/compose
 !tests
 !utils
 !k8s-tests

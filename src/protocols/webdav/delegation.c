@@ -61,6 +61,7 @@
 #include "core/compat/log_diag.h"
 #include "core/http/http_body.h"
 
+#include <openssl/err.h>
 #include <openssl/bio.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
@@ -140,6 +141,7 @@ delegation_parse_chain(const u_char *pem, size_t pem_len)
     while ((cert = PEM_read_bio_X509(bio, NULL, NULL, NULL)) != NULL) {
         sk_X509_push(chain, cert);
     }
+    ERR_clear_error();   /* the terminating PEM_read failure is expected */
     BIO_free(bio);
 
     if (sk_X509_num(chain) == 0) {

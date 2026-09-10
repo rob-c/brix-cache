@@ -97,6 +97,11 @@
 #define BRIX_SCRATCH_TRIM_THRESHOLD  (2 * BRIX_READ_WINDOW)
 #define BRIX_CONN_XFER_HEAP_MAX      (4 * BRIX_READ_WINDOW)
 
+/* BRIX_TPC_HOPS_MAX caps brix_tpc_max_hops: how many kXR_redirect hops the
+ * native TPC pull may follow from the client-named source before the transfer
+ * fails (F7). Bounds a redirect ring or a manager ping-pong. */
+#define BRIX_TPC_HOPS_MAX            16
+
 /*
  * Optional io_uring disk-I/O backend (Phase 44).
  *
@@ -383,6 +388,20 @@
                           1, kXR_ok, NULL, 0);                           \
         BRIX_OP_OK((ctx), (op));                                        \
         return brix_send_redirect((ctx), (c), (host), (port));         \
+    } while (0)
+
+/*
+ * Selection answer (phase-115 W2.1): like BRIX_RETURN_REDIR but the answer is
+ * the manager's `brix_cms_response` policy — kXR_redirect (default) or pin the
+ * session to the selected server and proxy.  Use at dynamic selection sites
+ * (registry / caches / stage); static manager_map redirects keep RETURN_REDIR.
+ */
+#define BRIX_RETURN_SELECTED(ctx, c, conf, op, verb, path, detail, host, port) \
+    do {                                                                  \
+        brix_log_access((ctx), (c), (verb), (path), (detail),         \
+                          1, kXR_ok, NULL, 0);                           \
+        BRIX_OP_OK((ctx), (op));                                        \
+        return brix_cms_answer_selected((ctx), (c), (conf), (host), (port)); \
     } while (0)
 
 /*

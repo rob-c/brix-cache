@@ -8,6 +8,7 @@
 
 #include "s3_transport.h"
 #include "s3_transport_internal.h"
+#include "net/dns/curl_pin.h"       /* phase-116: pin the endpoint resolve */
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -474,7 +475,8 @@ s3o_apply_tls(CURL *curl, const s3o_request_t *req)
     }
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
-    s3o_apply_ca(curl, (const char *) req->tctx);
+    s3o_apply_ca(curl, req->tctx != NULL
+                       ? ((const brix_s3_tctx_t *) req->tctx)->ca_path : NULL);
     if (req->client_cert_pem != NULL && req->client_cert_pem[0] != '\0') {
         curl_easy_setopt(curl, CURLOPT_SSLCERTTYPE, "PEM");
         curl_easy_setopt(curl, CURLOPT_SSLKEYTYPE, "PEM");
@@ -485,22 +487,42 @@ s3o_apply_tls(CURL *curl, const s3o_request_t *req)
 
 /* s3o_configure — set every per-request curl option for `req` on `curl`.
  *
- * WHAT: Sets the URL, header list, write/header capture callbacks, then the
- *       timeout, reuse, method and TLS option groups.
+ * WHAT: Resolves and pins the endpoint host, then sets the URL, header list,
+ *       write/header capture callbacks, and the timeout, reuse, method and
+ *       TLS option groups.
  * WHY:  Concentrates the whole per-request curl configuration behind one call so
- *       the request body reads as build → configure → perform → finish.
+ *       the request body reads as build → configure → perform → finish; and
+ *       phase-116 requires the endpoint to resolve through the one brix DNS
+ *       path rather than libcurl's resolver, before any transfer starts.
  * HOW:  `r` is the response-capture buffer bound to the write/header callbacks;
- *       `slist` is the caller-owned header list. Option order is byte-identical
- *       to the pre-split sequence. */
-void
+ *       `slist` is the caller-owned header list. brix_dns_curl_pin() resolves
+ *       the URL host under the context's policy (literal hosts pin nothing)
+ *       and installs CURLOPT_RESOLVE; the warm handle is reset per request, so
+ *       the pin is rebuilt every time and never goes stale. A host that does
+ *       not resolve returns -1 with errbuf filled and the handle untouched by
+ *       any transfer. Option order is otherwise the pre-split sequence. */
+int
 s3o_configure(CURL *curl, const s3o_request_t *req, s3o_resp_t *r,
-              struct curl_slist *slist)
+              struct curl_slist *slist, struct curl_slist **resolve,
+              char *errbuf, size_t errcap)
 {
-    char url[2048];
+    const brix_s3_tctx_t *tctx = req->tctx;
+    char                  url[2048];
+    char                  reason[BRIX_DNS_ERROR_LEN];
 
     snprintf(url, sizeof(url), "%s://%s:%d%s",
              req->tls ? "https" : "http", req->host, req->port,
              req->path_and_query);
+
+    *resolve = NULL;
+    if (brix_dns_curl_pin(curl, tctx != NULL ? tctx->dns : NULL, url, resolve,
+                          reason, sizeof(reason)) != NGX_OK)
+    {
+        if (errbuf != NULL && errcap > 0) {
+            snprintf(errbuf, errcap, "DNS: %s", reason);
+        }
+        return -1;
+    }
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
@@ -514,4 +536,5 @@ s3o_configure(CURL *curl, const s3o_request_t *req, s3o_resp_t *r,
     s3o_apply_http_version(curl);
     s3o_apply_method(curl, req);
     s3o_apply_tls(curl, req);
+    return 0;
 }

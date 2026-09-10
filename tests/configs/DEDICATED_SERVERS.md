@@ -2,7 +2,7 @@
 
 ## Current State
 
-All dedicated instances are managed by `manage_test_servers.sh start-all` at session startup. The test infrastructure now utilizes a persistent session-level lifecycle, ensuring all required instances are launched once and available for the duration of the test run.
+All dedicated instances are managed by `python3 -m cmdscripts.manage_test_servers start-all` at session startup. The test infrastructure now utilizes a persistent session-level lifecycle, ensuring all required instances are launched once and available for the duration of the test run.
 
 ### Permanent shared instance (`nginx_shared.conf`) — always running
 
@@ -18,7 +18,7 @@ All dedicated instances are managed by `manage_test_servers.sh start-all` at ses
 | 9001 | S3 REST | anonymous | S3 without SigV4 auth |
 | 9100 | Prometheus metrics | none | `/metrics` endpoint |
 
-### Dedicated instance instances (Started via `manage_test_servers.sh start-all`)
+### Dedicated instance instances (Started via `python3 -m cmdscripts.manage_test_servers start-all`)
 
 | Port | Config | Purpose |
 |---|---|---|
@@ -91,7 +91,7 @@ All dedicated instances are managed by `manage_test_servers.sh start-all` at ses
 
 ### Step 1: Add to `nginx_shared.conf`
 
-Append server blocks for the stable-on-demand configs. Unlike vo_acl/manager which use `manage_test_servers.sh`, these should be permanent additions to the shared config so they're always available.
+Append server blocks for the stable-on-demand configs. Unlike vo_acl/manager which use `cmdscripts/manage_test_servers.py`, these should be permanent additions to the shared config so they're always available.
 
 **Changes:**
 - Append manager mode block (port 11120) — two location blocks on same port acting as manager+worker
@@ -101,12 +101,12 @@ Append server blocks for the stable-on-demand configs. Unlike vo_acl/manager whi
 
 ### Step 2: Create standalone instance for WebDAV TPC
 
-WebDAV TPC has 6 server blocks and is too large to append to the shared config. Create a new `nginx_webdav_tpc_shared.conf` in `tests/configs/` and start it via `manage_test_servers.sh`.
+WebDAV TPC has 6 server blocks and is too large to append to the shared config. Create a new `nginx_webdav_tpc_shared.conf` in `tests/configs/` and start it via `cmdscripts/manage_test_servers.py`.
 
 **Changes:**
 - Copy `nginx_webdav_tpc.conf` template → rename to `nginx_webdav_tpc_shared.conf`
 - Replace `{SOURCE_REQUIRED_PORT}` etc. with concrete ports (11125–11131)
-- Add entry in `manage_test_servers.sh` for `start-webdav-tpc-shared`
+- Add entry in `cmdscripts/manage_test_servers.py` for `start-webdav-tpc-shared`
 
 ### Step 3: Create auth_cache config (future)
 
@@ -119,10 +119,10 @@ When auth caching is implemented, create `nginx_auth_cache.conf` and add port 11
 ./configure --with-stream --with-http_ssl_module --with-threads --add-module=$REPO && make -j$(nproc)
 
 # Restart shared instance with new ports
-tests/manage_test_servers.sh restart-shared
+python3 -m cmdscripts.manage_test_servers restart-shared
 
 # WebDAV TPC standalone (if created as separate config):
-tests/manage_test_servers.sh start-webdav-tpc-shared
+tests/cmdscripts/manage_test_servers.py start-webdav-tpc-shared
 
 # Verify all ports listening:
 ss -tlnp | grep -E '(1109[4-7]|844[34]|8080|9001|9100|1112[0-4]|11125-11131)'

@@ -16,22 +16,27 @@
  *       code duplicated.
  *
  * HOW:  Runs ONLY on the blocking cache-fill thread-pool worker (libcurl easy,
- *       synchronous), never the event loop — matching http_transport.c. Stateless
- *       (tctx unused). The Host header is forced to the bare endpoint host (no
- *       port) to match sd_s3's SigV4 canonical host.
+ *       synchronous), never the event loop — matching http_transport.c. The
+ *       endpoint host is resolved through the brix DNS driver and pinned on the
+ *       handle (CURLOPT_RESOLVE) before every transfer, so libcurl never runs
+ *       its own resolver (phase-116). The Host header is forced to the bare
+ *       endpoint host (no port) to match sd_s3's SigV4 canonical host.
  */
 
 #include "fs/backend/s3/sd_s3_transport.h"
 
 /* The singleton libcurl transport vtable.
  *
- * tctx is this transport's OPTIONAL per-request context: a NUL-terminated CA
- * file-or-dir PATH (the operator-configured trusted CA for origin TLS
- * verification), or NULL for libcurl's system CA bundle. A directory is used as
- * CURLOPT_CAPATH, a file as CURLOPT_CAINFO. TLS peer/host verification is always
- * enabled; tctx only widens which roots are trusted — it never disables the
- * check. The driver stores the CA path for the instance's lifetime and passes it
- * as tctx on every request (phase-70 https backend leg). */
+ * tctx is this transport's OPTIONAL per-request context: a brix_s3_tctx_t
+ * (or NULL). Its ca_path is the operator-configured trusted CA for origin TLS
+ * verification (NULL = libcurl's system CA bundle; a directory is used as
+ * CURLOPT_CAPATH, a file as CURLOPT_CAINFO). TLS peer/host verification is
+ * always enabled; the CA only widens which roots are trusted — it never
+ * disables the check. Its dns is the phase-116 resolver policy the endpoint
+ * host is resolved under (NULL = libc, which still follows resolv.conf); a
+ * host that does not resolve fails the request before any transfer. The
+ * consumer keeps the context for the instance's lifetime and passes it on
+ * every request (phase-70 https backend leg). */
 extern const brix_s3_transport_t brix_s3_origin_curl_transport;
 
 /* Promote the per-request upstream trace line from DEBUG to INFO (1) or back

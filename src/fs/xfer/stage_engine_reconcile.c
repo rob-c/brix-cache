@@ -24,15 +24,18 @@
 
 #include "stage_engine.h"
 #include "stage_engine_internal.h"
+#include "stage_events.h"          /* 2.0 F2 StageEvents feed (brix_frm_stagemsg) */
 #include "fs/vfs/vfs_backend_registry.h"  /* brix_vfs_backend_resolve (reconcile) */
 #include "fs/backend/cache/sd_cache.h"    /* cache instance_is / source_instance */
 #include "fs/backend/stage/sd_stage.h"    /* stage instance_is / reflush         */
+#include "fs/backend/frm/sd_frm.h"        /* frm instance_is / seal (F3 archive) */
 
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 /* Re-flush ONE persisted record.
@@ -52,6 +55,89 @@
  * HOW:  Read into a max-size buffer, call brix_sreq_decode; on decode failure
  *       drop the record.  Pass the cred (NULL when key[0]=='\0') to reflush.
  *       Returns 1 replayed / 0 kept (retry) / -1 dropped. */
+/* 2.0 F3: the tape tier at the bottom of the export a journaled archive seal
+ * is anchored to, or NULL with *why = the drop reason. */
+static brix_sd_instance_t *
+stage_archive_tier(const brix_sreq_t *rec, ngx_log_t *log, const char **why)
+{
+    brix_sd_instance_t *inst;
+
+    if (rec->export_root[0] == '\0') {
+        *why = "not-anchored";
+        return NULL;
+    }
+    inst = brix_vfs_backend_resolve(rec->export_root, log);
+    if (brix_sd_cache_instance_is(inst)) {
+        inst = brix_sd_cache_source_instance(inst);
+    }
+    if (brix_sd_stage_instance_is(inst)) {
+        inst = brix_sd_stage_source_instance(inst);
+    }
+    if (!brix_sd_frm_instance_is(inst)) {
+        *why = "no-tape-tier";
+        return NULL;
+    }
+    return inst;
+}
+
+/* A seal errno that no retry can cure: the record is dropped with this reason. */
+static const char *
+stage_seal_drop_reason(int err)
+{
+    switch (err) {
+    case EINVAL:  return "not-a-marker";   /* the key is not a completion marker */
+    case ENOENT:  return "not-online";     /* the marker was withdrawn            */
+    case ENOTSUP: return "no-archiver";    /* the tier lost its ?arc= decorator   */
+    default:      return NULL;
+    }
+}
+
+/* 2.0 F3: re-drive a journaled archive seal (kind archive) -- the restart
+ * replay and the brix_frm_fail_backoff sweep both land here. Same contract
+ * as the flush branch: 1 sealed (record removed), -1 dropped/dead-lettered,
+ * 0 kept FAILED for a later retry. */
+static int
+stage_reconcile_archive(const char *path, brix_sreq_t *rec, ngx_log_t *log)
+{
+    brix_sd_instance_t *inst;
+    const char         *why = NULL;
+    int                 saved_errno = 0;
+    char                att[24];
+
+    inst = stage_archive_tier(rec, log, &why);
+    if (inst != NULL) {
+        errno = 0;
+        if (brix_sd_frm_seal(inst, rec->dst_key) == NGX_OK) {
+            brix_stage_events_emit("engine", "replayed", rec->reqid, rec->dst_key,
+                                   "attempts",
+                                   brix_stage_events_num(att, sizeof(att),
+                                                         rec->attempts),
+                                   NULL);
+            (void) unlink(path);             /* sealed: the record is done */
+            return 1;
+        }
+        saved_errno = errno ? errno : EIO;
+        why = stage_seal_drop_reason(saved_errno);
+    }
+    if (why != NULL) {
+        brix_stage_events_emit("engine", "dropped", rec->reqid, rec->dst_key,
+                               "reason", why, NULL);
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "xrootd stage: archive seal of \"%s\" (export \"%s\") dropped: %s",
+            rec->dst_key, rec->export_root, why);
+        (void) unlink(path);
+        return -1;
+    }
+    if (stage_retry_terminal(stage_journal_dir, rec, saved_errno, log)) {
+        return -1;   /* dead-lettered = dropped from active journal */
+    }
+    ngx_log_error(NGX_LOG_WARN, log, 0,
+        "xrootd stage: archive seal of \"%s\" (export \"%s\") failed "
+        "(errno %d attempts=%uD) - record kept FAILED for retry",
+        rec->dst_key, rec->export_root, saved_errno, rec->attempts);
+    return 0;
+}
+
 static int
 stage_reconcile_one(const char *path, ngx_log_t *log)
 {
@@ -61,6 +147,7 @@ stage_reconcile_one(const char *path, ngx_log_t *log)
     const brix_stage_cred_t *credp;
     int                  fd;
     ssize_t              n;
+    char                 att[24];
 
     fd = open(path, O_RDONLY | O_CLOEXEC);
     if (fd < 0) {
@@ -70,10 +157,17 @@ stage_reconcile_one(const char *path, ngx_log_t *log)
     (void) close(fd);
 
     if (brix_sreq_decode(rbuf, (size_t) n, &rec) != NGX_OK) {
+        brix_stage_events_emit("engine", "dropped", NULL, path,
+                               "reason", "corrupt", NULL);
         (void) unlink(path);                 /* corrupt/short/oversized record - drop */
         return -1;
     }
+    if (rec.kind == BRIX_STAGE_ARCHIVE) {
+        return stage_reconcile_archive(path, &rec, log);
+    }
     if (rec.kind != BRIX_STAGE_FLUSH || rec.export_root[0] == '\0') {
+        brix_stage_events_emit("engine", "dropped", rec.reqid, rec.dst_key,
+                               "reason", "not-a-flush", NULL);
         (void) unlink(path);                 /* not a recoverable staged write */
         return -1;
     }
@@ -98,6 +192,11 @@ stage_reconcile_one(const char *path, ngx_log_t *log)
         saved_errno = errno;
 
         if (rc == NGX_OK) {
+            brix_stage_events_emit("engine", "replayed", rec.reqid, rec.dst_key,
+                                   "attempts",
+                                   brix_stage_events_num(att, sizeof(att),
+                                                         rec.attempts),
+                                   NULL);
             (void) unlink(path);             /* re-flushed + stage copy dropped */
             return 1;
         }
@@ -122,11 +221,13 @@ stage_reconcile_one(const char *path, ngx_log_t *log)
 
         /* Transient re-drive failure (the origin is still unreachable): bump
          * attempts and re-persist the record FAILED. The higher attempt count is
-         * the durable evidence that the restart replay re-drove this transfer —
-         * against a recovered origin the reflush above would instead have
-         * completed and unlinked the record. Kept in the active journal so a
-         * later tick / restart retries it. */
-        stage_journal_bump_failed(stage_journal_dir, &rec, saved_errno);
+         * the durable evidence that the replay re-drove this transfer — against
+         * a recovered origin the reflush above would instead have completed and
+         * unlinked the record. Kept in the active journal for the retry sweep /
+         * next restart until brix_frm_fail_retries dead-letters it (2.0 F1). */
+        if (stage_retry_terminal(stage_journal_dir, &rec, saved_errno, log)) {
+            return -1;   /* dead-lettered = dropped from active journal */
+        }
         ngx_log_error(NGX_LOG_WARN, log, 0,
             "xrootd stage: reconcile re-flush of \"%s\" (export \"%s\") failed "
             "(errno %d attempts=%uD) - record kept FAILED for retry",
@@ -221,4 +322,51 @@ brix_stage_reconcile(brix_stage_queue_t *queue)
             "xrootd stage: restart reconcile - %ui staged flush(es) replayed, "
             "%ui kept for retry, %ui dropped", replayed, kept, dropped);
     }
+}
+
+/* 2.0 F1: one brix_frm_fail_backoff sweep — the restart reconcile's loop,
+ * restricted to FAILED records old enough to retry. */
+static int
+stage_retry_due(const char *path, ngx_uint_t min_age_sec)
+{
+    brix_sreq_t rec;
+
+    if (stage_journal_load(path, &rec) != 0 || rec.state != BRIX_SREQ_FAILED) {
+        return 0;
+    }
+    return (int64_t) time(NULL) - rec.finished_at >= (int64_t) min_age_sec;
+}
+
+ngx_uint_t
+brix_stage_retry_sweep(ngx_uint_t min_age_sec, ngx_log_t *log)
+{
+    char       names[1024][256];
+    ngx_uint_t ncount, i, driven = 0, replayed = 0, dropped = 0;
+
+    if (stage_journal_dir[0] == '\0' || log == NULL) {
+        return 0;
+    }
+    ncount = stage_reconcile_snapshot(stage_journal_dir, names, 1024);
+    for (i = 0; i < ncount; i++) {
+        char path[1300];
+        int  r;
+
+        if ((size_t) snprintf(path, sizeof(path), "%s/%s",
+                              stage_journal_dir, names[i]) >= sizeof(path)
+            || !stage_retry_due(path, min_age_sec))
+        {
+            continue;
+        }
+        driven++;
+        r = stage_reconcile_one(path, log);
+        if (r > 0)      { replayed++; }
+        else if (r < 0) { dropped++;  }
+    }
+    if (driven > 0) {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "xrootd stage: retry sweep - %ui FAILED record(s) re-driven, "
+            "%ui completed, %ui dead-lettered/dropped",
+            driven, replayed, dropped);
+    }
+    return driven;
 }

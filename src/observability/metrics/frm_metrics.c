@@ -81,7 +81,7 @@ brix_export_frm_metrics(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
         "Category-2 migrate-out attempts (scaffolding).",
         &shm->frm.migrate_total);
     mw_emit_scalar(mw, "brix_frm_purge_total",
-        "Category-2 purge decisions logged (scaffolding).",
+        "Online-buffer copies released by the tape purge engine (phase-115 W3.2).",
         &shm->frm.purge_total);
 
     /* in_flight is a GAUGE — mw_emit_scalar declares TYPE counter, so emit the

@@ -154,7 +154,9 @@ adb_user_matches(const ngx_str_t *rule_id, const char *dn)
  *       membership).
  * WHY:  isolates the GROUP matcher ('*'/VO-membership split) from the switch.
  * HOW:  a bare '*' id matches any VO list; otherwise the rule id (a VO name) must
- *       appear in the comma-separated vo_list. */
+ *       appear in the comma-separated vo_list.  NOTE the deliberate difference
+ *       from adb_csv_matches (2.0 F20): `g *` has always matched an EMPTY
+ *       vo_list too and deployed configs rely on it, so it stays as it was. */
 static ngx_flag_t
 adb_group_matches(const ngx_str_t *rule_id, const char *vo_list)
 {
@@ -164,30 +166,160 @@ adb_group_matches(const ngx_str_t *rule_id, const char *vo_list)
     return brix_vo_list_contains(vo_list, (const char *) rule_id->data);
 }
 
-/* WHAT: 1 if `rule` applies to this identity by its matcher type; else 0.
- * WHY:  table-flat dispatch over the four rule kinds (all/user/group/host),
- *       keeping the caller's loop body linear. Pure — no I/O, no mutation.
- * HOW:  branch on rule->type: ALL matches unconditionally; USER splits to
- *       adb_user_matches(dn); GROUP to adb_group_matches(vo_list); HOST to
- *       brix_authdb_host_match(peer_ip). Any unknown type does not match
- *       (default-deny). Semantics are frozen against the multi-user conformance
- *       suite; do not alter the per-type rules. */
+/*
+ * adb_subject_t — every identity view a selector can key off, gathered once
+ * per lookup.  Bundled so the per-selector matcher takes one pointer instead of
+ * a five-argument tail that would grow with every new selector.
+ */
+typedef struct {
+    const char *dn;        /* `u` */
+    const char *vo_list;   /* `g` */
+    const char *vorg;      /* `v` — VOMS virtual organisation CSV */
+    const char *role;      /* `l` — VOMS role CSV */
+    const char *peer_ip;   /* `p` */
+} adb_subject_t;
+
+/*
+ * WHAT: 1 if a CSV-attribute selector's id matches (wildcard or membership).
+ * WHY:  `g`, `v` and `l` all match one name against an index-aligned CSV that
+ *       brix_identity_derive_attrs built from the VOMS FQANs; one helper keeps
+ *       the three byte-identical.
+ * HOW:  a bare '*' id matches any non-empty list; otherwise the rule id must
+ *       appear as a whole comma-separated element.  An empty CSV never matches
+ *       (fail closed) — including on the legacy no-structured-identity path,
+ *       where the transient identity carries no derived attributes at all.
+ */
 static ngx_flag_t
-adb_identity_matches(const brix_authdb_rule_t *rule, const char *dn,
-                     const char *vo_list, const char *peer_ip)
+adb_csv_matches(const ngx_str_t *rule_id, const char *csv)
 {
-    switch (rule->type) {
+    if (csv == NULL || csv[0] == '\0') {
+        return 0;
+    }
+    if (rule_id->len == 1 && rule_id->data[0] == '*') {
+        return 1;
+    }
+    return brix_vo_list_contains(csv, (const char *) rule_id->data);
+}
+
+/* WHAT: 1 if ONE selector of a rule applies to this subject; else 0.
+ * WHY:  table-flat dispatch over the selector alphabet, so the rule-level
+ *       matcher below is a plain AND-loop. Pure — no I/O, no mutation.
+ * HOW:  `a` matches unconditionally; `u` compares the DN; `g` the VO list;
+ *       `p` the peer address (exact, wildcard or CIDR); `v` and `l` the
+ *       FQAN-derived vorg/role CSVs (2.0 F20). Any unknown selector does not
+ *       match (default-deny) — the parser refuses those lines, so reaching the
+ *       default arm means memory was corrupted and denying is the only safe
+ *       answer. Semantics are frozen against the multi-user conformance suite;
+ *       do not alter the per-selector rules. */
+static ngx_flag_t
+adb_selector_matches(brix_auth_type_t sel, const ngx_str_t *id,
+                     const adb_subject_t *subj)
+{
+    switch (sel) {
     case BRIX_AUTH_ALL:
         return 1;
     case BRIX_AUTH_USER:
-        return adb_user_matches(&rule->id, dn);
+        return adb_user_matches(id, subj->dn);
     case BRIX_AUTH_GROUP:
-        return adb_group_matches(&rule->id, vo_list);
+        return adb_group_matches(id, subj->vo_list);
     case BRIX_AUTHDB_HOST:
-        return brix_authdb_host_match(&rule->id, peer_ip);
+        return brix_authdb_host_match(id, subj->peer_ip);
+    case BRIX_AUTH_VORG:
+        return adb_csv_matches(id, subj->vorg);
+    case BRIX_AUTH_ROLE:
+        return adb_csv_matches(id, subj->role);
     default:
         return 0;
     }
+}
+
+/* WHAT: 1 when `a_id` and `b_id` are satisfied at the SAME index of the two
+ *       index-aligned CSVs; else 0.
+ * WHY:  2.0 F20 — this is the security-load-bearing step the XrdAcc engine
+ *       already performs on its (vorg, role, grup) tuples
+ *       (acc/entity.c::acc_entity_fill_tuples): a credential holding
+ *       cms/Role=NULL and atlas/Role=production must NOT satisfy
+ *       `vl cms|production`.  Testing the two CSVs independently would grant
+ *       exactly that cross-product, which is a widening — the very shape F20
+ *       exists to remove.
+ * HOW:  walk both CSVs with one cursor each, comparing field i of one against
+ *       field i of the other; brix_identity_derive_attrs emits one field per
+ *       FQAN into each CSV (empty fields preserved), so the indices align by
+ *       construction.  Stop at the shorter list. */
+static ngx_flag_t
+adb_pair_matches(const char *a_csv, const ngx_str_t *a_id,
+                 const char *b_csv, const ngx_str_t *b_id)
+{
+    const char *ap = a_csv;
+    const char *bp = b_csv;
+
+    if (a_csv == NULL || b_csv == NULL) {
+        return 0;
+    }
+
+    for (;;) {
+        const char *ae = strchr(ap, ',');
+        const char *be = strchr(bp, ',');
+        size_t      alen = (ae != NULL) ? (size_t) (ae - ap) : strlen(ap);
+        size_t      blen = (be != NULL) ? (size_t) (be - bp) : strlen(bp);
+
+        if (alen == a_id->len && ngx_strncmp(ap, a_id->data, alen) == 0
+            && blen == b_id->len && ngx_strncmp(bp, b_id->data, blen) == 0)
+        {
+            return 1;
+        }
+        if (ae == NULL || be == NULL) {
+            return 0;
+        }
+        ap = ae + 1;
+        bp = be + 1;
+    }
+}
+
+/* WHAT: 1 if EVERY selector of `rule` applies to this subject; else 0.
+ * WHY:  2.0 F20 — field 1 may carry up to BRIX_AUTHDB_MAX_SELECTORS letters and
+ *       they are AND-ed, so a compound rule is strictly NARROWER than any of
+ *       its selectors alone. Conjunction is the only safe reading: the pre-F20
+ *       parser truncated the token and matched on the lead selector alone,
+ *       which admitted subjects the operator had excluded.
+ * HOW:  short-circuit AND over sel[0..nsel). `v` and `l` are held back and, when
+ *       BOTH appear, resolved together by adb_pair_matches so the vorg and the
+ *       role must come from the SAME FQAN — matching them independently would
+ *       let two credentials be combined into one the operator never granted.
+ *       Every other selector is scalar and matches independently.  nsel is >= 1
+ *       for every parsed rule; a zeroed rule (nsel == 0) matches nothing. */
+static ngx_flag_t
+adb_identity_matches(const brix_authdb_rule_t *rule,
+                     const adb_subject_t *subj)
+{
+    const ngx_str_t  *vorg_id = NULL;
+    const ngx_str_t  *role_id = NULL;
+    ngx_uint_t        i;
+
+    if (rule->nsel == 0) {
+        return 0;
+    }
+
+    for (i = 0; i < rule->nsel; i++) {
+        if (rule->sel[i] == BRIX_AUTH_VORG) {
+            vorg_id = &rule->sel_id[i];
+        } else if (rule->sel[i] == BRIX_AUTH_ROLE) {
+            role_id = &rule->sel_id[i];
+        } else if (!adb_selector_matches(rule->sel[i], &rule->sel_id[i], subj)) {
+            return 0;
+        }
+    }
+
+    if (vorg_id != NULL && role_id != NULL) {
+        return adb_pair_matches(subj->vorg, vorg_id, subj->role, role_id);
+    }
+    if (vorg_id != NULL) {
+        return adb_selector_matches(BRIX_AUTH_VORG, vorg_id, subj);
+    }
+    if (role_id != NULL) {
+        return adb_selector_matches(BRIX_AUTH_ROLE, role_id, subj);
+    }
+    return 1;
 }
 
 /* Find the authdb rule granting `needed_privs` on resolved_path for `identity`;
@@ -201,15 +333,20 @@ brix_find_authdb_rule_identity(const char *resolved_path, ngx_array_t *rules,
     brix_authdb_rule_t       *rule;
     size_t                      best_len = 0;
     ngx_uint_t                  i;
-    const char                 *dn;
-    const char                 *vo_list;
+    adb_subject_t               subj;
 
     if (resolved_path == NULL || rules == NULL) {
         return NULL;
     }
 
-    dn = brix_identity_dn_cstr(identity);
-    vo_list = brix_identity_vo_csv_cstr(identity);
+    /* The `v`/`l` views come from brix_identity_derive_attrs, which splits the
+     * VOMS FQANs for EVERY identity (not only under the xrdacc engine), so a
+     * compound rule sees the same attributes the xrdacc engine would. */
+    subj.dn      = brix_identity_dn_cstr(identity);
+    subj.vo_list = brix_identity_vo_csv_cstr(identity);
+    subj.vorg    = brix_identity_acc_vorg_cstr(identity);
+    subj.role    = brix_identity_acc_role_cstr(identity);
+    subj.peer_ip = peer_ip;
 
     rule = rules->elts;
     for (i = 0; i < rules->nelts; i++) {
@@ -219,7 +356,7 @@ brix_find_authdb_rule_identity(const char *resolved_path, ngx_array_t *rules,
             continue;
         }
 
-        if (!adb_identity_matches(&rule[i], dn, vo_list, peer_ip)) {
+        if (!adb_identity_matches(&rule[i], &subj)) {
             continue;
         }
 

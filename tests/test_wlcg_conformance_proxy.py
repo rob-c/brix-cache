@@ -20,7 +20,11 @@ import pytest
 import x509forge
 from wlcg_fleet import WlcgInstance
 
-pytestmark = [pytest.mark.x509conf, pytest.mark.slow]
+# Both cases drive the SAME fixed exclusive-band WlcgInstance ("lc-wlcg", port
+# 31020), and a 2-way parametrize is two ITEMS: without this group xdist can
+# hand them to two workers, which then launch one instance on one port twice.
+pytestmark = [pytest.mark.x509conf, pytest.mark.slow,
+              pytest.mark.xdist_group("lc-wlcg")]
 
 
 @pytest.mark.parametrize("scenario,cred", [

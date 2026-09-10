@@ -104,7 +104,7 @@ WHAT THIS FILE ASSERTS
     traversing member name.
 §G  the parse tier for all five: values, arity, duplicates, placement.
 §H  brix_backend_passthrough_persist — the last of the seven both-arms-unwritten
-    directives, closed at parse level only (it has no reader; DEFECT #35).
+    directives (DEFECT #35), REMOVED in 2.0: refused as unknown in every scope.
 §I  the source: the handler install and the five merge defaults are where this
     file says they are.
 

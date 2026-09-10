@@ -15,7 +15,7 @@
  *       and timing scalars, never a path, token, or credential. No goto.
  */
 #ifndef _GNU_SOURCE
-#define _GNU_SOURCE   /* getaddrinfo AI_* / connect() when built standalone */
+#define _GNU_SOURCE   /* clock_gettime / connect() when built standalone */
 #endif
 #include "diag_internal.h"
 
@@ -54,8 +54,8 @@ doctor_have_ipv6(void)
 int
 doctor_host_ipv6_only(const char *host)
 {
-    struct addrinfo  hints, *res, *ai;
-    int              have4 = 0, have6 = 0;
+    brix_resolve_addr  addrs[BRIX_RESOLVE_MAX];
+    int                n, i, have4 = 0, have6 = 0;
 
     if (host == NULL || host[0] == '\0') {
         return 0;
@@ -63,17 +63,12 @@ doctor_host_ipv6_only(const char *host)
     if (strchr(host, ':') != NULL) {
         return 1;                       /* bare IPv6 literal */
     }
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family   = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    if (getaddrinfo(host, NULL, &hints, &res) != 0) {
-        return 0;
+    n = brix_resolve(host, 0, AF_UNSPEC, SOCK_STREAM, 0, addrs,
+                     BRIX_RESOLVE_MAX, NULL);
+    for (i = 0; i < n; i++) {
+        if (addrs[i].family == AF_INET)  { have4 = 1; }
+        if (addrs[i].family == AF_INET6) { have6 = 1; }
     }
-    for (ai = res; ai != NULL; ai = ai->ai_next) {
-        if (ai->ai_family == AF_INET)  { have4 = 1; }
-        if (ai->ai_family == AF_INET6) { have6 = 1; }
-    }
-    freeaddrinfo(res);
     return have6 && !have4;
 }
 
