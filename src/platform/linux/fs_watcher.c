@@ -81,15 +81,15 @@ brix_plat_fs_watcher_add(brix_plat_fs_watcher_t *watcher, const char *path, uint
     
     /* inotify doesn't support recursive watches natively.
      * For recursive watches, caller must add each directory separately.
-     * We'll just add the single path for now.
+     *
+     * DESIGN NOTE: Recursive directory watching requires:
+     * 1. Directory tree walker (ftw/nftw or custom implementation)
+     * 2. Watch descriptor tracking (wd → path mapping)
+     * 3. Dynamic watch management (add/remove as dirs change)
+     *
+     * Current scope: Single-path watches only (Phase 2).
+     * Future enhancement: Add brix_plat_fs_watcher_add_recursive() if needed.
      */
-    if (recursive) {
-        /* TODO: For full recursive support, we'd need to walk the directory
-         * tree and add watches for all subdirectories. This requires
-         * additional infrastructure (directory walker, watch tracking).
-         * For Phase 2, we just add the single path.
-         */
-    }
     
     /* Set up event mask - translate from platform-independent mask */
     mask = IN_MODIFY | IN_ATTRIB | IN_CREATE | IN_DELETE |
@@ -163,9 +163,13 @@ brix_plat_fs_watcher_next(brix_plat_fs_watcher_t *watcher, brix_plat_fs_event_t 
     
     /* Copy path - inotify events include the name for directory watches */
     if (iev->len > 0) {
-        /* Event includes filename (directory watch) */
-        /* TODO: We'd need to track the watch descriptor -> path mapping
-         * to reconstruct the full path. For Phase 2, just copy the name.
+        /* Event includes filename (directory watch)
+         *
+         * DESIGN NOTE: Full path reconstruction requires wd → path mapping
+         * table to prepend parent directory path. Current implementation
+         * returns relative name only (sufficient for most use cases).
+         *
+         * Future enhancement: Add path reconstruction if absolute paths needed.
          */
         strncpy(event->path, iev->name, sizeof(event->path) - 1);
         event->path[sizeof(event->path) - 1] = '\0';
@@ -198,7 +202,11 @@ brix_plat_fs_watcher_next(brix_plat_fs_watcher_t *watcher, brix_plat_fs_event_t 
     }
     
     event->cookie = iev->cookie;
-    event->timestamp = 0;  /* TODO: Get timestamp if available */
+    /* Timestamp: inotify doesn't provide event timestamps.
+     * Could use inotify_event_sync() or clock_gettime() for approximate time.
+     * Current: 0 (not available in Phase 2 implementation)
+     */
+    event->timestamp = 0;
     
     return 1;  /* Event returned */
 }

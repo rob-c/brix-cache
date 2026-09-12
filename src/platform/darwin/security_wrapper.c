@@ -69,8 +69,15 @@ brix_security_init(const char *profile)
         ctx->initialized = 0;  /* Not actually initialized yet */
         strncpy(ctx->profile_path, profile, sizeof(ctx->profile_path) - 1);
         
-        /* Phase 3: Log warning about stub implementation */
-        /* TODO: Add proper logging when integrated with nginx log system */
+        /* Phase 3: Log warning about stub implementation
+         *
+         * DESIGN NOTE: Proper logging requires integration with nginx
+         * log system (ngx_log_error()). Current stub returns success
+         * without actual enforcement (relies on macOS SIP).
+         *
+         * Future enhancement: Add ngx_log_error() integration when
+         * security module is fully deployed.
+         */
         
         /* For now, just free the context and return success */
         /* The actual enforcement will be done by system security (SIP) */
@@ -107,8 +114,8 @@ brix_security_load_profile(const char *path)
 }
 
 /*
- * Phase 4 TODO: Full sandbox_exec implementation
- * 
+ * DESIGN NOTE: Full sandbox_exec implementation (Phase 4)
+ *
  * Example sandbox profile (.sb file):
  * 
  * (version 1)

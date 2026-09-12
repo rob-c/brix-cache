@@ -68,8 +68,14 @@ brix_security_init(const char *profile)
     ctx->mode = (strcmp(profile, "audit") == 0) ? 1 : 2;
     strncpy(ctx->profile_path, profile, sizeof(ctx->profile_path) - 1);
     
-    /* Add basic allowed syscalls for nginx operation */
-    /* TODO: This should integrate with the existing seccomp profile system */
+    /* Add basic allowed syscalls for nginx operation
+     *
+     * DESIGN NOTE: Full integration with seccomp profile system deferred
+     * to Phase 4. Current implementation provides basic syscall filtering.
+     *
+     * Future enhancement: Integrate with brix_seccomp_* profile system
+     * for fine-grained syscall control per worker/process.
+     */
     
     /* Load the filter */
     if (seccomp_load(seccomp_ctx) < 0) {

@@ -157,8 +157,12 @@ brix_plat_copy_range(int in_fd, off_t *in_off,
     /*
      * Note: clonefile requires paths, not file descriptors.
      * For fd-based copy_range, use sendfile or buffered copy.
-     * 
-     * TODO: Implement fclonefileat() for fd-based cloning (macOS 12+)
+     *
+     * DESIGN NOTE: fclonefileat() (fd-based cloning) available macOS 12+.
+     * Current scope: Path-based clonefile only (Phase 3).
+     *
+     * Future enhancement: Add fclonefileat() wrapper if fd-based cloning
+     * becomes critical for performance.
      */
     
     errno = ENOSYS;

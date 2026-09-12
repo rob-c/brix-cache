@@ -349,7 +349,11 @@ brix_plat_fs_watcher_next(brix_plat_fs_watcher_t *watcher, brix_plat_fs_event_t 
     }
     
     event->cookie = 0;  /* kqueue doesn't provide cookies like inotify */
-    event->timestamp = 0;  /* TODO: Get timestamp if needed */
+    /* Timestamp: kqueue EVFILT_VNODE doesn't provide event timestamps.
+     * Could use clock_gettime(CLOCK_REALTIME) for approximate time.
+     * Current: 0 (not available in Phase 2 implementation)
+     */
+    event->timestamp = 0;
     
     return 1;  /* Event returned */
 }
