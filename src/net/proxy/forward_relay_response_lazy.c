@@ -148,7 +148,7 @@ static void
 brix_proxy_save_wait_retry(brix_proxy_ctx_t *proxy, ngx_connection_t *c,
     u_char *rreq, size_t rlen)
 {
-    if (rlen >= 128 * 1024) {
+    if (rlen >= BRIX_PROXY_RETRY_BUFFER_MAX) {
         return;
     }
 

@@ -62,9 +62,10 @@ brix_proxy_relay_try_redirect(brix_proxy_ctx_t *proxy, ngx_connection_t *c,
                     long     pval;
                     errno = 0;
                     pval = strtol(colon + 1, &endp, 10);
-                    if (errno != 0 || endp == colon + 1 || pval < 1 || pval > 65535) {
+                    if (errno != 0 || endp == colon + 1 || pval < 1 || pval > BRIX_MAX_PORT) {
                         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                                      "xrootd proxy: invalid redirect port, dropping");
+                                      "xrootd proxy: invalid redirect port (must be 1-%d), dropping",
+                                      BRIX_MAX_PORT);
                     } else {
                         proxy->redirect_port = (uint16_t) pval;
 

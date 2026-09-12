@@ -179,8 +179,8 @@ static void
 brix_proxy_save_wait_retry(brix_proxy_ctx_t *proxy, ngx_connection_t *c,
                            u_char *req, size_t total)
 {
-    /* Save a copy for transparent kXR_wait retry (if payload is not huge) */
-    if (total < 128 * 1024) {
+    /* Save a copy for transparent kXR_wait retry (if payload fits budget) */
+    if (total < BRIX_PROXY_RETRY_BUFFER_MAX) {
         if (proxy->wait_retry_req != NULL) {
             ngx_free(proxy->wait_retry_req);
         }
