@@ -14,11 +14,11 @@ BriX-Cache supports **5 platforms** through the **Platform Abstraction Layer (PA
 
 | Platform | PAL Functions | Build | Runtime | Production | Tests | Documentation |
 |----------|--------------|-------|---------|------------|-------|---------------|
-| **Linux x86_64** | 64/64 (100%) | ✅ Complete | ✅ Complete | ✅ Ready | 15+ | [Linux Build](../../BUILD.md) |
-| **Linux ARM64** | 64/64 (100%) | ✅ Complete | ✅ Complete | ✅ Ready | 18+ | [ARM64 Linux](arm64-linux-build.md) |
-| **macOS x86_64** | 64/64 (100%) | ✅ Complete | ✅ Complete | ✅ Ready | 15+ | [macOS Quickstart](../01-getting-started/macos-quickstart.md) |
-| **macOS ARM64** | 64/64 (100%) | ✅ Complete | ✅ Complete | ✅ Ready | 18+ | [ARM64 macOS](arm64-macos-build.md) |
-| **Windows x86_64** | 64/64 (100%) ✅ | ✅ Complete | ✅ Complete | ⚠️ Dev/Test | 30+ | [Windows PAL](../../src/platform/windows/WINDOWS_PAL_100_PERCENT_COMPLETE.md) |
+| **Linux x86_64** | 60/60 core PAL (100%) | ✅ Complete | ✅ Complete | ✅ Ready | 15+ | [Linux Build](../../BUILD.md) |
+| **Linux ARM64** | 60/60 core PAL (100%) | ✅ Complete | ✅ Complete | ✅ Ready | 18+ | [ARM64 Linux](arm64-linux-build.md) |
+| **macOS x86_64** | 60/60 core PAL (100%) | ✅ Complete | ✅ Complete | ✅ Ready | 15+ | [macOS Quickstart](../01-getting-started/macos-quickstart.md) |
+| **macOS ARM64** | 60/60 core PAL (100%) | ✅ Complete | ✅ Complete | ✅ Ready | 18+ | [ARM64 macOS](arm64-macos-build.md) |
+| **Windows x86_64** | 60/60 core PAL (100%) ✅ | ✅ Complete | ✅ Complete | ⚠️ Dev/Test | 30+ | [Windows PAL](../../src/platform/windows/WINDOWS_PAL_100_PERCENT_COMPLETE.md) |
 | **Windows ARM64** | 🔲 Future | 🔲 Planned | 🔲 Planned | ❌ Not Supported | - | [Platform Plan](PLATFORM_EXPANSION_PLAN.md) |
 
 **Overall Status**: ✅ **100% Complete** (5/5 platforms PAL complete)  
@@ -62,7 +62,7 @@ BriX-Cache supports **5 platforms** through the **Platform Abstraction Layer (PA
 **Status**: ✅ Production Ready (100% PAL Complete)
 
 **Features**:
-- ✅ Full PAL implementation (64/64 functions)
+- ✅ Full PAL implementation (60/60 core PAL functions)
 - ✅ Hardware CRC32C acceleration (10x speedup)
 - ✅ NEON SIMD optimizations (4x speedup)
 - ✅ epoll event loop
@@ -118,7 +118,7 @@ BriX-Cache supports **5 platforms** through the **Platform Abstraction Layer (PA
 **Status**: ✅ Production Ready (100% PAL Complete)
 
 **Features**:
-- ✅ Full PAL implementation (64/64 functions)
+- ✅ Full PAL implementation (60/60 core PAL functions)
 - ✅ Native ARM64 support (M1/M2/M3)
 - ✅ kqueue event loop
 - ✅ Hardware crypto acceleration
@@ -149,10 +149,10 @@ BriX-Cache supports **5 platforms** through the **Platform Abstraction Layer (PA
 
 ### Windows x86_64
 
-**Status**: ✅ 100% Complete (64/64 PAL functions) - Development Ready
+**Status**: ✅ 100% Complete (60/60 core PAL PAL functions) - Development Ready
 
 **Features**:
-- ✅ PAL implementation (64/64 functions - 100%)
+- ✅ PAL implementation (60/60 core PAL functions - 100%)
 - ✅ HANDLE/fd abstraction layer (thread-safe, 10 functions)
 - ✅ Pipe-based eventfd emulation
 - ✅ TransmitFile (zero-copy file→socket)

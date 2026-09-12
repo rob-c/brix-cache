@@ -53,19 +53,20 @@ For actual implementation, see: `docs/refactor/phase-*.md`
 
 ## Identity / VFS / TPC / metrics unification family (`unification/`)
 
-Completed implementation plans for the unification work that landed in the
-"identity unification, Kerberos auth, TPC registry, S3 hardening, cache metadata"
-release (commit `e87c1ca`). The code is the source of truth; these are the plans.
+> ⚠️ **THESE ARE PLANS ONLY - MOST WERE NEVER IMPLEMENTED**
+>
+> These documents describe a planned 6-phase unification architecture.
+> **Verification against actual code is required** before referencing.
 
-| Document | Subject |
-|---|---|
-| `unification/PHASE1_RESOLVER_IMPLEMENTATION.md` | Shared path-resolver |
-| `unification/PHASE2_IDENTITY_ABSTRACTION.md` | `xrootd_identity_t` abstraction |
-| `unification/PHASE3_VFS_OPERATIONS.md` | VFS operations layer (`src/fs/`) |
-| `unification/PHASE4_CACHE_UNIFICATION.md` | Cache open/fill unification |
-| `unification/PHASE5_TPC_UNIFICATION.md` | TPC unification |
-| `unification/PHASE6_METRICS_OBSERVABILITY.md` | Metrics / observability unification |
-| `UNIFICATION_STRATEGY_2026-06-05.md`, `UNIFICATION_IMPLEMENTATION_STATUS_2026-06-05.md` | Strategy + status overview for the above |
+| Document | Subject | Implementation Status |
+|---|---|---|
+| `unification/PHASE1_RESOLVER_IMPLEMENTATION.md` | Shared path-resolver | ❌ **NOT IMPLEMENTED** |
+| `unification/PHASE2_IDENTITY_ABSTRACTION.md` | `xrootd_identity_t` abstraction | ❌ **NOT IMPLEMENTED** |
+| `unification/PHASE3_VFS_OPERATIONS.md` | VFS operations layer (`src/fs/`) | ❌ **NOT IMPLEMENTED** |
+| `unification/PHASE4_CACHE_UNIFICATION.md` | Cache open/fill unification | ⚠️ **UNVERIFIED** |
+| `unification/PHASE5_TPC_UNIFICATION.md` | TPC unification | ⚠️ **UNVERIFIED** |
+| `unification/PHASE6_METRICS_OBSERVABILITY.md` | Metrics / observability unification | ⚠️ **UNVERIFIED** |
+| `UNIFICATION_STRATEGY_2026-06-05.md`, `UNIFICATION_IMPLEMENTATION_STATUS_2026-06-05.md` | Strategy + status overview | ⚠️ **UNVERIFIED** |
 
 ## Completed developer-guide plans
 

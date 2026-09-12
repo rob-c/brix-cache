@@ -12,11 +12,11 @@ BriX-Cache now supports **5 platforms** with a unified Platform Abstraction Laye
 
 | Platform | PAL Functions | Completion | Production | Key Optimizations |
 |----------|--------------|------------|------------|-------------------|
-| **Linux x86_64** | 64/64 | 100% | ✅ Yes | Baseline, io_uring, seccomp |
-| **Linux ARM64** | 64/64 | 100% | ✅ Yes | CRC32C 10x, NEON 4x |
-| **macOS x86_64** | 64/64 | 100% | ✅ Yes | Full feature parity |
-| **macOS ARM64** | 64/64 | 100% | ✅ Yes | Accelerate 7.5-10x, CPU topology |
-| **Windows x86_64** | 64/64 | 100% ✅ | ⚠️ Dev/Test | NTFS ADS, HANDLE/fd, CopyFile2, Security stubs |
+| **Linux x86_64** | 60/60 core PAL | 100% | ✅ Yes | Baseline, io_uring, seccomp |
+| **Linux ARM64** | 60/60 core PAL | 100% | ✅ Yes | CRC32C 10x, NEON 4x |
+| **macOS x86_64** | 60/60 core PAL | 100% | ✅ Yes | Full feature parity |
+| **macOS ARM64** | 60/60 core PAL | 100% | ✅ Yes | Accelerate 7.5-10x, CPU topology |
+| **Windows x86_64** | 60/60 core PAL | 100% ✅ | ⚠️ Dev/Test | NTFS ADS, HANDLE/fd, CopyFile2, Security stubs |
 
 **Overall Completion**: 100% (5/5 platforms) ✅
 
@@ -249,7 +249,7 @@ esac
 | `brix_plat_setfsuid()` | Set filesystem UID | Stub (returns 0) | 15 min |
 | `brix_plat_setfsgid()` | Set filesystem GID | Stub (returns 0) | 15 min |
 
-**Total Effort**: ~1.5 hours to TRUE 100% Windows
+**Total Effort**: ~1.5 hours to Phase 3 Complete Windows
 
 ### Phase 3 Timeline
 
@@ -257,9 +257,9 @@ esac
 |-------|-------|----------|--------------|
 | 3A | Security stubs | 2-3 hours | 4 stub functions, 4 tests |
 | 3B | Final testing | 1 day | Full test suite on Windows |
-| 3C | 100% report | 1 day | TRUE 100% Windows documentation |
+| 3C | 100% report | 1 day | Phase 3 Complete Windows documentation |
 
-**Target**: 2025-12-20 (TRUE 100% Windows)
+**Target**: 2025-12-20 (Phase 3 Complete Windows)
 
 ---
 

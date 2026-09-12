@@ -1522,7 +1522,7 @@ int brix_apple_perf_stop(void);
 
 **Note**: These 8 functions are Windows-specific extensions to the PAL API.
 
-### 12.1 `brix_plat_is_windows()`
+### 14.1 `brix_plat_is_windows()`
 
 **Purpose**: Check if running on Windows
 
@@ -1537,7 +1537,7 @@ int brix_plat_is_windows(void);
 
 ---
 
-### 12.2 `brix_plat_windows_version()`
+### 14.2 `brix_plat_windows_version()`
 
 **Purpose**: Get Windows version string
 
@@ -1558,7 +1558,7 @@ const char *brix_plat_windows_version(void);
 
 ---
 
-### 12.3 `brix_plat_windows_build()`
+### 14.3 `brix_plat_windows_build()`
 
 **Purpose**: Get Windows build number
 
@@ -1573,7 +1573,7 @@ unsigned long brix_plat_windows_build(void);
 
 ---
 
-### 12.4 `brix_plat_windows_version_info()`
+### 14.4 `brix_plat_windows_version_info()`
 
 **Purpose**: Get Windows version components
 
@@ -1590,7 +1590,7 @@ int brix_plat_windows_version_info(unsigned long *major,
 
 ---
 
-### 12.5 `brix_plat_is_windows_server()`
+### 14.5 `brix_plat_is_windows_server()`
 
 **Purpose**: Check if running on Windows Server
 
@@ -1605,7 +1605,7 @@ int brix_plat_is_windows_server(void);
 
 ---
 
-### 12.6 `brix_plat_windows_service_pack()`
+### 14.6 `brix_plat_windows_service_pack()`
 
 **Purpose**: Get Windows service pack string
 

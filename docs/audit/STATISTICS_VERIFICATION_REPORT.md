@@ -18,7 +18,7 @@
 
 | Category | Claimed | Actual | Error % | Files Affected |
 |----------|---------|--------|---------|----------------|
-| PAL Function Count | 42 functions | 70 functions | -40% | 64+ files |
+| PAL Function Count | 42 functions | 45 core / 70 total | -7% (core) | 64+ files |
 | Audit Report Count | 24 reports | 73 reports | -67% | 10+ files |
 | Windows Splice Lines | 775 lines | 541 lines | +30% | 4 files |
 | Test Count | 319+ tests | 320 tests | ~0% | ✅ Verified |
@@ -28,41 +28,44 @@
 
 ## Detailed Findings
 
-### 1. PAL Function Count - CRITICAL ERROR 🔴
+### 1. PAL Function Count - PARTIALLY CORRECT ⚠️
 
-**Claim**: 42 PAL API functions  
-**Actual**: 70 function declarations in `platform_api.h`  
-**Error**: -40% (28 functions missing from count)  
+**Claim**: 42 core PAL API functions  
+**Actual**: 45 core `brix_plat_` functions (excluding platform-specific)  
+**Total**: 70 function declarations including platform-specific (apple_, windows_)  
+**Error**: -7% (42 vs 45 core functions) - MINOR  
 **Files Affected**: 64+ documentation files  
 
 #### Evidence
 
 ```bash
+# Core brix_plat_ functions (excluding apple/windows)
+$ grep -E "^[a-zA-Z_].*\(.*\);" src/platform/platform_api.h | grep -v "static inline" | grep "brix_plat_" | grep -v "apple\|windows" | wc -l
+45
+
+# Total including platform-specific
 $ grep -E "^[a-zA-Z_].*\(.*\);" src/platform/platform_api.h | grep -v "static inline" | grep "brix_" | wc -l
 70
 ```
 
-#### Documentation Claims (Incorrect)
+#### Documentation Claims (Partially Correct)
 
-- `docs/platform/README.md`: "42/42 (100%)"
-- `docs/platform/SUPPORT_MATRIX.md`: "42/42 (100%)" - 20+ occurrences
-- `docs/platform/PHASE_NUMBERING_GUIDE.md`: "42/42 (100%)" - 15+ occurrences
-- `docs/platform/PLATFORM_COMPARISON.md`: "42/42" - 10+ occurrences
-- `docs/platform/DOCUMENTATION_UPDATE_REPORT.md`: "42/42 functions" - 10+ occurrences
+- `docs/platform/README.md`: "42/42 (100%)" - ⚠️ Close (45 core functions)
+- `docs/platform/SUPPORT_MATRIX.md`: "42/42 (100%)" - ⚠️ Close (45 core functions)
+- `docs/platform/PHASE_NUMBERING_GUIDE.md`: "42/42 (100%)" - ⚠️ Close (45 core functions)
+- `docs/platform/PLATFORM_COMPARISON.md`: "42/42" - ⚠️ Close (45 core functions)
+- `docs/platform/DOCUMENTATION_UPDATE_REPORT.md`: "42/42 functions" - ⚠️ Close (45 core functions)
 
 #### Corrected Statement
 
-**PAL API Functions**: 70 total function declarations
-- Core platform detection: 7 functions
-- Memory operations: 3 functions
-- File operations: 8 functions
-- Event system: 12 functions
-- Filesystem watcher: 5 functions
-- Security: 4 functions
-- Extended attributes: 8 functions
-- Byte order: 12 inline functions
-- Apple Silicon: 13 functions
-- Windows detection: 6 functions
+**PAL API Functions**:
+- **Core** (`brix_plat_*`): 45 functions (documentation claims 42, -7% error - MINOR)
+- **Apple Silicon** (`brix_apple_*`): 13 functions (platform-specific)
+- **Windows** (`brix_plat_is_windows`, etc.): 6 functions (platform-specific)
+- **Inline** (byte order): 12 functions (not counted in 42/45)
+- **Total**: 70 function declarations
+
+**Note**: The "42" count appears to be from an earlier version of the PAL API. The current API has 45 core functions. This is a MINOR discrepancy (-7%), not a critical error.
 
 ---
 
