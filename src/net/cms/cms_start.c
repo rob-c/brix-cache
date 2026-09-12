@@ -72,7 +72,7 @@ cms_ctx_create(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
     ctx->mgr_addr = ent->addr;
     ctx->mgr_dns = ent->dns;
     ctx->mgr_name = ent->raw;
-    ctx->backoff = ngx_min((ngx_msec_t) conf->cms.interval * 1000,
+    ctx->backoff = ngx_min((ngx_msec_t) conf->cms.interval * NGX_BRIX_CMS_MS_PER_SEC,
                            (ngx_msec_t) NGX_BRIX_CMS_BACKOFF_INITIAL);
     ctx->in_need = NGX_BRIX_CMS_HDR_LEN;
     ctx->start_ns = brix_phase_now_ns();

@@ -357,7 +357,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
         ctx->retarget_fails = 0;   /* §2.9: the retarget (if any) worked */
         BRIX_RESIL_METRIC_INC(cms_logins_total);
         BRIX_RESIL_METRIC_INC(cms_registered_links);
-        ctx->backoff = ngx_min((ngx_msec_t) ctx->conf->cms.interval * 1000,
+        ctx->backoff = ngx_min((ngx_msec_t) ctx->conf->cms.interval * NGX_BRIX_CMS_MS_PER_SEC,
                                (ngx_msec_t) NGX_BRIX_CMS_BACKOFF_INITIAL);
 
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
@@ -428,7 +428,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
         return;
     }
 
-    ngx_brix_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms.interval * 1000);
+    ngx_brix_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms.interval * NGX_BRIX_CMS_MS_PER_SEC);
 
     ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                    "brix: CMS write handler: heartbeat sent");
@@ -561,6 +561,6 @@ ngx_brix_cms_timer(ngx_event_t *ev)
                         ctx->conf->manager_mode ? "aggregate space heartbeat"
                                                 : "free-space heartbeat");
 
-    ngx_brix_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms.interval * 1000);
+    ngx_brix_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms.interval * NGX_BRIX_CMS_MS_PER_SEC);
 }
 
