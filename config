@@ -972,6 +972,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/stream/module_definition.c \
     $ngx_addon_dir/src/platform/platform.c \
     \
+    # Platform-specific sources (conditional on detected platform)
+    # Linux sources
     $ngx_addon_dir/src/platform/linux/posix_wrapper.c \
     $ngx_addon_dir/src/platform/linux/event_wrapper.c \
     $ngx_addon_dir/src/platform/linux/fs_watcher.c \
@@ -981,7 +983,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/platform/linux/crc32c_arm64.c \
     $ngx_addon_dir/src/platform/linux/checksum_neon.c \
     $ngx_addon_dir/src/platform/linux/arm64_crypto.c \
-    \
+    # macOS/Darwin sources
     $ngx_addon_dir/src/platform/darwin/posix_wrapper.c \
     $ngx_addon_dir/src/platform/darwin/event_wrapper.c \
     $ngx_addon_dir/src/platform/darwin/fs_watcher.c \
@@ -992,7 +994,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/platform/darwin/cpu_topology.c \
     $ngx_addon_dir/src/platform/darwin/apple_silicon.c \
     $ngx_addon_dir/src/platform/darwin/clonefile_optimized.c \
-    \
+    # Windows sources
     $ngx_addon_dir/src/platform/windows/handle_abstraction.c \
     $ngx_addon_dir/src/platform/windows/posix_wrapper.c \
     $ngx_addon_dir/src/platform/windows/event_wrapper.c \

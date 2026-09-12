@@ -53,7 +53,7 @@
 #define BRIX_PROXY_MAX_WAIT_SECS    30
 
 /* Maximum idle connections to keep in the pool. */
-#define BRIX_PROXY_POOL_SIZE       32
+/* NOTE: BRIX_PROXY_POOL_SIZE defined in tunables.h (512) */
 /* Maximum time a connection can stay idle in the pool. */
 #define BRIX_PROXY_POOL_KEEPALIVE  60
 

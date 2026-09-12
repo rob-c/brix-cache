@@ -8,6 +8,9 @@
 #include "../platform.h"
 #include "../platform_api.h"
 
+/*
+ * Async I/O context for Linux (io_uring-based)
+ */
 #if BRIX_HAS_IO_URING
 
 #include <liburing.h>
@@ -15,14 +18,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*
- * Async I/O context for Linux (io_uring-based)
- */
 struct brix_aio_ctx {
     struct io_uring ring;
     size_t max_entries;
     ngx_uint_t pending_ops;
 };
+
+typedef struct brix_aio_ctx brix_aio_ctx_t;
+
+#else /* !BRIX_HAS_IO_URING */
+
+/* Opaque forward declaration for stub implementation */
+typedef struct brix_aio_ctx brix_aio_ctx_t;
+
+#endif /* BRIX_HAS_IO_URING */
 
 /* Callback wrapper structure */
 typedef struct {

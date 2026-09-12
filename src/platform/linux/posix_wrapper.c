@@ -13,9 +13,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#if BRIX_PLATFORM_LINUX
 #include <sys/random.h>
 #include <sys/syscall.h>
 #include <linux/memfd.h>
+#endif
 
 /* ==========================================================================
  * FILE DESCRIPTOR OPERATIONS

@@ -5,7 +5,9 @@
 #include "../platform.h"
 #include "../platform_api.h"
 
+#if BRIX_PLATFORM_LINUX
 #include <sys/epoll.h>
+#endif
 #include <fcntl.h>
 #include <errno.h>
 
