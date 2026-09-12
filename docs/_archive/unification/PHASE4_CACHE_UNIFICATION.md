@@ -1,5 +1,13 @@
 # Phase 4: Cache Unification - Implementation Plan
 
+> ⚠️ **HISTORICAL PLAN - IMPLEMENTATION STATUS UNVERIFIED**
+>
+> This document describes a **planned architecture change**.
+>
+> **Verification Needed:** Check against `src/fs/cache/` for actual implementation.
+>
+> **Do not reference this document as evidence of completed work without verification.**
+
 **Status:** PLANNING  
 **Phase:** 4 of 6 (Protocol Unification)  
 **Depends On:** Phase 3 (VFS Operation Abstraction)  

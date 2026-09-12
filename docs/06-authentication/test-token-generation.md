@@ -645,7 +645,7 @@ kXR_auth [credtype: "ztn"]            ─>   "ztn\0<raw JWT bytes>"
                                         <─  JWT validated → kXR_ok (auth complete)
 ```
 
-The entire token is sent in a single `kXR_auth` request. There is no multi-step handshake like GSI — it is one round-trip.
+The entire token is sent in a single `kXR_auth` request. There is no multi-step handshake like GSI — it is one round-trip. Token routing and validation in the native stream path is handled by `src/auth/gsi/token.c:brix_handle_token_auth()` which validates the JWT via `src/auth/token/validate.c:brix_token_validate()`.
 
 ### 9.2 WebDAV/HTTPS
 

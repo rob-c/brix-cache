@@ -41,11 +41,11 @@ The `platform.h` header enforces that exactly one platform is defined and provid
 |--------|-------|
 | **Total PAL Functions** | 44 (60 core + 2 Windows-specific) |
 | **Overall Completion** | 100% (5/5 platforms) ✅ |
-| **Linux x86_64** | 60/60 (100%) - Production ready |
-| **Linux ARM64** | 60/60 (100%) - CRC32C 10x, NEON 4x |
-| **macOS x86_64** | 60/60 (100%) - Production ready |
-| **macOS ARM64** | 60/60 (100%) - Accelerate 7.5-10x, CPU topology |
-| **Windows x86_64** | 60/60 (100%) ✅ - Security stubs implemented |
+| **Linux x86_64** | 61/61 (100%) - Production ready |
+| **Linux ARM64** | 61/61 (100%) - CRC32C 10x, NEON 4x |
+| **macOS x86_64** | 61/61 (100%) - Production ready |
+| **macOS ARM64** | 61/61 (100%) - Accelerate 7.5-10x, CPU topology |
+| **Windows x86_64** | 61/61 (100%) ✅ - Security stubs implemented |
 | **Total Files** | 167+ |
 | **Total Lines** | 235,000+ |
 | **Test Cases** | 319+ (100+ for Windows) |
@@ -218,8 +218,8 @@ grep -E "BRIX_HAS_(IO_URING|SECCOMP|CEPH)" objs/nginx 2>/dev/null || echo "Featu
 
 The PAL architecture successfully supports 5 platforms with 100% overall completion.
 
-### Windows Support (✅ 100% Complete - 60/60 functions)
-- ✅ Full Win32 API implementation (60/60 PAL functions)
+### Windows Support (✅ 100% Complete - 61/61 functions)
+- ✅ Full Win32 API implementation (61/61 PAL functions)
 - ✅ HANDLE/fd abstraction layer (thread-safe registry with SRW locks)
 - ✅ NTFS ADS for extended attributes (FindFirstStreamW/FindNextStreamW)
 - ✅ Zero-copy transfers (TransmitFile, buffered splice, CopyFile2 3-tier)
@@ -229,13 +229,13 @@ The PAL architecture successfully supports 5 platforms with 100% overall complet
 - **Status**: Development ready (WSL2 recommended for production), 100% PAL complete
 - **Documentation**: `src/platform/windows/`, `docs/platform/SUPPORT_MATRIX.md`
 
-### ARM64 Linux (✅ 100% Complete - 60/60 functions)
+### ARM64 Linux (✅ 100% Complete - 61/61 functions)
 - ✅ Hardware CRC32C acceleration (ARMv8-A CRC extension) - 10-20x speedup
 - ✅ NEON SIMD optimizations for checksums - 3-4x speedup
 - ✅ Optimized for AWS Graviton3/4, Ampere Altra
 - **Status**: Production ready
 
-### ARM64 macOS (✅ 100% Complete - 60/60 functions)
+### ARM64 macOS (✅ 100% Complete - 61/61 functions)
 - ✅ Compiles and runs on Apple Silicon
 - ✅ Firestorm/Icestorm big.LITTLE awareness
 - ✅ Accelerate framework integration (7.5-10x speedup)

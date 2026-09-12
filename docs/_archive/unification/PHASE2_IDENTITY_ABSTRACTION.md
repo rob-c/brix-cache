@@ -1,5 +1,17 @@
 # Phase 2: Identity Abstraction - Implementation Plan
 
+> ⚠️ **HISTORICAL PLAN - NEVER IMPLEMENTED**
+>
+> This document describes a **planned architecture change that was never implemented**.
+>
+> **Fictional Infrastructure:**
+> - `src/core/types/identity.h` - **DOES NOT EXIST**
+> - `xrootd_identity_t` struct - **NEVER CREATED**
+>
+> **Current Reality:** Identity remains fragmented across protocol-specific context structs.
+>
+> **Do not reference this document as evidence of completed work.**
+
 **Status:** PLANNING  
 **Phase:** 2 of 6 (Protocol Unification)  
 **Depends On:** Phase 1 (Unified Path Resolver)  

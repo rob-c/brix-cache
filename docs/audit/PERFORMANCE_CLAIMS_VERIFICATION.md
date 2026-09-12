@@ -125,10 +125,13 @@ This report provides comprehensive verification of **294 performance claims** ac
 | 5-10 GB/s throughput | `PERFORMANCE_BENCHMARKS.md:155` | 50-100 MB/s actual | ⚠️ THEORETICAL |
 
 **Evidence**:
-- ✅ `src/platform/darwin/clonefile_optimized.c` exists
-- ❌ **NOT included in build** (config script doesn't compile it)
+- ✅ `src/platform/darwin/clonefile_optimized.c` exists (150 lines)
+- ✅ **Included in build** (config line 994 compiles it)
 - ❌ **NOT called by** `copy_range.c` (uses pread/pwrite loop)
+- ✅ `brix_plat_clonefile()` exported but unused
 - ✅ Documentation properly marked as THEORETICAL
+
+**Clarification**: clonefile_optimized.c IS compiled but NOT USED by copy_range.c. The optimization exists but is not integrated into the data path.
 
 **Recommendation**: Documentation accurately reflects THEORETICAL status.
 
@@ -304,7 +307,7 @@ All event loop benchmarks (Sections 4.1-4.2) are **THEORETICAL**:
    - macOS benchmarks: Not run
    - Windows benchmarks: Not run
    
-3. **Integration gaps** - clonefile_optimized.c exists but not integrated into build
+3. **Integration gaps** - clonefile_optimized.c compiled but NOT CALLED by copy_range.c
 
 4. **Documentation inconsistencies** - Some files lack categorization markers
    - 14 claims (4.8%) missing MEASURED/THEORETICAL markers
@@ -320,9 +323,10 @@ All event loop benchmarks (Sections 4.1-4.2) are **THEORETICAL**:
    - Windows x86_64: Port benchmarks or use WSL2
    - Linux x86_64: Run SSE4.2 benchmarks
 
-2. **Integrate clonefile_optimized.c**
-   - Add to `config` build script
-   - Update `copy_range.c` to call it
+2. **Integrate clonefile_optimized.c into copy_range.c**
+   - ✅ Already compiled (config line 994)
+   - ❌ Update `copy_range.c` to call `brix_plat_clonefile()`
+   - Add fallback logic: clonefile → sendfile → pread/pwrite
    - Run benchmarks to verify 100x claim
 
 3. **Implement missing benchmarks**

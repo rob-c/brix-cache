@@ -151,3 +151,5 @@ secrets even though they are short-lived.
 - [Certificates](certificates.md) — certificate hierarchy, proxy certs (RFC 3820), VOMS attribute certificates
 - [GSI authentication](gsi-auth.md) — GSI over root://, proxy cert auth over https://
 - [Authorization and CRL](authorization.md) — VO authorization, CRL checking, CA bundle, TLS vs GSI, code map, failure modes
+- [Identity Mapping](identity-mapping.md) — how X.509/VOMS/token identities map to local UNIX users/groups (default no-impersonation model)
+- [Impersonation](impersonation.md) — optional per-request UNIX impersonation via privileged broker (phase 40, off by default)

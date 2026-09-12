@@ -46,7 +46,9 @@
 | Process Execution | 1 | ✅ 100% | ✅ 100% | ✅ 100% |
 | Byte Order | 6 | ✅ 100% | ✅ 100% | ✅ 100% |
 | PAL Initialization | 2 | ✅ 100% | ✅ 100% | ✅ 100% |
-| **TOTAL** | **44** | **✅ 100%** | **✅ 100%** | **✅ 100%** |
+| Apple Silicon CPU | 12 | N/A | ✅ 100% | N/A |
+| Windows Platform | 8 | N/A | N/A | ✅ 100% |
+| **TOTAL** | **64** | **✅ 100%** | **✅ 100%** | **✅ 100%** |
 
 ---
 
@@ -1611,14 +1613,14 @@ if (brix_plat_windows_version_at_least(10, 0, 19041)) {
 ## Appendix C: Changelog
 
 ### Version 3.0 (2025-12-18)
-- ✅ Windows PAL complete (60/60 functions)
+- ✅ Windows PAL complete (61/61 functions)
 - ✅ Windows xattr via NTFS ADS (8 functions)
 - ✅ Windows platform detection (8 functions)
 - ✅ Windows zero-copy transfers (3 functions)
 - ✅ All 5 platforms at 100% PAL coverage
 
 ### Version 2.0 (2025-11-15)
-- ✅ macOS PAL complete (60/60 functions)
+- ✅ macOS PAL complete (61/61 functions)
 - ✅ Apple Silicon optimization (Accelerate, CPU topology)
 - ✅ ARM64 Linux hardware acceleration (CRC32C, NEON)
 

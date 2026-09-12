@@ -33,7 +33,7 @@ apt install xrootd-client   # Debian/Ubuntu
 ### Option A — Local build
 
 ```bash
-cd /home/rcurrie/HEP-x/nginx-xrootd
+cd <project-root>
 ./packaging/rpm/build-rpm.sh [version]
 # Output: RPM in ~/rpmbuild/RPMS/x86_64/
 ```
@@ -41,7 +41,7 @@ cd /home/rcurrie/HEP-x/nginx-xrootd
 ### Option B — Container-based build (recommended for reproducibility)
 
 ```bash
-cd /home/rcurrie/HEP-x/nginx-xrootd
+cd <project-root>
 ./packaging/rpm/build-rpm-container.sh \
     -v 1.0.0 \
     -d alma9 \
@@ -71,7 +71,7 @@ cp objs/ngx_http_brix_webdav_module.so /usr/lib64/nginx/modules/
 The test suite regenerates this from scratch each run via `blitz_test_pki()`. To do it manually:
 
 ```bash
-cd /home/rcurrie/HEP-x/nginx-xrootd
+cd <project-root>
 # blitz_test_pki() takes no arguments; it reads the target path (PKI_DIR) from
 # tests/settings.py, which defaults to $TEST_ROOT/pki (TEST_ROOT=/tmp/xrd-test).
 # Override the location by exporting TEST_ROOT before invoking.
@@ -107,7 +107,7 @@ export X509_USER_PROXY=/tmp/xrd-test/pki/user/proxy_new.pem
 ## 5. Generate JWT Tokens
 
 ```bash
-cd /home/rcurrie/HEP-x/nginx-xrootd
+cd <project-root>
 
 # Initialize the signing authority (one-time)
 python3 utils/make_token.py init /tmp/xrd-test/tokens
@@ -429,7 +429,7 @@ curl http://localhost:9001/test-bucket/
 To run all tests including token auth, GSI auth, WebDAV, S3, and metrics:
 
 ```bash
-cd /home/rcurrie/HEP-x/nginx-xrootd
+cd <project-root>
 source .venv/bin/activate
 (cd tests && python3 -m cmdscripts.manage_test_servers start-all)
 PYTHONPATH=tests pytest tests/ -v --tb=short

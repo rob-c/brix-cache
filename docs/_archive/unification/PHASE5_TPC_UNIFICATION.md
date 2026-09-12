@@ -1,5 +1,13 @@
 # Phase 5: Third-Party Copy Unification - Implementation Plan
 
+> ⚠️ **HISTORICAL PLAN - IMPLEMENTATION STATUS UNVERIFIED**
+>
+> This document describes a **planned architecture change**.
+>
+> **Verification Needed:** Check against `src/tpc/` for actual implementation.
+>
+> **Do not reference this document as evidence of completed work without verification.**
+
 **Status:** PLANNING  
 **Phase:** 5 of 6 (Protocol Unification)  
 **Depends On:** Phase 2 (Identity Abstraction), Phase 3 (VFS Operations)  

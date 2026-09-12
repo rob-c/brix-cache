@@ -1,6 +1,18 @@
 # Phase 3: VFS Operation Abstraction - Implementation Plan
 
-**Status:** PLANNING  filw
+> ⚠️ **HISTORICAL PLAN - NEVER IMPLEMENTED**
+>
+> This document describes a **planned architecture change that was never implemented**.
+>
+> **Fictional Infrastructure:**
+> - `src/fs/vfs/` directory - **DOES NOT EXIST**
+> - `vfs.h`, `vfs_open.c`, `vfs_read.c`, etc. - **NONE CREATED**
+>
+> **Current Reality:** VFS operations remain distributed across protocol-specific handlers.
+>
+> **Do not reference this document as evidence of completed work.**
+
+**Status:** PLANNING  
 **Phase:** 3 of 6 (Protocol Unification)  
 **Depends On:** Phase 1 (Unified Path Resolver), Phase 2 (Identity Abstraction)  
 **Estimated Effort:** 16-24 hours  
