@@ -63,7 +63,7 @@ as part of the current documentation expansion effort:
 - [x] **`AGENTS.md`** — Rewritten from 485 to 914 lines with: three mandatory
   pre-task questions, build recipe with configure-vs-make table, full test
   runbook, operation-to-file index for all three protocol families, test-to-
-  feature map for all 57 test files, five implementation recipes, key API quick
+  feature map for all 2,400+ test files (2,227 Python, 203 C, 2 shell), five implementation recipes, key API quick
   reference with C signatures, disambiguation patterns, and per-pitfall list.
 
 - [x] **Per-subsystem READMEs** — Data flow sections added to `handshake/`,

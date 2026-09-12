@@ -1917,7 +1917,7 @@ Maximum directory recursion depth for a single `kXR_Qckscan` request. Entries
 below this depth are skipped without failing the scan.
 
 ```nginx
-brix_ckscan_depth 32;
+brix_ckscan_depth 64;  # Updated: was 32, actual default is 64
 ```
 
 ---
@@ -1930,7 +1930,7 @@ Maximum number of regular files returned by a single `kXR_Qckscan` request.
 Additional files are skipped once the limit is reached.
 
 ```nginx
-brix_ckscan_max_files 100000;
+brix_ckscan_max_files 50000;  # Updated: was 100000, actual default is 50000
 ```
 
 ---
@@ -2971,7 +2971,7 @@ When outbound TLS is enabled, nginx verifies the origin certificate using `brix_
 How long a worker waits for another worker's in-progress fill of the same file. Cache fills use per-file `O_EXCL` lock files under the cache directory, so concurrent opens of the same missing path collapse to one origin transfer.
 
 ```nginx
-brix_cache_lock_timeout 120s;
+brix_cache_lock_timeout 600s;  # Updated: was 120s, actual default is 600s
 ```
 
 ---
@@ -4365,13 +4365,13 @@ recall path; with `off` a nearline open is served from the backend as-is.
 
 #### `brix_frm_max_inflight <n>`
 
-**Context:** stream server. **Default:** `64`. Capacity of the shared-memory
+**Context:** stream server. **Default:** `128`. Capacity of the shared-memory
 stage request registry (`postconfiguration.c`); a `kXR_prepare` beyond it is
 refused.
 
 #### `brix_frm_stage_ttl <time>`
 
-**Context:** stream server. **Default:** `600s`. How long a parked nearline
+**Context:** stream server. **Default:** `300s`. How long a parked nearline
 open (and its `kXR_prepare` record) stays live before it is reaped
 (`open_request_resolve.c`, `prepare_recall.c`).
 

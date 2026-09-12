@@ -65,7 +65,7 @@ sum by (proto) (rate(brix_io_bytes_read[1m]))
 
 ## Per-VO Traffic Tracking
 
-Groups data transfer by virtual organisation. VO names are truncated to **15 characters** for storage efficiency. The table supports up to **32 VOs** simultaneously; excess VOs increment an overflow counter and evict the oldest entry (LRU policy).
+Groups data transfer by virtual organisation. VO names are stored in a **16-byte buffer** (15 characters + null terminator) for storage efficiency. The table supports up to **32 VOs** simultaneously; excess VOs increment an overflow counter and evict the oldest entry (LRU policy).
 
 ```text
   WHY BOUNDED: a Prometheus label per VO/user would explode cardinality.

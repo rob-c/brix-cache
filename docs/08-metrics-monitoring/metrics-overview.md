@@ -34,7 +34,7 @@ pipeline. This map shows which family increments at each stage:
   Label discipline (INVARIANT #8): only low-cardinality labels —
   {proto, port, auth, op, status, method, status_class}. Never paths, DNs,
   buckets, keys, or UUIDs. VO is capped at 32 entries; user identity is
-  hashed + LRU-512.
+  hashed + LRU-1024 (1024-entry bounded table).
 ```
 
 ---
@@ -515,7 +515,7 @@ See [extended-metrics.md](./extended-metrics.md) for configuration notes and ful
 
 ## Unique User Identity Tracking (Extended)
 
-Counts distinct authenticated users since process start. Users are identified by hashing their DN (GSI) or token sub claim via FNV-1a 32-bit hash before lookup. The table supports up to 512 tracked identities simultaneously; excess entries evict the oldest slot using LRU policy.
+Counts distinct authenticated users since process start. Users are identified by hashing their DN (GSI) or token sub claim via FNV-1a 32-bit hash before lookup. The table supports up to 1024 tracked identities simultaneously; excess entries evict the oldest slot using LRU policy.
 
 Metrics:
 - `brix_unique_users_current` — currently tracked unique users (bounded by table size)

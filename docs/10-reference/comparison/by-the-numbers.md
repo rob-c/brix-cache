@@ -46,11 +46,11 @@ libraries are linked: the XRootD wire protocol is implemented directly.
 
 ### BriX-Cache test suite
 
-| Metric | Count |
+| Metric | Count (as of 2026-01) |
 |---|---|
-| Test files | 142 |
-| Total test functions | 1,192 |
-| Test code (Python lines) | 27,236 |
+| Test files | 2,432 (2,227 Python, 203 C, 2 shell) |
+| Total test functions | ~5,000+ (regular + parameterized) |
+| Test code (Python lines) | 407,200 |
 | Test-to-source ratio | ~0.72 lines of test per line of source |
 
 Tests run against real nginx processes under the module. There are no mocks of
@@ -98,7 +98,7 @@ scope comparison (approximate)
     ─────────────────────────────────────────────────────
     ratio                             ~10×
 
-    nginx-xrootd tests                1,192 collected, integration-level,
+    nginx-xrootd tests                5,000+ collected (2,432 files), integration-level,
                                       no mocks, security and edge-case focus
 ```
 
@@ -142,7 +142,7 @@ careful integration with nginx internals.
 | nginx AIO thread-pool integration | 200–300 | Thread-safe AIO context management; destroyed-connection guard pattern |
 | Prometheus metrics (all subsystems) | 150–200 | Shared-memory atomic counters, low-cardinality label discipline |
 | Path confinement + access logging | 150–200 | realpath-based confinement, log injection prevention |
-| Tests — 1,192 integration tests, no mocks | 700–900 | Real nginx processes, real PKI, security edge cases, protocol adversarial tests |
+| Tests — 5,000+ integration tests (2,432 files), no mocks | 700–900 | Real nginx processes, real PKI, security edge cases, protocol adversarial tests |
 | Documentation (architecture, protocol notes, comparison, per-subsystem) | 350–500 | |
 | Debugging, integration, security review | 450–600 | Protocol conformance testing against reference xrootd; security probe harness |
 | **Total** | **~4,550–6,250** | |

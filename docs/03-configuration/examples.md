@@ -58,7 +58,7 @@ stream {
         brix_storage_backend root://origin.example.org:1094;   # the origin
         brix_cache_store     posix:/srv/xcache;                # local cache tier
         brix_cache_export    /;
-        brix_cache_lock_timeout 300s;
+        brix_cache_lock_timeout 600s;  # Updated: was 300s, actual default is 600s
         brix_cache_eviction_threshold 90%;
         brix_access_log /var/log/nginx/brix_cache.log;
         brix_thread_pool brix_cache_io;
@@ -372,8 +372,11 @@ http {
             #     are still parsed/validated only — cvmfs eviction is bounded by
             #     brix_cache_max_object plus DELETE/overwrite. ---
             # Defaults are evict_at=90 evict_to=80 (percent of volume).
-            brix_cache_evict_at 85;          # default: 90
-            brix_cache_evict_to 70;          # default: 80
+            # ⚠️ DEPRECATED (phase-115): Use brix_cache_high_watermark / brix_cache_low_watermark instead
+            # brix_cache_evict_at 85;       # REMOVED - was: 90
+            # brix_cache_evict_to 70;       # REMOVED - was: 80
+            brix_cache_high_watermark 85;   # NEW: Eviction trigger (percent)
+            brix_cache_low_watermark 70;    # NEW: Eviction target (percent)
 
             # Quarantine directory for CAS verify failures (evidence, not cache)
             brix_cvmfs_quarantine_dir /srv/cvmfs-quarantine;
