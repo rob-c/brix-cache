@@ -12,6 +12,25 @@ live documentation only contains material that describes current behaviour.
 
 ---
 
+## ⚠️ CRITICAL: Documents Describing Non-Existent Implementation
+
+**The following documents describe implementation that NEVER OCCURRED:**
+
+| Document | False Claims | Reality |
+|----------|--------------|--------|
+| `PHASE_2_SUMMARY.md` | Claims `conf_helpers.h`, `alloc_helpers.h`, `response_helpers.h`, `addr_parse.c/h` created | **NONE OF THESE FILES EXIST** |
+| `PHASE_2_COMPLETE.md` | Claims "32 LoC consolidated", "75 merge calls", "6 modules migrated" | **NEVER HAPPENED** |
+| `PHASE_2_FINAL_REPORT.md` | Claims "50 LoC consolidated", "47 merge calls", "5 modules migrated" | **NEVER HAPPENED** |
+| `CODE_CONSOLIDATION_IMPLEMENTATION.md` | Claims "4 new files created", "cache/directives.c migrated" | **NEVER HAPPENED** |
+
+**These documents contain fabricated statistics and reference files that do not exist.**
+
+**Do not use them as evidence of completed work.** All disclaimers have been added to the individual files.
+
+For actual implementation, see: `docs/refactor/phase-*.md`
+
+---
+
 ## Early refactoring / consolidation reports
 
 | Document | Why archived |

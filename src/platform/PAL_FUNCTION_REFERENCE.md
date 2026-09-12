@@ -1356,7 +1356,7 @@ brix_plat_cleanup(); // Currently no-op
 
 **Note**: These 12 functions are macOS/Apple Silicon-specific extensions to the PAL API. They provide CPU topology detection and performance optimization for Apple Silicon (M1/M2/M3) chips.
 
-### 13.1 `brix_apple_detect_chip()`
+### 12.1 `brix_apple_detect_chip()`
 
 **Purpose**: Detect Apple Silicon chip type
 
@@ -1378,7 +1378,7 @@ void brix_apple_detect_chip(void);
 
 ---
 
-### 13.2 `brix_apple_get_perf_cores()`
+### 12.2 `brix_apple_get_perf_cores()`
 
 **Purpose**: Get number of performance (Firestorm) cores
 
@@ -1396,7 +1396,7 @@ int brix_apple_get_perf_cores(void);
 
 ---
 
-### 13.3 `brix_apple_get_eff_cores()`
+### 12.3 `brix_apple_get_eff_cores()`
 
 **Purpose**: Get number of efficiency (Icestorm) cores
 
@@ -1409,7 +1409,7 @@ int brix_apple_get_eff_cores(void);
 
 ---
 
-### 13.4 `brix_plat_cpu_count_performance()`
+### 12.4 `brix_plat_cpu_count_performance()`
 
 **Purpose**: Get performance core count (cross-platform wrapper)
 
@@ -1420,7 +1420,7 @@ int brix_plat_cpu_count_performance(void);
 
 ---
 
-### 13.5 `brix_plat_cpu_count_efficiency()`
+### 12.5 `brix_plat_cpu_count_efficiency()`
 
 **Purpose**: Get efficiency core count (cross-platform wrapper)
 
@@ -1431,7 +1431,7 @@ int brix_plat_cpu_count_efficiency(void);
 
 ---
 
-### 13.6 `brix_plat_cpu_info()`
+### 12.6 `brix_plat_cpu_info()`
 
 **Purpose**: Get detailed CPU information
 
@@ -1442,7 +1442,7 @@ int brix_plat_cpu_info(void *info);
 
 ---
 
-### 13.7 `brix_plat_chip_model()`
+### 12.7 `brix_plat_chip_model()`
 
 **Purpose**: Get chip model string
 
@@ -1455,7 +1455,7 @@ int brix_plat_chip_model(char *buf, size_t buf_size);
 
 ---
 
-### 13.8 `brix_plat_is_apple_silicon()`
+### 12.8 `brix_plat_is_apple_silicon()`
 
 **Purpose**: Check if running on Apple Silicon
 
@@ -1468,7 +1468,7 @@ int brix_plat_is_apple_silicon(void);
 
 ---
 
-### 13.9 `brix_plat_worker_placement_strategy()`
+### 12.9 `brix_plat_worker_placement_strategy()`
 
 **Purpose**: Get recommended worker placement strategy
 
@@ -1481,7 +1481,7 @@ int brix_plat_worker_placement_strategy(void);
 
 ---
 
-### 13.10 `brix_plat_cpu_topology_print()`
+### 12.10 `brix_plat_cpu_topology_print()`
 
 **Purpose**: Print CPU topology information
 
@@ -1492,7 +1492,7 @@ void brix_plat_cpu_topology_print(void);
 
 ---
 
-### 13.11 `brix_apple_clonefile()`
+### 12.11 `brix_apple_clonefile()`
 
 **Purpose**: APFS clonefile() wrapper (THEORETICAL - NOT INTEGRATED)
 
@@ -1505,7 +1505,7 @@ int brix_apple_clonefile(const char *src, const char *dst, int flags);
 
 ---
 
-### 13.12 `brix_apple_perf_start/read/stop()`
+### 12.12 `brix_apple_perf_start/read/stop()`
 
 **Purpose**: Performance monitoring wrappers
 
@@ -1518,11 +1518,11 @@ int brix_apple_perf_stop(void);
 
 ---
 
-## 13. Windows Platform Detection (Windows Only)
+## 14. Windows Platform Detection (Windows Only)
 
 **Note**: These 8 functions are Windows-specific extensions to the PAL API.
 
-### 13.1 `brix_plat_is_windows()`
+### 12.1 `brix_plat_is_windows()`
 
 **Purpose**: Check if running on Windows
 
@@ -1537,7 +1537,7 @@ int brix_plat_is_windows(void);
 
 ---
 
-### 13.2 `brix_plat_windows_version()`
+### 12.2 `brix_plat_windows_version()`
 
 **Purpose**: Get Windows version string
 
@@ -1558,7 +1558,7 @@ const char *brix_plat_windows_version(void);
 
 ---
 
-### 13.3 `brix_plat_windows_build()`
+### 12.3 `brix_plat_windows_build()`
 
 **Purpose**: Get Windows build number
 
@@ -1573,7 +1573,7 @@ unsigned long brix_plat_windows_build(void);
 
 ---
 
-### 13.4 `brix_plat_windows_version_info()`
+### 12.4 `brix_plat_windows_version_info()`
 
 **Purpose**: Get Windows version components
 
@@ -1590,7 +1590,7 @@ int brix_plat_windows_version_info(unsigned long *major,
 
 ---
 
-### 13.5 `brix_plat_is_windows_server()`
+### 12.5 `brix_plat_is_windows_server()`
 
 **Purpose**: Check if running on Windows Server
 
@@ -1605,7 +1605,7 @@ int brix_plat_is_windows_server(void);
 
 ---
 
-### 13.6 `brix_plat_windows_service_pack()`
+### 12.6 `brix_plat_windows_service_pack()`
 
 **Purpose**: Get Windows service pack string
 
@@ -1620,7 +1620,7 @@ const char *brix_plat_windows_service_pack(void);
 
 ---
 
-### 13.7 `brix_plat_windows_edition()`
+### 12.7 `brix_plat_windows_edition()`
 
 **Purpose**: Get Windows edition from registry
 
@@ -1635,7 +1635,7 @@ const char *brix_plat_windows_edition(void);
 
 ---
 
-### 13.8 `brix_plat_windows_version_at_least()`
+### 12.8 `brix_plat_windows_version_at_least()`
 
 **Purpose**: Check if Windows version meets minimum requirements
 
@@ -1657,7 +1657,7 @@ if (brix_plat_windows_version_at_least(10, 0, 19041)) {
 
 ---
 
-## 14. Troubleshooting Guide
+## 15. Troubleshooting Guide
 
 ### Common Issues
 
