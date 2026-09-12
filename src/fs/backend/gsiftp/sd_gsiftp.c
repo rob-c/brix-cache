@@ -1,6 +1,7 @@
 /* Driver descriptor, instance factory, confinement and session helpers. */
 
 #include "sd_gsiftp_internal.h"
+#include "core/types/tunables.h"  /* BRIX_GSIFTP_TIMEOUT_DEFAULT_MS */
 
 #include <errno.h>
 #include <stdio.h>
@@ -215,7 +216,7 @@ sd_gsiftp_fill_state(sd_gsiftp_state *state,
     }
     state->port = cfg->port;
     state->require_gsi = cfg->require_gsi != 0;
-    state->timeout_ms = cfg->timeout_ms > 0 ? cfg->timeout_ms : 30000;
+    state->timeout_ms = cfg->timeout_ms > 0 ? cfg->timeout_ms : BRIX_GSIFTP_TIMEOUT_DEFAULT_MS;
     state->dns = cfg->dns;
     state->mode = cfg->mode;
     state->prot = cfg->prot;

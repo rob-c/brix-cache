@@ -23,6 +23,7 @@
 #include "s3.h"
 #include "list_cache.h"
 #include "core/http/http_query.h"
+#include "core/types/tunables.h"  /* BRIX_S3_LIST_MAX_KEYS */
 
 #include <errno.h>
 #include <stdlib.h>
@@ -56,7 +57,7 @@ s3_list_parse_max_keys(ngx_http_request_t *r, int default_max)
         }
     }
     if (max_keys <= 0) {
-        max_keys = 1000;
+        max_keys = BRIX_S3_LIST_MAX_KEYS;
     }
     return max_keys;
 }

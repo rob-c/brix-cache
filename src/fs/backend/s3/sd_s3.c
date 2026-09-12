@@ -14,6 +14,7 @@
  */
 #include "sd_s3.h"
 #include "sd_s3_internal.h"     /* sd_s3_file layout + SigV4/error primitives (split out) */
+#include "core/types/tunables.h"  /* BRIX_S3_TIMEOUT_DEFAULT_MS */
 
 #include "core/compat/crypto.h"        /* brix_sha256 / brix_hmac_sha256 */
 #include "core/compat/hex.h"           /* brix_hex_encode */
@@ -57,7 +58,7 @@ sd_s3_open_read(const sd_s3_open_params *p, char *errbuf, size_t errcap)
     f->tls        = p->tls;
     f->transport  = p->transport;
     f->tctx       = p->tctx;
-    f->timeout_ms = (p->timeout_ms > 0) ? p->timeout_ms : 300000;
+    f->timeout_ms = (p->timeout_ms > 0) ? p->timeout_ms : BRIX_S3_TIMEOUT_DEFAULT_MS;
     f->obj_size   = -1;
     return f;
 }

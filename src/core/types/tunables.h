@@ -428,6 +428,48 @@
  */
 #define BRIX_PROXY_WRITE_TIMEOUT_DEFAULT_MS    60000
 
+/* ---- Additional timeout constants (runtime-configurable defaults) ---- */
+
+/*
+ * WebDAV lock timeout maximum (seconds).
+ * RFC 4918 recommends 1 hour as the default lock lifetime.  Clients may
+ * request shorter or longer timeouts, but this is the maximum allowed.
+ * Prevents clients from requesting excessively long locks that could block resources.
+ */
+#define BRIX_WEBDAV_LOCK_TIMEOUT_MAX           3600
+
+/*
+ * CMS read timeout maximum (milliseconds).
+ * Maximum time to wait for CMS manager answer before fallback.
+ * 90 seconds is the floor — allows for slow storage + network latency.
+ * Exceeding this suggests a hung backend or network partition.
+ */
+#define BRIX_CMS_READ_TIMEOUT_MAX_MS           90000
+
+/*
+ * VFS backend busy timeout (milliseconds).
+ * Default timeout when backend reports "busy" — triggers retry or failover.
+ * 5 seconds allows for network round-trip + backend processing + response.
+ * Used in VFS backend registry and tier configuration.
+ */
+#define BRIX_VFS_BUSY_TIMEOUT_DEFAULT_MS       5000
+
+/*
+ * GSI-FTP operation timeout (milliseconds).
+ * Default timeout for GridFTP control and data channel operations.
+ * 30 seconds allows for authentication handshake + data channel setup.
+ * Longer operations (multi-GB transfers) use progress-based timeouts.
+ */
+#define BRIX_GSIFTP_TIMEOUT_DEFAULT_MS         30000
+
+/*
+ * S3 operation timeout (milliseconds).
+ * Default timeout for S3 API operations (PUT, GET, LIST, etc.).
+ * 300 seconds (5 minutes) allows for multi-GB object transfers with retry.
+ * Individual API calls (HEAD, LIST) complete much faster.
+ */
+#define BRIX_S3_TIMEOUT_DEFAULT_MS             300000
+
 /* ---- Proxy buffer and sizing constants ---- */
 
 /*
@@ -478,8 +520,24 @@
 /* ---- Size constants ---- */
 
 /*
+ * Maximum base64url-encoded input size (bytes).
+ * JWT tokens with claims typically 2-4 KB encoded; 8 KB provides 2x headroom.
+ * Prevents buffer overflow on malformed or malicious oversized inputs.
+ * Decoded output will be ~6 KB (base64 expands by 4/3).
+ */
+#define BRIX_B64_DECODE_MAX                  8192
+
+/*
+ * Maximum JWKS (JSON Web Key Set) file size (bytes).
+ * Typical JWKS with 10-20 keys is 5-15 KB; 64 KB allows for large key sets.
+ * Prevents DoS via oversized JWKS files (memory exhaustion, parse time).
+ * If more than 20 keys needed, consider key rotation or multiple JWKS endpoints.
+ */
+#define BRIX_JWKS_FILE_MAX                   65536
+
+/*
  * Maximum bearer token size (bytes).
- * WLCG SciTokens typically 2–4 KB; 4 KB accommodates future extensions.
+ * WLCG SciTokens typically 2-4 KB; 4 KB accommodates future extensions.
  * Prevents unbounded allocation from malicious oversized token claims.
  */
 #define BRIX_BEARER_TOKEN_MAX                  4096
@@ -490,6 +548,14 @@
  * 8 allows reasonable delegation depth while bounding verification cost.
  */
 #define BRIX_MACAROON_PATH_CAVEATS_MAX         8
+
+/*
+ * Maximum S3 list objects max-keys parameter.
+ * AWS S3 API maximum is 1000; this matches the service limit.
+ * Pagination (continuation token) handles larger result sets.
+ * Keeping at 1000 minimizes API calls while respecting service  (prevents throttling).
+ */
+#define BRIX_S3_LIST_MAX_KEYS                  1000
 
 /* ---- Authentication mode constants ---- */
 #define BRIX_AUTH_NONE   0   /* no authentication required (anonymous) */

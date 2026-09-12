@@ -25,7 +25,7 @@
  *     allow_write, allow_unsigned_session_token, max_keys to NGX_CONF_UNSET (merge macros detect unset).
  *   ngx_http_s3_merge_loc_conf(): parent→child merge using ngx_conf_merge_value for flags/ints,
  *     ngx_conf_merge_str_value for strings. Defaults: enable=0, allow_write=0, allow_unsigned_session_token=0,
- *     max_keys=1000, root="", bucket="", access_key="", secret_key="", region="us-east-1". When conf->common.enable is true,
+ *     max_keys=BRIX_S3_LIST_MAX_KEYS, root="", bucket="", access_key="", secret_key="", region="us-east-1". When conf->common.enable is true,
  *     calls brix_prepare_export_root() with directive_name="brix_export", allow_write from config,
  *     required=0 (root not mandatory), canon_size=sizeof(conf->common.root_canon). Returns NGX_CONF_ERROR on failure.
  *   ngx_http_s3_set(): parses the "brix_s3" flag via ngx_conf_set_flag_slot(), then retrieves the

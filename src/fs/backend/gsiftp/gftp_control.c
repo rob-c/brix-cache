@@ -5,6 +5,7 @@
 #include "gftp_reply.h"
 #include "protocols/root/connection/netconnect.h"
 #include "net/dns/dns.h"          /* brix_dns_resolve_sync: the one DNS path */
+#include "core/types/tunables.h"  /* BRIX_GSIFTP_TIMEOUT_DEFAULT_MS */
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -355,7 +356,7 @@ gftp_session_open(gftp_session_t *session, const gftp_session_cfg_t *cfg)
 {
     memset(session, 0, sizeof(*session));
     session->fd = -1;
-    session->timeout_ms = cfg->timeout_ms > 0 ? cfg->timeout_ms : 30000;
+    session->timeout_ms = cfg->timeout_ms > 0 ? cfg->timeout_ms : BRIX_GSIFTP_TIMEOUT_DEFAULT_MS;
     /* The data-channel policy is the STORE LINE's, carried on the session so
      * every transfer in it reads the same answer; proxy_path/ca_dir are borrowed
      * for a PROT P data channel to re-present (they outlive the session). */

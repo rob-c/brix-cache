@@ -1,6 +1,7 @@
 /* Build a tier-composed outbound GridFTP origin. */
 
 #include "tier.h"
+#include "core/types/tunables.h"  /* BRIX_GSIFTP_TIMEOUT_DEFAULT_MS */
 #include "fs/backend/gsiftp/sd_gsiftp.h"
 #include "core/compat/cstr.h"
 
@@ -31,7 +32,7 @@ brix_tier_build_gsiftp(const brix_tier_cfg_t *tier, ngx_log_t *log)
             .require_gsi = tier->tls,
             .x509_proxy = proxy[0] != '\0' ? proxy : NULL,
             .ca_dir = ca_dir[0] != '\0' ? ca_dir : NULL,
-            .timeout_ms = 30000,
+            .timeout_ms = BRIX_GSIFTP_TIMEOUT_DEFAULT_MS,
             .dns = tier->dns,
             /* phase-115 W5.1: the store line's data-channel policy, carried as
              * a typed request the session negotiates once and never relaxes. */

@@ -1,10 +1,11 @@
 /*
  *
- * WHAT: Decodes base64url-encoded input (RFC 4648 URL-safe variant using '-' instead of '+' and '_' instead of '/') into raw binary output. Validates padded length ≤ 8192 bytes to prevent buffer overflow on oversized inputs. Converts '-' → '+' and '_' → '/' characters into standard base64 equivalents using character-by-character replacement into temporary stack buffer, then pads remainder with '=' characters for OpenSSL decoder alignment. Calculates decoded maximum size (padded_len/4*3 - pad_count) — rejects if exceeds caller-provided out_max capacity. Performs actual decoding via OpenSSL EVP_ENCODE_CTX API into a private buffer (never straight into the caller's, which OpenSSL would overrun by the padding width): EVP_DecodeInit() initializes context, EVP_DecodeUpdate() processes main data block returning out_len bytes, EVP_DecodeFinal() handles remaining padding returning tmp_len bytes. Total decoded length = out_len + tmp_len, re-checked against out_max and copied out; returns -1 on any validation or decoding failure. All memory allocated from stack (8192-byte input buffer plus its 6144-byte decode buffer) — no heap allocation during decode operation.
+ * WHAT: Decodes base64url-encoded input (RFC 4648 URL-safe variant using '-' instead of '+' and '_' instead of '/') into raw binary output. Validates padded length ≤ BRIX_B64_DECODE_MAX bytes to prevent buffer overflow on oversized inputs. Converts '-' → '+' and '_' → '/' characters into standard base64 equivalents using character-by-character replacement into temporary stack buffer, then pads remainder with '=' characters for OpenSSL decoder alignment. Calculates decoded maximum size (padded_len/4*3 - pad_count) — rejects if exceeds caller-provided out_max capacity. Performs actual decoding via OpenSSL EVP_ENCODE_CTX API into a private buffer (never straight into the caller's, which OpenSSL would overrun by the padding width): EVP_DecodeInit() initializes context, EVP_DecodeUpdate() processes main data block returning out_len bytes, EVP_DecodeFinal() handles remaining padding returning tmp_len bytes. Total decoded length = out_len + tmp_len, re-checked against out_max and copied out; returns -1 on any validation or decoding failure. All memory allocated from stack (BRIX_B64_DECODE_MAX-byte input buffer plus its 6144-byte decode buffer) — no heap allocation during decode operation.
  *
- * WHY: Base64url encoding is required for JWT token payloads and opaque continuation tokens that must survive URL transmission without special character escaping. The '-'/'_' substitution ensures encoded strings can be safely transmitted in URLs, HTTP headers, or query parameters without requiring percent-encoding of '+' and '/' characters. OpenSSL EVP API provides verified cryptographic decoding rather than reimplementing base64 logic — reduces attack surface by relying on well-tested library functions. 8192-byte padded length cap prevents denial-of-service via oversized inputs that would overflow stack buffer. Thread safety: pure function with no shared state — operates only on provided input/output buffers and local stack variables. */
+ * WHY: Base64url encoding is required for JWT token payloads and opaque continuation tokens that must survive URL transmission without special character escaping. The '-'/'_' substitution ensures encoded strings can be safely transmitted in URLs, HTTP headers, or query parameters without requiring percent-encoding of '+' and '/' characters. OpenSSL EVP API provides verified cryptographic decoding rather than reimplementing base64 logic — reduces attack surface by relying on well-tested library functions. BRIX_B64_DECODE_MAX-byte padded length cap prevents denial-of-service via oversized inputs that would overflow stack buffer. Thread safety: pure function with no shared state — operates only on provided input/output buffers and local stack variables. */
 
 #include "b64url.h"
+#include "core/types/tunables.h"  /* BRIX_B64_DECODE_MAX */
 
 #include <openssl/evp.h>
 #include <string.h>
@@ -41,8 +42,8 @@ xrdjwt_split(const char *tok, size_t len, xrdjwt_seg seg[3])
 
 ssize_t b64url_decode(const char *in, size_t in_len, uint8_t *out, size_t out_max) {
     size_t padded_len = in_len + (4 - in_len % 4) % 4;
-    if (padded_len > 8192) return -1;
-    char tmp[8192];
+    if (padded_len > BRIX_B64_DECODE_MAX) return -1;
+    char tmp[BRIX_B64_DECODE_MAX];
     /* OpenSSL writes three bytes for every four base64 characters and subtracts
      * the padding from the *reported* count only (EVP_DecodeBlock semantics), so
      * a padded token has up to two bytes written past the length it decodes to.
@@ -54,7 +55,7 @@ ssize_t b64url_decode(const char *in, size_t in_len, uint8_t *out, size_t out_ma
      * width. Do NOT collapse this back on the grounds that it does not
      * reproduce: OpenSSL 3.5 no longer writes those bytes, 3.0.x does, and the
      * contract cannot depend on which one is linked. */
-    uint8_t raw[8192 / 4 * 3];
+    uint8_t raw[BRIX_B64_DECODE_MAX / 4 * 3];
     size_t i;
     for (i = 0; i < in_len; i++) {
         if (in[i] == '-')      tmp[i] = '+';

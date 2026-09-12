@@ -12,6 +12,7 @@
 #include "credential_block.h"             /* §14 brix_credential lookup/bearer */
 #include "core/compat/staged_file.h"
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
+#include "core/types/tunables.h"  /* BRIX_JWKS_FILE_MAX */
 #include "fs/vfs/vfs_backend_registry.h"   /* per-export backend registration */
 #include "fs/path/path.h"                 /* brix_mkdir_recursive (pblock:// init) */
 #include "fs/tier/tier.h"              /* phase-64 tier parse + cache/stage register */
@@ -60,7 +61,7 @@ brix_tier_load_master_key(ngx_conf_t *cf, const ngx_str_t *path,
         return NGX_ERROR;
     }
     if (ngx_fd_info(fd, &fi) == -1
-        || (size = ngx_file_size(&fi)) <= 0 || size > 65536)
+        || (size = ngx_file_size(&fi)) <= 0 || size > BRIX_JWKS_FILE_MAX)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_verify_manifest: \"%s\" is empty, unreadable "

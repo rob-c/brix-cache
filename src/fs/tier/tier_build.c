@@ -14,6 +14,7 @@
  */
 #include "tier.h"
 
+#include "core/types/tunables.h"  /* BRIX_VFS_BUSY_TIMEOUT_DEFAULT_MS */
 #include "fs/backend/xroot/sd_xroot.h"    /* brix_sd_xroot_create_origin   */
 #include "fs/backend/http/sd_http.h"      /* brix_sd_http_create           */
 #include "fs/backend/remote/sd_remote.h"  /* brix_sd_remote_create (s3)    */
@@ -203,7 +204,7 @@ tier_build_pblock(const brix_tier_cfg_t *t, ngx_log_t *log)
 
     ngx_memzero(&conf, sizeof(conf));
     conf.root            = t->path;
-    conf.busy_timeout_ms = 5000;
+    conf.busy_timeout_ms = BRIX_VFS_BUSY_TIMEOUT_DEFAULT_MS;
     conf.block_size      = (int64_t) t->block_size;
     /* Enforce the off-root drop ONLY in a worker: pblock blobs/catalog.db must
      * never be owned by root. Cache/stage pblock tiers are also built once at

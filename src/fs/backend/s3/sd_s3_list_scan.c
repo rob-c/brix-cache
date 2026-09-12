@@ -19,6 +19,7 @@
 
 #include "sd_s3_list_internal.h"
 #include "core/compat/uri.h"           /* brix_http_urlencode */
+#include "core/types/tunables.h"  /* BRIX_S3_LIST_MAX_KEYS */
 
 #include <errno.h>
 #include <stddef.h>
@@ -216,11 +217,12 @@ sd_s3l_build_query(const char *prefix, size_t plen, const char *cont_in,
         return -1;
     }
     qn = snprintf(qs, qscap,
-            "%s%s%s%slist-type=2&max-keys=1000&prefix=%s",
+            "%s%s%s%slist-type=2&max-keys=%d&prefix=%s",
             enc_cont[0] ? "continuation-token=" : "",
             enc_cont,
             enc_cont[0] ? "&" : "",
             delimited ? "delimiter=%2F&" : "",
+            BRIX_S3_LIST_MAX_KEYS,
             enc_prefix);
     if (qn < 0 || (size_t) qn >= qscap) {
         errno = ENAMETOOLONG;

@@ -8,7 +8,7 @@
  * standard format for publishing a provider's rotating set of public keys. Loading from disk at startup lets
  * the server verify bearer tokens without HTTP round-trips to the provider's JWKS endpoint.
  *
- * HOW: brix_jwks_load() — fopen(path,"r"), fcntl FD_CLOEXEC, fseek/ftell for size validation (0 < fsize ≤ 65536),
+ * HOW: brix_jwks_load() — fopen(path,"r"), fcntl FD_CLOEXEC, fseek/ftell for size validation (0 < fsize ≤ BRIX_JWKS_FILE_MAX),
  * malloc(fsize+1), fread full file content, null-terminate buf, call brix_jwks_load_jansson(log,path,buf,fsize,keys,max_keys),
  * free(buf), return count. brix_jwks_free() — iterate i=0..count, EVP_PKEY_free non-null pkey, nullify keys[i].pkey. */
 
@@ -16,6 +16,7 @@
 #include "json.h"
 #include "core/compat/log_diag.h"
 #include "core/compat/safe_size.h"
+#include "core/types/tunables.h"  /* BRIX_JWKS_FILE_MAX */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -215,7 +216,7 @@ brix_jwks_load(ngx_log_t *log, const char *path,
 /* WHAT: Load JWKS public keys from disk file into caller-supplied key array for OIDC token verification.
  * WHY: Provides the startup-time key loading entry point — callers open a JWKS JSON file and receive parsed
  * EVP_PKEY handles indexed by kid, ready for brix_token_verify_bearer() lookup.
- * HOW: fopen(path,"r"), fcntl(fileno(fp),F_SETFD,FD_CLOEXEC) for safe fork behavior; fseek/ftell validate size (0 < fsize ≤ 65536);
+ * HOW: fopen(path,"r"), fcntl(fileno(fp),F_SETFD,FD_CLOEXEC) for safe fork behavior; fseek/ftell validate size (0 < fsize ≤ BRIX_JWKS_FILE_MAX);
  * malloc(fsize+1), fread full content, null-terminate buf; call brix_jwks_load_jansson(log,path,buf,fsize,keys,max_keys); free(buf); return count. */
 {
     FILE  *fp;
@@ -247,7 +248,7 @@ brix_jwks_load(ngx_log_t *log, const char *path,
         return -1;
     }
 
-    if (fsize <= 0 || fsize > 65536) {
+    if (fsize <= 0 || fsize > BRIX_JWKS_FILE_MAX) {
         BRIX_DIAG_ERR(log, 0,
             "brix_token: JWKS file is empty or too large (%ld bytes)",
             "an empty file usually means the refresh job failed mid-write; "

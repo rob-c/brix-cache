@@ -23,6 +23,7 @@
 #include "core/config/root_prepare.h"
 #include "core/config/http_rootfd.h"
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
+#include "core/types/tunables.h"  /* BRIX_S3_LIST_MAX_KEYS */
 #include "fs/path/path.h"                   /* W5.2c: brix_authdb_rules_finalize_copy */
 #include "core/config/credential_block.h"   /* §14 brix_credential lookup/bearer */
 #include "core/config/http_common.h"        /* unified brix_* directive adoption */
@@ -93,7 +94,7 @@ s3_merge_scalars(ngx_http_s3_loc_conf_t *prev, ngx_http_s3_loc_conf_t *conf)
     ngx_conf_merge_value(conf->list_cache, prev->list_cache, 0);
     ngx_conf_merge_msec_value(conf->list_cache_ttl, prev->list_cache_ttl,
                               10000);   /* 10s default staleness bound */
-    ngx_conf_merge_value(conf->max_keys,    prev->max_keys,    1000);
+    ngx_conf_merge_value(conf->max_keys,    prev->max_keys,    BRIX_S3_LIST_MAX_KEYS);
     ngx_conf_merge_value(conf->mpu_max_age, prev->mpu_max_age, 0);
     /* XrdAcc merge moved into ngx_http_brix_shared_merge (common.acc), W2. */
     /* cache_root merge -> shared_merge (common.cache_root), phase-101 W8. */

@@ -6,6 +6,7 @@
  * table, decorator composition, and resolve entry points stay there.
  */
 #include "vfs_backend_internal.h"
+#include "core/types/tunables.h"  /* BRIX_VFS_BUSY_TIMEOUT_DEFAULT_MS */
 #include "fs/backend/xroot/sd_xroot.h"   /* remote root:// backend (brix_sd_xroot_create) */
 #include "fs/backend/xroot/sd_xroot_fwd.h" /* 2.0 F5 forward:// (client-named origins) */
 #include "fs/backend/http/sd_http.h"     /* HTTP source backend (brix_sd_http_create) */
@@ -440,7 +441,7 @@ brix_vbr_build_pblock(brix_vfs_backend_entry_t *e, ngx_log_t *log)
 
     ngx_memzero(&conf, sizeof(conf));
     conf.root            = e->root_canon;
-    conf.busy_timeout_ms = 5000;
+    conf.busy_timeout_ms = BRIX_VFS_BUSY_TIMEOUT_DEFAULT_MS;
     conf.block_size      = e->block_size;
     /* Never create pblock blobs/catalog.db as root — drop to an unprivileged
      * account (the worker `user <acct>;`, else "nobody") first. Gate on the

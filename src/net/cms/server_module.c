@@ -1,5 +1,6 @@
 #include "server.h"
 #include "core/config/config.h"   /* brix_sss_load_keytab */
+#include "core/types/tunables.h"  /* BRIX_CMS_READ_TIMEOUT_MAX_MS */
 
 
 /* brix_cms_srv_create_conf — allocate the CMS-server srv_conf with enable and
@@ -57,7 +58,7 @@ brix_cms_srv_merge_conf(ngx_conf_t *cf, void *parent, void *child)
             conf->idle_timeout = prev->idle_timeout;
         } else {
             ngx_msec_t d = (ngx_msec_t) conf->interval * 3 * 1000;
-            conf->idle_timeout = (d > 90000) ? d : 90000;
+            conf->idle_timeout = (d > BRIX_CMS_READ_TIMEOUT_MAX_MS) ? d : BRIX_CMS_READ_TIMEOUT_MAX_MS;
         }
     }
     ngx_conf_merge_value(conf->max_connections, prev->max_connections, 4096);

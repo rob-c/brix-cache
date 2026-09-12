@@ -24,6 +24,7 @@
 
 #include "config.h"
 #include "server_conf_internal.h"
+#include "core/types/tunables.h"  /* BRIX_CMS_READ_TIMEOUT_MAX_MS */
 #include "net/cms/cns.h"               /* §6 CNS mode enum */
 #include "tpc/engine/key_registry.h"
 #include "tpc/common/registry.h"   /* Phase 39 (WS5): registry reaper max-age */
@@ -390,7 +391,7 @@ brix_merge_srv_cms_deadlines(ngx_stream_brix_srv_conf_t *conf,
             conf->cms.read_timeout = prev->cms.read_timeout;
         } else {
             ngx_msec_t d = (ngx_msec_t) conf->cms.interval * 3 * 1000;
-            conf->cms.read_timeout = (d > 90000) ? d : 90000;
+            conf->cms.read_timeout = (d > BRIX_CMS_READ_TIMEOUT_MAX_MS) ? d : BRIX_CMS_READ_TIMEOUT_MAX_MS;
         }
     }
     ngx_conf_merge_msec_value(conf->cms.send_timeout, prev->cms.send_timeout,
