@@ -3,11 +3,75 @@
 
 /* ---- File: context.h — Per-connection session context (brix_ctx_t) ----
  *
- * WHAT: Defines brix_ctx_t — per-TCP-connection session context holding all state for the XRootD protocol lifecycle. Struct sections: input accumulation (hdr_buf[24] + hdr_pos for fixed header read, cur_streamid/cur_reqid/cur_body/cur_dlen for parsed header fields), payload accumulation (payload pointer + pos into reusable payload_buf with size guard, async handlers detach buf on completion), session auth state (sessid from kXR_login, logged_in/auth_done flags, login_user[9]/login_pid from client, auth_fail_count capped at BRIX_MAX_AUTH_ATTEMPTS, pool_bytes_used capped at BRIX_MAX_CONN_POOL_BYTES), authenticated identity (dn[512] GSI subject DN, primary_vo[128], vo_list[512] space-separated VOs, peer_ip[64]), open file table (brix_file_t[BRIX_MAX_FILES] — array index = XRootD file handle), pending flat-buffer send path (wbuf/wbuf_len/wbuf_pos/wbuf_base for EAGAIN tail storage + write event arm), pending chain send path (wchain remaining links + wchain_pending unsent bytes + wchain_base backing buffer, only one of wbuf or wchain active at a time), reusable response scratch buffers (read_scratch/read_hdr_scratch/write_scratch with size fields — malloc/realloc single buffer per session lifetime avoids pool growth), reusable thread-pool task (read_aio_task for memory-backed kXR_read TLS reads), reusable chain objects (read_fast_hdr/body_chain + hdr/body_buf + read_fast_file for common one-chunk response avoiding per-read allocation), GSI Diffie-Hellman key (gsi_dh_key generated at kXGS_cert freed after DH secret derivation at kXGC_cert), bearer-token auth state (token_auth flag + token_scope_count + token_scopes[BRIX_MAX_TOKEN_SCOPES]), per-request latency start time, prepare polling state (prepare_reqid/prepare_paths heap-allocated newline-separated path list), session-level transfer totals (session_bytes/session_bytes_written/session_bytes_tx_ipv4/ipv6/session_bytes_rx_ipv4/ipv6/session_start for access log at disconnect), metrics pointer to shared-memory segment, AIO destruction guard (destroyed=1 in on_disconnect prevents stale callback writes), TLS upgrade state (tls_pending=1 when kXR_haveTLS sent awaiting ClientHello), upstream redirector query pointer, proxy forwarding context pointer, raw bearer token [4096] for proxy forward, kXR_sigver request-signing lifecycle (signing_key HMAC-SHA256 from DH secret + signing_active/last_seqno replay guard + sigver_pending envelope fields + sigver_hmac verification + cached EVP_MAC/EVP_MAC_CTX handles), kXR_bind parallel-stream state (is_bound/pathid/bound_sessid for secondary data channel inheriting primary auth, lazy reopen of canonical path in own worker with device/inode validation), CMS locate suspension (cms_wait_streamid pending-table key), protocol label/IP version (read-only set at connection time).
+ * PURPOSE:
+ *   One brix_ctx_t per TCP connection, allocated from nginx pool.
+ *   State machine runs on single worker thread — XRootD multiplexing handled
+ *   via streamid matching on client side; server serializes responses.
  *
- * WHY: One instance per TCP connection allocated from nginx connection pool. State machine runs on single worker thread — XRootD multiplexing handled via streamid matching on client side, server serialises responses. Reusable scratch buffers and chain objects prevent pool growth in long-lived xrdcp sessions (malloc/realloc instead of ngx_palloc per-request). AIO destruction guard prevents post-disconnect callback writes to freed memory. TLS upgrade path intercepts next recv as ClientHello when kXR_haveTLS advertised. Bind connections lazily reopen primary's canonical path in own worker (nginx workers cannot share post-fork fd integers safely) and validate device/inode before serving data. Sigver lifecycle: kXGC_cert → signing_key=SHA-256(DH-secret)/active=1, sigver arrives → pending=1/envelope saved, next dispatch → HMAC verified/pending=0, replay guard → seqno > last_seqno.
+ * KEY DESIGN DECISIONS:
+ * 1. Reusable scratch buffers (malloc/realloc) prevent pool growth in
+ *    long-lived xrdcp sessions. Per-request ngx_palloc would cause unbounded
+ *    pool growth over connection lifetime.
+ * 2. AIO destruction guard (destroyed=1) prevents post-disconnect callback
+ *    writes to freed memory — common bug in async I/O patterns.
+ * 3. Bind connections lazily reopen primary's canonical path in own worker —
+ *    nginx workers cannot share post-fork fd integers safely.
+ * 4. Sigver lifecycle: kXGC_cert → signing_key=SHA-256(DH-secret)/active=1,
+ *    sigver arrives → pending=1/envelope saved, next dispatch → HMAC verified.
+ * 5. TLS upgrade path intercepts next recv as ClientHello when kXR_haveTLS
+ *    advertised — enables opportunistic TLS without separate port.
+ * 6. Lazy file table allocation (brix_files_ensure) — brix_file_t is ~10KB,
+ *    so metadata-only sessions avoid paying ~170KB for unused table.
  *
- * HOW: Struct layout — session pointer/state (lines 16-17) → input accumulation hdr_buf/hdr_pos (lines 24-26) → parsed header cur_streamid/cur_reqid/cur_body/cur_dlen (lines 28-31) → payload accumulation payload/payload_pos/payload_buf/payload_buf_size (lines 43-46) → session auth sessid/logged_in/auth_done/login_user/login_pid/auth_fail_count/pool_bytes_used (lines 59-65) → authenticated identity dn/primary_vo/vo_list/peer_ip (lines 68-71) → file table files[BRIX_MAX_FILES] (line 74) → flat-buffer send wbuf/wbuf_len/wbuf_pos/wbuf_base (lines 84-87) → chain send wchain/wchain_pending/wchain_base (lines 97-99) → scratch buffers read_scratch/read_hdr_scratch/write_scratch + sizes (lines 112-117) → aio task read_aio_task (line 124) → fast-chain objects read_fast_* (lines 131-135) → gsi_dh_key (line 142) → token auth token_auth/token_scope_count/token_scopes (lines 153-155) → req_start (line 158) → prepare polling prepare_reqid/prepare_paths/prepare_paths_len (lines 164-166) → session totals bytes/session_bytes_tx_ipv4/ipv6/session_bytes_rx_ipv4/ipv6/session_start (lines 169-175) → metrics pointer (line 179) → destroyed guard (line 187) → tls_pending (line 195) → upstream pointer (line 198) → proxy pointer (line 201) → bearer_token[4096] (line 208) → sigver signing_key/signing_active/last_seqno/sigver_* fields/EVP_MAC/EVP_MAC_CTX (lines 225-235) → bind is_bound/pathid/bound_sessid (lines 253-255) → cms_wait_streamid (line 258) → protocol_label/ip_version (lines 261-262). */
+ * STRUCT LAYOUT (grouped by concern):
+ * - Core: session pointer, state machine state
+ * - Input accumulation: recv sub-struct (hdr_buf[24], hdr_pos, cur_streamid/reqid/body/dlen)
+ * - Session auth: login sub-struct (sessid, logged_in, auth_done, login_user[9])
+ * - Identity: dn[512], primary_vo[128], vo_list[512], peer_ip[64], identity object
+ * - File table: files[BRIX_MAX_FILES] — index = XRootD handle, lazy alloc
+ * - Send paths: out sub-struct (wbuf flat OR wchain chain — mutually exclusive)
+ * - Scratch buffers: rd sub-struct (read_scratch, read_hdr_scratch, write_scratch)
+ * - AIO: rd sub-struct (read_aio_task reusable thread task)
+ * - Fast-path: out sub-struct (read_fast_* one-chunk read, zero allocation)
+ * - GSI: gsi sub-struct (gsi_dh_key freed after DH secret derived)
+ * - Token: token sub-struct (token_auth, token_scopes[BRIX_MAX_TOKEN_SCOPES])
+ * - Totals: totals sub-struct (session_bytes, session_bytes_tx/rx_ipv4/ipv6)
+ * - Sigver: sigver sub-struct (signing_key, signing_active, last_seqno)
+ * - Bind: is_bound, pathid, bound_sessid (secondary data channel)
+ * - Metrics: metrics pointer to shared-memory segment
+ * - TLS: tls_pending (awaiting ClientHello after kXR_haveTLS)
+ * - CMS: cms_wait_streamid (pending locate answer)
+ * - Proxy: proxy context, bearer_token[4096], proxy_fail_count
+ * - PMark: pmark sub-struct (SciTags packet-marking flow)
+ * - Prepare: prepare sub-struct (kXR_prepare/kXR_stage polling)
+ * - Throttle: throttle sub-struct (per-user accounting)
+ * - Rate limit: rl sub-struct (Phase 25/33)
+ * - Deadlines: deadline sub-struct (Phase 39 network-fault resilience)
+ * - Misc: req_start, io_monitor, destroyed, disconnect_done, admin_paused
+ *
+ * THREAD SAFETY:
+ *   All fields accessed from single worker thread. No locks needed.
+ *
+ * MEMORY MANAGEMENT:
+ *   - Scratch buffers: malloc/realloc (not pool) to avoid per-request growth
+ *   - File table: lazy alloc on first kXR_open (brix_files_ensure)
+ *   - payload_buf: reused across requests, detached by async handlers
+ *   - read_fast_*: pre-zeroed chain objects for common one-chunk response
+ *   - AIO task: single reusable task per connection
+ *   - Bearer token: stack-allocated [4096] for proxy forward
+ *
+ * LIFECYCLE:
+ *   Allocated: ngx_stream_brix_handler() on TCP accept
+ *   Freed: on_disconnect() after connection close
+ *   Trimmed: scratch buffers after request drain (BRIX_SCRATCH_TRIM_THRESHOLD)
+ *   Guarded: destroyed=1 prevents post-disconnect callback writes
+ *
+ * STATE MACHINE:
+ *   XRD_ST_HANDSHAKE → XRD_ST_REQ_HEADER → XRD_ST_REQ_PAYLOAD → XRD_ST_SENDING
+ *   XRD_ST_AIO (blocking I/O) → XRD_ST_SENDING → XRD_ST_REQ_HEADER (next)
+ *   Special states: XRD_ST_TLS_HANDSHAKE, XRD_ST_UPSTREAM, XRD_ST_WAITING_CMS,
+ *                   XRD_ST_WAITING_BAQ, XRD_ST_PROXY
+ */
 
 /*
  * Per-connection context (brix_ctx_t).

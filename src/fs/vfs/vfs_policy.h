@@ -180,8 +180,8 @@ typedef struct {
     brix_proto_t                proto;
 } brix_vfs_export_op_ctx_t;
 
-/* Fill *opctx. Zeroes first, so an unset policy is READ_ONLY. No-op on NULL. */
-void brix_vfs_export_op_ctx_init(brix_vfs_export_op_ctx_t *opctx,
+/* Fill *export_op_ctx. Zeroes first, so an unset policy is READ_ONLY. No-op on NULL. */
+void brix_vfs_export_op_ctx_init(brix_vfs_export_op_ctx_t *export_op_ctx,
     ngx_log_t *log, const char *root_canon,
     brix_vfs_mutation_policy_t policy, brix_proto_t proto);
 
@@ -189,14 +189,14 @@ void brix_vfs_export_op_ctx_init(brix_vfs_export_op_ctx_t *opctx,
  * root, log, and metrics protocol verbatim. This is the ONLY sanctioned way to
  * carry request authority onto an off-thread helper: it cannot widen the
  * policy, and a NULL ctx yields a READ_ONLY bundle. */
-void brix_vfs_export_op_ctx_from(brix_vfs_export_op_ctx_t *opctx,
+void brix_vfs_export_op_ctx_from(brix_vfs_export_op_ctx_t *export_op_ctx,
     const brix_vfs_ctx_t *ctx);
 
 /* Gate an export mutation described by an operation context. Same contract as
  * brix_vfs_require_mutation: NGX_OK, or NGX_ERROR with EINVAL (no bundle) /
  * EROFS (read-only endpoint). */
 ngx_int_t brix_vfs_export_require_mutation(
-    const brix_vfs_export_op_ctx_t *opctx, brix_vfs_mutation_op_t op);
+    const brix_vfs_export_op_ctx_t *export_op_ctx, brix_vfs_mutation_op_t op);
 
 /* 1 when raw O_* `flags` describe an operation that can modify the object or
  * the namespace (O_WRONLY, O_RDWR, O_CREAT, O_TRUNC, O_APPEND), else 0. A raw

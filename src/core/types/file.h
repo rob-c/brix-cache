@@ -51,11 +51,42 @@ typedef struct {
 
 /* ---- File: file.h — Per-open-file bookkeeping type (brix_file_t) ----
  *
- * WHAT: Defines brix_file_t — one slot per open XRootD file handle where array index IS the handle value (0..BRIX_MAX_FILES-1). Fields: fd (OS descriptor; -1 = free), path (resolved absolute allocated on open), bytes_read/bytes_written cumulative counters, open_time timestamp for throughput log, writable/readable permission flags, from_cache flag drives kXR_cachersp in stat. Immutable over handle lifetime: is_regular S_ISREG at open, device/ino captured at open validates bound reopens, cached_size st_size valid for read-only. Read tracking: read_last_end previous read end offset (-1=none), read_ahead_end WILLNEED hint farthest byte. kXR_chkpoint state: ckp_path checkpoint temp file (NULL=no active checkpoint), ckp_size bytes captured at kXR_ckpBegin. kXR_posc persist-on-successful-close lifecycle: write open with posc → staged to temporary path → clean kXR_close renames temp to posc_final_path → disconnect/error close unlinks temp via path field (set to temp path at open). Native root:// TPC destination state: tpc_destination=1 pending target, tpc_armed first sync acknowledged rendezvous setup, tpc_started pull task posted, tpc_done completed successfully, tpc_key[128] shared rendezvous key, tpc_org[256] origin identity sent to source as tpc.org, tpc_src_host/tpc_src_port/tpc_src_path[PATH_MAX] source address + path, tpc_token_mode[32] OAuth2/OIDC delegation mode for source auth. Write-through state (mirrors XrdPfcFile::m_dirtyOffset/m_bytesWritten): wt_enabled=1 eligible for WT flush on close, wt_policy cached decision at open time (BRIX_WT_*), wt_mode_bits POSIX mode sent to origin write-open, wt_dirty_offset last dirty write offset (-1=no pending writes), wt_bytes_written cumulative writes since last sync for metrics. Async flush state: wt_flush_task pending async flush task heap allocated before ngx_thread_task_post freed in completion callback after result consumed on main thread, wt_flush_pending=1 flush posted but not confirmed.
+ * PURPOSE:
+ *   One brix_file_t per open XRootD file handle.
+ *   Array index IS the handle value (0..BRIX_MAX_FILES-1).
+ *   Clients echo this 4-byte opaque value in kXR_read/write/close.
  *
- * WHY: Array index directly = XRootD file handle — clients echo back this opaque 4-byte value in kXR_read/kXR_write/kXR_close etc., server uses index directly so handles are sequential 0..N-1. Slot "in use" when fd >= 0, reset to -1 via brix_free_fhandle() on close or disconnect. Bound connections validate device/inode against values captured at open time (nginx workers cannot share post-fork fd integers safely). POSC lifecycle ensures atomic rename-on-success: temp file created at open, renamed to final path only on clean close, unlinked on error/disconnect preventing orphaned temps. TPC destination mirrors XrdCl's full sequence: open target → sync arm rendezvous → open source with tpc.dst → sync run copy. Write-through dirty semantics: wt_enabled=1 eligible for flush on close, wt_dirty_offset > -1 means data written since last sync point, actual write-back happens synchronously (wt_mode==SYNC) or asynchronously via ngx_thread_task_post (WT_ASYNC).
+ * LIFECYCLE:
+ *   - Open: fd set, path allocated, device/inode captured
+ *   - Read: bytes_read accumulated, read tracking updated
+ *   - Write: bytes_written accumulated, posc/TPC state managed
+ *   - Close: fd closed, slot reset to -1 via brix_free_fhandle()
  *
- * HOW: Struct layout — fd/path/bytes_read/bytes_written/open_time/writable/readable/from_cache (lines 17-25) → is_regular/device/inode/cached_size/read_last_end/read_ahead_end (lines 27-32) → ckp_path/ckp_size chkpoint state (lines 35-36) → posc_final_path POSC state (line 47) → TPC destination tpc_destination/tpc_armed/tpc_started/tpc_done + tpc_key[128]/tpc_org[256]/tpc_src_host[256]/tpc_src_port/tpc_src_path[PATH_MAX]/tpc_token_mode[32] (lines 57-66) → write-through wt_enabled/wt_policy/wt_mode_bits/wt_dirty_offset/wt_bytes_written (lines 81-85) → async flush wt_flush_task/wt_flush_pending (lines 91-92). */
+ * KEY FEATURES:
+ * - Immutable fields: is_regular, device, inode (captured at open)
+ * - Read tracking: read_last_end, read_ahead_end (WILLNEAD hints)
+ * - Checkpoint: ckp_path, ckp_size (kXR_chkpoint state)
+ * - POSC: posc_final_path (persist-on-successful-close)
+ * - TPC Destination: tpc_*, rendezvous state for native root:// pulls
+ * - Write-through: wt_*, XrdPfcFile dirty semantics mirror
+ * - Async Flush: wt_flush_task, wt_flush_pending
+ *
+ * DESIGN DECISIONS:
+ * 1. Array index = handle value — direct O(1) lookup, no hash table
+ * 2. Bound connections validate device/inode — nginx workers cannot share
+ *    post-fork fd integers safely
+ * 3. POSC atomic rename — temp at open, rename on clean close, unlink on error
+ * 4. TPC mirrors XrdCl: open target → sync arm → open source → sync copy
+ * 5. Write-through dirty semantics: wt_dirty_offset tracks pending writes
+ *
+ * THREAD SAFETY: Single worker thread owns handle — no locks needed.
+ *
+ * MEMORY:
+ *   - path: ngx_palloc'd on open, freed on close
+ *   - ckp_path, posc_final_path: heap allocated, freed on close
+ *   - tpc_src_path: PATH_MAX stack buffer
+ *   - wt_flush_task: heap allocated, freed in completion callback
+ */
 
 /*
  * Per-open-file bookkeeping (brix_file_t).
@@ -172,15 +203,34 @@ typedef struct {
      */
     unsigned   is_resume:1;
 
-    /*
-     * Native root:// TPC destination state.
+    /* ---- Native root:// TPC destination state ----
      *
-     * A destination-side TPC open creates a normal writable handle, then
-     * delays the outbound source fetch until the client drives the rendezvous
-     * with kXR_sync.  This mirrors XrdCl's full TPC sequence: open target,
-     * sync to arm, open source with tpc.dst, sync again to run the copy.
+     * PURPOSE: Destination-side TPC open with delayed source fetch.
+     * Client drives rendezvous via kXR_sync.
+     *
+     * SEQUENCE (mirrors XrdCl):
+     * 1. Open target (writable handle)
+     * 2. kXR_sync → arm rendezvous (tpc_armed=1)
+     * 3. Open source with tpc.dst
+     * 4. kXR_sync → run copy (tpc_started=1)
+     * 5. Copy completes (tpc_done=1)
+     *
+     * FIELDS:
+     * - tpc_destination: 1 = pending TPC target
+     * - tpc_armed: first kXR_sync acknowledged rendezvous
+     * - tpc_started: pull task posted
+     * - tpc_done: pull completed successfully
+     * - tpc_key[128]: shared rendezvous key
+     * - tpc_org[256]: origin identity sent to source
+     * - tpc_src_host/port/path: remote source address
+     * - tpc_token_mode[32]: OAuth2/OIDC delegation mode
+     * - tpc_streams: parallel source read streams (F7)
+     * - tpc_transfer_id: shared TPC registry entry
+     *
+     * F16 PUSH: When tpc_push=1, this handle is SOURCE of push.
+     * tpc_src_* triple names remote destination. Reused for both
+     * pull and push — exactly one "remote peer" per TPC handle.
      */
-    int        tpc_destination;  /* 1 = handle represents a pending TPC target */
     int        tpc_armed;        /* first kXR_sync acknowledged rendezvous setup */
     int        tpc_started;      /* pull task has been posted */
     int        tpc_done;         /* pull completed successfully */
@@ -299,35 +349,29 @@ typedef struct {
 
     /* ---- root:// block-write → whole-object staged-commit adapter (phase-70) ----
      *
-     * WHAT: When a write open resolves to a backend LEAF that advertises NO
-     *       BRIX_SD_CAP_RANDOM_WRITE and has no pwrite slot (a whole-object store
-     *       such as sd_http/s3 — writes are a single commit-time PUT), the block-
-     *       oriented root:// write model (kXR_open-for-write → kXR_write/pgwrite at
-     *       offsets → kXR_sync/close) cannot open a session-writable driver handle.
-     *       Instead this handle is put in STAGED mode: `writer` holds a unified VFS
-     *       write session (brix_vfs_writer_open, which self-contains its ctx and
-     *       forwards the per-user credential exactly like the read path), every
-     *       kXR_write/pgwrite APPENDS its block via brix_vfs_writer_write, and
-     *       kXR_sync/close COMMIT the whole object via brix_vfs_writer_commit (one
-     *       whole-object PUT, plus an optional read-back CRC check when
-     *       brix_verify_write is on). The bare `fd` stays -1 and sd_obj.driver stays
-     *       NULL — data does NOT route through xvfs_pwrite / the driver pwrite.
+     * PURPOSE: Enables root:// uploads to whole-object backends (S3, HTTP).
+     * Same unified verified-write session as GridFTP STOR / WebDAV/S3 PUT.
      *
-     * WHY:  This is the same unified verified-write session GridFTP STOR and (via
-     *       http_body) WebDAV/S3 PUT use — the root:// write path had no equivalent,
-     *       so a root:// upload to a whole-object backend failed with EROFS. Uploads
-     *       are sequential appends, so the writer enforces sequential-append
-     *       semantics: an out-of-order offset is refused cleanly (kXR_Unsupported)
-     *       rather than corrupting the object — genuinely random-offset writes to a
-     *       whole-object store stay unsupported.
+     * PROBLEM: Block-oriented root:// (kXR_open → kXR_write → kXR_sync/close)
+     * cannot open session-writable handle on non-random-write backends.
      *
-     * HOW:  `writer` != NULL is the sole "this handle is in staged mode" flag; the
-     *       writer tracks its own sequential cursor (brix_vfs_writer_expected_off).
-     *       `staged_committed` guards against a double commit (kXR_sync followed by
-     *       kXR_close, or two syncs). The session is released by brix_free_fhandle
-     *       (brix_vfs_writer_abort — a no-op once committed, else drops the temp).
+     * SOLUTION: STAGED mode with brix_vfs_writer:
+     * - kXR_write/pgwrite: APPEND block via brix_vfs_writer_write
+     * - kXR_sync/close: COMMIT whole object via brix_vfs_writer_commit
+     * - Result: Single whole-object PUT (with optional CRC check)
+     *
+     * SEMANTICS:
+     * - Sequential-append only (out-of-order offset → kXR_Unsupported)
+     * - writer != NULL = "staged mode" flag
+     * - writer tracks sequential cursor (brix_vfs_writer_expected_off)
+     * - staged_committed guards against double commit
+     * - brix_free_fhandle releases session (abort if not committed)
+     *
+     * FIELDS:
+     * - writer: brix_vfs_writer_t* (non-NULL = staged mode)
+     * - staged_committed: 1 = object already committed (sync/close)
+     * - staged_excl: 1 = kXR_new (commit must publish ABSENT-only)
      */
-    brix_vfs_writer_t *writer;             /* non-NULL = whole-object staged write */
     unsigned           staged_committed:1;  /* 1 = object already committed (sync/close) */
     unsigned           staged_excl:1;       /* 1 = kXR_new (no kXR_delete): commit must
                                              * publish ABSENT-only — the storage decides

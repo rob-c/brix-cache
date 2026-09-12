@@ -48,22 +48,22 @@
  *       3. delegate to brix_vfs_open_fd with the bundle's log and root.
  */
 int
-brix_vfs_export_open_fd(const brix_vfs_export_op_ctx_t *opctx,
+brix_vfs_export_open_fd(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *logical, int flags, mode_t mode)
 {
-    if (opctx == NULL) {
+    if (export_op_ctx == NULL) {
         errno = EINVAL;
         return -1;
     }
 
     if (brix_vfs_open_flags_mutate(flags)
-        && brix_vfs_export_require_mutation(opctx, BRIX_VFS_MUTATE_OPEN)
+        && brix_vfs_export_require_mutation(export_op_ctx, BRIX_VFS_MUTATE_OPEN)
            != NGX_OK)
     {
         return -1;
     }
 
-    return brix_vfs_open_fd(opctx->log, opctx->root_canon, logical, flags,
+    return brix_vfs_open_fd(export_op_ctx->log, export_op_ctx->root_canon, logical, flags,
                             mode);
 }
 
@@ -80,16 +80,16 @@ brix_vfs_export_open_fd(const brix_vfs_export_op_ctx_t *opctx,
  *       brix_vfs_open_fd_at with the caller's rootfd.
  */
 int
-brix_vfs_export_open_fd_at(const brix_vfs_export_op_ctx_t *opctx, int rootfd,
+brix_vfs_export_open_fd_at(const brix_vfs_export_op_ctx_t *export_op_ctx, int rootfd,
     const char *logical, int flags, mode_t mode)
 {
-    if (opctx == NULL) {
+    if (export_op_ctx == NULL) {
         errno = EINVAL;
         return -1;
     }
 
     if (brix_vfs_open_flags_mutate(flags)
-        && brix_vfs_export_require_mutation(opctx, BRIX_VFS_MUTATE_OPEN)
+        && brix_vfs_export_require_mutation(export_op_ctx, BRIX_VFS_MUTATE_OPEN)
            != NGX_OK)
     {
         return -1;
@@ -109,16 +109,16 @@ brix_vfs_export_open_fd_at(const brix_vfs_export_op_ctx_t *opctx, int rootfd,
  * HOW:  1. Gate as MUTATE_REMOVE; 2. delegate to brix_vfs_unlink_path.
  */
 int
-brix_vfs_export_unlink(const brix_vfs_export_op_ctx_t *opctx,
+brix_vfs_export_unlink(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *logical)
 {
-    if (brix_vfs_export_require_mutation(opctx, BRIX_VFS_MUTATE_REMOVE)
+    if (brix_vfs_export_require_mutation(export_op_ctx, BRIX_VFS_MUTATE_REMOVE)
         != NGX_OK)
     {
         return -1;
     }
 
-    return brix_vfs_unlink_path(opctx->log, opctx->root_canon, logical);
+    return brix_vfs_unlink_path(export_op_ctx->log, export_op_ctx->root_canon, logical);
 }
 
 /* ---- Gated confined remove beneath a persistent O_PATH rootfd ----
@@ -132,10 +132,10 @@ brix_vfs_export_unlink(const brix_vfs_export_op_ctx_t *opctx,
  * HOW:  1. Gate as MUTATE_REMOVE; 2. delegate to brix_vfs_unlink_at.
  */
 int
-brix_vfs_export_unlink_at(const brix_vfs_export_op_ctx_t *opctx, int rootfd,
+brix_vfs_export_unlink_at(const brix_vfs_export_op_ctx_t *export_op_ctx, int rootfd,
     const char *logical, int is_dir)
 {
-    if (brix_vfs_export_require_mutation(opctx, BRIX_VFS_MUTATE_REMOVE)
+    if (brix_vfs_export_require_mutation(export_op_ctx, BRIX_VFS_MUTATE_REMOVE)
         != NGX_OK)
     {
         return -1;
@@ -154,16 +154,16 @@ brix_vfs_export_unlink_at(const brix_vfs_export_op_ctx_t *opctx, int rootfd,
  * HOW:  1. Gate as MUTATE_REMOVE; 2. delegate to brix_vfs_rmdir_path.
  */
 int
-brix_vfs_export_rmdir(const brix_vfs_export_op_ctx_t *opctx,
+brix_vfs_export_rmdir(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *logical)
 {
-    if (brix_vfs_export_require_mutation(opctx, BRIX_VFS_MUTATE_REMOVE)
+    if (brix_vfs_export_require_mutation(export_op_ctx, BRIX_VFS_MUTATE_REMOVE)
         != NGX_OK)
     {
         return -1;
     }
 
-    return brix_vfs_rmdir_path(opctx->log, opctx->root_canon, logical);
+    return brix_vfs_rmdir_path(export_op_ctx->log, export_op_ctx->root_canon, logical);
 }
 
 /* ---- Gated confined mkdir of a single directory ----
@@ -177,16 +177,16 @@ brix_vfs_export_rmdir(const brix_vfs_export_op_ctx_t *opctx,
  * HOW:  1. Gate as MUTATE_MKDIR; 2. delegate to brix_vfs_mkdir_path.
  */
 int
-brix_vfs_export_mkdir(const brix_vfs_export_op_ctx_t *opctx,
+brix_vfs_export_mkdir(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *logical, mode_t mode)
 {
-    if (brix_vfs_export_require_mutation(opctx, BRIX_VFS_MUTATE_MKDIR)
+    if (brix_vfs_export_require_mutation(export_op_ctx, BRIX_VFS_MUTATE_MKDIR)
         != NGX_OK)
     {
         return -1;
     }
 
-    return brix_vfs_mkdir_path(opctx->log, opctx->root_canon, logical, mode);
+    return brix_vfs_mkdir_path(export_op_ctx->log, export_op_ctx->root_canon, logical, mode);
 }
 
 /* ---- Gated recursive backend mkdir of a path and its parents ----
@@ -203,24 +203,24 @@ brix_vfs_export_mkdir(const brix_vfs_export_op_ctx_t *opctx,
  * HOW:  1. Gate as MUTATE_MKDIR; 2. delegate to brix_vfs_backend_mkpath.
  */
 int
-brix_vfs_export_mkpath(const brix_vfs_export_op_ctx_t *opctx,
+brix_vfs_export_mkpath(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *logical, mode_t mode)
 {
     char physical[PATH_MAX];
 
-    if (brix_vfs_export_require_mutation(opctx, BRIX_VFS_MUTATE_MKDIR)
+    if (brix_vfs_export_require_mutation(export_op_ctx, BRIX_VFS_MUTATE_MKDIR)
         != NGX_OK)
     {
         return -1;
     }
 
-    if (brix_path_export_to_pfn(opctx->root_canon, opctx->n2n, logical,
+    if (brix_path_export_to_pfn(export_op_ctx->root_canon, export_op_ctx->n2n, logical,
                                 physical, sizeof(physical)) != NGX_OK)
     {
         return -1;
     }
-    return brix_vfs_backend_mkpath(opctx->root_canon, physical, mode,
-                                   opctx->log);
+    return brix_vfs_backend_mkpath(export_op_ctx->root_canon, physical, mode,
+                                   export_op_ctx->log);
 }
 
 /* ---- Gated thread-safe confined rename ----
@@ -235,17 +235,17 @@ brix_vfs_export_mkpath(const brix_vfs_export_op_ctx_t *opctx,
  * HOW:  1. Gate as MUTATE_RENAME; 2. delegate to brix_vfs_rename_path.
  */
 ngx_int_t
-brix_vfs_export_rename(const brix_vfs_export_op_ctx_t *opctx,
+brix_vfs_export_rename(const brix_vfs_export_op_ctx_t *export_op_ctx,
     brix_sd_instance_t *sd, const char *src, const char *dst,
     unsigned overwrite, int *was_dir_out)
 {
-    if (brix_vfs_export_require_mutation(opctx, BRIX_VFS_MUTATE_RENAME)
+    if (brix_vfs_export_require_mutation(export_op_ctx, BRIX_VFS_MUTATE_RENAME)
         != NGX_OK)
     {
         return NGX_ERROR;
     }
 
-    return brix_vfs_rename_path(sd, opctx->log, opctx->root_canon, opctx->n2n,
+    return brix_vfs_rename_path(sd, export_op_ctx->log, export_op_ctx->root_canon, export_op_ctx->n2n,
                                 src, dst, overwrite, was_dir_out);
 }
 
@@ -261,17 +261,17 @@ brix_vfs_export_rename(const brix_vfs_export_op_ctx_t *opctx,
  * HOW:  1. Gate as MUTATE_COPY; 2. delegate to brix_vfs_copyfile.
  */
 ngx_int_t
-brix_vfs_export_copyfile(const brix_vfs_export_op_ctx_t *opctx,
+brix_vfs_export_copyfile(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *src, const char *dst, int preserve_xattrs,
     brix_vfs_copy_meta_cb meta_cb, void *cookie)
 {
-    if (brix_vfs_export_require_mutation(opctx, BRIX_VFS_MUTATE_COPY)
+    if (brix_vfs_export_require_mutation(export_op_ctx, BRIX_VFS_MUTATE_COPY)
         != NGX_OK)
     {
         return NGX_ERROR;
     }
 
-    return brix_vfs_copyfile(opctx->log, opctx->root_canon, src, dst,
+    return brix_vfs_copyfile(export_op_ctx->log, export_op_ctx->root_canon, src, dst,
                              preserve_xattrs, meta_cb, cookie);
 }
 
@@ -288,16 +288,16 @@ brix_vfs_export_copyfile(const brix_vfs_export_op_ctx_t *opctx,
  * HOW:  1. Gate as MUTATE_COPY; 2. delegate to brix_vfs_copytree.
  */
 ngx_int_t
-brix_vfs_export_copytree(const brix_vfs_export_op_ctx_t *opctx,
+brix_vfs_export_copytree(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *src, const char *dst, int preserve_xattrs,
     brix_vfs_copy_meta_cb meta_cb, void *cookie)
 {
-    if (brix_vfs_export_require_mutation(opctx, BRIX_VFS_MUTATE_COPY)
+    if (brix_vfs_export_require_mutation(export_op_ctx, BRIX_VFS_MUTATE_COPY)
         != NGX_OK)
     {
         return NGX_ERROR;
     }
 
-    return brix_vfs_copytree(opctx->log, opctx->root_canon, src, dst,
+    return brix_vfs_copytree(export_op_ctx->log, export_op_ctx->root_canon, src, dst,
                              preserve_xattrs, meta_cb, cookie);
 }

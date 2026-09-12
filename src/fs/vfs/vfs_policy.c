@@ -220,7 +220,7 @@ brix_vfs_require_carried_mutation(brix_vfs_mutation_policy_t policy,
 
 /* ---- Build a policy-bearing operation context ----
  *
- * WHAT: Zero-fills *opctx and stores log, root_canon, policy, and proto. No-op
+ * WHAT: Zero-fills *export_op_ctx and stores log, root_canon, policy, and proto. No-op
  *       on NULL.
  *
  * WHY:  The raw export helpers run off the event loop and have no request
@@ -230,57 +230,57 @@ brix_vfs_require_carried_mutation(brix_vfs_mutation_policy_t policy,
  * HOW:  1. NULL-guard; 2. memzero; 3. assign the four borrowed fields.
  */
 void
-brix_vfs_export_op_ctx_init(brix_vfs_export_op_ctx_t *opctx, ngx_log_t *log,
+brix_vfs_export_op_ctx_init(brix_vfs_export_op_ctx_t *export_op_ctx, ngx_log_t *log,
     const char *root_canon, brix_vfs_mutation_policy_t policy,
     brix_proto_t proto)
 {
-    if (opctx == NULL) {
+    if (export_op_ctx == NULL) {
         return;
     }
 
-    ngx_memzero(opctx, sizeof(*opctx));
-    opctx->log = log;
-    opctx->root_canon = root_canon;
-    opctx->n2n = brix_vfs_backend_n2n(root_canon);
-    opctx->mutation_policy = (policy == BRIX_VFS_MUTATION_ALLOWED)
+    ngx_memzero(export_op_ctx, sizeof(*export_op_ctx));
+    export_op_ctx->log = log;
+    export_op_ctx->root_canon = root_canon;
+    export_op_ctx->n2n = brix_vfs_backend_n2n(root_canon);
+    export_op_ctx->mutation_policy = (policy == BRIX_VFS_MUTATION_ALLOWED)
         ? BRIX_VFS_MUTATION_ALLOWED : BRIX_VFS_MUTATION_READ_ONLY;
-    opctx->proto = proto;
+    export_op_ctx->proto = proto;
 }
 
 /* ---- Derive an operation context from a request VFS context ----
  *
  * WHAT: Copies `ctx`'s log, export root, mutation policy, and metrics protocol
- *       into *opctx. A NULL `ctx` yields a READ_ONLY bundle with no root.
+ *       into *export_op_ctx. A NULL `ctx` yields a READ_ONLY bundle with no root.
  *
  * WHY:  This is the only sanctioned bridge from a request to an off-thread
  *       helper, and it cannot widen authority: there is no argument with which
  *       a caller could ask for more than the request already had.
  *
- * HOW:  1. NULL-guard opctx; 2. for a NULL ctx build the closed bundle;
+ * HOW:  1. NULL-guard export_op_ctx; 2. for a NULL ctx build the closed bundle;
  *       3. otherwise forward the four fields through the init helper.
  */
 void
-brix_vfs_export_op_ctx_from(brix_vfs_export_op_ctx_t *opctx,
+brix_vfs_export_op_ctx_from(brix_vfs_export_op_ctx_t *export_op_ctx,
     const brix_vfs_ctx_t *ctx)
 {
-    if (opctx == NULL) {
+    if (export_op_ctx == NULL) {
         return;
     }
 
     if (ctx == NULL) {
-        brix_vfs_export_op_ctx_init(opctx, NULL, NULL,
+        brix_vfs_export_op_ctx_init(export_op_ctx, NULL, NULL,
             BRIX_VFS_MUTATION_READ_ONLY, BRIX_PROTO_ROOT);
         return;
     }
 
-    brix_vfs_export_op_ctx_init(opctx, ctx->log, ctx->root_canon,
+    brix_vfs_export_op_ctx_init(export_op_ctx, ctx->log, ctx->root_canon,
         ctx->mutation_policy, brix_vfs_metrics_proto(ctx));
-    opctx->n2n = ctx->n2n;
+    export_op_ctx->n2n = ctx->n2n;
 }
 
 /* ---- Decide a mutation from an operation context ----
  *
- * WHAT: NGX_OK when *opctx may mutate; NGX_ERROR with EINVAL for a NULL bundle
+ * WHAT: NGX_OK when *export_op_ctx may mutate; NGX_ERROR with EINVAL for a NULL bundle
  *       or bad operation, EROFS for a read-only endpoint (observed once).
  *
  * WHY:  The off-thread twin of brix_vfs_require_mutation, so a helper reached
@@ -291,17 +291,17 @@ brix_vfs_export_op_ctx_from(brix_vfs_export_op_ctx_t *opctx,
  *       denial against the bundle's protocol.
  */
 ngx_int_t
-brix_vfs_export_require_mutation(const brix_vfs_export_op_ctx_t *opctx,
+brix_vfs_export_require_mutation(const brix_vfs_export_op_ctx_t *export_op_ctx,
     brix_vfs_mutation_op_t op)
 {
-    if (opctx == NULL) {
+    if (export_op_ctx == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
 
-    if (brix_vfs_require_mutation_policy(opctx->mutation_policy, op) != NGX_OK) {
+    if (brix_vfs_require_mutation_policy(export_op_ctx->mutation_policy, op) != NGX_OK) {
         if (errno == EROFS) {
-            brix_vfs_mutation_denied_observe(opctx->proto, op);
+            brix_vfs_mutation_denied_observe(export_op_ctx->proto, op);
             errno = EROFS;
         }
         return NGX_ERROR;

@@ -313,6 +313,88 @@
  */
 #define BRIX_TOKEN_CLOCK_SKEW_SECS  30
 
+/* ---- Timeout constants (runtime-configurable defaults) ---- */
+
+/*
+ * WebDAV lock timeout default.
+ * RFC 4918 recommends 1 hour as the default lock lifetime.  Clients may
+ * request shorter or longer timeouts, but this is the default when not
+ * specified.  Makes timeout configurable via future directive.
+ */
+#define BRIX_WEBDAV_LOCK_TIMEOUT_DEFAULT       3600
+
+/*
+ * DNS healthcheck timeout (milliseconds).
+ * Time to wait for DNS resolver answer before marking unhealthy.
+ * 5 seconds balances reliability (allows retry) against fast failover.
+ */
+#define BRIX_DNS_HC_TIMEOUT_DEFAULT_MS         5000
+
+/*
+ * CMS filesystem exec timeout (milliseconds).
+ * Maximum time allowed for brix_cms_fsxeq program execution before kill.
+ * 10 seconds allows most filesystem operations while preventing hangs.
+ */
+#define BRIX_CMS_FSXEQ_TIMEOUT_DEFAULT_MS      10000
+
+/*
+ * CMS read timeout (milliseconds).
+ * Maximum time to wait for CMS manager answer before fallback.
+ * Formula: max(3×heartbeat_interval, 90s) — 90s is the floor.
+ */
+#define BRIX_CMS_READ_TIMEOUT_DEFAULT_MS       90000
+
+/*
+ * Proxy connection timeout (milliseconds).
+ * Time allowed for TCP connect to upstream before failure.
+ * 10 seconds allows for network latency while failing fast.
+ */
+#define BRIX_PROXY_CONNECT_TIMEOUT_DEFAULT_MS  10000
+
+/*
+ * Proxy read timeout (milliseconds).
+ * Maximum time between upstream response bytes before timeout.
+ * 60 seconds allows for slow upstreams without hanging indefinitely.
+ */
+#define BRIX_PROXY_READ_TIMEOUT_DEFAULT_MS     60000
+
+/*
+ * Proxy write timeout (milliseconds).
+ * Maximum time to send request to upstream before timeout.
+ * 60 seconds matches read timeout for symmetry.
+ */
+#define BRIX_PROXY_WRITE_TIMEOUT_DEFAULT_MS    60000
+
+/*
+ * Cache lock timeout (seconds).
+ * Stampede prevention: maximum time a cache fill lock is held.
+ * 300 seconds (5 minutes) allows slow fills while preventing deadlocks.
+ */
+#define BRIX_CACHE_LOCK_TIMEOUT_DEFAULT_SEC    300
+
+/*
+ * Maximum delay cap for client wait (seconds).
+ * Analog of ofs.maxdelay — caps how long client may be told to wait.
+ * 60 seconds prevents excessive client-side delays while allowing retries.
+ */
+#define BRIX_MAX_DELAY_DEFAULT_SEC             60
+
+/* ---- Size constants ---- */
+
+/*
+ * Maximum bearer token size (bytes).
+ * WLCG SciTokens typically 2–4 KB; 4 KB accommodates future extensions.
+ * Prevents unbounded allocation from malicious oversized token claims.
+ */
+#define BRIX_BEARER_TOKEN_MAX                  4096
+
+/*
+ * Maximum macaroon path caveats.
+ * Prevents path traversal attack via excessive caveat chains.
+ * 8 allows reasonable delegation depth while bounding verification cost.
+ */
+#define BRIX_MACAROON_PATH_CAVEATS_MAX         8
+
 /* ---- Authentication mode constants ---- */
 #define BRIX_AUTH_NONE   0   /* no authentication required (anonymous) */
 #define BRIX_AUTH_GSI    1   /* GSI/x509 authentication required       */
