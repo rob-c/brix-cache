@@ -56,6 +56,19 @@
 #define NGX_BRIX_CMS_MIN_FREE_MB     100
 
 /*
+ * Wire protocol limits and conversions — named constants to avoid magic numbers.
+ *
+ *   MAX_PORT        — maximum valid TCP port number (16-bit unsigned)
+ *   MAX_PAYLOAD     — maximum CMS frame payload (fits in uint16_t wire field)
+ *   MS_PER_SEC      — milliseconds per second (time conversion)
+ *   PERM_MASK       — POSIX permission bits mask (4 octal digits)
+ */
+#define NGX_BRIX_CMS_MAX_PORT        65535
+#define NGX_BRIX_CMS_MAX_PAYLOAD     65535
+#define NGX_BRIX_CMS_MS_PER_SEC      1000
+#define NGX_BRIX_CMS_PERM_MASK       07777
+
+/*
  * CMS request/reply opcodes (kYR_* from the CMS protocol).
  * Numeric values are wire constants; do not renumber.
  */

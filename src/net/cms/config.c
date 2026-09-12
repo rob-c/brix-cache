@@ -204,7 +204,7 @@ brix_conf_set_cms_altds(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     (void) cmd;
 
     port = ngx_atoi(value[1].data, value[1].len);
-    if (port == NGX_ERROR || port < 1 || port > 65535) {
+    if (port == NGX_ERROR || port < 1 || port > NGX_BRIX_CMS_MAX_PORT) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_cms_altds: invalid port \"%V\"", &value[1]);
         return NGX_CONF_ERROR;

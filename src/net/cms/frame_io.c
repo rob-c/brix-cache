@@ -66,7 +66,7 @@ brix_cms_send_frame(ngx_connection_t *c, uint32_t streamid, u_char code,
 {
     u_char hdr[NGX_BRIX_CMS_HDR_LEN];
 
-    if (c == NULL || payload_len > 65535) {
+    if (c == NULL || payload_len > NGX_BRIX_CMS_MAX_PAYLOAD) {
         return NGX_ERROR;
     }
 

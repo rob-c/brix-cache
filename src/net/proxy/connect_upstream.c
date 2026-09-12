@@ -214,7 +214,7 @@ pc_open_socket(brix_proxy_ctx_t *proxy, ngx_connection_t *client_conn,
         return NULL;
     }
 
-    uconn->pool = ngx_create_pool(512, client_conn->log);
+    uconn->pool = ngx_create_pool(BRIX_PROXY_POOL_SIZE, client_conn->log);
     if (uconn->pool == NULL) {
         ngx_free_connection(uconn);
         ngx_close_socket(fd);

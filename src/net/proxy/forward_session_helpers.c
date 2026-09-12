@@ -35,7 +35,7 @@ proxy_write_audit(brix_proxy_ctx_t *proxy, int local_fh)
 {
     ngx_stream_brix_srv_conf_t *conf = proxy->conf;
     brix_proxy_fh_entry_t      *entry;
-    u_char                        buf[1024];
+    u_char                        buf[BRIX_PROXY_AUDIT_BUF_SIZE];
     u_char                       *p;
     ngx_msec_int_t                duration_ms;
 

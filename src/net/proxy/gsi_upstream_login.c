@@ -29,10 +29,10 @@
 
 typedef struct {
     /* inputs (copied — the thread touches no shared session state) */
-    char       host[256];
+    char       host[BRIX_PROXY_MAX_HOST_LEN];
     uint16_t   port;
     int        family;
-    char       deleg_path[256];      /* 0600 temp holding the delegated proxy   */
+    char       deleg_path[BRIX_PROXY_MAX_HOST_LEN];  /* 0600 temp holding delegated proxy */
     X509_STORE *gsi_store;           /* borrowed from conf (verify upstream cert) */
     brix_dns_policy_t *dns;          /* borrowed from conf: resolve under its policy */
     ngx_log_t *log;
@@ -106,7 +106,7 @@ proxy_gsi_promote_fd(brix_proxy_ctx_t *proxy, int fd)
     if (uconn == NULL) {
         return NGX_ERROR;
     }
-    uconn->pool = ngx_create_pool(512, client_conn->log);
+    uconn->pool = ngx_create_pool(BRIX_PROXY_POOL_SIZE, client_conn->log);
     if (uconn->pool == NULL) {
         ngx_free_connection(uconn);
         return NGX_ERROR;
