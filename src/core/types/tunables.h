@@ -5,11 +5,74 @@
 
 /* ---- File: tunables.h — Compile-time size limits, auth constants, metric macros ----
  *
- * WHAT: Defines all compile-time tunable constants for nginx-xrootd: read sizing (BRIX_READ_MAX 4 MiB per-vector element cap for normalising client readv requests; BRIX_READ_CHUNK_MAX 32 MiB wire chunk size splitting large contiguous reads into fewer sendfile boundaries; BRIX_READ_REQUEST_MAX 64 MiB max per-request read returning larger chunks), connection limits (BRIX_MAX_FILES 16 simultaneously open files per connection, BRIX_MAX_PATH alias for BRIX_PATH_MAX max accepted path length, BRIX_MAX_WALK_DEPTH 32 path component depth rejecting before expensive realpath/lstat to prevent CPU exhaustion from symlink traversal chains, BRIX_MAX_CONN_POOL_BYTES 64 MB nginx connection pool lifetime cap preventing dirlist flood exhaustion — ~1000 calls exhausts worker heap), payload limits (BRIX_MAX_WRITE_PAYLOAD 16 MiB per-write request handling non-default xrdcp v5 8 MiB chunks with pgwrite 4-byte CRC per 4096 page overhead; BRIX_MAX_PREPARE_PAYLOAD 64 KB newline-separated path batch; BRIX_MAX_AUTH_PAYLOAD 32 KB GSI cert chains with VOMS attribute certs reaching 8-10 KB), TCP buffer (BRIX_RECV_BUF sized to hold largest expected request = MAX_PATH + header + 64), send behavior (BRIX_SEND_CHAIN_SPIN_MAX 16 immediate continuations before yielding through posted-event queue keeping large responses moving without starving other connections), auth protection (BRIX_MAX_AUTH_ATTEMPTS 10 non-certreq auth rounds per connection — legitimate GSI client uses 2 rounds per attempt so 10 allows 5 full retry cycles, protects against brute-force/CPU-amplification attacks via GSI/token/SSS processing), token validation (BRIX_TOKEN_CLOCK_SKEW_SECS 30 seconds JWT nbf/exp grace window accepting freshly-issued tokens despite server clock lag per WLCG Token Profile recommendation), authentication modes (BRIX_AUTH_NONE=0 anonymous, BRIX_AUTH_GSI=1 GSI/x509 required, BRIX_AUTH_TOKEN=2 bearer token JWT/WLCG required, BRIX_AUTH_BOTH=3 accept either, BRIX_AUTH_SSS=4 Simple Shared Secret), SSS constants (BRIX_SSS_KEY_MAX 128 key bytes, BRIX_SSS_NAME_MAX 192 name chars, BRIX_SSS_USER_MAX 128 user chars, BRIX_SSS_GROUP_MAX 64 group chars, SSS_OPT flags ALLUSR/ANYUSR/ANYGRP/USRGRP/NOIPCK), per-operation metric macros (BRIX_OP_OK/OP_ERR atomic fetch_add to metrics op_ok/op_err arrays when metrics configured — no-op when disabled), response collapse macros (BRIX_RETURN_OK combines access log + OpOK + send_ok NULL 0 for no-body responses; BRIX_RETURN_ERR combines access log + OpErr + send_error for error paths with code/msg).
+ * PURPOSE:
+ *   Defines all compile-time tunable constants for nginx-xrootd.
+ *   Prevents runtime allocation growth from unbounded client requests.
  *
- * WHY: Compile-time constants prevent runtime allocation growth from unbounded client requests. Read sizing balances wire efficiency (32 MiB chunks reduce sendfile boundaries) against per-vector element cap (4 MiB normalises readv). File limit 16 prevents excessive fd consumption per connection. Walk depth 32 rejects deep symlink chains before expensive syscalls. Pool byte cap 64 MB allows sustained dirlist calls without heap exhaustion — connection closed with kXR_NoMemory on breach. Write payload 16 MiB handles non-default xrdcp chunk sizes with CRC overhead headroom. Auth attempts 10 protects against brute-force while allowing legitimate retry cycles (certreq + cert = 2 rounds per attempt). Clock skew 30 seconds accommodates NTP drift per WLCG recommendation. Send chain spin 16 keeps large sendfile responses moving without starving other ready connections via nginx posted-event queue yield. Metric macros conditional on ctx->metrics pointer — no overhead when metrics disabled. Return macros collapse common three-line pattern (log + metric + send) into single call for no-body success/error paths; handlers returning bodies keep explicit lines.
+ * WHAT (Constants Defined):
+ *   Read Sizing:
+ *   - BRIX_READ_MAX: 4 MiB per-vector element cap (normalizes client readv)
+ *   - BRIX_READ_CHUNK_MAX: 32 MiB wire chunk size (reduces sendfile boundaries)
+ *   - BRIX_READ_REQUEST_MAX: 64 MiB max per-request read
  *
- * HOW: Struct layout — includes compat/path.h → read sizing defines READ_MAX/READ_CHUNK_MAX/READ_REQUEST_MAX (lines 22-24) → connection limits MAX_FILES/MAX_PATH/MAX_WALK_DEPTH (lines 27-38) → payload limits MAX_WRITE_PAYLOAD/MAX_PREPARE_PAYLOAD/MAX_AUTH_PAYLOAD (lines 45-57) → TCP buffer RECV_BUF (line 60) → send spin MAX_CHAIN_SPIN_MAX (line 67) → auth attempts MAX_AUTH_ATTEMPTS (line 76) → pool bytes MAX_CONN_POOL_BYTES (line 85) → clock skew TOKEN_CLOCK_SKEW_SECS (line 94) → auth mode constants NONE/GSI/TOKEN/BOTH/SSS (lines 97-101) → SSS size constants + OPT flags (lines 104-113) → OpOK/OpErr atomic macros (lines 116-124) → ReturnOK/ReturnErr collapse macros (lines 132-146). */
+ *   Connection Limits:
+ *   - BRIX_MAX_FILES: 16 open files per connection
+ *   - BRIX_MAX_PATH: Max path length (alias for BRIX_PATH_MAX)
+ *   - BRIX_MAX_WALK_DEPTH: 32 path components (prevents symlink CPU exhaustion)
+ *   - BRIX_MAX_CONN_POOL_BYTES: 64 MB pool lifetime cap (~1000 dirlist calls)
+ *
+ *   Payload Limits:
+ *   - BRIX_MAX_WRITE_PAYLOAD: 16 MiB (handles xrdcp v5 8 MiB chunks + CRC)
+ *   - BRIX_MAX_PREPARE_PAYLOAD: 64 KB (newline-separated path batch)
+ *   - BRIX_MAX_AUTH_PAYLOAD: 32 KB (GSI cert chains with VOMS 8-10 KB)
+ *
+ *   TCP/Send Behavior:
+ *   - BRIX_RECV_BUF: MAX_PATH + header + 64 (largest expected request)
+ *   - BRIX_SEND_CHAIN_SPIN_MAX: 16 immediate continuations before yield
+ *
+ *   Auth Protection:
+ *   - BRIX_MAX_AUTH_ATTEMPTS: 10 rounds (GSI = 2 rounds/attempt, so 5 retries)
+ *   - BRIX_TOKEN_CLOCK_SKEW_SECS: 30 seconds (WLCG Token Profile recommendation)
+ *
+ *   Auth Modes:
+ *   - BRIX_AUTH_NONE=0, BRIX_AUTH_GSI=1, BRIX_AUTH_TOKEN=2
+ *   - BRIX_AUTH_BOTH=3, BRIX_AUTH_SSS=4
+ *
+ *   SSS Constants:
+ *   - BRIX_SSS_KEY_MAX: 128 bytes, BRIX_SSS_NAME_MAX: 192 chars
+ *   - BRIX_SSS_USER_MAX: 128 chars, BRIX_SSS_GROUP_MAX: 64 chars
+ *   - SSS_OPT flags: ALLUSR/ANYUSR/ANYGRP/USRGRP/NOIPCK
+ *
+ *   Metric Macros:
+ *   - BRIX_OP_OK/OP_ERR: Atomic fetch_add to op_ok/op_err arrays
+ *   - BRIX_RETURN_OK/RETURN_ERR: Collapse log+metric+send pattern
+ *
+ * WHY (Design Rationale):
+ *   - Read sizing: 32 MiB chunks reduce sendfile boundaries; 4 MiB cap normalizes readv
+ *   - File limit 16: Prevents excessive fd consumption per connection
+ *   - Walk depth 32: Rejects deep symlink chains before expensive syscalls
+ *   - Pool cap 64 MB: Allows sustained dirlist without heap exhaustion
+ *   - Write payload 16 MiB: Handles non-default xrdcp chunks with CRC headroom
+ *   - Auth attempts 10: Protects brute-force while allowing 5 full GSI retry cycles
+ *   - Clock skew 30s: Accommodates NTP drift per WLCG recommendation
+ *   - Send spin 16: Keeps large responses moving without starving connections
+ *   - Metric macros: Conditional on ctx->metrics — zero overhead when disabled
+ *
+ * HOW (Struct Layout):
+ *   1. Include: compat/path.h
+ *   2. Read sizing: READ_MAX/READ_CHUNK_MAX/READ_REQUEST_MAX (lines 22-24)
+ *   3. Connection limits: MAX_FILES/MAX_PATH/MAX_WALK_DEPTH (lines 27-38)
+ *   4. Payload limits: MAX_WRITE_PAYLOAD/MAX_PREPARE_PAYLOAD/MAX_AUTH_PAYLOAD (45-57)
+ *   5. TCP buffer: RECV_BUF (line 60)
+ *   6. Send spin: MAX_CHAIN_SPIN_MAX (line 67)
+ *   7. Auth attempts: MAX_AUTH_ATTEMPTS (line 76)
+ *   8. Pool bytes: MAX_CONN_POOL_BYTES (line 85)
+ *   9. Clock skew: TOKEN_CLOCK_SKEW_SECS (line 94)
+ *   10. Auth modes: NONE/GSI/TOKEN/BOTH/SSS (lines 97-101)
+ *   11. SSS constants + OPT flags (lines 104-113)
+ *   12. OpOK/OpErr atomic macros (lines 116-124)
+ *   13. ReturnOK/ReturnErr collapse macros (lines 132-146)
+ */
 
 /*
  * Compile-time size limits, auth-mode constants, and per-operation metric macros.
