@@ -119,6 +119,8 @@ Use `proto="stream"` for root://, `webdav` for WebDAV, `s3` for S3-compatible,
 
 Tracks IPv4 vs IPv6 traffic separately without adding per-client IP as a Prometheus label.
 
+**Scope**: Stream layer (native XRootD), WebDAV, and S3 only. CVMFS and GridFTP planes do NOT export IP-version counters (use protocol-level counters instead).
+
 **Native XRootD stream layer:**
 ```
 brix_bytes_rx_ipv4_total{port="1094",auth="gsi"} 5368709120
@@ -378,7 +380,7 @@ Background block prefetch (`brix_cache_prefetch` +
 those jobs, and jobs that failed (origin/cache open or fill error — the
 foreground serving path is unaffected). **Process-wide, unlabeled** — the
 detached thread-pool jobs carry no per-server context (same shape as the
-watermark group). Sole owner: `src/fs/backend/cache/sd_cache_prefetch.c`
+watermark group). **Owner**: `src/fs/backend/cache/sd_cache_prefetch.c` (cache backend prefetch engine)
 (Pattern 6). `jobs_total` increments at post time on the event loop;
 `blocks_total`/`failures_total` at job completion. A rising `failures_total`
 with a healthy origin usually means cache-volume permission or space trouble.
@@ -521,7 +523,7 @@ Metrics:
 - `brix_unique_users_current` — currently tracked unique users (bounded by table size)
 - `brix_unique_users_total` — lifetime unique users seen (never decreases)
 - `brix_user_evictions_total` — slots recycled when table is full
-- `brix_user_sessions_total{hash=...}` — sessions per hashed identity
+- `brix_user_sessions_total{hash=...}` — sessions per hashed identity (**gauge**, not counter; hash is 8-character hexadecimal FNV-1a 32-bit)
 
 ```
 brix_unique_users_current 42
@@ -605,7 +607,7 @@ Label values (closed sets — INVARIANT #8):
 - `op` — `read`, `write`, `stat`, `delete`, `mkdir`, `rename`, `dirlist`,
   `tpc`, `xattr`, `copy`
 - `status` (I/O and TPC) — `ok`, `not_found`, `forbidden`, `io_error`, `other`
-- `method` — `none`, `gsi`, `token`, `sss`, `s3key`, `unix`, `krb5`, `host`,
+- `method` — **closed set** (INVARIANT #8): `none`, `gsi`, `token`, `sss`, `s3key`, `unix`, `krb5`, `host`, `pwd` (9 values; no other values possible)
   `pwd`; `status` on `brix_auth_total` is `ok` or `fail`
 - `direction` — `pull`, `push`
 - `result` (delegation) — `ok`, `expired`, `absent`
@@ -872,7 +874,7 @@ Reading the table: a family whose subsystem is not configured still emits its
 HELP/TYPE header and reads `0` rather than vanishing, so alerting rules need no
 `absent()` guard; every label vocabulary is a closed, low-cardinality set
 (INVARIANT #8) — no path, export name, user, token or size is ever a label
-value; and every latency family is in **seconds** (the microsecond aliases were
+value; and every latency family is in **seconds** (the microsecond aliases were removed in phase-89; internal storage is microseconds, converted to seconds at export for Prometheus compatibility).
 removed in 2.0).
 
 ### Access control (NSS/DNS helpers) — `brix_acc_*`
@@ -1120,7 +1122,7 @@ removed in 2.0).
 |---|---|---|
 | `brix_vo_bytes_rx_total` | counter | Bytes received from clients grouped by virtual organisation. VO names are truncated to 15 characters. |
 | `brix_vo_bytes_tx_total` | counter | Bytes sent to clients grouped by virtual organisation. VO names are truncated to 15 characters; the metric family has one entry per VO. |
-| `brix_vo_overflow_total` | counter | VO entries that exceeded the tracking limit and were evicted. |
+| `brix_vo_overflow_total` | counter | VO entries that exceeded the tracking limit (32 VOs) and were evicted (LRU policy). Alert if > 0. |
 | `brix_vo_requests_total` | counter | Requests grouped by virtual organisation. VO names are truncated. |
 
 ### Rate limiting — `brix_rate_*`

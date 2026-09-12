@@ -85,7 +85,7 @@ Groups data transfer by virtual organisation. VO names are stored in a **16-byte
 **Metrics:**
 - `brix_vo_bytes_tx_total{vo="..."}` — bytes sent to clients from this VO's users
 - `brix_vo_bytes_rx_total{vo="..."}` — bytes received from this VO's users  
-- `brix_vo_requests_total{vo="..."}` — request count for this VO
+- `brix_vo_requests_total{vo="..."}` — request count for this VO (label: `{vo}` — closed set, max 32 VOs tracked)
 
 ```
 brix_vo_bytes_tx_total{vo="cms"} 1234567890
