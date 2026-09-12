@@ -12,11 +12,11 @@ BriX-Cache now supports **5 platforms** with a unified Platform Abstraction Laye
 
 | Platform | PAL Functions | Completion | Production | Key Optimizations |
 |----------|--------------|------------|------------|-------------------|
-| **Linux x86_64** | 42/42 | 100% | ✅ Yes | Baseline, io_uring, seccomp |
-| **Linux ARM64** | 42/42 | 100% | ✅ Yes | CRC32C 10x, NEON 4x |
-| **macOS x86_64** | 42/42 | 100% | ✅ Yes | Full feature parity |
-| **macOS ARM64** | 42/42 | 100% | ✅ Yes | Accelerate 7.5-10x, CPU topology |
-| **Windows x86_64** | 42/42 | 100% ✅ | ⚠️ Dev/Test | NTFS ADS, HANDLE/fd, CopyFile2, Security stubs |
+| **Linux x86_64** | 64/64 | 100% | ✅ Yes | Baseline, io_uring, seccomp |
+| **Linux ARM64** | 64/64 | 100% | ✅ Yes | CRC32C 10x, NEON 4x |
+| **macOS x86_64** | 64/64 | 100% | ✅ Yes | Full feature parity |
+| **macOS ARM64** | 64/64 | 100% | ✅ Yes | Accelerate 7.5-10x, CPU topology |
+| **Windows x86_64** | 64/64 | 100% ✅ | ⚠️ Dev/Test | NTFS ADS, HANDLE/fd, CopyFile2, Security stubs |
 
 **Overall Completion**: 100% (5/5 platforms) ✅
 

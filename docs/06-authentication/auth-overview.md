@@ -294,7 +294,7 @@ xrdfs root://localhost:1094 ls /
 xrdcp root://localhost:1094//test.txt /tmp/test.txt
 ```
 
-If authentication succeeds, the native stream session is marked authenticated and the token `sub` claim is stored internally as the session identity. Current stream access-log labels remain `anon` for non-GSI listeners and `gsi` for GSI-only listeners; token subjects are emitted in nginx info/debug logs rather than the `brix_access_log` identity field.
+If authentication succeeds, the native stream session is marked authenticated and the token `sub` claim is stored internally as the session identity. When the structured identity (`ctx->identity`) is populated, the token subject appears in the `brix_access_log` identity field via `brix_identity_set_dn()`. On non-GSI listeners without identity struct population, token subjects are emitted in nginx info/debug logs.
 
 ### Scopes and groups
 

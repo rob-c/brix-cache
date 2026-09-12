@@ -437,6 +437,8 @@ and `storage.create` on path-resolving operations. A valid write-scoped token
 can write only when the listener also has `brix_allow_write on`; no token can
 write when `brix_allow_write off`.
 
+> **Authorization tier order:** The three-tier auth gate (authdb → VO ACL → token scope) is checked **after** the server-wide `brix_allow_write` gate. If `brix_allow_write off`, the request is denied immediately without consulting authdb, VO ACL, or token scopes. This is a fail-safe design: a read-only server refuses all writes regardless of identity or credentials.
+
 Use separate listeners if you need a read-only token-authenticated stream endpoint:
 
 ```nginx

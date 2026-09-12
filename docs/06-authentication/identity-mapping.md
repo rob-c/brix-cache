@@ -296,9 +296,11 @@ and `host` carry no VO, so only `u`/`p`/`a` rules bind behind them. Only an
 *(Before 2026-08-04 the gate whitelisted only `gsi`/`token`/`both`, which
 locked the other four mechanisms out of authorization entirely.)*
 
-> **Critical native-vs-xrdacc difference:** native `g` matches only the
-> **VO/credential group list**. It has **no** `/etc/group` or NIS resolution. If
-> you need to authorize on local UNIX groups, use `brix_authdb_engine xrdacc`.
+> **⚠️ CRITICAL: Native Engine `g` Rules Do NOT Check `/etc/group`**
+>
+> The native engine's `g <group>` selector matches **only** the **VO/credential group list** (VOMS FQANs or token `wlcg.groups`). It performs **no** OS user/group resolution via `getpwnam()`/`getgrouplist()`. If you need to authorize based on local UNIX groups from `/etc/group` or NIS, you **must** use `brix_authdb_engine xrdacc`.
+>
+> **Example:** A GSI user with DN `/DC=org/CN=Alice` who is in UNIX group `cms` will **NOT** match `g cms` under the native engine — only under XrdAcc. Under native, `g cms` matches only if the VOMS FQAN or token groups include `cms`.
 
 ### 4.3 VO ACL (tier 2): `brix_require_vo`
 

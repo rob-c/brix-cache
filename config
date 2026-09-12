@@ -971,12 +971,28 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/stream/module_enums.c \
     $ngx_addon_dir/src/protocols/root/stream/module_definition.c \
     $ngx_addon_dir/src/platform/platform.c \
+    \
+    $ngx_addon_dir/src/platform/linux/posix_wrapper.c \
+    $ngx_addon_dir/src/platform/linux/event_wrapper.c \
+    $ngx_addon_dir/src/platform/linux/fs_watcher.c \
+    $ngx_addon_dir/src/platform/linux/security_wrapper.c \
+    $ngx_addon_dir/src/platform/linux/copy_range.c \
+    $ngx_addon_dir/src/platform/linux/aio_wrapper.c \
     $ngx_addon_dir/src/platform/linux/crc32c_arm64.c \
     $ngx_addon_dir/src/platform/linux/checksum_neon.c \
     $ngx_addon_dir/src/platform/linux/arm64_crypto.c \
+    \
+    $ngx_addon_dir/src/platform/darwin/posix_wrapper.c \
+    $ngx_addon_dir/src/platform/darwin/event_wrapper.c \
+    $ngx_addon_dir/src/platform/darwin/fs_watcher.c \
+    $ngx_addon_dir/src/platform/darwin/security_wrapper.c \
+    $ngx_addon_dir/src/platform/darwin/copy_range.c \
+    $ngx_addon_dir/src/platform/darwin/aio_wrapper.c \
     $ngx_addon_dir/src/platform/darwin/checksum_accelerate.c \
     $ngx_addon_dir/src/platform/darwin/cpu_topology.c \
     $ngx_addon_dir/src/platform/darwin/apple_silicon.c \
+    $ngx_addon_dir/src/platform/darwin/clonefile_optimized.c \
+    \
     $ngx_addon_dir/src/platform/windows/handle_abstraction.c \
     $ngx_addon_dir/src/platform/windows/posix_wrapper.c \
     $ngx_addon_dir/src/platform/windows/event_wrapper.c \

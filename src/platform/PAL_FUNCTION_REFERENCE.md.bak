@@ -1,14 +1,14 @@
 # Platform Abstraction Layer (PAL) Function Reference
 
-**Complete reference for all 64 PAL functions across 5 platforms**
+**Complete reference for all 44 PAL functions across 5 platforms**
 
 - **Linux**: x86_64, ARM64 (with CRC32C, NEON acceleration)
 - **macOS**: x86_64, ARM64/Apple Silicon (with Accelerate framework)
 - **Windows**: x86_64 (ARM64 planned)
 
-**Last Updated**: 2025-12-19  
-**PAL Version**: 3.1  
-**Total Functions**: 64 (44 core + 12 Apple Silicon + 8 Windows-specific)
+**Last Updated**: 2025-12-18  
+**PAL Version**: 3.0  
+**Total Functions**: 44 (39 core + 5 Windows-specific)
 
 ---
 
@@ -25,9 +25,8 @@
 9. [Process Execution (1 function)](#9-process-execution)
 10. [Byte Order Operations (6 functions)](#10-byte-order-operations)
 11. [PAL Initialization (2 functions)](#11-pal-initialization)
-12. [Apple Silicon CPU Topology (12 functions)](#12-apple-silicon-cpu-topology-macos-only)
-13. [Windows Platform Detection (8 functions)](#13-windows-platform-detection-windows-only)
-14. [Troubleshooting Guide](#14-troubleshooting-guide)
+12. [Windows Platform Detection (8 functions)](#12-windows-platform-detection-windows-only)
+13. [Troubleshooting Guide](#13-troubleshooting-guide)
 
 ---
 

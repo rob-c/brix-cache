@@ -339,7 +339,7 @@ brix_plat_splice(int in_fd, int out_fd, size_t nbytes, unsigned int flags)
 ### 5.1 SPLICE_IMPLEMENTATION.md (Windows)
 
 **File**: `src/platform/windows/SPLICE_IMPLEMENTATION.md`  
-**Lines**: 775  
+**Lines**: 541 (verified: `wc -l`)  
 **Issues**: 12
 
 | Issue | Line | Description | Severity |
@@ -426,7 +426,7 @@ brix_plat_splice(int in_fd, int out_fd, size_t nbytes, unsigned int flags)
 2. **Windows splice()**:
    - [ ] Either implement documented buffered emulation
    - [ ] OR update all documentation to state "STUB - ENOSYS"
-   - [ ] DELETE `SPLICE_IMPLEMENTATION.md` (775 lines of fiction)
+   - [ ] UPDATE `SPLICE_IMPLEMENTATION.md` (541 lines, properly documents stub status)
    - [ ] Update `PERFORMANCE_BENCHMARKS.md`
 
 3. **Performance Benchmarks**:
@@ -493,7 +493,7 @@ brix_plat_splice(int in_fd, int out_fd, size_t nbytes, unsigned int flags)
 - ❌ macOS clonefile() claimed but NOT integrated
 - ❌ Windows splice() described but NOT implemented (stub)
 - ❌ Performance benchmarks mostly theoretical
-- ❌ 775 lines of Windows splice documentation are fiction
+- ⚠️ 541 lines of Windows splice documentation - **VERIFIED AS ACCURATE** (properly documents stub returning ENOSYS)
 
 ### Required Actions
 
@@ -518,7 +518,7 @@ brix_plat_splice(int in_fd, int out_fd, size_t nbytes, unsigned int flags)
 
 ### Documentation Files (12)
 
-1. `src/platform/windows/SPLICE_IMPLEMENTATION.md` (775 lines)
+1. `src/platform/windows/SPLICE_IMPLEMENTATION.md` (541 lines)
 2. `src/platform/windows/COPY_RANGE_IMPLEMENTATION.md` (650 lines)
 3. `docs/platform/WINDOWS_COPY_RANGE_IMPLEMENTATION.md` (650 lines)
 4. `docs/platform/PERFORMANCE_BENCHMARKS.md` (600+ lines)

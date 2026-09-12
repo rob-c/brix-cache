@@ -138,10 +138,19 @@ make -j"$(nproc)"
 
 | `BRIX_OPTIMIZE` | Flags added | When to use |
 |---|---|---|
+| **x86_64 Profiles** |||
 | _(unset)_ | none (default) | Portable default; no assumptions about the CPU |
 | `v2` | `-O3 -march=x86-64-v2 -fno-plt` | **Recommended.** Safe on every RHEL 9 host (SSE4.2/POPCNT are part of the x86-64-v2 baseline). Lets the compiler emit SSE4.2 everywhere, not only in the CRC-32c hot path. |
 | `v3` | `-O3 -march=x86-64-v3 -fno-plt` | Fleets where **every** CPU supports AVX2/BMI2 (Haswell+/Zen+). The binary will SIGILL on older CPUs. |
 | `native` | `-O3 -march=native -fno-plt` | Tuned to the build host only. **Do not** redistribute the resulting binary to other hardware. |
+| **ARM64 Profiles** |||
+| `auto` | `-march=armv8-a+crc -O3` (if available) | **Recommended.** Auto-detects CRC32 hardware support |
+| `graviton` | `-march=armv8.2-a+fp+simd+crypto+crc -O3` | AWS Graviton2/Graviton3 instances |
+| `ampere` | `-march=armv8.2-a+fp+simd+crypto -O3` | Ampere Altra processors |
+| `apple_silicon` | `-march=armv8.3-a+crypto -mtune=apple-m1 -O3` | Apple M1/M2/M3 Macs |
+| `generic` | `-march=armv8-a -O3` | Generic ARM64 (no CRC32) |
+
+> **Note**: ARM64 profiles are automatically selected based on `uname -m`. On x86_64 systems, ARM64 profiles are ignored. The `auto` profile detects CRC32 hardware support at build time.
 
 The profile is compile-time only and composes with the hardening flags. For
 cross-module **link-time optimisation** (LTO), additionally pass

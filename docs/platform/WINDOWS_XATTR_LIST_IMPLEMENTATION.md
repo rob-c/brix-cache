@@ -349,7 +349,7 @@ test_xattr_list.exe
 | **`brix_plat_listxattr`** | ✅ | **NEW - This task** |
 | **`brix_plat_flistxattr`** | ✅ | **NEW - This task** |
 
-### Overall Windows PAL: 57% Complete (24/42 functions)
+### Overall Windows PAL: 57% Complete (24/60 functions)
 
 | Category | Complete | Remaining |
 |----------|----------|-----------|

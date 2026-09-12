@@ -1,5 +1,24 @@
 # Phase 2: Code Consolidation - Summary
 
+> ⚠️ **CRITICAL WARNING: IMPLEMENTATION NEVER OCCURRED**
+>
+> This document describes **planned work that was never actually implemented**.
+>
+> **Fictional Infrastructure Claimed:**
+> - `src/core/config/conf_helpers.h` - **DOES NOT EXIST**
+> - `src/core/compat/alloc_helpers.h` - **DOES NOT EXIST**
+> - `src/protocols/webdav/response_helpers.h` - **DOES NOT EXIST**
+> - `src/core/config/addr_parse.c/h` - **DO NOT EXIST**
+>
+> **Fictional Statistics:**
+> - "~32 LoC consolidated across 6 modules" - **NEVER HAPPENED**
+> - "75 merge calls consolidated" - **NEVER HAPPENED**
+> - "6 modules migrated" - **NEVER HAPPENED**
+>
+> **Do not reference this document as evidence of completed work.**
+>
+> For actual implementation, see: `docs/refactor/phase-*.md`
+
 **Status:** Phase 2 In Progress  
 **Date:** 2026-06-05  
 **Build Status:** ✓ Successful  

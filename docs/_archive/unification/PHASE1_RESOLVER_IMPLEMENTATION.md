@@ -1,5 +1,17 @@
 # Phase 1: Resolver Consolidation - Implementation Plan
 
+> ⚠️ **HISTORICAL PLAN - NEVER IMPLEMENTED**
+>
+> This document describes a **planned architecture change that was never implemented**.
+>
+> **Fictional Infrastructure:**
+> - `src/fs/path/unified.c` - **DOES NOT EXIST**
+> - `src/fs/path/unified.h` - **DOES NOT EXIST**
+>
+> **Current Reality:** Path resolution remains split between protocol-specific implementations.
+>
+> **Do not reference this document as evidence of completed work.**
+
 **Status:** PLANNING  
 **Phase:** 1 of 3 (Protocol Unification)  
 **Estimated Effort:** 8-12 hours  
