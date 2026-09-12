@@ -132,27 +132,27 @@ int brix_vfs_mkdir_path(ngx_log_t *log, const char *root_canon,
  * the int forms return -1 with errno==EROFS, the ngx_int_t forms NGX_ERROR with
  * errno==EROFS. A provably read-only brix_vfs_export_open_fd[_at] (no O_WRONLY/
  * O_RDWR/O_CREAT/O_TRUNC/O_APPEND) is never gated — reads stay free. */
-int brix_vfs_export_open_fd(const brix_vfs_export_op_ctx_t *opctx,
+int brix_vfs_export_open_fd(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *logical, int flags, mode_t mode);
-int brix_vfs_export_open_fd_at(const brix_vfs_export_op_ctx_t *opctx,
+int brix_vfs_export_open_fd_at(const brix_vfs_export_op_ctx_t *export_op_ctx,
     int rootfd, const char *logical, int flags, mode_t mode);
-int brix_vfs_export_unlink(const brix_vfs_export_op_ctx_t *opctx,
+int brix_vfs_export_unlink(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *logical);
-int brix_vfs_export_unlink_at(const brix_vfs_export_op_ctx_t *opctx,
+int brix_vfs_export_unlink_at(const brix_vfs_export_op_ctx_t *export_op_ctx,
     int rootfd, const char *logical, int is_dir);
-int brix_vfs_export_rmdir(const brix_vfs_export_op_ctx_t *opctx,
+int brix_vfs_export_rmdir(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *logical);
-int brix_vfs_export_mkdir(const brix_vfs_export_op_ctx_t *opctx,
+int brix_vfs_export_mkdir(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *logical, mode_t mode);
-int brix_vfs_export_mkpath(const brix_vfs_export_op_ctx_t *opctx,
+int brix_vfs_export_mkpath(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *logical, mode_t mode);
-ngx_int_t brix_vfs_export_rename(const brix_vfs_export_op_ctx_t *opctx,
+ngx_int_t brix_vfs_export_rename(const brix_vfs_export_op_ctx_t *export_op_ctx,
     brix_sd_instance_t *sd, const char *src, const char *dst,
     unsigned overwrite, int *was_dir_out);
-ngx_int_t brix_vfs_export_copyfile(const brix_vfs_export_op_ctx_t *opctx,
+ngx_int_t brix_vfs_export_copyfile(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *src, const char *dst, int preserve_xattrs,
     brix_vfs_copy_meta_cb meta_cb, void *cookie);
-ngx_int_t brix_vfs_export_copytree(const brix_vfs_export_op_ctx_t *opctx,
+ngx_int_t brix_vfs_export_copytree(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *src, const char *dst, int preserve_xattrs,
     brix_vfs_copy_meta_cb meta_cb, void *cookie);
 
