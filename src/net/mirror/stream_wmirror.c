@@ -1,3 +1,4 @@
+#include "platform/platform_api.h"
 /*
  * stream_wmirror.c — Phase 24 W3: XRootD stream DATA-write mirroring —
  * per-connection accumulation and the public on_open / observe / cleanup hooks.
@@ -27,7 +28,10 @@
 #include "stream_wmirror_internal.h"
 #include "mirror.h"
 
-#include <endian.h>
+/* macOS doesn't have endian.h - use libkern/OSByteOrder.h */
+#if defined(__APPLE__) && defined(__MACH__)
+#else
+#endif
 
 /* Caps: data-write mirroring is best-effort validation, not a data path. */
 #define BRIX_WMIRROR_FILE_CAP  (4u * 1024u * 1024u)   /* 4 MiB per file        */
@@ -168,7 +172,7 @@ wmir_accumulate_write(brix_wmirror_conn_t *wm, brix_wmirror_file_t *f,
     if (primary_rc == NGX_ERROR) { f->aborted = 1; return; }
 
     ngx_memcpy(&off_be, ctx->recv.hdr_buf + 8, 8);
-    off = (off_t) be64toh(off_be);
+    off = (off_t) brix_plat_be64toh(off_be);
     if (off != f->next_off) { f->aborted = 1; return; }   /* non-sequential */
     if (len == 0) { return; }
 

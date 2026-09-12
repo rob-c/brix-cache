@@ -1,3 +1,4 @@
+#include "platform/platform_api.h"
 /* File: source_stream_multi.c — native TPC multi-stream read loop
  * WHAT: tpc_stream_to_dst_multi() streams the source into the destination with
  *       one kXR_read window in flight per stream (the primary plus every bound
@@ -25,11 +26,15 @@
 
 #include <stdlib.h>
 #include <string.h>
+
+/* macOS doesn't have endian.h - use libkern/OSByteOrder.h */
+#if defined(__APPLE__) && defined(__MACH__)
+#else
+#endif
 #include <poll.h>
 #include <time.h>
 
 #if defined(__linux__)
-#include <endian.h>
 #endif
 
 /* Read replies carry streamid[1] == 3 (source_stream.c's tag); slot in [0]. */
@@ -70,7 +75,7 @@ tpc_multi_send_slot(brix_tpc_pull_t *t, tpc_multi_round_t *r, int slot)
     rdreq->streamid[1] = TPC_STREAM_READ_TAG;
     rdreq->requestid   = htons(kXR_read);
     ngx_memcpy(rdreq->fhandle, r->fhandle, XRD_FHANDLE_LEN);
-    rdreq->offset = (kXR_int64) htobe64(offset);
+    rdreq->offset = (kXR_int64) brix_plat_htobe64(offset);
     rdreq->rlen   = htonl((kXR_int32) TPC_CHUNK_SIZE);
     rdreq->dlen   = htonl((kXR_int32) TPC_READ_ARGS_LEN);
     tpc_stream_plan_read_args(frame + sizeof(ClientReadRequest), pathid);

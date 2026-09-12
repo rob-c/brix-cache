@@ -1,3 +1,4 @@
+#include "platform/platform_api.h"
 /* kXR_clone (3032) — server-side range copy, protocol v5.2.0.
  *
  * Wire format:
@@ -19,13 +20,14 @@
  *
  * HOW: Parse clone_item array from payload (32 bytes each), validate dst_fhandle for write access and each
  * src_fhandle for read access via brix_validate_write_handle/brix_validate_read_handle, decode big-endian
- * uint64 fields (src_offset, src_len, dst_offset) with be64toh, iterate items calling brix_copy_range() for
+ * uint64 fields (src_offset, src_len, dst_offset) with brix_plat_be64toh, iterate items calling brix_copy_range() for
  * each (which uses copy_file_range when same filesystem or pread/pwrite fallback otherwise), skip zero-length
  * items silently, accumulate total_bytes into file.bytes_written and session_bytes counters, return kXR_OK with
  * byte count via BRIX_RETURN_OK.
  */
 
 #include "clone.h"
+/* PAL endian ops now in platform_api.h */  /* brix_plat_be64toh/brix_plat_htobe64 cross-platform */
 #include "fs/backend/csi_tagstore.h"
 #include "protocols/root/connection/fd_table.h"
 #include "core/compat/copy_range.h"
@@ -61,9 +63,9 @@ brix_clone_decode(const clone_item *item, brix_clone_span_t *span)
     ngx_memcpy(&span->src_off_raw, &item->src_offset, 8);
     ngx_memcpy(&span->len_raw, &item->src_len, 8);
     ngx_memcpy(&span->dst_off_raw, &item->dst_offset, 8);
-    span->src_off_raw = be64toh(span->src_off_raw);
-    span->len_raw = be64toh(span->len_raw);
-    span->dst_off_raw = be64toh(span->dst_off_raw);
+    span->src_off_raw = brix_plat_be64toh(span->src_off_raw);
+    span->len_raw = brix_plat_be64toh(span->len_raw);
+    span->dst_off_raw = brix_plat_be64toh(span->dst_off_raw);
     span->src_off = (off_t) span->src_off_raw;
     span->dst_off = (off_t) span->dst_off_raw;
     span->len = (size_t) span->len_raw;

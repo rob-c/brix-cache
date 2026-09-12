@@ -26,6 +26,13 @@
 #include "auth/protbind/protbind.h"   /* brix_protbind_any_names */
 #include "process_internal.h"
 #include <unistd.h>                           /* open() for the confined export rootfd */
+
+/* macOS lacks O_PATH - use O_RDONLY as fallback */
+#if defined(__APPLE__) && defined(__MACH__)
+#ifndef O_PATH
+#define O_PATH O_RDONLY
+#endif
+#endif
 #include "protocols/root/write/chkpoint.h"    /* brix_chkpoint_recover_root */
 #include "net/manager/health_check.h"         /* brix_hc_manager_start */
 #include "fs/cache/origin/pelican_register.h" /* brix_cache_pelican_schedule_advertise */

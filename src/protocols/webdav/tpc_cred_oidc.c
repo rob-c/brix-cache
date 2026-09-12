@@ -27,6 +27,13 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+
+/* macOS lacks secure_getenv - use getenv as fallback */
+#if defined(__APPLE__) && defined(__MACH__)
+#ifndef secure_getenv
+#define secure_getenv(name) getenv(name)
+#endif
+#endif
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/socket.h>

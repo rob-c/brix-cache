@@ -15,9 +15,52 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
+
+/* macOS xattr compatibility - different signatures than Linux */
+#if defined(__APPLE__) && defined(__MACH__)
+static ssize_t brix_getxattr_compat(const char *path, const char *name, void *value, size_t size) {
+    return getxattr(path, name, value, size, 0, 0);
+}
+static int brix_setxattr_compat(const char *path, const char *name, const void *value, size_t size, int flags) {
+    return setxattr(path, name, value, size, 0, flags);
+}
+static int brix_removexattr_compat(const char *path, const char *name) {
+    return removexattr(path, name, 0);
+}
+static ssize_t brix_listxattr_compat(const char *path, char *list, size_t size) {
+    return listxattr(path, list, size, 0);
+}
+#define getxattr(path, name, value, size) brix_getxattr_compat(path, name, value, size)
+#define setxattr(path, name, value, size, flags) brix_setxattr_compat(path, name, value, size, flags)
+#define removexattr(path, name) brix_removexattr_compat(path, name)
+#define listxattr(path, list, size) brix_listxattr_compat(path, list, size)
+#endif
 #include <time.h>
 #include <unistd.h>
+/* macOS lacks openat2 - provide compatibility stubs */
+#if defined(__APPLE__) && defined(__MACH__)
+/* RESOLVE_* flags stubs for macOS */
+#ifndef RESOLVE_BENEATH
+#define RESOLVE_BENEATH 0x8
+#endif
+#ifndef RESOLVE_IN_ROOT
+#define RESOLVE_IN_ROOT 0x10
+#endif
+#ifndef RESOLVE_NO_XDEV
+#define RESOLVE_NO_XDEV 0x01
+#endif
+#ifndef RESOLVE_NO_MAGICLINKS
+#define RESOLVE_NO_MAGICLINKS 0x02
+#endif
+#ifndef RESOLVE_NO_SYMLINKS
+#define RESOLVE_NO_SYMLINKS 0x04
+#endif
+#ifndef RESOLVE_CACHED
+#define RESOLVE_CACHED 0x20
+#endif
+#else
 #include <linux/openat2.h>
+#endif
 
 /* Confined extended-attribute ops — broker-routed under impersonation.
  *

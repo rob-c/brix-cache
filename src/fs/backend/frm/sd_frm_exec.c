@@ -55,7 +55,11 @@ typedef struct {
  * new session, so pid == pgid and the deadline kill reaches the whole group.
  * glibc 2.34 has closefrom as a spawn action; older glibc gets one addclose
  * per descriptor the worker holds right now (the same set, via /proc). */
-#if defined(__GLIBC__) && __GLIBC_PREREQ(2, 34)
+#ifndef __GLIBC_PREREQ
+/* Not glibc - assume old interface */
+#define __GLIBC_PREREQ(major, minor) 0
+#endif
+#if __GLIBC_PREREQ(2, 34)
 static int
 exec_fa_close_inherited(posix_spawn_file_actions_t *fa)
 {
@@ -329,12 +333,17 @@ frm_mss_exchange(void *mss, const char *a, const char *b)
         errno = ENAMETOOLONG;
         return -1;
     }
+#if defined(__linux__) && defined(SYS_renameat2)
     if (syscall(SYS_renameat2, AT_FDCWD, pa, AT_FDCWD, pb,
                 (unsigned int) RENAME_EXCHANGE) != 0)
     {
         if (errno == ENOSYS || errno == EINVAL) {
             errno = ENOTSUP;
         }
+#else
+    /* macOS lacks renameat2 - fall back to regular rename (no atomic exchange) */
+    if (rename(pa, pb) != 0) {
+#endif
         return -1;
     }
     return 0;

@@ -1,0 +1,203 @@
+/*
+ * src/platform/platform_api.h - Platform Abstraction Layer Public API
+ *
+ * This header defines the complete PAL API. Source code should ONLY include
+ * this header - NEVER platform-specific headers or preprocessor blocks.
+ *
+ * All platform detection and logic lives in src/platform subdirectory files.
+ */
+
+#ifndef BRIX_PLATFORM_API_H
+#define BRIX_PLATFORM_API_H
+
+#include "platform.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdint.h>
+#include <stddef.h>
+
+/* Platform-specific headers for byte-order operations */
+#if BRIX_PLATFORM_LINUX
+#include <endian.h>
+#elif BRIX_PLATFORM_DARWIN
+#include <libkern/OSByteOrder.h>
+#endif
+
+/* ==========================================================================
+ * PLATFORM DETECTION & INFORMATION
+ * ========================================================================== */
+
+const char *brix_plat_name(void);
+const char *brix_plat_version(void);
+const char *brix_plat_arch(void);
+int brix_plat_is_root(void);
+int brix_plat_cpu_count(void);
+uint64_t brix_plat_total_memory(void);
+uint64_t brix_plat_available_memory(void);
+
+/* ==========================================================================
+ * FILE DESCRIPTOR OPERATIONS
+ * ========================================================================== */
+
+int brix_plat_anon_fd(const char *name, const char *dir);
+int brix_plat_fadvise(int fd, off_t offset, off_t len, int advice);
+int brix_plat_fsync_data(int fd);
+void brix_plat_sync(void);
+int brix_plat_sync_tree(int dirfd);
+
+#define BRIX_FADV_NORMAL      0
+#define BRIX_FADV_RANDOM      1
+#define BRIX_FADV_SEQUENTIAL  2
+#define BRIX_FADV_WILLNEED    3
+#define BRIX_FADV_DONTNEED    4
+#define BRIX_FADV_NOREUSE     5
+
+/* ==========================================================================
+ * ZERO-COPY TRANSFERS
+ * ========================================================================== */
+
+ssize_t brix_plat_sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
+ssize_t brix_plat_splice(int in_fd, int out_fd, size_t nbytes, unsigned int flags);
+ssize_t brix_plat_copy_range(int in_fd, off_t *in_off, int out_fd, off_t *out_off,
+                             size_t len, unsigned int flags);
+
+#define BRIX_SPLICE_F_MOVE      1
+#define BRIX_SPLICE_F_NONBLOCK  2
+#define BRIX_SPLICE_F_MORE      4
+#define BRIX_SPLICE_F_GIFT      8
+#define BRIX_COPY_F_MOVE        1
+#define BRIX_COPY_F_SPLICE      2
+#define BRIX_COPY_F_REFLINK     4
+#define BRIX_COPY_F_SAME_MOUNT  8
+
+/* ==========================================================================
+ * EVENT & NOTIFICATION
+ * ========================================================================== */
+
+int brix_plat_eventfd(unsigned int initial_value, int flags);
+int brix_plat_pipe2(int pipefd[2], int flags);
+
+#define BRIX_EVENTFD_CLOEXEC    02000
+#define BRIX_EVENTFD_NONBLOCK   04000
+#define BRIX_PIPE_CLOEXEC       02000
+#define BRIX_PIPE_NONBLOCK      04000
+
+/* Filesystem event types */
+#define BRIX_EVENT_READ         0x001
+#define BRIX_EVENT_WRITE        0x002
+#define BRIX_EVENT_DELETE       0x004
+#define BRIX_EVENT_MODIFY       0x008
+#define BRIX_EVENT_CREATE       0x010
+#define BRIX_EVENT_ATTRIB       0x020
+
+typedef struct brix_plat_fs_watcher brix_plat_fs_watcher_t;
+
+typedef struct {
+    uint32_t cookie;
+    uint64_t timestamp;
+    char path[4096];
+    uint32_t events;
+} brix_plat_fs_event_t;
+    uint32_t events;
+} brix_plat_fs_event_t;
+
+#define BRIX_FS_EVENT_DELETE    0x001
+#define BRIX_FS_EVENT_WRITE     0x002
+#define BRIX_FS_EVENT_CREATE    0x004
+#define BRIX_FS_EVENT_RENAME    0x008
+#define BRIX_FS_EVENT_ATTRIB    0x010
+
+int brix_plat_fs_watcher_init(brix_plat_fs_watcher_t *watcher);
+int brix_plat_fs_watcher_add(brix_plat_fs_watcher_t *watcher,
+                             const char *path, uint32_t events);
+int brix_plat_fs_watcher_rm(brix_plat_fs_watcher_t *watcher, int wd);
+int brix_plat_fs_watcher_next(brix_plat_fs_watcher_t *watcher,
+                              brix_plat_fs_event_t *event, int timeout_ms);
+void brix_plat_fs_watcher_destroy(brix_plat_fs_watcher_t *watcher);
+
+/* ==========================================================================
+ * SECURITY & CONFINEMENT
+ * ========================================================================== */
+
+int brix_plat_security_init(const char *profile);
+int brix_plat_security_enter(const char *profile);
+int brix_plat_setfsuid(uid_t uid);
+int brix_plat_setfsgid(gid_t gid);
+
+/* ==========================================================================
+ * RANDOM NUMBER GENERATION
+ * ========================================================================== */
+
+int brix_plat_random(void *buf, size_t len);
+
+/* ==========================================================================
+ * EXTENDED ATTRIBUTES
+ * ========================================================================== */
+
+ssize_t brix_plat_getxattr(const char *path, const char *name, void *value, size_t size);
+ssize_t brix_plat_fgetxattr(int fd, const char *name, void *value, size_t size);
+int brix_plat_setxattr(const char *path, const char *name, const void *value, size_t size, int flags);
+int brix_plat_fsetxattr(int fd, const char *name, const void *value, size_t size, int flags);
+int brix_plat_removexattr(const char *path, const char *name);
+int brix_plat_fremovexattr(int fd, const char *name);
+ssize_t brix_plat_listxattr(const char *path, char *list, size_t size);
+ssize_t brix_plat_flistxattr(int fd, char *list, size_t size);
+
+#define BRIX_XATTR_CREATE       0x0002
+#define BRIX_XATTR_REPLACE      0x0004
+#define BRIX_XATTR_NOFOLLOW     0x0001
+
+/* ==========================================================================
+ * PROCESS EXECUTION
+ * ========================================================================== */
+
+int brix_plat_execvpe(const char *file, char *const argv[], char *const envp[]);
+
+/* ==========================================================================
+ * BYTE ORDER OPERATIONS (inline for performance)
+ * ========================================================================== */
+
+#if BRIX_PLATFORM_LINUX
+
+static inline uint64_t brix_plat_htobe64(uint64_t x) { return htobe64(x); }
+static inline uint64_t brix_plat_be64toh(uint64_t x) { return be64toh(x); }
+static inline uint32_t brix_plat_htobe32(uint32_t x) { return htobe32(x); }
+static inline uint32_t brix_plat_be32toh(uint32_t x) { return be32toh(x); }
+static inline uint16_t brix_plat_htobe16(uint16_t x) { return htobe16(x); }
+static inline uint16_t brix_plat_be16toh(uint16_t x) { return be16toh(x); }
+
+#elif BRIX_PLATFORM_DARWIN
+
+static inline uint64_t brix_plat_htobe64(uint64_t x) { return OSSwapHostToBigInt64(x); }
+static inline uint64_t brix_plat_be64toh(uint64_t x) { return OSSwapBigToHostInt64(x); }
+static inline uint32_t brix_plat_htobe32(uint32_t x) { return OSSwapHostToBigInt32(x); }
+static inline uint32_t brix_plat_be32toh(uint32_t x) { return OSSwapBigToHostInt32(x); }
+static inline uint16_t brix_plat_htobe16(uint16_t x) { return OSSwapHostToBigInt16(x); }
+static inline uint16_t brix_plat_be16toh(uint16_t x) { return OSSwapBigToHostInt16(x); }
+
+#else
+
+/* Portable fallback */
+static inline uint64_t brix_plat_htobe64(uint64_t x) {
+    return ((uint64_t)htonl((uint32_t)(x >> 32)) | ((uint64_t)htonl((uint32_t)x) << 32));
+}
+static inline uint64_t brix_plat_be64toh(uint64_t x) {
+    return ((uint64_t)ntohl((uint32_t)(x >> 32)) | ((uint64_t)ntohl((uint32_t)x) << 32));
+}
+static inline uint32_t brix_plat_htobe32(uint32_t x) { return htonl(x); }
+static inline uint32_t brix_plat_be32toh(uint32_t x) { return ntohl(x); }
+static inline uint16_t brix_plat_htobe16(uint16_t x) { return htons(x); }
+static inline uint16_t brix_plat_be16toh(uint16_t x) { return ntohs(x); }
+
+#endif
+
+/* ==========================================================================
+ * INITIALIZATION
+ * ========================================================================== */
+
+int brix_plat_init(void);
+void brix_plat_cleanup(void);
+
+#endif /* BRIX_PLATFORM_API_H */

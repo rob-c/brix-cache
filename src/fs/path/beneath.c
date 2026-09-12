@@ -35,7 +35,44 @@
 #include "auth/impersonate/impersonate.h"
 
 #include <sys/syscall.h>
+/* macOS lacks linux/openat2.h - provide compatibility stubs */
+#if defined(__APPLE__) && defined(__MACH__)
+#ifndef RESOLVE_BENEATH
+#define RESOLVE_BENEATH 0x8
+#endif
+#ifndef RESOLVE_IN_ROOT
+#define RESOLVE_IN_ROOT 0x10
+#endif
+#ifndef RESOLVE_NO_XDEV
+#define RESOLVE_NO_XDEV 0x01
+#endif
+#ifndef RESOLVE_NO_MAGICLINKS
+#define RESOLVE_NO_MAGICLINKS 0x02
+#endif
+#ifndef RESOLVE_NO_SYMLINKS
+#define RESOLVE_NO_SYMLINKS 0x04
+#endif
+#ifndef RESOLVE_CACHED
+#define RESOLVE_CACHED 0x20
+#endif
+#ifndef SYS_openat2
+#define SYS_openat2 -1
+#endif
+#ifndef O_PATH
+#define O_PATH O_RDONLY
+#endif
+#ifndef SYS_renameat2
+#define SYS_renameat2 -1
+#endif
+/* openat2 compatibility - stub on macOS */
+struct open_how {
+    uint64_t flags;
+    uint64_t mode;
+    uint64_t resolve;
+};
+#else
 #include <linux/openat2.h>
+#endif
 #include <unistd.h>
 #include <errno.h>
 #include <limits.h>
@@ -129,7 +166,12 @@ do_openat2_resolve(int rootfd, const char *rel, int flags, mode_t mode,
      * open(2) does by ignoring the type bits, so a struct-stat mode is accepted.
      */
     if (flags & O_CREAT) { how.mode = (uint64_t)(mode & 07777); }
+#if defined(__APPLE__) && defined(__MACH__)
+    /* macOS lacks openat2 - use openat with basic flags */
+    return (int)openat(rootfd, rel, (int)(how.flags | O_CLOEXEC), how.mode);
+#else
     return (int)syscall(SYS_openat2, rootfd, rel, &how, sizeof(how));
+#endif
 }
 
 /* The default confinement for open/mutate paths: RESOLVE_BENEATH (no symlinks,
@@ -385,8 +427,13 @@ int
 brix_renameat_noreplace_fallback(ngx_log_t *log, int sfd, const char *sbase,
     int dfd, const char *dbase)
 {
+#if defined(__APPLE__) && defined(__MACH__)
+    /* macOS lacks renameat2 - use renameat (no noreplace guarantee) */
+    int rc = (int) renameat(sfd, sbase, dfd, dbase);
+#else
     int rc = (int) syscall(SYS_renameat2, sfd, sbase, dfd, dbase,
                            (unsigned int) RENAME_NOREPLACE);
+#endif
 
     if (rc != 0 && (errno == ENOSYS || errno == EINVAL)) {
         noreplace_degraded = 1;
@@ -457,8 +504,13 @@ beneath_two_path(beneath_two_path_op_t op, int rootfd, const char *src,
          * NEVER degraded to two renames: unlike NOREPLACE there is no
          * pre-checked consolation whose only failure mode is under-claiming
          * (sd.h exchange contract, phase-107 §3.5). */
+#if defined(__APPLE__) && defined(__MACH__)
+        /* macOS lacks renameat2 - use renameat (no atomic exchange) */
+        rc = (int) renameat(sfd, sbase, dfd, dbase);
+#else
         rc = (int) syscall(SYS_renameat2, sfd, sbase, dfd, dbase,
                            (unsigned int) RENAME_EXCHANGE);
+#endif
         if (rc != 0 && (errno == ENOSYS || errno == EINVAL)) {
             errno = ENOTSUP;
         }

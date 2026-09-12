@@ -1,3 +1,4 @@
+#include "platform/platform_api.h"
 #include "tpc/engine/tpc_internal.h"
 #include "protocols/root/protocol/frame_hdr.h"   /* xrd_error_body_decode (shared kXR_error codec) */
 #include "core/compat/checksum.h"                /* brix_checksum_hex_name_fd — dst-side verify */
@@ -6,6 +7,11 @@
 
 #include <stdlib.h>
 #include <string.h>
+
+/* macOS doesn't have endian.h - use libkern/OSByteOrder.h */
+#if defined(__APPLE__) && defined(__MACH__)
+#else
+#endif
 #include <strings.h>   /* strcasecmp — case-insensitive hex compare */
 #include <errno.h>
 #include <limits.h>
@@ -15,7 +21,6 @@
 #include <sys/time.h>
 
 #if defined(__linux__)
-#include <endian.h>
 #endif
 
 /* File: source_stream.c — TPC remote source pull, Phase 2/3 (kXR_read stream
@@ -38,7 +43,7 @@
  * tpc_stream_send_read — WHAT: build and send one kXR_read request for the
  * TPC_CHUNK_SIZE window at `offset`. WHY: isolates the read-request framing from
  * the drain/advance loop. HOW: kXR_read header with an 8-byte big-endian offset
- * (htobe64, NOT htonl) and a 4-byte requested length; streamid[1]=3 tags read
+ * (brix_plat_htobe64, NOT htonl) and a 4-byte requested length; streamid[1]=3 tags read
  * replies on this socket distinctly from the open/close tag (2). Returns 0 on a
  * successful send, -1 with t->err_msg set on failure.
  */
@@ -50,7 +55,7 @@ tpc_stream_send_read(brix_tpc_pull_t *t, int fd, const u_char *fhandle,
 
     xrd_creq_begin(&rdreq, sizeof(rdreq), 3, kXR_read);
     ngx_memcpy(rdreq.fhandle, fhandle, XRD_FHANDLE_LEN);
-    rdreq.offset = (kXR_int64) htobe64(offset);
+    rdreq.offset = (kXR_int64) brix_plat_htobe64(offset);
     rdreq.rlen   = htonl((kXR_int32) TPC_CHUNK_SIZE);
 
     if (tpc_send_all(t, fd, &rdreq, sizeof(rdreq)) != 0) {

@@ -1,3 +1,4 @@
+#include "platform/platform_api.h"
 /*
  * writev_aio.c — kXR_writev thread-pool offload path (split from writev.c,
  * phase-79).
@@ -23,7 +24,8 @@
 #include "core/ngx_brix_module.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "wrts_journal.h"
-#include "writev_internal.h"   /* cross-file: writev_run_t + writev_try_aio decl */
+#include "writev_internal.h"
+/* PAL endian ops now in platform_api.h */  /* brix_plat_be64toh/brix_plat_htobe64 cross-platform */   /* cross-file: writev_run_t + writev_try_aio decl */
 
 /* writev_try_aio — offload the whole vector to a worker thread if configured.
  * WHAT: When a thread pool is configured, flattens the wire descriptors into a
@@ -77,7 +79,7 @@ writev_try_aio(const writev_run_t *run, int do_sync, ngx_flag_t *posted)
 		 * which the caller made all-or-nothing; the analyzer cannot correlate
 		 * the two same-index loops. */
 		int      hidx = (int)(unsigned char) wl[i].fhandle[0];
-		int64_t  off  = (int64_t) be64toh((uint64_t) wl[i].offset);
+		int64_t  off  = (int64_t) brix_plat_be64toh((uint64_t) wl[i].offset);
 
 		/* Defense in depth: writev_validate_handles admits the whole vector up
 		 * front, but a handle that reaches here out of range is an out-of-bounds

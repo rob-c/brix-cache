@@ -1,3 +1,4 @@
+#include "platform/platform_api.h"
 /*
  * readv_window.c — bounded-resident kXR_readv response streaming.
  *
@@ -11,6 +12,7 @@
 #include "protocols/root/connection/budget.h"
 #include "protocols/root/connection/write_helpers.h"
 #include "protocols/root/protocol/readv_seg.h"
+/* PAL endian ops now in platform_api.h */  /* brix_plat_be64toh/brix_plat_htobe64 cross-platform */
 
 static readahead_list *
 readv_window_wire(brix_ctx_t *ctx)
@@ -29,7 +31,7 @@ readv_window_select(brix_ctx_t *ctx, size_t length)
     ctx->rd.win_idx = idx;
     ctx->rd.win_fd = ctx->files[idx].fd;
     ctx->rd.win_offset = (off_t) (int64_t)
-        be64toh((uint64_t) seg->offset);
+        brix_plat_be64toh((uint64_t) seg->offset);
     ctx->rd.win_remaining = length;
 }
 
@@ -63,7 +65,7 @@ brix_readv_window_payload(brix_ctx_t *ctx, u_char *scratch)
     wire = readv_window_wire(ctx);
     ngx_memcpy(scratch, wire[ctx->rd.win_readv_index].fhandle, 4);
     length_be = htonl((uint32_t) ctx->rd.win_remaining);
-    offset_be = htobe64((uint64_t) (int64_t) ctx->rd.win_offset);
+    offset_be = brix_plat_htobe64((uint64_t) (int64_t) ctx->rd.win_offset);
     ngx_memcpy(scratch + 4, &length_be, 4);
     ngx_memcpy(scratch + 8, &offset_be, 8);
     return scratch + BRIX_READV_SEGSIZE;

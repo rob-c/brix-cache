@@ -13,6 +13,51 @@
  * the broker_ops_internal.h contract.
  */
 #include "broker_internal.h"
+
+/* macOS compatibility */
+#if defined(__APPLE__) && defined(__MACH__)
+#ifndef O_PATH
+#define O_PATH O_RDONLY
+#endif
+#ifndef AT_EMPTY_PATH
+#define AT_EMPTY_PATH 0x1000
+#endif
+#ifndef SYS_renameat2
+#define SYS_renameat2 -1
+#endif
+/* openat2 compatibility - stub on macOS */
+struct open_how {
+    uint64_t flags;
+    uint64_t mode;
+    uint64_t resolve;
+};
+#ifndef RESOLVE_BENEATH
+#define RESOLVE_BENEATH 0x8
+#endif
+#ifndef RESOLVE_IN_ROOT
+#define RESOLVE_IN_ROOT 0x10
+#endif
+#ifndef RESOLVE_NO_MAGICLINKS
+#define RESOLVE_NO_MAGICLINKS 0x02
+#endif
+/* xattr compatibility */
+static ssize_t brix_fgetxattr_compat(int fd, const char *name, void *value, size_t size) {
+    return fgetxattr(fd, name, value, size, 0, 0);
+}
+static int brix_fsetxattr_compat(int fd, const char *name, const void *value, size_t size, int flags) {
+    return fsetxattr(fd, name, value, size, 0, flags);
+}
+static ssize_t brix_flistxattr_compat(int fd, char *list, size_t size) {
+    return flistxattr(fd, list, size, 0);
+}
+static int brix_fremovexattr_compat(int fd, const char *name) {
+    return fremovexattr(fd, name, 0);
+}
+#define fgetxattr(fd, name, value, size) brix_fgetxattr_compat(fd, name, value, size)
+#define fsetxattr(fd, name, value, size, flags) brix_fsetxattr_compat(fd, name, value, size, flags)
+#define flistxattr(fd, list, size) brix_flistxattr_compat(fd, list, size)
+#define fremovexattr(fd, name) brix_fremovexattr_compat(fd, name)
+#endif
 #include "broker_ops_internal.h"
 
 
@@ -37,7 +82,12 @@ imp_openat2(int rootfd, const char *rel, uint32_t flags, uint32_t mode)
     how.mode    = (flags & O_CREAT) ? (mode & 07777) : 0;
     how.resolve = RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS;
 
+#if defined(__APPLE__) && defined(__MACH__)
+    /* macOS lacks openat2 - use openat with basic flags */
+    fd = openat(rootfd, rel, (int)(how.flags | O_CLOEXEC), how.mode);
+#else
     fd = syscall(SYS_openat2, rootfd, rel, &how, sizeof(how));
+#endif
     return (fd < 0) ? -errno : (int) fd;
 }
 
@@ -187,6 +237,12 @@ int
 imp_do_exchange(int sfd, const char *sbase, int dfd, const char *dbase)
 {
     /* phase72-fp: sfd/sbase ARE the first (source) pair — order is correct */
+#if defined(__APPLE__) && defined(__MACH__)
+    /* macOS lacks renameat2 - use renameat (no atomic exchange) */
+    if (renameat(sfd, sbase, dfd, dbase) == 0) {
+        return 0;
+    }
+#else
     if (syscall(SYS_renameat2, sfd, sbase, dfd, dbase,   /* NOLINT(readability-suspicious-call-argument) */
                 (unsigned int) RENAME_EXCHANGE) == 0) {
         return 0;
@@ -194,6 +250,7 @@ imp_do_exchange(int sfd, const char *sbase, int dfd, const char *dbase)
     if (errno == ENOSYS || errno == EINVAL) {
         errno = ENOTSUP;
     }
+#endif
     return -1;
 }
 
@@ -214,6 +271,12 @@ imp_do_rename(int sfd, const char *sbase, int dfd, const char *dbase,
         /* phase72-fp: sfd/sbase ARE the old (source) pair — order is correct */
         return renameat(sfd, sbase, dfd, dbase);  /* NOLINT(readability-suspicious-call-argument) */
     }
+#if defined(__APPLE__) && defined(__MACH__)
+    /* macOS lacks renameat2 - use renameat (no noreplace guarantee) */
+    if (renameat(sfd, sbase, dfd, dbase) == 0) {
+        return 0;
+    }
+#else
     if (syscall(SYS_renameat2, sfd, sbase, dfd, dbase,
                 (unsigned int) RENAME_NOREPLACE) == 0) {
         return 0;
@@ -222,6 +285,7 @@ imp_do_rename(int sfd, const char *sbase, int dfd, const char *dbase,
         /* phase72-fp: sfd/sbase ARE the old (source) pair — order is correct */
         return renameat(sfd, sbase, dfd, dbase);  /* NOLINT(readability-suspicious-call-argument) */
     }
+#endif
     return -1;
 }
 

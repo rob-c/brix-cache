@@ -28,6 +28,13 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/wait.h>
+
+/* macOS lacks secure_getenv - use getenv as fallback */
+#if defined(__APPLE__) && defined(__MACH__)
+#ifndef secure_getenv
+#define secure_getenv(name) getenv(name)
+#endif
+#endif
 #include <ctype.h>
 
 #define TPC_TOKEN_MAX_LEN  65536

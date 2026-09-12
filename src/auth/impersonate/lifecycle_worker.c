@@ -26,14 +26,90 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+/* macOS lacks sys/prctl.h - provide stubs */
+#if defined(__APPLE__) && defined(__MACH__)
+#ifndef PR_SET_NO_NEW_PRIVS
+#define PR_SET_NO_NEW_PRIVS 38
+#endif
+#ifndef PR_GET_NO_NEW_PRIVS
+#define PR_GET_NO_NEW_PRIVS 39
+#endif
+static inline int prctl(int option, ...) __attribute__((unused));
+static inline int prctl(int option, ...) {
+    (void)option;
+    return 0;  /* Skip prctl operations on macOS */
+}
+#else
 #include <sys/prctl.h>
+#endif
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <sys/wait.h>
+/* macOS lacks linux/capability.h - provide stubs */
+#if defined(__APPLE__) && defined(__MACH__)
+#ifndef _LINUX_CAPABILITY_VERSION_3
+#define _LINUX_CAPABILITY_VERSION_3 0x20080522
+#endif
+#ifndef CAP_SETUID
+#define CAP_SETUID 7
+#endif
+#ifndef CAP_SETGID
+#define CAP_SETGID 6
+#endif
+#ifndef CAP_SETPCAP
+#define CAP_SETPCAP 8
+#endif
+#ifndef CAP_DAC_OVERRIDE
+#define CAP_DAC_OVERRIDE 1
+#endif
+#ifndef CAP_DAC_READ_SEARCH
+#define CAP_DAC_READ_SEARCH 2
+#endif
+#ifndef CAP_FOWNER
+#define CAP_FOWNER 3
+#endif
+#ifndef CAP_CHOWN
+#define CAP_CHOWN 0
+#endif
+#ifndef CAP_FSETID
+#define CAP_FSETID 4
+#endif
+#ifndef CAP_SYS_ADMIN
+#define CAP_SYS_ADMIN 21
+#endif
+#ifndef CAP_SYS_PTRACE
+#define CAP_SYS_PTRACE 19
+#endif
+#ifndef CAP_MKNOD
+#define CAP_MKNOD 27
+#endif
+#ifndef SYS_capget
+#define SYS_capget -1
+#endif
+#ifndef SYS_capset
+#define SYS_capset -1
+#endif
+#ifndef CAP_SETFCAP
+#define CAP_SETFCAP 31
+#endif
+#ifndef PR_CAPBSET_DROP
+#define PR_CAPBSET_DROP 24
+#endif
+struct __user_cap_header_struct {
+    uint32_t version;
+    int pid;
+};
+struct __user_cap_data_struct {
+    uint32_t effective;
+    uint32_t permitted;
+    uint32_t inheritable;
+};
+#else
 #include <linux/capability.h>
+#endif
 
 
 /*

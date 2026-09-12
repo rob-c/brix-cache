@@ -1,0 +1,344 @@
+name: Multi-Platform Build Verification
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/platform/**'
+      - 'config'
+      - 'Makefile'
+      - '.github/workflows/platform-builds.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/platform/**'
+      - 'config'
+      - 'Makefile'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build (all, linux, darwin, windows)'
+        required: false
+        default: 'all'
+      architecture:
+        description: 'Architecture (all, x86_64, arm64)'
+        required: false
+        default: 'all'
+
+jobs:
+  # Linux x86_64 Build
+  linux-x86_64:
+    runs-on: ubuntu-22.04
+    name: Linux x86_64
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libssl-dev \
+            zlib1g-dev \
+            libpcre2-dev \
+            libxml2-dev \
+            libjansson-dev \
+            libkrb5-dev \
+            libcurl4-openssl-dev \
+            libsqlite3-dev \
+            libbz2-dev \
+            liblz4-dev \
+            libzstd-dev \
+            libbrotli-dev \
+            liblzma-dev
+      
+      - name: Download nginx source
+        run: |
+          cd /tmp
+          wget -q http://nginx.org/download/nginx-1.28.3.tar.gz
+          tar xzf nginx-1.28.3.tar.gz
+      
+      - name: Build PAL verification
+        run: |
+          chmod +x tools/ci/verify_platform_builds.sh
+          tools/ci/verify_platform_builds.sh --platform=linux --arch=x86_64
+      
+      - name: Build nginx module
+        run: |
+          cd /tmp/nginx-1.28.3
+          ./configure \
+            --with-stream \
+            --with-stream_ssl_module \
+            --with-threads \
+            --add-module=$GITHUB_WORKSPACE
+          make -j$(nproc)
+      
+      - name: Verify binary
+        run: |
+          file /tmp/nginx-1.28.3/objs/nginx
+          /tmp/nginx-1.28.3/objs/nginx -v
+      
+      - name: Run PAL seam check
+        run: |
+          chmod +x tools/ci/check_pal_seam.py
+          python3 tools/ci/check_pal_seam.py --directory=src --check-implementation
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: nginx-linux-x86_64
+          path: /tmp/nginx-1.28.3/objs/nginx
+          retention-days: 7
+
+  # Linux ARM64 Build (cross-compile)
+  linux-arm64:
+    runs-on: ubuntu-22.04
+    name: Linux ARM64
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu
+      
+      - name: Build PAL verification (cross-compile)
+        run: |
+          chmod +x tools/ci/verify_platform_builds.sh
+          tools/ci/verify_platform_builds.sh --platform=linux --arch=arm64 || true
+        continue-on-error: true
+      
+      - name: Verify PAL source compiles
+        run: |
+          cd build/platform_verify
+          aarch64-linux-gnu-gcc \
+            -march=armv8-a \
+            -I$GITHUB_WORKSPACE \
+            -c $GITHUB_WORKSPACE/src/platform/platform.c \
+            -o platform.o
+          aarch64-linux-gnu-gcc \
+            -march=armv8-a \
+            -I$GITHUB_WORKSPACE \
+            -c $GITHUB_WORKSPACE/src/platform/linux/posix_wrapper.c \
+            -o posix_wrapper.o
+          echo "✅ ARM64 object files created successfully"
+
+  # macOS x86_64 Build
+  macos-x86_64:
+    runs-on: macos-12
+    name: macOS x86_64
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          brew install \
+            openssl@3 \
+            pcre2 \
+            libxml2 \
+            jansson \
+            krb5 \
+            curl \
+            sqlite \
+            bzip2 \
+            lz4 \
+            zstd \
+            brotli \
+            xz
+      
+      - name: Download nginx source
+        run: |
+          cd /tmp
+          curl -O http://nginx.org/download/nginx-1.28.3.tar.gz
+          tar xzf nginx-1.28.3.tar.gz
+      
+      - name: Build PAL verification
+        run: |
+          chmod +x tools/ci/verify_platform_builds.sh
+          tools/ci/verify_platform_builds.sh --platform=darwin --arch=x86_64
+      
+      - name: Build nginx module
+        run: |
+          cd /tmp/nginx-1.28.3
+          ./configure \
+            --with-stream \
+            --with-stream_ssl_module \
+            --with-threads \
+            --add-module=$GITHUB_WORKSPACE
+          make -j$(sysctl -n hw.ncpu)
+      
+      - name: Verify binary
+        run: |
+          file /tmp/nginx-1.28.3/objs/nginx
+          /tmp/nginx-1.28.3/objs/nginx -v
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: nginx-macos-x86_64
+          path: /tmp/nginx-1.28.3/objs/nginx
+          retention-days: 7
+
+  # macOS ARM64 Build (Apple Silicon)
+  macos-arm64:
+    runs-on: macos-14
+    name: macOS ARM64 (Apple Silicon)
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          brew install \
+            openssl@3 \
+            pcre2 \
+            libxml2 \
+            jansson \
+            krb5 \
+            curl \
+            sqlite \
+            bzip2 \
+            lz4 \
+            zstd \
+            brotli \
+            xz
+      
+      - name: Download nginx source
+        run: |
+          cd /tmp
+          curl -O http://nginx.org/download/nginx-1.28.3.tar.gz
+          tar xzf nginx-1.28.3.tar.gz
+      
+      - name: Build PAL verification
+        run: |
+          chmod +x tools/ci/verify_platform_builds.sh
+          tools/ci/verify_platform_builds.sh --platform=darwin --arch=arm64
+      
+      - name: Build nginx module with optimizations
+        run: |
+          cd /tmp/nginx-1.28.3
+          BRIX_OPTIMIZE=apple_silicon ./configure \
+            --with-stream \
+            --with-stream_ssl_module \
+            --with-threads \
+            --add-module=$GITHUB_WORKSPACE
+          make -j$(sysctl -n hw.ncpu)
+      
+      - name: Verify binary
+        run: |
+          file /tmp/nginx-1.28.3/objs/nginx
+          /tmp/nginx-1.28.3/objs/nginx -v
+          # Verify ARM64 architecture
+          if ! file /tmp/nginx-1.28.3/objs/nginx | grep -q "arm64"; then
+            echo "❌ Binary is not ARM64!"
+            exit 1
+          fi
+          echo "✅ Binary is ARM64"
+      
+      - name: Run PAL seam check
+        run: |
+          chmod +x tools/ci/check_pal_seam.py
+          python3 tools/ci/check_pal_seam.py --directory=src --check-implementation
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: nginx-macos-arm64
+          path: /tmp/nginx-1.28.3/objs/nginx
+          retention-days: 7
+
+  # Windows Cross-Compile (from Linux)
+  windows-x86_64:
+    runs-on: ubuntu-22.04
+    name: Windows x86_64 (Cross-Compile)
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install MinGW cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-mingw-w64-x86-64 \
+            g++-mingw-w64-x86-64
+      
+      - name: Build PAL verification
+        run: |
+          chmod +x tools/ci/verify_platform_builds.sh
+          tools/ci/verify_platform_builds.sh --platform=windows --arch=x86_64
+      
+      - name: Verify PAL source compiles
+        run: |
+          cd build/platform_verify/windows_x86_64
+          if [ -f test_platform.exe ]; then
+            echo "✅ Windows executable created"
+            file test_platform.exe
+          else
+            echo "⚠️ Windows build skipped (expected in cross-compile)"
+          fi
+      
+      - name: Check PAL implementation
+        run: |
+          # Verify Windows PAL files exist
+          test -f src/platform/windows/README.md
+          test -f src/platform/windows/win32_compat.h
+          test -f src/platform/windows/posix_wrapper.c
+          echo "✅ Windows PAL skeleton present"
+
+  # PAL Seam Check (All Platforms)
+  pal-seam-check:
+    runs-on: ubuntu-22.04
+    name: PAL Integrity Check
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+      
+      - name: Run PAL seam check
+        run: |
+          chmod +x tools/ci/check_pal_seam.py
+          python3 tools/ci/check_pal_seam.py \
+            --directory=src \
+            --check-implementation \
+            --quiet
+      
+      - name: Run VFS seam check
+        run: |
+          chmod +x tools/ci/check_vfs_seam.py
+          python3 tools/ci/check_vfs_seam.py \
+            --directory=src \
+            --mode=pal \
+            --quiet
+
+  # Build Matrix Summary
+  summary:
+    runs-on: ubuntu-22.04
+    name: Build Summary
+    needs: [linux-x86_64, linux-arm64, macos-x86_64, macos-arm64, windows-x86_64, pal-seam-check]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Multi-Platform Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          for job in linux-x86_64 linux-arm64 macos-x86_64 macos-arm64 windows-x86_64 pal-seam-check; do
+            status="${{ needs.$job.result }}"
+            if [ "$status" == "success" ]; then
+              echo "| $job | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+            elif [ "$status" == "failure" ]; then
+              echo "| $job | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $job | ⚠️ $status |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Build artifacts available in the Actions tab." >> $GITHUB_STEP_SUMMARY

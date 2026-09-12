@@ -1,3 +1,4 @@
+#include "platform/platform_api.h"
 /*
  * cache/origin_write.c — origin-side write-through / mirroring data path.
  *
@@ -12,7 +13,7 @@
 #include "cache_internal.h"
 #include "protocols/root/protocol/bootstrap_pack.h"   /* shared request packers */
 #include "protocols/root/protocol/frame_hdr.h"        /* xrd_error_body_decode */
-#include <endian.h>
+/* PAL endian ops now in platform_api.h */  /* brix_plat_htobe64/brix_plat_be64toh cross-platform */
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
@@ -147,7 +148,7 @@ brix_cache_origin_close_file(brix_cache_origin_conn_t *oc,
 }
 
 /* brix_cache_origin_write_chunk — kXR_write a payload at a big-endian 64-bit
- * offset (htobe64, XRootD wire format); the reply must be kXR_ok with dlen=0.
+ * offset (brix_plat_htobe64, XRootD wire format); the reply must be kXR_ok with dlen=0.
  * Returns 0 on success, -1 on error. */
 int
 brix_cache_origin_write_chunk(brix_cache_fill_t *t,
@@ -169,7 +170,7 @@ brix_cache_origin_write_chunk(brix_cache_fill_t *t,
     req.streamid[1] = 3;
     req.requestid = htons(kXR_write);
     ngx_memcpy(req.fhandle, fhandle, XRD_FHANDLE_LEN);
-    req.offset = (kXR_int64) htobe64(offset);
+    req.offset = (kXR_int64) brix_plat_htobe64(offset);
     req.dlen = htonl((kXR_int32) len);
 
     if (brix_cache_io_send(oc, &req, sizeof(req)) != 0
@@ -220,7 +221,7 @@ brix_cache_origin_truncate(brix_cache_fill_t *t,
     req.streamid[1] = 4;
     req.requestid = htons(kXR_truncate);
     ngx_memcpy(req.fhandle, fhandle, XRD_FHANDLE_LEN);
-    req.offset = (kXR_int64) htobe64(length);
+    req.offset = (kXR_int64) brix_plat_htobe64(length);
     req.dlen = 0;
 
     if (brix_cache_io_send(oc, &req, sizeof(req)) != 0) {
@@ -291,7 +292,7 @@ brix_cache_origin_truncate_path(brix_cache_fill_t *t,
     req->requestid = htons(kXR_truncate);
     /* Path-based form: fhandle left zero, dlen = path length, path as payload —
      * the origin resolves the target by name (XProtocol ClientTruncateRequest). */
-    req->offset = (kXR_int64) htobe64(length);
+    req->offset = (kXR_int64) brix_plat_htobe64(length);
     req->dlen = htonl((kXR_int32) pathlen);
     ngx_memcpy(buf + sizeof(*req), path, pathlen);
 

@@ -1,8 +1,10 @@
+#include "platform/platform_api.h"
 #include "core/ngx_brix_module.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "wrts_journal.h"
 #include "write.h"             /* brix_write_within_maxsize (oss.maxsize cap) */
 #include "writev_internal.h"   /* writev_run_t + writev_try_aio (writev_aio.c) */
+/* PAL endian ops now in platform_api.h */  /* brix_plat_be64toh/brix_plat_htobe64 cross-platform */
 
 /* brix_writev_body_extra — trailing segment-data length for kXR_writev
  * WHAT: Validates a dlen-framed write_list descriptor block under the stock
@@ -197,7 +199,7 @@ writev_write_segment(brix_ctx_t *ctx, ngx_connection_t *c,
                      size_t *bytes_written_total)
 {
 	int      idx    = (int)(unsigned char) seg->fhandle[0];
-	int64_t  offset = (int64_t) be64toh((uint64_t) seg->offset);  /* BE64 */
+	int64_t  offset = (int64_t) brix_plat_be64toh((uint64_t) seg->offset);  /* BE64 */
 	uint32_t wlen   = (uint32_t) ntohl((uint32_t) seg->wlen);     /* BE32 */
 	ssize_t  nw;
 
@@ -434,7 +436,7 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 			size_t seg;
 			for (seg = 0; seg < n_segs; seg++) {
 				int      sidx = (int)(unsigned char) wl[seg].fhandle[0];
-				int64_t  soff = (int64_t) be64toh((uint64_t) wl[seg].offset);
+				int64_t  soff = (int64_t) brix_plat_be64toh((uint64_t) wl[seg].offset);
 				uint32_t slen = (uint32_t) ntohl((uint32_t) wl[seg].wlen);
 
 				if (brix_write_within_maxsize(ctx, c, mconf, sidx, soff,

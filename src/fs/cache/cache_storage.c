@@ -12,6 +12,13 @@
 #include "fs/tier/tier.h"              /* brix_cache_policy_t */
 
 #include <fcntl.h>
+
+/* macOS lacks O_PATH - use O_RDONLY as fallback */
+#if defined(__APPLE__) && defined(__MACH__)
+#ifndef O_PATH
+#define O_PATH O_RDONLY
+#endif
+#endif
 #include <string.h>
 #include <unistd.h>
 

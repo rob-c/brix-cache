@@ -2,6 +2,13 @@
 
 #include <errno.h>
 #include <fcntl.h>
+
+/* macOS lacks O_PATH - use O_RDONLY as fallback */
+#if defined(__APPLE__) && defined(__MACH__)
+#ifndef O_PATH
+#define O_PATH O_RDONLY
+#endif
+#endif
 #include <limits.h>
 #include <stdio.h>
 #include <unistd.h>

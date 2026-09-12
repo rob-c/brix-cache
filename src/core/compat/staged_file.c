@@ -21,6 +21,20 @@
 #include <sys/xattr.h>
 #include <unistd.h>
 
+/* macOS lacks lgetxattr/lsetxattr - provide wrappers using getxattr/setxattr with XATTR_NOFOLLOW */
+#if defined(__APPLE__) && defined(__MACH__)
+#include <sys/xattr.h>
+
+static inline ssize_t lgetxattr(const char *path, const char *name, void *value, size_t size) {
+    return getxattr(path, name, value, size, 0, XATTR_NOFOLLOW);
+}
+
+static inline int lsetxattr(const char *path, const char *name, const void *value, size_t size, int position, int options) {
+    (void)position; (void)options;
+    return setxattr(path, name, value, size, 0, XATTR_NOFOLLOW);
+}
+#endif
+
 /*
  * Confinement (Phase 8): the temp file and its final destination always live
  * under root_canon (brix_make_tmp_path derives the temp name next to
@@ -294,7 +308,11 @@ brix_staged_lock_carry(ngx_log_t *log, const char *final_path,
     if (n <= 0) {
         return NGX_OK;              /* absent class: nothing to carry */
     }
+#if defined(__APPLE__) && defined(__MACH__)
+    if (lsetxattr(tmp_path, BRIX_LOCK_XATTR_KEY, buf, (size_t) n, 0, 0) != 0) {
+#else
     if (lsetxattr(tmp_path, BRIX_LOCK_XATTR_KEY, buf, (size_t) n, 0) != 0) {
+#endif
         int e = errno;
 
         ngx_log_error(NGX_LOG_ERR, log, e,

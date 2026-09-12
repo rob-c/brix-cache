@@ -22,6 +22,23 @@
 
 #include <pwd.h>
 #include <grp.h>
+
+/* macOS getgrouplist expects int* not gid_t* - provide wrapper */
+#if defined(__APPLE__) && defined(__MACH__)
+static int brix_getgrouplist_compat(const char *user, gid_t base_gid, gid_t *gids, int *ngroups) {
+    int *gids_int = malloc(*ngroups * sizeof(int));
+    int result;
+    int i;
+    if (gids_int == NULL) return -1;
+    result = getgrouplist(user, (int)base_gid, gids_int, ngroups);
+    for (i = 0; i < *ngroups && i < BRIX_IDMAP_MAXGROUPS; i++) {
+        gids[i] = (gid_t)gids_int[i];
+    }
+    free(gids_int);
+    return result;
+}
+#define getgrouplist(user, base_gid, gids, ngroups) brix_getgrouplist_compat(user, base_gid, gids, ngroups)
+#endif
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>

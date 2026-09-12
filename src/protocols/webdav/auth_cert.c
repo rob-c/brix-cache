@@ -98,6 +98,7 @@ webdav_auth_init_ssl_indices(ngx_log_t *log)
  * WHAT: Compares two ngx_str_t structures for equality by first checking length, then byte-by-byte content. Handles the special case of empty strings (length 0) which are always considered equal regardless of data pointer values. This is safer than using memcmp directly because empty strings with different pointers could pass memcmp if both buffers happen to contain zero bytes.
  *
  * WHY: nginx uses ngx_str_t for string representation (not null-terminated C strings). Comparing these requires length-aware operations — strlen/strcpy would fail on non-null-terminated ngx_str_t structures per the FAQ rules in AGENTS.md. */
+#if !defined(__APPLE__) || !defined(__MACH__)
 static ngx_int_t
 webdav_str_equal(const ngx_str_t *a, const ngx_str_t *b)
 {
@@ -111,6 +112,7 @@ webdav_str_equal(const ngx_str_t *a, const ngx_str_t *b)
 
     return ngx_memcmp(a->data, b->data, a->len) == 0;
 }
+#endif
 
 /*
  *
@@ -408,6 +410,17 @@ webdav_try_cached_tls_auth(ngx_http_request_t *r, SSL *ssl,
     return NGX_DECLINED;
 }
 
+/* Stub for macOS - ngx_http_ssl_module not available */
+#if defined(__APPLE__) && defined(__MACH__)
+static ngx_int_t
+webdav_nginx_verify_compatible(ngx_http_request_t *r,
+                               ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    (void)r; (void)conf;
+    /* Stub - always return compatible on macOS */
+    return 1;
+}
+#else
 static ngx_int_t
 webdav_nginx_verify_compatible(ngx_http_request_t *r,
                                ngx_http_brix_webdav_loc_conf_t *conf)
@@ -435,6 +448,7 @@ webdav_nginx_verify_compatible(ngx_http_request_t *r,
 
     return 1;
 }
+#endif
 
 static ngx_int_t
 webdav_finish_verified_cert(ngx_http_request_t *r,

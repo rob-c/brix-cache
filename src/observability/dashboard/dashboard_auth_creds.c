@@ -6,7 +6,12 @@
 #include <openssl/crypto.h>
 #include <stdio.h>
 #include <string.h>
+/* macOS has crypt in unistd.h, not crypt.h */
+#if defined(__APPLE__) && defined(__MACH__)
+#include <unistd.h>
+#else
 #include <crypt.h>
+#endif
 
 /*
  * dashboard/dashboard_auth_creds.c — credential store and session-cookie HMAC

@@ -35,7 +35,34 @@
 #if (NGX_THREADS)
 
 #include <pthread.h>
+/* macOS lacks eventfd - use pipe as fallback */
+#if defined(__APPLE__) && defined(__MACH__)
+#include <unistd.h>
+#include <fcntl.h>
+static int brix_eventfd_pipe_read = -1;
+static int brix_eventfd_compat(int val, int flags) {
+    int fds[2];
+    (void)val;  /* initial value ignored for pipe-based eventfd */
+    if (pipe(fds) < 0) return -1;
+    if ((flags & 04000)) {  /* O_NONBLOCK */
+        int flags_r = fcntl(fds[0], F_GETFL, 0);
+        int flags_w = fcntl(fds[1], F_GETFL, 0);
+        fcntl(fds[0], F_SETFL, flags_r | O_NONBLOCK);
+        fcntl(fds[1], F_SETFL, flags_w | O_NONBLOCK);
+    }
+    if ((flags & 02000)) {  /* O_CLOEXEC */
+        fcntl(fds[0], F_SETFD, FD_CLOEXEC);
+        fcntl(fds[1], F_SETFD, FD_CLOEXEC);
+    }
+    brix_eventfd_pipe_read = fds[0];  /* caller must store this */
+    return fds[1];  /* return write fd */
+}
+#define eventfd(val, flags) brix_eventfd_compat(val, flags)
+#define BRIX_EVENTFD_PIPE_READ brix_eventfd_pipe_read
+#else
 #include <sys/eventfd.h>
+#define BRIX_EVENTFD_PIPE_READ efd
+#endif
 #include <time.h>
 
 #define DNS_BRIDGE_SLICE_MS      100
@@ -59,6 +86,9 @@ struct dns_bridge_item_s {
 
 typedef struct {
     int                 efd;
+#if defined(__APPLE__) && defined(__MACH__)
+    int                 efd_write;  /* pipe write end for macOS eventfd compat */
+#endif
     ngx_connection_t   *conn;
     pthread_mutex_t     mu;
     dns_bridge_item_t  *head;
@@ -189,14 +219,23 @@ brix_dns_bridge_init_worker(ngx_cycle_t *cycle)
         return NGX_OK;
     }
     ngx_queue_init(&dns_bridge.inflight);
+#if defined(__APPLE__) && defined(__MACH__)
+    dns_bridge.efd_write = eventfd(0, 04000 | 02000);  /* O_NONBLOCK | O_CLOEXEC */
+    dns_bridge.efd = BRIX_EVENTFD_PIPE_READ;
+    if (dns_bridge.efd < 0 || dns_bridge.efd_write < 0) {
+#else
     dns_bridge.efd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (dns_bridge.efd < 0) {
+#endif
         ngx_log_error(NGX_LOG_ALERT, cycle->log, ngx_errno,
                       "brix dns: eventfd() failed, thread resolves use libc");
         return NGX_OK;                        /* degraded, not fatal */
     }
     c = ngx_get_connection(dns_bridge.efd, cycle->log);
     if (c == NULL) {
+#if defined(__APPLE__) && defined(__MACH__)
+        close(dns_bridge.efd_write);
+#endif
         close(dns_bridge.efd);
         dns_bridge.efd = -1;
         return NGX_OK;
@@ -206,6 +245,9 @@ brix_dns_bridge_init_worker(ngx_cycle_t *cycle)
     c->data = &dns_bridge;
     if (ngx_add_event(c->read, NGX_READ_EVENT, 0) != NGX_OK) {
         ngx_free_connection(c);
+#if defined(__APPLE__) && defined(__MACH__)
+        close(dns_bridge.efd_write);
+#endif
         close(dns_bridge.efd);
         dns_bridge.efd = -1;
         return NGX_OK;
@@ -254,7 +296,11 @@ dns_bridge_enqueue(dns_bridge_item_t *item)
     dns_bridge.tail = item;
     dns_bridge.requests++;
     pthread_mutex_unlock(&dns_bridge.mu);
+#if defined(__APPLE__) && defined(__MACH__)
+    if (write(dns_bridge.efd_write, &one, sizeof(one)) != (ssize_t) sizeof(one)) {
+#else
     if (write(dns_bridge.efd, &one, sizeof(one)) != (ssize_t) sizeof(one)) {
+#endif
         /* only a saturated eventfd counter refuses a +1: the item is queued
          * and the next wakeup drains it, so log rather than fail */
         ngx_log_error(NGX_LOG_ALERT, ngx_cycle->log, ngx_errno,

@@ -10,7 +10,7 @@
 
 
 #if defined(__linux__)
-#include <endian.h>
+/* PAL endian ops now in platform_api.h */  /* brix_plat_htobe64/brix_plat_be64toh cross-platform */
 #endif
 #include <errno.h>
 #include <fcntl.h>

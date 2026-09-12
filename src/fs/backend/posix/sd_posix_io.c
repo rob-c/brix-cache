@@ -82,7 +82,13 @@ ssize_t
 sd_posix_preadv2(brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
     off_t off, int flags)
 {
+#if defined(__APPLE__) && defined(__MACH__)
+    /* macOS lacks preadv2 - fall back to preadv (ignores flags) */
+    (void)flags;
+    return preadv(obj->fd, iov, iovcnt, off);
+#else
     return preadv2(obj->fd, iov, iovcnt, off, flags);
+#endif
 }
 
 /* sd_posix_copy_range — one copy_file_range(2) of up to len bytes src->dst (0 =

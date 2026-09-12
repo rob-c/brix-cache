@@ -1,3 +1,4 @@
+#include "platform/platform_api.h"
 /*
  * stream_wmirror_replay.c — XRootD stream data-write mirror: detached-replay
  * lifecycle and socket I/O (see stream_wmirror_internal.h).
@@ -26,7 +27,10 @@
 #include "stream_mirror_io.h"
 
 #include <sys/socket.h>
-#include <endian.h>
+/* macOS doesn't have endian.h - use libkern/OSByteOrder.h */
+#if defined(__APPLE__) && defined(__MACH__)
+#else
+#endif
 
 extern void brix_upstream_build_bootstrap(u_char *buf);
 

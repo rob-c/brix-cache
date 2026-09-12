@@ -84,7 +84,9 @@ path_list_push(path_list *pl, const char *s)
      * though the caller frees every stored entry via path_list_free. Suppress
      * exactly that diagnostic for exactly this store. */
 #pragma GCC diagnostic push
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic ignored "-Wanalyzer-malloc-leak"
+#endif
     pl->items[pl->len] = dup;
     pl->len++;
     return 0;

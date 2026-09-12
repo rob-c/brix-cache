@@ -242,3 +242,230 @@ checks are disabled by policy at the top of the script (each with a reason):
 `clang-diagnostic-unused-parameter` (the build sets `-Wno-unused-parameter`)
 and `misc-header-include-cycle` (the nginx module include graph is
 legitimately cyclic). Override with `CC_DISABLE=""` to see the full profile.
+
+---
+
+# CI/CD Tools for Multi-Platform Builds
+
+This directory contains tools for verifying BriX-Cache builds across all supported platforms and architectures.
+
+## Tools Overview
+
+### 1. verify_platform_builds.sh
+
+**Purpose**: Build and verify PAL source files for all platforms
+
+**Usage**:
+```bash
+# Build for all platforms
+./verify_platform_builds.sh
+
+# Build for specific platform
+./verify_platform_builds.sh --platform=linux --arch=arm64
+
+# Clean and rebuild
+./verify_platform_builds.sh --clean
+
+# Include full nginx module builds
+./verify_platform_builds.sh --nginx-build
+```
+
+**Platforms**:
+- ✅ Linux x86_64 (native)
+- ✅ Linux ARM64 (cross-compile with aarch64-linux-gnu-gcc)
+- ✅ macOS x86_64 (native, requires macOS host)
+- ✅ macOS ARM64 (native, requires Apple Silicon)
+- 🚧 Windows x86_64 (cross-compile with MinGW)
+
+**Requirements**:
+```bash
+# Ubuntu/Debian
+sudo apt-get install \
+  gcc-aarch64-linux-gnu \
+  gcc-mingw-w64-x86-64 \
+  clang
+
+# macOS
+brew install mingw-w64
+```
+
+### 2. check_pal_seam.py
+
+**Purpose**: Verify PAL abstraction layer integrity
+
+**Checks**:
+- No platform-specific includes in business logic
+- All byte-order operations use `brix_plat_*()` functions
+- All file operations use PAL wrappers
+- Required PAL functions are implemented
+
+**Usage**:
+```bash
+# Full check
+python3 tools/ci/check_pal_seam.py --directory=src --check-implementation
+
+# Quick check (violations only)
+python3 tools/ci/check_pal_seam.py --quiet
+
+# Check specific directory
+python3 tools/ci/check_pal_seam.py --directory=src/platform
+```
+
+**Example Output**:
+```
+Scanning src for PAL violations...
+
+================================================================================
+PAL Seam Check Report
+================================================================================
+
+Files scanned: 234
+Files using PAL API: 189
+
+❌ VIOLATIONS (3):
+--------------------------------------------------------------------------------
+  src/fs/cache/origin_protocol.c:419: Use brix_plat_htobe64 instead of 'htobe64'
+  src/protocols/root/read/readv.c:116: Use brix_plat_be64toh instead of 'be64toh'
+  Platform windows: brix_plat_execvpe() not found (may be stubbed)
+
+⚠️  WARNINGS (5):
+--------------------------------------------------------------------------------
+  Platform darwin: brix_plat_security_init() not found (may be stubbed)
+  ...
+
+❌ PAL seam check FAILED
+```
+
+### 3. check_vfs_seam.py
+
+**Purpose**: Verify VFS abstraction layer integrity (similar to PAL check)
+
+**Usage**:
+```bash
+python3 tools/ci/check_vfs_seam.py --directory=src --mode=pal
+```
+
+### 4. GitHub Actions Workflow
+
+**File**: `.github/workflows/platform-builds.yml`
+
+**Triggers**:
+- Push to `main` or `develop` branches
+- Pull requests
+- Manual workflow dispatch
+
+**Jobs**:
+1. **linux-x86_64**: Native build on Ubuntu 22.04
+2. **linux-arm64**: Cross-compile with aarch64-linux-gnu-gcc
+3. **macos-x86_64**: Native build on macOS 12 (Intel)
+4. **macos-arm64**: Native build on macOS 14 (Apple Silicon)
+5. **windows-x86_64**: Cross-compile with MinGW
+6. **pal-seam-check**: PAL integrity verification
+7. **summary**: Build matrix summary
+
+**Artifacts**: nginx binaries for each platform (retained for 7 days)
+
+## Platform Support Matrix
+
+| Platform | Build | Test | CI Runner | Status |
+|----------|-------|------|-----------|--------|
+| Linux x86_64 | ✅ | ✅ | GitHub Actions | Production |
+| Linux ARM64 | ✅ | 🔲 | GitHub Actions | Dev/Test |
+| macOS x86_64 | ✅ | ✅ | GitHub Actions | Production |
+| macOS ARM64 | ✅ | ✅ | GitHub Actions | Production |
+| Windows x86_64 | 🔲 | 🔲 | GitHub Actions | Skeleton |
+
+**Legend**: ✅ Complete, 🔲 In Progress, ❌ Not Started
+
+## Cross-Compilation Setup
+
+### Linux ARM64 (from x86_64)
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+# Verify
+aarch64-linux-gnu-gcc --version
+
+# Build
+./verify_platform_builds.sh --platform=linux --arch=arm64
+```
+
+### Windows x86_64 (from Linux)
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+
+# Verify
+x86_64-w64-mingw32-gcc --version
+
+# Build
+./verify_platform_builds.sh --platform=windows --arch=x86_64
+```
+
+### macOS Universal Binary
+
+```bash
+# Build for both architectures
+clang -arch x86_64 -arch arm64 -o binary source.c
+
+# Verify
+file binary
+# Should show: Mach-O universal binary with 2 architectures
+```
+
+## Troubleshooting
+
+### Build fails with "command not found"
+
+Install missing cross-compiler:
+```bash
+# ARM64 Linux
+sudo apt-get install gcc-aarch64-linux-gnu
+
+# Windows
+sudo apt-get install gcc-mingw-w64-x86-64
+```
+
+### macOS builds fail on Linux
+
+macOS builds require a macOS host. Use GitHub Actions `macos-12` or `macos-14` runners.
+
+### PAL seam check reports violations
+
+Fix violations by:
+1. Replace direct syscalls with `brix_plat_*()` functions
+2. Add `#include "platform/platform_api.h"` to files using PAL
+3. Move platform-specific code to `src/platform/<platform>/`
+
+### Windows build produces .exe but won't run
+
+Windows executables built on Linux require Wine to test:
+```bash
+wine build/platform_verify/windows_x86_64/test_platform.exe
+```
+
+## Performance Benchmarks
+
+For performance comparison across platforms, see:
+- `docs/platform/PLATFORM_EXPANSION_PLAN.md` - Expected performance metrics
+- `docs/refactor/macos-optimizations.md` - macOS optimization guide
+
+## Contributing
+
+When adding new platform support:
+
+1. Add platform configuration to `verify_platform_builds.sh`
+2. Add CI job to `.github/workflows/platform-builds.yml`
+3. Update PAL implementation in `src/platform/<platform>/`
+4. Add platform to support matrix in README
+5. Run full test suite: `./verify_platform_builds.sh --nginx-build`
+
+## References
+
+- [PAL Architecture](../../src/platform/ARCHITECTURE.md)
+- [Platform Expansion Plan](../../docs/platform/PLATFORM_EXPANSION_PLAN.md)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [Cross-Compilation Guide](https://wiki.debian.org/CrossCompiling)

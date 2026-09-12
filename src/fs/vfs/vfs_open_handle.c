@@ -22,7 +22,8 @@
  */
 #include "vfs_internal.h"
 #include "vfs_backend_registry.h"
-#include <sys/mman.h>   /* memfd_create (phase-71 step 2 memfd sendfile proxy) */
+#include <sys/mman.h>
+#include "cvmfs/platform/platform.h"  /* brix_plat_anon_fd (cross-platform memfd/O_TMPFILE) */
 #include "core/compat/log_diag.h"
 
 ngx_int_t
@@ -167,7 +168,8 @@ brix_vfs_memfile_build(brix_sd_obj_t *obj, off_t size)
     void     *map;
     int       filled;
 
-    fd = (ngx_fd_t) memfd_create("brix-vfs-memfile", MFD_CLOEXEC);
+    /* Use platform abstraction for anonymous fd (memfd on Linux, O_TMPFILE/mkstemp on macOS) */
+    fd = (ngx_fd_t) brix_plat_anon_fd("brix-vfs-memfile", NULL);
     if (fd == NGX_INVALID_FILE) {
         return NGX_INVALID_FILE;
     }

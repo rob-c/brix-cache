@@ -1,3 +1,4 @@
+#include "platform/platform_api.h"
 #include "cache_internal.h"
 #include "protocols/root/protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
 #include "core/compat/fattr_codec.h"        /* xrdp_fattr_nvec_parse (kXR_fattr replies) */
@@ -9,8 +10,10 @@
 #include <stdio.h>                        /* fdopen/fgets for the keytab reader */
 
 
-#if defined(__linux__)
-#include <endian.h>
+/* macOS doesn't have endian.h - use libkern/OSByteOrder.h */
+#if defined(__APPLE__) && defined(__MACH__)
+#else
+/* PAL endian ops now in platform_api.h */  /* brix_plat_htobe64/brix_plat_be64toh cross-platform */
 #endif
 #include <errno.h>
 #include <fcntl.h>
@@ -414,7 +417,7 @@ brix_cache_origin_read_chunk(brix_cache_fill_t *t,
     req.streamid[1] = 3;
     req.requestid = htons(kXR_read);
     ngx_memcpy(req.fhandle, fhandle, XRD_FHANDLE_LEN);
-    req.offset = (kXR_int64) htobe64(rng->read_off);
+    req.offset = (kXR_int64) brix_plat_htobe64(rng->read_off);
     req.rlen = htonl((kXR_int32) rng->want);
     req.dlen = 0;
 

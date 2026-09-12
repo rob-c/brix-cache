@@ -5,6 +5,13 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+/* macOS lacks O_PATH - use O_RDONLY as fallback */
+#if defined(__APPLE__) && defined(__MACH__)
+#ifndef O_PATH
+#define O_PATH O_RDONLY
+#endif
+#endif
+
 #include "shared_conf.h"
 #include "http_rootfd.h"
 

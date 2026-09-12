@@ -1,3 +1,4 @@
+#include "platform/platform_api.h"
 #include "tpc/engine/tpc_internal.h"
 #include "source_internal.h"
 #include "protocols/root/protocol/frame_hdr.h"  /* xrd_error_body_decode */
@@ -8,6 +9,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* macOS doesn't have endian.h - use libkern/OSByteOrder.h */
+#if defined(__APPLE__) && defined(__MACH__)
+#else
+#endif
 
 /* File: push_stream.c — F16 push, the byte mover.
  *
@@ -120,7 +126,7 @@ tpc_push_fill_round(brix_tpc_pull_t *t, tpc_push_round_t *r)
  * WHAT: send one kXR_write frame (header + payload) for one slot.
  * WHY: kept separate so the header layout is stated once and the send loop
  * stays flat.
- * HOW: 24-byte ClientWriteRequest, offset in network byte order via htobe64,
+ * HOW: 24-byte ClientWriteRequest, offset in network byte order via brix_plat_htobe64,
  * dlen counting only the payload, pathid 0 (see the file docblock).
  */
 static int
@@ -131,7 +137,7 @@ tpc_push_send_slot(brix_tpc_pull_t *t, int fd, const u_char *fhandle,
 
     xrd_creq_begin(&wreq, sizeof(wreq), 3, kXR_write);
     ngx_memcpy(wreq.fhandle, fhandle, XRD_FHANDLE_LEN);
-    wreq.offset      = (kXR_int64) htobe64(at);
+    wreq.offset      = (kXR_int64) brix_plat_htobe64(at);
     wreq.pathid      = 0;
     wreq.dlen        = htonl((kXR_int32) len);
 

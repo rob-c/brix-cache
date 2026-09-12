@@ -16,6 +16,13 @@
 #include <gssapi/gssapi.h>
 #include <gssapi/gssapi_krb5.h>
 
+/* macOS Heimdal lacks gss_krb5_import_cred (MIT Kerberos-specific) */
+#if defined(__APPLE__) && defined(__MACH__)
+/* Heimdal doesn't have gss_krb5_import_cred or gss_acquire_cred_from */
+/* For now, skip GSS cred import on macOS - krb5 ccache still works */
+#define BRIX_SKIP_GSS_IMPORT 1
+#endif
+
 /* Log a krb5 error code as human-readable text, mirroring auth.c's pattern. */
 static void
 brix_krb5_cap_log(krb5_context kctx, krb5_error_code code, const char *what,
@@ -76,7 +83,9 @@ brix_krb5_capture_fwd_cred(void *kctx_v, void *auth_ctx_v, void *client_v,
     krb5_creds       **creds = NULL;
     krb5_ccache        cc = NULL;
     krb5_error_code    krc;
+#if !defined(BRIX_SKIP_GSS_IMPORT)
     OM_uint32          maj, min;
+#endif
     gss_cred_id_t      gcred = GSS_C_NO_CREDENTIAL;
 
     if (kctx == NULL || auth_ctx == NULL || client == NULL
@@ -122,6 +131,7 @@ brix_krb5_capture_fwd_cred(void *kctx_v, void *auth_ctx_v, void *client_v,
     }
 
     /* Import the ccache as a GSS initiator credential (acts AS the user). */
+#if !defined(BRIX_SKIP_GSS_IMPORT)
     maj = gss_krb5_import_cred(&min, cc, NULL, NULL, &gcred);
     if (GSS_ERROR(maj)) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
@@ -131,6 +141,10 @@ brix_krb5_capture_fwd_cred(void *kctx_v, void *auth_ctx_v, void *client_v,
         krb5_cc_destroy(kctx, cc);
         return NGX_ERROR;
     }
+#else
+    /* macOS Heimdal: skip GSS import, use krb5 ccache directly */
+    gcred = GSS_C_NO_CREDENTIAL;
+#endif
 
     /* The GSS cred references the ccache; ownership of both passes to caller. */
     *out_gss_cred = gcred;

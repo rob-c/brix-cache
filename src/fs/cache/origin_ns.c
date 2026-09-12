@@ -17,7 +17,7 @@
 #include "protocols/root/protocol/qspace.h"           /* brix_qspace_parse */
 #include "core/compat/fattr_codec.h"        /* xrdp_fattr_nvec_parse (kXR_fattr replies) */
 #include "protocols/root/protocol/frame_hdr.h"        /* xrd_error_body_decode (kXR_error errnum) */
-#include <endian.h>
+/* PAL endian ops now in platform_api.h */  /* brix_plat_htobe64/brix_plat_be64toh cross-platform */
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>

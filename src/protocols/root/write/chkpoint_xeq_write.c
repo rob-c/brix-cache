@@ -1,4 +1,6 @@
+#include "platform/platform_api.h"
 #include "chkpoint_xeq.h"
+/* PAL endian ops now in platform_api.h */  /* brix_plat_be64toh/brix_plat_htobe64 cross-platform */
 #include "chkpoint_xeq_internal.h"
 #include "fs/backend/csi_tagstore.h"
 
@@ -292,7 +294,7 @@ ckp_xeq_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
 /* WHAT: Truncates the checkpointed file to a specified length via the VFS I/O core. Always handle-based (path-based not supported in ckpXeq).
  * WHY: Transactional write semantics allow shrinking files as part of tentative operations; rollback restores original size from checkpoint.
  *      Handle mismatch check prevents cross-file corruption during truncated operations under checkpoint protection.
- * HOW: 1) Validate fhandle[0] == idx. 2) Decode offset as truncate length (be64toh). 3) Run a VFS TRUNCATE job. */
+ * HOW: 1) Validate fhandle[0] == idx. 2) Decode offset as truncate length (brix_plat_be64toh). 3) Run a VFS TRUNCATE job. */
 
 ngx_int_t
 ckp_xeq_truncate(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
@@ -403,7 +405,7 @@ ckp_xeq_writev(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     data_ptr = d->sub_payload + (size_t) d->sub_dlen;
 
     for (i = 0; i < n_segs; i++) {
-        int64_t  offset = (int64_t) be64toh((uint64_t) wl[i].offset);
+        int64_t  offset = (int64_t) brix_plat_be64toh((uint64_t) wl[i].offset);
         uint32_t wlen   = (uint32_t) ntohl((uint32_t) wl[i].wlen);
         ckp_write_result_t res;
 

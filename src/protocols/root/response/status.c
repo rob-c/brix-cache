@@ -1,16 +1,18 @@
+#include "platform/platform_api.h"
 #include "core/ngx_brix_module.h"
+/* PAL endian ops now in platform_api.h */  /* brix_plat_htobe64/brix_plat_be64toh cross-platform */
 #include "core/compat/alloc_guard.h"
 #include "core/compat/pgio.h"   /* xrdp_pg_bad_t — CSE bad-page descriptor */
 
 /*
  *
- * WHAT: Sends kXR_status (opcode 4007) response for paged write (kXR_pgwrite, opcode 4016) completion. Allocates ServerStatusResponse_pgWrite structure from connection pool via ngx_palloc(). Sets header fields: streamid from ctx->recv.cur_streamid, status=kXR_status in network byte order via htons(), dlen includes body + pgWrite portion size. Body fields: streamID copied from ctx, requestid = kXR_pgwrite - kXR_1stRequest (offset encoding), resptype=0, reserved zeroed via ngx_memzero(). pgWrite portion contains write_offset as big-endian int64 via htobe64(). Calculates CRC32c checksum over body bytes excluding crc32c field itself using brix_crc32c() helper — stores result in network byte order via htonl(). Queues response for wire delivery via brix_queue_response() with total size including pgWrite portion. Per AGENTS.md INVARIANT #1: kXR_pgwrite requires kXR_status(4007) framing + per-page CRC32c — this function implements that invariant.
+ * WHAT: Sends kXR_status (opcode 4007) response for paged write (kXR_pgwrite, opcode 4016) completion. Allocates ServerStatusResponse_pgWrite structure from connection pool via ngx_palloc(). Sets header fields: streamid from ctx->recv.cur_streamid, status=kXR_status in network byte order via htons(), dlen includes body + pgWrite portion size. Body fields: streamID copied from ctx, requestid = kXR_pgwrite - kXR_1stRequest (offset encoding), resptype=0, reserved zeroed via ngx_memzero(). pgWrite portion contains write_offset as big-endian int64 via brix_plat_htobe64(). Calculates CRC32c checksum over body bytes excluding crc32c field itself using brix_crc32c() helper — stores result in network byte order via htonl(). Queues response for wire delivery via brix_queue_response() with total size including pgWrite portion. Per AGENTS.md INVARIANT #1: kXR_pgwrite requires kXR_status(4007) framing + per-page CRC32c — this function implements that invariant.
  *
  * WHY: Paged write completion must include offset position and integrity checksum to allow client verification of data delivery — CRC32c ensures the response body was not corrupted during transmission or processing. The kXR_status framing distinguishes pgwrite status from regular opcode responses, enabling clients to parse multi-page write completions correctly. streamid consistency between header and body prevents cross-stream confusion when multiple concurrent writes are active. Thread safety: operates only on local stack variables (rsp) and provided ctx/c connection; no shared state modification during response construction. */
 
 /*
  *
- * WHAT: Builds ServerStatusResponse_pgRead structure for paged read (kXR_pgread, opcode 4015) completion without immediate queueing. Sets header fields: streamid from ctx->recv.cur_streamid, status=kXR_status in network byte order via htons(), dlen includes body + pgRead portion + total_with_crcs (accumulated CRC32c sizes across all pages). Body fields: streamID copied from ctx, requestid = kXR_pgread - kXR_1stRequest (offset encoding), resptype=0, reserved zeroed via ngx_memzero(), dlen set to total_with_crcs value. pgRead portion contains file_offset as big-endian int64 via htobe64(). Calculates CRC32c checksum over body bytes excluding crc32c field itself using brix_crc32c() helper — stores result in network byte order via htonl(). Caller must queue response separately after calling this function (unlike pgwrite which queues immediately). Per AGENTS.md INVARIANT #1: kXR_pgread requires kXR_status(4007) framing + per-page CRC32c — this function implements that invariant.
+ * WHAT: Builds ServerStatusResponse_pgRead structure for paged read (kXR_pgread, opcode 4015) completion without immediate queueing. Sets header fields: streamid from ctx->recv.cur_streamid, status=kXR_status in network byte order via htons(), dlen includes body + pgRead portion + total_with_crcs (accumulated CRC32c sizes across all pages). Body fields: streamID copied from ctx, requestid = kXR_pgread - kXR_1stRequest (offset encoding), resptype=0, reserved zeroed via ngx_memzero(), dlen set to total_with_crcs value. pgRead portion contains file_offset as big-endian int64 via brix_plat_htobe64(). Calculates CRC32c checksum over body bytes excluding crc32c field itself using brix_crc32c() helper — stores result in network byte order via htonl(). Caller must queue response separately after calling this function (unlike pgwrite which queues immediately). Per AGENTS.md INVARIANT #1: kXR_pgread requires kXR_status(4007) framing + per-page CRC32c — this function implements that invariant.
  *
  * WHY: Paged read completion must include offset position and integrity checksum to allow client verification of data delivery across multiple pages — CRC32c ensures each page's status response was not corrupted during transmission or processing. The kXR_status framing distinguishes pgread status from regular opcode responses, enabling clients to parse multi-page read completions correctly. total_with_crcs accumulates all CRC32c field sizes across pages for accurate dlen calculation — critical when multiple pages are delivered sequentially. Thread safety: operates only on local stack variables and provided ctx/out structure; no shared state modification during response construction. */
 
@@ -38,7 +40,7 @@ brix_send_pgwrite_status(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_memzero(rsp->bdy.reserved, sizeof(rsp->bdy.reserved));
     rsp->bdy.dlen = htonl(0);
 
-    rsp->pgw.offset = (kXR_int64) htobe64((uint64_t) write_offset);
+    rsp->pgw.offset = (kXR_int64) brix_plat_htobe64((uint64_t) write_offset);
 
     crc = brix_crc32c(&rsp->bdy.streamID[0], crc_len);
     rsp->bdy.crc32c = htonl(crc);
@@ -109,12 +111,12 @@ brix_send_pgwrite_cse(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_memzero(rsp->bdy.reserved, sizeof(rsp->bdy.reserved));
     rsp->bdy.dlen = htonl((uint32_t) cse_len);
 
-    rsp->pgw.offset = (kXR_int64) htobe64((uint64_t) write_offset);
+    rsp->pgw.offset = (kXR_int64) brix_plat_htobe64((uint64_t) write_offset);
 
     cse->dlFirst = (kXR_int16) htons((uint16_t) bad[0].dlen);
     cse->dlLast  = (kXR_int16) htons((uint16_t) bad[n - 1].dlen);
     for (i = 0; i < n; i++) {
-        bof[i] = (kXR_int64) htobe64((uint64_t) bad[i].off);
+        bof[i] = (kXR_int64) brix_plat_htobe64((uint64_t) bad[i].off);
     }
 
     /* cseCRC covers everything after itself: dlFirst..end of bof[]. */
@@ -163,7 +165,7 @@ brix_build_pgread_status_sid(const u_char sid[2], int64_t file_offset,
     ngx_memzero(out->bdy.reserved, sizeof(out->bdy.reserved));
     out->bdy.dlen = htonl(total_with_crcs);
 
-    out->pgr.offset = (kXR_int64) htobe64((uint64_t) file_offset);
+    out->pgr.offset = (kXR_int64) brix_plat_htobe64((uint64_t) file_offset);
 
     crc = brix_crc32c(&out->bdy.streamID[0], hdr_crc_len);
     out->bdy.crc32c = htonl(crc);

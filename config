@@ -76,39 +76,224 @@ case "$NGX_LD_OPT" in
     *) NGX_LD_OPT="$NGX_LD_OPT -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack" ;;
 esac
 
-# Performance profile (Phase 33 D1: v2 is now the DEFAULT, not opt-in).
-# The Phase-33 audit found the hardening flags above cost nothing measurable on
-# the read hot path, so release builds default to the RHEL-9 baseline ISA.
+# ============================================================================
+# Platform Detection: Windows, Linux, macOS
+# ============================================================================
+# Detect Windows platform (MinGW/MSYS2/Cygwin or native Windows)
+BRIX_PLATFORM_WINDOWS=0
+BRIX_PLATFORM_LINUX=0
+BRIX_PLATFORM_DARWIN=0
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*|Windows_NT)
+        BRIX_PLATFORM_WINDOWS=1
+        echo " + xrootd: Windows platform detected ($(uname -s))"
+        ;;
+    Linux)
+        BRIX_PLATFORM_LINUX=1
+        echo " + xrootd: Linux platform detected"
+        ;;
+    Darwin)
+        BRIX_PLATFORM_DARWIN=1
+        echo " + xrootd: macOS platform detected"
+        ;;
+    *)
+        echo " + xrootd: Unknown platform ($(uname -s)), assuming POSIX-compatible"
+        BRIX_PLATFORM_LINUX=1
+        ;;
+esac
+
+# macOS-specific configuration
+if [ "$BRIX_PLATFORM_DARWIN" = "1" ]; then
+    # Define macOS platform macros
+    CFLAGS="$CFLAGS -DBRIX_PLATFORM_DARWIN=1 -DBRIX_PLATFORM_LINUX=0 -DBRIX_PLATFORM_WINDOWS=0"
+    
+    # macOS frameworks required for PAL
+    # -framework Accelerate: Apple Accelerate framework (vDSP, vLib for SIMD optimizations)
+    #                        Used by checksum_accelerate.c and apple_silicon.c
+    # -framework CoreFoundation: Core Foundation (CFBundle, CFString, etc.)
+    # -framework SystemConfiguration: System configuration (network, DNS)
+    MACOS_LIBS="-framework Accelerate -framework CoreFoundation -framework SystemConfiguration"
+    CORE_LIBS="$CORE_LIBS $MACOS_LIBS"
+    
+    echo " + xrootd: macOS PAL enabled"
+    echo " + xrootd: macOS frameworks: $MACOS_LIBS"
+    
+    # macOS-specific compiler flags
+    # -fno-common: Prevents tentative definitions (required for macOS 10.10+)
+    CFLAGS="$CFLAGS -fno-common"
+    
+    # Disable Linux-specific hardening flags on macOS
+    CFLAGS=$(echo "$CFLAGS" | sed 's/-fstack-clash-protection//g')
+    CFLAGS=$(echo "$CFLAGS" | sed 's/-fcf-protection=full//g')
+    echo " + xrootd: Linux-specific hardening flags disabled on macOS"
+fi
+
+# Windows-specific configuration
+if [ "$BRIX_PLATFORM_WINDOWS" = "1" ]; then
+    # Define Windows platform macros
+    CFLAGS="$CFLAGS -DBRIX_PLATFORM_WINDOWS=1 -DBRIX_PLATFORM_LINUX=0 -DBRIX_PLATFORM_DARWIN=0"
+    
+    # Windows version requirement: Windows 8 / Server 2012 minimum
+    CFLAGS="$CFLAGS -D_WIN32_WINNT=0x0602"
+    
+    # Windows-specific defines
+    CFLAGS="$CFLAGS -DWIN32_LEAN_AND_MEAN -D_CRT_SECURE_NO_WARNINGS"
+    
+    # Disable POSIX compatibility warnings
+    CFLAGS="$CFLAGS -D_CRT_NONSTDC_NO_DEPRECATE"
+    
+    # Windows libraries required for PAL
+    # -lws2_32: Winsock2 (networking, sockets)
+    # -ladvapi32: Advanced Windows API (security, registry, services)
+    # -lkernel32: Core Windows API (file I/O, processes, memory)
+    # -lbcrypt: Cryptographic API (BCryptGenRandom for secure random)
+    WINDOWS_LIBS="-lws2_32 -ladvapi32 -lkernel32 -lbcrypt"
+    CORE_LIBS="$CORE_LIBS $WINDOWS_LIBS"
+    
+    echo " + xrootd: Windows PAL enabled"
+    echo " + xrootd: Windows libraries: $WINDOWS_LIBS"
+    
+    # Disable Linux-specific hardening flags on Windows
+    CFLAGS=$(echo "$CFLAGS" | sed 's/-fstack-clash-protection//g')
+    CFLAGS=$(echo "$CFLAGS" | sed 's/-fcf-protection=full//g')
+    echo " + xrootd: Linux-specific hardening flags disabled on Windows"
+else
+    # Non-Windows platforms (Linux, macOS, BSD, etc.)
+    CFLAGS="$CFLAGS -DBRIX_PLATFORM_WINDOWS=0"
+    if [ "$BRIX_PLATFORM_LINUX" = "1" ]; then
+        CFLAGS="$CFLAGS -DBRIX_PLATFORM_LINUX=1 -DBRIX_PLATFORM_DARWIN=0"
+    elif [ "$BRIX_PLATFORM_DARWIN" = "1" ]; then
+        CFLAGS="$CFLAGS -DBRIX_PLATFORM_LINUX=0 -DBRIX_PLATFORM_DARWIN=1"
+    fi
+fi
+
+# ============================================================================
+# Architecture Detection: x86_64, arm64/aarch64
+# ============================================================================
+# Detect CPU architecture for platform-specific optimizations
+BRIX_ARCH_X86_64=0
+BRIX_ARCH_ARM64=0
+CC_ARCH=$(uname -m)
+
+case "$CC_ARCH" in
+    x86_64|amd64|x64)
+        BRIX_ARCH_X86_64=1
+        echo " + xrootd: x86_64 architecture detected"
+        ;;
+    aarch64|arm64|armv8l)
+        BRIX_ARCH_ARM64=1
+        echo " + xrootd: ARM64 architecture detected"
+        ;;
+    *)
+        echo " + xrootd: Unknown architecture ($CC_ARCH), using generic build"
+        ;;
+esac
+
+# Export architecture macros to compiler
+CFLAGS="$CFLAGS -DBRIX_ARCH_X86_64=$BRIX_ARCH_X86_64 -DBRIX_ARCH_ARM64=$BRIX_ARCH_ARM64"
+
+# ============================================================================
+# Performance Profiles: x86_64 and ARM64 optimization flags
+# ============================================================================
 # Override by exporting BRIX_OPTIMIZE before ./configure, e.g.
 #     BRIX_OPTIMIZE=v3 ./configure ... --add-module=...
-#   v2      -O3 -march=x86-64-v2   DEFAULT.  Safe RHEL 9 baseline (SSE4.2/POPCNT
+#
+# x86_64 Profiles:
+#   v2      -O3 -march=x86-64-v2   DEFAULT. Safe RHEL 9 baseline (SSE4.2/POPCNT
 #                                  on every x86-64-v2 CPU) — lets the compiler emit
 #                                  SSE4.2 everywhere, not just in the target-
-#                                  attributed CRC functions.  Redistributable on
+#                                  attributed CRC functions. Redistributable on
 #                                  any x86-64-v2 host; the build host needs no
 #                                  special ISA.
 #   v3      -O3 -march=x86-64-v3   AVX2/BMI2 — only when every CPU in the fleet
 #                                  supports it (Haswell+ / Zen+).
 #   native  -O3 -march=native      tuned to THIS build host; do not redistribute
 #                                  the resulting binary to other hardware.
-#   none    (off|no|0)             escape hatch: add no optimisation flags, leave
-#                                  nginx's own -O untouched (portable/debug builds).
-# Compile-time only; composes with the hardening flags above.  For cross-module
+#
+# ARM64 Profiles:
+#   auto    Detect CPU features and apply appropriate flags
+#   graviton  AWS Graviton2/Graviton3 (-march=armv8.2-a+fp+simd+crypto+crc)
+#   ampere    Ampere Altra (-march=armv8.2-a+fp+simd+crypto)
+#   apple_silicon  Apple M1/M2/M3 (-march=armv8.3-a+crypto -mtune=apple-m1)
+#   generic   Generic ARM64 (-march=armv8-a)
+#
+# Compile-time only; composes with the hardening flags above. For cross-module
 # link-time optimisation, additionally pass at the top level:
 #     --with-cc-opt="-flto=auto" --with-ld-opt="-flto=auto"
 # -O3 here appears after nginx's own -O, so the last -O wins (no conflict).
-case "${BRIX_OPTIMIZE:-v2}" in
-    v2|yes|YES|1) CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt"
-                  echo " + xrootd: performance profile = v2 (-O3 -march=x86-64-v2) [default]" ;;
-    v3)           CFLAGS="$CFLAGS -O3 -march=x86-64-v3 -fno-plt"
-                  echo " + xrootd: performance profile = v3 (-O3 -march=x86-64-v3)" ;;
-    native)       CFLAGS="$CFLAGS -O3 -march=native -fno-plt"
-                  echo " + xrootd: performance profile = native (-O3 -march=native)" ;;
-    none|off|no|NO|0) echo " + xrootd: performance profile = none (nginx -O untouched)" ;;
-    *)            echo "WARNING: unknown BRIX_OPTIMIZE='$BRIX_OPTIMIZE'" \
-                       "(use v2|v3|native|none); defaulting to v2" >&2
-                  CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt" ;;
-esac
+
+# ARM64 optimization profiles
+if [ "$BRIX_ARCH_ARM64" = "1" ]; then
+    case "${BRIX_OPTIMIZE:-auto}" in
+        auto)
+            # Auto-detect ARM64 CPU features
+            if echo "" | $CC -march=armv8-a+crc -xc - -o /dev/null 2>/dev/null; then
+                CFLAGS="$CFLAGS -march=armv8-a+crc -O3"
+                echo " + xrootd: ARM64 CRC32 hardware acceleration enabled (-march=armv8-a+crc)"
+            else
+                CFLAGS="$CFLAGS -march=armv8-a -O3"
+                echo " + xrootd: ARM64 generic (CRC32 not available in compiler)"
+            fi
+            ;;
+        graviton)
+            CFLAGS="$CFLAGS -march=armv8.2-a+fp+simd+crypto+crc -O3"
+            echo " + xrootd: AWS Graviton2/Graviton3 optimization (-march=armv8.2-a+fp+simd+crypto+crc)"
+            ;;
+        ampere)
+            CFLAGS="$CFLAGS -march=armv8.2-a+fp+simd+crypto -O3"
+            echo " + xrootd: Ampere Altra optimization (-march=armv8.2-a+fp+simd+crypto)"
+            ;;
+        apple_silicon)
+            CFLAGS="$CFLAGS -march=armv8.3-a+crypto -mtune=apple-m1 -O3"
+            echo " + xrootd: Apple Silicon optimization (-march=armv8.3-a+crypto -mtune=apple-m1)"
+            ;;
+        generic)
+            CFLAGS="$CFLAGS -march=armv8-a -O3"
+            echo " + xrootd: ARM64 generic (-march=armv8-a)"
+            ;;
+        none|off|no|0)
+            echo " + xrootd: ARM64 optimization disabled (generic build)"
+            ;;
+        *)
+            echo "WARNING: unknown BRIX_OPTIMIZE='$BRIX_OPTIMIZE' for ARM64"
+            echo "         (use auto|graviton|ampere|apple_silicon|generic|none); defaulting to auto" >&2
+            if echo "" | $CC -march=armv8-a+crc -xc - -o /dev/null 2>/dev/null; then
+                CFLAGS="$CFLAGS -march=armv8-a+crc -O3"
+                echo " + xrootd: ARM64 CRC32 hardware acceleration enabled (-march=armv8-a+crc)"
+            else
+                CFLAGS="$CFLAGS -march=armv8-a -O3"
+                echo " + xrootd: ARM64 generic (CRC32 not available in compiler)"
+            fi
+            ;;
+    esac
+# x86_64 optimization profiles
+elif [ "$BRIX_ARCH_X86_64" = "1" ]; then
+    case "${BRIX_OPTIMIZE:-v2}" in
+        v2|yes|YES|1)
+            CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt"
+            echo " + xrootd: performance profile = v2 (-O3 -march=x86-64-v2) [default]"
+            ;;
+        v3)
+            CFLAGS="$CFLAGS -O3 -march=x86-64-v3 -fno-plt"
+            echo " + xrootd: performance profile = v3 (-O3 -march=x86-64-v3)"
+            ;;
+        native)
+            CFLAGS="$CFLAGS -O3 -march=native -fno-plt"
+            echo " + xrootd: performance profile = native (-O3 -march=native)"
+            ;;
+        none|off|no|NO|0)
+            echo " + xrootd: performance profile = none (nginx -O untouched)"
+            ;;
+        *)
+            echo "WARNING: unknown BRIX_OPTIMIZE='$BRIX_OPTIMIZE'"
+            echo "         (use v2|v3|native|none); defaulting to v2" >&2
+            CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt"
+            ;;
+    esac
+else
+    # Unknown architecture - no special optimization flags
+    echo " + xrootd: No architecture-specific optimizations (unknown architecture)"
+fi
 
 # --with-threads is required: async I/O, TPC, and S3 PUT all depend on it
 if [ "$USE_THREADS" != YES ]; then
@@ -785,6 +970,22 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/stream/module.c \
     $ngx_addon_dir/src/protocols/root/stream/module_enums.c \
     $ngx_addon_dir/src/protocols/root/stream/module_definition.c \
+    $ngx_addon_dir/src/platform/platform.c \
+    $ngx_addon_dir/src/platform/linux/crc32c_arm64.c \
+    $ngx_addon_dir/src/platform/linux/checksum_neon.c \
+    $ngx_addon_dir/src/platform/linux/arm64_crypto.c \
+    $ngx_addon_dir/src/platform/darwin/checksum_accelerate.c \
+    $ngx_addon_dir/src/platform/darwin/cpu_topology.c \
+    $ngx_addon_dir/src/platform/darwin/apple_silicon.c \
+    $ngx_addon_dir/src/platform/windows/handle_abstraction.c \
+    $ngx_addon_dir/src/platform/windows/posix_wrapper.c \
+    $ngx_addon_dir/src/platform/windows/event_wrapper.c \
+    $ngx_addon_dir/src/platform/windows/fs_watcher.c \
+    $ngx_addon_dir/src/platform/windows/copy_range.c \
+    $ngx_addon_dir/src/platform/windows/security_wrapper.c \
+    $ngx_addon_dir/src/platform/windows/process.c \
+    $ngx_addon_dir/src/platform/windows/xattr.c \
+    $ngx_addon_dir/src/platform/windows/platform_detect.c \
     $ngx_addon_dir/src/core/compat/checksum.c \
     $ngx_addon_dir/src/core/compat/checksum_core.c \
     $ngx_addon_dir/src/core/compat/checksum_plugin.c \

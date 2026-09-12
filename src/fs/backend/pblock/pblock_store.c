@@ -16,9 +16,30 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include <sys/random.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
+
+/* macOS lacks getrandom() - use SecRandomCopyBytes or /dev/urandom */
+#if defined(__APPLE__) && defined(__MACH__)
+#include <Security/Security.h>
+static ssize_t brix_getrandom_compat(void *buf, size_t buflen, unsigned int flags) {
+    (void)flags;
+    if (SecRandomCopyBytes(kSecRandomDefault, buflen, (uint8_t *)buf) == errSecSuccess) {
+        return (ssize_t)buflen;
+    }
+    /* Fallback to /dev/urandom */
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd < 0) {
+        return -1;
+    }
+    ssize_t n = read(fd, buf, buflen);
+    close(fd);
+    return n;
+}
+#define getrandom(buf, len, flags) brix_getrandom_compat(buf, len, flags)
+#else
+#include <sys/random.h>
+#endif
 
 /* ---- small helpers -------------------------------------------------------- */
 

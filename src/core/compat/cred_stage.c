@@ -18,6 +18,11 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+/* macOS requires sys/random.h for getentropy() */
+#if defined(__APPLE__) && defined(__MACH__)
+#include <sys/random.h>
+#endif
+
 /* Per-uid staging root on tmpfs.  /dev/shm is 1777 (sticky, world-writable), so
  * every uid can create its OWN 0700 subdirectory here that no other uid can enter
  * or delete; the security boundary is that dir's mode + ownership, checked below.

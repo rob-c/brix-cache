@@ -29,6 +29,11 @@
 #include <string.h>
 #include <sys/stat.h>
 
+/* macOS uses st_mtimespec instead of st_mtim */
+#if defined(__APPLE__) && defined(__MACH__)
+#define st_mtim st_mtimespec
+#endif
+
 /* Record-DIGEST fallback (§8.2, xmeta P4) — for exports without user xattrs.
  * Instead of the retired "<path>.cks" sidecar, the checksum rides as a DIGEST
  * entry in the file's unified xmeta record (which itself falls back to the

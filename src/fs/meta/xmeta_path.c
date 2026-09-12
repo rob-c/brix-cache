@@ -14,6 +14,22 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/xattr.h>
+
+/* macOS xattr compatibility - different signatures than Linux */
+#if defined(__APPLE__) && defined(__MACH__)
+static ssize_t brix_getxattr_compat(const char *path, const char *name, void *value, size_t size) {
+    return getxattr(path, name, value, size, 0, 0);
+}
+static int brix_setxattr_compat(const char *path, const char *name, const void *value, size_t size, int flags) {
+    return setxattr(path, name, value, size, 0, flags);
+}
+static int brix_removexattr_compat(const char *path, const char *name) {
+    return removexattr(path, name, 0);
+}
+#define getxattr(path, name, value, size) brix_getxattr_compat(path, name, value, size)
+#define setxattr(path, name, value, size, flags) brix_setxattr_compat(path, name, value, size, flags)
+#define removexattr(path, name) brix_removexattr_compat(path, name)
+#endif
 #include <unistd.h>
 
 int

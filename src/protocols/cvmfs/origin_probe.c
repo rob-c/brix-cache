@@ -26,6 +26,13 @@
 #include <poll.h>
 #include <time.h>
 
+/* macOS compatibility */
+#if defined(__APPLE__) && defined(__MACH__)
+#ifndef SOCK_NONBLOCK
+#define SOCK_NONBLOCK 0
+#endif
+#endif
+
 #define CVMFS_PROBE_TIMEOUT_MS 2000
 #define CVMFS_PROBE_FAIL_US    (CVMFS_PROBE_TIMEOUT_MS * 1000L * 4)
 #define CVMFS_PROBE_MAX_EXPORTS 8

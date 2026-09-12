@@ -286,7 +286,9 @@ brix_cache_add_candidate(brix_cache_evict_list_t *list, const char *path,
          * call's `copy` (released in reality by brix_cache_free_candidates).
          * Suppress exactly that diagnostic at its emission points. */
 #pragma GCC diagnostic push
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic ignored "-Wanalyzer-malloc-leak"
+#endif
         if (new_cap > BRIX_EVICT_MAX_CANDIDATES
             || brix_size_mul(new_cap, sizeof(list->elts[0]), &elts_sz)
                != NGX_OK)

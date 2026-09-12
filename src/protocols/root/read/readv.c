@@ -1,3 +1,4 @@
+#include "platform/platform_api.h"
 #include "read.h"
 #include "read_internal.h"
 #include "fs/backend/sd.h"      /* phase-55: route preadv through the SD seam */
@@ -8,6 +9,7 @@
 #include "prefetch.h"
 #include "core/compat/range_vector.h"
 #include "protocols/root/protocol/readv_seg.h"   /* shared kXR_readv segment-header codec */
+/* PAL endian ops now in platform_api.h */  /* brix_plat_be64toh/brix_plat_htobe64 cross-platform */
 #include "protocols/root/session/registry.h"          /* §1.1 brix_session_pathid_bound */
 #include "protocols/root/session/offload_registry.h"  /* §1.1 brix_offload_lookup */
 #include "protocols/root/response/response.h"          /* §1.1 brix_build_resp_hdr */
@@ -112,7 +114,7 @@ brix_readv_validate_extents(brix_ctx_t *ctx, ngx_connection_t *c,
     {
         readahead_list *segment = &req->wire_segments[segment_index];
         int handle_index = (int) (unsigned char) segment->fhandle[0];
-        int64_t offset = (int64_t) be64toh((uint64_t) segment->offset);
+        int64_t offset = (int64_t) brix_plat_be64toh((uint64_t) segment->offset);
         size_t length = (size_t) ntohl((uint32_t) segment->rlen);
 
         if (length > req->readv_seg_max) {
@@ -257,7 +259,7 @@ brix_readv_build_descriptors(brix_ctx_t *ctx, brix_readv_req_t *req)
             ctx->files[handle_index].sd_obj;  /* Layer 3: driver or zeroed */
         req->segment_descs[segment_index].handle_index = handle_index;
         req->segment_descs[segment_index].offset = (off_t) (int64_t)
-            be64toh((uint64_t) req->wire_segments[segment_index].offset);
+            brix_plat_be64toh((uint64_t) req->wire_segments[segment_index].offset);
         req->segment_descs[segment_index].read_length = read_length;
         req->segment_descs[segment_index].header_read_length_ptr =
             response_cursor + 4;

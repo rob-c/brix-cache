@@ -18,6 +18,7 @@
 #include <limits.h>
 #include <string.h>
 #include <unistd.h>
+#include "cvmfs/platform/platform.h"  /* brix_plat_anon_fd() */
 
 #if (NGX_THREADS)
 
@@ -123,7 +124,8 @@ serve_offload_tmp_open(ngx_log_t *log)
     if (dir == NULL || dir[0] == '\0') {
         dir = "/tmp";
     }
-    fd = open(dir, O_TMPFILE | O_RDWR | O_CLOEXEC, 0600);  /* vfs-seam-allow: DOMAIN_STAGE — transient serve scratch (not export storage) */
+    /* Use platform abstraction for anonymous fd (handles O_TMPFILE/memfd/mkstemp) */
+    fd = brix_plat_anon_fd("xrd-serve", dir);  /* vfs-seam-allow: DOMAIN_STAGE — transient serve scratch (not export storage) */
     if (fd >= 0) {
         return fd;
     }

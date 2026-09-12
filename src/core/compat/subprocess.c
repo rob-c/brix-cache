@@ -28,6 +28,26 @@
 #include "subprocess.h"
 
 #include <errno.h>
+#include <unistd.h>  /* pipe() */
+
+/* macOS lacks pipe2() and SOCK_CLOEXEC - provide compatibility */
+#if defined(__APPLE__) && defined(__MACH__)
+#include <fcntl.h>
+
+static int brix_pipe2_compat(int pipefd[2], int flags) {
+    if (pipe(pipefd) != 0) {
+        return -1;
+    }
+    if (flags & O_CLOEXEC) {
+        fcntl(pipefd[0], F_SETFD, FD_CLOEXEC);
+        fcntl(pipefd[1], F_SETFD, FD_CLOEXEC);
+    }
+    return 0;
+}
+
+#define pipe2(pipefd, flags) brix_pipe2_compat(pipefd, flags)
+#define SOCK_CLOEXEC 0  /* Handled via fcntl() after socketpair() */
+#endif
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
@@ -512,11 +532,16 @@ brix_subprocess_run(const brix_subprocess_req_t *req, size_t *out_len,
     if (req->out != NULL && pipe2(capture, O_CLOEXEC) != 0) {
         return -1;
     }
-    if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, result) != 0) {
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, result) != 0) {
         close(capture[0]);
         close(capture[1]);
         return -1;
     }
+#if defined(__APPLE__) && defined(__MACH__)
+    /* macOS: set CLOEXEC after socketpair() */
+    fcntl(result[0], F_SETFD, FD_CLOEXEC);
+    fcntl(result[1], F_SETFD, FD_CLOEXEC);
+#endif
     if (brix_subprocess_spawn(req, capture, result) != 0) {
         brix_subprocess_close_pairs(capture, result);
         return -1;

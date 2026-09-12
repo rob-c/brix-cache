@@ -1,3 +1,4 @@
+#include "platform/platform_api.h"
 /*
  * prefetch.c — read-ahead hints (POSIX_FADV_WILLNEED) for the read paths.
  */
@@ -5,6 +6,7 @@
 #include "prefetch.h"
 #include "fs/backend/sd.h"   /* read-ahead hints go through the SD seam */
 #include <string.h>
+/* PAL endian ops now in platform_api.h */  /* brix_plat_be64toh/brix_plat_htobe64 cross-platform */
 
 /* Issue a WILLNEED read-ahead hint for [offset, offset+length) on fd through
  * the Storage Driver seam (phase-56 B-2).  Best-effort; a no-op on bad args
@@ -253,7 +255,7 @@ prefetch_decode_segment(brix_ctx_t *ctx, const readahead_list *seg,
         return 0;
     }
 
-    request_offset = (int64_t) be64toh((uint64_t) seg->offset);
+    request_offset = (int64_t) brix_plat_be64toh((uint64_t) seg->offset);
     if (request_offset < 0
         || (off_t) request_length > NGX_MAX_OFF_T_VALUE - request_offset)
     {

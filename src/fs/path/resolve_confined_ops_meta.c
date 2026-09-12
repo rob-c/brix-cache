@@ -17,7 +17,30 @@
 #include <sys/xattr.h>
 #include <time.h>
 #include <unistd.h>
+/* macOS lacks openat2 - provide compatibility stubs */
+#if defined(__APPLE__) && defined(__MACH__)
+/* RESOLVE_* flags stubs for macOS */
+#ifndef RESOLVE_BENEATH
+#define RESOLVE_BENEATH 0x8
+#endif
+#ifndef RESOLVE_IN_ROOT
+#define RESOLVE_IN_ROOT 0x10
+#endif
+#ifndef RESOLVE_NO_XDEV
+#define RESOLVE_NO_XDEV 0x01
+#endif
+#ifndef RESOLVE_NO_MAGICLINKS
+#define RESOLVE_NO_MAGICLINKS 0x02
+#endif
+#ifndef RESOLVE_NO_SYMLINKS
+#define RESOLVE_NO_SYMLINKS 0x04
+#endif
+#ifndef RESOLVE_CACHED
+#define RESOLVE_CACHED 0x20
+#endif
+#else
 #include <linux/openat2.h>
+#endif
 
 /* Helper declarations — defined in resolve_confined_helpers.c */
 extern int brix_open_confined_parent_canon(ngx_log_t *log, const char *root_canon,

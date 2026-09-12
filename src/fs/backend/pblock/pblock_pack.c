@@ -28,6 +28,7 @@
 #include "pblock_store.h"
 #include "pblock_pack.h"
 #include "pblock_pack_internal.h"          /* pack_seg_path / pack_lock / … */
+#include "cvmfs/platform/platform.h"  /* brix_plat_anon_fd (cross-platform memfd/O_TMPFILE) */
 #include "sd_pblock_catalog_internal.h"   /* cat_exec / cat_prepare / cat_fail */
 #include "cache/cas_pack_format.h"        /* the shared "BXS1" record layout */
 
@@ -419,7 +420,8 @@ pblock_pack_open_memfd(const pblock_state_t *st, const pblock_meta *meta)
         return -1;                        /* errno set (EIO family) */
     }
 
-    fd = memfd_create(meta->blob_id, MFD_CLOEXEC | MFD_ALLOW_SEALING);
+    /* Use platform abstraction for anonymous fd (memfd on Linux, O_TMPFILE/mkstemp on macOS) */
+    fd = brix_plat_anon_fd(meta->blob_id, NULL);
     if (fd < 0) {
         free(data);
         return -1;
@@ -434,8 +436,11 @@ pblock_pack_open_memfd(const pblock_state_t *st, const pblock_meta *meta)
     }
     free(data);
     /* Best-effort seals: the handle is read-intent, so freezing the bytes is
-     * pure hardening — never a functional dependency. */
+     * pure hardening — never a functional dependency.
+     * Note: F_ADD_SEALS is Linux-only; macOS lacks memfd sealing. */
+#if defined(__linux__)
     (void) fcntl(fd, F_ADD_SEALS, F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_WRITE);
+#endif
     return fd;
 }
 

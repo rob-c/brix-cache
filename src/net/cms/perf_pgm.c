@@ -28,6 +28,31 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
+
+/* macOS compatibility */
+#if defined(__APPLE__) && defined(__MACH__)
+/* pipe2 doesn't exist on macOS - use pipe + fcntl */
+static int brix_pipe2_compat(int pipefd[2], int flags) {
+    if (pipe(pipefd) < 0) return -1;
+    if (flags & O_CLOEXEC) {
+        fcntl(pipefd[0], F_SETFD, FD_CLOEXEC);
+        fcntl(pipefd[1], F_SETFD, FD_CLOEXEC);
+    }
+    return 0;
+}
+#define pipe2(pipefd, flags) brix_pipe2_compat(pipefd, flags)
+/* posix_spawn_file_actions_addclosefrom_np doesn't exist on macOS - stub it */
+static int brix_posix_spawn_file_actions_addclosefrom_np_compat(posix_spawn_file_actions_t *fa, int fromfd) {
+    /* macOS lacks addclosefrom_np - close fds 3-256 individually */
+    int fd, rc = 0;
+    for (fd = fromfd; fd < 256; fd++) {
+        rc = posix_spawn_file_actions_addclose(fa, fd);
+        if (rc != 0) break;
+    }
+    return rc;
+}
+#define posix_spawn_file_actions_addclosefrom_np(fa, fromfd) brix_posix_spawn_file_actions_addclosefrom_np_compat(fa, fromfd)
+#endif
 #include <sys/wait.h>
 
 extern char **environ;

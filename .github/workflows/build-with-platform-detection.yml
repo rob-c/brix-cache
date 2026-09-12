@@ -1,0 +1,155 @@
+# Example GitHub Actions workflow using platform detection
+name: Build with Platform Detection
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  detect-and-build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-12, macos-14]
+        # Note: ubuntu-latest is now x86_64, ubuntu-24.04-arm is available for ARM64
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Detect platform features
+      id: platform
+      run: |
+        python3 tools/ci/detect_platform_features.py --output /tmp/platform.json
+        echo "Platform detection complete"
+        
+        # Extract key values for build configuration
+        MARCH=$(python3 -c "import json; d=json.load(open('/tmp/platform.json')); print(' '.join(d['optimization_flags']['march']))")
+        ENABLE_LTO=$(python3 -c "import json; d=json.load(open('/tmp/platform.json')); print(d['recommendations']['enable_lto'])")
+        PLATFORM_NAME=$(python3 -c "import json; d=json.load(open('/tmp/platform.json')); print(d['platform']['name'])")
+        ARCH_FAMILY=$(python3 -c "import json; d=json.load(open('/tmp/platform.json')); print(d['architecture']['family'])")
+        
+        echo "march=$MARCH" >> $GITHUB_OUTPUT
+        echo "enable_lto=$ENABLE_LTO" >> $GITHUB_OUTPUT
+        echo "platform_name=$PLATFORM_NAME" >> $GITHUB_OUTPUT
+        echo "arch_family=$ARCH_FAMILY" >> $GITHUB_OUTPUT
+        
+        # Print detection summary
+        python3 tools/ci/detect_platform_features.py --verbose 2>&1 | head -20
+    
+    - name: Install dependencies
+      run: |
+        # Install platform-specific dependencies
+        if [ "${{ steps.platform.outputs.platform_name }}" = "linux" ]; then
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev zlib1g-dev
+        elif [ "${{ steps.platform.outputs.platform_name }}" = "darwin" ]; then
+          # macOS dependencies already available via Xcode CLT
+          echo "macOS dependencies ready"
+        fi
+    
+    - name: Configure nginx with BriX-Cache
+      run: |
+        cd /tmp
+        wget https://nginx.org/download/nginx-1.28.3.tar.gz
+        tar xzf nginx-1.28.3.tar.gz
+        cd nginx-1.28.3
+        
+        # Use detected optimization flags
+        MARCH="${{ steps.platform.outputs.march }}"
+        ENABLE_LTO="${{ steps.platform.outputs.enable_lto }}"
+        
+        # Build configuration
+        CONFIG_OPTS="--with-stream --with-stream_ssl_module --with-threads"
+        CONFIG_OPTS="$CONFIG_OPTS --add-module=$GITHUB_WORKSPACE"
+        
+        # Apply optimization flags
+        export CFLAGS="$MARCH -O3"
+        
+        if [ "$ENABLE_LTO" = "thin" ]; then
+          export CFLAGS="$CFLAGS -flto=thin"
+          export LDFLAGS="-flto=thin"
+        elif [ "$ENABLE_LTO" = "full" ]; then
+          export CFLAGS="$CFLAGS -flto"
+          export LDFLAGS="-flto"
+        fi
+        
+        echo "Configuring with CFLAGS: $CFLAGS"
+        ./configure $CONFIG_OPTS
+    
+    - name: Build
+      run: |
+        cd /tmp/nginx-1.28.3
+        make -j$(nproc)
+    
+    - name: Test binary
+      run: |
+        cd /tmp/nginx-1.28.3
+        ./objs/nginx -v
+        ./objs/nginx -t 2>&1 || true  # Configuration test may fail without config file
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: nginx-brix-${{ steps.platform.outputs.platform_name }}-${{ steps.platform.outputs.arch_family }}
+        path: /tmp/nginx-1.28.3/objs/nginx
+        if-no-files-found: error
+    
+    - name: Upload platform detection results
+      uses: actions/upload-artifact@v4
+      with:
+        name: platform-detection-${{ matrix.os }}
+        path: /tmp/platform.json
+        if-no-files-found: error
+
+  # Separate job for ARM64 Linux (requires ARM runner)
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    if: github.event_name == 'push'  # Only on pushes to save CI minutes
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Detect ARM64 features
+      id: platform
+      run: |
+        python3 tools/ci/detect_platform_features.py --output /tmp/platform.json
+        python3 tools/ci/detect_platform_features.py --verbose 2>&1 | head -20
+        
+        MARCH=$(python3 -c "import json; d=json.load(open('/tmp/platform.json')); print(' '.join(d['optimization_flags']['march']))")
+        HAS_CRC32=$(python3 -c "import json; d=json.load(open('/tmp/platform.json')); print(d['architecture']['features'].get('has_crc32', False))")
+        
+        echo "march=$MARCH" >> $GITHUB_OUTPUT
+        echo "has_crc32=$HAS_CRC32" >> $GITHUB_OUTPUT
+    
+    - name: Build with ARM64 optimizations
+      run: |
+        cd /tmp
+        wget https://nginx.org/download/nginx-1.28.3.tar.gz
+        tar xzf nginx-1.28.3.tar.gz
+        cd nginx-1.28.3
+        
+        export CFLAGS="${{ steps.platform.outputs.march }} -O3"
+        
+        # Enable CRC32 optimization if available
+        if [ "${{ steps.platform.outputs.has_crc32 }}" = "True" ]; then
+          export CFLAGS="$CFLAGS -DBRIX_HAVE_CRC32_HW=1"
+          echo "✓ CRC32 hardware acceleration enabled"
+        fi
+        
+        ./configure --with-stream --with-stream_ssl_module --add-module=$GITHUB_WORKSPACE
+        make -j$(nproc)
+    
+    - name: Test ARM64 binary
+      run: |
+        cd /tmp/nginx-1.28.3
+        ./objs/nginx -v
+        file ./objs/nginx

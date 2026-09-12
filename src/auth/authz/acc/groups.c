@@ -173,9 +173,22 @@ acc_resolve_unix(const char *user, acc_grp_cache_t *entry)
     if (acc_primary_only) {
         gids[0] = pw->pw_gid;
         ng = 1;
-    } else if (getgrouplist(user, pw->pw_gid, gids, &ng) < 0) {
-        /* buffer too small: cap at what we have room for */
-        ng = (int) (sizeof(gids) / sizeof(gids[0]));
+    } else {
+#if defined(__APPLE__) && defined(__MACH__)
+        /* macOS getgrouplist expects int* not gid_t* - use intermediate buffer */
+        int gids_int[64];
+        if (getgrouplist(user, (int)pw->pw_gid, gids_int, &ng) < 0) {
+            ng = (int) (sizeof(gids_int) / sizeof(gids_int[0]));
+        }
+        for (int i = 0; i < ng && i < 64; i++) {
+            gids[i] = (gid_t)gids_int[i];
+        }
+#else
+        if (getgrouplist(user, pw->pw_gid, gids, &ng) < 0) {
+            /* buffer too small: cap at what we have room for */
+            ng = (int) (sizeof(gids) / sizeof(gids[0]));
+        }
+#endif
     }
     if (ng <= 0) {
         return 0;

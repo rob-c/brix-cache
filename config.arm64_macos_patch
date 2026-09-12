@@ -1,0 +1,234 @@
+# ARM64 macOS Implementation - Config Patch
+# This shows the exact changes needed in the config file
+
+# REPLACE lines 79-100 (performance profile section) with:
+
+# Performance profile (Phase 33 D1: v2 is now the DEFAULT, not opt-in).
+# The Phase-33 audit found the hardening flags above cost nothing measurable on
+# the read hot path, so release builds default to the RHEL-9 baseline ISA.
+# Override by exporting BRIX_OPTIMIZE before ./configure, e.g.
+#     BRIX_OPTIMIZE=v3 ./configure ... --add-module=...
+#   v2      -O3 -march=x86-64-v2   DEFAULT.  Safe RHEL 9 baseline (SSE4.2/POPCNT
+#                                  on every x86-64-v2 CPU).
+#   v3      -O3 -march=x86-64-v3   AVX2/BMI2 (Haswell+ / Zen+).
+#   native  -O3 -march=native      tuned to THIS build host.
+#   none    (off|no|0)             no optimization, nginx -O untouched.
+#
+# macOS-specific optimization profiles (Phase 87 + Phase 90: ARM64 expansion):
+#   auto            Auto-detect macOS architecture and apply optimal flags
+#   intel           Intel Mac optimization (x86-64-v3 with AVX2)
+#   apple_silicon   Apple Silicon optimization (ARM64 with crypto extensions)
+#   m1              Apple M1-specific (Firestorm/Icestorm, armv8.3-a)
+#   m2              Apple M2-specific (enhanced Firestorm, armv8.4-a)
+#   m3              Apple M3-specific (3nm, armv8.5-a)
+#   arm64           Generic ARM64 (Linux + macOS, portable)
+#   graviton        AWS Graviton/Graviton2 (armv8-a+crc+crypto)
+#   graviton3       AWS Graviton3 (armv9-a+SVE)
+# Compile-time only; composes with hardening flags above.
+case "${BRIX_OPTIMIZE:-v2}" in
+    # Linux profiles
+    v2|yes|YES|1) CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt"
+                  echo " + xrootd: performance profile = v2 (-O3 -march=x86-64-v2) [default]" ;;
+    v3)           CFLAGS="$CFLAGS -O3 -march=x86-64-v3 -fno-plt"
+                  echo " + xrootd: performance profile = v3 (-O3 -march=x86-64-v3)" ;;
+    native)       CFLAGS="$CFLAGS -O3 -march=native -fno-plt"
+                  echo " + xrootd: performance profile = native (-O3 -march=native)" ;;
+    
+    # =======================================================================
+    # AUTO-DETECT PROFILE
+    # =======================================================================
+    auto)
+        if [ "$BRIX_PLATFORM" = "darwin" ]; then
+            ARCH=$(uname -m)
+            case "$ARCH" in
+                x86_64)
+                    if sysctl -n hw.optional.avx2_0 2>/dev/null | grep -q 1; then
+                        CFLAGS="$CFLAGS -O3 -march=x86-64-v3 -mtune=haswell -fno-plt"
+                        echo " + xrootd: performance profile = auto-detect Intel (AVX2/Haswell)"
+                    else
+                        CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -mtune=haswell"
+                        echo " + xrootd: performance profile = auto-detect Intel (SSE4.2)"
+                    fi
+                    ;;
+                arm64)
+                    if sysctl -n hw.optional.armv8_5_atomics 2>/dev/null | grep -q 1; then
+                        CFLAGS="$CFLAGS -O3 -march=armv8.5-a -mtune=apple-m3"
+                        echo " + xrootd: performance profile = auto-detect Apple Silicon (M3+)"
+                    elif sysctl -n hw.optional.armv8_4_a 2>/dev/null | grep -q 1; then
+                        CFLAGS="$CFLAGS -O3 -march=armv8.4-a -mtune=apple-m2"
+                        echo " + xrootd: performance profile = auto-detect Apple Silicon (M2)"
+                    else
+                        CFLAGS="$CFLAGS -O3 -march=armv8.3-a+crypto -mtune=apple-m1"
+                        echo " + xrootd: performance profile = auto-detect Apple Silicon (M1)"
+                    fi
+                    ;;
+            esac
+        else
+            ARCH=$(uname -m)
+            case "$ARCH" in
+                x86_64)
+                    CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt"
+                    echo " + xrootd: performance profile = auto-detect Linux x86_64 (v2)"
+                    ;;
+                aarch64|arm64)
+                    CFLAGS="$CFLAGS -O3 -march=armv8-a+crc -mtune=neoverse-n1"
+                    echo " + xrootd: performance profile = auto-detect Linux ARM64 (Graviton)"
+                    ;;
+            esac
+        fi
+        ;;
+    
+    # =======================================================================
+    # INTEL MAC PROFILE
+    # =======================================================================
+    intel)
+        if [ "$BRIX_PLATFORM" = "darwin" ]; then
+            CFLAGS="$CFLAGS -O3 -march=x86-64-v3 -mtune=haswell -fno-plt"
+            echo " + xrootd: performance profile = Intel Mac (AVX2/Haswell)"
+        else
+            CFLAGS="$CFLAGS -O3 -march=x86-64-v3 -fno-plt"
+            echo " + xrootd: performance profile = x86_64-v3 (AVX2)"
+        fi
+        ;;
+    
+    # =======================================================================
+    # APPLE SILICON PROFILES (Phase 90: ARM64 macOS expansion)
+    # =======================================================================
+    apple_silicon)
+        if [ "$BRIX_PLATFORM" = "darwin" ]; then
+            CFLAGS="$CFLAGS -O3 -march=armv8.3-a+crypto -mtune=apple-m1"
+            echo " + xrootd: performance profile = Apple Silicon (generic M1/M2/M3)"
+        else
+            echo "WARNING: apple_silicon profile only valid on macOS" >&2
+            CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt"
+        fi
+        ;;
+    
+    m1)
+        if [ "$BRIX_PLATFORM" = "darwin" ]; then
+            CFLAGS="$CFLAGS -O3 -march=armv8.3-a+crypto+fp16+rcpc -mtune=apple-m1"
+            echo " + xrootd: performance profile = Apple M1 (Firestorm/Icestorm)"
+        else
+            echo "WARNING: m1 profile only valid on macOS" >&2
+            CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt"
+        fi
+        ;;
+    
+    m2)
+        if [ "$BRIX_PLATFORM" = "darwin" ]; then
+            CFLAGS="$CFLAGS -O3 -march=armv8.4-a+crypto+fp16+rcpc+dotprod -mtune=apple-m2"
+            echo " + xrootd: performance profile = Apple M2 (enhanced Firestorm)"
+        else
+            echo "WARNING: m2 profile only valid on macOS" >&2
+            CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt"
+        fi
+        ;;
+    
+    m3)
+        if [ "$BRIX_PLATFORM" = "darwin" ]; then
+            CFLAGS="$CFLAGS -O3 -march=armv8.5-a+crypto+fp16+rcpc+dotprod+sha3 -mtune=apple-m3"
+            echo " + xrootd: performance profile = Apple M3 (3nm, latest)"
+        else
+            echo "WARNING: m3 profile only valid on macOS" >&2
+            CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt"
+        fi
+        ;;
+    
+    # =======================================================================
+    # ARM64 LINUX PROFILES (Phase 90: ARM64 Linux expansion)
+    # =======================================================================
+    arm64)
+        CFLAGS="$CFLAGS -O3 -march=armv8-a+crc -mtune=cortex-a72"
+        if [ "$BRIX_PLATFORM" = "darwin" ]; then
+            echo "WARNING: arm64 profile is for Linux ARM64, not macOS" >&2
+        fi
+        echo " + xrootd: performance profile = Generic ARM64 (armv8-a)"
+        ;;
+    
+    graviton|graviton2)
+        CFLAGS="$CFLAGS -O3 -march=armv8-a+crc+crypto -mtune=neoverse-n1"
+        echo " + xrootd: performance profile = AWS Graviton/Graviton2"
+        ;;
+    
+    graviton3)
+        CFLAGS="$CFLAGS -O3 -march=armv9-a+sve+crypto -mtune=neoverse-v1"
+        echo " + xrootd: performance profile = AWS Graviton3 (ARMv9+SVE)"
+        ;;
+    
+    ampere)
+        CFLAGS="$CFLAGS -O3 -march=armv8.2-a+crypto+fp16+rcpc+dotprod -mtune=neoverse-n1"
+        echo " + xrootd: performance profile = Ampere Altra (Neoverse N1)"
+        ;;
+    
+    neoverse_n1)
+        CFLAGS="$CFLAGS -O3 -march=armv8-a+crc+crypto -mtune=neoverse-n1"
+        echo " + xrootd: performance profile = Neoverse N1 (Graviton2/Ampere)"
+        ;;
+    
+    neoverse_v1)
+        CFLAGS="$CFLAGS -O3 -march=armv9-a+sve+crypto -mtune=neoverse-v1"
+        echo " + xrootd: performance profile = Neoverse V1 (Graviton3)"
+        ;;
+    
+    raspberrypi)
+        CFLAGS="$CFLAGS -O3 -march=armv8-a+crc -mtune=cortex-a72"
+        echo " + xrootd: performance profile = Raspberry Pi 4/5 (Cortex-A72)"
+        ;;
+    
+    none|off|no|NO|0) echo " + xrootd: performance profile = none (nginx -O untouched)" ;;
+    *)            echo "WARNING: unknown BRIX_OPTIMIZE='$BRIX_OPTIMIZE'" \
+                       "(use v2|v3|native|none|auto|intel|apple_silicon|m1|m2|m3|arm64|graviton); defaulting to v2" >&2
+                  CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt" ;;
+esac
+
+# ==============================================================================
+# LTO (Link-Time Optimization) SUPPORT
+# ==============================================================================
+# Phase 87: macOS LTO support
+# Phase 90: ARM64 LTO profiles (thin vs full) + Accelerate framework
+#
+# Usage:
+#   export BRIX_ENABLE_LTO=thin    # Thin LTO (faster builds, good optimization)
+#   export BRIX_ENABLE_LTO=full    # Full LTO (slower builds, maximum optimization)
+#   export BRIX_ENABLE_LTO=1       # Same as 'thin' (default)
+#
+# macOS Accelerate framework (Phase 90):
+#   Automatically linked on Apple Silicon for vectorized math operations
+#   Provides vDSP, BLAS, LAPACK for SIMD-optimized checksums and crypto
+# ==============================================================================
+
+if [ "$BRIX_PLATFORM" = "darwin" ]; then
+    # LTO configuration
+    if [ -n "$BRIX_ENABLE_LTO" ]; then
+        case "$BRIX_ENABLE_LTO" in
+            thin|1|yes|YES)
+                CFLAGS="$CFLAGS -flto=thin"
+                NGX_LD_OPT="$NGX_LD_OPT -flto=thin"
+                echo " + xrootd: LTO enabled (thin) for production build"
+                ;;
+            full)
+                CFLAGS="$CFLAGS -flto"
+                NGX_LD_OPT="$NGX_LD_OPT -flto"
+                echo " + xrootd: LTO enabled (full) for maximum optimization"
+                ;;
+            *)
+                echo "WARNING: Unknown LTO mode '$BRIX_ENABLE_LTO', using thin" >&2
+                CFLAGS="$CFLAGS -flto=thin"
+                NGX_LD_OPT="$NGX_LD_OPT -flto=thin"
+                ;;
+        esac
+    fi
+    
+    # Accelerate framework for Apple Silicon (Phase 90: ARM64 macOS)
+    if [ "$(uname -m)" = "arm64" ]; then
+        BRIX_LIBS="$BRIX_LIBS -framework Accelerate"
+        echo " + xrootd: Accelerate framework linked (Apple Silicon SIMD optimizations)"
+    fi
+fi
+
+# Linux LTO support (Phase 90: ARM64 Linux)
+if [ "$BRIX_PLATFORM" = "linux" ] && [ -n "$BRIX_ENABLE_LTO" ]; then
+    CFLAGS="$CFLAGS -flto=auto"
+    NGX_LD_OPT="$NGX_LD_OPT -flto=auto"
+    echo " + xrootd: LTO enabled (auto) for Linux"
+fi

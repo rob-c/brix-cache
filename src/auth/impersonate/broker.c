@@ -4,6 +4,34 @@
  */
 #include "broker_internal.h"
 
+/* macOS compatibility for Linux-specific socket options */
+#if defined(__APPLE__) && defined(__MACH__)
+#include <sys/un.h>
+/* macOS uses LOCAL_PEERCRED instead of SO_PEERCRED */
+#ifndef SO_PEERCRED
+#define SO_PEERCRED LOCAL_PEERCRED
+#endif
+/* struct ucred is forward-declared on macOS - define it */
+struct ucred {
+    pid_t pid;
+    uid_t uid;
+    gid_t gid;
+};
+/* accept4 doesn't exist on macOS - use accept + fcntl */
+#ifndef SOCK_CLOEXEC
+#define SOCK_CLOEXEC 0
+#endif
+static int brix_accept4_compat(int sockfd, struct sockaddr *addr, socklen_t *addrlen, int flags) {
+    int fd = accept(sockfd, addr, addrlen);
+    if (fd >= 0 && (flags & SOCK_CLOEXEC)) {
+        int fflags = fcntl(fd, F_GETFD, 0);
+        fcntl(fd, F_SETFD, fflags | FD_CLOEXEC);
+    }
+    return fd;
+}
+#define accept4(sockfd, addr, addrlen, flags) brix_accept4_compat(sockfd, addr, addrlen, flags)
+#endif
+
 uid_t brix_imp_broker_allow_uid = 0;
 uid_t  imp_base_uid;
 

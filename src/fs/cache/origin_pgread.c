@@ -1,3 +1,4 @@
+#include "platform/platform_api.h"
 /*
  * origin_pgread.c — page-verified origin reads (kXR_pgread) for the cache fill.
  *
@@ -49,8 +50,10 @@
 #include "protocols/root/protocol/frame_hdr.h"    /* xrd_get_u32/u64_be, error decode */
 #include "protocols/root/protocol/flags.h"        /* kXR_pgPageSZ, kXR_suppgrw */
 
-#if defined(__linux__)
-#include <endian.h>
+/* macOS doesn't have endian.h - use libkern/OSByteOrder.h */
+#if defined(__APPLE__) && defined(__MACH__)
+#elif defined(__linux__)
+/* PAL endian ops now in platform_api.h */  /* brix_plat_htobe64/brix_plat_be64toh cross-platform */
 #endif
 #include <errno.h>
 #include <stdlib.h>
@@ -101,7 +104,7 @@ pg_send_request(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     /* slots: 1 bootstrap, 2 open, 3 read, 4 pgread */
     xrd_creq_begin(&req, sizeof(req), 4, kXR_pgread);
     ngx_memcpy(req.fhandle, fhandle, XRD_FHANDLE_LEN);
-    req.offset = (kXR_int64) htobe64(rng->read_off);
+    req.offset = (kXR_int64) brix_plat_htobe64(rng->read_off);
     req.rlen = htonl((kXR_int32) rng->want);
     req.dlen = 0;                         /* no request args (no pathid/retry) */
 

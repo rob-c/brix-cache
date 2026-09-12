@@ -7,6 +7,62 @@
 
 #include <unistd.h>
 
+/* macOS lacks Linux capabilities - provide stubs */
+#if defined(__APPLE__) && defined(__MACH__)
+#include <stdint.h>
+typedef uint32_t __u32;
+/* Stub capability structures */
+struct __user_cap_header_struct {
+    __u32 version;
+    int pid;
+};
+struct __user_cap_data_struct {
+    __u32 effective;
+    __u32 permitted;
+    __u32 inheritable;
+};
+static inline int getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid) {
+    *rgid = getgid();
+    *egid = getegid();
+    *sgid = getgid();
+    return 0;
+}
+#ifndef _LINUX_CAPABILITY_VERSION_3
+#define _LINUX_CAPABILITY_VERSION_3 0x20080522
+#endif
+#ifndef CAP_SETUID
+#define CAP_SETUID 7
+#endif
+#ifndef CAP_SETGID
+#define CAP_SETGID 6
+#endif
+#ifndef CAP_LAST_CAP
+#define CAP_LAST_CAP 40
+#endif
+/* macOS lacks setresuid/setresgid/getresuid - use seteuid/setegid */
+static inline int setresuid(uid_t ruid, uid_t euid, uid_t suid) {
+    (void)ruid; (void)suid;
+    return seteuid(euid);
+}
+static inline int setresgid(gid_t rgid, gid_t egid, gid_t sgid) {
+    (void)rgid; (void)sgid;
+    return setegid(egid);
+}
+static inline int getresuid(uid_t *ruid, uid_t *euid, uid_t *suid) {
+    *ruid = getuid();
+    *euid = geteuid();
+    *suid = getuid();
+    return 0;
+}
+/* prctl stubs for macOS */
+#ifndef PR_SET_KEEPCAPS
+#define PR_SET_KEEPCAPS 8
+#endif
+#ifndef PR_CAPBSET_DROP
+#define PR_CAPBSET_DROP 24
+#endif
+#endif
+
 
 /* Broker base credentials, captured at startup; restored after each op. */
 

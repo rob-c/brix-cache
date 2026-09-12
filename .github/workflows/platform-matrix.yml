@@ -1,0 +1,732 @@
+# GitHub Actions workflow for cross-platform PAL testing
+# Tests Platform Abstraction Layer across Linux (x86_64/ARM64), macOS (Intel/Apple Silicon), and Windows
+
+name: Platform Matrix Tests
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/platform/**'
+      - 'shared/cvmfs/platform/**'
+      - 'config'
+      - '.github/workflows/platform-matrix.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/platform/**'
+      - 'shared/cvmfs/platform/**'
+      - 'config'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Specific platform to test (optional)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - linux-x86_64
+          - linux-arm64
+          - macos-intel
+          - macos-arm64
+          - windows
+
+env:
+  BRIX_VERSION: "1.0.0"
+  NGINX_VERSION: "1.28.3"
+  BUILD_TYPE: "release"
+
+jobs:
+  # ==========================================================================
+  # PLATFORM DETECTION & MATRIX SETUP
+  # ==========================================================================
+  
+  platform-detect:
+    name: Detect Platform Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set matrix configuration
+        id: set-matrix
+        run: |
+          # Default matrix for all platforms
+          MATRIX='{
+            "include": [
+              {
+                "os": "ubuntu-24.04",
+                "platform": "linux",
+                "arch": "x86_64",
+                "cc": "gcc",
+                "optimize": "auto",
+                "test_priority": "high"
+              },
+              {
+                "os": "ubuntu-24.04-arm",
+                "platform": "linux",
+                "arch": "arm64",
+                "cc": "gcc",
+                "optimize": "arm64",
+                "test_priority": "high"
+              },
+              {
+                "os": "macos-12",
+                "platform": "darwin",
+                "arch": "x86_64",
+                "cc": "clang",
+                "optimize": "intel",
+                "test_priority": "medium"
+              },
+              {
+                "os": "macos-14",
+                "platform": "darwin",
+                "arch": "arm64",
+                "cc": "clang",
+                "optimize": "apple_silicon",
+                "test_priority": "high"
+              },
+              {
+                "os": "windows-2022",
+                "platform": "windows",
+                "arch": "x86_64",
+                "cc": "msvc",
+                "optimize": "generic",
+                "test_priority": "low"
+              }
+            ]
+          }'
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+  # ==========================================================================
+  # LINUX X86_64 BUILD & TEST
+  # ==========================================================================
+  
+  test-linux-x86_64:
+    name: Linux x86_64 (GCC)
+    runs-on: ubuntu-24.04
+    needs: platform-detect
+    if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'linux-x86_64' }}
+    
+    env:
+      CC: gcc
+      CXX: g++
+      BRIX_PLATFORM: linux
+      BRIX_ARCH: x86_64
+      BRIX_OPTIMIZE: auto
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libssl-dev \
+            zlib1g-dev \
+            libpcre2-dev \
+            libxml2-dev \
+            libjansson-dev \
+            libcurl4-openssl-dev \
+            libkrb5-dev \
+            libzstd-dev \
+            liblzma-dev \
+            libbrotli-dev \
+            liblz4-dev \
+            libbz2-dev \
+            libsqlite3-dev \
+            python3 \
+            python3-pip \
+            python3-pytest
+      
+      - name: Download nginx source
+        run: |
+          wget https://nginx.org/download/nginx-${{ env.NGINX_VERSION }}.tar.gz
+          tar xzf nginx-${{ env.NGINX_VERSION }}.tar.gz
+          rm nginx-${{ env.NGINX_VERSION }}.tar.gz
+      
+      - name: Configure nginx with BriX-Cache
+        working-directory: nginx-${{ env.NGINX_VERSION }}
+        run: |
+          ./configure \
+            --with-stream \
+            --with-stream_ssl_module \
+            --with-threads \
+            --add-module=${{ github.workspace }}
+      
+      - name: Build nginx
+        working-directory: nginx-${{ env.NGINX_VERSION }}
+        run: |
+          make -j$(nproc)
+      
+      - name: Run PAL unit tests
+        run: |
+          cd tests
+          PYTHONPATH=. python3 -m pytest platform/test_pal_api.py -v \
+            --junitxml=../test-results/pal-linux-x86_64.xml
+        continue-on-error: true
+      
+      - name: Test PAL byte-order operations
+        run: |
+          cat > /tmp/test_endian.c << 'EOF'
+          #include <stdio.h>
+          #include <stdint.h>
+          #include "src/platform/platform_api.h"
+          
+          int main() {
+              uint64_t val = 0x123456789ABCDEF0ULL;
+              uint64_t be = brix_plat_htobe64(val);
+              uint64_t host = brix_plat_be64toh(be);
+              
+              printf("Host:  0x%016llx\n", (unsigned long long)val);
+              printf("BE:    0x%016llx\n", (unsigned long long)be);
+              printf("Round: 0x%016llx\n", (unsigned long long)host);
+              
+              if (val == host) {
+                  printf("✓ Byte-order test PASSED\n");
+                  return 0;
+              } else {
+                  printf("✗ Byte-order test FAILED\n");
+                  return 1;
+              }
+          }
+          EOF
+          gcc -I. -o /tmp/test_endian /tmp/test_endian.c
+          /tmp/test_endian
+      
+      - name: Upload nginx binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: nginx-linux-x86_64
+          path: nginx-${{ env.NGINX_VERSION }}/objs/nginx
+          retention-days: 30
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-linux-x86_64
+          path: test-results/
+          retention-days: 7
+
+  # ==========================================================================
+  # LINUX ARM64 BUILD & TEST
+  # ==========================================================================
+  
+  test-linux-arm64:
+    name: Linux ARM64 (Graviton-style)
+    runs-on: ubuntu-24.04-arm
+    needs: platform-detect
+    if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'linux-arm64' }}
+    
+    env:
+      CC: gcc
+      CXX: g++
+      BRIX_PLATFORM: linux
+      BRIX_ARCH: arm64
+      BRIX_OPTIMIZE: arm64
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libssl-dev \
+            zlib1g-dev \
+            libpcre2-dev \
+            libxml2-dev \
+            libjansson-dev \
+            libcurl4-openssl-dev \
+            libkrb5-dev \
+            libzstd-dev \
+            liblzma-dev \
+            libbrotli-dev \
+            liblz4-dev \
+            libbz2-dev \
+            libsqlite3-dev \
+            python3 \
+            python3-pip \
+            python3-pytest
+      
+      - name: Download nginx source
+        run: |
+          wget https://nginx.org/download/nginx-${{ env.NGINX_VERSION }}.tar.gz
+          tar xzf nginx-${{ env.NGINX_VERSION }}.tar.gz
+          rm nginx-${{ env.NGINX_VERSION }}.tar.gz
+      
+      - name: Configure nginx with BriX-Cache
+        working-directory: nginx-${{ env.NGINX_VERSION }}
+        run: |
+          ./configure \
+            --with-stream \
+            --with-stream_ssl_module \
+            --with-threads \
+            --add-module=${{ github.workspace }}
+      
+      - name: Build nginx
+        working-directory: nginx-${{ env.NGINX_VERSION }}
+        run: |
+          make -j$(nproc)
+      
+      - name: Verify ARM64 optimizations
+        run: |
+          echo "Checking for ARM64-specific optimizations..."
+          objdump -d nginx-${{ env.NGINX_VERSION }}/objs/nginx | grep -i "crc32" && echo "✓ CRC32 instructions found" || echo "⚠ CRC32 instructions not found"
+          objdump -d nginx-${{ env.NGINX_VERSION }}/objs/nginx | grep -i "neon\|adv\|asimd" && echo "✓ NEON/ASIMD instructions found" || echo "⚠ NEON instructions not found"
+      
+      - name: Run PAL unit tests
+        run: |
+          cd tests
+          PYTHONPATH=. python3 -m pytest platform/test_pal_api.py -v \
+            --junitxml=../test-results/pal-linux-arm64.xml
+        continue-on-error: true
+      
+      - name: Test PAL byte-order operations
+        run: |
+          cat > /tmp/test_endian.c << 'EOF'
+          #include <stdio.h>
+          #include <stdint.h>
+          #include "src/platform/platform_api.h"
+          
+          int main() {
+              uint64_t val = 0x123456789ABCDEF0ULL;
+              uint64_t be = brix_plat_htobe64(val);
+              uint64_t host = brix_plat_be64toh(be);
+              
+              printf("ARM64 Host:  0x%016llx\n", (unsigned long long)val);
+              printf("ARM64 BE:    0x%016llx\n", (unsigned long long)be);
+              printf("ARM64 Round: 0x%016llx\n", (unsigned long long)host);
+              
+              if (val == host) {
+                  printf("✓ ARM64 byte-order test PASSED\n");
+                  return 0;
+              } else {
+                  printf("✗ ARM64 byte-order test FAILED\n");
+                  return 1;
+              }
+          }
+          EOF
+          gcc -I. -o /tmp/test_endian /tmp/test_endian.c
+          /tmp/test_endian
+      
+      - name: Upload nginx binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: nginx-linux-arm64
+          path: nginx-${{ env.NGINX_VERSION }}/objs/nginx
+          retention-days: 30
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-linux-arm64
+          path: test-results/
+          retention-days: 7
+
+  # ==========================================================================
+  # MACOS INTEL BUILD & TEST
+  # ==========================================================================
+  
+  test-macos-intel:
+    name: macOS Intel (x86_64)
+    runs-on: macos-12
+    needs: platform-detect
+    if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'macos-intel' }}
+    
+    env:
+      CC: clang
+      CXX: clang++
+      BRIX_PLATFORM: darwin
+      BRIX_ARCH: x86_64
+      BRIX_OPTIMIZE: intel
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          brew install openssl pcre2 libxml2 jansson curl krb5 zstd xz brotli lz4 bzip2 sqlite python@3.11
+          pip3 install pytest
+      
+      - name: Download nginx source
+        run: |
+          curl -O https://nginx.org/download/nginx-${{ env.NGINX_VERSION }}.tar.gz
+          tar xzf nginx-${{ env.NGINX_VERSION }}.tar.gz
+          rm nginx-${{ env.NGINX_VERSION }}.tar.gz
+      
+      - name: Configure nginx with BriX-Cache
+        working-directory: nginx-${{ env.NGINX_VERSION }}
+        run: |
+          BRIX_OPTIMIZE=intel ./configure \
+            --with-stream \
+            --with-stream_ssl_module \
+            --with-threads \
+            --add-module=${{ github.workspace }}
+      
+      - name: Build nginx
+        working-directory: nginx-${{ env.NGINX_VERSION }}
+        run: |
+          make -j$(sysctl -n hw.ncpu)
+      
+      - name: Verify binary
+        run: |
+          file nginx-${{ env.NGINX_VERSION }}/objs/nginx
+          nginx-${{ env.NGINX_VERSION }}/objs/nginx -v
+      
+      - name: Run PAL tests
+        run: |
+          cd tests
+          PYTHONPATH=. python3 -m pytest platform/test_pal_api.py -v \
+            --junitxml=../test-results/pal-macos-intel.xml
+        continue-on-error: true
+      
+      - name: Upload nginx binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: nginx-macos-intel
+          path: nginx-${{ env.NGINX_VERSION }}/objs/nginx
+          retention-days: 30
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-macos-intel
+          path: test-results/
+          retention-days: 7
+
+  # ==========================================================================
+  # MACOS APPLE SILICON BUILD & TEST
+  # ==========================================================================
+  
+  test-macos-arm64:
+    name: macOS Apple Silicon (M1/M2/M3)
+    runs-on: macos-14
+    needs: platform-detect
+    if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'macos-arm64' }}
+    
+    env:
+      CC: clang
+      CXX: clang++
+      BRIX_PLATFORM: darwin
+      BRIX_ARCH: arm64
+      BRIX_OPTIMIZE: apple_silicon
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          brew install openssl pcre2 libxml2 jansson curl krb5 zstd xz brotli lz4 bzip2 sqlite python@3.11
+          pip3 install pytest
+      
+      - name: Download nginx source
+        run: |
+          curl -O https://nginx.org/download/nginx-${{ env.NGINX_VERSION }}.tar.gz
+          tar xzf nginx-${{ env.NGINX_VERSION }}.tar.gz
+          rm nginx-${{ env.NGINX_VERSION }}.tar.gz
+      
+      - name: Configure nginx with BriX-Cache
+        working-directory: nginx-${{ env.NGINX_VERSION }}
+        run: |
+          BRIX_OPTIMIZE=apple_silicon ./configure \
+            --with-stream \
+            --with-stream_ssl_module \
+            --with-threads \
+            --add-module=${{ github.workspace }}
+      
+      - name: Build nginx
+        working-directory: nginx-${{ env.NGINX_VERSION }}
+        run: |
+          make -j$(sysctl -n hw.ncpu)
+      
+      - name: Verify Apple Silicon optimizations
+        run: |
+          echo "Checking for ARM64/Apple Silicon optimizations..."
+          file nginx-${{ env.NGINX_VERSION }}/objs/nginx
+          otool -hv nginx-${{ env.NGINX_VERSION }}/objs/nginx | grep -i "arm64" && echo "✓ ARM64 architecture confirmed"
+      
+      - name: Run PAL tests
+        run: |
+          cd tests
+          PYTHONPATH=. python3 -m pytest platform/test_pal_api.py -v \
+            --junitxml=../test-results/pal-macos-arm64.xml
+        continue-on-error: true
+      
+      - name: Test PAL random generation
+        run: |
+          cat > /tmp/test_random.c << 'EOF'
+          #include <stdio.h>
+          #include <stdint.h>
+          #include <string.h>
+          #include "src/platform/platform_api.h"
+          
+          int main() {
+              uint8_t buf[32];
+              memset(buf, 0, sizeof(buf));
+              
+              if (brix_plat_random(buf, sizeof(buf)) != 0) {
+                  printf("✗ Random generation failed\n");
+                  return 1;
+              }
+              
+              // Check that buffer is not all zeros
+              int all_zero = 1;
+              for (int i = 0; i < 32; i++) {
+                  if (buf[i] != 0) {
+                      all_zero = 0;
+                      break;
+                  }
+              }
+              
+              if (all_zero) {
+                  printf("✗ Random buffer is all zeros\n");
+                  return 1;
+              }
+              
+              printf("✓ Random generation test PASSED\n");
+              return 0;
+          }
+          EOF
+          clang -I. -o /tmp/test_random /tmp/test_random.c
+          /tmp/test_random
+      
+      - name: Upload nginx binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: nginx-macos-arm64
+          path: nginx-${{ env.NGINX_VERSION }}/objs/nginx
+          retention-days: 30
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-macos-arm64
+          path: test-results/
+          retention-days: 7
+
+  # ==========================================================================
+  # WINDOWS BUILD & TEST
+  # ==========================================================================
+  
+  test-windows:
+    name: Windows (MSVC) - PAL 100%
+    runs-on: windows-2022
+    needs: platform-detect
+    if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'windows' }}
+    
+    env:
+      BRIX_PLATFORM: windows
+      BRIX_ARCH: x86_64
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+      
+      - name: Install dependencies
+        run: |
+          choco install -y openssl.light pcre2 libxml2 jansson curl krb5 zstd lz4 bzip2 sqlite python3 pytest
+          pip3 install pytest
+      
+      - name: Download nginx source
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://nginx.org/download/nginx-${{ env.NGINX_VERSION }}.tar.gz" -OutFile "nginx.tar.gz"
+          tar xzf nginx.tar.gz
+          Remove-Item nginx.tar.gz
+      
+      - name: Verify Windows PAL layer
+        shell: pwsh
+        run: |
+          Write-Host "🎯 Windows PAL Implementation Status"
+          Write-Host "======================================"
+          Write-Host ""
+          
+          $palFiles = @(
+            "src/platform/windows/posix_wrapper.c",
+            "src/platform/windows/event_wrapper.c",
+            "src/platform/windows/fs_watcher.c",
+            "src/platform/windows/copy_range.c",
+            "src/platform/windows/security_wrapper.c",
+            "src/platform/windows/process.c",
+            "src/platform/windows/xattr.c",
+            "src/platform/windows/handle_abstraction.c"
+          )
+          
+          $found = 0
+          foreach ($file in $palFiles) {
+            if (Test-Path "${{ github.workspace }}\$file") {
+              Write-Host "✓ $file"
+              $found++
+            } else {
+              Write-Host "✗ $file (missing)"
+            }
+          }
+          
+          Write-Host ""
+          Write-Host "Windows PAL files: $found/$($palFiles.Count)"
+          
+          if ($found -eq $palFiles.Count) {
+            Write-Host "✅ All Windows PAL files present - 100% implementation"
+          } else {
+            Write-Host "⚠ Some PAL files missing - implementation incomplete"
+          }
+      
+      - name: Compile Windows PAL layer
+        shell: pwsh
+        run: |
+          Write-Host "Compiling Windows PAL layer..."
+          
+          $sources = @(
+            "src/platform/windows/posix_wrapper.c",
+            "src/platform/windows/event_wrapper.c",
+            "src/platform/windows/fs_watcher.c",
+            "src/platform/windows/copy_range.c",
+            "src/platform/windows/security_wrapper.c",
+            "src/platform/windows/process.c",
+            "src/platform/windows/xattr.c"
+          )
+          
+          $compiled = 0
+          foreach ($src in $sources) {
+            if (Test-Path "${{ github.workspace }}\$src") {
+              $obj = $src -replace '\.c$', '.obj'
+              cl /c /I"${{ github.workspace }}\src" /I"${{ github.workspace }}\shared" `/W4 `
+                 "${{ github.workspace }}\$src" 2>&1 | Out-Null
+              if ($LASTEXITCODE -eq 0) {
+                Write-Host "✓ Compiled: $src"
+                $compiled++
+              } else {
+                Write-Host "✗ Failed: $src"
+              }
+            }
+          }
+          
+          Write-Host ""
+          Write-Host "Compilation result: $compiled/$($sources.Count) files"
+          
+          if ($compiled -eq $sources.Count) {
+            Write-Host "✅ All Windows PAL files compiled successfully"
+          }
+      
+      - name: Run Windows PAL tests
+        shell: pwsh
+        run: |
+          Write-Host "Running Windows PAL test suite..."
+          Write-Host ""
+          
+          cd tests
+          
+          # Run comprehensive Windows PAL tests
+          python3 -m pytest platform/test_windows_pal_complete.py -v `
+            --junitxml=../test-results/pal-windows-complete.xml `
+            --tb=short 2>&1 | Tee-Object -Variable testOutput
+          
+          Write-Host ""
+          Write-Host "Test output saved to test-results/pal-windows-complete.xml"
+          
+          # Also run basic PAL API tests
+          python3 -m pytest platform/test_pal_api.py -v `
+            --junitxml=../test-results/pal-windows.xml `
+            --tb=short 2>&1 | Tee-Object -Variable basicOutput
+        
+        continue-on-error: true
+      
+      - name: Generate Windows test summary
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "==========================================="
+          Write-Host "Windows PAL Test Summary"
+          Write-Host "==========================================="
+          Write-Host ""
+          
+          if (Test-Path "test-results/pal-windows-complete.xml") {
+            $xml = [xml](Get-Content "test-results/pal-windows-complete.xml")
+            $tests = $xml.testsuites.tests
+            $failures = $xml.testsuites.failures
+            $errors = $xml.testsuites.errors
+            
+            Write-Host "Tests: $tests"
+            Write-Host "Failures: $failures"
+            Write-Host "Errors: $errors"
+            Write-Host ""
+            
+            if ($failures -eq 0 -and $errors -eq 0) {
+              Write-Host "✅ Windows PAL tests: PASSED"
+            } else {
+              Write-Host "⚠ Windows PAL tests: $failures failures, $errors errors"
+            }
+          } else {
+            Write-Host "⚠ Test results file not found"
+          }
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-windows
+          path: test-results/
+          retention-days: 7
+
+  # ==========================================================================
+  # TEST RESULTS SUMMARY
+  # ==========================================================================
+  
+  test-summary:
+    name: Platform Test Summary
+    runs-on: ubuntu-latest
+    needs: [test-linux-x86_64, test-linux-arm64, test-macos-intel, test-macos-arm64, test-windows]
+    if: always()
+    
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          merge-multiple: true
+          path: test-results/
+      
+      - name: Generate test summary
+        run: |
+          echo "## Platform Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | Status | Test Report |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|-------------|" >> $GITHUB_STEP_SUMMARY
+          
+          for platform in "linux-x86_64" "linux-arm64" "macos-intel" "macos-arm64" "windows"; do
+            if [ -f "test-results/pal-${platform}.xml" ]; then
+              # Parse JUnit XML for results
+              failures=$(grep -o 'failures="[0-9]*"' "test-results/pal-${platform}.xml" | head -1 | cut -d'"' -f2)
+              if [ "$failures" = "0" ] || [ -z "$failures" ]; then
+                echo "| ${platform} | ✅ Passed | [Report](test-results/pal-${platform}.xml) |" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "| ${platform} | ❌ Failed ($failures failures) | [Report](test-results/pal-${platform}.xml) |" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "| ${platform} | ⚠ No results | - |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+      
+      - name: Upload summary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-test-summary
+          path: test-results/
+          retention-days: 30

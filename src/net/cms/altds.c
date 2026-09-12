@@ -26,6 +26,16 @@
 #include "action_log.h"
 
 #include <sys/socket.h>
+
+/* macOS compatibility */
+#if defined(__APPLE__) && defined(__MACH__)
+#ifndef SOCK_NONBLOCK
+#define SOCK_NONBLOCK 0
+#endif
+#ifndef SOCK_CLOEXEC
+#define SOCK_CLOEXEC 0
+#endif
+#endif
 #include <netinet/in.h>
 #include <unistd.h>
 #include <fcntl.h>

@@ -47,13 +47,32 @@
 
 #if defined(__has_include)
 #if __has_include(<linux/openat2.h>)
+/* macOS lacks openat2 - provide compatibility stubs */
+#if defined(__APPLE__) && defined(__MACH__)
+/* RESOLVE_* flags stubs for macOS */
+#ifndef RESOLVE_BENEATH
+#define RESOLVE_BENEATH 0x8
+#endif
+#ifndef RESOLVE_NO_MAGICLINKS
+#define RESOLVE_NO_MAGICLINKS 0x02
+#endif
+#ifndef SYS_openat2
+#define SYS_openat2 -1  /* Not available on macOS */
+#endif
+#else
 #include <linux/openat2.h>
+#endif
 #define BRIX_HAVE_LINUX_OPENAT2_H 1
 #endif
 #endif
 
 #if defined(__linux__) && defined(SYS_openat2) && defined(BRIX_HAVE_LINUX_OPENAT2_H)
+/* openat2 is Linux-only */
+#if defined(__linux__)
 #define BRIX_HAVE_OPENAT2 1
+#else
+#define BRIX_HAVE_OPENAT2 0
+#endif
 #endif
 
 #ifndef O_PATH
