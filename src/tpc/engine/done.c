@@ -76,10 +76,10 @@ tpc_done_account(brix_tpc_pull_t *t, int ok, ngx_log_t *log)
  * failure cleanup goes through the gated form — a read-only endpoint could not
  * have created it, and must not be able to remove one either. */
 static void
-tpc_dst_opctx(const brix_tpc_pull_t *t, ngx_log_t *log,
-    brix_vfs_export_op_ctx_t *opctx)
+tpc_dst_export_op_ctx(const brix_tpc_pull_t *t, ngx_log_t *log,
+    brix_vfs_export_op_ctx_t *export_op_ctx)
 {
-    brix_vfs_export_op_ctx_init(opctx, log, t->conf->common.root_canon,
+    brix_vfs_export_op_ctx_init(export_op_ctx, log, t->conf->common.root_canon,
         brix_vfs_policy_from_write_enable(t->conf->common.allow_write),
         BRIX_PROTO_ROOT);
 }
@@ -99,14 +99,14 @@ tpc_dst_opctx(const brix_tpc_pull_t *t, ngx_log_t *log,
 static void
 tpc_done_remove_partial(const brix_tpc_pull_t *t, ngx_log_t *log)
 {
-    brix_vfs_export_op_ctx_t opctx;
+    brix_vfs_export_op_ctx_t export_op_ctx;
 
     if (t->is_push) {
         return;                 /* dst_path is the SOURCE file — never remove */
     }
 
-    tpc_dst_opctx(t, log, &opctx);
-    (void) brix_vfs_export_unlink(&opctx, t->dst_path);
+    tpc_dst_export_op_ctx(t, log, &export_op_ctx);
+    (void) brix_vfs_export_unlink(&export_op_ctx, t->dst_path);
 }
 
 static void

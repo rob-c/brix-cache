@@ -102,7 +102,7 @@ cms_drv_trunc(brix_sd_instance_t *sd, const brix_cms_node_plan_t *plan)
  */
 static int
 cms_node_exec_driver(brix_sd_instance_t *sd,
-    const brix_vfs_export_op_ctx_t *opctx,
+    const brix_vfs_export_op_ctx_t *export_op_ctx,
     const brix_cms_node_plan_t *plan, int *handled)
 {
     const brix_sd_driver_t *drv = sd->driver;
@@ -116,7 +116,7 @@ cms_node_exec_driver(brix_sd_instance_t *sd,
 
     case XRDCMS_NACT_MKPATH:
         /* create the whole path + missing parents in the driver namespace. */
-        return brix_vfs_export_mkpath(opctx, plan->path, plan->mode);
+        return brix_vfs_export_mkpath(export_op_ctx, plan->path, plan->mode);
 
     case XRDCMS_NACT_RMDIR:
         return cms_drv_unlink(sd, plan->path, 1);
@@ -165,9 +165,9 @@ cms_forward_mutation_op(int action)
 /* The node's export write posture, as an operation context the confined VFS
  * helpers can be driven through. */
 static void
-cms_forward_opctx(ngx_brix_cms_ctx_t *ctx, brix_vfs_export_op_ctx_t *opctx)
+cms_forward_export_op_ctx(ngx_brix_cms_ctx_t *ctx, brix_vfs_export_op_ctx_t *export_op_ctx)
 {
-    brix_vfs_export_op_ctx_init(opctx, ctx->cycle->log,
+    brix_vfs_export_op_ctx_init(export_op_ctx, ctx->cycle->log,
         ctx->conf->common.root_canon,
         brix_vfs_policy_from_write_enable(ctx->conf->common.allow_write),
         BRIX_PROTO_ROOT);
@@ -226,10 +226,10 @@ cms_forward_exec(ngx_brix_cms_ctx_t *ctx, brix_sd_instance_t *sd,
     }
 
     if (sd != NULL) {
-        brix_vfs_export_op_ctx_t opctx;
+        brix_vfs_export_op_ctx_t export_op_ctx;
 
-        cms_forward_opctx(ctx, &opctx);
-        rc = cms_node_exec_driver(sd, &opctx, plan, &handled);
+        cms_forward_export_op_ctx(ctx, &export_op_ctx);
+        rc = cms_node_exec_driver(sd, &export_op_ctx, plan, &handled);
     } else {
         rc = cms_posix_apply(ctx, plan, &handled);
     }
@@ -265,9 +265,9 @@ cms_posix_apply(ngx_brix_cms_ctx_t *ctx, const brix_cms_node_plan_t *plan,
 {
     int                      rootfd = ctx->conf->rootfd;
     const char              *root_canon = ctx->conf->common.root_canon;
-    brix_vfs_export_op_ctx_t opctx;
+    brix_vfs_export_op_ctx_t export_op_ctx;
 
-    cms_forward_opctx(ctx, &opctx);
+    cms_forward_export_op_ctx(ctx, &export_op_ctx);
     *handled = 1;
 
     switch (plan->action) {
@@ -281,17 +281,17 @@ cms_posix_apply(ngx_brix_cms_ctx_t *ctx, const brix_cms_node_plan_t *plan,
                                               full, plan->mode, NULL);
     }
     case XRDCMS_NACT_RMDIR:
-        return brix_vfs_export_unlink_at(&opctx, rootfd, plan->path, 1);
+        return brix_vfs_export_unlink_at(&export_op_ctx, rootfd, plan->path, 1);
 
     case XRDCMS_NACT_RM:
-        return brix_vfs_export_unlink_at(&opctx, rootfd, plan->path, 0);
+        return brix_vfs_export_unlink_at(&export_op_ctx, rootfd, plan->path, 0);
 
     case XRDCMS_NACT_MV:
         return brix_rename_beneath(rootfd, plan->path, plan->path2);
 
     case XRDCMS_NACT_CHMOD: {
         int rc;
-        int fd = brix_vfs_export_open_fd_at(&opctx, rootfd, plan->path,
+        int fd = brix_vfs_export_open_fd_at(&export_op_ctx, rootfd, plan->path,
                                             O_RDONLY, 0);
         if (fd < 0) { return -1; }
         rc = fchmod(fd, plan->mode);  /* vfs-seam-allow: SEAM_CORRECT — metadata on a VFS-opened confined fd */
@@ -300,7 +300,7 @@ cms_posix_apply(ngx_brix_cms_ctx_t *ctx, const brix_cms_node_plan_t *plan,
     }
     case XRDCMS_NACT_TRUNC: {
         int rc;
-        int fd = brix_vfs_export_open_fd_at(&opctx, rootfd, plan->path,
+        int fd = brix_vfs_export_open_fd_at(&export_op_ctx, rootfd, plan->path,
                                             O_WRONLY, 0);
         if (fd < 0) { return -1; }
         rc = ftruncate(fd, (off_t) plan->size);  /* vfs-seam-allow: SEAM_CORRECT — metadata on a VFS-opened confined fd */

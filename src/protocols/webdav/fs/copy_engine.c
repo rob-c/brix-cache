@@ -45,17 +45,17 @@ webdav_copy_meta_cb(void *cookie, const char *src, const char *dst, int is_dir)
  * via the metadata callback, keeping the protocol-specific bit out of the VFS.
  */
 ngx_int_t
-webdav_copy_file(const brix_vfs_export_op_ctx_t *opctx,
+webdav_copy_file(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *src, const char *dst)
 {
-    return brix_vfs_export_copyfile(opctx, src, dst,
-               1 /* preserve xattrs */, webdav_copy_meta_cb, opctx->log);
+    return brix_vfs_export_copyfile(export_op_ctx, src, dst,
+               1 /* preserve xattrs */, webdav_copy_meta_cb, export_op_ctx->log);
 }
 
 ngx_int_t
-webdav_copy_dir_recursive(const brix_vfs_export_op_ctx_t *opctx,
+webdav_copy_dir_recursive(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *src, const char *dst)
 {
-    return brix_vfs_export_copytree(opctx, src, dst,
-               1 /* preserve xattrs */, webdav_copy_meta_cb, opctx->log);
+    return brix_vfs_export_copytree(export_op_ctx, src, dst,
+               1 /* preserve xattrs */, webdav_copy_meta_cb, export_op_ctx->log);
 }

@@ -426,13 +426,13 @@ brix_open_posix_dispatch(brix_open_args_t *a)
 		 * posture here. A read open is not gated at all — the helper decides
 		 * from the flags, so ordinary reads on a read-only export are
 		 * untouched, and a create/truncate/append open answers EROFS. */
-		brix_vfs_export_op_ctx_t opctx;
+		brix_vfs_export_op_ctx_t export_op_ctx;
 
-		brix_vfs_export_op_ctx_init(&opctx, a->c->log,
+		brix_vfs_export_op_ctx_init(&export_op_ctx, a->c->log,
 		    conf->common.root_canon,
 		    brix_vfs_policy_from_write_enable(conf->common.allow_write),
 		    BRIX_PROTO_ROOT);
-		fd = brix_vfs_export_open_fd_at(&opctx, conf->rootfd,
+		fd = brix_vfs_export_open_fd_at(&export_op_ctx, conf->rootfd,
 		    brix_open_logical(open_path, conf->common.root_canon),
 		    effective_oflags, create_mode);
 	}

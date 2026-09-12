@@ -146,19 +146,19 @@ baq_journal_remove(const char *reqid)
  *
  * HOW:  RENAME needs the resolved backend instance (brix_vfs_rename_path takes an
  *       sd); the others take root_canon directly. Every primitive is the
- *       phase-105 policy-bearing export form, driven from `opctx` — the drain
+ *       phase-105 policy-bearing export form, driven from `export_op_ctx` — the drain
  *       re-checks the posture the enqueuing endpoint captured (Appendix D.8's
  *       "worker/drain validates record and policy again") instead of re-reading
  *       a configuration this op no longer belongs to. A refusal surfaces as
  *       EROFS and reaches the parked client like any other backend errno.
  */
 static int
-baq_apply(const brix_baq_rec_t *rec, const brix_vfs_export_op_ctx_t *opctx)
+baq_apply(const brix_baq_rec_t *rec, const brix_vfs_export_op_ctx_t *export_op_ctx)
 {
     switch ((brix_baq_op_t) rec->op) {
 
     case BRIX_BAQ_UNLINK:
-        if (brix_vfs_export_unlink(opctx, rec->src_key) == 0) {
+        if (brix_vfs_export_unlink(export_op_ctx, rec->src_key) == 0) {
             return 0;
         }
         /* kXR_rm parity: "unlink a file, rmdir a directory" non-recursively. The
@@ -166,27 +166,27 @@ baq_apply(const brix_baq_rec_t *rec, const brix_vfs_export_op_ctx_t *opctx)
          * to the empty-dir removal (which itself returns ENOTEMPTY on a non-empty
          * dir) — matching brix_vfs_unlink's file-or-empty-dir behaviour exactly. */
         if (errno == EISDIR
-            && brix_vfs_export_rmdir(opctx, rec->src_key) == 0)
+            && brix_vfs_export_rmdir(export_op_ctx, rec->src_key) == 0)
         {
             return 0;
         }
         return errno ? errno : EIO;
 
     case BRIX_BAQ_RMDIR:
-        return brix_vfs_export_rmdir(opctx, rec->src_key) == 0
+        return brix_vfs_export_rmdir(export_op_ctx, rec->src_key) == 0
                ? 0 : (errno ? errno : EIO);
 
     case BRIX_BAQ_MKDIR:
-        return brix_vfs_export_mkdir(opctx, rec->src_key,
+        return brix_vfs_export_mkdir(export_op_ctx, rec->src_key,
                                      (mode_t) rec->mode) == 0
                ? 0 : (errno ? errno : EIO);
 
     case BRIX_BAQ_RENAME: {
         brix_sd_instance_t *sd = brix_vfs_backend_resolve(rec->root_canon,
-                                                          opctx->log);
+                                                          export_op_ctx->log);
 
         errno = 0;
-        if (brix_vfs_export_rename(opctx, sd, rec->src_key, rec->dst_key,
+        if (brix_vfs_export_rename(export_op_ctx, sd, rec->src_key, rec->dst_key,
                                    0 /* no overwrite */, NULL) == NGX_OK)
         {
             return 0;
@@ -203,10 +203,10 @@ baq_apply(const brix_baq_rec_t *rec, const brix_vfs_export_op_ctx_t *opctx)
  * root, the captured endpoint posture, and the protocol to attribute a refusal
  * to. Kept in one place so no drain path can assemble a wider bundle. */
 static void
-baq_opctx(brix_vfs_export_op_ctx_t *opctx, const brix_baq_rec_t *rec,
+baq_export_op_ctx(brix_vfs_export_op_ctx_t *export_op_ctx, const brix_baq_rec_t *rec,
     ngx_log_t *log, brix_vfs_mutation_policy_t policy, brix_proto_t proto)
 {
-    brix_vfs_export_op_ctx_init(opctx, log, rec->root_canon, policy, proto);
+    brix_vfs_export_op_ctx_init(export_op_ctx, log, rec->root_canon, policy, proto);
 }
 
 /* Reconcile-time idempotency: a mutation the client was told to wait for has
@@ -215,9 +215,9 @@ baq_opctx(brix_vfs_export_op_ctx_t *opctx, const brix_baq_rec_t *rec,
  * other errno is a real transient failure and the record is kept for a later try. */
 static int
 baq_apply_idempotent(const brix_baq_rec_t *rec,
-    const brix_vfs_export_op_ctx_t *opctx)
+    const brix_vfs_export_op_ctx_t *export_op_ctx)
 {
-    int e = baq_apply(rec, opctx);
+    int e = baq_apply(rec, export_op_ctx);
 
     switch ((brix_baq_op_t) rec->op) {
     case BRIX_BAQ_UNLINK:
@@ -244,11 +244,11 @@ baq_drain_all(void)
 
     for (i = 0; i < baq_count; i++) {
         brix_baq_pending_t       *p = &baq_pending[i];
-        brix_vfs_export_op_ctx_t  opctx;
+        brix_vfs_export_op_ctx_t  export_op_ctx;
         int                       e;
 
-        baq_opctx(&opctx, &p->rec, log, p->policy, p->proto);
-        e = baq_apply(&p->rec, &opctx);
+        baq_export_op_ctx(&export_op_ctx, &p->rec, log, p->policy, p->proto);
+        e = baq_apply(&p->rec, &export_op_ctx);
 
         baq_journal_remove(p->rec.reqid);
         if (p->done != NULL) {
@@ -478,7 +478,7 @@ baq_reconcile_one(const char *path, ngx_log_t *log)
     }
 
     {
-        brix_vfs_export_op_ctx_t opctx;
+        brix_vfs_export_op_ctx_t export_op_ctx;
 
         /* phase-105: crash reconcile runs at worker start, with no request and
          * no endpoint configuration in scope, so the posture cannot be re-read.
@@ -489,9 +489,9 @@ baq_reconcile_one(const char *path, ngx_log_t *log)
          * already-accepted mutation into a silent loss across a reload — the
          * one outcome this journal exists to prevent (Appendix D.8). The proto
          * label never reaches a metric, because ALLOWED never refuses. */
-        baq_opctx(&opctx, &rec, log, BRIX_VFS_MUTATION_ALLOWED,
+        baq_export_op_ctx(&export_op_ctx, &rec, log, BRIX_VFS_MUTATION_ALLOWED,
                   BRIX_PROTO_ROOT);
-        e = baq_apply_idempotent(&rec, &opctx);
+        e = baq_apply_idempotent(&rec, &export_op_ctx);
     }
     if (e == 0) {
         (void) unlink(path);

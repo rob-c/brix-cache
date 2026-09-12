@@ -311,9 +311,9 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
     int              dst_fd;
     ngx_int_t        rc;
     s3_upcp_req_t    req;
-    brix_vfs_export_op_ctx_t opctx;   /* phase-105 endpoint write posture */
+    brix_vfs_export_op_ctx_t export_op_ctx;   /* phase-105 endpoint write posture */
 
-    brix_vfs_export_op_ctx_init(&opctx, r->connection->log,
+    brix_vfs_export_op_ctx_init(&export_op_ctx, r->connection->log,
         cf->common.root_canon,
         brix_vfs_policy_from_write_enable(cf->common.allow_write),
         BRIX_PROTO_S3);
@@ -362,7 +362,7 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
      * only becomes visible at CompleteMultipartUpload. Gate the part create so a
      * read-only endpoint refuses here rather than accumulating parts it can never
      * publish; EROFS maps to 403, not to an internal error. */
-    dst_fd = brix_vfs_export_open_fd(&opctx, part_path,
+    dst_fd = brix_vfs_export_open_fd(&export_op_ctx, part_path,
                                       O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC,
                                       0600);
     if (dst_fd < 0) {
@@ -381,7 +381,7 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
                       iobuf, sizeof(iobuf)) != 0) {
         brix_vfs_close(fh_src, r->connection->log);
         close(dst_fd);
-        (void) brix_vfs_export_unlink(&opctx, part_path);
+        (void) brix_vfs_export_unlink(&export_op_ctx, part_path);
         BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }

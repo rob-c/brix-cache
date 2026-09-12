@@ -227,17 +227,17 @@ static void
 mv_make_dst_parents(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
 					const char *dst_buf)
 {
-	brix_vfs_export_op_ctx_t opctx;
+	brix_vfs_export_op_ctx_t export_op_ctx;
 
 	/* phase-105 / RO-10: this runs BEFORE the rename that will be gated, so
 	 * without its own gate a read-only export would answer kXR_fsReadOnly to an
 	 * MV that had already left a fresh directory chain behind. The refusal must
 	 * come first, and it is silent for the same reason the whole helper is
 	 * best-effort: the caller's WRITE resolve reports the outcome. */
-	brix_vfs_export_op_ctx_init(&opctx, c->log, conf->common.root_canon,
+	brix_vfs_export_op_ctx_init(&export_op_ctx, c->log, conf->common.root_canon,
 		brix_vfs_policy_from_write_enable(conf->common.allow_write),
 		BRIX_PROTO_ROOT);
-	if (brix_vfs_export_require_mutation(&opctx, BRIX_VFS_MUTATE_MKDIR)
+	if (brix_vfs_export_require_mutation(&export_op_ctx, BRIX_VFS_MUTATE_MKDIR)
 		!= NGX_OK)
 	{
 		return;
@@ -252,7 +252,7 @@ mv_make_dst_parents(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
 			slash = strrchr(rel, '/');
 			if (slash && slash > rel) {
 				*slash = '\0';
-				(void) brix_vfs_export_mkpath(&opctx, rel, 0755);
+				(void) brix_vfs_export_mkpath(&export_op_ctx, rel, 0755);
 			}
 		}
 	} else {

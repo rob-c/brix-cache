@@ -80,12 +80,12 @@ brix_bound_confined_open(brix_ctx_t *ctx, ngx_connection_t *c,
          * may do. A writable-looking bound handle must therefore meet this
          * server's write posture here — the gated form refuses a mutating
          * open_flags with EROFS and leaves a read-only reopen untouched. */
-        brix_vfs_export_op_ctx_t opctx;
+        brix_vfs_export_op_ctx_t export_op_ctx;
 
-        brix_vfs_export_op_ctx_init(&opctx, c->log, conf->common.root_canon,
+        brix_vfs_export_op_ctx_init(&export_op_ctx, c->log, conf->common.root_canon,
             brix_vfs_policy_from_write_enable(conf->common.allow_write),
             BRIX_PROTO_ROOT);
-        fd = brix_vfs_export_open_fd_at(&opctx, conf->rootfd, rel, open_flags,
+        fd = brix_vfs_export_open_fd_at(&export_op_ctx, conf->rootfd, rel, open_flags,
                                         0);
     }
 

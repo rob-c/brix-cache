@@ -78,13 +78,13 @@ s3_multipart_complete_body_handler(ngx_http_request_t *r)
  * *http_status_out.
  */
 static ngx_int_t
-s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *opctx,
+s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *mpu_dir, const char *final_tmp, const char *fs_path,
     struct stat *st_out, char *crc64_b64_out, size_t crc64_sz,
     int *http_status_out)
 {
-    ngx_log_t  *log = opctx->log;
-    const char *root_canon = opctx->root_canon;
+    ngx_log_t  *log = export_op_ctx->log;
+    const char *root_canon = export_op_ctx->root_canon;
     char        part_path[PATH_MAX];
     int         final_fd, part_fd, part_num;
     off_t       dst_off = 0;
@@ -103,7 +103,7 @@ s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *opctx,
      * is concatenated and before any name appears on disk. Everything below is
      * either a read or a cleanup of this same temp, so one gate covers the whole
      * publish. */
-    final_fd = brix_vfs_export_open_fd(opctx, final_tmp,
+    final_fd = brix_vfs_export_open_fd(export_op_ctx, final_tmp,
                                         O_WRONLY | O_CREAT | O_TRUNC, 0600);
     if (final_fd < 0) {
         brix_log_safe_path(log, NGX_LOG_ERR, errno,
@@ -127,7 +127,7 @@ s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *opctx,
             ngx_log_error(NGX_LOG_ERR, log, errno,
                           "s3 complete_mpu: open part %d failed", part_num);
             close(final_fd);
-            brix_vfs_export_unlink(opctx, final_tmp);
+            brix_vfs_export_unlink(export_op_ctx, final_tmp);
             return NGX_ERROR;
         }
 
@@ -136,7 +136,7 @@ s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *opctx,
                           "s3 complete_mpu: fstat part %d failed", part_num);
             close(part_fd);
             close(final_fd);
-            brix_vfs_export_unlink(opctx, final_tmp);
+            brix_vfs_export_unlink(export_op_ctx, final_tmp);
             return NGX_ERROR;
         }
 
@@ -154,7 +154,7 @@ s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *opctx,
                           "s3 complete_mpu: copy part %d failed", part_num);
             close(part_fd);
             close(final_fd);
-            brix_vfs_export_unlink(opctx, final_tmp);
+            brix_vfs_export_unlink(export_op_ctx, final_tmp);
             return NGX_ERROR;
         }
         dst_off += pst.st_size;
@@ -165,7 +165,7 @@ s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *opctx,
         ngx_log_error(NGX_LOG_ERR, log, errno,
                       "s3 complete_mpu: fstat temp file failed");
         close(final_fd);
-        brix_vfs_export_unlink(opctx, final_tmp);
+        brix_vfs_export_unlink(export_op_ctx, final_tmp);
         return NGX_ERROR;
     }
     close(final_fd);
@@ -173,7 +173,7 @@ s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *opctx,
     if (brix_rename_confined_canon(log, root_canon, final_tmp, fs_path) != 0) {
         brix_log_safe_path(log, NGX_LOG_ERR, errno,
                              "s3 complete_mpu: rename to \"%s\" failed", fs_path);
-        brix_vfs_export_unlink(opctx, final_tmp);
+        brix_vfs_export_unlink(export_op_ctx, final_tmp);
         return NGX_ERROR;
     }
 
@@ -291,12 +291,12 @@ static void
 s3_mpu_aio_thread(void *data, ngx_log_t *log)
 {
     s3_mpu_aio_t             *t = data;
-    brix_vfs_export_op_ctx_t  opctx;
+    brix_vfs_export_op_ctx_t  export_op_ctx;
 
-    brix_vfs_export_op_ctx_init(&opctx, log, t->root_canon, t->policy,
+    brix_vfs_export_op_ctx_init(&export_op_ctx, log, t->root_canon, t->policy,
                                 BRIX_PROTO_S3);
 
-    t->rc = s3_mpu_assemble(t->r, &opctx, t->mpu_dir, t->final_tmp,
+    t->rc = s3_mpu_assemble(t->r, &export_op_ctx, t->mpu_dir, t->final_tmp,
                             t->fs_path, &t->st, t->crc64_b64,
                             sizeof(t->crc64_b64), &t->http_status);
 }
@@ -474,14 +474,14 @@ s3_multipart_complete_body_handler_inner(ngx_http_request_t *r)
             struct stat              st2;
             char                     crc[S3_CRC64NVME_B64_MAX];
             int                      status = NGX_HTTP_INTERNAL_SERVER_ERROR;
-            brix_vfs_export_op_ctx_t opctx;
+            brix_vfs_export_op_ctx_t export_op_ctx;
 
-            brix_vfs_export_op_ctx_init(&opctx, r->connection->log,
+            brix_vfs_export_op_ctx_init(&export_op_ctx, r->connection->log,
                 cf->common.root_canon,
                 brix_vfs_policy_from_write_enable(cf->common.allow_write),
                 BRIX_PROTO_S3);
 
-            if (s3_mpu_assemble(r, &opctx, mpu_dir, final_tmp, fs_path, &st2,
+            if (s3_mpu_assemble(r, &export_op_ctx, mpu_dir, final_tmp, fs_path, &st2,
                                 crc, sizeof(crc), &status) != NGX_OK)
             {
                 BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
