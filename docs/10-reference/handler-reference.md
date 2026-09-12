@@ -61,6 +61,141 @@ ngx_int_t brix_send_waitresp(brix_ctx_t *ctx, ngx_connection_t *c);
 Used by the upstream redirect and CMS manager paths. Rarely needed for new
 opcodes.
 
+### `brix_send_error_sid` (Phase 80+)
+
+```c
+ngx_int_t brix_send_error_sid(brix_ctx_t *ctx, ngx_connection_t *c,
+    const u_char sid[2], uint16_t errcode, const char *msg);
+```
+
+**Streamid-specific error** — sends `kXR_error` with explicit streamid. Use when:
+- Answering a request on a bound SECONDARY channel (not `ctx->recv.cur_streamid`)
+- Sending terminating error for chunked pgread with partial frames already committed
+- Error must ride the same channel under the original request's sid
+
+**Source**: `src/protocols/root/response/response.h:28-32`
+
+---
+
+## CMS Answer Functions (Phase 105+)
+
+### `brix_cms_answer_selected`
+
+```c
+ngx_int_t brix_cms_answer_selected(brix_ctx_t *ctx, ngx_connection_t *c,
+    const char *host, int port);
+```
+
+**CMS manager answer** — sends selected upstream host after `kYR_locate`/`kYR_select`.
+Used by cluster membership service (CMS) redirector path.
+
+**Source**: `src/net/cms/cms_select.c`
+
+---
+
+## pgwrite Status Functions (Phase 88+)
+
+### `brix_send_pgwrite_status`
+
+```c
+ngx_int_t brix_send_pgwrite_status(brix_ctx_t *ctx, ngx_connection_t *c,
+    uint16_t status, const u_char sid[2]);
+```
+
+**pgwrite status frame** — sends `kXR_pgwrite` status answer. Used for
+checksummed write acknowledgments (CRC32c verified writes).
+
+**Source**: `src/protocols/root/response/pgwrite_status.c`
+
+### `brix_send_pgwrite_cse`
+
+```c
+ngx_int_t brix_send_pgwrite_cse(brix_ctx_t *ctx, ngx_connection_t *c,
+    const u_char sid[2], int64_t offset, uint32_t dlen);
+```
+
+**pgwrite checksum-error (CSE) frame** — signals uncorrected CRC32c error on
+specific page. The page is recorded in the per-handle "Fob" (uncorrected-page
+registry); `kXR_close` fails with `kXR_ChkSumErr` while any page remains.
+
+**Source**: `src/protocols/root/response/pgwrite_cse.c`
+
+---
+
+## TPC Functions (Phase 57+)
+
+### `brix_send_redirect_tpc`
+
+```c
+ngx_int_t brix_send_redirect_tpc(brix_ctx_t *ctx, ngx_connection_t *c,
+    const char *host, int port, const char *path);
+```
+
+**TPC redirect frame** — sends third-party copy redirect answer. Used when
+native `root://` TPC destination arms rendezvous and redirects source.
+
+**Source**: `src/protocols/root/response/redirect_tpc.c`
+
+---
+
+## Response Builders (Phase 29+)
+
+### `brix_build_resp_hdr`
+
+```c
+ngx_int_t brix_build_resp_hdr(brix_ctx_t *ctx, u_char *buf,
+    uint16_t opcode, uint16_t status, uint32_t dlen);
+```
+
+**Response header builder** — assembles 24-byte XRootD response header.
+Used by all response helpers; call directly only for custom frame layouts.
+
+**Source**: `src/protocols/root/response/response_builders.c`
+
+### `brix_open_ok_frame`
+
+```c
+ngx_int_t brix_open_ok_frame(brix_ctx_t *ctx, u_char *buf, uint32_t size);
+```
+
+**kXR_open OK frame builder** — assembles complete open-OK response
+(handle + stat info + flags). Used by `kXR_open` handler after successful
+open.
+
+**Source**: `src/protocols/root/response/open_ok.c`
+
+### `brix_build_pgread_status_*` (Phase 88+)
+
+```c
+ngx_int_t brix_build_pgread_status_ok(brix_ctx_t *ctx, u_char *buf, size_t len);
+
+ngx_int_t brix_build_pgread_status_cse(brix_ctx_t *ctx, u_char *buf,
+    size_t len, int64_t offset, uint32_t dlen);
+```
+
+**pgread status builders** — assemble `kXR_pgread` status frames:
+- `ok`: Checksummed read completed successfully
+- `cse`: Checksum error on specific page (offset, dlen)
+
+**Source**: `src/protocols/root/response/pgread_status.c`
+
+---
+
+## CRC32c Helpers (Phase 88+)
+
+```c
+uint32_t brix_crc32c_init(void);
+uint32_t brix_crc32c_update(uint32_t crc, const u_char *buf, size_t len);
+uint32_t brix_crc32c_finish(uint32_t crc);
+uint32_t brix_crc32c(const u_char *buf, size_t len);
+```
+
+**Hardware-accelerated CRC32c** — ARM64 CRC32C instructions (10-20x speedup),
+x86 SSE4.2 fallback, pure software fallback. Used by `kXR_pgread`/`kXR_pgwrite`
+checksum verification.
+
+**Source**: `src/platform/linux/crc32c_arm64.c`, `src/core/compat/crc32c_fallback.c`
+
 ---
 
 ## Shortcut macros
@@ -129,10 +264,13 @@ in the audit trail.
 
 ---
 
-## AIO dispatch pattern
+## AIO dispatch pattern (Phase 1-31)
 
 Use async I/O for reads and writes so the nginx event loop is not blocked by
 filesystem calls. The pattern is always a `_thread` / `_done` pair.
+
+**Note**: This is the Phase 1-31 single-AIO pattern. Phase 32+ uses concurrent-AIO
+pipeline (see "Concurrent-AIO Read Pipeline (Phase 32+)" below).
 
 ### Posting a task
 
@@ -416,3 +554,88 @@ ngx_int_t s3_parse_uri(ngx_http_request_t *r,
  * Returns the part number or -1 if invalid. */
 long s3_parse_partnum(const char *str);
 ```
+
+---
+
+## Concurrent-AIO Read Pipeline (Phase 32+)
+
+**Location**: `src/protocols/root/connection/read_pipeline.c`, `src/protocols/root/read/readv_window.c`
+
+Phase 32 introduced a **concurrent-AIO read pipeline** that allows multiple
+read requests to be in-flight simultaneously, improving throughput on
+high-latency storage.
+
+### Pipeline Architecture
+
+```c
+/* Read pipeline sub-struct (ctx->rd) — Phase 32+ */
+typedef struct {
+    brix_read_slot_t  window[BRIX_READ_WINDOW_SLOTS]; /* 8-16 slots */
+    int               head;      /* next slot to allocate for kXR_read */
+    int               tail;      /* next slot to drain to client */
+    int               count;     /* valid slots in window */
+    size_t            bytes_pending; /* total bytes in-flight */
+    off_t             read_ahead_end; /* farthest byte hinted with WILLNEED */
+    unsigned          active:1;  /* 1 = pipeline active */
+} brix_ctx_rd_t;
+```
+
+### Pipeline Flow
+
+1. **Allocate slot** — kXR_read allocates slot from `ctx->rd.window[]`
+2. **Post AIO** — `ngx_thread_task_post()` to thread pool
+3. **Completion** — On AIO done, slot moves to drain queue
+4. **Drain in-order** — `brix_send_readv()` drains to client in original order
+
+### Key Benefits
+
+- **Parallelism**: 8-16 concurrent reads in-flight
+- **Read-ahead**: `read_ahead_end` tracks farthest byte for WILLNEED hints
+- **In-order delivery**: Slots drain in original request order despite variable completion times
+- **Backpressure**: `bytes_pending` caps in-flight bytes
+
+**Source**: `src/protocols/root/connection/read_pipeline.c`, `src/protocols/root/read/readv_window.c`
+
+---
+
+## Response Pipelining (Phase 29+)
+
+**Location**: `src/protocols/root/connection/write_helpers.c`, `src/protocols/root/connection/out_ring.c`
+
+Phase 29 introduced **response pipelining** via a ring buffer that queues
+responses for ordered delivery, enabling:
+
+- Multiple responses in-flight before client acknowledges
+- Ordered delivery despite variable processing times
+- Efficient batching of small responses
+
+### Ring Buffer Architecture
+
+```c
+/* Output queue sub-struct (ctx->out) — Phase 29+ */
+typedef struct {
+    brix_resp_slot_t  ring[BRIX_RESP_RING_SLOTS]; /* 256 slots */
+    int               head;      /* next slot to allocate */
+    int               tail;      /* next slot to drain */
+    int               count;     /* valid slots in ring */
+    size_t            bytes_queued; /* total bytes pending */
+    ngx_event_t      *write_ev;  /* write event for draining */
+    unsigned          draining:1; /* 1 = actively draining ring */
+} brix_ctx_out_t;
+```
+
+### Pipeline Flow
+
+1. **Handler calls** `brix_queue_response()` → allocates slot from `ctx->out.ring[]`
+2. **Slot holds** response buffer, streamid, state
+3. **Write event drains** ring FIFO via `brix_drain_out_ring()`
+4. **On completion**, slot freed, `ctx->out.count--`
+
+### Key Benefits
+
+- **256 slots** — Large enough for burst handling
+- **FIFO ordering** — Responses delivered in queue order
+- **Backpressure** — `bytes_queued` caps pending bytes
+- **Efficient** — Single write event drains entire ring
+
+**Source**: `src/protocols/root/connection/write_helpers.c`, `src/protocols/root/connection/out_ring.c`
