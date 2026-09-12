@@ -365,6 +365,39 @@
  */
 #define BRIX_PROXY_WRITE_TIMEOUT_DEFAULT_MS    60000
 
+/* ---- Proxy buffer and sizing constants ---- */
+
+/*
+ * Maximum port number (TCP/UDP port range: 1-65535).
+ * Used for port validation in proxy upstream configuration.
+ */
+#define BRIX_MAX_PORT                          65535
+
+/*
+ * Retry buffer threshold for proxy requests (128 KB).
+ * Requests smaller than this use retry buffer; larger requests stream directly.
+ * Balances memory usage against retry capability.
+ */
+#define BRIX_PROXY_RETRY_BUFFER_MAX            (128 * 1024)
+
+/*
+ * Maximum hostname length for proxy upstream (256 bytes).
+ * Accommodates FQDNs with subdomains while bounding allocation.
+ */
+#define BRIX_PROXY_MAX_HOST_LEN                256
+
+/*
+ * Proxy pool size for upstream connections (512 bytes).
+ * Small pool for per-connection upstream state allocation.
+ */
+#define BRIX_PROXY_POOL_SIZE                   512
+
+/*
+ * Audit log buffer size (1024 bytes).
+ * Sufficient for single-line audit entries with host/path info.
+ */
+#define BRIX_PROXY_AUDIT_BUF_SIZE              1024
+
 /*
  * Cache lock timeout (seconds).
  * Stampede prevention: maximum time a cache fill lock is held.

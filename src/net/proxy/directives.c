@@ -84,9 +84,10 @@ proxy_parse_host_port(ngx_conf_t *cf, ngx_str_t *value,
         pnum = strtol(colon + 1, &endp, 10);
     }
 
-    if (*endp != '\0' || pnum <= 0 || pnum > 65535) {
+    if (*endp != '\0' || pnum <= 0 || pnum > BRIX_MAX_PORT) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_tap_proxy_upstream: invalid port in \"%V\"", value);
+            "brix_tap_proxy_upstream: invalid port in \"%V\" (must be 1-%d)",
+            value, BRIX_MAX_PORT);
         return NGX_CONF_ERROR;
     }
     *port_out = (uint16_t) pnum;
