@@ -1352,11 +1352,177 @@ brix_plat_cleanup(); // Currently no-op
 
 ---
 
-## 12. Windows Platform Detection (Windows Only)
+## 12. Apple Silicon CPU Topology (macOS Only)
+
+**Note**: These 12 functions are macOS/Apple Silicon-specific extensions to the PAL API. They provide CPU topology detection and performance optimization for Apple Silicon (M1/M2/M3) chips.
+
+### 13.1 `brix_apple_detect_chip()`
+
+**Purpose**: Detect Apple Silicon chip type
+
+**Signature**:
+```c
+void brix_apple_detect_chip(void);
+```
+
+| Platform | Implementation | Performance |
+|----------|---------------|-------------|
+| **macOS** | sysctlbyname("hw.optional.arm64") + IOKit | O(1), cached |
+| **Linux** | N/A | N/A |
+| **Windows** | N/A | N/A |
+
+**Notes**:
+- Called once at startup to detect Apple Silicon
+- Results cached for subsequent queries
+- Enables Firestorm/Icestorm core awareness
+
+---
+
+### 13.2 `brix_apple_get_perf_cores()`
+
+**Purpose**: Get number of performance (Firestorm) cores
+
+**Signature**:
+```c
+int brix_apple_get_perf_cores(void);
+```
+
+**Returns**: Number of performance cores (e.g., 4 on M1 Pro)
+
+| Platform | Implementation |
+|----------|---------------|
+| **macOS** | sysctlbyname("hw.perflevel0.physicalcpu") |
+| **Linux/Windows** | N/A |
+
+---
+
+### 13.3 `brix_apple_get_eff_cores()`
+
+**Purpose**: Get number of efficiency (Icestorm) cores
+
+**Signature**:
+```c
+int brix_apple_get_eff_cores(void);
+```
+
+**Returns**: Number of efficiency cores (e.g., 4 on M1 Pro)
+
+---
+
+### 13.4 `brix_plat_cpu_count_performance()`
+
+**Purpose**: Get performance core count (cross-platform wrapper)
+
+**Signature**:
+```c
+int brix_plat_cpu_count_performance(void);
+```
+
+---
+
+### 13.5 `brix_plat_cpu_count_efficiency()`
+
+**Purpose**: Get efficiency core count (cross-platform wrapper)
+
+**Signature**:
+```c
+int brix_plat_cpu_count_efficiency(void);
+```
+
+---
+
+### 13.6 `brix_plat_cpu_info()`
+
+**Purpose**: Get detailed CPU information
+
+**Signature**:
+```c
+int brix_plat_cpu_info(void *info);
+```
+
+---
+
+### 13.7 `brix_plat_chip_model()`
+
+**Purpose**: Get chip model string
+
+**Signature**:
+```c
+int brix_plat_chip_model(char *buf, size_t buf_size);
+```
+
+**Returns**: Chip model (e.g., "M1 Pro", "M2 Max")
+
+---
+
+### 13.8 `brix_plat_is_apple_silicon()`
+
+**Purpose**: Check if running on Apple Silicon
+
+**Signature**:
+```c
+int brix_plat_is_apple_silicon(void);
+```
+
+**Returns**: 1 if Apple Silicon, 0 otherwise
+
+---
+
+### 13.9 `brix_plat_worker_placement_strategy()`
+
+**Purpose**: Get recommended worker placement strategy
+
+**Signature**:
+```c
+int brix_plat_worker_placement_strategy(void);
+```
+
+**Returns**: Strategy code (1=perf cores, 2=eff cores, 3=mixed)
+
+---
+
+### 13.10 `brix_plat_cpu_topology_print()`
+
+**Purpose**: Print CPU topology information
+
+**Signature**:
+```c
+void brix_plat_cpu_topology_print(void);
+```
+
+---
+
+### 13.11 `brix_apple_clonefile()`
+
+**Purpose**: APFS clonefile() wrapper (THEORETICAL - NOT INTEGRATED)
+
+**Signature**:
+```c
+int brix_apple_clonefile(const char *src, const char *dst, int flags);
+```
+
+**⚠️ WARNING**: This function is documented but NOT INTEGRATED in the build. Current implementation uses pread/pwrite loop (50-100 MB/s). Theoretical 100x speedup with clonefile() not yet realized.
+
+---
+
+### 13.12 `brix_apple_perf_start/read/stop()`
+
+**Purpose**: Performance monitoring wrappers
+
+**Signatures**:
+```c
+int brix_apple_perf_start(void);
+int brix_apple_perf_read(brix_apple_perf_stats_t *stats);
+int brix_apple_perf_stop(void);
+```
+
+---
+
+## 13. Windows Platform Detection (Windows Only)
 
 **Note**: These 8 functions are Windows-specific extensions to the PAL API.
 
-### 12.1 `brix_plat_is_windows()`
+### 13.1 `brix_plat_is_windows()`
 
 **Purpose**: Check if running on Windows
 
@@ -1371,7 +1537,7 @@ int brix_plat_is_windows(void);
 
 ---
 
-### 12.2 `brix_plat_windows_version()`
+### 13.2 `brix_plat_windows_version()`
 
 **Purpose**: Get Windows version string
 
@@ -1392,7 +1558,7 @@ const char *brix_plat_windows_version(void);
 
 ---
 
-### 12.3 `brix_plat_windows_build()`
+### 13.3 `brix_plat_windows_build()`
 
 **Purpose**: Get Windows build number
 
@@ -1407,7 +1573,7 @@ unsigned long brix_plat_windows_build(void);
 
 ---
 
-### 12.4 `brix_plat_windows_version_info()`
+### 13.4 `brix_plat_windows_version_info()`
 
 **Purpose**: Get Windows version components
 
@@ -1424,7 +1590,7 @@ int brix_plat_windows_version_info(unsigned long *major,
 
 ---
 
-### 12.5 `brix_plat_is_windows_server()`
+### 13.5 `brix_plat_is_windows_server()`
 
 **Purpose**: Check if running on Windows Server
 
@@ -1439,7 +1605,7 @@ int brix_plat_is_windows_server(void);
 
 ---
 
-### 12.6 `brix_plat_windows_service_pack()`
+### 13.6 `brix_plat_windows_service_pack()`
 
 **Purpose**: Get Windows service pack string
 
@@ -1454,7 +1620,7 @@ const char *brix_plat_windows_service_pack(void);
 
 ---
 
-### 12.7 `brix_plat_windows_edition()`
+### 13.7 `brix_plat_windows_edition()`
 
 **Purpose**: Get Windows edition from registry
 
@@ -1469,7 +1635,7 @@ const char *brix_plat_windows_edition(void);
 
 ---
 
-### 12.8 `brix_plat_windows_version_at_least()`
+### 13.8 `brix_plat_windows_version_at_least()`
 
 **Purpose**: Check if Windows version meets minimum requirements
 
@@ -1491,7 +1657,7 @@ if (brix_plat_windows_version_at_least(10, 0, 19041)) {
 
 ---
 
-## 13. Troubleshooting Guide
+## 14. Troubleshooting Guide
 
 ### Common Issues
 
