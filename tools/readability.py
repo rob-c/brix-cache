@@ -34,6 +34,7 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 # Readability budgets. Over these a function starts contributing to the score.
@@ -44,7 +45,9 @@ W_CCN, W_LEN, W_PARAM, W_DENS = 1.0, 0.10, 2.0, 0.5
 
 
 def find_lizard() -> str:
-    for c in ("lizard", os.path.expanduser("~/.local/bin/lizard")):
+    """Find lizard on PATH, in the active virtualenv, or in a user install."""
+    active_venv_lizard = Path(sys.executable).parent / "lizard"
+    for c in ("lizard", str(active_venv_lizard), os.path.expanduser("~/.local/bin/lizard")):
         if shutil.which(c) or os.path.exists(c):
             return c
     sys.exit("lizard not found. Install: pip install --user lizard")

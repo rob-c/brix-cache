@@ -234,7 +234,7 @@ class TestTheKrb5ForwardableFlag:
         readers = _krb5_forwardable_readers()
         # The VFS context-builder split moved this one consumer out of
         # op_path.c; pin its new cohesive home as well as its uniqueness.
-        assert readers == ["src/protocols/root/path/op_path_vfs.c:201"], readers
+        assert readers == ["src/protocols/root/path/op_path_vfs.c:198"], readers
         assert "brix_krb5_deleg_origin_spn" in OP_PATH_C.read_text()
 
 

@@ -120,8 +120,13 @@ frm_exec_spawn(pid_t *pid, const char *prog, char *const argv[],
     return 0;
 }
 
-/* Run "<stagecmd> <verb> <key> <online>"; returns the child's exit code (0 ok), or
- * -1 on spawn/wait failure. No shell - argv is passed directly (no injection).
+/* Run "<stagecmd> <verb> <key> <online>".
+ *
+ * WHAT: Return the child's exit code (0 ok, non-zero with EIO), or -1 on
+ * spawn/wait failure with the runner's errno. No shell: argv is passed directly.
+ *
+ * WHY: A normally exiting child reports only an exit code; errno left by the
+ * runner's tolerated intermediate-reaping race must not become an MSS error.
  *
  * The run goes through brix_subprocess_run (2.0, 2026-09-09), NOT a child of
  * this worker: nginx's signal handler calls ngx_process_get_status() for
@@ -132,7 +137,13 @@ frm_exec_spawn(pid_t *pid, const char *prog, char *const argv[],
  * "stage command failed"). The shared runner puts the command under a
  * double-forked agent the worker never had as a child, and that agent enforces
  * the brix_frm_copy_timeout deadline and the SIGKILL of the whole process
- * group. Spawn hygiene (closefrom(3) + its own session) is the runner's. */
+ * group. Spawn hygiene (closefrom(3) + its own session) is the runner's.
+ *
+ * HOW:
+ *   1. Pass the verb arguments and configured deadline to the shared runner.
+ *   2. Preserve runner failures, logging an enforced timeout.
+ *   3. Map a normal non-zero exit to EIO, independent of incidental errno.
+ */
 static int
 exec_run(const exec_ctx_t *c, const char *verb, const char *key,
     const char *online)
@@ -161,6 +172,7 @@ exec_run(const exec_ctx_t *c, const char *verb, const char *key,
         }
         return -1;
     }
+    errno = (exit_code == 0) ? 0 : EIO;
     return exit_code;
 }
 

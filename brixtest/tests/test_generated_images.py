@@ -12,6 +12,7 @@ from brixtest.runtime.images import OCIImageStore
 from brixtest.runtime.kubernetes_images import prepare_server_images
 from brixtest.runtime.kubernetes_manifests import server_resources
 from brixtest.pytest_profile import validate_profile
+from brixtest.testing import test_config
 
 
 class _Evidence:
@@ -148,11 +149,13 @@ def test_remote_kubernetes_rejects_local_binary_before_image_build(tmp_path):
 
 
 def test_remote_kubernetes_pushes_capture_to_configured_registry(
-    tmp_path, monkeypatch,
+    tmp_path,
 ):
     digest = "registry.test/base@sha256:" + "d" * 64
-    monkeypatch.setenv("BRIXTEST_OCI_REGISTRY", "registry.test/team")
-    monkeypatch.setenv("BRIXTEST_OCI_BASE_IMAGE", digest)
+    config = test_config(
+        oci_registry="registry.test/team",
+        oci_base_image=digest,
+    )
     declared = binary("nginx", tmp_path / "nginx")
     captured = _captured(tmp_path)
     owner = _owner(tmp_path)
@@ -162,6 +165,7 @@ def test_remote_kubernetes_pushes_capture_to_configured_registry(
 
     images, paths = prepare_server_images(
         backend, (server("origin", command=(declared,)),),
+        config=config,
     )
 
     _assert_registry_capture(owner, images, paths, digest)

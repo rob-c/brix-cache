@@ -1,12 +1,15 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_ci_guards_helpers")
 
-# 300s, not the 30s default: most guards finish in ~1s, but the lizard-class
-# ones (check_python_quality ~23s serially, check_python_deps close behind)
-# starve past 30s when 12 xdist workers saturate the box.
-@pytest.mark.timeout(300)
+# Most guards need more than the 30s default on a loaded host. Duplication
+# scans the combined corpus and each tree separately; allow that bounded job
+# ten minutes (a clean Ubuntu/Lima run already takes over four minutes).
 @pytest.mark.suite_job
-@pytest.mark.parametrize("guard", _FAST)
+@pytest.mark.parametrize("guard", [
+    pytest.param(guard, marks=pytest.mark.timeout(
+        600 if guard == "check_duplication" else 300))
+    for guard in _FAST
+])
 def test_ci_guard_green(guard: str) -> None:
     rc, out = _run(guard)
     assert rc == 0, f"tools/ci/{guard}.py failed (exit {rc}):\n{out}"
@@ -241,8 +244,11 @@ def test_template_ref_guard_reddens_on_a_stale_backlog_entry() -> None:
 # on. (guards.yml invokes the guard directly, without this pytest timeout.)
 @pytest.mark.skipif(not _have("lizard"), reason="lizard not installed (pip install --user lizard)")
 @pytest.mark.suite_job
-@pytest.mark.timeout(300)
-@pytest.mark.parametrize("guard", ["check_complexity", "check_duplication", "check_py_complexity"])
+@pytest.mark.parametrize("guard", [
+    pytest.param(guard, marks=pytest.mark.timeout(
+        600 if guard == "check_duplication" else 300))
+    for guard in ("check_complexity", "check_duplication", "check_py_complexity")
+])
 def test_ci_lizard_guard_green(guard: str) -> None:
     rc, out = _run(guard)
     assert rc == 0, f"tools/ci/{guard}.py failed (exit {rc}):\n{out}"

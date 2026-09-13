@@ -199,10 +199,10 @@ def test_the_factories_are_invoked_only_with_the_brix_prefix():
 def test_the_generated_inventory_is_the_expected_size():
     tier, async_ = _suffixes("BRIX_TIER_DIRECTIVES"), \
         _suffixes("BRIX_BACKEND_ASYNC_DIRECTIVES")
-    assert len(tier) == 24, tier
+    assert len(tier) == 25, tier
     assert len(async_) == 3, async_
     assert len(set(tier) & set(async_)) == 0, "a suffix belongs to one family"
-    assert len(_generated_names()) == 27, sorted(_generated_names())
+    assert len(_generated_names()) == 28, sorted(_generated_names())
 
 
 # --------------------------------------------------------------------------- #
@@ -211,7 +211,7 @@ def test_the_generated_inventory_is_the_expected_size():
 
 
 def test_the_tier_grammar_is_invisible_to_a_literal_directive_scan():
-    """The §E claim, pinned to the byte: 24 of the 27 generated directives have
+    """The §E claim, pinned to the byte: 25 of the 28 generated directives have
     no `ngx_string("<name>")` anywhere in src/, so the scan the audit's §Method
     used — and every other name-based guard — reports them as nonexistent."""
     blob = _src_blob()
@@ -222,7 +222,7 @@ def test_the_tier_grammar_is_invisible_to_a_literal_directive_scan():
         "the literal/macro-only split moved. A name that gained a literal "
         f"declaration is now double-declared; a name that lost one just went "
         f"invisible to every name-based guard. visible={sorted(visible)}")
-    assert len(invisible) == 24, sorted(invisible)
+    assert len(invisible) == 25, sorted(invisible)
 
 
 def test_the_hand_maintained_call_site_comment_still_lists_every_directive():
@@ -247,7 +247,7 @@ def test_the_documentation_gap_matches_the_macro_hole():
 
 def test_every_generated_directive_is_exercised_by_the_test_corpus():
     """The audit's own closure condition, applied to the names it had to
-    expand by hand: all 27 appear in a template or an inline config."""
+    expand by hand: all 28 appear in a template or an inline config."""
     blob = _tests_blob()
     missing = sorted(n for n in _generated_names() if not _mentions(blob, n))
     assert missing == [], (

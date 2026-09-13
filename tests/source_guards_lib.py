@@ -23,6 +23,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -495,8 +496,9 @@ def todo_fixme(root: Path = ROOT) -> tuple[bool, list[str]]:
 
 
 def find_lizard() -> str | None:
-    """Mirror readability.find_lizard: lizard on PATH or ~/.local/bin/lizard."""
-    for c in ("lizard", os.path.expanduser("~/.local/bin/lizard")):
+    """Mirror readability.find_lizard, including an active virtualenv."""
+    active_venv_lizard = Path(sys.executable).parent / "lizard"
+    for c in ("lizard", str(active_venv_lizard), os.path.expanduser("~/.local/bin/lizard")):
         if shutil.which(c) or os.path.exists(c):
             return c
     return None

@@ -420,8 +420,11 @@ zip_find_eocd(int fd, zip_eocd_t *out)
         tail = ZIP_EOCD_LEN + ZIP_COMMENT_MAX;
     }
     base = (uint64_t) sb.st_size - tail;
-    buf = malloc((size_t) tail);
-    if (buf == NULL || pread_full(fd, buf, (size_t) tail, base) != 0) {
+    buf = calloc((size_t) tail, 1);
+    if (buf == NULL) {
+        return -1;
+    }
+    if (pread_full(fd, buf, (size_t) tail, base) != 0) {
         free(buf);
         return -1;
     }

@@ -39,21 +39,11 @@ from fleet_lifecycle_ports import SHARED_PARSE_PLACEHOLDER_PORT
 
 pytestmark = [pytest.mark.timeout(120)]
 
-# The probe body: a stream server whose only access control arrives through a
-# line-carrying slot, exactly as the corpus does it.
-PROBE = """worker_processes 1;
-daemon off;
-error_log {log}/error.log;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen 127.0.0.1:{port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-{slot}    }}
-}}
-"""
+# The probe body is a committed template, so this hygiene test does not become
+# an exception to the registry rule it supports.
+PROBE = (CONFIG_DIR / "nginx_config_template_hygiene_probe.conf").read_text(
+    encoding="utf-8"
+)
 
 # Documented in a comment the way a template header documents its own slots.
 HEADER = "# The {DENY_LINES} slot carries this server's access control.\n"
@@ -116,7 +106,7 @@ def test_the_scanner_names_the_line_and_the_placeholder_it_would_swallow():
     # A placeholder that never opens a line is substituted mid-directive, so a
     # comment may interpolate it: it cannot carry a newline into one.
     assert comment_swallowed_placeholders(
-        "# the front listens on {PORT}\nlisten 127.0.0.1:{PORT};\n"
+        "# the front listens on {PORT}\nlisten 127.0.0.1:{PORT};\n"  # net-literal-allow: template listener fixture
     ) == []
     # nginx's own ${var} syntax is not a placeholder in either position.
     assert comment_swallowed_placeholders(

@@ -41,7 +41,7 @@ from brixtest.runtime.executors import tool_executor
 from brixtest.runtime.launchers import server_launcher
 from brixtest.runtime.logcapture import BoundedLogPump
 from brixtest.runtime.manager import CaseManager
-from brixtest.testing import check_launcher_contract
+from brixtest.testing.runtime_contracts import check_launcher_contract
 
 
 def _definition(*resources, keep="always"):
@@ -109,7 +109,8 @@ def test_process_launcher_refuses_a_working_directory_outside_the_run(tmp_path):
         server_launcher("process").prepare(context, request)
 
 
-def test_process_launcher_translates_posix_identity_and_capabilities(tmp_path, monkeypatch):
+def test_process_launcher_translates_posix_identity_and_capabilities(tmp_path):
+    import brixtest.runtime.launcher_identity as launcher_identity_module
     runner = identity(
         "runner", uid=1200, gid=1300, groups=(1400,), capabilities=("chown",),
     )
@@ -120,17 +121,19 @@ def test_process_launcher_translates_posix_identity_and_capabilities(tmp_path, m
     request = ServerLaunchRequest(
         declaration, ("daemon",), {}, tmp_path, identity=runner,
     )
-    monkeypatch.setattr(
-        "brixtest.runtime.launcher_identity.shutil.which", lambda name: "/usr/bin/setpriv",
-    )
+    old_which = launcher_identity_module.shutil.which
+    launcher_identity_module.shutil.which = lambda name: "/usr/bin/setpriv"
 
-    argv = server_launcher("process").prepare(context, request).argv
-    assert argv[:2] == ("setpriv", "--no-new-privs")
-    assert argv[argv.index("--reuid") + 1] == "1200"
-    assert argv[argv.index("--regid") + 1] == "1300"
-    assert argv[argv.index("--groups") + 1] == "1400"
-    assert argv[argv.index("--bounding-set") + 1] == "-all,+chown"
-    assert argv[-1] == "daemon"
+    try:
+        argv = server_launcher("process").prepare(context, request).argv
+        assert argv[:2] == ("setpriv", "--no-new-privs")
+        assert argv[argv.index("--reuid") + 1] == "1200"
+        assert argv[argv.index("--regid") + 1] == "1300"
+        assert argv[argv.index("--groups") + 1] == "1400"
+        assert argv[argv.index("--bounding-set") + 1] == "-all,+chown"
+        assert argv[-1] == "daemon"
+    finally:
+        launcher_identity_module.shutil.which = old_which
 
 
 def test_server_launch_request_rejects_unresolved_identity(tmp_path):
@@ -157,8 +160,9 @@ def test_process_launcher_refuses_silently_ignored_placement(placement, message)
 
 
 def test_docker_launcher_uses_pinned_image_mode_0600_env_and_resource_limits(
-    tmp_path, monkeypatch,
+    tmp_path,
 ):
+    import brixtest.runtime.launchers as launchers_module
     image = "registry.example/server@sha256:" + "b" * 64
     declaration = server(
         "origin", execution=execution("/opt/server", "--port", "1234"),
@@ -172,31 +176,32 @@ def test_docker_launcher_uses_pinned_image_mode_0600_env_and_resource_limits(
         declaration, declaration.command, {"TOKEN": "not-in-argv"},
         tmp_path / "runtime" / "instances" / "origin",
     )
-    monkeypatch.setattr("brixtest.runtime.launchers.shutil.which", lambda name: "/usr/bin/" + name)
+    old_which = launchers_module.shutil.which
+    old_run = launchers_module.subprocess.run
+    launchers_module.shutil.which = lambda name: "/usr/bin/" + name
     cleanup = []
-    monkeypatch.setattr(
-        "brixtest.runtime.launchers.subprocess.run",
-        lambda argv, **kwargs: cleanup.append(tuple(argv))
-        or subprocess.CompletedProcess(argv, 0),
-    )
+    launchers_module.subprocess.run = lambda argv, **kwargs: cleanup.append(tuple(argv)) or subprocess.CompletedProcess(argv, 0)
+    try:
+        launcher = server_launcher("docker")
+        plan = launcher.prepare(context, request)
+        env_file = Path(plan.metadata["env_file"])
 
-    launcher = server_launcher("docker")
-    plan = launcher.prepare(context, request)
-    env_file = Path(plan.metadata["env_file"])
-
-    observed = (
-        plan.argv[:2], image in plan.argv, "not-in-argv" in plan.argv,
-        plan.argv[plan.argv.index("--cpus"):][:2], "--memory" in plan.argv,
-        "--pids-limit" in plan.argv, stat.S_IMODE(env_file.stat().st_mode),
-        env_file.read_text(),
-        plan.argv[plan.argv.index("--volume") + 1],
-    )
-    assert observed == (
-        ("docker", "run"), True, False, ("--cpus", "1.5"), True, True,
-        0o600, "TOKEN=not-in-argv\n", "%s:%s:rw" % (tmp_path, tmp_path),
-    )
-    launcher.cleanup(context, plan)
-    assert cleanup == [plan.cleanup_argv]
+        observed = (
+            plan.argv[:2], image in plan.argv, "not-in-argv" in plan.argv,
+            plan.argv[plan.argv.index("--cpus"):][:2], "--memory" in plan.argv,
+            "--pids-limit" in plan.argv, stat.S_IMODE(env_file.stat().st_mode),
+            env_file.read_text(),
+            plan.argv[plan.argv.index("--volume") + 1],
+        )
+        assert observed == (
+            ("docker", "run"), True, False, ("--cpus", "1.5"), True, True,
+            0o600, "TOKEN=not-in-argv\n", "%s:%s:rw" % (tmp_path, tmp_path),
+        )
+        launcher.cleanup(context, plan)
+        assert cleanup == [plan.cleanup_argv]
+    finally:
+        launchers_module.shutil.which = old_which
+        launchers_module.subprocess.run = old_run
 
 
 @pytest.mark.parametrize("backend", ["docker", "podman"])
@@ -210,7 +215,7 @@ def test_container_launchers_reject_mutable_images_by_default(backend):
 
 
 def test_container_launcher_rejects_multiline_secret_before_runtime_spawn(
-    tmp_path, monkeypatch,
+    tmp_path,
 ):
     declaration = server(
         "origin", execution=execution("daemon"),
@@ -222,13 +227,18 @@ def test_container_launcher_rejects_multiline_secret_before_runtime_spawn(
     request = ServerLaunchRequest(
         declaration, ("daemon",), {"TOKEN": "line-one\nline-two"}, tmp_path,
     )
-    monkeypatch.setattr("brixtest.runtime.launchers.shutil.which", lambda name: "/usr/bin/docker")
-    with pytest.raises(SpecError, match="cannot contain newlines"):
-        server_launcher("docker").prepare(context, request)
+    import brixtest.runtime.launchers as launchers_module
+    old_which = launchers_module.shutil.which
+    launchers_module.shutil.which = lambda name: "/usr/bin/docker"
+    try:
+        with pytest.raises(SpecError, match="cannot contain newlines"):
+            server_launcher("docker").prepare(context, request)
+    finally:
+        launchers_module.shutil.which = old_which
 
 
 def test_container_launcher_translates_declared_device_and_mount_propagation(
-    tmp_path, monkeypatch,
+    tmp_path,
 ):
     fuse = volume("fuse", kind="device", source="/dev/null")
     shared = volume("shared", kind="host", source=tmp_path)
@@ -248,17 +258,21 @@ def test_container_launcher_translates_declared_device_and_mount_propagation(
         declaration, ("daemon",), {}, tmp_path,
         (Path("/dev/null"), tmp_path),
     )
-    monkeypatch.setattr("brixtest.runtime.launchers.shutil.which", lambda name: "/usr/bin/docker")
+    import brixtest.runtime.launchers as launchers_module
+    old_which = launchers_module.shutil.which
+    launchers_module.shutil.which = lambda name: "/usr/bin/docker"
+    try:
+        argv = server_launcher("docker").prepare(context, request).argv
+        assert argv[argv.index("--device") + 1] == "/dev/null:/dev/null:rwm"
+        propagated = argv[argv.index("--mount") + 1]
+        assert propagated == (
+            "type=bind,src=%s,dst=%s,bind-propagation=rshared" % (tmp_path, tmp_path)
+        )
+    finally:
+        launchers_module.shutil.which = old_which
 
-    argv = server_launcher("docker").prepare(context, request).argv
-    assert argv[argv.index("--device") + 1] == "/dev/null:/dev/null:rwm"
-    propagated = argv[argv.index("--mount") + 1]
-    assert propagated == (
-        "type=bind,src=%s,dst=%s,bind-propagation=rshared" % (tmp_path, tmp_path)
-    )
 
-
-def test_container_launcher_rejects_regular_file_as_device(tmp_path, monkeypatch):
+def test_container_launcher_rejects_regular_file_as_device(tmp_path):
     regular = tmp_path / "ordinary"
     regular.write_text("not a device")
     device = volume("device", kind="device", source=regular)
@@ -272,12 +286,17 @@ def test_container_launcher_rejects_regular_file_as_device(tmp_path, monkeypatch
     )
     request = ServerLaunchRequest(declaration, ("daemon",), {}, tmp_path, (regular,))
     context = ServerLaunchContext("unit::device", tmp_path, tmp_path / "workspace")
-    monkeypatch.setattr("brixtest.runtime.launchers.shutil.which", lambda name: "/usr/bin/podman")
-    with pytest.raises(SpecError, match="character or block device"):
-        server_launcher("podman").prepare(context, request)
+    import brixtest
+    old_which = brixtest.runtime.launchers.shutil.which
+    brixtest.runtime.launchers.shutil.which = lambda name: "/usr/bin/podman"
+    try:
+        with pytest.raises(SpecError, match="character or block device"):
+            server_launcher("podman").prepare(context, request)
+    finally:
+        brixtest.runtime.launchers.shutil.which = old_which
 
 
-def test_podman_launcher_translates_identity_and_user_namespace(tmp_path, monkeypatch):
+def test_podman_launcher_translates_identity_and_user_namespace(tmp_path):
     runner = identity(
         "runner", uid=1000, gid=1001, groups=(1002,), user_namespace=True,
         uid_map=((0, 100000, 65536),), gid_map=((0, 200000, 65536),),
@@ -293,22 +312,26 @@ def test_podman_launcher_translates_identity_and_user_namespace(tmp_path, monkey
     request = ServerLaunchRequest(
         declaration, ("daemon",), {}, tmp_path, identity=runner,
     )
-    monkeypatch.setattr("brixtest.runtime.launchers.shutil.which", lambda name: "/usr/bin/podman")
+    import brixtest
+    old_which = brixtest.runtime.launchers.shutil.which
+    brixtest.runtime.launchers.shutil.which = lambda name: "/usr/bin/podman"
+    try:
+        argv = server_launcher("podman").prepare(context, request).argv
+        assert argv[argv.index("--user") + 1] == "1000:1001"
+        assert argv[argv.index("--group-add") + 1] == "1002"
+        assert argv[argv.index("--cap-add") + 1] == "NET_BIND_SERVICE"
+        assert argv[argv.index("--userns") + 1] == "private"
+        assert argv[argv.index("--uidmap") + 1] == "0:100000:65536"
+        assert argv[argv.index("--gidmap") + 1] == "0:200000:65536"
+        passwd_mount = next(value for value in argv if value.endswith(":/etc/passwd:ro"))
+        passwd = Path(passwd_mount.split(":", 1)[0])
+        assert passwd.read_text().splitlines()[1].startswith("brixtest_runner:x:1000:1001:")
+        assert stat.S_IMODE(passwd.stat().st_mode) == 0o644
+    finally:
+        brixtest.runtime.launchers.shutil.which = old_which
 
-    argv = server_launcher("podman").prepare(context, request).argv
-    assert argv[argv.index("--user") + 1] == "1000:1001"
-    assert argv[argv.index("--group-add") + 1] == "1002"
-    assert argv[argv.index("--cap-add") + 1] == "NET_BIND_SERVICE"
-    assert argv[argv.index("--userns") + 1] == "private"
-    assert argv[argv.index("--uidmap") + 1] == "0:100000:65536"
-    assert argv[argv.index("--gidmap") + 1] == "0:200000:65536"
-    passwd_mount = next(value for value in argv if value.endswith(":/etc/passwd:ro"))
-    passwd = Path(passwd_mount.split(":", 1)[0])
-    assert passwd.read_text().splitlines()[1].startswith("brixtest_runner:x:1000:1001:")
-    assert stat.S_IMODE(passwd.stat().st_mode) == 0o644
 
-
-def test_docker_launcher_rejects_user_namespace_mapping(tmp_path, monkeypatch):
+def test_docker_launcher_rejects_user_namespace_mapping(tmp_path):
     runner = identity("runner", user_namespace=True)
     declaration = server(
         "origin", execution=execution("daemon"), placement=Placement(
@@ -320,9 +343,14 @@ def test_docker_launcher_rejects_user_namespace_mapping(tmp_path, monkeypatch):
         declaration, ("daemon",), {}, tmp_path, identity=runner,
     )
     context = ServerLaunchContext("unit::docker-userns", tmp_path, tmp_path / "workspace")
-    monkeypatch.setattr("brixtest.runtime.launchers.shutil.which", lambda name: "/usr/bin/docker")
-    with pytest.raises(SpecError, match="process and Podman launchers only"):
-        server_launcher("docker").prepare(context, request)
+    import brixtest
+    old_which = brixtest.runtime.launchers.shutil.which
+    brixtest.runtime.launchers.shutil.which = lambda name: "/usr/bin/docker"
+    try:
+        with pytest.raises(SpecError, match="process and Podman launchers only"):
+            server_launcher("docker").prepare(context, request)
+    finally:
+        brixtest.runtime.launchers.shutil.which = old_which
 
 
 @pytest.mark.parametrize(

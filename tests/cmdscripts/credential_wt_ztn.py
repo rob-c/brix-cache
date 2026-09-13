@@ -12,7 +12,7 @@ import time
 
 from cmdscripts import run
 from fleet_ports import cmdscript_ports
-from settings import BIND_HOST, HOST, NGINX_BIN
+from settings import BIND_HOST, CA_DIR, HOST, NGINX_BIN, SERVER_CERT, SERVER_KEY
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAKE_TOKEN = REPO_ROOT / "utils" / "make_token.py"
@@ -50,6 +50,7 @@ def make_token(base: Path) -> tuple[bool, str]:
     )
     if gen.returncode != 0:
         return False, "make_token.py gen failed: " + (gen.stderr or gen.stdout)[-1000:]
+    (base / "token.jwt").chmod(0o600)
     return True, ""
 
 
@@ -76,6 +77,7 @@ events {{ worker_connections 64; }}
 stream {{ server {{
     listen {BIND_HOST}:{port}; brix_root on; brix_export {root};
     brix_auth token; brix_token_jwks {token_dir / 'jwks.json'};
+    brix_tls on; brix_certificate {SERVER_CERT}; brix_certificate_key {SERVER_KEY};
     brix_token_issuer https://test.example.com; brix_token_audience nginx-xrootd;
     brix_allow_write on; brix_upload_resume off;
 }} }}
@@ -93,7 +95,8 @@ def write_node_config(prefix: Path, port: int, origin_port: int, token_file: Pat
     credential_block = ""
     credential_ref = ""
     if token_file is not None:
-        credential_block = f"    brix_credential origin {{ token_file {token_file}; }}\n"
+        credential_block = (f"    brix_credential origin {{ token_file {token_file}; "
+                            f"ca_dir {CA_DIR}; }}\n")
         credential_ref = "        brix_wt_credential origin;\n"
     conf = prefix / "nginx.conf"
     conf.write_text(

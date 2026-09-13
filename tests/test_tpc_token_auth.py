@@ -37,6 +37,7 @@ Coverage (success · error · security-negative):
 
 import functools
 import os
+from pathlib import Path
 import re
 import shutil
 import subprocess
@@ -91,6 +92,10 @@ def _tls_pki_fault():
 
 
 def _guard_node_3():
+    # This lifecycle fixture starts after other serial TLS scenarios.  Repair
+    # the shared trust store here as well as in fleet preparation: stock XrdCl
+    # rejects a CA directory that an earlier scenario left group-writable.
+    _harden_xrootd_credentials(Path(CA_DIR).parent)
     if not (os.path.exists(SERVER_CERT) and os.path.isdir(CA_DIR)):
         pytest.skip("harness PKI missing; TLS is mandatory for a ztn client")
     fault = _tls_pki_fault()
@@ -105,6 +110,7 @@ def _guard_node_4(issuer):
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from brix_suite.prep_steps import _harden_xrootd_credentials  # noqa: E402
 from utils.make_token import TokenIssuer                       # noqa: E402
 
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(300),
@@ -265,10 +271,10 @@ def node(tmp_path_factory):
         yield {
             "roots": roots,
             "log_dir": os.path.join(endpoint.prefix, "logs"),
-            "src_url": f"root://{host}:{endpoint.extra_ports['PORT_SRC']}",
-            "dst_url": f"root://{host}:{endpoint.port}",
-            "bfile_url": f"root://{host}:{endpoint.extra_ports['PORT_BFILE']}",
-            "nopass_url": f"root://{host}:{endpoint.extra_ports['PORT_NOPASS']}",
+            "src_url": f"roots://{host}:{endpoint.extra_ports['PORT_SRC']}",
+            "dst_url": f"roots://{host}:{endpoint.port}",
+            "bfile_url": f"roots://{host}:{endpoint.extra_ports['PORT_BFILE']}",
+            "nopass_url": f"roots://{host}:{endpoint.extra_ports['PORT_NOPASS']}",
             "client_token": str(client_token),
             "expired_token": str(expired_token),
             "wrong_aud_token": str(wrong_aud_token),

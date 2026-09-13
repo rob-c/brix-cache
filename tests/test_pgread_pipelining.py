@@ -32,11 +32,14 @@ kXR_PartialResult = 1
 
 
 @pytest.fixture(scope="module")
-def pipe_file():
+def pipe_file(worker_id):
     """A file large enough that pipelined pgreads take the thread-pool path."""
+    # Module-scoped fixtures run once PER worker. A shared name lets one
+    # worker truncate the file while another already has a read in flight.
+    name = f"{PIPE_NAME}.{worker_id}"
     try:
         os.makedirs(DATA_ROOT, exist_ok=True)
-        full = os.path.join(DATA_ROOT, PIPE_NAME.lstrip("/"))
+        full = os.path.join(DATA_ROOT, name.lstrip("/"))
         if not (os.path.exists(full)
                 and os.path.getsize(full) == PIPE_SIZE):
             with open(full, "wb") as f:
@@ -44,7 +47,7 @@ def pipe_file():
     except OSError as exc:
         pytest.skip(f"server data root {DATA_ROOT!r} not locally writable: "
                     f"{exc}")
-    return PIPE_NAME
+    return name
 
 
 @pytest.fixture

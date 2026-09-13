@@ -52,6 +52,10 @@ from settings import (
     CLUSTER_SLOTS_DS1_PORT,
     CLUSTER_SLOTS_DS2_DATA_ROOT,
     CLUSTER_SLOTS_DS2_PORT,
+    CLUSTER_SLOTS_DS3_DATA_ROOT,
+    CLUSTER_SLOTS_DS3_PORT,
+    CLUSTER_SLOTS_DS4_DATA_ROOT,
+    CLUSTER_SLOTS_DS4_PORT,
     CLUSTER_SLOTS_REDIR_PORT,
     SERVER_HOST,
     XRDCP_BIN,
@@ -111,10 +115,13 @@ _DS_DATA_ROOT = {
     CLUSTER_SLOTS_DS2_PORT: CLUSTER_SLOTS_DS2_DATA_ROOT,
 }
 
-
 def _write_ds(port: int, name: str, data: bytes):
     """Write a file into the data root that the server on `port` serves."""
-    root = _DS_DATA_ROOT[port]
+    _write_data_root(_DS_DATA_ROOT[port], name, data)
+
+
+def _write_data_root(root: str, name: str, data: bytes):
+    """Write a file into one known data-server export root."""
     path = os.path.join(root, name)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as fh:
@@ -405,34 +412,47 @@ class TestSpaceAndQuotaRelay:
             (CLUSTER_SLOTS_REDIR_PORT, "slots cluster redirector"),
             (CLUSTER_SLOTS_DS1_PORT, "slots DS-1"),
             (CLUSTER_SLOTS_DS2_PORT, "slots DS-2"),
+            (CLUSTER_SLOTS_DS3_PORT, "slots DS-3"),
+            (CLUSTER_SLOTS_DS4_PORT, "slots DS-4"),
         ]:
             _skip_if_port_closed(port, label)
 
-    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-esc-leaf", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-slots-ds1", "cluster-slots-ds2", "cluster-slots-redir")
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-esc-leaf", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-slots-ds1", "cluster-slots-ds2", "cluster-slots-ds3", "cluster-slots-ds4", "cluster-slots-redir")
     def test_locate_uses_space_aware_selection(self):
         """Redirector returns a data server based on space availability."""
         name = f"slots_{uuid.uuid4().hex[:8]}.bin"
-        _write_ds(CLUSTER_SLOTS_DS1_PORT, name, b"space-test")
+        slot_nodes = (
+            (CLUSTER_SLOTS_DS1_PORT, CLUSTER_SLOTS_DS1_DATA_ROOT),
+            (CLUSTER_SLOTS_DS2_PORT, CLUSTER_SLOTS_DS2_DATA_ROOT),
+            (CLUSTER_SLOTS_DS3_PORT, CLUSTER_SLOTS_DS3_DATA_ROOT),
+            (CLUSTER_SLOTS_DS4_PORT, CLUSTER_SLOTS_DS4_DATA_ROOT),
+        )
+        for _, root in slot_nodes:
+            _write_data_root(root, name, b"space-test")
 
         sock = _xrd_handshake_and_login(SERVER_HOST, CLUSTER_SLOTS_REDIR_PORT)
         try:
             status, body = _send_locate(sock, f"/{name}")
             assert status == 4004, f"Expected redirect from slots cluster, got {status}"
             redirect_port = struct.unpack(">I", body[:4])[0]
-            assert redirect_port in (
-                CLUSTER_SLOTS_DS1_PORT, CLUSTER_SLOTS_DS2_PORT
-            ), f"Unexpected redirect target: {redirect_port}"
+            assert redirect_port in {port for port, _ in slot_nodes}, \
+                f"Unexpected redirect target: {redirect_port}"
         finally:
             sock.close()
 
-    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-esc-leaf", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-slots-ds1", "cluster-slots-ds2", "cluster-slots-redir")
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-esc-leaf", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-slots-ds1", "cluster-slots-ds2", "cluster-slots-ds3", "cluster-slots-ds4", "cluster-slots-redir")
     def test_xrdcp_completes_via_space_selected_ds(self, tmp_path):
         """xrdcp reads complete successfully via space-selected data server."""
         payload = os.urandom(8 * 1024)
         name = f"slots_read_{uuid.uuid4().hex[:8]}.bin"
-        # Write to both DSes — redirector may select either one.
-        _write_ds(CLUSTER_SLOTS_DS1_PORT, name, payload)
-        _write_ds(CLUSTER_SLOTS_DS2_PORT, name, payload)
+        # Write to every registered DS — redirector may select any of them.
+        for root in (
+            CLUSTER_SLOTS_DS1_DATA_ROOT,
+            CLUSTER_SLOTS_DS2_DATA_ROOT,
+            CLUSTER_SLOTS_DS3_DATA_ROOT,
+            CLUSTER_SLOTS_DS4_DATA_ROOT,
+        ):
+            _write_data_root(root, name, payload)
 
         dst = str(tmp_path / name)
         result = _xrdcp_get(

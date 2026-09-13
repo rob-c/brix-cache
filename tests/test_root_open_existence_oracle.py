@@ -27,7 +27,7 @@ _EXISTS = "/prot/exists.dat"
 _GHOST = "/prot/ghost-never-created.dat"
 
 
-def _spec():
+def _spec(authdb):
     return NginxInstanceSpec(
         name="lc-mu-direct-authz",
         template="nginx_mu_direct_authz.conf",
@@ -40,14 +40,14 @@ def _spec():
             "CA": os.path.join(ports.MU.CA_DIR, "ca.pem"),
             "VOMSDIR": ports.MU.VOMSDIR,
             "CA_DIR": ports.MU.CA_DIR,
-            "AUTHDB": ports.MU.AUTHDB,
+            "AUTHDB": str(authdb),
         },
         reason="MU direct (non-cache) node: read-open existence-oracle gate.",
     )
 
 
 @pytest.fixture
-def direct_authz_env(lifecycle):
+def direct_authz_env(lifecycle, tmp_path):
     principals.build_cast()
     d = os.path.join(ports.MU.DATA_ROOT, "prot")
     os.makedirs(d, exist_ok=True)
@@ -67,11 +67,12 @@ def direct_authz_env(lifecycle):
     ghost = os.path.join(ports.MU.DATA_ROOT, _GHOST.lstrip("/"))
     if os.path.exists(ghost):
         os.remove(ghost)
-    os.makedirs(ports.MU.MU_ROOT, exist_ok=True)
-    with open(ports.MU.AUTHDB, "w") as f:
-        f.write("g cms / rl\n")            # only VO cms may read
+    # Other MU groups render incompatible policies concurrently. Keep this
+    # server's native policy private for its entire lifetime, including reloads.
+    authdb = tmp_path / "authdb"
+    authdb.write_text("g cms / rl\n")     # only VO cms may read
 
-    return lifecycle.start(_spec()).url
+    return lifecycle.start(_spec(authdb)).url
 
 
 def _voms(name, vo):

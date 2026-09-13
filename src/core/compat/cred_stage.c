@@ -90,6 +90,11 @@ cred_create_excl(const char *base, char *path, size_t pathsz)
     unsigned char  rnd[4];
     int            attempt, fd, n;
 
+    if (base == NULL || path == NULL || pathsz == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
     for (attempt = 0; attempt < 16; attempt++) {
         if (getentropy(rnd, sizeof(rnd)) != 0) {
             return -1;

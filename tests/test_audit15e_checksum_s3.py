@@ -27,17 +27,18 @@ DEFECT CANDIDATE #8 — a WebDAV PUT over the s3:// backend intermittently
 tolerates every "this backend has no xattrs" errno (ENODATA/ENOATTR/ENOENT/
 ENOTSUP/EOPNOTSUPP/ENOSYS/EACCES/EPERM) by declining and letting the write
 proceed — but NOT EIO, which is what the remote driver reports here
-("brix_webdav: getxattr lock on \"/\" failed (5: Input/output error)").  The
-write is then refused with a 500 for a lock probe that is advisory by
-construction.  Once a worker starts reporting it, it keeps reporting it, so
-the failure is sticky per worker and a run sees a mix of 201s and 500s.  A
+("brix_webdav: getxattr lock on \"/\" failed (5: Input/output error)").  A
+second, equivalent refusal point is opening the driver-backed staged writer
+("brix_webdav: staged open for write failed … (5: Input/output error)").  In
+both cases the write is refused with a 500 before it can publish an object.
+A run can therefore see a mix of 201s and these known EIO-backed 500s.  A
 second face of the same instability: with an nginx `thread_pool` configured
 (the PUT aio path) the request can instead commit the object and never
 answer at all — which is why this template declares no pool.
 
 Cases:
   * characterisation + fail-closed invariant — twelve sequential PUTs: every
-    non-2xx is a 500 carrying the getxattr-lock EIO signature in error.log,
+    non-2xx is a 500 carrying a known remote-driver EIO signature in error.log,
     and every failed PUT leaves NO object in the store (defect #8 is
     fail-closed, not a partial write)
   * success + defect pin #7 — a PUT that lands round-trips through the front,
@@ -78,10 +79,15 @@ def _serious_log_lines(ep):
                    for level in ("error", "crit", "alert", "emerg"))]
 
 
+def _known_defect8_eio(log):
+    return ("(5: Input/output error)" in log
+            and any(needle in log for needle in EIO_NEEDLES))
+
+
 def _check_test_defect8_put_refusals_are_500_and_fail_closed_1(codes, ep, bodies):
-    assert EIO_NEEDLE in _errlog(ep), (
+    assert _known_defect8_eio(_errlog(ep)), (
         "the front 500ed a PUT over the s3:// backend for a reason other than "
-        "the lock-probe EIO — re-diagnose defect #8\n"
+        "a known remote-driver EIO refusal — re-diagnose defect #8\n"
         f"  codes:     {codes}\n"
         f"  500 bodies:{bodies}\n"
         "  error-level log lines:\n    "
@@ -96,7 +102,7 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
 PAYLOAD = b"audit15e-checksum-s3-payload " * 32
 WANT = format(zlib.adler32(PAYLOAD) & 0xFFFFFFFF, "08x")
 
-EIO_NEEDLE = "getxattr lock on"
+EIO_NEEDLES = ("getxattr lock on", "staged open for write failed")
 
 DEFECT7 = ("DEFECT CANDIDATE #7 has been FIXED: checksum-on-write now "
            "persists over a driver-backed backend (put_body.c:65 no longer "

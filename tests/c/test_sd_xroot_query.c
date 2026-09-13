@@ -224,6 +224,11 @@ int brix_cache_origin_write_chunk(brix_cache_fill_t *t,
     uint64_t offset, const u_char *data, size_t len)
 { (void) t; (void) oc; (void) fhandle; (void) offset; (void) data; (void) len;
   return -1; }
+int brix_cache_origin_pgread_chunk(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
+    brix_cache_sink_t *sink, brix_cache_read_range_t *rng)
+{ (void) t; (void) oc; (void) fhandle; (void) sink; (void) rng;
+  return BRIX_CACHE_PGREAD_UNSUPPORTED; }
 int brix_cache_origin_sync(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     const u_char fhandle[XRD_FHANDLE_LEN])
 { (void) t; (void) oc; (void) fhandle; return -1; }

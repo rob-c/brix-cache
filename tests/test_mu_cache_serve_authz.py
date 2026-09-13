@@ -70,7 +70,7 @@ def _origin_spec():
     )
 
 
-def _cache_spec(origin_port):
+def _cache_spec(origin_port, authdb):
     return NginxInstanceSpec(
         name="lc-mu-cache-node",
         template="nginx_mu_cache_node.conf",
@@ -84,7 +84,7 @@ def _cache_spec(origin_port):
             "CA": os.path.join(ports.MU.CA_DIR, "ca.pem"),
             "VOMSDIR": ports.MU.VOMSDIR,
             "CA_DIR": ports.MU.CA_DIR,
-            "AUTHDB": ports.MU.AUTHDB,
+            "AUTHDB": str(authdb),
         },
         reason="MU GSI+authdb cache node: cache-HIT authorization gate.",
     )
@@ -97,7 +97,7 @@ def cast():
 
 
 @pytest.fixture
-def noimp_env(lifecycle, cast):
+def noimp_env(lifecycle, cast, tmp_path):
     """Start an anonymous ORIGIN + a GSI+authdb CACHE node (both impersonation-off) as the
     current uid. authdb admits only VO cms on /prot. The cache fills from the remote origin,
     so the real cache-HIT serve path is exercised. Returns (cache_url, cast)."""
@@ -112,13 +112,12 @@ def noimp_env(lifecycle, cast):
     # authdb: only the cms VO may read (the enforcing tier the old cache path skipped). The
     # rule path is "/" because a remote-origin cache node roots at "/" (the wire path arrives
     # as "//prot/secret.dat"); "g cms /" cleanly admits cms and denies atlas.
-    os.makedirs(ports.MU.MU_ROOT, exist_ok=True)
-    with open(ports.MU.AUTHDB, "w") as f:
-        f.write("# MU no-imp cache verification authdb\n")
-        f.write("g cms / rl\n")
+    # Never publish this grant into the shared policy used by other MU groups.
+    authdb = tmp_path / "authdb"
+    authdb.write_text("# MU no-imp cache verification authdb\ng cms / rl\n")
 
     origin = lifecycle.start(_origin_spec())
-    cache = lifecycle.start(_cache_spec(origin.port))
+    cache = lifecycle.start(_cache_spec(origin.port, authdb))
     return cache.url, cast
 
 

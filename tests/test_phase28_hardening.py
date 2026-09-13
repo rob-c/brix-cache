@@ -116,7 +116,7 @@ class TestE1AuditHashChain:
 class TestD3AdminBitPathScope:
 
     def test_admin_bit_never_implicit(self):
-        parse = _read("src/auth/authz/authdb_parse.c")
+        parse = _read("src/auth/authz/authdb_grammar.c")
         # Exactly one grant site, and it is the explicit 'k' case — no other
         # privilege letter may fold ADMIN in.
         assert parse.count("BRIX_AUTH_ADMIN") == 1
@@ -124,8 +124,8 @@ class TestD3AdminBitPathScope:
         assert "BRIX_AUTH_ADMIN" in parse[k_case:k_case + 60]
         # The neighbours stay non-admin: append folds to UPDATE, read to
         # READ|LOOKUP.
-        assert "case 'a': privs |= BRIX_AUTH_UPDATE" in parse
-        assert "case 'r': privs |= BRIX_AUTH_READ | BRIX_AUTH_LOOKUP" in parse
+        assert "case 'a': return BRIX_AUTH_UPDATE" in parse
+        assert "case 'r': return BRIX_AUTH_READ | BRIX_AUTH_LOOKUP" in parse
 
     def test_admin_census_no_new_consumer_without_review(self):
         # Ratchet: the ADMIN bit is consumed in exactly these places — the
@@ -134,7 +134,7 @@ class TestD3AdminBitPathScope:
         # must not introduce an "admin ⇒ allow-all" shortcut).
         expected = {
             "src/core/types/config.h",
-            "src/auth/authz/authdb_parse.c",
+            "src/auth/authz/authdb_grammar.c",
             "src/auth/authz/auth_gate.c",
         }
         found = set()

@@ -318,10 +318,10 @@ class TestTheXattrFormatCannotBeRestored:
             "#62 from this module's docstring", raw)
         assert raw[:16].split(b"\x00", 1)[0] == b"adler32", raw[:16]
 
-    def test_the_two_locations_are_byte_identical(self, cluster):
-        """The sharpest statement of #62: PUT the SAME bytes through the
-        location that asks for text and the location that asks for xrdcks, and
-        the two xattrs are the same record.  The directive selects nothing."""
+    def test_the_two_locations_encode_the_same_checksum(self, cluster):
+        """The sharpest statement of #62: both locations store the same binary
+        digest for the same bytes.  A complete XrdCksData record cannot be byte
+        identical because its fmTime field belongs to each individual file."""
         _require_xattr(cluster)
         payload = os.urandom(2048)
         records = []
@@ -331,9 +331,13 @@ class TestTheXattrFormatCannotBeRestored:
             raw = _xattr(cluster["data"] / where / name)
             assert raw is not None, where
             records.append(raw)
-        assert records[0] == records[1], (
-            "the text and xrdcks locations now differ, which is what they "
-            "should always have done — delete DEFECT CANDIDATE #62")
+        for raw in records:
+            assert raw[:16].split(b"\x00", 1)[0] == b"adler32", raw[:16]
+            assert raw[31] == 4, raw
+        want = (zlib.adler32(payload) & 0xffffffff).to_bytes(4, "big")
+        assert records[0][32:36] == records[1][32:36] == want, (
+            "the text and xrdcks locations no longer encode the same binary "
+            "checksum for the same payload")
 
     def test_the_setter_accepts_text_but_the_caller_never_passes_it(self):
         """The static half of #62, and the reason it reads as an oversight

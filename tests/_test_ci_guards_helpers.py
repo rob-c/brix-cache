@@ -40,7 +40,12 @@ def _run(name: str) -> tuple[int, str]:
 
 
 def _have(tool: str) -> bool:
-    return bool(shutil.which(tool) or shutil.which(str(Path.home() / ".local/bin" / tool)))
+    active_venv_tool = Path(sys.executable).parent / tool
+    return bool(
+        shutil.which(tool)
+        or active_venv_tool.is_file()
+        or shutil.which(str(Path.home() / ".local/bin" / tool))
+    )
 
 
 # --- fast static guards -------------------------------------------------------

@@ -88,7 +88,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 
 @pytest.fixture()
 def keepalive_server():
-    server = http.server.HTTPServer(("127.0.0.1", free_port()), _Handler)
+    server = http.server.HTTPServer(("127.0.0.1", free_port()), _Handler)  # net-literal-allow: loopback test listener
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -150,6 +150,6 @@ def test_multi_listen_config_reaps_every_port(tmp_path):
         "  server { listen 127.0.0.1:19001 so_keepalive=60s:10s:6 backlog=2048; }\n"
         "  server { listen 127.0.0.1:19002; }\n"
         "  server { listen [::1]:19003; }\n"
-        "}\n"
+        "}\n"  # net-literal-allow: config-listener literals are the reaper subject
     )
     assert config_listen_ports(config) == [19001, 19002, 19003]

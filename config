@@ -238,7 +238,9 @@ fi
 # codec is compile-time-gated like krb5/fuse3: when its dev lib is present we add
 # -DBRIX_HAVE_<C> + its link flags; otherwise the backend compiles to an
 # "unavailable" descriptor and the codec degrades gracefully. zlib (gzip/deflate)
-# is effectively mandatory (nginx already links it); the rest are optional.
+# is effectively mandatory (nginx already links it). zstd and Brotli are also
+# mandatory: BriX builds always enable them, and configure fails clearly when
+# either development package is absent. The remaining codecs are optional.
 # BRIX_CODEC_LIBS accumulates the per-.so link flags (added to ngx_module_libs
 # below, NOT only CORE_LIBS — required for the DYNAMIC module build to resolve).
 BRIX_CODEC_LIBS=""
@@ -249,16 +251,13 @@ else
     CFLAGS="$CFLAGS -DBRIX_HAVE_ZLIB=1"
     BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS -lz"
 fi
-if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists libzstd; then
-    CFLAGS="$CFLAGS $(pkg-config --cflags libzstd) -DBRIX_HAVE_ZSTD=1"
-    BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS $(pkg-config --libs libzstd)"
-    echo " + xrootd compression: zstd enabled"
-else
-    # shared/cvmfs/dict compiles no-op stubs so a zstd-less build still links
-    # (the cvmfs dict endpoint then always answers 404 / serves identity)
-    CFLAGS="$CFLAGS -DBRIX_DICT_NO_ZSTD=1"
-    echo " + xrootd compression: zstd disabled (install libzstd-devel to enable)"
+if ! command -v pkg-config >/dev/null 2>&1 || ! pkg-config --exists libzstd; then
+    echo " + xrootd compression: zstd is required; install libzstd-dev (Debian/Ubuntu) or libzstd-devel (RHEL/Fedora)"
+    exit 1
 fi
+CFLAGS="$CFLAGS $(pkg-config --cflags libzstd) -DBRIX_HAVE_ZSTD=1"
+BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS $(pkg-config --libs libzstd)"
+echo " + xrootd compression: zstd enabled (required)"
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists liblzma; then
     CFLAGS="$CFLAGS $(pkg-config --cflags liblzma) -DBRIX_HAVE_LZMA=1"
     BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS $(pkg-config --libs liblzma)"
@@ -266,13 +265,14 @@ if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists liblzma; then
 else
     echo " + xrootd compression: xz/lzma disabled (install xz-devel to enable)"
 fi
-if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists libbrotlienc libbrotlidec; then
-    CFLAGS="$CFLAGS $(pkg-config --cflags libbrotlienc) -DBRIX_HAVE_BROTLI=1"
-    BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS $(pkg-config --libs libbrotlienc libbrotlidec)"
-    echo " + xrootd compression: brotli enabled"
-else
-    echo " + xrootd compression: brotli disabled (install libbrotli-devel to enable)"
+if ! command -v pkg-config >/dev/null 2>&1 \
+     || ! pkg-config --exists libbrotlienc libbrotlidec; then
+    echo " + xrootd compression: brotli is required; install libbrotli-dev (Debian/Ubuntu) or brotli-devel (RHEL/Fedora)"
+    exit 1
 fi
+CFLAGS="$CFLAGS $(pkg-config --cflags libbrotlienc) -DBRIX_HAVE_BROTLI=1"
+BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS $(pkg-config --libs libbrotlienc libbrotlidec)"
+echo " + xrootd compression: brotli enabled (required)"
 # bzip2 commonly ships no .pc file: probe the header/lib directly (krb5-config style).
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists bzip2; then
     CFLAGS="$CFLAGS $(pkg-config --cflags bzip2) -DBRIX_HAVE_BZIP2=1"

@@ -53,26 +53,40 @@ def test_053_token_client_receives_bearer_not_verifier(tmp_path):
     assert "BRIXTEST_TOKEN_SECRET_FILE" not in item.client_env
 
 
-def test_054_tls_server_and_client_keys_are_separated(tmp_path, monkeypatch):
-    monkeypatch.setattr("brixtest.auth.store.create_pki", _fake_pki)
-    item = AuthStore(tmp_path / "auth").materialize(tls_auth())
-    assert item.server_env["BRIXTEST_TLS_KEY"].endswith("host_key.pem")
-    assert item.client_env["BRIXTEST_TLS_CLIENT_KEY"].endswith("client_key.pem")
-    assert "BRIXTEST_TLS_KEY" not in item.client_env
+def test_054_tls_server_and_client_keys_are_separated(tmp_path):
+    import brixtest.auth.store as store_module
+    old_create_pki = store_module.create_pki
+    store_module.create_pki = _fake_pki
+    try:
+        item = AuthStore(tmp_path / "auth").materialize(tls_auth())
+        assert item.server_env["BRIXTEST_TLS_KEY"].endswith("host_key.pem")
+        assert item.client_env["BRIXTEST_TLS_CLIENT_KEY"].endswith("client_key.pem")
+        assert "BRIXTEST_TLS_KEY" not in item.client_env
+    finally:
+        store_module.create_pki = old_create_pki
 
 
-def test_055_voms_server_never_receives_user_proxy(tmp_path, monkeypatch):
-    monkeypatch.setattr("brixtest.auth.store.create_pki", _fake_pki)
-    monkeypatch.setattr("brixtest.auth.store.OpenSSL", SubjectOpenSSL)
+def test_055_voms_server_never_receives_user_proxy(tmp_path):
+    import brixtest.auth.store as store_module
+    old_create_pki = store_module.create_pki
+    old_OpenSSL = store_module.OpenSSL
+    old_command = store_module._command
+    store_module.create_pki = _fake_pki
+    store_module.OpenSSL = SubjectOpenSSL
 
     def fake_command(argv, field):
         Path(argv[argv.index("-out") + 1]).write_text("proxy")
         return ""
 
-    monkeypatch.setattr("brixtest.auth.store._command", fake_command)
-    item = AuthStore(tmp_path / "auth").materialize(voms_auth(vo="atlas"))
-    assert "X509_USER_PROXY" in item.client_env
-    assert "X509_USER_PROXY" not in item.server_env
+    store_module._command = fake_command
+    try:
+        item = AuthStore(tmp_path / "auth").materialize(voms_auth(vo="atlas"))
+        assert "X509_USER_PROXY" in item.client_env
+        assert "X509_USER_PROXY" not in item.server_env
+    finally:
+        store_module.create_pki = old_create_pki
+        store_module.OpenSSL = old_OpenSSL
+        store_module._command = old_command
 
 
 def test_056_multiple_active_stacks_cannot_collide_in_environment(tmp_path):

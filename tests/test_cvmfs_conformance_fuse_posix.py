@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_fuse_posix_helpers")
 
-pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_fuse_posix")
+pytestmark = [pytestmark, pytest.mark.xdist_group("test_cvmfs_conformance_fuse_posix")]
 
 @pytest.mark.parametrize("name,mutate,expect",
                          MUTATIONS, ids=[m[0] for m in MUTATIONS])

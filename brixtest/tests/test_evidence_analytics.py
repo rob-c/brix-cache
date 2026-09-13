@@ -308,7 +308,8 @@ def test_search_index_name_is_confined():
         list(documents(_payload("s1", [1]), prefix="Bad/Index"))
 
 
-def test_search_client_retries_transient_http_error(monkeypatch):
+def test_search_client_retries_transient_http_error():
+    import brixtest.evidence.search as search_module
     calls = []
 
     class Response:
@@ -329,10 +330,14 @@ def test_search_client_retries_transient_http_error(monkeypatch):
             )
         return Response()
 
-    monkeypatch.setattr("brixtest.evidence.search.time.sleep", lambda _: None)
-    SearchClient("https://search.example", retries=1, opener=opener,
-                 compress=False).post(_payload("s1", [1]))
-    assert len(calls) == 2
+    old_sleep = search_module.time.sleep
+    search_module.time.sleep = lambda _: None
+    try:
+        SearchClient("https://search.example", retries=1, opener=opener,
+                     compress=False).post(_payload("s1", [1]))
+        assert len(calls) == 2
+    finally:
+        search_module.time.sleep = old_sleep
 
 
 def test_http_exporters_reject_non_http_urls():

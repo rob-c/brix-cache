@@ -82,36 +82,43 @@ def test_raw_bytes_are_preserved_by_local_command_transport(tmp_path):
     assert tool("reader", command=("reader",), input=payload).input == payload
 
 
-def test_kubernetes_tool_attaches_binary_stdin_and_collects_result(tmp_path, monkeypatch):
+def test_kubernetes_tool_attaches_binary_stdin_and_collects_result(tmp_path):
     calls = _KubernetesCalls()
-    monkeypatch.setattr(executor_kubernetes, "_kubectl", calls)
-    payload = b"\x00\xffpayload"
+    old_kubectl = executor_kubernetes._kubectl
+    executor_kubernetes._kubectl = calls
+    try:
+        payload = b"\x00\xffpayload"
 
-    result = tool_executor("kubernetes").execute(
-        _context(tmp_path), _request(payload),
-    )
+        result = tool_executor("kubernetes").execute(
+            _context(tmp_path), _request(payload),
+        )
 
-    container = calls.manifest["spec"]["containers"][0]
-    assert (container["stdin"], container["stdinOnce"]) == (True, True)
-    assert calls.attached == payload
-    assert (result.returncode, result.stdout) == (0, "received\n")
-    assert any("delete" in row[0] for row in calls.calls)
+        container = calls.manifest["spec"]["containers"][0]
+        assert (container["stdin"], container["stdinOnce"]) == (True, True)
+        assert calls.attached == payload
+        assert (result.returncode, result.stdout) == (0, "received\n")
+        assert any("delete" in row[0] for row in calls.calls)
+    finally:
+        executor_kubernetes._kubectl = old_kubectl
 
 
-def test_kubernetes_stdin_attach_failure_is_not_silently_ignored(tmp_path, monkeypatch):
+def test_kubernetes_stdin_attach_failure_is_not_silently_ignored(tmp_path):
     calls = _KubernetesCalls(attach_error="attach denied")
-    monkeypatch.setattr(executor_kubernetes, "_kubectl", calls)
+    old_kubectl = executor_kubernetes._kubectl
+    executor_kubernetes._kubectl = calls
+    try:
+        result = tool_executor("kubernetes").execute(
+            _context(tmp_path), _request("request"),
+        )
 
-    result = tool_executor("kubernetes").execute(
-        _context(tmp_path), _request("request"),
-    )
-
-    assert result.returncode == 1
-    assert result.stderr == "attach denied"
-    assert any("delete" in row[0] for row in calls.calls)
+        assert result.returncode == 1
+        assert result.stderr == "attach denied"
+        assert any("delete" in row[0] for row in calls.calls)
+    finally:
+        executor_kubernetes._kubectl = old_kubectl
 
 
-def test_kubernetes_pty_allocates_terminal_and_uses_tty_attach(tmp_path, monkeypatch):
+def test_kubernetes_pty_allocates_terminal_and_uses_tty_attach(tmp_path):
     calls = _KubernetesCalls()
     attached = {}
     request = dataclasses.replace(_request("hello\n"), mode="pty")
@@ -120,13 +127,19 @@ def test_kubernetes_pty_allocates_terminal_and_uses_tty_attach(tmp_path, monkeyp
         attached.update({"argv": tuple(argv), **options})
         return 0, b"terminal output\r\n", b""
 
-    monkeypatch.setattr(executor_kubernetes, "_kubectl", calls)
-    monkeypatch.setattr(executor_kubernetes, "_run_pty", run_pty)
-    result = tool_executor("kubernetes").execute(_context(tmp_path), request)
+    old_kubectl = executor_kubernetes._kubectl
+    old_run_pty = executor_kubernetes._run_pty
+    executor_kubernetes._kubectl = calls
+    executor_kubernetes._run_pty = run_pty
+    try:
+        result = tool_executor("kubernetes").execute(_context(tmp_path), request)
 
-    container = calls.manifest["spec"]["containers"][0]
-    assert container["tty"] is True
-    assert (container["stdin"], container["stdinOnce"]) == (True, True)
+        container = calls.manifest["spec"]["containers"][0]
+        assert container["tty"] is True
+        assert (container["stdin"], container["stdinOnce"]) == (True, True)
+    finally:
+        executor_kubernetes._kubectl = old_kubectl
+        executor_kubernetes._run_pty = old_run_pty
     offset = attached["argv"].index("attach")
     assert attached["argv"][offset:offset + 3] == ("attach", "-i", "-t")
     assert attached["input"] == "hello\n"

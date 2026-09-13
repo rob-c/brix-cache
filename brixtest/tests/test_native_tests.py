@@ -152,7 +152,8 @@ def test_output_checks_report_each_supported_mismatch():
     assert "captured stdout" in detail
 
 
-def test_object_instrumentation_flags_are_inherited_once(tmp_path, monkeypatch):
+def test_object_instrumentation_flags_are_inherited_once(tmp_path):
+    import brixtest.native_runtime as native_runtime_module
     linked = tmp_path / "linked.o"
     linked.write_bytes(b"object")
     result = SimpleNamespace(
@@ -160,31 +161,34 @@ def test_object_instrumentation_flags_are_inherited_once(tmp_path, monkeypatch):
         stderr="",
     )
     run = SimpleNamespace(command=lambda *args, **kwargs: result)
-    monkeypatch.setattr("brixtest.native_runtime.shutil.which", lambda name: "/usr/bin/" + name)
-    spec = _NativeSpec("instrumented", ("main.c",), objects=(linked,))
-    assert _instrumentation_flags(run, spec, (linked,), tmp_path) == (
-        "-fsanitize=address", "-fsanitize=undefined", "--coverage",
-    )
+    old_which = native_runtime_module.shutil.which
+    native_runtime_module.shutil.which = lambda name: "/usr/bin/" + name
+    try:
+        spec = _NativeSpec("instrumented", ("main.c",), objects=(linked,))
+        assert _instrumentation_flags(run, spec, (linked,), tmp_path) == (
+            "-fsanitize=address", "-fsanitize=undefined", "--coverage",
+        )
+    finally:
+        native_runtime_module.shutil.which = old_which
 
 
-def test_captured_binary_can_supply_the_native_compiler(monkeypatch):
+def test_captured_binary_can_supply_the_native_compiler():
+    import brixtest.native_runtime as native_runtime_module
     compiler = binary("test-compiler", "/original/cc")
     manager = SimpleNamespace(
         _render_value=lambda value, **_kwargs: (
             "/captured/cc" if value is compiler else str(value)
         ),
     )
-    monkeypatch.setattr(
-        "brixtest.native_runtime.shutil.which",
-        lambda value: value if value == "/captured/cc" else None,
-    )
+    old_which = native_runtime_module.shutil.which
+    native_runtime_module.shutil.which = lambda value: value if value == "/captured/cc" else None
     spec = _NativeSpec("captured", ("main.c",), compiler=(compiler,))
     assert _available_compiler(SimpleNamespace(_manager=manager), spec, "c") == (
         "/captured/cc",
     )
 
 
-def test_kubernetes_bundle_includes_explicit_native_build_inputs(tmp_path, monkeypatch):
+def test_kubernetes_bundle_includes_explicit_native_build_inputs(tmp_path):
     project = tmp_path / "project"
     tests = project / "tests"
     objects = project / "objs"
@@ -195,35 +199,46 @@ def test_kubernetes_bundle_includes_explicit_native_build_inputs(tmp_path, monke
     linked = objects / "linked.o"
     linked.write_bytes(b"native-object")
     package_file = Path(__file__).resolve().parents[1] / "src" / "brixtest" / "__init__.py"
-    monkeypatch.setattr(
-        "brixtest.helper_bundle._runtime_files",
-        lambda modules: {"opt/brixtest/python/brixtest/__init__.py": package_file},
-    )
-    monkeypatch.setattr("brixtest.helper_bundle._runtime_tools", lambda: {})
-    bundle = build_helper_bundle(
-        project, "tests/test_native.py::test_native", tmp_path / "out",
-        project_inputs=(linked,),
-    )
-    import zipfile
+    import brixtest.helper_bundle as helper_bundle_module
+    old_runtime_files = helper_bundle_module._runtime_files
+    old_runtime_tools = helper_bundle_module._runtime_tools
+    helper_bundle_module._runtime_files = lambda modules: {"opt/brixtest/python/brixtest/__init__.py": package_file}
+    helper_bundle_module._runtime_tools = lambda: {}
+    try:
+        bundle = build_helper_bundle(
+            project, "tests/test_native.py::test_native", tmp_path / "out",
+            project_inputs=(linked,),
+        )
+        import zipfile
 
-    with zipfile.ZipFile(bundle.path) as archive:
-        assert archive.read("workspace/objs/linked.o") == b"native-object"
+        with zipfile.ZipFile(bundle.path) as archive:
+            assert archive.read("workspace/objs/linked.o") == b"native-object"
+    finally:
+        helper_bundle_module._runtime_files = old_runtime_files
+        helper_bundle_module._runtime_tools = old_runtime_tools
 
 
-def test_kubernetes_bundle_rejects_native_inputs_outside_pytest_root(tmp_path, monkeypatch):
+def test_kubernetes_bundle_rejects_native_inputs_outside_pytest_root(tmp_path):
+    import brixtest.helper_bundle as helper_bundle_module
     project = tmp_path / "project"
     project.mkdir()
     test_file = project / "test_native.py"
     test_file.write_text("def test_native(): pass\n")
     external = tmp_path / "external.c"
     external.write_text("int main(void) { return 0; }\n")
-    monkeypatch.setattr("brixtest.helper_bundle._runtime_files", lambda modules: {})
-    monkeypatch.setattr("brixtest.helper_bundle._runtime_tools", lambda: {})
-    with pytest.raises(SpecError, match="native helper input"):
-        build_helper_bundle(
-            project, "test_native.py::test_native", tmp_path / "out",
-            project_inputs=(external,),
-        )
+    old_runtime_files = helper_bundle_module._runtime_files
+    old_runtime_tools = helper_bundle_module._runtime_tools
+    helper_bundle_module._runtime_files = lambda modules: {}
+    helper_bundle_module._runtime_tools = lambda: {}
+    try:
+        with pytest.raises(SpecError, match="native helper input"):
+            build_helper_bundle(
+                project, "test_native.py::test_native", tmp_path / "out",
+                project_inputs=(external,),
+            )
+    finally:
+        helper_bundle_module._runtime_files = old_runtime_files
+        helper_bundle_module._runtime_tools = old_runtime_tools
 
 
 @pytest.mark.skipif(_compiler() is None, reason="C compiler unavailable")

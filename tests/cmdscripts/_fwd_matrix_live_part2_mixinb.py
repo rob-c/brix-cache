@@ -328,6 +328,9 @@ pss.setopt DebugLevel 0
             return "SKIP", "pairing A https backend leg is GSI-only (stock XrdHttp ztn-over-http not provisioned)"
         if shutil.which("bwrap") is None:
             return "SKIP", "token origin needs bwrap for rootless OIDC CA-bundle trust; bwrap absent"
+        probe = _call(["bwrap", "--dev-bind", "/", "/", "true"], timeout=10)
+        if probe.returncode:
+            return "SKIP", f"host cannot run the isolated token origin: {probe.stderr.strip()}"
         return "SUPPORTED", ""
 
     @classmethod
@@ -341,8 +344,10 @@ pss.setopt DebugLevel 0
         return "SUPPORTED", ""
 
     def feasibility_probe(self, pairing: str, hop2: str, cred: str) -> tuple[str, str]:
+        from lib_py.util import find_xrd_library
+
         have_xrootd = os.access(XROOTD_BIN, os.X_OK)
-        have_xrdhttp = Path("/usr/lib64/libXrdHttp-5.so").is_file() or Path("/usr/lib/libXrdHttp-5.so").is_file()
+        have_xrdhttp = find_xrd_library("libXrdHttp-5.so", "libXrdHttp.so") is not None
         if pairing == "B":
             return self._pairing_b_feasibility(hop2, have_xrootd)
         if pairing == "A":

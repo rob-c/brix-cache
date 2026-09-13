@@ -21,6 +21,7 @@
 
 #include "core/config/credential_block.h"
 #include "fs/backend/remote/sd_remote.h"
+#include "fs/backend/frm/sd_frm.h"
 #include "fs/tier/tier.h"
 
 #include <assert.h>
@@ -61,9 +62,13 @@ brix_tier_build_gsiftp(const brix_tier_cfg_t *tier, ngx_log_t *log)
     void *name(void *a, void *b) { (void) a; (void) b; return NULL; }
 STUB_SD(brix_sd_http_create)
 STUB_SD(brix_sd_cache_create)
-STUB_SD(brix_sd_frm_create)
 STUB_SD(brix_sd_stage_create)
 STUB_SD(brix_sd_xroot_create_origin)
+int brix_sd_frm_parse_query(const char *query, brix_sd_frm_opts_t *opts)
+{ (void) query; (void) opts; return -1; }
+brix_sd_instance_t *brix_sd_frm_create_opts(const char *adapter,
+    const char *location, const brix_sd_frm_opts_t *opts, ngx_log_t *log)
+{ (void) adapter; (void) location; (void) opts; (void) log; return NULL; }
 void *brix_s3_origin_curl_transport(void) { return NULL; }
 ngx_int_t brix_credential_bearer(const brix_credential_t *c, char *o, size_t n,
     ngx_log_t *l) { (void) c; (void) o; (void) n; (void) l; return NGX_ERROR; }

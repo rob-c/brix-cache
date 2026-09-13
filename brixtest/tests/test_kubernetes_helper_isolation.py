@@ -73,7 +73,7 @@ def test_helper_manifest_uses_secret_environment_and_restricted_job():
     assert spec["hostAliases"] == [{"ip": "192.0.2.10", "hostnames": ["origin.test"]}]
 
 
-def test_content_addressed_helper_bundle_is_stable_and_confined(tmp_path, monkeypatch):
+def test_content_addressed_helper_bundle_is_stable_and_confined(tmp_path):
     project = tmp_path / "project"
     tests = project / "tests"
     tests.mkdir(parents=True)
@@ -83,14 +83,18 @@ def test_content_addressed_helper_bundle_is_stable_and_confined(tmp_path, monkey
     (tests / "conftest.py").write_text("VALUE = 1\n")
     (tests / "test_remote.py").write_text("def test_remote(): assert True\n")
     package_file = Path(__file__).resolve().parents[1] / "src" / "brixtest" / "__init__.py"
-    monkeypatch.setattr(
-        "brixtest.helper_bundle._runtime_files",
-        lambda modules: {"opt/brixtest/python/brixtest/__init__.py": package_file},
-    )
-    monkeypatch.setattr("brixtest.helper_bundle._runtime_tools", lambda: {})
-    first = build_helper_bundle(project, "tests/test_remote.py::test_remote", tmp_path / "out")
-    second = build_helper_bundle(project, "tests/test_remote.py::test_remote", tmp_path / "out")
-    assert first == second and first.path.name.endswith(first.fingerprint + ".zip")
+    import brixtest.helper_bundle as helper_bundle_module
+    old_runtime_files = helper_bundle_module._runtime_files
+    old_runtime_tools = helper_bundle_module._runtime_tools
+    helper_bundle_module._runtime_files = lambda modules: {"opt/brixtest/python/brixtest/__init__.py": package_file}
+    helper_bundle_module._runtime_tools = lambda: {}
+    try:
+        first = build_helper_bundle(project, "tests/test_remote.py::test_remote", tmp_path / "out")
+        second = build_helper_bundle(project, "tests/test_remote.py::test_remote", tmp_path / "out")
+        assert first == second and first.path.name.endswith(first.fingerprint + ".zip")
+    finally:
+        helper_bundle_module._runtime_files = old_runtime_files
+        helper_bundle_module._runtime_tools = old_runtime_tools
     with zipfile.ZipFile(first.path) as archive:
         names = set(archive.namelist())
         manifest = json.loads(archive.read("opt/brixtest/bundle.json"))
@@ -138,14 +142,16 @@ def test_bridge_streams_partial_output_and_decodes_live_result(tmp_path, capsys)
     assert json.loads(heartbeat.read_text())["payload"] == {"time": 1}
 
 
-def test_launch_builds_private_bridge_spec_without_secret_argv(tmp_path, monkeypatch):
+def test_launch_builds_private_bridge_spec_without_secret_argv(tmp_path):
+    import brixtest.isolation_launch as isolation_module
     bundle_path = tmp_path / "bundle.zip"
     bundle_path.write_bytes(b"zip")
     fake = SimpleNamespace(
         path=bundle_path,
         as_dict=lambda: {"path": str(bundle_path), "sha256": "a" * 64},
     )
-    monkeypatch.setattr("brixtest.isolation_launch.build_helper_bundle", lambda *a, **k: fake)
+    old_build = isolation_module.build_helper_bundle
+    isolation_module.build_helper_bundle = lambda *a, **k: fake
     root = tmp_path / "project"
     root.mkdir()
     (root / "test_remote.py").write_text("def test_remote(): pass\n")
@@ -186,7 +192,8 @@ def _image_manifest(path):
     }))
 
 
-def test_verified_local_runtime_is_loaded_into_minikube_without_pulling(tmp_path, monkeypatch):
+def test_verified_local_runtime_is_loaded_into_minikube_without_pulling(tmp_path):
+    import brixtest.kubernetes_helper_bridge as bridge_module
     manifest = tmp_path / "manifest.json"
     _image_manifest(manifest)
     commands = []
@@ -198,23 +205,27 @@ def test_verified_local_runtime_is_loaded_into_minikube_without_pulling(tmp_path
             output = json.dumps([{"Id": "sha256:%s" % ("a" * 64)}]).encode()
         return subprocess.CompletedProcess(command, 0, output)
 
-    monkeypatch.setattr("brixtest.kubernetes_helper_bridge._run", run)
-    monkeypatch.setattr(
-        "brixtest.kubernetes_helper_bridge._checked",
-        lambda command, action, **options: commands.append(command) or b"",
-    )
-    _use_minikube_image({
-        "minikube": "/usr/bin/minikube", "docker": "/usr/bin/docker",
-        "context": "brixtest", "image": _DIGEST, "manifest": str(manifest),
-    })
-    container = json.loads(manifest.read_text())["items"][1]["spec"]["template"]["spec"]["containers"][0]
-    assert container["image"] == "brixtest.local/helper-runtime:sha256-%s" % ("a" * 64)
-    assert container["imagePullPolicy"] == "Never"
-    assert commands[0][:2] == ["/usr/bin/docker", "tag"]
-    assert commands[1][:4] == ["/usr/bin/minikube", "-p", "brixtest", "image"]
+    old_run = bridge_module._run
+    old_checked = bridge_module._checked
+    bridge_module._run = run
+    bridge_module._checked = lambda command, action, **options: commands.append(command) or b""
+    try:
+        _use_minikube_image({
+            "minikube": "/usr/bin/minikube", "docker": "/usr/bin/docker",
+            "context": "brixtest", "image": _DIGEST, "manifest": str(manifest),
+        })
+        container = json.loads(manifest.read_text())["items"][1]["spec"]["template"]["spec"]["containers"][0]
+        assert container["image"] == "brixtest.local/helper-runtime:sha256-%s" % ("a" * 64)
+        assert container["imagePullPolicy"] == "Never"
+        assert commands[0][:2] == ["/usr/bin/docker", "tag"]
+        assert commands[1][:4] == ["/usr/bin/minikube", "-p", "brixtest", "image"]
+    finally:
+        bridge_module._run = old_run
+        bridge_module._checked = old_checked
 
 
-def test_unverified_local_image_is_never_substituted(tmp_path, monkeypatch):
+def test_unverified_local_image_is_never_substituted(tmp_path):
+    import brixtest.kubernetes_helper_bridge as bridge_module
     manifest = tmp_path / "manifest.json"
     _image_manifest(manifest)
 
@@ -223,10 +234,14 @@ def test_unverified_local_image_is_never_substituted(tmp_path, monkeypatch):
             else b'[{"Id":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]'
         return subprocess.CompletedProcess(command, 0, output)
 
-    monkeypatch.setattr("brixtest.kubernetes_helper_bridge._run", run)
-    _use_minikube_image({
-        "minikube": "minikube", "docker": "docker", "context": "brixtest",
-        "image": _DIGEST, "manifest": str(manifest),
-    })
-    container = json.loads(manifest.read_text())["items"][1]["spec"]["template"]["spec"]["containers"][0]
-    assert container == {"image": _DIGEST, "imagePullPolicy": "IfNotPresent"}
+    old_run = bridge_module._run
+    bridge_module._run = run
+    try:
+        _use_minikube_image({
+            "minikube": "minikube", "docker": "docker", "context": "brixtest",
+            "image": _DIGEST, "manifest": str(manifest),
+        })
+        container = json.loads(manifest.read_text())["items"][1]["spec"]["template"]["spec"]["containers"][0]
+        assert container == {"image": _DIGEST, "imagePullPolicy": "IfNotPresent"}
+    finally:
+        bridge_module._run = old_run

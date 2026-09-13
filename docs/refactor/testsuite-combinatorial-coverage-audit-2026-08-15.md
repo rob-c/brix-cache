@@ -2073,13 +2073,11 @@ twelve of the thirteen are reachable only by writing a token nobody writes:
   on the host, enforces none of them, and starts in silence — while the operator
   who merely forgot `brix_crl` is told. The warning is keyed on the presence of
   a CRL *source*, not on whether revocation is *enforced*.
-- **DEFECT CANDIDATE #53 (operability, a fatal config error reported at
-  `[warn]`) — `brix_signing_policy require` with a bundle-FILE trust anchor
-  fails `nginx -t` with no `[emerg]` line and no `file:line`**
-  (`store_policy_store.c:232`), unlike every other brix config refusal. An
-  operator grepping for the level nginx itself uses for fatal config errors
-  finds nothing; the only explanation on offer is a warning that reads like
-  advice.
+- **RESOLVED #53 (configuration diagnostic)** — `brix_signing_policy require`
+  with a bundle-FILE trust anchor is correctly refused because policy files
+  require a hashed directory. The specific `[warn]` names that mismatch, and
+  the failed trust-store build emits `[emerg]` with the rendered configuration
+  `file:line`, making `nginx -t` actionable. The parse test pins both messages.
 - **DEFECT CANDIDATE #54 (operability, the remediation advice contradicts the
   verdict) — the unsignable-session WARN ends with a fixed sentence whatever the
   flag it advises about is set to** (`sigver.c:182-188`): it states the requests

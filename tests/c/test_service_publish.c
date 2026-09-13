@@ -130,6 +130,8 @@ int brix_imp_unlink(const char *p, int d) { (void) p; (void) d; abort(); }
 int brix_imp_rename(const char *a, const char *b) { (void) a; (void) b; abort(); }
 int brix_imp_rename_noreplace(const char *a, const char *b)
 { (void) a; (void) b; abort(); }
+int brix_imp_rename_exchange(const char *a, const char *b)
+{ (void) a; (void) b; abort(); }
 int brix_imp_link(const char *a, const char *b) { (void) a; (void) b; abort(); }
 
 /* The confined chmod broker is reached only under active impersonation with a

@@ -21,6 +21,7 @@ from brixtest import (
     server,
     server_config,
 )
+from brixtest.testing import test_config
 from brixtest.cli.main import _parser
 from brixtest.design import Artifact
 from brixtest.minikube import MinikubeConfig, minikube_status
@@ -109,53 +110,71 @@ def test_minikube_defaults_are_docker_only_and_reproducible():
         MinikubeConfig(driver="podman")
 
 
-def test_minikube_cli_preserves_environment_defaults_until_dispatch(monkeypatch):
-    monkeypatch.setenv("BRIXTEST_MINIKUBE_PROFILE", "isolated-profile")
-    monkeypatch.setenv("BRIXTEST_MINIKUBE_CPUS", "3")
-    monkeypatch.setenv("BRIXTEST_MINIKUBE_MEMORY_MB", "6144")
-    args = _parser().parse_args(["minikube", "status"])
-    defaults = MinikubeConfig.from_environment()
-    assert args.profile is None and args.cpus is None and args.memory is None
-    assert (defaults.profile, defaults.cpus, defaults.memory_mb) == (
-        "isolated-profile", 3, 6144,
+def test_minikube_cli_preserves_environment_defaults_until_dispatch():
+    config = test_config(
+        minikube_profile="isolated-profile",
+        minikube_cpus="3",
+        minikube_memory_mb="6144",
     )
+    config.apply_to_environment()
+    try:
+        args = _parser().parse_args(["minikube", "status"])
+        defaults = MinikubeConfig.from_environment()
+        assert args.profile is None and args.cpus is None and args.memory is None
+        assert (defaults.profile, defaults.cpus, defaults.memory_mb) == (
+            "isolated-profile", 3, 6144,
+        )
+    finally:
+        # Clean up environment
+        for key in ["BRIXTEST_MINIKUBE_PROFILE", "BRIXTEST_MINIKUBE_CPUS", "BRIXTEST_MINIKUBE_MEMORY_MB"]:
+            import os
+            os.environ.pop(key, None)
 
 
-def test_minikube_environment_rejects_non_numeric_capacity(monkeypatch):
-    monkeypatch.setenv("BRIXTEST_MINIKUBE_CPUS", "many")
-    with pytest.raises(SpecError, match="must be integers"):
-        MinikubeConfig.from_environment()
+def test_minikube_environment_rejects_non_numeric_capacity():
+    config = test_config(minikube_cpus="many")
+    config.apply_to_environment()
+    try:
+        with pytest.raises(SpecError, match="must be integers"):
+            MinikubeConfig.from_environment()
+    finally:
+        import os
+        os.environ.pop("BRIXTEST_MINIKUBE_CPUS", None)
 
 
-def test_minikube_status_normalizes_missing_binary(monkeypatch):
-    monkeypatch.setattr(
-        "brixtest.minikube.subprocess.run",
-        lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("minikube")),
-    )
-    result = minikube_status(MinikubeConfig())
-    assert result["ok"] is False
-    assert result["profile"] == "brixtest"
-    assert "FileNotFoundError" in result["error"]
+def test_minikube_status_normalizes_missing_binary():
+    import brixtest.minikube as minikube_module
+    old_run = minikube_module.subprocess.run
+    minikube_module.subprocess.run = lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("minikube"))
+    try:
+        result = minikube_status(MinikubeConfig())
+        assert result["ok"] is False
+        assert result["profile"] == "brixtest"
+        assert "FileNotFoundError" in result["error"]
+    finally:
+        minikube_module.subprocess.run = old_run
 
 
-def test_minikube_status_requires_all_control_plane_components(monkeypatch):
-    monkeypatch.setattr(
-        "brixtest.minikube.subprocess.run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(
-            args[0], 0,
-            json.dumps({"Host": "Running", "Kubelet": "Stopped", "APIServer": "Running"}),
-            "",
-        ),
+def test_minikube_status_requires_all_control_plane_components():
+    import brixtest.minikube as minikube_module
+    old_run = minikube_module.subprocess.run
+    minikube_module.subprocess.run = lambda *args, **kwargs: subprocess.CompletedProcess(
+        args[0], 0,
+        json.dumps({"Host": "Running", "Kubelet": "Stopped", "APIServer": "Running"}),
+        "",
     )
     result = minikube_status(MinikubeConfig())
     assert result["ok"] is False and result["running"] is False
 
 
-def test_minikube_backend_selects_explicit_context_for_docker_profile(monkeypatch):
+def test_minikube_backend_selects_explicit_context_for_docker_profile():
+    import brixtest.runtime.backends as backends_module
     profile = {
         "valid": [{"Name": "brixtest", "Config": {"Driver": "docker"}}],
     }
-    monkeypatch.setattr("brixtest.runtime.backends.shutil.which", lambda name: "/usr/bin/" + name)
+    old_which = backends_module.shutil.which
+    old_run = backends_module.subprocess.run
+    backends_module.shutil.which = lambda name: "/usr/bin/" + name
     def run(argv, **kwargs):
         payload = (
             {"Host": "Running", "Kubelet": "Running", "APIServer": "Running"}
@@ -163,7 +182,7 @@ def test_minikube_backend_selects_explicit_context_for_docker_profile(monkeypatc
         )
         return subprocess.CompletedProcess(argv, 0, json.dumps(payload), "")
 
-    monkeypatch.setattr("brixtest.runtime.backends.subprocess.run", run)
+    backends_module.subprocess.run = run
 
     class Context:
         selected = ""
@@ -183,22 +202,29 @@ def test_minikube_backend_selects_explicit_context_for_docker_profile(monkeypatc
 
 
 @pytest.mark.parametrize("driver", ["podman", "kvm2"])
-def test_minikube_backend_refuses_non_docker_profiles(driver, monkeypatch):
+def test_minikube_backend_refuses_non_docker_profiles(driver):
+    import brixtest.runtime.backends as backends_module
     profile = {"valid": [{"Name": "brixtest", "Config": {"Driver": driver}}]}
-    monkeypatch.setattr("brixtest.runtime.backends.shutil.which", lambda name: "/usr/bin/" + name)
-    monkeypatch.setattr(
-        "brixtest.runtime.backends.subprocess.run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(
-            args[0], 0, json.dumps(profile), "",
-        ),
+    old_which = backends_module.shutil.which
+    old_run = backends_module.subprocess.run
+    backends_module.shutil.which = lambda name: "/usr/bin/" + name
+    backends_module.subprocess.run = lambda *args, **kwargs: subprocess.CompletedProcess(
+        args[0], 0, json.dumps(profile), "",
     )
-    with pytest.raises(SpecError, match="requires the Docker driver"):
-        MinikubeCaseBackend().prepare(SimpleNamespace(set_kubernetes_context=lambda value: None))
+    try:
+        with pytest.raises(SpecError, match="requires the Docker driver"):
+            MinikubeCaseBackend().prepare(SimpleNamespace(set_kubernetes_context=lambda value: None))
+    finally:
+        backends_module.shutil.which = old_which
+        backends_module.subprocess.run = old_run
 
 
-def test_minikube_backend_refuses_stopped_docker_profile(monkeypatch):
+def test_minikube_backend_refuses_stopped_docker_profile():
+    import brixtest.runtime.backends as backends_module
     profile = {"valid": [{"Name": "brixtest", "Config": {"Driver": "docker"}}]}
-    monkeypatch.setattr("brixtest.runtime.backends.shutil.which", lambda name: "/usr/bin/" + name)
+    old_which = backends_module.shutil.which
+    old_run = backends_module.subprocess.run
+    backends_module.shutil.which = lambda name: "/usr/bin/" + name
 
     def run(argv, **kwargs):
         payload = (
@@ -207,9 +233,13 @@ def test_minikube_backend_refuses_stopped_docker_profile(monkeypatch):
         )
         return subprocess.CompletedProcess(argv, 0, json.dumps(payload), "")
 
-    monkeypatch.setattr("brixtest.runtime.backends.subprocess.run", run)
-    with pytest.raises(SpecError, match="profile is not ready"):
-        MinikubeCaseBackend().prepare(SimpleNamespace(set_kubernetes_context=lambda value: None))
+    backends_module.subprocess.run = run
+    try:
+        with pytest.raises(SpecError, match="profile is not ready"):
+            MinikubeCaseBackend().prepare(SimpleNamespace(set_kubernetes_context=lambda value: None))
+    finally:
+        backends_module.shutil.which = old_which
+        backends_module.subprocess.run = old_run
 
 
 def test_artifact_reference_method_is_present_on_custom_provider_declarations():
@@ -234,7 +264,7 @@ def test_captured_binary_verifies_every_library_checksum(tmp_path):
     assert value.verify() is False
 
 
-def test_binary_capture_discovers_transitive_dynamic_library_graph(tmp_path, monkeypatch):
+def test_binary_capture_discovers_transitive_dynamic_library_graph(tmp_path):
     executable = tmp_path / "daemon"
     first = tmp_path / "libfirst.so"
     second = tmp_path / "libsecond.so"
@@ -245,12 +275,17 @@ def test_binary_capture_discovers_transitive_dynamic_library_graph(tmp_path, mon
     def dependencies(path):
         return {executable: (first,), first: (second,)}.get(path, ())
 
-    monkeypatch.setattr("brixtest.runtime.binaries._ldd_libraries", dependencies)
-    captured = BinaryStore(tmp_path / "capture", tmp_path).capture(
-        binary("daemon", executable),
-    )
-    assert {path.name for path in captured.libraries} == {"libfirst.so", "libsecond.so"}
-    assert captured.verify()
+    import brixtest.runtime.binaries as binaries_module
+    old_ldd = binaries_module._ldd_libraries
+    binaries_module._ldd_libraries = dependencies
+    try:
+        captured = BinaryStore(tmp_path / "capture", tmp_path).capture(
+            binary("daemon", executable),
+        )
+        assert {path.name for path in captured.libraries} == {"libfirst.so", "libsecond.so"}
+        assert captured.verify()
+    finally:
+        binaries_module._ldd_libraries = old_ldd
 
 
 def test_binary_capture_rejects_different_libraries_with_same_runtime_name(tmp_path):

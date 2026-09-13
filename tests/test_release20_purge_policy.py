@@ -33,6 +33,7 @@ import pytest
 
 from test_phase115_tape_purge import (FILE_BYTES, _elog, _launch, _nginx_t,
                                       _payload, _summary, _wait_log)
+from brix_suite.fd_probe import write_fd_probe
 from test_release20_frm_knobs import _inherited_fds, _server_descriptors
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
@@ -380,7 +381,7 @@ def test_the_policy_program_inherits_no_server_descriptors(lifecycle, tmp_path):
     exec adapter's spawn hygiene (own session, fds above 2 closed) covers it
     exactly as it covers the stage command."""
     fds = tmp_path / "fds.txt"
-    prog = _polprog(tmp_path, f'ls -l /proc/$$/fd > {fds}\n: > "$2"')
+    prog = write_fd_probe(tmp_path / "polprog.py", fds, decision_arg=2)
     _run_polprog_once(lifecycle, tmp_path, prog)
     listing = fds.read_text()
     assert set(_inherited_fds(listing)) >= {0, 1, 2}, listing   # a real listing

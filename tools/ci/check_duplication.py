@@ -99,9 +99,9 @@ _DATA_ROW = re.compile(
 
 
 def find_lizard() -> str | None:
-    """Locate lizard exactly like tools/readability.find_lizard: prefer PATH,
-    then the pip --user install dir. Returns None when nothing is found."""
-    for c in ("lizard", os.path.expanduser("~/.local/bin/lizard")):
+    """Locate lizard from PATH, the active virtualenv, or a user install."""
+    venv_lizard = Path(sys.executable).parent / "lizard"
+    for c in ("lizard", str(venv_lizard), os.path.expanduser("~/.local/bin/lizard")):
         if shutil.which(c) or os.path.exists(c):
             return c
     return None

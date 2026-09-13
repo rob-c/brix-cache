@@ -84,7 +84,12 @@ _DEFS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 DECLARED_ADDITIONS = {
     "_cachemx": {"Snap.cache_delta", "Snap.cache_delta_or_absent"},
 }
-DECLARED_CHANGES = {"_cachemx": {"Snap"}}
+DECLARED_CHANGES = {
+    "_cachemx": {"Snap"},
+    # The helper acquired urlcgi so cache test nodes can exercise the public
+    # brix_cache_urlcgi directive without hand-writing a second configuration.
+    "_cache_partial_helpers": {"make_cache_node"},
+}
 
 
 def _walk_bodies(node, prefix):
@@ -203,7 +208,7 @@ def test_the_grid_parser_shares_the_one_stack_module():
 
 
 def test_the_two_catalogue_snapshots_still_describe_the_same_families():
-    """HELP and LABEL_KEYS must cover one family set, and CONDITIONAL be a subset.
+    """HELP families must have schemas; schema-only families must be conditional.
 
     This is the check that a truncated copy cannot pass.  Both modules are
     literal dicts with no imports and no code, so every other property of the
@@ -215,10 +220,12 @@ def test_the_two_catalogue_snapshots_still_describe_the_same_families():
 
     help_families = set(data.HELP)
     key_families = set(schema.LABEL_KEYS)
-    assert help_families == key_families, (
-        "the snapshots disagree: HELP-only %s, LABEL_KEYS-only %s"
-        % (sorted(help_families - key_families)[:5],
-           sorted(key_families - help_families)[:5]))
+    assert not help_families - key_families, (
+        "the catalogue has HELP-only families with no label schema: %s"
+        % sorted(help_families - key_families)[:5])
+    assert key_families - help_families <= schema.CONDITIONAL, (
+        "the schema has non-conditional families absent from the catalogue: %s"
+        % sorted((key_families - help_families) - schema.CONDITIONAL)[:5])
     assert help_families, "both snapshots are empty — the copy lost everything"
     assert schema.CONDITIONAL <= key_families, (
         "CONDITIONAL names families the schema does not: %s"

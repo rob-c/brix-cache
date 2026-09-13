@@ -174,6 +174,12 @@ ngx_int_t ngx_thread_task_post(ngx_thread_pool_t *tp, ngx_thread_task_t *t)
 ngx_int_t brix_sd_ucred_resolve(const char *d, const char *k, void *out)
 {(void)d;(void)k;(void)out;return NGX_ERROR;}
 void brix_sd_ucred_wipe(void *c){(void)c;}
+ngx_int_t brix_sd_frm_seal(void *i, const char *k)
+{(void)i;(void)k;return NGX_ERROR;}
+void brix_stage_events_emit(const char *s, const char *e, const char *r,
+    const char *k, ...)
+{(void)s;(void)e;(void)r;(void)k;}
+ngx_tid_t ngx_thread_tid(void) { return 0; }
 #if (NGX_THREADS)
 void brix_task_bind(ngx_thread_task_t *task,
     void (*handler)(void *, ngx_log_t *),

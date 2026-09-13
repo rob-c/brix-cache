@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import os
-from typing import Mapping, Sequence
+from typing import Mapping, Optional, Sequence
 
 from brixtest.design import Binary, Server
 from brixtest.errors import SpecError
 from brixtest.runtime.images import OCIImageStore
 from brixtest.runtime.kubernetes_preparation import _referenced_names
+from brixtest.testing.config import BrixTestConfig
 
 
 def _server_binaries(owner, server: Server) -> tuple[Binary, ...]:
@@ -45,7 +46,7 @@ def _needs_generated(owner, declaration: Binary) -> bool:
     )
 
 
-def _base_image(server: Server, binaries: Sequence[Binary]) -> str:
+def _base_image(server: Server, binaries: Sequence[Binary], config: Optional[BrixTestConfig] = None) -> str:
     direct = server.placement.image or server.image
     if direct:
         return direct
@@ -55,7 +56,9 @@ def _base_image(server: Server, binaries: Sequence[Binary]) -> str:
             "server %s generated image" % server.name, sorted(images),
             "needs at most one explicit base image",
         )
-    return next(iter(images), os.environ.get("BRIXTEST_OCI_BASE_IMAGE", ""))
+    if config is not None and config.oci_base_image:
+        return config.oci_base_image
+    return os.environ.get("BRIXTEST_OCI_BASE_IMAGE", "")
 
 
 def _selected_server_binaries(owner, servers: Sequence[Server]) -> dict[str, tuple[Binary, ...]]:
@@ -70,7 +73,9 @@ def _selected_server_binaries(owner, servers: Sequence[Server]) -> dict[str, tup
     return selected
 
 
-def _registry() -> str:
+def _registry(config: Optional[BrixTestConfig] = None) -> str:
+    if config is not None and config.oci_registry:
+        return config.oci_registry
     return os.environ.get("BRIXTEST_OCI_REGISTRY", "")
 
 
@@ -84,23 +89,29 @@ def _require_image_target(owner, registry: str) -> None:
     )
 
 
-def _build_server_image(store, owner, server: Server, declarations: Sequence[Binary]):
+def _build_server_image(store, owner, server: Server, declarations: Sequence[Binary], config=None):
     captured = tuple(owner.binary_store.get(item.name) for item in declarations)
     return store.build(
         server.name, captured,
-        base_image=_base_image(server, _server_binaries(owner, server)),
+        base_image=_base_image(server, _server_binaries(owner, server), config=config),
     )
 
 
 def prepare_server_images(
-    backend, servers: Sequence[Server],
+    backend, servers: Sequence[Server], config: Optional[BrixTestConfig] = None,
 ) -> tuple[Mapping[str, str], Mapping[str, Mapping[str, str]]]:
-    """Build images only for servers that consume local-only/overridden binaries."""
+    """Build images only for servers that consume local-only/overridden binaries.
+    
+    Args:
+        backend: The backend owning the servers.
+        servers: Sequence of server declarations.
+        config: Optional configuration object. If not provided, reads from environment.
+    """
     owner = backend.owner
     selected = _selected_server_binaries(owner, servers)
     if not selected:
         return {}, {}
-    registry = _registry()
+    registry = _registry(config)
     _require_image_target(owner, registry)
     store = OCIImageStore(
         owner, backend.context or "brixtest", registry=registry,
@@ -110,7 +121,7 @@ def prepare_server_images(
     by_name = {server.name: server for server in servers}
     for name, declarations in selected.items():
         server = by_name[name]
-        generated = _build_server_image(store, owner, server, declarations)
+        generated = _build_server_image(store, owner, server, declarations, config=config)
         images[name] = generated.tag
         paths[name] = generated.paths
     return images, paths

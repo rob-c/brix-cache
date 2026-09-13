@@ -260,7 +260,10 @@ def test_the_shipped_kernel_passes_every_structural_check(model_bin):
 
 
 @pytest.mark.slow
-@pytest.mark.timeout(400)
+# Match the existing 600-second subprocess bound plus fixture compilation
+# (180 seconds). The full forms sweep exceeded 400 seconds on Ubuntu/Lima
+# with eight workers; keep enumerating all 2^32 inputs, not a smaller sample.
+@pytest.mark.timeout(800)
 @pytest.mark.parametrize("sweep", sorted(SWEEPS))
 def test_an_exhaustive_sweep_proves_its_closed_form_count(model_bin, sweep):
     """success (slow tier): each 2^32 sweep passes AND reports the exact size of

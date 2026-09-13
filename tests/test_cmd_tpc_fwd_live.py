@@ -24,6 +24,33 @@ def test_tpc_fwd_live_is_importable():
     }
 
 
+@pytest.mark.parametrize("credential,who,mode", [
+    ("gsi", "A", "delegate"),
+    ("gsi", "B", "only"),
+    ("token", "A", "delegate"),
+])
+def test_root_copy_delegation_selection(monkeypatch, credential, who, mode):
+    from types import SimpleNamespace
+
+    harness = SimpleNamespace(proxy_a="proxy-a", proxy_b="proxy-b",
+                              token_a="token-a", token_b="token-b",
+                              gsi_env=lambda value: {"proxy": value},
+                              token_env=lambda value: {"token": value})
+    calls = []
+    monkeypatch.setattr(tpc_fwd_live, "_call", lambda command, **kwargs: calls.append((command, kwargs)))
+    tpc_fwd_live._root_copy_process(harness, credential, who, "source", "destination")
+    command, kwargs = calls[0]
+    assert command[command.index("--tpc") + 1] == mode
+    assert command[-2:] == ["source", "destination"]
+    if credential == "token":
+        assert command[command.index("--tpc-token-mode") + 1] == "passthrough"
+    elif who == "B":
+        assert "XRDC_GSI_DELEGATE" in kwargs["env_drop"]
+        assert "XRDC_GSI_DELEGATE" not in kwargs["env_add"]
+    else:
+        assert kwargs["env_add"]["XRDC_GSI_DELEGATE"] == "1"
+
+
 @pytest.mark.optin
 @pytest.mark.timeout(600)
 @pytest.mark.parametrize("scenario", sorted(tpc_fwd_live.SCENARIOS))

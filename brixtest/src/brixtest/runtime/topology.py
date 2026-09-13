@@ -7,9 +7,11 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 from brixtest.errors import SpecError
 from brixtest.evidence.model import stable_id
+from brixtest.testing.config import BrixTestConfig
 
 
 def owned_servers(definition) -> tuple:
@@ -22,10 +24,19 @@ def owned_servers(definition) -> tuple:
     )
 
 
-def injected_services(service_type) -> dict:
-    """Recreate backend-neutral Service values passed by the session supervisor."""
+def injected_services(service_type, config: Optional[BrixTestConfig] = None) -> dict:
+    """Recreate backend-neutral Service values passed by the session supervisor.
+    
+    Args:
+        service_type: The Service type to instantiate.
+        config: Optional configuration. If not provided, reads from environment.
+    """
     try:
-        payload = json.loads(os.environ.get("BRIXTEST_SHARED_SERVERS_JSON", "{}"))
+        # Use config if provided, otherwise fall back to environment
+        if config is not None and config.shared_servers_json:
+            payload = json.loads(config.shared_servers_json)
+        else:
+            payload = json.loads(os.environ.get("BRIXTEST_SHARED_SERVERS_JSON", "{}"))
     except (TypeError, ValueError) as exc:
         raise SpecError("shared server manifest", "invalid JSON", str(exc)) from exc
     rows = payload.get("services", {}) if isinstance(payload, dict) else {}

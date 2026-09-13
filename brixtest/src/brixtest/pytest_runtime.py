@@ -20,7 +20,10 @@ from typing import Mapping, Set
 from brixtest import pytest_options
 from brixtest.archive import archive_case_logs
 from brixtest.design import CaseDefinition
+from typing import Optional
+
 from brixtest.errors import SpecError
+from brixtest.testing.config import BrixTestConfig
 from brixtest.evidence.collectors import _add_owned_children, _process_parents
 from brixtest.helper_bundle import archive_helper_bundle
 from brixtest.helper_control import CANCEL_ENV, HEARTBEAT_ENV
@@ -143,8 +146,12 @@ def _safe_import_roots(item, plugins: list[str]) -> list[str]:
     return list(dict.fromkeys(safe))
 
 
-def _heartbeat_timeout(timeout: float) -> float:
-    raw = os.environ.get("BRIXTEST_HEARTBEAT_TIMEOUT", "")
+def _heartbeat_timeout(timeout: float, config: Optional[BrixTestConfig] = None) -> float:
+    raw = ""
+    if config is not None and config.heartbeat_timeout:
+        raw = config.heartbeat_timeout
+    else:
+        raw = os.environ.get("BRIXTEST_HEARTBEAT_TIMEOUT", "")
     if raw:
         try:
             selected = float(raw)
@@ -177,9 +184,10 @@ def _terminate_helper(process, cancel_path: Path, reason: str) -> None:
 
 def _wait_helper(
     process, timeout: float, heartbeat_path: Path, cancel_path: Path,
+    config: Optional[BrixTestConfig] = None,
 ) -> str:
     deadline = time.monotonic() + timeout
-    silence = _heartbeat_timeout(timeout)
+    silence = _heartbeat_timeout(timeout, config=config)
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:

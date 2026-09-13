@@ -60,7 +60,8 @@ def test_binary_store_rejects_missing_runtime_source(tmp_path):
         BinaryStore(tmp_path / "run", tmp_path).capture(declaration)
 
 
-def test_discovered_library_preserves_loader_soname(tmp_path, monkeypatch):
+def test_discovered_library_preserves_loader_soname(tmp_path):
+    import brixtest.runtime.binaries as binaries_module
     executable = _executable(tmp_path / "tool")
     versioned = tmp_path / "libplugin.so.1.2"
     versioned.write_bytes(b"shared-library")
@@ -70,13 +71,17 @@ def test_discovered_library_preserves_loader_soname(tmp_path, monkeypatch):
     def discovered(path):
         return (soname,) if path == executable.resolve() else ()
 
-    monkeypatch.setattr("brixtest.runtime.binaries._ldd_libraries", discovered)
-    captured = BinaryStore(tmp_path / "run", tmp_path).capture(
-        binary("tool", executable),
-    )
+    old_ldd = binaries_module._ldd_libraries
+    binaries_module._ldd_libraries = discovered
+    try:
+        captured = BinaryStore(tmp_path / "run", tmp_path).capture(
+            binary("tool", executable),
+        )
 
-    assert [path.name for path in captured.libraries] == ["libplugin.so.1"]
-    assert captured.libraries[0].read_bytes() == b"shared-library"
+        assert [path.name for path in captured.libraries] == ["libplugin.so.1"]
+        assert captured.libraries[0].read_bytes() == b"shared-library"
+    finally:
+        binaries_module._ldd_libraries = old_ldd
 
 
 def test_declared_library_preserves_loader_soname(tmp_path):

@@ -58,9 +58,9 @@ class TestStandaloneMetadataStress:
         ep = lifecycle.start(_http_spec(
             data, rl_rule="brix_rate_limit_rule zone=rlh key=ip rate=30r/s burst=30;"))
         port = ep.port
-        res = _paced_hammer(lambda: None,
-                            lambda _s: _http_propfind(port, "/dir"),
-                            _classify_http)
+        res = _paced_hammer(lambda: _http_session(port),
+                            lambda s: _op_propfind_ka(s, "/dir"),
+                            _classify_http, close_session=lambda s: s.close())
         _report("standalone PROPFIND+RL", res)
         _assert_no_fallover(res, "PROPFIND+RL")
         assert res["throttled"] > 0, \

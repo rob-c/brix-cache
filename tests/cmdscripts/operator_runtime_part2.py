@@ -23,6 +23,18 @@ from port_ladder import PORT_COUNT
 TESTS = REPO_ROOT / "tests"
 
 
+def _default_parallel_workers() -> int:
+    """Choose a fleet-safe xdist default, leaving ``-n`` as the override."""
+    cpu_default = max(2, min((os.cpu_count() or 8) - 2, 12))
+    try:
+        memory_bytes = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (AttributeError, OSError, ValueError):
+        return cpu_default
+    if memory_bytes <= 12 * 1024 ** 3:
+        return 1
+    return cpu_default
+
+
 def _suite_parser():
     parser = argparse.ArgumentParser(prog="operator_runtime.py suite")
     parser.add_argument("--fast", action="store_true")
@@ -32,7 +44,7 @@ def _suite_parser():
         "--include-suite-jobs", action="store_true",
         help="include compiler/analyzer/Docker job wrappers in pytest timing",
     )
-    parser.add_argument("-n", type=int, default=max(2, min((os.cpu_count() or 8) - 2, 12)))
+    parser.add_argument("-n", type=int, default=_default_parallel_workers())
     parser.add_argument(
         "--shards", type=int, default=1, metavar="N",
         help="Split the --fast bulk lane into N independent pytest sessions "

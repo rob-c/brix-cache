@@ -154,8 +154,8 @@ brix_subprocess_write_status(int fd, int status)
  * end would withhold the OTHER caller's EOF until this agent's command finished
  * — a wedged endpoint on one transfer would stall every concurrent exchange.
  *
- * HOW: close_range(3, keep-1) and close_range(keep+1, ~0U); only on ENOSYS,
- * close(f) for every f in [3, _SC_OPEN_MAX) other than keep.
+ * HOW: close_range(3, keep-1) and close_range(keep+1, ~0U); if either syscall
+ * fails, close(f) for every f in [3, _SC_OPEN_MAX) other than keep.
  */
 static void
 brix_subprocess_close_others(int keep)
@@ -169,7 +169,7 @@ brix_subprocess_close_others(int keep)
     if (rc == 0) {
         rc = syscall(__NR_close_range, (unsigned) keep + 1, ~0U, 0U);
     }
-    if (rc == 0 || errno != ENOSYS) {
+    if (rc == 0) {
         return;
     }
     max = sysconf(_SC_OPEN_MAX);
@@ -306,22 +306,26 @@ brix_subprocess_agent(int result_fd, int capture_fd,
 {
     pid_t child;
     int   status;
+    int   output_fd = -1;
 
     (void) signal(SIGCHLD, SIG_DFL);
     result_fd = fcntl(result_fd, F_DUPFD_CLOEXEC, 3);
     if (result_fd < 0) {
         _exit(0);
     }
-    if (capture_fd >= 0 && dup2(capture_fd, STDOUT_FILENO) < 0) {
-        _exit(0);
+    if (capture_fd >= 0) {
+        output_fd = dup2(capture_fd, STDOUT_FILENO);
+        if (output_fd < 0) {
+            _exit(0);
+        }
     }
     brix_subprocess_close_others(result_fd);
     child = fork();
     if (child == 0) {
         brix_subprocess_child(req->argv, old);   /* never returns */
     }
-    if (capture_fd >= 0) {
-        close(STDOUT_FILENO);
+    if (output_fd >= 0) {
+        close(output_fd);
     }
     status = (child > 0) ? brix_subprocess_reap(child, req->timeout_ms)
                          : BRIX_SUBPROCESS_NO_STATUS;

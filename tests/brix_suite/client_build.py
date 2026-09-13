@@ -23,6 +23,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import os
+import stat
 import subprocess
 
 __all__ = ["client_make", "make_lock_path"]
@@ -40,10 +41,26 @@ def make_lock_path(client_dir):
     return os.path.join(_LOCK_DIR, f"brix-client-make-{key}.lock")
 
 
+def _open_tree_lock(path):
+    # flock only needs a readable descriptor on Linux. Reopening another UID's
+    # lock with O_CREAT in sticky /tmp is denied by fs.protected_regular, even
+    # for root. Exclusive creation followed by a non-creating open preserves
+    # the shared inode and the host protection when callers change identity.
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
+    try:
+        fd = os.open(path, flags | os.O_CREAT | os.O_EXCL, 0o644)
+    except FileExistsError:
+        fd = os.open(path, flags)
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise ValueError("client build lock must be a regular file")
+    return fd
+
+
 @contextlib.contextmanager
 def _tree_lock(client_dir):
     import fcntl  # noqa: PLC0415 — Linux-only, imported lazily (kdc.py idiom)
-    fd = os.open(make_lock_path(client_dir), os.O_RDWR | os.O_CREAT, 0o644)
+    fd = _open_tree_lock(make_lock_path(client_dir))
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)  # blocking: the other caller's make finishes first
         yield

@@ -413,6 +413,10 @@ vfs_setattr_driver(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
     char            physical[PATH_MAX];
     int             use_cred = 0, cred_err = 0;
 
+    if (ctx == NULL || drv == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
     ngx_memzero(&store, sizeof(store));
     ngx_memzero(&cred, sizeof(cred));
     if (brix_vfs_cred_gate_active(ctx)

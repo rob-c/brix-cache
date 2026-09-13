@@ -491,6 +491,9 @@ def test_lifecycle_harness_drives_throwaway_instance(lifecycle, tmp_path):
         NginxInstanceSpec(
             name="lc-smoke",
             template="nginx_registry_smoke.conf",
+            # A TCP connect can complete while only the master has bound the
+            # socket. The snapshot below needs a worker that is serving ROOT.
+            readiness="root",
             data_root=str(tmp_path / "data"),
             reason="lifecycle harness smoke",
         )

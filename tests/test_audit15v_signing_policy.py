@@ -64,22 +64,21 @@ and therefore does NOT match the glob.  It is accepted under ``on`` AND under
 every proxy login on earth — the proxy's issuer is an EEC, which never has a
 policy file of its own.
 
-THE FINDING — DEFECT CANDIDATE #53
-----------------------------------
+THE CONFIGURATION DIAGNOSTIC — RESOLVED #53
+--------------------------------------------
 ``brix_signing_policy require`` with a bundle-FILE trust anchor is fatal
 (store_policy_store.c:232) — correctly, since policy files are looked up beside
-a hashed directory — but the refusal is reported at ``[warn]``:
+a hashed directory.  The parser first identifies the mismatch at ``[warn]``:
 
     nginx: [warn] brix_pki: signing_policy: "require" needs a hashed CA
     directory, not a bundle file
+    nginx: [emerg] brix: cannot build the GSI trust store from trusted_ca ...
     nginx: configuration file .../nginx.conf test failed
 
-There is no ``[emerg]`` line and no ``file:line``, unlike every other brix
-config refusal.  ``nginx -t`` therefore reports a failure whose only
-explanation is a warning that reads like advice, and an operator grepping for
-``emerg`` — the level nginx itself uses for fatal config errors — finds
-nothing.  ``test_the_refusal_is_reported_without_an_emerg_line`` pins today's
-shape; when the log level is raised that test should be updated, not deleted.
+The failed trust-store construction then supplies the fatal ``[emerg]``
+diagnostic with its rendered ``file:line``.  ``nginx -t`` is therefore
+actionable: it names both the policy mismatch and the configuration location.
+``test_the_refusal_has_an_actionable_emerg_line`` pins that contract.
 """
 
 import os
@@ -494,7 +493,7 @@ class TestTheStoreBehindTheTokens:
 
 
 # --------------------------------------------------------------------------- #
-# §E — the parse tier, and the config-time refusal (DEFECT CANDIDATE #53)      #
+# §E — the parse tier and the fatal configuration diagnostic                    #
 # --------------------------------------------------------------------------- #
 
 def _knobs(pki, ca, *lines):
@@ -551,21 +550,18 @@ class TestRequireNeedsAHashedDirectory:
                                 f"brix_signing_policy {token};"))
         assert rc == 0, f"a bundle-file anchor was refused under {token}:\n{out}"
 
-    def test_the_refusal_is_reported_without_an_emerg_line(self, tmp_path,
-                                                            pki):
-        """DEFECT CANDIDATE #53.  The condition is fatal — the config test fails
-        — but it is logged at [warn] and carries no file:line, so `nginx -t`
-        prints "test failed" with no [emerg] anywhere in its output.  Pinning
-        the defect, not endorsing it: when the level is raised, this assertion
-        is what tells you to update the expectation."""
+    def test_the_refusal_has_an_actionable_emerg_line(self, tmp_path, pki):
+        """The warning names the invalid bundle anchor and the fatal error
+        identifies the failed trust-store build at its rendered config line."""
         rc, out = _parse(tmp_path,
                          _knobs(pki, pki["bundle"],
                                 "brix_signing_policy require;"))
         assert rc != 0, out
         assert "[warn]" in out, out
-        assert "[emerg]" not in out, (
-            "the bundle-file refusal now emits [emerg] — defect candidate #53 "
-            f"is fixed; update this test\n{out}")
+        assert 'needs a hashed CA directory' in out, out
+        assert "[emerg]" in out, out
+        assert 'cannot build the GSI trust store from trusted_ca' in out, out
+        assert '/conf/nginx.conf:' in out, out
 
     def test_the_token_is_inert_without_gsi(self, tmp_path):
         """No brix_auth gsi, so no store is ever built and the strict token

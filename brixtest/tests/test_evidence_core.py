@@ -53,31 +53,29 @@ def _v1_case():
     }
 
 
-def test_process_collector_reports_case_relative_cgroup_cpu(monkeypatch, tmp_path):
+def test_process_collector_reports_case_relative_cgroup_cpu(tmp_path):
+    import brixtest.evidence.collectors as collectors_module
     emitted = []
     current = {"cpu": 20000.0, "throttled": 300.0}
-    monkeypatch.setattr(
-        "brixtest.evidence.collectors._descendants",
-        lambda roots: {123: "test-helper"},
-    )
-    monkeypatch.setattr(
-        "brixtest.evidence.collectors._proc_values", lambda pid: {},
-    )
-    monkeypatch.setattr(
-        "brixtest.evidence.collectors._cgroup_values",
-        lambda pid: {
-            "cgroup_cpu_seconds": current["cpu"],
-            "cgroup_throttled_seconds": current["throttled"],
-        },
-    )
-    original_read_text = Path.read_text
+    
+    old_descendants = collectors_module._descendants
+    old_proc_values = collectors_module._proc_values
+    old_cgroup_values = collectors_module._cgroup_values
+    old_read_text = Path.read_text
+    
+    collectors_module._descendants = lambda roots: {123: "test-helper"}
+    collectors_module._proc_values = lambda pid: {}
+    collectors_module._cgroup_values = lambda pid: {
+        "cgroup_cpu_seconds": current["cpu"],
+        "cgroup_throttled_seconds": current["throttled"],
+    }
 
     def read_text(path, *args, **kwargs):
         if str(path) == "/proc/123/cgroup":
             return "0::/brixtest-unit\n"
-        return original_read_text(path, *args, **kwargs)
+        return old_read_text(path, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "read_text", read_text)
+    Path.read_text = read_text
     manager = CollectorManager(
         [process_tree()], root=tmp_path,
         pid_provider=lambda: {"test-helper": 123},
@@ -85,12 +83,25 @@ def test_process_collector_reports_case_relative_cgroup_cpu(monkeypatch, tmp_pat
         event=lambda kind, row: emitted.append((kind, dict(row))),
         namespace_provider=lambda: "",
     )
-    manager._sample(manager.specs[0])
-    current.update(cpu=20002.5, throttled=300.25)
-    manager._sample(manager.specs[0])
-    cpu = _metric_values(emitted, "process.cgroup_cpu_seconds")
-    throttled = _metric_values(emitted, "process.cgroup_throttled_seconds")
-    assert (cpu, throttled) == ([0.0, 2.5], [0.0, 0.25])
+    try:
+        manager = CollectorManager(
+            [process_tree()], root=tmp_path,
+            pid_provider=lambda: {"test-helper": 123},
+            metric=lambda *args, **kwargs: None,
+            event=lambda kind, row: emitted.append((kind, dict(row))),
+            namespace_provider=lambda: "",
+        )
+        manager._sample(manager.specs[0])
+        current.update(cpu=20002.5, throttled=300.25)
+        manager._sample(manager.specs[0])
+        cpu = _metric_values(emitted, "process.cgroup_cpu_seconds")
+        throttled = _metric_values(emitted, "process.cgroup_throttled_seconds")
+        assert (cpu, throttled) == ([0.0, 2.5], [0.0, 0.25])
+    finally:
+        collectors_module._descendants = old_descendants
+        collectors_module._proc_values = old_proc_values
+        collectors_module._cgroup_values = old_cgroup_values
+        Path.read_text = old_read_text
 
 
 def _metric_values(emitted, name):
@@ -315,11 +326,19 @@ def test_redaction_covers_nested_keys_and_inline_tokens():
     assert redact_text("token=abc password:xyz") == "token=[REDACTED] password:[REDACTED]"
 
 
-def test_environment_provenance_hashes_without_storing_value(monkeypatch):
-    monkeypatch.setenv("BRIXTEST_TEST_SECRET", "must-not-appear")
-    row = environment_contract(["BRIXTEST_TEST_SECRET"])["BRIXTEST_TEST_SECRET"]
-    assert row["present"] is True and row["sha256"]
-    assert "must-not-appear" not in json.dumps(row)
+def test_environment_provenance_hashes_without_storing_value():
+    import os
+    old_secret = os.environ.get("BRIXTEST_TEST_SECRET")
+    os.environ["BRIXTEST_TEST_SECRET"] = "must-not-appear"
+    try:
+        row = environment_contract(["BRIXTEST_TEST_SECRET"])["BRIXTEST_TEST_SECRET"]
+        assert row["present"] is True and row["sha256"]
+        assert "must-not-appear" not in json.dumps(row)
+    finally:
+        if old_secret is None:
+            os.environ.pop("BRIXTEST_TEST_SECRET", None)
+        else:
+            os.environ["BRIXTEST_TEST_SECRET"] = old_secret
 
 
 def test_file_identity_streams_size_and_digest(tmp_path):

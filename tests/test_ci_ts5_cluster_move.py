@@ -114,8 +114,9 @@ POST_MOVE = {
     "wlcg_fleet": {
         # a stale registration under the same fleet name is released before
         # a new instance is built (test_wlcg_fleet_name_idempotency, 09-07)
-        "changed": {"WlcgInstance", "WlcgInstance.__init__"},
-        "added": {"_release_stale"},
+        # Reload also waits for replacement workers before trust-store checks.
+        "changed": {"WlcgInstance", "WlcgInstance.__init__", "WlcgInstance.reload"},
+        "added": {"_release_stale", "WlcgInstance._worker_pids"},
     },
 }
 _NO_AMENDMENT = {"changed": frozenset(), "added": frozenset()}

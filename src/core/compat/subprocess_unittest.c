@@ -17,6 +17,7 @@
 #include "subprocess.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
@@ -151,6 +152,38 @@ check_truncation_and_guards(void)
     }
 }
 
+/* ---- Verify the runner removes parent descriptors before exec ----
+ *
+ * WHAT: Opens a descriptor in the parent and confirms the command cannot see
+ *       it through /proc; records a unit failure on setup or contract failure.
+ *
+ * WHY: A failed close_range fallback would expose worker sockets, logs, and
+ *      request pipes to an operator command even when ordinary exit tests pass.
+ *
+ * HOW:
+ *   1. Open /dev/null in the parent at a known descriptor number.
+ *   2. Ask a shell run by the helper whether that descriptor survived exec.
+ *   3. Require a successful shell with a false existence test, then close it.
+ */
+static void
+check_descriptor_hygiene(void)
+{
+    char   command[96];
+    char   out[16];
+    int    fd, ec = -1;
+
+    fd = open("/dev/null", O_RDONLY);
+    if (fd < 0) {
+        check("descriptor hygiene: open", -1, 0);
+        return;
+    }
+    snprintf(command, sizeof(command), "test ! -e /proc/$$/fd/%d", fd);
+    check("descriptor hygiene: runner rc",
+          run_sh(command, out, sizeof(out), NULL, &ec), 0);
+    check("descriptor hygiene: inherited fd closed", ec, 0);
+    close(fd);
+}
+
 static void
 check_hostile_reaper(void)
 {
@@ -211,6 +244,7 @@ main(void)
 {
     check_basic_contract();
     check_truncation_and_guards();
+    check_descriptor_hygiene();
     check_hostile_reaper();
     printf("%d failures\n", fails);
     return fails ? 1 : 0;

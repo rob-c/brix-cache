@@ -286,7 +286,8 @@ def test_kubernetes_teardown_refuses_replaced_namespace(tmp_path):
     assert backend._namespace_created is True
 
 
-def test_timeout_cleanup_deletes_only_the_recorded_namespace_uid(tmp_path, monkeypatch):
+def test_timeout_cleanup_deletes_only_the_recorded_namespace_uid(tmp_path):
+    import brixtest.pytest_runtime as runtime_module
     run_root = tmp_path / "run"
     write_ownership(run_root, "brixtest-owned", "owned-uid")
     calls = []
@@ -297,11 +298,15 @@ def test_timeout_cleanup_deletes_only_the_recorded_namespace_uid(tmp_path, monke
             argv, 0, '{"metadata":{"uid":"replacement-uid"}}', "",
         )
 
-    monkeypatch.setattr("brixtest.pytest_runtime.subprocess.run", execute)
-    definition = _definition(backend="kubernetes")
-    _cleanup_timed_out_kubernetes(definition, run_root)
-    assert len(calls) == 1 and "get" in calls[0]
-    assert read_ownership(run_root)["uid"] == "owned-uid"
+    old_run = runtime_module.subprocess.run
+    runtime_module.subprocess.run = execute
+    try:
+        definition = _definition(backend="kubernetes")
+        _cleanup_timed_out_kubernetes(definition, run_root)
+        assert len(calls) == 1 and "get" in calls[0]
+        assert read_ownership(run_root)["uid"] == "owned-uid"
+    finally:
+        runtime_module.subprocess.run = old_run
 
 
 def test_kubernetes_task_renders_bounded_non_retrying_job():

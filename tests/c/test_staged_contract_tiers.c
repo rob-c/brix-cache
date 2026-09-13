@@ -213,6 +213,25 @@ int frm_select_stub_adapter(sd_frm_state *st, const char *adapter,
     return 0;
 }
 
+/* sd_frm.o's table also names the recall path. The staged-commit contract never
+ * reaches it, so these fail-closed doubles keep this unit focused on ownership. */
+int frm_ensure_online(sd_frm_state *st, const char *key, int *recalled)
+{ (void) st; (void) key; (void) recalled; return -1; }
+int frm_select_arc_decorator(sd_frm_state *st, const brix_sd_frm_opts_t *opts,
+    ngx_log_t *log)
+{ (void) st; (void) opts; (void) log; return 0; }
+ngx_int_t sd_frm_recall(brix_sd_instance_t *inst, const char *key,
+    char reqid_out[40])
+{ (void) inst; (void) key; (void) reqid_out; return NGX_ERROR; }
+ngx_int_t sd_frm_recall_cred(brix_sd_instance_t *inst, const char *key,
+    const brix_sd_cred_t *cred, char reqid_out[40])
+{ (void) inst; (void) key; (void) reqid_out; (void) cred; return NGX_ERROR; }
+const char *brix_stage_engine_journal_dir(void) { return ""; }
+int brix_stage_on_loop(void) { return 0; }
+void brix_stage_events_emit(const char *source, const char *event,
+    const char *reqid, const char *key, ...)
+{ (void) source; (void) event; (void) reqid; (void) key; }
+
 /* ---- sd_stage arms -------------------------------------------------------- */
 
 static void

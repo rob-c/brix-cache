@@ -29,7 +29,7 @@ from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, inject_nginx
 # _call is defined in the fwd_matrix_live parent (loaded before this mixin);
 # import it so the mixin methods can spawn subprocesses (split-drop fix).
 from cmdscripts.fwd_matrix_live import _call, _curl_code  # noqa: E402
-from lib_py.util import wait_tcp
+from lib_py.util import find_xrd_sec_lib, wait_tcp
 from settings import BIND_HOST, CA_CERT, CA_DIR, CA_KEY, HOST, SERVER_CERT, SERVER_KEY
 from ephemeral_port import free_ports
 
@@ -342,9 +342,7 @@ http {{
         return log
 
     def _xrootd_sec_block(self, d: Path, cred: str) -> str:
-        sec_lib = Path("/usr/lib64/libXrdSec-5.so")
-        if not sec_lib.is_file():
-            sec_lib = Path("/usr/lib/libXrdSec-5.so")
+        sec_lib = find_xrd_sec_lib() or "libXrdSec.so"
         if cred == "gsi":
             return (f"xrootd.seclib {sec_lib}\n"
                     f"sec.protocol gsi -certdir:{CA_DIR} -cert:{SERVER_CERT} -key:{SERVER_KEY}"
@@ -376,6 +374,8 @@ default_user = fwduser
             return False
         bundle = self.trusted_ca_bundle()
         real_bundle = os.path.realpath("/etc/pki/tls/certs/ca-bundle.crt")
+        if not os.path.isfile(real_bundle):
+            real_bundle = os.path.realpath("/etc/ssl/certs/ca-certificates.crt")
         cache = d / "scitok_cache"
         shutil.rmtree(cache, ignore_errors=True)
         cache.mkdir()

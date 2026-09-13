@@ -180,6 +180,9 @@ typedef struct {
 static int
 arc_scan_push(arc_scan_t *s, const char *rel)
 {
+    char     *copy;
+    unsigned  index = s->n;
+
     if (s->n >= BRIX_ZIP_MAX_ENTRIES - 1) {
         errno = EFBIG;
         return -1;
@@ -194,11 +197,12 @@ arc_scan_push(arc_scan_t *s, const char *rel)
         s->names = grown;
         s->cap = ncap;
     }
-    s->names[s->n] = strdup(rel);
-    if (s->names[s->n] == NULL) {
+    copy = strdup(rel);
+    if (copy == NULL) {
         return -1;
     }
-    s->n++;
+    s->names[index] = copy;
+    s->n = index + 1;
     return 0;
 }
 
@@ -211,6 +215,10 @@ arc_scan_entry(arc_scan_t *s, const struct dirent *de, unsigned depth)
     size_t      len = strlen(s->path);
     int         rc = 0;
 
+    if (len >= sizeof(s->path)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
     if (snprintf(s->path + len, sizeof(s->path) - len, "/%s", de->d_name)
         >= (int) (sizeof(s->path) - len))
     {

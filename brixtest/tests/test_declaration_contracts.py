@@ -64,7 +64,9 @@ def test_kubernetes_security_negative_rejects_mutable_image_tags():
         )
 
 
-def test_kubernetes_backend_preserves_the_run_api(tmp_path, monkeypatch):
+def test_kubernetes_backend_preserves_the_run_api(tmp_path):
+    import brixtest.runtime.kubernetes as kubernetes_module
+    from brixtest.runtime.manager import KubernetesCaseManager
     executable = binary(
         "origin_bin", image="registry.example/origin@sha256:" + "b" * 64,
         image_path="/opt/origin/bin/server",
@@ -98,13 +100,14 @@ def test_kubernetes_backend_preserves_the_run_api(tmp_path, monkeypatch):
             }]}), stderr="")
         return subprocess.CompletedProcess(args, 0, stdout="pod log\n", stderr="")
 
-    monkeypatch.setattr("brixtest.runtime.kubernetes.shutil.which", lambda value: value)
-    monkeypatch.setattr(KubernetesCaseManager, "_run", fake_run)
-    monkeypatch.setattr(
-        KubernetesCaseManager, "_forward",
-        lambda self, declaration, remote: {"http": 45123},
-    )
-    monkeypatch.setattr(KubernetesCaseManager, "_wait_ready", lambda *args: None)
+    old_which = kubernetes_module.shutil.which
+    old_run = KubernetesCaseManager._run
+    old_forward = KubernetesCaseManager._forward
+    old_wait_ready = KubernetesCaseManager._wait_ready
+    kubernetes_module.shutil.which = lambda value: value
+    KubernetesCaseManager._run = fake_run
+    KubernetesCaseManager._forward = lambda self, declaration, remote: {"http": 45123}
+    KubernetesCaseManager._wait_ready = lambda *args: None
 
     definition = declared_case.__brixtest_case__
     manager = CaseManager(definition, "test_kubernetes", root=tmp_path / "run")
@@ -112,7 +115,13 @@ def test_kubernetes_backend_preserves_the_run_api(tmp_path, monkeypatch):
     assert run.backend == "kubernetes"
     assert run.server(origin).url(role="http") == "http://127.0.0.1:45123/"
     assert run.server(origin).replicas[0].host == "10.244.0.10"
-    manager.set_outcome("passed")
-    manager.close()
-    assert any("apply" in call for call in calls)
-    assert any("delete" in call for call in calls)
+    try:
+        manager.set_outcome("passed")
+        manager.close()
+        assert any("apply" in call for call in calls)
+        assert any("delete" in call for call in calls)
+    finally:
+        kubernetes_module.shutil.which = old_which
+        KubernetesCaseManager._run = old_run
+        KubernetesCaseManager._forward = old_forward
+        KubernetesCaseManager._wait_ready = old_wait_ready

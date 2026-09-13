@@ -27,7 +27,7 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-mu-webdav-authz")]
 
 
-def _spec():
+def _spec(authdb):
     return NginxInstanceSpec(
         name="lc-mu-webdav-authz",
         template="nginx_mu_webdav_authz.conf",
@@ -40,7 +40,7 @@ def _spec():
             "CA": os.path.join(ports.MU.CA_DIR, "ca.pem"),
             "VOMSDIR": ports.MU.VOMSDIR,
             "CA_DIR": ports.MU.CA_DIR,
-            "AUTHDB": ports.MU.AUTHDB,
+            "AUTHDB": str(authdb),
         },
         reason="MU WebDAV read node: native authdb + VO-ACL read parity.",
     )
@@ -53,17 +53,16 @@ def cast():
 
 
 @pytest.fixture
-def webdav_authz_env(lifecycle, cast):
+def webdav_authz_env(lifecycle, cast, tmp_path):
     for sub in ("cms", "restricted", "private"):
         d = os.path.join(ports.MU.DATA_ROOT, sub)
         os.makedirs(d, exist_ok=True)
         with open(os.path.join(d, "secret.dat"), "wb") as f:
             f.write(b"S" * 4096)
-    os.makedirs(ports.MU.MU_ROOT, exist_ok=True)
-    with open(ports.MU.AUTHDB, "w") as f:
-        # authdb grants any authenticated reader on /cms and /restricted; nothing else.
-        f.write("u * /cms rl\nu * /restricted rl\n")
-    return lifecycle.start(_spec())
+    # The policy is private: parallel MU groups grant different identities/paths.
+    authdb = tmp_path / "authdb"
+    authdb.write_text("u * /cms rl\nu * /restricted rl\n")
+    return lifecycle.start(_spec(authdb))
 
 
 def _proxy(name, vo=None):

@@ -23,6 +23,7 @@
 #include <stdlib.h>   /* free() for brix_sd_obj_release */
 #include <string.h>
 #include <time.h>     /* struct timespec for brix_sd_setattr_t */
+typedef unsigned char     u_char;
 typedef intptr_t          ngx_int_t;
 typedef uintptr_t         ngx_uint_t;
 typedef int               ngx_fd_t;
@@ -58,6 +59,38 @@ typedef struct ngx_pool_s ngx_pool_t;  /* opaque: only ever a pointer field */
 #ifndef ngx_memzero
 #define ngx_memzero(buf, n) memset(buf, 0, (n))
 #endif
+/*
+ * WHAT: Copies at most n - 1 bytes and always NUL-terminates a non-empty
+ *       destination, returning the first byte after the copied text.
+ *
+ * WHY: sd_accessors.h is part of the ngx-free driver contract, but its digest
+ *      accessor uses nginx's bounded-copy spelling.  The client and standalone
+ *      driver units cannot link ngx_string.o just to obtain that tiny helper.
+ *
+ * HOW:
+ *   1. Leave an empty destination untouched.
+ *   2. Copy until a source NUL or the destination's final byte.
+ *   3. Write the terminating NUL when truncation consumed the final byte.
+ */
+static ngx_inline u_char *
+ngx_cpystrn(u_char *dst, const u_char *src, size_t n)
+{
+    if (n == 0) {
+        return dst;
+    }
+
+    while (--n != 0) {
+        *dst = *src;
+        if (*dst == '\0') {
+            return dst;
+        }
+        dst++;
+        src++;
+    }
+
+    *dst = '\0';
+    return dst;
+}
 #else
 #include <ngx_config.h>
 #include <ngx_core.h>

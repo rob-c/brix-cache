@@ -101,7 +101,8 @@ def test_container_isolation_args_cannot_escape_helper_boundaries(argument):
         docker("example/helper:dev", allow_mutable=True, extra_args=(argument,))
 
 
-def test_binary_and_client_env_overrides_are_captured_once(tmp_path, monkeypatch):
+def test_binary_and_client_env_overrides_are_captured_once(tmp_path):
+    import os
     original = tmp_path / "original"
     replacement = tmp_path / "replacement"
     original.write_text("#!/bin/sh\nprintf original")
@@ -116,20 +117,30 @@ def test_binary_and_client_env_overrides_are_captured_once(tmp_path, monkeypatch
         pass
 
     session = tmp_path / "session"
-    monkeypatch.setenv("BRIXTEST_METRICS_SESSION", str(session))
-    monkeypatch.setenv("BRIXTEST_BINARY_OVERRIDES_JSON", json.dumps({"tool": str(replacement)}))
-    monkeypatch.setenv("BRIXTEST_CLIENT_ENV_JSON", json.dumps({"SUITE_VALUE": "replacement"}))
+    old_metrics = os.environ.get("BRIXTEST_METRICS_SESSION")
+    old_binaries = os.environ.get("BRIXTEST_BINARY_OVERRIDES_JSON")
+    old_client = os.environ.get("BRIXTEST_CLIENT_ENV_JSON")
+    os.environ["BRIXTEST_METRICS_SESSION"] = str(session)
+    os.environ["BRIXTEST_BINARY_OVERRIDES_JSON"] = json.dumps({"tool": str(replacement)})
+    os.environ["BRIXTEST_CLIENT_ENV_JSON"] = json.dumps({"SUITE_VALUE": "replacement"})
     manager = CaseManager(declared.__brixtest_case__, "test_override", root=tmp_path / "run")
     run = manager.start()
     captured = run.binary(tool)
     replacement.write_text("#!/bin/sh\nprintf rebuilt")
-    assert run.client(command).run().stdout == "replacement"
-    assert captured.path != replacement and captured.source == replacement
-    assert captured.overridden is True
-    manager.set_outcome("passed")
-    manager.close()
-    assert not manager.root.exists()
-    assert list((session / "logs").rglob("*.stdout.log"))
+    try:
+        assert run.client(command).run().stdout == "replacement"
+        assert captured.path != replacement and captured.source == replacement
+        assert captured.overridden is True
+        manager.set_outcome("passed")
+        manager.close()
+        assert not manager.root.exists()
+        assert list((session / "logs").rglob("*.stdout.log"))
+    finally:
+        for key, old in [("BRIXTEST_METRICS_SESSION", old_metrics), ("BRIXTEST_BINARY_OVERRIDES_JSON", old_binaries), ("BRIXTEST_CLIENT_ENV_JSON", old_client)]:
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
 
 
 def test_logs_sqlite_bulk_and_symlink_confinement(tmp_path):
@@ -221,7 +232,8 @@ def test_rerun_replays_an_exact_record(tmp_path):
     assert sentinel.read_text() == "done"
 
 
-def test_search_archive_uses_bulk_api_without_exporting_replay(tmp_path, monkeypatch):
+def test_search_archive_uses_bulk_api_without_exporting_replay(tmp_path):
+    import os
     captured = {}
 
     class Response:
@@ -241,15 +253,25 @@ def test_search_archive_uses_bulk_api_without_exporting_replay(tmp_path, monkeyp
         assert timeout == 30
         return Response()
 
-    monkeypatch.setattr("brixtest.archive.urllib.request.urlopen", open_request)
-    monkeypatch.setenv("BRIXTEST_SEARCH_BEARER_TOKEN", "controller-secret")
-    payload = {
-        "session_id": "s1", "tests": [{
-            "nodeid": "test_x", "outcome": "failed", "logs": [],
-            "replay": {"argv": ["must-not-export"]}, "metrics": {"samples": []},
-        }],
-    }
-    post_search_archive(payload, tmp_path, "https://search.example", index="brixtest-ci")
-    assert captured["url"] == "https://search.example/_bulk"
-    assert captured["auth"] == "Bearer controller-secret"
-    assert "must-not-export" not in captured["body"]
+    old_token = os.environ.get("BRIXTEST_SEARCH_BEARER_TOKEN")
+    os.environ["BRIXTEST_SEARCH_BEARER_TOKEN"] = "controller-secret"
+    import brixtest.archive
+    old_urlopen = brixtest.archive.urllib.request.urlopen
+    brixtest.archive.urllib.request.urlopen = open_request
+    try:
+        payload = {
+            "session_id": "s1", "tests": [{
+                "nodeid": "test_x", "outcome": "failed", "logs": [],
+                "replay": {"argv": ["must-not-export"]}, "metrics": {"samples": []},
+            }],
+        }
+        post_search_archive(payload, tmp_path, "https://search.example", index="brixtest-ci")
+        assert captured["url"] == "https://search.example/_bulk"
+        assert captured["auth"] == "Bearer controller-secret"
+        assert "must-not-export" not in captured["body"]
+    finally:
+        brixtest.archive.urllib.request.urlopen = old_urlopen
+        if old_token is None:
+            os.environ.pop("BRIXTEST_SEARCH_BEARER_TOKEN", None)
+        else:
+            os.environ["BRIXTEST_SEARCH_BEARER_TOKEN"] = old_token

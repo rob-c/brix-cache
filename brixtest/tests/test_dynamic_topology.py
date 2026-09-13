@@ -23,6 +23,7 @@ from brixtest import (
     text_artifact,
     volume,
 )
+from brixtest.testing import test_config
 from brixtest.archive import archive_server_log
 from brixtest.errors import CaseRunError, SpecError
 from brixtest.evidence.model import iter_entities
@@ -230,15 +231,15 @@ def test_session_server_cannot_depend_on_case_server(tmp_path):
         case(servers=[local, shared])
 
 
-def test_injected_service_preserves_instance_identity(tmp_path, monkeypatch):
+def test_injected_service_preserves_instance_identity(tmp_path):
     manifest = {"services": {"origin": {
         "instance_id": "instance-1", "pool_id": "pool-1", "host": "127.0.0.1",
         "ports": {"http": 1234, "primary": 1234}, "config": str(tmp_path / "c"),
         "log": str(tmp_path / "l"), "workdir": str(tmp_path / "w"),
         "started_at_epoch": 42,
     }}}
-    monkeypatch.setenv("BRIXTEST_SHARED_SERVERS_JSON", json.dumps(manifest))
-    resolved = injected_services(Service)["origin"]
+    config = test_config(shared_servers_json=json.dumps(manifest))
+    resolved = injected_services(Service, config=config)["origin"]
     assert resolved.instance_id == "instance-1" and resolved.scope == "session"
     assert resolved.url(role="http") == "http://127.0.0.1:1234/"
 

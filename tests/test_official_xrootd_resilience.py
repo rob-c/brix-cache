@@ -30,6 +30,7 @@ import shutil
 import socket
 import subprocess
 from brix_suite.client_build import client_make
+from concurrent.futures import ThreadPoolExecutor
 import sys
 import threading
 import time
@@ -229,13 +230,24 @@ def _read_md5(path, watchdog=120):
     return out["md5"], out["n"], out["err"]
 
 
-def _fire(ctl, schedule):
-    """Run (delay, cmd) pairs from a background thread while a read is in flight."""
-    def go():
-        for d, c in schedule:
-            time.sleep(d)
-            ctl(c)
-    threading.Thread(target=go, daemon=True).start()
+def _apply_fault_schedule(ctl, schedule):
+    for delay, command in schedule:
+        time.sleep(delay)
+        ctl(command)
+
+
+def _read_with_faults(path, ctl, schedule):
+    """Own the scheduler until it finishes, including when the read fails.
+
+    A detached scheduler can alter the next test's link or contact a proxy
+    already torn down. Joining before returning also makes control failures
+    fail this test instead of surfacing later as thread-exception warnings.
+    """
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        faults = pool.submit(_apply_fault_schedule, ctl, schedule)
+        result = _read_md5(path)
+        faults.result()
+        return result
 
 
 def test_baseline_compat(mount):
@@ -263,8 +275,7 @@ def test_drop_mid_transfer(mount):
     mfile, ctl, ref = mount
     ctl("clear")
     ctl("latency 2")
-    _fire(ctl, [(0.6, "drop")])
-    md5, n, err = _read_md5(mfile)
+    md5, n, err = _read_with_faults(mfile, ctl, [(0.6, "drop")])
     ctl("clear")
     assert md5 == ref, f"n={n} err={err}"
 
@@ -274,8 +285,8 @@ def test_repeated_drops(mount):
     mfile, ctl, ref = mount
     ctl("clear")
     ctl("latency 3")
-    _fire(ctl, [(0.5, "drop"), (1.2, "drop"), (1.9, "drop")])
-    md5, n, err = _read_md5(mfile)
+    md5, n, err = _read_with_faults(
+        mfile, ctl, [(0.5, "drop"), (1.2, "drop"), (1.9, "drop")])
     ctl("clear")
     assert md5 == ref, f"n={n} err={err}"
 
@@ -286,8 +297,8 @@ def test_outage_then_recovery(mount):
     mfile, ctl, ref = mount
     ctl("clear")
     ctl("latency 2")
-    _fire(ctl, [(0.5, "block"), (3.5, "unblock")])
-    md5, n, err = _read_md5(mfile)
+    md5, n, err = _read_with_faults(
+        mfile, ctl, [(0.5, "block"), (3.5, "unblock")])
     assert md5 == ref, f"(outage) n={n} err={err}"
     ctl("clear")
     md5b, n2, err2 = _read_md5(mfile)

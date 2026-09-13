@@ -15,43 +15,45 @@ from brixtest.runtime.launcher_identity import process_identity_argv
 from brixtest.runtime.userns_exec import _apply_maps, _mapping, _status_code
 
 
-def test_process_identity_wraps_exact_maps_without_a_shell(monkeypatch):
+def test_process_identity_wraps_exact_maps_without_a_shell():
+    import brixtest.runtime.launcher_identity as launcher_identity_module
     runner = identity(
         "runner", uid=0, gid=0, groups=(7,), user_namespace=True,
         uid_map=((0, 100000, 1),), gid_map=((0, 200000, 1), (7, 200007, 1)),
     )
-    monkeypatch.setattr(
-        "brixtest.runtime.launcher_identity.shutil.which",
-        lambda name: "/usr/bin/" + name,
-    )
-    argv = process_identity_argv(runner, ("python3", "-c", "print('safe')"))
+    old_which = launcher_identity_module.shutil.which
+    launcher_identity_module.shutil.which = lambda name: "/usr/bin/" + name
+    try:
+        argv = process_identity_argv(runner, ("python3", "-c", "print('safe')"))
 
-    assert argv[1:4] == ("-m", "brixtest.runtime.userns_exec", "--uid")
-    assert "--uid-map" in argv and "0:100000:1" in argv
-    assert "--gid-map" in argv and "7:200007:1" in argv
-    assert argv[argv.index("--") + 1:][:2] == ("setpriv", "--no-new-privs")
-    assert argv[-3:] == ("-c", "print('safe')") or argv[-3:] == (
-        "python3", "-c", "print('safe')",
-    )
+        assert argv[1:4] == ("-m", "brixtest.runtime.userns_exec", "--uid")
+        assert "--uid-map" in argv and "0:100000:1" in argv
+        assert "--gid-map" in argv and "7:200007:1" in argv
+        assert argv[argv.index("--") + 1:][:2] == ("setpriv", "--no-new-privs")
+        assert argv[-3:] == ("-c", "print('safe')") or argv[-3:] == (
+            "python3", "-c", "print('safe')",
+        )
+    finally:
+        launcher_identity_module.shutil.which = old_which
 
 
-def test_user_namespace_mapper_invokes_only_uid_and_gid_helpers(monkeypatch):
+def test_user_namespace_mapper_invokes_only_uid_and_gid_helpers():
+    import brixtest.runtime.userns_exec as userns_exec_module
     calls = []
-    monkeypatch.setattr(
-        "brixtest.runtime.userns_exec.shutil.which",
-        lambda name: "/usr/bin/" + name,
-    )
-    monkeypatch.setattr(
-        "brixtest.runtime.userns_exec.subprocess.run",
-        lambda argv, **options: calls.append((tuple(argv), options))
-        or subprocess.CompletedProcess(argv, 0, "", ""),
-    )
+    old_which = userns_exec_module.shutil.which
+    old_run = userns_exec_module.subprocess.run
+    userns_exec_module.shutil.which = lambda name: "/usr/bin/" + name
+    userns_exec_module.subprocess.run = lambda argv, **options: calls.append((tuple(argv), options)) or subprocess.CompletedProcess(argv, 0, "", "")
 
-    _apply_maps(321, ((0, 1000, 1),), ((0, 2000, 1),))
+    try:
+        _apply_maps(321, ((0, 1000, 1),), ((0, 2000, 1),))
 
-    assert [call[0][0] for call in calls] == ["/usr/bin/newuidmap", "/usr/bin/newgidmap"]
-    assert calls[0][0][1:] == ("321", "0", "1000", "1")
-    assert all(call[1]["check"] is False for call in calls)
+        assert [call[0][0] for call in calls] == ["/usr/bin/newuidmap", "/usr/bin/newgidmap"]
+        assert calls[0][0][1:] == ("321", "0", "1000", "1")
+        assert all(call[1]["check"] is False for call in calls)
+    finally:
+        userns_exec_module.shutil.which = old_which
+        userns_exec_module.subprocess.run = old_run
 
 
 def test_user_namespace_map_parser_and_status_are_strict():

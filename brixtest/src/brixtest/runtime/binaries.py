@@ -127,17 +127,23 @@ def _captured_metadata(item: "CapturedBinary") -> None:
         raise SpecError("binary.overridden", item.overridden, "must be boolean")
 
 
-def _binary_overrides() -> Mapping[str, object]:
+def _binary_overrides(config: Optional[BrixTestConfig] = None) -> Mapping[str, object]:
     try:
-        value = json.loads(os.environ.get("BRIXTEST_BINARY_OVERRIDES_JSON", "{}"))
+        if config is not None and config.binary_overrides_json:
+            value = json.loads(config.binary_overrides_json)
+        else:
+            value = json.loads(os.environ.get("BRIXTEST_BINARY_OVERRIDES_JSON", "{}"))
     except (TypeError, ValueError):
         return {}
     return value if isinstance(value, dict) else {}
 
 
-def _replay_binaries() -> Mapping[str, object]:
+def _replay_binaries(config: Optional[BrixTestConfig] = None) -> Mapping[str, object]:
     try:
-        value = json.loads(os.environ.get(REPLAY_BINARIES_ENV, "{}"))
+        if config is not None and config.replay_binaries_json:
+            value = json.loads(config.replay_binaries_json)
+        else:
+            value = json.loads(os.environ.get(REPLAY_BINARIES_ENV, "{}"))
     except (TypeError, ValueError):
         return {}
     return value if isinstance(value, dict) else {}

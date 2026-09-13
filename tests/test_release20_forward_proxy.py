@@ -97,8 +97,8 @@ class TestGrammar:
                        "".join(_line(l) for l in lines))
 
     @pytest.mark.parametrize("line", [
-        "brix_storage_backend forward://root permit=127.0.0.1;",
-        "brix_storage_backend forward://root,roots permit=127.0.0.1 permit=.example.org;",
+        "brix_storage_backend forward://root permit=127.0.0.1;",  # net-literal-allow: permit grammar payload
+        "brix_storage_backend forward://root,roots permit=127.0.0.1 permit=.example.org;",  # net-literal-allow: permit grammar payload
         "brix_storage_backend forward://roots permit=.cern.ch verify_pages;",
         "brix_storage_backend forward://roots,root permit=origin.example.org nearline;",
     ], ids=["root", "both-two-permits", "roots-verify-pages", "reversed-nearline"])
@@ -110,17 +110,17 @@ class TestGrammar:
         assert rc == 0, f"{line!r} rejected:\n{out}"
 
     @pytest.mark.parametrize("line,needle", [
-        ("brix_storage_backend forward://http permit=127.0.0.1;",
+        ("brix_storage_backend forward://http permit=127.0.0.1;",  # net-literal-allow: rejected permit grammar payload
          "takes a protocol list of root and/or roots"),
-        ("brix_storage_backend forward:// permit=127.0.0.1;",
+        ("brix_storage_backend forward:// permit=127.0.0.1;",  # net-literal-allow: rejected permit grammar payload
          "takes a protocol list of root and/or roots"),
-        ("brix_storage_backend forward://root, permit=127.0.0.1;",
+        ("brix_storage_backend forward://root, permit=127.0.0.1;",  # net-literal-allow: rejected permit grammar payload
          "takes a protocol list of root and/or roots"),
         ("brix_storage_backend forward://root permit=;",
          '"permit="'),
         ("brix_storage_backend forward://root permit=a/b;",
          '"permit=" takes one host or .suffix per param'),
-        ("brix_storage_backend root://127.0.0.1:1094 permit=127.0.0.1;",
+        ("brix_storage_backend root://127.0.0.1:1094 permit=127.0.0.1;",  # net-literal-allow: rejected fixed-origin grammar payload
          '"permit=" belongs on a forward:// backend line'),
     ], ids=["unknown-scheme", "empty-list", "trailing-comma", "empty-permit",
             "permit-with-slash", "permit-on-fixed-origin"])
@@ -150,7 +150,7 @@ class TestGrammar:
         rc, out = self._nginx_t(
             lifecycle, tmp_path,
             f"brix_export {tmp_path};",
-            "brix_cache_store forward://root permit=127.0.0.1;")
+            "brix_cache_store forward://root permit=127.0.0.1;")  # net-literal-allow: rejected cache grammar payload
         assert rc != 0, out
         assert "forward:// is a brix_storage_backend origin, not a" in out, out
 
@@ -162,7 +162,7 @@ class TestGrammar:
         rc, out = self._nginx_t(
             lifecycle, tmp_path,
             f"brix_export {tmp_path};",
-            f"brix_cache_store posix:{cache} permit=127.0.0.1;")
+            f"brix_cache_store posix:{cache} permit=127.0.0.1;")  # net-literal-allow: rejected cache grammar payload
         assert rc != 0, out
         assert '"permit=" belongs on a brix_storage_backend forward:// line' in out, out
 

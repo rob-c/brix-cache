@@ -173,6 +173,8 @@ def fwd_xrootd_brix(nginx: Path | None = None) -> int:
 # ===========================================================================
 
 def _probe_front_sec_block(h: ForwardHarness, d: Path) -> str:
+    from lib_py.util import find_xrd_sec_lib
+
     (d / "scitokens.cfg").write_text(f"""[Global]
 audience = {TOK_AUD}
 [Issuer test]
@@ -180,9 +182,7 @@ issuer = {h.tok_issuer}
 base_path = /
 default_user = fwduser
 """)
-    sec_lib = Path("/usr/lib64/libXrdSec-5.so")
-    if not sec_lib.is_file():
-        sec_lib = Path("/usr/lib/libXrdSec-5.so")
+    sec_lib = find_xrd_sec_lib() or "libXrdSec.so"
     return (f"xrd.tls   {SERVER_CERT} {SERVER_KEY}\n"
             f"xrd.tlsca certdir {CA_DIR}\n"
             f"xrootd.seclib {sec_lib}\n"

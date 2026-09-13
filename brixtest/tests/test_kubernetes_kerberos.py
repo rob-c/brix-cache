@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from brixtest import kerberos_auth, server
+from brixtest.auth import kerberos
 from brixtest.auth.kerberos import _configs, kdc_projection
 from brixtest.auth.store import AuthStore
 from brixtest.runtime.kubernetes_auth import KubernetesKDC, _documents
@@ -18,11 +19,13 @@ class _Reservation:
         pass
 
 
-def _fake_realm(monkeypatch, tmp_path):
-    monkeypatch.setattr("brixtest.auth.kerberos._tool", lambda name: name)
-    monkeypatch.setattr(
-        "brixtest.auth.kerberos._free_port", lambda requested: (18488, _Reservation()),
-    )
+def _fake_realm(tmp_path):
+    old_tool = kerberos._tool
+    old_free_port = kerberos._free_port
+    old_run = kerberos._run
+    
+    kerberos._tool = lambda name: name
+    kerberos._free_port = lambda requested: (18488, _Reservation())
 
     def run(argv, env, **options):
         root = Path(env["KRB5_KDC_PROFILE"]).parent
@@ -34,10 +37,15 @@ def _fake_realm(monkeypatch, tmp_path):
             Path(query.split()[2]).write_bytes(b"service-keytab")
         return ""
 
-    monkeypatch.setattr("brixtest.auth.kerberos._run", run)
-    store = AuthStore(tmp_path / "auth")
-    item = store.materialize(kerberos_auth(start_kdc=False))
-    return store, item
+    kerberos._run = run
+    try:
+        store = AuthStore(tmp_path / "auth")
+        item = store.materialize(kerberos_auth(start_kdc=False))
+        return store, item
+    finally:
+        kerberos._tool = old_tool
+        kerberos._free_port = old_free_port
+        kerberos._run = old_run
 
 
 def test_kubernetes_configs_use_service_dns_and_dual_transport_listener(tmp_path):
@@ -55,8 +63,8 @@ def test_kubernetes_configs_use_service_dns_and_dual_transport_listener(tmp_path
     assert "kdc_tcp_listen = 0.0.0.0:18488" in kdc
 
 
-def test_remote_role_environment_selects_remote_config_only(tmp_path, monkeypatch):
-    store, item = _fake_realm(monkeypatch, tmp_path)
+def test_remote_role_environment_selects_remote_config_only(tmp_path):
+    store, item = _fake_realm(tmp_path)
     remote = Path("/brixtest/secure/auth")
 
     assert store.environment("test")["KRB5_CONFIG"] == str(item.files["config"])
@@ -68,8 +76,8 @@ def test_remote_role_environment_selects_remote_config_only(tmp_path, monkeypatc
     assert all("user.ccache" not in name for name in server_files)
 
 
-def test_kdc_projection_excludes_client_cache_and_service_keytab(tmp_path, monkeypatch):
-    _, item = _fake_realm(monkeypatch, tmp_path)
+def test_kdc_projection_excludes_client_cache_and_service_keytab(tmp_path):
+    _, item = _fake_realm(tmp_path)
     realm = getattr(item, "_authority_controller")
 
     projected = kdc_projection(realm)
@@ -80,8 +88,8 @@ def test_kdc_projection_excludes_client_cache_and_service_keytab(tmp_path, monke
 
 
 @pytest.fixture
-def kdc_documents(tmp_path, monkeypatch):
-    _, item = _fake_realm(monkeypatch, tmp_path)
+def kdc_documents(tmp_path):
+    _, item = _fake_realm(tmp_path)
     realm = getattr(item, "_authority_controller")
     backend = SimpleNamespace(namespace="case")
     recipe = kerberos_auth(start_kdc=False)

@@ -39,8 +39,8 @@ NAME = "lc-r20-tpc-multihop"
 SEED = pattern(3 * 1024 * 1024 + 4097, 0x77)      # three full 1 MiB rounds plus a tail
 REFUSED = "brix_stream_tpc_egress_refused_total"
 # A second spelling of loopback that the allowlist (which names only HOST)
-# does not carry.  # net-literal-allow: the guard test needs a host the allowlist rejects
-OTHER_LOOPBACK = "localhost" if HOST != "localhost" else "127.0.0.1"
+# does not carry.
+OTHER_LOOPBACK = "localhost" if HOST != "localhost" else "127.0.0.1"  # net-literal-allow: the guard test needs an allowlist-rejected host
 
 
 @pytest.fixture(scope="module")

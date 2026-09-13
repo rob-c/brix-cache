@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_fuse_cache_helpers")
 
-pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_fuse_cache")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("test_cvmfs_conformance_fuse_cache")]
 
 @pytest.mark.timeout(240)
 def test_kill9_then_remount_warm_over_same_cache(tmp_path, make_origin):

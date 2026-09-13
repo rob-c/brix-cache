@@ -134,7 +134,7 @@
   "noarg:brix-xrdcp": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "6d5ea56b526f2d22965e9a7eddec119fb51daa30995406092aa314ffe2e3db7a"
+    "stderr_sha": "cd78459ed4a6feae1be9bf16f885ca179f3021be119e491c920d14def362069e"
   },
   "noarg:brix-xrdcrc32c": {
     "exit": 50,
@@ -154,7 +154,7 @@
   "noarg:brix-xrdfs": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "300972b215e96a468932ef9374ff343b095cfc6dd88b9da3740d4fc9be2bba12"
+    "stderr_sha": "cb5ff852de50406ba8e9e6c5c971cdc6608a984eb111a57f73c94a9a5e0542e7"
   },
   "noarg:brix-xrdgsiproxy": {
     "exit": 50,
@@ -279,7 +279,7 @@
   "noarg:xrdcp": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "7af67d987b2245a4e429262c730d87a83025827dfa09fceb80c3743d6c99f30a"
+    "stderr_sha": "286b585c74a8709d272997b467958343d57eaf6a7bbedb2f4aae50c5be15e25e"
   },
   "noarg:xrdcrc32c": {
     "exit": 50,
@@ -299,7 +299,7 @@
   "noarg:xrdfs": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "cc7de9dcaa26305354f2a26b9d1afc613f841d398f7bf3dbe575565047269487"
+    "stderr_sha": "fc3c483139074a60a966710862d2d495505dab689ec12ff637dfeac98210be6f"
   },
   "noarg:xrdgsiproxy": {
     "exit": 50,

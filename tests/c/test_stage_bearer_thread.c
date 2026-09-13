@@ -30,6 +30,7 @@
 #include <ngx_core.h>
 
 #include "fs/backend/sd.h"
+#include "fs/backend/frm/sd_frm.h"
 #include "fs/xfer/stage_engine.h"
 #include "fs/xfer/xfer.h"            /* brix_xfer_finish prototype (stubbed) */
 
@@ -42,6 +43,8 @@
 ngx_int_t brix_sd_ucred_resolve(const char *dir, const char *key, void *out)
 { (void) dir; (void) key; (void) out; return NGX_ERROR; }
 void brix_sd_ucred_wipe(void *cred) { (void) cred; }
+ngx_int_t brix_sd_frm_seal(brix_sd_instance_t *inst, const char *key)
+{ (void) inst; (void) key; return NGX_ERROR; }
 void brix_xfer_finish(brix_xfer_kind_t kind, const char *direction,
     const char *path, const char *principal, size_t bytes,
     brix_xfer_result_t result, int sys_errno, ngx_log_t *log)

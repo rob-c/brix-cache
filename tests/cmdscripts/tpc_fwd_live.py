@@ -62,7 +62,7 @@ def _root_destination_blocks(harness, credential, bearer_mode):
         tpc = ("brix_tpc_allow_local on;\n        brix_tpc_allow_private on;\n"
                "        brix_tpc_delegate on;\n        brix_gsi_signed_dh require;")
         return auth, tpc
-    auth = (f"brix_auth token;\n        brix_certificate     {SERVER_CERT};\n"
+    auth = (f"brix_auth token; brix_tls on;\n        brix_certificate     {SERVER_CERT};\n"
             f"        brix_certificate_key {SERVER_KEY};\n"
             f"        brix_token_jwks      {harness.tok_jwks};\n"
             f"        brix_token_issuer    {harness.tok_issuer};\n"
@@ -100,10 +100,15 @@ def _webdav_copy_command(harness, credential, who, source_url, destination_url):
 
 
 def _root_copy_process(harness, credential, who, source_url, destination_url):
-    command = [BRIX_XRDCP, "-f", "--tpc", "delegate", source_url, destination_url]
+    # The CLI's delegate mode enables proxy delegation itself; removing the
+    # environment override cannot disable it for the negative control.
+    mode = "only" if credential == "gsi" and who != "A" else "delegate"
+    command = [BRIX_XRDCP, "-f", "--tpc", mode]
     if credential != "gsi":
+        command.extend(["--tpc-token-mode", "passthrough", source_url, destination_url])
         token = _identity_file(harness.token_a, harness.token_b, who)
         return _call(command, env_add=harness.token_env(token), timeout=90)
+    command.extend([source_url, destination_url])
     proxy = _identity_file(harness.proxy_a, harness.proxy_b, who)
     env = harness.gsi_env(proxy)
     drop = ()
@@ -131,7 +136,7 @@ class TpcHarness(ForwardHarness):
         else:
             # ztn requires TLS on the wire; the token source advertises its
             # certificate so the outbound TPC session can upgrade to roots://.
-            extra = (f"brix_auth token;\n        brix_certificate     {SERVER_CERT};\n"
+            extra = (f"brix_auth token; brix_tls on;\n        brix_certificate     {SERVER_CERT};\n"
                      f"        brix_certificate_key {SERVER_KEY};\n"
                      f"        brix_token_jwks      {self.tok_jwks};\n"
                      f"        brix_token_issuer    {self.tok_issuer};\n"
@@ -296,8 +301,9 @@ http {{
         return TpcResult(copy_ok, code)
 
     def drive_tpc_root(self, cred: str, sport: int, dport: int, obj: str, who: str) -> TpcResult:
-        src_url = f"root://{TPC_HOST}:{sport}//tpcsrc.bin"
-        dst_url = f"root://{TPC_HOST}:{dport}//{obj}"
+        scheme = "roots" if cred == "token" else "root"
+        src_url = f"{scheme}://{TPC_HOST}:{sport}//tpcsrc.bin"
+        dst_url = f"{scheme}://{TPC_HOST}:{dport}//{obj}"
         dexport = self.prefix / "dstroot/export"
         proc = _root_copy_process(self, cred, who, src_url, dst_url)
         (self.prefix / f"tpc_{who}.err").write_text(proc.stderr or "")
@@ -381,6 +387,8 @@ def _start_root_bb(harness, credential, key):
 def _record_root_positive_failure(harness, key, credential, result, destination_log):
     if credential == "token":
         evidence = _grep_last(destination_log, r"ztn|token|tls|3028|auth|passthrough")
+        client_error = (harness.prefix / "tpc_A.err").read_text(errors="replace").strip()
+        evidence = f"{evidence}; client: {client_error[-1000:]}"
         message = f"userA passthrough token pull did not complete ({result.deny_obs}): {evidence}"
     else:
         lines = (harness.prefix / "tpc_A.err").read_text(errors="replace").splitlines()

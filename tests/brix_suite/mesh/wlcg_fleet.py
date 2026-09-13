@@ -148,7 +148,20 @@ class WlcgInstance:
         return self
 
     def reload(self):
+        """Wait for replacement workers before testing the reloaded trust store."""
+        previous = self._worker_pids()
         self._harness.reload(self._name)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            current = self._worker_pids()
+            if current and current.isdisjoint(previous):
+                return
+            time.sleep(0.05)
+        raise RuntimeError(f"{self._name}: reload did not replace the old workers")
+
+    def _worker_pids(self):
+        return {pid for pid, role in self._harness.process_snapshot(self._name)
+                if "worker" in role}
 
     def stop(self):
         self._harness.close()                        # stop + unregister; idempotent

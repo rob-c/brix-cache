@@ -15,7 +15,7 @@ def _check_test_credential_wt_ztn_flow_1(results):
     )
 
 def _check_test_credential_wt_ztn_flow_2(messages):
-    assert "unauthenticated write-back correctly failed to reach the token origin" in messages
+    assert "unauthenticated write-back failed to reach token origin" in messages
 
 def _guard_test_credential_wt_ztn_flow_1(tool):
     if not os.access(tool, os.X_OK):

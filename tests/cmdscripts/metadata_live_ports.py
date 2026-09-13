@@ -232,6 +232,10 @@ stream {{ server {{
             return run.call([xrdcp, "-f", source, f"root://{HOST}:11775//{name}"], check=False).returncode == 0
 
         node = start_node()
+        # LiveRun creates the generic runtime logs directory.  Remove it after
+        # startup so this case reaches xfer_ledger's documented fallback beside
+        # the explicitly configured error log.
+        shutil.rmtree(node / "logs")
         first = upload("a.bin")
         fallback_log = node / "elog/xfer_audit.log"
         # start_node() wipes the node dir on restart — capture the audit

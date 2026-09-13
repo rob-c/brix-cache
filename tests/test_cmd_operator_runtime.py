@@ -225,6 +225,13 @@ def test_default_suite_runs_full_parallel_and_serial_lanes(monkeypatch, tmp_path
     assert calls[1][1][:2] == ["-n", "0"]
 
 
+def test_suite_default_worker_count_is_fleet_safe_on_low_memory_hosts(monkeypatch):
+    values = {"SC_PAGE_SIZE": 4096, "SC_PHYS_PAGES": 2 * 1024 * 1024}
+    monkeypatch.setattr(operator_runtime.os, "sysconf", values.__getitem__)
+
+    assert operator_runtime._suite_parser().parse_args([]).n == 1
+
+
 def test_suite_rejects_missing_nginx_before_cleanup(monkeypatch, tmp_path: Path):
     xrootd = _executable(tmp_path / "xrootd")
     cleaned = []

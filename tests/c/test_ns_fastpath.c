@@ -50,6 +50,7 @@ int brix_imp_mkdir(const char *p, mode_t m) { (void) p; (void) m; abort(); }
 int brix_imp_unlink(const char *p, int d) { (void) p; (void) d; abort(); }
 int brix_imp_rename(const char *s, const char *d) { (void) s; (void) d; abort(); }
 int brix_imp_rename_noreplace(const char *s, const char *d) { (void) s; (void) d; abort(); }
+int brix_imp_rename_exchange(const char *s, const char *d) { (void) s; (void) d; abort(); }
 int brix_imp_link(const char *s, const char *d) { (void) s; (void) d; abort(); }
 
 size_t

@@ -54,6 +54,8 @@
 
 #include "core/compat/integrity_info.h"
 #include "core/compat/integrity_info_internal.h"
+#include "core/compat/checksum_plugin.h"
+#include "fs/backend/sd_registry.h"
 
 /* ---- stubs: the VFS xattr seam (metrics-free) ----------------------------- */
 
@@ -153,6 +155,17 @@ ngx_int_t brix_cksum_u64_fd(int a, int b, const void *c, void *d)
 ngx_int_t brix_cksum_u64_obj(int a, void *b, const void *c, void *d)
 { (void) a; (void) b; (void) c; (void) d;
   NEVER_COMPUTE("brix_cksum_u64_obj"); }
+
+/* The parser references the optional site-plugin dispatches and the POSIX
+ * driver identity even though this cache-hit unit never reaches either path. */
+ngx_int_t brix_cks_plugin_lookup(const char *lname, brix_checksum_alg_t *alg)
+{ (void) lname; (void) alg; return NGX_DECLINED; }
+const char *brix_cks_plugin_name(brix_checksum_alg_t alg)
+{ (void) alg; return NULL; }
+ngx_int_t brix_cksum_plugin_obj(brix_checksum_alg_t alg, brix_sd_obj_t *obj,
+    unsigned char *out, size_t *outlen)
+{ (void) alg; (void) obj; (void) out; (void) outlen; return NGX_DECLINED; }
+const brix_sd_driver_t brix_sd_posix_driver = { .name = "posix" };
 
 /* ---- stubs: the logging / formatting seam --------------------------------- */
 

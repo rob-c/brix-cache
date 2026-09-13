@@ -67,6 +67,13 @@ ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
     (void) level; (void) log; (void) err; (void) fmt;
 }
 
+void
+brix_stage_events_emit(const char *source, const char *event,
+    const char *reqid, const char *key, ...)
+{
+    (void) source; (void) event; (void) reqid; (void) key;
+}
+
 /* ngx_string.o references these but the registry hot path never calls them. */
 void *
 ngx_alloc(size_t size, ngx_log_t *log)

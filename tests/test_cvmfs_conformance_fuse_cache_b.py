@@ -18,7 +18,7 @@ def _check_test_quota_fill_past_watermark_reaps_to_75pct_5(du):
 
 _reexport(globals(), "_test_cvmfs_conformance_fuse_cache_helpers")
 
-pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_fuse_cache")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("test_cvmfs_conformance_fuse_cache")]
 
 @pytest.mark.timeout(240)
 def test_corrupt_cached_catalog_entry_remount_recovers(tmp_path, make_origin):
@@ -140,8 +140,9 @@ def test_no_quota_means_unbounded_cache(tmp_path, make_origin):
 
 @pytest.mark.timeout(180)
 def test_preexisting_overquota_cache_reaped_on_next_fill(tmp_path, make_origin):
-    # Adopt a 2.7MB cache under a 1MB quota: brix_cas_init re-counts the disk, so
-    # the FIRST new fill trips the watermark and reaps the adopted entries too.
+    # Adopt a 2.4MB cache under a 1MB quota.  Startup/catalog access can reap
+    # before the new data fill; that fill may then grow past the low watermark
+    # without crossing the quota again.
     tree = _quota_tree(n=9)
     forge, web, pub = _forge(tmp_path, tree)
     origin = make_origin(web)
@@ -152,8 +153,10 @@ def test_preexisting_overquota_cache_reaped_on_next_fill(tmp_path, make_origin):
     assert cache_du(cache) >= 8 * 300_000
     with fuse_mount(REPO, origin.url, pub, cache=str(cache),
                     extra_args=("-o", f"quota={QUOTA_MB}")) as (mnt, _):
-        (mnt / "f8").read_bytes()                   # cold fill -> synchronous enforce
-        assert cache_du(cache) <= (QUOTA * 3) // 4
+        assert (mnt / "f8").read_bytes() == tree["f8"].content
+        assert cache_du(cache) <= QUOTA
+        assert any(not cache_entry(cache, content_key(tree[f"f{i}"].content)).exists()
+                   for i in range(8)), "adopted cache entries were not evicted"
     forge.close()
 
 

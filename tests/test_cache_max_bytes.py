@@ -19,6 +19,7 @@ Run:
 """
 
 import os
+from pathlib import Path
 import subprocess
 import time
 
@@ -55,16 +56,17 @@ def _dir_bytes(root):
 
 
 def _fill_cache(data, endpoint):
-    """Read-through _NFILES distinct objects to fill the cache well over the cap."""
+    """Read through more than the cap; reaping may already run during the fills."""
     for i in range(_NFILES):
-        (data / f"f{i}.bin").write_bytes(bytes((i * 7 + 3) % 251
-                                                for _ in range(_FILE_SZ)))
+        payload = bytes([(i * 7 + 3) % 251]) * _FILE_SZ
+        (data / f"f{i}.bin").write_bytes(payload)
         out = data.parent / f"pull-{i}.bin"
         r = subprocess.run(
             [_XRDCP, "-f", "-s",
              f"root://{HOST}:{endpoint.port}//f{i}.bin", str(out)],
             capture_output=True, text=True, timeout=60)
         assert r.returncode == 0, f"fill read {i} failed: {r.stderr}"
+        assert out.read_bytes() == payload, f"fill read {i} returned corrupt bytes"
 
 
 def _poll_until_capped(store, cap_with_slack, deadline_s=40):
@@ -78,6 +80,30 @@ def _poll_until_capped(store, cap_with_slack, deadline_s=40):
             break
         time.sleep(1)
     return cached
+
+
+def _assert_cap_enforced(cached, log):
+    assert cached <= _MAXBYTES + _FILE_SZ, (
+        f"reaper did not cap owned bytes: {cached} B still cached "
+        f"(cap {_MAXBYTES} B)")
+    assert cached >= _FILE_SZ, (
+        f"reaper over-evicted: only {cached} B left (expected ~{_MAXBYTES} B)")
+    assert "watermark reaper purged" in log, (
+        "no reap pass observed: a small or bypassed cache does not prove the cap")
+
+
+@pytest.mark.parametrize("cached,log,error", [
+    (_MAXBYTES, "watermark reaper purged 4 file(s)", None),
+    (_NFILES * _FILE_SZ, "watermark reaper purged 1 file(s)", "did not cap"),
+    (0, "watermark reaper purged 8 file(s)", "over-evicted"),
+    (_MAXBYTES, "", "no reap pass observed"),
+])
+def test_cap_verdict_requires_bounded_nonempty_cache_and_reap_evidence(cached, log, error):
+    if error is None:
+        _assert_cap_enforced(cached, log)
+        return
+    with pytest.raises(AssertionError, match=error):
+        _assert_cap_enforced(cached, log)
 
 
 class TestMaxBytes:
@@ -121,18 +147,10 @@ class TestMaxBytes:
         # Fill the cache with 512 KiB across 8 distinct read-through objects.
         _fill_cache(data, endpoint)
 
-        # The cache now holds ~512 KiB, well over the 256 KiB cap.
-        assert _dir_bytes(store) > _MAXBYTES, (
-            "precondition: the cache should be over the cap right after filling")
-
-        # The reaper's first tick is ~5 s out, then every 1 s. Poll until the
-        # owned bytes fall to the cap (allowing one object of slack + sidecars).
+        # The first tick is 250 ms out, then every 1 s. On a busy host the
+        # reaper may already have capped the cache before the final read ends.
+        # Require the actual purge evidence, not a race to observe overshoot.
         cap_with_slack = _MAXBYTES + _FILE_SZ
         cached = _poll_until_capped(store, cap_with_slack)
-
-        assert cached <= cap_with_slack, (
-            f"reaper did not cap owned bytes: {cached} B still cached "
-            f"(cap {_MAXBYTES} B)")
-        # ...and it did not empty the cache — it reaps DOWN to the cap, not to 0.
-        assert cached >= _FILE_SZ, (
-            f"reaper over-evicted: only {cached} B left (expected ~{_MAXBYTES} B)")
+        log = (Path(endpoint.prefix) / "logs" / "error.log").read_text()
+        _assert_cap_enforced(cached, log)

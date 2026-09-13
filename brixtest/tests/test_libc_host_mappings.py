@@ -45,7 +45,8 @@ def test_libc_mapping_validates_consumer_roles():
         host_mapping("origin", "origin.test", libc=True, targets=())
 
 
-def test_managed_container_server_receives_server_targeted_aliases(tmp_path, monkeypatch):
+def test_managed_container_server_receives_server_targeted_aliases(tmp_path):
+    import brixtest.runtime.launchers as launchers_module
     mapping = host_mapping(
         "origin", "origin.test", address="127.0.0.9", aliases=("alias.test",),
         libc=True, targets=("server",),
@@ -59,8 +60,12 @@ def test_managed_container_server_receives_server_targeted_aliases(tmp_path, mon
         declaration, ("daemon",), {}, tmp_path, host_aliases=(mapping,),
     )
     context = ServerLaunchContext("unit::hosts", tmp_path, tmp_path / "workspace")
-    monkeypatch.setattr("brixtest.runtime.launchers.shutil.which", lambda _: "/usr/bin/docker")
+    old_which = launchers_module.shutil.which
+    launchers_module.shutil.which = lambda _: "/usr/bin/docker"
 
-    argv = server_launcher("docker").prepare(context, request).argv
-    assert "origin.test:127.0.0.9" in argv
-    assert "alias.test:127.0.0.9" in argv
+    try:
+        argv = server_launcher("docker").prepare(context, request).argv
+        assert "origin.test:127.0.0.9" in argv
+        assert "alias.test:127.0.0.9" in argv
+    finally:
+        launchers_module.shutil.which = old_which

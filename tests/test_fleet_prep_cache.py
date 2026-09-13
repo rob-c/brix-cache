@@ -12,17 +12,46 @@ wiped TEST_ROOT otherwise forces every run.  These tests pin the contract:
     (no stale credentials), and an incomplete generation is never
     snapshotted in the first place.
 
-Everything runs against faked generators under tmp_path: no openssl, no
-subprocesses, no shared cache directory.
+Everything runs under tmp_path: real in-process signing keys and faked remaining
+generators, with no openssl or shared cache directory. Only the import-path
+regression launches a Python subprocess.
 """
 
 import json
+import os
+import subprocess
+import sys
 import time
 from pathlib import Path
 
 import pytest
 
 import fleet_prep
+from utils.make_token import TokenIssuer
+
+
+@pytest.mark.parametrize("state", ["matching", "missing", "unrelated"])
+def test_authority_check_works_without_repository_on_import_path(tmp_path, state):
+    tokens = tmp_path / "tokens"
+    TokenIssuer(str(tokens)).init_keys()
+    if state == "missing":
+        (tokens / "jwks.json").unlink()
+    elif state == "unrelated":
+        other = tmp_path / "other"
+        TokenIssuer(str(other)).init_keys()
+        (tokens / "jwks.json").write_bytes((other / "jwks.json").read_bytes())
+
+    tests = Path(__file__).resolve().parent
+    env = dict(os.environ, PYTHONPATH=str(tests), TEST_ROOT=str(tmp_path / "lane"))
+    code = (
+        "from pathlib import Path; import sys; "
+        "from brix_suite.prep_steps import _signing_authority_usable; "
+        "assert _signing_authority_usable(Path(sys.argv[1])) == (sys.argv[2] == 'matching')"
+    )
+    child = subprocess.run([sys.executable, "-c", code, str(tokens), state],
+                           cwd=tmp_path, env=env, capture_output=True, text=True,
+                           timeout=30)
+    assert child.returncode == 0, child.stderr
 
 
 @pytest.fixture
@@ -46,7 +75,7 @@ def prep_env(tmp_path, monkeypatch):
         if "--output" in argv:
             Path(argv[argv.index("--output") + 1]).write_text("jwt")
         elif subcmd == "init":
-            Path(token_dir, "signing_key.pem").write_text("key")
+            TokenIssuer(token_dir).init_keys()
 
     def fake_run(argv, **kwargs):
         calls.append("run")
@@ -200,3 +229,61 @@ def test_cache_disabled_by_env_knob(prep_env, monkeypatch):
     prep_env.reset_calls()
     prep_env.prepare()
     assert prep_env.generated(), "disabled cache must regenerate every time"
+
+
+@pytest.mark.parametrize("damage", ["missing", "malformed", "different-key"])
+def test_invalid_cached_authority_is_rebuilt(prep_env, tmp_path, damage):
+    """Neither a damaged JWKS nor an unrelated valid key can survive restore."""
+    prep_env.prepare()
+    jwks = prep_env.cache / "tokens" / "jwks.json"
+    if damage == "missing":
+        jwks.unlink()
+    elif damage == "malformed":
+        jwks.write_text('{"keys": null}')
+    else:
+        other = TokenIssuer(str(tmp_path / "unrelated-authority"))
+        other.init_keys()
+        jwks.write_bytes(Path(other.jwks_path).read_bytes())
+    prep_env.wipe_tree()
+    prep_env.reset_calls()
+    prep_env.prepare()
+    assert prep_env.generated()
+    assert fleet_prep._signing_authority_usable(prep_env.root / "tokens")
+
+
+def test_xrootd_ca_store_never_keeps_group_write_bits(tmp_path):
+    """Security-negative: XrdCl must accept a trust directory built under umask 2."""
+    pki = tmp_path / "pki"
+    ca = pki / "ca"
+    user = pki / "user"
+    ca.mkdir(parents=True)
+    user.mkdir()
+    cert = ca / "ca.pem"
+    proxy = user / "proxy_std.pem"
+    cert.write_text("certificate")
+    proxy.write_text("proxy with private key")
+    os.chmod(pki, 0o775)
+    os.chmod(ca, 0o775)
+    os.chmod(cert, 0o664)
+    os.chmod(proxy, 0o664)
+
+    fleet_prep._harden_xrootd_credentials(pki)
+
+    for path in (pki, ca, cert):
+        assert path.stat().st_mode & 0o022 == 0, path
+    assert ca.stat().st_mode & 0o500 == 0o500, "CA directory remains traversable"
+    assert proxy.stat().st_mode & 0o777 == 0o600, "proxy must be owner-only"
+
+
+def test_bearer_token_never_keeps_group_write_bits(tmp_path):
+    """Security-negative: native ztn discovery refuses a group-writable JWT."""
+    tokens = tmp_path / "tokens"
+    tokens.mkdir()
+    token = tokens / "upstream.jwt"
+    token.write_text("signed jwt")
+    os.chmod(token, 0o664)
+
+    fleet_prep._harden_bearer_tokens(tokens)
+
+    assert token.stat().st_mode & 0o022 == 0, token
+    assert token.stat().st_mode & 0o444 == 0o444, "JWT remains readable"

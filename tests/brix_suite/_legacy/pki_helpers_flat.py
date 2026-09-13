@@ -155,6 +155,10 @@ def blitz_test_pki() -> None:
             str(san_ext),
         ]
     )
+    # XrdHttp rejects even a public certificate if its group/other write bits
+    # are set.  OpenSSL honors the caller's umask, which is commonly 0002 on
+    # developer hosts, so make the server identity deterministic for the fleet.
+    os.chmod(SERVER_CERT, 0o644)
     _symlink("hostkey.pem", server_dir / "host.key")
 
     # User certificate and compatibility symlink for older helper scripts.

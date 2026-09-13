@@ -79,24 +79,32 @@ def test_unsupported_semantics_fail_during_planning_without_a_run_root(
     (endpoint("primary", protocol="udp"), "network.udp"),
 ])
 def test_capability_plan_explains_unsupported_network_backend_and_alternatives(
-    monkeypatch, selected, missing,
+    selected, missing,
 ):
     from brixtest.planning import capabilities
 
-    monkeypatch.setitem(
-        capabilities._BUILTIN_BY_KIND["launcher"],
-        "unit-no-ipv6", capabilities._COMMON,
-    )
+    # Add test backend if it doesn't exist
+    if "unit-no-ipv6" not in capabilities._BUILTIN_BY_KIND.get("launcher", {}):
+        if "launcher" not in capabilities._BUILTIN_BY_KIND:
+            capabilities._BUILTIN_BY_KIND["launcher"] = {}
+        old_value = None
+        capabilities._BUILTIN_BY_KIND["launcher"]["unit-no-ipv6"] = capabilities._COMMON
+    else:
+        old_value = capabilities._BUILTIN_BY_KIND["launcher"]["unit-no-ipv6"]
+        capabilities._BUILTIN_BY_KIND["launcher"]["unit-no-ipv6"] = capabilities._COMMON
     origin = server(
         "origin", command=("true",),
         placement=Placement(backend="unit-no-ipv6"),
         endpoints=(selected,),
     )
-    graph = compile_case(_definition(origin), "local")
-    with pytest.raises(
-        SpecError, match=r"%s.*backend unit-no-ipv6.*alternatives" % missing,
-    ):
-        validate_capabilities(graph.nodes)
+    try:
+        graph = compile_case(_definition(origin), "local")
+        with pytest.raises(
+            SpecError, match=r"%s.*backend unit-no-ipv6.*alternatives" % missing,
+        ):
+            validate_capabilities(graph.nodes)
+    finally:
+        capabilities._BUILTIN_BY_KIND["launcher"]["unit-no-ipv6"] = old_value
 
 
 @pytest.mark.parametrize("placement,field", [

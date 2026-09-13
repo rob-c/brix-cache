@@ -23,6 +23,9 @@ Run:
 from __future__ import annotations
 
 import pytest
+from types import SimpleNamespace
+
+import wlcg_fleet
 
 from brix_suite.registry import (
     NginxInstanceSpec,
@@ -125,3 +128,53 @@ def test_release_touches_only_the_exact_name():
         assert _registered(other), "a same-prefix instance was released"
     finally:
         unregister(other)
+
+
+def _reload_subject(monkeypatch, snapshots):
+    """Drive the worker transition without signalling a real fleet."""
+    states = iter(snapshots)
+    elapsed = [0.0]
+    signals = []
+
+    def advance(seconds):
+        elapsed[0] += seconds
+
+    monkeypatch.setattr(wlcg_fleet, "time", SimpleNamespace(
+        monotonic=lambda: elapsed[0], sleep=advance))
+    instance = object.__new__(WlcgInstance)
+    instance._name = NAME
+    instance._harness = SimpleNamespace(
+        process_snapshot=lambda name: next(states, snapshots[-1]),
+        reload=signals.append,
+    )
+    return instance, elapsed, signals
+
+
+def test_reload_waits_for_old_workers_to_drain(monkeypatch):
+    """New workers alongside old ones do not yet guarantee fresh trust data."""
+    instance, elapsed, signals = _reload_subject(monkeypatch, [
+        [(1, "master"), (2, "worker")],
+        [(1, "master"), (2, "worker shutting down"), (3, "worker")],
+        [(1, "master"), (3, "worker")],
+    ])
+    instance.reload()
+    assert elapsed[0] > 0
+    assert signals == [NAME]
+
+
+def test_reload_without_replacement_workers_fails(monkeypatch):
+    """An empty worker set must never masquerade as a successful reload."""
+    instance, _, _ = _reload_subject(monkeypatch, [
+        [(1, "master"), (2, "worker")], [(1, "master")],
+    ])
+    with pytest.raises(RuntimeError, match="reload did not replace"):
+        instance.reload()
+
+
+def test_reload_cannot_accept_the_old_worker_generation(monkeypatch):
+    """A live old worker still has the old revocation and policy decisions."""
+    instance, _, _ = _reload_subject(monkeypatch, [
+        [(1, "master"), (2, "worker")],
+    ])
+    with pytest.raises(RuntimeError, match="reload did not replace"):
+        instance.reload()

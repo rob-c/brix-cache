@@ -74,6 +74,7 @@ def _guard_run_smoke_1(tls, env):
 def _guard_run_smoke_2(passed, proc):
     if not passed:
         # Surface the harness output so a failure is diagnosable.
+        print(f"aio_smoke return code: {proc.returncode}")
         print("aio_smoke STDOUT:\n" + proc.stdout[-2000:])
         print("aio_smoke STDERR:\n" + proc.stderr[-2000:])
 
@@ -100,13 +101,16 @@ _TRACE_SYSCALLS = "io_uring_enter,io_uring_setup,epoll_wait"
 
 def _ensure_smoke():
     """Build aio_smoke on demand; skip (never fail) if the toolchain is absent."""
-    if os.path.exists(SMOKE):
-        return
     if shutil.which("cc") is None and shutil.which("gcc") is None:
+        if os.path.exists(SMOKE):
+            return
         pytest.skip("no C compiler / aio_smoke not built")
-    client_make(CLIENT_DIR, "aio-smoke", capture_output=True, text=True, timeout=300)
-    if not os.path.exists(SMOKE):
-        pytest.skip("aio_smoke build failed (liburing headers?)")
+    # This optional target is not rebuilt by `make -C client all`.  Let make
+    # refresh it after libbrix changes instead of exercising a stale engine.
+    built = client_make(CLIENT_DIR, "aio-smoke", capture_output=True,
+                        text=True, timeout=300)
+    assert built.returncode == 0, built.stdout + built.stderr
+    assert os.path.exists(SMOKE), "aio-smoke target did not produce its driver"
 
 
 def _start(lifecycle, tmp_path):
@@ -139,12 +143,22 @@ def _start(lifecycle, tmp_path):
         reason="phase-44 P44-C client rxtx subject"))
 
 
+def _collect_syscall_counts(trace_path):
+    """Parse strace output and count syscalls."""
+    counts = _expression_3()
+    with open(trace_path) as f:
+        for line in f:
+            for s in counts:
+                _guard_run_smoke_3(line, s, counts)
+    return counts
+
+
 def _run_smoke(url, loop_value, tls=False, trace=None):
     """Run aio_smoke against `url` with XRDC_IO_URING_LOOP=`loop_value`.
 
     tls=True adds X509_CERT_DIR so a roots:// handshake validates the host cert.
     `trace` (a path) wraps the run in strace over the io_uring/epoll syscalls.
-    Returns (passed, syscall_counts | None) where passed == ("M1 PASS" in out)."""
+    Returns (passed, syscall_counts | None); success needs a clean exit and banner."""
     env = dict(os.environ, XRDC_IO_URING_LOOP=loop_value)
     _guard_run_smoke_1(tls, env)
 
@@ -156,16 +170,27 @@ def _run_smoke(url, loop_value, tls=False, trace=None):
 
     proc = subprocess.run(argv, capture_output=True, text=True,
                           env=env, timeout=120)
-    passed = "M1 PASS" in proc.stdout
+    passed = proc.returncode == 0 and "M1 PASS" in proc.stdout
     _guard_run_smoke_2(passed, proc)
 
     if _expression_2(trace):
-        counts = _expression_3()
-        with open(trace) as f:
-            for line in f:
-                for s in counts:
-                    _guard_run_smoke_3(line, s, counts)
+        counts = _collect_syscall_counts(trace)
     return passed, counts
+
+
+@pytest.mark.parametrize("returncode,stdout,expected", [
+    (0, "M1 PASS", True),
+    (0, "incomplete run", False),
+    (-11, "M1 PASS", False),
+])
+def test_smoke_verdict_requires_clean_completion(monkeypatch, returncode, stdout, expected):
+    from types import SimpleNamespace
+
+    result = SimpleNamespace(returncode=returncode, stdout=stdout, stderr="")
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: result)
+    passed, counts = _run_smoke("root://unused", "rxtx")
+    assert passed is expected
+    assert counts is None
 
 
 # --------------------------------------------------------------------------- #

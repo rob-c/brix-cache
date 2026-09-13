@@ -347,6 +347,7 @@ brix_vfs_delete_many_via_driver(brix_vfs_ctx_t *ctx,
 
     /* Zero before the gate: an unzeroed cred hands a garbage inactive pointer
      * to the driver's cred slot (same rule as brix_vfs_delete_via_driver). */
+    ngx_memzero(&store, sizeof(store));
     ngx_memzero(&cred, sizeof(cred));
     if (brix_vfs_cred_gate_active(ctx)) {
         if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
@@ -385,7 +386,7 @@ brix_vfs_delete_many_via_driver(brix_vfs_ctx_t *ctx,
     saved = errno;
     brix_sd_ucred_wipe(&store);   /* secret consumed by the batch; erase */
 
-    for (i = 0; i < *done; i++) {
+    for (i = 0; i < n && i < *done; i++) {
         if (errs[i] == 0) {
             removed++;
             brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx),
@@ -449,7 +450,7 @@ brix_vfs_delete_many(brix_vfs_ctx_t *ctx, const char *const *paths, size_t n,
                                   NGX_ERROR, saved, start);
         return NGX_ERROR;
     }
-    if (ctx->root_canon == NULL) {
+    if (ctx == NULL || ctx->root_canon == NULL) {
         errno = EINVAL;
         saved = errno;
         brix_vfs_observe_ctx_op(ctx, anchor, BRIX_METRIC_OP_DELETE, NULL, n,

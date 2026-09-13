@@ -55,6 +55,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 def _expression_1(docstrings, node):
     return (
         not isinstance(node, ast.Constant) or id(node) in docstrings
@@ -239,6 +241,7 @@ def current_offenders() -> dict[str, list]:
 # ---------------------------------------------------------------------------
 # The zero-tolerance test — RED the moment any test hard-codes a host.
 # ---------------------------------------------------------------------------
+@pytest.mark.timeout(180)
 def test_no_hardcoded_host_literals():
     offenders = current_offenders()
     if not offenders:

@@ -134,6 +134,22 @@ def test_the_settings_values_did_not_fork():
     assert out == "True True True"
 
 
+def test_generated_server_identity_is_safe_for_xrdhttp(tmp_path):
+    """OpenSSL follows umask; XrdHttp requires a non-writable host cert."""
+    lane = tmp_path / "lane"
+    (lane / "pki").mkdir(parents=True)
+    out = _probe(
+        "import os, pki_helpers, settings; "
+        "os.umask(0o002); pki_helpers.blitz_test_pki(); "
+        "print(oct(os.stat(settings.SERVER_CERT).st_mode & 0o777), "
+        "oct(os.stat(settings.SERVER_KEY).st_mode & 0o777))",
+        env={"TEST_ROOT": str(lane)},
+    )
+    cert_mode, key_mode = out.splitlines()[-1].split()
+    assert cert_mode == "0o644", "XrdHttp refuses a group-writable host certificate"
+    assert key_mode == "0o400", "the private key must remain owner-only"
+
+
 # ---------------------------------------------------------------------------
 # error
 

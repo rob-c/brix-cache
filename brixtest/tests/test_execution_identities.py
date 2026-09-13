@@ -31,7 +31,9 @@ def _request(placement):
     )
 
 
-def test_local_client_identity_is_enforced_by_public_executor(tmp_path, monkeypatch):
+def test_local_client_identity_is_enforced_by_public_executor(tmp_path):
+    import brixtest.clients.configured as configured_module
+    import brixtest.runtime.launcher_identity as launcher_identity_module
     observed = {}
     runner = identity("runner", uid=1200, gid=1300, groups=(1400,))
     actor = client("identity", command=("id",), placement=Placement(identity=runner))
@@ -40,20 +42,24 @@ def test_local_client_identity_is_enforced_by_public_executor(tmp_path, monkeypa
         observed["argv"] = tuple(argv)
         return CommandResult(tuple(argv), 0, "uid=1200\n", "", 0.01)
 
-    monkeypatch.setattr("brixtest.clients.configured.CommandRunner.run", completed)
-    monkeypatch.setattr(
-        "brixtest.runtime.launcher_identity.shutil.which", lambda name: "/usr/bin/setpriv",
-    )
+    old_run = configured_module.CommandRunner.run
+    old_which = launcher_identity_module.shutil.which
+    configured_module.CommandRunner.run = completed
+    launcher_identity_module.shutil.which = lambda name: "/usr/bin/setpriv"
     manager = CaseManager(
         _definition(runner, actor), "identity::client", root=tmp_path / "run",
     )
     run = manager.start()
     result = run.client(actor).run()
 
-    assert result.argv == ("id",) and result.stdout == "uid=1200\n"
-    assert observed["argv"][:2] == ("setpriv", "--no-new-privs")
-    assert observed["argv"][observed["argv"].index("--groups") + 1] == "1400"
-    manager.close()
+    try:
+        assert result.argv == ("id",) and result.stdout == "uid=1200\n"
+        assert observed["argv"][:2] == ("setpriv", "--no-new-privs")
+        assert observed["argv"][observed["argv"].index("--groups") + 1] == "1400"
+        manager.close()
+    finally:
+        configured_module.CommandRunner.run = old_run
+        launcher_identity_module.shutil.which = old_which
 
 
 def test_executor_rejects_identity_missing_from_context(tmp_path):

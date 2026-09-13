@@ -32,6 +32,8 @@ import pathlib
 import subprocess
 import sys
 
+import pytest
+
 TESTS = pathlib.Path(__file__).resolve().parent
 GUARD = TESTS.parent / "tools" / "ci" / "check_lifecycle_spec_ledger.py"
 
@@ -113,6 +115,7 @@ def test_a_spec_constructed_but_never_started_is_not_judged(tmp_path):
     assert "0 spec name(s) judged" in proc.stdout
 
 
+@pytest.mark.timeout(180)
 def test_the_real_tree_is_green():
     """The guard's own subject, so a regression here is not mistaken for setup."""
     proc = _run(TESTS)

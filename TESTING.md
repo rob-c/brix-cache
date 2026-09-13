@@ -99,7 +99,9 @@ sudo dnf install -y \
     clang                           # phase-27 memory-safety compile tests
 
 # --- codec dev libs (compiled INTO the module + client codec chain) ---
-sudo dnf install -y libseccomp-devel libzstd-devel lz4 python3-lz4
+sudo dnf install -y \
+    libseccomp-devel libzstd-devel brotli-devel xz-devel bzip2-devel lz4-devel \
+    python3-brotli python3-lz4
 
 # --- python modules the digest/xattr/compression tests import ---
 sudo dnf install -y python3-pyxattr python3-zstandard
@@ -151,12 +153,12 @@ make -C client -j$(nproc)         # brixMount, xrdcp, xrdfs, … (also relinks a
 
 - **Codec `-devel` packages must be in place BEFORE `./configure`, and enabling
   a codec means rebuilding the WHOLE chain — not just `make`.** The vendored
-  nginx `config` auto-detects `libseccomp`/`libzstd` via `pkg-config` at
-  *configure* time and sets `-DBRIX_HAVE_SECCOMP` / `-DBRIX_HAVE_ZSTD`. If you
-  install the `-devel` after the build, a bare `make` will **not** pick them up.
-  And turning on server-side zstd desyncs the client (`xrdcp: server negotiated
-  codec 3 that this client build cannot decode`) unless the client's codec
-  library is rebuilt too — the decoders live in `shared/xrdproto/libxrdproto.a`,
+  nginx `config` auto-detects `libseccomp`, but requires `libzstd` and Brotli
+  via `pkg-config` at *configure* time and always sets `-DBRIX_HAVE_ZSTD` and
+  `-DBRIX_HAVE_BROTLI`. If you install either `-devel` package after the build,
+  a bare `make` will **not** pick it up.
+  And enabling server-side zstd or Brotli desyncs the client unless the client's
+  codec library is rebuilt too — the decoders live in `shared/xrdproto/libxrdproto.a`,
   which `make -C client` does **not** rebuild. The full incantation after
   installing a codec `-devel`:
 

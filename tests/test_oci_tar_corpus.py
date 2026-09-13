@@ -183,12 +183,14 @@ def test_system_gnu_tar_when_present(tar_ut, tmp_path):
     got = _entries(_dump(tar_ut, ar).stdout)
     by_path = {e["path"].lstrip("./"): e for e in got}
     def _assert_test_system_gnu_tar_when_present_1():
-        assert by_path["sub/a.txt"]["crc"] == zlib.crc32(b"alpha")
+        data_entry = next(e for path, e in by_path.items()
+                          if path in {"sub/a.txt", "sub/h"} and e["type"] == "REG")
+        assert data_entry["crc"] == zlib.crc32(b"alpha")
         assert by_path["sub/s"]["type"] == "SYM"
 
     _assert_test_system_gnu_tar_when_present_1()
     # tar stores whichever of h/a.txt it met second as the hardlink
-    assert "HLNK" in {by_path["sub/h"]["type"], by_path["sub/a.txt"]["type"]}
+    assert {by_path["sub/h"]["type"], by_path["sub/a.txt"]["type"]} == {"REG", "HLNK"}
 
 
 # ---- error: malformed archives crafted here ------------------------------

@@ -162,7 +162,8 @@ brix_cache_build_wt_origin(const ngx_stream_brix_srv_conf_t *conf, ngx_log_t *lo
     brix_sd_xroot_origin_cfg_t cfg = {
         .host      = host_z,
         .port      = (int) conf->wt.origin_port,
-        .tls       = 0, /* tls: legacy cache_origin_tls retired */
+        /* Bearer authentication must negotiate TLS before login/auth. */
+        .tls       = conf->cache_origin_bearer.len > 0,
         .af_policy = (int) conf->cache_origin_family,
         .bearer    = (conf->cache_origin_bearer.len > 0)
             ? (const char *) conf->cache_origin_bearer.data : NULL,

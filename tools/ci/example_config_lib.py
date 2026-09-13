@@ -252,6 +252,7 @@ _FILE_KINDS = (
     ("key", lambda d, n, p: d.endswith(_KEY_SUFFIXES) or "key" in n),
     ("cert", lambda d, n, p: d in _CERT_DIRECTIVES or n.endswith((".pem", ".crt", ".cert"))),
     ("htpasswd", lambda d, n, p: n.endswith(".htpasswd") or d.endswith("_users")),
+    ("authdb", lambda d, n, p: d.endswith("authdb")),
     ("opaque", lambda d, n, p: d.endswith(_OPAQUE_SUFFIXES)),
 )
 
@@ -299,6 +300,7 @@ _WRITERS = {
     "key": lambda _d, t, pki: t.write_bytes(pki[1].read_bytes()),
     "cert": lambda _d, t, pki: t.write_bytes(pki[0].read_bytes()),
     "htpasswd": lambda _d, t, _pki: t.write_text("operator:example-plaintext-password\n"),
+    "authdb": lambda _d, t, _pki: t.write_text("u * / rl\n"),
     "opaque": lambda _d, t, _pki: t.write_text(_PLACEHOLDER),
     "dir": _write_dir,
     "opaque-if-missing": _write_opaque_if_missing,

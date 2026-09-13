@@ -13,6 +13,8 @@ door onto ``make`` in the client tree (history-testing-and-incidents §24.16).
               offender.
 """
 
+import errno
+import os
 import pathlib
 import re
 import subprocess
@@ -22,6 +24,7 @@ import time
 import pytest
 
 from brix_suite.client_build import client_make, make_lock_path
+from brix_suite import client_build
 
 TESTS = pathlib.Path(__file__).resolve().parent
 BARE_MAKE = re.compile(r'subprocess\.run\(\s*\[\s*"make"')
@@ -72,6 +75,49 @@ def test_two_spellings_of_one_tree_share_one_lock_outside_it(tmp_path):
     assert make_lock_path(alias) == make_lock_path(real)
     assert make_lock_path(tmp_path) != make_lock_path(real)
     assert not make_lock_path(real).startswith(str(tmp_path))
+
+
+def test_existing_lock_is_reopened_without_create_or_write(tmp_path, monkeypatch):
+    lock = tmp_path / "make.lock"
+    lock.write_bytes(b"unchanged")
+    before = lock.stat()
+    opened = []
+    real_open = os.open
+
+    def record_open(path, flags, *args):
+        opened.append(flags)
+        return real_open(path, flags, *args)
+
+    monkeypatch.setattr(client_build.os, "open", record_open)
+    fd = client_build._open_tree_lock(lock)
+    os.close(fd)
+    assert not opened[-1] & (os.O_CREAT | os.O_WRONLY | os.O_RDWR)
+    assert lock.stat().st_ino == before.st_ino
+    assert lock.stat().st_uid == before.st_uid
+    assert lock.read_bytes() == b"unchanged"
+
+
+def test_lock_open_error_is_propagated(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        client_build._open_tree_lock(tmp_path / "absent" / "make.lock")
+
+
+def test_lock_symlink_is_refused_without_touching_target(tmp_path):
+    target = tmp_path / "target"
+    target.write_bytes(b"unchanged")
+    lock = tmp_path / "make.lock"
+    lock.symlink_to(target)
+    with pytest.raises(OSError) as caught:
+        client_build._open_tree_lock(lock)
+    assert caught.value.errno == errno.ELOOP
+    assert target.read_bytes() == b"unchanged"
+
+
+def test_nonregular_lock_is_refused_without_blocking(tmp_path):
+    lock = tmp_path / "make.lock"
+    os.mkfifo(lock)
+    with pytest.raises(ValueError, match="regular file"):
+        client_build._open_tree_lock(lock)
 
 
 def test_failure_and_stderr_reach_the_caller(tmp_path):

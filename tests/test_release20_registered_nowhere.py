@@ -99,7 +99,9 @@ _BRIX_TOKEN = re.compile(r"brix_[a-z0-9_]+")
 # every brix_ token in every conf diagnostic is a directive an operator can
 # actually write.  A new entry here is a deliberate declaration, not a waiver
 # of the pin below.
-DIAGNOSTIC_NON_DIRECTIVES: frozenset = frozenset()
+DIAGNOSTIC_NON_DIRECTIVES: frozenset = frozenset({
+    "brix_pki",  # PKI loader log prefix, not an operator-settable directive.
+})
 
 
 def _diagnostic_names(text):

@@ -229,12 +229,12 @@ pid {root}/n.pid; thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{ server {{ listen unix:{root}/s.sock;
     brix_root on; brix_storage_backend posix:{root}/data;
-    brix_auth host; brix_host_allow localhost;
+    brix_auth host; brix_host_allow localhost;  # net-literal-allow: host-auth configuration subject
     {engine_directive}
     brix_authdb {root}/authdb;
     {extra}
 }} }}
-""")
+""")  # net-literal-allow: host-auth config payload is the parser subject
     p = subprocess.run([NGINX_BIN, "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
     return p.returncode, p.stderr + p.stdout

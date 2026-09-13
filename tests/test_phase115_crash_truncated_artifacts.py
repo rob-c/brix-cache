@@ -52,6 +52,13 @@ def _paths(tmp_path: Path) -> PrepPaths:
     return paths
 
 
+def _signing_authority(tokens: Path) -> None:
+    """The reuse contract needs a real, matching private key and public JWKS."""
+    from make_token import TokenIssuer
+
+    TokenIssuer(str(tokens)).init_keys()
+
+
 def _regenerations(monkeypatch) -> list:
     """Record what `SigningKeyStep` asks the generator to do.
 
@@ -75,7 +82,7 @@ def test_a_good_signing_key_is_reused_across_sessions(tmp_path, monkeypatch):
     "pass" every negative below while quietly taxing every run.
     """
     paths = _paths(tmp_path)
-    (paths.tokens_dir / "signing_key.pem").write_bytes(GOOD_PEM)
+    _signing_authority(paths.tokens_dir)
     calls = _regenerations(monkeypatch)
 
     SigningKeyStep(paths).build()
@@ -133,7 +140,7 @@ def _sentinels(tmp_path: Path) -> tuple:
     tokens.mkdir(parents=True)
     (pki / "ca" / "ca.pem").write_bytes(GOOD_PEM)
     (pki / "user" / "proxy_std.pem").write_bytes(GOOD_PEM)
-    (tokens / "signing_key.pem").write_bytes(GOOD_PEM)
+    _signing_authority(tokens)
     (tokens / "upstream.jwt").write_bytes(b"a.b.c")
     (tokens / "scitokens.cfg").write_bytes(b"[Global]\n")
     return pki, tokens
@@ -147,7 +154,7 @@ def test_a_complete_tree_reports_nothing_missing(tmp_path):
 
 @pytest.mark.parametrize("victim", [
     "pki/ca/ca.pem", "pki/user/proxy_std.pem",
-    "tokens/signing_key.pem", "tokens/upstream.jwt", "tokens/scitokens.cfg",
+    "tokens/signing_key.pem", "tokens/jwks.json", "tokens/upstream.jwt", "tokens/scitokens.cfg",
 ])
 def test_a_zero_length_sentinel_counts_as_missing(tmp_path, victim):
     """Every sentinel, not just the key: the panic truncates whatever is open.
@@ -156,7 +163,9 @@ def test_a_zero_length_sentinel_counts_as_missing(tmp_path, victim):
     left on `.exists()` is a hole the next crash finds.
     """
     pki, tokens = _sentinels(tmp_path)
-    (tmp_path / victim).write_bytes(b"")
+    damaged = tmp_path / victim
+    damaged.chmod(0o600)  # generated private keys are deliberately read-only
+    damaged.write_bytes(b"")
 
     missing = _missing_sentinels(pki, tokens)
 
@@ -175,6 +184,7 @@ def test_an_unusable_artifact_can_never_be_snapshotted(tmp_path):
     """
     pki, tokens = _sentinels(tmp_path)
     key = tokens / "signing_key.pem"
+    key.chmod(0o600)
     key.write_bytes(b"")
     os.chmod(key, 0o400)
 
@@ -310,8 +320,8 @@ def test_the_reuse_gate_no_longer_asks_only_for_existence():
     gate = body[body.index("class SigningKeyStep"):]
     gate = gate[:gate.index("class ", 10)]
 
-    assert '_is_loadable_pem(self.paths.tokens_dir / "signing_key.pem")' in gate, (
-        "the signing-key reuse gate no longer runs the usability predicate")
+    assert '_signing_authority_usable(self.paths.tokens_dir)' in gate, (
+        "the signing-key reuse gate no longer validates the key/JWKS pair")
     assert '.exists()' not in gate, (
         "the reuse gate is back on an existence check; a zero-length key "
         "survives it")

@@ -26,8 +26,9 @@ def _definition(*resources):
 
 @pytest.mark.parametrize("runtime", ["docker", "podman"])
 def test_container_task_uses_disposable_executor_and_archives_streams(
-    tmp_path, monkeypatch, runtime,
+    tmp_path, runtime,
 ):
+    import brixtest.runtime.executors as executors_module
     observed = {}
     digest = "registry.test/task@sha256:" + "a" * 64
     prepare = task(
@@ -42,20 +43,24 @@ def test_container_task_uses_disposable_executor_and_archives_streams(
         observed.update({"argv": tuple(argv), "options": options})
         return CommandResult(tuple(argv), 0, "prepared\n", "diagnostic\n", 0.01)
 
-    monkeypatch.setattr("brixtest.runtime.executors.CommandRunner.run", completed)
+    old_run = executors_module.CommandRunner.run
+    executors_module.CommandRunner.run = completed
     manager = CaseManager(
         _definition(prepare), "tasks::%s" % runtime, root=tmp_path / "run",
     )
     run = manager.start()
 
-    assert observed["argv"][:3] == (runtime, "run", "--rm")
-    assert observed["argv"][-2:] == prepare.command
-    assert run.task(prepare).stdout == "prepared\n"
-    logs = tmp_path / "run" / "runtime" / "tasks" / "prepare" / "logs"
-    assert (logs / "0001.stdout.log").read_text() == "prepared\n"
-    assert (logs / "0001.stderr.log").read_text() == "diagnostic\n"
-    manager.set_outcome("passed")
-    manager.close()
+    try:
+        assert observed["argv"][:3] == (runtime, "run", "--rm")
+        assert observed["argv"][-2:] == prepare.command
+        assert run.task(prepare).stdout == "prepared\n"
+        logs = tmp_path / "run" / "runtime" / "tasks" / "prepare" / "logs"
+        assert (logs / "0001.stdout.log").read_text() == "prepared\n"
+        assert (logs / "0001.stderr.log").read_text() == "diagnostic\n"
+        manager.set_outcome("passed")
+        manager.close()
+    finally:
+        executors_module.CommandRunner.run = old_run
 
 
 def test_container_task_rejects_mutable_image_before_creating_run(tmp_path):
@@ -70,8 +75,9 @@ def test_container_task_rejects_mutable_image_before_creating_run(tmp_path):
 
 
 def test_container_task_translates_identity_before_spawn(
-    tmp_path, monkeypatch,
+    tmp_path,
 ):
+    import brixtest.runtime.executors as executors_module
     observed = {}
     runner = identity("runner", uid=1001, gid=1002, capabilities=("chown",))
     digest = "registry.test/task@sha256:" + "b" * 64
@@ -85,16 +91,22 @@ def test_container_task_translates_identity_before_spawn(
         observed["argv"] = tuple(argv)
         return CommandResult(tuple(argv), 0, "", "", 0.01)
 
-    monkeypatch.setattr("brixtest.runtime.executors.CommandRunner.run", completed)
+    old_run = executors_module.CommandRunner.run
+    executors_module.CommandRunner.run = completed
     root = Path(tmp_path / "run")
     manager = CaseManager(_definition(runner, secured), "tasks::identity", root=root)
     manager.start()
-    assert observed["argv"][observed["argv"].index("--user") + 1] == "1001:1002"
-    assert observed["argv"][observed["argv"].index("--cap-add") + 1] == "CHOWN"
-    manager.close()
+    try:
+        assert observed["argv"][observed["argv"].index("--user") + 1] == "1001:1002"
+        assert observed["argv"][observed["argv"].index("--cap-add") + 1] == "CHOWN"
+        manager.close()
+    finally:
+        executors_module.CommandRunner.run = old_run
 
 
-def test_process_task_translates_identity_before_spawn(tmp_path, monkeypatch):
+def test_process_task_translates_identity_before_spawn(tmp_path):
+    import brixtest.runtime.managed as managed_module
+    import brixtest.runtime.launcher_identity as launcher_identity_module
     observed = {}
     runner = identity("runner", uid=1001, gid=1002)
     secured = task(
@@ -105,15 +117,19 @@ def test_process_task_translates_identity_before_spawn(tmp_path, monkeypatch):
         observed["argv"] = tuple(argv)
         return CommandResult(tuple(argv), 0, "", "", 0.01)
 
-    monkeypatch.setattr("brixtest.runtime.managed.CommandRunner.run", completed)
-    monkeypatch.setattr(
-        "brixtest.runtime.launcher_identity.shutil.which", lambda name: "/usr/bin/setpriv",
-    )
+    old_run = managed_module.CommandRunner.run
+    old_which = launcher_identity_module.shutil.which
+    managed_module.CommandRunner.run = completed
+    launcher_identity_module.shutil.which = lambda name: "/usr/bin/setpriv"
     root = Path(tmp_path / "run")
     manager = CaseManager(
         _definition(runner, secured), "tasks::process-identity", root=root,
     )
     manager.start()
-    assert observed["argv"][:2] == ("setpriv", "--no-new-privs")
-    assert observed["argv"][-1] == "true"
-    manager.close()
+    try:
+        assert observed["argv"][:2] == ("setpriv", "--no-new-privs")
+        assert observed["argv"][-1] == "true"
+        manager.close()
+    finally:
+        managed_module.CommandRunner.run = old_run
+        launcher_identity_module.shutil.which = old_which

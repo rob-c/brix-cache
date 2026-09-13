@@ -13,7 +13,10 @@ from pathlib import Path
 
 import pytest
 import fleet_declares
-from brix_suite.harness.xdist_groups import materialize_xdist_group
+from brix_suite.harness.xdist_groups import (
+    configure_group_failfast,
+    materialize_xdist_group,
+)
 from server_launcher import LifecycleHarness, RegistryLauncher
 from server_registry import fleet_ready_for_test_root, manifest_owns_test_root
 from server_registry import (
@@ -129,6 +132,7 @@ def pytest_configure(config):
     global _pytest_config
     _pytest_config = config
     _force_loadgroup(config)   # never let plain --dist load defeat the port pins
+    configure_group_failfast(config)
 
     os.makedirs(TMP_DIR, exist_ok=True)
     os.environ["TMPDIR"] = TMP_DIR

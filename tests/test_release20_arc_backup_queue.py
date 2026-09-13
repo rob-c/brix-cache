@@ -39,7 +39,8 @@ from settings import BIND_HOST
 from server_registry import NginxInstanceSpec
 from official_interop_lib import worker_reachable
 
-from _test_release20_metrics_helpers import wait_port
+from _test_release20_metrics_helpers import wait_for, wait_port
+from cmdscripts.live_common import _kill_other_processes, _referencing_pids
 from test_phase115_tape_arc import (MARKER, _assert_recall_from_archive,
                                     _put, _put_ok, _put_refused, _read_ok,
                                     _sidecar, _tape_zip, kXR_ItExists,
@@ -398,8 +399,13 @@ def test_a_queued_seal_survives_a_worker_sigkill_and_replays(
 
     assert _put(lab.ep.port, lab.marker(), b"")[0] == H.kXR_ok
     _wait_event(lab.feed, "engine", "started", lab.marker())
+    # Capture the blocked command before nginx can respawn the worker. A
+    # pattern kill after the crash also matches the replacement's new command
+    # and turns the restart replay into a genuine (test-induced) retry.
+    stage_pids = wait_for(lambda: _referencing_pids(str(lab.stagecmd)) or None, 10)
+    assert stage_pids, "the original stage command never started"
     lifecycle.kill_worker(_SERVER, signal.SIGKILL)
-    subprocess.run(["pkill", "-f", str(lab.stagecmd)], check=False)   # the orphaned child
+    _kill_other_processes(stage_pids)
     lab.flag("tape-slow", on=False)
 
     replayed = _wait_event(lab.feed, "engine", "replayed", lab.marker(), timeout=30)

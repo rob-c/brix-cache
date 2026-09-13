@@ -61,8 +61,14 @@ def _port_open(port):
         ["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode == 0
 
 
-pytestmark = pytest.mark.skipif(shutil.which("gfal-copy") is None,
-                                reason="gfal2-util not installed")
+pytestmark = [
+    pytest.mark.skipif(shutil.which("gfal-copy") is None,
+                       reason="gfal2-util not installed"),
+    # Each matrix launches up to ten clients, including cleanup. The suite's
+    # 30-second default can expire after a successful transfer on an 8-worker
+    # host; retain the per-command bound and give the whole workflow its own.
+    pytest.mark.timeout(180),
+]
 
 
 @pytest.fixture()

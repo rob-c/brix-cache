@@ -204,19 +204,24 @@ brix_failsafe_get_crl(X509_STORE_CTX *ctx, X509_CRL **out, X509 *x)
  *       provably absent from its issuer's full CRL) and the scope error is an
  *       artifact of brix_failsafe_get_crl handing OpenSSL a CRL without the
  *       scope score its own get_crl_sk would have attached (stock
- *       `openssl verify -crl_check_all` accepts the identical store).
+ *       `openssl verify -crl_check_all` accepts the identical store). A
+ *       present revocation is reported through *revoked so the callback can
+ *       preserve that more specific verdict.
  * WHY:  safe in BOTH try and require: a genuinely revoked cert is FOUND on this
  *       same full CRL, so it takes the CERT_REVOKED path, never this one.  A
  *       partial/delta/scoped CRL (has an IDP) is NOT authoritative and is left
  *       to fail, so real scope restrictions are still honoured.
  */
 static int
-brix_crl_scope_is_spurious(X509_STORE_CTX *ctx)
+brix_crl_scope_is_spurious(X509_STORE_CTX *ctx, int *revoked)
 {
     X509               *cert = X509_STORE_CTX_get_current_cert(ctx);
     STACK_OF(X509_CRL) *crls;
     int                 i, spurious = 0;
 
+    if (revoked != NULL) {
+        *revoked = 0;
+    }
     if (cert == NULL) {
         return 0;
     }
@@ -244,6 +249,9 @@ brix_crl_scope_is_spurious(X509_STORE_CTX *ctx)
          * cert is not revoked by this full CRL, so the scope/path error is. */
         if (X509_CRL_get0_by_serial(crl, &rev,
                                     X509_get_serialNumber(cert)) == 1) {
+            if (revoked != NULL) {
+                *revoked = 1;
+            }
             spurious = 0;
             break;
         }
@@ -357,7 +365,7 @@ brix_crl_out_of_scope(X509_STORE_CTX *ctx, int err)
 static int
 brix_crl_try_verify_cb(int ok, X509_STORE_CTX *ctx)
 {
-    int err;
+    int err, revoked = 0;
 
     if (ok) {
         return 1;
@@ -383,11 +391,16 @@ brix_crl_try_verify_cb(int ok, X509_STORE_CTX *ctx)
      * only when an authoritative full CRL from the cert's (already
      * trust-validated) issuer exists and does not list the cert — a genuinely
      * revoked cert is FOUND on that CRL and takes the CERT_REVOKED path. */
-    if ((err == X509_V_ERR_UNABLE_TO_GET_CRL
-         || err == X509_V_ERR_DIFFERENT_CRL_SCOPE
-         || err == X509_V_ERR_CRL_PATH_VALIDATION_ERROR)
-        && brix_crl_scope_is_spurious(ctx)) {
-        return 1;
+    if (err == X509_V_ERR_UNABLE_TO_GET_CRL
+        || err == X509_V_ERR_DIFFERENT_CRL_SCOPE
+        || err == X509_V_ERR_CRL_PATH_VALIDATION_ERROR)
+    {
+        if (brix_crl_scope_is_spurious(ctx, &revoked)) {
+            return 1;
+        }
+        if (revoked) {
+            X509_STORE_CTX_set_error(ctx, X509_V_ERR_CERT_REVOKED);
+        }
     }
     return 0;
 }

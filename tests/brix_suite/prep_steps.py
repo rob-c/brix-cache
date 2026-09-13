@@ -249,6 +249,103 @@ def _is_loadable_pem(path: Path) -> bool:
         return False
 
 
+def _signing_authority_usable(tokens_dir: Path) -> bool:
+    """A cached private key must match the public key the fleet will load.
+
+    A crash between the two writes can leave two individually valid files
+    from different generations.  Presence/PEM checks alone then preserve a
+    broken authority across every subsequent session snapshot.
+    """
+    # The canonical package owns the path setup for utils.make_token. Lane
+    # subprocesses launched from tests/ do not have the repository on sys.path.
+    from brix_suite.security.tokens import TokenIssuer, _rsa_jwk
+
+    if not _is_loadable_pem(tokens_dir / "signing_key.pem"):
+        return False
+    try:
+        issuer = TokenIssuer(str(tokens_dir))
+        public = _rsa_jwk(issuer.private_key.public_key(), issuer.DEFAULT_KID)
+        jwks = json.loads(Path(issuer.jwks_path).read_text())
+        return any(
+            key.get("kty") == "RSA" and key.get("kid") == issuer.DEFAULT_KID
+            and key.get("n") == public["n"]
+            and key.get("e") == public["e"]
+            for key in jwks["keys"]
+        )
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        return False
+
+
+def _remove_untrusted_write_bits(path: Path) -> None:
+    """Preserve access bits while removing group/other write permission."""
+    try:
+        os.chmod(path, stat.S_IMODE(path.stat().st_mode) & ~0o022)
+    except OSError:
+        return
+
+
+def _harden_ca_entries(ca_dir: Path) -> None:
+    """XrdCl accepts CA files only when untrusted users cannot alter them."""
+    try:
+        entries = tuple(ca_dir.iterdir())
+    except OSError:
+        return
+    for entry in entries:
+        try:
+            if stat.S_ISREG(entry.stat().st_mode):
+                _remove_untrusted_write_bits(entry)
+        except OSError:
+            continue
+
+
+def _harden_proxy_file(proxy: Path) -> None:
+    """A proxy contains its private key, so it must always be owner-only."""
+    try:
+        if stat.S_ISREG(proxy.stat().st_mode):
+            os.chmod(proxy, 0o600)
+    except OSError:
+        return
+
+
+def _harden_bearer_tokens(tokens_dir: Path) -> None:
+    """Make generated JWT files acceptable to the native token client.
+
+    ``brix_open_credfile()`` refuses a bearer file writable by group or other
+    users.  JWTs are not private keys, so retain their existing read bits while
+    removing only those unsafe write permissions.
+    """
+    try:
+        tokens = tuple(tokens_dir.glob("*.jwt"))
+    except OSError:
+        return
+    for token in tokens:
+        _remove_untrusted_write_bits(token)
+
+
+def _harden_xrootd_credentials(pki_dir: Path) -> None:
+    """Normalise generated CA and proxy modes required by XrdCl.
+
+    XrdCl refuses ``X509_CERT_DIR`` when either it or its CA directory is
+    writable by group or other users, and rejects a proxy containing a private
+    key unless it is owner-only.  The test fleet may inherit a ``umask 0002``
+    from a developer shell, and cached PKI artifacts preserve those modes
+    across sessions.  Keep the existing CA access bits, but remove only the
+    unsafe write permissions; proxies are deliberately tightened to ``0600``.
+    """
+    ca_dir = pki_dir / "ca"
+    _remove_untrusted_write_bits(pki_dir)
+    _remove_untrusted_write_bits(ca_dir)
+    _harden_ca_entries(ca_dir)
+
+    user_dir = pki_dir / "user"
+    try:
+        proxies = tuple(user_dir.glob("proxy*.pem"))
+    except OSError:
+        return
+    for proxy in proxies:
+        _harden_proxy_file(proxy)
+
+
 def _missing_sentinels(pki_dir: Path, tokens_dir: Path) -> list:
     """Artifacts whose absence proves generation (or a restore) went wrong —
     one per tolerated generator, so a warn-and-continue failure upstream can
@@ -261,10 +358,14 @@ def _missing_sentinels(pki_dir: Path, tokens_dir: Path) -> list:
         pki_dir / "ca" / "ca.pem",            # pki_helpers.blitz_test_pki
         pki_dir / "user" / "proxy_std.pem",   # make_proxy.py
         tokens_dir / "signing_key.pem",       # make_token.py init
+        tokens_dir / "jwks.json",             # matching public signing key
         tokens_dir / "upstream.jwt",          # make_token.py gen
         tokens_dir / "scitokens.cfg",         # tokenforge.py fleet-artifacts
     )
-    return [p for p in expected if not _is_usable(p)]
+    missing = [p for p in expected if not _is_usable(p)]
+    if not missing and not _signing_authority_usable(tokens_dir):
+        missing.append(tokens_dir / "jwks.json")
+    return missing
 
 
 def _force_rmtree(path: Path) -> None:
@@ -443,12 +544,12 @@ class JwksRefreshKeyStep(PrepStep):
 
 
 class SigningKeyStep(PrepStep):
-    """3) main tokens signing key (only if absent — reuse across sessions)."""
+    """3) main signing authority (reuse only a matching key/JWKS pair)."""
 
     name = "signing-key"
 
     def build(self, artifacts=None) -> None:
-        if _is_loadable_pem(self.paths.tokens_dir / "signing_key.pem"):
+        if _signing_authority_usable(self.paths.tokens_dir):
             return
         _make_token(str(self.paths.tokens_dir), "init",
                     str(self.paths.tokens_dir), env=self.paths.env)
@@ -558,8 +659,13 @@ def prepare(env=None) -> dict:
                                       paths.tokens_dir):
         for step in crypto_steps(paths):
             step.build()
+        _harden_xrootd_credentials(paths.pki_dir)
+        _harden_bearer_tokens(paths.tokens_dir)
         _store_session_artifacts(paths.test_root, paths.pki_dir,
                                  paths.tokens_dir)
+    else:
+        _harden_xrootd_credentials(paths.pki_dir)
+        _harden_bearer_tokens(paths.tokens_dir)
 
     # 6-8) Per-session artifacts: cheap, always rebuilt, never snapshotted.
     for step in session_steps(paths):

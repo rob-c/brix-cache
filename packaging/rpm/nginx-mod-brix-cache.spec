@@ -6,14 +6,12 @@
 # rpmbuild invocation and must be kept in sync with ident.h.
 %global upstream_version %{?version_override}%{!?version_override:2.0.0}
 
-# --- phase-42 optional compression codecs (gzip/deflate via zlib are always on) ---
-# Each non-zlib codec is compile-gated by ./configure's pkg-config probe and
-# degrades to available=0 when absent, so the SRPM builds on minimal hosts.
-# zstd and lz4 default ON (disable with rpmbuild --without zstd --without lz4);
-# enable the rest with: rpmbuild --with lzma --with brotli --with bzip2
-%bcond_without zstd
+# --- phase-42 compression codecs (gzip/deflate, zstd, and Brotli are always on) ---
+# zstd and Brotli are required by ./configure and must remain available to every
+# RPM build. The remaining non-zlib codecs are compile-gated by pkg-config and
+# degrade to available=0 when absent. lz4 defaults ON; enable the rest with:
+# rpmbuild --with lzma --with bzip2
 %bcond_with lzma
-%bcond_with brotli
 %bcond_with bzip2
 %bcond_without lz4
 
@@ -69,12 +67,11 @@ BuildRequires:  libxcrypt-devel
 BuildRequires:  sqlite-devel
 # %%systemd_post/preun/postun + %%systemd_requires (brix-cvmfs-automount)
 BuildRequires:  systemd-rpm-macros
-# --- phase-42 optional compression codecs (off by default; see %%bcond above).
-# When enabled, ./configure links the lib and find-requires turns it into a
-# runtime dep automatically; when disabled, the codec reports available=0. ---
-%{?with_zstd:BuildRequires:  libzstd-devel}
+# --- phase-42 compression codecs. zstd and Brotli are mandatory; optional
+# codecs are linked when enabled and find-requires turns them into runtime deps. ---
+BuildRequires:  libzstd-devel
+BuildRequires:  brotli-devel
 %{?with_lzma:BuildRequires:  xz-devel}
-%{?with_brotli:BuildRequires:  libbrotli-devel}
 %{?with_bzip2:BuildRequires:  bzip2-devel}
 %{?with_lz4:BuildRequires:  lz4-devel}
 %{?with_uring:BuildRequires:  liburing-devel}
@@ -1174,7 +1171,8 @@ fi
 - Session lifecycle logging across all protocol handlers.
 - Unified brix configuration grammar (xrootd_* -> brix_* directives) with
   one-protocol-per-port enforcement.
-- zstd and lz4 codecs enabled by default; --without zstd/lz4 to disable.
+- zstd and Brotli are required; lz4 is enabled by default and can be disabled
+  with --without lz4.
 - Ceph client libraries are explicit Requires (librados2, libradosstriper1;
   brix-tools also libcephfs2).
 - Fix container RPM builds: missing errno.h in sd_ceph_striper, io_uring

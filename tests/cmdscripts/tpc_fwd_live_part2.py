@@ -180,6 +180,8 @@ def _webdav_cell_bb(h: TpcHarness, cred: str) -> None:
 
 
 def _webdav_cell_sb(h: TpcHarness, cred: str) -> None:
+    from lib_py.util import find_xrd_library
+
     key = f"webdav stock-src->brix-dest {cred}"
     if not os.access(XROOTD_BIN, os.X_OK):
         h.record(key, "SKIP", "stock xrootd absent")
@@ -187,7 +189,7 @@ def _webdav_cell_sb(h: TpcHarness, cred: str) -> None:
     if cred == "token":
         h.record(key, "SKIP", "stock XrdHttp ztn-over-http source not provisioned (GSI-only stock XrdHttp node)")
         return
-    if not Path("/usr/lib64/libXrdHttp-5.so").is_file() and not Path("/usr/lib/libXrdHttp-5.so").is_file():
+    if find_xrd_library("libXrdHttp-5.so", "libXrdHttp.so") is None:
         h.record(key, "SKIP", "stock XrdHttp plugin (libXrdHttp) absent — no stock https source")
         return
     h.record(key, "GAP", "brix puller forwards userA's delegated proxy (see the bb gsi cell), but a stock "

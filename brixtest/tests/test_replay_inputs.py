@@ -36,34 +36,50 @@ def _replay_manifest(executable, library):
 
 
 def test_binary_store_recaptures_exact_archived_executable_and_libraries(
-    tmp_path, monkeypatch,
+    tmp_path,
 ):
+    import os
     executable, library = _archived_inputs(tmp_path)
     manifest = _replay_manifest(executable, library)
-    monkeypatch.setenv(REPLAY_BINARIES_ENV, json.dumps(manifest))
-    declaration = binary("tool", "/original/build/tool", discover_libraries=False)
+    old_env = os.environ.get(REPLAY_BINARIES_ENV)
+    os.environ[REPLAY_BINARIES_ENV] = json.dumps(manifest)
+    try:
+        declaration = binary("tool", "/original/build/tool", discover_libraries=False)
 
-    captured = BinaryStore(tmp_path / "run", tmp_path).capture(declaration)
+        captured = BinaryStore(tmp_path / "run", tmp_path).capture(declaration)
 
-    assert captured.sha256 == manifest["tool"]["sha256"]
-    assert captured.path.read_bytes() == executable.read_bytes()
-    assert [item.read_bytes() for item in captured.libraries] == [library.read_bytes()]
-    assert captured.overridden and captured.verify()
+        assert captured.sha256 == manifest["tool"]["sha256"]
+        assert captured.path.read_bytes() == executable.read_bytes()
+        assert [item.read_bytes() for item in captured.libraries] == [library.read_bytes()]
+        assert captured.overridden and captured.verify()
+    finally:
+        if old_env is None:
+            os.environ.pop(REPLAY_BINARIES_ENV, None)
+        else:
+            os.environ[REPLAY_BINARIES_ENV] = old_env
 
 
-def test_binary_store_rejects_corrupted_archived_replay_input(tmp_path, monkeypatch):
+def test_binary_store_rejects_corrupted_archived_replay_input(tmp_path):
+    import os
     executable, library = _archived_inputs(tmp_path)
     manifest = _replay_manifest(executable, library)
     executable.write_bytes(b"changed after archival")
-    monkeypatch.setenv(REPLAY_BINARIES_ENV, json.dumps(manifest))
+    old_env = os.environ.get(REPLAY_BINARIES_ENV)
+    os.environ[REPLAY_BINARIES_ENV] = json.dumps(manifest)
+    try:
+        with pytest.raises(SpecError, match="archived executable"):
+            BinaryStore(tmp_path / "run", tmp_path).capture(
+                binary("tool", "/original/build/tool", discover_libraries=False),
+            )
+    finally:
+        if old_env is None:
+            os.environ.pop(REPLAY_BINARIES_ENV, None)
+        else:
+            os.environ[REPLAY_BINARIES_ENV] = old_env
 
-    with pytest.raises(SpecError, match="archived executable"):
-        BinaryStore(tmp_path / "run", tmp_path).capture(
-            binary("tool", "/original/build/tool", discover_libraries=False),
-        )
 
-
-def test_binary_store_recaptures_archived_runtime_files(tmp_path, monkeypatch):
+def test_binary_store_recaptures_archived_runtime_files(tmp_path):
+    import os
     executable, library = _archived_inputs(tmp_path)
     plugin = tmp_path / "objects" / "db2.so"
     plugin.write_bytes(b"archived-plugin")
@@ -72,29 +88,49 @@ def test_binary_store_recaptures_archived_runtime_files(tmp_path, monkeypatch):
         "destination": "/usr/lib/krb5/plugins/db2.so",
         "path": str(plugin), "sha256": _digest(plugin),
     }]
-    monkeypatch.setenv(REPLAY_BINARIES_ENV, json.dumps(manifest))
+    old_env = os.environ.get(REPLAY_BINARIES_ENV)
+    os.environ[REPLAY_BINARIES_ENV] = json.dumps(manifest)
 
     captured = BinaryStore(tmp_path / "run", tmp_path).capture(
         binary("tool", "/original/tool", discover_libraries=False),
     )
 
-    assert captured.runtime_files["/usr/lib/krb5/plugins/db2.so"].read_bytes() == b"archived-plugin"
-    assert captured.verify()
+    try:
+        captured = BinaryStore(tmp_path / "run", tmp_path).capture(
+            binary("tool", "/original/tool", discover_libraries=False),
+        )
+
+        assert captured.runtime_files["/usr/lib/krb5/plugins/db2.so"].read_bytes() == b"archived-plugin"
+        assert captured.verify()
+    finally:
+        if old_env is None:
+            os.environ.pop(REPLAY_BINARIES_ENV, None)
+        else:
+            os.environ[REPLAY_BINARIES_ENV] = old_env
 
 
-def test_replay_graph_mismatch_fails_before_run_root_creation(tmp_path, monkeypatch):
+def test_replay_graph_mismatch_fails_before_run_root_creation(tmp_path):
+    import os
     @case(keep="never")
     def managed(run):
         pass
 
     root = tmp_path / "not-created"
-    monkeypatch.setenv("BRIXTEST_REPLAY_GRAPH_FINGERPRINT", "0" * 64)
-    with pytest.raises(SpecError, match="archived fingerprint"):
-        CaseManager(get_case(managed), "unit::graph-mismatch", root=root)
-    assert not root.exists()
+    old_fp = os.environ.get("BRIXTEST_REPLAY_GRAPH_FINGERPRINT")
+    os.environ["BRIXTEST_REPLAY_GRAPH_FINGERPRINT"] = "0" * 64
+    try:
+        with pytest.raises(SpecError, match="archived fingerprint"):
+            CaseManager(get_case(managed), "unit::graph-mismatch", root=root)
+        assert not root.exists()
+    finally:
+        if old_fp is None:
+            os.environ.pop("BRIXTEST_REPLAY_GRAPH_FINGERPRINT", None)
+        else:
+            os.environ["BRIXTEST_REPLAY_GRAPH_FINGERPRINT"] = old_fp
 
 
-def test_replay_identity_and_cli_transport_use_session_objects(tmp_path, monkeypatch):
+def test_replay_identity_and_cli_transport_use_session_objects(tmp_path):
+    import brixtest.cli.rerun as rerun_module
     executable, library = _archived_inputs(tmp_path)
     payload = _helper_payload(tmp_path, executable, library)
     replay = {
@@ -102,10 +138,8 @@ def test_replay_identity_and_cli_transport_use_session_objects(tmp_path, monkeyp
         **_replay_identity(payload, tmp_path),
     }
     seen = {}
-    monkeypatch.setattr(
-        "brixtest.cli.rerun.subprocess.call",
-        lambda argv, **options: seen.update(argv=argv, **options) or 0,
-    )
+    old_call = rerun_module.subprocess.call
+    rerun_module.subprocess.call = lambda argv, **options: seen.update(argv=argv, **options) or 0
 
     assert _replay({"nodeid": "test_x.py::test_x", "replay": replay}) == 0
     transported = json.loads(seen["env"][REPLAY_BINARIES_ENV])

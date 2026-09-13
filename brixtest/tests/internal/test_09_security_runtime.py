@@ -30,26 +30,41 @@ def test_081_security_materializes_credentials_and_auth(tmp_path):
     security.close()
 
 
-def test_082_test_environment_is_activated_before_body(tmp_path, monkeypatch):
-    monkeypatch.delenv("BRIXTEST_INTERNAL_KEY", raising=False)
+def test_082_test_environment_is_activated_before_body(tmp_path):
+    import os
+    old_key = os.environ.get("BRIXTEST_INTERNAL_KEY")
+    if old_key is not None:
+        os.environ.pop("BRIXTEST_INTERNAL_KEY")
     security = _security(
         tmp_path,
         credentials=[credential("key", "value", env="BRIXTEST_INTERNAL_KEY", env_value="content")],
     )
-    security.materialize()
-    assert os.environ["BRIXTEST_INTERNAL_KEY"] == "value"
-    security.close()
+    try:
+        security.materialize()
+        assert os.environ["BRIXTEST_INTERNAL_KEY"] == "value"
+        security.close()
+    finally:
+        if old_key is not None:
+            os.environ["BRIXTEST_INTERNAL_KEY"] = old_key
 
 
-def test_083_test_environment_is_restored_on_close(tmp_path, monkeypatch):
-    monkeypatch.setenv("BRIXTEST_INTERNAL_KEY", "original")
+def test_083_test_environment_is_restored_on_close(tmp_path):
+    import os
+    old_key = os.environ.get("BRIXTEST_INTERNAL_KEY")
+    os.environ["BRIXTEST_INTERNAL_KEY"] = "original"
     security = _security(
         tmp_path,
         credentials=[credential("key", "replacement", env="BRIXTEST_INTERNAL_KEY", env_value="content")],
     )
     security.materialize()
     security.close()
-    assert os.environ["BRIXTEST_INTERNAL_KEY"] == "original"
+    try:
+        assert os.environ["BRIXTEST_INTERNAL_KEY"] == "original"
+    finally:
+        if old_key is None:
+            os.environ.pop("BRIXTEST_INTERNAL_KEY", None)
+        else:
+            os.environ["BRIXTEST_INTERNAL_KEY"] = old_key
 
 
 def test_084_values_include_namespaced_credential_and_auth_paths(tmp_path):

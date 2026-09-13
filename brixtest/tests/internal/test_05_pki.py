@@ -56,40 +56,60 @@ def test_043_safe_subject_rejects_subject_injection():
         _safe_subject("name/CN=attacker", "ca")
 
 
-def test_044_openssl_constructor_requires_executable(monkeypatch):
-    monkeypatch.setattr("brixtest.auth.pki.shutil.which", lambda value: None)
-    with pytest.raises(SpecError, match="not installed"):
-        OpenSSL()
+def test_044_openssl_constructor_requires_executable():
+    import brixtest.auth.pki as pki_module
+    old_which = pki_module.shutil.which
+    pki_module.shutil.which = lambda value: None
+    try:
+        with pytest.raises(SpecError, match="not installed"):
+            OpenSSL()
+    finally:
+        pki_module.shutil.which = old_which
 
 
-def test_045_openssl_runner_returns_stdout(monkeypatch):
-    monkeypatch.setattr("brixtest.auth.pki.shutil.which", lambda value: "/openssl")
-    monkeypatch.setattr(
-        "brixtest.auth.pki.subprocess.run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, stdout="value\n", stderr=""),
-    )
-    assert OpenSSL().run("version") == "value"
+def test_045_openssl_runner_returns_stdout():
+    import brixtest.auth.pki as pki_module
+    old_which = pki_module.shutil.which
+    old_run = pki_module.subprocess.run
+    pki_module.shutil.which = lambda value: "/openssl"
+    pki_module.subprocess.run = lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, stdout="value\n", stderr="")
+    try:
+        assert OpenSSL().run("version") == "value"
+    finally:
+        pki_module.shutil.which = old_which
+        pki_module.subprocess.run = old_run
 
 
-def test_046_openssl_runner_preserves_failure_trace(monkeypatch):
-    monkeypatch.setattr("brixtest.auth.pki.shutil.which", lambda value: "/openssl")
-    monkeypatch.setattr(
-        "brixtest.auth.pki.subprocess.run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(args, 1, stdout="", stderr="bad config"),
-    )
-    with pytest.raises(SpecError, match="bad config"):
-        OpenSSL().run("ca")
+def test_046_openssl_runner_preserves_failure_trace():
+    import brixtest.auth.pki as pki_module
+    old_which = pki_module.shutil.which
+    old_run = pki_module.subprocess.run
+    pki_module.shutil.which = lambda value: "/openssl"
+    pki_module.subprocess.run = lambda *args, **kwargs: subprocess.CompletedProcess(args, 1, stdout="", stderr="bad config")
+    try:
+        with pytest.raises(SpecError, match="bad config"):
+            OpenSSL().run("ca")
+    finally:
+        pki_module.shutil.which = old_which
+        pki_module.subprocess.run = old_run
 
 
-def test_047_openssl_timeout_becomes_spec_error(monkeypatch):
-    monkeypatch.setattr("brixtest.auth.pki.shutil.which", lambda value: "/openssl")
+def test_047_openssl_timeout_becomes_spec_error():
+    import brixtest.auth.pki as pki_module
+    old_which = pki_module.shutil.which
+    old_run = pki_module.subprocess.run
+    pki_module.shutil.which = lambda value: "/openssl"
 
     def timeout(*args, **kwargs):
         raise subprocess.TimeoutExpired("openssl", 30)
 
-    monkeypatch.setattr("brixtest.auth.pki.subprocess.run", timeout)
-    with pytest.raises(SpecError, match="timed out"):
-        OpenSSL().run("ca")
+    pki_module.subprocess.run = timeout
+    try:
+        with pytest.raises(SpecError, match="timed out"):
+            OpenSSL().run("ca")
+    finally:
+        pki_module.shutil.which = old_which
+        pki_module.subprocess.run = old_run
 
 
 def test_048_pki_requires_at_least_one_hostname(tmp_path):

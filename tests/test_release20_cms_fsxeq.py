@@ -117,6 +117,38 @@ def _recorder(tmp, name, report, body="exit 0", mode=0o755, extra=""):
     return p
 
 
+def _fd_recorder(tmp, name, report, fds, env):
+    """Record argv, environment and fds without shell-redirection aliases."""
+    p = os.path.join(tmp, name)
+    with open(p, "w") as f:
+        f.write(f'''#!/usr/bin/python3
+import os
+import sys
+
+with open({report!r}, "a", encoding="utf-8") as recorded:
+    recorded.write("ARGV [" + os.path.abspath(__file__) + "]" +
+                   "".join(" [" + arg + "]" for arg in sys.argv[1:]) + "\\n")
+
+entries = []
+for name in os.listdir("/proc/self/fd"):
+    if not name.isdigit():
+        continue
+    try:
+        entries.append((int(name), os.readlink("/proc/self/fd/" + name)))
+    except FileNotFoundError:
+        pass
+with open({fds!r}, "w", encoding="utf-8") as listing:
+    for number, target in sorted(entries):
+        listing.write(f"{{number}} -> {{target}}\\n")
+
+with open({env!r}, "w", encoding="utf-8") as environment:
+    for key, value in sorted(os.environ.items()):
+        environment.write(key + "=" + value + "\\n")
+''')
+    os.chmod(p, 0o755)
+    return p
+
+
 def _nonempty(path):
     return os.path.exists(path) and os.path.getsize(path) > 0
 
@@ -211,9 +243,8 @@ def all_ops(lifecycle, tmp_path):
     secret = tmp_path / "sss.keytab"
     secret.write_text("0 u:brix g:brix n:node N:1 c:1 e:0 k:S3CRET-KEYTAB-BYTES\n")
     secret.chmod(0o600)
-    prog = _recorder(str(tmp_path), "rec.sh", report,
-                     extra=f"ls -l /proc/$$/fd > {tmp_path}/fds.txt 2>/dev/null\n"
-                           f"env > {tmp_path}/env.txt 2>/dev/null\n")
+    prog = _fd_recorder(str(tmp_path), "rec.py", report,
+                        str(tmp_path / "fds.txt"), str(tmp_path / "env.txt"))
     peer, conn, root = _start_node(
         lifecycle, "lc-r20-fsxeq-all",
         _lines("brix_allow_write on",

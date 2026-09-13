@@ -38,6 +38,7 @@ from pathlib import Path
 import pytest
 
 from settings import BIND_HOST, NGINX_BIN
+from brix_suite.fd_probe import write_fd_probe
 from server_registry import NginxInstanceSpec
 from official_interop_lib import worker_reachable
 
@@ -376,8 +377,7 @@ def test_the_stage_program_inherits_no_server_descriptors(lifecycle, tmp_path):
     pipes or log descriptors (a listen socket is what a stray child keeps
     bound after a restart; a connection carries client traffic)."""
     fds = tmp_path / "fds.txt"
-    cmd = _script(tmp_path, "fds.sh",
-                  f"  rcreate) ls -l /proc/$$/fd > {fds}; exit 0 ;;\n")
+    cmd = write_fd_probe(tmp_path / "fds.py", fds)
     ep, _journal = _exec_lab(lifecycle, tmp_path, cmd)
     status, _ = _rcreate(ep.port, "/archive/fds")
     assert status == H.kXR_ok, f"exec rcreate failed: {status}"

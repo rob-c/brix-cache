@@ -145,45 +145,52 @@ class _TextProvider:
         return str(declaration.options["message"])
 
 
-def test_packaged_extension_discovery_is_lazy_versioned_and_refreshable(monkeypatch):
+def test_packaged_extension_discovery_is_lazy_versioned_and_refreshable():
+    import brixtest.extensions.metadata as metadata_module
     from brixtest.extensions import ExtensionRegistry
 
     target = _RecordingExecutor()
     target.brixtest_api_version = 1
     target.brixtest_capabilities = ("remote", "capture")
     rows = [_EntryPoint("brixtest.executors", "external-executor", target)]
-    monkeypatch.setattr(
-        "brixtest.extensions.metadata.entry_points", lambda: _EntryPoints(rows),
-    )
-    registry = ExtensionRegistry()
-    discovered = registry.discover()
-    assert discovered[0].loaded is False
-    assert registry.load("executor", "external-executor") is target
-    info = registry.describe("executor")[0]
-    assert info.loaded and info.capabilities == ("capture", "remote")
-    refresh_registry = ExtensionRegistry()
-    assert refresh_registry.discover()[0].loaded is False
-    rows.clear()
-    assert refresh_registry.discover(refresh=True) == ()
+    old_entry_points = metadata_module.entry_points
+    metadata_module.entry_points = lambda: _EntryPoints(rows)
+    try:
+        registry = ExtensionRegistry()
+        discovered = registry.discover()
+        assert discovered[0].loaded is False
+        assert registry.load("executor", "external-executor") is target
+        info = registry.describe("executor")[0]
+        assert info.loaded and info.capabilities == ("capture", "remote")
+        refresh_registry = ExtensionRegistry()
+        assert refresh_registry.discover()[0].loaded is False
+        rows.clear()
+        assert refresh_registry.discover(refresh=True) == ()
+    finally:
+        metadata_module.entry_points = old_entry_points
+    metadata_module.entry_points = old_entry_points
 
 
-def test_packaged_extension_rejects_incompatible_or_malformed_metadata(monkeypatch):
+def test_packaged_extension_rejects_incompatible_or_malformed_metadata():
+    import brixtest.extensions.metadata as metadata_module
     from brixtest.extensions import ExtensionInfo, ExtensionRegistry
 
     target = _RecordingExecutor()
     target.brixtest_api_version = 2
     target.brixtest_capabilities = ("capture",)
     rows = [_EntryPoint("brixtest.executors", "future-executor", target)]
-    monkeypatch.setattr(
-        "brixtest.extensions.metadata.entry_points", lambda: _EntryPoints(rows),
-    )
-    registry = ExtensionRegistry()
-    with pytest.raises(SpecError, match="supports version 1"):
-        registry.load("executor", "future-executor")
-    with pytest.raises(SpecError, match="extension name"):
-        registry.register("executor", "Invalid.Name", _RecordingExecutor())
-    with pytest.raises(SpecError, match="capabilities"):
-        ExtensionInfo("executor", "valid-name", capabilities=(["not-hashable"],))
+    old_entry_points = metadata_module.entry_points
+    metadata_module.entry_points = lambda: _EntryPoints(rows)
+    try:
+        registry = ExtensionRegistry()
+        with pytest.raises(SpecError, match="supports version 1"):
+            registry.load("executor", "future-executor")
+        with pytest.raises(SpecError, match="extension name"):
+            registry.register("executor", "Invalid.Name", _RecordingExecutor())
+        with pytest.raises(SpecError, match="capabilities"):
+            ExtensionInfo("executor", "valid-name", capabilities=(["not-hashable"],))
+    finally:
+        metadata_module.entry_points = old_entry_points
 
 
 def test_plugin_cli_lists_every_builtin_runtime_seam(capsys):
@@ -249,8 +256,10 @@ class _RecordingExecutor:
         return CommandResult(request.argv, 0, "extension-output\n", "", 0.01)
 
 
-def test_custom_executor_runs_a_first_class_tool_without_ambient_env(tmp_path, monkeypatch):
-    monkeypatch.setenv("BRIXTEST_UNIT_AMBIENT_SECRET", "do-not-copy")
+def test_custom_executor_runs_a_first_class_tool_without_ambient_env(tmp_path):
+    import os
+    old_secret = os.environ.get("BRIXTEST_UNIT_AMBIENT_SECRET")
+    os.environ["BRIXTEST_UNIT_AMBIENT_SECRET"] = "do-not-copy"
     executor = _RecordingExecutor()
     register_extension("executor", "unit-executor", executor, replace=True)
     declaration = tool(
@@ -269,12 +278,18 @@ def test_custom_executor_runs_a_first_class_tool_without_ambient_env(tmp_path, m
     result = run.tool(declaration).run()
     manager.set_outcome("passed")
     manager.close()
-    context, request = executor.requests[-1]
-    assert result.stdout == "extension-output\n"
-    assert request.env == {"DECLARED": "yes"}
-    assert "BRIXTEST_UNIT_AMBIENT_SECRET" not in request.env
-    assert context.nodeid == "unit::custom-executor"
-    assert (tmp_path / "run" / "runtime" / "client-logs" / "remote-tool" / "0001.json").is_file()
+    try:
+        context, request = executor.requests[-1]
+        assert result.stdout == "extension-output\n"
+        assert request.env == {"DECLARED": "yes"}
+        assert "BRIXTEST_UNIT_AMBIENT_SECRET" not in request.env
+        assert context.nodeid == "unit::custom-executor"
+        assert (tmp_path / "run" / "runtime" / "client-logs" / "remote-tool" / "0001.json").is_file()
+    finally:
+        if old_secret is None:
+            os.environ.pop("BRIXTEST_UNIT_AMBIENT_SECRET", None)
+        else:
+            os.environ["BRIXTEST_UNIT_AMBIENT_SECRET"] = old_secret
 
 
 def _request(tmp_path, *, backend="docker", env=None, resources=None):
@@ -290,7 +305,7 @@ def _request(tmp_path, *, backend="docker", env=None, resources=None):
     )
 
 
-def test_docker_executor_uses_mode_0600_env_file_and_never_secret_argv(tmp_path, monkeypatch):
+def test_docker_executor_uses_mode_0600_env_file_and_never_secret_argv(tmp_path):
     (tmp_path / "workspace").mkdir()
     observed = {}
 
@@ -302,19 +317,24 @@ def test_docker_executor_uses_mode_0600_env_file_and_never_secret_argv(tmp_path,
         observed["mode"] = stat.S_IMODE(env_file.stat().st_mode)
         return CommandResult(tuple(argv), 0, "ok\n", "", 0.01)
 
-    monkeypatch.setattr("brixtest.runtime.executors.CommandRunner.run", completed)
-    context = ToolExecutionContext(
-        "unit::docker", tmp_path, tmp_path / "workspace", "local",
-    )
-    result = tool_executor("docker").execute(context, _request(tmp_path))
-    assert result.stdout == "ok\n" and observed["mode"] == 0o600
-    assert observed["env"] == "TOKEN=sensitive\n"
-    assert "sensitive" not in observed["argv"]
-    env_file = Path(observed["argv"][observed["argv"].index("--env-file") + 1])
-    assert not env_file.exists()
+    import brixtest
+    old_run = brixtest.runtime.executors.CommandRunner.run
+    brixtest.runtime.executors.CommandRunner.run = completed
+    try:
+        context = ToolExecutionContext(
+            "unit::docker", tmp_path, tmp_path / "workspace", "local",
+        )
+        result = tool_executor("docker").execute(context, _request(tmp_path))
+        assert result.stdout == "ok\n" and observed["mode"] == 0o600
+        assert observed["env"] == "TOKEN=sensitive\n"
+        assert "sensitive" not in observed["argv"]
+        env_file = Path(observed["argv"][observed["argv"].index("--env-file") + 1])
+        assert not env_file.exists()
+    finally:
+        brixtest.runtime.executors.CommandRunner.run = old_run
 
 
-def test_container_executor_translates_pty_without_changing_user_argv(tmp_path, monkeypatch):
+def test_container_executor_translates_pty_without_changing_user_argv(tmp_path):
     (tmp_path / "workspace").mkdir()
     observed = {}
 
@@ -322,28 +342,35 @@ def test_container_executor_translates_pty_without_changing_user_argv(tmp_path, 
         observed.update({"argv": tuple(argv), "options": options})
         return CommandResult(tuple(argv), 0, "tty\n", "", 0.01)
 
-    monkeypatch.setattr("brixtest.runtime.executors.CommandRunner.run", completed)
-    context = ToolExecutionContext(
-        "unit::docker-pty", tmp_path, tmp_path / "workspace", "local",
-    )
-    request = dataclasses.replace(_request(tmp_path), mode="pty", input="hello\n")
-    result = tool_executor("docker").execute(context, request)
+    import brixtest
+    old_run = brixtest.runtime.executors.CommandRunner.run
+    brixtest.runtime.executors.CommandRunner.run = completed
+    try:
+        context = ToolExecutionContext(
+            "unit::docker-pty", tmp_path, tmp_path / "workspace", "local",
+        )
+        request = dataclasses.replace(_request(tmp_path), mode="pty", input="hello\n")
+        result = tool_executor("docker").execute(context, request)
 
-    assert observed["argv"][-2:] == request.argv
-    assert "--interactive" in observed["argv"] and "--tty" in observed["argv"]
-    assert observed["options"]["mode"] == "pty"
-    assert observed["options"]["input"] == "hello\n"
-    assert result.argv == request.argv
+        assert observed["argv"][-2:] == request.argv
+        assert "--interactive" in observed["argv"] and "--tty" in observed["argv"]
+        assert observed["options"]["mode"] == "pty"
+        assert observed["options"]["input"] == "hello\n"
+        assert result.argv == request.argv
+    finally:
+        brixtest.runtime.executors.CommandRunner.run = old_run
 
 
 def test_container_executor_rejects_unrepresentable_environment_before_spawn(
-    tmp_path, monkeypatch,
+    tmp_path,
 ):
+    import brixtest.runtime.executors as executors_module
     request = _request(tmp_path, env={"VALUE": "line-one\nline-two"})
-    monkeypatch.setattr(
-        "brixtest.runtime.executors.CommandRunner.run",
-        lambda *args, **kwargs: pytest.fail("container runtime must not be invoked"),
-    )
+    old_run = executors_module.CommandRunner.run
+    executors_module.CommandRunner.run = lambda *args, **kwargs: pytest.fail("container runtime must not be invoked")
     context = ToolExecutionContext("unit::docker", tmp_path, tmp_path, "local")
-    with pytest.raises(SpecError, match="newlines or NUL"):
-        tool_executor("docker").execute(context, request)
+    try:
+        with pytest.raises(SpecError, match="newlines or NUL"):
+            tool_executor("docker").execute(context, request)
+    finally:
+        executors_module.CommandRunner.run = old_run

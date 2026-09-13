@@ -8,8 +8,8 @@ Cutting a release is documented in
 [docs/09-developer-guide/release-process.md](docs/09-developer-guide/release-process.md).
 
 Versions that were never cut: **1.0.6**, **1.1.0**, **1.2.x**. The version line
-skipped them; they are not missing entries. Releases before 1.3.0 were shipped
-as RPM revisions (`1.1.1-3` … `1.1.1-25`) whose per-revision packaging detail
+skipped them; they are not missing entries. Version 1.1.1 was subsequently
+revised as RPM releases (`1.1.1-3` … `1.1.1-25`) whose per-revision packaging detail
 lives in the `%changelog` of
 [`packaging/rpm/nginx-mod-brix-cache.spec`](packaging/rpm/nginx-mod-brix-cache.spec)
 — that file remains authoritative for packaging changes; this one summarises
@@ -1181,5 +1181,38 @@ register, the registry and the prose in step.
   VO from a bare group name (right for the local xrdacc engine), so a v1
   NAME-only client reached the origin as `vorg="nogroup"` — a claim it never
   made. The sss entity now forwards a VO/role only when the peer asserted one;
-  `GRPS` still travels verbatim, so the origin derives the same view it always
-  did.
+    `GRPS` still travels verbatim, so the origin derives the same view it always
+    did.
+
+---
+
+## v1.5.0 — 2026-08-26
+
+- Added per-host authentication binding and per-capability TLS policy
+  directives, alongside an explicit opt-in for cleartext bearer-token tests.
+- Removed the retired throttle configuration path; the active per-user
+  open-file limit remains supported.
+
+## v1.4.0 — 2026-08-03
+
+- Added the io_uring direct-I/O client tier, remote HTTP cache passthrough,
+  expanded CVMFS X.509/VOMS authorization, and remote-storage mutations.
+- Added the client diagnostics and mesh-map tools, plus build-coverage guards
+  for client and shared sources.
+
+## v1.3.0 — 2026-07-23
+
+- Aligned the server identity, RPM fallback, and release metadata on version
+  1.3.0.
+
+## v1.1.1 — 2026-07-07
+
+- Added native CVMFS cache and writable-overlay support, WLCG token and X.509
+  conformance hardening, VFS-backed storage drivers, and native client tools.
+- Later RPM revisions added co-installable `brix-` compatibility tool names
+  and packaging refinements; see the RPM changelog for each revision.
+
+## v0.1.0 — 2026-04-21
+
+- Initial dynamic nginx module release, later expanded with SRR, HTTP filter,
+  dashboard, native clients, and the BriX-Cache package branding.
