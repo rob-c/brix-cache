@@ -34,11 +34,11 @@ brix_merge_srv_zip_stage(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_value(conf->write_compress,  prev->write_compress,  0);
     ngx_conf_merge_value(conf->zip_access,      prev->zip_access,      0);
     ngx_conf_merge_size_value(conf->zip_cd_max_bytes, prev->zip_cd_max_bytes,
-                              16 * 1024 * 1024);
+                              BRIX_CONFIG_ZIP_CD_MAX_BYTES);
     ngx_conf_merge_str_value(conf->zip_stage_dir, prev->zip_stage_dir, "");
     ngx_conf_merge_value(conf->zip_force_scratch, prev->zip_force_scratch, 0);
     ngx_conf_merge_size_value(conf->zip_stage_max_bytes,
-                              prev->zip_stage_max_bytes, 512 * 1024 * 1024);
+                              prev->zip_stage_max_bytes, BRIX_CONFIG_ZIP_STAGE_MAX_BYTES);
     /* ofs.chkpnt maxsz analog: default = the protocol minimum, and an
      * explicitly configured smaller value is raised to it — kXR_ckpMinMax is
      * the "minimum maximum" every server must accept, so honoring a lower cap
@@ -73,8 +73,8 @@ brix_merge_srv_zip_stage(ngx_stream_brix_srv_conf_t *conf,
                               prev->cache_wt_stage_high_watermark, 0);
     ngx_conf_merge_uint_value(conf->cache_wt_stage_low_watermark,
                               prev->cache_wt_stage_low_watermark,
-                              conf->cache_wt_stage_high_watermark > 50000
-                                  ? conf->cache_wt_stage_high_watermark - 50000
+                              conf->cache_wt_stage_high_watermark > BRIX_CONFIG_CACHE_WT_STAGE_HYSTERESIS
+                                  ? conf->cache_wt_stage_high_watermark - BRIX_CONFIG_CACHE_WT_STAGE_HYSTERESIS
                                   : conf->cache_wt_stage_high_watermark / 2);
     ngx_conf_merge_sec_value(conf->cache_dirty_max_age,
                              prev->cache_dirty_max_age, 604800);   /* 7 days */
@@ -229,9 +229,9 @@ brix_merge_srv_iouring_advertise(ngx_stream_brix_srv_conf_t *conf,
      * federation minimum of 60s = MinFedTokenTickerRate). */
     ngx_conf_merge_value(conf->advertise.enable, prev->advertise.enable, 0);
     ngx_conf_merge_msec_value(conf->advertise.interval,
-                              prev->advertise.interval, 60000);
-    if (conf->advertise.interval < 60000) {
-        conf->advertise.interval = 60000;
+                              prev->advertise.interval, BRIX_ADVERTISE_INTERVAL_DEFAULT_MS);
+    if (conf->advertise.interval < BRIX_ADVERTISE_INTERVAL_DEFAULT_MS) {
+        conf->advertise.interval = BRIX_ADVERTISE_INTERVAL_DEFAULT_MS;
     }
     ngx_conf_merge_str_value(conf->advertise.key,
                              prev->advertise.key, "");

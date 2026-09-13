@@ -98,7 +98,7 @@ cstb_open_source(ngx_fd_t fd, const char *stage_path, int *owned, mode_t *mode)
     ngx_fd_t     rfd;
 
     *owned = 0;
-    *mode = 0644;
+    *mode = BRIX_PERM_FILE_DEFAULT;
 
     if (fd != NGX_INVALID_FILE) {
         rfd = fd;
@@ -144,7 +144,7 @@ cstb_pump_and_commit(ngx_fd_t rfd, brix_sd_instance_t *dst,
 
     brix_sd_posix_wrap(&src_obj, rfd);   /* read the partial via the SD seam */
     for ( ;; ) {
-        char    buf[65536];
+        char    buf[BRIX_HUGE_BUF_SIZE];
         ssize_t r = src_obj.driver->pread(&src_obj, buf, sizeof(buf), off);
         ssize_t w = 0;
 
@@ -203,7 +203,7 @@ commit_staged_to_backend(ngx_fd_t fd, const char *stage_path,
     const char        *logical = commit_be_logical(final_path, root_canon);
     brix_sd_staged_t  *st;
     struct stat        sb;
-    mode_t             mode = 0644;
+    mode_t             mode = BRIX_PERM_FILE_DEFAULT;
     off_t              dsz;
     int                rfd, owned = 0, serr = 0;
     ngx_int_t          rc;
@@ -327,7 +327,7 @@ commit_cross_device(const char *stage_path, const char *final_path,
         return NGX_ERROR;
     }
     /* Preserve the staged file's mode on the committed object. */
-    mode = (fstat(rfd, &sb) == 0) ? (sb.st_mode & 07777) : 0644;
+    mode = (fstat(rfd, &sb) == 0) ? (sb.st_mode & 07777) : BRIX_PERM_FILE_DEFAULT;
     dfd = open(tmp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode);
     if (dfd < 0) {
         e = errno; close(rfd); errno = e; return NGX_ERROR;

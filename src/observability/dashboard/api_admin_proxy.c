@@ -152,7 +152,7 @@ admin_proxy_add(ngx_http_request_t *r, json_t *body)
         return admin_send_error(r, NGX_HTTP_FORBIDDEN, "host_not_allowed");
     }
     if (weight <= 0)    weight = 1;
-    if (weight > 1000)  weight = 1000;
+    if (weight > BRIX_PROXY_WEIGHT_MAX)  weight = BRIX_PROXY_WEIGHT_MAX;
 
     rc = brix_proxy_pool_add(url, (ngx_uint_t) weight, r->pool,
                                r->connection->log, &id);

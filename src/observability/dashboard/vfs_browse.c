@@ -40,7 +40,7 @@
 #include <limits.h>
 #include <string.h>
 
-#define DASHBOARD_VFS_MAX_ENTRIES 10000
+#define DASHBOARD_VFS_MAX_ENTRIES BRIX_DASHBOARD_FILES_MAX
 
 /* errno → HTTP for a confined VFS namespace failure. */
 static ngx_int_t

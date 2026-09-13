@@ -364,7 +364,7 @@ webdav_handle_mkcol(ngx_http_request_t *r)
      * EEXIST (target present) -> 405, ENOENT (parent missing) -> 409. */
     webdav_ns_vfs_ctx_init(r, path, &vctx);
 
-    if (brix_vfs_mkdir(&vctx, 0755, 0 /* no parents */) == NGX_OK) {
+    if (brix_vfs_mkdir(&vctx, BRIX_WEBDAV_DEFAULT_DIR_MODE, 0 /* no parents */) == NGX_OK) {
         webdav_cns_note_written(r, path);
         return webdav_send_no_body(r, NGX_HTTP_CREATED);
     }

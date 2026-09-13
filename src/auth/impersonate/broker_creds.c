@@ -78,9 +78,40 @@ static inline int getresuid(uid_t *ruid, uid_t *euid, uid_t *suid) {
  * it holds exactly the two capabilities impersonation needs.  Set by the
  * lifecycle layer (from brix_idmap_broker_user) before broker_run; the
  * forked broker inherits them.  (uid_t)-1 => stay as the current uid.
+ *
+ * Encapsulated in state struct with accessors — immutable after config-time set.
  */
-uid_t brix_imp_broker_user_uid = (uid_t) -1;
-gid_t brix_imp_broker_user_gid = (gid_t) -1;
+
+typedef struct {
+    uid_t  uid;  /* broker service uid, (uid_t)-1 = no drop */
+    gid_t  gid;  /* broker service gid, (gid_t)-1 = default to uid */
+} brix_imp_broker_creds_t;
+
+static brix_imp_broker_creds_t brix_imp_broker_creds = {
+    .uid = (uid_t) -1,
+    .gid = (gid_t) -1
+};
+
+/*
+ * WHAT: Accessors for broker service credentials.
+ * WHY:  Encapsulation — prevents accidental modification, enables validation.
+ * HOW:  Read-only access to immutable config-time values.
+ */
+uid_t brix_imp_get_broker_user_uid(void)
+{
+    return brix_imp_broker_creds.uid;
+}
+
+gid_t brix_imp_get_broker_user_gid(void)
+{
+    return brix_imp_broker_creds.gid;
+}
+
+void brix_imp_set_broker_user(uid_t uid, gid_t gid)
+{
+    brix_imp_broker_creds.uid = uid;
+    brix_imp_broker_creds.gid = gid;
+}
 
 /* Set effective=permitted={SETUID,SETGID} (inheritable empty).  Returns 0/-1. */
 int
@@ -119,8 +150,8 @@ imp_capset_setuid_setgid(int with_effective, ngx_log_t *log)
 static int
 imp_resolve_service_ids(ngx_log_t *log, uid_t *svc_uid, gid_t *svc_gid)
 {
-    uid_t uid = brix_imp_broker_user_uid;
-    gid_t gid = brix_imp_broker_user_gid;
+    uid_t uid = brix_imp_get_broker_user_uid();
+    gid_t gid = brix_imp_get_broker_user_gid();
 
     if (uid == (uid_t) -1 || getuid() != 0) {
         return 0;                        /* no drop requested, or not root */
@@ -401,9 +432,9 @@ imp_become(const brix_idmap_creds_t *cr)
      * deny-lists were misconfigured, the broker cannot be coerced into acting as
      * the gateway's own service identity.
      */
-    if (cr->uid == imp_self_uid
-        || (brix_imp_broker_allow_uid != 0
-            && cr->uid == brix_imp_broker_allow_uid))
+    if (cr->uid == brix_imp_get_self_uid()
+        || (brix_imp_get_broker_allow_uid() != 0
+            && cr->uid == brix_imp_get_broker_allow_uid()))
     {
         return IMP_REFUSE_PRIV;
     }
@@ -440,9 +471,10 @@ imp_become(const brix_idmap_creds_t *cr)
 void
 imp_restore(void)
 {
-    (void) setfsuid(imp_base_uid);
-    (void) setfsgid(imp_base_gid);
-    (void) syscall(SYS_setgroups, (size_t) imp_base_ngroups, imp_base_groups);
+    (void) setfsuid(brix_imp_get_base_uid());
+    (void) setfsgid(brix_imp_get_base_gid());
+    (void) syscall(SYS_setgroups, (size_t) brix_imp_get_base_ngroups(),
+                   brix_imp_get_base_groups());
 }
 
 

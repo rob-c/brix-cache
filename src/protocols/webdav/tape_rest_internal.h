@@ -31,7 +31,7 @@
 
 /* Confined absolute-path buffer size - used by the router (segment buffers) and by
  * every endpoint that resolves a logical path, so it is shared here. */
-#define TAPE_PATH_MAX       4096
+#define TAPE_PATH_MAX       BRIX_WEBDAV_TAPE_PATH_MAX
 
 /* Externally-visible stage-request id buffer. tape_mint_id() seeds a random hex
  * placeholder, but POST /stage OVERWRITES it with the first file's DURABLE reqid

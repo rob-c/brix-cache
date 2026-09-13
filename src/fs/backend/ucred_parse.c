@@ -17,6 +17,7 @@
  */
 #include "ucred.h"
 #include "ucred_internal.h"
+#include "../../core/types/tunables.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -335,7 +336,7 @@ ngx_int_t
 ucred_read_keyring(const char *path, char *out_path, size_t path_cap,
     char *out_user, size_t user_cap)
 {
-    char    buf[4096];
+    char    buf[BRIX_VFS_XMETA_UCRED_BUF_SIZE];
     ssize_t n;
     size_t  i, end;
     int     fd;

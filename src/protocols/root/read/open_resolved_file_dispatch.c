@@ -92,7 +92,7 @@ brix_open_dispatch_staged(brix_open_args_t *a, brix_vfs_ctx_t *vctx,
 	a->fd            = NGX_INVALID_FILE;
 	a->driver_backed = 1;
 	ngx_memzero(a->st, sizeof(*a->st));
-	a->st->st_mode = S_IFREG | (a->create_mode ? a->create_mode : 0644);
+	a->st->st_mode = S_IFREG | (a->create_mode ? a->create_mode : BRIX_ROOT_DEFAULT_FILE_MODE);
 	return NGX_DECLINED;
 }
 

@@ -13,7 +13,9 @@
 #include "cache_internal.h"
 #include "protocols/root/protocol/bootstrap_pack.h"   /* shared request packers */
 #include "protocols/root/protocol/frame_hdr.h"        /* xrd_error_body_decode */
-/* PAL endian ops now in platform_api.h */  /* brix_plat_htobe64/brix_plat_be64toh cross-platform */
+/* PAL endian ops now in platform_api.h
+ * brix_plat_htobe64/brix_plat_be64toh cross-platform
+ */
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
@@ -64,7 +66,7 @@ brix_cache_origin_open_write(brix_cache_fill_t *t,
      */
     {
         xrdw_open_req_t b = {
-            .mode = (uint16_t) (mode_bits != 0 ? mode_bits : 0644),
+            .mode = (uint16_t) (mode_bits != 0 ? mode_bits : BRIX_PERM_FILE_DEFAULT),
             .options = kXR_open_updt | kXR_delete | kXR_mkpath
         };
         xrdw_open_req_pack(&b, ((ClientRequestHdr *) buf)->body);
@@ -142,7 +144,7 @@ brix_cache_origin_close_file(brix_cache_origin_conn_t *oc,
     dummy.result = NGX_OK;
     body = NULL;
     if (brix_cache_read_response(&dummy, oc, &rsp_status, &body, &dlen,
-                                   4096) == 0) {
+                                   BRIX_VFS_ORIGIN_FATTR_SEND_BUF) == 0) {
         free(body);
     }
 }
@@ -183,7 +185,7 @@ brix_cache_origin_write_chunk(brix_cache_fill_t *t,
 
     body = NULL;
     if (brix_cache_read_response(t, oc, &status, &body, &dlen,
-                                   4096) != 0) {
+                                   BRIX_VFS_ORIGIN_FATTR_SEND_BUF) != 0) {
         return -1;
     }
 
@@ -232,7 +234,7 @@ brix_cache_origin_truncate(brix_cache_fill_t *t,
 
     body = NULL;
     if (brix_cache_read_response(t, oc, &status, &body, &dlen,
-                                   4096) != 0) {
+                                   BRIX_VFS_ORIGIN_FATTR_SEND_BUF) != 0) {
         return -1;
     }
 
@@ -306,7 +308,7 @@ brix_cache_origin_truncate_path(brix_cache_fill_t *t,
 
     body = NULL;
     if (brix_cache_read_response(t, oc, &status, &body, &dlen,
-                                   4096) != 0) {
+                                   BRIX_VFS_ORIGIN_FATTR_SEND_BUF) != 0) {
         return -1;
     }
 
@@ -353,7 +355,7 @@ brix_cache_origin_sync(brix_cache_fill_t *t,
 
     body = NULL;
     if (brix_cache_read_response(t, oc, &status, &body, &dlen,
-                                   4096) != 0) {
+                                   BRIX_VFS_ORIGIN_FATTR_SEND_BUF) != 0) {
         return -1;
     }
 

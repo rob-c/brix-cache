@@ -16,8 +16,7 @@
 #include <sys/socket.h>
 
 #include "events_bootstrap_internal.h"
-
-#define PROXY_UPSTREAM_BEARER_MAX  65536
+#include "core/types/tunables.h"  /* BRIX_PROXY_BEARER_TOKEN_MAX */
 
 /* auth-frame builder */
 /*
@@ -303,12 +302,21 @@ proxy_sss_mint(brix_proxy_ctx_t *proxy, const brix_sss_key_t *key,
     return NGX_OK;
 }
 
-/* send an SSS kXR_auth credential to the upstream * WHAT: Build an SSS credential from `key`, wrap it in a kXR_auth request, and
- *       arm the write side; advance bs_phase to BS_AUTH.
- * WHY:  Used by BOTH the kXR_authmore path and the kXR_ok login-sec-hint path
- *       (our own server advertises SSS via the latter), so the logic lives once.
- * HOW:  Returns NGX_OK once the frame is queued (caller must return), or
- *       NGX_ERROR after aborting the proxy on any failure. */
+/*
+ * send an SSS kXR_auth credential to the upstream
+ *
+ * WHAT:
+ *   Build an SSS credential from `key`, wrap it in a kXR_auth request,
+ *   arm the write side; advance bs_phase to BS_AUTH.
+ *
+ * WHY:
+ *   Used by BOTH the kXR_authmore path and the kXR_ok login-sec-hint path
+ *   (our own server advertises SSS via the latter), so the logic lives once.
+ *
+ * HOW:
+ *   Returns NGX_OK once the frame is queued (caller must return), or
+ *   NGX_ERROR after aborting the proxy on any failure.
+ */
 static ngx_int_t
 proxy_send_sss_auth(brix_proxy_ctx_t *proxy, const brix_sss_key_t *key)
 {
@@ -395,7 +403,7 @@ proxy_bs_auth_token_file(brix_proxy_ctx_t *proxy)
         "proxy: write arm for file token failed",
         0
     };
-    static u_char  ftok[PROXY_UPSTREAM_BEARER_MAX];
+    static u_char  ftok[BRIX_PROXY_BEARER_TOKEN_MAX];
     size_t         flen = 0;
 
     if (brix_token_read_file(&proxy->conf->upstream_token_file,
@@ -479,7 +487,7 @@ proxy_bs_login_sec_ztn(brix_proxy_ctx_t *proxy)
         "proxy: write arm for login-sec failed",
         0
     };
-    static u_char                lftok[PROXY_UPSTREAM_BEARER_MAX];
+    static u_char                lftok[BRIX_PROXY_BEARER_TOKEN_MAX];
     ngx_stream_brix_srv_conf_t  *lconf      = proxy->conf;
     const char                  *ltoken     = NULL;
     size_t                       ltoken_len = 0;

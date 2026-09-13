@@ -29,7 +29,7 @@
 #include <string.h>
 #include <strings.h>
 
-#define TPC_DEFAULT_PORT 1094
+#define TPC_DEFAULT_PORT BRIX_ROOT_DEFAULT_PORT
 
 /* WHAT: the port a host:port pair connects to when the wire said 0. */
 static unsigned
@@ -55,7 +55,7 @@ tpc_redirect_note(brix_tpc_pull_t *t, const u_char *body, uint32_t dlen)
     }
     /* XRootD lets a redirector send port 0 ("the default"); a negative port
      * selects the URL-list form this pull does not speak. */
-    if (port < 0 || port > 65535) {
+    if (port < 0 || port > BRIX_MAX_PORT) {
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC source redirect to %s carries invalid port %d",
                  t->redir_host, port);

@@ -12,13 +12,23 @@
 #include <ngx_shmtx.h>
 #include <string.h>
 extern ngx_shmtx_t   brix_srv_mutex;
-extern ngx_uint_t    brix_srv_registry_nslots;
-extern ngx_msec_t    brix_srv_stale_after_ms;
-extern ngx_uint_t    brix_srv_load_weight;   /* Phase 89 W4: 0-100, 0 = off */
-extern ngx_uint_t    brix_srv_affinity;      /* Phase 89 W5: path-sticky, 0 = off */
-extern brix_srv_sched_t brix_srv_sched;      /* §2.3: all-zero = engine off */
-extern brix_srv_space_t brix_srv_space;      /* §2.4: enforce=0 = gate off */
-extern ngx_uint_t    brix_srv_delay_servers; /* §2.2: SUPCount floor, 0 = off */
+
+/*
+ * Module state container - encapsulates all registry policy globals.
+ * Access via brix_srv_state() accessor (thread-safe, zero overhead).
+ */
+typedef struct {
+    ngx_uint_t         registry_nslots;     /* Table capacity */
+    ngx_msec_t         stale_after_ms;      /* Staleness threshold */
+    ngx_uint_t         load_weight;         /* Legacy weight 0-100 */
+    ngx_uint_t         affinity;            /* Path-sticky routing */
+    ngx_uint_t         delay_servers;       /* SUPCount floor */
+    brix_srv_sched_t   sched;               /* Component weights */
+    brix_srv_space_t   space;               /* Write-eligibility policy */
+} brix_srv_state_t;
+
+/* Accessor - returns pointer to module state (config-time set, read-only after fork) */
+const brix_srv_state_t *brix_srv_state(void);
 
 
 /* registry.c */
@@ -29,6 +39,10 @@ void srv_space_reeval_locked(brix_srv_entry_t *e);
 /* Locate the in-use entry for host:port; caller MUST hold brix_srv_mutex.
  * NULL when unknown (or the zone is absent). */
 brix_srv_entry_t * srv_find_locked(const char *host, uint16_t port);
+/* Set the global srv_state.space (cluster space accounting). */
+void brix_srv_set_space(const brix_srv_space_t *space);
+/* Set the global srv_state.sched (scheduler policy). */
+void brix_srv_set_sched(const brix_srv_sched_t *sched);
 
 /* registry_select.c */
 int srv_path_matches(const char *paths, const char *path);

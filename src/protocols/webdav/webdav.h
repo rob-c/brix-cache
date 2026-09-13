@@ -83,6 +83,16 @@ typedef struct x509_store_st X509_STORE;
 #define WEBDAV_PUT_COPY_CHUNK    (16 * 1024 * 1024)
 #define WEBDAV_TPC_MAX_HEADERS   64
 
+/* WebDAV timeout and buffer constants */
+#define WEBDAV_CORS_MAX_AGE_DEFAULT    86400   /* 24 hours CORS preflight cache */
+#define WEBDAV_LOCK_TIMEOUT_DEFAULT    600     /* 10 minutes lock timeout */
+#define WEBDAV_REDIRECT_WINDOW_DEFAULT 120     /* 2 minutes redirect validity */
+#define WEBDAV_MACAROON_MAX_VALIDITY   86400   /* 24 hours macaroon validity */
+#define WEBDAV_DN_BUFFER_SIZE          1024    /* DN logging buffer */
+#define WEBDAV_AUTH_CERT_BUFFER_SIZE   1024    /* Auth cert VO/FQAN buffer */
+#define WEBDAV_PATH_BUFFER_SIZE        2048    /* Path resolution buffer */
+#define WEBDAV_QUERY_TOKEN_MAX         8192    /* Query param token max length */
+
 /* --- WebDAV xattr-based lock constants + record ---
  *
  * The record FORMAT (key, maxlen, struct, encode/decode) moved to

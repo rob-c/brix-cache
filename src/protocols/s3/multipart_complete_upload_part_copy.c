@@ -236,6 +236,7 @@ s3_copy_bytes(int src_fd, int dst_fd, char *iobuf, size_t iobuf_sz)
                 if (errno == EINTR) {
                     continue;
                 }
+                /* pwrite failed — errno already set, caller maps to HTTP status. */
                 return -1;
             }
             wbuf      += nw;
@@ -304,7 +305,7 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
     const char      *src_key;
     char             src_fs_path[PATH_MAX];
     char             part_path[PATH_MAX];
-    char             iobuf[65536];
+    char             iobuf[BRIX_S3_COPY_BUF_SIZE];
     struct stat      part_sb;    /* fstat of the written part fd (ETag size/mtime) */
     brix_vfs_ctx_t   sctx;       /* copy SOURCE ctx (probe + open below)          */
     brix_vfs_file_t *fh_src;

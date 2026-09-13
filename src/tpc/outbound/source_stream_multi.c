@@ -159,7 +159,7 @@ tpc_multi_wait_ready(brix_tpc_pull_t *t, tpc_multi_round_t *r)
     if (ready > 0) {
         return ready;
     }
-    return poll(r->pfd, (nfds_t) r->nslots, TPC_IO_TIMEOUT_SEC * 1000);
+    return poll(r->pfd, (nfds_t) r->nslots, BRIX_TPC_IO_TIMEOUT_SEC * 1000);
 }
 
 /* WHAT: drain every reply of the round, whichever socket it arrives on. */

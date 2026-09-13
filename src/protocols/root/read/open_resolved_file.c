@@ -325,7 +325,7 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 	/* Convert XRootD mode bits (Unix permission bits in low 9 bits). */
 	a.create_mode = (mode_bits & 0777);
 	if (a.create_mode == 0) {
-		a.create_mode = 0644;
+		a.create_mode = BRIX_ROOT_DEFAULT_FILE_MODE;
 	}
 
 	a.idx = brix_alloc_fhandle(ctx);

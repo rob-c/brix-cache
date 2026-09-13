@@ -15,6 +15,7 @@
 #define _GNU_SOURCE          /* execvpe: PATH search + caller-supplied environ */
 #endif
 #include "xfer_spawn.h"
+#include "../../core/types/tunables.h"
 
 #include <errno.h>
 #include <signal.h>
@@ -158,7 +159,7 @@ brix_xfer_run_reparented(const char *const argv[], char *const envp[])
     pid_t    inter;
     int      code = -1;
     struct rlimit nofile;
-    int      fd_max = 1024;
+    int      fd_max = BRIX_XFER_FD_DEFAULT_MAX;
 
     if (argv == NULL || argv[0] == NULL) {
         errno = EINVAL;

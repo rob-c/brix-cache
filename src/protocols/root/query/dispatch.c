@@ -1,10 +1,39 @@
 /*
- * WHAT: Dispatch the kXR_query opcode to one of 14+ sub-handlers based on the request's infotype field. Each infotype value routes to a specialized handler: checksum computation, filesystem space inquiry, server configuration query, statistics collection, extended attribute listing, file info retrieval, and various opaque/visa extension hooks. Returns kXR_Unsupported for unrecognized infotypes with debug logging.
+ * WHAT: Dispatch kXR_query opcode to 14+ sub-handlers by infotype field.
+ *   - Checksum computation (Qcksum, Qckscan)
+ *   - Filesystem space inquiry (Qspace)
+ *   - Server configuration query (Qconfig)
+ *   - Statistics collection (QStats)
+ *   - Extended attribute listing (Qxattr)
+ *   - File info retrieval (QFinfo, QFSinfo)
+ *   - Opaque/visa extension hooks (Qopaqug, Qvisa, etc.)
+ *   - Returns kXR_Unsupported for unrecognized infotypes
  */
 
-/* WHY: The XRootD query protocol consolidates diverse server-side operations into a single opcode (kXR_query) rather than requiring separate opcodes for each operation type. This reduces wire protocol complexity while enabling flexible sub-protocol extension — new query types can be added by registering handlers without changing the core dispatcher or client code. The typedef struct brix_ckscan_aio_t and extern declarations cross-reference checksum scan AIO infrastructure defined in separate files (checksum_ckscan_common.c, checksum_ckscan_async.c) to maintain modular architecture while keeping dispatcher self-contained. */
+/* WHY: XRootD query protocol consolidates diverse operations into single opcode.
+ *   - Reduces wire protocol complexity
+ *   - Enables flexible sub-protocol extension
+ *   - New query types added via handler registration
+ *   - Core dispatcher/client code unchanged
+ *   - typedef/extern cross-reference checksum AIO infrastructure
+ *   - Maintains modular architecture, keeps dispatcher self-contained
+ */
 
-/* HOW: When brix_read_only_public is on, the server-scoped infotypes (QStats/Qspace/QFSinfo/Qvisa) are refused with kXR_NotAuthorized before any routing happens — see brix_query_is_server_introspection; kXR_Qconfig routes normally and is filtered per key in query/config.c so capability negotiation and readv tuning keep working. Otherwise: sequential infotype comparison chain using ntohs() to convert big-endian 16-bit value from wire format into host byte order. Each if-block calls a dedicated handler function (brix_query_prep_status through brix_query_opaqug) — handlers return NGX_OK/NGX_ERROR or send error responses directly. The last kXR_Qvisa case includes an additional precondition check: ctx->recv.cur_dlen must be zero (no pending data length) before proceeding to visa query. After all comparisons, debug log the unsupported infotype value and call brix_send_error() with kXR_Unsupported status. */
+/* HOW:
+ *   - When brix_read_only_public is on:
+ *     - Server-scoped infotypes (QStats/Qspace/QFSinfo/Qvisa) refused
+ *     - Returns kXR_NotAuthorized before routing
+ *     - See brix_query_is_server_introspection
+ *     - kXR_Qconfig routes normally, filtered per key in query/config.c
+ *   - Otherwise: sequential infotype comparison chain
+ *     - Uses ntohs() to convert big-endian 16-bit wire value
+ *     - Each if-block calls dedicated handler function
+ *     - Handlers return NGX_OK/NGX_ERROR or send error directly
+ *   - kXR_Qvisa case: additional precondition check
+ *     - ctx->recv.cur_dlen must be zero (no pending data)
+ *   - After comparisons: debug log unsupported infotype
+ *     - Call brix_send_error() with kXR_Unsupported status
+ */
 
 #include "query_internal.h"
 #include "protocols/ssi/ssi.h"   /* §7 XrdSsi response-wait via kXR_query(Qopaqug) */

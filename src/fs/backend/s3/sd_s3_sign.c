@@ -11,6 +11,7 @@
  */
 #include "sd_s3.h"
 #include "sd_s3_internal.h"     /* sd_s3_file layout + SigV4/error primitives (split out) */
+#include "../../../core/types/tunables.h"
 
 #include "core/compat/crypto.h"        /* brix_sha256 / brix_hmac_sha256 */
 #include "core/compat/hex.h"           /* brix_hex_encode */
@@ -59,11 +60,11 @@ sd_s3_utc_now(char amzdate[20], char datestamp[12])
 
     gettimeofday(&tv, NULL);
     secs = (long long) tv.tv_sec;
-    days = secs / 86400;
-    rem  = secs % 86400;
-    if (rem < 0) { rem += 86400; days -= 1; }
-    hh = (int) (rem / 3600);
-    mm = (int) ((rem % 3600) / 60);
+    days = secs / BRIX_VFS_SECS_PER_DAY;
+    rem  = secs % BRIX_VFS_SECS_PER_DAY;
+    if (rem < 0) { rem += BRIX_VFS_SECS_PER_DAY; days -= 1; }
+    hh = (int) (rem / BRIX_VFS_SECS_PER_HOUR);
+    mm = (int) ((rem % BRIX_VFS_SECS_PER_HOUR) / BRIX_VFS_SECS_PER_MIN);
     ss = (int) (rem % 60);
 
     /* Howard Hinnant's civil_from_days (days since 1970-01-01, UTC). */
@@ -120,9 +121,9 @@ s3s_fmt(char *buf, size_t cap, const char *fmt, ...)
 /* The three renderings one optional signed header needs: its canonical
  * "name:value\n" line, its SignedHeaders token, and its wire header line. */
 typedef struct {
-    char canon[2112];
+    char canon[BRIX_VFS_S3_EMIT_BUF_SIZE];
     char tok[64];
-    char emit[2112];
+    char emit[BRIX_VFS_S3_EMIT_BUF_SIZE];
 } s3s_hdr3;
 
 /* Render one optional signed header into all three forms. `trailing` selects the
@@ -194,7 +195,7 @@ sd_s3_sign_ex(const sd_s3_file *f, const char *method, const char *canon_qs,
     char        host[300];
     char        amzdate[20], datestamp[12];
     char        sighex[65];
-    char        canon[8192], scope[160], enc_uri[2048];
+    char        canon[BRIX_VFS_S3_SIGN_CANON_BUF_SIZE], scope[BRIX_VFS_S3_SIGN_SCOPE_BUF_SIZE], enc_uri[BRIX_VFS_S3_SIGN_ENC_URI_BUF_SIZE];
     s3s_hdr3    ck, st;
     const char *st_name = NULL;
 

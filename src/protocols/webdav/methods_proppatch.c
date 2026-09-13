@@ -26,7 +26,7 @@
 #include <unistd.h>
 #include "core/compat/alloc_guard.h"
 
-#define WEBDAV_PROPPATCH_BODY_MAX 65536u
+#define WEBDAV_PROPPATCH_BODY_MAX  BRIX_WEBDAV_PROPPATCH_BODY_MAX
 
 /*
  * WHAT: Invariant state threaded through the PROPPATCH property walk — the

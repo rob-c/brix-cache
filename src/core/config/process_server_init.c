@@ -77,7 +77,7 @@ brix_init_server_backend_credential(ngx_cycle_t *cycle,
     ngx_stream_brix_srv_conf_t *xcf)
 {
     char                       credz[256];
-    char                       bearer[4096];
+    char                       bearer[BRIX_CONFIG_BEARER_BUF_SIZE];
     const brix_credential_t   *cred;
     brix_vfs_backend_cred_t    bcred;
 
@@ -328,7 +328,7 @@ brix_init_server_csi_scrub_timer(ngx_cycle_t *cycle,
  *
  * HOW:
  *   1. Skip unless a cache is configured, a state root resolves, and
- *      0 < high_watermark < 1000000.
+ *      0 < high_watermark < BRIX_CONFIG_WATERMARK_MAX.
  *   2. pcalloc the timer event from the cycle pool (NGX_ERROR on failure).
  *   3. Point it at brix_cache_watermark_timer_handler, mark cancelable, arm
  *      at the resolved first-tick delay + per-worker jitter (bounded by the
@@ -344,7 +344,7 @@ brix_init_server_watermark_timer(ngx_cycle_t *cycle,
     if ((!xcf->cache && xcf->common.cache_store.len == 0)
         || brix_cache_state_root(xcf) == NULL
         || ((xcf->reaper.high_watermark <= 0
-             || xcf->reaper.high_watermark >= 1000000)
+             || xcf->reaper.high_watermark >= BRIX_CONFIG_WATERMARK_MAX)
             && xcf->reaper.max_bytes <= 0))
     {
         return NGX_OK;
@@ -362,7 +362,7 @@ brix_init_server_watermark_timer(ngx_cycle_t *cycle,
     xcf->reaper.timer->cancelable = 1;  /* don't delay graceful shutdown */
     {
         ngx_msec_t first = brix_cache_reap_delay(BRIX_CACHE_REAP_FIRST_MS);
-        ngx_msec_t span = (first < 1000) ? first : 1000;
+        ngx_msec_t span = (first < BRIX_CONFIG_FRM_PURGE_DELAY_MIN_MS) ? first : BRIX_CONFIG_FRM_PURGE_DELAY_MIN_MS;
         ngx_msec_t jitter = (span > 0) ? (ngx_msec_t) (ngx_pid % span) : 0;
 
         ngx_add_timer(xcf->reaper.timer, first + jitter);
@@ -412,7 +412,7 @@ brix_init_server_crl_jwks(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
     xcf->crl_timer->log     = cycle->log;
     xcf->crl_timer->cancelable = 1;  /* don't delay graceful shutdown */
 
-    ngx_add_timer(xcf->crl_timer, (ngx_msec_t) xcf->crl_reload * 1000);
+    ngx_add_timer(xcf->crl_timer, (ngx_msec_t) xcf->crl_reload * BRIX_MSEC_PER_SEC);
 
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
                   "brix: CRL reload timer started - interval=%ds "

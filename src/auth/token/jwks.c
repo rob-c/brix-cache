@@ -1,16 +1,31 @@
-/* JWKS (JSON Web Key Set) loading from disk — parse RSA and EC P-256 public keys for OIDC token verification.
+/*
+ * JWKS (JSON Web Key Set) loading from disk — parse RSA and EC P-256 public
+ * keys for OIDC token verification.
  *
- * WHAT: Loads a JWKS JSON file from disk, parses the "keys" array to extract RSA (n/e) and EC P-256 (crv/x/y)
- * key parameters, converts them into EVP_PKEY objects via OpenSSL, stores kid + pkey pairs in caller-supplied
- * keys array. Also provides cleanup function to free all loaded EVP_PKEY handles.
+ * WHAT: Loads a JWKS JSON file from disk, parses the "keys" array to extract
+ * RSA (n/e) and EC P-256 (crv/x/y) key parameters.
  *
- * WHY: OIDC token verification requires the public key matching the token's "kid" header claim. JWKS is the
- * standard format for publishing a provider's rotating set of public keys. Loading from disk at startup lets
- * the server verify bearer tokens without HTTP round-trips to the provider's JWKS endpoint.
+ *   - Converts them into EVP_PKEY objects via OpenSSL
+ *   - Stores kid + pkey pairs in caller-supplied keys array
+ *   - Also provides cleanup function to free all loaded EVP_PKEY handles
  *
- * HOW: brix_jwks_load() — fopen(path,"r"), fcntl FD_CLOEXEC, fseek/ftell for size validation (0 < fsize ≤ BRIX_JWKS_FILE_MAX),
- * malloc(fsize+1), fread full file content, null-terminate buf, call brix_jwks_load_jansson(log,path,buf,fsize,keys,max_keys),
- * free(buf), return count. brix_jwks_free() — iterate i=0..count, EVP_PKEY_free non-null pkey, nullify keys[i].pkey. */
+ * WHY: OIDC token verification requires the public key matching the token's
+ * "kid" header claim.
+ *
+ *   - JWKS is the standard format for publishing a provider's rotating set of
+ *   public keys
+ *   - Loading from disk at startup lets the server verify bearer tokens
+ *   without HTTP round-trips to the provider's JWKS endpoint
+ *
+ * HOW: brix_jwks_load() — fopen(path,"r"), fcntl FD_CLOEXEC, fseek/ftell for
+ * size validation (0 < fsize ≤ BRIX_JWKS_FILE_MAX), malloc(fsize+1), fread
+ * full file content, null-terminate buf, call
+ * brix_jwks_load_jansson(log,path,buf,fsize,keys,max_keys), free(buf), return
+ * count.
+ *
+ *   - brix_jwks_free() — iterate i=0..count, EVP_PKEY_free non-null pkey,
+ *   nullify keys[i].pkey
+ */
 
 #include "token_internal.h"
 #include "json.h"
@@ -202,22 +217,45 @@ brix_jwks_load_jansson(ngx_log_t *log, const char *path,
     return count;
 }
 
-/* WHAT: Static helper — parse JWKS JSON from memory buffer into EVP_PKEY key array.
- * WHY: Separates the Jansson-specific parsing logic from disk I/O so brix_jwks_load() can swap backends
- * (e.g., file-based vs HTTP-fetched JWKS) without changing parser internals.
- * HOW: json_loadb() parses buffer into json_t root; validate root is object then extract "keys" array (return -1 if missing);
- * json_array_foreach() iterates each item, extracting kty/kid/n_b64/e_b64/crv/x_b64/y_b64 via JWKS_STRING_FIELD macro;
- * for RSA keys: call brix_token_rsa_pubkey_from_ne(n_b64,e_b64) → EVP_PKEY; for EC P-256: call brix_token_ec_pubkey_from_xy(x_b64,y_b64);
- * store kid+pkey into keys[count], increment count, skip unsupported kty with WARN log; json_decref(root), return count. */
+/*
+ * WHAT: Static helper — parse JWKS JSON from memory buffer into EVP_PKEY key
+ * array.
+ *
+ * WHY: Separates the Jansson-specific parsing logic from disk I/O so
+ * brix_jwks_load() can swap backends (e.g., file-based vs HTTP-fetched JWKS)
+ * without changing parser internals.
+ *
+ * HOW: json_loadb() parses buffer into json_t root; validate root is object
+ * then extract "keys" array (return -1 if missing).
+ *
+ *   - json_array_foreach() iterates each item, extracting
+ *   kty/kid/n_b64/e_b64/crv/x_b64/y_b64 via JWKS_STRING_FIELD macro
+ *   - For RSA keys: call brix_token_rsa_pubkey_from_ne(n_b64,e_b64) →
+ *   EVP_PKEY
+ *   - For EC P-256: call brix_token_ec_pubkey_from_xy(x_b64,y_b64)
+ *   - Store kid+pkey into keys[count], increment count, skip unsupported kty
+ *   with WARN log
+ *   - json_decref(root), return count
+ */
 
 int
 brix_jwks_load(ngx_log_t *log, const char *path,
     brix_jwks_key_t *keys, int max_keys)
-/* WHAT: Load JWKS public keys from disk file into caller-supplied key array for OIDC token verification.
- * WHY: Provides the startup-time key loading entry point — callers open a JWKS JSON file and receive parsed
- * EVP_PKEY handles indexed by kid, ready for brix_token_verify_bearer() lookup.
- * HOW: fopen(path,"r"), fcntl(fileno(fp),F_SETFD,FD_CLOEXEC) for safe fork behavior; fseek/ftell validate size (0 < fsize ≤ BRIX_JWKS_FILE_MAX);
- * malloc(fsize+1), fread full content, null-terminate buf; call brix_jwks_load_jansson(log,path,buf,fsize,keys,max_keys); free(buf); return count. */
+/*
+ * WHAT: Load JWKS public keys from disk file into caller-supplied key array
+ * for OIDC token verification.
+ *
+ * WHY: Provides the startup-time key loading entry point — callers open a
+ * JWKS JSON file and receive parsed EVP_PKEY handles indexed by kid, ready
+ * for brix_token_verify_bearer() lookup.
+ *
+ * HOW: fopen(path,"r"), fcntl(fileno(fp),F_SETFD,FD_CLOEXEC) for safe fork
+ * behavior; fseek/ftell validate size (0 < fsize ≤ BRIX_JWKS_FILE_MAX).
+ *
+ *   - malloc(fsize+1), fread full content, null-terminate buf
+ *   - Call brix_jwks_load_jansson(log,path,buf,fsize,keys,max_keys)
+ *   - free(buf), return count
+ */
 {
     FILE  *fp;
     char  *buf;
@@ -326,10 +364,17 @@ brix_jwks_register_cleanup(ngx_pool_t *pool, brix_jwks_key_t *keys,
 
 void
 brix_jwks_free(brix_jwks_key_t *keys, int count)
-/* WHAT: Free all EVP_PKEY handles loaded by brix_jwks_load() to prevent memory leaks.
- * WHY: JWKS keys are allocated at startup; this cleanup function must be called before shutdown or when reloading
- * a new JWKS file to avoid leaking OpenSSL EVP_PKEY resources.
- * HOW: Iterate i=0..count-1, for each non-null keys[i].pkey call brix_evp_pkey_free(), then nullify keys[i].pkey to prevent double-free. */
+/*
+ * WHAT: Free all EVP_PKEY handles loaded by brix_jwks_load() to prevent
+ * memory leaks.
+ *
+ * WHY: JWKS keys are allocated at startup; this cleanup function must be
+ * called before shutdown or when reloading a new JWKS file to avoid leaking
+ * OpenSSL EVP_PKEY resources.
+ *
+ * HOW: Iterate i=0..count-1, for each non-null keys[i].pkey call
+ * brix_evp_pkey_free(), then nullify keys[i].pkey to prevent double-free.
+ */
 {
     int i;
 

@@ -70,7 +70,7 @@ proxy_parse_host_port(ngx_conf_t *cf, ngx_str_t *value,
         if (colon == NULL) {
             host_out->data = (u_char *) addr_copy;
             host_out->len  = value->len;
-            *port_out      = 1094;
+            *port_out      = BRIX_PROXY_DEFAULT_PORT;
             return NGX_CONF_OK;
         }
         size_t hostlen = (size_t)(colon - addr_copy);
@@ -178,7 +178,7 @@ brix_conf_set_proxy_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
     ngx_str_t                    *value;
     char                         *addr_copy, *rc;
     ngx_str_t                     host;
-    uint16_t                      port = 1094;
+    uint16_t                      port = BRIX_PROXY_DEFAULT_PORT;
     brix_proxy_upstream_t      *entry;
 
     (void) cmd;

@@ -23,17 +23,27 @@ ngx_brix_cms_send_frame(ngx_brix_cms_ctx_t *ctx, uint32_t streamid,
                                  payload, payload_len);
 }
 
-/* ngx_brix_cms_send_error — reply to a forwarded op that failed * WHAT: Sends a kYR_error reply frame: [4B big-endian ecode][text + NUL],
- *       echoing the request streamid.  WHY: byte-exact with cmsd
- *       XrdCmsProtocol::Reply_Error — a data node answers a failed forwarded
- *       namespace op (Plane B) this way; success stays silent.  HOW: pack the
- *       error code then the NUL-terminated text into a stack buffer and dispatch
- *       a CMS_RSP_ERROR frame.  text is truncated to fit the frame cap. */
+/*
+ * ngx_brix_cms_send_error — reply to a forwarded op that failed
+ *
+ * WHAT:
+ *   Sends a kYR_error reply frame: [4B big-endian ecode][text + NUL],
+ *   echoing the request streamid.
+ *
+ * WHY:
+ *   Byte-exact with cmsd XrdCmsProtocol::Reply_Error — a data node answers
+ *   a failed forwarded namespace op (Plane B) this way; success stays silent.
+ *
+ * HOW:
+ *   Pack the error code then the NUL-terminated text into a stack buffer
+ *   and dispatch a CMS_RSP_ERROR frame.
+ *   Text is truncated to fit the frame cap.
+ */
 ngx_int_t
 ngx_brix_cms_send_error(ngx_brix_cms_ctx_t *ctx, uint32_t streamid,
     uint32_t ecode, const char *text)
 {
-    u_char  buf[256];
+    u_char  buf[BRIX_CMS_ERR_BUF_SIZE];
     size_t  tlen;
 
     tlen = (text != NULL) ? ngx_strlen(text) : 0;
@@ -95,12 +105,12 @@ cms_login_mode(ngx_stream_brix_srv_conf_t *conf)
 ngx_int_t
 ngx_brix_cms_send_login(ngx_brix_cms_ctx_t *ctx)
 {
-    u_char      payload[1280];
+    u_char      payload[BRIX_CMS_LOGIN_PAYLOAD_BUF];
     u_char     *payload_cursor;
-    u_char      sid[256];
-    u_char      pathbuf[640];
-    u_char      envbuf[80];
-    u_char      hostbuf[200];
+    u_char      sid[BRIX_CMS_SID_BUF];
+    u_char      pathbuf[BRIX_CMS_PATH_LIST_BUF];
+    u_char      envbuf[BRIX_CMS_ENV_CGI_BUF];
+    u_char      hostbuf[BRIX_CMS_HOST_ID_BUF];
     u_char     *pp;
     ngx_str_t   paths;
     size_t      sid_len;

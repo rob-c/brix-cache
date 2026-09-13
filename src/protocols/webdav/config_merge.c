@@ -84,12 +84,12 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
     BRIX_MERGE_PTR(conf, prev, cors_origins);
     BRIX_MERGE_PTR(conf, prev, header2cgi);   /* §6.5 header->cgi map */
     ngx_conf_merge_value(conf->cors_credentials, prev->cors_credentials, 0);
-    ngx_conf_merge_sec_value(conf->cors_max_age, prev->cors_max_age, 86400);
-    ngx_conf_merge_sec_value(conf->lock_timeout, prev->lock_timeout, 600);
+    ngx_conf_merge_sec_value(conf->cors_max_age, prev->cors_max_age, WEBDAV_CORS_MAX_AGE_DEFAULT);
+    ngx_conf_merge_sec_value(conf->lock_timeout, prev->lock_timeout, WEBDAV_LOCK_TIMEOUT_DEFAULT);
     ngx_conf_merge_value(conf->lock_startup_sweep, prev->lock_startup_sweep, 0);
     ngx_conf_merge_value(conf->http_query_token, prev->http_query_token, 1);
     ngx_conf_merge_value(conf->macaroon_max_validity,
-                         prev->macaroon_max_validity, 86400);
+                         prev->macaroon_max_validity, WEBDAV_MACAROON_MAX_VALIDITY);
     ngx_conf_merge_str_value(conf->macaroon_location, prev->macaroon_location, "");
     ngx_conf_merge_str_value(conf->checksum_on_write, prev->checksum_on_write, "");
     ngx_conf_merge_uint_value(conf->checksum_xattr_format,
@@ -115,7 +115,7 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
     ngx_conf_merge_value(conf->redirect_port,   prev->redirect_port,   0);
     ngx_conf_merge_uint_value(conf->redirect_scheme, prev->redirect_scheme,
                               BRIX_WEBDAV_RDR_HTTP);
-    ngx_conf_merge_value(conf->redirect_window, prev->redirect_window, 120);
+    ngx_conf_merge_value(conf->redirect_window, prev->redirect_window, WEBDAV_REDIRECT_WINDOW_DEFAULT);
     ngx_conf_merge_str_value(conf->http_secretkey, prev->http_secretkey, "");
     ngx_conf_merge_ptr_value(conf->dig_exports, prev->dig_exports, NULL);
     ngx_conf_merge_str_value(conf->dig_auth_file, prev->dig_auth_file, "");

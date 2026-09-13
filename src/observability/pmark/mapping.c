@@ -144,7 +144,7 @@ pmark_split_dest(ngx_str_t *spec, u_char *host, size_t hostsz,
 
     if (colon && colon + 1 < end) {
         n = ngx_atoi(colon + 1, (size_t) (end - (colon + 1)));
-        if (n <= 0 || n > 65535) {
+        if (n <= 0 || n > BRIX_PMARK_PORT_MAX) {
             return NGX_ERROR;
         }
         *port = (in_port_t) n;
@@ -224,7 +224,7 @@ static ngx_array_t *
 pmark_load_defs(brix_pmark_conf_t *pm, ngx_pool_t *pool, ngx_log_t *log)
 {
     ngx_array_t *defs = NULL;
-    char         path[1024];
+    char         path[BRIX_PMARK_PATH_BUF];
 
     if (pm->defsfile.len == 0) {
         return NULL;

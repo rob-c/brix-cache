@@ -172,7 +172,7 @@ brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
     static time_t tos_latch = 0;   /* worker start proxy: first-stats time */
-    char     resp[4096];
+    char     resp[BRIX_ROOT_FATTR_VAL_BUF];
     size_t   pos = 0;
     unsigned sel = stats_selector(ctx);
     int      port = stats_resolve_port(ctx, c);
@@ -278,8 +278,8 @@ brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c,
                 "<ino>%llu</ino><ifr>%llu</ifr></stats></paths>"
                 "<space>0</space></stats>",
                 conf->common.root_canon,
-                (unsigned long long) (vfs.f_blocks * (vfs.f_frsize / 1024)),
-                (unsigned long long) (vfs.f_bavail * (vfs.f_frsize / 1024)),
+                (unsigned long long) (vfs.f_blocks * (vfs.f_frsize / BRIX_ROOT_BYTES_TO_KB)),
+                (unsigned long long) (vfs.f_bavail * (vfs.f_frsize / BRIX_ROOT_BYTES_TO_KB)),
                 (unsigned long long) vfs.f_files,
                 (unsigned long long) vfs.f_favail);
         }
@@ -342,9 +342,9 @@ brix_query_xattr(brix_ctx_t *ctx, ngx_connection_t *c,
 {
     char              pathbuf[BRIX_MAX_PATH + 1];
     char              full_path[PATH_MAX];
-    char              resp[4096];
+    char              resp[BRIX_ROOT_FATTR_VAL_BUF];
     int               pos = 0;
-    char              raw_list[4096];
+    char              raw_list[BRIX_ROOT_FATTR_VAL_BUF];
     ssize_t           list_sz;
     brix_vfs_ctx_t  vctx;
     brix_vfs_stat_t vst;
@@ -405,7 +405,7 @@ brix_query_xattr(brix_ctx_t *ctx, ngx_connection_t *c,
             size_t nlen = strlen(lp);
 
             if (strncmp(lp, "user.U.", 7) == 0 && nlen > 7) {
-                char    val[1024];
+                char    val[BRIX_ROOT_FATTR_VAL_BUF / 4];
                 ssize_t vlen;
 
                 vlen = brix_vfs_getxattr(&vctx, lp, val, sizeof(val) - 1);

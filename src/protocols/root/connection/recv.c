@@ -65,7 +65,7 @@ brix_recv_pre_loop(ngx_stream_session_t *s, ngx_connection_t *c,
              * record a negative location entry so the client's retry answers
              * immediately instead of re-parking.  Only state fan-outs carry a
              * probe path; CMS-parent locates never poison the cache. */
-            char probe_path[1024];
+            char probe_path[BRIX_ROOT_PROBE_PATH_SIZE];
 
             rev->timedout = 0;
             if (brix_pending_take_path(ctx->cms_wait_streamid, ngx_pid,

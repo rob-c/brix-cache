@@ -2,12 +2,24 @@
 
 /*
  * WHAT: Prometheus metrics export for the S3-compatible HTTP endpoint.
- * WHY: The S3 endpoint receives requests from XrdClS3, aws s3 CLI, and other S3-compatible clients.
- *      These counters track request volume, response status classes, authentication outcomes (SigV4 vs anonymous),
- *      data transfer volumes, range handling, PUT body modes, diagnostic events, and ListObjectsV2 pagination stats.
- * HOW: Five static string tables map slot indices to low-cardinality label strings per INVARIANT #8; one public function
- *      iterates all counters via ngx_atomic_fetch_add(..., 0) for eventually-consistent Prometheus snapshots.
- *      Each metric line includes HELP description and TYPE counter declaration before the actual data line.
+ *
+ * WHY: The S3 endpoint receives requests from XrdClS3, aws s3 CLI, and other
+ *      S3-compatible clients. These counters track:
+ *      - Request volume
+ *      - Response status classes
+ *      - Authentication outcomes (SigV4 vs anonymous)
+ *      - Data transfer volumes
+ *      - Range handling
+ *      - PUT body modes
+ *      - Diagnostic events
+ *      - ListObjectsV2 pagination stats
+ *
+ * HOW: Five static string tables map slot indices to low-cardinality label
+ *      strings per INVARIANT #8.
+ *      One public function iterates all counters via ngx_atomic_fetch_add(..., 0)
+ *      for eventually-consistent Prometheus snapshots.
+ *      Each metric line includes HELP description and TYPE counter declaration
+ *      before the actual data line.
  */
 
 /* S3 HTTP method name labels for the requests_total / responses_total counters.

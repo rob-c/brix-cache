@@ -1,7 +1,29 @@
 /*
- * WHAT: This file implements parent directory group policy inheritance for XRootD mkdir operations. brix_finalize_group_rules() canonicalizes all group rule paths using brix_finalize_path_rules with sizeof(brix_group_rule_t) parameters; brix_parent_group_mode_bits() computes desired group permission bits from parent's st_mode (S_IRWXG for directories, S_IRGRP|S_IWGRP for files + inherited file execute bit); brix_apply_parent_group_policy_impl() performs full policy enforcement: finds matching group rule via longest-prefix match, extracts parent directory path via strrchr, stat(parent) and stat/fstat(child), computes desired_mode (child mode masked without group bits then ORed with parent-derived bits), applies S_ISGID from parent if child is a directory, chown/fchown child to parent's gid if different, chmod/fchmod child to desired_mode if differs. Public wrappers: brix_apply_parent_group_policy_fd() (fd-based), brix_apply_parent_group_policy_path() (path-based).
+ * WHAT: Parent directory group policy inheritance for XRootD mkdir operations.
  *
- * WHY: Group policy inheritance ensures new files/directories created under a parent directory inherit the parent's group ownership and appropriate group permission bits — critical for shared HEP datasets where multiple users in the same Unix group need consistent access. S_ISGID propagation on directories ensures subdirectories also inherit the group; file execute bit inherited only if child already has it prevents over-permissive mode assignment on regular files. */
+ *   - brix_finalize_group_rules(): canonicalizes paths via brix_finalize_path_rules
+ *   - brix_parent_group_mode_bits(): computes group permission bits from parent st_mode
+ *     - Directories: S_IRWXG (all 3 group bits)
+ *     - Files: S_IRGRP|S_IWGRP + inherited S_IXGRP (if child has it)
+ *   - brix_apply_parent_group_policy_impl(): full policy enforcement
+ *     - Finds matching group rule (longest-prefix match)
+ *     - Extracts parent directory path via strrchr
+ *     - Stats parent and child (stat/fstat)
+ *     - Computes desired_mode (child mode sans group bits | parent-derived bits)
+ *     - Applies S_ISGID from parent if child is directory
+ *     - chown/fchown child to parent's gid if different
+ *     - chmod/fchmod child to desired_mode if differs
+ *   - Public wrappers:
+ *     - brix_apply_parent_group_policy_fd() (fd-based)
+ *     - brix_apply_parent_group_policy_path() (path-based)
+ *
+ * WHY: Group policy inheritance for shared HEP datasets.
+ *
+ *   - New files/dirs inherit parent's group ownership and permission bits
+ *   - Critical for multi-user Unix groups needing consistent access
+ *   - S_ISGID propagation: subdirectories inherit group
+ *   - File execute bit: inherited only if child already has it (prevents over-permission)
+ */
 
 #include "core/ngx_brix_module.h"
 
@@ -24,7 +46,16 @@ brix_finalize_group_rules(ngx_log_t *log, const ngx_str_t *root,
                                       offsetof(brix_group_rule_t, resolved),
                                       sizeof(((brix_group_rule_t *) 0)->resolved));
 }
-/* HOW: Calls brix_finalize_path_rules(log, root, rules, sizeof(brix_group_rule_t), offsetof(brix_group_rule_t, path), offsetof(brix_group_rule_t, resolved), sizeof(resolved)) — passes group rule struct size and field offsets so the generic finalizer canonicalizes each rule's path via realpath(2) into resolved. Returns brix_finalize_path_rules() result directly (NGX_OK or NGX_ERROR). */
+/* HOW: Canonicalizes group rule paths.
+ *
+ *   - Calls brix_finalize_path_rules() with:
+ *     - sizeof(brix_group_rule_t)
+ *     - offsetof(brix_group_rule_t, path)
+ *     - offsetof(brix_group_rule_t, resolved)
+ *     - sizeof(resolved)
+ *   - Generic finalizer canonicalizes each rule's path via realpath(2)
+ *   - Returns result directly (NGX_OK or NGX_ERROR)
+ */
 
 static mode_t
 brix_parent_group_mode_bits(const struct stat *parent,
@@ -43,7 +74,13 @@ brix_parent_group_mode_bits(const struct stat *parent,
 
     return group_bits;
 }
-/* HOW: If S_ISDIR(child->st_mode): group_bits=parent->st_mode & S_IRWXG (all 3 group bits). Else: group_bits=parent->st_mode & (S_IRGRP | S_IWGRP) (read+write only for files). If child->st_mode & S_IXGRP → group_bits |= S_IXGRP (inherits file execute bit if child already has it). Returns computed group_bits. */
+/* HOW: Computes group permission bits from parent st_mode.
+ *
+ *   - If S_ISDIR(child->st_mode): group_bits = parent->st_mode & S_IRWXG
+ *   - Else (file): group_bits = parent->st_mode & (S_IRGRP | S_IWGRP)
+ *   - If child->st_mode & S_IXGRP → group_bits |= S_IXGRP (inherits execute)
+ *   - Returns computed group_bits
+ */
 
 /*
  * WHAT: brix_derive_parent_dir() copies path into the caller's parent buffer,
@@ -140,24 +177,24 @@ brix_apply_child_gid(int fd, const char *path, gid_t gid)
 
 /*
  * WHAT: brix_apply_child_mode() sets the child's low 12 permission/special bits
- * to mode&07777, using fchmod(fd) when fd>=0 and chmod(path) otherwise.
+ * to mode&BRIX_PERM_MASK, using fchmod(fd) when fd>=0 and chmod(path) otherwise.
  *
  * WHY: A chown can silently clear setuid/setgid on some kernels, so mode is
  * re-asserted after ownership; keeping the fd/path split here mirrors the gid
  * helper and leaves the driver a single mode-application decision.
  *
- * HOW: fd>=0 → fchmod(fd,mode&07777); else → chmod(path,mode&07777). Either
- * returning non-zero → NGX_ERROR (errno from the syscall). Else NGX_OK.
+ * HOW: fd>=0 → fchmod(fd,mode&BRIX_PERM_MASK); else → chmod(path,mode&BRIX_PERM_MASK).
+ * Either returning non-zero → NGX_ERROR (errno from the syscall). Else NGX_OK.
  */
 static ngx_int_t
 brix_apply_child_mode(int fd, const char *path, mode_t mode)
 {
     if (fd >= 0) {
-        if (fchmod(fd, mode & 07777) != 0) {
+        if (fchmod(fd, mode & BRIX_PERM_MASK) != 0) {
             return NGX_ERROR;
         }
     } else {
-        if (chmod(path, mode & 07777) != 0) {
+        if (chmod(path, mode & BRIX_PERM_MASK) != 0) {
             return NGX_ERROR;
         }
     }
@@ -180,6 +217,7 @@ brix_apply_child_mode(int fd, const char *path, mode_t mode)
  * HOW: desired = (child->st_mode & ~(S_IRWXG|S_ISGID)) |
  * brix_parent_group_mode_bits(parent,child). If S_ISDIR(child->st_mode) and
  * (parent->st_mode & S_ISGID) → desired |= S_ISGID. Returns desired.
+ * Uses BRIX_PERM_MASK for permission bit extraction.
  */
 static mode_t
 brix_desired_child_mode(const struct stat *parent, const struct stat *child)
@@ -214,8 +252,8 @@ brix_desired_child_mode(const struct stat *parent, const struct stat *child)
  * stat(parent,&parent_st)!=0 → NGX_ERROR. brix_stat_child(fd,path,&child_st)
  * propagated. desired_mode=brix_desired_child_mode(&parent_st,&child_st). If
  * child_st.st_gid!=parent_st.st_gid → brix_apply_child_gid(fd,path,
- * parent_st.st_gid), propagate non-OK. If (child_st.st_mode & 07777) !=
- * (desired_mode & 07777) → brix_apply_child_mode(fd,path,desired_mode),
+ * parent_st.st_gid), propagate non-OK. If (child_st.st_mode & BRIX_PERM_MASK) !=
+ * (desired_mode & BRIX_PERM_MASK) → brix_apply_child_mode(fd,path,desired_mode),
  * propagate non-OK. Returns NGX_OK on success.
  */
 static ngx_int_t
@@ -265,7 +303,7 @@ brix_apply_parent_group_policy_impl(ngx_log_t *log, int fd,
     /* Compare and apply only the low 12 permission/special bits (07777 =
      * setuid|setgid|sticky + rwxrwxrwx); the file-type bits in st_mode are
      * masked off so chmod is skipped entirely when nothing in those bits moved. */
-    if ((child_st.st_mode & 07777) != (desired_mode & 07777)) {
+    if ((child_st.st_mode & BRIX_PERM_MASK) != (desired_mode & BRIX_PERM_MASK)) {
         rc = brix_apply_child_mode(fd, path, desired_mode);
         if (rc != NGX_OK) {
             return rc;
@@ -281,7 +319,11 @@ brix_apply_parent_group_policy_fd(ngx_log_t *log, int fd, const char *path,
 {
     return brix_apply_parent_group_policy_impl(log, fd, path, rules);
 }
-/* HOW: Direct wrapper — calls brix_apply_parent_group_policy_impl(log, fd, path, rules) with the provided file descriptor. Returns impl result directly (NGX_OK/NGX_ERROR/NGX_DECLINED). */
+/* HOW: Direct wrapper.
+ *
+ *   - Calls brix_apply_parent_group_policy_impl(log, fd, path, rules)
+ *   - Returns impl result directly (NGX_OK/NGX_ERROR/NGX_DECLINED)
+ */
 
 ngx_int_t
 brix_apply_parent_group_policy_path(ngx_log_t *log, const char *path,
@@ -289,4 +331,9 @@ brix_apply_parent_group_policy_path(ngx_log_t *log, const char *path,
 {
     return brix_apply_parent_group_policy_impl(log, -1, path, rules);
 }
-/* HOW: Direct wrapper — calls brix_apply_parent_group_policy_impl(log, -1, path, rules) with fd=-1 (path-based stat/fstat). Returns impl result directly. */
+/* HOW: Direct wrapper.
+ *
+ *   - Calls brix_apply_parent_group_policy_impl(log, -1, path, rules)
+ *   - fd=-1 indicates path-based stat/fstat
+ *   - Returns impl result directly
+ */

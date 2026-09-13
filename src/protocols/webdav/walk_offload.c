@@ -145,7 +145,7 @@ webdav_walk_offload(ngx_http_request_t *r, webdav_walk_build_pt build,
         return NGX_DECLINED;
     }
 
-    wpool = ngx_create_pool(4096, r->connection->log);
+    wpool = ngx_create_pool(BRIX_WEBDAV_WALK_POOL_SIZE, r->connection->log);
     if (wpool == NULL) {
         return NGX_DECLINED;             /* inline path still works */
     }

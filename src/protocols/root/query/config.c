@@ -8,23 +8,46 @@
 #include <stdio.h>
 
 /*
- * WHAT: kXR_Qconfig — best-effort server capability query returning known feature flags as key=value lines.
- *       Parses whitespace-separated query keys from payload, responds with supported algorithms (chksum), readv support,
- *       TPC availability (tpc=1/0 based on allow_write+thread_pool), and HTTP-TPC delegation status (tpcdlg). Unknown keys return =0.
+ * WHAT: kXR_Qconfig — best-effort server capability query returning known
+ *       feature flags as key=value lines.
  *
- * WHY:  XRootD clients (xrdcp, xrdfs) query server capabilities before attempting operations like TPC transfer or readv parallel reads.
- *       This response matches reference XRootD format so client libraries can parse and decide accordingly — e.g., XrdCl parses tpc line
- *       with isdigit()+atoi() expecting just "1" or "0". Empty query returns OK with no payload for compatibility.
+ *   - Parses whitespace-separated query keys from payload
+ *   - Responds with supported algorithms (chksum), readv support
+ *   - TPC availability (tpc=1/0 based on allow_write+thread_pool)
+ *   - HTTP-TPC delegation status (tpcdlg)
+ *   - Unknown keys return =0
  *
- * HOW:  brix_query_config() initializes resp buffer (512 bytes), parses whitespace-separated keys via qconfig_next_token
- *       loop, and dispatches each key through a static descriptor table {key, emit_fn} — one emitter per supported
- *       capability, each appending its key=value line(s) via qconfig_append (vsnprintf with capacity tracking).
- *       Unknown keys echo the key name. Empty query returns kXR_ArgMissing; populated response sends resp at pos bytes.
+ * WHY: XRootD clients (xrdcp, xrdfs) query server capabilities before
+ *      attempting operations like TPC transfer or readv parallel reads. This
+ *      response matches reference XRootD format so client libraries can parse
+ *      and decide accordingly — e.g., XrdCl parses tpc line with
+ *      isdigit()+atoi() expecting just "1" or "0". Empty query returns OK
+ *      with no payload for compatibility.
+ *
+ * HOW: brix_query_config() initializes resp buffer (512 bytes), parses
+ *      whitespace-separated keys via qconfig_next_token loop, and dispatches
+ *      each key through a static descriptor table {key, emit_fn} — one
+ *      emitter per supported capability, each appending its key=value line(s)
+ *      via qconfig_append (vsnprintf with capacity tracking). Unknown keys
+ *      echo the key name. Empty query returns kXR_ArgMissing; populated
+ *      response sends resp at pos bytes.
  */
 
-/* WHAT: Advances the pointer *pp past any whitespace characters (space, tab, newline, carriage return). Used as a preamble before extracting tokens from kXR_Qconfig query payload.
- * WHY: kXR_Qconfig accepts whitespace-separated keys in its payload; this helper ensures token extraction starts at valid non-whitespace boundaries without accidentally capturing separator characters. Standard ASCII whitespace set covers all common delimiters used in client queries.
- * HOW: Single while loop checking **pp against ' ', '\t', '\n', '\r' — increments pointer past each whitespace character until reaching a non-whitespace byte or null terminator. */
+/*
+ * WHAT: Advances the pointer *pp past any whitespace characters (space, tab,
+ *       newline, carriage return). Used as a preamble before extracting
+ *       tokens from kXR_Qconfig query payload.
+ *
+ * WHY: kXR_Qconfig accepts whitespace-separated keys in its payload; this
+ *      helper ensures token extraction starts at valid non-whitespace
+ *      boundaries without accidentally capturing separator characters.
+ *      Standard ASCII whitespace set covers all common delimiters used in
+ *      client queries.
+ *
+ * HOW: Single while loop checking **pp against ' ', '\t', '\n', '\r' —
+ *      increments pointer past each whitespace character until reaching a
+ *      non-whitespace byte or null terminator.
+ */
 
 static void
 brix_qconfig_skip_ws(const char **pp)
@@ -34,9 +57,25 @@ brix_qconfig_skip_ws(const char **pp)
     }
 }
 
-/* WHAT: Extracts a single token from the payload pointer *pp, skipping leading whitespace first then reading characters until next whitespace or null terminator. Stores extracted token in tok buffer with null termination, returns 1 on success (token found), 0 on failure (end of payload). Enforces tok_sz boundary to prevent overflow.
- * WHY: kXR_Qconfig query payloads contain whitespace-separated capability keys (e.g., "tpc tpcdlg chksum"). This helper enables sequential token extraction without allocating temporary buffers or using strchr-based splitting — efficient for single-threaded nginx event loop processing.
- * HOW: Two-phase → first calls brix_qconfig_skip_ws() to advance past leading whitespace, then reads characters while **pp != '\0' and not whitespace, storing each char in tok[len++] with null termination at len = tok_sz - 1 or end-of-token boundary. Returns 1 if token extracted, 0 if *pp points to '\0' (end of payload). */
+/*
+ * WHAT: Extracts a single token from the payload pointer *pp, skipping
+ *       leading whitespace first then reading characters until next
+ *       whitespace or null terminator. Stores extracted token in tok
+ *       buffer with null termination, returns 1 on success (token found),
+ *       0 on failure (end of payload). Enforces tok_sz boundary to
+ *       prevent overflow.
+ * WHY: kXR_Qconfig query payloads contain whitespace-separated capability
+ *      keys (e.g., "tpc tpcdlg chksum"). This helper enables sequential
+ *      token extraction without allocating temporary buffers or using
+ *      strchr-based splitting — efficient for single-threaded nginx
+ *      event loop processing.
+ * HOW: Two-phase → first calls brix_qconfig_skip_ws() to advance past
+ *      leading whitespace, then reads characters while **pp != '\0'
+ *      and not whitespace, storing each char in tok[len++] with null
+ *      termination at len = tok_sz - 1 or end-of-token boundary.
+ *      Returns 1 if token extracted, 0 if *pp points to '\0' (end of
+ *      payload).
+ */
 
 static ngx_flag_t
 brix_qconfig_next_token(const char **pp, char *tok, size_t tok_sz)
@@ -62,9 +101,25 @@ brix_qconfig_next_token(const char **pp, char *tok, size_t tok_sz)
     return 1;
 }
 
-/* WHAT: Appends formatted text to a response buffer using vsnprintf, tracking the current position via *pos parameter. Returns 1 on success (formatted output fit within remaining buffer), 0 on failure (overflow or NULL pointers). Enforces resp_sz + pos bounds to prevent response buffer overflow during query capability reporting.
- * WHY: kXR_Qconfig builds a multi-line capability report by appending individual key=value pairs; this helper ensures each append respects the 512-byte resp buffer limit without truncating mid-response or corrupting prior output. vsnprintf with remaining capacity calculation prevents format string attacks from exceeding bounds.
- * HOW: Calculate remaining = resp_sz - *pos, call vsnprintf(resp + *pos, remaining, fmt, ap), check n < 0 || (size_t)n >= remaining for overflow → return 0 on failure or update *pos += n and return 1 on success. NULL pointer checks prevent crashes on malformed input. */
+/*
+ * WHAT: Appends formatted text to a response buffer using vsnprintf,
+ *       tracking the current position via *pos parameter. Returns 1 on
+ *       success (formatted output fit within remaining buffer), 0 on
+ *       failure (overflow or NULL pointers). Enforces resp_sz + pos
+ *       bounds to prevent response buffer overflow during query
+ *       capability reporting.
+ * WHY: kXR_Qconfig builds a multi-line capability report by appending
+ *      individual key=value pairs; this helper ensures each append
+ *      respects the 512-byte resp buffer limit without truncating
+ *      mid-response or corrupting prior output. vsnprintf with remaining
+ *      capacity calculation prevents format string attacks from
+ *      exceeding bounds.
+ * HOW: Calculate remaining = resp_sz - *pos, call
+ *      vsnprintf(resp + *pos, remaining, fmt, ap), check
+ *      n < 0 || (size_t)n >= remaining for overflow → return 0 on
+ *      failure or update *pos += n and return 1 on success. NULL
+ *      pointer checks prevent crashes on malformed input.
+ */
 
 static ngx_flag_t
 brix_qconfig_append(char *resp, size_t resp_sz, size_t *pos,
@@ -98,21 +153,35 @@ brix_qconfig_append(char *resp, size_t resp_sz, size_t *pos,
     return 1;
 }
 
-/* WHAT: Per-key emitter signature for the kXR_Qconfig descriptor table — appends one capability's value line(s)
- *       to the response buffer, returning 1 on success or 0 on buffer overflow (which aborts the token loop).
- * WHY: kXR_Qconfig is a pure name→value lookup; a static {key, emit_fn} table plus one dispatch loop replaces
- *      the former strcmp if/else ladder, keeping each emitter single-purpose and the dispatcher trivially flat.
- * HOW: Each emitter receives the server conf (for capability flags/limits) plus the shared resp/resp_sz/pos
- *      accounting used by brix_qconfig_append. */
+/*
+ * WHAT: Per-key emitter signature for the kXR_Qconfig descriptor table —
+ *       appends one capability's value line(s) to the response buffer,
+ *       returning 1 on success or 0 on buffer overflow (which aborts
+ *       the token loop).
+ * WHY: kXR_Qconfig is a pure name→value lookup; a static {key, emit_fn}
+ *      table plus one dispatch loop replaces the former strcmp if/else
+ *      ladder, keeping each emitter single-purpose and the dispatcher
+ *      trivially flat.
+ * HOW: Each emitter receives the server conf (for capability
+ *      flags/limits) plus the shared resp/resp_sz/pos accounting used
+ *      by brix_qconfig_append.
+ */
 typedef ngx_flag_t (*brix_qconfig_emit_fn)(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos);
 
-/* WHAT: Builds a comma-separated list of the inline-compression codecs actually built into this binary
- *       (zstd/lz4/... per brix_codec_by_id availability) into list[list_sz].
- * WHY: cmpread and cmpwrite both advertise the identical built-in codec set — sharing the walk keeps the
- *      two emitters symmetric and byte-identical, and avoids duplicating the overflow-guarded snprintf loop.
- * HOW: Iterates codec ids 1..BRIX_CODEC_MAX, skipping unavailable descriptors, appending "name" with a ","
- *      separator after the first entry; stops early on snprintf overflow. list is always null-terminated. */
+/*
+ * WHAT: Builds a comma-separated list of the inline-compression codecs
+ *       actually built into this binary (zstd/lz4/... per
+ *       brix_codec_by_id availability) into list[list_sz].
+ * WHY: cmpread and cmpwrite both advertise the identical built-in codec
+ *      set — sharing the walk keeps the two emitters symmetric and
+ *      byte-identical, and avoids duplicating the overflow-guarded
+ *      snprintf loop.
+ * HOW: Iterates codec ids 1..BRIX_CODEC_MAX, skipping unavailable
+ *      descriptors, appending "name" with a "," separator after the
+ *      first entry; stops early on snprintf overflow. list is always
+ *      null-terminated.
+ */
 static void
 brix_qconfig_codec_list(char *list, size_t list_sz)
 {
@@ -405,7 +474,8 @@ static const brix_qconfig_entry_t  brix_qconfig_table[] = {
      *   native client tears its secondaries down without it (a stock server
      *   merely echoes the unknown key, which lacks the marker).
      * fattr — usxParms "<maxNameLen> <maxValueLen>": Linux user.* caps,
-     *   248 = 255 - len("user."), 65536 = 64 KiB value cap (ext4/xfs stock).
+     *   BRIX_ROOT_FATTR_NAME_MAX (248) = 255 - len("user."),
+     *   BRIX_ROOT_FATTR_VALUE_MAX (65536) = 64 KiB value cap (ext4/xfs stock).
      * version — the bare product string (core/ident.h), digits + no prefix. */
     { "chksum",        NULL,       brix_qconfig_emit_chksum,             1 },
     { "readv",         "readv=1\n",                                NULL, 1 },
@@ -419,7 +489,7 @@ static const brix_qconfig_entry_t  brix_qconfig_table[] = {
     { "brix.substreams", "brix.substreams=rw\n",                   NULL, 1 },
     { "bind_max",      "15\n",                                     NULL, 1 },
     { "pio_max",       "5\n",                                      NULL, 1 },
-    { "fattr",         "248 65536\n",                              NULL, 1 },
+    { "fattr",         BRIX_QCONF_STR(BRIX_ROOT_FATTR_NAME_MAX) " " BRIX_QCONF_STR(BRIX_ROOT_FATTR_VALUE_MAX) "\n", NULL, 1 },
     { "window",        NULL,       brix_qconfig_emit_window,             1 },
     /* Deployment identity — withheld from a public read-only gateway. */
     { "version",       BRIX_SERVER_VERSION "\n",                   NULL, 0 },
@@ -461,16 +531,36 @@ brix_qconfig_emit_key(const char *key, ngx_stream_brix_srv_conf_t *conf, ngx_con
     return brix_qconfig_append(resp, resp_sz, pos, "%s\n", key);
 }
 
-/* public API: brix_query_config() — kXR_Qconfig capability query handler * WHAT: Main handler for Qconfig requests. Initializes 512-byte response buffer, parses whitespace-separated query keys via qconfig_next_token loop, and dispatches each key through the static descriptor table (brix_qconfig_emit_key). Unknown keys echo the key name. Empty query returns kXR_ArgMissing; populated response sends resp at pos bytes. Under brix_read_only_public the table's public_safe column withholds the deployment-identity keys (they echo like unknown keys) while capability/limit keys still answer — see the table comment: refusing the whole query instead would leave clients with no readv limits and no checksum list, i.e. it would break transfer tuning to hide nothing worth hiding. */
+/*
+ * public API: brix_query_config() — kXR_Qconfig capability query handler
+ *
+ * WHAT: Main handler for Qconfig requests. Initializes 512-byte response
+ *       buffer, parses whitespace-separated query keys via
+ *       qconfig_next_token loop, and dispatches each key through the
+ *       static descriptor table (brix_qconfig_emit_key). Unknown keys
+ *       echo the key name. Empty query returns kXR_ArgMissing;
+ *       populated response sends resp at pos bytes.
+ *
+ * WHY: XRootD clients query server capabilities before attempting
+ *      operations. This handler provides capability/limit information
+ *      while protecting deployment-identity keys under read-only mode.
+ *
+ * HOW: Under brix_read_only_public the table's public_safe column
+ *      withholds the deployment-identity keys (they echo like unknown
+ *      keys) while capability/limit keys still answer — see the table
+ *      comment: refusing the whole query instead would leave clients
+ *      with no readv limits and no checksum list, i.e. it would break
+ *      transfer tuning to hide nothing worth hiding.
+ */
 
 ngx_int_t
 brix_query_config(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
-    char        resp[512];
+    char        resp[BRIX_QCONFIG_RESP_MAX];
     size_t      pos = 0;
     const char *p;
-    char        key[128];
+    char        key[BRIX_QCONFIG_KEY_MAX];
     int         ntokens = 0;
 
     p = (ctx->recv.payload && ctx->recv.cur_dlen > 0) ? (const char *) ctx->recv.payload : "";

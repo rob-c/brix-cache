@@ -317,13 +317,13 @@ s3_metrics_response_method(ngx_http_request_t *r, ngx_uint_t method_slot,
     uop = s3_unified_op(method_slot);
     if (uop == BRIX_METRIC_OP_READ || uop == BRIX_METRIC_OP_WRITE) {
         tp = ngx_timeofday();
-        elapsed_ms = (ngx_msec_int_t) ((tp->sec - r->start_sec) * 1000
+        elapsed_ms = (ngx_msec_int_t) ((tp->sec - r->start_sec) * BRIX_HTTP_Q_SCALE
                                        + (tp->msec - r->start_msec));
         if (elapsed_ms < 0) {
             elapsed_ms = 0;
         }
         brix_metric_op_done(BRIX_PROTO_S3, uop, 0,
-                            (uint64_t) elapsed_ms * 1000,
+                            (uint64_t) elapsed_ms * BRIX_HTTP_Q_SCALE,
                             brix_metric_err_from_http_status(http_status));
     }
 }

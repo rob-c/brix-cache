@@ -40,7 +40,7 @@ static ngx_int_t
 brix_tier_load_master_key(ngx_conf_t *cf, const ngx_str_t *path,
     brix_cache_policy_t *pol)
 {
-    char       pathz[1024];
+    char       pathz[BRIX_PATH_MAX];
     u_char    *buf;
     ssize_t    n;
     off_t      size;
@@ -151,7 +151,7 @@ brix_tier_register_cache_peers(ngx_conf_t *cf,
             return NGX_ERROR;
         }
         port = strtol(colon + 1, NULL, 10);
-        if (port < 1 || port > 65535) {
+        if (port < 1 || port > BRIX_MAX_PORT) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix_cache_peers: member \"%V\" has an invalid port",
                 &tok[i]);

@@ -2,11 +2,35 @@
 /*
  * upstream lifecycle management
  *
- * WHAT: Cleans up and aborts an outbound XRootD redirector upstream connection. brix_upstream_cleanup() releases all resources held by the upstream struct (timer, TCP connection, client context pointer). brix_upstream_abort() cleans up the upstream then sends a kXR_ServerError response back to the client at the aborted stream ID and reschedules the client read event so nginx can continue processing the next request.
+ * WHAT:
+ *   Cleans up and aborts an outbound XRootD redirector upstream connection.
  *
- * WHY: Proxy mode creates lazy upstream connections on the first post-login opcode. When the upstream dies (timeout, TCP error, backend crash), cleanup() must release all resources without leaking timers or connections. abort() additionally notifies the client at the exact stream ID they were using so xrdcp can retry with a fresh connection rather than hanging forever.
+ *   brix_upstream_cleanup():
+ *     - Releases all resources held by the upstream struct
+ *     - Frees timer, TCP connection, client context pointer
  *
- * HOW: cleanup() checks each resource pointer/timer flag individually — ngx_del_timer(), ngx_close_connection(), nullify client context upstream pointer. abort() extracts client ctx/stream ID before cleanup, logs error reason, calls cleanup(), restores client state to req-header for retry, sends kXR_ServerError via brix_send_error(), reschedules read via brix_schedule_read_resume().
+ *   brix_upstream_abort():
+ *     - Cleans up the upstream
+ *     - Sends kXR_ServerError response back to the client at the aborted stream ID
+ *     - Reschedules the client read event so nginx can continue processing
+ *
+ * WHY:
+ *   Proxy mode creates lazy upstream connections on the first post-login opcode.
+ *   When the upstream dies (timeout, TCP error, backend crash), cleanup() must
+ *   release all resources without leaking timers or connections.
+ *   abort() additionally notifies the client at the exact stream ID they were
+ *   using so xrdcp can retry with a fresh connection rather than hanging forever.
+ *
+ * HOW:
+ *   cleanup():
+ *     - Checks each resource pointer/timer flag individually
+ *     - ngx_del_timer(), ngx_close_connection(), nullify client context upstream pointer
+ *   abort():
+ *     - Extracts client ctx/stream ID before cleanup
+ *     - Logs error reason, calls cleanup()
+ *     - Restores client state to req-header for retry
+ *     - Sends kXR_ServerError via brix_send_error()
+ *     - Reschedules read via brix_schedule_read_resume()
  */
 
 void

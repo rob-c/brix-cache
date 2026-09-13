@@ -10,9 +10,10 @@
 #define kXR_PROTOCOLVERSION_3   0x00000300u  /* stable v3 */
 
 /* Initial handshake magic — fifth field of the client's 20-byte hello.
- * "ROOTD_PQ" is a legacy name; the value 2012 (0x7DC) has no special meaning
- * beyond being the agreed magic number that confirms this is an XRootD client. */
-#define ROOTD_PQ  2012
+ * "ROOTD_PQ" is a legacy name; the value BRIX_ROOT_QUERY_OPCODE (2012/0x7DC)
+ * has no special meaning beyond being the agreed magic number that confirms
+ * this is an XRootD client. */
+#define ROOTD_PQ  BRIX_ROOT_QUERY_OPCODE
 
 /* Server type — carried in the handshake response msgval field */
 #define kXR_LBalServer  0  /* load-balancer / redirector (does not serve files) */

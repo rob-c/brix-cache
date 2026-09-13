@@ -157,7 +157,7 @@ gsi_add_fullproxy_bucket(brix_gbuf *inner)
     int         fd;
     struct stat sb;
     ssize_t     n;
-    uint8_t     buf[16384];
+    uint8_t     buf[BRIX_GSI_CERT_RESP_BUF_SIZE];
     size_t      total = 0;
 
     if (getenv("XRD_DELEGATEFULLPROXY") == NULL) {

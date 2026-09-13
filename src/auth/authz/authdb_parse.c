@@ -107,10 +107,10 @@ adb_read_file(ngx_conf_t *cf, ngx_str_t *filename, u_char **out_buf,
         ngx_close_file(fd);
         return NGX_OK;                 /* empty file: nothing to parse */
     }
-    if (buf_size > 1024 * 1024) {
+    if (buf_size > BRIX_AUTHDB_MAX_FILE_SIZE) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "brix_authdb \"%s\" exceeds 1 MiB limit",
-                           filename->data);
+                           "brix_authdb \"%s\" exceeds %d byte limit",
+                           filename->data, BRIX_AUTHDB_MAX_FILE_SIZE);
         ngx_close_file(fd);
         return NGX_ERROR;
     }

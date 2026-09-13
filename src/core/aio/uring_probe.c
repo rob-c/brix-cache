@@ -196,7 +196,7 @@ uring_probe_features(ngx_cycle_t *cycle, brix_uring_scan_t *scan)
     }
 
     if (scan->depth < 8)    { scan->depth = 8;    }
-    if (scan->depth > 4096) { scan->depth = 4096; }
+    if (scan->depth > BRIX_URING_MAX_DEPTH) { scan->depth = BRIX_URING_MAX_DEPTH; }
 
     return NGX_OK;
 }

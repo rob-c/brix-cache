@@ -66,8 +66,8 @@ static int brix_eventfd_compat(int val, int flags) {
 #include <time.h>
 
 #define DNS_BRIDGE_SLICE_MS      100
-#define DNS_BRIDGE_DEADLINE_MIN  5000
-#define DNS_BRIDGE_DEADLINE_MAX  60000
+#define DNS_BRIDGE_DEADLINE_MIN  BRIX_DNS_DEADLINE_MIN_MS
+#define DNS_BRIDGE_DEADLINE_MAX  BRIX_DNS_DEADLINE_MAX_MS
 
 typedef struct dns_bridge_item_s  dns_bridge_item_t;
 
@@ -269,13 +269,13 @@ dns_bridge_deadline_ms(const brix_dns_policy_t *policy)
     if (policy->search) {
         ncand += policy->rc.nsearch;
     }
-    ms = (ngx_msec_t) policy->rc.timeout * policy->rc.attempts * ncand * 1000
-         + 1000;
-    if (ms < DNS_BRIDGE_DEADLINE_MIN) {
-        ms = DNS_BRIDGE_DEADLINE_MIN;
+    ms = (ngx_msec_t) policy->rc.timeout * policy->rc.attempts * ncand * BRIX_CMS_SEC_TO_MS_MULTIPLIER
+         + BRIX_DNS_TIMEOUT_FLOOR_MS;
+    if (ms < BRIX_DNS_DEADLINE_MIN_MS) {
+        ms = BRIX_DNS_DEADLINE_MIN_MS;
     }
-    if (ms > DNS_BRIDGE_DEADLINE_MAX) {
-        ms = DNS_BRIDGE_DEADLINE_MAX;
+    if (ms > BRIX_DNS_DEADLINE_MAX_MS) {
+        ms = BRIX_DNS_DEADLINE_MAX_MS;
     }
     return ms;
 }
@@ -352,10 +352,10 @@ dns_bridge_wait(dns_bridge_item_t *item, ngx_msec_t deadline_ms)
             return 0;
         }
         clock_gettime(CLOCK_REALTIME, &ts);
-        ts.tv_nsec += DNS_BRIDGE_SLICE_MS * 1000000L;
-        if (ts.tv_nsec >= 1000000000L) {
+        ts.tv_nsec += DNS_BRIDGE_SLICE_MS * BRIX_DNS_NS_PER_MS;
+        if (ts.tv_nsec >= BRIX_DNS_NS_PER_SEC) {
             ts.tv_sec += 1;
-            ts.tv_nsec -= 1000000000L;
+            ts.tv_nsec -= BRIX_DNS_NS_PER_SEC;
         }
         (void) pthread_cond_timedwait(&item->cv, &dns_bridge.mu, &ts);
         waited += DNS_BRIDGE_SLICE_MS;

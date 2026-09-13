@@ -255,7 +255,7 @@ proxy_pool_start_resolve(uint32_t id, const char *hostz, in_port_t port,
     ngx_pool_t        *pool;
     proxy_pool_dns_t  *d;
 
-    pool = ngx_create_pool(512, log);
+    pool = ngx_create_pool(BRIX_WEBDAV_PROXY_POOL_BASE, log);
     d = pool ? ngx_pcalloc(pool, sizeof(proxy_pool_dns_t)) : NULL;
     if (d == NULL) {
         if (pool) { ngx_destroy_pool(pool); }

@@ -104,7 +104,7 @@ webdav_dispatch_pmark(ngx_http_request_t *r,
 {
     ngx_http_brix_webdav_req_ctx_t *rx;
     const char *vo = "", *us = "";
-    u_char      pth[2048], cgi[512];
+    u_char      pth[BRIX_WEBDAV_REDIRECT_CANON_BUF], cgi[BRIX_WEBDAV_CGI_PATH_BUF];
 
     if (!conf->common.pmark.enable
         || (r->method != NGX_HTTP_COPY

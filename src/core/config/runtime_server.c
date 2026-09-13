@@ -102,7 +102,7 @@ brix_server_set_storage_credential(ngx_conf_t *cf,
     ngx_stream_brix_srv_conf_t *xcf)
 {
     char                     cred_z[256];
-    char                     bearer[4096];
+    char                     bearer[BRIX_CONFIG_BEARER_BUF_SIZE];
     const brix_credential_t *cred;
     brix_vfs_backend_cred_t  bcred;
 
@@ -139,7 +139,7 @@ brix_server_set_wt_credential(ngx_conf_t *cf,
     ngx_stream_brix_srv_conf_t *xcf)
 {
     char                     cred_z[256];
-    char                     bearer[4096];
+    char                     bearer[BRIX_CONFIG_BEARER_BUF_SIZE];
     const brix_credential_t *cred;
 
     if (xcf->wt.credential.len == 0) {
@@ -307,7 +307,7 @@ brix_server_validate_cache_watermarks(ngx_conf_t *cf,
     ngx_stream_brix_srv_conf_t *xcf)
 {
     if (xcf->cache_eviction_threshold == 0
-        || xcf->cache_eviction_threshold >= 1000000)
+        || xcf->cache_eviction_threshold >= BRIX_CONFIG_PPM_MAX)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_cache_eviction_threshold must be greater than 0 "
@@ -332,7 +332,7 @@ brix_server_validate_cache_watermarks(ngx_conf_t *cf,
         return NGX_ERROR;
     }
     if (xcf->reaper.high_watermark == 0
-        || xcf->reaper.high_watermark >= 1000000
+        || xcf->reaper.high_watermark >= BRIX_CONFIG_WATERMARK_MAX
         || xcf->reaper.low_watermark == 0
         || xcf->reaper.low_watermark >= xcf->reaper.high_watermark)
     {
@@ -406,7 +406,7 @@ brix_server_validate_wt_stage(ngx_conf_t *cf,
             "brix_wt_stage_high_watermark requires brix_wt_stage_root");
         return NGX_ERROR;
     }
-    if (xcf->cache_wt_stage_high_watermark >= 1000000
+    if (xcf->cache_wt_stage_high_watermark >= BRIX_CONFIG_WATERMARK_MAX
         || xcf->cache_wt_stage_low_watermark == 0
         || xcf->cache_wt_stage_low_watermark
                >= xcf->cache_wt_stage_high_watermark)

@@ -1,6 +1,8 @@
 #include "platform/platform_api.h"
 #include "core/ngx_brix_module.h"
-/* PAL endian ops now in platform_api.h */  /* brix_plat_htobe64/brix_plat_be64toh cross-platform */
+/* PAL endian ops now in platform_api.h
+ * brix_plat_htobe64/brix_plat_be64toh cross-platform
+ */
 #include "core/compat/alloc_guard.h"
 #include "core/compat/pgio.h"   /* xrdp_pg_bad_t — CSE bad-page descriptor */
 

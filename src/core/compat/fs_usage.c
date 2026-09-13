@@ -15,6 +15,7 @@
  */
 
 #include "fs_usage.h"
+#include "../types/tunables.h"  /* BRIX_CORE_FS_USAGE_PPM */
 
 /*
  * brix_fs_usage_from_statvfs - convert struct statvfs fields into computed usage bytes.
@@ -49,7 +50,7 @@ brix_fs_usage_from_statvfs(const struct statvfs *vfs, brix_fs_usage_t *out)
     out->used_bytes = out->total_bytes - out->free_bytes;
     out->occupancy_bytes = out->total_bytes - out->available_bytes;
     out->occupancy_ppm = (ngx_uint_t)
-        (((long double) out->occupancy_bytes * 1000000.0L)
+        (((long double) out->occupancy_bytes * BRIX_CORE_FS_USAGE_PPM)
          / (long double) out->total_bytes);
 
     return NGX_OK;

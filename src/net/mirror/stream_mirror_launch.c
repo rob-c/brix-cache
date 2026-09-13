@@ -227,7 +227,7 @@ brix_stream_mirror_launch_target(brix_ctx_t *ctx,
         return;   /* phase-116: unresolved target */
     }
 
-    pool = ngx_create_pool(2048, ngx_cycle->log);
+    pool = ngx_create_pool(BRIX_MIRROR_POOL_SIZE, ngx_cycle->log);
     if (pool == NULL) {
         return;
     }

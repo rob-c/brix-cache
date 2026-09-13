@@ -4,7 +4,9 @@
 #include "wrts_journal.h"
 #include "write.h"             /* brix_write_within_maxsize (oss.maxsize cap) */
 #include "writev_internal.h"   /* writev_run_t + writev_try_aio (writev_aio.c) */
-/* PAL endian ops now in platform_api.h */  /* brix_plat_be64toh/brix_plat_htobe64 cross-platform */
+/* PAL endian ops now in platform_api.h
+ * brix_plat_be64toh/brix_plat_htobe64 cross-platform
+ */
 
 /* brix_writev_body_extra — trailing segment-data length for kXR_writev
  * WHAT: Validates a dlen-framed write_list descriptor block under the stock

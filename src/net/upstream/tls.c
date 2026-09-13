@@ -1,12 +1,39 @@
-/* upstream/tls.c — Outbound TLS upgrade for transparent proxy upstream redirector
- * WHAT: This file provides two functions for upgrading the upstream TCP connection to TLS after a remote XRootD server signals kXR_gotoTLS in its kXR_protocol response:
-
- *      1. brix_upstream_start_tls() — wraps up->conn in SSL, sets SNI hostname, starts TLS handshake
- *      2. brix_upstream_tls_handshake_done() — nginx ssl->handler callback that resends kXR_login over TLS once handshake completes
-
- * WHY: Transparent proxy mode requires the upstream connection to support TLS when backend servers demand it (kXR_gotoTLS). The client's kXR_login must be sent over the upgraded TLS channel, not cleartext TCP. This file handles the transition from raw TCP → SSL-wrapped connection → re-login over TLS.
-
- * HOW: start_tls() calls ngx_ssl_create_connection() with upstream TLS context → sets SNI (directive override wins, falls back to configured host) → assigns ssl->handler callback → calls ngx_ssl_handshake(). handshake_done() fires on completion: checks ctx validity and handshaked flag → restores normal event handlers → allocates fresh kXR_login frame via brix_upstream_build_login() → flushes over TLS connection → arms read event for login response.
+/*
+ * upstream/tls.c — Outbound TLS upgrade for transparent proxy upstream redirector
+ *
+ * WHAT:
+ *   Two functions for upgrading the upstream TCP connection to TLS after a
+ *   remote XRootD server signals kXR_gotoTLS in its kXR_protocol response:
+ *
+ *   1. brix_upstream_start_tls()
+ *      - Wraps up->conn in SSL
+ *      - Sets SNI hostname
+ *      - Starts TLS handshake
+ *
+ *   2. brix_upstream_tls_handshake_done()
+ *      - nginx ssl->handler callback
+ *      - Resends kXR_login over TLS once handshake completes
+ *
+ * WHY:
+ *   Transparent proxy mode requires the upstream connection to support TLS
+ *   when backend servers demand it (kXR_gotoTLS).
+ *   The client's kXR_login must be sent over the upgraded TLS channel,
+ *   not cleartext TCP.
+ *   This file handles the transition:
+ *     raw TCP → SSL-wrapped connection → re-login over TLS
+ *
+ * HOW:
+ *   start_tls():
+ *     - Calls ngx_ssl_create_connection() with upstream TLS context
+ *     - Sets SNI (directive override wins, falls back to configured host)
+ *     - Assigns ssl->handler callback
+ *     - Calls ngx_ssl_handshake()
+ *   handshake_done() on completion:
+ *     - Checks ctx validity and handshaked flag
+ *     - Restores normal event handlers
+ *     - Allocates fresh kXR_login frame via brix_upstream_build_login()
+ *     - Flushes over TLS connection
+ *     - Arms read event for login response
  */
 
 #include "upstream_internal.h"
@@ -16,12 +43,30 @@
 static void brix_upstream_tls_handshake_done(ngx_connection_t *uconn);
 
 /*
-
- * WHAT: brix_upstream_start_tls() wraps the upstream TCP connection in SSL and initiates the TLS handshake.
-
- * WHY: When backend XRootD server signals kXR_gotoTLS, the existing cleartext TCP connection must be upgraded to TLS before sending kXR_login. The SSL context comes from conf->upstream_tls_ctx; SNI is set from either an explicit override directive or the configured upstream host name.
-
- * HOW: Sets bs_phase = XRD_UP_BS_TLS → calls ngx_ssl_create_connection() with NGX_SSL_BUFFER | NGX_SSL_CLIENT flags → sets SNI via SSL_set_tlsext_host_name() (conf->upstream_tls_name wins if non-empty, falls back to conf->upstream_host) → assigns ssl->handler callback → calls ngx_ssl_handshake(). If handshake completes synchronously (unlikely), immediately fires brix_upstream_tls_handshake_done(). Returns NGX_OK on success, NGX_ERROR on SSL creation failure.
+ * brix_upstream_start_tls() wraps the upstream TCP connection in SSL and initiates the TLS handshake.
+ *
+ * WHAT:
+ *   Wraps the upstream TCP connection in SSL and initiates the TLS handshake.
+ *
+ * WHY:
+ *   When backend XRootD server signals kXR_gotoTLS, the existing cleartext TCP
+ *   connection must be upgraded to TLS before sending kXR_login.
+ *   The SSL context comes from conf->upstream_tls_ctx;
+ *   SNI is set from either an explicit override directive or the configured
+ *   upstream host name.
+ *
+ * HOW:
+ *   1. Sets bs_phase = XRD_UP_BS_TLS
+ *   2. Calls ngx_ssl_create_connection() with NGX_SSL_BUFFER | NGX_SSL_CLIENT flags
+ *   3. Sets SNI via SSL_set_tlsext_host_name()
+ *      (conf->upstream_tls_name wins if non-empty, falls back to conf->upstream_host)
+ *   4. Assigns ssl->handler callback
+ *   5. Calls ngx_ssl_handshake()
+ *   6. If handshake completes synchronously (unlikely), immediately fires
+ *      brix_upstream_tls_handshake_done()
+ *
+ * RETURNS:
+ *   NGX_OK on success, NGX_ERROR on SSL creation failure
  */
 ngx_int_t
 brix_outbound_start_tls(ngx_ssl_t *ssl_ctx, ngx_connection_t *c,
@@ -66,12 +111,33 @@ brix_upstream_start_tls(brix_upstream_t *up,
 }
 
 /*
-
- * WHAT: brix_upstream_tls_handshake_done() is the nginx ssl->handler callback that fires once the TLS handshake completes (success or failure). On success, restores normal event handlers, allocates a fresh kXR_login frame, and flushes it over the now-TLS connection.
-
- * WHY: The SSL handshake replaces the normal upstream read/write event handlers. After completion, those handlers must be restored so subsequent request/response traffic flows normally. A fresh kXR_login is needed because credentials sent over cleartext before TLS upgrade are no longer valid on the encrypted channel.
-
- * HOW: Checks ctx validity and destroyed flag → calls cleanup if invalid; checks uconn->ssl->handshaked → calls abort if failed. On success: (1) restores read handler to brix_upstream_read_handler, write handler to brix_upstream_write_handler, (2) allocates ClientLoginRequest from pool via ngx_palloc(), builds login frame via brix_upstream_build_login(), (3) sets wbuf/wbuf_len/wbuf_pos for flush → calls brix_upstream_flush(), (4) if partial write: arms write event; if fully written: arms read event to wait for login response. Sets bs_phase = XRD_UP_BS_LOGIN.
+ * brix_upstream_tls_handshake_done() is the nginx ssl->handler callback that fires once the TLS handshake completes.
+ *
+ * WHAT:
+ *   nginx ssl->handler callback fired once TLS handshake completes
+ *   (success or failure).
+ *   On success: restores normal event handlers, allocates fresh kXR_login frame,
+ *   flushes it over the now-TLS connection.
+ *
+ * WHY:
+ *   The SSL handshake replaces the normal upstream read/write event handlers.
+ *   After completion, those handlers must be restored so subsequent
+ *   request/response traffic flows normally.
+ *   A fresh kXR_login is needed because credentials sent over cleartext before
+ *   TLS upgrade are no longer valid on the encrypted channel.
+ *
+ * HOW:
+ *   1. Checks ctx validity and destroyed flag → calls cleanup if invalid
+ *   2. Checks uconn->ssl->handshaked → calls abort if failed
+ *   3. On success:
+ *      a) Restores read handler to brix_upstream_read_handler
+ *      b) Restores write handler to brix_upstream_write_handler
+ *      c) Allocates ClientLoginRequest from pool via ngx_palloc()
+ *      d) Builds login frame via brix_upstream_build_login()
+ *      e) Sets wbuf/wbuf_len/wbuf_pos for flush → calls brix_upstream_flush()
+ *      f) If partial write: arms write event
+ *      g) If fully written: arms read event to wait for login response
+ *   4. Sets bs_phase = XRD_UP_BS_LOGIN
  */
 static void
 brix_upstream_tls_handshake_done(ngx_connection_t *uconn)

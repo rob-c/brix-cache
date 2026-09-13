@@ -1,5 +1,33 @@
-/* File: proxy write-path audit — JSON-formatted operation logging
- * WHAT: Implements security audit logging for path modification operations during XRootD proxy forwarding. Writes JSON-formatted entries to configured proxy_audit_log_fd capturing operation type, path, destination (for mv ops), status result, and authenticated user identity. Only logs when both proxy config exists AND audit log file descriptor is valid (NGX_INVALID_FILE means disabled). Six supported operations: rm, mkdir, rmdir, mv, chmod, truncate — unrecognized opcodes skip logging via default case return. User identity sourced from client_ctx->login.user if available; empty string otherwise. JSON format follows structured pattern with type="path" field distinguishing from other audit categories (TPC, read/write). mv operations include separate "dest" field for destination path; all other ops use single "path" field. Each entry terminated with newline for line-oriented log consumption. Written via ngx_write_fd() to avoid blocking event loop during I/O. */
+/*
+ * File: proxy write-path audit — JSON-formatted operation logging
+ *
+ * WHAT:
+ *   Implements security audit logging for path modification operations
+ *   during XRootD proxy forwarding. Writes JSON-formatted entries to
+ *   configured proxy_audit_log_fd.
+ *
+ * CAPTURED FIELDS:
+ *   - Operation type (rm, mkdir, rmdir, mv, chmod, truncate)
+ *   - Path (source for mv, single path for others)
+ *   - Destination (mv operations only, "dest" field)
+ *   - Status result ("ok" or "error")
+ *   - Authenticated user identity (from client_ctx->login.user)
+ *
+ * LOGGING CONDITIONS:
+ *   - Only logs when proxy config exists AND
+ *   - proxy_audit_log_fd is valid (NGX_INVALID_FILE = disabled)
+ *   - Unrecognized opcodes skip logging (default case return)
+ *
+ * JSON FORMAT:
+ *   - type="path" distinguishes from other audit categories (TPC, read/write)
+ *   - mv operations: {"type":"path","op":"mv","path":"...","dest":"...",...}
+ *   - Other ops: {"type":"path","op":"<op>","path":"...",...}
+ *   - Each entry terminated with newline for line-oriented consumption
+ *
+ * IMPLEMENTATION:
+ *   - Written via ngx_write_fd() to avoid blocking event loop during I/O
+ *   - User identity: client_ctx->login.user if available, empty string otherwise
+ */
 
 /* One of three standalone translation units split from the proxy relay path
  * (with forward_relay_response.c and forward_relay_dispatch.c); each is compiled

@@ -11,7 +11,7 @@
  *   client (XrdSecGSIDELEGPROXY) interoperate. Ported from stock XrdSecgsi
  *   XrdCrypto/XrdCryptosslgsiAux.cc::XrdCryptosslX509CreateProxyReq.
  *
- * HOW: PEM→X509 parent → RSA keygen(bits>=parent,>=2048,e=65537) → subject =
+ * HOW: PEM→X509 parent → RSA keygen(bits>=parent,>=BRIX_GSI_PROXY_KEY_BITS,e=BRIX_RSA_PUBLIC_EXPONENT) → subject =
  *   dup(parent) + /CN=<rand serial> → proxyCertInfo (impersonation policy, pathlen
  *   from parent) → copy parent extensions except SAN/proxyCertInfo → push critical
  *   proxyCertInfo → X509_REQ_{set_pubkey,set_subject_name,add_extensions} →
@@ -141,7 +141,7 @@ pxr_copy_parent_exts(X509 *parent, STACK_OF(X509_EXTENSION) *dst)
     return 0;
 }
 
-/* Generate the RSA proxy key: >= parent bits, >= 2048, public exponent 65537. */
+/* Generate the RSA proxy key: >= parent bits, >= BRIX_GSI_PROXY_KEY_BITS, public exponent BRIX_RSA_PUBLIC_EXPONENT. */
 static EVP_PKEY *
 pxr_keygen(X509 *parent)
 {

@@ -134,7 +134,7 @@ typedef struct {
     ngx_pool_t    *pool;
     ngx_log_t     *log;
     brix_oci_gc_t  gc;
-    char           err[256];
+    char           err[BRIX_OCI_GC_ERROR_BUF];
     int            rc;
 } oci_gc_task_t;
 
@@ -180,7 +180,7 @@ oci_gc_offload(const oci_gc_store_t *s, ngx_log_t *log)
     if (pool == NULL) {
         return NGX_DECLINED;
     }
-    tp = ngx_create_pool(4096, log);
+    tp = ngx_create_pool(BRIX_OCI_GC_POOL_SIZE, log);
     if (tp == NULL) {
         return NGX_DECLINED;
     }
@@ -218,7 +218,7 @@ static void
 oci_gc_inline(const oci_gc_store_t *s, ngx_log_t *log)
 {
     brix_oci_gc_t c;
-    char          err[256] = "";
+    char          err[BRIX_OCI_GC_ERROR_BUF] = "";
     int           rc;
 
     oci_gc_fill(&c, s);

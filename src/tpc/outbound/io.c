@@ -66,7 +66,11 @@ tpc_io_pending(brix_tpc_pull_t *t, int fd)
 
     return (ssl != NULL) ? SSL_pending(ssl) : 0;
 }
-/* WHAT: Send all bytes from buf over fd — continues on EINTR, returns -1 on any other failure. Returns 0 on full write success. Caller: thread.c, bootstrap.c, source.c (wire I/O pipeline). */
+/* WHAT: Send all bytes from buf over fd.
+ *   - Continues on EINTR
+ *   - Returns -1 on any other failure
+ *   - Returns 0 on full write success
+ *   - Caller: thread.c, bootstrap.c, source.c */
 
 int
 tpc_send_all(brix_tpc_pull_t *t, int fd, const void *buf, size_t len)
@@ -78,7 +82,11 @@ tpc_send_all(brix_tpc_pull_t *t, int fd, const void *buf, size_t len)
                              (void *) (uintptr_t) buf,
                              len, BRIX_TPC_XFER_SEND);
 }
-/* WHAT: Receive exactly len bytes into buf over fd — continues on EINTR, returns -1 on any other failure. Returns 0 on full read success. Caller: tpc_recv_response (header + payload), thread.c (wire I/O pipeline). */
+/* WHAT: Receive exactly len bytes into buf over fd.
+ *   - Continues on EINTR
+ *   - Returns -1 on any other failure
+ *   - Returns 0 on full read success
+ *   - Caller: tpc_recv_response, thread.c */
 
 static int
 tpc_recv_exact(brix_tpc_pull_t *t, int fd, void *buf, size_t len)

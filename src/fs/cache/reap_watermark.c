@@ -97,7 +97,7 @@ static int
 watermark_fs_over(ngx_stream_brix_srv_conf_t *conf, const char *phys_root,
     brix_cache_fs_usage_t *usage, ngx_log_t *log)
 {
-    if (brix_cache_fs_usage_sampled((char *) phys_root, 1000, usage) != NGX_OK) {
+    if (brix_cache_fs_usage_sampled((char *) phys_root, BRIX_VFS_MSEC_PER_SEC, usage) != NGX_OK) {
         ngx_log_error(NGX_LOG_WARN, log, errno,
             "brix: watermark reaper could not stat cache root \"%s\"", phys_root);
         return 0;
@@ -205,6 +205,6 @@ brix_cache_watermark_timer_handler(ngx_event_t *ev)
     if (!ngx_exiting) {
         time_t interval = (conf->reaper.reap_interval > 0)
                           ? conf->reaper.reap_interval : 60;
-        ngx_add_timer(ev, (ngx_msec_t) interval * 1000);
+        ngx_add_timer(ev, (ngx_msec_t) interval * BRIX_VFS_MSEC_PER_SEC);
     }
 }

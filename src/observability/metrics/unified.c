@@ -89,14 +89,14 @@ const char *brix_unified_tpc_deleg_result_names[
 /* Shared with the record hot path (unified_record.c) and the latency exporter
  * (unified_export_io.c); external linkage via unified_internal.h. */
 const ngx_msec_t brix_latency_bounds[BRIX_IO_LATENCY_BUCKETS - 1] = {
-    1000,
-    5000,
-    10000,
-    50000,
-    100000,
-    500000,
-    1000000,
-    5000000,
+    BRIX_LATENCY_BOUND_1MS,
+    BRIX_LATENCY_BOUND_5MS,
+    BRIX_LATENCY_BOUND_10MS,
+    BRIX_LATENCY_BOUND_50MS,
+    BRIX_LATENCY_BOUND_100MS,
+    BRIX_LATENCY_BOUND_500MS,
+    BRIX_LATENCY_BOUND_1S,
+    BRIX_LATENCY_BOUND_5S,
 };
 
 const char *

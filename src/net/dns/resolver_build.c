@@ -53,14 +53,14 @@ dns_build_option_args(ngx_conf_t *cf, const brix_dns_policy_t *pol,
 {
     u_char  *p;
 
-    if (pol->valid >= 1000) {
+    if (pol->valid >= BRIX_DNS_TIMEOUT_FLOOR_MS) {
         p = ngx_pnalloc(cf->pool, 32);
         if (p == NULL) {
             return NGX_ERROR;
         }
         names[*n].data = p;
         /* ngx_resolver_create parses valid= in whole seconds (no ms unit) */
-        names[*n].len = ngx_sprintf(p, "valid=%Ts", (time_t) (pol->valid / 1000)) - p;
+        names[*n].len = ngx_sprintf(p, "valid=%Ts", (time_t) (pol->valid / BRIX_CMS_SEC_TO_MS_MULTIPLIER)) - p;
         (*n)++;
     }
     if (!pol->ipv4) {

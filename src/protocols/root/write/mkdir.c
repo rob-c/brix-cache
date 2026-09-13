@@ -4,6 +4,7 @@
 
 #include "core/ngx_brix_module.h"
 #include "core/compat/error_mapping.h"
+#include "core/types/tunables.h"         /* BRIX_ROOT_DEFAULT_DIR_MODE, BRIX_ROOT_PERM_MASK */
 #include "fs/vfs/vfs.h"   /* mkdir via the VFS seam */
 #include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_session (phase-70) */
 #include "fs/vfs/vfs_backend_registry.h"   /* POSIX-vs-driver export check for group policy */
@@ -16,7 +17,7 @@
  * Wire format (ClientMkdirRequest):
  *   options[0]: bitfield; kXR_mkdirpath (0x01) requests recursive mkdir.
  *   mode:       big-endian uint16_t; low 9 bits set the permission mask.
- *               Defaults to 0755 if the client sends 0.
+ *               Defaults to BRIX_ROOT_DEFAULT_DIR_MODE if the client sends 0.
  *
  * Path resolution strategy:
  *   kXR_mkdirpath set:  brix_resolve_path_noexist â no realpath(3) call
@@ -38,9 +39,9 @@ brix_handle_mkdir(brix_ctx_t *ctx, ngx_connection_t *c,
 
 	xrdw_mkdir_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
 	recursive = (req.options & kXR_mkdirpath) ? 1 : 0;
-	mode      = req.mode & 0777;
+	mode      = req.mode & BRIX_ROOT_PERM_MASK;
 	if (mode == 0) {
-		mode = 0755;
+		mode = BRIX_ROOT_DEFAULT_DIR_MODE;
 	}
 
 	{

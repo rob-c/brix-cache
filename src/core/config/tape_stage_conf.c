@@ -129,7 +129,7 @@ char *
 brix_frm_check_program(ngx_conf_t *cf, const char *directive,
     const ngx_str_t *cmd, const char *usage)
 {
-    char         path[4096];
+    char         path[BRIX_TAPE_STAGE_PATH_BUF];
     struct stat  st;
 
     if (cmd->len == 0) {
@@ -172,7 +172,7 @@ static char *
 frm_check_stagemsg(ngx_conf_t *cf, const ngx_str_t *file)
 {
     struct stat  sb;
-    char         path[1024];
+    char         path[BRIX_TAPE_STAGE_LINE_BUF];
 
     if (file->len == 0) {
         return NGX_CONF_OK;

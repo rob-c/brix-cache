@@ -28,7 +28,7 @@
  */
 #include "net/dns/dns.h"
 
-#define DNS_TIMEOUT_FLOOR_MS  1000
+#define DNS_TIMEOUT_FLOOR_MS  BRIX_DNS_TIMEOUT_FLOOR_MS
 
 
 const char *
@@ -400,9 +400,9 @@ dns_ngx_step(ngx_event_t *ev)
         dns_ngx_fail(req, NGX_RESOLVE_TIMEDOUT);
         return;
     }
-    timeout = (ngx_msec_t) (req->policy ? req->policy->rc.timeout : 5) * 1000;
-    if (timeout < DNS_TIMEOUT_FLOOR_MS) {
-        timeout = DNS_TIMEOUT_FLOOR_MS;
+    timeout = (ngx_msec_t) (req->policy ? req->policy->rc.timeout : 5) * BRIX_CMS_SEC_TO_MS_MULTIPLIER;
+    if (timeout < BRIX_DNS_TIMEOUT_FLOOR_MS) {
+        timeout = BRIX_DNS_TIMEOUT_FLOOR_MS;
     }
     ctx->name = req->cname;
     ctx->handler = dns_ngx_handler;

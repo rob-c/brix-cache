@@ -241,7 +241,7 @@ brix_auth_gate_cache_key(u_char key[32], const auth_gate_ctx_t *g,
     brix_acc_op_t key_aop, const char *host)
 {
     brix_ctx_t  *ctx = g->ctx;
-    u_char       buf[3 + 64 + 1 + PATH_MAX + PATH_MAX + 512 + 512 + 1024 + 8];
+    u_char       buf[BRIX_AUTH_CACHE_KEY_BUF_SIZE];
     size_t       n = 0;
     const char  *dn      = ctx->login.dn;
     const char  *vo      = ctx->login.vo_list;
@@ -296,10 +296,10 @@ brix_auth_gate_cache_put(ngx_stream_brix_srv_conf_t *conf,
     cv.auth_level = (uint8_t) auth_level;
     cv.pad        = 0;
     (void) brix_kv_set(conf->auth_cache.kv, key, 32, &cv, sizeof(cv),
-                         (ngx_msec_t) conf->auth_cache.ttl_secs * 1000);
+                         (ngx_msec_t) conf->auth_cache.ttl_secs * BRIX_AUTH_CACHE_TTL_MS_PER_SEC);
     /* E2: also populate the per-worker L1 so the next hit skips the SHM lock. */
     brix_auth_l1_store(conf->auth_l1, key, &cv,
-                         (ngx_msec_t) conf->auth_cache.ttl_secs * 1000);
+                         (ngx_msec_t) conf->auth_cache.ttl_secs * BRIX_AUTH_CACHE_TTL_MS_PER_SEC);
 }
 
 /*
@@ -385,7 +385,7 @@ brix_auth_gate_cache_probe(const auth_gate_ctx_t *g, u_char out_key[32],
         }
         /* Promote the L2 hit into L1 for the next presentation. */
         brix_auth_l1_store(conf->auth_l1, out_key, &cv,
-            (ngx_msec_t) conf->auth_cache.ttl_secs * 1000);
+            (ngx_msec_t) conf->auth_cache.ttl_secs * BRIX_AUTH_CACHE_TTL_MS_PER_SEC);
     }
 
     *out_verdict = cv.allowed ? 1 : 0;

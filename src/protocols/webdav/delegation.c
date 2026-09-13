@@ -181,7 +181,7 @@ delegation_chain_expired(STACK_OF(X509) *chain)
 int
 delegation_eec_dn_matches(X509 *eec, const char *want_dn)
 {
-    char eec_dn[1024];
+    char eec_dn[BRIX_WEBDAV_DELEG_PATH_BUF];
 
     brix_x509_oneline(X509_get_subject_name(eec), eec_dn, sizeof(eec_dn));
     return strcmp(eec_dn, want_dn) == 0;
@@ -263,9 +263,9 @@ ngx_int_t
 delegation_store_pem(ngx_log_t *log, const ngx_str_t *dir, const char *key,
     const u_char *pem, size_t pem_len)
 {
-    char                   dir_c[1024];
+    char                   dir_c[BRIX_WEBDAV_DELEG_PATH_BUF];
     char                   name[256];
-    char                   final_path[1024];
+    char                   final_path[BRIX_WEBDAV_DELEG_PATH_BUF];
     int                    n;
     brix_cred_write_req_t  req;
 
@@ -399,7 +399,7 @@ delegation_validate_and_store(ngx_http_request_t *r,
     }
 
     if (!delegation_eec_dn_matches(eec, ctx->dn)) {
-        char dn_log[1024];
+        char dn_log[BRIX_WEBDAV_DELEG_PATH_BUF];
 
         brix_sanitize_log_string(ctx->dn, dn_log, sizeof(dn_log));
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,

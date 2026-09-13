@@ -73,8 +73,23 @@ brix_ckscan_append(u_char **buf, size_t *cap, size_t *used,
     *used += llen;
     return 1;
 }
-/* WHY: Qckscan responses are newline-delimited "algo hex logical_path" lines growing into a dynamically-sized buffer. The client expects all checksum results in one response, so the buffer must handle arbitrary tree sizes via exponential growth. Returns 1 on success (line appended), 0 if output line would overflow local snprintf buffer (path too long → skip silently), -1 if OOM during buffer reallocation. */
-/* HOW: snprintf(line) formats "%s %08x  %s\n" with algo, cksum as hex, logical path — returns llen. If llen >= sizeof(line) returns 0 (skip). Checks *used+llen+2 <= *cap — if insufficient allocates new_cap=*cap*2+llen+2 via ngx_alloc(), copies existing *buf content, frees old buffer, updates *buf and *cap. memcpy line into *buf at offset *used; increments *used by llen. Returns 1. */
+/* WHY: Qckscan responses are newline-delimited "algo hex logical_path" lines.
+ *   - Grows into dynamically-sized buffer
+ *   - Client expects all checksum results in one response
+ *   - Buffer handles arbitrary tree sizes via exponential growth
+ *   - Returns: 1 (success), 0 (path too long, skip), -1 (OOM)
+ */
+/* HOW:
+ *   - snprintf(line) formats "%s %08x  %s\n" (algo, cksum hex, path)
+ *   - If llen >= sizeof(line): returns 0 (skip)
+ *   - Checks *used+llen+2 <= *cap:
+ *     - If insufficient: allocates new_cap=*cap*2+llen+2 via ngx_alloc()
+ *     - Copies existing *buf content, frees old buffer
+ *     - Updates *buf and *cap
+ *   - memcpy line into *buf at offset *used
+ *   - Increments *used by llen
+ *   - Returns 1
+ */
 
 /*
  * ckscan_walk_ctx_t + ckscan_walk_file — the per-file callback driven by

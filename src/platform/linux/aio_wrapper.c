@@ -8,10 +8,7 @@
 #include "../platform.h"
 #include "../platform_api.h"
 
-/*
- * Async I/O context for Linux (io_uring-based)
- */
-#if BRIX_HAS_IO_URING
+#if BRIX_PLATFORM_LINUX && BRIX_HAS_IO_URING
 
 #include <liburing.h>
 #include <errno.h>
@@ -25,13 +22,6 @@ struct brix_aio_ctx {
 };
 
 typedef struct brix_aio_ctx brix_aio_ctx_t;
-
-#else /* !BRIX_HAS_IO_URING */
-
-/* Opaque forward declaration for stub implementation */
-typedef struct brix_aio_ctx brix_aio_ctx_t;
-
-#endif /* BRIX_HAS_IO_URING */
 
 /* Callback wrapper structure */
 typedef struct {
@@ -67,28 +57,26 @@ brix_aio_create(size_t max_entries)
 void
 brix_aio_destroy(brix_aio_ctx_t *ctx)
 {
-    if (ctx != NULL) {
-        io_uring_queue_exit(&ctx->ring);
-        free(ctx);
+    if (ctx == NULL) {
+        return;
     }
+    
+    io_uring_queue_exit(&ctx->ring);
+    free(ctx);
 }
 
-/* Completion handler callback */
 static void
 brix_aio_io_uring_callback(struct io_uring_cqe *cqe)
 {
     brix_aio_callback_t *cb = (brix_aio_callback_t *)cqe->user_data;
     
-    if (cb && cb->callback) {
+    if (cb != NULL) {
         if (cqe->res >= 0) {
             cb->callback(cb->fd, (ssize_t)cqe->res, cb->user_data);
         } else {
             errno = -cqe->res;
             cb->callback(cb->fd, -1, cb->user_data);
         }
-    }
-    
-    if (cb) {
         free(cb);
     }
 }
@@ -111,8 +99,7 @@ brix_aio_read(brix_aio_ctx_t *ctx, int fd, void *buf, size_t count,
         return -1;
     }
     
-    /* Allocate callback structure */
-    cb = malloc(sizeof(brix_aio_callback_t));
+    cb = calloc(1, sizeof(brix_aio_callback_t));
     if (cb == NULL) {
         errno = ENOMEM;
         return -1;
@@ -122,11 +109,10 @@ brix_aio_read(brix_aio_ctx_t *ctx, int fd, void *buf, size_t count,
     cb->user_data = user_data;
     cb->fd = fd;
     
-    /* Prepare read operation */
     io_uring_prep_read(sqe, fd, buf, count, offset);
     io_uring_sqe_set_data(sqe, cb);
     
-    ctx->pending_ops++;
+    ngx_atomic_fetch_add(&ctx->pending_ops, 1);
     
     return 0;
 }
@@ -149,8 +135,7 @@ brix_aio_write(brix_aio_ctx_t *ctx, int fd, const void *buf, size_t count,
         return -1;
     }
     
-    /* Allocate callback structure */
-    cb = malloc(sizeof(brix_aio_callback_t));
+    cb = calloc(1, sizeof(brix_aio_callback_t));
     if (cb == NULL) {
         errno = ENOMEM;
         return -1;
@@ -160,11 +145,10 @@ brix_aio_write(brix_aio_ctx_t *ctx, int fd, const void *buf, size_t count,
     cb->user_data = user_data;
     cb->fd = fd;
     
-    /* Prepare write operation */
     io_uring_prep_write(sqe, fd, buf, count, offset);
     io_uring_sqe_set_data(sqe, cb);
     
-    ctx->pending_ops++;
+    ngx_atomic_fetch_add(&ctx->pending_ops, 1);
     
     return 0;
 }
@@ -181,21 +165,8 @@ brix_aio_wait(brix_aio_ctx_t *ctx, int timeout_ms)
         return -1;
     }
     
-    /* Submit pending operations */
-    ret = io_uring_submit(&ctx->ring);
-    if (ret < 0) {
-        errno = -ret;
-        return -1;
-    }
-    
-    /* Wait for completions */
     while (ctx->pending_ops > 0) {
-        ret = io_uring_wait_cqe_timeout(&ctx->ring, &cqe, 
-                                        timeout_ms < 0 ? NULL : 
-                                        &(struct __kernel_timespec){
-                                            .tv_sec = timeout_ms / 1000,
-                                            .tv_nsec = (timeout_ms % 1000) * 1000000
-                                        });
+        ret = io_uring_wait_cqe_timeout(&ctx->ring, &cqe, timeout_ms);
         
         if (ret < 0) {
             if (ret == -ETIME) {
@@ -218,9 +189,11 @@ brix_aio_wait(brix_aio_ctx_t *ctx, int timeout_ms)
     return completed;
 }
 
-#else /* !BRIX_HAS_IO_URING */
+#else /* !BRIX_PLATFORM_LINUX || !BRIX_HAS_IO_URING */
 
 /* Stub implementation when io_uring is not available */
+
+typedef struct brix_aio_ctx brix_aio_ctx_t;
 
 brix_aio_ctx_t *
 brix_aio_create(size_t max_entries)
@@ -275,4 +248,4 @@ brix_aio_wait(brix_aio_ctx_t *ctx, int timeout_ms)
     return -1;
 }
 
-#endif /* BRIX_HAS_IO_URING */
+#endif /* BRIX_PLATFORM_LINUX && BRIX_HAS_IO_URING */

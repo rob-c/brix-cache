@@ -214,8 +214,8 @@ brix_cms_meter_rate_pct(uint64_t delta, uint64_t elapsed_ms,
     if (elapsed_ms == 0 || ref_per_sec == 0) {
         return 0;
     }
-    per_sec = delta * 1000 / elapsed_ms;
-    return meter_clamp_pct((unsigned long) (per_sec * 100 / ref_per_sec));
+    per_sec = delta * BRIX_CMS_SEC_TO_MS_MULTIPLIER / elapsed_ms;
+    return meter_clamp_pct((unsigned long) (per_sec * BRIX_PCT_SCALE / ref_per_sec));
 }
 
 
@@ -247,7 +247,7 @@ meter_slurp(const char *path, char *buf, size_t bufsz)
 static void
 meter_sample_gauges(uint8_t out5[5])
 {
-    char     buf[8192];
+    char     buf[BRIX_METER_BUF_SIZE];
     uint8_t  pct;
 
     if (meter_slurp("/proc/loadavg", buf, sizeof(buf)) == 0
@@ -305,7 +305,7 @@ meter_fold_deltas(brix_cms_meter_t *m, uint64_t now_ms,
 void
 brix_cms_meter_sample(brix_cms_meter_t *m, uint64_t now_ms, uint8_t out5[5])
 {
-    char      buf[8192];
+    char      buf[BRIX_METER_BUF_SIZE];
     uint64_t  net_bytes = 0, pgmaj = 0;
     int       have_net, have_pag;
 

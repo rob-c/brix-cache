@@ -38,8 +38,15 @@ brix_cache_verify_mode_str(ngx_uint_t mode)
 }
 
 
-/* brix_cache_hex_ieq — case-insensitive equality of two hex digests * Origins vary in hex case (XRootD lowercases; some HTTP Digest headers upper).
- * Returns 1 when equal ignoring case, 0 otherwise. Lengths must match too. */
+/* brix_cache_hex_ieq — case-insensitive equality of two hex digests.
+ *
+ * WHY: Origins vary in hex case:
+ *   - XRootD lowercases hex digests
+ *   - Some HTTP Digest headers uppercase
+ *
+ * Returns: 1 when equal ignoring case, 0 otherwise.
+ * Requires: Lengths must match
+ */
 static int
 brix_cache_hex_ieq(const char *a, const char *b)
 {

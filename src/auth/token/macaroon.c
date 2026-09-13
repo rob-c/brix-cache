@@ -30,7 +30,8 @@
 #include <string.h>
 #include <time.h>
 
-#define MACAROON_MAX_BIN 8192
+/* Use global constant for base64 decode max size */
+#define MACAROON_MAX_BIN  BRIX_B64_DECODE_MAX
 
 /* Max number of discharge Macaroons accepted in a single bundle */
 #define BRIX_MACAROON_MAX_DISCHARGES   8

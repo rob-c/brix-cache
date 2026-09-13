@@ -162,9 +162,9 @@ srv_locate_type_char(const brix_srv_entry_t *e)
 {
     char  type = (e->role[0] == 'M' || e->role[0] == 'R') ? 'M' : 'S';
 
-    if (brix_srv_stale_after_ms > 0
+    if (brix_srv_state()->stale_after_ms > 0
         && (ngx_msec_int_t) (ngx_current_msec - e->last_seen)
-           > (ngx_msec_int_t) brix_srv_stale_after_ms)
+           > (ngx_msec_int_t) brix_srv_state()->stale_after_ms)
     {
         type = (char) ngx_tolower(type);
     }
@@ -182,8 +182,8 @@ brix_srv_locate_all(const char *path, int for_write,
     ngx_uint_t          i;
     int                 written, entry_len, first;
     ngx_msec_t          now;
-    char                entry[300];
-    char                hostport[288];   /* host[256] + "[]" + ":65535" + NUL */
+    char                entry[BRIX_REGISTRY_HEALTH_ENTRY_BUF];
+    char                hostport[BRIX_REGISTRY_HEALTH_HOSTPORT_BUF];
 
     tbl = srv_table();
     if (tbl == NULL || bufsz < 2) {

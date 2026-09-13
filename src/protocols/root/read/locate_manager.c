@@ -368,7 +368,7 @@ locate_try_floor_hold(locate_ctx_t *lc, ngx_int_t *out_rc)
 static int
 locate_try_multi(locate_ctx_t *lc, ngx_int_t *out_rc)
 {
-    char  list_buf[2048];
+    char  list_buf[BRIX_ROOT_LOCATE_LIST_BUF_SIZE];
     int   list_len;
 
     if (!lc->conf->cms.locate_multi) {

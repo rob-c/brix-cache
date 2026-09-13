@@ -12,8 +12,14 @@
 #include <string.h>
 #include "auth_token_internal.h"
 
-/* webdav_token_op_class — map the HTTP method to a registry op class * Read-ish verbs (GET/HEAD/PROPFIND/OPTIONS) authorize against read scopes;
- * everything else (PUT/DELETE/MKCOL/MOVE/COPY/PROPPATCH/LOCK/...) is a write. */
+/* webdav_token_op_class — map HTTP method to registry op class.
+ *
+ * Read ops (authorize against read scopes):
+ *   - GET, HEAD, PROPFIND, OPTIONS
+ *
+ * Write ops (require write scopes):
+ *   - PUT, DELETE, MKCOL, MOVE, COPY, PROPPATCH, LOCK, ...
+ */
 brix_token_op_e
 webdav_token_op_class(ngx_http_request_t *r)
 {
@@ -109,7 +115,7 @@ webdav_check_token_scope(ngx_http_request_t *r, const char *method_name)
 }
 
 /* Largest accepted bearer token (DoS guard on the query-string path). */
-#define WEBDAV_QUERY_TOKEN_MAX 8192
+/* WEBDAV_QUERY_TOKEN_MAX defined in webdav.h */
 
 
 /*

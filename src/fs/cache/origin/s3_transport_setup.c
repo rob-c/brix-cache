@@ -185,7 +185,7 @@ s3o_negotiated_proto(CURL *curl)
 static int
 s3o_slist_add(struct curl_slist **list, const char *p, size_t linelen)
 {
-    char               stack[1024];
+    char               stack[BRIX_VFS_S3_STACK_BUF_SIZE];
     char              *line = stack;
     struct curl_slist *next;
 
@@ -239,7 +239,7 @@ void
 s3o_trace(const s3o_trace_t *t)
 {
     ngx_uint_t level = g_origin_trace_info ? NGX_LOG_INFO : NGX_LOG_DEBUG;
-    char       safe[1024];
+    char       safe[BRIX_VFS_S3_SAFE_BUF_SIZE];
 
     if (ngx_cycle == NULL || ngx_cycle->log == NULL
         || ngx_cycle->log->log_level < level)
@@ -383,7 +383,7 @@ static void
 s3o_apply_timeouts(CURL *curl, int timeout_ms)
 {
     long total_ms = (g_origin_attempt_ms > 0) ? g_origin_attempt_ms
-                  : (timeout_ms > 0 ? timeout_ms : 60000);
+                  : (timeout_ms > 0 ? timeout_ms : BRIX_VFS_S3_TIMEOUT_DEFAULT_MS);
 
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, total_ms);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
@@ -507,7 +507,7 @@ s3o_configure(CURL *curl, const s3o_request_t *req, s3o_resp_t *r,
               char *errbuf, size_t errcap)
 {
     const brix_s3_tctx_t *tctx = req->tctx;
-    char                  url[2048];
+    char                  url[BRIX_VFS_S3_URL_BUF_SIZE];
     char                  reason[BRIX_DNS_ERROR_LEN];
 
     snprintf(url, sizeof(url), "%s://%s:%d%s",

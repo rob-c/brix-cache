@@ -134,7 +134,7 @@ webdav_tpc_prepare_pull_target(webdav_tpc_pull_ctx_t *pl)
             .root_canon = conf->common.root_canon,
             .final_path = path,
             .open_flags = O_WRONLY,
-            .mode       = 0600,
+            .mode       = BRIX_WEBDAV_PRIVATE_FILE_MODE,
             .attempts   = 16,
         };
         if (brix_staged_open(r->connection->log, &oreq, staged) != NGX_OK) {

@@ -8,11 +8,20 @@
 
 /*
  * WHAT: Track Virtual Organization (VO) activity and unique user identities in shared memory.
- * WHY: Prometheus metrics need VO-level and user-level aggregation without storing full DNs or token subjects
- *      as label strings (INVARIANT #8: low-cardinality labels only). FNV-1a hash provides fast 32-bit identity
- *      deduplication; VO slots track bytes_tx/bytes_rx per organization; user slots track session counts and unique count.
- * HOW: Two tracking functions share the same pattern — iterate fixed-size slot array, find match via comparison (VO=string compare, USER=hash),
- *      increment atomic counters on match or allocate new slot on miss with eviction fallback when array fills. FNV-1a hash uses BRIX_FNV1A32_OFFSET_BASIS seed + XOR-multiply loop.
+ *
+ * WHY: Prometheus metrics need VO-level and user-level aggregation without storing
+ *      full DNs or token subjects as label strings (INVARIANT #8: low-cardinality
+ *      labels only).
+ *      - FNV-1a hash: fast 32-bit identity deduplication
+ *      - VO slots: track bytes_tx/bytes_rx per organization
+ *      - User slots: track session counts and unique count
+ *
+ * HOW: Two tracking functions share same pattern:
+ *      1. Iterate fixed-size slot array
+ *      2. Find match via comparison (VO=string compare, USER=hash)
+ *      3. Increment atomic counters on match
+ *      4. Allocate new slot on miss with eviction fallback when array fills
+ *      - FNV-1a hash: uses BRIX_FNV1A32_OFFSET_BASIS seed + XOR-multiply loop
  */
 
 /* brix_fnv1a_hash — 32-bit FNV-1a over arbitrary data, used to dedup identities

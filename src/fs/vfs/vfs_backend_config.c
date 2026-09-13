@@ -232,7 +232,7 @@ vfs_parse_block_origin(const char *root_canon, const ngx_str_t *sb,
 {
     const u_char *dev = NULL;
     size_t        devn = 0;
-    char          buf[1024];
+    char          buf[BRIX_VFS_PATH_BUF];
 
     if (sb->len > sizeof("block://") - 1
         && ngx_strncmp(sb->data, "block://", sizeof("block://") - 1) == 0)
@@ -570,7 +570,7 @@ brix_vfs_backend_register_http_upstream(const char *up_root,
             /* the cstore mkdirs each KEY's parents but expects its own root
              * to exist — create the per-upstream subtree now (local store) */
             if (ngx_strcmp(e->cache_tier.driver, "posix") == 0) {
-                (void) brix_mkdir_recursive(e->cache_tier.path, 0755);
+                (void) brix_mkdir_recursive(e->cache_tier.path, BRIX_VFS_DIR_PERM_DEFAULT);
             }
         }
     }

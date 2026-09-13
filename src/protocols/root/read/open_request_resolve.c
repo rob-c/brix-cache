@@ -223,7 +223,7 @@ brix_open_residency_gate(brix_ctx_t *ctx, ngx_connection_t *c,
 		_v.lfn        = full_path;
 		_v.requester_dn = (ctx->login.dn[0] != '\0') ? ctx->login.dn : NULL;
 		_v.tod_expire = (int64_t) ngx_time()
-		              + (int64_t) (conf->frm.stage_ttl / 1000);
+		              + (int64_t) (conf->frm.stage_ttl / BRIX_ROOT_MS_TO_SEC);
 		(void) brix_stage_request_add(
 		           brix_stage_registry_singleton(),
 		           &_v, _rq, sizeof(_rq), c->log);
@@ -416,7 +416,7 @@ brix_open_write_resolve(brix_ctx_t *ctx, ngx_connection_t *c,
 			 * pays for the walk. */
 			if (ngx_strcmp(parent, conf->common.root_canon) != 0) {
 				/* mode 0755 for new directories; propagate group policy */
-				brix_mkdir_recursive_policy(parent, 0755, c->log,
+				brix_mkdir_recursive_policy(parent, BRIX_ROOT_DEFAULT_DIR_MODE, c->log,
 											  conf->group_rules);
 			}
 		}

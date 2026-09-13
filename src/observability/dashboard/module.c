@@ -134,13 +134,13 @@ ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
 
     ngx_conf_merge_value(conf->enable, prev->enable, 0);
     ngx_conf_merge_value(conf->anonymous, prev->anonymous, 0);
-    ngx_conf_merge_uint_value(conf->session_ttl, prev->session_ttl, 28800);
+    ngx_conf_merge_uint_value(conf->session_ttl, prev->session_ttl, BRIX_DASHBOARD_SESSION_TTL_SEC);
     ngx_conf_merge_msec_value(conf->idle_threshold_ms,
-                              prev->idle_threshold_ms, 5000);
+                              prev->idle_threshold_ms, BRIX_DASHBOARD_IDLE_THRESHOLD_MS);
     ngx_conf_merge_msec_value(conf->stalled_threshold_ms,
-                              prev->stalled_threshold_ms, 60000);
+                              prev->stalled_threshold_ms, BRIX_DASHBOARD_STALLED_THRESHOLD_MS);
     ngx_conf_merge_msec_value(conf->cluster_stale_after_ms,
-                              prev->cluster_stale_after_ms, 90000);
+                              prev->cluster_stale_after_ms, BRIX_DASHBOARD_CLUSTER_STALE_MS);
     ngx_conf_merge_str_value(conf->password, prev->password, "");
     ngx_conf_merge_str_value(conf->cookie_path, prev->cookie_path, "/brix");
     if (conf->users == NULL) {
@@ -161,9 +161,9 @@ ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
      * said `brix_admin_rate_limit off`. */
     ngx_conf_merge_value(conf->admin_rl_enable, prev->admin_rl_enable, 1);
     ngx_conf_merge_uint_value(conf->admin_rl_write_pm,
-                              prev->admin_rl_write_pm, 120);
+                              prev->admin_rl_write_pm, BRIX_DASHBOARD_WRITE_RL_PM);
     ngx_conf_merge_uint_value(conf->admin_rl_read_pm,
-                              prev->admin_rl_read_pm, 1200);
+                              prev->admin_rl_read_pm, BRIX_DASHBOARD_READ_RL_PM);
     if (conf->enable && conf->admin_rl_enable
         && brix_admin_rl_finalize(cf, conf) != NGX_OK)
     {
@@ -189,7 +189,7 @@ ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
      * confinement anchor for the /scan endpoint.  Empty => feature off (404). */
     ngx_conf_merge_str_value(conf->scan_root, prev->scan_root, "");
     ngx_conf_merge_value(conf->vfs_browse, prev->vfs_browse, 0);
-    ngx_conf_merge_uint_value(conf->scan_max_files, prev->scan_max_files, 100000);
+    ngx_conf_merge_uint_value(conf->scan_max_files, prev->scan_max_files, BRIX_DASHBOARD_SCAN_MAX_FILES);
     {
         dashboard_canon_root_t scan = {
             &conf->scan_root, conf->scan_root_canon, prev->scan_root_canon,

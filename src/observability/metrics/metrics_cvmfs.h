@@ -13,6 +13,7 @@
 #define NGX_BRIX_METRICS_CVMFS_H
 
 #include <ngx_core.h>
+#include "core/types/tunables.h"  /* BRIX_CVMFS_BUCKET_* constants */
 
 /*
  * Per-process CVMFS protocol metrics (phase-68). Class labels are a fixed
@@ -82,7 +83,12 @@ typedef struct {
  * fill (seconds). */
 #define BRIX_CVMFS_UP_HBUCKETS  6
 static const long brix_cvmfs_up_bucket_ms[BRIX_CVMFS_UP_HBUCKETS] = {
-    5, 25, 100, 500, 2000, 10000
+    BRIX_CVMFS_BUCKET_1_MS,
+    BRIX_CVMFS_BUCKET_2_MS,
+    BRIX_CVMFS_BUCKET_3_MS,
+    BRIX_CVMFS_BUCKET_4_MS,
+    BRIX_CVMFS_BUCKET_5_MS,
+    BRIX_CVMFS_BUCKET_6_MS
 };
 
 typedef struct {

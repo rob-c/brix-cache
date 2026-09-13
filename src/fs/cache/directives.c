@@ -136,7 +136,7 @@ brix_conf_set_fsoverload_redirect(ngx_conf_t *cf, ngx_command_t *cmd, void *conf
     ngx_memcpy(portbuf, value[2].data, value[2].len);
     portbuf[value[2].len] = '\0';
     pnum = strtol(portbuf, &endp, 10);
-    if (*endp != '\0' || pnum <= 0 || pnum > 65535) {
+    if (*endp != '\0' || pnum < BRIX_VFS_PORT_MIN || pnum > BRIX_VFS_PORT_MAX) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_fsoverload_redirect: invalid port \"%V\" (1-65535)", &value[2]);
         return NGX_CONF_ERROR;
@@ -200,7 +200,7 @@ brix_conf_set_cache_eviction_threshold(ngx_conf_t *cf, ngx_command_t *cmd,
         return NGX_CONF_ERROR;
     }
 
-    ppm = (ngx_uint_t) (ratio * 1000000.0 + 0.5);
+    ppm = (ngx_uint_t) (ratio * BRIX_PPM_MULTIPLIER + 0.5);
     if (ppm == 0 || ppm >= BRIX_CACHE_PPM_FULL_SCALE) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_cache_eviction_threshold is out of range");
@@ -261,7 +261,7 @@ brix_conf_set_cache_watermark(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    ppm = (ngx_uint_t) (ratio * 1000000.0 + 0.5);
+    ppm = (ngx_uint_t) (ratio * BRIX_PPM_MULTIPLIER + 0.5);
     if (ppm == 0 || ppm >= BRIX_CACHE_PPM_FULL_SCALE) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "%V is out of range", &cmd->name);

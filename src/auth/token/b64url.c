@@ -1,8 +1,27 @@
 /*
  *
- * WHAT: Decodes base64url-encoded input (RFC 4648 URL-safe variant using '-' instead of '+' and '_' instead of '/') into raw binary output. Validates padded length ≤ BRIX_B64_DECODE_MAX bytes to prevent buffer overflow on oversized inputs. Converts '-' → '+' and '_' → '/' characters into standard base64 equivalents using character-by-character replacement into temporary stack buffer, then pads remainder with '=' characters for OpenSSL decoder alignment. Calculates decoded maximum size (padded_len/4*3 - pad_count) — rejects if exceeds caller-provided out_max capacity. Performs actual decoding via OpenSSL EVP_ENCODE_CTX API into a private buffer (never straight into the caller's, which OpenSSL would overrun by the padding width): EVP_DecodeInit() initializes context, EVP_DecodeUpdate() processes main data block returning out_len bytes, EVP_DecodeFinal() handles remaining padding returning tmp_len bytes. Total decoded length = out_len + tmp_len, re-checked against out_max and copied out; returns -1 on any validation or decoding failure. All memory allocated from stack (BRIX_B64_DECODE_MAX-byte input buffer plus its 6144-byte decode buffer) — no heap allocation during decode operation.
+ * WHAT: Decodes base64url-encoded input (RFC 4648 URL-safe variant) into raw binary.
  *
- * WHY: Base64url encoding is required for JWT token payloads and opaque continuation tokens that must survive URL transmission without special character escaping. The '-'/'_' substitution ensures encoded strings can be safely transmitted in URLs, HTTP headers, or query parameters without requiring percent-encoding of '+' and '/' characters. OpenSSL EVP API provides verified cryptographic decoding rather than reimplementing base64 logic — reduces attack surface by relying on well-tested library functions. BRIX_B64_DECODE_MAX-byte padded length cap prevents denial-of-service via oversized inputs that would overflow stack buffer. Thread safety: pure function with no shared state — operates only on provided input/output buffers and local stack variables. */
+ *   - Uses '-' instead of '+' and '_' instead of '/' (URL-safe alphabet)
+ *   - Validates padded length <= BRIX_B64_DECODE_MAX bytes (overflow prevention)
+ *   - Converts '-' -> '+' and '_' -> '/' via char-by-char replacement in stack buffer
+ *   - Pads remainder with '=' for OpenSSL decoder alignment
+ *   - Calculates decoded_max = padded_len/4*3 - pad_count; rejects if > out_max
+ *   - Decodes via OpenSSL EVP_ENCODE_CTX API into private buffer (not caller's)
+ *     - EVP_DecodeInit() initializes context
+ *     - EVP_DecodeUpdate() processes main block (returns out_len)
+ *     - EVP_DecodeFinal() handles padding (returns tmp_len)
+ *   - Total = out_len + tmp_len, re-checked against out_max, memcpy'd out
+ *   - Returns -1 on any validation or decoding failure
+ *   - Stack-only: BRIX_B64_DECODE_MAX input buffer + BRIX_B64_DECODE_MAX*3/4 decode buffer
+ *
+ * WHY: Required for JWT token payloads and opaque continuation tokens in URLs.
+ *
+ *   - '-'/'_' substitution avoids percent-encoding in URLs/HTTP headers
+ *   - OpenSSL EVP API provides verified crypto decoding (no reimplementation)
+ *   - BRIX_B64_DECODE_MAX cap prevents DoS via oversized inputs
+ *   - Thread-safe: pure function, no shared state, stack-only allocation
+ */
 
 #include "b64url.h"
 #include "core/types/tunables.h"  /* BRIX_B64_DECODE_MAX */
@@ -43,7 +62,7 @@ xrdjwt_split(const char *tok, size_t len, xrdjwt_seg seg[3])
 ssize_t b64url_decode(const char *in, size_t in_len, uint8_t *out, size_t out_max) {
     size_t padded_len = in_len + (4 - in_len % 4) % 4;
     if (padded_len > BRIX_B64_DECODE_MAX) return -1;
-    char tmp[BRIX_B64_DECODE_MAX];
+    char tmp[BRIX_B64_DECODE_MAX];  /* Max base64 decode buffer */
     /* OpenSSL writes three bytes for every four base64 characters and subtracts
      * the padding from the *reported* count only (EVP_DecodeBlock semantics), so
      * a padded token has up to two bytes written past the length it decodes to.
@@ -55,7 +74,7 @@ ssize_t b64url_decode(const char *in, size_t in_len, uint8_t *out, size_t out_ma
      * width. Do NOT collapse this back on the grounds that it does not
      * reproduce: OpenSSL 3.5 no longer writes those bytes, 3.0.x does, and the
      * contract cannot depend on which one is linked. */
-    uint8_t raw[BRIX_B64_DECODE_MAX / 4 * 3];
+    uint8_t raw[BRIX_B64_DECODE_MAX / 4 * 3];  /* Decoded output (3/4 of input) */
     size_t i;
     for (i = 0; i < in_len; i++) {
         if (in[i] == '-')      tmp[i] = '+';
@@ -87,13 +106,44 @@ ssize_t b64url_decode(const char *in, size_t in_len, uint8_t *out, size_t out_ma
     memcpy(out, raw, (size_t) decoded);
     return decoded;
 }
-/* HOW: Computes padded_len = in_len + (4 - in_len % 4) % 4 — rejects if > 8192. Declares stack tmp[8192]. Iterates i=0→in_len: replaces '-' with '+' and '_' with '/' in tmp[i], copies others unchanged. Pads remainder from i→padded_len with '=' characters. Counts pad by scanning backwards from padded_len-1 for trailing '=' chars. Computes decoded_max = padded_len/4*3 - pad — rejects if > out_max. Allocates EVP_ENCODE_CTX via new() — returns -1 on NULL. Calls EVP_DecodeInit(ctx), then EVP_DecodeUpdate(ctx,raw,&out_len,tmp,(int)padded_len) — returns -1 on error (frees ctx). Calls EVP_DecodeFinal(ctx,raw+out_len,&tmp_len) — returns -1 on error (frees ctx). Frees ctx via EVP_ENCODE_CTX_free(). Sums out_len + tmp_len in ssize_t, rejects a sum past out_max, memcpy()s that many bytes from raw into out and returns it. */
+/* HOW: Padded length calculation and validation.
+ *
+ *   - padded_len = in_len + (4 - in_len % 4) % 4; rejects if > BRIX_B64_DECODE_MAX
+ *   - Stack tmp[BRIX_B64_DECODE_MAX] for converted input
+ *   - Loop i=0→in_len: '-'→'+', '_'→'/', else copy unchanged
+ *   - Pad i→padded_len with '=' characters
+ *   - Count pad by scanning backwards from padded_len-1 for '='
+ *   - decoded_max = padded_len/4*3 - pad; rejects if > out_max
+ *   - EVP_ENCODE_CTX_new(); returns -1 on NULL
+ *   - EVP_DecodeInit(ctx)
+ *   - EVP_DecodeUpdate(ctx,raw,&out_len,tmp,(int)padded_len); -1 on error
+ *   - EVP_DecodeFinal(ctx,raw+out_len,&tmp_len); -1 on error
+ *   - EVP_ENCODE_CTX_free(ctx)
+ *   - Sum out_len + tmp_len in ssize_t; rejects if > out_max
+ *   - memcpy(decoded bytes) from raw to out; returns decoded length
+ */
 
 /*
  *
- * WHAT: Encodes source bytes into base64url string (RFC 4648 URL-safe variant using '-' instead of '+' and '_' instead of '/') for safe transmission in URLs, HTTP headers, or query parameters. Uses custom 64-character lookup table containing A-Z, a-z, 0-9, '-', '_' characters. Processes source in 3-byte chunks producing 4 output characters per iteration — loop condition checks both source remaining bytes (i+2 < slen) and destination capacity (di+4 < dsz-1). Handles partial final group: when i < slen but i+2 ≥ slen, encodes 1 or 2 remaining bytes producing 2 or 3 output characters respectively based on available source length. Always null-terminates output string at dst[di]='\0'. Returns encoded string length implicitly via di counter; caller determines capacity by checking dsz before calling.
+ * WHAT: Encodes source bytes into base64url string (RFC 4648 URL-safe variant).
  *
- * WHY: Base64url encoding produces URL-safe strings that can be transmitted without percent-encoding of '+' and '/' characters — essential for JWT tokens, opaque continuation tokens, and other binary payloads that must survive HTTP transport. Minimal implementation avoids OpenSSL dependency for simple encoding operations where cryptographic verification is not required (unlike decode which uses EVP API). Stack-only allocation (static lookup table) ensures no heap pressure during encoding operations on high-throughput requests. Thread safety: pure function with static lookup table — operates only on provided source/destination buffers and local stack variables, no shared state accessed. */
+ *   - Uses '-' instead of '+' and '_' instead of '/' (URL-safe alphabet)
+ *   - Custom 64-char lookup table: A-Z, a-z, 0-9, '-', '_'
+ *   - Processes 3-byte chunks -> 4 output chars per iteration
+ *   - Loop: i+2 < slen && di+4 < dsz-1 (checks source + dest capacity)
+ *   - Partial final group: i < slen but i+2 >= slen
+ *     - 1 remaining byte -> 2 output chars
+ *     - 2 remaining bytes -> 3 output chars
+ *   - Null-terminates: dst[di] = '\0'
+ *   - Returns length implicitly via di counter (caller checks dsz capacity)
+ *
+ * WHY: URL-safe strings for JWT tokens, continuation tokens, HTTP transport.
+ *
+ *   - No percent-encoding needed for '+' and '/' in URLs/headers
+ *   - Minimal impl avoids OpenSSL for non-crypto encoding
+ *   - Stack-only (static lookup table) - no heap pressure
+ *   - Thread-safe: pure function, static table, no shared state
+ */
 
 /*
  * Minimal base64url encode — key string → opaque continuation token.
@@ -128,4 +178,17 @@ b64url_encode(const char *src, size_t slen, char *dst, size_t dsz)
     }
     dst[di] = '\0';
 }
-/* HOW: Declares static 64-char lookup table tbl[] containing A-Z,a-z,0-9,-,_ (base64url alphabet). Initializes di=0,i=0. Main loop: i+2<slen && di+4<dsz-1 — reads 3 source bytes into uint32_t v via left-shifts, extracts 6-bit groups via (v>>18)&0x3f,(v>>12)&0x3f,(v>>6)&0x3f,v&0x3f, maps each to tbl[] character at dst[di++]. Handles partial final group: if i<slen && di+2<dsz-1 — reads 1 or 2 remaining bytes into v via shift; extracts 6-bit groups producing 2 or 3 output chars based on available source length. Null-terminates dst[di]='\0'. Returns implicitly via di counter (caller checks dsz capacity before calling). */
+/* HOW: Encoding algorithm.
+ *
+ *   - Static 64-char lookup table: A-Z,a-z,0-9,-,_ (base64url alphabet)
+ *   - Initializes di=0, i=0
+ *   - Main loop (i+2<slen && di+4<dsz-1):
+ *     - Reads 3 source bytes into uint32_t v via left-shifts
+ *     - Extracts 6-bit groups: (v>>18)&0x3f, (v>>12)&0x3f, (v>>6)&0x3f, v&0x3f
+ *     - Maps each to tbl[] char at dst[di++]
+ *   - Partial final group (i<slen && di+2<dsz-1):
+ *     - Reads 1-2 remaining bytes into v via shift
+ *     - Extracts 6-bit groups -> 2-3 output chars based on available source
+ *   - Null-terminates: dst[di] = '\0'
+ *   - Returns implicitly via di counter (caller checks dsz before calling)
+ */

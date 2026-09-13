@@ -41,7 +41,7 @@
  * - Metrics: metrics pointer to shared-memory segment
  * - TLS: tls_pending (awaiting ClientHello after kXR_haveTLS)
  * - CMS: cms_wait_streamid (pending locate answer)
- * - Proxy: proxy context, bearer_token[4096], proxy_fail_count
+ * - Proxy: proxy context, bearer_token[BRIX_BEARER_TOKEN_MAX], proxy_fail_count
  * - PMark: pmark sub-struct (SciTags packet-marking flow)
  * - Prepare: prepare sub-struct (kXR_prepare/kXR_stage polling)
  * - Throttle: throttle sub-struct (per-user accounting)
@@ -58,7 +58,7 @@
  *   - payload_buf: reused across requests, detached by async handlers
  *   - read_fast_*: pre-zeroed chain objects for common one-chunk response
  *   - AIO task: single reusable task per connection
- *   - Bearer token: stack-allocated [4096] for proxy forward
+ *   - Bearer token: stack-allocated [BRIX_BEARER_TOKEN_MAX] for proxy forward
  *
  * LIFECYCLE:
  *   Allocated: ngx_stream_brix_handler() on TCP accept
@@ -380,7 +380,7 @@ typedef struct brix_ctx_s {
      * forward it to the upstream when brix_proxy_auth forward is set.
      * Empty string when the client authenticated via GSI or anonymously.
      */
-    char  bearer_token[4096];
+    char  bearer_token[BRIX_BEARER_TOKEN_MAX];
 
     /*
      * Optional client-supplied FULL x509 proxy (cert chain + private key, PEM),

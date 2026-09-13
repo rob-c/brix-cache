@@ -261,7 +261,7 @@ cms_frame_login_retarget(ngx_brix_cms_ctx_t *ctx, const char *host,
 
     addr = ngx_pcalloc(ctx->cycle->pool, sizeof(ngx_addr_t));
     name = ngx_pnalloc(ctx->cycle->pool,
-                       ngx_strlen(host) + sizeof(":65535"));
+                       ngx_strlen(host) + sizeof(":" BRIX_STRINGIFY(BRIX_CMS_MAX_PORT)));
     if (addr == NULL || name == NULL) {
         return NGX_OK;
     }
@@ -277,7 +277,7 @@ cms_frame_login_retarget(ngx_brix_cms_ctx_t *ctx, const char *host,
     ngx_inet_set_port(addr->sockaddr, port);
 
     name_len = (size_t)
-        (ngx_snprintf(name, ngx_strlen(host) + sizeof(":65535"),
+        (ngx_snprintf(name, ngx_strlen(host) + sizeof(":" BRIX_STRINGIFY(BRIX_CMS_MAX_PORT)),
                       "%s:%d%Z", host, (int) port) - name) - 1;
     addr->name.data = name;
     addr->name.len  = name_len;

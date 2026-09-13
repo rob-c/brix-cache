@@ -215,7 +215,7 @@ ngx_brix_cms_schedule_retry(ngx_brix_cms_ctx_t *ctx)
 
     /* Cap max backoff at 10× the heartbeat interval so a short cms_interval
      * (e.g. 2s for tests) also gives short reconnect windows. */
-    max_backoff = (ngx_msec_t) ctx->conf->cms.interval * 10000;
+    max_backoff = (ngx_msec_t) ctx->conf->cms.interval * BRIX_CMS_BACKOFF_MULTIPLIER;
     if (max_backoff > NGX_BRIX_CMS_BACKOFF_MAX) {
         max_backoff = NGX_BRIX_CMS_BACKOFF_MAX;
     }
@@ -379,7 +379,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
                           "brix: CMS registered with %V after %uL ms "
                           "(%ui connect attempt(s), %s)",
                           &ctx->mgr_name,
-                          (brix_phase_now_ns() - ctx->start_ns) / 1000000ull,
+                          (brix_phase_now_ns() - ctx->start_ns) / BRIX_CMS_NS_TO_MS_DIVISOR,
                           ctx->connect_attempts,
                           ctx->is_loopback ? "loopback" : "remote");
         }

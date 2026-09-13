@@ -109,7 +109,7 @@ static ngx_int_t
 s3_user_meta_append_kv(char *out, size_t outsz, size_t *pos,
     const char *klow, size_t knlen, const u_char *val, size_t vallen)
 {
-    char   enc[1024];
+    char   enc[BRIX_S3_USERMETA_KV_BUF];
     size_t cursor = *pos;
     size_t n;
 

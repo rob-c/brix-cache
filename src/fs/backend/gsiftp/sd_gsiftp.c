@@ -189,7 +189,7 @@ static int
 sd_gsiftp_cfg_valid(const brix_sd_gsiftp_cfg_t *cfg)
 {
     return cfg != NULL && cfg->host != NULL && cfg->host[0] != '\0'
-           && cfg->port >= 1 && cfg->port <= 65535;
+           && cfg->port >= BRIX_VFS_PORT_MIN && cfg->port <= BRIX_VFS_PORT_MAX;
 }
 
 static int

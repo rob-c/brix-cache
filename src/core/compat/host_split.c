@@ -5,6 +5,7 @@
  * several places. ngx-free; libc only.
  */
 #include "host_split.h"
+#include "../types/tunables.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -34,7 +35,7 @@ brix_parse_port_str(const char *port_str, int *port)
         return -1;
     }
     p = strtol(port_str, &end, 10);
-    if (*end != '\0' || p <= 0 || p > 65535) {
+    if (*end != '\0' || p <= 0 || p > BRIX_MAX_PORT) {
         return -1;
     }
     *port = (int) p;

@@ -44,8 +44,8 @@ mac_iso_component(const char *s, size_t len, size_t *ip, uint64_t *total)
     }
     if (digits == 0 || i >= len) { return NGX_ERROR; }
     switch (s[i]) {
-    case 'D': *total += v * 86400; break;
-    case 'H': *total += v * 3600;  break;
+    case 'D': *total += v * BRIX_ISO8601_SECS_PER_DAY; break;
+    case 'H': *total += v * BRIX_ISO8601_SECS_PER_HOUR;  break;
     case 'M': *total += v * 60;    break;
     case 'S': *total += v;         break;
     default:  return NGX_ERROR;
@@ -218,7 +218,7 @@ webdav_handle_macaroon_request(ngx_http_request_t *r)
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
     /* Secret configured + authenticated + body read (order load-bearing) */
-    if (mac_gate_and_read_body(r, conf, 16384, &body, &body_len) != NGX_OK) {
+    if (mac_gate_and_read_body(r, conf, BRIX_WEBDAV_MACAROON_REQUEST_BODY_MAX, &body, &body_len) != NGX_OK) {
         return;
     }
 

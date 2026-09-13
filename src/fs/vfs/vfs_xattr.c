@@ -99,12 +99,14 @@ brix_vfs_xattr_read_at(brix_vfs_ctx_t *ctx, const char *path,
          * cred slot (bearer PASSTHROUGH would leave x509_proxy dangling). */
         ngx_memzero(&cred, sizeof(cred));
 
+        /* Resolve path to physical filename — errno set on failure. */
         if (brix_path_resolved_to_pfn(ctx, path, physical,
                                       sizeof(physical)) != NGX_OK)
         {
             return -1;
         }
 
+        /* Gate xattr operations behind credential check — EACCES if denied. */
         if (brix_vfs_cred_gate_active(ctx)) {
             if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
                 != NGX_OK)
@@ -121,6 +123,8 @@ brix_vfs_xattr_read_at(brix_vfs_ctx_t *ctx, const char *path,
             brix_sd_instance_t *leaf = brix_vfs_ns_leaf(ctx->sd);
             brix_sd_cred_t     *cp = use_cred ? &cred : NULL;
 
+            /* Dispatch to leaf driver's getxattr/listxattr with optional credentials.
+             * ENOTSUP if driver lacks the capability. */
             if (name != NULL) {
                 n = (drv->getxattr != NULL)
                     ? brix_sd_getxattr_maybe_cred(leaf, physical, name, buf,

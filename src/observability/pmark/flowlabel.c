@@ -32,17 +32,10 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-/* Kernel ABI (from <linux/in6.h>, which conflicts with <netinet/in.h>).  Values
- * and layout are stable.  Guard the macros in case a libc does export them. */
-#ifndef IPV6_FLOWLABEL_MGR
-#define IPV6_FLOWLABEL_MGR   32
-#endif
-#ifndef IPV6_FLOWINFO_SEND
-#define IPV6_FLOWINFO_SEND   33
-#endif
-#define PMARK_FL_A_GET        0
-#define PMARK_FL_F_CREATE     1
-#define PMARK_FL_S_EXCL       1
+/* Kernel ABI constants now in src/core/types/tunables.h:
+ * BRIX_IPV6_FLOWLABEL_MGR, BRIX_IPV6_FLOWINFO_SEND, BRIX_IPV6_FL_A_GET,
+ * BRIX_IPV6_FL_F_CREATE, BRIX_IPV6_FL_S_EXCL.  See tunables.h for documentation.
+ */
 
 struct pmark_flowlabel_req {
     struct in6_addr  flr_dst;
@@ -87,13 +80,13 @@ brix_pmark_flowlabel_usable(ngx_log_t *log)
     fl.flr_dst   = in6addr_loopback;
     /* A representative in-range structural label (exp/act minima) just to learn
      * whether the kernel will lease a SPECIFIC label on this host at all. */
-    fl.flr_label = htonl(brix_pmark_flowlabel_encode(BRIX_PMARK_EXP_MIN,
-                                                       BRIX_PMARK_ACT_MIN));
-    fl.flr_action = PMARK_FL_A_GET;
-    fl.flr_flags  = PMARK_FL_F_CREATE;
-    fl.flr_share  = PMARK_FL_S_EXCL;
+    fl.flr_label = htonl(BRIX_IPV6_FL_ENCODE(BRIX_IPV6_EXP_MIN,
+                                             BRIX_IPV6_ACT_MIN));
+    fl.flr_action = BRIX_IPV6_FL_A_GET;
+    fl.flr_flags  = BRIX_IPV6_FL_F_CREATE;
+    fl.flr_share  = BRIX_IPV6_FL_S_EXCL;
 
-    if (setsockopt(fd, IPPROTO_IPV6, IPV6_FLOWLABEL_MGR, &fl, sizeof(fl)) == 0) {
+    if (setsockopt(fd, IPPROTO_IPV6, BRIX_IPV6_FLOWLABEL_MGR, &fl, sizeof(fl)) == 0) {
         pmark_fl_usable = 1;
     } else {
         ngx_log_error(NGX_LOG_NOTICE, log, ngx_errno,
@@ -120,23 +113,23 @@ pmark_flowlabel_lease(int fd, const struct in6_addr *dst6, ngx_uint_t exp,
 
     /* Structural bits (community + activity) plus 5 random entropy bits, set once
      * here per flow so same-(exp,act) flows hash differently for ECMP (spec §4). */
-    label = brix_pmark_flowlabel_encode(exp, act)
-            | ((uint32_t) ngx_random() & BRIX_PMARK_FL_ENTROPY_MASK);
+    label = BRIX_IPV6_FL_ENCODE(exp, act)
+            | ((uint32_t) ngx_random() & BRIX_IPV6_FL_ENTROPY_MASK);
 
     ngx_memzero(&fl, sizeof(fl));
     fl.flr_dst    = *dst6;
     fl.flr_label  = htonl(label);
-    fl.flr_action = PMARK_FL_A_GET;
-    fl.flr_flags  = PMARK_FL_F_CREATE;
-    fl.flr_share  = PMARK_FL_S_EXCL;
+    fl.flr_action = BRIX_IPV6_FL_A_GET;
+    fl.flr_flags  = BRIX_IPV6_FL_F_CREATE;
+    fl.flr_share  = BRIX_IPV6_FL_S_EXCL;
 
-    if (setsockopt(fd, IPPROTO_IPV6, IPV6_FLOWLABEL_MGR, &fl, sizeof(fl)) != 0) {
+    if (setsockopt(fd, IPPROTO_IPV6, BRIX_IPV6_FLOWLABEL_MGR, &fl, sizeof(fl)) != 0) {
         BRIX_PMARK_METRIC_INC(pmark_flowlabel_failed_total);
         ngx_log_debug1(NGX_LOG_DEBUG_CORE, log, ngx_errno,
             "pmark: flow-label lease failed (label=0x%05xui)", label);
         return NGX_DECLINED;
     }
-    (void) setsockopt(fd, IPPROTO_IPV6, IPV6_FLOWINFO_SEND, &on, sizeof(on));
+    (void) setsockopt(fd, IPPROTO_IPV6, BRIX_IPV6_FLOWINFO_SEND, &on, sizeof(on));
 
     BRIX_PMARK_METRIC_INC(pmark_flowlabel_set_total);
     ngx_log_debug1(NGX_LOG_DEBUG_CORE, log, 0,

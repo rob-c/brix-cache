@@ -7,6 +7,7 @@
 
 #include "impersonate.h"
 #include "impersonate_proto.h"
+#include "impersonate_state.h"
 #include "core/compat/log_diag.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -85,14 +86,11 @@ static inline int prctl(int option, ...) {
 #else
 #include <sys/prctl.h>
 #endif
-#define IMP_BROKER_MAXCONN  1024
+#define IMP_BROKER_MAXCONN  BRIX_IMP_BROKER_MAXCONN
 #define IMP_REFUSE_PRIV  (-2)
 
-extern uid_t  imp_base_uid;
-extern gid_t  imp_base_gid;
-extern gid_t  imp_base_groups[BRIX_IDMAP_MAXGROUPS];
-extern int    imp_base_ngroups;
-extern uid_t  imp_self_uid;
+/* Globals encapsulated in brix_imp_state_t - use accessor functions */
+/* Legacy externs removed - use brix_imp_get_*() accessors instead */
 #ifndef RENAME_EXCHANGE
 #define RENAME_EXCHANGE (1u << 1)
 #endif

@@ -130,7 +130,27 @@ ocsp_check_urls(ngx_log_t *log, STACK_OF(OPENSSL_STRING) *ocsp_urls,
     return result;
 }
 
-/* HOW: Validates leaf and issuer are non-NULL (returns soft_fail result if either is missing). Extracts OCSP URLs from the certificate's AIA extension via X509_get1_ocsp(). Builds the OCSP certificate ID (SHA-1 hash of issuer fields) using OCSP_cert_to_id(). Delegates the per-URL query loop to ocsp_check_urls() (GOOD→0, REVOKED→-1 never overridden, UNKNOWN/network-error→soft_fail default). Frees ID and URL stack on exit. */
+/*
+ * HOW: Six-step OCSP certificate validation:
+ *
+ *        1. Validate leaf and issuer are non-NULL
+ *           - If either missing: return soft_fail result
+ *
+ *        2. Extract OCSP URLs from certificate's AIA extension
+ *           - X509_get1_ocsp(leaf) → STACK_OF(OPENSSL_STRING)
+ *
+ *        3. Build OCSP certificate ID
+ *           - OCSP_cert_to_id(): SHA-1 hash of issuer fields
+ *
+ *        4. Delegate per-URL query loop to ocsp_check_urls()
+ *           - GOOD response: return 0 (never overridden)
+ *           - REVOKED response: return -1 (never overridden)
+ *           - UNKNOWN/network-error: return soft_fail default
+ *
+ *        5. Cleanup: free OCSP_CERTID via OCSP_CERTID_free()
+ *
+ *        6. Cleanup: free URL stack via sk_OPENSSL_STRING_free()
+ */
 int
 brix_ocsp_check_cert(ngx_log_t *log, const brix_dns_policy_t *dns, X509 *leaf,
     X509 *issuer, int soft_fail, int require_nonce)
@@ -328,7 +348,32 @@ ocsp_fetch_staple_urls(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf,
     return NGX_ERROR;
 }
 
-/* HOW: Validates server certificate is non-NULL. Extracts OCSP URLs from the AIA extension. Locates the issuer certificate via ocsp_find_issuer() (X509_STORE_CTX against gsi_store). Builds the OCSP certificate ID via OCSP_cert_to_id(). Delegates the per-URL fetch/verify/cache loop to ocsp_fetch_staple_urls() (only GOOD responses cached, DER-encoded into nginx memory, old staple freed on the reload path). Returns NGX_OK once a staple is cached, NGX_ERROR otherwise. Frees ID, issuer, and URL stack on exit. */
+/*
+ * HOW: Seven-step OCSP staple prefetch:
+ *
+ *        1. Validate server certificate is non-NULL
+ *
+ *        2. Extract OCSP URLs from AIA extension
+ *           - X509_get1_ocsp(server_cert)
+ *
+ *        3. Locate issuer certificate
+ *           - ocsp_find_issuer(): X509_STORE_CTX against gsi_store
+ *
+ *        4. Build OCSP certificate ID
+ *           - OCSP_cert_to_id(): SHA-1 hash of issuer fields
+ *
+ *        5. Delegate per-URL fetch/verify/cache loop to ocsp_fetch_staple_urls()
+ *           - Only GOOD responses cached (DER-encoded into nginx memory)
+ *           - Old staple freed on reload path
+ *           - Staple prefetch is server-side cache warm,
+ *             not live client decision
+ *
+ *        6. Return status:
+ *           - NGX_OK: once staple is cached
+ *           - NGX_ERROR: on failure
+ *
+ *        7. Cleanup: free ID, issuer cert, URL stack
+ */
 ngx_int_t
 brix_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
 {

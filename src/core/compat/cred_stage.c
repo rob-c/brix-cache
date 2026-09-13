@@ -23,6 +23,9 @@
 #include <sys/random.h>
 #endif
 
+/* Permission constants from tunables.h */
+#include "../types/tunables.h"
+
 /* Per-uid staging root on tmpfs.  /dev/shm is 1777 (sticky, world-writable), so
  * every uid can create its OWN 0700 subdirectory here that no other uid can enter
  * or delete; the security boundary is that dir's mode + ownership, checked below.
@@ -67,7 +70,7 @@ brix_cred_stage_dir(char *out, size_t outsz)
         return -1;
     }
 
-    if (mkdir(dir, 0700) != 0 && errno != EEXIST) {
+    if (mkdir(dir, BRIX_PERM_RESTRICTED) != 0 && errno != EEXIST) {
         return -1;
     }
 
@@ -247,7 +250,7 @@ cred_write_persistent(const brix_cred_write_req_t *req, const void *bytes,
     char  tmp[PATH_MAX];
     int   fd, n, saved;
 
-    if (mkdir(req->dir, 0700) != 0 && errno != EEXIST) {
+    if (mkdir(req->dir, BRIX_PERM_RESTRICTED) != 0 && errno != EEXIST) {
         return -1;
     }
     if (cred_dir_check(req->dir) != 0) {

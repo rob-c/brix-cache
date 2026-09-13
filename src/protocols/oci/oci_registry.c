@@ -34,7 +34,7 @@
 /* A tag list of this size covers any repository a human maintains; past it
  * the answer is truncated rather than grown, because an unbounded listing on
  * the read path is a memory amplifier a single request could pull. */
-#define OCI_TAGS_MAX  (64 * 1024)
+#define OCI_TAGS_MAX  BRIX_OCI_TAGS_MAX
 
 
 /* Resolve what the request names to a path in the store. Manifests reached by

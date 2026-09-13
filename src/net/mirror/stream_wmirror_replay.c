@@ -243,7 +243,7 @@ wmir_launch(ngx_stream_brix_srv_conf_t *conf, brix_wmirror_file_t *f)
     t = (brix_mirror_target_t *) conf->mirror.targets->elts;   /* first target */
     if (brix_mirror_target_addr(t, &tss, &tlen) != NGX_OK) { return; }
 
-    pool = ngx_create_pool(2048, ngx_cycle->log);
+    pool = ngx_create_pool(BRIX_MIRROR_POOL_SIZE, ngx_cycle->log);
     if (pool == NULL) { return; }
     r = ngx_pcalloc(pool, sizeof(*r));
     if (r == NULL) { ngx_destroy_pool(pool); return; }

@@ -125,7 +125,7 @@ admin_parse_port(const char *seg1, uint16_t *port_out)
     ngx_int_t  port;
 
     port = ngx_atoi((u_char *) seg1, ngx_strlen(seg1));
-    if (port == NGX_ERROR || port <= 0 || port > 65535) {
+    if (port == NGX_ERROR || port <= 0 || port > BRIX_MAX_PORT) {
         return NGX_ERROR;
     }
     *port_out = (uint16_t) port;
@@ -182,7 +182,7 @@ admin_cluster_register(ngx_http_request_t *r, json_t *body)
     json_int_t  free_mb  = json_integer_value(json_object_get(body, "free_mb"));
     json_int_t  util_pct = json_integer_value(json_object_get(body, "util_pct"));
 
-    if (host == NULL || paths == NULL || port <= 0 || port > 65535) {
+    if (host == NULL || paths == NULL || port <= 0 || port > BRIX_MAX_PORT) {
         admin_audit(r, "cluster/register", host, "bad_request");
         return admin_send_error(r, NGX_HTTP_BAD_REQUEST, "missing_field");
     }
@@ -222,7 +222,7 @@ admin_cluster_drain(ngx_http_request_t *r, json_t *body)
     if (duration_s <= 0) {
         duration_s = 300;
     }
-    brix_srv_blacklist(host, port, (ngx_msec_t) duration_s * 1000);
+    brix_srv_blacklist(host, port, (ngx_msec_t) duration_s * BRIX_MSEC_PER_SEC);
     brix_dashboard_event_add(BRIX_DASH_EVENT_NAMESPACE, 0, 0,
                                "admin: server drained", host);
     admin_audit(r, "cluster/drain", host, "drained");

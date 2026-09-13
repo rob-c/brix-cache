@@ -44,8 +44,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define OCI_STORE_DIR_MODE   0700
-#define OCI_STORE_IO_CHUNK   (64 * 1024)
+#define OCI_STORE_DIR_MODE   BRIX_OCI_STORE_DIR_MODE
+#define OCI_STORE_IO_CHUNK   BRIX_OCI_STORE_IO_CHUNK
 
 
 ngx_int_t

@@ -17,7 +17,9 @@
 #include "protocols/root/protocol/qspace.h"           /* brix_qspace_parse */
 #include "core/compat/fattr_codec.h"        /* xrdp_fattr_nvec_parse (kXR_fattr replies) */
 #include "protocols/root/protocol/frame_hdr.h"        /* xrd_error_body_decode (kXR_error errnum) */
-/* PAL endian ops now in platform_api.h */  /* brix_plat_htobe64/brix_plat_be64toh cross-platform */
+/* PAL endian ops now in platform_api.h
+ * brix_plat_htobe64/brix_plat_be64toh cross-platform
+ */
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
@@ -459,7 +461,7 @@ brix_cache_origin_getfattr(brix_cache_fill_t *t,
         xrdw_fattr_req_t b = { .subcode = kXR_fattrGet, .numattr = 1 };
         xrdw_fattr_req_pack(&b, body);
     }
-    if (origin_fattr_send(t, oc, body, payload, plen, 65536, &rbody, &dlen) != 0) {
+    if (origin_fattr_send(t, oc, body, payload, plen, BRIX_HUGE_BUF_SIZE, &rbody, &dlen) != 0) {
         return -1;
     }
     if (rbody == NULL || dlen < 2
@@ -503,7 +505,7 @@ brix_cache_origin_listfattr(brix_cache_fill_t *t,
         xrdw_fattr_req_t b = { .subcode = kXR_fattrList, .numattr = 0 };
         xrdw_fattr_req_pack(&b, body);
     }
-    if (origin_fattr_send(t, oc, body, payload, pn + 1, 65536, &rbody, &dlen) != 0) {
+    if (origin_fattr_send(t, oc, body, payload, pn + 1, BRIX_VFS_ORIGIN_FATTR_SEND_BUF, &rbody, &dlen) != 0) {
         return -1;
     }
     if (buf != NULL && cap > 0 && dlen > 0) {
@@ -531,7 +533,7 @@ origin_fattr_set_or_del(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
         xrdw_fattr_req_t b = { .subcode = subcode, .numattr = 1 };
         xrdw_fattr_req_pack(&b, body);
     }
-    if (origin_fattr_send(t, oc, body, payload, plen, 4096, &rbody, &dlen) != 0) {
+    if (origin_fattr_send(t, oc, body, payload, plen, BRIX_XLARGE_BUF_SIZE, &rbody, &dlen) != 0) {
         return -1;
     }
     if (rbody == NULL || dlen < 2

@@ -16,7 +16,7 @@
  *
  * HOW: Scan for the "scitag.flow=" token at a parameter boundary (string start,
  *   or just after '?' / '&' / ';'), parse the following run of decimal digits,
- *   range-check [65,65535], and split via brix_pmark_flow_split().
+ *   range-check [BRIX_PMARK_PORT_MIN,BRIX_PMARK_PORT_MAX], and split via brix_pmark_flow_split().
  */
 
 #include "pmark.h"

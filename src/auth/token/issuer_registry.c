@@ -44,7 +44,7 @@ parse_bool(const char *v)
 /* brix_token_strategy_parse — "capability group mapping" → bits */uint32_t
 brix_token_strategy_parse(const char *value)
 {
-    char     buf[128];
+    char     buf[BRIX_TOKEN_ISSUER_BUF_SIZE];
     char    *tok;
     char    *save = NULL;
     uint32_t bits = 0;
@@ -70,7 +70,7 @@ brix_token_strategy_parse(const char *value)
 static void
 reg_add_strs(char *arr, size_t esz, int *count, int cap, const char *csv)
 {
-    char  buf[1024];
+    char  buf[BRIX_TOKEN_INI_LINE_BUF_SIZE];
     char *tok;
     char *save = NULL;
 

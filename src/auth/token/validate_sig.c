@@ -93,7 +93,7 @@ int
 token_check_header(const brix_token_validate_args_t *a, const xrdjwt_seg *seg,
     token_hdr_t *hdr)
 {
-    u_char   hdr_json[2048];
+    u_char   hdr_json[BRIX_TOKEN_HDR_JSON_BUF_SIZE];
     ssize_t  hdr_len;
 
     hdr_len = b64url_decode(seg[0].p, seg[0].n, hdr_json,

@@ -15,6 +15,20 @@
 /* Never serve a cached token for longer than this regardless of `exp`. */
 #define BRIX_TOKEN_CACHE_MAX_TTL_MS  (5 * 60 * 1000)
 
+/*
+ * WHAT: Lookup a validated JWT in the cross-worker cache by token SHA-256 fingerprint.
+ *
+ * WHY: Avoid re-validating the same JWT signature and claims across workers/requests;
+ *   the cache stores the full brix_token_claims_t so validation is O(1) after first lookup.
+ *   Defensive TTL capping prevents serving stale tokens beyond 5 minutes regardless of exp.
+ *
+ * HOW:
+ *   - Compute SHA-256 fingerprint of the raw token bytes (32-byte key)
+ *   - Lookup in the brix_kv_t cache (zone must have key>=32, val>=sizeof(brix_token_claims_t))
+ *   - Validate returned size matches expected claims struct
+ *   - Check expiration time defensively (never hand back expired tokens)
+ *   - Return 1 (found+valid) or 0 (not found/expired/error)
+ */
 int
 brix_token_cache_lookup(brix_kv_t *kv, const char *token,
     size_t token_len, brix_token_claims_t *claims)
@@ -41,6 +55,19 @@ brix_token_cache_lookup(brix_kv_t *kv, const char *token,
     return 1;
 }
 
+/*
+ * WHAT: Store a validated JWT's claims in the cross-worker cache keyed by token SHA-256.
+ *
+ * WHY: Subsequent requests with the same token can skip signature validation and claims
+ *   parsing, reducing CPU cost and latency. TTL is capped at 5 minutes to limit exposure
+ *   if a token is compromised, regardless of its original expiration time.
+ *
+ * HOW:
+ *   - Compute SHA-256 fingerprint of the raw token bytes (32-byte key)
+ *   - Calculate TTL: min(token remaining lifetime, BRIX_TOKEN_CACHE_MAX_TTL_MS)
+ *   - Skip caching if token is already expired
+ *   - Store claims struct verbatim via brix_kv_set() with computed TTL
+ */
 void
 brix_token_cache_store(brix_kv_t *kv, const char *token,
     size_t token_len, const brix_token_claims_t *claims)
@@ -67,7 +94,7 @@ brix_token_cache_store(brix_kv_t *kv, const char *token,
         if (remaining > BRIX_TOKEN_CACHE_MAX_TTL_MS / 1000) {
             ttl = BRIX_TOKEN_CACHE_MAX_TTL_MS;
         } else {
-            ttl = (ngx_msec_t) (remaining * 1000);
+            ttl = (ngx_msec_t) (remaining * BRIX_AUTH_CACHE_TTL_MS_PER_SEC);
         }
     }
 

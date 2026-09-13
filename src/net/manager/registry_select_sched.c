@@ -33,9 +33,10 @@
 static int
 sched_active(void)
 {
-    return (brix_srv_sched.cpu | brix_srv_sched.io | brix_srv_sched.runq
-            | brix_srv_sched.mem | brix_srv_sched.pag
-            | brix_srv_sched.space) != 0;
+    const brix_srv_state_t *st = brix_srv_state();
+    return (st->sched.cpu | st->sched.io | st->sched.runq
+            | st->sched.mem | st->sched.pag
+            | st->sched.space) != 0;
 }
 
 /*
@@ -53,19 +54,20 @@ sched_active(void)
 static uint32_t
 sched_machine_load(const brix_srv_entry_t *e)
 {
+    const brix_srv_state_t *st = brix_srv_state();
     uint64_t   num, den;
 
-    den = (uint64_t) brix_srv_sched.cpu + brix_srv_sched.io
-        + brix_srv_sched.runq + brix_srv_sched.mem + brix_srv_sched.pag;
+    den = (uint64_t) st->sched.cpu + st->sched.io
+        + st->sched.runq + st->sched.mem + st->sched.pag;
     if (den == 0) {
         return e->load_pct;
     }
 
-    num = (uint64_t) brix_srv_sched.cpu  * e->load5[0]
-        + (uint64_t) brix_srv_sched.io   * e->load5[1]
-        + (uint64_t) brix_srv_sched.runq * e->load5[2]
-        + (uint64_t) brix_srv_sched.mem  * e->load5[3]
-        + (uint64_t) brix_srv_sched.pag  * e->load5[4];
+    num = (uint64_t) st->sched.cpu  * e->load5[0]
+        + (uint64_t) st->sched.io   * e->load5[1]
+        + (uint64_t) st->sched.runq * e->load5[2]
+        + (uint64_t) st->sched.mem  * e->load5[3]
+        + (uint64_t) st->sched.pag  * e->load5[4];
     return (uint32_t) (num / den);
 }
 
@@ -84,8 +86,9 @@ sched_machine_load(const brix_srv_entry_t *e)
 int
 srv_sel_over_maxload(const brix_srv_entry_t *e)
 {
-    return brix_srv_sched.maxload > 0
-           && sched_machine_load(e) > brix_srv_sched.maxload;
+    const brix_srv_state_t *st = brix_srv_state();
+    return st->sched.maxload > 0
+           && sched_machine_load(e) > st->sched.maxload;
 }
 
 /*
@@ -106,6 +109,7 @@ srv_sel_over_maxload(const brix_srv_entry_t *e)
 uint32_t
 srv_sel_metric(const brix_srv_entry_t *e, int for_write)
 {
+    const brix_srv_state_t *st = brix_srv_state();
     uint64_t    num, den;
     uint32_t    machine;
     ngx_uint_t  w;
@@ -114,16 +118,16 @@ srv_sel_metric(const brix_srv_entry_t *e, int for_write)
         /* Legacy: Phase-89 W4 single-weight blend (0 = raw metric). */
         uint32_t metric = for_write ? e->free_mb : e->util_pct;
 
-        w = brix_srv_load_weight;
+        w = st->load_weight;
         if (w == 0) {
             return metric;
         }
         if (for_write) {
             return metric
-                   - (uint32_t) ((uint64_t) metric * w * e->load_pct / 10000);
+                   - (uint32_t) ((uint64_t) metric * w * e->load_pct / BRIX_RATE_PERCENT_DIVISOR);
         }
-        return (uint32_t) (((100 - w) * (uint64_t) metric
-                            + w * (uint64_t) e->load_pct) / 100);
+        return (uint32_t) (((BRIX_RATE_PERCENT_BASE - w) * (uint64_t) metric
+                            + w * (uint64_t) e->load_pct) / BRIX_RATE_PERCENT_BASE);
     }
 
     if (for_write) {
@@ -134,15 +138,15 @@ srv_sel_metric(const brix_srv_entry_t *e, int for_write)
                - (uint32_t) ((uint64_t) e->free_mb * machine / 200);
     }
 
-    num = (uint64_t) brix_srv_sched.cpu   * e->load5[0]
-        + (uint64_t) brix_srv_sched.io    * e->load5[1]
-        + (uint64_t) brix_srv_sched.runq  * e->load5[2]
-        + (uint64_t) brix_srv_sched.mem   * e->load5[3]
-        + (uint64_t) brix_srv_sched.pag   * e->load5[4]
-        + (uint64_t) brix_srv_sched.space * e->util_pct;
-    den = (uint64_t) brix_srv_sched.cpu + brix_srv_sched.io
-        + brix_srv_sched.runq + brix_srv_sched.mem + brix_srv_sched.pag
-        + brix_srv_sched.space;
+    num = (uint64_t) st->sched.cpu   * e->load5[0]
+        + (uint64_t) st->sched.io    * e->load5[1]
+        + (uint64_t) st->sched.runq  * e->load5[2]
+        + (uint64_t) st->sched.mem   * e->load5[3]
+        + (uint64_t) st->sched.pag   * e->load5[4]
+        + (uint64_t) st->sched.space * e->util_pct;
+    den = (uint64_t) st->sched.cpu + st->sched.io
+        + st->sched.runq + st->sched.mem + st->sched.pag
+        + st->sched.space;
     return (uint32_t) (num / den);   /* den > 0: sched_active() checked */
 }
 

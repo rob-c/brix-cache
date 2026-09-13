@@ -197,7 +197,7 @@ brix_plat_fs_watcher_add(brix_plat_fs_watcher_t *watcher, const char *path, uint
         return -1;
     }
     
-    if (S_ISDIR(st.st_mode) && !recursive) {
+    if (S_ISDIR(st.st_mode)) {
         /* kqueue EVFILT_VNODE doesn't work well for directories.
          * For Phase 2, we'll skip directory watches.
          * Phase 4 can use FSEvents for directory monitoring.

@@ -8,7 +8,7 @@
 
 #include "webdav.h"
 
-#define WEBDAV_SEARCH_BODY_MAX       65536u
+#define WEBDAV_SEARCH_BODY_MAX       BRIX_WEBDAV_SEARCH_BODY_MAX
 #define WEBDAV_SEARCH_MAX_ENTRIES    10000u
 
 typedef struct {

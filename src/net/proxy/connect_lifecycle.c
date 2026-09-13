@@ -3,14 +3,36 @@
 #include <sys/socket.h>
 
 /*
- * WHAT: Upstream connection lifecycle helpers — write buffer flush, error abort with reconnect budget, and full resource cleanup.
- * WHY: The transparent XRootD proxy must manage upstream TCP connections carefully: flushing buffered requests atomically to the socket;
- *      handling errors gracefully (reconnect if idle + no open files + budget available); releasing all resources on session teardown including
- *      file handle audit, splice pipe closure, connection pool return. INVARIANT: reconnect attempts tracked in proxy->reconnect_left per-connection;
- *      only triggers when XRD_PX_IDLE state and no slot is BOUND (a PENDING slot holds no handle).
- * HOW: flush() loops until wbuf_pos reaches wbuf_len; returns NGX_AGAIN/NGX_ERROR for partial send. abort() logs error, checks reconnect conditions,
- *      attempts brix_proxy_connect() if eligible, falls through to hard abort on failure or ineligible state. cleanup() audits abandoned handles via proxy_write_audit,
- *      frees resp_body/saved_req/wait_retry_req, deletes timers, closes splice pipe and upstream connection (or returns to pool if idle).
+ * Upstream connection lifecycle helpers.
+ *
+ * WHAT:
+ *   Three helpers: brix_proxy_flush(), brix_proxy_abort(), brix_proxy_cleanup()
+ *
+ * WHY:
+ *   The transparent XRootD proxy must manage upstream TCP connections carefully:
+ *   - Flushing buffered requests atomically to the socket
+ *   - Handling errors gracefully (reconnect if idle + no open files + budget available)
+ *   - Releasing all resources on session teardown including file handle audit,
+ *     splice pipe closure, connection pool return
+ *
+ * INVARIANT:
+ *   Reconnect attempts tracked in proxy->reconnect_left per-connection;
+ *   only triggers when XRD_PX_IDLE state and no slot is BOUND
+ *   (a PENDING slot holds no handle).
+ *
+ * HOW:
+ *   flush():
+ *     - Loops until wbuf_pos reaches wbuf_len
+ *     - Returns NGX_AGAIN/NGX_ERROR for partial send
+ *   abort():
+ *     - Logs error, checks reconnect conditions
+ *     - Attempts brix_proxy_connect() if eligible
+ *     - Falls through to hard abort on failure or ineligible state
+ *   cleanup():
+ *     - Audits abandoned handles via proxy_write_audit
+ *     - Frees resp_body/saved_req/wait_retry_req
+ *     - Deletes timers, closes splice pipe and upstream connection
+ *     - Returns to pool if idle
  */
 
 /* brix_proxy_flush — drain all buffered request data to the upstream TCP socket

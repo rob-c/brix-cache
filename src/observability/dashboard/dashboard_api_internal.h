@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <jansson.h>
-#define STALE_GC_MS             600000
+#define STALE_GC_MS             BRIX_DASHBOARD_CLUSTER_STALE_MS
 #define TPC_REGISTRY_JSON_LIMIT 64
 typedef struct {
     uint64_t  conn_active;

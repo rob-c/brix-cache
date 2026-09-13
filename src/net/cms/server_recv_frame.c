@@ -157,7 +157,7 @@ cms_srv_login_admission(brix_cms_srv_ctx_t *ctx)
         && brix_srv_count_servers() >= (ngx_uint_t) ctx->conf->max_direct
         && !brix_srv_is_registered(ctx->host, ctx->port))
     {
-        char      sup_host[256];
+        char      sup_host[BRIX_CMS_ADMIN_HOST_BUF];
         uint16_t  sup_port;
 
         if (brix_srv_find_supervisor(sup_host, sizeof(sup_host),

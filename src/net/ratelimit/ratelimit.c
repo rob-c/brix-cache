@@ -184,7 +184,7 @@ brix_rl_bw_check(brix_rl_rule_t *rule, const char *key_str,
     }
 
     elapsed = (now > rln->last) ? (now - rln->last) : 0;
-    drain   = (ngx_uint_t) ((uint64_t) rule->bw_rate * elapsed / 1000);
+    drain   = (ngx_uint_t) ((uint64_t) rule->bw_rate * elapsed / BRIX_RATE_MULTIPLIER);
     excess  = (rln->bw_excess > drain) ? (rln->bw_excess - drain) : 0;
     rln->bw_excess = excess;     /* update the drained value (no charge here) */
 

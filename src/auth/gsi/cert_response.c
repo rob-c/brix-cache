@@ -194,7 +194,7 @@ gsi_build_dh_public(brix_ctx_t *ctx, ngx_connection_t *c,
     char     *pub_hex = NULL;
     BIO      *bio;
     BUF_MEM  *bptr;
-    char      puk_buf[4096];
+    char      puk_buf[BRIX_GSI_DH_PUB_BUF_SIZE];
     int       puk_written;
     u_char   *puk_blob;
     size_t    puk_len;

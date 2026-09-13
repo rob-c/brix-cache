@@ -13,7 +13,7 @@ brix_vfs_backend_config_gsiftp(const char *root_canon,
 
     if (root_canon == NULL || root_canon[0] == '\0' || origin == NULL
         || origin->host == NULL || origin->host[0] == '\0'
-        || origin->port < 1 || origin->port > 65535
+        || origin->port < BRIX_VFS_PORT_MIN || origin->port > BRIX_VFS_PORT_MAX
         || origin->base_path == NULL || origin->base_path[0] != '/') {
         return;
     }
@@ -94,8 +94,8 @@ vfs_parse_gsiftp_origin(ngx_conf_t *cf, const char *root_canon,
 {
     brix_vfs_gsiftp_origin_t origin;
     char                     authority[512];
-    char                     host[256];
-    char                     base[1024];
+    char                     host[BRIX_VFS_HOST_BUF];
+    char                     base[BRIX_VFS_PATH_BUF];
     size_t                   prefix_len;
     size_t                   authority_len;
     size_t                   path_len;
@@ -123,7 +123,7 @@ vfs_parse_gsiftp_origin(ngx_conf_t *cf, const char *root_canon,
     ngx_memcpy(authority, value->data + prefix_len, authority_len);
     authority[authority_len] = '\0';
     if (brix_split_host_port(authority, host, sizeof(host), &port,
-                             require_gsi ? 2811 : 21) != 0) {
+                             require_gsi ? BRIX_VFS_PORT_GSIFTP_DEFAULT : BRIX_VFS_PORT_GSIFTP_UNPRIV) != 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend: invalid ftp origin authority");
         return NGX_ERROR;

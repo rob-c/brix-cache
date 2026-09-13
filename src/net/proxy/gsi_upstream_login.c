@@ -46,9 +46,22 @@ typedef struct {
 } proxy_gsi_login_t;
 
 
-/* Thread-pool worker: blocking connect + GSI login presenting the delegated proxy.
- * Reuses the cache origin client over a throwaway synthetic conf. On success the
- * authenticated fd is transferred out of `oc` so origin_close does not take it. */
+/*
+ * WHAT: Thread-pool worker that performs blocking connect + GSI login with delegated proxy.
+ *
+ * WHY: The GSI client (cache origin client) is blocking and runs on a thread-pool worker,
+ *   while the proxy is event-driven. This offloads the entire connect+GSI-login handshake
+ *   (presenting the client's delegated proxy) to a thread, then promotes the authenticated
+ *   fd to the proxy's async relay. Uses a synthetic origin config to reuse existing
+ *   brix_cache_origin_connect/bootstrap code paths.
+ *
+ * HOW:
+ *   - Build synthetic origin config (host/port, delegated proxy path, CA store)
+ *   - Call brix_cache_origin_connect() and brix_cache_origin_bootstrap()
+ *   - On success: transfer authenticated fd from oc to g->result_fd (oc.fd = -1)
+ *   - Call brix_cache_origin_close() (frees SSL, but fd already transferred)
+ *   - Completion handler (proxy_gsi_login_done) wraps fd in ngx_connection_t and dispatches
+ */
 static void
 proxy_gsi_login_thread(void *data, ngx_log_t *log)
 {
@@ -94,8 +107,21 @@ proxy_gsi_login_thread(void *data, ngx_log_t *log)
 }
 
 
-/* Build the upstream ngx_connection_t around the authenticated fd (already
- * post-login), wired to the proxy relay handlers, at IDLE. Returns NGX_OK. */
+/*
+ * WHAT: Wrap an authenticated fd in an ngx_connection_t and wire it to the proxy relay.
+ *
+ * WHY: After the GSI login thread completes, the authenticated fd must be integrated into
+ *   the event-driven proxy. This function creates the ngx_connection_t, sets up handlers,
+ *   and marks the connection at IDLE (bootstrap already done in the thread).
+ *
+ * HOW:
+ *   - Call ngx_get_connection() to wrap the fd
+ *   - Create connection pool and set to non-blocking mode
+ *   - Set data pointer to proxy context, assign recv/send handlers
+ *   - Set state to XRD_PX_IDLE (bootstrap complete), mark from_pool=1
+ *   - Register for read events via ngx_handle_read_event()
+ *   - Return NGX_OK on success, NGX_ERROR on any allocation/handler failure
+ */
 static ngx_int_t
 proxy_gsi_promote_fd(brix_proxy_ctx_t *proxy, int fd)
 {
@@ -139,8 +165,21 @@ proxy_gsi_promote_fd(brix_proxy_ctx_t *proxy, int fd)
 }
 
 
-/* Event-loop completion: the thread finished. Unlink the temp credential, then —
- * if the client is still alive — promote the authenticated fd and dispatch. */
+/*
+ * WHAT: Event-loop completion handler for GSI login thread.
+ *
+ * WHY: The thread runs asynchronously; this handler runs in the event loop when the thread
+ *   completes. It cleans up the temp credential file, checks if the client is still alive,
+ *   promotes the authenticated fd, and dispatches the saved request (or resumes the read loop).
+ *
+ * HOW:
+ *   - Unlink the temp delegated proxy credential file (vfs-seam-allow: DOMAIN_CREDENTIAL)
+ *   - Check if client_ctx exists and !destroyed (client may have vanished during login)
+ *   - If result_fd < 0: abort with "GSI upstream login failed"
+ *   - Call proxy_gsi_promote_fd() to integrate the fd; abort on failure
+ *   - If saved_req exists: dispatch it via brix_proxy_dispatch_pending()
+ *   - Otherwise: set state to XRD_ST_REQ and resume read via brix_schedule_read_resume()
+ */
 static void
 proxy_gsi_login_done(ngx_event_t *ev)
 {
@@ -180,6 +219,22 @@ proxy_gsi_login_done(ngx_event_t *ev)
 }
 
 
+/*
+ * WHAT: Initiate async GSI connection to upstream with delegated proxy authentication.
+ *
+ * WHY: For `brix_tap_proxy_auth gsi`, the client's delegated X.509 proxy must be presented
+ *   to the upstream during connection. This spawns a thread for the blocking GSI login,
+ *   parks the client read loop, and resumes when authentication completes.
+ *
+ * HOW:
+ *   - Validate thread_pool is configured (required for async operation)
+ *   - Validate client has delegated proxy (ctx->gsi.deleg_proxy_pem/len)
+ *   - Allocate thread task and write delegated proxy to temp file (0600)
+ *   - Populate proxy_gsi_login_t with host, port, family, deleg_path, gsi_store, dns policy
+ *   - Bind task to proxy_gsi_login_thread (worker) and proxy_gsi_login_done (completion)
+ *   - Post task to thread_pool; unlink temp file on failure
+ *   - Set client state to XRD_ST_PROXY (park read loop) and return NGX_OK
+ */
 ngx_int_t
 brix_proxy_gsi_connect_async(brix_proxy_ctx_t *proxy,
     ngx_stream_brix_srv_conf_t *conf, ngx_str_t *host, uint16_t port)

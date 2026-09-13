@@ -3,7 +3,7 @@
  * driver (brix_dns_resolve_sync: IP literal → per-worker cache → the event
  * loop's nginx resolver via the bridge → libc, all off the event loop),
  * re-checks every candidate address against the SSRF policy (I-DNS-3), and
- * dials the first that connects within TPC_CONNECT_TIMEOUT_SEC with the I/O
+ * dials the first that connects within BRIX_TPC_CONNECT_TIMEOUT_SEC with the I/O
  * timeouts and SciTags flow label applied.  brix_tpc_check_src_policy() is the
  * event-loop preflight the kXR_open destination gate runs: a verdict from an IP
  * literal or the cache, or "unknown" so the open can park on an async resolve.
@@ -48,7 +48,7 @@ tpc_connect_candidate(const brix_tpc_pull_t *t, struct sockaddr *sa,
         return -1;
     }
 
-    brix_apply_socket_io_timeouts(fd, TPC_IO_TIMEOUT_SEC);
+    brix_apply_socket_io_timeouts(fd, BRIX_TPC_IO_TIMEOUT_SEC);
 
     /*
      * SciTags (phase-34): stamp the IPv6 flow label on the OUTBOUND pull
@@ -61,7 +61,7 @@ tpc_connect_candidate(const brix_tpc_pull_t *t, struct sockaddr *sa,
     }
 
     if (brix_connect_fd_deadline(fd, sa, salen,
-                                 TPC_CONNECT_TIMEOUT_SEC * 1000) == 0)
+                                 BRIX_TPC_CONNECT_TIMEOUT_SEC * 1000) == 0)
     {
         return fd;
     }
@@ -82,7 +82,7 @@ tpc_connect(brix_tpc_pull_t *t)
     ngx_uint_t                n, i;
     uint16_t                  src_port;
 
-    src_port = t->src_port ? t->src_port : 1094;
+    src_port = t->src_port ? t->src_port : TPC_DEFAULT_PORT;
 
     ngx_memzero(&policy, sizeof(policy));
     policy.allow_local   = t->conf->common.tpc_allow_local;
@@ -150,7 +150,7 @@ brix_tpc_check_src_policy(const ngx_stream_brix_srv_conf_t *conf,
     ngx_memzero(&target, sizeof(target));
     target.host.data = (u_char *) src_host;
     target.host.len  = ngx_strlen(src_host);
-    target.port      = src_port ? src_port : 1094;
+    target.port      = src_port ? src_port : TPC_DEFAULT_PORT;
     target.has_port  = 1;
 
     ngx_memzero(&policy, sizeof(policy));

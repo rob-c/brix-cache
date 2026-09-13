@@ -108,7 +108,7 @@ brix_configure_metrics(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf)
 static uint64_t
 fnv1a64_file(ngx_str_t *path, ngx_log_t *log)
 {
-    u_char     buf[4096];
+    u_char     buf[BRIX_XLARGE_BUF_SIZE];
     uint64_t   h = BRIX_FNV1A64_OFFSET_BASIS;
     ngx_fd_t   fd;
     ssize_t    n;

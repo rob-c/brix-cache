@@ -14,6 +14,18 @@
 
 #include <errno.h>
 
+/*
+ * WHAT: Write delegated GSI proxy credential PEM to secure temp file.
+ *       Validates input, delegates to brix_cred_stage_write() with "xrd-deleg-"
+ *       prefix for owner-only 0600 file in private 0700 tmpfs dir.
+ * WHY:  Threaded GSI client (Task 3) reads proxy credential from FILE path;
+ *       in-memory delegated PEM must be staged to disk securely before use.
+ *       Shared brix_cred_stage_write() facility ensures consistent security
+ *       (never world-traversable /tmp) across all credential stagers.
+ * HOW:  Null-check pem/len/out → EINVAL on failure → delegate to
+ *       brix_cred_stage_write() with unique prefix → return path in out buffer.
+ * RETURNS: 0 on success (path written to out), -1 on failure (errno set).
+ */
 int
 brix_proxy_gsi_write_pem_temp(const unsigned char *pem, size_t len,
     char *out, size_t cap)

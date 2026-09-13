@@ -28,7 +28,7 @@ brix_wt_stage_admit(const ngx_stream_brix_srv_conf_t *conf)
     }
 
     if (brix_cache_fs_usage_sampled((char *) conf->cache_wt_stage_root.data,
-                                      1000, &usage) != NGX_OK)
+                                      BRIX_VFS_MSEC_PER_SEC, &usage) != NGX_OK)
     {
         return BRIX_WT_ADMIT_ALLOW;        /* fail-open on a statvfs fault */
     }

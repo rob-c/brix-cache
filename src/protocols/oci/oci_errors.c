@@ -155,7 +155,7 @@ ngx_int_t
 brix_oci_error(ngx_http_request_t *r, ngx_uint_t status,
     brix_oci_err_t err, const char *detail)
 {
-    char     esc[256];
+    char     esc[BRIX_OCI_ERROR_BUF];
     char     buf[640];
     u_char  *body;
     int      n;

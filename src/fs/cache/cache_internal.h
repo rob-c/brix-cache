@@ -135,20 +135,20 @@ typedef struct {
      * are mutually exclusive, matching the brix_sd_ucred_t/brix_sd_cred_t contract.
      * Embedded copies — a fill task can outlive the request whose identity selected
      * the credential. */
-    char      cred_x509_proxy[1024];
+    char      cred_x509_proxy[BRIX_VFS_CRED_X509_BUF];
     char      cred_principal[512];
-    char      cred_bearer[4096];
+    char      cred_bearer[BRIX_VFS_CRED_BEARER_BUF];
     /* SSS identity injection (phase-70 §5.6 / P90-70.3): when non-empty the
      * origin bootstrap must authenticate via SSS ASSERTING cred_principal,
      * signed with THIS keytab — never the keytab's own principal, and never a
      * service-credential fallback. */
-    char      cred_sss_keytab[1024];
+    char      cred_sss_keytab[BRIX_VFS_CRED_SSS_KEYTAB_BUF];
     /* krb5 delegation carry (phase-70 §5.7): when cred_krb5_ccache is non-empty
      * the origin bootstrap re-imports the delegated TGT from THIS FILE ccache
      * PATH (async-safe carry — never a live gss_cred_id_t) and re-authenticates
      * AS the inbound user against cred_krb5_princ via the multi-leg GSSAPI
      * EXCHANGE leg. Per-user like the branches above — never a service fallback. */
-    char      cred_krb5_ccache[1024];
+    char      cred_krb5_ccache[BRIX_VFS_CRED_CCACHE_BUF];
     char      cred_krb5_princ[512];
 } brix_cache_fill_t;
 

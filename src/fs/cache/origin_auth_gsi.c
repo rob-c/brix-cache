@@ -277,7 +277,7 @@ originauth_gsi_read_final(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc)
     uint32_t  dlen;
     u_char   *body = NULL;
 
-    if (brix_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen, BRIX_XLARGE_BUF_SIZE) != 0) {
         return -1;
     }
     if (status == kXR_error) {

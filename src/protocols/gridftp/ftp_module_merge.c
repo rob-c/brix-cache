@@ -30,8 +30,8 @@ static char *
 brix_ftp_install_backend_credential(ngx_conf_t *cf,
     ngx_stream_brix_ftp_srv_conf_t *conf)
 {
-    char                     name[256];
-    char                     bearer[4096];
+    char                     name[BRIX_FTP_NAME_BUF_SIZE];
+    char                     bearer[BRIX_FTP_BEARER_BUF_SIZE];
     const brix_credential_t *cred;
     brix_vfs_backend_cred_t  bcred;
 

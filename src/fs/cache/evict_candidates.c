@@ -56,7 +56,7 @@ brix_cache_fs_usage(const char *root, brix_cache_fs_usage_t *usage)
     usage->available = avail_blocks * block_size;
     usage->used = (blocks - avail_blocks) * block_size;
     usage->occupancy_ppm = (ngx_uint_t)
-        (((long double) usage->used * 1000000.0L) / (long double) usage->total);
+        (((long double) usage->used * (long double) BRIX_PPM_MULTIPLIER) / (long double) usage->total);
 
     return NGX_OK;
 }
@@ -79,7 +79,7 @@ brix_cache_usage_measure(brix_cstore_t *cs, const char *root,
         usage->available   = avail;
         usage->used        = (total >= avail) ? (total - avail) : 0;
         usage->occupancy_ppm = (ngx_uint_t)
-            (((long double) usage->used * 1000000.0L) / (long double) total);
+            (((long double) usage->used * (long double) BRIX_PPM_MULTIPLIER) / (long double) total);
         return NGX_OK;
     }
 
@@ -127,7 +127,7 @@ brix_cache_try_evict_lock(ngx_stream_brix_srv_conf_t *conf,
         return NGX_ERROR;
     }
 
-    fd = open(lock_path, O_CREAT | O_EXCL | O_WRONLY | O_NOCTTY | O_CLOEXEC, 0600);
+    fd = open(lock_path, O_CREAT | O_EXCL | O_WRONLY | O_NOCTTY | O_CLOEXEC, BRIX_PERM_PRIVATE);
     if (fd >= 0) {
         close(fd);
         return NGX_OK;
@@ -158,7 +158,7 @@ brix_cache_try_evict_lock(ngx_stream_brix_srv_conf_t *conf,
         return NGX_DECLINED;
     }
 
-    fd = open(lock_path, O_CREAT | O_EXCL | O_WRONLY | O_NOCTTY | O_CLOEXEC, 0600);
+    fd = open(lock_path, O_CREAT | O_EXCL | O_WRONLY | O_NOCTTY | O_CLOEXEC, BRIX_PERM_PRIVATE);
     if (fd < 0) {
         return NGX_DECLINED;
     }

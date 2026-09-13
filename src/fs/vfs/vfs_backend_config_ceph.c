@@ -221,7 +221,7 @@ vfs_parse_cephfsro_origin(ngx_conf_t *cf, const char *root_canon,
     {
         const u_char *rest = sb->data + (sizeof("cephfsro:") - 1);
         size_t        restn = sb->len - (sizeof("cephfsro:") - 1);
-        char          meta[256] = "", data[256] = "", conf[1024] = "", q[64] = "";
+        char          meta[BRIX_VFS_POOL_BUF] = "", data[BRIX_VFS_POOL_BUF] = "", conf[BRIX_VFS_CEPH_CONF_BUF] = "", q[BRIX_VFS_QUERY_BUF] = "";
         vfs_cephfsro_parts_t parts = {
             meta, sizeof(meta), data, sizeof(data),
             conf, sizeof(conf), q, sizeof(q)
@@ -279,7 +279,7 @@ vfs_parse_ceph_origin(ngx_conf_t *cf, const char *root_canon,
         if (backend != NULL) {
             const u_char *rest = sb->data + skip;
             size_t        restn = sb->len - skip;
-            char          pool[256] = "", conf[1024] = "", prefix[256] = "";
+            char          pool[BRIX_VFS_POOL_BUF] = "", conf[BRIX_VFS_CEPH_CONF_BUF] = "", prefix[BRIX_VFS_POOL_BUF] = "";
             size_t        i, pn = 0, cn = 0, xn = 0;
             int           phase = 0;   /* 0=pool, 1=conf (@), 2=prefix (?) */
 
@@ -322,8 +322,8 @@ vfs_parse_rados_origin(ngx_conf_t *cf, const char *root_canon,
     {
         const u_char *rest  = sb->data + sizeof("rados://") - 1;
         size_t        restn = sb->len - (sizeof("rados://") - 1);
-        char          pool[256]   = "";
-        char          prefix[256] = "";
+        char          pool[BRIX_VFS_POOL_BUF]   = "";
+        char          prefix[BRIX_VFS_POOL_BUF] = "";
         size_t        i, slash = restn;
 
         for (i = 0; i < restn; i++) {
@@ -377,8 +377,8 @@ vfs_parse_tape_origin(ngx_conf_t *cf, const char *root_canon,
         }
 
         if (rest != NULL) {
-            char     adapter[64] = "";
-            char     base[1024]  = "";
+            char     adapter[BRIX_VFS_QUERY_BUF] = "";
+            char     base[BRIX_VFS_PATH_BUF]  = "";
             size_t   i, slash = restn;
             unsigned depth = 0;
 

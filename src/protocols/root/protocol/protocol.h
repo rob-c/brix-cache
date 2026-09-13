@@ -23,7 +23,10 @@
 #include "opcodes.h"
 #include "flags.h"
 #include "wire.h"
-#include "codec/wire_codec.h"   /* shared per-opcode wire-body pack/unpack codec (includer-relative: resolves in-tree and installed) */
+#include "codec/wire_codec.h"
+/* shared per-opcode wire-body pack/unpack codec
+ * includer-relative: resolves in-tree and installed
+ */
 #include "gsi.h"
 
 #endif /* BRIX_PROTOCOL_PROTOCOL_H */

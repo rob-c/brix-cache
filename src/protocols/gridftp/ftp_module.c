@@ -104,11 +104,11 @@ brix_ftp_set_pasv_range(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
     lo = ngx_atoi(value[1].data, value[1].len);
     hi = ngx_atoi(value[2].data, value[2].len);
     if (lo == NGX_ERROR || hi == NGX_ERROR
-        || lo < 1 || lo > 65535 || hi < 1 || hi > 65535)
+        || lo < 1 || lo > BRIX_FTP_PORT_MAX || hi < 1 || hi > BRIX_FTP_PORT_MAX)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_gridftp_pasv_port_range: each bound must be a TCP port "
-            "1..65535 (got \"%V\" \"%V\")", &value[1], &value[2]);
+            "1..%d (got \"%V\" \"%V\")", BRIX_FTP_PORT_MAX, &value[1], &value[2]);
         return NGX_CONF_ERROR;
     }
     if (lo > hi) {
@@ -218,8 +218,8 @@ brix_ftp_init_process(ngx_cycle_t *cycle)
     cscfp = cmcf->servers.elts;
 
     for (i = 0; i < cmcf->servers.nelts; i++) {
-        char                     name[256];
-        char                     bearer[4096];
+        char                     name[BRIX_FTP_NAME_BUF_SIZE];
+        char                     bearer[BRIX_FTP_BEARER_BUF_SIZE];
         const brix_credential_t *cred;
         brix_vfs_backend_cred_t  bcred;
 

@@ -31,7 +31,7 @@
 #define WEBDAV_DEAD_PROP_PREFIX_LEN  (sizeof(WEBDAV_DEAD_PROP_PREFIX) - 1)
 #define WEBDAV_DEAD_PROP_NAME_MAX    255
 #define WEBDAV_DEAD_PROP_VALUE_MAX   16384
-#define WEBDAV_DEAD_PROP_LIST_MAX    65536
+#define WEBDAV_DEAD_PROP_LIST_MAX    BRIX_WEBDAV_DEAD_PROP_LIST_MAX
 
 /*
  * Validate that a decoded local name is a safe XML element name before it is

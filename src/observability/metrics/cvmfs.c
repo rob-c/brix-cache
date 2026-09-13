@@ -321,7 +321,7 @@ cvmfs_export_upstreams(metrics_writer_t *mw, ngx_brix_cvmfs_metrics_t *c)
             mw_printf(mw,
                 "brix_cvmfs_upstream_fill_duration_seconds_bucket"
                 "{upstream=\"%s\",le=\"%.3f\"} %lu\n",
-                u->name, (double) brix_cvmfs_up_bucket_ms[b] / 1000.0, cum);
+                u->name, (double) brix_cvmfs_up_bucket_ms[b] / BRIX_MSEC_PER_SEC, cum);
         }
         mw_printf(mw,
             "brix_cvmfs_upstream_fill_duration_seconds_bucket"
@@ -329,7 +329,7 @@ cvmfs_export_upstreams(metrics_writer_t *mw, ngx_brix_cvmfs_metrics_t *c)
             "brix_cvmfs_upstream_fill_duration_seconds_sum{upstream=\"%s\"} %.3f\n"
             "brix_cvmfs_upstream_fill_duration_seconds_count{upstream=\"%s\"} %lu\n",
             u->name, (unsigned long) u->dur_count,
-            u->name, (double) u->dur_sum_ms / 1000.0,
+            u->name, (double) u->dur_sum_ms / BRIX_MSEC_PER_SEC,
             u->name, (unsigned long) u->dur_count);
     }
 }

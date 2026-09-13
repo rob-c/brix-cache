@@ -9,7 +9,7 @@
  *      EVP-based digests support md5, sha1, and sha256 via the brix_checksum_alg directive. Two variants exist per algorithm — fd-based
  *      (for open handles during query) and file-based (path lookup + open + compute). INVARIANT: all path strings sanitized with
  *      brix_sanitize_log_string() before logging to prevent binary data corruption in access logs.
- * HOW: Adler-32 uses 65536-byte read buffer with pread() loop; A/B accumulator modulo 65521 returns (B << 16) | A. EVP digests create
+ * HOW: Adler-32 uses BRIX_ROOT_ADLER_BUF-byte read buffer with pread() loop; A/B accumulator modulo BRIX_ROOT_ADLER_MOD returns (B << 16) | A. EVP digests create
  *      MD_CTX via EVP_MD_CTX_new(), chain Init_ex → Update loop → Final_ex, free context on all exit paths. File variants wrap fd variants
  *      with brix_open_confined() and close(). All error paths return 0xFFFFFFFF (adler32) or 0 (digest).
  */
@@ -66,7 +66,7 @@
  *      via an existing file handle during read operations. Supports configurable
  *      algorithms set via brix_checksum_alg directive.
 
- * HOW: Create EVP_MD_CTX → EVP_DigestInit_ex(md, NULL) → pread loop (65536-byte
+ * HOW: Create EVP_MD_CTX → EVP_DigestInit_ex(md, NULL) → pread loop (BRIX_ROOT_ADLER_BUF-byte
  *      buffer): EVP_DigestUpdate on each chunk → handle EINTR retries → break on EOF
  *      → EVP_DigestFinal_ex(out, outlen) → free context. Error paths: free context,
  *      log at ERR level with sanitized path, return 0.

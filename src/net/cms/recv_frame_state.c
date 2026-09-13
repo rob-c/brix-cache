@@ -84,8 +84,8 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
 {
     const u_char  *payload = ctx->inbuf + NGX_BRIX_CMS_HDR_LEN;
     size_t         plen = ctx->in_need - NGX_BRIX_CMS_HDR_LEN;
-    char           pathz[1024];
-    char           safe[256];
+    char           pathz[BRIX_CMS_STATE_PATH_BUF];
+    char           safe[BRIX_CMS_STATE_SAFE_BUF];
     size_t         pl;
     struct stat    st;
 
@@ -103,7 +103,7 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
     brix_sanitize_log_string(pathz, safe, sizeof(safe));
 
     if (ctx->conf->manager_mode) {
-        char      host[256];
+        char      host[BRIX_CMS_STATE_SAFE_BUF];
         uint16_t  dport;
         if (brix_srv_select(pathz, 0, host, sizeof(host), &dport)) {
             ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,

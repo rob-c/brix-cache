@@ -52,18 +52,22 @@ brix_cms_srv_merge_conf(ngx_conf_t *cf, void *parent, void *child)
      * after interval so an unset idle timeout auto-derives from it.  Generous
      * ON-by-default values; an explicit 0 disables a timeout / uncaps.
      */
-    ngx_conf_merge_msec_value(conf->login_timeout, prev->login_timeout, 10000);
+    ngx_conf_merge_msec_value(conf->login_timeout, prev->login_timeout,
+                              BRIX_CMS_FSXEQ_TIMEOUT_DEFAULT_MS);
     if (conf->idle_timeout == NGX_CONF_UNSET_MSEC) {
         if (prev->idle_timeout != NGX_CONF_UNSET_MSEC) {
             conf->idle_timeout = prev->idle_timeout;
         } else {
-            ngx_msec_t d = (ngx_msec_t) conf->interval * 3 * 1000;
+            ngx_msec_t d = (ngx_msec_t) conf->interval *
+                           BRIX_CMS_IP_CHECK_INTERVAL_MS;
             conf->idle_timeout = (d > BRIX_CMS_READ_TIMEOUT_MAX_MS) ? d : BRIX_CMS_READ_TIMEOUT_MAX_MS;
         }
     }
-    ngx_conf_merge_value(conf->max_connections, prev->max_connections, 4096);
+    ngx_conf_merge_value(conf->max_connections, prev->max_connections,
+                         BRIX_CMS_MAX_CONNECTIONS);
     ngx_conf_merge_value(conf->max_connections_per_ip,
-                         prev->max_connections_per_ip, 256);
+                         prev->max_connections_per_ip,
+                         BRIX_CMS_MAX_CONNECTIONS_PER_IP);
     ngx_conf_merge_value(conf->tcp_keepalive,   prev->tcp_keepalive,   1);
     if (conf->tcp_user_timeout == NGX_CONF_UNSET_MSEC) {
         conf->tcp_user_timeout =

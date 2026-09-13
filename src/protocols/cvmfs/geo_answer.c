@@ -94,7 +94,7 @@ cvmfs_geo_key(const char *host, int port)
 static int
 cvmfs_geo_port_allowed(int port)
 {
-    return port == 80 || port == 443 || port == 8000;
+    return port == BRIX_PORT_HTTP_DEFAULT || port == BRIX_PORT_HTTPS_DEFAULT || port == BRIX_PORT_CVMFS_ALT;
 }
 
 /* ---- Scan the leading host run of a server-list token ----

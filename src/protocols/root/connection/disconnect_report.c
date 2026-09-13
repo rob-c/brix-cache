@@ -155,7 +155,7 @@ brix_disconnect_log_open_files(brix_ctx_t *ctx, ngx_connection_t *c,
             double mb_per_second;
 
             mb_per_second = (double) byte_total / (double) duration_ms
-                            / 1000.0;
+                            / BRIX_ROOT_MS_TO_SEC_FACTOR;
             snprintf(detail, sizeof(detail), "interrupted %.2fMB/s",
                      mb_per_second);
         } else {
@@ -202,14 +202,14 @@ brix_disconnect_format_session_detail(brix_ctx_t *ctx, ngx_msec_t now,
         double write_mbps;
 
         read_mbps = (double) ctx->totals.bytes
-                    / (double) session_duration_ms / 1000.0;
+                    / (double) session_duration_ms / BRIX_ROOT_MS_TO_SEC_FACTOR;
         write_mbps = (double) ctx->totals.bytes_written
-                      / (double) session_duration_ms / 1000.0;
+                      / (double) session_duration_ms / BRIX_ROOT_MS_TO_SEC_FACTOR;
         snprintf(detail, detail_size, "rx=%.2fMB/s tx=%.2fMB/s",
                  read_mbps, write_mbps);
         return;
     }
 
     snprintf(detail, detail_size, "%.2fMB/s",
-             (double) *total_bytes / (double) session_duration_ms / 1000.0);
+             (double) *total_bytes / (double) session_duration_ms / BRIX_ROOT_MS_TO_SEC_FACTOR);
 }

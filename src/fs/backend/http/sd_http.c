@@ -20,6 +20,7 @@
 
 #include "sd_http.h"
 #include "sd_http_internal.h"    /* endpoint + inst_state layout + slot decls */
+#include "../../../core/types/tunables.h"
 
 #include <errno.h>
 #include <stdlib.h>
@@ -150,8 +151,8 @@ sd_http_init_endpoints(sd_http_inst_state *is, const brix_sd_http_cfg_t *cfg)
     for (i = 0; i < n; i++) {
         const brix_sd_http_ep_cfg_t *ec = &cfg->extra[i];
 
-        if (ec->host == NULL || ec->host[0] == '\0' || ec->port <= 0
-            || ec->port > 65535)
+        if (ec->host == NULL || ec->host[0] == '\0' || ec->port < BRIX_VFS_PORT_MIN
+            || ec->port > BRIX_VFS_PORT_MAX)
         {
             continue;
         }
@@ -195,7 +196,7 @@ brix_sd_http_create(const brix_sd_http_cfg_t *cfg, ngx_log_t *log)
     sd_http_inst_state   *is;
 
     if (cfg == NULL || cfg->host == NULL || cfg->host[0] == '\0'
-        || cfg->port <= 0 || cfg->port > 65535 || cfg->transport == NULL)
+        || cfg->port < BRIX_VFS_PORT_MIN || cfg->port > BRIX_VFS_PORT_MAX || cfg->transport == NULL)
     {
         errno = EINVAL;
         return NULL;

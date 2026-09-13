@@ -44,7 +44,7 @@ typedef struct {
     const char *prty;    /* prepadd: priority string (may be NULL) */
 } brix_cms_node_plan_t;
 
-#define XRDCMS_NODE_DEFAULT_DIR_MODE 0755
+#define XRDCMS_NODE_DEFAULT_DIR_MODE 0755  /* BRIX_CMS_DEFAULT_DIR_MODE would be octal 0755 */
 
 /*
  * Map a forwarded opcode + decoded rrdata to a confined filesystem action.

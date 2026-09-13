@@ -38,7 +38,7 @@
 #include <string.h>
 #include <strings.h>                       /* strcasecmp */
 
-#define OCI_TOKEN_TIMEOUT_MS   10000
+/* OCI_TOKEN_TIMEOUT_MS defined in oci.h */
 #define OCI_TOKEN_MAX_HOPS     3
 /* The spec's default when `expires_in` is absent. */
 #define OCI_TOKEN_DEFAULT_S    60
@@ -46,7 +46,7 @@
 /* ---- the token GET ------------------------------------------------------ */
 
 typedef struct {
-    char        host[256];
+    char        host[BRIX_OCI_UPSTREAM_HOST_BUF];
     int         port;
     int         tls;
     char        path[2048];        /* path + query                       */
@@ -146,11 +146,11 @@ oci_token_leg(const brix_oci_upstream_t *up, oci_token_leg_t *leg,
 {
     const brix_s3_transport_t  *tr = &brix_s3_origin_curl_transport;
     brix_s3_resp_t              resp;
-    char                        hdrs[1024];
-    char                        loc[1024];
+    char                        hdrs[BRIX_OCI_HDR_BUFFER_SIZE];
+    char                        loc[BRIX_OCI_LOC_BUFFER_SIZE];
     const void                 *rb;
     size_t                      blen = 0;
-    char                        errbuf[256];
+    char                        errbuf[BRIX_OCI_UPSTREAM_ERROR_BUF];
     int                         status;
 
     hdrs[0] = '\0';
@@ -204,7 +204,7 @@ oci_token_leg_init(brix_oci_upstream_t *up, const brix_oci_challenge_t *ch,
     const char *scope, const char *basic, oci_token_leg_t *leg)
 {
     brix_oci_url_t  realm;
-    u_char          enc_scope[1024];
+    u_char          enc_scope[BRIX_OCI_SCOPE_BUFFER_SIZE];
     u_char          enc_svc[768];
 
     if (brix_oci_url_parse(ch->realm, strlen(ch->realm), &realm) != 0) {
@@ -336,7 +336,7 @@ oci_token_fetch(brix_oci_upstream_t *up, const brix_oci_challenge_t *ch,
     long *expires_in, int *denied)
 {
     oci_token_leg_t  leg;
-    char             body[16384];
+    char             body[BRIX_OCI_BODY_BUFFER_SIZE];
     size_t           body_len = 0;
     int              status;
 
@@ -379,7 +379,7 @@ brix_oci_token_get_cred(brix_oci_upstream_t *up, const char *path,
     char *tok, size_t toklen, long *expires_in, int *denied)
 {
     brix_oci_challenge_t  ch;
-    char                  scope[1024];
+    char                  scope[BRIX_OCI_SCOPE_BUFFER_SIZE];
     long                  expires = 0;
 
     if (denied != NULL) {

@@ -119,7 +119,7 @@ int
 brix_n2n_lfn2pfn(const brix_n2n_cfg_t *cfg, const char *lfn,
                    char *pfn, size_t cap)
 {
-    char canon[1024];
+    char canon[BRIX_VFS_CANON_PATH_BUF_SIZE];
     int  r;
 
     if (cfg == NULL || lfn == NULL || pfn == NULL || cap == 0) {

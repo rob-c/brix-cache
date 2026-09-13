@@ -144,7 +144,7 @@ sts_http_post(const struct brix_dns_policy_s *dns, const char *url,
     struct curl_slist *resolve = NULL;
     char               errbuf[CURL_ERROR_SIZE];
     char               reason[BRIX_DNS_ERROR_LEN];
-    char               line[1200];
+    char               line[BRIX_STS_HTTP_LINE_BUF_SIZE];
     ngx_int_t          rc = NGX_ERROR;
 
     curl = curl_easy_init();

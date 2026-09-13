@@ -61,7 +61,22 @@ static int brix_fremovexattr_compat(int fd, const char *name) {
 #include "broker_ops_internal.h"
 
 
-/* openat2(rootfd, rel, RESOLVE_BENEATH).  Returns fd or -errno. */
+/*
+ * WHAT: Open a path beneath rootfd using openat2() with RESOLVE_BENEATH confinement.
+ *
+ * WHY: Prevents path escape attacks in impersonated operations by ensuring all path
+ *   resolution stays beneath the confined rootfd. RESOLVE_NO_MAGICLINKS blocks symlink
+ *   tricks. On macOS (which lacks openat2), falls back to openat() with basic flags.
+ *   Mode masking to 07777 prevents EINVAL from strict openat2() when callers pass
+ *   full struct stat st_mode (with S_IFMT bits) during COPY operations.
+ *
+ * HOW:
+ *   - Build open_how struct with flags (OR O_CLOEXEC), masked mode (07777 if O_CREAT),
+ *     and resolve flags (RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS)
+ *   - On Linux: syscall(SYS_openat2, rootfd, rel, &how, sizeof(how))
+ *   - On macOS: openat(rootfd, rel, flags|O_CLOEXEC, mode) as compatibility fallback
+ *   - Return fd on success, or -errno on failure
+ */
 int
 imp_openat2(int rootfd, const char *rel, uint32_t flags, uint32_t mode)
 {

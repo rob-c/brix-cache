@@ -38,7 +38,13 @@ static const char *brix_frm_fail_names[BRIX_FRM_NFAIL] = {
 /* Histogram upper bounds in seconds; the final (+Inf) bucket is implicit. */
 static const unsigned long
 brix_frm_latency_bounds[BRIX_FRM_LATENCY_BUCKETS - 1] = {
-    1, 10, 30, 60, 300, 1800, 3600,
+    BRIX_FRM_BUCKET_1_SEC,
+    BRIX_FRM_BUCKET_2_SEC,
+    BRIX_FRM_BUCKET_3_SEC,
+    BRIX_FRM_BUCKET_4_SEC,
+    BRIX_FRM_BUCKET_5_SEC,
+    BRIX_FRM_BUCKET_6_SEC,
+    BRIX_FRM_BUCKET_7_SEC,
 };
 
 void

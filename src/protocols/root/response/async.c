@@ -1,12 +1,17 @@
 /*
  * src/response/async.c — Native kXR_attn generation and deprecated async handlers.
  *
- * WHAT: Implements native kXR_attn (4001) server-push frames for two active
- *       action codes: kXR_asyncms (5002) for unsolicited text notifications and
- *       kXR_asynresp (5008) for deferred response delivery after kXR_waitresp.
+ * WHAT: Implements native kXR_attn (BRIX_ROOT_ATTN_FRAME) server-push frames for two active
+ *       action codes: kXR_asyncms (BRIX_ROOT_ASYNCMS) for unsolicited text notifications and
+ *       kXR_asynresp (BRIX_ROOT_ASYNCRESP) for deferred response delivery after kXR_waitresp.
  *       Also provides a generic brix_send_attn() wrapper.
  *       Deprecated action codes 5000-5007 (except 5002 and 5008) all return
  *       kXR_Unsupported per the v5.2.0 spec ("No longer supported").
+ */
+
+/* Stringification macro for constants */
+#define XSTR_HELPER(x)  #x
+#define XSTR(x)         XSTR_HELPER(x)
  *
  * WHY: kXR_attn is the XRootD server-push mechanism. The proxy relay path
  *      already forwards upstream kXR_attn frames transparently (events_read.c).
@@ -18,9 +23,9 @@
  *
  *   [outer ServerResponseHdr: 8B]
  *       streamid[2]  — {0,0} for asyncms; deferred streamid for asynresp
- *       status[2]    — kXR_attn (4001)
+ *       status[2]    — kXR_attn (BRIX_ROOT_ATTN_FRAME)
  *       dlen[4]      — 4 + 4 + 8 + payload_len = 16 + payload_len
- *   [actnum: 4B BE]  — kXR_asyncms (5002) or kXR_asynresp (5008)
+ *   [actnum: 4B BE]  — kXR_asyncms (BRIX_ROOT_ASYNCMS) or kXR_asynresp (BRIX_ROOT_ASYNCRESP)
  *   [reserved: 4B]   — zeroes
  *   [inner ServerResponseHdr: 8B]
  *       streamid[2]  — {0,0} for asyncms; deferred streamid for asynresp
@@ -169,54 +174,54 @@ ngx_int_t
 brix_handle_async_ab(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncab (5000) is no longer supported");
+                            "kXR_asyncab (" XSTR(BRIX_ROOT_ASYNCAB) ") is no longer supported");
 }
 
 ngx_int_t
 brix_handle_async_di(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncdi (5001) is no longer supported");
+                            "kXR_asyncdi (" XSTR(BRIX_ROOT_ASYNCDI) ") is no longer supported");
 }
 
 ngx_int_t
 brix_handle_async_ms(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncms (5002) is no longer supported");
+                            "kXR_asyncms (" XSTR(BRIX_ROOT_ASYNCMS) ") is no longer supported");
 }
 
 ngx_int_t
 brix_handle_async_rd(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncrd (5003) is no longer supported");
+                            "kXR_asyncrd (" XSTR(BRIX_ROOT_ASYNC_RD) ") is no longer supported");
 }
 
 ngx_int_t
 brix_handle_async_wt(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncwt (5004) is no longer supported");
+                            "kXR_asyncwt (" XSTR(BRIX_ROOT_ASYNC_WT) ") is no longer supported");
 }
 
 ngx_int_t
 brix_handle_async_av(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncav (5005) is no longer supported");
+                            "kXR_asyncav (" XSTR(BRIX_ROOT_ASYNC_AV) ") is no longer supported");
 }
 
 ngx_int_t
 brix_handle_async_unav(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncunav (5006) is no longer supported");
+                            "kXR_asyncunav (" XSTR(BRIX_ROOT_ASYNC_UNAV) ") is no longer supported");
 }
 
 ngx_int_t
 brix_handle_async_go(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncgo (5007) is no longer supported");
+                            "kXR_asyncgo (" XSTR(BRIX_ROOT_ASYNC_GO) ") is no longer supported");
 }

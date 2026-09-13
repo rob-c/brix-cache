@@ -118,7 +118,7 @@ brix_checksum_vdsp_sve(const void *buf, size_t len)
  * vDSP-based checksum using dot product with ones vector
  * More flexible than sve, but slightly slower
  */
-static uint64_t
+static uint64_t __attribute__((unused))
 brix_checksum_vdsp_dotpr(const void *buf, size_t len)
 {
     const float *data = (const float *)buf;

@@ -201,9 +201,20 @@ typedef struct {
  * read by the HTTP dashboard module at request time.  NULL if the dashboard
  * feature was not compiled or no stream listeners are configured.
  */
-extern ngx_shm_zone_t *ngx_brix_dashboard_shm_zone;
-extern ngx_shm_zone_t *ngx_brix_dashboard_events_shm_zone;
-extern ngx_shm_zone_t *ngx_brix_dashboard_history_shm_zone;
+/*
+ * brix_dashboard_get_shm_zone — accessor for dashboard transfer SHM zone.
+ */
+ngx_shm_zone_t *brix_dashboard_get_shm_zone(void);
+
+/*
+ * brix_dashboard_get_events_shm_zone — accessor for dashboard events SHM zone.
+ */
+ngx_shm_zone_t *brix_dashboard_get_events_shm_zone(void);
+
+/*
+ * brix_dashboard_get_history_shm_zone — accessor for dashboard history SHM zone.
+ */
+ngx_shm_zone_t *brix_dashboard_get_history_shm_zone(void);
 
 /*
  * SHM zone setup — called from stream postconfiguration, after metrics zone.

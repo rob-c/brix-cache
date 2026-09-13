@@ -3,7 +3,22 @@
 #include "source_internal.h"
 
 /* File: source.c — TPC remote source pull (open → read loop → close)
- * WHAT: Single public function `tpc_pull_from_source()` executes the complete native XRootD third-party-copy fetch from a remote origin into dst_fd. Phase 1 → builds ClientOpenRequest with src_path + opaque key/org params, sends kXR_open to remote, receives ServerOpenBody fhandle (handles both minimal 4-byte and full 12+ byte responses), extracts fhandle; Phase 2 → streaming read loop via repeated kXR_read requests at TPC_CHUNK_SIZE offsets, accumulates kXR_oksofar + kXR_ok frames per request, writes each frame's body bytes to dst_fd through the VFS core, tracks offset advancement and total bytes_written; Phase 3 → syncs dst_fd through the VFS core for durability, sets result=NGX_OK/xrd_error=0, best-effort remote close via kXR_close. Returns -1 on failure with error message + xrd_error code, 0 on success.
+ * WHAT: `tpc_pull_from_source()` executes native XRootD third-party-copy fetch.
+ *   - Phase 1: Open
+ *     - Builds ClientOpenRequest with src_path + opaque key/org params
+ *     - Sends kXR_open to remote
+ *     - Receives ServerOpenBody fhandle (4-byte or 12+ byte responses)
+ *     - Extracts fhandle
+ *   - Phase 2: Streaming read loop
+ *     - Repeated kXR_read requests at TPC_CHUNK_SIZE offsets
+ *     - Accumulates kXR_oksofar + kXR_ok frames per request
+ *     - Writes frame body bytes to dst_fd via VFS core
+ *     - Tracks offset advancement and total bytes_written
+ *   - Phase 3: Sync and close
+ *     - Syncs dst_fd via VFS core for durability
+ *     - Sets result=NGX_OK/xrd_error=0
+ *     - Best-effort remote close via kXR_close
+ *   - Returns -1 on failure (error + xrd_error code), 0 on success
  *
  * WHY: TPC (Third-Party Copy) transfers require the destination server to connect to a remote root:// origin, open the source file, stream all bytes into dst_fd, and close the remote handle. This function encapsulates the entire pull lifecycle — open → read loop → fsync → close — so launch.c/thread.c can delegate it to a thread-pool worker without managing the protocol sequence themselves. Handles peer diversity (minimal vs full ServerOpenBody), oksofar accumulation for large reads, EINTR-safe writes, and best-effort remote cleanup on failure paths.
  *

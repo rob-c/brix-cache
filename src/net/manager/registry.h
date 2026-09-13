@@ -1,414 +1,44 @@
-#ifndef BRIX_SRV_REGISTRY_H
-#define BRIX_SRV_REGISTRY_H
+#ifndef __BRIX_MANAGER_REGISTRY_H__
+#define __BRIX_MANAGER_REGISTRY_H__
 
 /*
- * manager/registry.h — shared-memory server registry for cluster/redirector mode.
+ * registry.h - Server registry API (encapsulated SHM access)
  *
- * Data servers that connect via the CMS management protocol call
- * brix_srv_register() on login and brix_srv_update_load() on each
- * heartbeat.  brix_srv_select() picks the best server for a given path
- * and is called from the kXR_locate and kXR_open handlers when
- * brix_manager_mode is on.
+ * WHAT: Public API for server registry shared memory operations.
+ *       Provides accessor functions to encapsulate SHM zone access.
  *
- * The table lives in a dedicated ngx_shm_zone_t so all worker processes share
- * one consistent view.  Concurrent access is serialised by a single
- * ngx_shmtx_t spinlock embedded at the start of the shared region.
- *
- * Capacity: BRIX_SRV_REGISTRY_SLOTS entries.  When the table is full new
- * registrations are silently dropped — existing servers continue to be used.
- * BRIX_SRV_MAX_PATHS bounds the colon-delimited path list stored per entry.
+ * WHY: Encapsulation prevents accidental modification of SHM zone pointers
+ *      and enables future changes to the underlying storage mechanism.
  */
 
-#include "core/ngx_brix_module.h"
+#include <ngx_core.h>
 
-#define BRIX_SRV_REGISTRY_SLOTS  128   /* default; overridden by brix_registry_slots */
-#define BRIX_SRV_MAX_PATHS      1024
-
-typedef struct {
-    char        host[256];                /* hostname or IP (NUL-terminated) */
-    uint16_t    port;                     /* XRootD data port */
-    char        paths[BRIX_SRV_MAX_PATHS]; /* colon-delimited export paths */
-    uint32_t    free_mb;                  /* last reported free megabytes */
-    uint32_t    util_pct;                 /* last reported utilisation % */
-    ngx_msec_t  last_seen;               /* ngx_current_msec at last update */
-    ngx_uint_t  in_use;                  /* 1 = slot occupied */
-    ngx_msec_t  blacklisted_until;       /* 0 = available; future ms = skip */
-    uint32_t    error_count;             /* consecutive CMS disconnect count */
-
-    /* Phase 89 W9 — kYR_status/login attributes. */
-    char        vnid[64];                /* virtual network id from login envCGI */
-    ngx_uint_t  stage;                   /* 1 = staging available (status stage bit) */
-
-    /* Phase 61 W7 — the node's XrdCmsRole::Type from its LOGIN Mode bits.
-     * §2.17: widened for the peer/proxy types — "S" server, "M" manager,
-     * "R" supervisor, "P" peer, "PS" proxy server. */
-    char        role[4];
-
-    /* §2.4 (cms.space) — the free-space policy floor the node advertised in
-     * its LOGIN mSpace field (MB; 0 = it declared none), and the sticky
-     * write-block hysteresis latches from it.  Both are inert unless
-     * brix_srv_space.enforce is set. */
-    uint32_t    min_free_mb;
-    ngx_uint_t  space_blocked;
-
-    /* §2.3 (cms.sched parity) — the five raw heartbeat theLoad bytes
-     * (cpu, net/io, xeq/runq, mem, pag; each 0-100) so the manager can blend
-     * them with per-component weights instead of only the max (load_pct). */
-    uint8_t     load5[5];
-
-    /* Phase 89 W4 — machine-load figure from the heartbeat theLoad bytes. */
-    uint32_t    load_pct;                /* 0-100; max of cpu/net/xeq/mem/pag */
-
-    /* Phase 22 — active health checks (off unless brix_health_check on). */
-    ngx_msec_t  hc_next_check;           /* ngx_current_msec when next probe is due */
-    ngx_msec_t  hc_last_ok;              /* ngx_current_msec of last passing probe */
-    uint32_t    hc_fail_count;           /* consecutive probe failures */
-    ngx_uint_t  hc_in_progress;          /* 1 = a worker has claimed this slot */
-} brix_srv_entry_t;
-
-typedef struct {
-    ngx_shmtx_sh_t      lock;     /* must be first — required by ngx_shmtx_create */
-    ngx_uint_t           capacity; /* number of valid entries in slots[] */
-    brix_srv_entry_t   slots[];  /* C99 flexible array; capacity entries follow */
-} brix_srv_table_t;
-
-typedef struct {
-    char        host[256];
-    uint16_t    port;
-    char        paths[BRIX_SRV_MAX_PATHS];
-    uint32_t    free_mb;
-    uint32_t    util_pct;
-    ngx_msec_t  last_seen;
-    ngx_msec_t  blacklisted_until;
-    uint32_t    error_count;
-    ngx_msec_t  hc_last_ok;      /* Phase 22: last passing health probe */
-    uint32_t    hc_fail_count;   /* Phase 22: consecutive probe failures */
-    char        vnid[64];        /* Phase 89 W9: login virtual network id */
-    ngx_uint_t  stage;           /* Phase 89 W9: staging available */
-    uint32_t    load_pct;        /* Phase 89 W4: heartbeat machine load 0-100 */
-    char        role[4];         /* Phase 61 W7 / §2.17: "S"/"M"/"R"/"P"/"PS" */
-    uint32_t    min_free_mb;     /* §2.4: advertised free-space floor (MB) */
-    ngx_uint_t  space_blocked;   /* §2.4: 1 = latched out of the write set */
-} brix_srv_snapshot_entry_t;
-
-extern ngx_shm_zone_t *brix_srv_shm_zone;
+/* Forward declarations */
+typedef struct brix_srv_table_s brix_srv_table_t;
+typedef struct brix_srv_entry_s brix_srv_entry_t;
 
 /*
- * nginx shm-zone init callback (set as shm_zone->init).  First boot (data==NULL):
- * casts shm.addr to the table, sets capacity, zero-fills slots[], creates the
- * spinlock.  Reattach (data!=NULL): adopts the existing table and recreates the
- * worker-local mutex handle against tbl->lock.  Returns NGX_OK / NGX_ERROR.
+ * brix_srv_get_shm_zone — accessor for server registry SHM zone.
+ *
+ * WHAT: Returns pointer to server registry shared memory zone.
+ * WHY:  Encapsulation — callers use accessor rather than direct global access.
+ * HOW:  Returns NULL if not initialized, otherwise zone pointer.
+ *       Thread safety: read-only after initialization.
  */
+ngx_shm_zone_t *brix_srv_get_shm_zone(void);
+
+/*
+ * brix_srv_get_mutex — accessor for server registry mutex.
+ *
+ * WHAT: Returns pointer to server registry spinlock.
+ * WHY:  Encapsulation — centralized mutex access for proper locking.
+ * HOW:  Returns pointer to static mutex (initialized during startup).
+ */
+ngx_shmtx_t *brix_srv_get_mutex(void);
+
+/* Existing API */
+void brix_srv_set_stale_after(ngx_msec_t ms);
+brix_srv_table_t *srv_table(void);
 ngx_int_t brix_srv_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data);
 
-/*
- * Reserve the registry shm zone during config parsing; call once, before
- * workers start.  slots sizes the table (sizeof(table) + slots*entry + a page);
- * stores the count globally and registers brix_srv_shm_init_zone as the init
- * callback.  Returns NGX_OK, or NGX_ERROR if ngx_shared_memory_add fails.
- */
-ngx_int_t brix_srv_configure_registry(ngx_conf_t *cf, ngx_uint_t slots);
-
-/* Called by the CMS server handler when a data server logs in. */
-void brix_srv_register(const char *host, uint16_t port,
-    const char *paths, uint32_t free_mb, uint32_t util_pct);
-
-/* Called on each CMS heartbeat to refresh load metrics. */
-void brix_srv_update_load(const char *host, uint16_t port,
-    uint32_t free_mb, uint32_t util_pct);
-
-/* Called when the CMS connection from a data server drops. */
-void brix_srv_unregister(const char *host, uint16_t port);
-
-/*
- * Blacklist a server for duration_ms milliseconds after a CMS disconnect.
- * brix_srv_select() skips blacklisted entries.  brix_srv_register()
- * clears the blacklist when the server successfully reconnects.
- */
-void brix_srv_blacklist(const char *host, uint16_t port,
-    ngx_msec_t duration_ms);
-
-/* Phase 23 — clear a drain/blacklist (admin "undrain"); 1 if found. */
-int brix_srv_undrain(const char *host, uint16_t port);
-
-/*
- * Phase 89 W9 — kYR_status/login attribute writers.
- *
- * brix_srv_reset(): a node sent kYR_status(reset) — forget its cached
- *   metrics/fault state (free_mb, util_pct, error/blacklist/health-check
- *   counters) but keep the registration and paths; the node re-announces via
- *   its next load/avail heartbeat.  Returns 1 if a matching entry was found.
- * brix_srv_set_vnid(): record the virtual network id a node advertised in
- *   its login envCGI (empty string clears).
- * brix_srv_set_stage(): record staging availability from the status
- *   stage/nostage bits.
- */
-int  brix_srv_reset(const char *host, uint16_t port);
-void brix_srv_set_vnid(const char *host, uint16_t port, const char *vnid);
-
-/* Phase 61 W7: record the node's XrdCmsRole::Type ("S"/"M"/"R") derived from
- * its LOGIN Mode bits; NULL/empty resets to the "S" default. */
-void brix_srv_set_role(const char *host, uint16_t port, const char *role);
-void brix_srv_set_stage(const char *host, uint16_t port, ngx_uint_t stage);
-
-/*
- * Phase 89 W4 — load-weighted selection.
- *
- * brix_srv_set_machine_load(): record a node's machine-load percentage (the
- *   max of its heartbeat cpu/net/xeq/mem/pag bytes; clamped to 100).
- * brix_srv_set_load_weight(): set the selection weight w (0-100) once at
- *   config time (before fork) from brix_cms_load_weight.  w = 0 keeps the
- *   current space/util-only scoring byte-identical; w > 0 blends machine
- *   load into the metric (reads: (100-w)*util + w*load; writes: free_mb
- *   scaled down by w*load).
- */
-void brix_srv_set_machine_load(const char *host, uint16_t port,
-    uint32_t load_pct);
-void brix_srv_set_load_weight(ngx_uint_t weight);
-
-/*
- * §2.3 — cms.sched component-weight parity.
- *
- * brix_srv_set_load_vector(): record the five raw heartbeat theLoad bytes
- *   (cpu, net/io, xeq/runq, mem, pag) for a node so weighted blending can see
- *   each component, not only the max.
- * brix_srv_sched_t / brix_srv_set_sched(): per-component selection weights
- *   (each 0-100; all-zero = engine off, legacy scoring byte-identical),
- *   plus the fuzz band (two read candidates whose blended metric differs by
- *   <= fuzz percent are considered equal and rotated round-robin) and the
- *   maxload ceiling (a node whose blended machine load exceeds it drops to a
- *   last-resort tier below stale-but-live nodes).  Set once at config time,
- *   before fork, like brix_srv_set_load_weight.
- */
-typedef struct {
-    ngx_uint_t  cpu;      /* weight of the cpu byte            */
-    ngx_uint_t  io;       /* weight of the net/io byte         */
-    ngx_uint_t  runq;     /* weight of the xeq/run-queue byte  */
-    ngx_uint_t  mem;      /* weight of the mem byte            */
-    ngx_uint_t  pag;      /* weight of the pag byte            */
-    ngx_uint_t  space;    /* weight of the disk-utilisation %  */
-    ngx_uint_t  fuzz;     /* 0-100: equality band, 0 = off     */
-    ngx_uint_t  maxload;  /* 0-100: overload ceiling, 0 = off  */
-} brix_srv_sched_t;
-
-void brix_srv_set_load_vector(const char *host, uint16_t port,
-    const uint8_t load5[5]);
-void brix_srv_set_sched(const brix_srv_sched_t *sched);
-
-/*
- * §2.4 — cms.space write eligibility.
- *
- * The `min` half of stock's cms.space is the floor a data server advertises
- * in its LOGIN mSpace field (brix_cms_min_free on the node).  The manager
- * stored nothing and enforced nothing, so the floor a node declared had no
- * effect on where writes went.  This is the enforcement half.
- *
- * brix_srv_space_t / brix_srv_set_space(): enforce = honour that floor when
- *   picking a WRITE target; hwm_mb = the free space a blocked node must
- *   regain before it is eligible again (0 = its own floor — no hysteresis
- *   band; a value below the node's floor is clamped up to it, so a mistyped
- *   hwm can never make a node flap).  Set once at config time, before fork,
- *   like brix_srv_set_sched.
- * brix_srv_set_min_free(): record one node's advertised floor, from LOGIN.
- *
- * A blocked node is de-preferred, never refused: it falls to the same
- * last-resort tier as a maxload-exceeded node (§2.3), so a cluster where
- * every node is below its floor still places the write on the roomiest node
- * instead of failing it.  Reads ignore the block entirely — a full disk still
- * serves the bytes it already holds — and so does the §2.5 stage selector,
- * which already ranks by free space and answers a demand-driven recall
- * rather than steady-state placement.
- */
-typedef struct {
-    ngx_uint_t  enforce;   /* 1 = honour the advertised floor for writes */
-    ngx_uint_t  hwm_mb;    /* re-eligibility high-water mark, 0 = floor  */
-} brix_srv_space_t;
-
-void brix_srv_set_space(const brix_srv_space_t *space);
-void brix_srv_set_min_free(const char *host, uint16_t port,
-    uint32_t min_free_mb);
-
-/*
- * §2.2 — cms.delay servers (SUPCount floor).
- *
- * brix_srv_set_delay_servers(): config-time floor (0 = off).
- * brix_srv_count_servers(): occupied data-serving slots (roles S/PS; managers,
- *   supervisors and peers are not data-service capacity).
- * brix_srv_below_floor(): 1 while the floor is configured and unmet — the
- *   manager should answer selects with kXR_wait instead of redirecting into a
- *   half-formed cluster.
- */
-void brix_srv_set_delay_servers(ngx_uint_t n);
-ngx_uint_t brix_srv_count_servers(void);
-int brix_srv_below_floor(void);
-
-/*
- * §2.9 — ManTree-style supervisor offload.  Find the least-utilised live
- * supervisor ("R" role) so a manager at its direct-server cap can redirect a
- * new server login there (kYR_try at login).  Returns 1 and fills host/port,
- * or 0 when no live supervisor is registered.
- */
-int brix_srv_find_supervisor(char *host_out, size_t host_size,
-    uint16_t *port_out);
-
-/* §2.9 — is host:port currently registered?  (Reconnecting members are
- * exempt from the max_direct login offload.) */
-int brix_srv_is_registered(const char *host, uint16_t port);
-
-/*
- * §2.5 — stage-aware selection.  Select among stage-capable (e->stage == 1)
- * live nodes whose exports cover path, by MOST free space (a recall lands on
- * the roomiest tape-front) — the second phase of stock cmsd's "prefer holders,
- * else stage on the best-space node".  Returns 1 and fills host/port, or 0
- * when no stage-capable node matches.
- */
-int brix_srv_select_stage(const char *path, char *host_out, size_t host_size,
-    uint16_t *port_out);
-
-/*
- * Phase 89 W5 — path-affinity sticky selection.
- *
- * brix_srv_set_affinity(): enable (once at config time, before fork, from
- *   brix_cms_affinity) hashing the request path over the FRESH candidate set
- *   so repeated selections of one path stick to one server.  Precedence is
- *   locked (phase-61 note 2): blacklist/staleness filter first, affinity only
- *   among the eligible fresh tier, score otherwise — a drained host is never
- *   sticky, and an empty fresh tier falls back to the normal ladder.
- */
-void brix_srv_set_affinity(ngx_uint_t on);
-
-/*
- * Phase 22 — active health checks.
- *
- * brix_srv_hc_claim(): under the registry spinlock, find the first in-use
- *   slot whose hc_next_check is due and that no other worker is probing.  On
- *   success sets hc_in_progress=1, advances hc_next_check by interval_ms,
- *   copies host/port to the out params, and returns 1.  Returns 0 if nothing
- *   is due — guaranteeing exactly one worker probes each server per interval.
- *   When nothing is due, *next_due_ms (if non-NULL) is set to the delay until
- *   the soonest server becomes due (clamped to interval_ms when none/empty), so
- *   the caller can sleep to that deadline instead of polling at a fixed floor.
- *
- * brix_srv_hc_pass(): probe succeeded — clears hc_fail_count, sets
- *   hc_last_ok, clears hc_in_progress, and clears a blacklist only if it was
- *   set by health checking (hc_fail_count was > 0), never a CMS-disconnect one.
- *
- * brix_srv_hc_fail(): probe failed — increments hc_fail_count, clears
- *   hc_in_progress, and blacklists the server for blacklist_ms once
- *   hc_fail_count reaches threshold.  Returns 1 if it newly blacklisted.
- */
-int  brix_srv_hc_claim(char *host_out, size_t host_size,
-    uint16_t *port_out, ngx_msec_t interval_ms, ngx_msec_t *next_due_ms);
-void brix_srv_hc_pass(const char *host, uint16_t port);
-int  brix_srv_hc_fail(const char *host, uint16_t port,
-    uint32_t threshold, ngx_msec_t blacklist_ms);
-
-/* Remove a single path token from a slot's colon-delimited path list.
- * Used by cache eviction to deregister a specific file without removing
- * the whole entry.  Thread-safe (spinlock). */
-void brix_srv_unregister_path(const char *host, uint16_t port,
-    const char *path);
-
-/*
- * Select the best server for path.  For reads (for_write=0) picks the server
- * with the lowest util_pct; for writes picks the server with the most free_mb.
- * Path prefix matching is longest-match over each colon-delimited token in the
- * entry's paths field.
- *
- * Returns 1 and fills host_out/port_out on success.  Returns 0 if no server
- * exports a prefix that covers path.
- */
-int brix_srv_select(const char *path, int for_write,
-    char *host_out, size_t host_size, uint16_t *port_out);
-
-/*
- * Count occupied, non-blacklisted servers exporting a prefix covering path —
- * how many distinct data servers a client could be redirected to.
- */
-int brix_srv_count_matching(const char *path);
-
-/*
- * Phase-89 W3: does a colon-delimited export list cover path?  Public wrapper
- * over the registry's longest-prefix matcher so the CMS server side can apply
- * the kYR_have security gate ("a node may only assert have for paths under its
- * login Paths") with the exact matching rule selection uses.  Pure, lock-free.
- */
-int brix_srv_paths_cover(const char *paths, const char *path);
-
-/*
- * Phase-89 W3: is host:port currently blacklisted/draining?  Used to refuse
- * caching a kYR_have from a drained node (the operator blacklist must not be
- * bypassed by the dynamic location plane).  Returns 0 for unknown servers.
- */
-int brix_srv_is_blacklisted(const char *host, uint16_t port);
-
-/*
- * Like brix_srv_select(), but when no live (non-blacklisted) server matches it
- * falls back to a currently-blacklisted one as a LAST RESORT.  A CMS heartbeat
- * drop blacklists a data server for 30 s even though its data plane is almost
- * always still serving; the kXR_open / kXR_stat handlers use this so a transient
- * heartbeat blip under load redirects to the (live) data node instead of a false
- * kXR_NotFound.  kXR_locate keeps the strict brix_srv_select() — it reports
- * only live servers, so a genuinely dead node is still answered "not found"
- * there.  If the fallback target is in fact dead the client's connect fails and
- * the tried/triedrc retry converges to NotFound (count_matching counts the
- * blacklisted slot, so the client is not bounced to it twice).
- */
-int brix_srv_select_or_blacklisted(const char *path, int for_write,
-    char *host_out, size_t host_size, uint16_t *port_out);
-
-/* Phase 39 (WS7): set the data-server staleness threshold (ms); 0 = disabled.
- * brix_srv_select() then de-prefers servers with no heartbeat for longer than
- * this (falling back to the freshest stale one only if every replica is stale).
- * Set once at config time (before fork) from brix_manager_stale_after. */
-void brix_srv_set_stale_after(ngx_msec_t ms);
-
-/*
- * tried/triedrc retry protocol: extracts the opaque CGI from the raw request
- * payload and returns 1 when its tried= list already covers every server
- * matching clean_path, meaning the manager must answer kXR_NotFound instead of
- * redirecting again (prevents the client redirect-limit loop on a path no
- * server holds).  payload may be NULL.
- */
-int brix_manager_tried_exhausted(const u_char *payload, size_t payload_len,
-    const char *clean_path);
-
-/*
- * Build a kXR_locate response body listing all non-blacklisted servers that
- * export a prefix covering path.  Format is space-separated
- * "<type><r|w>host:port" entries, NUL-terminated, as required by the XRootD
- * locate wire format.
- *
- * §2.18 — <type> is one of XrdCl's four LocationTypes: 'S' a data server
- * (roles "S"/"PS"), 'M' a subordinate manager or supervisor (roles "M"/"R")
- * the client must re-locate through rather than read from, each lowercased
- * ('s'/'m', "pending") when the node has missed its heartbeats past
- * brix_manager_stale_after.  With that directive unset (the default) no entry
- * is ever lowercased.
- *
- * Returns the number of bytes written (not counting the terminating NUL), or
- * 0 if no servers match or the buffer is too small to hold even one entry.
- */
-int brix_srv_locate_all(const char *path, int for_write,
-    char *buf, size_t bufsz);
-
-/*
- * Aggregate space metrics across all occupied registry slots.
- * *total_free_mb  receives the sum of free_mb across all registered servers.
- * *avg_util_pct   receives the arithmetic mean util_pct (0 if no servers).
- * Used by the CMS client when manager_mode is on so the node reports
- * aggregate child capacity upward rather than its own (possibly zero) disk.
- */
-void brix_srv_aggregate_space(uint32_t *total_free_mb,
-    uint32_t *avg_util_pct);
-
-/*
- * Take a point-in-time copy of up to max_entries occupied slots into the
- * caller-owned out[] array (caller allocates; entries are copied by value, no
- * aliasing of shm).  Holds the spinlock for the copy.  The now argument is
- * currently ignored.  Returns the number of entries written.
- */
-ngx_uint_t brix_srv_snapshot(brix_srv_snapshot_entry_t *out,
-    ngx_uint_t max_entries, ngx_msec_t now);
-
-#endif /* BRIX_SRV_REGISTRY_H */
+#endif /* __BRIX_MANAGER_REGISTRY_H__ */

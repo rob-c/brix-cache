@@ -115,20 +115,27 @@ typedef struct {
     brix_voms_error_message_pt error_message;
 } brix_voms_api_t;
 
-/* ---- Section: Extern Globals & Public API ----
+/* ---- Section: Module State & Public API ----
  *
- * WHAT: External declarations for the globally accessible VOMS state and public
- * function. brix_voms_api is the function-pointer table populated at startup —
- * callers access VOMS operations through this struct (init, retrieve, destroy,
- * error_message). brix_voms_loaded is the availability flag read by ACL code
- * in path/acl.c to conditionally enable VO checks. brix_collect_voms_vos() is
- * the public function for converting VOMS API result structs into comma-separated
- * VO list strings — called internally by extract.c after VOMS_Retrieve().  Since
- * 2.0 F20 it also fills out->fqan_list with the RAW FQANs (see voms_io.h): the
- * VO-name views are '/'-free by design, so they cannot carry a role. */
+ * WHAT: VOMS module state is encapsulated — access via brix_voms_available()
+ * accessor and brix_voms_get_api() for internal use. The state struct holds
+ * the function-pointer table populated at startup (init, retrieve, destroy,
+ * error_message) and availability flag. brix_collect_voms_vos() is the public
+ * function for converting VOMS API result structs into comma-separated VO list
+ * strings — called internally by extract.c after VOMS_Retrieve(). Since 2.0 F20
+ * it also fills out->fqan_list with the RAW FQANs (see voms_io.h): the VO-name
+ * views are '/'-free by design, so they cannot carry a role.
+ *
+ * WHY: Encapsulation prevents accidental modification, enables future extension
+ *      (e.g., multiple VOMS instances, lazy loading, testing hooks).
+ *
+ * HOW: Static state struct with const accessor — immutable after init. */
 
-extern brix_voms_api_t brix_voms_api;
-extern ngx_flag_t        brix_voms_loaded;
+/* Internal accessor for VOMS API table (internal use only) */
+brix_voms_api_t *brix_voms_get_api_internal(void);
+
+/* Public API */
+ngx_flag_t brix_voms_available(void);
 
 ngx_int_t brix_collect_voms_vos(struct voms_data *vd,
     const brix_voms_out_t *out);

@@ -34,8 +34,8 @@ s3o_ms_since(const struct timespec *t0)
     if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
         return 0;
     }
-    ms = (now.tv_sec - t0->tv_sec) * 1000L
-       + (now.tv_nsec - t0->tv_nsec) / 1000000L;
+    ms = (now.tv_sec - t0->tv_sec) * BRIX_VFS_MSEC_PER_SEC
+       + (now.tv_nsec - t0->tv_nsec) / BRIX_VFS_NSEC_PER_MSEC;
     return ms < 0 ? 0 : ms;
 }
 
@@ -44,7 +44,7 @@ static int
 s3o_buf_append(char **buf, size_t *len, size_t *cap, const char *src, size_t n)
 {
     if (*len + n + 1 > *cap) {
-        size_t newcap = (*cap == 0) ? 8192 : *cap;
+        size_t newcap = (*cap == 0) ? BRIX_SMALL_BUF_SIZE : *cap;
         char  *nb;
 
         while (*len + n + 1 > newcap) {

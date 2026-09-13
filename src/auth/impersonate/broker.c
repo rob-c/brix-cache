@@ -3,6 +3,7 @@
  * Phase-38 split of broker.c; behavior-identical.
  */
 #include "broker_internal.h"
+#include "impersonate_state.h"
 
 /* macOS compatibility for Linux-specific socket options */
 #if defined(__APPLE__) && defined(__MACH__)
@@ -32,16 +33,13 @@ static int brix_accept4_compat(int sockfd, struct sockaddr *addr, socklen_t *add
 #define accept4(sockfd, addr, addrlen, flags) brix_accept4_compat(sockfd, addr, addrlen, flags)
 #endif
 
-uid_t brix_imp_broker_allow_uid = 0;
-uid_t  imp_base_uid;
-
-gid_t  imp_base_gid;
-
-gid_t  imp_base_groups[BRIX_IDMAP_MAXGROUPS];
-
-int    imp_base_ngroups;
-
-uid_t  imp_self_uid;
+/* Globals migrated to brix_imp_state_t in impersonate_state.h */
+/* Legacy aliases for backward compatibility during transition */
+#define imp_base_uid        (brix_imp_state.base_uid)
+#define imp_base_gid        (brix_imp_state.base_gid)
+#define imp_base_groups     (brix_imp_state.base_groups)
+#define imp_base_ngroups    (brix_imp_state.base_ngroups)
+#define imp_self_uid        (brix_imp_state.self_uid)
 
 
 int
@@ -50,13 +48,13 @@ imp_peer_allowed(int conn_fd)
     struct ucred cred;
     socklen_t    len = sizeof(cred);
 
-    if (brix_imp_broker_allow_uid == 0) {
+    if (brix_imp_get_broker_allow_uid() == 0) {
         return 1;                        /* gate disabled */
     }
     if (getsockopt(conn_fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) != 0) {
         return 0;                        /* cannot verify -> refuse */
     }
-    return cred.uid == brix_imp_broker_allow_uid || cred.uid == 0;
+    return cred.uid == brix_imp_get_broker_allow_uid() || cred.uid == 0;
 }
 
 
@@ -342,16 +340,21 @@ static int
 imp_broker_init_creds(ngx_log_t *log)
 {
     int ng;
+    gid_t temp_groups[BRIX_IDMAP_MAXGROUPS];
 
     if (brix_imp_broker_drop_caps(log) != 0) {
         return -1;                       /* fail closed: DAC would not be enforced */
     }
 
-    imp_base_uid = geteuid();
-    imp_base_gid = getegid();
-    imp_self_uid = getuid();
-    ng = getgroups(BRIX_IDMAP_MAXGROUPS, imp_base_groups);
-    imp_base_ngroups = (ng > 0) ? ng : 0;
+    brix_imp_set_base_uid(geteuid());
+    brix_imp_set_base_gid(getegid());
+    brix_imp_set_self_uid(getuid());
+    ng = getgroups(BRIX_IDMAP_MAXGROUPS, temp_groups);
+    if (ng > 0) {
+        brix_imp_set_base_groups(temp_groups, ng);
+    } else {
+        brix_imp_set_base_groups(NULL, 0);
+    }
 
     return 0;
 }

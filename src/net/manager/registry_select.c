@@ -199,7 +199,7 @@ srv_sel_state_consider(srv_sel_state_t *st, int idx, const brix_srv_entry_t *e,
      * it is nearly full is the thing the floor exists to stop, but refusing
      * the write outright when every node is low would be worse than landing
      * it on the roomiest of them.  Reads never consult the latch. */
-    if (st->for_write && brix_srv_space.enforce && e->space_blocked) {
+    if (st->for_write && brix_srv_state()->space.enforce && e->space_blocked) {
         srv_sel_tier_offer(&st->over, idx, metric, st->for_write);
         return;
     }
@@ -220,9 +220,9 @@ srv_sel_state_consider(srv_sel_state_t *st, int idx, const brix_srv_entry_t *e,
      * degrades to the freshest stale server rather than a false NotFound.  The
      * signed diff tolerates ngx_current_msec wrap.
      */
-    is_stale = (brix_srv_stale_after_ms > 0
+    is_stale = (brix_srv_state()->stale_after_ms > 0
                 && (ngx_msec_int_t) (ngx_current_msec - e->last_seen)
-                   > (ngx_msec_int_t) brix_srv_stale_after_ms);
+                   > (ngx_msec_int_t) brix_srv_state()->stale_after_ms);
     if (!is_stale) {
         srv_sel_tier_offer(&st->fresh, idx, metric, st->for_write);
         if (st->n_fresh < SRV_SEL_AFFINITY_MAX) {
@@ -298,7 +298,7 @@ srv_sel_fuzz_pick(const srv_sel_state_t *st, int best)
     ngx_uint_t         i, n_band = 0;
     uint64_t           bound;
 
-    if (brix_srv_sched.fuzz == 0 || st->n_fresh < 2
+    if (brix_srv_state()->sched.fuzz == 0 || st->n_fresh < 2
         || best != st->fresh.idx)
     {
         return best;
@@ -306,10 +306,10 @@ srv_sel_fuzz_pick(const srv_sel_state_t *st, int best)
 
     if (st->for_write) {
         bound = (uint64_t) st->fresh.val
-                * (100 - brix_srv_sched.fuzz) / 100;
+                * (100 - brix_srv_state()->sched.fuzz) / 100;
     } else {
         bound = (uint64_t) st->fresh.val
-                * (100 + brix_srv_sched.fuzz) / 100;
+                * (100 + brix_srv_state()->sched.fuzz) / 100;
     }
 
     for (i = 0; i < st->n_fresh; i++) {
@@ -399,7 +399,7 @@ srv_select_core(const char *path, int for_write, int allow_blacklisted,
      * drained host is never sticky; an empty/singleton fresh tier keeps the
      * ladder winner unchanged.  §2.3: affinity wins over the fuzz band (a
      * sticky path must not rotate); fuzz applies only without affinity. */
-    if (brix_srv_affinity && st.n_fresh > 1) {
+    if (brix_srv_state()->affinity && st.n_fresh > 1) {
         best = st.fresh_cands[srv_sel_path_hash(path) % st.n_fresh];
     } else {
         best = srv_sel_fuzz_pick(&st, best);
@@ -501,7 +501,7 @@ int
 brix_manager_tried_exhausted(const u_char *payload, size_t payload_len,
     const char *clean_path)
 {
-    char          opaque[1024];
+    char          opaque[BRIX_REGISTRY_OPAQUE_BUF_SIZE];
     const u_char *q;
     size_t        olen;
     const char   *t, *p;

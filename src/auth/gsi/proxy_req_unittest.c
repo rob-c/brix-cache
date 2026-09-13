@@ -15,6 +15,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/types/tunables.h"  /* BRIX_GSI_PROXY_KEY_BITS */
+
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <openssl/pem.h>
@@ -38,7 +40,7 @@ static EVP_PKEY *genkey(void)
     EVP_PKEY     *k = NULL;
     EVP_PKEY_CTX *c = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL);
     if (c && EVP_PKEY_keygen_init(c) > 0
-        && EVP_PKEY_CTX_set_rsa_keygen_bits(c, 2048) > 0) {
+        && EVP_PKEY_CTX_set_rsa_keygen_bits(c, BRIX_GSI_PROXY_KEY_BITS) > 0) {
         EVP_PKEY_keygen(c, &k);
     }
     brix_evp_pkey_ctx_free(c);

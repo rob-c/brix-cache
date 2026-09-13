@@ -43,7 +43,7 @@
 static size_t
 brix_codec_max_out(size_t plain)
 {
-    return plain + (plain / 2) + 4096;
+    return plain + (plain / 2) + BRIX_ROOT_COMPRESS_SLACK;
 }
 
 /*

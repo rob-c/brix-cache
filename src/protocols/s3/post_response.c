@@ -29,7 +29,7 @@ s3_post_send_created(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     ngx_buf_t    *b;
     ngx_chain_t   out;
     u_char       *xml;
-    size_t        xml_capacity = 8192;
+    size_t        xml_capacity = BRIX_S3_SIGV4_CANONICAL_MAX;
     size_t        xml_len = 0;
     ngx_int_t     rc;
     ngx_str_t     host;

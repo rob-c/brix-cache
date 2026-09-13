@@ -14,8 +14,8 @@
 #include <jansson.h>
 #include <openssl/crypto.h>   
 #define ADMIN_PREFIX      "/brix/api/v1/admin/"
-#define ADMIN_MAX_BODY    65536
-#define ADMIN_SECRET_MAX  4096
+#define ADMIN_MAX_BODY    BRIX_DASHBOARD_ADMIN_MAX_BODY
+#define ADMIN_SECRET_MAX  BRIX_DASHBOARD_SECRET_MAX
 #define ADMIN_SECRET_MIN  16     
 ngx_int_t brix_uring_killswitch_set(ngx_uint_t disabled);
 ngx_int_t brix_uring_killswitch_get(void);

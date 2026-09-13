@@ -93,9 +93,9 @@ brix_access_log_emit(const brix_vfs_ctx_t *ctx, const char *path,
     brix_metric_op_t op, const brix_vfs_io_result_t *result,
     size_t bytes, brix_err_class_t err, ngx_msec_t latency_usec)
 {
-    char        path_json[1024];
-    char        subject_json[256];
-    char        remote_json[128];
+    char        path_json[BRIX_METRICS_ACCESS_LOG_PATH_BUF];
+    char        subject_json[BRIX_SMALL_BUF_SIZE];
+    char        remote_json[BRIX_SMALL_BUF_SIZE];
     const char *subject;
     off_t       offset;
     ngx_uint_t  from_cache;

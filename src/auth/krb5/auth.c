@@ -346,7 +346,7 @@ brix_krb5_session_grant(brix_krb5_req_t *rq, const char *cname)
 {
     brix_ctx_t       *ctx = rq->ctx;
     ngx_connection_t *c = rq->c;
-    char              safe_cname[1024];
+    char              safe_cname[BRIX_KRB5_CNAME_BUF_SIZE];
 
     ctx->login.auth_done = 1;
     ctx->token.auth = 0;

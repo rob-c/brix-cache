@@ -72,7 +72,7 @@ static int
 oci_token_cache_key(const brix_oci_upstream_t *up, const char *scope,
     const u_char *cred, u_char key[32])
 {
-    char    buf[1024 + 33];
+    char    buf[BRIX_OCI_TOKEN_CACHE_KEY_BUF];
     size_t  n, s;
 
     n = strlen(up->base_url);
@@ -180,7 +180,7 @@ void
 brix_oci_token_share(brix_oci_upstream_t *up, const char *path,
     const char *tok, long ttl_s)
 {
-    char  scope[1024];
+    char  scope[BRIX_OCI_TOKEN_CACHE_SCOPE_BUF];
 
     if (up == NULL || tok == NULL || tok[0] == '\0' || ttl_s <= 0
         || brix_oci_pull_scope(path, scope, sizeof(scope)) != 0)

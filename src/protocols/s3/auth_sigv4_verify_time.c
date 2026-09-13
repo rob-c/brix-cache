@@ -29,8 +29,7 @@
 #include <string.h>
 #include <time.h>
 
-#define S3_SIGV4_MAX_HEADER_SKEW_SEC  900
-#define S3_SIGV4_MAX_FUTURE_SKEW_SEC  900
+/* SigV4 time skew tolerance — delegated to tunables.h constants */
 
 /*
  * s3_digit — map an ASCII byte to its decimal value.
@@ -127,7 +126,7 @@ s3_parse_amz_datetime(const char *s, time_t *out)
     }
 
     ngx_memzero(&tm, sizeof(tm));
-    tm.tm_year = year - 1900;
+    tm.tm_year = year - BRIX_S3_UNIX_YEAR_BASE;
     tm.tm_mon  = mon  - 1;
     tm.tm_mday = day;
     tm.tm_hour = hour;
@@ -188,10 +187,10 @@ s3_check_header_clock_skew(ngx_http_request_t *r, time_t request_time)
 
     now = ngx_time();
     if (request_time > now) {
-        if (request_time - now > S3_SIGV4_MAX_HEADER_SKEW_SEC) {
+        if (request_time - now > BRIX_S3_SIGV4_HEADER_SKEW_SEC) {
             return s3_reject_clock_skew(r);
         }
-    } else if (now - request_time > S3_SIGV4_MAX_HEADER_SKEW_SEC) {
+    } else if (now - request_time > BRIX_S3_SIGV4_HEADER_SKEW_SEC) {
         return s3_reject_clock_skew(r);
     }
 
@@ -214,7 +213,7 @@ s3_check_presigned_future_skew(ngx_http_request_t *r, time_t request_time)
 
     now = ngx_time();
     if (request_time > now
-        && request_time - now > S3_SIGV4_MAX_FUTURE_SKEW_SEC)
+        && request_time - now > BRIX_S3_SIGV4_FUTURE_SKEW_SEC)
     {
         return s3_reject_clock_skew(r);
     }

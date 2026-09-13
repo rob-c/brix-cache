@@ -27,7 +27,9 @@
 #include "fs/vfs/vfs.h"   /* brix_vfs_setattr — driver-routed metadata mutation */
 
 #include <arpa/inet.h>
-/* PAL endian ops now in platform_api.h */  /* brix_plat_htobe64/brix_plat_be64toh cross-platform */
+/* PAL endian ops now in platform_api.h
+ * brix_plat_htobe64/brix_plat_be64toh cross-platform
+ */
 #include <errno.h>
 #include <string.h>
 #include <time.h>

@@ -33,7 +33,7 @@ brix_vfs_backend_config_http(const char *root_canon, const char *host,
     brix_vfs_backend_entry_t *e;
 
     if (root_canon == NULL || root_canon[0] == '\0' || host == NULL
-        || host[0] == '\0' || port <= 0 || port > 65535)
+        || host[0] == '\0' || port < BRIX_VFS_PORT_MIN || port > BRIX_VFS_PORT_MAX)
     {
         return;
     }
@@ -109,9 +109,9 @@ vfs_http_origin_host_port(ngx_conf_t *cf, u_char *h, size_t hplen, int htls,
     if (colon != NULL) {
         ngx_int_t pn = ngx_atoi(colon + 1, (size_t) (h + hplen - (colon + 1)));
 
-        if (pn == NGX_ERROR || pn <= 0 || pn > 65535) {
+        if (pn == NGX_ERROR || pn < BRIX_VFS_PORT_MIN || pn > BRIX_VFS_PORT_MAX) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix_storage_backend: invalid http origin port");
+                "brix_storage_backend: invalid http origin port (1-65535)");
             return NGX_ERROR;
         }
         out->host_len = (size_t) (colon - h);
@@ -259,7 +259,7 @@ vfs_parse_http_origin_list(ngx_conf_t *cf, const char *root_canon,
             u_char *pipe = ngx_strlchr(seg, end, '|');
             size_t  segn = (pipe != NULL) ? (size_t) (pipe - seg)
                                           : (size_t) (end - seg);
-            char    host[256], base[1024];
+            char    host[BRIX_VFS_HOST_BUF], base[BRIX_VFS_PATH_BUF];
             vfs_origin_parse_t parsed;
 
             ngx_memzero(&parsed, sizeof(parsed));

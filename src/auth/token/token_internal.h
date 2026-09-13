@@ -31,9 +31,29 @@ EVP_PKEY *brix_token_ec_pubkey_from_xy(const char *x_b64,
 int brix_token_verify_rs256(const u_char *signed_data, size_t signed_len,
     const u_char *sig, size_t sig_len, EVP_PKEY *pkey);
 
-/* WHAT: Verify ES256 (ECDSA P-256 + SHA-256) JWT signature — converts IEEE P1363 raw r||s to DER ASN.1 via ECDSA_SIG before EVP verification.
-* WHY: JWT ES256 signatures are 64-byte raw r||s format; OpenSSL expects DER-encoded ASN.1 for EC keys. This conversion enables consistent three-step EVP verification chain across both RS256 and ES256 algorithms. Used by validate.c for ECDSA-based JWKS providers.
-* HOW: Validate sig_len==64 → BN_bin2bn(r 32 bytes) + BN_bin2bn(s 32 bytes) → ECDSA_SIG_new() + set0 transfers ownership → i2d_ECDSA_SIG produces DER output → same Init/Update/Final EVP chain as RS256 → OPENSSL_free(der). Returns 1 for valid, 0 for invalid or allocation failure. */
+/*
+ * WHAT: Verify ES256 (ECDSA P-256 + SHA-256) JWT signature.
+ *       Converts IEEE P1363 raw r||s to DER ASN.1 via ECDSA_SIG
+ *       before EVP verification.
+ *
+ * WHY: JWT ES256 signatures are 64-byte raw r||s format.
+ *      OpenSSL expects DER-encoded ASN.1 for EC keys.
+ *      Conversion enables consistent three-step EVP verification chain
+ *      across both RS256 and ES256 algorithms.
+ *      Used by validate.c for ECDSA-based JWKS providers.
+ *
+ * HOW: Six-step conversion and verification:
+ *        1. Validate sig_len == 64 (P-256 curve requirement)
+ *        2. BN_bin2bn(r, 32 bytes) → BN_r
+ *        3. BN_bin2bn(s, 32 bytes) → BN_s
+ *        4. ECDSA_SIG_new() + ECDSA_SIG_set0() transfers ownership
+ *        5. i2d_ECDSA_SIG() produces DER-encoded output
+ *        6. EVP chain: Init(SHA-256+EC public key) →
+ *           Update(signed_data) → Final(der_sig)
+ *        7. OPENSSL_free(der) cleanup
+ *
+ * Returns: 1 for valid signature, 0 for invalid or allocation failure
+ */
 int brix_token_verify_es256(const u_char *signed_data, size_t signed_len,
     const u_char *sig_p1363, size_t sig_len, EVP_PKEY *pkey);
 

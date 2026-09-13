@@ -247,6 +247,7 @@ brix_vfs_staged_open(brix_vfs_ctx_t *ctx, mode_t mode, ngx_uint_t attempts,
     brix_vfs_staged_t *st;
     const char        *final_path = brix_vfs_ctx_path(ctx);
 
+    /* Allocate staged handle — NULL with errno in *err_out on failure. */
     st = staged_alloc_handle(ctx, err_out);
     if (st == NULL) {
         return NULL;
@@ -258,6 +259,7 @@ brix_vfs_staged_open(brix_vfs_ctx_t *ctx, mode_t mode, ngx_uint_t attempts,
         && ctx->sd->driver->staged_open != NULL)
     {
         if (staged_open_driver(ctx, st, final_path, mode, err_out) != NGX_OK) {
+            /* errno already set in *err_out by staged_open_driver() */
             return NULL;
         }
         return st;
@@ -271,6 +273,7 @@ brix_vfs_staged_open(brix_vfs_ctx_t *ctx, mode_t mode, ngx_uint_t attempts,
             .mode       = mode,
             .attempts   = attempts,
         };
+        /* POSIX staged open + reserve — errno in *err_out on failure. */
         if (staged_open_posix(ctx, st, &oreq, err_out) != NGX_OK
             || staged_reserve_posix(ctx, st, err_out) != NGX_OK)
         {
@@ -303,6 +306,7 @@ ngx_int_t
 brix_vfs_staged_write(brix_vfs_staged_t *st, const void *buf, size_t len,
     off_t off)
 {
+    /* Validate staged handle — EINVAL if NULL. */
     if (st == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
@@ -312,6 +316,7 @@ brix_vfs_staged_write(brix_vfs_staged_t *st, const void *buf, size_t len,
      * not from a ctx it outlives (the body write runs on a thread pool). */
     if (brix_vfs_gate_mutation(st->ctx, BRIX_VFS_MUTATE_WRITE) != NGX_OK)
     {
+        /* errno already set by brix_vfs_gate_mutation() */
         return NGX_ERROR;
     }
 

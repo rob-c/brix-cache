@@ -20,13 +20,14 @@
 #define BRIX_IDMAP_INTERNAL_H
 
 #include "impersonate.h"   /* brix_idmap_creds_t, brix_idmap_conf_t, uid_t */
+#include "impersonate_state.h"  /* brix_idmap_get_min_uid(), brix_idmap_get_primary_only() */
 
 #define IDMAP_PRINC_MAX    512          /* a GSI DN can be long */
 
-/* Mapping policy installed by idmap_init_policy() in idmap.c and consulted by
- * the deny-list layer in idmap_denylist.c. */
-extern uid_t  idmap_min_uid;
-extern int    idmap_primary_only;
+/* Mapping policy accessors — use functions instead of direct globals.
+ * Defined in idmap.c, accessed via impersonate_state.h accessors. */
+/* extern uid_t  idmap_min_uid;         -> use brix_idmap_get_min_uid() */
+/* extern int    idmap_primary_only;    -> use brix_idmap_get_primary_only() */
 
 /* idmap_gridmap.c — grid-mapfile parse/load/lookup. */
 ngx_int_t    idmap_gridmap_load(const char *path, ngx_log_t *log);

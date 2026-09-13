@@ -63,7 +63,7 @@ brix_stage_engine_conf_apply(ngx_cycle_t *cycle)
     if (fe->queue_path[0] == '\0') {
         return NULL;                         /* unreachable: brix_frm on demands it */
     }
-    if (mkdir(fe->queue_path, 0700) != 0 && errno != EEXIST) {
+    if (mkdir(fe->queue_path, BRIX_CRED_STAGE_DIR_MODE) != 0 && errno != EEXIST) {
         ngx_log_error(NGX_LOG_ERR, cycle->log, errno,
             "brix: brix_frm_queue_path \"%s\": mkdir failed; the stage "
             "journal is in-memory only (no restart recovery)", fe->queue_path);

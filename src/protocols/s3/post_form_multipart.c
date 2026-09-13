@@ -94,7 +94,7 @@ pf_parse_part_headers(u_char **pos, u_char *end, pf_part_headers_t *hdr)
     for (;;) {
         u_char *line_end;
         size_t  line_len;
-        char    line[1024];
+        char    line[BRIX_S3_MULTIPART_LIST_LINE_BUF];
 
         line_end = s3_memmem(p, (size_t) (end - p), (u_char *) "\r\n", 2);
         if (line_end == NULL) {

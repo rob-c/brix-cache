@@ -1,5 +1,6 @@
 #include "proxy_internal.h"
 #include "core/compat/cstr.h"        /* brix_cbuf_copy: pinned host copy */
+#include "core/types/tunables.h"     /* BRIX_PROXY_AUDIT_LINE_BUF */
 #include "protocols/root/session/registry.h"
 
 /*
@@ -14,7 +15,7 @@ brix_proxy_tap_audit_sink(void *ctx, const brix_tap_frame_t *f,
     brix_tap_dir_t dir, const u_char *payload, size_t payload_len)
 {
     ngx_log_t *log = ctx;
-    char       line[1280];
+    char       line[BRIX_PROXY_AUDIT_LINE_BUF];
 
     (void) payload;
     (void) payload_len;
@@ -41,22 +42,58 @@ brix_proxy_tap_init(brix_proxy_ctx_t *proxy, ngx_connection_t *c)
 }
 
 /*
- * WHAT: Deferred request dispatch and main proxy entry point — handles lazy upstream connection, request queuing during bootstrap,
- *      and bound-secondary channel lazy-open for file handle translation.
- * WHY: The transparent XRootD proxy must connect to the upstream server lazily (on first non-bootstrap request) rather than eagerly.
- *      Requests arriving before bootstrap completion are saved in proxy->saved_req and dispatched after bootstrap finishes via this function.
- *      Bound-secondary channels (kXR_bind) may carry read/readv requests for handles with no upstream mapping — a synthetic kXR_open is issued first.
- * HOW: Main entry brix_proxy_dispatch() creates proxy ctx on first call, connects to upstream lazily; saves pending requests during bootstrap state;
- *      forwards via brix_proxy_forward_request when idle. Dispatch pending (after bootstrap) checks bound-secondary lazy-open case then sets forwarding state and flushes request.
+ * Deferred request dispatch and main proxy entry point.
+ *
+ * WHAT:
+ *   Handles lazy upstream connection, request queuing during bootstrap,
+ *   and bound-secondary channel lazy-open for file handle translation.
+ *
+ * WHY:
+ *   The transparent XRootD proxy must connect to the upstream server lazily
+ *   (on first non-bootstrap request) rather than eagerly.
+ *   Requests arriving before bootstrap completion are saved in proxy->saved_req
+ *   and dispatched after bootstrap finishes via this function.
+ *   Bound-secondary channels (kXR_bind) may carry read/readv requests for
+ *   handles with no upstream mapping — a synthetic kXR_open is issued first.
+ *
+ * HOW:
+ *   Main entry brix_proxy_dispatch():
+ *     - Creates proxy ctx on first call
+ *     - Connects to upstream lazily
+ *     - Saves pending requests during bootstrap state
+ *     - Forwards via brix_proxy_forward_request when idle
+ *   Dispatch pending (after bootstrap):
+ *     - Checks bound-secondary lazy-open case
+ *     - Sets forwarding state and flushes request
  */
 
 /* deferred request dispatch (called after bootstrap completes) */
-/* public API: brix_proxy_dispatch_pending() — dispatch saved request after bootstrap * WHAT: Dispatch proxy->saved_req to upstream when bootstrap completion triggers this callback from events.c.
- * WHY: Bound-secondary channel lazy-open case: if a kXR_read/kXR_pgread/kXR_readv arrives for a handle with no upstream mapping,
- *      a synthetic kXR_open must be issued first via brix_proxy_lazy_open before the read request can proceed. */
+/*
+ * public API: brix_proxy_dispatch_pending() — dispatch saved request after bootstrap
+ *
+ * WHAT:
+ *   Dispatch proxy->saved_req to upstream when bootstrap completion triggers
+ *   this callback from events.c.
+ *
+ * WHY:
+ *   Bound-secondary channel lazy-open case: if a kXR_read/kXR_pgread/kXR_readv
+ *   arrives for a handle with no upstream mapping, a synthetic kXR_open must
+ *   be issued first via brix_proxy_lazy_open before the read request can proceed.
+ */
 
-/* public API: brix_proxy_dispatch() — main proxy entry point (lazy-connect) * WHAT: Main dispatch entry point for all post-login opcodes — lazy-initializes upstream connection on first call, queues requests during bootstrap, forwards when ready.
- * WHY: Transparent XRootD proxy must connect lazily to avoid unnecessary overhead; requests arriving before bootstrap are saved and deferred until bootstrap completes via events.c callback. */
+/*
+ * public API: brix_proxy_dispatch() — main proxy entry point (lazy-connect)
+ *
+ * WHAT:
+ *   Main dispatch entry point for all post-login opcodes — lazy-initializes
+ *   upstream connection on first call, queues requests during bootstrap,
+ *   forwards when ready.
+ *
+ * WHY:
+ *   Transparent XRootD proxy must connect lazily to avoid unnecessary overhead;
+ *   requests arriving before bootstrap are saved and deferred until bootstrap
+ *   completes via events.c callback.
+ */
 
 /* ---- Detect a bound-secondary read that needs a synthetic upstream open ----
  *

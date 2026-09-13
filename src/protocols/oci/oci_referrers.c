@@ -31,7 +31,7 @@
 /* The assembled listing. 512 descriptors of at most 4 KiB would overrun this,
  * so the walk stops on whichever bound it reaches first — a truncated index
  * is a listing the client can still act on, an unbounded one is not. */
-#define OCI_REFERRERS_BODY_MAX  (256 * 1024)
+#define OCI_REFERRERS_BODY_MAX  BRIX_OCI_REFERRERS_BODY_MAX
 
 /* The filter the spec defines. Only one exists, and a client that asks for an
  * unknown one gets an unfiltered answer WITHOUT the applied-filters header,

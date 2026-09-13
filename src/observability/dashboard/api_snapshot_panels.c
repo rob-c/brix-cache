@@ -102,7 +102,7 @@ dashboard_build_cache_listener(const ngx_brix_srv_metrics_t *srv,
     }
     json_object_set_new(entry, "auth", json_string(srv->auth));
     json_object_set_new(entry, "eviction_threshold_ratio",
-        json_real((double) srv->cache_eviction_threshold / 1000000.0));
+        json_real((double) srv->cache_eviction_threshold / (double) BRIX_PPM_MULTIPLIER));
     json_object_set_new(entry, "evictions_total",
         json_integer((json_int_t) srv->cache_evictions_total));
     json_object_set_new(entry, "evicted_bytes_total",
@@ -112,7 +112,7 @@ dashboard_build_cache_listener(const ngx_brix_srv_metrics_t *srv,
 
     if (brix_fs_usage_stat(srv->cache_root, &fsu) == NGX_OK) {
         json_object_set_new(entry, "occupancy_ratio",
-            json_real((double) fsu.occupancy_ppm / 1000000.0));
+            json_real((double) fsu.occupancy_ppm / (double) BRIX_PPM_MULTIPLIER));
         json_object_set_new(entry, "bytes_total",
             json_integer((json_int_t) fsu.total_bytes));
         json_object_set_new(entry, "bytes_used",
@@ -239,7 +239,7 @@ dashboard_build_storage_export(const brix_vfs_backend_info_t *info,
         json_object_set_new(e, "bytes_available",
             json_integer((json_int_t) fsu.available_bytes));
         json_object_set_new(e, "occupancy_ratio",
-            json_real((double) fsu.occupancy_ppm / 1000000.0));
+            json_real((double) fsu.occupancy_ppm / (double) BRIX_PPM_MULTIPLIER));
     }
     return e;
 }

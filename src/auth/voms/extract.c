@@ -51,7 +51,7 @@ static ngx_int_t
 brix_voms_precheck(X509 *leaf, const ngx_str_t *vomsdir,
     const ngx_str_t *cert_dir, size_t buf_sz)
 {
-    if (!brix_voms_loaded) {
+    if (!brix_voms_available()) {
         return NGX_DECLINED;
     }
 
@@ -164,16 +164,16 @@ brix_voms_retrieve_and_collect(ngx_log_t *log, X509 *leaf,
     STACK_OF(X509) *voms_chain, struct voms_data *vd,
     const brix_voms_out_t *out)
 {
-    char      errbuf[512];
-    int       error = 0;
+    brix_voms_api_t  *api = brix_voms_get_api_internal();
+    char              errbuf[512];
+    int               error = 0;
 
-    if (!brix_voms_api.retrieve(leaf, voms_chain, VOMS_RECURSE_CHAIN, vd,
-                                  &error))
+    if (!api->retrieve(leaf, voms_chain, VOMS_RECURSE_CHAIN, vd, &error))
     {
         if (error != VOMS_VERR_NOEXT && error != VOMS_VERR_NODATA) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
                           "brix: VOMS extraction failed: %s",
-                          brix_voms_api.error_message(vd, error, errbuf,
+                          api->error_message(vd, error, errbuf,
                                                         (int) sizeof(errbuf)));
             return NGX_ERROR;
         }
@@ -219,23 +219,27 @@ brix_extract_voms_fqans(ngx_log_t *log, const brix_voms_in_t *in,
     brix_voms_path_to_buf(cert_dir, cert_dir_buf);
     brix_voms_reset_outputs(out);
 
-    vd = brix_voms_api.init(vomsdir_buf, cert_dir_buf);
-    if (vd == NULL) {
-        return NGX_ERROR;
-    }
+    {
+        brix_voms_api_t  *api = brix_voms_get_api_internal();
 
-    voms_chain = brix_voms_build_parent_chain(chain, leaf, &chain_ok);
-    if (!chain_ok) {
-        brix_voms_api.destroy(vd);
-        return NGX_ERROR;
-    }
+        vd = api->init(vomsdir_buf, cert_dir_buf);
+        if (vd == NULL) {
+            return NGX_ERROR;
+        }
 
-    rc = brix_voms_retrieve_and_collect(log, leaf, voms_chain, vd, out);
+        voms_chain = brix_voms_build_parent_chain(chain, leaf, &chain_ok);
+        if (!chain_ok) {
+            api->destroy(vd);
+            return NGX_ERROR;
+        }
 
-    if (voms_chain != NULL) {
-        sk_X509_free(voms_chain);
+        rc = brix_voms_retrieve_and_collect(log, leaf, voms_chain, vd, out);
+
+        if (voms_chain != NULL) {
+            sk_X509_free(voms_chain);
+        }
+        api->destroy(vd);
     }
-    brix_voms_api.destroy(vd);
     return rc;
 }
 

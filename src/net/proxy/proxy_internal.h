@@ -394,14 +394,31 @@ void brix_proxy_up_mark_ok(brix_proxy_ctx_t *proxy);
 /* events.c */
 
 /* ---- public API: brix_proxy_write_handler() — upstream write event callback ----
- * WHAT: Event handler for the upstream connection's write event; drains proxy->wbuf through the socket (TLS or plain),
- *       re-arms write event on partial sends, frees fully-transmitted buffers. Transitions state from CONNECTING/BOOTSTRAP/
- *       FORWARDING as bytes are consumed. On completion arms read event for response data. */
+ *
+ * WHAT:
+ *   Event handler for the upstream connection's write event.
+ *
+ * ACTIONS:
+ *   - Drains proxy->wbuf through the socket (TLS or plain)
+ *   - Re-arms write event on partial sends
+ *   - Frees fully-transmitted buffers
+ *   - Transitions state from CONNECTING/BOOTSTRAP/FORWARDING as bytes consumed
+ *   - On completion: arms read event for response data
+ */
 
 /* ---- public API: brix_proxy_read_handler() — upstream read event callback ----
- * WHAT: Event handler for the upstream connection's read event; accumulates response headers and body into rhdr/resp_body,
- *       dispatches based on current state (bootstrap phase reads handshake/protocol/login/auth responses, forwarding reads
- *       opcode results). On bootstrap completion calls handle_bootstrap(); on forwarding completes relay_to_client(). */
+ *
+ * WHAT:
+ *   Event handler for the upstream connection's read event.
+ *
+ * ACTIONS:
+ *   - Accumulates response headers and body into rhdr/resp_body
+ *   - Dispatches based on current state:
+ *     - Bootstrap phase: reads handshake/protocol/login/auth responses
+ *     - Forwarding: reads opcode results
+ *   - On bootstrap completion: calls handle_bootstrap()
+ *   - On forwarding: completes relay_to_client()
+ */
 
 void brix_proxy_write_handler(ngx_event_t *wev);
 void brix_proxy_read_handler(ngx_event_t *rev);

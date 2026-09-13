@@ -20,7 +20,7 @@ static char  s_cms_admin_path[sizeof(((struct sockaddr_un *) 0)->sun_path)];
 
 /* A parsed "<host> <port> [tail]" operand run. */
 typedef struct {
-    char      host[256];
+    char      host[BRIX_CMS_ADMIN_HOST_BUF];
     uint16_t  port;
     u_char   *tail;       /* text after the port, NULL when absent */
     size_t    tail_len;
@@ -65,8 +65,8 @@ cms_admin_audit(const char *action, const char *host, uint16_t port,
 /*
  * Parse "<host> <port>" and, if present, the remaining text. Returns 0 when
  * the host is missing/oversized or the port is absent, non-numeric, or outside
- * 1-65535 — a rejected target is never passed to a registry helper, so a typo
- * cannot drain a node the operator did not name.
+ * 1-BRIX_CMS_MAX_PORT — a rejected target is never passed to a registry helper,
+ * so a typo cannot drain a node the operator did not name.
  */
 static int
 cms_admin_parse_target(u_char *args, size_t alen, cms_admin_target_t *t)
@@ -143,7 +143,7 @@ cms_admin_nodes(void *ud, u_char *args, size_t alen, brix_admin_reply_t *rep)
     for (i = 0; i < n; i++) {
         /* Stop cleanly rather than truncating a line: a half-written entry
          * would parse as a DIFFERENT node to whatever reads this. */
-        if ((size_t) (last - pos) < 256) {
+        if ((size_t) (last - pos) < BRIX_CMS_STATE_SAFE_BUF) {
             break;
         }
         pos = ngx_snprintf(pos, (size_t) (last - pos),

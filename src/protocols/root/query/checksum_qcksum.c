@@ -15,18 +15,38 @@
 #include <sys/stat.h>
 
 /*
- * WHAT: kXR_Qcksum — compute single-file checksum (adler32/crc32c/md5/sha1/sha256) by path or open file handle.
- *       Dispatches to path-based handler (full security chain + confined open) or handle-based handler (already-open fd).
- *       Supports async execution via thread pool when configured; falls back to synchronous event-loop computation otherwise.
+ * WHAT: kXR_Qcksum — compute single-file checksum (adler32/crc32c/md5/sha1/sha256)
+ *       by path or open file handle.
  *
- * WHY:  Qcksum is the most common XRootD query opcode — clients need file integrity verification before transfer, after staging,
- *       and for checksum-based deduplication. Multiple algorithm support (adler32/crc32c/md5/sha1/sha256) covers legacy HEP tools
- *       (xrdcp uses adler32) alongside modern requirements (SHA256 for cloud storage). Async execution prevents blocking on large files.
+ *       Dispatches to path-based handler (full security chain + confined open)
+ *       or handle-based handler (already-open fd).
  *
- * HOW:  brix_query_cksum() routes by payload prefix byte: non-zero → path-based handler (cksum_path); zero or empty → handle-based
- *       handler (cksum_handle). cksum_path parses algo:path from wire, resolves path, checks authdb/VO/token scope, opens confined fd,
- *       then either posts thread task or computes sync. cksum_handle validates fhandle index, optionally extracts algo prefix, delegates to
- *       build_checksum which dispatches via checksum_parse to specialized helper functions per algorithm. Both paths log access + increment metric.
+ *       Supports async execution via thread pool when configured; falls back
+ *       to synchronous event-loop computation otherwise.
+ *
+ * WHY:  Qcksum is the most common XRootD query opcode — clients need file
+ *       integrity verification before transfer, after staging, and for
+ *       checksum-based deduplication.
+ *
+ *       Multiple algorithm support (adler32/crc32c/md5/sha1/sha256) covers
+ *       legacy HEP tools (xrdcp uses adler32) alongside modern requirements
+ *       (SHA256 for cloud storage).
+ *
+ *       Async execution prevents blocking on large files.
+ *
+ * HOW:  brix_query_cksum() routes by payload prefix byte: non-zero →
+ *       path-based handler (cksum_path); zero or empty → handle-based
+ *       handler (cksum_handle).
+ *
+ *       cksum_path parses algo:path from wire, resolves path, checks
+ *       authdb/VO/token scope, opens confined fd, then either posts thread
+ *       task or computes sync.
+ *
+ *       cksum_handle validates fhandle index, optionally extracts algo
+ *       prefix, delegates to build_checksum which dispatches via
+ *       checksum_parse to specialized helper functions per algorithm.
+ *
+ *       Both paths log access + increment metric.
  */
 
 /* defined in checksum_qcksum_async.c */
@@ -68,12 +88,23 @@ brix_query_parse_algorithm(const u_char *src, size_t len, char *algo,
                                  algo_sz) == NGX_OK;
 }
 
-/* WHAT: Wraps brix_send_error() and returns NGX_DONE if the error was successfully sent (NGX_OK), otherwise
- *      propagates the original return value. This ensures callers receive consistent result semantics.
- * WHY: kXR_Qcksum must distinguish between "error sent to client" vs "send failed internally"; NGX_DONE signals
- *      that the error response reached the wire while NGX_ERROR indicates a transport failure. Callers use this
- *      distinction for different retry/failure handling strategies.
- * HOW: Single wrapper — call brix_send_error(), return NGX_DONE if result was NGX_OK, else propagate original value. */
+/*
+ * WHAT: Wraps brix_send_error() and returns NGX_DONE if the error was
+ *       successfully sent (NGX_OK), otherwise propagates the original
+ *       return value.
+ *
+ *       This ensures callers receive consistent result semantics.
+ *
+ * WHY:  kXR_Qcksum must distinguish between "error sent to client" vs
+ *       "send failed internally"; NGX_DONE signals that the error response
+ *       reached the wire while NGX_ERROR indicates a transport failure.
+ *
+ *       Callers use this distinction for different retry/failure handling
+ *       strategies.
+ *
+ * HOW:  Single wrapper — call brix_send_error(), return NGX_DONE if result
+ *       was NGX_OK, else propagate original value.
+ */
 
 static ngx_int_t
 brix_query_cksum_send_error(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -85,11 +116,22 @@ brix_query_cksum_send_error(brix_ctx_t *ctx, ngx_connection_t *c,
     return (rc == NGX_OK) ? NGX_DONE : rc;
 }
 
-/* WHAT: Computes a file checksum using one of six supported algorithms: adler32, crc32, crc32c, md5, sha1, or sha256.
- *      All algorithms dispatch through brix_integrity_get_fd() → brix_checksum_hex_fd().
- * WHY: kXR_Qcksum supports multiple hash algorithms for client flexibility and cross-platform compatibility.
- *      HEP clients historically use adler32/crc32c; modern tools prefer SHA1/SHA256. MD5 is retained for legacy support.
- * HOW: Sequential strcmp checks against supported algo strings, dispatching to specialized helper functions per algorithm. */
+/*
+ * WHAT: Computes a file checksum using one of six supported algorithms:
+ *       adler32, crc32, crc32c, md5, sha1, or sha256.
+ *
+ *       All algorithms dispatch through brix_integrity_get_fd() →
+ *       brix_checksum_hex_fd().
+ *
+ * WHY:  kXR_Qcksum supports multiple hash algorithms for client flexibility
+ *       and cross-platform compatibility.
+ *
+ *       HEP clients historically use adler32/crc32c; modern tools prefer
+ *       SHA1/SHA256. MD5 is retained for legacy support.
+ *
+ * HOW:  Sequential strcmp checks against supported algo strings, dispatching
+ *       to specialized helper functions per algorithm.
+ */
 
 ngx_int_t
 brix_query_build_checksum(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -222,11 +264,23 @@ brix_qcksum_handle_try_async(brix_qcksum_req_t *rq, int idx,
     return NGX_OK;
 }
 
-/* WHAT: Computes checksum on an already-open file using its stored fhandle index. Extracts optional algo from payload (prefix byte=0),
- *      validates the handle index, and delegates to brix_query_build_checksum(). Returns hex-formatted result.
- * WHY: kXR_Qcksum can query either open-file handles or arbitrary paths; this handler implements the handle-based variant where
- *      the file is already opened (lower overhead than re-opening). Clients use handles for repeated checksum queries on same file.
- * HOW: extract optional algo → validate fhandle index range + fd → try async offload, else build checksum synchronously + reply. */
+/*
+ * WHAT: Computes checksum on an already-open file using its stored fhandle
+ *       index.
+ *
+ *       Extracts optional algo from payload (prefix byte=0), validates the
+ *       handle index, and delegates to brix_query_build_checksum().
+ *       Returns hex-formatted result.
+ *
+ * WHY:  kXR_Qcksum can query either open-file handles or arbitrary paths;
+ *       this handler implements the handle-based variant where the file is
+ *       already opened (lower overhead than re-opening).
+ *
+ *       Clients use handles for repeated checksum queries on same file.
+ *
+ * HOW:  extract optional algo → validate fhandle index range + fd → try
+ *       async offload, else build checksum synchronously + reply.
+ */
 
 static ngx_int_t
 brix_query_cksum_handle(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -285,7 +339,16 @@ brix_query_cksum_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     return brix_send_ok(ctx, c, resp, (uint32_t) (strlen(resp) + 1));
 }
 
-/* public API: brix_query_cksum() — kXR_Qcksum dispatch entry point * WHAT: Main dispatcher for Qcksum requests. Routes by payload prefix byte: non-zero → path-based handler (cksum_path with full security chain); zero or empty → handle-based handler (cksum_handle with already-open fd). Default algo is adler32. Both paths support async thread pool execution and synchronous fallback. */
+/*
+ * WHAT: Main dispatcher for Qcksum requests.
+ *
+ *       Routes by payload prefix byte: non-zero → path-based handler
+ *       (cksum_path with full security chain); zero or empty → handle-based
+ *       handler (cksum_handle with already-open fd).
+ *
+ *       Default algo is adler32. Both paths support async thread pool
+ *       execution and synchronous fallback.
+ */
 
 ngx_int_t
 brix_query_cksum(brix_ctx_t *ctx, ngx_connection_t *c,

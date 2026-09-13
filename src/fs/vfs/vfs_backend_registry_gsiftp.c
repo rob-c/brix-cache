@@ -15,7 +15,7 @@ brix_vbr_build_gsiftp(brix_vfs_backend_entry_t *entry, ngx_log_t *log)
             ? entry->origin_x509_proxy : NULL,
         .ca_dir = entry->origin_ca_dir[0] != '\0'
             ? entry->origin_ca_dir : NULL,
-        .timeout_ms = 30000,
+        .timeout_ms = BRIX_GSIFTP_BACKEND_TIMEOUT_MS,
         .dns = entry->dns,
         /* phase-115 W5.1: the store line's data-channel policy.  Both are
          * REQUESTS the session negotiates once and never relaxes — an origin

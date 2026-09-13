@@ -43,6 +43,18 @@ authz_resolve_mapped_name(brix_identity_t *id, const char *dn)
     }
 }
 
+/*
+ * WHAT: Resolve the mapped username for an identity via the idmap gate, falling back to DN.
+ *
+ * WHY: The idmap gate provides username mapping for authorization decisions (e.g., mapping
+ *   X.509 DNs or FQANs to local usernames). This is cache-free and used by the VFS backstop
+ *   for access control. The result is cached in id->mapped_user to avoid repeated lookups.
+ *
+ * HOW:
+ *   - If id is NULL or gate is disabled: return the raw DN (or empty string)
+ *   - If not yet resolved: call authz_resolve_mapped_name() which tries FQANs first, then DN
+ *   - Return the mapped username if non-empty, otherwise fall back to the raw DN
+ */
 const char *
 brix_authz_mapped_name(brix_identity_t *id, const char *dn)
 {
@@ -56,6 +68,21 @@ brix_authz_mapped_name(brix_identity_t *id, const char *dn)
                                       : (dn != NULL ? dn : "");
 }
 
+/*
+ * WHAT: Build a brix_acc_entity_t for authorization checks, caching the result in the identity.
+ *
+ * WHY: The ACC (Authorization Control Center) requires a structured entity with name, peer IP,
+ *   VO/role/group attributes for access decisions. Building this entity is expensive (DN mapping,
+ *   attribute extraction), so it's cached after first resolution. Used by the VFS backstop and
+ *   protocol edge for authz decisions.
+ *
+ * HOW:
+ *   - Validate pool (required for allocation)
+ *   - If identity is NULL: build anonymous entity with empty name, provided peer IP
+ *   - If not yet resolved: resolve mapped name, build entity with all attributes
+ *     (name, peer IP, has_name flag, VO, role, group), cache in id->acc_entity
+ *   - Return the cached entity pointer
+ */
 void *
 brix_authz_acc_entity(ngx_pool_t *pool, brix_identity_t *id, const char *peer)
 {

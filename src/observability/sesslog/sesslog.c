@@ -254,11 +254,11 @@ brix_sess_rate(uint64_t bytes, uint64_t dur_ms)
 {
     uint64_t divisor = dur_ms == 0 ? 1 : dur_ms;
 
-    if (bytes > UINT64_MAX / 1000) {
+    if (bytes > UINT64_MAX / BRIX_MSEC_PER_SEC) {
         return UINT64_MAX / divisor;
     }
 
-    return (bytes * 1000) / divisor;
+    return (bytes * BRIX_MSEC_PER_SEC) / divisor;
 }
 
 const char *

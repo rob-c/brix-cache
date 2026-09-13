@@ -17,22 +17,31 @@
 
 /* ---- Initial handshake section — client/server connection negotiation ----
  *
- * WHAT: Two handshake structures for establishing the initial TCP connection between client and server.
- *       ClientInitHandShake (20B) sent by client on connect; ServerInitHandShake (12B) legacy server response format. */
+ * WHAT: Two handshake structures for establishing the initial TCP connection.
+ *   - ClientInitHandShake (20B): sent by client on connect
+ *   - ServerInitHandShake (12B): legacy server response format
+ */
 
 /*---- ClientInitHandShake — client connection negotiation header ----
  *
- * WHAT: 20-byte structure sent by the client when establishing a new TCP connection to the XRootD server.
- *       Contains version constants that the server validates to ensure protocol compatibility before proceeding with auth. */
+ * WHAT: 20-byte structure sent by client when establishing new TCP connection.
+ *   - Contains version constants for server validation
+ *   - Server validates to ensure protocol compatibility before auth
+ */
 
 /*---- ClientInitHandShake validation invariant ----
  *
- * WHY: The server must validate first==0, fourth==htonl(4), fifth==htonl(2012=ROOTD_PQ) to reject incompatible clients.
- *      These constants identify the client as a valid XRootD protocol version (PQ 2012). */
+ * WHY: Server must validate to reject incompatible clients:
+ *   - first==0, fourth==htonl(BRIX_XRD_HANDSHAKE_FOURTH), fifth==htonl(BRIX_XRD_PROTOCOL_ID)
+ *   - Constants identify client as valid XRootD protocol (PQ 2012)
+ *   - See src/core/types/tunables.h for BRIX_XRD_* constant definitions
+ */
 
 /*---- ClientInitHandShake struct ----
  *
- * HOW: Layout is fixed: 4B first + 4B second + 4B third + 4B fourth + 4B fifth = 20 bytes total, all big-endian. */
+ * HOW: Fixed layout, all big-endian:
+ *   - 4B first + 4B second + 4B third + 4B fourth + 4B fifth = 20 bytes
+ */
 
 /* ------------------------------------------------------------------ */
 /* Initial handshake                                                    */
@@ -43,23 +52,32 @@ typedef struct {
     kXR_int32  second;   /* 0x00000000 */
     kXR_int32  third;    /* 0x00000000 */
     kXR_int32  fourth;   /* htonl(4)   */
-    kXR_int32  fifth;    /* htonl(2012 = ROOTD_PQ) */
+    kXR_int32  fifth;    /* htonl(BRIX_XRD_PROTOCOL_ID) — XRootD protocol identifier (2012) */
 } ClientInitHandShake;   /* 20 bytes */
 
 /* ---- ServerInitHandShake — legacy server handshake response (deprecated) ----
  *
- * WHAT: Legacy 12-byte server handshake response format. NOT standard ServerResponseHdr framing — has its own layout.
- *       Deprecated for XRootD v5 clients which use standard ServerResponseHdr + kXR_protocol instead of this old format. */
+ * WHAT: Legacy 12-byte server handshake response format.
+ *   - NOT standard ServerResponseHdr framing — has own layout
+ *   - Deprecated for XRootD v5 clients
+ *   - v5 clients use standard ServerResponseHdr + kXR_protocol
+ */
 
 /*---- ServerInitHandShake deprecation warning ----
  *
- * WHY: Using this legacy format with v5 clients causes parsing errors — status=0x0008 / dlen=1312, causing the client to stall.
- *      The module responds to handshake with a standard ServerResponseHdr{streamid={0,0}, status=kXR_ok, dlen=8} followed by 8 bytes. */
+ * WHY: Using legacy format with v5 clients causes parsing errors:
+ *   - status=0x0008 / dlen=1312 causes client to stall
+ *   - Module responds with standard ServerResponseHdr:
+ *     - streamid={0,0}, status=kXR_ok, dlen=8 + 8 bytes
+ */
 
 /*---- ServerInitHandShake struct ----
  *
- * HOW: Layout is fixed: 4B msglen + 4B protover + 4B msgval = 12 bytes total, all big-endian.
- *      msglen indicates 8 more bytes follow; protover is server protocol version; msgval identifies server type (0=LB, 1=DataServer). */
+ * HOW: Fixed layout, 12 bytes total, all big-endian:
+ *   - 4B msglen: indicates 8 more bytes follow
+ *   - 4B protover: server protocol version
+ *   - 4B msgval: server type (0=LB, 1=DataServer)
+ */
 
 /*
  *
@@ -87,14 +105,17 @@ typedef struct {
 
 /* ---- ClientRequestHdr — all client requests share this header ----
  *
- * WHAT: Universal 24-byte request header used for every XRootD opcode.
- *       Payload follows inline after the header (no separate buffer needed).
+ * WHAT: Universal 24-byte request header for every XRootD opcode.
+ *   - Payload follows inline after header (no separate buffer)
  *
- * WHY: Standardizes all request parsing — agents can answer "what's the request format?"
- *      by referring to this single struct plus opcodes.h for the specific opcode ID.
+ * WHY: Standardizes all request parsing:
+ *   - Single struct reference for "what's the request format?"
+ *   - Plus opcodes.h for specific opcode ID
  *
- * HOW: Layout is fixed: 2B streamid + 2B reqid (kXR_* from opcodes.h) + 16B body + 4B dlen.
- *      Always big-endian. Use brix_dispatch_opcode() to route based on requestid field. */
+ * HOW: Fixed layout, always big-endian:
+ *   - 2B streamid + 2B reqid (kXR_*) + 16B body + 4B dlen
+ *   - Use brix_dispatch_opcode() to route by requestid
+ */
 
 typedef struct {
     kXR_char   streamid[2];  /* client-chosen, echoed in response */
@@ -105,14 +126,20 @@ typedef struct {
 
 /* ---- ServerResponseHdr — all server responses share this header ----
  *
- * WHAT: Universal 8-byte response header. Status field determines what body follows.
- *       kXR_ok → result body · kXR_error → errnum[4] + errmsg · kXR_status → CRC32c body.
+ * WHAT: Universal 8-byte response header.
+ *   - Status field determines body type:
+ *     - kXR_ok → result body
+ *     - kXR_error → errnum[4] + errmsg
+ *     - kXR_status → CRC32c body
  *
- * WHY: Standardizes all response parsing — agents can answer "what's the response format?"
- *      by referring to this struct plus opcodes.h for status codes and wire.h for bodies.
+ * WHY: Standardizes all response parsing:
+ *   - Single struct + opcodes.h for status codes
+ *   - Plus wire.h for body definitions
  *
- * HOW: Layout is fixed: 2B streamid (echoed) + 2B status (kXR_* from opcodes.h) + 4B dlen.
- *      Always big-endian. Use brix_build_resp_hdr() to construct, brix_queue_response() to send. */
+ * HOW: Fixed layout, always big-endian:
+ *   - 2B streamid (echoed) + 2B status + 4B dlen
+ *   - Use brix_build_resp_hdr() / brix_queue_response()
+ */
 
 typedef struct {
     kXR_char   streamid[2];  /* echoed from request */
@@ -120,20 +147,24 @@ typedef struct {
     kXR_int32  dlen;         /* response body length */
 } ServerResponseHdr;         /* 8 bytes; body follows inline */
 
-/* ---- kXR_status (4007) extended response — pgwrite/pgread integrity checking ----
+/* ---- kXR_status (BRIX_XRD_STATUS=4007) extended response — pgwrite/pgread integrity ----
  *
- * WHAT: Extended status frame used exclusively for kXR_pgwrite and kXR_pgread.
- *       Provides CRC32c integrity verification across all page transfers.
+ * WHAT: Extended status frame for kXR_pgwrite and kXR_pgread only.
+ *   - Provides CRC32c integrity verification for all page transfers
+ *   - Status code defined in src/core/types/tunables.h:BRIX_XRD_STATUS
  *
- * WHY: Ensures data integrity in paged operations where multiple pages are sent/received.
- *      The CRC covers everything from streamID to end of body — any bit corruption detected.
+ * WHY: Ensures data integrity in paged operations:
+ *   - CRC covers streamID to end of body
+ *   - Any bit corruption detected
  *
- * HOW: Full wire layout for pgwrite success (no bad pages), 32 bytes total:
- *   [ServerResponseHdr 8B] status=kXR_status, dlen=24
- *   [ServerResponseBody_Status 16B] crc32c, streamID, requestid, resptype, reserved, dlen=0
- *   [ServerResponseBody_pgWrite 8B] offset (last written)
+ * HOW: Full wire layout for pgwrite success (32 bytes):
+ *   - [ServerResponseHdr 8B] status=kXR_status, dlen=24
+ *   - [ServerResponseBody_Status 16B] crc32c, streamID, requestid,
+ *     resptype, reserved, dlen=0
+ *   - [ServerResponseBody_pgWrite 8B] offset (last written)
  *
- * INVARIANT: kXR_pgwrite/pgwrite MUST use this framing + per-page CRC32c checksum. */
+ * INVARIANT: kXR_pgwrite MUST use this framing + per-page CRC32c.
+ */
 
 typedef struct {
     kXR_unt32  crc32c;      /* CRC32c of everything from &streamID to end */
@@ -228,22 +259,25 @@ typedef struct {
                             * actual length = dlen - 4 bytes */
 } ServerRedirectBody;
 
-/* ---- kXR_protocol (3006) — protocol version negotiation section ----
+/* ---- kXR_protocol (BRIX_XRD_OPCODE_PROTOCOL=3006) — protocol version negotiation section ----
  *
  * WHAT: Request/response structures for establishing the protocol version between client and server.
  *       ClientProtocolRequest sent by client to announce its capabilities; ServerProtocolBody returned by server. */
 
 /*---- kXR_protocol request — client capability announcement ----
  *
- * WHAT: 24-byte structure sent by the client to announce its protocol version, flags (TLS support), and expected response type. */
+ * WHAT: 24-byte structure sent by client to announce:
+ *   - Protocol version
+ *   - Flags (TLS support)
+ *   - Expected response type
+ */
 
 /*---- kXR_protocol request struct ----
  *
- * HOW: Layout is fixed: 2B streamid + 2B reqid(kXR_protocol) + 4B clientpv + 1B flags + 1B expect + 10B reserved + 4B dlen(0). */
-
-/*---- kXR_protocol request — client capability announcement ----
- *
- * WHAT: 24-byte structure sent by the client to announce its protocol version, flags (TLS support), and expected response type. */
+ * HOW: Fixed layout:
+ *   - 2B streamid + 2B reqid(kXR_protocol)
+ *   - 4B clientpv + 1B flags + 1B expect + 10B reserved + 4B dlen(0)
+ */
 
 typedef struct {
     kXR_char   streamid[2];
@@ -257,29 +291,38 @@ typedef struct {
 
 /*---- Server protocol response — server capability announcement ----
  *
- * WHAT: 8-byte structure returned by the server indicating its protocol version and type flags (kXR_isServer, etc.). */
+ * WHAT: 8-byte structure returned by server indicating:
+ *   - Protocol version
+ *   - Type flags (kXR_isServer, etc.)
+ */
 
 typedef struct {
     kXR_int32  pval;         /* server protocol version */
     kXR_int32  flags;        /* kXR_isServer | ... */
 } ServerProtocolBody;        /* 8 bytes, dlen=8 */
 
-/* ---- kXR_login (3007) — session login section ----
+/* ---- kXR_login (BRIX_XRD_OPCODE_LOGIN=3007) — session login section ----
  *
- * WHAT: Request/response structures for establishing a login session. ClientLoginRequest sends username and capabilities;
- *       ServerLoginBody returns the opaque session ID that identifies this login context across all subsequent requests. */
+ * WHAT: Request/response structures for establishing login session:
+ *   - ClientLoginRequest: sends username and capabilities
+ *   - ServerLoginBody: returns opaque session ID for context
+ */
 
 /*---- kXR_login request — client session initiation ----
  *
- * WHAT: 24-byte structure sent by the client to initiate a session with username, process ID (informational), and capability flags. */
+ * WHAT: 24-byte structure sent by client to initiate session:
+ *   - Username
+ *   - Process ID (informational)
+ *   - Capability flags
+ */
 
 /*---- kXR_login request struct ----
  *
- * HOW: Layout is fixed: 2B streamid + 2B reqid(kXR_login) + 4B pid + 8B username(NUL-padded) + 1B ability2 + 1B ability + 1B capver + 1B reserved + 4B dlen. */
-
-/*---- kXR_login request — client session initiation ----
- *
- * WHAT: 24-byte structure sent by the client to initiate a session with username, process ID (informational), and capability flags. */
+ * HOW: Fixed layout:
+ *   - 2B streamid + 2B reqid(kXR_login)
+ *   - 4B pid + 8B username(NUL-padded)
+ *   - 1B ability2 + 1B ability + 1B capver + 1B reserved + 4B dlen
+ */
 
 typedef struct {
     kXR_char   streamid[2];
@@ -297,15 +340,18 @@ typedef struct {
                                * allocating or reading dlen bytes */
 } ClientLoginRequest;        /* 24 bytes */
 
-/* ---- kXR_auth (3000) — authentication credential exchange ----
+/* ---- kXR_auth (BRIX_XRD_OPCODE_AUTH=3000) — authentication credential exchange ----
  *
- * WHAT: Sent in response to kXR_authmore when the server requests a specific
- *       credential type.  For "ztn" (WLCG JWT), the payload is:
- *         credtype[4] = "ztn\0"
- *         followed by the raw JWT token bytes (dlen - 4 bytes).
+ * WHAT: Sent in response to kXR_authmore when server requests credential type.
+ *   - For "ztn" (WLCG JWT): payload is:
+ *     - credtype[4] = "ztn\0"
+ *     - Raw JWT token bytes (dlen - 4 bytes)
  *
- * HOW: Layout is fixed: 2B streamid + 2B reqid(kXR_auth) + 12B reserved +
- *      4B credtype + 4B dlen.  Payload (dlen bytes) immediately follows. */
+ * HOW: Fixed layout:
+ *   - 2B streamid + 2B reqid(kXR_auth) + 12B reserved
+ *   - 4B credtype + 4B dlen
+ *   - Payload (dlen bytes) immediately follows
+ */
 
 typedef struct {
     kXR_char   streamid[2];
@@ -317,7 +363,9 @@ typedef struct {
 
 /*---- kXR_login response — session ID assignment ----
  *
- * WHAT: Server returns a 16-byte opaque session ID (sessid) that identifies this login context across all subsequent requests. */
+ * WHAT: Server returns 16-byte opaque session ID (sessid):
+ *   - Identifies login context across all subsequent requests
+ */
 
 typedef struct {
     kXR_char   sessid[BRIX_SESSION_ID_LEN];  /* 16 opaque bytes assigned by
@@ -327,22 +375,28 @@ typedef struct {
     /* optional: security info follows if dlen > 16 */
 } ServerLoginBody;
 
-/* ---- kXR_open (3010) — file open section ----
+/* ---- kXR_open (BRIX_XRD_OPCODE_OPEN=3010) — file open section ----
  *
- * WHAT: Request/response structures for opening files with various modes and options. ClientOpenRequest specifies mode, flags, and path;
- *       ServerOpenBody returns the opaque file handle used for all subsequent read/write operations on this file. */
+ * WHAT: Request/response structures for opening files:
+ *   - ClientOpenRequest: specifies mode, flags, path
+ *   - ServerOpenBody: returns opaque file handle for I/O ops
+ */
 
 /*---- kXR_open request — client file access initiation ----
  *
- * WHAT: 24-byte structure sent by the client to open a file with specified POSIX permission mode (0644 = 0x01B4), options flags, and path payload. */
+ * WHAT: 24-byte structure sent by client to open file:
+ *   - POSIX permission mode (0644 = 0x01B4)
+ *   - Options flags
+ *   - Path payload
+ */
 
 /*---- kXR_open request struct ----
  *
- * HOW: Layout is fixed: 2B streamid + 2B reqid(kXR_open) + 2B mode(POSIX perms) + 2B options(read/retstat/etc.) + 2B optiont(extended flags) + 6B reserved + 4B fhtemplt + 4B dlen(path). */
-
-/*---- kXR_open request — client file access initiation ----
- *
- * WHAT: 24-byte structure sent by the client to open a file with specified POSIX permission mode (0644 = 0x01B4), options flags, and path payload. */
+ * HOW: Fixed layout:
+ *   - 2B streamid + 2B reqid(kXR_open)
+ *   - 2B mode(POSIX perms) + 2B options + 2B optiont
+ *   - 6B reserved + 4B fhtemplt + 4B dlen(path)
+ */
 
 typedef struct {
     kXR_char   streamid[2];
@@ -358,7 +412,11 @@ typedef struct {
 
 /*---- kXR_open response — file handle assignment ----
  *
- * WHAT: Server returns opaque file handle (fhandle[4]) for all subsequent operations, compression info (cpsize/cptype), and optional stat string. */
+ * WHAT: Server returns:
+ *   - Opaque file handle (fhandle[4]) for subsequent ops
+ *   - Compression info (cpsize/cptype)
+ *   - Optional stat string
+ */
 
 typedef struct {
     kXR_char   fhandle[4];   /* opaque file handle for subsequent ops */
@@ -367,13 +425,20 @@ typedef struct {
     /* if kXR_retstat set: ASCII stat string follows */
 } ServerOpenBody;            /* 12 bytes minimum */
 
-/* ---- kXR_prepare (3021) — staging/prepare section ----
+/* ---- kXR_prepare (BRIX_XRD_OPCODE_PREPARE=3021) — staging/prepare section ----
  *
- * WHAT: Request structure for file preparation operations including staging, cancellation, notification. ClientPrepareRequest specifies options, priority, and paths. */
+ * WHAT: Request structure for file preparation operations:
+ *   - Staging, cancellation, notification
+ *   - ClientPrepareRequest: options, priority, paths
+ */
 
 /*---- kXR_prepare request — client staging initiation ----
  *
- * WHAT: 24-byte structure sent by the client to initiate staging operations with options (kXR_stage/kXR_cancel/kXR_notify), priority level, and path list or cancel token. */
+ * WHAT: 24-byte structure sent by client to initiate staging:
+ *   - Options (kXR_stage/kXR_cancel/kXR_notify)
+ *   - Priority level
+ *   - Path list or cancel token
+ */
 
 typedef struct {
     kXR_char   streamid[2];
@@ -387,7 +452,7 @@ typedef struct {
 } ClientPrepareRequest;      /* 24 bytes */
 
 /* ------------------------------------------------------------------ */
-/* kXR_read (3013)                                                      */
+/* kXR_read (BRIX_XRD_OPCODE_READ=3013)                                         */
 /* ------------------------------------------------------------------ */
 
 typedef struct {
@@ -401,7 +466,7 @@ typedef struct {
 /* Response body: raw file bytes, dlen bytes */
 
 /* ------------------------------------------------------------------ */
-/* kXR_stat (3017)                                                      */
+/* kXR_stat (BRIX_XRD_OPCODE_STAT=3017)                                         */
 /* ------------------------------------------------------------------ */
 
 typedef struct {
@@ -421,7 +486,7 @@ typedef struct {
  */
 
 /* ------------------------------------------------------------------ */
-/* kXR_close (3003)                                                     */
+/* kXR_close (BRIX_XRD_OPCODE_CLOSE=3003)                                       */
 /* ------------------------------------------------------------------ */
 
 typedef struct {
@@ -433,7 +498,7 @@ typedef struct {
 } ClientCloseRequest;        /* 24 bytes */
 
 /* ------------------------------------------------------------------ */
-/* kXR_ping (3011)                                                      */
+/* kXR_ping (BRIX_XRD_OPCODE_PING=3011)                                         */
 /* ------------------------------------------------------------------ */
 
 typedef struct {
@@ -444,7 +509,7 @@ typedef struct {
 } ClientPingRequest;         /* 24 bytes */
 
 /* ------------------------------------------------------------------ */
-/* kXR_query (3001)                                                     */
+/* kXR_query (BRIX_XRD_OPCODE_QUERY=3001)                                       */
 /* ------------------------------------------------------------------ */
 
 typedef struct {
@@ -458,7 +523,7 @@ typedef struct {
 } ClientQueryRequest;        /* 24 bytes */
 
 /* ------------------------------------------------------------------ */
-/* kXR_dirlist (3004)                                                   */
+/* kXR_dirlist (BRIX_XRD_OPCODE_DIRLIST=3004)                                   */
 /* ------------------------------------------------------------------ */
 
 typedef struct {

@@ -133,7 +133,7 @@ webdav_copy_collection_stage(const webdav_copy_job_t *job, char *tmp_path,
      * this COPY makes and the first thing the endpoint gate refuses. Nothing is
      * created before this point (brix_make_tmp_path only builds a name), which
      * is what makes an EROFS refusal here side-effect-free. */
-    if (brix_vfs_export_mkdir(&export_op_ctx, tmp_path, job->src_mode & 0777) != 0) {
+    if (brix_vfs_export_mkdir(&export_op_ctx, tmp_path, job->src_mode & BRIX_PERM_MASK_FULL) != 0) {
         if (errno == ENOENT) {
             return NGX_HTTP_CONFLICT;
         }

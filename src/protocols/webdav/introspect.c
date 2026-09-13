@@ -107,7 +107,7 @@ webdav_introspect_done(ngx_http_request_t *r, void *data, ngx_int_t rc)
         if (!active && conf->revoke_kv != NULL && d->have_key) {
             (void) brix_kv_set(conf->revoke_kv, d->key, 32,
                                  (const u_char *) "1", 1,
-                                 (ngx_msec_t) conf->common.introspect_ttl * 1000);
+                                 (ngx_msec_t) conf->common.introspect_ttl * BRIX_WEBDAV_INTROSPECT_TTL_MULT);
         }
     } else {
         /* IdP unreachable / error → honour the configured failure policy. */

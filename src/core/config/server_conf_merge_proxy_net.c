@@ -72,13 +72,13 @@ brix_merge_srv_proxy(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_uint_value(conf->proxy.reconnect_attempts, prev->proxy.reconnect_attempts, 0);
     ngx_conf_merge_str_value(conf->proxy.path_strip, prev->proxy.path_strip, "");
     ngx_conf_merge_str_value(conf->proxy.path_add,   prev->proxy.path_add,   "");
-    ngx_conf_merge_msec_value(conf->proxy.connect_timeout,    prev->proxy.connect_timeout,    10000);
-    ngx_conf_merge_msec_value(conf->proxy.read_timeout,       prev->proxy.read_timeout,       60000);
+    ngx_conf_merge_msec_value(conf->proxy.connect_timeout,    prev->proxy.connect_timeout,    BRIX_CONFIG_PROXY_CONNECT_TIMEOUT_MS);
+    ngx_conf_merge_msec_value(conf->proxy.read_timeout,       prev->proxy.read_timeout,       BRIX_CONFIG_PROXY_READ_TIMEOUT_MS);
     /* Phase 51 (B1): default the upstream write-stall deadline ON (60s) so a
      * slow/backpressured upstream that stops draining our writes can no longer
      * pin the client connection indefinitely.  0 still disables (back-compat). */
-    ngx_conf_merge_msec_value(conf->proxy.write_timeout,      prev->proxy.write_timeout,      60000);
-    ngx_conf_merge_msec_value(conf->proxy.keepalive_interval, prev->proxy.keepalive_interval, 15000);
+    ngx_conf_merge_msec_value(conf->proxy.write_timeout,      prev->proxy.write_timeout,      BRIX_CONFIG_PROXY_WRITE_TIMEOUT_MS);
+    ngx_conf_merge_msec_value(conf->proxy.keepalive_interval, prev->proxy.keepalive_interval, BRIX_CONFIG_PROXY_KEEPALIVE_INTERVAL_MS);
 
     BRIX_MERGE_PTR(conf, prev, proxy.upstreams);
     ngx_conf_merge_str_value(conf->proxy.host, prev->proxy.host, "");

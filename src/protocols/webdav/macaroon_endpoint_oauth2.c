@@ -262,13 +262,13 @@ mac_token_parse_form(ngx_http_request_t *r, const char *body,
         return NGX_ERROR;
     }
 
-    /* expire_in is optional; default 3600 seconds, cap at 30 days */
-    *expire_in = 3600;
+    /* expire_in is optional; default 1 hour, cap at 30 days */
+    *expire_in = BRIX_WEBDAV_MACAROON_EXPIRY_DEFAULT;
     if (form_find(body, "expire_in", expire_str, sizeof(expire_str)) == NGX_OK
         && expire_str[0] != '\0')
     {
         long v = atol(expire_str);
-        if (v > 0 && v <= 86400L * 30) *expire_in = v;
+        if (v > 0 && v <= BRIX_WEBDAV_MACAROON_EXPIRY_MAX) *expire_in = v;
     }
     return NGX_OK;
 }
@@ -296,7 +296,7 @@ webdav_handle_macaroon_token(ngx_http_request_t *r)
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
     /* Secret configured + authenticated + body read (order load-bearing) */
-    if (mac_gate_and_read_body(r, conf, 65536, &body, &body_len) != NGX_OK) {
+    if (mac_gate_and_read_body(r, conf, BRIX_WEBDAV_MACAROON_OAUTH2_BODY_MAX, &body, &body_len) != NGX_OK) {
         return;
     }
 

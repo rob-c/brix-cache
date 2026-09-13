@@ -32,8 +32,7 @@
 #include <errno.h>
 #include <sys/wait.h>
 #include <openssl/crypto.h>           /* OPENSSL_cleanse */
-
-#define TPC_TOKEN_MAX_LEN  65536
+#include "core/types/tunables.h"       /* BRIX_TPC_TOKEN_*, BRIX_TPC_TOKEN_BODY_BUF_SIZE */
 
 /* WHAT: Reads the local bearer (subject) token from tpc_outbound_bearer_file
  * into subject_token. Returns 0 on success, -1 with err_msg/xrd_error set
@@ -85,7 +84,7 @@ static int
 tpc_rfc8693_stage_body(brix_tpc_pull_t *t, const char *subject_token,
                        char *body_file, size_t body_file_sz)
 {
-    char body_buf[4096];
+    char body_buf[BRIX_TPC_TOKEN_BODY_BUF_SIZE];
     u_char *p;
 
     p = ngx_snprintf((u_char *) body_buf, sizeof(body_buf),
@@ -217,8 +216,8 @@ tpc_rfc8693_run_curl(brix_tpc_pull_t *t, char **curl_argv,
 int
 tpc_token_rfc8693(brix_tpc_pull_t *t, char *token_out, size_t token_out_sz)
 {
-    char buf[TPC_TOKEN_MAX_LEN + 256];
-    char *curl_argv[20];
+    char buf[BRIX_TPC_TOKEN_MAX + BRIX_TPC_TOKEN_ERR_MAX];
+    char *curl_argv[BRIX_TPC_TOKEN_CURL_ARGV_MAX];
     char body_file[NGX_MAX_PATH];
     char body_arg[NGX_MAX_PATH + 1];
     char *basic_auth = NULL;
@@ -226,7 +225,7 @@ tpc_token_rfc8693(brix_tpc_pull_t *t, char *token_out, size_t token_out_sz)
     size_t client_id_len;
     size_t client_secret_len;
     size_t auth_len = 0;
-    char subject_token[TPC_TOKEN_MAX_LEN];
+    char subject_token[BRIX_TPC_TOKEN_MAX];
 
     if (tpc_rfc8693_read_subject(t, subject_token, sizeof(subject_token)) != 0) {
         return -1;

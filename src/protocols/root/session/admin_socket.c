@@ -265,7 +265,7 @@ admin_cmd_pause(void *ud, u_char *args, size_t alen, brix_admin_reply_t *rep)
         tctx->admin_pause_ev.handler = admin_pause_timeout;
         tctx->admin_pause_ev.data = target;
         tctx->admin_pause_ev.log = target->log;
-        ngx_add_timer(&tctx->admin_pause_ev, (ngx_msec_t) secs * 1000);
+        ngx_add_timer(&tctx->admin_pause_ev, (ngx_msec_t) secs * BRIX_ROOT_MS_PER_SEC);
     }
     brix_admin_reply_set(rep, "ok\n");
 }

@@ -1,5 +1,11 @@
 /* File: gsi_outbound_certreq.c — GSI certificate request for native TPC pull
- * WHAT: Initiates the outbound GSI authentication handshake on a TPC pull socket. Reads brix_certificate and brix_certificate_key from config, loads X509 chain + private key via OpenSSL BIO/PEM readers, sends kXGC_certreq wire message (gsi\x00 + opcode + kXRS_none), receives kXR_authmore response containing client cert + CA chain. Validates server expects auth continuation before returning NGX_OK or error code.
+ * WHAT: Initiates outbound GSI auth handshake on TPC pull socket.
+ *   - Reads brix_certificate and brix_certificate_key from config
+ *   - Loads X509 chain + private key via OpenSSL BIO/PEM
+ *   - Sends kXGC_certreq wire message (gsi\x00 + opcode + kXRS_none)
+ *   - Receives kXR_authmore response (client cert + CA chain)
+ *   - Validates server expects auth continuation
+ *   - Returns NGX_OK or error code
  *
  * WHY: Native TPC pull connects directly to an xrootd server on a separate socket; GSI authentication requires the outbound side to present its certificate chain and private key, then receive the server's client certificate + CA chain for mutual verification. This function performs only the first round of that handshake — sending certreq and verifying kXR_authmore response — with subsequent rounds handled by gsi_outbound_common.c functions (tpc_send_kxr_auth continuation).
  *
@@ -308,7 +314,10 @@ tpc_certreq_recv_authmore(brix_tpc_pull_t *t, int fd,
     return 0;
 }
 
-/* WHAT: Initiates GSI auth handshake on TPC pull socket — read cert/key PEM, send kXGC_certreq wire message, verify kXR_authmore response. */
+/* WHAT: Initiates GSI auth handshake on TPC pull socket.
+ *   - Reads cert/key PEM files
+ *   - Sends kXGC_certreq wire message
+ *   - Verifies kXR_authmore response */
 int
 tpc_outbound_gsi(brix_tpc_pull_t *t, int fd,
     const u_char *login_body, uint32_t login_dlen)

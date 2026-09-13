@@ -6,6 +6,7 @@
  * which latches a failure so the caller checks once at the end instead of
  * after every field. */
 #include "stargz_internal.h"
+#include "core/types/tunables.h"  /* BRIX_SHARED_STARGZ_TOC_CAP0 */
 
 #include "cvmfs/catalog/catalog_write.h"   /* cvmfs_xattr_unpack */
 
@@ -17,7 +18,7 @@
 #include <sys/sysmacros.h>
 #include <time.h>
 
-#define SGZ_TOC_CAP0 (64u * 1024u)
+#define SGZ_TOC_CAP0 BRIX_SHARED_STARGZ_TOC_CAP0
 
 /* Append raw bytes, growing by doubling. A failure is latched rather than
  * returned: a half-built document is never serialized either way. */

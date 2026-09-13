@@ -45,7 +45,7 @@ static int brix_pipe2_compat(int pipefd[2], int flags) {
 static int brix_posix_spawn_file_actions_addclosefrom_np_compat(posix_spawn_file_actions_t *fa, int fromfd) {
     /* macOS lacks addclosefrom_np - close fds 3-256 individually */
     int fd, rc = 0;
-    for (fd = fromfd; fd < 256; fd++) {
+    for (fd = fromfd; fd < BRIX_CMS_MAX_CONNECTIONS_PER_IP; fd++) {
         rc = posix_spawn_file_actions_addclose(fa, fd);
         if (rc != 0) break;
     }
@@ -65,7 +65,7 @@ typedef struct {
     ngx_connection_t *conn;         /* pipe read end in the event loop */
     pid_t             child;        /* spawned program; -1 = none */
     ngx_event_t       respawn;      /* backoff timer after child death */
-    u_char            linebuf[256];
+    u_char            linebuf[BRIX_CMS_ERR_BUF_SIZE];
     size_t            line_pos;
     uint8_t           vals[5];      /* last parsed cpu net xeq mem pag */
     ngx_msec_t        updated;      /* ngx_current_msec of last good line */
@@ -120,7 +120,7 @@ perf_parse_field(const u_char *line, size_t len, size_t *cursor, uint8_t *out)
 
     while (at < len && line[at] >= '0' && line[at] <= '9') {
         value = value * 10 + (ngx_uint_t) (line[at] - '0');
-        if (value > 1000) {
+        if (value > BRIX_MONITOR_PCT_MAX) {
             return -1;
         }
         at++;
@@ -175,7 +175,7 @@ perf_teardown(brix_cms_perf_t *pf)
         pf->child = -1;
     }
     if (!ngx_exiting && !pf->respawn.timer_set) {
-        ngx_add_timer(&pf->respawn, 5000);
+        ngx_add_timer(&pf->respawn, BRIX_CMS_RESPAWN_DELAY_MS);
     }
 }
 
@@ -194,7 +194,7 @@ perf_read_handler(ngx_event_t *ev)
 {
     ngx_connection_t *c = ev->data;
     brix_cms_perf_t  *pf = c->data;
-    u_char             chunk[256];
+    u_char             chunk[BRIX_CMS_STATE_SAFE_BUF];
     ssize_t            got;
     ssize_t            i;
 

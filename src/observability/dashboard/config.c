@@ -15,10 +15,40 @@
  *       stream module source list because it references ngx_stream_brix_module.
  */
 
-/* Global pointer set here; read by the HTTP dashboard module at request time. */
-ngx_shm_zone_t *ngx_brix_dashboard_shm_zone;
-ngx_shm_zone_t *ngx_brix_dashboard_events_shm_zone;
-ngx_shm_zone_t *ngx_brix_dashboard_history_shm_zone;
+/*
+ * Encapsulated module state — access via accessor functions.
+ * WHY: Prevents accidental modification, enables future extension.
+ */
+static ngx_shm_zone_t *ngx_brix_dashboard_shm_zone;
+static ngx_shm_zone_t *ngx_brix_dashboard_events_shm_zone;
+static ngx_shm_zone_t *ngx_brix_dashboard_history_shm_zone;
+
+/*
+ * brix_dashboard_get_shm_zone — accessor for dashboard transfer SHM zone.
+ */
+ngx_shm_zone_t *
+brix_dashboard_get_shm_zone(void)
+{
+    return ngx_brix_dashboard_shm_zone;
+}
+
+/*
+ * brix_dashboard_get_events_shm_zone — accessor for dashboard events SHM zone.
+ */
+ngx_shm_zone_t *
+brix_dashboard_get_events_shm_zone(void)
+{
+    return ngx_brix_dashboard_events_shm_zone;
+}
+
+/*
+ * brix_dashboard_get_history_shm_zone — accessor for dashboard history SHM zone.
+ */
+ngx_shm_zone_t *
+brix_dashboard_get_history_shm_zone(void)
+{
+    return ngx_brix_dashboard_history_shm_zone;
+}
 
 ngx_int_t
 brix_configure_dashboard(ngx_conf_t *cf)

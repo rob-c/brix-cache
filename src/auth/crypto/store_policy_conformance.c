@@ -142,10 +142,10 @@ brix_key_strength_violation(X509 *cert)
     id = EVP_PKEY_base_id(pk);
     bits = EVP_PKEY_bits(pk);
     if ((id == EVP_PKEY_RSA || id == EVP_PKEY_RSA2 || id == EVP_PKEY_DSA)
-        && bits < 2048) {
+        && bits < BRIX_CRYPTO_RSA_MIN_BITS) {
         return 1;
     }
-    if (id == EVP_PKEY_EC && bits < 256) {
+    if (id == EVP_PKEY_EC && bits < BRIX_CRYPTO_EC_MIN_BITS) {
         return 1;
     }
     return 0;

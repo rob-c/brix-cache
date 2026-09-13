@@ -1,20 +1,40 @@
-/* Macaroon HMAC-SHA256 signature chain — packet framing, per-type chain updates, third-party caveat capture, and final signature verification.
+/*
+ * Macaroon HMAC-SHA256 signature chain.
+ * Packet framing, per-type chain updates, third-party caveat capture,
+ * final signature verification.
  *
- * WHAT: Parses one macaroon binary as a sequence of length-prefixed packets, reconstructing the HMAC-SHA256 chain
- * (sig = HMAC(sig_prev, packet_data)) across identifier/location/cid/vid/signature packets, capturing third-party
- * caveats (cid+vid+sig_before) into the caller's tp_arr, verifying the final signature in constant time, enforcing
- * fail-closed expiry, and finalizing the extracted scopes into claims.
+ * WHAT: Parses one macaroon binary as sequence of length-prefixed packets.
+ *       Reconstructs HMAC-SHA256 chain (sig = HMAC(sig_prev, packet_data)) across:
+ *         - identifier packets
+ *         - location packets
+ *         - cid (caveat identifier) packets
+ *         - vid (verification identifier) packets
+ *         - signature packets
+ *       Captures third-party caveats (cid+vid+sig_before) into caller's tp_arr.
+ *       Verifies final signature in constant time.
+ *       Enforces fail-closed expiry.
+ *       Finalizes extracted scopes into claims.
  *
- * WHY: Split out of macaroon.c (phase-79 file-size split). The HMAC chain is the integrity core of the macaroon
- * security model — any tampered or reordered caveat yields a mismatched final signature. Keeping the exact HMAC
- * ordering (identifier seeds the chain; cid/vid each fold in before capture; signature compared with CRYPTO_memcmp)
- * in one file makes that guarantee auditable, separate from caveat interpretation (macaroon_caveats.c) and vid
- * crypto (macaroon_crypto.c).
+ * WHY: Split out of macaroon.c (phase-79 file-size split).
+ *      HMAC chain is integrity core of macaroon security model —
+ *      any tampered or reordered caveat yields mismatched final signature.
+ *      Keeping exact HMAC ordering in one file makes guarantee auditable:
+ *        - identifier seeds the chain
+ *        - cid/vid each fold in before capture
+ *        - signature compared with CRYPTO_memcmp (constant-time)
+ *      Separate from caveat interpretation (macaroon_caveats.c)
+ *      and vid crypto (macaroon_crypto.c).
  *
- * HOW: brix_macaroon_packet_len() reads the 4-char hex length. macaroon_parse_core() loops packets, dispatching each
- * via macaroon_dispatch_packet() to the per-type handlers: identifier seeds sig=HMAC(key,id); cid saves sig_before_cid
- * then folds the caveat and hands first-party caveats to macaroon_parse_first_party_caveat(); vid folds and records the
- * third-party triple; signature compares. After the loop it checks found_sig/expiry and finalizes scopes. */
+ * HOW: Two-stage process:
+ *        1. brix_macaroon_packet_len() reads 4-char hex length prefix
+ *        2. macaroon_parse_core() loops packets, dispatching via macaroon_dispatch_packet():
+ *           - identifier: seeds sig = HMAC(key, id)
+ *           - cid: saves sig_before_cid, folds caveat,
+ *                  hands first-party to macaroon_parse_first_party_caveat()
+ *           - vid: folds and records third-party triple (cid+vid+sig_before)
+ *           - signature: compares with CRYPTO_memcmp
+ *        3. After loop: checks found_sig/expiry, finalizes scopes
+ */
 
 #include "token_internal.h"
 #include "macaroon.h"
@@ -215,9 +235,62 @@ macaroon_parse_state_init(brix_macaroon_parse_state_t *state,
     state->max_tp = in->max_tp;
 }
 
-/* WHAT: Parse one macaroon binary, reconstruct HMAC-SHA256 signature chain across all packets, verify final signature, and extract WLCG caveats into claims.
- * WHY: The macaroon security model requires each caveat to deterministically modify the HMAC chain — sig = HMAC(sig_prev, caveat_data). This ensures any tampered or reordered caveat produces a mismatched final signature. Extracting activity:/path:/before: caveats converts raw binary authorization into structured claims for access control decisions.
- * HOW: Initialize sig=HMAC(key, identifier), scope_buf="", path_caveats[], last_cid/sig_before_cid state; loop packets (p+4≤end): brix_macaroon_packet_len(p)→plen; data=p+4,dlen=plen-4; strip trailing newline if present; process packet types: "identifier " → HMAC(EVP_sha256,key,identifier)→sig, copy to claims->sub; "location " → copy to claims->iss; "cid " → save sig_before_cid, HMAC(sig,cid)→next_sig→sig, track last_cid for vid pairing; parse first-party caveats within cid data (activity:→scope mapping, before:→parse_iso8601→claims->exp min, path:→path_caveats array); "vid " → HMAC(sig,vid_data)→sig, record (cid+vid+sig_before) triple into tp_arr if available; "signature " → compare provided 32-byte sig against computed sig, reject mismatch; after loop: check found_sig and found_id, validate expiry (now>claims->exp), finalize scopes from scope_buf via brix_token_parse_scopes(), apply path caveats via macaroon_apply_path_caveats(); return 0 success or -1 failure. */
+/*
+ * WHAT: Parse one macaroon binary, reconstruct HMAC-SHA256 signature chain.
+ *       Verify final signature and extract WLCG caveats into claims.
+ *
+ * WHY: Macaroon security model requires each caveat to deterministically
+ *      modify HMAC chain: sig = HMAC(sig_prev, caveat_data).
+ *      Ensures any tampered or reordered caveat produces mismatched final signature.
+ *      Extracting activity:/path:/before: caveats converts raw binary authorization
+ *      into structured claims for access control decisions.
+ *
+ * HOW: Multi-stage packet parsing:
+ *
+ *        Initialization:
+ *          - sig = HMAC(key, identifier)
+ *          - scope_buf = ""
+ *          - path_caveats[] = empty
+ *          - last_cid = NULL, sig_before_cid = NULL
+ *
+ *        Packet loop (p+4 ≤ end):
+ *          1. brix_macaroon_packet_len(p) → plen
+ *          2. data = p+4, dlen = plen-4
+ *          3. Strip trailing newline if present
+ *          4. Dispatch by packet type:
+ *
+ *             "identifier ":
+ *               - HMAC(EVP_sha256, key, identifier) → sig
+ *               - Copy identifier to claims->sub
+ *
+ *             "location ":
+ *               - Copy to claims->iss
+ *
+ *             "cid ":
+ *               - Save sig_before_cid
+ *               - HMAC(sig, cid) → next_sig → sig
+ *               - Track last_cid for vid pairing
+ *               - Parse first-party caveats within cid data:
+ *                 * activity: → scope mapping
+ *                 * before: → parse_iso8601 → claims->exp (minimum)
+ *                 * path: → path_caveats array
+ *
+ *             "vid ":
+ *               - HMAC(sig, vid_data) → sig
+ *               - Record (cid+vid+sig_before) triple into tp_arr if available
+ *
+ *             "signature ":
+ *               - Compare provided 32-byte sig against computed sig
+ *               - Reject mismatch via CRYPTO_memcmp
+ *
+ *        Post-loop validation:
+ *          - Check found_sig and found_id flags
+ *          - Validate expiry: now ≤ claims->exp (fail-closed)
+ *          - Finalize scopes from scope_buf via brix_token_parse_scopes()
+ *          - Apply path caveats via macaroon_apply_path_caveats()
+ *
+ *        Returns: 0 on success, -1 on failure
+ */
 int
 macaroon_parse_core(const macaroon_parse_input_t *in,
     const u_char *bin, size_t bin_len)

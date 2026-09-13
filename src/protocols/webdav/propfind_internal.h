@@ -51,7 +51,7 @@ typedef enum {
 #define PF_LOCALITY            (1u << 19)
 #define PF_UNKNOWN_MAX     16
 #define PF_UNKNOWN_XML_MAX 288   
-#define PROPFIND_BODY_MAX  65536u
+#define PROPFIND_BODY_MAX  BRIX_WEBDAV_PROPFIND_BODY_MAX
 typedef struct {
     char             ns[128];
     char             local[128];

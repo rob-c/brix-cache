@@ -273,7 +273,7 @@ brix_cns_stat(const char *path, struct stat *out)
     ngx_memzero(out, sizeof(*out));
     out->st_size  = (off_t) csize;
     out->st_mtime = (time_t) cmtime;
-    out->st_mode  = is_dir ? (S_IFDIR | 0755) : (S_IFREG | 0644);
+    out->st_mode  = is_dir ? (S_IFDIR | BRIX_CMS_DIR_PERM) : (S_IFREG | BRIX_CMS_FILE_PERM);
     out->st_nlink = 1;
     return NGX_OK;
 }

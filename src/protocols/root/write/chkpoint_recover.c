@@ -1,4 +1,5 @@
 #include "core/ngx_brix_module.h"
+#include "core/types/tunables.h"         /* BRIX_ROOT_PRIVATE_FILE_MODE */
 #include "fs/vfs/vfs.h"   /* confined open/unlink via the VFS seam */
 #include "chkpoint_xeq.h"
 #include "core/compat/log.h"
@@ -31,90 +32,173 @@ ckp_name_has_suffix(const char *name)
     return len > 4 && strcmp(name + len - 4, ".ckp") == 0;
 }
 
+/*
+ * ckp_validate_path — extract original path from checkpoint path.
+ *
+ * WHAT: Validates .ckp path format and extracts original path by removing
+ *       the .ckp suffix.
+ * WHY:  Checkpoint files must end in .ckp; the original path is everything
+ *       before that suffix. Invalid lengths are rejected early.
+ * HOW:  Checks length bounds, copies all but last 4 chars, null-terminates.
+ *       Returns NGX_OK on success, NGX_ERROR on invalid format.
+ */
 static ngx_int_t
-ckp_recover_one(ngx_log_t *log, const char *root_canon,
-    const char *ckp_path)
+ckp_validate_path(const char *ckp_path, char *orig_path, size_t orig_size)
 {
-    char                 orig_path[PATH_MAX];
-    size_t               len;
-    int                  ckp_fd;
-    brix_staged_file_t staged;
-    struct stat          st;
-
-    len = strlen(ckp_path);
-    if (len <= 4 || len >= sizeof(orig_path)) {
+    size_t len = strlen(ckp_path);
+    
+    if (len <= 4 || len >= orig_size) {
         return NGX_ERROR;
     }
-
+    
     ngx_memcpy(orig_path, ckp_path, len - 4);
     orig_path[len - 4] = '\0';
+    return NGX_OK;
+}
 
-    ckp_fd = brix_vfs_open_fd(log, root_canon, ckp_path,
-                                        O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0);
+/*
+ * ckp_open_snapshot — open checkpoint file for reading.
+ *
+ * WHAT: Opens the .ckp snapshot file read-only with security flags.
+ * WHY:  Recovery needs to read the abandoned checkpoint; O_NOFOLLOW prevents
+ *       symlink attacks, O_CLOEXEC prevents fd leaks.
+ * HOW:  Uses brix_vfs_open_fd confined to export root. Returns fd on success,
+ *       -1 on failure (logs error).
+ */
+static int
+ckp_open_snapshot(ngx_log_t *log, const char *root_canon, const char *ckp_path)
+{
+    int ckp_fd = brix_vfs_open_fd(log, root_canon, ckp_path,
+                                  O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0);
     if (ckp_fd < 0) {
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "brix: checkpoint recovery cannot open \"%s\"",
-                             ckp_path);
-        return NGX_ERROR;
+                           "brix: checkpoint recovery cannot open \"%s\"",
+                           ckp_path);
     }
+    return ckp_fd;
+}
 
-    if (fstat(ckp_fd, &st) != 0 || !S_ISREG(st.st_mode)) {
+/*
+ * ckp_validate_snapshot — verify checkpoint file is a regular file.
+ *
+ * WHAT: Stats the opened checkpoint fd and verifies it's a regular file.
+ * WHY:  Only regular files can be recovered; directories/symlinks are invalid.
+ * HOW:  Uses fstat() and S_ISREG check. Closes fd on failure. Returns NGX_OK
+ *       on success, NGX_ERROR on failure (logs error, closes fd).
+ */
+static ngx_int_t
+ckp_validate_snapshot(ngx_log_t *log, int ckp_fd, const char *ckp_path,
+                      struct stat *st)
+{
+    if (fstat(ckp_fd, st) != 0 || !S_ISREG(st->st_mode)) {
         ngx_close_file(ckp_fd);
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "brix: checkpoint recovery invalid snapshot "
-                             "\"%s\"", ckp_path);
+                           "brix: checkpoint recovery invalid snapshot "
+                           "\"%s\"", ckp_path);
         return NGX_ERROR;
     }
+    return NGX_OK;
+}
 
-    {
-        brix_staged_open_req_t  oreq = {
-            .root_canon = root_canon,
-            .final_path = orig_path,
-            .open_flags = O_WRONLY,
-            .mode       = 0600,
-            .attempts   = 16,
-        };
-        if (brix_staged_open(log, &oreq, &staged) != NGX_OK) {
-            ngx_close_file(ckp_fd);
-            brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                                 "brix: checkpoint recovery cannot stage "
-                                 "\"%s\"", orig_path);
-            return NGX_ERROR;
-        }
-    }
-
-    if (st.st_size > 0
-        && brix_copy_range(log, ckp_fd, 0, staged.fd, 0,
-                             (size_t) st.st_size, ckp_path,
-                             staged.tmp_path) != NGX_OK)
-    {
-        brix_staged_abort(log, root_canon, &staged, 1);
-        ngx_close_file(ckp_fd);
+/*
+ * ckp_stage_original — open original file for staged write.
+ *
+ * WHAT: Opens the original (non-.ckp) path for staged atomic write.
+ * WHY:  Recovery must atomically replace the original file; staged_open
+ *       provides safe atomic replacement with proper permissions.
+ * HOW:  Builds brix_staged_open_req_t with O_WRONLY, private file mode,
+ *       16 attempts. Returns NGX_OK on success, NGX_ERROR on failure.
+ */
+static ngx_int_t
+ckp_stage_original(ngx_log_t *log, const char *root_canon,
+                   const char *orig_path, brix_staged_file_t *staged)
+{
+    brix_staged_open_req_t oreq = {
+        .root_canon = root_canon,
+        .final_path = orig_path,
+        .open_flags = O_WRONLY,
+        .mode       = BRIX_ROOT_PRIVATE_FILE_MODE,
+        .attempts   = 16,
+    };
+    
+    if (brix_staged_open(log, &oreq, staged) != NGX_OK) {
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "brix: checkpoint recovery copy failed for "
-                             "\"%s\"", orig_path);
+                           "brix: checkpoint recovery cannot stage \"%s\"",
+                           orig_path);
         return NGX_ERROR;
     }
+    return NGX_OK;
+}
 
+/*
+ * ckp_copy_data — copy checkpoint data to staged file.
+ *
+ * WHAT: Copies data from checkpoint fd to staged file fd using copy_range.
+ * WHY:  Efficient zero-copy transfer of recovered data; skips if size is 0.
+ * HOW:  Uses brix_copy_range for the full file size. On failure, aborts
+ *       staged file and logs error. Returns NGX_OK on success.
+ */
+static ngx_int_t
+ckp_copy_data(ngx_log_t *log, int ckp_fd, brix_staged_file_t *staged,
+              off_t size, const char *ckp_path, const char *root_canon)
+{
+    if (size > 0
+        && brix_copy_range(log, ckp_fd, 0, staged->fd, 0,
+                           (size_t) size, ckp_path,
+                           staged->tmp_path) != NGX_OK)
     {
-        brix_vfs_job_t job;
-
-        brix_vfs_job_sync_init(&job, staged.fd);
-        brix_vfs_io_execute(&job);
-    }
-
-    if (brix_staged_commit(log, root_canon, &staged, orig_path)
-        != NGX_OK)
-    {
-        ngx_close_file(ckp_fd);
+        brix_staged_abort(log, root_canon, staged, 1);
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "brix: checkpoint recovery commit failed for "
-                             "\"%s\"", orig_path);
+                           "brix: checkpoint recovery copy failed for "
+                           "\"%s\"", staged->final_path);
         return NGX_ERROR;
     }
+    return NGX_OK;
+}
 
+/*
+ * ckp_sync_and_commit — fsync and commit staged file atomically.
+ *
+ * WHAT: Syncs staged file to disk and commits it to replace original.
+ * WHY:  Ensures durability before removing checkpoint journal; atomic commit
+ *       prevents partial writes from being visible.
+ * HOW:  Uses brix_vfs_io_execute for fsync, then brix_staged_commit for
+ *       atomic rename. Returns NGX_OK on success, NGX_ERROR on failure.
+ */
+static ngx_int_t
+ckp_sync_and_commit(ngx_log_t *log, const char *root_canon,
+                    brix_staged_file_t *staged, const char *orig_path)
+{
+    brix_vfs_job_t job;
+    
+    brix_vfs_job_sync_init(&job, staged->fd);
+    brix_vfs_io_execute(&job);
+    
+    if (brix_staged_commit(log, root_canon, staged, orig_path) != NGX_OK) {
+        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                           "brix: checkpoint recovery commit failed for "
+                           "\"%s\"", orig_path);
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/*
+ * ckp_cleanup_and_log — close fd, remove checkpoint, log success.
+ *
+ * WHAT: Cleans up checkpoint fd, removes .ckp journal, logs recovery.
+ * WHY:  Journal must be removed after successful recovery to prevent replay;
+ *       success logging provides audit trail.
+ * HOW:  Closes ckp_fd, unlinks .ckp path (with vfs-mutation-gate-allow
+ *       comment explaining why this bypasses normal mutation gates), logs
+ *       recovery notice. Returns NGX_OK on success, NGX_ERROR if unlink fails.
+ */
+static ngx_int_t
+ckp_cleanup_and_log(ngx_log_t *log, const char *root_canon,
+                    int ckp_fd, const char *ckp_path)
+{
     ngx_close_file(ckp_fd);
-
+    
     /* vfs-mutation-gate-allow: startup recovery of THIS server's own .ckp
      * journal, after its snapshot has been committed. The journal's existence
      * is the durable proof that a writable endpoint authorised the checkpoint;
@@ -122,15 +206,77 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
      * against, and leaving the record behind would replay it forever. */
     if (brix_vfs_unlink_path(log, root_canon, ckp_path) != 0) {
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "brix: checkpoint recovery cannot remove "
-                             "\"%s\"", ckp_path);
+                           "brix: checkpoint recovery cannot remove \"%s\"",
+                           ckp_path);
         return NGX_ERROR;
     }
-
+    
     brix_log_safe_path(log, NGX_LOG_NOTICE, 0,
-                         "brix: recovered abandoned checkpoint \"%s\"",
-                         ckp_path);
+                       "brix: recovered abandoned checkpoint \"%s\"",
+                       ckp_path);
     return NGX_OK;
+}
+
+/*
+ * ckp_recover_one — recover one abandoned checkpoint file.
+ *
+ * WHAT: Recovers a single .ckp snapshot by copying it over the original file.
+ * WHY:  Worker crashes leave .ckp files behind; recovery restores them at
+ *       startup to prevent data loss from abandoned checkpoints.
+ * HOW:  Orchestrates 7 single-responsibility helpers:
+ *       1. ckp_validate_path — extract original path
+ *       2. ckp_open_snapshot — open .ckp read-only
+ *       3. ckp_validate_snapshot — verify regular file
+ *       4. ckp_stage_original — open original for atomic write
+ *       5. ckp_copy_data — zero-copy transfer
+ *       6. ckp_sync_and_commit — fsync + atomic rename
+ *       7. ckp_cleanup_and_log — remove journal, log success
+ */
+static ngx_int_t
+ckp_recover_one(ngx_log_t *log, const char *root_canon, const char *ckp_path)
+{
+    char                 orig_path[PATH_MAX];
+    struct stat          st;
+    int                  ckp_fd;
+    brix_staged_file_t   staged;
+    ngx_int_t            rc;
+    
+    /* Step 1: Validate and extract original path */
+    if (ckp_validate_path(ckp_path, orig_path, sizeof(orig_path)) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    
+    /* Step 2: Open checkpoint snapshot */
+    ckp_fd = ckp_open_snapshot(log, root_canon, ckp_path);
+    if (ckp_fd < 0) {
+        return NGX_ERROR;
+    }
+    
+    /* Step 3: Validate snapshot is regular file */
+    if (ckp_validate_snapshot(log, ckp_fd, ckp_path, &st) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    
+    /* Step 4: Stage original file for atomic write */
+    if (ckp_stage_original(log, root_canon, orig_path, &staged) != NGX_OK) {
+        ngx_close_file(ckp_fd);
+        return NGX_ERROR;
+    }
+    
+    /* Step 5: Copy data from checkpoint to staged file */
+    if (ckp_copy_data(log, ckp_fd, &staged, st.st_size, ckp_path, root_canon) != NGX_OK) {
+        ngx_close_file(ckp_fd);
+        return NGX_ERROR;
+    }
+    
+    /* Step 6: Sync and commit atomically */
+    if (ckp_sync_and_commit(log, root_canon, &staged, orig_path) != NGX_OK) {
+        ngx_close_file(ckp_fd);
+        return NGX_ERROR;
+    }
+    
+    /* Step 7: Cleanup and log success */
+    return ckp_cleanup_and_log(log, root_canon, ckp_fd, ckp_path);
 }
 
 /* One opened recovery-scan directory: the stream plus its validated fd. */
@@ -305,7 +451,7 @@ brix_chkpoint_recover_root(ngx_log_t *log, const char *root_canon)
     ngx_memcpy(lock_path + root_len, "/.nginx-xrootd-ckp-recovery.lock",
                sizeof("/.nginx-xrootd-ckp-recovery.lock"));
 
-    lock_fd = open(lock_path, O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
+    lock_fd = open(lock_path, O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, BRIX_ROOT_PRIVATE_FILE_MODE);
     if (lock_fd < 0) {
         /* An export this worker cannot write is not a recovery failure: a .ckp
          * snapshot is only ever produced by a worker writing INTO this root, so

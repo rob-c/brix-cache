@@ -118,13 +118,13 @@ brix_vfs_mkdir_parent_path(brix_vfs_ctx_t *ctx, const char *path)
         return NGX_ERROR;
     }
 
-    rc = brix_vfs_backend_mkpath(ctx->root_canon, physical, 0755, ctx->log);
+    rc = brix_vfs_backend_mkpath(ctx->root_canon, physical, BRIX_VFS_DIR_PERM_DEFAULT, ctx->log);
     if (rc != NGX_DECLINED) {
         return (rc == 0) ? NGX_OK : NGX_ERROR;
     }
 
     if (brix_mkdir_recursive_confined_canon(ctx->log, ctx->root_canon,
-                                              parent, 0755, NULL) != 0)
+                                              parent, BRIX_VFS_DIR_PERM_DEFAULT, NULL) != 0)
     {
         return NGX_ERROR;
     }
@@ -300,7 +300,7 @@ brix_vfs_open_via_driver(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
     }
 
     o = brix_sd_open_hinted_maybe_cred(ctx->sd, physical,
-                                       brix_vfs_to_sd_flags(ctx, flags), 0644,
+                                       brix_vfs_to_sd_flags(ctx, flags), BRIX_VFS_FILE_PERM_DEFAULT,
                                        use_cred ? &ucred : NULL,
                                        &ctx->open_hints, &sderr);
     /* The origin session (if any) has consumed the per-user secret; erase the
@@ -393,7 +393,7 @@ brix_vfs_open_confined_fd(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
             int            sderr = 0;
 
             o = ctx->sd->driver->open(ctx->sd, logical,
-                                      brix_vfs_to_sd_flags(ctx, flags), 0644,
+                                      brix_vfs_to_sd_flags(ctx, flags), BRIX_VFS_FILE_PERM_DEFAULT,
                                       &sderr);
             if (o == NULL) {
                 brix_vfs_open_set_err(err_out, sderr);
@@ -402,15 +402,15 @@ brix_vfs_open_confined_fd(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
             }
             return o->fd;
         }
-        return brix_open_beneath(ctx->rootfd, logical, oflags, 0644);
+        return brix_open_beneath(ctx->rootfd, logical, oflags, BRIX_VFS_FILE_PERM_DEFAULT);
     }
 
     if (ctx->root_canon != NULL) {
         return brix_open_confined_canon(ctx->log, ctx->root_canon, path,
-                                        oflags, 0644);
+                                        oflags, BRIX_VFS_FILE_PERM_DEFAULT);
     }
 
-    return open(path, oflags, 0644);
+    return open(path, oflags, BRIX_VFS_FILE_PERM_DEFAULT);
 }
 
 /* brix_vfs_open_via_posix — the default-POSIX open path: obtain a confined fd

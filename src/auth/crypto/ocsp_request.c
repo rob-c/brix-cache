@@ -129,7 +129,42 @@ ocsp_connect_responder(ngx_log_t *log, const ocsp_url_t *u,
     return -1;
 }
 
-/* HOW: Parses the OCSP URL via parse_ocsp_url() into an ocsp_url_t. Builds the OCSP_REQUEST (id + nonce) via ocsp_build_request(). Resolves the responder through the phase-116 DNS driver and opens + connects the BIO per candidate via ocsp_connect_responder() (ocsp_open_bio: plain TCP or verifying TLS with SNI; ocsp_connect_bio: deadline-bounded). Bounds, for HTTPS, the handshake+verify (ocsp_tls_handshake) under BRIX_OCSP_TIMEOUT_SECS. Sends the request and reads the reply through an OCSP_REQ_CTX whose response length is capped at OCSP_MAX_RESPONSE_BYTES (A-6/T2 — an untrusted responder must not stream an unbounded body), then tears down the connection (cbio then ssl_ctx) and the request. Returns NULL on any network/protocol failure or if the reply exceeds the cap. */
+/*
+ * HOW: Multi-stage OCSP request and response handling:
+ *
+ *        1. Parse OCSP URL
+ *           - parse_ocsp_url() → ocsp_url_t struct
+ *           - Extracts scheme, host, port, path components
+ *
+ *        2. Build OCSP_REQUEST
+ *           - ocsp_build_request(id): adds certificate ID + nonce
+ *
+ *        3. Resolve responder via phase-116 DNS driver
+ *           - brix_dns_resolve() with policy enforcement
+ *           - Returns list of candidate addresses
+ *
+ *        4. Open + connect BIO per candidate via ocsp_connect_responder()
+ *           - ocsp_open_bio(): plain TCP or verifying TLS with SNI
+ *           - ocsp_connect_bio(): deadline-bounded connection
+ *
+ *        5. For HTTPS: bound handshake+verify under BRIX_OCSP_TIMEOUT_SECS
+ *           - ocsp_tls_handshake(): enforces timeout
+ *
+ *        6. Send request and read reply via OCSP_REQ_CTX
+ *           - Response length capped at OCSP_MAX_RESPONSE_BYTES
+ *           - A-6/T2 security: untrusted responder must not
+ *             stream unbounded body (DoS prevention)
+ *
+ *        7. Tear down connection
+ *           - Free cbio (BIO object)
+ *           - Free ssl_ctx (SSL context if TLS used)
+ *           - Free OCSP_REQUEST
+ *
+ * Returns: OCSP_RESPONSE* on success, NULL on:
+ *          - Network failure (DNS, connection, timeout)
+ *          - Protocol failure (malformed response)
+ *          - Response exceeds OCSP_MAX_RESPONSE_BYTES cap
+ */
 OCSP_RESPONSE *
 do_ocsp_request(ngx_log_t *log, const brix_dns_policy_t *dns, const char *url,
     X509 *leaf, X509 *issuer, OCSP_CERTID *id, OCSP_REQUEST **req_out)
@@ -227,7 +262,33 @@ do_ocsp_request(ngx_log_t *log, const brix_dns_policy_t *dns, const char *url,
  *  -1   — certificate is REVOKED or response is invalid
  *   1   — status is UNKNOWN
  */
-/* HOW: Checks response status — returns -1 if not successful. Extracts the BASICRESP via OCSP_response_get1_basic(). Optionally verifies the response signature against a trust store (NULL means use OpenSSL defaults). If original request is available, checks nonce match — mismatch causes failure; missing nonce is a warning only. Finds certificate status via OCSP_resp_find_status() and maps to GOOD(0)/REVOKED(-1)/UNKNOWN(1) using a switch on the V_OCSP_CERTSTATUS_* enum. */
+/*
+ * HOW: Five-step OCSP response validation:
+ *
+ *        1. Check response status
+ *           - OCSP_response_status(resp)
+ *           - Returns -1 if not OCSP_RESPONSE_STATUS_SUCCESSFUL
+ *
+ *        2. Extract BASICRESP
+ *           - OCSP_response_get1_basic() → OCSP_BASICRESP*
+ *
+ *        3. Optionally verify response signature
+ *           - OCSP_basic_verify(basicresp, NULL, trust_store, flags)
+ *           - NULL trust_store: uses OpenSSL defaults
+ *           - Returns: 1=valid, 0=invalid
+ *
+ *        4. Check nonce match (if original request available)
+ *           - OCSP_check_nonce(req, basicresp)
+ *           - Mismatch: failure (return -1)
+ *           - Missing nonce: warning only, continue
+ *
+ *        5. Find certificate status and map to return code
+ *           - OCSP_resp_find_status(basicresp, id, &status, &reason)
+ *           - Switch on V_OCSP_CERTSTATUS_* enum:
+ *             * V_OCSP_CERTSTATUS_GOOD → return 0
+ *             * V_OCSP_CERTSTATUS_REVOKED → return -1
+ *             * V_OCSP_CERTSTATUS_UNKNOWN → return 1
+ */
 int
 check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
     X509_STORE *store, OCSP_CERTID *id, OCSP_REQUEST *req_for_nonce,

@@ -68,7 +68,11 @@ brix_tpc_refuse(brix_ctx_t *ctx, ngx_connection_t *c, const char *dst_path,
            ? TPC_ANSWERED : NGX_ERROR;
 }
 
-/* WHAT: Build kXR_ok open response body (fhandle + optional statbuf from fstat) → brix_build_resp_hdr → brix_queue_response. Returns NGX_OK or NGX_ERROR on alloc failure. Caller: brix_tpc_prepare_pull (end of pull prep pipeline). */
+/* WHAT: Build kXR_ok open response body.
+ *   - Includes fhandle + optional statbuf from fstat
+ *   - Calls brix_build_resp_hdr then brix_queue_response
+ *   - Returns NGX_OK or NGX_ERROR on alloc failure
+ *   - Caller: brix_tpc_prepare_pull (end of pull prep) */
 static ngx_int_t
 tpc_send_open_response(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     const struct stat *st, uint16_t options)
@@ -317,7 +321,7 @@ tpc_prepare_check_preconditions(brix_ctx_t *ctx, ngx_connection_t *c,
      * (I-DNS-1), and the pull thread re-checks every candidate it actually
      * dials (I-DNS-3).
      */
-    sport = tpc->src_port ? tpc->src_port : 1094;
+    sport = tpc->src_port ? tpc->src_port : TPC_DEFAULT_PORT;
     verdict = brix_tpc_check_src_policy(conf, tpc->src_host, sport,
                                         policy_err, sizeof(policy_err));
     if (verdict < 0) {

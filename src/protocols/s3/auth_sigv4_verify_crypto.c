@@ -129,7 +129,7 @@ build_canonical_headers(ngx_http_request_t *r,
                         const char *signed_hdrs,
                         u_char *out, size_t outsz)
 {
-    char   hdrs[256];
+    char   hdrs[BRIX_S3_SIGNED_HEADERS_BUF_SIZE];
     size_t oi = 0;
 
     ngx_cpystrn((u_char *) hdrs, (u_char *) signed_hdrs, sizeof(hdrs));
@@ -204,11 +204,11 @@ s3_sigv4_compute_signature(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     const sigv4_components_t *comp, const s3_amz_date_out_t *amz,
     s3_sigv4_sig_out_t *out)
 {
-    u_char canonical[8192];
-    u_char canon_qs[2048];
+    u_char canonical[BRIX_S3_SIGV4_CANONICAL_MAX];
+    u_char canon_qs[BRIX_S3_CANONICAL_QUERY_BUF_SIZE];
     u_char canon_uri[S3_MAX_KEY];
-    u_char canon_hdrs[2048];
-    u_char string_to_sign[4096];
+    u_char canon_hdrs[BRIX_S3_CANONICAL_HEADERS_BUF_SIZE];
+    u_char string_to_sign[BRIX_S3_SIGV4_STRING_TO_SIGN_MAX];
     u_char hash_hex[65];
     u_char cr_hash[32];
     u_char computed[32];

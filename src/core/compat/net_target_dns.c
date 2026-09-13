@@ -18,6 +18,7 @@
 #include "net_target_internal.h"
 #include "cstr.h"
 #include "net/dns/dns.h"
+#include "../types/tunables.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -47,7 +48,7 @@ net_default_port(const brix_net_target_t *target,
         return policy->default_https_port ? policy->default_https_port : 443;
     }
 
-    return policy->default_root_port ? policy->default_root_port : 1094;
+    return policy->default_root_port ? policy->default_root_port : BRIX_ROOT_DEFAULT_PORT;
 }
 
 /*

@@ -7,7 +7,13 @@
 
 /*
  *
- * WHAT: Native thread-pool worker for TPC (third-party copy) data pulls. Executes the full source-side workflow: connects to remote XRootD endpoint, bootstraps authentication session, then initiates data transfer via tpc_pull_from_source(). Called from nginx's threaded pool when native TPC is enabled (NGX_THREADS).
+ * WHAT: Native thread-pool worker for TPC (third-party copy) data pulls.
+ *   - Executes full source-side workflow:
+ *     1. Connects to remote XRootD endpoint
+ *     2. Bootstraps authentication session
+ *     3. Initiates data transfer via tpc_pull_from_source()
+ *   - Called from nginx's threaded pool
+ *   - Enabled when NGX_THREADS is set
  *
  * WHY: TPC transfers require the source server to actively connect to and pull data from a remote endpoint — this cannot be done synchronously on the main event loop because network I/O would block all other connections. The thread-pool approach allows parallel pulls without starving the nginx worker's connection handling. Thread safety: single-owner per connection on one thread; no shared state between threads during execution.
  *

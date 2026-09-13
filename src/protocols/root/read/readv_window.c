@@ -12,7 +12,9 @@
 #include "protocols/root/connection/budget.h"
 #include "protocols/root/connection/write_helpers.h"
 #include "protocols/root/protocol/readv_seg.h"
-/* PAL endian ops now in platform_api.h */  /* brix_plat_be64toh/brix_plat_htobe64 cross-platform */
+/* PAL endian ops now in platform_api.h
+ * brix_plat_be64toh/brix_plat_htobe64 cross-platform
+ */
 
 static readahead_list *
 readv_window_wire(brix_ctx_t *ctx)

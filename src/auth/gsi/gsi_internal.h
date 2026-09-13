@@ -19,21 +19,34 @@
 
 /*---- GSI round 1 response function declaration ----
  *
- * WHAT: brix_gsi_send_cert() — respond to kXGC_certreq by generating ephemeral DH key pair (ffdhe2048),
+ * WHAT: brix_gsi_send_cert() — respond to kXGC_certreq by generating ephemeral DH key pair (ffdhe2048, BRIX_GSI_PROXY_KEY_BITS-bit),
  *       encoding public key as hex blob, signing client rtag with RSA PKCS1, assembling kXGS_cert wire response. */
 
 /*---- GSI round 1 function postconditions ----
  *
- * WHY: Sets ctx->gsi.dh_key on success — this private DH key is used in round 2 (parse.c) for shared secret derivation via EVP_PKEY_derive().
- *      Key is freed after kXGC_cert arrives and the session cipher key (first key_len bytes of the DH secret) is persisted + armed for sigver. */
+ * WHY: Sets ctx->gsi.dh_key on success.
+ *
+ *   - Private DH key used in round 2 (parse.c) for shared secret derivation
+ *   - Derivation via EVP_PKEY_derive()
+ *   - Key freed after kXGC_cert arrives
+ *   - Session cipher key (first key_len bytes of DH secret) persisted + armed
+ */
 
 /*---- GSI round 1 function return values ----
  *
- * WHY: Returns NGX_OK (response queued successfully), NGX_ERROR on crypto or send failure — caller sends appropriate error response. */
+ * WHY: Return values.
+ *
+ *   - NGX_OK: response queued successfully
+ *   - NGX_ERROR: crypto or send failure (caller sends appropriate error response)
+ */
 
 /*---- GSI round 1 function declaration ----
  *
- * WHAT: Called from src/gsi/auth.c as part of kXGC_certreq handling after credential type verification. Returns ngx_int_t result. */
+ * WHAT: Called from src/gsi/auth.c.
+ *
+ *   - Part of kXGC_certreq handling after credential type verification
+ *   - Returns ngx_int_t result
+ */
 
 ngx_int_t brix_gsi_send_cert(brix_ctx_t *ctx, ngx_connection_t *c);
 
@@ -43,36 +56,65 @@ ngx_int_t brix_gsi_send_cert(brix_ctx_t *ctx, ngx_connection_t *c);
 
 /*---- Token authentication mechanism ----
  *
- * WHY: Extracts bearer token from payload, validates via brix_token_validate() against configured JWKS and issuer.
- *      Uses RSA/ECDSA signature verification to validate JWT claims — single-round authentication (no DH exchange needed). */
+ * WHY: Extracts and validates bearer token.
+ *
+ *   - Validates via brix_token_validate() against configured JWKS and issuer
+ *   - Uses RSA/ECDSA signature verification for JWT claims
+ *   - Single-round authentication (no DH exchange needed)
+ */
 
 /*---- Token authentication postconditions ----
  *
- * WHY: Sets ctx->login.auth_done = 1 on success — enables subsequent authenticated operations like file access and TPC transfers. */
+ * WHY: Sets ctx->login.auth_done = 1 on success.
+ *
+ *   - Enables subsequent authenticated operations
+ *   - File access and TPC transfers now permitted
+ */
 
 /*---- Token authentication function declaration ----
  *
- * WHAT: Called from src/gsi/auth.c as part of kXR_auth handling after credential type "ztn" verification. Returns NGX_OK result. */
+ * WHAT: Called from src/gsi/auth.c.
+ *
+ *   - Part of kXR_auth handling after credential type "ztn" verification
+ *   - Returns NGX_OK result
+ */
 
 ngx_int_t brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf);
 
 /*---- SSS shared secret authentication function declaration ----
  *
- * WHAT: brix_handle_sss_auth() — handle kXR_auth with protocol "sss" (Simple Shared Secret for trusted environments). */
+ * WHAT: brix_handle_sss_auth() - handle kXR_auth with protocol "sss".
+ *
+ *   - Simple Shared Secret for trusted environments
+ */
 
 /*---- SSS authentication mechanism ----
  *
- * WHY: Decrypts Blowfish-CFB64 token, verifies CRC32 integrity check, validates timestamp (replay prevention), 
- *      optionally checks source IP. Used in trusted/controlled environments where pre-shared secrets are acceptable. */
+ * WHY: Decrypts and validates SSS token.
+ *
+ *   - Decrypts Blowfish-CFB64 token
+ *   - Verifies CRC32 integrity check
+ *   - Validates timestamp (replay prevention)
+ *   - Optionally checks source IP
+ *   - Used in trusted/controlled environments with pre-shared secrets
+ */
 
 /*---- SSS authentication postconditions ----
  *
- * WHY: Sets ctx->login.auth_done = 1 on success — enables subsequent authenticated operations like file access and TPC transfers. */
+ * WHY: Sets ctx->login.auth_done = 1 on success.
+ *
+ *   - Enables subsequent authenticated operations
+ *   - File access and TPC transfers now permitted
+ */
 
 /*---- SSS authentication function declaration ----
  *
- * WHAT: Called from src/gsi/auth.c as part of kXR_auth handling after credential type "sss" verification. Returns NGX_OK result. */
+ * WHAT: Called from src/gsi/auth.c.
+ *
+ *   - Part of kXR_auth handling after credential type "sss" verification
+ *   - Returns NGX_OK result
+ */
 
 ngx_int_t brix_handle_sss_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf);

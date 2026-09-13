@@ -353,7 +353,7 @@ unified_emit_cache_watermark(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
         "# TYPE brix_cache_usage_ratio gauge\n"
         "brix_cache_usage_ratio %.6f\n",
         (double) brix_metric_value(&shm->unified.cache_usage_ratio_ppm)
-            / 1000000.0);
+            / BRIX_PPM_MULTIPLIER);
 
     mw_printf(mw,
         "# HELP brix_cache_watermark_purges_total Watermark reaper purge runs that reclaimed space.\n"
@@ -422,7 +422,7 @@ unified_emit_wt_stage(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
         "# TYPE brix_wt_stage_usage_ratio gauge\n"
         "brix_wt_stage_usage_ratio %.6f\n",
         (double) brix_metric_value(&shm->unified.wt_stage_usage_ratio_ppm)
-            / 1000000.0);
+            / BRIX_PPM_MULTIPLIER);
 
     mw_printf(mw,
         "# HELP brix_wt_stage_throttled_total Writes shed by staging backpressure, by action.\n"

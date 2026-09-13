@@ -23,9 +23,13 @@
  *       with dashboard_tracking.h and dashboard.h whenever the API changes.
  */
 
-ngx_shm_zone_t *ngx_brix_dashboard_shm_zone;
-ngx_shm_zone_t *ngx_brix_dashboard_events_shm_zone;
-ngx_shm_zone_t *ngx_brix_dashboard_history_shm_zone;
+/*
+ * Encapsulated module state for noop dashboard.
+ * Access via brix_dashboard_get_*_shm_zone() accessors.
+ */
+static ngx_shm_zone_t *ngx_brix_dashboard_shm_zone = NULL;
+static ngx_shm_zone_t *ngx_brix_dashboard_events_shm_zone = NULL;
+static ngx_shm_zone_t *ngx_brix_dashboard_history_shm_zone = NULL;
 
 ngx_int_t
 brix_configure_dashboard(ngx_conf_t *cf)

@@ -104,7 +104,7 @@ s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *export_op
      * either a read or a cleanup of this same temp, so one gate covers the whole
      * publish. */
     final_fd = brix_vfs_export_open_fd(export_op_ctx, final_tmp,
-                                        O_WRONLY | O_CREAT | O_TRUNC, 0600);
+                                        O_WRONLY | O_CREAT | O_TRUNC, BRIX_S3_OBJECT_MODE);
     if (final_fd < 0) {
         brix_log_safe_path(log, NGX_LOG_ERR, errno,
                              "s3 complete_mpu: open(\"%s\") failed", final_tmp);

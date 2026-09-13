@@ -44,7 +44,7 @@ static int
 wt_validate_registry(const wt_validate_ctx_t *v)
 {
     ngx_http_request_t         *r = v->r;
-    char                        pathz[2048];
+    char                        pathz[WEBDAV_PATH_BUFFER_SIZE];
     size_t                      plen;
     int                         bucket = 0;
     brix_token_registry_args_t  ra;

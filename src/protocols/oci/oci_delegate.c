@@ -39,12 +39,12 @@
 #include <stdio.h>
 #include <string.h>
 
-#define OCI_DELEG_TIMEOUT_MS   10000
+/* OCI_DELEG_TIMEOUT_MS defined in oci.h */
 
 /* How long a discovered upstream auth challenge is memoized. The challenge
  * names the realm and service, which change on upstream reconfiguration and
  * nothing else — but a bound keeps a stale realm from outliving the day. */
-#define OCI_DELEG_CHAL_TTL_MS  (3600 * 1000)
+#define OCI_DELEG_CHAL_TTL_MS  BRIX_OCI_DELEG_CHAL_TTL_MS
 
 /* The memo value that records "this upstream challenges nobody": a marker no
  * real WWW-Authenticate can begin with, so the two readings cannot collide. */
@@ -70,15 +70,29 @@ typedef struct {
 
 /* ---- keys ---------------------------------------------------------------- */
 
-/* The proof record's key: sha256("proof" ‖ 0x00 ‖ base_url ‖ 0x00 ‖ scope ‖
- * 0x00 ‖ cred). Same NUL discipline as the token key, same reason — and the
- * ASCII prefix is what keeps a proof from ever aliasing a token entry in the
- * shared zone. 0 = key written. */
+/*
+ * oci_deleg_proof_key — compute SHM key for delegation proof record.
+ *
+ * WHAT: Computes SHA256 hash of "proof" ‖ base_url ‖ scope ‖ credential to create
+ *   a unique key for the shared memory proof record. Uses NUL byte separators to
+ *   prevent collision attacks and ASCII prefix "proof" to avoid aliasing with token
+ *   entries. Returns 0 on success, -1 if buffer would overflow.
+ *
+ * WHY: Delegation proofs must be cached in SHM to avoid re-proving on every request.
+ *   The key must be unique per (upstream, scope, credential) tuple and collision-resistant.
+ *   The "proof" prefix ensures proofs and tokens never collide even if their inputs
+ *   would hash to the same value, since they serve different purposes (authorization
+ *   proof vs. access token).
+ *
+ * HOW: Concatenates "proof" (6 bytes including NUL) + base_url + NUL + scope + NUL +
+ *   credential (32 bytes) into a temporary buffer, then SHA256 hashes to 32 bytes.
+ *   Buffer size check prevents overflow on pathological inputs.
+ */
 static int
 oci_deleg_proof_key(const brix_oci_upstream_t *up, const char *scope,
     const u_char cred[32], u_char key[32])
 {
-    char    buf[1600];
+    char    buf[BRIX_OCI_DELEG_BUF_SIZE];
     size_t  n = 0, b = strlen(up->base_url), s = strlen(scope);
 
     if (6 + b + 1 + s + 1 + 32 >= sizeof(buf)) {
@@ -94,8 +108,22 @@ oci_deleg_proof_key(const brix_oci_upstream_t *up, const char *scope,
     return brix_oci_sha256_key(buf, n, key);
 }
 
-/* The challenge memo's key: sha256("chal" ‖ 0x00 ‖ base_url). Per upstream,
- * not per scope — the realm and service are properties of the registry. */
+/*
+ * oci_deleg_chal_key — compute SHM key for upstream auth challenge memo.
+ *
+ * WHAT: Computes SHA256 hash of "chal" ‖ base_url to create a unique key for
+ *   caching the upstream registry's WWW-Authenticate challenge. Returns 0 on
+ *   success, -1 if buffer would overflow. Per-upstream (not per-scope) since
+ *   realm/service are registry properties.
+ *
+ * WHY: Challenge discovery requires an HTTP 401 round-trip. Caching prevents
+ *   repeating this on every request. The cache is keyed only by upstream base
+ *   URL because all scopes on the same registry share the same challenge
+ *   (realm + service parameters).
+ *
+ * HOW: Concatenates "chal" (5 bytes) + base_url into buffer, SHA256 hashes to
+ *   32 bytes. Buffer sized for max URL length with safety margin.
+ */
 static int
 oci_deleg_chal_key(const brix_oci_upstream_t *up, u_char key[32])
 {
@@ -113,10 +141,20 @@ oci_deleg_chal_key(const brix_oci_upstream_t *up, u_char key[32])
 
 /* ---- the downstream identity (event loop) -------------------------------- */
 
-/* The one downstream challenge this surface issues, on every refusal that a
- * (different) credential could cure. Basic, not Bearer: the client's own
- * registry credential is the thing being delegated, and docker/podman login
- * already speaks it with no ceremony. */
+/*
+ * oci_deleg_challenge_hdr — emit WWW-Authenticate: Basic challenge header.
+ *
+ * WHAT: Adds WWW-Authenticate: Basic realm="<realm>" response header to request.
+ *   Allocates from request pool. Returns NGX_OK on success, NGX_ERROR on allocation
+ *   failure.
+ *
+ * WHY: RFC 7235 requires servers to send WWW-Authenticate when rejecting with 401.
+ *   Basic auth is used because clients already speak it (docker/podman login), and
+ *   we're delegating the client's own registry credential, not issuing bearer tokens.
+ *
+ * HOW: Allocates header from ngx_list, formats realm string into pool memory,
+ *   sets hash=1 for header lookup optimization.
+ */
 static ngx_int_t
 oci_deleg_challenge_hdr(ngx_http_request_t *r,
     ngx_http_brix_oci_loc_conf_t *lcf)
@@ -142,10 +180,23 @@ oci_deleg_challenge_hdr(ngx_http_request_t *r,
     return NGX_OK;
 }
 
-/* The uniform refusal (D16): 401 + Basic challenge + the DENIED envelope with
- * no detail. One spelling for "bad password", "no such repository" and "not
- * yours to read", because any difference between them is an enumeration
- * oracle over somebody else's private namespace. */
+/*
+ * oci_deleg_refuse — uniform 401 refusal for all delegation failures.
+ *
+ * WHAT: Sends HTTP 401 Unauthorized with WWW-Authenticate: Basic challenge and
+ *   OCI DENIED error envelope. Returns NGX_HTTP_UNAUTHORIZED. Used for all
+ *   delegation failures: bad credential, no credential, repository not found,
+ *   scope denied.
+ *
+ * WHY: Security through uniformity — any difference between "bad password",
+ *   "no such repo", and "not authorized" creates an enumeration oracle that
+ *   leaks information about private namespaces. RFC 7235 requires WWW-Authenticate
+ *   on 401. OCI spec requires DENIED envelope for errors.
+ *
+ * HOW: Sets status=401, adds WWW-Authenticate header via oci_deleg_challenge_hdr(),
+ *   builds OCI error JSON with DENIED code and generic message, marks request
+ *   as completed.
+ */
 static ngx_int_t
 oci_deleg_refuse(ngx_http_request_t *r, ngx_http_brix_oci_loc_conf_t *lcf,
     ngx_http_brix_oci_ctx_t *ctx)
@@ -160,8 +211,24 @@ oci_deleg_refuse(ngx_http_request_t *r, ngx_http_brix_oci_loc_conf_t *lcf,
                           NULL);
 }
 
-/* Decode the Basic payload into "user:pass" in the request pool and hash it.
- * NGX_DECLINED = identity established; anything else already answered. */
+/*
+ * oci_deleg_decode — decode Basic auth header and extract credential hash.
+ *
+ * WHAT: Decodes Base64 Basic authorization header into "user:pass" format,
+ *   validates format (must contain colon, non-empty username), computes SHA256
+ *   hash of credential for SHM keying. Stores hash in ctx->deleg_cred, plaintext
+ *   in ctx->deleg_basic (request pool), username in ctx->deleg_user. Returns
+ *   NGX_DECLINED on success (identity established), error code on failure.
+ *
+ * WHY: Basic auth credentials arrive Base64-encoded and must be decoded before
+ *   use. The SHA256 hash is the only form that persists (as SHM key) — plaintext
+ *   is used only for the upstream proof exchange then discarded. Validation prevents
+ *   malformed credentials from reaching the upstream.
+ *
+ * HOW: Allocates decode buffer from request pool, decodes Base64, validates
+ *   length and NUL-absence, finds colon separator, computes SHA256, extracts
+ *   username for logging. Refuses with oci_deleg_refuse() on any validation failure.
+ */
 static ngx_int_t
 oci_deleg_decode(ngx_http_request_t *r, ngx_http_brix_oci_loc_conf_t *lcf,
     ngx_http_brix_oci_ctx_t *ctx, ngx_str_t *b64)
@@ -204,6 +271,25 @@ oci_deleg_decode(ngx_http_request_t *r, ngx_http_brix_oci_loc_conf_t *lcf,
     return NGX_DECLINED;
 }
 
+/*
+ * brix_oci_delegate_ident — extract downstream client identity from authorization header.
+ *
+ * WHAT: Main entry point for delegation identity extraction. Checks for Basic auth
+ *   header, validates TLS requirement (unless deleg_insecure configured), decodes
+ *   credential via oci_deleg_decode(). Returns NGX_DECLINED if delegation is off or
+ *   anonymous access, NGX_HTTP_UNAUTHORIZED on credential errors, NGX_HTTP_BAD_REQUEST
+ *   on TLS violation.
+ *
+ * WHY: Delegation mode requires every request to carry the client's own registry
+ *   credential. This function is the gatekeeper that extracts and validates that
+ *   credential before the authorization proof phase. TLS enforcement prevents
+ *   credential interception on cleartext connections.
+ *
+ * HOW: Checks lcf->delegate flag, retrieves Authorization header, validates TLS
+ *   (unless insecure mode), verifies Basic scheme prefix, delegates decoding to
+ *   oci_deleg_decode(). Refuses non-Basic schemes (Bearer, Negotiate) to avoid
+ *   guessing at credential formats.
+ */
 ngx_int_t
 brix_oci_delegate_ident(ngx_http_request_t *r,
     ngx_http_brix_oci_loc_conf_t *lcf, ngx_http_brix_oci_ctx_t *ctx)
@@ -246,10 +332,24 @@ brix_oci_delegate_ident(ngx_http_request_t *r,
 
 /* ---- the proof (thread pool) --------------------------------------------- */
 
-/* One upstream leg on the worker thread: `method` against `path` (relative
- * to the upstream base), with an optional extra header block. The HTTP
- * status, or -1 on transport failure; `challenge` (may be NULL) receives the
- * WWW-Authenticate of a 401. */
+/*
+ * oci_deleg_leg — perform single HTTP request to upstream registry.
+ *
+ * WHAT: Executes one HTTP request (GET/HEAD) against the upstream OCI registry
+ *   using the curl transport layer. Returns HTTP status code on success, -1 on
+ *   transport failure. Optionally captures WWW-Authenticate header from 401 responses
+ *   into challenge buffer.
+ *
+ * WHY: Delegation proof requires actually hitting the upstream registry with the
+ *   client's credential to verify authorization. This is the low-level HTTP leg
+ *   that performs that check. Separating into a helper allows reuse for both the
+ *   initial proof and subsequent verification.
+ *
+ * HOW: Builds full URL from upstream base_path + relative path, calls
+ *   tr->request() with appropriate method/headers/timeout, extracts status code
+ *   and optional WWW-Authenticate header. Uses OCI_DELEG_TIMEOUT_MS for bounded
+ *   blocking on thread pool.
+ */
 static int
 oci_deleg_leg(brix_oci_upstream_t *up, const char *method, const char *path,
     const char *hdrs, char *challenge, size_t challenge_len)
@@ -257,7 +357,7 @@ oci_deleg_leg(brix_oci_upstream_t *up, const char *method, const char *path,
     const brix_s3_transport_t  *tr = &brix_s3_origin_curl_transport;
     brix_s3_resp_t              resp;
     char                        full[BRIX_OCI_KEY_MAX + 256];
-    char                        errbuf[256];
+    char                        errbuf[BRIX_OCI_DELEG_CHAL_BUF];
     int                         status;
 
     if (challenge != NULL) {
@@ -291,6 +391,23 @@ oci_deleg_leg(brix_oci_upstream_t *up, const char *method, const char *path,
  * GET /v2/ once per upstream per memo-TTL, remember either the challenge or
  * the fact that the upstream challenges nobody. 0 = `chal` holds the
  * challenge or the open marker; -1 = the upstream could not be asked. */
+/*
+ * oci_deleg_challenge — discover upstream registry's WWW-Authenticate challenge.
+ *
+ * WHAT: Performs unauthenticated GET against upstream registry to discover the
+ *   WWW-Authenticate challenge header. Caches result in SHM for OCI_DELEG_CHAL_TTL_MS
+ *   (1 hour) to avoid repeated discovery. Returns 0 with challenge in chal buffer on
+ *   success, -1 on failure.
+ *
+ * WHY: OCI registries use different auth schemes (Basic, Bearer with realm/service).
+ *   Discovery requires an initial 401 to learn the challenge. Caching prevents this
+ *   round-trip on every request. The challenge is per-upstream (not per-scope) since
+ *   realm/service are registry properties.
+ *
+ * HOW: Computes SHM key via oci_deleg_chal_key(), probes cache first, on miss performs
+ *   HEAD request via oci_deleg_leg(), caches result with TTL, copies challenge to
+ *   output buffer. Handles "open" registries (no auth required) with special marker.
+ */
 static int
 oci_deleg_challenge(brix_oci_upstream_t *up, char *chal, size_t chalsz)
 {
@@ -325,6 +442,22 @@ oci_deleg_challenge(brix_oci_upstream_t *up, char *chal, size_t chalsz)
  * the denial; 404 is "authorized, absent" (the fill will surface it); any
  * other answer proves the grant. Required because a DockerHub-style token
  * endpoint mints a 200 with an empty access list for a denied scope. */
+/*
+ * oci_deleg_verify — verify delegation proof by testing credential against upstream.
+ *
+ * WHAT: Validates that the client's credential authorizes access to the requested
+ *   scope by performing a HEAD request to the upstream registry. Returns OCI_DELEG_GRANTED
+ *   if authorized, OCI_DELEG_DENIED if not, OCI_DELEG_ERROR on transport failure.
+ *
+ * WHY: Cache hits must still be authorized — the whole point of delegation is that
+ *   the upstream registry remains the authorization oracle. This prevents cache-based
+ *   privilege escalation where user A's cached bytes would be served to unauthorized
+ *   user B.
+ *
+ * HOW: Discovers challenge via oci_deleg_challenge(), mints bearer token via
+ *   oci_upstream_auth() (credential exchange), performs HEAD request with token,
+ *   interprets HTTP status (200=granted, 401=denied, other=error).
+ */
 static int
 oci_deleg_verify(oci_deleg_task_t *t, const char *tok)
 {
@@ -349,12 +482,29 @@ oci_deleg_verify(oci_deleg_task_t *t, const char *tok)
     return OCI_DELEG_GRANTED;
 }
 
-/* thread side: challenge → credential-scoped mint → verify → record. */
+/*
+ * oci_deleg_thread — thread-pool task: challenge → credential-scoped mint → verify → record.
+ *
+ * WHAT: Executes delegation proof on worker thread pool. Discovers upstream challenge,
+ *   exchanges credential for bearer token via brix_oci_token_get_cred(), verifies
+ *   authorization with HEAD request, caches proof in SHM on success. Sets t->verdict
+ *   to OCI_DELEG_GRANTED/ERROR/DENIED.
+ *
+ * WHY: The proof involves blocking HTTP I/O (challenge discovery, token mint, verification
+ *   HEAD) that cannot run in the event loop. Thread pool isolation keeps nginx responsive
+ *   during the ~100-500ms proof exchange. Caching the proof prevents re-proofing on
+ *   subsequent requests within TTL.
+ *
+ * HOW: Calls oci_deleg_challenge() for discovery, brix_oci_token_get_cred() for token
+ *   exchange (returns denied flag for auth failures), oci_deleg_verify() for authorization
+ *   check, caches proof via brix_kv_set() with proof_ttl, shares token via
+ *   brix_oci_token_share() for coalesced fills.
+ */
 static void
 oci_deleg_thread(void *data, ngx_log_t *log)
 {
     oci_deleg_task_t  *t = data;
-    char               chal[1024];
+    char               chal[BRIX_OCI_CHAL_BUFFER_SIZE];
     char               tok[BRIX_OCI_TOKEN_MAX];
     u_char             key[32];
     long               expires = 0;
@@ -407,7 +557,22 @@ oci_deleg_thread(void *data, ngx_log_t *log)
     }
 }
 
-/* event-loop side: turn the verdict into the response or the re-entry. */
+/*
+ * oci_deleg_done — event-loop completion handler for delegation proof.
+ *
+ * WHAT: Runs in the event loop after oci_deleg_thread() completes on thread pool.
+ *   Inspects verdict: on OCI_DELEG_GRANTED, re-enters request processing; on
+ *   OCI_DELEG_DENIED, sends 401 with Basic challenge; on OCI_DELEG_ERROR, sends
+ *   502 Bad Gateway. Cleans up task resources and finalizes request.
+ *
+ * WHY: Thread pool tasks cannot directly touch request state or send responses —
+ *   that must happen in the event loop. This completion handler bridges the thread
+ *   result back to the HTTP response path.
+ *
+ * HOW: Extracts task context, checks ctx validity, dispatches on t->verdict to
+ *   appropriate response handler, calls ngx_http_finalize_request() to complete,
+ *   ngx_http_run_posted_requests() to continue pipeline.
+ */
 static void
 oci_deleg_done(ngx_event_t *ev)
 {
@@ -520,7 +685,7 @@ brix_oci_delegate_gate(ngx_http_request_t *r,
     ngx_thread_task_t  *task;
     ngx_thread_pool_t  *pool;
     ngx_int_t           rc;
-    char                scope[512];
+    char                scope[BRIX_OCI_DELEG_SCOPE_BUF];
     u_char              key[32];
     size_t              out_len;
     char                one[2];

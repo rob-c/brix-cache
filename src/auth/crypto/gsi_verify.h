@@ -11,6 +11,7 @@
 #define BRIX_CRYPTO_GSI_VERIFY_H
 
 #include <ngx_core.h>
+#include "../../core/types/tunables.h"
 
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
@@ -35,8 +36,8 @@
  * literal proxy-leaf DN for delegation "beneath-my-identity" binding checks.
  */
 typedef struct {
-    char dn_buf[1024];
-    char eec_buf[1024];
+    char dn_buf[BRIX_GSI_DN_BUF_SIZE];
+    char eec_buf[BRIX_GSI_EEC_BUF_SIZE];
 } brix_gsi_verify_result_t;
 
 /*

@@ -20,6 +20,20 @@
  */
 static ngx_uint_t  brix_gsi_inflight;
 
+/*
+ * WHAT: Admit a GSI handshake into the per-worker inflight gauge, or shed if over capacity.
+ *
+ * WHY: GSI handshakes are multi-round-trip (certreq → cert) and block the event loop;
+ *   under flood conditions this caps concurrent handshakes to prevent event-loop starvation.
+ *   Cache hits and already-authenticated sessions bypass this entirely. The gauge is
+ *   lock-free (per-worker, event-loop only) and must never leak (released exactly once).
+ *
+ * HOW:
+ *   - Check ctx->login.gsi_counted flag (already counted = return 1 immediately)
+ *   - Compare brix_gsi_inflight against configured cap (0 = unlimited)
+ *   - If under cap: increment gauge, set counted flag, return 1 (admitted)
+ *   - If over cap: return 0 (shed — client receives kXR_wait and retries)
+ */
 ngx_int_t
 brix_gsi_inflight_admit(brix_ctx_t *ctx, ngx_int_t cap)
 {
@@ -34,6 +48,18 @@ brix_gsi_inflight_admit(brix_ctx_t *ctx, ngx_int_t cap)
     return 1;
 }
 
+/*
+ * WHAT: Release a GSI handshake slot in the per-worker inflight gauge.
+ *
+ * WHY: The gauge must never leak — each admitted handshake must be released exactly once
+ *   at auth completion OR disconnect, whichever comes first. A leaked gauge would wedge
+ *   auth by permanently occupying slots. The counted flag ensures exactly-once release.
+ *
+ * HOW:
+ *   - Check ctx->login.gsi_counted flag (skip if not counted)
+ *   - Decrement brix_gsi_inflight (with underflow guard)
+ *   - Clear counted flag (ensures exactly-once semantics)
+ */
 void
 brix_gsi_inflight_release(brix_ctx_t *ctx)
 {
@@ -114,7 +140,7 @@ brix_gsi_complete_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     {
-        char dn_log[1024];
+        char dn_log[BRIX_AUTH_DN_BUF_SIZE];
 
         brix_sanitize_log_string(ctx->login.dn, dn_log, sizeof(dn_log));
         ngx_log_error(NGX_LOG_INFO, c->log, 0,

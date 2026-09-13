@@ -105,7 +105,7 @@ stream_cache_store_space(ngx_uint_t slot, uint64_t *total, uint64_t *used,
     *total = cap;
     *available = avail > cap ? cap : avail;
     *used = cap - *available;
-    *occupancy_ppm = (ngx_uint_t) ((*used * 1000000ULL) / cap);
+    *occupancy_ppm = (ngx_uint_t) ((*used * BRIX_PPM_MULTIPLIER) / cap);
     return NGX_OK;
 }
 
@@ -214,14 +214,14 @@ stream_cache_emit_fs_family(metrics_writer_t *mw, ngx_brix_metrics_t *shm,
              * convention. */
             mw_printf(mw,
                 "brix_cache_occupancy_ratio{port=\"%s\",auth=\"%s\"} %0.6f\n",
-                port_str, srv->auth, (double) occupancy_ppm / 1000000.0);
+                port_str, srv->auth, (double) occupancy_ppm / BRIX_PPM_MULTIPLIER);
             break;
         case STREAM_CACHE_FAM_THRESHOLD:
             mw_printf(mw,
                 "brix_cache_eviction_threshold_ratio"
                     "{port=\"%s\",auth=\"%s\"} %0.6f\n",
                 port_str, srv->auth,
-                (double) srv->cache_eviction_threshold / 1000000.0);
+                (double) srv->cache_eviction_threshold / BRIX_PPM_MULTIPLIER);
             break;
         default:
             mw_printf(mw,

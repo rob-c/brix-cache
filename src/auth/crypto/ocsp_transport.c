@@ -78,7 +78,7 @@ ocsp_connect_deadline(BIO *cbio, int secs)
         if (BIO_get_fd(cbio, &fd) <= 0 || fd < 0) {
             return OCSP_CONNECT_FAIL;
         }
-        remaining_ms = (int) ((deadline - time(NULL)) * 1000);
+        remaining_ms = (int) ((deadline - time(NULL)) * BRIX_MSEC_PER_SEC);
         if (remaining_ms <= 0) {
             return OCSP_CONNECT_TIMEOUT;   /* connect deadline exceeded */
         }

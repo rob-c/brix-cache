@@ -36,7 +36,7 @@
  */
 uint32_t brix_adler32_neon(const uint8_t *buf, size_t len, uint32_t adler)
 {
-    const uint32_t MOD_ADLER = 65521;
+    const uint32_t MOD_ADLER = BRIX_ADLER_MOD;
     uint32_t s1 = adler & 0xFFFF;
     uint32_t s2 = (adler >> 16) & 0xFFFF;
     

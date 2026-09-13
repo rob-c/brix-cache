@@ -53,7 +53,7 @@ brix_vfs_copyfile(ngx_log_t *log, const char *root_canon, const char *src,
 
     dst_fd = brix_open_confined_canon(log, root_canon, dst,
                                         O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC,
-                                        sb.st_mode & 0777);
+                                        sb.st_mode & BRIX_VFS_MODE_MASK);
     if (dst_fd < 0) {
         (void) ngx_close_file(src_fd);
         return NGX_ERROR;
@@ -118,7 +118,7 @@ vfs_copytree_subdir(const vfs_copy_ctx_t *ctx, const char *src_child,
     const char *dst_child, mode_t mode, ngx_uint_t depth)
 {
     if (brix_mkdir_confined_canon(ctx->log, ctx->root_canon, dst_child,
-                                  mode & 0777) != 0
+                                  mode & BRIX_VFS_MODE_MASK) != 0
         && errno != EEXIST)
     {
         return NGX_ERROR;

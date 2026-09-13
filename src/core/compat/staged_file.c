@@ -117,7 +117,7 @@ brix_staged_open(ngx_log_t *log, const brix_staged_open_req_t *req,
 
         staged->fd = brix_open_beneath(rootfd, rel,
                                          req->open_flags | O_CREAT | O_EXCL,
-                                         0600);
+                                         BRIX_STAGE_FILE_MODE);
         if (staged->fd != NGX_INVALID_FILE) {
             staged->active = 1;
             close(rootfd);
@@ -196,7 +196,7 @@ brix_staged_open_resume(ngx_log_t *log, const brix_staged_open_req_t *req,
          * basename is a server-generated hash inside the operator-trusted stage
          * dir, so a direct O_NOFOLLOW open is safe; commit moves it to storage. */
         fd = open(staged->tmp_path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC,
-                  0600);
+                  BRIX_STAGE_FILE_MODE);
         if (fd == NGX_INVALID_FILE) {
             return NGX_ERROR;
         }
@@ -212,7 +212,7 @@ brix_staged_open_resume(ngx_log_t *log, const brix_staged_open_req_t *req,
             return NGX_ERROR;
         }
         /* O_CREAT but NOT O_EXCL / O_TRUNC: create-or-resume, preserving bytes. */
-        fd = brix_open_beneath(rootfd, rel, O_RDWR | O_CREAT, 0600);
+        fd = brix_open_beneath(rootfd, rel, O_RDWR | O_CREAT, BRIX_STAGE_FILE_MODE);
         close(rootfd);
         if (fd == NGX_INVALID_FILE) {
             return NGX_ERROR;

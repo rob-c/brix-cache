@@ -63,7 +63,7 @@ typedef struct {
     unsigned int          sig_out_len;
     int                   found_sig;
     int                   found_id;
-    char                  scope_buf[1024];
+    char                  scope_buf[BRIX_TOKEN_MACAROON_SCOPE_BUF_SIZE];
     size_t                scope_off;
     char                  path_caveats[8][BRIX_SCOPE_PATH_MAX];
     int                   n_path_caveats;

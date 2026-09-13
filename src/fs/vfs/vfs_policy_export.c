@@ -51,15 +51,18 @@ int
 brix_vfs_export_open_fd(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *logical, int flags, mode_t mode)
 {
+    /* Validate export context — EINVAL if NULL. */
     if (export_op_ctx == NULL) {
         errno = EINVAL;
         return -1;
     }
 
+    /* Gate mutation operations on read-only exports — EROFS if denied. */
     if (brix_vfs_open_flags_mutate(flags)
         && brix_vfs_export_require_mutation(export_op_ctx, BRIX_VFS_MUTATE_OPEN)
            != NGX_OK)
     {
+        /* errno already set by brix_vfs_export_require_mutation() */
         return -1;
     }
 
@@ -83,15 +86,18 @@ int
 brix_vfs_export_open_fd_at(const brix_vfs_export_op_ctx_t *export_op_ctx, int rootfd,
     const char *logical, int flags, mode_t mode)
 {
+    /* Validate export context — EINVAL if NULL. */
     if (export_op_ctx == NULL) {
         errno = EINVAL;
         return -1;
     }
 
+    /* Gate mutation operations on read-only exports — EROFS if denied. */
     if (brix_vfs_open_flags_mutate(flags)
         && brix_vfs_export_require_mutation(export_op_ctx, BRIX_VFS_MUTATE_OPEN)
            != NGX_OK)
     {
+        /* errno already set by brix_vfs_export_require_mutation() */
         return -1;
     }
 
@@ -112,9 +118,11 @@ int
 brix_vfs_export_unlink(const brix_vfs_export_op_ctx_t *export_op_ctx,
     const char *logical)
 {
+    /* Gate remove operations on read-only exports — EROFS if denied. */
     if (brix_vfs_export_require_mutation(export_op_ctx, BRIX_VFS_MUTATE_REMOVE)
         != NGX_OK)
     {
+        /* errno already set by brix_vfs_export_require_mutation() */
         return -1;
     }
 

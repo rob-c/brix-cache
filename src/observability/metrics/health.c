@@ -235,7 +235,7 @@ health_verbose_extra(void)
 static u_char *
 health_build_json(ngx_http_request_t *r, ngx_uint_t verbose, size_t *len)
 {
-    size_t                cap = 2048;
+    size_t                cap = BRIX_LARGE_BUF_SIZE;
     u_char               *buf;
     u_char               *p;
     const char           *shm_state;

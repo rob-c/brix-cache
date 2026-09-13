@@ -298,7 +298,7 @@ gss_recv_signed(brix_gssapi_srv_t *g, ngx_str_t *out)
     char               errbuf[160];
     brix_gsi_err_t     err = { errbuf, sizeof(errbuf) };
 
-    if (gss_read_all(g, 16384, &signed_der) != NGX_OK || signed_der.len == 0) {
+    if (gss_read_all(g, BRIX_GSSAPI_READ_BUF_SIZE, &signed_der) != NGX_OK || signed_der.len == 0) {
         return BRIX_GSS_FAILED;
     }
     p = signed_der.data;
@@ -580,7 +580,7 @@ brix_gssapi_unwrap(brix_gssapi_srv_t *g, const u_char *in, size_t in_len,
     if (in_len > 0 && BIO_write(g->rbio, in, (int) in_len) <= 0) {
         return NGX_ERROR;
     }
-    return gss_read_all(g, 16384, out);
+    return gss_read_all(g, BRIX_GSSAPI_READ_BUF_SIZE, out);
 }
 
 

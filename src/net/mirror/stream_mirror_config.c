@@ -64,7 +64,7 @@ brix_stream_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     ngx_memzero(&u, sizeof(ngx_url_t));
     u.url          = hostport;
-    u.default_port = 1094;
+    u.default_port = BRIX_MIRROR_DEFAULT_PORT;
     u.no_resolve   = 1;              /* phase-116: parse only, resolve at runtime */
     if (ngx_parse_url(cf->pool, &u) != NGX_OK || u.host.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,

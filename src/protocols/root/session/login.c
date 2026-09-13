@@ -8,6 +8,10 @@
 #include "auth/protbind/protbind.h"
 #include "observability/sesslog/sesslog_ngx.h"
 
+/* Stringification macro for token constants */
+#define XSTR_HELPER(x)  #x
+#define XSTR(x)         XSTR_HELPER(x)
+
 /* Atomically increment the LOGIN-success metric counter. */
 static void
 brix_count_login_ok(brix_ctx_t *ctx)
@@ -167,8 +171,9 @@ brix_login_respond_anon(brix_ctx_t *ctx, ngx_connection_t *c, const char *user)
  * parses them with strtoll()/strtol() and demands the colon after each field
  * plus maxtsz > 0; anything else aborts the login with "Secztn: Malformed
  * client parameters", which is exactly what the earlier "v:10000" form did to
- * every stock XrdCl.  4096 matches the reference server's default -maxsz. */
-#define BRIX_ZTN_PARMS  "0:4096:"
+ * every stock XrdCl.  BRIX_BEARER_TOKEN_MAX matches the reference server's
+ * default -maxsz. */
+#define BRIX_ZTN_PARMS  "0:" XSTR(BRIX_BEARER_TOKEN_MAX) ":"
 
 /*
  * WHAT: Format ONE "&P=<proto>[,<parms>]" block for `proto` into `out`,
@@ -188,11 +193,11 @@ brix_login_proto_parm(ngx_stream_brix_srv_conf_t *conf, ngx_uint_t proto,
     char *out, size_t cap)
 {
     /* Advertised GSI version drives the client's signed-DH decision:
-     * >=BRIX_GSI_VERS_DHSIGNED (10400) lets capable clients use the
-     * RSA-signed-DH variant.  Default 10000 (unsigned, universally
-     * compatible) unless the brix_gsi_signed_dh policy opts in. */
+     * >=BRIX_ROOT_PROTO_DHSIGNED_THRESHOLD lets capable clients use the
+     * RSA-signed-DH variant.  Default BRIX_ROOT_PROTO_UNSIGNED (unsigned,
+     * universally compatible) unless the brix_gsi_signed_dh policy opts in. */
     unsigned  gsi_ver = (conf->gsi_signed_dh != BRIX_GSI_SDH_OFF)
-                        ? 10600u : 10000u;
+                        ? BRIX_ROOT_PROTO_DHSIGNED_REQUIRED : BRIX_ROOT_PROTO_UNSIGNED;
     int       written;
 
     switch (proto) {
@@ -235,8 +240,8 @@ brix_login_proto_parm(ngx_stream_brix_srv_conf_t *conf, ngx_uint_t proto,
         break;
 
     case BRIX_AUTH_PWD:
-        /* Phase 52 WS-B: XrdSecpwd password protocol (v:10100, ssl crypto). */
-        written = snprintf(out, cap, "&P=pwd,v:10100,c:ssl");
+        /* Phase 52 WS-B: XrdSecpwd password protocol (v:BRIX_ROOT_PROTO_PWD_AUTH, ssl crypto). */
+        written = snprintf(out, cap, "&P=pwd,v:" XSTR(BRIX_ROOT_PROTO_PWD_AUTH) ",c:ssl");
         break;
 
     default:
@@ -317,7 +322,7 @@ brix_login_respond_authenticated(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf;
     /* One block per advertised protocol; the GSI block alone can carry an
      * 80-byte CA-hash list, so size for the full BRIX_PROTBIND_MAX_PROTOS. */
-    char     parms[1024];
+    char     parms[BRIX_ROOT_LOGIN_PARM_BUF];
     size_t   parms_len;
     u_char  *buf;
     size_t   total;

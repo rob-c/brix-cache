@@ -114,12 +114,16 @@
       offsetof(ngx_stream_brix_srv_conf_t, mirror.timeout_ms),
       NULL },
 
-    /* Phase 25: advanced rate limiting / traffic shaping */    { ngx_string("brix_rate_limit_zone"),     /* stream main: zone=NAME:SIZE */
-      NGX_STREAM_MAIN_CONF | NGX_CONF_1MORE,
-      brix_rl_zone_directive,
-      0,
-      0,
-      NULL },
+    /* Phase 25: advanced rate limiting / traffic shaping */
+    {
+        ngx_string("brix_rate_limit_zone"),
+        /* stream main: zone=NAME:SIZE */
+        NGX_STREAM_MAIN_CONF | NGX_CONF_1MORE,
+        brix_rl_zone_directive,
+        0,
+        0,
+        NULL
+    },
 
     { ngx_string("brix_rate_limit_rule"),     /* srv: request-rate rule */
       NGX_STREAM_SRV_CONF | NGX_CONF_2MORE,

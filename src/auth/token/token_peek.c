@@ -43,7 +43,7 @@ brix_token_peek_iss(const char *token, size_t token_len,
     char *out, size_t outsz)
 {
     xrdjwt_seg  seg[3];
-    u_char      pay[4096];
+    u_char      pay[BRIX_BEARER_TOKEN_MAX];
     ssize_t     n;
 
     out[0] = '\0';
@@ -74,7 +74,7 @@ int
 brix_token_peek_exp(const char *token, size_t token_len, time_t *out)
 {
     xrdjwt_seg  seg[3];
-    u_char      payload[8192];
+    u_char      payload[BRIX_B64_DECODE_MAX];
     ssize_t     plen;
     int64_t     exp = 0;
 

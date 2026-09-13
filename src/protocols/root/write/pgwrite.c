@@ -8,6 +8,7 @@
 #include "write.h"            /* brix_write_within_maxsize (oss.maxsize cap) */
 #include "pgw_fob.h"          /* CSE uncorrected-page registry */
 #include "core/compat/pgio.h"   /* shared kXR page-mode decode (libxrdproto) */
+#include "pgwrite_helpers.h"   /* helper functions for pgwrite_execute_sync */
 
 /* pgwrite_retry_spans_multiple_pages()
  * A kXR_pgRetry resend must correct exactly one page.  Mirrors stock
@@ -312,7 +313,6 @@ static ngx_flag_t
 pgwrite_execute_sync(brix_ctx_t *ctx, ngx_connection_t *c, pgw_state_t *st,
     ngx_int_t *rc)
 {
-	char    write_detail[64];
 	size_t  total_written;
 	ssize_t nw;
 	brix_vfs_job_t job;
@@ -328,74 +328,29 @@ pgwrite_execute_sync(brix_ctx_t *ctx, ngx_connection_t *c, pgw_state_t *st,
 		errno = job.io_errno;
 	}
 
+	/* Error handling: I/O error or short write */
 	if (nw < 0) {
 		const char *ioerr = strerror(errno);
-
-		pgw_fmt_detail(write_detail, sizeof(write_detail), st->offset,
-		               st->flat_sz);
-		brix_log_access(ctx, c, "WRITE", ctx->files[st->idx].path,
-		                  write_detail, 0, kXR_IOError, ioerr, 0);
-		BRIX_OP_ERR(ctx, BRIX_OP_WRITE);
-		*rc = brix_send_error(ctx, c, kXR_IOError, ioerr);
-		return 1;
+		return pgwrite_handle_write_error(ctx, c, st, ioerr, rc);
 	}
 	if ((size_t) nw < st->flat_sz) {
-		pgw_fmt_detail(write_detail, sizeof(write_detail), st->offset,
-		               (size_t) nw);
-		*rc = brix_send_error(ctx, c, kXR_IOError, "short write (disk full?)");
-		brix_log_access(ctx, c, "WRITE", ctx->files[st->idx].path,
-		                  write_detail, 0, kXR_IOError,
-		                  "short write (disk full?)", 0);
-		BRIX_OP_ERR(ctx, BRIX_OP_WRITE);
-		return 1;
+		return pgwrite_handle_short_write(ctx, c, st, (size_t) nw, rc);
 	}
 
 	total_written = (size_t) nw;
 
-	ctx->files[st->idx].bytes_written += total_written;
-	ctx->totals.bytes_written        += total_written;
-	brix_rl_charge_ctx(ctx, total_written);  /* Phase 25 bandwidth */
-
-	/* write-through dirty state tracking (mirrors XrdPfcFile::m_dirtyOffset):
-	 * when wt_enabled = 1 this handle has a cached DECISION to propagate writes
-	 * back to the origin at close time.  Track cumulative bytes and mark the
-	 * dirty offset so write-back knows what to flush during close-flush. */
-	if (ctx->files[st->idx].wt_enabled) {
-		brix_wt_mark_dirty(ctx, st->idx,
-		                      st->offset + (int64_t) nw - 1, total_written);
-	}
-
-	if (st->rconf->access_log_fd != NGX_INVALID_FILE) {
-		pgw_fmt_detail(write_detail, sizeof(write_detail), st->offset,
-		               total_written);
-		brix_log_access(ctx, c, "WRITE", ctx->files[st->idx].path,
-		                  write_detail, 1, 0, NULL, total_written);
-	}
+	/* Success path: delegate to focused helpers */
+	pgwrite_update_metrics(ctx, total_written);
+	pgwrite_mark_dirty_if_needed(ctx, st->idx, st->offset + (int64_t) nw - 1,
+	                              total_written, ctx->files[st->idx].wt_enabled);
+	pgwrite_log_success(ctx, c, st, total_written);
 	BRIX_OP_OK(ctx, BRIX_OP_WRITE);
+	pgwrite_cleanup_retry_fob(ctx, st->idx, st->is_retry, st->bad_count,
+	                           st->offset, st->flat_sz);
+	pgwrite_record_journal(ctx, st->idx, st->offset, total_written,
+	                        ctx->files[st->idx].wrts_enabled);
 
-	/* A successful retry whose page now verifies clears it from the Fob.
-	 * (A still-bad retry kept bad_count > 0 and was re-added, so the close gate
-	 * still holds.) */
-	if (st->is_retry && st->bad_count == 0) {
-		brix_pgw_fob_del(&ctx->files[st->idx], st->offset,
-		                   (uint32_t) st->flat_sz);
-	}
-
-	/* Record the committed write in the recovery journal. */
-	if (ctx->files[st->idx].wrts_enabled) {
-		brix_wrts_record(&ctx->files[st->idx], st->offset, (uint32_t) nw);
-	}
-
-	/* The kXR_status "info" offset echoes the REQUEST offset (where the data was
-	 * written), matching the reference do_pgWrite — NOT offset+len.  When pages
-	 * failed CRC32c, the reply is a SUCCESS frame carrying the CSE retransmit
-	 * list (accept-then-correct), not a hard error. */
-	if (st->bad_count > 0) {
-		*rc = brix_send_pgwrite_cse(ctx, c, st->offset, st->bad_pages,
-		                              st->bad_count);
-	} else {
-		*rc = brix_send_pgwrite_status(ctx, c, st->offset);
-	}
+	*rc = pgwrite_send_reply(ctx, c, st);
 	return 1;
 }
 

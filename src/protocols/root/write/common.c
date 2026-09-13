@@ -151,5 +151,25 @@ brix_try_post_write_aio(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     return brix_aio_post_task(ctx, c, conf->common.thread_pool, task, fallback_log,
                                 posted);
 }
-/* WHY: Provides uniform thread-pool dispatch for write syscalls, enabling parallel disk I/O without blocking the main event loop during large file transfers. Detaches payload from ctx->recv.payload_buf so the main thread can safely read next request headers while write happens in worker threads. The posted flag enables callers to distinguish between dispatched and fallback cases — dispatched=1 means completion callback handles response; dispatched=0 means caller must perform synchronous pwrite. */
-/* HOW: Sets *posted=0 initially; retrieves conf via ngx_stream_get_module_srv_conf(); returns NGX_OK if thread_pool==NULL (no AIO configured). Allocates task struct with ngx_thread_task_alloc() — if OOM returns NGX_ERROR. Populates t=brix_write_aio_t context: c, ctx, conf, fd from files[idx], handle_idx, offset, data, len, req_offset, is_pgwrite, nwritten=-1, io_errno=0, payload_to_free, streamid copy, path copy via ngx_cpystrn(). Binds the worker + done callbacks via brix_task_bind(task, brix_write_aio_thread, brix_write_aio_done). Calls brix_aio_post_task() which sets posted=1 on success or 0 if queue full. Returns result from post_task call. */
+/* WHY: Provides uniform thread-pool dispatch for write syscalls.
+ *   - Enables parallel disk I/O without blocking main event loop
+ *   - Detaches payload from ctx->recv.payload_buf
+ *   - Main thread can read next request headers while write happens
+ *   - posted flag distinguishes dispatched vs fallback cases:
+ *     - dispatched=1: completion callback handles response
+ *     - dispatched=0: caller performs synchronous pwrite
+ */
+/* HOW:
+ *   - Sets *posted=0 initially
+ *   - Retrieves conf via ngx_stream_get_module_srv_conf()
+ *   - Returns NGX_OK if thread_pool==NULL (no AIO configured)
+ *   - Allocates task struct with ngx_thread_task_alloc()
+ *   - Populates t=brix_write_aio_t context:
+ *     - c, ctx, conf, fd from files[idx], handle_idx
+ *     - offset, data, len, req_offset, is_pgwrite
+ *     - nwritten=-1, io_errno=0, payload_to_free
+ *     - streamid copy, path copy via ngx_cpystrn()
+ *   - Binds worker + done callbacks via brix_task_bind()
+ *   - Calls brix_aio_post_task() (sets posted=1 on success)
+ *   - Returns result from post_task call
+ */

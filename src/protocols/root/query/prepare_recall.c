@@ -89,7 +89,7 @@ prepare_recall_record(brix_ctx_t *ctx, ngx_connection_t *c,
     v.lfn          = out_resolved;
     v.requester_dn = (rdn != NULL && rdn[0] != '\0') ? rdn : NULL;
     v.tod_expire   = (int64_t) time(NULL)
-                   + (int64_t) (sc->conf->frm.stage_ttl / 1000);
+                   + (int64_t) (sc->conf->frm.stage_ttl / BRIX_ROOT_MS_TO_SEC);
 
     if (brix_stage_request_add(reg, &v, rq, BRIX_STAGE_REQID_LEN, c->log)
         != NGX_OK)

@@ -36,7 +36,7 @@
 #include <netinet/in.h>
 
 /* Maximum size of the generated XML document.  All stats fit comfortably in 4 KiB. */
-#define XRDHTTP_STATS_BUF_MAX  4096
+#define XRDHTTP_STATS_BUF_MAX  BRIX_WEBDAV_XRDHTTP_STATS_BUF_MAX
 
 /*
  * Build the XRootD-compatible stats XML document into buf (null-terminated).
@@ -86,10 +86,10 @@ build_stats_xml(char *buf, size_t bufsz, ngx_http_request_t *r)
             } else if (ss.ss_family == AF_INET6) {
                 listen_port = ntohs(((struct sockaddr_in6 *)(void *) &ss)->sin6_port);
             } else {
-                listen_port = 8443;
+                listen_port = BRIX_WEBDAV_XRDHTTP_HTTPS_PORT;
             }
         } else {
-            listen_port = 8443;
+            listen_port = BRIX_WEBDAV_XRDHTTP_HTTPS_PORT;
         }
     }
 

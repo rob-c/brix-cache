@@ -4,22 +4,35 @@
  */
 #include "registry_internal.h"
 
-ngx_shm_zone_t *brix_srv_shm_zone;
-ngx_shmtx_t   brix_srv_mutex;
+/*
+ * Encapsulated module state — access via accessor functions.
+ * WHY: Prevents accidental modification, enables future extension.
+ */
+static ngx_shm_zone_t *brix_srv_shm_zone;
+static ngx_shmtx_t     brix_srv_mutex;
 
-ngx_uint_t    brix_srv_registry_nslots = BRIX_SRV_REGISTRY_SLOTS;
+/*
+ * brix_srv_get_shm_zone — accessor for server registry SHM zone.
+ */
+ngx_shm_zone_t *
+brix_srv_get_shm_zone(void)
+{
+    return brix_srv_shm_zone;
+}
 
-ngx_msec_t    brix_srv_stale_after_ms;
-
-ngx_uint_t    brix_srv_load_weight;
-
-ngx_uint_t    brix_srv_affinity;
-
+/*
+ * brix_srv_get_mutex — accessor for server registry mutex.
+ */
+ngx_shmtx_t *
+brix_srv_get_mutex(void)
+{
+    return &brix_srv_mutex;
+}
 
 void
 brix_srv_set_stale_after(ngx_msec_t ms)
 {
-    brix_srv_stale_after_ms = ms;
+    brix_srv_state()->stale_after_ms = ms;
 }
 
 
@@ -48,8 +61,8 @@ srv_space_reeval_locked(brix_srv_entry_t *e)
         return;
     }
 
-    hwm = (brix_srv_space.hwm_mb > (ngx_uint_t) e->min_free_mb)
-          ? (uint32_t) brix_srv_space.hwm_mb : e->min_free_mb;
+    hwm = (brix_srv_state()->space.hwm_mb > (ngx_uint_t) e->min_free_mb)
+          ? (uint32_t) brix_srv_state()->space.hwm_mb : e->min_free_mb;
 
     if (e->space_blocked) {
         if (e->free_mb >= hwm) {
@@ -105,7 +118,7 @@ brix_srv_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
     size_t              table_bytes;
 
     table_bytes = sizeof(brix_srv_table_t)
-                + (size_t) brix_srv_registry_nslots
+                + (size_t) brix_srv_state()->registry_nslots
                   * sizeof(brix_srv_entry_t);
 
     tbl = brix_shm_table_alloc(shm_zone, data, table_bytes,
@@ -115,7 +128,7 @@ brix_srv_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
     }
 
     if (fresh) {
-        tbl->capacity = brix_srv_registry_nslots;
+        tbl->capacity = brix_srv_state()->registry_nslots;
     }
 
     return NGX_OK;
@@ -143,7 +156,7 @@ brix_srv_configure_registry(ngx_conf_t *cf, ngx_uint_t slots)
     ngx_str_t  zone_name = ngx_string("brix_srv_registry");
     size_t     zone_size;
 
-    brix_srv_registry_nslots = slots;
+    brix_srv_state()->registry_nslots = slots;
     zone_size = brix_shm_zone_size(
                     sizeof(brix_srv_table_t)
                   + (size_t) slots * sizeof(brix_srv_entry_t));

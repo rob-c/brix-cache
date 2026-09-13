@@ -25,9 +25,14 @@
 /* Audit helper declaration — defined in forward_relay_audit.c */
 extern void proxy_write_path_audit(brix_proxy_ctx_t *proxy, uint16_t status);
 
-/* public API: brix_proxy_relay_to_client() — relay upstream response to client * WHAT: Relay the upstream server's response frame back to the connected client.
- *       Handles bound-secondary lazy-open (synthetic kXR_open), kXR_wait retry,
- *       kXR_redirect follow-through, fhandle translation, path audit, and streaming. */
+/*
+ * public API: brix_proxy_relay_to_client() — relay upstream response to client
+ *
+ * WHAT:
+ *   Relay the upstream server's response frame back to the connected client.
+ *   Handles bound-secondary lazy-open (synthetic kXR_open), kXR_wait retry,
+ *   kXR_redirect follow-through, fhandle translation, path audit, and streaming.
+ */
 
 /* kXR_redirect follow-through: when the upstream returns a redirect (and we are
  * under the 3-hop limit), parse the "host:port" target, tear down the current
@@ -169,7 +174,7 @@ brix_proxy_relay_absorb_wait(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
     proxy->wait_ev.handler = brix_proxy_wait_handler;
     proxy->wait_ev.data = proxy;
     proxy->wait_ev.log = proxy->conn->log;
-    ngx_add_timer(&proxy->wait_ev, wait_secs * 1000);
+    ngx_add_timer(&proxy->wait_ev, wait_secs * NGX_MSEC_PER_SEC);
     return 1;
 }
 

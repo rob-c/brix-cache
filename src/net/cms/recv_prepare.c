@@ -82,7 +82,7 @@ cms_prep_add(ngx_brix_cms_ctx_t *ctx, uint32_t streamid,
 
     if (ctx->conf->frm.stage_ttl > 0) {
         v.tod_expire = (int64_t) time(NULL)
-                     + (int64_t) (ctx->conf->frm.stage_ttl / 1000);
+                     + (int64_t) (ctx->conf->frm.stage_ttl / BRIX_CMS_SEC_TO_MS_MULTIPLIER);
     }
 
     if (brix_stage_request_add(reg, &v, engine_reqid,

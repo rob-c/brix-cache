@@ -27,7 +27,15 @@
  * code and t->error_msg to a human-readable description.  Never touches
  * nginx event-loop state (no ctx, no c, no ngx_pool).
  */
-/* public API: brix_cksum_aio_thread() — async qcksum thread worker * WHAT: Thread pool worker that computes single-file checksum. Parses algo string via brix_checksum_parse, computes checksum via brix_checksum_hex_fd on pre-opened fd, writes "algo hex" result to resp buffer. On parse failure sets kXR_ArgInvalid; on compute failure sets kXR_IOError + error message. Never touches nginx event-loop state (no ctx, no c, no ngx_pool). */
+/* public API: brix_cksum_aio_thread() — async qcksum thread worker
+ * WHAT: Thread pool worker that computes single-file checksum.
+ *   - Parses algo string via brix_checksum_parse
+ *   - Computes checksum via brix_checksum_hex_fd on pre-opened fd
+ *   - Writes "algo hex" result to resp buffer
+ *   - On parse failure: sets kXR_ArgInvalid
+ *   - On compute failure: sets kXR_IOError + error message
+ *   - Never touches nginx event-loop state (no ctx, no c, no ngx_pool)
+ */
 
 void
 brix_cksum_aio_thread(void *data, ngx_log_t *log)
@@ -65,7 +73,13 @@ brix_cksum_aio_thread(void *data, ngx_log_t *log)
  * The fd is closed before the destroy check so it is never leaked even
  * when the client disconnected while the AIO was in flight.
  */
-/* public API: brix_cksum_aio_done() — async qcksum completion callback * WHAT: Main-thread event handler invoked when the thread worker completes. Closes t->fd if path-based request (t->close_fd), restores request streamid via aio_restore_request, sends error response or ok+checksum data to client, resumes client connection event loop via brix_aio_resume(). */
+/* public API: brix_cksum_aio_done() — async qcksum completion callback
+ * WHAT: Main-thread event handler when thread worker completes.
+ *   - Closes t->fd if path-based request (t->close_fd)
+ *   - Restores request streamid via aio_restore_request
+ *   - Sends error response or ok+checksum data to client
+ *   - Resumes client connection event loop via brix_aio_resume()
+ */
 
 void
 brix_cksum_aio_done(ngx_event_t *ev)

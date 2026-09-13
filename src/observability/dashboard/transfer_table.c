@@ -191,7 +191,7 @@ brix_transfer_slot_update_bytes(brix_transfer_table_t *t,
             if (dt >= BRIX_XFER_SAMPLE_MS) {
                 int64_t  db   = (int64_t) slot->bytes
                                 - (int64_t) slot->bytes_last_sample;
-                uint64_t raw  = (db > 0) ? (uint64_t) (db * 1000 / dt) : 0;
+                uint64_t raw  = (db > 0) ? (uint64_t) (db * BRIX_MSEC_PER_SEC / dt) : 0;
                 uint64_t prev = (uint64_t) slot->instant_bps;
 
                 slot->instant_bps      = (ngx_atomic_t) ((raw + prev * 3) / 4);

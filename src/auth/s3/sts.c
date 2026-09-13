@@ -27,8 +27,9 @@
 #include <string.h>
 #include <time.h>
 
-#define BRIX_STS_TTL_MIN   900       /* AWS floor:  15 min */
-#define BRIX_STS_TTL_MAX   43200     /* AWS ceiling: 12 h  */
+/* STS TTL constants now in src/core/types/tunables.h:
+ * BRIX_STS_TTL_MIN_SEC (900), BRIX_STS_TTL_MAX_SEC (43200)
+ */
 
 
 /* ------------------------------------------------------------------------- *
@@ -68,13 +69,13 @@ static int
 sts_clamp_ttl(int ttl)
 {
     if (ttl <= 0) {
-        return 3600;
+        return BRIX_STS_TTL_DEFAULT_SEC;
     }
-    if (ttl < BRIX_STS_TTL_MIN) {
-        return BRIX_STS_TTL_MIN;
+    if (ttl < BRIX_STS_TTL_MIN_SEC) {
+        return BRIX_STS_TTL_MIN_SEC;
     }
-    if (ttl > BRIX_STS_TTL_MAX) {
-        return BRIX_STS_TTL_MAX;
+    if (ttl > BRIX_STS_TTL_MAX_SEC) {
+        return BRIX_STS_TTL_MAX_SEC;
     }
     return ttl;
 }
@@ -279,8 +280,8 @@ sts_prepare(ngx_pool_t *pool, sts_req_t *req, char *url, size_t urlsz,
     ngx_log_t *log)
 {
     const brix_s3_sts_conf_t *cf = req->cf;
-    char  action_qs[2048];
-    char  signed_qs[2560];
+    char  action_qs[BRIX_STS_ACTION_QS_BUF_SIZE];
+    char  signed_qs[BRIX_STS_SIGNED_QS_BUF_SIZE];
     int   n;
 
     if (sts_prep_common(pool, req, log) != NGX_OK) {
@@ -426,7 +427,7 @@ sts_finish(ngx_pool_t *pool, const sts_resp_t *resp,
 {
     char r_ak[256];
     char r_sk[512];
-    char r_session[8192];
+    char r_session[BRIX_STS_SESSION_BUF_SIZE];
     sts_creds_buf_t creds = {
         r_ak, sizeof(r_ak),
         r_sk, sizeof(r_sk),
@@ -453,7 +454,7 @@ brix_s3_sts_assume(ngx_pool_t *pool, const brix_identity_t *id,
 {
     sts_req_t  req = { 0 };
     sts_resp_t resp = { 0 };
-    char       url[3072];
+    char       url[BRIX_STS_URL_BUF_SIZE];
 
     if (sts_validate(pool, cf, out, log) != NGX_OK) {
         return NGX_ERROR;

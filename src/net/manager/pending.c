@@ -2,9 +2,21 @@
 #include "core/compat/shm_slots.h"
 #include <ngx_shmtx.h>
 
-ngx_shm_zone_t *brix_pending_shm_zone;
+/*
+ * Encapsulated module state — access via accessor functions.
+ * WHY: Prevents accidental modification, enables future extension.
+ */
+static ngx_shm_zone_t *brix_pending_shm_zone;
+static ngx_shmtx_t     brix_pending_mutex;
 
-static ngx_shmtx_t  brix_pending_mutex;
+/*
+ * brix_pending_get_shm_zone — accessor for pending-locate SHM zone.
+ */
+ngx_shm_zone_t *
+brix_pending_get_shm_zone(void)
+{
+    return brix_pending_shm_zone;
+}
 
 /**
  * WHAT: Retrieve the shared-memory pending-locate table pointer.
@@ -94,6 +106,21 @@ brix_pending_configure(ngx_conf_t *cf)
     return NGX_OK;
 }
 
+/*
+ * brix_pending_insert — allocate a new pending-locate slot for an in-flight kXR_locate.
+ *
+ * WHAT: Allocates a slot in the shared-memory pending-locate table for a new
+ *       in-flight kXR_locate request. Stores streamid, worker PID, connection
+ *       FD, connection number, client streamid bytes, and expiry time.
+ * WHY:  Tracks in-flight locate requests across workers so responses can be
+ *       matched to the correct client connection. Enables request coalescing
+ *       (multiple clients asking about the same path share one probe) and
+ *       timeout handling (expired entries are reaped).
+ * HOW:  Linear scan for expired slots (reaped on-the-fly) or free slots.
+ *       Returns NGX_AGAIN if table is full (all BRIX_PENDING_LOCATE_SLOTS
+ *       occupied and not expired). Otherwise populates the slot and returns
+ *       NGX_OK. Caller must ensure timeout_ms is appropriate for the workload.
+ */
 ngx_int_t
 brix_pending_insert(uint32_t streamid, ngx_pid_t worker_pid,
     int conn_fd, ngx_atomic_uint_t conn_number,
@@ -270,6 +297,22 @@ brix_pending_take_path(uint32_t streamid, ngx_pid_t worker_pid,
     return have;
 }
 
+/*
+ * brix_pending_lookup — find a pending-locate slot by streamid+worker PID.
+ *
+ * WHAT: Searches the pending-locate table for an entry matching the given
+ *       streamid and worker PID. Returns pointer to the slot if found,
+ *       NULL otherwise. The mutex remains locked on return.
+ * WHY:  Used by multiple callers that need to access or modify a specific
+ *       pending entry: brix_pending_set_path (attach path),
+ *       brix_pending_take_path (read path at expiry),
+ *       brix_pending_remove (cleanup after response). The lookup must be
+ *       worker-scoped to prevent cross-worker interference.
+ * HOW:  Linear scan of all BRIX_PENDING_LOCATE_SLOTS entries, matching both
+ *       streamid and worker_pid. Returns with mutex held — caller must call
+ *       brix_pending_unlock() when done. This unusual pattern (returning with
+ *       lock held) prevents race conditions between lookup and modification.
+ */
 brix_pending_locate_t *
 brix_pending_lookup(uint32_t streamid, ngx_pid_t worker_pid)
 {

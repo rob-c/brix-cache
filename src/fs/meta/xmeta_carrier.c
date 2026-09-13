@@ -140,7 +140,7 @@ xmeta_read_buf_ensure(uint8_t **bufp, size_t *capp, size_t got)
     if (got != cap) {
         return 0;
     }
-    cap = cap ? cap * 2 : 64 * 1024;
+    cap = cap ? cap * 2 : BRIX_VFS_XMETA_CARRIER_CAP_INIT;
     grown = realloc(*bufp, cap);
     if (grown == NULL) {
         free(*bufp);

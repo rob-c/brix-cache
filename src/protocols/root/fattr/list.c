@@ -18,8 +18,8 @@
  *   memory and wire frame size for huge trees.
  * FATTR_RECURSE_MAX_DEPTH — recursion guard against deep/symlink-loop trees.
  */
-#define FATTR_RECURSE_XLIST_BUF  8192
-#define FATTR_RECURSE_RESP_CAP   (256 * 1024)
+#define FATTR_RECURSE_XLIST_BUF  BRIX_ROOT_FATTR_XLIST_BUF
+#define FATTR_RECURSE_RESP_CAP   BRIX_ROOT_FATTR_RESP_CAP
 #define FATTR_RECURSE_MAX_DEPTH  16
 
 typedef struct {
@@ -348,8 +348,8 @@ fattr_list_read_names(brix_ctx_t *ctx, ngx_connection_t *c,
         return out;
     }
 
-    /* +4096 slack absorbs names added between phase 1 and phase 2 (TOCTOU). */
-    raw = ngx_palloc(c->pool, list_sz + 4096);
+    /* +BRIX_ROOT_FATTR_PATH_SLACK absorbs names added between phase 1 and phase 2 (TOCTOU). */
+    raw = ngx_palloc(c->pool, list_sz + BRIX_ROOT_FATTR_PATH_SLACK);
     if (raw == NULL) {
         out.done = 1;
         out.rc = brix_send_error(ctx, c, kXR_NoMemory, "out of memory");
@@ -357,8 +357,8 @@ fattr_list_read_names(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /* Phase 2: read the actual NUL-separated name list into raw. */
-    actual = path ? brix_vfs_listxattr(vctx, raw, list_sz + 4096)
-                  : brix_vfs_flistxattr(vctx, fd, raw, list_sz + 4096);
+    actual = path ? brix_vfs_listxattr(vctx, raw, list_sz + BRIX_ROOT_FATTR_PATH_SLACK)
+                  : brix_vfs_flistxattr(vctx, fd, raw, list_sz + BRIX_ROOT_FATTR_PATH_SLACK);
     if (actual < 0) {
         out.done = 1;
         out.rc = brix_send_error(ctx, c, kXR_FSError, "listxattr failed");
@@ -391,7 +391,7 @@ static void
 fattr_list_append_value(brix_vfs_ctx_t *vctx, const char *path, int fd,
     const char *full_key, u_char **wp)
 {
-    char     val[4096];
+    char     val[BRIX_ROOT_FATTR_VAL_BUF];
     ssize_t  vlen = path
         ? brix_vfs_getxattr(vctx, full_key, val, sizeof(val))
         : brix_vfs_fgetxattr(vctx, fd, full_key, val, sizeof(val));
@@ -442,7 +442,7 @@ fattr_list_build(brix_vfs_ctx_t *vctx, const char *path, int fd, int aData,
             size_t      resp_nlen = full_nlen - BRIX_FATTR_XKEY_PFX_LEN;
             /* name + NUL, plus (if aData) the 4-byte len prefix + value buffer. */
             size_t space_needed = resp_nlen + 1
-                                  + (aData ? 4 + 4096 : 0);
+                                  + (aData ? 4 + BRIX_ROOT_FATTR_LIST_SLACK : 0);
             /* Stop before overrunning resp_cap (rest of the list is dropped). */
             if ((size_t)(wp - resp) + space_needed > resp_cap) break;
             ngx_memcpy(wp, resp_name, resp_nlen);
@@ -503,10 +503,11 @@ ngx_int_t fattr_list(brix_ctx_t *ctx, ngx_connection_t *c,
     /*
      * Worst-case response size: every raw name kept, plus for aData each of up
      * to kXR_faMaxVars attributes contributes a 4-byte length prefix + a value
-     * up to 4096 bytes; +64 header slop. Over-provisioned so the build loop need
-     * not realloc — the break inside still guards against exceeding it.
+     * up to BRIX_ROOT_FATTR_VAL_BUF bytes; +64 header slop. Over-provisioned so
+     * the build loop need not realloc — the break inside still guards against
+     * exceeding it.
      */
-    resp_cap = (size_t) rd.actual + kXR_faMaxVars * (4 + 4096) + 64;
+    resp_cap = (size_t) rd.actual + kXR_faMaxVars * (4 + BRIX_ROOT_FATTR_VAL_BUF) + 64;
     resp = ngx_palloc(c->pool, resp_cap);
     if (resp == NULL) {
         return brix_send_error(ctx, c, kXR_NoMemory, "out of memory");

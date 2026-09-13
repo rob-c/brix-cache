@@ -26,7 +26,7 @@
 #include <sys/syscall.h>
 #include <sys/clonefile.h>
 #include <sys/stat.h>
-#include <sys/sendfile.h>
+#include <sys/socket.h>  /* sendfile on macOS */
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
@@ -191,6 +191,7 @@ brix_plat_supports_clonefile(const char *path)
 
 /*
  * Get clonefile statistics
+ * Phase 3 stub - returns 0 clones
  * 
  * @param path File path
  * @param clone_count Output: number of clones
@@ -201,27 +202,18 @@ int
 brix_plat_get_clone_stats(const char *path, uint32_t *clone_count, uint64_t *shared_bytes)
 {
     struct stat st;
-    struct clone_info_args args;
     
     if (stat(path, &st) < 0) {
         return -1;
     }
     
-    /* Get clone information */
-    args.path = path;
-    args.clone_count = 0;
-    args.shared_bytes = 0;
-    
-    if (ioctl(st.st_dev, FIODTYPE, &args) < 0) {
-        return -1;
-    }
-    
+    /* Phase 3 stub - no clone statistics available */
     if (clone_count) {
-        *clone_count = args.clone_count;
+        *clone_count = 0;
     }
     
     if (shared_bytes) {
-        *shared_bytes = args.shared_bytes;
+        *shared_bytes = 0;
     }
     
     return 0;

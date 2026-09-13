@@ -180,7 +180,7 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
     uint8_t              salt[BRIX_PWD_MAX_SALT];
     uint8_t              hash[BRIX_PWD_HASH_LEN];
     size_t               saltlen = 0, hashlen = 0;
-    char                 pwdpath[1024];
+    char                 pwdpath[BRIX_PWD_PATH_BUF_SIZE];
     char                 vos[sizeof(ctx->login.vo_list)];
     int                  verified;
 

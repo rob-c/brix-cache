@@ -135,7 +135,7 @@ imp_make_listen(const char *path, uid_t wuid, ngx_log_t *log)
         close(lfd);
         return -1;
     }
-    chmod(path, 0600);
+    chmod(path, BRIX_PERM_PRIVATE);
     if (wuid != (uid_t) -1) {
         if (chown(path, wuid, (gid_t) -1) != 0) {
             ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
@@ -187,7 +187,10 @@ imp_broker_child(int lfd, int rootfd, ngx_log_t *log)
     fp = fopen(pf, "we");
     if (fp != NULL) {
         fprintf(fp, "%ld\n", (long) getpid());
-        (void) fclose(fp); /* phase74-fp: best-effort pidfile write by design — fopen failure is tolerated the same way */
+        /* phase74-fp: best-effort pidfile write by design
+         * fopen failure is tolerated the same way
+         */
+        (void) fclose(fp);
     }
     /* broker_run drops caps to {SETUID,SETGID} then serves until killed. */
     _exit(brix_imp_broker_run(lfd, rootfd, NULL, log) == 0 ? 0 : 1);
@@ -240,8 +243,7 @@ imp_resolve_broker_user(ngx_cycle_t *cycle, uid_t wuid)
     char           nm[256];
     struct passwd *pw;
 
-    brix_imp_broker_user_uid = (uid_t) -1;
-    brix_imp_broker_user_gid = (gid_t) -1;
+    brix_imp_set_broker_user((uid_t) -1, (gid_t) -1);
     if (imp_settings.broker_user.len == 0) {
         return NGX_OK;
     }
@@ -268,8 +270,7 @@ imp_resolve_broker_user(ngx_cycle_t *cycle, uid_t wuid)
             nm);
         return NGX_ERROR;
     }
-    brix_imp_broker_user_uid = pw->pw_uid;
-    brix_imp_broker_user_gid = pw->pw_gid;
+    brix_imp_set_broker_user(pw->pw_uid, pw->pw_gid);
     return NGX_OK;
 }
 
@@ -415,7 +416,7 @@ imp_init_module_gate(ngx_cycle_t *cycle)
 ngx_int_t
 brix_imp_init_module(ngx_cycle_t *cycle)
 {
-    char             sockbuf[256], rootbuf[1024];
+    char             sockbuf[BRIX_IMP_SOCK_PATH_BUF_SIZE], rootbuf[BRIX_IMP_ROOT_PATH_BUF_SIZE];
     uid_t            wuid;
     imp_broker_fds_t fds = { -1, -1 };
     ngx_int_t        gate;

@@ -130,7 +130,7 @@ brix_prepare_close_inherited_fds(void)
 #endif
 
     maxfd = (int) sysconf(_SC_OPEN_MAX);
-    if (maxfd < 0) { maxfd = 1024; }
+    if (maxfd < 0) { maxfd = BRIX_ROOT_DEFAULT_MAX_FD; }
     for (fd = 3; fd < maxfd; fd++) { close(fd); }
 }
 

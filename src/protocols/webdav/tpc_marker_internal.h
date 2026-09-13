@@ -48,7 +48,7 @@ typedef struct {
     ngx_log_t                         *log;
     ngx_http_brix_webdav_loc_conf_t *conf;
     int                                is_push;
-    char                               url[4096];
+    char                               url[BRIX_WEBDAV_TPC_MARKER_URL_BUF];
     char                               local_path[WEBDAV_MAX_PATH];
     ngx_array_t                       *transfer_headers;
     const char                        *user_cert; /* per-user pull-leg cert (r->pool, or NULL) */

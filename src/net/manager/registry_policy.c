@@ -17,11 +17,18 @@
  */
 #include "registry_internal.h"
 
-brix_srv_sched_t  brix_srv_sched;        /* §2.3: all-zero = engine off */
+/*
+ * Module state - all policy globals encapsulated in single struct.
+ * Set at config time (before fork), read-only thereafter.
+ */
+static brix_srv_state_t srv_state;
 
-brix_srv_space_t  brix_srv_space;        /* §2.4: enforce=0 = gate off */
-
-ngx_uint_t    brix_srv_delay_servers;    /* §2.2: SUPCount floor, 0 = off */
+/* Accessor - returns pointer to module state */
+const brix_srv_state_t *
+brix_srv_state(void)
+{
+    return &srv_state;
+}
 
 
 /* §2.3 — install the component weights + fuzz/maxload (config time, before
@@ -33,12 +40,12 @@ brix_srv_set_sched(const brix_srv_sched_t *sched)
     ngx_uint_t *field, i;
 
     if (sched == NULL) {
-        ngx_memzero(&brix_srv_sched, sizeof(brix_srv_sched));
+        ngx_memzero(&srv_state.sched, sizeof(srv_state.sched));
         return;
     }
-    brix_srv_sched = *sched;
-    field = (ngx_uint_t *) &brix_srv_sched;
-    for (i = 0; i < sizeof(brix_srv_sched) / sizeof(ngx_uint_t); i++) {
+    srv_state.sched = *sched;
+    field = (ngx_uint_t *) &srv_state.sched;
+    for (i = 0; i < sizeof(srv_state.sched) / sizeof(ngx_uint_t); i++) {
         if (field[i] > 100) {
             field[i] = 100;
         }
@@ -52,32 +59,63 @@ void
 brix_srv_set_space(const brix_srv_space_t *space)
 {
     if (space == NULL) {
-        ngx_memzero(&brix_srv_space, sizeof(brix_srv_space));
+        ngx_memzero(&srv_state.space, sizeof(srv_state.space));
         return;
     }
-    brix_srv_space = *space;
+    srv_state.space = *space;
 }
 
 
-/* §2.2 — SUPCount floor setter (config time, before fork). */
+/*
+ * brix_srv_set_delay_servers — §2.2: set the SUPCount floor (config time, before fork).
+ *
+ * WHAT: Stores the minimum number of data-serving supervisors required before the
+ *       manager accepts direct server logins. Below this floor, new servers are
+ *       redirected to supervisors for tree formation.
+ * WHY:  Ensures cluster stability by requiring a minimum supervisor presence before
+ *       allowing data servers to register directly. Prevents premature server
+ *       registration when the cluster is still forming.
+ * HOW:  Simple assignment to the set-once global brix_srv_delay_servers. Called
+ *       during configuration parsing before worker fork.
+ */
 void
 brix_srv_set_delay_servers(ngx_uint_t n)
 {
-    brix_srv_delay_servers = n;
+    srv_state.delay_servers = n;
 }
 
 
+/*
+ * brix_srv_set_load_weight — set the legacy load-based selection weight (0-100).
+ *
+ * WHAT: Stores the weight for legacy load-based server selection, clamped to 0-100.
+ * WHY:  Provides backward compatibility with legacy load-based scoring while newer
+ *       deployments use the multi-component scheduler (§2.3). Weight of 0 disables
+ *       load-based selection entirely.
+ * HOW:  Clamps input to 100 max and stores in set-once global brix_srv_load_weight.
+ *       Called during configuration parsing before worker fork.
+ */
 void
 brix_srv_set_load_weight(ngx_uint_t weight)
 {
-    brix_srv_load_weight = weight > 100 ? 100 : weight;
+    srv_state.load_weight = weight > 100 ? 100 : weight;
 }
 
 
+/*
+ * brix_srv_set_affinity — enable/disable server affinity in selection.
+ *
+ * WHAT: Enables or disables server affinity, which prefers previously-selected
+ *       servers for repeat clients. Stored as binary flag (0=off, 1=on).
+ * WHY:  Server affinity improves cache locality and reduces connection churn by
+ *       routing repeat clients to the same backend server they used previously.
+ * HOW:  Converts any non-zero input to 1, stores in set-once global
+ *       brix_srv_affinity. Called during configuration parsing before fork.
+ */
 void
 brix_srv_set_affinity(ngx_uint_t on)
 {
-    brix_srv_affinity = on ? 1 : 0;
+    srv_state.affinity = on ? 1 : 0;
 }
 
 
@@ -137,8 +175,9 @@ brix_srv_count_servers(void)
 int
 brix_srv_below_floor(void)
 {
-    return brix_srv_delay_servers > 0
-           && brix_srv_count_servers() < brix_srv_delay_servers;
+    const brix_srv_state_t *st = brix_srv_state();
+    return st->delay_servers > 0
+           && brix_srv_count_servers() < st->delay_servers;
 }
 
 /*

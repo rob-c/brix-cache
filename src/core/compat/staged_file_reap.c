@@ -25,6 +25,7 @@
  */
 
 #include "staged_file.h"
+#include "../types/tunables.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -91,7 +92,7 @@ brix_stage_mark_pending(const char *stage_partial, const char *final_path,
         errno = ENAMETOOLONG;
         return NGX_ERROR;
     }
-    fd = open(marker, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0600);
+    fd = open(marker, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, BRIX_STAGE_FILE_MODE);
     if (fd < 0) {
         return NGX_ERROR;
     }

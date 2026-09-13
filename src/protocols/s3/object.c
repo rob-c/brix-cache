@@ -496,9 +496,38 @@ s3_get_serve_multirange(ngx_http_request_t *r, brix_vfs_file_t *fh,
     return xrdhttp_handle_multipart_get(r, send_fd, &sb, 1);
 }
 
-/* WHY: GET is the primary S3 data path — clients download object bytes via HTTP GET or byte-range requests. Range support (RFC 7233) enables resumable downloads and parallel chunked transfers, critical for large objects in HEP workflows where files often exceed gigabytes. The range-parse → headers → body-send pipeline is shared with WebDAV GET via brix_http_serve_file_ranged() (src/shared/file_serve.c); this handler keeps only the S3-specific concerns: NoSuchKey XML errors, identity resolution, and S3 range/bytes metrics. */
-
-/* HOW: Phase 1 — open the object through the VFS layer (brix_vfs_open, read-only, cache-aware). If the open fails: ENOENT/ENOTDIR → NoSuchKey 404 XML; other errno → brix_http_errno_to_status() with internal_error metric. Phase 2 — brix_vfs_file_stat(); a directory target → NoSuchKey 404 (S3 keys are objects, not directories). Phase 3 — resolve the display identity (token subject, else access key, else "anonymous"). Phase 4 — fill brix_http_serve_opts_t (xfer_proto=S3, op_name="GetObject", etag_flags=0) and delegate the entire range-parse/header/send pipeline to brix_http_serve_file_ranged(), which also takes ownership of the vfs handle. Phase 5 — from the returned result, increment the S3 range_total[FULL/PARTIAL/UNSATISFIED] counter and, on a non-zero body, bytes_tx_total plus the IPv4/IPv6 split. */
+/*
+ * WHY: GET is the primary S3 data path for client object downloads.
+ *
+ *   - Supports HTTP GET and byte-range requests (RFC 7233)
+ *   - Enables resumable downloads and parallel chunked transfers
+ *   - Critical for large HEP workflow objects (often gigabytes)
+ *   - Shares range-parse→headers→body-send pipeline with WebDAV GET
+ *   - S3-specific concerns only:
+ *     - NoSuchKey XML errors
+ *     - Identity resolution
+ *     - S3 range/bytes metrics
+ *
+ * HOW: Five-phase pipeline for S3 GetObject requests.
+ *
+ *   Phase 1: Open object via VFS layer (brix_vfs_open, read-only, cache-aware)
+ *     - ENOENT/ENOTDIR → NoSuchKey 404 XML
+ *     - Other errno → brix_http_errno_to_status() + internal_error metric
+ *
+ *   Phase 2: brix_vfs_file_stat()
+ *     - Directory target → NoSuchKey 404 (S3 keys are objects, not directories)
+ *
+ *   Phase 3: Resolve display identity
+ *     - Priority: token subject → access key → "anonymous"
+ *
+ *   Phase 4: Fill brix_http_serve_opts_t and delegate to brix_http_serve_file_ranged()
+ *     - xfer_proto=S3, op_name="GetObject", etag_flags=0
+ *     - brix_http_serve_file_ranged() takes ownership of vfs handle
+ *
+ *   Phase 5: Update metrics from result
+ *     - Increment S3 range_total[FULL/PARTIAL/UNSATISFIED]
+ *     - On non-zero body: bytes_tx_total + IPv4/IPv6 split
+ */
 /*
  * s3_handle_get - serve a file as an S3 GetObject response.
  *
@@ -565,7 +594,9 @@ s3_handle_get(ngx_http_request_t *r,
      * NGX_DECLINED we fall through to serve the object.
      */
     {
-        /* phase78-fp: s3_get_resolve (above, NGX_DECLINED path) populated vst via brix_vfs_file_stat before returning */
+        /* phase78-fp: s3_get_resolve populated vst via brix_vfs_file_stat
+         * above, NGX_DECLINED path
+         */
         ngx_int_t crc = s3_handle_conditional(r, vst.mtime, vst.size); /* NOLINT(clang-analyzer-core.CallAndMessage) */
         if (crc != NGX_DECLINED) {
             brix_vfs_close(fh, r->connection->log);

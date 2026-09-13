@@ -155,7 +155,7 @@ blfile_parse_hostspec(const char *line, size_t len,
 
     if (colon != NULL) {
         v = blfile_parse_uint(colon + 1, len - (size_t) (colon - line) - 1,
-                              65535);
+                              BRIX_CMS_MAX_PORT);
         if (v < 1) {
             return -1;
         }
@@ -184,7 +184,7 @@ blfile_parse_redirect(const char *tok, size_t len,
     if (blfile_find_port_colon(tok, len, &colon) != 0 || colon == NULL) {
         return -1;
     }
-    v = blfile_parse_uint(colon + 1, len - (size_t) (colon - tok) - 1, 65535);
+    v = blfile_parse_uint(colon + 1, len - (size_t) (colon - tok) - 1, BRIX_CMS_MAX_PORT);
     if (v < 1) {
         return -1;
     }
@@ -437,7 +437,7 @@ static int
 blfile_refresh(brix_cms_blfile_t *bl, const ngx_str_t *path,
     ngx_uint_t force, ngx_log_t *log)
 {
-    char         pathbuf[1024];
+    char         pathbuf[BRIX_PATH_BUF_SIZE];
     struct stat  st;
 
     if (bl == NULL || path == NULL || path->len == 0

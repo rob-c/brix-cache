@@ -22,6 +22,7 @@
 #include "impersonate.h"
 #include "core/compat/cstr.h"
 #include "idmap_internal.h"
+#include "impersonate_state.h"
 
 #include <pwd.h>
 #include <grp.h>
@@ -43,10 +44,11 @@ typedef struct {
 static idmap_cache_slot_t      idmap_cache[IDMAP_CACHE_SLOTS];
 
 static time_t                  idmap_ttl      = BRIX_IDMAP_DEFAULT_TTL;
-uid_t                          idmap_min_uid  = BRIX_IDMAP_DEFAULT_MIN_UID;
-int                            idmap_primary_only;
+/* Globals migrated to brix_idmap_state_t in impersonate_state.h */
+#define idmap_min_uid         (brix_idmap_state.min_uid)
+#define idmap_primary_only    (brix_idmap_state.primary_only)
 static char                    idmap_default_user[IDMAP_PRINC_MAX]; /* "" = deny */
-static int                     idmap_gate_loaded;   /* P80.21: gate map present */
+#define idmap_gate_loaded     (brix_idmap_state.gate_loaded)
 
 
 static ngx_uint_t
@@ -72,8 +74,8 @@ idmap_init_policy(const brix_idmap_conf_t *conf, ngx_log_t *log)
 {
     idmap_ttl     = (conf->cache_ttl > 0) ? (time_t) conf->cache_ttl
                                           : BRIX_IDMAP_DEFAULT_TTL;
-    idmap_min_uid = (conf->min_uid > 0) ? conf->min_uid
-                                        : BRIX_IDMAP_DEFAULT_MIN_UID;
+    brix_idmap_set_min_uid((conf->min_uid > 0) ? conf->min_uid
+                                               : BRIX_IDMAP_DEFAULT_MIN_UID);
     /*
      * Clamp the effective floor UP to the absolute hard floor: ids below
      * BRIX_IMP_HARD_MIN_ID can never be impersonated, even if an admin sets a
@@ -81,17 +83,17 @@ idmap_init_policy(const brix_idmap_conf_t *conf, ngx_log_t *log)
      * the broker's syscall edge; clamping here turns it into a clean deny instead
      * of a fatal broker abort.)
      */
-    if (idmap_min_uid < BRIX_IMP_HARD_MIN_ID) {
+    if (brix_idmap_get_min_uid() < BRIX_IMP_HARD_MIN_ID) {
         if (log != NULL) {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
                           "impersonate: brix_idmap_min_uid %d raised to the hard "
                           "reserved-id floor %d (uids/gids below %d can never be "
-                          "impersonated)", (int) idmap_min_uid,
+                          "impersonated)", (int) brix_idmap_get_min_uid(),
                           BRIX_IMP_HARD_MIN_ID, BRIX_IMP_HARD_MIN_ID);
         }
-        idmap_min_uid = BRIX_IMP_HARD_MIN_ID;
+        brix_idmap_set_min_uid(BRIX_IMP_HARD_MIN_ID);
     }
-    idmap_primary_only = conf->primary_only ? 1 : 0;
+    brix_idmap_set_primary_only(conf->primary_only ? 1 : 0);
 }
 
 ngx_int_t

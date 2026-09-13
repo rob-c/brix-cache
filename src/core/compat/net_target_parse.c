@@ -9,6 +9,7 @@
 #include "net_target.h"
 #include "net_target_internal.h"
 #include "cstr.h"
+#include "../types/tunables.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -110,7 +111,7 @@ net_parse_port_digits(const u_char *begin, const u_char *end,
             return NGX_ERROR;
         }
         p_val = p_val * 10 + (*d - '0');
-        if (p_val > 65535) {
+        if (p_val > BRIX_MAX_PORT) {
             snprintf(err, errsz, "port out of range");
             return NGX_ERROR;
         }

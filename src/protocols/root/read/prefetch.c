@@ -6,7 +6,9 @@
 #include "prefetch.h"
 #include "fs/backend/sd.h"   /* read-ahead hints go through the SD seam */
 #include <string.h>
-/* PAL endian ops now in platform_api.h */  /* brix_plat_be64toh/brix_plat_htobe64 cross-platform */
+/* PAL endian ops now in platform_api.h
+ * brix_plat_be64toh/brix_plat_htobe64 cross-platform
+ */
 
 /* Issue a WILLNEED read-ahead hint for [offset, offset+length) on fd through
  * the Storage Driver seam (phase-56 B-2).  Best-effort; a no-op on bad args

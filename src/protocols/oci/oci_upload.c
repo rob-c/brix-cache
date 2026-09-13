@@ -35,7 +35,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define OCI_UPLOAD_SESSION_MODE  0700
+#define OCI_UPLOAD_SESSION_MODE  BRIX_OCI_UPLOAD_SESSION_MODE
 
 
 /* "<hex><hex>" from the worker pid and the request's own randomness. The id

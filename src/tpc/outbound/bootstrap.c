@@ -1,5 +1,12 @@
 /* File: bootstrap.c — Anonymous XRootD source session setup for TPC pull
- * WHAT: Establishes an anonymous XRootD session on the remote origin by executing the three-step handshake pipeline: ClientInitHandShake → kXR_protocol version negotiation → kXR_login with username "xrd" and capver kXR_ver005. Supports OAuth2/OIDC token delegation — when t->token_mode is set, fetches a delegated token before login so authenticated source fetch replaces anonymous login.
+ * WHAT: Establishes anonymous XRootD session on remote origin.
+ *   - Three-step handshake pipeline:
+ *     1. ClientInitHandShake
+ *     2. kXR_protocol version negotiation
+ *     3. kXR_login (username="xrd", capver=kXR_ver005)
+ *   - Supports OAuth2/OIDC token delegation
+ *   - When t->token_mode set: fetches delegated token before login
+ *   - Enables authenticated source fetch
  *
  * WHY: Native TPC pull requires nginx to connect to the remote root:// source as an XRootD client before it can read the file and write it locally. This bootstrap establishes the session layer (handshake + protocol version check + login) that every subsequent kXR_open/read/close operation depends on. Token delegation enables authenticated source fetches when the source site requires auth but nginx has a delegated token from the destination's OIDC provider.
  *
@@ -236,7 +243,10 @@ tpc_bootstrap_login(brix_tpc_pull_t *t, int fd)
 
 
 /* Anonymous XRootD session setup: handshake → kXR_protocol → kXR_login */
-/* WHAT: Bootstrap anonymous XRootD session on remote TPC origin — execute handshake → protocol version negotiation → login pipeline. */
+/* WHAT: Bootstrap anonymous XRootD session on remote TPC origin.
+ *   - Executes handshake
+ *   - Protocol version negotiation
+ *   - Login pipeline */
 
 int
 tpc_bootstrap_transport(brix_tpc_pull_t *t, int fd)

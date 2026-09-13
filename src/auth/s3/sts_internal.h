@@ -131,8 +131,8 @@ typedef struct {
 typedef struct {
     char amzdate[17];
     char content_sha256[65];
-    char body[1024];
-    char authorization[1024];
+    char body[BRIX_STS_BODY_BUF_SIZE];
+    char authorization[BRIX_STS_AUTHZ_BUF_SIZE];
 } sts_post_t;
 
 

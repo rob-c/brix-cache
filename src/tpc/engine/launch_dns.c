@@ -160,7 +160,7 @@ brix_tpc_prepare_park_dns(brix_ctx_t *ctx, ngx_connection_t *c,
 
     w->dns.name.data = (u_char *) w->tpc.src_host;
     w->dns.name.len = ngx_strlen(w->tpc.src_host);
-    w->dns.port = tpc->src_port ? tpc->src_port : 1094;
+    w->dns.port = tpc->src_port ? tpc->src_port : TPC_DEFAULT_PORT;
     w->dns.af = BRIX_AF_AUTO;
     w->dns.socktype = SOCK_STREAM;
     w->dns.policy = conf->common.dns.policy;

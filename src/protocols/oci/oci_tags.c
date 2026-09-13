@@ -43,8 +43,8 @@
 /* Registries page tag lists; an unpaginated one for a busy repository is still
  * only tens of KiB. A larger answer is refused rather than truncated — half a
  * JSON array is worse than a 502. */
-#define OCI_TAGS_RESP_MAX     (256 * 1024)
-#define OCI_TAGS_TIMEOUT_MS   10000
+#define OCI_TAGS_RESP_MAX     BRIX_OCI_TAGS_RESP_MAX
+/* OCI_TAGS_TIMEOUT_MS defined in oci.h */
 
 typedef struct {
     ngx_http_request_t   *r;
@@ -89,7 +89,7 @@ oci_tags_leg(oci_tags_task_t *t, const char *hdrs,
     brix_s3_resp_t              resp;
     const void                 *body;
     size_t                      blen = 0;
-    char                        errbuf[256];
+    char                        errbuf[BRIX_OCI_TAGS_CHAL_BUF];
 
     t->status     = -1;
     t->body_len   = 0;
@@ -137,7 +137,7 @@ static void
 oci_tags_thread(void *data, ngx_log_t *log)
 {
     oci_tags_task_t  *t = data;
-    char              challenge[1024];
+    char              challenge[BRIX_OCI_TAGS_CHAL_BUF];
     char              tok[BRIX_OCI_TOKEN_MAX];
     char              hdrs[BRIX_OCI_TOKEN_MAX + 64];
 

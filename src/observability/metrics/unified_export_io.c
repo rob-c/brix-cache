@@ -289,7 +289,7 @@ unified_emit_latency_bucket(metrics_writer_t *mw, const char *pn,
 {
     mw_printf(mw, "brix_io_latency_seconds_bucket"
                   "{proto=\"%s\",op=\"%s\",le=\"%.6f\"} %llu\n",
-              pn, opn, (double) bound_usec / 1000000.0, value);
+              pn, opn, (double) bound_usec / BRIX_PPM_MULTIPLIER, value);
 }
 
 
@@ -319,7 +319,7 @@ unified_emit_io_latency_series(metrics_writer_t *mw, ngx_brix_metrics_t *shm,
 
     sum_usec = brix_metric_value(&shm->unified.io_latency_sum_usec[proto][op]);
     mw_printf(mw, "brix_io_latency_seconds_sum{proto=\"%s\",op=\"%s\"} %.6f\n",
-              pn, opn, (double) sum_usec / 1000000.0);
+              pn, opn, (double) sum_usec / BRIX_PPM_MULTIPLIER);
     mw_printf(mw, "brix_io_latency_seconds_count{proto=\"%s\",op=\"%s\"} %llu\n",
               pn, opn,
               brix_metric_value(&shm->unified.io_latency_count[proto][op]));

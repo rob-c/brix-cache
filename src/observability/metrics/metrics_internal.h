@@ -36,7 +36,7 @@ typedef struct {
 extern ngx_module_t ngx_http_brix_metrics_module;
 
 /* Buffer chain writer for Prometheus text output. */
-#define METRICS_BUF_SIZE  65536
+#define METRICS_BUF_SIZE  BRIX_METRICS_EXPORT_BUF_SIZE
 
 /* Grow-only buffered writer: mw_printf/mw_emit_* append text into a chain of
  * METRICS_BUF_SIZE buffers (pool-allocated), starting a new buffer when the

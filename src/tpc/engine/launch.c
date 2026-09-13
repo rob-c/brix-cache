@@ -95,7 +95,7 @@ tpc_sess_begin_pull(brix_tpc_pull_t *t)
         return;
     }
 
-    sport = t->src_port ? t->src_port : 1094;
+    sport = t->src_port ? t->src_port : TPC_DEFAULT_PORT;
     brix_format_host_port(t->src_host, sport, peer, sizeof(peer));
     method = tpc_sess_auth_method(t);
     t->sess = brix_sess_begin(t->conf->session_log, t->conf->access_log_fd,
@@ -149,7 +149,7 @@ tpc_register_stream_transfer(ngx_connection_t *c, brix_file_t *file)
      * tpc_src_host is stored bare (parse.c strips the brackets off "[::1]"), so
      * "root://[::1]:1094/path" must be re-bracketed here or the URL is
      * unparseable.  No NUL is written; src_url.len is the returned end pointer. */
-    sport = file->tpc_src_port ? file->tpc_src_port : 1094;
+    sport = file->tpc_src_port ? file->tpc_src_port : TPC_DEFAULT_PORT;
     {
         char hostport[288];
         brix_format_host_port(file->tpc_src_host, sport,
@@ -368,7 +368,15 @@ tpc_pull_resolve_pmark(brix_tpc_pull_t *t, brix_ctx_t *ctx,
     }
 }
 
-/* WHAT: Allocate ngx_thread_task(sizeof(brix_tpc_pull_t)) → populate struct from file fields (src_host/path/key/org/token_mode/dst_path) → set handler=brix_tpc_pull_thread, event.handler=brix_tpc_pull_done → post to thread pool. Returns NGX_OK or error on alloc/post failure. Caller: dispatch.c (kXR_sync TPC launch path). */
+/* WHAT: Allocate and post TPC pull task to thread pool.
+ *   - Allocates ngx_thread_task(sizeof(brix_tpc_pull_t))
+ *   - Populates struct from file fields
+ *     (src_host/path/key/org/token_mode/dst_path)
+ *   - Sets handler=brix_tpc_pull_thread
+ *   - Sets event.handler=brix_tpc_pull_done
+ *   - Posts to thread pool
+ *   - Returns NGX_OK or error on alloc/post failure
+ *   - Caller: dispatch.c (kXR_sync TPC launch path) */
 ngx_int_t
 brix_tpc_start_pull(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, int fhandle_idx)
@@ -447,7 +455,14 @@ brix_tpc_start_pull(brix_ctx_t *ctx, ngx_connection_t *c,
     return NGX_OK;
 }
 
-/* WHAT: Wrapper for brix_tpc_prepare_pull — delegates full validation + fhandle allocation + confined fd open + metadata setup + key generation to prepare_pull. Returns prepare_pull result (NGX_OK or error). Caller: dispatch.c (kXR_open TPC opaque param path entry point). */
+/* WHAT: Wrapper for brix_tpc_prepare_pull.
+ *   - Delegates full validation to prepare_pull
+ *   - Delegates fhandle allocation to prepare_pull
+ *   - Delegates confined fd open to prepare_pull
+ *   - Delegates metadata setup to prepare_pull
+ *   - Delegates key generation to prepare_pull
+ *   - Returns prepare_pull result (NGX_OK or error)
+ *   - Caller: dispatch.c (kXR_open TPC opaque param entry point) */
 ngx_int_t
 brix_tpc_launch_pull(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc,

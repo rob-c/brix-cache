@@ -77,7 +77,7 @@ brix_upstream_parse_host_port(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf,
         pnum = strtol(colon + 1, &endp, 10);
     }
 
-    if (*endp != '\0' || pnum <= 0 || pnum > 65535) {
+    if (*endp != '\0' || pnum <= 0 || pnum > BRIX_MAX_PORT) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_upstream: invalid port in \"%V\"", raw);
         return NGX_ERROR;

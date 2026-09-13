@@ -215,7 +215,7 @@ s3_put_is_exclusive_create(ngx_http_request_t *r)
 static void
 s3_override_header(ngx_http_request_t *r, const char *param, const char *header)
 {
-    char   val[1024];
+    char   val[BRIX_S3_CONDITIONAL_VAL_BUF];
     size_t len;
 
     /* query_get returns 1 on success and NUL-terminates val; the decoded

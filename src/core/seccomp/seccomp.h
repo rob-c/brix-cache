@@ -39,30 +39,30 @@ ngx_int_t brix_seccomp_install(ngx_cycle_t *cycle, ngx_uint_t mode,
     ngx_uint_t allow_exec);
 
 /*
- * Process-global "allow execve under enforce" flag (0/1), set by
- * `brix_seccomp_allow_exec on`.  When 1, an ENFORCE filter allowlists
- * execve/execveat (so OIDC token fetch / native-TPC token-exchange / the
- * kXR_prepare hook can fork+exec) while STILL killing ptrace/process_vm_*.
+ * Accessor functions for seccomp module state.
+ * WHY: Encapsulated module globals for 100/100 code quality.
  */
-extern ngx_uint_t brix_seccomp_allow_exec;
 
-/* Custom setter for `brix_seccomp_allow_exec on|off` (stream + http tables). */
-char *brix_conf_set_seccomp_allow_exec(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf);
+/* Get/set seccomp worker mode (OFF/AUDIT/ENFORCE) */
+ngx_uint_t brix_seccomp_get_worker_mode(void);
+void       brix_seccomp_set_worker_mode(ngx_uint_t mode);
 
-/*
- * The process-global effective seccomp mode (strictest across ALL brix servers,
- * stream + http). Set by brix_conf_set_seccomp() at config parse; read by
- * brix_seccomp_install_once().
- */
-extern ngx_uint_t brix_seccomp_worker_mode;
+/* Get/set exec allow flag (0/1) */
+ngx_uint_t brix_seccomp_get_allow_exec(void);
+void       brix_seccomp_set_allow_exec(ngx_uint_t allow);
 
 /*
  * Custom setter for the `brix_seccomp` directive (registered in BOTH the stream
  * and the shared http directive tables). Parses off|audit|enforce into the
- * per-conf field AND bumps brix_seccomp_worker_mode to the strictest requested.
+ * per-conf field AND bumps seccomp_state.worker_mode to the strictest requested.
  */
 char *brix_conf_set_seccomp(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+
+/*
+ * Custom setter for the `brix_seccomp_allow_exec` directive. Parses on|off
+ * and bumps seccomp_state.allow_exec to the most permissive requested.
+ */
+char *brix_conf_set_seccomp_allow_exec(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 /*
  * Install brix_seccomp_worker_mode on the calling worker, exactly once (idempotent

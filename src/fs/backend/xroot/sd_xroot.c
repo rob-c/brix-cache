@@ -493,7 +493,7 @@ brix_sd_xroot_create_origin(const brix_sd_xroot_origin_cfg_t *cfg,
     ngx_stream_brix_srv_conf_t *synth;
 
     if (cfg == NULL || cfg->host == NULL || cfg->host[0] == '\0'
-        || cfg->port <= 0 || cfg->port > 65535)
+        || cfg->port < BRIX_VFS_PORT_MIN || cfg->port > BRIX_VFS_PORT_MAX)
     {
         errno = EINVAL;
         return NULL;

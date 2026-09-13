@@ -115,7 +115,7 @@ typedef enum {
 } brix_tpc_deleg_result_t;
 
 /* Eight finite buckets plus +Inf, all in microseconds. */
-#define BRIX_IO_LATENCY_BUCKETS  9
+/* BRIX_IO_LATENCY_BUCKETS defined in tunables.h */
 
 /*
  * Map a proto/op/err enum to its Prometheus label string. The returned pointer

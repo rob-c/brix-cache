@@ -479,7 +479,8 @@ brix_qcksum_compute_sync(brix_qcksum_req_t *rq, brix_vfs_file_t *fh, int fd)
     return brix_send_ok(ctx, c, resp, (uint32_t) (strlen(resp) + 1));
 }
 
-/* WHAT: Parses a payload containing "algo:path", resolves the path through security checks (authdb, VO ACL, token scope),
+/* WHAT: Parses payload containing "algo:path", resolves path through:
+ *   - Security checks (authdb, VO ACL, token scope),
  *      opens the file confined, and delegates checksum computation to brix_query_build_checksum(). Returns hex-formatted result.
  * WHY: kXR_Qcksum can query either open-file handles or arbitrary paths; this handler implements the path-based variant with
  *      full security chain verification before accessing any filesystem resource.

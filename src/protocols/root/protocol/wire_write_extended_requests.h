@@ -28,8 +28,10 @@ typedef struct {
 
 /* ---- kXR_write (3019) — sequential write section ----
  *
- * WHAT: Request structure for writing contiguous data to a file. Unlike kXR_pgwrite, no per-page CRC32c integrity checking.
- *       Used by legacy clients or simple write operations without checksum verification. */
+ * WHAT: Request structure for writing contiguous data to a file.
+ *   - Unlike kXR_pgwrite, no per-page CRC32c integrity checking
+ *   - Used by legacy clients or simple write operations
+ *   - No checksum verification */
 
 /* ------------------------------------------------------------------ */
 /* kXR_write (3019)                                                     */
@@ -48,7 +50,9 @@ typedef struct {
 
 /* ---- kXR_sync (3016) — filesystem sync section ----
  *
- * WHAT: Request structure for fsyncing an open file handle to disk. Ensures all buffered writes are committed to storage. */
+ * WHAT: Request structure for fsyncing an open file handle to disk.
+ *   - Ensures all buffered writes are committed to storage
+ *   - Equivalent to POSIX fsync() */
 
 /* ------------------------------------------------------------------ */
 /* kXR_sync (3016)                                                      */
@@ -64,7 +68,9 @@ typedef struct {
 
 /* ---- kXR_truncate (3028) — file length reduction section ----
  *
- * WHAT: Request structure for reducing a file to a specified length. ClientTruncateRequest can use either path or handle-based approach. */
+ * WHAT: Request structure for reducing a file to a specified length.
+ *   - ClientTruncateRequest supports path or handle-based approach
+ *   - Reduces file to specified offset */
 
 typedef struct {
     kXR_char   streamid[2];
@@ -78,7 +84,9 @@ typedef struct {
 
 /* ---- kXR_mkdir (3008) — directory creation section ----
  *
- * WHAT: Request structure for creating a new directory. ClientMkdirRequest specifies path, POSIX permission mode, and mkdirpath option for parent creation. */
+ * WHAT: Request structure for creating a new directory.
+ *   - ClientMkdirRequest specifies path, POSIX mode
+ *   - mkdirpath option (0x01) creates parent directories */
 
 typedef struct {
     kXR_char   streamid[2];
@@ -108,7 +116,9 @@ typedef struct {
 
 /* ---- kXR_rmdir (3015) — directory removal section ----
  *
- * WHAT: Request structure for removing an empty directory by path. Unlike kXR_rm, only removes directories (not files). */
+ * WHAT: Request structure for removing an empty directory by path.
+ *   - Unlike kXR_rm, only removes directories (not files)
+ *   - Directory must be empty */
 
 /* ------------------------------------------------------------------ */
 /* kXR_rmdir (3015)                                                     */
@@ -124,7 +134,9 @@ typedef struct {
 
 /* ---- kXR_mv (3009) — rename/move section ----
  *
- * WHAT: Request structure for renaming or moving a file/directory. Payload contains source path followed by destination path, both null-terminated. */
+ * WHAT: Request structure for renaming or moving a file/directory.
+ *   - Payload: source path + destination path
+ *   - Both paths null-terminated */
 
 /* ------------------------------------------------------------------ */
 /* kXR_mv (3009)                                                        */
@@ -142,7 +154,10 @@ typedef struct {
 
 /* ---- kXR_chmod (3002) — permission modification section ----
  *
- * WHAT: Request structure for changing POSIX permission bits of a file/directory. Payload is null-terminated path with target mode in header. */
+ * WHAT: Request structure for changing POSIX permission bits.
+ *   - Applies to file or directory
+ *   - Payload: null-terminated path
+ *   - Target mode in header */
 
 /* ------------------------------------------------------------------ */
 /* kXR_chmod (3002)                                                     */
@@ -159,7 +174,9 @@ typedef struct {
 
 /* ---- kXR_endsess (3023) — session termination section ----
  *
- * WHAT: Request structure for gracefully closing an XRootD session. The client sends its sessid to tell the server which session to terminate. */
+ * WHAT: Request structure for gracefully closing an XRootD session.
+ *   - Client sends its sessid to identify session
+ *   - Server terminates specified session */
 
 /* ------------------------------------------------------------------ */
 /* kXR_bind (3024)                                                      */
@@ -185,7 +202,11 @@ typedef struct {
 
 /* ---- kXR_locate (3027) — file replica location query section ----
  *
- * WHAT: Request structure for asking the server to list available replicas of a file. Server responds with space-separated "XY<host:port>" tokens indicating replica locations and access modes. */
+ * WHAT: Request structure for querying file replica locations.
+ *   - Server responds with space-separated tokens
+ *   - Format: "XY<host:port>" per replica
+ *   - X = server status (S/M/s/m)
+ *   - Y = access mode (r/w) */
 
 /* ------------------------------------------------------------------ */
 /* kXR_locate (3027) — file replica location query                     */

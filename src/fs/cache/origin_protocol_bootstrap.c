@@ -10,7 +10,9 @@
 
 
 #if defined(__linux__)
-/* PAL endian ops now in platform_api.h */  /* brix_plat_htobe64/brix_plat_be64toh cross-platform */
+/* PAL endian ops now in platform_api.h
+ * brix_plat_htobe64/brix_plat_be64toh cross-platform
+ */
 #endif
 #include <errno.h>
 #include <fcntl.h>
@@ -234,7 +236,7 @@ origin_bs_login(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
 
     fr->body = NULL;
     if (brix_cache_read_response(t, oc, &fr->status, &fr->body,
-                                   &fr->dlen, 4096) != 0) {
+                                   &fr->dlen, BRIX_XLARGE_BUF_SIZE) != 0) {
         return -1;
     }
     return 0;

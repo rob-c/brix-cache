@@ -84,6 +84,16 @@ imp_settings_t imp_settings = {
     NGX_CONF_UNSET, NGX_CONF_UNSET,
 };
 
+/*
+ * WHAT: Return the current impersonation mode (BRIX_IMP_OFF, BRIX_IMP_SINGLE, BRIX_IMP_MAP).
+ *
+ * WHY: Other modules need to check if impersonation is active and which mode without
+ *   accessing the global imp_settings directly. This provides a stable API for mode checks
+ *   (e.g., skipping impersonated operations when mode is OFF).
+ *
+ * HOW:
+ *   - Return imp_settings.mode (set at config time, read-only after fork)
+ */
 int
 brix_imp_mode(void)
 {

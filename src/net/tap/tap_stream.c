@@ -300,8 +300,8 @@ tap_payload_extend_ckpxeq(brix_tap_stream_t *st)
         return 1;
     }
     if (sub_reqid == kXR_writev
-        && sub_dlen % 16 == 0
-        && sub_dlen <= 1024 * 16)  /* MAXSEGS * SEGSIZE */
+        && sub_dlen % BRIX_TAP_WRITEV_SEGSIZE == 0
+        && sub_dlen <= BRIX_TAP_WRITEV_MAX_PAYLOAD)  /* MAXSEGS * SEGSIZE */
     {
         st->payload_left = sub_dlen;
         st->wv_active    = 1;

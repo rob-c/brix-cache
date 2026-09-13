@@ -7,6 +7,7 @@
  */
 
 #include "lifecycle_timing.h"
+#include "../types/tunables.h"  /* BRIX_CORE_NSEC_PER_SEC, BRIX_CORE_NSEC_PER_USEC */
 #include <time.h>
 
 /*
@@ -26,7 +27,7 @@ brix_phase_now_ns(void)
         return 0;
     }
 
-    return (uint64_t) ts.tv_sec * 1000000000ull + (uint64_t) ts.tv_nsec;
+    return (uint64_t) ts.tv_sec * BRIX_CORE_NSEC_PER_SEC + (uint64_t) ts.tv_nsec;
 }
 
 /* Begin a run: snapshot the clock as both the absolute start and the first
@@ -55,7 +56,7 @@ us_since(uint64_t from_ns, uint64_t now_ns)
         return 0;
     }
 
-    return (now_ns - from_ns) / 1000ull;
+    return (now_ns - from_ns) / BRIX_CORE_NSEC_PER_USEC;
 }
 
 /*

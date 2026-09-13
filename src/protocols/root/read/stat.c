@@ -50,8 +50,8 @@ brix_make_vfs_body(ngx_stream_brix_srv_conf_t *conf, char *out, size_t outsz)
             brix_sd_space_t sp;
 
             if (inst->driver->space(inst, &sp) == NGX_OK) {
-                free_mb  = (long long) (sp.free_bytes  / 1048576u);
-                total_mb = (long long) (sp.total_bytes / 1048576u);
+                free_mb  = (long long) (sp.free_bytes  / BRIX_ROOT_BYTES_TO_MB);
+                total_mb = (long long) (sp.total_bytes / BRIX_ROOT_BYTES_TO_MB);
                 if (total_mb > 0) {
                     util = (int) (100.0 * (double) (total_mb - free_mb)
                                   / (double) total_mb);
@@ -64,8 +64,8 @@ brix_make_vfs_body(ngx_stream_brix_srv_conf_t *conf, char *out, size_t outsz)
 
     if (statvfs(root, &vfs) == 0) {
         unsigned long bs = vfs.f_frsize ? vfs.f_frsize : vfs.f_bsize;
-        free_mb  = (long long) ((double) vfs.f_bavail * (double) bs / 1048576.0);
-        total_mb = (long long) ((double) vfs.f_blocks * (double) bs / 1048576.0);
+        free_mb  = (long long) ((double) vfs.f_bavail * (double) bs / BRIX_ROOT_BYTES_TO_MB);
+        total_mb = (long long) ((double) vfs.f_blocks * (double) bs / BRIX_ROOT_BYTES_TO_MB);
         if (total_mb > 0) {
             util = (int) (100.0 * (double) (total_mb - free_mb)
                           / (double) total_mb);
@@ -433,7 +433,7 @@ stat_query_handle(brix_ctx_t *ctx, ngx_connection_t *c,
         st->st_ino   = sdst.ino;
         st->st_nlink = 1;
         st->st_mode  = sdst.mode ? (mode_t) sdst.mode
-                     : (sdst.is_dir ? (S_IFDIR | 0755) : (S_IFREG | 0644));
+                     : (sdst.is_dir ? (S_IFDIR | BRIX_ROOT_DEFAULT_DIR_MODE) : (S_IFREG | BRIX_ROOT_DEFAULT_FILE_MODE));
     } else if (fstat(ctx->files[idx].fd, st) != 0) {
         BRIX_BAIL_ERR(ctx, c, BRIX_OP_STAT, "STAT", tgt->full_path, "-",
                         kXR_IOError, strerror(errno), rc);

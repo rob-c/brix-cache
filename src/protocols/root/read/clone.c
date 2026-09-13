@@ -27,7 +27,9 @@
  */
 
 #include "clone.h"
-/* PAL endian ops now in platform_api.h */  /* brix_plat_be64toh/brix_plat_htobe64 cross-platform */
+/* PAL endian ops now in platform_api.h
+ * brix_plat_be64toh/brix_plat_htobe64 cross-platform
+ */
 #include "fs/backend/csi_tagstore.h"
 #include "protocols/root/connection/fd_table.h"
 #include "core/compat/copy_range.h"

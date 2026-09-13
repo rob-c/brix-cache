@@ -19,8 +19,8 @@
  *    - TPC_OPEN_RESOLVE_MAX_ITERS: 16 max wait/waitresp/attn rounds
  *
  * CONSTANTS (wire-level, shared by all TPC source files):
- *   - TPC_IO_TIMEOUT_SEC: 60s (SO_RCVTIMEO/SO_SNDTIMEO)
- *   - TPC_CONNECT_TIMEOUT_SEC: 5s (poll timeout for non-blocking connect)
+ *   - BRIX_TPC_IO_TIMEOUT_SEC: 60s (SO_RCVTIMEO/SO_SNDTIMEO)
+ *   - BRIX_TPC_CONNECT_TIMEOUT_SEC: 5s (poll timeout for non-blocking connect)
  *   - TPC_CHUNK_SIZE: 1MB (bytes per kXR_read request)
  *   - TPC_RESP_MAX_BODY: 1MB+256 (malloc cap for recv)
  *   - TPC_HOPS_DEFAULT: 4 (brix_tpc_max_hops default)
@@ -71,10 +71,16 @@
 /* Wire-level constants shared by all TPC source files                  */
 /* ------------------------------------------------------------------ */
 
-#define TPC_IO_TIMEOUT_SEC      60  /* SO_RCVTIMEO / SO_SNDTIMEO for read/write */
-#define TPC_CONNECT_TIMEOUT_SEC  5  /* poll() timeout for non-blocking connect */
+/* Timeout constants now in src/core/types/tunables.h:
+ *   - BRIX_BRIX_TPC_IO_TIMEOUT_SEC: 60s (SO_RCVTIMEO/SO_SNDTIMEO)
+ *   - BRIX_BRIX_TPC_CONNECT_TIMEOUT_SEC: 5s (poll timeout for connect)
+ */
 #define TPC_CHUNK_SIZE      (1024 * 1024)   /* bytes per kXR_read request */
 #define TPC_RESP_MAX_BODY   (TPC_CHUNK_SIZE + 256)  /* malloc cap for recv */
+
+/* TPC port and buffer constants */
+#define TPC_DEFAULT_PORT         1094   /* Default XRootD port */
+#define TPC_TIMESTAMP_BUF_SIZE   64     /* ISO-8601 timestamp buffer */
 
 /* Async kXR_open resolution (phase-57 §F8): a real source (EOS/dCache, or any
  * server still completing the TPC rendezvous) may answer the open with kXR_wait
@@ -202,7 +208,7 @@ typedef struct {
     char      token_mode[32]; /* source-auth token mode: none/passthrough (strict)/
                                * passthrough-opt (default, opportunistic)/
                                * oidc-agent/token-exchange */
-    char      delegated_token[65536]; /* delegated/forwarded access token: fetched
+    char      delegated_token[BRIX_TPC_TOKEN_MAX]; /* delegated/forwarded access token: fetched
                                        * (oidc-agent/token-exchange), read from the
                                        * bearer file, or — for "passthrough" — the
                                        * client's own inbound bearer JWT captured on

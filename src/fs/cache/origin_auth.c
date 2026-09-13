@@ -152,7 +152,7 @@ brix_cache_origin_auth_ztn(brix_cache_fill_t *t,
     free(blob);
 
     body = NULL;
-    if (brix_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen, BRIX_XLARGE_BUF_SIZE) != 0) {
         return -1;
     }
     if (status == kXR_error) {
@@ -183,7 +183,7 @@ cache_origin_load_sss_key(const char *path, brix_sss_key_t *out)
 {
     int   fd;
     FILE *fp;
-    char  line[1024];
+    char  line[BRIX_VFS_CACHE_AUTH_LINE_BUF_SIZE];
     int   found = 0;
 
     fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: DOMAIN_CONFIG — config-domain SSS keytab (not export storage) */
@@ -240,7 +240,7 @@ brix_cache_origin_auth_sss(brix_cache_fill_t *t,
     const char *as_user)
 {
     brix_sss_key_t  key;
-    u_char            cred[2048];
+    u_char            cred[BRIX_VFS_CACHE_CRED_BUF_SIZE];
     size_t            cred_len = 0;
     uint16_t          status;
     uint32_t          dlen;
@@ -275,7 +275,7 @@ brix_cache_origin_auth_sss(brix_cache_fill_t *t,
             "cache origin SSS auth write failed");
         return -1;
     }
-    if (brix_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen, BRIX_XLARGE_BUF_SIZE) != 0) {
         return -1;
     }
     if (status == kXR_error) {

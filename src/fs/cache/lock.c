@@ -87,7 +87,7 @@ brix_cache_try_lock(brix_cache_fill_t *t)
     int  fd, n;
     char body[64];
 
-    fd = open(t->lock_path, O_CREAT | O_EXCL | O_WRONLY | O_NOCTTY | O_CLOEXEC, 0600);
+    fd = open(t->lock_path, O_CREAT | O_EXCL | O_WRONLY | O_NOCTTY | O_CLOEXEC, BRIX_PERM_PRIVATE);
     if (fd < 0) {
         return (errno == EEXIST) ? 0 : -1;
     }

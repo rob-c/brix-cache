@@ -228,9 +228,12 @@ extern uid_t brix_imp_broker_allow_uid;
  * keeping ONLY CAP_SETUID/CAP_SETGID — so nothing runs as root once serving.  Set
  * by the lifecycle layer (from brix_idmap_broker_user) before
  * brix_imp_broker_run; the forked broker inherits them.  (uid_t)-1 => stay root.
+ *
+ * Encapsulated with accessors — immutable after config-time set.
  */
-extern uid_t brix_imp_broker_user_uid;
-extern gid_t brix_imp_broker_user_gid;
+uid_t brix_imp_get_broker_user_uid(void);
+gid_t brix_imp_get_broker_user_gid(void);
+void brix_imp_set_broker_user(uid_t uid, gid_t gid);
 
 /*
  * Run the broker serve loop on a bound+listening AF_UNIX socket.  `rootfd` is an

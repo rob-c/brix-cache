@@ -249,8 +249,8 @@ brix_open_resolved_via_driver(brix_open_args_t *a, brix_vfs_ctx_t *vctx,
     st->st_ino   = fh->sd_obj.snap.ino;
     st->st_mode  = (fh->sd_obj.snap.mode != 0)
                  ? fh->sd_obj.snap.mode
-                 : (fh->sd_obj.snap.is_dir ? (S_IFDIR | 0755)
-                                           : (S_IFREG | 0644));
+                 : (fh->sd_obj.snap.is_dir ? (S_IFDIR | BRIX_ROOT_DEFAULT_DIR_MODE)
+                                           : (S_IFREG | BRIX_ROOT_DEFAULT_FILE_MODE));
 
     if (brix_open_capture_fd_identity(fh, sd, st) != NGX_OK) {
         return NGX_ERROR;        /* special file refused; errno = EINVAL */

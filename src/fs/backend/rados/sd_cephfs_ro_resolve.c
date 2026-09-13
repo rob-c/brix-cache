@@ -75,7 +75,7 @@ cephfsro_backoff(int attempt)
     long            us = (long) CEPHFS_RO_BACKOFF_US << attempt;
     struct timespec ts;
 
-    if (us > 50000) { us = 50000; }                 /* cap at 50 ms */
+    if (us > BRIX_CEPHFS_RO_BACKOFF_MAX_US) { us = BRIX_CEPHFS_RO_BACKOFF_MAX_US; }  /* cap at 50 ms */
     us += (long) (us / 4) ? (long) (clock() % (us / 4 + 1)) : 0;   /* light jitter */
     ts.tv_sec  = us / 1000000;
     ts.tv_nsec = (us % 1000000) * 1000;

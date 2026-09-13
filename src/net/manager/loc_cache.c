@@ -12,29 +12,67 @@
 #include "core/fnv.h"                 /* BRIX_FNV1A32_* hash constants      */
 #include "core/compat/shm_slots.h"
 
-ngx_shm_zone_t *brix_loc_cache_shm_zone;
+/*
+ * Module state - all loc_cache globals encapsulated in single struct.
+ * SHM zone and mutex are set at config time; TTLs are set-once before fork.
+ */
+static struct {
+    ngx_shm_zone_t   *shm_zone;
+    ngx_shmtx_t       mutex;
+    ngx_msec_t        ttl_ms;        /* §2.6: positive entry TTL (default 30s) */
+    ngx_msec_t        emptylife_ms;  /* §2.6: negative entry TTL (0=disabled) */
+} loc_cache_state;
 
-static ngx_shmtx_t  brix_loc_cache_mutex;
+/* Accessor - returns pointer to module state */
+static const struct {
+    ngx_shm_zone_t   *shm_zone;
+    ngx_shmtx_t       mutex;
+    ngx_msec_t        ttl_ms;
+    ngx_msec_t        emptylife_ms;
+} *
+brix_loc_cache_state(void)
+{
+    return &loc_cache_state;
+}
 
-/* §2.6 — set-once (config time, before fork) TTL policy.  ttl covers positive
- * entries (brix_cms_fxhold; stock cms.fxhold defaults to 8h, BriX keeps the
- * legacy 30s unless configured); emptylife covers negative entries (0 = the
- * feature is off and negatives are never written). */
-static ngx_msec_t  brix_loc_cache_ttl_ms       = BRIX_LOC_CACHE_TTL_MS;
-static ngx_msec_t  brix_loc_cache_emptylife_ms = 0;
-
+/*
+ * brix_loc_cache_set_ttl — configure TTL for positive cache entries.
+ *
+ * WHAT: Sets the time-to-live (TTL) for positive location cache entries in
+ *       milliseconds. Only accepts non-zero values; zero is ignored.
+ * WHY:  Positive entries cache successful file location results (host/port for
+ *       a path). The TTL controls how long these entries remain valid before
+ *       expiration. Longer TTLs reduce CMS lookup traffic but may serve stale
+ *       locations if files move.
+ * HOW:  Simple assignment to loc_cache_state.ttl_ms. Called
+ *       during configuration before worker fork. Zero values rejected to
+ *       prevent accidental disablement.
+ */
 void
 brix_loc_cache_set_ttl(ngx_msec_t ttl_ms)
 {
     if (ttl_ms > 0) {
-        brix_loc_cache_ttl_ms = ttl_ms;
+        loc_cache_state.ttl_ms = ttl_ms;
     }
 }
 
+/*
+ * brix_loc_cache_set_emptylife — configure lifetime for negative cache entries.
+ *
+ * WHAT: Sets the lifetime for negative cache entries ("file not found" results)
+ *       in milliseconds. Zero disables negative caching entirely.
+ * WHY:  Negative entries prevent repeated CMS lookups for non-existent files.
+ *       This is critical for workloads that repeatedly access missing files
+ *       (e.g., typos, deleted datasets). The "emptylife" name reflects that
+ *       these entries have an empty/NULL host field.
+ * HOW:  Simple assignment to loc_cache_state.emptylife_ms.
+ *       Called during configuration before worker fork. Zero means the feature
+ *       is off and negative entries are never written to the cache.
+ */
 void
 brix_loc_cache_set_emptylife(ngx_msec_t emptylife_ms)
 {
-    brix_loc_cache_emptylife_ms = emptylife_ms;
+    loc_cache_state.emptylife_ms = emptylife_ms;
 }
 
 /* loc_table — resolve the zone to the live table, or NULL when the zone has
@@ -42,13 +80,13 @@ brix_loc_cache_set_emptylife(ngx_msec_t emptylife_ms)
 static brix_loc_table_t *
 loc_table(void)
 {
-    if (brix_loc_cache_shm_zone == NULL
-        || brix_loc_cache_shm_zone->data == NULL
-        || brix_loc_cache_shm_zone->data == (void *) 1)
+    if (loc_cache_state.shm_zone == NULL
+        || loc_cache_state.shm_zone->data == NULL
+        || loc_cache_state.shm_zone->data == (void *) 1)
     {
         return NULL;
     }
-    return (brix_loc_table_t *) brix_loc_cache_shm_zone->data;
+    return (brix_loc_table_t *) loc_cache_state.shm_zone->data;
 }
 
 /* loc_hash — fnv1a over the NUL-terminated path (the design-of-record hash;
@@ -72,7 +110,7 @@ loc_cache_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
     ngx_flag_t         fresh;
 
     tbl = brix_shm_table_alloc(shm_zone, data, sizeof(brix_loc_table_t),
-                                 &brix_loc_cache_mutex, &fresh);
+                                 &loc_cache_state.mutex, &fresh);
     if (tbl == NULL) {
         return NGX_ERROR;
     }
@@ -89,15 +127,15 @@ brix_loc_cache_configure(ngx_conf_t *cf)
 {
     ngx_str_t  zone_name = ngx_string("brix_loc_cache");
 
-    brix_loc_cache_shm_zone = ngx_shared_memory_add(cf, &zone_name,
+    loc_cache_state.shm_zone = ngx_shared_memory_add(cf, &zone_name,
                                 brix_shm_zone_size(sizeof(brix_loc_table_t)),
                                 &ngx_stream_brix_module);
-    if (brix_loc_cache_shm_zone == NULL) {
+    if (loc_cache_state.shm_zone == NULL) {
         return NGX_ERROR;
     }
 
-    brix_loc_cache_shm_zone->init = loc_cache_shm_init_zone;
-    brix_loc_cache_shm_zone->data = (void *) 1;
+    loc_cache_state.shm_zone->init = loc_cache_shm_init_zone;
+    loc_cache_state.shm_zone->data = (void *) 1;
 
     return NGX_OK;
 }
@@ -134,7 +172,7 @@ brix_loc_cache_lookup2(const char *path, char *host, size_t host_sz,
 
     h = loc_hash(path);
 
-    ngx_shmtx_lock(&brix_loc_cache_mutex);
+    ngx_shmtx_lock(&loc_cache_state.mutex);
 
     for (i = 0; i < BRIX_LOC_CACHE_SLOTS; i++) {
         idx = (h + i) & (BRIX_LOC_CACHE_SLOTS - 1);
@@ -158,7 +196,7 @@ brix_loc_cache_lookup2(const char *path, char *host, size_t host_sz,
         }
     }
 
-    ngx_shmtx_unlock(&brix_loc_cache_mutex);
+    ngx_shmtx_unlock(&loc_cache_state.mutex);
     return hit;
 }
 
@@ -200,7 +238,7 @@ loc_insert_core(const char *path, const char *host, uint16_t port,
     h = loc_hash(path);
     victim = BRIX_LOC_CACHE_SLOTS;    /* sentinel: none found yet */
 
-    ngx_shmtx_lock(&brix_loc_cache_mutex);
+    ngx_shmtx_lock(&loc_cache_state.mutex);
 
     for (i = 0; i < BRIX_LOC_CACHE_SLOTS; i++) {
         idx = (h + i) & (BRIX_LOC_CACHE_SLOTS - 1);
@@ -231,7 +269,7 @@ loc_insert_core(const char *path, const char *host, uint16_t port,
     e->expires = now + ttl_ms;
     e->in_use  = 1;
 
-    ngx_shmtx_unlock(&brix_loc_cache_mutex);
+    ngx_shmtx_unlock(&loc_cache_state.mutex);
 }
 
 void
@@ -240,17 +278,17 @@ brix_loc_cache_insert(const char *path, const char *host, uint16_t port)
     if (host == NULL || host[0] == '\0') {
         return;   /* an empty host encodes a negative entry — refuse here */
     }
-    loc_insert_core(path, host, port, brix_loc_cache_ttl_ms);
+    loc_insert_core(path, host, port, loc_cache_state.ttl_ms);
 }
 
 /* §2.6 — record "no node holds path"; no-op unless emptylife is configured. */
 void
 brix_loc_cache_insert_negative(const char *path)
 {
-    if (brix_loc_cache_emptylife_ms == 0) {
+    if (loc_cache_state.emptylife_ms == 0) {
         return;
     }
-    loc_insert_core(path, "", 0, brix_loc_cache_emptylife_ms);
+    loc_insert_core(path, "", 0, loc_cache_state.emptylife_ms);
 }
 
 /*
@@ -281,7 +319,7 @@ brix_loc_cache_invalidate(const char *path)
 
     h = loc_hash(path);
 
-    ngx_shmtx_lock(&brix_loc_cache_mutex);
+    ngx_shmtx_lock(&loc_cache_state.mutex);
 
     for (i = 0; i < BRIX_LOC_CACHE_SLOTS; i++) {
         idx = (h + i) & (BRIX_LOC_CACHE_SLOTS - 1);
@@ -296,5 +334,5 @@ brix_loc_cache_invalidate(const char *path)
         }
     }
 
-    ngx_shmtx_unlock(&brix_loc_cache_mutex);
+    ngx_shmtx_unlock(&loc_cache_state.mutex);
 }

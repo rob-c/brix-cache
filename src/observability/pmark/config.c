@@ -52,11 +52,11 @@ brix_pmark_conf_merge(ngx_conf_t *cf, brix_pmark_conf_t *prev,
      * a shorter interval multiplies firefly UDP per active flow for no
      * monitoring benefit. Mirror it: warn and raise rather than reject so a
      * config written against stock xrootd semantics keeps working. */
-    if (conf->echo > 0 && conf->echo < 30000) {
+    if (conf->echo > 0 && conf->echo < BRIX_PMARK_FIREFLY_ECHO_INTERVAL_US) {
         ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
             "brix_pmark_echo %M ms is below the 30s minimum; raised to 30s",
             conf->echo);
-        conf->echo = 30000;
+        conf->echo = BRIX_PMARK_FIREFLY_ECHO_INTERVAL_US;
     }
     ngx_conf_merge_uint_value(conf->domain,    prev->domain,
                               BRIX_PMARK_DOMAIN_REMOTE);

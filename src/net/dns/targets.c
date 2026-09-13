@@ -262,8 +262,8 @@ dns_target_on_success(brix_dns_target_t *t, const brix_dns_req_t *req)
             t->naddrs == 1 ? "" : "es", (time_t) (t->expires - ngx_time()),
             req->cached ? ", cached" : "");
     }
-    ttl_ms = (ngx_msec_t) (t->expires - ngx_time()) * 1000;
-    dns_target_schedule(t, ttl_ms > 0 ? ttl_ms : 1000);
+    ttl_ms = (ngx_msec_t) (t->expires - ngx_time()) * BRIX_CMS_SEC_TO_MS_MULTIPLIER;
+    dns_target_schedule(t, ttl_ms > 0 ? ttl_ms : BRIX_DNS_TIMEOUT_FLOOR_MS);
 }
 
 

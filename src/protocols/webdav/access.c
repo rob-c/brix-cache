@@ -68,7 +68,7 @@ webdav_acc_check(ngx_http_request_t *r,
     ngx_http_brix_webdav_req_ctx_t *mctx;
     brix_identity_t                *id = NULL;
     const char                       *name = "", *vorg = "", *role = "", *grp = "";
-    char                              host[64], path[1024];
+    char                              host[BRIX_IP_STR_LEN], path[WEBDAV_PATH_BUFFER_SIZE];
     ngx_int_t                         rc;
     size_t                            n;
 

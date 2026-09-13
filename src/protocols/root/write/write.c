@@ -290,7 +290,7 @@ write_over_quota(brix_ctx_t *ctx, ngx_connection_t *c,
 	unsigned long long                   total, freeb, used;
 
 	if (cached_conf == conf
-	    && (ngx_msec_int_t) (ngx_current_msec - cached_at) < 5000)
+	    && (ngx_msec_int_t) (ngx_current_msec - cached_at) < BRIX_ROOT_WRITE_CACHE_VALIDITY_MS)
 	{
 		used = cached_used;
 	} else {
@@ -475,4 +475,21 @@ brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c)
 	return brix_write_finalize_sync(ctx, c, &w, nwritten, write_detail);
 }
 
-/* HOW: Extracts idx from req->fhandle[0], offset from brix_plat_be64toh(req->offset), wlen from ctx->recv.cur_dlen. Validates write handle via brix_validate_write_handle() — returns early on failure. Zero-length writes return kXR_ok immediately as valid no-ops. NGX_THREADS block: calls brix_try_post_write_aio() with detached payload; if posted=1 sets ctx->recv.payload=NULL and returns NGX_OK (completion callback sends response); if posted=0 falls through to sync write. Synchronous fallback: pwrite(fd, payload, wlen, offset) inline. Logs access detail "<offset>+<wlen>". On negative nwritten returns kXR_IOError; on short write (<wlen) returns kXR_IOError with "disk full?" message. Updates bytes_written counters (file+session). If wt_enabled updates wt_bytes_written and wt_dirty_offset for PFC write-through tracking. Returns BRIX_RETURN_OK. */
+/* HOW:
+ *   - Extracts idx from req->fhandle[0]
+ *   - Extracts offset from brix_plat_be64toh(req->offset)
+ *   - Extracts wlen from ctx->recv.cur_dlen
+ *   - Validates write handle via brix_validate_write_handle()
+ *   - Zero-length writes: return kXR_ok immediately (valid no-ops)
+ *   - NGX_THREADS block:
+ *     - Calls brix_try_post_write_aio() with detached payload
+ *     - If posted=1: sets ctx->recv.payload=NULL, returns NGX_OK
+ *     - If posted=0: falls through to sync write
+ *   - Synchronous fallback: pwrite(fd, payload, wlen, offset) inline
+ *   - Logs access detail "<offset>+<wlen>"
+ *   - On negative nwritten: returns kXR_IOError
+ *   - On short write (<wlen): returns kXR_IOError ("disk full?")
+ *   - Updates bytes_written counters (file+session)
+ *   - If wt_enabled: updates wt_bytes_written, wt_dirty_offset
+ *   - Returns BRIX_RETURN_OK
+ */

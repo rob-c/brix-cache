@@ -79,8 +79,20 @@ brix_gsi_parse_ca_parm(const char *field, size_t field_len,
 }
 
 
-/* Parse a gsi protocol parms string "v:10600,c:ssl,ca:HASH|HASH" into fields.
- * Any out pointer may be NULL.  `crypto`/`ca` are NUL-terminated, truncated. */
+/*
+ * WHAT: Parse a GSI protocol parms string ("v:10600,c:ssl,ca:HASH|HASH") into component fields.
+ *
+ * WHY: The XRootD GSI protocol negotiates version, cipher, and CA hash via a colon-delimited
+ *   parameter string. This parser extracts each field for the certreq builder and cipher
+ *   selection. Any output pointer may be NULL (caller only wants specific fields).
+ *
+ * HOW:
+ *   - Initialize all outputs to zero/empty
+ *   - Iterate through comma-separated fields
+ *   - For each field: check prefix (v:, c:, ca:) and copy value to appropriate output
+ *   - Use brix_gsi_copy_parm() for safe truncation to buffer size
+ *   - Outputs: version (uint32_t), crypto (cipher name), ca (CA hash)
+ */
 void
 brix_gsi_parse_parms(const char *parms, uint32_t *version,
                        char *crypto, size_t cryptosz,

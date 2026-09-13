@@ -28,7 +28,7 @@
 #include <time.h>
 
 
-static time_t  acc_gidlifetime = 43200;   /* 12h, XrdAcc default */
+static time_t  acc_gidlifetime = BRIX_ACC_GIDLIFETIME_DEFAULT;   /* 12h, XrdAcc default */
 static int     acc_primary_only = 0;      /* acc.pgo */
 static char    acc_nisdomain[256] = "";   /* acc.nisdomain ("" => default) */
 

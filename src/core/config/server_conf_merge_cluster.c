@@ -25,6 +25,7 @@
 #include "config.h"
 #include "server_conf_internal.h"
 #include "core/types/tunables.h"  /* BRIX_CMS_READ_TIMEOUT_MAX_MS */
+#include "net/manager/registry_internal.h"  /* brix_srv_set_space */
 #include "net/cms/cns.h"               /* §6 CNS mode enum */
 #include "tpc/engine/key_registry.h"
 #include "tpc/common/registry.h"   /* Phase 39 (WS5): registry reaper max-age */
@@ -70,7 +71,7 @@ brix_merge_srv_tpc(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
      * low-speed bounds, webdav/tpc_config.c) is the primary guard — this is only
      * the absolute backstop, large enough never to clip a real transfer. */
     ngx_conf_merge_uint_value(conf->tpc_max_transfer_secs,
-                              prev->tpc_max_transfer_secs, 86400);
+                              prev->tpc_max_transfer_secs, BRIX_CONFIG_TPC_MAX_TRANSFER_SECS);
     /* F7: multihop hop budget and the multi-stream cap. Both are range-checked
      * here (not in a setter) so a block that only inherits still fails loud. */
     ngx_conf_merge_uint_value(conf->tpc_max_hops, prev->tpc_max_hops,
@@ -154,10 +155,10 @@ brix_merge_srv_healthcheck(ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
     ngx_conf_merge_value(conf->hc.enabled,       prev->hc.enabled,       0);
-    ngx_conf_merge_msec_value(conf->hc.interval_ms,  prev->hc.interval_ms,  30000);
-    ngx_conf_merge_msec_value(conf->hc.timeout_ms,   prev->hc.timeout_ms,    5000);
+    ngx_conf_merge_msec_value(conf->hc.interval_ms,  prev->hc.interval_ms,  BRIX_CONFIG_HC_INTERVAL_MS);
+    ngx_conf_merge_msec_value(conf->hc.timeout_ms,   prev->hc.timeout_ms,   BRIX_CONFIG_HC_TIMEOUT_MS);
     ngx_conf_merge_uint_value(conf->hc.threshold,    prev->hc.threshold,        3);
-    ngx_conf_merge_msec_value(conf->hc.blacklist_ms, prev->hc.blacklist_ms, 60000);
+    ngx_conf_merge_msec_value(conf->hc.blacklist_ms, prev->hc.blacklist_ms, BRIX_CONFIG_HC_BLACKLIST_MS);
     ngx_conf_merge_uint_value(conf->hc.type, prev->hc.type, BRIX_HC_TYPE_PING);
 }
 
@@ -323,13 +324,13 @@ brix_merge_srv_cms_feeds(ngx_stream_brix_srv_conf_t *conf,
 
     /* §2.11 (cms.perf pgm): external load feed + freshness window. */
     ngx_conf_merge_str_value(conf->cms.perf_pgm, prev->cms.perf_pgm, "");
-    ngx_conf_merge_msec_value(conf->cms.perf_int, prev->cms.perf_int, 30000);
+    ngx_conf_merge_msec_value(conf->cms.perf_int, prev->cms.perf_int, BRIX_CONFIG_CMS_PERF_INTERVAL_MS);
 
     /* §2.12 (cms.altds): advertised foreign data port + liveness monitor. */
     ngx_conf_merge_value(conf->cms.altds_port,      prev->cms.altds_port,   0);
     ngx_conf_merge_value(conf->cms.altds_monitor, prev->cms.altds_monitor, 0);
     ngx_conf_merge_msec_value(conf->cms.altds_interval,
-                              prev->cms.altds_interval, 10000);
+                              prev->cms.altds_interval, BRIX_CONFIG_CMS_ALTDS_INTERVAL_MS);
     /* §2.4 mSpace policy floor (MB) advertised in kYR_login; default 100,
      * byte-identical to the prior NGX_BRIX_CMS_MIN_FREE_MB constant. */
     ngx_conf_merge_value(conf->cms.min_free_mb, prev->cms.min_free_mb, 100);
@@ -351,7 +352,7 @@ brix_merge_srv_cms_feeds(ngx_stream_brix_srv_conf_t *conf,
         }
     }
     ngx_conf_merge_msec_value(conf->cms.fsxeq_timeout,
-                              prev->cms.fsxeq_timeout, 10000);
+                              prev->cms.fsxeq_timeout, BRIX_CONFIG_CMS_FSXEQ_TIMEOUT_MS);
 }
 
 
@@ -390,12 +391,12 @@ brix_merge_srv_cms_deadlines(ngx_stream_brix_srv_conf_t *conf,
         if (prev->cms.read_timeout != NGX_CONF_UNSET_MSEC) {
             conf->cms.read_timeout = prev->cms.read_timeout;
         } else {
-            ngx_msec_t d = (ngx_msec_t) conf->cms.interval * 3 * 1000;
+            ngx_msec_t d = (ngx_msec_t) conf->cms.interval * 3 * 1000;  /* 3×interval in seconds */
             conf->cms.read_timeout = (d > BRIX_CMS_READ_TIMEOUT_MAX_MS) ? d : BRIX_CMS_READ_TIMEOUT_MAX_MS;
         }
     }
     ngx_conf_merge_msec_value(conf->cms.send_timeout, prev->cms.send_timeout,
-                              10000);
+                              BRIX_CMS_SEND_TIMEOUT_DEFAULT_MS);
     ngx_conf_merge_value(conf->cms.tcp_keepalive, prev->cms.tcp_keepalive, 1);
     if (conf->cms.tcp_user_timeout == NGX_CONF_UNSET_MSEC) {
         conf->cms.tcp_user_timeout =
@@ -429,7 +430,7 @@ brix_merge_srv_cms(ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
     ngx_conf_merge_msec_value(conf->cms.locate_timeout, prev->cms.locate_timeout,
-                              5000);
+                              BRIX_CMS_LOCATE_TIMEOUT_DEFAULT_MS);
     ngx_conf_merge_str_value(conf->cms.paths,       prev->cms.paths,       "");
     ngx_conf_merge_str_value(conf->cms.vnid,        prev->cms.vnid,        "");
 
@@ -569,7 +570,7 @@ brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_uint_value(conf->ckscan_max_depth,
                               prev->ckscan_max_depth, 32);
     ngx_conf_merge_uint_value(conf->ckscan_max_files,
-                              prev->ckscan_max_files, 100000);
+                              prev->ckscan_max_files, BRIX_CONFIG_CKSCAN_MAX_FILES);
 
     brix_merge_srv_cluster_addrs(conf, prev);
 

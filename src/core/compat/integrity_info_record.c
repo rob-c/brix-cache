@@ -23,6 +23,7 @@
 
 #include "integrity_info.h"
 #include "integrity_info_internal.h"   /* INTEGRITY_XATTR_VAL_MAX + cross-file decls */
+#include "../types/tunables.h"
 #include "fs/meta/xmeta_path.h"   /* record-DIGEST fallback carrier (§8.2) */
 #include <stdint.h>
 #include <stdio.h>
@@ -144,7 +145,7 @@ integrity_record_write(const char *path, const char *algo, const char *hexval)
     rc = brix_xmeta_path_load(path, &xm);
     if (rc == BRIX_XMETA_ERR
         || (rc == BRIX_XMETA_FOREIGN
-            && brix_xmeta_init(&xm, st.st_size, 1024 * 1024)
+            && brix_xmeta_init(&xm, st.st_size, BRIX_XMETA_INIT_SIZE)
                != BRIX_XMETA_OK))
     {
         brix_xmeta_path_unlock(lockfd);

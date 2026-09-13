@@ -30,9 +30,9 @@
  * */
 
 typedef struct {
-    u_char name[256];
+    u_char name[BRIX_S3_HEADER_NAME_BUF_SIZE];
     size_t name_len;
-    u_char value[1024];
+    u_char value[BRIX_S3_HEADER_VALUE_BUF_SIZE];
     size_t value_len;
 } qparam_t;
 
@@ -233,7 +233,7 @@ static size_t
 sigv4_append_encoded(u_char *out, size_t oi, size_t outsz,
     const u_char *src, size_t slen)
 {
-    u_char enc[1024];
+    u_char enc[BRIX_S3_ISO8601_BUF_SIZE];
     size_t n = uriencode_param(src, slen, enc, sizeof(enc));
 
     if (oi + n < outsz) {

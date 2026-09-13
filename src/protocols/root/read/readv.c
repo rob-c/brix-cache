@@ -9,7 +9,9 @@
 #include "prefetch.h"
 #include "core/compat/range_vector.h"
 #include "protocols/root/protocol/readv_seg.h"   /* shared kXR_readv segment-header codec */
-/* PAL endian ops now in platform_api.h */  /* brix_plat_be64toh/brix_plat_htobe64 cross-platform */
+/* PAL endian ops now in platform_api.h
+ * brix_plat_be64toh/brix_plat_htobe64 cross-platform
+ */
 #include "protocols/root/session/registry.h"          /* §1.1 brix_session_pathid_bound */
 #include "protocols/root/session/offload_registry.h"  /* §1.1 brix_offload_lookup */
 #include "protocols/root/response/response.h"          /* §1.1 brix_build_resp_hdr */

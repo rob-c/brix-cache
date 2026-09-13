@@ -1,10 +1,20 @@
 /*
- * WHAT: Parse OAuth2/OIDC token response JSON to extract access_token for HTTP-TPC credential authentication. Delegates JSON parsing to the shared Jansson-backed token helper, then copies the parsed token into an ngx_str_t buffer allocated in r->pool.
+ * WHAT: Parse OAuth2/OIDC token response JSON to extract access_token.
+ *
+ *   - Delegates JSON parsing to shared Jansson-backed token helper
+ *   - Copies parsed token into ngx_str_t buffer allocated in r->pool
+ *
+ * WHY: HTTP-TPC requires OAuth2/OIDC credentials for source server auth.
+ *   - access_token obtained from OIDC provider's token endpoint via curl
+ *   - Passed as Credential header to source WebDAV server
+ *   - TPC_CRED_MAX_TOKEN_LEN prevents OOM on malformed responses
+ *   - Defensive bounds checking against crafted long access_token values
+ *
+ * HOW: Call brix_oauth2_parse_access_token() into bounded stack buffer.
+ *   - Allocate exact ngx_str_t payload from r->pool
+ *   - Copy and NUL-terminate token
+ *   - Log errors with parser's diagnostic string
  */
-
-/* WHY: HTTP-TPC (HTTP Third-Party Copy) requires OAuth2/OIDC credentials to authenticate against the source server during pull transfers. The access_token is obtained by curling the OIDC provider's token endpoint and must be passed as a Credential header to the source WebDAV server. Defensive bounds checking (TPC_CRED_MAX_TOKEN_LEN) prevents runaway memory consumption on malformed JSON responses — attackers could craft arbitrarily long "access_token" values to trigger OOM conditions. */
-
-/* HOW: Call brix_oauth2_parse_access_token() from src/token/oauth2.c into a bounded stack buffer, allocate the exact ngx_str_t payload from r->pool, copy and NUL-terminate it. Errors are logged with the parser's diagnostic string. */
 
 #include "tpc_cred_internal.h"
 #include "auth/token/oauth2.h"

@@ -83,7 +83,7 @@ brix_ini_parse_file(const char *path, brix_ini_cb cb, void *user,
     char *errbuf, size_t errlen)
 {
     FILE *f;
-    char  line[1024];
+    char  line[BRIX_TOKEN_INI_LINE_BUF_SIZE];
     char  section[64] = "";
     int   rc = 0;
     int   lineno = 0;

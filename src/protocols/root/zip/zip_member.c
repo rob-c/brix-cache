@@ -48,10 +48,10 @@ typedef struct {
     z_stream  zs;
     int       inited;
     uint64_t  in_fed;          /* compressed bytes pread from the archive so far */
-    u_char    cin[64 * 1024];  /* persistent input buffer (zlib next_in target) */
+    u_char    cin[BRIX_ROOT_ZIP_INFL_BUF];  /* persistent input buffer (zlib next_in target) */
 } zip_infl_t;
 
-#define ZIP_INFL_SCRATCH (64 * 1024)
+#define ZIP_INFL_SCRATCH BRIX_ROOT_ZIP_INFL_BUF
 
 static void
 zip_deflate_free(brix_file_t *fh)
@@ -334,7 +334,7 @@ zip_find_member_mapped(const zip_open_req_t *rq, int fd, const struct stat *ast,
     brix_zip_member_t *m_out, ngx_int_t *out)
 {
     size_t cd_max = rq->conf->zip_cd_max_bytes ? rq->conf->zip_cd_max_bytes
-                                               : (size_t) (16 * 1024 * 1024);
+                                               : BRIX_ROOT_ZIP_MEMBER_MAX;
     int    zrc = brix_zip_find_member(fd, (off_t) ast->st_size, rq->member,
                                       cd_max, m_out);
     if (zrc == BRIX_ZIP_OK) {

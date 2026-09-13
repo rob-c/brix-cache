@@ -2,41 +2,99 @@
 
 #include <dlfcn.h>
 
-/* File: voms loader — runtime libvomsapi dynamic loading (no link-time dependency)
- * WHAT: Declares global variables for VOMS API interface and availability flag. brix_voms_api_t structure contains dlopen handle plus four function pointers (init, retrieve, destroy, error_message). brix_voms_loaded is a ngx_flag_t indicating whether libvomsapi.so.1 was successfully loaded at runtime — zero means unavailable, one means fully initialized with all symbols resolved. This file provides the bridge between nginx-xrootd and VOMS VO ACL enforcement without requiring compile-time linking to libvomsapi. */
+/* File: voms loader - runtime libvomsapi dynamic loading (no link-time dependency)
+ *
+ * WHAT: VOMS API runtime loader - encapsulated module state with accessor.
+ *
+ *   - brix_voms_state_t: module state struct (API handle + availability flag)
+ *   - brix_voms_api_t: dlopen handle + 4 function pointers
+ *     - init, retrieve, destroy, error_message
+ *   - brix_voms_loaded: ngx_flag_t runtime load status
+ *     - 0 = unavailable, 1 = fully initialized with all symbols resolved
+ *   - Bridge between nginx-xrootd and VOMS VO ACL enforcement
+ *   - No compile-time linking to libvomsapi required
+ *
+ * WHY: Encapsulation prevents accidental modification, enables future extension
+ *      (e.g., multiple VOMS instances, lazy loading, testing hooks).
+ *
+ * HOW: Static state struct with const accessor function - immutable after init.
+ */
 
 /*
  * Runtime libvomsapi loader. The module has no link-time VOMS dependency.
+ * State is set-once during startup, immutable thereafter.
  */
 
-brix_voms_api_t brix_voms_api;
-ngx_flag_t        brix_voms_loaded;
+typedef struct {
+    brix_voms_api_t  api;      /* dlopen handle + function pointers */
+    ngx_flag_t       loaded;   /* 1 = initialized, 0 = unavailable */
+} brix_voms_state_t;
+
+static brix_voms_state_t  brix_voms_state = {
+    .api    = { 0 },
+    .loaded = 0
+};
 
 /*
+ * WHAT: Accessor returning ngx_flag_t for libvomsapi.so.1 load status.
  *
- * WHAT: Simple accessor returning ngx_flag_t indicating whether libvomsapi.so.1 has been successfully loaded via dlopen/dlsym during nginx startup. Returns 1 (NGX_OK equivalent) when all four required symbols (VOMS_Init, VOMS_Retrieve, VOMS_Destroy, VOMS_ErrorMessage) were resolved and brix_voms_api structure is fully populated; returns 0 when library not found or symbol loading failed. Used by VO ACL enforcement code in path/acl.c and voms/collect.c to conditionally enable VOMS checks only when the runtime library is available. Thread safety: reads immutable flag set once during startup — no concurrent access concerns after initialization. */
+ *   - Returns 1 (NGX_OK): all 4 symbols resolved, brix_voms_api populated
+ *     - VOMS_Init, VOMS_Retrieve, VOMS_Destroy, VOMS_ErrorMessage
+ *   - Returns 0: library not found or symbol loading failed
+ *   - Used by: path/acl.c, voms/collect.c (conditional VOMS checks)
+ *   - Thread safety: immutable flag set once during startup
+ */
 
 ngx_flag_t
 brix_voms_available(void)
 {
-    return brix_voms_loaded;
+    return brix_voms_state.loaded;
 }
 
 /*
+ * WHAT: Internal accessor for VOMS API function pointer table.
+ * WHY: Encapsulation — callers use accessor rather than direct global access.
+ * HOW: Returns pointer to static state.api — safe because immutable after init.
+ */
+brix_voms_api_t *
+brix_voms_get_api_internal(void)
+{
+    return &brix_voms_state.api;
+}
+
+/*
+ * WHAT: Dynamically loads VOMS API library (libvomsapi.so.1) via dlopen.
  *
- * WHAT: Dynamically loads VOMS API library (libvomsapi.so.1) via dlopen(RTLD_NOW | RTLD_LOCAL) performing four-step initialization: first checks if already loaded (returns NGX_OK immediately to avoid duplicate loading). Opens library with RTLD_NOW for immediate symbol resolution and RTLD_LOCAL to prevent namespace pollution across modules. On successful open, clears any prior dlerror() state then loads four required symbols using LOAD_SYM macro helper: VOMS_Init (session initialization), VOMS_Retrieve (VO list extraction from proxy certificate), VOMS_Destroy (session cleanup), VOMS_ErrorMessage (human-readable error strings). Each symbol load checks for NULL result — on failure closes handle, zeroes API structure via ngx_memzero(), logs NGX_LOG_ERR and returns NGX_ERROR. On successful load of all four symbols sets brix_voms_loaded=1, logs NGX_LOG_NOTICE confirming availability, returns NGX_OK. Returns NGX_DECLINED when library not found (graceful degradation — VOMS enforcement disabled but server continues operating).
+ *   - Flags: RTLD_NOW (immediate resolution) | RTLD_LOCAL (no namespace pollution)
+ *   - Step 1: Check if already loaded → returns NGX_OK (no duplicate loading)
+ *   - Step 2: dlopen() library; on failure → NGX_DECLINED (graceful degradation)
+ *   - Step 3: Clear dlerror() state
+ *   - Step 4: Load 4 symbols via LOAD_SYM macro:
+ *     - VOMS_Init (session initialization)
+ *     - VOMS_Retrieve (VO list extraction from proxy cert)
+ *     - VOMS_Destroy (session cleanup)
+ *     - VOMS_ErrorMessage (human-readable error strings)
+ *   - Symbol failure: close handle, ngx_memzero(), NGX_LOG_ERR, NGX_ERROR
+ *   - Success: brix_voms_loaded=1, NGX_LOG_NOTICE, NGX_OK
+ *   - Library not found: NGX_DECLINED (VOMS disabled, server continues)
  *
- * WHY: Runtime dynamic loading eliminates compile-time dependency on libvomsapi.so.1 allowing nginx-xrootd to operate without VOMS on systems that don't have it installed. RTLD_LOCAL prevents symbol namespace pollution across nginx modules — critical when multiple modules use dlopen for different libraries. The graceful degradation path (NGX_DECLINED + notice-level log) enables operators to deploy servers with partial capabilities without requiring all optional dependencies simultaneously. LOAD_SYM macro ensures consistent error handling pattern across all four symbol loads: same logging level, same cleanup sequence, same return code on failure. Thread safety: initialization runs once during nginx startup process; no concurrent access after brix_voms_loaded is set. */
+ * WHY: Runtime loading eliminates compile-time dependency on libvomsapi.so.1.
+ *
+ *   - RTLD_LOCAL prevents symbol namespace pollution across modules
+ *   - Graceful degradation: NGX_DECLINED + notice-level log
+ *   - LOAD_SYM macro: consistent error handling (logging, cleanup, return)
+ *   - Thread safety: runs once during startup, immutable after
+ */
 
 ngx_int_t
 brix_voms_init(ngx_log_t *log)
 {
-    if (brix_voms_loaded) {
+    if (brix_voms_state.loaded) {
         return NGX_OK;
     }
 
-    brix_voms_api.handle = dlopen("libvomsapi.so.1", RTLD_NOW | RTLD_LOCAL);
-    if (brix_voms_api.handle == NULL) {
+    brix_voms_state.api.handle = dlopen("libvomsapi.so.1", RTLD_NOW | RTLD_LOCAL);
+    if (brix_voms_state.api.handle == NULL) {
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
                       "brix: libvomsapi.so.1 not found (%s) — "
                       "VOMS VO ACL enforcement disabled",
@@ -48,14 +106,14 @@ brix_voms_init(ngx_log_t *log)
 
 #define LOAD_SYM(field, name)                                          \
     do {                                                              \
-        *(void **) (&brix_voms_api.field) =                         \
-            dlsym(brix_voms_api.handle, #name);                     \
-        if (brix_voms_api.field == NULL) {                          \
+        *(void **) (&brix_voms_state.api.field) =                   \
+            dlsym(brix_voms_state.api.handle, #name);               \
+        if (brix_voms_state.api.field == NULL) {                    \
             ngx_log_error(NGX_LOG_ERR, log, 0,                        \
                           "brix: dlsym(%s) failed: %s",             \
                           #name, dlerror());                          \
-            dlclose(brix_voms_api.handle);                          \
-            ngx_memzero(&brix_voms_api, sizeof(brix_voms_api));    \
+            dlclose(brix_voms_state.api.handle);                    \
+            ngx_memzero(&brix_voms_state, sizeof(brix_voms_state)); \
             return NGX_ERROR;                                         \
         }                                                             \
     } while (0)
@@ -67,7 +125,7 @@ brix_voms_init(ngx_log_t *log)
 
 #undef LOAD_SYM
 
-    brix_voms_loaded = 1;
+    brix_voms_state.loaded = 1;
 
     ngx_log_error(NGX_LOG_NOTICE, log, 0,
                   "brix: libvomsapi.so.1 loaded — "

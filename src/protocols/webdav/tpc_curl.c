@@ -181,7 +181,7 @@ tpc_core_open_local(webdav_tpc_curl_ctx_t *ctx)
             brix_vfs_policy_from_write_enable(conf->common.allow_write),
             BRIX_PROTO_WEBDAV);
         fd = brix_vfs_export_open_fd(&export_op_ctx, ctx->file_path,
-                 O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0600);
+                 O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, BRIX_WEBDAV_PRIVATE_FILE_MODE);
     }
     if (fd >= 0) {
         ctx->fp = fdopen(fd, "wb");

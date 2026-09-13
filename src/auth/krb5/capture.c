@@ -71,6 +71,23 @@ brix_krb5_stash_tgt_ccache(krb5_context kctx, krb5_principal client,
     return 0;
 }
 
+/*
+ * WHAT: Decrypt a forwarded Kerberos TGT (KRB_CRED) and import it as a GSS credential.
+ *
+ * WHY: Phase-70 §5.7 enables Kerberos credential forwarding — the client sends an encrypted
+ *   KRB_CRED after the "fwdtgt" challenge, which the cache decrypts and imports for use
+ *   in downstream GSS-API operations. This enables single-sign-on across the caching layer.
+ *   On macOS (Heimdal), GSS import is skipped but the krb5 ccache still works.
+ *
+ * HOW:
+ *   - Validate all input pointers and credential buffer
+ *   - Decrypt KRB_CRED using krb5_rd_cred() with the auth_context
+ *   - Extract the forwarded TGT from the decrypted credentials
+ *   - Create a fresh MEMORY ccache keyed by client principal
+ *   - Store the TGT in the ccache via krb5_cc_store_cred()
+ *   - Import ccache as GSS initiator credential (MIT Kerberos only, skipped on macOS Heimdal)
+ *   - Return NGX_OK with *out_gss_cred and *out_ccache set, or NGX_ERROR on failure
+ */
 ngx_int_t
 brix_krb5_capture_fwd_cred(void *kctx_v, void *auth_ctx_v, void *client_v,
     const u_char *krb_cred, size_t krb_cred_len,

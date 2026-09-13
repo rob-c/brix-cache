@@ -39,7 +39,7 @@
 
 /* The spec caps a manifest at 4 MiB; anything larger is not a manifest we can
  * describe, and hashing it on the event loop would be a stall besides. */
-#define OCI_MANIFEST_MAX      (4 * 1024 * 1024)
+#define OCI_MANIFEST_MAX      BRIX_OCI_MANIFEST_MAX
 
 /* The default when a manifest carries no `mediaType` member — Docker schema-2
  * manifests written before the field was mandatory. Serving them as the OCI

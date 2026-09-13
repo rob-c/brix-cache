@@ -25,7 +25,7 @@ struct brix_scan_driftset_s {
 static size_t
 drift_hash(const char *s)
 {
-    size_t h = 5381;
+    size_t h = BRIX_HASH_DJB2_INIT;
     for (; *s != '\0'; s++) {
         h = ((h << 5) + h) ^ (unsigned char) *s;   /* djb2-xor */
     }

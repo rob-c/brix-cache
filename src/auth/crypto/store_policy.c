@@ -265,8 +265,8 @@ brix_sp_table_check(const brix_sp_table_t *t, brix_sp_mode_t mode,
                     X509 *ca, X509 *subject)
 {
     const brix_sp_entry_t *e;
-    char ca_dn[1024];
-    char subj_dn[1024];
+    char ca_dn[BRIX_AUTH_DN_BUF_SIZE];
+    char subj_dn[BRIX_AUTH_DN_BUF_SIZE];
 
     if (mode == BRIX_SP_MODE_OFF || t == NULL || ca == NULL || subject == NULL) {
         return 1;

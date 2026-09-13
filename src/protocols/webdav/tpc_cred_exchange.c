@@ -41,7 +41,7 @@ tpc_cred_stage_exchange_body(ngx_http_request_t *r,
                              const char *scope,
                              char *body_file, size_t body_file_size)
 {
-    char body_buf[2048];
+    char body_buf[BRIX_WEBDAV_TPC_CRED_BODY_BUF];
     u_char *body_end;
 
     body_end = ngx_snprintf((u_char *) body_buf, sizeof(body_buf),

@@ -1,10 +1,40 @@
 /*
- * WHAT: Verify JWT signatures for RS256 (RSA + SHA-256) and ES256 (ECDSA P-256 + SHA-256) algorithms. RS256 uses OpenSSL EVP_DigestVerify API directly; ES256 converts IEEE P1363 raw r||s format (64 bytes, each 32-byte component) to DER-encoded ASN.1 via ECDSA_SIG before calling EVP verification interface. Returns 1 for valid signature, 0 for invalid or allocation failure.
+ * WHAT: Verify JWT signatures for RS256 and ES256 algorithms.
+ *
+ *   - RS256: RSA + SHA-256, uses OpenSSL EVP_DigestVerify directly
+ *   - ES256: ECDSA P-256 + SHA-256, converts IEEE P1363 -> DER ASN.1
+ *     - P1363 format: raw r||s, BRIX_ES256_SIG_SIZE bytes (BRIX_ES256_SIG_COMPONENT each)
+ *     - Converts via ECDSA_SIG before EVP verification
+ *   - Returns: 1 = valid, 0 = invalid or allocation failure
  */
 
-/* WHY: JWT authentication requires cryptographic signature verification before trusting any claims extracted from the token payload. AGENTS.md INVARIANT #6 mandates "S3 SigV4 ≠ WLCG token — this function must not share logic with other authentication systems" — these functions are exclusively used by token validation path in src/token/validate.c and never shared with S3 auth handlers (src/s3/auth_sigv4_*.c). RS256 is the primary algorithm for most JWKS providers; ES256 support enables newer OIDC implementations using ECDSA keys. Three-step EVP verification chain (Init→Update→Final) provides constant-time comparison security against timing attacks. */
+/* WHY: JWT auth requires crypto verification before trusting token claims.
+ *
+ *   - INVARIANT #6: S3 SigV4 != WLCG token (no shared logic with S3 auth)
+ *   - Exclusive to token validation path (src/token/validate.c)
+ *   - RS256: primary algorithm for most JWKS providers
+ *   - ES256: enables newer OIDC implementations using ECDSA keys
+ *   - Three-step EVP chain (Init->Update->Final) = constant-time security
+ */
 
-/* HOW: Two distinct verification paths. RS256 path (brix_token_verify_rs256): EVP_MD_CTX_new() → EVP_DigestVerifyInit(mdctx, NULL, EVP_sha256(), NULL, pkey) with SHA-256 digest and RSA public key → EVP_DigestVerifyUpdate(mdctx, signed_data, signed_len) with JWT payload (header+body concatenated without separator) → EVP_DigestVerifyFinal(mdctx, sig, sig_len) with base64url-decoded signature bytes. Returns 0 on any step failure or ctx allocation failure. ES256 path (brix_token_verify_es256): validate sig_len==64 (P1363 format requires exactly 32+32 bytes) → BN_bin2bn() converts r and s components to BIGNUM objects → ECDSA_SIG_new() + ECDSA_SIG_set0() transfers ownership of r/s to signature struct → i2d_ECDSA_SIG() produces DER-encoded ASN.1 output → same three-step EVP verification chain as RS256 → OPENSSL_free(der) cleanup. Multiple allocation failure paths return 0 with appropriate BN/ECDSA_SIG cleanup. */
+/* HOW: Two verification paths.
+ *
+ *   RS256 (brix_token_verify_rs256):
+ *     - EVP_MD_CTX_new()
+ *     - EVP_DigestVerifyInit(mdctx, NULL, EVP_sha256(), NULL, pkey)
+ *     - EVP_DigestVerifyUpdate(mdctx, signed_data, signed_len)
+ *     - EVP_DigestVerifyFinal(mdctx, sig, sig_len)
+ *     - Returns 0 on any step failure or ctx allocation failure
+ *
+ *   ES256 (brix_token_verify_es256):
+ *     - Validate sig_len == BRIX_ES256_SIG_SIZE (P1363 = 2 * BRIX_ES256_SIG_COMPONENT)
+ *     - BN_bin2bn() converts r, s to BIGNUM objects
+ *     - ECDSA_SIG_new() + ECDSA_SIG_set0() transfers r/s ownership
+ *     - i2d_ECDSA_SIG() produces DER-encoded ASN.1
+ *     - Same three-step EVP verification chain as RS256
+ *     - OPENSSL_free(der) cleanup
+ *     - Multiple allocation failure paths return 0 with BN/ECDSA_SIG cleanup
+ */
 
 #include "token_internal.h"
 #include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
@@ -36,9 +66,10 @@ brix_token_verify_rs256(const u_char *signed_data, size_t signed_len,
 /*
  * Verify an ES256 (ECDSA P-256 + SHA-256) JWT signature.
  *
- * JWT ES256 signatures are IEEE P1363 format: raw r||s, each 32 bytes (64
- * total).  OpenSSL EVP_DigestVerifyFinal for EC keys expects DER-encoded
- * ASN.1, so we convert via ECDSA_SIG before calling the EVP interface.
+ * JWT ES256 signatures are IEEE P1363 format: raw r||s, each
+ * BRIX_ES256_SIG_COMPONENT bytes (BRIX_ES256_SIG_SIZE total). OpenSSL
+ * EVP_DigestVerifyFinal for EC keys expects DER-encoded ASN.1, so we
+ * convert via ECDSA_SIG before calling the EVP interface.
  */
 int
 brix_token_verify_es256(const u_char *signed_data, size_t signed_len,
@@ -51,12 +82,12 @@ brix_token_verify_es256(const u_char *signed_data, size_t signed_len,
     EVP_MD_CTX *mdctx;
     int         ok;
 
-    if (sig_len != 64) {
+    if (sig_len != BRIX_ES256_SIG_SIZE) {
         return 0;
     }
 
-    r = BN_bin2bn(sig_p1363,      32, NULL);
-    s = BN_bin2bn(sig_p1363 + 32, 32, NULL);
+    r = BN_bin2bn(sig_p1363,      BRIX_ES256_SIG_COMPONENT, NULL);
+    s = BN_bin2bn(sig_p1363 + BRIX_ES256_SIG_COMPONENT, BRIX_ES256_SIG_COMPONENT, NULL);
     if (r == NULL || s == NULL) {
         BN_free(r);
         BN_free(s);

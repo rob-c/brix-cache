@@ -270,7 +270,7 @@ brix_rl_stream_gate(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_rl_rule_t *rules;
     ngx_uint_t        i;
     char              key_str[BRIX_RL_KEY_LEN];
-    char              path[1024];
+    char              path[BRIX_RL_STREAM_PATH_BUF];
     ngx_int_t         rc;
 
     if (conf->rl_rules == NULL || conf->rl_rules->nelts == 0) {

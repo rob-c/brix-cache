@@ -227,7 +227,7 @@ sigv4_parse_expires(const char *value, ngx_uint_t *out)
     errno = 0;
     parsed = strtoul(value, &end, 10);
     if (errno != 0 || end == value || *end != '\0'
-        || parsed == 0 || parsed > 604800)
+        || parsed == 0 || parsed > BRIX_S3_SIGV4_EXPIRY_MAX_SEC)
     {
         return 0;
     }
@@ -239,7 +239,7 @@ sigv4_parse_expires(const char *value, ngx_uint_t *out)
 int
 parse_authorization(const ngx_str_t *auth, sigv4_components_t *out)
 {
-    char        credential[256];
+    char        credential[BRIX_S3_CREDENTIAL_BUF_SIZE];
     const char *start;
     const char *end;
 
@@ -295,7 +295,7 @@ parse_presigned_authorization(ngx_http_request_t *r, sigv4_components_t *out)
 {
     ngx_str_t sig_qs;
     char      algorithm[64];
-    char      credential[256];
+    char      credential[BRIX_S3_CREDENTIAL_BUF_SIZE];
     char      expires[32];
 
     /* X-Amz-Signature is the presence test: absent => this is not presigned. */

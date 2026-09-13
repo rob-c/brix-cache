@@ -191,7 +191,7 @@ brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
     size_t               leaf_len = 0;
     size_t               calg_len, body_len, total;
     u_char              *buf, *p;
-    uint8_t              signed_rtag[1024];
+    uint8_t              signed_rtag[BRIX_GSI_DELEGATION_TAG_BUF_SIZE];
     size_t               signed_rtag_len = 0;
     uint8_t              new_rtag[20];
 

@@ -13,7 +13,9 @@
 /* macOS doesn't have endian.h - use libkern/OSByteOrder.h */
 #if defined(__APPLE__) && defined(__MACH__)
 #else
-/* PAL endian ops now in platform_api.h */  /* brix_plat_htobe64/brix_plat_be64toh cross-platform */
+/* PAL endian ops now in platform_api.h
+ * brix_plat_htobe64/brix_plat_be64toh cross-platform
+ */
 #endif
 #include <errno.h>
 #include <fcntl.h>

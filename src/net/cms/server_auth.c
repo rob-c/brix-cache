@@ -25,7 +25,7 @@
 /* Credential freshness window for the cluster sss handshake.  The credential
  * is generated fresh by the data node at each login, so this only needs to
  * exceed connect latency + clock skew; a generous hour avoids false rejects. */
-#define CMS_SSS_LIFETIME  3600
+#define CMS_SSS_LIFETIME  BRIX_CMS_SSS_LIFETIME_SECS
 
 ngx_int_t
 brix_cms_srv_check_peer(ngx_connection_t *c,
@@ -80,7 +80,7 @@ brix_cms_srv_verify_xauth(brix_cms_srv_ctx_t *ctx,
     }
 
     {
-        char safe_user[256];
+        char safe_user[BRIX_IP_STR_LEN];
         brix_sanitize_log_string(id.name[0] ? id.name : "-",
                                    safe_user, sizeof(safe_user));
         ngx_log_error(NGX_LOG_INFO, ctx->c->log, 0,

@@ -90,7 +90,7 @@ dns_parse_option(ngx_conf_t *cf, brix_dns_policy_t *pol, ngx_str_t *arg)
     }
     if (ngx_strncmp(arg->data, "valid=", 6) == 0) {
         rc = dns_parse_time_arg(cf, arg, 6, &t);
-        pol->valid = (ngx_msec_t) t * 1000;
+        pol->valid = (ngx_msec_t) t * BRIX_CMS_SEC_TO_MS_MULTIPLIER;
         return rc;
     }
     if (ngx_strncmp(arg->data, "min_ttl=", 8) == 0) {

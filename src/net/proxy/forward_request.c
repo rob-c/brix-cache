@@ -444,8 +444,19 @@ brix_proxy_translate_dispatch(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
     return NGX_OK;
 }
 
-/* public API: brix_proxy_forward_request() — build and send forwarded request * WHAT: Forward a client request to the upstream server with file handle translation,
- *       path rewriting, audit capture, and kXR_wait retry support. Returns NGX_OK or NGX_ERROR. */
+/*
+ * public API: brix_proxy_forward_request() — build and send forwarded request
+ *
+ * WHAT:
+ *   Forward a client request to the upstream server with:
+ *   - File handle translation
+ *   - Path rewriting
+ *   - Audit capture
+ *   - kXR_wait retry support
+ *
+ * RETURNS:
+ *   NGX_OK or NGX_ERROR
+ */
 
 /* build and send the forwarded request */
 ngx_int_t

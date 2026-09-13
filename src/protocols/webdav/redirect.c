@@ -55,7 +55,7 @@ rdr_mac_hex(const ngx_str_t *key, const ngx_str_t *method, const char *path,
     const char *exp, const char *usr, const char *vo,
     char out_hex[BRIX_RDR_MAC_HEX_LEN + 1])
 {
-    u_char   canon[4096];
+    u_char   canon[BRIX_WEBDAV_REDIRECT_CANON_BUF];
     u_char  *cursor = canon;
     u_char  *end = canon + sizeof(canon);
     uint8_t  mac[32];
@@ -240,7 +240,7 @@ rdr_build_location(ngx_http_request_t *r,
     loc_size = sizeof("https://:65535") + ngx_strlen(ds_host)
              + r->uri.len + 2 * esc + 1 + r->args.len
              + 512 /* signed CGI incl. escaped usr/vo */
-             + 1024;
+             + BRIX_WEBDAV_REDIRECT_ID_BUF;
     loc = ngx_pnalloc(r->pool, loc_size);
     if (loc == NULL) {
         return NULL;
@@ -378,8 +378,8 @@ webdav_redirect_signed_auth(ngx_http_request_t *r,
 {
     char       mac_cgi[BRIX_RDR_MAC_HEX_LEN + 2];
     char       exp[24];
-    char       usr[1024];
-    char       vo[1024];
+    char       usr[BRIX_WEBDAV_REDIRECT_ID_BUF];
+    char       vo[BRIX_WEBDAV_REDIRECT_ID_BUF];
     char       path[WEBDAV_MAX_PATH];
     char       mac_hex[BRIX_RDR_MAC_HEX_LEN + 1];
     ngx_int_t  exp_secs;

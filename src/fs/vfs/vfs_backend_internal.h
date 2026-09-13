@@ -29,11 +29,11 @@ typedef struct {
     char                  root_canon[PATH_MAX];
     char                  backend[16];   /* "pblock" | "xroot" */
     int64_t               block_size;
-    char                  origin_host[256];   /* xroot/http: remote origin host */
+    char                  origin_host[BRIX_VFS_HOST_BUF];   /* xroot/http: remote origin host */
     int                   origin_port;
     int                   origin_tls;
     int                   origin_family;       /* brix_af_policy_t for origin connect */
-    char                  origin_path[1024];  /* http: URL base path ("" / "/sub") */
+    char                  origin_path[BRIX_VFS_PATH_BUF];  /* http: URL base path ("" / "/sub") */
     unsigned              tape_arc_depth;     /* tape://...?arc=<depth> (phase-115
                                               * W3.1 dataset archiver); 0 = off */
     /* phase-68 T11: additional ranked http endpoints (endpoint 0 is
@@ -43,7 +43,7 @@ typedef struct {
         char host[128];
         int  port;
         int  tls;
-        char base[256];
+        char base[BRIX_VFS_HOST_BUF];
     }                     http_extra[7];
     int                   n_http_extra;
     /* T19: config-time selection ranks (geo/static), applied to the built
@@ -52,18 +52,18 @@ typedef struct {
     int                   has_http_ranks;
     char                  origin_token[4096]; /* §14: bearer token for the source
                                                * upstream ("" = anonymous) */
-    char                  origin_x509_proxy[1024]; /* §14/C-3 GSI: proxy (or cert) PEM path */
-    char                  origin_x509_key[1024];    /* §14/C-3 GSI: separate key PEM ("" =
+    char                  origin_x509_proxy[BRIX_VFS_PATH_BUF]; /* §14/C-3 GSI: proxy (or cert) PEM path */
+    char                  origin_x509_key[BRIX_VFS_PATH_BUF];    /* §14/C-3 GSI: separate key PEM ("" =
                                                      * key is inside origin_x509_proxy) */
-    char                  origin_ca_dir[1024];      /* §14/C-3 GSI: origin-cert CA */
-    char                  origin_s3_access_key[256]; /* §14 S3 SigV4: access-key id */
-    char                  origin_s3_secret_key[256]; /* §14 S3 SigV4: secret key    */
+    char                  origin_ca_dir[BRIX_VFS_PATH_BUF];      /* §14/C-3 GSI: origin-cert CA */
+    char                  origin_s3_access_key[BRIX_VFS_HOST_BUF]; /* §14 S3 SigV4: access-key id */
+    char                  origin_s3_secret_key[BRIX_VFS_HOST_BUF]; /* §14 S3 SigV4: secret key    */
     char                  origin_s3_region[64];      /* §14 S3 SigV4: region scope  */
     int                   origin_put_checksum;       /* #12: s3://...?put_checksum=1 —
                                                        * sign+send x-amz-checksum-crc32 on
                                                        * every PUT so the origin rejects a
                                                        * wire-corrupted upload (BadDigest) */
-    char                  origin_sss_keytab[1024];   /* §14 SSS: shared-secret keytab*/
+    char                  origin_sss_keytab[BRIX_VFS_PATH_BUF];   /* §14 SSS: shared-secret keytab*/
     int                   staging;       /* xroot: stage local + promote on commit */
     int                   origin_nearline; /* xroot: "root+tape://" — the origin
                                             * fronts an MSS, so the driver arms
@@ -105,9 +105,9 @@ typedef struct {
                                             * URL. */
     /* ceph backend: the export's namespace + data live in a RADOS pool (no local
      * dir); root_canon is just the logical mount point. */
-    char                  ceph_pool[256];
-    char                  ceph_conf[1024];
-    char                  ceph_key_prefix[256];
+    char                  ceph_pool[BRIX_VFS_POOL_BUF];
+    char                  ceph_conf[BRIX_VFS_CEPH_CONF_BUF];
+    char                  ceph_key_prefix[BRIX_VFS_POOL_BUF];
     /* phase-108 A.4: the export's resolved logical→physical name translation.
      * Defaulted by the backend parser (ceph ⇒ CEPHFS_PATH with prefix ==
      * ceph_key_prefix; every other backend leaves the zero value, IDENTITY) and
@@ -118,7 +118,7 @@ typedef struct {
     /* cephfsro (read-only CephFS-via-RADOS): ceph_pool holds the METADATA pool,
      * ceph_data_pool the DATA pool; cephfs_quiesced is the operator's safety
      * assertion (carried in the backend URI as "?assume_quiesced=1"). */
-    char                  ceph_data_pool[256];
+    char                  ceph_data_pool[BRIX_VFS_POOL_BUF];
     int                   cephfs_quiesced;
     int                   cephfs_live;
     /* phase-64 composable tiers (additive over the flat backend above): when a
@@ -137,7 +137,7 @@ typedef struct {
      * instance is ever built for it). Like cold_tier, deliberately NOT
      * cloned for T14 synthetic per-upstream entries. */
     struct {
-        char host[256];
+        char host[BRIX_VFS_HOST_BUF];
         int  port;
     }                     peer_ring[16];
     int                   n_peer_ring;   /* 0 = no mesh */

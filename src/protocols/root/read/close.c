@@ -188,7 +188,7 @@ brix_close_log_access(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
     const char *log_path;
 
     if (btotal > 0 && dur > 0) {
-        double mbps = (double) btotal / (double) dur / 1000.0;
+        double mbps = (double) btotal / (double) dur / BRIX_ROOT_MS_TO_SEC;
         snprintf(close_detail, sizeof(close_detail), "%.2fMB/s", mbps);
     } else {
         snprintf(close_detail, sizeof(close_detail), "-");

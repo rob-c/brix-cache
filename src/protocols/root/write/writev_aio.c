@@ -25,7 +25,10 @@
 #include "fs/cache/writethrough_metrics.h"
 #include "wrts_journal.h"
 #include "writev_internal.h"
-/* PAL endian ops now in platform_api.h */  /* brix_plat_be64toh/brix_plat_htobe64 cross-platform */   /* cross-file: writev_run_t + writev_try_aio decl */
+/* PAL endian ops now in platform_api.h
+ * brix_plat_be64toh/brix_plat_htobe64 cross-platform
+ * cross-file: writev_run_t + writev_try_aio decl
+ */
 
 /* writev_try_aio — offload the whole vector to a worker thread if configured.
  * WHAT: When a thread pool is configured, flattens the wire descriptors into a

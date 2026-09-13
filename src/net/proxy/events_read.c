@@ -3,16 +3,36 @@
 #include <sys/socket.h>
 
 /*
- * WHAT: Handle upstream read events — accumulate response header (8 bytes), optionally use Linux splice for zero-copy,
- *      then relay response body back to the client. Handles kXR_attn notifications, bootstrap responses, and forwarding mode.
- * WHY: The proxy must collect complete XRootD wire frames before relaying them to clients. Each frame has an 8-byte header (status + dlen)
- *      followed by variable-length payload. nginx-xrootd uses edge-triggered epoll so it must drain all available data from each read event
- *      rather than returning early — otherwise buffered data would be unread until the next TCP segment arrives.
- * HOW: Extract uconn and proxy ctx from rev->data; check client destruction/timeout; accumulate rhdr via recv() loop until XRD_RESPONSE_HDR_LEN;
- *      attempt Linux splice for zero-copy if FORWARDING state + resp_dlen fits in buffer; allocate resp_body via ngx_alloc; accumulate body data;
- *      handle kXR_attn relay (unsolicited notifications, special stream ID); process bootstrap or forwarding responses based on proxy->state.
- *      The pump is decomposed into fill (header/body recv + framing accumulation) and dispatch (per-frame forward decision) stages; each
- *      stage returns a step verdict telling the driver loop whether to stop, loop again, or fall through to the next stage.
+ * Handle upstream read events.
+ *
+ * WHAT:
+ *   - Accumulate response header (8 bytes)
+ *   - Optionally use Linux splice for zero-copy
+ *   - Relay response body back to the client
+ *   - Handles kXR_attn notifications, bootstrap responses, and forwarding mode
+ *
+ * WHY:
+ *   The proxy must collect complete XRootD wire frames before relaying them
+ *   to clients. Each frame has an 8-byte header (status + dlen) followed by
+ *   variable-length payload.
+ *   nginx-xrootd uses edge-triggered epoll so it must drain all available data
+ *   from each read event rather than returning early — otherwise buffered data
+ *   would be unread until the next TCP segment arrives.
+ *
+ * HOW:
+ *   1. Extract uconn and proxy ctx from rev->data
+ *   2. Check client destruction/timeout
+ *   3. Accumulate rhdr via recv() loop until XRD_RESPONSE_HDR_LEN
+ *   4. Attempt Linux splice for zero-copy if FORWARDING state + resp_dlen fits
+ *   5. Allocate resp_body via ngx_alloc; accumulate body data
+ *   6. Handle kXR_attn relay (unsolicited notifications, special stream ID)
+ *   7. Process bootstrap or forwarding responses based on proxy->state
+ *
+ * DESIGN:
+ *   The pump is decomposed into fill (header/body recv + framing accumulation)
+ *   and dispatch (per-frame forward decision) stages; each stage returns a
+ *   step verdict telling the driver loop whether to stop, loop again, or fall
+ *   through to the next stage.
  */
 
 /* Step verdicts returned by the pump stages to the driver loop. */

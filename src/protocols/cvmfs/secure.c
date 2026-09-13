@@ -548,6 +548,6 @@ brix_cvmfs_qos_check(ngx_http_request_t *r,
             cls->fills);
         return NGX_HTTP_TOO_MANY_REQUESTS;
     }
-    cls->tokens -= 1000;
+    cls->tokens -= BRIX_CVMFS_QOS_TOKEN_DECREMENT;
     return NGX_DECLINED;
 }

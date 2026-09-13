@@ -1,20 +1,35 @@
-/* Macaroon caveat parsing and scope narrowing — first-party caveat classification, activity→scope mapping, before: expiry, and path: intersection.
+/*
+ * Macaroon caveat parsing and scope narrowing.
+ * First-party caveat classification, activity→scope mapping,
+ * before: expiry enforcement, path: intersection.
  *
- * WHAT: Turns the caveat bytes recovered from the HMAC packet chain into structured claims. Classifies each
- * first-party caveat (activity:/before:/path:), maps WLCG activities to storage.* scopes, records the earliest
- * before: expiry, collects path: caveats, and — after parsing — narrows scope paths by intersecting every path:
- * caveat (and, via the same helper, discharge-supplied paths) against the granted scopes.
+ * WHAT: Converts caveat bytes from HMAC packet chain into structured claims.
+ *       Classifies each first-party caveat (activity:/before:/path:).
+ *       Maps WLCG activities to storage.* scopes.
+ *       Records earliest before: expiry.
+ *       Collects path: caveats.
+ *       After parsing: narrows scope paths by intersecting every path: caveat
+ *       (and discharge-supplied paths) against granted scopes.
  *
- * WHY: Split out of macaroon.c (phase-79 file-size split). Caveat interpretation is the authorization core of a
- * macaroon: activity mapping decides which permissions a token conveys, before: enforces expiry, and path:
- * intersection guarantees the effective path is the most restrictive of all caveats and scopes (never widening).
- * Isolating this logic keeps the security-critical narrowing rules in one auditable file, separate from the HMAC
- * chain machinery (macaroon_parse.c).
+ * WHY: Split out of macaroon.c (phase-79 file-size split).
+ *      Caveat interpretation is authorization core of macaroon:
+ *        - activity mapping: decides which permissions token conveys
+ *        - before: enforces expiry
+ *        - path: intersection: guarantees effective path is most restrictive
+ *          of all caveats and scopes (never widening)
+ *      Isolating this logic keeps security-critical narrowing rules
+ *      in one auditable file, separate from HMAC chain machinery
+ *      (macaroon_parse.c).
  *
- * HOW: parse_iso8601() converts a restricted ISO8601 before: value to time_t. macaroon_parse_first_party_caveat()
- * dispatches on the caveat prefix. macaroon_parse_activity_caveat() splits comma-separated activities and appends
- * mapped scopes. macaroon_apply_path_caveats() walks each caveat × scope pair via macaroon_apply_path_to_scope()
- * (narrow / keep / revoke), then rebuilds scope_raw via macaroon_rebuild_scope_raw() if anything narrowed. */
+ * HOW: Four-function pipeline:
+ *        1. parse_iso8601(): converts restricted ISO8601 before: value to time_t
+ *        2. macaroon_parse_first_party_caveat(): dispatches on caveat prefix
+ *        3. macaroon_parse_activity_caveat(): splits comma-separated activities,
+ *           appends mapped scopes
+ *        4. macaroon_apply_path_caveats(): walks each caveat × scope pair
+ *           via macaroon_apply_path_to_scope() (narrow/keep/revoke),
+ *           rebuilds scope_raw via macaroon_rebuild_scope_raw() if narrowed
+ */
 
 #include "token_internal.h"
 #include "macaroon.h"
@@ -51,7 +66,7 @@ parse_iso8601(const char *s, size_t len)
         return (time_t) -1;
     }
 
-    tm.tm_year -= 1900;
+    tm.tm_year -= BRIX_UNIX_EPOCH_YEAR;
     tm.tm_mon  -= 1;
     tm.tm_isdst = -1;
 
@@ -114,9 +129,34 @@ macaroon_rebuild_scope_raw(brix_token_claims_t *claims)
  *       Re-parse the rebuilt string via brix_token_parse_scopes() to refresh claims->scopes[].
  */
 
-/* WHAT: Apply path: caveats to restrict scope paths via intersection logic — each caveat narrows allowed paths further.
- * WHY: WLCG macaroon "path:" caveats enforce hierarchical path restrictions on top of already-granted scope permissions. The intersection ensures the final effective path is the most restrictive among all caveats and scopes, preventing over-authorization.
- * HOW: For each caveat path cp: strip trailing slash from scope paths for comparison; case 1 (cp equal/deeper than sc->path): narrow scope to cp if different; case 2 (sc->path deeper than cp): keep sc->path already more restrictive; case 3 (disjoint paths): revoke all permissions (read/write/create/modify=0) on this scope entry; track narrowed flag; after processing all caveats, call macaroon_rebuild_scope_raw() if any narrowing occurred. */
+/*
+ * WHAT: Apply path: caveats to restrict scope paths via intersection logic.
+ *       Each caveat narrows allowed paths further — never widens.
+ *
+ * WHY: WLCG macaroon "path:" caveats enforce hierarchical path restrictions
+ *      on top of already-granted scope permissions.
+ *      Intersection ensures final effective path is most restrictive
+ *      among all caveats and scopes, preventing over-authorization.
+ *
+ * HOW: For each caveat path (cp), compare against scope path (sc->path):
+ *
+ *        Preprocessing:
+ *          - Strip trailing slash from scope paths for comparison
+ *
+ *        Three cases:
+ *          1. cp equal to or deeper than sc->path:
+ *             → Narrow scope to cp (if different from current)
+ *          2. sc->path deeper than cp:
+ *             → Keep sc->path (already more restrictive)
+ *          3. Disjoint paths (no common prefix):
+ *             → Revoke all permissions (read/write/create/modify=0)
+ *             → Mark scope entry as revoked
+ *
+ *        Post-processing:
+ *          - Track narrowed flag across all caveats
+ *          - If any narrowing occurred: call macaroon_rebuild_scope_raw()
+ *            to regenerate scope_raw string from modified scopes
+ */
 static int
 macaroon_apply_path_to_scope(ngx_log_t *log, brix_token_scope_t *scope,
                              const char *caveat_path, size_t caveat_path_len)

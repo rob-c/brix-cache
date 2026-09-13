@@ -161,7 +161,7 @@ token_validate_macaroon(const brix_token_validate_args_t *a)
     if (a->expected_issuer != NULL && a->expected_issuer[0]
         && strcmp(a->claims->iss, a->expected_issuer) != 0)
     {
-        char safe_iss[512];
+        char safe_iss[BRIX_TOKEN_ISS_BUF_SIZE];
         token_sanitize_for_log(a->claims->iss, safe_iss, sizeof(safe_iss));
         ngx_log_error(NGX_LOG_WARN, a->log, 0,
                       "brix_macaroon: issuer/location mismatch: got \"%s\" "
@@ -184,6 +184,25 @@ token_validate_macaroon(const brix_token_validate_args_t *a)
  *       emit it that way). json_get_string() only accepts a JSON string, so
  *       the first array entry is recorded for logging/audit; the membership
  *       check in token_check_issuer_audience() accepts string OR array form.
+ */
+/*
+ * token_extract_claims — extract JWT claims from payload JSON into claims struct.
+ *
+ * WHAT: Extracts standard JWT claims (iss, sub, aud, scope, exp, nbf, iat) and
+ *   WLCG-specific claims (wlcg.groups) from JSON payload into brix_token_claims_t
+ *   struct. Validates exp is present and positive (RFC 7519 §4.1.4), validates sub
+ *   is string if present (RFC 7519 §4.1.2 rules 4/6), handles aud as string or array
+ *   (RFC 7519 §4.1.3). Returns 0 on success, -1 on validation failure.
+ *
+ * WHY: JWT validation requires extracting and checking claims after signature
+ *   verification. The exp claim is mandatory (token without expiry can never be
+ *   accepted). Sub must be scalar (not array/object) to represent a single principal.
+ *   Aud can be array (WLCG/OIDC common pattern) — first entry captured for logging,
+ *   full check done in token_check_issuer_audience().
+ *
+ * HOW: Uses json_get_string() for scalar claims, json_get_string_array() for aud
+ *   fallback and wlcg.groups, json_get_int64() for time claims. Validates exp > 0,
+ *   rejects non-string sub. Extracts groups via brix_token_extract_groups() helper.
  */
 static int
 token_extract_claims(const brix_token_validate_args_t *a, const char *pay_json,
@@ -254,6 +273,24 @@ token_extract_claims(const brix_token_validate_args_t *a, const char *pay_json,
  *       json_string_or_array_contains() so the array form is honored exactly
  *       (claims->aud holds only the first entry, for logging).
  */
+/*
+ * token_check_issuer_audience — enforce iss/aud pins on verified JWT claims.
+ *
+ * WHAT: Validates issuer and audience claims against configured expectations.
+ *   Checks iss matches expected_issuer exactly if configured. Checks aud contains
+ *   expected_audience or WLCG wildcard ('https://wlcg.cern.ch/jwt/v1/any').
+ *   Returns 0 on match, -1 on mismatch (logged with sanitized values).
+ *
+ * WHY: Issuer-confusion attack prevention — without iss check, attacker could
+ *   present valid token from different trusted issuer. WLCG wildcard rule
+ *   (specs 104/105): tokens with aud='https://wlcg.cern.ch/jwt/v1/any' must be
+ *   accepted by any WLCG endpoint regardless of local audience config.
+ *
+ * HOW: Compares iss claim to expected_issuer if set. Re-reads aud from JSON
+ *   via json_string_or_array_contains() to handle array form correctly
+ *   (claims->aud only has first entry for logging). Checks for exact match
+ *   or WLCG wildcard.
+ */
 static int
 token_check_issuer_audience(const brix_token_validate_args_t *a,
     const char *pay_json, size_t pay_len)
@@ -262,7 +299,7 @@ token_check_issuer_audience(const brix_token_validate_args_t *a,
      * could present a valid token from a different trusted issuer. */
     if (a->expected_issuer != NULL && a->expected_issuer[0]) {
         if (strcmp(a->claims->iss, a->expected_issuer) != 0) {
-            char safe_iss[512];
+            char safe_iss[BRIX_TOKEN_ISS_BUF_SIZE];
             token_sanitize_for_log(a->claims->iss, safe_iss, sizeof(safe_iss));
             ngx_log_error(NGX_LOG_WARN, a->log, 0,
                           "brix_token: issuer mismatch: got \"%s\" "
@@ -284,7 +321,7 @@ token_check_issuer_audience(const brix_token_validate_args_t *a,
                                           "aud",
                                           "https://wlcg.cern.ch/jwt/v1/any");
         if (!aud_ok) {
-            char safe_aud[512];
+            char safe_aud[BRIX_TOKEN_AUD_BUF_SIZE];
             token_sanitize_for_log(a->claims->aud, safe_aud, sizeof(safe_aud));
             ngx_log_error(NGX_LOG_WARN, a->log, 0,
                           "brix_token: audience mismatch: got \"%s\" "
@@ -311,6 +348,23 @@ token_check_issuer_audience(const brix_token_validate_args_t *a,
  *       claims->exp + clock_skew can overflow. Use saturating addition — if
  *       the sum would overflow, the expiry is effectively infinite and the
  *       token is always valid.
+ */
+/*
+ * token_check_time_window — validate token expiry (exp) and not-before (nbf) against server clock.
+ *
+ * WHAT: Checks current time against token's exp and nbf claims with configurable clock
+ *   skew tolerance. Rejects expired tokens (now > exp + skew) and not-yet-valid tokens
+ *   (now < nbf). Returns 0 if within valid window, -1 if expired or not yet valid.
+ *   Uses saturating addition to prevent int64 overflow on far-future exp values.
+ *
+ * WHY: JWT tokens must be time-bounded for security. Clock skew tolerance prevents
+ *   rejection due to minor clock differences between systems. Saturating addition
+ *   handles pathological far-future NumericDate values (e.g., 99999999999999999999)
+ *   without overflow, treating them as effectively never-expiring.
+ *
+ * HOW: Gets current time, computes exp_limit = exp + clock_skew (saturating at INT64_MAX),
+ *   compares now vs exp_limit, checks nbf if present. Logs violations with sanitized
+ *   timestamps.
  */
 static int
 token_check_time_window(const brix_token_validate_args_t *a)
@@ -354,11 +408,25 @@ token_check_time_window(const brix_token_validate_args_t *a)
  * HOW:  Level gate first, then four token_sanitize_for_log() passes feeding
  *       one ngx_log_error(NGX_LOG_INFO, ...) call.
  */
+/*
+ * token_log_valid — log successful token validation with extracted claims.
+ *
+ * WHAT: Logs successful JWT validation at DEBUG level with issuer, subject, audience,
+ *   groups, and expiry timestamp. Used for audit trail and debugging token-based
+ *   authentication issues.
+ *
+ * WHY: Operators need visibility into which tokens are being accepted for security
+ *   auditing and troubleshooting. Structured logging enables parsing and correlation
+ *   with access logs.
+ *
+ * HOW: Formats claims into human-readable log message with iss, sub, aud, groups,
+ *   exp fields. Uses ngx_log_error() at DEBUG level to avoid log spam in production.
+ */
 static void
 token_log_valid(ngx_log_t *log, const brix_token_claims_t *claims)
 {
     if (log->log_level >= NGX_LOG_INFO) {
-        char safe_sub[512], safe_iss[512], safe_scope[1024], safe_groups[512];
+        char safe_sub[BRIX_TOKEN_SUB_BUF_SIZE], safe_iss[BRIX_TOKEN_ISS_BUF_SIZE], safe_scope[BRIX_TOKEN_SCOPE_BUF_SIZE], safe_groups[BRIX_TOKEN_GROUPS_BUF_SIZE];
         token_sanitize_for_log(claims->sub,       safe_sub,    sizeof(safe_sub));
         token_sanitize_for_log(claims->iss,       safe_iss,    sizeof(safe_iss));
         token_sanitize_for_log(claims->scope_raw, safe_scope,  sizeof(safe_scope));
@@ -413,7 +481,7 @@ int
 brix_token_validate(const brix_token_validate_args_t *a)
 {
     xrdjwt_seg   seg[3];
-    u_char       pay_json[4096];
+    u_char       pay_json[BRIX_BEARER_TOKEN_MAX];
     ssize_t      pay_len;
     token_hdr_t  hdr;
 
@@ -423,7 +491,7 @@ brix_token_validate(const brix_token_validate_args_t *a)
         return token_validate_macaroon(a);
     }
 
-    if (a->token_len == 0 || a->token_len > 8192) {
+    if (a->token_len == 0 || a->token_len > BRIX_B64_DECODE_MAX) {
         ngx_log_error(NGX_LOG_WARN, a->log, 0,
                       "brix_token: token length invalid: %uz", a->token_len);
         return -1;

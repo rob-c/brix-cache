@@ -118,7 +118,7 @@ typedef struct {
  * password). Filled by login_verify_credentials(). */
 typedef struct {
     char       username[257];
-    char       password[1025];
+    char       password[BRIX_DASHBOARD_PASSWORD_BUF];
     size_t     username_len;
     size_t     pw_len;
     ngx_str_t  hmac_key;
@@ -162,7 +162,7 @@ login_collect_body(ngx_http_request_t *r, u_char **body_out, size_t *total_out)
         body_len += ngx_buf_size(cl->buf);
     }
 
-    if (body_len == 0 || body_len > 4096) {
+    if (body_len == 0 || body_len > BRIX_XLARGE_BUF_SIZE) {
         return NGX_DECLINED;
     }
 

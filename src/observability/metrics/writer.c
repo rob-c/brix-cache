@@ -50,9 +50,25 @@ mw_alloc_chain_buffer(ngx_pool_t *pool, ngx_chain_t **chain_out)
     return NGX_OK;
 }
 
-/* WHAT: Selects the metrics_writer_t's tail ngx_buf_t for appending by initializing mw->pos to buffer's current position (buffer->pos) and setting mw->last = buffer->last + METRICS_BUF_SIZE. This establishes the write boundaries within the tail buffer before subsequent mw_append_buffer calls fill content.
- * WHY: The metrics writer uses a linked chain of buffers where each new buffer is appended via mw_append_buffer(). Before appending to any buffer, mw_select_tail_buffer() must establish position markers so mw->pos (write start) and mw->last (write end) are correctly set relative to the selected tail buffer. METRICS_BUF_SIZE defines how much beyond buffer->last we consider writable — this accounts for pre-allocated extra space in nginx_buf_t allocation.
- * HOW: Single three-step assignment → read mw->tail->buf pointer, copy buffer->pos into mw->pos (write start), set mw->last = buffer->last + METRICS_BUF_SIZE (write end boundary). No validation or error handling — assumes tail buffer is valid and pre-allocated with sufficient capacity. */
+/*
+ * WHAT: Selects metrics_writer_t's tail ngx_buf_t for appending.
+ *       - Initializes mw->pos to buffer->pos (current position)
+ *       - Sets mw->last = buffer->last + METRICS_BUF_SIZE
+ *       - Establishes write boundaries before mw_append_buffer calls
+ *
+ * WHY: Metrics writer uses linked chain of buffers appended via mw_append_buffer().
+ *      Before appending, mw_select_tail_buffer() must establish position markers
+ *      so mw->pos (write start) and mw->last (write end) are correctly set.
+ *      METRICS_BUF_SIZE defines writable space beyond buffer->last
+ *      (accounts for pre-allocated extra space in nginx_buf_t allocation).
+ *
+ * HOW: Single three-step assignment:
+ *      1. Read mw->tail->buf pointer
+ *      2. Copy buffer->pos into mw->pos (write start)
+ *      3. Set mw->last = buffer->last + METRICS_BUF_SIZE (write end boundary)
+ *      No validation or error handling — assumes tail buffer valid and
+ *      pre-allocated with sufficient capacity.
+ */
 
 static void
 mw_select_tail_buffer(metrics_writer_t *mw)
@@ -312,7 +328,7 @@ brix_storage_capacity_emit(metrics_writer_t *mw, ngx_uint_t n)
             info.root_canon, info.backend,
             (unsigned long long) fsu.available_bytes,
             info.root_canon, info.backend,
-            (double) fsu.occupancy_ppm / 1000000.0);
+            (double) fsu.occupancy_ppm / BRIX_PPM_MULTIPLIER);
     }
 }
 

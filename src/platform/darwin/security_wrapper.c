@@ -34,6 +34,9 @@ struct brix_security_ctx {
 };
 typedef struct brix_security_ctx brix_security_ctx_t;
 
+/* Forward declaration */
+static int brix_security_load_profile(const char *path);
+
 /* ==========================================================================
  * SECURITY - macOS implementations (sandbox_exec stub - Phase 3)
  * ========================================================================== */

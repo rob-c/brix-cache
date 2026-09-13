@@ -234,7 +234,7 @@ writer_ingest_bounce(brix_vfs_writer_t *w, int src_fd, off_t src_off, size_t len
     size_t left = len;
 
     while (left > 0) {
-        u_char  chunk[65536];
+        u_char  chunk[BRIX_VFS_WRITER_CHUNK_SIZE];
         size_t  want = left < sizeof(chunk) ? left : sizeof(chunk);
         ssize_t n    = pread(src_fd, chunk, want, s);
 

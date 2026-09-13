@@ -137,7 +137,7 @@ ngx_int_t
 idmap_gridmap_load(const char *path, ngx_log_t *log)
 {
     FILE   *fp;
-    char    line[1024];
+    char    line[BRIX_IDMAP_DENYLIST_LINE_BUF_SIZE];
     size_t  cap = 0;
 
     idmap_gridmap_free();

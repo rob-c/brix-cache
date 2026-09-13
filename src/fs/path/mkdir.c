@@ -330,12 +330,22 @@ brix_mkdir_level_beneath(const brix_mkdir_walk_t *w, const char *dir)
 }
 
 /*
+ * WHAT: Creates directories recursively from root to target path using
+ * unconstrained mkdir syscall.
  *
- * WHAT: Creates directories recursively from root to target path using unconstrained mkdir syscall. Thin wrapper that delegates to brix_mkdir_recursive_policy() with NULL log and rules (no group policy enforcement).
+ *   - Thin wrapper that delegates to brix_mkdir_recursive_policy() with NULL
+ *   log and rules (no group policy enforcement)
  *
- * WHY: Provides a simple API for callers who only need directory creation without policy checks — used by write/mv.c rename operations when creating intermediate directories during move.
+ * WHY: Provides a simple API for callers who only need directory creation
+ * without policy checks.
  *
- * HOW: Copies path argument into tmp buffer, delegates to brix_mkdir_recursive_policy(path, mode, NULL, NULL). Returns 0 on success (all levels created or existed), -1 on failure. */
+ *   - Used by write/mv.c rename operations when creating intermediate
+ *   directories during move
+ *
+ * HOW: Copies path argument into tmp buffer, delegates to
+ * brix_mkdir_recursive_policy(path, mode, NULL, NULL). Returns 0 on success
+ * (all levels created or existed), -1 on failure.
+ */
 
 int
 brix_mkdir_recursive(const char *path, mode_t mode)
@@ -344,12 +354,29 @@ brix_mkdir_recursive(const char *path, mode_t mode)
 }
 
 /*
+ * WHAT: Creates directories recursively from root to target path, applying
+ * parent group policy at each newly-created intermediate level when log and
+ * rules are provided.
  *
- * WHAT: Creates directories recursively from root to target path, applying parent group policy at each newly-created intermediate level when log and rules are provided. Uses local stack buffer (tmp[PATH_MAX]) to progressively truncate the path at each '/' separator, mkdir() each prefix, then restore the '/' before advancing.
+ *   - Uses local stack buffer (tmp[PATH_MAX]) to progressively truncate the
+ *   path at each '/' separator, mkdir() each prefix, then restore the '/'
+ *   before advancing
  *
- * WHY: XRootD MKCOL requests may create multi-level directory trees in a single call. Creating each level individually ensures intermediate directories inherit the correct parent group policy from their newly-created parent, preventing misconfigured permissions on nested paths. The policy application happens only when mkdir succeeds (not when EEXIST is returned) — existing parents retain their original policy.
+ * WHY: XRootD MKCOL requests may create multi-level directory trees in a
+ * single call.
  *
- * HOW: Normalise path into tmp[PATH_MAX] (strip trailing '/'), then drive the shared component walk from tmp+1 with the plain-mkdir backend and fatal-on-create policy (policy_on_exist=0). Returns 0 on success, -1 on first failure. Thread safety: uses local stack buffers only — safe for concurrent use. */
+ *   - Creating each level individually ensures intermediate directories
+ *   inherit the correct parent group policy from their newly-created parent,
+ *   preventing misconfigured permissions on nested paths
+ *   - The policy application happens only when mkdir succeeds (not when
+ *   EEXIST is returned) — existing parents retain their original policy
+ *
+ * HOW: Normalise path into tmp[PATH_MAX] (strip trailing '/'), then drive the
+ * shared component walk from tmp+1 with the plain-mkdir backend and
+ * fatal-on-create policy (policy_on_exist=0). Returns 0 on success, -1 on
+ * first failure. Thread safety: uses local stack buffers only — safe for
+ * concurrent use.
+ */
 
 int
 brix_mkdir_recursive_policy(const char *path, mode_t mode,
@@ -385,12 +412,28 @@ brix_mkdir_recursive_policy(const char *path, mode_t mode,
 }
 
 /*
+ * WHAT: Creates directories recursively from root to target path using
+ * confined mkdirat syscall under parent directory confinement.
  *
- * WHAT: Creates directories recursively from root to target path using confined mkdirat syscall under parent directory confinement. Takes pre-canonicalized root_canon and resolved path, validates that resolved is within root_canon before proceeding. Applies optional group policy at each newly-created intermediate level.
+ *   - Takes pre-canonicalized root_canon and resolved path
+ *   - Validates that resolved is within root_canon before proceeding
+ *   - Applies optional group policy at each newly-created intermediate level
  *
- * WHY: The confined variant uses brix_mkdir_confined_canon() (mkdirat under confinement) instead of plain mkdir(), preventing directory creation outside the export root even if symlinks were introduced between path resolution and creation. This is the security-critical variant used by WebDAV MKCOL and native XRootD mkdir opcodes.
+ * WHY: The confined variant uses brix_mkdir_confined_canon() (mkdirat under
+ * confinement) instead of plain mkdir().
  *
- * HOW: Normalise resolved into tmp[PATH_MAX], confinement-gate it against root_canon (EXDEV on mismatch, EEXIST if equal) to obtain the relative-walk start pointer, then drive the shared walk with the confined-canon backend and best-effort policy (policy_on_exist=1). Returns 0 on success, -1 on first failure. Thread safety: uses local stack buffers only — safe for concurrent use. */
+ *   - Preventing directory creation outside the export root even if symlinks
+ *   were introduced between path resolution and creation
+ *   - This is the security-critical variant used by WebDAV MKCOL and native
+ *   XRootD mkdir opcodes
+ *
+ * HOW: Normalise resolved into tmp[PATH_MAX], confinement-gate it against
+ * root_canon (EXDEV on mismatch, EEXIST if equal) to obtain the relative-walk
+ * start pointer, then drive the shared walk with the confined-canon backend
+ * and best-effort policy (policy_on_exist=1). Returns 0 on success, -1 on
+ * first failure. Thread safety: uses local stack buffers only — safe for
+ * concurrent use.
+ */
 
 /* Shared body of the two confined recursive variants: normalise, confinement-
  * gate against root_canon, then drive the walk with the given make_level
@@ -440,12 +483,28 @@ brix_mkdir_recursive_confined_canon(ngx_log_t *log, const char *root_canon,
 }
 
 /*
+ * WHAT: Creates directories recursively from root to target path, creating
+ * each level via openat2(RESOLVE_BENEATH) under a pre-opened export-root
+ * dirfd.
  *
- * WHAT: Creates directories recursively from root to target path, creating each level via openat2(RESOLVE_BENEATH) under a pre-opened export-root dirfd. Validates that resolved is within root_canon before proceeding. Applies optional group policy at each newly-created intermediate level.
+ *   - Validates that resolved is within root_canon before proceeding
+ *   - Applies optional group policy at each newly-created intermediate level
  *
- * WHY: As the confined-canon variant, but reuses an already-open rootfd (O_PATH dirfd of the export root) instead of re-opening parents per level — the same symlink-escape-proof confinement with less per-call syscall overhead. Used on the hot WebDAV/native mkdir paths.
+ * WHY: As the confined-canon variant, but reuses an already-open rootfd
+ * (O_PATH dirfd of the export root) instead of re-opening parents per level.
  *
- * HOW: Normalise resolved into tmp[PATH_MAX], confinement-gate it against root_canon (EXDEV on mismatch, EEXIST if equal) to obtain the relative-walk start pointer, then drive the shared walk with the beneath backend (which passes the export-relative path tmp+root_len to brix_mkdir_beneath) and best-effort policy (policy_on_exist=1). Returns 0 on success, -1 on first failure. Thread safety: uses local stack buffers only — safe for concurrent use. */
+ *   - The same symlink-escape-proof confinement with less per-call syscall
+ *   overhead
+ *   - Used on the hot WebDAV/native mkdir paths
+ *
+ * HOW: Normalise resolved into tmp[PATH_MAX], confinement-gate it against
+ * root_canon (EXDEV on mismatch, EEXIST if equal) to obtain the relative-walk
+ * start pointer, then drive the shared walk with the beneath backend (which
+ * passes the export-relative path tmp+root_len to brix_mkdir_beneath) and
+ * best-effort policy (policy_on_exist=1). Returns 0 on success, -1 on first
+ * failure. Thread safety: uses local stack buffers only — safe for concurrent
+ * use.
+ */
 
 int
 brix_mkdir_recursive_beneath(ngx_log_t *log, int rootfd,
@@ -457,7 +516,29 @@ brix_mkdir_recursive_beneath(ngx_log_t *log, int rootfd,
                                                 brix_mkdir_level_beneath);
 }
 
-/* Recursive directory creation with optional group policy enforcement
- * WHAT: Creates directories recursively from the root down to the target path, applying parent group policy at each newly-created intermediate level when log and rules are provided. Four public variants: unconstrained recursive mkdir (brix_mkdir_recursive), policy-aware variant (brix_mkdir_recursive_policy), confined canonical variant (brix_mkdir_recursive_confined_canon), and beneath variant (brix_mkdir_recursive_beneath). All share one component walk (brix_mkdir_walk) driven by a per-variant make_level backend.
+/*
+ * Recursive directory creation with optional group policy enforcement
  *
- * WHY: XRootD clients often create multi-level directory trees in a single MKCOL request. Creating each level individually with mkdir ensures intermediate directories inherit the correct group policy from their parent, preventing misconfigured permissions on nested paths. The confined variants use mkdirat under confinement to prevent creating directories outside the export root even if symlinks were introduced between path resolution and creation. Thread safety: uses local stack buffers only — safe for concurrent use. */
+ * WHAT: Creates directories recursively from the root down to the target path,
+ * applying parent group policy at each newly-created intermediate level when
+ * log and rules are provided.
+ *
+ *   - Four public variants: unconstrained recursive mkdir
+ *   (brix_mkdir_recursive), policy-aware variant
+ *   (brix_mkdir_recursive_policy), confined canonical variant
+ *   (brix_mkdir_recursive_confined_canon), and beneath variant
+ *   (brix_mkdir_recursive_beneath)
+ *   - All share one component walk (brix_mkdir_walk) driven by a per-variant
+ *   make_level backend
+ *
+ * WHY: XRootD clients often create multi-level directory trees in a single
+ * MKCOL request.
+ *
+ *   - Creating each level individually with mkdir ensures intermediate
+ *   directories inherit the correct group policy from their parent,
+ *   preventing misconfigured permissions on nested paths
+ *   - The confined variants use mkdirat under confinement to prevent creating
+ *   directories outside the export root even if symlinks were introduced
+ *   between path resolution and creation
+ *   - Thread safety: uses local stack buffers only — safe for concurrent use
+ */

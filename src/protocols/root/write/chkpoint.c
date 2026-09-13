@@ -4,6 +4,7 @@
 #include "core/compat/log.h"
 #include "core/compat/copy_range.h"
 #include "core/compat/staged_file.h"
+#include "core/types/tunables.h"   /* BRIX_CHKPT_EXT_NUL, BRIX_CHKPT_MODE */
 
 #include <dirent.h>
 #include <errno.h>
@@ -37,8 +38,16 @@ ckp_clear_path(brix_file_t *f)
     }
     f->ckp_size = 0;
 }
-/* WHY: Clean up checkpoint state when no longer active — prevents memory leaks (ckp_path string) and stale size tracking. Called after unlink() in commit/rollback, on copy failure cleanup, and by ckp_xeq.c to reset the file slot between sub-operations. */
-/* HOW: Free f->ckp_path if non-NULL via ngx_free(), set it to NULL; zero out f->ckp_size. No stat() or unlink() — caller handles .ckp file removal before calling this helper. Used exclusively by ckp_commit, ckp_rollback, and ckp_begin failure cleanup paths. */
+/*
+ * WHY: Clean up checkpoint state when no longer active — prevents memory leaks
+ *      (ckp_path string) and stale size tracking. Called after unlink() in
+ *      commit/rollback, on copy failure cleanup, and by ckp_xeq.c to reset
+ *      the file slot between sub-operations.
+ * HOW: Free f->ckp_path if non-NULL via ngx_free(), set it to NULL;
+ *      zero out f->ckp_size. No stat() or unlink() — caller handles .ckp
+ *      file removal before calling this helper. Used exclusively by
+ *      ckp_commit, ckp_rollback, and ckp_begin failure cleanup paths.
+ */
 
 /* WHAT: Creates a checkpoint snapshot by copying the entire file to <path>.ckp.
  *      Marks f->ckp_path as non-NULL and stores original size in f->ckp_size.
@@ -79,7 +88,7 @@ ckp_begin(brix_ctx_t *ctx, ngx_connection_t *c,
                                  "path too long for checkpoint");
     }
 
-    f->ckp_path = ngx_alloc(plen + 5, c->log);
+    f->ckp_path = ngx_alloc(plen + BRIX_CHKPT_EXT_NUL, c->log);
     if (f->ckp_path == NULL) {
         BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
         return brix_send_error(ctx, c, kXR_NoMemory,
@@ -87,11 +96,11 @@ ckp_begin(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     ngx_memcpy(f->ckp_path, f->path, plen);
-    ngx_memcpy(f->ckp_path + plen, ".ckp", 5); /* includes NUL */
+    ngx_memcpy(f->ckp_path + plen, ".ckp", BRIX_CHKPT_EXT_NUL); /* includes NUL */
 
     ckp_fd = open(f->ckp_path,
                   O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC | O_NOFOLLOW,
-                  0600);
+                  BRIX_CHKPT_MODE);
     if (ckp_fd < 0) {
         if (errno == EEXIST) {
             ckp_clear_path(f);
@@ -223,8 +232,8 @@ ckp_query(brix_ctx_t *ctx, ngx_connection_t *c,
 
     /* maxCkpSize is a u32 on the wire — clamp an over-large configured cap
      * rather than letting the truncation advertise a tiny bogus limit. */
-    body.maxCkpSize = htonl(conf->chkpnt_maxsz > 0xFFFFFFFFu
-                            ? 0xFFFFFFFFu : (uint32_t) conf->chkpnt_maxsz);
+    body.maxCkpSize = htonl(conf->chkpnt_maxsz > BRIX_CHKPT_SIZE_MAX
+                            ? BRIX_CHKPT_SIZE_MAX : (uint32_t) conf->chkpnt_maxsz);
     body.useCkpSize = htonl(use_sz);
 
     brix_log_access(ctx, c, "CHKPOINT", f->path, "query",
@@ -285,9 +294,25 @@ brix_handle_chkpoint(brix_ctx_t *ctx, ngx_connection_t *c,
                                  "unknown chkpoint opcode");
     }
 
-/* WHAT: Dispatches kXR_chkpoint sub-operations on req->opcode — routes to ckp_begin, ckp_commit, ckp_query, or ckp_rollback; also handles ckpXeq via ckp_xeq(). Validates the write handle before dispatch. */
-/* WHY: kXR_chkpoint is a compound opcode with 5 sub-codes (begin/commit/query/rollback/Xeq). The dispatcher extracts the file handle from req->fhandle[0], validates it as an open write handle, then routes to the appropriate handler. ckpXeq is delegated to chkpoint_xeq.c which parses the inner 24-byte sub-header and executes a single write operation under checkpoint protection. */
-/* HOW: Extracts idx from req->fhandle[0] as unsigned char; calls brix_validate_write_handle() for validation (returns early on failure). switch(req->opcode): kXR_ckpBegin→ckp_begin, kXR_ckpCommit→ckp_commit, kXR_ckpQuery→ckp_query, kXR_ckpRollback→ckp_rollback, kXR_ckpXeq→ckp_xeq. Default case logs debug + returns kXR_ArgInvalid error. */
+/*
+ * WHAT: Dispatches kXR_chkpoint sub-operations on req->opcode — routes to
+ *       ckp_begin, ckp_commit, ckp_query, or ckp_rollback; also handles
+ *       ckpXeq via ckp_xeq(). Validates the write handle before dispatch.
+ *
+ * WHY: kXR_chkpoint is a compound opcode with 5 sub-codes
+ *      (begin/commit/query/rollback/Xeq). The dispatcher extracts the file
+ *      handle from req->fhandle[0], validates it as an open write handle,
+ *      then routes to the appropriate handler. ckpXeq is delegated to
+ *      chkpoint_xeq.c which parses the inner 24-byte sub-header and executes
+ *      a single write operation under checkpoint protection.
+ *
+ * HOW: Extracts idx from req->fhandle[0] as unsigned char; calls
+ *      brix_validate_write_handle() for validation (returns early on
+ *      failure). switch(req->opcode): kXR_ckpBegin→ckp_begin,
+ *      kXR_ckpCommit→ckp_commit, kXR_ckpQuery→ckp_query,
+ *      kXR_ckpRollback→ckp_rollback, kXR_ckpXeq→ckp_xeq. Default case logs
+ *      debug + returns kXR_ArgInvalid error.
+ */
 }
 
 /*

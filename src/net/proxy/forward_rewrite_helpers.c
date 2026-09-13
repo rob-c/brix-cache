@@ -2,14 +2,34 @@
 #include "protocols/root/session/registry.h"
 
 /*
- * WHAT: Path prefix rewriting and file handle translation helpers for the transparent XRootD proxy.
- * WHY: The proxy translates paths between client-facing namespace and upstream filesystem namespace (e.g., /data → /mnt/storage).
- *      kXR_prepare payloads contain newline-separated path lists that need per-line rewriting. File handles are local to the client
- *      session but must be translated to upstream handle IDs before forwarding. INVARIANT: all rewrote buffers allocated via ngx_alloc;
- *      original request freed on success when reallocation occurred (caller responsibility tracked via total_out).
- * HOW: proxy_rewrite_path uses three strategies — no-match pass-through, same-length in-place rewrite, longer-path reallocation with dlen update.
- *      proxy_rewrite_prepare_payload does two-pass approach (calculate length + check needs_rewrite first, then copy/rewrite). proxy_translate_fh
- *      looks up local handle in fh_map and replaces byte at offset; returns -1 for invalid/unmapped handles.
+ * Path prefix rewriting and file handle translation helpers for the transparent XRootD proxy.
+ *
+ * WHAT:
+ *   Path prefix rewriting and file handle translation helpers.
+ *
+ * WHY:
+ *   The proxy translates paths between client-facing namespace and upstream
+ *   filesystem namespace (e.g., /data → /mnt/storage).
+ *   kXR_prepare payloads contain newline-separated path lists that need
+ *   per-line rewriting.
+ *   File handles are local to the client session but must be translated to
+ *   upstream handle IDs before forwarding.
+ *
+ * INVARIANT:
+ *   All rewrote buffers allocated via ngx_alloc;
+ *   original request freed on success when reallocation occurred
+ *   (caller responsibility tracked via total_out).
+ *
+ * HOW:
+ *   proxy_rewrite_path:
+ *     - Three strategies: no-match pass-through, same-length in-place rewrite,
+ *       longer-path reallocation with dlen update
+ *   proxy_rewrite_prepare_payload:
+ *     - Two-pass approach: calculate length + check needs_rewrite first,
+ *       then copy/rewrite
+ *   proxy_translate_fh:
+ *     - Looks up local handle in fh_map and replaces byte at offset
+ *     - Returns -1 for invalid/unmapped handles
  */
 
 /* path prefix rewriting */

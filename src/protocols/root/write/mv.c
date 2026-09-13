@@ -3,6 +3,7 @@
  */
 
 #include "core/ngx_brix_module.h"
+#include "core/types/tunables.h"         /* BRIX_ROOT_DEFAULT_DIR_MODE */
 #include "core/compat/error_mapping.h"
 #include "protocols/root/path/op_path.h"
 #include "protocols/root/write/backend_async_root.h"  /* backend-async mv park */
@@ -252,7 +253,7 @@ mv_make_dst_parents(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
 			slash = strrchr(rel, '/');
 			if (slash && slash > rel) {
 				*slash = '\0';
-				(void) brix_vfs_export_mkpath(&export_op_ctx, rel, 0755);
+				(void) brix_vfs_export_mkpath(&export_op_ctx, rel, BRIX_ROOT_DEFAULT_DIR_MODE);
 			}
 		}
 	} else {
@@ -264,7 +265,7 @@ mv_make_dst_parents(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
 		slash = strrchr(dst_full, '/');
 		if (slash && slash > dst_full) {
 			*slash = '\0';
-			brix_mkdir_recursive_policy(dst_full, 0755, c->log,
+			brix_mkdir_recursive_policy(dst_full, BRIX_ROOT_DEFAULT_DIR_MODE, c->log,
 										  conf->group_rules);
 		}
 	}

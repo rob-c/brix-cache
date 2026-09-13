@@ -95,7 +95,7 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
 {
     FILE        *fp;
     struct stat  st;
-    char         line[4096];
+    char         line[BRIX_SSS_CONFIG_LINE_BUF_SIZE];
     ngx_uint_t   line_no;
     ngx_array_t *keys;
     int          keytab_fd;

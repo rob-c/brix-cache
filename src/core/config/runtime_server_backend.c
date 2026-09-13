@@ -30,7 +30,7 @@
 void
 brix_pblock_write_opts_sidecar(const char *root, const char *tail)
 {
-    char  path[4096];
+    char  path[BRIX_PATH_MAX];
     FILE *f;
 
     (void) snprintf(path, sizeof(path), "%s/pblock.opts", root);
@@ -143,12 +143,12 @@ brix_storage_backend_posix_root(ngx_http_brix_shared_conf_t *common)
                 *q = '\0';                           /* truncate root at '?' */
                 common->root.len = (size_t) (q - common->root.data);
                 (void) brix_mkdir_recursive((const char *) common->root.data,
-                                            0755);
+                                            BRIX_CMS_DIR_MODE);
                 brix_pblock_write_opts_sidecar(
                     (const char *) common->root.data, tail);
             } else {
                 (void) brix_mkdir_recursive((const char *) common->root.data,
-                                            0755);
+                                            BRIX_CMS_DIR_MODE);
             }
         }
     }

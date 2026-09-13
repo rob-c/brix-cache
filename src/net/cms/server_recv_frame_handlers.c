@@ -288,7 +288,7 @@ cms_srv_frame_status(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     }
 
     if (mod & CMS_ST_SUSPEND) {
-        brix_srv_blacklist(ctx->host, ctx->port, 24 * 60 * 60 * 1000);
+        brix_srv_blacklist(ctx->host, ctx->port, BRIX_CMS_BLACKLIST_DURATION_MS);
         ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
                       "brix: CMS server: %s:%d suspended",
                       ctx->host, (int) ctx->port);

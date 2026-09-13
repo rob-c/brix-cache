@@ -35,7 +35,7 @@ typedef struct {
     X509_STORE                        *store;    /* CA store used (borrowed from conf) */
     ngx_uint_t                         verify_depth; /* depth limit used */
     ngx_uint_t                         reuse_logged;  /* 1 after first "resumed" log */
-    char                               dn[1024];      /* verified subject DN */
+    char                               dn[BRIX_WEBDAV_TLS_DN_BUF];      /* verified subject DN */
 } ngx_http_brix_webdav_tls_auth_cache_t;
 
 static int webdav_ssl_auth_cache_index = -1;
@@ -301,12 +301,12 @@ webdav_extract_and_set_voms_identity(ngx_http_request_t *r,
 {
     X509            *leaf;
     STACK_OF(X509)  *chain;
-    char             primary_vo[256] = "";
-    char             vo_list[1024]   = "";
+    char             primary_vo[BRIX_WEBDAV_VOMS_PRIMARY_VO_BUF] = "";
+    char             vo_list[BRIX_WEBDAV_VOMS_LIST_BUF]   = "";
     /* 2.0 F20: the raw FQANs travel in their OWN buffer — vo_list is '/'-free by
      * construction so it can never carry "Role=...", and an identity built from
      * it alone leaves acc_role_csv empty (dead `l` selector / XrdAcc role). */
-    char             fqan_list[1024] = "";
+    char             fqan_list[BRIX_WEBDAV_VOMS_FQAN_LIST_BUF] = "";
     brix_voms_in_t   in;
     brix_voms_out_t  out;
     ngx_int_t        rc = NGX_OK;
@@ -473,7 +473,7 @@ webdav_finish_verified_cert(ngx_http_request_t *r,
     }
 
     {
-        char dn_log[1024];
+        char dn_log[BRIX_WEBDAV_GSI_LOG_DN_BUF];
 
         brix_sanitize_log_string(ctx->dn, dn_log, sizeof(dn_log));
         ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,

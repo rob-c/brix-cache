@@ -90,8 +90,8 @@ brix_gsi_enforce_signing_policy(X509_STORE_CTX *vctx, ngx_log_t *log)
         }
 
         if (!brix_sp_table_check(table, mode, issuer, subject)) {
-            char subj_dn[1024];
-            char ca_dn[1024];
+            char subj_dn[BRIX_AUTH_DN_BUF_SIZE];
+            char ca_dn[BRIX_AUTH_DN_BUF_SIZE];
 
             brix_x509_oneline(X509_get_subject_name(subject),
                               subj_dn, sizeof(subj_dn));
@@ -213,7 +213,7 @@ brix_gsi_verify_log_failure(X509_STORE_CTX *vctx, ngx_log_t *log,
                             const char *verr_str)
 {
     X509 *cur;
-    char  dn[1024];
+    char  dn[BRIX_AUTH_DN_BUF_SIZE];
 
     if (brix_store_verify_log(vctx) == BRIX_TLS_VERIFY_LOG_OFF) {
         return;
@@ -250,7 +250,7 @@ brix_gsi_verify_log_chain(X509_STORE_CTX *vctx, ngx_log_t *log)
 {
     STACK_OF(X509) *chain;
     int             n, i;
-    char            dn[1024];
+    char            dn[BRIX_AUTH_DN_BUF_SIZE];
 
     if (brix_store_verify_log(vctx) != BRIX_TLS_VERIFY_LOG_ALL) {
         return;

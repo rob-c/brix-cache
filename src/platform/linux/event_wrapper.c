@@ -6,8 +6,8 @@
 #include "../platform_api.h"
 
 #if BRIX_PLATFORM_LINUX
+
 #include <sys/epoll.h>
-#endif
 #include <fcntl.h>
 #include <errno.h>
 
@@ -91,3 +91,5 @@ brix_plat_event_wait(int event_fd, void *events, int max_events, int timeout_ms)
     
     return nready;
 }
+
+#endif /* BRIX_PLATFORM_LINUX */

@@ -127,7 +127,7 @@ brix_pelican_build_ad(ngx_stream_brix_srv_conf_t *conf, time_t now)
     }
 
     site = brix_pelican_cstr(&conf->advertise.sitename, "nginx-xrootd-cache");
-    brix_pelican_rfc3339(now + (time_t) (conf->advertise.interval / 1000)
+    brix_pelican_rfc3339(now + (time_t) (conf->advertise.interval / BRIX_VFS_MSEC_PER_SEC)
                            + 30, expiry, sizeof(expiry));
     brix_pelican_rfc3339(now, nowstr, sizeof(nowstr));
     (void) snprintf(regpfx, sizeof(regpfx), "/caches/%s", site);
@@ -299,7 +299,7 @@ brix_pelican_discover_cfg(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
     brix_dns_curl_transfer_t xfer;
     char                  reason[BRIX_DNS_ERROR_LEN];
     char                  url[512];
-    char                  doc[64 * 1024];
+    char                  doc[BRIX_VFS_CACHE_PELICAN_REG_BUF];
     json_t               *root, *ep;
     json_error_t          jerr;
     const char           *director;
@@ -368,7 +368,7 @@ brix_pelican_post(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
     brix_dns_curl_transfer_t xfer;
     char               reason[BRIX_DNS_ERROR_LEN];
     char               url[640];
-    char               authz[2200];
+    char               authz[BRIX_VFS_S3_AUTHZ_BUF_SIZE];
     long               code = 0;
     int                n;
 
@@ -426,7 +426,7 @@ brix_cache_pelican_advertise_once(ngx_stream_brix_srv_conf_t *conf,
     ngx_log_t *log)
 {
     char       director[512];
-    char       jwt[3072];
+    char       jwt[BRIX_VFS_S3_JWT_BUF_SIZE];
     char      *body;
     time_t     now = time(NULL);
     ngx_int_t  rc;
@@ -556,7 +556,7 @@ brix_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
     conf->advertise.timer = ev;
 
     /* First advertisement shortly after startup, then every interval. */
-    ngx_add_timer(ev, 2000);
+    ngx_add_timer(ev, BRIX_VFS_CACHE_BACKOFF_CAP_MS / 4);
 
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
         "brix: pelican cache advertise started — federation=%s:%ui "

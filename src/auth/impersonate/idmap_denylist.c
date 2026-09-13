@@ -19,6 +19,7 @@
 #include "impersonate.h"
 #include "core/compat/cstr.h"
 #include "idmap_internal.h"
+#include "impersonate_state.h"
 
 #include <pwd.h>
 #include <grp.h>
@@ -63,7 +64,7 @@ idmap_gid_reserved_or_forbidden(gid_t gid)
 {
     int k;
 
-    if (gid == 0 || gid < (gid_t) idmap_min_uid) {
+    if (gid == 0 || gid < (gid_t) brix_idmap_get_min_uid()) {
         return 1;
     }
     for (k = 0; k < idmap_forbidden_gids_n; k++) {
@@ -98,7 +99,7 @@ idmap_resolve_user(const char *user, brix_idmap_creds_t *out)
     out->uid = pw->pw_uid;
     out->gid = pw->pw_gid;
 
-    if (idmap_primary_only) {
+    if (brix_idmap_get_primary_only()) {
         out->groups[0] = pw->pw_gid;
         out->ngroups   = 1;
         return 0;
@@ -346,7 +347,7 @@ idmap_creds_have_forbidden_group(const brix_idmap_creds_t *cr)
 int
 idmap_creds_allowed(const brix_idmap_creds_t *cr)
 {
-    return !brix_imp_creds_privileged(cr, idmap_min_uid, NULL, NULL)
+    return !brix_imp_creds_privileged(cr, brix_idmap_get_min_uid(), NULL, NULL)
         && !idmap_uid_forbidden(cr->uid)
         && !idmap_creds_have_forbidden_group(cr);
 }
@@ -361,7 +362,7 @@ idmap_creds_allowed(const brix_idmap_creds_t *cr)
 void
 idmap_init_denylists(const brix_idmap_conf_t *conf, ngx_log_t *log)
 {
-    char        ubuf[1024], gbuf[1024];
+    char        ubuf[BRIX_IDMAP_DENYLIST_LINE_BUF_SIZE], gbuf[BRIX_IDMAP_DENYLIST_LINE_BUF_SIZE];
     const char *users  = NULL;
     const char *groups = NULL;
 

@@ -210,7 +210,7 @@ xvfs_stage_fd(int src_fd, const char *stage_dir)
     }
     (void) unlink(tmpl);                 /* anonymous: bytes live behind the fd(s) */
 
-    buf = malloc(256 * 1024);
+    buf = malloc(BRIX_VFS_CORE_BUF_SIZE);
     if (buf == NULL) {
         e = ENOMEM;
         close(dst_fd);
@@ -219,7 +219,7 @@ xvfs_stage_fd(int src_fd, const char *stage_dir)
     }
     brix_sd_posix_wrap(&s, src_fd);
     brix_sd_posix_wrap(&d, dst_fd);
-    if (xvfs_drain(&s, &d, buf, 256 * 1024, NULL) != 0) {
+    if (xvfs_drain(&s, &d, buf, BRIX_VFS_CORE_BUF_SIZE, NULL) != 0) {
         e = errno;
         free(buf);
         close(dst_fd);

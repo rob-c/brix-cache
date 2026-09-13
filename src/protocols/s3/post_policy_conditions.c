@@ -33,7 +33,7 @@ s3_post_days_from_civil(int y, unsigned m, unsigned d)
     doy = (153 * (unsigned) mp + 2) / 5 + d - 1;/* day-of-year, March 1 == 0 */
     doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;/* day-of-era [0, 146096] */
 
-    return era * 146097 + (int64_t) doe - 719468;
+    return era * BRIX_S3_ISO8601_ERA_DAYS + (int64_t) doe - BRIX_S3_ISO8601_EPOCH_ANCHOR;
 }
 
 
@@ -56,7 +56,7 @@ s3_post_parse_iso8601(const char *s, time_t *out)
         return NGX_ERROR;
     }
 
-    if (y < 1970 || mo < 1 || mo > 12 || d < 1 || d > 31
+    if (y < BRIX_S3_POST_POLICY_YEAR_MIN || mo < 1 || mo > 12 || d < 1 || d > 31
         || h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 60)
     {
         return NGX_ERROR;

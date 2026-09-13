@@ -17,6 +17,7 @@
 struct brix_aio_ctx {
     int dummy;
 };
+typedef struct brix_aio_ctx brix_aio_ctx_t;
 
 int
 brix_aio_init(size_t max_entries, ngx_log_t *log)

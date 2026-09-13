@@ -30,9 +30,17 @@
 static ngx_queue_t  proxy_pool;
 static ngx_uint_t   proxy_pool_count;
 
-/* Worker-local health status for each upstream endpoint. */
-brix_proxy_up_status_t *proxy_up_status;
-static ngx_uint_t          proxy_up_status_count;
+/* Worker-local health status for each upstream endpoint.
+ * Encapsulated in state struct for proper module boundaries. */
+typedef struct {
+    brix_proxy_up_status_t  *status;   /* per-upstream health array */
+    ngx_uint_t               count;    /* array size */
+} brix_proxy_up_state_t;
+
+static brix_proxy_up_state_t  proxy_up_state = {
+    .status = NULL,
+    .count  = 0
+};
 
 /* health tracking */
 
@@ -44,18 +52,18 @@ brix_proxy_up_status_init(ngx_stream_brix_srv_conf_t *conf)
     ngx_uint_t n = (conf->proxy.upstreams != NULL)
                    ? conf->proxy.upstreams->nelts : 1;
 
-    if (proxy_up_status != NULL && proxy_up_status_count >= n) {
+    if (proxy_up_state.status != NULL && proxy_up_state.count >= n) {
         return;
     }
 
-    proxy_up_status = brix_alloc_array(ngx_cycle->log, n,
+    proxy_up_state.status = brix_alloc_array(ngx_cycle->log, n,
                                          sizeof(brix_proxy_up_status_t));
-    if (proxy_up_status == NULL) {
+    if (proxy_up_state.status == NULL) {
         return;
     }
 
-    ngx_memzero(proxy_up_status, n * sizeof(brix_proxy_up_status_t));
-    proxy_up_status_count = n;
+    ngx_memzero(proxy_up_state.status, n * sizeof(brix_proxy_up_status_t));
+    proxy_up_state.count = n;
 }
 
 /* brix_proxy_up_mark_failed — increment the current upstream's fail counter (and
@@ -67,18 +75,18 @@ brix_proxy_up_mark_failed(brix_proxy_ctx_t *proxy)
     int idx = proxy->upstream_idx;
     if (idx < 0) idx = 0;
 
-    if (proxy_up_status == NULL || (ngx_uint_t) idx >= proxy_up_status_count) {
+    if (proxy_up_state.status == NULL || (ngx_uint_t) idx >= proxy_up_state.count) {
         return;
     }
 
-    proxy_up_status[idx].fails++;
-    proxy_up_status[idx].checked = ngx_time();
+    proxy_up_state.status[idx].fails++;
+    proxy_up_state.status[idx].checked = ngx_time();
 
-    if (proxy_up_status[idx].fails >= BRIX_PROXY_MAX_FAILS) {
-        proxy_up_status[idx].down = 1;
+    if (proxy_up_state.status[idx].fails >= BRIX_PROXY_MAX_FAILS) {
+        proxy_up_state.status[idx].down = 1;
         ngx_log_error(NGX_LOG_ERR, proxy->client_conn->log, 0,
                       "xrootd proxy: upstream #%d marked DOWN after %ui failures",
-                      idx, proxy_up_status[idx].fails);
+                      idx, proxy_up_state.status[idx].fails);
     }
 }
 
@@ -91,18 +99,18 @@ brix_proxy_up_mark_ok(brix_proxy_ctx_t *proxy)
     int idx = proxy->upstream_idx;
     if (idx < 0) idx = 0;
 
-    if (proxy_up_status == NULL || (ngx_uint_t) idx >= proxy_up_status_count) {
+    if (proxy_up_state.status == NULL || (ngx_uint_t) idx >= proxy_up_state.count) {
         return;
     }
 
-    if (proxy_up_status[idx].down) {
+    if (proxy_up_state.status[idx].down) {
         ngx_log_error(NGX_LOG_NOTICE, proxy->client_conn->log, 0,
                       "xrootd proxy: upstream #%d is UP again", idx);
     }
 
-    proxy_up_status[idx].fails = 0;
-    proxy_up_status[idx].down  = 0;
-    proxy_up_status[idx].checked = ngx_time();
+    proxy_up_state.status[idx].fails = 0;
+    proxy_up_state.status[idx].down  = 0;
+    proxy_up_state.status[idx].checked = ngx_time();
 }
 
 /* brix_proxy_pool_evict — unlink a pooled connection from the queue, cancel its
@@ -370,8 +378,8 @@ brix_proxy_pool_get(brix_proxy_ctx_t *proxy,
         ngx_uint_t idx = (start_idx + tries) % n_upstreams;
 
         /* Skip down servers unless timeout passed. */
-        if (proxy_up_status[idx].down) {
-            if (ngx_time() - proxy_up_status[idx].checked < BRIX_PROXY_FAIL_TIMEOUT) {
+        if (proxy_up_state.status[idx].down) {
+            if (ngx_time() - proxy_up_state.status[idx].checked < BRIX_PROXY_FAIL_TIMEOUT) {
                 continue;
             }
         }
@@ -460,7 +468,8 @@ brix_proxy_pool_put(brix_proxy_ctx_t *proxy)
     pc->upstream_idx = (proxy->upstream_idx < 0) ? 0 : (ngx_uint_t) proxy->upstream_idx;
     pc->idle_since         = ngx_time();
     pc->keepalive_interval = (conf->proxy.keepalive_interval > 0)
-                             ? conf->proxy.keepalive_interval : 15000;
+                             ? conf->proxy.keepalive_interval
+                             : BRIX_PROXY_KEEPALIVE_INTERVAL_DEFAULT_MS;
 
     proxy_pool_ident(proxy, conf, pc->ident_hash);
 

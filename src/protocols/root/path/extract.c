@@ -59,4 +59,20 @@ brix_extract_path(ngx_log_t *log, const u_char *payload, size_t payload_len,
 
     return 1;
 }
-/* HOW: Checks payload==NULL || payload_len==0 || out==NULL || outsz<2 → returns 0 (invalid params). If payload_len>BRIX_MAX_PATH → log warn "path payload too long" + returns 0. memchr(payload,'\0',payload_len) — if nul found && nul!=payload+payload_len-1 (embedded NUL not at end) → log warn "rejecting embedded NUL" + returns 0; if nul==last byte payload_len-- to strip trailing NUL. copy_len=payload_len. If strip_cgi: memchr(payload,'?',payload_len) — if qmark found copy_len=qmark-payload (truncates at query string). If copy_len==0 || copy_len>=outsz → log warn "invalid path length" + returns 0. ngx_memcpy(out,payload,copy_len); out[copy_len]='\0' (null-terminates). Returns 1 on success. */
+/* HOW:
+ *   - Checks payload==NULL || payload_len==0 || out==NULL || outsz<2
+ *     - Returns 0 (invalid params)
+ *   - If payload_len>BRIX_MAX_PATH:
+ *     - Log warn "path payload too long", returns 0
+ *   - memchr(payload,'\0',payload_len):
+ *     - If nul found && nul!=payload+payload_len-1 (embedded NUL):
+ *       - Log warn "rejecting embedded NUL", returns 0
+ *     - If nul==last byte: payload_len-- (strip trailing NUL)
+ *   - copy_len=payload_len
+ *   - If strip_cgi: memchr(payload,'?',payload_len)
+ *     - If qmark found: copy_len=qmark-payload (truncate at query)
+ *   - If copy_len==0 || copy_len>=outsz:
+ *     - Log warn "invalid path length", returns 0
+ *   - ngx_memcpy(out,payload,copy_len); out[copy_len]='\0'
+ *   - Returns 1 on success
+ */

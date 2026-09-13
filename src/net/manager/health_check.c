@@ -129,7 +129,7 @@ brix_hc_ctx_create(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
     ngx_pool_t      *pool;
     brix_hc_ctx_t *hc;
 
-    pool = ngx_create_pool(1024, cycle->log);
+    pool = ngx_create_pool(BRIX_HC_POOL_SIZE, cycle->log);
     if (pool == NULL) {
         brix_srv_hc_fail(host, port, 0, 0);   /* release the claim */
         return NULL;

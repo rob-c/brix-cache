@@ -127,7 +127,7 @@ static void
 relay_guard_audit(brix_relay_guard_t *g, const guard_request_t *req,
     guard_reason_t reason)
 {
-    char    line[1280];
+    char    line[BRIX_ROOT_RELAY_LINE_BUF_SIZE];
     char    ts[sizeof("YYYY-MM-DDThh:mm:ss+00:00")];
     size_t  ts_len;
 

@@ -18,7 +18,7 @@
  *   and the runtime state is one per-worker object plus one per-flow object.
  *
  * HOW: A flow-id is a 16-bit value `(experiment << 6) | activity` (10-bit
- *   experiment 1..1023, 6-bit activity 1..63).  Config is opt-in.  Marking is
+ *   experiment 1..BRIX_PMARK_EXPERIMENT_MAX, 6-bit activity 1..BRIX_PMARK_ACTIVITY_MAX).  Config is opt-in.  Marking is
  *   ALWAYS fail-open: a misconfiguration, an unreachable collector, or a kernel
  *   that refuses a flow label degrades to "not marked" and NEVER fails, blocks,
  *   or slows a transfer.
@@ -26,40 +26,28 @@
 
 #include <ngx_config.h>
 #include <ngx_core.h>
+#include "core/types/tunables.h"  /* BRIX_IPV6_FL_*, BRIX_PMARK_FF_PORT */
 
-/* ---- SciTags flow-id model (XrdNetPMark.hh:89-99) ---- */
-#define BRIX_PMARK_FLOW_MIN    65       /* smallest valid scitag.flow value   */
-#define BRIX_PMARK_FLOW_MAX    65535    /* 16-bit flow-id space               */
-#define BRIX_PMARK_ACT_BITS    6        /* low 6 bits = activity              */
-#define BRIX_PMARK_ACT_MASK    0x3F     /* activity mask                      */
-#define BRIX_PMARK_EXP_MIN     1
-#define BRIX_PMARK_EXP_MAX     1023     /* 10-bit experiment space            */
-#define BRIX_PMARK_ACT_MIN     1
-#define BRIX_PMARK_ACT_MAX     63
+/* SciTags flow-id model constants now in src/core/types/tunables.h:
+ * BRIX_IPV6_FLOW_MIN, BRIX_IPV6_FLOW_MAX, BRIX_IPV6_FL_ACTIVITY_BITS,
+ * BRIX_IPV6_FL_ACTIVITY_MASK, BRIX_IPV6_EXP_MIN, BRIX_IPV6_EXP_MAX,
+ * BRIX_IPV6_ACT_MIN, BRIX_IPV6_ACT_MAX, BRIX_PMARK_FF_PORT,
+ * BRIX_IPV6_FL_MASK, BRIX_IPV6_FL_ENTROPY_MASK.
+ *
+ * Legacy BRIX_PMARK_* aliases retained for backward compatibility.
+ */
 
-#define BRIX_PMARK_FF_PORT     10514    /* default firefly collector UDP port */
-
-/* IPv6 Flow Label encoding (flowlabel.c).  glibc does not export
- * IPV6_FLOWLABEL_MASK, so define the 20-bit mask ourselves.
- *
- * Layout is the WLCG SciTags spec, draft-cc-v6ops-wlcg-flow-label-marking,
- * which numbers the 20 bits 1..20 with bit 1 the MOST significant:
- *
- *   pos: 01 02|03 04 05 06 07 08 09 10 11|12|13 14 15 16 17 18|19 20
- *        E  E | C  C  C  C  C  C  C  C  C| E| A  A  A  A  A  A | E  E
- *
- *   A (activity, 6 bits)  = positions 13..18  -> host-order bits 2..7
- *   C (community, 9 bits) = positions 3..11   -> host-order bits 9..17,
- *                           **encoded in reversed bit order** per the spec
- *   E (entropy, 5 bits)   = positions 1,2,12,19,20 -> host-order bits 0,1,8,18,19
- *                           set at random ONCE per flow (ECMP spread; ignored on
- *                           decode).  See brix_pmark_flowlabel_encode().
- *
- * Worked check (CMS): scitag.flow=206 -> exp=3, act=14 ->
- *   (reverse9(3)=384)<<9 | 14<<2 = 0x30000 | 0x38 = 196664, i.e. the value CMS
- *   reads off the wire (cms-sw/cmssw c2797da). */
-#define BRIX_PMARK_FL_MASK          0x000FFFFFu   /* 20-bit field             */
-#define BRIX_PMARK_FL_ENTROPY_MASK  0x000C0103u   /* E bits 0,1,8,18,19       */
+/* Legacy aliases for backward compatibility (tunables.h uses BRIX_IPV6_* prefix) */
+#define BRIX_PMARK_FLOW_MIN    BRIX_IPV6_FLOW_MIN
+#define BRIX_PMARK_FLOW_MAX    BRIX_IPV6_FLOW_MAX
+#define BRIX_PMARK_ACT_BITS    BRIX_IPV6_FL_ACTIVITY_BITS
+#define BRIX_PMARK_ACT_MASK    BRIX_IPV6_FL_ACTIVITY_MASK
+#define BRIX_PMARK_EXP_MIN     BRIX_IPV6_EXP_MIN
+#define BRIX_PMARK_EXP_MAX     BRIX_IPV6_EXP_MAX
+#define BRIX_PMARK_ACT_MIN     BRIX_IPV6_ACT_MIN
+#define BRIX_PMARK_ACT_MAX     BRIX_IPV6_ACT_MAX
+#define BRIX_PMARK_FL_MASK     BRIX_IPV6_FL_MASK
+#define BRIX_PMARK_FL_ENTROPY_MASK  BRIX_IPV6_FL_ENTROPY_MASK
 
 /* `brix_pmark_domain` enum (which address class is marked). */
 enum {

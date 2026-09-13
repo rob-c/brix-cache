@@ -38,7 +38,7 @@ brix_vfs_backend_config_s3(const char *root_canon, const char *host,
 
     if (root_canon == NULL || root_canon[0] == '\0' || host == NULL
         || host[0] == '\0' || bucket == NULL || bucket[0] == '\0'
-        || port <= 0 || port > 65535)
+        || port < BRIX_VFS_PORT_MIN || port > BRIX_VFS_PORT_MAX)
     {
         return;
     }
@@ -78,8 +78,8 @@ brix_vfs_backend_config_xroot(const char *root_canon,
     brix_vfs_backend_entry_t *e;
 
     if (root_canon == NULL || root_canon[0] == '\0' || o == NULL
-        || o->host == NULL || o->host[0] == '\0' || o->port <= 0
-        || o->port > 65535)
+        || o->host == NULL || o->host[0] == '\0' || o->port < BRIX_VFS_PORT_MIN
+        || o->port > BRIX_VFS_PORT_MAX)
     {
         return;
     }
@@ -110,7 +110,7 @@ vfs_parse_s3_port(ngx_conf_t *cf, const u_char *authority,
 
     if (colon == NULL) {
         out->host_len = authority_len;
-        out->port = 7480;                  /* radosgw S3 default */
+        out->port = BRIX_VFS_PORT_S3_DEFAULT;  /* radosgw S3 default */
         return NGX_OK;
     }
 
@@ -118,9 +118,9 @@ vfs_parse_s3_port(ngx_conf_t *cf, const u_char *authority,
         ngx_int_t pn;
         pn = ngx_atoi((u_char *) colon + 1,
                       (size_t) (authority + authority_len - (colon + 1)));
-        if (pn == NGX_ERROR || pn <= 0 || pn > 65535) {
+        if (pn == NGX_ERROR || pn < BRIX_VFS_PORT_MIN || pn > BRIX_VFS_PORT_MAX) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix_storage_backend: invalid s3 origin port");
+                "brix_storage_backend: invalid s3 origin port (1-65535)");
             return NGX_ERROR;
         }
         out->host_len = (size_t) (colon - authority);
@@ -187,7 +187,7 @@ vfs_parse_s3_url(ngx_conf_t *cf, const ngx_str_t *sb, vfs_origin_parse_t *out)
 ngx_int_t
 vfs_parse_s3_origin(ngx_conf_t *cf, const char *root_canon, const ngx_str_t *sb)
 {
-    char host[256], bucket[256];
+    char host[BRIX_VFS_HOST_BUF], bucket[BRIX_VFS_HOST_BUF];
     vfs_origin_parse_t parsed;
 
     /* "s3://host[:port]/bucket" → a read-only S3 source backend (path-style): the
@@ -335,7 +335,7 @@ vfs_parse_xroot_or_driver_origin(ngx_conf_t *cf, const char *root_canon,
         u_char   *colon = NULL;
         size_t    i, hostn;
         ngx_int_t portnum;
-        char      host[256];
+        char      host[BRIX_VFS_HOST_BUF];
 
         /* Split host:port on the LAST colon (a bracketed [v6]:port keeps it). */
         for (i = addrn; i > 0; i--) {
@@ -349,7 +349,7 @@ vfs_parse_xroot_or_driver_origin(ngx_conf_t *cf, const char *root_canon,
         hostn   = (size_t) (colon - addr);
         portnum = ngx_atoi(colon + 1, (size_t) (addr + addrn - (colon + 1)));
         if (hostn == 0 || hostn >= sizeof(host) || portnum == NGX_ERROR
-            || portnum <= 0 || portnum > 65535)
+            || portnum <= 0 || portnum > BRIX_MAX_PORT)
         {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix_storage_backend: invalid remote origin host:port");

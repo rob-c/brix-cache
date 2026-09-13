@@ -16,6 +16,7 @@
 #include "cache/cas_pack_format.h"  /* SEG record layout + codec (phase-88 W2:
                                      * single-sourced with pblock's arena) */
 #include "cvmfs/platform/platform.h"
+#include "core/types/tunables.h"  /* BRIX_SHARED_CAS_* constants */
 
 #include <dirent.h>
 #include <errno.h>
@@ -32,7 +33,7 @@
 #define IDX_HDR     40u
 #define OP_PUT      1u
 #define OP_DEL      2u
-#define FSYNC_BATCH (8L * 1024 * 1024)
+#define FSYNC_BATCH BRIX_SHARED_CAS_FSYNC_BATCH
 #define TIER_MIN    64u                        /* don't bother compressing under this */
 
 _Static_assert(PACK_KMAX == BRIX_PACK_KMAX,
@@ -62,8 +63,8 @@ static int pread_full(int fd, void *buf, size_t len, uint64_t off) {
 /* ---- in-memory index: open-addressed table + key arena ------------------ */
 
 static uint64_t fnv1a(const char *k, size_t n) {
-    uint64_t h = 1469598103934665603ull;
-    for (size_t i = 0; i < n; i++) { h ^= (unsigned char) k[i]; h *= 1099511628211ull; }
+    uint64_t h = BRIX_SHARED_CAS_HASH_SEED;
+    for (size_t i = 0; i < n; i++) { h ^= (unsigned char) k[i]; h *= BRIX_SHARED_CAS_HASH_PRIME; }
     return h;
 }
 
@@ -85,7 +86,7 @@ static brix_pack_ent_t *tab_find(brix_cas_pack_t *p, const char *key, size_t kle
 }
 
 static int tab_grow(brix_cas_pack_t *p) {
-    uint32_t ncap = p->tab_cap ? p->tab_cap * 2 : 1024;
+    uint32_t ncap = p->tab_cap ? p->tab_cap * 2 : BRIX_SHARED_CAS_INIT_TAB_CAP;
     brix_pack_ent_t *nt = calloc(ncap, sizeof(*nt));
     if (nt == NULL) return -1;
     uint32_t mask = ncap - 1;
@@ -114,7 +115,7 @@ static brix_pack_ent_t *tab_insert(brix_cas_pack_t *p, const char *key,
         if (e->state == 0) {
             if (tomb != NULL) e = tomb; else p->tab_used++;
             if (p->keys_len + klen + 1 > p->keys_cap) {
-                uint32_t nc = p->keys_cap ? p->keys_cap * 2 : 65536;
+                uint32_t nc = p->keys_cap ? p->keys_cap * 2 : BRIX_SHARED_CAS_INIT_KEYS_CAP;
                 while (nc < p->keys_len + klen + 1) nc *= 2;
                 char *nk = realloc(p->keys, nc);
                 if (nk == NULL) return NULL;

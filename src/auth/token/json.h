@@ -21,7 +21,11 @@ int json_get_string_array(const char *json, size_t json_len, const char *key,
 /* Extract an array of string values from JSON by key into a fixed-size output
  * array with per-item 256-byte truncation. Returns count on success, 0 on failure. */
 int json_get_int64(const char *json, size_t json_len, const char *key, int64_t *out);
-/* Extract a single integer value from JSON by key into caller-supplied int64 output pointer. Returns 0 on success, -1 on failure (key missing or non-integer). */
+/*
+ * Extract single integer value from JSON by key.
+ * Output: caller-supplied int64_t pointer.
+ * Returns: 0 on success, -1 on failure (key missing or non-integer).
+ */
 int json_string_or_array_contains(const char *json, size_t json_len,
     const char *key, const char *needle);
 /* Returns 1 if json[key] is a STRING equal to needle, OR an ARRAY of strings

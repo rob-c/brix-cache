@@ -4,6 +4,7 @@
 #include "fs/vfs/vfs.h"                        /* §4.6: driver-reported space seam */
 #include "protocols/root/path/opaque_validate.h" /* brix_opaque_value: ?oss.cgroup= */
 #include "protocols/root/write/write_space_group.h" /* phase-115 W3.3 group usage */
+#include "core/types/tunables.h"               /* BRIX_QSPACE_RESP_MAX, BRIX_BYTES_TO_MB_SHIFT, BRIX_FREE_MB_MAX */
 
 #include <errno.h>
 #include <string.h>
@@ -13,20 +14,22 @@
  *
  * WHAT: Responds to client queries about local filesystem disk capacity using
  *       statvfs(2). Two opcode variants produce different response formats:
- *       Qspace uses "oss.*" key-value pairs; QFSinfo uses the reference server's
- *       compact numeric format used by locate/redirect logic.
+ *
+ *   - Qspace: "oss.*" key-value pairs
+ *   - QFSinfo: reference server's compact numeric format (locate/redirect)
  *
  * WHY: XRootD clients (xrdcp, xrdfs) need filesystem capacity information to
- *      decide whether a server has sufficient space for writes. Qspace provides
- *      detailed byte-level reports; QFSinfo provides the compact format that
- *      client redirect logic uses to select writable servers in CMS cluster mode.
+ *      decide whether a server has sufficient space for writes. Qspace
+ *      provides detailed byte-level reports; QFSinfo provides the compact
+ *      format that client redirect logic uses to select writable servers in
+ *      CMS cluster mode.
  *
  * HOW: Both handlers call the shared query_space_probe() — driver space view
  *      (pblock quota / sd_xroot origin forward via brix_vfs_space) with a
  *      local-statvfs fallback → on failure return kXR_IOError → on success
- *      format the response per opcode variant and send via brix_send_ok(). Both
- *      log access events at INFO level. Always returns NGX_OK from the handler
- *      (kXR status encoded in wire response).
+ *      format the response per opcode variant and send via brix_send_ok().
+ *      Both log access events at INFO level. Always returns NGX_OK from the
+ *      handler (kXR status encoded in wire response).
  */
 
 /*
@@ -34,21 +37,22 @@
  *
  * WHAT: Returns filesystem total, available (free), max free, and used bytes
  *       in the "oss.*" key-value format expected by xrdcp and XRootD clients.
- *       oss.maxf equals oss.free since no hard quota is enforced. oss.quota=-1
- *       indicates unlimited quota.
+ *       oss.maxf equals oss.free since no hard quota is enforced.
+ *       oss.quota=-1 indicates unlimited quota.
  *
  * WHY: Clients use this response to display disk usage information and decide
  *      whether a server has enough space for incoming writes. The oss.* format
  *      matches the reference xrootd server's Qspace response exactly.
  *
- * HOW: Call brix_fs_usage_stat(root, &fsu) → if NGX_OK fails, log access event
- *      (error), increment error metric, send kXR_IOError → if success, snprintf
- *      resp as "oss.cgroup=default&oss.space=%llu&oss.free=%llu&oss.maxf=%llu&
- *      oss.used=%llu&oss.quota=-1" with fsu values, log access event (success),
- *      increment OK metric, send via brix_send_ok().
+ * HOW: Call brix_fs_usage_stat(root, &fsu) → if NGX_OK fails, log access
+ *      event (error), increment error metric, send kXR_IOError → if success,
+ *      snprintf resp as
+ *      "oss.cgroup=default&oss.space=%llu&oss.free=%llu&oss.maxf=%llu&
+ *      oss.used=%llu&oss.quota=-1" with fsu values, log access event
+ *      (success), increment OK metric, send via brix_send_ok().
  *
  * Parameters:
- *   ctx — xrootd connection context containing parsed request header and payload
+ *   ctx — xrootd connection context containing parsed request header/payload
  *   c   — nginx connection for logging
  *   conf — server configuration containing root filesystem path
  */
@@ -58,16 +62,17 @@
  * report (non-static: the §3.3 oss_quota write-admission gate reuses it).
  *
  * §4.6: prefer the backend driver's own space view — a quota-aware catalog
- * backend (pblock) reports its logical quota, and a remote root:// origin
- * (sd_xroot) forwards the origin's kXR_Qspace — over the raw statvfs(2) of the
- * proxy's local cache disk. A backend with no space slot (plain POSIX) declines
- * and we fall back to the local statvfs, byte-for-byte the prior behaviour.
+ *       backend (pblock) reports its logical quota, and a remote root://
+ *       origin (sd_xroot) forwards the origin's kXR_Qspace — over the raw
+ *       statvfs(2) of the proxy's local cache disk. A backend with no space
+ *       slot (plain POSIX) declines and we fall back to the local statvfs,
+ *       byte-for-byte the prior behaviour.
  *
  * Returns NGX_OK with the total, freeb and used out-params populated, or
- * NGX_ERROR when even the
- * statvfs fallback failed (errno left set; caller emits kXR_IOError). Shared by
- * both the Qspace and QFSinfo handlers so the two reports never disagree about
- * which store's free space a proxy is advertising.
+ * NGX_ERROR when even the statvfs fallback failed (errno left set; caller
+ * emits kXR_IOError). Shared by both the Qspace and QFSinfo handlers so the
+ * two reports never disagree about which store's free space a proxy is
+ * advertising.
  */
 ngx_int_t
 brix_query_space_probe(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -168,7 +173,7 @@ ngx_int_t
 brix_query_space(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
-    char               resp[256];
+    char               resp[BRIX_QSPACE_RESP_MAX];
     char               arg[BRIX_MAX_PATH + 1];
     unsigned long long total, freeb, used, maxf;
     long long          quota;
@@ -226,8 +231,22 @@ brix_query_space(brix_ctx_t *ctx, ngx_connection_t *c,
     BRIX_OP_OK(ctx, BRIX_OP_QUERY_SPACE);
     return brix_send_ok(ctx, c, resp, (uint32_t) (strlen(resp) + 1));
 }
-/* WHY: kXR_Qspace returns filesystem capacity in the "oss.*" key-value format used by xrdcp and XRootD clients to display disk usage. Reports total bytes, available (free) bytes, max free (same as available since no hard quota), and used bytes — matching the reference server's statvfs-based response. Returns kXR_IOError on statvfs failure. */
-/* HOW: Calls brix_fs_usage_stat(conf->common.root.data, &fsu) via compat/fs_usage.h to populate fsu with total_bytes/available_bytes/used_bytes from statvfs — if NGX_OK fails logs access event (error), increments BRIX_OP_QUERY_SPACE error metric, sends kXR_IOError response. On success: snprintf(resp) formats "oss.cgroup=default&oss.space=%llu&oss.free=%llu&oss.maxf=%llu&oss.used=%llu&oss.quota=-1" with fsu values; logs access event (success), increments OK metric, sends brix_send_ok(resp). */
+/*
+ * WHY: kXR_Qspace returns filesystem capacity in the "oss.*" key-value format
+ *      used by xrdcp and XRootD clients to display disk usage. Reports total
+ *      bytes, available (free) bytes, max free (same as available since no
+ *      hard quota), and used bytes — matching the reference server's
+ *      statvfs-based response. Returns kXR_IOError on statvfs failure.
+ *
+ * HOW: Calls brix_fs_usage_stat(conf->common.root.data, &fsu) via
+ *      compat/fs_usage.h to populate fsu with
+ *      total_bytes/available_bytes/used_bytes from statvfs — if NGX_OK fails
+ *      logs access event (error), increments BRIX_OP_QUERY_SPACE error
+ *      metric, sends kXR_IOError response. On success: snprintf(resp)
+ *      formats "oss.cgroup=default&oss.space=%llu&oss.free=%llu&
+ *      oss.maxf=%llu&oss.used=%llu&oss.quota=-1" with fsu values; logs
+ *      access event (success), increments OK metric, sends brix_send_ok(resp).
+ */
 
 /*
  * brix_query_fsinfo — handle kXR_QFSinfo (3017) filesystem capacity query.
@@ -260,7 +279,7 @@ ngx_int_t
 brix_query_fsinfo(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
-    char               resp[256];
+    char               resp[BRIX_QSPACE_RESP_MAX];
     unsigned long long total, freeb, used;
     int                util;
     long long          free_mb;
@@ -273,10 +292,14 @@ brix_query_fsinfo(brix_ctx_t *ctx, ngx_connection_t *c,
         return brix_send_error(ctx, c, kXR_IOError, "statvfs failed");
     }
 
-    util = (total > 0) ? (int) ((used * 100) / total) : 0;
-    free_mb = (long long) (freeb >> 20);
-    if ((free_mb >> 31)) {
-        free_mb = 0x7fffffff;
+    /*
+     * Compute utilization percentage (0-100) and free space in MB.
+     * Clamp free_mb to INT32_MAX to prevent overflow in wire protocol.
+     */
+    util = (total > 0) ? (int) ((used * BRIX_PCT_SCALE) / total) : 0;
+    free_mb = (long long) (freeb >> BRIX_BYTES_TO_MB_SHIFT);
+    if ((free_mb >> BRIX_FREE_MB_BITS)) {
+        free_mb = BRIX_FREE_MB_MAX;
     }
 
     /*
@@ -291,5 +314,21 @@ brix_query_fsinfo(brix_ctx_t *ctx, ngx_connection_t *c,
     BRIX_OP_OK(ctx, BRIX_OP_QUERY_FSINFO);
     return brix_send_ok(ctx, c, resp, (uint32_t) (strlen(resp) + 1));
 }
-/* WHY: kXR_QFSinfo returns filesystem capacity in the reference-compatible "wVal freeMB util sVal freeMB util" format used by XRootD client locate/redirect logic. wVal=1 indicates writable, sVal=1 indicates staging supported; both report identical free_mb and utilization percentage so clients see a single uniform filesystem. Used by kXR_locate to determine whether a server can accept writes based on disk space. */
-/* HOW: Calls query_space_probe (driver-space seam with local-statvfs fallback) — if fails increments BRIX_OP_QUERY_FSINFO error metric and sends kXR_IOError response. On success: computes util=(used*100)/total (0 if total==0), converts free bytes to MB via >>20, clamps free_mb to 0x7fffffff if overflow (>31 bits). snprintf(resp) formats "1 %lld %d 1 %lld %d" with writable=1, freeMB, util%, staging=1, same freeMB, same util%. Logs access event (success), increments OK metric, sends brix_send_ok(resp). */
+/*
+ * WHY: kXR_QFSinfo returns filesystem capacity in the reference-compatible
+ *      "wVal freeMB util sVal freeMB util" format used by XRootD client
+ *      locate/redirect logic. wVal=1 indicates writable, sVal=1 indicates
+ *      staging supported; both report identical free_mb and utilization
+ *      percentage so clients see a single uniform filesystem. Used by
+ *      kXR_locate to determine whether a server can accept writes based on
+ *      disk space.
+ *
+ * HOW: Calls query_space_probe (driver-space seam with local-statvfs
+ *      fallback) — if fails increments BRIX_OP_QUERY_FSINFO error metric and
+ *      sends kXR_IOError response. On success: computes
+ *      util=(used*100)/total (0 if total==0), converts free bytes to MB via
+ *      >>20, clamps free_mb to 0x7fffffff if overflow (>31 bits).
+ *      snprintf(resp) formats "1 %lld %d 1 %lld %d" with writable=1, freeMB,
+ *      util%, staging=1, same freeMB, same util%. Logs access event
+ *      (success), increments OK metric, sends brix_send_ok(resp).
+ */

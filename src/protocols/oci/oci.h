@@ -56,6 +56,18 @@
  * upstream descriptor's own basic buffer — the two carry the same thing. */
 #define BRIX_OCI_BASIC_MAX    512
 
+/* OCI buffer and timeout constants */
+#define BRIX_OCI_DELEG_BUF_SIZE      1600    /* Delegation challenge buffer */
+#define BRIX_OCI_CHAL_BUFFER_SIZE    1024    /* Challenge memo buffer */
+#define BRIX_OCI_HDR_BUFFER_SIZE     1024    /* HTTP header buffer */
+#define BRIX_OCI_LOC_BUFFER_SIZE     1024    /* Location URL buffer */
+#define BRIX_OCI_SCOPE_BUFFER_SIZE   1024    /* Scope encoding buffer */
+#define BRIX_OCI_BODY_BUFFER_SIZE    16384   /* Token response body buffer */
+#define BRIX_OCI_GC_POOL_SIZE        4096    /* GC memory pool size */
+#define BRIX_OCI_DELEG_TIMEOUT_MS    10000   /* Delegation timeout (10s) */
+#define BRIX_OCI_TAGS_TIMEOUT_MS     10000   /* Tags fetch timeout (10s) */
+#define BRIX_OCI_TOKEN_TIMEOUT_MS    10000   /* Token fetch timeout (10s) */
+
 /* Default brix_oci_delegate_proof_ttl: how long one (credential, repository)
  * authorization proof is honoured before the upstream is asked again. This is
  * the revocation propagation bound the D16 design pins at ~5 minutes. */

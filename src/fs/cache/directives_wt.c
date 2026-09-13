@@ -122,9 +122,9 @@ brix_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         pnum = strtol(colon + 1, &endp, 10);
     }
 
-    if (*endp != '\0' || pnum <= 0 || pnum > 65535) {
+    if (*endp != '\0' || pnum < BRIX_VFS_PORT_MIN || pnum > BRIX_VFS_PORT_MAX) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_wt_origin: invalid port in \"%V\"", &value[1]);
+            "brix_wt_origin: invalid port in \"%V\" (1-65535)", &value[1]);
         return NGX_CONF_ERROR;
     }
     xcf->wt.origin_port = (uint16_t) pnum;

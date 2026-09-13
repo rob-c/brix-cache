@@ -293,7 +293,7 @@ brix_krb5_deleg_capture(brix_ctx_t *ctx, ngx_connection_t *c,
     krb5_context  kctx = conf->krb5.context;
     void         *gss_cred = NULL;
     void         *cap_cc = NULL;
-    char          path[1024];
+    char          path[BRIX_KRB5_CNAME_BUF_SIZE];
     ngx_int_t     rc;
 
     if (ctx->krb5.round != 1 || ctx->krb5.auth_ctx == NULL

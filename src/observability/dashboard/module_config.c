@@ -93,7 +93,7 @@ ngx_http_brix_dashboard_set_users(ngx_conf_t *cf,
     ngx_http_brix_dashboard_loc_conf_t *lcf = conf;
     ngx_str_t                            *value;
     FILE                                 *fp;
-    char                                  line[2048];
+    char                                  line[BRIX_LARGE_BUF_SIZE];
     char                                 *err = NULL;
 
     /* Mutually exclusive with single-user password mode (see auth.c). */

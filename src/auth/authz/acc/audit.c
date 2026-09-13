@@ -45,7 +45,7 @@ brix_acc_audit(ngx_log_t *log, ngx_uint_t level, int granted,
                  const char *op, const char *id, const char *host,
                  const char *path)
 {
-    u_char  idbuf[256], hostbuf[256], pathbuf[1024];
+    u_char  idbuf[BRIX_ACC_AUDIT_ID_BUF_SIZE], hostbuf[BRIX_ACC_AUDIT_HOST_BUF_SIZE], pathbuf[BRIX_ACC_AUDIT_PATH_BUF_SIZE];
 
     if (level == 0) {
         return;

@@ -99,7 +99,7 @@ pmark_build(brix_pmark_flow_t *f, const char *state, int with_end,
         (int) host.len, (const char *) host.data,
         state, now, f->start_iso, endt,
         (unsigned long long) recv, (unsigned long long) sent,
-        (unsigned) (st.rtt_us / 1000), (unsigned) (st.rtt_us % 1000),
+        (unsigned) (st.rtt_us / BRIX_MSEC_PER_SEC), (unsigned) (st.rtt_us % BRIX_MSEC_PER_SEC),
         (unsigned) f->exp, (unsigned) f->act, f->app,
         f->afi, f->src_ip, f->dst_ip, f->src_port, f->dst_port);
 
@@ -115,7 +115,7 @@ static void
 pmark_emit(brix_pmark_flow_t *f, const char *state, int with_end,
     ngx_log_t *log)
 {
-    u_char               buf[1280];
+    u_char               buf[BRIX_PMARK_FIREFLY_TX_BUF];
     size_t               n;
     brix_pmark_conf_t *pm = f->pm;
     ngx_uint_t           i;

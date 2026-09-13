@@ -45,7 +45,7 @@ brix_cms_srv_conn_dec(void)
 #define BRIX_CMS_IP_SLOTS  4096
 
 typedef struct {
-    char        ip[64];     /* peer IP string; '\0' = free slot */
+    char        ip[BRIX_CMS_HANDLER_IP_BUF];     /* peer IP string; '\0' = free slot */
     ngx_uint_t  count;      /* live connections from this IP in this worker */
 } brix_cms_ip_slot_t;
 
@@ -54,7 +54,7 @@ static brix_cms_ip_slot_t  brix_cms_ip_table[BRIX_CMS_IP_SLOTS];
 static ngx_uint_t
 brix_cms_ip_hash(const char *ip)
 {
-    ngx_uint_t  h = 5381;
+    ngx_uint_t  h = BRIX_CMS_IP_HASH_INIT;
     const u_char *p = (const u_char *) ip;
 
     while (*p) {
@@ -241,11 +241,11 @@ brix_cms_srv_handler(ngx_stream_session_t *s)
 
     conf = ngx_stream_get_module_srv_conf(s, ngx_stream_brix_cms_srv_module);
     ctx->conf        = conf;
-    ctx->interval_ms = (ngx_msec_t) conf->interval * 1000;
-    if (ctx->interval_ms < 1000) {
+    ctx->interval_ms = (ngx_msec_t) conf->interval * BRIX_CMS_SEC_TO_MS_MULTIPLIER;
+    if (ctx->interval_ms < BRIX_CMS_MIN_INTERVAL_MS) {
         /* Never arm a 0/sub-1s self-rearming ping timer: interval 0 → 0ms timer
          * → epoll_wait(timeout=0) busy-loop pinning the worker. Floor at 1s. */
-        ctx->interval_ms = 1000;
+        ctx->interval_ms = BRIX_CMS_MIN_INTERVAL_MS;
     }
     ctx->login_timeout_ms = conf->login_timeout;   /* WS3 */
     ctx->idle_timeout_ms  = conf->idle_timeout;    /* WS3 */

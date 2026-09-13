@@ -40,7 +40,12 @@ typedef struct {
     brix_pending_locate_t  slots[BRIX_PENDING_LOCATE_SLOTS];
 } brix_pending_table_t;
 
-extern ngx_shm_zone_t *brix_pending_shm_zone;
+/*
+ * brix_pending_get_shm_zone — accessor for pending-locate SHM zone.
+ * WHAT: Returns pointer to pending-locate shared memory zone.
+ * WHY:  Encapsulation — callers use accessor rather than direct global access.
+ */
+ngx_shm_zone_t *brix_pending_get_shm_zone(void);
 
 ngx_int_t brix_pending_configure(ngx_conf_t *cf);
 

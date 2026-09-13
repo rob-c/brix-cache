@@ -148,7 +148,7 @@ tpc_handle_dest(brix_ctx_t *ctx, ngx_connection_t *c,
 		slash = strrchr(parent, '/');
 		if (slash && slash > parent) {
 			*slash = '\0';
-			brix_mkdir_recursive_policy(parent, 0755, c->log,
+			brix_mkdir_recursive_policy(parent, BRIX_ROOT_DEFAULT_DIR_MODE, c->log,
 			                              conf->group_rules);
 		}
 	}

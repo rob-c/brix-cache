@@ -145,7 +145,7 @@ brix_alog_emit(ngx_fd_t fd, const char *line, size_t n)
         brix_alog_timer.handler = brix_alog_timer_handler;
         brix_alog_timer.log = ngx_cycle->log;
         brix_alog_timer.data = &brix_maint_timer_conn;
-        ngx_add_timer(&brix_alog_timer, 1000);
+        ngx_add_timer(&brix_alog_timer, BRIX_ACCESS_LOG_TIMER_MS);
         brix_alog_timer_set = 1;
     }
 }

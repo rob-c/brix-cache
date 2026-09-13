@@ -156,7 +156,7 @@ xrdhttp_add_checksum_header(ngx_http_request_t *r,
         return NGX_OK;
     }
 
-    if (sb->st_size > (off_t) 2 * 1024 * 1024 * 1024LL) {
+    if (sb->st_size > (off_t) BRIX_WEBDAV_TPC_2GB_LIMIT) {
         /* Skip checksum computation for files > 2 GiB to bound latency. */
         ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "xrdhttp: skipping checksum for large file (> 2 GiB)");

@@ -11,11 +11,15 @@
 /*
  * prepare_check.c — per-path validation + authorization for kXR_prepare.
  *
- * WHAT: brix_prepare_check_path() validates ONE newline-separated path from the
- *       prepare payload: length/extract/forbidden-component pre-checks, confined
- *       stat, and the three prepare authorization tiers. Split out of prepare.c
- *       to keep both files under the size cap; the scan pipeline in prepare.c is
- *       the sole caller (prototype in prepare_internal.h).
+ * WHAT: brix_prepare_check_path() validates ONE newline-separated path from
+ *       the prepare payload:
+ *
+ *   - length/extract/forbidden-component pre-checks
+ *   - confined stat
+ *   - three prepare authorization tiers
+ *
+ * Split out of prepare.c to keep both files under the size cap; the scan
+ * pipeline in prepare.c is the sole caller (prototype in prepare_internal.h).
  */
 
 static ngx_flag_t
@@ -46,8 +50,19 @@ brix_prepare_has_forbidden_component(const char *path)
 
     return 0;
 }
-/* WHY: kXR_prepare rejects paths containing dot (.) or double-dot (..) components to prevent directory traversal into parent exports. Used as a fast pre-check before full path resolution — avoids expensive resolve_path() calls on obviously invalid paths. */
-/* HOW: Scans path character-by-character, skipping leading '/' separators; extracts each segment between slashes via seg→p pointer arithmetic. For each segment checks len==1 && seg[0]=='.' or len==2 && seg[0]=='.' && seg[1]=='.' — if match returns 1 (forbidden). Returns 0 if no forbidden components found after full scan. Static helper used exclusively by brix_prepare_check_path(). */
+/*
+ * WHY: kXR_prepare rejects paths containing dot (.) or double-dot (..)
+ *      components to prevent directory traversal into parent exports. Used as
+ *      a fast pre-check before full path resolution — avoids expensive
+ *      resolve_path() calls on obviously invalid paths.
+ *
+ * HOW: Scans path character-by-character, skipping leading '/' separators;
+ *      extracts each segment between slashes via seg→p pointer arithmetic.
+ *      For each segment checks len==1 && seg[0]=='.' or len==2 &&
+ *      seg[0]=='.' && seg[1]=='.' — if match returns 1 (forbidden).
+ *      Returns 0 if no forbidden components found after full scan. Static
+ *      helper used exclusively by brix_prepare_check_path().
+ */
 
 static ngx_int_t
 brix_prepare_check_fail(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -58,19 +73,32 @@ brix_prepare_check_fail(brix_ctx_t *ctx, ngx_connection_t *c,
     rc = brix_prepare_send_fail(ctx, c, path, errcode, errmsg);
     return (rc == NGX_OK) ? NGX_DONE : rc;
 }
-/* WHY: kXR_prepare check_path callers need NGX_DONE (continue processing) vs NGX_ERROR (abort). This helper converts the brix_send_error() result into the appropriate return code — NGX_OK from send_error becomes NGX_DONE for graceful continuation, other results pass through as abort codes. Used by check_path to distinguish between "error logged but continue" and "fatal error" returns. */
-/* HOW: Calls brix_prepare_send_fail(ctx, c, path, errcode, errmsg) — if result == NGX_OK returns NGX_DONE (graceful continuation), otherwise returns the raw result code unchanged. Static helper used exclusively by check_path(). */
+/*
+ * WHY: kXR_prepare check_path callers need NGX_DONE (continue processing) vs
+ *      NGX_ERROR (abort). This helper converts the brix_send_error() result
+ *      into the appropriate return code — NGX_OK from send_error becomes
+ *      NGX_DONE for graceful continuation, other results pass through as
+ *      abort codes. Used by check_path to distinguish between "error logged
+ *      but continue" and "fatal error" returns.
+ *
+ * HOW: Calls brix_prepare_send_fail(ctx, c, path, errcode, errmsg) — if
+ *      result == NGX_OK returns NGX_DONE (graceful continuation), otherwise
+ *      returns the raw result code unchanged. Static helper used exclusively
+ *      by check_path().
+ */
 
 /*
- * WHAT: run the three prepare authorization tiers (authdb VO/ACL, VO identity
- *       ACL, token scope) on one resolved path.
- * WHY:  the existing-file and noerrs-absent branches of check_path must apply
- *       the SAME gate on the SAME paths (verdict parity between "exists" and
- *       "absent") — factoring it here removes the duplication AND guarantees the
- *       two branches can never drift apart.  Authorization is a property of the
- *       identity + logical path, not of on-disk existence.
- * HOW:  each tier that denies sends its specific error via check_fail and its rc
- *       (NGX_DONE/error) is returned; NGX_OK only when all three pass.
+ * WHAT: run the three prepare authorization tiers (authdb VO/ACL, VO
+ *       identity ACL, token scope) on one resolved path.
+ *
+ * WHY: the existing-file and noerrs-absent branches of check_path must apply
+ *      the SAME gate on the SAME paths (verdict parity between "exists" and
+ *      "absent") — factoring it here removes the duplication AND guarantees
+ *      the two branches can never drift apart. Authorization is a property of
+ *      the identity + logical path, not of on-disk existence.
+ *
+ * HOW: each tier that denies sends its specific error via check_fail and its
+ *      rc (NGX_DONE/error) is returned; NGX_OK only when all three pass.
  */
 static ngx_int_t
 prepare_path_authz(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -107,8 +135,13 @@ prepare_path_authz(brix_ctx_t *ctx, ngx_connection_t *c,
 
 /*
  * Map a confined-stat failure (non-noerrs, or non-ENOENT errno) to the wire
- * error: ENOENT/ENOTDIR → kXR_NotFound, EACCES/EPERM → kXR_NotAuthorized, any
- * other errno → kXR_IOError.  Returns the check_fail rc (NGX_DONE/error).
+ * error:
+ *
+ *   - ENOENT/ENOTDIR → kXR_NotFound
+ *   - EACCES/EPERM → kXR_NotAuthorized
+ *   - any other errno → kXR_IOError
+ *
+ * Returns the check_fail rc (NGX_DONE/error).
  */
 static ngx_int_t
 prepare_stat_error(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -171,15 +204,17 @@ brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
     if (brix_stat_beneath(conf->rootfd, pathbuf, &st) != 0) {
         if ((errno == ENOENT || errno == ENOTDIR) && noerrs) {
             sc->missing++;
-            /* SECURITY: authorization is a property of the IDENTITY + LOGICAL
+            /*
+             * SECURITY: authorization is a property of the IDENTITY + LOGICAL
              * PATH, not of on-disk existence. A prepare/stage of a not-yet-
              * materialised object (tape nearline recall, not-yet-cached) must
              * still prove the caller may READ/STAGE this namespace path —
              * otherwise an unauthorized principal drives recalls or enumerates
-             * the namespace via prepare, and later serves the recalled bytes from
-             * the shared cache. Run the SAME three tiers, on the SAME paths, as
-             * the existing-file branch below (verdict parity between "exists" and
-             * "absent"); only then supply the staging path. */
+             * the namespace via prepare, and later serves the recalled bytes
+             * from the shared cache. Run the SAME three tiers, on the SAME
+             * paths, as the existing-file branch below (verdict parity between
+             * "exists" and "absent"); only then supply the staging path.
+             */
             {
                 ngx_int_t arc = prepare_path_authz(ctx, c, sc, pathbuf,
                                                      full_path);

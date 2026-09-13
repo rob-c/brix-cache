@@ -31,7 +31,7 @@
 
 #include <netdb.h>
 
-#define DNS_REV_TIMEOUT_FLOOR_MS  1000
+#define DNS_REV_TIMEOUT_FLOOR_MS  BRIX_DNS_TIMEOUT_FLOOR_MS
 
 typedef struct {
     brix_dns_rev_req_t       *req;   /* loop-only; NULL once cancelled */
@@ -163,9 +163,9 @@ dns_rev_ngx_start(brix_dns_rev_req_t *req, ngx_resolver_t *r)
         dns_rev_fail(req, NGX_ERROR, "resolver unavailable");
         return NGX_OK;
     }
-    timeout = (ngx_msec_t) (req->policy ? req->policy->rc.timeout : 5) * 1000;
-    if (timeout < DNS_REV_TIMEOUT_FLOOR_MS) {
-        timeout = DNS_REV_TIMEOUT_FLOOR_MS;
+    timeout = (ngx_msec_t) (req->policy ? req->policy->rc.timeout : 5) * BRIX_CMS_SEC_TO_MS_MULTIPLIER;
+    if (timeout < BRIX_DNS_TIMEOUT_FLOOR_MS) {
+        timeout = BRIX_DNS_TIMEOUT_FLOOR_MS;
     }
     ctx->addr.sockaddr = (struct sockaddr *) &req->ss;
     ctx->addr.socklen = req->len;

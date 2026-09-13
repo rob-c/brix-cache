@@ -6,6 +6,7 @@
  * Handlers with non-trivial exec paths remain as explicit handlers.
  */
 #include "core/ngx_brix_module.h"
+#include "core/types/tunables.h"         /* BRIX_ROOT_PERM_MASK, BRIX_ROOT_DEFAULT_FILE_MODE */
 #include "op_table.h"
 #include "core/compat/namespace_ops.h"
 #include "core/compat/error_mapping.h"
@@ -54,10 +55,10 @@ exec_chmod(const brix_op_exec_t *e, int *out_errno)
     mode_t mode;
 
     xrdw_chmod_req_unpack(((ClientRequestHdr *) e->ctx->recv.hdr_buf)->body, &req);
-    mode = req.mode & 0777;
+    mode = req.mode & BRIX_ROOT_PERM_MASK;
 
     if (mode == 0) {
-        mode = 0644;
+        mode = BRIX_ROOT_DEFAULT_FILE_MODE;
     }
     /* brix_vfs_chmod delegates to the impersonation-aware confined chmod, so
      * under impersonation it is performed BY THE BROKER as the mapped user (the

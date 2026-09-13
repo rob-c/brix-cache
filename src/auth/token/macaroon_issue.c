@@ -26,7 +26,8 @@
 #include <string.h>
 #include <time.h>
 
-#define ISSUE_BIN_MAX  4096
+/* Use global constant for bearer token max size */
+#define ISSUE_BIN_MAX  BRIX_BEARER_TOKEN_MAX
 
 /*
  * issue_buf_t — output buffer cursor for macaroon packet assembly.
@@ -217,7 +218,7 @@ static ngx_int_t
 emit_path_caveat(issue_buf_t *buf, u_char sig[32],
                  const char *path, ngx_log_t *log)
 {
-    char   path_cav[1024];
+    char   path_cav[BRIX_TOKEN_MACAROON_PATH_CAV_BUF_SIZE];
     size_t path_cav_len;
 
     if (!path || !path[0]) {

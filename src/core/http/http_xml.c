@@ -19,6 +19,7 @@
 
 #include "http_xml.h"
 #include "core/compat/xml.h"
+#include "../types/tunables.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -46,7 +47,7 @@ brix_http_chain_vappendf(ngx_pool_t *pool, ngx_chain_t **head,
     ngx_chain_t **tail, const char *fmt, va_list ap)
 {
     va_list      ap_copy;
-    char         tmp[2048];
+    char         tmp[BRIX_XML_BUF_SIZE];
     char        *src;
     int          n;
     ngx_buf_t   *b;

@@ -1,6 +1,8 @@
 #include "platform/platform_api.h"
 #include "chkpoint_xeq.h"
-/* PAL endian ops now in platform_api.h */  /* brix_plat_be64toh/brix_plat_htobe64 cross-platform */
+/* PAL endian ops now in platform_api.h
+ * brix_plat_be64toh/brix_plat_htobe64 cross-platform
+ */
 #include "chkpoint_xeq_internal.h"
 #include "fs/backend/csi_tagstore.h"
 
@@ -57,11 +59,22 @@ ckp_xeq_vfs_write_full(ngx_fd_t fd, const u_char *data, size_t len,
     return NGX_OK;
 }
 
-/* WHAT: Performs a single VFS-core write to the checkpointed file at the specified offset. Validates handle matches idx, writes sub_dlen bytes,
- *      updates byte counters and sends success response. Handles zero-length payloads (no-op).
- * WHY: ckpXeq write is the atomic transactional write operation — when executed under an active checkpoint, this write becomes "tentative" until commit/rollback.
- *      The handle mismatch check prevents cross-file corruption during checkpointed operations.
- * HOW: 1) Validate fhandle[0] == idx. 2) Handle zero-length payload as no-op. 3) Run a VFS WRITE job. 4) Update counters + send_ok. */
+/* WHAT: Performs single VFS-core write to checkpointed file at specified offset.
+ *   - Validates handle matches idx
+ *   - Writes sub_dlen bytes
+ *   - Updates byte counters, sends success response
+ *   - Handles zero-length payloads (no-op)
+ *
+ * WHY: ckpXeq write is atomic transactional write operation:
+ *   - Under active checkpoint: write is "tentative" until commit/rollback
+ *   - Handle mismatch check prevents cross-file corruption
+ *
+ * HOW:
+ *   1) Validate fhandle[0] == idx
+ *   2) Handle zero-length payload as no-op
+ *   3) Run VFS WRITE job
+ *   4) Update counters + send_ok
+ */
 
 ngx_int_t
 ckp_xeq_write(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
@@ -119,8 +132,10 @@ ckp_xeq_write(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     return brix_send_ok(ctx, c, NULL, 0);
 }
 
-/* WHAT: Performs a page-write under checkpoint protection, decoding the pgwrite payload (per-page CRC32c framing) into flat data,
- *      then writing in XRD_PGWRITE_PAGESZ-sized chunks. Validates checksum integrity before committing writes.
+/* WHAT: Performs page-write under checkpoint protection.
+ *   - Decodes pgwrite payload (per-page CRC32c framing) into flat data
+ *   - Writes in XRD_PGWRITE_PAGESZ-sized chunks
+ *   - Validates checksum integrity before committing writes
  * WHY: kXR_pgwrite uses per-page CRC32c for data integrity verification — critical for large file transfers where partial corruption must be detected.
  *      Under ckpXeq, the pgwrite becomes tentative until commit; checksum mismatch rejection prevents corrupted data from entering the checkpoint.
  * HOW: 1) Validate handle + offset + payload size (> XRD_PGWRITE_CKSZ). 2) Decode payload via brix_pgwrite_decode_payload (CRC32c verification). 3) Write in PAGE-sized chunks through the VFS core. 4) Send pgwrite_status with final offset. */
@@ -291,7 +306,9 @@ ckp_xeq_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     return brix_send_pgwrite_status(ctx, c, drain.end_offset);
 }
 
-/* WHAT: Truncates the checkpointed file to a specified length via the VFS I/O core. Always handle-based (path-based not supported in ckpXeq).
+/* WHAT: Truncates checkpointed file to specified length via VFS I/O core.
+ *   - Always handle-based (path-based not supported in ckpXeq)
+ *   - Handle mismatch check prevents cross-file corruption
  * WHY: Transactional write semantics allow shrinking files as part of tentative operations; rollback restores original size from checkpoint.
  *      Handle mismatch check prevents cross-file corruption during truncated operations under checkpoint protection.
  * HOW: 1) Validate fhandle[0] == idx. 2) Decode offset as truncate length (brix_plat_be64toh). 3) Run a VFS TRUNCATE job. */

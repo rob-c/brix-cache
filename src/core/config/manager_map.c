@@ -64,7 +64,7 @@ brix_manager_map_parse_port(ngx_conf_t *cf, const char *port_str,
     long  pnum;
 
     pnum = strtol(port_str, &endp, 10);
-    if (*endp != '\0' || pnum <= 0 || pnum > 65535) {
+    if (*endp != '\0' || pnum <= 0 || pnum > BRIX_MAX_PORT) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_manager_map: invalid port in \"%V\"", arg);
         return NGX_ERROR;

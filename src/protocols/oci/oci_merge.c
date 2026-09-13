@@ -303,7 +303,7 @@ oci_read_pwfile(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf,
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_oci_mirror_auth: password file \"%V\" is mode %04o - "
             "group/world access must be removed (chmod 0600)",
-            &conf->mirror_pwfile, (unsigned) (st.st_mode & 07777));
+            &conf->mirror_pwfile, (unsigned) (st.st_mode & BRIX_OCI_MIRROR_PWFILE_MODE_MASK));
         (void) fclose(f);
         return NGX_CONF_ERROR;
     }

@@ -23,6 +23,8 @@
  * FILE DESCRIPTOR OPERATIONS
  * ========================================================================== */
 
+#if BRIX_PLATFORM_LINUX
+
 int
 brix_plat_anon_fd(const char *name, const char *dir)
 {
@@ -187,3 +189,5 @@ brix_plat_execvpe(const char *file, char *const argv[], char *const envp[])
     extern char **environ;
     return execvpe(file, argv, envp ? envp : environ);
 }
+
+#endif /* BRIX_PLATFORM_LINUX */

@@ -424,8 +424,8 @@ brix_stream_var_seconds(ngx_stream_session_t *s, ngx_stream_variable_value_t *v,
         return brix_stream_var_none_value(v, 1);
     }
     ms = ngx_max(ms, 0);
-    v->len = (unsigned) (ngx_sprintf(p, "%T.%03M", (time_t) ms / 1000,
-                                     ms % 1000) - p);
+    v->len = (unsigned) (ngx_sprintf(p, "%T.%03M", (time_t) ms / BRIX_ROOT_MS_TO_SEC,
+                                     ms % BRIX_ROOT_MS_TO_SEC) - p);
     v->valid = 1;
     v->no_cacheable = 1;
     v->not_found = 0;
@@ -446,7 +446,7 @@ brix_stream_var_backend_time(ngx_stream_session_t *s,
         return brix_stream_var_none_value(v, 1);
     }
     return brix_stream_var_seconds(s, v,
-        (ngx_msec_int_t) ctx->io_monitor.backend_usec / 1000);
+        (ngx_msec_int_t) ctx->io_monitor.backend_usec / BRIX_ROOT_MS_TO_SEC);
 }
 
 
@@ -461,7 +461,7 @@ brix_stream_var_duration(ngx_stream_session_t *s,
 
     (void) data;
     return brix_stream_var_seconds(s, v,
-        (ngx_msec_int_t) ((tp->sec - s->start_sec) * 1000
+        (ngx_msec_int_t) ((tp->sec - s->start_sec) * BRIX_ROOT_MS_PER_SEC
                           + (tp->msec - s->start_msec)));
 }
 

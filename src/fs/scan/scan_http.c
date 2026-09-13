@@ -283,7 +283,7 @@ scan_parse_query(ngx_http_request_t *r,
 
     /* max_files: per-request value lowers but never raises the operator cap. */
     req->opts.max_files = conf->scan_max_files;
-    req->opts.max_depth = 1024;   /* effectively-full recursion (small depth) */
+    req->opts.max_depth = BRIX_FS_SCAN_MAX_DEPTH;   /* effectively-full recursion (small depth) */
     if (scan_arg(r, &max_spec) == NGX_OK && maxbuf[0] != '\0')
     {
         ngx_uint_t rq = (ngx_uint_t) ngx_atoi((u_char *) maxbuf,

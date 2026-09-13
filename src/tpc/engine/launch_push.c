@@ -160,7 +160,7 @@ tpc_push_check_preconditions(brix_ctx_t *ctx, ngx_connection_t *c,
      * (connect.c, I-DNS-3), so an offending address is still refused — one
      * frame later, with no local side effect to undo.
      */
-    dport = tpc->dst_port ? tpc->dst_port : 1094;
+    dport = tpc->dst_port ? tpc->dst_port : TPC_DEFAULT_PORT;
     if (brix_tpc_check_src_policy(conf, tpc->dst_host, dport, policy_err,
                                   sizeof(policy_err)) < 0)
     {
@@ -209,7 +209,7 @@ brix_tpc_prepare_push(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: TPC push parked dst=%s:%d lfn=%s",
-                   pend->host, (int) (pend->port ? pend->port : 1094),
+                   pend->host, (int) (pend->port ? pend->port : TPC_DEFAULT_PORT),
                    pend->lfn);
 
     /* The ordinary read-open continues from here and does every check a read
@@ -269,7 +269,7 @@ tpc_register_push_transfer(ngx_connection_t *c, brix_file_t *file)
     }
 
     brix_format_host_port(file->tpc_src_host,
-                          file->tpc_src_port ? file->tpc_src_port : 1094,
+                          file->tpc_src_port ? file->tpc_src_port : TPC_DEFAULT_PORT,
                           hostport, sizeof(hostport));
     last = ngx_snprintf(dst_buf, sizeof(dst_buf), "root://%s%s", hostport,
                         file->tpc_src_path);

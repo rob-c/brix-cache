@@ -233,7 +233,7 @@ brix_krb5_probe_keytab(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 static void
 brix_krb5_log_configured(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
-    char   kt_name[1024];
+    char   kt_name[BRIX_KRB5_CNAME_BUF_SIZE];
     char  *principal = NULL;
 
     if (krb5_kt_get_name(xcf->krb5.context, xcf->krb5.keytab_obj,

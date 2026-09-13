@@ -315,7 +315,7 @@ brix_handle_dirlist(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_int_t             rc;
 
     ngx_memzero(&walk, sizeof(walk));
-    walk.chunk_cap = 65536;
+    walk.chunk_cap = BRIX_ROOT_DIRLIST_CHUNK_SIZE;
     walk.conf = conf;
     walk.mutation_policy =
         brix_vfs_policy_from_write_enable(conf->common.allow_write);

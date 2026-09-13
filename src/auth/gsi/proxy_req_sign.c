@@ -178,7 +178,7 @@ sgn_parse_inputs(sgn_ctx *x, const uint8_t *signer_pem, size_t signer_pem_len,
 static int
 sgn_check_subject(sgn_ctx *x, long *serial)
 {
-    char    sname[1024], rname[1024];
+    char    sname[BRIX_AUTH_DN_BUF_SIZE], rname[BRIX_AUTH_DN_BUF_SIZE];
     size_t  slen;
     char   *endp;
 
@@ -212,7 +212,7 @@ sgn_check_signer_validity(sgn_ctx *x, int *timeleft)
     if (ASN1_TIME_diff(&days, &secs, NULL, X509_get0_notAfter(x->signer)) != 1) {
         return sgn_fail(x, "gsi sign: cannot read signer expiry");
     }
-    *timeleft = days * 86400 + secs;
+    *timeleft = days * BRIX_GSI_SECS_PER_DAY + secs;
     if (*timeleft <= 0) {
         return sgn_fail(x, "gsi sign: signer certificate expired");
     }

@@ -76,7 +76,7 @@ s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
              brix_identity_t *id)
 {
     const char *name = "", *vorg = "", *role = "", *grp = "";
-    char        host[64], path[1024];
+    char        host[BRIX_S3_HANDLER_HOST_BUF], path[BRIX_S3_HANDLER_PATH_BUF];
     size_t      n;
     ngx_int_t   rc;
 
@@ -141,6 +141,23 @@ s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
  * Before this gate existed, brix_rate_limit in an S3 location parsed cleanly
  * and enforced NOTHING (the 101-W1 silent-no-op class, on a DoS knob).
  */
+/*
+ * s3_rate_limit — token-bucket rate limiting gate for S3 requests.
+ *
+ * WHAT: Enforces per-IP rate limiting before SigV4 authentication. Checks if request
+ *   exceeds configured bytes/second limit using token bucket algorithm. Returns
+ *   NGX_HTTP_TOO_MANY_REQUESTS if limit exceeded, NGX_OK otherwise. Skips if rate
+ *   limit directive not configured.
+ *
+ * WHY: DoS protection — rejects excessive requests before the expensive SigV4
+ *   verification burden. Keyed by IP because identity is not yet known at this
+ *   phase (rate limiting happens before auth). Prevents credential-stuffing and
+ *   enumeration attacks.
+ *
+ * HOW: Retrieves client IP from r->connection->addr_text, calls
+ *   brix_rate_limit_check() with IP as key, returns 429 if bucket exhausted.
+ *   Runs in parallel to auth — does not block signature verification.
+ */
 static ngx_int_t
 s3_rate_limit(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
 {
@@ -162,6 +179,20 @@ s3_rate_limit(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     return NGX_OK;
 }
 
+/*
+ * s3_is_list_request — detect ListObjectsV2 operation via query parameter.
+ *
+ * WHAT: Checks if request is a ListObjectsV2 operation by searching for
+ *   list-type=2 query parameter. Returns 1 if list request, 0 otherwise.
+ *   Only considers GET requests with non-empty query args.
+ *
+ * WHY: ListObjectsV2 has fundamentally different behavior from GetObject — it
+ *   returns XML listing of objects rather than serving file content. Detection
+ *   enables separate metrics tracking and distinct handler dispatch.
+ *
+ * HOW: Validates method=GET and args present, uses brix_http_query_get() to
+ *   extract list-type parameter, compares to "2" (ListObjectsV2 version).
+ */
 static int
 s3_is_list_request(ngx_http_request_t *r)
 {
@@ -176,6 +207,20 @@ s3_is_list_request(ngx_http_request_t *r)
            && ngx_strcmp(list_type, "2") == 0;
 }
 
+/*
+ * s3_is_post_object_form — detect POST Object form upload (multipart/form-data).
+ *
+ * WHAT: Detects S3 POST Object form upload by checking method=POST, empty query
+ *   string, and Content-Type: multipart/form-data header. Returns 1 if form upload,
+ *   0 otherwise.
+ *
+ * WHY: POST Object form uploads have different handling than regular PUT — they
+ *   use multipart encoding and may include policy documents. Detection enables
+ *   correct dispatch to form-specific handler.
+ *
+ * HOW: Validates method=POST and empty args, finds Content-Type header, checks
+ *   for multipart/form-data prefix (case-insensitive).
+ */
 static ngx_flag_t
 s3_is_post_object_form(ngx_http_request_t *r)
 {
@@ -195,6 +240,19 @@ s3_is_post_object_form(ngx_http_request_t *r)
                            sizeof("multipart/form-data") - 1) == 0;
 }
 
+/*
+ * s3_allow_flags — compute allowed operation flags from location config.
+ *
+ * WHAT: Computes bitmask of allowed S3 operations based on cf->common.allow_write
+ *   configuration. Always allows READ and LIST; adds WRITE and ASYNC_BODY if
+ *   write-enabled. Returns flags for access control checks.
+ *
+ * WHY: Centralizes allow-check logic so all handlers use consistent flags. Separates
+ *   read-only from read-write endpoints for security hardening.
+ *
+ * HOW: Starts with READ|LIST base, conditionally adds WRITE|ASYNC_BODY based on
+ *   cf->common.allow_write boolean.
+ */
 static ngx_uint_t
 s3_allow_flags(ngx_http_s3_loc_conf_t *cf)
 {
@@ -208,6 +266,22 @@ s3_allow_flags(ngx_http_s3_loc_conf_t *cf)
     return flags;
 }
 
+/*
+ * s3_add_preflight_headers — add CORS preflight response headers for OPTIONS requests.
+ *
+ * WHAT: Adds Access-Control-* headers to CORS preflight (OPTIONS) responses. Sets
+ *   Allow-Origin: *, Allow-Methods from config, Allow-Headers based on request or
+ *   default S3 header set, Max-Age for caching. Returns NGX_OK on success, NGX_ERROR
+ *   on allocation failure.
+ *
+ * WHY: Browsers require CORS headers for cross-origin S3 access. Preflight requests
+ *   (OPTIONS) must return allowed methods/headers before the actual request proceeds.
+ *   Standardized header set ensures compatibility with AWS SDK, s3cmd, rclone.
+ *
+ * HOW: Finds Origin header (skips if absent), sets Allow-Origin: *, Vary: Origin,
+ *   Allow-Methods from config, echoes back Request-Headers if present or uses
+ *   default S3 header list, sets Max-Age from BRIX_S3_CORS_MAX_AGE_SEC constant.
+ */
 static ngx_int_t
 s3_add_preflight_headers(ngx_http_request_t *r, const ngx_str_t *allow)
 {
@@ -254,9 +328,25 @@ s3_add_preflight_headers(ngx_http_request_t *r, const ngx_str_t *allow)
         return NGX_ERROR;
     }
 
-    return brix_http_set_header(r, "Access-Control-Max-Age", "86400", NULL);
+    return brix_http_set_header(r, "Access-Control-Max-Age", XSTR(BRIX_S3_CORS_MAX_AGE_SEC), NULL);
 }
 
+/*
+ * s3_handle_options — handle CORS preflight OPTIONS requests.
+ *
+ * WHAT: Main handler for S3 OPTIONS requests. Validates Origin header, checks
+ *   write permissions if Access-Control-Request-Method includes write verbs,
+ *   adds CORS preflight headers via s3_add_preflight_headers(), returns 204 No Content.
+ *   Returns NGX_HTTP_FORBIDDEN on write attempt to read-only endpoint.
+ *
+ * WHY: CORS preflight is required by browsers before cross-origin S3 operations.
+ *   Must validate write permissions during preflight to reject unauthorized writes
+ *   early (before client uploads body). Standardized response enables browser-based
+ *   S3 clients.
+ *
+ * HOW: Extracts Origin header, checks Allow-Write config if write methods requested,
+ *   calls s3_add_preflight_headers(), sets status=204, marks request complete.
+ */
 static ngx_int_t
 s3_handle_options(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
 {
@@ -332,7 +422,7 @@ static void
 s3_pmark_begin_if_enabled(ngx_http_request_t *r, ngx_http_s3_req_ctx_t *s3ctx,
     ngx_http_s3_loc_conf_t *cf)
 {
-    u_char pth[2048], cgi[512];
+    u_char pth[BRIX_S3_HANDLER_TMP_PATH_BUF], cgi[BRIX_S3_HANDLER_CGI_BUF];
 
     if (!(cf->common.pmark.enable && cf->common.pmark.http_plain
           && (r->method == NGX_HTTP_GET || r->method == NGX_HTTP_PUT)))

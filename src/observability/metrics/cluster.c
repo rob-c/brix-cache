@@ -147,7 +147,7 @@ brix_export_cluster_metrics(metrics_writer_t *mw)
          * age if last_seen is momentarily ahead of `now` (clock skew between
          * the worker that recorded it and this scrape) — clamp to 0 instead. */
         double age_s = (now >= entries[i].last_seen)
-                       ? (double)(now - entries[i].last_seen) / 1000.0
+                       ? (double)(now - entries[i].last_seen) / BRIX_MSEC_PER_SEC
                        : 0.0;
         CLUSTER_LABEL(i);
         mw_printf(mw,

@@ -27,39 +27,80 @@
  */
 
 /* ---- Function: brix_handle_protocol() ----
- * WHAT: kXR_protocol handler — first opcode every client must send. Advertises server capabilities (TLS support, auth modes, version) and negotiates TLS upgrade flags. Returns NGX_OK on successful capability exchange, NGX_ERROR if protocol version incompatible or TLS negotiation fails. Called immediately after TCP connection establishment before any other opcode. */
+ * WHAT: kXR_protocol handler — first opcode every client must send.
+ *   - Advertises server capabilities (TLS, auth modes, version)
+ *   - Negotiates TLS upgrade flags
+ *   - Returns NGX_OK on success, NGX_ERROR if incompatible
+ *   - Called immediately after TCP connect, before any other opcode */
 ngx_int_t brix_handle_protocol(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf);
 
 /* ---- Function: brix_handle_login() ----
- * WHAT: kXR_login handler — accepts client username and generates unique session ID. Sets logged_in=1 in context; if auth mode requires credentials (gsi/token), initiates auth round-trip by returning kXR_authmore prompting client to send kXR_auth. If auth_mode=none, sets auth_done=1 immediately allowing subsequent file operations without credential exchange. Session ID stored in shared memory registry for cross-worker lookup by bound stream connections. */
+ * WHAT: kXR_login handler — accepts client username, generates session ID.
+ *   - Sets logged_in=1 in context
+ *   - If auth required (gsi/token): returns kXR_authmore for credential round-trip
+ *   - If auth_mode=none: sets auth_done=1 immediately
+ *   - Session ID stored in shared memory for cross-worker lookup */
 ngx_int_t brix_handle_login(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf);
 
 /* ---- Function: brix_handle_ping() ----
- * WHAT: kXR_ping handler — liveness check allowing clients to verify server is still responsive without requiring logged_in/auth_done state. Responds with kXR_ok and empty body at any point in session lifecycle including before login completion. Called by clients monitoring connection health during long transfers or idle periods. */
+ * WHAT: kXR_ping handler — liveness check.
+ *   - No logged_in/auth_done state required
+ *   - Responds with kXR_ok + empty body
+ *   - Works at any session lifecycle point (including pre-login)
+ *   - Clients use for health monitoring during transfers/idle */
 ngx_int_t brix_handle_ping(brix_ctx_t *ctx, ngx_connection_t *c);
 
 /* ---- Function: brix_handle_endsess() ----
- * WHAT: kXR_endsess handler — graceful session teardown. Flushes any pending I/O operations, unregisters session from shared memory registry clearing all published handles via brix_session_handle_unpublish_all(), then closes connection. Called by client explicitly requesting session end or after auth_done=1 with no further requests expected. Prevents stale handle references remaining in shared table after session termination. */
+ * WHAT: kXR_endsess handler — graceful session teardown.
+ *   - Flushes pending I/O operations
+ *   - Unregisters session from shared memory registry
+ *   - Clears all published handles via brix_session_handle_unpublish_all()
+ *   - Closes connection
+ *   - Called by client request or after auth_done=1
+ *   - Prevents stale handle references */
 ngx_int_t brix_handle_endsess(brix_ctx_t *ctx, ngx_connection_t *c);
 
 /* ---- Function: brix_handle_sigver() ----
- * WHAT: kXR_sigver handler — validates HMAC-SHA256 request signing envelope before routing the next opcode to its handler. Only required for GSI sessions (brix_auth=gsi). Verifies signature covers opcode+body using session secret derived from DH exchange; returns kXR_ok on valid signature, kXR_notAuthorized on invalid or missing signature. Prevents unauthorized opcode injection in authenticated sessions. */
+ * WHAT: kXR_sigver handler — validates HMAC-SHA256 request signing envelope.
+ *   - Required only for GSI sessions (brix_auth=gsi)
+ *   - Verifies signature covers opcode+body
+ *   - Uses session secret from DH exchange
+ *   - Returns kXR_ok on valid, kXR_notAuthorized on invalid/missing
+ *   - Prevents unauthorized opcode injection */
 ngx_int_t brix_handle_sigver(brix_ctx_t *ctx, ngx_connection_t *c);
 
 /* ---- Function: gsi_find_bucket() ----
- * WHAT: Scans an XrdSutBuffer payload for a bucket of a given type (one of the kXRS_* codes in protocol/gsi.h), returning pointer and length into the raw payload. Used by GSI certificate parsing and response building to locate specific data buckets within multi-bucket payloads. Returns 0 on success with data_out/len_out populated, -1 if target bucket not found in payload. */
+ * WHAT: Scans XrdSutBuffer payload for bucket of given type.
+ *   - Searches for kXRS_* codes (protocol/gsi.h)
+ *   - Returns pointer + length into raw payload
+ *   - Used by GSI certificate parsing and response building
+ *   - Locates specific data buckets in multi-bucket payloads
+ *   - Returns 0 on success (data_out/len_out populated), -1 if not found */
 int gsi_find_bucket(const u_char *payload, size_t plen,
     uint32_t target_type, const u_char **data_out, size_t *len_out);
 
 /* ---- Function: brix_gsi_parse_x509() ----
- * WHAT: Extracts the DER-encoded certificate chain from a kXRS_x509 bucket within an XrdSutBuffer payload and returns it as an OpenSSL STACK_OF(X509). The caller is responsible for freeing the stack with sk_X509_pop_free(). Used during GSI authentication round-trips to parse client-provided proxy certificates. Returns NULL if no kXRS_x509 bucket found in payload or parsing fails. */
+ * WHAT: Extracts DER-encoded certificate chain from kXRS_x509 bucket.
+ *   - Returns OpenSSL STACK_OF(X509)
+ *   - Caller must free with sk_X509_pop_free()
+ *   - Used during GSI auth for client proxy certificates
+ *   - Returns NULL if bucket not found or parsing fails
+ */
 STACK_OF(X509) *brix_gsi_parse_x509(brix_ctx_t *ctx,
     ngx_connection_t *c);
 
 /* ---- Function: brix_handle_auth() ----
- * WHAT: kXR_auth handler — multi-round authentication dispatcher routing to GSI or token auth based on configured auth mode. For GSI: exchanges DH keys, certificates, and signed random challenge via multiple kXR_auth/kXR_authmore round-trips tracked by XrdSutBuffer step numbers in protocol/gsi.h. For tokens: validates JWT bearer token against JWKS endpoint checking signature, scope (storage.read/storage.write), expiry, and issuer. Sets auth_done=1 upon successful authentication enabling subsequent file operations. */
+ * WHAT: kXR_auth handler — multi-round authentication dispatcher.
+ *   - Routes to GSI or token auth based on configured mode
+ *   - GSI: exchanges DH keys, certs, signed challenge
+ *     - Multiple kXR_auth/kXR_authmore round-trips
+ *     - Tracked by XrdSutBuffer step numbers (protocol/gsi.h)
+ *   - Token: validates JWT against JWKS endpoint
+ *     - Checks signature, scope, expiry, issuer
+ *   - Sets auth_done=1 on success, enabling file operations
+ */
 ngx_int_t brix_handle_auth(brix_ctx_t *ctx, ngx_connection_t *c);
 
 /* Phase 51 (E4): per-worker in-flight GSI-handshake admission gauge (gsi/auth.c).

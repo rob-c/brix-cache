@@ -492,10 +492,10 @@ tpc_open_remote(brix_tpc_pull_t *t, int fd, const tpc_open_spec_t *spec,
     oc.len = ob.len;
     tpc_set_rcvtimeo(fd, TPC_OPEN_WAIT_CAP_SEC);
     if (tpc_open_resolve(t, &oc, &reply) != 0) {
-        tpc_set_rcvtimeo(fd, TPC_IO_TIMEOUT_SEC);
+        tpc_set_rcvtimeo(fd, BRIX_TPC_IO_TIMEOUT_SEC);
         return -1;
     }
-    tpc_set_rcvtimeo(fd, TPC_IO_TIMEOUT_SEC);
+    tpc_set_rcvtimeo(fd, BRIX_TPC_IO_TIMEOUT_SEC);
 
     return tpc_open_extract_fhandle(t, &reply, fhandle);
 }

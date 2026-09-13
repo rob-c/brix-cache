@@ -141,7 +141,7 @@ curl_pin_budget(const brix_dns_curl_transfer_t *t)
 static long
 curl_pin_remaining(long budget_ms, curl_off_t spent_us)
 {
-    long  spent_ms = (long) (spent_us / 1000);
+    long  spent_ms = (long) (spent_us / BRIX_DNS_US_TO_MS_DIVISOR);
 
     return (spent_ms >= budget_ms) ? 0 : budget_ms - spent_ms;
 }

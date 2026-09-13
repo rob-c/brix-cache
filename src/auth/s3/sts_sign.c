@@ -69,7 +69,7 @@ sts_sign_query(const sts_req_t *req, const char *action_qs,
     const char               *datestamp = req->datestamp;
     uint8_t  empty_hash[32];
     char     empty_hex[65];
-    char     canonical[4096];
+    char     canonical[BRIX_STS_CANONICAL_BUF_SIZE];
     uint8_t  canon_hash[32];
     char     canon_hex[65];
     char     scope[128];
@@ -283,7 +283,7 @@ sts_build_body(const sts_req_t *req, sts_post_t *pd)
 static ngx_int_t
 sts_canonical_hex(const sts_req_t *req, const sts_post_t *pd, char *canon_hex)
 {
-    char    canonical[4096];
+    char    canonical[BRIX_STS_CANONICAL_BUF_SIZE];
     uint8_t canon_hash[32];
     int     n;
 

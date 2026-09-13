@@ -134,7 +134,7 @@ brix_token_slurp(const char *pathz, u_char *buf, size_t buf_sz, size_t *n_out,
         }
         return NGX_ERROR;
     }
-    (void) fclose(fp); /* phase74-fp: read-only stream fully consumed, ferror checked above — close status cannot affect the data */
+    (void) fclose(fp); /* phase74-fp: read-only stream, ferror checked — close status irrelevant */
 
     *n_out = n;
     return NGX_OK;

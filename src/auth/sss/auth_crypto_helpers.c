@@ -142,7 +142,7 @@ typedef struct {
     const brix_sss_key_t   *key;
     const u_char           *cipher;
     size_t                  cipher_len;
-    u_char                  clear[8192];
+    u_char                  clear[BRIX_B64_DECODE_MAX];
     size_t                  clear_len;
 } brix_sss_blob_ctx_t;
 

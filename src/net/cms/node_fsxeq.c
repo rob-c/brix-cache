@@ -43,7 +43,7 @@
 #include <stdio.h>
 
 /* Captured program stdout kept for the operator-facing log line. */
-#define FSXEQ_OUT_MAX   256
+#define FSXEQ_OUT_MAX   BRIX_CMS_FSXEQ_OUT_BUF
 
 /*
  * One in-flight run.  Allocated with the task from its own pool, which the
@@ -187,7 +187,7 @@ fsxeq_build_argv(fsxeq_task_t *t, const brix_cms_fsxeq_prog_t *prog,
 
     default:            /* chmod, mkdir, mkpath — the mode-carrying ops */
         snprintf(t->numarg, sizeof(t->numarg), "%04o",
-                 (unsigned) (plan->mode & 07777));
+                 (unsigned) (plan->mode & BRIX_CMS_MODE_BITS_MASK));
         t->argv[n++] = t->numarg;
         t->argv[n++] = t->path;
         break;
@@ -309,7 +309,7 @@ fsxeq_post(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, ngx_int_t slot,
     if (tp == NULL) {
         return NGX_DECLINED;
     }
-    pool = ngx_create_pool(4096, ctx->cycle->log);
+    pool = ngx_create_pool(BRIX_CMS_MAX_CONNECTIONS, ctx->cycle->log);
     if (pool == NULL) {
         return NGX_DECLINED;
     }

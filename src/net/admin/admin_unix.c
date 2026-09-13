@@ -178,7 +178,7 @@ admin_unix_setup_conn(ngx_connection_t *c, ngx_event_t *rev)
     c->read->log = c->log;
     c->write->log = c->log;
     c->type = SOCK_STREAM;
-    c->pool = ngx_create_pool(2048, rev->log);
+    c->pool = ngx_create_pool(BRIX_ADMIN_POOL_SIZE, rev->log);
     if (c->pool == NULL) {
         ngx_close_connection(c);
         return;

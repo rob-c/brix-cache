@@ -139,7 +139,7 @@ ngx_int_t
 brix_cms_srv_send_try(brix_cms_srv_ctx_t *ctx, const char *host,
     uint16_t port)
 {
-    u_char  payload[256 + 3];
+    u_char  payload[BRIX_CMS_STATE_SAFE_BUF + 3];
     size_t  host_len = ngx_strlen(host);
 
     if (host_len == 0 || host_len >= sizeof(payload) - 3) {

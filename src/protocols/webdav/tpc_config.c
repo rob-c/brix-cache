@@ -1,7 +1,28 @@
 /* File: tpc_config.c — HTTP-TPC location defaults and inheritance
- * WHAT: Configures HTTP third-party copy (TPC) settings for WebDAV locations. This file contains two lifecycle functions: create_loc_conf initializes TPC fields to NGX_CONF_UNSET sentinel values marking them as unset; merge_loc_conf inherits parent config values using ngx_conf_merge_* macros and applies smart defaults for curl path (/usr/bin/curl), timeout (0 = no limit), OAuth2/OIDC token delegation credentials (empty endpoint, storage.read default scope). Also implements cross-field inheritance: if TPC-specific cert/key paths are unset but general WebDAV cafile/cadir exist, copies those values to ensure TPC has certificate access even when not explicitly configured.
  *
- * WHY: HTTP-TPC requires curl as the transfer tool and TLS credentials for source authentication — these defaults must be inherited from parent/server configuration so individual locations can override only what they need. OAuth2/OIDC token delegation enables TPC to acquire temporary credentials for accessing remote endpoints without requiring client-side certificate exchange. The smart inheritance logic (cafile/cadir fallback, cert→key copy) reduces configuration burden by providing reasonable defaults when operators don't explicitly set every field. Thread safety: config setup runs once during nginx startup; no concurrent access after initialization. */
+ * WHAT: Configures HTTP third-party copy (TPC) settings for WebDAV locations.
+ *
+ *   create_loc_conf:
+ *     - Initializes TPC fields to NGX_CONF_UNSET sentinel values
+ *     - Marks fields as unset for later merge
+ *
+ *   merge_loc_conf:
+ *     - Inherits parent config values using ngx_conf_merge_* macros
+ *     - Applies smart defaults:
+ *       - curl path: /usr/bin/curl
+ *       - timeout: 0 (no limit)
+ *       - OAuth2/OIDC: empty endpoint, storage.read default scope
+ *     - Cross-field inheritance: copies cafile/cadir to TPC cert/key if unset
+ *
+ * WHY: HTTP-TPC requires curl and TLS credentials for source authentication.
+ *   - Defaults inherited from parent/server so locations override only as needed
+ *   - OAuth2/OIDC token delegation enables TPC credential acquisition
+ *   - No client-side certificate exchange required
+ *   - Smart inheritance reduces configuration burden
+ *
+ * Thread safety: Config setup runs once during nginx startup.
+ *   - No concurrent access after initialization
+ */
 
 #include "webdav.h"
 
@@ -53,7 +74,7 @@ ngx_http_brix_webdav_tpc_merge_loc_conf(
      * set brix_webdav_tpc_timeout.  0 on either low-speed knob disables it. */
     ngx_conf_merge_uint_value(conf->tpc_timeout, prev->tpc_timeout, 0);
     ngx_conf_merge_uint_value(conf->tpc_low_speed_bytes,
-                              prev->tpc_low_speed_bytes, 1024);
+                              prev->tpc_low_speed_bytes, BRIX_WEBDAV_TPC_LOW_SPEED_DEFAULT);
     ngx_conf_merge_uint_value(conf->tpc_low_speed_secs,
                               prev->tpc_low_speed_secs, 60);
     ngx_conf_merge_uint_value(conf->tpc_marker_interval,

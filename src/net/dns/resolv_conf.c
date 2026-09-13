@@ -21,7 +21,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#define RESOLV_READ_MAX   (64 * 1024)
+#define RESOLV_READ_MAX   BRIX_DNS_RESOLV_READ_MAX
 #define RESOLV_NDOTS_MAX  15
 #define RESOLV_TIMEOUT_MAX 30
 #define RESOLV_ATTEMPTS_MAX 5
@@ -87,7 +87,7 @@ resolv_port_ok(const char *p, size_t len)
         }
         v = v * 10 + (unsigned) (p[i] - '0');
     }
-    return v >= 1 && v <= 65535;
+    return v >= 1 && v <= BRIX_DNS_PORT_MAX;
 }
 
 

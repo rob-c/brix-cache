@@ -214,7 +214,7 @@ delegation_put_take_key(ngx_http_request_t *r,
     }
 
     {
-        char dn_log[1024];
+        char dn_log[WEBDAV_DN_BUFFER_SIZE];
 
         brix_sanitize_log_string(ctx->dn, dn_log, sizeof(dn_log));
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,

@@ -34,7 +34,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define DASHBOARD_FILES_MAX_ENTRIES 10000
+#define DASHBOARD_FILES_MAX_ENTRIES BRIX_DASHBOARD_FILES_MAX
 
 /* Map a confined-open failure to an HTTP status.  A RESOLVE_BENEATH escape
  * attempt surfaces as EXDEV/ELOOP — report it as 403 (forbidden), not 500. */
@@ -62,7 +62,7 @@ dashboard_owner_name(uid_t uid, char *out, size_t outsz)
 
     struct passwd  pw;
     struct passwd *res = NULL;
-    char           buf[1024];
+    char           buf[BRIX_MEDIUM_BUF_SIZE];
 
     if (s_have_cache && s_cached_uid == uid) {
         ngx_snprintf((u_char *) out, outsz, "%s%Z", s_cached_name);

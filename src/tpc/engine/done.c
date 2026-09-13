@@ -1,5 +1,14 @@
 /* File: done.c — Main-thread completion callback for native TPC pull
- * WHAT: Handles the thread-pool-to-event-loop handoff when a TPC pull operation completes. Restores the deferred request context, then dispatches based on reply_kind: SYNC mode sends kXR_open success response with fhandle+stat data (or error if pull failed), async mode sends open success response with file handle and optional stat block including tpc.key for xrdcp extraction. On connection close during in-flight pull, releases dst_fd, unlinks dst_path, frees fhandle slot.
+ * WHAT: Handles thread-pool-to-event-loop handoff for TPC pull completion.
+ *   - Restores deferred request context
+ *   - Dispatches based on reply_kind:
+ *     - SYNC: sends kXR_open success with fhandle+stat data (or error)
+ *     - ASYNC: sends open success with fhandle + optional stat block
+ *       - Includes tpc.key for xrdcp extraction
+ *   - On connection close during in-flight pull:
+ *     - Releases dst_fd
+ *     - Unlinks dst_path
+ *     - Frees fhandle slot
  *
  * WHY: Native TPC pull runs blocking socket I/O inside a detached thread-pool worker; the nginx event loop must resume when the thread finishes because it deferred the kXR_open response. This callback bridges the thread→event-loop boundary — restoring streamid context, updating file metadata (tpc_done flag, bytes_written, cached stat info), and sending the wire response that the client is waiting for. Sync vs async reply_kind determines whether to build a full ServerOpenBody with stat data or just send an ok status code.
  *
@@ -484,7 +493,10 @@ tpc_done_reply_open(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
     tpc_done_send_open_ok(t, ctx, c, idx);
 }
 
-/* WHAT: Main-thread completion callback — restore deferred request, dispatch SYNC vs async reply, build/send kXR_open response or error. */
+/* WHAT: Main-thread completion callback.
+ *   - Restores deferred request
+ *   - Dispatches SYNC vs async reply
+ *   - Builds/sends kXR_open response or error */
 void
 brix_tpc_pull_done(ngx_event_t *ev)
 {

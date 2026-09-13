@@ -52,10 +52,13 @@ integrity_xattr_key(const char *algo, char *buf, size_t bufsz)
     return buf;
 }
 
-/* official XrdCks/XrdCksData binary record (§8.1 interop) * Stock xrootd stores the checksum in the SAME xattr ("user.XrdCks.<alg>") as a
- * binary XrdCksData struct (host byte order, ADR-4). We can both read and (opt-in)
- * write it so `xrdfs query checksum` / XrdOss interoperate. Layout mirrors
- * XrdCks/XrdCksData.hh. */
+/* official XrdCks/XrdCksData binary record (§8.1 interop)
+ *
+ * Stock xrootd stores checksum in SAME xattr ("user.XrdCks.<alg>") as:
+ *   - Binary XrdCksData struct (host byte order, ADR-4)
+ *   - Read and (opt-in) write for xrdfs query checksum / XrdOss interop
+ *   - Layout mirrors XrdCks/XrdCksData.hh
+ */
 struct xrd_cks_data {
     char      Name[16];   /* algo name, NUL-padded */
     long long fmTime;     /* file mtime (sec) when computed */

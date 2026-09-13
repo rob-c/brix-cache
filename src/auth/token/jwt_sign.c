@@ -43,7 +43,12 @@ brix_jwt_load_ec_key(const char *pem_path)
 }
 
 
-/* brix_jwt_der_to_p1363 — DER ECDSA sig → fixed 64-byte r||s * Returns 0 on success (raw[0..63] populated), -1 on failure. */
+/*
+ * brix_jwt_der_to_p1363 — Convert DER ECDSA signature to IEEE P1363 format.
+ * Input:  DER-encoded ECDSA signature (variable length ASN.1)
+ * Output: Fixed 64-byte raw r||s format (32 bytes r + 32 bytes s)
+ * Returns: 0 on success (raw[0..63] populated), -1 on failure
+ */
 static int
 brix_jwt_der_to_p1363(const unsigned char *der, size_t der_len,
     unsigned char raw[64])
@@ -75,8 +80,8 @@ brix_jwt_sign_es256(EVP_PKEY *eckey, const char *header_json,
     EVP_MD_CTX    *mdctx;
     unsigned char *der = NULL;
     unsigned char  raw[64];
-    char           signing_input[4096];
-    char           sig_b64[128];
+    char           signing_input[BRIX_BEARER_TOKEN_MAX];
+    char           sig_b64[BRIX_TOKEN_SIG_B64_BUF_SIZE];
     size_t         der_len = 0;
     int            n, hlen, plen;
 

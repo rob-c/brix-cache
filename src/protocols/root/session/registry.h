@@ -57,7 +57,15 @@
 
 /* ---- Struct: brix_session_entry_t ----
  *
- * WHAT: Single entry in the shared-memory session registry mapping sessid → {dn, vo_list, token_auth}. sessid[16] uniquely identifies an XRootD session; dn (distinguished name from GSI certificate) and vo_list (virtual organization authorization list) determine client identity and eligibility for operations. token_auth flag indicates whether JWT bearer token was used instead of GSI certificate. in_use marks slot occupancy — 0 means free, 1 means registered. Capacity: BRIX_SESSION_REGISTRY_SLOTS entries (default 1024).
+ * WHAT: Single entry in the shared-memory session registry mapping
+ * sessid → {dn, vo_list, token_auth}.
+ *   - sessid[16]: uniquely identifies an XRootD session
+ *   - dn: distinguished name from GSI certificate
+ *   - vo_list: virtual organization authorization list
+ *   - token_auth: JWT bearer token flag (vs GSI certificate)
+ *   - in_use: slot occupancy (0=free, 1=registered)
+ *
+ * Capacity: BRIX_SESSION_REGISTRY_SLOTS entries (default 1024).
  */
 
 /* Per-source identity key (Phase 27 W5 / P90-27.2): the ratelimit-vocabulary
@@ -108,7 +116,14 @@ typedef struct {
 
 /* ---- Struct: brix_shared_handle_entry_t ----
  *
- * WHAT: Single entry in the shared-memory handle table publishing file metadata for bound stream secondary connections. sessid+handle_index form a unique key identifying which primary session and which open handle this entry describes. readable/writable flags indicate channel direction; from_cache marks if the handle was opened via read-through cache. is_regular distinguishes files from directories. device/inode provide file identity verification so bound streams can detect path replacement after publish (stale reference attack prevention). cached_size stores file size at publish time for bound stream read length validation.
+ * WHAT: Single entry in the shared-memory handle table publishing file metadata
+ * for bound stream secondary connections.
+ *   - sessid+handle_index: unique key (primary session + open handle)
+ *   - readable/writable: channel direction flags
+ *   - from_cache: handle opened via read-through cache
+ *   - is_regular: distinguishes files from directories
+ *   - device/inode: file identity verification (stale reference prevention)
+ *   - cached_size: file size at publish time (read length validation)
  */
 
 typedef struct {
@@ -127,7 +142,15 @@ typedef struct {
 
 /* ---- Struct: brix_session_table_t ----
  *
- * WHAT: Shared-memory session registry table containing slot array for client session metadata. lock (ngx_shmtx_sh_t) must be first field — required by ngx_shmtx_create() which embeds the spinlock at the start of the shared region. slots array provides BRIX_SESSION_REGISTRY_SLOTS entries (default 1024) for concurrent cross-worker session lookup, registration, and unregistration operations. high_water bounds the live prefix so those scans cost the live session population rather than the configured capacity; every in_use slot has index < high_water, and that invariant is what keeps the F4 global-LRU reap and the W5 per-source quota — both built on the scan — seeing every occupied slot.
+ * WHAT: Shared-memory session registry table containing slot array for client
+ * session metadata.
+ *   - lock (ngx_shmtx_sh_t): must be first field — required by ngx_shmtx_create()
+ *   - slots array: BRIX_SESSION_REGISTRY_SLOTS entries (default 1024)
+ *   - high_water: bounds the live prefix so scans cost the live session
+ *     population rather than the configured capacity; every in_use slot has
+ *     index < high_water, and that invariant is what keeps the F4 global-LRU
+ *     reap and the W5 per-source quota — both built on the scan — seeing every
+ *     occupied slot.
  */
 
 typedef struct {
@@ -155,7 +178,13 @@ typedef struct {
 
 /* ---- Struct: brix_shared_handle_table_t ----
  *
- * WHAT: Shared-memory handle table containing slot array for published file metadata. lock (ngx_shmtx_sh_t) must be first field — required by ngx_shmtx_create() which embeds the spinlock at the start of the shared region. slots array provides BRIX_SESSION_HANDLE_SLOTS entries (= registry_slots × max_files) for concurrent cross-worker handle lookup, publishing, and unpublishing operations enabling bound stream secondary connections to access primary-published handles across worker boundaries.
+ * WHAT: Shared-memory handle table containing slot array for published file
+ * metadata.
+ *   - lock (ngx_shmtx_sh_t): must be first field — required by ngx_shmtx_create()
+ *   - slots array: BRIX_SESSION_HANDLE_SLOTS entries
+ *     (= registry_slots × max_files)
+ *   - Enables bound stream secondary connections to access primary-published
+ *     handles across worker boundaries
  */
 
 typedef struct {
@@ -178,118 +207,210 @@ extern ngx_shm_zone_t *brix_session_shm_zone;     /* shared memory zone for sess
 extern ngx_shm_zone_t *brix_handle_shm_zone;       /* shared memory zone for handle table */
 
 /* ---- Function: brix_session_shm_init_zone() ----
- * WHAT: Shared-memory zone init callback — allocates mutex and initializes session table when zone first mapped by any worker process. Called during postconfiguration phase. Returns NGX_OK on success, NGX_ERROR if mutex creation fails. */
+ * WHAT: Shared-memory zone init callback.
+ *   - Allocates mutex and initializes session table
+ *   - Called when zone first mapped by any worker process
+ *   - Returns NGX_OK on success, NGX_ERROR if mutex creation fails
+ */
 ngx_int_t brix_session_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data);
 
 /* ---- Function: brix_handle_shm_init_zone() ----
- * WHAT: Shared-memory zone init callback — allocates mutex and initializes handle table when zone first mapped by any worker process. Called during postconfiguration phase alongside session registry zone initialization. Returns NGX_OK on success, NGX_ERROR if mutex creation fails. */
+ * WHAT: Shared-memory zone init callback.
+ *   - Allocates mutex and initializes handle table
+ *   - Called when zone first mapped by any worker process
+ *   - Called alongside session registry zone initialization
+ *   - Returns NGX_OK on success, NGX_ERROR if mutex creation fails
+ */
 ngx_int_t brix_handle_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data);
 
 /* ---- Function: brix_configure_session_registry() ----
- * WHAT: Creates two shared memory zones during nginx postconfiguration phase enabling cross-worker session persistence and handle publishing. First zone (brix_sessions): session registry for client metadata; second zone (brix_session_handles): handle table for published file metadata. Each zone registers init callback ensuring single initialization across all workers via sentinel value detection. Returns NGX_OK if both zones created successfully, NGX_ERROR otherwise. */
+ * WHAT: Creates two shared memory zones during nginx postconfiguration phase.
+ *   - First zone (brix_sessions): session registry for client metadata
+ *   - Second zone (brix_session_handles): handle table for published file metadata
+ *   - Each zone registers init callback ensuring single initialization across
+ *     all workers via sentinel value detection
+ *   - Returns NGX_OK if both zones created successfully, NGX_ERROR otherwise
+ */
 ngx_int_t brix_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots);
 
 /* ---- Function: brix_session_register() ----
- * WHAT: Stores client session metadata in shared memory registry slot during login completion. Scans all slots finding first free entry — copies sessid[16], dn, vo_list, and token_auth flag into new slot setting e->in_use=1. Protected by zone-specific mutex ensuring thread-safe cross-worker access during concurrent registration attempts.
- * W5/P90-27.2: the registrant's per-source key is derived internally from (dn, token_auth); an identity already at BRIX_SESSION_PER_SOURCE_SOFT_CAP live slots recycles its OWN LRU slot (self-eviction, counted in brix_session_src_cap_evict_total) rather than consuming a free one.
+ * WHAT: Stores client session metadata in shared memory registry slot during
+ * login completion.
+ *   - Scans all slots finding first free entry
+ *   - Copies sessid[16], dn, vo_list, and token_auth flag into new slot
+ *   - Protected by zone-specific mutex ensuring thread-safe cross-worker access
+ *
+ * W5/P90-27.2: the registrant's per-source key is derived internally from
+ * (dn, token_auth); an identity already at BRIX_SESSION_PER_SOURCE_SOFT_CAP
+ * live slots recycles its OWN LRU slot (self-eviction, counted in
+ * brix_session_src_cap_evict_total) rather than consuming a free one.
+ *
  * Round 15: returns the slot the session occupies (its own on a re-register,
  * the newly filled one otherwise), or -1 when the registry was unavailable or
- * the registration was rejected.  Callers keep it in
- * ctx->login.session_slot_hint so the disconnect can clear that slot directly
- * — see brix_session_unregister_hinted(). */
+ * the registration was rejected. Callers keep it in ctx->login.session_slot_hint
+ * so the disconnect can clear that slot directly — see
+ * brix_session_unregister_hinted().
+ */
 int brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
     const char *dn, const char *vo_list, ngx_uint_t token_auth);
 
 /* ---- Function: brix_session_lookup() ----
- * WHAT: Retrieves session metadata for bound stream secondary connections or proxy mode — scans all slots comparing sessid via ngx_memcmp returning DN/VO list/token_auth if match found. Called by kXR_bind handler to inherit authentication state from primary session, and by proxy forwarding code to determine auth gate enforcement path based on token_auth flag. Returns 1 on success with output parameters populated, 0 indicating no match found. */
+ * WHAT: Retrieves session metadata for bound stream secondary connections or
+ * proxy mode.
+ *   - Scans all slots comparing sessid via ngx_memcmp
+ *   - Returns DN/VO list/token_auth if match found
+ *   - Called by kXR_bind handler to inherit authentication state from primary
+ *   - Called by proxy forwarding code to determine auth gate enforcement path
+ *   - Returns 1 on success with output parameters populated, 0 if no match
+ */
 int brix_session_lookup(const u_char sessid[BRIX_SESSION_ID_LEN],
     char *dn_out, size_t dn_size,
     char *vo_out, size_t vo_size,
     ngx_uint_t *token_auth_out);
 
 /* ---- Function: brix_session_pathid_bind() ----
- * WHAT: Marks `pathid` (1-253) as a bound data path of session `sessid` in the shared registry, so any worker can later validate pathid-tagged requests against it. No-op for out-of-range ids or an unknown session. */
+ * WHAT: Marks `pathid` (1-253) as a bound data path of session `sessid` in the
+ * shared registry, so any worker can later validate pathid-tagged requests
+ * against it.
+ *   - No-op for out-of-range ids or an unknown session
+ */
 void brix_session_pathid_bind(const u_char sessid[BRIX_SESSION_ID_LEN],
     unsigned pathid);
 
 /* ---- Function: brix_session_owner_worker() ----
- * WHAT: Returns the ngx_worker slot of the worker that registered session `sessid` (the worker owning the primary connection), or -1 for an unknown session. §1.4 bind migration uses it to route a kXR_bind that landed on the wrong worker. */
+ * WHAT: Returns the ngx_worker slot of the worker that registered session
+ * `sessid` (the worker owning the primary connection), or -1 for an unknown
+ * session.
+ *   - §1.4 bind migration uses it to route a kXR_bind that landed on the wrong
+ *     worker
+ */
 ngx_int_t brix_session_owner_worker(const u_char sessid[BRIX_SESSION_ID_LEN]);
 
 /* ---- Function: brix_session_pathid_unbind() ----
- * WHAT: Clears `pathid` from session `sessid`'s bound-path bitmap (secondary disconnect). No-op for out-of-range ids or an unknown session. */
+ * WHAT: Clears `pathid` from session `sessid`'s bound-path bitmap (secondary
+ * disconnect).
+ *   - No-op for out-of-range ids or an unknown session
+ */
 void brix_session_pathid_unbind(const u_char sessid[BRIX_SESSION_ID_LEN],
     unsigned pathid);
 
 /* ---- Function: brix_session_pathid_bound() ----
- * WHAT: Returns 1 when `pathid` is currently bound to session `sessid`, else 0 (unknown session or out-of-range id → 0). The validation predicate for pathid-tagged requests (stock answers kXR_ArgInvalid "invalid path ID" for an unbound id — verified against 5.6.9). */
+ * WHAT: Returns 1 when `pathid` is currently bound to session `sessid`, else 0
+ * (unknown session or out-of-range id → 0).
+ *   - The validation predicate for pathid-tagged requests
+ *   - Stock answers kXR_ArgInvalid "invalid path ID" for an unbound id —
+ *     verified against 5.6.9
+ */
 int brix_session_pathid_bound(const u_char sessid[BRIX_SESSION_ID_LEN],
     unsigned pathid);
 
 /* ---- Function: brix_session_unregister() ----
- * WHAT: Clears session entry during kXR_endsess or disconnect cleanup — scans all slots comparing sessid, memzeros matching entry clearing session metadata; additionally unpublishing all associated handles via brix_session_handle_unpublish_all(). Called by kXR_endsess handler and brix_on_disconnect() ensuring complete cross-worker cleanup regardless of which worker originally registered the session. */
+ * WHAT: Clears session entry during kXR_endsess or disconnect cleanup.
+ *   - Scans all slots comparing sessid
+ *   - Memzeros matching entry clearing session metadata
+ *   - Additionally unpublishing all associated handles via
+ *     brix_session_handle_unpublish_all()
+ *   - Called by kXR_endsess handler and brix_on_disconnect() ensuring complete
+ *     cross-worker cleanup regardless of which worker originally registered the
+ *     session
+ */
 void brix_session_unregister(const u_char sessid[BRIX_SESSION_ID_LEN]);
 
 /* ---- Function: brix_session_unregister_hinted() ----
  * WHAT: As brix_session_unregister() but clears the slot brix_session_register()
  * reported at login (round 15), re-checking the sessid there under the lock.
- * Removes the O(live sessions) scan every disconnect paid under the global
- * session mutex — a cost that grew with concurrency instead of backing off,
- * because the live prefix is longest exactly when every session is tearing
- * down.  A hint made stale by the F4 reap or the W5 self-eviction matches
- * nothing and clears nothing, which is correct (an evicted session has no entry
- * left) and STRICTER than the scan, which would destroy a live re-registration
- * of the same sessid made by a different connection.  slot_hint < 0 keeps the
- * original scan. */
+ *   - Removes the O(live sessions) scan every disconnect paid under the global
+ *     session mutex — a cost that grew with concurrency instead of backing off,
+ *     because the live prefix is longest exactly when every session is tearing
+ *     down
+ *   - A hint made stale by the F4 reap or the W5 self-eviction matches nothing
+ *     and clears nothing, which is correct (an evicted session has no entry
+ *     left) and STRICTER than the scan, which would destroy a live
+ *     re-registration of the same sessid made by a different connection
+ *   - slot_hint < 0 keeps the original scan
+ */
 void brix_session_unregister_hinted(const u_char sessid[BRIX_SESSION_ID_LEN],
     int slot_hint);
 
 /* ---- Function: brix_session_handle_publish() ----
- * WHAT: Shares file handle metadata with other workers enabling bound stream secondary connections to read primary-published handles. Validates handle_index (0–255 range) and file state — searches handle table slots finding matching sessid+handle_index key or free slot; copies readable/writable/from_cache/is_regular/device/inode/cached_size/path metadata into entry setting e->in_use=1. Write-only handles rejected from publishing preventing bound stream misuse of write channels.
+ * WHAT: Shares file handle metadata with other workers enabling bound stream
+ * secondary connections to read primary-published handles.
+ *   - Validates handle_index (0–255 range) and file state
+ *   - Searches handle table slots finding matching sessid+handle_index key or
+ *     free slot
+ *   - Copies readable/writable/from_cache/is_regular/device/inode/cached_size/
+ *     path metadata into entry setting e->in_use=1
+ *   - Write-only handles rejected from publishing preventing bound stream
+ *     misuse of write channels
+ *
  * Round 14: on a successful publish the chosen slot is recorded in
  * file->shared_handle_slot_hint (and reset to -1 when nothing was published),
  * which is what lets the teardown clear the entry in O(1) — see
- * brix_session_handle_unpublish_hinted(). */
+ * brix_session_handle_unpublish_hinted().
+ */
 void brix_session_handle_publish(
     const u_char sessid[BRIX_SESSION_ID_LEN],
     int handle_index, brix_file_t *file);
 
 /* ---- Function: brix_session_handle_lookup() ----
- * WHAT: Retrieves published handle metadata for bound stream read requests — searches slots by sessid+handle_index key matching returning copy of entry if found. Called by bound stream secondary connections to access primary-published handles when those handles were opened by a different worker process. Returns 1 on success with out populated, 0 indicating no published handle found for requested combination. */
+ * WHAT: Retrieves published handle metadata for bound stream read requests.
+ *   - Searches slots by sessid+handle_index key matching returning copy of
+ *     entry if found
+ *   - Called by bound stream secondary connections to access primary-published
+ *     handles when those handles were opened by a different worker process
+ *   - Returns 1 on success with out populated, 0 indicating no published handle
+ *     found for requested combination
+ */
 int brix_session_handle_lookup(
     const u_char sessid[BRIX_SESSION_ID_LEN],
     int handle_index, brix_shared_handle_entry_t *out);
 
 /* ---- Function: brix_session_handle_lookup_hint() ----
  * WHAT: As brix_session_handle_lookup() but with a caller-owned *inout_slot
- * cache (Phase 33 C2).  Re-checks the previously matched slot directly under the
- * lock before scanning, turning the per-read bound-stream lookup into O(1) while
- * preserving the full key (in_use+sessid+handle_index) revocation check.
- * *inout_slot is refreshed on a scan match, reset to -1 on miss; may be NULL. */
+ * cache (Phase 33 C2).
+ *   - Re-checks the previously matched slot directly under the lock before
+ *     scanning, turning the per-read bound-stream lookup into O(1) while
+ *     preserving the full key (in_use+sessid+handle_index) revocation check
+ *   - *inout_slot is refreshed on a scan match, reset to -1 on miss; may be
+ *     NULL
+ */
 int brix_session_handle_lookup_hint(
     const u_char sessid[BRIX_SESSION_ID_LEN],
     int handle_index, int *inout_slot, brix_shared_handle_entry_t *out);
 
 /* ---- Function: brix_session_handle_unpublish() ----
- * WHAT: Removes individual handle entry from shared table during kXR_close — searches slots by sessid+handle_index key matching, memzeros entry clearing all metadata preventing bound stream access to closed primary handles. Called after every file close operation ensuring no stale published references remain. */
+ * WHAT: Removes individual handle entry from shared table during kXR_close.
+ *   - Searches slots by sessid+handle_index key matching
+ *   - Memzeros entry clearing all metadata preventing bound stream access to
+ *     closed primary handles
+ *   - Called after every file close operation ensuring no stale published
+ *     references remain
+ */
 void brix_session_handle_unpublish(
     const u_char sessid[BRIX_SESSION_ID_LEN], int handle_index);
 
 /* ---- Function: brix_session_handle_unpublish_hinted() ----
  * WHAT: As brix_session_handle_unpublish() but takes the publish-time slot from
- * brix_file_t.shared_handle_slot_hint (round 14).  A published entry only ever
- * lives at the slot publish wrote it to (entries are cleared in place, never
- * relocated), so the hint is authoritative: a hinted slot whose full key still
- * matches IS the entry and is cleared, and a hinted slot whose key does not
- * match proves the entry is already gone — no scan can find one.  slot_hint < 0
- * keeps the original full scan.  Removes the wasted full-prefix scan every open
- * handle paid at disconnect, where brix_session_unregister() has already
- * cleared the session's entries before brix_close_all_files() runs. */
+ * brix_file_t.shared_handle_slot_hint (round 14).
+ *   - A published entry only ever lives at the slot publish wrote it to
+ *     (entries are cleared in place, never relocated), so the hint is
+ *     authoritative: a hinted slot whose full key still matches IS the entry
+ *     and is cleared, and a hinted slot whose key does not match proves the
+ *     entry is already gone — no scan can find one
+ *   - slot_hint < 0 keeps the original full scan
+ *   - Removes the wasted full-prefix scan every open handle paid at disconnect,
+ *     where brix_session_unregister() has already cleared the session's entries
+ *     before brix_close_all_files() runs
+ */
 void brix_session_handle_unpublish_hinted(
     const u_char sessid[BRIX_SESSION_ID_LEN], int handle_index, int slot_hint);
 
 /* ---- Function: brix_session_handle_unpublish_all() ----
- * WHAT: Removes all handles associated with specific sessid during session termination — scans all in_use entries comparing sessid, memzeros matching entries ensuring no stale handle references remain after session end. Called by kXR_endsess handler and brix_session_unregister() to ensure complete cross-worker cleanup of published handles regardless of which worker originally published each handle. */
+ * WHAT: Removes all handles associated with specific sessid during session termination.
+ *   - Scans all in_use entries comparing sessid
+ *   - Memzeros matching entries ensuring no stale references remain
+ *   - Called by kXR_endsess handler and brix_session_unregister()
+ *   - Ensures complete cross-worker cleanup of published handles */
 void brix_session_handle_unpublish_all(
     const u_char sessid[BRIX_SESSION_ID_LEN]);
 

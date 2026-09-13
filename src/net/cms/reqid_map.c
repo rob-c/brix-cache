@@ -12,22 +12,37 @@
 #include "core/fnv.h"                 /* BRIX_FNV1A32_* hash constants      */
 #include "core/compat/shm_slots.h"
 
-ngx_shm_zone_t *brix_cms_reqid_map_shm_zone;
+/*
+ * Module state - reqid_map globals encapsulated in single struct.
+ * SHM zone and mutex are set at config time.
+ */
+static struct {
+    ngx_shm_zone_t   *shm_zone;
+    ngx_shmtx_t       mutex;
+} reqid_map_state;
 
-static ngx_shmtx_t  brix_cms_reqid_map_mutex;
+/* Accessor - returns pointer to module state */
+static const struct {
+    ngx_shm_zone_t   *shm_zone;
+    ngx_shmtx_t       mutex;
+} *
+brix_cms_reqid_map_state(void)
+{
+    return &reqid_map_state;
+}
 
 /* reqid_table — resolve the zone to the live table, or NULL when the zone has
  * not been allocated / is still at its (void *) 1 init sentinel. */
 static brix_cms_reqid_table_t *
 reqid_table(void)
 {
-    if (brix_cms_reqid_map_shm_zone == NULL
-        || brix_cms_reqid_map_shm_zone->data == NULL
-        || brix_cms_reqid_map_shm_zone->data == (void *) 1)
+    if (reqid_map_state.shm_zone == NULL
+        || reqid_map_state.shm_zone->data == NULL
+        || reqid_map_state.shm_zone->data == (void *) 1)
     {
         return NULL;
     }
-    return (brix_cms_reqid_table_t *) brix_cms_reqid_map_shm_zone->data;
+    return (brix_cms_reqid_table_t *) reqid_map_state.shm_zone->data;
 }
 
 static uint32_t
@@ -50,7 +65,7 @@ reqid_map_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 
     tbl = brix_shm_table_alloc(shm_zone, data,
                                  sizeof(brix_cms_reqid_table_t),
-                                 &brix_cms_reqid_map_mutex, &fresh);
+                                 &reqid_map_state.mutex, &fresh);
     if (tbl == NULL) {
         return NGX_ERROR;
     }
@@ -67,15 +82,15 @@ brix_cms_reqid_map_configure(ngx_conf_t *cf)
 {
     ngx_str_t  zone_name = ngx_string("brix_cms_reqid_map");
 
-    brix_cms_reqid_map_shm_zone = ngx_shared_memory_add(cf, &zone_name,
+    reqid_map_state.shm_zone = ngx_shared_memory_add(cf, &zone_name,
                         brix_shm_zone_size(sizeof(brix_cms_reqid_table_t)),
                         &ngx_stream_brix_module);
-    if (brix_cms_reqid_map_shm_zone == NULL) {
+    if (reqid_map_state.shm_zone == NULL) {
         return NGX_ERROR;
     }
 
-    brix_cms_reqid_map_shm_zone->init = reqid_map_shm_init_zone;
-    brix_cms_reqid_map_shm_zone->data = (void *) 1;
+    reqid_map_state.shm_zone->init = reqid_map_shm_init_zone;
+    reqid_map_state.shm_zone->data = (void *) 1;
 
     return NGX_OK;
 }
@@ -102,7 +117,7 @@ brix_cms_reqid_map_put(const char *cms_reqid, const char *engine_reqid,
     h = reqid_hash(cms_reqid);
     victim = BRIX_CMS_REQID_MAP_SLOTS;    /* sentinel: none found yet */
 
-    ngx_shmtx_lock(&brix_cms_reqid_map_mutex);
+    ngx_shmtx_lock(&reqid_map_state.mutex);
 
     for (i = 0; i < BRIX_CMS_REQID_MAP_SLOTS; i++) {
         idx = (h + i) & (BRIX_CMS_REQID_MAP_SLOTS - 1);
@@ -139,7 +154,7 @@ brix_cms_reqid_map_put(const char *cms_reqid, const char *engine_reqid,
     e->expires = now + BRIX_CMS_REQID_MAP_TTL_MS;
     e->in_use  = 1;
 
-    ngx_shmtx_unlock(&brix_cms_reqid_map_mutex);
+    ngx_shmtx_unlock(&reqid_map_state.mutex);
 }
 
 int
@@ -162,7 +177,7 @@ brix_cms_reqid_map_take(const char *cms_reqid, char *engine_reqid_out,
 
     h = reqid_hash(cms_reqid);
 
-    ngx_shmtx_lock(&brix_cms_reqid_map_mutex);
+    ngx_shmtx_lock(&reqid_map_state.mutex);
 
     for (i = 0; i < BRIX_CMS_REQID_MAP_SLOTS; i++) {
         idx = (h + i) & (BRIX_CMS_REQID_MAP_SLOTS - 1);
@@ -185,6 +200,6 @@ brix_cms_reqid_map_take(const char *cms_reqid, char *engine_reqid_out,
         }
     }
 
-    ngx_shmtx_unlock(&brix_cms_reqid_map_mutex);
+    ngx_shmtx_unlock(&reqid_map_state.mutex);
     return hit;
 }

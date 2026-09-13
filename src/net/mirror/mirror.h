@@ -203,7 +203,7 @@ brix_mirror_conf_merge_common(brix_mirror_conf_t *conf,
                               BRIX_MIRROR_M_DEFAULT);
     ngx_conf_merge_value(conf->strip_auth, prev->strip_auth, 1);
     ngx_conf_merge_value(conf->log_diverge, prev->log_diverge, 1);
-    ngx_conf_merge_msec_value(conf->timeout_ms, prev->timeout_ms, 5000);
+    ngx_conf_merge_msec_value(conf->timeout_ms, prev->timeout_ms, BRIX_MIRROR_TIMEOUT_DEFAULT_MS);
     ngx_conf_merge_value(conf->mirror_writes, prev->mirror_writes, 0);
     conf->enabled = (conf->targets != NULL && conf->targets->nelts > 0) ? 1 : 0;
 }

@@ -31,7 +31,7 @@ static int
 brix_tmp_is_systemd_private(void)
 {
     FILE *f;
-    char  line[1024];
+    char  line[BRIX_TAPE_STAGE_LINE_BUF];
     int   private_tmp = 0;
 
     f = fopen("/proc/self/mountinfo", "re");
@@ -180,7 +180,7 @@ brix_tier_default_stage_store(ngx_conf_t *cf,
                                 dir, sizeof(dir));
 
     if (brix_mkdir_recursive(BRIX_TIER_DEFAULT_STAGE_BASE, 0711) != 0
-        || (mkdir(dir, 0700) != 0 && errno != EEXIST))
+        || (mkdir(dir, BRIX_CRED_STAGE_DIR_MODE) != 0 && errno != EEXIST))
     {
         ngx_conf_log_error(NGX_LOG_WARN, cf, errno,
             "brix: cannot create the default stage store \"%s\" — "

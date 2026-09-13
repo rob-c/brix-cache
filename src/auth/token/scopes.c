@@ -42,9 +42,20 @@ token_scope_end(const char *scope_start)
     return scope_end;
 }
 
-/* WHAT: Copies a permission:path path component into the brix_token_scope_t structure, enforcing BRIX_SCOPE_PATH_MAX boundary. When path_len == 0 (no path specified in "permission:" token), defaults to "/" which matches all paths per WLCG token profile convention. Enforces buffer overflow prevention via truncation at BRIX_SCOPE_PATH_MAX - 1 when input exceeds capacity.
- * WHY: WLCG scope tokens use "storage.read:/atlas/reco" format where the path component grants access only to specific directories. Defaulting empty paths to "/" follows WLCG convention (unscoped permission = full access). Buffer overflow guard prevents malicious tokens with oversized path components from corrupting downstream scope validation logic.
- * HOW: Three-step → if path_len == 0, set scope->path = "/" default; else truncate at BRIX_SCOPE_PATH_MAX - 1 for boundary safety; memcpy(path) into scope->path with null termination at truncated length. */
+/*
+ * WHAT: Copies permission:path path component into brix_token_scope_t structure.
+ *       Enforces BRIX_SCOPE_PATH_MAX boundary with truncation.
+ *       Empty path (path_len == 0) defaults to "/" (WLCG convention: unscoped = full access).
+ *
+ * WHY: WLCG tokens use "storage.read:/atlas/reco" format granting specific directory access.
+ *      Buffer overflow guard prevents malicious oversized path components from corrupting
+ *      downstream scope validation logic.
+ *
+ * HOW: Three-step process:
+ *        1. If path_len == 0: set scope->path = "/" default
+ *        2. If path_len >= BRIX_SCOPE_PATH_MAX: truncate at BRIX_SCOPE_PATH_MAX - 1
+ *        3. memcpy(path) into scope->path with null termination at truncated length
+ */
 
 static void
 token_scope_copy_path(brix_token_scope_t *scope, const char *path,
@@ -64,9 +75,29 @@ token_scope_copy_path(brix_token_scope_t *scope, const char *path,
     scope->path[path_len] = '\0';
 }
 
-/* WHAT: Parses a WLCG "storage.*" permission string into boolean flags on brix_token_scope_t using exact-length memcmp comparison. Recognizes five permissions: storage.read (12 chars), storage.write (13 chars), storage.create (14 chars), storage.modify (14 chars), and storage.stage (13 chars — treated as read-only). Length-based matching prevents substring attacks where "storage.re" could incorrectly match "storage.read".
- * WHY: WLCG token scope claims use standardized permission strings; exact-length memcmp ensures precise matching without partial-string ambiguity. Storage.stage is mapped to read-only (not write) per WLCG staging semantics — staged files are read-accessible but not writable until committed. Length-based validation prevents malformed tokens from granting unintended permissions through substring overlap.
- * HOW: Sequential memcmp comparison against five known permission strings with exact length checks (12/13/14 chars), setting scope->read/write/create/modify/stage flags accordingly on match. Returns immediately after first positive match; storage.stage falls-through sets read=1 as final case. */
+/*
+ * WHAT: Parses WLCG "storage.*" permission string into boolean flags on brix_token_scope_t.
+ *       Uses exact-length memcmp comparison to prevent substring attacks.
+ *       Recognizes five permissions:
+ *         - storage.read (12 chars) → scope->read = 1
+ *         - storage.write (13 chars) → scope->write = 1
+ *         - storage.create (14 chars) → scope->create = 1
+ *         - storage.modify (14 chars) → scope->modify = 1
+ *         - storage.stage (13 chars) → scope->read = 1 (read-only per WLCG staging semantics)
+ *
+ * WHY: WLCG token scope claims use standardized permission strings.
+ *      Exact-length memcmp ensures precise matching without partial-string ambiguity.
+ *      Storage.stage mapped to read-only (not write) per WLCG staging semantics:
+ *        staged files are read-accessible but not writable until committed.
+ *      Length-based validation prevents malformed tokens from granting unintended
+ *      permissions through substring overlap (e.g., "storage.re" matching "storage.read").
+ *
+ * HOW: Sequential memcmp comparison against five known permission strings:
+ *        - Exact length checks: 12/13/14 chars
+ *        - Sets scope->read/write/create/modify/stage flags on match
+ *        - Returns immediately after first positive match
+ *        - storage.stage falls-through sets read=1 as final case
+ */
 
 static void
 token_scope_set_permission(brix_token_scope_t *scope,

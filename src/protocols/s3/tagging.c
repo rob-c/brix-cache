@@ -39,7 +39,7 @@
 
 #define S3_TAG_XATTR    "user.s3.tagging"
 #define S3_TAG_MAX      4096   /* AWS: <=10 tags, key<=128, value<=256 */
-#define S3_TAG_XML_MAX  8192
+/* S3_TAG_XML_MAX removed — now BRIX_S3_SIGV4_CANONICAL_MAX in tunables.h */
 
 /* xattr-backed tag store */
 /*
@@ -91,6 +91,8 @@ s3_tag_load(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
      * manufacture a successful xattr metric for an object that never existed.
      */
     if (brix_vfs_probe(&vctx, 0, &vst) != NGX_OK || vst.is_directory) {
+        /* Probe failed or target is a directory — errno already set by VFS layer.
+         * Caller maps to appropriate HTTP status (403/404). */
         return -1;
     }
     n = brix_vfs_getxattr(&vctx, S3_TAG_XATTR, out, outsz - 1);
@@ -102,7 +104,8 @@ s3_tag_load(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         if (errno == ENODATA || errno == ENOTSUP || errno == EOPNOTSUPP) {
             return 0;   /* object readable, just carries no tags */
         }
-        return -1;      /* denied / missing object → caller maps 403/404 */
+        /* errno already set by brix_vfs_getxattr() — caller maps to HTTP status. */
+        return -1;
     }
     out[n] = '\0';
     return n;
@@ -515,7 +518,7 @@ s3_handle_get_acl(ngx_http_request_t *r, const char *fs_path,
     size_t      n;
     u_char     *xml;
     size_t      xml_len = 0;
-    size_t      xml_capacity = 1024;
+    size_t      xml_capacity = BRIX_S3_XML_TAG_BUF_SIZE / 2;
     ngx_buf_t  *buf;
 
     /*

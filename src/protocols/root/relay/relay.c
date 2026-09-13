@@ -70,7 +70,7 @@ relay_audit_sink(void *ctx, const brix_tap_frame_t *f, brix_tap_dir_t dir,
     const uint8_t *payload, size_t payload_len)
 {
     ngx_log_t *log = ctx;
-    char       line[1280];
+    char       line[BRIX_ROOT_RELAY_LINE_BUF_SIZE];
 
     (void) payload;
     (void) payload_len;
