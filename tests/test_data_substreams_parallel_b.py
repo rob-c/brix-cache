@@ -94,7 +94,7 @@ class TestSubwrittenChecksumParity:
 
     def test_subwritten_file_checksum_matches_single_stream(self, endpoint, tmp_path):
         host, port = endpoint
-        size = 8 * 1024 * 1024                      # spans many 64 KiB chunks
+        size = _client_fanout_size()  # five 8 MiB chunks reach bound secondaries
         content = _det(size)
         src = tmp_path / "cksum-src.bin"
         src.write_bytes(content)

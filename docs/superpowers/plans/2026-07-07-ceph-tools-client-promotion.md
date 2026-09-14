@@ -667,13 +667,13 @@ git commit -m "docs(client): man pages + completions for the ceph operator tools
 ### Task 5: READMEs + reference docs
 
 **Files:**
-- Modify: `client/apps/README.md`, `client/README.md`, `tests/ceph/README.md`
+- Modify: `docs/09-developer-guide/client/apps/README.md`, `docs/09-developer-guide/client/README.md`, `docs/09-developer-guide/testing/ceph/README.md`
 - Modify: `docs/10-reference/{cephfs-migration-glasgow-ral.md,cephfs-to-xrdceph-migration.md,python-migration-tools.md,xrdceph-cephfs-bidirectional-migration.md,xrdceph-cephfs-migration-test-record.md}`
 
 **Interfaces:**
 - Consumes: `make -C client ceph-tools` (Task 2) as the canonical build command; Task 3's audit finding.
 
-- [ ] **Step 1: `client/apps/README.md` — new section**
+- [ ] **Step 1: `docs/09-developer-guide/client/apps/README.md` — new section**
 
 After the "Optional (built only when `libfuse3` is present…)" section, add:
 ```markdown
@@ -696,11 +696,11 @@ manifest ops, with a compiled shim fallback).
 | `xrdceph_migrate` | Flat pool → filesystem tree copy-through-mount (the only sound flat→CephFS upgrade). |
 ```
 
-- [ ] **Step 2: `client/README.md` — feature summary + layout row**
+- [ ] **Step 2: `docs/09-developer-guide/client/README.md` — feature summary + layout row**
 
 In the directory-layout table's `apps/` row, nothing changes (covered by apps README). In the "Feature summary" section, add a short `### Ceph operator tools` subsection: one paragraph naming the five tools, the dep gating (`librados`/`libradosstriper`/`libcephfs` + C++ compiler probed at make time; missing deps skip silently), and `make -C client ceph-tools`. Also amend the intro sentence "Pure-C, libXrdCl-free client suite" to note the one exception: `apps/ceph/` holds C++/Python storage-plane operator tools linking librados (still libXrdCl-free).
 
-- [ ] **Step 3: `tests/ceph/README.md` — repoint the tool sections**
+- [ ] **Step 3: `docs/09-developer-guide/testing/ceph/README.md` — repoint the tool sections**
 
 Update the sections listing the five tools + pymigrate (lines ~137-215): each `tests/ceph/<file>` path → `client/apps/ceph/<file>`; add one line up front: "The operator tools were promoted to `client/apps/ceph/` (2026-07-07) and build via `make -C client ceph-tools`; this directory keeps the Ceph harness, seeds, spikes, fixtures, and e2e runners." Runner paths (`tests/ceph/run_*.sh`) stay unchanged.
 
@@ -728,7 +728,7 @@ CAUTION: the `xrdceph_migrate_config` substitution must run BEFORE `xrdceph_migr
 
 - [ ] **Step 5: Verify**
 
-Run: `grep -rn "tests/ceph/xrdceph\|tests/ceph/xrdrados\|tests/ceph/xrdcephfs_rescue\|tests/ceph/pymigrate\|tests/ceph/ngx_shim" docs/10-reference client/ tests/ceph/README.md`
+Run: `grep -rn "tests/ceph/xrdceph\|tests/ceph/xrdrados\|tests/ceph/xrdcephfs_rescue\|tests/ceph/pymigrate\|tests/ceph/ngx_shim" docs/10-reference client/ docs/09-developer-guide/testing/ceph/README.md`
 Expected: no hits.
 Run: `grep -rn "client/apps/ceph" docs/10-reference | wc -l`
 Expected: > 20 (the rewritten references).
@@ -736,9 +736,9 @@ Expected: > 20 (the rewritten references).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add client/apps/README.md client/README.md tests/ceph/README.md docs/10-reference
+git add docs/09-developer-guide/client/apps/README.md docs/09-developer-guide/client/README.md docs/09-developer-guide/testing/ceph/README.md docs/10-reference
 git commit -m "docs: ceph operator tools promoted to client/apps/ceph — repoint references" \
-  -- client/apps/README.md client/README.md tests/ceph/README.md docs/10-reference
+  -- docs/09-developer-guide/client/apps/README.md docs/09-developer-guide/client/README.md docs/09-developer-guide/testing/ceph/README.md docs/10-reference
 ```
 
 ---
@@ -746,7 +746,7 @@ git commit -m "docs: ceph operator tools promoted to client/apps/ceph — repoin
 ### Task 6: RPM spec repoint
 
 **Files:**
-- Modify: `packaging/rpm/nginx-mod-brix-cache.spec` (has user WIP — surgical edits only), `packaging/rpm/README.md` (path mentions, if any)
+- Modify: `packaging/rpm/nginx-mod-brix-cache.spec` (has user WIP — surgical edits only), `docs/03-configuration/packaging/rpm/README.md` (path mentions, if any)
 
 **Interfaces:**
 - Consumes: `make -C client ceph-tools` (Task 2); binaries in `client/bin/`; Python sources in `client/apps/ceph/`.
@@ -812,7 +812,7 @@ and extend `%description -n brix-tools` with one sentence: the package now also 
 
 - [ ] **Step 4: `%changelog` + README**
 
-Add a `%changelog` entry (bump release, today's date, author line matching the existing style) noting the tools now build from `client/apps/ceph/` via `make -C client ceph-tools` and the rescue tools + Python variants joined brix-tools. Update any `tests/ceph` tool paths in `packaging/rpm/README.md`.
+Add a `%changelog` entry (bump release, today's date, author line matching the existing style) noting the tools now build from `client/apps/ceph/` via `make -C client ceph-tools` and the rescue tools + Python variants joined brix-tools. Update any `tests/ceph` tool paths in `docs/03-configuration/packaging/rpm/README.md`.
 
 - [ ] **Step 5: Verify**
 
@@ -823,9 +823,9 @@ Expected: no tool-source references remain (harness/test-suite payload reference
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packaging/rpm/nginx-mod-brix-cache.spec packaging/rpm/README.md
+git add packaging/rpm/nginx-mod-brix-cache.spec docs/03-configuration/packaging/rpm/README.md
 git commit -m "packaging(rpm): brix-tools builds via make -C client ceph-tools; add rescue + python variants" \
-  -- packaging/rpm/nginx-mod-brix-cache.spec packaging/rpm/README.md
+  -- packaging/rpm/nginx-mod-brix-cache.spec docs/03-configuration/packaging/rpm/README.md
 ```
 CAUTION: `git add` on these two files sweeps the user's WIP hunks into the commit. Before committing, run `git diff --cached packaging/rpm/nginx-mod-brix-cache.spec | head -100` and confirm every hunk is either (a) this task's edit or (b) obviously the same ceph-tools packaging work; if unrelated WIP hunks appear, commit with `git add -p`-style selection is unavailable to you — STOP and ask the user.
 

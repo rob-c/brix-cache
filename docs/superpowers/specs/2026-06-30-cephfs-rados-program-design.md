@@ -75,7 +75,7 @@ Removal touches (no git operations will be run by the agent):
 - tests: `tests/ceph/sd_ceph_ns_live_test.c`, `sd_ceph_omap_unittest.c`,
   `sd_ceph_migrate.c`, `sd_ceph_migrate_test.c`, `ceph_ns_smoke.sh` — delete.
 - docs: `docs/superpowers/specs/2026-06-30-cephns-directory-rados-driver-design.md`,
-  the cephns sections of `tests/ceph/README.md`, and the memory note.
+  the cephns sections of `docs/09-developer-guide/testing/ceph/README.md`, and the memory note.
 
 **Reusable salvage:** the `sd_ceph_conn_t` + `sd_ceph_oid_*` low-level layer that
 cephns introduced into `sd_ceph.c` **stays** — `cephfsro` and the recovery tools

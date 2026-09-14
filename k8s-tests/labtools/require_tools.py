@@ -20,7 +20,7 @@ def main(argv):
     for t in gone:
         print(f"MISSING: {t}", file=sys.stderr)
     if gone:
-        print("One or more required tools are missing. See k8s-tests/README.md.",
+        print("One or more required tools are missing. See docs/09-developer-guide/k8s-tests/README.md.",
               file=sys.stderr)
         return 1
     print("All required tools present.")

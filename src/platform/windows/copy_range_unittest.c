@@ -22,6 +22,8 @@
  */
 
 #include <stdio.h>
+#include <time.h>
+#include <winsock2.h>
 #include <stdlib.h>
 #include <string.h>
 #include <io.h>
@@ -209,6 +211,7 @@ static off_t get_file_size(const char *filename)
 {
     HANDLE hFile;
     LARGE_INTEGER size;
+    DWORD high_part;
     
     hFile = CreateFileA(filename, GENERIC_READ, 0, NULL, OPEN_EXISTING,
                         FILE_ATTRIBUTE_NORMAL, NULL);
@@ -216,7 +219,8 @@ static off_t get_file_size(const char *filename)
         return -1;
     }
     
-    size.LowPart = GetFileSize(hFile, &size.HighPart);
+    size.LowPart = GetFileSize(hFile, &high_part);
+    size.HighPart = (LONG) high_part;
     CloseHandle(hFile);
     
     if (size.LowPart == INVALID_FILE_SIZE) {
@@ -230,60 +234,79 @@ static off_t get_file_size(const char *filename)
  * TEST CASES
  * ========================================================================== */
 
-/**
- * test_copy_full_file - Test full file copy using CopyFile2
- */
-static void test_copy_full_file(void)
+/* Create the input and open both descriptors; unwind partial setup failures. */
+static int
+brix_test_open_copy_files(size_t file_size, int *in_fd, int *out_fd)
 {
-    int in_fd, out_fd;
-    ssize_t result;
-    const size_t file_size = 1024 * 1024;  /* 1MB */
-    
-    test_begin("Full file copy (CopyFile2)");
-    
     /* Create source file */
     if (create_test_file(TEST_FILE_SOURCE, file_size) < 0) {
         test_fail("Cannot create source file");
-        return;
+        return -1;
     }
     
     /* Open files */
-    in_fd = open(TEST_FILE_SOURCE, O_RDONLY | O_BINARY);
-    if (in_fd < 0) {
+    *in_fd = open(TEST_FILE_SOURCE, O_RDONLY | O_BINARY);
+    if (*in_fd < 0) {
         test_fail("Cannot open source file");
         cleanup_test_directory();
-        return;
+        return -1;
     }
-    
-    out_fd = open(TEST_FILE_DEST, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
-    if (out_fd < 0) {
-        close(in_fd);
+
+    *out_fd = open(TEST_FILE_DEST, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
+    if (*out_fd < 0) {
+        close(*in_fd);
         test_fail("Cannot open destination file");
         cleanup_test_directory();
-        return;
+        return -1;
     }
-    
-    /* Copy entire file */
-    result = brix_plat_copy_range(in_fd, NULL, out_fd, NULL, file_size, 0);
-    
+
+    return 0;
+}
+
+/* Close both descriptors before reporting a copy result to its test case. */
+static int
+brix_test_copy_file(size_t file_size, off_t *in_off, off_t *out_off,
+    size_t copy_size, ssize_t *result)
+{
+    int in_fd, out_fd;
+
+    if (brix_test_open_copy_files(file_size, &in_fd, &out_fd) < 0) {
+        return -1;
+    }
+    *result = brix_plat_copy_range(in_fd, in_off, out_fd, out_off, copy_size, 0);
     close(in_fd);
     close(out_fd);
-    
-    if (result < 0) {
+    if (*result < 0) {
         test_fail("brix_plat_copy_range failed");
         cleanup_test_directory();
+        return -1;
+    }
+    return 0;
+}
+
+/* Full-file paths require byte-for-byte equality, regardless of copy backend. */
+static void
+brix_test_complete_copy(const char *name, size_t file_size)
+{
+    ssize_t result;
+
+    test_begin(name);
+    if (brix_test_copy_file(file_size, NULL, NULL, file_size, &result) < 0) {
         return;
     }
-    
-    /* Verify files are equal */
     if (verify_files_equal(TEST_FILE_SOURCE, TEST_FILE_DEST) != 0) {
         test_fail("Files differ");
         cleanup_test_directory();
         return;
     }
-    
     test_pass();
     cleanup_test_directory();
+}
+
+static void
+test_copy_full_file(void)
+{
+    brix_test_complete_copy("Full file copy (CopyFile2)", 1024 * 1024);
 }
 
 /**
@@ -291,7 +314,6 @@ static void test_copy_full_file(void)
  */
 static void test_copy_range(void)
 {
-    int in_fd, out_fd;
     ssize_t result;
     off_t in_off = 1024;  /* Start at offset 1KB */
     off_t out_off = 0;
@@ -300,37 +322,7 @@ static void test_copy_range(void)
     
     test_begin("Range copy (FSCTL_COPY_FILE_RANGE)");
     
-    /* Create source file */
-    if (create_test_file(TEST_FILE_SOURCE, file_size) < 0) {
-        test_fail("Cannot create source file");
-        return;
-    }
-    
-    /* Open files */
-    in_fd = open(TEST_FILE_SOURCE, O_RDONLY | O_BINARY);
-    if (in_fd < 0) {
-        test_fail("Cannot open source file");
-        cleanup_test_directory();
-        return;
-    }
-    
-    out_fd = open(TEST_FILE_DEST, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
-    if (out_fd < 0) {
-        close(in_fd);
-        test_fail("Cannot open destination file");
-        cleanup_test_directory();
-        return;
-    }
-    
-    /* Copy range */
-    result = brix_plat_copy_range(in_fd, &in_off, out_fd, &out_off, range_size, 0);
-    
-    close(in_fd);
-    close(out_fd);
-    
-    if (result < 0) {
-        test_fail("brix_plat_copy_range failed");
-        cleanup_test_directory();
+    if (brix_test_copy_file(file_size, &in_off, &out_off, range_size, &result) < 0) {
         return;
     }
     
@@ -356,55 +348,7 @@ static void test_copy_range(void)
  */
 static void test_buffered_fallback(void)
 {
-    int in_fd, out_fd;
-    ssize_t result;
-    const size_t file_size = 256 * 1024;  /* 256KB */
-    
-    test_begin("Buffered copy fallback");
-    
-    /* Create source file */
-    if (create_test_file(TEST_FILE_SOURCE, file_size) < 0) {
-        test_fail("Cannot create source file");
-        return;
-    }
-    
-    /* Open files */
-    in_fd = open(TEST_FILE_SOURCE, O_RDONLY | O_BINARY);
-    if (in_fd < 0) {
-        test_fail("Cannot open source file");
-        cleanup_test_directory();
-        return;
-    }
-    
-    out_fd = open(TEST_FILE_DEST, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
-    if (out_fd < 0) {
-        close(in_fd);
-        test_fail("Cannot open destination file");
-        cleanup_test_directory();
-        return;
-    }
-    
-    /* Copy file (will use buffered fallback if other methods fail) */
-    result = brix_plat_copy_range(in_fd, NULL, out_fd, NULL, file_size, 0);
-    
-    close(in_fd);
-    close(out_fd);
-    
-    if (result < 0) {
-        test_fail("brix_plat_copy_range failed");
-        cleanup_test_directory();
-        return;
-    }
-    
-    /* Verify files are equal */
-    if (verify_files_equal(TEST_FILE_SOURCE, TEST_FILE_DEST) != 0) {
-        test_fail("Files differ");
-        cleanup_test_directory();
-        return;
-    }
-    
-    test_pass();
-    cleanup_test_directory();
+    brix_test_complete_copy("Buffered copy fallback", 256 * 1024);
 }
 
 /**
@@ -431,43 +375,12 @@ static void test_invalid_fds(void)
  */
 static void test_large_file(void)
 {
-    int in_fd, out_fd;
     ssize_t result;
     const size_t file_size = 100 * 1024 * 1024;  /* 100MB for faster testing */
     
     test_begin("Large file copy (100MB)");
     
-    /* Create source file */
-    if (create_test_file(TEST_FILE_SOURCE, file_size) < 0) {
-        test_fail("Cannot create source file");
-        return;
-    }
-    
-    /* Open files */
-    in_fd = open(TEST_FILE_SOURCE, O_RDONLY | O_BINARY);
-    if (in_fd < 0) {
-        test_fail("Cannot open source file");
-        cleanup_test_directory();
-        return;
-    }
-    
-    out_fd = open(TEST_FILE_DEST, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
-    if (out_fd < 0) {
-        close(in_fd);
-        test_fail("Cannot open destination file");
-        cleanup_test_directory();
-        return;
-    }
-    
-    /* Copy file */
-    result = brix_plat_copy_range(in_fd, NULL, out_fd, NULL, file_size, 0);
-    
-    close(in_fd);
-    close(out_fd);
-    
-    if (result < 0) {
-        test_fail("brix_plat_copy_range failed");
-        cleanup_test_directory();
+    if (brix_test_copy_file(file_size, NULL, NULL, file_size, &result) < 0) {
         return;
     }
     

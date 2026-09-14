@@ -24,6 +24,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include "cpu_cache.h"
+#include "sysctl_value.h"
 
 /* ==========================================================================
  * INTERNAL TYPES
@@ -161,42 +163,9 @@ determine_cache_sizes(brix_apple_cpu_info_t *info)
      *   - Firestorm: 192KB L1I, 128KB L1D, 36MB/144MB shared L2
      */
     
-    if (info->generation >= 3) {
-        /* M3 series */
-        info->l1d_cache_size = 128;  /* Per performance core */
-        
-        if (strstr(info->chip_model, "Max")) {
-            info->l2_cache_size = 144 * 1024;  /* 144MB in KB */
-        } else if (strstr(info->chip_model, "Pro")) {
-            info->l2_cache_size = 36 * 1024;   /* 36MB in KB */
-        } else {
-            info->l2_cache_size = 16 * 1024;   /* 16MB in KB */
-        }
-    } else if (info->generation == 2) {
-        /* M2 series */
-        info->l1d_cache_size = 128;
-        
-        if (strstr(info->chip_model, "Max")) {
-            info->l2_cache_size = 96 * 1024;   /* 96MB in KB */
-        } else if (strstr(info->chip_model, "Pro")) {
-            info->l2_cache_size = 36 * 1024;   /* 36MB in KB */
-        } else {
-            info->l2_cache_size = 16 * 1024;   /* 16MB in KB */
-        }
-    } else {
-        /* M1 series (default) */
-        info->l1d_cache_size = 128;
-        
-        if (strstr(info->chip_model, "Ultra")) {
-            info->l2_cache_size = 48 * 1024;   /* 48MB in KB */
-        } else if (strstr(info->chip_model, "Max")) {
-            info->l2_cache_size = 48 * 1024;   /* 48MB in KB */
-        } else if (strstr(info->chip_model, "Pro")) {
-            info->l2_cache_size = 24 * 1024;   /* 24MB in KB */
-        } else {
-            info->l2_cache_size = 12 * 1024;   /* 12MB in KB */
-        }
-    }
+    info->l1d_cache_size = 128;
+    info->l2_cache_size = brix_apple_l2_cache_mb(info->generation,
+                                               info->chip_model) * 1024;
 }
 
 /* ==========================================================================
@@ -214,10 +183,8 @@ int
 brix_plat_cpu_count_performance(void)
 {
     int count = 0;
-    size_t len = sizeof(count);
     
-    /* hw.perflevel0.physicalcpu = performance cores (firestorm) */
-    if (sysctlbyname("hw.perflevel0.physicalcpu", &count, &len, NULL, 0) == 0) {
+    if (brix_darwin_sysctl_read_int("hw.perflevel0.physicalcpu", &count) == 0) {
         return count;
     }
     
@@ -235,16 +202,7 @@ brix_plat_cpu_count_performance(void)
 int
 brix_plat_cpu_count_efficiency(void)
 {
-    int count = 0;
-    size_t len = sizeof(count);
-    
-    /* hw.perflevel1.physicalcpu = efficiency cores (icestorm) */
-    if (sysctlbyname("hw.perflevel1.physicalcpu", &count, &len, NULL, 0) == 0) {
-        return count;
-    }
-    
-    /* No efficiency cores (Intel Mac or single-tier Apple Silicon) */
-    return 0;
+    return brix_darwin_sysctl_int("hw.perflevel1.physicalcpu", 0);
 }
 
 /**

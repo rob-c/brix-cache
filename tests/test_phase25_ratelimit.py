@@ -407,7 +407,8 @@ def test_stream_concurrency_high_limit_no_throttle(lifecycle, tmp_path):
 # --------------------------------------------------------------------------- #
 
 def test_keycache_wiring():
-    assert "BRIX_RL_RULE_CACHE_MAX" in _read("src/core/types/tunables.h")
+    assert '"tunables_cluster.h"' in _read("src/core/types/tunables.h")
+    assert "BRIX_RL_RULE_CACHE_MAX" in _read("src/core/types/tunables_cluster.h")
     ctx = _read("src/core/types/context.h")
     assert "key_cache" in ctx and "key_cache_valid" in ctx  # brix_ctx_rl_t (ctx_structs.h)
     gate = _read("src/net/ratelimit/ratelimit_stream.c")

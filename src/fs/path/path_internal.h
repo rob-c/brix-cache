@@ -21,6 +21,25 @@ void brix_log_path_warning(ngx_log_t *log, const char *prefix,
 
 /* Confinement helpers used across resolve_confined_*.c fragments. */
 
+/* Open an export-root anchor; returns an owned fd or -1 (logs on failure).
+ * The caller closes the fd after its confined operations finish. */
+int brix_open_root_fd(ngx_log_t *log, const char *root_canon);
+
+/* Split a root-relative path into parent and final component. Returns 1 on
+ * success, 0 with EINVAL for NULL/empty/"." or ENAMETOOLONG when either output
+ * does not fit. Outputs are valid only on success; borrows the input string. */
+int brix_split_relative_parent(const char *rel, char *parent, size_t parentsz,
+    char *base, size_t basesz);
+
+/* Walk parent below a borrowed rootfd without following symlinks. Returns an
+ * owned parent fd (a dup for empty/"." parent), or -1 with errno set. */
+int brix_open_confined_parent_fallback(int rootfd, const char *parent);
+
+/* Open the confined parent of canonical resolved and write its leaf to base.
+ * Returns an owned parent fd, or -1. Borrows both canonical path strings. */
+int brix_open_confined_parent_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, char *base, size_t basesz);
+
 /* Export-boundary check: returns 1 iff path_canon equals root_canon or is a
  * descendant of it, else 0. Both must be canonical absolute paths (no trailing
  * slash unless root is "/"). The next-byte ('/' or NUL) test defeats prefix

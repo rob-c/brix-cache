@@ -38,6 +38,8 @@ def dns_resolv_conf(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, 
             "-Werror",
             "-I",
             str(SRC_DNS),
+            "-I",
+            str(REPO_ROOT / "src"),
             str(SRC_DNS / "resolv_conf_unittest.c"),
             str(SRC_DNS / "resolv_conf.c"),
         ],
@@ -109,4 +111,3 @@ def dns_curl_pin_budget_default(base: Path, ngx_src: Path = DEFAULT_NGX_SRC
     # second instead of the shipped minute; the shipped value is pinned by
     # tests/test_phase116_curl_pin_budget.py.
     return _curl_pin_budget(base, ngx_src, 400)
-

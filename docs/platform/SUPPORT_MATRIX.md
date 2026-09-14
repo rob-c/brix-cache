@@ -430,7 +430,7 @@ LDFLAGS="-lws2_32 -ladvapi32 -lkernel32"
 ## 9. Platform-Specific Documentation
 
 ### 9.1 Linux
-- [PAL Architecture](../../src/platform/ARCHITECTURE.md)
+- [PAL Architecture](pal/ARCHITECTURE.md)
 - [Linux Implementation](../../src/platform/linux/)
 
 ### 9.2 macOS
@@ -444,8 +444,8 @@ LDFLAGS="-lws2_32 -ladvapi32 -lkernel32"
 - [nginx/Windows Limitations](https://nginx.org/en/docs/windows.html)
 
 ### 9.4 ARM64 (Planned)
-- [ARM64 Linux Guide](arm64-linux.md) (TBD)
-- [Apple Silicon Guide](apple-silicon.md) (TBD)
+- [ARM64 Linux Implementation](ARM64_LINUX_IMPLEMENTATION.md)
+- [Apple Silicon Optimization](apple-silicon-optimization.md)
 
 ---
 
@@ -471,7 +471,7 @@ To add support for a new platform:
 4. Document platform-specific limitations
 5. Add tests to `tests/platform/`
 
-See [ARCHITECTURE.md](../../src/platform/ARCHITECTURE.md) for implementation guidelines.
+See [ARCHITECTURE.md](pal/ARCHITECTURE.md) for implementation guidelines.
 
 ---
 

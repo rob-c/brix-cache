@@ -31,6 +31,10 @@ import _test_session_bind_helpers as H
 from _test_release20_metrics_helpers import wait_port
 from csource_scan import function_body
 
+# All configurations reuse one fixed lifecycle ledger and its two listeners.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-r20-cks-plugin")]
+
 REPO = Path(__file__).resolve().parents[1]
 SRC = REPO / "src"
 COMPAT = SRC / "core" / "compat"

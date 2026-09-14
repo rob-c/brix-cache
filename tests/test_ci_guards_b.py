@@ -73,7 +73,9 @@ def test_version_sync_guard_compares_numerically_not_lexically(tmp_path) -> None
 def test_version_sync_guard_reports_a_missing_source_of_truth(tmp_path) -> None:
     """No ident.h means nothing to synchronise against — fail loudly rather than
     silently passing a tree with no version at all."""
-    (tmp_path / "CHANGELOG.md").write_text("## v1.4.0 — a\n")
+    changelog_path = tmp_path / _VSYNC.CHANGELOG
+    changelog_path.parent.mkdir(parents=True)
+    changelog_path.write_text("## v1.4.0 — a\n")
     ok, lines = _VSYNC.run(tmp_path)
     assert not ok
     assert any("nothing to synchronise against" in l for l in lines), lines

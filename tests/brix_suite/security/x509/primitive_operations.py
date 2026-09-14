@@ -146,7 +146,7 @@ def _decorate_eec(
 
 def _make_eec_with_openssl(
     issuer, dn, key_bits, digest_name, not_after_days, not_before_days, ca_true,
-    namespace,
+    key_type, curve, namespace,
 ):
     return namespace["_make_eec_openssl"](
         issuer,
@@ -156,6 +156,8 @@ def _make_eec_with_openssl(
         not_after_days=not_after_days,
         not_before_days=not_before_days,
         ca_true=ca_true,
+        key_type=key_type,
+        curve=curve,
     )
 
 
@@ -170,7 +172,7 @@ def make_eec(
     ):
         return _make_eec_with_openssl(
             issuer, dn, key_bits, digest_name, not_after_days, not_before_days,
-            ca_true, namespace,
+            ca_true, key_type, curve, namespace,
         )
     key = namespace["_make_key"](key_type, bits=key_bits, curve=curve)
     algorithm = digest or namespace["_digest"](digest_name)

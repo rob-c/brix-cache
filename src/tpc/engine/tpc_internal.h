@@ -1,58 +1,12 @@
-/* ---- File: tpc_internal.h — Native TPC source-side pull API and shared types ----
- *
- * PURPOSE:
- *   Centralizes all shared types, constants, and function declarations for
- *   native XRootD third-party-copy (TPC) destination-side pull.
- *
- * KEY DESIGN DECISIONS:
- * 1. Heap-allocated brix_tpc_pull_t enables ngx_thread_task_post() lifecycle:
- *    - Allocate in event thread
- *    - Post to thread pool for blocking I/O
- *    - Free in done callback
- * 2. Wire constants ensure consistent timeout/chunk sizes across all TPC files
- * 3. Cached-only SSRF preflight (brix_tpc_check_src_policy) prevents blocking
- *    DNS during open — async resolve parks pull if cache miss
- * 4. Open resolution honors kXR_wait/kXR_waitresp with bounded retries:
- *    - TPC_OPEN_RESOLVE_MAX_SEC: 120s total wall-clock cap
- *    - TPC_OPEN_WAIT_CAP_SEC: 15s per-recv idle timeout
- *    - TPC_OPEN_WAIT_RETRY_SEC: 1s sleep before RESEND (sub-second to catch grant window)
- *    - TPC_OPEN_RESOLVE_MAX_ITERS: 16 max wait/waitresp/attn rounds
- *
- * CONSTANTS (wire-level, shared by all TPC source files):
- *   - BRIX_TPC_IO_TIMEOUT_SEC: 60s (SO_RCVTIMEO/SO_SNDTIMEO)
- *   - BRIX_TPC_CONNECT_TIMEOUT_SEC: 5s (poll timeout for non-blocking connect)
- *   - TPC_CHUNK_SIZE: 1MB (bytes per kXR_read request)
- *   - TPC_RESP_MAX_BODY: 1MB+256 (malloc cap for recv)
- *   - TPC_HOPS_DEFAULT: 4 (brix_tpc_max_hops default)
- *   - TPC_REDIR_OPAQUE_LEN: 1024 (replayed cap.sym/cap.msg budget)
- *
- * TYPES:
- *   brix_tpc_params_t — Parsed tpc.* opaque fields:
- *     - key, src, src_host, src_path, src_port
- *     - dst, dst_host, dst_path (F16 push)
- *     - lfn, dlfn (F16 push), org, stage, token_mode
- *     - has_* flags for presence detection
- *     - str (parallel read streams, F7)
- *
- *   brix_tpc_pull_t — Per-pull heap-allocated task context:
- *     - connection/ctx/conf refs
- *     - streamid, options, mode_bits
- *     - src info, key, org, delegated_token, token_scope
- *     - dst_path, dst_fd, fhandle_idx, reply_kind
- *     - result, xrd_error, bytes_written, err_msg
- *
- * API (grouped by implementation file):
- *   parse.c:      brix_tpc_parse_opaque(opaque, out)
- *   io.c:         tpc_send_all(), tpc_recv_response()
- *   connect.c:    tpc_connect(t) — DNS+TCP with timeout
- *   policy:       brix_tpc_check_src_policy() — cached SSRF preflight
- *   bootstrap.c:  tpc_bootstrap(t, fd) — kXR_protocol+kXR_login
- *   auth:         tpc_outbound_finish_login/gsi/ztn, GSI DH helpers
- *   source.c:     tpc_pull_from_source(t, fd) — open+read+fsync+close
- *   thread.c:     brix_tpc_pull_thread(data, log) — pool orchestrator
- *   tpc_token.c:  tpc_fetch_delegated_token(t) — OAuth2/OIDC fetch
- *   done.c:       brix_tpc_pull_done(ev) — main-thread completion callback
- *   launch.c:     brix_tpc_prepare_pull/launch_pull/start_pull — entry points
+/* tpc_internal.h — native TPC destination-side pull types and internal API.
+ * Requires nginx and BriX types provided by the includes below.
+ * WHAT: Share parsed opaque fields and the heap-owned pull task across stages.
+ * WHY: Event-loop setup, blocking pool work and completion need one ownership
+ * contract. Allocate before posting; free only from the completion callback.
+ * HOW: Cached policy checks precede asynchronous DNS and connection setup.
+ * Source-open resolution bounds wait/waitresp retries, body sizes and hops.
+ * The implementation files below own parsing, transport, authentication,
+ * delegated-token fetching and the final publish callback.
  */
 
 #ifndef BRIX_TPC_TPC_INTERNAL_H

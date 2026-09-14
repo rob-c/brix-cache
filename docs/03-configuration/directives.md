@@ -2147,7 +2147,7 @@ stream {
 
 `contrib/checksum-plugins/` carries a worked example (FNV-1a 64, with a
 `basis=<16 hex>` parm), the build recipe (`cc -shared -fPIC`) and the ABI
-contract; `contrib/checksum-plugins/README.md`.
+contract; `docs/09-developer-guide/checksum-plugins/README.md`.
 
 ---
 

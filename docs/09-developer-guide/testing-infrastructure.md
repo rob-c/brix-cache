@@ -2,7 +2,7 @@
 
 How the test environment is wired: server startup, PKI fixtures, token fixtures, and the per-test nginx instance lifecycle.
 
-> **Just want to run the tests?** See [`tests/README.md`](../../tests/README.md).
+> **Just want to run the tests?** See [`docs/09-developer-guide/testing/README.md`](testing/README.md).
 > TL;DR: `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --fast` (~4min iteration check) or
 > `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite` (~10–12min full gate). Never bare `pytest tests/` — it runs serially (20min+).
 

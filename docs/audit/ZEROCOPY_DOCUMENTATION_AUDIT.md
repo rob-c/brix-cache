@@ -338,7 +338,7 @@ brix_plat_splice(int in_fd, int out_fd, size_t nbytes, unsigned int flags)
 
 ### 5.1 SPLICE_IMPLEMENTATION.md (Windows)
 
-**File**: `src/platform/windows/SPLICE_IMPLEMENTATION.md`  
+**File**: `docs/platform/pal/windows/SPLICE_IMPLEMENTATION.md`\
 **Lines**: 541 (verified: `wc -l`)  
 **Issues**: 12
 
@@ -518,8 +518,8 @@ brix_plat_splice(int in_fd, int out_fd, size_t nbytes, unsigned int flags)
 
 ### Documentation Files (12)
 
-1. `src/platform/windows/SPLICE_IMPLEMENTATION.md` (541 lines)
-2. `src/platform/windows/COPY_RANGE_IMPLEMENTATION.md` (650 lines)
+1. `docs/platform/pal/windows/SPLICE_IMPLEMENTATION.md` (541 lines)
+2. `docs/platform/pal/windows/COPY_RANGE_IMPLEMENTATION.md` (650 lines)
 3. `docs/platform/WINDOWS_COPY_RANGE_IMPLEMENTATION.md` (650 lines)
 4. `docs/platform/PERFORMANCE_BENCHMARKS.md` (600+ lines)
 5. `docs/platform/ARM64_MACOS_IMPLEMENTATION.md` (400+ lines)

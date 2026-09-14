@@ -10,7 +10,7 @@ WHY THIS EXISTS
     OWNERSHIP, so the xrdcl chmod/stat parity suites fail however open the mode is.
 
     The historical workaround is brix-test-nginx injecting ``user root;``
-    (TESTING.md §4b) so workers stay root.  That trades one distortion for
+    (docs/09-developer-guide/TESTING.md §4b) so workers stay root.  That trades one distortion for
     another: root bypasses every permission check, so the suite stops testing the
     authorization semantics it exists to verify — and it cannot be applied to the
     reference xrootd, which REFUSES to run as the superuser ("Security reasons
@@ -24,7 +24,7 @@ WHY THIS EXISTS
 
 WHY A COPY OF THE CHECKOUT (root mode)
     The canonical checkout may live somewhere the test user cannot reach — on this
-    box /root, mode 0750, which is exactly why TESTING.md §6c concluded "running
+    box /root, mode 0750, which is exactly why docs/09-developer-guide/TESTING.md §6c concluded "running
     the whole fleet as root [is] necessary here".  Rather than open a path into
     root's home (an ACL/``o+x`` on /root would grant traversal to a real account —
     and ``nobody`` in particular is shared by other daemons, so that would widen

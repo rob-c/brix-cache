@@ -75,6 +75,14 @@ def test_detect_architecture():
     return True
 
 
+def _assert_compiler_capabilities(result):
+    """A capability must belong to a recognized compiler."""
+    if result["name"]:
+        assert result["name"] in ["gcc", "clang", "apple-clang"]
+    if result["supports_lto"]:
+        assert result["name"] is not None
+
+
 def test_detect_compiler_support():
     """Test compiler detection."""
     result = detect_compiler_support()
@@ -84,14 +92,7 @@ def test_detect_compiler_support():
     assert "version" in result or result["name"] is None
     assert "supports_lto" in result
     assert "supports_pgo" in result
-    
-    # Valid compiler names
-    if result["name"]:
-        assert result["name"] in ["gcc", "clang", "apple-clang"]
-    
-    # LTO support implies compiler was detected
-    if result["supports_lto"]:
-        assert result["name"] is not None
+    _assert_compiler_capabilities(result)
     
     print(f"✓ Compiler: {result['name']} {result['version'] or 'unknown'}")
     return True
@@ -115,13 +116,9 @@ def test_detect_optimization_flags():
     assert isinstance(result["frameworks"], list)
     assert isinstance(result["ldflags"], list)
     
-    # march should have at least one flag
-    if result["march"]:
-        assert all(flag.startswith("-march=") for flag in result["march"])
-    
-    # mtune should have at least one flag
-    if result["mtune"]:
-        assert all(flag.startswith("-mtune=") for flag in result["mtune"])
+    # Empty lists are valid; every supplied flag must have the correct prefix.
+    assert all(flag.startswith("-march=") for flag in result["march"])
+    assert all(flag.startswith("-mtune=") for flag in result["mtune"])
     
     print(f"✓ Optimization flags: {' '.join(result['march'])}")
     return True

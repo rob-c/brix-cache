@@ -396,7 +396,10 @@ def _read(endpoint, plane, pki, credential):
     XrdSecPROTOCOL is pinned to gsi and KRB5CCNAME dropped so an ambient ticket
     can never satisfy a login this file believes a certificate authenticated.
     XrdSecGSISRVNAMES is the client's own check on the SERVER's name, which is
-    not the subject here."""
+    not the subject here. Connect to the configured HOST: XrdCl may resolve
+    localhost to duplicate IPv4 addresses and retry a denied authentication
+    against each one, producing multiple OCSP exchanges for this single read.
+    CONNECT_HOST remains the certificate's service identity."""
     env = os.environ.copy()
     env["XrdSecPROTOCOL"] = "gsi"
     env["X509_CERT_DIR"] = pki["ca"]
@@ -404,7 +407,7 @@ def _read(endpoint, plane, pki, credential):
     env["XrdSecGSISRVNAMES"] = "*"
     env.pop("KRB5CCNAME", None)
     return subprocess.run(
-        [SYS_XRDFS, f"root://{CONNECT_HOST}:{_port(endpoint, plane)}",
+        [SYS_XRDFS, f"root://{HOST}:{_port(endpoint, plane)}",
          "cat", SEED_PATH],
         capture_output=True, text=True, timeout=90, env=env)
 
@@ -426,4 +429,3 @@ def _errlog(endpoint):
 # --------------------------------------------------------------------------- #
 # §A — brix_ocsp: the flag that decides whether anyone is asked         #
 # --------------------------------------------------------------------------- #
-

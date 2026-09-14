@@ -37,7 +37,7 @@ The byte order operations documentation is **100% complete, consistent, and accu
 | `brix_plat_htobe16()` | Host → Big-Endian 16-bit | `uint16_t brix_plat_htobe16(uint16_t x)` |
 | `brix_plat_be16toh()` | Big-Endian → Host 16-bit | `uint16_t brix_plat_be16toh(uint16_t x)` |
 
-**Documentation Location**: `src/platform/PAL_FUNCTION_REFERENCE.md` Section 10
+**Documentation Location**: `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` Section 10
 
 ---
 
@@ -174,7 +174,9 @@ static inline uint64_t brix_plat_htobe64(uint64_t x) {
 
 ## 3. Documentation Accuracy
 
-### 3.1 PAL Function Reference (src/platform/PAL_FUNCTION_REFERENCE.md)
+<a id="31-pal-function-reference-srcplatformpal_function_referencemd"></a>
+
+### 3.1 PAL Function Reference (docs/platform/pal/PAL_FUNCTION_REFERENCE.md)
 
 **Section 10: Byte Order Operations** - ✅ **100% Accurate**
 

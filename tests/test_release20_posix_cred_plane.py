@@ -159,7 +159,10 @@ def test_beneath_exchange_delegates_to_the_broker():
     """Finding B, at the seam: the arm that used to `errno = ENOTSUP; return -1`
     now routes to the broker like its three siblings."""
     body = _body(BENEATH, "beneath_two_path(beneath_two_path_op_t op")
-    assert "case BENEATH_2P_EXCHANGE: return brix_imp_rename_exchange(src, dst);" in body
+    assert re.search(r"if \(brix_imp_client_active\(\)\) \{\s*"
+                     r"return beneath_imp_two_path\(op, src, dst\);", body)
+    dispatch = _body(BENEATH, "beneath_imp_two_path(beneath_two_path_op_t op")
+    assert "case BENEATH_2P_EXCHANGE: return brix_imp_rename_exchange(src, dst);" in dispatch
 
 
 def test_no_beneath_helper_refuses_for_lack_of_a_broker_verb():

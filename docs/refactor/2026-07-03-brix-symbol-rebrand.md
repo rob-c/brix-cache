@@ -148,7 +148,7 @@ These apply to **every** task. Values are copied verbatim from the decisions loc
 - `docs/refactor/brix-rename-migration.md` — generated operator migration map.
 - `.git-blame-ignore-revs` — rename-commit SHAs.
 
-Modified trees: `src/**`, `./config`, `client/**`, `tests/**`, `deploy/**`, `contrib/**`, `docs/**` (living only), `tools/ci/*.sh`, `CLAUDE.md`, `README.md`, `CHANGELOG.md`.
+Modified trees: `src/**`, `./config`, `client/**`, `tests/**`, `deploy/**`, `contrib/**`, `docs/**` (living only), `tools/ci/*.sh`, `CLAUDE.md`, `README.md`, `docs/10-reference/CHANGELOG.md`.
 
 ---
 
@@ -863,7 +863,7 @@ git commit -m "docs(rebrand): rename own-namespace refs xrootd_->brix_ in living
 ## Task 7: Final repo-wide verification & changelog
 
 **Files:**
-- Modify: `CHANGELOG.md`
+- Modify: `docs/10-reference/CHANGELOG.md`
 - Read-only: entire repo (invariance + residual audit)
 
 - [ ] **Step 1: Repo-wide residual audit**
@@ -918,7 +918,7 @@ Expected: `/metrics` emits `brix_*` and `no old metrics`; `/brix/login` → 200/
 - [ ] **Step 5: Changelog + commit**
 
 ```bash
-cat >> CHANGELOG.md <<'EOF'
+cat >> docs/10-reference/CHANGELOG.md <<'EOF'
 
 ## v1.0.8 — BriX namespace rebrand
 - Renamed the project's own namespace: server `xrootd_`->`brix_`, `XROOTD_`->`BRIX_`,
@@ -932,7 +932,7 @@ cat >> CHANGELOG.md <<'EOF'
   tool binaries (`xrdcp`/`xrdfs`/…), the nginx module identity `nginx-xrootd`, and the
   on-disk cache sentinels (`.ngx-xrootd-*`). Migration map: docs/refactor/brix-rename-migration.md
 EOF
-git add CHANGELOG.md
+git add docs/10-reference/CHANGELOG.md
 git commit -m "docs(rebrand): changelog v1.0.8 + migration pointer"
 ```
 

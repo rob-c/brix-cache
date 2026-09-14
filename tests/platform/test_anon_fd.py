@@ -24,29 +24,25 @@ from conftest import skip_if_not_platform
 # =============================================================================
 
 @pytest.mark.pal_function("brix_plat_anon_fd")
-def test_anon_fd_create_basic():
+def test_anon_fd_create_basic(anon_fd):
     """Test basic anonymous fd creation"""
-    # Simulate PAL function call
-    fd = os.open(tempfile.mktemp(), os.O_RDWR | os.O_CREAT | os.O_EXCL)
+    # Call the real PAL owner
+    fd = anon_fd()
     
     try:
         assert fd >= 0, f"Anonymous fd should be non-negative, got {fd}"
         assert isinstance(fd, int), "fd should be integer"
     finally:
         os.close(fd)
-        try:
-            os.unlink(tempfile.mktemp())
-        except:
-            pass
 
 
 @pytest.mark.pal_function("brix_plat_anon_fd")
-def test_anon_fd_with_name(temp_dir):
+def test_anon_fd_with_name(temp_dir, anon_fd):
     """Test anonymous fd creation with name hint"""
     name = "brix_test_anon"
     
-    # Simulate PAL function call with name
-    fd = os.open(str(temp_dir / f"{name}_XXXXXX"), os.O_RDWR | os.O_CREAT | os.O_EXCL)
+    # Call the PAL owner with a label
+    fd = anon_fd(name)
     
     try:
         assert fd >= 0, f"Anonymous fd with name should succeed"
@@ -65,10 +61,10 @@ def test_anon_fd_with_name(temp_dir):
 
 
 @pytest.mark.pal_function("brix_plat_anon_fd")
-def test_anon_fd_with_directory(temp_dir):
+def test_anon_fd_with_directory(temp_dir, anon_fd):
     """Test anonymous fd creation in specific directory"""
-    # Simulate PAL function call with directory
-    fd = os.open(str(temp_dir / "anon_test"), os.O_RDWR | os.O_CREAT | os.O_EXCL)
+    # Call the PAL owner with a spill directory
+    fd = anon_fd(directory=temp_dir)
     
     try:
         assert fd >= 0, f"Anonymous fd in directory should succeed"
@@ -85,9 +81,9 @@ def test_anon_fd_with_directory(temp_dir):
 # =============================================================================
 
 @pytest.mark.pal_function("brix_plat_anon_fd")
-def test_anon_fd_read_write():
+def test_anon_fd_read_write(anon_fd):
     """Test read/write operations on anonymous fd"""
-    fd = os.open(tempfile.mktemp(), os.O_RDWR | os.O_CREAT | os.O_EXCL)
+    fd = anon_fd()
     
     try:
         # Write data
@@ -113,15 +109,15 @@ def test_anon_fd_read_write():
         
         os.lseek(fd, 0, os.SEEK_SET)
         full = os.read(fd, len(test_data))
-        assert full == b"Hello, WORLD!"
+        assert full == test_data[:7] + b"WORLD" + test_data[12:]
     finally:
         os.close(fd)
 
 
 @pytest.mark.pal_function("brix_plat_anon_fd")
-def test_anon_fd_multiple_writes():
+def test_anon_fd_multiple_writes(anon_fd):
     """Test multiple sequential writes"""
-    fd = os.open(tempfile.mktemp(), os.O_RDWR | os.O_CREAT | os.O_EXCL)
+    fd = anon_fd()
     
     try:
         for i in range(10):
@@ -142,29 +138,20 @@ def test_anon_fd_multiple_writes():
 # =============================================================================
 
 @pytest.mark.pal_function("brix_plat_anon_fd")
-def test_anon_fd_cloexec():
+def test_anon_fd_cloexec(anon_fd):
     """Test that anonymous fd has CLOEXEC flag set"""
-    fd = os.open(tempfile.mktemp(), os.O_RDWR | os.O_CREAT | os.O_EXCL)
+    fd = anon_fd()
     
     try:
-        # Get file descriptor flags
-        flags = os.fcntl(fd, os.F_GETFD)
-        
-        # Check if FD_CLOEXEC is set
-        # (On Linux with memfd_create, this is automatic)
-        # (On macOS with mkstemp, we set it via fcntl)
-        has_cloexec = (flags & os.FD_CLOEXEC) != 0
-        
-        # This is platform-dependent, so we just verify we can check
-        assert isinstance(has_cloexec, bool)
+        assert not os.get_inheritable(fd), "PAL descriptor must close on exec"
     finally:
         os.close(fd)
 
 
 @pytest.mark.pal_function("brix_plat_anon_fd")
-def test_anon_fd_valid():
+def test_anon_fd_valid(anon_fd):
     """Test that anonymous fd is valid"""
-    fd = os.open(tempfile.mktemp(), os.O_RDWR | os.O_CREAT | os.O_EXCL)
+    fd = anon_fd()
     
     try:
         # Should be able to fstat
@@ -183,9 +170,9 @@ def test_anon_fd_valid():
 # =============================================================================
 
 @pytest.mark.pal_function("brix_plat_anon_fd")
-def test_anon_fd_close():
+def test_anon_fd_close(anon_fd):
     """Test that closing anonymous fd works"""
-    fd = os.open(tempfile.mktemp(), os.O_RDWR | os.O_CREAT | os.O_EXCL)
+    fd = anon_fd()
     
     # Close should succeed
     os.close(fd)
@@ -197,30 +184,28 @@ def test_anon_fd_close():
 
 @pytest.mark.linux
 @pytest.mark.pal_function("brix_plat_anon_fd")
-def test_anon_fd_linux_memfd():
+def test_anon_fd_linux_memfd(anon_fd):
     """Test anonymous fd on Linux (memfd_create)"""
     skip_if_not_platform(pytest, "Linux")
     
-    # On Linux, this would use memfd_create
-    # For simulation, we use regular temp file
-    fd = os.open(tempfile.mktemp(), os.O_RDWR | os.O_CREAT | os.O_EXCL)
+    # The Linux owner prefers memfd_create.
+    fd = anon_fd()
     
     try:
-        # Verify it behaves like memfd
-        # (No path in filesystem, auto-deleted)
         assert fd >= 0
+        assert os.fstat(fd).st_nlink == 0
     finally:
         os.close(fd)
 
 
 @pytest.mark.darwin
 @pytest.mark.pal_function("brix_plat_anon_fd")
-def test_anon_fd_darwin_mkstemp():
+def test_anon_fd_darwin_mkstemp(anon_fd):
     """Test anonymous fd on macOS (mkstemp + unlink)"""
     skip_if_not_platform(pytest, "Darwin")
     
-    # On macOS, this would use mkstemp + unlink
-    fd = os.open(tempfile.mktemp(), os.O_RDWR | os.O_CREAT | os.O_EXCL)
+    # The macOS owner uses mkstemp + unlink.
+    fd = anon_fd()
     
     try:
         assert fd >= 0
@@ -233,10 +218,10 @@ def test_anon_fd_darwin_mkstemp():
 # =============================================================================
 
 @pytest.mark.pal_function("brix_plat_anon_fd")
-def test_anon_fd_invalid_name():
+def test_anon_fd_invalid_name(anon_fd):
     """Test anonymous fd with invalid name (should still work or handle gracefully)"""
     # Even with None or empty name, should succeed
-    fd = os.open(tempfile.mktemp(), os.O_RDWR | os.O_CREAT | os.O_EXCL)
+    fd = anon_fd()
     
     try:
         assert fd >= 0
@@ -245,45 +230,44 @@ def test_anon_fd_invalid_name():
 
 
 @pytest.mark.pal_function("brix_plat_anon_fd")
-def test_anon_fd_invalid_directory():
+def test_anon_fd_invalid_directory(anon_fd):
     """Test anonymous fd with invalid directory (should fail gracefully)"""
-    # This should fail with ENOENT or similar
-    with pytest.raises(FileNotFoundError):
-        os.open("/nonexistent/directory/anon_test", os.O_RDWR | os.O_CREAT)
+    # An oversized Linux memfd label forces the spill-file path. The path
+    # belongs to this test, so the missing directory is deterministic.
+    with tempfile.TemporaryDirectory() as directory:
+        with pytest.raises(FileNotFoundError):
+            anon_fd("x" * 300, Path(directory) / "missing")
 
 
 # =============================================================================
 # Concurrent Access Tests
 # =============================================================================
 
+def _assert_independent_contents(fds):
+    """Writing one native descriptor must leave the others unchanged."""
+    for index, descriptor in enumerate(fds):
+        os.write(descriptor, f"FD {index}".encode())
+    for index, descriptor in enumerate(fds):
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        assert os.read(descriptor, 10) == f"FD {index}".encode()
+
+
 @pytest.mark.pal_function("brix_plat_anon_fd")
-def test_anon_fd_multiple_fds():
+def test_anon_fd_multiple_fds(anon_fd):
     """Test creating multiple anonymous fds"""
     fds = []
     
     try:
         # Create multiple fds
         for i in range(5):
-            fd = os.open(tempfile.mktemp(), os.O_RDWR | os.O_CREAT | os.O_EXCL)
+            fd = anon_fd()
             assert fd >= 0
             fds.append(fd)
         
-        # Each should be independent
-        for i, fd in enumerate(fds):
-            data = f"FD {i}".encode()
-            os.write(fd, data)
-        
-        # Verify independence
-        for i, fd in enumerate(fds):
-            os.lseek(fd, 0, os.SEEK_SET)
-            read_data = os.read(fd, 10)
-            assert read_data == f"FD {i}".encode()
+        _assert_independent_contents(fds)
     finally:
         for fd in fds:
-            try:
-                os.close(fd)
-            except:
-                pass
+            os.close(fd)
 
 
 # =============================================================================
@@ -292,7 +276,7 @@ def test_anon_fd_multiple_fds():
 
 @pytest.mark.slow
 @pytest.mark.pal_function("brix_plat_anon_fd")
-def test_anon_fd_creation_performance():
+def test_anon_fd_creation_performance(anon_fd):
     """Test anonymous fd creation performance"""
     import time
     
@@ -302,7 +286,7 @@ def test_anon_fd_creation_performance():
     fds = []
     try:
         for _ in range(iterations):
-            fd = os.open(tempfile.mktemp(), os.O_RDWR | os.O_CREAT | os.O_EXCL)
+            fd = anon_fd()
             fds.append(fd)
     finally:
         for fd in fds:

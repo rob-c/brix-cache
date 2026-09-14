@@ -32,7 +32,7 @@ Move every test to Python/pytest and remove shell scripts from the test tree. Te
 > `.sh` under `tests/`). Render/port/`nginx -t` parity with the old bash fleet was
 > proven EXACT (107 == 107 listen ports; 98/99 configs `nginx -t`-clean, the one
 > being krb5's runtime-keytab dependency = bash parity). See §"Backend-Gated Suites"
-> and the migration doc `tests/configs/REGISTRY_MIGRATION.md`.
+> and the migration doc `docs/09-developer-guide/testing/configs/REGISTRY_MIGRATION.md`.
 
 Command-line coverage stays: Python-managed tests may still call `xrdcp`, `xrdfs`, `curl`, `brixmount`, C helpers, and other real tools. What moves out of individual tests is server lifecycle.
 
@@ -569,7 +569,7 @@ the current source of truth.
 - [x] `tests/test_server_registry_lint.py` - enforces registry ownership and the three namespace-lab exceptions.
   - [x] Fails if any `.sh` file exists under `tests/`.
 - [x] `tests/configs/nginx_registry_smoke.conf` - tiny starter template if no existing template fits cleanly.
-- [x] `tests/configs/REGISTRY_MIGRATION.md` - operator notes and mandatory migration policy.
+- [x] `docs/09-developer-guide/testing/configs/REGISTRY_MIGRATION.md` - operator notes and mandatory migration policy.
 
 ## Existing Harness Files To Edit
 
@@ -609,7 +609,7 @@ the current source of truth.
   - [ ] Port needed helpers to Python.
   - [ ] Remove shell config rendering from authoritative test execution.
 
-- [x] `TESTING.md`
+- [x] `docs/09-developer-guide/TESTING.md`
   - [x] Document registry mode, attach mode, and migration policy.
 
 - [x] `README.md`
@@ -1188,7 +1188,7 @@ For every checked target above:
   - [x] Add smallest possible config using placeholders for port, data root, and logs.
   - [x] Use no domain-specific module features beyond anonymous root read.
 
-- [x] `tests/configs/REGISTRY_MIGRATION.md`
+- [x] `docs/09-developer-guide/testing/configs/REGISTRY_MIGRATION.md`
   - [x] Explain how to add a new registry-backed server.
   - [x] Explain how to port a former shell script.
   - [x] Document naming convention for `tests/cmdscripts/*.py`.
@@ -1221,7 +1221,7 @@ For every checked target above:
   - [x] Keep backward compatibility for already migrated tests during transition.
   - [x] Make registry use strict mode by default.
 
-- [x] `TESTING.md`
+- [x] `docs/09-developer-guide/TESTING.md`
   - [ ] Replace shell runner examples with `pytest ...` or `python -m tests.cmdscripts...`.
   - [x] Document zero-shell rule.
   - [x] Document how command-line tool tests are written in Python.
@@ -1229,7 +1229,7 @@ For every checked target above:
 
 - [ ] `README.md`
   - [ ] Replace references to `tests/run_*.sh` with pytest/Python entry points.
-  - [x] Link to `tests/configs/REGISTRY_MIGRATION.md`.
+  - [x] Link to `docs/09-developer-guide/testing/configs/REGISTRY_MIGRATION.md`.
 
 ### Python Test File Edit Recipes
 
@@ -1420,7 +1420,7 @@ This ledger is the implementation contract. Every row must end with either a mig
 | `tests/manage_test_servers.sh` | Port behavior into Python registry/fleet entry point, then delete shell file. | `test_server_registry_lint.py` confirms file absent. |
 | `tests/lib/*.sh` | Port each helper to `tests/lib_py/<name>.py`, update imports, then delete shell file. | No `tests/lib/*.sh` files remain. |
 | `README.md` | Replace shell test runner references with pytest/Python commands. | `rg "run_.*\\.sh|manage_test_servers\\.sh" README.md` returns no stale runner docs. |
-| `TESTING.md` | Document registry usage, zero-shell policy, command-runner pattern, logs/manifest paths. | `rg "run_.*\\.sh|\\.sh" TESTING.md` has no test-runner instructions. |
+| `docs/09-developer-guide/TESTING.md` | Document registry usage, zero-shell policy, command-runner pattern, logs/manifest paths. | `rg "run_.*\\.sh|\\.sh" docs/09-developer-guide/TESTING.md` has no test-runner instructions. |
 
 ### Lifecycle Python Files Ledger
 
@@ -1671,7 +1671,7 @@ Effort: 1 week.
 - [ ] Convert CVMFS, Ceph, C helper, userns, and privileged scripts to Python/pytest.
 - [ ] Delete every remaining shell file under `tests/`.
 - [ ] Remove dead shell lifecycle helpers after Python parity.
-- [ ] Update `TESTING.md` and `README.md`.
+- [ ] Update `docs/09-developer-guide/TESTING.md` and `README.md`.
 
 Effort: 1-2 weeks.
 

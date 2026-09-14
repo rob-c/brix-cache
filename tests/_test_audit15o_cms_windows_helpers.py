@@ -79,6 +79,7 @@ Run:
     PYTHONPATH=tests pytest tests/test_audit15o_cms_windows.py -v
 """
 
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 import os
 import socket
 import struct
@@ -452,6 +453,8 @@ def _nginx_t(conf_text, tmp_path, name):
     """Parse-check a config that exists ONLY under tmp_path."""
     conf = tmp_path / name
     conf.write_text(conf_text)
+    inject_nginx_load_modules(conf, NGINX_BIN)
+    inject_nginx_runtime_paths(conf, tmp_path)
     proc = subprocess.run(
         [NGINX_BIN, "-t", "-p", str(tmp_path), "-c", str(conf)],
         capture_output=True, text=True, timeout=60)

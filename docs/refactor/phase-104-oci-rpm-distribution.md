@@ -4241,7 +4241,7 @@ traversal `DIRNAMES`, dangling `DIRINDEXES`). Each harness asserts the
 contract its callers rely on, not merely the absence of a crash: spans
 inside the input, fields NUL-terminated, `nfiles()` walkable to its end.
 Registered in `cmdscripts/fuzz_all.BUILD_ARGS`, documented in
-`tests/fuzz/README.md`, and therefore carried by the existing
+`docs/09-developer-guide/testing/fuzz/README.md`, and therefore carried by the existing
 `.github/workflows/fuzz.yml` lane (blocking on PR, nightly at 600 s, with
 the corpus-writeback job minimizing the new corpora like the others) —
 no `guard_set.py` or `guards.yml` change was needed, since that lane

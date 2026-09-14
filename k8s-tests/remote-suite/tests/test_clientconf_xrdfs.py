@@ -3,7 +3,7 @@ Client-conformance: xrdfs metadata tool (differential vs stock).
 
 Thin shim — the cases live in ``clientconf/cases/xrdfs_cases.py``; the runner
 expands them across endpoints and executes the parity/skip logic.  See
-``clientconf/README.md``.
+``docs/09-developer-guide/k8s-tests/remote-suite/tests/clientconf/README.md``.
 """
 
 import pytest

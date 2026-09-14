@@ -14,11 +14,11 @@ BriX-Cache supports **5 platforms** through the **Platform Abstraction Layer (PA
 
 | Platform | PAL Functions | Build | Runtime | Production | Tests | Documentation |
 |----------|--------------|-------|---------|------------|-------|---------------|
-| **Linux x86_64** | 60/60 core PAL (100%) | ✅ Complete | ✅ Complete | ✅ Ready | 15+ | [Linux Build](../../BUILD.md) |
+| **Linux x86_64** | 60/60 core PAL (100%) | ✅ Complete | ✅ Complete | ✅ Ready | 15+ | [Linux Build](../03-configuration/BUILD.md) |
 | **Linux ARM64** | 60/60 core PAL (100%) | ✅ Complete | ✅ Complete | ✅ Ready | 18+ | [ARM64 Linux](arm64-linux-build.md) |
 | **macOS x86_64** | 60/60 core PAL (100%) | ✅ Complete | ✅ Complete | ✅ Ready | 15+ | [macOS Quickstart](../01-getting-started/macos-quickstart.md) |
 | **macOS ARM64** | 60/60 core PAL (100%) | ✅ Complete | ✅ Complete | ✅ Ready | 18+ | [ARM64 macOS](arm64-macos-build.md) |
-| **Windows x86_64** | 60/60 core PAL (100%) ✅ | ✅ Complete | ✅ Complete | ⚠️ Dev/Test | 30+ | [Windows PAL](../../src/platform/windows/WINDOWS_PAL_100_PERCENT_COMPLETE.md) |
+| **Windows x86_64** | 60/60 core PAL (100%) ✅ | ✅ Complete | ✅ Complete | ⚠️ Dev/Test | 30+ | [Windows PAL](pal/windows/WINDOWS_PAL_100_PERCENT_COMPLETE.md) |
 | **Windows ARM64** | 🔲 Future | 🔲 Planned | 🔲 Planned | ❌ Not Supported | - | [Platform Plan](PLATFORM_EXPANSION_PLAN.md) |
 
 **Overall Status**: ✅ **100% Complete** (5/5 platforms PAL complete)  
@@ -52,8 +52,8 @@ BriX-Cache supports **5 platforms** through the **Platform Abstraction Layer (PA
 - Zero-copy: Full support
 
 **Documentation**:
-- [BUILD.md](../../BUILD.md) - Build instructions
-- [PAL Architecture](../../src/platform/ARCHITECTURE.md) - Technical details
+- [BUILD.md](../03-configuration/BUILD.md) - Build instructions
+- [PAL Architecture](pal/ARCHITECTURE.md) - Technical details
 
 ---
 
@@ -187,8 +187,8 @@ BriX-Cache supports **5 platforms** through the **Platform Abstraction Layer (PA
 - ✅ Full PAL test suite: 30+ tests
 
 **Documentation**:
-- [WINDOWS_PAL_100_PERCENT_COMPLETE.md](../../src/platform/windows/WINDOWS_PAL_100_PERCENT_COMPLETE.md) - Status report
-- [IMPLEMENTATION_STATUS.md](../../src/platform/windows/IMPLEMENTATION_STATUS.md) - Implementation details
+- [WINDOWS_PAL_100_PERCENT_COMPLETE.md](pal/windows/WINDOWS_PAL_100_PERCENT_COMPLETE.md) - Status report
+- [IMPLEMENTATION_STATUS.md](pal/windows/IMPLEMENTATION_STATUS.md) - Implementation details
 - [windows-build.md](windows-build.md) - Build guide
 
 ---
@@ -407,8 +407,8 @@ strategy:
 
 ### Documentation Links
 
-- **PAL Architecture**: [src/platform/ARCHITECTURE.md](../../src/platform/ARCHITECTURE.md)
-- **Linux Build**: [BUILD.md](../../BUILD.md)
+- **PAL Architecture**: [docs/platform/pal/ARCHITECTURE.md](pal/ARCHITECTURE.md)
+- **Linux Build**: [BUILD.md](../03-configuration/BUILD.md)
 - **macOS Quickstart**: [macos-quickstart.md](../01-getting-started/macos-quickstart.md)
 - **Windows Build**: [windows-build.md](windows-build.md)
 - **ARM64 Linux**: [arm64-linux-build.md](arm64-linux-build.md)

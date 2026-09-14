@@ -46,6 +46,7 @@ import time
 import pytest
 
 from server_registry import NginxInstanceSpec
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 from ephemeral_port import free_port
 from test_cms_state_have_select import (
     _ManagerPeer,
@@ -337,11 +338,13 @@ def _nginx_t(root, srv_directives):
     conf.write_text(f"""daemon off; error_log {root}/logs/e.log info;
 pid {root}/n.pid; thread_pool default threads=2;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen unix:{root}/s.sock;
+stream {{ server {{ listen unix:s.sock;
     brix_root on; brix_storage_backend posix:{root}/data; brix_auth none;
     {srv_directives}
 }} }}
 """)
+    inject_nginx_load_modules(conf)
+    inject_nginx_runtime_paths(conf, root)
     p = subprocess.run([NGINX_BIN, "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
     return p.returncode, p.stderr + p.stdout

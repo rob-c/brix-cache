@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 import os
 
-from cmdscripts.compile_run import result, run
+from cmdscripts import run
+from cmdscripts.compile_run import result
 from settings import BIND_HOST, NGINX_BIN
 
 

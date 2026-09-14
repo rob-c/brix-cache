@@ -9,7 +9,8 @@ proxies receive distinct infrastructure-assigned ports just like fleet servers.
 
 from __future__ import annotations
 
-import fcntl
+from contextlib import contextmanager
+from functools import partial
 import inspect
 import json
 import os
@@ -55,12 +56,39 @@ def _lease_path() -> Path:
     return root / "mock-port-leases.json"
 
 
+@contextmanager
+def _registry_lock(registry):
+    """Serialize the same lease file on Unix and Windows.
+
+    msvcrt locks from the current offset, including beyond EOF for a new
+    registry. LK_LOCK bounds acquisition to ten attempts; a failed acquisition
+    never enters the critical section or tries to unlock an unowned region.
+    """
+    fd = registry.fileno()
+    registry.seek(0)
+    if os.name == "nt":
+        import msvcrt
+        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+        unlock = partial(msvcrt.locking, fd, msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        unlock = partial(fcntl.flock, fd, fcntl.LOCK_UN)
+    try:
+        yield
+    finally:
+        try:
+            registry.flush()
+        finally:
+            registry.seek(0)
+            unlock()
+
+
 def _assigned_port() -> int:
     """Lease one unused fixed mock slot from the shared test infrastructure."""
     path = _lease_path()
     key = _caller_key()
-    with path.open("a+", encoding="utf-8") as registry:
-        fcntl.flock(registry.fileno(), fcntl.LOCK_EX)
+    with path.open("a+", encoding="utf-8") as registry, _registry_lock(registry):
         registry.seek(0)
         try:
             leases = json.load(registry)

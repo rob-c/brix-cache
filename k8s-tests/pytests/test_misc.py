@@ -3,7 +3,7 @@ from labtools import require_tools
 
 
 def test_readme_documents_core_commands(reads):
-    reads("README.md").shows("xrd-lab up", "xrd-lab deploy dev",
+    reads("../docs/09-developer-guide/k8s-tests/README.md").shows("xrd-lab up", "xrd-lab deploy dev",
                              "xrd-lab test smoke", "xrd-lab down dev")
 
 
@@ -12,7 +12,7 @@ def test_retired_manifests_and_driver_are_gone(absent):
 
 
 def test_walkthrough_pins_k8s_version(reads):
-    reads("docs/walkthrough.md").shows("v1.31.4")
+    reads("../docs/09-developer-guide/k8s-tests/guides/walkthrough.md").shows("v1.31.4")
 
 
 def test_require_tools_reports_present_and_missing():

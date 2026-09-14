@@ -90,3 +90,26 @@ def driver_tables(text: str) -> dict[str, str]:
         if name:
             found[name.group(1)] = body
     return found
+
+
+def conditional_arms(source: str, directive: str) -> tuple[str, str]:
+    """Return one #if/#else pair, retaining nested conditional branches."""
+    start = source.index(directive) + len(directive)
+    depth = 1
+    branches = []
+    for match in re.finditer(r"^\s*#(if|ifdef|ifndef|else|elif|endif)\b[^\n]*",
+                             source[start:], re.M):
+        token = match.group(1)
+        if token in ("if", "ifdef", "ifndef"):
+            depth += 1
+        elif token == "endif":
+            depth -= 1
+            if depth == 0:
+                assert len(branches) == 1, "conditional requires exactly one #else"
+                branch = branches[0]
+                assert branch.group(1) == "else", "#elif needs an explicit additional arm"
+                return (source[start:start + branch.start()],
+                        source[start + branch.end():start + match.start()])
+        elif depth == 1:
+            branches.append(match)
+    raise AssertionError(f"unclosed conditional: {directive}")

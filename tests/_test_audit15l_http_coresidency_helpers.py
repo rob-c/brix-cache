@@ -120,7 +120,7 @@ from pathlib import Path
 import pytest
 import requests
 
-from cmdscripts.live_common import inject_nginx_load_modules
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 from server_registry import NginxInstanceSpec
 from settings import HOST, NGINX_BIN, BIND_HOST
 
@@ -295,4 +295,3 @@ def _statvfs_total(path):
 # --------------------------------------------------------------------------- #
 # proto:srr × store:posix, proto:srr × store:cache.                            #
 # --------------------------------------------------------------------------- #
-

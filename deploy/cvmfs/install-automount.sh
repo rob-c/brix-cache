@@ -92,6 +92,8 @@ if [ "$do_config" = 1 ]; then
         # cp -n: never overwrite operator-edited config or rotated keys
         run cp -n "$here/etc/cvmfs/${f#./}" "/etc/cvmfs/${f#./}"
     done
+    run cp -n "$here/../../docs/05-operations/deploy/cvmfs/etc/cvmfs/keys/README.md" \
+        /etc/cvmfs/keys/README.md
     echo "config + keys installed under /etc/cvmfs (existing files untouched)"
 fi
 

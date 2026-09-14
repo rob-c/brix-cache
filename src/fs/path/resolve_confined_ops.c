@@ -42,14 +42,6 @@
 #include <linux/openat2.h>
 #endif
 
-/* Helper declarations — defined in resolve_confined_helpers.c */
-extern int brix_open_root_fd(ngx_log_t *log, const char *root_canon);
-extern char *brix_split_relative_parent(const char *rel, char *parent, size_t parentsz,
-    char *base, size_t basesz);
-extern int brix_open_confined_parent_fallback(int rootfd, const char *parent);
-extern int brix_open_confined_parent_canon(ngx_log_t *log, const char *root_canon,
-    const char *resolved, char *base, size_t basesz);
-
 /*
  * Confinement model for the open/op helpers in this file: defence-in-depth in
  * two layers — (1) canonical-path resolution by the caller (no symlinks, no

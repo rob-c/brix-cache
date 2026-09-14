@@ -39,7 +39,7 @@
 **Phase C — in-process fuzzing**
 - Create: `tests/fuzz/fuzz_b64url.c` (token base64url decoder)
 - Create: `tests/fuzz/fuzz_zip_dir.c` (server ZIP central-directory walk over a memfd)
-- Modify: `tests/fuzz/README.md` (target table + run recipes)
+- Modify: `docs/09-developer-guide/testing/fuzz/README.md` (target table + run recipes)
 - Create: `tests/fuzz/run_all.sh` (build + short run of every target, CI entry point)
 
 **Phase D — runtime + deployment hardening**
@@ -413,7 +413,7 @@ git commit -m "harden(gsi): overflow-checked external-handle buffer allocations"
 
 **Files:**
 - Create: `tests/fuzz/fuzz_b64url.c`
-- Modify: `tests/fuzz/README.md` (add to target table)
+- Modify: `docs/09-developer-guide/testing/fuzz/README.md` (add to target table)
 
 **Interfaces:**
 - Consumes: `b64url_decode(const char *in, size_t in_len, uint8_t *out, size_t out_max)` from `src/auth/token/b64url.h` (compiled against `src/auth/token/b64url.c`).
@@ -460,7 +460,7 @@ Expected: `Done ... exit 0`, no crash artifacts. (If a real crash surfaces, STOP
 
 - [ ] **Step 3: Document the target**
 
-In `tests/fuzz/README.md`, add a row to the "Targets" table:
+In `docs/09-developer-guide/testing/fuzz/README.md`, add a row to the "Targets" table:
 
 ```
 | `fuzz_b64url.c`  | token base64url decode (pre-auth)       | ✅ runnable |
@@ -469,7 +469,7 @@ In `tests/fuzz/README.md`, add a row to the "Targets" table:
 - [ ] **Step 4: Commit**
 
 ```bash
-git add tests/fuzz/fuzz_b64url.c tests/fuzz/README.md
+git add tests/fuzz/fuzz_b64url.c docs/09-developer-guide/testing/fuzz/README.md
 git commit -m "test(fuzz): in-process libFuzzer target for token base64url decode"
 ```
 
@@ -477,7 +477,7 @@ git commit -m "test(fuzz): in-process libFuzzer target for token base64url decod
 
 **Files:**
 - Create: `tests/fuzz/fuzz_zip_dir.c`
-- Modify: `tests/fuzz/README.md`
+- Modify: `docs/09-developer-guide/testing/fuzz/README.md`
 
 **Interfaces:**
 - Consumes: `xrootd_zip_find_member(int fd, off_t archive_size, const char *member, ...)` from `src/protocols/root/zip/zip_dir.h` (compiled against `src/protocols/root/zip/zip_dir.c` + its kernel dep). Uses `memfd_create` to turn fuzz bytes into an fd.
@@ -528,10 +528,10 @@ Expected: `Done ... exit 0`. (Resolve link errors by adding the exact kernel TU 
 
 - [ ] **Step 3: Document + commit**
 
-Add the row to `tests/fuzz/README.md`, then:
+Add the row to `docs/09-developer-guide/testing/fuzz/README.md`, then:
 
 ```bash
-git add tests/fuzz/fuzz_zip_dir.c tests/fuzz/README.md
+git add tests/fuzz/fuzz_zip_dir.c docs/09-developer-guide/testing/fuzz/README.md
 git commit -m "test(fuzz): in-process libFuzzer target for server ZIP central-dir walk"
 ```
 

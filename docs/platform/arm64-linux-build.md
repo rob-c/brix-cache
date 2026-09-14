@@ -315,10 +315,10 @@ http {
     tcp_nopush on;
     tcp_nodelay on;
     
-    # Cache tuning
-    brix_cache_path /var/cache/nginx levels=1:2 \
-        keys_zone=brix:512m \
-        max_size=50g \
+    # nginx HTTP proxy cache; BriX storage uses brix_cache_store per endpoint
+    proxy_cache_path /var/cache/nginx levels=1:2
+        keys_zone=brix:512m
+        max_size=50g
         inactive=60m;
     
     # Connection tuning
@@ -660,7 +660,7 @@ cat /proc/cpuinfo | grep "BogoMIPS"
 - [Ampere Altra](https://www.amperecomputing.com/products/ampere-altra-processor)
 - [Raspberry Pi Specifications](https://www.raspberrypi.org/products/)
 - [GCC ARM Options](https://gcc.gnu.org/onlinedocs/gcc/ARM-Options.html)
-- [BriX-Cache PAL Architecture](../../src/platform/ARCHITECTURE.md)
+- [BriX-Cache PAL Architecture](pal/ARCHITECTURE.md)
 
 ---
 

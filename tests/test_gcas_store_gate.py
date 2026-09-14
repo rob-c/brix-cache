@@ -22,7 +22,7 @@ Harness mirrors tests/test_cache_directive_parse.py (nginx -t pattern).
 
 import subprocess
 
-from cmdscripts.live_common import inject_nginx_load_modules
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 from settings import BIND_HOST, NGINX_BIN
 
 # -t never binds, so the port is inert; same convention as
@@ -36,7 +36,8 @@ def _run_t(root, conf_text):
     (root / "cache").mkdir(exist_ok=True)
     conf = root / "gcas_gate.conf"
     conf.write_text(conf_text)
-    inject_nginx_load_modules(conf)
+    inject_nginx_load_modules(conf, nginx_bin=NGINX_BIN)
+    inject_nginx_runtime_paths(conf, root)
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
     return p.returncode, p.stderr + p.stdout

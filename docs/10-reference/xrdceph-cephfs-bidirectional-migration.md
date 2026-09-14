@@ -14,7 +14,7 @@ Companion operational runbooks:
 > and `client/apps/ceph/xrdceph_cephfs_to_striper.py` — needing only the distro
 > `python3-rados` / `python3-cephfs` packages (the C++-only redirect ops are
 > reached through `client/apps/ceph/pymigrate/radosbridge.py`; see the "Python
-> migration tools" section of [`tests/ceph/README.md`](../../tests/ceph/README.md)).
+> migration tools" section of [`docs/09-developer-guide/testing/ceph/README.md`](../09-developer-guide/testing/ceph/README.md)).
 > They add `--json` machine output, a resumable `--state` manifest,
 > `--prefix`/`--match` worklist filters, progress reporting, and an O(N)
 > source-pool index.

@@ -39,6 +39,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 
 import pytest
@@ -156,12 +157,28 @@ def nginx_rsa4096(pki, rsa4096):
         harness.close()
 
 
-def _start_stock_gsi(pki, port, hostcert, hostkey, certdir, cfgname):
+def _stock_control_directory(path):
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    if os.geteuid() == 0:
+        shutil.chown(path, user="nobody")
+
+
+@pytest.fixture(scope="module")
+def stock_control_root():
+    """Own short control paths independently of the potentially deep TMPDIR."""
+    with tempfile.TemporaryDirectory(prefix="brix-gsi-", dir="/tmp") as root:
+        _stock_control_directory(root)
+        yield root
+
+
+def _start_stock_gsi(pki, port, hostcert, hostkey, certdir, cfgname, control_root):
     """Launch a throwaway stock xrootd GSI server; return the Popen. Shared by
     the same-CA (stock_root) and foreign-CA (stock_root_foreign_ca) fixtures —
     they differ only by the host cert/key, the server's certdir and the port."""
     _check_start_stock_gsi_1()
     base = pki["base"]
+    admin = os.path.join(control_root, str(port))
+    _stock_control_directory(admin)
     gsidata = os.path.join(base, "gsidata")
     _guard_start_stock_gsi_1(gsidata, pki)
     cfg = os.path.join(base, cfgname)
@@ -170,12 +187,10 @@ def _start_stock_gsi(pki, port, hostcert, hostkey, certdir, cfgname):
             f"xrd.port {port}\n"
             "all.export /gsidata\n"
             f"oss.localroot {base}\n"
-            # Keep the admin/pid state INSIDE the per-run tree: the default is
-            # /tmp/<instance> (/tmp/gsihs), shared host-wide state that a prior
-            # run under another account (root vs brixtest lanes) leaves behind
-            # 0700 — the next lane's server then cannot use it and dies at boot.
-            f"all.adminpath {base}\n"
-            f"all.pidpath {base}\n"
+            # XRootD appends gsihs/.xrd/admin to a Unix socket path. Keep it
+            # short and private to this fixture and port, even with deep TMPDIR.
+            f"all.adminpath {admin}\n"
+            f"all.pidpath {admin}\n"
             "xrootd.seclib libXrdSec.so\n"
             f"sec.protocol gsi -certdir:{certdir} "
             f"-cert:{hostcert} -key:{hostkey} "
@@ -229,16 +244,16 @@ def _start_stock_gsi(pki, port, hostcert, hostkey, certdir, cfgname):
 
 
 @pytest.fixture(scope="module")
-def stock_root(pki):
+def stock_root(pki, stock_control_root):
     """A throwaway stock xrootd GSI server (for native-client interop)."""
     proc = _start_stock_gsi(pki, P_STOCK_ROOT, pki["hostcert"], pki["hostkey"],
-                            pki["certs"], "stock.cfg")
+                            pki["certs"], "stock.cfg", stock_control_root)
     yield {"url": f"root://{pki['fqdn']}:{P_STOCK_ROOT}"}
     _terminate(proc)
 
 
 @pytest.fixture(scope="module")
-def stock_root_foreign_ca(pki):
+def stock_root_foreign_ca(pki, stock_control_root):
     """A stock xrootd GSI server whose HOST cert is signed by a CA distinct from
     the client's proxy CA (it trusts BOTH via the both_ca CApath). It advertises
     its own (foreign) CA in the gsi ca: hint, so a client that echoes that hint
@@ -246,7 +261,7 @@ def stock_root_foreign_ca(pki):
     condition our native client hit at UK e-Science CA 2B grid sites."""
     proc = _start_stock_gsi(pki, P_STOCK_ROOT_FCA, pki["foreign_hostcert"],
                             pki["foreign_hostkey"], pki["both_ca"],
-                            "stock_fca.cfg")
+                            "stock_fca.cfg", stock_control_root)
     yield {"url": f"root://{pki['fqdn']}:{P_STOCK_ROOT_FCA}"}
     _terminate(proc)
 

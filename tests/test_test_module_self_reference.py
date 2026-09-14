@@ -8,7 +8,7 @@ BriX symbol rebrand (`xrootd_` -> `brix_`, 2026-07-03) rewrote the *docstring*
 of `tests/test_official_xrootd_resilience.py`, including the line where the
 module names itself and the `Run:` command a reader would copy — but not the
 filename. Every later citation copied the wrong name out of the docstring, into
-`tests/resilience/README.md`, into the remote suite's runner and its
+`docs/09-developer-guide/testing/resilience/README.md`, into the remote suite's runner and its
 `no_server_files` allowlist, and finally into a user-facing protocol page as
 proof of a security-relevant claim.
 
@@ -16,8 +16,8 @@ The two halves are pinned here because a rename sweep will do this again:
 
   * a module's docstring title line names the module (the house style in 298 of
     them), so it must name *itself*;
-  * a `test_*.py` cited in any `tests/**/README.md` must resolve somewhere in
-    the repository.
+  * a `test_*.py` cited in a relocated testing README under `docs/` must
+    resolve somewhere in the repository.
 
 Both checks carry a planted-input control, so neither can quietly go vacuous.
 """
@@ -110,14 +110,23 @@ def _phantom_citations(readme: Path, known: set) -> list[str]:
     )
 
 
+def _testing_readmes():
+    """Locate the relocated testing guides without allowing an empty scan."""
+    doc_roots = (REPO / "docs/09-developer-guide/testing",
+                 REPO / "docs/platform/testing")
+    readmes = sorted(path for root in doc_roots for path in root.rglob("README.md"))
+    assert readmes, "the relocated testing README scan found no documents"
+    return readmes
+
+
 def test_every_test_module_cited_in_a_tests_readme_exists():
-    """`tests/resilience/README.md` carried the phantom for months. Resolution is
+    """The resilience README carried the phantom for months. Resolution is
     by basename anywhere in the repo, because a README legitimately points at
     `k8s-tests/remote-suite/tests/` for the container-only suites."""
     known = _repo_basenames()
     phantoms = {
         readme.relative_to(REPO).as_posix(): _phantom_citations(readme, known)
-        for readme in sorted(TESTS.rglob("README.md"))
+        for readme in _testing_readmes()
     }
     assert {name: found for name, found in phantoms.items() if found} == {}
 

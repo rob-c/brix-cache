@@ -37,7 +37,9 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, request, srv_instance
-from cmdscripts.live_common import inject_nginx_load_modules
+from cmdscripts.live_common import (
+    inject_nginx_load_modules, inject_nginx_runtime_paths,
+)
 from settings import BIND_HOST, HOST
 
 try:                                     # cryptography is an optional test dep
@@ -90,6 +92,7 @@ http {{ access_log off; server {{ listen {BIND_HOST}:{_BLOCK.base + 19};
 }} }}
 """)
         inject_nginx_load_modules(conf)
+        inject_nginx_runtime_paths(conf, self.root)
         p = subprocess.run([NGINX_BIN, "-t", "-p", str(self.root), "-c", str(conf)],
                            capture_output=True, text=True, timeout=30)
         return p.returncode, p.stderr + p.stdout

@@ -17,6 +17,8 @@ Run:
 """
 
 import os
+from pathlib import Path
+import re
 import socket
 import struct
 import subprocess
@@ -40,6 +42,32 @@ EXPORT_DIR = os.environ.get("BRIX_SUBS_EXPORT_DIR", DATA_ROOT)
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _XRDCP = os.path.join(_REPO, "client", "bin", "xrdcp")
 _XRDFS = os.path.join(_REPO, "client", "bin", "xrdfs")
+
+
+def _client_copy_chunk_size(header):
+    """Read the canonical integer-product buffer size without evaluating code."""
+    match = re.search(r"^#define\s+XRDC_COPY_CHUNK\s+(.+)$",
+                      header.read_text(), re.MULTILINE)
+    assert match, "Missing canonical XRDC_COPY_CHUNK; update the fanout fixture"
+    expression = match.group(1).strip()
+    assert re.fullmatch(r"\(\s*\d+[uU]?(?:\s*\*\s*\d+[uU]?)*\s*\)", expression), (
+        "XRDC_COPY_CHUNK changed representation; update the fanout fixture guard")
+    chunk_size = 1
+    for factor in expression[1:-1].split("*"):
+        chunk_size *= int(factor.strip().rstrip("uU"))
+    assert chunk_size > 0, "XRDC_COPY_CHUNK must be positive for the fanout fixture"
+    return chunk_size
+
+
+def _client_fanout_size(header=None):
+    """Keep five upload chunks even when the client's copy buffer changes."""
+    header = header or Path(_REPO) / "client/lib/xfer/copy_internal.h"
+    chunk_size = _client_copy_chunk_size(header)
+    size = 40 * 1024 * 1024
+    assert size >= 5 * chunk_size, (
+        f"The {size}-byte fanout fixture must span at least five canonical "
+        f"XRDC_COPY_CHUNK chunks ({chunk_size} bytes each); increase its size")
+    return size
 
 # ---------------------------------------------------------------------------
 # Wire constants

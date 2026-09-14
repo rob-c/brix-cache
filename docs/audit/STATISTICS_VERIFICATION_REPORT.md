@@ -113,8 +113,8 @@ $ find docs/audit -name "*.md" -type f | wc -l
 #### Evidence
 
 ```bash
-$ wc -l src/platform/windows/SPLICE_IMPLEMENTATION.md
-541 src/platform/windows/SPLICE_IMPLEMENTATION.md
+$ wc -l docs/platform/pal/windows/SPLICE_IMPLEMENTATION.md
+541 docs/platform/pal/windows/SPLICE_IMPLEMENTATION.md
 ```
 
 #### Documentation Claims (Incorrect)

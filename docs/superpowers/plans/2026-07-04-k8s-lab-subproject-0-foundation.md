@@ -16,7 +16,7 @@
 - **No external image registry for our images.** App images are built with `minikube image build` and consumed with `imagePullPolicy: Never`. Base images pulled *during* `docker`/`minikube` build (e.g. `almalinux:9-minimal`) are permitted — the constraint forbids hosting/pulling *our* images through GHCR/DockerHub, not building from public bases.
 - **Everything is namespaced per profile.** Namespace name is `brix-<profile>`. Namespaces carry PodSecurity Standard labels (`pod-security.kubernetes.io/enforce=baseline` for the lab; `restricted` where a profile can afford it).
 - **All shell is `set -euo pipefail` and `shellcheck`-clean.** Small single-purpose functions, explicit args, early return — consistent with the repo coding ethos.
-- **Chart repo root:** `k8s-tests/charts/`. Images: `k8s-tests/images/`. Driver: `k8s-tests/xrd-lab`. Docs: `k8s-tests/README.md`, `k8s-tests/docs/`.
+- **Chart repo root:** `k8s-tests/charts/`. Images: `k8s-tests/images/`. Driver: `k8s-tests/xrd-lab`. Docs: `docs/09-developer-guide/k8s-tests/README.md`, `k8s-tests/docs/`.
 - **Cross-cutting policy lives once**, in `brix-common`. No subchart re-implements labels/pinning/netpol/quota.
 
 ---
@@ -1264,8 +1264,8 @@ git commit -m "feat(k8s): xrd-lab test smoke + live end-to-end foundation gate"
 ## Task 9: Beginner docs + retire the superseded manifests
 
 **Files:**
-- Create: `k8s-tests/README.md`
-- Create: `k8s-tests/docs/walkthrough.md`
+- Create: `docs/09-developer-guide/k8s-tests/README.md`
+- Create: `docs/09-developer-guide/k8s-tests/guides/walkthrough.md`
 - Delete: `k8s-tests/k8s-manifests/lab-5-vms.yaml`, `k8s-tests/k8s-manifests/fixed-ip-vms.yaml`, `k8s-tests/xrd-k8s`
 - Create: `k8s-tests/tests-bats/docs.bats`
 
@@ -1305,7 +1305,7 @@ Expected: FAIL — README/walkthrough absent; retired files still present.
 
 - [ ] **Step 3: Write the docs and remove the superseded files**
 
-Create `k8s-tests/README.md` (beginner quickstart). It MUST contain, verbatim, the four command strings the test greps and an install-prereqs pointer:
+Create `docs/09-developer-guide/k8s-tests/README.md` (beginner quickstart). It MUST contain, verbatim, the four command strings the test greps and an install-prereqs pointer:
 
 ```markdown
 # nginx-xrootd Kubernetes Test Lab
@@ -1343,7 +1343,7 @@ Later sub-projects add the auth-authority plane, the chaos-mesh topology, the
 main test fleet, and the Ceph/FUSE backends as additional subcharts + profiles.
 ```
 
-Create `k8s-tests/docs/walkthrough.md` — a copy-paste first run that includes the tool install commands from Task 0 Step 1 and the pinned version string `v1.31.4`, then the Quickstart block, plus a "what you should see" note for each step (pod Ready, `smoke OK`).
+Create `docs/09-developer-guide/k8s-tests/guides/walkthrough.md` — a copy-paste first run that includes the tool install commands from Task 0 Step 1 and the pinned version string `v1.31.4`, then the Quickstart block, plus a "what you should see" note for each step (pod Ready, `smoke OK`).
 
 Remove the superseded files:
 ```bash
@@ -1358,7 +1358,7 @@ Expected: PASS (3 tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add k8s-tests/README.md k8s-tests/docs/walkthrough.md k8s-tests/tests-bats/docs.bats
+git add docs/09-developer-guide/k8s-tests/README.md docs/09-developer-guide/k8s-tests/guides/walkthrough.md k8s-tests/tests-bats/docs.bats
 git commit -m "docs(k8s): beginner README + walkthrough; retire lab-5-vms/xrd-k8s"
 ```
 

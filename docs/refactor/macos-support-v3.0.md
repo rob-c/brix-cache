@@ -1740,7 +1740,7 @@ jobs:
 | `docs/05-operations/macos-limitations.md` | Draft | TBD | Week 13, Day 4 |
 | `docs/09-developer-guide/platform-porting-guide.md` | Draft | TBD | Week 13, Day 5 |
 | `README.md` (update) | Draft | TBD | Week 14, Day 1 |
-| `CHANGELOG.md` (v3.0.0 section) | Draft | TBD | Week 14, Day 2 |
+| `docs/10-reference/CHANGELOG.md` (v3.0.0 section) | Draft | TBD | Week 14, Day 2 |
 
 **Week 14: Release Preparation**
 
@@ -1750,7 +1750,7 @@ jobs:
 | Final testing (macOS) | Test report | 95%+ pass rate |
 | Performance benchmarking | Benchmark report | Within 30% of Linux |
 | Security review | Security audit | No critical issues |
-| Release notes | `CHANGELOG.md` | Complete, accurate |
+| Release notes | `docs/10-reference/CHANGELOG.md` | Complete, accurate |
 | Tag release | `v3.0.0` tag | Git tag created |
 
 ---
@@ -2052,8 +2052,8 @@ Use S3 backend or mount remote storage via NFS/SMB instead of FUSE.
 | WebDAV write | `curl -T file https://.../file` | File uploaded, readable |
 | S3 read | `aws s3 cp s3://.../file .` | File matches source |
 | S3 write | `aws s3 cp file s3://.../file` | File uploaded, readable |
-| GSI auth | `xrdcp --gsi root://.../file .` | Auth succeeds with valid proxy |
-| Kerberos auth | `xrdcp --krb5 root://.../file .` | Auth succeeds with valid ticket |
+| GSI auth | `xrdcp --auth gsi root://.../file .` | Auth succeeds with valid proxy |
+| Kerberos auth | `xrdcp --auth krb5 root://.../file .` | Auth succeeds with valid ticket |
 
 ### 6.3 Test Coverage Metrics
 

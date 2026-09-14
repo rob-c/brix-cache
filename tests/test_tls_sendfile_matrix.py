@@ -130,7 +130,8 @@ def _get(planes, plane, path, **kw):
 # Success — whole-object GET, both send paths, both transports.                #
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("plane", PLANES)
-@pytest.mark.parametrize("name,payload,path_kind", OBJECTS)
+@pytest.mark.parametrize("name,payload,path_kind", OBJECTS,
+                         ids=("small-zero-copy", "big-memory-backed"))
 def test_whole_get_is_byte_exact(planes, plane, name, payload, path_kind):
     """The full object comes back intact whichever branch served it."""
     r = _get(planes, plane, f"/{name}")
@@ -139,7 +140,8 @@ def test_whole_get_is_byte_exact(planes, plane, name, payload, path_kind):
     assert int(r.headers["Content-Length"]) == len(payload)
 
 
-@pytest.mark.parametrize("name,payload,path_kind", OBJECTS)
+@pytest.mark.parametrize("name,payload,path_kind", OBJECTS,
+                         ids=("small-zero-copy", "big-memory-backed"))
 def test_send_paths_agree_across_backends_and_transports(planes, name, payload,
                                                          path_kind):
     """All four planes return the identical octet stream.

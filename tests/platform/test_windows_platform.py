@@ -22,6 +22,8 @@ Note:
     Many tests will be skipped on non-Windows platforms.
 """
 
+from pal_windows_helpers import remove_ads_file
+
 import os
 import sys
 import platform
@@ -492,16 +494,7 @@ class TestNTFSAlternateDataStreams:
             print(f"  Created {len(attrs)} attributes")
         
         finally:
-            # Cleanup
-            for name in attrs.keys():
-                try:
-                    os.unlink(f"{temp_path}:{name}")
-                except:
-                    pass
-            try:
-                os.unlink(temp_path)
-            except:
-                pass
+            remove_ads_file(temp_path, attrs)
 
 
 # =============================================================================

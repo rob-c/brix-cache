@@ -541,9 +541,9 @@ int is_admin = brix_plat_is_root();
 
 | File | Lines | Status | Accuracy |
 |------|-------|--------|----------|
-| `src/platform/windows/SECURITY_IMPLEMENTATION_STATUS.md` | 450+ | ✅ Complete | ✅ Accurate |
-| `src/platform/windows/SECURITY_STUBS_COMPLETE.md` | 400+ | ✅ Complete | ✅ Accurate |
-| `src/platform/windows/WINDOWS_100_PERCENT_SECURITY_COMPLETE.md` | 1,647+ | ✅ Complete | ✅ Accurate |
+| `docs/platform/pal/windows/SECURITY_IMPLEMENTATION_STATUS.md` | 450+ | ✅ Complete | ✅ Accurate |
+| `docs/platform/pal/windows/SECURITY_STUBS_COMPLETE.md` | 400+ | ✅ Complete | ✅ Accurate |
+| `docs/platform/pal/windows/WINDOWS_100_PERCENT_SECURITY_COMPLETE.md` | 1,647+ | ✅ Complete | ✅ Accurate |
 | `docs/10-reference/comparison/xrootd-vs-nginx/10-security-and-hardening.md` | 1,577+ | ✅ Complete | ✅ Accurate |
 | `docs/09-developer-guide/history-security-and-credentials.md` | 1,830+ | ✅ Complete | ✅ Accurate |
 | `docs/09-developer-guide/lessons-security-reaudit-and-cleanup.md` | 400+ | ✅ Complete | ✅ Accurate |

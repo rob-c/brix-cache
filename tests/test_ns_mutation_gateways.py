@@ -397,7 +397,9 @@ def test_xattr_through_the_http_gateway_lands_at_the_origin(mesh):
     ok, err = _perattr(resp)
 
     assert ok, f"fattr set through the http gateway refused: errno={err}"
-    names = os.listxattr(str(mesh.store(GW_HTTP) / "attr.bin"))
+    # OS labels such as SELinux metadata are independent of application xattrs.
+    names = [name for name in os.listxattr(str(mesh.store(GW_HTTP) / "attr.bin"))
+             if name.startswith("user.")]
     assert names and all(n.startswith("user.nginx_xrootd.webdav.") for n in names), \
         f"the set did not land as a dead-property xattr at the origin: {names}"
 

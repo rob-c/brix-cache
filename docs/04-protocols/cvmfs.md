@@ -20,11 +20,11 @@ three properties a generic HTTP cache cannot give you:
    identity, dashboard, healthz).
 
 Related reading: deployment runbook (sizing, topology, client config,
-pilot procedure) [deploy/cvmfs/README.md](../../deploy/cvmfs/README.md)
+pilot procedure) [docs/05-operations/deploy/cvmfs/README.md](../05-operations/deploy/cvmfs/README.md)
 · [forward vs reverse proxy concepts](../02-concepts/forward-vs-reverse-proxy.md)
 · implementation plan [docs/refactor/phase-68-cvmfs-site-cache.md](../refactor/phase-68-cvmfs-site-cache.md)
 · design spec [2026-07-02-cvmfs-site-cache-design.md](../superpowers/specs/2026-07-02-cvmfs-site-cache-design.md)
-· runnable demo [deploy/cvmfs/docker/](../../deploy/cvmfs/docker/README.md).
+· runnable demo [deploy/cvmfs/docker/](../05-operations/deploy/cvmfs/docker/README.md).
 
 ---
 
@@ -326,7 +326,7 @@ incl. a real brixMount leg), `tests/test_cvmfs_stratum0_scvmfs.py`
 (`brixcvmfs repo …`: `mkfs → transaction → publish`, plus fsck/gc/tags) — the
 server never writes. **Full unprivileged deployment cookbook:
 `docs/05-operations/cvmfs-stratum0.md`** (condensed runbook in
-`deploy/cvmfs/README.md`).
+`docs/05-operations/deploy/cvmfs/README.md`).
 
 ---
 
@@ -700,7 +700,7 @@ origin-side trouble is a **gateway** error, never a 500:
 ## 7. Security and abuse handling
 
 Three independent layers, all active in the same config (proven by the
-[docker demo](../../deploy/cvmfs/docker/README.md)):
+[docker demo](../05-operations/deploy/cvmfs/docker/README.md)):
 
 1. **The gate** (protocol-level): everything that is not a CVMFS traffic
    shape is 403 + exactly one stable WARN line (convention #4):
@@ -989,7 +989,7 @@ event=absorbed-404`). A client that **breaks its connection mid-fill** is
 detected promptly (`client-gone`, with how long it had waited), its parked
 slot reclaimed, and the fill left running detached — so the client's retry
 is still a hit. The full table + triage recipes are in the runbook
-([deploy/cvmfs/README.md](../../deploy/cvmfs/README.md) → "Diagnostic event
+([docs/05-operations/deploy/cvmfs/README.md](../05-operations/deploy/cvmfs/README.md) → "Diagnostic event
 log"). The recurring signal to watch is `hold-expired`/`client-gone` from
 many clients: that is `CVMFS_TIMEOUT` set shorter than the fill latency.
 
@@ -1151,7 +1151,7 @@ protection is doing the work, not an accident of the setup.
 ### 11.3 The comparison matrix (why not stock nginx / squid)
 
 From the committed Gate-2 numbers
-([deploy/cvmfs/baselines/RESULTS.md](../../deploy/cvmfs/baselines/RESULTS.md)):
+([docs/05-operations/deploy/cvmfs/baselines/RESULTS.md](../05-operations/deploy/cvmfs/baselines/RESULTS.md)):
 under **persistent** origin corruption, stock nginx `proxy_cache` admitted
 and re-served every corrupted fill (`corrupt_served=32` at
 `error_rate=0.0` — silent, sticky cache poisoning, the exact Tier-2
@@ -1168,4 +1168,4 @@ A single CentOS Stream 9 container running the cache (proxy mode, real
 Stratum-1 allowlist), dashboard, Prometheus, guard, and in-container
 fail2ban — with an automated smoke that fetches real repository objects
 through it and proves a reject storm gets banned:
-[deploy/cvmfs/docker/README.md](../../deploy/cvmfs/docker/README.md).
+[docs/05-operations/deploy/cvmfs/docker/README.md](../05-operations/deploy/cvmfs/docker/README.md).

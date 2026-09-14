@@ -21,20 +21,20 @@
 
 | Page claim | Landed evidence |
 |---|---|
-| Pure-C, libXrdCl-free tool suite on one client library | `client/apps/README.md` intro |
+| Pure-C, libXrdCl-free tool suite on one client library | `docs/09-developer-guide/client/apps/README.md` intro |
 | Stock names as multi-call symlink personalities: `xrdcksum` → crc32c/crc64/adler32/ckverify/cinfo; `xrddiag` → qstats/wait41/mpxstats | `client/Makefile:153-160` (`CKSUM_LINKS`, `DIAG_LINKS`), `:220-224` |
 | Hardened link defaults (RELRO, now, noexecstack) | `client/Makefile` `LDFLAGS ?= -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack` |
-| `xrdcp`: root://, web URLs (davs/http(s)/dav/s3/s3s), local, `-`, recursive, ZIP-member | `client/apps/README.md` Data movement |
-| `xrdfs`: fs ops + interactive shell, web backends too | `client/apps/README.md` Data movement |
-| `xrd`: multi-call verb set + battery/doctor/clockskew/mount | `client/apps/README.md`, `client/Makefile` `xrd_OBJS` |
-| `xrddiag`: check/bench/watch/topology/compare/doctor + error explanation | `client/apps/README.md` Diagnostics |
-| `xrdqstats`, `mpxstats`, `xrdmapc`, `wait41` | `client/apps/README.md` Diagnostics |
-| `xrdstorascan verify` (end-to-end integrity vs server `kXR_Qcksum`), `bench` (throughput/IOPS/latency over block size × parallelism) | `client/apps/README.md` (phase 1 shipped+tested) |
-| `xrdgsiproxy`, `xrdgsitest`, `xrdsssadmin` | `client/apps/README.md` Auth & security |
-| `xrdprep` (`kXR_prepare` stage/cancel/evict) | `client/apps/README.md` Namespace/staging |
+| `xrdcp`: root://, web URLs (davs/http(s)/dav/s3/s3s), local, `-`, recursive, ZIP-member | `docs/09-developer-guide/client/apps/README.md` Data movement |
+| `xrdfs`: fs ops + interactive shell, web backends too | `docs/09-developer-guide/client/apps/README.md` Data movement |
+| `xrd`: multi-call verb set + battery/doctor/clockskew/mount | `docs/09-developer-guide/client/apps/README.md`, `client/Makefile` `xrd_OBJS` |
+| `xrddiag`: check/bench/watch/topology/compare/doctor + error explanation | `docs/09-developer-guide/client/apps/README.md` Diagnostics |
+| `xrdqstats`, `mpxstats`, `xrdmapc`, `wait41` | `docs/09-developer-guide/client/apps/README.md` Diagnostics |
+| `xrdstorascan verify` (end-to-end integrity vs server `kXR_Qcksum`), `bench` (throughput/IOPS/latency over block size × parallelism) | `docs/09-developer-guide/client/apps/README.md` (phase 1 shipped+tested) |
+| `xrdgsiproxy`, `xrdgsitest`, `xrdsssadmin` | `docs/09-developer-guide/client/apps/README.md` Auth & security |
+| `xrdprep` (`kXR_prepare` stage/cancel/evict) | `docs/09-developer-guide/client/apps/README.md` Namespace/staging |
 | Reconnect + re-auth + handle reopen + offset resume, `--max-stall` budget | `client/lib/net/resilient.c:5,110-122` |
-| `brixMount` types + overlay; `xrootdfs` async default + `--legacy` sync fallback | `client/apps/fs/brixmount.c:37-40,122-126`, `client/apps/README.md` Optional |
-| `libbrixposix_preload.so` LD_PRELOAD read-path shim | `client/apps/README.md` Optional, `client/preload/` |
+| `brixMount` types + overlay; `xrootdfs` async default + `--legacy` sync fallback | `client/apps/fs/brixmount.c:37-40,122-126`, `docs/09-developer-guide/client/apps/README.md` Optional |
+| `libbrixposix_preload.so` LD_PRELOAD read-path shim | `docs/09-developer-guide/client/apps/README.md` Optional, `client/preload/` |
 | Cross-backend conformance suite (same tests vs nginx AND reference XRootD) | `CLAUDE.md` BUILD & TEST (`TEST_CROSS_BACKEND=nginx`) |
 
 ---
@@ -74,7 +74,7 @@ import Cta from '../components/Cta.astro';
 import { url } from '../lib/site';
 
 // The tool families, mirroring client/apps/ one-to-one. Tool lists and
-// capabilities come from client/apps/README.md — landed features only.
+// capabilities come from docs/09-developer-guide/client/apps/README.md — landed features only.
 const families = [
   {
     name: 'Data movement',

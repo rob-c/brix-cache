@@ -53,6 +53,7 @@ from _test_vo_acl_helpers import (
     _make_voms_proxy_multi, _make_voms_signing_cert, _make_vomsdir,
 )
 from server_registry import NginxInstanceSpec
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 from settings import (
     BIND_HOST, CA_CERT, CA_DIR, HOST, SERVER_CERT, SERVER_KEY, VOMSDIR,
 )
@@ -217,8 +218,8 @@ def test_the_x_privilege_grants_exactly_the_stage(lab):
 # ===========================================================================
 
 def _nginx_t(root, authdb_text, extra="", engine_directive=""):
-    """Parse-only arm: a unix-socket listener, so no port is taken and
-    `nginx -t` cannot race the lane.  `brix_auth host` satisfies the native
+    """Parse-only arm: a prefix-relative Unix listener avoids path limits.
+    `nginx -t` never binds it.  `brix_auth host` satisfies the native
     engine's "authdb needs an authenticating scheme" gate without any PKI."""
     (root / "logs").mkdir(parents=True, exist_ok=True)
     (root / "data").mkdir(exist_ok=True)
@@ -227,7 +228,7 @@ def _nginx_t(root, authdb_text, extra="", engine_directive=""):
     conf.write_text(f"""daemon off; error_log {root}/logs/e.log info;
 pid {root}/n.pid; thread_pool default threads=2;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen unix:{root}/s.sock;
+stream {{ server {{ listen unix:s.sock;
     brix_root on; brix_storage_backend posix:{root}/data;
     brix_auth host; brix_host_allow localhost;  # net-literal-allow: host-auth configuration subject
     {engine_directive}
@@ -235,6 +236,8 @@ stream {{ server {{ listen unix:{root}/s.sock;
     {extra}
 }} }}
 """)  # net-literal-allow: host-auth config payload is the parser subject
+    inject_nginx_load_modules(conf)
+    inject_nginx_runtime_paths(conf, root)
     p = subprocess.run([NGINX_BIN, "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
     return p.returncode, p.stderr + p.stdout
@@ -429,7 +432,7 @@ http {{
     client_body_temp_path {root}/cbt;
     proxy_temp_path {root}/pt; fastcgi_temp_path {root}/ft;
     uwsgi_temp_path {root}/ut; scgi_temp_path {root}/st;
-    server {{ listen unix:{root}/h.sock;
+    server {{ listen unix:h.sock;
         location / {{
             brix_webdav on; brix_storage_backend posix:{root}/data;
             brix_trusted_ca {CA_CERT};
@@ -439,6 +442,8 @@ http {{
     }}
 }}
 """)
+    inject_nginx_load_modules(conf)
+    inject_nginx_runtime_paths(conf, root)
     p = subprocess.run([NGINX_BIN, "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
     return p.returncode, p.stderr + p.stdout

@@ -386,6 +386,9 @@ Support `.json`/`.tsv`/scripts are covered in §8.
 
 ### 7.3 Historical, superseded or audit snapshots
 
+- `macos-optimizations.md`; `macos-phase2-summary.md`; `macos-support-v3.0.md`
+  record the macOS branch's implementation and build findings; current platform
+  guarantees and validation limits live in `docs/platform/SUPPORT_MATRIX.md`.
 - `QUALITY_ROADMAP.md`; `complexity-refactor-plan.md`;
   `file-size-burndown-under-600.md`; `phase-26-slice-caching.md`;
   `phase-19-http3-quic.md`; `phase-4-bucket-1-inventory.md`;

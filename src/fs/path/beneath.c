@@ -405,7 +405,9 @@ brix_mkdir_beneath(int rootfd, const char *reqpath, mode_t mode)
  * (file-scope, not function-local, so the accessor can see it; monotonic and
  * process-wide, so it can only UNDER-claim atomicity — the safe direction). */
 static int noreplace_degraded;
+#if !(defined(__APPLE__) && defined(__MACH__))
 static int noreplace_warned;
+#endif
 
 /* 1 iff create-if-absent has ever fallen back to check-then-act here. */
 int
@@ -428,12 +430,13 @@ brix_renameat_noreplace_fallback(ngx_log_t *log, int sfd, const char *sbase,
     int dfd, const char *dbase)
 {
 #if defined(__APPLE__) && defined(__MACH__)
-    /* macOS lacks renameat2 - use renameat (no noreplace guarantee) */
-    int rc = (int) renameat(sfd, sbase, dfd, dbase);
+    /* Without an atomic implementation, preserve both names and fail closed. */
+    (void) log; (void) sfd; (void) sbase; (void) dfd; (void) dbase;
+    errno = ENOTSUP;
+    return -1;
 #else
     int rc = (int) syscall(SYS_renameat2, sfd, sbase, dfd, dbase,
                            (unsigned int) RENAME_NOREPLACE);
-#endif
 
     if (rc != 0 && (errno == ENOSYS || errno == EINVAL)) {
         noreplace_degraded = 1;
@@ -447,6 +450,7 @@ brix_renameat_noreplace_fallback(ngx_log_t *log, int sfd, const char *sbase,
         rc = renameat(sfd, sbase, dfd, dbase);  /* NOLINT(readability-suspicious-call-argument) */
     }
     return rc;
+#endif
 }
 
 /* The two-path mutating ops share one confined body: impersonation dispatch,
@@ -459,6 +463,22 @@ typedef enum {
     BENEATH_2P_LINK,
 } beneath_two_path_op_t;
 
+/* Dispatch a two-path operation to the active impersonation broker.
+ * WHAT: Return the broker result with its errno unchanged.
+ * WHY: Broker dispatch and local parent-descriptor ownership are separate jobs.
+ * HOW: Select the matching rename, exclusive rename, exchange or link API.
+ */
+static int
+beneath_imp_two_path(beneath_two_path_op_t op, const char *src, const char *dst)
+{
+    switch (op) {
+    case BENEATH_2P_RENAME: return brix_imp_rename(src, dst);
+    case BENEATH_2P_RENAME_EXCL: return brix_imp_rename_noreplace(src, dst);
+    case BENEATH_2P_EXCHANGE: return brix_imp_rename_exchange(src, dst);
+    default: return brix_imp_link(src, dst);
+    }
+}
+
 static int
 beneath_two_path(beneath_two_path_op_t op, int rootfd, const char *src,
     const char *dst)
@@ -468,12 +488,7 @@ beneath_two_path(beneath_two_path_op_t op, int rootfd, const char *src,
     int          sfd, dfd, rc;
 
     if (brix_imp_client_active()) {
-        switch (op) {
-        case BENEATH_2P_RENAME:      return brix_imp_rename(src, dst);
-        case BENEATH_2P_RENAME_EXCL: return brix_imp_rename_noreplace(src, dst);
-        case BENEATH_2P_EXCHANGE: return brix_imp_rename_exchange(src, dst);
-        default:                     return brix_imp_link(src, dst);
-        }
+        return beneath_imp_two_path(op, src, dst);
     }
 
     sfd = beneath_open_parent(rootfd, src, sbuf, sizeof(sbuf), &sbase);
@@ -505,8 +520,9 @@ beneath_two_path(beneath_two_path_op_t op, int rootfd, const char *src,
          * pre-checked consolation whose only failure mode is under-claiming
          * (sd.h exchange contract, phase-107 §3.5). */
 #if defined(__APPLE__) && defined(__MACH__)
-        /* macOS lacks renameat2 - use renameat (no atomic exchange) */
-        rc = (int) renameat(sfd, sbase, dfd, dbase);
+        /* An exchange must never degrade to moving one name over the other. */
+        errno = ENOTSUP;
+        rc = -1;
 #else
         rc = (int) syscall(SYS_renameat2, sfd, sbase, dfd, dbase,
                            (unsigned int) RENAME_EXCHANGE);

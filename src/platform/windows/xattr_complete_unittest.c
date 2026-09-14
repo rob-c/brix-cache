@@ -11,6 +11,7 @@
  */
 
 #include <stdio.h>
+#include <winsock2.h>
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
@@ -19,6 +20,9 @@
 
 /* Include PAL API */
 #include "../platform_api.h"
+#include "win32_compat.h"
+#include "xattr_internal.h"
+#include "xattr_test_helpers.h"
 
 /* Test counters */
 static int tests_passed = 0;
@@ -35,6 +39,28 @@ static int tests_failed = 0;
         } \
     } while(0)
 
+/* Record each setup assertion once while preserving the requested access mode. */
+static int
+brix_test_open_xattr_file(const char *path, int flags, const char *message)
+{
+    int fd = _open(path, flags, _S_IREAD | _S_IWRITE);
+
+    TEST_ASSERT(fd >= 0, message);
+    return fd;
+}
+
+static int
+brix_test_create_xattr_file(const char *path)
+{
+    int fd = brix_test_open_xattr_file(path, _O_WRONLY | _O_CREAT | _O_TRUNC,
+                                     "Create test file");
+    if (fd < 0) {
+        return -1;
+    }
+    _close(fd);
+    return 0;
+}
+
 /* ==========================================================================
  * TEST: Basic set/get/remove operations
  * ========================================================================== */
@@ -46,15 +72,13 @@ void test_basic_set_get_remove(void)
     const char *test_value = "Hello, NTFS ADS!";
     char buffer[256];
     ssize_t result;
-    int fd;
     
     printf("\n=== Test: Basic set/get/remove ===\n");
     
     /* Create test file */
-    fd = _open(test_file, _O_WRONLY | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE);
-    TEST_ASSERT(fd >= 0, "Create test file");
-    if (fd < 0) return;
-    _close(fd);
+    if (brix_test_create_xattr_file(test_file) < 0) {
+        return;
+    }
     
     /* Set xattr */
     result = brix_plat_setxattr(test_file, attr_name, test_value, strlen(test_value) + 1, 0);
@@ -94,8 +118,8 @@ void test_fd_variants(void)
     printf("\n=== Test: File descriptor variants ===\n");
     
     /* Create and open test file */
-    fd = _open(test_file, _O_RDWR | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE);
-    TEST_ASSERT(fd >= 0, "Open test file with fd");
+    fd = brix_test_open_xattr_file(test_file, _O_RDWR | _O_CREAT | _O_TRUNC,
+                                   "Open test file with fd");
     if (fd < 0) return;
     
     /* Set xattr using fd */
@@ -129,15 +153,13 @@ void test_flag_handling(void)
     const char *value2 = "Second value";
     char buffer[256];
     ssize_t result;
-    int fd;
     
     printf("\n=== Test: Flag handling ===\n");
     
     /* Create test file */
-    fd = _open(test_file, _O_WRONLY | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE);
-    TEST_ASSERT(fd >= 0, "Create test file");
-    if (fd < 0) return;
-    _close(fd);
+    if (brix_test_create_xattr_file(test_file) < 0) {
+        return;
+    }
     
     /* Test XATTR_CREATE: should succeed (attr doesn't exist) */
     result = brix_plat_setxattr(test_file, attr_name, value1, strlen(value1) + 1, BRIX_XATTR_CREATE);
@@ -176,15 +198,13 @@ void test_error_handling(void)
     const char *test_value = "Error test value";
     char small_buffer[4];
     ssize_t result;
-    int fd;
     
     printf("\n=== Test: Error handling ===\n");
     
     /* Create test file */
-    fd = _open(test_file, _O_WRONLY | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE);
-    TEST_ASSERT(fd >= 0, "Create test file");
-    if (fd < 0) return;
-    _close(fd);
+    if (brix_test_create_xattr_file(test_file) < 0) {
+        return;
+    }
     
     /* Test ENODATA: get non-existent attr */
     result = brix_plat_getxattr(test_file, attr_name, NULL, 0);
@@ -223,10 +243,9 @@ void test_listxattr(void)
     printf("\n=== Test: listxattr enumeration ===\n");
     
     /* Create test file */
-    fd = _open(test_file, _O_WRONLY | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE);
-    TEST_ASSERT(fd >= 0, "Create test file");
-    if (fd < 0) return;
-    _close(fd);
+    if (brix_test_create_xattr_file(test_file) < 0) {
+        return;
+    }
     
     /* Set multiple xattrs */
     brix_plat_setxattr(test_file, "user.attr1", "value1", 7, 0);
@@ -243,9 +262,9 @@ void test_listxattr(void)
     TEST_ASSERT(result > 0, "listxattr returns names");
     
     /* Verify all three attrs are present */
-    TEST_ASSERT(strstr(buffer, "user.attr1") != NULL, "attr1 in list");
-    TEST_ASSERT(strstr(buffer, "user.attr2") != NULL, "attr2 in list");
-    TEST_ASSERT(strstr(buffer, "user.attr3") != NULL, "attr3 in list");
+    TEST_ASSERT(brix_test_xattr_list_contains(buffer, result, "user.attr1"), "attr1 in list");
+    TEST_ASSERT(brix_test_xattr_list_contains(buffer, result, "user.attr2"), "attr2 in list");
+    TEST_ASSERT(brix_test_xattr_list_contains(buffer, result, "user.attr3"), "attr3 in list");
     
     /* Test fd variant */
     fd = _open(test_file, _O_RDONLY, 0);

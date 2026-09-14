@@ -8,7 +8,7 @@
 - **clangd navigation:** `tools/clangd/gen_compile_commands.py` generates
   `compile_commands.json` so clangd/LSP can cross-reference all 660+ C files.
   Regenerate after `./configure`.
-- **Guard reference:** [tools/ci/README.md](../../tools/ci/README.md) — what
+- **Guard reference:** [docs/09-developer-guide/ci/README.md](ci/README.md) — what
   each CI guard enforces and how the backlog ratchets work.
 - **API docs:** `tools/gen-docs.sh` builds the Doxygen tree locally; CI
   publishes it at `/apidocs/` on the gh-pages site on every `src/` push.
@@ -56,7 +56,7 @@
 
 The `tests/` directory covers client interoperability, throughput, bridge transfers, GSI, token (JWT/WLCG), WebDAV, metrics, and security regressions.
 
-The `utils/` directory contains standalone helper scripts used during development and testing. See [`utils/README.md`](../../utils/README.md) for full usage details.
+The `utils/` directory contains standalone helper scripts used during development and testing. See [`docs/09-developer-guide/utilities/README.md`](utilities/README.md) for full usage details.
 
 | Script | Purpose |
 |---|---|

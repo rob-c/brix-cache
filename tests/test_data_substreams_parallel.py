@@ -360,7 +360,7 @@ class TestClientUploadFanout:
 
     def test_default_upload_fans_out_byte_exact(self, endpoint, tmp_path):
         host, port = endpoint
-        size = 8 * 1024 * 1024                     # 8 MiB → 128 × 64 KiB chunks
+        size = _client_fanout_size()  # five 8 MiB chunks reach bound secondaries
         content = _det(size)
         src = tmp_path / "fanout-src.bin"
         src.write_bytes(content)

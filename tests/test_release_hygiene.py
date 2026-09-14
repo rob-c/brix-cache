@@ -24,7 +24,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 SPEC = ROOT / "packaging/rpm/nginx-mod-brix-cache.spec"
-CHANGELOG = ROOT / "CHANGELOG.md"
+CHANGELOG = ROOT / "docs/10-reference/CHANGELOG.md"
 SECURITY = ROOT / "SECURITY.md"
 BUG_REPORT = ROOT / ".github/ISSUE_TEMPLATE/bug_report.yml"
 RELEASE_DOC = ROOT / "docs/09-developer-guide/release-process.md"
@@ -71,7 +71,7 @@ def test_spec_changelog_has_an_entry_for_this_version(version: str) -> None:
 
 def test_changelog_top_entry_is_this_version(version: str) -> None:
     entries = re.findall(r"^##\s+v(\d+(?:\.\d+)*)\b", CHANGELOG.read_text(), re.M)
-    assert entries, "CHANGELOG.md has no '## vX.Y.Z' entries"
+    assert entries, "docs/10-reference/CHANGELOG.md has no '## vX.Y.Z' entries"
     assert entries[0] == version
 
 
@@ -82,7 +82,7 @@ def test_changelog_covers_the_shipped_history() -> None:
     body = SPEC.read_text().split("%changelog", 1)[1]
     shipped = set(re.findall(r"^\*\s+.*?-\s+(\d+(?:\.\d+)*)-\d+\s*$", body, re.M))
     missing = sorted(shipped - changelog)
-    assert not missing, f"versions in the RPM %changelog with no CHANGELOG.md entry: {missing}"
+    assert not missing, f"versions in the RPM %changelog with no docs/10-reference/CHANGELOG.md entry: {missing}"
 
 
 def test_changelog_explains_the_versions_that_were_never_cut() -> None:
@@ -155,4 +155,4 @@ def test_version_sync_guard_is_executable_and_wired() -> None:
     assert guard.is_file()
     assert guard.stat().st_mode & 0o111, "guard is not executable — CI cannot run it"
     assert "check_version_sync.py" in (ROOT / ".github/workflows/guards.yml").read_text()
-    assert "check_version_sync.py" in (ROOT / "tools/ci/README.md").read_text()
+    assert "check_version_sync.py" in (ROOT / "docs/09-developer-guide/ci/README.md").read_text()

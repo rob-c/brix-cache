@@ -46,6 +46,7 @@ import pytest
 
 from settings import HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
+from brix_suite.nginx_capabilities import nginx_has_symbol
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-chkpoint-recover")]
@@ -59,13 +60,7 @@ kXR_ok = 0
 
 
 def _have_nginx():
-    if not os.path.exists(NGINX_BIN):
-        return False
-    try:
-        syms = subprocess.run(["nm", NGINX_BIN], capture_output=True, text=True)
-        return "brix_chkpoint_recover_root" in syms.stdout
-    except Exception:
-        return True
+    return nginx_has_symbol("brix_chkpoint_recover_root")
 
 
 def _recv_exact(s, n):

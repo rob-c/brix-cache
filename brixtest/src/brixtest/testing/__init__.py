@@ -20,6 +20,7 @@ Usage:
 """
 
 from brixtest.testing.config import BrixTestConfig, test_config
+from brixtest.testing.backend_contract import check_backend_contract
 from brixtest.testing.interfaces import (
     # Protocols
     BinaryFinder,
@@ -45,6 +46,7 @@ from brixtest.testing.interfaces import (
 )
 
 __all__ = [
+    "check_backend_contract",
     # Config
     "BrixTestConfig",
     "test_config",

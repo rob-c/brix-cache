@@ -20,6 +20,7 @@ Run:
     TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest tests/test_oss_cgroup.py -v
 """
 
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 import os
 import socket
 import struct
@@ -129,6 +130,8 @@ def test_cgi_structural_name_refused(tmp_path):
         "    brix_oss_cgroup \"evil&oss.quota=0\";\n"
         "  }\n"
         "}\n")
+    inject_nginx_load_modules(conf, NGINX_BIN)
+    inject_nginx_runtime_paths(conf, tmp_path)
     proc = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                           capture_output=True, text=True, timeout=30)
     assert proc.returncode != 0, "a '&'-bearing cgroup name was accepted"

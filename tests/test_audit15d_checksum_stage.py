@@ -17,8 +17,8 @@ posix export the PUT leaves `user.XrdCks.adler32` on the landed file
 (test_checksum_on_write.py::test_on_write_persists_xattr).  Through the WT
 tier the ingest checksum is computed and a setxattr is attempted on the
 logical export path (visible as op:"xattr" in brix_access_json), but the
-flush's origin-side PUT carries only the bytes: the origin copy lands with an
-EMPTY xattr list and the spool copy — wherever the xattr may have gone — is
+flush's origin-side PUT carries only the bytes: the origin copy lands with
+no user xattrs and the spool copy — wherever the xattr may have gone — is
 deleted by the stage move.  The ingest checksum vanishes entirely.
 test_checksum_lost_across_stage_flush_defect_pin asserts that loss and must
 be inverted when the flush propagates the checksum.
@@ -82,6 +82,11 @@ def _xattr(path, alg="adler32"):
         return None
 
 
+def _user_xattrs(path):
+    """OS labels such as security.selinux are independent of copied metadata."""
+    return [name for name in os.listxattr(path) if name.startswith("user.")]
+
+
 def test_put_through_wt_stage_lands_on_origin(ckstage):
     port, origin, stage = ckstage
     r = requests.put(_url(port, "/ck/a.bin"), data=PAYLOAD, timeout=30)
@@ -107,7 +112,8 @@ def test_checksum_lost_across_stage_flush_defect_pin(ckstage):
     assert _xattr(landed) is None, \
         (f"origin copy carries a checksum — flush propagation fixed? "
          f"invert this pin (expected {want})", _xattr(landed))
-    assert not os.listxattr(landed), os.listxattr(landed)
+    user_attrs = _user_xattrs(landed)
+    assert not user_attrs, user_attrs
     # ... and it is a LOSS, not a relocation: no surviving copy anywhere in
     # the tier carries the xattr (the spool file was deleted by the move).
     for p in (stage.rglob("*")):

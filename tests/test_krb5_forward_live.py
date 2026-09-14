@@ -80,7 +80,9 @@ def _guard_krb5_lab_6(prov):
         pytest.skip(f"KDC provisioning failed: {(prov.stderr or prov.stdout)[-2000:]}")
 
 
-pytestmark = pytest.mark.timeout(300)
+# One fixed-port KDC and realm must serve every module-scoped lab consumer.
+pytestmark = [pytest.mark.timeout(300),
+              pytest.mark.xdist_group("krb5-forward-live")]
 
 REALM = "BRIX.TEST"
 KDC_PORT = 18800                    # fixed, high, unprivileged (KDC-direct)

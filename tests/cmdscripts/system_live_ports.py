@@ -20,6 +20,7 @@ import sys
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, random_file, sha256
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 from settings import BIND_HOST, HOST, SERVER_HOST
 
 
@@ -309,7 +310,10 @@ def _start_ktls(nginx_bin, config):
 
 
 def _invalid_ktls_check(nginx_bin, generated):
-    command = [str(nginx_bin), "-t", "-c", str(_ktls_config(generated, "maybe")),
+    config = _ktls_config(generated, "maybe")
+    inject_nginx_load_modules(config, nginx_bin)
+    inject_nginx_runtime_paths(config, "/tmp/xrd-perf-test")
+    command = [str(nginx_bin), "-t", "-c", str(config),
                "-p", "/tmp/xrd-perf-test"]
     result = subprocess.run(command, capture_output=True, text=True)
     valid = _both(result.returncode != 0,

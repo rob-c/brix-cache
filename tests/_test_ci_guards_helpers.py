@@ -74,6 +74,7 @@ _FAST = [
     "check_ports_doc",
     "check_template_refs",
     "check_vfs_seam",
+    "check_pal_seam",
     "check_dns_seam",
     "check_vfs_mutation_gate",
     "check_authz_backstop",
@@ -210,7 +211,9 @@ def _vsync_tree(
         "Version:        %{upstream_version}\n\n"
         f"%changelog\n* Mon Aug 03 2026 Rob Currie <r@e> - {spec_changelog}"
     )
-    (tmp_path / "CHANGELOG.md").write_text(f"# Changelog\n\n{changelog}\nnotes\n")
+    changelog_path = tmp_path / "docs/10-reference/CHANGELOG.md"
+    changelog_path.parent.mkdir(parents=True)
+    changelog_path.write_text(f"# Changelog\n\n{changelog}\nnotes\n")
     return tmp_path
 
 

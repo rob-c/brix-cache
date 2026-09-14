@@ -267,7 +267,8 @@ def _base_assert_replay(state):
         front, state.front_port, state.origin_port, creds,
         "deny", "async", PROXY_STD)
     launcher = subprocess.run(
-        [str(run.nginx), "-p", str(front), "-c", str(conf)],
+        run._prepare_command(
+            [str(run.nginx), "-p", str(front), "-c", str(conf)], cwd=None),
         start_new_session=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
     )
     if launcher.returncode != 0:
@@ -326,7 +327,8 @@ def _base_check_journal_replay(state, conf, journal_files):
     state.suite.ok(
         f"6a: journal record survived the crash ({len(journal_files)} record(s))")
     restart = subprocess.run(
-        [str(state.run.nginx), "-p", str(state.front), "-c", str(conf)],
+        state.run._prepare_command(
+            [str(state.run.nginx), "-p", str(state.front), "-c", str(conf)], cwd=None),
         start_new_session=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True)
     if restart.returncode != 0:

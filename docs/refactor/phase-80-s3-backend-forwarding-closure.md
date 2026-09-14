@@ -996,7 +996,7 @@ get REUSED, plus three small follow-ups.
 
 **Follow-ups (small, lab-side):**
 
-- **P80.8 (S):** register the s3gsi suite in `k8s-tests/TEST_REGISTRY.md` +
+- **P80.8 (S):** register the s3gsi suite in `docs/09-developer-guide/k8s-tests/TEST_REGISTRY.md` +
   README scenario table; after P80.1 restores the static credential, drop the
   "deliberately NO brix_storage_credential" posture from
   `s3_gsi_multiuser.conf` and re-tighten the suite per P80.7.

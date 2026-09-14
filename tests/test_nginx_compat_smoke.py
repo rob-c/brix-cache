@@ -13,6 +13,9 @@ from pathlib import Path
 
 import pytest
 
+from ephemeral_port import free_port
+from settings import HOST
+
 
 @pytest.fixture
 def smoke():
@@ -55,7 +58,7 @@ def subject(tmp_path):
         do_DELETE = deny
         do_MKCOL = deny
 
-    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    server = http.server.HTTPServer((HOST, free_port()), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:

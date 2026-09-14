@@ -749,7 +749,7 @@ distinct root causes; §6's earlier one-line attribution understated them.
    `chmod a+rx run.root` + `chmod -R a+rwX <node-dir>`.
 3. **SciTokens plugin missing** — `libXrdAccSciTokens-5.so` absent → "Failed to
    load ztn authentication protocol" → token backend never bound. `dnf install -y
-   xrootd-scitokens` (EPEL, matches xrootd 5.9.6). **Add to TESTING.md
+   xrootd-scitokens` (EPEL, matches xrootd 5.9.6). **Add to docs/09-developer-guide/TESTING.md
    missing-packages list.**
 4. **HTTP-TPC (WebDAV) DNS-pin single-address — REAL C BUG**
    (`src/core/compat/net_target_dns.c`, `brix_net_target_check_dns_pin`). The

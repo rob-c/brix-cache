@@ -106,12 +106,10 @@ SPECS: dict[str, ObjectUnitSpec] = {
             str(addon("compat/crc32c_hw.o")),
         ),
     ),
-    "slice": ObjectUnitSpec(
-        "slice",
-        "test_slice",
-        (addon("cache/slice.o"), addon("cache/meta.o")),
-        ("-O", "-Wall", "tests/c/test_slice.c", str(addon("cache/slice.o")), str(addon("cache/meta.o"))),
-    ),
+    # The Phase-26 slice implementation was retired in favour of cstore partial
+    # objects. Its missing slice.o cannot be built; current range/fill coverage
+    # lives in test_slice_cache.py and test_cache_partial_fill.py, while cinfo
+    # and cstore_scan_enumerate below exercise the current native cache format.
     # POSC crash-orphan reaper policy (ofs.persist analog, §1.9). Links the real
     # tmp_path.o; the test stubs the 3 non-libc symbols it names but never drives.
     "tmp_reap": ObjectUnitSpec(

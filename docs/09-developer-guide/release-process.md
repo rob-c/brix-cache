@@ -21,12 +21,12 @@ Everything else *derives* from that line:
 | `packaging/rpm/build-rpm.sh`, `build-rpm-container.sh` | `sed` the macro, pass `--define version_override` | impossible |
 | Spec `%global upstream_version` literal fallback | **hand-maintained** | silent — a bare `rpmbuild` mislabels the RPM |
 | Spec `%changelog` newest entry | hand-maintained | silent |
-| `CHANGELOG.md` newest entry | hand-maintained | silent |
+| `docs/10-reference/CHANGELOG.md` newest entry | hand-maintained | silent |
 | Git tag `vX.Y.Z` | hand-created | silent |
 
 The three "silent" rows are why `tools/ci/check_version_sync.py` exists: it
 fails the build unless the spec fallback, the spec's newest `%changelog` entry
-and `CHANGELOG.md`'s newest entry all equal `ident.h`. It deliberately does
+and `docs/10-reference/CHANGELOG.md`'s newest entry all equal `ident.h`. It deliberately does
 **not** check the git tag — the tag is created after CI is green, so requiring
 it would deadlock the very push that introduces the bump.
 
@@ -40,7 +40,7 @@ it would deadlock the very push that introduces the bump.
 - **PATCH** — fixes and hardening only.
 
 Skipping numbers is allowed and has happened (1.0.6, 1.1.0 and 1.2.x were never
-cut). Record the skip in `CHANGELOG.md` rather than back-filling an empty entry
+cut). Record the skip in `docs/10-reference/CHANGELOG.md` rather than back-filling an empty entry
 — a missing number that is explained is not a mystery.
 
 ## Cutting a release
@@ -50,9 +50,9 @@ cut). Record the skip in `CHANGELOG.md` rather than back-filling an empty entry
    in `packaging/rpm/nginx-mod-brix-cache.spec`.
 3. **Spec `%changelog`** — add a newest-first entry
    `* <Day> <Mon> <DD> <YYYY> <Name> <email> - X.Y.Z-1`. Keep it to
-   *packaging-relevant* notes and point at `CHANGELOG.md` for the rest;
+   *packaging-relevant* notes and point at `docs/10-reference/CHANGELOG.md` for the rest;
    duplicating the full notes in two files guarantees they diverge.
-4. **`CHANGELOG.md`** — add a `## vX.Y.Z — YYYY-MM-DD` section at the top,
+4. **`docs/10-reference/CHANGELOG.md`** — add a `## vX.Y.Z — YYYY-MM-DD` section at the top,
    grouped Added / Changed / Fixed / Security. Write it for someone deciding
    whether to upgrade, not for someone reading the diff.
 5. **Verify**:
@@ -104,7 +104,7 @@ future interop reference points are needed, name them unambiguously
 
 ## Where the history lives
 
-- `CHANGELOG.md` — what changed, per release, for a user of the server.
+- `docs/10-reference/CHANGELOG.md` — what changed, per release, for a user of the server.
 - `packaging/rpm/nginx-mod-brix-cache.spec` `%changelog` — packaging detail per
   RPM revision, including revisions that carry no upstream version change
   (`1.1.1-3` … `1.1.1-25`). Authoritative for packaging.

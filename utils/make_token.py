@@ -381,11 +381,20 @@ def _wrong_audience_kwargs(args, groups):
 
 
 def _write_generated_token(token, output):
+    """Keep bearer files private, including replacement of a permissive file."""
     if not output:
         print(token)
         return
-    with open(output, "w") as handle:
-        handle.write(token)
+    descriptor = os.open(output, os.O_WRONLY | os.O_CREAT, 0o600)
+    try:
+        # Stock ztn refuses any group/other access. Tighten before truncating
+        # or writing so an existing permissive output never exposes the token.
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", closefd=False) as handle:
+            handle.truncate(0)
+            handle.write(token)
+    finally:
+        os.close(descriptor)
     print(f"Token written to {output}")
 
 

@@ -456,8 +456,7 @@ def _force_xdist_group(item, group):
     """
     item.add_marker(pytest.mark.xdist_group(group), append=False)
     item._brix_xdist_group_override = group
-    base = item.nodeid.split("@", 1)[0]
-    item._nodeid = f"{base}@{group}"
+    materialize_xdist_group(item)
 
 
 def _mark_path_groups(item, name):

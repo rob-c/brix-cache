@@ -438,7 +438,7 @@ each of them a narrowing or a hardening:
     reached the census after `contrib/checksum-plugins/brix_cks_fnv1a64.c`
     was tracked (20:06). `contrib/` was outside `SCAN_DIRS`, and a checksum
     plugin is a shared object the worker `dlopen()`s
-    (`contrib/checksum-plugins/README.md`), so a resolver in one runs inside
+    (`docs/09-developer-guide/checksum-plugins/README.md`), so a resolver in one runs inside
     the server process — the same bypass as in `src/`. Judged, as the census
     demands: the guard now walks `("src", "client", "shared", "tools",
     "contrib")`; the plugin is clean (no `netdb.h`, no socket), so the

@@ -3,7 +3,8 @@
  * size arithmetic and array-allocation helpers.
  *
  * This is the runnable reference target (and template for the wire-parser
- * targets described in README.md).  It interprets the fuzz input as two
+ * targets described in docs/09-developer-guide/k8s-tests/remote-suite/tests/fuzz/README.md).
+ * It interprets the fuzz input as two
  * size_t operands and asserts the safety contract of safe_size.h:
  *
  *   - brix_size_mul / brix_size_add report overflow instead of wrapping;

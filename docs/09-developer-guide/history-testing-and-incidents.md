@@ -8,7 +8,7 @@ conformance program (stock-xrootd, WLCG x509, WLCG token, multiuser
 permissions), chaos/reload/resilience testing, load/perf testing, the k8s test
 lab, and postmortems for real bugs those efforts found. This is the incident
 and decision record; canonical *how to run things* docs are
-`tests/README.md`, `docs/09-developer-guide/testing-infrastructure.md`,
+`docs/09-developer-guide/testing/README.md`, `docs/09-developer-guide/testing-infrastructure.md`,
 `docs/09-developer-guide/multiuser-conformance.md`,
 `docs/09-developer-guide/wlcg-token-conformance.md`,
 `docs/09-developer-guide/wlcg-ca-conformance.md`, and
@@ -107,7 +107,7 @@ floor.
 ### 1.3 The gotchas that live only in the harness, not the docs
 
 These are non-obvious traps that cost real debugging time and aren't
-self-evident from `tests/README.md`:
+self-evident from `docs/09-developer-guide/testing/README.md`:
 
 - **`TEST_SKIP_SERVER_SETUP=1` skips more than server startup** — it skips
   `conftest._setup_session()` entirely, including `X509_CERT_DIR`/
@@ -323,7 +323,7 @@ markers applied by an idempotent codemod (`tools/add_registry_markers.py`, 547
 markers across 50 files), and hard-fail at collection when a collected test
 touches a server it never declared. The policy — marker syntax, exemptions, the
 `REGISTRY_STRICT_DECLARATIONS=0` report-only escape — is in
-`tests/configs/REGISTRY_MIGRATION.md` § "Declaring Servers (collection gate)".
+`docs/09-developer-guide/testing/configs/REGISTRY_MIGRATION.md` § "Declaring Servers (collection gate)".
 Detection is by *port-constant reference*, resolved through an authoritative
 port→owning-spec map (`tests/fleet_ports.py`), which is itself linted so no port
 value can be owned by two specs. Of the tree, ~4600 tests are serverless, ~1470

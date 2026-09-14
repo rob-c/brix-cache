@@ -13,6 +13,7 @@ that must stay correct without a container or a cluster:
     reddens on real drift (security/regression-negative).
 """
 from __future__ import annotations
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 
 import importlib.util
 import os
@@ -187,6 +188,8 @@ def test_combined_gateway_config_validates(tmp_path):
         out=tmp_path / "gateway.conf", log_dir=log_dir, data_root=data_root,
         bind_host=BIND_HOST, gsiftp_port=32811, ftp_port=32810, pki=pki,
         pblock_gsiftp_port=32812, pblock_root=pblock_root)
+    inject_nginx_load_modules(conf, NGINX_BIN)
+    inject_nginx_runtime_paths(conf, tmp_path)
     r = subprocess.run([NGINX_BIN, "-t", "-c", str(conf), "-e",
                         str(log_dir / "error.log")],
                        capture_output=True, text=True)
@@ -233,6 +236,8 @@ def test_s3_backend_leg_config_validates(tmp_path):
         out=tmp_path / "gateway-s3.conf", log_dir=log_dir, bind_host=BIND_HOST,
         pki=pki, s3_gsiftp_port=32813, s3_origin_port=32814, s3_dir=s3_dir,
         s3_export=s3_export, tmp_dir=http_tmp)
+    inject_nginx_load_modules(conf, NGINX_BIN)
+    inject_nginx_runtime_paths(conf, tmp_path)
     r = subprocess.run([NGINX_BIN, "-t", "-c", str(conf), "-e",
                         str(log_dir / "error.log")],
                        capture_output=True, text=True)

@@ -8,25 +8,11 @@
 #include <time.h>
 #include "core/compat/alloc_guard.h"
 
-/*
- * WHAT: kXR_prepare — local-storage staging hint. (kXR_QPrep status query lives
- *       in prepare_qprep.c.)
- *       prepare accepts newline-separated path lists, validates each against auth/ACLs/filesystem existence,
- *       optionally invokes a configured staging command (e.g., xrdcp to tape), returns request ID for later status queries.
- *       QPrep queries staging status of prior prepare paths — returns "A <path>" (available) or "M <path>" (missing).
- *
- * WHY:  Staging workflows require clients to submit file lists before actual transfer, enabling servers to initiate
- *       tape nearline retrieval or other pre-transfer operations. prepare stores request ID + path list for QPrep status
- *       queries. Disk-only servers return immediate results since files are either present or absent. Cancel/evict options
- *       allow clients to abort pending staging operations without penalty.
- *
- * HOW:  brix_handle_prepare() parses ClientPrepareRequest — extracts optionX via ntohs, gates stage/evict/wmode on
- *       allow_write (kXR_fsReadOnly, W6), dispatches cancel, checks payload presence. Pre-allocates stage_paths/stage_bufs if collect_stage (kXR_stage + prepare_command). Parses
- *       newline-separated paths: extract_path → has_forbidden_component() → resolve_path → authdb(vo_acl token_scope) → stat(S_ISDIR check).
- * Fills out_resolved for staging collection. Stores saved payload in ctx->prepare.paths, sets reqid="0", invokes staging command best-effort,
- * returns "0" as response. brix_query_prep_status() parses payload skipping reqid line — uses inline paths or falls back to stored
- * prepare_paths. Allocates resp buffer src_len*2+64, resolves each path + auth chain + stat(S_ISREG) → writes 'A'/'M' prefix per path,
- * NUL-terminates and sends response.
+/* kXR_prepare — validate and stage newline-separated file lists.
+ * WHAT: Return a request ID for later QPrep status queries (prepare_qprep.c).
+ * WHY: Nearline workflows need authorized pre-transfer recall and cancellation.
+ * HOW: Gate stage/evict/write options, confine each path, check identity and
+ * existence, then submit collected paths or dispatch cancellation.
  */
 
 /*

@@ -68,7 +68,7 @@ except Exception:  # noqa: BLE001 — settings import optional outside the harne
     NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
     BIND_HOST = "127.0.0.1"  # net-literal-allow: fallback BIND_HOST when settings module unavailable outside harness
 
-_OBJS = os.path.dirname(NGINX_BIN)
+_OBJS = os.environ.get("TEST_NGINX_OBJS", os.path.dirname(NGINX_BIN))
 _CINFO_O = os.path.join(_OBJS, "addon", "cache", "cinfo.o")
 # cinfo.c calls into the unified metadata (xmeta) engine, so the planter must
 # link those objects too or the standalone link fails on brix_xmeta_* refs.

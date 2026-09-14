@@ -522,6 +522,7 @@ http {{ access_log off;
 }}
 """)
     inject_nginx_load_modules(conf)
+    inject_nginx_runtime_paths(conf, root)
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=60)
     return p.returncode, p.stderr + p.stdout
@@ -556,6 +557,13 @@ def test_the_dashboard_is_not_a_protocol_and_may_join_any_of_them(tmp_path):
 """)
 
     assert rc == 0, f"the dashboard was treated as a competing protocol:\n{diag}"
+
+
+def test_parse_helper_preserves_unknown_directive_diagnostics(tmp_path):
+    """Runtime-path setup must preserve the parser's original fatal error."""
+    rc, diag = _nginx_t(tmp_path, "brix_coresidency_unknown on;")
+    assert rc != 0
+    assert 'unknown directive "brix_coresidency_unknown"' in diag
 
 
 def test_the_exclusivity_check_aggregates_every_server_on_the_port():

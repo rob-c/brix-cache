@@ -389,6 +389,24 @@ def nginx_bin() -> str:
         Path(os.environ.get("NGINX_SRC", "/tmp/nginx-1.28.3")) / "objs" / "nginx")
 
 
+def unsupported_reason(example: Example, binary: str) -> str:
+    """Report an explicitly declared upstream nginx requirement before parsing."""
+    required = re.search(r"^\s*#\s*check_example_configs:\s*min-nginx=(\d+\.\d+\.\d+)\s*$",
+                         example.text, re.M)
+    if required is None:
+        return ""
+    proc = subprocess.run([binary, "-v"], capture_output=True, text=True,
+                          check=True, timeout=15)
+    actual = re.search(r"nginx/(\d+\.\d+\.\d+)", proc.stdout + proc.stderr)
+    if actual is None:
+        raise ValueError(f"cannot determine nginx version from {binary}")
+    wanted = tuple(map(int, required[1].split(".")))
+    found = tuple(map(int, actual[1].split(".")))
+    if found < wanted:
+        return f"{example.source} requires nginx >= {required[1]}; selected {actual[1]}"
+    return ""
+
+
 def _without_noise(stderr: str) -> str:
     return "\n".join(l for l in stderr.splitlines() if not _NOISE.search(l))
 
@@ -401,13 +419,26 @@ def _only_needs_root(stderr: str) -> bool:
 
 def nginx_t(rendered: Rendered, binary: str | None = None) -> tuple[bool, str]:
     """Run `nginx -t` on a rendered example; return (ok, relevant stderr)."""
+    binary = binary or nginx_bin()
+    prepare_nginx(rendered, binary)
     env = dict(os.environ, HOSTALIASES=str(rendered.hostaliases))
     proc = subprocess.run(
-        [binary or nginx_bin(), "-t", "-q", "-p", str(rendered.prefix), "-c", str(rendered.conf)],
+        [binary, "-t", "-q", "-p", str(rendered.prefix), "-c", str(rendered.conf)],
         capture_output=True, text=True, env=env, timeout=120)
     stderr = _without_noise(proc.stderr)
     ok = proc.returncode == 0 or (os.geteuid() != 0 and _only_needs_root(stderr))
     return ok, stderr.strip()
+
+
+def prepare_nginx(rendered: Rendered, binary: str) -> None:
+    """Apply the selected build's modules and private runtime paths before use."""
+    import sys
+    sys.path.insert(0, str(ROOT / "tests"))
+    from cmdscripts.live_common import (
+        inject_nginx_load_modules, inject_nginx_runtime_paths,
+    )
+    inject_nginx_load_modules(rendered.conf, binary)
+    inject_nginx_runtime_paths(rendered.conf, rendered.prefix)
 
 
 def directive_names(text: str) -> set[str]:

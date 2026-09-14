@@ -139,9 +139,9 @@ int main(int argc, char **argv) {
         brix_loc_cache_insert("/file", "", 1094);
         assert(brix_loc_cache_lookup("/file", host, sizeof(host), &port) == 0);
     }
-    brix_loc_cache_insert("/file", "127.0.0.1", 1094);
+    brix_loc_cache_insert("/file", "cache.fixture.invalid", 1094);
     assert(brix_loc_cache_lookup("/file", host, sizeof(host), &port) == 1);
-    assert(strcmp(host, "127.0.0.1") == 0 && port == 1094);
+    assert(strcmp(host, "cache.fixture.invalid") == 0 && port == 1094);
     ngx_current_msec += lifetime - 1;
     assert(brix_loc_cache_lookup("/file", host, sizeof(host), &port) == 1);
     ngx_current_msec++;

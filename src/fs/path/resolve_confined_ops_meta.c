@@ -42,10 +42,6 @@
 #include <linux/openat2.h>
 #endif
 
-/* Helper declarations — defined in resolve_confined_helpers.c */
-extern int brix_open_confined_parent_canon(ngx_log_t *log, const char *root_canon,
-    const char *resolved, char *base, size_t basesz);
-
 /* Confined setattr — utimensat + fchownat under parent confinement.
  *
  * Apply timestamps (set_times → utimensat) and/or owner (set_owner →

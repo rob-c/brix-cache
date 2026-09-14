@@ -92,7 +92,8 @@ def test_metrics_present():
 
 def test_w7_fuzz_target_present():
     assert (ROOT / "tests/fuzz/fuzz_safe_size.c").exists()
-    assert (ROOT / "tests/fuzz/README.md").exists()
+    assert (ROOT.parents[1]
+            / "docs/09-developer-guide/k8s-tests/remote-suite/tests/fuzz/README.md").exists()
 
 
 # --------------------------------------------------------------------------- #

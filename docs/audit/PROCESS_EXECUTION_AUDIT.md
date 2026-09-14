@@ -456,7 +456,7 @@ The implementation matches the documentation on all three platforms (Linux, macO
 | `src/platform/linux/posix_wrapper.c` | 205 | ✅ Verified |
 | `src/platform/darwin/posix_wrapper.c` | 300+ | ✅ Verified |
 | `docs/platform/WINDOWS_PROCESS_EXECUTION.md` | 450+ | ✅ Verified |
-| `src/platform/PAL_FUNCTION_REFERENCE.md` | 1,629 | ✅ Verified (Section 9) |
+| `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` | 1,629 | ✅ Verified (Section 9) |
 | `docs/platform/SUPPORT_MATRIX.md` | 560+ | ✅ Verified (Table entry) |
 
 ---

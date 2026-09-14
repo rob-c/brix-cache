@@ -6,6 +6,7 @@ scenarios or CA directories -- it manufactures a single ``Cert`` at a time.
 
 from __future__ import annotations
 
+import os
 import subprocess
 
 from dataclasses import dataclass
@@ -176,9 +177,32 @@ def make_ca(dn: str, *, key_bits: int = 2048, not_after_days: int = 3650,
     return Cert(b.sign(key, digest), key)
 
 
+def _fixture_signing_env(digest_name: str):
+    """Permit SHA-1 only in the subprocess minting a rejection fixture."""
+    if digest_name != "sha1":
+        return None
+    config = Path(__file__).resolve().with_name("fixture-signing.cnf")
+    return dict(os.environ, OPENSSL_CONF=str(config))
+
+
+def _write_fixture_key(path: Path, key_type: str, key_bits: int, curve: str):
+    """Use the existing EC key maker; OpenSSL also supports small RSA fixtures."""
+    if key_type == "rsa":
+        subprocess.run(["openssl", "genrsa", "-out", str(path), str(key_bits)],
+                       check=True, capture_output=True)
+        return
+    key = _make_key(key_type, bits=key_bits, curve=curve)
+    path.write_bytes(key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.TraditionalOpenSSL,
+        serialization.NoEncryption(),
+    ))
+
+
 def _make_eec_openssl(issuer: Cert, dn: str, *, key_bits: int,
                       digest_name: str, not_after_days: int,
-                      not_before_days: int, ca_true: bool = False) -> Cert:
+                      not_before_days: int, ca_true: bool = False,
+                      key_type: str = "rsa", curve: str = "P-256") -> Cert:
     """Build a leaf (or intermediate CA if ca_true) via the openssl CLI for
     parameters the cryptography signer refuses (MD5/SHA-1 signatures, sub-1024-
     bit keys).  Loads the result back into a Cert for the normal cred path."""
@@ -187,8 +211,7 @@ def _make_eec_openssl(issuer: Cert, dn: str, *, key_bits: int,
         td = Path(td)
         (td / "ca.pem").write_bytes(issuer.pem)
         (td / "ca.key").write_bytes(issuer.key_pem)
-        subprocess.run(["openssl", "genrsa", "-out", str(td / "leaf.key"),
-                        str(key_bits)], check=True, capture_output=True)
+        _write_fixture_key(td / "leaf.key", key_type, key_bits, curve)
         subprocess.run(["openssl", "req", "-new", "-key", str(td / "leaf.key"),
                         "-subj", dn, "-out", str(td / "leaf.csr")],
                        check=True, capture_output=True)
@@ -201,7 +224,8 @@ def _make_eec_openssl(issuer: Cert, dn: str, *, key_bits: int,
             ext.write_text("basicConstraints=critical,CA:TRUE\n"
                            "keyUsage=critical,keyCertSign,cRLSign\n")
             cmd += ["-extfile", str(ext)]
-        subprocess.run(cmd, check=True, capture_output=True)
+        subprocess.run(cmd, check=True, capture_output=True,
+                       env=_fixture_signing_env(digest_name))
         cert = x509.load_pem_x509_certificate((td / "leaf.pem").read_bytes())
         key = serialization.load_pem_private_key(
             (td / "leaf.key").read_bytes(), password=None)
@@ -223,7 +247,8 @@ def _make_ca_openssl(dn: str, *, key_bits: int, digest_name: str,
              "-addext", "basicConstraints=critical,CA:TRUE",
              "-addext", "keyUsage=critical,keyCertSign,cRLSign",
              "-addext", "subjectKeyIdentifier=hash"],
-            check=True, capture_output=True)
+            check=True, capture_output=True,
+            env=_fixture_signing_env(digest_name))
         cert = x509.load_pem_x509_certificate((td / "ca.pem").read_bytes())
         key = serialization.load_pem_private_key(
             (td / "ca.key").read_bytes(), password=None)

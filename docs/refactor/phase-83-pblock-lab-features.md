@@ -1251,4 +1251,4 @@ to "required" and deserve design review beyond this doc.
 `docs/09-developer-guide/pblock-storage-backend.md` (§12 caps table, §14
 limits list shrink), `src/fs/backend/README.md` driver table row,
 `docs/10-reference/` new page for the `ctl` key reference +
-`pblock-fsck` man-style page, `TESTING.md` lab-backend how-to.
+`pblock-fsck` man-style page, `docs/09-developer-guide/TESTING.md` lab-backend how-to.

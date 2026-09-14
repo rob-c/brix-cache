@@ -33,7 +33,7 @@ def _check_test_bench_read_sweep_json_3(recs):
 
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-APPS = os.path.join(REPO, "client", "apps")
+APPS = os.path.join(REPO, "client", "apps", "scan")
 CORE = os.path.join(APPS, "storascan_core.c")
 UT = os.path.join(APPS, "storascan_unittest.c")
 BIN = os.path.join(REPO, "client", "bin", "xrdstorascan")

@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - **Tone: direct but factual.** The six comparison rows are fixed verbatim by the spec — do not add rows, and add NO performance or reliability-percentage claims anywhere.
-- **Claims policy: landed features only.** Vignette capabilities trace to: `client/lib/net/resilient.c` (reconnect/re-auth/reopen/offset-resume, `--max-stall`), `client/apps/diag/diag_check.c` + `diag_doctor.c` (+ `client/apps/README.md` "human-readable error explanation"), `client/apps/README.md` (`xrdstorascan verify`). Comparison rows trace to `client/apps/README.md`, `client/Makefile` (CKSUM_LINKS/DIAG_LINKS), `CLAUDE.md` (`TEST_CROSS_BACKEND`). Terminal output is illustrative; capabilities are not.
+- **Claims policy: landed features only.** Vignette capabilities trace to: `client/lib/net/resilient.c` (reconnect/re-auth/reopen/offset-resume, `--max-stall`), `client/apps/diag/diag_check.c` + `diag_doctor.c` (+ `docs/09-developer-guide/client/apps/README.md` "human-readable error explanation"), `docs/09-developer-guide/client/apps/README.md` (`xrdstorascan verify`). Comparison rows trace to `docs/09-developer-guide/client/apps/README.md`, `client/Makefile` (CKSUM_LINKS/DIAG_LINKS), `CLAUDE.md` (`TEST_CROSS_BACKEND`). Terminal output is illustrative; capabilities are not.
 - Branding: **BriX-Cache** / **brixMount** casing; no `xrootd_*` metric/directive names.
 - Copy tone matches existing pages; table is a semantic `<table>` for accessibility.
 - Commit directly to `main`. Commit trailer:

@@ -1426,7 +1426,7 @@ Also worth folding in while touching the harness:
   > `tools/ci/check_template_refs.py --regen`.
   >
   > Registered in `tests/test_ci_guards.py::_FAST`, `.github/workflows/guards.yml`
-  > and the `tools/ci/README.md` table. Three negatives pin it: a new dead
+  > and the `docs/09-developer-guide/ci/README.md` table. Three negatives pin it: a new dead
   > template reddens, `--regen` refuses to bless one (and leaves the backlog
   > byte-identical), and a backlog entry that becomes referenced reddens too.
   >

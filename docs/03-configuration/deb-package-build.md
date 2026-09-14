@@ -3,7 +3,7 @@
 Building and distributing BriX-Cache as .deb packages for Ubuntu servers
 (22.04 jammy, 24.04 noble) — the deb counterpart of
 [RPM Package Build](rpm-package-build.md).  The packaging lives in
-`packaging/deb/`; its [README](../../packaging/deb/README.md) is the full
+`packaging/deb/`; its [README](./packaging/deb/README.md) is the full
 reference (package split, nginx version lock, runtime dependencies,
 divergences from the RPM).
 

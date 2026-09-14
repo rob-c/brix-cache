@@ -77,8 +77,8 @@ def test_xrd_lab_dry_run_exposes_ceph_gates(lab):
 
 
 def test_docs_name_targets_and_ceph_gates(reads):
-    reads("README.md").shows("XRD_LAB_OS_TARGET=centos9-stream",
+    reads("../docs/09-developer-guide/k8s-tests/README.md").shows("XRD_LAB_OS_TARGET=centos9-stream",
                              "./xrd-lab test ceph-docker",
                              "./xrd-lab test ceph-rpmbuild")
-    reads("../tests/ceph/README.md").shows("CentOS Stream 9 Storage SIG",
+    reads("../docs/09-developer-guide/testing/ceph/README.md").shows("CentOS Stream 9 Storage SIG",
                                            "./xrd-lab test ceph-docker")

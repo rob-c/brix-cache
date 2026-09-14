@@ -2,6 +2,18 @@
 
 This directory contains documentation for the BriX-Cache Platform Abstraction Layer (PAL) and platform support.
 
+The implementation reports below record their respective development phases.
+For the current AlmaLinux build results and outstanding verification, see the
+[build and verification log](../03-configuration/BUILD.md).
+
+## Guide collections
+
+- [PAL architecture and development guides](pal/): API design, workflow and build integration.
+- [Platform test guide](testing/README.md) and [test reports](testing/): native test setup and recorded results.
+- [Darwin implementation reports](pal/darwin/) and [Windows implementation reports](pal/windows/).
+- [CI configuration reports](../audit/ci-cd/): workflow and matrix records.
+- [PAL source index](../../src/platform/README.md): implementation ownership and source files.
+
 ## Executive Summary - Phase 3 Complete
 
 **Overall Platform Completion**: 100% (5/5 platforms) ✅  
@@ -18,7 +30,7 @@ This directory contains documentation for the BriX-Cache Platform Abstraction La
 ## Documents
 
 ### Current Platforms
-- **[PAL Architecture](../../src/platform/ARCHITECTURE.md)** - PAL design and API reference
+- **[PAL Architecture](pal/ARCHITECTURE.md)** - PAL design and API reference
 - **[Platform Support Matrix](SUPPORT_MATRIX.md)** - Complete 5-platform comparison
 - **[macOS Support](../refactor/macos-support-v3.0.md)** - macOS implementation details
 - **[macOS Optimizations](../refactor/macos-optimizations.md)** - Apple performance tuning
@@ -57,4 +69,4 @@ When adding support for a new platform:
 4. Document platform-specific limitations
 5. Add tests to `tests/platform/`
 
-See [ARCHITECTURE.md](../../src/platform/ARCHITECTURE.md) for implementation guidelines.
+See [ARCHITECTURE.md](pal/ARCHITECTURE.md) for implementation guidelines.

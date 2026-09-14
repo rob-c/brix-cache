@@ -744,7 +744,7 @@ Before committing migration changes:
 ## Resources
 
 - **PAL API Reference**: `src/platform/platform_api.h`
-- **Architecture Guide**: `src/platform/ARCHITECTURE.md`
+- **Architecture Guide**: `docs/platform/pal/ARCHITECTURE.md`
 - **Platform Expansion Plan**: `docs/platform/PLATFORM_EXPANSION_PLAN.md`
 - **Migration Issues**: `docs/incidents/`
 

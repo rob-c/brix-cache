@@ -14,6 +14,7 @@ import shutil
 import subprocess
 
 import pytest
+from gfal_cli import clean_env
 from settings import HOST, NGINX_ANON_PORT, NGINX_WEBDAV_PORT
 
 def _check_run_matrix_1(d):
@@ -41,11 +42,9 @@ DAVS_BASE = f"davs://{HOST}:{NGINX_WEBDAV_PORT}"
 CA_DIR = os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "pki", "ca")
 
 
-def _clean_env():
-    """gfal must use the SYSTEM libXrdCl, not conda's — drop LD_LIBRARY_PATH;
-    point X509_CERT_DIR at the fleet CA so the davs:// TLS cert verifies."""
-    e = dict(os.environ)
-    e.pop("LD_LIBRARY_PATH", None)
+def _clean_env(command="gfal-stat"):
+    """Use installed GFAL bindings and the fleet CA for davs:// verification."""
+    e = clean_env(command)
     if os.path.isdir(CA_DIR):
         e["X509_CERT_DIR"] = CA_DIR
     return e
@@ -53,7 +52,7 @@ def _clean_env():
 
 def _gfal(*args, **kw):
     return subprocess.run(args, capture_output=True, text=True, timeout=120,
-                          env=_clean_env(), **kw)
+                          env=_clean_env(args[0]), **kw)
 
 
 def _port_open(port):

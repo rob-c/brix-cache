@@ -46,7 +46,7 @@ PHASE42_SOURCES = [
     "src/core/compat/codec_bzip2.c",
     "src/core/compat/codec_lz4.c",
     "src/core/http/http_compress.c",
-    "client/lib/zip.c",
+    "client/lib/protocols/shared/zip.c",
 ]
 
 # `goto <label>;` — the statement form only. \bgoto\b ensures we never match

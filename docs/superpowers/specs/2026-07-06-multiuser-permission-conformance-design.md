@@ -215,7 +215,7 @@ Reusable machinery lives in `tests/mu_authz_lib.py` (Python) and
 `tests/configs/multiuser/` (server configs). It builds on existing anchors:
 `tests/pki_helpers.py::blitz_test_pki`, `tests/kdc_helpers.py`, `tests/settings.py`,
 `tests/manage_test_servers.sh`, and the dedicated-server pattern in
-`tests/configs/DEDICATED_SERVERS.md`.
+`docs/09-developer-guide/testing/configs/DEDICATED_SERVERS.md`.
 
 ### 8.1 Privileged multi-user fleet
 

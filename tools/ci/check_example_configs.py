@@ -44,11 +44,16 @@ def _check_names(example, known: set[str], failures: list[str]) -> None:
         failures.append(f"{example.source}: unknown directive(s) {', '.join(unknown)}")
 
 
-def _check_parse(example, scratch: Path, binary: str, failures: list[str]) -> None:
+def _check_parse(example, scratch: Path, binary: str, failures: list[str]) -> bool:
+    reason = lib.unsupported_reason(example, binary)
+    if reason:
+        print(f"UNSUPPORTED {reason}")
+        return False
     rendered = lib.render(example, scratch)
     ok, err = lib.nginx_t(rendered, binary)
     if not ok:
         failures.append(f"{example.source}: nginx -t failed\n    {err.replace(chr(10), chr(10) + '    ')}")
+    return True
 
 
 def _check_all(examples, known, binary, have_bin, keep) -> tuple[list[str], int]:
@@ -60,8 +65,7 @@ def _check_all(examples, known, binary, have_bin, keep) -> tuple[list[str], int]
         for e in examples:
             _check_names(e, known, failures)
             if have_bin and e.strict and e.context != "skip":
-                _check_parse(e, scratch, binary, failures)
-                parsed += 1
+                parsed += _check_parse(e, scratch, binary, failures)
     finally:
         if keep:
             print(f"scratch tree kept at {scratch}")

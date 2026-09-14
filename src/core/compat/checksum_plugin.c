@@ -217,6 +217,12 @@ cks_plugin_load(ngx_conf_t *cf, cks_plugin_ent_t *ent, ngx_str_t *path)
 }
 
 
+/* ---- Register one validated checksum plugin for this configuration cycle ----
+ *
+ * WHAT: Return NGX_OK after validation and self-test, or NGX_ERROR on refusal.
+ * WHY: Registry entries must own terminated options, including an absent option.
+ * HOW: 1. Validate the name/options. 2. Copy present bytes. 3. Load and self-test.
+ */
 ngx_int_t
 brix_cks_plugin_register(ngx_conf_t *cf, ngx_str_t *name, ngx_str_t *path,
     ngx_str_t *parms)
@@ -261,7 +267,10 @@ brix_cks_plugin_register(ngx_conf_t *cf, ngx_str_t *name, ngx_str_t *path,
         return NGX_ERROR;
     }
 
-    ngx_memcpy(ent->parms, parms->data, parms->len);
+    /* An omitted option is ngx_null_string; zero bytes need no source pointer. */
+    if (parms->len != 0) {
+        ngx_memcpy(ent->parms, parms->data, parms->len);
+    }
     ent->parms[parms->len] = '\0';
 
     if (cks_plugin_file_ok(cf, path) != NGX_OK) {

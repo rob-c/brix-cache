@@ -261,12 +261,15 @@ class TestTheMechanismIsWhereThisFileSaysItIs:
         nothing retries it."""
         source = _flat(FLOWLABEL_C)
         assert "fl.flr_label = htonl(brix_pmark_flowlabel_encode(" \
-               "BRIX_PMARK_EXP_MIN, BRIX_PMARK_ACT_MIN));" in source, \
+               "BRIX_IPV6_EXP_MIN, BRIX_IPV6_ACT_MIN));" in source, \
             "the probe's label is no longer the structural minimum"
-        assert "fl.flr_share = PMARK_FL_S_EXCL;" in source
+        assert "fl.flr_share = BRIX_IPV6_FL_S_EXCL;" in source
         assert "static int pmark_fl_usable = -1;" in source
         assert source.count("pmark_fl_usable = 0;") == 1
-        assert "#define PMARK_FL_S_EXCL 1" in source
+        constants = _flat(PMARK_CONSTANTS_H)
+        assert "#define BRIX_IPV6_FL_S_EXCL 1 " in constants
+        assert "#define BRIX_IPV6_EXP_MIN 1 " in constants
+        assert "#define BRIX_IPV6_ACT_MIN 1 " in constants
         assert PROBE_NOTICE in source, \
             "the probe's NOTICE was reworded, so _probe_declined is now blind"
 
@@ -291,13 +294,13 @@ class TestTheMechanismIsWhereThisFileSaysItIs:
         """DEFECT #75's mechanism: the mask decides how many labels one
         (experiment, activity) pair can ever spell, and the exclusive share
         decides that each is spelled once."""
-        assert f"#define BRIX_PMARK_FL_ENTROPY_MASK 0x{FL_ENTROPY_MASK:08X}u" \
-            in _flat(PMARK_H)
+        assert f"#define BRIX_IPV6_FL_ENTROPY_MASK 0x{FL_ENTROPY_MASK:08X}u" \
+            in _flat(PMARK_CONSTANTS_H)
         assert bin(FL_ENTROPY_MASK).count("1") == 5
         source = _flat(FLOWLABEL_C)
         assert "label = brix_pmark_flowlabel_encode(exp, act) " \
-               "| ((uint32_t) ngx_random() & BRIX_PMARK_FL_ENTROPY_MASK);" in source
-        assert source.count("fl.flr_share = PMARK_FL_S_EXCL;") == 2
+               "| ((uint32_t) ngx_random() & BRIX_IPV6_FL_ENTROPY_MASK);" in source
+        assert source.count("fl.flr_share = BRIX_IPV6_FL_S_EXCL;") == 2
 
     def test_a_copy_is_marked_without_consulting_http_plain(self):
         """§D's mechanism: the method test short-circuits for COPY before

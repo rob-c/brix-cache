@@ -128,7 +128,7 @@ acc_applies(const brix_acc_idrule_t *r, const brix_acc_attr_t *attr,
     ngx_uint_t     k;
 
     for (k = 0; k < NGX_NELEMENTS(acc_sel_predicates); k++) {
-        if (!acc_sel_predicates[k](&s)) {
+        if (!acc_sel_predicates[k] (&s)) {
             return 0;  /* AND logic: first failure rejects */
         }
     }

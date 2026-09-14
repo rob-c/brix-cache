@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-04
 **Status:** Approved design (pre-implementation)
-**Supersedes:** `k8s-tests/PLAN.md` (the earlier 10-week aspirational plan; this spec replaces it)
+**Supersedes:** `docs/09-developer-guide/k8s-tests/PLAN.md` (the earlier 10-week aspirational plan; this spec replaces it)
 
 ---
 
@@ -326,7 +326,7 @@ stable.
 
 ## 8. What gets retired / refactored
 
-- `k8s-tests/PLAN.md` → superseded by this spec (kept for history or removed at implementation
+- `docs/09-developer-guide/k8s-tests/PLAN.md` → superseded by this spec (kept for history or removed at implementation
   time).
 - `k8s-tests/k8s-manifests/lab-5-vms.yaml`, `fixed-ip-vms.yaml` → retired (hardcoded IPs);
   replaced by DNS-wired `topology-role`.

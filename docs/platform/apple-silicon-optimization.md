@@ -522,8 +522,8 @@ http {
     tcp_nopush on;
     tcp_nodelay on;
     
-    # BriX-Cache specific
-    brix_cache_path /tmp/brix-cache levels=1:2 keys_zone=brix:100m;
+    # nginx HTTP proxy cache; BriX storage uses brix_cache_store per endpoint
+    proxy_cache_path /tmp/brix-cache levels=1:2 keys_zone=brix:100m;
 }
 ```
 

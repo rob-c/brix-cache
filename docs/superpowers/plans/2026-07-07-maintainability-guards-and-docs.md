@@ -958,14 +958,16 @@ Then confirm the published page serves (URL = the existing gh-pages URL + `/apid
 
 ---
 
-### Task 13: `tools/ci/README.md`, dual size-regime documentation, hook install docs, guards in pre-push
+<a id="task-13-toolscireadmemd-dual-size-regime-documentation-hook-install-docs-guards-in-pre-push"></a>
+
+### Task 13: `docs/09-developer-guide/ci/README.md`, dual size-regime documentation, hook install docs, guards in pre-push
 
 **Files:**
-- Create: `tools/ci/README.md`
+- Create: `docs/09-developer-guide/ci/README.md`
 - Modify: `tools/git-hooks/pre-push` (add guard loop before the fast test tier)
 - Modify: `docs/09-developer-guide/dev-workflow.md` (hooks + clangd section)
 
-- [ ] **Step 1: Write `tools/ci/README.md`.** Contents: one table of all guards (script | invariant enforced | backlog file | regen flag) covering `check_config_coverage.sh`, `check_vfs_seam.sh` (backlogs: `vfs_seam_backlog.txt`, `_ns`, `_client`), `check_http_helper_reimpl.sh`, `check_sd_driver_conformance.sh`, `check_file_size.sh` (`file_size_backlog.txt`), `check_doc_paths.sh`, `check_doc_links.sh` (`doc_links_backlog.txt`), `check_readme_coverage.sh`, `check_ports_doc.sh`, `run_fanalyzer.sh` (`fanalyzer_baseline.txt`, needs a configured nginx build). Then two prose sections, verbatim requirements:
+- [ ] **Step 1: Write `docs/09-developer-guide/ci/README.md`.** Contents: one table of all guards (script | invariant enforced | backlog file | regen flag) covering `check_config_coverage.sh`, `check_vfs_seam.sh` (backlogs: `vfs_seam_backlog.txt`, `_ns`, `_client`), `check_http_helper_reimpl.sh`, `check_sd_driver_conformance.sh`, `check_file_size.sh` (`file_size_backlog.txt`), `check_doc_paths.sh`, `check_doc_links.sh` (`doc_links_backlog.txt`), `check_readme_coverage.sh`, `check_ports_doc.sh`, `run_fanalyzer.sh` (`fanalyzer_baseline.txt`, needs a configured nginx build). Then two prose sections, verbatim requirements:
 
 **"The ratchet pattern"**: backlogs freeze pre-existing violations; entries may only shrink; `--regen` only after a deliberate reviewed change; never hand-edit a backlog to silence a failure.
 
@@ -997,7 +999,7 @@ done
 - **clangd navigation:** `tools/clangd/gen_compile_commands.py` generates
   `compile_commands.json` so clangd/LSP can cross-reference all 660+ C files.
   Regenerate after `./configure`.
-- **Guard reference:** [tools/ci/README.md](../../tools/ci/README.md) — what
+- **Guard reference:** [docs/09-developer-guide/ci/README.md](../../tools/ci/README.md) — what
   each CI guard enforces and how the backlog ratchets work.
 ```
 
@@ -1006,7 +1008,7 @@ done
 ```bash
 bash -n tools/git-hooks/pre-push          # syntax check
 tools/ci/check_doc_links.sh && tools/ci/check_doc_paths.sh
-git add tools/ci/README.md tools/git-hooks/pre-push docs/09-developer-guide/dev-workflow.md
+git add docs/09-developer-guide/ci/README.md tools/git-hooks/pre-push docs/09-developer-guide/dev-workflow.md
 git commit -m "docs(ci): guard reference README, dual size-regime explanation, hook install docs; run guards in pre-push"
 ```
 

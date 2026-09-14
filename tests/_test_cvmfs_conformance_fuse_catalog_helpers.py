@@ -39,7 +39,7 @@ DIVERGENCE summary (each pinned strict-xfail below):
 
 # PEP 563 (deferred annotations): this module uses PEP 604 `X | None` unions in
 # function annotations, which stock EL9 Python 3.9 evaluates at def-time and
-# rejects (TypeError) without this. See TESTING.md §2.
+# rejects (TypeError) without this. See docs/09-developer-guide/TESTING.md §2.
 from __future__ import annotations
 
 import errno

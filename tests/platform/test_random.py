@@ -208,13 +208,7 @@ def test_random_concurrent_calls():
     # Create multiple threads
     threads = [threading.Thread(target=generate_random) for _ in range(10)]
     
-    # Start all threads
-    for t in threads:
-        t.start()
-    
-    # Wait for completion
-    for t in threads:
-        t.join()
+    run_threads(threads)
     
     # Verify no errors
     assert len(errors) == 0, f"Errors during concurrent generation: {errors}"
@@ -290,3 +284,11 @@ def test_random_small_buffer_performance():
     
     # Should generate at least 10000 calls/sec
     assert per_sec > 10000, f"Small buffer random too slow: {per_sec:.0f} calls/sec"
+
+
+def run_threads(threads):
+    """Start the complete worker group before joining any member."""
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()

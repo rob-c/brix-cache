@@ -25,9 +25,13 @@ on:
         required: false
         default: 'all'
 
+permissions:
+  contents: read
+
 jobs:
   # Linux x86_64 Build
   linux-x86_64:
+    timeout-minutes: 30
     runs-on: ubuntu-22.04
     name: Linux x86_64
     steps:
@@ -93,6 +97,7 @@ jobs:
 
   # Linux ARM64 Build (cross-compile)
   linux-arm64:
+    timeout-minutes: 15
     runs-on: ubuntu-22.04
     name: Linux ARM64
     steps:
@@ -128,6 +133,7 @@ jobs:
 
   # macOS x86_64 Build
   macos-x86_64:
+    timeout-minutes: 30
     runs-on: macos-12
     name: macOS x86_64
     steps:
@@ -185,6 +191,7 @@ jobs:
 
   # macOS ARM64 Build (Apple Silicon)
   macos-arm64:
+    timeout-minutes: 30
     runs-on: macos-14
     name: macOS ARM64 (Apple Silicon)
     steps:
@@ -253,6 +260,7 @@ jobs:
 
   # Windows Cross-Compile (from Linux)
   windows-x86_64:
+    timeout-minutes: 15
     runs-on: ubuntu-22.04
     name: Windows x86_64 (Cross-Compile)
     steps:
@@ -290,6 +298,7 @@ jobs:
 
   # PAL Seam Check (All Platforms)
   pal-seam-check:
+    timeout-minutes: 10
     runs-on: ubuntu-22.04
     name: PAL Integrity Check
     steps:
@@ -310,13 +319,11 @@ jobs:
       - name: Run VFS seam check
         run: |
           chmod +x tools/ci/check_vfs_seam.py
-          python3 tools/ci/check_vfs_seam.py \
-            --directory=src \
-            --mode=pal \
-            --quiet
+          python3 tools/ci/check_vfs_seam.py
 
   # Build Matrix Summary
   summary:
+    timeout-minutes: 5
     runs-on: ubuntu-22.04
     name: Build Summary
     needs: [linux-x86_64, linux-arm64, macos-x86_64, macos-arm64, windows-x86_64, pal-seam-check]

@@ -38,7 +38,7 @@ brix_platform_copy_range(int src_fd, off_t *src_off, int dst_fd,
         ssize_t nwritten;
         
         /* Read from source */
-        nread = pread(src_fd, buf, to_read, *src_off);
+        nread = pread(src_fd, buf, to_read, *src_off); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
         if (nread < 0) {
             if (errno == EINTR) {
                 continue;  /* Retry on signal */
@@ -54,7 +54,7 @@ brix_platform_copy_range(int src_fd, off_t *src_off, int dst_fd,
         }
         
         /* Write to destination */
-        nwritten = pwrite(dst_fd, buf, (size_t)nread, *dst_off);
+        nwritten = pwrite(dst_fd, buf, (size_t)nread, *dst_off); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
         if (nwritten < 0) {
             if (errno == EINTR) {
                 continue;  /* Retry on signal */

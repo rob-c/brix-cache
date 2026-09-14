@@ -13,6 +13,7 @@ import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from fleet_ports import cmdscript_ports
+from lib_py.util import wait_tcp
 from settings import BIND_HOST, HOST
 
 # One three-port block, reused by each scenario in turn: every consumer of
@@ -58,8 +59,10 @@ def _mock(run: LiveRun, port: int, objects: int, seed: int, *, keepalive: bool =
     if keepalive:
         argv.append("--keepalive")
     proc = run.spawn(argv)
-    time.sleep(0.25)
-    if proc.poll() is not None:
+    # Object generation precedes bind; process existence alone is not readiness.
+    if (proc.poll() is not None
+            or not wait_tcp(BIND_HOST, port, timeout=10)
+            or proc.poll() is not None):
         raise LiveFailure(f"mock Stratum-1 on port {port} did not start")
     return proc
 

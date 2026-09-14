@@ -18,7 +18,7 @@ byte-level anatomies (manifest, whitelist, catalog schema, CAS naming, client
 cache) are dumps of a real repository, not illustrations.
 
 - Protocol contract for the serve plane: [`docs/04-protocols/cvmfs.md` §3.6](../04-protocols/cvmfs.md)
-- Site-cache (Stratum-1 consumer) deployment: [`deploy/cvmfs/README.md`](../../deploy/cvmfs/README.md)
+- Site-cache (Stratum-1 consumer) deployment: [`docs/05-operations/deploy/cvmfs/README.md`](./deploy/cvmfs/README.md)
 - Client-side `/cvmfs` automounting: [cvmfs-automount.md](cvmfs-automount.md)
 - Directive reference: [`docs/03-configuration/directives.md`](../03-configuration/directives.md)
 - Command reference: `man brixcvmfs` (`client/man/brixcvmfs.1`)
@@ -99,7 +99,7 @@ from it.
    +--------+            +-----------+       +-----------+       +-----------+     +-----------+
 
    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   this page: the two boxes on the left        (site caches: deploy/cvmfs/README.md)
+   this page: the two boxes on the left        (site caches: docs/05-operations/deploy/cvmfs/README.md)
 ```
 
 You do not need any of the downstream tiers to have a working repository — a
@@ -184,7 +184,7 @@ scripts; this page uses `brixcvmfs`.
      +-- no  --> Are you caching someone ELSE's repository for a site?
                    |
                    +-- yes --> cache node: brix_cvmfs_upstream_allow + brix_cache_store
-                   |           (deploy/cvmfs/README.md — NOT this page)
+                   |           (docs/05-operations/deploy/cvmfs/README.md — NOT this page)
                    +-- no  --> you want a client mount only (§6, cvmfs-automount.md)
 ```
 

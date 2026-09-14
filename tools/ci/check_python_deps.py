@@ -40,7 +40,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 # Requirements files and the lane each one declares. "optional" is the only
-# lane R3 polices; "dev" tooling is never imported by the tree at all.
+# lane R3 polices; "dev" tooling must not enter test or runtime imports.
+# Explicit Hatch build hooks instead use their own build-system requirements.
 REQ_FILES = {
     "requirements.txt": "required",
     "requirements-optional.txt": "optional",
@@ -262,6 +263,10 @@ def _parse_pyproject(path: Path) -> list[tuple[str, str, str]]:
         project = tomllib.loads(path.read_text()).get("project", {})
     except ModuleNotFoundError:  # pre-3.11 lane: the requirement strings are
         return _parse_pyproject_naive(path)  # flat enough for a line parser
+    return _project_dependencies(project)
+
+
+def _project_dependencies(project):
     out = _project_requirements(project.get("dependencies", []), "required")
     for group, reqs in project.get("optional-dependencies", {}).items():
         lane = "dev" if group == "dev" else "optional"
@@ -279,35 +284,132 @@ def _project_requirements(requirements, lane):
 
 
 def _parse_pyproject_naive(path: Path) -> list[tuple[str, str, str]]:
-    out, lane = [], None
+    tables = _literal_dependency_tables(path)
+    project = tables.get("project", {})
+    project["optional-dependencies"] = tables.get("project.optional-dependencies", {})
+    return _project_dependencies(project)
+
+
+def _build_tables(path):
+    """Read the bounded build environment and explicitly configured Hatch hooks."""
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        return {name: values for name, values in _literal_dependency_tables(path).items()
+                if _is_build_table(name)}
+    data = tomllib.loads(path.read_text())
+    tables = {"build-system": data.get("build-system", {})}
+    build = data.get("tool", {}).get("hatch", {}).get("build", {})
+    _add_custom_hook(tables, "tool.hatch.build", build)
+    for name, target in build.get("targets", {}).items():
+        _add_custom_hook(tables, f"tool.hatch.build.targets.{name}", target)
+    return tables
+
+
+def _add_custom_hook(tables, prefix, config):
+    hooks = config.get("hooks", {})
+    if "custom" in hooks:
+        tables[f"{prefix}.hooks.custom"] = hooks["custom"]
+
+
+def _is_build_table(name):
+    return name == "build-system" or name == "tool.hatch.build.hooks.custom" or bool(
+        re.fullmatch(r"tool\.hatch\.build\.targets\.[^.]+\.hooks\.custom", name)
+    )
+
+
+def _literal_dependency_tables(path):
+    """Pre-3.11 fallback for the manifest's flat string/list dependency metadata.
+
+    Like the existing requirement fallback, this supports the repository's
+    literal tables. Unsupported TOML fails closed instead of granting a lane.
+    """
+    tables, table, pending = {}, None, ""
     for raw in path.read_text().splitlines():
-        line = raw.split("#", 1)[0].strip()
-        lane, requirement = _naive_project_line(line, lane)
-        if requirement:
-            out.append(requirement)
-    return out
+        table, pending = _literal_dependency_line(raw, tables, table, pending)
+    if pending:
+        raise ValueError(f"{path}: unsupported dependency metadata: {pending}")
+    return tables
 
 
-def _naive_project_line(line, lane):
-    if line.startswith("dependencies"):
-        return "required", None
-    if line.startswith("[project.optional-dependencies]"):
-        return "optional", None
-    if line.startswith("["):
-        return None, None
-    if lane and line.startswith('"'):
-        match = _NAME_RE.match(line.strip('",'))
-        requirement = _matched_requirement(match, lane)
-        return lane, requirement
-    if lane == "required" and line.endswith("]"):
-        return None, None
-    return lane, None
+def _literal_dependency_line(raw, tables, table, pending):
+    line = raw.strip()
+    if not pending and line.startswith("["):
+        name = line.split("#", 1)[0].strip().strip("[]")
+        return _literal_dependency_table(tables, name), ""
+    if table is None or not line or line.startswith("#"):
+        return table, pending
+    pending = f"{pending}\n{raw}"
+    return table, _literal_dependency_value(pending, table)
 
 
-def _matched_requirement(match, lane):
-    if not match:
+def _literal_dependency_table(tables, name):
+    if name == "project.optional-dependencies":
+        return tables.setdefault(name, {}), None
+    if name == "project":
+        return tables.setdefault(name, {}), {"dependencies"}
+    if _is_build_table(name):
+        return tables.setdefault(name, {}), {"requires", "build-backend", "path"}
+    return None
+
+
+def _literal_dependency_value(pending, table):
+    values, keys = table
+    key, separator, value = pending.partition("=")
+    if not separator or (keys is not None and key.strip() not in keys):
+        return ""
+    try:
+        values[key.strip()] = ast.literal_eval(value.strip())
+    except (SyntaxError, ValueError):
+        return pending
+    return ""
+
+
+def _build_hooks(root, findings):
+    """Give each configured packaging hook only its isolated build dependencies."""
+    hooks = {}
+    for relative in PYPROJECT_FILES:
+        manifest = root / relative
+        if manifest.is_file():
+            hooks.update(_manifest_build_hooks(manifest, relative, findings))
+    return hooks
+
+
+def _manifest_build_hooks(manifest, relative, findings):
+    tables = _build_tables(manifest)
+    build = tables.pop("build-system", {})
+    if build.get("build-backend") != "hatchling.build":
+        return {}
+    requirements = _project_requirements(build.get("requires", []), "required")
+    lanes = {_norm(name): lane for name, _spec, lane in requirements}
+    hooks = {}
+    for section, config in tables.items():
+        hook = _build_hook_source(manifest, config.get("path", "hatch_build.py"))
+        if hook is None:
+            findings.append(f"{relative}: {section}: hook must be a non-test Python "
+                            "file at the project root or directly under tools/")
+            continue
+        hooks[hook] = lanes
+    return hooks
+
+
+def _build_hook_source(manifest, name):
+    """Do not reclassify tests, package sources, or escaped/symlinked paths."""
+    path = Path(name)
+    if path.parent not in (Path("."), Path("tools")):
         return None
-    return match.group(1), match.group(2).strip(), lane
+    if _test_source_name(path.name):
+        return None
+    target = manifest.parent.resolve() / path
+    return target if _ordinary_build_file(target) else None
+
+
+def _test_source_name(name):
+    return name == "conftest.py" or name.startswith("test_") or name.endswith("_test.py")
+
+
+def _ordinary_build_file(target):
+    return target.resolve() == target and target.is_file() and target.suffix == ".py"
 
 
 def _parse_source(path: Path):
@@ -348,6 +450,10 @@ def _declare_projects(root, lanes, findings):
         for name, spec, lane in _parse_pyproject(path):
             _set_lane(lanes, _norm(name), lane)
             _check_bounds(findings, relative, name, spec)
+        build = _build_tables(path).get("build-system", {})
+        for name, spec, lane in _project_requirements(build.get("requires", []), "dev"):
+            _set_lane(lanes, _norm(name), lane)
+            _check_bounds(findings, f"{relative} [build-system].requires", name, spec)
 
 
 def _parse_all(sources: list[Path]):
@@ -393,11 +499,13 @@ def _classify_import(mod, lineno, guarded, rel, lanes, local, stdlib, surface):
 
 def run(root: Path = ROOT) -> tuple[bool, list[str]]:
     lanes, findings = _declared(root)
+    hooks = _build_hooks(root, findings)
     local = _local_module_names(root)
     stdlib = set(sys.stdlib_module_names)
     surface = {}
     for path in _sources(root):
-        _audit_source(path, root, lanes, local, stdlib, surface, findings)
+        selected_lanes = hooks.get(path.resolve(), lanes)
+        _audit_source(path, root, selected_lanes, local, stdlib, surface, findings)
     return not findings, sorted(set(findings))
 
 

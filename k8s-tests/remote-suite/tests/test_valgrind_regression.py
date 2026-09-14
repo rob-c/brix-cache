@@ -101,9 +101,10 @@ def test_valgrind_harness_committed():
         "tests/valgrind/nginx.conf.in",
         "tests/valgrind/run_valgrind.sh",
         "tests/valgrind/valgrind.supp",
-        "tests/valgrind/README.md",
     ):
         assert (ROOT / f).exists(), f"missing {f}"
+    assert (ROOT.parents[1]
+            / "docs/09-developer-guide/k8s-tests/remote-suite/tests/valgrind/README.md").exists()
     # Suppressions must use native valgrind syntax, never suppress module frames.
     supp = _read("tests/valgrind/valgrind.supp")
     assert "Memcheck:Leak" in supp

@@ -32,6 +32,7 @@ import pytest
 
 from settings import BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
+from brix_suite.nginx_capabilities import nginx_has_symbol
 from _cache_partial_helpers import _session, _read_frame
 
 def _check_test_size_trigger_releases_batch_1(srv):
@@ -50,13 +51,7 @@ kXR_error = 4003
 
 
 def _have_nginx():
-    if not os.path.exists(NGINX_BIN):
-        return False
-    try:
-        syms = subprocess.run(["nm", NGINX_BIN], capture_output=True, text=True)
-        return "brix_baq_enqueue" in syms.stdout
-    except Exception:
-        return True
+    return nginx_has_symbol("brix_baq_enqueue")
 
 
 def _mutate(port, opcode, path):

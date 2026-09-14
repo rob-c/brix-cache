@@ -48,7 +48,7 @@ import generate_directive_reference as generator   # noqa: E402
 pytestmark = [pytest.mark.timeout(120)]
 
 GOLDEN = REPO / "tests" / "golden" / "release20_directive_surface.tsv"
-CHANGELOG = REPO / "CHANGELOG.md"
+CHANGELOG = REPO / "docs/10-reference/CHANGELOG.md"
 QUICK_REFERENCE = DOCS / "03-configuration" / "quick-reference.md"
 TAPE_STAGE_CONF = REPO / "src" / "core" / "config" / "tape_stage_conf.c"
 QUIRKS = DOCS / "10-reference" / "quirks.md"

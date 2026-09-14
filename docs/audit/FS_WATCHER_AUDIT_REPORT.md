@@ -105,8 +105,8 @@ vnode_flags = NOTE_DELETE | NOTE_WRITE | NOTE_EXTEND |
 **Verified Against**:
 - `platform_api.h` lines 387-425 ✅
 - `PAL_FUNCTION_REFERENCE.md` section 5 ✅
-- `MACOS_SUPPORT_FINAL_REPORT.md` lines 43-46 ✅
-- `MACOS_SUPPORT_COMPLETE_SUMMARY.md` lines 50-53 ✅
+- `docs/platform/macos/reports/MACOS_SUPPORT_FINAL_REPORT.md` lines 43-46 ✅
+- `docs/platform/macos/reports/MACOS_SUPPORT_COMPLETE_SUMMARY.md` lines 50-53 ✅
 
 **Issues**: ✅ **NONE - All functions API-compliant**
 ℹ️ Directory watches return `EISDIR` (documented limitation, FSEvents for Phase 4)
@@ -145,7 +145,7 @@ FILE_ACTION_RENAMED_*      → BRIX_FS_EVENT_RENAME
 - `platform_api.h` lines 387-425 ✅
 - `PAL_FUNCTION_REFERENCE.md` section 5 ✅
 - `WINDOWS_PAL_100_PERCENT_COMPLETE.md` lines 114-118 ✅
-- `PLATFORM_EXPANSION_IMPLEMENTATION_STATUS.md` lines 58-62 ✅
+- `docs/platform/reports/PLATFORM_EXPANSION_IMPLEMENTATION_STATUS.md` lines 58-62 ✅
 
 **Issues**:
 1. ⚠️ Function naming inconsistency: `brix_plat_fs_watcher_rm()` vs documentation `brix_plat_fs_watcher_remove()`
@@ -221,7 +221,7 @@ typedef struct {
 | `PAL_FUNCTION_REFERENCE.md` | Linux: O(1) syscall | ✅ `inotify_init1()` is O(1) |
 | `PAL_FUNCTION_REFERENCE.md` | macOS: O(1) syscall | ✅ `kqueue()` is O(1) |
 | `PAL_FUNCTION_REFERENCE.md` | Windows: O(1) allocation | ✅ Linked list init is O(1) |
-| `MACOS_SUPPORT_FINAL_REPORT.md` | "Both efficient" | ✅ Both use kernel event queues |
+| `docs/platform/macos/reports/MACOS_SUPPORT_FINAL_REPORT.md` | "Both efficient" | ✅ Both use kernel event queues |
 
 ### 3.2 Actual Performance Characteristics
 
@@ -243,9 +243,9 @@ typedef struct {
 
 | Source | Limitation | Verified |
 |--------|------------|----------|
-| `MACOS_SUPPORT_FINAL_REPORT.md` line 221 | "FSEvents complexity deferred" | ✅ Uses kqueue instead |
-| `MACOS_SUPPORT_COMPLETE_SUMMARY.md` line 340 | "Directory watches not supported" | ✅ Returns EISDIR |
-| `PLATFORM_EXPANSION_IMPLEMENTATION_STATUS.md` line 91 | "Buffer overflow can lose events" | ✅ Windows 4KB buffer |
+| `docs/platform/macos/reports/MACOS_SUPPORT_FINAL_REPORT.md` line 221 | "FSEvents complexity deferred" | ✅ Uses kqueue instead |
+| `docs/platform/macos/reports/MACOS_SUPPORT_COMPLETE_SUMMARY.md` line 340 | "Directory watches not supported" | ✅ Returns EISDIR |
+| `docs/platform/reports/PLATFORM_EXPANSION_IMPLEMENTATION_STATUS.md` line 91 | "Buffer overflow can lose events" | ✅ Windows 4KB buffer |
 | `PAL_FUNCTION_REFERENCE.md` | No recursive watching | ✅ All platforms require manual recursion |
 
 ### 4.2 Actual Limitations (Code Review)
@@ -322,9 +322,9 @@ int brix_plat_fs_watcher_remove(brix_plat_fs_watcher_t *watcher, const char *pat
 |----------|----------|--------|
 | `platform_api.h` | ✅ 100% | Authoritative source |
 | `PAL_FUNCTION_REFERENCE.md` | ⚠️ 95% | Doesn't note init/create mismatch |
-| `MACOS_SUPPORT_FINAL_REPORT.md` | ⚠️ 90% | Claims "kqueue" but code uses different signature |
+| `docs/platform/macos/reports/MACOS_SUPPORT_FINAL_REPORT.md` | ⚠️ 90% | Claims "kqueue" but code uses different signature |
 | `WINDOWS_PAL_100_PERCENT_COMPLETE.md` | ✅ 98% | Accurately reflects Windows code |
-| `PLATFORM_EXPANSION_IMPLEMENTATION_STATUS.md` | ⚠️ 85% | Claims functions complete but signatures differ |
+| `docs/platform/reports/PLATFORM_EXPANSION_IMPLEMENTATION_STATUS.md` | ⚠️ 85% | Claims functions complete but signatures differ |
 
 ---
 
@@ -394,8 +394,8 @@ int brix_plat_fs_watcher_remove(brix_plat_fs_watcher_t *watcher, const char *pat
 ### 7.3 Documentation Updates
 
 1. Update `PAL_FUNCTION_REFERENCE.md` to note init/create mismatch
-2. Update `MACOS_SUPPORT_FINAL_REPORT.md` with correct function signatures
-3. Update `PLATFORM_EXPANSION_IMPLEMENTATION_STATUS.md` with accurate completion status
+2. Update `docs/platform/macos/reports/MACOS_SUPPORT_FINAL_REPORT.md` with correct function signatures
+3. Update `docs/platform/reports/PLATFORM_EXPANSION_IMPLEMENTATION_STATUS.md` with accurate completion status
 
 ---
 

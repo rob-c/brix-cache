@@ -627,6 +627,23 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/core/types/context.h \
                         $ngx_addon_dir/src/core/types/ctx_structs.h \
                         $ngx_addon_dir/src/core/types/tunables.h \
+                        $ngx_addon_dir/src/core/compat/xattr_path_compat.h \
+                        $ngx_addon_dir/src/protocols/webdav/darwin_config_stub.h \
+                        $ngx_addon_dir/src/core/types/tunables_core.h \
+                        $ngx_addon_dir/src/core/types/tunables_io.h \
+                        $ngx_addon_dir/src/core/types/tunables_storage.h \
+                        $ngx_addon_dir/src/core/types/tunables_network.h \
+                        $ngx_addon_dir/src/core/types/tunables_cluster.h \
+                        $ngx_addon_dir/src/core/types/tunables_config.h \
+                        $ngx_addon_dir/src/core/types/tunables_auth.h \
+                        $ngx_addon_dir/src/core/types/tunables_tpc.h \
+                        $ngx_addon_dir/src/core/types/tunables_root_wire.h \
+                        $ngx_addon_dir/src/core/types/tunables_root_limits.h \
+                        $ngx_addon_dir/src/core/types/tunables_webdav.h \
+                        $ngx_addon_dir/src/core/types/tunables_s3.h \
+                        $ngx_addon_dir/src/core/types/tunables_oci.h \
+                        $ngx_addon_dir/src/core/types/tunables_shared.h \
+                        $ngx_addon_dir/src/core/types/tunables_metrics.h \
                         $ngx_addon_dir/src/core/config/config.h \
                         $ngx_addon_dir/src/protocols/root/handshake/handshake.h \
                         $ngx_addon_dir/src/fs/cache/cache_internal.h \
@@ -757,9 +774,27 @@ $ngx_addon_dir/src/fs/vfs/vfs_deleg.h \
                         $ngx_addon_dir/src/protocols/shared/http_cache_fill_internal.h \
                         $ngx_addon_dir/src/platform/platform.h \
                         $ngx_addon_dir/src/platform/platform_api.h \
+                        $ngx_addon_dir/src/platform/platform_api_info.h \
+                        $ngx_addon_dir/src/platform/platform_api_file.h \
+                        $ngx_addon_dir/src/platform/platform_api_event.h \
+                        $ngx_addon_dir/src/platform/platform_api_security.h \
+                        $ngx_addon_dir/src/platform/platform_api_xattr.h \
+                        $ngx_addon_dir/src/platform/platform_api_process.h \
+                        $ngx_addon_dir/src/platform/platform_api_endian.h \
+                        $ngx_addon_dir/src/platform/platform_api_lifecycle.h \
+                        $ngx_addon_dir/src/platform/platform_api_apple.h \
+                        $ngx_addon_dir/src/platform/platform_api_windows.h \
+                        $ngx_addon_dir/src/platform/windows/path_internal.h \
+                        $ngx_addon_dir/src/platform/windows/xattr_internal.h \
+                        $ngx_addon_dir/src/platform/darwin/cpu_cache.h \
+                        $ngx_addon_dir/src/platform/darwin/sysctl_value.h \
                         $ngx_addon_dir/src/platform/platform_compat.h \
                         $ngx_addon_dir/src/platform/windows/win32_compat.h \
                         $ngx_addon_dir/src/platform/windows/handle_abstraction.h \
+                        $ngx_addon_dir/src/platform/windows/handle_internal.h \
+                        $ngx_addon_dir/src/platform/windows/copy_internal.h \
+                        $ngx_addon_dir/src/platform/windows/process_internal.h \
+                        $ngx_addon_dir/src/platform/windows/fs_watcher_internal.h \
                         $ngx_addon_dir/shared/cvmfs/platform/platform.h \
                         $ngx_addon_dir/src/protocols/root/write/backend_async_root.h \
                         $ngx_addon_dir/src/protocols/root/write/chkpoint.h \
@@ -1003,13 +1038,20 @@ elif [ "$BRIX_PLATFORM_DARWIN" = "1" ]; then
 elif [ "$BRIX_PLATFORM_WINDOWS" = "1" ]; then
     brix_platform_srcs="\
     $ngx_addon_dir/src/platform/windows/handle_abstraction.c \
+    $ngx_addon_dir/src/platform/windows/handle_path.c \
+    $ngx_addon_dir/src/platform/windows/handle_registry.c \
     $ngx_addon_dir/src/platform/windows/posix_wrapper.c \
     $ngx_addon_dir/src/platform/windows/event_wrapper.c \
+    $ngx_addon_dir/src/platform/windows/socket_event.c \
     $ngx_addon_dir/src/platform/windows/fs_watcher.c \
+    $ngx_addon_dir/src/platform/windows/fs_watcher_poll.c \
     $ngx_addon_dir/src/platform/windows/copy_range.c \
+    $ngx_addon_dir/src/platform/windows/copy_fallback.c \
     $ngx_addon_dir/src/platform/windows/security_wrapper.c \
     $ngx_addon_dir/src/platform/windows/process.c \
+    $ngx_addon_dir/src/platform/windows/process_args.c \
     $ngx_addon_dir/src/platform/windows/xattr.c \
+    $ngx_addon_dir/src/platform/windows/xattr_list.c \
     $ngx_addon_dir/src/platform/windows/platform_detect.c \
     "
 fi
@@ -2193,6 +2235,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/s3/module.c \
                  $ngx_addon_dir/src/protocols/s3/handler_object_route.c \
                  $ngx_addon_dir/src/protocols/s3/metrics.c \
                  $ngx_addon_dir/src/protocols/s3/object.c \
+                 $ngx_addon_dir/src/protocols/s3/object_scope.c \
                  $ngx_addon_dir/src/protocols/s3/object_meta.c \
                  $ngx_addon_dir/src/protocols/s3/put.c \
                  $ngx_addon_dir/src/protocols/s3/put_inner.c \
@@ -2336,6 +2379,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/oci/oci_module.c \
                  $ngx_addon_dir/src/protocols/oci/oci_upstream_auth.c \
                  $ngx_addon_dir/src/protocols/oci/oci_token_cache.c \
                  $ngx_addon_dir/src/protocols/oci/oci_delegate.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_delegate_identity.c \
                  $ngx_addon_dir/src/protocols/oci/oci_store.c \
                  $ngx_addon_dir/src/protocols/oci/oci_authz.c \
                  $ngx_addon_dir/src/protocols/oci/oci_upload.c \

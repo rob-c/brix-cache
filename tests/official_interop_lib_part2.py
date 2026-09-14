@@ -22,6 +22,7 @@ import subprocess
 import time
 
 from settings import BIND_HOST, TEST_ROOT
+from stock_xrootd_owner import StockXrootdOwner as _StockServerOwner, _kill_proc
 
 def _phase_chown_stock_1(path, uid, gid):
     if _expression_2(path):
@@ -362,36 +363,11 @@ def start_pair(base=None, rich=True, our_port=None, off_port=None):
     return [harness], ctx
 
 
-def _kill_proc(p):
-    """Terminate p and its whole process group (servers fork children — nginx
-    workers, the stock xrootd's helpers — that survive a bare SIGTERM and would
-    otherwise accumulate across themed files and exhaust the box)."""
-    if not p:
-        return
-    try:
-        pgid = os.getpgid(p.pid)
-    except (ProcessLookupError, OSError):
-        pgid = None
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        try:
-            if pgid is not None:
-                os.killpg(pgid, sig)
-            else:
-                p.send_signal(sig)
-        except (ProcessLookupError, OSError):
-            break
-        try:
-            p.wait(timeout=5)
-            return
-        except subprocess.TimeoutExpired:
-            continue
-
-
 def stop_pair(procs):
     for item in procs:
         close = getattr(item, "close", None)
         if callable(close):
-            item.close()          # in-process LifecycleHarness owns the pair
+            item.close()          # LifecycleHarness or stock process/control owner
         else:
             _kill_proc(item)      # stock-xrootd Popen (start_official_server)
 
@@ -437,21 +413,30 @@ def start_our_server(base, data, port=OUR_PORT):
 
 
 def start_official_server(base, data, port=OFF_PORT):
-    cfg = os.path.join(base, "xrootd.cfg")
-    admin = os.path.join(base, "admin")
-    os.makedirs(admin, exist_ok=True)
-    with open(cfg, "w") as f:
-        f.write(
-            f"xrd.port {port}\n"
-            "all.export /\n"
-            f"oss.localroot {data}\n"
-            f"all.adminpath {admin}\n"
-            f"all.pidpath {admin}\n"
-            "xrootd.async off\n")
-    p = subprocess.Popen([OFF_XROOTD, "-c", cfg, "-l", os.path.join(base, "xrd.log")],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
-    return p if _wait(port) else None
+    """Own the stock process and short Unix control path until stop_pair()."""
+    owner = _StockServerOwner(_kill_proc)
+    try:
+        admin = owner.admin
+        cfg = os.path.join(base, "xrootd.cfg")
+        with open(cfg, "w") as f:
+            f.write(
+                f"xrd.port {port}\n"
+                "all.export /\n"
+                f"oss.localroot {data}\n"
+                f"all.adminpath {admin}\n"
+                f"all.pidpath {admin}\n"
+                "xrootd.async off\n")
+        owner.process = subprocess.Popen(
+            [OFF_XROOTD, "-c", cfg, "-l", os.path.join(base, "xrd.log")],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True)
+        if _wait(port):
+            return owner
+    except BaseException:
+        owner.close()
+        raise
+    owner.close()
+    return None
 
 
 def run(argv, timeout=60):

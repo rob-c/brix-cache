@@ -40,6 +40,9 @@ jobs:
       - name: vfs seam — no new storage-plane bypasses
         if: '!cancelled()'
         run: tools/ci/check_vfs_seam.py
+      - name: pal ownership — public headers and configured common API bodies
+        if: '!cancelled()'
+        run: tools/ci/check_pal_seam.py
       - name: dns seam — one resolver path, no bypasses (phase-116)
         if: '!cancelled()'
         run: tools/ci/check_dns_seam.py

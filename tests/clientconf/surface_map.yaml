@@ -36,6 +36,8 @@ xrdcp:
     infiles:         {status: alias, ours: "--from",  reason: "manifest of sources"}
     parallel:        {status: alias, ours: "-j/--jobs", reason: "concurrent file copies"}
     nopbar:          {status: default, reason: "progress bar is OFF unless --progress"}
+    allow-http:      {status: default, ours: "-A/--allow-http",
+                      reason: "HTTP schemes are enabled by default; compatibility flag leaves TLS policy unchanged"}
     retry-policy:    {status: alias, ours: "--no-retry/--max-stall",
                       reason: "resilience expressed via fail-fast + stall window"}
     sources:         {status: unsupported, reason: "multi-replica source fan-out not modelled"}

@@ -15,6 +15,7 @@
 
 /* Include PAL API */
 #include "../platform_api.h"
+#include "xattr_test_helpers.h"
 
 /* Test counters */
 static int tests_run = 0;
@@ -34,6 +35,16 @@ static int tests_failed = 0;
         } \
     } while(0)
 
+/* Return an owned descriptor after recording the existing setup assertion. */
+static int
+brix_test_open_xattr_fd(const char *path)
+{
+    int fd = open(path, O_RDWR | O_CREAT | O_TRUNC, _S_IREAD | _S_IWRITE);
+
+    TEST_ASSERT(fd >= 0, "Create test file");
+    return fd;
+}
+
 /*
  * Test 1: Basic fsetxattr/fgetxattr roundtrip
  */
@@ -50,8 +61,7 @@ test_fd_xattr_basic(void)
     printf("\n[Test 1: Basic fsetxattr/fgetxattr roundtrip]\n");
     
     /* Create test file */
-    fd = open(test_file, O_RDWR | O_CREAT | O_TRUNC, _S_IREAD | _S_IWRITE);
-    TEST_ASSERT(fd >= 0, "Create test file");
+    fd = brix_test_open_xattr_fd(test_file);
     if (fd < 0) return;
     
     /* Set xattr using fd */
@@ -114,8 +124,7 @@ test_fd_xattr_multiple_attrs(void)
     printf("\n[Test 3: Multiple attributes on same fd]\n");
     
     /* Create test file */
-    fd = open(test_file, O_RDWR | O_CREAT | O_TRUNC, _S_IREAD | _S_IWRITE);
-    TEST_ASSERT(fd >= 0, "Create test file");
+    fd = brix_test_open_xattr_fd(test_file);
     if (fd < 0) return;
     
     /* Set multiple attributes */
@@ -173,8 +182,7 @@ test_fd_xattr_list(void)
     printf("\n[Test 4: flistxattr via fd]\n");
     
     /* Create test file */
-    fd = open(test_file, O_RDWR | O_CREAT | O_TRUNC, _S_IREAD | _S_IWRITE);
-    TEST_ASSERT(fd >= 0, "Create test file");
+    fd = brix_test_open_xattr_fd(test_file);
     if (fd < 0) return;
     
     /* Set some attributes */
@@ -192,9 +200,9 @@ test_fd_xattr_list(void)
     TEST_ASSERT(ret > 0, "flistxattr returns attribute names");
     
     /* Check if attributes are in the list */
-    TEST_ASSERT(memmem(list, ret, "user.attr_a", 11) != NULL, "attr_a in list");
-    TEST_ASSERT(memmem(list, ret, "user.attr_b", 11) != NULL, "attr_b in list");
-    TEST_ASSERT(memmem(list, ret, "user.attr_c", 11) != NULL, "attr_c in list");
+    TEST_ASSERT(brix_test_xattr_list_contains(list, ret, "user.attr_a"), "attr_a in list");
+    TEST_ASSERT(brix_test_xattr_list_contains(list, ret, "user.attr_b"), "attr_b in list");
+    TEST_ASSERT(brix_test_xattr_list_contains(list, ret, "user.attr_c"), "attr_c in list");
     
     /* Cleanup */
     close(fd);
@@ -214,8 +222,7 @@ test_fd_xattr_flags(void)
     printf("\n[Test 5: XATTR_CREATE and XATTR_REPLACE flags]\n");
     
     /* Create test file */
-    fd = open(test_file, O_RDWR | O_CREAT | O_TRUNC, _S_IREAD | _S_IWRITE);
-    TEST_ASSERT(fd >= 0, "Create test file");
+    fd = brix_test_open_xattr_fd(test_file);
     if (fd < 0) return;
     
     /* Set initial attribute */
@@ -260,8 +267,7 @@ test_fd_xattr_large_value(void)
     printf("\n[Test 6: Large attribute values]\n");
     
     /* Create test file */
-    fd = open(test_file, O_RDWR | O_CREAT | O_TRUNC, _S_IREAD | _S_IWRITE);
-    TEST_ASSERT(fd >= 0, "Create test file");
+    fd = brix_test_open_xattr_fd(test_file);
     if (fd < 0) return;
     
     /* Fill with pattern */
@@ -300,8 +306,7 @@ test_fd_xattr_binary_data(void)
     printf("\n[Test 7: Binary data (non-text)]\n");
     
     /* Create test file */
-    fd = open(test_file, O_RDWR | O_CREAT | O_TRUNC, _S_IREAD | _S_IWRITE);
-    TEST_ASSERT(fd >= 0, "Create test file");
+    fd = brix_test_open_xattr_fd(test_file);
     if (fd < 0) return;
     
     /* Set binary attribute */
@@ -328,13 +333,11 @@ test_fd_xattr_different_sources(void)
     const char *test_file = "test_xattr_fd_sources.tmp";
     int fd_file, fd_pipe[2];
     ssize_t ret;
-    char buffer[256];
     
     printf("\n[Test 8: fd from different sources]\n");
     
     /* Test with regular file */
-    fd_file = open(test_file, O_RDWR | O_CREAT | O_TRUNC, _S_IREAD | _S_IWRITE);
-    TEST_ASSERT(fd_file >= 0, "Create test file");
+    fd_file = brix_test_open_xattr_fd(test_file);
     if (fd_file >= 0) {
         ret = brix_plat_fsetxattr(fd_file, "user.file", "file_value", 10, 0);
         TEST_ASSERT(ret == 0, "fsetxattr on file fd");
@@ -342,7 +345,7 @@ test_fd_xattr_different_sources(void)
     }
     
     /* Test with pipe (should fail - pipes don't support ADS) */
-    if (pipe(fd_pipe) == 0) {
+    if (_pipe(fd_pipe, 4096, _O_BINARY) == 0) {
         ret = brix_plat_fsetxattr(fd_pipe[1], "user.pipe", "pipe_value", 10, 0);
         /* This may fail on pipes, which is expected */
         if (ret == -1) {
@@ -373,8 +376,7 @@ test_fd_xattr_buffer_too_small(void)
     printf("\n[Test 9: Error handling - buffer too small]\n");
     
     /* Create test file */
-    fd = open(test_file, O_RDWR | O_CREAT | O_TRUNC, _S_IREAD | _S_IWRITE);
-    TEST_ASSERT(fd >= 0, "Create test file");
+    fd = brix_test_open_xattr_fd(test_file);
     if (fd < 0) return;
     
     /* Set attribute */
@@ -387,7 +389,7 @@ test_fd_xattr_buffer_too_small(void)
     
     /* Get required size */
     ret = brix_plat_fgetxattr(fd, "user.test", NULL, 0);
-    TEST_ASSERT(ret == strlen(value), "fgetxattr with NULL returns required size");
+    TEST_ASSERT(ret == (ssize_t) strlen(value), "fgetxattr with NULL returns required size");
     
     /* Cleanup */
     close(fd);
@@ -407,8 +409,7 @@ test_fd_xattr_name_validation(void)
     printf("\n[Test 10: Attribute name validation]\n");
     
     /* Create test file */
-    fd = open(test_file, O_RDWR | O_CREAT | O_TRUNC, _S_IREAD | _S_IWRITE);
-    TEST_ASSERT(fd >= 0, "Create test file");
+    fd = brix_test_open_xattr_fd(test_file);
     if (fd < 0) return;
     
     /* Test invalid names */
@@ -434,7 +435,7 @@ test_fd_xattr_name_validation(void)
 }
 
 int
-main(int argc, char *argv[])
+main(void)
 {
     printf("============================================================\n");
     printf("Windows fd-based xattr Test Suite\n");

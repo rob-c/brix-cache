@@ -92,22 +92,28 @@ def test_lab_cli_dispatches_gridftp_scenario():
 
 # --- optional end-to-end render: modules load before the stream block --------
 
-# `helm dependency build` vendors subcharts over the network — it can exceed the
-# fast-lane 30s pytest-timeout, whose signal crashes the whole file (INTERNALERROR)
-# and takes the offline guards down with it. Give this one render test its own
-# budget so a slow vendor fetch degrades to a slow pass, not a suite crash.
+# Rebuild the local file:// dependencies in a temporary sibling layout so a
+# render check cannot rewrite the checkout's lock files or packaged subcharts.
+def _copy_gridftp_chart(tmp_path):
+    charts = tmp_path / "charts"
+    for name in ("brix-common", "topology-role", "gridftp-interop"):
+        shutil.copytree(K8S / "charts" / name, charts / name)
+    return charts / GRIDFTP_CHART.name
+
+
 @pytest.mark.timeout(180)
 @pytest.mark.skipif(shutil.which("helm") is None, reason="helm not installed")
-def test_helm_render_puts_module_include_before_stream_block():
-    # Vendor deps then render; the include must appear before `stream {` so the
-    # brix stream directives are known by the time nginx parses the block.
-    subprocess.run(["helm", "dependency", "build", str(GRIDFTP_CHART)],
-                   capture_output=True, check=False)
+def test_helm_render_puts_module_include_before_stream_block(tmp_path):
+    chart = _copy_gridftp_chart(tmp_path)
+    dependencies = subprocess.run(
+        ["helm", "dependency", "build", str(chart)],
+        capture_output=True, text=True, check=False)
+    assert dependencies.returncode == 0, (
+        f"helm dependency build failed: {dependencies.stderr.strip()}")
     out = subprocess.run(
-        ["helm", "template", "gf", str(GRIDFTP_CHART)],
+        ["helm", "template", "gf", str(chart)],
         capture_output=True, text=True)
-    if out.returncode != 0:
-        pytest.skip(f"helm template unavailable: {out.stderr.strip()[:200]}")
+    assert out.returncode == 0, f"helm template failed: {out.stderr.strip()}"
     rendered = out.stdout
     inc = rendered.find("include /usr/share/nginx/modules/*.conf;")
     stream = rendered.find("stream {")

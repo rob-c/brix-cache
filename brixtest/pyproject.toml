@@ -53,10 +53,11 @@ dev = [
     "complexipy>=6,<8",
     "tox>=4.15,<5",
     "build>=1,<2",
+    "hatchling>=1.25,<2",
 ]
 
 [project.urls]
-Documentation = "https://github.com/rob-c/brix-cache/tree/main/brixtest/docs"
+Documentation = "https://github.com/rob-c/brix-cache/tree/main/docs/09-developer-guide/brixtest"
 Issues = "https://github.com/rob-c/brix-cache/issues"
 Source = "https://github.com/rob-c/brix-cache/tree/main/brixtest"
 
@@ -68,6 +69,9 @@ brixtest = "brixtest.pytest_plugin"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/brixtest"]
+
+[tool.hatch.build.targets.sdist.hooks.custom]
+path = "hatch_build.py"
 
 [tool.pytest.ini_options]
 addopts = "-ra"

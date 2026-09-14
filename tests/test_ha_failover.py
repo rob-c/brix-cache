@@ -42,7 +42,6 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
-import signal
 import socket
 import struct
 import subprocess
@@ -59,17 +58,13 @@ from settings import (
     HA_NGINX1_PORT,
     HA_NGINX2_PORT,
     SERVER_HOST,
-    TEST_ROOT,
     XRDCP_BIN,
     XRDFS_BIN,
 )
-from server_launcher import launch_fleet_nginx
+from brix_suite.launcher import RegistryLauncher
 
-# The HA group is a standing fleet (haproxy + two fixed-port nginx, brought up by
-# `cmdscripts/manage_test_servers.py start-ha`), not a per-test harness; the only nginx the
-# test starts itself is the restart of the member it kills, routed through the
-# registry's fleet-relaunch seam.  The marker keeps this out of the direct-launch
-# lint scope.
+# The HA group is a standing registry fleet. Failover stops and restarts the
+# named member through its owner so the master, workers and prefix stay paired.
 pytestmark = [pytest.mark.e2e, pytest.mark.uses_lifecycle_harness]
 
 
@@ -260,21 +255,6 @@ class TestHAFailover:
     client can resume via Nginx-2."
     """
 
-    def _get_nginx1_pid(self) -> int | None:
-        """Return the PID of the nginx master process on HA_NGINX1_PORT."""
-        try:
-            r = subprocess.run(
-                ["ss", "-tlnp", f"sport = :{HA_NGINX1_PORT}"],
-                capture_output=True, text=True, timeout=5,
-            )
-            for line in r.stdout.splitlines():
-                if "pid=" in line:
-                    pid_part = [p for p in line.split(",") if "pid=" in p][0]
-                    return int(pid_part.split("pid=")[1].split(",")[0].rstrip(")"))
-        except Exception:
-            pass
-        return None
-
     @pytest.mark.registry_servers("ha-haproxy", "ha-nginx1", "ha-nginx2")
     def test_new_connections_handled_after_nginx1_stop(self, ha_cluster, tmp_path):
         """After nginx-1 stops, new connections through HAProxy still succeed.
@@ -293,12 +273,9 @@ class TestHAFailover:
             f"{ha_cluster['haproxy_url']}{name}", dst0
         ).returncode == 0, "Baseline HA read failed before failover test"
 
-        pid1 = self._get_nginx1_pid()
-        if pid1 is None:
-            pytest.skip("Could not determine nginx-1 PID — skipping stop test")
-
+        launcher = RegistryLauncher()
         try:
-            os.kill(pid1, signal.SIGTERM)
+            launcher.stop("ha-nginx1")
             time.sleep(0.5)  # allow haproxy to detect the down backend
 
             # New connections through HAProxy must still succeed via nginx-2.
@@ -315,8 +292,6 @@ class TestHAFailover:
                     "Content mismatch after HA failover"
                 )
         finally:
-            # Restart nginx-1 (the fleet member this test killed) so subsequent
-            # tests are not affected — through the registry's standing-fleet
-            # relaunch seam, into the member's own fixed prefix tree.
-            nginx_prefix = os.path.join(TEST_ROOT, "dedicated", "ha-nginx1")
-            launch_fleet_nginx("conf/nginx.conf", prefix=nginx_prefix)
+            # Resolve the registered member's actual prefix and config again.
+            # HA members use the registry tree, not the dedicated export tree.
+            launcher.restart("ha-nginx1")

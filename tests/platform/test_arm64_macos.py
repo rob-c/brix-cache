@@ -30,6 +30,9 @@ Usage:
     pytest tests/platform/test_arm64_macos.py -m "accelerate" -v
 """
 
+from pal_arm_macos_helpers import (report_chip_generation, report_processor_fallback,
+    report_core_configuration, report_clone_failure, is_prime, report_prime_performance)
+
 import pytest
 import os
 import sys
@@ -41,6 +44,9 @@ from pathlib import Path
 # Platform detection
 IS_MACOS = sys.platform == 'darwin'
 IS_ARM64 = (platform.machine() == 'arm64' if IS_MACOS else False)
+
+
+pytestmark = pytest.mark.skipif(not (IS_MACOS and IS_ARM64), reason="Requires ARM64 macOS")
 
 
 # =============================================================================
@@ -75,32 +81,10 @@ class TestAppleSiliconDetection:
                 chip_name = result.stdout.strip()
                 print(f"\nChip: {chip_name}")
                 
-                # Detect chip generation
-                if 'M3' in chip_name:
-                    print("  -> M3 generation")
-                    pytest.mark.m3
-                elif 'M2' in chip_name:
-                    print("  -> M2 generation")
-                    pytest.mark.m2
-                elif 'M1' in chip_name:
-                    print("  -> M1 generation")
-                    pytest.mark.m1
-                else:
-                    print("  -> Apple Silicon (generation unknown)")
+                report_chip_generation(chip_name)
                     
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            # Fallback: check processor name
-            try:
-                result = subprocess.run(
-                    ['sysctl', '-n', 'machdep.cpu.name'],
-                    capture_output=True, text=True, timeout=5
-                )
-                
-                if result.returncode == 0:
-                    print(f"\nProcessor: {result.stdout.strip()}")
-                    
-            except:
-                print("\nCould not detect chip details")
+            report_processor_fallback()
     
     @pytest.mark.arm64
     @pytest.mark.arm64_macos
@@ -132,17 +116,7 @@ class TestAppleSiliconDetection:
                 print(f"  Efficiency cores (Icestorm): {eff_cores}")
                 print(f"  Total cores: {total_cores}")
                 
-                # Typical configurations:
-                # M1: 4 perf + 4 eff = 8 cores
-                # M1 Pro: 6/2 or 8/2 = 8/10 cores
-                # M1 Max: 8/2 = 10 cores
-                # M2: 4/4 = 8 cores
-                # M2 Pro: 6/4 or 8/4 = 10/12 cores
-                
-                if perf_cores == 4 and eff_cores == 4:
-                    print("  -> Standard 4+4 configuration (M1/M2 base)")
-                elif perf_cores == 8 and eff_cores == 2:
-                    print("  -> 8+2 configuration (M1 Pro/Max)")
+                report_core_configuration(perf_cores, eff_cores)
                     
         except (subprocess.TimeoutExpired, FileNotFoundError):
             print("\nCould not detect CPU topology")
@@ -383,13 +357,7 @@ class TestAPFSClonefile:
                 print(f"  -> Zero-copy clone (APFS feature)")
                 
             else:
-                errno = ctypes.get_errno()
-                print(f"\n⚠ clonefile failed with errno {errno}")
-                
-                if errno == 1:  # EPERM
-                    print("  -> Not on APFS volume")
-                elif errno == 45:  # ENOTSUP
-                    print("  -> clonefile not supported")
+                report_clone_failure()
                     
         finally:
             # Cleanup
@@ -607,14 +575,7 @@ class TestPerformanceComparison:
         
         import time
         
-        # Prime number calculation (CPU-bound)
-        def is_prime(n):
-            if n < 2:
-                return False
-            for i in range(2, int(n**0.5) + 1):
-                if n % i == 0:
-                    return False
-            return True
+
         
         start = time.time()
         primes = [n for n in range(100000) if is_prime(n)]
@@ -625,13 +586,7 @@ class TestPerformanceComparison:
         print(f"  Time: {elapsed:.3f}s")
         print(f"  Range: 0-100,000")
         
-        # Apple Silicon Firestorm cores have excellent single-thread perf
-        if elapsed < 1.0:
-            print("  ✓ Excellent single-thread performance")
-        elif elapsed < 2.0:
-            print("  ⚠ Good single-thread performance")
-        else:
-            print("  ✗ Moderate single-thread performance")
+        report_prime_performance(elapsed)
 
 
 # =============================================================================

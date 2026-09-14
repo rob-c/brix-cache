@@ -367,17 +367,6 @@ http {
             # brix_cvmfs_origin_coords cvmfs-stratum-one.cern.ch 46.23:6.05;
             # brix_cvmfs_origin_coords cvmfs-s1fnal.opensciencegrid.org 41.85:-88.31;
 
-            # --- non-default: eviction watermarks.  Wired on the root:// stream read
-            #     cache (they seed the watermark LRU reaper); on THIS cvmfs plane they
-            #     are still parsed/validated only — cvmfs eviction is bounded by
-            #     brix_cache_max_object plus DELETE/overwrite. ---
-            # Defaults are evict_at=90 evict_to=80 (percent of volume).
-            # ⚠️ DEPRECATED (phase-115): Use brix_cache_high_watermark / brix_cache_low_watermark instead
-            # brix_cache_evict_at 85;       # REMOVED - was: 90
-            # brix_cache_evict_to 70;       # REMOVED - was: 80
-            brix_cache_high_watermark 85;   # NEW: Eviction trigger (percent)
-            brix_cache_low_watermark 70;    # NEW: Eviction target (percent)
-
             # Quarantine directory for CAS verify failures (evidence, not cache)
             brix_cvmfs_quarantine_dir /srv/cvmfs-quarantine;
 

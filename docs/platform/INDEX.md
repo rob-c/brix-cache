@@ -133,7 +133,7 @@ pytest -v  # Runs all tests for current platform
 ### Documentation
 - **[PLATFORM_EXPANSION_PLAN.md - ARM64 Linux Section](PLATFORM_EXPANSION_PLAN.md#2-arm64-linux-support)** - Complete roadmap
 - **[test_arm64_linux.py](../../tests/platform/test_arm64_linux.py)** - Test implementation
-- **[tests/platform/README.md](../../tests/platform/README.md)** - Test execution guide
+- **[docs/platform/testing/README.md](testing/README.md)** - Test execution guide
 
 ### Optimizations
 - ✅ CRC32C hardware acceleration (ARMv8-A CRC extension)
@@ -172,7 +172,7 @@ cat /proc/cpuinfo | grep Features
 ### Documentation
 - **[PLATFORM_EXPANSION_PLAN.md - ARM64 macOS Section](PLATFORM_EXPANSION_PLAN.md#3-arm64-macos-apple-silicon-support)** - Optimization plan
 - **[test_arm64_macos.py](../../tests/platform/test_arm64_macos.py)** - Test implementation
-- **[tests/platform/README.md](../../tests/platform/README.md)** - Test execution guide
+- **[docs/platform/testing/README.md](testing/README.md)** - Test execution guide
 - **[macOS Quickstart](../01-getting-started/macos-quickstart.md)** - Installation guide
 
 ### Optimizations
@@ -259,7 +259,7 @@ echo %PROCESSOR_ARCHITECTURE%
 ## Architecture & Design
 
 ### Core Documentation
-- **[src/platform/ARCHITECTURE.md](../../src/platform/ARCHITECTURE.md)** - PAL architecture and design
+- **[docs/platform/pal/ARCHITECTURE.md](pal/ARCHITECTURE.md)** - PAL architecture and design
 - **[src/platform/platform_api.h](../../src/platform/platform_api.h)** - Complete PAL API reference
 - **[src/platform/README.md](../../src/platform/README.md)** - Usage guide
 
@@ -290,7 +290,7 @@ echo %PROCESSOR_ARCHITECTURE%
 4. Document platform-specific limitations
 5. Add tests to `tests/platform/`
 
-See **[src/platform/ARCHITECTURE.md](../../src/platform/ARCHITECTURE.md)** for detailed guidelines.
+See **[docs/platform/pal/ARCHITECTURE.md](pal/ARCHITECTURE.md)** for detailed guidelines.
 
 ### Platform-Specific Optimizations
 
@@ -312,7 +312,7 @@ See **[src/platform/ARCHITECTURE.md](../../src/platform/ARCHITECTURE.md)** for d
 
 ### Test Execution Guide
 
-See **[tests/platform/README.md](../../tests/platform/README.md)** for:
+See **[docs/platform/testing/README.md](testing/README.md)** for:
 - How to run tests
 - How to interpret results
 - Troubleshooting guide
@@ -352,8 +352,8 @@ See **[tests/platform/README.md](../../tests/platform/README.md)** for:
 
 For quick overviews:
 
-1. **[PLATFORM_IMPLEMENTATION_SUMMARY.md](../../PLATFORM_IMPLEMENTATION_SUMMARY.md)** - Complete implementation status
-2. **[PLATFORM_EXPANSION_SUMMARY.md](../../PLATFORM_EXPANSION_SUMMARY.md)** - Executive summary
+1. **[PLATFORM_IMPLEMENTATION_SUMMARY.md](reports/PLATFORM_IMPLEMENTATION_SUMMARY.md)** - Complete implementation status
+2. **[PLATFORM_EXPANSION_SUMMARY.md](reports/PLATFORM_EXPANSION_SUMMARY.md)** - Executive summary
 3. **[PLATFORM_EXPANSION_PLAN.md](PLATFORM_EXPANSION_PLAN.md)** - Detailed roadmap
 
 ---
@@ -362,7 +362,7 @@ For quick overviews:
 
 When adding platform support:
 
-1. Follow the PAL architecture from `src/platform/ARCHITECTURE.md`
+1. Follow the PAL architecture from `docs/platform/pal/ARCHITECTURE.md`
 2. Implement all API functions from `platform_api.h`
 3. Add comprehensive tests to `tests/platform/`
 4. Document platform-specific limitations

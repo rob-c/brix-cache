@@ -399,10 +399,10 @@ http {
     tcp_nopush on;
     tcp_nodelay on;
     
-    # Cache tuning (APFS is fast)
-    brix_cache_path /var/cache/nginx levels=1:2 \
-        keys_zone=brix:512m \
-        max_size=50g \
+    # nginx HTTP proxy cache; BriX storage uses brix_cache_store per endpoint
+    proxy_cache_path /var/cache/nginx levels=1:2
+        keys_zone=brix:512m
+        max_size=50g
         inactive=60m;
     
     # Connection tuning
@@ -801,7 +801,7 @@ arch -x86_64 /usr/local/nginx/sbin/nginx -v
 - [M3 Chip Specifications](https://www.apple.com/mac/m3/)
 - [Accelerate Framework](https://developer.apple.com/documentation/accelerate)
 - [APFS clonefile](https://www.manpagez.com/man/2/clonefile/)
-- [BriX-Cache PAL Architecture](../../src/platform/ARCHITECTURE.md)
+- [BriX-Cache PAL Architecture](pal/ARCHITECTURE.md)
 - [BriX-Cache macOS Support](../refactor/macos-support-v3.0.md)
 
 ---

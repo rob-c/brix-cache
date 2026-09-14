@@ -303,7 +303,10 @@ def test_api_cli_can_focus_on_a_group_or_exact_symbol():
 
 
 def test_reference_table_covers_every_public_name_exactly_once():
-    reference = Path(__file__).resolve().parents[1] / "docs" / "api-reference.md"
+    project = Path(__file__).resolve().parents[1]
+    reference = project.parent / "docs/09-developer-guide/brixtest/api-reference.md"
+    if not reference.is_file():
+        reference = project / "docs/api-reference.md"
     text = reference.read_text().partition("<!-- PUBLIC-API:START -->")[2].partition(
         "<!-- PUBLIC-API:END -->"
     )[0]

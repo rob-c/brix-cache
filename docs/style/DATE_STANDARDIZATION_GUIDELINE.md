@@ -269,8 +269,8 @@ Starting Phase 6:
 ## References
 
 - [ISO 8601 Standard](https://www.iso.org/iso-8601-date-and-time-format.html)
-- [Markdown Best Practices](../09-developer-guide/markdown-style-guide.md)
-- [Documentation Guidelines](./DOCUMENTATION_GUIDELINES.md)
+- [Contribution Guidelines](../09-developer-guide/contributing.md)
+- [Documentation Index](../index.md)
 
 ---
 

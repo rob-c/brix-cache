@@ -249,9 +249,8 @@ spawn_broker_ex(const char *sockpath, int rootfd, const char *default_user,
     if (lfd < 0) {
         return -1;
     }
-    /* Set the broker-user globals BEFORE fork so the broker inherits them. */
-    brix_imp_broker_user_uid = broker_uid;
-    brix_imp_broker_user_gid = broker_gid;
+    /* Set the broker identity BEFORE fork so the broker inherits it. */
+    brix_imp_set_broker_user(broker_uid, broker_gid);
 
     pid = fork();
     if (pid < 0) {

@@ -1,0 +1,10 @@
+# CVMFS manifests require RSA-PKCS1-SHA1. Use only for the fixture signing
+# subprocess: never export this configuration to nginx or the test session.
+# Red Hat's OpenSSL policy extension otherwise rejects SHA-1 signatures.
+openssl_conf = fixture_init
+
+[fixture_init]
+alg_section = fixture_algorithms
+
+[fixture_algorithms]
+rh-allow-sha1-signatures = yes

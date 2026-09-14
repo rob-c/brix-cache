@@ -136,6 +136,13 @@ def _raise_command_failure(result, binary, args, spec, namespace):
 
 
 def nginx(args, spec, env, check, namespace):
+    if spec is not None and "-e" not in args:
+        endpoint = namespace["endpoint_for"](spec)
+        bootstrap_log = Path(endpoint.prefix, "logs", "error.log")
+        bootstrap_log.parent.mkdir(parents=True, exist_ok=True)
+        # Config-merge notices precede activation of the error_log directive.
+        # Packaged nginx otherwise sends them to its compiled-in system path.
+        args = [*args, "-e", str(bootstrap_log)]
     binary = namespace["_nginx_bin"]()
     result = subprocess.run(
         [binary, *args],

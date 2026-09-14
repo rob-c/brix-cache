@@ -49,6 +49,8 @@ Contract citations
 
 import hashlib
 import os
+import re
+import subprocess
 import sys
 
 import pytest
@@ -388,6 +390,21 @@ def test_reject_line_uri_field_is_exact(srv):
 # --------------------------------------------------------------------------- #
 # Method matrix — GET/HEAD serve, everything else never reaches storage
 # --------------------------------------------------------------------------- #
+@pytest.fixture(scope="module")
+def core_rejects_connect():
+    """nginx 1.21.1 added the core CONNECT refusal; older cores reach BriX."""
+    result = subprocess.run([NGINX_BIN, "-v"], capture_output=True,
+                            text=True, check=True, timeout=10)
+    version = re.search(r"nginx/(\d+)\.(\d+)\.(\d+)", result.stderr)
+    assert version, f"Cannot determine nginx CONNECT behavior: {result.stderr}"
+    return tuple(map(int, version.groups())) >= (1, 21, 1)
+
+
+def _method_gate_expected(method, default, core_rejects_connect):
+    """Pre-1.21.1 nginx passes CONNECT through to the module's method gate."""
+    return default or (method == "CONNECT" and not core_rejects_connect)
+
+
 @pytest.mark.parametrize("method,gated", [
     # gated=True: the request reaches the cvmfs gate, which 405s with its
     # WARN line; gated=False: nginx core refuses the method during request
@@ -396,7 +413,9 @@ def test_reject_line_uri_field_is_exact(srv):
     ("PROPFIND", True), ("MKCOL", True), ("PATCH", True), ("FROBNICATE", True),
     ("TRACE", False), ("CONNECT", False),
 ])
-def test_method_rejected_never_reaches_storage(srv, method, gated):
+def test_method_rejected_never_reaches_storage(srv, method, gated,
+                                             core_rejects_connect):
+    gated = _method_gate_expected(method, gated, core_rejects_connect)
     path = _cas_unique(f"method-{method}")
     status, rej, _, _ = _probe(srv, method, path)
     assert status == 405

@@ -20,6 +20,7 @@ Skips cleanly when the GSI toolchain (stock xrootd / openssl / xrdgsiproxy) or t
 built binaries are absent. The baseline (current code) must PASS — this is the
 regression gate for migrating tpc_outbound_gsi onto the shared gsi_core kernel.
 """
+from contextlib import closing
 import os
 import shutil
 import socket
@@ -30,6 +31,7 @@ from pathlib import Path
 import pytest
 
 from server_registry import NginxInstanceSpec
+from stock_xrootd_owner import StockXrootdOwner
 from ephemeral_port import free_port
 from settings import HOST
 
@@ -75,17 +77,18 @@ def gsi_tpc(lifecycle, tmp_path_factory):
     penv = _make_gsi_proxies(paths)
     paths["srcdata"].joinpath("hello.txt").write_text("hello-tpc-gsi\n")
     src_port = free_port()
-    config = _write_gsi_source_config(base, paths, src_port)
-    src = _start_gsi_source(base, paths, config, src_port)
-    dst = _start_gsi_destination(lifecycle, paths, src)
-    ctx = {"fqdn": fqdn, "src_port": src_port, "dst_port": dst.port,
-           "env": penv, "certs": str(paths["certs"]), "base": str(base),
-           "dst_data": str(paths["dstdata"]),
-           "logs": os.path.join(dst.prefix, "logs"),
-           "src_url": f"root://{HOST}:{src_port}",
-           "dst_url": f"root://{HOST}:{dst.port}"}
-    yield ctx
-    _stop_gsi_source(src)
+    with closing(StockXrootdOwner()) as owner:
+        paths["admin"] = Path(owner.admin)
+        config = _write_gsi_source_config(base, paths, src_port)
+        src = _start_gsi_source(base, paths, config, src_port, owner)
+        dst = _start_gsi_destination(lifecycle, paths, src)
+        ctx = {"fqdn": fqdn, "src_port": src_port, "dst_port": dst.port,
+               "env": penv, "certs": str(paths["certs"]), "base": str(base),
+               "dst_data": str(paths["dstdata"]),
+               "logs": os.path.join(dst.prefix, "logs"),
+               "src_url": f"root://{HOST}:{src_port}",
+               "dst_url": f"root://{HOST}:{dst.port}"}
+        yield ctx
 
 
 def _require_gsi_tools():
@@ -168,20 +171,20 @@ def _write_gsi_source_config(base, paths, port):
         f"-cert:{server / 'hostcert.pem'} -key:{server / 'hostkey.pem'} "
         "-crl:0 -gmapopt:10 -dlgpxy:0\nsec.protbind * only gsi\n"
         "ofs.tpc ttl 300 300 pgm /usr/bin/xrdcp\n"
-        f"all.adminpath {base / 'admin'}\nall.pidpath {base / 'admin'}\n")
+        f"all.adminpath {paths['admin']}\nall.pidpath {paths['admin']}\n")
     shutil.move(str(paths["srcdata"]), str(base / "gsidata"))
     return config
 
 
-def _start_gsi_source(base, paths, config, port):
+def _start_gsi_source(base, paths, config, port, owner):
     _free_port(port)
     argv = ["xrootd", "-c", str(config), "-l", str(paths["logs"] / "xrd.log"),
             "-n", "tpcgsisrc"]
     argv = _gsi_source_argv(base, paths, argv)
     source = subprocess.Popen(argv, stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL)
+                              stderr=subprocess.DEVNULL, start_new_session=True)
+    owner.process = source
     if not _wait_listen(port):
-        source.terminate()
         pytest.skip("stock xrootd GSI source did not come up")
     return source
 
@@ -190,11 +193,10 @@ def _gsi_source_argv(base, paths, argv):
     if os.geteuid() != 0:
         return argv
     runas = os.environ.get("REF_RUNAS_USER", "nobody")
-    admin = base / "admin"
-    admin.mkdir(parents=True, exist_ok=True)
+    shutil.chown(paths["admin"], runas)
     _run(["chmod", "a+rx", str(base)])
     _chmod_gsi_trees((base / "gsidata", paths["certs"]), "a+rX")
-    _chmod_gsi_trees((admin, paths["logs"]), "a+rwX")
+    _chmod_gsi_trees((paths["logs"],), "a+rwX")
     _prepare_gsi_server_files(paths["server"], runas)
     _open_parent_chain(base.parent)
     _handoff_destination_proxy(paths["server"] / "destproxy.pem", runas)
@@ -231,26 +233,16 @@ def _handoff_destination_proxy(proxy, runas):
 
 def _start_gsi_destination(lifecycle, paths, source):
     server = paths["server"]
-    try:
-        return lifecycle.start(NginxInstanceSpec(
-            name="lc-tpc-gsi-outbound-dest",
-            template="nginx_tpc_gsi_outbound_dest.conf", protocol="root",
-            readiness="tcp", data_root=str(paths["dstdata"]),
-            template_values={"CERT_FILE": str(server / "destproxy.pem"),
-                             "KEY_FILE": str(server / "destproxy.pem"),
-                             "CA_DIR": str(paths["certs"])},
-            reason="TPC outbound-GSI dest; auths to stock GSI source with its proxy."))
-    except Exception:
-        source.terminate()
-        raise
+    return lifecycle.start(NginxInstanceSpec(
+        name="lc-tpc-gsi-outbound-dest",
+        template="nginx_tpc_gsi_outbound_dest.conf", protocol="root",
+        readiness="tcp", data_root=str(paths["dstdata"]),
+        template_values={"CERT_FILE": str(server / "destproxy.pem"),
+                         "KEY_FILE": str(server / "destproxy.pem"),
+                         "CA_DIR": str(paths["certs"])},
+        reason="TPC outbound-GSI dest; auths to stock GSI source with its proxy."))
 
 
-def _stop_gsi_source(source):
-    source.terminate()
-    try:
-        source.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        source.kill()
 
 
 def test_tpc_pull_over_gsi(gsi_tpc):

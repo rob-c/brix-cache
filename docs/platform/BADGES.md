@@ -18,19 +18,19 @@
 ### Platform Support Badges
 
 ```markdown
-[![Linux x86_64](https://img.shields.io/badge/Linux-x86_64-2ea44f)](docs/platform/PLATFORM_SUPPORT_MATRIX.md)
-[![Linux ARM64](https://img.shields.io/badge/Linux-ARM64-2ea44f)](docs/platform/PLATFORM_SUPPORT_MATRIX.md)
-[![macOS Intel](https://img.shields.io/badge/macOS-Intel-2ea44f)](docs/platform/PLATFORM_SUPPORT_MATRIX.md)
-[![macOS ARM64](https://img.shields.io/badge/macOS-ARM64-2ea44f)](docs/platform/PLATFORM_SUPPORT_MATRIX.md)
-[![Windows](https://img.shields.io/badge/Windows-x86_64-2ea44f)](docs/platform/PLATFORM_SUPPORT_MATRIX.md)
+[![Linux x86_64](https://img.shields.io/badge/Linux-x86_64-2ea44f)](PLATFORM_SUPPORT_MATRIX.md)
+[![Linux ARM64](https://img.shields.io/badge/Linux-ARM64-2ea44f)](PLATFORM_SUPPORT_MATRIX.md)
+[![macOS Intel](https://img.shields.io/badge/macOS-Intel-2ea44f)](PLATFORM_SUPPORT_MATRIX.md)
+[![macOS ARM64](https://img.shields.io/badge/macOS-ARM64-2ea44f)](PLATFORM_SUPPORT_MATRIX.md)
+[![Windows](https://img.shields.io/badge/Windows-x86_64-2ea44f)](PLATFORM_SUPPORT_MATRIX.md)
 ```
 
 ### Technology Badges
 
 ```markdown
-[![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](../../LICENSE)
 [![nginx 1.28.x](https://img.shields.io/badge/nginx-1.28.x-009639?logo=nginx&logoColor=white)](https://nginx.org)
-[![XRootD protocol 5.2](https://img.shields.io/badge/XRootD_protocol-5.2-8a2be2)](docs/05-operations/operation-status.md)
+[![XRootD protocol 5.2](https://img.shields.io/badge/XRootD_protocol-5.2-8a2be2)](../05-operations/operation-status.md)
 ```
 
 ---
@@ -52,7 +52,7 @@
 After achieving 100% Windows PAL completion, add:
 
 ```markdown
-[![Windows PAL 100%](https://img.shields.io/badge/Windows%20PAL-100%25-2ea44f)](src/platform/windows/WINDOWS_PAL_100_PERCENT_COMPLETE.md)
+[![Windows PAL 100%](https://img.shields.io/badge/Windows%20PAL-100%25-2ea44f)](pal/windows/WINDOWS_PAL_100_PERCENT_COMPLETE.md)
 ```
 
 ---
@@ -109,17 +109,17 @@ Include relevant badges in:
 
 ### Production Ready (Green)
 ```markdown
-[![Linux x86_64](https://img.shields.io/badge/Linux-x86_64-2ea44f)](docs/platform/PLATFORM_SUPPORT_MATRIX.md)
+[![Linux x86_64](https://img.shields.io/badge/Linux-x86_64-2ea44f)](PLATFORM_SUPPORT_MATRIX.md)
 ```
 
 ### Development Ready (Green - 100% PAL Complete)
 ```markdown
-[![Windows](https://img.shields.io/badge/Windows-100%25-2ea44f)](docs/platform/PLATFORM_SUPPORT_MATRIX.md)
+[![Windows](https://img.shields.io/badge/Windows-100%25-2ea44f)](PLATFORM_SUPPORT_MATRIX.md)
 ```
 
 ### Planned (Blue)
 ```markdown
-[![Windows ARM64](https://img.shields.io/badge/Windows%20ARM64-Planned-007ec6)](docs/platform/PLATFORM_EXPANSION_PLAN.md)
+[![Windows ARM64](https://img.shields.io/badge/Windows%20ARM64-Planned-007ec6)](PLATFORM_EXPANSION_PLAN.md)
 ```
 
 ---

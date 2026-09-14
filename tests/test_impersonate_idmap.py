@@ -1,9 +1,10 @@
 """test_impersonate_idmap.py — unit tests for the phase-40 idmap layer.
 
-Compiles tests/c/idmap_test.c against src/auth/impersonate/idmap.c (using the nginx
-source tree for headers) and runs it.  The C test exercises grid-mapfile +
-getpwnam + the squash/deny/min_uid/reserved-uid policy + the TTL cache against
-the host's real NSS (its own user).  Pure logic — needs no nginx server, no root.
+Compiles tests/c/idmap_test.c against the split idmap implementation and its
+policy state (using the nginx source tree for headers) and runs it. The C test
+exercises grid-mapfile + getpwnam + the squash/deny/min_uid/reserved-uid policy +
+the TTL cache against the host's real NSS (its own user). Pure logic — needs no
+nginx server, no root.
 
 Skips cleanly when a C compiler or the nginx source tree is unavailable.
 """
@@ -46,7 +47,7 @@ def _inc_flags():
 
 
 @pytest.mark.timeout(60)
-def test_idmap_unit():
+def test_idmap_unit(tmp_path):
     _guard_test_idmap_unit_1()
     _guard_test_idmap_unit_2()
 
@@ -74,11 +75,15 @@ def test_idmap_unit():
             "run as a clean user (uid>=1000, no privileged groups) to exercise them")
 
     test_c = os.path.join(REPO, "tests/c/idmap_test.c")
-    idmap_c = os.path.join(REPO, "src/auth/impersonate/idmap.c")
-    out_bin = os.path.join(os.environ["TMPDIR"], "idmap_unit_test.bin")
+    imp = os.path.join(REPO, "src/auth/impersonate")
+    out_bin = str(tmp_path / "idmap_unit_test.bin")
 
     cmd = [CC, "-O2", "-D_GNU_SOURCE", *_inc_flags(),
-           "-o", out_bin, test_c, idmap_c]
+           "-o", out_bin, test_c,
+           os.path.join(imp, "impersonate_state.c"),
+           os.path.join(imp, "idmap.c"),
+           os.path.join(imp, "idmap_denylist.c"),
+           os.path.join(imp, "idmap_gridmap.c")]
     build = subprocess.run(cmd, capture_output=True, text=True)
     _check_test_idmap_unit_1(build)
 

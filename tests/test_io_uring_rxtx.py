@@ -40,6 +40,7 @@ Run:
 """
 
 import os
+import re
 import shutil
 import subprocess
 from brix_suite.client_build import client_make
@@ -153,6 +154,32 @@ def _collect_syscall_counts(trace_path):
     return counts
 
 
+def _ring_setup_permission_denied(trace_text):
+    """Recognize only completed EPERM refusals from this invocation's probes.
+
+    Missing/incomplete evidence, other errors, or any successful setup leave
+    the engine assertions active; a build-host probe cannot answer for a client
+    launched under a different security context.
+    """
+    probes = [line for line in trace_text.splitlines()
+              if "io_uring_setup(" in line or "io_uring_setup resumed>" in line]
+    return bool(probes) and all(
+        re.search(r"\)\s+=\s+-1\s+EPERM(?:\s|$)", line) for line in probes)
+
+
+@pytest.mark.parametrize("trace_text,expected", [
+    ("42 io_uring_setup(8, {}) = 5", False),
+    ("42 io_uring_setup(8, {}) = -1 EPERM (Operation not permitted)", True),
+    ("42 io_uring_setup(8, {}) = -1 EINVAL (Invalid argument)", False),
+    ("42 io_uring_setup(8, {}) = -1 EPERM (Operation not permitted)\n"
+     "43 io_uring_setup(8, {}) = 5", False),
+    ("42 epoll_wait(3, [], 32, 0) = 0", False),
+    ("42 io_uring_setup(8, {} <unfinished ...>", False),
+])
+def test_ring_capability_classification_requires_complete_probe(trace_text, expected):
+    assert _ring_setup_permission_denied(trace_text) is expected
+
+
 def _run_smoke(url, loop_value, tls=False, trace=None):
     """Run aio_smoke against `url` with XRDC_IO_URING_LOOP=`loop_value`.
 
@@ -207,6 +234,11 @@ def test_rxtx_cleartext_byte_exact_ring_engaged(lifecycle, tmp_path):
     passed, counts = _run_smoke(f"root://{HOST}:{ep.port}", "rxtx", trace=trace)
     assert passed, "aio_smoke did not report M1 PASS under rxtx (cleartext)"
     if counts is not None:                       # strace present
+        with open(trace) as trace_file:
+            denied = _ring_setup_permission_denied(trace_file.read())
+        if counts["io_uring_enter"] == 0 and denied:
+            pytest.skip("io_uring_setup returned EPERM in this client invocation; "
+                        "RX/TX io_uring is unsupported in its security context")
         assert counts["io_uring_enter"] > 0, \
             "rxtx did not engage the io_uring engine (no io_uring_enter)"
         assert counts["epoll_wait"] == 0, \

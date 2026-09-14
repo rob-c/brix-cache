@@ -116,5 +116,5 @@ against the target deployment:
 | Does the site require full XrdFrm/MSS behavior? | Run real `prepare`/`qprep`/`cancel`/`evict` tests against the tape backend. |
 | Does the site use `host`, `pwd`, or custom security plugins? | Keep official XRootD or implement a migration path. |
 | Does native TPC require TLS-upgraded origins or multihop delegation? | Both are built in (`brix_tpc_outbound_tls`, `brix_tpc_max_hops`); test with production credential flows, not only anonymous/local copies. |
-| Are checksum policies tied to site-specific checksum plugins beyond the built-in set? | Confirm which algorithms clients and catalog policy require; anything outside the ten built-ins is registered with `brix_checksum_plugin` after porting the XrdCks plugin to the BriX ABI (`contrib/checksum-plugins/README.md`). |
+| Are checksum policies tied to site-specific checksum plugins beyond the built-in set? | Confirm which algorithms clients and catalog policy require; anything outside the ten built-ins is registered with `brix_checksum_plugin` after porting the XrdCks plugin to the BriX ABI (`docs/09-developer-guide/checksum-plugins/README.md`). |
 | Are CMS admin commands part of operations automation? | Map each command to BriX-Cache manager/upstream behavior before migration. |

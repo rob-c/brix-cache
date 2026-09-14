@@ -26,7 +26,7 @@ backlog.
 > and fixed two real gaps: HTTP fill coalescing (stampede was N fills) and
 > an EOF-probe GET per fill. PENDING (needs root on the box):
 > `sudo tests/cvmfs/run_matrix.sh` netem sweep; both OP gate verdicts await
-> ticks in deploy/cvmfs/baselines/RESULTS.md (execution continued through
+> ticks in docs/05-operations/deploy/cvmfs/baselines/RESULTS.md (execution continued through
 > the gates per the OP's standing instruction).
 
 **Goal:** Turn nginx-xrootd into a reliable CVMFS site cache (Squid/Varnish replacement) for a Tier-2 with a lossy, reordering network — adding **`cvmfs://` as a dedicated protocol plane** (own module, own content handler, own directive family, like `s3/`), plus an **experimental `scvmfs://` secure variant layered on top of it**, reusing the posix read-through cache tier and the `sd_http` origin driver, with CVMFS URL classification, CAS verify-on-fill, origin selection (static/geo/rtt), never-drop client semantics, and forward-proxy mode.
@@ -1037,7 +1037,7 @@ python3 tests/cvmfs/mock_stratum1.py --port 12821 --objects 16 &  # if not runni
 python3 tests/cvmfs/harness.py --cache http://127.0.0.1:12822 \
     --mock http://127.0.0.1:12821 --out results_stock_clean.json
 ```
-Then repeat under `netem_lab.sh profile site` and `profile corrupt` with the mock inside the ns. Record all three JSONs in `deploy/cvmfs/baselines/RESULTS.md` next to the Task-4 baselines.
+Then repeat under `netem_lab.sh profile site` and `profile corrupt` with the mock inside the ns. Record all three JSONs in `docs/05-operations/deploy/cvmfs/baselines/RESULTS.md` next to the Task-4 baselines.
 Expected: stock nginx `corrupt_served > 0` under the corrupt profile — the number that justifies Phase 3's verify-on-fill.
 
 `RESULTS.md` has a fixed shape (T15 appends module rows to the same table —
@@ -1070,7 +1070,7 @@ Reasoning:
 ```bash
 chmod +x tests/run_cvmfs_stock.sh
 git add deploy/cvmfs/nginx-proxy-cache.conf tests/run_cvmfs_stock.sh \
-        deploy/cvmfs/baselines/RESULTS.md
+        docs/05-operations/deploy/cvmfs/baselines/RESULTS.md
 git commit -m "feat(cvmfs): stock-nginx proxy_cache prototype + e2e + gate numbers"
 ```
 
@@ -2038,7 +2038,7 @@ git add src/protocols/cvmfs/handler.c src/protocols/cvmfs/gate.c \
 git commit -m "feat(cvmfs): dedicated cvmfs:// content handler + gate + geo — reverse-mode MVP e2e green"
 ```
 
-**Phase-2 exit criterion:** `run_cvmfs_reverse.sh` fully green; optionally a real `cvmfs2` container mount through the reverse endpoint (manual check, documented in `deploy/cvmfs/README.md` in Task 18).
+**Phase-2 exit criterion:** `run_cvmfs_reverse.sh` fully green; optionally a real `cvmfs2` container mount through the reverse endpoint (manual check, documented in `docs/05-operations/deploy/cvmfs/README.md` in Task 18).
 
 ---
 
@@ -4097,7 +4097,7 @@ it), the Task-18 runbook reference config (already shown there with the
 
 ```bash
 git add tests/run_cvmfs_keepalive.sh tests/run_cvmfs_reverse.sh \
-        deploy/cvmfs/README.md docs/04-protocols/cvmfs.md
+        docs/05-operations/deploy/cvmfs/README.md docs/04-protocols/cvmfs.md
 git commit -m "feat(cvmfs): TCP keepalive + connection-durability config, proven on the wire"
 ```
 
@@ -4366,7 +4366,7 @@ dead code when `xrootd_scvmfs` is absent).
 
 - [ ] **Step 5: Docs + commit** — experimental banner blocks in
 `docs/04-protocols/cvmfs.md` (scvmfs section) and a short
-"Experimental: scvmfs://" appendix in `deploy/cvmfs/README.md` noting: the
+"Experimental: scvmfs://" appendix in `docs/05-operations/deploy/cvmfs/README.md` noting: the
 client side needs `CVMFS_SERVER_URL=https://…` / an authz helper
 (`CVMFS_AUTHZ_HELPER`) and that WLCG proxy-mode traffic stays cleartext
 cvmfs:// for now.
@@ -4376,7 +4376,7 @@ git add src/protocols/cvmfs/secure.c src/protocols/cvmfs/cvmfs.h \
         src/protocols/cvmfs/module.c src/protocols/cvmfs/handler.c \
         src/protocols/cvmfs/request.c src/protocols/cvmfs/upstreams.c \
         src/observability/metrics/ config tests/run_scvmfs.sh \
-        deploy/cvmfs/README.md docs/04-protocols/cvmfs.md
+        docs/05-operations/deploy/cvmfs/README.md docs/04-protocols/cvmfs.md
 git commit -m "feat(scvmfs): EXPERIMENTAL secure protocol layered on cvmfs:// — TLS + authz preamble"
 ```
 
@@ -4386,7 +4386,7 @@ git commit -m "feat(scvmfs): EXPERIMENTAL secure protocol layered on cvmfs:// �
 
 **Files:**
 - Create: `tests/cvmfs/run_matrix.sh`
-- Modify: `deploy/cvmfs/baselines/RESULTS.md`
+- Modify: `docs/05-operations/deploy/cvmfs/baselines/RESULTS.md`
 
 **Interfaces:**
 - Consumes: everything above.
@@ -4548,7 +4548,7 @@ Expected acceptance numbers (the plan's hard exit criteria):
 - [ ] **Step 3: Commit**
 
 ```bash
-git add tests/cvmfs/run_matrix.sh deploy/cvmfs/baselines/RESULTS.md
+git add tests/cvmfs/run_matrix.sh docs/05-operations/deploy/cvmfs/baselines/RESULTS.md
 git commit -m "test(cvmfs): full netem comparison matrix — module vs stock vs squid/varnish"
 ```
 
@@ -4867,10 +4867,10 @@ git commit -m "feat(cvmfs): guard signal + fail2ban jail for non-CVMFS probing"
 ### Task 18: Runbook + pilot checklist
 
 **Files:**
-- Create: `deploy/cvmfs/README.md`
+- Create: `docs/05-operations/deploy/cvmfs/README.md`
 - Modify: `CLAUDE.md` (OP→FILE row for cvmfs; one line), `docs/04-protocols/` (cvmfs page)
 
-**`deploy/cvmfs/README.md` — full content to ship (verbatim start point;
+**`docs/05-operations/deploy/cvmfs/README.md` — full content to ship (verbatim start point;
 the executor updates only facts that changed during implementation):**
 
 ````markdown
@@ -5129,7 +5129,7 @@ list, and links to the runbook + this plan + the spec.
 Run: `tests/run_suite.sh --pr` and all six `run_cvmfs_*.sh` — everything green.
 
 ```bash
-git add deploy/cvmfs/README.md CLAUDE.md docs/04-protocols/
+git add docs/05-operations/deploy/cvmfs/README.md CLAUDE.md docs/04-protocols/
 git commit -m "docs(cvmfs): deployment runbook, pilot checklist, OP→FILE row"
 ```
 

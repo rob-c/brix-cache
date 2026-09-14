@@ -10,7 +10,9 @@ compiled-in would ship broken packages while every dev-tree test stayed green.
 Needs a dynamic build tree (default /home/rcurrie/nginx-dyn, override with
 BRIX_DYN_NGINX): a plain nginx binary plus the two .so files, built with
 --with-compat --add-dynamic-module. Skips cleanly when absent, so the fast
-lane does not depend on the second tree existing.
+lane does not depend on the second tree existing. For --with-stream=dynamic,
+BRIX_DYN_NGX_STREAM_MODULE selects the matching nginx core stream object; omit
+it when stream is compiled into the selected nginx executable.
 
   * success   — a config that load_modules both objects passes nginx -t with
                 brix directives AND $brix_* variables on both planes
@@ -47,8 +49,13 @@ DYN_FILTER_SO = Path(os.environ.get(
     "BRIX_DYN_FILTER_SO",
     DYN_ROOT / "objs" / "ngx_http_brix_xrdhttp_filter_module.so"))
 
+_core_stream = os.environ.get("BRIX_DYN_NGX_STREAM_MODULE")
+DYN_NGX_STREAM_MODULE = Path(_core_stream) if _core_stream else None
+
 _missing = [p for p in (DYN_NGINX, DYN_STREAM_SO, DYN_FILTER_SO)
             if not p.exists()]
+if DYN_NGX_STREAM_MODULE is not None and not DYN_NGX_STREAM_MODULE.exists():
+    _missing.append(DYN_NGX_STREAM_MODULE)
 if _missing:
     pytestmark.append(pytest.mark.skip(
         reason=f"dynamic build tree not present: {_missing[0]} "
@@ -57,9 +64,11 @@ if _missing:
 
 
 def _conf(tmp_path, *, stream_so=DYN_STREAM_SO, filter_so=DYN_FILTER_SO,
-          log_format_line=None):
+          log_format_line=None, core_stream_so=DYN_NGX_STREAM_MODULE):
     """Render the W7 template (tests/configs/nginx_dyn_modules.conf)."""
     from config_templates import render_config_to_path
+    from cmdscripts.live_common import (_missing_module_directives,
+                                        inject_nginx_runtime_paths)
     from fleet_lifecycle_ports import SHARED_PARSE_PLACEHOLDER_PORT
     from settings import BIND_HOST
 
@@ -68,6 +77,8 @@ def _conf(tmp_path, *, stream_so=DYN_STREAM_SO, filter_so=DYN_FILTER_SO,
     conf = tmp_path / "nginx.conf"
     render_config_to_path(
         "nginx_dyn_modules.conf", conf,
+        CORE_STREAM_LOAD="\n".join(_missing_module_directives(
+            "", [str(core_stream_so)] if core_stream_so is not None else [])),
         STREAM_SO=str(stream_so),
         FILTER_SO=str(filter_so),
         PREFIX=str(tmp_path),
@@ -78,6 +89,7 @@ def _conf(tmp_path, *, stream_so=DYN_STREAM_SO, filter_so=DYN_FILTER_SO,
         HTTP_LOG_FORMAT=log_format_line or (
             "log_format dyn 'cache=$brix_cache_status tls=$brix_tls "
             "proto=$brix_protocol dn=$brix_dn tier=$brix_tier';"))
+    inject_nginx_runtime_paths(conf, tmp_path)
     return conf
 
 
@@ -150,14 +162,15 @@ def test_packaged_deb_artifact_loads(tmp_path):
         "Maintainer: test <noreply@example.com>\n"
         "Description: phase-106 W7 packaged-artifact test\n")
     deb = tmp_path / "pkg.deb"
+    package_env = {**os.environ, "TMPDIR": str(tmp_path)}
     r = subprocess.run(["dpkg-deb", "--build", "--root-owner-group",
                         str(stage), str(deb)],
-                       capture_output=True, text=True, timeout=120)
+                       capture_output=True, text=True, timeout=120, env=package_env)
     assert r.returncode == 0, r.stderr
 
     extract = tmp_path / "x"
     subprocess.run(["dpkg-deb", "-x", str(deb), str(extract)],
-                   check=True, timeout=60)
+                   check=True, timeout=60, env=package_env)
     mods = extract / "usr/lib/nginx/modules"
 
     conf = _conf(tmp_path,

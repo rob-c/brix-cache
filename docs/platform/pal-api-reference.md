@@ -679,7 +679,7 @@ struct brix_plat_fs_event_t {
 ---
 ## See Also
 
-- [PAL Architecture](../../src/platform/ARCHITECTURE.md)
+- [PAL Architecture](pal/ARCHITECTURE.md)
 - [Platform Expansion Plan](PLATFORM_EXPANSION_PLAN.md)
 - [macOS Support Guide](../refactor/macos-support-v3.0.md)
 

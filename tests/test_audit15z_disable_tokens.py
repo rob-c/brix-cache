@@ -207,8 +207,8 @@ class TestWhereTheValueLands:
 
     def test_the_setter_bumps_a_process_global_instead(self):
         source = _source("src/core/seccomp/seccomp.c")
-        assert "brix_seccomp_worker_mode = e[i].value;" in source, source[:400]
-        assert "if (e[i].value > brix_seccomp_worker_mode)" in source, (
+        assert "brix_seccomp_set_worker_mode(e[i].value);" in source, source[:400]
+        assert "if (e[i].value > brix_seccomp_get_worker_mode())" in source, (
             "the ratchet is what makes `off` inert: 0 is never greater than a "
             "mode another server already requested")
 
@@ -295,13 +295,15 @@ class TestTheIoUringDefault:
             assert rc == 0, (f"brix_io_uring {token} must always parse — it "
                              "asks for nothing the build may lack", out)
 
-    def test_on_is_the_only_token_a_build_can_refuse(self, tmp_path):
-        """`on` is a hard requirement, so its verdict depends on the build.
+    def test_on_can_be_refused_by_build_or_host(self, tmp_path):
+        """`on` is a hard requirement for both the build and host capability.
         Both outcomes are correct; what must not happen is a silent accept that
         leaves the operator believing a ring is up."""
         rc, out = _parse(tmp_path, knobs=_knob("brix_io_uring on;"))
         if rc != 0:
-            assert "requires a build with liburing" in out, out
+            refusals = ("requires a build with liburing",
+                        "io_uring is unavailable on this host")
+            assert any(message in out for message in refusals), out
         else:
             assert "brix_io_uring" not in out, (
                 "an accepted `on` must not also be complaining about itself",

@@ -579,9 +579,9 @@ def test_brix_plat_byte_order():
 
 ### 8.2 Updated Documentation
 
-- `MACOS_BUILD_PROGRESS.md` → `PLATFORM_SUPPORT_MATRIX.md`
+- `docs/platform/macos/reports/MACOS_BUILD_PROGRESS.md` → `PLATFORM_SUPPORT_MATRIX.md`
 - `docs/01-getting-started/` - Add platform-specific quickstarts
-- `BUILD.md` - Multi-platform build instructions
+- `docs/03-configuration/BUILD.md` - Multi-platform build instructions
 
 ---
 

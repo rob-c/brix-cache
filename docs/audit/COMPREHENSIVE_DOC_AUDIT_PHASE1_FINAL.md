@@ -40,7 +40,7 @@ Comprehensive audit of platform documentation discovered **critical discrepancie
 - docs/platform/PHASE_REFERENCE_FIX_SUMMARY.md
 - docs/platform/DOCUMENTATION_UPDATE_REPORT.md
 - src/platform/README.md
-- src/platform/PAL_FUNCTION_REFERENCE.md
+- docs/platform/pal/PAL_FUNCTION_REFERENCE.md
 
 **Fix Applied**: Changed all "42/42" references to "60/60"
 
@@ -180,7 +180,7 @@ src/platform/darwin/clonefile_optimized.c
 - `docs/platform/apple-silicon-optimization.md`
 - `docs/platform/ARM64_BUILD_CONFIG.md`
 - `src/platform/README.md`
-- `src/platform/PAL_FUNCTION_REFERENCE.md`
+- `docs/platform/pal/PAL_FUNCTION_REFERENCE.md`
 
 ### Audit Reports Created (3 files)
 - `docs/audit/DOC_AUDIT_01_PLATFORM_ACCURACY.md`

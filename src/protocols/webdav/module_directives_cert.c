@@ -469,27 +469,24 @@ webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 /* Stub - no header needed */
 #include <ngx_core.h>
 #include <ngx_http.h>
+#include "darwin_config_stub.h"
 
 char *
 brix_webdav_cert_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    (void)cf; (void)cmd; (void)conf;
-    /* Stub - cert handling requires nginx SSL module */
-    return NGX_CONF_OK;
+    return brix_webdav_darwin_config_stub(cf, cmd, conf);
 }
 
 char *
 brix_webdav_cert_key(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    (void)cf; (void)cmd; (void)conf;
-    return NGX_CONF_OK;
+    return brix_webdav_darwin_config_stub(cf, cmd, conf);
 }
 
 char *
 brix_webdav_cert_ca(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    (void)cf; (void)cmd; (void)conf;
-    return NGX_CONF_OK;
+    return brix_webdav_darwin_config_stub(cf, cmd, conf);
 }
 
 #endif /* macOS */

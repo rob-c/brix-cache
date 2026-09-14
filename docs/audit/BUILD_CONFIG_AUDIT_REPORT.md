@@ -274,7 +274,7 @@ No special libraries required - uses standard ARM64 Linux toolchain.
 
 | File | Lines | Last Updated | Accuracy |
 |------|-------|--------------|----------|
-| `BUILD.md` | 450+ | 2025-12-15 | ✅ 100% |
+| `docs/03-configuration/BUILD.md` | 450+ | 2025-12-15 | ✅ 100% |
 | `docs/platform/windows-build.md` | 800+ | 2025-12-12 | ✅ 98% |
 | `docs/platform/arm64-linux-build.md` | 700+ | 2025-12-12 | ✅ 100% |
 | `docs/platform/arm64-macos-build.md` | 650+ | 2025-12-12 | ⚠️ 95% |

@@ -76,3 +76,23 @@ def test_a_streams_only_config_gets_no_http_directives(tmp_path):
         "# tune at http{} scope when an http block exists", "")
     assert "client_body_temp_path" not in text
     assert "pid " in text          # main-scope confinement still applies
+
+
+def test_server_override_keeps_private_http_default(tmp_path):
+    text = _inject(tmp_path, "http {\n server { access_log off; }\n}\n")
+    assert f'access_log "{tmp_path}/prefix/logs/access.log";' in text
+    assert "server { access_log off; }" in text
+
+
+def test_existing_http_default_is_preserved_without_duplicates(tmp_path):
+    text = _inject(tmp_path, "http {\n access_log off;\n server { }\n}\n")
+    assert text.count("access_log") == 1
+    assert "access_log off;" in text
+
+
+def test_quoted_or_commented_directives_cannot_hide_defaults(tmp_path):
+    text = _inject(tmp_path, (
+        'http {\n log_format fixture "} access_log off; # {";\n'
+        ' # access_log off;\n server { access_log off; }\n}\n'))
+    assert f'access_log "{tmp_path}/prefix/logs/access.log";' in text
+    assert 'log_format fixture "} access_log off; # {";' in text

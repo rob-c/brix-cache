@@ -50,7 +50,7 @@ def lab():
 
 @pytest.fixture
 def reads():
-    """Read a lab-relative file as fluent Text: ``reads("README.md").shows(...)``."""
+    """Read a lab-relative file as fluent Text: ``reads("../docs/index.md").shows(...)``."""
     return lambda rel: Text(paths.LAB / rel)
 
 

@@ -460,8 +460,8 @@ once).
 
 `client/man/`: 10 new/updated pages incl. `brix-env.7` · usage footers on
 every tool · URLS sections · `client/completions/{bash,zsh}` · README
-updates in `client/apps/README.md` (flag-alias table pointer) — plus the
-compat contract (§2) copied into `client/README` or `client/apps/README.md`
+updates in `docs/09-developer-guide/client/apps/README.md` (flag-alias table pointer) — plus the
+compat contract (§2) copied into `client/README` or `docs/09-developer-guide/client/apps/README.md`
 as the standing rule for future flag work.
 
 ## 14. Open questions (resolve at plan time, defaults stated)

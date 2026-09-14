@@ -28,6 +28,7 @@ import pytest
 
 from settings import BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
+from brix_suite.nginx_capabilities import nginx_has_symbol
 from _cache_partial_helpers import _session
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
@@ -37,13 +38,7 @@ kXR_rm = 3014
 
 
 def _have_nginx():
-    if not os.path.exists(NGINX_BIN):
-        return False
-    try:
-        syms = subprocess.run(["nm", NGINX_BIN], capture_output=True, text=True)
-        return "brix_baq_reconcile" in syms.stdout
-    except Exception:
-        return True
+    return nginx_has_symbol("brix_baq_reconcile")
 
 
 def _poll(predicate, timeout=15.0, interval=0.1):

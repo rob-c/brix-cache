@@ -4,7 +4,7 @@
 Covers the pure-Python CephFS metadata decoders (pymigrate.cephfs_meta) against
 both synthetic buffers and the real reef-18.2.4 byte fixtures, plus the shared
 CLI plumbing (pymigrate.common). The ceph-dencoder-derived ground truth for the
-fixtures is recorded in tests/ceph/fixtures/reef-18.2.4/README.md.
+fixtures is recorded in docs/09-developer-guide/testing/ceph/fixtures/reef-18.2.4/README.md.
 
 Run:  python3 -m pytest tests/ceph/test_cephfs_meta.py -v
 """

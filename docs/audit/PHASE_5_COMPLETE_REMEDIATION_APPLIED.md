@@ -499,16 +499,16 @@ void brix_plat_socket_event_destroy(int event_handle);
 4. `docs/platform/PLATFORM_COMPARISON.md`
 5. `src/platform/README.md`
 6. `docs/platform/DOCUMENTATION_UPDATE_REPORT.md`
-7. `WINDOWS_BUILD_CONFIG_VERIFICATION_REPORT.md`
-8. `WINDOWS_CONFIG_UPDATE_SUMMARY.md`
-9. `PLATFORM_WORK_COMPLETE_SUMMARY.md`
+7. `docs/platform/windows/reports/WINDOWS_BUILD_CONFIG_VERIFICATION_REPORT.md`
+8. `docs/platform/windows/reports/WINDOWS_CONFIG_UPDATE_SUMMARY.md`
+9. `docs/platform/reports/PLATFORM_WORK_COMPLETE_SUMMARY.md`
 10. `docs/platform/BADGES.md`
 11. `README.md`
-12. `PLATFORM_EXPANSION_SUMMARY.md`
-13. `PLATFORM_IMPLEMENTATION_COMPLETE.md`
-14. `MACOS_SUPPORT_FINAL_REPORT.md`
-15. `MACOS_ULTIMATE_FINAL_SUMMARY.md`
-16. `BUILD.md`
+12. `docs/platform/reports/PLATFORM_EXPANSION_SUMMARY.md`
+13. `docs/platform/reports/PLATFORM_IMPLEMENTATION_COMPLETE.md`
+14. `docs/platform/macos/reports/MACOS_SUPPORT_FINAL_REPORT.md`
+15. `docs/platform/macos/reports/MACOS_ULTIMATE_FINAL_SUMMARY.md`
+16. `docs/03-configuration/BUILD.md`
 17. `docs/01-getting-started/macos-quickstart.md`
 
 **Statistics Updated**:

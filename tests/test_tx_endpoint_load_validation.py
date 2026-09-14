@@ -19,6 +19,7 @@ brix_conf_set_backend_tx_endpoint) now rejects it at ``nginx -t`` time.
                  rejected.
 """
 
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 import subprocess
 
 from settings import BIND_HOST, NGINX_BIN
@@ -38,6 +39,8 @@ http {{ server {{ listen {BIND_HOST}:13298;
     }}
 }} }}
 """)
+    inject_nginx_load_modules(conf, NGINX_BIN)
+    inject_nginx_runtime_paths(conf, root)
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
     return p.returncode, p.stderr + p.stdout

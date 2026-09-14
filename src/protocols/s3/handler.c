@@ -1,37 +1,9 @@
-/*
- * handler.c — S3 content handler: URI parsing, SigV4 auth gate, and method dispatch.
- *
- * WHAT: The nginx HTTP content handler for all S3 REST API operations. Every S3 request
- *   enters here — it parses the path-style URI (/<bucket>/<key>), verifies the AWS
- *   SigV4 signature, resolves the key to a filesystem path, and dispatches to the
- *   appropriate method handler (GetObject, PutObject, DeleteObject, ListObjectsV2, etc.).
- *
- * WHY: S3 clients use path-style URIs that must be parsed into bucket + key before any
- *   filesystem operations. The SigV4 auth gate rejects unsigned requests early without
- *   parsing overhead. Write operations check cf->common.allow_write before body read to reject
- *   writes on read-only endpoints without consuming client bandwidth.
- *
- * HOW:
- *   1. Check cf->common.enable → NGX_DECLINED if disabled
- *   2. Determine method_slot (list vs object) + track bytes_rx metric per IP version
- *   3. Verify SigV4 signature — fail fast with XML error on invalid
- *   4. Parse URI into bucket+key via s3_parse_uri()
- *   5. Dispatch list requests (ListObjectsV2, ListMultipartUploads, ListParts)
- *   6. Check special empty-key flags (uploads → InitiateMPU, delete → DeleteObjects)
- *   7. Reject bare GET /<bucket>/? (empty key without flag) as InvalidURI
- *   8. Resolve key to fs_path via s3_resolve_key() — AccessDenied on escape
- *   9. Dispatch by HTTP method: GET/HEAD/PUT/DELETE/POST → specific handler
- *   10. Unknown methods → 405 Method Not Allowed
- *
- * Pool allocation: path_copy uses ngx_pnalloc(r->pool, PATH_MAX) to survive until the
- *   async PUT/MPU-complete callback fires after body reading completes.
- *
- * Phase-79 file-size split: the URI parser and the post-auth dispatch tree moved to
- *   the sibling handler_dispatch.c (URI parse, token-scope gate, bucket/empty-key/list
- *   routing) and handler_object_route.c (object-key method routing). This file retains
- *   the entry handler, the SigV4/XrdAcc auth gate, request classification, OPTIONS/CORS,
- *   and the delegation/pmark hooks. Cross-file symbols are declared in
- *   s3_handler_internal.h.
+/* handler.c — S3 request classification, authentication and dispatch entry.
+ * WHAT: Check enablement, rate limits, identity, SigV4 and token authorization.
+ * WHY: Every route must use the same gates before reading or mutating storage.
+ * HOW: Classify requests, handle OPTIONS/delegation, then pass authorized work
+ * to handler_dispatch.c and handler_object_route.c. Those siblings own URI,
+ * bucket and object routing; shared declarations are in s3_handler_internal.h.
  */
 
 
@@ -119,19 +91,6 @@ s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     return (rc == NGX_ERROR) ? NGX_HTTP_FORBIDDEN : NGX_OK;
 }
 
-/*
- *
- * WHAT: Detects whether the HTTP request is a ListObjectsV2 operation by searching for the
- *       "list-type=2" query parameter in the request args. Returns 1 if found, 0 otherwise.
- *       Only checks GET requests with non-empty query arguments — other methods cannot be lists.
- *
- * WHY: ListObjectsV2 has fundamentally different filesystem behavior from GetObject (it returns XML
- *       listing of objects rather than serving a single file). This detection allows the main handler
- *       to dispatch to separate metrics slots and distinct handler functions for list vs object operations. */
-/*
- * HOW: Checks that r->method is GET and reads the exact list-type query
- * parameter with the shared query parser. Returns 1 only when list-type=2.
- */
 /*
  * s3_rate_limit — phase-105 W1: the [brix_rate_limit] token-bucket gate,
  * byte-parallel to webdav's access_rate_limit. Runs BEFORE the auth burden

@@ -54,8 +54,8 @@ have looked fine and been wrong.
 
 The verbatim-move check is an AST body hash against ``brix_suite/_legacy/``.
 It compares def/class bodies only, which is exactly right for this move: the
-two fixes are module-level constants and import lines, so every body must
-still hash identically, and any body that drifted cannot be argued away.
+original move fixes were module-level constants and import lines. Later body
+changes must be listed explicitly in POST_MOVE, with stale entries rejected.
 """
 
 from __future__ import annotations
@@ -107,9 +107,13 @@ MOVED = [name for name, _ in MODULES]
 #: change.  ``added``/``changed`` are the qualified names ``body_hashes`` uses.
 POST_MOVE = {
     "cms_mesh_lib": {
-        # `make -C client xrdsssadmin-brix` now goes through client_make()
-        "changed": {"_ensure_sssadmin"},
-        "added": set(),
+        # client_make() owns the native helper build. Reference daemons now
+        # follow the selected address family (test_cms_mesh_address_family),
+        # changing brix_node and its enclosing class hash. gen_cert propagates
+        # signing errors and tightens cert/key modes under permissive umask
+        # (test_mesh_certificate_permissions).
+        "changed": {"_ensure_sssadmin", "Mesh", "Mesh.brix_node", "gen_cert"},
+        "added": {"_reference_ip_args"},
     },
     "wlcg_fleet": {
         # a stale registration under the same fleet name is released before

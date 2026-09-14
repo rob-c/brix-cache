@@ -12,4 +12,6 @@
 - NO `goto`; no new globals; never reimplement HELPERS. Stop after 2 identical failures; recovery 1 adjust · 2 ask · 3 revert+document; never leave code broken. Full text in extended guide.
 
 ## BUILD & TEST
+See [BUILD.md](docs/03-configuration/BUILD.md) for AlmaLinux 9 build instructions, full-suite dependencies, and recorded validation results.
+
 `make -j$(nproc)` incremental; re-`./configure --add-module=$REPO` only after source-list/`--with-*` changes — new `src/` `.c` files go in repo-root `./config`, new `client/` (+ `shared/{cvmfs,cache}`) `.c` files go in `client/Makefile` — guards `check_config_coverage.py` / `check_client_build_coverage.py`. Validate: `objs/nginx -t`. Tests: `PYTHONPATH=tests pytest tests/<file>.py -v`; fleet (pure-Python, `fleet_specs` catalogue via `RegistryLauncher`): `python3 -m cmdscripts.manage_test_servers start-all|restart|stop-all|status` (run from `tests/`); logs: `/tmp/xrd-test/logs/`.

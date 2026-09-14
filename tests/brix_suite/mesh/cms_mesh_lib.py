@@ -20,6 +20,7 @@ pytest-specific so cms_mesh_servers.py can import and run it standalone.
 
 import glob
 import hashlib
+import ipaddress
 import os
 import shutil
 import signal
@@ -270,14 +271,31 @@ def gen_cert(root):
         subprocess.run(
             ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-keyout", key,
              "-out", cert, "-days", "1", "-nodes", "-subj", "/CN=localhost"],  # net-literal-allow: cert subject CN under test
-            capture_output=True, check=False,
+            capture_output=True, check=True,
         )
+    # Reference XrdHttp rejects writable public certs; callers may use umask 0.
+    os.chmod(cert, 0o644)
+    os.chmod(key, 0o600)
     return cert, key
 
 
 # --------------------------------------------------------------------------- #
 # Mesh launcher
 # --------------------------------------------------------------------------- #
+
+
+def _reference_ip_args():
+    """Keep reference daemons on the mesh's explicitly selected address family.
+
+    cmsd reverse-resolves numeric managers before connecting. Its automatic
+    family choice may therefore select IPv6 for an IPv4-only nginx listener.
+    Named mesh hosts retain XRootD's automatic family selection.
+    """
+    try:
+        address = ipaddress.ip_address(HOST.strip("[]"))
+    except ValueError:
+        return []
+    return ["-I", f"v{address.version}"]
 
 
 class Mesh:
@@ -342,9 +360,10 @@ class Mesh:
         # instance directory in their CWD (independent of all.adminpath); without
         # this they would litter the pytest CWD (the repo root) with one empty
         # dir per node.  Pin it under the mesh's /tmp working tree instead.
-        subprocess.run([CMSD_BIN, "-c", cfg, "-n", label, "-l", clog, "-b"],
+        ip_args = _reference_ip_args()
+        subprocess.run([CMSD_BIN, *ip_args, "-c", cfg, "-n", label, "-l", clog, "-b"],
                        check=False, start_new_session=True, cwd=self.root)
-        subprocess.run([BRIX_BIN, "-c", cfg, "-n", label, "-l", xlog, "-b"],
+        subprocess.run([BRIX_BIN, *ip_args, "-c", cfg, "-n", label, "-l", xlog, "-b"],
                        check=False, start_new_session=True, cwd=self.root)
 
     def nginx(self, label, conf_text):

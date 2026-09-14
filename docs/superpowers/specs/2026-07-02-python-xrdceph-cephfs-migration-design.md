@@ -358,7 +358,7 @@ tools' tests.
 
 ## 10. Documentation
 
-- `tests/ceph/README.md`: a "Python migration tools" subsection under the
+- `docs/09-developer-guide/testing/ceph/README.md`: a "Python migration tools" subsection under the
   existing recovery/migration section (usage, bridge/shim notes, runner).
 - `docs/10-reference/xrdceph-cephfs-bidirectional-migration.md`: short
   note that Python implementations exist with identical semantics + the

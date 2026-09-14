@@ -43,7 +43,7 @@ __pycache__/
 .rpmbuild/
 .debbuild/
 /dist/
-# CMake out-of-source build tree (see CMakeLists.txt / BUILD.md)
+# CMake out-of-source build tree (see CMakeLists.txt / docs/03-configuration/BUILD.md)
 /build/
 /build-*/
 

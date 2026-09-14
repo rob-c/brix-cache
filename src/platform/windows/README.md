@@ -39,6 +39,30 @@ src/platform/windows/
 └── aio_wrapper.c          # IOCP-based async I/O
 ```
 
+The native xattr unit suites share
+[`xattr_test_helpers.h`](xattr_test_helpers.h), a bounded NUL-separated list
+membership check. Its portable regression is
+[`windows_xattr_list_test.c`](../../../tests/c/windows_xattr_list_test.c), run by
+[`test_windows_xattr_list.py`](../../../tests/test_windows_xattr_list.py).
+These checks validate the test oracle independently of Windows runtime support.
+
+The implementation separates native resource lifetime from focused helpers:
+
+| Files | Responsibility |
+|---|---|
+| `handle_abstraction.c`, `handle_registry.c`, `handle_internal.h` | Own the single descriptor registry and its storage allocation. |
+| `handle_path.c`, `path_internal.h` | Share the existing handle-to-path conversion between transfers and ADS operations. |
+| `copy_range.c`, `copy_fallback.c`, `copy_internal.h` | Separate native transfer methods from buffered and unsupported-operation fallbacks. |
+| `event_wrapper.c`, `socket_event.c` | Separate eventfd/IOCP dispatch from Winsock readiness monitoring. |
+| `fs_watcher.c`, `fs_watcher_poll.c`, `fs_watcher_internal.h` | Separate watch lifetime from completion polling and notification decoding. |
+| `process.c`, `process_args.c`, `process_internal.h` | Separate process launch from pure command-line serialization. |
+| `xattr.c`, `xattr_list.c`, `xattr_internal.h` | Separate ADS values and utilities from stream enumeration. |
+
+The argument serializer has native C coverage in
+[`test_platform_queue_args_native.py`](../../../tests/test_platform_queue_args_native.py).
+That serializer uses no Windows APIs; its tests can run on Linux. Cross-compiler
+checks of the Windows API code establish syntax and type compatibility only.
+
 ## Implementation Status
 
 | Category | Status | Notes |
@@ -49,7 +73,7 @@ src/platform/windows/
 | File System Watcher | 🔲 Planned | ReadDirectoryChangesW |
 | Security | 🔲 Planned | Stub implementation |
 | Random | ✅ Implemented | BCryptGenRandom |
-| Extended Attributes | ✅ Implemented | NTFS ADS (see ADS_IMPLEMENTATION.md) |
+| Extended Attributes | ✅ Implemented | NTFS ADS (see docs/platform/pal/windows/ADS_IMPLEMENTATION.md) |
 | Process Execution | 🔲 Planned | CreateProcessW |
 
 ## Key Design Decisions

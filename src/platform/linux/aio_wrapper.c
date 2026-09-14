@@ -81,9 +81,15 @@ brix_aio_io_uring_callback(struct io_uring_cqe *cqe)
     }
 }
 
-int
-brix_aio_read(brix_aio_ctx_t *ctx, int fd, void *buf, size_t count, 
-              off_t offset, void (*callback)(int, ssize_t, void *), void *user_data)
+/* ---- Prepare a typed read or write submission ----
+ * WHAT: Queue the request with its callback, or report validation/capacity errors.
+ * WHY: Read/write preparation has identical ownership and pending accounting.
+ * HOW: 1. Validate inputs and acquire a submission slot. 2. Attach the callback.
+ *      3. Prepare the chosen opcode and increment pending operations.
+ */
+static int
+brix_aio_prepare(brix_aio_ctx_t *ctx, int fd, const void *buf, size_t count,
+              off_t offset, void (*callback)(int, ssize_t, void *), void *user_data, unsigned int opcode)
 {
     struct io_uring_sqe *sqe;
     brix_aio_callback_t *cb;
@@ -109,7 +115,7 @@ brix_aio_read(brix_aio_ctx_t *ctx, int fd, void *buf, size_t count,
     cb->user_data = user_data;
     cb->fd = fd;
     
-    io_uring_prep_read(sqe, fd, buf, count, offset);
+    io_uring_prep_rw(opcode, sqe, fd, buf, count, offset);
     io_uring_sqe_set_data(sqe, cb);
     
     ngx_atomic_fetch_add(&ctx->pending_ops, 1);
@@ -118,39 +124,19 @@ brix_aio_read(brix_aio_ctx_t *ctx, int fd, void *buf, size_t count,
 }
 
 int
+brix_aio_read(brix_aio_ctx_t *ctx, int fd, void *buf, size_t count,
+              off_t offset, void (*callback)(int, ssize_t, void *), void *user_data)
+{
+    return brix_aio_prepare(ctx, fd, buf, count, offset, callback,
+                            user_data, IORING_OP_READ);
+}
+
+int
 brix_aio_write(brix_aio_ctx_t *ctx, int fd, const void *buf, size_t count, 
                off_t offset, void (*callback)(int, ssize_t, void *), void *user_data)
 {
-    struct io_uring_sqe *sqe;
-    brix_aio_callback_t *cb;
-    
-    if (ctx == NULL || buf == NULL || callback == NULL) {
-        errno = EINVAL;
-        return -1;
-    }
-    
-    sqe = io_uring_get_sqe(&ctx->ring);
-    if (sqe == NULL) {
-        errno = EAGAIN;
-        return -1;
-    }
-    
-    cb = calloc(1, sizeof(brix_aio_callback_t));
-    if (cb == NULL) {
-        errno = ENOMEM;
-        return -1;
-    }
-    
-    cb->callback = callback;
-    cb->user_data = user_data;
-    cb->fd = fd;
-    
-    io_uring_prep_write(sqe, fd, buf, count, offset);
-    io_uring_sqe_set_data(sqe, cb);
-    
-    ngx_atomic_fetch_add(&ctx->pending_ops, 1);
-    
-    return 0;
+    return brix_aio_prepare(ctx, fd, buf, count, offset, callback,
+                            user_data, IORING_OP_WRITE);
 }
 
 /* ---- Submit queued Linux AIO requests and wait for their completions ----
@@ -232,8 +218,8 @@ brix_aio_destroy(brix_aio_ctx_t *ctx)
 }
 
 int
-brix_aio_read(brix_aio_ctx_t *ctx, int fd, void *buf, size_t count, 
-              off_t offset, void (*callback)(int, ssize_t, void *), void *user_data)
+brix_aio_write(brix_aio_ctx_t *ctx, int fd, const void *buf, size_t count,
+               off_t offset, void (*callback)(int, ssize_t, void *), void *user_data)
 {
     (void)ctx;
     (void)fd;
@@ -247,18 +233,10 @@ brix_aio_read(brix_aio_ctx_t *ctx, int fd, void *buf, size_t count,
 }
 
 int
-brix_aio_write(brix_aio_ctx_t *ctx, int fd, const void *buf, size_t count, 
-               off_t offset, void (*callback)(int, ssize_t, void *), void *user_data)
+brix_aio_read(brix_aio_ctx_t *ctx, int fd, void *buf, size_t count,
+              off_t offset, void (*callback)(int, ssize_t, void *), void *user_data)
 {
-    (void)ctx;
-    (void)fd;
-    (void)buf;
-    (void)count;
-    (void)offset;
-    (void)callback;
-    (void)user_data;
-    errno = ENOSYS;
-    return -1;
+    return brix_aio_write(ctx, fd, buf, count, offset, callback, user_data);
 }
 
 int

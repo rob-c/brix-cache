@@ -121,7 +121,7 @@ Nothing else here is a second spelling. The `$brix_session_*` aliases, the
 plane-local `$*_cache` variables, the duplicated JSON access-log keys and the
 per-outcome cache counters were **removed** in phase 112; the single migration
 table that maps each one onto its canonical name lives in the release note
-([CHANGELOG.md](../../CHANGELOG.md)), under *Breaking*. A config, log parser
+([CHANGELOG.md](../10-reference/CHANGELOG.md)), under *Breaking*. A config, log parser
 or dashboard still naming one of them must be migrated before upgrading — a
 stale `log_format` is a startup abort, not a silent empty field.
 

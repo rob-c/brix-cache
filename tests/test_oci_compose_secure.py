@@ -27,6 +27,7 @@
 #   security — a verified-but-unlisted client is refused (401/403 matrix), a
 #              wrong token on a gated union member is TERMINAL, and the write
 #              methods the composition does not offer stay refused and audited.
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 import hashlib
 import os
 import shutil
@@ -515,6 +516,8 @@ def test_shipped_example_configs_parse(example, tmp_path, pki, issuers):
     conf = tmp_path / example
     conf.write_text(_instantiate((DEPLOY / example).read_text(), tmp_path,
                                  pki, cfg))
+    inject_nginx_load_modules(conf, NGINX_BIN)
+    inject_nginx_runtime_paths(conf, tmp_path)
     proc = subprocess.run([NGINX_BIN, "-t", "-p", str(tmp_path),
                            "-c", str(conf), "-e", str(tmp_path / "start.log")],
                           capture_output=True, text=True, timeout=60)

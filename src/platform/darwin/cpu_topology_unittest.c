@@ -13,6 +13,7 @@
 #include <string.h>
 #include <sys/sysctl.h>
 #include <unistd.h>
+#include "sysctl_value.h"
 
 /* ==========================================================================
  * STANDALONE IMPLEMENTATION (no nginx dependencies)
@@ -22,46 +23,25 @@ static int
 get_perf_cores(void)
 {
     int count = 0;
-    size_t len = sizeof(count);
     
-    if (sysctlbyname("hw.perflevel0.physicalcpu", &count, &len, NULL, 0) == 0) {
+    if (brix_darwin_sysctl_read_int("hw.perflevel0.physicalcpu", &count) == 0) {
         return count;
     }
     
     /* Fallback: Intel Mac or error */
-    len = sizeof(count);
-    if (sysctlbyname("hw.ncpu", &count, &len, NULL, 0) == 0) {
-        return count;
-    }
-    
-    return -1;
+    return brix_darwin_sysctl_int("hw.ncpu", -1);
 }
 
 static int
 get_eff_cores(void)
 {
-    int count = 0;
-    size_t len = sizeof(count);
-    
-    if (sysctlbyname("hw.perflevel1.physicalcpu", &count, &len, NULL, 0) == 0) {
-        return count;
-    }
-    
-    /* No efficiency cores */
-    return 0;
+    return brix_darwin_sysctl_int("hw.perflevel1.physicalcpu", 0);
 }
 
 static int
 get_total_cores(void)
 {
-    int count = 0;
-    size_t len = sizeof(count);
-    
-    if (sysctlbyname("hw.ncpu", &count, &len, NULL, 0) == 0) {
-        return count;
-    }
-    
-    return -1;
+    return brix_darwin_sysctl_int("hw.ncpu", -1);
 }
 
 static int
@@ -122,6 +102,54 @@ get_generation(const char *model)
 /* ==========================================================================
  * MAIN TEST PROGRAM
  * ========================================================================== */
+
+/* Report cache recommendations independently of topology collection. */
+static void
+brix_cpu_print_cache_recommendations(int generation, const char *chip_model)
+{
+    printf("\n=== Cache Configuration Recommendations ===\n");
+
+    if (generation >= 3) {
+        printf("M3 Series detected:\n");
+        if (strstr(chip_model, "Max")) {
+            printf("  - L2 Cache: 144MB (large)\n");
+            printf("  - Recommendation: Increase cache block size to 256KB\n");
+        } else if (strstr(chip_model, "Pro")) {
+            printf("  - L2 Cache: 36MB (medium)\n");
+            printf("  - Recommendation: Standard cache block size (64KB)\n");
+        } else {
+            printf("  - L2 Cache: 16MB (base)\n");
+            printf("  - Recommendation: Standard cache block size (64KB)\n");
+        }
+    } else if (generation == 2) {
+        printf("M2 Series detected:\n");
+        if (strstr(chip_model, "Max")) {
+            printf("  - L2 Cache: 96MB (large)\n");
+            printf("  - Recommendation: Increase cache block size to 128KB\n");
+        } else if (strstr(chip_model, "Pro")) {
+            printf("  - L2 Cache: 36MB (medium)\n");
+            printf("  - Recommendation: Standard cache block size (64KB)\n");
+        } else {
+            printf("  - L2 Cache: 16MB (base)\n");
+            printf("  - Recommendation: Standard cache block size (64KB)\n");
+        }
+    } else if (generation == 1) {
+        printf("M1 Series detected:\n");
+        if (strstr(chip_model, "Ultra") || strstr(chip_model, "Max")) {
+            printf("  - L2 Cache: 48MB (large)\n");
+            printf("  - Recommendation: Standard cache block size (64KB)\n");
+        } else if (strstr(chip_model, "Pro")) {
+            printf("  - L2 Cache: 24MB (medium)\n");
+            printf("  - Recommendation: Standard cache block size (64KB)\n");
+        } else {
+            printf("  - L2 Cache: 12MB (base)\n");
+            printf("  - Recommendation: Standard cache block size (64KB)\n");
+        }
+    } else {
+        printf("Intel Mac or unknown chip\n");
+        printf("  - Recommendation: Use default cache configuration\n");
+    }
+}
 
 int main(void)
 {
@@ -188,48 +216,7 @@ int main(void)
         printf("    * Periodic cleanup tasks\n");
     }
     
-    printf("\n=== Cache Configuration Recommendations ===\n");
-    
-    if (generation >= 3) {
-        printf("M3 Series detected:\n");
-        if (strstr(chip_model, "Max")) {
-            printf("  - L2 Cache: 144MB (large)\n");
-            printf("  - Recommendation: Increase cache block size to 256KB\n");
-        } else if (strstr(chip_model, "Pro")) {
-            printf("  - L2 Cache: 36MB (medium)\n");
-            printf("  - Recommendation: Standard cache block size (64KB)\n");
-        } else {
-            printf("  - L2 Cache: 16MB (base)\n");
-            printf("  - Recommendation: Standard cache block size (64KB)\n");
-        }
-    } else if (generation == 2) {
-        printf("M2 Series detected:\n");
-        if (strstr(chip_model, "Max")) {
-            printf("  - L2 Cache: 96MB (large)\n");
-            printf("  - Recommendation: Increase cache block size to 128KB\n");
-        } else if (strstr(chip_model, "Pro")) {
-            printf("  - L2 Cache: 36MB (medium)\n");
-            printf("  - Recommendation: Standard cache block size (64KB)\n");
-        } else {
-            printf("  - L2 Cache: 16MB (base)\n");
-            printf("  - Recommendation: Standard cache block size (64KB)\n");
-        }
-    } else if (generation == 1) {
-        printf("M1 Series detected:\n");
-        if (strstr(chip_model, "Ultra") || strstr(chip_model, "Max")) {
-            printf("  - L2 Cache: 48MB (large)\n");
-            printf("  - Recommendation: Standard cache block size (64KB)\n");
-        } else if (strstr(chip_model, "Pro")) {
-            printf("  - L2 Cache: 24MB (medium)\n");
-            printf("  - Recommendation: Standard cache block size (64KB)\n");
-        } else {
-            printf("  - L2 Cache: 12MB (base)\n");
-            printf("  - Recommendation: Standard cache block size (64KB)\n");
-        }
-    } else {
-        printf("Intel Mac or unknown chip\n");
-        printf("  - Recommendation: Use default cache configuration\n");
-    }
+    brix_cpu_print_cache_recommendations(generation, chip_model);
     
     printf("\n=== Feature Detection ===\n");
     printf("NEON SIMD: %s (always available on ARM64)\n", is_as ? "Yes" : "N/A");

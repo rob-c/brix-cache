@@ -155,13 +155,14 @@ stream {
     server {
         listen 10999;
         
-        # Enable BriX cache
+        # Serve local files through the native protocol
+        brix_root on;
         brix_export /data;
         brix_storage_backend posix:/data/storage;
         
         # Cache configuration
-        brix_cache_path /data/cache max_size=100g;
-        brix_cache_enable on;
+        brix_cache_store posix:/data/cache;
+        brix_cache_export /data;
         
         # Thread pool for async I/O (macOS uses this instead of io_uring)
         brix_thread_pool brix_aio;
@@ -279,11 +280,11 @@ make -j$(sysctl -n hw.ncpu)
 
 ### Testing
 
-Once Phase 2 is complete, run:
+Run the platform checks from the repository root:
 
 ```bash
 # Run integration tests
-PYTHONPATH=tests pytest tests/test_macos_platform.py -v
+PYTHONPATH=tests python3 -m pytest tests/platform/ -v
 
 # Performance benchmarks
 ./tools/benchmark/macos_perf_test.sh
@@ -293,7 +294,7 @@ PYTHONPATH=tests pytest tests/test_macos_platform.py -v
 
 - Full specification: `docs/refactor/macos-support-v3.0.md`
 - Platform API documentation: `src/platform/README.md`
-- Implementation status: `MACOS_IMPLEMENTATION_STATUS.md`
+- Implementation status: `docs/platform/macos/reports/MACOS_IMPLEMENTATION_STATUS.md`
 - Build configuration: `config` (lines 7-60)
 
 ## Support
@@ -301,5 +302,5 @@ PYTHONPATH=tests pytest tests/test_macos_platform.py -v
 For issues or questions:
 
 1. Check `docs/09-developer-guide/agent-guide-extended.md`
-2. Review `MACOS_IMPLEMENTATION_STATUS.md` for known issues
+2. Review `docs/platform/macos/reports/MACOS_IMPLEMENTATION_STATUS.md` for known issues
 3. Run `./verify_macos_support.sh` for diagnostics

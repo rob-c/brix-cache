@@ -167,18 +167,16 @@ def test_the_two_rewritten_constructors_are_the_ones_we_claim():
     assert "from brix_suite.launcher import RegistryLauncher" in harness
 
 
-def test_local_backend_honours_the_deploy_contract(tmp_path):
-    """Item 4's second half: the §8.1 seam, proven behaviourally.
-
-    ``check_backend_contract`` shipped with the core and had no caller —
-    the seam was declared conformant, never measured.
-    """
+def _contract_subject(tmp_path, monkeypatch):
     import brix_suite.kinds  # noqa: F401 — import registers this fleet's six kinds
     from brixtest.config.lanes import Lane
-    from brixtest.deploy import DeployBackend
     from brixtest.deploy.local import LocalBackend
     from brixtest.fleet.registry import InstanceSpec, Registry
-    from brixtest.testing import check_backend_contract
+
+    # This subject is never started.  Supply that empty OS state at the
+    # observation boundary so an unrelated listener cannot enter its stop set.
+    monkeypatch.setattr("brixtest.deploy.local.port_holders", lambda _ports: {})
+    monkeypatch.setattr("brixtest.deploy.local.tcp_answering", lambda *_args: False)
 
     # ``proc`` rather than a synthetic kind: the seam is only worth measuring
     # against a kind the fleet really declares, and ``proc`` is the one whose
@@ -190,9 +188,42 @@ def test_local_backend_honours_the_deploy_contract(tmp_path):
         name="contract-probe", kind="proc", ports={"main": 28001},
         command=("/bin/true",)))
     backend = LocalBackend(registry, lane)
-    assert isinstance(backend, DeployBackend)
+    return backend, spec, lane
 
+
+def test_local_backend_honours_the_deploy_contract(tmp_path, monkeypatch):
+    """The public helper measures the actual backend without starting it."""
+    from brixtest.deploy import DeployBackend
+    from brixtest.testing import check_backend_contract
+
+    backend, spec, lane = _contract_subject(tmp_path, monkeypatch)
+    assert isinstance(backend, DeployBackend)
     assert check_backend_contract(backend, spec, lane) == []
+
+
+def test_public_backend_contract_reports_failed_preparation(tmp_path, monkeypatch):
+    from brixtest.testing import check_backend_contract
+
+    backend, spec, lane = _contract_subject(tmp_path, monkeypatch)
+
+    def unavailable(*_args):
+        raise OSError("private lane unavailable")
+
+    monkeypatch.setattr(backend, "prepare", unavailable)
+    violations = check_backend_contract(backend, spec, lane)
+    assert "1: private lane unavailable" in violations
+    assert "1: prepare left no lane skeleton" in violations
+
+
+def test_public_backend_contract_rejects_outside_workdir(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from brixtest.testing import check_backend_contract
+
+    backend, spec, lane = _contract_subject(tmp_path, monkeypatch)
+    outside = tmp_path.parent / "unowned-contract-workdir"
+    monkeypatch.setattr(backend, "endpoint", lambda _name: SimpleNamespace(workdir=outside))
+    violations = check_backend_contract(backend, spec, lane)
+    assert f"2: endpoint workdir {outside} escapes the lane" in violations
 
 
 # ---------------------------------------------------------------------------

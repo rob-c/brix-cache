@@ -454,7 +454,7 @@ BRIX_CVMFS_OBJS := \
 # shared cvmfs core: pure C, needs -I../shared (no client/lib, no ngx); the
 # phase-90..92 filter (xorf.c) also reaches src/core/fnv.h, so add -I$(SRC) too.
 $(BRIX_CVMFS_OBJS): %.o: %.c
-	$(CC) -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -I$(SHARED_DIR) -I$(SRC) -MMD -MP -c $< -o $@
+	$(CC) -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -I$(SHARED_DIR) -I$(SRC) -MMD -MP $(CFLAGS) -c $< -o $@
 
 # The brixcvmfs driver and its phase-38 split siblings: all compiled with
 # BRIXCVMFS_NO_MAIN because the brixMount umbrella owns main().
@@ -579,9 +579,9 @@ $(BINDIR)/xrdcephfs_rescue: apps/ceph/xrdcephfs_rescue.c $(CEPHFS_RO_SRCS) \
 	@echo " + built $@ (librados; cephfsro core)"
 
 apps/ceph/cephfs_denc.o: $(CEPH_RADOS_DIR)/cephfs_denc.c
-	$(CC) -std=c11 -Wall -Wextra -D_FILE_OFFSET_BITS=64 $(OPT) -I$(CEPH_RADOS_DIR) $(CFLAGS) -c $< -o $@
+	$(CC) $(CEPH_C_FLAGS) -c $< -o $@
 apps/ceph/cephfs_layout.o: $(CEPH_RADOS_DIR)/cephfs_layout.c
-	$(CC) -std=c11 -Wall -Wextra -D_FILE_OFFSET_BITS=64 $(OPT) -I$(CEPH_RADOS_DIR) $(CFLAGS) -c $< -o $@
+	$(CC) $(CEPH_C_FLAGS) -c $< -o $@
 
 $(BINDIR)/xrdceph_striper_migrate: apps/ceph/xrdceph_striper_migrate.cpp \
 		apps/ceph/xrdceph_striper_engine.cpp \
@@ -936,7 +936,7 @@ install-automount:
 		install -m644 $(DEPLOY_CVMFS)/etc/cvmfs/keys/$$d/*.pub \
 			$(DESTDIR)/etc/cvmfs/keys/$$d/; \
 	done
-	install -m644 $(DEPLOY_CVMFS)/etc/cvmfs/keys/README.md \
+	install -m644 ../docs/05-operations/deploy/cvmfs/etc/cvmfs/keys/README.md \
 		$(DESTDIR)/etc/cvmfs/keys/README.md
 	install -m644 ../packaging/brixcvmfs-automount.service \
 	              ../packaging/brixcvmfs@.service $(DESTDIR)$(UNITDIR)/

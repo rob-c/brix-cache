@@ -48,7 +48,8 @@ def scan_core_bin(tmp_path_factory):
         pytest.skip("src/fs/scan sources missing")
     out = str(tmp_path_factory.mktemp("scan") / "ut")
     r = subprocess.run(
-        [cc, "-Wall", "-Wextra", "-Werror", "-I", SCAN, "-o", out, *SRCS, "-lm"],
+        [cc, "-Wall", "-Wextra", "-Werror", "-I", SCAN,
+         "-I", os.path.join(REPO, "src"), "-o", out, *SRCS, "-lm"],
         capture_output=True, text=True)
     if r.returncode != 0:
         pytest.fail("scan cores failed to COMPILE (warnings are errors):\n%s"

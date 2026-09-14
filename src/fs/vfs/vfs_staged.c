@@ -1,30 +1,10 @@
-/*
- * vfs_staged.c — VFS atomic staged-write lifecycle (open temp → commit/abort).
- *
- * WHAT: Implements the brix_vfs_staged_* family — a thin VFS-owned wrapper
- *       over the compat staged-file primitive used by every crash-safe upload
- *       (S3 PutObject, WebDAV PUT, multipart assembly): create a unique O_EXCL
- *       temp inside the export root, let the caller write the staged fd, then
- *       atomically publish it onto the final (resolved ctx) path, or abort.
- *
- * WHY:  The upload paths called brix_staged_open/commit/abort directly, so the
- *       publish of a finished object — a real namespace mutation — produced no
- *       metric or access-log line. Funnelling the lifecycle through here books
- *       the per-backend byte totals and one access-log line on commit (byte
- *       count = the committed object size) and inherits the write gate, while
- *       still delegating the temp-file and rename mechanics to
- *       compat/staged_file. The unified io_ops/latency WRITE row is NOT
- *       emitted here: the owning protocol books it once at response time
- *       (WebDAV/S3 *_metrics_response, root:// wire-ledger fold), and the
- *       per-protocol rx-ledger fold supplies io_bytes_written.
- *
- * HOW:  brix_vfs_staged_open() write-gates, allocates the handle on ctx->pool,
- *       and opens the temp via brix_staged_open() with the final path taken
- *       from the resolved ctx. Callers write through the raw fd accessor
- *       (brix_vfs_staged_fd) — the same fd they used before. commit publishes
- *       onto the ctx path (RENAME_NOREPLACE when excl) and records backend
- *       bytes + access log; abort closes and optionally unlinks the temp. The handle struct lives in
- *       vfs_internal.h; only the opaque type is exposed in vfs.h.
+/* vfs_staged.c — VFS atomic staged-write lifecycle.
+ * WHAT: Gate mutations, open a confined temporary file and commit or abort it.
+ * WHY: Every upload needs backend-byte accounting and one publish access log.
+ * Protocol response owners retain unified WRITE latency and byte accounting.
+ * HOW: Allocate the opaque handle on the request pool, delegate file mechanics
+ * to compat/staged_file, then publish to the resolved context path. Exclusive
+ * commits use NOREPLACE; abort closes and optionally unlinks the temporary file.
  */
 #include "vfs_internal.h"
 

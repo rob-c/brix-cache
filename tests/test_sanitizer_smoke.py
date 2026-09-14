@@ -8,7 +8,8 @@ build, not by the default test run).
 Lane workflow (run by CI, not inside this test):
 
     # 1. Build the module and client with ASan+UBSan
-    tests/build_sanitizer.sh
+    # From tests/:
+    python3 -m cmdscripts.operator_build build_sanitizer
 
     # 2. Start the fleet under ASan instrumentation (ASAN_OPTIONS log_path set
     #    by cmdscripts/manage_test_servers.py when SANITIZE=1)
@@ -25,7 +26,8 @@ Lane workflow (run by CI, not inside this test):
     ls "${SANITIZE_LOG_DIR:-/tmp/xrd-test/sanitize}/asan.*"
 
 ASan heap-error and UBSan reports are written immediately when detected (not only
-at exit), so this test catches open/read path errors during the live transfer.
+at exit), so this test catches startup and open/read errors. The lane driver clears
+old reports before boot; this smoke retains every report from the current run.
 LSan leak reports fire at step 4 and are checked by the lane script after stop.
 """
 
@@ -56,7 +58,7 @@ def test_no_sanitizer_reports_after_basic_io(tmp_path):
     """Write a small payload to the server's export root, xrdcp-download it
     through the running SANITIZE=1 fleet via kXR_open + kXR_read, verify
     byte-exact content, then assert that no ASan/UBSan report files were
-    emitted during the transfer.
+    emitted during startup or the transfer.
 
     The file is placed directly on the server's POSIX export root (DATA_ROOT)
     so no authenticated write-open is needed; any xrdcp binary on PATH suffices
@@ -66,7 +68,6 @@ def test_no_sanitizer_reports_after_basic_io(tmp_path):
     xrdcp = _require_xrdcp()
     src_path, payload = _write_source_payload()
     try:
-        _clear_sanitizer_reports()
         output = _download_payload(xrdcp, src_path.name, tmp_path)
         _assert_payload(payload, output)
         _assert_no_sanitizer_reports()
@@ -89,11 +90,6 @@ def _write_source_payload():
     payload = b"xrootd-sanitizer-smoke\n" + os.urandom(64)
     source.write_bytes(payload)
     return source, payload
-
-
-def _clear_sanitizer_reports():
-    for stale in glob.glob(os.path.join(SANITIZE_LOG_DIR, "asan.*")):
-        os.remove(stale)
 
 
 def _download_payload(xrdcp, filename, tmp_path):

@@ -39,19 +39,20 @@ def srv(tmp_path_factory):
     our_port = L.worker_port(L.OUR_PORT)
     off_port = L.worker_port(L.OFF_PORT)
     ours = L.start_our_server(str(base), our_data, port=our_port)
-    off = L.start_official_server(str(base), off_data, port=off_port)
-    if not ours:
-        pytest.skip("our nginx server did not start")
-    if not off:
-        if ours:
-            L.stop_pair([ours])
-        pytest.skip("stock xrootd server did not start")
-    ctx = {"our": L.our_url(our_port), "off": L.off_url(off_port),
-           "our_data": our_data, "off_data": off_data}
-    yield ctx
-    # `ours` is a LifecycleHarness (closed via .close()), `off` a stock-xrootd
-    # Popen (reaped via its process group) — stop_pair handles both.
-    L.stop_pair([ours, off])
+    off = None
+    try:
+        off = L.start_official_server(str(base), off_data, port=off_port)
+        if not ours:
+            pytest.skip("our nginx server did not start")
+        if not off:
+            pytest.skip("stock xrootd server did not start")
+        ctx = {"our": L.our_url(our_port), "off": L.off_url(off_port),
+               "our_data": our_data, "off_data": off_data}
+        yield ctx
+    finally:
+        # Both handles own their process cleanup; the stock handle also removes
+        # its short Unix control directory after reaping the process group.
+        L.stop_pair([ours, off])
 
 
 def fs(url, *args, timeout=60):

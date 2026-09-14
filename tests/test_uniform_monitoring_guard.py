@@ -47,7 +47,7 @@ def _strip(text):
 # the request's monitor, so $brix_* reports on that plane exactly as on WebDAV.
 BIND_SITES = {
     "protocols/webdav/access_vfs_ctx.c": "brix_http_monitor_bind",  # GET/PUT/COPY
-    "protocols/s3/object.c": "brix_http_monitor_bind",              # S3 GET
+    "protocols/s3/object_scope.c": "brix_http_monitor_bind",        # S3 GET
     "protocols/s3/util.c": "brix_http_monitor_bind",                # S3 PUT/multipart
 }
 
@@ -60,6 +60,24 @@ def test_every_http_data_plane_binds_the_monitor():
             or call + "(r, vctx);" in _strip(_text(rel)), (
             f"{rel} no longer binds the I/O monitor — its plane's $brix_* "
             "values would silently go to '-'")
+    assert "s3_vfs_ctx(r, fs_path, cf, &vctx);" in _strip(
+        _text("protocols/s3/object.c")), "S3 GET bypassed its monitored VFS builder"
+
+
+@pytest.mark.parametrize("rel,call", [
+    ("protocols/s3/object_scope.c", "brix_http_monitor_bind(r, vctx);"),
+    ("protocols/s3/object.c", "s3_vfs_ctx(r, fs_path, cf, &vctx);"),
+])
+def test_s3_monitor_guard_rejects_a_missing_binding_or_caller(monkeypatch, rel, call):
+    original_text = _text
+
+    def without_call(path):
+        text = original_text(path)
+        return text.replace(call, "") if path == rel else text
+
+    monkeypatch.setattr(f"{__name__}._text", without_call)
+    with pytest.raises(AssertionError):
+        test_every_http_data_plane_binds_the_monitor()
 
 
 def test_root_plane_binds_the_session_monitor():

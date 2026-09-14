@@ -208,7 +208,7 @@ Comprehensive verification of all CI/CD documentation against actual GitHub Acti
 
 ### 5.1 Matrix Configuration Accuracy
 
-**Documentation Claims** (CI_CD_PLATFORM_MATRIX_REPORT.md):
+**Documentation Claims** (docs/audit/ci-cd/CI_CD_PLATFORM_MATRIX_REPORT.md):
 
 | Platform | Runner | Compiler | Optimization | Priority |
 |----------|--------|----------|--------------|----------|
@@ -505,7 +505,7 @@ grep -h "runs-on:" .github/workflows/*.yml | sort -u
 - `.github/workflows/*.yml` (13 files)
 
 **Documentation Files** (3):
-- `.github/workflows/CI_CD_STATUS_REPORT.md`
+- `docs/audit/ci-cd/CI_CD_STATUS_REPORT.md`
 - `docs/audit/CICD_DOCUMENTATION_AUDIT.md`
 - `docs/audit/CICD_AUDIT_SUMMARY.md`
 

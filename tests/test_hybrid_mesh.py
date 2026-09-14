@@ -21,8 +21,10 @@ hybrid_mesh_lib.py):
  d)xrd e)xrd f)nginx                  (data servers; f also S3 + WebDAV origin)
 
 These tests connect to the dedicated 11300-11330 band brought up by
-`python3 -m cmdscripts.manage_test_servers start-all` (via hybrid_mesh_servers.py).  They skip
-if the mesh is not up.  Each scenario records the components it traversed —
+`python3 -m cmdscripts.manage_test_servers start-all` (via hybrid_mesh_servers.py).
+Readiness is checked by a module fixture after the harness starts the fleet;
+collection does not connect to the mesh. Each scenario records the components
+it traversed —
 proven by observable evidence (the entry port used, the data server that served
 the bytes via its content tag, HTTP status) — and a final test prints the
 component-usage matrix and asserts every node was exercised by some path.
@@ -82,11 +84,12 @@ HOST = hml.HOST
 EXPORT = hml.EXPORT                       # "/mesh"
 STORE = os.path.join(hml.MESH_DIR, "hybrid")   # <node>-data dirs live here
 
-pytestmark = pytest.mark.timeout(120)
+# The usage ledger and final coverage assertion must share one ordered worker.
+pytestmark = [pytest.mark.timeout(120), pytest.mark.xdist_group("hybrid-mesh")]
 
 
 # --------------------------------------------------------------------------- #
-# Skip gate: the mesh must be up (binaries present + front doors listening)
+# Runtime readiness: the registered mesh must be up after fleet setup
 # --------------------------------------------------------------------------- #
 
 def _mesh_up():
@@ -94,9 +97,11 @@ def _mesh_up():
                (P["a_data"], P["g_data"], P["a_s3"], P["f_data"], P["g_http"]))
 
 
-if not _mesh_up():
-    pytest.skip("hybrid mesh not up (run python3 -m cmdscripts.manage_test_servers start-all)",
-                allow_module_level=True)
+@pytest.fixture(scope="module", autouse=True)
+def _require_hybrid_mesh():
+    """Check readiness after the harness has completed its collection barrier."""
+    if not _mesh_up():
+        pytest.fail("hybrid mesh not ready after fleet setup", pytrace=False)
 
 
 # --------------------------------------------------------------------------- #

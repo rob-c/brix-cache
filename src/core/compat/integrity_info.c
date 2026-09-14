@@ -1,17 +1,8 @@
-/*
- * integrity_info.c — shared checksum metadata and xattr cache service.
- *
- * WHAT: Provides a unified API for checksum retrieval that combines an
- *       xattr-backed cache layer with on-demand computation via the existing
- *       checksum helpers.
- * WHY:  Multiple protocol surfaces (native kXR_Qcksum, XrdHttp Want-Digest,
- *       dirlist dcksm, S3 ETag) need the same xattr cache key, cache trust
- *       policy, and HTTP Digest formatting.  Centralising this prevents drift
- *       in cache key names and format conversions.
- * HOW:  On a cache hit, reads "user.XrdCks.<alg>" xattr and validates hex
- *       digits.  On a cache miss, delegates to brix_checksum_hex_fd() and
- *       optionally writes the result back.  Invalidation removes all known
- *       algorithm xattrs so write paths can keep the cache consistent.
+/* integrity_info.c — shared checksum metadata and xattr cache service.
+ * WHAT: Read checksum metadata, calculate misses and format HTTP digests.
+ * WHY: Native, WebDAV and S3 consumers share cache keys and trust rules.
+ * HOW: Validate cached hex; otherwise call brix_checksum_hex_fd(), optionally
+ * cache the result, and invalidate every supported checksum after writes.
  */
 
 #include "integrity_info.h"

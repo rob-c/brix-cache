@@ -56,7 +56,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # a standalone consistency oracle with its own install target
 # (tools/pblock-fsck/Makefile:14-15) -- shipped code, so the one-DNS-path
 # guarantee covers it like any other.  contrib/ is here for the site
-# checksum plugins (contrib/checksum-plugins/README.md): shared objects the
+# checksum plugins (docs/09-developer-guide/checksum-plugins/README.md): shared objects the
 # worker dlopen()s, so a resolver there runs inside the server process.
 # What is left outside is test C only (tests/, k8s-tests/, brixtest/),
 # which uses libc deliberately.

@@ -28,3 +28,7 @@ crc32c>=2.2,<3
 
 # --- TLS wire probes: OCSP stapling callback inspection -----------------------
 pyOpenSSL>=23,<26
+
+# --- platform tests: memory inspection and ARM vector comparisons ------------
+psutil>=5.9,<8
+numpy>=1.24,<3

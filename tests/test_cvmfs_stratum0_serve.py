@@ -48,7 +48,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 from conformance_common import BRIXMOUNT, NGINX_BIN, PortBlock, fuse_mount, request
 from cmdscripts.cvmfs_publish_txn import _upper, cas_path, parse_manifest, repotool
 from cmdscripts.cvmfs_repo_cli import _build_repotool
-from cmdscripts.live_common import LiveRun
+from cmdscripts.live_common import (
+    LiveRun, inject_nginx_load_modules, inject_nginx_runtime_paths,
+)
 from settings import BIND_HOST, HOST
 
 FQRN = "s0.brix.io"
@@ -65,7 +67,7 @@ _BLOCK = PortBlock("srv_stratum0")
 
 def _nginx_conf(run: LiveRun, port: int, loc_lines: str) -> "os.PathLike":
     user_line = "user root;\n" if os.geteuid() == 0 else ""
-    return run.write(
+    config = run.write(
         run.root / f"nginx.{port}.conf",
         f"""{user_line}daemon on; error_log {run.root}/logs/e.{port}.log info;
 pid {run.root}/nginx.{port}.pid;
@@ -77,6 +79,9 @@ http {{ access_log off; server {{ listen {BIND_HOST}:{port};
     }}
 }} }}
 """)
+    inject_nginx_load_modules(config, NGINX_BIN)
+    inject_nginx_runtime_paths(config, run.root)
+    return config
 
 
 @pytest.fixture(scope="module")

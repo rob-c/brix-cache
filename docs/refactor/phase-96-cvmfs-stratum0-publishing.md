@@ -545,7 +545,7 @@ authz preamble, guard contract) exists by end of Wave E.
   caps from day one — split `catalog_write` early rather than grandfathering.
 - **CODEOWNERS** routes review for auth (S0 keys), parsers (S1/S10), build
   wiring, guard fleet — expect multi-area review on Waves A and E.
-- **Docs:** `deploy/cvmfs/README.md` gains a Stratum-0 runbook section
+- **Docs:** `docs/05-operations/deploy/cvmfs/README.md` gains a Stratum-0 runbook section
   (mkfs → publish → serve → resign cron → gc cron); `docs/04-protocols/cvmfs.md`
   gains a "Stratum-0 mode" section; phase-85/87 §Non-goals get the
   reconciliation note (§0.0).

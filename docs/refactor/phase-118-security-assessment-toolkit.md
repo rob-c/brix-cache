@@ -27,7 +27,7 @@ differentially recorded against stock XRootD v6.1.0 in
 **Phase 118 is the wire-protocol analogue of that work, shipped as a tool
 instead of a test suite.** That is the whole idea in one sentence.
 **CLI contract:** every item below is additive under
-[`client/apps/README.md`](../../client/apps/README.md) §"CLI compatibility
+[`docs/09-developer-guide/client/apps/README.md`](../09-developer-guide/client/apps/README.md) §"CLI compatibility
 contract" C1–C5. No existing flag, exit code, or non-TTY byte changes meaning.
 New `.c` files go in `client/Makefile` (guard
 [`check_client_build_coverage.py`](../../tools/ci/check_client_build_coverage.py)).

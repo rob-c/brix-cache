@@ -137,11 +137,11 @@ int brix_fs_watcher_next(watcher, event, timeout_ms) {
 ### Documentation (3 files)
 10. `src/platform/README.md` - PAL documentation (300 lines)
 11. `docs/01-getting-started/macos-quickstart.md` - Build guide (350 lines)
-12. `MACOS_IMPLEMENTATION_STATUS.md` - Status tracking (400 lines)
+12. `docs/platform/macos/reports/MACOS_IMPLEMENTATION_STATUS.md` - Status tracking (400 lines)
 
 ### Utilities (2 files)
 13. `verify_macos_support.sh` - Build verification script (150 lines)
-14. `test_platform.c` - Platform detection test (80 lines)
+14. `tests/platform/examples/test_platform.c` - Platform detection test (80 lines)
 
 ### Build System (1 file modified)
 15. `config` - Platform detection & conditional builds (+100 lines)
@@ -249,7 +249,7 @@ fi
 ### Test Program
 
 ```bash
-gcc -Isrc test_platform.c -o test_platform
+gcc -Isrc tests/platform/examples/test_platform.c -o test_platform
 ./test_platform
 ```
 
@@ -345,7 +345,7 @@ gcc -Isrc test_platform.c -o test_platform
 - **Platform API:** `src/platform/platform_api.h`
 - **Build Guide:** `docs/01-getting-started/macos-quickstart.md`
 - **PAL Documentation:** `src/platform/README.md`
-- **Status Tracking:** `MACOS_IMPLEMENTATION_STATUS.md`
+- **Status Tracking:** `docs/platform/macos/reports/MACOS_IMPLEMENTATION_STATUS.md`
 
 ---
 

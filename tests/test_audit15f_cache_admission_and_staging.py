@@ -82,8 +82,9 @@ def _guard_cacheadm_3():
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
 
 def _check_test_the_staged_backend_instance_still_has_no_consumer_1(hits):
-    assert sorted(hits) == ["src/fs/cache/cache_storage.c:265",
-                            "src/fs/cache/cache_storage.h:61"], (
+    owners = sorted(hit.rsplit(":", 1)[0] for hit in hits)
+    assert owners == ["src/fs/cache/cache_storage.c",
+                      "src/fs/cache/cache_storage.h"], (
         f"brix_cache_wt_stage() references changed: {sorted(hits)}")
 
 def _guard_test_the_staged_backend_instance_still_has_no_consumer_4(line, hits, lineno, full):

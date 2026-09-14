@@ -13,6 +13,7 @@ configured for `sec.protbind * only gsi`.  It SKIPS cleanly when the stock tools
 (`xrootd`, `xrdgsiproxy`, `openssl`, stock `xrdfs`) are not installed.
 """
 
+from contextlib import closing
 import os
 import shutil
 import socket
@@ -23,17 +24,12 @@ import pytest
 
 from settings import NGINX_BIN
 from server_registry import NginxInstanceSpec
+from stock_xrootd_owner import StockXrootdOwner
 
 def _phase_gsi_server_1_next(base):
-    for d in (base / "admin", base / "gsitest"):
-        _run(["chmod", "-R", "a+rwX", str(d)])
+    _run(["chmod", "-R", "a+rwX", str(base / "gsitest")])
 
 
-def _phase_gsi_server_1(proc):
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
 def _guard_gsi_server_1():
@@ -48,9 +44,8 @@ def _guard_gsi_server_3(proxy, mk):
     if not proxy.exists():
         pytest.skip(f"could not mint a test proxy: {mk.stdout}{mk.stderr}")
 
-def _guard_gsi_server_6(up, proc):
+def _guard_gsi_server_6(up):
     if not up:
-        proc.terminate()
         pytest.skip("stock xrootd GSI server did not come up")
 
 def _guard_gsi_server_4(hostcert, srv):
@@ -116,11 +111,12 @@ def _create_directories(*directories):
         directory.mkdir(parents=True, exist_ok=True)
 
 
-def _root_server_args(base, certs, server):
+def _root_server_args(base, certs, server, admin):
     if os.geteuid() != 0:
         return []
     runas = os.environ.get("REF_RUNAS_USER", "nobody")
-    _create_directories(base / "admin", base / "gsitest")
+    _create_directories(base / "gsitest")
+    shutil.chown(admin, runas)
     _run(["chmod", "a+rx", str(base)])
     for directory in (base / "gsidata", certs):
         _run(["chmod", "-R", "a+rX", str(directory)])
@@ -172,41 +168,42 @@ def gsi_server(tmp_path_factory):
     _guard_gsi_server_3(proxy, mk)
 
     (data / "hello.txt").write_text("hello-gsi\n")
-    cfg = base / "xrootd.cfg"
-    cfg.write_text(
-        f"xrd.port {PORT}\n"
-        f"all.adminpath {base / 'admin'}\n"
-        f"all.pidpath {base / 'admin'}\n"
-        "all.export /gsidata\n"
-        f"oss.localroot {base}\n"
-        "xrootd.seclib libXrdSec.so\n"
-        f"sec.protocol gsi -certdir:{certs} "
-        f"-cert:{srv / 'hostcert.pem'} -key:{srv / 'hostkey.pem'} "
-        "-crl:0 -gmapopt:10 -dlgpxy:0\n"
-        "sec.protbind * only gsi\n")
-    shutil.move(str(data), str(base / "gsidata"))
+    with closing(StockXrootdOwner()) as owner:
+        cfg = base / "xrootd.cfg"
+        cfg.write_text(
+            f"xrd.port {PORT}\n"
+            f"all.adminpath {owner.admin}\n"
+            f"all.pidpath {owner.admin}\n"
+            "all.export /gsidata\n"
+            f"oss.localroot {base}\n"
+            "xrootd.seclib libXrdSec.so\n"
+            f"sec.protocol gsi -certdir:{certs} "
+            f"-cert:{srv / 'hostcert.pem'} -key:{srv / 'hostkey.pem'} "
+            "-crl:0 -gmapopt:10 -dlgpxy:0\n"
+            "sec.protbind * only gsi\n")
+        shutil.move(str(data), str(base / "gsidata"))
 
-    _free_port(PORT)
-    argv = ["xrootd", "-c", str(cfg), "-l", str(base / "x.log"), "-n", "gsitest"]
-    # Stock xrootd refuses to run as superuser, so under the root test harness we
-    # drop it to `nobody` via `-R` and pre-open ONLY the paths the dropped user
-    # touches.  The user proxy dir (usr/) is deliberately left untouched: XrdSecgsi
-    # refuses a group/world-writable proxy, and only the root client reads it.
-    argv += _root_server_args(base, certs, srv)
-    proc = subprocess.Popen(argv,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    # Wait for the listener.
-    up = _listener_ready()
-    _guard_gsi_server_6(up, proc)
+        _free_port(PORT)
+        argv = ["xrootd", "-c", str(cfg), "-l", str(base / "x.log"), "-n", "gsitest"]
+        # Stock xrootd refuses to run as superuser, so under the root test harness we
+        # drop it to `nobody` via `-R` and pre-open ONLY the paths the dropped user
+        # touches.  The user proxy dir (usr/) is deliberately left untouched: XrdSecgsi
+        # refuses a group/world-writable proxy, and only the root client reads it.
+        argv += _root_server_args(base, certs, srv, owner.admin)
+        proc = subprocess.Popen(argv,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                start_new_session=True)
+        owner.process = proc
+        # Wait for the listener.
+        up = _listener_ready()
+        _guard_gsi_server_6(up)
 
-    ctx = {"host": fqdn, "port": PORT, "env": env,
-           "url": f"root://{fqdn}:{PORT}", "certs": str(certs),
-           "ca": str(ca / "ca.pem"), "hostcert": str(srv / "hostcert.pem"),
-           "hostkey": str(srv / "hostkey.pem"), "data": str(base / "gsidata"),
-           "base": str(base)}
-    yield ctx
-    proc.terminate()
-    _phase_gsi_server_1(proc)
+        ctx = {"host": fqdn, "port": PORT, "env": env,
+               "url": f"root://{fqdn}:{PORT}", "certs": str(certs),
+               "ca": str(ca / "ca.pem"), "hostcert": str(srv / "hostcert.pem"),
+               "hostkey": str(srv / "hostkey.pem"), "data": str(base / "gsidata"),
+               "base": str(base)}
+        yield ctx
 
 
 def test_stock_client_gsi_auth_succeeds(gsi_server):

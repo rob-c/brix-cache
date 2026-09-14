@@ -365,6 +365,7 @@ def pblock(base: Path) -> tuple[bool, str]:
             str(backend / "pblock/pblock_refs.c"),
             str(backend / "pblock/pblock_pack.c"),
             str(backend / "pblock/pblock_pack_seg.c"),
+            str(REPO_ROOT / "shared/cvmfs/platform/platform.c"),
             str(backend / "pblock/pblock_snap.c"),
             str(backend / "pblock/pblock_hist.c"),
             str(REPO_ROOT / "src/core/compat/crc32c.c"),

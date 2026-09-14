@@ -13,8 +13,8 @@ WHY:  the shared cmdscripts/manage_test_servers.py fleet squats 11094-12126, is 
       living in their own subfolder.
 
 HOW:  reuse the repo's PKI helpers (own PKI dir under a dedicated prefix), the
-      module's already-built nginx (objs/nginx, with the xrootd stream module
-      compiled in), and the system official `xrootd`.  Every server and the
+      runner-selected nginx and its configured dynamic modules, and the
+      system official `xrootd`.  Every server and the
       fault proxy is a context manager that guarantees teardown.
 
 Nothing here touches the main suite's ports, data, or PKI.
@@ -29,7 +29,7 @@ import time
 
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
-from settings import BIND_HOST, HOST
+from settings import BIND_HOST, HOST, NGINX_BIN as SELECTED_NGINX_BIN
 
 # --- Layout ------------------------------------------------------------------
 
@@ -64,7 +64,7 @@ FAULT_PROXY = os.path.join(CLIENT_BIN, "brix-fault-proxy")
 # unprivileged lane on the same host cannot write over.
 PREFIX = os.environ.get(
     "RESIL_PREFIX", f"/tmp/xrd-resilience-{getpass.getuser()}")
-NGINX_BIN = os.environ.get("RESIL_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+NGINX_BIN = os.environ.get("RESIL_NGINX_BIN", SELECTED_NGINX_BIN)
 BRIX_BIN = os.environ.get("RESIL_BRIX_BIN") or shutil.which("xrootd")
 
 NGINX_GSI_PORT = int(os.environ.get("RESIL_NGINX_GSI_PORT", "13901"))

@@ -107,7 +107,7 @@ _LOCAL_DEF = re.compile(
 CONF_SUFFIX = (".conf", ".conf.in", ".conf.example", ".conf.tmpl")
 # Prose, C sources and the release-note migration table quote removed spellings
 # on purpose; only artifacts nginx will parse are in scope.
-SCAN_SKIP = ("docs/", "CHANGELOG.md", "src/", "client/", "shared/")
+SCAN_SKIP = ("docs/", "docs/10-reference/CHANGELOG.md", "src/", "client/", "shared/")
 
 
 def _owned(name):
@@ -245,7 +245,7 @@ DOC_FREEZE = ("docs/refactor/", "docs/_archive/", "docs/superpowers/",
 
 
 def _operator_docs(files):
-    return [f for f in files if f.endswith(".md") and f != "CHANGELOG.md"
+    return [f for f in files if f.endswith(".md") and f != "docs/10-reference/CHANGELOG.md"
             and not any(s in f for s in DOC_FREEZE)]
 
 
@@ -497,15 +497,18 @@ def test_the_data_path_never_reaches_the_vfs_observer():
 
 def test_latency_is_exposed_in_seconds_only():
     """(feature, breaking) The unit change is real, not a rename: _sum is
-    %.6f seconds (sum_usec / 1000000.0) and every bucket `le` is a second
+    %.6f seconds (sum_usec / BRIX_PPM_MULTIPLIER) and every bucket `le` is a second
     boundary. A recording rule dividing _sum by _count against a microsecond
     threshold is now wrong by 10^6, which is why the release note calls it
     out. No _usec latency histogram may survive to be mistaken for it."""
     exp = (SRC / "observability/metrics/unified_export_io.c").read_text()
     assert 'brix_io_latency_seconds_sum{proto=\\"%s\\",op=\\"%s\\"} %.6f' in exp
-    assert "(double) sum_usec / 1000000.0" in exp
+    multiplier = re.search(r"^#define BRIX_PPM_MULTIPLIER\s+(\d+)\s*$",
+                           _strip(_text("core/types/tunables_core.h")), re.M)
+    assert multiplier and int(multiplier.group(1)) == 1_000_000
+    assert "(double) sum_usec / BRIX_PPM_MULTIPLIER" in exp
     assert '"{proto=\\"%s\\",op=\\"%s\\",le=\\"%.6f\\"} %llu\\n"' in exp
-    assert "(double) bound_usec / 1000000.0" in exp
+    assert "(double) bound_usec / BRIX_PPM_MULTIPLIER" in exp
     emitted = subprocess.run(
         ["git", "-C", str(ROOT), "grep", "-n", "brix_io_latency_usec", "--",
          "src/"], capture_output=True, text=True).stdout

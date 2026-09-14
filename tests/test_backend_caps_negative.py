@@ -146,8 +146,10 @@ def _perattr(resp):
 
 
 def _local_xattrs(path):
+    """Inspect application metadata independently of automatic OS labels."""
     try:
-        return sorted(os.listxattr(str(path)))
+        return sorted(name for name in os.listxattr(str(path))
+                      if name.startswith("user."))
     except OSError:
         return []
 

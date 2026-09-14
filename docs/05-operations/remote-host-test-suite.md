@@ -164,7 +164,7 @@ The suite drives real clients against a real fleet, so the host needs:
 (`TEST_OWN_FLEET=1`), runs a parallel bulk lane plus serial/dedicated lanes, and
 re-runs only the failures on a now-quiet box to filter load-correlated flakes.
 Run every command below from the repository root.
-See [tests/README.md](../../tests/README.md) for the full rationale.
+See [docs/09-developer-guide/testing/README.md](../09-developer-guide/testing/README.md) for the full rationale.
 
 | Command | Runs | Time | Use when |
 |---|---|---|---|
@@ -330,7 +330,7 @@ FUSE mounts, configure-built-a-bare-nginx, port lookup), see
 
 ## See also
 
-- [tests/README.md](../../tests/README.md) — the runner's lane design and flake-rerun rationale
+- [docs/09-developer-guide/testing/README.md](../09-developer-guide/testing/README.md) — the runner's lane design and flake-rerun rationale
 - [upgrade-procedure.md](upgrade-procedure.md) — RPM layout, 2-`.so` load order, rollback
 - [test-fleet-ports.md](../10-reference/test-fleet-ports.md) — the fixed-port registry
 - [reload-semantics.md](../09-developer-guide/reload-semantics.md) — reload vs restart, drain behavior

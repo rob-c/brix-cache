@@ -88,7 +88,7 @@ const char *brix_unified_tpc_deleg_result_names[
 
 /* Shared with the record hot path (unified_record.c) and the latency exporter
  * (unified_export_io.c); external linkage via unified_internal.h. */
-const ngx_msec_t brix_latency_bounds[BRIX_IO_LATENCY_BUCKETS - 1] = {
+const ngx_msec_t brix_latency_bounds[] = {
     BRIX_LATENCY_BOUND_1MS,
     BRIX_LATENCY_BOUND_5MS,
     BRIX_LATENCY_BOUND_10MS,
@@ -98,6 +98,11 @@ const ngx_msec_t brix_latency_bounds[BRIX_IO_LATENCY_BUCKETS - 1] = {
     BRIX_LATENCY_BOUND_1S,
     BRIX_LATENCY_BOUND_5S,
 };
+
+/* Inferred array size catches missing initializers instead of padding zeroes. */
+_Static_assert(sizeof(brix_latency_bounds) / sizeof(brix_latency_bounds[0])
+               == BRIX_LATENCY_BOUNDS_COUNT,
+               "finite latency bounds must match histogram storage");
 
 const char *
 brix_metric_proto_name(brix_proto_t proto)

@@ -21,6 +21,7 @@ command-table edit cannot silently drop it again.
                  ignored — must instead be a hard load error).
 """
 
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 import subprocess
 
 from settings import BIND_HOST, NGINX_BIN
@@ -48,6 +49,8 @@ def _nginx_t_http(root, value):
 }} }}
 """
     )
+    inject_nginx_load_modules(conf, NGINX_BIN)
+    inject_nginx_runtime_paths(conf, root)
     p = subprocess.run(
         [str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
         capture_output=True, text=True, timeout=30,
@@ -68,6 +71,8 @@ def _nginx_t_stream(root, value):
 }} }}
 """
     )
+    inject_nginx_load_modules(conf, NGINX_BIN)
+    inject_nginx_runtime_paths(conf, root)
     p = subprocess.run(
         [str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
         capture_output=True, text=True, timeout=30,

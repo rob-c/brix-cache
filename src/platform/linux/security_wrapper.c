@@ -13,18 +13,6 @@
 #include <seccomp.h>
 #include <errno.h>
 #include <string.h>
-#include <stdlib.h>
-
-/*
- * Security context for Linux (seccomp-based)
- */
-struct brix_security_ctx {
-    scmp_filter_ctx ctx;      /* libseccomp filter context */
-    int mode;                 /* 0=off, 1=audit, 2=enforce */
-    char profile_path[256];   /* Path to loaded profile */
-};
-
-typedef struct brix_security_ctx brix_security_ctx_t;
 
 int brix_security_load_profile(const char *path);
 
@@ -32,12 +20,18 @@ int brix_security_load_profile(const char *path);
  * SECURITY - Linux implementations (seccomp-bpf)
  * ========================================================================== */
 
+/* ---- Load a profile while retaining no userspace filter ownership ----
+ *
+ * WHAT: Apply the selected profile, returning 0 or -1 with errno.
+ * WHY: seccomp_load installs the kernel policy; its builder has no later owner.
+ * HOW: 1. Select the action. 2. Build and load it. 3. Release after every load.
+ */
 int
 brix_security_init(const char *profile)
 {
-    brix_security_ctx_t *ctx;
     scmp_filter_ctx seccomp_ctx;
     uint32_t default_action;
+    int load_result;
     
     /* Determine action based on profile name */
     if (profile == NULL || strcmp(profile, "off") == 0) {
@@ -60,18 +54,6 @@ brix_security_init(const char *profile)
         return -1;
     }
     
-    /* Create security context */
-    ctx = calloc(1, sizeof(brix_security_ctx_t));
-    if (ctx == NULL) {
-        seccomp_release(seccomp_ctx);
-        errno = ENOMEM;
-        return -1;
-    }
-    
-    ctx->ctx = seccomp_ctx;
-    ctx->mode = (strcmp(profile, "audit") == 0) ? 1 : 2;
-    strncpy(ctx->profile_path, profile, sizeof(ctx->profile_path) - 1);
-    
     /* Add basic allowed syscalls for nginx operation
      *
      * DESIGN NOTE: Full integration with seccomp profile system deferred
@@ -81,10 +63,11 @@ brix_security_init(const char *profile)
      * for fine-grained syscall control per worker/process.
      */
     
-    /* Load the filter */
-    if (seccomp_load(seccomp_ctx) < 0) {
-        seccomp_release(seccomp_ctx);
-        free(ctx);
+    /* Match the core/seccomp owner: releasing the builder leaves the loaded
+     * kernel policy active and also cleans up a failed load attempt. */
+    load_result = seccomp_load(seccomp_ctx);
+    seccomp_release(seccomp_ctx);
+    if (load_result < 0) {
         errno = EINVAL;
         return -1;
     }

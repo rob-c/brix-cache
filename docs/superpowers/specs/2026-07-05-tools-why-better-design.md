@@ -69,9 +69,9 @@ setup, a terminal mock (`term` classes), and a one-line takeaway.
 - Vignette capabilities trace to: `client/lib/net/resilient.c` (reconnect /
   re-auth / reopen / offset resume, `--max-stall`), `client/apps/diag/`
   (`diag_check.c`, `diag_doctor.c` — check/doctor subcommands, error
-  explanation per `client/apps/README.md`), `client/apps/scan/`
-  (`xrdstorascan` phase-1 `verify` per `client/apps/README.md`).
-- Comparison rows trace to: `client/apps/README.md` (pure-C, libXrdCl-free;
+  explanation per `docs/09-developer-guide/client/apps/README.md`), `client/apps/scan/`
+  (`xrdstorascan` phase-1 `verify` per `docs/09-developer-guide/client/apps/README.md`).
+- Comparison rows trace to: `docs/09-developer-guide/client/apps/README.md` (pure-C, libXrdCl-free;
   xrdcp URL schemes), `client/Makefile` (CKSUM_LINKS/DIAG_LINKS symlinks),
   `CLAUDE.md` (`TEST_CROSS_BACKEND` cross-backend suite). The two stock-side
   cells that describe stock behavior ("root:// natively; HTTP via plugin",

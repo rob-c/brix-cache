@@ -388,8 +388,8 @@ if (fd < 0 || (size_t)fd >= g_handle_registry.capacity) {
 | `src/platform/README.md` | Overview | ✅ Consistent |
 | `docs/platform/SUPPORT_MATRIX.md` | Platform comparison | ✅ Consistent |
 | `src/platform/windows/README.md` | Windows PAL overview | ✅ Consistent |
-| `src/platform/windows/IMPLEMENTATION_STATUS.md` | Status tracking | ⚠️ Outdated (90.5%) |
-| `src/platform/windows/WINDOWS_PAL_100_PERCENT_COMPLETE.md` | Completion report | ✅ Consistent |
+| `docs/platform/pal/windows/IMPLEMENTATION_STATUS.md` | Status tracking | ⚠️ Outdated (90.5%) |
+| `docs/platform/pal/windows/WINDOWS_PAL_100_PERCENT_COMPLETE.md` | Completion report | ✅ Consistent |
 
 **Issue**: ⚠️ `IMPLEMENTATION_STATUS.md` shows 90.5% but should show 100%
 
@@ -572,8 +572,8 @@ The HANDLE/fd abstraction layer documentation is **highly accurate and comprehen
 |------|-------|---------|
 | `src/platform/windows/handle_abstraction.c` | 759 | Core implementation |
 | `src/platform/windows/handle_abstraction.h` | 162 | API header |
-| `src/platform/windows/HANDLE_ABSTRACTION_DESIGN.md` | 500+ | Design specification |
-| `src/platform/windows/HANDLE_ABSTRACTION_REPORT.md` | 400+ | Implementation report |
+| `docs/platform/pal/windows/HANDLE_ABSTRACTION_DESIGN.md` | 500+ | Design specification |
+| `docs/platform/pal/windows/HANDLE_ABSTRACTION_REPORT.md` | 400+ | Implementation report |
 | `src/platform/README.md` | 250+ | PAL overview |
 | `docs/platform/SUPPORT_MATRIX.md` | 560 | Platform comparison |
 | `src/platform/windows/README.md` | 150+ | Windows PAL overview |

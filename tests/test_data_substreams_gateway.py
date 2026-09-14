@@ -1,35 +1,23 @@
-"""Phase 94 / Phase 2 — bound-write fan-out to a **gateway in front of a remote
-root:// origin**, proving the transfer lands byte-exact ON THE REMOTE ORIGIN.
+"""Gateway bound-write fanout conformance against a remote root:// origin.
 
-The refactor doc (docs/refactor/phase-94-bound-write-substreams.md) originally
-GATED Phase 2 on the assumption that a writable gateway routes writes through the
-driver-backed whole-object staged writer (``file->writer != NULL``, sequential,
-unpublishable).  In reality a writable root:// gateway with the default
-``brix_upload_resume on`` (and POSC, which is always implemented) stages the upload
-to a LOCAL, export-rooted ``.part`` file — a real kernel fd with a real local path.
-That is exactly the fd-backed shape Phase-1 already publishes to the cross-worker
-SHM handle table and fans bound writes across; the existing resume/POSC commit then
-flushes the COMPLETE ``.part`` (all bytes, including those written by bound
-secondaries on another worker) onto the remote origin at close.
+The expected contract is that an upload uses bound secondary connections and
+closing the primary flushes the complete object to the origin's own storage.
+The rig has separate gateway export and stage-store directories and two nginx
+workers, so the assertions require cross-worker support for staged writes.
 
-So gateway parallel upload already works.  This test PROVES it end-to-end:
-  * stand up a root:// origin and a BriX gateway (``brix_storage_backend
-    root://origin``) with ``worker_processes 2`` so secondaries land cross-worker;
-  * upload an 8 MiB file with the client's default fan-out (``--streams 4``);
-  * assert the client actually carried chunks on the secondaries
-    (``chunks-on-secondaries>0`` — not a silent single-stream fallback);
-  * assert the bytes are byte-exact **on the origin's own storage** (the gateway
-    flushed the fanned-out ``.part`` to the origin).
+The payload uses the existing canonical fanout-size helper: five client copy
+chunks at the current buffer size. The first chunk goes to the primary; later
+chunks can exercise each of the three bound secondaries. The test requires a
+positive secondary chunk count and byte-exact origin content after close.
 
-The residual whole-object (S3/WebDAV PUT, ``needs_staged``) case still degrades to
-the resilient primary and is covered by
-``test_data_substreams_parallel.py::TestDataSubstreamWrites::
-test_bound_write_unpublished_handle_refused``.
+This test records the expected behavior; it does not assume that all storage
+backends already support it. A successful primary-only fallback still fails
+the fanout assertion.
 
-This rig is heavyweight (two real nginx instances) and env-specific: it needs an
-nginx binary, the stream + brix module ``.so``s, and a world-traversable writable
-base (the workers drop to a service uid).  It skips cleanly when any is absent.
-Override via TEST_NGINX_BIN / TEST_NGX_STREAM_MODULE / BRIX_MODULE_SO /
+The rig needs nginx, the matching stream and BriX module objects, the native
+client, and writable directories traversable by its workers. Missing runtime
+prerequisites produce explicit skips. Override selections through
+TEST_NGINX_BIN / TEST_NGX_STREAM_MODULE / BRIX_MODULE_SO /
 TEST_P2_ORIGIN_PORT / TEST_P2_GATEWAY_PORT.
 """
 import os
@@ -41,6 +29,7 @@ from pathlib import Path
 
 import pytest
 from config_templates import render_config_to_path
+from _test_data_substreams_parallel_helpers import _client_fanout_size
 from settings import ARTIFACTS_DIR, BIND_HOST, HOST
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -161,7 +150,7 @@ def _gateway_ports_ready():
 class TestGatewayBoundWriteFanout:
     def test_gateway_upload_fans_out_byte_exact_on_origin(self, gateway_rig):
         base = gateway_rig
-        size = 8 * 1024 * 1024                      # 128 × 64 KiB chunks
+        size = _client_fanout_size()  # five canonical chunks reach secondaries
         content = _det(size)
         src = base / "src.bin"
         src.write_bytes(content)

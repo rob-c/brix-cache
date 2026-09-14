@@ -26,7 +26,7 @@ if [ ! -f "$REPO/tests/cmdscripts/operator_runtime.py" ]; then
 fi
 
 # Static invariant guards first — they take seconds and catch what the test
-# tier can't (seam bypasses, size ratchets, doc drift). See tools/ci/README.md.
+# tier can't (seam bypasses, size ratchets, doc drift). See docs/09-developer-guide/ci/README.md.
 #
 # The guard list comes from tools/ci/guard_set.py, not from a glob here: this
 # hook used to glob for *shell* guards, which matched nothing once the fleet was

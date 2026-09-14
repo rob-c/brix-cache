@@ -44,7 +44,10 @@ def test_registry_nonempty_unique():
 def test_build_all_materializes(built_corpus):
     root = built_corpus
     manifest = json.loads((root / "manifest.json").read_text())
-    assert len(manifest) == len(ALL_CLAUSES)
+    errors = root / "build_errors.tsv"
+    assert len(manifest) == len(ALL_CLAUSES), (
+        errors.read_text() if errors.exists() else "incomplete clause manifest"
+    )
     assert (root / "manifest.tsv").exists()
     assert (root / "shared" / "ca").is_dir()
     for r in manifest:

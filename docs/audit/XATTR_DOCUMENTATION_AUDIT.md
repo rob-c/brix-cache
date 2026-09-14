@@ -449,7 +449,7 @@ return brix_plat_getxattr((char *)filepath, name, value, size);
 
 **Examples**:
 - `XATTR_SUMMARY.md`: "Windows PAL: 29/42 functions (69%)" ⚠️ Outdated
-- `PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md`: "Windows PAL: 42/42 (100%)" ✅ Current
+- `docs/platform/reports/PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md`: "Windows PAL: 42/42 (100%)" ✅ Current
 
 **Impact**: Confusing for developers tracking progress
 
@@ -538,8 +538,8 @@ return brix_plat_getxattr((char *)filepath, name, value, size);
 | Document | Lines | Completeness | Accuracy |
 |----------|-------|--------------|----------|
 | `platform_api.h` comments | 200+ | ✅ 100% | ⚠️ 90% (outdated stub markers) |
-| `PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md` | 3,196 | ✅ 100% | ✅ 98% |
-| `PLATFORM_IMPLEMENTATION_FINAL_REPORT.md` | 1,647 | ✅ 100% | ✅ 95% |
+| `docs/platform/reports/PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md` | 3,196 | ✅ 100% | ✅ 98% |
+| `docs/platform/reports/PLATFORM_IMPLEMENTATION_FINAL_REPORT.md` | 1,647 | ✅ 100% | ✅ 95% |
 
 **Total**: 5,043+ lines  
 **Overall Accuracy**: **95%** ✅

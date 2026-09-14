@@ -236,6 +236,24 @@ macaroon_parse_state_init(brix_macaroon_parse_state_t *state,
 }
 
 /*
+ * WHAT: Return the packet content length after its optional text delimiter.
+ * WHY: Signature packets contain raw HMAC bytes with no delimiter; a final
+ *      0x0a is part of the signature and must reach constant-time verification.
+ * HOW: 1. Preserve signature content. 2. Strip one newline from other packets.
+ */
+static size_t
+macaroon_packet_content_len(const u_char *data, size_t data_len)
+{
+    if (data_len >= 10 && memcmp(data, "signature ", 10) == 0) {
+        return data_len;
+    }
+    if (data_len > 0 && data[data_len - 1] == '\n') {
+        return data_len - 1;
+    }
+    return data_len;
+}
+
+/*
  * WHAT: Parse one macaroon binary, reconstruct HMAC-SHA256 signature chain.
  *       Verify final signature and extract WLCG caveats into claims.
  *
@@ -317,10 +335,7 @@ macaroon_parse_core(const macaroon_parse_input_t *in,
         data = (u_char *)(p + 4);
         dlen = (size_t)(plen - 4);
 
-        /* Strip trailing newline if present */
-        if (dlen > 0 && data[dlen - 1] == '\n') {
-            dlen--;
-        }
+        dlen = macaroon_packet_content_len(data, dlen);
 
         if (macaroon_dispatch_packet(&state, data, dlen) != NGX_OK) {
             return -1;

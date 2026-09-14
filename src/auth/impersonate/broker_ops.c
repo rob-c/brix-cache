@@ -253,10 +253,9 @@ imp_do_exchange(int sfd, const char *sbase, int dfd, const char *dbase)
 {
     /* phase72-fp: sfd/sbase ARE the first (source) pair — order is correct */
 #if defined(__APPLE__) && defined(__MACH__)
-    /* macOS lacks renameat2 - use renameat (no atomic exchange) */
-    if (renameat(sfd, sbase, dfd, dbase) == 0) {
-        return 0;
-    }
+    /* A plain rename cannot implement an atomic two-name exchange. */
+    (void) sfd; (void) sbase; (void) dfd; (void) dbase;
+    errno = ENOTSUP;
 #else
     if (syscall(SYS_renameat2, sfd, sbase, dfd, dbase,   /* NOLINT(readability-suspicious-call-argument) */
                 (unsigned int) RENAME_EXCHANGE) == 0) {
@@ -287,10 +286,8 @@ imp_do_rename(int sfd, const char *sbase, int dfd, const char *dbase,
         return renameat(sfd, sbase, dfd, dbase);  /* NOLINT(readability-suspicious-call-argument) */
     }
 #if defined(__APPLE__) && defined(__MACH__)
-    /* macOS lacks renameat2 - use renameat (no noreplace guarantee) */
-    if (renameat(sfd, sbase, dfd, dbase) == 0) {
-        return 0;
-    }
+    /* Refuse the exclusive operation without overwriting its destination. */
+    errno = ENOTSUP;
 #else
     if (syscall(SYS_renameat2, sfd, sbase, dfd, dbase,
                 (unsigned int) RENAME_NOREPLACE) == 0) {

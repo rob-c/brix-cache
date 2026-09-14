@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""gen-test-registry — (re)generate k8s-tests/TEST_REGISTRY.md.
+"""gen-test-registry — (re)generate docs/09-developer-guide/k8s-tests/TEST_REGISTRY.md.
 
 Scans the module suite (tests/) for each file's test-function count and a
 description (from its docstring), and maps it to the 1:1 fork in the k8s lab
@@ -16,7 +16,7 @@ LAB = Path(__file__).resolve().parents[1]      # k8s-tests/
 REPO = LAB.parent
 TESTS = REPO / "tests"
 FORK = LAB / "remote-suite" / "tests"
-OUT = LAB / "TEST_REGISTRY.md"
+OUT = REPO / "docs/09-developer-guide/k8s-tests/TEST_REGISTRY.md"
 
 MARKER = {"# brix-remote-adapted": "adapted",
           "# brix-remote-ok": "verified-ok",

@@ -30,6 +30,8 @@
 #if BRIX_PLATFORM_WINDOWS
 
 #include "win32_compat.h"
+#include "path_internal.h"
+#include "xattr_internal.h"
 #include "../platform_api.h"
 
 #include <windows.h>
@@ -209,6 +211,26 @@ brix_plat_getxattr(const char *path, const char *name, void *value, size_t size)
     return (ssize_t)bytes_read;
 }
 
+/* ---- Validate an ADS name and resolve its descriptor path ----
+ * WHAT: Return zero for a valid name/path combination, otherwise -1.
+ * WHY: All three fd-based value operations share this validation contract.
+ * HOW: 1. Validate the attribute name. 2. Resolve the fd's native path.
+ *      3. Validate that the combined alternate-stream path fits.
+ */
+static int
+brix_win32_xattr_fd_path(int fd, const char *name, char *path, size_t size)
+{
+    wchar_t ads_path[MAX_PATH + 256];
+    if (brix_win32_ads_validate_name(name) < 0) {
+        return -1;
+    }
+    if (brix_win32_fd_path(fd, path, size) < 0) {
+        return -1;
+    }
+    return brix_win32_ads_build_path(path, name, ads_path,
+                                    sizeof(ads_path) / sizeof(wchar_t));
+}
+
 ssize_t
 brix_plat_fgetxattr(int fd, const char *name, void *value, size_t size)
 {
@@ -219,50 +241,9 @@ brix_plat_fgetxattr(int fd, const char *name, void *value, size_t size)
      * to get the filepath, then proceeds as getxattr.
      */
     char filepath[MAX_PATH];
-    HANDLE handle;
-    wchar_t ads_path[MAX_PATH + 256];
-    DWORD path_len;
-    
-    if (brix_win32_ads_validate_name(name) < 0) {
+    if (brix_win32_xattr_fd_path(fd, name, filepath, sizeof(filepath)) < 0) {
         return -1;
     }
-    
-    /* Get HANDLE from fd */
-    handle = (HANDLE)_get_osfhandle(fd);
-    if (handle == INVALID_HANDLE_VALUE) {
-        errno = EBADF;
-        return -1;
-    }
-    
-    /* Get file path from handle */
-    path_len = GetFinalPathNameByHandleW(handle, NULL, 0, VOLUME_NAME_DOS);
-    if (path_len == 0) {
-        brix_win32_set_errno(GetLastError());
-        return -1;
-    }
-    
-    if (path_len >= MAX_PATH) {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    
-    if (GetFinalPathNameByHandleW(handle, (wchar_t *)filepath, path_len, VOLUME_NAME_DOS) == 0) {
-        brix_win32_set_errno(GetLastError());
-        return -1;
-    }
-    
-    /* Remove \\?\ prefix if present */
-    if (wcsncmp((wchar_t *)filepath, L"\\\\?\\", 4) == 0) {
-        memmove((wchar_t *)filepath, (wchar_t *)filepath + 4, 
-                (wcslen((wchar_t *)filepath) - 3) * sizeof(wchar_t));
-    }
-    
-    /* Build ADS path and read */
-    if (brix_win32_ads_build_path((char *)filepath, name, ads_path, sizeof(ads_path)/sizeof(wchar_t)) < 0) {
-        return -1;
-    }
-    
-    /* Reuse getxattr logic */
     return brix_plat_getxattr((char *)filepath, name, value, size);
 }
 
@@ -384,50 +365,9 @@ brix_plat_fsetxattr(int fd, const char *name,
         return -1;
     }
     char filepath[MAX_PATH];
-    HANDLE handle;
-    wchar_t ads_path[MAX_PATH + 256];
-    DWORD path_len;
-    
-    if (brix_win32_ads_validate_name(name) < 0) {
+    if (brix_win32_xattr_fd_path(fd, name, filepath, sizeof(filepath)) < 0) {
         return -1;
     }
-    
-    /* Get HANDLE from fd */
-    handle = (HANDLE)_get_osfhandle(fd);
-    if (handle == INVALID_HANDLE_VALUE) {
-        errno = EBADF;
-        return -1;
-    }
-    
-    /* Get file path from handle */
-    path_len = GetFinalPathNameByHandleW(handle, NULL, 0, VOLUME_NAME_DOS);
-    if (path_len == 0) {
-        brix_win32_set_errno(GetLastError());
-        return -1;
-    }
-    
-    if (path_len >= MAX_PATH) {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    
-    if (GetFinalPathNameByHandleW(handle, (wchar_t *)filepath, path_len, VOLUME_NAME_DOS) == 0) {
-        brix_win32_set_errno(GetLastError());
-        return -1;
-    }
-    
-    /* Remove \\?\ prefix if present */
-    if (wcsncmp((wchar_t *)filepath, L"\\\\?\\", 4) == 0) {
-        memmove((wchar_t *)filepath, (wchar_t *)filepath + 4, 
-                (wcslen((wchar_t *)filepath) - 3) * sizeof(wchar_t));
-    }
-    
-    /* Build ADS path and write */
-    if (brix_win32_ads_build_path((char *)filepath, name, ads_path, sizeof(ads_path)/sizeof(wchar_t)) < 0) {
-        return -1;
-    }
-    
-    /* Reuse setxattr logic */
     return brix_plat_setxattr((char *)filepath, name, value, size, flags);
 }
 
@@ -470,192 +410,10 @@ brix_plat_fremovexattr(int fd, const char *name)
      * Remove extended attribute using file descriptor
      */
     char filepath[MAX_PATH];
-    HANDLE handle;
-    wchar_t ads_path[MAX_PATH + 256];
-    DWORD path_len;
-    
-    if (brix_win32_ads_validate_name(name) < 0) {
+    if (brix_win32_xattr_fd_path(fd, name, filepath, sizeof(filepath)) < 0) {
         return -1;
     }
-    
-    handle = (HANDLE)_get_osfhandle(fd);
-    if (handle == INVALID_HANDLE_VALUE) {
-        errno = EBADF;
-        return -1;
-    }
-    
-    path_len = GetFinalPathNameByHandleW(handle, NULL, 0, VOLUME_NAME_DOS);
-    if (path_len == 0) {
-        brix_win32_set_errno(GetLastError());
-        return -1;
-    }
-    
-    if (path_len >= MAX_PATH) {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    
-    if (GetFinalPathNameByHandleW(handle, (wchar_t *)filepath, path_len, VOLUME_NAME_DOS) == 0) {
-        brix_win32_set_errno(GetLastError());
-        return -1;
-    }
-    
-    if (wcsncmp((wchar_t *)filepath, L"\\\\?\\", 4) == 0) {
-        memmove((wchar_t *)filepath, (wchar_t *)filepath + 4, 
-                (wcslen((wchar_t *)filepath) - 3) * sizeof(wchar_t));
-    }
-    
-    if (brix_win32_ads_build_path((char *)filepath, name, ads_path, sizeof(ads_path)/sizeof(wchar_t)) < 0) {
-        return -1;
-    }
-    
     return brix_plat_removexattr((char *)filepath, name);
-}
-
-/* ==========================================================================
- * LIST EXTENDED ATTRIBUTES
- * ========================================================================== */
-
-/*
- * Callback structure for enumerating ADS streams
- */
-typedef struct {
-    char *list;
-    size_t size;
-    size_t offset;
-    int count;
-} brix_win32_ads_enum_t;
-
-/*
- * Enumerate all ADS streams on a file
- * 
- * Uses FindFirstStreamW/FindNextStreamW to enumerate all alternate
- * data streams associated with the file.
- */
-ssize_t
-brix_plat_listxattr(const char *path, char *list, size_t size)
-{
-    wchar_t w_filepath[MAX_PATH];
-    HANDLE find_handle;
-    WIN32_FIND_STREAM_DATAW stream_data;
-    brix_win32_ads_enum_t enum_ctx;
-    int result;
-    
-    if (path == NULL) {
-        errno = EINVAL;
-        return -1;
-    }
-    
-    /* Convert path to wide string */
-    result = MultiByteToWideChar(CP_UTF8, 0, path, -1, w_filepath, MAX_PATH);
-    if (result == 0) {
-        brix_win32_set_errno(GetLastError());
-        return -1;
-    }
-    
-    /* Initialize enumeration context */
-    enum_ctx.list = list;
-    enum_ctx.size = size;
-    enum_ctx.offset = 0;
-    enum_ctx.count = 0;
-    
-    /* Find first stream */
-    find_handle = FindFirstStreamW(w_filepath, FindStreamInfoStandard, 
-                                   &stream_data, 0);
-    
-    if (find_handle == INVALID_HANDLE_VALUE) {
-        brix_win32_set_errno(GetLastError());
-        return -1;
-    }
-    
-    do {
-        /* Skip the default unnamed stream (::DATA) */
-        if (wcscmp(stream_data.cStreamName, L"::DATA") == 0) {
-            continue;
-        }
-        
-        /* Convert stream name to UTF-8 */
-        char stream_name[256];
-        int name_len = WideCharToMultiByte(CP_UTF8, 0, stream_data.cStreamName, -1,
-                                           stream_name, sizeof(stream_name),
-                                           NULL, NULL);
-        
-        if (name_len == 0) {
-            continue;  /* Skip invalid names */
-        }
-        
-        name_len--;  /* Remove null terminator from length */
-        
-        /* If list buffer is NULL, just count */
-        if (list == NULL || size == 0) {
-            enum_ctx.offset += name_len + 1;  /* +1 for null separator */
-            enum_ctx.count++;
-            continue;
-        }
-        
-        /* Check if buffer has space */
-        if (enum_ctx.offset + name_len + 1 > size) {
-            errno = ERANGE;
-            FindClose(find_handle);
-            return -1;
-        }
-        
-        /* Copy stream name to list */
-        memcpy(list + enum_ctx.offset, stream_name, name_len);
-        list[enum_ctx.offset + name_len] = '\0';
-        enum_ctx.offset += name_len + 1;
-        enum_ctx.count++;
-        
-    } while (FindNextStreamW(find_handle, &stream_data));
-    
-    FindClose(find_handle);
-    
-    if (enum_ctx.count == 0) {
-        errno = ENODATA;
-        return -1;
-    }
-    
-    return (ssize_t)enum_ctx.offset;
-}
-
-ssize_t
-brix_plat_flistxattr(int fd, char *list, size_t size)
-{
-    /*
-     * List extended attributes using file descriptor
-     */
-    char filepath[MAX_PATH];
-    HANDLE handle;
-    DWORD path_len;
-    
-    handle = (HANDLE)_get_osfhandle(fd);
-    if (handle == INVALID_HANDLE_VALUE) {
-        errno = EBADF;
-        return -1;
-    }
-    
-    path_len = GetFinalPathNameByHandleW(handle, NULL, 0, VOLUME_NAME_DOS);
-    if (path_len == 0) {
-        brix_win32_set_errno(GetLastError());
-        return -1;
-    }
-    
-    if (path_len >= MAX_PATH) {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    
-    if (GetFinalPathNameByHandleW(handle, (wchar_t *)filepath, path_len, VOLUME_NAME_DOS) == 0) {
-        brix_win32_set_errno(GetLastError());
-        return -1;
-    }
-    
-    if (wcsncmp((wchar_t *)filepath, L"\\\\?\\", 4) == 0) {
-        memmove((wchar_t *)filepath, (wchar_t *)filepath + 4, 
-                (wcslen((wchar_t *)filepath) - 3) * sizeof(wchar_t));
-    }
-    
-    return brix_plat_listxattr((char *)filepath, list, size);
 }
 
 /* ==========================================================================

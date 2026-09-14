@@ -20,7 +20,10 @@ def _is_nginx_command(argv):
     if not argv:
         return False
     first = str(argv[0])
-    return first == "nginx" or first.endswith("/nginx")
+    if first == "nginx" or first.endswith("/nginx"):
+        return True
+    from cmdscripts.live_common import is_selected_nginx  # noqa: PLC0415
+    return is_selected_nginx(first)
 
 
 def _is_nginx_start(argv):
@@ -56,22 +59,43 @@ def _maybe_open_tree_for_deescalated_worker(argv: list[str]) -> list[str]:
     return argv
 
 
-def _prepare_nginx_config(argv: list[str]) -> list[str]:
-    """Apply the suite's dynamic-module/runtime policy to raw nginx calls.
+def _matches_selected_nginx(argv, nginx_bin):
+    """Recognize a caller-owned frozen binary by exact path, not basename."""
+    return bool(argv) and nginx_bin is not None and str(argv[0]) == str(nginx_bin)
 
-    A sizeable set of command scenarios predates ``LiveRun`` and deliberately
-    shares this small command wrapper.  With a packaged nginx those scenarios
-    must receive the same ``load_module`` preamble as registry-owned servers;
-    otherwise every stream/project directive is reported as unknown.
-    """
-    if not _is_nginx_command(argv) or "-c" not in argv:
-        return argv
+
+def _nginx_config_location(argv, cwd):
+    """Resolve the command's configuration relative to its runtime prefix."""
     config_value = _argv_value(argv, "-c")
     if config_value is None:
-        return argv
+        return None
     config_arg = Path(config_value)
     prefix = Path(_argv_value(argv, "-p", config_arg.parent))
+    if not prefix.is_absolute():
+        prefix = Path(cwd or os.getcwd()) / prefix
     config = config_arg if config_arg.is_absolute() else prefix / config_arg
+    return config, prefix
+
+
+def _with_nginx_bootstrap_log(argv, prefix):
+    """Keep an explicit -e choice; otherwise confine the bootstrap diagnostic."""
+    if any(str(argument).startswith("-e") for argument in argv[1:]):
+        return argv
+    return [*argv, "-e", str(prefix / "logs" / "bootstrap.log")]
+
+
+def _prepare_nginx_config(argv: list[str], *, nginx_bin=None, cwd=None) -> list[str]:
+    """Apply shared module/runtime preparation to raw or identified nginx calls.
+
+    LiveRun and run supply their selected binary identity, including frozen
+    filenames, so module preparation can verify its static/dynamic contract.
+    """
+    if not (_matches_selected_nginx(argv, nginx_bin) or _is_nginx_command(argv)):
+        return argv
+    location = _nginx_config_location(argv, cwd)
+    if location is None:
+        return argv
+    config, prefix = location
     if not config.is_file():
         return argv
     # Lazy import avoids making cmdscripts.live_common -> cmdscripts an import
@@ -80,9 +104,9 @@ def _prepare_nginx_config(argv: list[str]) -> list[str]:
         inject_nginx_load_modules,
         inject_nginx_runtime_paths,
     )
-    inject_nginx_load_modules(config)
+    inject_nginx_load_modules(config, argv[0])
     inject_nginx_runtime_paths(config, prefix)
-    return argv
+    return _with_nginx_bootstrap_log(argv, prefix)
 
 
 def _credential_snapshot(tree):
@@ -326,7 +350,9 @@ def run(argv: Sequence[str], **kwargs) -> subprocess.CompletedProcess:
     in stderr, mirroring coreutils `timeout`.
     """
     kwargs.setdefault("timeout", 120)
-    argv = _prepare_nginx_config(list(argv))
+    argv = list(argv)
+    nginx_bin = argv[0] if _is_nginx_command(argv) else None
+    argv = _prepare_nginx_config(argv, nginx_bin=nginx_bin, cwd=kwargs.get("cwd"))
     argv = _maybe_open_tree_for_deescalated_worker(argv)
     try:
         return subprocess.run(list(argv), capture_output=True, text=True, **kwargs)

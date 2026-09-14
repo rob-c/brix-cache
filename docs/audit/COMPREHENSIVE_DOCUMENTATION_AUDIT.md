@@ -22,7 +22,7 @@
 
 | Source | Claimed Functions | Actual in Code | Discrepancy |
 |--------|------------------|----------------|-------------|
-| `src/platform/PAL_FUNCTION_REFERENCE.md` | 42/44 | **45 unique** | **-3 to -7%** |
+| `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` | 42/44 | **45 unique** | **-3 to -7%** |
 | `docs/platform/SUPPORT_MATRIX.md` | 42 | **45 unique** | **-7%** |
 | `src/platform/README.md` | 42 | **45 unique** | **-7%** |
 | Multiple Windows reports | 42 | **45 unique** | **-7%** |
@@ -112,11 +112,11 @@ Windows Platform Detection (7):
 
 | File | Claimed Count | Actual | Error |
 |------|--------------|--------|-------|
-| `src/platform/PAL_FUNCTION_REFERENCE.md` | 44 (39+5) | 45 | -2% |
+| `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` | 44 (39+5) | 45 | -2% |
 | `docs/platform/SUPPORT_MATRIX.md` | 42 | 45 | -7% |
 | `src/platform/README.md` | 42 | 45 | -7% |
 | `docs/platform/README.md` | 42 | 45 | -7% |
-| `src/platform/PAL_API_VERIFICATION_COMPLETE.md` | 44 | 45 | -2% |
+| `docs/platform/pal/PAL_API_VERIFICATION_COMPLETE.md` | 44 | 45 | -2% |
 | 10+ Windows completion reports | 42 | 45 | -7% |
 
 **Impact**: 
@@ -196,7 +196,7 @@ Comparing actual 45 functions vs documented 42:
 - Feature availability accurate
 - Function counts inaccurate (42 vs 45 actual)
 
-⚠️ **PAL Function Reference** (`src/platform/PAL_FUNCTION_REFERENCE.md`)
+⚠️ **PAL Function Reference** (`docs/platform/pal/PAL_FUNCTION_REFERENCE.md`)
 - Comprehensive documentation
 - Function count discrepancy (44 claimed vs 45 actual)
 
@@ -333,13 +333,13 @@ Comparing actual 45 functions vs documented 42:
 - ✅ `docs/platform/ARM64_FINAL_REPORT.md`
 - ✅ `docs/platform/ARM64_LINUX_PRODUCTION_VERIFICATION.md`
 - ✅ `docs/platform/WINDOWS_*` (10+ files)
-- ✅ `src/platform/PAL_FUNCTION_REFERENCE.md`
+- ✅ `docs/platform/pal/PAL_FUNCTION_REFERENCE.md`
 - ✅ `src/platform/README.md`
-- ✅ `src/platform/ARCHITECTURE.md`
-- ✅ `src/platform/MAKEFILE_SUMMARY.md`
-- ✅ `src/platform/PAL_API_VERIFICATION_COMPLETE.md`
-- ✅ `src/platform/PLATFORM_API_REVIEW_REPORT.md`
-- ✅ `src/platform/DEVELOPMENT_WORKFLOW.md`
+- ✅ `docs/platform/pal/ARCHITECTURE.md`
+- ✅ `docs/platform/pal/MAKEFILE_SUMMARY.md`
+- ✅ `docs/platform/pal/PAL_API_VERIFICATION_COMPLETE.md`
+- ✅ `docs/platform/pal/PLATFORM_API_REVIEW_REPORT.md`
+- ✅ `docs/platform/pal/DEVELOPMENT_WORKFLOW.md`
 - ✅ `src/platform/windows/*.md` (10+ files)
 
 ### Implementation Files (Verified)
@@ -381,7 +381,7 @@ See Section 2 for full inventory with categories.
 1. `docs/platform/SUPPORT_MATRIX.md`
 2. `src/platform/README.md`
 3. `docs/platform/README.md`
-4. `src/platform/PAL_FUNCTION_REFERENCE.md`
+4. `docs/platform/pal/PAL_FUNCTION_REFERENCE.md`
 5. All Windows completion reports (10+ files)
 
 **Medium Priority** (percentage claims):

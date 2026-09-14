@@ -427,7 +427,7 @@ int brix_plat_set_power_mode(BRIX_POWER_ECO | BRIX_POWER_PERF);
 - [Apple Silicon Technical Overview](https://developer.apple.com/documentation/apple_silicon)
 - [sysctlbyname Documentation](https://www.manpagez.com/man/3/sysctlbyname/)
 - [Firestorm/Icestorm Architecture](https://en.wikichip.org/wiki/apple/microarchitectures/firestorm)
-- [BriX-Cache PAL Architecture](../../src/platform/ARCHITECTURE.md)
+- [BriX-Cache PAL Architecture](pal/ARCHITECTURE.md)
 
 ---
 

@@ -19,7 +19,9 @@ Fixed documentation that falsely claimed sophisticated PAL initialization logic 
 
 ## Files Fixed
 
-### 1. `src/platform/PAL_FUNCTION_REFERENCE.md` ✅
+<a id="1-srcplatformpal_function_referencemd-"></a>
+
+### 1. `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` ✅
 
 **Changes Made**:
 - Updated `brix_plat_init()` table from "Capability detection" → "Minimal stub (returns 0)"
@@ -87,7 +89,9 @@ Fixed documentation that falsely claimed sophisticated PAL initialization logic 
 
 ---
 
-### 3. `src/platform/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` ✅
+<a id="3-srcplatformwindowswindows_pal_true_100_percent_completemd-"></a>
+
+### 3. `docs/platform/pal/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` ✅
 
 **Changes Made**:
 - Replaced false "Initialization Flow" diagram with accurate current implementation
@@ -131,7 +135,9 @@ brix_plat_init()
 
 ---
 
-### 4. `PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md` ✅
+<a id="4-phase3_true_100_percent_final_reportmd-"></a>
+
+### 4. `docs/platform/reports/PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md` ✅
 
 **Changes Made**:
 - Updated PAL Initialization category table
@@ -167,7 +173,9 @@ handle registry, resource setup).
 
 ---
 
-### 5. `src/platform/ARCHITECTURE.md` ✅
+<a id="5-srcplatformarchitecturemd-"></a>
+
+### 5. `docs/platform/pal/ARCHITECTURE.md` ✅
 
 **Changes Made**:
 - Updated pseudo-code example to reflect current stub implementation
@@ -272,11 +280,11 @@ This fix addresses **CRITICAL ISSUE #7** from the Phase 4 audit:
 
 | File | Lines Changed | Status |
 |------|---------------|--------|
-| `src/platform/PAL_FUNCTION_REFERENCE.md` | ~40 | ✅ |
+| `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` | ~40 | ✅ |
 | `src/platform/platform_api.h` | ~30 | ✅ |
-| `src/platform/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` | ~50 | ✅ |
-| `PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md` | ~10 | ✅ |
-| `src/platform/ARCHITECTURE.md` | ~5 | ✅ |
+| `docs/platform/pal/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` | ~50 | ✅ |
+| `docs/platform/reports/PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md` | ~10 | ✅ |
+| `docs/platform/pal/ARCHITECTURE.md` | ~5 | ✅ |
 | **TOTAL** | **~135 lines** | ✅ |
 
 ---

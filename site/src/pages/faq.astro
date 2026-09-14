@@ -154,7 +154,7 @@ const performance: Faq[] = [
         16 infrastructure threads per instance regardless of configuration — and its HTTP bridge routes
         every request through the xroot scheduler, so a small scheduler pool can deadlock HTTP entirely.
         An idle BriX-Cache connection is a few kilobytes of worker state.`,
-    cite: 'docs/05-operations/performance-benchmarks.md · TESTING.md §xrd.sched',
+    cite: 'docs/05-operations/performance-benchmarks.md · docs/09-developer-guide/TESTING.md §xrd.sched',
   },
   {
     q: 'How do transfers behave on lossy WAN links?',
@@ -443,7 +443,7 @@ const viability: Faq[] = [
         clients. That process cuts both ways — it caught a genuine data-loss bug in our own
         <span class="mono">kXR_rm</span> handling before release, and it caught stock accepting
         revoked certificates. Differential testing keeps everyone honest.`,
-    cite: 'TESTING.md · tests/official_interop_lib.py',
+    cite: 'docs/09-developer-guide/TESTING.md · tests/official_interop_lib.py',
   },
   {
     q: 'How is the C codebase kept maintainable?',

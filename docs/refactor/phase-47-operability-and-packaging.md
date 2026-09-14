@@ -77,7 +77,7 @@ features. A read-only audit surfaced one real correctness blocker and a cluster 
 4. **No shipped Grafana dashboard / alert rules** — the README references a "ready-made"
    dashboard but none exists in-repo; `/metrics` is rich and low-cardinality but operators
    must build panels from scratch.
-5. **Day-2 runbooks are missing** — day-1 docs are good (`BUILD_INSTALL.md`,
+5. **Day-2 runbooks are missing** — day-1 docs are good (`docs/03-configuration/BUILD_INSTALL.md`,
    `docs/01-getting-started/`, `docs/03-configuration/examples.md`), but there is no
    consolidated troubleshooting guide, capacity-planning, cert/token-rotation procedure, or
    upgrade/rollback note; guidance is scattered across 8+ docs.

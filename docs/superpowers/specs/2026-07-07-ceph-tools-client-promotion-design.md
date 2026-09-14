@@ -129,7 +129,7 @@ The stale "C++ tool unfixed" memory note has been corrected.
   extra flags (`--json/--state/--prefix/--match/--progress`) as belonging to
   the `.py` tool — an explicit, documented divergence.
 - `completions/brix-tools.bash` gains the five tools.
-- `client/README.md` and `client/apps/README.md` gain the `apps/ceph/` rows.
+- `docs/09-developer-guide/client/README.md` and `docs/09-developer-guide/client/apps/README.md` gain the `apps/ceph/` rows.
 - The five `docs/10-reference/` migration/rescue docs update paths and build
   lines to the new locations / `make -C client ceph-tools`.
 - `k8s-tests/remote-suite/tests/ceph/` mirrors the old layout; refresh it to

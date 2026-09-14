@@ -6,6 +6,7 @@
  * not a hot path) and is unit-tested by scan_unittest.c.
  */
 #include "scan_drift.h"
+#include "core/types/tunables.h"
 
 #include <stdlib.h>
 #include <string.h>

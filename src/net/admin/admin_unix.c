@@ -308,6 +308,9 @@ brix_admin_unix_listen(ngx_cycle_t *cycle, const char *path,
         return;
     }
     lc->data = (void *) srv;   /* the accept handler's route to the verbs */
+    /* Bare connections have zeroed events; debug event registration logs. */
+    lc->read->log = lc->log;
+    lc->write->log = lc->log;
     lc->read->handler = admin_unix_accept_handler;
     if (ngx_handle_read_event(lc->read, 0) != NGX_OK) {
         ngx_close_connection(lc);

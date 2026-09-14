@@ -203,6 +203,9 @@ altds_tick(ngx_event_t *ev)
         return;
     }
     c->data = ad;
+    /* ngx_get_connection leaves event logs unset; event backends use them. */
+    c->read->log = ad->cycle->log;
+    c->write->log = ad->cycle->log;
     c->read->handler  = altds_probe_event;
     c->write->handler = altds_probe_event;
     if (ngx_handle_write_event(c->write, 0) != NGX_OK) {

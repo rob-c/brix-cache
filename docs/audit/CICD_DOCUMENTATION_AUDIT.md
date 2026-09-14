@@ -191,19 +191,19 @@ tests/platform/
 ### 4.1 README.md Badges
 
 **Actual Badges in README.md**:
-```markdown
-[![ASan/UBSan](.../asan.yml/badge.svg)](...)          ✅
-[![Invariant guards](.../guards.yml/badge.svg)](...)  ✅
-[![Fuzzing](.../fuzz.yml/badge.svg)](...)             ✅
-[![Platform Matrix](.../platform-matrix.yml/badge.svg)](...) ✅
-[![Linux x86_64](.../Linux-x86_64-2ea44f)](...)       ✅
-[![Linux ARM64](.../Linux-ARM64-2ea44f)](...)         ✅
-[![macOS Intel](.../macOS-Intel-2ea44f)](...)         ✅
-[![macOS ARM64](.../macOS-ARM64-2ea44f)](...)         ✅
-[![Windows](.../Windows-x86_64-2ea44f)](...)          ✅
-[![License: AGPL-3.0-only](...)](...)                 ✅
-[![nginx 1.28.x](...)](...)                           ✅
-[![XRootD protocol 5.2](...)](...)                    ✅
+```text
+ASan/UBSan          ✅
+Invariant guards   ✅
+Fuzzing            ✅
+Platform Matrix    ✅
+Linux x86_64       ✅
+Linux ARM64        ✅
+macOS Intel        ✅
+macOS ARM64        ✅
+Windows            ✅
+AGPL-3.0-only      ✅
+nginx 1.28.x       ✅
+XRootD protocol 5.2 ✅
 ```
 
 **Documentation Claims** (BADGES.md):
@@ -237,7 +237,7 @@ tests/platform/
 
 ### 5.1 Matrix Configuration Accuracy
 
-**Documentation Claims** (CI_CD_PLATFORM_MATRIX_REPORT.md):
+**Documentation Claims** (docs/audit/ci-cd/CI_CD_PLATFORM_MATRIX_REPORT.md):
 
 | Platform | Runner | Compiler | Optimization | Priority |
 |----------|--------|----------|--------------|----------|
@@ -464,7 +464,7 @@ No critical discrepancies found.
 
 8. **Add Build Profile Documentation**
    - Document optimization profiles in CI/CD docs
-   - File: `CI_CD_PLATFORM_MATRIX_REPORT.md`
+   - File: `docs/audit/ci-cd/CI_CD_PLATFORM_MATRIX_REPORT.md`
 
 ---
 
@@ -528,8 +528,8 @@ grep -h "runs-on:" .github/workflows/*.yml | sort -u
 - `brixtest/.github/workflows/conformance.yml` (1 file)
 
 **Documentation Files** (5):
-- `.github/workflows/CI_CD_STATUS_REPORT.md`
-- `CI_CD_PLATFORM_MATRIX_REPORT.md`
+- `docs/audit/ci-cd/CI_CD_STATUS_REPORT.md`
+- `docs/audit/ci-cd/CI_CD_PLATFORM_MATRIX_REPORT.md`
 - `docs/platform/BADGES.md`
 - `docs/platform/PLATFORM_SUPPORT_MATRIX.md`
 - `README.md` (badge section)
@@ -634,7 +634,7 @@ The CI/CD documentation for BriX-Cache is **95% accurate** and provides comprehe
 [![Windows](https://img.shields.io/badge/Windows-x86_64-2ea44f)](...)  <!-- Should be dbab09 -->
 
 <!-- Technology Badges -->
-[![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](../../LICENSE)
 [![nginx 1.28.x](https://img.shields.io/badge/nginx-1.28.x-009639?logo=nginx&logoColor=white)](...)
 [![XRootD protocol 5.2](https://img.shields.io/badge/XRootD_protocol-5.2-8a2be2)](...)
 ```

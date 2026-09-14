@@ -25,6 +25,8 @@
 #if BRIX_PLATFORM_WINDOWS
 
 #include "win32_compat.h"
+#include "copy_internal.h"
+#include "path_internal.h"
 #include "../platform_api.h"
 
 #include <errno.h>
@@ -53,30 +55,6 @@
 #ifndef COPY_FILE_USE_FAILOFFER_RESTART
 #define COPY_FILE_USE_FAILOFFER_RESTART 0x00000020
 #endif
-
-typedef enum {
-    CopyProgressCallbackContinue = 0,
-    CopyProgressCallbackStop
-} COPY_PROGRESS_CALLBACK_ROUTINE;
-
-typedef COPY_PROGRESS_CALLBACK_ROUTINE (CALLBACK *LPPROGRESS_ROUTINE)(
-    LARGE_INTEGER TotalFileSize,
-    LARGE_INTEGER TotalBytesTransferred,
-    LARGE_INTEGER StreamSize,
-    LARGE_INTEGER StreamBytesTransferred,
-    DWORD dwCallbackReason,
-    HANDLE hSourceFile,
-    HANDLE hDestinationFile,
-    LPVOID lpData
-);
-
-typedef struct _COPYFILE2_EXTENDED_PARAMETERS {
-    DWORD cbSize;
-    DWORD dwCopyFlags;
-    BOOL *pbCancel;
-    LPPROGRESS_ROUTINE pProgressRoutine;
-    LPVOID pvCallbackContext;
-} COPYFILE2_EXTENDED_PARAMETERS;
 
 /* FSCTL_COPY_FILE_RANGE (Windows 10 1607+) */
 #ifndef FSCTL_COPY_FILE_RANGE
@@ -172,32 +150,6 @@ brix_win32_get_handle_type(HANDLE handle)
 }
 
 /**
- * brix_win32_get_file_path - Get file path from handle
- * 
- * @handle: File handle
- * @path: Output buffer for path
- * @path_size: Size of output buffer
- * @return: 0 on success, -1 on error
- */
-static int
-brix_win32_get_file_path(HANDLE handle, char *path, size_t path_size)
-{
-    DWORD path_len;
-    
-    path_len = GetFinalPathNameByHandleA(handle, path, (DWORD)path_size, 0);
-    if (path_len == 0 || path_len >= path_size) {
-        return -1;
-    }
-    
-    /* Remove \\?\ prefix if present */
-    if (strncmp(path, "\\\\?\\", 4) == 0) {
-        memmove(path, path + 4, strlen(path) - 3);
-    }
-    
-    return 0;
-}
-
-/**
  * brix_win32_copy_flags_to_win32 - Convert BRIX flags to Windows flags
  * 
  * @flags: BRIX_COPY_F_* flags
@@ -214,84 +166,6 @@ brix_win32_copy_flags_to_win32(unsigned int flags)
     }
     
     return win32_flags;
-}
-
-/**
- * brix_win32_buffered_copy - Fallback buffered copy implementation
- * 
- * @in_fd: Input file descriptor
- * @in_off: Input offset (or NULL)
- * @out_fd: Output file descriptor
- * @out_off: Output offset (or NULL)
- * @len: Bytes to copy
- * @return: Bytes copied on success, -1 on error
- * 
- * This is the universal fallback when CopyFile2 and FSCTL_COPY_FILE_RANGE
- * are not available. Uses a 64KB buffer for reasonable performance.
- */
-static ssize_t
-brix_win32_buffered_copy(int in_fd, off_t *in_off,
-                         int out_fd, off_t *out_off,
-                         size_t len)
-{
-    char buffer[65536];  /* 64KB buffer */
-    size_t remaining = len;
-    ssize_t total_copied = 0;
-    
-    /* Seek to input offset if provided */
-    if (in_off != NULL && *in_off != 0) {
-        if (_lseeki64(in_fd, *in_off, SEEK_SET) < 0) {
-            return -1;
-        }
-    }
-    
-    /* Seek to output offset if provided */
-    if (out_off != NULL && *out_off != 0) {
-        if (_lseeki64(out_fd, *out_off, SEEK_SET) < 0) {
-            return -1;
-        }
-    }
-    
-    while (remaining > 0) {
-        size_t to_read = (remaining > sizeof(buffer)) ? sizeof(buffer) : remaining;
-        ssize_t bytes_read = _read(in_fd, buffer, (unsigned int)to_read);
-        
-        if (bytes_read < 0) {
-            if (errno == EINTR) {
-                continue;  /* Retry on interrupt */
-            }
-            return (total_copied > 0) ? total_copied : -1;
-        }
-        
-        if (bytes_read == 0) {
-            /* EOF reached */
-            break;
-        }
-        
-        ssize_t bytes_written = _write(out_fd, buffer, (unsigned int)bytes_read);
-        if (bytes_written < 0) {
-            if (errno == EINTR) {
-                /* Retry write */
-                bytes_written = _write(out_fd, buffer, (unsigned int)bytes_read);
-            }
-            if (bytes_written < 0) {
-                return (total_copied > 0) ? total_copied : -1;
-            }
-        }
-        
-        total_copied += bytes_written;
-        remaining -= bytes_read;
-    }
-    
-    /* Update offsets if provided */
-    if (in_off != NULL) {
-        *in_off += total_copied;
-    }
-    if (out_off != NULL) {
-        *out_off += total_copied;
-    }
-    
-    return total_copied;
 }
 
 /**
@@ -391,7 +265,7 @@ brix_win32_copyfile2_full(const char *in_path, const char *out_path,
     
     /* Set up parameters */
     ZeroMemory(&params, sizeof(params));
-    params.cbSize = sizeof(COPYFILE2_EXTENDED_PARAMETERS);
+    params.dwSize = sizeof(COPYFILE2_EXTENDED_PARAMETERS);
     params.dwCopyFlags = win32_flags;
     params.pProgressRoutine = NULL;
     params.pvCallbackContext = NULL;
@@ -611,46 +485,6 @@ brix_plat_copy_range(int in_fd, off_t *in_off,
     result = brix_win32_buffered_copy(in_fd, in_off, out_fd, out_off, len);
     
     return result;
-}
-
-/* ==========================================================================
- * SPLICE IMPLEMENTATION (STUB)
- * ========================================================================== */
-
-/**
- * brix_plat_splice - Zero-copy pipe splice (Linux-specific)
- * 
- * @in_fd: Input file descriptor
- * @out_fd: Output file descriptor (must be pipe on Linux)
- * @nbytes: Bytes to splice
- * @flags: Splice flags (BRIX_SPLICE_F_*)
- * @return: Bytes spliced on success, -1 on error (errno set)
- * 
- * Windows Implementation:
- * STUB - Returns ENOSYS (function not implemented)
- * 
- * Rationale:
- * - splice() is a Linux-specific syscall for moving data between
- *   file descriptors using a pipe as an intermediary
- * - Windows has no equivalent mechanism
- * - Use TransmitFile for file->socket or buffered copy for other cases
- * 
- * Alternatives on Windows:
- * 1. brix_plat_sendfile() - for file->socket transfers
- * 2. brix_plat_copy_range() - for file->file transfers
- * 3. IOCP - for async I/O operations
- * 4. Manual buffered copy - universal fallback
- */
-ssize_t
-brix_plat_splice(int in_fd, int out_fd, size_t nbytes, unsigned int flags)
-{
-    (void)in_fd;
-    (void)out_fd;
-    (void)nbytes;
-    (void)flags;
-    
-    errno = ENOSYS;  /* Function not implemented */
-    return -1;
 }
 
 /* ==========================================================================

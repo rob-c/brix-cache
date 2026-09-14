@@ -43,7 +43,6 @@ GSI_TLS_URL = f"roots://{SERVER_HOST}:{NGINX_GSI_TLS_PORT}"
 BIG_CHUNK = 8 * 1024 * 1024
 
 LARGE_FILE     = "large200.bin"
-LARGE_FILE_MD5 = os.environ.get("LARGE_FILE_MD5", "")
 
 
 def _reachable(host: str, port: int) -> bool:
@@ -55,14 +54,23 @@ def _reachable(host: str, port: int) -> bool:
         return False
 
 
-anon_only = pytest.mark.skipif(
-    not _reachable(SERVER_HOST, NGINX_ANON_PORT),
-    reason="anon server not reachable",
-)
-tls_only = pytest.mark.skipif(
-    not _reachable(SERVER_HOST, NGINX_GSI_TLS_PORT),
-    reason="GSI/TLS server not reachable",
-)
+anon_only = pytest.mark.usefixtures("anon_server_ready")
+tls_only = pytest.mark.usefixtures("tls_server_ready")
+
+
+def _require_endpoint(port, reason):
+    if not _reachable(SERVER_HOST, port):
+        pytest.skip(reason)
+
+
+@pytest.fixture(scope="module")
+def anon_server_ready():
+    _require_endpoint(NGINX_ANON_PORT, "anon server not reachable")
+
+
+@pytest.fixture(scope="module")
+def tls_server_ready():
+    _require_endpoint(NGINX_GSI_TLS_PORT, "GSI/TLS server not reachable")
 
 
 def _deterministic(n: int) -> bytes:
@@ -121,6 +129,7 @@ def test_tls_large_read_trim_cycle_integrity():
     grows read_scratch, the recv loop trims it between requests, and the next read
     regrows it — all byte-exact under TLS.
     """
+    LARGE_FILE_MD5 = os.environ.get("LARGE_FILE_MD5", "")
     if not LARGE_FILE_MD5:
         pytest.skip("LARGE_FILE_MD5 not provided by the test harness")
 

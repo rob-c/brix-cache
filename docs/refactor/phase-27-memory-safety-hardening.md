@@ -233,7 +233,7 @@ Heuristic, not sound — its job is to make the *next* F1/F2 visible in review.
 |---|---|---|
 | `src/core/compat/safe_size.h` | overflow-checked size math + array alloc (W1) | `config.h` includes |
 | `src/auth/crypto/scoped.h` | OpenSSL handle destroyers + cleanup idiom (W3) | `config.h` includes |
-| `tests/fuzz/*.c` + `tests/fuzz/README.md` | libFuzzer targets + corpus (W7) | standalone, not in module |
+| `tests/fuzz/*.c` + `docs/09-developer-guide/testing/fuzz/README.md` | libFuzzer targets + corpus (W7) | standalone, not in module |
 | `tests/lint_alloc.sh` | alloc/free invariant lint (W8) | CI |
 | (docs) `build-guide.md` ASAN section | sanitizer build instructions (W6) | — |
 

@@ -88,7 +88,7 @@ brix_plat_random(void *buf, size_t len)
 - PAL_FUNCTION_REFERENCE.md: "macOS: `SecRandomCopyBytes()` or `/dev/urandom`" ✅
 - SUPPORT_MATRIX.md: "✅ SecRandom" ✅
 - ARCHITECTURE.md: "✅ SecRandom" ✅
-- MACOS_BUILD_PROGRESS.md: "getrandom() → SecRandomCopyBytes with /dev/urandom fallback" ✅
+- docs/platform/macos/reports/MACOS_BUILD_PROGRESS.md: "getrandom() → SecRandomCopyBytes with /dev/urandom fallback" ✅
 
 **Performance**: O(n) Security framework call, typically 100-200ns for 32 bytes
 
@@ -290,8 +290,8 @@ No critical issues found. All security claims are verified.
 
 **Severity**: 🟡 LOW  
 **Files Affected**:
-- `src/platform/PAL_FUNCTION_REFERENCE.md` (line 969)
-- `src/platform/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` (line 285)
+- `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` (line 969)
+- `docs/platform/pal/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` (line 285)
 
 **Claim**: "Windows: `BCryptGenRandom()` with `BCRYPT_USE_SYSTEM_PREFERRED_RNG`"
 
@@ -305,8 +305,8 @@ No critical issues found. All security claims are verified.
 
 **Severity**: 🟡 LOW  
 **Files Affected**:
-- `src/platform/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` (line 282)
-- `PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md` (line 952)
+- `docs/platform/pal/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` (line 282)
+- `docs/platform/reports/PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md` (line 952)
 
 **Claim**: Function name is `brix_plat_random_bytes()`
 
@@ -351,7 +351,7 @@ No critical issues found. All security claims are verified.
    - Fix function name: `brix_plat_random_bytes()` → `brix_plat_random()`
    - Fix flag claim: "BCRYPT_USE_SYSTEM_PREFERRED_RNG" → "default flags (0)"
 
-3. **Update PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md**:
+3. **Update docs/platform/reports/PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md**:
    - Fix function name: `brix_plat_random_bytes()` → `brix_plat_random()`
 
 ### 7.2 Code Improvements (Priority: Low)
@@ -413,17 +413,17 @@ All three platform implementations:
 ## Appendix A: Files Audited
 
 ### Documentation Files (12)
-1. `src/platform/PAL_FUNCTION_REFERENCE.md`
+1. `docs/platform/pal/PAL_FUNCTION_REFERENCE.md`
 2. `docs/platform/SUPPORT_MATRIX.md`
-3. `src/platform/ARCHITECTURE.md`
-4. `src/platform/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md`
-5. `src/platform/windows/WINDOWS_PAL_100_PERCENT_COMPLETE.md`
+3. `docs/platform/pal/ARCHITECTURE.md`
+4. `docs/platform/pal/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md`
+5. `docs/platform/pal/windows/WINDOWS_PAL_100_PERCENT_COMPLETE.md`
 6. `src/platform/windows/README.md`
-7. `src/platform/windows/IMPLEMENTATION_STATUS.md`
-8. `PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md`
+7. `docs/platform/pal/windows/IMPLEMENTATION_STATUS.md`
+8. `docs/platform/reports/PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md`
 9. `docs/platform/pal-api-reference.md`
 10. `docs/platform/windows-implementation.md`
-11. `MACOS_BUILD_PROGRESS.md`
+11. `docs/platform/macos/reports/MACOS_BUILD_PROGRESS.md`
 12. `docs/platform/PLATFORM_SUPPORT_MATRIX.md`
 
 ### Source Files (3)
@@ -449,8 +449,8 @@ grep -A15 "brix_plat_random" src/platform/darwin/posix_wrapper.c
 grep -A20 "brix_plat_random" src/platform/windows/posix_wrapper.c
 
 # Verify documentation claims
-grep -n "BCryptGenRandom\|BCRYPT_USE_SYSTEM_PREFERRED_RNG" src/platform/PAL_FUNCTION_REFERENCE.md
-grep -n "brix_plat_random_bytes\|brix_plat_random" src/platform/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md
+grep -n "BCryptGenRandom\|BCRYPT_USE_SYSTEM_PREFERRED_RNG" docs/platform/pal/PAL_FUNCTION_REFERENCE.md
+grep -n "brix_plat_random_bytes\|brix_plat_random" docs/platform/pal/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md
 ```
 
 ---

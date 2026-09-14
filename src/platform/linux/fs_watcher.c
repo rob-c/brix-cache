@@ -134,6 +134,41 @@ brix_plat_fs_watcher_rm(brix_plat_fs_watcher_t *watcher, int wd)
  * HOW: 1. Read the pending inotify event.
  *      2. Translate deletion and both rename directions to the shared masks.
  */
+/* ---- Translate native filesystem notification flags ----
+ * WHAT: Return the corresponding public PAL event mask.
+ * WHY: Keep decoding independent of event wait and descriptor ownership.
+ * HOW: 1. Start with no events. 2. Accumulate each matching native flag.
+ */
+static uint32_t
+brix_native_watch_events(uint32_t mask)
+{
+    /* Translate event mask */
+    uint32_t events = 0;
+    if (mask & IN_MODIFY) {
+        events |= BRIX_FS_EVENT_WRITE;
+    }
+    if (mask & IN_ATTRIB) {
+        events |= BRIX_FS_EVENT_ATTRIB;
+    }
+    if (mask & IN_CREATE) {
+        events |= BRIX_FS_EVENT_CREATE;
+    }
+    if (mask & IN_DELETE) {
+        events |= BRIX_FS_EVENT_DELETE;
+    }
+    if (mask & IN_DELETE_SELF) {
+        events |= BRIX_FS_EVENT_DELETE;
+    }
+    if (mask & IN_MOVED_FROM) {
+        events |= BRIX_FS_EVENT_RENAME;
+    }
+    if (mask & IN_MOVED_TO) {
+        events |= BRIX_FS_EVENT_RENAME;
+    }
+
+    return events;
+}
+
 int
 brix_plat_fs_watcher_next(brix_plat_fs_watcher_t *watcher, brix_plat_fs_event_t *event, int timeout_ms)
 {
@@ -183,29 +218,7 @@ brix_plat_fs_watcher_next(brix_plat_fs_watcher_t *watcher, brix_plat_fs_event_t 
         event->path[0] = '\0';
     }
     
-    /* Translate event mask */
-    event->events = 0;
-    if (iev->mask & IN_MODIFY) {
-        event->events |= BRIX_FS_EVENT_WRITE;
-    }
-    if (iev->mask & IN_ATTRIB) {
-        event->events |= BRIX_FS_EVENT_ATTRIB;
-    }
-    if (iev->mask & IN_CREATE) {
-        event->events |= BRIX_FS_EVENT_CREATE;
-    }
-    if (iev->mask & IN_DELETE) {
-        event->events |= BRIX_FS_EVENT_DELETE;
-    }
-    if (iev->mask & IN_DELETE_SELF) {
-        event->events |= BRIX_FS_EVENT_DELETE;
-    }
-    if (iev->mask & IN_MOVED_FROM) {
-        event->events |= BRIX_FS_EVENT_RENAME;
-    }
-    if (iev->mask & IN_MOVED_TO) {
-        event->events |= BRIX_FS_EVENT_RENAME;
-    }
+    event->events = brix_native_watch_events(iev->mask);
     
     event->cookie = iev->cookie;
     /* Timestamp: inotify doesn't provide event timestamps.

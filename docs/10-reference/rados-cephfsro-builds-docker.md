@@ -12,7 +12,7 @@ and the Docker machinery (`tests/ceph_harness.sh`, `tests/ceph/Dockerfile.build`
 > Stratum-1 caching/classification effort with a pure-Python harness and **no
 > Docker or special build** at all.
 
-**Companion docs:** `tests/ceph/README.md` (command quick-start),
+**Companion docs:** `docs/09-developer-guide/testing/ceph/README.md` (command quick-start),
 [`python-migration-tools.md`](python-migration-tools.md) (migration tools),
 `docs/superpowers/specs/2026-06-30-cephfs-rados-program-design.md`
 (driver-lineup design), `src/fs/backend/README.md` (driver seam).

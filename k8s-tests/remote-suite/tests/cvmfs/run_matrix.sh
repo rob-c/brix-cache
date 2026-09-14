@@ -9,6 +9,7 @@ NGINX="${NGINX:-/tmp/nginx-1.28.3/objs/nginx}"
 LAB="$HERE/netem_lab.sh"; NIP=10.199.0.2
 MPORT=12881; CPORT=12882; PPORT=12883
 OUT="$REPO/deploy/cvmfs/baselines"
+REPORT="$REPO/docs/05-operations/deploy/cvmfs/baselines/RESULTS.md"
 PROFILES="clean loss reorder corrupt jitter site"
 CACHES="module-reverse module-proxy stock-nginx squid varnish"
 [ "$(id -u)" = 0 ] || { echo "must run as root (netem)"; exit 2; }
@@ -111,7 +112,7 @@ for cache in $CACHES; do
 done
 "$LAB" down >/dev/null
 
-python3 - "$OUT" <<'EOF'
+python3 - "$OUT" "$REPORT" <<'EOF'
 import json, sys, os, datetime
 out = sys.argv[1]
 rows = [l.split("\t") for l in open(f"{out}/matrix_rows.tsv").read().splitlines()]
@@ -129,7 +130,7 @@ for cache, prof, path in rows:
     note = f"conn_failures={d.get('conn_failures', '?')}"
     lines.append(f"| {cache} | {prof} | " + " | ".join(cells)
                  + f" | {today} | {note} |")
-with open(f"{out}/RESULTS.md", "a") as f:
+with open(sys.argv[2], "a") as f:
     f.write("\n".join(lines) + "\n")
 print(f"appended {len(lines)} rows to RESULTS.md")
 EOF

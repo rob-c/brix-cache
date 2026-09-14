@@ -33,6 +33,8 @@ import time
 
 import pytest
 
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
+from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
 from settings import BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 
@@ -300,23 +302,26 @@ def test_symlink_never_followed_and_tape_copies_never_touched(lifecycle, tmp_pat
 # --------------------------------------------------------------------------
 
 def _nginx_t(root, srv_directives, http_directives=""):
+    """Parse without binding; the fixed placeholder avoids Unix path limits."""
     (root / "logs").mkdir(exist_ok=True)
     (root / "data").mkdir(exist_ok=True)
     http = ""
     if http_directives:
-        http = (f"http {{ server {{ listen unix:{root}/h.sock; "
+        http = (f"http {{ server {{ listen {BIND_HOST}:{PARSE_PLACEHOLDER_PORT}; "
                 f"location / {{ brix_webdav on; brix_export {root}/data; "
                 f"{http_directives} }} }} }}")
     conf = root / "purge.conf"
     conf.write_text(f"""daemon off; error_log {root}/logs/e.log info;
 pid {root}/n.pid; thread_pool default threads=2;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen unix:{root}/s.sock;
+stream {{ server {{ listen {BIND_HOST}:{PARSE_PLACEHOLDER_PORT};
     brix_root on; brix_storage_backend posix:{root}/data; brix_auth none;
     {srv_directives}
 }} }}
 {http}
 """)
+    inject_nginx_load_modules(conf)
+    inject_nginx_runtime_paths(conf, root)
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
     return p.returncode, p.stderr + p.stdout

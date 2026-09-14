@@ -359,7 +359,7 @@ make -j$(nproc)
 - [AWS Graviton Processor](https://aws.amazon.com/ec2/graviton/)
 - [Ampere Altra Processor](https://amperecomputing.com/products/ampere-altra-processor)
 - [GCC ARM Options](https://gcc.gnu.org/onlinedocs/gcc/ARM-Options.html)
-- [BriX-Cache PAL Architecture](../src/platform/ARCHITECTURE.md)
+- [BriX-Cache PAL Architecture](pal/ARCHITECTURE.md)
 
 ---
 

@@ -22,7 +22,11 @@ from pathlib import Path
 import pytest
 import requests
 
-from settings import HOST, TEST_ROOT
+from server_registry import get_server
+from settings import (HOST, TEST_ROOT, ZIP_ROOT_PORT as PORT,
+                      ZIP_WEBDAV_PORT as HTTP_PORT, ZIP_S3_PORT as S3_PORT)
+
+pytestmark = pytest.mark.xdist_group("zip-member")
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX_BIN = "/tmp/nginx-1.28.3/objs/nginx"
@@ -33,9 +37,6 @@ DEFL = bytes((i * 31 + 7) & 0xFF for i in range(100000))
 
 kXR_login, kXR_open, kXR_read, kXR_close = 3007, 3010, 3013, 3003
 kXR_ok, kXR_open_read = 0, 0x0010
-PORT = 21196        # root:// stream
-HTTP_PORT = 21198   # WebDAV/HTTP
-S3_PORT = 21199     # S3 REST
 S3_BUCKET = "zipbucket"
 
 
@@ -119,7 +120,7 @@ def zipsrv():
     self-start collides across xdist workers (and burns readiness budget on
     failure).  Seeding a data file into the shared export is safe; starting a
     server is the fleet's job."""
-    data = os.path.join(TEST_ROOT, "data-zip")
+    data = get_server("zip").data_root
     os.makedirs(data, exist_ok=True)
     zpath = os.path.join(data, "a.zip")
     with zipfile.ZipFile(zpath, "w") as z:

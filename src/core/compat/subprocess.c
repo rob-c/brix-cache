@@ -1,24 +1,9 @@
-/*
- * subprocess.c — capture a child's stdout (see subprocess.h).
- *
- * Shared by the native client's oidc-token fetch and the module's TPC token
- * paths. ngx-free; libc/POSIX only.
- *
- * The command runs under a double-forked agent (the shape of
- * src/fs/xfer/xfer_spawn.c): the intermediate exits at once so the agent
- * reparents to init; the agent forks the command with its stdout on the capture
- * pipe, waitpid()s it, and relays the raw wait status over a one-shot socketpair.
- * The caller drains the pipe, then reads the status.
- *
- * WHY an agent: blocking SIGCHLD around a plain fork() is per-THREAD. On an nginx
- * thread-pool thread it never stopped the worker's MAIN thread from taking the
- * signal and reaping our direct child first (ngx_process_get_status →
- * waitpid(-1, WNOHANG)); the helper's own waitpid() then failed with ECHILD,
- * which the old retry loop read as "exit 0" — a dead token endpoint surfaced as a
- * token-parse failure instead of "curl exit 7" (the rhB42 fast-tier halt,
- * history-testing-and-incidents §24.15). With the agent the only process the
- * host can ever reap is the intermediate, whose status nobody needs.
- * No goto; early-return.
+/* subprocess.c — ngx-free child-output capture and exit-status relay.
+ * WHAT: Run a command through a double-forked agent and capture its output.
+ * WHY: nginx's main thread can reap a pool thread's direct child despite that
+ * thread blocking SIGCHLD. Only the intermediate is exposed to the host reaper.
+ * HOW: The orphan agent waits for the command and relays status over socketpair;
+ * the caller drains stdout, then reads the status. See subprocess.h.
  */
 
 #ifndef _GNU_SOURCE
@@ -58,9 +43,8 @@ static int brix_pipe2_compat(int pipefd[2], int flags) {
 #include <sys/wait.h>
 #include <unistd.h>
 
-/* Relayed by the agent in place of a wait status when it never obtained one,
- * and in place of the (unwanted) SIGKILL status when the deadline expired. A
- * real wait status is never negative, so neither can collide with one. */
+/* Negative relay markers distinguish missing status and deadline expiry.
+ * Real wait statuses are nonnegative, so neither marker can collide. */
 #define BRIX_SUBPROCESS_NO_STATUS   (-1)
 #define BRIX_SUBPROCESS_TIMED_OUT   (-2)
 
@@ -78,18 +62,10 @@ static int brix_pipe2_compat(int pipefd[2], int flags) {
 #endif
 
 /* ---- Validate a run request ----
- *
- * WHAT: Returns 1 when the request names a command and, if it asks for a
- * capture, gives a usable buffer; returns 0 otherwise.
- *
- * WHY: Keeps the argument-guard branch ladder out of the orchestrator so the
- * top-level function stays a flat, low-complexity sequence of steps.
- *
- * HOW:
- *   1. Reject a NULL request, a NULL argv, or a NULL argv[0].
- *   2. Reject a capture buffer with no room (out != NULL with outsz == 0).
- *   3. Otherwise report the request as valid. out == NULL is legal: the
- *      command then writes to the caller's own stdout.
+ * WHAT: Return whether command and optional output buffer are usable.
+ * WHY: Keep argument validation out of the process orchestration.
+ * HOW: 1. Require argv[0]. 2. Require space for a supplied capture buffer.
+ * A NULL output buffer leaves stdout with the caller.
  */
 static int
 brix_subprocess_args_ok(const brix_subprocess_req_t *req)

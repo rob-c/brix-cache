@@ -1973,7 +1973,7 @@ complete -F _xrd xrd
 ### Task 20: Final sweep — docs, full verification
 
 **Files:**
-- Modify: `client/apps/README.md`, `client/README.md` (document every new flag/subcommand), `tests/run_client_features.sh` (final assembly check)
+- Modify: `docs/09-developer-guide/client/apps/README.md`, `docs/09-developer-guide/client/README.md` (document every new flag/subcommand), `tests/run_client_features.sh` (final assembly check)
 
 - [ ] **Step 1:** Update both READMEs: new xrdcp flags (`--dry-run --exclude --include --sync-check --delete --remove-source --journal --resume`), xrdfs (`rm -r`, `-j/--json`, `cat -z`, `tail -f`, `--io-uring`), `xrdcksum tree/check`, `xrddiag check/topology --json`, `.xrdrc [defaults]`, man pages + completions install.
 - [ ] **Step 2: Full verification** (superpowers:verification-before-completion — run, read output, then claim):

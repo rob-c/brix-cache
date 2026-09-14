@@ -295,8 +295,26 @@ def test_m8_streams_roundtrip_byte_exact(native_xrdcp, remote_upload_name, tmp_p
     assert after > before, "no kXR_bind entries — streams fell back to one connection"
 
 
-@pytest.mark.skipif(not _port_open(ROOT_TPC_NGINX_PORT),
-                    reason="root-tpc nginx (:11110) not running")
+@pytest.fixture(scope="module")
+def _root_tpc_nginx_ready():
+    """Check the managed endpoint after collection has started the fleet."""
+    if not _port_open(ROOT_TPC_NGINX_PORT):
+        pytest.fail(
+            f"root-tpc nginx (:{ROOT_TPC_NGINX_PORT}) not ready after fleet setup",
+            pytrace=False)
+
+
+@pytest.fixture(scope="module")
+def _root_tpc_pair_ready(_root_tpc_nginx_ready):
+    """The fallback copy additionally requires the managed reference server."""
+    if not _port_open(ROOT_TPC_REF_PORT):
+        pytest.fail(
+            f"root-tpc reference (:{ROOT_TPC_REF_PORT}) not ready after fleet setup",
+            pytrace=False)
+
+
+@pytest.mark.registry_server("root-tpc")
+@pytest.mark.usefixtures("_root_tpc_nginx_ready")
 def test_m8_tpc_only_nginx_to_nginx(native_xrdcp):
     """--tpc only drives a server-side third-party copy between two nginx paths
     (the dest server pulls from the source; no bytes transit the client)."""
@@ -323,8 +341,8 @@ def test_m8_tpc_only_nginx_to_nginx(native_xrdcp):
                 pass
 
 
-@pytest.mark.skipif(not (_port_open(ROOT_TPC_NGINX_PORT) and _port_open(ROOT_TPC_REF_PORT)),
-                    reason="root-tpc pair (:11110/:11111) not running")
+@pytest.mark.registry_servers("root-tpc", "root-tpc-ref")
+@pytest.mark.usefixtures("_root_tpc_pair_ready")
 def test_m8_tpc_first_falls_back_to_client_copy(native_xrdcp):
     """--tpc first against a reference xrootd (which uses the async waitresp TPC
     model the native client does not drive) cleanly falls back to a

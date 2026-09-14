@@ -69,6 +69,9 @@ DEVIATIONS = {
     # phase-115 W4.2 (2026-09-06): the read-through shape over a RAM cache
     # store (`ram-cache`, nginx_ram_cache.conf) joined the dedicated fleet.
     "dedicated_specs",
+    # Alma9 dynamic nginx keeps libkrb5 in the selected BriX module, so the
+    # capability gate checks configured modules as well as the frozen binary.
+    "_nginx_has_krb5",
 }
 
 

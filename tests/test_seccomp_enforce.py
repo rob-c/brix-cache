@@ -24,6 +24,7 @@ import pytest
 
 import official_interop_lib as L
 from config_templates import render_config_to_path
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN
@@ -141,6 +142,8 @@ def test_seccomp_bogus_mode_refused(tmp_path):
         LOG_DIR=str(logs), PORT=L.worker_port(14980),
         DATA_ROOT=str(tmp_path), SECCOMP_MODE="bogus")
 
+    inject_nginx_load_modules(cfg, NGINX_BIN)
+    inject_nginx_runtime_paths(cfg, tmp_path)
     out = _capture([NGINX_BIN, "-t", "-c", cfg])
     assert out is not None, "nginx binary not runnable"
     assert "invalid value" in out and "bogus" in out, \

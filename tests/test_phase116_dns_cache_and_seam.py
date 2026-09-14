@@ -430,7 +430,7 @@ def test_the_ceph_cxx_apps_are_actually_scanned_in_the_real_tree():
 # outside SCAN_DIRS, which is the same hole the C++ suffixes were: a bypass
 # could land there and the guard would still print OK.  contrib/checksum-
 # plugins/ was the third such tree: site checksum plugins are shared objects
-# the worker dlopen()s (contrib/checksum-plugins/README.md), and the
+# the worker dlopen()s (docs/09-developer-guide/checksum-plugins/README.md), and the
 # whole-repo census below caught the first one on 2026-09-07 -- a red, not
 # a silence, which is what that census is for.
 

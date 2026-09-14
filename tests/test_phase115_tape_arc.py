@@ -50,7 +50,7 @@ import pytest
 
 from settings import BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
-from cmdscripts.live_common import inject_nginx_load_modules
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 
 import _test_session_bind_helpers as H
 
@@ -377,13 +377,14 @@ def _nginx_t(root, body, cache_store=None):
     conf.write_text(f"""daemon off; error_log {root}/logs/e.log info;
 pid {root}/n.pid; thread_pool default threads=2;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen unix:{root}/s.sock;
+stream {{ server {{ listen unix:s.sock;
     brix_root on; brix_auth none; brix_export {root}/data;
     brix_cache_store {cache};
     {body}
 }} }}
 """)
     inject_nginx_load_modules(conf)
+    inject_nginx_runtime_paths(conf, root)
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
     return p.returncode, p.stderr + p.stdout

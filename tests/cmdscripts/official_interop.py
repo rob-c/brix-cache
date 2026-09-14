@@ -339,9 +339,12 @@ def _native_cross_lanes(extra):
 def _http_cross_lane(rel, extra):
     if not (REPO_ROOT / rel).is_file():
         print(f"SKIP: {rel} not found")
-        return
+        return 0
+    failed = 0
     for backend in ("nginx", "xrootd"):
-        _run_backend(backend, [rel], extra)
+        if _run_backend(backend, [rel], extra) != 0:
+            failed = 1
+    return failed
 
 
 def cross_compatible(extra: list[str] | None = None) -> int:
@@ -349,7 +352,7 @@ def cross_compatible(extra: list[str] | None = None) -> int:
     failed = _native_cross_lanes(extra)
     print("\n== Running XrdHttp/WebDAV cross-compatible tests ==")
     for rel in XRDHTTP_TESTS:
-        _http_cross_lane(rel, extra)
+        failed = max(failed, _http_cross_lane(rel, extra))
     return failed
 
 

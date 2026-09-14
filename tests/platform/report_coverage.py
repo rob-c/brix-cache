@@ -17,6 +17,7 @@ import re
 import sys
 import json
 from pathlib import Path
+from pal_coverage_sources import coverage_source
 from collections import defaultdict
 from typing import Dict, List, Set, Tuple
 
@@ -126,37 +127,32 @@ class TestAnalyzer:
     
     def _analyze_file(self, test_file: Path):
         """Analyze a single test file"""
-        content = test_file.read_text()
+        content = coverage_source(test_file)
         
         # Find all @pytest.mark.pal_function decorators
         pattern = r'@pytest\.mark\.pal_function\("([^"]+)"\)'
         matches = re.findall(pattern, content)
         
+        self._record_counts(matches)
+        test_pattern = r'def (test_[^(]+)\([^)]*\):'
+        self._record_test_names(re.findall(test_pattern, content), matches)
+        self._record_platforms(content, matches)
+
+    def _record_counts(self, matches):
         for func_name in matches:
             self.coverage[func_name]["tested"] = True
             self.coverage[func_name]["test_count"] += 1
         
-        # Find test function names
-        test_pattern = r'def (test_[^(]+)\([^)]*\):'
-        test_funcs = re.findall(test_pattern, content)
-        
-        # Map test functions to PAL functions
+    def _record_test_names(self, test_funcs, matches):
         for test_func in test_funcs:
             for func_name in matches:
                 self.coverage[func_name]["test_names"].append(test_func)
         
-        # Find platform markers
-        if "@pytest.mark.linux" in content:
-            for func_name in matches:
-                self.coverage[func_name]["platforms"].add("linux")
-        
-        if "@pytest.mark.darwin" in content:
-            for func_name in matches:
-                self.coverage[func_name]["platforms"].add("darwin")
-        
-        if "@pytest.mark.windows" in content:
-            for func_name in matches:
-                self.coverage[func_name]["platforms"].add("windows")
+    def _record_platforms(self, content, matches):
+        for platform in ("linux", "darwin", "windows"):
+            if f"@pytest.mark.{platform}" in content:
+                for func_name in matches:
+                    self.coverage[func_name]["platforms"].add(platform)
 
 
 # =============================================================================
@@ -179,9 +175,7 @@ class ReportGenerator:
         lines.append("=" * 80)
         lines.append("")
         
-        total_functions = len(self.all_functions)
-        tested_functions = sum(1 for f in self.all_functions if self.coverage[f]["tested"])
-        coverage_pct = (tested_functions / total_functions * 100) if total_functions > 0 else 0
+        total_functions, tested_functions, coverage_pct = self._counts(self.all_functions)
         
         lines.append(f"Total Functions: {total_functions}")
         lines.append(f"Tested Functions: {tested_functions}")
@@ -194,21 +188,10 @@ class ReportGenerator:
         lines.append("-" * 80)
         
         for category, funcs in self.categories.items():
-            tested = sum(1 for f in funcs if self.coverage[f]["tested"])
-            pct = (tested / len(funcs) * 100) if funcs else 0
-            
-            status = "✓" if pct == 100 else "◐" if pct > 0 else "✗"
-            lines.append(f"\n{status} {category}: {tested}/{len(funcs)} ({pct:.0f}%)")
-            
-            for func in funcs:
-                if self.coverage[func]["tested"]:
-                    test_count = self.coverage[func]["test_count"]
-                    lines.append(f"  ✓ {func} ({test_count} tests)")
-                else:
-                    lines.append(f"  ✗ {func} (NOT TESTED)")
+            lines.extend(self._text_category(category, funcs))
         
         # Untested functions
-        untested = [f for f in self.all_functions if not self.coverage[f]["tested"]]
+        untested = self._untested()
         if untested:
             lines.append("")
             lines.append("-" * 80)
@@ -223,13 +206,7 @@ class ReportGenerator:
         lines.append("PLATFORM COVERAGE")
         lines.append("-" * 80)
         
-        for platform in ["linux", "darwin", "windows"]:
-            platform_funcs = set()
-            for func in self.all_functions:
-                if platform in self.coverage[func]["platforms"]:
-                    platform_funcs.add(func)
-            
-            lines.append(f"\n{platform.upper()}: {len(platform_funcs)} functions")
+        lines.extend(self._text_platforms())
         
         lines.append("")
         lines.append("=" * 80)
@@ -241,7 +218,7 @@ class ReportGenerator:
         report = {
             "summary": {
                 "total_functions": len(self.all_functions),
-                "tested_functions": sum(1 for f in self.all_functions if self.coverage[f]["tested"]),
+                "tested_functions": self._counts(self.all_functions)[1],
                 "coverage_percentage": 0,
             },
             "categories": {},
@@ -253,33 +230,15 @@ class ReportGenerator:
             }
         }
         
-        tested = sum(1 for f in self.all_functions if self.coverage[f]["tested"])
-        report["summary"]["coverage_percentage"] = (tested / len(self.all_functions) * 100) if self.all_functions else 0
+        report["summary"]["coverage_percentage"] = self._counts(self.all_functions)[2]
         
         for category, funcs in self.categories.items():
-            report["categories"][category] = {
-                "total": len(funcs),
-                "tested": sum(1 for f in funcs if self.coverage[f]["tested"]),
-                "functions": []
-            }
+            report["categories"][category] = self._json_category(funcs)
             
-            for func in funcs:
-                func_info = {
-                    "name": func,
-                    "tested": self.coverage[func]["tested"],
-                    "test_count": self.coverage[func]["test_count"],
-                    "test_names": self.coverage[func]["test_names"],
-                    "platforms": list(self.coverage[func]["platforms"]),
-                }
-                report["categories"][category]["functions"].append(func_info)
-        
-        report["untested_functions"] = [f for f in self.all_functions if not self.coverage[f]["tested"]]
+        report["untested_functions"] = self._untested()
         
         for platform in ["linux", "darwin", "windows"]:
-            report["platform_coverage"][platform] = [
-                f for f in self.all_functions 
-                if platform in self.coverage[f]["platforms"]
-            ]
+            report["platform_coverage"][platform] = self._platform_functions(platform)
         
         return json.dumps(report, indent=2)
     
@@ -289,9 +248,7 @@ class ReportGenerator:
         lines.append("# PAL Function Coverage Report")
         lines.append("")
         
-        total = len(self.all_functions)
-        tested = sum(1 for f in self.all_functions if self.coverage[f]["tested"])
-        pct = (tested / total * 100) if total > 0 else 0
+        total, tested, pct = self._counts(self.all_functions)
         
         lines.append("## Summary")
         lines.append("")
@@ -306,23 +263,9 @@ class ReportGenerator:
         lines.append("")
         
         for category, funcs in self.categories.items():
-            cat_tested = sum(1 for f in funcs if self.coverage[f]["tested"])
-            cat_pct = (cat_tested / len(funcs) * 100) if funcs else 0
+            lines.extend(self._markdown_category(category, funcs))
             
-            lines.append(f"### {category} ({cat_pct:.0f}%)")
-            lines.append("")
-            lines.append("| Function | Status | Tests | Platforms |")
-            lines.append("|----------|--------|-------|-----------|")
-            
-            for func in funcs:
-                status = "✅" if self.coverage[func]["tested"] else "❌"
-                test_count = self.coverage[func]["test_count"]
-                platforms = ", ".join(self.coverage[func]["platforms"]) or "None"
-                lines.append(f"| `{func}` | {status} | {test_count} | {platforms} |")
-            
-            lines.append("")
-        
-        untested = [f for f in self.all_functions if not self.coverage[f]["tested"]]
+        untested = self._untested()
         if untested:
             lines.append("## Untested Functions")
             lines.append("")
@@ -332,10 +275,94 @@ class ReportGenerator:
         
         return "\n".join(lines)
 
+    def _text_category(self, category, funcs):
+        lines = []
+        _, tested, pct = self._counts(funcs)
+
+        status = "✓" if pct == 100 else "◐" if pct > 0 else "✗"
+        lines.append(f"\n{status} {category}: {tested}/{len(funcs)} ({pct:.0f}%)")
+
+        for func in funcs:
+            if self.coverage[func]["tested"]:
+                test_count = self.coverage[func]["test_count"]
+                lines.append(f"  ✓ {func} ({test_count} tests)")
+            else:
+                lines.append(f"  ✗ {func} (NOT TESTED)")
+        return lines
+
+    def _text_platforms(self):
+        lines = []
+        for platform in ["linux", "darwin", "windows"]:
+            platform_funcs = set()
+            for func in self.all_functions:
+                if platform in self.coverage[func]["platforms"]:
+                    platform_funcs.add(func)
+
+            lines.append(f"\n{platform.upper()}: {len(platform_funcs)} functions")
+        return lines
+
+    def _json_category(self, funcs):
+        category_info = {
+            "total": len(funcs),
+            "tested": sum(1 for f in funcs if self.coverage[f]["tested"]),
+            "functions": []
+        }
+
+        for func in funcs:
+            func_info = {
+                "name": func,
+                "tested": self.coverage[func]["tested"],
+                "test_count": self.coverage[func]["test_count"],
+                "test_names": self.coverage[func]["test_names"],
+                "platforms": list(self.coverage[func]["platforms"]),
+            }
+            category_info["functions"].append(func_info)
+        return category_info
+
+    def _markdown_category(self, category, funcs):
+        lines = []
+        _, _, cat_pct = self._counts(funcs)
+
+        lines.append(f"### {category} ({cat_pct:.0f}%)")
+        lines.append("")
+        lines.append("| Function | Status | Tests | Platforms |")
+        lines.append("|----------|--------|-------|-----------|")
+
+        for func in funcs:
+            status = "✅" if self.coverage[func]["tested"] else "❌"
+            test_count = self.coverage[func]["test_count"]
+            platforms = ", ".join(self.coverage[func]["platforms"]) or "None"
+            lines.append(f"| `{func}` | {status} | {test_count} | {platforms} |")
+
+        lines.append("")
+        return lines
+
+    def _counts(self, functions):
+        total = len(functions)
+        tested = sum(1 for func in functions if self.coverage[func]["tested"])
+        percentage = (tested / total * 100) if total else 0
+        return total, tested, percentage
+
+    def _untested(self):
+        return [func for func in self.all_functions if not self.coverage[func]["tested"]]
+
+    def _platform_functions(self, platform):
+        return [func for func in self.all_functions
+                if platform in self.coverage[func]["platforms"]]
+
 
 # =============================================================================
 # Main
 # =============================================================================
+
+def print_report(args, generator):
+    if args.json:
+        print(generator.generate_json_report())
+    elif args.markdown:
+        print(generator.generate_markdown_report())
+    else:
+        print(generator.generate_text_report())
+
 
 def main():
     import argparse
@@ -357,12 +384,7 @@ def main():
     # Generate report
     generator = ReportGenerator(coverage, ALL_FUNCTIONS, PAL_FUNCTIONS)
     
-    if args.json:
-        print(generator.generate_json_report())
-    elif args.markdown:
-        print(generator.generate_markdown_report())
-    else:
-        print(generator.generate_text_report())
+    print_report(args, generator)
     
     # Exit with error if coverage is below threshold
     tested = sum(1 for f in ALL_FUNCTIONS if coverage[f]["tested"])

@@ -16,6 +16,7 @@ Platform Notes:
 """
 
 import os
+import errno
 import tempfile
 import pytest
 from pathlib import Path
@@ -35,7 +36,7 @@ def set_xattr_safe(path, name, value):
             pytest.skip("Extended attributes not supported on this platform")
     except OSError as e:
         # Some filesystems don't support xattr
-        if e.errno in (os.ENOTSUP, os.EOPNOTSUPP):
+        if e.errno in (errno.ENOTSUP, errno.EOPNOTSUPP):
             pytest.skip("Filesystem does not support extended attributes")
         raise
 
@@ -48,7 +49,17 @@ def get_xattr_safe(path, name):
         else:
             pytest.skip("Extended attributes not supported on this platform")
     except OSError as e:
-        if e.errno in (os.ENOTSUP, os.EOPNOTSUPP):
+        if e.errno in (errno.ENOTSUP, errno.EOPNOTSUPP):
+            pytest.skip("Filesystem does not support extended attributes")
+        raise
+
+
+def list_xattr_safe(path):
+    """List attributes, skipping only filesystems that lack xattr support."""
+    try:
+        return os.listxattr(str(path))
+    except OSError as error:
+        if error.errno in (errno.ENOTSUP, errno.EOPNOTSUPP):
             pytest.skip("Filesystem does not support extended attributes")
         raise
 
@@ -116,13 +127,13 @@ def test_xattr_fd_version(temp_file):
     try:
         # Set via fd
         try:
-            os.fsetxattr(fd, name, value)
+            os.setxattr(fd, name, value)
         except (AttributeError, OSError):
             pytest.skip("fsetxattr not available")
         
         # Get via fd
         try:
-            result = os.fgetxattr(fd, name)
+            result = os.getxattr(fd, name)
             assert result == value, "fd-based get should match set"
         except (AttributeError, OSError):
             pytest.skip("fgetxattr not available")
@@ -150,16 +161,11 @@ def test_xattr_multiple(temp_file):
         set_xattr_safe(temp_file, name, value)
     
     # List attributes
-    try:
-        listed = os.listxattr(str(temp_file))
-    except OSError as e:
-        if e.errno in (os.ENOTSUP, os.EOPNOTSUPP):
-            pytest.skip("listxattr not supported")
-        raise
+    listed = list_xattr_safe(temp_file)
     
     # Verify all our attributes are listed
     for name in attrs.keys():
-        assert name.encode() in listed or name in listed, \
+        assert name in listed, \
             f"Attribute {name} should be listed"
     
     # Retrieve all
@@ -191,7 +197,7 @@ def test_xattr_remove(temp_file):
     try:
         os.removexattr(str(temp_file), name)
     except OSError as e:
-        if e.errno in (os.ENOTSUP, os.EOPNOTSUPP):
+        if e.errno in (errno.ENOTSUP, errno.EOPNOTSUPP):
             pytest.skip("removexattr not supported")
         raise
     
@@ -211,19 +217,19 @@ def test_xattr_remove_fd(temp_file):
     try:
         # Set attribute
         try:
-            os.fsetxattr(fd, name, value)
+            os.setxattr(fd, name, value)
         except (AttributeError, OSError):
             pytest.skip("fsetxattr not available")
         
         # Remove via fd
         try:
-            os.fremovexattr(fd, name)
+            os.removexattr(fd, name)
         except (AttributeError, OSError):
             pytest.skip("fremovexattr not available")
         
         # Verify it's gone
         with pytest.raises(OSError):
-            os.fgetxattr(fd, name)
+            os.getxattr(fd, name)
     finally:
         os.close(fd)
 
@@ -241,7 +247,7 @@ def test_xattr_get_nonexistent(temp_file):
         get_xattr_safe(temp_file, name)
     
     # Should raise ENODATA or ENOATTR
-    assert exc_info.value.errno in (os.ENODATA, os.ENOATTR, os.ENOENT)
+    assert exc_info.value.errno in (errno.ENODATA, getattr(errno, "ENOATTR", errno.ENODATA), errno.ENOENT)
 
 
 @pytest.mark.pal_function("brix_plat_setxattr")
@@ -262,13 +268,13 @@ def test_xattr_set_replace_flag(temp_file):
     # Set initial value
     set_xattr_safe(temp_file, name, value1)
     
-    # Try to set with REPLACE flag (should fail if attr doesn't exist)
-    try:
-        # Note: Python's os.setxattr doesn't expose flags directly
-        # This would be tested in C implementation
-        pytest.skip("Python os.setxattr doesn't expose flags")
-    except Exception:
-        pass
+    os.setxattr(str(temp_file), name, value2, flags=os.XATTR_REPLACE)
+    assert get_xattr_safe(temp_file, name) == value2
+    with pytest.raises(OSError) as missing:
+        os.setxattr(str(temp_file), "user.brix_missing", value2,
+                    flags=os.XATTR_REPLACE)
+    assert missing.value.errno in (errno.ENODATA,
+                                  getattr(errno, "ENOATTR", errno.ENODATA))
 
 
 # =============================================================================
@@ -322,7 +328,7 @@ def test_xattr_list_empty(temp_file):
         # Should return empty list or just system attributes
         assert isinstance(listed, (list, bytes))
     except OSError as e:
-        if e.errno in (os.ENOTSUP, os.EOPNOTSUPP):
+        if e.errno in (errno.ENOTSUP, errno.EOPNOTSUPP):
             pytest.skip("listxattr not supported")
         raise
 
@@ -337,7 +343,7 @@ def test_xattr_list_with_attrs(temp_file):
     try:
         listed = os.listxattr(str(temp_file))
     except OSError as e:
-        if e.errno in (os.ENOTSUP, os.EOPNOTSUPP):
+        if e.errno in (errno.ENOTSUP, errno.EOPNOTSUPP):
             pytest.skip("listxattr not supported")
         raise
     
@@ -359,13 +365,13 @@ def test_xattr_list_fd(temp_file):
     try:
         # Set an attribute
         try:
-            os.fsetxattr(fd, "user.brix_fd_list", b"value")
+            os.setxattr(fd, "user.brix_fd_list", b"value")
         except (AttributeError, OSError):
             pytest.skip("fsetxattr not available")
         
         # List via fd
         try:
-            listed = os.flistxattr(fd)
+            listed = os.listxattr(fd)
             assert "user.brix_fd_list".encode() in listed or "user.brix_fd_list" in listed
         except (AttributeError, OSError):
             pytest.skip("flistxattr not available")

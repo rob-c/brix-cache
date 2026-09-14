@@ -62,7 +62,7 @@ k8s-tests/
 
 **Files:**
 - Create: `k8s-tests/scenarios/catalog.yaml`
-- Create: `k8s-tests/scenarios/schema.md`
+- Create: `docs/09-developer-guide/k8s-tests/scenarios/schema.md`
 - Create: `k8s-tests/tools/catalog-lint.sh`
 - Create: `k8s-tests/tests-bats/catalog.bats`
 

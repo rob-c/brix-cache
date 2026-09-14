@@ -41,8 +41,8 @@
 | File | Lines | Status |
 |------|-------|--------|
 | `docs/platform/WINDOWS_PLATFORM_DETECTION.md` | 800+ | ✅ Accurate |
-| `src/platform/windows/PLATFORM_DETECTION_IMPLEMENTATION_REPORT.md` | 1,000+ | ✅ Accurate |
-| `WINDOWS_PLATFORM_DETECTION_SUMMARY.md` | 500+ | ✅ Accurate |
+| `docs/platform/pal/windows/PLATFORM_DETECTION_IMPLEMENTATION_REPORT.md` | 1,000+ | ✅ Accurate |
+| `docs/platform/windows/reports/WINDOWS_PLATFORM_DETECTION_SUMMARY.md` | 500+ | ✅ Accurate |
 
 ### Implementation File
 
@@ -149,7 +149,7 @@
 | File | Lines | Status |
 |------|-------|--------|
 | `docs/platform/PLATFORM_DETECTION.md` | 560+ | ⚠️ Overclaims |
-| `PLATFORM_DETECTION_SUMMARY.md` | 400+ | ⚠️ Overclaims |
+| `docs/platform/reports/PLATFORM_DETECTION_SUMMARY.md` | 400+ | ⚠️ Overclaims |
 
 ### Implementation File
 
@@ -359,7 +359,7 @@ int brix_plat_windows_version_at_least(...);       /* Line 851 */
 
 ### Function Reference - Verified ✅
 
-**File**: `src/platform/PAL_FUNCTION_REFERENCE.md` (1,629 lines)
+**File**: `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` (1,629 lines)
 
 **Coverage**: All 44 PAL functions documented with:
 - ✅ Function signature
@@ -632,11 +632,11 @@ All platforms implement the same 7 core functions:
 
 1. `docs/platform/PLATFORM_DETECTION.md` (560 lines)
 2. `docs/platform/WINDOWS_PLATFORM_DETECTION.md` (800 lines)
-3. `src/platform/windows/PLATFORM_DETECTION_IMPLEMENTATION_REPORT.md` (1,000 lines)
-4. `PLATFORM_DETECTION_SUMMARY.md` (400 lines)
-5. `WINDOWS_PLATFORM_DETECTION_SUMMARY.md` (500 lines)
-6. `src/platform/PAL_FUNCTION_REFERENCE.md` (1,629 lines)
-7. `src/platform/ARCHITECTURE.md` (relevant sections)
+3. `docs/platform/pal/windows/PLATFORM_DETECTION_IMPLEMENTATION_REPORT.md` (1,000 lines)
+4. `docs/platform/reports/PLATFORM_DETECTION_SUMMARY.md` (400 lines)
+5. `docs/platform/windows/reports/WINDOWS_PLATFORM_DETECTION_SUMMARY.md` (500 lines)
+6. `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` (1,629 lines)
+7. `docs/platform/pal/ARCHITECTURE.md` (relevant sections)
 
 ### Implementation Files (4 files, 1,500+ lines)
 

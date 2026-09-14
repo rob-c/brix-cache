@@ -18,7 +18,7 @@
  *       itself on hostile input. (Note: json.c is jansson-backed, not the
  *       hand-rolled parser the plan text predates.)
  *
- * Build: see tests/fuzz/README.md (clang -fsanitize=fuzzer,address,undefined,
+ * Build: see docs/09-developer-guide/testing/fuzz/README.md (clang -fsanitize=fuzzer,address,undefined,
  *        links json.c + -ljansson). Driven in CI by cmdscripts.fuzz_all.
  */
 #include <stddef.h>

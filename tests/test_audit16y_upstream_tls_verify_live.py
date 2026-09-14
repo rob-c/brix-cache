@@ -36,6 +36,7 @@ Two things measured here are not what the code says they are.
     same CA are accepted when the host is spelled as a name (#104).
 """
 
+from contextlib import ExitStack, closing
 import os
 import re
 import socket
@@ -94,17 +95,16 @@ def uptls(tmp_path_factory):
     evil_cert, evil_key = mint_cert(root, "evil", SERVER_HOST,
                                     f"DNS:{SERVER_HOST},IP:{HOST}")
 
-    stubs = {
-        "good": GotoTlsUpstream(BIND_HOST, _EXTRA["STUB_GOOD_PORT"],
-                                good_cert, good_key),
-        "evil": GotoTlsUpstream(BIND_HOST, _EXTRA["STUB_EVIL_PORT"],
-                                evil_cert, evil_key),
-        "other": GotoTlsUpstream(BIND_HOST, _EXTRA["STUB_OTHER_PORT"],
-                                 other_cert, other_key),
-    }
-
-    harness = LifecycleHarness()
-    try:
+    with ExitStack() as cleanup:
+        stubs = {}
+        for name, port, cert, key in (
+                ("good", _EXTRA["STUB_GOOD_PORT"], good_cert, good_key),
+                ("evil", _EXTRA["STUB_EVIL_PORT"], evil_cert, evil_key),
+                ("other", _EXTRA["STUB_OTHER_PORT"], other_cert, other_key)):
+            # All DNS answers must reach this peer; retain hostname verification.
+            stub = GotoTlsUpstream(SERVER_HOST, port, cert, key)
+            stubs[name] = cleanup.enter_context(closing(stub))
+        harness = cleanup.enter_context(closing(LifecycleHarness()))
         endpoint = harness.start(NginxInstanceSpec(
             name=NAME,
             template="nginx_audit16y_upstream_tls_verify_live.conf",
@@ -123,10 +123,6 @@ def uptls(tmp_path_factory):
         # only the ones that appear after it.
         state["unresolved_at_gate"] = _errlog(state).count(_UNRESOLVED)
         yield state
-    finally:
-        harness.close()
-        for stub in stubs.values():
-            stub.close()
 
 
 #: How long the outbound leg may take to become dialable after the listener

@@ -144,6 +144,7 @@ All three modes run inside a single nginx instance. Details: [Deployment Modes](
 | Document | Description |
 |----------|-------------|
 | [Build Guide](03-configuration/build-guide.md) | Detailed nginx source build with all dependencies |
+| [AlmaLinux 9 build and verification log](03-configuration/BUILD.md) | Required packages, nginx compatibility builds, current evidence and remaining verification work |
 | [Configuration Reference](03-configuration/config-reference.md) | All directives with defaults (complete reference) |
 | [TLS Configuration](03-configuration/tls-config.md) | `root://` upgrade, `roots://`, HTTPS setup |
 | [Production Deployment](03-configuration/production-deployment.md) | Production deployment patterns and best practices |
@@ -268,6 +269,11 @@ Contributing code? Start here. Everything you need to navigate the source tree, 
 | Document | Description |
 |----------|-------------|
 | [Development Workflow](09-developer-guide/dev-workflow.md) | Source tree layout, utilities, local development setup |
+| [Test-suite guide](09-developer-guide/testing/README.md) | Local runner, fleet ownership, test selection and prerequisites |
+| [BriXTest guide index](09-developer-guide/brixtest/README.md) | Standalone test framework, resources, native tests and evidence |
+| [Native client implementation](09-developer-guide/client/README.md) | Client programs and library organization |
+| [Kubernetes test guide](09-developer-guide/k8s-tests/README.md) | Remote-suite and cluster test setup |
+| [Platform guide index](platform/README.md) | PAL architecture, platform tests and implementation reports |
 | [Coding Standards](09-developer-guide/coding-standards.md) | C style, naming, documentation, and review expectations |
 | [XrdSecgsi Handshake](09-developer-guide/xrdsecgsi-handshake.md) | The real GSI handshake (client & server) — protocol, exact wire formats, and every gotcha; how `./client/xrdfs` authenticates to stock EOS |
 | [Lessons — TPC + VFS](09-developer-guide/lessons-tpc-vfs.md) | Field guide from the native-TPC (GSI/async/TLS/delegation) and VFS storage-driver work — the non-obvious things that cost real time (GSI interop traps, gate-first testing, build/test gotchas) |

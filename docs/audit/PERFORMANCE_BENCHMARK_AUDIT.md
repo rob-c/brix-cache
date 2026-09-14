@@ -512,8 +512,8 @@ The performance claims in this documentation can be trusted for:
 - ✅ `src/platform/windows/copy_range.c` (referenced in build)
 
 ### Supporting Documentation
-- ✅ `src/platform/PAL_FUNCTION_REFERENCE.md` (1,629 lines)
-- ✅ `src/platform/MAKEFILE_SUMMARY.md` (500+ lines)
+- ✅ `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` (1,629 lines)
+- ✅ `docs/platform/pal/MAKEFILE_SUMMARY.md` (500+ lines)
 - ✅ `docs/platform/ARM64_IMPLEMENTATION_SUMMARY.md` (400+ lines)
 
 ---

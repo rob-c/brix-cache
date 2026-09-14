@@ -30,7 +30,7 @@ import pytest
 from cmdscripts.c_regression_units import cache_lock_reclaim
 
 _OBJS = os.environ.get("TEST_NGINX_OBJS", "/tmp/nginx-1.28.3/objs")
-_NGX_SRC = os.path.dirname(_OBJS)
+_NGX_SRC = os.environ.get("NGX_SRC", os.path.dirname(_OBJS))
 
 
 def test_dead_owner_fill_lock_is_reclaimed(tmp_path):

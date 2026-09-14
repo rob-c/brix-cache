@@ -62,9 +62,11 @@ IMP = os.path.join(REPO, "src", "auth", "impersonate")
 # the forbidden-id/squash policy); and client.c into client.c (transport) +
 # client_ops.c (the brix_imp_open/stat/mkdir/unlink/rmdir/rename/truncate client
 # op wrappers).  The standalone driver must link ALL of them or the
-# privilege-switch / op-handler / creds / client-op symbols are undefined.
+# privilege-switch / op-handler / creds / client-op symbols are undefined. The
+# shared identity policy state is owned by impersonate_state.c.
 SRCS = [
     os.path.join(HERE, "c", "userns_broker_test.c"),
+    os.path.join(IMP, "impersonate_state.c"),
     os.path.join(IMP, "broker.c"),
     os.path.join(IMP, "broker_creds.c"),
     os.path.join(IMP, "broker_ops.c"),
@@ -98,13 +100,13 @@ def _userns_supported():
 
 
 @pytest.mark.timeout(120)
-def test_userns_impersonation_end_to_end():
+def test_userns_impersonation_end_to_end(tmp_path):
     _guard_test_userns_impersonation_end_to_end_1()
     _guard_test_userns_impersonation_end_to_end_2()
     _guard_test_userns_impersonation_end_to_end_3()
     _guard_test_userns_impersonation_end_to_end_4()
 
-    out_bin = "/tmp/userns_broker_test.bin"
+    out_bin = str(tmp_path / "userns_broker_test.bin")
     cmd = [CC, "-O2", "-D_GNU_SOURCE", "-Wall", *_inc_flags(),
            "-o", out_bin, *SRCS]
     build = subprocess.run(cmd, capture_output=True, text=True)

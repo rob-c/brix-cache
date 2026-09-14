@@ -80,6 +80,8 @@ SPECS: dict[str, CUnitSpec] = {
             "-Wall",
             "-Wextra",
             "-Werror",
+            "-I",
+            "src",
             "tests/c/test_site_n2n.c",
             "src/fs/path/site_n2n.c",
         ),

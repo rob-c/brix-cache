@@ -84,7 +84,7 @@ is trimmed.
 - **e2e C++ (`run_striper_migrate.sh`):** zero-positional config-file leg
   for the forward tool; reverse tool covered by a `--config … --report-only`
   invocation.
-- Docs: `tests/ceph/README.md` Python-tools section + the bidirectional
+- Docs: `docs/09-developer-guide/testing/ceph/README.md` Python-tools section + the bidirectional
   reference's command section document the file, keys, and precedence.
 
 ## 6. Non-goals

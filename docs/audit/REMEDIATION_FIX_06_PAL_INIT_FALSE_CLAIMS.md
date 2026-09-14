@@ -68,7 +68,9 @@ FUTURE ENHANCEMENT: May perform platform-specific initialization...
 
 ---
 
-### 2. `src/platform/PAL_FUNCTION_REFERENCE.md` ✅
+<a id="2-srcplatformpal_function_referencemd-"></a>
+
+### 2. `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` ✅
 
 **Lines**: 1315-1350
 
@@ -98,14 +100,16 @@ FUTURE ENHANCEMENT: May perform platform-specific initialization...
 
 **Verification**:
 ```bash
-$ grep -A2 "brix_plat_init()" src/platform/PAL_FUNCTION_REFERENCE.md | head -5
+$ grep -A2 "brix_plat_init()" docs/platform/pal/PAL_FUNCTION_REFERENCE.md | head -5
 - **brix_plat_init()**: Minimal stub (returns 0)
 - **brix_plat_cleanup()**: Empty stub (no-op)
 ```
 
 ---
 
-### 3. `src/platform/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` ✅
+<a id="3-srcplatformwindowswindows_pal_true_100_percent_completemd-"></a>
+
+### 3. `docs/platform/pal/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` ✅
 
 **Lines**: 403-435
 
@@ -151,7 +155,7 @@ brix_plat_init()
 
 **Verification**:
 ```bash
-$ grep -B2 -A5 "Current Implementation" src/platform/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md | head -10
+$ grep -B2 -A5 "Current Implementation" docs/platform/pal/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md | head -10
 **Current Implementation**:
 ```c
 int brix_plat_init(void) {

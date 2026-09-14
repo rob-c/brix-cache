@@ -7,7 +7,7 @@ Docker demo cluster (reef/18.2)
 (byte-level theory of the redirect migration),
 [`cephfs-migration-glasgow-ral.md`](cephfs-migration-glasgow-ral.md) /
 [`cephfs-to-xrdceph-migration.md`](cephfs-to-xrdceph-migration.md)
-(per-direction runbooks), `tests/ceph/README.md` (harness quick-start).
+(per-direction runbooks), `docs/09-developer-guide/testing/ceph/README.md` (harness quick-start).
 
 This document is the single reference for the 2026-07-02 wave of migration-tool
 work: the **pure-Python re-implementation** of both migration tools, the

@@ -57,7 +57,7 @@ import check_example_configs as guard        # noqa: E402
 import example_config_lib as lib             # noqa: E402
 from settings import HOST                     # noqa: E402
 
-from ephemeral_port import free_port         # noqa: E402
+from compose_stack_ports import _lease_bindable  # noqa: E402
 
 pytestmark = [pytest.mark.timeout(600),
               pytest.mark.xdist_group("phase115-example-configs")]
@@ -549,14 +549,15 @@ def test_smoke_scripts_are_posix_sh(stack):
 
 
 @needs_nginx
-def test_every_compose_conf_parses(tmp_path):
-    failures = []
-    for conf in sorted(COMPOSE.glob("*/nginx*.conf")):
-        ex = lib.Example(str(conf.relative_to(ROOT)), conf.read_text(), "full")
-        ok, err = lib.nginx_t(lib.render(ex, tmp_path))
-        if not ok:
-            failures.append(f"{ex.source}: {err}")
-    assert not failures, "\n".join(failures)
+@pytest.mark.parametrize("conf", sorted(COMPOSE.glob("*/nginx*.conf")),
+                         ids=lambda path: str(path.relative_to(COMPOSE)))
+def test_every_compose_conf_parses(tmp_path, conf):
+    ex = lib.Example(str(conf.relative_to(ROOT)), conf.read_text(), "full")
+    reason = lib.unsupported_reason(ex, NGINX)
+    if reason:
+        pytest.skip(reason)
+    ok, err = lib.nginx_t(lib.render(ex, tmp_path))
+    assert ok, f"{ex.source}: {err}"
 
 
 # --------------------------------------------------------------------------- #
@@ -629,26 +630,6 @@ def _wait_ports(ports, log, deadline=30.0):
 
 
 
-def _lease_bindable(attempts=32):
-    """A mock-range lease that is actually free on this host right now.
-
-    `free_port()` hands out deterministic slots from the lane's mock range; it
-    never probes the kernel. A slot can still be busy — a stray listener, or a
-    lane based above the ephemeral floor whose range overlaps live outgoing
-    connections (`bind() ... failed (98)` on a compose boot). Skip those.
-    """
-    for _ in range(attempts):
-        port = free_port()
-        with socket.socket() as probe:
-            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                probe.bind(("0.0.0.0", port))  # net-literal-allow: a wildcard probe bind, deliberately not the lane host
-            except OSError:
-                continue
-        return port
-    raise RuntimeError(f"no bindable mock port after {attempts} leases")
-
-
 class _Stack:
     """Every nginx*.conf of one compose stack, running on this host."""
 
@@ -671,6 +652,7 @@ class _Stack:
         self.obs_ports[conf.name] = obs
         text = _localise(_remap(conf.read_text(), {**self.ports, OBS_PORT: obs}))
         r = lib.render(lib.Example(f"{self.stack}/{conf.name}", text, "full"), prefix)
+        lib.prepare_nginx(r, NGINX)
         log = prefix / "stderr.log"
         proc = subprocess.Popen([NGINX, "-p", str(prefix), "-c", str(r.conf), "-g", "daemon off;"],
                                 env=self.env, stdout=log.open("wb"), stderr=subprocess.STDOUT)
@@ -706,6 +688,7 @@ class _Stack:
 def test_stack_boots_and_passes_its_smoke(stack, tmp_path):
     if shutil.which("curl") is None:
         pytest.skip("curl not installed")
+    _require_stack_nginx(stack)
     st = _Stack(stack, tmp_path)
     try:
         rc = subprocess.run(["sh", str(COMPOSE / stack / "smoke.sh")], env=st.smoke_env(),
@@ -720,6 +703,14 @@ def test_stack_boots_and_passes_its_smoke(stack, tmp_path):
         assert f"SMOKE OK: {stack}" in rc.stdout
     finally:
         st.stop()
+
+
+def _require_stack_nginx(stack):
+    for conf in sorted((COMPOSE / stack).glob("nginx*.conf")):
+        ex = lib.Example(str(conf.relative_to(ROOT)), conf.read_text(), "full")
+        reason = lib.unsupported_reason(ex, NGINX)
+        if reason:
+            pytest.skip(reason)
 
 
 @needs_nginx

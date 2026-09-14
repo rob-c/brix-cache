@@ -584,7 +584,7 @@ packaging. Krb5/zlib/readline are all soft-optional and compile-gated.
 A new `packaging/rpm/nginx-xrootd-clients.spec` (sibling to
 `nginx-mod-xrootd.spec`): `BuildRequires: openssl-devel, krb5-devel, zlib-devel,
 readline-devel`; `Requires: openssl-libs, krb5-libs`; installs `xrdcp` and
-`xrdfs` to `%{_bindir}`. `BUILD_INSTALL.md` gains a "native clients" section.
+`xrdfs` to `%{_bindir}`. `docs/03-configuration/BUILD_INSTALL.md` gains a "native clients" section.
 Keeping clients in a separate RPM avoids coupling the module's `.so` lifecycle to
 the binaries.
 

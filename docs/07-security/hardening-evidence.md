@@ -64,7 +64,7 @@ failure mode, fix it, write it down, pin it with a regression test.*
 
 - Full suite **~8,700 tests**; the slow lane — **~1,770 tests** — exists
   specifically to hurt the software: resilience, chaos, fault injection
-  (`tests/README.md`).
+  (`docs/09-developer-guide/testing/README.md`).
 - A TCP fault-injection proxy (`client/apps/diag/brix_fault_proxy.c`) resets connections
   mid-read and injects stalls and latency while suites assert **byte-exact**
   results and **zero EIO** surfaced to applications
@@ -87,7 +87,7 @@ published — provable at every hop.*
 - **Per-page CRC32c on the wire** — `kXR_pgread`/`kXR_pgwrite` carry a CRC
   per 4K page (`src/protocols/root/read/pgread.c`).
 - **Checksums at rest** — recorded checksums are verifiable on demand
-  (`xrdckverify`, `client/apps/README.md`).
+  (`xrdckverify`, `docs/09-developer-guide/client/apps/README.md`).
 - **Verified reads from storage** — CSI integrity verification checks what
   storage returns against the record made at write time
   (`src/fs/backend/csi_verify.c`).

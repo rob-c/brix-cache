@@ -14,8 +14,9 @@
 
 #if BRIX_PLATFORM_WINDOWS
 
-#include <windows.h>
 #include <winsock2.h>
+#include <windows.h>
+#include <io.h>
 
 /* ==========================================================================
  * HANDLE TYPE ENUMERATION

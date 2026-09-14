@@ -5,5 +5,5 @@ Each module exposes a ``CASES`` list of ``clientconf.model.Case``.  The matching
 ``tests/test_clientconf_<tool>.py`` shim parametrizes ``runner.expand(CASES)``
 across endpoints and executes them through the runner.
 
-Adding a test = adding a row here.  See ``../README.md``.
+Adding a test = adding a row here.  See ``docs/09-developer-guide/k8s-tests/remote-suite/tests/clientconf/README.md``.
 """

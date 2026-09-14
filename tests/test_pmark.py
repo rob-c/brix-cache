@@ -12,6 +12,7 @@ Covers the three contract tests for this feature:
   * security-neg    — an out-of-range scitag.flow is ignored (no marking)
 """
 
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 import json
 import os
 import shutil
@@ -205,6 +206,8 @@ stream {{ server {{
 
 
 def _nginx_t(conf):
+    inject_nginx_load_modules(conf, NGINX_BIN)
+    inject_nginx_runtime_paths(conf, conf.parent)
     r = subprocess.run(
         [NGINX_BIN, "-p", str(conf.parent), "-c", str(conf), "-t"],
         capture_output=True, text=True, timeout=30)

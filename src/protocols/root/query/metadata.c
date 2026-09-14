@@ -295,23 +295,28 @@ brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c,
     return brix_send_ok(ctx, c, resp, (uint32_t) (pos + 1));
 }
 
-/* Prologue for kXR_Qxattr: extract the request path, resolve it beneath the
- * export root, run the read auth gate, and VFS-probe the target (following
- * symlinks). Fills pathbuf, full_path and the vctx/vst it probes into. Returns NGX_OK to proceed, or
- * the send rc / ctx->write_rc that the caller must return on any failure. */
-static ngx_int_t
+/* ---- Prepare initialized metadata for kXR_Qxattr ----
+ *
+ * WHAT: Return 1 with initialized outputs, or 0 with the response result stored.
+ * WHY: Sending an error can return NGX_OK without making metadata ready for use.
+ * HOW: 1. Extract and confine the path. 2. Authorize read. 3. VFS-probe the target.
+ */
+static ngx_flag_t
 xattr_resolve_and_probe(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, char *pathbuf, char *full_path,
-    brix_vfs_ctx_t *vctx, brix_vfs_stat_t *vst)
+    brix_vfs_ctx_t *vctx, brix_vfs_stat_t *vst, ngx_int_t *response_rc)
 {
     if (ctx->recv.cur_dlen == 0 || ctx->recv.payload == NULL) {
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
-        return brix_send_error(ctx, c, kXR_ArgMissing, "xattr: path required");
+        *response_rc = brix_send_error(ctx, c, kXR_ArgMissing,
+                                       "xattr: path required");
+        return 0;
     }
     if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
                              pathbuf, BRIX_MAX_PATH + 1, 1)) {
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
-        return brix_send_error(ctx, c, kXR_ArgInvalid, "invalid path");
+        *response_rc = brix_send_error(ctx, c, kXR_ArgInvalid, "invalid path");
+        return 0;
     }
     /* phase74-fp: pathbuf is the request path, full_path the output buf. */
     brix_beneath_full_path(conf->common.root_canon, pathbuf,  /* NOLINT(readability-suspicious-call-argument) */
@@ -319,7 +324,8 @@ xattr_resolve_and_probe(brix_ctx_t *ctx, ngx_connection_t *c,
     if (brix_auth_gate(ctx, c, BRIX_OP_QUERY_XATTR, "QUERY",
                          pathbuf, full_path, conf,
                          BRIX_AUTH_READ, 0) != NGX_OK) {
-        return ctx->write_rc;
+        *response_rc = ctx->write_rc;
+        return 0;
     }
     /* Stat + xattr list/get all flow through the VFS (one ctx, confined to the
      * export root). probe (follow) replaces the raw stat; OP_STAT is suppressed
@@ -327,15 +333,19 @@ xattr_resolve_and_probe(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_root_vfs_ctx_init(ctx, c, conf, vctx, full_path);
     if (brix_vfs_probe(vctx, 0 /* follow */, vst) != NGX_OK) {
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
-        return brix_send_error(ctx, c, brix_kxr_from_errno(errno),
-                                 strerror(errno));
+        *response_rc = brix_send_error(ctx, c, brix_kxr_from_errno(errno),
+                                       strerror(errno));
+        return 0;
     }
-    return NGX_OK;
+    return 1;
 }
 
-/* brix_query_xattr — kXR_Qxattr: list a path's extended attributes through the
- * full security chain (extract → resolve → authdb → VO ACL → stat), returning the
- * oss.* key-values plus any user.U.*-prefixed xattrs. */
+/* ---- Return a path's extended attributes after the full read policy chain ----
+ *
+ * WHAT: Send oss.* metadata and user.U.* attributes, or a refusal response.
+ * WHY: Every metadata use requires a successfully initialized VFS prologue.
+ * HOW: 1. Check readiness. 2. Enforce mapped-user read access. 3. Format and send.
+ */
 ngx_int_t
 brix_query_xattr(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
@@ -352,10 +362,11 @@ brix_query_xattr(brix_ctx_t *ctx, ngx_connection_t *c,
     char              facc;
 
     {
-        ngx_int_t prc = xattr_resolve_and_probe(ctx, c, conf, pathbuf,
-                                                full_path, &vctx, &vst);
-        if (prc != NGX_OK) {
-            return prc;
+        ngx_int_t response_rc;
+
+        if (!xattr_resolve_and_probe(ctx, c, conf, pathbuf, full_path,
+                                    &vctx, &vst, &response_rc)) {
+            return response_rc;
         }
     }
 

@@ -141,5 +141,5 @@ const char *brix_env_resolve(const char *const *chain, const char **which);
 - [ ] Full rebuild `make -C client clean && make -C client -j$(nproc)`; `make -C client test` green.
 - [ ] Golden suite green against the post-Task-2 baseline; pty hint tests green.
 - [ ] Spec conformance pass over §§WS-1..WS-8 acceptance criteria (the loops/greps listed there).
-- [ ] Update `client/apps/README.md` with the compat contract pointer + alias table pointer (spec §13).
+- [ ] Update `docs/09-developer-guide/client/apps/README.md` with the compat contract pointer + alias table pointer (spec §13).
 - [ ] Commit any sweep fixes — `fix(client): CLI usability final-sweep fixes`.

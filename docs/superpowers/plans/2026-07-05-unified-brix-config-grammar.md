@@ -50,7 +50,7 @@ content (Tasks 6–7) authoritative and sweep-safe.
 - Modify: `docs/03-configuration/directives.md` (new "Unified storage grammar" intro + full cvmfs directive table with defaults)
 - Modify: `docs/03-configuration/examples.md` (cvmfs minimal + production examples)
 - Modify: `docs/03-configuration/quick-reference.md` (cvmfs entries)
-- Modify: `deploy/cvmfs/README.md` (shrink examples; defaults table)
+- Modify: `docs/05-operations/deploy/cvmfs/README.md` (shrink examples; defaults table)
 - Create: `docs/03-configuration/migration-unified-grammar.md` (old→new table)
 - Modify: `CLAUDE.md` (grep for renamed directives in ROUTING/RECIPES/FAQ; update hits)
 
@@ -59,7 +59,7 @@ content (Tasks 6–7) authoritative and sweep-safe.
 - [ ] **Step 1: directives.md** — add the grammar rules (three bullets from the spec §1) at the top of the storage section; add a cvmfs table: every `brix_cvmfs_*` + `brix_scvmfs_*` directive with args, default, one-line purpose (source: `src/protocols/cvmfs/directives_core.h`, `directives_resilience.h`, merge defaults in `module.c`). Mark unified directives once, not per protocol.
 - [ ] **Step 2: examples.md** — lead the cvmfs section with the 3-line config (spec §3 verbatim), then a "tuned" variant showing ONLY non-default knobs (`brix_cache_verify off`, `brix_cvmfs_origin_select static`, eviction overrides), each with a comment saying what the default already does.
 - [ ] **Step 3: quick-reference.md** — one cvmfs row-block mirroring the webdav/s3 style.
-- [ ] **Step 4: deploy/cvmfs/README.md** — replace the ~30-line production example with minimal + defaults table; keep monitoring/client/troubleshooting sections; keep the Squid mapping table (Task 5's script already did the mechanical rename; this step is prose coherence).
+- [ ] **Step 4: docs/05-operations/deploy/cvmfs/README.md** — replace the ~30-line production example with minimal + defaults table; keep monitoring/client/troubleshooting sections; keep the Squid mapping table (Task 5's script already did the mechanical rename; this step is prose coherence).
 - [ ] **Step 5: migration-unified-grammar.md** — the full old→new table (from Task 5's commit-message delete-list + stream renames: `xrootd`→`brix_root`, stream `brix_root <path>`→`brix_export`, `brix_webdav_root`/`brix_s3_root`→`brix_export`, per-proto tier+preamble de-prefixing, `brix_cache_root`→`brix_cache_export`), one line of context per family, statement that old names are gone (stock `unknown directive` error). Mark the file sweep-exempt with a note like the spec's.
 - [ ] **Step 6: Verify docs contain no stale names:**
 

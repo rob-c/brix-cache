@@ -185,7 +185,7 @@ brix_plat_fs_watcher_add(brix_plat_fs_watcher_t *watcher, const char *path, uint
     }
     
     /* kqueue EVFILT_VNODE requires the file to be open */
-    fd = open(path, O_RDONLY | O_CLOEXEC);
+    fd = open(path, O_RDONLY | O_CLOEXEC); /* vfs-seam-allow: SEAM_CORRECT - PAL kqueue watch descriptor */
     if (fd < 0) {
         return -1;  /* errno set by open() */
     }
@@ -268,6 +268,35 @@ brix_plat_fs_watcher_rm(brix_plat_fs_watcher_t *watcher, int wd)
     return -1;
 }
 
+/* ---- Translate native filesystem notification flags ----
+ * WHAT: Return the corresponding public PAL event mask.
+ * WHY: Keep decoding independent of event wait and descriptor ownership.
+ * HOW: 1. Start with no events. 2. Accumulate each matching native flag.
+ */
+static uint32_t
+brix_native_watch_events(uint32_t mask)
+{
+    /* Translate kqueue vnode flags to platform-independent mask */
+    uint32_t events = 0;
+    if (mask & NOTE_DELETE) {
+        events |= BRIX_FS_EVENT_DELETE;
+    }
+    if (mask & NOTE_WRITE) {
+        events |= BRIX_FS_EVENT_WRITE;
+    }
+    if (mask & NOTE_EXTEND) {
+        events |= BRIX_FS_EVENT_CREATE;  /* File extended/created */
+    }
+    if (mask & NOTE_ATTRIB) {
+        events |= BRIX_FS_EVENT_ATTRIB;
+    }
+    if (mask & NOTE_RENAME) {
+        events |= BRIX_FS_EVENT_RENAME;
+    }
+
+    return events;
+}
+
 int
 brix_plat_fs_watcher_next(brix_plat_fs_watcher_t *watcher, brix_plat_fs_event_t *event, int timeout_ms)
 {
@@ -330,23 +359,7 @@ brix_plat_fs_watcher_next(brix_plat_fs_watcher_t *watcher, brix_plat_fs_event_t 
     strncpy(event->path, wd->path, sizeof(event->path) - 1);
     event->path[sizeof(event->path) - 1] = '\0';
     
-    /* Translate kqueue vnode flags to platform-independent mask */
-    event->events = 0;
-    if (ev.fflags & NOTE_DELETE) {
-        event->events |= BRIX_FS_EVENT_DELETE;
-    }
-    if (ev.fflags & NOTE_WRITE) {
-        event->events |= BRIX_FS_EVENT_WRITE;
-    }
-    if (ev.fflags & NOTE_EXTEND) {
-        event->events |= BRIX_FS_EVENT_CREATE;  /* File extended/created */
-    }
-    if (ev.fflags & NOTE_ATTRIB) {
-        event->events |= BRIX_FS_EVENT_ATTRIB;
-    }
-    if (ev.fflags & NOTE_RENAME) {
-        event->events |= BRIX_FS_EVENT_RENAME;
-    }
+    event->events = brix_native_watch_events(ev.fflags);
     
     event->cookie = 0;  /* kqueue doesn't provide cookies like inotify */
     /* Timestamp: kqueue EVFILT_VNODE doesn't provide event timestamps.

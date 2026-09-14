@@ -16,8 +16,8 @@
 #define WIN32_LEAN_AND_MEAN
 #define _CRT_SECURE_NO_WARNINGS
 
-#include <windows.h>
 #include <winsock2.h>
+#include <windows.h>
 #include <ws2tcpip.h>
 #include <mswsock.h>
 #include <bcrypt.h>
@@ -26,6 +26,8 @@
 #include <direct.h>
 #include <sys/stat.h>
 #include <process.h>
+#include <errno.h>
+#include <ctype.h>
 
 /* Include PAL API */
 #include "../platform_api.h"
@@ -57,6 +59,21 @@ typedef union {
 /* ==========================================================================
  * ERROR HANDLING
  * ========================================================================== */
+
+/* ---- Translate Winsock-specific failures ----
+ * WHAT: Return the matching errno or EINVAL for an unknown failure.
+ * WHY: Socket errors occupy a separate namespace from Win32 file errors.
+ * HOW: 1. Match the supported socket failures. 2. Fall back to EINVAL.
+ */
+static inline int brix_win32_socket_errno(DWORD error)
+{
+    switch (error) {
+        case WSAEWOULDBLOCK: return EAGAIN;
+        case WSAECONNRESET: return ECONNRESET;
+        case WSAENOTSOCK: return ENOTSOCK;
+        default: return EINVAL;
+    }
+}
 
 /* Convert Windows error to errno */
 static inline void brix_win32_set_errno(DWORD error)
@@ -92,17 +109,8 @@ static inline void brix_win32_set_errno(DWORD error)
         case ERROR_IO_PENDING:
             errno = EINPROGRESS;
             break;
-        case WSAEWOULDBLOCK:
-            errno = EAGAIN;
-            break;
-        case WSAECONNRESET:
-            errno = ECONNRESET;
-            break;
-        case WSAENOTSOCK:
-            errno = ENOTSOCK;
-            break;
         default:
-            errno = EINVAL;
+            errno = brix_win32_socket_errno(error);
             break;
     }
 }

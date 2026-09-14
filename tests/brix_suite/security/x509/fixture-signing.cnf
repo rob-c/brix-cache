@@ -1,0 +1,10 @@
+# Mint SHA-1 certificate rejection fixtures on Red Hat-family OpenSSL builds.
+# Only the explicit certificate-signing subprocess loads this configuration;
+# the parent test process, verification commands, and nginx retain their policy.
+openssl_conf = fixture_init
+
+[fixture_init]
+alg_section = fixture_algorithms
+
+[fixture_algorithms]
+rh-allow-sha1-signatures = yes

@@ -157,14 +157,14 @@
 ### Verified Accurate ✅
 
 - [x] `docs/platform/WINDOWS_PLATFORM_DETECTION.md` (800 lines)
-- [x] `src/platform/windows/PLATFORM_DETECTION_IMPLEMENTATION_REPORT.md` (1,000 lines)
-- [x] `src/platform/PAL_FUNCTION_REFERENCE.md` (1,629 lines)
+- [x] `docs/platform/pal/windows/PLATFORM_DETECTION_IMPLEMENTATION_REPORT.md` (1,000 lines)
+- [x] `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` (1,629 lines)
 - [x] `src/platform/platform_api.h` (API declarations)
 
 ### Needs Clarification ⚠️
 
 - [ ] `docs/platform/PLATFORM_DETECTION.md` (560 lines) - PAL vs. script confusion
-- [ ] `PLATFORM_DETECTION_SUMMARY.md` (400 lines) - Overclaims Linux detection
+- [ ] `docs/platform/reports/PLATFORM_DETECTION_SUMMARY.md` (400 lines) - Overclaims Linux detection
 
 ---
 

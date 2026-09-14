@@ -361,6 +361,14 @@ def test_a_create_open_is_refused_by_the_role_not_by_read_only(cms):
 # F. Guard negatives — parse-time, against tmp_path copies only.              #
 # =========================================================================== #
 
+def test_valid_probe_cap_and_window_pass_at_parse_time(tmp_path):
+    """Valid values reach their directive owners with packaged nginx too."""
+    rc, err = _nginx_t(_guard_conf(
+        "brix_cms_state_fanout 2; brix_cms_fanout_window 300ms;"),
+        tmp_path, "valid-window.conf")
+    assert rc == 0, err
+
+
 def test_a_non_numeric_probe_cap_is_refused_at_parse_time(tmp_path):
     """security-neg: brix_cms_state_fanout is a num slot; a value nginx
     cannot read as one must stop the config, never silently mean 0 (which

@@ -30,7 +30,7 @@ This phase records that first pass in full: what to install, what to build, what
 breaks, and — for each broken thing — whether it is Ubuntu's fault, the
 environment's fault, or ours.
 
-The companion operator-facing document is `BUILD_INSTALL.md` §1U, which covers
+The companion operator-facing document is `docs/03-configuration/BUILD_INSTALL.md` §1U, which covers
 *installing and running* on Ubuntu. This file covers *developing and testing* on
 it, which is a strictly larger problem: the test suite needs a stock XRootD
 server, a second nginx built a different way, and 177 fixed TCP ports.
@@ -177,7 +177,7 @@ so the suite will not run against the distro-module build. Override
 
 ### 3.2 Dynamic module against the distribution nginx
 
-Full walkthrough in `BUILD_INSTALL.md` §1U. Short form: the module must be
+Full walkthrough in `docs/03-configuration/BUILD_INSTALL.md` §1U. Short form: the module must be
 compiled with `--with-compat` from the **same nginx version** Ubuntu installed,
 whose source comes from `apt-get source nginx` (enable `deb-src` first).
 

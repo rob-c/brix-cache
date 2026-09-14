@@ -70,6 +70,7 @@ Run:
     PYTHONPATH=tests python3 -m pytest tests/test_audit15n_webdav_cors.py -v
 """
 
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 import os
 import re
 import socket
@@ -226,6 +227,8 @@ def _nginx_t(conf_text, tmp_path, name):
     (prefix / "data").mkdir()
     conf = prefix / "nginx.conf"
     conf.write_bytes(conf_text)
+    inject_nginx_load_modules(conf, NGINX_BIN)
+    inject_nginx_runtime_paths(conf, prefix)
     proc = subprocess.run([NGINX_BIN, "-t", "-p", str(prefix), "-c", str(conf)],
                           capture_output=True, text=True, timeout=60)
     return proc.returncode, proc.stderr
@@ -617,7 +620,7 @@ def test_the_redirect_carries_the_cors_headers_a_browser_needs(cors):
 # §G — guard-negatives.  Every one damages a COPY under tmp_path.             #
 # --------------------------------------------------------------------------- #
 
-def test_an_empty_cors_origin_fails_nginx_t(cors, tmp_path):
+def test_an_empty_cors_origin_fails_nginx_t(tmp_path):
     """webdav_validate_cors_origins() (config.c:76) refuses a zero-length
     entry, because an empty allowlist member would be a silent no-op the
     operator believes is a rule."""
@@ -633,7 +636,15 @@ def test_an_empty_cors_origin_fails_nginx_t(cors, tmp_path):
     assert "invalid CORS origin" in err, err
 
 
-def test_a_control_byte_in_a_cors_origin_fails_nginx_t(cors, tmp_path):
+def test_a_concrete_cors_origin_passes_nginx_t(tmp_path):
+    """The same private parse helper accepts a valid configured origin."""
+    rc, err = _nginx_t(_guard_conf(
+        tmp_path / "valid", 'brix_webdav_cors_origin "https://example.org";'),
+        tmp_path, "valid")
+    assert rc == 0, err
+
+
+def test_a_control_byte_in_a_cors_origin_fails_nginx_t(tmp_path):
     """The config-time half of the injection guard.  A configured origin is
     reflected into Access-Control-Allow-Origin, so a control byte in one would
     be header injection every operator could reach — validated at parse time so

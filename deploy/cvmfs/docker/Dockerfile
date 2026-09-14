@@ -14,7 +14,7 @@
 #   docker run -d --name cvmfs-demo --cap-add=NET_ADMIN \
 #       -p 3128:3128 -p 3129:3129 -p 3130:3130 nginx-xrootd-cvmfs
 #
-# See README.md in this directory for client configuration.
+# See docs/05-operations/deploy/cvmfs/docker/README.md for client configuration.
 
 # ---------------------------------------------------------------- builder --
 FROM quay.io/centos/centos:stream9 AS builder

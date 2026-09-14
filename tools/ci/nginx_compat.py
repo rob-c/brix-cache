@@ -4,7 +4,7 @@
 Latest means nginx.org's current mainline release, resolved once per invocation.
 Each target retains configure/build/test logs and a JSON report with its exact
 version and artifact hashes. Requires Python 3.12, CMake, the module dependencies
-and the focused pytest dependencies documented in BUILD.md. Installs nothing.
+and the focused pytest dependencies documented in docs/03-configuration/BUILD.md. Installs nothing.
 """
 from __future__ import annotations
 

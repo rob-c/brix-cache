@@ -15,8 +15,8 @@ against both, plus the properties that make the move safe to depend on:
 * the three flat spellings and the package are ONE module object, so the 38
   consumers that still say ``from x509forge import forge_scenario`` cannot end
   up holding a second, drifting copy;
-* every one of the 49 functions and classes kept the body it had in the flat
-  shard, checked by AST body hash against the ``_legacy`` archives;
+* the original 60 definitions retain their archived bodies except exact,
+  reviewed post-move fixture repairs pinned by before/after body hashes;
 * no module reaches a name it never binds — the defect class itself;
 * the hostile scenarios still come out hostile.  A forge that quietly emitted a
   *valid* tree would turn every conformance REJECT case green while asserting
@@ -34,7 +34,7 @@ import sys
 import pytest
 from ts5_ast_checks import (
     missing_names,
-    move_problem,
+    pinned_move_problem,
     top_level_body_hashes as _file_body_hashes,
 )
 
@@ -48,6 +48,27 @@ LEGACY = TESTS / "brix_suite" / "_legacy"
 #: minutes.  Everything here works from one tree, forged once.
 _ARCHIVES = ("x509forge_flat.py", "x509forge_part2_flat.py",
              "x509forge_part3_flat.py")
+
+# Deliberate Alma9 fixture repairs after the mechanical move, verified by
+# test_x509_fixture_signing: signing policy is scoped to the fixture child,
+# and EC fixture keys use the existing key primitive. Keep exact body pins;
+# these names are not permission for arbitrary later drift.
+_POST_MOVE_CHANGED = {
+    '_make_ca_openssl': (
+        'd7d6f6d0c0589485d714d3ba6e33b81b4ae79dc8539a69f8acf825f5ed98e379',
+        'b8537430e7ede7ef178b9d41fc55bdae157cf9ee74955815b680b37ec1d0e455',
+    ),
+    '_make_eec_openssl': (
+        'c911b25a90e540bab68b78bba79a67af3fe78628b000ccc87c529b12763b2490',
+        'a07e6f686d752a5e8127a0e99127b86a4c4ca713ece5ebbcc81ad79d3bd2e5ce',
+    ),
+}
+_POST_MOVE_ADDED = {
+    '_fixture_signing_env':
+        'ea489f37fe576440d0315b1ee831b92960709be682a6818f13ccfc15c65be38a',
+    '_write_fixture_key':
+        '71d997af16b706a2aaadfa7f20053ed28d12ea53fa787221499e7b9737c386c5',
+}
 
 _PREAMBLE = ("import sys; sys.path[:0] = [%r, %r, %r]\n"
              % (str(TESTS), str(SRC), str(ROOT)))
@@ -159,11 +180,10 @@ def test_flat_spelling_is_the_package_object(flat):
 
 
 def test_every_definition_moved_verbatim():
-    """60 bodies, hashed against the archives.
+    """The original 60 bodies plus exact, reviewed post-move fixture repairs.
 
-    The move was mechanical by construction (line ranges cut out of the
-    shards), and this is what proves it stayed mechanical after the imports
-    were pruned to what each module actually uses.
+    Every other body remains identical to the archive. Added/changed bodies
+    are pinned in both directions, including failure on a stale amendment.
     """
     old = _body_hashes(LEGACY / a for a in _ARCHIVES)
     support_modules = {"__init__.py", "__main__.py", "primitive_operations.py"}
@@ -171,7 +191,9 @@ def test_every_definition_moved_verbatim():
         path for path in sorted(PKG.glob("*.py"))
         if path.name not in support_modules
     )
-    problem = move_problem(old, new, expected_shape=(60, 60))
+    problem = pinned_move_problem(
+        old, new, expected_shape=(60, 60),
+        changes=_POST_MOVE_CHANGED, additions=_POST_MOVE_ADDED)
     assert problem is None, problem
 
 

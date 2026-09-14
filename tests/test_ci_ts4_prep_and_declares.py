@@ -117,6 +117,9 @@ _ADDED_SINCE_MOVE = {
         "_tcp_inode", "_table_listener_inodes", "_listening_socket_inodes",
         "_process_socket_inodes", "_tcp_listener",
         "listener_owned_by_test_root",
+        # Preserve interpreter argument boundaries: a test path in --ignore
+        # is data, not the Python daemon entrypoint (Alma9 operator repair).
+        "_process_argv", "_python_script",
     },
 }
 
@@ -132,6 +135,9 @@ _CHANGED_SINCE_MOVE = {
         # harness reaping its own lane is exempt by ancestry, so the caller
         # that mattered — conftest teardown — needed no change.
         "kill_orphans",
+        # Reuse boundary-preserving argv and classify only actual test-script
+        # entrypoints; never treat an operator's option value as a helper.
+        "_cmdline", "_helper_matches",
     },
 }
 
@@ -419,8 +425,6 @@ def test_the_move_ledgers_cannot_be_left_behind():
     assert "grew ['fresh']" in complaints[1]
     assert "edited ['edited']" in complaints[2]
 
-    assert _CHANGED_SINCE_MOVE["orphans.py"] == {"kill_orphans"}, (
-        "the stale-entry check below is written against this ledger")
-    stale = _move_complaints({"kill_orphans": "A"}, {"kill_orphans": "A"},
-                             "orphans.py")
-    assert len(stale) == 1 and "still matches the archive" in stale[0], stale
+    for name in _CHANGED_SINCE_MOVE["orphans.py"]:
+        stale = _move_complaints({name: "A"}, {name: "A"}, "orphans.py")
+        assert len(stale) == 1 and "still matches the archive" in stale[0], stale

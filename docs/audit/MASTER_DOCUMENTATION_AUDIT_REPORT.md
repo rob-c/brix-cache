@@ -473,7 +473,7 @@ $ wc -l utils/xrd_sec_probe.py
 
 **Severity:** LOW  
 **Impact:** Completeness  
-**Location:** `tools/ci/README.md`  
+**Location:** `docs/09-developer-guide/ci/README.md`\
 **Problem:** 47 tools exist, some lack individual documentation
 
 **Recommendation:** Document all CI tools
@@ -625,7 +625,7 @@ The following critical claims were **VERIFIED ACCURATE**:
 
 ### Long-Term Actions (Low Priority)
 
-8. **Document all CI tools** in `tools/ci/README.md`
+8. **Document all CI tools** in `docs/09-developer-guide/ci/README.md`
    - Impact: Completeness
    - Effort: Medium
    - Owner: Tools team

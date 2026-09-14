@@ -71,6 +71,33 @@ brix_krb5_stash_tgt_ccache(krb5_context kctx, krb5_principal client,
     return 0;
 }
 
+/* Import a captured ccache as a GSS initiator credential.
+ * WHAT: Return NGX_OK with the credential, or destroy the ccache on failure.
+ * WHY: GSS import has a separate failure/ownership boundary from KRB_CRED decode.
+ * HOW: Import on MIT; retain the existing ccache-only behavior on Heimdal.
+ */
+static ngx_int_t
+brix_krb5_import_capture(krb5_context kctx, krb5_ccache cc,
+    gss_cred_id_t *out, ngx_log_t *log)
+{
+#if !defined(BRIX_SKIP_GSS_IMPORT)
+    OM_uint32 maj, min;
+    maj = gss_krb5_import_cred(&min, cc, NULL, NULL, out);
+    if (GSS_ERROR(maj)) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "brix: krb5 capture: gss_krb5_import_cred failed"
+                      " (major=0x%xL minor=0x%xL)",
+                      (unsigned long) maj, (unsigned long) min);
+        krb5_cc_destroy(kctx, cc);
+        return NGX_ERROR;
+    }
+#else
+    (void) kctx; (void) cc; (void) log;
+    *out = GSS_C_NO_CREDENTIAL;
+#endif
+    return NGX_OK;
+}
+
 /*
  * WHAT: Decrypt a forwarded Kerberos TGT (KRB_CRED) and import it as a GSS credential.
  *
@@ -100,9 +127,6 @@ brix_krb5_capture_fwd_cred(void *kctx_v, void *auth_ctx_v, void *client_v,
     krb5_creds       **creds = NULL;
     krb5_ccache        cc = NULL;
     krb5_error_code    krc;
-#if !defined(BRIX_SKIP_GSS_IMPORT)
-    OM_uint32          maj, min;
-#endif
     gss_cred_id_t      gcred = GSS_C_NO_CREDENTIAL;
 
     if (kctx == NULL || auth_ctx == NULL || client == NULL
@@ -147,21 +171,9 @@ brix_krb5_capture_fwd_cred(void *kctx_v, void *auth_ctx_v, void *client_v,
         return NGX_ERROR;
     }
 
-    /* Import the ccache as a GSS initiator credential (acts AS the user). */
-#if !defined(BRIX_SKIP_GSS_IMPORT)
-    maj = gss_krb5_import_cred(&min, cc, NULL, NULL, &gcred);
-    if (GSS_ERROR(maj)) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "brix: krb5 capture: gss_krb5_import_cred failed"
-                      " (major=0x%xL minor=0x%xL)",
-                      (unsigned long) maj, (unsigned long) min);
-        krb5_cc_destroy(kctx, cc);
+    if (brix_krb5_import_capture(kctx, cc, &gcred, log) != NGX_OK) {
         return NGX_ERROR;
     }
-#else
-    /* macOS Heimdal: skip GSS import, use krb5 ccache directly */
-    gcred = GSS_C_NO_CREDENTIAL;
-#endif
 
     /* The GSS cred references the ccache; ownership of both passes to caller. */
     *out_gss_cred = gcred;

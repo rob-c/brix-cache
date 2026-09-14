@@ -160,6 +160,7 @@ DIRECTIVES_H = ROOT / "src/protocols/root/stream/directives_auth.h"
 MERGE_C = ROOT / "src/auth/authz/acc/config.c"
 ACC_CONFIG_C = ROOT / "src/auth/authz/acc/config.c"
 ACC_GROUPS_C = ROOT / "src/auth/authz/acc/groups.c"
+ACC_TUNABLES_H = ROOT / "src/core/types/tunables_auth.h"
 PROCESS_C = ROOT / "src/core/config/process.c"
 SERVER_INIT_C = ROOT / "src/core/config/process_server_init.c"
 WEBDAV_COMMANDS_C = ROOT / "src/protocols/webdav/module_commands.c"
@@ -168,6 +169,18 @@ WEBDAV_COMMANDS_C = ROOT / "src/protocols/webdav/module_commands.c"
 # registered once on the shared HTTP-common table via nginx's ngx_conf_set_flag_slot.
 HTTP_AUTH_H = ROOT / "src/core/config/http_directives_auth.h"
 CONFIGS_DIR = Path(__file__).resolve().parent / "configs"
+
+
+def _assert_default_group_cache_lifetime(groups, config, tunables):
+    """Pin the shared twelve-hour default and its per-user expiry contract."""
+    assert "#define BRIX_ACC_GIDLIFETIME_DEFAULT 43200" in tunables
+    assert ("static time_t acc_gidlifetime = "
+            "BRIX_ACC_GIDLIFETIME_DEFAULT;") in groups
+    assert ("ngx_conf_merge_value(conf->gidlifetime, prev->gidlifetime, "
+            "BRIX_ACC_GIDLIFETIME_DEFAULT);") in config
+    assert "e->expiry = now + acc_gidlifetime;" in groups
+    assert "e->expiry > now && ngx_strcmp(e->user, user) == 0" in groups
+
 
 # The three subjects, and the conf field each one's value lands in.
 SUBJECTS = {"brix_acc_pgo": "acc.pgo",

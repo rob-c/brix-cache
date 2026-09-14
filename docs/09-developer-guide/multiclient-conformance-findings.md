@@ -47,7 +47,8 @@ signing block downfield. Under `brix_auth none`, XrdRust rejected with "security
 tag 0x00, expected 'S'" and go-hep with "requires request 3010 to be signed, but the session
 established no signing key". XrdCl/PyXRootD tolerated it, so it was invisible until go-hep and
 XrdRust were added. **Fixed:** emit only the 6-byte `ServerResponseReqs_Protocol` after the
-body. Details: [kxr-protocol sec-block layout](kxr-protocol-secblock-layout-bug — memory).
+body. The original details were recorded in the local memory note
+`kxr-protocol-secblock-layout-bug`; that note is not part of this repository.
 
 ### 2. go-hep large-write framing desync (two stacked gaps)
 go-hep (default `WithSubStreams=8`) opens parallel data connections via `kXR_bind` and streams

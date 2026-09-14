@@ -21,6 +21,7 @@ import pytest
 
 from settings import BIND_HOST, HOST, NGINX_BIN, url_host
 from server_registry import NginxInstanceSpec
+from brix_suite.nginx_capabilities import nginx_has_symbol
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-acc")]
@@ -42,13 +43,8 @@ def _have_tools():
 def acc_server(lifecycle, tmp_path):
     if not _have_tools():
         pytest.skip("xrdfs/xrdcp or nginx binary unavailable")
-    # The binary must be built with the module (acc engine linked).
-    try:
-        syms = subprocess.run(["nm", NGINX_BIN], capture_output=True, text=True)
-        if "brix_acc_access" not in syms.stdout:
-            pytest.skip("nginx binary not built with the xrdacc engine")
-    except Exception:
-        pass
+    if not nginx_has_symbol("brix_acc_access"):
+        pytest.skip("selected nginx build lacks the xrdacc engine")
 
     data = tmp_path / "data"
     (data / "sub").mkdir(parents=True)

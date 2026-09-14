@@ -318,21 +318,19 @@ http {
     sendfile        on;
     keepalive_timeout  65;
     
-    # BriX-Cache configuration
-    brix_cache_path C:/nginx/cache levels=1:2 keys_zone=brix:100m max_size=10g;
+    # nginx HTTP proxy cache; BriX storage uses brix_cache_store per endpoint
+    proxy_cache_path C:/nginx/cache levels=1:2 keys_zone=brix:100m max_size=10g;
     
     server {
         listen       80;
         server_name  localhost;
         
         location / {
-            root   html;
-            index  index.html;
-            
-            # Enable BriX-Cache
-            brix_cache brix;
-            brix_cache_valid 200 302 10m;
-            brix_cache_valid 404 1m;
+            # Replace this loopback origin with the local HTTP service.
+            proxy_pass http://127.0.0.1:8080;
+            proxy_cache brix;
+            proxy_cache_valid 200 302 10m;
+            proxy_cache_valid 404 1m;
         }
     }
 }
@@ -469,7 +467,7 @@ type C:\nginx\logs\error.log
 **Solution:**
 1. Reduce `worker_processes`
 2. Reduce `worker_connections`
-3. Tune `brix_cache_path` size
+3. Tune the nginx `proxy_cache_path` size for HTTP proxy caching
 
 #### Slow Performance
 
@@ -664,7 +662,7 @@ services:
 - [nginx/Windows Documentation](https://nginx.org/en/docs/windows.html)
 - [nginx Windows Performance Tuning](https://www.nginx.com/resources/admin-guide/nginx-windows-performance/)
 - [WSL2 Documentation](https://docs.microsoft.com/en-us/windows/wsl/)
-- [BriX-Cache PAL Architecture](../../src/platform/ARCHITECTURE.md)
+- [BriX-Cache PAL Architecture](pal/ARCHITECTURE.md)
 - [Windows PAL Implementation](../../src/platform/windows/)
 
 ---

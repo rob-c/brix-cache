@@ -324,13 +324,16 @@ perf_spawn(brix_cms_perf_t *pf)
         return;
     }
     c->data = pf;
+    /* ngx_get_connection leaves event logs unset; event backends use them. */
+    c->read->log = pf->cycle->log;
+    c->write->log = pf->cycle->log;
     c->read->handler = perf_read_handler;
     c->write->handler = NULL;
+    pf->conn = c;  /* perf_teardown owns the fd even if registration fails. */
     if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
         perf_teardown(pf);
         return;
     }
-    pf->conn = c;
     pf->line_pos = 0;
 
     ngx_log_error(NGX_LOG_NOTICE, pf->cycle->log, 0,

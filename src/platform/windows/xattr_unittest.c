@@ -9,6 +9,7 @@
  */
 
 #include <stdio.h>
+#include <winsock2.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -16,6 +17,7 @@
 
 #include "../platform_api.h"
 #include "win32_compat.h"
+#include "xattr_internal.h"
 
 /* Test file path - use temp directory */
 static char test_file_path[MAX_PATH];
@@ -38,7 +40,7 @@ setup_test_file(void)
     
     /* Build test file path */
     snprintf(test_file_path, sizeof(test_file_path), 
-             "%s\\brix_xattr_test_%d.txt", temp_dir, GetCurrentProcessId());
+             "%s\\brix_xattr_test_%lu.txt", temp_dir, (unsigned long) GetCurrentProcessId());
     
     /* Create test file */
     handle = CreateFileA(
@@ -72,6 +74,14 @@ is_ntfs_test_path(void)
     return brix_win32_is_ntfs_path(test_file_path);
 }
 
+/* Successful text setup is shared by ordinary reads and error-path reads. */
+static void
+brix_test_set_text_attribute(const char *path, const char *name, const char *value)
+{
+    int ret = brix_plat_setxattr(path, name, value, strlen(value), 0);
+    assert(ret == 0);
+}
+
 /* ==========================================================================
  * TEST CASES
  * ========================================================================== */
@@ -83,12 +93,10 @@ test_set_get_simple(void)
     const char *value = "Hello, World!";
     char buffer[64];
     ssize_t size;
-    int ret;
     
     printf("  Testing set/get simple attribute... ");
     
-    ret = brix_plat_setxattr(test_file_path, attr_name, value, strlen(value), 0);
-    assert(ret == 0);
+    brix_test_set_text_attribute(test_file_path, attr_name, value);
     
     size = brix_plat_getxattr(test_file_path, attr_name, buffer, sizeof(buffer));
     assert(size == (ssize_t)strlen(value));
@@ -215,8 +223,7 @@ test_remove_attribute(void)
     printf("  Testing remove attribute... ");
     
     /* Set attribute */
-    ret = brix_plat_setxattr(test_file_path, attr_name, value, strlen(value), 0);
-    assert(ret == 0);
+    brix_test_set_text_attribute(test_file_path, attr_name, value);
     
     /* Verify it exists */
     size = brix_plat_getxattr(test_file_path, attr_name, buffer, sizeof(buffer));
@@ -298,13 +305,11 @@ test_buffer_too_small(void)
     const char *value = "This is a moderately large value that should not fit in a tiny buffer";
     char tiny_buffer[8];
     ssize_t size;
-    int ret;
     
     printf("  Testing buffer too small... ");
     
     /* Set large attribute */
-    ret = brix_plat_setxattr(test_file_path, attr_name, value, strlen(value), 0);
-    assert(ret == 0);
+    brix_test_set_text_attribute(test_file_path, attr_name, value);
     
     /* Try to read with tiny buffer */
     size = brix_plat_getxattr(test_file_path, attr_name, tiny_buffer, sizeof(tiny_buffer));

@@ -179,8 +179,13 @@ brix_failsafe_get_crl(X509_STORE_CTX *ctx, X509_CRL **out, X509 *x)
         return 0;
     chosen = brix_crl_find_revocation(crls, x);
     if (chosen != NULL && brix_store_crl_mode(ctx) != BRIX_CRL_MODE_REQUIRE &&
-        X509_CRL_get_ext_by_NID(chosen, NID_delta_crl, -1) < 0)
-        chosen = brix_crl_find_removal(crls, x);
+        X509_CRL_get_ext_by_NID(chosen, NID_delta_crl, -1) < 0) {
+        X509_CRL *removal = brix_crl_find_removal(crls, x);
+
+        /* No removal leaves the full-CRL revocation authoritative. */
+        if (removal != NULL)
+            chosen = removal;
+    }
     if (chosen == NULL)
         chosen = brix_crl_newest_full(crls);
 

@@ -116,7 +116,7 @@ TOTAL DECLARATIONS: 45 (37 core + 8 Windows-specific)
 - ✅ Benchmark tools - Functional and well-documented
 
 ### Medium Quality (85-95% Accuracy) ⭐⭐⭐⭐
-- ⚠️ `src/platform/PAL_FUNCTION_REFERENCE.md` - Comprehensive but function count off
+- ⚠️ `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` - Comprehensive but function count off
 - ⚠️ `docs/platform/PLATFORM_SUPPORT_MATRIX.md` - Feature matrix accurate, counts outdated
 
 ### Low Quality (<85% Accuracy) ⭐⭐⭐
@@ -174,7 +174,7 @@ TOTAL DECLARATIONS: 45 (37 core + 8 Windows-specific)
 - [ ] `docs/platform/DOCUMENTATION_UPDATE_REPORT.md` - Update all percentages
 
 ### High Priority (This Week)
-- [ ] `src/platform/PAL_FUNCTION_REFERENCE.md` - Function categorization
+- [ ] `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` - Function categorization
 - [ ] `docs/platform/PERFORMANCE_BENCHMARKS.md` - clonefile() context
 - [ ] 10+ Windows completion reports - Final status update
 

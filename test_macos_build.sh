@@ -112,7 +112,7 @@ count_lines() {
     HEADER_LINES=$(wc -l src/platform/*.h 2>/dev/null | tail -1 | awk '{print $1}')
     IMPL_LINES=$(wc -l src/platform/*.c src/platform/*/*.c 2>/dev/null | tail -1 | awk '{print $1}')
     DOC_LINES=$(wc -l src/platform/README.md docs/01-getting-started/macos-quickstart.md \
-                       MACOS_IMPLEMENTATION_STATUS.md MACOS_SUPPORT_COMPLETE_SUMMARY.md \
+                       docs/platform/macos/reports/MACOS_IMPLEMENTATION_STATUS.md docs/platform/macos/reports/MACOS_SUPPORT_COMPLETE_SUMMARY.md \
                        2>/dev/null | tail -1 | awk '{print $1}')
     
     echo "  Headers: $HEADER_LINES lines"

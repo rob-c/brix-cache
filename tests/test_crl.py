@@ -28,6 +28,9 @@ import pytest
 import urllib3
 import requests
 
+from server_registry import get_server
+from server_launcher import RegistryLauncher
+
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.x509 import (
@@ -138,7 +141,7 @@ def _wait_for_port(host, port, timeout=5):
     return False
 
 
-def _revoked_stat_rc(port):
+def _revoked_stat_rc(port, timeout=10):
     """xrdfs stat with the REVOKED proxy; rc==0 means the CRL is NOT enforced."""
     env = os.environ.copy()
     env["X509_CERT_DIR"]     = os.path.join(PKI_DIR, "ca")
@@ -147,7 +150,7 @@ def _revoked_stat_rc(port):
     env["XrdSecGSISRVNAMES"] = "*"
     return subprocess.run(
         ["xrdfs", f"root://{url_host(HOST)}:{port}", "stat", "/test.txt"],
-        capture_output=True, text=True, timeout=10, env=env,
+        capture_output=True, text=True, timeout=timeout, env=env,
     ).returncode
 
 
@@ -162,10 +165,17 @@ def _wait_revoked_accepted(port, timeout=12):
     (and too-short) 1.0s, so test_initially_accepts_revoked_cert sees a clean slate.
     """
     deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if _revoked_stat_rc(port) == 0:
-            return True
-        time.sleep(0.5)
+    while (remaining := deadline - time.monotonic()) > 0:
+        try:
+            if _revoked_stat_rc(port, timeout=min(10, remaining)) == 0:
+                return time.monotonic() <= deadline
+        except subprocess.TimeoutExpired:
+            # SIGHUP can close a just-accepted session on the retiring worker.
+            # Retry a fresh command within the original readiness deadline.
+            pass
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(0.5, remaining))
     return False
 
 
@@ -180,16 +190,29 @@ def crl_file():
     return CRL_PEM
 
 
+def _crl_server_info(name):
+    endpoint = get_server(name)
+    return {"conf": endpoint.config, "pidfile": endpoint.pidfile,
+            "log_dir": os.path.dirname(endpoint.pidfile)}
+
+
+def _reload_crl_server(info):
+    pid = RegistryLauncher._read_pid(info["pidfile"])
+    if pid is None or pid <= 1:
+        return
+    try:
+        os.kill(pid, signal.SIGHUP)
+    except OSError:
+        pass
+
+
 @pytest.fixture(scope="session")
 def crl_nginx(crl_file):
     """Use the suite-level nginx with CRL checking enabled."""
     if not _wait_for_port(HOST, WEBDAV_CRL_PORT):
         pytest.fail("CRL nginx did not start (HTTPS port not reachable)")
 
-    yield {
-        "conf": os.path.join(TEST_ROOT, "dedicated", "crl", "conf", "nginx.conf"),
-        "log_dir": os.path.join(TEST_ROOT, "dedicated", "crl", "logs"),
-    }
+    yield _crl_server_info("crl")
 
 
 @pytest.fixture(scope="session")
@@ -205,10 +228,7 @@ def crl_dir_nginx(crl_file):
     if not ok_stream or not ok_https:
         pytest.fail(f"CRL dir nginx did not start. stream={ok_stream} https={ok_https}")
 
-    yield {
-        "conf": os.path.join(TEST_ROOT, "dedicated", "crl-dir", "conf", "nginx.conf"),
-        "log_dir": os.path.join(TEST_ROOT, "dedicated", "crl-dir", "logs"),
-    }
+    yield _crl_server_info("crl-dir")
 
 
 @pytest.fixture(scope="session")
@@ -228,14 +248,9 @@ def crl_reload_nginx(crl_file):
         except OSError:
             pass
 
-    # Signal nginx to reload config so it drops any in-memory CRL state.
-    pid_file = os.path.join(TEST_ROOT, "dedicated", "crl-reload", "logs", "nginx.pid")
-    if os.path.exists(pid_file):
-        for line in open(pid_file).read().split():
-            try:
-                os.kill(int(line.strip()), signal.SIGHUP)
-            except (OSError, ValueError):
-                pass
+    # Signal the registry-selected nginx to drop any in-memory CRL state.
+    info = _crl_server_info("crl-reload")
+    _reload_crl_server(info)
 
     _guard_crl_reload_nginx_1()
 
@@ -243,12 +258,10 @@ def crl_reload_nginx(crl_file):
     # now-empty dir) before the reload tests run. A fixed short sleep races the
     # ~2s reload interval and leaves test_initially_accepts_revoked_cert seeing a
     # stale CRL from a prior run.
-    _wait_revoked_accepted(CRL_RELOAD_PORT)
+    if not _wait_revoked_accepted(CRL_RELOAD_PORT):
+        pytest.fail("CRL reload did not reach the CRL-free ready state within 12 seconds")
 
-    yield {
-        "crl_src": crl_file,
-        "log_dir": os.path.join(TEST_ROOT, "dedicated", "crl-reload", "logs"),
-    }
+    yield {**info, "crl_src": crl_file}
 
 
 # =========================================================================
@@ -496,7 +509,7 @@ class TestCRLReload:
         log_path = os.path.join(info["log_dir"], "error.log")
 
         if not os.path.exists(log_path):
-            pytest.skip("error.log not found")
+            pytest.fail(f"required CRL reload error.log not found: {log_path}")
 
         with open(log_path) as f:
             log_content = f.read()

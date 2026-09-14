@@ -316,5 +316,5 @@ Stateful scenarios a flat table expresses poorly. Each step still uses
   project-only flag into `divergence.yaml`.
 - Suite is green (allowing documented skips for absent endpoints/binaries) and
   xdist-safe.
-- `tests/clientconf/README.md` documents how to add a case and register a
+- `docs/09-developer-guide/testing/clientconf/README.md` documents how to add a case and register a
   divergence.

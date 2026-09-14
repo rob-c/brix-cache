@@ -200,8 +200,8 @@ The same coding-standards formatting / file-size rules apply **uniformly across
 4. **Update / create the directory `README.md` responsibility table.** Every
    `src/` subdir lists each file's responsibility (doc-tree standard); a new file
    → a new row. **`client/` has no README tables yet** — the client track (§7.4)
-   must *create* `client/README.md`, `client/lib/README.md`, and
-   `client/apps/README.md` as it goes (a prerequisite, not an afterthought).
+   must *create* `docs/09-developer-guide/client/README.md`, `docs/09-developer-guide/client/lib/README.md`, and
+   `docs/09-developer-guide/client/apps/README.md` as it goes (a prerequisite, not an afterthought).
 5. **Every new file gets a WHAT/WHY/HOW header doc-block** (coding-standards §doc).
 6. **Pure refactor = zero behavior change.** The split must be byte-for-byte
    behaviorally identical; verify with the existing test suite (the 3-tests rule
@@ -1049,7 +1049,7 @@ xrdcp/xrdfs/xrddiag + FUSE verified):
   can't auto-relocate that interdependent a preamble). Verified behavior-identical
   by A/B test: split and unsplit both give 12 pass / 4 pre-existing FUSE-write
   env-fails. Kept files all <800 (copy 218, xrdfs 244, xrddiag 508, xrootdfs 318).
-- `client/lib/README.md` created.
+- `docs/09-developer-guide/client/lib/README.md` created.
 
 **Remaining client work:** `client/lib/webfile.c` (🟡 watch) and `client/lib/xrdc.h`
 (§7.3, mixed-ABI header); `client/lib/vfs_s3.c` (drifted in post-snapshot).

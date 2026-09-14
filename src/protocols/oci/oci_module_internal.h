@@ -23,6 +23,10 @@
 #include "net/guard/guard.h"
 #include "protocols/shared/file_serve.h"
 
+/* Uniform delegated-pull refusal, owned by oci_delegate_identity.c. */
+ngx_int_t brix_oci_delegate_refuse(ngx_http_request_t *r,
+    ngx_http_brix_oci_loc_conf_t *lcf, ngx_http_brix_oci_ctx_t *ctx);
+
 /* ---- oci_merge.c --------------------------------------------------------- */
 
 char *ngx_http_brix_oci_merge_loc_conf(ngx_conf_t *cf, void *parent,

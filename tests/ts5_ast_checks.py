@@ -149,6 +149,44 @@ def move_problem(before, after, expected_shape=None, additions=None):
     return _first_problem(checks)
 
 
+def _pinned_changes_problem(before, after, changes):
+    for name, (previous, current) in changes.items():
+        if previous == current:
+            return f"stale changed-body amendment: {name} does not change"
+        if before.get(name) != previous:
+            return f"changed-body archive does not match its pin: {name}"
+        if after.get(name) != current:
+            return f"changed body does not match its post-move pin: {name}"
+    return None
+
+
+def _pinned_additions_problem(before, after, additions):
+    for name, current in additions.items():
+        if name in before:
+            return f"stale added-body amendment: {name} already existed"
+        if after.get(name) != current:
+            return f"added body does not match its post-move pin: {name}"
+    return None
+
+
+def pinned_move_problem(before, after, *, expected_shape, changes, additions):
+    """Allow only explicit before/after body hashes, then retain the move check.
+
+    Changed/additional bodies must match their exact reviewed pins, so a revert,
+    deletion or further edit cannot hide behind an old post-move declaration.
+    Everything outside those pins retains the original strict move contract.
+    """
+    problem = _first_problem((
+        lambda: _pinned_changes_problem(before, after, changes),
+        lambda: _pinned_additions_problem(before, after, additions),
+    ))
+    if problem is not None:
+        return problem
+    restored = dict(after)
+    restored.update({name: before[name] for name in changes})
+    return move_problem(before, restored, expected_shape, set(additions))
+
+
 def _import_names(node):
     return {
         (alias.asname or alias.name).split(".")[0]

@@ -203,7 +203,7 @@ uint64_t brix_checksum_blocked(const void *buf, size_t len)
 
 ```bash
 cd /Users/rcurrie/src/brix-cache
-clang -framework Accelerate -O3 -o test_checksum test_checksum_accelerate.c
+clang -framework Accelerate -O3 -o test_checksum tests/platform/examples/test_checksum_accelerate.c
 ./test_checksum
 ```
 

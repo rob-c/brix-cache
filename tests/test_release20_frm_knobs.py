@@ -38,6 +38,7 @@ from pathlib import Path
 import pytest
 
 from settings import BIND_HOST, NGINX_BIN
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 from brix_suite.fd_probe import write_fd_probe
 from server_registry import NginxInstanceSpec
 from official_interop_lib import worker_reachable
@@ -66,7 +67,8 @@ WIRED = ("brix_frm_queue_path", "brix_frm_stagecmd", "brix_frm_copymax",
 # --------------------------------------------------------------------------
 
 def _server(root: Path, directives: str, tag: str = "a") -> str:
-    return (f"server {{ listen unix:{root}/{tag}.sock; brix_root on; "
+    # Prefix-relative Unix names preserve distinct servers without path limits.
+    return (f"server {{ listen unix:{tag}.sock; brix_root on; "
             f"brix_storage_backend posix:{root}/data; brix_auth none; "
             f"{directives} }}")
 
@@ -81,6 +83,8 @@ pid {root}/n.pid; thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{ {servers} }}
 """)
+    inject_nginx_load_modules(conf)
+    inject_nginx_runtime_paths(conf, root)
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
     return p.returncode, p.stderr + p.stdout

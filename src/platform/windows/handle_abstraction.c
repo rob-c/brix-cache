@@ -27,78 +27,7 @@
 #include <string.h>
 #include <stdint.h>
 
-/* ==========================================================================
- * CONFIGURATION
- * ========================================================================== */
-
-/* Maximum number of concurrent file descriptors */
-#define BRIX_WIN32_MAX_FDS  4096
-
-/* Initial registry size (grows dynamically if needed) */
-#define BRIX_WIN32_INITIAL_SIZE  256
-
-/* Sentinel value for unused entries */
-#define BRIX_WIN32_FD_UNUSED  -1
-
-/* ==========================================================================
- * DATA STRUCTURES
- * ========================================================================== */
-
-/**
- * Handle type enumeration
- * 
- * Different handle types require different cleanup operations:
- * - FD_FILE: CloseHandle()
- * - FD_SOCKET: closesocket()
- * - FD_PIPE: CloseHandle() + special pipe cleanup
- * - FD_EVENT: CloseHandle() (event objects, pipes, etc.)
- */
-typedef enum {
-    FD_UNUSED = 0,
-    FD_FILE,
-    FD_SOCKET,
-    FD_PIPE,
-    FD_EVENT
-} brix_win32_fd_type_t;
-
-/**
- * Handle registry entry
- * 
- * Each entry tracks a single file descriptor and its associated HANDLE.
- * The fd field serves as both the index and validity marker:
- * - fd == BRIX_WIN32_FD_UNUSED: Entry is free
- * - fd >= 0: Entry is in use, fd matches array index
- */
-typedef struct {
-    int fd;                      /* File descriptor (index in registry) */
-    union {
-        HANDLE handle;           /* Generic handle */
-        SOCKET socket;           /* Socket handle (Winsock) */
-    };
-    brix_win32_fd_type_t type;   /* Handle type for proper cleanup */
-    int refcount;                /* Reference count for shared handles */
-    const char *name;            /* Optional debug name (NULL if not tracked) */
-} brix_win32_handle_entry_t;
-
-/**
- * Handle registry
- * 
- * Thread-safe registry using SRW lock (Slim Reader-Writer lock).
- * SRW locks are more efficient than critical sections for read-heavy workloads.
- * 
- * The registry grows dynamically:
- * - Starts at BRIX_WIN32_INITIAL_SIZE entries
- * - Doubles in size when capacity is reached
- * - Maximum size: BRIX_WIN32_MAX_FDS
- */
-typedef struct {
-    brix_win32_handle_entry_t *entries;  /* Array of handle entries */
-    size_t capacity;                     /* Total capacity (entries array size) */
-    size_t next_fd;                      /* Next available fd (monotonic counter) */
-    size_t used_count;                   /* Number of active handles */
-    SRWLOCK lock;                        /* Thread-safe access lock */
-    int initialized;                     /* Initialization flag */
-} brix_win32_handle_registry_t;
+#include "handle_internal.h"
 
 /* Global handle registry (singleton) */
 static brix_win32_handle_registry_t g_handle_registry = {
@@ -109,131 +38,6 @@ static brix_win32_handle_registry_t g_handle_registry = {
     .lock = SRWLOCK_INIT,
     .initialized = 0
 };
-
-/* ==========================================================================
- * INTERNAL FUNCTIONS
- * ========================================================================== */
-
-/**
- * Initialize the handle registry
- * 
- * Called once at module initialization.
- * Thread-safe: uses atomic compare-and-swap for initialization flag.
- * 
- * @return 0 on success, -1 on error (errno set)
- */
-static int
-brix_win32_registry_init(void)
-{
-    /* Fast path: already initialized */
-    if (g_handle_registry.initialized) {
-        return 0;
-    }
-    
-    /* Allocate initial registry */
-    g_handle_registry.entries = (brix_win32_handle_entry_t *)calloc(
-        BRIX_WIN32_INITIAL_SIZE,
-        sizeof(brix_win32_handle_entry_t)
-    );
-    
-    if (g_handle_registry.entries == NULL) {
-        errno = ENOMEM;
-        return -1;
-    }
-    
-    /* Initialize all entries as unused */
-    for (size_t i = 0; i < BRIX_WIN32_INITIAL_SIZE; i++) {
-        g_handle_registry.entries[i].fd = BRIX_WIN32_FD_UNUSED;
-        g_handle_registry.entries[i].type = FD_UNUSED;
-        g_handle_registry.entries[i].refcount = 0;
-        g_handle_registry.entries[i].name = NULL;
-    }
-    
-    g_handle_registry.capacity = BRIX_WIN32_INITIAL_SIZE;
-    g_handle_registry.next_fd = 0;
-    g_handle_registry.used_count = 0;
-    
-    /* Initialize SRW lock (already initialized via SRWLOCK_INIT, but be explicit) */
-    InitializeSRWLock(&g_handle_registry.lock);
-    
-    /* Memory barrier to ensure visibility */
-    g_handle_registry.initialized = 1;
-    
-    return 0;
-}
-
-/**
- * Grow the handle registry
- * 
- * Called when capacity is reached.
- * Must be called with write lock held.
- * 
- * @return 0 on success, -1 on error (errno set, registry unchanged)
- */
-static int
-brix_win32_registry_grow(void)
-{
-    size_t new_capacity = g_handle_registry.capacity * 2;
-    
-    /* Check maximum limit */
-    if (new_capacity > BRIX_WIN32_MAX_FDS) {
-        errno = EMFILE;
-        return -1;
-    }
-    
-    /* Allocate new array */
-    brix_win32_handle_entry_t *new_entries = (brix_win32_handle_entry_t *)realloc(
-        g_handle_registry.entries,
-        new_capacity * sizeof(brix_win32_handle_entry_t)
-    );
-    
-    if (new_entries == NULL) {
-        errno = ENOMEM;
-        return -1;
-    }
-    
-    /* Initialize new entries as unused */
-    for (size_t i = g_handle_registry.capacity; i < new_capacity; i++) {
-        new_entries[i].fd = BRIX_WIN32_FD_UNUSED;
-        new_entries[i].type = FD_UNUSED;
-        new_entries[i].refcount = 0;
-        new_entries[i].name = NULL;
-    }
-    
-    /* Switch to new array */
-    g_handle_registry.entries = new_entries;
-    g_handle_registry.capacity = new_capacity;
-    
-    return 0;
-}
-
-/**
- * Find a free entry in the registry
- * 
- * Searches from next_fd position (round-robin allocation).
- * Must be called with write lock held.
- * 
- * @return Index of free entry, or -1 if registry is full
- */
-static int
-brix_win32_find_free_entry(void)
-{
-    size_t start = g_handle_registry.next_fd;
-    size_t i = start;
-    
-    do {
-        if (g_handle_registry.entries[i].fd == BRIX_WIN32_FD_UNUSED) {
-            /* Found free entry */
-            g_handle_registry.next_fd = (i + 1) % g_handle_registry.capacity;
-            return (int)i;
-        }
-        
-        i = (i + 1) % g_handle_registry.capacity;
-    } while (i != start);
-    
-    /* No free entry found */
-    return -1;
-}
 
 /* ==========================================================================
  * PUBLIC API - HANDLE REGISTRATION
@@ -256,7 +60,7 @@ brix_win32_register_handle(HANDLE handle, brix_win32_fd_type_t type, const char 
     int entry_idx;
     
     /* Ensure registry is initialized */
-    if (brix_win32_registry_init() < 0) {
+    if (brix_win32_registry_init(&g_handle_registry) < 0) {
         return -1;
     }
     
@@ -270,19 +74,21 @@ brix_win32_register_handle(HANDLE handle, brix_win32_fd_type_t type, const char 
     AcquireSRWLockExclusive(&g_handle_registry.lock);
     
     /* Find free entry (grow registry if needed) */
-    entry_idx = brix_win32_find_free_entry();
+    entry_idx = brix_win32_find_free_entry(&g_handle_registry);
     
     if (entry_idx < 0) {
         /* Registry is full, try to grow */
-        if (brix_win32_registry_grow() < 0) {
-            goto unlock_error;
+        if (brix_win32_registry_grow(&g_handle_registry) < 0) {
+            ReleaseSRWLockExclusive(&g_handle_registry.lock);
+            return -1;
         }
         
         /* Try again after growing */
-        entry_idx = brix_win32_find_free_entry();
+        entry_idx = brix_win32_find_free_entry(&g_handle_registry);
         if (entry_idx < 0) {
             errno = EMFILE;
-            goto unlock_error;
+            ReleaseSRWLockExclusive(&g_handle_registry.lock);
+            return -1;
         }
     }
     
@@ -308,9 +114,6 @@ brix_win32_register_handle(HANDLE handle, brix_win32_fd_type_t type, const char 
     
     return fd;
 
-unlock_error:
-    ReleaseSRWLockExclusive(&g_handle_registry.lock);
-    return -1;
 }
 
 /**
@@ -487,14 +290,14 @@ brix_win32_get_fd_type(int fd)
  * @param fd File descriptor to close
  * @return 0 on success, -1 on error (errno set)
  */
-int
-brix_win32_close_handle(int fd)
+/* ---- Validate the initialized registry and descriptor range ----
+ * WHAT: Return zero for an addressable fd, or -1/EBADF.
+ * WHY: Close and duplication share the same pre-lock validation contract.
+ * HOW: 1. Require initialization. 2. Require an in-range descriptor.
+ */
+static int
+brix_win32_require_fd_range(int fd)
 {
-    int result = 0;
-    HANDLE handle;
-    brix_win32_fd_type_t type;
-    const char *name;
-    
     /* Ensure registry is initialized */
     if (!g_handle_registry.initialized) {
         errno = EBADF;
@@ -504,6 +307,21 @@ brix_win32_close_handle(int fd)
     /* Validate fd range */
     if (fd < 0 || (size_t)fd >= g_handle_registry.capacity) {
         errno = EBADF;
+        return -1;
+    }
+
+    return 0;
+}
+
+int
+brix_win32_close_handle(int fd)
+{
+    int result = 0;
+    HANDLE handle;
+    brix_win32_fd_type_t type;
+    const char *name;
+
+    if (brix_win32_require_fd_range(fd) < 0) {
         return -1;
     }
     
@@ -588,15 +406,7 @@ brix_win32_dup_fd(int fd)
 {
     int result = -1;
     
-    /* Ensure registry is initialized */
-    if (!g_handle_registry.initialized) {
-        errno = EBADF;
-        return -1;
-    }
-    
-    /* Validate fd range */
-    if (fd < 0 || (size_t)fd >= g_handle_registry.capacity) {
-        errno = EBADF;
+    if (brix_win32_require_fd_range(fd) < 0) {
         return -1;
     }
     

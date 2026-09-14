@@ -887,7 +887,7 @@ scoped-compile logic ~0.5d.
 > end-to-end runner). Item 3 of the original **Fix** (the `ASAN_OPTIONS`/
 > `UBSAN_OPTIONS`/`LSAN_OPTIONS` wiring) is realised as `asan.py::_sanitizer_env`
 > mirroring `manage_test_servers._sanitize_env`. Full record →
-> `tools/ci/README.md § ASan + UBSan`.
+> `docs/09-developer-guide/ci/README.md § ASan + UBSan`.
 >
 > **Extended 2026-07-30 — second driver leg (write-mirror disconnect suite).**
 > `asan.py` now honours an optional `ASAN_TEST_CMD2` — a second driver command run
@@ -1737,7 +1737,7 @@ excluded from `tools/ci/check_doc_paths.py`.
 | R32 | tests/cmdscripts/manage_test_servers.py:52 | `ASAN_OPTIONS`/`UBSAN_OPTIONS`, `SANITIZE=1` |
 | R33 | tests/race_shim.c:1 | TSan/ASan race harness |
 | R34 | tests/fuzz/fuzz_safe_size.c:1 | One of 3 existing libFuzzer targets |
-| R35 | tests/fuzz/README.md:1 | "real attack surface = wire parsers" |
+| R35 | docs/09-developer-guide/testing/fuzz/README.md:1 | "real attack surface = wire parsers" |
 | R36 | src/auth/gsi/parse_x509_signed.c:52 | Decrypt blob sized from attacker pubkey |
 | R37 | src/auth/token/json.c:1 | Hand-rolled JWT JSON parser |
 | R38 | src/auth/sss/auth_request.c:1 | SSS frame parse (phase-79 bug home) |

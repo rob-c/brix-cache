@@ -367,7 +367,7 @@ numbers beating Squid/Varnish baselines.
 - Guard/fail2ban rules for non-CVMFS URL shapes; ratelimit defaults.
 - Cache pre-heat tool (walk a catalog, warm CAS objects) — optional,
   reuses the client-side HTTP bits.
-- `deploy/cvmfs/README.md`: sizing guidance, eviction watermarks,
+- `docs/05-operations/deploy/cvmfs/README.md`: sizing guidance, eviction watermarks,
   two-node topology, CVMFS client config snippets, Squid-migration notes.
 **Exit:** deployable artifact + runbook.
 

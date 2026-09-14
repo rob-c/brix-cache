@@ -1118,7 +1118,7 @@ parses this header for the authoritative list".
 
 - Task 6 (docs): **DONE 2026-08-10.** `directives.md` unified-grammar intro + full cvmfs table;
   `examples.md` 3-line cvmfs config; `quick-reference.md` cvmfs rows;
-  `deploy/cvmfs/README.md` shrink; migration table — EXTENDED with every
+  `docs/05-operations/deploy/cvmfs/README.md` shrink; migration table — EXTENDED with every
   W3–W8 rename row (the table is cumulative and sweep-exempt per its own
   header note).
 - Task 7 (tests): **DONE 2026-08-10.** `tests/run_cvmfs_minimal.sh` (3-line-config e2e) and
@@ -1167,7 +1167,7 @@ W1 (pmark fix)                    1 commit   — first; small, real bug, proves 
 | 17 | W7 kv_zone | `kv_config.c`, migration, kv tests |
 | 18(–19) | W8 per decision | per option A/B lists above |
 | 19 | W9 checker | `tools/ci/check_directive_registry.py` (new), allowlist, fixtures, CI lane wiring, `tier_directives.h` comment |
-| 20 | W9 docs close-out | `docs/03-configuration/*`, `deploy/cvmfs/README.md`, `run_cvmfs_minimal.sh`, `run_cvmfs_evict.sh`, CLAUDE.md OP→FILE rows |
+| 20 | W9 docs close-out | `docs/03-configuration/*`, `docs/05-operations/deploy/cvmfs/README.md`, `run_cvmfs_minimal.sh`, `run_cvmfs_evict.sh`, CLAUDE.md OP→FILE rows |
 
 Every commit: tree green (`objs/nginx -t` + `check_config_coverage.py` +
 pytest `--pr` gate), migration rows + three tests ride the commit they

@@ -23,7 +23,7 @@ C = reference table).
   `site/src/lib/site.ts` as `{ label: 'Tools', href: '/tools' }` (renders in
   header nav + footer Project column next to brixMount).
 - **Claims policy:** ONLY landed features, verified against
-  `client/apps/README.md`, `client/Makefile`, and code. Notably:
+  `docs/09-developer-guide/client/apps/README.md`, `client/Makefile`, and code. Notably:
   `xrdstorascan` claims are limited to the shipped phase-1 `verify` and
   `bench` modes (later server-engine phases are NOT claimed); the LD_PRELOAD
   shim is claimed as read-path only.
@@ -93,7 +93,7 @@ C = reference table).
 ## Verification
 
 - Claim → evidence table in the implementation plan; each tool name and
-  capability traced to `client/apps/README.md` / `client/Makefile` / code.
+  capability traced to `docs/09-developer-guide/client/apps/README.md` / `client/Makefile` / code.
 - `astro build` green (7 pages after this lands); nav shows Tools on all
   pages; no stale `xrootd_*` metric/directive branding.
 

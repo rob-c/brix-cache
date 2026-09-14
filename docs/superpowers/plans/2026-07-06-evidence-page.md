@@ -30,10 +30,10 @@
 | Hardened builds: -Werror + format attrs (caught a real bug), RELRO/now/noexecstack | hardening-CFLAGS work (format attr caught webdav LOCK `%ui` bug), `client/Makefile` LDFLAGS |
 | Sanitized log strings, low-cardinality labels | `src/observability/accesslog/access_log.c` (`brix_sanitize_log_string`), CLAUDE.md invariant #8 |
 | Fail-early config (`nginx -t` emerg) | existing verified site copy (sysadmins page), CLAUDE.md reload-semantics doc |
-| ~8,700 tests; ~1,770 fault/chaos lane; fault proxy; netem; cross-backend | `tests/README.md:3,12`, `tests/c/fault_proxy.c`, `tests/cvmfs/netem_lab.sh`, `CLAUDE.md` `TEST_CROSS_BACKEND` |
+| ~8,700 tests; ~1,770 fault/chaos lane; fault proxy; netem; cross-backend | `docs/09-developer-guide/testing/README.md:3,12`, `tests/c/fault_proxy.c`, `tests/cvmfs/netem_lab.sh`, `CLAUDE.md` `TEST_CROSS_BACKEND` |
 | Five standing CI guards | `tools/ci/check_vfs_seam.sh`, `check_config_coverage.sh`, `check_http_helper_reimpl.sh`, `check_file_size.sh`, `check_sd_driver_conformance.sh` |
 | Per-page CRC32c on pgread/pgwrite | `src/protocols/root/read/pgread.c:11`, CLAUDE.md invariant #1 |
-| Checksum at rest / verify tooling | `client/apps/README.md` (`xrdckverify`) |
+| Checksum at rest / verify tooling | `docs/09-developer-guide/client/apps/README.md` (`xrdckverify`) |
 | CSI per-read integrity verification | `src/fs/backend/csi_verify.c` |
 | CVMFS hash-verified fetch, offline cache mode | `client/apps/fs/brixcvmfs.c:6-7` |
 | Byte-exact / no-EIO fault assertions | `tests/test_xrootdfs_resilience.py:7,168-207` |
@@ -104,7 +104,7 @@ const defenses = [
 // Evidence class 4: integrity guarantees.
 const integrity = [
   { t: 'Per-page CRC32c on the wire', d: 'kXR_pgread / kXR_pgwrite carry a CRC32c per 4K page — corruption is caught per page, not per file.', cite: 'src/protocols/root/read/pgread.c' },
-  { t: 'Checksums at rest', d: 'Recorded checksums travel with the file and are verifiable on demand from the client side.', cite: 'xrdckverify · client/apps/README.md' },
+  { t: 'Checksums at rest', d: 'Recorded checksums travel with the file and are verifiable on demand from the client side.', cite: 'xrdckverify · docs/09-developer-guide/client/apps/README.md' },
   { t: 'Verified reads from storage', d: 'CSI integrity verification checks what storage returns against the record made at write time.', cite: 'src/fs/backend/csi_verify.c' },
   { t: 'Content-addressed trust for CVMFS', d: 'Every fetched object is verified against its content hash on arrival; a damaged or resumed transfer cannot go undetected.', cite: 'client/apps/fs/brixcvmfs.c' },
   { t: 'Byte-exact under fault injection', d: 'The FUSE resilience suites assert byte-exact results with zero EIO surfaced — while a proxy resets and stalls the link.', cite: 'tests/test_xrootdfs_resilience.py' },
@@ -391,7 +391,7 @@ failure mode, fix it, write it down, pin it with a regression test.*
 
 - Full suite **~8,700 tests**; the slow lane — **~1,770 tests** — exists
   specifically to hurt the software: resilience, chaos, fault injection
-  (`tests/README.md`).
+  (`docs/09-developer-guide/testing/README.md`).
 - A TCP fault-injection proxy (`tests/c/fault_proxy.c`) resets connections
   mid-read and injects stalls and latency while suites assert **byte-exact**
   results and **zero EIO** surfaced to applications
@@ -414,7 +414,7 @@ published — provable at every hop.*
 - **Per-page CRC32c on the wire** — `kXR_pgread`/`kXR_pgwrite` carry a CRC
   per 4K page (`src/protocols/root/read/pgread.c`).
 - **Checksums at rest** — recorded checksums are verifiable on demand
-  (`xrdckverify`, `client/apps/README.md`).
+  (`xrdckverify`, `docs/09-developer-guide/client/apps/README.md`).
 - **Verified reads from storage** — CSI integrity verification checks what
   storage returns against the record made at write time
   (`src/fs/backend/csi_verify.c`).

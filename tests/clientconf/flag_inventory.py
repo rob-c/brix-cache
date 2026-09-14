@@ -33,7 +33,7 @@ _FS = os.path.join(BRIX_SRC, "src", "XrdCl", "XrdClFS.cc")
 # upstream checkout.  ``source_available()`` lets a test note when it is using
 # the fallback rather than the live parse.
 _FALLBACK_XRDCP = {
-    "cksum": 1, "coerce": 0, "continue": 0, "debug": 1, "dynamic-src": 0,
+    "allow-http": 0, "cksum": 1, "coerce": 0, "continue": 0, "debug": 1, "dynamic-src": 0,
     "force": 0, "help": 0, "infiles": 1, "license": 0, "nopbar": 0,
     "notlsok": 0, "parallel": 1, "path": 0, "posc": 0, "proxy": 1,
     "recursive": 0, "retry": 1, "retry-policy": 1, "rm-bad-cksum": 0,

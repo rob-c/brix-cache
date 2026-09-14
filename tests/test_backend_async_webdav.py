@@ -45,6 +45,7 @@ import requests
 
 from settings import BIND_HOST, HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
+from brix_suite.nginx_capabilities import nginx_has_symbol
 
 def _expression_1(srv):
     return (
@@ -70,13 +71,7 @@ pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
 
 
 def _have_nginx():
-    if not os.path.exists(NGINX_BIN):
-        return False
-    try:
-        syms = subprocess.run(["nm", NGINX_BIN], capture_output=True, text=True)
-        return "brix_baq_enqueue" in syms.stdout
-    except Exception:
-        return True
+    return nginx_has_symbol("brix_baq_enqueue")
 
 
 class _Server:

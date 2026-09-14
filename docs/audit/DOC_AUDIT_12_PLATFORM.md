@@ -286,14 +286,14 @@ The "100%" claim only makes sense if counting shared platform.c functions, but d
 2. docs/platform/SUPPORT_MATRIX.md - Update all platform counts
 3. docs/platform/PLATFORM_EXPANSION_PLAN.md - Remove "42/42" claims
 4. src/platform/README.md - Clarify architecture
-5. src/platform/ARCHITECTURE.md - Document shared vs platform-specific
+5. docs/platform/pal/ARCHITECTURE.md - Document shared vs platform-specific
 6. docs/platform/pal-api-reference.md - Update function inventory
 7. docs/platform/PERFORMANCE_BENCHMARKS.md - Add claim categorization
 8. docs/platform/apple-silicon-optimization.md - Fix performance claims
 9. docs/platform/arm64-optimization-status.md - Fix counts
 10. docs/platform/windows-implementation.md - Update Windows count to 47
-11. src/platform/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md - Remove misleading title
-12. src/platform/windows/WINDOWS_PAL_100_PERCENT_COMPLETE.md - Update count
+11. docs/platform/pal/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md - Remove misleading title
+12. docs/platform/pal/windows/WINDOWS_PAL_100_PERCENT_COMPLETE.md - Update count
 
 ### High Priority (15 files)
 13-27. All ARM64_* files - Update function counts

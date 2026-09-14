@@ -36,7 +36,7 @@ extern const char *brix_unified_tpc_deleg_result_names[
 
 /* Finite latency-bucket upper bounds in usec (defined in unified.c); shared by
  * the record hot path (bucket selection) and the exporter (le="…" rendering). */
-extern const ngx_msec_t brix_latency_bounds[BRIX_IO_LATENCY_BUCKETS - 1];
+extern const ngx_msec_t brix_latency_bounds[];
 
 /* Lock-free read of an atomic counter (fetch-add of 0) as unsigned long long.
  * Defined in unified_export_io.c; used by every exporter file. */

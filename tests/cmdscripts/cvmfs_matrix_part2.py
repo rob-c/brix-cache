@@ -173,7 +173,10 @@ def _render_result_rows(out_dir, today, rows):
 def _append_result_rows(out_dir, lines):
     if not lines:
         return
-    with (out_dir / "RESULTS.md").open("a") as results:
+    report = out_dir / "RESULTS.md"
+    if out_dir == BASELINES_DIR and not os.environ.get("CVMFS_MATRIX_OUT"):
+        report = REPO_ROOT / "docs/05-operations/deploy/cvmfs/baselines/RESULTS.md"
+    with report.open("a") as results:
         results.write("\n".join(lines) + "\n")
 
 

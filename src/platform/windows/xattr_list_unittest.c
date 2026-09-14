@@ -6,6 +6,7 @@
  */
 
 #include <stdio.h>
+#include <winsock2.h>
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
@@ -17,6 +18,8 @@
 #include "../platform.h"
 #include "../platform_api.h"
 #include "win32_compat.h"
+#include "xattr_internal.h"
+#include "xattr_test_helpers.h"
 
 /* Forward declarations from xattr.c */
 extern ssize_t brix_plat_listxattr(const char *path, char *list, size_t size);
@@ -24,7 +27,6 @@ extern ssize_t brix_plat_flistxattr(int fd, char *list, size_t size);
 extern int brix_plat_setxattr(const char *path, const char *name,
                               const void *value, size_t size, int flags);
 extern int brix_plat_removexattr(const char *path, const char *name);
-extern int brix_win32_is_ntfs_path(const char *path);
 
 /* Test helper: Print stream names from list buffer */
 static void
@@ -43,19 +45,11 @@ print_stream_list(const char *list, size_t size)
     }
 }
 
-/* Test 1: List streams on file with no attributes */
+/* Return 1 only when the case owns a newly created NTFS test file. */
 static int
-test_list_empty_file(void)
+brix_test_create_ntfs_file(const char *test_file)
 {
-    const char *test_file = "test_empty.txt";
-    char buffer[1024];
-    ssize_t result;
-    FILE *f;
-    
-    printf("Test 1: List streams on empty file\n");
-    
-    /* Create test file */
-    f = fopen(test_file, "w");
+    FILE *f = fopen(test_file, "w");
     if (f == NULL) {
         printf("  ✗ Failed to create test file\n");
         return -1;
@@ -68,6 +62,42 @@ test_list_empty_file(void)
         printf("  ⊘ Skipped: Not an NTFS volume\n");
         remove(test_file);
         return 0;
+    }
+    return 1;
+}
+
+/* Add one attribute; undo file setup if attribute creation fails. */
+static int
+brix_test_create_attribute_file(const char *test_file, const char *attr_name,
+    const char *attr_value)
+{
+    int prepared = brix_test_create_ntfs_file(test_file);
+
+    if (prepared <= 0) {
+        return prepared;
+    }
+    if (brix_plat_setxattr(test_file, attr_name, attr_value, strlen(attr_value), 0) < 0) {
+        printf("  ✗ Failed to set attribute: %d\n", errno);
+        remove(test_file);
+        return -1;
+    }
+    return 1;
+}
+
+/* Test 1: List streams on file with no attributes */
+static int
+test_list_empty_file(void)
+{
+    const char *test_file = "test_empty.txt";
+    char buffer[1024];
+    ssize_t result;
+
+    printf("Test 1: List streams on empty file\n");
+
+    /* Create test file */
+    int prepared = brix_test_create_ntfs_file(test_file);
+    if (prepared <= 0) {
+        return prepared;
     }
     
     /* List streams (should only have ::DATA which is filtered) */
@@ -105,19 +135,9 @@ test_list_multiple_streams(void)
     printf("Test 2: List streams with multiple attributes\n");
     
     /* Create test file */
-    FILE *f = fopen(test_file, "w");
-    if (f == NULL) {
-        printf("  ✗ Failed to create test file\n");
-        return -1;
-    }
-    fprintf(f, "test content\n");
-    fclose(f);
-    
-    /* Check if NTFS */
-    if (!brix_win32_is_ntfs_path(test_file)) {
-        printf("  ⊘ Skipped: Not an NTFS volume\n");
-        remove(test_file);
-        return 0;
+    int prepared = brix_test_create_ntfs_file(test_file);
+    if (prepared <= 0) {
+        return prepared;
     }
     
     /* Set multiple attributes */
@@ -161,14 +181,9 @@ test_list_multiple_streams(void)
     print_stream_list(buffer, result);
     
     /* Verify all three streams are listed */
-    int found1 = 0, found2 = 0, found3 = 0;
-    size_t i = 0;
-    while (i < (size_t)result) {
-        if (strcmp(&buffer[i], attr1_name) == 0) found1 = 1;
-        if (strcmp(&buffer[i], attr2_name) == 0) found2 = 1;
-        if (strcmp(&buffer[i], attr3_name) == 0) found3 = 1;
-        i += strlen(&buffer[i]) + 1;
-    }
+    int found1 = brix_test_xattr_list_contains(buffer, result, attr1_name);
+    int found2 = brix_test_xattr_list_contains(buffer, result, attr2_name);
+    int found3 = brix_test_xattr_list_contains(buffer, result, attr3_name);
     
     /* Cleanup */
     brix_plat_removexattr(test_file, attr1_name);
@@ -200,26 +215,9 @@ test_list_size_query(void)
     printf("Test 3: List with NULL buffer (size query)\n");
     
     /* Create test file */
-    FILE *f = fopen(test_file, "w");
-    if (f == NULL) {
-        printf("  ✗ Failed to create test file\n");
-        return -1;
-    }
-    fprintf(f, "test content\n");
-    fclose(f);
-    
-    /* Check if NTFS */
-    if (!brix_win32_is_ntfs_path(test_file)) {
-        printf("  ⊘ Skipped: Not an NTFS volume\n");
-        remove(test_file);
-        return 0;
-    }
-    
-    /* Set attribute */
-    if (brix_plat_setxattr(test_file, attr_name, attr_value, strlen(attr_value), 0) < 0) {
-        printf("  ✗ Failed to set attribute: %d\n", errno);
-        remove(test_file);
-        return -1;
+    int prepared = brix_test_create_attribute_file(test_file, attr_name, attr_value);
+    if (prepared <= 0) {
+        return prepared;
     }
     
     /* Query size with NULL buffer */
@@ -270,26 +268,9 @@ test_list_buffer_too_small(void)
     printf("Test 4: List with buffer too small\n");
     
     /* Create test file */
-    FILE *f = fopen(test_file, "w");
-    if (f == NULL) {
-        printf("  ✗ Failed to create test file\n");
-        return -1;
-    }
-    fprintf(f, "test content\n");
-    fclose(f);
-    
-    /* Check if NTFS */
-    if (!brix_win32_is_ntfs_path(test_file)) {
-        printf("  ⊘ Skipped: Not an NTFS volume\n");
-        remove(test_file);
-        return 0;
-    }
-    
-    /* Set attribute */
-    if (brix_plat_setxattr(test_file, attr_name, attr_value, strlen(attr_value), 0) < 0) {
-        printf("  ✗ Failed to set attribute: %d\n", errno);
-        remove(test_file);
-        return -1;
+    int prepared = brix_test_create_attribute_file(test_file, attr_name, attr_value);
+    if (prepared <= 0) {
+        return prepared;
     }
     
     /* Try with small buffer */
@@ -322,26 +303,9 @@ test_flistxattr(void)
     printf("Test 5: List using file descriptor (flistxattr)\n");
     
     /* Create test file */
-    FILE *f = fopen(test_file, "w");
-    if (f == NULL) {
-        printf("  ✗ Failed to create test file\n");
-        return -1;
-    }
-    fprintf(f, "test content\n");
-    fclose(f);
-    
-    /* Check if NTFS */
-    if (!brix_win32_is_ntfs_path(test_file)) {
-        printf("  ⊘ Skipped: Not an NTFS volume\n");
-        remove(test_file);
-        return 0;
-    }
-    
-    /* Set attribute */
-    if (brix_plat_setxattr(test_file, attr_name, attr_value, strlen(attr_value), 0) < 0) {
-        printf("  ✗ Failed to set attribute: %d\n", errno);
-        remove(test_file);
-        return -1;
+    int prepared = brix_test_create_attribute_file(test_file, attr_name, attr_value);
+    if (prepared <= 0) {
+        return prepared;
     }
     
     /* Open file descriptor */
@@ -405,7 +369,7 @@ test_list_nonexistent(void)
 }
 
 int
-main(int argc, char *argv[])
+main(void)
 {
     int passed = 0;
     int failed = 0;

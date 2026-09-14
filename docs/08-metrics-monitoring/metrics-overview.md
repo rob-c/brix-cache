@@ -1122,7 +1122,7 @@ removed in 2.0).
 |---|---|---|
 | `brix_vo_bytes_rx_total` | counter | Bytes received from clients grouped by virtual organisation. VO names are truncated to 15 characters. |
 | `brix_vo_bytes_tx_total` | counter | Bytes sent to clients grouped by virtual organisation. VO names are truncated to 15 characters; the metric family has one entry per VO. |
-| `brix_vo_overflow_total` | counter | VO entries that exceeded the tracking limit (32 VOs) and were evicted (LRU policy). Alert if > 0. |
+| `brix_vo_overflow_total` | counter | VO entries that exceeded the tracking limit and were evicted. |
 | `brix_vo_requests_total` | counter | Requests grouped by virtual organisation. VO names are truncated. |
 
 ### Rate limiting — `brix_rate_*`

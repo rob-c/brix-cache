@@ -182,7 +182,7 @@ nginx-mod-brix-cache (${deb_version}) ${codename:-unstable}; urgency=medium
 
   * Automated package build of BriX-Cache ${version} for ${codename:-this host}
     against nginx ${nginx_version} (${flavor} flavor).  Release notes:
-    CHANGELOG.md; package history: packaging/rpm/nginx-mod-brix-cache.spec.
+    docs/10-reference/CHANGELOG.md; package history: packaging/rpm/nginx-mod-brix-cache.spec.
 
  -- Rob Currie <rob.currie@ed.ac.uk>  $(date -R)
 EOF

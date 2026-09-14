@@ -25,8 +25,8 @@ with a further 23 files modified and 8 untracked in the working tree.
 | `668b339`–`d7c1f6a` | Ralph iterations 2–3: continued |
 | `226f991` | `proxy:` upstream proxy pool (`src/net/proxy/connect.c`, `pool.c`, `events.c`) |
 | `0ec306e` | `k8s-tests:` initial full scaffold — Dockerfiles, Helm charts, k8s manifests, PKI scripts, test runner |
-| `2777d0d` | `k8s-tests/PLAN.md:` restructure |
-| `2df98ad` | `k8s-tests/PLAN.md` + `src/core/config/process.c` |
+| `2777d0d` | `docs/09-developer-guide/k8s-tests/PLAN.md:` restructure |
+| `2df98ad` | `docs/09-developer-guide/k8s-tests/PLAN.md` + `src/core/config/process.c` |
 | `3ff2ca4` | `k8s-tests:` minikube setup, network policy, resource quota, test-runner improvements |
 | `270e307` | `k8s-tests:` GitHub Actions CI, cluster setup/teardown scripts, Keycloak templates, aggregate results script; `docs/deployment-guide.md` |
 
@@ -281,13 +281,13 @@ deploy to test cluster → run test suite → collect results.
   to `Requires`; `openssl-libs` added as explicit `Requires`.  Both are
   invisible to `find-requires` (dlopen / fork-exec) so must be declared manually.
 
-- `packaging/rpm/README.md` — updated with WLCG repo install steps per EL
+- `docs/03-configuration/packaging/rpm/README.md` — updated with WLCG repo install steps per EL
   version and rationale table.
 
 ### Uncommitted changes (working tree)
 
 - `packaging/rpm/nginx-mod-xrootd.spec` — minor further tweaks (−6 / +6 lines)
-- `packaging/rpm/README.md` — significant extension (+92 lines) covering
+- `docs/03-configuration/packaging/rpm/README.md` — significant extension (+92 lines) covering
   container-based multi-distro build workflow
 
 ### Untracked new files
@@ -306,7 +306,7 @@ deploy to test cluster → run test suite → collect results.
 
 | File | Purpose |
 |---|---|
-| `BUILD_INSTALL.md` | End-user guide: build RPM → install → create test PKI → run minimal GSI `root://` server |
+| `docs/03-configuration/BUILD_INSTALL.md` | End-user guide: build RPM → install → create test PKI → run minimal GSI `root://` server |
 | `k8s-tests/pki-scripts/generate-jwt-keys.py` | Generate JWT signing key-pair for Keycloak replacement |
 | `k8s-tests/test-infra-helm/templates/jwt-keys.yaml` | Kubernetes Secret for JWT keys |
 

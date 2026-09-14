@@ -290,7 +290,7 @@ brix_compat_event_close(brix_event_fd_t event_fd)
 
 ### 3.1 Windows Implementation Report
 
-**File**: `src/platform/windows/IMPLEMENTATION_REPORT_EVENT_WRAPPER.md`  
+**File**: `docs/platform/pal/windows/IMPLEMENTATION_REPORT_EVENT_WRAPPER.md`\
 **Lines**: 1,200+
 
 #### Claims vs. Reality
@@ -530,7 +530,7 @@ The event system documentation is **comprehensive but inaccurate** in critical a
 | `src/platform/linux/event_wrapper.c` | Implementation | 85 | ✅ Complete |
 | `src/platform/darwin/event_wrapper.c` | Implementation | 105 | ✅ Complete |
 | `src/platform/windows/event_wrapper.c` | Implementation | 443 | 🟡 Partial |
-| `src/platform/windows/IMPLEMENTATION_REPORT_EVENT_WRAPPER.md` | Documentation | 1,200+ | 🟡 Accurate |
+| `docs/platform/pal/windows/IMPLEMENTATION_REPORT_EVENT_WRAPPER.md` | Documentation | 1,200+ | 🟡 Accurate |
 | `src/platform/platform_api.h` | API Header | 756+ | 🔴 Missing declarations |
 | `src/platform/platform_compat.h` | Compat Header | 150+ | 🔴 References undeclared |
 | `docs/platform/SUPPORT_MATRIX.md` | Documentation | 560+ | ✅ Mostly accurate |

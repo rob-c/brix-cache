@@ -7,9 +7,9 @@ Step-by-step instructions for deploying BriX-Cache in production — covering sy
 > `k8s-tests/test-infra-helm/`. Those charts stay in the tree and still
 > deploy, but they are frozen: new lab work targets the `k8s-tests/xrd-lab`
 > driver with the `k8s-tests/charts/brix-test-lab/` chart, documented in
-> [`k8s-tests/README.md`](../../k8s-tests/README.md). For a laptop-scale
+> [`docs/09-developer-guide/k8s-tests/README.md`](../09-developer-guide/k8s-tests/README.md). For a laptop-scale
 > demo without Kubernetes at all, use the compose stacks under
-> [`deploy/compose/`](../../deploy/compose/README.md).
+> [`deploy/compose/`](../05-operations/deploy/compose/README.md).
 
 ## Prerequisites
 

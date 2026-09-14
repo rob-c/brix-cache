@@ -265,10 +265,11 @@ def test_size_complexity_backlogs_do_not_exist(backlog: str) -> None:
 
 
 # --- static-analysis / coverage runners (nightly) -----------------------------
-# Need the configured build at /tmp/nginx-1.28.3 and an external analyzer; they
+# Need the configured NGX_BUILD (default /tmp/nginx-1.28.3) and an analyzer; they
 # run for minutes. Marked slow and self-skipping so the fast lane never pays for
 # them, while ``run_suite --nightly`` still exercises the real Python runner.
-_NGX_BUILD = Path("/tmp/nginx-1.28.3/objs/Makefile")
+def _analyzer_makefile() -> Path:
+    return Path(os.environ.get("NGX_BUILD", "/tmp/nginx-1.28.3")) / "objs/Makefile"
 
 
 @pytest.mark.slow
@@ -279,8 +280,9 @@ _NGX_BUILD = Path("/tmp/nginx-1.28.3/objs/Makefile")
     [("run_fanalyzer", "gcc"), ("run_codechecker", "CodeChecker")],
 )
 def test_ci_analyzer_runner_green(runner: str, tool: str) -> None:
-    if not _NGX_BUILD.exists():
-        pytest.skip("configured nginx build tree absent (/tmp/nginx-1.28.3)")
+    makefile = _analyzer_makefile()
+    if not makefile.exists():
+        pytest.skip(f"configured nginx build tree absent ({makefile.parent.parent})")
     if not _have(tool):
         pytest.skip(f"{tool} not installed")
     rc, out = _run(runner)

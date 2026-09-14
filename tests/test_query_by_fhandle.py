@@ -94,6 +94,12 @@ def _stock_up():
         return False
 
 
+@pytest.fixture(scope="module")
+def stock_reference_ready():
+    if not _stock_up():
+        pytest.skip("stock reference not up")
+
+
 class TestQueryByFhandle:
 
     def test_brix_qcksum_by_fhandle_matches_path(self):
@@ -113,7 +119,7 @@ class TestQueryByFhandle:
         finally:
             sock.close()
 
-    @pytest.mark.skipif(not _stock_up(), reason="stock reference not up")
+    @pytest.mark.usefixtures("stock_reference_ready")
     def test_stock_refuses_pure_fhandle_query(self):
         """(differential) stock answers the SAME request with kXR_ArgMissing —
         recorded so the superset claim stays live-verified, not folklore."""

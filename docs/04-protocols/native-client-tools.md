@@ -367,8 +367,8 @@ resets, or hangs connections half-open. Several layers cooperate:
   `tests/resilience/test_sweep_runners.py`): byte-exact through latency, tiny
   segmentation, single + repeated mid-transfer drops, a multi-second outage, and
   sustained packet loss up to ~12% — the recorded curves are
-  `tests/resilience/results-packet-loss-mount-2026-06-23.md` and
-  `tests/resilience/results-xrdcp-loss-comparison-2026-06-23.md`. Beyond ~12% a
+  `docs/09-developer-guide/testing/resilience/results-packet-loss-mount-2026-06-23.md` and
+  `docs/09-developer-guide/testing/resilience/results-xrdcp-loss-comparison-2026-06-23.md`. Beyond ~12% a
   multi-round-trip link is effectively dead; raise `--max-stall` to extend
   patience.
 - **Liveness probes.** TCP keepalive plus an application-level `kXR_ping`

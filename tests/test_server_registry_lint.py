@@ -229,7 +229,8 @@ def _direct_launchers():
 
 
 def test_migration_doc_states_the_policy():
-    migration_doc = (TESTS / "configs" / "REGISTRY_MIGRATION.md").read_text(
+    migration_doc = (TESTS.parent
+                     / "docs/09-developer-guide/testing/configs/REGISTRY_MIGRATION.md").read_text(
         encoding="utf-8"
     )
     flat_doc = " ".join(migration_doc.split())

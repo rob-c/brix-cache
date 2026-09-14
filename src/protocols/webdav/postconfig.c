@@ -420,6 +420,7 @@ ngx_http_brix_webdav_postconfiguration(ngx_conf_t *cf)
 
 #include <ngx_core.h>
 #include <ngx_http.h>
+#include "darwin_config_stub.h"
 #include "webdav.h"
 
 ngx_int_t
@@ -443,17 +444,13 @@ ngx_http_brix_webdav_postconfiguration(ngx_conf_t *cf)
 char *
 webdav_conf_client_cert_folder(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    (void)cf; (void)cmd; (void)conf;
-    /* Stub - SSL config requires nginx SSL module */
-    return NGX_CONF_OK;
+    return brix_webdav_darwin_config_stub(cf, cmd, conf);
 }
 
 char *
 webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    (void)cf; (void)cmd; (void)conf;
-    /* Stub - SSL config requires nginx SSL module */
-    return NGX_CONF_OK;
+    return brix_webdav_darwin_config_stub(cf, cmd, conf);
 }
 
 #endif /* macOS */

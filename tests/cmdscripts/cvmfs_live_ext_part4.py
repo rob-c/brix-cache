@@ -289,14 +289,10 @@ http {{ access_log off; server {{
 # selectlog — the origin-SELECTION diagnostic trail
 # ---------------------------------------------------------------------------
 
-def selectlog(nginx: Path | None = None) -> int:
-    ral, cern, cport = _PORTS[29:32]  # was free_ports(3)
-    with LiveRun("cvmfs_sl", nginx) as run:
-        cache, logs = run.mkdir("cache"), run.mkdir("logs")
-        error_log = logs / "e.log"
-        mock_ral = _mock(run, ral, 6, 9)
-        mock_cern = _mock(run, cern, 6, 9)
-        config = run.write(run.root / "nginx.conf", f"""daemon on; error_log {error_log} info; pid {run.root}/nginx.pid;
+def _selection_log_config(run, cache, error_log, ports):
+    """Build the selection-report fixture for live and config-only checks."""
+    ral, cern, cport = ports
+    return run.write(run.root / "nginx.conf", f"""daemon on; error_log {error_log} info; pid {run.root}/nginx.pid;
 thread_pool default threads=2;
 events {{ worker_connections 128; }}
 http {{ access_log off; server {{
@@ -313,6 +309,16 @@ http {{ access_log off; server {{
     }}
 }} }}
 """)
+
+
+def selectlog(nginx: Path | None = None) -> int:
+    ral, cern, cport = _PORTS[29:32]  # was free_ports(3)
+    with LiveRun("cvmfs_sl", nginx) as run:
+        cache, logs = run.mkdir("cache"), run.mkdir("logs")
+        error_log = logs / "e.log"
+        mock_ral = _mock(run, ral, 6, 9)
+        mock_cern = _mock(run, cern, 6, 9)
+        config = _selection_log_config(run, cache, error_log, (ral, cern, cport))
         # config-time geo selection report goes to the launch stderr — capture it
         # with a direct launch (not start_nginx). As root that bypasses
         # start_nginx's tree-opening, so repeat it here: the de-escalated
@@ -320,7 +326,7 @@ http {{ access_log off; server {{
         # (fill -> EACCES).
         from cmdscripts import open_tree_for_worker  # noqa: PLC0415
         open_tree_for_worker(run.root, config)
-        launch = [run.nginx, "-c", config, "-p", run.root]
+        launch = [run.nginx, "-c", config, "-p", run.root, "-e", "stderr"]
         started = run.call(launch, check=False)
         start_err = run.write(logs / "start.err", started.stderr or "")
         if started.returncode:

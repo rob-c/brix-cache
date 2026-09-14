@@ -15,7 +15,7 @@
  *       written past, always NUL-terminated on OK — is exactly the kind of
  *       invariant a fuzzer with ASan bounds-checking nails down.
  *
- * Build: see tests/fuzz/README.md (clang -fsanitize=fuzzer,address,undefined,
+ * Build: see docs/09-developer-guide/testing/fuzz/README.md (clang -fsanitize=fuzzer,address,undefined,
  *        links uri.c + hex.c). Driven in CI by cmdscripts.fuzz_all.
  */
 #include <stddef.h>

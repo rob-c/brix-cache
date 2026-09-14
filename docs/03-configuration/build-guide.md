@@ -732,7 +732,7 @@ production binary.
 ## Wire-parser fuzzing (Phase 27 W7)
 
 Standalone libFuzzer targets live in `tests/fuzz/` (built with
-`clang -fsanitize=fuzzer,address`); see `tests/fuzz/README.md`. The W1
+`clang -fsanitize=fuzzer,address`); see `docs/09-developer-guide/testing/fuzz/README.md`. The W1
 overflow-checked size helpers have a runnable target:
 
 ```bash

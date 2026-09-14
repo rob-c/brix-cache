@@ -505,7 +505,7 @@ Coverage checklist (each line an explicit assertion in the script):
 
 ### Task 10: docs + final sweep
 
-**Files:** Modify `tests/ceph/README.md` (new "Python migration tools" subsection under Recovery & migration: usage of both tools, bridge/shim note incl. `PYMIGRATE_FORCE_SHIM`/`libradospp-devel`, the read-only-until-finalize warning, runner command). Modify `docs/10-reference/xrdceph-cephfs-bidirectional-migration.md` (short "Python implementations" note: identical semantics + extra flags + runner).
+**Files:** Modify `docs/09-developer-guide/testing/ceph/README.md` (new "Python migration tools" subsection under Recovery & migration: usage of both tools, bridge/shim note incl. `PYMIGRATE_FORCE_SHIM`/`libradospp-devel`, the read-only-until-finalize warning, runner command). Modify `docs/10-reference/xrdceph-cephfs-bidirectional-migration.md` (short "Python implementations" note: identical semantics + extra flags + runner).
 
 - [ ] **Step 1: Write both doc updates.**
 - [ ] **Step 2: Final verification sweep:** `python3 -m pytest tests/ceph/test_cephfs_meta.py -v` (all green) AND `tests/ceph/run_py_migrate.sh` (ALL CHECKS PASSED) AND confirm C++ tool files untouched (`git status`).

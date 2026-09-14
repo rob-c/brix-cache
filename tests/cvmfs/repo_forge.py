@@ -256,9 +256,16 @@ class RepoForge:
     @staticmethod
     def _rsa_sign_sha1(key: str | os.PathLike, msg: bytes) -> bytes:
         """RSA-PKCS#1-SHA1 (DigestInfo) over `msg` — the official MANIFEST
-        scheme (and sign.c's sha1_digestinfo=1 path)."""
+        scheme (and sign.c's sha1_digestinfo=1 path).
+
+        Allow the fixture's legacy signature in this child process only;
+        Alma9's default OpenSSL policy disables SHA-1 signing.
+        """
+        signing_config = Path(__file__).resolve().with_name("fixture-signing.cnf")
+        signing_env = dict(os.environ, OPENSSL_CONF=str(signing_config))
         return subprocess.run(["openssl", "dgst", "-sha1", "-sign", str(key)],
-                              input=msg, check=True, stdout=subprocess.PIPE).stdout
+                              input=msg, check=True, stdout=subprocess.PIPE,
+                              env=signing_env).stdout
 
     # ---- catalog serialisation --------------------------------------------
 

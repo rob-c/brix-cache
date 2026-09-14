@@ -42,7 +42,7 @@ brix_plat_anon_fd(const char *name, const char *dir)
             fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
         }
         /* Unlink immediately so file is deleted when closed */
-        unlink(template);
+        unlink(template); /* vfs-seam-allow: SEAM_CORRECT - PAL anonymous descriptor lifetime */
     }
     return fd;
 }
@@ -95,7 +95,7 @@ brix_plat_sendfile(int out_fd, int in_fd, off_t *offset, size_t count)
     memset(&hdtr, 0, sizeof(hdtr));
     
     /* macOS sendfile signature differs from Linux */
-    if (sendfile(in_fd, out_fd, *offset, &sbytes, &hdtr, sfcount) < 0) {
+    if (sendfile(in_fd, out_fd, *offset, &sbytes, &hdtr, sfcount) < 0) { /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
         return -1;
     }
     
@@ -210,7 +210,7 @@ brix_plat_random(void *buf, size_t len)
     }
     
     /* Fallback to /dev/urandom */
-    int fd = open("/dev/urandom", O_RDONLY);
+    int fd = open("/dev/urandom", O_RDONLY); /* vfs-seam-allow: NOT_STORAGE - PAL entropy device */
     if (fd < 0) {
         return -1;
     }
@@ -229,13 +229,13 @@ ssize_t
 brix_plat_getxattr(const char *path, const char *name, void *value, size_t size)
 {
     /* macOS getxattr has 6 parameters (position, options) */
-    return getxattr(path, name, value, size, 0, 0);
+    return getxattr(path, name, value, size, 0, 0); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 ssize_t
 brix_plat_fgetxattr(int fd, const char *name, void *value, size_t size)
 {
-    return fgetxattr(fd, name, value, size, 0, 0);
+    return fgetxattr(fd, name, value, size, 0, 0); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 int
@@ -243,40 +243,40 @@ brix_plat_setxattr(const char *path, const char *name,
                    const void *value, size_t size, int flags)
 {
     /* macOS setxattr has 6 parameters */
-    return setxattr(path, name, value, size, 0, flags);
+    return setxattr(path, name, value, size, 0, flags); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 int
 brix_plat_fsetxattr(int fd, const char *name,
                     const void *value, size_t size, int flags)
 {
-    return fsetxattr(fd, name, value, size, 0, flags);
+    return fsetxattr(fd, name, value, size, 0, flags); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 int
 brix_plat_removexattr(const char *path, const char *name)
 {
     /* macOS removexattr has 3 parameters (options) */
-    return removexattr(path, name, 0);
+    return removexattr(path, name, 0); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 int
 brix_plat_fremovexattr(int fd, const char *name)
 {
-    return fremovexattr(fd, name, 0);
+    return fremovexattr(fd, name, 0); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 ssize_t
 brix_plat_listxattr(const char *path, char *list, size_t size)
 {
     /* macOS listxattr has 4 parameters (options) */
-    return listxattr(path, list, size, 0);
+    return listxattr(path, list, size, 0); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 ssize_t
 brix_plat_flistxattr(int fd, char *list, size_t size)
 {
-    return flistxattr(fd, list, size, 0);
+    return flistxattr(fd, list, size, 0); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 /* ==========================================================================

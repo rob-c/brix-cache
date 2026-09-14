@@ -2657,7 +2657,7 @@ Sorted by total duplicated lines (span x copies), largest first.
       `client/`, `shared/`; freeze today's 301 blocks in
       `tools/ci/duplication_backlog.txt` (key: sorted `file:start-end` tuple set);
       FAIL only on NEW blocks. `--regen` after deliberate extractions.
-- [ ] 7.2 Wire into the same CI lane as the other guards; document in `tools/ci/README.md`.
+- [ ] 7.2 Wire into the same CI lane as the other guards; document in `docs/09-developer-guide/ci/README.md`.
 
 ## END (OP-owned — the analyzer gates are RED today until this is done)
 

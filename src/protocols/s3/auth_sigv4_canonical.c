@@ -233,7 +233,7 @@ static size_t
 sigv4_append_encoded(u_char *out, size_t oi, size_t outsz,
     const u_char *src, size_t slen)
 {
-    u_char enc[BRIX_S3_ISO8601_BUF_SIZE];
+    u_char enc[BRIX_S3_QUERY_ENCODE_BUF_SIZE];
     size_t n = uriencode_param(src, slen, enc, sizeof(enc));
 
     if (oi + n < outsz) {

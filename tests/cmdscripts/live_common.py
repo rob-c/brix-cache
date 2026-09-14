@@ -110,12 +110,37 @@ def _http_runtime_directives(body: str, logs: Path, tmp: Path) -> list[str]:
         "uwsgi_temp_path": tmp / "uwsgi",
         "scgi_temp_path": tmp / "scgi",
     }
-    code = _comment_blanked(body)
+    code = _http_scope(body)
     return [
         f"    {name} {json.dumps(str(path))};"
         for name, path in paths.items()
         if not re.search(rf"\b{name}\s+", code)
     ]
+
+
+def _direct_scope(code: str) -> str:
+    """Keep directive text in this block, blanking all nested blocks."""
+    depth = 0
+    result = []
+    for char in code:
+        if char == "{":
+            depth += 1
+        if char == "}":
+            if depth == 0:
+                break
+            depth -= 1
+            result.append(" ")
+            continue
+        result.append(char if depth == 0 else " ")
+    return "".join(result)
+
+
+def _http_scope(body: str) -> str:
+    """Find HTTP-level defaults without mistaking server overrides for them."""
+    ignored = r'''\\.|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\#[^\n]*'''
+    code = re.sub(ignored, lambda match: " " * len(match[0]), body)
+    match = re.search(r"\bhttp\s*\{", code)
+    return _direct_scope(code[match.end():]) if match else ""
 
 
 def _inject_http_runtime_directives(body: str, directives: list[str]) -> str:
@@ -209,6 +234,14 @@ def _cached_frozen_binary(real: str) -> Path | None:
     if cached is None or not cached.exists():
         return None
     return cached
+
+
+def is_selected_nginx(binary: str | Path) -> bool:
+    """Recognize configured or already validated frozen paths without copying."""
+    selected = (os.environ.get("TEST_NGINX_BIN"), os.environ.get("NGINX_BIN"))
+    if str(binary) in selected:
+        return True
+    return any(str(binary) == str(path) for path in (_FROZEN_NGINX or {}).values())
 
 
 def _frozen_binary_path(real: str) -> Path:

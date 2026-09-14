@@ -93,7 +93,7 @@ find docs/audit -name "*.md" -type f | wc -l
 # Result: 73 reports
 
 # Splice documentation
-wc -l src/platform/windows/SPLICE_IMPLEMENTATION.md
+wc -l docs/platform/pal/windows/SPLICE_IMPLEMENTATION.md
 # Result: 541 lines
 
 # Test functions

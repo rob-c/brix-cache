@@ -62,8 +62,8 @@
 6. docs/platform/PHASE_REFERENCE_FIX_SUMMARY.md
 7. docs/platform/SUPPORT_MATRIX.md
 8. src/platform/README.md
-9. src/platform/windows/WINDOWS_100_PERCENT_SECURITY_COMPLETE.md
-10. src/platform/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md
+9. docs/platform/pal/windows/WINDOWS_100_PERCENT_SECURITY_COMPLETE.md
+10. docs/platform/pal/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md
 
 ### Changes Made
 - Replaced "64/64" with "60/60 core PAL" (10 files)

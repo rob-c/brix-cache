@@ -37,10 +37,16 @@ def test_uring_direct_unit() -> None:
     _build()
     assert os.path.exists(DRIVER), "driver not built"
     proc = subprocess.run([DRIVER], capture_output=True, text=True, timeout=60)
-    # The unit prints one line per case and exits 0 iff every assertion held.
+    _assert_unit_result(proc)
+
+
+def _assert_unit_result(proc: subprocess.CompletedProcess) -> None:
+    """Preserve C verdicts, including its own runtime capability refusal."""
     assert proc.returncode == 0, f"unit failed:\n{proc.stdout}\n{proc.stderr}"
+    if proc.stdout.strip() == "uring_direct: io_uring unavailable — SKIP all":
+        pytest.skip("io_uring unavailable in this C unit invocation")
     assert "ALL PASS" in proc.stdout, proc.stdout
-    # The two deterministic cases must actually run (not silently skip).
+    # These deterministic cases must actually run when setup succeeds.
     assert "round-tripped" in proc.stdout, proc.stdout
     assert "oversize chunk rejected" in proc.stdout, proc.stdout
     assert "invalid fd refused" in proc.stdout, proc.stdout

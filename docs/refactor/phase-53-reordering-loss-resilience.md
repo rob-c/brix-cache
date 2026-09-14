@@ -233,4 +233,4 @@ control. This is a **~1000× improvement in loss tolerance** (~0.001% → ≥1%)
 **Tests/tooling:** `tests/c/fault_proxy.c`, `tests/resilience/servers.py`,
 `tests/resilience/run_mount_sweep.py`, `tests/resilience/run_xrdcp_loss.py`,
 `tests/resilience/run_http_reorder.py`, `tests/resilience/asan_tls_read_harness.py`,
-`tests/resilience/results-*.md`, `tests/resilience/README.md`.
+`tests/resilience/results-*.md`, `docs/09-developer-guide/testing/resilience/README.md`.

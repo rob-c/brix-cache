@@ -6,7 +6,7 @@ use to prove the project's re-implemented XRootD client tools (``client/bin/*``)
 are behaviourally compatible with the stock tools (``/usr/bin/xrd*``), while
 allowing — and pinning — the project's deliberate additions.
 
-Layers (see ``README.md`` for the full story):
+Layers (see ``docs/09-developer-guide/testing/clientconf/README.md``):
 
   * ``diffcore``       — run a tool (stock or ours), normalize, compare.
   * ``endpoints``      — the server matrix (anon/gsi/tls/token nginx + ref xrootd).

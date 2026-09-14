@@ -31,7 +31,7 @@ to fit your site, instead of a monolith you bend to fit.**
 [Quick install](docs/01-getting-started/quick-install.md) ·
 [Documentation](docs/index.md) ·
 [Architecture](docs/11-architecture/overview.md) ·
-[The human-friendly tour](README_HUMAN.md) ·
+[The human-friendly tour](docs/01-getting-started/README_HUMAN.md) ·
 [Website](https://rob-c.github.io/brix-cache/)
 
 </div>
@@ -324,7 +324,9 @@ nginx -p /prefix -c nginx.conf
 Want the full story — PKI setup, test tokens, and the test suite?
 [Quick Install](docs/01-getting-started/quick-install.md) has you covered;
 [Build Guide](docs/03-configuration/build-guide.md) goes deeper on compiler
-flags and optional modules.
+flags and optional modules. [BUILD.md — AlmaLinux 9 build and verification](docs/03-configuration/BUILD.md)
+records the full-suite dependencies and current validation checkpoint; the
+[test-suite guide](docs/09-developer-guide/testing/README.md) documents the runner.
 
 ---
 
@@ -468,6 +470,10 @@ door. See [GridFTP Gateway](docs/05-operations/gridftp.md).
 
 ### httpg forwarding proxy (ARC-CE)
 
+The forwarding example requires nginx 1.21.0 or newer for variable client
+certificate paths ([nginx proxy module documentation](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_ssl_certificate)).
+Stock AlmaLinux 9 nginx 1.20.1 cannot run this example.
+
 `httpg` is HTTPS whose *client* authentication is an RFC 3820 proxy certificate.
 Stock nginx cannot terminate it — OpenSSL rejects proxy chains unless
 `X509_V_FLAG_ALLOW_PROXY_CERTS` is set, so every grid client gets
@@ -475,6 +481,7 @@ Stock nginx cannot terminate it — OpenSSL rejects proxy chains unless
 carries each user's own identity to the back leg:
 
 ```nginx
+# check_example_configs: min-nginx=1.21.0
 http {
     server {
         listen 8443 ssl;
@@ -541,7 +548,7 @@ Origins can be ranked by measured RTT or by great-circle distance
 timer keeping latencies fresh. The experimental `scvmfs://` variant layers TLS
 plus fail-closed client authz (bearer / x509 / VOMS) on the same handler. See
 [CVMFS Site Cache](docs/04-protocols/cvmfs.md) and the
-[deployment runbook](deploy/cvmfs/README.md).
+[deployment runbook](docs/05-operations/deploy/cvmfs/README.md).
 
 ---
 
@@ -907,8 +914,8 @@ pytest -v
 
 > [!NOTE]
 > **Writing tests?** New server topologies should go through the pytest server
-> registry; see [tests/configs/REGISTRY_MIGRATION.md](tests/configs/REGISTRY_MIGRATION.md)
-> and [TESTING.md](TESTING.md#registry-lifecycle-mode).
+> registry; see [docs/09-developer-guide/testing/configs/REGISTRY_MIGRATION.md](docs/09-developer-guide/testing/configs/REGISTRY_MIGRATION.md)
+> and [TESTING.md](docs/09-developer-guide/TESTING.md#registry-lifecycle-mode).
 
 ### Cross-backend conformance tests (native XRootD)
 

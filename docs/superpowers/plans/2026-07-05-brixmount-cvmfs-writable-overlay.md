@@ -227,9 +227,9 @@ gcc -Wall -Wextra -Werror -I client/lib -o /tmp/overlay_ut \
 ### Task 9: Docs + spec close-out
 
 **Files:**
-- Modify: `client/lib/README.md` (one bullet: fs/overlay.c — writable-overlay union core for cvmfs-rw)
+- Modify: `docs/09-developer-guide/client/lib/README.md` (one bullet: fs/overlay.c — writable-overlay union core for cvmfs-rw)
 - Modify: `docs/superpowers/specs/2026-07-05-brixmount-cvmfs-writable-overlay-design.md` (Status: implemented)
-- Modify: `client/apps/README.md` if it catalogs fs/ apps (add cvmfs-rw + subcommands)
+- Modify: `docs/09-developer-guide/client/apps/README.md` if it catalogs fs/ apps (add cvmfs-rw + subcommands)
 
 - [ ] **Step 1:** Write the doc updates (usage examples: `brixMount cvmfs-rw atlas.cern.ch ~/mnt`, `brixMount --overlay-list ~/mnt`).
 - [ ] **Step 2:** Full verification sweep: `run_overlay_unit.sh`, `run_brixmount_unit.sh`, `run_brixcvmfs_check.sh`, `run_brixcvmfs_clever_live.sh`, `run_brixcvmfs_overlay.sh`, `make -C client -j$(nproc)` — all green.

@@ -108,6 +108,7 @@ TOKEN_FILE = os.path.join(TOKENS_DIR, "upstream.jwt")
 def _token_env():
     env = dict(_CLEAN_ENV)
     env["BEARER_TOKEN_FILE"] = TOKEN_FILE
+    env["X509_CERT_DIR"] = CA_DIR  # Token auth still verifies the fleet TLS peer.
     return env
 
 

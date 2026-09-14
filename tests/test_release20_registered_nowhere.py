@@ -337,9 +337,13 @@ def test_advertise_interval_is_clamped_to_the_federation_minimum(tmp_path):
     _assert_accepted(_render(tmp_path, STREAM_KNOBS="brix_cache_advertise_interval 1s;"),
                      "1s interval")
     merge = (SRC / "core" / "config" / "server_conf_merge_storage.c").read_text(encoding="utf-8")
-    clamp = merge.split("advertise.interval")[1].split(";")[0] + merge.split(
-        "advertise.interval")[2]
-    assert "60000" in clamp
+    constant = "BRIX_ADVERTISE_INTERVAL_DEFAULT_MS"
+    tunables = (SRC / "core/types/tunables_cluster.h").read_text(encoding="utf-8")
+    assert re.search(rf"^#define\s+{constant}\s+60000\s*$", tunables, re.M)
+    assert re.search(rf"if \(conf->advertise.interval < {constant}\) \{{\s*"
+                     rf"conf->advertise.interval = {constant};", merge)
+    assert re.search(r"ngx_conf_merge_msec_value\(conf->advertise.interval,\s*"
+                     rf"prev->advertise.interval, {constant}\);", merge)
 
 
 def test_advertise_family_is_documented_for_operators():

@@ -13,8 +13,8 @@ server (``ctx['off']``) launched on byte-identical trees by
   * the coarse error-wording category (``L.err_code``).
 
 Stock is truth: a divergence is OUR bug unless positively explained.  gfal must
-use the SYSTEM libXrdCl, so ``_clean_env()`` drops ``LD_LIBRARY_PATH`` (same
-pattern as ``tests/test_gfal_interop.py``).  The whole module skips cleanly if
+use the installed Python bindings and SYSTEM libXrdCl, so both GFAL harnesses
+share ``gfal_cli.clean_env()``.  The whole module skips cleanly if
 gfal2 or the stock tooling is absent — it never ERRORs.
 
 Known, explained divergences are pinned with ``@pytest.mark.xfail`` and a
@@ -31,6 +31,7 @@ import tempfile
 import pytest
 
 import official_interop_lib as L
+from gfal_cli import clean_env as _clean_env
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_CRC32C = os.path.join(REPO, "client", "bin", "xrdcrc32c")
@@ -47,18 +48,10 @@ pytestmark = pytest.mark.skipif(
 # --------------------------------------------------------------------------- #
 # environment + command runner
 # --------------------------------------------------------------------------- #
-def _clean_env():
-    """gfal must bind the SYSTEM libXrdCl, not a conda one — drop LD_LIBRARY_PATH
-    (mirrors tests/test_gfal_interop.py._clean_env)."""
-    e = dict(os.environ)
-    e.pop("LD_LIBRARY_PATH", None)
-    return e
-
-
 def _gfal(*argv, timeout=90):
     """Run a gfal CLI command; return (rc, stdout, stderr)."""
     r = subprocess.run([str(a) for a in argv], capture_output=True, text=True,
-                       timeout=timeout, env=_clean_env())
+                       timeout=timeout, env=_clean_env(argv[0]))
     return r.returncode, r.stdout, r.stderr
 
 

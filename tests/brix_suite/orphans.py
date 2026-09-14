@@ -32,11 +32,16 @@ FLEET_HELPER_MARKERS = ("/tests/",)
 
 def _cmdline(pid):
     """Argv of ``pid`` as a space-joined string, or "" if it is gone/unreadable."""
+    return " ".join(_process_argv(pid)).strip()
+
+
+def _process_argv(pid):
+    """Read argument boundaries so option values cannot impersonate a program."""
     try:
         with open("/proc/%s/cmdline" % pid, "rb") as fh:
-            return fh.read().replace(b"\x00", b" ").decode("utf-8", "replace").strip()
+            return fh.read().decode("utf-8", "replace").rstrip("\0").split("\0")
     except OSError:
-        return ""
+        return []
 
 
 def _ppid(pid):
@@ -95,8 +100,29 @@ def _daemon_name_matches(name, exes):
 
 
 def _helper_matches(pid, name, command):
-    return all((name.startswith("python"), "/tests/" in command,
-                "pytest" not in command, bool(_environ(pid))))
+    """Only a Python script entrypoint inside this tests tree is a helper.
+
+    A suite runner can carry test paths in --ignore options. Matching those
+    arguments used to classify the parent operator as a daemon and kill it.
+    """
+    if not name.startswith("python") or _is_harness_cmd(command):
+        return False
+    script = _python_script(_process_argv(pid))
+    if script is None or not os.path.isabs(script):
+        return False
+    tests_root = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+    script = os.path.realpath(script)
+    return all((script.endswith(".py"), bool(_environ(pid)),
+                os.path.commonpath((tests_root, script)) == tests_root))
+
+
+def _python_script(arguments):
+    """Locate a script after ordinary interpreter flags; modules/code fail closed."""
+    for argument in arguments[1:]:
+        if argument in ("-u", "-B", "-E", "-I", "-s", "-S", "-P", "-O", "-OO"):
+            continue
+        return None if argument.startswith("-") else argument
+    return None
 
 
 def _owns(marker, blob):
@@ -341,7 +367,8 @@ def lane_claimants(test_root, exes=FLEET_EXES, exclude_self=True):
 #: explicit list rather than a heuristic: a false negative here reopens the
 #: cross-session kill this gate exists to prevent, so the entries are the
 #: harness entry points that actually start fleets, and nothing else.
-HARNESS_MARKERS = ("pytest", "manage_test_servers", "brixtest", "run_suite")
+HARNESS_MARKERS = ("pytest", "manage_test_servers", "brixtest", "run_suite",
+                   "operator_runtime")
 
 
 def _is_harness_cmd(cmd):

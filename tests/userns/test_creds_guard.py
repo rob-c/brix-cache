@@ -37,9 +37,9 @@ def _require_guard_build_inputs():
 
 
 @pytest.mark.timeout(60)
-def test_reserved_id_guard_predicate():
+def test_reserved_id_guard_predicate(tmp_path):
     _require_guard_build_inputs()
-    out_bin = "/tmp/creds_guard_test.bin"
+    out_bin = str(tmp_path / "creds_guard_test.bin")
     # idmap.c was split (phase impersonation-hardening): the reserved-id predicate
     # brix_imp_creds_privileged() + idmap_creds_allowed()/idmap_resolve_user() now
     # live in idmap_denylist.c, and the gridmap load/lookup in idmap_gridmap.c.

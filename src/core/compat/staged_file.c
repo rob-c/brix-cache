@@ -46,24 +46,13 @@ static inline int lsetxattr(const char *path, const char *name, const void *valu
  */
 
 /*
- * WHAT: Open a unique temporary file inside the confined root_canon for atomic write.
- *
- * WHY: S3 PUT, WebDAV PUT, and other operations need to write data safely without risking
- *      corruption of the final path if the process crashes mid-write. A temp file with O_EXCL
- *      guarantees atomicity — either the rename succeeds (final path appears) or it doesn't
- *      (temp file remains for cleanup).
- *
- * HOW: Generate a unique tmp_path via brix_make_tmp_path(). Open with
- *      open_flags | O_CREAT | O_EXCL inside root_canon via brix_open_confined_canon().
- *      Loop up to 'attempts' times (default 16) on EEXIST. On success: set staged->active=1,
- *      store fd and tmp_path, return NGX_OK. On non-EEXIST failure or exhaustion: errno set,
- *      return NGX_ERROR.
- *
- * Parameters:
- *   log — nginx log for error reporting
- *   req — request description: root_canon / final_path / open_flags / mode /
- *         attempts (see brix_staged_open_req_t)
- *   staged — output struct: fd, tmp_path, active flag populated on success
+ * WHAT: Open a unique temporary file inside root_canon; return NGX_OK or
+ * NGX_ERROR with errno. Publish fd, tmp_path and active state on success.
+ * WHY: Uploads remain private until a later atomic rename publishes them.
+ * HOW: 1. Derive a confined path with brix_make_tmp_path().
+ * 2. Create with O_CREAT|O_EXCL and retry EEXIST up to req->attempts (default 16).
+ * 3. Return other errors or retry exhaustion without touching the final path.
+ * req describes paths, flags, mode and retries; staged receives the handle.
  */
 ngx_int_t
 brix_staged_open(ngx_log_t *log, const brix_staged_open_req_t *req,

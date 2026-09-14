@@ -369,7 +369,7 @@ WebDAV, raw-kXR/protocol, combo_*, broker/limits, TPC/lifecycle, remainder).
 ### W3 — Python rest: 67 functions + `utils/xrd_sec_probe.py` — ~6–8 PRs
 
 - **Cluster B (cmdscripts, 31):** R1, identical shape to W2 but each driver is
-  verified by running that cmdscript live (they are runnable suites; TESTING.md
+  verified by running that cmdscript live (they are runnable suites; docs/09-developer-guide/TESTING.md
   documents the fleet). One PR per cmdscript family (`operator_runtime*`,
   `user_backend_cred*`, `cvmfs_*`, `cache_*`, singles).
 - **Cluster C (helpers, ~29):** R3/R4 per shape; verify by running the pytest
@@ -565,7 +565,7 @@ not new coverage:
    runs (phase-102 precedent).
 4. **Ratchet advance**: `--regen` in the same PR as the fix it accepts, diff
    showing only removals (or the flip's zero-delta proof).
-5. Full-suite `pytest -v` at each wave close, not each PR (TESTING.md fleet
+5. Full-suite `pytest -v` at each wave close, not each PR (docs/09-developer-guide/TESTING.md fleet
    lifecycle; wave-close is also when the ASan lane must be green).
 
 ---

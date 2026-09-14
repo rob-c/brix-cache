@@ -56,14 +56,14 @@
 
 | Document | Claimed Count | Actual | Discrepancy |
 |----------|--------------|--------|-------------|
-| `tests/platform/PHASE3_CREATION_REPORT.md` | 61 tests | 62 | -1 (98.4%) |
-| `tests/platform/PHASE3_INTEGRATION_TEST_REPORT.md` | 61 tests | 62 | -1 (98.4%) |
-| `tests/platform/PHASE3_TEST_SUMMARY.md` | 61 tests | 62 | -1 (98.4%) |
-| `tests/platform/WINDOWS_PAL_100PERCENT_TEST_REPORT.md` | 64 tests | 64 | 0 (100%) |
-| `tests/platform/WINDOWS_PAL_COMPLETE_TEST_REPORT.md` | 32 tests | 32 | 0 (100%) |
+| `docs/platform/testing/PHASE3_CREATION_REPORT.md` | 61 tests | 62 | -1 (98.4%) |
+| `docs/platform/testing/PHASE3_INTEGRATION_TEST_REPORT.md` | 61 tests | 62 | -1 (98.4%) |
+| `docs/platform/testing/PHASE3_TEST_SUMMARY.md` | 61 tests | 62 | -1 (98.4%) |
+| `docs/platform/testing/WINDOWS_PAL_100PERCENT_TEST_REPORT.md` | 64 tests | 64 | 0 (100%) |
+| `docs/platform/testing/WINDOWS_PAL_COMPLETE_TEST_REPORT.md` | 32 tests | 32 | 0 (100%) |
 | `docs/platform/SUPPORT_MATRIX.md` | 152+ tests | 319 | -167 (under-reported) |
 | `src/platform/README.md` | 152+ tests | 319 | -167 (under-reported) |
-| `tests/platform/COVERAGE_SUMMARY.md` | 25 tested functions | 44/44 | Outdated (57% vs 100%) |
+| `docs/platform/testing/COVERAGE_SUMMARY.md` | 25 tested functions | 44/44 | Outdated (57% vs 100%) |
 
 ### 2.2 Analysis of Discrepancies
 
@@ -78,7 +78,7 @@
 - **Recommendation**: Update all summary documents to reflect 319 total tests
 
 #### Outdated Coverage Claims
-- **Document**: `tests/platform/COVERAGE_SUMMARY.md`
+- **Document**: `docs/platform/testing/COVERAGE_SUMMARY.md`
 - **Claim**: 57% coverage (25/44 functions tested)
 - **Reality**: 100% coverage (44/44 functions tested)
 - **Cause**: Document from 2025-12-12, before Phase 3 completion
@@ -171,14 +171,14 @@ markers =
 
 | File | Lines | Status | Accuracy |
 |------|-------|--------|----------|
-| `tests/platform/README.md` | ~200 | ✅ Current | 95% |
-| `tests/platform/COVERAGE_SUMMARY.md` | ~400 | ⚠️ Outdated | 57% (should be 100%) |
-| `tests/platform/PHASE3_CREATION_REPORT.md` | ~300 | ✅ Current | 98% |
-| `tests/platform/PHASE3_INTEGRATION_TEST_REPORT.md` | ~450 | ✅ Current | 98% |
-| `tests/platform/PHASE3_TEST_SUMMARY.md` | ~250 | ✅ Current | 98% |
-| `tests/platform/WINDOWS_PAL_100PERCENT_TEST_REPORT.md` | ~400 | ✅ Current | 100% |
-| `tests/platform/WINDOWS_PAL_COMPLETE_TEST_REPORT.md` | ~350 | ✅ Current | 100% |
-| `tests/platform/RUN_TESTS.md` | ~150 | ✅ Current | N/A (instructions) |
+| `docs/platform/testing/README.md` | ~200 | ✅ Current | 95% |
+| `docs/platform/testing/COVERAGE_SUMMARY.md` | ~400 | ⚠️ Outdated | 57% (should be 100%) |
+| `docs/platform/testing/PHASE3_CREATION_REPORT.md` | ~300 | ✅ Current | 98% |
+| `docs/platform/testing/PHASE3_INTEGRATION_TEST_REPORT.md` | ~450 | ✅ Current | 98% |
+| `docs/platform/testing/PHASE3_TEST_SUMMARY.md` | ~250 | ✅ Current | 98% |
+| `docs/platform/testing/WINDOWS_PAL_100PERCENT_TEST_REPORT.md` | ~400 | ✅ Current | 100% |
+| `docs/platform/testing/WINDOWS_PAL_COMPLETE_TEST_REPORT.md` | ~350 | ✅ Current | 100% |
+| `docs/platform/testing/RUN_TESTS.md` | ~150 | ✅ Current | N/A (instructions) |
 
 ### 5.2 Docs Directory Documentation
 
@@ -197,9 +197,9 @@ markers =
 | File | Lines | Status | Accuracy |
 |------|-------|--------|----------|
 | `src/platform/README.md` | ~400 | ⚠️ Minor updates needed | 95% |
-| `src/platform/ARCHITECTURE.md` | ~500 | ✅ Current | 100% |
-| `src/platform/PAL_FUNCTION_REFERENCE.md` | ~1629 | ✅ Current | 100% |
-| `src/platform/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` | ~1647 | ✅ Current | 100% |
+| `docs/platform/pal/ARCHITECTURE.md` | ~500 | ✅ Current | 100% |
+| `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` | ~1629 | ✅ Current | 100% |
+| `docs/platform/pal/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` | ~1647 | ✅ Current | 100% |
 
 ---
 
@@ -218,7 +218,7 @@ No critical discrepancies found. All PAL function coverage claims are accurate.
    - **Fix**: Update claims to "319+ tests"
 
 2. **Outdated Coverage Summary**
-   - **Document**: `tests/platform/COVERAGE_SUMMARY.md`
+   - **Document**: `docs/platform/testing/COVERAGE_SUMMARY.md`
    - **Claim**: 57% coverage (25/44 functions)
    - **Actual**: 100% coverage (44/44 functions)
    - **Impact**: Misleading for developers reviewing test status

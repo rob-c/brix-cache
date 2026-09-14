@@ -392,7 +392,7 @@ grep -E '^(const char \*|int|uint64_t|ssize_t|void|typedef|static inline)' src/p
 # Expected: 52
 
 # Count documented functions in PAL_FUNCTION_REFERENCE.md
-grep -E '^### [0-9]+\.[0-9]+ `brix_plat_' src/platform/PAL_FUNCTION_REFERENCE.md | wc -l
+grep -E '^### [0-9]+\.[0-9]+ `brix_plat_' docs/platform/pal/PAL_FUNCTION_REFERENCE.md | wc -l
 # Expected: 52 (currently 44)
 ```
 
@@ -511,13 +511,13 @@ done
 ### B.1 Source Files Verified
 
 - `src/platform/platform_api.h` - 1,247 lines
-- `src/platform/PAL_FUNCTION_REFERENCE.md` - 1,629 lines
-- `src/platform/ARCHITECTURE.md` - 400+ lines
+- `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` - 1,629 lines
+- `docs/platform/pal/ARCHITECTURE.md` - 400+ lines
 - `src/platform/platform.h` - 300+ lines
 - `src/platform/README.md` - 500+ lines
 - `docs/platform/SUPPORT_MATRIX.md` - 560+ lines
-- `PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md` - 3,196 lines
-- `src/platform/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` - 1,647 lines
+- `docs/platform/reports/PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md` - 3,196 lines
+- `docs/platform/pal/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` - 1,647 lines
 
 ### B.2 Verification Commands Run
 
@@ -525,7 +525,7 @@ done
 grep -c 'brix_plat_' src/platform/platform_api.h
 # Result: 52 function declarations
 
-grep -c 'brix_plat_' src/platform/PAL_FUNCTION_REFERENCE.md
+grep -c 'brix_plat_' docs/platform/pal/PAL_FUNCTION_REFERENCE.md
 # Result: 44 functions documented
 
 grep 'BRIX_PLATFORM_WINDOWS' src/platform/platform.h

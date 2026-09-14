@@ -49,6 +49,9 @@ def _phase_run_checks_1(deadline, dirty, sidecar):
 
 def objs_dir_from_nginx(nginx_bin: str = NGINX_BIN) -> Path:
     path = Path(nginx_bin)
+    selected_objs = os.environ.get("TEST_NGINX_OBJS")
+    if selected_objs and path == Path(NGINX_BIN):
+        return Path(selected_objs)
     if path.name == "nginx" and path.parent.name == "objs":
         return path.parent
     return Path("/tmp/nginx-1.28.3/objs")

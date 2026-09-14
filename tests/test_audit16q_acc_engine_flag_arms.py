@@ -324,8 +324,9 @@ class TestTheRequestTriggeredInstall:
         time.sleep(2.0)
         assert acc.verdict("A", "g-supp") == GRANTED
         groups = " ".join(ACC_GROUPS_C.read_text().split())
-        assert "static time_t acc_gidlifetime = 43200;" in groups
-        assert "e->expiry = now + acc_gidlifetime;" in groups
+        config = " ".join(ACC_CONFIG_C.read_text().split())
+        tunables = " ".join(ACC_TUNABLES_H.read_text().split())
+        _assert_default_group_cache_lifetime(groups, config, tunables)
 
     def test_the_http_tables_are_built_on_the_first_request(self):
         """Why a REQUEST can install anything at all: the http plane has no

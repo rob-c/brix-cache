@@ -145,7 +145,7 @@ Add architecture section to:
 - docs/platform/README.md
 - docs/platform/SUPPORT_MATRIX.md
 - src/platform/README.md
-- src/platform/ARCHITECTURE.md
+- docs/platform/pal/ARCHITECTURE.md
 - +8 platform-specific docs
 
 ---

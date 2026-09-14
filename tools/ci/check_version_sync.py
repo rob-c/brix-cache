@@ -6,13 +6,13 @@
 #       unless each derived copy matches it:
 #         S1  the RPM spec's %global upstream_version literal fallback
 #         S2  the version on the spec's newest %changelog entry
-#         S3  the version of the newest CHANGELOG.md entry
+#         S3  the version of the newest docs/10-reference/CHANGELOG.md entry
 #       Plus two shape rules that keep the history readable:
-#         S4  CHANGELOG.md entries are strictly descending by version
+#         S4  docs/10-reference/CHANGELOG.md entries are strictly descending by version
 #         S5  the spec %changelog is descending by (version, release)
 #
 # WHY:  These four files drifted apart in the wild: the server reported 1.3.0
-#       while CHANGELOG.md stopped at 1.0.8, so neither an operator reading the
+#       while docs/10-reference/CHANGELOG.md stopped at 1.0.8, so neither an operator reading the
 #       repo nor a packager reading the spec could tell what a build actually
 #       was. The spec fallback is the dangerous one — it is only consulted on a
 #       bare `rpmbuild` (the build scripts sed ident.h and pass
@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 IDENT = "src/core/ident.h"
 SPEC = "packaging/rpm/nginx-mod-brix-cache.spec"
-CHANGELOG = "CHANGELOG.md"
+CHANGELOG = "docs/10-reference/CHANGELOG.md"
 
 RE_IDENT = re.compile(r'#define\s+BRIX_SERVER_VERSION_BARE\s+"([^"]+)"')
 # %global upstream_version %{?version_override}%{!?version_override:1.4.0}
@@ -78,7 +78,7 @@ def _spec_changelog_entries(spec_text):
 
 
 def _changelog_entries(cl_text):
-    """Versions from CHANGELOG.md's `## vX.Y.Z` headings, newest first."""
+    """Versions from docs/10-reference/CHANGELOG.md's `## vX.Y.Z` headings, newest first."""
     return [m.group(1) for m in (RE_CL_ENTRY.match(l) for l in cl_text.splitlines()) if m]
 
 

@@ -41,6 +41,7 @@ The request/response-semantics files (`http_*`, `etag`) live in [`../http`](../h
 
 | File | Responsibility |
 |---|---|
+| `xattr_path_compat.h` | Libc-only Darwin xattr signature adaptation shared by confined path and metadata-record owners; callers retain confinement and VFS policy checks. |
 | `namespace_ops.c` / `namespace_ops.h` | **The mandatory mutation gateway.** `brix_ns_delete/_mkdir/_rename/_local_copy` over already-resolved paths, each opening a `RESOLVE_BENEATH` rootfd and routing every stat/open/unlink/mkdir/rename through `src/fs/path/beneath.h`. Neutral `brix_ns_status_t` result; recursive-vs-empty, overwrite, staged-commit, xattr-preserve policies. INVARIANT: protocol handlers MUST use these, not raw `*_beneath` calls. |
 | `fs_walk.c` / `fs_walk.h` | Directory traversal: dot-entry check, path join, empty-dir probe, options-driven recursive `brix_fs_walk` (depth/hidden/files-vs-dirs/cross-device), and confined recursive `brix_fs_remove_tree_confined` (unlinks/rmdir via beneath API). Backs dirlist, PROPFIND collections, S3 ListObjects, recursive DELETE/MOVE. |
 | `fs_usage.c` / `fs_usage.h` | `statvfs(2)` → total/free/available/used bytes + occupancy ppm (`brix_fs_usage_t`). For Prometheus, PROPFIND quota, and `kXR_query` space. |

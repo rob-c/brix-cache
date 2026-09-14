@@ -69,9 +69,46 @@ def _frame(streamid, status, body=b""):
     return struct.pack(">2sHI", streamid, status, len(body)) + body
 
 
+def _bind_listener(family, kind, protocol, address):
+    """Bind one resolved address without covering another address family."""
+    listener = socket.socket(family, kind, protocol)
+    try:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if family == socket.AF_INET6:
+            listener.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+        listener.bind(address)
+        listener.listen(8)
+        listener.settimeout(0.2)
+        return listener
+    except Exception:
+        listener.close()
+        raise
+
+
+def _listeners_for_host(host, port):
+    """Own every resolved endpoint so DNS rotation reaches the same TLS peer."""
+    answers = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM,
+                                 proto=socket.IPPROTO_TCP)
+    addresses = dict.fromkeys((family, kind, protocol, address)
+                             for family, kind, protocol, _, address in answers)
+    if not addresses:
+        raise OSError(f"no stream addresses for TLS fixture {host}:{port}")
+    listeners = []
+    try:
+        for endpoint in addresses:
+            listeners.append(_bind_listener(*endpoint))
+        return listeners
+    except Exception:
+        for listener in listeners:
+            listener.close()
+        raise
+
+
 class GotoTlsUpstream:
-    """One listener that answers the bootstrap, demands TLS, presents `cert`,
-    and records every step so a test can say where a leg stopped.
+    """One peer on every address of `host`, with one certificate and transcript.
+
+    Each listener answers the bootstrap, demands TLS, presents `cert`, and
+    records every step so a test can say where a leg stopped.
 
     Records are plain dicts on `.events`; `.kinds(port)` is the ordered list of
     step names, which is what nearly every assertion actually wants.
@@ -84,13 +121,13 @@ class GotoTlsUpstream:
         self._lock = threading.Lock()
         self._ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         self._ctx.load_cert_chain(cert, key)
-        self._sock = socket.socket()
-        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._sock.bind((host, port))
-        self._sock.listen(8)
+        self._sockets = _listeners_for_host(host, port)
         self._closed = False
-        self._thread = threading.Thread(target=self._accept_loop, daemon=True)
-        self._thread.start()
+        self._threads = [threading.Thread(target=self._accept_loop,
+                                          args=(listener,), daemon=True)
+                         for listener in self._sockets]
+        for thread in self._threads:
+            thread.start()
 
     # -- recording ---------------------------------------------------------- #
     def _record(self, kind, detail=""):
@@ -134,10 +171,12 @@ class GotoTlsUpstream:
         return self.kinds()
 
     # -- the wire ----------------------------------------------------------- #
-    def _accept_loop(self):
+    def _accept_loop(self, listener):
         while not self._closed:
             try:
-                conn, _ = self._sock.accept()
+                conn, _ = listener.accept()
+            except socket.timeout:
+                continue
             except OSError:
                 return
             conn.settimeout(15)
@@ -207,10 +246,10 @@ class GotoTlsUpstream:
     # -- lifecycle ---------------------------------------------------------- #
     def close(self):
         self._closed = True
-        try:
-            self._sock.close()
-        except OSError:
-            pass
+        for listener in self._sockets:
+            listener.close()
+        for thread in self._threads:
+            thread.join(timeout=1)
 
 
 def dump_events(path, stubs):

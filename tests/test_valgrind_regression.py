@@ -104,7 +104,7 @@ def test_valgrind_harness_committed():
         "tests/valgrind/nginx.conf.in",
         "tests/cmdscripts/operator_runtime.py",
         "tests/valgrind/valgrind.supp",
-        "tests/valgrind/README.md",
+        "docs/09-developer-guide/testing/valgrind/README.md",
     ):
         assert (ROOT / f).exists(), f"missing {f}"
     # Suppressions must use native valgrind syntax, never suppress module frames.

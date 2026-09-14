@@ -109,13 +109,15 @@ brix_write_aio_commit(brix_ctx_t *ctx, brix_write_aio_t *t)
  *       the streamid for this ack's frame, reply asynchronously (parked in the
  *       out_ring, drained by the write event), then nudge the read side in case
  *       recv throttled on the pipeline depth.
- * HOW:  Restore the streamid (on failure the connection is dead — run any held
+ * HOW:  Save the receiving request's streamid, then restore the completed task's
+ *       streamid (on failure the connection is dead — run any held
  *       deferred teardown and return).  Classify the outcome into errmsg
  *       (hard error / short write / NULL=success).  On error: log, count, and
  *       send kXR_IOError under resp_async, then schedule a read resume.  On
  *       success: commit accounting via brix_write_aio_commit, log, count, and
- *       send kXR_ok under resp_async, then schedule a read resume.  Never touches
- *       the recv state/hdr_pos.
+ *       send kXR_ok under resp_async. Restore the receiving request's streamid
+ *       before scheduling its read resume on both response paths; its payload
+ *       may still be arriving. Never changes the recv state/hdr_pos.
  */
 static void
 brix_write_aio_done_pipelined(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -123,6 +125,10 @@ brix_write_aio_done_pipelined(brix_ctx_t *ctx, ngx_connection_t *c,
                               brix_write_aio_t *t, ngx_int_t op)
 {
     const char *errmsg = NULL;
+    u_char receiving_streamid[2];
+
+    ngx_memcpy(receiving_streamid, ctx->recv.cur_streamid,
+               sizeof(receiving_streamid));
 
     if (!brix_aio_restore_stream(ctx, t->streamid)) {
         /* phase-32 WS3: a concurrent read may still be preading into a pool
@@ -151,6 +157,8 @@ brix_write_aio_done_pipelined(brix_ctx_t *ctx, ngx_connection_t *c,
         ctx->out.resp_async = 1;
         (void) brix_send_error(ctx, c, kXR_IOError, errmsg);
         ctx->out.resp_async = 0;
+        ngx_memcpy(ctx->recv.cur_streamid, receiving_streamid,
+                   sizeof(receiving_streamid));
         (void) brix_schedule_read_resume(c);
         return;
     }
@@ -165,6 +173,8 @@ brix_write_aio_done_pipelined(brix_ctx_t *ctx, ngx_connection_t *c,
     ctx->out.resp_async = 1;
     (void) brix_send_ok(ctx, c, NULL, 0);
     ctx->out.resp_async = 0;
+    ngx_memcpy(ctx->recv.cur_streamid, receiving_streamid,
+               sizeof(receiving_streamid));
     (void) brix_schedule_read_resume(c);
 }
 

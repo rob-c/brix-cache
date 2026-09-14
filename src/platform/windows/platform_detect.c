@@ -110,26 +110,6 @@ brix_win32_get_version_api(RTL_OSVERSIONINFOW *version)
 }
 
 /**
- * Check if running on Windows Server
- * 
- * @return 1 if Server, 0 if client
- */
-static int
-brix_win32_is_server(void)
-{
-    OSVERSIONINFOEXW osvi;
-    DWORDLONG dwlConditionMask = 0;
-    
-    ZeroMemory(&osvi, sizeof(OSVERSIONINFOEXW));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXW);
-    osvi.wProductType = VER_NT_SERVER;
-    
-    VER_SET_CONDITION(dwlConditionMask, VER_PRODUCT_TYPE, VER_EQUAL);
-    
-    return VerifyVersionInfoW(&osvi, VER_PRODUCT_TYPE, dwlConditionMask) ? 1 : 0;
-}
-
-/**
  * Get Windows product name from registry
  * 
  * @param buffer Output buffer
@@ -198,6 +178,133 @@ brix_plat_is_windows(void)
  * @return Version string (e.g., "Windows 10", "Windows Server 2022")
  *         Static buffer, do not free
  */
+/* ---- Identify a Windows release by build number ----
+ * WHAT: Return the existing product label for the supplied build.
+ * WHY: Release thresholds are independent of version discovery and caching.
+ * HOW: 1. Test newest known builds first. 2. Return the family fallback.
+ */
+static const char *
+brix_win32_release_10(DWORD build)
+{
+    if (build >= 19045) {
+        return "Windows 10 (22H2)";
+    }
+    if (build >= 19044) {
+        return "Windows 10 (21H2)";
+    }
+    if (build >= 19043) {
+        return "Windows 10 (21H1)";
+    }
+    if (build >= 19042) {
+        return "Windows 10 (20H2)";
+    }
+    if (build >= 19041) {
+        return "Windows 10 (2004)";
+    }
+    if (build >= 18363) {
+        return "Windows 10 (1909)";
+    }
+    if (build >= 18362) {
+        return "Windows 10 (1903)";
+    }
+    if (build >= 17763) {
+        return "Windows 10 (1809)";
+    }
+    if (build >= 17134) {
+        return "Windows 10 (1803)";
+    }
+    if (build >= 16299) {
+        return "Windows 10 (1709)";
+    }
+    if (build >= 15063) {
+        return "Windows 10 (1703)";
+    }
+    if (build >= 14393) {
+        return "Windows 10 (1607)";
+    }
+    if (build >= 10586) {
+        return "Windows 10 (1511)";
+    }
+    return "Windows 10 (1507)";
+}
+
+/* ---- Identify a Windows release by build number ----
+ * WHAT: Return the existing product label for the supplied build.
+ * WHY: Release thresholds are independent of version discovery and caching.
+ * HOW: 1. Test newest known builds first. 2. Return the family fallback.
+ */
+static const char *
+brix_win32_release_11(DWORD build)
+{
+    if (build >= 26100) {
+        return "Windows 11 (24H2)";
+    }
+    if (build >= 25398) {
+        return "Windows 11 (23H2)";
+    }
+    if (build >= 22621) {
+        return "Windows 11 (22H2)";
+    }
+    if (build >= 22000) {
+        return "Windows 11 (21H2)";
+    }
+    return "Windows 11";
+}
+
+/* ---- Identify a Windows release by build number ----
+ * WHAT: Return the existing product label for the supplied build.
+ * WHY: Release thresholds are independent of version discovery and caching.
+ * HOW: 1. Test newest known builds first. 2. Return the family fallback.
+ */
+static const char *
+brix_win32_release_server10(DWORD build)
+{
+    if (build >= 26100) {
+        return "Windows Server 2025";
+    }
+    if (build >= 20348) {
+        return "Windows Server 2022";
+    }
+    if (build >= 17763) {
+        return "Windows Server 2019";
+    }
+    return "Windows Server (unknown)";
+}
+
+/* ---- Identify the product family from version fields ----
+ * WHAT: Return the product name without the rendered build suffix.
+ * WHY: Mapping must remain separate from OS probing and cached formatting.
+ * HOW: 1. Select server/client. 2. Resolve the major/minor or build family.
+ */
+static const char *
+brix_win32_product_label(const RTL_OSVERSIONINFOW *version, int is_server)
+{
+    if (is_server) {
+        if (version->dwMajorVersion == 10) {
+            return brix_win32_release_server10(version->dwBuildNumber);
+        }
+        if (version->dwMajorVersion == 6 && version->dwMinorVersion == 3) {
+            return "Windows Server 2012 R2";
+        }
+        if (version->dwMajorVersion == 6 && version->dwMinorVersion == 2) {
+            return "Windows Server 2012";
+        }
+        return "Windows Server (unknown)";
+    }
+    if (version->dwMajorVersion == 10) {
+        return version->dwBuildNumber >= 22000
+            ? brix_win32_release_11(version->dwBuildNumber)
+            : brix_win32_release_10(version->dwBuildNumber);
+    }
+    if (version->dwMajorVersion == 6 && version->dwMinorVersion == 3) {
+        return "Windows 8.1";
+    }
+    if (version->dwMajorVersion == 6 && version->dwMinorVersion == 2) {
+        return "Windows 8";
+    }
+    return "Windows (unknown)";
+}
+
 const char *
 brix_plat_windows_version(void)
 {
@@ -220,98 +327,7 @@ brix_plat_windows_version(void)
     
     is_server = brix_win32_is_server();
     
-    /* Map version to product name */
-    if (is_server) {
-        /* Windows Server versions */
-        switch (osvi.dwMajorVersion) {
-            case 10:
-                if (osvi.dwBuildNumber >= 26100) {
-                    product_name = "Windows Server 2025";
-                } else if (osvi.dwBuildNumber >= 20348) {
-                    product_name = "Windows Server 2022";
-                } else if (osvi.dwBuildNumber >= 17763) {
-                    product_name = "Windows Server 2019";
-                } else {
-                    product_name = "Windows Server (unknown)";
-                }
-                break;
-            case 6:
-                if (osvi.dwMinorVersion == 3) {
-                    product_name = "Windows Server 2012 R2";
-                } else if (osvi.dwMinorVersion == 2) {
-                    product_name = "Windows Server 2012";
-                } else {
-                    product_name = "Windows Server (unknown)";
-                }
-                break;
-            default:
-                product_name = "Windows Server (unknown)";
-                break;
-        }
-    } else {
-        /* Windows client versions */
-        switch (osvi.dwMajorVersion) {
-            case 10:
-                if (osvi.dwBuildNumber >= 22000) {
-                    /* Windows 11 */
-                    if (osvi.dwBuildNumber >= 26100) {
-                        product_name = "Windows 11 (24H2)";
-                    } else if (osvi.dwBuildNumber >= 25398) {
-                        product_name = "Windows 11 (23H2)";
-                    } else if (osvi.dwBuildNumber >= 22621) {
-                        product_name = "Windows 11 (22H2)";
-                    } else if (osvi.dwBuildNumber >= 22000) {
-                        product_name = "Windows 11 (21H2)";
-                    } else {
-                        product_name = "Windows 11";
-                    }
-                } else {
-                    /* Windows 10 */
-                    if (osvi.dwBuildNumber >= 19045) {
-                        product_name = "Windows 10 (22H2)";
-                    } else if (osvi.dwBuildNumber >= 19044) {
-                        product_name = "Windows 10 (21H2)";
-                    } else if (osvi.dwBuildNumber >= 19043) {
-                        product_name = "Windows 10 (21H1)";
-                    } else if (osvi.dwBuildNumber >= 19042) {
-                        product_name = "Windows 10 (20H2)";
-                    } else if (osvi.dwBuildNumber >= 19041) {
-                        product_name = "Windows 10 (2004)";
-                    } else if (osvi.dwBuildNumber >= 18363) {
-                        product_name = "Windows 10 (1909)";
-                    } else if (osvi.dwBuildNumber >= 18362) {
-                        product_name = "Windows 10 (1903)";
-                    } else if (osvi.dwBuildNumber >= 17763) {
-                        product_name = "Windows 10 (1809)";
-                    } else if (osvi.dwBuildNumber >= 17134) {
-                        product_name = "Windows 10 (1803)";
-                    } else if (osvi.dwBuildNumber >= 16299) {
-                        product_name = "Windows 10 (1709)";
-                    } else if (osvi.dwBuildNumber >= 15063) {
-                        product_name = "Windows 10 (1703)";
-                    } else if (osvi.dwBuildNumber >= 14393) {
-                        product_name = "Windows 10 (1607)";
-                    } else if (osvi.dwBuildNumber >= 10586) {
-                        product_name = "Windows 10 (1511)";
-                    } else {
-                        product_name = "Windows 10 (1507)";
-                    }
-                }
-                break;
-            case 6:
-                if (osvi.dwMinorVersion == 3) {
-                    product_name = "Windows 8.1";
-                } else if (osvi.dwMinorVersion == 2) {
-                    product_name = "Windows 8";
-                } else {
-                    product_name = "Windows (unknown)";
-                }
-                break;
-            default:
-                product_name = "Windows (unknown)";
-                break;
-        }
-    }
+    product_name = brix_win32_product_label(&osvi, is_server);
     
     snprintf(version_str, sizeof(version_str), "%s (Build %lu)",
              product_name, osvi.dwBuildNumber);

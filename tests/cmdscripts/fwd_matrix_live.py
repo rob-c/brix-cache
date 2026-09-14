@@ -91,6 +91,8 @@ def _call(argv: list[str | Path], *, env_add: dict[str, str] | None = None,
     ``XRDC_GSI_DELEGATE`` must be truly UNSET (not empty) for the userB
     no-delegation negative control.
     """
+    from cmdscripts import _prepare_nginx_config  # noqa: PLC0415
+    argv = _prepare_nginx_config(list(argv))
     env = _expression_1(env_drop)
     _expression_2(env, env_add)
     out = _expression_3(stdout_to)

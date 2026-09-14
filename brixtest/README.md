@@ -52,7 +52,7 @@ def test_origin(run):
 Native programs are first-class pytest items too. `native_test(...)` compiles
 one declared C or C++ program, runs it in the normal supervised helper, checks
 its exit code and text streams, and archives exact build provenance. See the
-[native-test guide](docs/native-tests.md).
+[native-test guide](../docs/09-developer-guide/brixtest/native-tests.md).
 
 The same declaration can run locally or on Kubernetes; select the backend with
 `--brixtest-backend` or `BRIXTEST_BACKEND`. Test code continues to consume the
@@ -61,10 +61,10 @@ Enhanced evidence is equally backend-neutral: pytest records metrics, process
 and cgroup resources, spans, logs, attachments, provenance, and deterministic
 findings in a crash-recoverable, versioned model. Each session has searchable
 HTML and JSON plus normalized SQLite, with optional Parquet/DuckDB, OTLP,
-OpenSearch, and S3 export. See [the metrics guide](docs/metrics.md) and
-[the evidence and analytics guide](docs/evidence-and-analytics.md).
+OpenSearch, and S3 export. See [the metrics guide](../docs/09-developer-guide/brixtest/metrics.md) and
+[the evidence and analytics guide](../docs/09-developer-guide/brixtest/evidence-and-analytics.md).
 The complete stable import and fixture surface is listed in the
-[public API reference](docs/api-reference.md) and enforced by BriXTest's own
+[public API reference](../docs/09-developer-guide/brixtest/api-reference.md) and enforced by BriXTest's own
 contract suite.
 
 `run.tool(name)` always resolves a bound tool and `.run(...)` invokes it.
@@ -89,14 +89,14 @@ instances in their pytest-familiar domains, including across xdist workers.
 Use `scope="worker"` only for intentional worker-local duplication. Each
 attempt stores stable server-instance links, while
 the shared physical log is archived once with its SHA-256. See
-[the dynamic topology guide](docs/dynamic-topology.md).
+[the dynamic topology guide](../docs/09-developer-guide/brixtest/dynamic-topology.md).
 
 Credentials and authentication infrastructure are declarations too. BriXTest
 can generate role-scoped custom/checksum/signed credentials, bearer tokens, a
 fresh TLS CA/CRL/host identity, a complete VOMS/GSI test PKI and proxy, and an
 isolated MIT Kerberos realm with keytab and ticket cache. Declared host mappings
 provide container/Kubernetes forward and reverse DNS without editing the host.
-See [the authentication guide](docs/authentication.md).
+See [the authentication guide](../docs/09-developer-guide/brixtest/authentication.md).
 
 Helper isolation is independent of server placement. Select `process`,
 `nsenter`, Docker, Podman, runc, or a bundled Kubernetes Job in

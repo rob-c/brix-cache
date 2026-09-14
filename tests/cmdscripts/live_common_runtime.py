@@ -52,7 +52,7 @@ class LiveRun(AbstractContextManager["LiveRun"]):
         check: bool = True,
         binary: bool = False,
     ) -> subprocess.CompletedProcess[str]:
-        command = [str(item) for item in argv]
+        command = self._prepare_command([str(item) for item in argv], cwd)
         # Text mode is inferred from `input`, which is wrong for a command that
         # WRITES binary (xrdfs cat of a random payload): decoding then raises
         # UnicodeDecodeError inside communicate() and the caller never sees a
@@ -72,6 +72,13 @@ class LiveRun(AbstractContextManager["LiveRun"]):
         if check and result.returncode:
             _raise_call_failure(result)
         return result
+
+    def _prepare_command(self, command, cwd):
+        """Prepare only this run's binary, including its frozen nginx-HASH path."""
+        if not command or command[0] != str(self.nginx):
+            return command
+        from cmdscripts import _prepare_nginx_config  # noqa: PLC0415
+        return _prepare_nginx_config(command, nginx_bin=self.nginx, cwd=cwd)
 
     def spawn(
         self,

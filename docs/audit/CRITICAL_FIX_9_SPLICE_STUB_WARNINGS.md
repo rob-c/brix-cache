@@ -24,7 +24,9 @@ Fixed **FABRICATED DOCUMENTATION** claiming Windows `brix_plat_splice()` had 450
 
 ## Files Updated
 
-### 1. src/platform/windows/SPLICE_IMPLEMENTATION.md
+<a id="1-srcplatformwindowssplice_implementationmd"></a>
+
+### 1. docs/platform/pal/windows/SPLICE_IMPLEMENTATION.md
 
 **Changes**:
 - ✅ Added prominent **CRITICAL WARNING** banner at top
@@ -174,8 +176,8 @@ The following files may still contain fabricated splice() claims:
 
 | File | Status | Action Needed |
 |------|--------|---------------|
-| `WINDOWS_SPLICE_COMPLETION_REPORT.md` | 🔴 Claims "450+ lines" | Update or delete |
-| `PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md` | 🔴 May reference splice | Verify/update |
+| `docs/platform/windows/reports/WINDOWS_SPLICE_COMPLETION_REPORT.md` | 🔴 Claims "450+ lines" | Update or delete |
+| `docs/platform/reports/PHASE3_TRUE_100_PERCENT_FINAL_REPORT.md` | 🔴 May reference splice | Verify/update |
 | `WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` | 🔴 Lists SPLICE_IMPLEMENTATION.md | Add stub warning |
 | Other Phase 3 reports | ⚠️ May reference | Verify |
 

@@ -20,6 +20,9 @@ from pathlib import Path
 # Add tests directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from test_platform_linux_native import native_compile  # configured C SDK fixture
+from pal_native import anon_fd, pal_native  # production C bindings
+
 # =============================================================================
 # Platform Detection
 # =============================================================================
@@ -158,7 +161,22 @@ def test_data():
 # =============================================================================
 
 def pytest_configure(config):
-    """Register custom markers"""
+    """Register platform markers for both nested and repository collection."""
+    platform_markers = {
+        "arm64_linux": "ARM64 Linux platform",
+        "arm64_macos": "ARM64 macOS platform",
+        "apple_silicon": "Apple Silicon platform",
+        "m1": "Apple M1 hardware", "m2": "Apple M2 hardware",
+        "m3": "Apple M3 hardware", "accelerate": "Apple Accelerate framework",
+        "clonefile": "APFS clonefile support", "crc32": "hardware CRC32",
+        "neon": "ARM NEON support", "sve": "ARM SVE support",
+        "graviton": "AWS Graviton hardware", "ampere": "Ampere hardware",
+        "native_windows": "native Windows platform", "wsl2": "WSL2 platform",
+        "server": "Windows Server platform", "win10": "Windows 10 or later",
+        "admin": "Windows administrator privileges",
+    }
+    for marker, description in platform_markers.items():
+        config.addinivalue_line("markers", f"{marker}: {description}")
     config.addinivalue_line(
         "markers",
         "linux: mark test to run only on Linux"

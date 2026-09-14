@@ -2,7 +2,7 @@
  * WHAT: feeds arbitrary bytes as a base64url string and a range of output caps.
  * WHY:  b64url_decode runs on every bearer token before any auth check — a
  *       decode-side overflow is pre-auth attacker-reachable.
- * Build: see tests/fuzz/README.md. */
+ * Build: see docs/09-developer-guide/testing/fuzz/README.md. */
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>

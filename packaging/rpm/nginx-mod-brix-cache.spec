@@ -818,7 +818,7 @@ fi
 %changelog
 * Sat Sep 05 2026 Rob Currie <rob.currie@ed.ac.uk> - 2.0.0-1
 - Version 2.0.0 — the first release distributed as RPM and Debian packages.
-  Full release notes in CHANGELOG.md; packaging-relevant highlights only below.
+  Full release notes in docs/10-reference/CHANGELOG.md; packaging-relevant highlights only below.
 - Breaking config change on upgrade: brix_pss_dca and
   brix_backend_passthrough_persist are removed and now fail nginx -t as
   unknown directives; delete the lines.  Fifteen brix_frm_* knobs remain
@@ -830,7 +830,7 @@ fi
 - No new subpackages, no new runtime dependencies.
 
 * Wed Aug 26 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.5.0-1
-- Version 1.5.0.  Full release notes in CHANGELOG.md; packaging-relevant
+- Version 1.5.0.  Full release notes in docs/10-reference/CHANGELOG.md; packaging-relevant
   highlights only below.
 - New security directives ship in the main module, no new subpackages:
   per-host auth policy (brix_protbind / brix_webdav_protbind, stock
@@ -844,7 +844,7 @@ fi
   that still names it fails nginx -t.  Action: delete the line; the enforced
   per-user cap brix_throttle_max_open_files is unchanged.
 * Mon Aug 03 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.4.0-1
-- Version 1.4.0.  Full release notes in CHANGELOG.md; packaging-relevant
+- Version 1.4.0.  Full release notes in docs/10-reference/CHANGELOG.md; packaging-relevant
   highlights only below.
 - Storage/auth/cache feature wave (phases 90-92): client io_uring O_DIRECT
   tier (--io-uring-direct); HTTP cache-fill remote passthrough

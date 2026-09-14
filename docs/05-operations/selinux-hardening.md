@@ -620,7 +620,7 @@ vulnerabilities below the LSM layer bypass everything. Layers, not magic.
   commented), `brix.fc` (path labels), `brix.if` (interfaces for other
   policies: `brix_read_data`, `brix_manage_data`, `brix_use_ports`).
 - RPM wiring: `packaging/rpm/nginx-mod-brix-cache.spec` (the `-selinux`
-  subpackage) and `packaging/rpm/README.md` § "SELinux".
+  subpackage) and `docs/03-configuration/packaging/rpm/README.md` § "SELinux".
 - Systemd layer: [deployment-hardening](../09-developer-guide/deployment-hardening.md),
   `packaging/brix-cache.service`.
 - Upstream reading: the SELinux Notebook (github.com/SELinuxProject/selinux-notebook)

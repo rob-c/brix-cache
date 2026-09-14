@@ -22,6 +22,7 @@
 #              method is refused and audited, a traversal never reaches the
 #              origin, and a mirror configured with the wrong verification
 #              mode does not start at all.
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 import os
 import shutil
 import subprocess
@@ -311,6 +312,8 @@ def test_wrong_verification_mode_refuses_to_start(tmp_path, verify):
         MOCK_HOST=HOST, MOCK_PORT=MOCK_PORT, PREFIX=PREFIX,
         CACHE_DIR=str(tmp_path / "cache"), METADATA_TTL="60s",
         VERIFY_MODE=verify, EXTRA_LINES="")
+    inject_nginx_load_modules(conf, NGINX_BIN)
+    inject_nginx_runtime_paths(conf, tmp_path)
     proc = subprocess.run([NGINX_BIN, "-t", "-p", str(tmp_path),
                            "-c", str(conf), "-e", str(tmp_path / "start.log")],
                           capture_output=True, text=True, timeout=60)
@@ -338,6 +341,8 @@ def test_cleartext_upstream_refuses_to_start_without_the_opt_in(tmp_path):
                     .replace("{METADATA_TTL}", "60s")
                     .replace("{VERIFY_MODE}", "rpm-repodata")
                     .replace("{EXTRA_LINES}", ""))
+    inject_nginx_load_modules(conf, NGINX_BIN)
+    inject_nginx_runtime_paths(conf, tmp_path)
     proc = subprocess.run([NGINX_BIN, "-t", "-p", str(tmp_path),
                            "-c", str(conf), "-e", str(tmp_path / "start.log")],
                           capture_output=True, text=True, timeout=60)
@@ -365,6 +370,8 @@ def test_shipped_brix_recipe_parses(tmp_path):
 
     conf = tmp_path / "brix.conf"
     conf.write_text(text)
+    inject_nginx_load_modules(conf, NGINX_BIN)
+    inject_nginx_runtime_paths(conf, tmp_path)
     proc = subprocess.run([NGINX_BIN, "-t", "-p", str(tmp_path),
                            "-c", str(conf), "-e", str(tmp_path / "start.log")],
                           capture_output=True, text=True, timeout=60)

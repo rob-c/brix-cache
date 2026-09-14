@@ -37,7 +37,7 @@ Comprehensive documentation audit discovered **critical discrepancies** between 
 - docs/platform/PHASE_REFERENCE_FIX_SUMMARY.md
 - docs/platform/DOCUMENTATION_UPDATE_REPORT.md
 - src/platform/README.md
-- src/platform/PAL_FUNCTION_REFERENCE.md
+- docs/platform/pal/PAL_FUNCTION_REFERENCE.md
 
 **Fix**: Changed all "42/42" references to "60/60"
 

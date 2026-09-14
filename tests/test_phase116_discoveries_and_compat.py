@@ -24,6 +24,7 @@ import re
 from pathlib import Path
 
 import pytest
+from csource_scan import conditional_arms
 
 pytestmark = pytest.mark.timeout(60)
 
@@ -121,7 +122,7 @@ def test_the_bridge_defines_every_symbol_in_both_thread_arms():
     defined once on each side."""
     text = (DNS / "resolve_bridge.c").read_text()
     assert "#if (NGX_THREADS)" in text and "#else" in text and "#endif" in text
-    head, _, tail = text.partition("\n#else")
+    head, tail = conditional_arms(text, "#if (NGX_THREADS)")
     for sym in BRIDGE_SYMBOLS:
         assert re.search(rf"^{sym}\(", head, re.M), f"{sym} missing from the threaded arm"
         assert re.search(rf"^{sym}\(", tail, re.M), f"{sym} missing from the threadless arm"

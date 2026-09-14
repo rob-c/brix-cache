@@ -5,6 +5,7 @@ nginx log and routing directives independently of the protocol handler.
 """
 
 from __future__ import annotations
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 
 import os
 import re
@@ -464,6 +465,8 @@ http {{
 """)
     # Parse first: prove the userinfo URL is accepted at all, then the running
     # instance below actually writes the log line the test reads.
+    inject_nginx_load_modules(conf, NGINX_BIN)
+    inject_nginx_runtime_paths(conf, tmp_path)
     r = subprocess.run([NGINX_BIN, "-t", "-p", str(tmp_path), "-c", str(conf)],
                        capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stderr

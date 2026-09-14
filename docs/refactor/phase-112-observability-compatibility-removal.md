@@ -110,7 +110,7 @@ which is its *dashboard* name.
 
 ### The release record
 
-There is no `Unreleased` section in `CHANGELOG.md` and the only git tag in the
+There is no `Unreleased` section in `docs/10-reference/CHANGELOG.md` and the only git tag in the
 repository is `v6.1.0-ref` (the vendored XRootD reference tree, not a BriX
 release). The release record is therefore `BRIX_SERVER_VERSION_BARE` in
 `src/core/ident.h` plus the top CHANGELOG entry, kept in sync by
@@ -316,7 +316,7 @@ unclassified.
 | **Dashboards / alerts (W4)** | `contrib/grafana-dashboard.json` (3 latency exprs + hit-ratio), `contrib/prometheus-alerts.yml` (hit-ratio rule) | rewrite expressions |
 | **Live test configs (W2)** | `tests/configs/nginx_lc_brix_stream_variables.conf`, `tests/configs/nginx_dyn_modules.conf` | rewrite `log_format` |
 | **Tests (W2–W4)** | 30 under `tests/` (cachemx catalogue + 15 `test_cachemx_*`, the metrics-coverage trio, `test_metrics.py`, `test_large_file_metrics.py`, `test_{s3,webdav,gridftp}_metrics.py`, `test_aio_op_latency_metric.py`, `test_ci_guards.py`, `test_check_metric_naming.py`, `test_brix_stream_variables.py`), 8 mirrors under `k8s-tests/remote-suite/tests/`, `tests/cmdscripts/cvmfs_live_ext_part2.py`, `k8s-tests/remote-suite/tests/run_cvmfs_reverse.sh` | repoint at canonical names |
-| **Operator docs (W5)** | 13 under `docs/` + `deploy/cvmfs/README.md`, `deploy/cvmfs/docker/README.md`, `deploy/cvmfs/docker/nginx.conf.in`, `deploy/rpm-mirror/brix.conf.example` | rewrite; the shipped `deploy/` configs are live config, not prose |
+| **Operator docs (W5)** | 13 under `docs/` + `docs/05-operations/deploy/cvmfs/README.md`, `docs/05-operations/deploy/cvmfs/docker/README.md`, `deploy/cvmfs/docker/nginx.conf.in`, `deploy/rpm-mirror/brix.conf.example` | rewrite; the shipped `deploy/` configs are live config, not prose |
 
 ### Out of scope — classified, deliberately untouched
 
@@ -573,7 +573,7 @@ became three rows (`_bucket` `{proto,op,le}`, `_count` `{proto,op}`, bare
 
 ### One migration table, in the release note
 
-`CHANGELOG.md` under *Unreleased → Breaking* carries the single old-to-new
+`docs/10-reference/CHANGELOG.md` under *Unreleased → Breaking* carries the single old-to-new
 table for all three surfaces (variables, JSON keys, metric families) plus the
 seconds-vs-microseconds sentence. Every other copy is deleted rather than
 updated:
@@ -595,7 +595,7 @@ config in the tree still naming `$cvmfs_cache` would have failed `nginx -t` the
 moment W2 landed. Three shipped artifacts and one live test fixture were in
 that state and now use `$brix_cache_status`:
 
-`deploy/cvmfs/docker/nginx.conf.in`, `deploy/cvmfs/README.md`,
+`deploy/cvmfs/docker/nginx.conf.in`, `docs/05-operations/deploy/cvmfs/README.md`,
 `deploy/rpm-mirror/brix.conf.example` (comment) and
 `k8s-tests/remote-suite/tests/run_cvmfs_reverse.sh`.
 

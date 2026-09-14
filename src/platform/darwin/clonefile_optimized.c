@@ -54,7 +54,7 @@ brix_plat_clonefile(const char *src_path, const char *dst_path, int flags)
     struct stat st;
     
     /* Check if source exists and is a regular file */
-    if (stat(src_path, &st) < 0) {
+    if (stat(src_path, &st) < 0) { /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
         return -1;
     }
     
@@ -76,12 +76,12 @@ brix_plat_clonefile(const char *src_path, const char *dst_path, int flags)
      * 
      * Fall back to sendfile
      */
-    int src_fd = open(src_path, O_RDONLY);
+    int src_fd = open(src_path, O_RDONLY); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
     if (src_fd < 0) {
         return -1;
     }
     
-    int dst_fd = open(dst_path, O_WRONLY | O_CREAT | O_TRUNC, st.st_mode);
+    int dst_fd = open(dst_path, O_WRONLY | O_CREAT | O_TRUNC, st.st_mode); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
     if (dst_fd < 0) {
         close(src_fd);
         return -1;
@@ -92,7 +92,7 @@ brix_plat_clonefile(const char *src_path, const char *dst_path, int flags)
     struct sf_hdtr hdtr;
     memset(&hdtr, 0, sizeof(hdtr));
     
-    if (sendfile(src_fd, dst_fd, offset, &count, &hdtr, 0) < 0) {
+    if (sendfile(src_fd, dst_fd, offset, &count, &hdtr, 0) < 0) { /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
         /* sendfile failed, fall back to buffered copy */
         close(src_fd);
         close(dst_fd);
@@ -101,8 +101,8 @@ brix_plat_clonefile(const char *src_path, const char *dst_path, int flags)
         char buf[65536];
         ssize_t n;
         
-        src_fd = open(src_path, O_RDONLY);
-        dst_fd = open(dst_path, O_WRONLY | O_CREAT | O_TRUNC, st.st_mode);
+        src_fd = open(src_path, O_RDONLY); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
+        dst_fd = open(dst_path, O_WRONLY | O_CREAT | O_TRUNC, st.st_mode); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
         
         if (src_fd < 0 || dst_fd < 0) {
             if (src_fd >= 0) close(src_fd);
@@ -203,7 +203,7 @@ brix_plat_get_clone_stats(const char *path, uint32_t *clone_count, uint64_t *sha
 {
     struct stat st;
     
-    if (stat(path, &st) < 0) {
+    if (stat(path, &st) < 0) { /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
         return -1;
     }
     

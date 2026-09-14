@@ -142,7 +142,7 @@ location / {
 - cvmfs joins `docs/03-configuration/directives.md` (full directive table **with
   defaults**), `docs/03-configuration/examples.md` (3-line minimal first, tuned production
   second), and the quick-reference.
-- `deploy/cvmfs/README.md` examples shrink to the new form; a defaults table replaces
+- `docs/05-operations/deploy/cvmfs/README.md` examples shrink to the new form; a defaults table replaces
   restated-default lines.
 - Old→new migration table published in docs.
 - All in-repo configs migrate mechanically (scripted rewrite, then build + suites as the

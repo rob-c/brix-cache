@@ -14,6 +14,7 @@
 #include <sys/utsname.h>
 
 #if BRIX_PLATFORM_DARWIN
+#include "darwin/sysctl_value.h"
 #include <sys/sysctl.h>
 #include <mach/mach.h>
 #include <mach/mach_host.h>
@@ -85,13 +86,7 @@ int
 brix_plat_cpu_count(void)
 {
 #if BRIX_PLATFORM_DARWIN
-    int count = 0;
-    size_t len = sizeof(count);
-    
-    if (sysctlbyname("hw.ncpu", &count, &len, NULL, 0) == 0) {
-        return count;
-    }
-    return -1;
+    return brix_darwin_sysctl_int("hw.ncpu", -1);
 #elif BRIX_PLATFORM_LINUX
     return sysconf(_SC_NPROCESSORS_ONLN);
 #else

@@ -187,7 +187,7 @@ $ grep -r "brix_plat_init" src/platform/windows/*.c
 
 ### 4.1 PAL_FUNCTION_REFERENCE.md
 
-**File**: `src/platform/PAL_FUNCTION_REFERENCE.md` (lines 1289-1345)
+**File**: `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` (lines 1289-1345)
 
 **Claimed Implementation**:
 
@@ -209,7 +209,7 @@ $ grep -r "brix_plat_init" src/platform/windows/*.c
 
 ### 4.2 WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md
 
-**File**: `src/platform/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` (lines 401-411)
+**File**: `docs/platform/pal/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` (lines 401-411)
 
 **Claimed**:
 ```
@@ -228,7 +228,7 @@ $ grep -r "brix_plat_init" src/platform/windows/*.c
 
 ### 4.3 IMPLEMENTATION_STATUS.md
 
-**File**: `src/platform/windows/IMPLEMENTATION_STATUS.md` (lines 194-201)
+**File**: `docs/platform/pal/windows/IMPLEMENTATION_STATUS.md` (lines 194-201)
 
 **Claimed**:
 ```
@@ -470,9 +470,9 @@ The PAL initialization functions `brix_plat_init()` and `brix_plat_cleanup()` ar
 |------|------|-------|
 | Implementation | `src/platform/platform.c` | 159-168 |
 | API Declaration | `src/platform/platform_api.h` | 769-784 |
-| Reference Docs | `src/platform/PAL_FUNCTION_REFERENCE.md` | 1289-1345 |
-| Windows Report | `src/platform/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` | 401-411 |
-| Status Report | `src/platform/windows/IMPLEMENTATION_STATUS.md` | 194-201 |
+| Reference Docs | `docs/platform/pal/PAL_FUNCTION_REFERENCE.md` | 1289-1345 |
+| Windows Report | `docs/platform/pal/windows/WINDOWS_PAL_TRUE_100_PERCENT_COMPLETE.md` | 401-411 |
+| Status Report | `docs/platform/pal/windows/IMPLEMENTATION_STATUS.md` | 194-201 |
 
 ---
 

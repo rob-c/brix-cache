@@ -133,12 +133,14 @@ class Endpoint:
 # the token tier).                                                             #
 # --------------------------------------------------------------------------- #
 _GSI_ENV = {"X509_USER_PROXY": PROXY_STD, "X509_CERT_DIR": CA_DIR}
-_TOKEN_ENV = {"BEARER_TOKEN_FILE": TOKEN_FILE}
+_TOKEN_ENV = {"BEARER_TOKEN_FILE": TOKEN_FILE, "X509_CERT_DIR": CA_DIR}
 
 ANON = Endpoint("anon", HOST, NGINX_ANON_PORT)
 GSI = Endpoint("gsi", HOST, NGINX_GSI_PORT, caps=("proxy",), auth=_GSI_ENV)
 TLS = Endpoint("tls", HOST, NGINX_GSI_TLS_PORT, caps=("proxy", "tls"), auth=_GSI_ENV)
-TOKEN = Endpoint("token", HOST, NGINX_TOKEN_PORT, caps=("token",), auth=_TOKEN_ENV)
+# Stock's ztn plugin requires TLS even when a server permits raw test drivers.
+TOKEN = Endpoint("token", HOST, NGINX_TOKEN_PORT, caps=("token", "tls"),
+                 auth=_TOKEN_ENV, scheme="roots")
 REF = Endpoint("ref", HOST, REF_BRIX_PORT)
 
 ENDPOINTS = [ANON, GSI, TLS, TOKEN, REF]

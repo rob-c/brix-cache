@@ -81,5 +81,10 @@ def materialize_xdist_group(item) -> None:
     names.discard(None)
     if not names:
         return
-    base = item.nodeid.split("@", 1)[0]
+    # pytest parameter IDs may themselves contain @. Only the suffix after
+    # the closing parameter bracket belongs to xdist (the scheduler uses the
+    # same bracket boundary). Remove stale group suffixes without truncating
+    # the parameter value or the remaining parametrization axes.
+    head, closing, tail = item.nodeid.rpartition("]")
+    base = head + closing + tail.split("@", 1)[0]
     item._nodeid = f"{base}@{'_'.join(sorted(names))}"

@@ -12,6 +12,7 @@
 #if BRIX_PLATFORM_WINDOWS
 
 #include "win32_compat.h"
+#include "process_internal.h"
 #include "../platform_api.h"
 
 #include <windows.h>
@@ -141,183 +142,6 @@ brix_win32_utf8_to_utf16_alloc(const char *utf8_src)
     }
     
     return wide_str;
-}
-
-/* ==========================================================================
- * ARGUMENT ESCAPING
- * ========================================================================== */
-
-/**
- * Escape a single argument for Windows command line
- * 
- * Windows command line parsing rules (from Microsoft documentation):
- * 
- * 1. Arguments are separated by spaces
- * 2. Arguments containing spaces, tabs, or quotes must be quoted
- * 3. Backslashes are interpreted literally, UNLESS followed by a quote:
- *    - N backslashes + quote → N/2 backslashes + quote (if N even)
- *    - N backslashes + quote → (N-1)/2 backslashes + escaped quote (if N odd)
- * 4. A quote preceded by an odd number of backslashes becomes literal
- * 5. Double quotes within quoted arguments must be escaped with backslash
- * 
- * This function implements the correct escaping for CreateProcessW.
- * 
- * @param arg         Source argument (no escaping)
- * @param escaped     Destination buffer for escaped argument
- * @param dest_size   Size of destination buffer
- * @return            0 on success, -1 on error (buffer too small)
- * 
- * Reference: https://docs.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw
- */
-static int
-brix_win32_escape_argument(const char *arg, char *escaped, size_t dest_size)
-{
-    if (arg == NULL || escaped == NULL || dest_size == 0) {
-        errno = EINVAL;
-        return -1;
-    }
-    
-    /* Check if argument needs quoting */
-    int needs_quotes = 0;
-    const char *p;
-    
-    for (p = arg; *p != '\0'; p++) {
-        if (*p == ' ' || *p == '\t' || *p == '"' || *p == '\\') {
-            needs_quotes = 1;
-            break;
-        }
-    }
-    
-    /* If no special characters, copy as-is */
-    if (!needs_quotes) {
-        if (strlen(arg) >= dest_size) {
-            errno = ENOSPC;
-            return -1;
-        }
-        strcpy(escaped, arg);
-        return 0;
-    }
-    
-    /* Need to quote and escape */
-    size_t out_idx = 0;
-    escaped[out_idx++] = '"';
-    
-    for (p = arg; *p != '\0'; p++) {
-        unsigned int backslash_count = 0;
-        
-        /* Count consecutive backslashes */
-        while (*p == '\\') {
-            backslash_count++;
-            p++;
-        }
-        
-        if (*p == '"') {
-            /* Escape all backslashes, then escape the quote */
-            size_t i;
-            for (i = 0; i < backslash_count * 2 + 1; i++) {
-                if (out_idx >= dest_size - 1) {
-                    errno = ENOSPC;
-                    return -1;
-                }
-                escaped[out_idx++] = '\\';
-            }
-            escaped[out_idx++] = '"';
-        } else if (*p == '\0') {
-            /* End of string - escape all backslashes */
-            size_t i;
-            for (i = 0; i < backslash_count * 2; i++) {
-                if (out_idx >= dest_size - 1) {
-                    errno = ENOSPC;
-                    return -1;
-                }
-                escaped[out_idx++] = '\\';
-            }
-            break;
-        } else {
-            /* Regular character - copy backslashes as-is, then the char */
-            size_t i;
-            for (i = 0; i < backslash_count; i++) {
-                if (out_idx >= dest_size - 1) {
-                    errno = ENOSPC;
-                    return -1;
-                }
-                escaped[out_idx++] = '\\';
-            }
-            if (out_idx >= dest_size - 1) {
-                errno = ENOSPC;
-                return -1;
-            }
-            escaped[out_idx++] = *p;
-        }
-    }
-    
-    if (out_idx >= dest_size - 1) {
-        errno = ENOSPC;
-        return -1;
-    }
-    escaped[out_idx++] = '"';
-    escaped[out_idx] = '\0';
-    
-    return 0;
-}
-
-/**
- * Build Windows command line from argv array
- * 
- * @param argv        NULL-terminated argument array (UTF-8)
- * @param cmd_line    Destination buffer for command line
- * @param cmd_size    Size of destination buffer
- * @return            0 on success, -1 on error
- * 
- * Notes:
- * - argv[0] is the program name (not included in command line)
- * - Arguments are space-separated
- * - Each argument is properly escaped
- */
-static int
-brix_win32_build_command_line(char *const argv[], char *cmd_line, size_t cmd_size)
-{
-    if (argv == NULL || cmd_line == NULL || cmd_size == 0) {
-        errno = EINVAL;
-        return -1;
-    }
-    
-    cmd_line[0] = '\0';
-    size_t remaining = cmd_size - 1;
-    char *out = cmd_line;
-    int first_arg = 1;
-    
-    for (int i = 0; argv[i] != NULL; i++) {
-        /* Add space between arguments */
-        if (!first_arg) {
-            if (remaining < 1) {
-                errno = ENOSPC;
-                return -1;
-            }
-            *out++ = ' ';
-            remaining--;
-        }
-        first_arg = 0;
-        
-        /* Escape and append argument */
-        char escaped_arg[4096];  /* Max argument length */
-        if (brix_win32_escape_argument(argv[i], escaped_arg, sizeof(escaped_arg)) < 0) {
-            return -1;
-        }
-        
-        size_t arg_len = strlen(escaped_arg);
-        if (arg_len >= remaining) {
-            errno = ENOSPC;
-            return -1;
-        }
-        
-        memcpy(out, escaped_arg, arg_len);
-        out += arg_len;
-        remaining -= arg_len;
-    }
-    
-    *out = '\0';
-    return 0;
 }
 
 /* ==========================================================================
@@ -526,6 +350,35 @@ brix_win32_search_path(const char *file, char *full_path, size_t path_size)
  * 
  * Reference: https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw
  */
+/* ---- Release process resources and preserve exec-style termination ----
+ * WHAT: Close owned handles, free the environment and exit with the status.
+ * WHY: Every post-environment launch failure follows the same cleanup path.
+ * HOW: 1. Release initialized resources. 2. Terminate with the chosen status.
+ */
+static int
+brix_win32_finish_process(PROCESS_INFORMATION *process, wchar_t *env_block,
+                          int exit_code)
+{
+    /* Clean up handles */
+    if (process->hProcess != NULL) {
+        CloseHandle(process->hProcess);
+    }
+    if (process->hThread != NULL) {
+        CloseHandle(process->hThread);
+    }
+
+    /* Clean up environment block */
+    if (env_block != NULL) {
+        brix_win32_free_environment_block(env_block);
+    }
+
+    /* Exit with child's exit code */
+    _exit(exit_code);
+
+    /* NOTREACHED */
+    return -1;  /* Only reached if _exit fails, which shouldn't happen */
+}
+
 int
 brix_plat_execvpe(const char *file, char *const argv[], char *const envp[])
 {
@@ -574,7 +427,7 @@ brix_plat_execvpe(const char *file, char *const argv[], char *const envp[])
     /* Step 4: Create process */
     wchar_t cmd_line_wide[32768];
     if (brix_win32_utf8_to_utf16(cmd_line, cmd_line_wide, 32768) < 0) {
-        goto cleanup;
+        return brix_win32_finish_process(&pi, env_block, exit_code);
     }
     
     BOOL success = CreateProcessW(
@@ -592,7 +445,7 @@ brix_plat_execvpe(const char *file, char *const argv[], char *const envp[])
     
     if (!success) {
         brix_win32_set_errno(GetLastError());
-        goto cleanup;
+        return brix_win32_finish_process(&pi, env_block, exit_code);
     }
     
     /* Step 5: Wait for child process to complete */
@@ -600,37 +453,19 @@ brix_plat_execvpe(const char *file, char *const argv[], char *const envp[])
     
     if (wait_result != WAIT_OBJECT_0) {
         brix_win32_set_errno(GetLastError());
-        goto cleanup;
+        return brix_win32_finish_process(&pi, env_block, exit_code);
     }
     
     /* Step 6: Get exit code */
     DWORD child_exit_code;
     if (!GetExitCodeProcess(pi.hProcess, &child_exit_code)) {
         brix_win32_set_errno(GetLastError());
-        goto cleanup;
+        return brix_win32_finish_process(&pi, env_block, exit_code);
     }
     
     exit_code = (int)(child_exit_code & 0xFF);  /* POSIX exit codes are 0-255 */
     
-cleanup:
-    /* Clean up handles */
-    if (pi.hProcess != NULL) {
-        CloseHandle(pi.hProcess);
-    }
-    if (pi.hThread != NULL) {
-        CloseHandle(pi.hThread);
-    }
-    
-    /* Clean up environment block */
-    if (env_block != NULL) {
-        brix_win32_free_environment_block(env_block);
-    }
-    
-    /* Exit with child's exit code */
-    _exit(exit_code);
-    
-    /* NOTREACHED */
-    return -1;  /* Only reached if _exit fails, which shouldn't happen */
+    return brix_win32_finish_process(&pi, env_block, exit_code);
 }
 
 /* ==========================================================================

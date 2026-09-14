@@ -127,9 +127,9 @@ MUTANTS = {
         "    if (brix_vfs_require_mutation_policy(ctx->mutation_policy, op)",
         None, {"T1"}),
     "op_ctx_copies_the_policy_verbatim": (
-        "    opctx->mutation_policy = (policy == BRIX_VFS_MUTATION_ALLOWED)\n"
+        "    export_op_ctx->mutation_policy = (policy == BRIX_VFS_MUTATION_ALLOWED)\n"
         "        ? BRIX_VFS_MUTATION_ALLOWED : BRIX_VFS_MUTATION_READ_ONLY;",
-        "    opctx->mutation_policy = policy;",
+        "    export_op_ctx->mutation_policy = policy;",
         "derive", {"S5"}),
     "open_flag_classifier_ignores_o_append": (
         "    return (flags & (O_CREAT | O_TRUNC | O_APPEND)) != 0 ? 1 : 0;",

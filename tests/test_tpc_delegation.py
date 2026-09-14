@@ -21,6 +21,7 @@ KEY PLAN CORRECTION (verified here): the stock option is `-dlgpxy:request`
 (XrdSecgsi parses NAMED values via getOptVal); `-dlgpxy:1` silently falls back to
 `ignore`. The plan's "-dlgpxy:1" wording is wrong.
 """
+from contextlib import closing
 import os
 import shutil
 import socket
@@ -31,6 +32,7 @@ from pathlib import Path
 import pytest
 
 from server_registry import NginxInstanceSpec
+from stock_xrootd_owner import StockXrootdOwner
 from ephemeral_port import free_port
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
@@ -72,16 +74,17 @@ def gate(lifecycle, tmp_path_factory):
     paths["data"].joinpath("hello.txt").write_text("f6 delegation gate\n")
     gridmap = _write_gridmap(base)
     src_port = free_port()
-    src_cfg = _write_gate_source_config(base, paths, gridmap, src_port)
-    src_log = base / "src" / "xrootd.log"
-    src = _start_gate_source(base, paths, gridmap, src_cfg, src_port)
-    dst = _start_gate_destination(lifecycle, base, paths, src)
-    ctx = {"base": str(base), "fqdn": fqdn, "src_log": src_log,
-           "src_port": src_port, "dst_port": dst.port,
-           "dst_logs": os.path.join(dst.prefix, "logs"),
-           "env": dict(penv, X509_USER_PROXY=str(uproxy))}
-    yield ctx
-    _stop_source(src)
+    with closing(StockXrootdOwner()) as owner:
+        paths["admin"] = Path(owner.admin)
+        src_cfg = _write_gate_source_config(base, paths, gridmap, src_port)
+        src_log = base / "src" / "xrootd.log"
+        src = _start_gate_source(base, paths, gridmap, src_cfg, src_port, owner)
+        dst = _start_gate_destination(lifecycle, base, paths, src)
+        ctx = {"base": str(base), "fqdn": fqdn, "src_log": src_log,
+               "src_port": src_port, "dst_port": dst.port,
+               "dst_logs": os.path.join(dst.prefix, "logs"),
+               "env": dict(penv, X509_USER_PROXY=str(uproxy))}
+        yield ctx
 
 
 def _require_gate_tools():
@@ -178,19 +181,19 @@ def _write_gate_source_config(base, paths, gridmap, src_port):
         f"-gridmap:{gridmap} -d:2 -crl:0 -gmapopt:2 "
         "-dlgpxy:request -showdn:1 -exppxy:=creds\n"
         "sec.protbind * only gsi\nofs.tpc ttl 300 300 pgm /usr/bin/xrdcp\n"
-        f"all.adminpath {base / 'admin'}\nall.pidpath {base / 'admin'}\n")
+        f"all.adminpath {paths['admin']}\nall.pidpath {paths['admin']}\n")
     return config
 
 
-def _start_gate_source(base, paths, gridmap, config, port):
+def _start_gate_source(base, paths, gridmap, config, port, owner):
     _run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"])
     argv = ["xrootd", "-c", str(config), "-l", str(base / "xrootd.log"),
             "-n", "src"]
     argv = _gate_source_argv(base, paths, gridmap, argv)
     source = subprocess.Popen(argv, stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL)
+                              stderr=subprocess.DEVNULL, start_new_session=True)
+    owner.process = source
     if not _wait(port):
-        source.terminate()
         pytest.skip("stock GSI source did not come up")
     return source
 
@@ -199,7 +202,8 @@ def _gate_source_argv(base, paths, gridmap, argv):
     if os.geteuid() != 0:
         return argv
     runas = os.environ.get("REF_RUNAS_USER", "nobody")
-    writable = (base / "admin", base / "src")
+    writable = (base / "src",)
+    shutil.chown(paths["admin"], runas)
     for directory in writable:
         directory.mkdir(parents=True, exist_ok=True)
     _run(["chmod", "a+rx", str(base)])
@@ -230,26 +234,16 @@ def _protect_for_user(path, user):
 def _start_gate_destination(lifecycle, base, paths, source):
     destination_data = base / "dstdata"
     destination_data.mkdir(exist_ok=True)
-    try:
-        return lifecycle.start(NginxInstanceSpec(
-            name="lc-tpc-delegation-dest",
-            template="nginx_tpc_delegation_dest.conf", protocol="root",
-            readiness="tcp", data_root=str(destination_data),
-            template_values={"CERT_FILE": str(paths["srv"] / "hostcert.pem"),
-                             "KEY_FILE": str(paths["srv"] / "hostkey.pem"),
-                             "CA_FILE": str(paths["ca"] / "ca.pem")},
-            reason="F6 GSI TPC delegation destination (captures + forwards proxy)."))
-    except Exception:
-        source.terminate()
-        raise
+    return lifecycle.start(NginxInstanceSpec(
+        name="lc-tpc-delegation-dest",
+        template="nginx_tpc_delegation_dest.conf", protocol="root",
+        readiness="tcp", data_root=str(destination_data),
+        template_values={"CERT_FILE": str(paths["srv"] / "hostcert.pem"),
+                         "KEY_FILE": str(paths["srv"] / "hostkey.pem"),
+                         "CA_FILE": str(paths["ca"] / "ca.pem")},
+        reason="F6 GSI TPC delegation destination (captures + forwards proxy)."))
 
 
-def _stop_source(source):
-    source.terminate()
-    try:
-        source.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        source.kill()
 
 
 def _src_log(gate):

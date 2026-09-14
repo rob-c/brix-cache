@@ -373,7 +373,7 @@ brix-cache/
 - [PLATFORM_EXPANSION_PLAN.md](PLATFORM_EXPANSION_PLAN.md) - Complete roadmap
 - [arm64-linux-optimization.md](arm64-linux-optimization.md) - Linux ARM64 guide
 - [arm64-macos-optimization.md](arm64-macos-optimization.md) - macOS ARM64 guide
-- [../../src/platform/ARCHITECTURE.md](../../src/platform/ARCHITECTURE.md) - PAL architecture
+- [../../src/platform/ARCHITECTURE.md](pal/ARCHITECTURE.md) - PAL architecture
 - [../../src/platform/windows/](../../src/platform/windows/) - Windows skeleton
 
 ---

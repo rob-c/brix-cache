@@ -41,7 +41,22 @@ the tunables, the auth-mode constants, and the `brix_identity_t` principal defin
 
 | File | Responsibility |
 |---|---|
-| `tunables.h` | Compile-time size/count limits (`BRIX_READ_MAX`/`_CHUNK_MAX`/`_REQUEST_MAX`, `BRIX_READ_WINDOW` + `_SCRATCH_TRIM_THRESHOLD` + `_CONN_XFER_HEAP_MAX` memory-budget streaming, `BRIX_PIPELINE_MAX`/`_SLOT_HDR_MAX` pipelining, `BRIX_MAX_FILES`, `BRIX_MAX_WALK_DEPTH`, `BRIX_MAX_CONN_POOL_BYTES`, write/prepare/auth payload caps, `BRIX_GSI_KEYPOOL_*`, `BRIX_RL_RULE_CACHE_MAX`), auth-mode constants (`BRIX_AUTH_NONE/GSI/TOKEN/BOTH/SSS/UNIX/KRB5`), SSS sizing + opt flags, JWT clock-skew, and the metric/response-collapse macros (`BRIX_OP_OK/OP_ERR`, `BRIX_RETURN_OK/ERR/REDIR`, `BRIX_BAIL_ERR`). Includes `../compat/path.h`. |
+| `tunables.h` | Compatibility umbrella for compile-time constants and completion macros; includes the family headers below and `../compat/path.h`. Existing callers keep this include. |
+| `tunables_core.h` | Common buffers, numeric conversions, permissions, and encoding constants. |
+| `tunables_io.h` | Connection I/O windows, payload limits, and queue sizing. |
+| `tunables_storage.h` | Filesystem, cache, staging, and storage-backend limits. |
+| `tunables_network.h` | DNS, proxy transport, network marking, and endpoint limits. |
+| `tunables_cluster.h` | CMS, registry, monitoring, and cluster control defaults. |
+| `tunables_config.h` | Configuration parser capacities and merged runtime defaults. |
+| `tunables_auth.h` | Authentication modes, credentials, key pools, and security-policy constants. |
+| `tunables_tpc.h` | Third-party-copy and tape-stage limits. |
+| `tunables_root_wire.h` | ROOT protocol identifiers, frame geometry, and wire values. |
+| `tunables_root_limits.h` | ROOT handler capacities, timeouts, and file-operation limits. |
+| `tunables_webdav.h` | WebDAV, HTTP transfer, and delegated credential limits. |
+| `tunables_s3.h` | S3 protocol, signing, multipart, and STS constants. |
+| `tunables_oci.h` | OCI registry, upload, and image-store limits. |
+| `tunables_shared.h` | Shared cache/archive and client helper capacities. |
+| `tunables_metrics.h` | Histogram geometry, dashboard limits, and metric/response completion macros. |
 | `state.h` | `brix_state_t` — the per-connection state-machine enum that drives the read/write event callbacks (`XRD_ST_HANDSHAKE → REQ_HEADER → REQ_PAYLOAD`, plus `SENDING`, `AIO`, `TLS_HANDSHAKE`, `UPSTREAM`, `PROXY`, `WAITING_CMS`); plus opaque forward decls for `brix_upstream_t`, `brix_proxy_ctx_t`, `ngx_brix_cms_ctx_t` so `context.h` can hold pointers without pulling those headers. |
 | `file.h` | `brix_file_t` — one slot per open XRootD file handle (**array index = the 4-byte handle the client echoes back**); also `brix_wrts_entry_t` + `BRIX_WRTS_JOURNAL_SLOTS` (the per-handle write-recovery ring). Tracks `fd`, resolved `path`, byte counters, immutable open-time `device`/`inode`/`is_regular`/`cached_size`, read-ahead hints, slice-cache state, `kXR_chkpoint`, `kXR_posc`, native-TPC-destination, write-through dirty state + async-flush task, the `wrts_journal[]` replay ring, and the dashboard/SHM-handle slot hints. |
 | `context.h` | `brix_ctx_t` — the per-TCP-connection session context (everything below); plus the two helper structs it embeds: `brix_resp_slot_t` (one output-ring slot: flat-buffer tail OR chain tail + reusable one-chunk read-response chain structs + per-slot `hdr_bytes[BRIX_SLOT_HDR_MAX]`) and `brix_read_slot_t` (one concurrent-AIO read pool entry: raw buffer + thread task + in-use bit). |
@@ -191,7 +206,8 @@ Sibling subsystems that consume these types most directly: `../../protocols/root
   (`config.h`, init to `NGX_CONF_UNSET*`), annotate it with its `[directive]`, declare the
   `ngx_command_t` and merge it in `../config/`. No `./configure` re-run unless it's a new
   top-level block. (See the build-governance note in `CLAUDE.md`.)
-- **Add a tunable / metric macro →** define it in `tunables.h` with a WHAT/WHY comment;
+- **Add a tunable / metric macro →** define it in the appropriate `tunables_*.h`
+  family with a WHAT/WHY comment; `tunables.h` remains the caller-facing umbrella.
   if it's a per-op metric, also wire the enum/field per the `../../observability/metrics/README.md` recipe.
 - **Add per-connection state →** add the field to `brix_ctx_t` (`context.h`); it is
   zero-initialised by the `ngx_pcalloc` in `src/protocols/root/connection/handler.c`, so document the
@@ -201,7 +217,7 @@ Sibling subsystems that consume these types most directly: `../../protocols/root
 - **Add an auth method →** add an `BRIX_AUTHN_*` bit (`identity.h`), teach
   `brix_identity_method_name()` (`identity.c`) about it, and have the verifier call the
   appropriate `brix_identity_set_*` builder. If it's a wire mode, also add an
-  `BRIX_AUTH_*` constant in `tunables.h`. **Remember:** new `.c` files must be
+  `BRIX_AUTH_*` constant in `tunables_auth.h`. **Remember:** new `.c` files must be
   registered in the top-level `config` (`NGX_ADDON_SRCS`) — that is where `identity.c`
   lives (`config:268`), not `src/core/config/config.h`.
 

@@ -1,0 +1,475 @@
+# tools/ci — invariant guards
+
+The files described here remain in [`tools/ci/`](../../../tools/ci/).
+Directory listings below refer to that source location; command working
+directories are unchanged by this guide’s relocation.
+
+Every script here encodes a project invariant as a red/green check. All of
+them run in CI on every PR/push (`.github/workflows/guards.yml`) and — bar the
+minutes-long ones — in the pre-push hook (`tools/git-hooks/pre-push`, install
+once with `git config core.hooksPath tools/git-hooks`). Run any of them locally
+with no arguments; exit 0 = clean.
+
+**Which guards run where is answered by one script, not by a filename glob:**
+`guard_set.py` prints the pre-push set (default), the CI-enforced set (`--ci`,
+= every guard `guards.yml` names), or the whole fleet (`--all`); `--explain`
+shows each guard's lane and why anything is excluded. The pre-push exclusions
+live in its `PREPUSH_SKIP` map, each with a written reason. Nothing else may
+pattern-match guard filenames: the hook used to glob `tools/ci/check_*.sh` and
+kept doing so after the 2026-07-21 port to Python, so it enforced zero guards
+while failing every push on the unmatched pattern (fixed 2026-08-03; regression
+tests in `tests/test_ci_guards.py`). Adding a guard means dropping the file in,
+naming it in `guards.yml`, and `chmod +x` — the hook and the tests pick it up.
+
+These guards are **pure Python** — the fleet was ported from bash `.sh` to
+`.py` on 2026-07-21 (locale-independent, testable, no shell parsing traps); no
+bash remains. Each is self-contained with a `run(root) -> (ok, lines)` verdict
+plus a `main()`; the ratchets keep a `--regen` mode.
+
+The guards also run inside the normal pytest gate, so a violation reddens the
+local test loop, not just CI:
+- `tests/test_ci_guards.py` executes the real `tools/ci/*.py` scripts
+  end-to-end — the fast static guards every run, the lizard-backed guards
+  (`check_complexity`, `check_duplication`) when `lizard` is installed, and the
+  analyzer/coverage/sanitizer runners (`run_fanalyzer`, `run_codechecker`,
+  `coverage`, `asan`) in the `slow`/nightly lane when a configured build + tool
+  are present (the `asan` runner has its own `tests/test_ci_asan_lane.py`).
+- `tests/test_source_guards.py` asserts the fast in-process verdict twins
+  (`source_guards_lib`) and drives their injected-tree negative cases.
+
+Run just the guard gate with
+`PYTHONPATH=tests pytest tests/test_ci_guards.py tests/test_source_guards.py -v`.
+
+The tool-backed guards (`check_complexity`, `check_duplication`,
+`run_codechecker`) need their analysers: `pip install --user -r
+requirements-dev.txt` from the repo root. They self-skip when a tool is absent,
+so a missing install degrades to "not checked", never to a false green — which
+is also why those versions are bounded: a new major that redefines a metric
+would move a frozen baseline under us.
+
+| Script | Invariant enforced | Backlog / baseline | Regen |
+|---|---|---|---|
+| `check_config_coverage.py` | every `src/**/*.c` is built via `./config`, or allowlisted with a reason; no stale `./config` entries | inline allowlist | edit allowlist |
+| `check_client_build_coverage.py` | every `.c` under `client/` + the client-only `shared/{cvmfs,cache}` is named by `client/Makefile`, directly included as a continuation, is a `*_unit.c`/`*_unittest.c` driver, or is allowlisted with a reason | inline allowlist (empty) | edit allowlist |
+| `check_make_recipes.py` | no target in a hand-maintained Makefile carries two recipes — make keeps the last and silently drops the other copy's prerequisites, so the object stops rebuilding when they change (SKIPs where `make` is absent) | inline `MAKEFILES` | edit list |
+| `check_vfs_seam.py` | no new storage-plane bypasses of the VFS (tier-2 confined-helper calls, tier-1.5 direct SD vtable I/O) | `vfs_seam_backlog.txt`, `_ns`, `_client` | `--regen` |
+| `check_dns_seam.py` | one DNS path (phase-116): libc forward resolvers only in `src/net/dns/resolve_thread.c` + `client/lib/net/resolve.c`, `getnameinfo` only in `src/net/dns/reverse.c`, `<netdb.h>` only in those three; `ngx_inet_resolve_host` and `CURLOPT_FOLLOWLOCATION` banned outright; `ngx_parse_url(` ⇒ `no_resolve = 1`, `CURLOPT_URL` ⇒ an address pin | none — no waiver marker, no backlog | — |
+| `check_http_helper_reimpl.py` | protocols must not regrow private copies of the shared HTTP helpers (header scan, preconditions, ETag) | inline allowlist | edit allowlist |
+| `check_curl_enum_ifdef.py` | no `#ifdef`/`#ifndef`/`defined()` preprocessor test on a `CURLOPT_*`/`CURLINFO_*` name — those are enum constants, so the test is always false and silently deletes the branch it guards; gate on `CURL_AT_LEAST_VERSION(maj, min, patch)` instead | — | — |
+| `check_auth_verdict_sentinel.py` | the session verdict `login.auth_done = 1` may be raised only by a credential handler / session login-bind path — not from a proxy/TPC/dispatch/op file (C-3 `NGX_OK`-on-deny discipline) | inline `ALLOW` | edit allowlist |
+| `check_sd_driver_conformance.py` | every `fs_list.h` storage driver ships a conforming `brix_sd_driver_t` (+ prints the op-coverage matrix) | — | — |
+| `check_vfs_identity_branch.py` | the VFS branches on capabilities (`brix_sd_caps`/`_supports`/`_cred_accept`), never on a concrete backend or protocol identity (phase-71) | `vfs_identity_backlog.txt` (target 0) | `--regen` |
+| `check_metric_cardinality.py` | no Prometheus label whose VALUE is string-interpolated under a name outside the curated low-cardinality vocabulary (INVARIANT #8, CWE-770) | inline vocabulary + per-line `metric-cardinality-allow:` | edit vocabulary |
+| `check_metric_names.py` | every `brix_*` metric the docs, the site and `contrib/` cite exists in the exposition, with the labels it really carries — a fabricated family matches nothing in Prometheus, so the alert built on it never fires | `metric_names_backlog.txt` (empty — keep it that way) + per-line `metric-names-allow:` | `--regen` |
+| `check_brix_namespace.py` | no pre-rebrand `xrootd_`/`XROOTD_`/`ngx_xrootd*`/`xrdc_`/`libxrdc` token reintroduced under `src/`, `config`, or `client/` | inline EXCLUDE | — |
+| `check_gridftp_interop_image.py` | the GridFTP interop lab's client-image / runner / matrix contract stays in agreement — no reference client stack, listener, or env-var name silently dropped | — | — |
+| `check_shm_mutex.py` | SHM tables are created via `brix_shm_table_*` — no bare `ngx_shmtx_create()` call outside `src/core/compat/shm_slots.c` (INVARIANT #10) | — | — |
+| `check_file_size.py` | no C/C++ source or header in `src/`+`client/`+`shared/` crosses the 600-line cap; every offender fails directly | — | — |
+| `check_py_file_size.py` | no Python file in `tests/`+`utils/`+`tools/` crosses 600 logical lines; every offender fails directly | — | — |
+| `check_complexity.py` | no C/C++ function over `src/`+`client/`+`shared/` crosses CCN 15 (lizard/McCabe); every offender fails directly | — | — |
+| `check_py_complexity.py` | no Python function over `tests/`+`utils/`+`tools/` crosses CCN 15; every offender fails directly | — | — |
+| `check_todo_fixme.py` | no NEW `TODO`/`FIXME`/`XXX`/`HACK` marker in `src/`+`client/`+`shared/`; frozen per-file counts may only shrink | `todo_fixme_backlog.txt` | `--regen` |
+| `check_duplication.py` | no copy-pasted code block (lizard `-Eduplicate`) across `src/`+`client/`+`shared/`; count is zero and stays zero | none (backlog burned down + deleted 2026-08-24) | — (fix the code) |
+| `check_doc_paths.py` | CLAUDE.md / README.md / docs/index.md reference only paths that exist AND are git-tracked | `<!-- doc-paths:off/on -->` markers for deliberate dead refs | — |
+| `check_doc_links.py` | every relative markdown link in docs/ + src READMEs resolves to a git-tracked target | `doc_links_backlog.txt` (currently empty — keep it that way) | `--regen` |
+| `check_readme_coverage.py` | any depth≤2 `src/` dir with ≥2 C sources carries a README.md | — | — |
+| `check_ports_doc.py` | every `*_PORT*` constant in `tests/settings.py` has a row in `docs/10-reference/test-fleet-ports.md` | — | — |
+| `check_template_refs.py` | no NEW `tests/configs/*.conf` that nothing in the repo names; frozen dead templates may only be wired up or deleted | `template_refs_backlog.txt` | `--regen` (shrink-only) |
+| `check_python_deps.py` | every third-party Python import is declared in a requirements file; every requirement has a **lower AND upper** bound; nothing declared *optional* is imported at module scope | inline `IMPORT_TO_DIST` / `SYSTEM_MODULES` | edit the requirements file |
+| `check_version_sync.py` | the RPM spec's `%global upstream_version` fallback, the spec's newest `%changelog` entry and `docs/10-reference/CHANGELOG.md`'s newest entry all equal `BRIX_SERVER_VERSION_BARE` in `src/core/ident.h`; both changelogs are newest-first | — | `--show` prints all four |
+| `check_import_direction.py` | the packaged framework (`brixtest/src/`) never imports back into the flat `tests/` tree — a package that reaches into its own consumers cannot be installed anywhere else (testsuite-modernization-plan §7.2/§12) | — | — |
+| `check_shim_completeness.py` | every name a §10.2 self-replacement shim used to export is still reachable after its body moved into a package, against the frozen `docs/refactor/testsuite-shim-baseline.json` | `testsuite-shim-baseline.json` | regenerate the baseline |
+| `check_shard_entrypoints.py` | a shard carrying `if __name__ == "__main__"` is still exec-composed by a parent that calls `_load_continuations` — break the composition without moving the CLI and the entry point silently stops running | — | move the CLI to a named `main()` |
+| `check_shim_entrypoints.py` | a §10.2 shim keeps the CLI its flat body had, so `python3 tests/<name>.py` still does what it did before the move | — | add a `__main__` delegation |
+| `check_shard_name_collisions.py` | one composed module, one namespace: no top-level name is bound twice across a parent and the shards it execs into its own globals — a shard's `_expression_1` rebinds the parent's, and the parent's call sites (resolved at call time) reach the shard's function | — (no exemptions) | rename them to say what they do |
+| `check_shard_direct_imports.py` | a composed shard is never imported as a module: what an importer takes from a `load`/`load_numbered`/`reexport`-composed shard must not reach, through the shard's own definitions, a name only its parent binds — the import succeeds and the first call is a `NameError` (race-hunt run 33 halted 9,289 tests in on a fixture doing exactly that); whole-module imports are judged by the attributes read through the alias, a §10.2 self-replacement shim uses nothing, and uncomposed or star-importing modules are left alone | — (no exemptions) | import from the parent named in the report |
+| `check_lifecycle_spec_ledger.py` | a lifecycle spec that reaches the harness names a ledger row: every `NginxInstanceSpec` handed to `.start()`/`.register()` with no `port=` must resolve through `fleet_lifecycle_ports.lifecycle_ports_for`, or `register` raises at the spec's first start — in the fleet, at fixture setup, invisible to `--collect-only` (race-hunt run 34 halted 9,133 tests in on a new suite's manager name); wrappers are followed by the parameter that feeds `name=`, names are read through module-level constants, a dynamic name is left alone rather than guessed, and a spec never started, exempted by `port=`, or started inside `pytest.raises` is not its business | — (no exemptions) | add the row to `fleet_ports_shared_phase5` (or `fleet_ports_exclusive`) and serialise the module with `@pytest.mark.xdist_group`, or pass an explicit port |
+| `check_ratchet_monotonic.py` | guards the guards: no ratchet backlog above may GROW vs the PR's base revision — no new grandfathered entry, no raised allowance. Analyzer baselines are deliberately out of scope (see its header); `check_duplication.py` needs no entry now that its backlog is gone | every other backlog in this table | — (fix the code) |
+| `smoke.py` | the built `objs/nginx` + `client/bin/xrdcp` serve one byte-exact `root://` read on an ephemeral port; fails — never skips — when an artefact is missing. Run by `.github/workflows/build.yml`, not by `guards.yml` | — | — |
+| `nginx_compat.py` | build and test stock AlmaLinux 9 nginx, 1.28.3 and the current upstream mainline in isolated trees; retain version/hash reports and check incremental builds. Run by `.github/workflows/nginx-compat.yml`; see `docs/03-configuration/BUILD.md` §6 | — | — |
+| `nginx_compat_smoke.py` | load explicitly selected nginx/modules and check HTTP reads, missing files and read-only write rejection in a private loopback instance; optional reference `xrdcp` read | — | — |
+| `run_fanalyzer.py` | ZERO gcc `-fanalyzer` findings (UAF/leak/NULL-deref) — no baseline, no waivers; needs a configured nginx build (`NGX_BUILD`) | — | — (fix the code) |
+| `run_codechecker.py` | no NEW Clang Static Analyzer + clang-tidy finding vs baseline; needs a configured nginx build (`NGX_BUILD`) + `CodeChecker` + clang/clang-tidy | `codechecker_baseline.txt` | `--regen` |
+| `asan.py` | ASan+UBSan build (`build_sanitizer`) boots the fleet + drives real root:// I/O; FAILS on any heap error / UB / unsuppressed leak (hyper-hardening B-2); needs a compiler + configured nginx build (`NGINX_SRC`) | `tests/lsan.supp` | — |
+
+## The ratchet pattern
+
+Some guards freeze pre-existing violations in a backlog file and fail
+only on NEW ones. Rules:
+
+- Backlog entries may only **shrink** — fixing a violation and regenerating
+  is the only sanctioned edit.
+- `--regen` only after a deliberate, reviewed change (e.g. you split an
+  oversized file, or fixed a batch of links). Review the diff before
+  committing it.
+- Never hand-edit a backlog to silence a failure. The failure is the point.
+- Size and complexity are deliberately not ratchets: their backlogs and
+  regeneration paths were removed after reaching zero, so every violation is
+  now an unconditional failure.
+
+Those first two rules are no longer honour-system: `check_ratchet_monotonic.py`
+diffs every backlog against the PR's base revision and fails on any growth, so
+"append the offending file to the backlog" — the one edit that turns any of
+these guards green while making the code worse — is itself a red build.
+
+## Two file-size regimes (both intentional)
+
+- **`python3 -m cmdscripts.lint_loc --strict`** (run with `PYTHONPATH=tests`;
+  source `tests/cmdscripts/lint_loc.py`) is the **hard wall**: 800 logical LOC,
+  baseline `tests/loc_baseline.txt`, enforced by `.github/workflows/loc.yml`.
+  Scope includes `src/`, `client/`, plus `tests/`/`utils/`/`k8s-tests/`
+  shell and Python. Per-file exemption marker: `loc-lint: exempt` in the
+  first 40 lines.
+- **`tools/ci/check_file_size.py`** enforces the **600-line hard cap** over
+  `src/`, `client/`, and `shared/`; coding-standards §1 still prefers ~500.
+  It has no exemption or backlog mechanism and is enforced by `guards.yml`.
+
+A file under the 800 wall can still fail the 600-line source-tree cap.
+
+## Code duplication gate
+
+`check_duplication.py` runs lizard's copy-paste detector (`-Eduplicate`)
+over `src/`, `client/` and `shared/` and fails on any genuinely duplicated
+code block. It is a **hard gate wired into `guards.yml`**, like the two
+complexity gates: **no backlog, no per-block exemption list, no `--regen`.**
+The 484-entry grandfather backlog (`duplication_backlog.txt`) was burned
+down to zero and deleted on 2026-08-24, so the only way to turn this guard
+green is to not clone — appending to a file cannot.
+
+lizard's detector is token-shape based, so it also reports blocks that
+merely SHARE SHAPE while holding different data: two `ngx_command_t`
+directive tables, two `{ errno, "token" }` maps, two `enum`→string
+switches, a chain of `ngx_strncmp` token tests. Those are the coding-standards
+§8.6 table-driven style ("express variation as data"), not copy-paste, and
+collapsing them into a macro would destroy the grep-ability of directive
+names — worth more than the line count. So each reported block is verified
+before it can fail the build (see the guard's header for the full grammar):
+lizard is run once over the three trees combined and once per tree (the
+union of windows is kept); each block's members are normalised; and a block
+whose members are all C/C++ declarative data — initializer, case-mapping,
+string/hex-fixture, prototype or `return shared_helper(...)` delegation rows
+— is exempt **only when the members hold DIFFERENT data** (fewer than half
+their content rows identical). A cloned table with the SAME rows is real
+duplication: it must be shared, not pasted. Everything else — cloned logic,
+renamed clones, identical tables, any non-C member — fails.
+
+Fix a real hit by extracting a shared helper (coding-standards §8), never by
+editing the guard's row grammar to make a clone look declarative. Run
+`check_duplication.py --explain` to also list the exempted shape-only blocks.
+Techniques the 2026-08-24 burndown used where a plain helper would not serve:
+a compound-literal macro instead of a builder function (a builder's parameter
+list is itself a third token-window clone of the struct); an error-message-
+parameterized helper so two near-identical entry points collapse to one; a
+stage-counter acquisition ladder so a multi-resource teardown is written once;
+and re-encoding a captured binary fixture (a VOMS AC DER blob whose internal
+RDNs repeat) as a single opaque hex string literal rather than a row-shaped
+byte array.
+
+## Coverage (report-only lane)
+
+`coverage.py` builds a gcov-instrumented module + client
+(`cmdscripts.operator_build build_coverage` → `./configure --with-cc-opt='--coverage
+-O0 -g'`), runs a test command against it (default the fast fleet tier;
+override with `COVERAGE_TEST_CMD`), and emits an lcov line/branch report for
+`src/` + `client/` under `coverage/` (html + `coverage.info`). It is
+**report-only** — it enforces a floor only when `COVERAGE_MIN` is set, and skips
+cleanly (exit 0) if `lcov`/`gcov` or the nginx source are absent. Runs weekly +
+on dispatch (`.github/workflows/coverage.yml`, `continue-on-error`, artifact
+upload). Graduation to a blocking gate follows the same discipline as the
+static-analysis lanes: read a stable baseline on the runner first, THEN set
+`COVERAGE_MIN` a few points under it and drop `continue-on-error` — never flip a
+numeric gate to blocking pre-baseline.
+
+## ASan + UBSan (dynamic-sanitizer lane, B-2)
+
+`asan.py` is the hyper-hardening **B-2** lane — the dynamic complement to the
+static analyzers above. It builds the module + client with
+`-fsanitize=address,undefined` (`cmdscripts.operator_build build_sanitizer`),
+boots the test fleet against that instrumented binary
+(`SANITIZE=1 manage_test_servers restart`, which routes findings to
+`$SANITIZE_LOG_DIR/asan.<pid>` with `abort_on_error=0` so a worker keeps
+serving), drives real root:// I/O through it in **attach** mode (default the
+deterministic `test_sanitizer_smoke.py`; override with `ASAN_TEST_CMD` — the
+nightly cron widens it to the `not slow and not serial` fast tier), then
+`stop-all` (LSan fires at process exit) and **scans every report for a hard
+sanitizer signature**. A match — heap error, UB, or an *unsuppressed* leak (the
+third-party library leaks are curated out by `tests/lsan.supp`) — fails the job;
+the scan, not `abort_on_error`, is the gate, and it covers both the fleet and
+the sanitized client `xrdcp` the smoke spawns. Unlike the report-only coverage
+lane it is **blocking on PRs** and a required status check on `main`. Run by
+hand it self-skips cleanly (exit 0) when the compiler / configured nginx source
+(`NGINX_SRC`) / a bootable fleet are absent, so a laptop missing infra is never
+reddened. On the workflow that tolerance is wrong — a skipped required check
+reports green — so `.github/workflows/asan.yml` sets `BRIX_CI_STRICT: "1"` and
+every skip path (`asan.skip_or_fail()`) becomes a failure naming the unmet
+prerequisite (`.github/workflows/asan.yml` — PR/push smoke + nightly fast-tier
+cron, artifact upload of any reports). Guarded locally by
+`tests/test_ci_asan_lane.py`, which also pins statically that no new
+prerequisite can reintroduce a bare skip-then-`return 0`.
+
+An optional `ASAN_TEST_CMD2` runs a **second** driver command in the same
+sanitized+attached fleet after `ASAN_TEST_CMD` and before stop+scan (both legs'
+reports scanned together; a non-zero exit from *either* fails the job). The
+nightly cron sets it to `pytest test_phase24_mirror.py -k data_write` — the
+**serial** write-mirror suite the `not serial` fast tier drops. That suite drives
+the phase-24 / 57-W3 detached-replay **disconnect-mid-write** UAF / heap-ownership
+paths (a replay outliving its client and owning a stolen buffer; a
+teardown-cleanup racing a launch), closing the phase-88 audit § 4 write-mirroring
+residual under the sanitizer.
+
+## Static analysis
+
+`run_fanalyzer.py` compiles the module under gcc `-fanalyzer` and fails on
+ANY finding — the tree is analyzer-clean (the 2026-08 burn-down emptied and
+deleted the old `fanalyzer_baseline.txt`), so there is no baseline and no
+waiver path: a finding is fixed by restructuring the code until the analyzer
+can prove it safe. It needs a configured nginx build tree
+(`NGX_BUILD=/path/to/nginx-1.28.3`, default `/tmp/nginx-1.28.3`). It runs
+blocking per-PR in CI (`.github/workflows/fanalyzer.yml`, pinned to
+`almalinux:9`). `--filter <path-prefix>` for a fast scoped scan.
+
+`run_codechecker.py` is the orthogonal Clang half: it synthesizes a
+`compile_commands.json` from the same build-tree `$(CFLAGS)`/`$(ALL_INCS)`
+(no build interception needed), runs Ericsson **CodeChecker** (`clangsa`
++ `clang-tidy`) over the addon sources, and diffs findings against
+`codechecker_baseline.txt`. Each finding is keyed by CodeChecker's
+content-based `report_hash`, so the baseline does not churn when unrelated
+lines move. Same `--regen` / `--filter` / `NGX_BUILD` interface as the
+`-fanalyzer` guard. Install once with `pip install --user codechecker`
+(needs `clang` + `clang-tidy` on PATH). Runs weekly + on dispatch
+(`.github/workflows/codechecker.yml`, non-blocking until the CI clang
+version is pinned to the dev toolchain). The two static-analysis guards are
+complementary: `-fanalyzer` excels at ownership/leak/UAF along error
+branches; clangsa + clang-tidy add a large orthogonal checker set (dead
+stores, logic errors, API misuse, bugprone-*, security-*). Two clang-tidy
+checks are disabled by policy at the top of the script (each with a reason):
+`clang-diagnostic-unused-parameter` (the build sets `-Wno-unused-parameter`)
+and `misc-header-include-cycle` (the nginx module include graph is
+legitimately cyclic). Override with `CC_DISABLE=""` to see the full profile.
+
+---
+
+# CI/CD Tools for Multi-Platform Builds
+
+This directory contains tools for verifying BriX-Cache builds across all supported platforms and architectures.
+
+## Tools Overview
+
+### 1. verify_platform_builds.sh
+
+**Purpose**: Build and verify PAL source files for all platforms
+
+**Usage**:
+```bash
+# Build for all platforms
+./verify_platform_builds.sh
+
+# Build for specific platform
+./verify_platform_builds.sh --platform=linux --arch=arm64
+
+# Clean and rebuild
+./verify_platform_builds.sh --clean
+
+# Include full nginx module builds
+./verify_platform_builds.sh --nginx-build
+```
+
+**Platforms**:
+- ✅ Linux x86_64 (native)
+- ✅ Linux ARM64 (cross-compile with aarch64-linux-gnu-gcc)
+- ✅ macOS x86_64 (native, requires macOS host)
+- ✅ macOS ARM64 (native, requires Apple Silicon)
+- 🚧 Windows x86_64 (cross-compile with MinGW)
+
+**Requirements**:
+```bash
+# Ubuntu/Debian
+sudo apt-get install \
+  gcc-aarch64-linux-gnu \
+  gcc-mingw-w64-x86-64 \
+  clang
+
+# macOS
+brew install mingw-w64
+```
+
+### 2. check_pal_seam.py
+
+`detect_platform_features.py` is the adjacent build-detection command. Its
+public imports and JSON, `--ci-format`, `--output`, and `--verbose` interfaces
+remain in that entry point. `platform_detect_command.py` owns bounded probes,
+`platform_detect_host.py` owns release/runtime information,
+`platform_detect_cpu.py` owns architecture features, and
+`platform_detect_build.py` owns compiler probes and flag recommendations.
+Run `python3 -m pytest tools/ci/test_detect_platform.py` for its CLI checks.
+
+**Purpose**: Enforce PAL source ownership and configured common API bodies.
+`pal_source_contract.py` owns the source parser and config selection checks.
+
+**Checks**:
+- Production consumers use public PAL headers, without directly including
+  OS-private headers or children of the public API umbrella.
+- Definitions in both `brix_plat_*` and `brix_platform_*` families belong to
+  `src/platform/` or the existing shared CVMFS platform implementation.
+- Each host's config-selected sources, shared runtime, and Linux shared helper
+  provide exactly one real body for each of the 13 common out-of-line APIs.
+  Six common endian inline bodies must also exist. Comments, calls, prototypes,
+  unbuilt files and unit-test translation units cannot establish this closure.
+- Missing trees, unreadable sources, foreign host sources and disconnected
+  module source expansions fail the guard.
+
+These checks establish source structure, not complete API/ABI compatibility or
+native runtime support. Host builds and native tests must establish those
+properties, including feature-dependent APIs and behavior. Existing VFS,
+confinement, broker and compatibility adapters retain their own architecture;
+portable network byte-order conversions remain valid. The VFS guards enforce
+storage syscall ownership and mutation policy independently.
+
+**Usage**:
+```bash
+# Repository root and its src directory select the same production trees.
+python3 tools/ci/check_pal_seam.py
+python3 tools/ci/check_pal_seam.py --directory=src --check-implementation
+
+# Quiet output still checks both ownership and common API source closure.
+python3 tools/ci/check_pal_seam.py --quiet
+```
+
+The legacy `--check-implementation` option remains accepted; source closure
+always runs. A nonexistent directory fails instead of returning an empty pass.
+
+### 3. check_vfs_seam.py
+
+**Purpose**: Enforce the storage VFS boundary for server byte I/O, confined
+helpers, namespace operations, client byte I/O, and typed storage-domain claims.
+PAL header and definition ownership is checked separately by `check_pal_seam.py`.
+
+**Usage**:
+```bash
+python3 tools/ci/check_vfs_seam.py
+```
+
+### 4. GitHub Actions Workflow
+
+**File**: `.github/workflows/platform-builds.yml`
+
+**Triggers**:
+- Push to `main` or `develop` branches
+- Pull requests
+- Manual workflow dispatch
+
+**Jobs**:
+1. **linux-x86_64**: Native build on Ubuntu 22.04
+2. **linux-arm64**: Cross-compile with aarch64-linux-gnu-gcc
+3. **macos-x86_64**: Native build on macOS 12 (Intel)
+4. **macos-arm64**: Native build on macOS 14 (Apple Silicon)
+5. **windows-x86_64**: Cross-compile with MinGW
+6. **pal-seam-check**: PAL integrity verification
+7. **summary**: Build matrix summary
+
+**Artifacts**: nginx binaries for each platform (retained for 7 days)
+
+## Platform Support Matrix
+
+| Platform | Build | Test | CI Runner | Status |
+|----------|-------|------|-----------|--------|
+| Linux x86_64 | ✅ | ✅ | GitHub Actions | Production |
+| Linux ARM64 | ✅ | 🔲 | GitHub Actions | Dev/Test |
+| macOS x86_64 | ✅ | ✅ | GitHub Actions | Production |
+| macOS ARM64 | ✅ | ✅ | GitHub Actions | Production |
+| Windows x86_64 | 🔲 | 🔲 | GitHub Actions | Skeleton |
+
+**Legend**: ✅ Complete, 🔲 In Progress, ❌ Not Started
+
+## Cross-Compilation Setup
+
+### Linux ARM64 (from x86_64)
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+# Verify
+aarch64-linux-gnu-gcc --version
+
+# Build
+./verify_platform_builds.sh --platform=linux --arch=arm64
+```
+
+### Windows x86_64 (from Linux)
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+
+# Verify
+x86_64-w64-mingw32-gcc --version
+
+# Build
+./verify_platform_builds.sh --platform=windows --arch=x86_64
+```
+
+### macOS Universal Binary
+
+```bash
+# Build for both architectures
+clang -arch x86_64 -arch arm64 -o binary source.c
+
+# Verify
+file binary
+# Should show: Mach-O universal binary with 2 architectures
+```
+
+## Troubleshooting
+
+### Build fails with "command not found"
+
+Install missing cross-compiler:
+```bash
+# ARM64 Linux
+sudo apt-get install gcc-aarch64-linux-gnu
+
+# Windows
+sudo apt-get install gcc-mingw-w64-x86-64
+```
+
+### macOS builds fail on Linux
+
+macOS builds require a macOS host. Use GitHub Actions `macos-12` or `macos-14` runners.
+
+### PAL seam check reports violations
+
+Fix violations by:
+1. Replace direct syscalls with `brix_plat_*()` functions
+2. Add `#include "platform/platform_api.h"` to files using PAL
+3. Move platform-specific code to `src/platform/<platform>/`
+
+### Windows build produces .exe but won't run
+
+Windows executables built on Linux require Wine to test:
+```bash
+wine build/platform_verify/windows_x86_64/test_platform.exe
+```
+
+## Performance Benchmarks
+
+For performance comparison across platforms, see:
+- `docs/platform/PLATFORM_EXPANSION_PLAN.md` - Expected performance metrics
+- `docs/refactor/macos-optimizations.md` - macOS optimization guide
+
+## Contributing
+
+When adding new platform support:
+
+1. Add platform configuration to `verify_platform_builds.sh`
+2. Add CI job to `.github/workflows/platform-builds.yml`
+3. Update PAL implementation in `src/platform/<platform>/`
+4. Add platform to support matrix in README
+5. Run full test suite: `./verify_platform_builds.sh --nginx-build`
+
+## References
+
+- [PAL Architecture](../../platform/pal/ARCHITECTURE.md)
+- [Platform Expansion Plan](../../platform/PLATFORM_EXPANSION_PLAN.md)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [Cross-Compilation Guide](https://wiki.debian.org/CrossCompiling)

@@ -13,10 +13,12 @@ own placeholders), exactly as the launcher's ``expect_config_failure`` did.
 
 import subprocess
 from pathlib import Path
-import json
 
 from config_templates import render_config_to_path
-from cmdscripts.live_common import inject_nginx_load_modules
+from cmdscripts.live_common import (
+    inject_nginx_load_modules,
+    inject_nginx_runtime_paths,
+)
 from brix_suite.nginx_tools import _nginx_bin
 
 
@@ -45,16 +47,10 @@ def nginx_t_text(text, root):
     config = root / "conf" / "nginx.conf"
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text(text, encoding="utf-8")
-    # Distribution nginx builds default their pid file to /run/nginx.pid even
-    # for `nginx -t`.  Tests run as an ordinary user, so make the otherwise
-    # irrelevant parse-time PID path part of the throwaway test prefix.
-    body = config.read_text(encoding="utf-8")
-    if not any(line.lstrip().startswith("pid ") for line in body.splitlines()):
-        config.write_text(
-            f"pid {json.dumps(str(root / 'logs' / 'nginx.pid'))};\n{body}",
-            encoding="utf-8",
-        )
     inject_nginx_load_modules(config)
+    # Packaged nginx also opens HTTP temporary paths during `-t`. Keep all
+    # default runtime paths in this test's prefix through the launcher's seam.
+    inject_nginx_runtime_paths(config, root)
     # The frozen per-session copy, exactly as the launcher execs: the shared
     # build tree's objs/nginx is relinked by any concurrent `make`, and an exec
     # inside that window fails with EACCES (seen as a -x halt on a pure parse

@@ -130,7 +130,8 @@ def test_keypool_wiring():
     proc = _rd("src/core/config/process.c")
     assert "brix_gsi_keypool_init" in proc
     # tunables present.
-    assert "BRIX_GSI_KEYPOOL_SIZE" in _rd("src/core/types/tunables.h")
+    assert '"tunables_auth.h"' in _rd("src/core/types/tunables.h")
+    assert "BRIX_GSI_KEYPOOL_SIZE" in _rd("src/core/types/tunables_auth.h")
     # certreq pops from the pool with an inline fallback (keygen off the event thread).
     cert = _rd("src/auth/gsi/cert_response.c")
     assert "brix_gsi_keypool_pop" in cert

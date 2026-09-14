@@ -61,6 +61,20 @@ brix_checksum_scalar(const void *buf, size_t len)
     return sum;
 }
 
+/* Complete either vDSP reduction with its unprocessed byte suffix. */
+static uint64_t
+brix_checksum_vdsp_finish(const void *buf, size_t len, size_t processed,
+    float result)
+{
+    const uint8_t *bytes = buf;
+    uint64_t sum = (uint64_t)result;
+
+    for (size_t i = processed; i < len; i++) {
+        sum += bytes[i];
+    }
+    return sum;
+}
+
 /**
  * vDSP-based checksum using block sum reduction
  * Uses vDSP_sve (Sum of Vector Elements) with float precision
@@ -97,21 +111,7 @@ brix_checksum_vdsp_sve(const void *buf, size_t len)
         return brix_checksum_scalar(buf, len);
     }
     
-    /* Convert float result to uint64_t */
-    uint64_t sum = (uint64_t)result;
-    
-    /* Handle remaining bytes */
-    size_t processed = count * sizeof(float);
-    if (processed < len) {
-        const uint8_t *remaining = (const uint8_t *)buf + processed;
-        size_t remaining_len = len - processed;
-        
-        for (size_t i = 0; i < remaining_len; i++) {
-            sum += remaining[i];
-        }
-    }
-    
-    return sum;
+    return brix_checksum_vdsp_finish(buf, len, count * sizeof(float), result);
 }
 
 /**
@@ -154,19 +154,7 @@ brix_checksum_vdsp_dotpr(const void *buf, size_t len)
         return brix_checksum_scalar(buf, len);
     }
     
-    uint64_t sum = (uint64_t)result;
-    
-    size_t processed = count * sizeof(float);
-    if (processed < len) {
-        const uint8_t *remaining = (const uint8_t *)buf + processed;
-        size_t remaining_len = len - processed;
-        
-        for (size_t i = 0; i < remaining_len; i++) {
-            sum += remaining[i];
-        }
-    }
-    
-    return sum;
+    return brix_checksum_vdsp_finish(buf, len, count * sizeof(float), result);
 }
 
 /* ==========================================================================

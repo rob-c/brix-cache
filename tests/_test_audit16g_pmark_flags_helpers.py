@@ -258,6 +258,7 @@ CONFIG_C = ROOT / "src/observability/pmark/config.c"
 FIREFLY_C = ROOT / "src/observability/pmark/firefly.c"
 FLOWLABEL_C = ROOT / "src/observability/pmark/flowlabel.c"
 PMARK_H = ROOT / "src/observability/pmark/pmark.h"
+PMARK_CONSTANTS_H = ROOT / "src/core/types/tunables_network.h"
 DISPATCH_C = ROOT / "src/protocols/webdav/dispatch.c"
 
 # The firefly collector is an in-process UDP sink, so its port is an OS
@@ -334,10 +335,10 @@ FL_REQ = "=16sIBBHHH2xI"
 # flowlabel.c always probes in6addr_loopback, whatever address the peer used, so
 # this is the address under test rather than the host the suite dials.
 PROBE_DST = "::1"          # net-literal-allow: flowlabel.c probes in6addr_loopback
-# brix_pmark_flowlabel_encode(BRIX_PMARK_EXP_MIN=1, BRIX_PMARK_ACT_MIN=1):
+# brix_pmark_flowlabel_encode(BRIX_IPV6_EXP_MIN=1, BRIX_IPV6_ACT_MIN=1):
 # reverse9(1) = 0x100, so (0x100 << 9) | (1 << 2) = 0x20004.
 PROBE_LABEL = 0x20004
-# BRIX_PMARK_FL_ENTROPY_MASK (pmark.h:62) has five bits set, so one (exp, act)
+# BRIX_IPV6_FL_ENTROPY_MASK has five bits set, so one (exp, act)
 # pair has 2**5 distinct per-flow labels and no more.
 FL_ENTROPY_MASK = 0x000C0103
 FL_SPACE = 1 << 5
@@ -588,4 +589,3 @@ def _ledger_port():
 # --------------------------------------------------------------------------- #
 # §A — brix_pmark: the master switch                                           #
 # --------------------------------------------------------------------------- #
-

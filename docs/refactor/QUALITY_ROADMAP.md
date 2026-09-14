@@ -1014,7 +1014,7 @@ checks:
 > - **3.2 API reference** → ✅ Doxygen generated at `docs/doxygen/html/`.
 > - **3.3 Developer guide** → ✅ `docs/09-developer-guide/` (`contributing.md`,
 >   `dev-workflow.md`, `extending.md`, `agent-guide-extended.md`, build/test/debug
->   recipes) + top-level `BUILD_INSTALL.md`, `TESTING.md`.
+>   recipes) + top-level `docs/03-configuration/BUILD_INSTALL.md`, `docs/09-developer-guide/TESTING.md`.
 > - **3.5 Performance docs** → ✅ (partial) `lifecycle-startup-shutdown-performance.md`,
 >   `client-mount-connect-latency.md`, `11-architecture/tier1/tier2-stream-data-paths.md`,
 >   `reliability-under-load.md`. No single `PERFORMANCE.md` benchmark sheet.

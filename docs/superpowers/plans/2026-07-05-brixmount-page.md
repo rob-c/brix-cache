@@ -33,7 +33,7 @@
 | TCP fault-injection proxy: resets mid-read, stalls, latency | `tests/c/fault_proxy.c` |
 | FUSE suites assert byte-exact recovery, no EIO surfaced | `tests/test_xrootdfs_resilience.py:7,168-207`, `tests/test_compression_fuse_resilience.py` |
 | CVMFS failover/stall suites + netem lab | `tests/run_cvmfs_resilience.sh`, `tests/run_cvmfs_failover.sh`, `tests/cvmfs/netem_lab.sh` |
-| ~8,700-test suite; ~1,770-test slow lane incl. resilience/chaos/fault-injection | `tests/README.md:3,12` |
+| ~8,700-test suite; ~1,770-test slow lane incl. resilience/chaos/fault-injection | `docs/09-developer-guide/testing/README.md:3,12` |
 
 ---
 

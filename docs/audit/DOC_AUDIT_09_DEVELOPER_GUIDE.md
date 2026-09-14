@@ -336,7 +336,7 @@ $ ls tools/ci/*.py | wc -l
 47
 ```
 
-**Recommendation:** Document all CI tools in `tools/ci/README.md`
+**Recommendation:** Document all CI tools in `docs/09-developer-guide/ci/README.md`
 
 **Severity:** LOW
 
@@ -434,7 +434,7 @@ The following critical claims were **VERIFIED ACCURATE**:
    - Effort: Low
    - Owner: Documentation team
 
-8. **Document all CI tools** in `tools/ci/README.md`
+8. **Document all CI tools** in `docs/09-developer-guide/ci/README.md`
    - Impact: Completeness
    - Effort: Medium
    - Owner: Tools team

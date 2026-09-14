@@ -80,8 +80,8 @@ brix_pmark_flowlabel_usable(ngx_log_t *log)
     fl.flr_dst   = in6addr_loopback;
     /* A representative in-range structural label (exp/act minima) just to learn
      * whether the kernel will lease a SPECIFIC label on this host at all. */
-    fl.flr_label = htonl(BRIX_IPV6_FL_ENCODE(BRIX_IPV6_EXP_MIN,
-                                             BRIX_IPV6_ACT_MIN));
+    fl.flr_label = htonl(brix_pmark_flowlabel_encode(BRIX_IPV6_EXP_MIN,
+                                                   BRIX_IPV6_ACT_MIN));
     fl.flr_action = BRIX_IPV6_FL_A_GET;
     fl.flr_flags  = BRIX_IPV6_FL_F_CREATE;
     fl.flr_share  = BRIX_IPV6_FL_S_EXCL;
@@ -113,7 +113,7 @@ pmark_flowlabel_lease(int fd, const struct in6_addr *dst6, ngx_uint_t exp,
 
     /* Structural bits (community + activity) plus 5 random entropy bits, set once
      * here per flow so same-(exp,act) flows hash differently for ECMP (spec §4). */
-    label = BRIX_IPV6_FL_ENCODE(exp, act)
+    label = brix_pmark_flowlabel_encode(exp, act)
             | ((uint32_t) ngx_random() & BRIX_IPV6_FL_ENTROPY_MASK);
 
     ngx_memzero(&fl, sizeof(fl));

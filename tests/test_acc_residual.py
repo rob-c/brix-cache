@@ -32,6 +32,7 @@ import pytest
 
 from settings import HOST, BIND_HOST, NGINX_BIN, url_host
 from server_registry import NginxInstanceSpec
+from brix_suite.nginx_capabilities import nginx_has_symbol
 from ephemeral_port import free_port
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
@@ -50,13 +51,7 @@ kXR_stage = 8         # prepare options: stage
 
 
 def _have_nginx():
-    if not os.path.exists(NGINX_BIN):
-        return False
-    try:
-        syms = subprocess.run(["nm", NGINX_BIN], capture_output=True, text=True)
-        return "brix_acc_access" in syms.stdout
-    except Exception:
-        return True
+    return nginx_has_symbol("brix_acc_access")
 
 
 # --------------------------------------------------------------------------- #

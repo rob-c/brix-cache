@@ -56,6 +56,8 @@ from _test_phase25_ratelimit_helpers import (
     _stream_values,
 )
 from settings import BIND_HOST, NGINX_BIN
+from brix_suite.nginx_tools import _nginx_bin
+from cmdscripts.live_common import _configured_nginx_modules
 
 pytestmark = pytest.mark.skipif(not os.path.exists(NGINX_BIN),
                                 reason="nginx binary not built")
@@ -110,36 +112,86 @@ def _cvmfs_t(tmp_path, knobs):
     """Parse a lone cvmfs location carrying `knobs`, and hand back the
     parse-time NOTICE lines alongside the usual (rc, output).
 
-    Parse-time log calls go through `cf->log`, which is still the DEFAULT log
-    while the config is being read — nginx only switches to the configured
-    error_log once ngx_init_cycle has finished parsing.  So the merge NOTICE
-    lands in <prefix>/logs/error.log, not in the {LOG_DIR}/error.log the
-    template names, and that directory has to exist first or nginx aborts with
-    "could not open error log file".
+    Parse-time calls use the bootstrap logger until ngx_init_cycle completes.
+    A packaged nginx can send these notices to captured stderr instead of the
+    prefix log; retain both destinations when checking the merge diagnostic.
     """
     root = tmp_path / "cvmfs"
     (root / "logs").mkdir(parents=True)
     rc, out = _parse_fail(root, _CVMFS_CONF,
                           {"BIND_HOST": BIND_HOST, "CVMFS_KNOBS": knobs})
     log = root / "logs" / "error.log"
-    notices = [ln for ln in log.read_text(encoding="utf-8").splitlines()
-               if "read_only on" in ln] if log.exists() else []
+    logged = log.read_text(encoding="utf-8") if log.exists() else ""
+    notices = [ln for ln in (out + "\n" + logged).splitlines()
+               if "read_only on" in ln]
     return rc, out, notices
 
 
 def _links_liburing():
-    """True when the binary under test was linked against liburing.
+    """Check the selected executable and its configured dynamic modules."""
+    return any(_object_links_liburing(path)
+               for path in [_nginx_bin(), *_configured_nginx_modules()])
 
-    The §B2.13 blocker in a function: a bare `./configure` produces a binary
-    with no ring, and the whole io_uring row skips.  `BRIX_ENABLE_IO_URING=1
-    ./configure --add-module=$REPO ... && make` produces one with it.
-    """
+
+def _object_links_liburing(path):
     try:
-        out = subprocess.run(["ldd", str(NGINX_BIN)], capture_output=True,
+        out = subprocess.run(["ldd", str(path)], capture_output=True,
                              text=True, timeout=30)
     except (OSError, subprocess.SubprocessError):
         pytest.skip("ldd unavailable; cannot classify the binary's ring support")
-    return "liburing" in (out.stdout or "")
+    return out.returncode == 0 and re.search(
+        r"(?m)^\s*liburing\.so(?:\.\d+)*\s+=>\s+/", out.stdout or "") is not None
+
+
+def _assert_uring_demand(rc, out, linked):
+    if not linked:
+        assert rc != 0, out
+        assert "requires a build with liburing" in out, out
+        assert "BRIX_ENABLE_IO_URING=1" in out, out
+        return
+    if rc == 0:
+        return
+    assert '"brix_io_uring on" requested but io_uring is unavailable on this host' in out, out
+    assert "io_uring_setup/opcode probe failed" in out, out
+
+
+@pytest.mark.parametrize("linked,rc,out,rejected", [
+    (True, 0, "configuration test is successful", False),
+    (True, 1, '"brix_io_uring on" requested but io_uring is unavailable on this host '
+     '(io_uring_setup/opcode probe failed)', False),
+    (False, 1, "requires a build with liburing; BRIX_ENABLE_IO_URING=1", False),
+    (False, 0, "silently used thread pool", True),
+    (True, 1, "unrelated configuration error", True),
+    (False, 1, "unrelated configuration error", True),
+])
+def test_uring_demand_diagnostic_contract(linked, rc, out, rejected):
+    if rejected:
+        with pytest.raises(AssertionError):
+            _assert_uring_demand(rc, out, linked)
+        return
+    _assert_uring_demand(rc, out, linked)
+
+
+@pytest.mark.parametrize("module_output,returncode,expected", [
+    ("liburing.so.2 => /usr/lib64/liburing.so.2 (0x1234)", 0, True),
+    ("liburing.so.2 => not found", 0, False),
+    ("liburing.so.2 => /usr/lib64/liburing.so.2 (0x1234)", 1, False),
+])
+def test_uring_dependency_uses_selected_module(monkeypatch, module_output, returncode, expected):
+    from types import SimpleNamespace
+
+    calls = []
+
+    def dependencies(argv, **kwargs):
+        calls.append(argv)
+        output = module_output if argv[1] == "selected-module" else ""
+        return SimpleNamespace(returncode=returncode, stdout=output)
+
+    monkeypatch.setattr(f"{__name__}._nginx_bin", lambda: "selected-nginx")
+    monkeypatch.setattr(f"{__name__}._configured_nginx_modules", lambda: ["selected-module"])
+    monkeypatch.setattr(subprocess, "run", dependencies)
+    assert _links_liburing() is expected
+    assert calls == [["ldd", "selected-nginx"], ["ldd", "selected-module"]]
 
 
 # --------------------------------------------------------------------------- #
@@ -213,21 +265,13 @@ def test_every_dismissed_directive_parses_on_its_own_plane(tmp_path):
 
 
 def test_io_uring_on_never_silently_degrades_to_the_thread_pool(tmp_path):
-    """`brix_io_uring on` is a demand, not a preference: on a binary without
-    liburing it must be an EMERG naming the rebuild, never a quiet fallback.
+    """Forced on requires compiled support and a working setup/opcode probe.
 
-    This is the §B2.13 blocker as an assertion.  The io_uring row sat "written
-    but never executed" for three tranches because the default test binary has
-    no ring; the failure mode that would have hidden it forever is a config
-    that says `on`, gets the thread pool, and reports success.
+    Missing build support names the rebuild; runtime capability refusal names
+    the failed probe. Neither may silently choose the thread pool.
     """
     rc, out = _stream_t(tmp_path, "        brix_io_uring on;\n")
-    if _links_liburing():
-        assert rc == 0, out
-        return
-    assert rc != 0, out
-    assert "requires a build with liburing" in out, out
-    assert "BRIX_ENABLE_IO_URING=1" in out, out
+    _assert_uring_demand(rc, out, _links_liburing())
 
 
 def test_io_uring_auto_parses_on_any_build(tmp_path):

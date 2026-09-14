@@ -12,6 +12,8 @@ import tempfile
 import subprocess
 from pathlib import Path
 
+from pal_native import pal_sources
+
 # Test configuration
 TEST_TIMEOUT = 30  # seconds
 BRIX_SRC = Path(__file__).parent.parent.parent / "src"
@@ -30,42 +32,20 @@ def temp_dir():
 
 
 @pytest.fixture
-def test_c_program():
-    """Fixture for compiling and running C test programs"""
+def test_c_program(native_compile):
+    """Compile and execute the real PAL with the configured nginx SDK."""
     def compile_and_run(code, include_path=None):
-        """Compile and run a C program, return stdout"""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir = Path(tmpdir)
-            src_file = tmpdir / "test.c"
-            exe_file = tmpdir / "test"
-            
-            # Write source
-            with open(src_file, 'w') as f:
-                if include_path:
-                    f.write(f'#include "{include_path}"\n')
-                f.write(code)
-            
-            # Compile
-            include_dir = BRIX_SRC
-            result = subprocess.run(
-                ['gcc', '-I', str(include_dir), '-o', str(exe_file), str(src_file)],
-                capture_output=True,
-                text=True,
-                timeout=TEST_TIMEOUT
-            )
-            
-            if result.returncode != 0:
-                return None, result.stderr
-            
-            # Run
-            result = subprocess.run(
-                [str(exe_file)],
-                capture_output=True,
-                text=True,
-                timeout=TEST_TIMEOUT
-            )
-            
-            return result.stdout, result.stderr
+        """Require both compilation and the native process to succeed."""
+        if include_path:
+            code = f'#include "{include_path}"\n' + code
+        sources = pal_sources()
+        executable = native_compile(
+            'platform-api', code, sources,
+            ['-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections'])
+        result = subprocess.run([str(executable)], capture_output=True,
+                                text=True, timeout=TEST_TIMEOUT)
+        assert result.returncode == 0, result.stdout + result.stderr
+        return result.stdout, result.stderr
     
     return compile_and_run
 

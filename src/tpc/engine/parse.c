@@ -1,79 +1,9 @@
-/* File: parse.c — TPC opaque parameter parsing and source URL decomposition
- *
- * WHAT: Six functions parse the TPC opaque query string from a kXR_open request
- *       into structured brix_tpc_params_t fields.
- *
- *       tpc_parse_opaque (public entry):
- *         - Zero-initializes out
- *         - Iterates key=value tokens via tpc_parse_token
- *         - Validates at least one recognized key present
- *         - Delegates src parsing to tpc_parse_src_fields
- *
- *       tpc_parse_token:
- *         - Extracts key/value pairs from '&' delimited opaque string
- *         - Matches only "tpc." prefixed keys
- *           (src/dst/key/lfn/dlfn/org/stage/token_mode/str)
- *         - Sets has_* flags for recognized keys
- *
- *       tpc_parse_src_fields:
- *         - Calls tpc_parse_src_spec() for URL/host/port/path decomposition
- *         - Clears all fields on failure to prevent partial-parse security bypass
- *         - Normalizes src_path via LFN if applicable
- *
- *       tpc_parse_dst_fields:
- *         - Same as src_fields for F16 push destination (tpc.dst host:port + tpc.dlfn)
- *
- *       tpc_fill_src_path_from_lfn:
- *         - Converts lfn into src_path with leading '/' normalization
- *         - Only when src_path is empty and has_lfn=true
- *
- *       tpc_parse_src_spec:
- *         - Decomposes root://host//path or xroot://host/path URLs
- *         - Handles bare host[:port] format
- *         - Delegates authority host:port split to brix_split_host_port()
- *           (shared with native client url.c, handles IPv6 brackets + port 1-65535)
- *
- *       tpc_copy_src_path:
- *         - Strips leading double-slashes
- *         - Ensures single '/' prefix
- *
- * WHY: TPC (Third-Party Copy) requests carry source endpoint information in
- *      opaque query parameters appended to the kXR_open path field. Clients may
- *      send full URLs (root://host//path), bare host[:port] with lfn carrying
- *      the file name, or IPv6 addresses in bracket notation.
- *
- *      - Parsing must be robust against malformed inputs
- *      - Partial parse failures must clear all fields to prevent security bypass
- *        where a partially-parsed source could reach downstream validation
- *      - LFN normalization ensures consistent path format regardless of client convention
- *
- * HOW: tpc_parse_opaque:
- *        - memset(out,0) → iterate tokens via tpc_parse_token(&-delimited)
- *        - Check at least one has_* flag set → call tpc_parse_src_fields if has_src=true
- *
- *      tpc_parse_token:
- *        - Find '&' or end-of-string as token boundary
- *        - Locate '=' separator → verify "tpc." prefix (BRIX_TPC_PREFIX_LEN=4 bytes)
- *        - Match remaining key length against known keys
- *          (src=3, dst=3, key=3, lfn=3, org=3, stage=5, token_mode=10)
- *        - Copy value into corresponding buffer with size guard
- *
- *      tpc_parse_src_fields:
- *        - Call tpc_parse_src_spec() for URL decomposition
- *        - On error clear src_host/\\0, src_path/\\0, src_port=0
- *        - Delegate to tpc_fill_src_path_from_lfn for LFN normalization
- *
- *      tpc_parse_src_spec:
- *        - Find "://" scheme separator
- *        - Extract authority (host[:port]) between scheme and '/'
- *        - Handle IPv6 brackets [...]
- *        - strtol validate port range 1-65535
- *        - Copy path component after '/'
- *
- *      tpc_fill_src_path_from_lfn:
- *        - If src_path already set or has_lfn=false, return
- *        - If lfn starts with '/', copy directly
- *        - Else prepend '/' then copy remaining chars
+/* parse.c — native TPC opaque parameters and endpoint decomposition.
+ * WHAT: Parse tpc.* key/value fields and root:// or bare host[:port] endpoints.
+ * WHY: Source, destination and LFN variants must share validation and must not
+ * leave partial endpoint fields usable after an error.
+ * HOW: Bound each field, split authority through brix_split_host_port(), then
+ * normalize source/destination LFNs. Clear endpoint fields on parse failure.
  */
 #include "tpc_internal.h"
 #include "core/compat/host_split.h"   /* shared bracketed-IPv6 host:port split (libxrdproto) */
