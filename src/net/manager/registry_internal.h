@@ -11,7 +11,6 @@
 #include "core/compat/shm_slots.h"    
 #include <ngx_shmtx.h>
 #include <string.h>
-extern ngx_shmtx_t   brix_srv_mutex;
 
 /*
  * Module state container - encapsulates all registry policy globals.
@@ -29,6 +28,9 @@ typedef struct {
 
 /* Accessor - returns pointer to module state (config-time set, read-only after fork) */
 const brix_srv_state_t *brix_srv_state(void);
+
+/* Config-time mutation stays with the private state owner. */
+void brix_srv_set_registry_slots(ngx_uint_t slots);
 
 
 /* registry.c */

@@ -13,6 +13,7 @@
  *       few lines; a bigger file is not one).  Pure C so the unittest builds it
  *       without nginx.
  */
+#include "core/types/tunables.h"
 #include "resolv_conf.h"
 
 #include <stdio.h>

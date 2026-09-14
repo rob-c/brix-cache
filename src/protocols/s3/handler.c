@@ -328,7 +328,7 @@ s3_add_preflight_headers(ngx_http_request_t *r, const ngx_str_t *allow)
         return NGX_ERROR;
     }
 
-    return brix_http_set_header(r, "Access-Control-Max-Age", XSTR(BRIX_S3_CORS_MAX_AGE_SEC), NULL);
+    return brix_http_set_header(r, "Access-Control-Max-Age", BRIX_STRINGIFY(BRIX_S3_CORS_MAX_AGE_SEC), NULL);
 }
 
 /*

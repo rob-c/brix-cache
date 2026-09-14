@@ -9,6 +9,7 @@
  * slab lock (SHM path) so concurrent workers never corrupt a slot.
  */
 
+#include "core/types/tunables.h"
 #include "cns.h"
 #include "cns_inventory.h"
 #include "core/compat/shm_slots.h"

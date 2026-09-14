@@ -299,9 +299,9 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
     ctx->sess = NULL;
 
     /* Free any transfer monitor slots for this session (handles kXR_close was never sent). */
-    if (ngx_brix_dashboard_shm_zone != NULL) {
+    if (brix_dashboard_get_shm_zone() != NULL) {
         brix_transfer_slot_free_all_for_session(
-            ngx_brix_dashboard_shm_zone->data, ctx->login.sessid);
+            brix_dashboard_get_shm_zone()->data, ctx->login.sessid);
     }
 
     if (!ctx->login.logged_in) {

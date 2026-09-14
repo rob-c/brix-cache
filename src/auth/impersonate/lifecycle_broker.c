@@ -451,7 +451,7 @@ brix_imp_init_module(ngx_cycle_t *cycle)
     }
 
     /* Gate the broker to the worker uid (defence in depth atop confinement). */
-    brix_imp_broker_allow_uid = (wuid != (uid_t) -1) ? wuid : 0;
+    brix_imp_set_broker_allow_uid((wuid != (uid_t) -1) ? wuid : 0);
 
     if (imp_spawn_broker(fds.lfd, fds.rootfd, cycle->log) != NGX_OK) {
         return NGX_ERROR;

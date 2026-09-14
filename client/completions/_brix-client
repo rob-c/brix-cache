@@ -65,6 +65,12 @@ _brix_xrdcp() {
         '--notlsok[permit cleartext if server offers no TLS]' \
         '--noverifyhost[skip TLS hostname verification (chain check stays on)]' \
         '--auth=[force authentication protocol]:proto:(gsi ztn krb5 sss unix)' \
+        '--allow-http[accepted for stock-xrdcp compatibility]' \
+        '--sss-vorg=[SSS virtual organization]:vo' \
+        '--sss-role=[SSS role]:role' \
+        '--sss-endorse=[SSS endorsements]:text' \
+        '--sss-creds-file=[SSS proxied credential file]:file:_files' \
+        '--sss-sndlid[let the SSS server name the login identity]' \
         '--proxy=[X.509 proxy certificate path, overrides X509_USER_PROXY]:file:_files' \
         '--pgrw[use paged I/O (kXR_pgread/kXR_pgwrite) with per-page CRC32c]' \
         '--io-uring=[local-disk io_uring overlap ring mode]:mode:(on off auto)' \
@@ -145,6 +151,11 @@ _brix_xrdfs() {
         '--notlsok[permit cleartext]'
         '--noverifyhost[skip TLS hostname verification]'
         '--auth=[authentication protocol]:proto:(gsi ztn krb5 sss unix)'
+        '--sss-vorg=[SSS virtual organization]:vo'
+        '--sss-role=[SSS role]:role'
+        '--sss-endorse=[SSS endorsements]:text'
+        '--sss-creds-file=[SSS proxied credential file]:file:_files'
+        '--sss-sndlid[let the SSS server name the login identity]'
         '(-T --token)'{-T+,--token=}'[bearer token (or $BEARER_TOKEN)]:token'
         '--version[print version and exit]'
         '--help[print help and exit]'
@@ -611,6 +622,11 @@ _brix_xrootdfs() {
         '--noverifyhost[skip TLS server-cert check (self-signed beds)]' \
         '--auth=[authentication protocol]:proto:(gsi ztn unix)' \
         '--max-conns=[metadata connection pool size (default 8)]:n' \
+        '--sss-identity[use a separate SSS connection set per caller UID]' \
+        '--max-identities=[maximum distinct caller UIDs (default 64)]:n' \
+        '--identity-conns=[metadata connections per identity (default 2)]:n' \
+        '--identity-streams=[data streams per identity (default 1)]:n' \
+        '--cluster-readdir[combine listings from all holders named by the manager]' \
         '--version[print version and exit]' \
         '--streams=[async data connections (default 4)]:n' \
         '--lazy-streams[open 1 stream at mount, the rest on first I/O]' \

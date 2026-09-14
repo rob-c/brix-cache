@@ -36,6 +36,7 @@
  *     - Multiple allocation failure paths return 0 with BN/ECDSA_SIG cleanup
  */
 
+#include "core/types/tunables.h"
 #include "token_internal.h"
 #include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 

@@ -153,10 +153,19 @@ brix_aio_write(brix_aio_ctx_t *ctx, int fd, const void *buf, size_t count,
     return 0;
 }
 
+/* ---- Submit queued Linux AIO requests and wait for their completions ----
+ *
+ * WHAT: Return the number completed, or -1 on a submission/wait error.
+ * WHY: liburing requires an actual timespec pointer for finite timeouts.
+ * HOW: 1. Submit prepared requests and check the submission result.
+ *      2. Wait with a converted timeout, or without a deadline when negative.
+ *      3. Dispatch and consume each completed request.
+ */
 int
 brix_aio_wait(brix_aio_ctx_t *ctx, int timeout_ms)
 {
     struct io_uring_cqe *cqe;
+    struct __kernel_timespec timeout;
     int ret;
     int completed = 0;
     
@@ -164,9 +173,22 @@ brix_aio_wait(brix_aio_ctx_t *ctx, int timeout_ms)
         errno = EINVAL;
         return -1;
     }
+
+    ret = io_uring_submit(&ctx->ring);
+    if (ret < 0) {
+        errno = -ret;
+        return -1;
+    }
+
+    timeout.tv_sec = timeout_ms / 1000;
+    timeout.tv_nsec = (timeout_ms % 1000) * 1000000L;
     
     while (ctx->pending_ops > 0) {
-        ret = io_uring_wait_cqe_timeout(&ctx->ring, &cqe, timeout_ms);
+        if (timeout_ms < 0) {
+            ret = io_uring_wait_cqe(&ctx->ring, &cqe);
+        } else {
+            ret = io_uring_wait_cqe_timeout(&ctx->ring, &cqe, &timeout);
+        }
         
         if (ret < 0) {
             if (ret == -ETIME) {

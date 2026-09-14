@@ -532,7 +532,7 @@ brix_subprocess_run(const brix_subprocess_req_t *req, size_t *out_len,
     if (req->out != NULL && pipe2(capture, O_CLOEXEC) != 0) {
         return -1;
     }
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, result) != 0) {
+    if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, result) != 0) {
         close(capture[0]);
         close(capture[1]);
         return -1;

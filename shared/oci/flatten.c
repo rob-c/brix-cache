@@ -18,7 +18,6 @@
 
 #include "oci/flatten.h"
 #include "oci/stargz.h"
-#include "core/types/tunables.h"  /* BRIX_SHARED_OCI_* constants */
 #include "oci/tar.h"
 
 #include <dirent.h>
@@ -41,8 +40,8 @@
 #define OCI_WH_PREFIX  ".wh."
 #define OCI_OPQ_NAME   ".wh..wh..opq"
 
-#define FL_MAX_COMPS       BRIX_SHARED_OCI_FLATTEN_COMPS_MAX
-#define FL_DEFAULT_ENTRIES BRIX_SHARED_OCI_FLATTEN_ENTRIES_DEFAULT
+#define FL_MAX_COMPS       2048
+#define FL_DEFAULT_ENTRIES (1024 * 1024)
 
 typedef struct {
     const brix_flatten_opts_t *o;
@@ -96,7 +95,7 @@ static int fl_components(fl_ctx_t *fx, const char *path,
                            "in %s", tok, path);
         if (n >= max)
             return fl_fail(fx, "more than %s path components in %s",
-                           BRIX_STRINGIFY(BRIX_SHARED_OCI_FLATTEN_COMPS_MAX), path);
+                           "2048", path);
         comps[n++] = tok;
     }
     return (int) n;

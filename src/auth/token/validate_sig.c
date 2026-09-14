@@ -26,6 +26,7 @@
  * or brix_token_malformed() (shared with validate.c) so log lines stay uniform.
  */
 
+#include "core/types/tunables.h"
 #include "token_internal.h"
 #include "validate_internal.h"
 #include "b64url.h"

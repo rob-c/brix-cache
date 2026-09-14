@@ -53,7 +53,7 @@
 #define BRIX_PROXY_MAX_WAIT_SECS    30
 
 /* Maximum idle connections to keep in the pool. */
-/* NOTE: BRIX_PROXY_POOL_SIZE defined in tunables.h (512) */
+#define BRIX_PROXY_MAX_IDLE_CONNECTIONS 32
 /* Maximum time a connection can stay idle in the pool. */
 #define BRIX_PROXY_POOL_KEEPALIVE  60
 
@@ -353,7 +353,7 @@ ngx_int_t brix_proxy_select_endpoint(brix_proxy_ctx_t *proxy,
     brix_proxy_target_t *tgt);
 
 /* Worker-local health status array — defined in pool.c, used in connect.c */
-extern brix_proxy_up_status_t *proxy_up_status;
+const brix_proxy_up_status_t *brix_proxy_up_status_get(void);
 
 /* Pool management */
 /* Init the worker-local idle-connection queue and counter. Call once at startup. */

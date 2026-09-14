@@ -2,6 +2,19 @@
 #include "core/compat/shm_slots.h"
 #include "core/fnv.h"
 
+/* The configuration owner alone publishes the process-local SHM zone pointer;
+ * consumers retain read-only access through brix_metrics_get_shm_zone(). */
+static ngx_shm_zone_t *ngx_brix_shm_zone;
+
+/* WHAT: Return the configured metrics zone, or NULL before registration.
+ * WHY: Keep mutation with zone creation while sharing reads across modules.
+ * HOW: 1. Return the configuration owner's pointer without changing it. */
+ngx_shm_zone_t *
+brix_metrics_get_shm_zone(void)
+{
+    return ngx_brix_shm_zone;
+}
+
 /*
  * WHAT: Configure the Prometheus metrics shared-memory zone and assign per-listener slots.
  * WHY: All server blocks share a single atomic counters region so workers can increment

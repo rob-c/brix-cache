@@ -135,7 +135,8 @@ static int entry_path(brix_tar_t *t, int posix_magic, brix_tar_entry_t *e) {
             int n = snprintf(e->path, sizeof(e->path), "%s/%s", prefix, name);
 
             if (n < 0 || (size_t) n >= sizeof(e->path))
-                return brix_tar_fail(t, "entry path exceeds " BRIX_STRINGIFY(BRIX_SHARED_TAR_PATH_MAX) " bytes");
+                return brix_tar_fail(t, "entry path exceeds %zu bytes",
+                                     sizeof(e->path) - 1);
         } else {
             memcpy(e->path, name, sizeof(name));
         }
@@ -320,7 +321,7 @@ static int meta_body(brix_tar_t *t, int64_t size, size_t cap) {
  * override. The body is a NUL-padded string. */
 static int gnu_long(brix_tar_t *t, int64_t size, int is_link) {
     char  *dst    = is_link ? t->next.linkname : t->next.path;
-    size_t dstcap = BRIX_SHARED_TAR_PATH_MAX;
+    size_t dstcap = is_link ? sizeof(t->next.linkname) : sizeof(t->next.path);
     size_t len;
 
     if (meta_body(t, size, dstcap + 512) != 0)

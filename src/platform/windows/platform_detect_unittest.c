@@ -1,5 +1,5 @@
 /*
- * src/platform/windows/platform_detect_test.c - Windows platform detection tests
+ * src/platform/windows/platform_detect_unittest.c - Windows platform detection tests
  * 
  * Tests for Windows version detection functions.
  * Note: These tests must be run on Windows to be meaningful.

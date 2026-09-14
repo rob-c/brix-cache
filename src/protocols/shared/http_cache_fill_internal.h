@@ -10,7 +10,7 @@
  *   http_cache_fill_registry.c  coalescing waiter registry (attach/detach/hold/abort)
  *   http_cache_fill_worker.c    worker thread + resolve + done finalize
  *
- * It declares the fill ctx / waiter structs, the per-worker in-flight list, and
+ * It declares the fill ctx / waiter structs, in-flight registry operations, and
  * the handful of symbols DEFINED in one unit but REFERENCED from another. All of
  * this machinery is thread-pool-only; the unit bodies stay guarded by NGX_THREADS.
  */
@@ -87,12 +87,9 @@ typedef struct brix_http_cache_fill_ctx_s {
     brix_sess_xfer_t                     sess_xfer;
 } brix_http_cache_fill_ctx_t;
 
-/* Per-worker in-flight fills (event-loop-only; a handful at a time). Owned by
- * the registry unit; the worker unit unlinks a completed fill and the entry
- * unit both scans (coalesce) and publishes new fills. */
-extern brix_http_cache_fill_ctx_t  *brix_http_fills;
-
 /* Registry unit (http_cache_fill_registry.c). */
+void brix_http_fill_publish(brix_http_cache_fill_ctx_t *fill);
+void brix_http_fill_unpublish(brix_http_cache_fill_ctx_t *fill);
 const char *brix_http_fill_log_key(const char *key, char *buf, size_t cap);
 brix_http_cache_fill_ctx_t *brix_http_fill_find(brix_sd_instance_t *inst,
     const char *key, const brix_http_fill_cred_t *cred);

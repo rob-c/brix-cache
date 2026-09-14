@@ -21,16 +21,6 @@ static struct {
     ngx_shmtx_t       mutex;
 } reqid_map_state;
 
-/* Accessor - returns pointer to module state */
-static const struct {
-    ngx_shm_zone_t   *shm_zone;
-    ngx_shmtx_t       mutex;
-} *
-brix_cms_reqid_map_state(void)
-{
-    return &reqid_map_state;
-}
-
 /* reqid_table — resolve the zone to the live table, or NULL when the zone has
  * not been allocated / is still at its (void *) 1 init sentinel. */
 static brix_cms_reqid_table_t *

@@ -288,8 +288,8 @@ static void
 brix_open_register_monitor(brix_ctx_t *ctx, const char *resolved, int idx,
     ngx_flag_t is_write)
 {
-	if (ngx_brix_dashboard_shm_zone != NULL) {
-		brix_transfer_table_t *dash_tbl = ngx_brix_dashboard_shm_zone->data;
+	if (brix_dashboard_get_shm_zone() != NULL) {
+		brix_transfer_table_t *dash_tbl = brix_dashboard_get_shm_zone()->data;
 		const char *dash_identity = ctx->login.dn[0] ? ctx->login.dn : "anonymous";
 		uint8_t     dash_dir = is_write ? BRIX_XFER_DIR_WRITE
 		                                : BRIX_XFER_DIR_READ;

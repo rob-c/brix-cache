@@ -136,15 +136,15 @@ brix_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots)
     session_registry_state.session_zone->data = (void *) 1;
 
     zone_size = brix_shm_zone_size(sizeof(brix_shared_handle_table_t));
-    brix_handle_shm_zone = ngx_shared_memory_add(cf, &handle_zone_name,
+    session_registry_state.handle_zone = ngx_shared_memory_add(cf, &handle_zone_name,
                                                    zone_size,
                                                    &ngx_stream_brix_module);
-    if (brix_handle_shm_zone == NULL) {
+    if (session_registry_state.handle_zone == NULL) {
         return NGX_ERROR;
     }
 
-    brix_handle_shm_zone->init = brix_handle_shm_init_zone;
-    brix_handle_shm_zone->data = (void *) 1;
+    session_registry_state.handle_zone->init = brix_handle_shm_init_zone;
+    session_registry_state.handle_zone->data = (void *) 1;
 
     return NGX_OK;
 }

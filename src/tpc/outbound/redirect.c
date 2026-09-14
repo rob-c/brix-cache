@@ -29,7 +29,6 @@
 #include <string.h>
 #include <strings.h>
 
-#define TPC_DEFAULT_PORT BRIX_ROOT_DEFAULT_PORT
 
 /* WHAT: the port a host:port pair connects to when the wire said 0. */
 static unsigned

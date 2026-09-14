@@ -117,7 +117,7 @@ jobs:
           aarch64-linux-gnu-gcc \
             -march=armv8-a \
             -I$GITHUB_WORKSPACE \
-            -c $GITHUB_WORKSPACE/src/platform/platform.c \
+            -c $GITHUB_WORKSPACE/src/platform/platform_runtime.c \
             -o platform.o
           aarch64-linux-gnu-gcc \
             -march=armv8-a \

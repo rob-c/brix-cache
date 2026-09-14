@@ -12,6 +12,7 @@
  *       the callback. Pure C, no nginx runtime — unit-testable standalone.
  */
 
+#include "core/types/tunables.h"
 #include "ini.h"
 
 #include <stdio.h>

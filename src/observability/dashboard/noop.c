@@ -4,8 +4,7 @@
 /*
  * dashboard/noop.c — stub implementation of the entire dashboard public API.
  *
- * WHAT: Defines the three SHM zone pointers (ngx_brix_dashboard_shm_zone,
- *       _events_shm_zone, _history_shm_zone) and a do-nothing version of every
+ * WHAT: Defines the three SHM zone accessors and a do-nothing version of every
  *       symbol that transfer_table.c, events.c, history.c and http_tracking.c
  *       normally provide — the slot ops, event log, history sampler and HTTP
  *       request-tracking hooks.  Allocators return -1 / NGX_OK, snapshots return
@@ -23,13 +22,29 @@
  *       with dashboard_tracking.h and dashboard.h whenever the API changes.
  */
 
-/*
- * Encapsulated module state for noop dashboard.
- * Access via brix_dashboard_get_*_shm_zone() accessors.
- */
-static ngx_shm_zone_t *ngx_brix_dashboard_shm_zone = NULL;
-static ngx_shm_zone_t *ngx_brix_dashboard_events_shm_zone = NULL;
-static ngx_shm_zone_t *ngx_brix_dashboard_history_shm_zone = NULL;
+/* WHAT: Report no transfer zone. WHY: Disabled tracking must stay inactive.
+ * HOW: 1. Return NULL without allocating shared state. */
+ngx_shm_zone_t *
+brix_dashboard_get_shm_zone(void)
+{
+    return NULL;
+}
+
+/* WHAT: Report no event zone. WHY: Disabled events must stay inactive.
+ * HOW: 1. Return NULL without allocating shared state. */
+ngx_shm_zone_t *
+brix_dashboard_get_events_shm_zone(void)
+{
+    return NULL;
+}
+
+/* WHAT: Report no history zone. WHY: Disabled history must stay inactive.
+ * HOW: 1. Return NULL without allocating shared state. */
+ngx_shm_zone_t *
+brix_dashboard_get_history_shm_zone(void)
+{
+    return NULL;
+}
 
 ngx_int_t
 brix_configure_dashboard(ngx_conf_t *cf)

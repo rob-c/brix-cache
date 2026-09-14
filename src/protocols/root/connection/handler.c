@@ -305,14 +305,14 @@ conn_metrics_row(ngx_stream_brix_srv_conf_t *mconf)
 {
     ngx_brix_metrics_t *shm;
 
-    if (mconf->metrics_slot < 0 || ngx_brix_shm_zone == NULL
-        || ngx_brix_shm_zone->data == NULL
-        || ngx_brix_shm_zone->data == (void *) 1)
+    if (mconf->metrics_slot < 0 || brix_metrics_get_shm_zone() == NULL
+        || brix_metrics_get_shm_zone()->data == NULL
+        || brix_metrics_get_shm_zone()->data == (void *) 1)
     {
         return NULL;
     }
 
-    shm = ngx_brix_shm_zone->data;
+    shm = brix_metrics_get_shm_zone()->data;
     return &shm->servers[mconf->metrics_slot];
 }
 

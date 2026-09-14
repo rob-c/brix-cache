@@ -44,7 +44,7 @@
  * only tens of KiB. A larger answer is refused rather than truncated — half a
  * JSON array is worse than a 502. */
 #define OCI_TAGS_RESP_MAX     BRIX_OCI_TAGS_RESP_MAX
-/* OCI_TAGS_TIMEOUT_MS defined in oci.h */
+/* BRIX_OCI_TAGS_TIMEOUT_MS defined in oci.h */
 
 typedef struct {
     ngx_http_request_t   *r;
@@ -98,7 +98,7 @@ oci_tags_leg(oci_tags_task_t *t, const char *hdrs,
 
     if (tr->request(&t->up->tctx, t->up->host, t->up->port, t->up->tls, "GET",
                     t->path,
-                    hdrs, NULL, 0, OCI_TAGS_TIMEOUT_MS, &resp,
+                    hdrs, NULL, 0, BRIX_OCI_TAGS_TIMEOUT_MS, &resp,
                     errbuf, sizeof(errbuf)) != 0)
     {
         ngx_log_error(NGX_LOG_ERR, t->up->log, 0,

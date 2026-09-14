@@ -4,7 +4,7 @@
  *
  * Prior to phase-92 the BRIX_FRM_METRIC_* macros had ZERO callsites, so every
  * brix_frm_* series the exporter (frm_metrics.c) publishes was frozen at 0. This
- * unit installs a fake metrics SHM zone (ngx_brix_shm_zone->data pointing at a
+ * unit installs a fake metrics SHM zone (test_metrics_zone->data pointing at a
  * stack ngx_brix_metrics_t), drives a real on-disk registry through its admit /
  * set-status / delete lifecycle, and asserts the counters move exactly once per
  * transition:
@@ -90,7 +90,15 @@ ngx_pnalloc(ngx_pool_t *pool, size_t size)
 }
 
 /* The metrics SHM zone the FRM macros resolve through brix_metrics_shared(). */
-ngx_shm_zone_t *ngx_brix_shm_zone = NULL;
+static ngx_shm_zone_t *test_metrics_zone;
+
+/* WHAT: Supply the fixture's metrics zone. WHY: Exercise the real counter macros.
+ * HOW: 1. Return the zone selected by the current lifecycle test phase. */
+ngx_shm_zone_t *
+brix_metrics_get_shm_zone(void)
+{
+    return test_metrics_zone;
+}
 
 /* ---- helpers -------------------------------------------------------------- */
 
@@ -117,7 +125,7 @@ main(void)
     /* Phase A — NULL SHM zone: the macros must be a safe no-op (no crash) and the
      * admit still succeeds. Do this BEFORE installing the fake zone so this
      * request's in_flight is never accounted and cannot skew later gauge math. */
-    assert(ngx_brix_shm_zone == NULL);
+    assert(test_metrics_zone == NULL);
     assert(brix_stage_registry_init(dir, NULL) == NGX_OK);
     reg = brix_stage_registry_singleton();
     assert(reg != NULL);
@@ -134,7 +142,7 @@ main(void)
     memset(&g_metrics, 0, sizeof(g_metrics));
     memset(&g_zone, 0, sizeof(g_zone));
     g_zone.data = &g_metrics;
-    ngx_brix_shm_zone = &g_zone;
+    test_metrics_zone = &g_zone;
 
     /* Phase B — success: admit then complete ONLINE. */
     memset(&view, 0, sizeof(view));

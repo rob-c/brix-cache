@@ -35,7 +35,7 @@ static brix_dashboard_event_table_t *
 dashboard_events_table(void)
 {
     return (brix_dashboard_event_table_t *)
-           brix_shm_zone_table(ngx_brix_dashboard_events_shm_zone);
+           brix_shm_zone_table(brix_dashboard_get_events_shm_zone());
 }
 
 static void

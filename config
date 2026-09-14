@@ -751,6 +751,16 @@ $ngx_addon_dir/src/fs/vfs/vfs_deleg.h \
                         $ngx_addon_dir/src/protocols/root/response/response.h \
                         $ngx_addon_dir/src/protocols/root/response/async.h \
                         $ngx_addon_dir/src/protocols/root/write/write.h \
+                        $ngx_addon_dir/src/protocols/root/write/pgwrite_helpers.h \
+                        $ngx_addon_dir/src/auth/impersonate/impersonate_state.h \
+                        $ngx_addon_dir/src/protocols/cvmfs/swarm_internal.h \
+                        $ngx_addon_dir/src/protocols/shared/http_cache_fill_internal.h \
+                        $ngx_addon_dir/src/platform/platform.h \
+                        $ngx_addon_dir/src/platform/platform_api.h \
+                        $ngx_addon_dir/src/platform/platform_compat.h \
+                        $ngx_addon_dir/src/platform/windows/win32_compat.h \
+                        $ngx_addon_dir/src/platform/windows/handle_abstraction.h \
+                        $ngx_addon_dir/shared/cvmfs/platform/platform.h \
                         $ngx_addon_dir/src/protocols/root/write/backend_async_root.h \
                         $ngx_addon_dir/src/protocols/root/write/chkpoint.h \
                         $ngx_addon_dir/src/protocols/root/dirlist/dirlist.h \
@@ -962,15 +972,11 @@ xrd_emit_module() {
     fi
 }
 
-# Build both the stream module and the companion HTTP metrics module
-ngx_module_type=STREAM
-ngx_module_name=ngx_stream_brix_module
-ngx_module_incs="$ngx_addon_dir/src $ngx_addon_dir/shared"
-ngx_module_srcs="\
-    $ngx_addon_dir/src/protocols/root/stream/module.c \
-    $ngx_addon_dir/src/protocols/root/stream/module_enums.c \
-    $ngx_addon_dir/src/protocols/root/stream/module_definition.c \
-    $ngx_addon_dir/src/platform/platform.c \
+# Compile only the host PAL: foreign wrappers use native headers and APIs.
+brix_shared_platform_srcs=""
+if [ "$BRIX_PLATFORM_LINUX" = "1" ]; then
+    brix_shared_platform_srcs="$ngx_addon_dir/shared/cvmfs/platform/platform.c"
+    brix_platform_srcs="\
     $ngx_addon_dir/src/platform/linux/posix_wrapper.c \
     $ngx_addon_dir/src/platform/linux/event_wrapper.c \
     $ngx_addon_dir/src/platform/linux/fs_watcher.c \
@@ -980,6 +986,9 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/platform/linux/crc32c_arm64.c \
     $ngx_addon_dir/src/platform/linux/checksum_neon.c \
     $ngx_addon_dir/src/platform/linux/arm64_crypto.c \
+    "
+elif [ "$BRIX_PLATFORM_DARWIN" = "1" ]; then
+    brix_platform_srcs="\
     $ngx_addon_dir/src/platform/darwin/posix_wrapper.c \
     $ngx_addon_dir/src/platform/darwin/event_wrapper.c \
     $ngx_addon_dir/src/platform/darwin/fs_watcher.c \
@@ -990,6 +999,9 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/platform/darwin/cpu_topology.c \
     $ngx_addon_dir/src/platform/darwin/apple_silicon.c \
     $ngx_addon_dir/src/platform/darwin/clonefile_optimized.c \
+    "
+elif [ "$BRIX_PLATFORM_WINDOWS" = "1" ]; then
+    brix_platform_srcs="\
     $ngx_addon_dir/src/platform/windows/handle_abstraction.c \
     $ngx_addon_dir/src/platform/windows/posix_wrapper.c \
     $ngx_addon_dir/src/platform/windows/event_wrapper.c \
@@ -999,6 +1011,20 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/platform/windows/process.c \
     $ngx_addon_dir/src/platform/windows/xattr.c \
     $ngx_addon_dir/src/platform/windows/platform_detect.c \
+    "
+fi
+
+# Build both the stream module and the companion HTTP metrics module
+ngx_module_type=STREAM
+ngx_module_name=ngx_stream_brix_module
+ngx_module_incs="$ngx_addon_dir/src $ngx_addon_dir/shared"
+ngx_module_srcs="\
+    $ngx_addon_dir/src/protocols/root/stream/module.c \
+    $ngx_addon_dir/src/protocols/root/stream/module_enums.c \
+    $ngx_addon_dir/src/protocols/root/stream/module_definition.c \
+    $ngx_addon_dir/src/platform/platform_runtime.c \
+    $brix_shared_platform_srcs \
+    $brix_platform_srcs \
     $ngx_addon_dir/src/core/compat/checksum.c \
     $ngx_addon_dir/src/core/compat/checksum_core.c \
     $ngx_addon_dir/src/core/compat/checksum_plugin.c \
@@ -1537,6 +1563,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/authz/acc/audit.c \
     $ngx_addon_dir/src/auth/authz/acc/resolve.c \
     $ngx_addon_dir/src/auth/authz/acc/config.c \
+    $ngx_addon_dir/src/auth/impersonate/impersonate_state.c \
     $ngx_addon_dir/src/auth/impersonate/idmap.c \
     $ngx_addon_dir/src/auth/impersonate/idmap_gridmap.c \
     $ngx_addon_dir/src/auth/impersonate/idmap_denylist.c \
@@ -1881,6 +1908,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/write/mkdir.c \
     $ngx_addon_dir/src/protocols/root/write/mv.c \
     $ngx_addon_dir/src/protocols/root/write/pgwrite.c \
+    $ngx_addon_dir/src/protocols/root/write/pgwrite_helpers.c \
     $ngx_addon_dir/src/protocols/root/write/pgw_fob.c \
     $ngx_addon_dir/src/protocols/root/write/wrts_journal.c \
     $ngx_addon_dir/src/protocols/root/write/rm.c \

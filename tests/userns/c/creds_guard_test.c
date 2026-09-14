@@ -17,6 +17,7 @@
 #include <string.h>
 
 #include "impersonate.h"
+#include "impersonate_state.h"
 
 /* idmap.o references ngx_log_error_core via other functions; stub it. */
 void
@@ -62,6 +63,29 @@ main(void)
 
     /* The hard floor must be exactly 1000 as documented/requested. */
     CK(BRIX_IMP_HARD_MIN_ID == 1000, "hard floor == 1000");
+
+    /* Policy state must preserve its floor before and after explicit init. */
+    CK(brix_idmap_get_min_uid() == BRIX_IDMAP_DEFAULT_MIN_UID,
+       "uninitialized mapper retains the default UID floor");
+    brix_idmap_set_min_uid(2000);
+    brix_idmap_state_init();
+    CK(brix_idmap_get_min_uid() == BRIX_IDMAP_DEFAULT_MIN_UID,
+       "mapper reset restores the default UID floor");
+
+    /* The lifecycle setter and accept-loop getter must share one peer gate. */
+    brix_imp_set_broker_allow_uid(2001);
+    CK(brix_imp_get_broker_allow_uid() == 2001,
+       "broker peer gate retains the configured worker UID");
+    {
+        gid_t groups[] = { 2001, 2002 };
+        brix_imp_set_base_groups(groups, 2);
+        CK(brix_imp_get_base_ngroups() == 2
+           && brix_imp_get_base_groups()[1] == 2002,
+           "broker base groups round trip");
+        brix_imp_set_base_groups(groups, BRIX_IDMAP_MAXGROUPS + 1);
+        CK(brix_imp_get_base_ngroups() == 0,
+           "invalid group count discards the previous group set");
+    }
 
     /* ---- clean creds pass ---- */
     {

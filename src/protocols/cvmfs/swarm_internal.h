@@ -8,8 +8,8 @@
  * WHY:  swarm.c grew past the file-size gate; the event-loop/thread-pool
  *       engine was lifted whole into swarm_gossip.c. Every symbol DEFINED in
  *       one file but CALLED from the other is declared here — no new state
- *       was introduced, the config-time statics merely became module-internal
- *       externs (same seam idiom as cvmfs_module_internal.h). Nothing here is
+ *       was introduced; accessors keep the config-time tables in swarm.c.
+ *       Nothing here is
  *       part of the public cvmfs:// surface (that lives in cvmfs.h).
  * HOW:  include after cvmfs.h. Each declaration names its defining file.
  */
@@ -82,9 +82,9 @@ typedef struct {
  * Per-process registration table (written by brix_cvmfs_swarm_register at
  * config time) and the per-worker contexts (written by the worker init in
  * swarm_gossip.c, read by the roster endpoint). */
-extern cvmfs_swarm_reg_t   cvmfs_swarm_regs[CVMFS_SWARM_MAX_EXPORTS];
-extern ngx_uint_t          cvmfs_swarm_regs_n;
-extern cvmfs_swarm_ctx_t  *cvmfs_swarm_ctxs[CVMFS_SWARM_MAX_EXPORTS];
+ngx_uint_t cvmfs_swarm_reg_count(void);
+const cvmfs_swarm_reg_t *cvmfs_swarm_reg_at(ngx_uint_t index);
+void cvmfs_swarm_ctx_set(ngx_uint_t index, cvmfs_swarm_ctx_t *ctx);
 
 /* Lazy membership seed from the static brix_cache_peers ring — called from
  * both the gossip timer and the roster endpoint, whichever runs first once

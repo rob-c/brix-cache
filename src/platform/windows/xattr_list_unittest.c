@@ -1,5 +1,5 @@
 /*
- * test_xattr_list.c - Test NTFS ADS stream enumeration
+ * xattr_list_unittest.c - Test NTFS ADS stream enumeration
  * 
  * Tests brix_plat_listxattr and brix_plat_flistxattr functions
  * which enumerate alternate data streams using FindFirstStreamW/FindNextStreamW.

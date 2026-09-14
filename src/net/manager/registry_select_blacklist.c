@@ -33,13 +33,13 @@ brix_srv_blacklist(const char *host, uint16_t port, ngx_msec_t duration_ms)
         return;
     }
 
-    ngx_shmtx_lock(&brix_srv_mutex);
+    ngx_shmtx_lock(brix_srv_get_mutex());
     e = srv_find_locked(host, port);
     if (e != NULL) {
         e->error_count++;
         e->blacklisted_until = ngx_current_msec + duration_ms;
     }
-    ngx_shmtx_unlock(&brix_srv_mutex);
+    ngx_shmtx_unlock(brix_srv_get_mutex());
 }
 
 
@@ -59,7 +59,7 @@ brix_srv_undrain(const char *host, uint16_t port)
         return 0;
     }
 
-    ngx_shmtx_lock(&brix_srv_mutex);
+    ngx_shmtx_lock(brix_srv_get_mutex());
     e = srv_find_locked(host, port);
     if (e != NULL) {
         e->blacklisted_until = 0;
@@ -67,7 +67,7 @@ brix_srv_undrain(const char *host, uint16_t port)
         e->hc_fail_count     = 0;
         found = 1;
     }
-    ngx_shmtx_unlock(&brix_srv_mutex);
+    ngx_shmtx_unlock(brix_srv_get_mutex());
     return found;
 }
 
@@ -94,12 +94,12 @@ brix_srv_is_blacklisted(const char *host, uint16_t port)
         return 0;
     }
 
-    ngx_shmtx_lock(&brix_srv_mutex);
+    ngx_shmtx_lock(brix_srv_get_mutex());
     e = srv_find_locked(host, port);
     if (e != NULL) {
         drained = (e->blacklisted_until != 0
                    && ngx_current_msec < e->blacklisted_until);
     }
-    ngx_shmtx_unlock(&brix_srv_mutex);
+    ngx_shmtx_unlock(brix_srv_get_mutex());
     return drained;
 }

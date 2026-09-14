@@ -68,12 +68,12 @@ brix_staged_append_raw(brix_ctx_t *ctx, int idx, int64_t offset,
     ctx->totals.bytes_written += len;
     brix_rl_charge_ctx(ctx, len);
 
-    if (file->dashboard_slot >= 0 && ngx_brix_dashboard_shm_zone != NULL) {
-        brix_transfer_slot_update(ngx_brix_dashboard_shm_zone->data,
+    if (file->dashboard_slot >= 0 && brix_dashboard_get_shm_zone() != NULL) {
+        brix_transfer_slot_update(brix_dashboard_get_shm_zone()->data,
                                     file->dashboard_slot,
                                     (ngx_atomic_int_t) len,
                                     (int64_t) ngx_current_msec);
-        brix_transfer_slot_count_op(ngx_brix_dashboard_shm_zone->data,
+        brix_transfer_slot_count_op(brix_dashboard_get_shm_zone()->data,
                                       file->dashboard_slot, "write");
     }
     return BRIX_STAGED_APPEND_OK;

@@ -257,7 +257,7 @@ health_build_json(ngx_http_request_t *r, ngx_uint_t verbose, size_t *len)
      * the module's shared state — "mapped" once a stream server block exists.
      * When mapped it also carries the config/reload fingerprint published by the
      * master in init_module (brix_config_version_publish). */
-    m = (ngx_brix_shm_zone != NULL) ? ngx_brix_shm_zone->data : NULL;
+    m = (brix_metrics_get_shm_zone() != NULL) ? brix_metrics_get_shm_zone()->data : NULL;
     if (m != NULL) {
         generation  = (ngx_uint_t) m->config_generation;
         config_hash = m->config_hash;

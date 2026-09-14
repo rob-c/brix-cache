@@ -127,13 +127,19 @@ brix_plat_fs_watcher_rm(brix_plat_fs_watcher_t *watcher, int wd)
     return 0;
 }
 
+/* ---- Read a Linux filesystem event using the public PAL event masks ----
+ *
+ * WHAT: Return one decoded event, zero when none is ready, or -1 on error.
+ * WHY: Consumers must receive only event types defined by platform_api.h.
+ * HOW: 1. Read the pending inotify event.
+ *      2. Translate deletion and both rename directions to the shared masks.
+ */
 int
 brix_plat_fs_watcher_next(brix_plat_fs_watcher_t *watcher, brix_plat_fs_event_t *event, int timeout_ms)
 {
     char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
     struct inotify_event *iev;
     ssize_t n;
-    int ret;
     
     if (watcher == NULL || event == NULL) {
         errno = EINVAL;
@@ -192,13 +198,13 @@ brix_plat_fs_watcher_next(brix_plat_fs_watcher_t *watcher, brix_plat_fs_event_t 
         event->events |= BRIX_FS_EVENT_DELETE;
     }
     if (iev->mask & IN_DELETE_SELF) {
-        event->events |= BRIX_FS_EVENT_DELETE_SELF;
+        event->events |= BRIX_FS_EVENT_DELETE;
     }
     if (iev->mask & IN_MOVED_FROM) {
         event->events |= BRIX_FS_EVENT_RENAME;
     }
     if (iev->mask & IN_MOVED_TO) {
-        event->events |= BRIX_FS_EVENT_MOVE_TO;
+        event->events |= BRIX_FS_EVENT_RENAME;
     }
     
     event->cookie = iev->cookie;

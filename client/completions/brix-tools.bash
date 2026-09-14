@@ -16,7 +16,8 @@ _xrdcp() {
     --progress --verify --tls --notlsok --noverifyhost --auth --proxy --pgrw
     --io-uring --io-uring-direct --cksum --compress --zip --zip-append --streams --parallel --tpc
     --sources --no-metalink --continue -X --xrate --xrate-threshold --rm-bad-cksum -F --coerce --retry-policy --xattr
-    --tpc-token-mode --token --s3-access --s3-secret --s3-region
+    --tpc-token-mode --token --s3-access --s3-secret --s3-region --allow-http
+    --sss-vorg --sss-role --sss-endorse --sss-creds-file --sss-sndlid
     --wire-trace --timing"
   _brix_opts_filter "$opts" && return
   local prev="${COMP_WORDS[COMP_CWORD-1]}"
@@ -25,14 +26,15 @@ _xrdcp() {
     --tpc)        COMPREPLY=($(compgen -W "first only delegate" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
     --auth)       COMPREPLY=($(compgen -W "gsi ztn krb5 sss unix" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
     --io-uring)   COMPREPLY=($(compgen -W "on off auto" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
-    --from|--journal|--proxy) COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+    --from|--journal|--proxy|--sss-creds-file) COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
   esac
   COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}"))
 }
 
 _xrdfs() {
   local cur="${COMP_WORDS[COMP_CWORD]}"
-  local conn_opts="--tls --notlsok --noverifyhost --auth -T --token --version"
+  local conn_opts="--tls --notlsok --noverifyhost --auth -T --token --version
+    --sss-vorg --sss-role --sss-endorse --sss-creds-file --sss-sndlid"
   # Connection-level flags: complete whenever the current word starts with '-',
   # regardless of position (options can appear before the endpoint or subcommand).
   if [[ "$cur" == -* ]]; then
@@ -136,7 +138,8 @@ _xrootdfs() {
   _brix_opts_filter "--token --noverifyhost --tls --notlsok --auth --max-conns
     --version --streams --lazy-streams --max-stall --keepalive --max-retries
     --connect-timeout --io-timeout --attr-timeout --entry-timeout --kernel-cache
-    --compress --readahead --writeback --xattr -f -d -s -o" && return
+    --compress --readahead --writeback --xattr --sss-identity --max-identities
+    --identity-conns --identity-streams --cluster-readdir -f -d -s -o" && return
   local prev="${COMP_WORDS[COMP_CWORD-1]}"
   case "$prev" in
     --auth)     COMPREPLY=($(compgen -W "gsi ztn unix" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;

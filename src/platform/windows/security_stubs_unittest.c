@@ -1,5 +1,5 @@
 /*
- * src/platform/windows/test_security_stubs.c - Windows PAL Security Stub Tests
+ * src/platform/windows/security_stubs_unittest.c - Windows PAL Security Stub Tests
  *
  * Tests for Windows security stub implementations:
  * - brix_plat_security_init()
@@ -10,7 +10,7 @@
  * These are stub implementations that return success for compatibility.
  * Windows security model differs fundamentally from POSIX (ACLs vs capabilities).
  *
- * Compile: cl /Isrc/platform test_security_stubs.c src/platform/windows/security_wrapper.c
+ * Compile: cl /Isrc/platform security_stubs_unittest.c src/platform/windows/security_wrapper.c
  * Run: test_security_stubs.exe
  */
 

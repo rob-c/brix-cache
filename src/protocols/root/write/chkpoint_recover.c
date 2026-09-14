@@ -140,7 +140,8 @@ ckp_stage_original(ngx_log_t *log, const char *root_canon,
  */
 static ngx_int_t
 ckp_copy_data(ngx_log_t *log, int ckp_fd, brix_staged_file_t *staged,
-              off_t size, const char *ckp_path, const char *root_canon)
+              off_t size, const char *ckp_path, const char *root_canon,
+              const char *orig_path)
 {
     if (size > 0
         && brix_copy_range(log, ckp_fd, 0, staged->fd, 0,
@@ -150,7 +151,7 @@ ckp_copy_data(ngx_log_t *log, int ckp_fd, brix_staged_file_t *staged,
         brix_staged_abort(log, root_canon, staged, 1);
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                            "brix: checkpoint recovery copy failed for "
-                           "\"%s\"", staged->final_path);
+                           "\"%s\"", orig_path);
         return NGX_ERROR;
     }
     return NGX_OK;
@@ -239,7 +240,6 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon, const char *ckp_path)
     struct stat          st;
     int                  ckp_fd;
     brix_staged_file_t   staged;
-    ngx_int_t            rc;
     
     /* Step 1: Validate and extract original path */
     if (ckp_validate_path(ckp_path, orig_path, sizeof(orig_path)) != NGX_OK) {
@@ -264,7 +264,8 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon, const char *ckp_path)
     }
     
     /* Step 5: Copy data from checkpoint to staged file */
-    if (ckp_copy_data(log, ckp_fd, &staged, st.st_size, ckp_path, root_canon) != NGX_OK) {
+    if (ckp_copy_data(log, ckp_fd, &staged, st.st_size, ckp_path,
+                      root_canon, orig_path) != NGX_OK) {
         ngx_close_file(ckp_fd);
         return NGX_ERROR;
     }

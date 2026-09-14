@@ -180,7 +180,7 @@ brix_srv_select_stage(const char *path, char *host_out, size_t host_size,
         return 0;
     }
 
-    ngx_shmtx_lock(&brix_srv_mutex);
+    ngx_shmtx_lock(brix_srv_get_mutex());
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
@@ -210,6 +210,6 @@ brix_srv_select_stage(const char *path, char *host_out, size_t host_size,
         *port_out = e->port;
     }
 
-    ngx_shmtx_unlock(&brix_srv_mutex);
+    ngx_shmtx_unlock(brix_srv_get_mutex());
     return best >= 0;
 }

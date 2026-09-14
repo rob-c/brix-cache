@@ -17,6 +17,7 @@
  * otherwise this is an empty translation unit.
  */
 #include "sd_ceph.h"
+#include "core/types/tunables.h"
 
 #if BRIX_HAVE_CEPH
 

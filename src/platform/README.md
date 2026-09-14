@@ -10,7 +10,7 @@ This directory contains the platform abstraction layer that isolates all OS-spec
 src/platform/
 ├── platform.h              # Master platform detection header
 ├── platform_api.h          # Unified API for all platform operations
-├── platform.c              # Common platform utilities
+├── platform_runtime.c      # Common platform utilities
 ├── linux/
 │   ├── posix_wrapper.c     # Linux POSIX file I/O
 │   ├── event_wrapper.c     # Linux epoll event monitoring

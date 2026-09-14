@@ -7,6 +7,7 @@
  * are local; the only heap object is the DER signature, freed on every path.
  */
 
+#include "core/types/tunables.h"
 #include "jwt_sign.h"
 #include "b64url.h"
 

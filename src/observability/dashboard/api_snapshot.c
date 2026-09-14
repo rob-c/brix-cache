@@ -23,14 +23,14 @@ dashboard_collect_totals(brix_dashboard_totals_t *totals)
 
     ngx_memzero(totals, sizeof(*totals));
 
-    if (ngx_brix_shm_zone == NULL
-        || ngx_brix_shm_zone->data == NULL
-        || ngx_brix_shm_zone->data == (void *) 1)
+    if (brix_metrics_get_shm_zone() == NULL
+        || brix_metrics_get_shm_zone()->data == NULL
+        || brix_metrics_get_shm_zone()->data == (void *) 1)
     {
         return;
     }
 
-    met = ngx_brix_shm_zone->data;
+    met = brix_metrics_get_shm_zone()->data;
     /* Per-listener slots: connection + byte counters, and stream op errors. */
     for (srv = 0; srv < BRIX_METRICS_MAX_SERVERS; srv++) {
         totals->conn_active += (uint64_t) met->servers[srv].connections_active;
@@ -125,14 +125,14 @@ dashboard_collect_protocols(brix_dashboard_protocols_t *out, int64_t now_ms)
 
     ngx_memzero(out, sizeof(*out));
 
-    if (ngx_brix_dashboard_shm_zone == NULL
-        || ngx_brix_dashboard_shm_zone->data == NULL
-        || ngx_brix_dashboard_shm_zone->data == (void *) 1)
+    if (brix_dashboard_get_shm_zone() == NULL
+        || brix_dashboard_get_shm_zone()->data == NULL
+        || brix_dashboard_get_shm_zone()->data == (void *) 1)
     {
         return;
     }
 
-    tbl = ngx_brix_dashboard_shm_zone->data;
+    tbl = brix_dashboard_get_shm_zone()->data;
     for (i = 0; i < BRIX_DASHBOARD_MAX_TRANSFERS; i++) {
         brix_transfer_slot_t           *slot = &tbl->slots[i];
         brix_dashboard_proto_summary_t *summary;

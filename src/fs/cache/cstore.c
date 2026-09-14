@@ -9,6 +9,7 @@
  * through the unified xmeta record (fs/meta/xmeta_carrier.h) on the store
  * driver — the mode is picked per store in brix_cstore_init (section 6.3).
  */
+#include "core/types/tunables.h"
 #include "cstore.h"
 #include "gcas.h"                    /* phase-87 G13: canonical-name evict GC */
 #include "fs/meta/xmeta_carrier.h"   /* the unified record: xattr/sidecar carrier */

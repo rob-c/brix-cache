@@ -18,6 +18,7 @@
  *       IP literals are published immediately and never scheduled.  Timers
  *       are per worker; the request state machine is brix_dns_resolve().
  */
+#include "core/types/tunables.h"
 #include <ngx_thread_pool.h>
 
 #include "net/dns/dns.h"

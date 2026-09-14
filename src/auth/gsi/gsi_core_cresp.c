@@ -238,7 +238,7 @@ gsi_cresp_sign_server_tag(gsi_cresp_state_t *st)
     const uint8_t *srtag = NULL;
     size_t xmainlen = 0;
     size_t srtaglen = 0;
-    uint8_t sig[BRIX_GSI_SIG_BUF_SIZE];
+    uint8_t sig[1024];
     size_t siglen;
 
     if (brix_gsi_find_bucket(st->sbody, st->slen, (uint32_t) kXRS_main,

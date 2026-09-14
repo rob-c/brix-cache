@@ -96,7 +96,7 @@ cms_admin_parse_target(u_char *args, size_t alen, cms_admin_target_t *t)
         t->tail_len = (size_t) (args + alen - (pend + 1));
     }
     port = ngx_atoi(sp + 1, (size_t) (pend - (sp + 1)));
-    if (port == NGX_ERROR || port <= 0 || port > NGX_BRIX_CMS_MAX_PORT) {
+    if (port == NGX_ERROR || port <= 0 || port > BRIX_CMS_MAX_PORT) {
         return 0;
     }
     t->port = (uint16_t) port;
@@ -184,7 +184,7 @@ cms_admin_drain(void *ud, u_char *args, size_t alen, brix_admin_reply_t *rep)
             return;
         }
     }
-    brix_srv_blacklist(t.host, t.port, (ngx_msec_t) secs * NGX_BRIX_CMS_MS_PER_SEC);
+    brix_srv_blacklist(t.host, t.port, (ngx_msec_t) secs * BRIX_CMS_SEC_TO_MS_MULTIPLIER);
     cms_admin_audit("cluster/drain", t.host, t.port, "drained");
     brix_admin_reply_set(rep, "ok\n");
 }

@@ -29,11 +29,6 @@ brix_srv_get_mutex(void)
     return &brix_srv_mutex;
 }
 
-void
-brix_srv_set_stale_after(ngx_msec_t ms)
-{
-    brix_srv_state()->stale_after_ms = ms;
-}
 
 
 /*
@@ -156,7 +151,7 @@ brix_srv_configure_registry(ngx_conf_t *cf, ngx_uint_t slots)
     ngx_str_t  zone_name = ngx_string("brix_srv_registry");
     size_t     zone_size;
 
-    brix_srv_state()->registry_nslots = slots;
+    brix_srv_set_registry_slots(slots);
     zone_size = brix_shm_zone_size(
                     sizeof(brix_srv_table_t)
                   + (size_t) slots * sizeof(brix_srv_entry_t));

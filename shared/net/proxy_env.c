@@ -30,7 +30,7 @@ static int host_in_no_proxy(const char *host) {
     const char *np = getenv_ci("no_proxy", "NO_PROXY");
     if (np == NULL) return 0;
 
-    char buf[BRIX_SHARED_PROXY_BUF_SIZE];
+    char buf[1024];
     snprintf(buf, sizeof(buf), "%s", np);
     for (char *p = buf; *p; ) {
         while (*p == ',' || *p == ' ' || *p == '\t') p++;   /* skip separators */

@@ -6,37 +6,34 @@
  * ngx-free; libc only.
  */
 #include "vendor_ext.h"
-#include "platform/platform_api.h"
+#include "protocols/root/protocol/codec/wire_codec.h"
 
-#include <string.h>
-#include <arpa/inet.h>   /* htonl / ntohl */
-
+/* WHAT: Encode the fixed 44-byte setattr prefix in network byte order.
+ * WHY: The client and module share one wire layout without nginx dependencies.
+ * HOW: Store each field with the shared unaligned-safe wire codec. */
 void
 xrdp_setattr_prefix_pack(const xrdp_setattr_t *a, uint8_t buf[44])
 {
-    uint32_t v32;
-    uint64_t v64;
-
-    v32 = htonl(a->flags);                    memcpy(buf + 0,  &v32, 4);
-    v64 = brix_plat_htobe64((uint64_t) a->atime_sec);   memcpy(buf + 4,  &v64, 8);
-    v64 = brix_plat_htobe64((uint64_t) a->atime_nsec);  memcpy(buf + 12, &v64, 8);
-    v64 = brix_plat_htobe64((uint64_t) a->mtime_sec);   memcpy(buf + 20, &v64, 8);
-    v64 = brix_plat_htobe64((uint64_t) a->mtime_nsec);  memcpy(buf + 28, &v64, 8);
-    v32 = htonl((uint32_t) a->uid);           memcpy(buf + 36, &v32, 4);
-    v32 = htonl((uint32_t) a->gid);           memcpy(buf + 40, &v32, 4);
+    xrdw_put_u32(buf, a->flags);
+    xrdw_put_u64(buf + 4, (uint64_t) a->atime_sec);
+    xrdw_put_u64(buf + 12, (uint64_t) a->atime_nsec);
+    xrdw_put_u64(buf + 20, (uint64_t) a->mtime_sec);
+    xrdw_put_u64(buf + 28, (uint64_t) a->mtime_nsec);
+    xrdw_put_u32(buf + 36, (uint32_t) a->uid);
+    xrdw_put_u32(buf + 40, (uint32_t) a->gid);
 }
 
+/* WHAT: Decode the fixed setattr prefix into host-order attribute values.
+ * WHY: Negative timestamps and sentinel owner IDs retain their wire bits.
+ * HOW: Load each field with the shared unaligned-safe wire codec. */
 void
 xrdp_setattr_prefix_unpack(const uint8_t buf[44], xrdp_setattr_t *a)
 {
-    uint32_t v32;
-    uint64_t v64;
-
-    memcpy(&v32, buf + 0,  4); a->flags      = ntohl(v32);
-    memcpy(&v64, buf + 4,  8); a->atime_sec  = (int64_t) brix_plat_be64toh(v64);
-    memcpy(&v64, buf + 12, 8); a->atime_nsec = (int64_t) brix_plat_be64toh(v64);
-    memcpy(&v64, buf + 20, 8); a->mtime_sec  = (int64_t) brix_plat_be64toh(v64);
-    memcpy(&v64, buf + 28, 8); a->mtime_nsec = (int64_t) brix_plat_be64toh(v64);
-    memcpy(&v32, buf + 36, 4); a->uid        = (int32_t) ntohl(v32);
-    memcpy(&v32, buf + 40, 4); a->gid        = (int32_t) ntohl(v32);
+    a->flags = xrdw_get_u32(buf);
+    a->atime_sec = (int64_t) xrdw_get_u64(buf + 4);
+    a->atime_nsec = (int64_t) xrdw_get_u64(buf + 12);
+    a->mtime_sec = (int64_t) xrdw_get_u64(buf + 20);
+    a->mtime_nsec = (int64_t) xrdw_get_u64(buf + 28);
+    a->uid = (int32_t) xrdw_get_u32(buf + 36);
+    a->gid = (int32_t) xrdw_get_u32(buf + 40);
 }

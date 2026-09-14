@@ -58,10 +58,10 @@ echo "Checking platform implementations..."
 IMPLS_OK=true
 
 # Common implementation
-if [ -f "src/platform/platform.c" ]; then
-    echo "  ✓ src/platform/platform.c"
+if [ -f "src/platform/platform_runtime.c" ]; then
+    echo "  ✓ src/platform/platform_runtime.c"
 else
-    echo "  ✗ src/platform/platform.c (MISSING)"
+    echo "  ✗ src/platform/platform_runtime.c (MISSING)"
     IMPLS_OK=false
 fi
 

@@ -5,6 +5,7 @@
  * Split verbatim out of store_policy.c (see store_policy.h for the contract).
  * Depends only on OpenSSL + libc; no ngx symbols.
  */
+#include "core/types/tunables.h"
 #include "auth/crypto/store_policy.h"
 #include "store_policy_internal.h"
 

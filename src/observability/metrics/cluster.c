@@ -82,7 +82,7 @@ brix_export_cluster_metrics(metrics_writer_t *mw)
 
     /* Registry SHM is only created in manager/redirector mode; with no zone
      * there is no cluster to report — emit nothing (not even the count gauge). */
-    if (brix_srv_shm_zone == NULL) {
+    if (brix_srv_get_shm_zone() == NULL) {
         return;
     }
 

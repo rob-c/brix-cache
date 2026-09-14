@@ -1,10 +1,10 @@
 /*
- * src/platform/windows/test_xattr.c - Test suite for Windows xattr implementation
+ * src/platform/windows/xattr_unittest.c - Test suite for Windows xattr implementation
  * 
  * Compile and run on Windows to verify NTFS ADS xattr functionality.
  * 
  * Usage:
- *   cl test_xattr.c xattr.c win32_compat.c /Fe:test_xattr.exe
+ *   cl xattr_unittest.c xattr.c win32_compat.c /Fe:test_xattr.exe
  *   .\test_xattr.exe
  */
 

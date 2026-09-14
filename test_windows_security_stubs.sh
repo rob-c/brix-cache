@@ -51,11 +51,11 @@ fi
 echo ""
 
 # Check test file exists
-if [ -f "src/platform/windows/test_security_stubs.c" ]; then
-    echo "✓ src/platform/windows/test_security_stubs.c exists"
+if [ -f "src/platform/windows/security_stubs_unittest.c" ]; then
+    echo "✓ src/platform/windows/security_stubs_unittest.c exists"
     
     # Count test cases
-    TEST_COUNT=$(grep -c "^TEST(" src/platform/windows/test_security_stubs.c || true)
+    TEST_COUNT=$(grep -c "^TEST(" src/platform/windows/security_stubs_unittest.c || true)
     echo "  - Test cases: $TEST_COUNT"
     
     if [ $TEST_COUNT -ge 4 ]; then
@@ -65,7 +65,7 @@ if [ -f "src/platform/windows/test_security_stubs.c" ]; then
         exit 1
     fi
 else
-    echo "✗ src/platform/windows/test_security_stubs.c not found"
+    echo "✗ src/platform/windows/security_stubs_unittest.c not found"
     exit 1
 fi
 
@@ -100,7 +100,7 @@ if [ $IS_WINDOWS -eq 1 ]; then
     
     if command -v cl &> /dev/null; then
         # MSVC
-        cl /Isrc/platform src/platform/windows/test_security_stubs.c \
+        cl /Isrc/platform src/platform/windows/security_stubs_unittest.c \
            src/platform/windows/security_wrapper.c \
            /Fe:test_security_stubs.exe /W4
         
@@ -125,7 +125,7 @@ if [ $IS_WINDOWS -eq 1 ]; then
         fi
     elif command -v gcc &> /dev/null; then
         # MinGW
-        gcc -Isrc/platform src/platform/windows/test_security_stubs.c \
+        gcc -Isrc/platform src/platform/windows/security_stubs_unittest.c \
             src/platform/windows/security_wrapper.c \
             -o test_security_stubs.exe -ladvapi32 -lkernel32
         
@@ -163,7 +163,7 @@ echo "============================================"
 echo ""
 echo "Summary:"
 echo "  - Implementation: src/platform/windows/security_wrapper.c ✓"
-echo "  - Test file: src/platform/windows/test_security_stubs.c ✓"
+echo "  - Test file: src/platform/windows/security_stubs_unittest.c ✓"
 echo "  - API declarations: src/platform/platform_api.h ✓"
 echo "  - Functions: 4/4 complete (100%)"
 echo ""

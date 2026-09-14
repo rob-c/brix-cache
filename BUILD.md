@@ -876,3 +876,69 @@ has **no completed passing verdict**. Upstream 1.28.3 and mainline 1.31.5 matrix
 builds were also interrupted before their final runtime checks. The local
 logs and per-process results remain under `build/`; neither incomplete run is
 evidence of full compatibility or a passing release gate.
+
+## 8. Local macOS-branch integration — 2026-09-14
+
+Fast-forwarded local `main` from `940b3bf` to the rebased
+`dev/macos-support` tip `05e2b82` (61 commits). The pre-merge tip is retained
+as `backup/main-before-macos-merge-20260914`. This local integration is not
+pushed to remote `main`.
+
+The merged branch did not initially compile or load on Alma9. The repairs
+select only the host's PAL sources, register missing implementation units,
+restore complete Linux handlers displaced by Darwin stubs, finish state
+accessor migrations, restore accidentally removed file-handle fields, and
+repair undeclared constants and protocol helper extraction errors. The
+shared client codec remains independent of nginx headers. Unbuilt prototype
+implementations are preserved under `docs/09-developer-guide/drafts/` with
+their limitations; standalone platform tests use the established
+`*_unittest.c` naming convention.
+
+The module rebuild uses a separate directory and the matching stock SDK:
+
+```bash
+cmake -S . -B build/alma9-merged \
+  -DNGINX_SRC_DIR=/usr/src/nginx-1.20.1-28.el9_8.5.alma.1 \
+  -DBRIX_BUILD_CLIENT=OFF -DBRIX_BUILD_CEPH_TOOLS=OFF \
+  -DBRIX_BUILD_NGINX=OFF -DBRIX_BUILD_JOBS=4
+BRIX_ENABLE_IO_URING=1 cmake --build build/alma9-merged \
+  --target nginx-modules -j4
+```
+
+Both BriX modules are in `build/alma9-merged/modules/`. All module objects
+were rebuilt after restoring the file-handle layout. Native clients and the
+`aio-smoke`/`ssi-client-smoke` helpers were also rebuilt through the shared
+client build lock, with two compiler jobs. Installed the missing matching
+`libasan` package for the staged-commit native regression.
+
+Observed validation on AlmaLinux 9.8:
+
+- Stock nginx loads both modules with `nginx -t`. Private WebDAV reads and
+  reads with both official `/usr/bin/xrdcp` and the rebuilt native client
+  return exact data. Missing files return 404, and read-only PUT/DELETE/MKCOL
+  requests return 403 without changing the export.
+- All 27 live migration/dashboard/client-CA/identity-configuration tests
+  pass. These include restricted secondary channels, dashboard auth and
+  confinement, and rejection of an unrelated TLS client CA.
+- Native PAL/registry tests: 27 pass. Page-write and identity-state tests:
+  four pass. Cache registry tests: three pass. Proxy health tests: three
+  pass. Subprocess tests: three pass. Build-driver/smoke tests: 58 pass.
+- Native client units: 22 pass; one io_uring unit skips because the kernel
+  cannot run it. Client proxy/OCI tests: 45 pass, with the external Podman
+  oracle excluded. CAS and vendor wire-codec checks pass, as do the manual
+  and completion coverage checks.
+- Existing native error/recovery/publish, stage reconciliation and
+  metrics/session/handle registry regressions pass. The staged-commit
+  contract test runs under ASan. Module and client source-coverage guards
+  pass without adding allowlist exceptions.
+- An unchanged module build preserves both artifact timestamps. All linked
+  libraries resolve, and every strong imported symbol is supplied by nginx,
+  its stream core, or the linked libraries. Artifact hashes and package
+  versions are recorded in `build/alma9-merged-artifacts.json`.
+
+Logs are under `build/alma9-merged*.log` and `build/platform-checks/`.
+The existing OpenSSL MD5 deprecation and `brix_split_relative_parent` LTO
+warnings remain visible. This is focused Alma9 integration validation:
+the full fleet suite, upstream 1.28.3/latest matrix, and native macOS/Windows
+builds are not certified by these results. No modules were installed into
+the system module directory and no system nginx service was started.

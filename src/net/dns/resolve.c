@@ -26,6 +26,7 @@
  *       cache hit, so rctx is cleared inside the handler, never after the
  *       call.  The handler is invoked exactly once per request.
  */
+#include "core/types/tunables.h"
 #include "net/dns/dns.h"
 
 #define DNS_TIMEOUT_FLOOR_MS  BRIX_DNS_TIMEOUT_FLOOR_MS

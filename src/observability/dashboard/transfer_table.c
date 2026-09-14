@@ -1,5 +1,6 @@
 #include "dashboard.h"
 #include "core/compat/shm_slots.h"
+#include "core/types/tunables.h"
 #include <ngx_shmtx.h>
 #include <string.h>
 

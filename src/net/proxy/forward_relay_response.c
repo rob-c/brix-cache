@@ -174,7 +174,7 @@ brix_proxy_relay_absorb_wait(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
     proxy->wait_ev.handler = brix_proxy_wait_handler;
     proxy->wait_ev.data = proxy;
     proxy->wait_ev.log = proxy->conn->log;
-    ngx_add_timer(&proxy->wait_ev, wait_secs * NGX_MSEC_PER_SEC);
+    ngx_add_timer(&proxy->wait_ev, wait_secs * BRIX_MSEC_PER_SEC);
     return 1;
 }
 

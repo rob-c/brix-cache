@@ -22,6 +22,7 @@
  *   - sts_http.c   — libcurl transport + libxml2 response parsing
  *   - sts_internal.h — the structs, size cap and seam entry points they share
  */
+#include "core/types/tunables.h"
 #include "sts_internal.h"
 
 #include <string.h>

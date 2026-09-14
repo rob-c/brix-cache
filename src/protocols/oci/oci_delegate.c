@@ -39,7 +39,7 @@
 #include <stdio.h>
 #include <string.h>
 
-/* OCI_DELEG_TIMEOUT_MS defined in oci.h */
+/* BRIX_OCI_DELEG_TIMEOUT_MS defined in oci.h */
 
 /* How long a discovered upstream auth challenge is memoized. The challenge
  * names the realm and service, which change on upstream reconfiguration and
@@ -347,7 +347,7 @@ brix_oci_delegate_ident(ngx_http_request_t *r,
  *
  * HOW: Builds full URL from upstream base_path + relative path, calls
  *   tr->request() with appropriate method/headers/timeout, extracts status code
- *   and optional WWW-Authenticate header. Uses OCI_DELEG_TIMEOUT_MS for bounded
+ *   and optional WWW-Authenticate header. Uses BRIX_OCI_DELEG_TIMEOUT_MS for bounded
  *   blocking on thread pool.
  */
 static int
@@ -369,7 +369,7 @@ oci_deleg_leg(brix_oci_upstream_t *up, const char *method, const char *path,
         return -1;
     }
     if (tr->request(&up->tctx, up->host, up->port, up->tls, method, full, hdrs,
-                    NULL, 0, OCI_DELEG_TIMEOUT_MS, &resp,
+                    NULL, 0, BRIX_OCI_DELEG_TIMEOUT_MS, &resp,
                     errbuf, sizeof(errbuf)) != 0)
     {
         ngx_log_error(NGX_LOG_ERR, up->log, 0,

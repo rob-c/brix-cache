@@ -163,15 +163,15 @@ dashboard_fill_cache(json_t *target, ngx_uint_t redact)
     ngx_uint_t            enabled = 0;
     dashboard_wt_totals_t wt_t = { 0, 0, 0, 0, 0 };
 
-    if (ngx_brix_shm_zone == NULL
-        || ngx_brix_shm_zone->data == NULL
-        || ngx_brix_shm_zone->data == (void *) 1)
+    if (brix_metrics_get_shm_zone() == NULL
+        || brix_metrics_get_shm_zone()->data == NULL
+        || brix_metrics_get_shm_zone()->data == (void *) 1)
     {
         dashboard_fill_cache_empty(target);
         return;
     }
 
-    met = ngx_brix_shm_zone->data;
+    met = brix_metrics_get_shm_zone()->data;
     for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
         if (met->servers[i].in_use && met->servers[i].cache_enabled) { enabled = 1; }
         wt_t.dirty   += (uint64_t) met->servers[i].wt_dirty_handles;
@@ -288,11 +288,11 @@ dashboard_build_storage_io(void)
     json_t *io = json_object();
 
     if (io == NULL) { return NULL; }
-    if (ngx_brix_shm_zone != NULL
-        && ngx_brix_shm_zone->data != NULL
-        && ngx_brix_shm_zone->data != (void *) 1)
+    if (brix_metrics_get_shm_zone() != NULL
+        && brix_metrics_get_shm_zone()->data != NULL
+        && brix_metrics_get_shm_zone()->data != (void *) 1)
     {
-        ngx_brix_metrics_t *met = ngx_brix_shm_zone->data;
+        ngx_brix_metrics_t *met = brix_metrics_get_shm_zone()->data;
         int                 id;
 
         for (id = 0; id < BRIX_FS_ID_COUNT; id++) {

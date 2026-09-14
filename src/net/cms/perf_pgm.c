@@ -120,7 +120,7 @@ perf_parse_field(const u_char *line, size_t len, size_t *cursor, uint8_t *out)
 
     while (at < len && line[at] >= '0' && line[at] <= '9') {
         value = value * 10 + (ngx_uint_t) (line[at] - '0');
-        if (value > BRIX_MONITOR_PCT_MAX) {
+        if (value > BRIX_PCT_MAX) {
             return -1;
         }
         at++;

@@ -15,6 +15,7 @@
  *       Unsupported keys are WARN-logged, never silently dropped (R4).
  */
 
+#include "core/types/tunables.h"
 #include "issuer_registry.h"
 #include "ini.h"
 

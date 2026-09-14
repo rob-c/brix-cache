@@ -84,7 +84,13 @@ brix_handle_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 /* brix_metrics_shared() is a static inline over this pointer and returns NULL
  * while unset, so leaving the metrics plane down is enough: every counter site
  * is NULL-guarded and the reap/evict paths run their real logic regardless. */
-ngx_shm_zone_t *ngx_brix_shm_zone = NULL;
+/* WHAT: Disable metrics in this registry harness. WHY: Isolate registry state.
+ * HOW: 1. Return no configured zone through the production accessor contract. */
+ngx_shm_zone_t *
+brix_metrics_get_shm_zone(void)
+{
+    return NULL;
+}
 
 static int    g_unpublish_calls;
 static u_char g_unpublish_last[BRIX_SESSION_ID_LEN];
@@ -354,13 +360,13 @@ main(void)
     zone.shm.addr = zonebuf;
     zone.shm.size = sizeof(zonebuf);
     zone.shm.exists = 0;
-    brix_session_shm_zone = &zone;
+    brix_session_set_shm_zone(&zone);
     if (brix_session_shm_init_zone(&zone, NULL) != NGX_OK) {
         fprintf(stderr, "FAIL: could not init the session zone\n");
         return 1;
     }
 
-    g_tbl = (brix_session_table_t *) brix_shm_zone_table(brix_session_shm_zone);
+    g_tbl = (brix_session_table_t *) brix_shm_zone_table(brix_session_get_shm_zone());
     if (g_tbl == NULL) {
         fprintf(stderr, "FAIL: no session table\n");
         return 1;

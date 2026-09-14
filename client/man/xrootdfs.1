@@ -97,6 +97,29 @@ synchronous path for that session.)
 .TP
 .BI \-\-max\-conns " N"
 Metadata connection pool size (default 8).
+.TP
+.B \-\-sss\-identity
+Authenticate each caller through SSS using a separate connection set for each
+UID. Use this for multi-user mounts with
+.BR "\-o allow_other" .
+The server's keytab controls the accepted identity; a key with a fixed
+.B user=
+mapping ignores the proposed caller name.
+.TP
+.BI \-\-max\-identities " N"
+Maximum distinct caller UIDs served by an SSS identity mount (default 64,
+maximum 1024). Additional callers are refused when this limit is reached.
+.TP
+.BI \-\-identity\-conns " N"
+Metadata connections per caller identity (default 2).
+.TP
+.BI \-\-identity\-streams " N"
+Asynchronous data streams per caller identity (default 1).
+.TP
+.B \-\-cluster\-readdir
+Combine directory listings from every holder returned by the CMS manager.
+This requires one locate request plus a directory-list request per holder.
+A failed holder produces an error instead of an incomplete listing.
 .SH RESILIENCE OPTIONS
 .TP
 .BI \-\-streams " N"

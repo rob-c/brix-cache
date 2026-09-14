@@ -12,7 +12,9 @@
 
 /* Global state instances */
 brix_imp_state_t   brix_imp_state;
-brix_idmap_state_t brix_idmap_state;
+brix_idmap_state_t brix_idmap_state = {
+    .min_uid = BRIX_IDMAP_DEFAULT_MIN_UID
+};
 
 /*
  * brix_imp_state_init — initialize impersonation broker state.
@@ -31,14 +33,15 @@ brix_imp_state_init(void)
 /*
  * brix_idmap_state_init — initialize identity mapping state.
  *
- * WHAT: Zero-initializes all idmap state fields.
- * WHY: Ensures clean starting state, prevents undefined behavior.
- * HOW: memset to zero, then mark as initialized.
+ * WHAT: Resets identity mapping state to its configured default policy.
+ * WHY: Initialization must retain the reserved-account UID floor.
+ * HOW: 1. Clear transient state. 2. Restore the floor. 3. Mark initialized.
  */
 void
 brix_idmap_state_init(void)
 {
     memset(&brix_idmap_state, 0, sizeof(brix_idmap_state));
+    brix_idmap_state.min_uid = BRIX_IDMAP_DEFAULT_MIN_UID;
     brix_idmap_mark_initialized();
 }
 

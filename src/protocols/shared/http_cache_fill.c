@@ -300,8 +300,7 @@ brix_http_cache_fill_if_needed(ngx_http_request_t *r,
         return NGX_ERROR;
     }
 
-    t->next = brix_http_fills;                 /* publish for coalescing */
-    brix_http_fills = t;
+    brix_http_fill_publish(t);
 
     ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
         "brix: offloaded cache fill of \"%s\" to the thread pool", key);

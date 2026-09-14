@@ -21,13 +21,39 @@
  * Module state - all policy globals encapsulated in single struct.
  * Set at config time (before fork), read-only thereafter.
  */
-static brix_srv_state_t srv_state;
+static brix_srv_state_t srv_state = {
+    .registry_nslots = BRIX_SRV_REGISTRY_SLOTS,
+};
 
 /* Accessor - returns pointer to module state */
 const brix_srv_state_t *
 brix_srv_state(void)
 {
     return &srv_state;
+}
+
+/* ---- Configure the registry heartbeat staleness threshold ----
+ *
+ * WHAT: Store the threshold in milliseconds; zero disables stale detection.
+ * WHY: Policy mutation belongs to the owner of the otherwise const state.
+ * HOW: 1. Assign the configured value before worker processes are forked.
+ */
+void
+brix_srv_set_stale_after(ngx_msec_t ms)
+{
+    srv_state.stale_after_ms = ms;
+}
+
+/* ---- Configure the shared registry table capacity ----
+ *
+ * WHAT: Store the slot count used when initializing the shared table.
+ * WHY: The registry allocator must update state without casting away const.
+ * HOW: 1. Assign the configured count before the zone is initialized.
+ */
+void
+brix_srv_set_registry_slots(ngx_uint_t slots)
+{
+    srv_state.registry_nslots = slots;
 }
 
 
@@ -133,14 +159,14 @@ brix_srv_set_load_vector(const char *host, uint16_t port,
         return;
     }
 
-    ngx_shmtx_lock(&brix_srv_mutex);
+    ngx_shmtx_lock(brix_srv_get_mutex());
     e = srv_find_locked(host, port);
     if (e != NULL) {
         for (i = 0; i < 5; i++) {
             e->load5[i] = load5[i] > 100 ? 100 : load5[i];
         }
     }
-    ngx_shmtx_unlock(&brix_srv_mutex);
+    ngx_shmtx_unlock(brix_srv_get_mutex());
 }
 
 /* brix_srv_count_servers — §2.2: occupied data-serving slots.  Managers
@@ -158,7 +184,7 @@ brix_srv_count_servers(void)
         return 0;
     }
 
-    ngx_shmtx_lock(&brix_srv_mutex);
+    ngx_shmtx_lock(brix_srv_get_mutex());
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
         if (e->in_use && (e->role[0] == 'S'
@@ -167,7 +193,7 @@ brix_srv_count_servers(void)
             n++;
         }
     }
-    ngx_shmtx_unlock(&brix_srv_mutex);
+    ngx_shmtx_unlock(brix_srv_get_mutex());
     return n;
 }
 
@@ -205,7 +231,7 @@ brix_srv_find_supervisor(char *host_out, size_t host_size,
         return 0;
     }
 
-    ngx_shmtx_lock(&brix_srv_mutex);
+    ngx_shmtx_lock(brix_srv_get_mutex());
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
@@ -229,7 +255,7 @@ brix_srv_find_supervisor(char *host_out, size_t host_size,
         *port_out = e->port;
     }
 
-    ngx_shmtx_unlock(&brix_srv_mutex);
+    ngx_shmtx_unlock(brix_srv_get_mutex());
     return best >= 0;
 }
 
@@ -246,9 +272,9 @@ brix_srv_is_registered(const char *host, uint16_t port)
         return 0;
     }
 
-    ngx_shmtx_lock(&brix_srv_mutex);
+    ngx_shmtx_lock(brix_srv_get_mutex());
     e = srv_find_locked(host, port);
     found = (e != NULL);
-    ngx_shmtx_unlock(&brix_srv_mutex);
+    ngx_shmtx_unlock(brix_srv_get_mutex());
     return found;
 }

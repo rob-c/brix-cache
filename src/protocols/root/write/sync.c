@@ -130,9 +130,9 @@ brix_handle_sync(brix_ctx_t *ctx, ngx_connection_t *c)
 	}
 
 	if (ctx->files[idx].dashboard_slot >= 0 &&
-	    ngx_brix_dashboard_shm_zone != NULL)
+	    brix_dashboard_get_shm_zone() != NULL)
 	{
-		brix_transfer_slot_count_op(ngx_brix_dashboard_shm_zone->data,
+		brix_transfer_slot_count_op(brix_dashboard_get_shm_zone()->data,
 		                              ctx->files[idx].dashboard_slot,
 		                              "sync");
 	}

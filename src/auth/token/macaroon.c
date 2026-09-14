@@ -17,6 +17,7 @@
  * cid==identifier (macaroon_candidate_matches_cid uses brix_macaroon_packet_len), decrypt vid, parse discharge with
  * recovered key, intersect claims. brix_macaroon_validate() is the single-root wrapper. */
 
+#include "core/types/tunables.h"
 #include "token_internal.h"
 #include "macaroon.h"
 #include "macaroon_internal.h"

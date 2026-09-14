@@ -3,6 +3,7 @@
  * for the unified metadata record. See xmeta_carrier.h for the contract.
  */
 
+#include "core/types/tunables.h"
 #include "xmeta_carrier.h"
 
 #include <errno.h>

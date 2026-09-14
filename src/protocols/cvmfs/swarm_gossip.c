@@ -340,7 +340,7 @@ brix_cvmfs_swarm_init_worker(ngx_cycle_t *cycle)
 
     /* EVERY worker gossips: backend instances (and so the published ring)
      * are per-worker. N workers probing is N× a tiny roster GET. */
-    for (i = 0; i < cvmfs_swarm_regs_n; i++) {
+    for (i = 0; i < cvmfs_swarm_reg_count(); i++) {
         ngx_thread_task_t *task;
         cvmfs_swarm_ctx_t *sw;
 
@@ -350,7 +350,7 @@ brix_cvmfs_swarm_init_worker(ngx_cycle_t *cycle)
         }
         sw = task->ctx;
         sw->task = task;
-        sw->reg  = &cvmfs_swarm_regs[i];
+        sw->reg  = cvmfs_swarm_reg_at(i);
         sw->self = -1;
 
         brix_task_bind(task, cvmfs_swarm_thread, cvmfs_swarm_done);
@@ -362,7 +362,7 @@ brix_cvmfs_swarm_init_worker(ngx_cycle_t *cycle)
         ngx_add_timer(&sw->timer, (ngx_msec_t) sw->reg->interval * 1000
                                   + (ngx_msec_t) (ngx_random() % 500));
 
-        cvmfs_swarm_ctxs[i] = sw;
+        cvmfs_swarm_ctx_set(i, sw);
     }
     return NGX_OK;
 }

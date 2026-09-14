@@ -1,5 +1,5 @@
 /*
- * test_xattr_fd.c - Test fd-based xattr operations on Windows
+ * xattr_fd_unittest.c - Test fd-based xattr operations on Windows
  * 
  * Tests brix_plat_fgetxattr, brix_plat_fsetxattr, brix_plat_fremovexattr,
  * and brix_plat_flistxattr using file descriptors.

@@ -83,7 +83,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
         up->timer.handler = brix_upstream_wait_timer_handler;
         up->timer.data = up;
         up->timer.log = c->log;
-        ngx_add_timer(&up->timer, (ngx_msec_t) secs * NGX_MSEC_PER_SEC);
+        ngx_add_timer(&up->timer, (ngx_msec_t) secs * BRIX_MSEC_PER_SEC);
 
         /* Re-arm the read event, then drain once synchronously.  A backend may
          * put a terminal response immediately after kXR_wait in the same TCP

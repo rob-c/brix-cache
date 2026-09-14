@@ -14,7 +14,7 @@
  *      and returns NGX_DECLINED for "go resolve/connect", NGX_OK when a pooled
  *      connection was adopted (connect complete), NGX_ERROR when every
  *      upstream is down. pc_pick_healthy_upstream() walks the worker-local
- *      proxy_up_status health table from the shared round-robin cursor.
+ *      upstream health table from the shared round-robin cursor.
  */
 
 #include "proxy_internal.h"
@@ -25,7 +25,7 @@ static ngx_atomic_t  proxy_upstream_rr;
 
 /*
  * WHAT: Picks a healthy upstream index from the round-robin array, honouring
- *       the lazily-allocated proxy_up_status health table.
+ *       the lazily-allocated upstream health table.
  *
  * WHY: When every upstream is marked down (and none has aged past the retry
  *      window) we must fail the connect rather than fall through to a known-dead
@@ -44,25 +44,26 @@ pc_pick_healthy_upstream(ngx_stream_brix_srv_conf_t *conf,
     ngx_uint_t  idx;
     ngx_uint_t  i;
     int         found = 0;
+    const brix_proxy_up_status_t *status = brix_proxy_up_status_get();
 
     idx = ngx_atomic_fetch_add(&proxy_upstream_rr, 1) % nelts;
 
-    /* proxy_up_status is lazily allocated by the health-tracking path and is
+    /* The health table is lazily allocated by the health-tracking path and is
      * NULL until a failure marks an upstream down (the mark_fail/is_down
      * accessors are all NULL-tolerant no-ops). Treat a NULL table as "every
      * upstream healthy" so the round-robin pick stands — same semantics,
      * without dereferencing a NULL array. */
-    for (i = 0; proxy_up_status != NULL && i < nelts; i++) {
+    for (i = 0; status != NULL && i < nelts; i++) {
         ngx_uint_t cur = (idx + i) % nelts;
-        if (!proxy_up_status[cur].down ||
-            ngx_time() - proxy_up_status[cur].checked >= BRIX_PROXY_FAIL_TIMEOUT)
+        if (!status[cur].down ||
+            ngx_time() - status[cur].checked >= BRIX_PROXY_FAIL_TIMEOUT)
         {
             idx = cur;
             found = 1;
             break;
         }
     }
-    if (proxy_up_status == NULL) {
+    if (status == NULL) {
         found = 1;      /* no health table → RR pick is authoritative */
     }
 

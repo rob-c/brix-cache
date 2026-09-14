@@ -21,8 +21,8 @@
  *       re-home, not a behavior change.
  *
  * HOW:  stage_engine.c defines the generic mover (stage_engine_run);
- *       stage_engine_journal.c defines the journal globals + helpers
- *       (stage_journal_dir, stage_reqid_mint, stage_journal_write,
+ *       stage_engine_journal.c owns the private journal state + helpers
+ *       (brix_stage_engine_journal_dir, stage_reqid_mint, stage_journal_write,
  *       stage_journal_remove); stage_engine_scheduler.c and
  *       stage_engine_reconcile.c consume them. None of these symbols is exported
  *       beyond the stage-engine module — the public contract stays in
@@ -56,14 +56,12 @@ typedef struct stage_pending_s {
 
 /*
  * Journal seam — defined in stage_engine_journal.c, consumed by the scheduler and
- * reconcile halves. `stage_journal_dir` is the per-worker durable-journal path
- * ("" = in-memory only); the scheduler and reconcile read it to decide whether a
- * record is persisted. The three functions mint a reqid, persist a QUEUED record,
- * and remove a completed one.
+ * reconcile halves. brix_stage_engine_journal_dir() exposes the per-worker
+ * durable-journal path ("" = in-memory only). The public limit getters expose
+ * the configured in-flight and retry bounds; declarations live in stage_engine.h.
+ * The private helpers mint a reqid, persist a QUEUED record, and remove a completed
+ * one.
  */
-extern char stage_journal_dir[1024];
-extern ngx_uint_t stage_max_inflight;      /* brix_frm_copymax (2.0 F1)      */
-extern ngx_uint_t stage_max_attempts;      /* brix_frm_fail_retries (2.0 F1) */
 
 /* Read + decode one journal record by path. 0 ok / -1 (unreadable or corrupt). */
 int stage_journal_load(const char *path, brix_sreq_t *rec);

@@ -2,7 +2,7 @@
  * metrics_macros.h — lock-free SHM counter-increment macros and accessor.
  *
  * WHAT: Provides the one inline accessor brix_metrics_shared() that resolves
- *       the shared-memory metrics block from ngx_brix_shm_zone, plus the family
+ *       the shared-memory metrics block from brix_metrics_get_shm_zone(), plus the family
  *       of BRIX_*_METRIC_INC / _ADD macros that bump counters for each counter
  *       group: per-server (SRV), WebDAV, S3, and proxy (aggregate + per-upstream).
  *       The low-level BRIX_ATOMIC_INC/DEC/ADD primitives wrap ngx_atomic_fetch_add.
@@ -19,7 +19,7 @@
  *       proxy_ptr->upstream_idx against BRIX_PROXY_MAX_UPSTREAMS before indexing
  *       the upstreams[] slice, and are meant to be called after the matching
  *       aggregate BRIX_PROXY_METRIC_INC/_ADD. Header-only (static inline + macros);
- *       requires ngx_brix_metrics_t / ngx_brix_shm_zone to be already in scope.
+ *       requires ngx_brix_metrics_t / brix_metrics_get_shm_zone before inclusion.
  */
 #ifndef NGX_BRIX_METRICS_MACROS_H
 #define NGX_BRIX_METRICS_MACROS_H
@@ -27,13 +27,14 @@
 static ngx_inline ngx_brix_metrics_t *
 brix_metrics_shared(void)
 {
+    ngx_shm_zone_t *zone = brix_metrics_get_shm_zone();
     void *table;
 
-    if (ngx_brix_shm_zone == NULL) {
+    if (zone == NULL) {
         return NULL;
     }
     /* Single read of zone->data: the checked value IS the returned value. */
-    table = ngx_brix_shm_zone->data;
+    table = zone->data;
     if (table == NULL || table == (void *) 1) {
         return NULL;
     }

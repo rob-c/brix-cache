@@ -21,7 +21,7 @@ check_prerequisites() {
     REQUIRED_FILES=(
         "src/platform/platform.h"
         "src/platform/platform_api.h"
-        "src/platform/platform.c"
+        "src/platform/platform_runtime.c"
         "config"
     )
     

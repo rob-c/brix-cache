@@ -101,7 +101,7 @@ dashboard_http_client(ngx_http_request_t *r, char *buf, size_t bufsz)
 /*
  * Report whether the dashboard SHM zone is present and fully initialised.
  *
- * WHAT: Returns non-zero when ngx_brix_dashboard_shm_zone points at a live
+ * WHAT: Returns non-zero when brix_dashboard_get_shm_zone() points at a live
  *       transfer table (not NULL, not the (void *) 1 "reserved but uninit"
  *       sentinel nginx parks in ->data before shm init runs).
  * WHY:  Every tracking entry point must bail out to a no-op when the zone is
@@ -112,9 +112,9 @@ dashboard_http_client(ngx_http_request_t *r, char *buf, size_t bufsz)
 static int
 dashboard_shm_ready(void)
 {
-    return ngx_brix_dashboard_shm_zone != NULL
-        && ngx_brix_dashboard_shm_zone->data != NULL
-        && ngx_brix_dashboard_shm_zone->data != (void *) 1;
+    return brix_dashboard_get_shm_zone() != NULL
+        && brix_dashboard_get_shm_zone()->data != NULL
+        && brix_dashboard_get_shm_zone()->data != (void *) 1;
 }
 
 /*
@@ -138,13 +138,13 @@ dashboard_http_bind_slot(ngx_http_request_t *r, int slot, const char *op)
 
     cln = ngx_pool_cleanup_add(r->pool, sizeof(*track));
     if (cln == NULL) {
-        brix_transfer_slot_free(ngx_brix_dashboard_shm_zone->data, slot);
+        brix_transfer_slot_free(brix_dashboard_get_shm_zone()->data, slot);
         return -1;
     }
 
     track = cln->data;
     track->slot = slot;
-    track->table = ngx_brix_dashboard_shm_zone->data;
+    track->table = brix_dashboard_get_shm_zone()->data;
     track->r = r;
     cln->handler = dashboard_http_cleanup;
     ngx_http_set_ctx(r, track, ngx_http_brix_dashboard_module);
@@ -175,7 +175,7 @@ dashboard_http_reserve_slot(ngx_http_request_t *r,
     char   ipbuf[NGX_SOCKADDR_STRLEN + 1];
 
     ngx_memzero(sessid, sizeof(sessid));
-    return brix_transfer_slot_alloc_ex(ngx_brix_dashboard_shm_zone->data,
+    return brix_transfer_slot_alloc_ex(brix_dashboard_get_shm_zone()->data,
                                         sessid,
                                         dashboard_http_client(r, ipbuf,
                                                               sizeof(ipbuf)),

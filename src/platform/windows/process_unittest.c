@@ -1,5 +1,5 @@
 /*
- * src/platform/windows/process_test.c - Test suite for Windows process execution
+ * src/platform/windows/process_unittest.c - Test suite for Windows process execution
  * 
  * Tests for brix_plat_execvpe() implementation:
  * - UTF-8 ↔ UTF-16 conversion

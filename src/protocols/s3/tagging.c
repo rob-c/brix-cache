@@ -39,7 +39,7 @@
 
 #define S3_TAG_XATTR    "user.s3.tagging"
 #define S3_TAG_MAX      4096   /* AWS: <=10 tags, key<=128, value<=256 */
-/* S3_TAG_XML_MAX removed — now BRIX_S3_SIGV4_CANONICAL_MAX in tunables.h */
+#define S3_TAG_XML_MAX  8192
 
 /* xattr-backed tag store */
 /*

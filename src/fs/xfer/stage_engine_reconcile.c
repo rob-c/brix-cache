@@ -128,7 +128,7 @@ stage_reconcile_archive(const char *path, brix_sreq_t *rec, ngx_log_t *log)
         (void) unlink(path);
         return -1;
     }
-    if (stage_retry_terminal(stage_journal_dir, rec, saved_errno, log)) {
+    if (stage_retry_terminal(brix_stage_engine_journal_dir(), rec, saved_errno, log)) {
         return -1;   /* dead-lettered = dropped from active journal */
     }
     ngx_log_error(NGX_LOG_WARN, log, 0,
@@ -208,7 +208,7 @@ stage_reconcile_one(const char *path, ngx_log_t *log)
              * when the cap is reached.  The `path` is the active record; we use
              * stage_journal_dir + reqid (not path) so the helper can rebuild the
              * active and deadletter paths itself from the canonical dir. */
-            if (stage_deny_terminal(stage_journal_dir, rec.reqid, &rec, log)) {
+            if (stage_deny_terminal(brix_stage_engine_journal_dir(), rec.reqid, &rec, log)) {
                 return -1;   /* dead-lettered = dropped from active journal */
             }
             /* Below the cap: keep for retry (same as transient). */
@@ -225,7 +225,7 @@ stage_reconcile_one(const char *path, ngx_log_t *log)
          * a recovered origin the reflush above would instead have completed and
          * unlinked the record. Kept in the active journal for the retry sweep /
          * next restart until brix_frm_fail_retries dead-letters it (2.0 F1). */
-        if (stage_retry_terminal(stage_journal_dir, &rec, saved_errno, log)) {
+        if (stage_retry_terminal(brix_stage_engine_journal_dir(), &rec, saved_errno, log)) {
             return -1;   /* dead-lettered = dropped from active journal */
         }
         ngx_log_error(NGX_LOG_WARN, log, 0,
@@ -286,7 +286,7 @@ brix_stage_reconcile(brix_stage_queue_t *queue)
     ngx_log_t *log;
 
     (void) queue;
-    if (stage_journal_dir[0] == '\0') {
+    if (brix_stage_engine_journal_dir()[0] == '\0') {
         return;                              /* no durable journal configured */
     }
     /* Reconcile REPORTS every replay/keep/drop decision through ngx_log_error,
@@ -300,14 +300,14 @@ brix_stage_reconcile(brix_stage_queue_t *queue)
     log = ngx_cycle->log;
 
     /* Snapshot the *.req names first (we unlink while driving). */
-    ncount = stage_reconcile_snapshot(stage_journal_dir, names, 1024);
+    ncount = stage_reconcile_snapshot(brix_stage_engine_journal_dir(), names, 1024);
 
     for (i = 0; i < ncount; i++) {
         char path[1300];
         int  r;
 
         if ((size_t) snprintf(path, sizeof(path), "%s/%s",
-                              stage_journal_dir, names[i]) >= sizeof(path))
+                              brix_stage_engine_journal_dir(), names[i]) >= sizeof(path))
         {
             continue;
         }
@@ -343,16 +343,16 @@ brix_stage_retry_sweep(ngx_uint_t min_age_sec, ngx_log_t *log)
     char       names[1024][256];
     ngx_uint_t ncount, i, driven = 0, replayed = 0, dropped = 0;
 
-    if (stage_journal_dir[0] == '\0' || log == NULL) {
+    if (brix_stage_engine_journal_dir()[0] == '\0' || log == NULL) {
         return 0;
     }
-    ncount = stage_reconcile_snapshot(stage_journal_dir, names, 1024);
+    ncount = stage_reconcile_snapshot(brix_stage_engine_journal_dir(), names, 1024);
     for (i = 0; i < ncount; i++) {
         char path[1300];
         int  r;
 
         if ((size_t) snprintf(path, sizeof(path), "%s/%s",
-                              stage_journal_dir, names[i]) >= sizeof(path)
+                              brix_stage_engine_journal_dir(), names[i]) >= sizeof(path)
             || !stage_retry_due(path, min_age_sec))
         {
             continue;

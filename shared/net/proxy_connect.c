@@ -112,7 +112,7 @@ int brix_proxy_connect_tunnel(int fd, const char *host, int port, int timeout_ms
 
     /* read response headers up to the blank line (the proxy sends nothing after
      * the 200 until we write, so we won't swallow tunnel bytes). */
-    char resp[BRIX_SHARED_PROXY_RESP_SIZE];
+    char resp[2048];
     if (read_response_headers(fd, timeout_ms, resp, sizeof(resp), err,
                               errlen) != 0)
         return -1;

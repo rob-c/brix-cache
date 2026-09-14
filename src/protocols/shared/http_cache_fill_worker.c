@@ -242,7 +242,6 @@ brix_http_cache_fill_done(ngx_event_t *ev)
 {
     ngx_thread_task_t             *task = ev->data;
     brix_http_cache_fill_ctx_t  *t = task->ctx;
-    brix_http_cache_fill_ctx_t **pp;
     brix_http_fill_waiter_t     *w;
     char                         errscratch[BRIX_SESSLOG_ERR_MAX];
     const char                  *err;
@@ -250,12 +249,7 @@ brix_http_cache_fill_done(ngx_event_t *ev)
 
     /* Unlink from the in-flight list FIRST so a re-entered handler that
      * misses again starts a fresh fill rather than attaching to this one. */
-    for (pp = &brix_http_fills; *pp != NULL; pp = &(*pp)->next) {
-        if (*pp == t) {
-            *pp = t->next;
-            break;
-        }
-    }
+    brix_http_fill_unpublish(t);
 
     brix_http_fill_log_outcome(t, ev);
 

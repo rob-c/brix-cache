@@ -1,6 +1,7 @@
 /*
  * curl_pin.c — CURLOPT_RESOLVE pinning (phase-116 Appendix A).  See curl_pin.h.
  */
+#include "core/types/tunables.h"
 #include "net/dns/curl_pin.h"
 #include "core/compat/net_target.h"
 #include "core/compat/host_format.h"

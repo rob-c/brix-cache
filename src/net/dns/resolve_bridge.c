@@ -30,6 +30,7 @@
  *       finds `abandoned` releases it itself.  Items always carry a usable
  *       resolver so the loop never takes the thread-pool path for them.
  */
+#include "core/types/tunables.h"
 #include "net/dns/dns.h"
 
 #if (NGX_THREADS)

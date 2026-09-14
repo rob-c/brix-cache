@@ -64,12 +64,12 @@ typedef struct {
 static ngx_brix_metrics_t *
 prefetch_shm(void)
 {
-    if (ngx_brix_shm_zone == NULL || ngx_brix_shm_zone->data == NULL
-        || ngx_brix_shm_zone->data == (void *) 1)
+    if (brix_metrics_get_shm_zone() == NULL || brix_metrics_get_shm_zone()->data == NULL
+        || brix_metrics_get_shm_zone()->data == (void *) 1)
     {
         return NULL;
     }
-    return ngx_brix_shm_zone->data;
+    return brix_metrics_get_shm_zone()->data;
 }
 
 /* The common "default" thread pool (the stage-scheduler precedent). NULL =

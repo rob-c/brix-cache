@@ -263,14 +263,14 @@ dashboard_build_transfer_rows(int64_t now_ms,
     arr = json_array();
     if (!arr) { return NULL; }
 
-    if (ngx_brix_dashboard_shm_zone == NULL
-        || ngx_brix_dashboard_shm_zone->data == NULL
-        || ngx_brix_dashboard_shm_zone->data == (void *) 1)
+    if (brix_dashboard_get_shm_zone() == NULL
+        || brix_dashboard_get_shm_zone()->data == NULL
+        || brix_dashboard_get_shm_zone()->data == (void *) 1)
     {
         return arr;
     }
 
-    tbl = ngx_brix_dashboard_shm_zone->data;
+    tbl = brix_dashboard_get_shm_zone()->data;
     for (i = 0; i < BRIX_DASHBOARD_MAX_TRANSFERS; i++) {
         brix_transfer_slot_t *slot = &tbl->slots[i];
         int64_t                 last_ms;
@@ -414,15 +414,15 @@ dashboard_build_v1_transfer_detail(ngx_http_request_t *r,
         return root;
     }
 
-    if (ngx_brix_dashboard_shm_zone == NULL
-        || ngx_brix_dashboard_shm_zone->data == NULL
-        || ngx_brix_dashboard_shm_zone->data == (void *) 1)
+    if (brix_dashboard_get_shm_zone() == NULL
+        || brix_dashboard_get_shm_zone()->data == NULL
+        || brix_dashboard_get_shm_zone()->data == (void *) 1)
     {
         json_object_set_new(root, "error", json_string("not_found"));
         return root;
     }
 
-    tbl = ngx_brix_dashboard_shm_zone->data;
+    tbl = brix_dashboard_get_shm_zone()->data;
     for (i = 0; i < BRIX_DASHBOARD_MAX_TRANSFERS; i++) {
         brix_transfer_slot_t *slot = &tbl->slots[i];
         if (slot->in_use && slot->serial == id) {

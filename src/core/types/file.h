@@ -231,6 +231,7 @@ typedef struct {
      * tpc_src_* triple names remote destination. Reused for both
      * pull and push — exactly one "remote peer" per TPC handle.
      */
+    int        tpc_destination;  /* 1 = handle represents a pending TPC target */
     int        tpc_armed;        /* first kXR_sync acknowledged rendezvous setup */
     int        tpc_started;      /* pull task has been posted */
     int        tpc_done;         /* pull completed successfully */
@@ -372,6 +373,7 @@ typedef struct {
      * - staged_committed: 1 = object already committed (sync/close)
      * - staged_excl: 1 = kXR_new (commit must publish ABSENT-only)
      */
+    brix_vfs_writer_t  *writer;             /* non-NULL = whole-object staged write */
     unsigned           staged_committed:1;  /* 1 = object already committed (sync/close) */
     unsigned           staged_excl:1;       /* 1 = kXR_new (no kXR_delete): commit must
                                              * publish ABSENT-only — the storage decides

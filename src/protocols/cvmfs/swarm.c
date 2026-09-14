@@ -50,6 +50,37 @@ static struct {
     cvmfs_swarm_ctx_t  *ctxs[CVMFS_SWARM_MAX_EXPORTS];
 } cvmfs_swarm_state;
 
+/* WHAT: Return the number of configured exports. WHY: Keep table ownership local.
+ * HOW: 1. Read the count published during configuration. */
+ngx_uint_t
+cvmfs_swarm_reg_count(void)
+{
+    return cvmfs_swarm_state.regs_n;
+}
+
+/* WHAT: Return a configured export, or NULL for an invalid index.
+ * WHY: Gossip needs registration data without owning the table.
+ * HOW: 1. Check the live count. 2. Return a read-only registration. */
+const cvmfs_swarm_reg_t *
+cvmfs_swarm_reg_at(ngx_uint_t index)
+{
+    if (index >= cvmfs_swarm_state.regs_n) {
+        return NULL;
+    }
+    return &cvmfs_swarm_state.regs[index];
+}
+
+/* WHAT: Publish a worker's context for a configured export.
+ * WHY: The roster handler and gossip worker must see the same context.
+ * HOW: 1. Check the live count. 2. Store the caller-owned context pointer. */
+void
+cvmfs_swarm_ctx_set(ngx_uint_t index, cvmfs_swarm_ctx_t *ctx)
+{
+    if (index < cvmfs_swarm_state.regs_n) {
+        cvmfs_swarm_state.ctxs[index] = ctx;
+    }
+}
+
 /* phase-116: a config parse starts from an empty table.  The reg now carries
  * the export's resolver policy (a pointer into that cycle's pool), so an
  * export removed on reload must not survive here with a dangling policy —
@@ -57,7 +88,7 @@ static struct {
 void
 brix_cvmfs_swarm_regs_reset(void)
 {
-    cvmfs_swarm_regs_n = 0;
+    cvmfs_swarm_state.regs_n = 0;
 }
 
 void
@@ -67,19 +98,19 @@ brix_cvmfs_swarm_register(const char *root_canon, time_t interval,
     ngx_uint_t         i;
     cvmfs_swarm_reg_t *reg = NULL;
 
-    for (i = 0; i < cvmfs_swarm_regs_n; i++) {
-        if (ngx_strcmp(cvmfs_swarm_regs[i].root, root_canon) == 0) {
-            reg = &cvmfs_swarm_regs[i];        /* reload: update in place */
+    for (i = 0; i < cvmfs_swarm_state.regs_n; i++) {
+        if (ngx_strcmp(cvmfs_swarm_state.regs[i].root, root_canon) == 0) {
+            reg = &cvmfs_swarm_state.regs[i];        /* reload: update in place */
             break;
         }
     }
     if (reg == NULL) {
-        if (cvmfs_swarm_regs_n >= CVMFS_SWARM_MAX_EXPORTS
+        if (cvmfs_swarm_state.regs_n >= CVMFS_SWARM_MAX_EXPORTS
             || ngx_strlen(root_canon) >= sizeof(reg->root))
         {
             return;
         }
-        reg = &cvmfs_swarm_regs[cvmfs_swarm_regs_n++];
+        reg = &cvmfs_swarm_state.regs[cvmfs_swarm_state.regs_n++];
     }
     ngx_cpystrn((u_char *) reg->root, (u_char *) root_canon,
                 sizeof(reg->root));
@@ -500,9 +531,9 @@ brix_cvmfs_swarm_roster_serve(ngx_http_request_t *r,
     {
         return NGX_DECLINED;
     }
-    for (i = 0; i < cvmfs_swarm_regs_n; i++) {
+    for (i = 0; i < cvmfs_swarm_state.regs_n; i++) {
         if (cvmfs_swarm_state.ctxs[i] != NULL
-            && ngx_strcmp(cvmfs_swarm_regs[i].root,
+            && ngx_strcmp(cvmfs_swarm_state.regs[i].root,
                           lcf->common.root_canon) == 0)
         {
             sw = cvmfs_swarm_state.ctxs[i];

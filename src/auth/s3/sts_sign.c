@@ -17,6 +17,7 @@
  *   - SigV4 signing key:  brix_sigv4_signing_key()  (core/compat/sigv4.h)
  *   - HMAC / SHA-256:      brix_hmac_sha256/brix_sha256 (core/compat/crypto.h)
  */
+#include "core/types/tunables.h"
 #include "sts_internal.h"
 
 #include "core/compat/sigv4.h"

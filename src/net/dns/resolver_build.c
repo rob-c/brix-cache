@@ -15,6 +15,7 @@
  *       (all four dropped/invalid) yields NULL and the caller falls back to
  *       the thread-pool libc path — never a start failure.
  */
+#include "core/types/tunables.h"
 #include "net/dns/dns.h"
 
 #define DNS_RESOLVER_MAX_ARGS  (BRIX_RESOLV_MAX_NS + 3)

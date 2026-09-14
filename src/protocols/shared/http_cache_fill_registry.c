@@ -42,6 +42,34 @@ static struct {
     brix_http_cache_fill_ctx_t  *fills;
 } http_cache_fill_state;
 
+/* WHAT: Publish a newly posted fill for event-loop coalescing.
+ * WHY: The registry owns the head of the per-worker in-flight list.
+ * HOW: 1. Link the new fill to the previous head. 2. Publish the new head. */
+void
+brix_http_fill_publish(brix_http_cache_fill_ctx_t *fill)
+{
+    fill->next = http_cache_fill_state.fills;
+    http_cache_fill_state.fills = fill;
+}
+
+/* WHAT: Remove a completed fill from coalescing without freeing it.
+ * WHY: Re-entered waiters must never attach to the completed fill.
+ * HOW: 1. Find the exact context pointer. 2. Unlink it; missing is a no-op. */
+void
+brix_http_fill_unpublish(brix_http_cache_fill_ctx_t *fill)
+{
+    brix_http_cache_fill_ctx_t **cursor;
+
+    for (cursor = &http_cache_fill_state.fills; *cursor != NULL;
+         cursor = &(*cursor)->next)
+    {
+        if (*cursor == fill) {
+            *cursor = fill->next;
+            return;
+        }
+    }
+}
+
 brix_http_cache_fill_ctx_t *
 brix_http_fill_find(brix_sd_instance_t *inst, const char *key,
     const brix_http_fill_cred_t *cred)

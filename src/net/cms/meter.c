@@ -16,6 +16,7 @@
  * the first call only primes the counters.
  */
 
+#include "core/types/tunables.h"
 #include "meter.h"
 
 #include <stdio.h>

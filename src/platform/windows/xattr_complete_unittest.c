@@ -1,5 +1,5 @@
 /*
- * test_xattr_complete.c - Complete test suite for Windows NTFS ADS xattr
+ * xattr_complete_unittest.c - Complete test suite for Windows NTFS ADS xattr
  * 
  * Tests all 8 xattr functions:
  * - brix_plat_getxattr / brix_plat_fgetxattr
@@ -7,7 +7,7 @@
  * - brix_plat_removexattr / brix_plat_fremovexattr
  * - brix_plat_listxattr / brix_plat_flistxattr
  * 
- * Compile: cl.exe test_xattr_complete.c /Fe:test_xattr.exe /I.. /I../../..
+ * Compile: cl.exe xattr_complete_unittest.c /Fe:test_xattr.exe /I.. /I../../..
  */
 
 #include <stdio.h>

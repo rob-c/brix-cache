@@ -19,8 +19,7 @@
 
 #include "backend_async_queue.h"
 #include <ngx_event.h>               /* ngx_post_event / ngx_posted_events (drain) */
-#include "stage_engine.h"            /* stage_engine.h pulls the journal dir seam */
-#include "stage_engine_internal.h"   /* stage_journal_dir (the durable root)      */
+#include "stage_engine.h"            /* brix_stage_engine_journal_dir() */
 #include "fs/vfs/vfs.h"              /* brix_vfs_*_path drain primitives          */
 #include "fs/vfs/vfs_backend_registry.h" /* brix_vfs_backend_resolve (rename)     */
 
@@ -66,12 +65,12 @@ brix_baq_init(void)
 {
     /* Derive the private subdir from the stage engine's journal root (set by
      * brix_stage_engine_init just before this call). Empty root = no durability. */
-    if (stage_journal_dir[0] == '\0') {
+    if (brix_stage_engine_journal_dir()[0] == '\0') {
         baq_journal_dir[0] = '\0';
         return;
     }
     if ((size_t) snprintf(baq_journal_dir, sizeof(baq_journal_dir), "%s/backend",
-                          stage_journal_dir) >= sizeof(baq_journal_dir))
+                          brix_stage_engine_journal_dir()) >= sizeof(baq_journal_dir))
     {
         baq_journal_dir[0] = '\0';           /* path too long — degrade to memory */
         return;

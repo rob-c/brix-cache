@@ -320,12 +320,12 @@ brix_close_release_slots(brix_ctx_t *ctx, int idx)
     }
 
     if (ctx->files[idx].dashboard_slot >= 0 &&
-        ngx_brix_dashboard_shm_zone != NULL)
+        brix_dashboard_get_shm_zone() != NULL)
     {
-        brix_transfer_slot_count_op(ngx_brix_dashboard_shm_zone->data,
+        brix_transfer_slot_count_op(brix_dashboard_get_shm_zone()->data,
                                       ctx->files[idx].dashboard_slot,
                                       "close");
-        brix_transfer_slot_free(ngx_brix_dashboard_shm_zone->data,
+        brix_transfer_slot_free(brix_dashboard_get_shm_zone()->data,
                                   ctx->files[idx].dashboard_slot);
         ctx->files[idx].dashboard_slot = -1;
     }

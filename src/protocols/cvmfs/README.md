@@ -65,7 +65,7 @@ client-gone / degraded / absorbed-404).
 | `secure_x509.c` | The `brix_scvmfs_authz x509` and `authz voms` back-ends — locate the end-entity cert behind any RFC 3820 proxy chain, glob-gate its subject DN (brix_scvmfs_x509_dn), and, in VOMS mode, glob-gate the extracted VO/FQAN set. |
 | `swarm.c` | generalizes the phase-85 F8 sibling mesh from a static brix_cache_peers ring to gossip-maintained membership: every node serves its member view at /cvmfs/.swarm/roster, periodically pulls a random member's roster (the pu. |
 | `swarm_gossip.c` | the bounded plain-socket roster probe (thread pool), the live-ring rebuild + publish, the gossip lifecycle timers, and the per-worker init that arms them. |
-| `swarm_internal.h` | the membership types, per-process registration/context tables, and former-static entry points shared between swarm.c (registration, membership core, roster wire format, roster endpoint) and swarm_gossip.c (probe thread t. |
+| `swarm_internal.h` | Membership types and private APIs between `swarm.c` and `swarm_gossip.c`: registration count/read access, worker-context publication, membership seeding, roster merge and ring publication. |
 | `virtual.c` | brix_cvmfs_virtual_repo <virtual-fqrn> <member-fqrn>.. |
 
 ## Invariants, security & gotchas

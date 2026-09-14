@@ -10,6 +10,7 @@
  * buffered.
  */
 
+#include "core/types/tunables.h"
 #include "tap.h"
 #include "protocols/root/protocol/opcodes.h"   /* kXR_writev, kXR_chkpoint */
 

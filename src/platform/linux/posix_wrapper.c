@@ -16,6 +16,8 @@
 #if BRIX_PLATFORM_LINUX
 #include <sys/random.h>
 #include <sys/syscall.h>
+#include <sys/fsuid.h>
+#include <sys/xattr.h>
 #include <linux/memfd.h>
 #endif
 
@@ -25,13 +27,8 @@
 
 #if BRIX_PLATFORM_LINUX
 
-int
-brix_plat_anon_fd(const char *name, const char *dir)
-{
-    (void)dir;  /* Linux memfd doesn't use directory */
-    
-    return memfd_create(name ? name : "anonymous", MFD_CLOEXEC);
-}
+/* Anonymous descriptors and data/tree sync retain their shared implementations
+ * in shared/cvmfs/platform/platform.c, including the spill-file fallback. */
 
 int
 brix_plat_fadvise(int fd, off_t offset, off_t len, int advice)
@@ -39,22 +36,10 @@ brix_plat_fadvise(int fd, off_t offset, off_t len, int advice)
     return posix_fadvise(fd, offset, len, advice);
 }
 
-int
-brix_plat_fsync_data(int fd)
-{
-    return fdatasync(fd);
-}
-
 void
 brix_plat_sync(void)
 {
     sync();
-}
-
-int
-brix_plat_sync_tree(int dirfd)
-{
-    return syncfs(dirfd);
 }
 
 /* ==========================================================================

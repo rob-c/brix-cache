@@ -135,7 +135,7 @@ stage_complete(brix_stage_kind_t kind, brix_sd_instance_t *src,
         return;
     }
 
-    if (res == BRIX_XFER_DENIED && stage_journal_dir[0] != '\0') {
+    if (res == BRIX_XFER_DENIED && brix_stage_engine_journal_dir()[0] != '\0') {
         /* Permanent deny: re-read the on-disk record to get the current
          * attempts count (may have been bumped by a prior drive after a
          * restart), then apply the dead-letter cap. */
@@ -146,14 +146,14 @@ stage_complete(brix_stage_kind_t kind, brix_sd_instance_t *src,
         ssize_t     n;
 
         if ((size_t) snprintf(path, sizeof(path), "%s/%s.req",
-                              stage_journal_dir, reqid) < sizeof(path))
+                              brix_stage_engine_journal_dir(), reqid) < sizeof(path))
         {
             fd = open(path, O_RDONLY | O_CLOEXEC);
             if (fd >= 0) {
                 n = read(fd, rbuf, sizeof(rbuf));
                 (void) close(fd);
                 if (brix_sreq_decode(rbuf, (size_t) n, &rec) == NGX_OK) {
-                    (void) stage_deny_terminal(stage_journal_dir, reqid, &rec,
+                    (void) stage_deny_terminal(brix_stage_engine_journal_dir(), reqid, &rec,
                                                log);
                     return;
                 }
@@ -167,7 +167,7 @@ stage_complete(brix_stage_kind_t kind, brix_sd_instance_t *src,
      * FAILED so a crash-visible, replayable row survives — the restart reconcile
      * re-drives it. Left in the ACTIVE journal (never dead-letter): unlike a
      * permanent deny, a transient origin outage is expected to clear. */
-    stage_journal_mark_failed(stage_journal_dir, reqid, last_errno);
+    stage_journal_mark_failed(brix_stage_engine_journal_dir(), reqid, last_errno);
 
     ngx_log_error(NGX_LOG_WARN, log, 0,
         "xrootd stage: deferred %s of \"%s\" failed (reqid %s errno %d) - "
@@ -309,7 +309,7 @@ brix_stage_scheduler_tick(void)
          * (recovered by reconcile), so the on-disk record is dropped only in the
          * completion. */
         if (pool != NULL) {
-            if (stage_inflight >= stage_max_inflight) {
+            if (stage_inflight >= brix_stage_engine_max_inflight()) {
                 break;                      /* let in-flight drain; resume next tick */
             }
             if (stage_flush_offload(p, pool) == NGX_OK) {

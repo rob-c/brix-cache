@@ -5,10 +5,21 @@
  * focused, single-responsibility functions for better testability and readability.
  */
 
-#include "write.h"
+#include "pgwrite_helpers.h"
 #include "pgw_fob.h"
 #include "wrts_journal.h"
 #include "fs/cache/writethrough_metrics.h"
+
+/* pgw_fmt_detail()
+ * WHAT: Format the "<offset>+<len>" access-log/error detail string used by every
+ *       pgwrite reply path.
+ * WHY:  The parse, decode and completion paths must use identical detail bytes.
+ * HOW:  1. Format into the caller-owned buffer with a bounded snprintf. */
+void
+pgw_fmt_detail(char *buf, size_t bufsz, int64_t offset, size_t len)
+{
+	snprintf(buf, bufsz, "%lld+%zu", (long long) offset, len);
+}
 
 /*
  * pgwrite_handle_write_error — handle I/O error from pwrite()
@@ -19,7 +30,7 @@
  *
  * Returns 1 (response sent).
  */
-static int
+int
 pgwrite_handle_write_error(brix_ctx_t *ctx, ngx_connection_t *c, pgw_state_t *st,
     const char *ioerr, ngx_int_t *rc)
 {
@@ -41,18 +52,18 @@ pgwrite_handle_write_error(brix_ctx_t *ctx, ngx_connection_t *c, pgw_state_t *st
  *
  * Returns 1 (response sent).
  */
-static int
+int
 pgwrite_handle_short_write(brix_ctx_t *ctx, ngx_connection_t *c, pgw_state_t *st,
     size_t written, ngx_int_t *rc)
 {
 	char write_detail[64];
 
 	pgw_fmt_detail(write_detail, sizeof(write_detail), st->offset, written);
-	*rc = brix_send_error(ctx, c, kXR_IOError, "short write (disk full?)");
 	brix_log_access(ctx, c, "WRITE", ctx->files[st->idx].path,
 	                  write_detail, 0, kXR_IOError,
 	                  "short write (disk full?)", 0);
 	BRIX_OP_ERR(ctx, BRIX_OP_WRITE);
+	*rc = brix_send_error(ctx, c, kXR_IOError, "short write (disk full?)");
 	return 1;
 }
 
@@ -63,10 +74,10 @@ pgwrite_handle_short_write(brix_ctx_t *ctx, ngx_connection_t *c, pgw_state_t *st
  * HOW: Adds to ctx->files[idx].bytes_written and ctx->totals.bytes_written,
  *      calls brix_rl_charge_ctx() for Phase 25 bandwidth accounting.
  */
-static void
-pgwrite_update_metrics(brix_ctx_t *ctx, size_t total_written)
+void
+pgwrite_update_metrics(brix_ctx_t *ctx, int idx, size_t total_written)
 {
-	ctx->files[0].bytes_written += total_written;
+	ctx->files[idx].bytes_written += total_written;
 	ctx->totals.bytes_written   += total_written;
 	brix_rl_charge_ctx(ctx, total_written);
 }
@@ -77,7 +88,7 @@ pgwrite_update_metrics(brix_ctx_t *ctx, size_t total_written)
  * WHY: Isolates write-through dirty tracking logic.
  * HOW: Calls brix_wt_mark_dirty() with the written range.
  */
-static void
+void
 pgwrite_mark_dirty_if_needed(brix_ctx_t *ctx, ngx_int_t idx, int64_t offset,
     size_t len, int wt_enabled)
 {
@@ -92,7 +103,7 @@ pgwrite_mark_dirty_if_needed(brix_ctx_t *ctx, ngx_int_t idx, int64_t offset,
  * WHY: Centralizes access logging for consistency.
  * HOW: Formats detail string, logs via brix_log_access() with success flag.
  */
-static void
+void
 pgwrite_log_success(brix_ctx_t *ctx, ngx_connection_t *c, pgw_state_t *st,
     size_t total_written)
 {
@@ -112,7 +123,7 @@ pgwrite_log_success(brix_ctx_t *ctx, ngx_connection_t *c, pgw_state_t *st,
  * WHY: Isolates retry cleanup logic from main write path.
  * HOW: Calls brix_pgw_fob_del() when is_retry && bad_count == 0.
  */
-static void
+void
 pgwrite_cleanup_retry_fob(brix_ctx_t *ctx, ngx_int_t idx, int is_retry,
     size_t bad_count, int64_t offset, size_t flat_sz)
 {
@@ -127,7 +138,7 @@ pgwrite_cleanup_retry_fob(brix_ctx_t *ctx, ngx_int_t idx, int is_retry,
  * WHY: Isolates journal recording for testability.
  * HOW: Calls brix_wrts_record() when journal is enabled.
  */
-static void
+void
 pgwrite_record_journal(brix_ctx_t *ctx, ngx_int_t idx, int64_t offset,
     size_t nw, int wrts_enabled)
 {
@@ -144,13 +155,12 @@ pgwrite_record_journal(brix_ctx_t *ctx, ngx_int_t idx, int64_t offset,
  *
  * Returns the result of the send function.
  */
-static ngx_int_t
+ngx_int_t
 pgwrite_send_reply(brix_ctx_t *ctx, ngx_connection_t *c, pgw_state_t *st)
 {
 	if (st->bad_count > 0) {
 		return brix_send_pgwrite_cse(ctx, c, st->offset, st->bad_pages,
 		                              st->bad_count);
-	} else {
-		return brix_send_pgwrite_status(ctx, c, st->offset);
 	}
+	return brix_send_pgwrite_status(ctx, c, st->offset);
 }

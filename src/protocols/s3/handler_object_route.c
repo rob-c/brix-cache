@@ -99,7 +99,8 @@ s3_prepare_upload_part(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     if (*endptr != '\0' || part_num < 1 || part_num > BRIX_S3_MAX_PART_NUMBER) {
         return s3_metrics_return_method(r, method_slot,
             s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidArgument",
-                              "Part number must be an integer between 1 and %d.", BRIX_S3_MAX_PART_NUMBER));
+                              "Part number must be an integer between 1 and "
+                              BRIX_STRINGIFY(BRIX_S3_MAX_PART_NUMBER) "."));
     }
     if (!s3_has_query_flag(r, "uploads") && !s3_upload_id_is_hex(upload_id)) {
         return s3_metrics_return_method(r, method_slot,

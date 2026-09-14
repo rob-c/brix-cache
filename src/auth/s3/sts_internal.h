@@ -21,6 +21,7 @@
 #ifndef BRIX_AUTH_S3_STS_INTERNAL_H
 #define BRIX_AUTH_S3_STS_INTERNAL_H
 
+#include "core/types/tunables.h"
 #include "sts.h"
 
 /* Bound on a captured STS response body — a hostile/huge reply cannot exhaust

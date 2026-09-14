@@ -40,7 +40,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-ngx_shm_zone_t *brix_handle_shm_zone;   /* owner registry.c is not linked */
+static ngx_shm_zone_t *test_handle_zone;
+
+/* WHAT: Supply the fixture's handle zone. WHY: Keep registry.c out of this unit.
+ * HOW: 1. Return the zone through the production registry accessor contract. */
+ngx_shm_zone_t *
+brix_handle_get_shm_zone(void)
+{
+    return test_handle_zone;
+}
 ngx_pid_t   ngx_pid = 4242;
 ngx_int_t   ngx_ncpu = 1;
 
@@ -110,10 +118,10 @@ main(void)
     assert(ngx_shmtx_create(&sp->mutex, &sp->lock, NULL) == NGX_OK);
     zone.shm.addr = zonebuf;
     zone.shm.exists = 0;
-    brix_handle_shm_zone = &zone;
+    test_handle_zone = &zone;
     assert(brix_handle_shm_init_zone(&zone, NULL) == NGX_OK);
 
-    tbl = brix_shm_zone_table(brix_handle_shm_zone);
+    tbl = brix_shm_zone_table(test_handle_zone);
     assert(tbl != NULL);
 
     mksess(s1, 1); mksess(s2, 2); mksess(s3, 3);

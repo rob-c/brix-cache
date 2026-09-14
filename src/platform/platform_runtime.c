@@ -1,5 +1,5 @@
 /*
- * src/platform/platform.c - Platform detection and initialization
+ * src/platform/platform_runtime.c - Platform detection and initialization
  * 
  * This file provides platform information and PAL initialization.
  * All platform-specific logic lives here and in platform subdirectory wrappers.
@@ -122,6 +122,13 @@ brix_plat_total_memory(void)
 #endif
 }
 
+/* ---- Report a conservative estimate of memory available to allocate ----
+ *
+ * WHAT: Return available physical memory in bytes, or zero on query failure.
+ * WHY: Callers need a byte count without counting Linux swap as usable RAM.
+ * HOW: 1. Query the platform memory counters.
+ *      2. On Linux, scale free RAM by its documented sysinfo memory unit.
+ */
 uint64_t
 brix_plat_available_memory(void)
 {
@@ -144,7 +151,8 @@ brix_plat_available_memory(void)
     struct sysinfo si;
     
     if (sysinfo(&si) == 0) {
-        return (uint64_t)si.availram * (uint64_t)si.mem_unit;
+        /* sysinfo exposes free RAM; reclaimable cache is not included. */
+        return (uint64_t)si.freeram * (uint64_t)si.mem_unit;
     }
     return 0;
 #else

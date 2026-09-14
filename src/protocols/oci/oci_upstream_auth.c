@@ -38,7 +38,7 @@
 #include <string.h>
 #include <strings.h>                       /* strcasecmp */
 
-/* OCI_TOKEN_TIMEOUT_MS defined in oci.h */
+/* BRIX_OCI_TOKEN_TIMEOUT_MS defined in oci.h */
 #define OCI_TOKEN_MAX_HOPS     3
 /* The spec's default when `expires_in` is absent. */
 #define OCI_TOKEN_DEFAULT_S    60
@@ -159,7 +159,7 @@ oci_token_leg(const brix_oci_upstream_t *up, oci_token_leg_t *leg,
     }
 
     if (tr->request(leg->tctx, leg->host, leg->port, leg->tls, "GET", leg->path,
-                    hdrs[0] ? hdrs : NULL, NULL, 0, OCI_TOKEN_TIMEOUT_MS,
+                    hdrs[0] ? hdrs : NULL, NULL, 0, BRIX_OCI_TOKEN_TIMEOUT_MS,
                     &resp, errbuf, sizeof(errbuf)) != 0)
     {
         ngx_log_error(NGX_LOG_ERR, up->log, 0,

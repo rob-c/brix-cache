@@ -35,14 +35,26 @@ static ngx_uint_t   proxy_pool_count;
 typedef struct {
     brix_proxy_up_status_t  *status;   /* per-upstream health array */
     ngx_uint_t               count;    /* array size */
-} brix_proxy_up_state_t;
+} brix_proxy_health_state_t;
 
-static brix_proxy_up_state_t  proxy_up_state = {
+static brix_proxy_health_state_t  proxy_up_state = {
     .status = NULL,
     .count  = 0
 };
 
 /* health tracking */
+
+/* ---- Read the worker's upstream health table ----
+ *
+ * WHAT: Return the current health entries, or NULL before allocation.
+ * WHY: Upstream selection shares the pool owner's state without exporting it.
+ * HOW: 1. Return a read-only view of the worker-local array.
+ */
+const brix_proxy_up_status_t *
+brix_proxy_up_status_get(void)
+{
+    return proxy_up_state.status;
+}
 
 /* brix_proxy_up_status_init — allocate and zero the per-upstream health-status
  * array (worker-local singleton; reused if already sized for >= N upstreams). */
@@ -428,7 +440,7 @@ brix_proxy_pool_get(brix_proxy_ctx_t *proxy,
 /* brix_proxy_pool_put — return an authenticated idle upstream to the worker-local
  * pool for reuse: detach it from the proxy ctx, wrap it in a pooled_conn_t (auth
  * type / upstream index / token hash / keepalive timer), and insert at the queue
- * head, ejecting the oldest when full (BRIX_PROXY_POOL_SIZE). Redirected
+ * head, ejecting the oldest when full (BRIX_PROXY_MAX_IDLE_CONNECTIONS). Redirected
  * connections (too transient) are skipped. */
 
 void
@@ -447,7 +459,7 @@ brix_proxy_pool_put(brix_proxy_ctx_t *proxy)
         return;
     }
 
-    if (proxy_pool_count >= BRIX_PROXY_POOL_SIZE) {
+    if (proxy_pool_count >= BRIX_PROXY_MAX_IDLE_CONNECTIONS) {
         /* Pool full — eject oldest.  Must go through brix_proxy_pool_evict so the
          * evicted entry's keepalive ping timer is cancelled: freeing pc while its
          * ping_ev is still armed leaves a stale timer that later fires on freed

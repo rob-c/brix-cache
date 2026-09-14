@@ -40,13 +40,13 @@ reap_metrics_slot(const ngx_stream_brix_srv_conf_t *conf)
 
     if (conf == NULL || conf->metrics_slot < 0
         || conf->metrics_slot >= BRIX_METRICS_MAX_SERVERS
-        || ngx_brix_shm_zone == NULL
-        || ngx_brix_shm_zone->data == NULL
-        || ngx_brix_shm_zone->data == (void *) 1)
+        || brix_metrics_get_shm_zone() == NULL
+        || brix_metrics_get_shm_zone()->data == NULL
+        || brix_metrics_get_shm_zone()->data == (void *) 1)
     {
         return NULL;
     }
-    shm = ngx_brix_shm_zone->data;
+    shm = brix_metrics_get_shm_zone()->data;
     return &shm->servers[conf->metrics_slot];
 }
 

@@ -87,7 +87,7 @@ for func in "${FUNCTIONS[@]}"; do
     if grep -q "$func" src/platform/windows/*.c src/platform/windows/*.h 2>/dev/null; then
         echo "✓ $func"
         ((FOUND++))
-    elif grep -q "$func" src/platform/platform.c src/platform/platform_api.h 2>/dev/null; then
+    elif grep -q "$func" src/platform/platform_runtime.c src/platform/platform_api.h 2>/dev/null; then
         # Check shared platform files
         echo "✓ $func (shared)"
         ((FOUND++))

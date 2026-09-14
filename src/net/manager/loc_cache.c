@@ -21,19 +21,9 @@ static struct {
     ngx_shmtx_t       mutex;
     ngx_msec_t        ttl_ms;        /* §2.6: positive entry TTL (default 30s) */
     ngx_msec_t        emptylife_ms;  /* §2.6: negative entry TTL (0=disabled) */
-} loc_cache_state;
-
-/* Accessor - returns pointer to module state */
-static const struct {
-    ngx_shm_zone_t   *shm_zone;
-    ngx_shmtx_t       mutex;
-    ngx_msec_t        ttl_ms;
-    ngx_msec_t        emptylife_ms;
-} *
-brix_loc_cache_state(void)
-{
-    return &loc_cache_state;
-}
+} loc_cache_state = {
+    .ttl_ms = BRIX_LOC_CACHE_TTL_MS,
+};
 
 /*
  * brix_loc_cache_set_ttl — configure TTL for positive cache entries.

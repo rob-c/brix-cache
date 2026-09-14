@@ -203,8 +203,12 @@ typedef struct {
     brix_shared_handle_entry_t  slots[BRIX_SESSION_HANDLE_SLOTS]; /* published handle entries */
 } brix_shared_handle_table_t;
 
-extern ngx_shm_zone_t *brix_session_shm_zone;     /* shared memory zone for session registry */
-extern ngx_shm_zone_t *brix_handle_shm_zone;       /* shared memory zone for handle table */
+/* Process-local registry state is owned by registry.c. */
+ngx_shm_zone_t *brix_session_get_shm_zone(void);
+void brix_session_set_shm_zone(ngx_shm_zone_t *zone);
+ngx_shm_zone_t *brix_handle_get_shm_zone(void);
+void brix_handle_set_shm_zone(ngx_shm_zone_t *zone);
+ngx_shmtx_t *brix_session_get_mutex(void);
 
 /* ---- Function: brix_session_shm_init_zone() ----
  * WHAT: Shared-memory zone init callback.

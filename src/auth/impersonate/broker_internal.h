@@ -5,6 +5,7 @@
 #ifndef BRIX_BROKER_INTERNAL_H
 #define BRIX_BROKER_INTERNAL_H
 
+#include "core/types/tunables.h"
 #include "impersonate.h"
 #include "impersonate_proto.h"
 #include "impersonate_state.h"

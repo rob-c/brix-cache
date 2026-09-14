@@ -24,6 +24,10 @@ struct brix_security_ctx {
     char profile_path[256];   /* Path to loaded profile */
 };
 
+typedef struct brix_security_ctx brix_security_ctx_t;
+
+int brix_security_load_profile(const char *path);
+
 /* ==========================================================================
  * SECURITY - Linux implementations (seccomp-bpf)
  * ========================================================================== */

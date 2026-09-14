@@ -7,11 +7,6 @@
  *       Also provides a generic brix_send_attn() wrapper.
  *       Deprecated action codes 5000-5007 (except 5002 and 5008) all return
  *       kXR_Unsupported per the v5.2.0 spec ("No longer supported").
- */
-
-/* Stringification macro for constants */
-#define XSTR_HELPER(x)  #x
-#define XSTR(x)         XSTR_HELPER(x)
  *
  * WHY: kXR_attn is the XRootD server-push mechanism. The proxy relay path
  *      already forwards upstream kXR_attn frames transparently (events_read.c).
@@ -174,54 +169,54 @@ ngx_int_t
 brix_handle_async_ab(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncab (" XSTR(BRIX_ROOT_ASYNCAB) ") is no longer supported");
+                            "kXR_asyncab (" BRIX_STRINGIFY(BRIX_ROOT_ASYNCAB) ") is no longer supported");
 }
 
 ngx_int_t
 brix_handle_async_di(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncdi (" XSTR(BRIX_ROOT_ASYNCDI) ") is no longer supported");
+                            "kXR_asyncdi (" BRIX_STRINGIFY(BRIX_ROOT_ASYNCDI) ") is no longer supported");
 }
 
 ngx_int_t
 brix_handle_async_ms(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncms (" XSTR(BRIX_ROOT_ASYNCMS) ") is no longer supported");
+                            "kXR_asyncms (" BRIX_STRINGIFY(BRIX_ROOT_ASYNCMS) ") is no longer supported");
 }
 
 ngx_int_t
 brix_handle_async_rd(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncrd (" XSTR(BRIX_ROOT_ASYNC_RD) ") is no longer supported");
+                            "kXR_asyncrd (" BRIX_STRINGIFY(BRIX_ROOT_ASYNC_RD) ") is no longer supported");
 }
 
 ngx_int_t
 brix_handle_async_wt(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncwt (" XSTR(BRIX_ROOT_ASYNC_WT) ") is no longer supported");
+                            "kXR_asyncwt (" BRIX_STRINGIFY(BRIX_ROOT_ASYNC_WT) ") is no longer supported");
 }
 
 ngx_int_t
 brix_handle_async_av(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncav (" XSTR(BRIX_ROOT_ASYNC_AV) ") is no longer supported");
+                            "kXR_asyncav (" BRIX_STRINGIFY(BRIX_ROOT_ASYNC_AV) ") is no longer supported");
 }
 
 ngx_int_t
 brix_handle_async_unav(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncunav (" XSTR(BRIX_ROOT_ASYNC_UNAV) ") is no longer supported");
+                            "kXR_asyncunav (" BRIX_STRINGIFY(BRIX_ROOT_ASYNC_UNAV) ") is no longer supported");
 }
 
 ngx_int_t
 brix_handle_async_go(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     return brix_send_error(ctx, c, kXR_Unsupported,
-                            "kXR_asyncgo (" XSTR(BRIX_ROOT_ASYNC_GO) ") is no longer supported");
+                            "kXR_asyncgo (" BRIX_STRINGIFY(BRIX_ROOT_ASYNC_GO) ") is no longer supported");
 }

@@ -173,9 +173,9 @@ dashboard_fill_cvmfs(json_t *target, ngx_uint_t redact)
     ngx_uint_t                  i;
     uint64_t                    requests = 0;
 
-    if (ngx_brix_shm_zone == NULL
-        || ngx_brix_shm_zone->data == NULL
-        || ngx_brix_shm_zone->data == (void *) 1)
+    if (brix_metrics_get_shm_zone() == NULL
+        || brix_metrics_get_shm_zone()->data == NULL
+        || brix_metrics_get_shm_zone()->data == (void *) 1)
     {
         json_object_set_new(target, "enabled",   json_false());
         json_object_set_new(target, "repos",     json_array());
@@ -183,7 +183,7 @@ dashboard_fill_cvmfs(json_t *target, ngx_uint_t redact)
         return;
     }
 
-    met = ngx_brix_shm_zone->data;
+    met = brix_metrics_get_shm_zone()->data;
     c   = &met->cvmfs;
 
     json_object_set_new(target, "requests", cvmfs_json_requests(c->requests_total));

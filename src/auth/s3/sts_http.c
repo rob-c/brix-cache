@@ -19,6 +19,7 @@
  *   - outbound HTTP:  libcurl, mirroring src/protocols/webdav/tpc_curl.c
  *   - XML parsing:    libxml2 (guarded by BRIX_HAVE_LIBXML2)
  */
+#include "core/types/tunables.h"
 #include "sts_internal.h"
 
 #include <curl/curl.h>

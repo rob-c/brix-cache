@@ -23,6 +23,7 @@
  *   not handed to the caller. The shared proxyCertInfo builder pxr_make_pci_ext()
  *   and the GSI OID constants come from proxy_req_internal.h. */
 
+#include "core/types/tunables.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>

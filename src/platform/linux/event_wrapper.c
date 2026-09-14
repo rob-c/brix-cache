@@ -16,7 +16,7 @@
  * ========================================================================== */
 
 int
-brix_plat_event_init(void)
+brix_platform_event_init(void)
 {
     int epfd = epoll_create1(EPOLL_CLOEXEC);
     
@@ -28,7 +28,7 @@ brix_plat_event_init(void)
 }
 
 void
-brix_plat_event_close(int event_fd)
+brix_platform_event_close(int event_fd)
 {
     if (event_fd >= 0) {
         close(event_fd);
@@ -69,7 +69,7 @@ brix_platform_event_watch(int event_fd, int fd, uint32_t events)
 }
 
 int
-brix_plat_event_wait(int event_fd, void *events, int max_events, int timeout_ms)
+brix_platform_event_wait(int event_fd, void *events, int max_events, int timeout_ms)
 {
     struct epoll_event *ev = (struct epoll_event *)events;
     int timeout;

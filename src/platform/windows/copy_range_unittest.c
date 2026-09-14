@@ -1,5 +1,5 @@
 /*
- * test_copy_range.c - Test suite for Windows brix_plat_copy_range() implementation
+ * copy_range_unittest.c - Test suite for Windows brix_plat_copy_range() implementation
  * 
  * Tests:
  * 1. Full file copy using CopyFile2
@@ -15,7 +15,7 @@
  * - FSCTL_COPY_FILE_RANGE: Windows 10 1607+ / Server 2016+
  * 
  * Compile:
- *   cl /W4 /Fe:test_copy_range.exe test_copy_range.c /link ws2_32.lib
+ *   cl /W4 /Fe:test_copy_range.exe copy_range_unittest.c /link ws2_32.lib
  * 
  * Run:
  *   test_copy_range.exe

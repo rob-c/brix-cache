@@ -178,13 +178,13 @@ brix_write_finalize_sync(brix_ctx_t *ctx, ngx_connection_t *c,
 	brix_rl_charge_ctx(ctx, (size_t) nwritten);  /* Phase 25 bandwidth */
 
 	if (ctx->files[idx].dashboard_slot >= 0 &&
-	    ngx_brix_dashboard_shm_zone != NULL)
+	    brix_dashboard_get_shm_zone() != NULL)
 	{
-		brix_transfer_slot_update(ngx_brix_dashboard_shm_zone->data,
+		brix_transfer_slot_update(brix_dashboard_get_shm_zone()->data,
 		                            ctx->files[idx].dashboard_slot,
 		                            (ngx_atomic_int_t) nwritten,
 		                            (int64_t) ngx_current_msec);
-		brix_transfer_slot_count_op(ngx_brix_dashboard_shm_zone->data,
+		brix_transfer_slot_count_op(brix_dashboard_get_shm_zone()->data,
 		                              ctx->files[idx].dashboard_slot,
 		                              "write");
 	}

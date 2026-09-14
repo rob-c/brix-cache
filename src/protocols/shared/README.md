@@ -41,6 +41,9 @@ translation unit and no `./configure` change.
 
 | File | Responsibility |
 |---|---|
+| `http_cache_fill.c` / `.h` | Starts and posts cache fills, carries origin credentials, and publishes successfully posted work for coalescing. |
+| `http_cache_fill_registry.c` / `http_cache_fill_internal.h` | Owns the private per-worker fill list, credential-scoped lookup, publication/removal and waiter attach/detach lifecycle. |
+| `http_cache_fill_worker.c` | Executes fills and resolves waiters; removes completed work from coalescing before any waiter re-enters its handler. |
 | `file_serve.c` | Implements `brix_http_serve_file_ranged()` — the 5-phase shared HTTP body-send pipeline: (1) parse `Range:` via `brix_http_parse_range`, short-circuiting to `416` if unsatisfiable; (2) emit `Last-Modified`/`Content-Length`/`Content-Range`/ETag via `brix_http_set_file_headers` and fire the optional `pre_header_send` hook; (3) start dashboard transfer tracking via `brix_dashboard_http_start_identity`; (4) `dup()` the fd, release the VFS handle, send the range via `brix_http_send_file_range`; (5) post-send byte accounting (`brix_dashboard_http_add`) + cache-access recording (`brix_cache_record_access`) for cache-backed handles. |
 | `file_serve.h` | Public interface: `brix_http_serve_file_ranged()` prototype, the `brix_http_serve_opts_t` input struct, the `brix_http_serve_result_t` output struct, the `brix_http_pre_header_fn` hook typedef, and the `BRIX_SERVE_RANGE_FULL/_PARTIAL/_UNSATISFIED` outcome constants. |
 | `vfs_authz_bind.c` / `vfs_authz_bind.h` | HTTP-plane adapter that copies the request peer (or configured reverse-DNS name) and finalized native/XrdAcc/VO rule state into the protocol-neutral VFS authorization bundle. |

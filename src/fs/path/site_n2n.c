@@ -2,6 +2,7 @@
  * site_n2n.c — the tunable site name-translation. See the header. Pure libc.
  */
 
+#include "core/types/tunables.h"
 #include "site_n2n.h"
 
 #include <errno.h>

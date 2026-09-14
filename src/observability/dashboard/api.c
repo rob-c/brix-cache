@@ -137,7 +137,7 @@ dashboard_avg_bps(int64_t bytes, int64_t start_ms, int64_t now_ms)
     int64_t elapsed_ms;
 
     elapsed_ms = (start_ms > 0 && now_ms > start_ms) ? now_ms - start_ms : 0;
-    return elapsed_ms > 0 ? (uint64_t) ((bytes BRIX_MSEC_PER_SEC) / elapsed_ms) : 0;
+    return elapsed_ms > 0 ? (uint64_t) ((bytes * BRIX_MSEC_PER_SEC) / elapsed_ms) : 0;
 }
 
 

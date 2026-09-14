@@ -6,6 +6,7 @@
  * ngx_conf_set_*_slot setters; only the watermark pair needs a custom setter.
  */
 
+#include "core/types/tunables.h"
 #include "tape_stage_conf.h"
 #include "fs/backend/frm/sd_frm.h"   /* brix_sd_frm_set_exec_defaults */
 

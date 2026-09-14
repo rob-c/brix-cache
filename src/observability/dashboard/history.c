@@ -26,8 +26,8 @@
  *       each slot so a reader can tell a current bucket from a stale wrapped one.
  *       sample() snaps now_ms down to the interval boundary, zero-fills any
  *       buckets skipped since last_bucket_start_ms (idle gaps), then tallies
- *       active transfers from ngx_brix_dashboard_shm_zone and byte/error/auth
- *       totals from ngx_brix_shm_zone (per-server, WebDAV and S3).  A single
+ *       active transfers from brix_dashboard_get_shm_zone() and byte/error/auth
+ *       totals from brix_metrics_get_shm_zone() (per-server, WebDAV and S3).  A single
  *       static ngx_shmtx_t (re-created on reload) guards both sample and
  *       snapshot.  write_stalls and cache_occupancy_ppm are reserved/unpopulated.
  */
@@ -38,7 +38,7 @@ static brix_dashboard_history_t *
 dashboard_history_table(void)
 {
     return (brix_dashboard_history_t *)
-           brix_shm_zone_table(ngx_brix_dashboard_history_shm_zone);
+           brix_shm_zone_table(brix_dashboard_get_history_shm_zone());
 }
 
 static ngx_uint_t
@@ -158,14 +158,14 @@ dashboard_history_count_active(ngx_uint_t active[BRIX_XFER_NPROTOS],
     brix_transfer_table_t *tbl;
     ngx_uint_t             i;
 
-    if (ngx_brix_dashboard_shm_zone == NULL
-        || ngx_brix_dashboard_shm_zone->data == NULL
-        || ngx_brix_dashboard_shm_zone->data == (void *) 1)
+    if (brix_dashboard_get_shm_zone() == NULL
+        || brix_dashboard_get_shm_zone()->data == NULL
+        || brix_dashboard_get_shm_zone()->data == (void *) 1)
     {
         return;
     }
 
-    tbl = ngx_brix_dashboard_shm_zone->data;
+    tbl = brix_dashboard_get_shm_zone()->data;
     for (i = 0; i < BRIX_DASHBOARD_MAX_TRANSFERS; i++) {
         brix_transfer_slot_t *slot = &tbl->slots[i];
 
@@ -207,14 +207,14 @@ dashboard_history_sum_totals(uint64_t *bytes_rx, uint64_t *bytes_tx,
     ngx_brix_metrics_t *met;
     ngx_uint_t          i, j;
 
-    if (ngx_brix_shm_zone == NULL
-        || ngx_brix_shm_zone->data == NULL
-        || ngx_brix_shm_zone->data == (void *) 1)
+    if (brix_metrics_get_shm_zone() == NULL
+        || brix_metrics_get_shm_zone()->data == NULL
+        || brix_metrics_get_shm_zone()->data == (void *) 1)
     {
         return;
     }
 
-    met = ngx_brix_shm_zone->data;
+    met = brix_metrics_get_shm_zone()->data;
     for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
         ngx_brix_srv_metrics_t *srv = &met->servers[i];
 

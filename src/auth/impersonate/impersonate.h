@@ -220,7 +220,8 @@ int brix_imp_broker_drop_caps(ngx_log_t *log);
  * unprivileged nginx worker uid before spawning the broker; leave 0 to disable
  * (e.g. the in-namespace test where both ends share an identity).
  */
-extern uid_t brix_imp_broker_allow_uid;
+uid_t brix_imp_get_broker_allow_uid(void);
+void brix_imp_set_broker_allow_uid(uid_t uid);
 
 /*
  * Hyper-hardening: when set to a real uid/gid (not (uid_t)-1), the broker drops

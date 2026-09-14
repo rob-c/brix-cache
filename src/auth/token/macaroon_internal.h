@@ -26,6 +26,7 @@
  * set; macaroon_parse_input_t bundles the invariant parse inputs (tp_arr != NULL
  * marks the root/standalone parse). */
 
+#include "core/types/tunables.h"
 #include "token_internal.h"
 #include "scopes.h"
 

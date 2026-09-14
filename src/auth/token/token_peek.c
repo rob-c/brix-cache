@@ -27,6 +27,7 @@
  * caller that ignores the return value still cannot read a stale value.
  */
 
+#include "core/types/tunables.h"
 #include <ngx_config.h>
 #include <ngx_core.h>
 

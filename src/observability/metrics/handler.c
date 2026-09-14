@@ -3,29 +3,12 @@
 
 /* File: metrics handler — Prometheus-format endpoint for nginx-xrootd
  *
- * WHAT: Declares shared memory zone pointer (ngx_shm_zone_t) allocated by
- *       stream module postconfiguration.
+ * WHAT: Reads the shared memory zone registered by metrics/config.c.
  *       - NULL until nginx processes stream {} block with brix_enable
  *       - Read at request time to determine if metrics data exists
  *       - If NULL: handler sends informational message (no stream servers)
  *       - If set: exports all collected metrics via brix_export_prometheus_metrics()
  */
-
-/*
- * Shared metrics zone — allocated by the stream module postconfiguration and
- * read here at request time.  NULL until the stream {} block is processed.
- * Encapsulated — access via brix_metrics_get_shm_zone().
- */
-static ngx_shm_zone_t *ngx_brix_shm_zone = NULL;
-
-/*
- * brix_metrics_get_shm_zone — accessor for metrics SHM zone.
- */
-ngx_shm_zone_t *
-brix_metrics_get_shm_zone(void)
-{
-    return ngx_brix_shm_zone;
-}
 
 /*
  * WHAT: Handles /metrics HTTP endpoint serving Prometheus-compatible metrics.
@@ -83,10 +66,10 @@ ngx_http_brix_metrics_handler(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (ngx_brix_shm_zone == NULL || ngx_brix_shm_zone->data == NULL) {
+    if (brix_metrics_get_shm_zone() == NULL || brix_metrics_get_shm_zone()->data == NULL) {
         mw_printf(&mw, "# nginx-xrootd: no stream servers configured\n");
     } else {
-        brix_export_prometheus_metrics(&mw, ngx_brix_shm_zone->data);
+        brix_export_prometheus_metrics(&mw, brix_metrics_get_shm_zone()->data);
     }
 
     /* Phase 20: per-zone KV cache / rate-limit counters (module-global). */

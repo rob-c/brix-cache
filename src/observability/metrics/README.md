@@ -21,8 +21,8 @@ metrics module** (`ngx_http_brix_metrics_module`, defined in `module.c`)
 attaches the `brix_metrics` location directive and compiles the read-side
 exporters (`stream.c`, `webdav.c`, `s3.c`, `cluster.c`, `ratelimit.c`,
 `stream_cache.c`, `stream_proxy.c`, `stream_tracking.c`, `writer.c`,
-`handler.c`). The two modules communicate only through the global
-`ngx_shm_zone_t *ngx_brix_shm_zone` and the numeric slot ABI in `metrics.h` —
+`handler.c`). The two modules communicate through the zone returned by
+`brix_metrics_get_shm_zone()` and the numeric slot ABI in `metrics.h` —
 the stream side records by slot index, the exporter maps the index back to a
 label string. The two must stay in sync.
 
@@ -117,9 +117,9 @@ deliberately-invalid example or a metric a design doc has only proposed.
 | `metrics_macros.h` | The increment macros (`BRIX_ATOMIC_INC/DEC/ADD`, `BRIX_SRV_/WEBDAV_/S3_/PROXY_METRIC_INC/ADD`, per-upstream `BRIX_PROXY_UP_*`) plus the `brix_metrics_shared()` accessor with its `NULL`/sentinel-`1` guard. |
 | `http_common.h` | `brix_http_status_class()` — maps an HTTP status code to the six `BRIX_HTTP_STATUS_*` buckets. Single authoritative inline shared by WebDAV and S3 callers. |
 | `access_log.h` | Prototype for `brix_access_log_emit()` — the structured JSON access-log line. |
-| `config.c` | Stream-side setup: `brix_configure_metrics()` adds the `brix_metrics` SHM zone (`sizeof(ngx_brix_metrics_t)` + one page) and assigns each enabled listener a deterministic `metrics_slot`; `ngx_brix_metrics_shm_init()` zeroes a fresh mapping but preserves counters across reloads. |
+| `config.c` | Owns the metrics zone pointer and exposes `brix_metrics_get_shm_zone()`. Stream-side setup: `brix_configure_metrics()` adds the `brix_metrics` SHM zone (`sizeof(ngx_brix_metrics_t)` + one page) and assigns each enabled listener a deterministic `metrics_slot`; `ngx_brix_metrics_shm_init()` zeroes a fresh mapping but preserves counters across reloads. |
 | `module.c` | Defines `ngx_http_brix_metrics_module`: the `brix_metrics on;` location directive, its create/merge loc-conf, and binding of the content handler. |
-| `handler.c` | `ngx_http_brix_metrics_handler()` — the `/metrics` content handler. Owns the `ngx_brix_shm_zone` global definition; restricts to GET/HEAD, discards body, drives the writer through every exporter, sets `text/plain; version=0.0.4`. |
+| `handler.c` | `ngx_http_brix_metrics_handler()` — the `/metrics` content handler. Reads the configured zone through `brix_metrics_get_shm_zone()`; restricts to GET/HEAD, discards body, drives the writer through every exporter, sets `text/plain; version=0.0.4`. |
 | `writer.c` | `metrics_writer_t` growable buffer-chain (`mw_init`/`mw_printf`/`mw_finish`) and reusable emit helpers (`mw_emit_labeled`, `mw_emit_scalar`); also `brix_kv_metrics_emit()` for per-zone KV cache/rate-limit stats and the shared `brix_http_status_names[]`/`brix_http_range_result_names[]` tables. |
 | `stream.c` | `brix_op_names[]` (the slot→label ABI table) and `brix_export_prometheus_metrics()` — the top-level exporter: native stream counters (connections, bytes by IP version, wire frames, per-op ok/error, xfer-heap budget, session-registry, depth violations, mirror) and it chains every other exporter. |
 | `stream_cache.c` | `brix_export_stream_cache_metrics()` — read-through cache occupancy (live `statvfs` via `brix_fs_usage_stat`), eviction counters, and write-through flush health gauges/counters. |

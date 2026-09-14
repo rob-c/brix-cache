@@ -23,7 +23,7 @@ static brix_shared_handle_table_t *
 handle_table(void)
 {
     return (brix_shared_handle_table_t *)
-           brix_shm_zone_table(brix_handle_shm_zone);
+           brix_shm_zone_table(brix_handle_get_shm_zone());
 }
 
 ngx_int_t

@@ -31,6 +31,7 @@
  *           rebuilds scope_raw via macaroon_rebuild_scope_raw() if narrowed
  */
 
+#include "core/types/tunables.h"
 #include "token_internal.h"
 #include "macaroon.h"
 #include "macaroon_internal.h"

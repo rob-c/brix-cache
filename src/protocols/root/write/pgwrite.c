@@ -76,43 +76,6 @@ brix_pgwrite_decode_payload(const u_char *payload, size_t payload_len,
 	return NGX_OK;
 }
 
-/* pgw_state_t
- * WHAT: Per-request working state for one kXR_pgwrite, threaded through the
- *       parse / decode / execute helper sequence.
- * WHY:  Keeps the orchestrator flat and each stage independently testable while
- *       passing state explicitly (no new globals) — the request fields decoded
- *       once at parse time and the CSE bad-page list collected at decode time
- *       are both needed by the execute + reply stage.
- * HOW:  Populated by pgwrite_parse_validate (idx/offset/dlen/is_retry/req),
- *       then by pgwrite_decode_collect (flat/flat_sz/bad_pages/bad_count).
- *       `bad_pages` is a fixed kXR_pgMaxEpr array so no allocation is needed. */
-typedef struct {
-	xrdw_pgwrite_req_t             req;
-	ngx_stream_brix_srv_conf_t    *rconf;
-	int                            idx;
-	int64_t                        offset;
-	size_t                         dlen;
-	u_char                        *payload;
-	int                            is_retry;
-
-	u_char                        *flat;
-	size_t                         flat_sz;
-	xrdp_pg_bad_t                  bad_pages[kXR_pgMaxEpr];
-	size_t                         bad_count;
-} pgw_state_t;
-
-/* pgw_fmt_detail()
- * WHAT: Format the "<offset>+<len>" access-log/error detail string used by every
- *       pgwrite reply path.
- * WHY:  The same snprintf triplet appears at each error and success site; one
- *       helper keeps the wire/log detail bytes identical everywhere.
- * HOW:  Pure formatting into the caller-owned buffer. */
-static void
-pgw_fmt_detail(char *buf, size_t bufsz, int64_t offset, size_t len)
-{
-	snprintf(buf, bufsz, "%lld+%zu", (long long) offset, len);
-}
-
 /* pgwrite_parse_validate()
  * WHAT: Unpack the kXR_pgwrite request header, validate the file handle and
  *       payload bounds, and classify a kXR_pgRetry correction.
@@ -340,8 +303,8 @@ pgwrite_execute_sync(brix_ctx_t *ctx, ngx_connection_t *c, pgw_state_t *st,
 	total_written = (size_t) nw;
 
 	/* Success path: delegate to focused helpers */
-	pgwrite_update_metrics(ctx, total_written);
-	pgwrite_mark_dirty_if_needed(ctx, st->idx, st->offset + (int64_t) nw - 1,
+	pgwrite_update_metrics(ctx, st->idx, total_written);
+	pgwrite_mark_dirty_if_needed(ctx, st->idx, st->offset,
 	                              total_written, ctx->files[st->idx].wt_enabled);
 	pgwrite_log_success(ctx, c, st, total_written);
 	BRIX_OP_OK(ctx, BRIX_OP_WRITE);

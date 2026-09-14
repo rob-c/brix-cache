@@ -44,7 +44,13 @@ ngx_uint_t ngx_worker;
  * NULL while it is unset, so leaving the metrics plane down is all it takes:
  * every counter site under test is NULL-guarded, and the reap/evict paths run
  * their real logic while skipping only the counter. */
-ngx_shm_zone_t *ngx_brix_shm_zone = NULL;
+/* WHAT: Disable metrics in this registry harness. WHY: Isolate registry state.
+ * HOW: 1. Return no configured zone through the production accessor contract. */
+ngx_shm_zone_t *
+brix_metrics_get_shm_zone(void)
+{
+    return NULL;
+}
 
 static int g_unpublish_calls;
 

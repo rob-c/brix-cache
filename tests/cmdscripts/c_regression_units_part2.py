@@ -147,6 +147,7 @@ def mu_unit(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
             "-Wextra",
             *_nginx_includes(ngx_src),
             str(TEST_C / "idmap_collapse_test.c"),
+            str(REPO_ROOT / "src/auth/impersonate/impersonate_state.c"),
             str(REPO_ROOT / "src/auth/impersonate/idmap.c"),
             str(REPO_ROOT / "src/auth/impersonate/idmap_denylist.c"),
             str(REPO_ROOT / "src/auth/impersonate/idmap_gridmap.c"),

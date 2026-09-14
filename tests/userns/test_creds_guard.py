@@ -43,9 +43,10 @@ def test_reserved_id_guard_predicate():
     # idmap.c was split (phase impersonation-hardening): the reserved-id predicate
     # brix_imp_creds_privileged() + idmap_creds_allowed()/idmap_resolve_user() now
     # live in idmap_denylist.c, and the gridmap load/lookup in idmap_gridmap.c.
-    # Link the same self-contained trio the idmap_collapse unit uses.
+    # Link the mapper, its policy state and the two split implementation files.
     cmd = [CC, "-O2", "-D_GNU_SOURCE", "-Wall", *_inc_flags(), "-o", out_bin,
            os.path.join(HERE, "c", "creds_guard_test.c"),
+           os.path.join(IMP, "impersonate_state.c"),
            os.path.join(IMP, "idmap.c"),
            os.path.join(IMP, "idmap_denylist.c"),
            os.path.join(IMP, "idmap_gridmap.c")]

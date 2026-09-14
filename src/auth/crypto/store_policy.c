@@ -4,6 +4,7 @@
  * See store_policy.h for the contract.  Depends only on OpenSSL + libc +
  * signing_policy.h; no ngx symbols (logging is via a caller callback).
  */
+#include "core/types/tunables.h"
 #include "auth/crypto/store_policy.h"
 
 #include <openssl/bn.h>

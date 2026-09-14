@@ -1,8 +1,8 @@
 /*
- * cpu_topology_test.c - Standalone test for Apple Silicon CPU detection
+ * cpu_topology_unittest.c - Standalone test for Apple Silicon CPU detection
  * 
  * Compile and run independently to verify CPU detection:
- *   clang -o cpu_topology_test cpu_topology_test.c
+ *   clang -o cpu_topology_test cpu_topology_unittest.c
  *   ./cpu_topology_test
  * 
  * This is a standalone test - not part of the nginx build.

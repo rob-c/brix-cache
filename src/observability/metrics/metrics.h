@@ -17,12 +17,6 @@
 #include "core/types/fs_list.h"   /* brix_fs_id_t — per-backend counter index */
 #include "unified.h"
 
-/*
- * Root shared-memory zone — declared in observability/metrics/handler.c,
- * referenced by metrics_macros.h for lock-free counter access.
- */
-extern ngx_shm_zone_t *ngx_brix_shm_zone;
-
 /* Hard cap on exported stream listeners sharing the metrics zone. */
 #define BRIX_METRICS_MAX_SERVERS  16
 
@@ -338,7 +332,7 @@ typedef struct {
 #include "metrics_unified_layout.h"
 
 /*
- * Root shared-memory object stored in ngx_brix_shm_zone->data.
+ * Root shared-memory object stored in brix_metrics_get_shm_zone()->data.
  * A fixed-size array keeps indexing simple and avoids extra allocation once
  * workers are running.
  */

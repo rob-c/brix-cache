@@ -13,6 +13,7 @@
  *   "<id>@<host> grant|deny <op> <path>" with control/quote bytes escaped.
  */
 
+#include "core/types/tunables.h"
 #include "acc.h"
 
 #define BRIX_ACC_AUDIT_DENY   0x1

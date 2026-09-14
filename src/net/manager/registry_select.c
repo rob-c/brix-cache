@@ -367,7 +367,7 @@ srv_select_core(const char *path, int for_write, int allow_blacklisted,
 
     srv_sel_state_init(&st, for_write);
 
-    ngx_shmtx_lock(&brix_srv_mutex);
+    ngx_shmtx_lock(brix_srv_get_mutex());
 
     for (i = 0; i < tbl->capacity; i++) {
         int is_black;
@@ -411,7 +411,7 @@ srv_select_core(const char *path, int for_write, int allow_blacklisted,
         *port_out = e->port;
     }
 
-    ngx_shmtx_unlock(&brix_srv_mutex);
+    ngx_shmtx_unlock(brix_srv_get_mutex());
     return best >= 0;
 }
 
@@ -466,7 +466,7 @@ brix_srv_count_matching(const char *path)
         return 0;
     }
 
-    ngx_shmtx_lock(&brix_srv_mutex);
+    ngx_shmtx_lock(brix_srv_get_mutex());
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
         if (!e->in_use) {
@@ -477,7 +477,7 @@ brix_srv_count_matching(const char *path)
         }
         n++;
     }
-    ngx_shmtx_unlock(&brix_srv_mutex);
+    ngx_shmtx_unlock(brix_srv_get_mutex());
     return n;
 }
 

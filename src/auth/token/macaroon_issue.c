@@ -18,6 +18,7 @@
  *      is informational only and does not enter the HMAC chain.
  */
 
+#include "core/types/tunables.h"
 #include "macaroon_issue.h"
 #include "b64url.h"
 

@@ -6,6 +6,7 @@
  * brix_vfs_pread_full (src/fs/vfs/vfs_read.c) and brix_vfs_io_write_counted
  * (src/fs/vfs/vfs_io_core.c) so behaviour is byte-identical across both trees.
  */
+#include "core/types/tunables.h"
 #include "vfs_core.h"
 
 #include <errno.h>

@@ -16,9 +16,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <zlib.h>
-#include "core/types/tunables.h"  /* BRIX_SHARED_STARGZ_IOBUF_SIZE */
 
-#define SGZ_IOBUF   BRIX_SHARED_STARGZ_IOBUF_SIZE
+#define SGZ_IOBUF   (64u * 1024u)
 #define SGZ_BLOCK   512
 #define SGZ_LANDMARK_BYTE 0x0f     /* the format's landmark file content */
 
