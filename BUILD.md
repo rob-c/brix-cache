@@ -592,9 +592,11 @@ Useful options (`-D…` at configure time):
 |---|---|---|
 | `CMAKE_INSTALL_PREFIX` | `/usr` | client-tool prefix (forced to `/usr`, not `/usr/local`, so it overwrites the RPM) |
 | `BRIX_BUILD_MODULES` | `ON` | build/install the nginx modules |
+| `BRIX_BUILD_NGINX` | `OFF` | also build a matching nginx executable for testing, at `build/modules/nginx` |
+| `BRIX_BUILD_JOBS` | detected CPU count | parallel jobs used by nginx's inner Make invocation |
 | `BRIX_BUILD_CLIENT` | `ON` | build/install the client tools |
 | `BRIX_BUILD_CEPH_TOOLS` | `ON` | build the Ceph migration/rescue tools |
-| `NGINX_SRC_DIR` | auto | nginx source tree (auto-read from `macros.nginxmods`, else newest `/usr/src/nginx-*`) |
+| `NGINX_SRC_DIR` | auto | nginx source tree: distro SDK by default, or an unpacked upstream release |
 | `NGINX_MOD_DIR` | `/usr/lib64/nginx/modules` | where the `.so`s install |
 | `NGINX_MODCONF_DIR` | `/usr/share/nginx/modules` | where `mod-xrootd.conf` installs |
 | `BRIX_MODULE_CFLAGS` / `BRIX_MODULE_LDFLAGS` | rpm `%{optflags}` / `%{build_ldflags}` | module cc-opt / ld-opt |
@@ -681,3 +683,196 @@ Revert to the packaged build with
 > On this host we did **not** run `sudo cmake --install` — the newer
 > `nginx-mod-brix-cache-1.1.1-20.el9` dev-fleet install is live (§2d). All CMake
 > verification used a `DESTDIR` staging dir. `build/` is git-ignored.
+
+---
+
+## 5. Fresh-host module build — 2026-09-10
+
+The earlier sections record a different installation state. On this fresh
+AlmaLinux 9.8 host, GCC, Make and CMake were present, but nginx and most
+development libraries were missing. Enabled CRB and installed the signed
+`centos-release-ceph-reef` repository package, then installed the build and
+runtime dependencies listed in §1. The matching distro packages are now
+`nginx`, `nginx-mod-devel` and `nginx-mod-stream`, all at
+`1.20.1-28.el9_8.5.alma.1`.
+
+Also installed the newer feature dependencies: `libzstd-devel`, `lz4-devel`,
+`liburing-devel`, `xz-devel`, `bzip2-devel`, `brotli-devel` and
+`libseccomp-devel`, plus the current RPM build macros and SELinux development
+package. On AlmaLinux 9 the Brotli development package is **`brotli-devel`**.
+The installed package inventory and transaction output are saved locally in
+`build/dependencies.txt` and `build/dependency-install.log`.
+
+Build the two BriX dynamic modules against the SDK's nginx sources:
+
+```bash
+cmake -S . -B build \
+  -DBRIX_BUILD_CLIENT=OFF -DBRIX_BUILD_CEPH_TOOLS=OFF
+BRIX_ENABLE_IO_URING=1 cmake --build build --target nginx-modules -j$(nproc)
+```
+
+The SDK sources are `/usr/src/nginx-1.20.1-28.el9_8.5.alma.1`; CMake copies
+them into `build/nginx-src`. Outputs are:
+
+- `build/modules/ngx_stream_brix_module.so`
+- `build/modules/ngx_http_brix_xrdhttp_filter_module.so`
+
+Two fixes in `src/protocols/root/session/bind_migrate.c` were needed for this
+distro build:
+
+1. Before nginx 1.25.5, stream addresses carry their configuration in `ctx`,
+   rather than `default_server->ctx`. Version-gate migrated-session setup,
+   using the same boundary as `postconfiguration_proxy_acl.c`.
+2. Initialize the migration channel's read/write event log pointers before
+   registering with epoll. `ngx_get_connection()` leaves them unset, and
+   distro nginx's `--with-debug` epoll logging otherwise crashes workers at
+   startup when multiple workers enable migration.
+
+For the existing migration regression tests, installed Python 3.12 and made
+an isolated `build/test-venv` with pytest 9.1.1, pytest-xdist, pytest-timeout,
+requests, cryptography, PyYAML, packaging and pluggy. The Python 3.9 / pytest
+6 packages in the historical instructions do not support the current harness.
+Run the dedicated two-worker tests without starting the full fleet:
+
+```bash
+env TEST_SKIP_SERVER_SETUP=1 \
+  TEST_ROOT="$PWD/build/pytest-runtime" \
+  TEST_NGINX_BIN=/usr/sbin/nginx \
+  TEST_NGINX_LOAD_MODULES="/usr/lib64/nginx/modules/ngx_stream_module.so:$PWD/build/modules/ngx_stream_brix_module.so:$PWD/build/modules/ngx_http_brix_xrdhttp_filter_module.so" \
+  PYTHONPATH=tests \
+  build/test-venv/bin/python -m pytest tests/test_bind_migration.py -v -x
+```
+
+This invocation builds modules only. No BriX modules were installed into the
+system module directory, and the system nginx service was not started.
+
+Validation of the final build:
+
+- `nginx -t` loads the distro stream module and both newly built BriX modules.
+- All three `test_bind_migration.py` tests pass: cross-worker response offload,
+  unknown-session rejection and restricted secondary-channel permissions.
+- A private loopback instance serves byte-exact WebDAV and official `xrdcp`
+  reads, returns 404 for a missing file, and refuses read-only PUT/DELETE/MKCOL
+  with 403 while preserving the export.
+- A second incremental build leaves both module timestamps unchanged; all
+  linked shared-library dependencies resolve.
+
+Local evidence is in `build/module-build-final.log`,
+`build/migration-tests-final.log`, `build/module-smoke-final.log` and
+`build/incremental-build.log`. The build still reports existing OpenSSL MD5
+deprecation warnings and the `brix_split_relative_parent` LTO type warning
+described in §4c. This was targeted build/runtime validation, not a full fleet
+test run.
+
+---
+
+## 6. nginx compatibility matrix
+
+`tools/ci/nginx_compat.py` builds and validates three independent targets:
+
+| Target | nginx source and runtime |
+|---|---|
+| `alma9` | Installed AlmaLinux 9 nginx and the matching `nginx-mod-devel` source release; tested with the installed stream core |
+| `1.28.3` | Official nginx 1.28.3 sources, with a matching locally built nginx executable and stream core |
+| `latest` | Current **mainline** release from [nginx.org](https://nginx.org/en/download.html), resolved once per invocation; matching executable and modules built together |
+
+On 2026-09-10 the upstream mainline target resolves to **1.31.5**. The stock
+AlmaLinux 9 target is **1.20.1-28.el9_8.5.alma.1**. These are distinct module
+ABIs: each runtime loads only the modules built against its own source tree.
+The matrix does not install modules or start the system nginx service.
+
+Use the module dependencies and Python 3.12 test environment from §5. Run all
+three targets, or repeat `--target` to select specific targets:
+
+```bash
+build/test-venv/bin/python tools/ci/nginx_compat.py \
+  --jobs "$(nproc)" --xrdcp /usr/bin/xrdcp
+
+# Recheck only the latest mainline; a numeric target pins a reproducible release.
+build/test-venv/bin/python tools/ci/nginx_compat.py --target latest
+build/test-venv/bin/python tools/ci/nginx_compat.py --target 1.31.5
+```
+
+`--xrdcp` adds a byte-exact read with the selected reference client. Without
+it, the existing cross-worker migration tests still exercise real root://
+file reads using their socket client. All targets check:
+
+- Dynamic module loading with `nginx -t`.
+- Byte-exact WebDAV reads, missing-file errors, and read-only mutation refusal.
+- The three existing migration regressions: cross-worker reads, unknown
+  session rejection, and restricted secondary-channel permissions.
+- An incremental build that leaves the binary/module timestamps unchanged.
+
+Source archives are downloaded over HTTPS into `build/nginx-sources/` and
+unpacked with Python's data extraction filter. Each target keeps its generated
+nginx tree, binaries and logs under `build/nginx-compat/<target>/`; upstream
+folders use the resolved name, such as `nginx-1.31.5`. Its `result.json` records
+the exact nginx version, configure arguments, source archive SHA-256, artifact
+SHA-256 values and final status. A failing rerun replaces the previous verdict.
+
+CMake can also build arbitrary local upstream sources directly using
+`-DNGINX_SRC_DIR=/absolute/source/path -DBRIX_BUILD_NGINX=ON`. Use a separate
+`-B` directory for each version. Changing the selected source path or compiler
+flags invalidates that directory's private nginx copy and compiled outputs;
+unchanged builds remain incremental. The supplied nginx source tree is never
+modified. `BRIX_BUILD_NGINX` only adds a test binary, not an installation rule.
+
+`.github/workflows/nginx-compat.yml` runs the same matrix on pull requests,
+main-branch pushes, manual dispatch and weekly. Each job uses AlmaLinux 9,
+installs the distro SDK and feature dependencies, and runs the build/tests as
+an unprivileged user. The `latest` job discovers new mainline releases rather
+than retaining a version hardcoded in the workflow. Version reports and logs
+are uploaded for both passing and failing jobs.
+
+## 7. AlmaLinux full-suite preparation — 2026-09-14
+
+Recompiled both modules against the matching AlmaLinux 9.8 SDK in the isolated
+`build/alma9-full-build` directory, with two compiler jobs. The stock
+`/usr/sbin/nginx` successfully loads these modules; private WebDAV and official
+XRootD client reads, missing-file handling, and read-only mutation refusal pass.
+The six standalone impersonation configuration checks also pass with this build.
+
+The full test environment requires more than the focused matrix dependencies:
+
+```bash
+sudo dnf install -y python3.12-devel xrootd-devel xrootd-client-devel \
+  xrootd-server-devel xrootd-private-devel lz4
+python3.12 -m venv build/alma9-full-venv
+build/alma9-full-venv/bin/python -m pip install \
+  -r requirements.txt -r requirements-optional.txt
+build/alma9-full-venv/bin/python -m pip check
+```
+
+This installs the declared XRootD Python bindings, runner plugins, analysis
+tools, and optional codec, S3, checksum, xattr, and TLS test dependencies within
+their declared bounds. The reference XRootD server and Kerberos server/client
+packages must also be installed as described in §1. Native clients and the
+`aio-smoke` and `ssi-client-smoke` helpers were built through
+`brix_suite.client_build.client_make`, which holds the shared build lock.
+The matching XRootD 5.9.7 reference sources were unpacked at `/tmp/brix-src` for
+the client option inventory and SSI header consumers.
+
+Module-only nginx builds omit core objects used by standalone C tests. For
+this isolated CMake build, `nginx-src/objs` points to `../modules`; the generated
+Makefile was used to compile `ngx_string.o`, `ngx_palloc.o`, `ngx_shmtx.o`, and
+`ngx_alloc.o` without editing nginx sources or generated Makefiles. Set
+`NGX_SRC` and `TEST_NGINX_SRC` to the configured `nginx-src` directory, and
+`TEST_NGINX_OBJS` to its `objs` path when running those tests. Set `BRIX_SRC`
+and `BRIX_SRC_DIR` to the reference XRootD source directory.
+
+Full-suite preparation exposed two dynamic-module coverage gaps and a fleet
+startup failure. Kerberos probing now checks the selected BriX modules as well
+as nginx itself, and ELF hardening checks both selected BriX artifacts. Raw
+standing-fleet nginx launches now apply the existing module and runtime-path
+injectors and surface startup errors immediately. Previously, the hybrid mesh
+omitted module loading and eventually failed the fleet readiness barrier before
+test dispatch on stock nginx.
+
+Validation at this checkpoint: 86 focused compatibility/probe/launcher pytest
+tests and six CMake build-driver tests pass. Suite collection succeeded for
+45,088 tests before the final launcher regression tests were added. The full
+fleet run was interrupted amid competing test fleets and memory pressure; it
+has **no completed passing verdict**. Upstream 1.28.3 and mainline 1.31.5 matrix
+builds were also interrupted before their final runtime checks. The local
+logs and per-process results remain under `build/`; neither incomplete run is
+evidence of full compatibility or a passing release gate.

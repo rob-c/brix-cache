@@ -5,7 +5,7 @@
 # logic lives in two places that already work and stay authoritative:
 #
 #   1. nginx dynamic modules — driven by nginx's own ./configure against the
-#      distribution nginx source shipped by `nginx-mod-devel`, plus this repo's
+#      nginx source shipped by `nginx-mod-devel` or an upstream release, plus this repo's
 #      root ./config source list (exactly what the RPM's %nginx_modconfigure /
 #      %nginx_modbuild macros do).
 #   2. native client tools    — driven by the in-tree client/ and shared/xrdproto
@@ -41,9 +41,17 @@ set(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 # Options
 # --------------------------------------------------------------------------
 option(BRIX_BUILD_MODULES    "Build the nginx dynamic modules"           ON)
+option(BRIX_BUILD_NGINX      "Also build the matching nginx executable for testing" OFF)
 option(BRIX_BUILD_CLIENT     "Build the native client tools (client/)"   ON)
 option(BRIX_BUILD_CEPH_TOOLS "Build the Ceph migration/rescue tools"     ON)
 option(BRIX_BUILD_COMPAT     "Also produce brix- prefixed compat tools"  OFF)
+set(BRIX_BUILD_JOBS "${NPROC}" CACHE STRING "Parallel jobs for the nginx build")
+if(NOT BRIX_BUILD_JOBS MATCHES "^[1-9][0-9]*$")
+    message(FATAL_ERROR "BRIX_BUILD_JOBS must be a positive integer")
+endif()
+if(BRIX_BUILD_NGINX AND NOT BRIX_BUILD_MODULES)
+    message(FATAL_ERROR "BRIX_BUILD_NGINX requires BRIX_BUILD_MODULES=ON")
+endif()
 
 # Default the install prefix to /usr (not /usr/local) so `make install` lands on
 # the RPM's client-tool paths (/usr/bin, /usr/lib64). Only forced when the user
@@ -96,9 +104,7 @@ endif()
 
 _brix_read_macro(_macro_moddir     "nginx_moddir"     "/usr/lib64/nginx/modules")
 _brix_read_macro(_macro_modconfdir "nginx_modconfdir" "/usr/share/nginx/modules")
-_brix_read_macro(_macro_abi        "_nginx_abiversion" "unknown")
-
-set(NGINX_SRC_DIR     "${_macro_srcdir}"     CACHE PATH "Distribution nginx source tree (from nginx-mod-devel)")
+set(NGINX_SRC_DIR     "${_macro_srcdir}"     CACHE PATH "nginx source tree (distro nginx-mod-devel or unpacked upstream release)")
 set(NGINX_MOD_DIR     "${_macro_moddir}"     CACHE PATH "nginx module install dir")
 set(NGINX_MODCONF_DIR "${_macro_modconfdir}" CACHE PATH "nginx module-loader config dir")
 
@@ -109,7 +115,18 @@ if(BRIX_BUILD_MODULES)
             "    sudo dnf install nginx-mod-devel\n"
             "or point -DNGINX_SRC_DIR=/path/to/nginx-source at an unpacked nginx tree.")
     endif()
-    message(STATUS "nginx source .......... ${NGINX_SRC_DIR} (abi ${_macro_abi})")
+    get_filename_component(NGINX_SOURCE_DIR "${NGINX_SRC_DIR}" REALPATH)
+    if(NOT EXISTS "${NGINX_SOURCE_DIR}/src/core/nginx.h")
+        message(FATAL_ERROR "nginx source is missing src/core/nginx.h: ${NGINX_SOURCE_DIR}")
+    endif()
+    file(STRINGS "${NGINX_SOURCE_DIR}/src/core/nginx.h" _nginx_version_line
+        REGEX "^#define[ \t]+NGINX_VERSION[ \t]+\"")
+    if(NOT _nginx_version_line MATCHES "NGINX_VERSION[ \t]+\"([^\"]+)\"")
+        message(FATAL_ERROR "Cannot read NGINX_VERSION from ${NGINX_SOURCE_DIR}/src/core/nginx.h")
+    endif()
+    set(NGINX_SOURCE_VERSION "${CMAKE_MATCH_1}")
+    message(STATUS "nginx source .......... ${NGINX_SOURCE_DIR} (version ${NGINX_SOURCE_VERSION})")
+    message(STATUS "matching nginx ........ ${BRIX_BUILD_NGINX}")
     message(STATUS "nginx module dir ...... ${NGINX_MOD_DIR}")
     message(STATUS "nginx modconf dir ..... ${NGINX_MODCONF_DIR}")
 endif()
@@ -159,73 +176,63 @@ endif()
 # --------------------------------------------------------------------------
 # Target 1: nginx dynamic modules
 #
-# Emit an idempotent helper script (copy nginx source once, ./configure when the
-# root ./config changes, then `make modules` — which is itself incremental) and
-# drive it from an always-run custom target. The two .so land in the module
-# build dir below.
+# Use nginx's own configure/Makefile in a private source copy. The helper
+# invalidates this copy and its outputs when source identity or flags change.
+# Both the optional executable and dynamic modules land in modules/.
 # --------------------------------------------------------------------------
-set(MOD_WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/nginx-src")   # copy of the nginx tree
-set(MOD_OUT_DIR  "${CMAKE_CURRENT_BINARY_DIR}/modules")     # nginx --builddir (holds the .so)
+set(MOD_WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/nginx-src")
+set(MOD_OUT_DIR  "${CMAKE_CURRENT_BINARY_DIR}/modules")
 set(STREAM_SO "${MOD_OUT_DIR}/ngx_stream_brix_module.so")
 set(FILTER_SO "${MOD_OUT_DIR}/ngx_http_brix_xrdhttp_filter_module.so")
+set(NGINX_EXECUTABLE "${MOD_OUT_DIR}/nginx")
 set(MOD_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/build-nginx-modules.sh")
 
-# NOTE: inside the script use bash vars WITHOUT braces ("$VAR"); CMake expands
-# only ${...}, so we bake configure-time values via ${...} at the top and use
-# plain $VAR everywhere else.
-file(WRITE "${MOD_SCRIPT}"
-"#!/usr/bin/env bash
-# Auto-generated by CMake — do not edit; regenerated on every `cmake` run.
-set -euo pipefail
-
-NGINX_SRC=\"${NGINX_SRC_DIR}\"
-REPO=\"${REPO_ROOT}\"
-WORK=\"${MOD_WORK_DIR}\"
-BUILDDIR=\"${MOD_OUT_DIR}\"
-CC_OPT=\"${BRIX_MODULE_CFLAGS} ${_pcre_cflags}\"
-LD_OPT=\"${BRIX_MODULE_LDFLAGS} -Wl,-E\"
-JOBS=\"${NPROC}\"
-
-mkdir -p \"$WORK\" \"$BUILDDIR\"
-
-# 1. Copy the distribution nginx source once (configure/ presence = stamp).
-if [ ! -f \"$WORK/configure\" ]; then
-    echo \"[brix] copying nginx source: $NGINX_SRC -> $WORK\"
-    cp -a \"$NGINX_SRC/.\" \"$WORK/\"
-fi
-
-cd \"$WORK\"
-
-# 2. (Re)configure when needed: no Makefile yet, or the module source list
-#    (repo ./config) changed since we last configured.
-if [ ! -f \"$WORK/Makefile\" ] || [ \"$REPO/config\" -nt \"$WORK/Makefile\" ]; then
-    echo \"[brix] configuring nginx module build\"
-    ./configure --with-compat \\
-        --with-cc-opt=\"$CC_OPT\" \\
-        --with-ld-opt=\"$LD_OPT\" \\
-        --add-dynamic-module=\"$REPO\" \\
-        --builddir=\"$BUILDDIR\" \\
-        --with-threads \\
-        --with-stream=dynamic \\
-        --with-stream_ssl_module \\
-        --with-http_ssl_module \\
-        --with-http_dav_module
-fi
-
-# 3. Build the modules (incremental).
-echo \"[brix] building nginx modules (-j$JOBS)\"
-make -C \"$WORK\" -j\"$JOBS\" modules
-
-ls -l \"$BUILDDIR\"/ngx_stream_brix_module.so \\
-      \"$BUILDDIR\"/ngx_http_brix_xrdhttp_filter_module.so
-")
+# Configure values are shell data, including flags containing quotes or '$'.
+function(_brix_shell_quote out_var value)
+    string(REPLACE "'" "'\"'\"'" _quoted "${value}")
+    set(${out_var} "'${_quoted}'" PARENT_SCOPE)
+endfunction()
 
 if(BRIX_BUILD_MODULES)
+    # The helper replaces these generated directories on input changes. Reject
+    # source trees within them, including paths reached through symlinks.
+    foreach(_generated_dir IN ITEMS "${MOD_WORK_DIR}" "${MOD_OUT_DIR}")
+        get_filename_component(_generated_real "${_generated_dir}" REALPATH)
+        string(FIND "${NGINX_SOURCE_DIR}/" "${_generated_real}/" _source_overlap)
+        string(FIND "${_generated_real}/" "${NGINX_SOURCE_DIR}/" _build_overlap)
+        if(_source_overlap EQUAL 0 OR _build_overlap EQUAL 0)
+            message(FATAL_ERROR
+                "NGINX_SRC_DIR and generated build directories must not contain each other: ${_generated_dir}")
+        endif()
+    endforeach()
+
+    file(SHA256 "${NGINX_SOURCE_DIR}/src/core/nginx.h" _nginx_header_hash)
+    file(SHA256 "${NGINX_SOURCE_DIR}/configure" _nginx_configure_hash)
+    file(SHA256 "${REPO_ROOT}/cmake/BrixNginxBuild.sh.in" _nginx_helper_hash)
+    string(SHA256 _nginx_config_id
+        "${NGINX_SOURCE_DIR}|${_nginx_header_hash}|${_nginx_configure_hash}|${REPO_ROOT}|${BRIX_MODULE_CFLAGS}|${_pcre_cflags}|${BRIX_MODULE_LDFLAGS}|${_nginx_helper_hash}")
+    _brix_shell_quote(NGINX_SOURCE_SHELL "${NGINX_SOURCE_DIR}")
+    _brix_shell_quote(REPO_SHELL "${REPO_ROOT}")
+    _brix_shell_quote(MOD_WORK_SHELL "${MOD_WORK_DIR}")
+    _brix_shell_quote(MOD_OUT_SHELL "${MOD_OUT_DIR}")
+    _brix_shell_quote(CC_OPT_SHELL "${BRIX_MODULE_CFLAGS} ${_pcre_cflags}")
+    _brix_shell_quote(LD_OPT_SHELL "${BRIX_MODULE_LDFLAGS} -Wl,-E")
+    set(NGINX_MAKE_TARGET modules)
+    if(BRIX_BUILD_NGINX)
+        set(NGINX_MAKE_TARGET build)
+    endif()
+    configure_file(cmake/BrixNginxBuild.sh.in "${MOD_SCRIPT}" @ONLY)
+
+    set(_nginx_byproducts "${STREAM_SO}" "${FILTER_SO}" "${MOD_OUT_DIR}/ngx_stream_module.so")
+    if(BRIX_BUILD_NGINX)
+        list(APPEND _nginx_byproducts "${NGINX_EXECUTABLE}")
+        message(STATUS "nginx test executable . ${NGINX_EXECUTABLE}")
+    endif()
     add_custom_target(nginx-modules ALL
         COMMAND bash "${MOD_SCRIPT}"
-        BYPRODUCTS "${STREAM_SO}" "${FILTER_SO}"
+        BYPRODUCTS ${_nginx_byproducts}
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-        COMMENT "Building nginx dynamic modules against ${NGINX_SRC_DIR}"
+        COMMENT "Building nginx ${NGINX_SOURCE_VERSION} modules (matching executable: ${BRIX_BUILD_NGINX})"
         USES_TERMINAL VERBATIM)
 endif()
 

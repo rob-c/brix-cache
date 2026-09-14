@@ -140,6 +140,9 @@ brix_bind_migrate_init_worker(ngx_cycle_t *cycle)
                       "channel — this worker will not adopt secondaries");
         return;
     }
+    /* ngx_get_connection() leaves event logs unset; debug epoll uses them. */
+    ch->read->log = cycle->log;
+    ch->write->log = cycle->log;
     ch->read->handler = brix_bind_migrate_read;
     if (ngx_handle_read_event(ch->read, 0) != NGX_OK) {
         ngx_close_connection(ch);
@@ -356,8 +359,14 @@ brix_bind_migrate_make_session(ngx_connection_t *c, ngx_listening_t *ls)
     }
 
     s->signature = NGX_STREAM_MODULE;
+#if (nginx_version < 1025005)
+    /* Before stream virtual servers, the address owns the context directly. */
+    s->main_conf = addr_conf->ctx->main_conf;
+    s->srv_conf  = addr_conf->ctx->srv_conf;
+#else
     s->main_conf = addr_conf->default_server->ctx->main_conf;
     s->srv_conf  = addr_conf->default_server->ctx->srv_conf;
+#endif
     s->connection = c;
     c->data = s;
 

@@ -22,6 +22,7 @@ which ``test_live_common.py`` relies on.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from brix_suite.settings import NGINX_BIN
 
@@ -29,6 +30,7 @@ __all__ = [
     "_inject_nginx_load_modules",
     "_inject_nginx_runtime_paths",
     "_nginx_bin",
+    "prepare_fleet_nginx_config",
     "env_entry_ok",
     "sanitized_env",
 ]
@@ -82,3 +84,15 @@ def _inject_nginx_runtime_paths(config_path: str, prefix: str) -> None:
     """Keep packaged-nginx runtime files inside its registry-owned prefix."""
     from cmdscripts.live_common import inject_nginx_runtime_paths  # noqa: PLC0415
     inject_nginx_runtime_paths(config_path, prefix)
+
+
+def prepare_fleet_nginx_config(config_path, prefix=None, cwd=None):
+    """Resolve a raw fleet config and apply the registry's module/runtime seams."""
+    working_dir = Path(cwd or os.getcwd()).resolve()
+    runtime_prefix = (working_dir / (prefix or ".")).resolve()
+    config = (runtime_prefix / config_path).resolve()
+    if prefix is None and cwd is None:
+        runtime_prefix = config.parent
+    _inject_nginx_load_modules(str(config))
+    _inject_nginx_runtime_paths(str(config), str(runtime_prefix))
+    return str(config)

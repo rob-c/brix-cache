@@ -37,8 +37,15 @@ FAULT_PROXY = os.path.join(CLIENT_BIN, "fault_proxy")
 # Dedicated prefix + port block, both overridable but defaulting well clear of
 # the main suite (which lives in 11094-12126 under /tmp/xrd-test).
 PREFIX = os.environ.get("RESIL_PREFIX", "/tmp/xrd-resilience")
-NGINX_BIN = os.environ.get("RESIL_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
-BRIX_BIN = os.environ.get("RESIL_BRIX_BIN") or shutil.which("xrootd")
+NGINX_BIN = os.environ.get(
+    "RESIL_NGINX_BIN",
+    os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"),
+)
+BRIX_BIN = (
+    os.environ.get("RESIL_BRIX_BIN")
+    or os.environ.get("TEST_BRIX_BIN")
+    or shutil.which("xrootd")
+)
 
 NGINX_GSI_PORT = int(os.environ.get("RESIL_NGINX_GSI_PORT", "13901"))
 BRIX_GSI_PORT = int(os.environ.get("RESIL_BRIX_GSI_PORT", "13902"))

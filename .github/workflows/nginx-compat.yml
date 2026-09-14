@@ -1,0 +1,82 @@
+# Verify the distro ABI and both upstream generations with dynamic modules.
+name: nginx compatibility
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '17 5 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nginx-compat-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nginx-compat:
+    runs-on: ubuntu-latest
+    container: almalinux:9
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [alma9, '1.28.3', latest]
+    steps:
+      - name: Install checkout tools
+        run: dnf install -y git tar gzip
+
+      - uses: actions/checkout@v7
+
+      - name: Install matching nginx SDK and build dependencies
+        run: |
+          dnf install -y 'dnf-command(config-manager)'
+          dnf config-manager --set-enabled crb
+          dnf install -y epel-release centos-release-ceph-reef
+          dnf install -y gcc gcc-c++ make cmake pkgconfig redhat-rpm-config \
+            nginx nginx-mod-devel nginx-mod-stream openssl-devel \
+            pcre-devel pcre2-devel zlib-devel libxml2-devel jansson-devel \
+            libcurl-devel krb5-devel libcom_err-devel libxcrypt-devel \
+            sqlite-devel libzstd-devel lz4-devel liburing-devel \
+            xz-devel bzip2-devel brotli-devel libseccomp-devel \
+            librados-devel libradosstriper-devel python3.12 python3.12-pip \
+            xrootd-client
+
+      - name: Prepare an unprivileged test environment
+        run: |
+          useradd --create-home builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          runuser -u builder -- python3.12 -m venv "$GITHUB_WORKSPACE/build/test-venv"
+          runuser -u builder -- "$GITHUB_WORKSPACE/build/test-venv/bin/python" -m pip install \
+            'pytest>=9.1.1,<10' 'pytest-xdist>=3.8.0,<4' \
+            'pytest-timeout>=2.4.0,<3' 'requests>=2.25,<3' \
+            'cryptography>=3.0,<49' 'PyYAML>=5.4,<7' \
+            'packaging>=22,<26' 'pluggy>=1.5,<2'
+
+      - name: Test compatibility tooling
+        run: |
+          runuser -u builder -- "$GITHUB_WORKSPACE/build/test-venv/bin/python" \
+            -m unittest discover -s cmake/tests -v
+          runuser -u builder -- env TEST_SKIP_SERVER_SETUP=1 \
+            TEST_ROOT="$GITHUB_WORKSPACE/build/tool-tests" PYTHONPATH=tests \
+            "$GITHUB_WORKSPACE/build/test-venv/bin/python" -m pytest \
+            tests/test_ci_nginx_compat.py tests/test_nginx_compat_smoke.py -v -x
+
+      - name: Build and validate nginx ${{ matrix.target }}
+        run: |
+          runuser -u builder -- "$GITHUB_WORKSPACE/build/test-venv/bin/python" \
+            tools/ci/nginx_compat.py --target '${{ matrix.target }}' \
+            --jobs "$(nproc)" --xrdcp /usr/bin/xrdcp
+
+      - name: Upload exact versions, checksums and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nginx-compat-${{ matrix.target }}
+          path: |
+            build/nginx-compat/**/result.json
+            build/nginx-compat/**/*.log
+          if-no-files-found: warn
+          retention-days: 14

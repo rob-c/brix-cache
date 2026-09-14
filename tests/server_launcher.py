@@ -41,6 +41,7 @@ from brix_suite.nginx_tools import (  # noqa: F401 — re-exported for importers
     _inject_nginx_runtime_paths,
     _nginx_bin,
     env_entry_ok as _env_entry_ok,
+    prepare_fleet_nginx_config,
 )
 
 
@@ -51,7 +52,7 @@ def launch_fleet_nginx(
     cwd: str | None = None,
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess:
-    """Launch a fully-rendered nginx config as a detached, fire-and-forget daemon.
+    """Launch a detached fleet daemon, raising immediately if nginx rejects it.
 
     This is the registry's raw-launch seam for a *standing fleet* backend (the
     CMS mesh, brought up once by ``cms_mesh_servers.py``; the HA-failover group,
@@ -67,7 +68,9 @@ def launch_fleet_nginx(
     ``error_log`` / ``conf`` paths) relaunches into its own directory.  Keeping
     this the sole home of the ``NGINX_BIN`` invocation is what lets a fleet lib
     route its launch through the registry infra instead of shelling out to nginx
-    directly.
+    directly. Selected modules and missing runtime paths are injected just as
+    they are for registry-owned instances; packaged nginx must never fall back
+    to its system log, pid, or HTTP temporary directories for a fleet member.
     """
     merged_env = os.environ.copy()
     if env:
@@ -80,13 +83,14 @@ def launch_fleet_nginx(
     # Drop any entry subprocess would reject; the filtered dict we pass is
     # immune to further os.environ mutation.
     merged_env = {k: v for k, v in merged_env.items() if _env_entry_ok(k, v)}
+    config = prepare_fleet_nginx_config(config_path, prefix, cwd)
     cmd = [_nginx_bin()]
     if prefix is not None:
         cmd += ["-p", prefix]
-    cmd += ["-c", config_path]
+    cmd += ["-c", config]
     return subprocess.run(
         cmd,
-        check=False,
+        check=True,
         start_new_session=True,
         cwd=cwd,
         env=merged_env,

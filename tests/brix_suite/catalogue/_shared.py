@@ -10,6 +10,7 @@ now.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 
 import brix_suite.settings as S
@@ -121,11 +122,11 @@ def _xrd_backend(name: str, port: int, *, reason: str = "") -> NginxInstanceSpec
 
 
 def _nginx_has_krb5() -> bool:
-    """True iff the test nginx binary is linked against libkrb5.
+    """True when the selected nginx executable or loaded modules link libkrb5.
 
-    Mirrors bash ``start_krb5_tier``'s ``ldd $NGINX_BIN | grep libkrb5`` gate:
-    when nginx was built without Kerberos, the whole krb5 tier is omitted so the
-    fleet never tries to bring up a KDC + acceptor it cannot use.
+    Packaged nginx leaves BriX's Kerberos dependency in its dynamic module.
+    Only consider the launcher's configured modules, so an unrelated build
+    elsewhere on disk cannot enable a tier this server does not support.
     """
     if not os.path.exists(S.NGINX_BIN):
         return False
@@ -134,8 +135,19 @@ def _nginx_has_krb5() -> bool:
     # file, the gate flips False, and the krb5 specs silently vanish from the
     # registry (seen live as test_fleet_ports' unknown-spec-name failure).
     from server_launcher import _nginx_bin  # noqa: PLC0415 — lazy, avoids cycle
+    from cmdscripts.live_common import _configured_nginx_modules  # noqa: PLC0415
+    candidates = [_nginx_bin(), *_configured_nginx_modules()]
+    return any(_links_krb5(candidate) for candidate in candidates)
+
+
+def _links_krb5(path: str) -> bool:
+    """Require a successful dependency probe with a resolved Kerberos library."""
     try:
-        out = subprocess.run(["ldd", _nginx_bin()], capture_output=True, text=True).stdout
-    except OSError:
+        probe = subprocess.run(["ldd", path], capture_output=True, text=True,
+                               timeout=10)
+    except (OSError, subprocess.SubprocessError):
         return False
-    return "libkrb5.so" in out
+    if probe.returncode != 0:
+        return False
+    return re.search(r"(?m)^\s*libkrb5\.so(?:\.\d+)*\s+=>\s+/",
+                     probe.stdout) is not None
