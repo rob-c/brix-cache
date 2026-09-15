@@ -1,0 +1,7 @@
+<map id="brix_srv_state_t" name="brix_srv_state_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="85,93,211,119"/>
+<area shape="rect" id="Node000002" href="$structbrix__srv__sched__t.html" title=" " alt="" coords="5,5,136,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="92,39,139,91,135,95,88,43"/>
+<area shape="rect" id="Node000003" href="$structbrix__srv__space__t.html" title=" " alt="" coords="160,5,291,31"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="208,43,161,95,157,91,204,39"/>
+</map>

@@ -1,0 +1,17 @@
+var sd__xroot__ns__cred_8c =
+[
+    [ "ns_session_t", "structns__session__t.html", "structns__session__t" ],
+    [ "ns_close", "sd__xroot__ns__cred_8c.html#a7f32afaf66f1e2f33e7bd503ad298e49", null ],
+    [ "ns_open", "sd__xroot__ns__cred_8c.html#a16868b7ae6153d1e8ff37354ba810add", null ],
+    [ "ns_result", "sd__xroot__ns__cred_8c.html#ad622506537ba73315733d10fb92751c3", null ],
+    [ "sd_xroot_getxattr_cred", "sd__xroot__ns__cred_8c.html#ac2e6b0d7fe992b18729283c46b16e179", null ],
+    [ "sd_xroot_listxattr_cred", "sd__xroot__ns__cred_8c.html#a560d277d9ec701fc1004f1cb4725ce23", null ],
+    [ "sd_xroot_mkdir_cred", "sd__xroot__ns__cred_8c.html#a69bcac2f4380bbf15e2129d51a3afc37", null ],
+    [ "sd_xroot_removexattr_cred", "sd__xroot__ns__cred_8c.html#a707162ab451c3ac9ac79143f4ac63ec4", null ],
+    [ "sd_xroot_rename_cred", "sd__xroot__ns__cred_8c.html#ad4075b35034133adf8803f2835788d2d", null ],
+    [ "sd_xroot_server_copy_cred", "sd__xroot__ns__cred_8c.html#a45ccb1cc410b1e38400b055488a8ad11", null ],
+    [ "sd_xroot_setattr_cred", "sd__xroot__ns__cred_8c.html#af508459d895f55ea028c2e63866282ec", null ],
+    [ "sd_xroot_setxattr_cred", "sd__xroot__ns__cred_8c.html#a890fb338f07d81754f52d7fc6d3ad1e4", null ],
+    [ "sd_xroot_truncate_path_cred", "sd__xroot__ns__cred_8c.html#a01245bd12fd719d60bf6da22c7285bcd", null ],
+    [ "sd_xroot_unlink_cred", "sd__xroot__ns__cred_8c.html#a8f7d09e5aee7cc6c8e2932f59f71a067", null ]
+];

@@ -1,0 +1,13 @@
+<map id="src/protocols/webdav/delegation_internal.h" name="src/protocols/webdav/delegation_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="418,5,582,45"/>
+<area shape="rect" id="Node000002" href="$protocols_2webdav_2delegation_8c.html" title=" " alt="" coords="5,93,165,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="405,49,166,98,165,93,404,44"/>
+<area shape="rect" id="Node000003" href="$delegation__gridsite__put_8c.html" title=" " alt="" coords="190,93,381,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="441,53,333,96,331,91,439,48"/>
+<area shape="rect" id="Node000004" href="$delegation__gridsite__req_8c.html" title=" " alt="" coords="405,93,595,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="503,59,503,93,497,93,497,59"/>
+<area shape="rect" id="Node000005" href="$delegation__store_8c.html" title=" " alt="" coords="620,93,780,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="558,48,657,91,655,96,555,53"/>
+<area shape="rect" id="Node000006" href="$module__init_8c.html" title=" " alt="" coords="804,93,964,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="596,45,804,92,803,97,595,51"/>
+</map>

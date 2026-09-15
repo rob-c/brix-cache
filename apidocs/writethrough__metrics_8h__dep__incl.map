@@ -1,0 +1,33 @@
+<map id="src/fs/cache/writethrough_metrics.h" name="src/fs/cache/writethrough_metrics.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1242,5,1429,45"/>
+<area shape="rect" id="Node000002" href="$core_2aio_2write_8c.html" title=" " alt="" coords="5,108,151,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1229,32,679,53,381,72,257,83,164,96,110,110,108,105,163,91,257,78,380,66,678,48,1228,27"/>
+<area shape="rect" id="Node000003" href="$fd__table_8c.html" title=" " alt="" coords="175,101,341,141"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="1228,30,1059,33,841,44,597,63,474,78,353,96,320,103,319,98,352,91,473,73,597,58,840,38,1059,28,1228,24"/>
+<area shape="rect" id="Node000004" href="$fd__table__teardown_8c.html" title=" " alt="" coords="365,93,519,148"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="1228,31,1089,37,914,48,723,67,532,96,520,98,519,93,531,91,722,62,914,43,1088,32,1228,26"/>
+<area shape="rect" id="Node000005" href="$open__resolved__file_8c.html" title=" " alt="" coords="543,93,698,148"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="1229,35,990,55,850,73,711,96,699,98,698,93,709,91,849,67,990,50,1228,30"/>
+<area shape="rect" id="Node000006" href="$open__resolved__file__dispatch_8c.html" title=" " alt="" coords="722,93,877,148"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="1229,41,1068,63,889,96,878,99,877,93,888,91,1067,58,1228,36"/>
+<area shape="rect" id="Node000007" href="$open__resolved__file__finalize_8c.html" title=" " alt="" coords="901,93,1055,148"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="1244,51,1068,96,1056,99,1055,94,1067,91,1242,46"/>
+<area shape="rect" id="Node000008" href="$open__resolved__file__open_8c.html" title=" " alt="" coords="1079,93,1234,148"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1288,54,1208,96,1206,91,1286,49"/>
+<area shape="rect" id="Node000009" href="$open__resolved__file__staging_8c.html" title=" " alt="" coords="1258,93,1413,148"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1338,59,1338,93,1333,93,1333,59"/>
+<area shape="rect" id="Node000010" href="$pgwrite_8c.html" title=" " alt="" coords="1437,101,1572,141"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1383,50,1472,98,1469,103,1380,54"/>
+<area shape="rect" id="Node000011" href="$pgwrite__helpers_8c.html" title=" " alt="" coords="1597,101,1775,141"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1420,46,1616,98,1614,103,1419,51"/>
+<area shape="rect" id="Node000012" href="$truncate_8c.html" title=" " alt="" coords="1800,101,1935,141"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="1442,35,1606,56,1788,91,1815,98,1813,103,1787,96,1605,62,1442,40"/>
+<area shape="rect" id="Node000013" href="$protocols_2root_2write_2write_8c.html" title=" " alt="" coords="1959,101,2093,141"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="1443,29,1676,48,1813,66,1948,91,1975,98,1974,103,1947,96,1812,71,1675,54,1442,34"/>
+<area shape="rect" id="Node000014" href="$write__stream_8c.html" title=" " alt="" coords="2118,101,2278,141"/>
+<area shape="poly" id="edge13_Node000001_Node000014" title=" " alt="" coords="1443,27,1577,33,1743,45,1925,63,2106,91,2139,98,2137,103,2106,96,1924,69,1743,50,1577,38,1443,32"/>
+<area shape="rect" id="Node000015" href="$writev_8c.html" title=" " alt="" coords="2303,101,2437,141"/>
+<area shape="poly" id="edge14_Node000001_Node000015" title=" " alt="" coords="1442,23,1607,25,1819,35,2055,55,2174,71,2291,91,2320,98,2318,103,2289,96,2173,76,2054,61,1819,40,1607,31,1442,28"/>
+<area shape="rect" id="Node000016" href="$writev__aio_8c.html" title=" " alt="" coords="2461,101,2604,141"/>
+<area shape="poly" id="edge15_Node000001_Node000016" title=" " alt="" coords="1443,27,1965,48,2246,67,2362,78,2451,91,2480,98,2479,103,2449,96,2361,83,2245,72,1964,54,1442,32"/>
+</map>

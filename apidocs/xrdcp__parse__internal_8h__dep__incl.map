@@ -1,0 +1,9 @@
+<map id="client/apps/copy/xrdcp_parse_internal.h" name="client/apps/copy/xrdcp_parse_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="197,5,365,45"/>
+<area shape="rect" id="Node000002" href="$xrdcp__parse_8c.html" title=" " alt="" coords="5,93,173,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="228,53,132,96,130,91,226,49"/>
+<area shape="rect" id="Node000003" href="$xrdcp__parse__transport_8c.html" title=" " alt="" coords="197,93,365,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="284,59,284,93,279,93,279,59"/>
+<area shape="rect" id="Node000004" href="$xrdcp__parse__validate_8c.html" title=" " alt="" coords="389,93,557,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="337,49,432,91,430,96,335,53"/>
+</map>

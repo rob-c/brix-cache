@@ -1,0 +1,27 @@
+var structbrix__dns__target__s =
+[
+    [ "addr", "structbrix__dns__target__s.html#a40a32713f95184d739d8ccc08b160997", null ],
+    [ "addr_ss", "structbrix__dns__target__s.html#a46afd55b09f7ecd42da12d66f06e2ca3", null ],
+    [ "addrs", "structbrix__dns__target__s.html#a2a6bbf5f7eab24c3c4ddf395b073078d", null ],
+    [ "af", "structbrix__dns__target__s.html#a8b09256f7001cdc790eb7345f7942498", null ],
+    [ "armed", "structbrix__dns__target__s.html#a5d1863d5d32bb228e695b36ca472d271", null ],
+    [ "backoff", "structbrix__dns__target__s.html#a8a55247fff69fa4601f4bb760b2a861b", null ],
+    [ "cycle", "structbrix__dns__target__s.html#a9a566d6c3f217a385f2bace269ebc48b", null ],
+    [ "directive", "structbrix__dns__target__s.html#a132c0c562bd22af016b75b39edab14b4", null ],
+    [ "dns", "structbrix__dns__target__s.html#a8b6f80a27d53be4875420c6ea0819b4d", null ],
+    [ "expires", "structbrix__dns__target__s.html#a060b176023371e825506ea0e5f9d64cd", null ],
+    [ "failures", "structbrix__dns__target__s.html#a452e24c55ba088c2846478f9625e7535", null ],
+    [ "host", "structbrix__dns__target__s.html#ae8a8b50a5564c1d3a2c5729aab163f48", null ],
+    [ "inflight", "structbrix__dns__target__s.html#a7b3ea63a152b25fce2801669087d9be8", null ],
+    [ "last_error", "structbrix__dns__target__s.html#a2056c7f768caa816236dc716c0fc2e3a", null ],
+    [ "literal", "structbrix__dns__target__s.html#a9ad25844292b127607386fac04a67156", null ],
+    [ "naddrs", "structbrix__dns__target__s.html#a6111129931cbe68c13022fe98d4b3315", null ],
+    [ "next_retry", "structbrix__dns__target__s.html#a7edd36dd36c75143b9360297faf32eeb", null ],
+    [ "port", "structbrix__dns__target__s.html#a50b95d5d9dcde4ae517962ac417c17d8", null ],
+    [ "req", "structbrix__dns__target__s.html#ab3d2acedf92824e8b4a8024fe0a09967", null ],
+    [ "resolutions", "structbrix__dns__target__s.html#abf6122900317bae90d29aa11596f78a2", null ],
+    [ "rr", "structbrix__dns__target__s.html#ae5d4dee37c27c17cb5290c534b6db184", null ],
+    [ "socktype", "structbrix__dns__target__s.html#a742e1768a52dc8bc08f2dc3d4634e30c", null ],
+    [ "state", "structbrix__dns__target__s.html#a33f769aa1b37903fa4caeabd22dca35b", null ],
+    [ "timer", "structbrix__dns__target__s.html#a902772e535f9b74c1ecaf46572fdf13e", null ]
+];

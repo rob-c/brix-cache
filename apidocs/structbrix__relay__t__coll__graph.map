@@ -1,0 +1,23 @@
+<map id="brix_relay_t" name="brix_relay_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="201,299,300,324"/>
+<area shape="rect" id="Node000002" href="$structbrix__tap__ctx__t.html" title=" " alt="" coords="5,108,120,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="57,147,53,184,55,203,62,220,90,251,126,274,165,290,202,300,200,305,163,295,124,278,87,255,58,223,50,204,47,184,52,146"/>
+<area shape="rect" id="Node000004" href="$structbrix__tap__stream__t.html" title=" " alt="" coords="98,196,238,221"/>
+<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="89,140,126,170,155,194,152,198,122,174,85,144"/>
+<area shape="rect" id="Node000003" href="$structbrix__tap__frame__t.html" title=" " alt="" coords="67,13,200,38"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="118,51,74,109,69,106,114,47"/>
+<area shape="poly" id="edge5_Node000004_Node000003" title=" " alt="" coords="141,51,168,195,163,196,136,52"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="188,230,243,297,239,300,184,233"/>
+<area shape="rect" id="Node000005" href="$structbrix__relay__guard__t.html" title=" " alt="" coords="262,196,405,221"/>
+<area shape="poly" id="edge6_Node000001_Node000005" title=" " alt="" coords="317,233,262,300,258,297,313,230"/>
+<area shape="rect" id="Node000006" href="$structguard__ruleset__t.html" title=" " alt="" coords="272,108,395,133"/>
+<area shape="poly" id="edge7_Node000005_Node000006" title=" " alt="" coords="336,147,336,195,331,195,331,147"/>
+<area shape="rect" id="Node000007" href="$structguard__sig__t.html" title=" " alt="" coords="285,13,382,38"/>
+<area shape="poly" id="edge8_Node000006_Node000007" title=" " alt="" coords="336,52,336,108,331,108,331,52"/>
+<area shape="rect" id="Node000008" href="$structngx__brix__srv__metrics__t.html" title=" " alt="" coords="429,196,603,221"/>
+<area shape="poly" id="edge9_Node000001_Node000008" title=" " alt="" coords="476,229,350,277,284,301,282,296,348,272,474,224"/>
+<area shape="rect" id="Node000009" href="$structngx__brix__proxy__metrics__t.html" title=" " alt="" coords="421,108,611,133"/>
+<area shape="poly" id="edge10_Node000008_Node000009" title=" " alt="" coords="519,147,519,195,513,195,513,147"/>
+<area shape="rect" id="Node000010" href="$structngx__brix__proxy__upstream__metrics__t.html" title=" " alt="" coords="421,5,611,45"/>
+<area shape="poly" id="edge11_Node000009_Node000010" title=" " alt="" coords="519,59,519,108,513,108,513,59"/>
+</map>

@@ -1,0 +1,12 @@
+<map id="src/tpc/common/cred_renew.c" name="src/tpc/common/cred_renew.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="36,5,195,45"/>
+<area shape="rect" id="Node000002" href="$cred__renew_8h.html" title=" " alt="" coords="5,93,113,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="104,47,78,84,73,80,100,44"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="137,93,208,119"/>
+<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="131,44,158,80,154,84,127,47"/>
+<area shape="rect" id="Node000003" href="$time_8h.html" title=" " alt="" coords="27,167,91,192"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="62,119,62,153,57,153,57,119"/>
+<area shape="poly" id="edge4_Node000003_Node000003" title=" " alt="" coords="86,164,107,165,115,171,118,180,113,190,100,195,99,190,109,186,113,179,111,174,105,170,86,169"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="22,240,97,265"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="62,192,62,226,57,226,57,192"/>
+</map>

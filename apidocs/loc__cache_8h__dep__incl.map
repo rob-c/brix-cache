@@ -1,0 +1,21 @@
+<map id="src/net/manager/loc_cache.h" name="src/net/manager/loc_cache.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="848,5,999,45"/>
+<area shape="rect" id="Node000002" href="$postconfiguration_8c.html" title=" " alt="" coords="5,101,249,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="834,37,577,62,261,96,205,103,204,98,260,91,576,56,834,32"/>
+<area shape="rect" id="Node000003" href="$server__conf__merge__cluster_8c.html" title=" " alt="" coords="273,93,440,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="835,40,657,64,452,96,441,98,440,93,451,91,657,59,834,35"/>
+<area shape="rect" id="Node000004" href="$server__recv__frame_8c.html" title=" " alt="" coords="464,93,607,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="835,49,619,96,608,98,606,93,617,91,834,43"/>
+<area shape="rect" id="Node000005" href="$server__recv__frame__handlers_8c.html" title=" " alt="" coords="631,93,808,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="867,53,765,96,763,91,865,48"/>
+<area shape="rect" id="Node000006" href="$state__relay_8c.html" title=" " alt="" coords="832,101,1015,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="926,59,926,100,921,100,921,59"/>
+<area shape="rect" id="Node000007" href="$loc__cache_8c.html" title=" " alt="" coords="1039,93,1189,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="979,49,1073,91,1071,96,977,53"/>
+<area shape="rect" id="Node000008" href="$protocols_2root_2connection_2recv_8c.html" title=" " alt="" coords="1214,93,1353,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1013,45,1214,93,1213,98,1012,50"/>
+<area shape="rect" id="Node000009" href="$locate__manager_8c.html" title=" " alt="" coords="1377,93,1552,133"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1013,37,1365,91,1377,93,1376,98,1364,96,1012,42"/>
+<area shape="rect" id="Node000010" href="$open__manager_8c.html" title=" " alt="" coords="1576,93,1743,133"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1013,31,1262,53,1565,91,1576,92,1575,98,1564,96,1261,59,1012,36"/>
+</map>

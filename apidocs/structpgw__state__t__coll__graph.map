@@ -1,0 +1,9 @@
+<map id="pgw_state_t" name="pgw_state_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="209,108,310,133"/>
+<area shape="rect" id="Node000002" href="$structxrdw__pgwrite__req__t.html" title=" " alt="" coords="5,13,156,38"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="116,42,238,106,236,110,114,47"/>
+<area shape="rect" id="Node000003" href="$structngx__stream__brix__srv__conf__t.html" title=" " alt="" coords="180,5,339,45"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="262,59,262,108,257,108,257,59"/>
+<area shape="rect" id="Node000004" href="$structxrdp__pg__bad__t.html" title=" " alt="" coords="363,13,481,38"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="392,47,281,110,278,106,389,42"/>
+</map>

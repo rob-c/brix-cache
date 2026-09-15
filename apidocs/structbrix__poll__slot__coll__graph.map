@@ -1,0 +1,51 @@
+<map id="brix_poll_slot" name="brix_poll_slot">
+<area shape="rect" id="Node000001" title=" " alt="" coords="317,548,427,573"/>
+<area shape="rect" id="Node000002" href="$structbrix__aconn.html" title=" " alt="" coords="213,460,307,485"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="288,492,358,546,355,550,285,496"/>
+<area shape="poly" id="edge28_Node000002_Node000002" title=" " alt="" coords="322,464,333,472,325,481,307,483,307,478,323,476,328,473,319,468"/>
+<area shape="rect" id="Node000003" href="$structbrix__loop.html" title=" " alt="" coords="120,651,203,676"/>
+<area shape="poly" id="edge7_Node000003_Node000002" title=" " alt="" coords="223,494,189,517,175,532,164,549,156,576,154,604,161,650,156,651,149,604,150,575,159,547,171,529,186,513,220,490"/>
+<area shape="rect" id="Node000004" href="$structcmd.html" title=" " alt="" coords="5,548,56,573"/>
+<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="201,489,124,512,84,531,50,550,47,545,81,526,122,507,199,483"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="175,638,215,572,253,485,258,487,220,575,180,640"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="48,583,65,605,86,625,129,648,127,653,82,629,61,608,43,586"/>
+<area shape="poly" id="edge6_Node000004_Node000004" title=" " alt="" coords="71,551,79,554,83,561,74,570,56,571,56,566,72,565,77,560,75,558,69,556"/>
+<area shape="rect" id="Node000005" href="$structbrix__status.html" title=" " alt="" coords="50,181,145,207"/>
+<area shape="poly" id="edge27_Node000002_Node000005" title=" " alt="" coords="159,207,209,230,231,247,250,268,263,293,272,320,277,375,273,425,266,461,260,459,267,425,272,375,267,321,259,295,246,271,228,251,206,234,157,212"/>
+<area shape="poly" id="edge5_Node000004_Node000005" title=" " alt="" coords="65,216,33,244,23,261,19,281,19,474,23,514,30,547,25,548,17,515,13,474,13,280,18,259,29,240,61,212"/>
+<area shape="rect" id="Node000021" href="$structbrix__areq.html" title=" " alt="" coords="56,269,139,295"/>
+<area shape="poly" id="edge24_Node000021_Node000005" title=" " alt="" coords="100,221,100,269,95,269,95,221"/>
+<area shape="rect" id="Node000006" href="$structbrix__conn.html" title=" " alt="" coords="393,357,479,383"/>
+<area shape="poly" id="edge8_Node000002_Node000006" title=" " alt="" coords="415,394,386,417,353,438,298,462,296,457,351,434,383,412,411,390"/>
+<area shape="rect" id="Node000007" href="$structbrix__io.html" title=" " alt="" coords="312,269,379,295"/>
+<area shape="poly" id="edge9_Node000006_Node000007" title=" " alt="" coords="369,302,425,355,422,359,366,306"/>
+<area shape="rect" id="Node000008" href="$structbrix__opts.html" title=" " alt="" coords="403,269,485,295"/>
+<area shape="poly" id="edge10_Node000006_Node000008" title=" " alt="" coords="444,309,440,357,434,357,439,308"/>
+<area shape="rect" id="Node000009" href="$structbrix__cred__store.html" title=" " alt="" coords="383,181,505,207"/>
+<area shape="poly" id="edge11_Node000008_Node000009" title=" " alt="" coords="447,221,447,269,441,269,441,221"/>
+<area shape="rect" id="Node000010" href="$structbrix__cred__config.html" title=" " alt="" coords="527,93,655,119"/>
+<area shape="poly" id="edge12_Node000009_Node000010" title=" " alt="" coords="560,128,465,183,463,179,558,123"/>
+<area shape="rect" id="Node000011" href="$structbrix__cred__handler.html" title=" " alt="" coords="257,93,396,119"/>
+<area shape="poly" id="edge13_Node000009_Node000011" title=" " alt="" coords="350,126,386,155,424,179,421,183,382,159,347,130"/>
+<area shape="rect" id="Node000012" href="$structcred__slot.html" title=" " alt="" coords="421,93,502,119"/>
+<area shape="poly" id="edge14_Node000009_Node000012" title=" " alt="" coords="459,133,449,181,444,180,454,132"/>
+<area shape="rect" id="Node000013" href="$structbrix__cred__view.html" title=" " alt="" coords="401,5,521,31"/>
+<area shape="poly" id="edge15_Node000012_Node000013" title=" " alt="" coords="464,45,464,93,459,93,459,45"/>
+<area shape="rect" id="Node000014" href="$structbrix__sss__id__registry.html" title=" " alt="" coords="189,181,339,207"/>
+<area shape="poly" id="edge16_Node000008_Node000014" title=" " alt="" coords="302,210,421,267,418,271,299,215"/>
+<area shape="rect" id="Node000015" href="$structsss__id__slot.html" title=" " alt="" coords="140,93,233,119"/>
+<area shape="poly" id="edge17_Node000014_Node000015" title=" " alt="" coords="208,127,255,179,251,183,204,131"/>
+<area shape="rect" id="Node000016" href="$structbrix__sss__ident.html" title=" " alt="" coords="129,5,244,31"/>
+<area shape="poly" id="edge18_Node000015_Node000016" title=" " alt="" coords="189,45,189,93,184,93,184,45"/>
+<area shape="rect" id="Node000017" href="$structbrix__diag.html" title=" " alt="" coords="525,269,608,295"/>
+<area shape="poly" id="edge19_Node000006_Node000017" title=" " alt="" coords="539,304,455,359,452,355,536,300"/>
+<area shape="rect" id="Node000018" href="$structbrix__capture.html" title=" " alt="" coords="530,181,633,207"/>
+<area shape="poly" id="edge20_Node000017_Node000018" title=" " alt="" coords="580,221,571,269,566,268,574,220"/>
+<area shape="rect" id="Node000019" href="$structxbuf.html" title=" " alt="" coords="312,357,363,383"/>
+<area shape="poly" id="edge21_Node000002_Node000019" title=" " alt="" coords="325,396,295,438,274,462,270,458,291,434,321,393"/>
+<area shape="rect" id="Node000020" href="$structreqmap.html" title=" " alt="" coords="60,357,132,383"/>
+<area shape="poly" id="edge22_Node000002_Node000020" title=" " alt="" coords="99,396,103,417,114,434,130,443,154,451,214,463,213,468,153,457,127,448,110,438,98,419,94,397"/>
+<area shape="poly" id="edge26_Node000002_Node000021" title=" " alt="" coords="124,301,141,317,208,396,254,458,250,461,204,399,137,321,121,305"/>
+<area shape="poly" id="edge23_Node000020_Node000021" title=" " alt="" coords="100,309,99,357,94,357,94,309"/>
+<area shape="poly" id="edge25_Node000021_Node000021" title=" " alt="" coords="153,273,161,276,165,282,157,290,139,293,138,287,155,285,160,282,158,280,151,278"/>
+</map>

@@ -1,0 +1,9 @@
+<map id="src/protocols/root/protocol/sec_protocol.h" name="src/protocols/root/protocol/sec_protocol.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="201,5,378,45"/>
+<area shape="rect" id="Node000002" href="$client_2lib_2auth_2auth_8c.html" title=" " alt="" coords="5,101,160,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="233,53,111,103,109,98,231,48"/>
+<area shape="rect" id="Node000003" href="$net_2upstream_2bootstrap_8c.html" title=" " alt="" coords="185,101,394,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="292,59,292,100,287,100,287,59"/>
+<area shape="rect" id="Node000004" href="$gsi__outbound__finish_8c.html" title=" " alt="" coords="419,93,597,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="351,48,461,91,459,96,349,53"/>
+</map>

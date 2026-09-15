@@ -1,0 +1,13 @@
+<map id="sts_req_t" name="sts_req_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="119,269,201,295"/>
+<area shape="rect" id="Node000002" href="$structbrix__s3__sts__conf__t.html" title=" " alt="" coords="13,181,155,207"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="105,215,151,267,147,271,101,219"/>
+<area shape="rect" id="Node000003" href="$structbrix__dns__policy__s.html" title=" " alt="" coords="9,93,143,119"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="81,132,86,181,80,181,76,133"/>
+<area shape="rect" id="Node000004" href="$structbrix__resolv__conf__t.html" title=" " alt="" coords="5,5,147,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="79,45,79,93,73,93,73,45"/>
+<area shape="rect" id="Node000005" href="$structbrix__identity__t.html" title=" " alt="" coords="182,181,298,207"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="222,219,173,271,169,267,218,215"/>
+<area shape="rect" id="Node000006" href="$structbrix__token__scope__t.html" title=" " alt="" coords="168,93,315,119"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="244,133,243,181,238,181,238,133"/>
+</map>

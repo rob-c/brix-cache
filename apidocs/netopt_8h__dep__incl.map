@@ -1,0 +1,13 @@
+<map id="src/protocols/root/connection/netopt.h" name="src/protocols/root/connection/netopt.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="387,5,541,45"/>
+<area shape="rect" id="Node000002" href="$cms__start_8c.html" title=" " alt="" coords="5,101,181,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="374,50,143,103,142,98,372,45"/>
+<area shape="rect" id="Node000003" href="$net_2cms_2connect_8c.html" title=" " alt="" coords="205,101,368,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="414,54,311,103,309,98,411,49"/>
+<area shape="rect" id="Node000004" href="$server__handler_8c.html" title=" " alt="" coords="393,93,535,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="467,59,467,93,461,93,461,59"/>
+<area shape="rect" id="Node000005" href="$protocols_2root_2connection_2handler_8c.html" title=" " alt="" coords="560,93,720,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="516,49,603,91,600,96,514,54"/>
+<area shape="rect" id="Node000006" href="$file__serve_8c.html" title=" " alt="" coords="745,93,898,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="555,46,745,91,744,96,554,51"/>
+</map>

@@ -1,0 +1,7 @@
+<map id="dig_req_t" name="dig_req_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="106,93,189,119"/>
+<area shape="rect" id="Node000002" href="$structbrix__dig__export__t.html" title=" " alt="" coords="5,5,140,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="94,39,139,91,135,95,90,43"/>
+<area shape="rect" id="Node000003" href="$structbrix__vfs__stat__t.html" title=" " alt="" coords="164,5,283,31"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="206,43,160,95,156,91,202,39"/>
+</map>

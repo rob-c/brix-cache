@@ -1,0 +1,9 @@
+<map id="scan_verify_obj_ctx_t" name="scan_verify_obj_ctx_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="136,181,299,207"/>
+<area shape="rect" id="Node000002" href="$structscan__verify__ctx__t.html" title=" " alt="" coords="21,93,155,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="118,124,201,179,198,183,115,128"/>
+<area shape="rect" id="Node000003" href="$structbrix__scan__summary__t.html" title=" " alt="" coords="5,5,171,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="91,45,91,93,85,93,85,45"/>
+<area shape="rect" id="Node000004" href="$structbrix__sd__catalog__ent__t.html" title=" " alt="" coords="179,93,343,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="251,132,226,182,221,180,247,130"/>
+</map>

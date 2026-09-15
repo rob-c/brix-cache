@@ -1,0 +1,9 @@
+<map id="cvmfs_pt_task_t" name="cvmfs_pt_task_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="11,269,141,295"/>
+<area shape="rect" id="Node000002" href="$structbrix__s3__tctx__t.html" title=" " alt="" coords="19,181,133,207"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="79,221,79,269,73,269,73,221"/>
+<area shape="rect" id="Node000003" href="$structbrix__dns__policy__s.html" title=" " alt="" coords="9,93,143,119"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="79,133,79,181,73,181,73,133"/>
+<area shape="rect" id="Node000004" href="$structbrix__resolv__conf__t.html" title=" " alt="" coords="5,5,147,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="79,45,79,93,73,93,73,45"/>
+</map>

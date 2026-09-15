@@ -1,0 +1,9 @@
+<map id="cta_progress_t" name="cta_progress_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="13,269,131,295"/>
+<area shape="rect" id="Node000002" href="$structbrix__cta__queue__t.html" title=" " alt="" coords="5,181,139,207"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="75,221,75,269,69,269,69,221"/>
+<area shape="rect" id="Node000003" href="$structcta__req__t.html" title=" " alt="" coords="31,93,113,119"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="75,133,75,181,69,181,69,133"/>
+<area shape="rect" id="Node000004" href="$structcta__request__t.html" title=" " alt="" coords="17,5,127,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="75,45,75,93,69,93,69,45"/>
+</map>

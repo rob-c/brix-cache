@@ -1,0 +1,28 @@
+var structbrix__wmirror__replay__t =
+[
+    [ "conn", "structbrix__wmirror__replay__t.html#af7771b37bd0dfe4e4cd78e5ce9f5f54e", null ],
+    [ "connecting", "structbrix__wmirror__replay__t.html#a34ae6f0d8a432f772330a3488a4239d9", null ],
+    [ "data", "structbrix__wmirror__replay__t.html#ace58d4990c21a0256aed3b3da5661c9e", null ],
+    [ "data_len", "structbrix__wmirror__replay__t.html#adde947165a3e67bc2bc872df749bf263", null ],
+    [ "host", "structbrix__wmirror__replay__t.html#a52888a76924e49d5eb77d198f44c70ef", null ],
+    [ "log", "structbrix__wmirror__replay__t.html#ad23f5d873bd1de0e2574f9367a6ac66a", null ],
+    [ "log_diverge", "structbrix__wmirror__replay__t.html#aa37818a902e1c51cb1c57c101b473a91", null ],
+    [ "open_frame", "structbrix__wmirror__replay__t.html#aaae7bc59a91b8ba53215409eda87a28f", null ],
+    [ "open_frame_len", "structbrix__wmirror__replay__t.html#abe16f004e08101ec2ac29f5afad6422f", null ],
+    [ "phase", "structbrix__wmirror__replay__t.html#ae72f21421baf02f8e41bb0933a4c434b", null ],
+    [ "pool", "structbrix__wmirror__replay__t.html#a7c02323dde729c2971427b41475a31ee", null ],
+    [ "port", "structbrix__wmirror__replay__t.html#ac2e08df85ec6f026c04c2f124df2520f", null ],
+    [ "resp_body", "structbrix__wmirror__replay__t.html#ada3c781bb9c09685d9a2dfbafc956c9b", null ],
+    [ "resp_body_pos", "structbrix__wmirror__replay__t.html#a401a5dae2819ff06dda8f716f528d8bd", null ],
+    [ "resp_dlen", "structbrix__wmirror__replay__t.html#a865dbd6684a44f3ba395b82c98da0f1f", null ],
+    [ "resp_status", "structbrix__wmirror__replay__t.html#a5b15ac7751d9445ddd914ff41b5e6065", null ],
+    [ "rhdr", "structbrix__wmirror__replay__t.html#ab26260cd3058538044d21b70304359c8", null ],
+    [ "rhdr_pos", "structbrix__wmirror__replay__t.html#ae488714b80862fed22be3162861a5d95", null ],
+    [ "shadow_fhandle", "structbrix__wmirror__replay__t.html#a9e4616d09233fbe4b04d73b32358a0fc", null ],
+    [ "sockaddr", "structbrix__wmirror__replay__t.html#a0c5ad4da5d6da5782185096bac1899f7", null ],
+    [ "socklen", "structbrix__wmirror__replay__t.html#a52f2a0d6961ce13d21f663245d89f73b", null ],
+    [ "tev", "structbrix__wmirror__replay__t.html#aef54b4a2ab30246bed7895e02ea34dcc", null ],
+    [ "wbuf", "structbrix__wmirror__replay__t.html#a0b66d4dbcb64fbbf1e8e9b393eb03b6d", null ],
+    [ "wbuf_len", "structbrix__wmirror__replay__t.html#a751561c5fbe5f7440d5a251dab4c0348", null ],
+    [ "wbuf_pos", "structbrix__wmirror__replay__t.html#a04a866cc85ddd9de198fc6fad87af004", null ]
+];

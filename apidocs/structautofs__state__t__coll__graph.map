@@ -1,0 +1,9 @@
+<map id="autofs_state_t" name="autofs_state_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="51,181,166,207"/>
+<area shape="rect" id="Node000002" href="$structautofs__opts__t.html" title=" " alt="" coords="5,93,116,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="76,129,104,179,100,182,71,132"/>
+<area shape="rect" id="Node000003" href="$structbrixautofs__table__t.html" title=" " alt="" coords="140,93,280,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="187,130,124,183,121,179,184,126"/>
+<area shape="rect" id="Node000004" href="$structbrixautofs__slot__t.html" title=" " alt="" coords="145,5,275,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="213,45,213,93,207,93,207,45"/>
+</map>

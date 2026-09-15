@@ -1,0 +1,25 @@
+var sd__gsiftp__ns_8c =
+[
+    [ "sd_gsiftp_dir_state", "structsd__gsiftp__dir__state.html", "structsd__gsiftp__dir__state" ],
+    [ "sd_gsiftp_closedir", "sd__gsiftp__ns_8c.html#a938f46c23c33ac270a52087282ad3075", null ],
+    [ "sd_gsiftp_command_one", "sd__gsiftp__ns_8c.html#a63edd7083b5264f4236d144f0742a431", null ],
+    [ "sd_gsiftp_destination_absent", "sd__gsiftp__ns_8c.html#aee3167a8c4951549cdf366a1a7f21991", null ],
+    [ "sd_gsiftp_dir_alloc", "sd__gsiftp__ns_8c.html#aee8a0d32518eceaf33ab3f3cba7a1a23", null ],
+    [ "sd_gsiftp_dir_free", "sd__gsiftp__ns_8c.html#afe70ccbe3de968d207f1f980d7ace46d", null ],
+    [ "sd_gsiftp_mkdir", "sd__gsiftp__ns_8c.html#a45b7e712b03bceb4f89de9a58f484842", null ],
+    [ "sd_gsiftp_mkdir_cred", "sd__gsiftp__ns_8c.html#ad10d1f7511c48dba93708b3b0b924626", null ],
+    [ "sd_gsiftp_mkdir_impl", "sd__gsiftp__ns_8c.html#a99c4239ffa04f0f03b9c2bc955a3c4ad", null ],
+    [ "sd_gsiftp_next_line", "sd__gsiftp__ns_8c.html#a594b98a11bedc7e049beb43ae039dc7b", null ],
+    [ "sd_gsiftp_opendir", "sd__gsiftp__ns_8c.html#a51637cbc065d0a066c7cbc07163dd7f4", null ],
+    [ "sd_gsiftp_opendir_cred", "sd__gsiftp__ns_8c.html#a0476c781021ac73971a073dba08d50ff", null ],
+    [ "sd_gsiftp_opendir_impl", "sd__gsiftp__ns_8c.html#af131525b610880da5f61bf34ec373402", null ],
+    [ "sd_gsiftp_readdir", "sd__gsiftp__ns_8c.html#a8fe1b9698cbcac05964b0e21dd735b40", null ],
+    [ "sd_gsiftp_rename", "sd__gsiftp__ns_8c.html#a4a720dbb8fcd4696874414d05fef66c5", null ],
+    [ "sd_gsiftp_rename_cred", "sd__gsiftp__ns_8c.html#a8298b4e272eaf271114bab216f73f26e", null ],
+    [ "sd_gsiftp_rename_impl", "sd__gsiftp__ns_8c.html#a75a667a80c113c43d059e55b68c8eb7d", null ],
+    [ "sd_gsiftp_stat", "sd__gsiftp__ns_8c.html#a661e5848482e40791fa74a2e851174d9", null ],
+    [ "sd_gsiftp_stat_cred", "sd__gsiftp__ns_8c.html#a56427c418359dd5aa9be0e422ce5129b", null ],
+    [ "sd_gsiftp_unlink", "sd__gsiftp__ns_8c.html#ae89ddb067fe762e6b477224cbc624d0d", null ],
+    [ "sd_gsiftp_unlink_cred", "sd__gsiftp__ns_8c.html#a68edda4fff54af4e037f8d4099761957", null ],
+    [ "sd_gsiftp_unlink_impl", "sd__gsiftp__ns_8c.html#a26c2af7b9290ce9d66d636299106dc40", null ]
+];

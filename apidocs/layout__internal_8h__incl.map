@@ -1,0 +1,15 @@
+<map id="client/lib/oci/layout_internal.h" name="client/lib/oci/layout_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,152,45"/>
+<area shape="rect" id="Node000002" href="$layout_8h.html" title=" " alt="" coords="29,93,128,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="81,46,81,79,76,79,76,46"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="24,313,99,339"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="75,120,66,141,59,167,55,203,54,239,60,299,55,300,49,239,49,202,53,166,61,140,70,118"/>
+<area shape="rect" id="Node000004" href="$reg__client_8h.html" title=" " alt="" coords="67,167,189,192"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="89,117,114,154,110,157,85,121"/>
+<area shape="poly" id="edge4_Node000004_Node000003" title=" " alt="" coords="125,194,75,302,70,300,120,191"/>
+<area shape="rect" id="Node000005" href="$ref_8h.html" title=" " alt="" coords="117,240,192,265"/>
+<area shape="poly" id="edge5_Node000004_Node000005" title=" " alt="" coords="135,191,148,226,143,228,130,193"/>
+<area shape="poly" id="edge6_Node000005_Node000003" title=" " alt="" coords="141,267,89,307,86,303,138,263"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="123,313,221,339"/>
+<area shape="poly" id="edge7_Node000005_Node000006" title=" " alt="" coords="160,265,169,300,163,301,155,266"/>
+</map>

@@ -1,0 +1,26 @@
+var stage__engine__journal_8c =
+[
+    [ "brix_stage_engine_init", "stage__engine__journal_8c.html#a4e65b53a38ab5edfc3f9f391d192db59", null ],
+    [ "brix_stage_engine_journal_dir", "stage__engine__journal_8c.html#a97dbe193fe9241de9b9edd78f5d722aa", null ],
+    [ "brix_stage_engine_max_attempts", "stage__engine__journal_8c.html#a40064311a53c903958a51f573f65c8a4", null ],
+    [ "brix_stage_engine_max_inflight", "stage__engine__journal_8c.html#aba24775368dd8c99be1b66507feaf6d9", null ],
+    [ "brix_stage_engine_set_limits", "stage__engine__journal_8c.html#a78207a1bac36932f4c2f5a5db3a417f3", null ],
+    [ "brix_stage_on_loop", "stage__engine__journal_8c.html#a61c4fc8fd4cd6d80b497856313e0b17a", null ],
+    [ "stage_deny_terminal", "stage__engine__journal_8c.html#a828d10143bea95e09318d37afb26eb8a", null ],
+    [ "stage_journal_bump_failed", "stage__engine__journal_8c.html#a9e7515732688837bf8dc4d5df17420c5", null ],
+    [ "stage_journal_load", "stage__engine__journal_8c.html#a6afc02e4eb060a3c5dd6a1cd2c575b3a", null ],
+    [ "stage_journal_mark_failed", "stage__engine__journal_8c.html#aaca2f8f7ab111e5ff3339ce56ae13658", null ],
+    [ "stage_journal_move_to_deadletter", "stage__engine__journal_8c.html#a51b95d84f5018cc1541d4222e16f661e", null ],
+    [ "stage_journal_note_deadletter", "stage__engine__journal_8c.html#a5c9a8ed04cc17716bada7140f6dcc2cd", null ],
+    [ "stage_journal_persist_failed", "stage__engine__journal_8c.html#a9b2746f0963670a9b7cbbe082de4fb74", null ],
+    [ "stage_journal_remove", "stage__engine__journal_8c.html#aaa4c2c54e9288058d7195c2fac9d7994", null ],
+    [ "stage_journal_update_rec", "stage__engine__journal_8c.html#a099ab9e69215495fb8e2c44da2d5f51b", null ],
+    [ "stage_journal_write", "stage__engine__journal_8c.html#adfebd309b5b2907ca4d154c1630e50c0", null ],
+    [ "stage_reqid_mint", "stage__engine__journal_8c.html#ae2c23971ce8ae406dd24c98975da4f3b", null ],
+    [ "stage_retry_terminal", "stage__engine__journal_8c.html#a0468f31049473ded5a08d59d1430edec", null ],
+    [ "journal_dir", "stage__engine__journal_8c.html#a24586ad51fac3e2135d64d76ff935557", null ],
+    [ "max_attempts", "stage__engine__journal_8c.html#aa44bf40f9b0cc06ff637135eafa357f7", null ],
+    [ "max_inflight", "stage__engine__journal_8c.html#ae81f9b7186d72e3aa7154bddc16e05fb", null ],
+    [ "stage_engine_state", "stage__engine__journal_8c.html#a7a882b85941b9f39a6d78c4e720071a4", null ],
+    [ "stage_reqid_seq", "stage__engine__journal_8c.html#afeca0b98d9ac8f38c30daa6f079fef96", null ]
+];

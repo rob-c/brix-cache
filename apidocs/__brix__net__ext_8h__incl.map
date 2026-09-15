@@ -1,0 +1,9 @@
+<map id="client/lib/_brix_net_ext.h" name="client/lib/_brix_net_ext.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,148,45"/>
+<area shape="rect" id="Node000002" href="$brix__net_8h.html" title=" " alt="" coords="33,167,120,192"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="73,46,70,98,72,153,67,153,65,98,68,46"/>
+<area shape="rect" id="Node000003" href="$brix__net__frame_8h.html" title=" " alt="" coords="126,93,259,119"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="106,43,166,83,163,88,103,48"/>
+<area shape="poly" id="edge2_Node000002_Node000001" title=" " alt="" coords="79,166,83,117,82,60,87,59,88,117,84,167"/>
+<area shape="poly" id="edge4_Node000003_Node000002" title=" " alt="" coords="175,121,109,162,106,157,173,116"/>
+</map>

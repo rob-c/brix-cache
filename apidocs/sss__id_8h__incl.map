@@ -1,0 +1,13 @@
+<map id="client/lib/auth/sss/sss_id.h" name="client/lib/auth/sss/sss_id.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="121,5,257,45"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,174,80,199"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="150,48,117,68,87,95,66,128,52,162,47,160,61,126,83,92,114,64,147,43"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="298,174,369,199"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="231,43,265,64,295,92,317,126,329,160,324,162,312,128,291,95,262,68,229,48"/>
+<area shape="rect" id="Node000004" href="$sss__entity_8h.html" title=" " alt="" coords="98,93,281,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="192,46,192,79,187,79,187,46"/>
+<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="169,121,78,170,75,165,166,116"/>
+<area shape="poly" id="edge5_Node000004_Node000003" title=" " alt="" coords="212,116,301,165,299,170,209,121"/>
+<area shape="rect" id="Node000005" href="$sss_8h.html" title=" " alt="" coords="105,167,274,207"/>
+<area shape="poly" id="edge6_Node000004_Node000005" title=" " alt="" coords="192,119,192,153,187,153,187,119"/>
+</map>

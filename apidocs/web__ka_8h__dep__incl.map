@@ -1,0 +1,12 @@
+<map id="client/lib/protocols/http/web_ka.h" name="client/lib/protocols/http/web_ka.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="201,5,344,45"/>
+<area shape="rect" id="Node000002" href="$__xrootdfs__part2_8c.html" title=" " alt="" coords="5,93,180,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="222,54,133,96,131,91,220,49"/>
+<area shape="rect" id="Node000003" href="$xrootdfs_8c.html" title=" " alt="" coords="66,181,245,207"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="253,58,166,183,161,180,249,55"/>
+<area shape="rect" id="Node000004" href="$web__ka_8c.html" title=" " alt="" coords="256,93,399,133"/>
+<area shape="poly" id="edge4_Node000001_Node000004" title=" " alt="" coords="294,56,317,92,313,95,290,58"/>
+<area shape="rect" id="Node000005" href="$webfile_8c.html" title=" " alt="" coords="423,93,565,133"/>
+<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="335,48,447,91,445,96,333,53"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="119,143,148,179,144,183,114,146"/>
+</map>

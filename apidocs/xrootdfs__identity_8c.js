@@ -1,0 +1,25 @@
+var xrootdfs__identity_8c =
+[
+    [ "xfs_ident", "structxfs__ident.html", "structxfs__ident" ],
+    [ "XFS_IDENT_DEFAULT_MAX", "xrootdfs__identity_8c.html#a50f02769ef10ff744607b3507d417b4f", null ],
+    [ "XFS_IDENT_HARD_MAX", "xrootdfs__identity_8c.html#ad9c6e82813266a73f047d9888a6bac26", null ],
+    [ "XFS_IDENT_NAME_MAX", "xrootdfs__identity_8c.html#a580091177592c40d8aa4140d5b0c50df", null ],
+    [ "ident_build", "xrootdfs__identity_8c.html#a86e6e86291687033984e0617fb3164ac", null ],
+    [ "ident_caller_uid", "xrootdfs__identity_8c.html#a07b8b933bf3ab04600640a91e457bfc8", null ],
+    [ "ident_claim_locked", "xrootdfs__identity_8c.html#aea4d4db3529d275aead6ba53be2933b4", null ],
+    [ "ident_find_locked", "xrootdfs__identity_8c.html#ac813c20bdaf45145ed06c3cedd537af7", null ],
+    [ "ident_full", "xrootdfs__identity_8c.html#ad615540daa30165150b6769e67999994", null ],
+    [ "ident_get", "xrootdfs__identity_8c.html#afe6ba4807b03e7709ad288854ac73ce5", null ],
+    [ "ident_login_name", "xrootdfs__identity_8c.html#aab58ca08a85be4ab092ac2a554be6169", null ],
+    [ "xfs_ident_get", "xrootdfs__identity_8c.html#a6d090c02835c3c5f624fc240d0747bdf", null ],
+    [ "xfs_ident_init", "xrootdfs__identity_8c.html#ab0e8678a74a9df0137b8d9fc44b616c8", null ],
+    [ "xfs_ident_shutdown", "xrootdfs__identity_8c.html#a4683c534c2fa598fa51893799164efa4", null ],
+    [ "g_ident_cond", "xrootdfs__identity_8c.html#a69f363cf6acbf34e36380cd808bb9c88", null ],
+    [ "g_ident_conns", "xrootdfs__identity_8c.html#a1f1bfa7240439299985458c891d3fddd", null ],
+    [ "g_ident_lock", "xrootdfs__identity_8c.html#a821483e12bc59691c2ab2915c862c9ce", null ],
+    [ "g_ident_max", "xrootdfs__identity_8c.html#a91193ed8a925a5eb1d54d69cb8dda917", null ],
+    [ "g_ident_n", "xrootdfs__identity_8c.html#a4920dfc8fed8ce1705055e042c8aff27", null ],
+    [ "g_ident_streams", "xrootdfs__identity_8c.html#ad70a563f006aba5b6de3621831092161", null ],
+    [ "g_ident_tab", "xrootdfs__identity_8c.html#a23a72faec4d6a82d36910a485a4d611d", null ],
+    [ "g_sss_ident", "xrootdfs__identity_8c.html#ac9cdd8e7597154701e6cce1417c57bd5", null ]
+];

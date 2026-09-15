@@ -1,0 +1,9 @@
+<map id="src/net/admin/admin_unix.h" name="src/net/admin/admin_unix.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="201,5,357,45"/>
+<area shape="rect" id="Node000002" href="$admin__unix_8c.html" title=" " alt="" coords="5,93,161,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="225,53,127,96,125,91,223,48"/>
+<area shape="rect" id="Node000003" href="$cms__admin_8c.html" title=" " alt="" coords="186,101,373,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="282,59,282,100,277,100,277,59"/>
+<area shape="rect" id="Node000004" href="$admin__socket_8c.html" title=" " alt="" coords="397,93,577,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="339,48,443,91,441,96,337,53"/>
+</map>

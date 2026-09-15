@@ -1,0 +1,19 @@
+<map id="src/fs/backend/gsiftp/gftp_dc.h" name="src/fs/backend/gsiftp/gftp_dc.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="363,5,517,45"/>
+<area shape="rect" id="Node000002" href="$gftp__data_8c.html" title=" " alt="" coords="445,181,600,221"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="493,51,515,69,532,92,539,115,540,140,532,182,527,181,534,139,534,116,527,95,511,73,490,55"/>
+<area shape="rect" id="Node000003" href="$gftp__dc_8c.html" title=" " alt="" coords="184,93,339,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="390,54,302,96,299,91,387,49"/>
+<area shape="rect" id="Node000004" href="$gftp__dc__tls_8c.html" title=" " alt="" coords="363,93,517,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="443,59,443,93,437,93,437,59"/>
+<area shape="rect" id="Node000005" href="$gftp__mode__e_8h.html" title=" " alt="" coords="5,93,160,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="350,51,161,96,159,91,349,46"/>
+<area shape="rect" id="Node000007" href="$gftp__spas_8h.html" title=" " alt="" coords="592,93,747,133"/>
+<area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="504,48,620,91,618,96,502,53"/>
+<area shape="poly" id="edge5_Node000005_Node000002" title=" " alt="" coords="174,131,446,183,445,188,173,136"/>
+<area shape="rect" id="Node000006" href="$gftp__mode__e_8c.html" title=" " alt="" coords="5,181,160,221"/>
+<area shape="poly" id="edge6_Node000005_Node000006" title=" " alt="" coords="85,147,85,181,80,181,80,147"/>
+<area shape="poly" id="edge8_Node000007_Node000002" title=" " alt="" coords="626,143,556,184,553,179,624,138"/>
+<area shape="rect" id="Node000008" href="$gftp__spas_8c.html" title=" " alt="" coords="624,181,779,221"/>
+<area shape="poly" id="edge9_Node000007_Node000008" title=" " alt="" coords="684,145,697,180,692,182,679,147"/>
+</map>

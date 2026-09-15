@@ -1,0 +1,11 @@
+<map id="client/lib/fs/backend/s3/vfs_s3_internal.h" name="client/lib/fs/backend/s3/vfs_s3_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="267,5,423,45"/>
+<area shape="rect" id="Node000002" href="$vfs__s3_8c.html" title=" " alt="" coords="5,93,157,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="275,52,140,96,138,91,274,47"/>
+<area shape="rect" id="Node000003" href="$vfs__s3__http_8c.html" title=" " alt="" coords="181,93,333,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="318,57,279,95,275,91,314,53"/>
+<area shape="rect" id="Node000004" href="$vfs__s3__io_8c.html" title=" " alt="" coords="357,93,509,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="377,53,416,91,412,95,373,57"/>
+<area shape="rect" id="Node000005" href="$vfs__s3__transport_8c.html" title=" " alt="" coords="534,93,698,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="419,47,558,91,556,96,417,52"/>
+</map>

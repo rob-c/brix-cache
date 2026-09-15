@@ -1,0 +1,28 @@
+var targets_8c =
+[
+    [ "dns_registry_t", "structdns__registry__t.html", "structdns__registry__t" ],
+    [ "DNS_FAILURE_REFRESH_MS", "targets_8c.html#abd4ea83d66c84a0c256c425266decc91", null ],
+    [ "DNS_FIRST_JITTER_MS", "targets_8c.html#acab275ecd4a7ca7ee1f15c2be855f298", null ],
+    [ "DNS_TARGETS_MAX", "targets_8c.html#ade9b83d985d2fef028dc69396016aa17", null ],
+    [ "brix_dns_target_at", "targets_8c.html#af8039cff0fbd8c9adbe865fc46cae0e2", null ],
+    [ "brix_dns_target_next", "targets_8c.html#aa2d82f93cb7df0ba0c5da62bf3620948", null ],
+    [ "brix_dns_target_note_failure", "targets_8c.html#ace2a2d3c6892755ba4ff139f439905a0", null ],
+    [ "brix_dns_target_register", "targets_8c.html#af9d20bccfe5125046a639938bc5049b6", null ],
+    [ "brix_dns_targets_count", "targets_8c.html#a38809fb38f5343fb1cf9e9af58562498", null ],
+    [ "brix_dns_targets_init_worker", "targets_8c.html#aa7881b69e51987972474e93a4bb7bd4b", null ],
+    [ "brix_dns_targets_n", "targets_8c.html#a366458ccd3c924a9482f734562a4b93f", null ],
+    [ "dns_registry_reset", "targets_8c.html#a94346f9baa92024ab5693a891e26a88a", null ],
+    [ "dns_target_arm", "targets_8c.html#ad2da7c6013382d1fd54f7f7d4f2a645a", null ],
+    [ "dns_target_carry_index", "targets_8c.html#a6c2a5866d22feb0dc166df6263b35a5d", null ],
+    [ "dns_target_done", "targets_8c.html#a1979e15c863c5f45a8631827cbb181c0", null ],
+    [ "dns_target_find", "targets_8c.html#af98bbe34257336d855ec3ce57908ea85", null ],
+    [ "dns_target_fire", "targets_8c.html#a0358c6f58cab89242cc28f3ebdae849c", null ],
+    [ "dns_target_on_failure", "targets_8c.html#ae344b4a9568f6f53c56006560a6a38fb", null ],
+    [ "dns_target_on_success", "targets_8c.html#a26b6ae56bc25daa0ea80307f3bfa0126", null ],
+    [ "dns_target_publish", "targets_8c.html#a769fccb9f87ca12ee06b1cc3f78d0d66", null ],
+    [ "dns_target_retry_initial", "targets_8c.html#ac5f299430454727c5c3ae8cce7f36a15", null ],
+    [ "dns_target_retry_max", "targets_8c.html#a9884c92a8b9cb63bc358aa442a8ae307", null ],
+    [ "dns_target_schedule", "targets_8c.html#af6a1d39359c792ccc5677b861ce038a9", null ],
+    [ "dns_target_try_literal", "targets_8c.html#a1bc43ca31b69aa4b8368e315d05bc5f0", null ],
+    [ "dns_registry", "targets_8c.html#af44fb5d28e92949a6b212a3a2b501f9e", null ]
+];

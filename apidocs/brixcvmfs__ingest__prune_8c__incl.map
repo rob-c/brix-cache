@@ -1,0 +1,28 @@
+<map id="client/apps/fs/brixcvmfs_ingest_prune.c" name="client/apps/fs/brixcvmfs_ingest_prune.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="864,5,1043,45"/>
+<area shape="rect" id="Node000002" href="$brixcvmfs__ingest__internal_8h.html" title=" " alt="" coords="272,93,475,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="864,41,472,94,471,89,864,36"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="543,240,609,265"/>
+<area shape="poly" id="edge9_Node000001_Node000007" title=" " alt="" coords="864,30,813,36,760,48,707,67,659,95,590,228,586,226,655,92,704,62,758,43,813,31,863,25"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="669,93,845,119"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="907,48,800,91,798,86,905,43"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="869,93,941,119"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="944,47,922,83,917,80,939,44"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="966,93,1037,119"/>
+<area shape="poly" id="edge10_Node000001_Node000010" title=" " alt="" coords="967,44,989,80,985,83,963,47"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="1061,93,1131,119"/>
+<area shape="poly" id="edge11_Node000001_Node000011" title=" " alt="" coords="989,43,1064,84,1062,89,986,48"/>
+<area shape="rect" id="Node000012" title=" " alt="" coords="1156,93,1241,119"/>
+<area shape="poly" id="edge12_Node000001_Node000012" title=" " alt="" coords="1013,43,1151,87,1149,92,1011,48"/>
+<area shape="rect" id="Node000013" title=" " alt="" coords="1265,93,1340,119"/>
+<area shape="poly" id="edge13_Node000001_Node000013" title=" " alt="" coords="1039,43,1252,90,1251,96,1038,48"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,167,80,192"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="318,121,94,169,93,164,317,116"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="105,167,301,192"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="347,121,244,164,242,159,345,116"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="325,167,422,192"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="376,119,376,153,371,153,371,119"/>
+<area shape="rect" id="Node000006" href="$brixcvmfs__errline_8h.html" title=" " alt="" coords="446,167,594,192"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="398,116,485,158,483,163,396,121"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="531,191,561,228,556,231,527,194"/>
+</map>

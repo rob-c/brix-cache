@@ -1,0 +1,12 @@
+<map id="src/auth/token/macaroon_frame.c" name="src/auth/token/macaroon_frame.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="71,5,253,45"/>
+<area shape="rect" id="Node000002" href="$macaroon__frame_8h.html" title=" " alt="" coords="5,93,151,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="143,48,102,86,99,82,140,44"/>
+<area shape="rect" id="Node000004" href="$hex_8h.html" title=" " alt="" coords="175,93,317,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="184,44,225,82,222,86,181,48"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="77,167,151,192"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="86,118,104,153,100,156,82,120"/>
+<area shape="poly" id="edge4_Node000004_Node000003" title=" " alt="" coords="226,121,149,162,146,158,224,116"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="211,167,281,192"/>
+<area shape="poly" id="edge5_Node000004_Node000005" title=" " alt="" coords="249,119,249,153,243,153,243,119"/>
+</map>

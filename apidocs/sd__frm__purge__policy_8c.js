@@ -1,0 +1,25 @@
+var sd__frm__purge__policy_8c =
+[
+    [ "FRM_POLPROG_LINE_MAX", "sd__frm__purge__policy_8c.html#a87cb4c86d8bd8ffdf95418060a0d6e88", null ],
+    [ "frm_purge_policy_account", "sd__frm__purge__policy_8c.html#a521c6e6b3308a345da158441485706b2", null ],
+    [ "frm_purge_policy_allows", "sd__frm__purge__policy_8c.html#aacafcc954c9cdbb087bb4d7b7c02351a", null ],
+    [ "frm_purge_policy_consult", "sd__frm__purge__policy_8c.html#a0a521dba92c59ae9c68acccc5ee2de79", null ],
+    [ "frm_purge_policy_free", "sd__frm__purge__policy_8c.html#ad0763e41882acb2be7186b0978f25dfc", null ],
+    [ "frm_purge_policy_hold", "sd__frm__purge__policy_8c.html#a6b68cb60b5f2c49439cc0f672d413d64", null ],
+    [ "frm_purge_policy_init", "sd__frm__purge__policy_8c.html#a6ade377f424a2ce400f5bf259b76d426", null ],
+    [ "frm_purge_policy_log", "sd__frm__purge__policy_8c.html#acfefa7d0b2e1fe1203c718a03852693e", null ],
+    [ "frm_purge_policy_pending", "sd__frm__purge__policy_8c.html#a6f4cf7aea48a43f96fe053bb5bcaf329", null ],
+    [ "frm_purge_policy_wants", "sd__frm__purge__policy_8c.html#a32653a5b69cfe61b0c7c00a9471a30dd", null ],
+    [ "policy_cmp_rel", "sd__frm__purge__policy_8c.html#a5ca9809522a972e8e9e7cdd9b37771c5", null ],
+    [ "policy_exchange", "sd__frm__purge__policy_8c.html#a06621430d533a2c073ce3b83fe4ba6ee", null ],
+    [ "policy_index", "sd__frm__purge__policy_8c.html#ab4eb12e33abf04f6a091e3a0640ec9a8", null ],
+    [ "policy_mark_line", "sd__frm__purge__policy_8c.html#afa0a5c4f733bf4070776cfe3cfbb3b13", null ],
+    [ "policy_needs_program", "sd__frm__purge__policy_8c.html#ab229d925764b14050f63f658aed8900a", null ],
+    [ "policy_private_path", "sd__frm__purge__policy_8c.html#a64a4742eeb29fffb8ce0b4738ac936fa", null ],
+    [ "policy_read_decision", "sd__frm__purge__policy_8c.html#a45bb51bf8a4f54605dff87e4138db7aa", null ],
+    [ "policy_rule_index", "sd__frm__purge__policy_8c.html#a74fc96765a60a954f40311e85d472e03", null ],
+    [ "policy_rule_is_polprog", "sd__frm__purge__policy_8c.html#ae972ee7fe7544810a5b3511528033b52", null ],
+    [ "policy_run_program", "sd__frm__purge__policy_8c.html#a626e83881687c5f6a885e799f2b22c55", null ],
+    [ "policy_write_candidates", "sd__frm__purge__policy_8c.html#ab64d0104b8b999c39f7c09d149447f8e", null ],
+    [ "environ", "sd__frm__purge__policy_8c.html#aa006daaf11f1e2e45a6ababaf463212b", null ]
+];

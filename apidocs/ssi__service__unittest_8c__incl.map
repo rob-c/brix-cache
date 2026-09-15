@@ -1,0 +1,11 @@
+<map id="src/protocols/ssi/ssi_service_unittest.c" name="src/protocols/ssi/ssi_service_unittest.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="95,5,244,45"/>
+<area shape="rect" id="Node000002" href="$ssi__service_8h.html" title=" " alt="" coords="5,93,112,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="144,48,88,87,85,83,141,43"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="136,93,203,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="172,46,172,79,167,79,167,46"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="227,93,298,119"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="194,44,240,82,236,86,190,48"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="21,167,96,192"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="61,119,61,153,56,153,56,119"/>
+</map>

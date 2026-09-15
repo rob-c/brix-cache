@@ -1,0 +1,25 @@
+var sss_8h =
+[
+    [ "BRIX_SSS_BASE_TIME", "sss_8h.html#a0e35cceeeb05ba472034c62bd9c469f6", null ],
+    [ "BRIX_SSS_DATA_HDR_LEN", "sss_8h.html#a4e3ba4d7d71df695a827bc7f53bafc7c", null ],
+    [ "BRIX_SSS_ENC_BF32", "sss_8h.html#aeabc36d1f3dc3c5bdbcc0fb15d0a7b07", null ],
+    [ "BRIX_SSS_ENT_CREDS_MAX", "sss_8h.html#a31809b1d2952a43663cc225bda6d4a12", null ],
+    [ "BRIX_SSS_ENT_ENDO_MAX", "sss_8h.html#a4bff77b53009166fc47780e42057e65d", null ],
+    [ "BRIX_SSS_ENT_GRPS_MAX", "sss_8h.html#ab6f43855c74b103f62749807539dc9f4", null ],
+    [ "BRIX_SSS_ENT_NAME_MAX", "sss_8h.html#a06b3fb1e22b02185af24aa8b0c314e88", null ],
+    [ "BRIX_SSS_ENT_ROLE_MAX", "sss_8h.html#a029baa99f3f38367aed124c752aea9d9", null ],
+    [ "BRIX_SSS_ENT_VORG_MAX", "sss_8h.html#a3342d606f8808861bbf4824f2301d7eb", null ],
+    [ "BRIX_SSS_ENTITY_BLOB_MAX", "sss_8h.html#a4a1a1dabcb4764b19313f2d34a66c07b", null ],
+    [ "BRIX_SSS_HDR_LEN", "sss_8h.html#a3dfc7a046843f999592a0ffdaa621745", null ],
+    [ "BRIX_SSS_OPT_SNDLID", "sss_8h.html#a8e0f5aeefd27dc5c1ed867d40b6cac9e", null ],
+    [ "BRIX_SSS_OPT_USEDATA", "sss_8h.html#a4e08c4e02c454b2f30fe994b1d8851b2", null ],
+    [ "BRIX_SSS_TYPE_CRED", "sss_8h.html#ae428ade6d320b8418d785ce20ccda304", null ],
+    [ "BRIX_SSS_TYPE_ENDO", "sss_8h.html#a73fd2648a0417191f83157e272d4dc2f", null ],
+    [ "BRIX_SSS_TYPE_GRPS", "sss_8h.html#a3b0ecdb8c85cf831ef14caba105f7db0", null ],
+    [ "BRIX_SSS_TYPE_HOST", "sss_8h.html#ad1022467f481c4f0cbe3eed60a4a5822", null ],
+    [ "BRIX_SSS_TYPE_LGID", "sss_8h.html#a23b851ecd40965248039f0b7915869d2", null ],
+    [ "BRIX_SSS_TYPE_NAME", "sss_8h.html#ab5bc20f6686cbc9ab63445ad854cae99", null ],
+    [ "BRIX_SSS_TYPE_RAND", "sss_8h.html#aff8e958319bb2adea893e83017d882e0", null ],
+    [ "BRIX_SSS_TYPE_ROLE", "sss_8h.html#ada2fb9d466911d0886e003bb1ae34f33", null ],
+    [ "BRIX_SSS_TYPE_VORG", "sss_8h.html#a8425224645fa89ee9490a3d410c2bbf5", null ]
+];

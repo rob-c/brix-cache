@@ -1,0 +1,15 @@
+<map id="src/observability/metrics/unified_internal.h" name="src/observability/metrics/unified_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="521,5,704,45"/>
+<area shape="rect" id="Node000002" href="$observability_2metrics_2unified_8c.html" title=" " alt="" coords="5,93,188,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="508,46,200,96,189,98,188,93,199,91,507,40"/>
+<area shape="rect" id="Node000003" href="$unified__export_8c.html" title=" " alt="" coords="212,93,395,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="532,52,372,96,370,91,531,46"/>
+<area shape="rect" id="Node000004" href="$unified__export__io_8c.html" title=" " alt="" coords="419,93,601,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="581,56,534,95,531,91,578,52"/>
+<area shape="rect" id="Node000005" href="$unified__export__vfs_8c.html" title=" " alt="" coords="625,93,808,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="648,52,695,91,692,95,645,56"/>
+<area shape="rect" id="Node000006" href="$unified__record_8c.html" title=" " alt="" coords="832,93,1015,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="695,46,856,91,855,96,693,52"/>
+<area shape="rect" id="Node000007" href="$unified__record__vfs_8c.html" title=" " alt="" coords="1039,93,1221,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="718,40,1028,91,1039,93,1038,98,1027,96,717,46"/>
+</map>

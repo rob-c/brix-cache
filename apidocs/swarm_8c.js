@@ -1,0 +1,25 @@
+var swarm_8c =
+[
+    [ "brix_cvmfs_swarm_register", "swarm_8c.html#a9f9f70e7a2327a856766b6c0d9d56e63", null ],
+    [ "brix_cvmfs_swarm_regs_reset", "swarm_8c.html#ae0ca40f7d83e13bc11b654863076c8cf", null ],
+    [ "brix_cvmfs_swarm_roster_serve", "swarm_8c.html#a67abbe9cc2a7381e5692a8acdc64eb15", null ],
+    [ "cvmfs_swarm_ctx_set", "swarm_8c.html#a68366d9c82b6b1e4dd924c0e5e5b15f5", null ],
+    [ "cvmfs_swarm_gossip_dead", "swarm_8c.html#aa1206926ede59028cc1d0244e1cf98ec", null ],
+    [ "cvmfs_swarm_intro_caller", "swarm_8c.html#ac13e45ff3c86e562b31c8ba235741ef0", null ],
+    [ "cvmfs_swarm_intro_parse", "swarm_8c.html#a20712ceadb366df89b3417f9b1e969c8", null ],
+    [ "cvmfs_swarm_label_split", "swarm_8c.html#a4601446e272aeb733d0959b7d40bd92b", null ],
+    [ "cvmfs_swarm_member_add", "swarm_8c.html#a8ff6fca72dd30f1747e76bf8d740f82b", null ],
+    [ "cvmfs_swarm_member_find", "swarm_8c.html#a8f11713a3692386c08c49e037ee3e7d5", null ],
+    [ "cvmfs_swarm_merge_known", "swarm_8c.html#a31a31d28643748ac94fb2dfd29287a85", null ],
+    [ "cvmfs_swarm_merge_line", "swarm_8c.html#a5bdf5c904435d81f77aadd5e63c1f400", null ],
+    [ "cvmfs_swarm_reg_at", "swarm_8c.html#a6f2846c8d82a0213e92a603b26ba1b47", null ],
+    [ "cvmfs_swarm_reg_count", "swarm_8c.html#af74ff9f41dd25c97eec76e567f3ce10c", null ],
+    [ "cvmfs_swarm_roster_emit", "swarm_8c.html#a4ede96b366932f2ef0802279541f5bbc", null ],
+    [ "cvmfs_swarm_roster_merge", "swarm_8c.html#a94b04ab523809e5e83c0fc02c91560fd", null ],
+    [ "cvmfs_swarm_seed", "swarm_8c.html#a9741331d8294d619d27c0a3b8167e0ac", null ],
+    [ "cvmfs_swarm_send_roster", "swarm_8c.html#ae57e14a2ad63edbf84aa8d94d5fad6ff", null ],
+    [ "ctxs", "swarm_8c.html#a0072edf154d34eda145cd9c6d52fa9b7", null ],
+    [ "cvmfs_swarm_state", "swarm_8c.html#aa24101b42533bd302648db718ad023b5", null ],
+    [ "regs", "swarm_8c.html#a91ea1cf263a747ae809d53d02984008f", null ],
+    [ "regs_n", "swarm_8c.html#ad085493a4f65f8e15984f2efe2ac9029", null ]
+];

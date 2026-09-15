@@ -1,0 +1,25 @@
+var darwin_2posix__wrapper_8c =
+[
+    [ "brix_plat_anon_fd", "darwin_2posix__wrapper_8c.html#adb7b864bd38950b8bd6281b6b1a9b918", null ],
+    [ "brix_plat_copy_range", "darwin_2posix__wrapper_8c.html#af0375067144db7ae9ce7a4e757db45c3", null ],
+    [ "brix_plat_eventfd", "darwin_2posix__wrapper_8c.html#acf5235b16c91fc7df17b02cb5fb53114", null ],
+    [ "brix_plat_execvpe", "darwin_2posix__wrapper_8c.html#a4d5a1ff92ab0899c5673055898b2e8b3", null ],
+    [ "brix_plat_fadvise", "darwin_2posix__wrapper_8c.html#a4bc7daa8dde45f483ee97b695839d927", null ],
+    [ "brix_plat_fgetxattr", "darwin_2posix__wrapper_8c.html#a650d6383064cf62d458c328cd8c7312b", null ],
+    [ "brix_plat_flistxattr", "darwin_2posix__wrapper_8c.html#ad0fc7e7f151fd95a11794b07d334d279", null ],
+    [ "brix_plat_fremovexattr", "darwin_2posix__wrapper_8c.html#a7f34db5dc0e47d7c71ba996dab08e7eb", null ],
+    [ "brix_plat_fsetxattr", "darwin_2posix__wrapper_8c.html#a12b95800dbb82a65bb251cff10ceb57d", null ],
+    [ "brix_plat_fsync_data", "darwin_2posix__wrapper_8c.html#af4b7e3c0432a965a648859aaa336293d", null ],
+    [ "brix_plat_getxattr", "darwin_2posix__wrapper_8c.html#acb175413721743027c74c04843e40813", null ],
+    [ "brix_plat_listxattr", "darwin_2posix__wrapper_8c.html#a13ed9beff168066be6b39d52058749d0", null ],
+    [ "brix_plat_pipe2", "darwin_2posix__wrapper_8c.html#ae16dd2e4a499cfaa9a5617d4b61ac0a8", null ],
+    [ "brix_plat_random", "darwin_2posix__wrapper_8c.html#ab27bf309384a1e9e662c0556309dd961", null ],
+    [ "brix_plat_removexattr", "darwin_2posix__wrapper_8c.html#a1ca3c981596889cb7f4d3c2a36b7dfa9", null ],
+    [ "brix_plat_sendfile", "darwin_2posix__wrapper_8c.html#a7e4b09b1db9d09f0b39390dc362ee57a", null ],
+    [ "brix_plat_setfsgid", "darwin_2posix__wrapper_8c.html#ae886b392f851b08d0c05cb6dc650d056", null ],
+    [ "brix_plat_setfsuid", "darwin_2posix__wrapper_8c.html#ab3bf3fc1613279a6abc00684f1684d36", null ],
+    [ "brix_plat_setxattr", "darwin_2posix__wrapper_8c.html#afad813663f1fc9d59db0f2e18d53b062", null ],
+    [ "brix_plat_splice", "darwin_2posix__wrapper_8c.html#a0e10cd46e716764296419d1a6618370e", null ],
+    [ "brix_plat_sync", "darwin_2posix__wrapper_8c.html#a3fda74c570fe611c46b0d227f890a1b4", null ],
+    [ "brix_plat_sync_tree", "darwin_2posix__wrapper_8c.html#aa4b3b2bf76c8a03298ede71e4730b88c", null ]
+];
